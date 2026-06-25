@@ -1,0 +1,80 @@
+---
+description: Pflege von docs/CHANGELOG.md für den D2R Offline Farming Bot
+globs:
+  - "internal/**"
+  - "cmd/**"
+  - "configs/**"
+  - "docs/CHANGELOG.md"
+---
+
+## Changelog
+
+Änderungshistorie für **D2R Offline Farming Bot**. Format: [Keep a Changelog](https://keepachangelog.com/).
+
+**Datei:** `docs/CHANGELOG.md`
+
+### Kategorien (Reihenfolge)
+
+| Kategorie | Verwendung |
+|-----------|------------|
+| **Added** | Neue Pakete, Features, CLI-Flags, Config-Optionen, Task-Runs |
+| **Changed** | Verhalten, Architektur, Defaults, Log-Format |
+| **Fixed** | Bugfixes, falsche Memory-Reads, Task-Abbrüche |
+| **Removed** | Entfernte Features oder Config-Keys |
+| **Security** | Sicherheitsrelevante Änderungen |
+
+### Was eintragen?
+
+**Immer:**
+- Neue Features (auch kleinere Bot-Fähigkeiten)
+- Bugfixes mit Nutzer-/Operator-Bezug
+- Entfernte Features
+- Breaking Changes (Config, CLI, Task-Verhalten)
+
+**Optional (wenn bemerkenswert):**
+- Performance bei Polling/Snapshots
+- Refactoring mit Verhaltensänderung
+- Go- oder Tooling-Updates (Major)
+
+**Nicht eintragen:**
+- Reines Refactoring ohne sichtbare Änderung
+- Code-Style, Godoc-Nachzüge
+- Interne Dev-Only-Anpassungen
+
+### Eintragsformat
+
+- Imperativ auf **Englisch** (Keep a Changelog-Konvention): „Add …“, „Fix …“, „Remove …“
+- Verständlich ohne Code-Kontext
+- Issue/PR-Referenz wenn vorhanden: `(#12)`
+
+**Gut:**
+```markdown
+### Added
+- Add read-only D2R process detection in `internal/process` (#3)
+
+### Fixed
+- Fix snapshot retry when area ID reads as zero during load screen
+```
+
+**Schlecht:**
+```markdown
+### Added
+- process stuff
+- fixed memory
+```
+
+### Versionierung
+
+[Semantic Versioning](https://semver.org/): `MAJOR.MINOR.PATCH`
+
+- **MAJOR:** Breaking Changes (Config, CLI, Task-API)
+- **MINOR:** Neue Features, neue Runs/Tasks
+- **PATCH:** Bugfixes, kleine Verbesserungen
+
+### Workflow
+
+Bei jeder relevanten Änderung:
+1. Eintrag unter `## [Unreleased]` in der passenden Kategorie
+2. Bei Release: `[Unreleased]` → `[X.Y.Z] - YYYY-MM-DD`, neues leeres `[Unreleased]` oben
+
+Commits und Releases nur auf ausdrückliche Anfrage des Nutzers.

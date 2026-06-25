@@ -54,4 +54,10 @@ go test ./...
 golangci-lint run ./...
 ```
 
-Weitere Architektur- und MVP-Details: `handoff.html` und `docs/`.
+## Dokumentation
+
+| Was | Wo |
+|-----|-----|
+| Produkt & Architektur | [`handoff.html`](handoff.html) |
+| Feature-Docs (Index) | [`docs/features/README.md`](docs/features/README.md) |
+| Changelog | [`docs/CHANGELOG.md`](docs/CHANGELOG.md) |

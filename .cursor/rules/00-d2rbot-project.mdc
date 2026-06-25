@@ -1,0 +1,59 @@
+---
+description: Core project context and conventions for the D2R Offline Farming Bot
+alwaysApply: true
+---
+
+## Project spec
+**D2R Offline Farming Bot** — externe Windows-Software für **Offline/Singleplayer** D2R. Ziel: wiederholbare Farming-Runs (MVP: **Countess**), später optional Mephisto, Cows, Baal.
+
+- **Ansatz:** Memory Bot (Prozess lesen → World Model → Tasks → Input). Kein Pixelbot, kein Savegame-Hack, keine Spielstands-Manipulation.
+- **Scope:** Nur privater Offline-Einsatz. Kein Battle.net / Online-Modus.
+- **Status:** Greenfield / Phase 0–1. Backward compatibility und Legacy-Verhalten sind **keine** Ziele, außer explizit gewünscht.
+- **Referenz:** Produkt- und Architekturdetails in `handoff.html`; Feature-Docs unter `docs/features/`; Changelog in `docs/CHANGELOG.md`.
+
+## Tech stack
+- **Language / runtime:** Go 1.26+, Zielplattform **Windows** (`GOOS=windows`).
+- **Module:** `github.com/Tyniann/d2r-offline-farming-bot`
+- **Repo:** `Tyniann/d2r-offline-farming-bot` (privat). Git-Remote per SSH: `git@github.com-tyniann:Tyniann/...` — **nicht** auf DHMG-Account oder Standard-`github.com`-Host wechseln.
+- **Config:** YAML unter `configs/` (`config.example.yaml` versionieren; `config.yaml` lokal, gitignored).
+- **Logging:** `log/slog` (strukturiert). Später optional JSONL für Run-Telemetrie.
+- **Lint / format:** `golangci-lint`, `goimports`, `gofmt` (siehe `.golangci.yml`, `Makefile`).
+- **Später optional:** TypeScript/React nur für Dashboard/Pickit-Editor — **nicht** als Memory-/Input-Core.
+
+## Layout & architecture
+Feature-first unter `internal/`. Paket-Grenzen strikt einhalten:
+
+| Paket | Verantwortung |
+|-------|----------------|
+| `cmd/d2rbot` | `main`, CLI-Flags, Wiring — keine Business-Logik |
+| `internal/app` | Orchestrierung, Lifecycle, Komponenten zusammenführen |
+| `internal/process` | D2R-Prozess finden, Handles, Polling-Takt |
+| `internal/memory` | Rohdaten lesen, Snapshots, binäre Strukturen |
+| `internal/world` | Interpretierter Spielzustand (Area, Entities, Items) |
+| `internal/pathing` | Navigation / Teleport |
+| `internal/input` | Tastatur & Maus |
+| `internal/tasks` | Run-State-Machines (Countess, …) |
+| `internal/loot` | Pickit, Inventar, Stash |
+| `internal/config` | Config-Laden, Logger-Setup |
+
+**Datenfluss:** `process` → `memory` (Snapshot) → `world` (Model) → `tasks` (Entscheidung) → `input` (Aktion). `pathing` und `loot` hängen am World Model, nicht direkt an Raw Memory.
+
+**MVP-Phasen** (nicht vorauslaufen): Phase 1 = read-only probe → Phase 2 = world model → Phase 3 = input → Phase 4 = Countess ohne Pickit → Phase 5 = loot/recovery loop.
+
+## Documentation
+1. **Pflicht:** Neue/exportierte Go-Symbole (Types, Funcs, Interfaces) sofort mit **Godoc** dokumentieren.
+2. **Syntax:** Satz mit Punkt beginnen; `[Name]` für verlinkte Symbole; `` `backticks` `` für Werte, Config-Keys, Windows-APIs.
+3. **Inhalt:** Warum/Wann — nicht Implementierungsdetails. Bei State-Machines: Zustände, Übergänge, Abbruchbedingungen benennen.
+
+## Safety & bot behavior
+- **Stop/Pause-Hotkey** und Stuck/Timeout-Recovery früh mitdenken; Tasks müssen abbrechen können.
+- Jede **Input-Aktion** loggen (was, warum, Ergebnis).
+- Memory-Snapshots als **konsistent** behandeln: bei inkonsistenten Reads lieber erneut lesen als auf fehlerhaftem State handeln.
+- **Niemals** D2R-Installations- oder Savegame-Dateien schreiben/verändern.
+
+## Common guidelines
+1. **Minimale Diffs** — nur angeforderte Änderungen; keine Drive-by-Refactors.
+2. **Fehler:** mit Kontext wrappen (`fmt.Errorf("…: %w", err)`), auf oberster Ebene loggen; nicht still schlucken.
+3. **Tests:** für Config-Parsing, World-Mapping und Task-Übergänge; Windows-API-Code über Interfaces mockbar halten.
+4. **Commits:** nur auf ausdrückliche Anfrage; nie `git config` ändern; kein Force-Push auf `master`.
+5. **Agent:** `go test ./...` und `go build ./cmd/d2rbot` nach relevanten Änderungen ausführen. Keine Spielsteuerung implementieren, solange die aktuelle Phase read-only ist — außer explizit beauftragt.
