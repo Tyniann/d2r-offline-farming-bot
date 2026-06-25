@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -22,11 +23,13 @@ import (
 
 // Runtime bundles initialized application components.
 type Runtime struct {
-	Config *config.Config
-	Log    *slog.Logger
+	Config  *config.Config
+	Options Options
+	Log     *slog.Logger
 
-	Process *process.Service
+	Process processController
 	Memory  *memory.Reader
+	Probe   snapshotReader
 	World   *world.Model
 	Input   *input.Controller
 	Tasks   *tasks.Runner
@@ -34,15 +37,52 @@ type Runtime struct {
 	Loot    *loot.Filter
 }
 
-func New(cfg *config.Config) (*Runtime, error) {
-	log := config.NewLogger(cfg.App.LogLevel)
+// New builds a Runtime from config and CLI/runtime options.
+func New(cfg *config.Config, opts Options) (*Runtime, error) {
+	logLevel := cfg.App.LogLevel
+	if opts.Verbose {
+		logLevel = "debug"
+	}
+	log := config.NewLogger(logLevel)
 	log = log.With("app", cfg.App.Name)
 
+	offsetsPath := cfg.ResolvePath(cfg.Memory.OffsetsFile)
+	offsetSet, err := memory.ResolveOffsetSet(offsetsPath)
+	if err != nil {
+		return nil, fmt.Errorf("load offsets: %w", err)
+	}
+
+	expectedVersion := cfg.Memory.GameVersion
+	if expectedVersion == "" {
+		expectedVersion = offsetSet.D2RVersion
+	}
+	if cfg.Memory.GameVersion != "" && offsetSet.D2RVersion != "" && cfg.Memory.GameVersion != offsetSet.D2RVersion {
+		log.Warn("memory.game_version does not match offset set",
+			"config_game_version", cfg.Memory.GameVersion,
+			"offset_d2r_version", offsetSet.D2RVersion,
+		)
+	}
+
+	offsetsSource := "(default)"
+	if offsetsPath != "" {
+		offsetsSource = offsetsPath
+	}
+	log.Info("offset configuration",
+		"game_version", expectedVersion,
+		"offset_set", offsetSet.Name,
+		"offsets_file", offsetsSource,
+		"attach_timeout_ms", cfg.Process.AttachTimeoutMs,
+	)
+
+	mem := memory.NewReader(log)
+	proc := process.New(log, cfg.Process.ProcessName)
 	rt := &Runtime{
 		Config:  cfg,
+		Options: opts,
 		Log:     log,
-		Process: process.New(log, cfg.Process.ProcessName),
-		Memory:  memory.NewReader(log),
+		Process: proc,
+		Memory:  mem,
+		Probe:   memory.NewProbeReader(mem, offsetSet),
 		World:   world.NewModel(log),
 		Input:   input.NewController(log),
 		Tasks:   tasks.NewRunner(log),
@@ -54,7 +94,7 @@ func New(cfg *config.Config) (*Runtime, error) {
 		return nil, err
 	}
 
-	rt.Memory.Bind(rt.Process)
+	rt.Memory.Bind(proc)
 
 	rt.verifyComponents()
 	return rt, nil
@@ -92,6 +132,8 @@ func (rt *Runtime) Run() error {
 	rt.Log.Info("d2rbot started",
 		"poll_interval_ms", rt.Config.Runtime.PollIntervalMs,
 		"target_process", rt.Config.Process.ProcessName,
+		"probe_enabled", rt.Options.Probe,
+		"verbose", rt.Options.Verbose,
 	)
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -119,10 +161,7 @@ func (rt *Runtime) Run() error {
 	ticker := time.NewTicker(time.Duration(rt.Config.Runtime.PollIntervalMs) * time.Millisecond)
 	defer ticker.Stop()
 
-	attached := false
-	waitingLogged := false
-	var lastFatalErr string
-	var lastLoggedState process.State
+	state := &runState{}
 
 	for {
 		select {
@@ -130,40 +169,41 @@ func (rt *Runtime) Run() error {
 			rt.Log.Info("shutting down")
 			return nil
 		case <-ticker.C:
-			if !attached {
-				if err := rt.Process.Attach(ctx); err != nil {
-					if ctx.Err() != nil {
-						return nil
-					}
-					if process.IsFatal(err) {
-						errMsg := err.Error()
-						if errMsg != lastFatalErr {
-							rt.Log.Error("process attach failed", "error", err)
-							lastFatalErr = errMsg
-						}
-					} else if !waitingLogged {
-						rt.Log.Info("waiting for target process",
-							"process", rt.Config.Process.ProcessName,
-						)
-						waitingLogged = true
-					}
-					continue
+			if err := rt.runTick(ctx, state); err != nil {
+				if errors.Is(err, context.Canceled) {
+					return nil
 				}
-				attached = true
-				waitingLogged = false
-				lastFatalErr = ""
-				rt.logProcessStateChange(lastLoggedState, process.StateAttached)
-				lastLoggedState = process.StateAttached
-			}
-
-			st := rt.Process.Poll()
-			if st.State == process.StateLost {
-				attached = false
-				rt.logProcessStateChange(lastLoggedState, process.StateLost)
-				lastLoggedState = process.StateLost
+				rt.Log.Error("run loop stopped", "error", err)
+				return err
 			}
 		}
 	}
+}
+
+func (rt *Runtime) logProbeSnapshot(prev, snap memory.Snapshot, heartbeat, verbose bool) {
+	if snap.Valid {
+		level := slog.LevelInfo
+		if verbose && isPositionOnlyProbeChange(prev, snap) {
+			level = slog.LevelDebug
+		}
+		rt.Log.Log(context.Background(), level, "probe state",
+			"stats_source", snap.StatsSource,
+			"hp", snap.HP,
+			"max_hp", snap.MaxHP,
+			"mana", snap.Mana,
+			"max_mana", snap.MaxMana,
+			"area_id", snap.AreaID,
+			"pos_x", snap.PosX,
+			"pos_y", snap.PosY,
+		)
+		return
+	}
+
+	if heartbeat {
+		rt.Log.Debug("probe unavailable", "reason", snap.Reason)
+		return
+	}
+	rt.Log.Info("probe unavailable", "reason", snap.Reason)
 }
 
 func (rt *Runtime) logProcessStateChange(prev, next process.State) {

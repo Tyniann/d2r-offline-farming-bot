@@ -25,6 +25,7 @@ type Status struct {
 	PID        uint32
 	Process    string
 	ModuleBase uintptr
+	ModuleSize uint32
 	LastError  string
 }
 
@@ -90,7 +91,7 @@ func (s *Service) Attach(ctx context.Context) error {
 		return err
 	}
 
-	moduleBase, err := s.api.ModuleBase(info.PID, s.processName)
+	moduleBase, moduleSize, err := s.api.ModuleImage(info.PID, s.processName)
 	if err != nil {
 		_ = s.api.Close(handle)
 		s.setLastErrorLocked(err.Error())
@@ -104,6 +105,7 @@ func (s *Service) Attach(ctx context.Context) error {
 		PID:        info.PID,
 		Process:    s.processName,
 		ModuleBase: moduleBase,
+		ModuleSize: moduleSize,
 	}
 	s.log.Debug("process attached",
 		"pid", info.PID,
@@ -152,6 +154,13 @@ func (s *Service) ModuleBase() uintptr {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.status.ModuleBase
+}
+
+// ModuleSize returns the image size of the attached module, or zero if not attached.
+func (s *Service) ModuleSize() uint32 {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.status.ModuleSize
 }
 
 // ReadAt reads raw bytes from the attached process at the given virtual address.

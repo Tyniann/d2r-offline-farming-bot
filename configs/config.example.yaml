@@ -10,6 +10,14 @@ runtime:
 
 process:
   process_name: D2R.exe
+  # 0 = unbegrenzt warten; >0 = Timeout bis zum ersten Attach (ms)
+  attach_timeout_ms: 30000
+
+memory:
+  # Erwartete D2R-Version für den Offset-Stand; leer = Default aus offsets.go
+  game_version: "3.2.92777"
+  # Leer = eingebautes DefaultOffsetSet(); sonst YAML-Override (z. B. configs/offsets.local.yaml)
+  offsets_file: ""
 
 paths:
   config_dir: configs

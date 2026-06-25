@@ -2,7 +2,7 @@
 
 ## Überblick
 
-Low-Level Read-only Memory Reader für Phase 1 Schritt 2: rohe Bytes aus dem angebundenen D2R-Prozess lesen, `uint32`/`uint64` little-endian decodieren und Pointer-Ketten auflösen. Keine Spiel-Semantik (HP, Mana, Area), keine Offsets und kein Snapshot.
+Low-Level Read-only Memory Reader für Phase 1 Schritt 2: rohe Bytes aus dem angebundenen D2R-Prozess lesen, `uint32`/`uint64` little-endian decodieren und Pointer-Ketten auflösen. Spiel-Semantik (State Probe) in Schritt 3: [State Probe](state-probe.md).
 
 ## Ort im Code
 
@@ -12,7 +12,7 @@ Low-Level Read-only Memory Reader für Phase 1 Schritt 2: rohe Bytes aus dem ang
 - **Wichtige Dateien:**
   - `memory.go` — `Reader`, `ProcessAccess`, Primitive, Pointer-Ketten
   - `process.go` / `process_windows.go` — `ReadAt` und `ReadProcessMemory`
-- **Config:** keine eigenen Keys in Schritt 2
+- **Config:** `memory.game_version`, `memory.offsets_file` (siehe [State Probe](state-probe.md)); keine eigenen Keys für Primitive-Reads
 
 ## Funktionalität
 
@@ -34,8 +34,11 @@ Kein exportiertes `windows.Handle` — `memory` bleibt plattformneutral testbar.
 | Methode | Verhalten |
 |---------|-----------|
 | `ReadBytes(addr, size)` | Liest `size` Bytes, gibt Kopie zurück; max. 64 KiB |
+| `ReadUint8(addr)` | 1 Byte |
+| `ReadUint16(addr)` | 2 Bytes little-endian |
 | `ReadUint32(addr)` | 4 Bytes little-endian |
 | `ReadUint64(addr)` | 8 Bytes little-endian |
+| `ReadInt32(addr)` | 4 Bytes little-endian (signed) |
 
 ### Pointer-Ketten
 
@@ -75,13 +78,14 @@ Kein exportiertes `windows.Handle` — `memory` bleibt plattformneutral testbar.
 
 ## Operator / CLI
 
-Schritt 2 ändert das CLI-Verhalten nicht: `app.Run()` führt weiterhin nur Prozess-Attach/Poll aus, keine aktiven Memory-Reads im Loop.
+Schritt 2 liefert Primitive; Spiel-Semantik, Snapshot-Modell und Probe-Loop: [State Probe](state-probe.md).
 
 ```powershell
 go run ./cmd/d2rbot
+go run ./cmd/d2rbot --probe
 ```
 
-Erwartung: unverändertes Wait-/Attach-/Lost-Verhalten wie in [Process Detection](process-detection.md).
+Erwartung ohne `--probe`: Wait-/Attach-/Lost-Verhalten wie in [Process Detection](process-detection.md), keine Memory-Snapshot-Reads.
 
 ## Abhängigkeiten
 
@@ -91,15 +95,14 @@ Erwartung: unverändertes Wait-/Attach-/Lost-Verhalten wie in [Process Detection
 
 ## Grenzen
 
-- Keine Game-State-Semantik, keine D2R-Offsets
-- Kein Snapshot, keine World-Model-Integration
-- `ModuleBase()` im Interface für Schritt 3 vorbereitet, in Schritt 2 noch nicht aktiv genutzt
+- Kein vollständiges World Model; State Probe liefert nur Main-Player-Minimalsnapshot (siehe [State Probe](state-probe.md))
+- `ModuleBase()` wird für modulrelative Offsets in der State Probe genutzt
 - Retry-Backoff fest (2 ms), nicht per Config
 
 ## Verwandte Features
 
 - [Process Detection](process-detection.md) — Phase 1 Schritt 1, liefert Handle und Modulbasis
-- Geplant: World Model / Snapshot (Phase 1 Schritt 3)
+- [State Probe](state-probe.md) — Phase 1 Schritt 3, Main-Player-Minimalsnapshot
 
 ---
 *Zuletzt aktualisiert: 2026-06-25*

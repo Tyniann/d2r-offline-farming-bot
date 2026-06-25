@@ -11,6 +11,7 @@ import (
 )
 
 const maxReadSize = 64 * 1024
+const maxModuleImageSize = 128 * 1024 * 1024
 
 var (
 	// ErrNotBound indicates the reader has no [ProcessAccess] bound.
@@ -28,6 +29,7 @@ var (
 type ProcessAccess interface {
 	ReadAt(addr uintptr, buf []byte) error
 	ModuleBase() uintptr
+	ModuleSize() uint32
 }
 
 type retryConfig struct {
@@ -89,6 +91,24 @@ func (r *Reader) ReadBytes(addr uintptr, size int) ([]byte, error) {
 	return out, nil
 }
 
+// ReadUint8 reads a single byte at addr.
+func (r *Reader) ReadUint8(addr uintptr) (uint8, error) {
+	buf, err := r.ReadBytes(addr, 1)
+	if err != nil {
+		return 0, fmt.Errorf("read uint8 at %#x: %w", addr, err)
+	}
+	return buf[0], nil
+}
+
+// ReadUint16 reads a little-endian uint16 at addr.
+func (r *Reader) ReadUint16(addr uintptr) (uint16, error) {
+	buf, err := r.ReadBytes(addr, 2)
+	if err != nil {
+		return 0, fmt.Errorf("read uint16 at %#x: %w", addr, err)
+	}
+	return binary.LittleEndian.Uint16(buf), nil
+}
+
 // ReadUint32 reads a little-endian uint32 at addr.
 func (r *Reader) ReadUint32(addr uintptr) (uint32, error) {
 	buf, err := r.ReadBytes(addr, 4)
@@ -96,6 +116,15 @@ func (r *Reader) ReadUint32(addr uintptr) (uint32, error) {
 		return 0, fmt.Errorf("read uint32 at %#x: %w", addr, err)
 	}
 	return binary.LittleEndian.Uint32(buf), nil
+}
+
+// ReadInt32 reads a little-endian int32 at addr.
+func (r *Reader) ReadInt32(addr uintptr) (int32, error) {
+	buf, err := r.ReadBytes(addr, 4)
+	if err != nil {
+		return 0, fmt.Errorf("read int32 at %#x: %w", addr, err)
+	}
+	return int32(binary.LittleEndian.Uint32(buf)), nil
 }
 
 // ReadUint64 reads a little-endian uint64 at addr.

@@ -14,6 +14,7 @@ import (
 type mockAccess struct {
 	memory        map[uintptr][]byte
 	moduleBase    uintptr
+	moduleSize    uint32
 	readAtCalls   int
 	failRemaining int
 	readAtErr     error
@@ -44,19 +45,42 @@ func (m *mockAccess) ReadAt(addr uintptr, buf []byte) error {
 		return fmt.Errorf("read at %#x: %w", addr, process.ErrPartialRead)
 	}
 
-	data, ok := m.memory[addr]
+	data, ok := m.memoryAt(addr, len(buf))
 	if !ok {
 		return fmt.Errorf("read at %#x: %w", addr, process.ErrInvalidRead)
 	}
-	if len(data) < len(buf) {
-		return fmt.Errorf("read at %#x: %w", addr, process.ErrPartialRead)
-	}
-	copy(buf, data[:len(buf)])
+	copy(buf, data)
 	return nil
+}
+
+func (m *mockAccess) memoryAt(addr uintptr, size int) ([]byte, bool) {
+	if data, ok := m.memory[addr]; ok {
+		if len(data) < size {
+			return nil, false
+		}
+		return data[:size], true
+	}
+	for base, data := range m.memory {
+		if addr < base {
+			continue
+		}
+		off := int(addr - base)
+		if off+size <= len(data) {
+			return data[off : off+size], true
+		}
+	}
+	return nil, false
 }
 
 func (m *mockAccess) ModuleBase() uintptr {
 	return m.moduleBase
+}
+
+func (m *mockAccess) ModuleSize() uint32 {
+	if m.moduleSize != 0 {
+		return m.moduleSize
+	}
+	return 32 * 1024 * 1024
 }
 
 func testLogger() *slog.Logger {

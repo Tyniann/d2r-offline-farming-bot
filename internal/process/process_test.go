@@ -18,6 +18,7 @@ type mockAPI struct {
 	processes   map[string][]ProcessInfo
 	handles     map[uint32]nativeHandle
 	moduleBases map[uint32]uintptr
+	moduleSizes map[uint32]uint32
 	alive       map[nativeHandle]bool
 	nextHandle  atomic.Uint64
 	openErr     error
@@ -44,6 +45,7 @@ func newMockAPI() *mockAPI {
 		processes:   make(map[string][]ProcessInfo),
 		handles:     make(map[uint32]nativeHandle),
 		moduleBases: make(map[uint32]uintptr),
+		moduleSizes: make(map[uint32]uint32),
 		alive:       make(map[nativeHandle]bool),
 		memory:      make(map[uintptr][]byte),
 	}
@@ -56,6 +58,7 @@ func (m *mockAPI) addProcess(name string, pid uint32, moduleBase uintptr) native
 	info := ProcessInfo{PID: pid, Name: name}
 	m.processes[strings.ToLower(name)] = append(m.processes[strings.ToLower(name)], info)
 	m.moduleBases[pid] = moduleBase
+	m.moduleSizes[pid] = 32 * 1024 * 1024
 
 	handle := nativeHandle(m.nextHandle.Add(1))
 	m.handles[pid] = handle
@@ -98,10 +101,10 @@ func (m *mockAPI) OpenReadHandle(pid uint32) (nativeHandle, error) {
 	return handle, nil
 }
 
-func (m *mockAPI) ModuleBase(pid uint32, moduleName string) (uintptr, error) {
+func (m *mockAPI) ModuleImage(pid uint32, moduleName string) (uintptr, uint32, error) {
 	m.moduleCalls.Add(1)
 	if m.moduleErr != nil {
-		return 0, m.moduleErr
+		return 0, 0, m.moduleErr
 	}
 
 	m.mu.Lock()
@@ -109,9 +112,13 @@ func (m *mockAPI) ModuleBase(pid uint32, moduleName string) (uintptr, error) {
 
 	base, ok := m.moduleBases[pid]
 	if !ok {
-		return 0, fmt.Errorf("module %s: %w", moduleName, ErrModuleNotFound)
+		return 0, 0, fmt.Errorf("module %s: %w", moduleName, ErrModuleNotFound)
 	}
-	return base, nil
+	size := m.moduleSizes[pid]
+	if size == 0 {
+		size = 32 * 1024 * 1024
+	}
+	return base, size, nil
 }
 
 func (m *mockAPI) IsAlive(handle nativeHandle) bool {

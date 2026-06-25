@@ -1,0 +1,43 @@
+# Beispiel-Offsets (von DefaultOffsetSet). Lokale Overrides: configs/offsets.local.yaml
+# In config.yaml: memory.offsets_file: configs/offsets.local.yaml
+
+name: d2go-16d248a
+d2r_version: "3.2.92777"
+source: github.com/hectorgimenez/d2go
+source_commit: 16d248a53591
+verified_at: "2026-06-25"
+module_name: D2R.exe
+
+# Patch-sensitive module-relative offsets (moduleBase + offset)
+game_data: "0x29C7C38"
+unit_table: "0x22C6090"
+ui: "0x22D5D82"
+expansion: "0x21E1D88"
+
+unit:
+  unit_type: "0x00"
+  unit_id: "0x08"
+  unit_data: "0x10"
+  path: "0x38"
+  stats_list_ex: "0x88"
+  inventory: "0x90"
+  next_unit: "0x158"
+  main_player_normal: "0x30"
+  main_player_expansion: "0x70"
+  expansion_char_flag: "0x5C"
+  position_x: "0x02"
+  position_y: "0x06"
+  path_room1: "0x20"
+  room2: "0x18"
+  level: "0x90"
+  area: "0x1F8"
+  stats_list_base: "0x30"
+  stats_list_active: "0xA8"
+
+stats:
+  list_ptr: "0x00"
+  count: "0x08"
+  entry_stride: 8
+  layer: "0x00"
+  id: "0x02"
+  value: "0x04"

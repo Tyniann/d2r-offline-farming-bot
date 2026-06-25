@@ -13,7 +13,7 @@ type nativeHandle uintptr
 type processAPI interface {
 	FindProcessByName(name string) (ProcessInfo, error)
 	OpenReadHandle(pid uint32) (nativeHandle, error)
-	ModuleBase(pid uint32, moduleName string) (uintptr, error)
+	ModuleImage(pid uint32, moduleName string) (base uintptr, size uint32, err error)
 	IsAlive(handle nativeHandle) bool
 	Close(handle nativeHandle) error
 	ReadMemory(handle nativeHandle, addr uintptr, buf []byte) error

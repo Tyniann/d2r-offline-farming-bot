@@ -1,0 +1,62 @@
+package memory
+
+import "testing"
+
+func TestStatIDConstantsMatchD2go(t *testing.T) {
+	// d2go pkg/data/stat: Strength=0 … Life=6, MaxLife=7, Mana=8, MaxMana=9.
+	if StatLife != 6 || StatMaxLife != 7 || StatMana != 8 || StatMaxMana != 9 {
+		t.Fatalf("stat IDs changed: life=%d max=%d mana=%d max_mana=%d", StatLife, StatMaxLife, StatMana, StatMaxMana)
+	}
+}
+
+func TestParseVitalStatsSkipsNonZeroLayer(t *testing.T) {
+	access := newMockAccess()
+	const header = uintptr(0xC000)
+	const array = uintptr(0xD000)
+	off := DefaultOffsetSet().Stats
+
+	writeU64(access, header+off.ListPtr, uint64(array))
+	writeU64(access, header+off.Count, 5)
+	// Layer 1 entries must be ignored; layer 0 holds the vitals.
+	writeStatEntry(access, array+0, 1, StatLife, 99999)
+	writeStatEntry(access, array+8, 0, StatLife, 25600)
+	writeStatEntry(access, array+16, 0, StatMaxLife, 32000)
+	writeStatEntry(access, array+24, 0, StatMana, 12800)
+	writeStatEntry(access, array+32, 0, StatMaxMana, 19200)
+
+	reader := newTestReader(access)
+	reader.Bind(access)
+
+	vitals, err := parseVitalStats(reader, header, off)
+	if err != nil {
+		t.Fatalf("parseVitalStats() error = %v", err)
+	}
+	if vitals.HP != 100 {
+		t.Fatalf("HP = %d, want 100 (layer 1 entry must be skipped)", vitals.HP)
+	}
+}
+
+func TestParseVitalStatsAllFour(t *testing.T) {
+	access := newMockAccess()
+	const header = uintptr(0xE000)
+	const array = uintptr(0xF000)
+	off := DefaultOffsetSet().Stats
+
+	writeU64(access, header+off.ListPtr, uint64(array))
+	writeU64(access, header+off.Count, 4)
+	writeStatEntry(access, array+0, 0, StatLife, 25600)
+	writeStatEntry(access, array+8, 0, StatMaxLife, 32000)
+	writeStatEntry(access, array+16, 0, StatMana, 12800)
+	writeStatEntry(access, array+24, 0, StatMaxMana, 19200)
+
+	reader := newTestReader(access)
+	reader.Bind(access)
+
+	vitals, err := parseVitalStats(reader, header, off)
+	if err != nil {
+		t.Fatalf("parseVitalStats() error = %v", err)
+	}
+	if vitals.HP != 100 || vitals.MaxHP != 125 || vitals.Mana != 50 || vitals.MaxMana != 75 {
+		t.Fatalf("vitals = %+v", vitals)
+	}
+}

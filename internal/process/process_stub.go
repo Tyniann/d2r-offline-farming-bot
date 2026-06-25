@@ -18,8 +18,8 @@ func (s *stubAPI) OpenReadHandle(pid uint32) (nativeHandle, error) {
 	return 0, fmt.Errorf("open process pid=%d: %w", pid, ErrAccessDenied)
 }
 
-func (s *stubAPI) ModuleBase(pid uint32, moduleName string) (uintptr, error) {
-	return 0, fmt.Errorf("module %s in pid=%d: %w", moduleName, pid, ErrModuleNotFound)
+func (s *stubAPI) ModuleImage(pid uint32, moduleName string) (uintptr, uint32, error) {
+	return 0, 0, fmt.Errorf("module %s in pid=%d: %w", moduleName, pid, ErrModuleNotFound)
 }
 
 func (s *stubAPI) IsAlive(handle nativeHandle) bool {

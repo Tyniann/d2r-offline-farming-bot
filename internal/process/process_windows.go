@@ -78,10 +78,10 @@ func (w *windowsAPI) OpenReadHandle(pid uint32) (nativeHandle, error) {
 	return nativeHandle(handle), nil
 }
 
-func (w *windowsAPI) ModuleBase(pid uint32, moduleName string) (uintptr, error) {
+func (w *windowsAPI) ModuleImage(pid uint32, moduleName string) (uintptr, uint32, error) {
 	snapshot, err := windows.CreateToolhelp32Snapshot(th32csSnapModule, pid)
 	if err != nil {
-		return 0, fmt.Errorf("create module snapshot pid=%d: %w", pid, mapWindowsError(err))
+		return 0, 0, fmt.Errorf("create module snapshot pid=%d: %w", pid, mapWindowsError(err))
 	}
 	defer windows.CloseHandle(snapshot)
 
@@ -89,13 +89,13 @@ func (w *windowsAPI) ModuleBase(pid uint32, moduleName string) (uintptr, error) 
 	entry.Size = uint32(unsafe.Sizeof(entry))
 
 	if err := windows.Module32First(snapshot, &entry); err != nil {
-		return 0, fmt.Errorf("enumerate modules pid=%d: %w", pid, mapWindowsError(err))
+		return 0, 0, fmt.Errorf("enumerate modules pid=%d: %w", pid, mapWindowsError(err))
 	}
 
 	for {
 		modName := windows.UTF16ToString(entry.Module[:])
 		if strings.EqualFold(modName, moduleName) {
-			return uintptr(entry.ModBaseAddr), nil
+			return uintptr(entry.ModBaseAddr), entry.ModBaseSize, nil
 		}
 
 		if err := windows.Module32Next(snapshot, &entry); err != nil {
@@ -103,7 +103,7 @@ func (w *windowsAPI) ModuleBase(pid uint32, moduleName string) (uintptr, error) 
 		}
 	}
 
-	return 0, fmt.Errorf("module %s in pid=%d: %w", moduleName, pid, ErrModuleNotFound)
+	return 0, 0, fmt.Errorf("module %s in pid=%d: %w", moduleName, pid, ErrModuleNotFound)
 }
 
 func (w *windowsAPI) IsAlive(handle nativeHandle) bool {
