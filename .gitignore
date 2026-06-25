@@ -1,0 +1,46 @@
+# Binaries
+/bin/
+/dist/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test & coverage
+*.test
+*.out
+coverage.*
+*.coverprofile
+
+# Go workspace
+go.work
+go.work.sum
+
+# Dependencies (vendoring optional)
+/vendor/
+
+# IDE
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Local config (secrets, machine-specific paths)
+/configs/config.yaml
+/configs/*.local.yaml
+.env
+.env.*
+
+# Logs & runtime artifacts
+/logs/
+*.log
+/tmp/

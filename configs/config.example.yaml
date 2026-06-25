@@ -1,0 +1,15 @@
+# Lokale Konfiguration (von config.example.yaml kopieren).
+# Diese Datei wird nicht versioniert.
+
+app:
+  name: d2rbot
+  log_level: info
+
+runtime:
+  poll_interval_ms: 100
+
+process:
+  process_name: D2R.exe
+
+paths:
+  config_dir: configs
