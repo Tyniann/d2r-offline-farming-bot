@@ -85,7 +85,7 @@ go run ./cmd/d2rbot
 go run ./cmd/d2rbot --probe
 ```
 
-Erwartung ohne `--probe`: Wait-/Attach-/Lost-Verhalten wie in [Process Detection](process-detection.md), keine Memory-Snapshot-Reads.
+Erwartung ohne `--probe`: Wait-/Attach-/Lost-Verhalten wie in [Process Detection](process-detection.md); Memory-Snapshots werden im attached-Zustand gelesen und in `world.State` gemappt, aber nicht geloggt.
 
 ## Abhängigkeiten
 

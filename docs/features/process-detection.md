@@ -86,8 +86,8 @@ go run ./cmd/d2rbot --probe
 
 - Bot kann **vor** D2R gestartet werden → wartet mit `waiting for target process` (oder bricht nach `attach_timeout_ms` ab)
 - Nach Erfolg: `process attached` mit PID und `module_base`
-- Mit `--probe` im Spiel (attached): sparsame `probe state`-Logs — siehe [State Probe](state-probe.md)
-- Ohne `--probe`: nur Prozess-Lifecycle-Logs (Default)
+- Mit `--probe` im Spiel (attached): sparsame `world state`-Logs — siehe [State Probe](state-probe.md)
+- Ohne `--probe`: Prozess-Lifecycle-Logs; Memory-Snapshots und World-Update laufen intern ohne Operator-Log (Default)
 - D2R schließen → einmalig `process lost`, danach wieder warten
 - D2R neu starten → automatischer Re-Attach
 - Bei UAC-Problemen: Bot ggf. als Administrator starten
@@ -99,7 +99,7 @@ go run ./cmd/d2rbot --probe
 
 ## Grenzen
 
-- State Probe läuft im App-Loop nach `Poll()` nur mit `--probe`; kein separates Snapshot-Paket
+- Memory-Snapshots und World-Update laufen im App-Loop nach jedem attached `Poll()`; `--probe` steuert nur Operator-Logging (siehe [State Probe](state-probe.md))
 - Re-Attach nur im App-Loop, nicht in `Poll()`
 - Zweite `D2R.exe` während bestehender Bindung wird nicht erkannt; Mehrfach-Prüfung greift erst beim nächsten Attach
 - `memory.Reader` erhält Zugriff über `process.Service` via `ProcessAccess`-Interface — kein exportiertes `windows.Handle` (siehe [Memory Reader](memory-reader.md))

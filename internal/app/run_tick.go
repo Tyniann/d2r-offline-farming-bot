@@ -7,6 +7,7 @@ import (
 
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/memory"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/process"
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/world"
 )
 
 // processController is the subset of process.Service used by the run loop.
@@ -31,16 +32,16 @@ type runState struct {
 	waitingLogged     bool
 	lastFatalErr      string
 	lastLoggedState   process.State
-	probe             probeLoopState
+	world             worldLoopState
 }
 
-type probeLoopState struct {
+type worldLoopState struct {
 	forceLog   bool
-	lastLogged memory.Snapshot
+	lastLogged world.State
 	lastLog    time.Time
 }
 
-// runTick executes one poll-loop iteration: attach, poll, and optional probe snapshot.
+// runTick executes one poll-loop iteration: attach, poll, snapshot read, and world update.
 func (rt *Runtime) runTick(ctx context.Context, state *runState) error {
 	if !state.attached {
 		if !state.hasEverAttached {
@@ -82,7 +83,7 @@ func (rt *Runtime) runTick(ctx context.Context, state *runState) error {
 		state.waitingLogged = false
 		state.lastFatalErr = ""
 		if rt.Options.Probe {
-			state.probe.forceLog = true
+			state.world.forceLog = true
 		}
 		rt.logProcessStateChange(state.lastLoggedState, process.StateAttached)
 		state.lastLoggedState = process.StateAttached
@@ -91,24 +92,26 @@ func (rt *Runtime) runTick(ctx context.Context, state *runState) error {
 
 	st := rt.Process.Poll()
 	if st.State == process.StateLost {
-		state.attached = false
-		if rt.Options.Probe {
-			state.probe = probeLoopState{}
+		prev := rt.World.Current()
+		cur := rt.World.Reset(time.Now(), worldResetReasonProcessLost)
+		if rt.Options.Probe && worldShouldLog(prev, cur, state.world.lastLog, worldHeartbeat, state.world.forceLog, rt.Options.Verbose) {
+			rt.logWorldState(prev, cur, worldLogIsHeartbeat(state.world.lastLog, worldHeartbeat), rt.Options.Verbose)
 		}
+		state.world = worldLoopState{}
+		state.attached = false
 		rt.logProcessStateChange(state.lastLoggedState, process.StateLost)
 		state.lastLoggedState = process.StateLost
 		return nil
 	}
 
-	if state.attached && st.State == process.StateAttached && rt.Options.Probe {
-		snap := rt.Probe.Snapshot()
-		verbose := rt.Options.Verbose
-		if probeShouldLog(state.probe.lastLogged, snap, state.probe.lastLog, probeHeartbeat, state.probe.forceLog, verbose) {
-			rt.logProbeSnapshot(state.probe.lastLogged, snap, probeLogIsHeartbeat(state.probe.lastLog, probeHeartbeat), verbose)
-			state.probe.lastLogged = snap
-			state.probe.lastLog = time.Now()
-			state.probe.forceLog = false
-		}
+	snap := rt.Probe.Snapshot()
+	cur := rt.World.Update(snap)
+	prev := state.world.lastLogged
+	if rt.Options.Probe && worldShouldLog(prev, cur, state.world.lastLog, worldHeartbeat, state.world.forceLog, rt.Options.Verbose) {
+		rt.logWorldState(prev, cur, worldLogIsHeartbeat(state.world.lastLog, worldHeartbeat), rt.Options.Verbose)
+		state.world.lastLogged = cur
+		state.world.lastLog = time.Now()
+		state.world.forceLog = false
 	}
 
 	return nil

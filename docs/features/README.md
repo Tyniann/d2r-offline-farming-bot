@@ -6,12 +6,12 @@
 |---------|--------------|
 | [Process Detection](process-detection.md) | Read-only D2R-Prozessbindung, Modulbasis, Lifecycle, Attach-Timeout |
 | [Memory Reader](memory-reader.md) | Low-Level Byte-Reads, Primitive-Dekodierung, Pointer-Ketten |
-| [State Probe](state-probe.md) | Read-only Main-Player-Probe (HP/Mana/Area/Position), Offset-YAML |
+| [State Probe](state-probe.md) | Memory-Reads, World-Update im App-Loop; `--probe` für semantisches World-State-Logging |
+| [World Model](world-model.md) | Domain-Typen (Area, Player, State), eingebetteter Area-Katalog; kontinuierliches Update im App-Loop (2.3); Validierung Phase 2.4 |
 
 ## Geplante Dokumentation (MVP-Phasen)
 
 | Phase | Vorgeschlagene Datei |
 |-------|----------------------|
-| World Model | `world-model.md` |
 | Input-Controller | `input-controller.md` |
 | Countess-Run | `countess-run.md` |

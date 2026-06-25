@@ -18,6 +18,7 @@ import (
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/pathing"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/process"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/tasks"
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/version"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/world"
 )
 
@@ -130,6 +131,8 @@ func (rt *Runtime) verifyComponents() {
 
 func (rt *Runtime) Run() error {
 	rt.Log.Info("d2rbot started",
+		"version", version.Version,
+		"commit", version.Commit,
 		"poll_interval_ms", rt.Config.Runtime.PollIntervalMs,
 		"target_process", rt.Config.Process.ProcessName,
 		"probe_enabled", rt.Options.Probe,
@@ -178,32 +181,6 @@ func (rt *Runtime) Run() error {
 			}
 		}
 	}
-}
-
-func (rt *Runtime) logProbeSnapshot(prev, snap memory.Snapshot, heartbeat, verbose bool) {
-	if snap.Valid {
-		level := slog.LevelInfo
-		if verbose && isPositionOnlyProbeChange(prev, snap) {
-			level = slog.LevelDebug
-		}
-		rt.Log.Log(context.Background(), level, "probe state",
-			"stats_source", snap.StatsSource,
-			"hp", snap.HP,
-			"max_hp", snap.MaxHP,
-			"mana", snap.Mana,
-			"max_mana", snap.MaxMana,
-			"area_id", snap.AreaID,
-			"pos_x", snap.PosX,
-			"pos_y", snap.PosY,
-		)
-		return
-	}
-
-	if heartbeat {
-		rt.Log.Debug("probe unavailable", "reason", snap.Reason)
-		return
-	}
-	rt.Log.Info("probe unavailable", "reason", snap.Reason)
 }
 
 func (rt *Runtime) logProcessStateChange(prev, next process.State) {

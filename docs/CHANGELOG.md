@@ -7,7 +7,14 @@ Versionierung nach [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-06-25
+
+Erstes veröffentlichtes Release: Phase 1 (read-only Memory/Probe) und Phase 2 (World Model) abgeschlossen. Validiert mit D2R `3.2.92777`.
+
 ### Added
+- Add world-state logging for named areas, player percentages, and position (Phase 2.3)
+- Add snapshot-to-world-state mapper and current world model state storage (Phase 2.2)
+- Add world domain types and embedded area catalog in `internal/world` (Phase 2.1)
 - Add `memory` config section with `game_version` and `offsets_file` for optional YAML offset overrides
 - Add `process.attach_timeout_ms` to limit initial wait for first D2R attach (`0` = unlimited)
 - Add `configs/offsets.example.yaml` and `internal/memory/offsets_file.go` (hex YAML overlay on `DefaultOffsetSet`)
@@ -25,8 +32,11 @@ Versionierung nach [Semantic Versioning](https://semver.org/).
 - Add Cursor project rules and feature documentation structure
 
 ### Changed
+- Update app loop to refresh world state on every attached poll and make `--probe` control world-state logging (Phase 2.3)
+- Remove raw `StatsSource` from operator world logs; logs use semantic `world.State` fields instead
+- Complete Phase 2: manual World Model validation for Countess route (Sessions A–C)
+- Add release build script, GitHub Release workflow, and embedded app version (`--version`)
 - Complete Phase 1: config-driven offsets, attach timeout, startup logging for offset set and game version
-- Make state probing opt-in via `--probe`; default run only monitors process attach/lost
 - Prefer `BaseStats` for probe HP/Mana values; suppress position-only probe Info logs unless `--verbose` (Debug)
 
 ---

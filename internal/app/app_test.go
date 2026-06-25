@@ -8,6 +8,7 @@ import (
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/config"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/memory"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/process"
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/world"
 )
 
 func TestProcessServiceImplementsProcessAccess(t *testing.T) {
@@ -24,130 +25,6 @@ func validSnapshot(hp uint32) memory.Snapshot {
 		AreaID:  1,
 		PosX:    10,
 		PosY:    20,
-	}
-}
-
-func TestProbeShouldLogOnValueChange(t *testing.T) {
-	prev := validSnapshot(100)
-	cur := validSnapshot(90)
-	if !probeShouldLog(prev, cur, time.Now(), probeHeartbeat, false, false) {
-		t.Fatal("expected log on HP change")
-	}
-}
-
-func TestProbeShouldNotLogOnlyPositionChange(t *testing.T) {
-	prev := validSnapshot(100)
-	cur := validSnapshot(100)
-	cur.PosX++
-	cur.PosY++
-
-	if probeShouldLog(prev, cur, time.Now(), probeHeartbeat, false, false) {
-		t.Fatal("unexpected log for position-only change within heartbeat")
-	}
-}
-
-func TestProbeShouldLogPositionChangeInVerbose(t *testing.T) {
-	prev := validSnapshot(100)
-	cur := validSnapshot(100)
-	cur.PosX++
-	cur.PosY++
-
-	if !probeShouldLog(prev, cur, time.Now(), probeHeartbeat, false, true) {
-		t.Fatal("expected log for position-only change in verbose mode")
-	}
-}
-
-func TestProbeShouldLogAreaChange(t *testing.T) {
-	prev := validSnapshot(100)
-	cur := validSnapshot(100)
-	cur.AreaID++
-
-	if !probeShouldLog(prev, cur, time.Now(), probeHeartbeat, false, false) {
-		t.Fatal("expected log on area change")
-	}
-}
-
-func TestProbeShouldLogHeartbeat(t *testing.T) {
-	snap := validSnapshot(100)
-	last := time.Now().Add(-6 * time.Second)
-	if !probeShouldLog(snap, snap, last, probeHeartbeat, false, false) {
-		t.Fatal("expected log after heartbeat interval")
-	}
-}
-
-func TestProbeShouldNotLogUnchanged(t *testing.T) {
-	snap := validSnapshot(100)
-	last := time.Now()
-	if probeShouldLog(snap, snap, last, probeHeartbeat, false, false) {
-		t.Fatal("unexpected log for unchanged snapshot within heartbeat")
-	}
-}
-
-func TestProbeShouldLogInvalidReasonChange(t *testing.T) {
-	prev := memory.Snapshot{Valid: false, Reason: memory.ReasonNotInGame}
-	cur := memory.Snapshot{Valid: false, Reason: memory.ReasonStatsUnavailable}
-	if !probeShouldLog(prev, cur, time.Now(), probeHeartbeat, false, false) {
-		t.Fatal("expected log when invalid reason changes")
-	}
-}
-
-func TestProbeShouldNotLogSameInvalidReason(t *testing.T) {
-	prev := memory.Snapshot{Valid: false, Reason: memory.ReasonNotInGame}
-	cur := memory.Snapshot{Valid: false, Reason: memory.ReasonNotInGame}
-	if probeShouldLog(prev, cur, time.Now(), probeHeartbeat, false, false) {
-		t.Fatal("unexpected log for same invalid reason within heartbeat")
-	}
-}
-
-func TestProbeShouldLogInvalidOnHeartbeat(t *testing.T) {
-	prev := memory.Snapshot{Valid: false, Reason: memory.ReasonNotInGame}
-	cur := memory.Snapshot{Valid: false, Reason: memory.ReasonNotInGame}
-	last := time.Now().Add(-6 * time.Second)
-	if !probeShouldLog(prev, cur, last, probeHeartbeat, false, false) {
-		t.Fatal("expected heartbeat log for unchanged invalid snapshot")
-	}
-}
-
-func TestProbeShouldNotLogPositionOnlyOnHeartbeat(t *testing.T) {
-	prev := validSnapshot(100)
-	cur := validSnapshot(100)
-	cur.PosX++
-	cur.PosY++
-	last := time.Now().Add(-6 * time.Second)
-
-	if probeShouldLog(prev, cur, last, probeHeartbeat, false, false) {
-		t.Fatal("unexpected heartbeat Info log for position-only change without verbose")
-	}
-	if !probeShouldLog(prev, cur, last, probeHeartbeat, false, true) {
-		t.Fatal("expected heartbeat log for position-only change in verbose mode")
-	}
-}
-
-func TestProbeShouldLogOnForce(t *testing.T) {
-	snap := validSnapshot(100)
-	if !probeShouldLog(snap, snap, time.Now(), probeHeartbeat, true, false) {
-		t.Fatal("expected log when force=true after re-attach")
-	}
-}
-
-func TestProbeShouldLogValidToInvalid(t *testing.T) {
-	prev := validSnapshot(100)
-	cur := memory.Snapshot{Valid: false, Reason: memory.ReasonNotInGame}
-	if !probeShouldLog(prev, cur, time.Now(), probeHeartbeat, false, false) {
-		t.Fatal("expected log when snapshot becomes invalid")
-	}
-}
-
-func TestProbeLogStateAfterProcessLostAndReattach(t *testing.T) {
-	var lastLogged memory.Snapshot
-	var lastLog time.Time
-
-	lastLogged = memory.Snapshot{}
-	lastLog = time.Time{}
-
-	snap := validSnapshot(100)
-	if !probeShouldLog(lastLogged, snap, lastLog, probeHeartbeat, true, false) {
-		t.Fatal("expected forced log after re-attach")
 	}
 }
 
@@ -196,10 +73,11 @@ func testRuntime(proc processController, probe snapshotReader, opts Options) *Ru
 		Log:     config.NewLogger("error"),
 		Process: proc,
 		Probe:   probe,
+		World:   world.NewModel(config.NewLogger("error")),
 	}
 }
 
-func TestRunTickWithoutProbeDoesNotCallSnapshot(t *testing.T) {
+func TestRunTickWithoutProbeUpdatesWorld(t *testing.T) {
 	probe := &mockProbe{snap: validSnapshot(100)}
 	proc := &mockProcess{
 		pollStatus: process.Status{State: process.StateAttached},
@@ -211,11 +89,58 @@ func TestRunTickWithoutProbeDoesNotCallSnapshot(t *testing.T) {
 	if err := rt.runTick(context.Background(), state); err != nil {
 		t.Fatal(err)
 	}
-	if probe.calls != 0 {
-		t.Fatalf("Snapshot() calls = %d, want 0", probe.calls)
+	if probe.calls != 1 {
+		t.Fatalf("Snapshot() calls = %d, want 1", probe.calls)
 	}
 	if proc.pollCalls != 1 {
 		t.Fatalf("Poll() calls = %d, want 1", proc.pollCalls)
+	}
+	cur := rt.World.Current()
+	if !cur.Valid {
+		t.Fatal("expected world state updated without --probe")
+	}
+	if cur.Player.HP != 100 {
+		t.Fatalf("world HP = %d, want 100", cur.Player.HP)
+	}
+	if state.world.forceLog {
+		t.Fatal("unexpected forceLog when probe disabled")
+	}
+}
+
+func TestRunTickPositionOnlyKeepsLastLoggedWithoutVerbose(t *testing.T) {
+	snap1 := validSnapshot(100)
+	snap1.PosX = 10
+	snap2 := validSnapshot(100)
+	snap2.PosX = 99
+
+	probe := &mockProbe{snap: snap1}
+	proc := &mockProcess{
+		pollStatus: process.Status{State: process.StateAttached},
+		status:     process.Status{State: process.StateAttached},
+	}
+	rt := testRuntime(proc, probe, Options{Probe: true})
+	state := &runState{
+		attached: true,
+		world: worldLoopState{
+			lastLogged: world.FromSnapshot(snap1),
+			lastLog:    time.Now(),
+		},
+	}
+
+	if err := rt.runTick(context.Background(), state); err != nil {
+		t.Fatal(err)
+	}
+	loggedPos := state.world.lastLogged.Player.Position.X
+
+	probe.snap = snap2
+	if err := rt.runTick(context.Background(), state); err != nil {
+		t.Fatal(err)
+	}
+	if rt.World.Current().Player.Position.X != 99 {
+		t.Fatalf("Current pos = %d, want 99 after position-only update", rt.World.Current().Player.Position.X)
+	}
+	if state.world.lastLogged.Player.Position.X != loggedPos {
+		t.Fatalf("lastLogged pos changed from %d to %d; run loop must compare lastLogged, not Current()", loggedPos, state.world.lastLogged.Player.Position.X)
 	}
 }
 
@@ -237,20 +162,25 @@ func TestRunTickWithProbeCallsSnapshotAfterPoll(t *testing.T) {
 	if probe.calls != 1 {
 		t.Fatalf("Snapshot() calls = %d, want 1", probe.calls)
 	}
+	cur := rt.World.Current()
+	if !cur.Valid || cur.Player.HP != 100 {
+		t.Fatalf("unexpected world state: %+v", cur)
+	}
 }
 
-func TestRunTickLostResetsProbeState(t *testing.T) {
+func TestRunTickLostResetsWorldState(t *testing.T) {
 	probe := &mockProbe{snap: validSnapshot(100)}
 	proc := &mockProcess{
 		pollStatus: process.Status{State: process.StateLost},
 		status:     process.Status{State: process.StateLost, PID: 42},
 	}
 	rt := testRuntime(proc, probe, Options{Probe: true})
+	rt.World.Update(validSnapshot(100))
 	state := &runState{
 		attached: true,
-		probe: probeLoopState{
+		world: worldLoopState{
 			forceLog:   false,
-			lastLogged: validSnapshot(100),
+			lastLogged: validWorldState(100),
 			lastLog:    time.Now(),
 		},
 	}
@@ -261,15 +191,47 @@ func TestRunTickLostResetsProbeState(t *testing.T) {
 	if state.attached {
 		t.Fatal("expected detached after lost")
 	}
-	if !state.probe.lastLog.IsZero() || state.probe.lastLogged.Valid {
-		t.Fatal("expected probe log state reset on lost")
+	if !state.world.lastLog.IsZero() || state.world.lastLogged.Valid {
+		t.Fatal("expected world log state reset on lost")
+	}
+	cur := rt.World.Current()
+	if cur.Valid {
+		t.Fatal("expected invalid world state after process lost")
+	}
+	if cur.Reason != worldResetReasonProcessLost {
+		t.Fatalf("Reason = %q, want %q", cur.Reason, worldResetReasonProcessLost)
+	}
+	if cur.Area != (world.Area{}) || cur.Player != (world.Player{}) {
+		t.Fatalf("expected zero Area/Player after reset, got Area=%+v Player=%+v", cur.Area, cur.Player)
 	}
 	if probe.calls != 0 {
 		t.Fatalf("Snapshot() calls = %d, want 0 on lost", probe.calls)
 	}
 }
 
-func TestRunTickReattachSetsProbeForceLog(t *testing.T) {
+func TestRunTickLostResetsWorldWithoutProbe(t *testing.T) {
+	probe := &mockProbe{snap: validSnapshot(100)}
+	proc := &mockProcess{
+		pollStatus: process.Status{State: process.StateLost},
+		status:     process.Status{State: process.StateLost, PID: 42},
+	}
+	rt := testRuntime(proc, probe, Options{Probe: false})
+	rt.World.Update(validSnapshot(100))
+	state := &runState{attached: true}
+
+	if err := rt.runTick(context.Background(), state); err != nil {
+		t.Fatal(err)
+	}
+	cur := rt.World.Current()
+	if cur.Valid || cur.Reason != worldResetReasonProcessLost {
+		t.Fatalf("expected process_lost reset without probe, got %+v", cur)
+	}
+	if probe.calls != 0 {
+		t.Fatalf("Snapshot() calls = %d, want 0 on lost", probe.calls)
+	}
+}
+
+func TestRunTickReattachSetsWorldForceLog(t *testing.T) {
 	probe := &mockProbe{snap: validSnapshot(100)}
 	proc := &mockProcess{
 		status: process.Status{State: process.StateAttached, PID: 1, ModuleBase: 0x1000},
@@ -280,7 +242,7 @@ func TestRunTickReattachSetsProbeForceLog(t *testing.T) {
 	if err := rt.runTick(context.Background(), state); err != nil {
 		t.Fatal(err)
 	}
-	if !state.probe.forceLog {
+	if !state.world.forceLog {
 		t.Fatal("expected forceLog after attach with probe enabled")
 	}
 }
@@ -326,11 +288,11 @@ func TestRunTickReattachWithoutProbeSkipsForceLog(t *testing.T) {
 	if err := rt.runTick(context.Background(), state); err != nil {
 		t.Fatal(err)
 	}
-	if state.probe.forceLog {
+	if state.world.forceLog {
 		t.Fatal("unexpected forceLog when probe disabled")
 	}
 	if probe.calls != 0 {
-		t.Fatalf("Snapshot() calls = %d, want 0", probe.calls)
+		t.Fatalf("Snapshot() calls = %d, want 0 on attach tick", probe.calls)
 	}
 }
 
