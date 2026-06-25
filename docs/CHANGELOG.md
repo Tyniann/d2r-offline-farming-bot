@@ -7,6 +7,9 @@ Versionierung nach [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Removed
+- Remove GitHub Actions release workflow; releases are built locally via `scripts/build-release.ps1`
+
 ## [0.2.0] - 2026-06-25
 
 Erstes veröffentlichtes Release: Phase 1 (read-only Memory/Probe) und Phase 2 (World Model) abgeschlossen. Validiert mit D2R `3.2.92777`.
@@ -35,7 +38,7 @@ Erstes veröffentlichtes Release: Phase 1 (read-only Memory/Probe) und Phase 2 (
 - Update app loop to refresh world state on every attached poll and make `--probe` control world-state logging (Phase 2.3)
 - Remove raw `StatsSource` from operator world logs; logs use semantic `world.State` fields instead
 - Complete Phase 2: manual World Model validation for Countess route (Sessions A–C)
-- Add release build script, GitHub Release workflow, and embedded app version (`--version`)
+- Add release build script and embedded app version (`--version`)
 - Complete Phase 1: config-driven offsets, attach timeout, startup logging for offset set and game version
 - Prefer `BaseStats` for probe HP/Mana values; suppress position-only probe Info logs unless `--verbose` (Debug)
 

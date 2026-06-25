@@ -51,14 +51,21 @@ go build -o bin\d2rbot.exe ./cmd/d2rbot
 
 Optional: Offset-Overrides in `configs/offsets.local.yaml` (von `offsets.example.yaml` kopieren) und in `config.yaml` unter `memory.offsets_file` eintragen.
 
-## Release veröffentlichen
+## Release bauen
+
+Release-ZIP lokal erzeugen und bei Bedarf manuell verteilen:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/build-release.ps1
+# Ergebnis: dist\d2rbot-v0.2.0-windows-amd64.zip
+```
+
+Optional Version taggen (nur für Git-Historie):
 
 ```powershell
 git tag v0.2.0
 git push origin v0.2.0
 ```
-
-GitHub Actions baut bei Tag-Push automatisch das Release-ZIP und lädt es als GitHub Release hoch (`.github/workflows/release.yml`).
 
 ## Projektstruktur
 
