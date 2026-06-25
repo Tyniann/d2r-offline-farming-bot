@@ -4,7 +4,8 @@
 
 | Feature | Beschreibung |
 |---------|--------------|
-| — | *Noch keine Feature-Docs — werden bei ersten echten Modulen ergänzt.* |
+| [Process Detection](process-detection.md) | Read-only D2R-Prozessbindung, Modulbasis, Lifecycle |
+| [Memory Reader](memory-reader.md) | Low-Level Byte-Reads, Primitive-Dekodierung, Pointer-Ketten |
 
 ## Geplante Dokumentation (MVP-Phasen)
 

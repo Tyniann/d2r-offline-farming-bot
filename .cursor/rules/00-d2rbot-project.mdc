@@ -43,7 +43,7 @@ Feature-first unter `internal/`. Paket-Grenzen strikt einhalten:
 ## Documentation
 1. **Pflicht:** Neue/exportierte Go-Symbole (Types, Funcs, Interfaces) sofort mit **Godoc** dokumentieren.
 2. **Syntax:** Satz mit Punkt beginnen; `[Name]` für verlinkte Symbole; `` `backticks` `` für Werte, Config-Keys, Windows-APIs.
-3. **Inhalt:** Warum/Wann — nicht Implementierungsdetails. Bei State-Machines: Zustände, Übergänge, Abbruchbedingungen benennen.
+3. **Inhalt:** Warum/Wann — nicht Implementierungsdetails. Bei State-Machines: Zustände, Übergänge, Abbruchbedingungen benennen. Dokumentation und UI facing Strings müssen ordentliches Deutsch und Umlaute verwenden.
 
 ## Safety & bot behavior
 - **Stop/Pause-Hotkey** und Stuck/Timeout-Recovery früh mitdenken; Tasks müssen abbrechen können.
