@@ -2,10 +2,12 @@ package app
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/config"
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/input"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/memory"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/process"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/world"
@@ -13,6 +15,16 @@ import (
 
 func TestProcessServiceImplementsProcessAccess(t *testing.T) {
 	var _ memory.ProcessAccess = (*process.Service)(nil)
+}
+
+func TestInputControllerInterface(t *testing.T) {
+	var _ inputController = (*mockInput)(nil)
+	var _ inputController = (*input.Controller)(nil)
+}
+
+func TestInputTestControllerInterface(t *testing.T) {
+	var _ inputTestController = (*mockInputTest)(nil)
+	var _ inputTestController = (*input.Controller)(nil)
 }
 
 func validSnapshot(hp uint32) memory.Snapshot {
@@ -64,7 +76,114 @@ func (m *mockProbe) Snapshot() memory.Snapshot {
 	return m.snap
 }
 
+type mockInput struct {
+	bindErr     error
+	bindCalls   int
+	unbindCalls int
+	bound       bool
+	lastPID     uint32
+
+	enabled          bool
+	paused           bool
+	stopped          bool
+	toggleCalls      int
+	stopCalls        int
+	listenCalls      int
+	lastToggleReason string
+	lastStopReason   string
+}
+
+func (m *mockInput) Bind(pid uint32) error {
+	m.bindCalls++
+	m.lastPID = pid
+	if m.bindErr != nil {
+		return m.bindErr
+	}
+	m.bound = true
+	return nil
+}
+
+func (m *mockInput) Unbind() {
+	m.unbindCalls++
+	m.bound = false
+}
+
+func (m *mockInput) Bound() bool { return m.bound }
+
+func (m *mockInput) Ready() bool { return true }
+
+func (m *mockInput) Status() input.Status {
+	return input.Status{Enabled: m.enabled, Paused: m.paused, Stopped: m.stopped}
+}
+
+func (m *mockInput) TogglePause(reason string) bool {
+	m.toggleCalls++
+	m.lastToggleReason = reason
+	m.paused = !m.paused
+	return m.paused
+}
+
+func (m *mockInput) Stop(reason string) {
+	m.stopCalls++
+	m.lastStopReason = reason
+	m.stopped = true
+	m.paused = false
+}
+
+func (m *mockInput) ListenHotkeys(_ context.Context, _ chan<- input.HotkeyEvent, ready chan<- error) {
+	m.listenCalls++
+	ready <- nil
+}
+
+type trackingInput struct {
+	mockInput
+	onUnbind func()
+}
+
+func (m *trackingInput) Unbind() {
+	if m.onUnbind != nil {
+		m.onUnbind()
+	}
+	m.mockInput.Unbind()
+}
+
+type orderProcess struct {
+	order *[]string
+	label string
+}
+
+func (p *orderProcess) Attach(_ context.Context) error { return nil }
+func (p *orderProcess) Poll() process.Status           { return process.Status{} }
+func (p *orderProcess) Status() process.Status         { return process.Status{} }
+func (p *orderProcess) Detach() error {
+	*p.order = append(*p.order, p.label)
+	return nil
+}
+func (p *orderProcess) Ready() bool { return true }
+
+type orderInput struct {
+	order *[]string
+	label string
+}
+
+func (i *orderInput) Bind(_ uint32) error { return nil }
+func (i *orderInput) Unbind()             { *i.order = append(*i.order, i.label) }
+func (i *orderInput) Bound() bool         { return false }
+func (i *orderInput) Ready() bool         { return true }
+func (i *orderInput) Status() input.Status {
+	return input.Status{}
+}
+func (i *orderInput) TogglePause(string) bool { return false }
+func (i *orderInput) Stop(string)             {}
+func (i *orderInput) ListenHotkeys(context.Context, chan<- input.HotkeyEvent, chan<- error) {
+}
+
 func testRuntime(proc processController, probe snapshotReader, opts Options) *Runtime {
+	in := &mockInput{}
+	return testRuntimeWithInput(proc, probe, in, opts)
+}
+
+func testRuntimeWithInput(proc processController, probe snapshotReader, in inputController, opts Options) *Runtime {
 	return &Runtime{
 		Config: &config.Config{
 			Process: config.ProcessConfig{ProcessName: "D2R.exe"},
@@ -74,6 +193,7 @@ func testRuntime(proc processController, probe snapshotReader, opts Options) *Ru
 		Process: proc,
 		Probe:   probe,
 		World:   world.NewModel(config.NewLogger("error")),
+		Input:   in,
 	}
 }
 
@@ -319,5 +439,212 @@ func TestRunTickAttachTimeoutNotAppliedAfterLost(t *testing.T) {
 
 	if err := rt.runTick(context.Background(), state); err != nil {
 		t.Fatalf("unexpected error after lost re-attach wait: %v", err)
+	}
+}
+
+func TestRunTickAttachCallsInputBind(t *testing.T) {
+	in := &mockInput{}
+	proc := &mockProcess{
+		status: process.Status{State: process.StateAttached, PID: 4242, ModuleBase: 0x1000},
+	}
+	rt := testRuntimeWithInput(proc, &mockProbe{}, in, Options{})
+	state := &runState{attached: false}
+
+	if err := rt.runTick(context.Background(), state); err != nil {
+		t.Fatal(err)
+	}
+	if in.bindCalls != 1 {
+		t.Fatalf("Bind calls = %d, want 1 on attach tick", in.bindCalls)
+	}
+	if in.lastPID != 4242 {
+		t.Fatalf("Bind pid = %d, want 4242", in.lastPID)
+	}
+}
+
+func TestRunTickAttachFailureSkipsInputBind(t *testing.T) {
+	in := &mockInput{}
+	proc := &mockProcess{attachErr: process.ErrNotFound}
+	rt := testRuntimeWithInput(proc, &mockProbe{}, in, Options{})
+
+	if err := rt.runTick(context.Background(), &runState{}); err != nil {
+		t.Fatal(err)
+	}
+	if in.bindCalls != 0 {
+		t.Fatalf("Bind calls = %d, want 0 when attach fails", in.bindCalls)
+	}
+}
+
+func TestRunTickRetryableBindErrorContinues(t *testing.T) {
+	in := &mockInput{bindErr: input.ErrWindowNotFound}
+	proc := &mockProcess{
+		pollStatus: process.Status{State: process.StateAttached, PID: 99},
+		status:     process.Status{State: process.StateAttached, PID: 99},
+	}
+	probe := &mockProbe{snap: validSnapshot(100)}
+	rt := testRuntimeWithInput(proc, probe, in, Options{Probe: false})
+	state := &runState{attached: true, input: inputLoopState{lastBindAttempt: time.Now().Add(-2 * time.Second)}}
+
+	if err := rt.runTick(context.Background(), state); err != nil {
+		t.Fatalf("retryable bind error should not stop runTick: %v", err)
+	}
+	if probe.calls != 1 {
+		t.Fatalf("Snapshot() calls = %d, want 1 after retryable bind failure", probe.calls)
+	}
+}
+
+func TestRunTickNonRetryableBindErrorStops(t *testing.T) {
+	in := &mockInput{bindErr: input.ErrInvalidPID}
+	proc := &mockProcess{
+		pollStatus: process.Status{State: process.StateAttached, PID: 99},
+		status:     process.Status{State: process.StateAttached, PID: 99},
+	}
+	rt := testRuntimeWithInput(proc, &mockProbe{}, in, Options{})
+	state := &runState{attached: true, input: inputLoopState{lastBindAttempt: time.Now().Add(-2 * time.Second)}}
+
+	err := rt.runTick(context.Background(), state)
+	if err == nil {
+		t.Fatal("expected non-retryable bind error")
+	}
+	if !errors.Is(err, input.ErrInvalidPID) {
+		t.Fatalf("error = %v, want ErrInvalidPID", err)
+	}
+}
+
+func TestRunTickBindRetryThrottled(t *testing.T) {
+	in := &mockInput{bindErr: input.ErrWindowNotFound}
+	proc := &mockProcess{
+		pollStatus: process.Status{State: process.StateAttached, PID: 99},
+		status:     process.Status{State: process.StateAttached, PID: 99},
+	}
+	probe := &mockProbe{snap: validSnapshot(100)}
+	rt := testRuntimeWithInput(proc, probe, in, Options{})
+	state := &runState{
+		attached: true,
+		input:    inputLoopState{lastBindAttempt: time.Now()},
+	}
+
+	if err := rt.runTick(context.Background(), state); err != nil {
+		t.Fatal(err)
+	}
+	if in.bindCalls != 0 {
+		t.Fatalf("Bind calls = %d, want 0 when throttled", in.bindCalls)
+	}
+	if probe.calls != 1 {
+		t.Fatalf("Snapshot() calls = %d, want 1 while bind is throttled", probe.calls)
+	}
+}
+
+func TestRunTickLostUnbindsInput(t *testing.T) {
+	in := &mockInput{bound: true}
+	proc := &mockProcess{
+		pollStatus: process.Status{State: process.StateLost},
+		status:     process.Status{State: process.StateLost, PID: 42},
+	}
+	rt := testRuntimeWithInput(proc, &mockProbe{}, in, Options{Probe: false})
+	rt.World.Update(validSnapshot(100))
+	state := &runState{attached: true}
+
+	if err := rt.runTick(context.Background(), state); err != nil {
+		t.Fatal(err)
+	}
+	if in.unbindCalls != 1 {
+		t.Fatalf("Unbind calls = %d, want 1 on process lost", in.unbindCalls)
+	}
+}
+
+func TestRunTickLostUnbindsBeforeWorldReset(t *testing.T) {
+	var worldValidAtUnbind bool
+	in := &trackingInput{mockInput: mockInput{bound: true}}
+	proc := &mockProcess{
+		pollStatus: process.Status{State: process.StateLost},
+		status:     process.Status{State: process.StateLost, PID: 42},
+	}
+	rt := testRuntimeWithInput(proc, &mockProbe{}, in, Options{Probe: false})
+	rt.World.Update(validSnapshot(100))
+	in.onUnbind = func() {
+		worldValidAtUnbind = rt.World.Current().Valid
+	}
+	state := &runState{attached: true}
+
+	if err := rt.runTick(context.Background(), state); err != nil {
+		t.Fatal(err)
+	}
+	if !worldValidAtUnbind {
+		t.Fatal("Unbind should run while world state is still valid (before Reset)")
+	}
+	if rt.World.Current().Valid {
+		t.Fatal("world should be invalid after process lost")
+	}
+}
+
+func TestRunTickAttachRetryableBindErrorSkipsSnapshot(t *testing.T) {
+	in := &mockInput{bindErr: input.ErrWindowNotFound}
+	proc := &mockProcess{
+		status: process.Status{State: process.StateAttached, PID: 4242, ModuleBase: 0x1000},
+	}
+	probe := &mockProbe{snap: validSnapshot(100)}
+	rt := testRuntimeWithInput(proc, probe, in, Options{Probe: true})
+	state := &runState{attached: false}
+
+	if err := rt.runTick(context.Background(), state); err != nil {
+		t.Fatal(err)
+	}
+	if !state.attached {
+		t.Fatal("expected attached despite retryable bind failure")
+	}
+	if in.bindCalls != 1 {
+		t.Fatalf("Bind calls = %d, want 1 on attach tick", in.bindCalls)
+	}
+	if probe.calls != 0 {
+		t.Fatalf("Snapshot() calls = %d, want 0 on attach tick", probe.calls)
+	}
+}
+
+func TestRunTickReattachAfterLostCallsBind(t *testing.T) {
+	in := &mockInput{}
+	lostProc := &mockProcess{
+		pollStatus: process.Status{State: process.StateLost},
+		status:     process.Status{State: process.StateLost, PID: 42},
+	}
+	rt := testRuntimeWithInput(lostProc, &mockProbe{}, in, Options{})
+	state := &runState{attached: true}
+	if err := rt.runTick(context.Background(), state); err != nil {
+		t.Fatal(err)
+	}
+
+	attachProc := &mockProcess{
+		status: process.Status{State: process.StateAttached, PID: 99, ModuleBase: 0x1000},
+	}
+	rt.Process = attachProc
+	state.attached = false
+	in.bindCalls = 0
+
+	if err := rt.runTick(context.Background(), state); err != nil {
+		t.Fatal(err)
+	}
+	if in.bindCalls != 1 {
+		t.Fatalf("Bind calls after re-attach = %d, want 1", in.bindCalls)
+	}
+	if in.lastPID != 99 {
+		t.Fatalf("Bind pid = %d, want 99", in.lastPID)
+	}
+}
+
+func TestShutdownCleanupUnbindsBeforeDetach(t *testing.T) {
+	var order []string
+	proc := &orderProcess{order: &order, label: "detach"}
+	in := &orderInput{order: &order, label: "unbind"}
+
+	func() {
+		defer func() {
+			if err := proc.Detach(); err != nil {
+				t.Fatal(err)
+			}
+		}()
+		defer in.Unbind()
+	}()
+
+	if len(order) != 2 || order[0] != "unbind" || order[1] != "detach" {
+		t.Fatalf("cleanup order = %v, want [unbind detach]", order)
 	}
 }

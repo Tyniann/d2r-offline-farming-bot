@@ -32,7 +32,7 @@ type Runtime struct {
 	Memory  *memory.Reader
 	Probe   snapshotReader
 	World   *world.Model
-	Input   *input.Controller
+	Input   inputController
 	Tasks   *tasks.Runner
 	Pathing *pathing.Navigator
 	Loot    *loot.Filter
@@ -77,6 +77,10 @@ func New(cfg *config.Config, opts Options) (*Runtime, error) {
 
 	mem := memory.NewReader(log)
 	proc := process.New(log, cfg.Process.ProcessName)
+	inputCtrl, err := input.NewController(log, mapInputConfig(cfg.Input), mapSafetyConfig(cfg.Input))
+	if err != nil {
+		return nil, fmt.Errorf("input controller: %w", err)
+	}
 	rt := &Runtime{
 		Config:  cfg,
 		Options: opts,
@@ -85,7 +89,7 @@ func New(cfg *config.Config, opts Options) (*Runtime, error) {
 		Memory:  mem,
 		Probe:   memory.NewProbeReader(mem, offsetSet),
 		World:   world.NewModel(log),
-		Input:   input.NewController(log),
+		Input:   inputCtrl,
 		Tasks:   tasks.NewRunner(log),
 		Pathing: pathing.NewNavigator(log),
 		Loot:    loot.NewFilter(log),
@@ -142,24 +146,19 @@ func (rt *Runtime) Run() error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	sigCh := make(chan os.Signal, 1)
-	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
-	defer signal.Stop(sigCh)
-
-	go func() {
-		select {
-		case <-sigCh:
-			rt.Log.Info("shutdown signal received")
-			cancel()
-		case <-ctx.Done():
-		}
-	}()
+	rt.startShutdownSignals(ctx, cancel)
 
 	defer func() {
 		if err := rt.Process.Detach(); err != nil {
 			rt.Log.Error("process detach failed", "error", err)
 		}
 	}()
+	defer rt.Input.Unbind()
+
+	hotkeyEvents, err := rt.startHotkeys(ctx)
+	if err != nil {
+		return err
+	}
 
 	ticker := time.NewTicker(time.Duration(rt.Config.Runtime.PollIntervalMs) * time.Millisecond)
 	defer ticker.Stop()
@@ -171,6 +170,8 @@ func (rt *Runtime) Run() error {
 		case <-ctx.Done():
 			rt.Log.Info("shutting down")
 			return nil
+		case ev := <-hotkeyEvents:
+			rt.handleHotkeyEvent(ev, cancel)
 		case <-ticker.C:
 			if err := rt.runTick(ctx, state); err != nil {
 				if errors.Is(err, context.Canceled) {
@@ -181,6 +182,32 @@ func (rt *Runtime) Run() error {
 			}
 		}
 	}
+}
+
+func (rt *Runtime) startShutdownSignals(ctx context.Context, cancel context.CancelFunc) {
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
+	go func() {
+		select {
+		case <-sigCh:
+			rt.Log.Info("shutdown signal received")
+			rt.Input.Stop("signal")
+			cancel()
+		case <-ctx.Done():
+			signal.Stop(sigCh)
+		}
+	}()
+}
+
+func (rt *Runtime) startHotkeys(ctx context.Context) (<-chan input.HotkeyEvent, error) {
+	hotkeyEvents := make(chan input.HotkeyEvent, 4)
+	hotkeyReady := make(chan error, 1)
+	rt.Input.ListenHotkeys(ctx, hotkeyEvents, hotkeyReady)
+
+	if err := <-hotkeyReady; err != nil {
+		return nil, fmt.Errorf("hotkey listener: %w", err)
+	}
+	return hotkeyEvents, nil
 }
 
 func (rt *Runtime) logProcessStateChange(prev, next process.State) {

@@ -5,9 +5,15 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/input"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/memory"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/process"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/world"
+)
+
+const (
+	inputBindRetryInterval = time.Second
+	inputBindLogHeartbeat  = 5 * time.Second
 )
 
 // processController is the subset of process.Service used by the run loop.
@@ -24,6 +30,18 @@ type snapshotReader interface {
 	Snapshot() memory.Snapshot
 }
 
+// inputController is the subset of input.Controller used by the run loop.
+type inputController interface {
+	Bind(pid uint32) error
+	Unbind()
+	Bound() bool
+	Ready() bool
+	Status() input.Status
+	TogglePause(reason string) bool
+	Stop(reason string)
+	ListenHotkeys(ctx context.Context, events chan<- input.HotkeyEvent, ready chan<- error)
+}
+
 // runState holds mutable loop state for a single Runtime run.
 type runState struct {
 	attached          bool
@@ -33,6 +51,13 @@ type runState struct {
 	lastFatalErr      string
 	lastLoggedState   process.State
 	world             worldLoopState
+	input             inputLoopState
+}
+
+type inputLoopState struct {
+	lastBindAttempt time.Time
+	lastBindLog     time.Time
+	lastBindErr     string
 }
 
 type worldLoopState struct {
@@ -87,11 +112,16 @@ func (rt *Runtime) runTick(ctx context.Context, state *runState) error {
 		}
 		rt.logProcessStateChange(state.lastLoggedState, process.StateAttached)
 		state.lastLoggedState = process.StateAttached
+		if err := rt.tryBindInput(state); err != nil {
+			return err
+		}
 		return nil
 	}
 
 	st := rt.Process.Poll()
 	if st.State == process.StateLost {
+		rt.Input.Unbind()
+		state.input = inputLoopState{}
 		prev := rt.World.Current()
 		cur := rt.World.Reset(time.Now(), worldResetReasonProcessLost)
 		if rt.Options.Probe && worldShouldLog(prev, cur, state.world.lastLog, worldHeartbeat, state.world.forceLog, rt.Options.Verbose) {
@@ -104,6 +134,10 @@ func (rt *Runtime) runTick(ctx context.Context, state *runState) error {
 		return nil
 	}
 
+	if err := rt.tryBindInput(state); err != nil {
+		return err
+	}
+
 	snap := rt.Probe.Snapshot()
 	cur := rt.World.Update(snap)
 	prev := state.world.lastLogged
@@ -114,5 +148,38 @@ func (rt *Runtime) runTick(ctx context.Context, state *runState) error {
 		state.world.forceLog = false
 	}
 
+	return nil
+}
+
+func (rt *Runtime) tryBindInput(state *runState) error {
+	if rt.Input.Bound() {
+		return nil
+	}
+
+	now := time.Now()
+	if !state.input.lastBindAttempt.IsZero() && now.Sub(state.input.lastBindAttempt) < inputBindRetryInterval {
+		return nil
+	}
+	state.input.lastBindAttempt = now
+
+	pid := rt.Process.Status().PID
+	err := rt.Input.Bind(pid)
+	if err == nil {
+		state.input.lastBindErr = ""
+		return nil
+	}
+	if !input.IsBindRetryable(err) {
+		return fmt.Errorf("input bind pid=%d: %w", pid, err)
+	}
+
+	errMsg := err.Error()
+	shouldLog := state.input.lastBindLog.IsZero() ||
+		errMsg != state.input.lastBindErr ||
+		now.Sub(state.input.lastBindLog) >= inputBindLogHeartbeat
+	if shouldLog {
+		rt.Log.Info("waiting for input window", "pid", pid, "error", err)
+		state.input.lastBindLog = now
+		state.input.lastBindErr = errMsg
+	}
 	return nil
 }

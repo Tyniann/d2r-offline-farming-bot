@@ -6,4 +6,8 @@ type Options struct {
 	Probe bool
 	// Verbose forces debug-level logging (e.g. position-only world lines with --probe).
 	Verbose bool
+	// InputTest starts the manual input-test mode with the given action spec (empty = disabled).
+	InputTest string
+	// InputTestObserveMs is how long to poll world state after actions (default 3000 when <=0).
+	InputTestObserveMs int
 }

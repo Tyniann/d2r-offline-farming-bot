@@ -7,6 +7,18 @@ Versionierung nach [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-06-26
+
+### Added
+- Add manual CLI input-test mode for validating keyboard and mouse primitives in-game (Phase 3.5)
+- Add input safety controls, global pause/stop hotkeys, and action logging (Phase 3.4)
+- Add client-relative mouse movement and click primitives for the input controller (Phase 3.3)
+- Add configurable keyboard primitives for the input controller using Windows SendInput (Phase 3.2)
+- Add D2R window binding for the input controller using PID and client-area discovery (Phase 3.1)
+
+### Fixed
+- Avoid defaulting `input.town_portal` to `t`, which opens the D2R skill tree.
+
 ### Removed
 - Remove GitHub Actions release workflow; releases are built locally via `scripts/build-release.ps1`
 
