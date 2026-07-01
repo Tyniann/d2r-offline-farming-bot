@@ -18,9 +18,9 @@ type mockInputTest struct {
 
 	window      input.WindowInfo
 	hasWindow   bool
-	pressBelt   []int
-	pressPortal int
-	pressSkill  []int
+	castBelt    []int
+	selectSkill []uint16
+	castSkillAt [][3]int // skillID, x, y
 	moveTo      [][2]int
 	clicks      []input.MouseButton
 	actionErr   error
@@ -30,27 +30,34 @@ func (m *mockInputTest) Window() (input.WindowInfo, bool) {
 	return m.window, m.hasWindow
 }
 
-func (m *mockInputTest) PressBelt(slot int) error {
+func (m *mockInputTest) PressKey(key string) error {
 	if m.actionErr != nil {
 		return m.actionErr
 	}
-	m.pressBelt = append(m.pressBelt, slot)
 	return nil
 }
 
-func (m *mockInputTest) PressTownPortal() error {
+func (m *mockInputTest) CastBelt(_ input.BeltBindingSource, slot int) error {
 	if m.actionErr != nil {
 		return m.actionErr
 	}
-	m.pressPortal++
+	m.castBelt = append(m.castBelt, slot)
 	return nil
 }
 
-func (m *mockInputTest) PressSkill(slot int) error {
+func (m *mockInputTest) SelectSkill(_ input.BindingSource, skillID uint16) error {
 	if m.actionErr != nil {
 		return m.actionErr
 	}
-	m.pressSkill = append(m.pressSkill, slot)
+	m.selectSkill = append(m.selectSkill, skillID)
+	return nil
+}
+
+func (m *mockInputTest) CastSkillAt(_ input.BindingSource, skillID uint16, clientX, clientY int) error {
+	if m.actionErr != nil {
+		return m.actionErr
+	}
+	m.castSkillAt = append(m.castSkillAt, [3]int{int(skillID), clientX, clientY})
 	return nil
 }
 
@@ -102,8 +109,8 @@ func TestRunInputTestReadyAndExecutesBelt(t *testing.T) {
 	if err != nil {
 		t.Fatalf("RunInputTest() err = %v", err)
 	}
-	if len(in.pressBelt) != 1 || in.pressBelt[0] != 1 {
-		t.Fatalf("PressBelt calls = %v, want [1]", in.pressBelt)
+	if len(in.castBelt) != 1 || in.castBelt[0] != 1 {
+		t.Fatalf("CastBelt calls = %v, want [1]", in.castBelt)
 	}
 }
 
@@ -115,18 +122,18 @@ func TestRunInputTestExecutesAllActionTypes(t *testing.T) {
 	}
 	rt := readyInputTestRuntime(in, &mockProbe{snap: validSnapshot(100)})
 
-	spec := "belt:2,portal,skill:3,center-click,click:100,200"
+	spec := "belt:2,portal,skill:teleport,center-click,click:100,200"
 	if err := rt.RunInputTest(spec); err != nil {
 		t.Fatal(err)
 	}
-	if len(in.pressBelt) != 1 || in.pressBelt[0] != 2 {
-		t.Fatalf("belt = %v", in.pressBelt)
+	if len(in.castBelt) != 1 || in.castBelt[0] != 2 {
+		t.Fatalf("belt = %v", in.castBelt)
 	}
-	if in.pressPortal != 1 {
-		t.Fatalf("portal calls = %d", in.pressPortal)
+	if len(in.selectSkill) != 2 {
+		t.Fatalf("selectSkill = %v, want portal + teleport", in.selectSkill)
 	}
-	if len(in.pressSkill) != 1 || in.pressSkill[0] != 3 {
-		t.Fatalf("skill = %v", in.pressSkill)
+	if in.selectSkill[0] != memory.SkillTownPortal || in.selectSkill[1] != memory.SkillTeleport {
+		t.Fatalf("selectSkill = %v", in.selectSkill)
 	}
 	if len(in.moveTo) != 2 {
 		t.Fatalf("moveTo = %v", in.moveTo)
@@ -139,6 +146,12 @@ func TestRunInputTestExecutesAllActionTypes(t *testing.T) {
 	}
 	if len(in.clicks) != 2 {
 		t.Fatalf("clicks = %v", in.clicks)
+	}
+	if in.clicks[0] != input.MouseRight {
+		t.Fatalf("center click button = %v, want right (portal on right bar)", in.clicks[0])
+	}
+	if in.clicks[1] != input.MouseLeft {
+		t.Fatalf("raw click button = %v, want left after pending cast was consumed", in.clicks[1])
 	}
 }
 
@@ -175,6 +188,35 @@ func TestRunInputTestReadyTimeoutWhenWorldInvalid(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "world_valid=false") || !strings.Contains(err.Error(), "menu") {
 		t.Fatalf("err = %v", err)
+	}
+}
+
+func TestRunInputTestReadyTimeoutWhenPhaseMenu(t *testing.T) {
+	in := &mockInputTest{
+		mockInput: mockInput{enabled: true, bound: true},
+		hasWindow: true,
+		window:    input.WindowInfo{ClientWidth: 800, ClientHeight: 600},
+	}
+	snap := validSnapshot(100)
+	snap.Phase = memory.GamePhaseMenu
+	probe := &mockProbe{snap: snap}
+	proc := &mockProcess{
+		pollStatus: process.Status{State: process.StateAttached, PID: 1},
+		status:     process.Status{State: process.StateAttached, PID: 1},
+	}
+	rt := testRuntimeWithInput(proc, probe, in, Options{InputTestObserveMs: 50})
+	rt.Config.Process.AttachTimeoutMs = 30
+	rt.Config.Runtime.PollIntervalMs = 5
+
+	err := rt.RunInputTest("skill:teleport")
+	if err == nil {
+		t.Fatal("expected ready timeout")
+	}
+	if !strings.Contains(err.Error(), `world_phase="menu"`) {
+		t.Fatalf("err = %v, want menu phase in message", err)
+	}
+	if len(in.selectSkill) != 0 {
+		t.Fatalf("SelectSkill calls = %v, want none before in_game", in.selectSkill)
 	}
 }
 
@@ -242,8 +284,8 @@ func TestRunInputTestPauseBeforeActionBlocks(t *testing.T) {
 	if err == nil || !errors.Is(err, input.ErrInputPaused) {
 		t.Fatalf("err = %v, want ErrInputPaused", err)
 	}
-	if len(in.pressBelt) != 0 {
-		t.Fatalf("PressBelt calls = %v, want none", in.pressBelt)
+	if len(in.castBelt) != 0 {
+		t.Fatalf("CastBelt calls = %v, want none", in.castBelt)
 	}
 }
 
@@ -256,7 +298,7 @@ func TestRunInputTestStopBetweenSequenceActions(t *testing.T) {
 		},
 	}
 	var mu sync.Mutex
-	in.onPressBelt = func() {
+	in.onCastBelt = func() {
 		mu.Lock()
 		in.stopped = true
 		mu.Unlock()
@@ -267,8 +309,8 @@ func TestRunInputTestStopBetweenSequenceActions(t *testing.T) {
 	if err != nil {
 		t.Fatalf("RunInputTest() err = %v", err)
 	}
-	if len(in.pressBelt) != 1 {
-		t.Fatalf("PressBelt calls = %v, want only first action", in.pressBelt)
+	if len(in.castBelt) != 1 {
+		t.Fatalf("CastBelt calls = %v, want only first action", in.castBelt)
 	}
 }
 
@@ -393,12 +435,12 @@ func (h *hotkeyInjectInputTest) ListenHotkeys(ctx context.Context, events chan<-
 
 type sequencedInputTest struct {
 	mockInputTest
-	onPressBelt func()
+	onCastBelt func()
 }
 
-func (s *sequencedInputTest) PressBelt(slot int) error {
-	if s.onPressBelt != nil {
-		s.onPressBelt()
+func (s *sequencedInputTest) CastBelt(src input.BeltBindingSource, slot int) error {
+	if s.onCastBelt != nil {
+		s.onCastBelt()
 	}
-	return s.mockInputTest.PressBelt(slot)
+	return s.mockInputTest.CastBelt(src, slot)
 }

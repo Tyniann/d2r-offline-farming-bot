@@ -22,6 +22,7 @@ unit:
   stats_list_ex: "0x88"
   inventory: "0x90"
   next_unit: "0x158"
+  skills_list: "0x100"
   main_player_normal: "0x30"
   main_player_expansion: "0x70"
   expansion_char_flag: "0x5C"

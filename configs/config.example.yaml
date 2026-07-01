@@ -31,18 +31,26 @@ input:
   key_delay_ms_min: 10
   key_delay_ms_max: 40
   combo_hold_ms: 200
-  skills:
-    slot1: f1
-    slot2: f2
-    slot3: f3
-    slot4: f4
-    slot5: f5
-    slot6: f6
-    slot7: f7
-  belt:
-    slot1: "1"
-    slot2: "2"
-    slot3: "3"
-    slot4: "4"
-  # In D2R Town Portal/Tome of Town Portal bewusst auf F8 binden.
-  town_portal: f8
+
+  # Diese Werte müssen zu den Hotkeys im D2R-Optionsmenü passen.
+  bindings:
+    skills:
+      teleport:
+        key: f7
+        button: right
+      town_portal:
+        key: f6
+        button: right
+      bone_spear:
+        key: f8
+        button: left
+    belt:
+      slot_1: ","
+      slot_2: "."
+      slot_3: "-"
+      slot_4: "]"
+
+runs:
+  # countess | leer — Validierung nur zur Laufzeit via Registry
+  active: ""
+  step_timeout_ms: 30000

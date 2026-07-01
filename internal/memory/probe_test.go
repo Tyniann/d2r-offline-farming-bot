@@ -47,19 +47,21 @@ func setupProbeMock(t *testing.T) (*mockAccess, *ProbeReader, uintptr) {
 	access := newMockAccess()
 	access.moduleBase = moduleBase
 
-	// In-game gate byte.
-	writeU8(access, moduleBase+off.InGameGateOffset(), 1)
+	// In-game gate byte and UI buffer (gate at index 0, loading at 0x168).
+	uiBase := moduleBase + off.UI - 0xA
+	uiBuf := make([]byte, uiBufferSize)
+	uiBuf[0] = 1
+	access.setBytes(uiBase, uiBuf)
 
 	// Expansion inactive.
 	writeU64(access, moduleBase+off.Expansion, 0x50000)
 	writeU16(access, 0x50000+off.Unit.ExpansionCharFlag, 0)
 
-	// Player unit buckets at moduleBase + UnitTable (d2go layout).
+	// Player unit segment: list head 0 points to main player (full 128*8 segment buffer).
 	const playerUnit = uintptr(0x20000)
-	writeU64(access, moduleBase+off.UnitTable, uint64(playerUnit))
-	for i := 1; i < unitTableBuckets; i++ {
-		writeU64(access, moduleBase+off.UnitTable+uintptr(i*8), 0)
-	}
+	playerSeg := make([]byte, unitTableListHeads*unitTableHeadStride)
+	binary.LittleEndian.PutUint64(playerSeg[0:], uint64(playerUnit))
+	access.setBytes(moduleBase+off.UnitTable, playerSeg)
 
 	// Inventory + main-player flag.
 	const inventory = uintptr(0x21000)
@@ -96,6 +98,11 @@ func setupProbeMock(t *testing.T) (*mockAccess, *ProbeReader, uintptr) {
 	reader := newTestReader(access)
 	reader.Bind(access)
 	probe := NewProbeReader(reader, off)
+	// Tests lay out unit-table segments at off.UnitTable; skip signature scan so
+	// Snapshot uses the same offsets as writeSegmentHead / setup*Unit helpers.
+	probe.offsetsResolved = true
+	probe.activeOffsets = off
+	probe.lastModuleBase = moduleBase
 	return access, probe, moduleBase
 }
 
@@ -136,7 +143,10 @@ func TestProbeReaderFindsMainPlayer(t *testing.T) {
 	_, probe, _ := setupProbeMock(t)
 	snap := probe.Snapshot()
 	if !snap.Valid {
-		t.Fatalf("Snapshot() invalid, reason=%q", snap.Reason)
+		t.Fatalf("Snapshot() invalid, reason=%q phase=%s", snap.Reason, snap.Phase)
+	}
+	if snap.Phase != GamePhaseInGame {
+		t.Fatalf("Phase = %s, want in_game", snap.Phase)
 	}
 	if snap.HP != 100 || snap.MaxHP != 125 || snap.Mana != 50 || snap.MaxMana != 75 {
 		t.Fatalf("vitals = %+v, want hp=100 max_hp=125 mana=50 max_mana=75", snap)
@@ -168,8 +178,10 @@ func TestProbeReaderEarlyExitAfterMainPlayer(t *testing.T) {
 func TestProbeNotInGame(t *testing.T) {
 	access, probe, moduleBase := setupProbeMock(t)
 	off := testOffsetSet()
-	writeU8(access, moduleBase+off.InGameGateOffset(), 0)
-	writeU64(access, moduleBase+off.UnitTable, 0)
+	uiBase := moduleBase + off.UI - 0xA
+	uiBuf := make([]byte, uiBufferSize) // gate byte 0
+	access.setBytes(uiBase, uiBuf)
+	access.setBytes(moduleBase+off.UnitTable, make([]byte, unitTableListHeads*unitTableHeadStride))
 
 	snap := probe.Snapshot()
 	if snap.Valid {
@@ -178,12 +190,17 @@ func TestProbeNotInGame(t *testing.T) {
 	if snap.Reason != ReasonNotInGame {
 		t.Fatalf("Reason = %q, want %q", snap.Reason, ReasonNotInGame)
 	}
+	if snap.Phase != GamePhaseMenu {
+		t.Fatalf("Phase = %s, want menu", snap.Phase)
+	}
 }
 
 func TestProbeCanReadPlayerWhenInGameGateIsZero(t *testing.T) {
 	access, probe, moduleBase := setupProbeMock(t)
 	off := testOffsetSet()
-	writeU8(access, moduleBase+off.InGameGateOffset(), 0)
+	uiBase := moduleBase + off.UI - 0xA
+	uiBuf := make([]byte, uiBufferSize) // gate disabled semantics: byte 0 but player readable
+	access.setBytes(uiBase, uiBuf)
 
 	snap := probe.Snapshot()
 	if !snap.Valid {
@@ -306,7 +323,7 @@ func TestProbeNormalizesMaxVitalsFromObservedCurrent(t *testing.T) {
 func TestProbePlayerPointerUnavailable(t *testing.T) {
 	access, probe, moduleBase := setupProbeMock(t)
 	off := testOffsetSet()
-	writeU64(access, moduleBase+off.UnitTable, 0)
+	access.setBytes(moduleBase+off.UnitTable, make([]byte, unitTableListHeads*unitTableHeadStride))
 
 	snap := probe.Snapshot()
 	if snap.Valid {
@@ -363,7 +380,9 @@ func TestUnitTableLoopProtection(t *testing.T) {
 	access, probe, moduleBase := setupProbeMock(t)
 	off := testOffsetSet()
 
-	writeU64(access, moduleBase+off.UnitTable, 0x20000)
+	seg := make([]byte, unitTableListHeads*unitTableHeadStride)
+	binary.LittleEndian.PutUint64(seg[0:], 0x20000)
+	access.setBytes(moduleBase+off.UnitTable, seg)
 	writeU64(access, 0x21000+off.Unit.MainPlayerNormal, 0)
 	writeU64(access, 0x21000+off.Unit.MainPlayerExpansion, 0)
 	writeU64(access, 0x20000+off.Unit.NextUnit, 0x20000)
@@ -461,6 +480,31 @@ func TestProbeReasonConstants(t *testing.T) {
 			t.Fatalf("duplicate reason constant %q", r)
 		}
 		seen[r] = struct{}{}
+	}
+}
+
+func TestProbeSnapshotEntitiesOnlyWhenInGame(t *testing.T) {
+	access, probe, moduleBase := setupProbeMock(t)
+	off := testOffsetSet()
+
+	uiBase := moduleBase + off.UI - 0xA
+	buf := make([]byte, uiBufferSize)
+	buf[0] = 1
+	buf[uiLoadingIndex] = 1
+	access.setBytes(uiBase, buf)
+
+	snap := probe.Snapshot()
+	if !snap.Valid {
+		t.Fatalf("expected valid snapshot with readable player during loading, reason=%q", snap.Reason)
+	}
+	if snap.Phase != GamePhaseLoading {
+		t.Fatalf("Phase = %s, want loading", snap.Phase)
+	}
+	if len(snap.Objects) != 0 || len(snap.Entrances) != 0 || len(snap.Monsters) != 0 {
+		t.Fatal("loading snapshot should have empty entity slices")
+	}
+	if snap.Objects == nil || snap.Entrances == nil || snap.Monsters == nil {
+		t.Fatal("entity slices should be non-nil")
 	}
 }
 

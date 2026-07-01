@@ -8,50 +8,58 @@ import (
 
 // Probe invalid-reason constants for logging and tests.
 const (
-	ReasonNotAttached             = "not_attached"
-	ReasonNotInGame               = "not_in_game"
-	ReasonUnitTableUnavailable    = "unit_table_unavailable"
+	ReasonNotAttached              = "not_attached"
+	ReasonNotInGame                = "not_in_game"
+	ReasonUnitTableUnavailable     = "unit_table_unavailable"
 	ReasonPlayerPointerUnavailable = "player_pointer_unavailable"
-	ReasonStatsUnavailable        = "stats_unavailable"
-	ReasonReadFailed              = "read_failed"
+	ReasonStatsUnavailable         = "stats_unavailable"
+	ReasonReadFailed               = "read_failed"
 )
 
-const (
-	unitTableBuckets     = 128
-	maxUnitsPerBucket    = 256
-	maxTotalUnitVisits   = 4096
-)
-
-// Snapshot is a minimal read-only player state sample for Phase-1 probing.
+// Snapshot is a read-only player and entity state sample for probing.
 type Snapshot struct {
-	At        time.Time
-	Valid     bool
-	Reason    string
-	PlayerPtr uintptr
-	StatsSource string // `base` or `active`, identifying the stat list used for vitals.
-	HP        uint32
-	MaxHP     uint32
-	Mana      uint32
-	MaxMana   uint32
-	AreaID    uint32
-	PosX      uint32
-	PosY      uint32
+	At           time.Time
+	Valid        bool
+	Reason       string
+	Phase        GamePhase
+	PlayerPtr    uintptr
+	StatsSource  string // `base` or `active`, identifying the stat list used for vitals.
+	HP           uint32
+	MaxHP        uint32
+	Mana         uint32
+	MaxMana      uint32
+	AreaID       uint32
+	PosX         uint32
+	PosY         uint32
+	Objects      []ObjectUnit
+	Entrances    []EntranceUnit
+	Monsters     []MonsterUnit
+	PlayerSkills PlayerSkills
 }
 
 // ProbeReader resolves the main player via the unit table and reads vital stats.
 type ProbeReader struct {
-	reader          *Reader
-	offsets         OffsetSet
-	activeOffsets   OffsetSet
-	offsetsResolved bool
-	lastModuleBase  uintptr
-	lastPlayerPtr   uintptr
-	observedMaxHP   uint32
-	observedMaxMana uint32
-	lastGateValue   uint8
-	lastGateLog     time.Time
-	hasGateValue    bool
+	reader           *Reader
+	offsets          OffsetSet
+	activeOffsets    OffsetSet
+	offsetsResolved  bool
+	lastModuleBase   uintptr
+	scannedCachePath string
+	lastScanAttempt  time.Time
+	scanFailCount    int
+	lastPlayerPtr    uintptr
+	observedMaxHP    uint32
+	observedMaxMana  uint32
+	lastGateValue    uint8
+	lastGateLog      time.Time
+	hasGateValue     bool
 }
+
+const (
+	scanRetryInterval    = 2 * time.Second
+	scanAttemptsPerRound = 3
+	scanAttemptBackoff   = 75 * time.Millisecond
+)
 
 // NewProbeReader wires a probe reader to an existing memory reader and offset set.
 func NewProbeReader(reader *Reader, offsets OffsetSet) *ProbeReader {
@@ -59,6 +67,11 @@ func NewProbeReader(reader *Reader, offsets OffsetSet) *ProbeReader {
 		reader:  reader,
 		offsets: offsets,
 	}
+}
+
+// SetScannedCachePath configures where successful runtime scans are persisted and loaded from.
+func (p *ProbeReader) SetScannedCachePath(path string) {
+	p.scannedCachePath = path
 }
 
 func (p *ProbeReader) ensureOffsets(moduleBase uintptr) OffsetSet {
@@ -71,69 +84,151 @@ func (p *ProbeReader) ensureOffsets(moduleBase uintptr) OffsetSet {
 		return p.activeOffsets
 	}
 
-	scanned, err := ScanProbeOffsets(p.reader, p.offsets)
-	if err != nil {
-		p.reader.log.Info("probe offset scan failed, using static offsets",
-			"error", err,
-			"unit_table", fmt.Sprintf("0x%X", p.offsets.UnitTable),
-			"ui", fmt.Sprintf("0x%X", p.offsets.UI),
-		)
-		p.activeOffsets = p.offsets
-	} else {
-		p.reader.log.Info("probe module offsets scanned",
-			"unit_table", fmt.Sprintf("0x%X", scanned.UnitTable),
-			"ui", fmt.Sprintf("0x%X", scanned.UI),
-			"expansion", fmt.Sprintf("0x%X", scanned.Expansion),
-		)
-		p.activeOffsets = scanned
+	now := time.Now()
+	if p.scanFailCount > 0 && now.Sub(p.lastScanAttempt) < scanRetryInterval {
+		return p.pendingOffsets(moduleBase)
 	}
-	p.offsetsResolved = true
-	return p.activeOffsets
+	p.lastScanAttempt = now
+
+	if scanned, ok := p.tryScanOffsets(); ok {
+		p.applyScannedOffsets(scanned, "live scan")
+		return p.activeOffsets
+	}
+
+	if cached, ok := p.tryCachedOffsets(moduleBase); ok {
+		p.applyScannedOffsets(cached, "scan cache")
+		return p.activeOffsets
+	}
+
+	p.scanFailCount++
+	p.reader.log.Warn("probe offset scan unavailable, retrying",
+		"retry_in", scanRetryInterval,
+		"unit_table_fallback", fmt.Sprintf("0x%X", p.offsets.UnitTable),
+		"ui_fallback", fmt.Sprintf("0x%X", p.offsets.UI),
+	)
+	return p.pendingOffsets(moduleBase)
 }
 
-// Snapshot reads the current main-player probe state. Invalid snapshots carry a short Reason.
+func (p *ProbeReader) tryScanOffsets() (OffsetSet, bool) {
+	var lastErr error
+	for attempt := 0; attempt < scanAttemptsPerRound; attempt++ {
+		if attempt > 0 {
+			time.Sleep(scanAttemptBackoff)
+		}
+		scanned, err := ScanProbeOffsets(p.reader, p.offsets)
+		if err == nil {
+			return scanned, true
+		}
+		lastErr = err
+	}
+	if lastErr != nil {
+		p.reader.log.Info("probe offset scan failed",
+			"error", lastErr,
+			"attempts", scanAttemptsPerRound,
+		)
+	}
+	return OffsetSet{}, false
+}
+
+func (p *ProbeReader) tryCachedOffsets(moduleBase uintptr) (OffsetSet, bool) {
+	if p.scannedCachePath == "" {
+		return OffsetSet{}, false
+	}
+	cached, err := LoadScannedOffsetCache(p.scannedCachePath)
+	if err != nil {
+		p.reader.log.Debug("scan cache not loaded", "path", p.scannedCachePath, "error", err)
+		return OffsetSet{}, false
+	}
+	cached = ResolveCachedOffsets(moduleBase, cached)
+	if !p.offsetsReadable(moduleBase, cached) {
+		p.reader.log.Warn("scan cache offsets not readable in attached process",
+			"path", p.scannedCachePath,
+			"unit_table", fmt.Sprintf("0x%X", cached.UnitTable),
+			"ui", fmt.Sprintf("0x%X", cached.UI),
+		)
+		return OffsetSet{}, false
+	}
+	return cached, true
+}
+
+func (p *ProbeReader) applyScannedOffsets(scanned OffsetSet, source string) {
+	p.activeOffsets = scanned
+	p.offsetsResolved = true
+	p.scanFailCount = 0
+	p.reader.log.Info("probe module offsets active",
+		"source", source,
+		"unit_table", fmt.Sprintf("0x%X", scanned.UnitTable),
+		"ui", fmt.Sprintf("0x%X", scanned.UI),
+		"expansion", fmt.Sprintf("0x%X", scanned.Expansion),
+	)
+	if p.scannedCachePath != "" && source == "live scan" {
+		if err := SaveScannedOffsetCache(p.scannedCachePath, p.lastModuleBase, p.offsets, scanned); err != nil {
+			p.reader.log.Warn("failed to persist scanned offsets", "path", p.scannedCachePath, "error", err)
+		} else {
+			p.reader.log.Info("probe offsets saved to scan cache", "path", p.scannedCachePath)
+		}
+	}
+}
+
+func (p *ProbeReader) pendingOffsets(moduleBase uintptr) OffsetSet {
+	if p.activeOffsets.UnitTable != 0 && p.activeOffsets.UI != 0 && p.offsetsReadable(moduleBase, p.activeOffsets) {
+		return p.activeOffsets
+	}
+	return p.offsets
+}
+
+func (p *ProbeReader) offsetsReadable(moduleBase uintptr, off OffsetSet) bool {
+	if off.UnitTable == 0 || off.UI < 0xA {
+		return false
+	}
+	if _, err := p.reader.ReadBytes(moduleBase+off.UnitTable, 8); err != nil {
+		return false
+	}
+	if _, err := p.reader.ReadUint8(moduleBase + off.InGameGateOffset()); err != nil {
+		return false
+	}
+	return true
+}
+
+// Snapshot reads the current probe state. Invalid snapshots carry a short Reason and Phase.
+// Order: (1) gate + loading UI, (2) player + vitals + area, (3) finalizePhase, (4) entities when Valid && in_game.
 func (p *ProbeReader) Snapshot() Snapshot {
 	now := time.Now()
-	invalid := func(reason string) Snapshot {
-		return Snapshot{At: now, Valid: false, Reason: reason}
-	}
 
 	if p.reader == nil || p.reader.access == nil {
-		return invalid(ReasonNotAttached)
+		return invalidSnapshot(now, GamePhaseUnknown, ReasonNotAttached)
 	}
 
 	moduleBase := p.reader.access.ModuleBase()
 	if moduleBase == 0 {
-		return invalid(ReasonReadFailed)
+		return invalidSnapshot(now, GamePhaseUnknown, ReasonReadFailed)
 	}
 
 	off := p.ensureOffsets(moduleBase)
 
-	inGameGate := p.isInGame(moduleBase, off)
+	// Step 1: gate byte + UI buffer (loading flag).
+	gateValue, gateDisabled, loading := p.readPhaseInputs(moduleBase, off)
+	p.logGateChange(moduleBase, off, gateValue, gateDisabled)
 
-	playerPtr, err := p.findMainPlayer(moduleBase, off)
-	if err != nil {
-		if !inGameGate {
-			return invalid(ReasonNotInGame)
-		}
-		switch {
-		case errors.Is(err, errUnitTableUnavailable):
-			return invalid(ReasonUnitTableUnavailable)
-		case errors.Is(err, errPlayerNotFound):
-			return invalid(ReasonPlayerPointerUnavailable)
-		default:
-			return invalid(ReasonReadFailed)
-		}
+	// Step 2: player + vitals + area/position.
+	playerPtr, playerErr := p.findMainPlayer(moduleBase, off)
+	playerFound := playerErr == nil
+
+	phase := finalizePhase(gateValue, gateDisabled, loading, playerFound)
+
+	if !playerFound {
+		reason := p.playerNotFoundReason(playerErr, gateValue, gateDisabled, loading)
+		return invalidSnapshot(now, phase, reason)
 	}
 
 	areaID, posX, posY, err := p.readAreaAndPosition(playerPtr, off)
 	if err != nil {
-		return invalid(ReasonReadFailed)
+		return invalidSnapshot(now, phase, ReasonReadFailed)
 	}
 
 	statsListEx, err := p.reader.ReadUint64(playerPtr + off.Unit.StatsListEx)
 	if err != nil || statsListEx == 0 {
-		return invalid(ReasonStatsUnavailable)
+		return invalidSnapshot(now, phase, ReasonStatsUnavailable)
 	}
 
 	vitals, statsSource, err := p.parseProbeVitalStats(uintptr(statsListEx), off)
@@ -143,23 +238,77 @@ func (p *ProbeReader) Snapshot() Snapshot {
 			"stats_list_ex", fmt.Sprintf("0x%X", statsListEx),
 			"error", err,
 		)
-		return invalid(ReasonStatsUnavailable)
+		return invalidSnapshot(now, phase, ReasonStatsUnavailable)
 	}
 	vitals = p.normalizeVitalStats(playerPtr, vitals)
 
-	return Snapshot{
-		At:        now,
-		Valid:     true,
-		PlayerPtr: playerPtr,
+	snap := Snapshot{
+		At:          now,
+		Valid:       true,
+		Phase:       phase,
+		PlayerPtr:   playerPtr,
 		StatsSource: statsSource,
-		HP:        vitals.HP,
-		MaxHP:     vitals.MaxHP,
-		Mana:      vitals.Mana,
-		MaxMana:   vitals.MaxMana,
-		AreaID:    areaID,
-		PosX:      posX,
-		PosY:      posY,
+		HP:          vitals.HP,
+		MaxHP:       vitals.MaxHP,
+		Mana:        vitals.Mana,
+		MaxMana:     vitals.MaxMana,
+		AreaID:      areaID,
+		PosX:        posX,
+		PosY:        posY,
 	}
+
+	// Step 4: entities only when Valid && Phase == in_game.
+	if snap.Valid && snap.Phase == GamePhaseInGame {
+		p.enrichPlayerSkills(playerPtr, off, &snap)
+		if err := p.enumerateEntities(moduleBase, off, &snap); err != nil {
+			p.reader.log.Debug("entity enumeration failed", "error", err)
+			return emptyEntitySlices(snap)
+		}
+		return snap
+	}
+
+	return emptyEntitySlices(snap)
+}
+
+func (p *ProbeReader) enrichPlayerSkills(playerPtr uintptr, off OffsetSet, snap *Snapshot) {
+	ps, err := p.readPlayerSkills(playerPtr, off)
+	if err != nil {
+		p.reader.log.Debug("player skills read failed", "error", err)
+	} else {
+		snap.PlayerSkills = ps
+	}
+}
+
+func (p *ProbeReader) playerNotFoundReason(playerErr error, gateValue uint8, gateDisabled, loading bool) string {
+	if !gateDisabled && gateValue != 1 && !loading {
+		return ReasonNotInGame
+	}
+	if playerErr != nil {
+		switch {
+		case errors.Is(playerErr, errUnitTableUnavailable):
+			return ReasonUnitTableUnavailable
+		case errors.Is(playerErr, errPlayerNotFound):
+			return ReasonPlayerPointerUnavailable
+		default:
+			return ReasonReadFailed
+		}
+	}
+	return ReasonPlayerPointerUnavailable
+}
+
+func (p *ProbeReader) logGateChange(moduleBase uintptr, off OffsetSet, gateValue uint8, gateDisabled bool) {
+	if gateDisabled {
+		return
+	}
+	gate := off.InGameGateOffset()
+	if gateValue != 1 {
+		if !p.hasGateValue || p.lastGateValue != gateValue || time.Since(p.lastGateLog) >= 5*time.Second {
+			p.reader.log.Debug("not in game", "gate", fmt.Sprintf("0x%X", moduleBase+gate), "value", gateValue)
+			p.lastGateLog = time.Now()
+		}
+	}
+	p.lastGateValue = gateValue
+	p.hasGateValue = true
 }
 
 func (p *ProbeReader) normalizeVitalStats(playerPtr uintptr, vitals VitalStats) VitalStats {
@@ -169,8 +318,6 @@ func (p *ProbeReader) normalizeVitalStats(playerPtr uintptr, vitals VitalStats) 
 		p.observedMaxMana = 0
 	}
 
-	// D2R exposes current Life/Mana and base MaxLife/MaxMana separately. Equipment can
-	// make the current value exceed the base max, so keep a peak observed max for logs.
 	p.observedMaxHP = maxUint32(p.observedMaxHP, vitals.MaxHP, vitals.HP)
 	p.observedMaxMana = maxUint32(p.observedMaxMana, vitals.MaxMana, vitals.Mana)
 	vitals.MaxHP = p.observedMaxHP
@@ -199,30 +346,6 @@ var (
 	errUnitTableUnavailable = errors.New("unit table unavailable")
 	errPlayerNotFound       = errors.New("main player not found")
 )
-
-func (p *ProbeReader) isInGame(moduleBase uintptr, off OffsetSet) bool {
-	gate := off.InGameGateOffset()
-	if gate == 0 {
-		return true
-	}
-	b, err := p.reader.ReadUint8(moduleBase + gate)
-	if err != nil {
-		if time.Since(p.lastGateLog) >= 5*time.Second {
-			p.reader.log.Debug("in-game gate read failed", "gate", fmt.Sprintf("0x%X", moduleBase+gate), "error", err)
-			p.lastGateLog = time.Now()
-		}
-		return false
-	}
-	if b != 1 {
-		if !p.hasGateValue || p.lastGateValue != b || time.Since(p.lastGateLog) >= 5*time.Second {
-			p.reader.log.Debug("not in game", "gate", fmt.Sprintf("0x%X", moduleBase+gate), "value", b)
-			p.lastGateLog = time.Now()
-		}
-	}
-	p.lastGateValue = b
-	p.hasGateValue = true
-	return b == 1
-}
 
 func (p *ProbeReader) expansionActive(moduleBase uintptr, off OffsetSet) (bool, error) {
 	if off.Expansion == 0 {
@@ -286,38 +409,26 @@ func (p *ProbeReader) findMainPlayer(moduleBase uintptr, off OffsetSet) (uintptr
 		return 0, fmt.Errorf("expansion flag: %w", err)
 	}
 
+	var found uintptr
 	visited := 0
-	for bucket := 0; bucket < unitTableBuckets; bucket++ {
-		bucketAddr := moduleBase + off.UnitTable + uintptr(bucket*8)
-		unitAddr, err := p.reader.ReadUint64(bucketAddr)
+	err = p.walkUnitSegment(moduleBase, off, unitSegmentPlayer, &visited, 0, func(unitAddr uintptr) (unitWalkAction, error) {
+		isMain, err := p.isMainPlayer(unitAddr, expansion, off)
 		if err != nil {
-			return 0, err
+			return unitWalkContinue, err
 		}
-
-		perBucket := 0
-		for unitAddr != 0 {
-			if perBucket >= maxUnitsPerBucket || visited >= maxTotalUnitVisits {
-				break
-			}
-			perBucket++
-			visited++
-
-			isMain, err := p.isMainPlayer(uintptr(unitAddr), expansion, off)
-			if err != nil {
-				return 0, err
-			}
-			if isMain {
-				return uintptr(unitAddr), nil
-			}
-
-			unitAddr, err = p.reader.ReadUint64(uintptr(unitAddr) + off.Unit.NextUnit)
-			if err != nil {
-				return 0, err
-			}
+		if isMain {
+			found = unitAddr
+			return unitWalkStop, nil
 		}
+		return unitWalkContinue, nil
+	})
+	if err != nil {
+		return 0, err
 	}
-
-	return 0, errPlayerNotFound
+	if found == 0 {
+		return 0, errPlayerNotFound
+	}
+	return found, nil
 }
 
 func (p *ProbeReader) readAreaAndPosition(unitAddr uintptr, off OffsetSet) (areaID, posX, posY uint32, err error) {

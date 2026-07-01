@@ -78,6 +78,10 @@ func (r *Reader) readModuleImage(moduleBase uintptr, moduleSize uint32) ([]byte,
 		return nil, ErrNotBound
 	}
 	size := int(moduleSize)
+	if size <= 0 {
+		return nil, fmt.Errorf("module image size is zero")
+	}
+
 	buf := make([]byte, size)
 
 	const pageSize = 4096
@@ -91,7 +95,7 @@ func (r *Reader) readModuleImage(moduleBase uintptr, moduleSize uint32) ([]byte,
 		chunk := buf[offset : offset+chunkSize]
 		if err := r.readWithRetry(moduleBase+uintptr(offset), chunk); err != nil {
 			// D2R.exe can contain unreadable/guarded pages. Keep their bytes as zeroes
-			// and continue scanning the readable parts, matching d2go's best-effort style.
+			// and continue scanning the readable parts.
 			continue
 		}
 		successfulBytes += chunkSize
@@ -162,17 +166,21 @@ func scanExpansionOffset(image []byte) (uintptr, error) {
 }
 
 func findPattern(image []byte, spec patternSpec) (int, error) {
+	return findPatternFrom(image, 0, spec)
+}
+
+func findPatternFrom(image []byte, start int, spec patternSpec) (int, error) {
 	pattern := spec.bytes
 	mask := spec.mask
 	if len(pattern) != len(mask) {
 		return 0, fmt.Errorf("pattern/mask length mismatch")
 	}
-	if len(pattern) == 0 || len(image) < len(pattern) {
+	if len(pattern) == 0 || len(image) < len(pattern) || start > len(image)-len(pattern) {
 		return 0, ErrPatternNotFound
 	}
 
 	limit := len(image) - len(pattern)
-	for i := 0; i <= limit; i++ {
+	for i := start; i <= limit; i++ {
 		match := true
 		for j := 0; j < len(pattern); j++ {
 			if mask[j] == '?' {

@@ -48,6 +48,10 @@ func TestNormalizeKey(t *testing.T) {
 		{"F1", "f1", false},
 		{" 1 ", "1", false},
 		{"ctrl", "ctrl", false},
+		{",", ",", false},
+		{".", ".", false},
+		{"-", "-", false},
+		{"]", "]", false},
 		{"", "", true},
 		{"control", "", true},
 		{"lctrl", "", true},
@@ -121,17 +125,6 @@ func TestPressComboUsesConfiguredHold(t *testing.T) {
 	}
 	if slept != 123*time.Millisecond {
 		t.Fatalf("combo hold sleep = %v, want 123ms", slept)
-	}
-}
-
-func TestPressBeltUnconfiguredSlot(t *testing.T) {
-	kb := DefaultKeyboardConfig()
-	kb.Belt[0] = ""
-	c := testKeyboardController(&mockKeySender{}, kb)
-
-	err := c.PressBelt(1)
-	if !errors.Is(err, ErrUnconfiguredSlot) {
-		t.Fatalf("PressBelt err = %v, want ErrUnconfiguredSlot", err)
 	}
 }
 
@@ -257,90 +250,6 @@ func TestPressComboCleanupUpErrorStillReturnsOriginal(t *testing.T) {
 	}
 }
 
-func TestPressSkillResolvesConfig(t *testing.T) {
-	mock := &mockKeySender{}
-	kb := DefaultKeyboardConfig()
-	kb.Skills[2] = "f3"
-	c := testKeyboardController(mock, kb)
-
-	if err := c.PressSkill(3); err != nil {
-		t.Fatal(err)
-	}
-	if len(mock.downCalls) != 1 || mock.downCalls[0] != "f3" {
-		t.Fatalf("down = %v, want [f3]", mock.downCalls)
-	}
-}
-
-func TestPressBeltResolvesConfig(t *testing.T) {
-	mock := &mockKeySender{}
-	kb := DefaultKeyboardConfig()
-	kb.Belt[1] = "2"
-	c := testKeyboardController(mock, kb)
-
-	if err := c.PressBelt(2); err != nil {
-		t.Fatal(err)
-	}
-	if len(mock.downCalls) != 1 || mock.downCalls[0] != "2" {
-		t.Fatalf("down = %v, want [2]", mock.downCalls)
-	}
-}
-
-func TestPressTownPortalResolvesConfig(t *testing.T) {
-	mock := &mockKeySender{}
-	kb := DefaultKeyboardConfig()
-	kb.TownPortal = "f8"
-	c := testKeyboardController(mock, kb)
-
-	if err := c.PressTownPortal(); err != nil {
-		t.Fatal(err)
-	}
-	if len(mock.downCalls) != 1 || mock.downCalls[0] != "f8" {
-		t.Fatalf("down = %v, want [f8]", mock.downCalls)
-	}
-}
-
-func TestPressSkillInvalidSlot(t *testing.T) {
-	c := testKeyboardController(&mockKeySender{}, DefaultKeyboardConfig())
-	for _, slot := range []int{0, 9} {
-		err := c.PressSkill(slot)
-		if !errors.Is(err, ErrInvalidSlot) {
-			t.Fatalf("PressSkill(%d) err = %v, want ErrInvalidSlot", slot, err)
-		}
-	}
-}
-
-func TestPressBeltInvalidSlot(t *testing.T) {
-	c := testKeyboardController(&mockKeySender{}, DefaultKeyboardConfig())
-	for _, slot := range []int{0, 5} {
-		err := c.PressBelt(slot)
-		if !errors.Is(err, ErrInvalidSlot) {
-			t.Fatalf("PressBelt(%d) err = %v, want ErrInvalidSlot", slot, err)
-		}
-	}
-}
-
-func TestPressSkillUnconfiguredSlot(t *testing.T) {
-	kb := DefaultKeyboardConfig()
-	kb.Skills[0] = ""
-	c := testKeyboardController(&mockKeySender{}, kb)
-
-	err := c.PressSkill(1)
-	if !errors.Is(err, ErrUnconfiguredSlot) {
-		t.Fatalf("PressSkill err = %v, want ErrUnconfiguredSlot", err)
-	}
-}
-
-func TestPressTownPortalUnconfigured(t *testing.T) {
-	kb := DefaultKeyboardConfig()
-	kb.TownPortal = ""
-	c := testKeyboardController(&mockKeySender{}, kb)
-
-	err := c.PressTownPortal()
-	if !errors.Is(err, ErrUnconfiguredSlot) {
-		t.Fatalf("PressTownPortal err = %v, want ErrUnconfiguredSlot", err)
-	}
-}
-
 func TestRandomDelayDeterministicWhenEqual(t *testing.T) {
 	got := randomDelay(25, 25)
 	if got != 25*time.Millisecond {
@@ -353,6 +262,7 @@ func TestVirtualKeyMapping(t *testing.T) {
 		"1": 0x31, "a": 0x41, "f1": 0x70, "f12": 0x7B,
 		"shift": 0xA0, "ctrl": 0xA2, "alt": 0xA4,
 		"esc": 0x1B, "enter": 0x0D, "space": 0x20, "tab": 0x09,
+		",": 0xBC, ".": 0xBE, "-": 0xBD, "]": 0xDD,
 	}
 	for name, wantVK := range cases {
 		vk, ok := virtualKey(Key(name))

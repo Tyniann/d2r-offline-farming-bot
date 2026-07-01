@@ -12,6 +12,42 @@ func validWorldState(hp uint32) world.State {
 	return world.FromSnapshot(validSnapshot(hp))
 }
 
+func TestWorldShouldLogEntityFingerprintChange(t *testing.T) {
+	prev := validWorldState(100)
+	cur := validWorldState(100)
+	cur.Objects = []world.Object{{Kind: world.ObjectKindWaypoint, UnitID: 1, ID: 119}}
+
+	if !worldShouldLog(prev, cur, time.Now(), worldHeartbeat, false, false) {
+		t.Fatal("expected log on entity fingerprint change")
+	}
+}
+
+func TestWorldShouldNotLogPositionOnlyWithSameFingerprint(t *testing.T) {
+	prev := validWorldState(100)
+	cur := validWorldState(100)
+	cur.Player.Position.X++
+	cur.Player.Position.Y++
+
+	if worldShouldLog(prev, cur, time.Now(), worldHeartbeat, false, false) {
+		t.Fatal("position-only change with same fingerprint should not log")
+	}
+}
+
+func TestWorldLogAttrsIncludesEntityCounts(t *testing.T) {
+	st := validWorldState(100)
+	st.Objects = []world.Object{{Kind: world.ObjectKindWaypoint, UnitID: 1}}
+	attrs := worldLogAttrs(st)
+	found := map[string]bool{}
+	for _, a := range attrs {
+		found[a.Key] = true
+	}
+	for _, key := range []string{"object_count", "entrance_count", "monster_count"} {
+		if !found[key] {
+			t.Fatalf("missing log attr %q", key)
+		}
+	}
+}
+
 func TestWorldLogIsHeartbeat(t *testing.T) {
 	if worldLogIsHeartbeat(time.Time{}, worldHeartbeat) {
 		t.Fatal("zero lastLog must not be heartbeat (first invalid log uses Info)")

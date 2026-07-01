@@ -14,7 +14,8 @@ Echte OS-Eingaben sind standardmäßig deaktiviert (`input.enabled: false`). Glo
   - `input.go` — `Controller`, Window Binding (`Bind` / `Unbind` / `Bound` / `Window`)
   - `safety.go` — `SafetyConfig`, `Status`, Pause/Stop-State, Action-Guards und Logging
   - `hotkey.go`, `hotkey_windows.go`, `hotkey_stub.go` — globale Hotkey-Typen und Windows-`RegisterHotKey`-Listener
-  - `keyboard.go` — `KeyboardConfig`, `KeySender`, `PressKey`, `PressCombo`, Slot-Helfer
+  - `keyboard.go` — `KeyboardConfig`, `KeySender`, `PressKey`, `PressCombo`
+  - `skill_cast.go` — `BindingSource`, `SelectSkill`, `CastSkillAt`, `CastBelt`
   - `keyboard_windows.go` — Windows `SendInput`-Backend und Virtual-Key-Mapping
   - `keyboard_stub.go` — Nicht-Windows-Stub mit `ErrUnsupportedPlatform`
   - `mouse.go` — `MouseButton`, `MouseSender`, `MoveTo`, `Click`, Clamping
@@ -26,7 +27,7 @@ Echte OS-Eingaben sind standardmäßig deaktiviert (`input.enabled: false`). Glo
   - `errors.go` — Sentinel-Errors, `IsBindRetryable`
   - `internal/app/input_test_spec.go` — Parser für `--input-test`-Aktionen
   - `internal/app/input_test_mode.go` — `RunInputTest`, Ready-Wait, Observation
-- **Config:** `input`-Sektion in YAML (Safety, Delay, Skill-/Belt-Slots, Town Portal); Mapping in `internal/app/input_config.go`
+- **Config:** `input`-Sektion in YAML (Safety, Delays, Skill-/Portal-/Belt-Hotkeys)
 
 ## Funktionalität
 
@@ -40,13 +41,13 @@ Echte OS-Eingaben sind standardmäßig deaktiviert (`input.enabled: false`). Glo
 ### Keyboard Primitives (Phase 3.2)
 
 - **Low-Level:** `KeyDown`, `KeyUp`, `PressKey`, `PressCombo` — serialisiert über `keyMu`.
-- **High-Level:** `PressSkill(1..8)`, `PressBelt(1..4)`, `PressTownPortal()` — lösen konfigurierte Keys auf.
+- **Skill-Cast:** `SelectSkill`, `CastSkillAt`, `CastBelt` — Hotkeys aus YAML-Config über `BindingSource`.
 - `PressKey`: Down → zufälliger Delay (`key_delay_ms_min`–`key_delay_ms_max`, Default 10–40 ms) → Up.
 - `PressCombo`: Down in Reihenfolge → Hold (`combo_hold_ms`, Default 200 ms) → Up in umgekehrter Reihenfolge.
 - Erfolgreiche Aktionen: strukturiertes Log `input action` mit `kind`, `action`, `reason`, `allowed=true`.
 - Windows-Backend: `SendInput` über User32/LazyDLL, ohne CGO.
 
-**Unterstützte Keys:** `0`–`9`, `a`–`z`, `f1`–`f12`, `shift`/`ctrl`/`alt` (linke VKs), `esc`, `enter`, `space`, `tab`, `pause`. Aliase wie `control` oder `lctrl` sind ungültig.
+**Unterstützte Keys:** `0`–`9`, `a`–`z`, `f1`–`f12`, `shift`/`ctrl`/`alt` (linke VKs), `esc`, `enter`, `space`, `tab`, `pause`, `,`, `.`, `-`, `]`. Aliase wie `control` oder `lctrl` sind ungültig.
 
 ### Mouse Primitives (Phase 3.3)
 
@@ -86,10 +87,8 @@ Expliziter CLI-Testmodus (`--input-test`) zur Validierung der Phase-3-Primitives
 .\d2rbot.exe --config configs\config.yaml --input-test "belt:1"
 .\d2rbot.exe --config configs\config.yaml --input-test "potion:1"
 .\d2rbot.exe --config configs\config.yaml --input-test "portal"
-.\d2rbot.exe --config configs\config.yaml --input-test "skill:1"
-.\d2rbot.exe --config configs\config.yaml --input-test "center-click"
-.\d2rbot.exe --config configs\config.yaml --input-test "click:640,360"
-.\d2rbot.exe --config configs\config.yaml --input-test "belt:1,portal,skill:1"
+.\d2rbot.exe --config configs\config.yaml --input-test "skill:teleport"
+.\d2rbot.exe --config configs\config.yaml --input-test "skill:teleport,click:640,360"
 .\d2rbot.exe --config configs\config.yaml --input-test "belt:1" --input-test-observe-ms 3000
 ```
 
@@ -97,13 +96,15 @@ Expliziter CLI-Testmodus (`--input-test`) zur Validierung der Phase-3-Primitives
 
 | Spec | Verhalten |
 |------|-----------|
-| `belt:N` / `potion:N` | `PressBelt(N)`, N = 1..4 |
-| `portal` | `PressTownPortal()` |
-| `skill:N` | `PressSkill(N)`, N = 1..8 |
+| `belt:N` / `potion:N` | `CastBelt(N)` aus YAML, N = 1..4 |
+| `portal` | Town-Portal-Skill-Hotkey aus YAML (`SelectSkill`) |
+| `skill:teleport` / `skill:town_portal` | `SelectSkill` per Skill-ID; folgender `click` nutzt LMB/RMB der Leiste |
 | `center-click` | `MoveTo(width/2, height/2)` + `Click(left)` |
 | `click:X,Y` | `MoveTo(X,Y)` + `Click(left)`, client-relativ |
 
 Komma trennt kurze Sequenzen. Bei `click:X,Y` in Sequenzen wird die Koordinate intern zusammengehalten (`belt:1,click:10,20,portal`).
+
+**Skill-Actions und Bindings:** Normale Runs, Pathing und `--input-test` nutzen ausschließlich `input.bindings` aus YAML. Es gibt keinen Memory-Fallback und keine Hotkey-Kalibrierung.
 
 **Ablauf:**
 
@@ -157,9 +158,6 @@ type KeyboardConfig struct {
     KeyDelayMsMin int
     KeyDelayMsMax int
     ComboHoldMs   int
-    Skills        [8]string
-    Belt          [4]string
-    TownPortal    string
 }
 
 type SafetyConfig struct {
@@ -179,7 +177,7 @@ type MouseButton string // "left" | "right"
 
 - `Ready()` = Controller initialisiert; `Bound()` = Fenster gebunden — getrennte Zustände. `Ready()` bedeutet **nicht**, dass echte Eingaben erlaubt sind (`enabled` separat prüfen).
 - `Window()` liefert eine Kopie, analog zu `process.Status()` und `world.Current()`.
-- `PressSkill`/`PressBelt` sind 1-basiert; leere Slot-Mappings liefern `ErrUnconfiguredSlot`.
+- `SelectSkill` / `CastSkillAt` / `CastBelt` nutzen `input.bindings` aus YAML.
 - `MoveTo`/`Click` verlangen `Bound()`; Mausfehler als `ErrWindowNotBound`, `ErrInvalidMouseButton`, `ErrMouseSendFailed`.
 
 ### YAML-Config (`input`)
@@ -192,17 +190,27 @@ input:
   key_delay_ms_min: 10
   key_delay_ms_max: 40
   combo_hold_ms: 200
-  skills:
-    slot1: f1
-    # ... slot7: f7
-  belt:
-    slot1: "1"
-    # ... slot4: "4"
-  # In D2R Town Portal/Tome of Town Portal bewusst auf F8 binden.
-  town_portal: f8
+  bindings:
+    skills:
+      teleport:
+        key: f7
+        button: right
+      town_portal:
+        key: f6
+        button: right
+      bone_spear:
+        key: f8
+        button: left
+    belt:
+      slot_1: ","
+      slot_2: "."
+      slot_3: "-"
+      slot_4: "]"
 ```
 
-Fehlt die gesamte `input`-Sektion, werden sichere Defaults angewendet (`enabled=false`, Hotkeys `pause`/`f12`, Skills `f1`–`f7`, `town_portal=""`). Bei partieller Config bleiben explizite `0/0`-Delays erhalten; leere Skill-/Belt-/Hotkey-Felder werden mit Defaults gefüllt. `F8` ist als Operator-Konvention für Town Portal reserviert und wird deshalb nicht unter `skills` geführt; der Nutzer muss Town Portal/Tome of Town Portal im Spiel bewusst auf `F8` binden und `town_portal: f8` setzen. Ohne `town_portal` liefert `PressTownPortal` `ErrUnconfiguredSlot`.
+Skill- und Belt-Hotkeys müssen zu den D2R-Optionen passen. `button` ist `left` oder `right` und bestimmt, welchen Mausbutton ein folgender `click` für diese Skill-Auswahl verwendet.
+
+Fehlt die gesamte `input`-Sektion, werden sichere Defaults angewendet (`enabled=false`, Hotkeys `pause`/`f12`, Timing-Defaults).
 
 ## Operator / CLI
 
@@ -221,7 +229,7 @@ Manuelle Validierung Phase 3.5 (Release-Kriterium Phase 3):
 ```powershell
 .\d2rbot.exe --config configs\config.yaml --input-test "belt:1"
 .\d2rbot.exe --config configs\config.yaml --input-test "portal"
-.\d2rbot.exe --config configs\config.yaml --input-test "skill:1"
+.\d2rbot.exe --config configs\config.yaml --input-test "skill:teleport"
 .\d2rbot.exe --config configs\config.yaml --input-test "center-click"
 ```
 

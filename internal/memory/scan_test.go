@@ -1,8 +1,6 @@
 package memory
 
-import (
-	"testing"
-)
+import "testing"
 
 func TestFindPattern(t *testing.T) {
 	image := []byte{

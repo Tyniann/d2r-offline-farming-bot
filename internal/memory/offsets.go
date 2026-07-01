@@ -26,13 +26,14 @@ type OffsetSet struct {
 // Main-player detection follows d2go GetRawPlayerUnits: inventory flag at +0x30 or +0x70
 // when expansion is active (inventory+Expansion.MainPlayerExpansion).
 type UnitOffsets struct {
-	UnitType uintptr // 0x00 — player buckets use type 0; not filtered in d2go player scan
-	UnitID   uintptr // 0x08
-	UnitData uintptr // 0x10
-	Path     uintptr // 0x38 — pointer to path/position structure
+	UnitType    uintptr // 0x00 — player buckets use type 0; not filtered in d2go player scan
+	UnitID      uintptr // 0x08
+	UnitData    uintptr // 0x10
+	Path        uintptr // 0x38 — pointer to path/position structure
 	StatsListEx uintptr // 0x88 — pointer to extended stat list header
 	Inventory   uintptr // 0x90 — pointer to inventory struct
 	NextUnit    uintptr // 0x158 — next unit in bucket linked list
+	SkillsList  uintptr // 0x100 — pointer to player skill list header
 
 	// Inventory-relative main-player marker (uint16 > 0).
 	MainPlayerNormal    uintptr // inventory + 0x30
@@ -66,12 +67,6 @@ type StatOffsets struct {
 	ID          uintptr // entry + 0x02, uint16
 	Value       uintptr // entry + 0x04, int32
 	Next        uintptr // unused — d2go uses a flat stat array, not a linked list
-}
-
-// PointerChain resolves moduleBase + StaticOffset then optional pointer hops.
-type PointerChain struct {
-	StaticOffset uintptr
-	DerefOffsets []uintptr
 }
 
 // InGameGateOffset returns the module-relative address of the in-game byte gate.
@@ -115,6 +110,7 @@ func DefaultOffsetSet() OffsetSet {
 			StatsListEx:         0x88,
 			Inventory:           0x90,
 			NextUnit:            0x158,
+			SkillsList:          0x100,
 			MainPlayerNormal:    0x30,
 			MainPlayerExpansion: 0x70,
 			ExpansionCharFlag:   0x5C,

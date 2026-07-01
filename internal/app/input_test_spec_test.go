@@ -3,6 +3,8 @@ package app
 import (
 	"strings"
 	"testing"
+
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/memory"
 )
 
 func TestParseInputTestSpecSingleActions(t *testing.T) {
@@ -13,7 +15,8 @@ func TestParseInputTestSpecSingleActions(t *testing.T) {
 		{"belt:1", []inputTestAction{{kind: inputTestBelt, slot: 1}}},
 		{"potion:4", []inputTestAction{{kind: inputTestBelt, slot: 4}}},
 		{"portal", []inputTestAction{{kind: inputTestPortal}}},
-		{"skill:8", []inputTestAction{{kind: inputTestSkill, slot: 8}}},
+		{"skill:teleport", []inputTestAction{{kind: inputTestSkill, skillID: memory.SkillTeleport}}},
+		{"skill:town_portal", []inputTestAction{{kind: inputTestSkill, skillID: memory.SkillTownPortal}}},
 		{"center-click", []inputTestAction{{kind: inputTestCenterClick}}},
 		{"click:10,20", []inputTestAction{{kind: inputTestClick, x: 10, y: 20}}},
 		{"click:10, 20", []inputTestAction{{kind: inputTestClick, x: 10, y: 20}}},
@@ -39,7 +42,7 @@ func TestParseInputTestSpecSingleActions(t *testing.T) {
 }
 
 func TestParseInputTestSpecSequence(t *testing.T) {
-	got, err := parseInputTestSpec("belt:1,portal,skill:1")
+	got, err := parseInputTestSpec("belt:1,portal,skill:teleport")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -52,7 +55,7 @@ func TestParseInputTestSpecSequence(t *testing.T) {
 	if got[1].kind != inputTestPortal {
 		t.Fatalf("second action = %+v", got[1])
 	}
-	if got[2].kind != inputTestSkill || got[2].slot != 1 {
+	if got[2].kind != inputTestSkill || got[2].skillID != memory.SkillTeleport {
 		t.Fatalf("third action = %+v", got[2])
 	}
 }
@@ -65,6 +68,7 @@ func TestParseInputTestSpecErrors(t *testing.T) {
 		"belt:5",
 		"skill:0",
 		"skill:9",
+		"skill:unknown",
 		"click:bad,20",
 		"click:10",
 		"belt:1,,portal",

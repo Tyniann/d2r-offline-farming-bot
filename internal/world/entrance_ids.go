@@ -1,0 +1,86 @@
+package world
+
+// EntranceKind classifies Countess-relevant entrances.
+type EntranceKind int
+
+// EntranceKind values for tower and cellar transitions.
+const (
+	EntranceKindUnknown EntranceKind = iota
+	EntranceKindTowerToWilderness
+	EntranceKindWildernessToTower
+	EntranceKindCatacombsUp
+	EntranceKindCatacombsDown
+)
+
+// String returns a stable label for logging.
+func (k EntranceKind) String() string {
+	switch k {
+	case EntranceKindWildernessToTower:
+		return "wilderness_to_tower"
+	case EntranceKindTowerToWilderness:
+		return "tower_to_wilderness"
+	case EntranceKindCatacombsUp:
+		return "catacombs_up"
+	case EntranceKindCatacombsDown:
+		return "catacombs_down"
+	default:
+		return "unknown"
+	}
+}
+
+// Entrance is an interpreted world entrance with resolved kind and display name.
+type Entrance struct {
+	Kind     EntranceKind
+	ID       uint32
+	UnitID   uint32
+	Position Position
+	Name     string
+}
+
+// Entrance IDs from d2go entrance catalog @ 16d248a53591.
+const (
+	EntranceWildernessToTower uint32 = 10
+	EntranceTowerToWilderness uint32 = 11
+	EntranceCatacombsUp       uint32 = 17
+	EntranceCatacombsDown     uint32 = 18
+)
+
+var entranceIDs = []uint32{
+	EntranceWildernessToTower,
+	EntranceTowerToWilderness,
+	EntranceCatacombsUp,
+	EntranceCatacombsDown,
+}
+
+var entranceNames = map[uint32]string{
+	EntranceWildernessToTower: "Act 1 Wilderness to Tower",
+	EntranceTowerToWilderness: "Act 1 Tower to Wilderness",
+	EntranceCatacombsUp:       "Act 1 Catacombs Up",
+	EntranceCatacombsDown:     "Act 1 Catacombs Down",
+}
+
+// LookupEntranceKind resolves an entrance ID to its semantic kind.
+func LookupEntranceKind(id uint32) EntranceKind {
+	switch id {
+	case EntranceWildernessToTower:
+		return EntranceKindWildernessToTower
+	case EntranceTowerToWilderness:
+		return EntranceKindTowerToWilderness
+	case EntranceCatacombsUp:
+		return EntranceKindCatacombsUp
+	case EntranceCatacombsDown:
+		return EntranceKindCatacombsDown
+	default:
+		return EntranceKindUnknown
+	}
+}
+
+// LookupEntranceName returns a display name for a known entrance ID.
+func LookupEntranceName(id uint32) string {
+	return entranceNames[id]
+}
+
+// AllEntranceIDs returns Countess-route entrance IDs.
+func AllEntranceIDs() []uint32 {
+	return append([]uint32(nil), entranceIDs...)
+}

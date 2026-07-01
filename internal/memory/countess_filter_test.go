@@ -1,0 +1,42 @@
+package memory
+
+import "testing"
+
+func TestCountessMonsterCandidate(t *testing.T) {
+	if !IsCountessMonsterCandidate(46, SuperUniqueMonsterFlag) {
+		t.Fatal("super-unique Black Rogue 46 should match")
+	}
+	if !IsCountessMonsterCandidate(45, SuperUniqueMonsterFlag) {
+		t.Fatal("super-unique Dark Stalker should match")
+	}
+	if IsCountessMonsterCandidate(45, 0) {
+		t.Fatal("normal Dark Stalker without super-unique flag should not match")
+	}
+}
+
+func TestCountessTowerNPCIDs(t *testing.T) {
+	for _, id := range []uint32{43, 44, 45, 46, 47} {
+		if !IsCountessTowerNPCID(id) {
+			t.Fatalf("tower npc %d should match", id)
+		}
+	}
+}
+
+func TestCountessFilterObjects(t *testing.T) {
+	for _, id := range []uint32{580, 119, 157} {
+		if !IsCountessObjectID(id) {
+			t.Fatalf("object %d should match", id)
+		}
+	}
+	if IsCountessObjectID(999) {
+		t.Fatal("unexpected object match")
+	}
+}
+
+func TestCountessFilterEntrances(t *testing.T) {
+	for _, id := range []uint32{10, 11, 17, 18} {
+		if !IsCountessEntranceID(id) {
+			t.Fatalf("entrance %d should match", id)
+		}
+	}
+}

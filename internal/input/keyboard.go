@@ -10,25 +10,19 @@ import (
 // Key is a normalized keyboard key identifier used by [KeySender].
 type Key string
 
-// KeyboardConfig holds timing and key-mapping settings for keyboard actions.
+// KeyboardConfig holds timing settings for keyboard actions.
 type KeyboardConfig struct {
 	KeyDelayMsMin int
 	KeyDelayMsMax int
 	ComboHoldMs   int
-	Skills        [8]string
-	Belt          [4]string
-	TownPortal    string
 }
 
-// DefaultKeyboardConfig returns the standard D2R key bindings and timing defaults.
+// DefaultKeyboardConfig returns standard keyboard timing defaults.
 func DefaultKeyboardConfig() KeyboardConfig {
 	return KeyboardConfig{
 		KeyDelayMsMin: 10,
 		KeyDelayMsMax: 40,
 		ComboHoldMs:   200,
-		Skills:        [8]string{"f1", "f2", "f3", "f4", "f5", "f6", "f7", ""},
-		Belt:          [4]string{"1", "2", "3", "4"},
-		TownPortal:    "",
 	}
 }
 
@@ -71,6 +65,7 @@ var supportedKeys = map[string]uint16{
 	"f9": 0x78, "f10": 0x79, "f11": 0x7A, "f12": 0x7B,
 	"shift": 0xA0, "ctrl": 0xA2, "alt": 0xA4,
 	"esc": 0x1B, "enter": 0x0D, "space": 0x20, "tab": 0x09,
+	",": 0xBC, ".": 0xBE, "-": 0xBD, "]": 0xDD,
 	"pause": 0x13,
 }
 
@@ -253,48 +248,4 @@ func (c *Controller) releasePressedKeys(pressed []Key) {
 			c.log.Warn("input key cleanup failed", "key", k, "error", err)
 		}
 	}
-}
-
-// PressSkill sends a configured skill-slot key (1-based, slots 1–8).
-func (c *Controller) PressSkill(slot int) error {
-	if slot < 1 || slot > 8 {
-		return fmt.Errorf("press skill slot %d: %w", slot, ErrInvalidSlot)
-	}
-	key := c.keyboard.Skills[slot-1]
-	if key == "" {
-		return fmt.Errorf("press skill slot %d: %w", slot, ErrUnconfiguredSlot)
-	}
-	k, err := NormalizeKey(key)
-	if err != nil {
-		return err
-	}
-	return c.pressKey(k, "skill_slot")
-}
-
-// PressBelt sends a configured belt-slot key (1-based, slots 1–4).
-func (c *Controller) PressBelt(slot int) error {
-	if slot < 1 || slot > 4 {
-		return fmt.Errorf("press belt slot %d: %w", slot, ErrInvalidSlot)
-	}
-	key := c.keyboard.Belt[slot-1]
-	if key == "" {
-		return fmt.Errorf("press belt slot %d: %w", slot, ErrUnconfiguredSlot)
-	}
-	k, err := NormalizeKey(key)
-	if err != nil {
-		return err
-	}
-	return c.pressKey(k, "belt_slot")
-}
-
-// PressTownPortal sends the configured town-portal key.
-func (c *Controller) PressTownPortal() error {
-	if c.keyboard.TownPortal == "" {
-		return fmt.Errorf("press town portal: %w", ErrUnconfiguredSlot)
-	}
-	k, err := NormalizeKey(c.keyboard.TownPortal)
-	if err != nil {
-		return err
-	}
-	return c.pressKey(k, "town_portal")
 }

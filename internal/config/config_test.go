@@ -34,21 +34,6 @@ func TestLoadExampleConfig(t *testing.T) {
 	if cfg.Input.ComboHoldMs != 200 {
 		t.Errorf("Input.ComboHoldMs = %d, want 200", cfg.Input.ComboHoldMs)
 	}
-	skills := cfg.Input.Skills.Slots()
-	for i, want := range []string{"f1", "f2", "f3", "f4", "f5", "f6", "f7", ""} {
-		if skills[i] != want {
-			t.Errorf("Input.Skills[%d] = %q, want %q", i, skills[i], want)
-		}
-	}
-	belt := cfg.Input.Belt.Slots()
-	for i, want := range []string{"1", "2", "3", "4"} {
-		if belt[i] != want {
-			t.Errorf("Input.Belt[%d] = %q, want %q", i, belt[i], want)
-		}
-	}
-	if cfg.Input.TownPortal != "f8" {
-		t.Errorf("Input.TownPortal = %q, want f8", cfg.Input.TownPortal)
-	}
 	if cfg.Input.Enabled {
 		t.Errorf("Input.Enabled = true, want false")
 	}
@@ -57,6 +42,9 @@ func TestLoadExampleConfig(t *testing.T) {
 	}
 	if cfg.Input.StopHotkey != "f12" {
 		t.Errorf("Input.StopHotkey = %q, want f12", cfg.Input.StopHotkey)
+	}
+	if cfg.Runs.StepTimeoutMs != 30000 {
+		t.Errorf("Runs.StepTimeoutMs = %d, want 30000", cfg.Runs.StepTimeoutMs)
 	}
 	if cfg.LoadedFrom == "" {
 		t.Error("LoadedFrom should be set after Load")
@@ -111,15 +99,6 @@ process:
 	def := cfg.Input
 	if def.KeyDelayMsMin != 10 || def.KeyDelayMsMax != 40 || def.ComboHoldMs != 200 {
 		t.Fatalf("timing defaults = %+v", def)
-	}
-	if def.Skills.Slot1 != "f1" || def.Skills.Slot7 != "f7" || def.Skills.Slot8 != "" {
-		t.Fatalf("skill defaults = %+v", def.Skills)
-	}
-	if def.Belt.Slot1 != "1" || def.Belt.Slot4 != "4" {
-		t.Fatalf("belt defaults = %+v", def.Belt)
-	}
-	if def.TownPortal != "" {
-		t.Fatalf("town_portal = %q, want empty default", def.TownPortal)
 	}
 	if def.Enabled {
 		t.Fatal("expected enabled=false when input section missing")
@@ -182,37 +161,49 @@ func TestInputValidateMaxLessThanMin(t *testing.T) {
 	}
 }
 
-func TestInputValidateInvalidKey(t *testing.T) {
-	cfg := &Config{
-		App:     AppConfig{Name: "d2rbot"},
-		Process: ProcessConfig{ProcessName: "D2R.exe"},
-		Runtime: RuntimeConfig{PollIntervalMs: 100},
-		Input: InputConfig{
-			KeyDelayMsMin: 10,
-			KeyDelayMsMax: 40,
-			ComboHoldMs:   200,
-			Skills:        SkillKeys{Slot1: "control"},
-		},
+func TestInputBindingsLoaded(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "bindings.yaml")
+	content := `app:
+  name: d2rbot
+runtime:
+  poll_interval_ms: 100
+process:
+  process_name: D2R.exe
+input:
+  enabled: false
+  pause_hotkey: pause
+  stop_hotkey: f12
+  bindings:
+    skills:
+      teleport:
+        key: f7
+        button: right
+      bone_spear:
+        key: f8
+        button: left
+    belt:
+      slot_1: ","
+      slot_2: "."
+      slot_3: "-"
+      slot_4: "]"
+`
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
 	}
-	if err := cfg.validate(); err == nil {
-		t.Fatal("expected error for invalid skill key")
-	}
-}
 
-func TestInputValidateInvalidAlias(t *testing.T) {
-	cfg := &Config{
-		App:     AppConfig{Name: "d2rbot"},
-		Process: ProcessConfig{ProcessName: "D2R.exe"},
-		Runtime: RuntimeConfig{PollIntervalMs: 100},
-		Input: InputConfig{
-			KeyDelayMsMin: 10,
-			KeyDelayMsMax: 40,
-			ComboHoldMs:   200,
-			Skills:        SkillKeys{Slot1: "lctrl"},
-		},
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
 	}
-	if err := cfg.validate(); err == nil {
-		t.Fatal("expected error for lctrl alias")
+	if got := cfg.Input.Bindings.Skills["teleport"]; got.Key != "f7" || got.Button != "right" {
+		t.Fatalf("teleport binding = %+v, want f7/right", got)
+	}
+	if got := cfg.Input.Bindings.Skills["bone_spear"]; got.Key != "f8" || got.Button != "left" {
+		t.Fatalf("bone_spear binding = %+v, want f8/left", got)
+	}
+	if got := cfg.Input.Bindings.Belt; got.Slot1 != "," || got.Slot2 != "." || got.Slot3 != "-" || got.Slot4 != "]" {
+		t.Fatalf("belt bindings = %+v", got)
 	}
 }
 
@@ -256,6 +247,7 @@ func TestInputValidateEmptyHotkeys(t *testing.T) {
 		t.Fatal("expected error for empty hotkeys before defaults")
 	}
 	cfg.Input.applyDefaults()
+	cfg.Runs.applyDefaults()
 	if err := cfg.validate(); err != nil {
 		t.Fatalf("expected valid config after defaults: %v", err)
 	}
@@ -273,6 +265,73 @@ func TestInputValidateInvalidHotkey(t *testing.T) {
 	}
 	if err := cfg.validate(); err == nil {
 		t.Fatal("expected error for invalid stop hotkey")
+	}
+}
+
+func TestRunsDefaultsWhenSectionMissing(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "minimal.yaml")
+	content := `app:
+  name: d2rbot
+runtime:
+  poll_interval_ms: 100
+process:
+  process_name: D2R.exe
+`
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Runs.StepTimeoutMs != 30000 {
+		t.Fatalf("StepTimeoutMs = %d, want 30000", cfg.Runs.StepTimeoutMs)
+	}
+	if cfg.Runs.Active != "" {
+		t.Fatalf("Active = %q, want empty", cfg.Runs.Active)
+	}
+}
+
+func TestRunsValidateStepTimeoutNonPositive(t *testing.T) {
+	cfg := &Config{
+		App:     AppConfig{Name: "d2rbot"},
+		Process: ProcessConfig{ProcessName: "D2R.exe"},
+		Runtime: RuntimeConfig{PollIntervalMs: 100},
+		Runs:    RunsConfig{StepTimeoutMs: -1},
+	}
+	if err := cfg.validate(); err == nil {
+		t.Fatal("expected error for negative step_timeout_ms")
+	}
+}
+
+func TestRunsParsingFromYAML(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "runs.yaml")
+	content := `app:
+  name: d2rbot
+runtime:
+  poll_interval_ms: 100
+process:
+  process_name: D2R.exe
+runs:
+  active: countess
+  step_timeout_ms: 45000
+`
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Runs.Active != "countess" {
+		t.Fatalf("Active = %q, want countess", cfg.Runs.Active)
+	}
+	if cfg.Runs.StepTimeoutMs != 45000 {
+		t.Fatalf("StepTimeoutMs = %d, want 45000", cfg.Runs.StepTimeoutMs)
 	}
 }
 

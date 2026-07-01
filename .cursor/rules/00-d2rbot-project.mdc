@@ -4,7 +4,7 @@ alwaysApply: true
 ---
 
 ## Project spec
-**D2R Offline Farming Bot** — externe Windows-Software für **Offline/Singleplayer** D2R. Ziel: wiederholbare Farming-Runs (MVP: **Countess**), später optional Mephisto, Cows, Baal.
+**D2R Offline Farming Bot** — externe Windows-Software für **Offline/Singleplayer** D2R. Ziel: wiederholbare Farming-Runs (MVP: **Countess**), später optional Mephisto, Cows, Baal. Koolo, d2go und Botty dienen nur als Recherche und Lern Referenzen - KEINE dependency!
 
 - **Ansatz:** Memory Bot (Prozess lesen → World Model → Tasks → Input). Kein Pixelbot, kein Savegame-Hack, keine Spielstands-Manipulation.
 - **Scope:** Nur privater Offline-Einsatz. Kein Battle.net / Online-Modus.

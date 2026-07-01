@@ -18,6 +18,7 @@ func main() {
 	verbose := flag.Bool("verbose", false, "enable debug logging (shows position changes with --probe)")
 	inputTest := flag.String("input-test", "", "manual input test spec (e.g. belt:1, portal, skill:1, center-click, click:640,360)")
 	inputTestObserveMs := flag.Int("input-test-observe-ms", 3000, "observation window in ms after input-test actions")
+	runFlag := flag.String("run", "", "active farming run (e.g. countess); overrides runs.active in config")
 	showVersion := flag.Bool("version", false, "print version and exit")
 	flag.Parse()
 
@@ -31,6 +32,7 @@ func main() {
 		Verbose:            *verbose,
 		InputTest:          *inputTest,
 		InputTestObserveMs: *inputTestObserveMs,
+		Run:                *runFlag,
 	}
 	if err := run(*configPath, opts); err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)

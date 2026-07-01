@@ -28,14 +28,15 @@ type Runtime struct {
 	Options Options
 	Log     *slog.Logger
 
-	Process processController
-	Memory  *memory.Reader
-	Probe   snapshotReader
-	World   *world.Model
-	Input   inputController
-	Tasks   *tasks.Runner
-	Pathing *pathing.Navigator
-	Loot    *loot.Filter
+	Process  processController
+	Memory   *memory.Reader
+	Probe    snapshotReader
+	World    *world.Model
+	Input    inputController
+	Bindings configBindingSource
+	Tasks    *tasks.Runner
+	Pathing  *pathing.Navigator
+	Loot     *loot.Filter
 }
 
 // New builds a Runtime from config and CLI/runtime options.
@@ -77,21 +78,39 @@ func New(cfg *config.Config, opts Options) (*Runtime, error) {
 
 	mem := memory.NewReader(log)
 	proc := process.New(log, cfg.Process.ProcessName)
+	nav := pathing.NewNavigator(log)
 	inputCtrl, err := input.NewController(log, mapInputConfig(cfg.Input), mapSafetyConfig(cfg.Input))
 	if err != nil {
 		return nil, fmt.Errorf("input controller: %w", err)
 	}
+	bindings, err := newConfigBindingSource(cfg.Input.Bindings)
+	if err != nil {
+		return nil, fmt.Errorf("input bindings: %w", err)
+	}
+
+	probe := memory.NewProbeReader(mem, offsetSet)
+	probe.SetScannedCachePath(cfg.ResolvePath(memory.DefaultScannedCacheFile))
+
+	runName := resolveActiveRun(opts, cfg)
+	if err := validateRunMode(runName, cfg, opts, log); err != nil {
+		return nil, err
+	}
+
 	rt := &Runtime{
-		Config:  cfg,
-		Options: opts,
-		Log:     log,
-		Process: proc,
-		Memory:  mem,
-		Probe:   memory.NewProbeReader(mem, offsetSet),
-		World:   world.NewModel(log),
-		Input:   inputCtrl,
-		Tasks:   tasks.NewRunner(log),
-		Pathing: pathing.NewNavigator(log),
+		Config:   cfg,
+		Options:  opts,
+		Log:      log,
+		Process:  proc,
+		Memory:   mem,
+		Probe:    probe,
+		World:    world.NewModel(log),
+		Input:    inputCtrl,
+		Bindings: bindings,
+		Tasks: tasks.NewRunner(log, runName, mapRunConfig(cfg.Runs), tasks.Deps{
+			Input:   inputCtrl,
+			Pathing: nav,
+		}),
+		Pathing: nav,
 		Loot:    loot.NewFilter(log),
 	}
 

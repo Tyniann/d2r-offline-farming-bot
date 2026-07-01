@@ -5,6 +5,7 @@ package input
 import (
 	"fmt"
 	"log/slog"
+	"sync"
 	"syscall"
 	"unsafe"
 
@@ -41,12 +42,21 @@ func defaultWindowAPI(log *slog.Logger) windowAPI {
 }
 
 func (w *user32WindowAPI) FindMainWindow(pid uint32, title string) (nativeWindow, error) {
-	ctx := enumWindowsContext{
+	// Context is handed to the callback via package state instead of lParam:
+	// round-tripping a Go pointer through uintptr trips go vet (unsafe.Pointer misuse),
+	// and EnumWindows runs synchronously, so a mutex-guarded slot is sufficient.
+	ctx := &enumWindowsContext{
 		targetPID: pid,
 		title:     title,
 	}
-	cb := syscall.NewCallback(enumWindowsProc)
-	ret, _, err := procEnumWindows.Call(cb, uintptr(unsafe.Pointer(&ctx)))
+	enumWindowsMu.Lock()
+	enumWindowsCtx = ctx
+	defer func() {
+		enumWindowsCtx = nil
+		enumWindowsMu.Unlock()
+	}()
+
+	ret, _, err := procEnumWindows.Call(enumWindowsCallback, 0)
 	if ret == 0 {
 		return 0, fmt.Errorf("enum windows: %w", err)
 	}
@@ -100,8 +110,19 @@ type enumWindowsContext struct {
 	matches   []nativeWindow
 }
 
-func enumWindowsProc(hwnd syscall.Handle, lParam uintptr) uintptr {
-	ctx := (*enumWindowsContext)(unsafe.Pointer(lParam))
+// enumWindowsCallback is created once: syscall.NewCallback allocations are
+// never released and Windows caps their total count per process.
+var (
+	enumWindowsCallback = syscall.NewCallback(enumWindowsProc)
+	enumWindowsMu       sync.Mutex
+	enumWindowsCtx      *enumWindowsContext
+)
+
+func enumWindowsProc(hwnd syscall.Handle, _ uintptr) uintptr {
+	ctx := enumWindowsCtx
+	if ctx == nil {
+		return 0
+	}
 
 	var pid uint32
 	procGetWindowThreadProcessId.Call(uintptr(hwnd), uintptr(unsafe.Pointer(&pid)))

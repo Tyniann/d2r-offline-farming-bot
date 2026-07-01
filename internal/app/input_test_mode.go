@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/input"
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/memory"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/version"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/world"
 )
@@ -17,11 +18,18 @@ const defaultInputTestObserveMs = 3000
 type inputTestController interface {
 	inputController
 	Window() (input.WindowInfo, bool)
-	PressBelt(slot int) error
-	PressTownPortal() error
-	PressSkill(slot int) error
+	PressKey(key string) error
+	CastBelt(src input.BeltBindingSource, slot int) error
+	SelectSkill(src input.BindingSource, skillID uint16) error
+	CastSkillAt(src input.BindingSource, skillID uint16, clientX, clientY int) error
 	MoveTo(clientX, clientY int) error
 	Click(button input.MouseButton) error
+}
+
+type inputTestBindingSource interface {
+	input.BindingSource
+	input.BeltBindingSource
+	TownPortalSkillID() (uint16, bool)
 }
 
 // RunInputTest waits for process attach, window binding, and a valid world state, executes
@@ -87,7 +95,9 @@ func (rt *Runtime) RunInputTest(spec string) error {
 
 	rt.logInputTestReady(ctrl)
 
-	if err := rt.executeInputTestActions(ctx, ctrl, actions, hotkeyEvents, cancel); err != nil {
+	var src inputTestBindingSource = rt.bindingSource()
+
+	if err := rt.executeInputTestActions(ctx, ctrl, src, actions, hotkeyEvents, cancel); err != nil {
 		return err
 	}
 	if ctx.Err() != nil || rt.Input.Status().Stopped {
@@ -114,6 +124,10 @@ func (rt *Runtime) attachTimeoutOrDefault(fallback time.Duration) time.Duration 
 	return fallback
 }
 
+func (rt *Runtime) bindingSource() configBindingSource {
+	return rt.Bindings
+}
+
 func (rt *Runtime) waitInputTestReady(
 	ctx context.Context,
 	state *runState,
@@ -129,13 +143,15 @@ func (rt *Runtime) waitInputTestReady(
 				"attached", state.attached,
 				"bound", rt.Input.Bound(),
 				"world_valid", st.Valid,
+				"world_phase", st.Phase.String(),
 				"world_reason", st.Reason,
 			)
 			return fmt.Errorf(
-				"input test ready timeout: attached=%t bound=%t world_valid=%t world_reason=%q",
+				"input test ready timeout: attached=%t bound=%t world_valid=%t world_phase=%q world_reason=%q",
 				state.attached,
 				rt.Input.Bound(),
 				st.Valid,
+				st.Phase.String(),
 				st.Reason,
 			)
 		}
@@ -156,7 +172,9 @@ func (rt *Runtime) waitInputTestReady(
 			if state.hasEverAttached && !state.attached {
 				return fmt.Errorf("process lost during input test")
 			}
-			if state.attached && rt.Input.Bound() && rt.World.Current().Valid {
+			cur := rt.World.Current()
+			if state.attached && rt.Input.Bound() && cur.Valid && cur.Phase == world.GamePhaseInGame {
+				state.bindingsPrecheckDone = true
 				return nil
 			}
 		}
@@ -182,10 +200,13 @@ func (rt *Runtime) logInputTestReady(ctrl inputTestController) {
 func (rt *Runtime) executeInputTestActions(
 	ctx context.Context,
 	ctrl inputTestController,
+	src inputTestBindingSource,
 	actions []inputTestAction,
 	hotkeyEvents <-chan input.HotkeyEvent,
 	cancel context.CancelFunc,
 ) error {
+	var pendingCastButton *input.MouseButton
+
 	for _, action := range actions {
 		rt.drainHotkeyEvents(hotkeyEvents, cancel)
 		if ctx.Err() != nil || rt.Input.Status().Stopped {
@@ -193,7 +214,7 @@ func (rt *Runtime) executeInputTestActions(
 		}
 
 		rt.logInputTestActionStart(action)
-		if err := rt.executeInputTestAction(ctrl, action); err != nil {
+		if err := rt.executeInputTestAction(ctrl, src, action, &pendingCastButton); err != nil {
 			return err
 		}
 		rt.Log.Info("input test action completed", "action", action.String())
@@ -201,14 +222,34 @@ func (rt *Runtime) executeInputTestActions(
 	return nil
 }
 
-func (rt *Runtime) executeInputTestAction(ctrl inputTestController, action inputTestAction) error {
+func (rt *Runtime) executeInputTestAction(
+	ctrl inputTestController,
+	src inputTestBindingSource,
+	action inputTestAction,
+	pendingCastButton **input.MouseButton,
+) error {
 	switch action.kind {
 	case inputTestBelt:
-		return ctrl.PressBelt(action.slot)
+		return ctrl.CastBelt(src, action.slot)
 	case inputTestPortal:
-		return ctrl.PressTownPortal()
+		id, ok := src.TownPortalSkillID()
+		if !ok {
+			return fmt.Errorf("input test portal: town portal not bound on skill bar")
+		}
+		cast, err := src.Resolve(id)
+		if err != nil {
+			return err
+		}
+		*pendingCastButton = &cast.CastButton
+		return ctrl.SelectSkill(src, id)
 	case inputTestSkill:
-		return ctrl.PressSkill(action.slot)
+		cast, err := src.Resolve(action.skillID)
+		if err != nil {
+			return err
+		}
+		btn := cast.CastButton
+		*pendingCastButton = &btn
+		return ctrl.SelectSkill(src, action.skillID)
 	case inputTestCenterClick:
 		win, ok := ctrl.Window()
 		if !ok {
@@ -219,12 +260,22 @@ func (rt *Runtime) executeInputTestAction(ctrl inputTestController, action input
 		if err := ctrl.MoveTo(x, y); err != nil {
 			return err
 		}
-		return ctrl.Click(input.MouseLeft)
+		btn := input.MouseLeft
+		if pendingCastButton != nil && *pendingCastButton != nil {
+			btn = **pendingCastButton
+			*pendingCastButton = nil
+		}
+		return ctrl.Click(btn)
 	case inputTestClick:
 		if err := ctrl.MoveTo(action.x, action.y); err != nil {
 			return err
 		}
-		return ctrl.Click(input.MouseLeft)
+		btn := input.MouseLeft
+		if pendingCastButton != nil && *pendingCastButton != nil {
+			btn = **pendingCastButton
+			*pendingCastButton = nil
+		}
+		return ctrl.Click(btn)
 	default:
 		return fmt.Errorf("input test: unknown action %q", action.kind)
 	}
@@ -289,8 +340,10 @@ func (rt *Runtime) logInputTestWorld(label string, st world.State) {
 func (rt *Runtime) logInputTestActionStart(action inputTestAction) {
 	args := []any{"action", action.String()}
 	switch action.kind {
-	case inputTestBelt, inputTestSkill:
+	case inputTestBelt:
 		args = append(args, "slot", action.slot)
+	case inputTestSkill:
+		args = append(args, "skill_id", action.skillID, "skill", memory.SkillName(action.skillID))
 	case inputTestClick:
 		args = append(args, "x", action.x, "y", action.y)
 	}

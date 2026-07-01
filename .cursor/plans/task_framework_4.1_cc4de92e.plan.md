@@ -12,7 +12,7 @@ todos:
     content: "Countess-Stub (precheck → armed mit Tick-Zähler → complete); Lazy Run-Start beim ersten Guard-OK-Tick"
     status: pending
   - id: config-runs
-    content: "RunsConfig in config + config.example.yaml; nur step_timeout_ms > 0 validieren (kein active-Lookup in config)"
+    content: "RunsConfig + applyDefaults() in config.Load (step_timeout_ms 30000); config.example.yaml; nur step_timeout_ms > 0 validieren"
     status: pending
   - id: cli-run-flag
     content: "--run Flag in cmd/d2rbot, Options.Run, Auflösung CLI > config"
@@ -116,7 +116,7 @@ type Navigator interface {
     Ready() bool
 }
 
-// Compile-time checks in deps.go (Produktionscode, nicht nur Tests):
+// Compile-time checks in deps.go (Produktionscode — importiert input + pathing bewusst, kein Zyklus):
 var _ Navigator = (*pathing.Navigator)(nil)
 var _ Input = (*input.Controller)(nil)
 
@@ -128,7 +128,7 @@ type TickResult struct {
 }
 
 func (r *Runner) Tick(ctx context.Context, w world.State, now time.Time) TickResult
-func (r *Runner) Reset(reason string)   // Mutator: setzt reset=true, started=false; kein Lazy-Re-Start
+func (r *Runner) Reset(reason string)   // Mutator: No-Op wenn configuredRun=="" (kein Log); sonst reset=true
 func (r *Runner) WasReset() bool        // Accessor: true nach Reset() (z. B. process_lost)
 func (r *Runner) Terminal() bool        // true nach success/failed — andere Semantik als WasReset
 func (r *Runner) ConfiguredRun() string // Name aus CLI/config; bleibt für Logs
@@ -189,8 +189,9 @@ runs:
 ```
 
 - `RunsConfig` mit Default `step_timeout_ms: 30000`
+- **`RunsConfig.applyDefaults()`** in `config.Load` (analog `InputConfig`): fehlende `runs`-Sektion oder `step_timeout_ms: 0` → Default `30000`, sonst Validierungsfehler bei alter `config.yaml` ohne `runs`
 - **`config.validate()`:** nur `step_timeout_ms > 0` — **kein** Lookup unbekannter `active`-Werte
-- Unbekannter Run-Name → Fehler in `app.validateRunMode()` via `tasks.IsKnownRun()`
+- Unbekannter Run-Name → Fehler in `app.validateRunMode()` nur wenn `runName != ""`
 
 ## CLI & Options
 
@@ -200,10 +201,19 @@ runs:
 
 **`validateRunMode()`** (einzige Run-Name-Validierung):
 
+- `runName == ""` → passiver Modus, **kein** Fehler, kein `task run configured`-Log
 - `--run` + `--input-test` → Fehler
-- Run gesetzt + `input.enabled: false` → Fehler
-- `!tasks.IsKnownRun(runName)` → Fehler
-- Log: `task run configured` mit `run`, `source=cli|config`
+- `runName != ""` + `input.enabled: false` → Fehler
+- `runName != "" && !tasks.IsKnownRun(runName)` → Fehler
+- `runName != ""` → Log: `task run configured` mit `run`, `source=cli|config`
+
+```go
+if runName != "" {
+    if !cfg.Input.Enabled { return errInputRequiredForRun }
+    if !tasks.IsKnownRun(runName) { return errUnknownRun }
+    log.Info("task run configured", "run", runName, "source", source)
+}
+```
 
 ## App-Integration
 
@@ -267,7 +277,7 @@ if rt.shouldTickTasks(cur) {
 In [`internal/app/run_tick.go`](internal/app/run_tick.go) bei `StateLost`:
 
 1. `rt.Input.Unbind()`
-2. `rt.Tasks.Reset("process_lost")`
+2. `rt.Tasks.Reset("process_lost")` — No-Op ohne Log wenn `configuredRun == ""` (passiver Modus)
 3. `rt.World.Reset(time.Now(), worldResetReasonProcessLost)`
 
 Damit läuft der Task nicht auf invalidem World-State weiter. Nach Re-Attach: **kein** erneuter Lazy-Start (`reset=true`).
@@ -280,7 +290,7 @@ Nach erstem Attach returned `runTick` früh (nach `tryBindInput`) **ohne** `Worl
 
 | Event | Wann | Felder |
 |-------|------|--------|
-| `task run configured` | Startup `validateRunMode` | `run`, `source` |
+| `task run configured` | Startup `validateRunMode`, nur wenn `runName != ""` | `run`, `source` |
 | `task run started` | Erster Guard-OK-Tick (Lazy) | `run` |
 | `task step started` | Step-Wechsel | `run`, `step` |
 | `task step complete` | Step OK | `run`, `step`, `elapsed_ms` oder `ticks` |
@@ -318,9 +328,9 @@ Zusätzlich `testRuntimeWithTasks(...)` für gezielte Guard-Tests mit `Configure
 |-------|--------|
 | [`internal/tasks/runner_test.go`](internal/tasks/runner_test.go) | Lazy start, armed Tick-Zähler, precheck Town/Fail, timeout, terminal → `Active=false`, Reset blockiert Re-Start |
 | [`internal/tasks/step_test.go`](internal/tasks/step_test.go) | Timeout-Helfer, Tick-Zähler |
-| [`internal/config/config_test.go`](internal/config/config_test.go) | `runs`-Parsing, `step_timeout_ms` Validierung — **kein** unknown-active Test hier |
-| [`internal/app/task_tick_test.go`](internal/app/task_tick_test.go) | Guards, Tick nach Update, `process_lost`-Reihenfolge, nil-sicherer `testRuntime` |
-| [`internal/app/validate_run_test.go`](internal/app/validate_run_test.go) | Unknown run, disabled input, mutual exclusive flags |
+| [`internal/config/config_test.go`](internal/config/config_test.go) | `runs`-Parsing, `applyDefaults` ohne Sektion, `step_timeout_ms` Validierung |
+| [`internal/app/task_tick_test.go`](internal/app/task_tick_test.go) | Guards, Tick nach Update, `process_lost`-Reihenfolge, Reset No-Op passiv, nil-sicherer `testRuntime` |
+| [`internal/app/validate_run_test.go`](internal/app/validate_run_test.go) | `runName==""` passiv OK, unknown run, disabled input, mutual exclusive flags |
 
 Precheck-Tests: `AreaID: 1` (Rogue Encampment), `AreaID: 6` (Black Marsh).
 
@@ -386,3 +396,15 @@ go build ./cmd/d2rbot
 | 10 | `precheck` Fail-Timing | Behoben — sofort `not_in_town`; Timeout nur für Warte-Steps |
 | 11 | Compile-Time-Checks | In `deps.go`, nicht nur Tests |
 | 12 | `Ready()` | Beibehalten für `verifyComponents` |
+| 13 | Leerer `runName` | `validateRunMode`: nur prüfen wenn `runName != ""` |
+| 14 | `RunsConfig` Defaults | `applyDefaults()` in `config.Load` |
+| 15 | `Reset` passiv | No-Op ohne Log bei `configuredRun == ""` |
+
+## Implementierungsfallen (Checkliste)
+
+| # | Fall | Maßnahme |
+|---|------|----------|
+| 1 | Passiver Modus `runName == ""` | `IsKnownRun` nur wenn `runName != ""`; Test in `validate_run_test.go` |
+| 2 | Fehlende `runs`-Sektion in YAML | `RunsConfig.applyDefaults()` in `config.Load` → `step_timeout_ms: 30000` |
+| 3 | `deps.go` importiert `input`/`pathing` | Bewusst für Compile-Checks; kein Import-Zyklus |
+| 4 | `Reset` bei passivem Modus | `configuredRun == ""` → sofort return, kein `task run reset`-Log |

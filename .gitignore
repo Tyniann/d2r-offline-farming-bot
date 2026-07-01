@@ -37,6 +37,7 @@ desktop.ini
 # Local config (secrets, machine-specific paths)
 /configs/config.yaml
 /configs/*.local.yaml
+/configs/offsets.scanned.yaml
 .env
 .env.*
 

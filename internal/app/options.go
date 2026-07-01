@@ -10,4 +10,6 @@ type Options struct {
 	InputTest string
 	// InputTestObserveMs is how long to poll world state after actions (default 3000 when <=0).
 	InputTestObserveMs int
+	// Run selects an active farming run; overrides config runs.active when set.
+	Run string
 }

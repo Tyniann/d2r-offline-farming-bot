@@ -12,7 +12,12 @@ Phase-1 State-Probe über minimale D2R-Offsets. Der Bot findet den Main-Player �
   - `offsets.go` — versioniertes `OffsetSet`, `DefaultOffsetSet()`
   - `offsets_file.go` — optionales YAML-Overlay (`LoadOffsetSetFile`, `ResolveOffsetSet`)
   - `scan.go` — Runtime Pattern-Scan für Modul-Offsets (`ensureOffsets`)
-  - `probe.go` — `ProbeReader`, `Snapshot`, UnitTable-Scan
+  - `probe.go` — `ProbeReader`, `Snapshot`, UnitTable-Walk
+  - `unit_table.go` — `walkUnitSegment`, `readUnitTableSegment`
+  - `phase.go` — `GamePhase`, `finalizePhase`, UI-Loading-Byte
+  - `countess_filter.go` — Allowlists für Countess-Entities
+  - `enumerate.go` — Object/Entrance/Monster-Enumeration
+  - `player_skills.go` — aktuell ausgewählte und gelernte Skills vom Main-Player
   - `stats.go` — minimaler Life/Mana-Stat-Parser
   - `world_log.go` (app) — sparsames CLI-Logging auf `world.State` mit Heartbeat und Verbose-Positionslogs
   - `run_tick.go` (app) — testbare Loop-Iteration
@@ -39,6 +44,7 @@ Startup-Log enthält `probe_enabled` (World-State-Logging-Schalter), `verbose` s
 | `memory.offsets_file` | Relativer/absoluter Pfad zu YAML-Overrides; leer = eingebautes `DefaultOffsetSet()` |
 | `configs/offsets.example.yaml` | Versioniertes Beispiel (Hex-Strings oder Dezimal) |
 | `configs/offsets.local.yaml` | Lokale Overrides (gitignored via `configs/*.local.yaml`) |
+| `configs/offsets.scanned.yaml` | Automatisch gespeicherte Runtime-Scan-Ergebnisse (gitignored) |
 
 Beim Start lädt `app.New()` optional die Offset-Datei und legt sie über `DefaultOffsetSet()` drüber. Abweichung zwischen `memory.game_version` und `d2r_version` im Offset-Set erzeugt nur eine Warnung, keinen Abbruch.
 
@@ -52,7 +58,7 @@ Referenz (gepinnt, nicht als Runtime-Dependency):
 | Commit | `16d248a53591` (Modul `v0.0.0-20251023061335-16d248a53591`) |
 | Koolo | nutzt dieselbe d2go-Abstraktion; Main-Player-Kriterium aus `GetRawPlayerUnits` |
 
-d2go ermittelt Modul-Offsets per Pattern-Scan zur Laufzeit. Dieses Projekt nutzt dieselben Signaturen für `UnitTable` und `UI`; `Expansion` wird ebenfalls versucht, ist aber optional. `DefaultOffsetSet()` bleibt als Fallback und dokumentiert zusätzlich die **Struct-Feld-Offsets** aus d2go (`player.go`, `game_reader.go`). `ensureOffsets()` scannt das Modul seitenweise und überspringt unlesbare Bereiche, weil große `ReadProcessMemory`-Reads über das gesamte Image auf manchen D2R-Builds fehlschlagen.
+d2go ermittelt Modul-Offsets per Pattern-Scan zur Laufzeit. Dieses Projekt nutzt dieselben Signaturen für `UnitTable` und `UI`; `Expansion` wird ebenfalls versucht, ist aber optional. `DefaultOffsetSet()` bleibt als Fallback und dokumentiert zusätzlich die **Struct-Feld-Offsets** aus d2go (`player.go`, `game_reader.go`). `ensureOffsets()` liest das Modul **seitenweise** (4-KiB-Chunks; Bulk-Read über das gesamte Image schlägt bei D2R fehl), versucht den Scan mehrfach, speichert erfolgreiche Ergebnisse in `configs/offsets.scanned.yaml` (gitignored) und fällt bei Scan-Fehlern auf diesen Cache zurück statt dauerhaft falsche Static-Offsets zu verwenden.
 
 ### Main-Player-Erkennung
 
@@ -64,9 +70,51 @@ Wie d2go `GetRawPlayerUnits` / `GetMainPlayer`:
 4. Expansion-Check über `moduleBase + Expansion` → Char-Flag `+0x5C`; falls der Offset nicht sicher lesbar ist, prüft die Probe beide Flags
 5. Early-Exit nach erstem Main-Player-Treffer; Loop-Schutz pro Bucket und gesamt
 
-### InGame-Gate
+### InGame-Gate und GamePhase
 
-d2go `IsIngame`: Byte bei `moduleBase + UI - 0xA` ist der erste Hinweis. Weil dieser Gate in aktuellen D2R-Builds auch im Spiel `0` liefern kann, blockiert er die Probe nicht mehr hart: Der Bot versucht trotzdem den Main-Player zu lesen und meldet erst `not_in_game`, wenn Gate `0` ist und kein Player-Snapshot möglich ist.
+d2go `IsIngame`: Byte bei `moduleBase + UI - 0xA` (erstes Byte des UI-Buffers). Zusätzlich liefert `buffer[0x168]` des UI-Buffers (`UI - 0xA`, Länge `0x16D`) das Loading-Flag — unabhängig vom Gate.
+
+| Signal | Verhalten |
+|--------|-----------|
+| Gate-Byte `!= 1`, kein Player | `Valid=false`, `Phase=menu`, `reason=not_in_game` |
+| Gate-Byte `!= 1`, Player lesbar | `Valid=true`, `Phase=in_game` (Heuristik) |
+| Loading-Byte `!= 0` | `Phase=loading`; Entities leer (auch bei `Valid=true`) |
+| `InGameGateOffset() == 0` | Gate ignorieren; Phase aus Loading + Player |
+
+`Snapshot()`-Reihenfolge: (1) Gate + UI-Buffer, (2) Player + Vitals + Area, (3) `finalizePhase`, (4) Entities nur bei `Valid && Phase=in_game`.
+
+Task-Ticks (`shouldTickTasks`) erfordern `Valid && Phase=in_game`.
+
+### Unit-Table-Segmente (Countess-minimal)
+
+Zwei Ebenen (d2go): **Segment** = `moduleBase + UnitTable + unitType*1024`; **Listenkopf** = `segmentBase + i*8` für `i ∈ [0,127]`.
+
+| Segment | unitType | Inhalt (4.2) |
+|---------|----------|--------------|
+| Player | 0 | Main-Player (unverändert) |
+| Monster | 1 | NPC 51 (Dark Stalker), lebend, Allowlist |
+| Object | 2 | Waypoints + Good Chest (580) |
+| Entrance | 5 | Tower 10/11, Catacombs 17/18 |
+
+`readUnitTableSegment` liest `128*8` Bytes pro Segment; nicht lesbare Segmente werden als leer behandelt (kein Abbruch der gesamten Enumeration). `maxTotalUnitVisits=4096` global pro Snapshot. Reihenfolge: **Entrances → Monsters → Objects** (Object-Segment ist groß und würde sonst das Visit-Limit verbrauchen). Entrances benötigen kein `unitData` (wie d2go).
+
+### memory.Snapshot
+
+| Feld | Bedeutung |
+|------|-----------|
+| `Valid` | Player + Vitals + Area/Pos lesbar (orthogonal zu `Phase`) |
+| `Phase` | `unknown`, `menu`, `loading`, `in_game` |
+| `Reason` | Technischer Grund bei `Valid=false` |
+| `StatsSource` | `base` oder `active`, Quelle der Vitalwerte (Memory-only, nicht im World-Log) |
+| `HP`/`MaxHP`/`Mana`/`MaxMana` | Dekodierte Anzeigewerte |
+| `AreaID` | Rohe Area-ID aus Level-Struct |
+| `PosX`/`PosY` | `uint32` in `memory.Snapshot` (aus uint16 Path-Reads erweitert; `world.Position` gleicher Typ) |
+| `Objects`/`Entrances`/`Monsters` | Countess-gefilterte Entity-Slices; leer (nicht nil) außerhalb `in_game` |
+| `PlayerSkills` | `LeftSkill`, `RightSkill`, `SkillsKnown` vom Main-Player (Skill-Liste `unit+0x100`) |
+
+Details zu Casting und Precheck: [Input Controller](input-controller.md).
+
+Reason-Konstanten: `not_attached`, `not_in_game`, `unit_table_unavailable`, `player_pointer_unavailable`, `stats_unavailable`, `read_failed`.
 
 ### Vital-Stats
 
@@ -79,19 +127,6 @@ Stat-Liste am Unit `+0x88`: Die Probe bevorzugt `BaseStats` bei `statsListEx + 0
 - `HP`/`Mana` sind die aktuellen Werte. `MaxHP`/`MaxMana` werden als effektiver beobachteter Max-Wert geführt, weil D2R `MaxLife`/`MaxMana` als unmodifizierte Basiswerte liefern kann, während Equipment/Boni bereits im aktuellen Wert sichtbar sind.
 - Fehlt einer der vier Werte → `Valid=false`, `reason=stats_unavailable`
 
-### memory.Snapshot
-
-| Feld | Bedeutung |
-|------|-----------|
-| `Valid` | Alle Pflichtfelder lesbar |
-| `Reason` | Technischer Grund bei `Valid=false` |
-| `StatsSource` | `base` oder `active`, Quelle der Vitalwerte (Memory-only, nicht im World-Log) |
-| `HP`/`MaxHP`/`Mana`/`MaxMana` | Dekodierte Anzeigewerte |
-| `AreaID` | Rohe Area-ID aus Level-Struct |
-| `PosX`/`PosY` | `uint32` in `memory.Snapshot` (aus uint16 Path-Reads erweitert; `world.Position` gleicher Typ) |
-
-Reason-Konstanten: `not_attached`, `not_in_game`, `unit_table_unavailable`, `player_pointer_unavailable`, `stats_unavailable`, `read_failed`.
-
 ## Operator / CLI
 
 ```powershell
@@ -103,19 +138,19 @@ go run ./cmd/d2rbot --probe --verbose
 Mit `--probe` erscheinen nach `process attached` sparsame World-State-Logs:
 
 ```text
-world state phase=in_game area_name=... area_id=... act=act1 area_kind=... hp=... max_hp=... hp_pct=... mana=... max_mana=... mana_pct=... pos_x=... pos_y=...
-world unavailable reason=...
+world state phase=in_game area_name=... object_count=... entrance_count=... monster_count=... hp_pct=... pos_x=... pos_y=...
+world unavailable reason=... phase=loading
 ```
 
 Regeln:
 
-- Log sofort bei HP-/Mana-/Area-/Phase-Änderung; reine Positionsänderungen nur mit `--probe --verbose` (Debug)
+- Log bei Phase-, HP-/Mana-/Area- oder Entity-Fingerprint-Änderung; reine Positionsänderungen nur mit `--probe --verbose` (Debug)
 - Heartbeat alle 5 s (fest, kein Config-Key)
-- Ungültige Heartbeats auf Debug; neuer Reason einmalig auf Info
+- Ungültige Heartbeats auf Debug; neuer Reason oder Phase einmalig auf Info
 - Snapshot-Read nur im attached-Zustand nach `Poll()`; bei `process lost` kein Read, World-State wird auf `process_lost` zurückgesetzt
 - Re-Attach erzwingt einmaliges Log (`force`)
 - Bei `poll_interval_ms=100` kann `--probe --verbose` während des Laufens bis zu ca. 10 Debug-Zeilen/s erzeugen (Diagnose-Modus)
-- `StatsSource` erscheint nicht mehr im Operator-Log (semantische World-Logs statt Roh-Probe)
+- `--verbose`: zusätzlich `entity_hint` (Waypoint, Good Chest, Countess, Tower-Entrance)
 
 ### Manuelle Validierung (Offline/Singleplayer)
 
@@ -154,4 +189,4 @@ Semantische World-State-Validierung (Countess-Route, Area-Namen, `hp_pct`, Log-P
 - [World Model](world-model.md) — Domain-Typen und kontinuierliches Update im App-Loop
 
 ---
-*Zuletzt aktualisiert: 2026-06-25*
+*Zuletzt aktualisiert: 2026-06-26*

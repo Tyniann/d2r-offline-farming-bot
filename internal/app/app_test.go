@@ -9,7 +9,9 @@ import (
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/config"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/input"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/memory"
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/pathing"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/process"
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/tasks"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/world"
 )
 
@@ -28,8 +30,9 @@ func TestInputTestControllerInterface(t *testing.T) {
 }
 
 func validSnapshot(hp uint32) memory.Snapshot {
-	return memory.Snapshot{
+	snap := memory.Snapshot{
 		Valid:   true,
+		Phase:   memory.GamePhaseInGame,
 		HP:      hp,
 		MaxHP:   100,
 		Mana:    50,
@@ -37,6 +40,33 @@ func validSnapshot(hp uint32) memory.Snapshot {
 		AreaID:  1,
 		PosX:    10,
 		PosY:    20,
+	}
+	snap.PlayerSkills = memory.PlayerSkills{
+		LeftSkill:  memory.SkillAttack,
+		RightSkill: memory.SkillTeleport,
+		SkillsKnown: map[uint16]bool{
+			memory.SkillTeleport:   true,
+			memory.SkillTownPortal: true,
+		},
+	}
+	return snap
+}
+
+func testBindings() configBindingSource {
+	return configBindingSource{
+		skills: map[uint16]input.SkillCast{
+			memory.SkillTeleport: {
+				SkillID:    memory.SkillTeleport,
+				SelectKey:  "f7",
+				CastButton: input.MouseRight,
+			},
+			memory.SkillTownPortal: {
+				SkillID:    memory.SkillTownPortal,
+				SelectKey:  "f6",
+				CastButton: input.MouseRight,
+			},
+		},
+		belt: [4]string{"1", "2", "3", "4"},
 	}
 }
 
@@ -184,17 +214,38 @@ func testRuntime(proc processController, probe snapshotReader, opts Options) *Ru
 }
 
 func testRuntimeWithInput(proc processController, probe snapshotReader, in inputController, opts Options) *Runtime {
-	return &Runtime{
-		Config: &config.Config{
-			Process: config.ProcessConfig{ProcessName: "D2R.exe"},
-		},
-		Options: opts,
-		Log:     config.NewLogger("error"),
-		Process: proc,
-		Probe:   probe,
-		World:   world.NewModel(config.NewLogger("error")),
-		Input:   in,
+	nav := pathing.NewNavigator(config.NewLogger("error"))
+	cfg := &config.Config{
+		Process: config.ProcessConfig{ProcessName: "D2R.exe"},
+		Input:   config.InputConfig{Enabled: false},
 	}
+	return &Runtime{
+		Config:   cfg,
+		Options:  opts,
+		Log:      config.NewLogger("error"),
+		Process:  proc,
+		Probe:    probe,
+		World:    world.NewModel(config.NewLogger("error")),
+		Input:    in,
+		Bindings: testBindings(),
+		Pathing:  nav,
+		Tasks: tasks.NewRunner(config.NewLogger("error"), "", tasks.RunConfig{}, tasks.Deps{
+			Input:   in,
+			Pathing: nav,
+		}),
+	}
+}
+
+func testRuntimeWithTasks(proc processController, probe snapshotReader, in inputController, opts Options, runName string) *Runtime {
+	rt := testRuntimeWithInput(proc, probe, in, opts)
+	rt.Config.Input.Enabled = true
+	rt.Tasks = tasks.NewRunner(config.NewLogger("error"), runName, tasks.RunConfig{
+		StepTimeout: 30 * time.Second,
+	}, tasks.Deps{
+		Input:   in,
+		Pathing: rt.Pathing,
+	})
+	return rt
 }
 
 func TestRunTickWithoutProbeUpdatesWorld(t *testing.T) {

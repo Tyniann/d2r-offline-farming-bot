@@ -13,6 +13,7 @@ func validSnapshot() memory.Snapshot {
 	return memory.Snapshot{
 		At:      time.Date(2026, 6, 25, 12, 0, 0, 0, time.UTC),
 		Valid:   true,
+		Phase:   memory.GamePhaseInGame,
 		AreaID:  uint32(BlackMarsh),
 		PosX:    1234,
 		PosY:    5678,
@@ -35,6 +36,9 @@ func TestFromSnapshotValid(t *testing.T) {
 	}
 	if state.Phase != GamePhaseInGame {
 		t.Fatalf("Phase = %v, want GamePhaseInGame", state.Phase)
+	}
+	if state.Objects == nil || state.Entrances == nil || state.Monsters == nil {
+		t.Fatal("valid snapshot should have non-nil entity slices")
 	}
 	if !state.At.Equal(snap.At) {
 		t.Fatalf("At = %v, want %v", state.At, snap.At)
@@ -60,11 +64,12 @@ func TestFromSnapshotValid(t *testing.T) {
 	}
 }
 
-func TestFromSnapshotGamePhaseInGameIsHeuristic(t *testing.T) {
-	// Valid snapshot with readable player data maps to InGame even when gate semantics are unclear.
-	state := FromSnapshot(validSnapshot())
+func TestFromSnapshotGamePhaseFromSnapshot(t *testing.T) {
+	snap := validSnapshot()
+	snap.Phase = memory.GamePhaseInGame
+	state := FromSnapshot(snap)
 	if state.Phase != GamePhaseInGame {
-		t.Fatalf("Phase = %v, want GamePhaseInGame heuristic", state.Phase)
+		t.Fatalf("Phase = %v, want GamePhaseInGame", state.Phase)
 	}
 }
 
@@ -184,19 +189,20 @@ func TestFromSnapshotInvalid(t *testing.T) {
 	}
 }
 
-func TestFromSnapshotInvalidNotInGameStaysUnknownPhase(t *testing.T) {
+func TestFromSnapshotInvalidNotInGameMapsMenu(t *testing.T) {
 	snap := memory.Snapshot{
 		At:     time.Now(),
 		Valid:  false,
 		Reason: memory.ReasonNotInGame,
+		Phase:  memory.GamePhaseMenu,
 	}
 
 	state := FromSnapshot(snap)
-	if state.Phase != GamePhaseUnknown {
-		t.Fatalf("Phase = %v, want GamePhaseUnknown (not Menu)", state.Phase)
+	if state.Phase != GamePhaseMenu {
+		t.Fatalf("Phase = %v, want GamePhaseMenu", state.Phase)
 	}
-	if state.Phase == GamePhaseMenu {
-		t.Fatal("ReasonNotInGame must not map to GamePhaseMenu in 2.2")
+	if state.Objects == nil || state.Entrances == nil || state.Monsters == nil {
+		t.Fatal("invalid snapshot should have non-nil empty entity slices")
 	}
 }
 
@@ -226,7 +232,7 @@ func testModel(t *testing.T) *Model {
 func TestModelCurrentBeforeUpdate(t *testing.T) {
 	m := testModel(t)
 	state := m.Current()
-	if state != (State{}) {
+	if state.Valid || state.Reason != "" || !state.At.IsZero() {
 		t.Fatalf("Current before Update = %+v, want zero State", state)
 	}
 }
@@ -320,5 +326,37 @@ func TestModelReset(t *testing.T) {
 	}
 	if !got.At.Equal(at) {
 		t.Fatal("Reset should preserve At timestamp")
+	}
+}
+
+func TestMapPhaseAllValues(t *testing.T) {
+	cases := []struct {
+		in   memory.GamePhase
+		want GamePhase
+	}{
+		{memory.GamePhaseUnknown, GamePhaseUnknown},
+		{memory.GamePhaseMenu, GamePhaseMenu},
+		{memory.GamePhaseLoading, GamePhaseLoading},
+		{memory.GamePhaseInGame, GamePhaseInGame},
+	}
+	for _, tc := range cases {
+		if got := mapPhase(tc.in); got != tc.want {
+			t.Fatalf("mapPhase(%v) = %v, want %v", tc.in, got, tc.want)
+		}
+	}
+}
+
+func TestFromSnapshotLoadingInvalid(t *testing.T) {
+	snap := memory.Snapshot{
+		Valid:  false,
+		Phase:  memory.GamePhaseLoading,
+		Reason: memory.ReasonPlayerPointerUnavailable,
+	}
+	state := FromSnapshot(snap)
+	if state.Phase != GamePhaseLoading {
+		t.Fatalf("Phase = %v, want loading", state.Phase)
+	}
+	if state.Area != (Area{}) || state.Player != (Player{}) {
+		t.Fatal("invalid loading state should zero Area/Player")
 	}
 }

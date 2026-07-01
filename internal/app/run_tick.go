@@ -44,14 +44,15 @@ type inputController interface {
 
 // runState holds mutable loop state for a single Runtime run.
 type runState struct {
-	attached          bool
-	hasEverAttached   bool
-	attachWaitStarted time.Time
-	waitingLogged     bool
-	lastFatalErr      string
-	lastLoggedState   process.State
-	world             worldLoopState
-	input             inputLoopState
+	attached             bool
+	hasEverAttached      bool
+	attachWaitStarted    time.Time
+	waitingLogged        bool
+	lastFatalErr         string
+	lastLoggedState      process.State
+	world                worldLoopState
+	input                inputLoopState
+	bindingsPrecheckDone bool
 }
 
 type inputLoopState struct {
@@ -121,7 +122,9 @@ func (rt *Runtime) runTick(ctx context.Context, state *runState) error {
 	st := rt.Process.Poll()
 	if st.State == process.StateLost {
 		rt.Input.Unbind()
+		rt.Tasks.Reset("process_lost")
 		state.input = inputLoopState{}
+		state.bindingsPrecheckDone = false
 		prev := rt.World.Current()
 		cur := rt.World.Reset(time.Now(), worldResetReasonProcessLost)
 		if rt.Options.Probe && worldShouldLog(prev, cur, state.world.lastLog, worldHeartbeat, state.world.forceLog, rt.Options.Verbose) {
@@ -140,6 +143,15 @@ func (rt *Runtime) runTick(ctx context.Context, state *runState) error {
 
 	snap := rt.Probe.Snapshot()
 	cur := rt.World.Update(snap)
+	if rt.Config.Input.Enabled && rt.Options.InputTest == "" && snap.Valid && snap.Phase == memory.GamePhaseInGame && !state.bindingsPrecheckDone {
+		state.bindingsPrecheckDone = true
+		if err := BindingsPrecheck(rt.Log, rt.Bindings, snap, true); err != nil {
+			return fmt.Errorf("bindings precheck: %w", err)
+		}
+	}
+	if rt.shouldTickTasks(cur) {
+		rt.Tasks.Tick(ctx, cur, time.Now())
+	}
 	prev := state.world.lastLogged
 	if rt.Options.Probe && worldShouldLog(prev, cur, state.world.lastLog, worldHeartbeat, state.world.forceLog, rt.Options.Verbose) {
 		rt.logWorldState(prev, cur, worldLogIsHeartbeat(state.world.lastLog, worldHeartbeat), rt.Options.Verbose)

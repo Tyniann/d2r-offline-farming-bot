@@ -193,7 +193,8 @@ func TestPlayerManaPercent(t *testing.T) {
 }
 
 func TestStateValueSemantics(t *testing.T) {
-	assertWorldValueFields(t, reflect.TypeOf(State{}))
+	assertWorldValueFields(t, reflect.TypeOf(Player{}))
+	assertWorldValueFields(t, reflect.TypeOf(Area{}))
 
 	s1 := State{
 		At:     time.Now(),

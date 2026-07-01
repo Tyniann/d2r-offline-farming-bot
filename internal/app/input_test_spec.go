@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/memory"
 )
 
 type inputTestActionKind string
@@ -17,10 +19,11 @@ const (
 )
 
 type inputTestAction struct {
-	kind inputTestActionKind
-	slot int
-	x    int
-	y    int
+	kind    inputTestActionKind
+	slot    int
+	skillID uint16
+	x       int
+	y       int
 }
 
 func (a inputTestAction) String() string {
@@ -30,7 +33,7 @@ func (a inputTestAction) String() string {
 	case inputTestPortal:
 		return "portal"
 	case inputTestSkill:
-		return fmt.Sprintf("skill:%d", a.slot)
+		return fmt.Sprintf("skill:%s", memory.SkillName(a.skillID))
 	case inputTestCenterClick:
 		return "center-click"
 	case inputTestClick:
@@ -101,16 +104,13 @@ func parseInputTestAction(token string) (inputTestAction, error) {
 		return inputTestAction{kind: inputTestPortal}, nil
 	case "skill":
 		if !hasArg {
-			return inputTestAction{}, fmt.Errorf("input test action %q requires slot (e.g. skill:1)", token)
+			return inputTestAction{}, fmt.Errorf("input test action %q requires skill name (e.g. skill:teleport)", token)
 		}
-		slot, err := strconv.Atoi(strings.TrimSpace(arg))
+		skillID, err := memory.ParseSkillTestName(arg)
 		if err != nil {
-			return inputTestAction{}, fmt.Errorf("input test action %q: invalid slot: %w", token, err)
+			return inputTestAction{}, fmt.Errorf("input test action %q: %w", token, err)
 		}
-		if slot < 1 || slot > 8 {
-			return inputTestAction{}, fmt.Errorf("input test action %q: skill slot must be 1..8", token)
-		}
-		return inputTestAction{kind: inputTestSkill, slot: slot}, nil
+		return inputTestAction{kind: inputTestSkill, skillID: skillID}, nil
 	case "center-click":
 		if hasArg {
 			return inputTestAction{}, fmt.Errorf("input test action %q does not take arguments", token)
@@ -135,7 +135,7 @@ func parseInputTestAction(token string) (inputTestAction, error) {
 		return inputTestAction{kind: inputTestClick, x: x, y: y}, nil
 	default:
 		return inputTestAction{}, fmt.Errorf(
-			"unknown input test action %q; allowed examples: belt:1, potion:1, portal, skill:1, center-click, click:640,360",
+			"unknown input test action %q; allowed examples: belt:1, potion:1, portal, skill:teleport, center-click, click:640,360",
 			token,
 		)
 	}

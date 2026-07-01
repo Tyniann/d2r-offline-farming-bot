@@ -2,7 +2,10 @@ package app
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
+	"sort"
+	"strings"
 	"time"
 
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/world"
@@ -21,7 +24,7 @@ func worldLogIsHeartbeat(lastLog time.Time, heartbeat time.Duration) bool {
 	return !lastLog.IsZero() && time.Since(lastLog) >= heartbeat
 }
 
-// isPositionOnlyWorldChange reports a valid state change limited to player position.
+// isPositionOnlyWorldChange reports a valid state change limited to player position and unchanged entity fingerprint.
 func isPositionOnlyWorldChange(prev, cur world.State) bool {
 	if !prev.Valid || !cur.Valid {
 		return false
@@ -32,7 +35,40 @@ func isPositionOnlyWorldChange(prev, cur world.State) bool {
 		prev.Player.MaxHP == cur.Player.MaxHP &&
 		prev.Player.Mana == cur.Player.Mana &&
 		prev.Player.MaxMana == cur.Player.MaxMana &&
+		entityFingerprint(prev) == entityFingerprint(cur) &&
 		(prev.Player.Position.X != cur.Player.Position.X || prev.Player.Position.Y != cur.Player.Position.Y)
+}
+
+type entityFPKey struct {
+	kind   string
+	unitID uint32
+}
+
+// entityFingerprint builds a stable signature from entity counts and sorted (kind, unitID) pairs.
+func entityFingerprint(s world.State) string {
+	keys := make([]entityFPKey, 0, len(s.Objects)+len(s.Entrances)+len(s.Monsters))
+	for _, o := range s.Objects {
+		keys = append(keys, entityFPKey{kind: "o:" + o.Kind.String(), unitID: o.UnitID})
+	}
+	for _, e := range s.Entrances {
+		keys = append(keys, entityFPKey{kind: "e:" + e.Kind.String(), unitID: e.UnitID})
+	}
+	for _, m := range s.Monsters {
+		keys = append(keys, entityFPKey{kind: "m:" + fmt.Sprintf("%d", m.NPCID), unitID: m.UnitID})
+	}
+	sort.Slice(keys, func(i, j int) bool {
+		if keys[i].kind != keys[j].kind {
+			return keys[i].kind < keys[j].kind
+		}
+		return keys[i].unitID < keys[j].unitID
+	})
+
+	var b strings.Builder
+	fmt.Fprintf(&b, "%d|%d|%d|", len(s.Objects), len(s.Entrances), len(s.Monsters))
+	for _, k := range keys {
+		fmt.Fprintf(&b, "%s:%d;", k.kind, k.unitID)
+	}
+	return b.String()
 }
 
 // worldShouldLog reports whether a world state should be emitted to operator logs.
@@ -50,7 +86,7 @@ func worldShouldLog(prev, cur world.State, lastLog time.Time, heartbeat time.Dur
 		return true
 	}
 	if !cur.Valid {
-		if prev.Reason != cur.Reason {
+		if prev.Reason != cur.Reason || prev.Phase != cur.Phase {
 			return true
 		}
 		return time.Since(lastLog) >= heartbeat
@@ -61,6 +97,9 @@ func worldShouldLog(prev, cur world.State, lastLog time.Time, heartbeat time.Dur
 		prev.Player.MaxHP != cur.Player.MaxHP ||
 		prev.Player.Mana != cur.Player.Mana ||
 		prev.Player.MaxMana != cur.Player.MaxMana {
+		return true
+	}
+	if entityFingerprint(prev) != entityFingerprint(cur) {
 		return true
 	}
 	if verbose && isPositionOnlyWorldChange(prev, cur) {
@@ -78,14 +117,21 @@ func worldShouldLog(prev, cur world.State, lastLog time.Time, heartbeat time.Dur
 // worldLogAttrs builds structured log attributes for a world state.
 func worldLogAttrs(cur world.State) []slog.Attr {
 	if !cur.Valid {
-		return []slog.Attr{slog.String("reason", cur.Reason)}
+		attrs := []slog.Attr{slog.String("reason", cur.Reason)}
+		if cur.Phase != world.GamePhaseUnknown {
+			attrs = append(attrs, slog.String("phase", cur.Phase.String()))
+		}
+		return attrs
 	}
-	return []slog.Attr{
+	attrs := []slog.Attr{
 		slog.String("phase", cur.Phase.String()),
 		slog.String("area_name", cur.Area.Name),
 		slog.Uint64("area_id", uint64(cur.Area.ID)),
 		slog.String("act", cur.Area.Act.String()),
 		slog.String("area_kind", cur.Area.Kind.String()),
+		slog.Uint64("object_count", uint64(len(cur.Objects))),
+		slog.Uint64("entrance_count", uint64(len(cur.Entrances))),
+		slog.Uint64("monster_count", uint64(len(cur.Monsters))),
 		slog.Uint64("hp", uint64(cur.Player.HP)),
 		slog.Uint64("max_hp", uint64(cur.Player.MaxHP)),
 		slog.Uint64("hp_pct", uint64(cur.Player.HPPercent())),
@@ -95,6 +141,26 @@ func worldLogAttrs(cur world.State) []slog.Attr {
 		slog.Uint64("pos_x", uint64(cur.Player.Position.X)),
 		slog.Uint64("pos_y", uint64(cur.Player.Position.Y)),
 	}
+	if hint := verboseEntityHint(cur); hint != "" {
+		attrs = append(attrs, slog.String("entity_hint", hint))
+	}
+	return attrs
+}
+
+func verboseEntityHint(cur world.State) string {
+	if o, ok := cur.NearestObject(world.ObjectKindWaypoint); ok {
+		return fmt.Sprintf("waypoint id=%d unit=%d", o.ID, o.UnitID)
+	}
+	if o, ok := cur.NearestObject(world.ObjectKindGoodChest); ok {
+		return fmt.Sprintf("good_chest id=%d unit=%d", o.ID, o.UnitID)
+	}
+	if m, ok := cur.FindSuperUnique(0); ok {
+		return fmt.Sprintf("countess npc=%d unit=%d", m.NPCID, m.UnitID)
+	}
+	if e, ok := cur.NearestEntrance(world.EntranceKindWildernessToTower); ok {
+		return fmt.Sprintf("tower_entrance id=%d unit=%d", e.ID, e.UnitID)
+	}
+	return ""
 }
 
 func (rt *Runtime) logWorldState(prev, cur world.State, heartbeat, verbose bool) {
@@ -108,10 +174,10 @@ func (rt *Runtime) logWorldState(prev, cur world.State, heartbeat, verbose bool)
 	}
 
 	if heartbeat {
-		rt.Log.Debug("world unavailable", "reason", cur.Reason)
+		rt.Log.Debug("world unavailable", attrsToArgs(worldLogAttrs(cur))...)
 		return
 	}
-	rt.Log.Info("world unavailable", "reason", cur.Reason)
+	rt.Log.Info("world unavailable", attrsToArgs(worldLogAttrs(cur))...)
 }
 
 func attrsToArgs(attrs []slog.Attr) []any {

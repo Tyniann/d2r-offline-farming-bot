@@ -7,6 +7,22 @@ Versionierung nach [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- Add YAML-driven skill, town portal, and belt bindings with `CastSkillAt`/`SelectSkill`/`CastBelt` and teleport precheck
+- Add minimal unit enumeration (objects, entrances, monsters) and GamePhase to memory probe and world model (Phase 4.2)
+- Add entity fingerprint world logging with object/entrance/monster counts; block task ticks during loading phase
+- Add task runner framework with lazy run start, step timeouts, and Countess stub run (Phase 4.1)
+- Add `--run` CLI flag and `runs` config section (`active`, `step_timeout_ms`)
+
+### Changed
+- Replace memory-read keybindings with explicit `input.bindings` YAML for skills, town portal, and belt slots
+- Remove keybinding offset scanning, cache validation, diagnostics, and hotkey calibration from the runtime path
+
+### Fixed
+- Fix entity enumeration: walk entrances and monsters before the large object segment; do not require `unitData` for entrances (aligned with d2go); treat unreadable unit-table segments as empty instead of discarding already-enumerated entities
+- Fix unreliable offset pattern scan on bot restart: page-wise module image read for signatures, scan retries, persisted `configs/offsets.scanned.yaml` cache, and no permanent fallback lock-in on failed scans
+- Improve Countess detection: enumerate super-unique monsters (flag 10) regardless of NPC id; use remaining visit budget for monster segment walk
+
 ## [0.3.0] - 2026-06-26
 
 ### Added
@@ -17,7 +33,7 @@ Versionierung nach [Semantic Versioning](https://semver.org/).
 - Add D2R window binding for the input controller using PID and client-area discovery (Phase 3.1)
 
 ### Fixed
-- Avoid defaulting `input.town_portal` to `t`, which opens the D2R skill tree.
+- Avoid defaulting town portal to `t`, which opens the D2R skill tree.
 
 ### Removed
 - Remove GitHub Actions release workflow; releases are built locally via `scripts/build-release.ps1`

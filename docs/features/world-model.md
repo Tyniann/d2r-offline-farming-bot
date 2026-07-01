@@ -13,9 +13,11 @@ Phase 2 legt die semantische Spielzustands-Schicht im Paket `internal/world` an:
   - `areas_data.go` — eingebetteter Area-Katalog (Namen 1..136, Konstanten bis 141), manuell aus d2go kopiert
   - `position.go` — `Position` (X/Y als `uint32`)
   - `player.go` — `Player` mit Vitalwerten und Prozent-Hilfen
-  - `state.go` — `GamePhase`, immutable `State`
-  - `mapper.go` — `FromSnapshot(memory.Snapshot) State`
-  - `world.go` — `Model` mit `Update` / `Current` / `Reset` (beide importieren `internal/memory`)
+  - `state.go` — `GamePhase`, immutable `State` inkl. Entity-Slices
+  - `object_ids.go`, `entrance_ids.go`, `npc_ids.go` — Countess-Kataloge
+  - `entity.go` — Query-Helfer (`NearestObject`, `FindSuperUnique`, …)
+  - `mapper.go` — `FromSnapshot`, `mapPhase`
+  - `world.go` — `Model` mit `slices.Clone` in `Update`/`Current`
 - **Config:** keine (reine Domain- und Mapping-Schicht)
 
 ## Funktionalität
@@ -48,30 +50,35 @@ Unbekannte IDs: `Name = "Unknown Area <id>"`, `Kind = AreaKindUnknown`, `Act` au
 
 | Bedingung | Ergebnis |
 |-----------|----------|
-| `snap.Valid == true` | `Valid=true`, `Reason=""`, `Phase=GamePhaseInGame` (Best-effort-Heuristik), `Area=LookupArea(...)`, Player-Position und Vitals aus Snapshot |
-| `snap.Valid == false` | `Valid=false`, `Reason=snap.Reason` (kann leer sein), `Phase=GamePhaseUnknown`, `Area`/`Player` Zero-Values |
-| Unbekannte `AreaID` bei gültigem Snapshot | State bleibt `Valid`; Area-Fallback, Player unverändert befüllt |
-| `AreaID == 0` bei gültigem Snapshot | State bleibt `Valid`; `Unknown Area 0`, `ActUnknown` — unvollständige Area-Chain, kein Menü-Signal |
+| `snap.Valid == true` | `Valid=true`, `Area=LookupArea(...)`, Player-Position und Vitals aus Snapshot |
+| `snap.Valid == false` | `Valid=false`, `Reason=snap.Reason`, `Area`/`Player` Zero-Values |
+| `snap.Phase` | Immer via `mapPhase(snap.Phase)` — auch bei `!snap.Valid` (z. B. `menu`, `loading`) |
+| Entity-Slices | Aus Snapshot gemappt; leere non-nil Slices wenn nicht enumeriert |
 
-**Phase-Heuristik:** `GamePhaseInGame` bedeutet nur, dass Player-Position und Vitals lesbar waren. Es ist keine harte In-Game-Garantie (Probe kann auch bei `InGameGate == 0` gültig sein). `memory.ReasonNotInGame` wird in 2.2 nicht als `GamePhaseMenu` oder `GamePhaseLoading` interpretiert — belastbare Phasenerkennung über Gate/UI folgt später.
+**Phase:** `memory.GamePhase` wird ausschließlich über `mapPhase()` konvertiert. `Valid` und `Phase` sind orthogonal (Loading kann bei lesbarem Player auftreten).
 
-**Nicht gemappt:** Memory-only Felder wie `PlayerPtr` und `StatsSource` werden bewusst nicht in `world.Player` übernommen. Effektive Max-Werte (`MaxHP`/`MaxMana`) kommen unverändert aus `memory.Snapshot` (Phase-1-Logik); Prozent-Clamping bleibt in `Player.HPPercent()` / `ManaPercent()`.
+### Entities (Phase 4.2)
+
+Countess-minimale Enumeration in `memory.Snapshot`; Mapping nach `world.Object`, `world.Entrance`, `world.Monster` mit Kind und Name aus `*_ids.go`.
+
+| Kategorie | Query-Helfer |
+|-----------|--------------|
+| Objects | `State.NearestObject(kind)` |
+| Entrances | `State.NearestEntrance(kind)` |
+| Monsters | `State.FindSuperUnique(npcID)` — `MonsterTypeFlag == 10`; `npcID == 0` = jede Super-Unique (Countess) |
+
+Allowlists in `internal/memory/countess_filter.go` (sync mit `world/*_ids.go` via `TestCountessFilterMatchesWorldIDs`).
 
 ### Model (`Update` / `Current` / `Reset`)
 
 ```go
-state := model.Update(snap) // speichert und gibt denselben State zurück
-copy := model.Current()     // Value-Kopie des letzten Update-Ergebnisses
-reset := model.Reset(at, "process_lost") // invalid State bei Prozessverlust
+state := model.Update(snap) // speichert geklonten State und gibt unabhängige Kopie zurück
+copy := model.Current()     // slices.Clone auf Objects/Entrances/Monsters
+reset := model.Reset(at, "process_lost")
 ```
 
-- Vor dem ersten `Update`: `Current()` liefert Zero-Value `State`.
-- Ab **2.3** aktualisiert der App-Loop `Model.Update` nach jedem erfolgreichen `Poll()` im attached-Zustand — unabhängig von `--probe`.
-- `--probe` steuert nur noch Operator-Logging (`world state` / `world unavailable`), nicht ob Memory gelesen wird.
-- Bei `process lost` setzt der App-Loop `Reset(..., "process_lost")`: `Valid=false`, Area/Player Zero-Values.
-- Der erste Attach-Tick liest noch keinen Snapshot; der erste World-State kommt im folgenden attached Poll-Tick.
-- `State` enthält keine Pointer, Maps oder Slices — Kopien sind unabhängig.
-- Kein Mutex in 2.2/2.3; parallele UI/Telemetry-Leser brauchen später Synchronisation oder immutable Handoff.
+- Entity-Slices werden in `Update`/`Current` per `slices.Clone` kopiert — Mutationen an Rückgabewerten ändern nicht den gespeicherten State.
+- World-Log nutzt **Entity-Fingerprint** (Counts + sortierte `(kind, unitID)`-Paare), nicht Positionsvergleich.
 
 ### Player & State
 
@@ -88,8 +95,9 @@ reset := model.Reset(at, "process_lost") // invalid State bei Prozessverlust
 | `AreaKind` | `Unknown`, `Outdoor`, `Dungeon`, `Special` |
 | `Position` | Rohe Tile-Koordinaten |
 | `Player` | Position + HP/Mana |
-| `GamePhase` | `Unknown`, `Menu`, `Loading`, `InGame` |
-| `State` | Tick-Snapshot mit `At`, `Phase`, `Valid`, `Reason`, `Area`, `Player` |
+| `GamePhase` | `Unknown`, `Menu`, `Loading`, `InGame` — aus `memory.Snapshot.Phase` |
+| `State` | Tick-Snapshot mit `At`, `Phase`, `Valid`, `Reason`, `Area`, `Player`, Entity-Slices |
+| `Object`/`Entrance`/`Monster` | Countess-relevante Entities mit Kind, ID, UnitID, Position, Name |
 
 ## Operator / CLI
 
@@ -199,14 +207,15 @@ Low-Level Memory/Offset-Validierung: [State Probe](state-probe.md) (Phase 1, D2R
 
 ## Grenzen
 
-- Keine Objects, Monster, Items oder belastbare GamePhase über Gate/UI
+- Keine Items, volle Objekt-/Monster-Kataloge oder Pathing (folgt ab 4.3)
 - `Model` ohne Concurrency-Schutz (single-threaded Run-Loop)
 - Shutdown/Detach setzt den World-State in 2.3 nicht zurück (nur `process lost`)
 
 ## Verwandte Features
 
-- [State Probe](state-probe.md) — liefert `memory.Snapshot` als Rohquelle für den Mapper
+- [State Probe](state-probe.md) — liefert `memory.Snapshot` inkl. Phase und Entities
 - [Memory Reader](memory-reader.md) — Low-Level-Reads unter der Probe
+- [Task Runner](task-runner.md) — Task-Ticks blockiert bei `Phase != InGame`
 
 ---
-*Zuletzt aktualisiert: 2026-06-25*
+*Zuletzt aktualisiert: 2026-06-26*

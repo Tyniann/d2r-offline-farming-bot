@@ -10,16 +10,16 @@ import (
 )
 
 type offsetSetFile struct {
-	Name         string          `yaml:"name"`
-	D2RVersion   string          `yaml:"d2r_version"`
-	Source       string          `yaml:"source"`
-	SourceCommit string          `yaml:"source_commit"`
-	VerifiedAt   string          `yaml:"verified_at"`
-	ModuleName   string          `yaml:"module_name"`
-	GameData     hexUintptr      `yaml:"game_data"`
-	UnitTable    hexUintptr      `yaml:"unit_table"`
-	UI           hexUintptr      `yaml:"ui"`
-	Expansion    hexUintptr      `yaml:"expansion"`
+	Name         string            `yaml:"name"`
+	D2RVersion   string            `yaml:"d2r_version"`
+	Source       string            `yaml:"source"`
+	SourceCommit string            `yaml:"source_commit"`
+	VerifiedAt   string            `yaml:"verified_at"`
+	ModuleName   string            `yaml:"module_name"`
+	GameData     hexUintptr        `yaml:"game_data"`
+	UnitTable    hexUintptr        `yaml:"unit_table"`
+	UI           hexUintptr        `yaml:"ui"`
+	Expansion    hexUintptr        `yaml:"expansion"`
 	Unit         unitOffsetsFile `yaml:"unit"`
 	Stats        statOffsetsFile `yaml:"stats"`
 }
@@ -32,6 +32,7 @@ type unitOffsetsFile struct {
 	StatsListEx         hexUintptr `yaml:"stats_list_ex"`
 	Inventory           hexUintptr `yaml:"inventory"`
 	NextUnit            hexUintptr `yaml:"next_unit"`
+	SkillsList          hexUintptr `yaml:"skills_list"`
 	MainPlayerNormal    hexUintptr `yaml:"main_player_normal"`
 	MainPlayerExpansion hexUintptr `yaml:"main_player_expansion"`
 	ExpansionCharFlag   hexUintptr `yaml:"expansion_char_flag"`
@@ -67,7 +68,7 @@ func (h *hexUintptr) UnmarshalYAML(value *yaml.Node) error {
 	switch value.Kind {
 	case yaml.ScalarNode:
 		raw := strings.TrimSpace(value.Value)
-		if raw == "" || raw == "0" {
+		if value.Tag == "!!null" || raw == "" || raw == "0" || strings.EqualFold(raw, "null") {
 			h.Value = 0
 			h.Set = true
 			return nil
@@ -91,6 +92,13 @@ func (h *hexUintptr) UnmarshalYAML(value *yaml.Node) error {
 	default:
 		return fmt.Errorf("expected scalar for uintptr, got %v", value.Kind)
 	}
+}
+
+func (h hexUintptr) MarshalYAML() (interface{}, error) {
+	if !h.Set {
+		return nil, nil
+	}
+	return fmt.Sprintf("0x%X", h.Value), nil
 }
 
 // LoadOffsetSetFile loads an optional YAML override and overlays it on [DefaultOffsetSet].
@@ -169,6 +177,9 @@ func overlayUnitOffsets(out *UnitOffsets, file unitOffsetsFile) {
 	}
 	if file.NextUnit.Set {
 		out.NextUnit = file.NextUnit.Value
+	}
+	if file.SkillsList.Set {
+		out.SkillsList = file.SkillsList.Value
 	}
 	if file.MainPlayerNormal.Set {
 		out.MainPlayerNormal = file.MainPlayerNormal.Value
@@ -261,6 +272,63 @@ func validateOffsetSet(o OffsetSet) error {
 		return fmt.Errorf("stats.entry_stride must be > 0")
 	}
 	return nil
+}
+
+// SaveOffsetSetFile writes an [OffsetSet] as YAML for local overrides or scan caching.
+func SaveOffsetSetFile(path string, off OffsetSet) error {
+	data, err := marshalOffsetSetYAML(off)
+	if err != nil {
+		return fmt.Errorf("marshal offsets: %w", err)
+	}
+	if err := os.WriteFile(path, data, 0o644); err != nil {
+		return fmt.Errorf("write offsets %q: %w", path, err)
+	}
+	return nil
+}
+
+func marshalOffsetSetYAML(off OffsetSet) ([]byte, error) {
+	file := offsetSetFile{
+		Name:         off.Name,
+		D2RVersion:   off.D2RVersion,
+		Source:       off.Source,
+		SourceCommit: off.SourceCommit,
+		VerifiedAt:   off.VerifiedAt,
+		ModuleName:   off.ModuleName,
+		GameData:     hexUintptr{Value: off.GameData, Set: off.GameData != 0},
+		UnitTable:    hexUintptr{Value: off.UnitTable, Set: off.UnitTable != 0},
+		UI:           hexUintptr{Value: off.UI, Set: off.UI != 0},
+		Expansion:    hexUintptr{Value: off.Expansion, Set: off.Expansion != 0},
+		Unit: unitOffsetsFile{
+			UnitType:            hexUintptr{Value: off.Unit.UnitType, Set: true},
+			UnitID:              hexUintptr{Value: off.Unit.UnitID, Set: true},
+			UnitData:            hexUintptr{Value: off.Unit.UnitData, Set: true},
+			Path:                hexUintptr{Value: off.Unit.Path, Set: true},
+			StatsListEx:         hexUintptr{Value: off.Unit.StatsListEx, Set: true},
+			Inventory:           hexUintptr{Value: off.Unit.Inventory, Set: true},
+			NextUnit:            hexUintptr{Value: off.Unit.NextUnit, Set: true},
+			SkillsList:          hexUintptr{Value: off.Unit.SkillsList, Set: true},
+			MainPlayerNormal:    hexUintptr{Value: off.Unit.MainPlayerNormal, Set: true},
+			MainPlayerExpansion: hexUintptr{Value: off.Unit.MainPlayerExpansion, Set: true},
+			ExpansionCharFlag:   hexUintptr{Value: off.Unit.ExpansionCharFlag, Set: true},
+			PositionX:           hexUintptr{Value: off.Unit.PositionX, Set: true},
+			PositionY:           hexUintptr{Value: off.Unit.PositionY, Set: true},
+			PathRoom1:           hexUintptr{Value: off.Unit.PathRoom1, Set: true},
+			Room2:               hexUintptr{Value: off.Unit.Room2, Set: true},
+			Level:               hexUintptr{Value: off.Unit.Level, Set: true},
+			Area:                hexUintptr{Value: off.Unit.Area, Set: true},
+			StatsListBase:       hexUintptr{Value: off.Unit.StatsListBase, Set: true},
+			StatsListActive:     hexUintptr{Value: off.Unit.StatsListActive, Set: true},
+		},
+		Stats: statOffsetsFile{
+			ListPtr:     hexUintptr{Value: off.Stats.ListPtr, Set: true},
+			Count:       hexUintptr{Value: off.Stats.Count, Set: true},
+			EntryStride: hexUintptr{Value: off.Stats.EntryStride, Set: true},
+			Layer:       hexUintptr{Value: off.Stats.Layer, Set: true},
+			ID:          hexUintptr{Value: off.Stats.ID, Set: true},
+			Value:       hexUintptr{Value: off.Stats.Value, Set: true},
+		},
+	}
+	return yaml.Marshal(file)
 }
 
 // ResolveOffsetSet returns the active offset set from defaults and an optional YAML override file.
