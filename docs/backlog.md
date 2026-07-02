@@ -94,6 +94,32 @@ Z. B. `--record-route countess` / `--play-route configs/routes/my-sorc-hell.yaml
 
 ---
 
+## Verworfene Alternative: Map-Server-Navigation (Koolo-Ansatz)
+
+**Status:** `idea` (bewusst zurückgestellt — Run Recorder bevorzugt)  
+**Entschieden:** 2026-07-02 (nach Phase-4.3-Testlauf)  
+**Verwandt:** Run Recorder (#2), Pathing
+
+### Wie Koolo navigiert
+
+Koolo hat keinen öffentlichen Map-Dienst — es startet einen **lokalen** Map-Generierungsprozess:
+
+1. **Map Seed aus dem Speicher lesen:** D2R generiert Karten prozedural aus einem Seed pro Spiel; d2go liest ihn aus dem Prozess.
+2. **Lokaler Map-Server:** `koolo-map.exe` (Fork von [blacha/diablo2, packages/map](https://github.com/blacha/diablo2/tree/master/packages/map), MIT) lädt die **originalen Diablo II LoD 1.13c Game-DLLs** und lässt deren Map-Generierung mit dem Seed laufen — D2R nutzt dieselbe Generierungslogik wie das klassische D2. Läuft als lokale REST-API (`localhost:8899/v1/map/:seed/:difficulty/:act.json`) und liefert Kollisionsgrid, Area-Übergänge, Waypoint- und Objekt-Positionen als JSON.
+3. **Gerichtetes Pathfinding:** Mit vollständigem Layout kann der Bot Zonenübergänge gezielt ansteuern (A* auf dem Kollisionsgrid) — genau das, was Bearing-Explore fehlt (Kreise am Kartenrand, Übergänge werden verpasst).
+
+### Warum wir stattdessen den Run Recorder wählen
+
+- **Harte Voraussetzung:** Der Map-Server braucht eine lokale **Diablo II LoD 1.13c Installation** (Koolo-Config `D2LoDPath`), weil die Generierung aus den Legacy-DLLs kommt. Unser Projekt braucht bisher nur D2R — eine erhebliche Setup-Hürde für Nutzer.
+- **Zusätzliche Infrastruktur:** Separater Prozess (bzw. Docker/Wine), Seed-Read als weiterer patch-sensitiver Memory-Offset, plus eine komplette Pathfinding-Schicht obendrauf.
+- **Run Recorder erreicht dasselbe Ziel einfacher:** Offline-Layouts bleiben pro Charakter+Schwierigkeit stabil; eine einmal manuell aufgezeichnete Route ist zuverlässig wiederholbar — ohne Legacy-Installation, ohne Map-Server, ohne Pathfinding.
+
+### Wann neu bewerten
+
+Falls der Run Recorder an Grenzen stößt (z. B. Layouts ändern sich doch, oder vollautomatische Exploration ohne manuelles Vormachen wird gewünscht), ist der Map-Server-Ansatz die belastbare Alternative — als lokale Komponente mit LoD-Abhängigkeit, nicht als öffentlicher Dienst.
+
+---
+
 ## Gemeinsames Routen-Format (für #1 und #2)
 
 Beide Ideen sollten **eine** Sequenz-Definition teilen, z. B. YAML:
