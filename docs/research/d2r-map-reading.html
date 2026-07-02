@@ -1,0 +1,550 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>D2R Map Reading: Entrance-Tile-Navigation</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #101216;
+      --panel: #171b22;
+      --panel-2: #202632;
+      --text: #eef2f7;
+      --muted: #aeb8c6;
+      --line: #344050;
+      --accent: #8bd3ff;
+      --accent-2: #ffd166;
+      --good: #92e6a7;
+      --warn: #ffb86b;
+      --bad: #ff7b7b;
+      --code: #0b0d11;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: radial-gradient(circle at top left, #1c2938 0, var(--bg) 36rem);
+      color: var(--text);
+      font: 16px/1.55 "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+
+    main {
+      width: min(1180px, calc(100vw - 32px));
+      margin: 0 auto;
+      padding: 40px 0 72px;
+    }
+
+    h1, h2, h3 {
+      line-height: 1.15;
+      margin: 0 0 16px;
+    }
+
+    h1 {
+      font-size: clamp(2rem, 4vw, 4rem);
+      letter-spacing: -0.04em;
+    }
+
+    h2 {
+      margin-top: 42px;
+      font-size: clamp(1.5rem, 2vw, 2.1rem);
+      border-bottom: 1px solid var(--line);
+      padding-bottom: 10px;
+    }
+
+    h3 {
+      margin-top: 28px;
+      color: var(--accent);
+    }
+
+    a {
+      color: var(--accent);
+    }
+
+    p {
+      margin: 0 0 16px;
+    }
+
+    code {
+      background: var(--code);
+      border: 1px solid #222a35;
+      border-radius: 5px;
+      padding: 0.08rem 0.34rem;
+      color: #f8f8f2;
+    }
+
+    .hero {
+      display: grid;
+      grid-template-columns: minmax(0, 1.25fr) minmax(320px, 0.75fr);
+      gap: 24px;
+      align-items: stretch;
+    }
+
+    .card {
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.015));
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 24px;
+      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.28);
+    }
+
+    .lead {
+      color: var(--muted);
+      font-size: 1.15rem;
+      max-width: 72ch;
+    }
+
+    .tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 20px;
+    }
+
+    .tag {
+      border: 1px solid var(--line);
+      background: var(--panel-2);
+      border-radius: 999px;
+      color: var(--muted);
+      padding: 4px 10px;
+      font-size: 0.9rem;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 18px;
+    }
+
+    .figure-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 18px;
+      margin-top: 18px;
+    }
+
+    figure {
+      margin: 0;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      overflow: hidden;
+    }
+
+    figure img {
+      display: block;
+      width: 100%;
+      height: auto;
+      background: #000;
+    }
+
+    figcaption {
+      padding: 12px 14px 14px;
+      color: var(--muted);
+      font-size: 0.95rem;
+    }
+
+    .wide {
+      grid-column: 1 / -1;
+    }
+
+    .callout {
+      border-left: 4px solid var(--accent-2);
+      background: rgba(255, 209, 102, 0.08);
+      padding: 14px 16px;
+      border-radius: 10px;
+      margin: 18px 0;
+    }
+
+    .callout.good {
+      border-left-color: var(--good);
+      background: rgba(146, 230, 167, 0.08);
+    }
+
+    .callout.bad {
+      border-left-color: var(--bad);
+      background: rgba(255, 123, 123, 0.08);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 14px 0 26px;
+      background: rgba(23, 27, 34, 0.82);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+
+    th, td {
+      border-bottom: 1px solid var(--line);
+      padding: 10px 12px;
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th {
+      background: var(--panel-2);
+      color: var(--accent-2);
+      font-weight: 650;
+    }
+
+    tr:last-child td {
+      border-bottom: 0;
+    }
+
+    .pill-left,
+    .pill-straight,
+    .pill-right,
+    .pill-fixed,
+    .pill-random {
+      display: inline-block;
+      border-radius: 999px;
+      padding: 2px 9px;
+      font-size: 0.88rem;
+      font-weight: 650;
+      color: #101216;
+      white-space: nowrap;
+    }
+
+    .pill-left { background: #ffd166; }
+    .pill-straight { background: #8bd3ff; }
+    .pill-right { background: #92e6a7; }
+    .pill-fixed { background: #cdb4db; }
+    .pill-random { background: #ff7b7b; }
+
+    .source-list li,
+    .notes li {
+      margin-bottom: 8px;
+    }
+
+    @media (max-width: 860px) {
+      .hero,
+      .grid,
+      .figure-grid {
+        grid-template-columns: 1fr;
+      }
+
+      main {
+        width: min(100vw - 20px, 1180px);
+        padding-top: 24px;
+      }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <section class="hero">
+    <div class="card">
+      <h1>D2R Map Reading: Entrance-Tile-Navigation</h1>
+      <p class="lead">
+        Forschungsnotiz für spätere Bot-Pathing-Phasen. Diablo II generiert viele Gebiete nicht völlig frei,
+        sondern setzt vordefinierte Tiles zusammen. Bei vielen Innenkarten bestimmt die Orientierung des
+        Entrance-Tiles, in welcher relativen Richtung das Exit- oder Ziel-Tile liegt.
+      </p>
+      <div class="tags">
+        <span class="tag">Quelle: WithNoFiller Speedrun-Video</span>
+        <span class="tag">Kategorie: Pathing-Recherche</span>
+        <span class="tag">Status: nicht implementiert</span>
+        <span class="tag">Aktualisiert: 2026-07-03</span>
+      </div>
+    </div>
+    <div class="card">
+      <h2 style="margin-top:0">Kurzfassung</h2>
+      <p>
+        Für viele Höhlen, Gräber und Dungeons gilt: Erst die Richtung bestimmen, in die das Eingangstile den
+        Spieler "schickt". Danach den Bereich suchen, dessen Pfad relativ dazu <strong>Left</strong>,
+        <strong>Straight</strong> oder <strong>Right</strong> ist.
+      </p>
+      <p>
+        Für Tower Cellar Level 1-4 ist das Ziel <strong>Left</strong>: vom Entrance-Pfad aus gesehen
+        90 Grad gegen den Uhrzeigersinn. Das heißt nicht zwingend: die erste Bildschirm-Abzweigung links nehmen.
+      </p>
+    </div>
+  </section>
+
+  <h2>Grundprinzip</h2>
+  <div class="grid">
+    <div class="card">
+      <h3>1. Entrance-Tile erkennen</h3>
+      <p>
+        Das Entrance-Tile ist der Startabschnitt des Gebiets. Es ist nicht identisch mit der Blickrichtung der
+        Treppe oder der Spielfigur. Entscheidend ist die Richtung des verbindenden Gangs oder der einzige
+        Pfad, der aus dem Startabschnitt herausführt.
+      </p>
+    </div>
+    <div class="card">
+      <h3>2. Relative Zielrichtung anwenden</h3>
+      <p>
+        <span class="pill-left">Left</span> bedeutet 90 Grad gegen den Uhrzeigersinn relativ zum Entrance-Pfad,
+        <span class="pill-straight">Straight</span> bedeutet gleiche Orientierung,
+        <span class="pill-right">Right</span> bedeutet 90 Grad im Uhrzeigersinn.
+      </p>
+    </div>
+    <div class="card">
+      <h3>3. Nicht nur Bildschirmrichtung</h3>
+      <p>
+        "Links" ist nicht automatisch links auf dem Monitor. Es ist die Perspektive einer Spielfigur, die in
+        Richtung des Entrance-Pfads schaut. In D2R kann das auf dem Automap-Overlay je nach Tile-Orientierung
+        nach Nordost, Nordwest, Südost oder Südwest zeigen.
+      </p>
+    </div>
+    <div class="card">
+      <h3>4. Exit-Tile statt Wegverlauf</h3>
+      <p>
+        Die Regel beschreibt die Orientierung des Ziel-Tiles, nicht zwingend die perfekte Laufroute. Man kann
+        zeitweise in andere Richtungen laufen müssen, um später wieder in die Zielorientierung zu kommen.
+      </p>
+    </div>
+  </div>
+
+  <div class="figure-grid">
+    <figure class="wide">
+      <img src="../assets/map-reading/01-angular-left-concept.png" alt="Allgemeines 90-Grad-gegen-den-Uhrzeigersinn-Prinzip für Höhlen und Dungeons">
+      <figcaption>
+        Allgemeines Konzept: Der Exit-Pfad ist bei vielen Dungeons 90 Grad gegen den Uhrzeigersinn vom
+        Entrance-Pfad aus gesehen.
+      </figcaption>
+    </figure>
+  </div>
+
+  <h2>Beispiele aus dem Video</h2>
+  <div class="figure-grid">
+    <figure>
+      <img src="../assets/map-reading/02-tower-cellar-left-turn-example.png" alt="Tower Cellar Beispiel mit Südost-Pfad und Nordost-Abzweigung zum Exit">
+      <figcaption>
+        Praktisches Beispiel: Das Eingangstile führt nach Südost. Die passende <code>Left</code>-Richtung ist
+        Nordost. Die erste passende Nordost-Abzweigung führt hier zum Exit.
+      </figcaption>
+    </figure>
+    <figure>
+      <img src="../assets/map-reading/03-entrance-tile-exit-vector.png" alt="Entrance Tile und Exit Tile mit Pfeil zur Zielorientierung">
+      <figcaption>
+        Weiteres Beispiel: Die Exit-Orientierung ist schon am Entrance-Tile ableitbar, auch wenn das Exit-Tile
+        selbst erst später sichtbar wird.
+      </figcaption>
+    </figure>
+    <figure>
+      <img src="../assets/map-reading/04-multiple-left-opportunities.png" alt="Beispiel mit erster falscher Abzweigung und zweiter korrekter Left-Abzweigung">
+      <figcaption>
+        Nicht jede erste passende Abzweigung ist korrekt. Ein Bot müsste Sackgassen erkennen, zurückkehren und
+        weitere Kandidaten in derselben relativen Zielrichtung prüfen.
+      </figcaption>
+    </figure>
+    <figure>
+      <img src="../assets/map-reading/05-backwards-map-failure-case.png" alt="Failure Case, bei dem einfaches Linksabbiegen nicht funktioniert">
+      <figcaption>
+        Failure Case: Das Spiel verlangt nur, dass Entrance- und Exit-Tile 90 Grad auseinander liegen. Wenn kein
+        direkter <code>Left</code>-Weg entsteht, muss die Heuristik aufgegeben oder als "backwards map" behandelt werden.
+      </figcaption>
+    </figure>
+    <figure class="wide">
+      <img src="../assets/map-reading/06-master-map-type-list.png" alt="Master-Liste der Diablo-II-Map-Typen aus dem Video">
+      <figcaption>
+        Master-Liste aus dem Video: Die Winkelregel ist nur eine Kategorie. Andere Gebiete sind fixed,
+        fixed enough, alternating fixed, outdoor rectangles oder random.
+      </figcaption>
+    </figure>
+  </div>
+
+  <h2>Wichtige Korrektur zur "Left"-Regel</h2>
+  <div class="callout bad">
+    <p>
+      <strong>Nicht implementieren als "erste linke Abzweigung nehmen".</strong> Die robuste Aussage lautet:
+      Das Ziel-Tile hat eine bestimmte Orientierung relativ zum Entrance-Tile. Der Weg dorthin kann mehrere
+      Zwischenkurven, Sackgassen oder in seltenen Fällen eine "backwards map" enthalten.
+    </p>
+  </div>
+  <p>
+    Der WithNoFiller-Transcript beschreibt genau diese Grenze: In höheren Schwierigkeitsgraden und größeren
+    Karten kann ein Layout entstehen, in dem direktes Linksabbiegen nicht möglich ist, obwohl Entrance und Exit
+    weiterhin 90 Grad auseinander liegen. In diesem Fall sollte eine spätere Bot-Strategie auf eine allgemeine
+    Exploration oder ein anderes Erkennungsmodell wechseln.
+  </p>
+
+  <h2>Karten-Kategorien</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Kategorie</th>
+        <th>Idee</th>
+        <th>Bot-Relevanz</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><span class="pill-left">Left</span> / <span class="pill-straight">Straight</span> / <span class="pill-right">Right</span></td>
+        <td>Exit- oder Ziel-Tile liegt in fester relativer Orientierung zum Entrance- oder Waypoint-Tile.</td>
+        <td>Geeignet für heuristisches Dungeon-Pathing, wenn Tile-Orientierung aus Automap/Memory ableitbar ist.</td>
+      </tr>
+      <tr>
+        <td><span class="pill-fixed">Fixed</span></td>
+        <td>Layout ist immer gleich oder hat wenige fest merkbare Varianten.</td>
+        <td>Kann später über feste Zielpunkte, Pattern oder kleine Lookup-Tabellen abgebildet werden.</td>
+      </tr>
+      <tr>
+        <td><span class="pill-fixed">Fixed Enough</span></td>
+        <td>Außenrahmen oder wichtige Features sind stabil, Details variieren.</td>
+        <td>Gut für grobe Zielkorridore, z. B. "gegenüberliegende Ecke" oder "oberer Rand".</td>
+      </tr>
+      <tr>
+        <td><span class="pill-fixed">Alternating Fixed</span></td>
+        <td>Nur wenige vorgebaute Varianten, oft gespiegelt oder rotiert.</td>
+        <td>Erkennbar über wenige Landmarken; danach deterministische Route möglich.</td>
+      </tr>
+      <tr>
+        <td>Outdoor</td>
+        <td>Viele Außenkarten sind Rechtecke/Quadrate mit Regeln zu Rändern, Ecken, Wegen und Camps.</td>
+        <td>Ergänzt aktuelle Bearing-Explore-Logik; Road-following und Rand-/Ecken-Hypothesen wären relevant.</td>
+      </tr>
+      <tr>
+        <td><span class="pill-random">Random</span></td>
+        <td>Keine zuverlässige bekannte Zielorientierung.</td>
+        <td>Nur allgemeine Exploration, Route-Cache, manuelle Aufzeichnung oder später Map-Seed-Ansatz.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>Angular-Map-Katalog</h2>
+  <p>
+    Diese Tabelle ist als Implementierungsnotiz gedacht. Sie basiert auf dem Video-Transcript und Teo1904s
+    Maxroll-Guide. Begriffe sind absichtlich englisch gehalten, weil sie in Speedrun-Quellen so verwendet werden.
+  </p>
+
+  <h3>Act I</h3>
+  <table>
+    <thead><tr><th>Gebiet / Startpunkt</th><th>Left</th><th>Straight</th><th>Right</th></tr></thead>
+    <tbody>
+      <tr><td>Cave Level 1, vom Entrance</td><td>Next Level</td><td>Coldcrow</td><td>-</td></tr>
+      <tr><td>Mausoleum, vom Entrance</td><td>Golden Chest</td><td>-</td><td>-</td></tr>
+      <tr><td>Crypt, vom Entrance</td><td>Golden Chest / Bonebreaker</td><td>-</td><td>-</td></tr>
+      <tr><td>Underground Passage Level 1, vom Entrance</td><td>Next Level</td><td>Exit nach Dark Wood</td><td>-</td></tr>
+      <tr><td>The Hole Level 1, vom Entrance</td><td>Next Level</td><td>-</td><td>-</td></tr>
+      <tr><td>Forgotten Tower Level 1-4, vom Entrance</td><td>Next Level</td><td>-</td><td>-</td></tr>
+      <tr><td>Barracks, vom Entrance</td><td>Jail Level 1 oder Horadric Malus</td><td>Jail Level 1 oder Horadric Malus</td><td>-</td></tr>
+      <tr><td>Jail Level 1, vom Entrance</td><td>Waypoint</td><td>Next Level</td><td>-</td></tr>
+      <tr><td>Jail Level 1, vom Waypoint</td><td>Next Level</td><td>-</td><td>Barracks</td></tr>
+      <tr><td>Jail Level 2, vom Entrance</td><td>Pitspawn Fouldog</td><td>Next Level</td><td>-</td></tr>
+      <tr><td>Jail Level 3, vom Entrance</td><td>Exit</td><td>-</td><td>-</td></tr>
+      <tr><td>Catacombs Level 2, vom Waypoint</td><td>-</td><td>-</td><td>Next Level</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Act II</h3>
+  <table>
+    <thead><tr><th>Gebiet / Startpunkt</th><th>Left</th><th>Straight</th><th>Right</th></tr></thead>
+    <tbody>
+      <tr><td>Sewers Level 2, vom Entrance</td><td>Waypoint</td><td>Next Level</td><td>-</td></tr>
+      <tr><td>Sewers Level 2, vom Waypoint</td><td>Next Level</td><td>-</td><td>Previous Level</td></tr>
+      <tr><td>Sewers Level 3, vom Entrance</td><td>Radament</td><td>-</td><td>-</td></tr>
+      <tr><td>Stony Tomb Level 1, vom Entrance</td><td>Next Level</td><td>-</td><td>-</td></tr>
+      <tr><td>Stony Tomb Level 2, vom Entrance</td><td>Golden Chest</td><td>Creeping Feature</td><td>-</td></tr>
+      <tr><td>Halls of the Dead Level 1, vom Entrance</td><td>Next Level</td><td>-</td><td>-</td></tr>
+      <tr><td>Halls of the Dead Level 2, vom Entrance</td><td>Next Level</td><td>Waypoint</td><td>-</td></tr>
+      <tr><td>Halls of the Dead Level 2, vom Waypoint</td><td>-</td><td>Previous Level</td><td>Next Level</td></tr>
+      <tr><td>Halls of the Dead Level 3, vom Entrance</td><td>Bloodwitch / Horadric Cube</td><td>-</td><td>-</td></tr>
+      <tr><td>Maggot Lair Level 1-2, vom Entrance</td><td>-</td><td>-</td><td>Next Level</td></tr>
+      <tr><td>Maggot Lair Level 3, vom Entrance</td><td>-</td><td>Coldworm / Staff of Kings</td><td>-</td></tr>
+      <tr><td>Ancient Tunnels, vom Entrance</td><td>Golden Chest</td><td>-</td><td>-</td></tr>
+      <tr><td>Claw Viper Temple Level 1, vom Entrance</td><td>Next Level</td><td>-</td><td>-</td></tr>
+      <tr><td>Correct Tal Rasha's Tomb, vom Entrance</td><td>Orifice</td><td>-</td><td>-</td></tr>
+      <tr><td>Wrong Tal Rasha's Tomb, vom Entrance</td><td>Golden Chest</td><td>Ancient Kaa in einem Tomb</td><td>-</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Act III bis V</h3>
+  <table>
+    <thead><tr><th>Gebiet / Startpunkt</th><th>Left</th><th>Straight</th><th>Right</th></tr></thead>
+    <tbody>
+      <tr><td>Swampy Pits Level 1-2, vom Entrance</td><td>Next Level</td><td>-</td><td>-</td></tr>
+      <tr><td>Flayer Dungeon Level 1-2, vom Entrance</td><td>Next Level</td><td>-</td><td>-</td></tr>
+      <tr><td>Act III Sewers Level 1, vom Sparkling Chest</td><td>-</td><td>-</td><td>Next Level</td></tr>
+      <tr><td>Durance of Hate Level 1, vom Entrance</td><td>Next Level</td><td>-</td><td>-</td></tr>
+      <tr><td>Durance of Hate Level 2, vom Entrance</td><td>Waypoint</td><td>Next Level</td><td>-</td></tr>
+      <tr><td>Durance of Hate Level 2, vom Waypoint</td><td>Next Level</td><td>-</td><td>Previous Level</td></tr>
+      <tr><td>River of Flame, vom Entrance</td><td>Hellforge möglich</td><td>Waypoint und Chaos Sanctuary</td><td>Hellforge möglich</td></tr>
+      <tr><td>Crystalline Passage, vom Entrance</td><td>Glacial Trail</td><td>Frozen River</td><td>Waypoint</td></tr>
+      <tr><td>Crystalline Passage, vom Waypoint</td><td>Previous Area</td><td>Glacial Trail</td><td>Frozen River</td></tr>
+      <tr><td>Glacial Trail, vom Waypoint oder Entrance</td><td>Frozen Tundra</td><td>Drifter Cavern</td><td>Golden Chest / Bonesaw Breaker</td></tr>
+      <tr><td>Ancients Way, vom Entrance</td><td>Arreat Summit</td><td>Icy Cellar</td><td>Waypoint</td></tr>
+      <tr><td>Ancients Way, vom Waypoint</td><td>Previous Area</td><td>Arreat Summit</td><td>Icy Cellar</td></tr>
+      <tr><td>Worldstone Keep Level 2, vom Waypoint</td><td>-</td><td>-</td><td>Next Level</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Outdoor- und Nicht-Angular-Regeln</h2>
+  <div class="grid">
+    <div class="card">
+      <h3>Act I: Straßen folgen</h3>
+      <p>
+        Viele Act-I-Outdoor-Karten sind Quadrate/Rechtecke mit Wegen zwischen Entrance und Exit. Für Countess
+        relevant: Black Marsh hat Tower und Waypoint häufig nahe am Rand; der Ausgang nach Tamoe Highland liegt
+        laut Quellen nie am unteren linken Rand.
+      </p>
+    </div>
+    <div class="card">
+      <h3>Act II: Ecken lesen</h3>
+      <p>
+        Outdoor-Ziele liegen typischerweise nahe an Ecken. Indents und L-förmige Randstücke können Ecken
+        ausschließen. Lost City hat keinen Valley-of-Snakes-Ausgang in der südlichen Ecke.
+      </p>
+    </div>
+    <div class="card">
+      <h3>Act III: 2x6-Jungle</h3>
+      <p>
+        Spider Forest, Great Marsh und Flayer Jungle verhalten sich wie schmale 2x6-Rechtecke. Camps, Flüsse,
+        Brücken und Pfosten sind wichtige Landmarken. Grobstrategie: häufig nordöstlich und am Fluss orientieren.
+      </p>
+    </div>
+    <div class="card">
+      <h3>Random Maps</h3>
+      <p>
+        Catacombs Level 1 und 3, Arcane Sanctuary sowie Worldstone Keep Level 1 und 3 haben keine bekannte
+        zuverlässige Exit-Orientierung. Für einen Bot wären das Exploration, Route-Cache oder manuelle Vorgaben.
+      </p>
+    </div>
+  </div>
+
+  <h2>Bot-Implikationen</h2>
+  <div class="callout good">
+    <p>
+      Für den Countess-MVP ist vor allem <strong>Forgotten Tower Level 1-4 = Left vom Entrance</strong> relevant.
+      Diese Regel könnte die aktuelle ungerichtete Bearing-Explore-Logik ersetzen oder priorisieren, sobald der
+      Bot Entrance-Tile-Orientierung und lokale Gangrichtungen aus Memory/Automap ableiten kann.
+    </p>
+  </div>
+  <ol class="notes">
+    <li><strong>Tile-Orientierung erfassen:</strong> Aus Automap-/Room-Daten oder späterem Map-Graph ableiten, welche Richtung der Entrance-Pfad hat.</li>
+    <li><strong>Zielvektor bestimmen:</strong> Pro Gebiet eine Regel wie <code>Left</code>, <code>Straight</code> oder <code>Right</code> hinterlegen.</li>
+    <li><strong>Kandidaten priorisieren:</strong> Abzweigungen, Räume oder RoomEx-Verbindungen bevorzugen, deren Orientierung zum Zielvektor passt.</li>
+    <li><strong>Sackgassen markieren:</strong> Falsche Kandidaten nicht erneut prüfen; zurück zum Hauptpfad und nächste passende Gelegenheit nehmen.</li>
+    <li><strong>Backwards-Map erkennen:</strong> Wenn keine passende Abzweigung erreichbar ist oder die Suche zu lange ohne Fortschritt bleibt, Heuristik abbrechen.</li>
+    <li><strong>Area-Transition bleibt Ground Truth:</strong> Erfolg erst akzeptieren, wenn <code>world.State.Area.ID</code> den erwarteten Wechsel bestätigt.</li>
+  </ol>
+
+  <h2>Quellen und Transcript-Notizen</h2>
+  <ul class="source-list">
+    <li>
+      <a href="https://www.youtube.com/watch?v=J1EFUYGk4CA">WithNoFiller: The Code to Navigate Every Diablo 2 Map</a>.
+      Der Seitenabruf enthielt Metadaten, Kapitel und vollständigen Transcript. Relevante Kapitel:
+      <code>01:56 How to look at Tiles</code>, <code>05:43 Categories</code>, <code>09:55 Act 1</code>.
+    </li>
+    <li>
+      <a href="https://maxroll.gg/d2/resources/map-reading">Teo1904 / Maxroll: D2R Map Reading</a>.
+      Enthält die tabellarische Left/Straight/Right-Liste, Semi-Static Maps, Static Maps und Random Maps.
+    </li>
+    <li>
+      <a href="https://pf-mail.wixsite.com/d2maps/rules">d2maps: Meaning of Right / Straight / Left</a>.
+      Gute Erklärung, dass relative Richtungen vom Entrance-Tile kommen und nicht von Bildschirm-Himmelsrichtungen.
+    </li>
+    <li>
+      <a href="https://maaaaaarrk.github.io/Hiim-PD2-Resources/pathfinding.html">Hiim PD2 Resources: Pathfinding Guide</a>.
+      Nützliche zweite Darstellung der tile-basierten Pathfinding-Regeln, besonders für Act-I- und Act-II-Notizen.
+    </li>
+  </ul>
+</main>
+</body>
+</html>

@@ -14,6 +14,22 @@ Implementierte Features landen in `docs/features/` und `docs/CHANGELOG.md`.
 
 ---
 
+## Map-Reading-Heuristiken
+
+**Status:** `idea`  
+**Ziel-Phase:** nach Phase 4.3, sobald Automap-/Room-Graph-Daten verfügbar sind  
+**Verwandt:** Pathing, Countess-Run, Route-Cache
+
+### Kontext
+
+Viele D2R-Gebiete folgen bekannten Speedrun-Regeln: Entrance-Tiles, Waypoint-Tiles und Ziel-Tiles stehen oft in festen relativen Richtungen (`Left`, `Straight`, `Right`) oder in stabilen Outdoor-/Fixed-Enough-Layouts. Die Recherche dazu liegt in [`docs/research/d2r-map-reading.html`](research/d2r-map-reading.html).
+
+### Idee
+
+Spätere Navigation kann diese Regeln als Priorisierung nutzen: z. B. Tower Cellar Level 1-4 vom Entrance aus als `Left` behandeln, passende Abzweigungen bevorzugen, Sackgassen markieren und bei "backwards maps" auf allgemeine Exploration oder Route-Cache zurückfallen.
+
+---
+
 ## Route-Cache & Route-Recycling
 
 **Status:** `idea`  
