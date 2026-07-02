@@ -53,14 +53,14 @@ func (c *Controller) CastSkillAt(src BindingSource, skillID uint16, clientX, cli
 	if err != nil {
 		return err
 	}
-	if err := c.actionGuard("skill", "cast", "skill_cast",
+	if guardErr := c.actionGuard("skill", "cast", "skill_cast",
 		"skill_id", skillID,
 		"select_key", cast.SelectKey,
 		"cast_button", cast.CastButton,
 		"client_x", clientX,
 		"client_y", clientY,
-	); err != nil {
-		return err
+	); guardErr != nil {
+		return guardErr
 	}
 
 	k, err := NormalizeKey(cast.SelectKey)

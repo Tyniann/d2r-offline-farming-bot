@@ -31,7 +31,7 @@ func (w *windowsAPI) FindProcessByName(name string) (ProcessInfo, error) {
 	if err != nil {
 		return ProcessInfo{}, fmt.Errorf("create process snapshot: %w", err)
 	}
-	defer windows.CloseHandle(snapshot)
+	defer func() { _ = windows.CloseHandle(snapshot) }()
 
 	var entry windows.ProcessEntry32
 	entry.Size = uint32(unsafe.Sizeof(entry))
@@ -83,7 +83,7 @@ func (w *windowsAPI) ModuleImage(pid uint32, moduleName string) (uintptr, uint32
 	if err != nil {
 		return 0, 0, fmt.Errorf("create module snapshot pid=%d: %w", pid, mapWindowsError(err))
 	}
-	defer windows.CloseHandle(snapshot)
+	defer func() { _ = windows.CloseHandle(snapshot) }()
 
 	var entry windows.ModuleEntry32
 	entry.Size = uint32(unsafe.Sizeof(entry))

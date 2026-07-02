@@ -125,7 +125,8 @@ func enumWindowsProc(hwnd syscall.Handle, _ uintptr) uintptr {
 	}
 
 	var pid uint32
-	procGetWindowThreadProcessId.Call(uintptr(hwnd), uintptr(unsafe.Pointer(&pid)))
+	//nolint:errcheck // GetWindowThreadProcessId meldet Fehler über pid==0, nicht über den Rückgabewert von Call.
+	_, _, _ = procGetWindowThreadProcessId.Call(uintptr(hwnd), uintptr(unsafe.Pointer(&pid)))
 	if pid != ctx.targetPID {
 		return 1
 	}

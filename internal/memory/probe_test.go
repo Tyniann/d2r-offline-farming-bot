@@ -106,10 +106,6 @@ func setupProbeMock(t *testing.T) (*mockAccess, *ProbeReader, uintptr) {
 	return access, probe, moduleBase
 }
 
-func writeU8(m *mockAccess, addr uintptr, v uint8) {
-	m.setBytes(addr, []byte{v})
-}
-
 func TestParseVitalStatsProbeLayout(t *testing.T) {
 	access, _, _ := setupProbeMock(t)
 	off := testOffsetSet()

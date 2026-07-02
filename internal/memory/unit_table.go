@@ -29,11 +29,6 @@ func unitSegmentBase(moduleBase, unitTable uintptr, unitType int) uintptr {
 	return moduleBase + unitTable + uintptr(unitType)*unitTableSegmentBytes
 }
 
-// unitListHeadAddr returns the address of list-head i within a segment.
-func unitListHeadAddr(segmentBase uintptr, i int) uintptr {
-	return segmentBase + uintptr(i)*unitTableHeadStride
-}
-
 // readUnitTableSegment reads all 128 list-head pointers for a unit-type segment in one buffer read.
 // Unreadable segments return a zero-filled buffer so entity walks degrade gracefully instead of
 // invalidating entities from other segments (live game: full table is normally readable).

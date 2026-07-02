@@ -68,8 +68,8 @@ func (rt *Runtime) RunInputTest(spec string) error {
 	rt.startShutdownSignals(ctx, cancel)
 
 	defer func() {
-		if err := rt.Process.Detach(); err != nil {
-			rt.Log.Error("process detach failed", "error", err)
+		if detachErr := rt.Process.Detach(); detachErr != nil {
+			rt.Log.Error("process detach failed", "error", detachErr)
 		}
 	}()
 	defer rt.Input.Unbind()
@@ -294,11 +294,7 @@ func (rt *Runtime) observeInputTestWorld(
 	var beforeSet bool
 	var after world.State
 
-	for {
-		if time.Now().After(deadline) {
-			break
-		}
-
+	for !time.Now().After(deadline) {
 		select {
 		case <-ctx.Done():
 			return nil

@@ -59,9 +59,7 @@ func TestCastSkillSelectOnlyWithNegativeCoords(t *testing.T) {
 func TestCastSkillAtSelectMoveClickOrder(t *testing.T) {
 	keyMock := &mockKeySender{}
 	mouseMock := &mockMouseSender{}
-	c := boundMouseController(mouseMock)
-	// Replace key sender after bind — recreate with key mock.
-	c = mustNewTestController(&mockWindowAPI{
+	c := mustNewTestController(&mockWindowAPI{
 		findHWND: 0x1,
 		area:     testWindowFixture,
 	}, keyMock, mouseMock, DefaultKeyboardConfig(), testSafetyEnabled(), testKeyTimings())

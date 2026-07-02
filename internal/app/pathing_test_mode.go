@@ -145,8 +145,8 @@ func (rt *Runtime) RunPathingTest(specStr string) error {
 	rt.startShutdownSignals(ctx, cancel)
 
 	defer func() {
-		if err := rt.Process.Detach(); err != nil {
-			rt.Log.Error("process detach failed", "error", err)
+		if detachErr := rt.Process.Detach(); detachErr != nil {
+			rt.Log.Error("process detach failed", "error", detachErr)
 		}
 	}()
 	defer rt.Input.Unbind()
@@ -161,8 +161,8 @@ func (rt *Runtime) RunPathingTest(specStr string) error {
 
 	state := &runState{}
 	readyDeadline := time.Now().Add(rt.attachTimeoutOrDefault(60 * time.Second))
-	if err := rt.waitInputTestReady(ctx, state, hotkeyEvents, ticker, readyDeadline, cancel); err != nil {
-		return err
+	if waitErr := rt.waitInputTestReady(ctx, state, hotkeyEvents, ticker, readyDeadline, cancel); waitErr != nil {
+		return waitErr
 	}
 	if ctx.Err() != nil || rt.Input.Status().Stopped {
 		rt.Log.Info("pathing test stopped", "reason", inputTestStopReason(ctx))

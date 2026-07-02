@@ -211,7 +211,13 @@ func TestStateValueSemantics(t *testing.T) {
 }
 
 func TestInvalidStateZeroFields(t *testing.T) {
-	s := State{Valid: false, Reason: "not_in_game"}
+	s := State{Reason: "not_in_game"}
+	if s.Valid {
+		t.Fatal("state without Valid: true must be invalid")
+	}
+	if s.Reason != "not_in_game" {
+		t.Fatalf("reason = %q, want not_in_game", s.Reason)
+	}
 	if s.Area != (Area{}) || s.Player != (Player{}) {
 		t.Fatal("invalid state should have zero area and player")
 	}
@@ -238,7 +244,7 @@ func assertWorldValueFields(t *testing.T, typ reflect.Type) {
 	for i := 0; i < typ.NumField(); i++ {
 		field := typ.Field(i)
 		switch field.Type.Kind() {
-		case reflect.Ptr, reflect.Map, reflect.Slice:
+		case reflect.Pointer, reflect.Map, reflect.Slice:
 			t.Fatalf("%s.%s must not be pointer, map, or slice", typ.Name(), field.Name)
 		case reflect.Struct:
 			if field.Type.PkgPath() == worldPkg {

@@ -414,9 +414,9 @@ func (p *ProbeReader) findMainPlayer(moduleBase uintptr, off OffsetSet) (uintptr
 	var found uintptr
 	visited := 0
 	err = p.walkUnitSegment(moduleBase, off, unitSegmentPlayer, &visited, 0, func(unitAddr uintptr) (unitWalkAction, error) {
-		isMain, err := p.isMainPlayer(unitAddr, expansion, off)
-		if err != nil {
-			return unitWalkContinue, err
+		isMain, mainErr := p.isMainPlayer(unitAddr, expansion, off)
+		if mainErr != nil {
+			return unitWalkContinue, mainErr
 		}
 		if isMain {
 			found = unitAddr
