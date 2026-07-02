@@ -1,8 +1,11 @@
 package tasks
 
 import (
+	"context"
+
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/input"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/pathing"
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/world"
 )
 
 // Deps holds shared runtime dependencies injected into task runs.
@@ -18,8 +21,13 @@ type Input interface {
 }
 
 // Navigator is the subset of pathing.Navigator used by task runs.
+// Start begins a goal, Tick advances it per poll cycle, and Active reports
+// whether a goal is still in flight (terminal outcomes come from Tick).
 type Navigator interface {
 	Ready() bool
+	Start(goal pathing.Goal) error
+	Tick(ctx context.Context, state world.State) pathing.NavTickResult
+	Active() bool
 }
 
 var (

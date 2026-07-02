@@ -13,10 +13,12 @@ type OffsetSet struct {
 
 	// Module-relative static offsets (moduleBase + offset).
 	// GameData is retained for future gates; probe step 3 uses UI-based InGameGateOffset.
+	// Hover is optional: 0 disables hover reads (HoverState stays empty, fail-open).
 	GameData  uintptr
 	UnitTable uintptr
 	UI        uintptr
 	Expansion uintptr
+	Hover     uintptr
 
 	Unit  UnitOffsets
 	Stats StatOffsets
@@ -101,6 +103,8 @@ func DefaultOffsetSet() OffsetSet {
 		UnitTable: 0x22C6090,
 		UI:        0x22D5D82,
 		Expansion: 0x21E1D88,
+		// Hover has no validated static fallback yet; runtime scanning resolves it.
+		Hover: 0,
 
 		Unit: UnitOffsets{
 			UnitType:            0x00,

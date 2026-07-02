@@ -12,4 +12,9 @@ type Options struct {
 	InputTestObserveMs int
 	// Run selects an active farming run; overrides config runs.active when set.
 	Run string
+	// PathingTest starts the manual pathing-test mode with the given spec (empty = disabled).
+	// Specs: teleport:TX,TY | hover:watch | move-area:<id|name> | click-entity:waypoint|entrance
+	PathingTest string
+	// PathingTestTimeoutMs bounds the pathing-test duration (default 120000 when <=0).
+	PathingTestTimeoutMs int
 }

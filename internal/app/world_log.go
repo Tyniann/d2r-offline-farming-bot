@@ -102,6 +102,9 @@ func worldShouldLog(prev, cur world.State, lastLog time.Time, heartbeat time.Dur
 	if entityFingerprint(prev) != entityFingerprint(cur) {
 		return true
 	}
+	if prev.Hover != cur.Hover {
+		return true
+	}
 	if verbose && isPositionOnlyWorldChange(prev, cur) {
 		return true
 	}
@@ -140,6 +143,12 @@ func worldLogAttrs(cur world.State) []slog.Attr {
 		slog.Uint64("mana_pct", uint64(cur.Player.ManaPercent())),
 		slog.Uint64("pos_x", uint64(cur.Player.Position.X)),
 		slog.Uint64("pos_y", uint64(cur.Player.Position.Y)),
+	}
+	if cur.Hover.IsHovered {
+		attrs = append(attrs,
+			slog.String("hover_type", cur.Hover.UnitType.String()),
+			slog.Uint64("hover_unit_id", uint64(cur.Hover.UnitID)),
+		)
 	}
 	if hint := verboseEntityHint(cur); hint != "" {
 		attrs = append(attrs, slog.String("entity_hint", hint))

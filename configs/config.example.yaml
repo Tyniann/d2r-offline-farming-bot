@@ -54,3 +54,29 @@ runs:
   # countess | leer — Validierung nur zur Laufzeit via Registry
   active: ""
   step_timeout_ms: 30000
+
+pathing:
+  # Abbruch, wenn weder Position (>= stuck_progress_tiles) noch Area sich ändern
+  stuck_timeout_ms: 8000
+  stuck_progress_tiles: 3
+  # Mindestabstand zwischen Teleport-Casts
+  move_interval_ms: 250
+  # Ankunftsdistanz (Tiles) für Positions-Ziele
+  arrival_distance: 15
+  projection:
+    # Spieler-zentrierte Isometrie (Koolo-Modell); kalibriert für 1280×720 windowed.
+    # Kalibrierung: --pathing-test teleport:TX,TY
+    playable_center_x: 0.5
+    playable_center_y: 0.52
+    tile_width: 19.8
+    tile_height: 9.9
+  click:
+    # Hover-Feedback-Loop: Klick nur nach bestätigtem Hover (UnitID + UnitType)
+    max_hover_attempts: 15
+    spiral_step: 40          # Grad pro Versuch (Koolo-Spirale)
+    anchor_offset_tiles: 2   # Klickpunkt-Versatz für Entrances/Objects
+  explore:
+    bearing_count: 8
+    step_distance_tiles: 25
+    # Entity-Klick nur wenn Entity näher als diese Distanz (muss sichtbar sein)
+    max_entrance_click_distance: 15

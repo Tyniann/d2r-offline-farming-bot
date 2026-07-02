@@ -8,6 +8,12 @@ Versionierung nach [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- Add teleport-based pathing (Phase 4.3): player-relative isometric projection, `Navigator` state machine with bearing explore and stuck detection, and `TeleportMover` using YAML teleport bindings
+- Add memory hover read via d2go signature scan (`HoverState` in snapshot, `Hover` in world state, per-entity `IsHovered` matching)
+- Add `EntityClicker` hover-feedback click loop: spiral search around the projected point, click only after confirmed hover match (fail-closed, no blind clicks)
+- Add `--pathing-test` CLI mode (`teleport:TX,TY`, `hover:watch`, `move-area:<id|name>`, `click-entity:waypoint|entrance`) with `--pathing-test-timeout-ms`
+- Add `pathing` config section (stuck, projection, click, explore tuning) with defaults and validation; warn when the window deviates from the recommended 1280×720
+- Add `world.ParseAreaSpec` for resolving area names or numeric IDs from CLI specs
 - Add YAML-driven skill, town portal, and belt bindings with `CastSkillAt`/`SelectSkill`/`CastBelt` and teleport precheck
 - Add minimal unit enumeration (objects, entrances, monsters) and GamePhase to memory probe and world model (Phase 4.2)
 - Add entity fingerprint world logging with object/entrance/monster counts; block task ticks during loading phase
@@ -19,6 +25,7 @@ Versionierung nach [Semantic Versioning](https://semver.org/).
 - Remove keybinding offset scanning, cache validation, diagnostics, and hotkey calibration from the runtime path
 
 ### Fixed
+- Fix bearing explore spinning in circles: judge a teleport cast as blocked only after a settle timeout (cast animation delays the memory position update), confirm progress immediately for fast cast chaining
 - Fix entity enumeration: walk entrances and monsters before the large object segment; do not require `unitData` for entrances (aligned with d2go); treat unreadable unit-table segments as empty instead of discarding already-enumerated entities
 - Fix unreliable offset pattern scan on bot restart: page-wise module image read for signatures, scan retries, persisted `configs/offsets.scanned.yaml` cache, and no permanent fallback lock-in on failed scans
 - Improve Countess detection: enumerate super-unique monsters (flag 10) regardless of NPC id; use remaining visit budget for monster segment walk

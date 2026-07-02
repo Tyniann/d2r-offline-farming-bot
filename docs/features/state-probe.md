@@ -18,6 +18,7 @@ Phase-1 State-Probe über minimale D2R-Offsets. Der Bot findet den Main-Player �
   - `countess_filter.go` — Allowlists für Countess-Entities
   - `enumerate.go` — Object/Entrance/Monster-Enumeration
   - `player_skills.go` — aktuell ausgewählte und gelernte Skills vom Main-Player
+  - `hover.go` — `HoverState`, 12-Byte-Hover-Read (`moduleBase+Hover`)
   - `stats.go` — minimaler Life/Mana-Stat-Parser
   - `world_log.go` (app) — sparsames CLI-Logging auf `world.State` mit Heartbeat und Verbose-Positionslogs
   - `run_tick.go` (app) — testbare Loop-Iteration
@@ -98,6 +99,10 @@ Zwei Ebenen (d2go): **Segment** = `moduleBase + UnitTable + unitType*1024`; **Li
 
 `readUnitTableSegment` liest `128*8` Bytes pro Segment; nicht lesbare Segmente werden als leer behandelt (kein Abbruch der gesamten Enumeration). `maxTotalUnitVisits=4096` global pro Snapshot. Reihenfolge: **Entrances → Monsters → Objects** (Object-Segment ist groß und würde sonst das Visit-Limit verbrauchen). Entrances benötigen kein `unitData` (wie d2go).
 
+### Hover-Read (Phase 4.3)
+
+Der Hover-Offset wird — wie UnitTable/UI — per d2go-Signature-Scan in `ScanProbeOffsets` aufgelöst (Pattern `\xc6\x84\xc2…`, Offset = disp32−1) und im Scan-Cache (`offsets.scanned.yaml`, Key `hover`) persistiert. Ein YAML-Override ist über den `hover:`-Key möglich. Schlägt der Scan fehl, bleibt `Hover=0` und `HoverState` ist immer leer — die Probe bleibt gültig (fail-open fürs Lesen; der EntityClicker klickt ohne Hover-Bestätigung nie, fail-closed). Mit `--probe` erscheinen Hover-Wechsel als `hover_type`/`hover_unit_id` im World-Log; gezielt validieren: `--pathing-test hover:watch` (siehe [Pathing](pathing.md)).
+
 ### memory.Snapshot
 
 | Feld | Bedeutung |
@@ -111,6 +116,7 @@ Zwei Ebenen (d2go): **Segment** = `moduleBase + UnitTable + unitType*1024`; **Li
 | `PosX`/`PosY` | `uint32` in `memory.Snapshot` (aus uint16 Path-Reads erweitert; `world.Position` gleicher Typ) |
 | `Objects`/`Entrances`/`Monsters` | Countess-gefilterte Entity-Slices; leer (nicht nil) außerhalb `in_game` |
 | `PlayerSkills` | `LeftSkill`, `RightSkill`, `SkillsKnown` vom Main-Player (Skill-Liste `unit+0x100`) |
+| `Hover` | `HoverState` (`IsHovered`, `UnitType`, `UnitID`) aus dem 12-Byte-Buffer bei `moduleBase+Hover`; nur bei `Valid && Phase=in_game` gelesen |
 
 Details zu Casting und Precheck: [Input Controller](input-controller.md).
 
@@ -189,4 +195,4 @@ Semantische World-State-Validierung (Countess-Route, Area-Namen, `hp_pct`, Log-P
 - [World Model](world-model.md) — Domain-Typen und kontinuierliches Update im App-Loop
 
 ---
-*Zuletzt aktualisiert: 2026-06-26*
+*Zuletzt aktualisiert: 2026-07-02*

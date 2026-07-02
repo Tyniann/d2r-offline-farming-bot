@@ -7,6 +7,7 @@ type Monster struct {
 	Position        Position
 	Name            string
 	MonsterTypeFlag uint8
+	IsHovered       bool // True when the hover buffer confirms this unit under the cursor.
 }
 
 // DarkStalker is the Countess base NPC type (d2go npc.ID iota 45; file line ≠ iota value).

@@ -13,25 +13,25 @@ todos:
     status: completed
   - id: hover-read
     content: "Hover-Read (Koolo/d2go-Methode): Hover-Offset per Signature-Scan in ScanProbeOffsets; memory.HoverState {IsHovered, UnitType, UnitID}; Snapshot.Hover; world.State.Hover + IsHovered-Matching auf Entities"
-    status: pending
+    status: completed
   - id: entity-clicker
     content: "EntityClicker: RelativeProjector-Startpunkt → Maus bewegen → Hover prüfen → Spiral-Offsets bei Fehlschlag → Klick erst bei bestätigtem Hover; Distanz-Gate (max_entrance_click_distance)"
-    status: pending
+    status: completed
   - id: pathing-core
     content: "pathing-Paket: Goal/NavResult, TeleportMover via CastSkillAt(Teleport), StuckDetector, ExplorePlanner (bearing|entity), Navigator.Tick(ctx, world.State)"
-    status: pending
+    status: completed
   - id: config-wiring
     content: PathingConfig in config.example.yaml; NewNavigator(Deps{Input, Bindings, Config}); Auflösungs-Warnung (1280×720 empfohlen); YAML-BindingsPrecheck aus 3.6
-    status: pending
+    status: completed
   - id: pathing-test-cli
     content: CLI --pathing-test, ParseAreaSpec(black_marsh), validateRunMode mutual exclusive, app/pathing_test_mode.go
-    status: pending
+    status: completed
   - id: tests
     content: "Unit-Tests: transform (relative), hover-parsing, spiral, entity-clicker (Mock-Hover), stuck, explore, navigator, config, app guards"
-    status: pending
+    status: completed
   - id: docs
     content: docs/features/pathing.md (Relative-Projektion + Hover-Loop, Outdoor vs. Entrance-Transitions), README-Index, CHANGELOG Added
-    status: pending
+    status: completed
 isProject: false
 ---
 

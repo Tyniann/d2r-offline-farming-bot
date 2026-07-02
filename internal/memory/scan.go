@@ -63,11 +63,22 @@ func ScanProbeOffsets(reader *Reader, base OffsetSet) (OffsetSet, error) {
 		out.Expansion = expansion
 	}
 
+	hover, err := scanHoverOffset(image)
+	if err != nil {
+		// Fail-open for reading: Hover=0 keeps the probe valid and HoverState empty.
+		// Consumers that need hover confirmation (EntityClicker) stay fail-closed.
+		reader.log.Debug("hover pattern not found, hover state disabled", "error", err)
+		out.Hover = 0
+	} else {
+		out.Hover = hover
+	}
+
 	reader.log.Debug("probe module offsets scanned",
 		"game_data", fmt.Sprintf("0x%X", out.GameData),
 		"unit_table", fmt.Sprintf("0x%X", out.UnitTable),
 		"ui", fmt.Sprintf("0x%X", out.UI),
 		"expansion", fmt.Sprintf("0x%X", out.Expansion),
+		"hover", fmt.Sprintf("0x%X", out.Hover),
 	)
 
 	return out, nil
@@ -148,6 +159,26 @@ func scanUIOffset(image []byte) (uintptr, error) {
 	}
 	uiRel := uintptr(binary.LittleEndian.Uint32(image[idx+6 : idx+10]))
 	return uintptr(idx) + 10 + uiRel, nil
+}
+
+// scanHoverOffset resolves the module-relative hover buffer offset via the d2go
+// hover signature (`mov byte ptr [rdx+rax+disp32]`): hover = disp32 at pattern+3 minus 1.
+func scanHoverOffset(image []byte) (uintptr, error) {
+	idx, err := findPattern(image, patternSpec{
+		bytes: []byte{0xC6, 0x84, 0xC2, 0x00, 0x00, 0x00, 0x00, 0x00, 0x48, 0x8B, 0x74},
+		mask:  "xxx?????xxx",
+	})
+	if err != nil {
+		return 0, err
+	}
+	if idx+7 > len(image) {
+		return 0, fmt.Errorf("hover pattern operand out of range")
+	}
+	disp := binary.LittleEndian.Uint32(image[idx+3 : idx+7])
+	if disp == 0 {
+		return 0, fmt.Errorf("hover pattern operand is zero")
+	}
+	return uintptr(disp) - 1, nil
 }
 
 func scanExpansionOffset(image []byte) (uintptr, error) {

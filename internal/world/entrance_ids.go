@@ -30,11 +30,12 @@ func (k EntranceKind) String() string {
 
 // Entrance is an interpreted world entrance with resolved kind and display name.
 type Entrance struct {
-	Kind     EntranceKind
-	ID       uint32
-	UnitID   uint32
-	Position Position
-	Name     string
+	Kind      EntranceKind
+	ID        uint32
+	UnitID    uint32
+	Position  Position
+	Name      string
+	IsHovered bool // True when the hover buffer confirms this unit under the cursor.
 }
 
 // Entrance IDs from d2go entrance catalog @ 16d248a53591.

@@ -1,0 +1,131 @@
+package pathing
+
+import (
+	"fmt"
+	"time"
+)
+
+// Config holds tuning parameters for the navigator, projection, entity clicks,
+// and exploration. Use [DefaultConfig] and overlay YAML values via internal/config.
+type Config struct {
+	// StuckTimeout aborts navigation when no progress happened for this duration.
+	StuckTimeout time.Duration
+	// StuckProgressTiles is the minimum position delta that counts as progress.
+	StuckProgressTiles float64
+	// MoveInterval is the minimum delay between teleport casts.
+	MoveInterval time.Duration
+	// ArrivalDistance is the tile distance that satisfies position goals.
+	ArrivalDistance float64
+
+	Projection ProjectionConfig
+	Click      ClickConfig
+	Explore    ExploreConfig
+}
+
+// ProjectionConfig calibrates the relative (player-centered) projection.
+type ProjectionConfig struct {
+	PlayableCenterX float64 // Fraction 0..1 of client width; default 0.5.
+	PlayableCenterY float64 // Fraction 0..1 of client height; default 0.52.
+	TileWidth       float64 // Horizontal isometric scale; default 19.8 (1280×720).
+	TileHeight      float64 // Vertical isometric scale; default 9.9.
+}
+
+// ClickConfig tunes the hover-feedback click loop.
+type ClickConfig struct {
+	// MaxHoverAttempts is how many mouse positions are tried before hover_not_found.
+	MaxHoverAttempts int
+	// SpiralStepDegrees is the spiral angle advance per attempt (Koolo spiral).
+	SpiralStepDegrees float64
+	// AnchorOffsetTiles shifts the click point from the ground tile toward the
+	// visible body of entrances/objects (Koolo uses ~2 tiles).
+	AnchorOffsetTiles float64
+}
+
+// ExploreConfig tunes bearing-based layout exploration.
+type ExploreConfig struct {
+	// BearingCount is the number of compass directions to rotate through.
+	BearingCount int
+	// StepDistanceTiles is the teleport step length per explore move.
+	StepDistanceTiles float64
+	// MaxEntranceClickDistance gates the switch from bearing explore to the
+	// entity click loop; the entity must be visible on screen (Koolo: 10–15).
+	MaxEntranceClickDistance float64
+}
+
+// DefaultConfig returns Phase 4.3 defaults matching configs/config.example.yaml.
+func DefaultConfig() Config {
+	return Config{
+		StuckTimeout:       8000 * time.Millisecond,
+		StuckProgressTiles: 3,
+		MoveInterval:       250 * time.Millisecond,
+		ArrivalDistance:    15,
+		Projection: ProjectionConfig{
+			PlayableCenterX: 0.5,
+			PlayableCenterY: 0.52,
+			TileWidth:       19.8,
+			TileHeight:      9.9,
+		},
+		Click: ClickConfig{
+			MaxHoverAttempts:  15,
+			SpiralStepDegrees: 40,
+			AnchorOffsetTiles: 2,
+		},
+		Explore: ExploreConfig{
+			BearingCount:             8,
+			StepDistanceTiles:        25,
+			MaxEntranceClickDistance: 15,
+		},
+	}
+}
+
+// Validate reports configuration errors that would break navigation.
+func (c Config) Validate() error {
+	if c.StuckTimeout <= 0 {
+		return fmt.Errorf("pathing.stuck_timeout_ms must be > 0")
+	}
+	if c.StuckProgressTiles <= 0 {
+		return fmt.Errorf("pathing.stuck_progress_tiles must be > 0")
+	}
+	if c.MoveInterval < 0 {
+		return fmt.Errorf("pathing.move_interval_ms must be >= 0")
+	}
+	if c.ArrivalDistance <= 0 {
+		return fmt.Errorf("pathing.arrival_distance must be > 0")
+	}
+	if c.Projection.TileWidth <= 0 || c.Projection.TileHeight <= 0 {
+		return fmt.Errorf("pathing.projection.tile_width and tile_height must be > 0")
+	}
+	if c.Projection.PlayableCenterX < 0 || c.Projection.PlayableCenterX > 1 ||
+		c.Projection.PlayableCenterY < 0 || c.Projection.PlayableCenterY > 1 {
+		return fmt.Errorf("pathing.projection.playable_center_x/y must be within 0..1")
+	}
+	if c.Click.MaxHoverAttempts <= 0 {
+		return fmt.Errorf("pathing.click.max_hover_attempts must be > 0")
+	}
+	if c.Click.SpiralStepDegrees <= 0 {
+		return fmt.Errorf("pathing.click.spiral_step must be > 0")
+	}
+	if c.Click.AnchorOffsetTiles < 0 {
+		return fmt.Errorf("pathing.click.anchor_offset_tiles must be >= 0")
+	}
+	if c.Explore.BearingCount <= 0 {
+		return fmt.Errorf("pathing.explore.bearing_count must be > 0")
+	}
+	if c.Explore.StepDistanceTiles <= 0 {
+		return fmt.Errorf("pathing.explore.step_distance_tiles must be > 0")
+	}
+	if c.Explore.MaxEntranceClickDistance <= 0 {
+		return fmt.Errorf("pathing.explore.max_entrance_click_distance must be > 0")
+	}
+	return nil
+}
+
+// Projector builds the relative projector from the projection calibration.
+func (c Config) Projector() RelativeProjector {
+	return RelativeProjector{
+		PlayableCenterX: c.Projection.PlayableCenterX,
+		PlayableCenterY: c.Projection.PlayableCenterY,
+		TileWidth:       c.Projection.TileWidth,
+		TileHeight:      c.Projection.TileHeight,
+	}
+}

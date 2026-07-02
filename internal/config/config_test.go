@@ -248,6 +248,7 @@ func TestInputValidateEmptyHotkeys(t *testing.T) {
 	}
 	cfg.Input.applyDefaults()
 	cfg.Runs.applyDefaults()
+	cfg.Pathing.applyDefaults()
 	if err := cfg.validate(); err != nil {
 		t.Fatalf("expected valid config after defaults: %v", err)
 	}

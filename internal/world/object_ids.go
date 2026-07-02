@@ -24,11 +24,12 @@ func (k ObjectKind) String() string {
 
 // Object is an interpreted world object with resolved kind and display name.
 type Object struct {
-	Kind     ObjectKind
-	ID       uint32 // TxtFileNo / object ID.
-	UnitID   uint32
-	Position Position
-	Name     string
+	Kind      ObjectKind
+	ID        uint32 // TxtFileNo / object ID.
+	UnitID    uint32
+	Position  Position
+	Name      string
+	IsHovered bool // True when the hover buffer confirms this unit under the cursor.
 }
 
 // LookupObjectKind resolves an object ID to its semantic kind.

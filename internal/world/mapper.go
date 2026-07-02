@@ -23,18 +23,19 @@ func mapPhase(phase memory.GamePhase) GamePhase {
 // non-nil slices when the probe did not enumerate entities.
 func FromSnapshot(snap memory.Snapshot) State {
 	phase := mapPhase(snap.Phase)
+	hover := mapHover(snap.Hover)
 
 	objects := make([]Object, 0, len(snap.Objects))
 	for _, o := range snap.Objects {
-		objects = append(objects, mapObject(o))
+		objects = append(objects, mapObject(o, hover))
 	}
 	entrances := make([]Entrance, 0, len(snap.Entrances))
 	for _, e := range snap.Entrances {
-		entrances = append(entrances, mapEntrance(e))
+		entrances = append(entrances, mapEntrance(e, hover))
 	}
 	monsters := make([]Monster, 0, len(snap.Monsters))
 	for _, m := range snap.Monsters {
-		monsters = append(monsters, mapMonster(m))
+		monsters = append(monsters, mapMonster(m, hover))
 	}
 
 	if !snap.Valid {
@@ -46,6 +47,7 @@ func FromSnapshot(snap memory.Snapshot) State {
 			Objects:   objects,
 			Entrances: entrances,
 			Monsters:  monsters,
+			Hover:     hover,
 		}
 	}
 
@@ -64,39 +66,55 @@ func FromSnapshot(snap memory.Snapshot) State {
 		Objects:   objects,
 		Entrances: entrances,
 		Monsters:  monsters,
+		Hover:     hover,
 	}
 }
 
-func mapObject(o memory.ObjectUnit) Object {
+// mapHover converts the raw memory hover buffer into the world hover type.
+func mapHover(h memory.HoverState) HoverInfo {
+	if !h.IsHovered {
+		return HoverInfo{}
+	}
+	return HoverInfo{
+		IsHovered: true,
+		UnitType:  HoverUnitType(h.UnitType),
+		UnitID:    h.UnitID,
+	}
+}
+
+func mapObject(o memory.ObjectUnit, hover HoverInfo) Object {
 	name := LookupObjectName(o.TxtFileNo)
 	if name == "" && LookupObjectKind(o.TxtFileNo) == ObjectKindWaypoint {
 		name = "Waypoint"
 	}
 	return Object{
-		Kind:     LookupObjectKind(o.TxtFileNo),
-		ID:       o.TxtFileNo,
-		UnitID:   o.UnitID,
-		Position: Position{X: o.PosX, Y: o.PosY},
-		Name:     name,
+		Kind:      LookupObjectKind(o.TxtFileNo),
+		ID:        o.TxtFileNo,
+		UnitID:    o.UnitID,
+		Position:  Position{X: o.PosX, Y: o.PosY},
+		Name:      name,
+		IsHovered: hover.Matches(HoverUnitTypeObject, o.UnitID),
 	}
 }
 
-func mapEntrance(e memory.EntranceUnit) Entrance {
+func mapEntrance(e memory.EntranceUnit, hover HoverInfo) Entrance {
 	return Entrance{
-		Kind:     LookupEntranceKind(e.TxtFileNo),
-		ID:       e.TxtFileNo,
-		UnitID:   e.UnitID,
-		Position: Position{X: e.PosX, Y: e.PosY},
-		Name:     LookupEntranceName(e.TxtFileNo),
+		Kind:      LookupEntranceKind(e.TxtFileNo),
+		ID:        e.TxtFileNo,
+		UnitID:    e.UnitID,
+		Position:  Position{X: e.PosX, Y: e.PosY},
+		Name:      LookupEntranceName(e.TxtFileNo),
+		IsHovered: hover.Matches(HoverUnitTypeEntrance, e.UnitID),
 	}
 }
 
-func mapMonster(m memory.MonsterUnit) Monster {
+func mapMonster(m memory.MonsterUnit, hover HoverInfo) Monster {
 	return Monster{
 		NPCID:           m.NPCID,
 		UnitID:          m.UnitID,
 		Position:        Position{X: m.PosX, Y: m.PosY},
 		Name:            LookupNPCName(m.NPCID),
 		MonsterTypeFlag: m.MonsterTypeFlag,
+		IsHovered:       hover.Matches(HoverUnitTypeMonster, m.UnitID),
 	}
 }

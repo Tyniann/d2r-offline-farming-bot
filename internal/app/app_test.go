@@ -214,7 +214,7 @@ func testRuntime(proc processController, probe snapshotReader, opts Options) *Ru
 }
 
 func testRuntimeWithInput(proc processController, probe snapshotReader, in inputController, opts Options) *Runtime {
-	nav := pathing.NewNavigator(config.NewLogger("error"))
+	nav := pathing.NewNavigator(config.NewLogger("error"), pathing.Deps{Config: pathing.DefaultConfig()})
 	cfg := &config.Config{
 		Process: config.ProcessConfig{ProcessName: "D2R.exe"},
 		Input:   config.InputConfig{Enabled: false},

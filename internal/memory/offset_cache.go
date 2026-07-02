@@ -51,6 +51,7 @@ func SaveScannedOffsetCache(path string, moduleBase uintptr, base, scanned Offse
 		out.UI = scanned.UI
 	}
 	out.Expansion = scanned.Expansion
+	out.Hover = scanned.Hover
 	out.Source = "runtime-scan"
 	out.VerifiedAt = time.Now().Format("2006-01-02")
 

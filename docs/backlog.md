@@ -67,6 +67,8 @@ Nur **erfolgreiche** Runs persistieren — fehlgeschlagene Exploration nicht cac
 
 Funktional **gleiches Ziel** wie Route-Cache (#1): eine abspielbare Sequenz von Aktionen für wiederholbare Runs. Unterschied: Die Route kommt **nicht vom Bot-Exploration**, sondern vom **Spieler**, der einmal manuell den Weg vormacht.
 
+**Befund aus Phase-4.3-Testlauf (2026-07-02):** Bearing-Explore erreicht Outdoor-Zonenübergänge nicht zuverlässig — der Bot deckt den Kartenrand ab, teleportiert aber nie gezielt in den schmalen Übergangsbereich hinein und dreht stattdessen Kreise am Rand. Der Run Recorder ist damit der bevorzugte Weg für schnelle, effiziente Navigation über längere Strecken (siehe [`docs/features/pathing.md`](features/pathing.md), Grenzen).
+
 ### Idee
 
 Modus „Run Recorder“ (später im Bot-UI startbar):

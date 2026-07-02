@@ -143,7 +143,7 @@ func (rt *Runtime) runTick(ctx context.Context, state *runState) error {
 
 	snap := rt.Probe.Snapshot()
 	cur := rt.World.Update(snap)
-	if rt.Config.Input.Enabled && rt.Options.InputTest == "" && snap.Valid && snap.Phase == memory.GamePhaseInGame && !state.bindingsPrecheckDone {
+	if rt.Config.Input.Enabled && rt.Options.InputTest == "" && !rt.pathingTestIsReadOnly() && snap.Valid && snap.Phase == memory.GamePhaseInGame && !state.bindingsPrecheckDone {
 		state.bindingsPrecheckDone = true
 		if err := BindingsPrecheck(rt.Log, rt.Bindings, snap, true); err != nil {
 			return fmt.Errorf("bindings precheck: %w", err)
@@ -178,6 +178,7 @@ func (rt *Runtime) tryBindInput(state *runState) error {
 	err := rt.Input.Bind(pid)
 	if err == nil {
 		state.input.lastBindErr = ""
+		rt.warnPathingResolution()
 		return nil
 	}
 	if !input.IsBindRetryable(err) {

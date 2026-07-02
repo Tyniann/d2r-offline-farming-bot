@@ -78,7 +78,6 @@ func New(cfg *config.Config, opts Options) (*Runtime, error) {
 
 	mem := memory.NewReader(log)
 	proc := process.New(log, cfg.Process.ProcessName)
-	nav := pathing.NewNavigator(log)
 	inputCtrl, err := input.NewController(log, mapInputConfig(cfg.Input), mapSafetyConfig(cfg.Input))
 	if err != nil {
 		return nil, fmt.Errorf("input controller: %w", err)
@@ -87,6 +86,16 @@ func New(cfg *config.Config, opts Options) (*Runtime, error) {
 	if err != nil {
 		return nil, fmt.Errorf("input bindings: %w", err)
 	}
+
+	pathingCfg := mapPathingConfig(cfg.Pathing)
+	if err := pathingCfg.Validate(); err != nil {
+		return nil, fmt.Errorf("pathing config: %w", err)
+	}
+	nav := pathing.NewNavigator(log, pathing.Deps{
+		Input:    inputCtrl,
+		Bindings: bindings,
+		Config:   pathingCfg,
+	})
 
 	probe := memory.NewProbeReader(mem, offsetSet)
 	probe.SetScannedCachePath(cfg.ResolvePath(memory.DefaultScannedCacheFile))

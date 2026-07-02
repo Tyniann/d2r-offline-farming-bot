@@ -35,6 +35,7 @@ type Snapshot struct {
 	Entrances    []EntranceUnit
 	Monsters     []MonsterUnit
 	PlayerSkills PlayerSkills
+	Hover        HoverState
 }
 
 // ProbeReader resolves the main player via the unit table and reads vital stats.
@@ -257,9 +258,10 @@ func (p *ProbeReader) Snapshot() Snapshot {
 		PosY:        posY,
 	}
 
-	// Step 4: entities only when Valid && Phase == in_game.
+	// Step 4: entities and hover only when Valid && Phase == in_game.
 	if snap.Valid && snap.Phase == GamePhaseInGame {
 		p.enrichPlayerSkills(playerPtr, off, &snap)
+		snap.Hover = p.readHover(moduleBase, off)
 		if err := p.enumerateEntities(moduleBase, off, &snap); err != nil {
 			p.reader.log.Debug("entity enumeration failed", "error", err)
 			return emptyEntitySlices(snap)

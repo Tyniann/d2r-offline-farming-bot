@@ -12,9 +12,11 @@ import (
 )
 
 var (
-	errInputRequiredForRun  = errors.New("input.enabled must be true when a run is configured")
-	errUnknownRun           = errors.New("unknown run name")
-	errRunInputTestConflict = errors.New("--run and --input-test are mutually exclusive")
+	errInputRequiredForRun         = errors.New("input.enabled must be true when a run is configured")
+	errUnknownRun                  = errors.New("unknown run name")
+	errRunInputTestConflict        = errors.New("--run and --input-test are mutually exclusive")
+	errPathingTestConflict         = errors.New("--pathing-test is mutually exclusive with --run and --input-test")
+	errInputRequiredForPathingTest = errors.New("input.enabled must be true for this pathing test spec")
 )
 
 // resolveActiveRun returns the configured run name; CLI overrides YAML.
@@ -33,11 +35,17 @@ func mapRunConfig(runs config.RunsConfig) tasks.RunConfig {
 
 // validateRunMode checks run prerequisites after resolving CLI vs config.
 func validateRunMode(runName string, cfg *config.Config, opts Options, log *slog.Logger) error {
+	if err := validatePathingTestMode(cfg, opts); err != nil {
+		return err
+	}
 	if runName == "" {
 		return nil
 	}
 	if opts.InputTest != "" {
 		return errRunInputTestConflict
+	}
+	if opts.PathingTest != "" {
+		return errPathingTestConflict
 	}
 	if !cfg.Input.Enabled {
 		return errInputRequiredForRun

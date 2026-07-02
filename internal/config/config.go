@@ -17,6 +17,7 @@ type Config struct {
 	Memory  MemoryConfig  `yaml:"memory"`
 	Input   InputConfig   `yaml:"input"`
 	Runs    RunsConfig    `yaml:"runs"`
+	Pathing PathingConfig `yaml:"pathing"`
 	Paths   PathsConfig   `yaml:"paths"`
 
 	// LoadedFrom is the path passed to [Load] (used to resolve relative file paths).
@@ -133,6 +134,7 @@ func Load(path string) (*Config, error) {
 	cfg.LoadedFrom = path
 	cfg.Input.applyDefaults()
 	cfg.Runs.applyDefaults()
+	cfg.Pathing.applyDefaults()
 	if err := cfg.validate(); err != nil {
 		return nil, err
 	}
@@ -172,6 +174,9 @@ func (c *Config) validate() error {
 	}
 	if c.Runs.StepTimeoutMs <= 0 {
 		return fmt.Errorf("runs.step_timeout_ms must be > 0")
+	}
+	if err := c.Pathing.validate(); err != nil {
+		return err
 	}
 	return nil
 }

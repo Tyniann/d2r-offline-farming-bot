@@ -13,6 +13,9 @@ game_data: "0x29C7C38"
 unit_table: "0x22C6090"
 ui: "0x22D5D82"
 expansion: "0x21E1D88"
+# Hover-Buffer (12 Byte: uint16 is_hovered, +0x04 unit_type, +0x08 unit_id).
+# Kein statischer Fallback — wird zur Laufzeit per Signature-Scan aufgelöst; 0 = deaktiviert.
+hover: 0
 
 unit:
   unit_type: "0x00"

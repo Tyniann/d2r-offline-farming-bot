@@ -10,16 +10,17 @@ import (
 )
 
 type offsetSetFile struct {
-	Name         string            `yaml:"name"`
-	D2RVersion   string            `yaml:"d2r_version"`
-	Source       string            `yaml:"source"`
-	SourceCommit string            `yaml:"source_commit"`
-	VerifiedAt   string            `yaml:"verified_at"`
-	ModuleName   string            `yaml:"module_name"`
-	GameData     hexUintptr        `yaml:"game_data"`
-	UnitTable    hexUintptr        `yaml:"unit_table"`
-	UI           hexUintptr        `yaml:"ui"`
-	Expansion    hexUintptr        `yaml:"expansion"`
+	Name         string          `yaml:"name"`
+	D2RVersion   string          `yaml:"d2r_version"`
+	Source       string          `yaml:"source"`
+	SourceCommit string          `yaml:"source_commit"`
+	VerifiedAt   string          `yaml:"verified_at"`
+	ModuleName   string          `yaml:"module_name"`
+	GameData     hexUintptr      `yaml:"game_data"`
+	UnitTable    hexUintptr      `yaml:"unit_table"`
+	UI           hexUintptr      `yaml:"ui"`
+	Expansion    hexUintptr      `yaml:"expansion"`
+	Hover        hexUintptr      `yaml:"hover"`
 	Unit         unitOffsetsFile `yaml:"unit"`
 	Stats        statOffsetsFile `yaml:"stats"`
 }
@@ -151,6 +152,9 @@ func overlayOffsetSet(out *OffsetSet, file offsetSetFile) {
 	}
 	if file.Expansion.Set {
 		out.Expansion = file.Expansion.Value
+	}
+	if file.Hover.Set {
+		out.Hover = file.Hover.Value
 	}
 	overlayUnitOffsets(&out.Unit, file.Unit)
 	overlayStatOffsets(&out.Stats, file.Stats)
@@ -298,6 +302,7 @@ func marshalOffsetSetYAML(off OffsetSet) ([]byte, error) {
 		UnitTable:    hexUintptr{Value: off.UnitTable, Set: off.UnitTable != 0},
 		UI:           hexUintptr{Value: off.UI, Set: off.UI != 0},
 		Expansion:    hexUintptr{Value: off.Expansion, Set: off.Expansion != 0},
+		Hover:        hexUintptr{Value: off.Hover, Set: off.Hover != 0},
 		Unit: unitOffsetsFile{
 			UnitType:            hexUintptr{Value: off.Unit.UnitType, Set: true},
 			UnitID:              hexUintptr{Value: off.Unit.UnitID, Set: true},
