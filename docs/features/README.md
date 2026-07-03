@@ -12,4 +12,4 @@ Spätere Ideen (noch nicht umgesetzt): [`docs/backlog.md`](../backlog.md).
 | [Input Controller](input-controller.md) | D2R-Fensterbindung per PID, Client-Geometrie (3.1); Tastatur-/Maus-Primitives; YAML-Bindings für Skills, Portal und Belt; Safety-Opt-in, globale Pause/Stop-Hotkeys; manueller CLI-Input-Testmodus |
 | [Task Runner](task-runner.md) | Task-Framework, Lazy Run-Start, Countess-Stub (Phase 4.1); `--run countess` / `runs.active` |
 | [Pathing](pathing.md) | Teleport-Navigation (Phase 4.3): Relative-Projektion + Hover-Feedback-Loop, Bearing-Explore, Stuck-Detection; `--pathing-test` |
-| [Countess-Run](countess-run.md) | Phase 4.5: `--run countess --phase travel-marsh`, Act-1-Town-Walk zum Waypoint, Black-Marsh-Auswahl im Waypoint-UI |
+| [Countess-Run](countess-run.md) | Phase 4.5: `travel-marsh` und `travel-cellar5`, Act-1-Waypoint nach Black Marsh, best-effort Tower-Traversal bis Cellar Level 5 |

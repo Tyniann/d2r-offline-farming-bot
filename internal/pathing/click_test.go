@@ -150,6 +150,22 @@ func TestEntityClickerProjectionFailedWithoutWindow(t *testing.T) {
 	}
 }
 
+func TestEntityClickerProjectionFailedInsideBottomUI(t *testing.T) {
+	in := newMockInput()
+	clicker := NewEntityClicker(testLogger(), in, fixedProjector{x: 426, y: 800, ok: true}, DefaultConfig().Click)
+
+	res, err := clicker.Tick(testClickState(world.HoverInfo{}), testClickTarget(), 0)
+	if err != nil {
+		t.Fatalf("Tick() error = %v", err)
+	}
+	if res.Status != ClickProjectionFailed || !res.Done {
+		t.Fatalf("Tick() = %+v, want projection_failed", res)
+	}
+	if len(in.moves) != 0 || len(in.clicks) != 0 {
+		t.Fatalf("moves=%d clicks=%d, want no UI input", len(in.moves), len(in.clicks))
+	}
+}
+
 func TestSpiralOffsetDeterministic(t *testing.T) {
 	x0, y0 := spiralOffset(0, 40)
 	if x0 != 4 || y0 != 0 {

@@ -19,6 +19,7 @@ func TestParsePathingTestSpec(t *testing.T) {
 		{"move-area:6", pathingTestSpec{kind: pathingTestMoveArea, area: world.BlackMarsh}},
 		{"click-entity:waypoint", pathingTestSpec{kind: pathingTestClickEntity, entity: "waypoint"}},
 		{"click-entity:entrance", pathingTestSpec{kind: pathingTestClickEntity, entity: "entrance"}},
+		{"inspect:entrances", pathingTestSpec{kind: pathingTestInspect, entity: "entrances"}},
 		{"play-town-route:act1-waypoint", pathingTestSpec{kind: pathingTestPlayTown, route: "act1-waypoint"}},
 		{"record-town-route:act1-waypoint", pathingTestSpec{kind: pathingTestRecordTown, route: "act1-waypoint"}},
 	}
@@ -36,7 +37,7 @@ func TestParsePathingTestSpec(t *testing.T) {
 func TestParsePathingTestSpecInvalid(t *testing.T) {
 	for _, spec := range []string{
 		"", "teleport", "teleport:abc,5", "teleport:5000", "hover:foo",
-		"move-area:unknown_area", "click-entity:monster", "play-town-route:act2-waypoint",
+		"move-area:unknown_area", "click-entity:monster", "inspect:objects", "play-town-route:act2-waypoint",
 		"record-town-route:act2-waypoint", "unknown:arg",
 	} {
 		if _, err := parsePathingTestSpec(spec); err == nil {
@@ -66,6 +67,13 @@ func TestPathingTestSpecRequiresInput(t *testing.T) {
 	}
 	if record.requiresInput() {
 		t.Fatal("record-town-route must not require input")
+	}
+	inspect, err := parsePathingTestSpec("inspect:entrances")
+	if err != nil {
+		t.Fatalf("parse error = %v", err)
+	}
+	if inspect.requiresInput() {
+		t.Fatal("inspect:entrances must not require input")
 	}
 	play, err := parsePathingTestSpec("play-town-route:act1-waypoint")
 	if err != nil {
@@ -101,6 +109,9 @@ func TestValidatePathingTestModeInputRequired(t *testing.T) {
 	// hover:watch is read-only and works without input.
 	if err := validatePathingTestMode(disabled, Options{PathingTest: "hover:watch"}); err != nil {
 		t.Fatalf("hover:watch err = %v, want nil", err)
+	}
+	if err := validatePathingTestMode(disabled, Options{PathingTest: "inspect:entrances"}); err != nil {
+		t.Fatalf("inspect:entrances err = %v, want nil", err)
 	}
 
 	enabled := &config.Config{Input: config.InputConfig{Enabled: true}}

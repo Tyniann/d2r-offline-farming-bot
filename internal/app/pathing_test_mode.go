@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -25,6 +27,7 @@ const (
 	pathingTestHoverWatch  pathingTestKind = "hover_watch"
 	pathingTestMoveArea    pathingTestKind = "move_area"
 	pathingTestClickEntity pathingTestKind = "click_entity"
+	pathingTestInspect     pathingTestKind = "inspect"
 	pathingTestPlayTown    pathingTestKind = "play_town_route"
 	pathingTestRecordTown  pathingTestKind = "record_town_route"
 )
@@ -41,12 +44,13 @@ type pathingTestSpec struct {
 
 // requiresInput reports whether the spec performs real input actions.
 func (s pathingTestSpec) requiresInput() bool {
-	return s.kind != pathingTestHoverWatch && s.kind != pathingTestRecordTown
+	return s.kind != pathingTestHoverWatch && s.kind != pathingTestInspect && s.kind != pathingTestRecordTown
 }
 
 // parsePathingTestSpec parses specs like `teleport:5000,5000`, `hover:watch`,
 // `move-area:black_marsh`, `click-entity:waypoint`,
-// `play-town-route:act1-waypoint`, `record-town-route:act1-waypoint`.
+// `inspect:entrances`, `play-town-route:act1-waypoint`,
+// `record-town-route:act1-waypoint`.
 func parsePathingTestSpec(spec string) (pathingTestSpec, error) {
 	raw := strings.TrimSpace(spec)
 	kind, arg, ok := strings.Cut(raw, ":")
@@ -87,6 +91,12 @@ func parsePathingTestSpec(spec string) (pathingTestSpec, error) {
 			return pathingTestSpec{}, fmt.Errorf("pathing test click-entity: expected waypoint or entrance, got %q", arg)
 		}
 		return pathingTestSpec{kind: pathingTestClickEntity, entity: entity}, nil
+	case "inspect":
+		entity := strings.ToLower(arg)
+		if entity != "entrances" {
+			return pathingTestSpec{}, fmt.Errorf("pathing test inspect: expected entrances, got %q", arg)
+		}
+		return pathingTestSpec{kind: pathingTestInspect, entity: entity}, nil
 	case "play-town-route":
 		route := strings.ToLower(arg)
 		if route != "act1-waypoint" {
@@ -177,7 +187,7 @@ func (rt *Runtime) RunPathingTest(specStr string) error {
 
 	state := &runState{}
 	readyDeadline := time.Now().Add(rt.attachTimeoutOrDefault(60 * time.Second))
-	if waitErr := rt.waitInputTestReady(ctx, state, hotkeyEvents, ticker, readyDeadline, cancel); waitErr != nil {
+	if waitErr := rt.waitPathingTestReady(ctx, state, hotkeyEvents, ticker, readyDeadline, cancel, spec.requiresInput()); waitErr != nil {
 		return waitErr
 	}
 	if ctx.Err() != nil || rt.Input.Status().Stopped {
@@ -195,6 +205,8 @@ func (rt *Runtime) RunPathingTest(specStr string) error {
 		err = rt.runPathingMoveArea(ctx, state, hotkeyEvents, ticker, deadline, cancel, spec)
 	case pathingTestClickEntity:
 		err = rt.runPathingClickEntity(ctx, state, hotkeyEvents, ticker, deadline, cancel, spec)
+	case pathingTestInspect:
+		err = rt.runPathingInspect(ctx, state, hotkeyEvents, ticker, deadline, cancel, spec)
 	case pathingTestPlayTown:
 		err = rt.runPathingPlayTownRoute(ctx, state, hotkeyEvents, ticker, deadline, cancel)
 	case pathingTestRecordTown:
@@ -208,6 +220,106 @@ func (rt *Runtime) RunPathingTest(specStr string) error {
 
 	rt.Log.Info("pathing test completed", "spec", specStr)
 	return nil
+}
+
+// runPathingInspect logs read-only world/entity measurements while the operator
+// manually positions the character.
+func (rt *Runtime) runPathingInspect(
+	ctx context.Context,
+	state *runState,
+	hotkeyEvents <-chan input.HotkeyEvent,
+	ticker *time.Ticker,
+	deadline time.Time,
+	cancel context.CancelFunc,
+	spec pathingTestSpec,
+) error {
+	rt.Log.Info("pathing inspect active - manually position the character; Stop-Hotkey ends the probe",
+		"entity", spec.entity,
+	)
+	var last string
+	for time.Now().Before(deadline) {
+		cur, stop, err := rt.pathingTestTick(ctx, state, hotkeyEvents, ticker, cancel)
+		if err != nil || stop {
+			return err
+		}
+		if !cur.Valid || cur.Phase != world.GamePhaseInGame {
+			continue
+		}
+		switch spec.entity {
+		case "entrances":
+			fp := inspectEntrancesFingerprint(cur)
+			if fp != last {
+				logInspectEntrances(rt.Log, cur)
+				last = fp
+			}
+		default:
+			return fmt.Errorf("pathing inspect: unsupported entity %q", spec.entity)
+		}
+	}
+	return nil
+}
+
+func (rt *Runtime) waitPathingTestReady(
+	ctx context.Context,
+	state *runState,
+	hotkeyEvents <-chan input.HotkeyEvent,
+	ticker *time.Ticker,
+	deadline time.Time,
+	cancel context.CancelFunc,
+	needsInput bool,
+) error {
+	for {
+		if time.Now().After(deadline) {
+			st := rt.World.Current()
+			rt.Log.Error("pathing test ready timeout",
+				"attached", state.attached,
+				"bound", rt.Input.Bound(),
+				"needs_input", needsInput,
+				"world_valid", st.Valid,
+				"world_phase", st.Phase.String(),
+				"world_reason", st.Reason,
+			)
+			return fmt.Errorf(
+				"pathing test ready timeout: attached=%t bound=%t needs_input=%t world_valid=%t world_phase=%q world_reason=%q",
+				state.attached,
+				rt.Input.Bound(),
+				needsInput,
+				st.Valid,
+				st.Phase.String(),
+				st.Reason,
+			)
+		}
+
+		select {
+		case <-ctx.Done():
+			rt.Log.Info("pathing test stopped", "reason", inputTestStopReason(ctx))
+			return nil
+		case ev := <-hotkeyEvents:
+			rt.handleHotkeyEvent(ev, cancel)
+		case <-ticker.C:
+			if err := rt.runTick(ctx, state); err != nil {
+				if errors.Is(err, context.Canceled) {
+					return nil
+				}
+				return err
+			}
+			if state.hasEverAttached && !state.attached {
+				return fmt.Errorf("process lost during pathing test")
+			}
+			cur := rt.World.Current()
+			if state.attached && (!needsInput || rt.Input.Bound()) && cur.Valid && cur.Phase == world.GamePhaseInGame {
+				if needsInput {
+					state.bindingsPrecheckDone = true
+				}
+				rt.Log.Info("pathing test ready",
+					"pid", rt.Process.Status().PID,
+					"bound", rt.Input.Bound(),
+					"needs_input", needsInput,
+				)
+				return nil
+			}
+		}
+	}
 }
 
 // pathingTestTick advances one poll cycle and reports whether the loop must end.
@@ -551,6 +663,91 @@ func townRouteWaypointClickable(cur world.State, maxDistance float64) bool {
 		return true
 	}
 	return world.Distance(cur.Player.Position, wp.Position) <= maxDistance
+}
+
+type inspectEntrance struct {
+	entrance world.Entrance
+	distance float64
+	dx       int64
+	dy       int64
+}
+
+func inspectEntrances(cur world.State) []inspectEntrance {
+	out := make([]inspectEntrance, 0, len(cur.Entrances))
+	player := cur.Player.Position
+	for _, e := range cur.Entrances {
+		out = append(out, inspectEntrance{
+			entrance: e,
+			distance: world.Distance(player, e.Position),
+			dx:       int64(e.Position.X) - int64(player.X),
+			dy:       int64(e.Position.Y) - int64(player.Y),
+		})
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].distance != out[j].distance {
+			return out[i].distance < out[j].distance
+		}
+		return out[i].entrance.UnitID < out[j].entrance.UnitID
+	})
+	return out
+}
+
+func inspectEntrancesFingerprint(cur world.State) string {
+	entries := inspectEntrances(cur)
+	var b strings.Builder
+	fmt.Fprintf(&b, "area=%d;pos=%d,%d;hover=%t/%s/%d;",
+		cur.Area.ID,
+		cur.Player.Position.X,
+		cur.Player.Position.Y,
+		cur.Hover.IsHovered,
+		cur.Hover.UnitType.String(),
+		cur.Hover.UnitID,
+	)
+	for _, entry := range entries {
+		e := entry.entrance
+		fmt.Fprintf(&b, "%d/%d/%s/%d,%d;",
+			e.ID,
+			e.UnitID,
+			e.Kind.String(),
+			e.Position.X,
+			e.Position.Y,
+		)
+	}
+	return b.String()
+}
+
+func logInspectEntrances(log *slog.Logger, cur world.State) {
+	entries := inspectEntrances(cur)
+	log.Info("pathing inspect entrances",
+		"area", cur.Area.Name,
+		"area_id", uint32(cur.Area.ID),
+		"player_x", cur.Player.Position.X,
+		"player_y", cur.Player.Position.Y,
+		"entrance_count", len(entries),
+		"hovered", cur.Hover.IsHovered,
+		"hover_type", cur.Hover.UnitType.String(),
+		"hover_unit_id", cur.Hover.UnitID,
+	)
+	for i, entry := range entries {
+		e := entry.entrance
+		name := e.Name
+		if name == "" {
+			name = "unknown"
+		}
+		log.Info("pathing inspect entrance",
+			"rank", i,
+			"id", e.ID,
+			"unit_id", e.UnitID,
+			"kind", e.Kind.String(),
+			"name", name,
+			"x", e.Position.X,
+			"y", e.Position.Y,
+			"dx", entry.dx,
+			"dy", entry.dy,
+			"distance", fmt.Sprintf("%.2f", entry.distance),
+			"hovered", e.IsHovered,
+		)
+	}
 }
 
 // pathingClickTarget selects the nearest waypoint object or entrance as click target.

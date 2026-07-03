@@ -78,6 +78,64 @@ func TestTownWalkerUsesForceMoveKey(t *testing.T) {
 	}
 }
 
+func TestTownWalkerFinalRoutePointWaitsForMovementSettle(t *testing.T) {
+	in := newMockInput()
+	cfg := DefaultConfig()
+	cfg.TownWalk.RouteFile = filepath.Join(t.TempDir(), "missing.yaml")
+	cfg.TownWalk.Act1WaypointPoints = []world.Position{{X: 110, Y: 100}}
+	cfg.TownWalk.ArrivalDistance = 8
+	cfg.TownWalk.SettleTimeout = 200 * time.Millisecond
+	cfg.Waypoint.MaxClickDistance = 5
+	walker := NewTownWalker(config.NewLogger("error"), in, cfg)
+	now := time.Now()
+
+	st := townWalkState(world.Position{X: 100, Y: 100})
+	st.At = now
+	st.Objects = []world.Object{{Kind: world.ObjectKindWaypoint, UnitID: 1, Position: world.Position{X: 120, Y: 100}}}
+	_ = walker.TickAct1Waypoint(context.Background(), st)
+
+	st.Player.Position = world.Position{X: 104, Y: 100}
+	st.At = now.Add(100 * time.Millisecond)
+	res := walker.TickAct1Waypoint(context.Background(), st)
+	if res.Status != TownWalkPending || res.Done {
+		t.Fatalf("moving final arrival = %+v, want pending", res)
+	}
+
+	st.Player.Position = world.Position{X: 115, Y: 100}
+	st.At = now.Add(200 * time.Millisecond)
+	res = walker.TickAct1Waypoint(context.Background(), st)
+	if res.Status != TownWalkWaypointVisible || !res.Done {
+		t.Fatalf("clickable after movement = %+v, want waypoint_visible", res)
+	}
+}
+
+func TestTownWalkerFinalRoutePointExhaustsAfterSettle(t *testing.T) {
+	in := newMockInput()
+	cfg := DefaultConfig()
+	cfg.TownWalk.RouteFile = filepath.Join(t.TempDir(), "missing.yaml")
+	cfg.TownWalk.Act1WaypointPoints = []world.Position{{X: 110, Y: 100}}
+	cfg.TownWalk.ArrivalDistance = 8
+	cfg.TownWalk.SettleTimeout = 100 * time.Millisecond
+	cfg.Waypoint.MaxClickDistance = 5
+	walker := NewTownWalker(config.NewLogger("error"), in, cfg)
+	now := time.Now()
+
+	st := townWalkState(world.Position{X: 100, Y: 100})
+	st.At = now
+	st.Objects = []world.Object{{Kind: world.ObjectKindWaypoint, UnitID: 1, Position: world.Position{X: 150, Y: 100}}}
+	_ = walker.TickAct1Waypoint(context.Background(), st)
+
+	st.Player.Position = world.Position{X: 104, Y: 100}
+	st.At = now.Add(50 * time.Millisecond)
+	_ = walker.TickAct1Waypoint(context.Background(), st)
+
+	st.At = now.Add(200 * time.Millisecond)
+	res := walker.TickAct1Waypoint(context.Background(), st)
+	if res.Status != TownWalkRouteExhausted || !res.Done {
+		t.Fatalf("settled final arrival = %+v, want route_exhausted", res)
+	}
+}
+
 func TestTownWalkerFailures(t *testing.T) {
 	t.Run("wrong area", func(t *testing.T) {
 		in := newMockInput()

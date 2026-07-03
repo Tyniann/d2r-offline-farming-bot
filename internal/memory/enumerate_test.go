@@ -254,6 +254,24 @@ func TestEntranceEnumeratedWithoutUnitData(t *testing.T) {
 	}
 }
 
+func TestUnknownEntranceEnumerated(t *testing.T) {
+	access, probe, moduleBase := setupProbeMock(t)
+	off := testOffsetSet()
+
+	const (
+		entUnit = uintptr(0x63000)
+		entPath = uintptr(0x65000)
+	)
+
+	writeSegmentHead(access, moduleBase, off.UnitTable, unitSegmentEntrance, entUnit)
+	setupEntranceUnitNoUnitData(access, entUnit, entPath, 999, 2003)
+
+	snap := probe.Snapshot()
+	if len(snap.Entrances) != 1 || snap.Entrances[0].TxtFileNo != 999 || snap.Entrances[0].UnitID != 2003 {
+		t.Fatalf("Entrances = %+v, want unknown entrance 999", snap.Entrances)
+	}
+}
+
 func TestEntrancesEnumeratedDespiteLargeObjectSegment(t *testing.T) {
 	access, probe, moduleBase := setupProbeMock(t)
 	off := testOffsetSet()

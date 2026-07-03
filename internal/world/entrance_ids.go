@@ -6,6 +6,8 @@ type EntranceKind int
 // EntranceKind values for tower and cellar transitions.
 const (
 	EntranceKindUnknown EntranceKind = iota
+	EntranceKindTowerCellarUp
+	EntranceKindTowerCellarDown
 	EntranceKindTowerToWilderness
 	EntranceKindWildernessToTower
 	EntranceKindCatacombsUp
@@ -15,6 +17,10 @@ const (
 // String returns a stable label for logging.
 func (k EntranceKind) String() string {
 	switch k {
+	case EntranceKindTowerCellarUp:
+		return "tower_cellar_up"
+	case EntranceKindTowerCellarDown:
+		return "tower_cellar_down"
 	case EntranceKindWildernessToTower:
 		return "wilderness_to_tower"
 	case EntranceKindTowerToWilderness:
@@ -40,6 +46,8 @@ type Entrance struct {
 
 // Entrance IDs from d2go entrance catalog @ 16d248a53591.
 const (
+	EntranceTowerCellarUp     uint32 = 8
+	EntranceTowerCellarDown   uint32 = 9
 	EntranceWildernessToTower uint32 = 10
 	EntranceTowerToWilderness uint32 = 11
 	EntranceCatacombsUp       uint32 = 17
@@ -47,6 +55,8 @@ const (
 )
 
 var entranceIDs = []uint32{
+	EntranceTowerCellarUp,
+	EntranceTowerCellarDown,
 	EntranceWildernessToTower,
 	EntranceTowerToWilderness,
 	EntranceCatacombsUp,
@@ -54,6 +64,8 @@ var entranceIDs = []uint32{
 }
 
 var entranceNames = map[uint32]string{
+	EntranceTowerCellarUp:     "Act 1 Tower Cellar Up",
+	EntranceTowerCellarDown:   "Act 1 Tower Cellar Down",
 	EntranceWildernessToTower: "Act 1 Wilderness to Tower",
 	EntranceTowerToWilderness: "Act 1 Tower to Wilderness",
 	EntranceCatacombsUp:       "Act 1 Catacombs Up",
@@ -63,6 +75,10 @@ var entranceNames = map[uint32]string{
 // LookupEntranceKind resolves an entrance ID to its semantic kind.
 func LookupEntranceKind(id uint32) EntranceKind {
 	switch id {
+	case EntranceTowerCellarUp:
+		return EntranceKindTowerCellarUp
+	case EntranceTowerCellarDown:
+		return EntranceKindTowerCellarDown
 	case EntranceWildernessToTower:
 		return EntranceKindWildernessToTower
 	case EntranceTowerToWilderness:

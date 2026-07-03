@@ -8,6 +8,9 @@ Versionierung nach [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- Add automatic runtime log files under `logs/` so verbose manual test runs remain inspectable after the terminal buffer scrolls away
+- Add read-only `--pathing-test inspect:entrances` to capture player position, hover state, and visible entrance coordinates during manual calibration
+- Add Countess tower traversal phase 4.5: `--run countess --phase travel-cellar5`, best-effort Forgotten Tower search, and hover-confirmed cellar transitions through Tower Cellar Level 5
 - Add Act-1 town waypoint acquisition (Phase 4.5): Force Move town walking from Rogue Encampment stash/spawn toward the waypoint, optional route record/play pathing tests, and Countess `acquire_town_waypoint` step
 - Add Countess travel phase 4.4: `--run countess --phase travel-marsh`, hover-confirmed Town-Waypoint click, fixed Black-Marsh waypoint UI selection, and loading-safe arrival wait
 - Add teleport-based pathing (Phase 4.3): player-relative isometric projection, `Navigator` state machine with bearing explore and stuck detection, and `TeleportMover` using YAML teleport bindings
@@ -23,10 +26,18 @@ Versionierung nach [Semantic Versioning](https://semver.org/).
 - Add `--run` CLI flag and `runs` config section (`active`, `step_timeout_ms`)
 
 ### Changed
+- Mark Countess phase 4.5 tower traversal as MVP-complete but intentionally best-effort until route recording/playback provides deterministic paths
 - Replace memory-read keybindings with explicit `input.bindings` YAML for skills, town portal, and belt slots
 - Remove keybinding offset scanning, cache validation, diagnostics, and hotkey calibration from the runtime path
 
 ### Fixed
+- Ignore implausibly distant route entrances so stale cellar transition units from the previous area do not stop the next traversal step
+- Clamp teleport casts to the playable client area and reject entity-click projections inside the bottom UI panel
+- Fall back from a blocked visible-entrance approach to hover-clicking that entrance so Tower Cellar down exits are not ignored behind room geometry
+- Enumerate unknown entrance units and make `enter_cellar_1` prefer the hidden Forgotten Tower antechamber entrance instead of known back-to-surface entrances
+- Classify observed Tower Cellar entrance IDs `8`/`9` as up/down so cellar traversal approaches the visible down exit instead of continuing bearing exploration
+- Allow `travel-cellar5` to resume from Black Marsh, Forgotten Tower, or Tower Cellar route areas during manual testing instead of requiring a town start every time
+- Prioritize visible Countess-route entrances before bearing exploration and stop `find_tower` when it leaves Black Marsh for an unexpected area
 - Fix bearing explore spinning in circles: judge a teleport cast as blocked only after a settle timeout (cast animation delays the memory position update), confirm progress immediately for fast cast chaining
 - Fix entity enumeration: walk entrances and monsters before the large object segment; do not require `unitData` for entrances (aligned with d2go); treat unreadable unit-table segments as empty instead of discarding already-enumerated entities
 - Fix unreliable offset pattern scan on bot restart: page-wise module image read for signatures, scan retries, persisted `configs/offsets.scanned.yaml` cache, and no permanent fallback lock-in on failed scans

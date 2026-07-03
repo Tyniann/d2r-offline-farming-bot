@@ -62,7 +62,7 @@ func validateRunMode(sel tasks.RunSelection, cfg *config.Config, opts Options, l
 	if !tasks.IsKnownRun(sel.Run) {
 		return fmt.Errorf("%w: %q", errUnknownRun, sel.Run)
 	}
-	if sel.Phase != "" && !(sel.Run == "countess" && sel.Phase == tasks.CountessPhaseTravelMarsh) {
+	if sel.Phase != "" && !(sel.Run == "countess" && isSupportedCountessPhase(sel.Phase)) {
 		return fmt.Errorf("%w: run=%q phase=%q", errUnsupportedRunPhase, sel.Run, sel.Phase)
 	}
 
@@ -72,6 +72,15 @@ func validateRunMode(sel tasks.RunSelection, cfg *config.Config, opts Options, l
 	}
 	log.Info("task run configured", "run", sel.Run, "phase", sel.Phase, "source", source)
 	return nil
+}
+
+func isSupportedCountessPhase(phase string) bool {
+	switch phase {
+	case tasks.CountessPhaseTravelMarsh, tasks.CountessPhaseTravelCellar5:
+		return true
+	default:
+		return false
+	}
 }
 
 func (rt *Runtime) shouldTickTasks(cur world.State) bool {

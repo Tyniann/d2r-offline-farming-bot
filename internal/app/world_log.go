@@ -153,6 +153,9 @@ func worldLogAttrs(cur world.State) []slog.Attr {
 	if hint := verboseEntityHint(cur); hint != "" {
 		attrs = append(attrs, slog.String("entity_hint", hint))
 	}
+	if hint := verboseEntrancesHint(cur); hint != "" {
+		attrs = append(attrs, slog.String("entrances_hint", hint))
+	}
 	return attrs
 }
 
@@ -170,6 +173,22 @@ func verboseEntityHint(cur world.State) string {
 		return fmt.Sprintf("tower_entrance id=%d unit=%d", e.ID, e.UnitID)
 	}
 	return ""
+}
+
+func verboseEntrancesHint(cur world.State) string {
+	if len(cur.Entrances) == 0 {
+		return ""
+	}
+	parts := make([]string, 0, len(cur.Entrances))
+	for _, e := range cur.Entrances {
+		name := e.Name
+		if name == "" {
+			name = "unknown"
+		}
+		parts = append(parts, fmt.Sprintf("id=%d unit=%d kind=%s x=%d y=%d name=%q", e.ID, e.UnitID, e.Kind.String(), e.Position.X, e.Position.Y, name))
+	}
+	sort.Strings(parts)
+	return strings.Join(parts, "; ")
 }
 
 func (rt *Runtime) logWorldState(prev, cur world.State, heartbeat, verbose bool) {

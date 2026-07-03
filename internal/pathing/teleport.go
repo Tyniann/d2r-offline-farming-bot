@@ -10,6 +10,8 @@ import (
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/world"
 )
 
+const maxTeleportClientYFraction = 0.74
+
 // ErrProjectionFailed indicates the target could not be mapped to client pixels.
 var ErrProjectionFailed = fmt.Errorf("projection failed")
 
@@ -58,6 +60,8 @@ func (m *TeleportMover) TeleportTo(now time.Time, player, target world.Position)
 	if !ok {
 		return 0, 0, fmt.Errorf("teleport to %d,%d: %w", target.X, target.Y, ErrProjectionFailed)
 	}
+	rawClientX, rawClientY := clientX, clientY
+	clientX, clientY = clampTeleportClientPoint(clientX, clientY, win)
 
 	if err := m.input.CastSkillAt(m.bindings, memory.SkillTeleport, clientX, clientY); err != nil {
 		return clientX, clientY, fmt.Errorf("teleport cast: %w", err)
@@ -71,6 +75,40 @@ func (m *TeleportMover) TeleportTo(now time.Time, player, target world.Position)
 		"target_y", target.Y,
 		"client_x", clientX,
 		"client_y", clientY,
+		"raw_client_x", rawClientX,
+		"raw_client_y", rawClientY,
 	)
 	return clientX, clientY, nil
+}
+
+func clampTeleportClientPoint(clientX, clientY int, win input.WindowInfo) (int, int) {
+	if win.ClientWidth > 0 {
+		clientX = clampInt(clientX, 0, win.ClientWidth-1)
+	}
+	if win.ClientHeight > 0 {
+		maxY := int(float64(win.ClientHeight) * maxTeleportClientYFraction)
+		clientY = clampInt(clientY, 0, maxY)
+	}
+	return clientX, clientY
+}
+
+func isPlayableClientPoint(clientX, clientY int, win input.WindowInfo) bool {
+	if win.ClientWidth <= 0 || win.ClientHeight <= 0 {
+		return false
+	}
+	if clientX < 0 || clientX >= win.ClientWidth {
+		return false
+	}
+	maxY := int(float64(win.ClientHeight) * maxTeleportClientYFraction)
+	return clientY >= 0 && clientY <= maxY
+}
+
+func clampInt(v, min, max int) int {
+	if v < min {
+		return min
+	}
+	if v > max {
+		return max
+	}
+	return v
 }

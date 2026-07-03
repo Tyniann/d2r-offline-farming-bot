@@ -88,6 +88,15 @@ func TestValidateRunModeTravelMarshOK(t *testing.T) {
 	}
 }
 
+func TestValidateRunModeTravelCellar5OK(t *testing.T) {
+	cfg := &config.Config{Input: config.InputConfig{Enabled: true}}
+	log := config.NewLogger("error")
+	err := validateRunMode(tasksSelection("countess", tasks.CountessPhaseTravelCellar5), cfg, Options{Run: "countess", RunPhase: tasks.CountessPhaseTravelCellar5}, log)
+	if err != nil {
+		t.Fatalf("travel-cellar5 err = %v", err)
+	}
+}
+
 func TestValidateRunModeUnsupportedPhase(t *testing.T) {
 	cfg := &config.Config{Input: config.InputConfig{Enabled: true}}
 	log := config.NewLogger("error")

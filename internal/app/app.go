@@ -27,6 +27,7 @@ type Runtime struct {
 	Config  *config.Config
 	Options Options
 	Log     *slog.Logger
+	logFile *os.File
 
 	Process  processController
 	Memory   *memory.Reader
@@ -41,13 +42,22 @@ type Runtime struct {
 }
 
 // New builds a Runtime from config and CLI/runtime options.
-func New(cfg *config.Config, opts Options) (*Runtime, error) {
+func New(cfg *config.Config, opts Options) (rt *Runtime, err error) {
 	logLevel := cfg.App.LogLevel
 	if opts.Verbose {
 		logLevel = "debug"
 	}
-	log := config.NewLogger(logLevel)
+	log, logFile, logFilePath, err := config.NewFileLogger(logLevel, "logs", cfg.App.Name, time.Now())
+	if err != nil {
+		return nil, fmt.Errorf("logger: %w", err)
+	}
+	defer func() {
+		if err != nil && logFile != nil {
+			_ = logFile.Close()
+		}
+	}()
 	log = log.With("app", cfg.App.Name)
+	log.Info("file logging enabled", "path", logFilePath)
 
 	offsetsPath := cfg.ResolvePath(cfg.Memory.OffsetsFile)
 	offsetSet, err := memory.ResolveOffsetSet(offsetsPath)
@@ -108,10 +118,11 @@ func New(cfg *config.Config, opts Options) (*Runtime, error) {
 		return nil, err
 	}
 
-	rt := &Runtime{
+	rt = &Runtime{
 		Config:   cfg,
 		Options:  opts,
 		Log:      log,
+		logFile:  logFile,
 		Process:  proc,
 		Memory:   mem,
 		Probe:    probe,
@@ -137,6 +148,16 @@ func New(cfg *config.Config, opts Options) (*Runtime, error) {
 
 	rt.verifyComponents()
 	return rt, nil
+}
+
+// CloseLog closes the runtime log file when file logging is active.
+func (rt *Runtime) CloseLog() error {
+	if rt == nil || rt.logFile == nil {
+		return nil
+	}
+	err := rt.logFile.Close()
+	rt.logFile = nil
+	return err
 }
 
 func (rt *Runtime) verifyEnvironment() error {

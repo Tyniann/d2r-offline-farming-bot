@@ -3,7 +3,9 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
+	"time"
 )
 
 func TestLoadExampleConfig(t *testing.T) {
@@ -340,6 +342,33 @@ func TestNewLogger(t *testing.T) {
 	log := NewLogger("debug")
 	if log == nil {
 		t.Fatal("NewLogger returned nil")
+	}
+}
+
+func TestNewFileLoggerWritesLogFile(t *testing.T) {
+	dir := t.TempDir()
+	log, file, path, err := NewFileLogger("debug", dir, "d2rbot", time.Date(2026, 7, 3, 12, 34, 56, 0, time.UTC))
+	if err != nil {
+		t.Fatalf("NewFileLogger() error = %v", err)
+	}
+	if file == nil {
+		t.Fatal("NewFileLogger returned nil file")
+	}
+	if filepath.Base(path) != "d2rbot-20260703-123456.log" {
+		t.Fatalf("log path = %q", path)
+	}
+
+	log.Debug("test log entry", "value", 42)
+	if err := file.Close(); err != nil {
+		t.Fatalf("Close() error = %v", err)
+	}
+
+	content, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("ReadFile() error = %v", err)
+	}
+	if !strings.Contains(string(content), "test log entry") || !strings.Contains(string(content), "value=42") {
+		t.Fatalf("log file content = %q", string(content))
 	}
 }
 

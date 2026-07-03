@@ -16,7 +16,7 @@ Phase 4.3: Bewegung **ausschließlich per Teleport** nach dem Koolo-Modell — e
   - `teleport.go` — `TeleportMover` via `CastSkillAt(Teleport)` aus YAML-Bindings
   - `stuck.go` — `StuckDetector` (Positions-/Area-Fortschritt, Timeout)
   - `explore.go` — `ExplorePlanner` (bearing-first, entity nur nah)
-  - `navigator.go` — `Navigator`-State-Machine (`Start`/`Tick`/`Active`/`LastResult`)
+  - `navigator.go` — `Navigator`-State-Machine (`Start`/`Tick`/`Active`/`LastResult`/`Reset`)
   - `types.go` — `Goal`, `GoalKind`, `NavStatus`, `NavResult`, `NavTickResult`
   - `config.go` — `pathing.Config` mit `Validate()` und Defaults
   - `internal/memory/hover.go` — `HoverState`, 12-Byte-Hover-Read
@@ -69,7 +69,7 @@ Der Hover-Offset kommt — wie UnitTable und UI — per **Signature-Scan** (d2go
 
 - **Explore bearing-first:** rotierende Kompass-Richtungen (`bearing_count`, Default 8) mit `step_distance_tiles`; Area-Wechsel resettet den Bearing-Index
 - **Cast-Auswertung mit Settle-Zeit:** Nach einem Teleport-Cast wartet der Navigator bis zu 700 ms (`teleportSettleTimeout`) auf die Positionsänderung im Speicher (Cast-Animation ist FCR-abhängig). Fortschritt ≥ `stuck_progress_tiles` wird sofort bestätigt (schnelles Cast-Chaining); erst nach Ablauf der Settle-Zeit ohne Bewegung gilt der Cast als blockiert und die Richtung rotiert. Ohne diese Wartezeit würde jeder Cast fälschlich als blockiert gewertet und der Bot teleportiert im Kreis
-- **Entity-Modus** nur, wenn `goal.ViaEntrance` gesetzt ist und die Entrance näher als `max_entrance_click_distance` liegt
+- **Entity-Modus** nur, wenn `goal.ViaEntrance` gesetzt ist und die Entrance näher als `max_entrance_click_distance` liegt; sichtbare, aber noch zu entfernte Entrances werden als `entity_approach` priorisiert und per Teleport angenähert
 - **Stuck:** weder Positions-Delta ≥ `stuck_progress_tiles` noch Area-Wechsel innerhalb `stuck_timeout_ms` → `reason=stuck`; das Log enthält `player_mana` (Teleport ohne Mana erkennbar)
 - Ticks bei `Phase != in_game` (Loading) werden übersprungen; Pausen zählen nicht als Stuck-Zeit
 - Teleport-Casts sind über `move_interval_ms` gedrosselt
@@ -162,6 +162,7 @@ go run ./cmd/d2rbot --pathing-test record-town-route:act1-waypoint
 ## Grenzen (explizit nicht in 4.3)
 
 - **Bearing-Explore ist ungerichtet (WIP):** Der Planner kennt die Richtung des Zielgebiets nicht — er hält eine Kompass-Richtung, bis sie blockiert, und rotiert dann weiter. Für lange Strecken (z. B. Blood Moor → Black Marsh über mehrere Zonen) ist das funktional, aber langsam und ineffizient
+- **Tower-Dungeon-Traversal bleibt best-effort:** Phase 4.5 nutzt den gleichen generischen Navigator, plus Entrance-Priorisierung und Hover-Feedback. Das reicht als MVP-Startpunkt, ist aber mehr wahrscheinlich als nicht auf zufälligen Tower-Layouts störanfällig. Die beabsichtigte robuste Lösung ist späteres Run-Recording/-Playback mit einer vollständig manuell validierten Route; der Navigator bleibt dann Hilfslogik für lokale Korrekturen und Interaktionen.
 - **Outdoor-Zonenübergänge werden nicht gezielt angesteuert (WIP, Testlauf 2026-07-02):** Bearing-Explore deckt den Kartenrand ab, teleportiert aber nie gezielt **in** den schmalen Übergangsbereich zwischen zwei Outdoor-Zonen hinein — der Bot dreht große Kreise am Rand und verpasst den Übergang. Geplante Abhilfe: Run Recorder / Route-Cache ([`docs/backlog.md`](../backlog.md)) — der Spieler zeichnet den Run einmal manuell auf, der Bot spielt die Route ab. Für den Countess-Run (4.4+) reduziert Waypoint-Travel die Explore-Strecken deutlich; Entrance-Übergänge (Tower, Treppen) funktionieren dagegen präzise über den Hover-Loop. Koolos Alternative (lokaler Map-Server aus D2-LoD-1.13c-DLLs + Seed-Read) ist bewusst zurückgestellt — Begründung im Backlog unter „Verworfene Alternative: Map-Server-Navigation"
 - Countess-Run-Travel-Steps (Phase 4.4+), Route-Cache ([`docs/backlog.md`](../backlog.md))
 - Allgemeines Laufen ohne Teleport ausserhalb des Act-1-Town-Walkers, Klassen-Erkennung, Pickit

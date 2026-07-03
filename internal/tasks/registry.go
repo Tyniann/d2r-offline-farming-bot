@@ -47,7 +47,7 @@ func newRunMachine(sel RunSelection) (runMachine, error) {
 		switch sel.Phase {
 		case "":
 			return &countessRun{}, nil
-		case CountessPhaseTravelMarsh:
+		case CountessPhaseTravelMarsh, CountessPhaseTravelCellar5:
 			return &countessRun{phase: sel.Phase}, nil
 		default:
 			return nil, fmt.Errorf("unknown countess phase %q", sel.Phase)

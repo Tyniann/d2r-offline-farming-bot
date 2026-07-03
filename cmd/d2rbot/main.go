@@ -19,8 +19,8 @@ func main() {
 	inputTest := flag.String("input-test", "", "manual input test spec (e.g. belt:1, portal, skill:1, center-click, click:640,360)")
 	inputTestObserveMs := flag.Int("input-test-observe-ms", 3000, "observation window in ms after input-test actions")
 	runFlag := flag.String("run", "", "active farming run (e.g. countess); overrides runs.active in config")
-	phaseFlag := flag.String("phase", "", "optional run phase (e.g. travel-marsh with --run countess)")
-	pathingTest := flag.String("pathing-test", "", "manual pathing test spec (teleport:TX,TY | hover:watch | move-area:<id|name> | click-entity:waypoint|entrance)")
+	phaseFlag := flag.String("phase", "", "optional run phase (e.g. travel-marsh or travel-cellar5 with --run countess)")
+	pathingTest := flag.String("pathing-test", "", "manual pathing test spec (teleport:TX,TY | hover:watch | inspect:entrances | move-area:<id|name> | click-entity:waypoint|entrance)")
 	pathingTestTimeoutMs := flag.Int("pathing-test-timeout-ms", 120000, "timeout in ms for the pathing test mode")
 	showVersion := flag.Bool("version", false, "print version and exit")
 	flag.Parse()
@@ -56,6 +56,11 @@ func run(configPath string, opts app.Options) error {
 	if err != nil {
 		return err
 	}
+	defer func() {
+		if err := rt.CloseLog(); err != nil {
+			fmt.Fprintf(os.Stderr, "warning: close log file: %v\n", err)
+		}
+	}()
 
 	if opts.InputTest != "" {
 		return rt.RunInputTest(opts.InputTest)

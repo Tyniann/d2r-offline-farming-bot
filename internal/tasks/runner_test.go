@@ -2,6 +2,7 @@ package tasks
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -40,6 +41,14 @@ func blackMarshState() world.State {
 	}
 }
 
+func areaState(area world.AreaID) world.State {
+	return world.State{
+		Valid: true,
+		Phase: world.GamePhaseInGame,
+		Area:  world.LookupArea(area),
+	}
+}
+
 type mockWaypointActions struct {
 	results       []pathing.WaypointActionResult
 	selectResult  pathing.WaypointActionResult
@@ -52,6 +61,13 @@ type mockWaypointActions struct {
 type mockTownWalker struct {
 	results []pathing.TownWalkResult
 	resets  int
+}
+
+type mockNavigator struct {
+	startGoals  []pathing.Goal
+	startErr    error
+	tickResults []pathing.NavTickResult
+	resetCalls  int
 }
 
 func (m *mockTownWalker) Reset() { m.resets++ }
@@ -85,6 +101,26 @@ func (m *mockWaypointActions) SelectBlackMarsh(context.Context) pathing.Waypoint
 	}
 	return m.selectResult
 }
+
+func (m *mockNavigator) Ready() bool { return true }
+
+func (m *mockNavigator) Start(goal pathing.Goal) error {
+	m.startGoals = append(m.startGoals, goal)
+	return m.startErr
+}
+
+func (m *mockNavigator) Tick(context.Context, world.State) pathing.NavTickResult {
+	if len(m.tickResults) == 0 {
+		return pathing.NavTickResult{Status: pathing.NavArrived, Done: true}
+	}
+	res := m.tickResults[0]
+	m.tickResults = m.tickResults[1:]
+	return res
+}
+
+func (m *mockNavigator) Active() bool { return len(m.tickResults) > 0 }
+
+func (m *mockNavigator) Reset() { m.resetCalls++ }
 
 func newTestRunner(runName string) *Runner {
 	return NewRunner(config.NewLogger("error"), RunSelection{Run: runName}, RunConfig{StepTimeout: 30 * time.Second}, Deps{})
@@ -356,5 +392,278 @@ func TestCountessTravelMarshAcquiresWaypointByTownWalk(t *testing.T) {
 	res = r.Tick(context.Background(), townStateWithFarWaypoint(), now.Add(2*time.Millisecond))
 	if res.Step != countessStepOpenWaypoint {
 		t.Fatalf("visible acquire = %+v, want open_waypoint", res)
+	}
+}
+
+func TestCountessTravelCellar5SuccessStartsExpectedGoals(t *testing.T) {
+	wp := &mockWaypointActions{}
+	nav := &mockNavigator{}
+	r := NewRunner(config.NewLogger("error"), RunSelection{Run: "countess", Phase: CountessPhaseTravelCellar5}, RunConfig{StepTimeout: 5 * time.Second}, Deps{
+		Waypoint: wp,
+		TownWalk: &mockTownWalker{},
+		Pathing:  nav,
+	})
+	now := time.Now()
+
+	ticks := []world.State{
+		townStateWithWaypoint(),
+		townStateWithWaypoint(),
+		townStateWithWaypoint(),
+		townStateWithWaypoint(),
+		townStateWithWaypoint(),
+		blackMarshState(),
+		blackMarshState(),
+		areaState(world.ForgottenTower),
+		areaState(world.TowerCellarLevel1),
+		areaState(world.TowerCellarLevel2),
+		areaState(world.TowerCellarLevel3),
+		areaState(world.TowerCellarLevel4),
+		areaState(world.TowerCellarLevel4),
+	}
+
+	var res TickResult
+	for i, st := range ticks {
+		res = r.Tick(context.Background(), st, now.Add(time.Duration(i)*200*time.Millisecond))
+	}
+	if res.Outcome != RunOutcomeSuccess || res.Step != countessStepEnterCellar5 {
+		t.Fatalf("final tick = %+v, want success at enter_cellar_5", res)
+	}
+
+	if len(nav.startGoals) > 1 {
+		t.Fatalf("Start calls = %d, want at most 1 when snapshots already reach target areas", len(nav.startGoals))
+	}
+}
+
+func TestCountessTravelCellar5AllowsBlackMarshLoadingWait(t *testing.T) {
+	r := NewRunner(config.NewLogger("error"), RunSelection{Run: "countess", Phase: CountessPhaseTravelCellar5}, RunConfig{StepTimeout: 5 * time.Second}, Deps{Waypoint: &mockWaypointActions{}, TownWalk: &mockTownWalker{}, Pathing: &mockNavigator{}})
+	now := time.Now()
+	_ = r.Tick(context.Background(), townStateWithWaypoint(), now)
+	_ = r.Tick(context.Background(), townStateWithWaypoint(), now.Add(100*time.Millisecond))
+	_ = r.Tick(context.Background(), townStateWithWaypoint(), now.Add(200*time.Millisecond))
+	_ = r.Tick(context.Background(), townStateWithWaypoint(), now.Add(300*time.Millisecond))
+	_ = r.Tick(context.Background(), townStateWithWaypoint(), now.Add(800*time.Millisecond))
+
+	if !r.CurrentStepAllowsNonInputTick() {
+		t.Fatal("travel-cellar5 wait_black_marsh should allow non-input ticks")
+	}
+}
+
+func TestCountessTravelCellar5ResumesFromRouteAreas(t *testing.T) {
+	cases := []struct {
+		name     string
+		area     world.AreaID
+		wantStep string
+	}{
+		{"black marsh", world.BlackMarsh, countessStepFindTower},
+		{"forgotten tower", world.ForgottenTower, countessStepEnterCellar1},
+		{"cellar 1", world.TowerCellarLevel1, countessStepEnterCellar2},
+		{"cellar 2", world.TowerCellarLevel2, countessStepEnterCellar3},
+		{"cellar 3", world.TowerCellarLevel3, countessStepEnterCellar4},
+		{"cellar 4", world.TowerCellarLevel4, countessStepEnterCellar5},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			r := NewRunner(config.NewLogger("error"), RunSelection{Run: "countess", Phase: CountessPhaseTravelCellar5}, RunConfig{StepTimeout: 5 * time.Second}, Deps{
+				Waypoint: &mockWaypointActions{},
+				TownWalk: &mockTownWalker{},
+				Pathing:  &mockNavigator{tickResults: []pathing.NavTickResult{{Status: pathing.NavExploring}}},
+			})
+
+			res := r.Tick(context.Background(), areaState(tc.area), time.Now())
+			if res.Outcome != RunOutcomeRunning || res.Step != tc.wantStep {
+				t.Fatalf("tick = %+v, want running step %s", res, tc.wantStep)
+			}
+		})
+	}
+}
+
+func TestCountessTravelCellar5ResumeAlreadyAtCellar5Completes(t *testing.T) {
+	r := NewRunner(config.NewLogger("error"), RunSelection{Run: "countess", Phase: CountessPhaseTravelCellar5}, RunConfig{StepTimeout: 5 * time.Second}, Deps{
+		Waypoint: &mockWaypointActions{},
+		TownWalk: &mockTownWalker{},
+		Pathing:  &mockNavigator{},
+	})
+
+	res := r.Tick(context.Background(), areaState(world.TowerCellarLevel5), time.Now())
+	if res.Outcome != RunOutcomeSuccess || res.Step != countessStepPrecheck {
+		t.Fatalf("tick = %+v, want success from precheck at cellar 5", res)
+	}
+}
+
+func TestCountessNavigateAreaStartsOnceWhilePending(t *testing.T) {
+	nav := &mockNavigator{tickResults: []pathing.NavTickResult{
+		{Status: pathing.NavExploring},
+		{Status: pathing.NavExploring},
+	}}
+	c := &countessRun{}
+	goal := pathing.Goal{Kind: pathing.GoalKindMoveToArea, TargetArea: world.ForgottenTower, ViaEntrance: world.EntranceKindWildernessToTower}
+
+	if res := c.tickNavigateArea(context.Background(), Deps{Pathing: nav}, blackMarshState(), goal); res.complete || res.failed {
+		t.Fatalf("first tick = %+v, want pending", res)
+	}
+	if res := c.tickNavigateArea(context.Background(), Deps{Pathing: nav}, blackMarshState(), goal); res.complete || res.failed {
+		t.Fatalf("second tick = %+v, want pending", res)
+	}
+	if len(nav.startGoals) != 1 {
+		t.Fatalf("Start calls = %d, want 1", len(nav.startGoals))
+	}
+}
+
+func TestCountessNavigationGoalsStartExpectedPathingGoals(t *testing.T) {
+	cases := []struct {
+		step        string
+		source      world.AreaID
+		target      world.AreaID
+		viaEntrance world.EntranceKind
+	}{
+		{countessStepFindTower, world.BlackMarsh, world.ForgottenTower, world.EntranceKindWildernessToTower},
+		{countessStepEnterCellar1, world.ForgottenTower, world.TowerCellarLevel1, world.EntranceKindUnknown},
+		{countessStepEnterCellar2, world.TowerCellarLevel1, world.TowerCellarLevel2, world.EntranceKindTowerCellarDown},
+		{countessStepEnterCellar3, world.TowerCellarLevel2, world.TowerCellarLevel3, world.EntranceKindTowerCellarDown},
+		{countessStepEnterCellar4, world.TowerCellarLevel3, world.TowerCellarLevel4, world.EntranceKindTowerCellarDown},
+		{countessStepEnterCellar5, world.TowerCellarLevel4, world.TowerCellarLevel5, world.EntranceKindTowerCellarDown},
+	}
+	for _, tc := range cases {
+		t.Run(tc.step, func(t *testing.T) {
+			c := &countessRun{}
+			nav := &mockNavigator{tickResults: []pathing.NavTickResult{{Status: pathing.NavExploring}}}
+			goal, ok := countessNavigationGoal(tc.step)
+			if !ok {
+				t.Fatalf("missing goal for %s", tc.step)
+			}
+			res := c.tickNavigateArea(context.Background(), Deps{Pathing: nav}, areaState(tc.source), goal)
+			if res.failed || res.complete {
+				t.Fatalf("tick = %+v, want pending", res)
+			}
+			if len(nav.startGoals) != 1 {
+				t.Fatalf("Start calls = %d, want 1", len(nav.startGoals))
+			}
+			got := nav.startGoals[0]
+			if got.TargetArea != tc.target || got.ViaEntrance != tc.viaEntrance {
+				t.Fatalf("goal = %+v, want target=%s via=%s", got, tc.target, tc.viaEntrance)
+			}
+		})
+	}
+}
+
+func TestCountessEnterCellar1UsesForgottenTowerSpecialCase(t *testing.T) {
+	c := &countessRun{}
+	nav := &mockNavigator{tickResults: []pathing.NavTickResult{
+		{Status: pathing.NavClicking},
+	}}
+	goal, ok := countessNavigationGoal(countessStepEnterCellar1)
+	if !ok {
+		t.Fatal("missing enter_cellar_1 goal")
+	}
+
+	res := c.tickNavigateArea(context.Background(), Deps{Pathing: nav}, areaState(world.ForgottenTower), goal)
+	if res.failed || res.complete {
+		t.Fatalf("tick = %+v, want pending", res)
+	}
+	if len(nav.startGoals) != 1 {
+		t.Fatalf("Start calls = %d, want 1", len(nav.startGoals))
+	}
+	got := nav.startGoals[0]
+	if got.Kind != pathing.GoalKindMoveToArea ||
+		got.TargetArea != world.TowerCellarLevel1 ||
+		got.ViaEntrance != world.EntranceKindUnknown {
+		t.Fatalf("goal = %+v, want Tower Cellar Level 1 with special-case entrance selection", got)
+	}
+}
+
+func TestCountessNavigateAreaCompletesWithoutStartWhenAlreadyInTarget(t *testing.T) {
+	nav := &mockNavigator{}
+	c := &countessRun{}
+	goal := pathing.Goal{Kind: pathing.GoalKindMoveToArea, TargetArea: world.ForgottenTower, ViaEntrance: world.EntranceKindWildernessToTower}
+
+	res := c.tickNavigateArea(context.Background(), Deps{Pathing: nav}, areaState(world.ForgottenTower), goal)
+	if !res.complete || res.failed {
+		t.Fatalf("tick = %+v, want complete", res)
+	}
+	if len(nav.startGoals) != 0 {
+		t.Fatalf("Start calls = %d, want 0", len(nav.startGoals))
+	}
+}
+
+func TestCountessNavigationSourceGuardFailsUnexpectedArea(t *testing.T) {
+	goal, ok := countessNavigationGoal(countessStepFindTower)
+	if !ok {
+		t.Fatal("missing find_tower goal")
+	}
+	res := countessNavigationSourceGuard(countessStepFindTower, areaState(world.TamoeHighland), goal)
+	if !res.failed || res.reason != "unexpected_area" {
+		t.Fatalf("guard = %+v, want unexpected_area failure", res)
+	}
+}
+
+func TestCountessNavigateAreaFailureReasons(t *testing.T) {
+	cases := []struct {
+		name string
+		res  pathing.NavTickResult
+		want string
+	}{
+		{"stuck", pathing.NavTickResult{Status: pathing.NavStuck, Reason: pathing.ReasonStuck, Done: true}, pathing.ReasonStuck},
+		{"hover", pathing.NavTickResult{Status: pathing.NavFailed, Reason: pathing.ReasonHoverNotFound, Done: true}, pathing.ReasonHoverNotFound},
+		{"projection", pathing.NavTickResult{Status: pathing.NavFailed, Reason: pathing.ReasonProjectionFailed, Done: true}, pathing.ReasonProjectionFailed},
+		{"cancelled", pathing.NavTickResult{Status: pathing.NavFailed, Reason: pathing.ReasonCancelled, Done: true}, pathing.ReasonCancelled},
+		{"invalid", pathing.NavTickResult{Status: pathing.NavFailed, Reason: pathing.ReasonInvalidGoal, Done: true}, pathing.ReasonInvalidGoal},
+	}
+	goal := pathing.Goal{Kind: pathing.GoalKindMoveToArea, TargetArea: world.ForgottenTower, ViaEntrance: world.EntranceKindWildernessToTower}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			c := &countessRun{}
+			nav := &mockNavigator{tickResults: []pathing.NavTickResult{tc.res}}
+			res := c.tickNavigateArea(context.Background(), Deps{Pathing: nav}, blackMarshState(), goal)
+			if !res.failed || res.reason != tc.want {
+				t.Fatalf("tick = %+v, want failure %q", res, tc.want)
+			}
+		})
+	}
+}
+
+func TestCountessNavigateAreaStartFailureReasons(t *testing.T) {
+	cases := []struct {
+		name string
+		err  error
+		want string
+	}{
+		{"not wired", pathing.ErrNavigatorNotWired, "pathing_not_wired"},
+		{"invalid", errors.New(pathing.ReasonInvalidGoal + ": target area required"), pathing.ReasonInvalidGoal},
+		{"other", errors.New("boom"), "pathing_start_failed"},
+	}
+	goal := pathing.Goal{Kind: pathing.GoalKindMoveToArea, TargetArea: world.ForgottenTower, ViaEntrance: world.EntranceKindWildernessToTower}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			c := &countessRun{}
+			nav := &mockNavigator{startErr: tc.err}
+			res := c.tickNavigateArea(context.Background(), Deps{Pathing: nav}, blackMarshState(), goal)
+			if !res.failed || res.reason != tc.want {
+				t.Fatalf("tick = %+v, want failure %q", res, tc.want)
+			}
+		})
+	}
+}
+
+func TestRunnerResetsPathingLifecycle(t *testing.T) {
+	nav := &mockNavigator{}
+	r := NewRunner(config.NewLogger("error"), RunSelection{Run: "countess"}, RunConfig{StepTimeout: time.Second}, Deps{Pathing: nav})
+
+	r.Reset("process_lost")
+	if nav.resetCalls != 1 {
+		t.Fatalf("Reset calls after Runner.Reset = %d, want 1", nav.resetCalls)
+	}
+
+	nav.resetCalls = 0
+	r = NewRunner(config.NewLogger("error"), RunSelection{Run: "countess"}, RunConfig{StepTimeout: time.Second}, Deps{Pathing: nav})
+	_ = r.Tick(context.Background(), townState(), time.Now())
+	if nav.resetCalls != 2 {
+		t.Fatalf("Reset calls after beginStep chain = %d, want 2", nav.resetCalls)
+	}
+
+	nav.resetCalls = 0
+	r = NewRunner(config.NewLogger("error"), RunSelection{Run: "countess"}, RunConfig{StepTimeout: time.Second}, Deps{Pathing: nav})
+	_ = r.Tick(context.Background(), blackMarshState(), time.Now())
+	if nav.resetCalls != 2 {
+		t.Fatalf("Reset calls after failed step = %d, want 2 (begin + failure)", nav.resetCalls)
 	}
 }

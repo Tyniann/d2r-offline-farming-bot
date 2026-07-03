@@ -39,12 +39,10 @@ func IsCountessObjectID(id uint32) bool {
 	}
 }
 
-// IsCountessEntranceID reports whether id is a Countess-route entrance (tower + cellar stairs).
+// IsCountessEntranceID reports whether id is a Countess-route entrance candidate.
+// Entrance units are a small segment and some transition units in fixed rooms
+// use IDs outside the known d2go tower/stairs constants, so probes keep all
+// entrance IDs and let the world layer classify the known subset.
 func IsCountessEntranceID(id uint32) bool {
-	switch id {
-	case 10, 11, 17, 18:
-		return true
-	default:
-		return false
-	}
+	return id > 0
 }

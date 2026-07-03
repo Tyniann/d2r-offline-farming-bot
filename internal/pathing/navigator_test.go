@@ -212,6 +212,49 @@ func TestNavigatorRotatesBearingAfterBlockedCast(t *testing.T) {
 	}
 }
 
+func TestNavigatorForceClicksAfterBlockedEntityApproach(t *testing.T) {
+	in := newMockInput()
+	n := testNavigator(in)
+	goal := Goal{
+		Kind:        GoalKindMoveToArea,
+		TargetArea:  world.TowerCellarLevel2,
+		ViaEntrance: world.EntranceKindTowerCellarDown,
+	}
+	if err := n.Start(goal); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+
+	base := time.Now()
+	down := world.Entrance{
+		Kind:     world.EntranceKindTowerCellarDown,
+		UnitID:   13,
+		Position: world.Position{X: 5016, Y: 5000},
+		Name:     "Act 1 Tower Cellar Down",
+	}
+	state := navState(base, world.TowerCellarLevel1, 5000, 5000)
+	state.Entrances = []world.Entrance{down}
+
+	res := n.Tick(context.Background(), state)
+	if res.Done || res.Status != NavExploring {
+		t.Fatalf("first Tick() = %+v, want exploring", res)
+	}
+	if len(in.casts) != 1 {
+		t.Fatalf("casts=%d, want 1 entity approach teleport", len(in.casts))
+	}
+
+	state.At = base.Add(teleportSettleTimeout + 100*time.Millisecond)
+	res = n.Tick(context.Background(), state)
+	if res.Done || res.Status != NavClicking {
+		t.Fatalf("blocked approach Tick() = %+v, want clicking", res)
+	}
+	if len(in.casts) != 1 {
+		t.Fatalf("casts=%d, want no repeated blocked approach cast", len(in.casts))
+	}
+	if len(in.moves) != 1 {
+		t.Fatalf("moves=%d, want 1 hover probe after blocked approach", len(in.moves))
+	}
+}
+
 func TestNavigatorNotWiredRejectsStart(t *testing.T) {
 	n := NewNavigator(testLogger(), Deps{Config: DefaultConfig()})
 	if n.Ready() {

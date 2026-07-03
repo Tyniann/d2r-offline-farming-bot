@@ -9,19 +9,24 @@ import (
 // ExploreMode selects how the planner drives the next move.
 type ExploreMode string
 
-// ExploreMode values: bearing teleports along compass directions; entity hands
-// the confirmed nearby entrance to the click loop.
+// ExploreMode values: bearing teleports along compass directions, entity hands
+// a nearby entrance to the click loop, and entity_approach moves toward a
+// visible entrance that is still outside click range.
 const (
-	ExploreBearing ExploreMode = "bearing"
-	ExploreEntity  ExploreMode = "entity"
+	ExploreBearing        ExploreMode = "bearing"
+	ExploreEntity         ExploreMode = "entity"
+	ExploreEntityApproach ExploreMode = "entity_approach"
 )
 
-// ExplorePlan is one planned step: either a bearing teleport target or a
-// nearby entrance to click.
+const maxEntranceConsiderDistance = 160.0
+
+// ExplorePlan is one planned step: either a teleport target or an entrance to
+// click.
 type ExplorePlan struct {
-	Mode     ExploreMode
-	Target   world.Position // Teleport target when Mode is ExploreBearing.
-	Entrance world.Entrance // Click target when Mode is ExploreEntity.
+	Mode       ExploreMode
+	Target     world.Position // Teleport target when Mode is Bearing or EntityApproach.
+	Entrance   world.Entrance // Entity target when Mode is ExploreEntity or EntityApproach.
+	ForceClick bool           // Disable distance gating after a blocked entity approach.
 }
 
 // ExplorePlanner walks unknown layouts bearing-first: it teleports along
@@ -29,10 +34,11 @@ type ExplorePlan struct {
 // entrance is close enough for the hover click loop to see it on screen.
 // An area change resets the bearing rotation.
 type ExplorePlanner struct {
-	cfg          ExploreConfig
-	bearingIndex int
-	lastArea     world.AreaID
-	hasArea      bool
+	cfg              ExploreConfig
+	bearingIndex     int
+	lastArea         world.AreaID
+	hasArea          bool
+	forceClickUnitID uint32
 }
 
 // NewExplorePlanner builds a planner with the given explore tuning.
@@ -44,6 +50,7 @@ func NewExplorePlanner(cfg ExploreConfig) *ExplorePlanner {
 func (p *ExplorePlanner) Reset() {
 	p.bearingIndex = 0
 	p.hasArea = false
+	p.forceClickUnitID = 0
 }
 
 // BearingIndex exposes the current compass index for logging.
@@ -59,28 +66,104 @@ func (p *ExplorePlanner) Rotate() {
 	p.bearingIndex = (p.bearingIndex + 1) % p.cfg.BearingCount
 }
 
-// Plan returns the next explore step for state. Entity mode is only chosen
-// when goal.ViaEntrance matches a visible entrance within
-// max_entrance_click_distance; otherwise the current bearing target is used.
+// ForceClickEntrance makes the next plan for unitID enter the hover-click loop
+// even when the player is still outside the normal click distance. It is used
+// after a direct approach teleport to a visible entrance is blocked by room
+// geometry.
+func (p *ExplorePlanner) ForceClickEntrance(unitID uint32) {
+	p.forceClickUnitID = unitID
+}
+
+// Plan returns the next explore step for state. Matching visible entrances are
+// prioritized over bearing exploration: nearby entrances are clicked, and far
+// entrances become an approach target.
 func (p *ExplorePlanner) Plan(state world.State, goal Goal) ExplorePlan {
 	if !p.hasArea || state.Area.ID != p.lastArea {
 		p.bearingIndex = 0
+		p.forceClickUnitID = 0
 		p.lastArea = state.Area.ID
 		p.hasArea = true
 	}
 
 	if goal.ViaEntrance != world.EntranceKindUnknown {
-		if e, ok := state.NearestEntrance(goal.ViaEntrance); ok {
-			if world.Distance(state.Player.Position, e.Position) <= p.cfg.MaxEntranceClickDistance {
-				return ExplorePlan{Mode: ExploreEntity, Entrance: e}
-			}
+		if e, ok := p.nearestEntrance(state, goal.ViaEntrance); ok {
+			return p.planEntrance(state, e)
 		}
+	}
+	if e, ok := forgottenTowerCellar1Entrance(state, goal); ok {
+		return p.planEntrance(state, e)
 	}
 
 	return ExplorePlan{
 		Mode:   ExploreBearing,
 		Target: bearingTarget(state.Player.Position, p.bearingIndex, p.cfg),
 	}
+}
+
+func forgottenTowerCellar1Entrance(state world.State, goal Goal) (world.Entrance, bool) {
+	if state.Area.ID != world.ForgottenTower || goal.TargetArea != world.TowerCellarLevel1 {
+		return world.Entrance{}, false
+	}
+	var best world.Entrance
+	bestDist := 0.0
+	found := false
+	for _, e := range state.Entrances {
+		if e.Kind != world.EntranceKindUnknown {
+			continue
+		}
+		d := world.Distance(state.Player.Position, e.Position)
+		if !found || d < bestDist {
+			best = e
+			bestDist = d
+			found = true
+		}
+	}
+	return best, found
+}
+
+func (p *ExplorePlanner) nearestEntrance(state world.State, kind world.EntranceKind) (world.Entrance, bool) {
+	if !state.Valid {
+		return world.Entrance{}, false
+	}
+	var best world.Entrance
+	bestDist := 0.0
+	found := false
+	for _, e := range state.Entrances {
+		if e.Kind != kind {
+			continue
+		}
+		d := world.Distance(state.Player.Position, e.Position)
+		if d > maxEntranceConsiderDistance {
+			continue
+		}
+		if !found || d < bestDist {
+			best = e
+			bestDist = d
+			found = true
+		}
+	}
+	return best, found
+}
+
+func (p *ExplorePlanner) planEntrance(state world.State, e world.Entrance) ExplorePlan {
+	dist := world.Distance(state.Player.Position, e.Position)
+	forceClick := e.UnitID != 0 && e.UnitID == p.forceClickUnitID
+	if forceClick || dist <= p.cfg.MaxEntranceClickDistance {
+		return ExplorePlan{Mode: ExploreEntity, Entrance: e, ForceClick: forceClick}
+	}
+	return ExplorePlan{
+		Mode:     ExploreEntityApproach,
+		Target:   stepToward(state.Player.Position, e.Position, p.entityApproachStep()),
+		Entrance: e,
+	}
+}
+
+func (p *ExplorePlanner) entityApproachStep() float64 {
+	step := p.cfg.StepDistanceTiles
+	if p.cfg.MaxEntranceClickDistance > 0 {
+		step = math.Min(step, p.cfg.MaxEntranceClickDistance/2)
+	}
+	return math.Max(1, step)
 }
 
 // bearingTarget offsets pos by step_distance_tiles along compass direction index.

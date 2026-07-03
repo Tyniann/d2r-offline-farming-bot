@@ -23,13 +23,14 @@ type Input interface {
 }
 
 // Navigator is the subset of pathing.Navigator used by task runs.
-// Start begins a goal, Tick advances it per poll cycle, and Active reports
-// whether a goal is still in flight (terminal outcomes come from Tick).
+// Start begins a goal, Tick advances it per poll cycle, Active reports whether
+// a goal is still in flight, and Reset aborts stale movement between steps.
 type Navigator interface {
 	Ready() bool
 	Start(goal pathing.Goal) error
 	Tick(ctx context.Context, state world.State) pathing.NavTickResult
 	Active() bool
+	Reset()
 }
 
 // WaypointActions is the narrow waypoint-action surface used by task runs.

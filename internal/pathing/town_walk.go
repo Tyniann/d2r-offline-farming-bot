@@ -110,12 +110,12 @@ func (w *TownWalker) TickAct1Waypoint(ctx context.Context, state world.State) To
 	}
 	target := w.points[w.index]
 	if world.Distance(state.Player.Position, target) <= w.cfg.ArrivalDistance {
+		if w.index >= len(w.points)-1 {
+			return w.tickFinalRoutePoint(now, state)
+		}
 		w.index++
 		w.waiting = false
 		w.lastMoveAt = time.Time{}
-		if w.index >= len(w.points) {
-			return TownWalkResult{Status: TownWalkArrived, Done: true}
-		}
 		return TownWalkResult{Status: TownWalkPending}
 	}
 
@@ -163,6 +163,29 @@ func (w *TownWalker) TickAct1Waypoint(ctx context.Context, state world.State) To
 		"route_index", w.index,
 	)
 	return TownWalkResult{Status: TownWalkPending}
+}
+
+func (w *TownWalker) tickFinalRoutePoint(now time.Time, state world.State) TownWalkResult {
+	if !w.waiting {
+		w.waiting = true
+		w.waitStartedAt = now
+		w.lastProgressAt = now
+		w.lastPos = state.Player.Position
+		return TownWalkResult{Status: TownWalkPending}
+	}
+	if w.lastProgressAt.IsZero() {
+		w.lastProgressAt = now
+		w.lastPos = state.Player.Position
+	}
+	if world.Distance(w.lastPos, state.Player.Position) >= 1 {
+		w.lastProgressAt = now
+		w.lastPos = state.Player.Position
+		return TownWalkResult{Status: TownWalkPending}
+	}
+	if now.Sub(w.lastProgressAt) < w.cfg.SettleTimeout {
+		return TownWalkResult{Status: TownWalkPending}
+	}
+	return TownWalkResult{Status: TownWalkRouteExhausted, Reason: string(TownWalkRouteExhausted), Done: true}
 }
 
 func townWaypointClickable(state world.State, maxDistance float64) bool {

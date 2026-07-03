@@ -133,6 +133,10 @@ func (c *EntityClicker) Tick(state world.State, target ClickTarget, maxDistance 
 	dx, dy := spiralOffset(c.attempt, c.cfg.SpiralStepDegrees)
 	clientX := baseX + dx
 	clientY := baseY + dy
+	if !isPlayableClientPoint(clientX, clientY, win) {
+		c.Reset()
+		return ClickTickResult{Status: ClickProjectionFailed, Done: true}, nil
+	}
 
 	if err := c.input.MoveTo(clientX, clientY); err != nil {
 		return ClickTickResult{Status: ClickPending, Attempt: c.attempt}, err

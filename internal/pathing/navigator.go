@@ -2,6 +2,7 @@ package pathing
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"time"
@@ -18,6 +19,9 @@ const tickGapReset = 2 * time.Second
 // update by several hundred milliseconds; judging the cast on the next poll
 // tick would treat every cast as blocked and spin the bearing in circles.
 const teleportSettleTimeout = 700 * time.Millisecond
+
+// ErrNavigatorNotWired reports that movement dependencies were not injected.
+var ErrNavigatorNotWired = errors.New("navigator not wired")
 
 // Navigator is the Phase 4.3 movement state machine. It moves exclusively by
 // teleport, detects arrival primarily via area change (`state.Area.ID`), and
@@ -43,9 +47,10 @@ type Navigator struct {
 	lastResult NavResult
 	lastTickAt time.Time
 	lastCast   struct {
-		pos     world.Position
-		at      time.Time
-		pending bool
+		pos            world.Position
+		at             time.Time
+		pending        bool
+		approachUnitID uint32
 	}
 }
 
@@ -84,10 +89,33 @@ func (n *Navigator) LastResult() NavResult {
 	return n.lastResult
 }
 
+// Reset aborts any active goal and clears per-goal movement state.
+func (n *Navigator) Reset() {
+	n.goal = Goal{}
+	n.active = false
+	n.status = NavIdle
+	n.lastResult = NavResult{}
+	n.lastTickAt = time.Time{}
+	n.lastCast.pending = false
+	n.lastCast.approachUnitID = 0
+	if n.mover != nil {
+		n.mover.Reset()
+	}
+	if n.clicker != nil {
+		n.clicker.Reset()
+	}
+	if n.explorer != nil {
+		n.explorer.Reset()
+	}
+	if n.stuck != nil {
+		n.stuck.Reset()
+	}
+}
+
 // Start begins pursuing goal. An already active goal is replaced.
 func (n *Navigator) Start(goal Goal) error {
 	if !n.wired {
-		return fmt.Errorf("navigator not wired: input and bindings required")
+		return fmt.Errorf("%w: input and bindings required", ErrNavigatorNotWired)
 	}
 	switch goal.Kind {
 	case GoalKindMoveToArea:
@@ -107,6 +135,7 @@ func (n *Navigator) Start(goal Goal) error {
 	n.status = NavMoving
 	n.lastTickAt = time.Time{}
 	n.lastCast.pending = false
+	n.lastCast.approachUnitID = 0
 	n.mover.Reset()
 	n.clicker.Reset()
 	n.explorer.Reset()
@@ -199,7 +228,11 @@ func (n *Navigator) tickMoveToArea(now time.Time, state world.State) NavTickResu
 			Position: plan.Entrance.Position,
 			Name:     plan.Entrance.Name,
 		}
-		res, err := n.clicker.Tick(state, target, n.deps.Config.Explore.MaxEntranceClickDistance)
+		maxDistance := n.deps.Config.Explore.MaxEntranceClickDistance
+		if plan.ForceClick {
+			maxDistance = 0
+		}
+		res, err := n.clicker.Tick(state, target, maxDistance)
 		if err != nil {
 			n.log.Debug("pathing nav click blocked", "error", err)
 			return NavTickResult{Status: n.status}
@@ -229,7 +262,11 @@ func (n *Navigator) tickMoveToArea(now time.Time, state world.State) NavTickResu
 	n.lastCast.pos = state.Player.Position
 	n.lastCast.at = now
 	n.lastCast.pending = true
-	n.logNavTick(state, string(ExploreBearing), 0)
+	n.lastCast.approachUnitID = 0
+	if plan.Mode == ExploreEntityApproach {
+		n.lastCast.approachUnitID = plan.Entrance.UnitID
+	}
+	n.logNavTick(state, string(plan.Mode), 0)
 	return NavTickResult{Status: n.status}
 }
 
@@ -261,17 +298,29 @@ func (n *Navigator) evaluatePendingCast(now time.Time, state world.State) bool {
 	moved := world.Distance(n.lastCast.pos, state.Player.Position)
 	if moved >= n.deps.Config.StuckProgressTiles {
 		n.lastCast.pending = false
+		n.lastCast.approachUnitID = 0
 		return true
 	}
 	if now.Sub(n.lastCast.at) >= teleportSettleTimeout {
-		n.explorer.Rotate()
+		if n.lastCast.approachUnitID != 0 {
+			n.explorer.ForceClickEntrance(n.lastCast.approachUnitID)
+			n.log.Debug("pathing nav entity approach blocked",
+				"reason", "teleport_blocked",
+				"unit_id", n.lastCast.approachUnitID,
+				"player_x", state.Player.Position.X,
+				"player_y", state.Player.Position.Y,
+			)
+		} else {
+			n.explorer.Rotate()
+			n.log.Debug("pathing nav bearing rotated",
+				"reason", "teleport_blocked",
+				"bearing_index", n.explorer.BearingIndex(),
+				"player_x", state.Player.Position.X,
+				"player_y", state.Player.Position.Y,
+			)
+		}
 		n.lastCast.pending = false
-		n.log.Debug("pathing nav bearing rotated",
-			"reason", "teleport_blocked",
-			"bearing_index", n.explorer.BearingIndex(),
-			"player_x", state.Player.Position.X,
-			"player_y", state.Player.Position.Y,
-		)
+		n.lastCast.approachUnitID = 0
 		return true
 	}
 	return false

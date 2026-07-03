@@ -88,6 +88,9 @@ func (r *Runner) Reset(reason string) {
 	if r.deps.TownWalk != nil {
 		r.deps.TownWalk.Reset()
 	}
+	if r.deps.Pathing != nil {
+		r.deps.Pathing.Reset()
+	}
 	r.log.Info("task run reset", "run", r.selection.Run, "phase", r.selection.Phase, "reason", reason)
 }
 
@@ -164,6 +167,9 @@ func (r *Runner) beginStep(name string, now time.Time) {
 	if r.deps.TownWalk != nil {
 		r.deps.TownWalk.Reset()
 	}
+	if r.deps.Pathing != nil {
+		r.deps.Pathing.Reset()
+	}
 	if r.run != nil {
 		r.run.onStepEnter(name)
 	}
@@ -216,6 +222,9 @@ func (r *Runner) finishStepFailed(now time.Time, reason string) TickResult {
 	}
 	if r.deps.TownWalk != nil {
 		r.deps.TownWalk.Reset()
+	}
+	if r.deps.Pathing != nil {
+		r.deps.Pathing.Reset()
 	}
 	r.log.Info("task run finished",
 		"run", r.selection.Run,
