@@ -12,6 +12,8 @@ type Options struct {
 	InputTestObserveMs int
 	// Run selects an active farming run; overrides config runs.active when set.
 	Run string
+	// RunPhase selects an optional phase for the active run (e.g. travel-marsh).
+	RunPhase string
 	// PathingTest starts the manual pathing-test mode with the given spec (empty = disabled).
 	// Specs: teleport:TX,TY | hover:watch | move-area:<id|name> | click-entity:waypoint|entrance
 	PathingTest string

@@ -10,6 +10,7 @@ import (
 type InputDriver interface {
 	MoveTo(clientX, clientY int) error
 	Click(button input.MouseButton) error
+	PressKey(key string) error
 	CastSkillAt(src input.BindingSource, skillID uint16, clientX, clientY int) error
 	Window() (input.WindowInfo, bool)
 }

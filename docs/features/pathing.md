@@ -120,6 +120,10 @@ go run ./cmd/d2rbot --pathing-test move-area:black_marsh
 # Stufe B: Hover-Loop-Klick auf Waypoint/Entrance
 go run ./cmd/d2rbot --pathing-test click-entity:waypoint
 go run ./cmd/d2rbot --pathing-test click-entity:entrance
+
+# Stufe C: Act-1-Town-Walk zum Waypoint (Force Move)
+go run ./cmd/d2rbot --pathing-test play-town-route:act1-waypoint
+go run ./cmd/d2rbot --pathing-test record-town-route:act1-waypoint
 ```
 
 - `--pathing-test-timeout-ms` (Default 120000) begrenzt die Testdauer
@@ -160,7 +164,7 @@ go run ./cmd/d2rbot --pathing-test click-entity:entrance
 - **Bearing-Explore ist ungerichtet (WIP):** Der Planner kennt die Richtung des Zielgebiets nicht — er hält eine Kompass-Richtung, bis sie blockiert, und rotiert dann weiter. Für lange Strecken (z. B. Blood Moor → Black Marsh über mehrere Zonen) ist das funktional, aber langsam und ineffizient
 - **Outdoor-Zonenübergänge werden nicht gezielt angesteuert (WIP, Testlauf 2026-07-02):** Bearing-Explore deckt den Kartenrand ab, teleportiert aber nie gezielt **in** den schmalen Übergangsbereich zwischen zwei Outdoor-Zonen hinein — der Bot dreht große Kreise am Rand und verpasst den Übergang. Geplante Abhilfe: Run Recorder / Route-Cache ([`docs/backlog.md`](../backlog.md)) — der Spieler zeichnet den Run einmal manuell auf, der Bot spielt die Route ab. Für den Countess-Run (4.4+) reduziert Waypoint-Travel die Explore-Strecken deutlich; Entrance-Übergänge (Tower, Treppen) funktionieren dagegen präzise über den Hover-Loop. Koolos Alternative (lokaler Map-Server aus D2-LoD-1.13c-DLLs + Seed-Read) ist bewusst zurückgestellt — Begründung im Backlog unter „Verworfene Alternative: Map-Server-Navigation"
 - Countess-Run-Travel-Steps (Phase 4.4+), Route-Cache ([`docs/backlog.md`](../backlog.md))
-- Laufen ohne Teleport, Klassen-Erkennung, Waypoint-UI-Panel-Klicks, Pickit
+- Allgemeines Laufen ohne Teleport ausserhalb des Act-1-Town-Walkers, Klassen-Erkennung, Pickit
 - Perspective-Mode; Memory-Camera (verworfen)
 
 ## Verwandte Features

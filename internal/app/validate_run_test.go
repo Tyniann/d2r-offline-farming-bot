@@ -5,12 +5,13 @@ import (
 	"testing"
 
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/config"
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/tasks"
 )
 
 func TestValidateRunModePassiveOK(t *testing.T) {
 	cfg := &config.Config{Input: config.InputConfig{Enabled: false}}
 	log := config.NewLogger("error")
-	if err := validateRunMode("", cfg, Options{}, log); err != nil {
+	if err := validateRunMode(resolveRunSelection(Options{}, cfg), cfg, Options{}, log); err != nil {
 		t.Fatalf("passive mode err = %v", err)
 	}
 }
@@ -18,7 +19,7 @@ func TestValidateRunModePassiveOK(t *testing.T) {
 func TestValidateRunModeUnknownRun(t *testing.T) {
 	cfg := &config.Config{Input: config.InputConfig{Enabled: true}}
 	log := config.NewLogger("error")
-	err := validateRunMode("mephisto", cfg, Options{}, log)
+	err := validateRunMode(tasksSelection("mephisto", ""), cfg, Options{}, log)
 	if err == nil {
 		t.Fatal("expected error for unknown run")
 	}
@@ -30,7 +31,7 @@ func TestValidateRunModeUnknownRun(t *testing.T) {
 func TestValidateRunModeDisabledInput(t *testing.T) {
 	cfg := &config.Config{Input: config.InputConfig{Enabled: false}}
 	log := config.NewLogger("error")
-	err := validateRunMode("countess", cfg, Options{}, log)
+	err := validateRunMode(tasksSelection("countess", ""), cfg, Options{}, log)
 	if err == nil {
 		t.Fatal("expected error when input disabled")
 	}
@@ -42,7 +43,7 @@ func TestValidateRunModeDisabledInput(t *testing.T) {
 func TestValidateRunModeInputTestConflict(t *testing.T) {
 	cfg := &config.Config{Input: config.InputConfig{Enabled: true}}
 	log := config.NewLogger("error")
-	err := validateRunMode("countess", cfg, Options{InputTest: "belt:1"}, log)
+	err := validateRunMode(tasksSelection("countess", ""), cfg, Options{InputTest: "belt:1"}, log)
 	if err == nil {
 		t.Fatal("expected error for --run with --input-test")
 	}
@@ -64,7 +65,38 @@ func TestResolveActiveRunCLIPriority(t *testing.T) {
 func TestValidateRunModeKnownRunOK(t *testing.T) {
 	cfg := &config.Config{Input: config.InputConfig{Enabled: true}}
 	log := config.NewLogger("error")
-	if err := validateRunMode("countess", cfg, Options{Run: "countess"}, log); err != nil {
+	if err := validateRunMode(tasksSelection("countess", ""), cfg, Options{Run: "countess"}, log); err != nil {
 		t.Fatalf("countess err = %v", err)
 	}
+}
+
+func TestValidateRunModePhaseRequiresRun(t *testing.T) {
+	cfg := &config.Config{Input: config.InputConfig{Enabled: true}}
+	log := config.NewLogger("error")
+	err := validateRunMode(tasksSelection("", "travel-marsh"), cfg, Options{RunPhase: "travel-marsh"}, log)
+	if !errors.Is(err, errRunPhaseRequiresRun) {
+		t.Fatalf("err = %v, want errRunPhaseRequiresRun", err)
+	}
+}
+
+func TestValidateRunModeTravelMarshOK(t *testing.T) {
+	cfg := &config.Config{Input: config.InputConfig{Enabled: true}}
+	log := config.NewLogger("error")
+	err := validateRunMode(tasksSelection("countess", "travel-marsh"), cfg, Options{Run: "countess", RunPhase: "travel-marsh"}, log)
+	if err != nil {
+		t.Fatalf("travel-marsh err = %v", err)
+	}
+}
+
+func TestValidateRunModeUnsupportedPhase(t *testing.T) {
+	cfg := &config.Config{Input: config.InputConfig{Enabled: true}}
+	log := config.NewLogger("error")
+	err := validateRunMode(tasksSelection("countess", "tower"), cfg, Options{Run: "countess", RunPhase: "tower"}, log)
+	if !errors.Is(err, errUnsupportedRunPhase) {
+		t.Fatalf("err = %v, want errUnsupportedRunPhase", err)
+	}
+}
+
+func tasksSelection(run, phase string) tasks.RunSelection {
+	return tasks.RunSelection{Run: run, Phase: phase}
 }

@@ -5,8 +5,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/config"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/input"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/memory"
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/pathing"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/process"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/tasks"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/world"
@@ -25,6 +27,59 @@ func TestShouldTickTasksBlocksWhenPhaseLoading(t *testing.T) {
 	st.Phase = world.GamePhaseLoading
 	if rt.shouldTickTasks(st) {
 		t.Fatal("expected false when phase=loading")
+	}
+}
+
+type mockTaskWaypointActions struct {
+	results     []pathing.WaypointActionResult
+	selectCalls int
+}
+
+type mockTaskTownWalker struct{}
+
+func (mockTaskTownWalker) Reset() {}
+
+func (mockTaskTownWalker) TickAct1Waypoint(context.Context, world.State) pathing.TownWalkResult {
+	return pathing.TownWalkResult{Status: pathing.TownWalkWaypointVisible, Done: true}
+}
+
+func (m *mockTaskWaypointActions) Reset() {}
+
+func (m *mockTaskWaypointActions) TickTownWaypoint(context.Context, world.State) pathing.WaypointActionResult {
+	if len(m.results) == 0 {
+		return pathing.WaypointActionResult{Status: pathing.WaypointActionClicked, Done: true}
+	}
+	res := m.results[0]
+	m.results = m.results[1:]
+	return res
+}
+
+func (m *mockTaskWaypointActions) SelectBlackMarsh(context.Context) pathing.WaypointActionResult {
+	m.selectCalls++
+	return pathing.WaypointActionResult{Status: pathing.WaypointActionClicked, Done: true}
+}
+
+func TestShouldTickTasksAllowsLoadingOnlyForCurrentNonInputStep(t *testing.T) {
+	in := &mockInput{enabled: true, bound: true}
+	rt := testRuntimeWithTasks(attachedProc(), &mockProbe{}, in, Options{RunPhase: tasks.CountessPhaseTravelMarsh}, "countess")
+	wp := &mockTaskWaypointActions{
+		results: []pathing.WaypointActionResult{{Status: pathing.WaypointActionClicked, Done: true}},
+	}
+	rt.Tasks = tasks.NewRunner(config.NewLogger("error"), tasks.RunSelection{Run: "countess", Phase: tasks.CountessPhaseTravelMarsh}, tasks.RunConfig{StepTimeout: time.Second}, tasks.Deps{Waypoint: wp, TownWalk: mockTaskTownWalker{}})
+	now := time.Now()
+	_ = rt.Tasks.Tick(context.Background(), validWorldState(100), now)
+	_ = rt.Tasks.Tick(context.Background(), validWorldState(100), now.Add(time.Millisecond))
+	_ = rt.Tasks.Tick(context.Background(), validWorldState(100), now.Add(2*time.Millisecond))
+	_ = rt.Tasks.Tick(context.Background(), validWorldState(100), now.Add(time.Second))
+	if !rt.Tasks.CurrentStepAllowsNonInputTick() {
+		t.Fatal("expected wait_black_marsh to allow non-input ticks")
+	}
+
+	st := validWorldState(100)
+	st.Valid = false
+	st.Phase = world.GamePhaseLoading
+	if !rt.shouldTickTasks(st) {
+		t.Fatal("expected loading tick for wait_black_marsh")
 	}
 }
 

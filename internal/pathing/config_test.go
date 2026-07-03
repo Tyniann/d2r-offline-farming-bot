@@ -25,6 +25,15 @@ func TestConfigValidateRejectsInvalidValues(t *testing.T) {
 		{"zero bearing count", func(c *Config) { c.Explore.BearingCount = 0 }},
 		{"zero step distance", func(c *Config) { c.Explore.StepDistanceTiles = 0 }},
 		{"zero click distance", func(c *Config) { c.Explore.MaxEntranceClickDistance = 0 }},
+		{"zero waypoint distance", func(c *Config) { c.Waypoint.MaxClickDistance = 0 }},
+		{"negative waypoint ui x", func(c *Config) { c.WaypointUI.BlackMarshX = -1 }},
+		{"negative waypoint ui y", func(c *Config) { c.WaypointUI.BlackMarshY = -1 }},
+		{"missing town route", func(c *Config) { c.TownWalk.RouteFile = "" }},
+		{"missing force move key", func(c *Config) { c.TownWalk.ForceMoveKey = "" }},
+		{"zero town move interval", func(c *Config) { c.TownWalk.MoveInterval = 0 }},
+		{"zero town settle timeout", func(c *Config) { c.TownWalk.SettleTimeout = 0 }},
+		{"zero town stuck timeout", func(c *Config) { c.TownWalk.StuckTimeout = 0 }},
+		{"zero town arrival distance", func(c *Config) { c.TownWalk.ArrivalDistance = 0 }},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

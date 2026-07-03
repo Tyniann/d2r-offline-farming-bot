@@ -36,6 +36,7 @@ type Runtime struct {
 	Bindings configBindingSource
 	Tasks    *tasks.Runner
 	Pathing  *pathing.Navigator
+	TownWalk *pathing.TownWalker
 	Loot     *loot.Filter
 }
 
@@ -96,12 +97,14 @@ func New(cfg *config.Config, opts Options) (*Runtime, error) {
 		Bindings: bindings,
 		Config:   pathingCfg,
 	})
+	waypoints := pathing.NewWaypointActions(log, inputCtrl, pathingCfg)
+	townWalker := pathing.NewTownWalker(log, inputCtrl, pathingCfg)
 
 	probe := memory.NewProbeReader(mem, offsetSet)
 	probe.SetScannedCachePath(cfg.ResolvePath(memory.DefaultScannedCacheFile))
 
-	runName := resolveActiveRun(opts, cfg)
-	if err := validateRunMode(runName, cfg, opts, log); err != nil {
+	runSelection := resolveRunSelection(opts, cfg)
+	if err := validateRunMode(runSelection, cfg, opts, log); err != nil {
 		return nil, err
 	}
 
@@ -115,12 +118,15 @@ func New(cfg *config.Config, opts Options) (*Runtime, error) {
 		World:    world.NewModel(log),
 		Input:    inputCtrl,
 		Bindings: bindings,
-		Tasks: tasks.NewRunner(log, runName, mapRunConfig(cfg.Runs), tasks.Deps{
-			Input:   inputCtrl,
-			Pathing: nav,
+		Tasks: tasks.NewRunner(log, runSelection, mapRunConfig(cfg.Runs), tasks.Deps{
+			Input:    inputCtrl,
+			Pathing:  nav,
+			Waypoint: waypoints,
+			TownWalk: townWalker,
 		}),
-		Pathing: nav,
-		Loot:    loot.NewFilter(log),
+		Pathing:  nav,
+		TownWalk: townWalker,
+		Loot:     loot.NewFilter(log),
 	}
 
 	if err := rt.verifyEnvironment(); err != nil {

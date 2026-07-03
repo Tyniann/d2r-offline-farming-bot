@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/input"
 	"gopkg.in/yaml.v3"
 )
 
@@ -16,6 +17,9 @@ type PathingConfig struct {
 	Projection         PathingProjectionConfig `yaml:"projection"`
 	Click              PathingClickConfig      `yaml:"click"`
 	Explore            PathingExploreConfig    `yaml:"explore"`
+	Waypoint           PathingWaypointConfig   `yaml:"waypoint"`
+	WaypointUI         PathingWaypointUIConfig `yaml:"waypoint_ui"`
+	TownWalk           PathingTownWalkConfig   `yaml:"town_walk"`
 
 	sectionPresent bool `yaml:"-"`
 }
@@ -40,6 +44,37 @@ type PathingExploreConfig struct {
 	BearingCount             int     `yaml:"bearing_count"`
 	StepDistanceTiles        float64 `yaml:"step_distance_tiles"`
 	MaxEntranceClickDistance float64 `yaml:"max_entrance_click_distance"`
+}
+
+// PathingWaypointConfig tunes hover-confirmed waypoint object clicks.
+type PathingWaypointConfig struct {
+	// MaxClickDistance gates waypoint object clicks by tile distance.
+	MaxClickDistance float64 `yaml:"max_click_distance"`
+}
+
+// PathingWaypointUIConfig holds fixed client-relative waypoint menu coordinates.
+type PathingWaypointUIConfig struct {
+	// BlackMarshX is the client-relative X coordinate for Black Marsh.
+	BlackMarshX int `yaml:"black_marsh_x"`
+	// BlackMarshY is the client-relative Y coordinate for Black Marsh.
+	BlackMarshY int `yaml:"black_marsh_y"`
+}
+
+// PathingPointConfig is a YAML world-coordinate point.
+type PathingPointConfig struct {
+	X uint32 `yaml:"x"`
+	Y uint32 `yaml:"y"`
+}
+
+// PathingTownWalkConfig tunes Act-1 town walking to the waypoint.
+type PathingTownWalkConfig struct {
+	RouteFile          string               `yaml:"route_file"`
+	ForceMoveKey       string               `yaml:"force_move_key"`
+	MoveIntervalMs     int                  `yaml:"move_interval_ms"`
+	SettleTimeoutMs    int                  `yaml:"settle_timeout_ms"`
+	StuckTimeoutMs     int                  `yaml:"stuck_timeout_ms"`
+	ArrivalDistance    float64              `yaml:"arrival_distance_tiles"`
+	Act1WaypointPoints []PathingPointConfig `yaml:"act1_waypoint_points"`
 }
 
 // UnmarshalYAML records whether the pathing section was present.
@@ -92,6 +127,38 @@ func (c *PathingConfig) validate() error {
 	if c.Explore.MaxEntranceClickDistance <= 0 {
 		return fmt.Errorf("pathing.explore.max_entrance_click_distance must be > 0")
 	}
+	if c.Waypoint.MaxClickDistance <= 0 {
+		return fmt.Errorf("pathing.waypoint.max_click_distance must be > 0")
+	}
+	if c.WaypointUI.BlackMarshX < 0 || c.WaypointUI.BlackMarshY < 0 {
+		return fmt.Errorf("pathing.waypoint_ui.black_marsh_x/y must be >= 0")
+	}
+	if c.TownWalk.RouteFile == "" {
+		return fmt.Errorf("pathing.town_walk.route_file is required")
+	}
+	if c.TownWalk.ForceMoveKey == "" {
+		return fmt.Errorf("pathing.town_walk.force_move_key is required")
+	}
+	if err := input.ValidateKeyStrings(c.TownWalk.ForceMoveKey); err != nil {
+		return fmt.Errorf("pathing.town_walk.force_move_key: %w", err)
+	}
+	if c.TownWalk.MoveIntervalMs <= 0 {
+		return fmt.Errorf("pathing.town_walk.move_interval_ms must be > 0")
+	}
+	if c.TownWalk.SettleTimeoutMs <= 0 {
+		return fmt.Errorf("pathing.town_walk.settle_timeout_ms must be > 0")
+	}
+	if c.TownWalk.StuckTimeoutMs <= 0 {
+		return fmt.Errorf("pathing.town_walk.stuck_timeout_ms must be > 0")
+	}
+	if c.TownWalk.ArrivalDistance <= 0 {
+		return fmt.Errorf("pathing.town_walk.arrival_distance_tiles must be > 0")
+	}
+	for i, p := range c.TownWalk.Act1WaypointPoints {
+		if p.X == 0 || p.Y == 0 {
+			return fmt.Errorf("pathing.town_walk.act1_waypoint_points[%d] x/y must be > 0", i)
+		}
+	}
 	return nil
 }
 
@@ -137,5 +204,32 @@ func (c *PathingConfig) applyDefaults() {
 	}
 	if c.Explore.MaxEntranceClickDistance == 0 {
 		c.Explore.MaxEntranceClickDistance = 15
+	}
+	if c.Waypoint.MaxClickDistance == 0 {
+		c.Waypoint.MaxClickDistance = 15
+	}
+	if c.WaypointUI.BlackMarshX == 0 {
+		c.WaypointUI.BlackMarshX = 200
+	}
+	if c.WaypointUI.BlackMarshY == 0 {
+		c.WaypointUI.BlackMarshY = 342
+	}
+	if c.TownWalk.RouteFile == "" {
+		c.TownWalk.RouteFile = "configs/routes/act1-town-waypoint.yaml"
+	}
+	if c.TownWalk.ForceMoveKey == "" {
+		c.TownWalk.ForceMoveKey = "e"
+	}
+	if c.TownWalk.MoveIntervalMs == 0 {
+		c.TownWalk.MoveIntervalMs = 650
+	}
+	if c.TownWalk.SettleTimeoutMs == 0 {
+		c.TownWalk.SettleTimeoutMs = 350
+	}
+	if c.TownWalk.StuckTimeoutMs == 0 {
+		c.TownWalk.StuckTimeoutMs = 3500
+	}
+	if c.TownWalk.ArrivalDistance == 0 {
+		c.TownWalk.ArrivalDistance = 8
 	}
 }

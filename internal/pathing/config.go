@@ -3,6 +3,8 @@ package pathing
 import (
 	"fmt"
 	"time"
+
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/world"
 )
 
 // Config holds tuning parameters for the navigator, projection, entity clicks,
@@ -20,6 +22,9 @@ type Config struct {
 	Projection ProjectionConfig
 	Click      ClickConfig
 	Explore    ExploreConfig
+	Waypoint   WaypointConfig
+	WaypointUI WaypointUIConfig
+	TownWalk   TownWalkConfig
 }
 
 // ProjectionConfig calibrates the relative (player-centered) projection.
@@ -52,6 +57,38 @@ type ExploreConfig struct {
 	MaxEntranceClickDistance float64
 }
 
+// WaypointConfig tunes hover-confirmed waypoint object actions.
+type WaypointConfig struct {
+	// MaxClickDistance gates waypoint object clicks; the object must be visible.
+	MaxClickDistance float64
+}
+
+// WaypointUIConfig holds fixed client-relative coordinates in the waypoint menu.
+type WaypointUIConfig struct {
+	// BlackMarshX is the client X coordinate for the Black Marsh waypoint row.
+	BlackMarshX int
+	// BlackMarshY is the client Y coordinate for the Black Marsh waypoint row.
+	BlackMarshY int
+}
+
+// TownWalkConfig tunes force-move walking inside Rogue Encampment.
+type TownWalkConfig struct {
+	// RouteFile is the optional recorded override path.
+	RouteFile string
+	// ForceMoveKey is the in-game Force Move key, usually "e".
+	ForceMoveKey string
+	// MoveInterval is the minimum delay between Force Move clicks.
+	MoveInterval time.Duration
+	// SettleTimeout is the grace period after a move input before stuck checks.
+	SettleTimeout time.Duration
+	// StuckTimeout aborts when the player makes no progress for this duration.
+	StuckTimeout time.Duration
+	// ArrivalDistance is the tile distance that satisfies a route point.
+	ArrivalDistance float64
+	// Act1WaypointPoints optionally overrides the built-in Act-1 preset route.
+	Act1WaypointPoints []world.Position
+}
+
 // DefaultConfig returns Phase 4.3 defaults matching configs/config.example.yaml.
 func DefaultConfig() Config {
 	return Config{
@@ -74,6 +111,21 @@ func DefaultConfig() Config {
 			BearingCount:             8,
 			StepDistanceTiles:        25,
 			MaxEntranceClickDistance: 15,
+		},
+		Waypoint: WaypointConfig{
+			MaxClickDistance: 15,
+		},
+		WaypointUI: WaypointUIConfig{
+			BlackMarshX: 200,
+			BlackMarshY: 342,
+		},
+		TownWalk: TownWalkConfig{
+			RouteFile:       "configs/routes/act1-town-waypoint.yaml",
+			ForceMoveKey:    "e",
+			MoveInterval:    650 * time.Millisecond,
+			SettleTimeout:   350 * time.Millisecond,
+			StuckTimeout:    3500 * time.Millisecond,
+			ArrivalDistance: 8,
 		},
 	}
 }
@@ -116,6 +168,30 @@ func (c Config) Validate() error {
 	}
 	if c.Explore.MaxEntranceClickDistance <= 0 {
 		return fmt.Errorf("pathing.explore.max_entrance_click_distance must be > 0")
+	}
+	if c.Waypoint.MaxClickDistance <= 0 {
+		return fmt.Errorf("pathing.waypoint.max_click_distance must be > 0")
+	}
+	if c.WaypointUI.BlackMarshX < 0 || c.WaypointUI.BlackMarshY < 0 {
+		return fmt.Errorf("pathing.waypoint_ui.black_marsh_x/y must be >= 0")
+	}
+	if c.TownWalk.RouteFile == "" {
+		return fmt.Errorf("pathing.town_walk.route_file is required")
+	}
+	if c.TownWalk.ForceMoveKey == "" {
+		return fmt.Errorf("pathing.town_walk.force_move_key is required")
+	}
+	if c.TownWalk.MoveInterval <= 0 {
+		return fmt.Errorf("pathing.town_walk.move_interval_ms must be > 0")
+	}
+	if c.TownWalk.SettleTimeout <= 0 {
+		return fmt.Errorf("pathing.town_walk.settle_timeout_ms must be > 0")
+	}
+	if c.TownWalk.StuckTimeout <= 0 {
+		return fmt.Errorf("pathing.town_walk.stuck_timeout_ms must be > 0")
+	}
+	if c.TownWalk.ArrivalDistance <= 0 {
+		return fmt.Errorf("pathing.town_walk.arrival_distance_tiles must be > 0")
 	}
 	return nil
 }

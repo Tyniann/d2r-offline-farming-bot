@@ -1,17 +1,29 @@
 package tasks
 
 import (
+	"context"
 	"fmt"
+	"time"
 
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/world"
 )
+
+// RunSelection identifies the configured run and optional phase.
+type RunSelection struct {
+	// Run is the configured farming run name.
+	Run string
+	// Phase is an optional run phase; empty preserves the run's default behavior.
+	Phase string
+}
 
 // runMachine executes step logic for a configured run name.
 type runMachine interface {
 	firstStep() string
 	nextStep(current string) string
 	usesTickTimeout(step string) bool
-	onTick(step string, w world.State, ticksInStep int) stepResult
+	allowsNonInputTick(step string) bool
+	onStepEnter(step string)
+	onTick(ctx context.Context, deps Deps, step string, w world.State, now time.Time, stepStartedAt time.Time, ticksInStep int) stepResult
 }
 
 // KnownRuns returns registered run names in stable order.
@@ -29,11 +41,18 @@ func IsKnownRun(name string) bool {
 	return false
 }
 
-func newRunMachine(name string) (runMachine, error) {
-	switch name {
+func newRunMachine(sel RunSelection) (runMachine, error) {
+	switch sel.Run {
 	case "countess":
-		return &countessRun{}, nil
+		switch sel.Phase {
+		case "":
+			return &countessRun{}, nil
+		case CountessPhaseTravelMarsh:
+			return &countessRun{phase: sel.Phase}, nil
+		default:
+			return nil, fmt.Errorf("unknown countess phase %q", sel.Phase)
+		}
 	default:
-		return nil, fmt.Errorf("unknown run %q", name)
+		return nil, fmt.Errorf("unknown run %q", sel.Run)
 	}
 }

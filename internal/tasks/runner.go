@@ -16,12 +16,12 @@ type RunConfig struct {
 
 // Runner executes high-level run state machines.
 type Runner struct {
-	log           *slog.Logger
-	deps          Deps
-	runConfig     RunConfig
-	configuredRun string
-	run           runMachine
-	tracker       stepTracker
+	log       *slog.Logger
+	deps      Deps
+	runConfig RunConfig
+	selection RunSelection
+	run       runMachine
+	tracker   stepTracker
 
 	started  bool
 	terminal bool
@@ -29,17 +29,17 @@ type Runner struct {
 	outcome  RunOutcome
 }
 
-// NewRunner builds a task runner for runName (empty = passive mode).
-func NewRunner(log *slog.Logger, runName string, cfg RunConfig, deps Deps) *Runner {
+// NewRunner builds a task runner for sel (empty Run = passive mode).
+func NewRunner(log *slog.Logger, sel RunSelection, cfg RunConfig, deps Deps) *Runner {
 	r := &Runner{
-		log:           log.With("component", "tasks"),
-		deps:          deps,
-		runConfig:     cfg,
-		configuredRun: runName,
-		outcome:       RunOutcomeIdle,
+		log:       log.With("component", "tasks"),
+		deps:      deps,
+		runConfig: cfg,
+		selection: sel,
+		outcome:   RunOutcomeIdle,
 	}
-	if runName != "" {
-		run, err := newRunMachine(runName)
+	if sel.Run != "" {
+		run, err := newRunMachine(sel)
 		if err == nil {
 			r.run = run
 		}
@@ -54,7 +54,12 @@ func (r *Runner) Ready() bool {
 
 // ConfiguredRun returns the resolved run name from CLI or config.
 func (r *Runner) ConfiguredRun() string {
-	return r.configuredRun
+	return r.selection.Run
+}
+
+// ConfiguredPhase returns the optional selected run phase.
+func (r *Runner) ConfiguredPhase() string {
+	return r.selection.Phase
 }
 
 // Terminal reports whether the run finished with success or failure.
@@ -67,9 +72,9 @@ func (r *Runner) WasReset() bool {
 	return r.reset
 }
 
-// Reset aborts an active run. No-op without log when configuredRun is empty.
+// Reset aborts an active run. No-op when no run is configured.
 func (r *Runner) Reset(reason string) {
-	if r.configuredRun == "" {
+	if r.selection.Run == "" {
 		return
 	}
 	if r.reset {
@@ -77,12 +82,18 @@ func (r *Runner) Reset(reason string) {
 	}
 	r.reset = true
 	r.outcome = RunOutcomeIdle
-	r.log.Info("task run reset", "run", r.configuredRun, "reason", reason)
+	if r.deps.Waypoint != nil {
+		r.deps.Waypoint.Reset()
+	}
+	if r.deps.TownWalk != nil {
+		r.deps.TownWalk.Reset()
+	}
+	r.log.Info("task run reset", "run", r.selection.Run, "phase", r.selection.Phase, "reason", reason)
 }
 
 // Tick advances the configured run by one poll when guards allow.
-func (r *Runner) Tick(_ context.Context, w world.State, now time.Time) TickResult {
-	if r.configuredRun == "" || r.reset || r.terminal {
+func (r *Runner) Tick(ctx context.Context, w world.State, now time.Time) TickResult {
+	if r.selection.Run == "" || r.reset || r.terminal {
 		return r.inactiveResult()
 	}
 	if r.run == nil {
@@ -96,12 +107,12 @@ func (r *Runner) Tick(_ context.Context, w world.State, now time.Time) TickResul
 	if !r.started {
 		r.started = true
 		r.outcome = RunOutcomeRunning
-		r.log.Info("task run started", "run", r.configuredRun)
+		r.log.Info("task run started", "run", r.selection.Run, "phase", r.selection.Phase)
 		r.beginStep(r.run.firstStep(), now)
 	}
 
 	r.tracker.incrementTick()
-	result := r.run.onTick(r.tracker.name, w, r.tracker.ticksInStep)
+	result := r.run.onTick(ctx, r.deps, r.tracker.name, w, now, r.tracker.startedAt, r.tracker.ticksInStep)
 
 	if result.failed {
 		return r.finishStepFailed(now, result.reason)
@@ -118,6 +129,15 @@ func (r *Runner) Tick(_ context.Context, w world.State, now time.Time) TickResul
 		Outcome: RunOutcomeRunning,
 		Step:    r.tracker.name,
 	}
+}
+
+// CurrentStepAllowsNonInputTick reports whether the active step may tick while
+// the world is loading/invalid. These ticks must not perform input.
+func (r *Runner) CurrentStepAllowsNonInputTick() bool {
+	if r == nil || !r.started || r.run == nil || r.reset || r.terminal {
+		return false
+	}
+	return r.run.allowsNonInputTick(r.tracker.name)
 }
 
 func (r *Runner) inactiveResult() TickResult {
@@ -138,12 +158,21 @@ func (r *Runner) beginStep(name string, now time.Time) {
 		timeout = r.runConfig.StepTimeout
 	}
 	r.tracker.begin(name, now, timeout)
-	r.log.Info("task step started", "run", r.configuredRun, "step", name)
+	if r.deps.Waypoint != nil {
+		r.deps.Waypoint.Reset()
+	}
+	if r.deps.TownWalk != nil {
+		r.deps.TownWalk.Reset()
+	}
+	if r.run != nil {
+		r.run.onStepEnter(name)
+	}
+	r.log.Info("task step started", "run", r.selection.Run, "phase", r.selection.Phase, "step", name)
 }
 
 func (r *Runner) finishStepComplete(now time.Time) TickResult {
 	step := r.tracker.name
-	logArgs := []any{"run", r.configuredRun, "step", step}
+	logArgs := []any{"run", r.selection.Run, "phase", r.selection.Phase, "step", step}
 	if r.run != nil && r.run.usesTickTimeout(step) {
 		logArgs = append(logArgs, "ticks", r.tracker.ticksInStep)
 	} else {
@@ -155,7 +184,7 @@ func (r *Runner) finishStepComplete(now time.Time) TickResult {
 	if next == "" {
 		r.terminal = true
 		r.outcome = RunOutcomeSuccess
-		r.log.Info("task run finished", "run", r.configuredRun, "outcome", RunOutcomeSuccess)
+		r.log.Info("task run finished", "run", r.selection.Run, "phase", r.selection.Phase, "outcome", RunOutcomeSuccess)
 		return TickResult{
 			Active:  true,
 			Outcome: RunOutcomeSuccess,
@@ -174,15 +203,23 @@ func (r *Runner) finishStepComplete(now time.Time) TickResult {
 func (r *Runner) finishStepFailed(now time.Time, reason string) TickResult {
 	step := r.tracker.name
 	r.log.Info("task step failed",
-		"run", r.configuredRun,
+		"run", r.selection.Run,
+		"phase", r.selection.Phase,
 		"step", step,
 		"reason", reason,
 		"elapsed_ms", r.tracker.elapsed(now).Milliseconds(),
 	)
 	r.terminal = true
 	r.outcome = RunOutcomeFailed
+	if r.deps.Waypoint != nil {
+		r.deps.Waypoint.Reset()
+	}
+	if r.deps.TownWalk != nil {
+		r.deps.TownWalk.Reset()
+	}
 	r.log.Info("task run finished",
-		"run", r.configuredRun,
+		"run", r.selection.Run,
+		"phase", r.selection.Phase,
 		"outcome", RunOutcomeFailed,
 		"reason", reason,
 	)

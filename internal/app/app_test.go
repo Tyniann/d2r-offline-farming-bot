@@ -229,7 +229,7 @@ func testRuntimeWithInput(proc processController, probe snapshotReader, in input
 		Input:    in,
 		Bindings: testBindings(),
 		Pathing:  nav,
-		Tasks: tasks.NewRunner(config.NewLogger("error"), "", tasks.RunConfig{}, tasks.Deps{
+		Tasks: tasks.NewRunner(config.NewLogger("error"), tasks.RunSelection{}, tasks.RunConfig{}, tasks.Deps{
 			Input:   in,
 			Pathing: nav,
 		}),
@@ -239,7 +239,7 @@ func testRuntimeWithInput(proc processController, probe snapshotReader, in input
 func testRuntimeWithTasks(proc processController, probe snapshotReader, in inputController, opts Options, runName string) *Runtime {
 	rt := testRuntimeWithInput(proc, probe, in, opts)
 	rt.Config.Input.Enabled = true
-	rt.Tasks = tasks.NewRunner(config.NewLogger("error"), runName, tasks.RunConfig{
+	rt.Tasks = tasks.NewRunner(config.NewLogger("error"), tasks.RunSelection{Run: runName, Phase: opts.RunPhase}, tasks.RunConfig{
 		StepTimeout: 30 * time.Second,
 	}, tasks.Deps{
 		Input:   in,

@@ -19,6 +19,8 @@ func TestParsePathingTestSpec(t *testing.T) {
 		{"move-area:6", pathingTestSpec{kind: pathingTestMoveArea, area: world.BlackMarsh}},
 		{"click-entity:waypoint", pathingTestSpec{kind: pathingTestClickEntity, entity: "waypoint"}},
 		{"click-entity:entrance", pathingTestSpec{kind: pathingTestClickEntity, entity: "entrance"}},
+		{"play-town-route:act1-waypoint", pathingTestSpec{kind: pathingTestPlayTown, route: "act1-waypoint"}},
+		{"record-town-route:act1-waypoint", pathingTestSpec{kind: pathingTestRecordTown, route: "act1-waypoint"}},
 	}
 	for _, tc := range cases {
 		got, err := parsePathingTestSpec(tc.spec)
@@ -34,7 +36,8 @@ func TestParsePathingTestSpec(t *testing.T) {
 func TestParsePathingTestSpecInvalid(t *testing.T) {
 	for _, spec := range []string{
 		"", "teleport", "teleport:abc,5", "teleport:5000", "hover:foo",
-		"move-area:unknown_area", "click-entity:monster", "unknown:arg",
+		"move-area:unknown_area", "click-entity:monster", "play-town-route:act2-waypoint",
+		"record-town-route:act2-waypoint", "unknown:arg",
 	} {
 		if _, err := parsePathingTestSpec(spec); err == nil {
 			t.Fatalf("parsePathingTestSpec(%q) expected error", spec)
@@ -56,6 +59,20 @@ func TestPathingTestSpecRequiresInput(t *testing.T) {
 	}
 	if !move.requiresInput() {
 		t.Fatal("move-area must require input")
+	}
+	record, err := parsePathingTestSpec("record-town-route:act1-waypoint")
+	if err != nil {
+		t.Fatalf("parse error = %v", err)
+	}
+	if record.requiresInput() {
+		t.Fatal("record-town-route must not require input")
+	}
+	play, err := parsePathingTestSpec("play-town-route:act1-waypoint")
+	if err != nil {
+		t.Fatalf("parse error = %v", err)
+	}
+	if !play.requiresInput() {
+		t.Fatal("play-town-route must require input")
 	}
 }
 
@@ -95,7 +112,7 @@ func TestValidatePathingTestModeInputRequired(t *testing.T) {
 func TestValidateRunModePathingTestConflict(t *testing.T) {
 	cfg := &config.Config{Input: config.InputConfig{Enabled: true}}
 	log := config.NewLogger("error")
-	err := validateRunMode("countess", cfg, Options{Run: "countess", PathingTest: "move-area:6"}, log)
+	err := validateRunMode(resolveRunSelection(Options{Run: "countess", PathingTest: "move-area:6"}, cfg), cfg, Options{Run: "countess", PathingTest: "move-area:6"}, log)
 	if !errors.Is(err, errPathingTestConflict) {
 		t.Fatalf("err = %v, want errPathingTestConflict", err)
 	}

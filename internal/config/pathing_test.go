@@ -30,6 +30,19 @@ func TestPathingConfigDefaults(t *testing.T) {
 	if cfg.Explore.BearingCount != 8 || cfg.Explore.StepDistanceTiles != 25 || cfg.Explore.MaxEntranceClickDistance != 15 {
 		t.Fatalf("Explore = %+v, want defaults 8/25/15", cfg.Explore)
 	}
+	if cfg.Waypoint.MaxClickDistance != 15 {
+		t.Fatalf("Waypoint.MaxClickDistance = %v, want 15", cfg.Waypoint.MaxClickDistance)
+	}
+	if cfg.WaypointUI.BlackMarshX != 200 || cfg.WaypointUI.BlackMarshY != 342 {
+		t.Fatalf("WaypointUI = %+v, want 200/342", cfg.WaypointUI)
+	}
+	if cfg.TownWalk.ForceMoveKey != "e" || cfg.TownWalk.RouteFile != "configs/routes/act1-town-waypoint.yaml" {
+		t.Fatalf("TownWalk key/route = %+v, want e/default route", cfg.TownWalk)
+	}
+	if cfg.TownWalk.MoveIntervalMs != 650 || cfg.TownWalk.SettleTimeoutMs != 350 ||
+		cfg.TownWalk.StuckTimeoutMs != 3500 || cfg.TownWalk.ArrivalDistance != 8 {
+		t.Fatalf("TownWalk timings = %+v, want defaults", cfg.TownWalk)
+	}
 
 	if err := cfg.validate(); err != nil {
 		t.Fatalf("validate() after defaults error = %v", err)
@@ -64,6 +77,18 @@ func TestPathingConfigValidateRejectsInvalid(t *testing.T) {
 		{"negative bearing count", func(c *PathingConfig) { c.Explore.BearingCount = -1 }},
 		{"negative step distance", func(c *PathingConfig) { c.Explore.StepDistanceTiles = -1 }},
 		{"negative click distance", func(c *PathingConfig) { c.Explore.MaxEntranceClickDistance = -1 }},
+		{"negative waypoint distance", func(c *PathingConfig) { c.Waypoint.MaxClickDistance = -1 }},
+		{"negative waypoint ui x", func(c *PathingConfig) { c.WaypointUI.BlackMarshX = -1 }},
+		{"negative waypoint ui y", func(c *PathingConfig) { c.WaypointUI.BlackMarshY = -1 }},
+		{"missing town route", func(c *PathingConfig) { c.TownWalk.RouteFile = "" }},
+		{"invalid force move key", func(c *PathingConfig) { c.TownWalk.ForceMoveKey = "mouse4" }},
+		{"zero town move interval", func(c *PathingConfig) { c.TownWalk.MoveIntervalMs = 0 }},
+		{"zero town settle timeout", func(c *PathingConfig) { c.TownWalk.SettleTimeoutMs = 0 }},
+		{"zero town stuck timeout", func(c *PathingConfig) { c.TownWalk.StuckTimeoutMs = 0 }},
+		{"zero town arrival distance", func(c *PathingConfig) { c.TownWalk.ArrivalDistance = 0 }},
+		{"zero town point coordinate", func(c *PathingConfig) {
+			c.TownWalk.Act1WaypointPoints = []PathingPointConfig{{X: 0, Y: 1}}
+		}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

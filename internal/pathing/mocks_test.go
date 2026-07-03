@@ -13,9 +13,11 @@ type mockInput struct {
 	unbound  bool
 	moves    [][2]int
 	clicks   []input.MouseButton
+	keys     []string
 	casts    [][2]int
 	moveErr  error
 	clickErr error
+	keyErr   error
 	castErr  error
 }
 
@@ -38,6 +40,14 @@ func (m *mockInput) Click(button input.MouseButton) error {
 		return m.clickErr
 	}
 	m.clicks = append(m.clicks, button)
+	return nil
+}
+
+func (m *mockInput) PressKey(key string) error {
+	if m.keyErr != nil {
+		return m.keyErr
+	}
+	m.keys = append(m.keys, key)
 	return nil
 }
 

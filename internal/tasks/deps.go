@@ -10,8 +10,10 @@ import (
 
 // Deps holds shared runtime dependencies injected into task runs.
 type Deps struct {
-	Input   Input
-	Pathing Navigator
+	Input    Input
+	Pathing  Navigator
+	Waypoint WaypointActions
+	TownWalk TownWalker
 }
 
 // Input is the subset of input.Controller used by task runs.
@@ -28,6 +30,19 @@ type Navigator interface {
 	Start(goal pathing.Goal) error
 	Tick(ctx context.Context, state world.State) pathing.NavTickResult
 	Active() bool
+}
+
+// WaypointActions is the narrow waypoint-action surface used by task runs.
+type WaypointActions interface {
+	Reset()
+	TickTownWaypoint(context.Context, world.State) pathing.WaypointActionResult
+	SelectBlackMarsh(context.Context) pathing.WaypointActionResult
+}
+
+// TownWalker is the narrow town-walk surface used by task runs.
+type TownWalker interface {
+	Reset()
+	TickAct1Waypoint(context.Context, world.State) pathing.TownWalkResult
 }
 
 var (

@@ -80,3 +80,20 @@ pathing:
     step_distance_tiles: 25
     # Entity-Klick nur wenn Entity näher als diese Distanz (muss sichtbar sein)
     max_entrance_click_distance: 15
+  waypoint:
+    # Town waypoint object click distance gate; object must be visible/enumerated.
+    max_click_distance: 15
+  waypoint_ui:
+    # Client-relative Black Marsh waypoint row; default for 1280x720 windowed.
+    black_marsh_x: 200
+    black_marsh_y: 342
+  town_walk:
+    # Force Move key in D2R options; default key is E.
+    force_move_key: e
+    route_file: configs/routes/act1-town-waypoint.yaml
+    move_interval_ms: 650
+    settle_timeout_ms: 350
+    stuck_timeout_ms: 3500
+    arrival_distance_tiles: 8
+    # Optional override for the built-in Rogue Encampment stash/spawn -> waypoint route.
+    act1_waypoint_points: []

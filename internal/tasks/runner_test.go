@@ -6,25 +6,88 @@ import (
 	"time"
 
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/config"
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/pathing"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/world"
 )
 
 func townState() world.State {
 	return world.State{
 		Valid: true,
+		Phase: world.GamePhaseInGame,
 		Area:  world.LookupArea(world.AreaID(1)), // Rogue Encampment
 	}
+}
+
+func townStateWithWaypoint() world.State {
+	st := townState()
+	st.Player.Position = world.Position{X: 100, Y: 100}
+	st.Objects = []world.Object{{Kind: world.ObjectKindWaypoint, UnitID: 10, Position: world.Position{X: 105, Y: 105}, Name: "Waypoint"}}
+	return st
+}
+
+func townStateWithFarWaypoint() world.State {
+	st := townState()
+	st.Player.Position = world.Position{X: 100, Y: 100}
+	st.Objects = []world.Object{{Kind: world.ObjectKindWaypoint, UnitID: 10, Position: world.Position{X: 150, Y: 150}, Name: "Waypoint"}}
+	return st
 }
 
 func blackMarshState() world.State {
 	return world.State{
 		Valid: true,
+		Phase: world.GamePhaseInGame,
 		Area:  world.LookupArea(world.AreaID(6)), // Black Marsh
 	}
 }
 
+type mockWaypointActions struct {
+	results       []pathing.WaypointActionResult
+	selectResult  pathing.WaypointActionResult
+	tickCalls     int
+	selectCalls   int
+	resetCalls    int
+	lastTickState world.State
+}
+
+type mockTownWalker struct {
+	results []pathing.TownWalkResult
+	resets  int
+}
+
+func (m *mockTownWalker) Reset() { m.resets++ }
+
+func (m *mockTownWalker) TickAct1Waypoint(context.Context, world.State) pathing.TownWalkResult {
+	if len(m.results) == 0 {
+		return pathing.TownWalkResult{Status: pathing.TownWalkWaypointVisible, Done: true}
+	}
+	res := m.results[0]
+	m.results = m.results[1:]
+	return res
+}
+
+func (m *mockWaypointActions) Reset() { m.resetCalls++ }
+
+func (m *mockWaypointActions) TickTownWaypoint(_ context.Context, st world.State) pathing.WaypointActionResult {
+	m.tickCalls++
+	m.lastTickState = st
+	if len(m.results) == 0 {
+		return pathing.WaypointActionResult{Status: pathing.WaypointActionClicked, Done: true}
+	}
+	res := m.results[0]
+	m.results = m.results[1:]
+	return res
+}
+
+func (m *mockWaypointActions) SelectBlackMarsh(context.Context) pathing.WaypointActionResult {
+	m.selectCalls++
+	if m.selectResult.Status == "" {
+		return pathing.WaypointActionResult{Status: pathing.WaypointActionClicked, Done: true}
+	}
+	return m.selectResult
+}
+
 func newTestRunner(runName string) *Runner {
-	return NewRunner(config.NewLogger("error"), runName, RunConfig{StepTimeout: 30 * time.Second}, Deps{})
+	return NewRunner(config.NewLogger("error"), RunSelection{Run: runName}, RunConfig{StepTimeout: 30 * time.Second}, Deps{})
 }
 
 func TestRunnerPassiveModeNoOp(t *testing.T) {
@@ -123,13 +186,17 @@ func TestRunnerPrecheckSucceedsInTownAreaID1(t *testing.T) {
 // waitRun is a test-only run machine for timeout verification.
 type waitRun struct{}
 
-func (w *waitRun) firstStep() string { return "wait" }
-func (w *waitRun) nextStep(string) string { return "" }
-func (w *waitRun) usesTickTimeout(string) bool { return false }
-func (w *waitRun) onTick(string, world.State, int) stepResult { return stepResult{} }
+func (w *waitRun) firstStep() string              { return "wait" }
+func (w *waitRun) nextStep(string) string         { return "" }
+func (w *waitRun) usesTickTimeout(string) bool    { return false }
+func (w *waitRun) allowsNonInputTick(string) bool { return false }
+func (w *waitRun) onStepEnter(string)             {}
+func (w *waitRun) onTick(context.Context, Deps, string, world.State, time.Time, time.Time, int) stepResult {
+	return stepResult{}
+}
 
 func TestRunnerWaitStepTimeout(t *testing.T) {
-	r := NewRunner(config.NewLogger("error"), "wait", RunConfig{StepTimeout: 5 * time.Millisecond}, Deps{})
+	r := NewRunner(config.NewLogger("error"), RunSelection{Run: "wait"}, RunConfig{StepTimeout: 5 * time.Millisecond}, Deps{})
 	r.run = &waitRun{}
 	now := time.Now()
 
@@ -171,7 +238,7 @@ func TestRunnerResetBlocksRestart(t *testing.T) {
 }
 
 func TestRunnerStepTimeoutNotUsedForTickSteps(t *testing.T) {
-	r := NewRunner(config.NewLogger("error"), "countess", RunConfig{StepTimeout: 1 * time.Millisecond}, Deps{})
+	r := NewRunner(config.NewLogger("error"), RunSelection{Run: "countess"}, RunConfig{StepTimeout: 1 * time.Millisecond}, Deps{})
 	now := time.Now()
 
 	res := r.Tick(context.Background(), townState(), now)
@@ -199,5 +266,95 @@ func TestKnownRunsStable(t *testing.T) {
 	runs := KnownRuns()
 	if len(runs) != 1 || runs[0] != "countess" {
 		t.Fatalf("KnownRuns() = %v", runs)
+	}
+}
+
+func TestCountessTravelMarshSuccessThroughLoading(t *testing.T) {
+	wp := &mockWaypointActions{
+		results: []pathing.WaypointActionResult{
+			{Status: pathing.WaypointActionPending},
+			{Status: pathing.WaypointActionClicked, Done: true},
+		},
+	}
+	tw := &mockTownWalker{}
+	r := NewRunner(config.NewLogger("error"), RunSelection{Run: "countess", Phase: CountessPhaseTravelMarsh}, RunConfig{StepTimeout: time.Second}, Deps{Waypoint: wp, TownWalk: tw})
+	now := time.Now()
+
+	res := r.Tick(context.Background(), townStateWithWaypoint(), now)
+	if res.Step != countessStepAcquireTownWP || res.Outcome != RunOutcomeRunning {
+		t.Fatalf("precheck tick = %+v, want acquire_town_waypoint running", res)
+	}
+	res = r.Tick(context.Background(), townStateWithWaypoint(), now.Add(50*time.Millisecond))
+	if res.Step != countessStepOpenWaypoint {
+		t.Fatalf("acquire tick = %+v, want open_waypoint", res)
+	}
+	res = r.Tick(context.Background(), townStateWithWaypoint(), now.Add(100*time.Millisecond))
+	if res.Step != countessStepOpenWaypoint || wp.tickCalls != 1 {
+		t.Fatalf("open pending = %+v tickCalls=%d", res, wp.tickCalls)
+	}
+	res = r.Tick(context.Background(), townStateWithWaypoint(), now.Add(200*time.Millisecond))
+	if res.Step != countessStepSelectMarsh {
+		t.Fatalf("open clicked = %+v, want select_black_marsh", res)
+	}
+	res = r.Tick(context.Background(), townStateWithWaypoint(), now.Add(300*time.Millisecond))
+	if wp.selectCalls != 0 || res.Step != countessStepSelectMarsh {
+		t.Fatalf("settle tick = %+v selectCalls=%d, want no click", res, wp.selectCalls)
+	}
+	res = r.Tick(context.Background(), townStateWithWaypoint(), now.Add(800*time.Millisecond))
+	if wp.selectCalls != 1 || res.Step != countessStepWaitBlackMarsh {
+		t.Fatalf("select tick = %+v selectCalls=%d, want wait_black_marsh", res, wp.selectCalls)
+	}
+	if !r.CurrentStepAllowsNonInputTick() {
+		t.Fatal("wait_black_marsh should allow non-input ticks")
+	}
+	loading := world.State{Phase: world.GamePhaseLoading, Valid: false}
+	res = r.Tick(context.Background(), loading, now.Add(900*time.Millisecond))
+	if res.Step != countessStepWaitBlackMarsh || res.Outcome != RunOutcomeRunning {
+		t.Fatalf("loading wait tick = %+v, want still waiting", res)
+	}
+	res = r.Tick(context.Background(), blackMarshState(), now.Add(time.Second))
+	if res.Outcome != RunOutcomeSuccess {
+		t.Fatalf("black marsh tick = %+v, want success", res)
+	}
+}
+
+func TestCountessTravelMarshPrecheckFailsOutsideAct1Town(t *testing.T) {
+	r := NewRunner(config.NewLogger("error"), RunSelection{Run: "countess", Phase: CountessPhaseTravelMarsh}, RunConfig{StepTimeout: time.Second}, Deps{})
+	res := r.Tick(context.Background(), blackMarshState(), time.Now())
+	if res.Outcome != RunOutcomeFailed || res.Reason != "not_act1_town" {
+		t.Fatalf("tick = %+v, want not_act1_town failure", res)
+	}
+}
+
+func TestCountessTravelMarshWaypointFailureReason(t *testing.T) {
+	wp := &mockWaypointActions{
+		results: []pathing.WaypointActionResult{{Status: pathing.WaypointActionHoverNotFound, Reason: string(pathing.WaypointActionHoverNotFound), Done: true}},
+	}
+	r := NewRunner(config.NewLogger("error"), RunSelection{Run: "countess", Phase: CountessPhaseTravelMarsh}, RunConfig{StepTimeout: time.Second}, Deps{Waypoint: wp, TownWalk: &mockTownWalker{}})
+	now := time.Now()
+	_ = r.Tick(context.Background(), townStateWithWaypoint(), now)
+	_ = r.Tick(context.Background(), townStateWithWaypoint(), now.Add(time.Millisecond))
+	res := r.Tick(context.Background(), townStateWithWaypoint(), now.Add(2*time.Millisecond))
+	if res.Outcome != RunOutcomeFailed || res.Reason != string(pathing.WaypointActionHoverNotFound) {
+		t.Fatalf("tick = %+v, want hover_not_found failure", res)
+	}
+}
+
+func TestCountessTravelMarshAcquiresWaypointByTownWalk(t *testing.T) {
+	wp := &mockWaypointActions{}
+	tw := &mockTownWalker{results: []pathing.TownWalkResult{
+		{Status: pathing.TownWalkPending},
+		{Status: pathing.TownWalkWaypointVisible, Done: true},
+	}}
+	r := NewRunner(config.NewLogger("error"), RunSelection{Run: "countess", Phase: CountessPhaseTravelMarsh}, RunConfig{StepTimeout: time.Second}, Deps{Waypoint: wp, TownWalk: tw})
+	now := time.Now()
+	_ = r.Tick(context.Background(), townStateWithFarWaypoint(), now)
+	res := r.Tick(context.Background(), townStateWithFarWaypoint(), now.Add(time.Millisecond))
+	if res.Step != countessStepAcquireTownWP || res.Outcome != RunOutcomeRunning {
+		t.Fatalf("pending acquire = %+v", res)
+	}
+	res = r.Tick(context.Background(), townStateWithFarWaypoint(), now.Add(2*time.Millisecond))
+	if res.Step != countessStepOpenWaypoint {
+		t.Fatalf("visible acquire = %+v, want open_waypoint", res)
 	}
 }

@@ -6,6 +6,7 @@ import (
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/config"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/input"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/pathing"
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/world"
 )
 
 // Empfohlene Client-Größe für die Relative-Projektion (Koolo-Kalibrierung 19.8/9.9).
@@ -38,6 +39,30 @@ func (rt *Runtime) warnPathingResolution() {
 	)
 }
 
+// warnWaypointUIResolution logs a warning for fixed waypoint menu coordinates.
+func (rt *Runtime) warnWaypointUIResolution() {
+	ctrl, ok := rt.Input.(interface {
+		Window() (input.WindowInfo, bool)
+	})
+	if !ok {
+		return
+	}
+	win, ok := ctrl.Window()
+	if !ok {
+		return
+	}
+	if win.ClientWidth == recommendedClientWidth && win.ClientHeight == recommendedClientHeight {
+		return
+	}
+	rt.Log.Warn("Fenstergroesse weicht von der Empfehlung ab - fixe Waypoint-UI-Koordinaten ggf. ungenau",
+		"client_width", win.ClientWidth,
+		"client_height", win.ClientHeight,
+		"empfohlen", "1280x720 (windowed)",
+		"black_marsh_x", rt.Config.Pathing.WaypointUI.BlackMarshX,
+		"black_marsh_y", rt.Config.Pathing.WaypointUI.BlackMarshY,
+	)
+}
+
 // mapPathingConfig converts YAML pathing settings into the pathing package config.
 func mapPathingConfig(cfg config.PathingConfig) pathing.Config {
 	return pathing.Config{
@@ -61,5 +86,32 @@ func mapPathingConfig(cfg config.PathingConfig) pathing.Config {
 			StepDistanceTiles:        cfg.Explore.StepDistanceTiles,
 			MaxEntranceClickDistance: cfg.Explore.MaxEntranceClickDistance,
 		},
+		Waypoint: pathing.WaypointConfig{
+			MaxClickDistance: cfg.Waypoint.MaxClickDistance,
+		},
+		WaypointUI: pathing.WaypointUIConfig{
+			BlackMarshX: cfg.WaypointUI.BlackMarshX,
+			BlackMarshY: cfg.WaypointUI.BlackMarshY,
+		},
+		TownWalk: pathing.TownWalkConfig{
+			RouteFile:          cfg.TownWalk.RouteFile,
+			ForceMoveKey:       cfg.TownWalk.ForceMoveKey,
+			MoveInterval:       time.Duration(cfg.TownWalk.MoveIntervalMs) * time.Millisecond,
+			SettleTimeout:      time.Duration(cfg.TownWalk.SettleTimeoutMs) * time.Millisecond,
+			StuckTimeout:       time.Duration(cfg.TownWalk.StuckTimeoutMs) * time.Millisecond,
+			ArrivalDistance:    cfg.TownWalk.ArrivalDistance,
+			Act1WaypointPoints: mapPathingPoints(cfg.TownWalk.Act1WaypointPoints),
+		},
 	}
+}
+
+func mapPathingPoints(points []config.PathingPointConfig) []world.Position {
+	if len(points) == 0 {
+		return nil
+	}
+	out := make([]world.Position, len(points))
+	for i, p := range points {
+		out[i] = world.Position{X: p.X, Y: p.Y}
+	}
+	return out
 }
