@@ -45,6 +45,9 @@ input:
         key: f8
         button: left
     belt:
+      # MVP-Belegung für 4.7: Slot 1 = Heiltränke, Slot 2/3 = Manatränke,
+      # Slot 4 = Full Rejuvenation Potions. Später soll diese Belegung
+      # benutzerkonfigurierbar werden.
       slot_1: ","
       slot_2: "."
       slot_3: "-"

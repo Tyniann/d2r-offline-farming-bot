@@ -8,6 +8,12 @@ import (
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/world"
 )
 
+const (
+	safetyPotionThrottle = 1500 * time.Millisecond
+	safetyHealingHP      = 65
+	safetyFullRejuvHP    = 35
+)
+
 // RunConfig holds task-runner settings mapped from application config.
 type RunConfig struct {
 	// StepTimeout is the default per-step wait timeout for non-tick-based steps.
@@ -43,6 +49,8 @@ type Runner struct {
 	terminal bool
 	reset    bool
 	outcome  RunOutcome
+
+	lastSafetyPotionAt time.Time
 }
 
 // NewRunner builds a task runner for sel (empty Run = passive mode).
@@ -134,6 +142,9 @@ func (r *Runner) Tick(ctx context.Context, w world.State, now time.Time) TickRes
 	}
 
 	r.tracker.incrementTick()
+	if res, ok := r.tickSafetyPotion(now, w); ok {
+		return res
+	}
 	result := r.run.onTick(ctx, r.deps, r.tracker.name, w, now, r.tracker.startedAt, r.tracker.ticksInStep)
 
 	if result.failed {
@@ -151,6 +162,44 @@ func (r *Runner) Tick(ctx context.Context, w world.State, now time.Time) TickRes
 		Outcome: RunOutcomeRunning,
 		Step:    r.tracker.name,
 	}
+}
+
+func (r *Runner) tickSafetyPotion(now time.Time, w world.State) (TickResult, bool) {
+	if !w.Valid || w.Phase != world.GamePhaseInGame || w.Player.MaxHP == 0 {
+		return TickResult{}, false
+	}
+	slot := 0
+	hp := w.Player.HPPercent()
+	switch {
+	case hp <= safetyFullRejuvHP:
+		slot = 4
+	case hp <= safetyHealingHP:
+		slot = 1
+	default:
+		return TickResult{}, false
+	}
+	if !r.lastSafetyPotionAt.IsZero() && now.Sub(r.lastSafetyPotionAt) < safetyPotionThrottle {
+		return TickResult{}, false
+	}
+	if r.deps.Actions == nil {
+		return TickResult{}, false
+	}
+	if err := r.deps.Actions.CastBelt(slot); err != nil {
+		return r.finishStepFailed(now, "safety_potion_failed"), true
+	}
+	r.lastSafetyPotionAt = now
+	r.log.Info("safety potion cast",
+		"run", r.selection.Run,
+		"phase", r.selection.Phase,
+		"step", r.tracker.name,
+		"hp_percent", hp,
+		"belt_slot", slot,
+	)
+	return TickResult{
+		Active:  true,
+		Outcome: RunOutcomeRunning,
+		Step:    r.tracker.name,
+	}, true
 }
 
 // CurrentStepAllowsNonInputTick reports whether the active step may tick while
@@ -207,6 +256,9 @@ func (r *Runner) finishStepComplete(now time.Time) TickResult {
 		logArgs = append(logArgs, "elapsed_ms", r.tracker.elapsed(now).Milliseconds())
 	}
 	r.log.Info("task step complete", logArgs...)
+	if r.selection.Run == "countess" && r.selection.Phase == "" && step == countessStepCastTownPortal {
+		r.log.Info("countess run complete", "run", r.selection.Run, "step", countessStepComplete, "completion", "town_portal")
+	}
 
 	next := r.run.nextStep(step)
 	if next == "" {

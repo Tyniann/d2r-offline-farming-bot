@@ -7,7 +7,10 @@ Versionierung nach [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-07-04
+
 ### Added
+- Add Countess run orchestration 4.7: full `--run countess` flow from Act-1 town through Countess kill, safety potion guard, and Town Portal completion
 - Add Countess kill phase 4.6: `--run countess --phase kill-countess`, Necro Bone Spear combat, Good Chest position fallback, and defensive kill confirmation without loot pickup
 - Add automatic runtime log files under `logs/` so verbose manual test runs remain inspectable after the terminal buffer scrolls away
 - Add read-only `--pathing-test inspect:entrances` to capture player position, hover state, and visible entrance coordinates during manual calibration

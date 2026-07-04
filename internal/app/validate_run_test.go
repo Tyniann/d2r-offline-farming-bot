@@ -63,10 +63,24 @@ func TestResolveActiveRunCLIPriority(t *testing.T) {
 }
 
 func TestValidateRunModeKnownRunOK(t *testing.T) {
-	cfg := &config.Config{Input: config.InputConfig{Enabled: true}}
+	cfg := fullCountessConfig()
 	log := config.NewLogger("error")
 	if err := validateRunMode(tasksSelection("countess", ""), cfg, Options{Run: "countess"}, log); err != nil {
 		t.Fatalf("countess err = %v", err)
+	}
+}
+
+func TestValidateRunModeFullCountessRequiresBindings(t *testing.T) {
+	cfg := &config.Config{Input: config.InputConfig{Enabled: true}}
+	log := config.NewLogger("error")
+	if err := validateRunMode(tasksSelection("countess", ""), cfg, Options{Run: "countess"}, log); err == nil {
+		t.Fatal("expected missing full-run binding error")
+	}
+
+	cfg = fullCountessConfig()
+	cfg.Input.Bindings.Belt.Slot4 = ""
+	if err := validateRunMode(tasksSelection("countess", ""), cfg, Options{Run: "countess"}, log); err == nil {
+		t.Fatal("expected missing belt slot 4 error")
 	}
 }
 
@@ -144,4 +158,21 @@ func TestValidateRunModeUnsupportedPhase(t *testing.T) {
 
 func tasksSelection(run, phase string) tasks.RunSelection {
 	return tasks.RunSelection{Run: run, Phase: phase}
+}
+
+func fullCountessConfig() *config.Config {
+	return &config.Config{Input: config.InputConfig{
+		Enabled: true,
+		Bindings: config.InputBindingsConfig{
+			Skills: map[string]config.SkillBindingConfig{
+				"teleport":    {Key: "f7", Button: "right"},
+				"bone_spear":  {Key: "f8", Button: "left"},
+				"town_portal": {Key: "f6", Button: "right"},
+			},
+			Belt: config.BeltBindingsConfig{
+				Slot1: "1",
+				Slot4: "4",
+			},
+		},
+	}}
 }

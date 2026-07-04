@@ -16,6 +16,7 @@ type Deps struct {
 	Waypoint WaypointActions
 	TownWalk TownWalker
 	Combat   CombatActions
+	Actions  RunActions
 }
 
 // Input is the subset of input.Controller used by task runs.
@@ -56,6 +57,14 @@ type CombatActions interface {
 	TeleportToward(now time.Time, playerPos, targetPos world.Position, desiredDistanceTiles float64) error
 	// Reset clears per-step combat throttles.
 	Reset()
+}
+
+// RunActions exposes high-level input actions needed by run orchestration.
+type RunActions interface {
+	// CastBelt uses the configured belt hotkey for slot.
+	CastBelt(slot int) error
+	// CastTownPortal casts Town Portal at the player-centered window position.
+	CastTownPortal() error
 }
 
 var (

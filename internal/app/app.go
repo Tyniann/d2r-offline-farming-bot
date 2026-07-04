@@ -111,6 +111,7 @@ func New(cfg *config.Config, opts Options) (rt *Runtime, err error) {
 	townWalker := pathing.NewTownWalker(log, inputCtrl, pathingCfg)
 	runCfg := mapRunConfig(cfg.Runs)
 	combat := newCombatAdapter(log, inputCtrl, bindings, pathingCfg, runCfg.CountessCombat.AttackInterval)
+	runActions := newRunActionsAdapter(log, inputCtrl, bindings)
 
 	probe := memory.NewProbeReader(mem, offsetSet)
 	probe.SetScannedCachePath(cfg.ResolvePath(memory.DefaultScannedCacheFile))
@@ -137,6 +138,7 @@ func New(cfg *config.Config, opts Options) (rt *Runtime, err error) {
 			Waypoint: waypoints,
 			TownWalk: townWalker,
 			Combat:   combat,
+			Actions:  runActions,
 		}),
 		Pathing:  nav,
 		TownWalk: townWalker,

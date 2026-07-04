@@ -2,7 +2,7 @@
 
 ## Überblick
 
-Phase 4.1 führt ein testbares Task-Framework ein: konfigurierbare Runs werden als State-Machine im Poll-Loop ausgeführt. Der erste Run ist ein **Countess-Stub** (Precheck → Armed → Complete) ohne echtes Pathing oder Input — zur Validierung von Steps, Timeouts und strukturiertem Logging.
+Der Task Runner führt konfigurierbare Runs als State-Machine im Poll-Loop aus. Ab Phase 4.7 ist `--run countess` ohne Phase der vollständige Countess-MVP-Run; die isolierten Phasen `travel-marsh`, `travel-cellar5` und `kill-countess` bleiben als Testoberflächen verfügbar.
 
 ## Ort im Code
 
@@ -38,17 +38,26 @@ Zwei Abschluss-Mechanismen (nicht vermischen):
 
 | Mechanismus | Verwendung |
 |-------------|------------|
-| **Zeit-Timeout** (`step_timeout_ms`, Default 30000) | Warte-Steps auf Zustandsänderung (später) |
-| **Tick-Zähler** (`ticksInStep`) | Deterministische kurze Steps — z. B. `armed` (2 Ticks) |
-| **Sofort-Fail** | Bedingung klar verletzt → sofort `task step failed` |
+| **Zeit-Timeout** (`step_timeout_ms`, Default 30000) | Warte-Steps auf Zustandsänderung |
+| **Tick-Zähler** (`ticksInStep`) | Deterministische kurze Steps, wenn ein Run sie explizit markiert |
+| **Sofort-Fail** | Bedingung klar verletzt -> sofort `task step failed` |
 
-**Countess-Stub (4.1):**
+**Full Countess (4.7):**
 
-| Step | Verhalten | Abschluss |
-|------|-----------|-----------|
-| `precheck` | Town-Check | sofort OK (Town) oder sofort Fail (`not_in_town`) |
-| `armed` | kein Input | nach 2 Ticks |
-| `complete` | Run beenden | `outcome=success` |
+`precheck -> acquire_town_waypoint -> open_waypoint -> select_black_marsh -> wait_black_marsh -> find_tower -> enter_cellar_1 -> enter_cellar_2 -> enter_cellar_3 -> enter_cellar_4 -> enter_cellar_5 -> locate_countess -> engage_countess -> cast_town_portal -> complete`
+
+`wait_black_marsh` darf als Non-Input-Step während Loading/invalid Snapshots weitergetickt werden; alle anderen Input-Schritte laufen nur mit gültigem `in_game`-World-State.
+
+### Safety-Potion-Guard
+
+Vor dem normalen `run.onTick` prüft der Runner globale Safety:
+
+- nur bei `Valid`, `Phase=in_game` und `Player.MaxHP > 0`
+- `HPPercent() <= 35` castet Belt Slot 4
+- `HPPercent() <= 65` castet Belt Slot 1
+- Throttle: 1500 ms
+- ein erfolgreicher Potion-Cast verbraucht den Poll-Tick; der normale Step läuft erst im nächsten Tick weiter
+- fehlende Run-Actions werden ignoriert; fehlschlagende vorhandene Belt-Actions beenden den Run mit `safety_potion_failed`
 
 ### Nach Run-Ende und process_lost
 
@@ -98,4 +107,4 @@ go run ./cmd/d2rbot --run countess --probe   # input.enabled: true erforderlich
 - [World Model](world-model.md) — `world.State` / Area-Katalog
 
 ---
-*Zuletzt aktualisiert: 2026-06-26*
+*Zuletzt aktualisiert: 2026-07-04*

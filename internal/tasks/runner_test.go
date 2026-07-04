@@ -56,6 +56,19 @@ func cellar5State(monsters ...world.Monster) world.State {
 	return st
 }
 
+func healthy(st world.State) world.State {
+	st.Player.HP = 100
+	st.Player.MaxHP = 100
+	return st
+}
+
+func hpState(hp, maxHP uint32) world.State {
+	st := townState()
+	st.Player.HP = hp
+	st.Player.MaxHP = maxHP
+	return st
+}
+
 func cellar5WithGoodChest() world.State {
 	st := cellar5State()
 	st.Objects = []world.Object{{
@@ -104,6 +117,20 @@ type mockCombatActions struct {
 	lastSkillID   uint16
 	lastDesired   float64
 }
+
+type mockRunActions struct {
+	beltCalls   []int
+	portalCalls int
+	beltErr     error
+	portalErr   error
+}
+
+type countingRun struct {
+	onTickCalls int
+	result      stepResult
+}
+
+type tickRun struct{}
 
 func (m *mockTownWalker) Reset() { m.resets++ }
 
@@ -171,6 +198,35 @@ func (m *mockCombatActions) TeleportToward(_ time.Time, _ world.Position, _ worl
 
 func (m *mockCombatActions) Reset() { m.resetCalls++ }
 
+func (m *mockRunActions) CastBelt(slot int) error {
+	m.beltCalls = append(m.beltCalls, slot)
+	return m.beltErr
+}
+
+func (m *mockRunActions) CastTownPortal() error {
+	m.portalCalls++
+	return m.portalErr
+}
+
+func (r *countingRun) firstStep() string              { return "count" }
+func (r *countingRun) nextStep(string) string         { return "" }
+func (r *countingRun) usesTickTimeout(string) bool    { return false }
+func (r *countingRun) allowsNonInputTick(string) bool { return false }
+func (r *countingRun) onStepEnter(string)             {}
+func (r *countingRun) onTick(context.Context, Deps, string, world.State, time.Time, time.Time, int) stepResult {
+	r.onTickCalls++
+	return r.result
+}
+
+func (r *tickRun) firstStep() string              { return "tick" }
+func (r *tickRun) nextStep(string) string         { return "" }
+func (r *tickRun) usesTickTimeout(string) bool    { return true }
+func (r *tickRun) allowsNonInputTick(string) bool { return false }
+func (r *tickRun) onStepEnter(string)             {}
+func (r *tickRun) onTick(context.Context, Deps, string, world.State, time.Time, time.Time, int) stepResult {
+	return stepResult{}
+}
+
 func newTestRunner(runName string) *Runner {
 	return NewRunner(config.NewLogger("error"), RunSelection{Run: runName}, RunConfig{StepTimeout: 30 * time.Second}, Deps{})
 }
@@ -206,7 +262,7 @@ func TestRunnerPassiveModeNoOp(t *testing.T) {
 	}
 }
 
-func TestRunnerLazyStartAndSuccessInTown(t *testing.T) {
+func TestRunnerLazyStartBeginsFullCountessRun(t *testing.T) {
 	r := newTestRunner("countess")
 	now := time.Now()
 
@@ -215,34 +271,11 @@ func TestRunnerLazyStartAndSuccessInTown(t *testing.T) {
 	}
 
 	res := r.Tick(context.Background(), townState(), now)
-	if !res.Active || res.Outcome != RunOutcomeRunning || res.Step != countessStepArmed {
-		t.Fatalf("first tick = %+v, want armed after precheck completes same tick", res)
+	if !res.Active || res.Outcome != RunOutcomeRunning || res.Step != countessStepAcquireTownWP {
+		t.Fatalf("first tick = %+v, want acquire_town_waypoint after precheck completes same tick", res)
 	}
 	if !r.started {
 		t.Fatal("expected started after first tick")
-	}
-
-	res = r.Tick(context.Background(), townState(), now.Add(time.Millisecond))
-	if res.Step != countessStepArmed || !res.Active {
-		t.Fatalf("second tick = %+v, want armed tick 1", res)
-	}
-
-	res = r.Tick(context.Background(), townState(), now.Add(2*time.Millisecond))
-	if res.Step != countessStepComplete || !res.Active {
-		t.Fatalf("third tick = %+v, want complete after armed", res)
-	}
-
-	res = r.Tick(context.Background(), townState(), now.Add(3*time.Millisecond))
-	if !res.Active || res.Outcome != RunOutcomeSuccess {
-		t.Fatalf("fourth tick = %+v, want success", res)
-	}
-	if !r.Terminal() {
-		t.Fatal("expected terminal after success")
-	}
-
-	res = r.Tick(context.Background(), townState(), now.Add(4*time.Millisecond))
-	if res.Active {
-		t.Fatal("expected inactive after terminal")
 	}
 }
 
@@ -258,8 +291,8 @@ func TestRunnerPrecheckFailsOutsideTown(t *testing.T) {
 	if !res.Active || res.Outcome != RunOutcomeFailed {
 		t.Fatalf("tick = %+v, want failed", res)
 	}
-	if res.Reason != "not_in_town" {
-		t.Fatalf("Reason = %q, want not_in_town", res.Reason)
+	if res.Reason != "not_act1_town" {
+		t.Fatalf("Reason = %q, want not_act1_town", res.Reason)
 	}
 	if !r.Terminal() {
 		t.Fatal("expected terminal after failure")
@@ -336,18 +369,19 @@ func TestRunnerResetBlocksRestart(t *testing.T) {
 }
 
 func TestRunnerStepTimeoutNotUsedForTickSteps(t *testing.T) {
-	r := NewRunner(config.NewLogger("error"), RunSelection{Run: "countess"}, RunConfig{StepTimeout: 1 * time.Millisecond}, Deps{})
+	r := NewRunner(config.NewLogger("error"), RunSelection{Run: "tick"}, RunConfig{StepTimeout: 1 * time.Millisecond}, Deps{})
+	r.run = &tickRun{}
 	now := time.Now()
 
 	res := r.Tick(context.Background(), townState(), now)
-	if res.Step != countessStepArmed {
-		t.Fatalf("first tick step = %q, want armed", res.Step)
+	if res.Step != "tick" {
+		t.Fatalf("first tick step = %q, want tick", res.Step)
 	}
 
 	// Armed uses tick counter, not time timeout — still running after long elapsed time.
 	res = r.Tick(context.Background(), townState(), now.Add(time.Hour))
-	if res.Step != countessStepArmed || !res.Active {
-		t.Fatalf("armed should not time out: %+v", res)
+	if res.Step != "tick" || !res.Active {
+		t.Fatalf("tick step should not time out: %+v", res)
 	}
 }
 
@@ -364,6 +398,134 @@ func TestKnownRunsStable(t *testing.T) {
 	runs := KnownRuns()
 	if len(runs) != 1 || runs[0] != "countess" {
 		t.Fatalf("KnownRuns() = %v", runs)
+	}
+}
+
+func TestCountessFullRunSuccessCastsTownPortal(t *testing.T) {
+	actions := &mockRunActions{}
+	cfg := killRunConfig()
+	cfg.StepTimeout = 30 * time.Second
+	r := NewRunner(config.NewLogger("error"), RunSelection{Run: "countess"}, cfg, Deps{
+		Waypoint: &mockWaypointActions{},
+		TownWalk: &mockTownWalker{},
+		Pathing:  &mockNavigator{},
+		Combat:   &mockCombatActions{},
+		Actions:  actions,
+	})
+	now := time.Now()
+	target := countessMonster(10, world.Position{X: 110, Y: 100})
+
+	ticks := []world.State{
+		healthy(townStateWithWaypoint()),
+		healthy(townStateWithWaypoint()),
+		healthy(townStateWithWaypoint()),
+		healthy(townStateWithWaypoint()),
+		healthy(townStateWithWaypoint()),
+		healthy(blackMarshState()),
+		healthy(blackMarshState()),
+		healthy(areaState(world.ForgottenTower)),
+		healthy(areaState(world.TowerCellarLevel1)),
+		healthy(areaState(world.TowerCellarLevel2)),
+		healthy(areaState(world.TowerCellarLevel3)),
+		healthy(areaState(world.TowerCellarLevel4)),
+		healthy(cellar5State(target)),
+		healthy(cellar5State(target)),
+		healthy(cellar5State()),
+		healthy(cellar5State()),
+		healthy(cellar5State()),
+		healthy(cellar5State()),
+		healthy(cellar5State()),
+	}
+
+	var res TickResult
+	for i, st := range ticks {
+		res = r.Tick(context.Background(), st, now.Add(time.Duration(i)*time.Second))
+	}
+	if res.Outcome != RunOutcomeSuccess || res.Step != countessStepComplete {
+		t.Fatalf("final tick = %+v, want success at complete", res)
+	}
+	if actions.portalCalls != 1 {
+		t.Fatalf("portal calls = %d, want 1", actions.portalCalls)
+	}
+}
+
+func TestCountessFullRunAllowsBlackMarshLoadingWait(t *testing.T) {
+	r := NewRunner(config.NewLogger("error"), RunSelection{Run: "countess"}, RunConfig{StepTimeout: 5 * time.Second}, Deps{
+		Waypoint: &mockWaypointActions{},
+		TownWalk: &mockTownWalker{},
+		Pathing:  &mockNavigator{},
+	})
+	now := time.Now()
+	_ = r.Tick(context.Background(), healthy(townStateWithWaypoint()), now)
+	_ = r.Tick(context.Background(), healthy(townStateWithWaypoint()), now.Add(100*time.Millisecond))
+	_ = r.Tick(context.Background(), healthy(townStateWithWaypoint()), now.Add(200*time.Millisecond))
+	_ = r.Tick(context.Background(), healthy(townStateWithWaypoint()), now.Add(300*time.Millisecond))
+	_ = r.Tick(context.Background(), healthy(townStateWithWaypoint()), now.Add(800*time.Millisecond))
+
+	if !r.CurrentStepAllowsNonInputTick() {
+		t.Fatal("full run wait_black_marsh should allow non-input ticks")
+	}
+}
+
+func TestCountessFullRunPortalRequiresRunActions(t *testing.T) {
+	r := NewRunner(config.NewLogger("error"), RunSelection{Run: "countess"}, killRunConfig(), Deps{})
+	r.tracker.begin(countessStepCastTownPortal, time.Now(), time.Second)
+	r.started = true
+	r.outcome = RunOutcomeRunning
+
+	res := r.Tick(context.Background(), healthy(cellar5State()), time.Now())
+	if res.Outcome != RunOutcomeFailed || res.Reason != "run_actions_not_wired" {
+		t.Fatalf("tick = %+v, want run_actions_not_wired failure", res)
+	}
+}
+
+func TestRunnerSafetyPotionGuard(t *testing.T) {
+	actions := &mockRunActions{}
+	run := &countingRun{}
+	r := NewRunner(config.NewLogger("error"), RunSelection{Run: "count"}, RunConfig{StepTimeout: 10 * time.Second}, Deps{Actions: actions})
+	r.run = run
+	now := time.Now()
+
+	res := r.Tick(context.Background(), hpState(65, 100), now)
+	if res.Outcome != RunOutcomeRunning || len(actions.beltCalls) != 1 || actions.beltCalls[0] != 1 {
+		t.Fatalf("healing tick = %+v belt=%v, want slot 1", res, actions.beltCalls)
+	}
+	if run.onTickCalls != 0 {
+		t.Fatalf("onTick calls = %d, want 0 when potion consumes tick", run.onTickCalls)
+	}
+
+	res = r.Tick(context.Background(), hpState(20, 100), now.Add(time.Second))
+	if len(actions.beltCalls) != 1 {
+		t.Fatalf("belt calls after throttled tick = %v, want unchanged", actions.beltCalls)
+	}
+
+	res = r.Tick(context.Background(), hpState(20, 100), now.Add(2*time.Second))
+	if res.Outcome != RunOutcomeRunning || len(actions.beltCalls) != 2 || actions.beltCalls[1] != 4 {
+		t.Fatalf("full rejuv tick = %+v belt=%v, want slot 4", res, actions.beltCalls)
+	}
+}
+
+func TestRunnerSafetyPotionGuardsMissingDataAndActions(t *testing.T) {
+	run := &countingRun{}
+	r := NewRunner(config.NewLogger("error"), RunSelection{Run: "count"}, RunConfig{StepTimeout: time.Second}, Deps{})
+	r.run = run
+	now := time.Now()
+
+	_ = r.Tick(context.Background(), hpState(0, 0), now)
+	_ = r.Tick(context.Background(), hpState(20, 100), now.Add(time.Second))
+	if run.onTickCalls != 2 {
+		t.Fatalf("onTick calls = %d, want 2 when MaxHP is zero or RunActions missing", run.onTickCalls)
+	}
+}
+
+func TestRunnerSafetyPotionFailure(t *testing.T) {
+	actions := &mockRunActions{beltErr: errors.New("boom")}
+	r := NewRunner(config.NewLogger("error"), RunSelection{Run: "count"}, RunConfig{StepTimeout: time.Second}, Deps{Actions: actions})
+	r.run = &countingRun{}
+
+	res := r.Tick(context.Background(), hpState(20, 100), time.Now())
+	if res.Outcome != RunOutcomeFailed || res.Reason != "safety_potion_failed" {
+		t.Fatalf("tick = %+v, want safety_potion_failed", res)
 	}
 }
 

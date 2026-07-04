@@ -5,10 +5,13 @@
 Der Countess-Run enthält aktuell zwei explizite Travel-Phasen:
 
 ```powershell
+go run ./cmd/d2rbot --run countess --probe --verbose
 go run ./cmd/d2rbot --run countess --phase travel-marsh --probe --verbose
 go run ./cmd/d2rbot --run countess --phase travel-cellar5 --probe --verbose
 go run ./cmd/d2rbot --run countess --phase kill-countess --probe --verbose
 ```
+
+`--run countess` ohne `--phase` ist ab Phase 4.7 der vollständige MVP-Run: Act-1-Town-Waypoint -> Black Marsh -> Forgotten Tower -> Tower Cellar Level 5 -> Countess-Kill -> Town Portal -> `complete`.
 
 `travel-marsh` führt vom Rogue Encampment über den Act-1-Waypoint nach `Black Marsh`.
 `travel-cellar5` nutzt diesen Prefix weiter, sucht anschließend den Forgotten Tower und traversiert best-effort bis `Tower Cellar Level 5`.
@@ -18,12 +21,45 @@ go run ./cmd/d2rbot --run countess --phase kill-countess --probe --verbose
 ## Verhalten
 
 - `--phase travel-marsh` und `--phase travel-cellar5` sind CLI-only und nur mit dem Countess-Run gültig.
-- `--phase kill-countess` ist CLI-only, startet nur in `Tower Cellar Level 5` und enthält keinen Travel-Prefix.
-- `--run countess` ohne Phase behält den bisherigen Phase-4.1-Stub bei.
+- `--phase kill-countess` ist CLI-only, startet nur in `Tower Cellar Level 5`, enthält keinen Travel-Prefix und castet kein Town Portal.
+- `--run countess` ohne Phase startet den Full Run und verlangt zu Beginn `Rogue Encampment`; andere Gebiete schlagen mit `not_act1_town` fehl.
 - Der Travel-Flow nutzt Area-IDs für Entscheidungen; Area-Namen dienen nur Logs.
 - Input-Schritte laufen nur bei `Valid && Phase=in_game`.
-- `wait_black_marsh` darf für beide Travel-Phasen als Non-Input-Step während Loading/invalid Snapshots weitergetickt werden.
+- `wait_black_marsh` darf für beide Travel-Phasen und den Full Run als Non-Input-Step während Loading/invalid Snapshots weitergetickt werden.
 - `travel-cellar5` kann für manuelle Tests aus `Black Marsh`, `Forgotten Tower` oder einem Tower-Cellar-Level fortgesetzt werden und springt dann direkt zum passenden Traversal-Step.
+
+## Full Run (Phase 4.7)
+
+Der Full Run verwendet die bestehende State-Machine direkt:
+
+```text
+precheck -> acquire_town_waypoint -> open_waypoint -> select_black_marsh -> wait_black_marsh
+-> find_tower -> enter_cellar_1 -> enter_cellar_2 -> enter_cellar_3 -> enter_cellar_4
+-> enter_cellar_5 -> locate_countess -> engage_countess -> cast_town_portal -> complete
+```
+
+`cast_town_portal` ist ein eigener Step. Er nutzt den konfigurierten `town_portal`-Skill und castet client-relativ auf die Fenstermitte (`ClientWidth/2`, `ClientHeight/2`). Nach erfolgreichem Cast loggt der Bot zusätzlich zum generischen `task run finished` ein `countess run complete` mit `completion=town_portal`.
+
+Die isolierten Phasen bleiben bewusst als Testoberflächen erhalten: Travel-Phasen enden am jeweiligen Zielgebiet, `kill-countess` endet nach defensiver Kill-Bestätigung ohne Portal.
+
+## Safety-Potions (Phase 4.7)
+
+Vor jedem normalen Task-Tick prüft der Runner den aktuellen HP-Stand. Die Safety greift nur bei gültigem `in_game`-Snapshot und `MaxHP > 0`.
+
+| Bedingung | Aktion |
+|-----------|--------|
+| `HPPercent() <= 35` | Belt Slot 4: Full Rejuvenation Potion |
+| `HPPercent() <= 65` | Belt Slot 1: Heiltrank |
+
+Nach einem Safety-Cast endet der aktuelle Poll-Tick sofort, damit pro Tick nur eine echte Input-Aktion passiert. Der Guard ist auf 1500 ms gedrosselt. Falls die Run-Actions nicht verdrahtet sind, läuft der normale Step weiter; falls ein vorhandener Belt-Cast fehlschlägt, endet der Run mit `safety_potion_failed`.
+
+Feste MVP-Belegung:
+
+- Slot 1 = Heiltränke
+- Slot 2 und 3 = Manatränke
+- Slot 4 = Full Rejuvenation Potions
+
+Diese Belegung soll später durch den Nutzer konfigurierbar werden. Mana-Potions werden in 4.7 noch nicht automatisch verbraucht.
 
 ## Waypoint-Interaktion
 
@@ -111,8 +147,9 @@ runs:
 - D2R windowed 1280x720 oder kalibrierte `pathing.waypoint_ui`-Koordinaten
 - Charakter steht in `Rogue Encampment`, entweder nahe Waypoint oder am Spawn-/Stash-Bereich
 - Force Move ist in D2R auf `pathing.town_walk.force_move_key` gebunden (Default `e`)
-- Teleport ist in `input.bindings.skills.teleport` konfiguriert
-- Für `kill-countess`: `input.bindings.skills.bone_spear` ist konfiguriert
+- Teleport ist in `input.bindings.skills.teleport` konfiguriert; das bleibt in 4.7 ein globaler Runtime-Precheck für aktive Input-Runs, auch wenn eine isolierte Travel-Phase fachlich nur Travel nutzt
+- Für `--run countess`: `input.bindings.skills.bone_spear`, `input.bindings.skills.town_portal`, `input.bindings.belt.slot_1` und `input.bindings.belt.slot_4` sind konfiguriert
+- Für `kill-countess`: `input.bindings.skills.bone_spear` ist konfiguriert; die Phase castet kein Portal
 - Black-Marsh-Waypoint ist für Charakter und Schwierigkeit freigeschaltet
 
 ## Manuelle Validierung
@@ -145,4 +182,4 @@ go run ./cmd/d2rbot --pathing-test record-town-route:act1-waypoint --probe --ver
 - Kein robuster Tower-Solver: zufällige Tower-Layouts bleiben die größte Unsicherheit in Phase 4.5. Das ist bewusst als MVP-Grenze akzeptiert; spätere Run-Recording-/Playback-Routen sollen diesen Teil zuverlässig machen.
 
 ---
-*Zuletzt aktualisiert: 2026-07-03*
+*Zuletzt aktualisiert: 2026-07-04*

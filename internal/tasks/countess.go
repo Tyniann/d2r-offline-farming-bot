@@ -19,7 +19,6 @@ const (
 	CountessPhaseKillCountess = "kill-countess"
 
 	countessStepPrecheck       = "precheck"
-	countessStepArmed          = "armed"
 	countessStepAcquireTownWP  = "acquire_town_waypoint"
 	countessStepOpenWaypoint   = "open_waypoint"
 	countessStepSelectMarsh    = "select_black_marsh"
@@ -32,6 +31,7 @@ const (
 	countessStepEnterCellar5   = "enter_cellar_5"
 	countessStepLocateCountess = "locate_countess"
 	countessStepEngageCountess = "engage_countess"
+	countessStepCastTownPortal = "cast_town_portal"
 	countessStepComplete       = "complete"
 
 	selectMarshSettleDelay = 500 * time.Millisecond
@@ -104,20 +104,46 @@ func (c *countessRun) nextStep(current string) string {
 	}
 	switch current {
 	case countessStepPrecheck:
-		return countessStepArmed
-	case countessStepArmed:
+		return countessStepAcquireTownWP
+	case countessStepAcquireTownWP:
+		return countessStepOpenWaypoint
+	case countessStepOpenWaypoint:
+		return countessStepSelectMarsh
+	case countessStepSelectMarsh:
+		return countessStepWaitBlackMarsh
+	case countessStepWaitBlackMarsh:
+		return countessStepFindTower
+	case countessStepFindTower:
+		return countessStepEnterCellar1
+	case countessStepEnterCellar1:
+		return countessStepEnterCellar2
+	case countessStepEnterCellar2:
+		return countessStepEnterCellar3
+	case countessStepEnterCellar3:
+		return countessStepEnterCellar4
+	case countessStepEnterCellar4:
+		return countessStepEnterCellar5
+	case countessStepEnterCellar5:
+		return countessStepLocateCountess
+	case countessStepLocateCountess:
+		return countessStepEngageCountess
+	case countessStepEngageCountess:
+		return countessStepCastTownPortal
+	case countessStepCastTownPortal:
 		return countessStepComplete
+	case countessStepComplete:
+		return ""
 	default:
 		return ""
 	}
 }
 
 func (c *countessRun) usesTickTimeout(step string) bool {
-	return c.phase == "" && step == countessStepArmed
+	return false
 }
 
 func (c *countessRun) allowsNonInputTick(step string) bool {
-	return c.isTravelPhase() && step == countessStepWaitBlackMarsh
+	return (c.isTravelPhase() || c.phase == "") && step == countessStepWaitBlackMarsh
 }
 
 func (c *countessRun) onStepEnter(step string) {
@@ -138,20 +164,46 @@ func (c *countessRun) onTick(ctx context.Context, deps Deps, step string, w worl
 	if c.isTravelPhase() {
 		return c.onTravelMarshTick(ctx, deps, step, w, now, stepStartedAt)
 	}
+	if c.phase == "" {
+		return c.onFullRunTick(ctx, deps, step, w, now, stepStartedAt)
+	}
+	return stepResult{failed: true, reason: "unknown_step"}
+}
+
+func (c *countessRun) onFullRunTick(ctx context.Context, deps Deps, step string, w world.State, now time.Time, stepStartedAt time.Time) stepResult {
 	switch step {
 	case countessStepPrecheck:
 		if !w.Valid {
 			return stepResult{failed: true, reason: "invalid_world"}
 		}
-		if w.Area.IsTown() {
+		if w.Phase != world.GamePhaseInGame {
+			return stepResult{failed: true, reason: "not_in_game"}
+		}
+		if w.Area.ID == world.RogueEncampment {
 			return stepResult{complete: true}
 		}
-		return stepResult{failed: true, reason: "not_in_town"}
-	case countessStepArmed:
-		if ticksInStep >= 2 {
-			return stepResult{complete: true}
+		return stepResult{failed: true, reason: "not_act1_town"}
+	case countessStepAcquireTownWP, countessStepOpenWaypoint, countessStepSelectMarsh,
+		countessStepWaitBlackMarsh, countessStepFindTower, countessStepEnterCellar1,
+		countessStepEnterCellar2, countessStepEnterCellar3, countessStepEnterCellar4,
+		countessStepEnterCellar5:
+		return c.onTravelMarshTick(ctx, deps, step, w, now, stepStartedAt)
+	case countessStepLocateCountess, countessStepEngageCountess:
+		return c.onKillCountessTick(ctx, deps, step, w, now)
+	case countessStepCastTownPortal:
+		if !w.Valid {
+			return stepResult{failed: true, reason: "invalid_world"}
 		}
-		return stepResult{}
+		if w.Phase != world.GamePhaseInGame {
+			return stepResult{failed: true, reason: "not_in_game"}
+		}
+		if deps.Actions == nil {
+			return stepResult{failed: true, reason: "run_actions_not_wired"}
+		}
+		if err := deps.Actions.CastTownPortal(); err != nil {
+			return stepResult{failed: true, reason: "town_portal_failed"}
+		}
+		return stepResult{complete: true}
 	case countessStepComplete:
 		return stepResult{complete: true}
 	default:

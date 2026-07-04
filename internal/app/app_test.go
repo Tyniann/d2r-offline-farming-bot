@@ -121,6 +121,10 @@ type mockInput struct {
 	listenCalls      int
 	lastToggleReason string
 	lastStopReason   string
+	castBeltCalls    []int
+	castSkillCalls   []uint16
+	lastClientX      int
+	lastClientY      int
 }
 
 func (m *mockInput) Bind(pid uint32) error {
@@ -146,7 +150,17 @@ func (m *mockInput) Status() input.Status {
 	return input.Status{Enabled: m.enabled, Paused: m.paused, Stopped: m.stopped}
 }
 
-func (m *mockInput) CastSkillAt(input.BindingSource, uint16, int, int) error { return nil }
+func (m *mockInput) CastBelt(_ input.BeltBindingSource, slot int) error {
+	m.castBeltCalls = append(m.castBeltCalls, slot)
+	return nil
+}
+
+func (m *mockInput) CastSkillAt(_ input.BindingSource, skillID uint16, clientX, clientY int) error {
+	m.castSkillCalls = append(m.castSkillCalls, skillID)
+	m.lastClientX = clientX
+	m.lastClientY = clientY
+	return nil
+}
 
 func (m *mockInput) Window() (input.WindowInfo, bool) {
 	return input.WindowInfo{ClientWidth: 1280, ClientHeight: 720}, true
@@ -209,8 +223,13 @@ func (i *orderInput) Ready() bool         { return true }
 func (i *orderInput) Status() input.Status {
 	return input.Status{}
 }
-func (i *orderInput) TogglePause(string) bool { return false }
-func (i *orderInput) Stop(string)             {}
+func (i *orderInput) CastBelt(input.BeltBindingSource, int) error { return nil }
+func (i *orderInput) CastSkillAt(input.BindingSource, uint16, int, int) error {
+	return nil
+}
+func (i *orderInput) Window() (input.WindowInfo, bool) { return input.WindowInfo{}, false }
+func (i *orderInput) TogglePause(string) bool          { return false }
+func (i *orderInput) Stop(string)                      {}
 func (i *orderInput) ListenHotkeys(context.Context, chan<- input.HotkeyEvent, chan<- error) {
 }
 

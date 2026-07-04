@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/config"
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/input"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/memory"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/tasks"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/world"
@@ -74,6 +75,11 @@ func validateRunMode(sel tasks.RunSelection, cfg *config.Config, opts Options, l
 	if sel.Phase != "" && !(sel.Run == "countess" && isSupportedCountessPhase(sel.Phase)) {
 		return fmt.Errorf("%w: run=%q phase=%q", errUnsupportedRunPhase, sel.Run, sel.Phase)
 	}
+	if sel.Run == "countess" && sel.Phase == "" {
+		if err := validateFullCountessBindings(cfg); err != nil {
+			return err
+		}
+	}
 	if sel.Run == "countess" && sel.Phase == tasks.CountessPhaseKillCountess {
 		if err := validateKillCountessBindings(cfg); err != nil {
 			return err
@@ -97,6 +103,29 @@ func isSupportedCountessPhase(phase string) bool {
 	}
 }
 
+func validateFullCountessBindings(cfg *config.Config) error {
+	bindings, err := newConfigBindingSource(cfg.Input.Bindings)
+	if err != nil {
+		return err
+	}
+	if _, err := bindings.Resolve(memory.SkillTeleport); err != nil {
+		return fmt.Errorf("countess requires input.bindings.skills.teleport: %w", err)
+	}
+	if _, err := bindings.Resolve(memory.SkillBoneSpear); err != nil {
+		return fmt.Errorf("countess requires input.bindings.skills.bone_spear: %w", err)
+	}
+	if _, err := bindings.Resolve(memory.SkillTownPortal); err != nil {
+		return fmt.Errorf("countess requires input.bindings.skills.town_portal: %w", err)
+	}
+	if err := validateBeltSlotConfigured(bindings, 1, "countess"); err != nil {
+		return err
+	}
+	if err := validateBeltSlotConfigured(bindings, 4, "countess"); err != nil {
+		return err
+	}
+	return nil
+}
+
 func validateKillCountessBindings(cfg *config.Config) error {
 	bindings, err := newConfigBindingSource(cfg.Input.Bindings)
 	if err != nil {
@@ -107,6 +136,17 @@ func validateKillCountessBindings(cfg *config.Config) error {
 	}
 	if _, err := bindings.Resolve(memory.SkillBoneSpear); err != nil {
 		return fmt.Errorf("kill-countess requires input.bindings.skills.bone_spear: %w", err)
+	}
+	return nil
+}
+
+func validateBeltSlotConfigured(bindings configBindingSource, slot int, scope string) error {
+	key, err := bindings.BeltKeyName(slot)
+	if err != nil {
+		return fmt.Errorf("%s requires input.bindings.belt.slot_%d: %w", scope, slot, err)
+	}
+	if key == "" {
+		return fmt.Errorf("%s requires input.bindings.belt.slot_%d: %w", scope, slot, input.ErrUnconfiguredSlot)
 	}
 	return nil
 }
