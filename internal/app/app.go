@@ -112,6 +112,10 @@ func New(cfg *config.Config, opts Options) (rt *Runtime, err error) {
 	runCfg := mapRunConfig(cfg.Runs)
 	combat := newCombatAdapter(log, inputCtrl, bindings, pathingCfg, runCfg.CountessCombat.AttackInterval)
 	runActions := newRunActionsAdapter(log, inputCtrl, bindings)
+	inventoryLock, err := loot.NewInventoryLock(cfg.Loot.InventoryLock)
+	if err != nil {
+		return nil, fmt.Errorf("loot inventory lock: %w", err)
+	}
 
 	probe := memory.NewProbeReader(mem, offsetSet)
 	probe.SetScannedCachePath(cfg.ResolvePath(memory.DefaultScannedCacheFile))
@@ -142,7 +146,7 @@ func New(cfg *config.Config, opts Options) (rt *Runtime, err error) {
 		}),
 		Pathing:  nav,
 		TownWalk: townWalker,
-		Loot:     loot.NewFilter(log),
+		Loot:     loot.NewFilter(log, inventoryLock),
 	}
 
 	if err := rt.verifyEnvironment(); err != nil {

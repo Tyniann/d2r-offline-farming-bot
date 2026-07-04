@@ -62,6 +62,7 @@ func setupProbeMock(t *testing.T) (*mockAccess, *ProbeReader, uintptr) {
 	playerSeg := make([]byte, unitTableListHeads*unitTableHeadStride)
 	binary.LittleEndian.PutUint64(playerSeg[0:], uint64(playerUnit))
 	access.setBytes(moduleBase+off.UnitTable, playerSeg)
+	writeU32(access, playerUnit+off.Unit.UnitID, 9001)
 
 	// Inventory + main-player flag.
 	const inventory = uintptr(0x21000)

@@ -2,7 +2,7 @@
 
 ## Überblick
 
-Phase 5.1 bringt Items read-only aus dem D2R-Speicher in das World Model. Der Fokus liegt bewusst auf positionierten Ground-Drops nach einem Countess-Kill: Sie sollen im Probe-Log plausibel sichtbar sein, ohne dass der Bot Items anklickt, Pickit-Regeln bewertet oder Inventar/Stash verändert.
+Phase 5.1 brachte Items read-only aus dem D2R-Speicher in das World Model. Der Fokus lag bewusst auf positionierten Ground-Drops nach einem Countess-Kill: Sie sollten im Probe-Log plausibel sichtbar sein, ohne dass der Bot Items anklickt, Pickit-Regeln bewertet oder Inventar/Stash verändert. Ab Phase 5.2 liest das Item-Modell zusätzlich persönliche Inventar-Items read-only für Lock-Grid und Kapazitätsberechnung.
 
 ## Ort im Code
 
@@ -17,13 +17,13 @@ Phase 5.1 bringt Items read-only aus dem D2R-Speicher in das World Model. Der Fo
 
 Items werden nur bei `Valid && Phase=in_game` enumeriert. Die Probe läuft über das UnitTable-Segment `4` mit eigenen Limits (`maxItemUnitVisits=4096`, `maxItemsPerSnapshot=128`) und verbraucht nicht das bestehende Entity-Budget für Countess-Objekte, Entrances und Monster.
 
-Für 5.1 werden live nur plausible Ground-Items akzeptiert (`RawLocation` 3 oder 5) und sie müssen eine lesbare Path-Position haben. Nil- oder unlesbare Pfade werden übersprungen, weil das Pass-Kriterium positionierte Drops im Probe-Log verlangt. Nicht-Ground-Locations sind im World Model vorbereitet, aber nicht live-validiert.
+Für 5.1 wurden live nur plausible Ground-Items akzeptiert (`RawLocation` 3 oder 5) und sie mussten eine lesbare Path-Position haben. Ab 5.2 bleibt diese Ground-Regel bestehen; zusätzlich werden persönliche Inventar-Items mit lesbaren Grid-/Page-Feldern modelliert. Nicht-persönliche Container, unbekannte Pages und unbekannte Owner bleiben sichtbar, zählen aber nicht als Pickup-Kapazität.
 
 Item-Fehler sind fail-open: Ein kaputter Item-Walk liefert eine leere Item-Liste und Debug-Logs, löscht aber keine bereits gelesenen Countess-Entities. Einzelne nicht lesbare Items werden übersprungen.
 
 ### World Model
 
-`memory.ItemUnit` bleibt roh und enthält keine semantischen Labels. `world.Item` löst daraus Qualität, Location, Name/Code, Item-Type und Hover-Status auf. Der Item-Katalog ist eine statische, repo-lokale Generierung aus den lokal extrahierten D2R-Tabellen `data/global/excel/weapons.txt`, `armor.txt` und `misc.txt` für D2R `3.2.92777`; er enthält Code, Name, Type und Tier-Codes, damit Countess-Drops im Log lesbar werden, ohne d2go als Runtime-Dependency einzubinden.
+`memory.ItemUnit` bleibt roh und enthält keine semantischen Labels. `world.Item` löst daraus Qualität, Location, Name/Code, Item-Type, Hover-Status sowie ab 5.2 Grid-Position und Inventar-Dimensionen auf. Der Item-Katalog ist eine statische, repo-lokale Generierung aus den lokal extrahierten D2R-Tabellen `data/global/excel/weapons.txt`, `armor.txt` und `misc.txt` für D2R `3.2.92777`; er enthält Code, Name, Type, Tier-Codes und Inventargröße, damit Drops und Inventaritems im Log lesbar werden, ohne d2go als Runtime-Dependency einzubinden.
 
 ### Item-Katalog regenerieren
 
@@ -55,12 +55,13 @@ Normale `world state`-Logs enthalten `item_count` und `ground_item_count`. Der F
 | `memory.RawStat` | Bounded Raw-Stat-Eintrag ohne Life/Mana-Skalierung |
 | `world.Item` | Semantisches Item im World State |
 | `world.ItemQuality` | Qualität: normal, magic, rare, unique, set usw. |
-| `world.ItemLocation` | Vorbereitete Locations: `ground`, `inventory`, `equipped`, `belt`, `cursor`, `stash`, `shared_stash_1..3`, `socket`, `unknown` |
+| `world.ItemLocation` | Locations: `ground`, `inventory`, `equipped`, `belt`, `cursor`, `cube`, `stash`, `shared_stash_1..3`, `socket`, `unknown` |
 
 Query-Helfer:
 
 ```go
 state.GroundItems()
+state.InventoryItems()
 state.ItemsByLocation(world.ItemLocationGround)
 state.FindItemByUnitID(unitID)
 ```
@@ -79,12 +80,14 @@ Nach einem Countess-Kill sollen Ground-Drops im `world state` erscheinen, z. B. 
 
 - [State Probe](state-probe.md) - liest Snapshots und Hover-Daten
 - [World Model](world-model.md) - hält Items im semantischen State
+- [Inventory Model und Lock Grid](inventory-lock-grid.md) - nutzt Inventar-Items für geschützte Slots und Pickup-Kapazität
 - [Loot- und Recovery-Loop](loot-recovery-loop.md) - nutzt Items ab späteren Phase-5-Slices
 - Recherche: d2go `pkg/memory/item.go` und `cmd/txttocode`; Katalogquelle: lokale D2R-Tabellen `3.2.92777`
 
 ## Verwandte Features
 
 - [Countess-Run](countess-run.md)
+- [Inventory Model und Lock Grid](inventory-lock-grid.md)
 - [Loot- und Recovery-Loop](loot-recovery-loop.md)
 
 ---

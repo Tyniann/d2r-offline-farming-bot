@@ -8,13 +8,22 @@ const (
 	itemOffsetRawLocation = 0x0C
 
 	itemDataOffsetQuality = 0x00
+	itemDataOffsetOwnerID = 0x0C
 	itemDataOffsetFlags   = 0x18
+	itemDataOffsetPage    = 0x55
 
 	itemFlagIdentified = 0x10
 	itemFlagEthereal   = 0x400000
 
-	itemRawLocationGround   = 3
-	itemRawLocationDropping = 5
+	itemRawLocationInventory = 0
+	itemRawLocationEquipped  = 1
+	itemRawLocationBelt      = 2
+	itemRawLocationGround    = 3
+	itemRawLocationCursor    = 4
+	itemRawLocationDropping  = 5
+	itemRawLocationSocket    = 6
+
+	itemOwnerPlayerSentinel = 1
 )
 
 func (p *ProbeReader) enumerateItems(moduleBase uintptr, off OffsetSet, snap *Snapshot) error {
@@ -26,7 +35,7 @@ func (p *ProbeReader) enumerateItems(moduleBase uintptr, off OffsetSet, snap *Sn
 			return unitWalkStop, nil
 		}
 
-		itemUnit, ok := p.readGroundItemUnit(unitAddr, off)
+		itemUnit, ok := p.readItemUnit(unitAddr, off, snap.PlayerUnitID)
 		if !ok {
 			return unitWalkContinue, nil
 		}
@@ -36,14 +45,14 @@ func (p *ProbeReader) enumerateItems(moduleBase uintptr, off OffsetSet, snap *Sn
 	})
 }
 
-func (p *ProbeReader) readGroundItemUnit(unitAddr uintptr, off OffsetSet) (ItemUnit, bool) {
+func (p *ProbeReader) readItemUnit(unitAddr uintptr, off OffsetSet, mainPlayerUnitID uint32) (ItemUnit, bool) {
 	unitType, err := p.reader.ReadUint32(unitAddr + unitOffsetUnitType)
 	if err != nil || unitType != itemUnitType {
 		return ItemUnit{}, false
 	}
 
 	rawLocation, err := p.reader.ReadUint32(unitAddr + itemOffsetRawLocation)
-	if err != nil || !isGroundItemLocation(rawLocation) {
+	if err != nil {
 		return ItemUnit{}, false
 	}
 
@@ -68,6 +77,14 @@ func (p *ProbeReader) readGroundItemUnit(unitAddr uintptr, off OffsetSet) (ItemU
 	if err != nil {
 		return ItemUnit{}, false
 	}
+	ownerID, err := p.reader.ReadUint32(uintptr(unitData) + itemDataOffsetOwnerID)
+	if err != nil {
+		return ItemUnit{}, false
+	}
+	page, err := p.reader.ReadUint8(uintptr(unitData) + itemDataOffsetPage)
+	if err != nil {
+		return ItemUnit{}, false
+	}
 	pathPtr, err := p.reader.ReadUint64(unitAddr + off.Unit.Path)
 	if err != nil || pathPtr == 0 {
 		return ItemUnit{}, false
@@ -80,7 +97,6 @@ func (p *ProbeReader) readGroundItemUnit(unitAddr uintptr, off OffsetSet) (ItemU
 	if err != nil {
 		return ItemUnit{}, false
 	}
-
 	stats := p.readItemStats(unitAddr, off)
 
 	return ItemUnit{
@@ -88,6 +104,11 @@ func (p *ProbeReader) readGroundItemUnit(unitAddr uintptr, off OffsetSet) (ItemU
 		UnitID:      unitID,
 		Quality:     quality,
 		RawLocation: rawLocation,
+		OwnerID:     ownerID,
+		PlayerOwned: isPlayerOwnedItem(ownerID, mainPlayerUnitID),
+		Page:        uint32(page),
+		GridX:       uint32(posX),
+		GridY:       uint32(posY),
 		PosX:        uint32(posX),
 		PosY:        uint32(posY),
 		Flags:       flags,
@@ -124,4 +145,8 @@ func (p *ProbeReader) readItemStats(unitAddr uintptr, off OffsetSet) []RawStat {
 
 func isGroundItemLocation(raw uint32) bool {
 	return raw == itemRawLocationGround || raw == itemRawLocationDropping
+}
+
+func isPlayerOwnedItem(ownerID, mainPlayerUnitID uint32) bool {
+	return ownerID == itemOwnerPlayerSentinel || (mainPlayerUnitID != 0 && ownerID == mainPlayerUnitID)
 }

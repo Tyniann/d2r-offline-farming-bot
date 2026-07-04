@@ -53,6 +53,7 @@ const (
 	ItemLocationEquipped     ItemLocation = "equipped"
 	ItemLocationBelt         ItemLocation = "belt"
 	ItemLocationCursor       ItemLocation = "cursor"
+	ItemLocationCube         ItemLocation = "cube"
 	ItemLocationStash        ItemLocation = "stash"
 	ItemLocationSharedStash1 ItemLocation = "shared_stash_1"
 	ItemLocationSharedStash2 ItemLocation = "shared_stash_2"
@@ -88,6 +89,13 @@ type Item struct {
 	Quality     ItemQuality
 	Location    ItemLocation
 	RawLocation uint32
+	OwnerID     uint32
+	PlayerOwned bool
+	Page        int
+	GridX       int // Inventory column 0..9; [Item.Width] expands across columns.
+	GridY       int // Inventory row 0..3; [Item.Height] expands across rows.
+	Width       int // Inventory footprint width in columns.
+	Height      int // Inventory footprint height in rows.
 	Position    Position
 	Flags       uint32
 	Identified  bool
@@ -103,6 +111,8 @@ type itemCatalogEntry struct {
 	NormalCode string
 	UberCode   string
 	UltraCode  string
+	Width      int
+	Height     int
 }
 
 // LookupItemCode returns the stable item code for a D2R item text ID.
@@ -118,6 +128,12 @@ func LookupItemName(txtFileNo uint32) string {
 // LookupItemType returns the item type code for a D2R item text ID.
 func LookupItemType(txtFileNo uint32) string {
 	return lookupItemCatalog(txtFileNo).Type
+}
+
+// LookupItemDimensions returns the inventory footprint for a D2R item text ID.
+func LookupItemDimensions(txtFileNo uint32) (width, height int) {
+	entry := lookupItemCatalog(txtFileNo)
+	return entry.Width, entry.Height
 }
 
 func lookupItemCatalog(txtFileNo uint32) itemCatalogEntry {
@@ -143,8 +159,15 @@ func mapItem(i memory.ItemUnit, hover HoverInfo) Item {
 		UberCode:    entry.UberCode,
 		UltraCode:   entry.UltraCode,
 		Quality:     ItemQuality(i.Quality),
-		Location:    mapItemLocation(i.RawLocation),
+		Location:    mapItemLocation(i),
 		RawLocation: i.RawLocation,
+		OwnerID:     i.OwnerID,
+		PlayerOwned: i.PlayerOwned,
+		Page:        int(i.Page),
+		GridX:       int(i.GridX),
+		GridY:       int(i.GridY),
+		Width:       entry.Width,
+		Height:      entry.Height,
 		Position:    Position{X: i.PosX, Y: i.PosY},
 		Flags:       i.Flags,
 		Identified:  i.Identified,
@@ -154,13 +177,29 @@ func mapItem(i memory.ItemUnit, hover HoverInfo) Item {
 	}
 }
 
-func mapItemLocation(raw uint32) ItemLocation {
-	switch raw {
+func mapItemLocation(i memory.ItemUnit) ItemLocation {
+	switch i.RawLocation {
 	case 0:
-		return ItemLocationInventory
+		if !i.PlayerOwned {
+			return ItemLocationUnknown
+		}
+		switch i.Page {
+		case 0:
+			return ItemLocationInventory
+		case 3:
+			return ItemLocationCube
+		default:
+			return ItemLocationStash
+		}
 	case 1:
+		if !i.PlayerOwned {
+			return ItemLocationUnknown
+		}
 		return ItemLocationEquipped
 	case 2:
+		if !i.PlayerOwned {
+			return ItemLocationUnknown
+		}
 		return ItemLocationBelt
 	case 3, 5:
 		return ItemLocationGround
@@ -171,6 +210,18 @@ func mapItemLocation(raw uint32) ItemLocation {
 	default:
 		return ItemLocationUnknown
 	}
+}
+
+// InventoryItems returns validated personal inventory items only.
+func (s State) InventoryItems() []Item {
+	items := s.ItemsByLocation(ItemLocationInventory)
+	out := make([]Item, 0, len(items))
+	for _, item := range items {
+		if item.PlayerOwned && item.Page == 0 {
+			out = append(out, item)
+		}
+	}
+	return out
 }
 
 // GroundItems returns all items currently modeled at ground location.

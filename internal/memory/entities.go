@@ -38,6 +38,11 @@ type ItemUnit struct {
 	UnitID      uint32
 	Quality     uint32
 	RawLocation uint32
+	OwnerID     uint32
+	PlayerOwned bool
+	Page        uint32
+	GridX       uint32
+	GridY       uint32
 	PosX        uint32
 	PosY        uint32
 	Flags       uint32

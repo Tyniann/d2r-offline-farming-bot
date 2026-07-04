@@ -15,6 +15,7 @@ type Config struct {
 	Runtime RuntimeConfig `yaml:"runtime"`
 	Process ProcessConfig `yaml:"process"`
 	Memory  MemoryConfig  `yaml:"memory"`
+	Loot    LootConfig    `yaml:"loot"`
 	Input   InputConfig   `yaml:"input"`
 	Runs    RunsConfig    `yaml:"runs"`
 	Pathing PathingConfig `yaml:"pathing"`
@@ -46,6 +47,30 @@ type MemoryConfig struct {
 
 type PathsConfig struct {
 	ConfigDir string `yaml:"config_dir"`
+}
+
+// LootConfig holds read-only loot model settings.
+type LootConfig struct {
+	InventoryLock [][]int `yaml:"inventory_lock"`
+
+	inventoryLockPresent bool `yaml:"-"`
+}
+
+// UnmarshalYAML records whether inventory_lock was present.
+func (c *LootConfig) UnmarshalYAML(value *yaml.Node) error {
+	type lootConfigAlias LootConfig
+	var alias lootConfigAlias
+	if err := value.Decode(&alias); err != nil {
+		return err
+	}
+	*c = LootConfig(alias)
+	for i := 0; i < len(value.Content)-1; i += 2 {
+		if value.Content[i].Value == "inventory_lock" {
+			c.inventoryLockPresent = true
+			break
+		}
+	}
+	return nil
 }
 
 // InputConfig holds keyboard timing, safety settings, and explicit in-game bindings.
@@ -180,6 +205,7 @@ func Load(path string) (*Config, error) {
 	cfg.Input.applyDefaults()
 	cfg.Runs.applyDefaults()
 	cfg.Pathing.applyDefaults()
+	cfg.Loot.applyDefaults()
 	if err := cfg.validate(); err != nil {
 		return nil, err
 	}
@@ -202,6 +228,7 @@ func (c *Config) ResolvePath(rel string) string {
 }
 
 func (c *Config) validate() error {
+	c.Loot.applyDefaults()
 	if c.App.Name == "" {
 		return fmt.Errorf("app.name is required")
 	}
@@ -213,6 +240,9 @@ func (c *Config) validate() error {
 	}
 	if c.Process.AttachTimeoutMs < 0 {
 		return fmt.Errorf("process.attach_timeout_ms must be >= 0")
+	}
+	if err := c.Loot.validate(); err != nil {
+		return err
 	}
 	if err := c.Input.validate(); err != nil {
 		return err
@@ -250,6 +280,33 @@ func (c CountessCombatConfig) validate() error {
 	}
 	if c.KillConfirmTicks <= 0 {
 		return fmt.Errorf("runs.countess.combat.kill_confirm_ticks must be > 0")
+	}
+	return nil
+}
+
+func (c *LootConfig) applyDefaults() {
+	if c.inventoryLockPresent {
+		return
+	}
+	c.InventoryLock = make([][]int, 4)
+	for row := range c.InventoryLock {
+		c.InventoryLock[row] = []int{1, 1, 1, 1, 1, 1, 1, 1, 1, 1}
+	}
+}
+
+func (c LootConfig) validate() error {
+	if len(c.InventoryLock) != 4 {
+		return fmt.Errorf("loot.inventory_lock must have 4 rows")
+	}
+	for row, cells := range c.InventoryLock {
+		if len(cells) != 10 {
+			return fmt.Errorf("loot.inventory_lock row %d must have 10 columns", row)
+		}
+		for col, cell := range cells {
+			if cell != 0 && cell != 1 {
+				return fmt.Errorf("loot.inventory_lock row %d column %d must be 0 or 1", row, col)
+			}
+		}
 	}
 	return nil
 }

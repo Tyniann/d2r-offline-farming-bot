@@ -1,10 +1,13 @@
 package app
 
 import (
+	"io"
+	"log/slog"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/loot"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/memory"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/world"
 )
@@ -334,4 +337,67 @@ func TestWorldLogAttrsGroundItemsHintFiltersBodyItems(t *testing.T) {
 		return
 	}
 	t.Fatal("ground_items_hint missing")
+}
+
+func TestRuntimeWorldLogAttrsInventoryVerbose(t *testing.T) {
+	lock, err := loot.NewInventoryLock([][]int{
+		{1, 1, 0, 0, 0, 0, 0, 0, 0, 0},
+		{1, 1, 0, 0, 0, 0, 0, 0, 0, 0},
+		{1, 1, 0, 0, 0, 0, 0, 0, 0, 0},
+		{1, 1, 0, 0, 0, 0, 0, 0, 0, 0},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	rt := &Runtime{
+		Loot: loot.NewFilter(slog.New(slog.NewTextHandler(io.Discard, nil)), lock),
+	}
+	st := validWorldState(100)
+	st.Items = []world.Item{{
+		TxtFileNo:   625,
+		UnitID:      4001,
+		Code:        "r01",
+		Name:        "El Rune",
+		Location:    world.ItemLocationInventory,
+		PlayerOwned: true,
+		Page:        0,
+		GridX:       2,
+		GridY:       0,
+		Width:       1,
+		Height:      1,
+	}}
+
+	attrs := rt.runtimeWorldLogAttrs(st, true)
+	found := map[string]bool{}
+	for _, a := range attrs {
+		found[a.Key] = true
+	}
+	for _, key := range []string{"inventory_item_count", "inventory_free_slots", "inventory_locked_slots", "inventory_capacity_unsafe", "inventory_items_hint"} {
+		if !found[key] {
+			t.Fatalf("missing runtime inventory attr %q", key)
+		}
+	}
+}
+
+func TestRuntimeWorldLogAttrsInventoryOnlyVerbose(t *testing.T) {
+	lock, err := loot.NewInventoryLock([][]int{
+		{0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+		{0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+		{0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+		{0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	rt := &Runtime{
+		Loot: loot.NewFilter(slog.New(slog.NewTextHandler(io.Discard, nil)), lock),
+	}
+	st := validWorldState(100)
+	st.Items = []world.Item{{Location: world.ItemLocationInventory, PlayerOwned: true, Page: 0, Width: 1, Height: 1}}
+
+	for _, a := range rt.runtimeWorldLogAttrs(st, false) {
+		if strings.HasPrefix(a.Key, "inventory_") {
+			t.Fatalf("%s should be absent when verbose=false", a.Key)
+		}
+	}
 }

@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"gopkg.in/yaml.v3"
 )
 
 func TestLoadExampleConfig(t *testing.T) {
@@ -26,6 +28,12 @@ func TestLoadExampleConfig(t *testing.T) {
 	}
 	if cfg.Memory.GameVersion != "3.2.92777" {
 		t.Errorf("Memory.GameVersion = %q, want 3.2.92777", cfg.Memory.GameVersion)
+	}
+	if len(cfg.Loot.InventoryLock) != 4 || len(cfg.Loot.InventoryLock[0]) != 10 {
+		t.Fatalf("Loot.InventoryLock shape = %dx%d, want 4x10", len(cfg.Loot.InventoryLock), len(cfg.Loot.InventoryLock[0]))
+	}
+	if cfg.Loot.InventoryLock[0][0] != 1 || cfg.Loot.InventoryLock[0][4] != 0 {
+		t.Fatalf("Loot.InventoryLock first row = %+v, want locked columns then free columns", cfg.Loot.InventoryLock[0])
 	}
 	if cfg.Input.KeyDelayMsMin != 10 {
 		t.Errorf("Input.KeyDelayMsMin = %d, want 10", cfg.Input.KeyDelayMsMin)
@@ -113,6 +121,92 @@ process:
 	}
 	if def.PauseHotkey != "pause" || def.StopHotkey != "f12" {
 		t.Fatalf("hotkey defaults = pause=%q stop=%q", def.PauseHotkey, def.StopHotkey)
+	}
+}
+
+func TestLootInventoryLockDefaultsAllLockedWhenMissing(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "minimal.yaml")
+	content := `app:
+  name: d2rbot
+runtime:
+  poll_interval_ms: 100
+process:
+  process_name: D2R.exe
+`
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(cfg.Loot.InventoryLock) != 4 {
+		t.Fatalf("rows = %d, want 4", len(cfg.Loot.InventoryLock))
+	}
+	for row, cells := range cfg.Loot.InventoryLock {
+		if len(cells) != 10 {
+			t.Fatalf("row %d columns = %d, want 10", row, len(cells))
+		}
+		for col, cell := range cells {
+			if cell != 1 {
+				t.Fatalf("cell %d,%d = %d, want all locked", row, col, cell)
+			}
+		}
+	}
+}
+
+func TestLootInventoryLockValidation(t *testing.T) {
+	tests := []struct {
+		name    string
+		content string
+	}{
+		{
+			name: "wrong rows",
+			content: `loot:
+  inventory_lock:
+    - [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+`,
+		},
+		{
+			name: "wrong columns",
+			content: `loot:
+  inventory_lock:
+    - [1, 1, 1, 1, 1, 1, 1, 1, 1]
+    - [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+    - [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+    - [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+`,
+		},
+		{
+			name: "invalid value",
+			content: `loot:
+  inventory_lock:
+    - [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+    - [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+    - [1, 1, 2, 1, 1, 1, 1, 1, 1, 1]
+    - [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+`,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := &Config{
+				App:     AppConfig{Name: "d2rbot"},
+				Process: ProcessConfig{ProcessName: "D2R.exe"},
+				Runtime: RuntimeConfig{PollIntervalMs: 100},
+			}
+			if err := yaml.Unmarshal([]byte(tc.content), cfg); err != nil {
+				t.Fatal(err)
+			}
+			cfg.Input.applyDefaults()
+			cfg.Runs.applyDefaults()
+			cfg.Pathing.applyDefaults()
+			if err := cfg.validate(); err == nil {
+				t.Fatal("expected invalid inventory_lock")
+			}
+		})
 	}
 }
 

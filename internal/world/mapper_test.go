@@ -214,6 +214,7 @@ func TestFromSnapshotMapsItems(t *testing.T) {
 		UnitID:      4001,
 		Quality:     2,
 		RawLocation: 3,
+		PlayerOwned: false,
 		PosX:        700,
 		PosY:        800,
 		Flags:       0x10,
@@ -238,6 +239,9 @@ func TestFromSnapshotMapsItems(t *testing.T) {
 	if got.Location != ItemLocationGround || got.RawLocation != 3 {
 		t.Fatalf("Location = %q raw=%d, want ground raw=3", got.Location, got.RawLocation)
 	}
+	if got.Width != 1 || got.Height != 1 {
+		t.Fatalf("Dimensions = %dx%d, want rune 1x1", got.Width, got.Height)
+	}
 	if got.Position.X != 700 || got.Position.Y != 800 || !got.IsHovered || !got.Identified {
 		t.Fatalf("Item = %+v, want hovered identified at 700,800", got)
 	}
@@ -249,6 +253,9 @@ func TestFromSnapshotMapsItems(t *testing.T) {
 func TestItemLocationAndQualityStrings(t *testing.T) {
 	if ItemLocation("").String() != "unknown" {
 		t.Fatalf("empty location = %q, want unknown", ItemLocation("").String())
+	}
+	if ItemLocationCube.String() != "cube" {
+		t.Fatalf("cube location = %q, want cube", ItemLocationCube.String())
 	}
 	if ItemLocationSharedStash1.String() != "shared_stash_1" {
 		t.Fatalf("shared stash = %q", ItemLocationSharedStash1.String())
@@ -265,8 +272,14 @@ func TestItemCatalogLookupIncludesBaseItems(t *testing.T) {
 	if LookupItemCode(27) != "sbr" || LookupItemName(27) != "Saber" || LookupItemType(27) != "swor" {
 		t.Fatalf("Saber lookup = %q/%q/%q", LookupItemCode(27), LookupItemName(27), LookupItemType(27))
 	}
+	if w, h := LookupItemDimensions(27); w != 1 || h != 3 {
+		t.Fatalf("Saber dimensions = %dx%d, want 1x3", w, h)
+	}
 	if LookupItemCode(316) != "stu" || LookupItemName(316) != "Studded Leather" || LookupItemType(316) != "tors" {
 		t.Fatalf("Studded Leather lookup = %q/%q/%q", LookupItemCode(316), LookupItemName(316), LookupItemType(316))
+	}
+	if w, h := LookupItemDimensions(316); w != 2 || h != 3 {
+		t.Fatalf("Studded Leather dimensions = %dx%d, want 2x3", w, h)
 	}
 }
 
@@ -282,6 +295,28 @@ func TestItemCatalogLookupIncludesDummyTypeForDiagnostics(t *testing.T) {
 	}
 }
 
+func TestItemCatalogLookupIncludesInventoryDimensions(t *testing.T) {
+	cases := []struct {
+		id     uint32
+		width  int
+		height int
+	}{
+		{533, 1, 2}, // Tome of Town Portal
+		{534, 1, 2}, // Tome of Identify
+		{564, 2, 2}, // Horadric Cube
+		{618, 1, 1}, // Small Charm
+		{619, 1, 2}, // Large Charm
+		{620, 1, 3}, // Grand Charm
+		{625, 1, 1}, // El Rune
+	}
+	for _, tc := range cases {
+		w, h := LookupItemDimensions(tc.id)
+		if w != tc.width || h != tc.height {
+			t.Fatalf("LookupItemDimensions(%d) = %dx%d, want %dx%d", tc.id, w, h, tc.width, tc.height)
+		}
+	}
+}
+
 func TestHoverUnitTypeItemString(t *testing.T) {
 	if HoverUnitType(memory.HoverUnitTypeItem).String() != "item" {
 		t.Fatalf("HoverUnitTypeItem string = %q, want item", HoverUnitType(memory.HoverUnitTypeItem).String())
@@ -292,7 +327,7 @@ func TestStateItemQueries(t *testing.T) {
 	st := validSnapshot()
 	st.Items = []memory.ItemUnit{
 		{TxtFileNo: 625, UnitID: 4001, RawLocation: 3},
-		{TxtFileNo: 611, UnitID: 4002, RawLocation: 1},
+		{TxtFileNo: 611, UnitID: 4002, RawLocation: 1, PlayerOwned: true},
 	}
 	state := FromSnapshot(st)
 
@@ -307,6 +342,30 @@ func TestStateItemQueries(t *testing.T) {
 	}
 	if _, ok := state.FindItemByUnitID(9999); ok {
 		t.Fatal("FindItemByUnitID should not find missing unit")
+	}
+}
+
+func TestStateInventoryItemsUsesValidatedPersonalInventoryOnly(t *testing.T) {
+	st := validSnapshot()
+	st.Items = []memory.ItemUnit{
+		{TxtFileNo: 625, UnitID: 4001, RawLocation: 0, OwnerID: 9001, PlayerOwned: true, Page: 0, GridX: 4, GridY: 2},
+		{TxtFileNo: 564, UnitID: 4002, RawLocation: 0, OwnerID: 9001, PlayerOwned: true, Page: 3, GridX: 0, GridY: 0},
+		{TxtFileNo: 625, UnitID: 4003, RawLocation: 0, OwnerID: 0, PlayerOwned: false, Page: 0, GridX: 5, GridY: 2},
+	}
+	state := FromSnapshot(st)
+
+	items := state.InventoryItems()
+	if len(items) != 1 || items[0].UnitID != 4001 {
+		t.Fatalf("InventoryItems = %+v, want only personal inventory unit 4001", items)
+	}
+	if items[0].GridX != 4 || items[0].GridY != 2 || items[0].Width != 1 || items[0].Height != 1 {
+		t.Fatalf("Inventory item grid/dimensions = %+v, want col 4 row 2 size 1x1", items[0])
+	}
+	if got := state.ItemsByLocation(ItemLocationCube); len(got) != 1 || got[0].UnitID != 4002 {
+		t.Fatalf("Cube items = %+v, want unit 4002", got)
+	}
+	if got := state.ItemsByLocation(ItemLocationUnknown); len(got) != 1 || got[0].UnitID != 4003 {
+		t.Fatalf("Unknown items = %+v, want non-player inventory unit 4003", got)
 	}
 }
 

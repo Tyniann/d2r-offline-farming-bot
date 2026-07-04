@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/loot"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/world"
 )
 
@@ -248,21 +249,76 @@ func hintGroundItems(cur world.State) []world.Item {
 	return out
 }
 
+func (rt *Runtime) runtimeWorldLogAttrs(cur world.State, verbose bool) []slog.Attr {
+	attrs := worldLogAttrs(cur, verbose)
+	if !verbose || !cur.Valid || rt == nil || rt.Loot == nil {
+		return attrs
+	}
+
+	items := cur.InventoryItems()
+	grid := loot.NewInventoryGrid(rt.Loot.InventoryLock(), items)
+	capacity := grid.Capacity()
+	attrs = append(attrs,
+		slog.Uint64("inventory_item_count", uint64(len(items))),
+		slog.Int("inventory_free_slots", capacity.FreeSlots),
+		slog.Int("inventory_locked_slots", capacity.LockedSlots),
+		slog.Bool("inventory_capacity_unsafe", capacity.Unsafe),
+	)
+	if capacity.Reason != "" {
+		attrs = append(attrs, slog.String("inventory_capacity_reason", capacity.Reason))
+	}
+	if hint := verboseInventoryItemsHint(items); hint != "" {
+		attrs = append(attrs, slog.String("inventory_items_hint", hint))
+	}
+	return attrs
+}
+
+func verboseInventoryItemsHint(items []world.Item) string {
+	if len(items) == 0 {
+		return ""
+	}
+	sort.Slice(items, func(i, j int) bool {
+		return items[i].UnitID < items[j].UnitID
+	})
+	const maxHintItems = 32
+	if len(items) > maxHintItems {
+		items = items[:maxHintItems]
+	}
+	parts := make([]string, 0, len(items))
+	for _, item := range items {
+		name := item.Name
+		if name == "" {
+			name = "Unknown Item"
+		}
+		parts = append(parts, fmt.Sprintf("unit=%d id=%d code=%q name=%q grid=%d,%d size=%dx%d",
+			item.UnitID,
+			item.TxtFileNo,
+			item.Code,
+			name,
+			item.GridX,
+			item.GridY,
+			item.Width,
+			item.Height,
+		))
+	}
+	return strings.Join(parts, "; ")
+}
+
 func (rt *Runtime) logWorldState(prev, cur world.State, heartbeat, verbose bool) {
 	if cur.Valid {
 		level := slog.LevelInfo
 		if verbose && isPositionOnlyWorldChange(prev, cur) {
 			level = slog.LevelDebug
 		}
-		rt.Log.Log(context.Background(), level, "world state", attrsToArgs(worldLogAttrs(cur, verbose))...)
+		rt.Log.Log(context.Background(), level, "world state", attrsToArgs(rt.runtimeWorldLogAttrs(cur, verbose))...)
 		return
 	}
 
 	if heartbeat {
-		rt.Log.Debug("world unavailable", attrsToArgs(worldLogAttrs(cur, verbose))...)
+		rt.Log.Debug("world unavailable", attrsToArgs(rt.runtimeWorldLogAttrs(cur, verbose))...)
 		return
 	}
-	rt.Log.Info("world unavailable", attrsToArgs(worldLogAttrs(cur, verbose))...)
+	rt.Log.Info("world unavailable", attrsToArgs(rt.runtimeWorldLogAttrs(cur, verbose))...)
 }
 
 func attrsToArgs(attrs []slog.Attr) []any {

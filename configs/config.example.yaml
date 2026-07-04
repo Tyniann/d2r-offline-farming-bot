@@ -19,6 +19,15 @@ memory:
   # Leer = eingebautes DefaultOffsetSet(); sonst YAML-Override (z. B. configs/offsets.local.yaml)
   offsets_file: ""
 
+loot:
+  inventory_lock:
+    # 4x10 Grid; 1 = geschützt/nicht benutzen, 0 = für Loot verfügbar.
+    # Beispiel: linke 4 Spalten für Cube, Tomes, Torch/Anni und Charms schützen.
+    - [1, 1, 1, 1, 0, 0, 0, 0, 0, 0]
+    - [1, 1, 1, 1, 0, 0, 0, 0, 0, 0]
+    - [1, 1, 1, 1, 0, 0, 0, 0, 0, 0]
+    - [1, 1, 1, 1, 0, 0, 0, 0, 0, 0]
+
 paths:
   config_dir: configs
 

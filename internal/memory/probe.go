@@ -23,6 +23,7 @@ type Snapshot struct {
 	Reason       string
 	Phase        GamePhase
 	PlayerPtr    uintptr
+	PlayerUnitID uint32
 	StatsSource  string // `base` or `active`, identifying the stat list used for vitals.
 	HP           uint32
 	MaxHP        uint32
@@ -227,6 +228,10 @@ func (p *ProbeReader) Snapshot() Snapshot {
 	if err != nil {
 		return invalidSnapshot(now, phase, ReasonReadFailed)
 	}
+	playerUnitID, err := p.reader.ReadUint32(playerPtr + off.Unit.UnitID)
+	if err != nil {
+		return invalidSnapshot(now, phase, ReasonReadFailed)
+	}
 
 	statsListEx, err := p.reader.ReadUint64(playerPtr + off.Unit.StatsListEx)
 	if err != nil || statsListEx == 0 {
@@ -245,18 +250,19 @@ func (p *ProbeReader) Snapshot() Snapshot {
 	vitals = p.normalizeVitalStats(playerPtr, vitals)
 
 	snap := Snapshot{
-		At:          now,
-		Valid:       true,
-		Phase:       phase,
-		PlayerPtr:   playerPtr,
-		StatsSource: statsSource,
-		HP:          vitals.HP,
-		MaxHP:       vitals.MaxHP,
-		Mana:        vitals.Mana,
-		MaxMana:     vitals.MaxMana,
-		AreaID:      areaID,
-		PosX:        posX,
-		PosY:        posY,
+		At:           now,
+		Valid:        true,
+		Phase:        phase,
+		PlayerPtr:    playerPtr,
+		PlayerUnitID: playerUnitID,
+		StatsSource:  statsSource,
+		HP:           vitals.HP,
+		MaxHP:        vitals.MaxHP,
+		Mana:         vitals.Mana,
+		MaxMana:      vitals.MaxMana,
+		AreaID:       areaID,
+		PosX:         posX,
+		PosY:         posY,
 	}
 
 	// Step 4: entities and hover only when Valid && Phase == in_game.

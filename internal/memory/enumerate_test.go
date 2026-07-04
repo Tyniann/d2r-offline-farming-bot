@@ -95,11 +95,15 @@ func setupMonsterUnit(access *mockAccess, unitAddr, unitData, path uintptr, npcI
 }
 
 func setupGroundItemUnit(access *mockAccess, unitAddr, unitData, path, statsListEx, statsArray uintptr, txtFileNo, unitID, quality, flags uint32) {
+	setupItemUnit(access, unitAddr, unitData, path, statsListEx, statsArray, txtFileNo, unitID, quality, flags, itemRawLocationGround, 0, 0, 700, 800)
+}
+
+func setupItemUnit(access *mockAccess, unitAddr, unitData, path, statsListEx, statsArray uintptr, txtFileNo, unitID, quality, flags, rawLocation, ownerID uint32, page uint8, x, y uint16) {
 	buf := make([]byte, 0x200)
 	binary.LittleEndian.PutUint32(buf[unitOffsetUnitType:], itemUnitType)
 	binary.LittleEndian.PutUint32(buf[unitOffsetTxtFileNo:], txtFileNo)
 	binary.LittleEndian.PutUint32(buf[0x08:], unitID)
-	binary.LittleEndian.PutUint32(buf[itemOffsetRawLocation:], itemRawLocationGround)
+	binary.LittleEndian.PutUint32(buf[itemOffsetRawLocation:], rawLocation)
 	binary.LittleEndian.PutUint64(buf[unitOffsetUnitData:], uint64(unitData))
 	binary.LittleEndian.PutUint64(buf[0x38:], uint64(path))
 	if statsListEx != 0 {
@@ -109,13 +113,15 @@ func setupGroundItemUnit(access *mockAccess, unitAddr, unitData, path, statsList
 
 	dataBuf := make([]byte, 0x60)
 	binary.LittleEndian.PutUint32(dataBuf[itemDataOffsetQuality:], quality)
+	binary.LittleEndian.PutUint32(dataBuf[itemDataOffsetOwnerID:], ownerID)
 	binary.LittleEndian.PutUint32(dataBuf[itemDataOffsetFlags:], flags)
+	dataBuf[itemDataOffsetPage] = page
 	access.setBytes(unitData, dataBuf)
 
 	if path != 0 {
 		pathBuf := make([]byte, 0x20)
-		binary.LittleEndian.PutUint16(pathBuf[pathOffsetObjectX:], 700)
-		binary.LittleEndian.PutUint16(pathBuf[pathOffsetObjectY:], 800)
+		binary.LittleEndian.PutUint16(pathBuf[pathOffsetObjectX:], x)
+		binary.LittleEndian.PutUint16(pathBuf[pathOffsetObjectY:], y)
 		access.setBytes(path, pathBuf)
 	}
 
@@ -373,6 +379,47 @@ func TestProbeSnapshotEnumeratesGroundItems(t *testing.T) {
 	}
 	if len(got.Stats) != 1 || got.Stats[0].ID != 123 || got.Stats[0].Layer != 2 || got.Stats[0].Value != 456 {
 		t.Fatalf("Stats = %+v, want raw stat 123/2/456", got.Stats)
+	}
+}
+
+func TestProbeSnapshotEnumeratesInventoryItemsWithGridFields(t *testing.T) {
+	access, probe, moduleBase := setupProbeMock(t)
+	off := testOffsetSet()
+
+	const (
+		itemUnit = uintptr(0x69000)
+		itemData = uintptr(0x6A000)
+		itemPath = uintptr(0x6B000)
+	)
+
+	writeSegmentHead(access, moduleBase, off.UnitTable, unitSegmentItem, itemUnit)
+	setupItemUnit(access, itemUnit, itemData, itemPath, 0, 0, 625, 4001, 2, 0, itemRawLocationInventory, 9001, 0, 4, 2)
+
+	snap := probe.Snapshot()
+	if len(snap.Items) != 1 {
+		t.Fatalf("Items = %+v, want one inventory item", snap.Items)
+	}
+	got := snap.Items[0]
+	if got.RawLocation != itemRawLocationInventory || got.OwnerID != 9001 || !got.PlayerOwned {
+		t.Fatalf("Item ownership/location = %+v, want player-owned inventory", got)
+	}
+	if got.Page != 0 || got.GridX != 4 || got.GridY != 2 {
+		t.Fatalf("Item grid = page %d (%d,%d), want page 0 (4,2)", got.Page, got.GridX, got.GridY)
+	}
+}
+
+func TestIsPlayerOwnedItem(t *testing.T) {
+	if !isPlayerOwnedItem(9001, 9001) {
+		t.Fatal("main player owner should be player-owned")
+	}
+	if !isPlayerOwnedItem(itemOwnerPlayerSentinel, 9001) {
+		t.Fatal("player sentinel owner should be player-owned")
+	}
+	if isPlayerOwnedItem(2, 9001) {
+		t.Fatal("stash-like owner should not be player-owned")
+	}
+	if isPlayerOwnedItem(0, 9001) {
+		t.Fatal("unknown owner should not be player-owned")
 	}
 }
 
