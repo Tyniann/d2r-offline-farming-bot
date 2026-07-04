@@ -49,6 +49,33 @@ func areaState(area world.AreaID) world.State {
 	}
 }
 
+func cellar5State(monsters ...world.Monster) world.State {
+	st := areaState(world.TowerCellarLevel5)
+	st.Player.Position = world.Position{X: 100, Y: 100}
+	st.Monsters = monsters
+	return st
+}
+
+func cellar5WithGoodChest() world.State {
+	st := cellar5State()
+	st.Objects = []world.Object{{
+		Kind:     world.ObjectKindGoodChest,
+		UnitID:   50,
+		Position: world.Position{X: 120, Y: 120},
+		Name:     "Good Chest",
+	}}
+	return st
+}
+
+func countessMonster(unitID uint32, pos world.Position) world.Monster {
+	return world.Monster{
+		NPCID:           world.DarkStalker,
+		UnitID:          unitID,
+		Position:        pos,
+		MonsterTypeFlag: world.SuperUniqueMonsterFlag,
+	}
+}
+
 type mockWaypointActions struct {
 	results       []pathing.WaypointActionResult
 	selectResult  pathing.WaypointActionResult
@@ -68,6 +95,14 @@ type mockNavigator struct {
 	startErr    error
 	tickResults []pathing.NavTickResult
 	resetCalls  int
+}
+
+type mockCombatActions struct {
+	castCalls     int
+	teleportCalls int
+	resetCalls    int
+	lastSkillID   uint16
+	lastDesired   float64
 }
 
 func (m *mockTownWalker) Reset() { m.resets++ }
@@ -122,8 +157,35 @@ func (m *mockNavigator) Active() bool { return len(m.tickResults) > 0 }
 
 func (m *mockNavigator) Reset() { m.resetCalls++ }
 
+func (m *mockCombatActions) CastSkillAtWorld(_ time.Time, skillID uint16, _, _ world.Position) error {
+	m.castCalls++
+	m.lastSkillID = skillID
+	return nil
+}
+
+func (m *mockCombatActions) TeleportToward(_ time.Time, _ world.Position, _ world.Position, desiredDistanceTiles float64) error {
+	m.teleportCalls++
+	m.lastDesired = desiredDistanceTiles
+	return nil
+}
+
+func (m *mockCombatActions) Reset() { m.resetCalls++ }
+
 func newTestRunner(runName string) *Runner {
 	return NewRunner(config.NewLogger("error"), RunSelection{Run: runName}, RunConfig{StepTimeout: 30 * time.Second}, Deps{})
+}
+
+func killRunConfig() RunConfig {
+	return RunConfig{
+		StepTimeout: time.Second,
+		CountessCombat: CountessCombatConfig{
+			AttackSkillID:           84,
+			AttackInterval:          350 * time.Millisecond,
+			EngageDistanceTiles:     22,
+			RepositionDistanceTiles: 32,
+			KillConfirmTicks:        3,
+		},
+	}
 }
 
 func TestRunnerPassiveModeNoOp(t *testing.T) {
@@ -490,6 +552,149 @@ func TestCountessTravelCellar5ResumeAlreadyAtCellar5Completes(t *testing.T) {
 	}
 }
 
+func TestCountessKillPrecheckRequiresCellar5AndCombat(t *testing.T) {
+	r := NewRunner(config.NewLogger("error"), RunSelection{Run: "countess", Phase: CountessPhaseKillCountess}, killRunConfig(), Deps{Combat: &mockCombatActions{}})
+	res := r.Tick(context.Background(), areaState(world.TowerCellarLevel4), time.Now())
+	if res.Outcome != RunOutcomeFailed || res.Reason != "not_cellar_5" {
+		t.Fatalf("wrong area tick = %+v, want not_cellar_5", res)
+	}
+
+	r = NewRunner(config.NewLogger("error"), RunSelection{Run: "countess", Phase: CountessPhaseKillCountess}, killRunConfig(), Deps{})
+	res = r.Tick(context.Background(), cellar5State(), time.Now())
+	if res.Outcome != RunOutcomeFailed || res.Reason != "combat_not_wired" {
+		t.Fatalf("missing combat tick = %+v, want combat_not_wired", res)
+	}
+}
+
+func TestCountessKillTargetsDarkStalkerBeforeGenericSuperUnique(t *testing.T) {
+	combat := &mockCombatActions{}
+	r := NewRunner(config.NewLogger("error"), RunSelection{Run: "countess", Phase: CountessPhaseKillCountess}, killRunConfig(), Deps{Combat: combat})
+	now := time.Now()
+	generic := world.Monster{NPCID: 999, UnitID: 20, Position: world.Position{X: 101, Y: 101}, MonsterTypeFlag: world.SuperUniqueMonsterFlag}
+	countess := countessMonster(10, world.Position{X: 110, Y: 100})
+	st := cellar5State(generic, countess)
+
+	_ = r.Tick(context.Background(), st, now)
+	_ = r.Tick(context.Background(), st, now.Add(time.Millisecond))
+	_ = r.Tick(context.Background(), cellar5State(generic), now.Add(2*time.Millisecond))
+	_ = r.Tick(context.Background(), cellar5State(generic), now.Add(3*time.Millisecond))
+	res := r.Tick(context.Background(), cellar5State(generic), now.Add(4*time.Millisecond))
+	if res.Outcome != RunOutcomeSuccess {
+		t.Fatalf("tick = %+v, want success after stored Countess target disappears", res)
+	}
+}
+
+func TestCountessKillGoodChestFallbackStartsOnceAndTicksPathing(t *testing.T) {
+	nav := &mockNavigator{tickResults: []pathing.NavTickResult{
+		{Status: pathing.NavMoving},
+		{Status: pathing.NavArrived, Done: true},
+	}}
+	r := NewRunner(config.NewLogger("error"), RunSelection{Run: "countess", Phase: CountessPhaseKillCountess}, killRunConfig(), Deps{
+		Combat:  &mockCombatActions{},
+		Pathing: nav,
+	})
+	now := time.Now()
+	st := cellar5WithGoodChest()
+
+	_ = r.Tick(context.Background(), st, now)
+	_ = r.Tick(context.Background(), st, now.Add(time.Millisecond))
+	_ = r.Tick(context.Background(), st, now.Add(2*time.Millisecond))
+	if len(nav.startGoals) != 1 {
+		t.Fatalf("Start calls = %d, want 1", len(nav.startGoals))
+	}
+	if nav.startGoals[0].Kind != pathing.GoalKindMoveToPosition || nav.startGoals[0].TargetPos != st.Objects[0].Position {
+		t.Fatalf("goal = %+v, want move to good chest position", nav.startGoals[0])
+	}
+}
+
+func TestCountessKillEntranceFallbackMovesInWhenChestMissing(t *testing.T) {
+	nav := &mockNavigator{tickResults: []pathing.NavTickResult{
+		{Status: pathing.NavMoving},
+	}}
+	r := NewRunner(config.NewLogger("error"), RunSelection{Run: "countess", Phase: CountessPhaseKillCountess}, killRunConfig(), Deps{
+		Combat:  &mockCombatActions{},
+		Pathing: nav,
+	})
+	now := time.Now()
+	st := cellar5State()
+	st.Entrances = []world.Entrance{{
+		Kind:     world.EntranceKindTowerCellarDown,
+		UnitID:   37,
+		Position: world.Position{X: 12641, Y: 9556},
+		Name:     "Act 1 Tower Cellar Down",
+	}}
+
+	_ = r.Tick(context.Background(), st, now)
+	_ = r.Tick(context.Background(), st, now.Add(time.Millisecond))
+	if len(nav.startGoals) != 1 {
+		t.Fatalf("Start calls = %d, want 1", len(nav.startGoals))
+	}
+	if nav.startGoals[0].Kind != pathing.GoalKindMoveToPosition || nav.startGoals[0].TargetPos != st.Entrances[0].Position {
+		t.Fatalf("goal = %+v, want move to cellar down search anchor", nav.startGoals[0])
+	}
+}
+
+func TestCountessKillEngageCastsEveryTaskTickAndConfirmsKill(t *testing.T) {
+	combat := &mockCombatActions{}
+	r := NewRunner(config.NewLogger("error"), RunSelection{Run: "countess", Phase: CountessPhaseKillCountess}, killRunConfig(), Deps{Combat: combat})
+	now := time.Now()
+	target := countessMonster(10, world.Position{X: 110, Y: 100})
+	visible := cellar5State(target)
+
+	_ = r.Tick(context.Background(), visible, now)
+	_ = r.Tick(context.Background(), visible, now.Add(time.Millisecond))
+	_ = r.Tick(context.Background(), visible, now.Add(2*time.Millisecond))
+	_ = r.Tick(context.Background(), visible, now.Add(3*time.Millisecond))
+	if combat.castCalls != 2 || combat.lastSkillID != 84 {
+		t.Fatalf("castCalls=%d skill=%d, want two task-level casts with Bone Spear", combat.castCalls, combat.lastSkillID)
+	}
+
+	absent := cellar5State()
+	_ = r.Tick(context.Background(), absent, now.Add(4*time.Millisecond))
+	_ = r.Tick(context.Background(), absent, now.Add(5*time.Millisecond))
+	res := r.Tick(context.Background(), absent, now.Add(6*time.Millisecond))
+	if res.Outcome != RunOutcomeSuccess {
+		t.Fatalf("tick = %+v, want success after absent ticks", res)
+	}
+}
+
+func TestCountessKillAbsenceResetAndAreaFailure(t *testing.T) {
+	combat := &mockCombatActions{}
+	r := NewRunner(config.NewLogger("error"), RunSelection{Run: "countess", Phase: CountessPhaseKillCountess}, killRunConfig(), Deps{Combat: combat})
+	now := time.Now()
+	target := countessMonster(10, world.Position{X: 110, Y: 100})
+	visible := cellar5State(target)
+	absent := cellar5State()
+
+	_ = r.Tick(context.Background(), visible, now)
+	_ = r.Tick(context.Background(), visible, now.Add(time.Millisecond))
+	_ = r.Tick(context.Background(), absent, now.Add(2*time.Millisecond))
+	_ = r.Tick(context.Background(), absent, now.Add(3*time.Millisecond))
+	res := r.Tick(context.Background(), visible, now.Add(4*time.Millisecond))
+	if res.Outcome == RunOutcomeSuccess {
+		t.Fatalf("tick = %+v, absence should reset when target reappears", res)
+	}
+	res = r.Tick(context.Background(), areaState(world.TowerCellarLevel4), now.Add(5*time.Millisecond))
+	if res.Outcome != RunOutcomeFailed || res.Reason != "unexpected_area" {
+		t.Fatalf("area tick = %+v, want unexpected_area", res)
+	}
+}
+
+func TestCountessKillTeleportRepositionUsesEngageDistance(t *testing.T) {
+	combat := &mockCombatActions{}
+	r := NewRunner(config.NewLogger("error"), RunSelection{Run: "countess", Phase: CountessPhaseKillCountess}, killRunConfig(), Deps{Combat: combat})
+	now := time.Now()
+	target := countessMonster(10, world.Position{X: 200, Y: 100})
+	st := cellar5State(target)
+
+	_ = r.Tick(context.Background(), st, now)
+	_ = r.Tick(context.Background(), st, now.Add(time.Millisecond))
+	_ = r.Tick(context.Background(), st, now.Add(2*time.Millisecond))
+	if combat.teleportCalls != 1 || combat.lastDesired != 22 {
+		t.Fatalf("teleports=%d desired=%.1f, want one teleport toward engage distance", combat.teleportCalls, combat.lastDesired)
+	}
+}
+
 func TestCountessNavigateAreaStartsOnceWhilePending(t *testing.T) {
 	nav := &mockNavigator{tickResults: []pathing.NavTickResult{
 		{Status: pathing.NavExploring},
@@ -646,24 +851,36 @@ func TestCountessNavigateAreaStartFailureReasons(t *testing.T) {
 
 func TestRunnerResetsPathingLifecycle(t *testing.T) {
 	nav := &mockNavigator{}
-	r := NewRunner(config.NewLogger("error"), RunSelection{Run: "countess"}, RunConfig{StepTimeout: time.Second}, Deps{Pathing: nav})
+	combat := &mockCombatActions{}
+	r := NewRunner(config.NewLogger("error"), RunSelection{Run: "countess"}, RunConfig{StepTimeout: time.Second}, Deps{Pathing: nav, Combat: combat})
 
 	r.Reset("process_lost")
 	if nav.resetCalls != 1 {
 		t.Fatalf("Reset calls after Runner.Reset = %d, want 1", nav.resetCalls)
 	}
+	if combat.resetCalls != 1 {
+		t.Fatalf("Combat Reset calls after Runner.Reset = %d, want 1", combat.resetCalls)
+	}
 
 	nav.resetCalls = 0
-	r = NewRunner(config.NewLogger("error"), RunSelection{Run: "countess"}, RunConfig{StepTimeout: time.Second}, Deps{Pathing: nav})
+	combat.resetCalls = 0
+	r = NewRunner(config.NewLogger("error"), RunSelection{Run: "countess"}, RunConfig{StepTimeout: time.Second}, Deps{Pathing: nav, Combat: combat})
 	_ = r.Tick(context.Background(), townState(), time.Now())
 	if nav.resetCalls != 2 {
 		t.Fatalf("Reset calls after beginStep chain = %d, want 2", nav.resetCalls)
 	}
+	if combat.resetCalls != 2 {
+		t.Fatalf("Combat Reset calls after beginStep chain = %d, want 2", combat.resetCalls)
+	}
 
 	nav.resetCalls = 0
-	r = NewRunner(config.NewLogger("error"), RunSelection{Run: "countess"}, RunConfig{StepTimeout: time.Second}, Deps{Pathing: nav})
+	combat.resetCalls = 0
+	r = NewRunner(config.NewLogger("error"), RunSelection{Run: "countess"}, RunConfig{StepTimeout: time.Second}, Deps{Pathing: nav, Combat: combat})
 	_ = r.Tick(context.Background(), blackMarshState(), time.Now())
 	if nav.resetCalls != 2 {
 		t.Fatalf("Reset calls after failed step = %d, want 2 (begin + failure)", nav.resetCalls)
+	}
+	if combat.resetCalls != 2 {
+		t.Fatalf("Combat Reset calls after failed step = %d, want 2 (begin + failure)", combat.resetCalls)
 	}
 }

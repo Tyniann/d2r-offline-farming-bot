@@ -95,10 +95,33 @@ func (c *InputConfig) UnmarshalYAML(value *yaml.Node) error {
 
 // RunsConfig holds active run selection and step timing defaults.
 type RunsConfig struct {
-	Active        string `yaml:"active"`
-	StepTimeoutMs int    `yaml:"step_timeout_ms"`
+	Active        string            `yaml:"active"`
+	StepTimeoutMs int               `yaml:"step_timeout_ms"`
+	Countess      CountessRunConfig `yaml:"countess"`
 
 	sectionPresent bool `yaml:"-"`
+}
+
+// CountessRunConfig holds Countess-specific run tuning.
+type CountessRunConfig struct {
+	// Combat tunes the optional Countess kill phase.
+	Combat CountessCombatConfig `yaml:"combat"`
+}
+
+// CountessCombatConfig holds Countess kill-phase combat tuning.
+type CountessCombatConfig struct {
+	// Profile selects the fixed MVP combat profile.
+	Profile string `yaml:"profile"`
+	// AttackSkill names the configured attack skill.
+	AttackSkill string `yaml:"attack_skill"`
+	// AttackIntervalMs throttles real attack inputs.
+	AttackIntervalMs int `yaml:"attack_interval_ms"`
+	// EngageDistanceTiles is the desired distance after combat repositioning.
+	EngageDistanceTiles float64 `yaml:"engage_distance_tiles"`
+	// RepositionDistanceTiles triggers teleport repositioning when exceeded.
+	RepositionDistanceTiles float64 `yaml:"reposition_distance_tiles"`
+	// KillConfirmTicks confirms death after consecutive valid absence ticks.
+	KillConfirmTicks int `yaml:"kill_confirm_ticks"`
 }
 
 // UnmarshalYAML records whether the runs section was present in the YAML document.
@@ -116,6 +139,28 @@ func (c *RunsConfig) UnmarshalYAML(value *yaml.Node) error {
 func (c *RunsConfig) applyDefaults() {
 	if c.StepTimeoutMs == 0 {
 		c.StepTimeoutMs = 30000
+	}
+	c.Countess.Combat.applyDefaults()
+}
+
+func (c *CountessCombatConfig) applyDefaults() {
+	if c.Profile == "" {
+		c.Profile = "necro_bone_spear"
+	}
+	if c.AttackSkill == "" {
+		c.AttackSkill = "bone_spear"
+	}
+	if c.AttackIntervalMs == 0 {
+		c.AttackIntervalMs = 350
+	}
+	if c.EngageDistanceTiles == 0 {
+		c.EngageDistanceTiles = 22
+	}
+	if c.RepositionDistanceTiles == 0 {
+		c.RepositionDistanceTiles = 32
+	}
+	if c.KillConfirmTicks == 0 {
+		c.KillConfirmTicks = 3
 	}
 }
 
@@ -175,8 +220,36 @@ func (c *Config) validate() error {
 	if c.Runs.StepTimeoutMs <= 0 {
 		return fmt.Errorf("runs.step_timeout_ms must be > 0")
 	}
+	if err := c.Runs.Countess.Combat.validate(); err != nil {
+		return err
+	}
 	if err := c.Pathing.validate(); err != nil {
 		return err
+	}
+	return nil
+}
+
+func (c CountessCombatConfig) validate() error {
+	if c.Profile != "necro_bone_spear" {
+		return fmt.Errorf("runs.countess.combat.profile must be necro_bone_spear")
+	}
+	if c.AttackSkill != "bone_spear" {
+		return fmt.Errorf("runs.countess.combat.attack_skill must be bone_spear")
+	}
+	if c.AttackIntervalMs <= 0 {
+		return fmt.Errorf("runs.countess.combat.attack_interval_ms must be > 0")
+	}
+	if c.EngageDistanceTiles <= 0 {
+		return fmt.Errorf("runs.countess.combat.engage_distance_tiles must be > 0")
+	}
+	if c.RepositionDistanceTiles <= 0 {
+		return fmt.Errorf("runs.countess.combat.reposition_distance_tiles must be > 0")
+	}
+	if c.EngageDistanceTiles >= c.RepositionDistanceTiles {
+		return fmt.Errorf("runs.countess.combat.engage_distance_tiles must be < reposition_distance_tiles")
+	}
+	if c.KillConfirmTicks <= 0 {
+		return fmt.Errorf("runs.countess.combat.kill_confirm_ticks must be > 0")
 	}
 	return nil
 }

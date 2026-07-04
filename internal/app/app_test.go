@@ -146,6 +146,12 @@ func (m *mockInput) Status() input.Status {
 	return input.Status{Enabled: m.enabled, Paused: m.paused, Stopped: m.stopped}
 }
 
+func (m *mockInput) CastSkillAt(input.BindingSource, uint16, int, int) error { return nil }
+
+func (m *mockInput) Window() (input.WindowInfo, bool) {
+	return input.WindowInfo{ClientWidth: 1280, ClientHeight: 720}, true
+}
+
 func (m *mockInput) TogglePause(reason string) bool {
 	m.toggleCalls++
 	m.lastToggleReason = reason

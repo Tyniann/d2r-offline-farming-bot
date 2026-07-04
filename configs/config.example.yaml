@@ -54,6 +54,14 @@ runs:
   # countess | leer — Validierung nur zur Laufzeit via Registry
   active: ""
   step_timeout_ms: 30000
+  countess:
+    combat:
+      profile: necro_bone_spear
+      attack_skill: bone_spear
+      attack_interval_ms: 350
+      engage_distance_tiles: 22
+      reposition_distance_tiles: 32
+      kill_confirm_ticks: 3
 
 pathing:
   # Abbruch, wenn weder Position (>= stuck_progress_tiles) noch Area sich ändern

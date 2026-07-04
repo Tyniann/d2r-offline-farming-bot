@@ -12,6 +12,22 @@ import (
 type RunConfig struct {
 	// StepTimeout is the default per-step wait timeout for non-tick-based steps.
 	StepTimeout time.Duration
+	// CountessCombat tunes the Countess kill phase.
+	CountessCombat CountessCombatConfig
+}
+
+// CountessCombatConfig holds resolved Countess combat settings for task logic.
+type CountessCombatConfig struct {
+	// AttackSkillID is the resolved skill ID used for attack casts.
+	AttackSkillID uint16
+	// AttackInterval is the minimum delay between real combat inputs.
+	AttackInterval time.Duration
+	// EngageDistanceTiles is the desired distance after combat repositioning.
+	EngageDistanceTiles float64
+	// RepositionDistanceTiles triggers teleport repositioning when exceeded.
+	RepositionDistanceTiles float64
+	// KillConfirmTicks confirms death after consecutive valid absence ticks.
+	KillConfirmTicks int
 }
 
 // Runner executes high-level run state machines.
@@ -39,7 +55,7 @@ func NewRunner(log *slog.Logger, sel RunSelection, cfg RunConfig, deps Deps) *Ru
 		outcome:   RunOutcomeIdle,
 	}
 	if sel.Run != "" {
-		run, err := newRunMachine(sel)
+		run, err := newRunMachine(sel, cfg)
 		if err == nil {
 			r.run = run
 		}
@@ -90,6 +106,9 @@ func (r *Runner) Reset(reason string) {
 	}
 	if r.deps.Pathing != nil {
 		r.deps.Pathing.Reset()
+	}
+	if r.deps.Combat != nil {
+		r.deps.Combat.Reset()
 	}
 	r.log.Info("task run reset", "run", r.selection.Run, "phase", r.selection.Phase, "reason", reason)
 }
@@ -170,6 +189,9 @@ func (r *Runner) beginStep(name string, now time.Time) {
 	if r.deps.Pathing != nil {
 		r.deps.Pathing.Reset()
 	}
+	if r.deps.Combat != nil {
+		r.deps.Combat.Reset()
+	}
 	if r.run != nil {
 		r.run.onStepEnter(name)
 	}
@@ -225,6 +247,9 @@ func (r *Runner) finishStepFailed(now time.Time, reason string) TickResult {
 	}
 	if r.deps.Pathing != nil {
 		r.deps.Pathing.Reset()
+	}
+	if r.deps.Combat != nil {
+		r.deps.Combat.Reset()
 	}
 	r.log.Info("task run finished",
 		"run", r.selection.Run,

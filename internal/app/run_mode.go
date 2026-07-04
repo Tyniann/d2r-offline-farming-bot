@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/config"
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/memory"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/tasks"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/world"
 )
@@ -34,8 +35,16 @@ func resolveRunSelection(opts Options, cfg *config.Config) tasks.RunSelection {
 }
 
 func mapRunConfig(runs config.RunsConfig) tasks.RunConfig {
+	attackSkillID, _ := memory.ParseSkillTestName(runs.Countess.Combat.AttackSkill)
 	return tasks.RunConfig{
 		StepTimeout: time.Duration(runs.StepTimeoutMs) * time.Millisecond,
+		CountessCombat: tasks.CountessCombatConfig{
+			AttackSkillID:           attackSkillID,
+			AttackInterval:          time.Duration(runs.Countess.Combat.AttackIntervalMs) * time.Millisecond,
+			EngageDistanceTiles:     runs.Countess.Combat.EngageDistanceTiles,
+			RepositionDistanceTiles: runs.Countess.Combat.RepositionDistanceTiles,
+			KillConfirmTicks:        runs.Countess.Combat.KillConfirmTicks,
+		},
 	}
 }
 
@@ -65,6 +74,11 @@ func validateRunMode(sel tasks.RunSelection, cfg *config.Config, opts Options, l
 	if sel.Phase != "" && !(sel.Run == "countess" && isSupportedCountessPhase(sel.Phase)) {
 		return fmt.Errorf("%w: run=%q phase=%q", errUnsupportedRunPhase, sel.Run, sel.Phase)
 	}
+	if sel.Run == "countess" && sel.Phase == tasks.CountessPhaseKillCountess {
+		if err := validateKillCountessBindings(cfg); err != nil {
+			return err
+		}
+	}
 
 	source := "config"
 	if opts.Run != "" {
@@ -76,11 +90,25 @@ func validateRunMode(sel tasks.RunSelection, cfg *config.Config, opts Options, l
 
 func isSupportedCountessPhase(phase string) bool {
 	switch phase {
-	case tasks.CountessPhaseTravelMarsh, tasks.CountessPhaseTravelCellar5:
+	case tasks.CountessPhaseTravelMarsh, tasks.CountessPhaseTravelCellar5, tasks.CountessPhaseKillCountess:
 		return true
 	default:
 		return false
 	}
+}
+
+func validateKillCountessBindings(cfg *config.Config) error {
+	bindings, err := newConfigBindingSource(cfg.Input.Bindings)
+	if err != nil {
+		return err
+	}
+	if _, err := bindings.Resolve(memory.SkillTeleport); err != nil {
+		return fmt.Errorf("kill-countess requires input.bindings.skills.teleport: %w", err)
+	}
+	if _, err := bindings.Resolve(memory.SkillBoneSpear); err != nil {
+		return fmt.Errorf("kill-countess requires input.bindings.skills.bone_spear: %w", err)
+	}
+	return nil
 }
 
 func (rt *Runtime) shouldTickTasks(cur world.State) bool {

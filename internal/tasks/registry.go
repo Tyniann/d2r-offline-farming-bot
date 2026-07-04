@@ -41,14 +41,14 @@ func IsKnownRun(name string) bool {
 	return false
 }
 
-func newRunMachine(sel RunSelection) (runMachine, error) {
+func newRunMachine(sel RunSelection, cfg RunConfig) (runMachine, error) {
 	switch sel.Run {
 	case "countess":
 		switch sel.Phase {
 		case "":
-			return &countessRun{}, nil
-		case CountessPhaseTravelMarsh, CountessPhaseTravelCellar5:
-			return &countessRun{phase: sel.Phase}, nil
+			return &countessRun{combat: cfg.CountessCombat}, nil
+		case CountessPhaseTravelMarsh, CountessPhaseTravelCellar5, CountessPhaseKillCountess:
+			return &countessRun{phase: sel.Phase, combat: cfg.CountessCombat}, nil
 		default:
 			return nil, fmt.Errorf("unknown countess phase %q", sel.Phase)
 		}

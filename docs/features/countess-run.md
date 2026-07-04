@@ -7,6 +7,7 @@ Der Countess-Run enthält aktuell zwei explizite Travel-Phasen:
 ```powershell
 go run ./cmd/d2rbot --run countess --phase travel-marsh --probe --verbose
 go run ./cmd/d2rbot --run countess --phase travel-cellar5 --probe --verbose
+go run ./cmd/d2rbot --run countess --phase kill-countess --probe --verbose
 ```
 
 `travel-marsh` führt vom Rogue Encampment über den Act-1-Waypoint nach `Black Marsh`.
@@ -17,6 +18,7 @@ go run ./cmd/d2rbot --run countess --phase travel-cellar5 --probe --verbose
 ## Verhalten
 
 - `--phase travel-marsh` und `--phase travel-cellar5` sind CLI-only und nur mit dem Countess-Run gültig.
+- `--phase kill-countess` ist CLI-only, startet nur in `Tower Cellar Level 5` und enthält keinen Travel-Prefix.
 - `--run countess` ohne Phase behält den bisherigen Phase-4.1-Stub bei.
 - Der Travel-Flow nutzt Area-IDs für Entscheidungen; Area-Namen dienen nur Logs.
 - Input-Schritte laufen nur bei `Valid && Phase=in_game`.
@@ -75,6 +77,34 @@ Das ist kein offener 4.5-Blocker mehr. Der geplante robuste Weg ist eine später
 Wenn eine passende Entrance-Unit sichtbar ist, aber noch außerhalb der Klickdistanz liegt, priorisiert der Navigator sie als `entity_approach` und teleportiert auf sie zu. Verlässt `find_tower` versehentlich `Black Marsh` in ein anderes Gebiet, bricht der Step mit `unexpected_area` ab, statt im falschen Gebiet weiter zu explorieren.
 Für `enter_cellar_1` gibt es einen engen Sonderfall: Der `Forgotten Tower`-Vorraum ist stabil, aber die sichtbare Durchbruch-Unit wird nicht von den bekannten Tower-/Stair-IDs abgedeckt. Die Probe enumeriert deshalb auch unbekannte Entrance-Units. Der Step bevorzugt im `Forgotten Tower` für `Tower Cellar Level 1` eine unbekannte Entrance-Unit und ignoriert die bekannten Back-/Surface-Entrances. Erfolg bleibt ausschließlich der Area-Wechsel nach `Tower Cellar Level 1`. Ab `Tower Cellar Level 1` nutzt der Bot die beobachteten Tower-Cellar-IDs `8` (up/source) und `9` (down/next level), damit sichtbare Down-Exits priorisiert werden.
 
+## Countess-Kill (Phase 4.6)
+
+`kill-countess` ist eine getrennte Cellar-5-Phase:
+
+| Step | Verhalten |
+|------|-----------|
+| `precheck` | verlangt `Valid`, `Phase=in_game`, `Tower Cellar Level 5` und verdrahtete Combat-Actions |
+| `locate_countess` | sucht zuerst `DarkStalker` als Super-Unique, danach irgendein Super-Unique nur in Cellar 5 |
+| `engage_countess` | hält das gespeicherte Target per `UnitID`, repositioniert bei Distanz und castet `Bone Spear` |
+
+Wenn Countess noch nicht sichtbar ist, startet der Bot genau einmal ein `GoalKindMoveToPosition` auf einen Suchanker: zuerst die `Good Chest`, sonst die sichtbare `tower_cellar_down`-Entrance in Cellar 5. Er klickt weder Chest noch Entrance an, führt keinen Hover-Klick aus und hebt keinen Loot auf. Nach Ankunft wartet der Step bis zum Timeout, falls Countess weiter unsichtbar bleibt.
+
+Der MVP-Kampf ist fest auf `necro_bone_spear` begrenzt. Der Task ruft Combat pro Tick auf; der App-Adapter drosselt echte Casts über `runs.countess.combat.attack_interval_ms`. Bei Abstand größer `reposition_distance_tiles` teleportiert der Bot in Richtung Countess, mit `engage_distance_tiles` als gewünschtem Restabstand. Sonst castet er den aufgelösten Skill `bone_spear`.
+
+Kill-Erfolg wird defensiv gezählt: Erst wenn eine gespeicherte Countess-`UnitID` in gültigen Cellar-5-Snapshots `kill_confirm_ticks` mal in Folge nicht mehr als living monster erscheint, endet die Phase erfolgreich. Ungültige Snapshots, Loading und Area-Wechsel zählen nicht als Tod; ein Area-Wechsel aus Cellar 5 während des Kampfes schlägt mit `unexpected_area` fehl.
+
+```yaml
+runs:
+  countess:
+    combat:
+      profile: necro_bone_spear
+      attack_skill: bone_spear
+      attack_interval_ms: 350
+      engage_distance_tiles: 22
+      reposition_distance_tiles: 32
+      kill_confirm_ticks: 3
+```
+
 ## Preconditions
 
 - `input.enabled: true`
@@ -82,6 +112,7 @@ Für `enter_cellar_1` gibt es einen engen Sonderfall: Der `Forgotten Tower`-Vorr
 - Charakter steht in `Rogue Encampment`, entweder nahe Waypoint oder am Spawn-/Stash-Bereich
 - Force Move ist in D2R auf `pathing.town_walk.force_move_key` gebunden (Default `e`)
 - Teleport ist in `input.bindings.skills.teleport` konfiguriert
+- Für `kill-countess`: `input.bindings.skills.bone_spear` ist konfiguriert
 - Black-Marsh-Waypoint ist für Charakter und Schwierigkeit freigeschaltet
 
 ## Manuelle Validierung
@@ -92,6 +123,7 @@ go run ./cmd/d2rbot --pathing-test click-entity:entrance --probe --verbose
 go run ./cmd/d2rbot --pathing-test inspect:entrances --probe --verbose --pathing-test-timeout-ms 30000
 go run ./cmd/d2rbot --run countess --phase travel-marsh --probe --verbose
 go run ./cmd/d2rbot --run countess --phase travel-cellar5 --probe --verbose
+go run ./cmd/d2rbot --run countess --phase kill-countess --probe --verbose
 ```
 
 `click-entity:entrance` prüft nur Hover-/Klickmechanik auf der nächsten Entrance-Unit. Für die Tower-Annahmen müssen die verbose World-Logs zusätzlich zeigen, dass nahe Tower/Stairs die erwarteten Entrance-Kinds und Namen erscheinen.
@@ -108,7 +140,8 @@ go run ./cmd/d2rbot --pathing-test record-town-route:act1-waypoint --probe --ver
 
 - Town-Walk ist nur für Rogue Encampment / Act 1 vorgesehen.
 - Keine OCR-/Bild-Erkennung des Waypoint-Menüs.
-- Kein Pickit, Kampf oder Countess-Kill.
+- Kein Pickit und kein Loot-Aufheben.
+- `kill-countess` nutzt keine Curses, Summons, Bone Prison, Potion-Logik oder Good-Chest-Interaktion.
 - Kein robuster Tower-Solver: zufällige Tower-Layouts bleiben die größte Unsicherheit in Phase 4.5. Das ist bewusst als MVP-Grenze akzeptiert; spätere Run-Recording-/Playback-Routen sollen diesen Teil zuverlässig machen.
 
 ---

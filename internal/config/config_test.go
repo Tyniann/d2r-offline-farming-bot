@@ -48,6 +48,12 @@ func TestLoadExampleConfig(t *testing.T) {
 	if cfg.Runs.StepTimeoutMs != 30000 {
 		t.Errorf("Runs.StepTimeoutMs = %d, want 30000", cfg.Runs.StepTimeoutMs)
 	}
+	if cfg.Runs.Countess.Combat.Profile != "necro_bone_spear" {
+		t.Errorf("Countess combat profile = %q, want necro_bone_spear", cfg.Runs.Countess.Combat.Profile)
+	}
+	if cfg.Runs.Countess.Combat.AttackSkill != "bone_spear" {
+		t.Errorf("Countess attack skill = %q, want bone_spear", cfg.Runs.Countess.Combat.AttackSkill)
+	}
 	if cfg.LoadedFrom == "" {
 		t.Error("LoadedFrom should be set after Load")
 	}
@@ -295,6 +301,12 @@ process:
 	if cfg.Runs.Active != "" {
 		t.Fatalf("Active = %q, want empty", cfg.Runs.Active)
 	}
+	if cfg.Runs.Countess.Combat.AttackIntervalMs != 350 ||
+		cfg.Runs.Countess.Combat.EngageDistanceTiles != 22 ||
+		cfg.Runs.Countess.Combat.RepositionDistanceTiles != 32 ||
+		cfg.Runs.Countess.Combat.KillConfirmTicks != 3 {
+		t.Fatalf("Countess combat defaults = %+v", cfg.Runs.Countess.Combat)
+	}
 }
 
 func TestRunsValidateStepTimeoutNonPositive(t *testing.T) {
@@ -335,6 +347,65 @@ runs:
 	}
 	if cfg.Runs.StepTimeoutMs != 45000 {
 		t.Fatalf("StepTimeoutMs = %d, want 45000", cfg.Runs.StepTimeoutMs)
+	}
+}
+
+func TestRunsCountessCombatParsingFromYAML(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "runs.yaml")
+	content := `app:
+  name: d2rbot
+runtime:
+  poll_interval_ms: 100
+process:
+  process_name: D2R.exe
+runs:
+  active: countess
+  step_timeout_ms: 45000
+  countess:
+    combat:
+      profile: necro_bone_spear
+      attack_skill: bone_spear
+      attack_interval_ms: 400
+      engage_distance_tiles: 20
+      reposition_distance_tiles: 35
+      kill_confirm_ticks: 4
+`
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := cfg.Runs.Countess.Combat
+	if got.AttackIntervalMs != 400 || got.EngageDistanceTiles != 20 || got.RepositionDistanceTiles != 35 || got.KillConfirmTicks != 4 {
+		t.Fatalf("combat = %+v", got)
+	}
+}
+
+func TestRunsCountessCombatValidation(t *testing.T) {
+	cfg := &Config{
+		App:     AppConfig{Name: "d2rbot"},
+		Process: ProcessConfig{ProcessName: "D2R.exe"},
+		Runtime: RuntimeConfig{PollIntervalMs: 100},
+		Runs: RunsConfig{
+			StepTimeoutMs: 30000,
+			Countess: CountessRunConfig{Combat: CountessCombatConfig{
+				Profile:                 "necro_bone_spear",
+				AttackSkill:             "bone_spear",
+				AttackIntervalMs:        350,
+				EngageDistanceTiles:     32,
+				RepositionDistanceTiles: 32,
+				KillConfirmTicks:        3,
+			}},
+		},
+	}
+	cfg.Input.applyDefaults()
+	cfg.Pathing.applyDefaults()
+	if err := cfg.validate(); err == nil {
+		t.Fatal("expected error when engage distance is not below reposition distance")
 	}
 }
 

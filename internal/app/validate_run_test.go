@@ -97,6 +97,42 @@ func TestValidateRunModeTravelCellar5OK(t *testing.T) {
 	}
 }
 
+func TestValidateRunModeKillCountessRequiresPhaseBindings(t *testing.T) {
+	cfg := &config.Config{Input: config.InputConfig{Enabled: true}}
+	log := config.NewLogger("error")
+	err := validateRunMode(tasksSelection("countess", tasks.CountessPhaseKillCountess), cfg, Options{Run: "countess", RunPhase: tasks.CountessPhaseKillCountess}, log)
+	if err == nil {
+		t.Fatal("expected missing binding error")
+	}
+
+	cfg.Input.Bindings.Skills = map[string]config.SkillBindingConfig{
+		"teleport":   {Key: "f7", Button: "right"},
+		"bone_spear": {Key: "f8", Button: "left"},
+	}
+	err = validateRunMode(tasksSelection("countess", tasks.CountessPhaseKillCountess), cfg, Options{Run: "countess", RunPhase: tasks.CountessPhaseKillCountess}, log)
+	if err != nil {
+		t.Fatalf("kill-countess err = %v", err)
+	}
+}
+
+func TestMapRunConfigResolvesCountessCombatSkill(t *testing.T) {
+	cfg := config.RunsConfig{
+		StepTimeoutMs: 30000,
+		Countess: config.CountessRunConfig{Combat: config.CountessCombatConfig{
+			Profile:                 "necro_bone_spear",
+			AttackSkill:             "bone_spear",
+			AttackIntervalMs:        350,
+			EngageDistanceTiles:     22,
+			RepositionDistanceTiles: 32,
+			KillConfirmTicks:        3,
+		}},
+	}
+	got := mapRunConfig(cfg)
+	if got.CountessCombat.AttackSkillID != 84 || got.CountessCombat.AttackInterval.String() != "350ms" {
+		t.Fatalf("CountessCombat = %+v", got.CountessCombat)
+	}
+}
+
 func TestValidateRunModeUnsupportedPhase(t *testing.T) {
 	cfg := &config.Config{Input: config.InputConfig{Enabled: true}}
 	log := config.NewLogger("error")

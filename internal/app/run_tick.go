@@ -37,6 +37,8 @@ type inputController interface {
 	Bound() bool
 	Ready() bool
 	Status() input.Status
+	CastSkillAt(src input.BindingSource, skillID uint16, clientX, clientY int) error
+	Window() (input.WindowInfo, bool)
 	TogglePause(reason string) bool
 	Stop(reason string)
 	ListenHotkeys(ctx context.Context, events chan<- input.HotkeyEvent, ready chan<- error)

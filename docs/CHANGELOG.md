@@ -8,6 +8,7 @@ Versionierung nach [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- Add Countess kill phase 4.6: `--run countess --phase kill-countess`, Necro Bone Spear combat, Good Chest position fallback, and defensive kill confirmation without loot pickup
 - Add automatic runtime log files under `logs/` so verbose manual test runs remain inspectable after the terminal buffer scrolls away
 - Add read-only `--pathing-test inspect:entrances` to capture player position, hover state, and visible entrance coordinates during manual calibration
 - Add Countess tower traversal phase 4.5: `--run countess --phase travel-cellar5`, best-effort Forgotten Tower search, and hover-confirmed cellar transitions through Tower Cellar Level 5
