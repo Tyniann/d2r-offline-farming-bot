@@ -2,7 +2,7 @@
 
 ## Überblick
 
-Phase-1 State-Probe über minimale D2R-Offsets. Der Bot findet den Main-Player über die UnitTable (d2go-Muster) und mappt HP, MaxHP, Mana, MaxMana, Area-ID sowie Position in `world.State`. Ab Phase 2.3 liest der App-Loop Memory-Snapshots nach jedem erfolgreichen `Poll()` im attached-Zustand; `--probe` steuert nur noch semantisches World-State-Logging. Keine Items, keine Monsterliste.
+Phase-1 State-Probe über minimale D2R-Offsets. Der Bot findet den Main-Player über die UnitTable (d2go-Muster) und mappt HP, MaxHP, Mana, MaxMana, Area-ID sowie Position in `world.State`. Ab Phase 2.3 liest der App-Loop Memory-Snapshots nach jedem erfolgreichen `Poll()` im attached-Zustand; `--probe` steuert nur noch semantisches World-State-Logging. Ab Phase 5.1 ergänzt die Probe read-only positionierte Ground-Items.
 
 ## Ort im Code
 
@@ -19,7 +19,8 @@ Phase-1 State-Probe über minimale D2R-Offsets. Der Bot findet den Main-Player �
   - `enumerate.go` — Object/Entrance/Monster-Enumeration
   - `player_skills.go` — aktuell ausgewählte und gelernte Skills vom Main-Player
   - `hover.go` — `HoverState`, 12-Byte-Hover-Read (`moduleBase+Hover`)
-  - `stats.go` — minimaler Life/Mana-Stat-Parser
+  - `stats.go` — minimaler Life/Mana-Stat-Parser und bounded Raw-Stat-Parser für Items
+  - `items.go` — read-only Ground-Item-Enumeration aus UnitTable-Segment `4`
   - `world_log.go` (app) — sparsames CLI-Logging auf `world.State` mit Heartbeat und Verbose-Positionslogs
   - `run_tick.go` (app) — testbare Loop-Iteration
 - **Config:** `configs/config.example.yaml` → `memory.game_version`, `memory.offsets_file`; Overrides in `configs/offsets.example.yaml` (lokal z. B. `configs/offsets.local.yaml`, gitignored)
@@ -115,6 +116,7 @@ Der Hover-Offset wird — wie UnitTable/UI — per d2go-Signature-Scan in `ScanP
 | `AreaID` | Rohe Area-ID aus Level-Struct |
 | `PosX`/`PosY` | `uint32` in `memory.Snapshot` (aus uint16 Path-Reads erweitert; `world.Position` gleicher Typ) |
 | `Objects`/`Entrances`/`Monsters` | Countess-gefilterte Entity-Slices; leer (nicht nil) außerhalb `in_game` |
+| `Items` | Positionierte Ground-Items aus UnitTable-Segment `4`; leer (nicht nil) außerhalb `in_game` |
 | `PlayerSkills` | `LeftSkill`, `RightSkill`, `SkillsKnown` vom Main-Player (Skill-Liste `unit+0x100`) |
 | `Hover` | `HoverState` (`IsHovered`, `UnitType`, `UnitID`) aus dem 12-Byte-Buffer bei `moduleBase+Hover`; nur bei `Valid && Phase=in_game` gelesen |
 
@@ -144,13 +146,14 @@ go run ./cmd/d2rbot --probe --verbose
 Mit `--probe` erscheinen nach `process attached` sparsame World-State-Logs:
 
 ```text
-world state phase=in_game area_name=... object_count=... entrance_count=... monster_count=... hp_pct=... pos_x=... pos_y=...
+world state phase=in_game area_name=... object_count=... entrance_count=... monster_count=... item_count=... ground_item_count=... hp_pct=... pos_x=... pos_y=...
 world unavailable reason=... phase=loading
 ```
 
 Regeln:
 
-- Log bei Phase-, HP-/Mana-/Area- oder Entity-Fingerprint-Änderung; reine Positionsänderungen nur mit `--probe --verbose` (Debug)
+- Log bei Phase-, HP-/Mana-/Area-, Entity- oder Ground-Item-Fingerprint-Änderung; reine Positionsänderungen nur mit `--probe --verbose` (Debug)
+- `--probe --verbose` ergänzt einen gekappten `ground_items_hint` mit Item-Code, Type, Name, Qualität und Position; Dummy-Type `body` wird aus dem Hint ausgeblendet
 - Heartbeat alle 5 s (fest, kein Config-Key)
 - Ungültige Heartbeats auf Debug; neuer Reason oder Phase einmalig auf Info
 - Snapshot-Read nur im attached-Zustand nach `Poll()`; bei `process lost` kein Read, World-State wird auf `process_lost` zurückgesetzt

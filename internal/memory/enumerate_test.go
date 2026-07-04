@@ -94,6 +94,60 @@ func setupMonsterUnit(access *mockAccess, unitAddr, unitData, path uintptr, npcI
 	access.setBytes(path, pathBuf)
 }
 
+func setupGroundItemUnit(access *mockAccess, unitAddr, unitData, path, statsListEx, statsArray uintptr, txtFileNo, unitID, quality, flags uint32) {
+	buf := make([]byte, 0x200)
+	binary.LittleEndian.PutUint32(buf[unitOffsetUnitType:], itemUnitType)
+	binary.LittleEndian.PutUint32(buf[unitOffsetTxtFileNo:], txtFileNo)
+	binary.LittleEndian.PutUint32(buf[0x08:], unitID)
+	binary.LittleEndian.PutUint32(buf[itemOffsetRawLocation:], itemRawLocationGround)
+	binary.LittleEndian.PutUint64(buf[unitOffsetUnitData:], uint64(unitData))
+	binary.LittleEndian.PutUint64(buf[0x38:], uint64(path))
+	if statsListEx != 0 {
+		binary.LittleEndian.PutUint64(buf[0x88:], uint64(statsListEx))
+	}
+	access.setBytes(unitAddr, buf)
+
+	dataBuf := make([]byte, 0x60)
+	binary.LittleEndian.PutUint32(dataBuf[itemDataOffsetQuality:], quality)
+	binary.LittleEndian.PutUint32(dataBuf[itemDataOffsetFlags:], flags)
+	access.setBytes(unitData, dataBuf)
+
+	if path != 0 {
+		pathBuf := make([]byte, 0x20)
+		binary.LittleEndian.PutUint16(pathBuf[pathOffsetObjectX:], 700)
+		binary.LittleEndian.PutUint16(pathBuf[pathOffsetObjectY:], 800)
+		access.setBytes(path, pathBuf)
+	}
+
+	if statsListEx != 0 && statsArray != 0 {
+		off := testOffsetSet()
+		activeHeader := statsListEx + off.Unit.StatsListActive
+		writeU64(access, activeHeader+off.Stats.ListPtr, uint64(statsArray))
+		writeU64(access, activeHeader+off.Stats.Count, 1)
+		writeStatEntry(access, statsArray, 2, 123, 456)
+	}
+}
+
+func writeJunkItemChain(access *mockAccess, moduleBase uintptr, off OffsetSet, count int) uintptr {
+	if count < 1 {
+		return 0
+	}
+	units := make([]uintptr, count)
+	for i := range units {
+		units[i] = uintptr(0xB00000 + uintptr(i*0x200))
+	}
+	for i, addr := range units {
+		buf := make([]byte, 0x200)
+		binary.LittleEndian.PutUint32(buf[unitOffsetUnitType:], 99)
+		if i+1 < len(units) {
+			binary.LittleEndian.PutUint64(buf[off.Unit.NextUnit:], uint64(units[i+1]))
+		}
+		access.setBytes(addr, buf)
+	}
+	writeSegmentHead(access, moduleBase, off.UnitTable, unitSegmentItem, units[0])
+	return units[0]
+}
+
 func TestProbeSnapshotEnumeratesCountessEntitiesWhenInGame(t *testing.T) {
 	access, probe, moduleBase := setupProbeMock(t)
 	off := testOffsetSet()
@@ -288,5 +342,155 @@ func TestEntrancesEnumeratedDespiteLargeObjectSegment(t *testing.T) {
 	snap := probe.Snapshot()
 	if len(snap.Entrances) != 1 || snap.Entrances[0].TxtFileNo != 11 {
 		t.Fatalf("Entrances = %+v, want cellar stairs 11 despite object flood", snap.Entrances)
+	}
+}
+
+func TestProbeSnapshotEnumeratesGroundItems(t *testing.T) {
+	access, probe, moduleBase := setupProbeMock(t)
+	off := testOffsetSet()
+
+	const (
+		itemUnit    = uintptr(0x69000)
+		itemData    = uintptr(0x6A000)
+		itemPath    = uintptr(0x6B000)
+		statsListEx = uintptr(0x6C000)
+		statsArray  = uintptr(0x6D000)
+	)
+
+	writeSegmentHead(access, moduleBase, off.UnitTable, unitSegmentItem, itemUnit)
+	setupGroundItemUnit(access, itemUnit, itemData, itemPath, statsListEx, statsArray, 610, 4001, 2, itemFlagIdentified|itemFlagEthereal)
+
+	snap := probe.Snapshot()
+	if len(snap.Items) != 1 {
+		t.Fatalf("Items = %+v, want one ground item", snap.Items)
+	}
+	got := snap.Items[0]
+	if got.TxtFileNo != 610 || got.UnitID != 4001 || got.Quality != 2 || got.RawLocation != itemRawLocationGround {
+		t.Fatalf("Item = %+v, want txt=610 unit=4001 quality=2 ground", got)
+	}
+	if got.PosX != 700 || got.PosY != 800 || !got.Identified || !got.Ethereal {
+		t.Fatalf("Item flags/position = %+v, want identified ethereal at 700,800", got)
+	}
+	if len(got.Stats) != 1 || got.Stats[0].ID != 123 || got.Stats[0].Layer != 2 || got.Stats[0].Value != 456 {
+		t.Fatalf("Stats = %+v, want raw stat 123/2/456", got.Stats)
+	}
+}
+
+func TestItemUnitSegmentBaseOffset(t *testing.T) {
+	const moduleBase = uintptr(0x10000000)
+	const unitTable = uintptr(0x2000)
+	if got, want := unitSegmentBase(moduleBase, unitTable, unitSegmentItem), moduleBase+unitTable+4096; got != want {
+		t.Fatalf("item segment base = %#x, want %#x", got, want)
+	}
+}
+
+func TestGroundItemWithNilPathSkipped(t *testing.T) {
+	access, probe, moduleBase := setupProbeMock(t)
+	off := testOffsetSet()
+
+	const (
+		itemUnit = uintptr(0x69000)
+		itemData = uintptr(0x6A000)
+	)
+	writeSegmentHead(access, moduleBase, off.UnitTable, unitSegmentItem, itemUnit)
+	setupGroundItemUnit(access, itemUnit, itemData, 0, 0, 0, 610, 4001, 2, 0)
+
+	snap := probe.Snapshot()
+	if len(snap.Items) != 0 {
+		t.Fatalf("Items = %+v, want nil-path ground item skipped", snap.Items)
+	}
+}
+
+func TestItemStatsFailureKeepsItem(t *testing.T) {
+	access, probe, moduleBase := setupProbeMock(t)
+	off := testOffsetSet()
+
+	const (
+		itemUnit    = uintptr(0x69000)
+		itemData    = uintptr(0x6A000)
+		itemPath    = uintptr(0x6B000)
+		statsListEx = uintptr(0x6C000)
+	)
+	writeSegmentHead(access, moduleBase, off.UnitTable, unitSegmentItem, itemUnit)
+	setupGroundItemUnit(access, itemUnit, itemData, itemPath, statsListEx, 0, 610, 4001, 2, 0)
+
+	snap := probe.Snapshot()
+	if len(snap.Items) != 1 {
+		t.Fatalf("Items = %+v, want item without stats", snap.Items)
+	}
+	if len(snap.Items[0].Stats) != 0 {
+		t.Fatalf("Stats = %+v, want empty on stat failure", snap.Items[0].Stats)
+	}
+}
+
+func TestItemEnumerationFailureDoesNotClearEntities(t *testing.T) {
+	access, probe, moduleBase := setupProbeMock(t)
+	off := testOffsetSet()
+
+	const (
+		entUnit  = uintptr(0x63000)
+		entPath  = uintptr(0x65000)
+		itemUnit = uintptr(0x69000)
+	)
+	writeSegmentHead(access, moduleBase, off.UnitTable, unitSegmentEntrance, entUnit)
+	setupEntranceUnitNoUnitData(access, entUnit, entPath, 10, 2001)
+
+	writeSegmentHead(access, moduleBase, off.UnitTable, unitSegmentItem, itemUnit)
+	writeU64(access, itemUnit+off.Unit.NextUnit, uint64(0xDEADBEEF))
+
+	snap := probe.Snapshot()
+	if len(snap.Entrances) != 1 {
+		t.Fatalf("Entrances = %+v, want entity preserved after item failure", snap.Entrances)
+	}
+	if len(snap.Items) != 0 {
+		t.Fatalf("Items = %+v, want empty after item failure", snap.Items)
+	}
+}
+
+func TestLargeItemSegmentDoesNotStarveCountessEntities(t *testing.T) {
+	access, probe, moduleBase := setupProbeMock(t)
+	off := testOffsetSet()
+
+	const (
+		entUnit = uintptr(0x63000)
+		entPath = uintptr(0x65000)
+	)
+	writeJunkItemChain(access, moduleBase, off, maxItemUnitVisits)
+	writeSegmentHead(access, moduleBase, off.UnitTable, unitSegmentEntrance, entUnit)
+	setupEntranceUnitNoUnitData(access, entUnit, entPath, 10, 2001)
+
+	snap := probe.Snapshot()
+	if len(snap.Entrances) != 1 {
+		t.Fatalf("Entrances = %+v, want entity preserved despite large item segment", snap.Entrances)
+	}
+}
+
+func TestMaxItemsPerSnapshotCountsAcceptedItems(t *testing.T) {
+	access, probe, moduleBase := setupProbeMock(t)
+	off := testOffsetSet()
+
+	firstAccepted := uintptr(0xC00000)
+	writeJunkItemChain(access, moduleBase, off, 10)
+	writeU64(access, 0xB00000+uintptr(9*0x200)+off.Unit.NextUnit, uint64(firstAccepted))
+
+	prev := firstAccepted
+	for i := 0; i < maxItemsPerSnapshot+2; i++ {
+		unitAddr := firstAccepted + uintptr(i*0x200)
+		dataAddr := uintptr(0xD00000 + uintptr(i*0x200))
+		pathAddr := uintptr(0xE00000 + uintptr(i*0x200))
+		setupGroundItemUnit(access, unitAddr, dataAddr, pathAddr, 0, 0, 610, uint32(5000+i), 2, 0)
+		if i+1 < maxItemsPerSnapshot+2 {
+			writeU64(access, unitAddr+off.Unit.NextUnit, uint64(unitAddr+0x200))
+		}
+		prev = unitAddr
+	}
+	writeU64(access, prev+off.Unit.NextUnit, 0)
+
+	snap := probe.Snapshot()
+	if len(snap.Items) != maxItemsPerSnapshot {
+		t.Fatalf("Items len = %d, want cap %d", len(snap.Items), maxItemsPerSnapshot)
+	}
+	if snap.Items[0].UnitID != 5000 {
+		t.Fatalf("first accepted item unit = %d, want junk units ignored before cap", snap.Items[0].UnitID)
 	}
 }

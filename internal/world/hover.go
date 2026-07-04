@@ -1,13 +1,14 @@
 package world
 
 // HoverUnitType classifies which unit segment the hovered unit belongs to,
-// matching the D2R hover buffer semantics (d2go: 1=monster, 2=object, 5=entrance).
+// matching the D2R hover buffer semantics (d2go: 1=monster, 2=object, 4=item, 5=entrance).
 type HoverUnitType uint32
 
 // HoverUnitType values relevant for entity matching.
 const (
 	HoverUnitTypeMonster  HoverUnitType = 1
 	HoverUnitTypeObject   HoverUnitType = 2
+	HoverUnitTypeItem     HoverUnitType = 4
 	HoverUnitTypeEntrance HoverUnitType = 5
 )
 
@@ -18,6 +19,8 @@ func (t HoverUnitType) String() string {
 		return "monster"
 	case HoverUnitTypeObject:
 		return "object"
+	case HoverUnitTypeItem:
+		return "item"
 	case HoverUnitTypeEntrance:
 		return "entrance"
 	default:

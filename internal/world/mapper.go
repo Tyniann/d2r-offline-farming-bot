@@ -37,6 +37,10 @@ func FromSnapshot(snap memory.Snapshot) State {
 	for _, m := range snap.Monsters {
 		monsters = append(monsters, mapMonster(m, hover))
 	}
+	items := make([]Item, 0, len(snap.Items))
+	for _, i := range snap.Items {
+		items = append(items, mapItem(i, hover))
+	}
 
 	if !snap.Valid {
 		return State{
@@ -47,6 +51,7 @@ func FromSnapshot(snap memory.Snapshot) State {
 			Objects:   objects,
 			Entrances: entrances,
 			Monsters:  monsters,
+			Items:     items,
 			Hover:     hover,
 		}
 	}
@@ -66,6 +71,7 @@ func FromSnapshot(snap memory.Snapshot) State {
 		Objects:   objects,
 		Entrances: entrances,
 		Monsters:  monsters,
+		Items:     items,
 		Hover:     hover,
 	}
 }

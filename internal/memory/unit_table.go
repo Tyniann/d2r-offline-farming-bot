@@ -14,11 +14,14 @@ const (
 	unitSegmentPlayer   = 0
 	unitSegmentMonster  = 1
 	unitSegmentObject   = 2
+	unitSegmentItem     = 4
 	unitSegmentEntrance = 5
 
 	maxUnitsPerBucket      = 256
 	maxTotalUnitVisits     = 4096
 	maxEntitiesPerCategory = 32
+	maxItemUnitVisits      = 4096
+	maxItemsPerSnapshot    = 128
 
 	// Per-segment visit budgets for entity enumeration (entrances/monsters before objects).
 	maxVisitsEntranceSegment = 1024

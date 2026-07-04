@@ -2,7 +2,7 @@
 
 ## Überblick
 
-Phase 2 legt die semantische Spielzustands-Schicht im Paket `internal/world` an: Domain-Typen (2.1), Snapshot-Mapping (2.2) und kontinuierliches App-Loop-Update (2.3). `memory.Snapshot` wird über `FromSnapshot` in einen immutable `State` pro Tick übersetzt; `Model` hält den letzten State über `Update`, `Current` und `Reset`.
+Phase 2 legt die semantische Spielzustands-Schicht im Paket `internal/world` an: Domain-Typen (2.1), Snapshot-Mapping (2.2) und kontinuierliches App-Loop-Update (2.3). `memory.Snapshot` wird über `FromSnapshot` in einen immutable `State` pro Tick übersetzt; `Model` hält den letzten State über `Update`, `Current` und `Reset`. Ab Phase 5.1 enthält der State außerdem read-only Items.
 
 ## Ort im Code
 
@@ -13,7 +13,8 @@ Phase 2 legt die semantische Spielzustands-Schicht im Paket `internal/world` an:
   - `areas_data.go` — eingebetteter Area-Katalog (Namen 1..136, Konstanten bis 141), manuell aus d2go kopiert
   - `position.go` — `Position` (X/Y als `uint32`)
   - `player.go` — `Player` mit Vitalwerten und Prozent-Hilfen
-  - `state.go` — `GamePhase`, immutable `State` inkl. Entity-Slices
+  - `state.go` — `GamePhase`, immutable `State` inkl. Entity- und Item-Slices
+  - `item.go` — `Item`, `ItemQuality`, `ItemLocation`, Code-/Name-Lookup und Item-Queries
   - `object_ids.go`, `entrance_ids.go`, `npc_ids.go` — Countess-Kataloge
   - `entity.go` — Query-Helfer (`NearestObject`, `FindSuperUnique`, …)
   - `mapper.go` — `FromSnapshot`, `mapPhase`
@@ -66,6 +67,7 @@ Countess-minimale Enumeration in `memory.Snapshot`; Mapping nach `world.Object`,
 | Objects | `State.NearestObject(kind)` |
 | Entrances | `State.NearestEntrance(kind)` |
 | Monsters | `State.FindSuperUnique(npcID)` — `MonsterTypeFlag == 10`; `npcID == 0` = jede Super-Unique (Countess) |
+| Items | `State.GroundItems()`, `State.ItemsByLocation(...)`, `State.FindItemByUnitID(...)` |
 
 Allowlists in `internal/memory/countess_filter.go` (sync mit `world/*_ids.go` via `TestCountessFilterMatchesWorldIDs`).
 
@@ -96,8 +98,9 @@ reset := model.Reset(at, "process_lost")
 | `Position` | Rohe Tile-Koordinaten |
 | `Player` | Position + HP/Mana |
 | `GamePhase` | `Unknown`, `Menu`, `Loading`, `InGame` — aus `memory.Snapshot.Phase` |
-| `State` | Tick-Snapshot mit `At`, `Phase`, `Valid`, `Reason`, `Area`, `Player`, Entity-Slices |
+| `State` | Tick-Snapshot mit `At`, `Phase`, `Valid`, `Reason`, `Area`, `Player`, Entity- und Item-Slices |
 | `Object`/`Entrance`/`Monster` | Countess-relevante Entities mit Kind, ID, UnitID, Position, Name |
+| `Item` | Read-only Item mit UnitID, Code/Name, Qualität, Location, Position, Flags und Raw-Stats |
 
 ## Operator / CLI
 
@@ -207,7 +210,7 @@ Low-Level Memory/Offset-Validierung: [State Probe](state-probe.md) (Phase 1, D2R
 
 ## Grenzen
 
-- Keine Items, volle Objekt-/Monster-Kataloge oder Pathing (folgt ab 4.3)
+- Item-Live-Validierung in Phase 5.1 ist auf positionierte Ground-Drops begrenzt; Nicht-Ground-Locations sind vorbereitet, aber noch kein Pass-Kriterium
 - `Model` ohne Concurrency-Schutz (single-threaded Run-Loop)
 - Shutdown/Detach setzt den World-State in 2.3 nicht zurück (nur `process lost`)
 

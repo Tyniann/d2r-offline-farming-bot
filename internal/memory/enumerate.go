@@ -206,6 +206,7 @@ func emptyEntitySlices(snap Snapshot) Snapshot {
 	snap.Objects = make([]ObjectUnit, 0)
 	snap.Entrances = make([]EntranceUnit, 0)
 	snap.Monsters = make([]MonsterUnit, 0)
+	snap.Items = make([]ItemUnit, 0)
 	return snap
 }
 

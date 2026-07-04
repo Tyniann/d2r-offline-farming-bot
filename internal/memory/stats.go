@@ -10,6 +10,8 @@ const (
 	StatMaxLife uint16 = 7
 	StatMana    uint16 = 8
 	StatMaxMana uint16 = 9
+
+	maxRawStatEntries = 512
 )
 
 // VitalStats holds decoded HP/Mana values from a unit stat list.
@@ -99,6 +101,57 @@ func parseVitalStats(r *Reader, listHeader uintptr, off StatOffsets) (VitalStats
 		Mana:    found[StatMana],
 		MaxMana: found[StatMaxMana],
 	}, nil
+}
+
+func parseRawStats(r *Reader, listHeader uintptr, off StatOffsets) ([]RawStat, error) {
+	if listHeader == 0 {
+		return nil, fmt.Errorf("stat list header is null")
+	}
+
+	listPtr, err := r.ReadUint64(listHeader + off.ListPtr)
+	if err != nil {
+		return nil, fmt.Errorf("read stat array pointer: %w", err)
+	}
+	if listPtr == 0 {
+		return nil, fmt.Errorf("stat array pointer is null")
+	}
+
+	count, err := r.ReadUint64(listHeader + off.Count)
+	if err != nil {
+		return nil, fmt.Errorf("read stat count: %w", err)
+	}
+	if count == 0 {
+		return []RawStat{}, nil
+	}
+
+	stride := off.EntryStride
+	if stride == 0 {
+		stride = 8
+	}
+
+	maxEntries := count
+	if maxEntries > maxRawStatEntries {
+		maxEntries = maxRawStatEntries
+	}
+
+	stats := make([]RawStat, 0, maxEntries)
+	for i := uint64(0); i < maxEntries; i++ {
+		entry := uintptr(listPtr) + uintptr(i*uint64(stride))
+		layer, err := r.ReadUint16(entry + off.Layer)
+		if err != nil {
+			return nil, fmt.Errorf("read stat layer at entry %d: %w", i, err)
+		}
+		statID, err := r.ReadUint16(entry + off.ID)
+		if err != nil {
+			return nil, fmt.Errorf("read stat id at entry %d: %w", i, err)
+		}
+		value, err := r.ReadInt32(entry + off.Value)
+		if err != nil {
+			return nil, fmt.Errorf("read stat value for id %d: %w", statID, err)
+		}
+		stats = append(stats, RawStat{ID: statID, Layer: layer, Value: value})
+	}
+	return stats, nil
 }
 
 // scaleVitalStat applies d2go decoding for Life/Mana stats (value >> 8).

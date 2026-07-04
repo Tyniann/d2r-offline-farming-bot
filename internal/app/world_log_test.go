@@ -1,6 +1,7 @@
 package app
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -22,6 +23,26 @@ func TestWorldShouldLogEntityFingerprintChange(t *testing.T) {
 	}
 }
 
+func TestWorldShouldLogGroundItemFingerprintChange(t *testing.T) {
+	prev := validWorldState(100)
+	cur := validWorldState(100)
+	cur.Items = []world.Item{{TxtFileNo: 625, UnitID: 4001, Location: world.ItemLocationGround}}
+
+	if !worldShouldLog(prev, cur, time.Now(), worldHeartbeat, false, false) {
+		t.Fatal("expected log on ground item fingerprint change")
+	}
+}
+
+func TestWorldShouldNotLogNonGroundItemFingerprintChange(t *testing.T) {
+	prev := validWorldState(100)
+	cur := validWorldState(100)
+	cur.Items = []world.Item{{TxtFileNo: 625, UnitID: 4001, Location: world.ItemLocationInventory}}
+
+	if worldShouldLog(prev, cur, time.Now(), worldHeartbeat, false, false) {
+		t.Fatal("non-ground item change should not trigger probe log")
+	}
+}
+
 func TestWorldShouldNotLogPositionOnlyWithSameFingerprint(t *testing.T) {
 	prev := validWorldState(100)
 	cur := validWorldState(100)
@@ -36,12 +57,12 @@ func TestWorldShouldNotLogPositionOnlyWithSameFingerprint(t *testing.T) {
 func TestWorldLogAttrsIncludesEntityCounts(t *testing.T) {
 	st := validWorldState(100)
 	st.Objects = []world.Object{{Kind: world.ObjectKindWaypoint, UnitID: 1}}
-	attrs := worldLogAttrs(st)
+	attrs := worldLogAttrs(st, false)
 	found := map[string]bool{}
 	for _, a := range attrs {
 		found[a.Key] = true
 	}
-	for _, key := range []string{"object_count", "entrance_count", "monster_count"} {
+	for _, key := range []string{"object_count", "entrance_count", "monster_count", "item_count", "ground_item_count"} {
 		if !found[key] {
 			t.Fatalf("missing log attr %q", key)
 		}
@@ -222,7 +243,7 @@ func TestWorldLogStateAfterProcessLostAndReattach(t *testing.T) {
 
 func TestWorldLogAttrsValidState(t *testing.T) {
 	st := validWorldState(100)
-	attrs := worldLogAttrs(st)
+	attrs := worldLogAttrs(st, false)
 	if len(attrs) == 0 {
 		t.Fatal("expected attrs for valid state")
 	}
@@ -230,7 +251,7 @@ func TestWorldLogAttrsValidState(t *testing.T) {
 	for _, a := range attrs {
 		found[a.Key] = true
 	}
-	for _, key := range []string{"phase", "area_name", "area_id", "act", "area_kind", "hp", "max_hp", "hp_pct", "mana", "max_mana", "mana_pct", "pos_x", "pos_y"} {
+	for _, key := range []string{"phase", "area_name", "area_id", "act", "area_kind", "hp", "max_hp", "hp_pct", "mana", "max_mana", "mana_pct", "pos_x", "pos_y", "item_count", "ground_item_count"} {
 		if !found[key] {
 			t.Fatalf("missing log attr %q", key)
 		}
@@ -239,8 +260,78 @@ func TestWorldLogAttrsValidState(t *testing.T) {
 
 func TestWorldLogAttrsInvalidState(t *testing.T) {
 	st := world.State{Valid: false, Reason: "test_reason"}
-	attrs := worldLogAttrs(st)
+	attrs := worldLogAttrs(st, false)
 	if len(attrs) != 1 || attrs[0].Key != "reason" {
 		t.Fatalf("unexpected invalid attrs: %+v", attrs)
 	}
+}
+
+func TestWorldLogAttrsGroundItemsHintOnlyVerbose(t *testing.T) {
+	st := validWorldState(100)
+	st.Items = []world.Item{{
+		TxtFileNo: 625,
+		UnitID:    4001,
+		Code:      "r01",
+		Name:      "El Rune",
+		Quality:   world.ItemQualityNormal,
+		Location:  world.ItemLocationGround,
+		Position:  world.Position{X: 10, Y: 20},
+	}}
+
+	for _, a := range worldLogAttrs(st, false) {
+		if a.Key == "ground_items_hint" {
+			t.Fatalf("%s should be absent when verbose=false", a.Key)
+		}
+	}
+
+	foundHint := false
+	for _, a := range worldLogAttrs(st, true) {
+		if a.Key == "ground_items_hint" {
+			foundHint = true
+		}
+	}
+	if !foundHint {
+		t.Fatal("ground_items_hint should be present when verbose=true")
+	}
+}
+
+func TestWorldLogAttrsGroundItemsHintFiltersBodyItems(t *testing.T) {
+	st := validWorldState(100)
+	st.Items = []world.Item{
+		{
+			TxtFileNo: 538,
+			UnitID:    4001,
+			Code:      "fng",
+			Type:      "body",
+			Name:      "Fang",
+			Quality:   world.ItemQualityNormal,
+			Location:  world.ItemLocationGround,
+			Position:  world.Position{X: 10, Y: 20},
+		},
+		{
+			TxtFileNo: 530,
+			UnitID:    4002,
+			Code:      "isc",
+			Type:      "scro",
+			Name:      "Scroll of Identify",
+			Quality:   world.ItemQualityNormal,
+			Location:  world.ItemLocationGround,
+			Position:  world.Position{X: 11, Y: 21},
+		},
+	}
+
+	for _, a := range worldLogAttrs(st, true) {
+		if a.Key != "ground_items_hint" {
+			continue
+		}
+		hint := a.Value.String()
+		if strings.Contains(hint, "Fang") {
+			t.Fatalf("ground_items_hint should filter body item, got %q", hint)
+		}
+		if !strings.Contains(hint, "Scroll of Identify") || !strings.Contains(hint, `type="scro"`) {
+			t.Fatalf("ground_items_hint missing visible item details, got %q", hint)
+		}
+		return
+	}
+	t.Fatal("ground_items_hint missing")
 }

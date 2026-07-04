@@ -34,6 +34,7 @@ type Snapshot struct {
 	Objects      []ObjectUnit
 	Entrances    []EntranceUnit
 	Monsters     []MonsterUnit
+	Items        []ItemUnit
 	PlayerSkills PlayerSkills
 	Hover        HoverState
 }
@@ -264,7 +265,16 @@ func (p *ProbeReader) Snapshot() Snapshot {
 		snap.Hover = p.readHover(moduleBase, off)
 		if err := p.enumerateEntities(moduleBase, off, &snap); err != nil {
 			p.reader.log.Debug("entity enumeration failed", "error", err)
-			return emptyEntitySlices(snap)
+			snap.Objects = make([]ObjectUnit, 0)
+			snap.Entrances = make([]EntranceUnit, 0)
+			snap.Monsters = make([]MonsterUnit, 0)
+		}
+		if err := p.enumerateItems(moduleBase, off, &snap); err != nil {
+			p.reader.log.Debug("item enumeration failed", "error", err)
+			snap.Items = make([]ItemUnit, 0)
+		}
+		if snap.Items == nil {
+			snap.Items = make([]ItemUnit, 0)
 		}
 		return snap
 	}

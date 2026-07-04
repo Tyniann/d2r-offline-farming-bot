@@ -36,3 +36,26 @@ func TestModelUpdateClonesEntitySlices(t *testing.T) {
 		t.Fatal("mutating Update return monsters should not affect model")
 	}
 }
+
+func TestModelClonesItemSlices(t *testing.T) {
+	m := NewModel(slog.New(slog.NewTextHandler(io.Discard, nil)))
+	snap := validSnapshot()
+	snap.Items = []memory.ItemUnit{{TxtFileNo: 625, UnitID: 4001, RawLocation: 3}}
+
+	got := m.Update(snap)
+	got.Items[0].UnitID = 0
+
+	current := m.Current()
+	if len(current.Items) != 1 || current.Items[0].UnitID != 4001 {
+		t.Fatalf("Current Items = %+v, want original item unit id", current.Items)
+	}
+	current.Items[0].UnitID = 99
+	if m.Current().Items[0].UnitID != 4001 {
+		t.Fatal("mutating Current item slice should not affect model")
+	}
+
+	reset := m.Reset(snap.At, "test")
+	if reset.Items == nil || len(reset.Items) != 0 {
+		t.Fatalf("Reset Items = %+v, want non-nil empty slice", reset.Items)
+	}
+}

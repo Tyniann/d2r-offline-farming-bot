@@ -48,6 +48,7 @@ func (m *Model) Reset(at time.Time, reason string) State {
 		Objects:   make([]Object, 0),
 		Entrances: make([]Entrance, 0),
 		Monsters:  make([]Monster, 0),
+		Items:     make([]Item, 0),
 	}
 	return cloneState(m.current)
 }
@@ -56,5 +57,6 @@ func cloneState(s State) State {
 	s.Objects = slices.Clone(s.Objects)
 	s.Entrances = slices.Clone(s.Entrances)
 	s.Monsters = slices.Clone(s.Monsters)
+	s.Items = slices.Clone(s.Items)
 	return s
 }

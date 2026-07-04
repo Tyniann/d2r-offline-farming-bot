@@ -46,7 +46,7 @@ type entityFPKey struct {
 
 // entityFingerprint builds a stable signature from entity counts and sorted (kind, unitID) pairs.
 func entityFingerprint(s world.State) string {
-	keys := make([]entityFPKey, 0, len(s.Objects)+len(s.Entrances)+len(s.Monsters))
+	keys := make([]entityFPKey, 0, len(s.Objects)+len(s.Entrances)+len(s.Monsters)+len(s.Items))
 	for _, o := range s.Objects {
 		keys = append(keys, entityFPKey{kind: "o:" + o.Kind.String(), unitID: o.UnitID})
 	}
@@ -56,6 +56,12 @@ func entityFingerprint(s world.State) string {
 	for _, m := range s.Monsters {
 		keys = append(keys, entityFPKey{kind: "m:" + fmt.Sprintf("%d", m.NPCID), unitID: m.UnitID})
 	}
+	for _, i := range s.Items {
+		if i.Location != world.ItemLocationGround {
+			continue
+		}
+		keys = append(keys, entityFPKey{kind: fmt.Sprintf("i:%d:%s", i.TxtFileNo, i.Location.String()), unitID: i.UnitID})
+	}
 	sort.Slice(keys, func(i, j int) bool {
 		if keys[i].kind != keys[j].kind {
 			return keys[i].kind < keys[j].kind
@@ -64,7 +70,7 @@ func entityFingerprint(s world.State) string {
 	})
 
 	var b strings.Builder
-	fmt.Fprintf(&b, "%d|%d|%d|", len(s.Objects), len(s.Entrances), len(s.Monsters))
+	fmt.Fprintf(&b, "%d|%d|%d|%d|", len(s.Objects), len(s.Entrances), len(s.Monsters), len(s.GroundItems()))
 	for _, k := range keys {
 		fmt.Fprintf(&b, "%s:%d;", k.kind, k.unitID)
 	}
@@ -118,7 +124,7 @@ func worldShouldLog(prev, cur world.State, lastLog time.Time, heartbeat time.Dur
 }
 
 // worldLogAttrs builds structured log attributes for a world state.
-func worldLogAttrs(cur world.State) []slog.Attr {
+func worldLogAttrs(cur world.State, verbose bool) []slog.Attr {
 	if !cur.Valid {
 		attrs := []slog.Attr{slog.String("reason", cur.Reason)}
 		if cur.Phase != world.GamePhaseUnknown {
@@ -135,6 +141,8 @@ func worldLogAttrs(cur world.State) []slog.Attr {
 		slog.Uint64("object_count", uint64(len(cur.Objects))),
 		slog.Uint64("entrance_count", uint64(len(cur.Entrances))),
 		slog.Uint64("monster_count", uint64(len(cur.Monsters))),
+		slog.Uint64("item_count", uint64(len(cur.Items))),
+		slog.Uint64("ground_item_count", uint64(len(cur.GroundItems()))),
 		slog.Uint64("hp", uint64(cur.Player.HP)),
 		slog.Uint64("max_hp", uint64(cur.Player.MaxHP)),
 		slog.Uint64("hp_pct", uint64(cur.Player.HPPercent())),
@@ -155,6 +163,11 @@ func worldLogAttrs(cur world.State) []slog.Attr {
 	}
 	if hint := verboseEntrancesHint(cur); hint != "" {
 		attrs = append(attrs, slog.String("entrances_hint", hint))
+	}
+	if verbose {
+		if hint := verboseGroundItemsHint(cur); hint != "" {
+			attrs = append(attrs, slog.String("ground_items_hint", hint))
+		}
 	}
 	return attrs
 }
@@ -191,21 +204,65 @@ func verboseEntrancesHint(cur world.State) string {
 	return strings.Join(parts, "; ")
 }
 
+func verboseGroundItemsHint(cur world.State) string {
+	items := hintGroundItems(cur)
+	if len(items) == 0 {
+		return ""
+	}
+	sort.Slice(items, func(i, j int) bool {
+		return items[i].UnitID < items[j].UnitID
+	})
+	const maxHintItems = 32
+	if len(items) > maxHintItems {
+		items = items[:maxHintItems]
+	}
+	parts := make([]string, 0, len(items))
+	for _, item := range items {
+		name := item.Name
+		if name == "" {
+			name = "Unknown Item"
+		}
+		parts = append(parts, fmt.Sprintf("unit=%d id=%d code=%q type=%q name=%q quality=%s x=%d y=%d",
+			item.UnitID,
+			item.TxtFileNo,
+			item.Code,
+			item.Type,
+			name,
+			item.Quality.String(),
+			item.Position.X,
+			item.Position.Y,
+		))
+	}
+	return strings.Join(parts, "; ")
+}
+
+func hintGroundItems(cur world.State) []world.Item {
+	items := cur.GroundItems()
+	out := make([]world.Item, 0, len(items))
+	for _, item := range items {
+		if item.Type == "body" {
+			continue
+		}
+		out = append(out, item)
+	}
+	return out
+}
+
 func (rt *Runtime) logWorldState(prev, cur world.State, heartbeat, verbose bool) {
 	if cur.Valid {
 		level := slog.LevelInfo
 		if verbose && isPositionOnlyWorldChange(prev, cur) {
 			level = slog.LevelDebug
 		}
-		rt.Log.Log(context.Background(), level, "world state", attrsToArgs(worldLogAttrs(cur))...)
+		rt.Log.Log(context.Background(), level, "world state", attrsToArgs(worldLogAttrs(cur, verbose))...)
 		return
 	}
 
 	if heartbeat {
-		rt.Log.Debug("world unavailable", attrsToArgs(worldLogAttrs(cur))...)
+		rt.Log.Debug("world unavailable", attrsToArgs(worldLogAttrs(cur, verbose))...)
 		return
 	}
-	rt.Log.Info("world unavailable", attrsToArgs(worldLogAttrs(cur))...)
+	rt.Log.Info("world unavailable", attrsToArgs(worldLogAttrs(cur, verbose))...)
 }
 
 func attrsToArgs(attrs []slog.Attr) []any {

@@ -14,3 +14,4 @@ Spätere Ideen (noch nicht umgesetzt): [`docs/backlog.md`](../backlog.md).
 | [Pathing](pathing.md) | Teleport-Navigation (Phase 4.3): Relative-Projektion + Hover-Feedback-Loop, Bearing-Explore, Stuck-Detection; `--pathing-test` |
 | [Countess-Run](countess-run.md) | Phase 4.7: vollständiger Countess-MVP-Run mit Travel, Kill, Safety-Potion und Town-Portal-Abschluss; isolierte Testphasen bleiben verfügbar |
 | [Loot- und Recovery-Loop](loot-recovery-loop.md) | Phase 5.0: Konzept für Ground-Loot, Pickit, Inventory-Lock, Stash-Schutz und Recovery-Slices |
+| [Item Enumeration Read-Only](item-enumeration.md) | Phase 5.1: positionierte Ground-Drops read-only aus Memory ins World Model und Probe-Log |

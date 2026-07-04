@@ -6,6 +6,7 @@ import "encoding/binary"
 const (
 	HoverUnitTypeMonster  uint32 = 1
 	HoverUnitTypeObject   uint32 = 2
+	HoverUnitTypeItem     uint32 = 4
 	HoverUnitTypeEntrance uint32 = 5
 )
 

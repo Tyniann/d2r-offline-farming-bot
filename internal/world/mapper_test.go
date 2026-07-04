@@ -37,8 +37,8 @@ func TestFromSnapshotValid(t *testing.T) {
 	if state.Phase != GamePhaseInGame {
 		t.Fatalf("Phase = %v, want GamePhaseInGame", state.Phase)
 	}
-	if state.Objects == nil || state.Entrances == nil || state.Monsters == nil {
-		t.Fatal("valid snapshot should have non-nil entity slices")
+	if state.Objects == nil || state.Entrances == nil || state.Monsters == nil || state.Items == nil {
+		t.Fatal("valid snapshot should have non-nil entity/item slices")
 	}
 	if !state.At.Equal(snap.At) {
 		t.Fatalf("At = %v, want %v", state.At, snap.At)
@@ -201,8 +201,112 @@ func TestFromSnapshotInvalidNotInGameMapsMenu(t *testing.T) {
 	if state.Phase != GamePhaseMenu {
 		t.Fatalf("Phase = %v, want GamePhaseMenu", state.Phase)
 	}
-	if state.Objects == nil || state.Entrances == nil || state.Monsters == nil {
-		t.Fatal("invalid snapshot should have non-nil empty entity slices")
+	if state.Objects == nil || state.Entrances == nil || state.Monsters == nil || state.Items == nil {
+		t.Fatal("invalid snapshot should have non-nil empty entity/item slices")
+	}
+}
+
+func TestFromSnapshotMapsItems(t *testing.T) {
+	snap := validSnapshot()
+	snap.Hover = memory.HoverState{IsHovered: true, UnitType: memory.HoverUnitTypeItem, UnitID: 4001}
+	snap.Items = []memory.ItemUnit{{
+		TxtFileNo:   625,
+		UnitID:      4001,
+		Quality:     2,
+		RawLocation: 3,
+		PosX:        700,
+		PosY:        800,
+		Flags:       0x10,
+		Identified:  true,
+		Stats:       []memory.RawStat{{ID: 123, Layer: 2, Value: 456}},
+	}}
+
+	state := FromSnapshot(snap)
+	if len(state.Items) != 1 {
+		t.Fatalf("Items = %+v, want one item", state.Items)
+	}
+	got := state.Items[0]
+	if got.Code != "r01" || got.Name != "El Rune" || got.Type != "rune" {
+		t.Fatalf("Code/Name/Type = %q/%q/%q, want r01/El Rune/rune", got.Code, got.Name, got.Type)
+	}
+	if got.NormalCode != "" || got.UberCode != "" || got.UltraCode != "" {
+		t.Fatalf("Rune tier codes = %q/%q/%q, want empty", got.NormalCode, got.UberCode, got.UltraCode)
+	}
+	if got.Quality != ItemQualityNormal || got.Quality.String() != "normal" {
+		t.Fatalf("Quality = %v (%s), want normal", got.Quality, got.Quality.String())
+	}
+	if got.Location != ItemLocationGround || got.RawLocation != 3 {
+		t.Fatalf("Location = %q raw=%d, want ground raw=3", got.Location, got.RawLocation)
+	}
+	if got.Position.X != 700 || got.Position.Y != 800 || !got.IsHovered || !got.Identified {
+		t.Fatalf("Item = %+v, want hovered identified at 700,800", got)
+	}
+	if len(got.Stats) != 1 || got.Stats[0].ID != 123 || got.Stats[0].Layer != 2 || got.Stats[0].Value != 456 {
+		t.Fatalf("Stats = %+v, want raw stat 123/2/456", got.Stats)
+	}
+}
+
+func TestItemLocationAndQualityStrings(t *testing.T) {
+	if ItemLocation("").String() != "unknown" {
+		t.Fatalf("empty location = %q, want unknown", ItemLocation("").String())
+	}
+	if ItemLocationSharedStash1.String() != "shared_stash_1" {
+		t.Fatalf("shared stash = %q", ItemLocationSharedStash1.String())
+	}
+	if ItemQualityMagic.String() != "magic" {
+		t.Fatalf("magic quality = %q", ItemQualityMagic.String())
+	}
+	if ItemQuality(99).String() != "unknown" {
+		t.Fatalf("unknown quality = %q", ItemQuality(99).String())
+	}
+}
+
+func TestItemCatalogLookupIncludesBaseItems(t *testing.T) {
+	if LookupItemCode(27) != "sbr" || LookupItemName(27) != "Saber" || LookupItemType(27) != "swor" {
+		t.Fatalf("Saber lookup = %q/%q/%q", LookupItemCode(27), LookupItemName(27), LookupItemType(27))
+	}
+	if LookupItemCode(316) != "stu" || LookupItemName(316) != "Studded Leather" || LookupItemType(316) != "tors" {
+		t.Fatalf("Studded Leather lookup = %q/%q/%q", LookupItemCode(316), LookupItemName(316), LookupItemType(316))
+	}
+}
+
+func TestItemCatalogLookupIncludesDummyTypeForDiagnostics(t *testing.T) {
+	if LookupItemCode(553) != "fng" || LookupItemName(553) != "Fang" || LookupItemType(553) != "body" {
+		t.Fatalf("Fang lookup = %q/%q/%q", LookupItemCode(553), LookupItemName(553), LookupItemType(553))
+	}
+	if LookupItemCode(662) != "pk1" || LookupItemName(662) != "Key of Terror" || LookupItemType(662) != "ques" {
+		t.Fatalf("Key of Terror lookup = %q/%q/%q", LookupItemCode(662), LookupItemName(662), LookupItemType(662))
+	}
+	if LookupItemCode(634) != "r10" || LookupItemName(634) != "Thul Rune" || LookupItemType(634) != "rune" {
+		t.Fatalf("Thul lookup = %q/%q/%q", LookupItemCode(634), LookupItemName(634), LookupItemType(634))
+	}
+}
+
+func TestHoverUnitTypeItemString(t *testing.T) {
+	if HoverUnitType(memory.HoverUnitTypeItem).String() != "item" {
+		t.Fatalf("HoverUnitTypeItem string = %q, want item", HoverUnitType(memory.HoverUnitTypeItem).String())
+	}
+}
+
+func TestStateItemQueries(t *testing.T) {
+	st := validSnapshot()
+	st.Items = []memory.ItemUnit{
+		{TxtFileNo: 625, UnitID: 4001, RawLocation: 3},
+		{TxtFileNo: 611, UnitID: 4002, RawLocation: 1},
+	}
+	state := FromSnapshot(st)
+
+	if got := state.GroundItems(); len(got) != 1 || got[0].UnitID != 4001 {
+		t.Fatalf("GroundItems = %+v, want unit 4001", got)
+	}
+	if got := state.ItemsByLocation(ItemLocationEquipped); len(got) != 1 || got[0].UnitID != 4002 {
+		t.Fatalf("ItemsByLocation(equipped) = %+v, want unit 4002", got)
+	}
+	if got, ok := state.FindItemByUnitID(4001); !ok || got.UnitID != 4001 {
+		t.Fatalf("FindItemByUnitID = %+v/%v, want unit 4001", got, ok)
+	}
+	if _, ok := state.FindItemByUnitID(9999); ok {
+		t.Fatal("FindItemByUnitID should not find missing unit")
 	}
 }
 

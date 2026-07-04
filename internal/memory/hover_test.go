@@ -32,6 +32,12 @@ func TestParseHoverBufferTooShort(t *testing.T) {
 	}
 }
 
+func TestHoverUnitTypeItemValue(t *testing.T) {
+	if HoverUnitTypeItem != 4 {
+		t.Fatalf("HoverUnitTypeItem = %d, want 4", HoverUnitTypeItem)
+	}
+}
+
 func TestScanHoverOffsetFromImage(t *testing.T) {
 	image := make([]byte, 64)
 	copy(image[9:], []byte{0xC6, 0x84, 0xC2})

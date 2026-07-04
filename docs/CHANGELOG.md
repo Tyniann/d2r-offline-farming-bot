@@ -8,7 +8,12 @@ Versionierung nach [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- Add read-only item enumeration from memory into the world model
 - Add Phase 5.0 loot and recovery concept documentation covering Ground-Loot, Pickit, Inventory-Lock, Stash safety, and recovery slices
+
+### Changed
+- Expand read-only item probe diagnostics with generated item catalog type data and filtered verbose ground-item hints
+- Regenerate the item catalog from local D2R `3.2.92777` data so current Countess drops resolve correctly
 
 ## [0.4.0] - 2026-07-04
 

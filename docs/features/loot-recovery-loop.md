@@ -192,7 +192,7 @@ Dieses Dokument hält die Architektur, Grenzen und späteren Pflicht-Themen fest
 
 ### 5.1 Ground-Item-Enumeration
 
-Items read-only aus dem Speicher lesen und im Probe-/World-Log sichtbar machen. Kein Pickup.
+Items read-only aus dem Speicher lesen und im Probe-/World-Log sichtbar machen. Kein Pickup. Umgesetzt als [Item Enumeration Read-Only](item-enumeration.md): Live-Pass-Kriterium sind positionierte Ground-Drops nach Countess-Kill; andere Locations sind Modellvorbereitung für spätere Slices.
 
 ### 5.2 Inventory-Modell und Lock-Grid
 

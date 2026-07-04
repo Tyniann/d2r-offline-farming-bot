@@ -42,5 +42,6 @@ type State struct {
 	Objects   []Object
 	Entrances []Entrance
 	Monsters  []Monster
+	Items     []Item
 	Hover     HoverInfo // Unit currently under the mouse cursor; zero value when none.
 }

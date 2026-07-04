@@ -192,7 +192,7 @@ func (rt *Runtime) logInputTestReady(ctrl inputTestController) {
 			"client_height", win.ClientHeight,
 		)
 	}
-	args = append(args, attrsToArgs(worldLogAttrs(rt.World.Current()))...)
+	args = append(args, attrsToArgs(worldLogAttrs(rt.World.Current(), false))...)
 	rt.Log.Info("input test ready", args...)
 	rt.logInputTestWorld("before_action", rt.World.Current())
 }
@@ -329,7 +329,7 @@ func (rt *Runtime) observeInputTestWorld(
 
 func (rt *Runtime) logInputTestWorld(label string, st world.State) {
 	args := []any{"label", label}
-	args = append(args, attrsToArgs(worldLogAttrs(st))...)
+	args = append(args, attrsToArgs(worldLogAttrs(st, false))...)
 	rt.Log.Info("input test world", args...)
 }
 
@@ -361,7 +361,7 @@ func (rt *Runtime) logInputTestObservation(before, after world.State) {
 }
 
 func prefixedWorldLogAttrs(prefix string, st world.State) []any {
-	attrs := worldLogAttrs(st)
+	attrs := worldLogAttrs(st, false)
 	args := make([]any, 0, len(attrs)*2)
 	for _, a := range attrs {
 		args = append(args, prefix+"_"+a.Key, a.Value.Any())
