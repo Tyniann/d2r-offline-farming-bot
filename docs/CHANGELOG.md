@@ -7,6 +7,9 @@ Versionierung nach [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- Add Phase 5.0 loot and recovery concept documentation covering Ground-Loot, Pickit, Inventory-Lock, Stash safety, and recovery slices
+
 ## [0.4.0] - 2026-07-04
 
 ### Added
