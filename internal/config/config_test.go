@@ -35,6 +35,9 @@ func TestLoadExampleConfig(t *testing.T) {
 	if cfg.Loot.InventoryLock[0][0] != 1 || cfg.Loot.InventoryLock[0][4] != 0 {
 		t.Fatalf("Loot.InventoryLock first row = %+v, want locked columns then free columns", cfg.Loot.InventoryLock[0])
 	}
+	if cfg.Loot.PickitFile != "pickit/countess.nip" {
+		t.Fatalf("Loot.PickitFile = %q, want pickit/countess.nip", cfg.Loot.PickitFile)
+	}
 	if cfg.Input.KeyDelayMsMin != 10 {
 		t.Errorf("Input.KeyDelayMsMin = %d, want 10", cfg.Input.KeyDelayMsMin)
 	}
@@ -71,6 +74,15 @@ func TestResolvePathRelative(t *testing.T) {
 	cfg := &Config{LoadedFrom: filepath.Join("configs", "config.yaml")}
 	got := cfg.ResolvePath("offsets.local.yaml")
 	want := filepath.Join("configs", "offsets.local.yaml")
+	if got != want {
+		t.Errorf("ResolvePath() = %q, want %q", got, want)
+	}
+}
+
+func TestResolvePickitPathRelativeToConfig(t *testing.T) {
+	cfg := &Config{LoadedFrom: filepath.Join("configs", "config.yaml")}
+	got := cfg.ResolvePath("pickit/countess.nip")
+	want := filepath.Join("configs", "pickit", "countess.nip")
 	if got != want {
 		t.Errorf("ResolvePath() = %q, want %q", got, want)
 	}
@@ -145,6 +157,9 @@ process:
 	if len(cfg.Loot.InventoryLock) != 4 {
 		t.Fatalf("rows = %d, want 4", len(cfg.Loot.InventoryLock))
 	}
+	if cfg.Loot.PickitFile != "pickit/countess.nip" {
+		t.Fatalf("PickitFile = %q, want default", cfg.Loot.PickitFile)
+	}
 	for row, cells := range cfg.Loot.InventoryLock {
 		if len(cells) != 10 {
 			t.Fatalf("row %d columns = %d, want 10", row, len(cells))
@@ -154,6 +169,67 @@ process:
 				t.Fatalf("cell %d,%d = %d, want all locked", row, col, cell)
 			}
 		}
+	}
+}
+
+func TestLootConfigWithOnlyPickitFileKeepsInventoryDefault(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "pickit-only.yaml")
+	content := `app:
+  name: d2rbot
+runtime:
+  poll_interval_ms: 100
+process:
+  process_name: D2R.exe
+loot:
+  pickit_file: pickit/custom.nip
+`
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Loot.PickitFile != "pickit/custom.nip" {
+		t.Fatalf("PickitFile = %q, want pickit/custom.nip", cfg.Loot.PickitFile)
+	}
+	for row, cells := range cfg.Loot.InventoryLock {
+		for col, cell := range cells {
+			if cell != 1 {
+				t.Fatalf("cell %d,%d = %d, want all locked", row, col, cell)
+			}
+		}
+	}
+}
+
+func TestLootConfigWithOnlyInventoryLockKeepsPickitDefault(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "lock-only.yaml")
+	content := `app:
+  name: d2rbot
+runtime:
+  poll_interval_ms: 100
+process:
+  process_name: D2R.exe
+loot:
+  inventory_lock:
+    - [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+    - [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+    - [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+    - [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+`
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Loot.PickitFile != "pickit/countess.nip" {
+		t.Fatalf("PickitFile = %q, want default", cfg.Loot.PickitFile)
 	}
 }
 

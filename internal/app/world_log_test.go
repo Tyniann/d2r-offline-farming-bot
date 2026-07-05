@@ -350,7 +350,7 @@ func TestRuntimeWorldLogAttrsInventoryVerbose(t *testing.T) {
 		t.Fatal(err)
 	}
 	rt := &Runtime{
-		Loot: loot.NewFilter(slog.New(slog.NewTextHandler(io.Discard, nil)), lock),
+		Loot: loot.NewFilter(slog.New(slog.NewTextHandler(io.Discard, nil)), lock, &loot.Pickit{}),
 	}
 	st := validWorldState(100)
 	st.Items = []world.Item{{
@@ -390,7 +390,7 @@ func TestRuntimeWorldLogAttrsInventoryOnlyVerbose(t *testing.T) {
 		t.Fatal(err)
 	}
 	rt := &Runtime{
-		Loot: loot.NewFilter(slog.New(slog.NewTextHandler(io.Discard, nil)), lock),
+		Loot: loot.NewFilter(slog.New(slog.NewTextHandler(io.Discard, nil)), lock, &loot.Pickit{}),
 	}
 	st := validWorldState(100)
 	st.Items = []world.Item{{Location: world.ItemLocationInventory, PlayerOwned: true, Page: 0, Width: 1, Height: 1}}

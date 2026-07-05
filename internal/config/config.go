@@ -51,6 +51,7 @@ type PathsConfig struct {
 
 // LootConfig holds read-only loot model settings.
 type LootConfig struct {
+	PickitFile    string  `yaml:"pickit_file"`
 	InventoryLock [][]int `yaml:"inventory_lock"`
 
 	inventoryLockPresent bool `yaml:"-"`
@@ -285,6 +286,9 @@ func (c CountessCombatConfig) validate() error {
 }
 
 func (c *LootConfig) applyDefaults() {
+	if c.PickitFile == "" {
+		c.PickitFile = "pickit/countess.nip"
+	}
 	if c.inventoryLockPresent {
 		return
 	}

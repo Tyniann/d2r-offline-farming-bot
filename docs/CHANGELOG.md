@@ -8,6 +8,7 @@ Versionierung nach [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- Add Phase 5.3 Pickit MVP with a small NIP subset, `loot.pickit_file`, and Countess default rules
 - Add Phase 5.2 read-only inventory model and `loot.inventory_lock` capacity guard
 - Add read-only item enumeration from memory into the world model
 - Add Phase 5.0 loot and recovery concept documentation covering Ground-Loot, Pickit, Inventory-Lock, Stash safety, and recovery slices
@@ -15,6 +16,9 @@ Versionierung nach [Semantic Versioning](https://semver.org/).
 ### Changed
 - Expand read-only item probe diagnostics with generated item catalog type data and filtered verbose ground-item hints
 - Regenerate the item catalog from local D2R `3.2.92777` data so current Countess drops resolve correctly
+
+### Fixed
+- Increase the item snapshot cap so Countess ground drops are not hidden behind inventory/history item units
 
 ## [0.4.0] - 2026-07-04
 

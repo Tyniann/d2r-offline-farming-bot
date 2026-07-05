@@ -1,0 +1,217 @@
+package loot
+
+import (
+	"io"
+	"log/slog"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/world"
+)
+
+func TestLoadPickitEmptyFileMatchesNothing(t *testing.T) {
+	p := loadPickitFromTestFile(t, "")
+	if p == nil {
+		t.Fatal("Pickit should be loaded for empty file")
+	}
+	if got := p.Evaluate(world.Item{Code: "r01", Type: "rune"}); got.Matched {
+		t.Fatalf("empty pickit matched = %+v", got)
+	}
+}
+
+func TestPickitEvaluatesBareQuotedAndIntegerLiterals(t *testing.T) {
+	p := loadPickitFromTestFile(t, `
+[type] == rune
+[name] == "pk1"
+[stat:42] >= 10
+`)
+	tests := []struct {
+		name string
+		item world.Item
+		line int
+	}{
+		{name: "bare type", item: world.Item{Type: "rune"}, line: 2},
+		{name: "quoted name", item: world.Item{Code: "pk1"}, line: 3},
+		{name: "integer stat", item: world.Item{Stats: []world.ItemStat{{ID: 42, Value: 10}}}, line: 4},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := p.Evaluate(tc.item)
+			if !got.Matched || got.Line != tc.line {
+				t.Fatalf("Evaluate() = %+v, want line %d", got, tc.line)
+			}
+		})
+	}
+}
+
+func TestPickitPrecedenceParenthesesCommentsAndHash(t *testing.T) {
+	p := loadPickitFromTestFile(t, `
+; full-line comment
+// full-line comment
+([name] == r01 || [name] == r02) && [type] == rune // inline comment
+[name] == pk1 # [flag] == identified
+`)
+	if got := p.Evaluate(world.Item{Code: "r01", Type: "misc"}); got.Matched {
+		t.Fatalf("wrong type should not match, got %+v", got)
+	}
+	if got := p.Evaluate(world.Item{Code: "r02", Type: "rune"}); !got.Matched || got.Line != 4 {
+		t.Fatalf("parenthesized expression = %+v, want line 4", got)
+	}
+	if got := p.Evaluate(world.Item{Code: "pk1", Identified: false}); got.Matched {
+		t.Fatalf("hash AND should require identified, got %+v", got)
+	}
+	if got := p.Evaluate(world.Item{Code: "pk1", Identified: true}); !got.Matched || got.Line != 5 {
+		t.Fatalf("hash AND expression = %+v, want line 5", got)
+	}
+}
+
+func TestPickitMatchesCountessMVPItems(t *testing.T) {
+	p := loadPickitFromTestFile(t, `
+[type] == rune
+[name] == pk1
+[name] == gzv || [name] == gpv
+`)
+	for _, item := range []world.Item{
+		{Code: "r33", Type: "rune"},
+		{Code: "pk1", Type: "ques"},
+		{Code: "gzv", Type: "gema"},
+		{Code: "gpv", Type: "gema"},
+	} {
+		if got := p.Evaluate(item); !got.Matched {
+			t.Fatalf("expected match for %+v", item)
+		}
+	}
+	if got := p.Evaluate(world.Item{Code: "gcv", Type: "gema"}); got.Matched {
+		t.Fatalf("chipped gem should not match explicit flawless/perfect list: %+v", got)
+	}
+}
+
+func TestPickitStringMatchingIsCaseInsensitive(t *testing.T) {
+	p := loadPickitFromTestFile(t, `
+[type] == Rune
+[name] == PK1
+[quality] == Unique
+[flag] == Ethereal
+`)
+	tests := []world.Item{
+		{Type: "rune"},
+		{Code: "pk1"},
+		{Quality: world.ItemQualityUnique},
+		{Ethereal: true},
+	}
+	for _, item := range tests {
+		if got := p.Evaluate(item); !got.Matched {
+			t.Fatalf("expected case-insensitive match for %+v", item)
+		}
+	}
+}
+
+func TestPickitQualityFlagsAndStats(t *testing.T) {
+	p := loadPickitFromTestFile(t, `
+[quality] == unique
+[flag] != identified
+[flag] == ethereal
+[stat:17] > 5
+[stat:17] <= -2
+`)
+	tests := []struct {
+		item world.Item
+		line int
+	}{
+		{item: world.Item{Quality: world.ItemQualityUnique}, line: 2},
+		{item: world.Item{Identified: false}, line: 3},
+		{item: world.Item{Identified: true, Ethereal: true}, line: 4},
+		{item: world.Item{Identified: true, Stats: []world.ItemStat{{ID: 17, Value: 6}}}, line: 5},
+		{item: world.Item{Identified: true, Stats: []world.ItemStat{{ID: 17, Value: -2}}}, line: 6},
+	}
+	for _, tc := range tests {
+		got := p.Evaluate(tc.item)
+		if !got.Matched || got.Line != tc.line {
+			t.Fatalf("Evaluate(%+v) = %+v, want line %d", tc.item, got, tc.line)
+		}
+	}
+}
+
+func TestPickitResultUsesRuleIndexAndLine(t *testing.T) {
+	p := loadPickitFromTestFile(t, `
+
+[name] == r01
+[name] == r02
+`)
+	got := p.Evaluate(world.Item{Code: "r02"})
+	if !got.Matched || got.RuleIndex != 1 || got.Line != 4 || got.Rule != "[name] == r02" {
+		t.Fatalf("PickitResult = %+v, want zero-based rule index and one-based line", got)
+	}
+}
+
+func TestPickitRejectsUnsupportedSyntax(t *testing.T) {
+	tests := []struct {
+		name    string
+		content string
+		want    string
+	}{
+		{name: "unsupported keyword", content: "[maxquantity] == 1", want: "unsupported keyword"},
+		{name: "unknown flag", content: "[flag] == socketed", want: "unsupported flag"},
+		{name: "invalid string operator", content: "[name] > r01", want: "supports only == and !="},
+		{name: "invalid stat literal", content: "[stat:12] >= rune", want: "requires an integer literal"},
+		{name: "invalid syntax", content: "[type] == rune &&", want: "expected field"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			path := writePickitTestFile(t, tc.content)
+			_, err := LoadPickit(path)
+			if err == nil {
+				t.Fatal("expected error")
+			}
+			if !strings.Contains(err.Error(), tc.want) || !strings.Contains(err.Error(), ":1:") {
+				t.Fatalf("error = %v, want %q with line context", err, tc.want)
+			}
+		})
+	}
+}
+
+func TestFilterReadyReflectsLoadedPickit(t *testing.T) {
+	lock, err := NewInventoryLock(allLockedInventory())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if NewFilter(testLogger(), lock, nil).Ready() {
+		t.Fatal("Ready() should be false without Pickit")
+	}
+	if !NewFilter(testLogger(), lock, &Pickit{}).Ready() {
+		t.Fatal("Ready() should be true for an empty loaded Pickit")
+	}
+}
+
+func loadPickitFromTestFile(t *testing.T, content string) *Pickit {
+	t.Helper()
+	p, err := LoadPickit(writePickitTestFile(t, content))
+	if err != nil {
+		t.Fatalf("LoadPickit() error = %v", err)
+	}
+	return p
+}
+
+func writePickitTestFile(t *testing.T, content string) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "test.nip")
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
+func allLockedInventory() [][]int {
+	return [][]int{
+		{1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
+		{1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
+		{1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
+		{1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
+	}
+}
+
+func testLogger() *slog.Logger {
+	return slog.New(slog.NewTextHandler(io.Discard, nil))
+}

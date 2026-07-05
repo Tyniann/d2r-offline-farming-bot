@@ -116,6 +116,10 @@ func New(cfg *config.Config, opts Options) (rt *Runtime, err error) {
 	if err != nil {
 		return nil, fmt.Errorf("loot inventory lock: %w", err)
 	}
+	pickit, err := loadPickit(cfg)
+	if err != nil {
+		return nil, err
+	}
 
 	probe := memory.NewProbeReader(mem, offsetSet)
 	probe.SetScannedCachePath(cfg.ResolvePath(memory.DefaultScannedCacheFile))
@@ -146,7 +150,7 @@ func New(cfg *config.Config, opts Options) (rt *Runtime, err error) {
 		}),
 		Pathing:  nav,
 		TownWalk: townWalker,
-		Loot:     loot.NewFilter(log, inventoryLock),
+		Loot:     loot.NewFilter(log, inventoryLock, pickit),
 	}
 
 	if err := rt.verifyEnvironment(); err != nil {
@@ -157,6 +161,15 @@ func New(cfg *config.Config, opts Options) (rt *Runtime, err error) {
 
 	rt.verifyComponents()
 	return rt, nil
+}
+
+func loadPickit(cfg *config.Config) (*loot.Pickit, error) {
+	path := cfg.ResolvePath(cfg.Loot.PickitFile)
+	pickit, err := loot.LoadPickit(path)
+	if err != nil {
+		return nil, fmt.Errorf("pickit config invalid: %w", err)
+	}
+	return pickit, nil
 }
 
 // CloseLog closes the runtime log file when file logging is active.

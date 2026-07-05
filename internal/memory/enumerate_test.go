@@ -519,6 +519,11 @@ func TestMaxItemsPerSnapshotCountsAcceptedItems(t *testing.T) {
 	firstAccepted := uintptr(0xC00000)
 	writeJunkItemChain(access, moduleBase, off, 10)
 	writeU64(access, 0xB00000+uintptr(9*0x200)+off.Unit.NextUnit, uint64(firstAccepted))
+	seg := make([]byte, unitTableListHeads*unitTableHeadStride)
+	binary.LittleEndian.PutUint64(seg[0:], uint64(0xB00000))
+	binary.LittleEndian.PutUint64(seg[unitTableHeadStride:], uint64(firstAccepted+uintptr(246*0x200)))
+	binary.LittleEndian.PutUint64(seg[2*unitTableHeadStride:], uint64(firstAccepted+uintptr(502*0x200)))
+	access.setBytes(unitSegmentBase(moduleBase, off.UnitTable, unitSegmentItem), seg)
 
 	prev := firstAccepted
 	for i := 0; i < maxItemsPerSnapshot+2; i++ {

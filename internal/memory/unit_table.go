@@ -21,7 +21,7 @@ const (
 	maxTotalUnitVisits     = 4096
 	maxEntitiesPerCategory = 32
 	maxItemUnitVisits      = 4096
-	maxItemsPerSnapshot    = 128
+	maxItemsPerSnapshot    = 512
 
 	// Per-segment visit budgets for entity enumeration (entrances/monsters before objects).
 	maxVisitsEntranceSegment = 1024

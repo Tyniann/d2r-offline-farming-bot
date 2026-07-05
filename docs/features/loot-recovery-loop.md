@@ -200,7 +200,7 @@ Umgesetzt als [Inventory Model und Lock Grid](inventory-lock-grid.md): persönli
 
 ### 5.3 Pickit-MVP
 
-NIP-kompatible Grundlage mit begrenztem Keyword-Support einführen. Erste Regeln fokussieren Runen, Keys und optional Gems.
+Umgesetzt als [Pickit Engine](pickit-engine.md): kleiner, line-numbered NIP-Subset mit `loot.pickit_file`, Default `configs/pickit/countess.nip` und read-only Match-Ergebnissen. Pickit bewertet ausschließlich `world.Item`-Felder aus dem generierten Item-Katalog (`Code`, `Type`, `Name`, `Quality`, Flags, Stats); die lokale D2R-Extraktion bleibt nur Regenerationsquelle, siehe [Item Enumeration Read-Only](item-enumeration.md).
 
 ### 5.4 Loot-Entscheidungspipeline
 

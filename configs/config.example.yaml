@@ -20,6 +20,8 @@ memory:
   offsets_file: ""
 
 loot:
+  # Relativ zur geladenen Config-Datei. Bei configs/config.yaml ergibt das configs/pickit/countess.nip.
+  pickit_file: pickit/countess.nip
   inventory_lock:
     # 4x10 Grid; 1 = geschützt/nicht benutzen, 0 = für Loot verfügbar.
     # Beispiel: linke 4 Spalten für Cube, Tomes, Torch/Anni und Charms schützen.
