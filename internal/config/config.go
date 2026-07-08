@@ -51,10 +51,20 @@ type PathsConfig struct {
 
 // LootConfig holds read-only loot model settings.
 type LootConfig struct {
-	PickitFile    string  `yaml:"pickit_file"`
-	InventoryLock [][]int `yaml:"inventory_lock"`
+	PickitFile    string           `yaml:"pickit_file"`
+	Pickup        LootPickupConfig `yaml:"pickup"`
+	InventoryLock [][]int          `yaml:"inventory_lock"`
 
 	inventoryLockPresent bool `yaml:"-"`
+}
+
+// LootPickupConfig holds safety limits for hover-confirmed item pickup.
+type LootPickupConfig struct {
+	MaxRetries                int     `yaml:"max_retries"`
+	MaxDistanceTiles          float64 `yaml:"max_distance_tiles"`
+	VerifyTicks               int     `yaml:"verify_ticks"`
+	VerifyTimeoutMs           int     `yaml:"verify_timeout_ms"`
+	MonsterAbortDistanceTiles float64 `yaml:"monster_abort_distance_tiles"`
 }
 
 // UnmarshalYAML records whether inventory_lock was present.
@@ -289,6 +299,7 @@ func (c *LootConfig) applyDefaults() {
 	if c.PickitFile == "" {
 		c.PickitFile = "pickit/countess.nip"
 	}
+	c.Pickup.applyDefaults()
 	if c.inventoryLockPresent {
 		return
 	}
@@ -298,7 +309,40 @@ func (c *LootConfig) applyDefaults() {
 	}
 }
 
+func (c *LootPickupConfig) applyDefaults() {
+	if c.MaxRetries == 0 {
+		c.MaxRetries = 3
+	}
+	if c.MaxDistanceTiles == 0 {
+		c.MaxDistanceTiles = 8
+	}
+	if c.VerifyTicks == 0 {
+		c.VerifyTicks = 3
+	}
+	if c.VerifyTimeoutMs == 0 {
+		c.VerifyTimeoutMs = 1500
+	}
+	if c.MonsterAbortDistanceTiles == 0 {
+		c.MonsterAbortDistanceTiles = 12
+	}
+}
+
 func (c LootConfig) validate() error {
+	if c.Pickup.MaxRetries <= 0 {
+		return fmt.Errorf("loot.pickup.max_retries must be > 0")
+	}
+	if c.Pickup.MaxDistanceTiles <= 0 {
+		return fmt.Errorf("loot.pickup.max_distance_tiles must be > 0")
+	}
+	if c.Pickup.VerifyTicks <= 0 {
+		return fmt.Errorf("loot.pickup.verify_ticks must be > 0")
+	}
+	if c.Pickup.VerifyTimeoutMs <= 0 {
+		return fmt.Errorf("loot.pickup.verify_timeout_ms must be > 0")
+	}
+	if c.Pickup.MonsterAbortDistanceTiles <= 0 {
+		return fmt.Errorf("loot.pickup.monster_abort_distance_tiles must be > 0")
+	}
 	if len(c.InventoryLock) != 4 {
 		return fmt.Errorf("loot.inventory_lock must have 4 rows")
 	}

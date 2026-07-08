@@ -38,6 +38,13 @@ func TestLoadExampleConfig(t *testing.T) {
 	if cfg.Loot.PickitFile != "pickit/countess.nip" {
 		t.Fatalf("Loot.PickitFile = %q, want pickit/countess.nip", cfg.Loot.PickitFile)
 	}
+	if cfg.Loot.Pickup.MaxRetries != 3 ||
+		cfg.Loot.Pickup.MaxDistanceTiles != 8 ||
+		cfg.Loot.Pickup.VerifyTicks != 3 ||
+		cfg.Loot.Pickup.VerifyTimeoutMs != 1500 ||
+		cfg.Loot.Pickup.MonsterAbortDistanceTiles != 12 {
+		t.Fatalf("Loot.Pickup = %+v, want pickup defaults", cfg.Loot.Pickup)
+	}
 	if cfg.Input.KeyDelayMsMin != 10 {
 		t.Errorf("Input.KeyDelayMsMin = %d, want 10", cfg.Input.KeyDelayMsMin)
 	}
@@ -230,6 +237,74 @@ loot:
 	}
 	if cfg.Loot.PickitFile != "pickit/countess.nip" {
 		t.Fatalf("PickitFile = %q, want default", cfg.Loot.PickitFile)
+	}
+	if cfg.Loot.Pickup.MaxRetries != 3 || cfg.Loot.Pickup.VerifyTimeoutMs != 1500 {
+		t.Fatalf("Pickup defaults = %+v, want populated defaults", cfg.Loot.Pickup)
+	}
+}
+
+func TestLootPickupDefaultsWithExplicitInventoryLock(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "lock-only.yaml")
+	content := `app:
+  name: d2rbot
+runtime:
+  poll_interval_ms: 100
+process:
+  process_name: D2R.exe
+loot:
+  inventory_lock:
+    - [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+    - [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+    - [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+    - [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+`
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Loot.Pickup.MaxRetries != 3 ||
+		cfg.Loot.Pickup.MaxDistanceTiles != 8 ||
+		cfg.Loot.Pickup.VerifyTicks != 3 ||
+		cfg.Loot.Pickup.VerifyTimeoutMs != 1500 ||
+		cfg.Loot.Pickup.MonsterAbortDistanceTiles != 12 {
+		t.Fatalf("Pickup defaults = %+v, want populated defaults with explicit inventory_lock", cfg.Loot.Pickup)
+	}
+}
+
+func TestLootPickupValidation(t *testing.T) {
+	tests := []struct {
+		name    string
+		content string
+	}{
+		{name: "max retries", content: "loot:\n  pickup:\n    max_retries: -1\n"},
+		{name: "max distance", content: "loot:\n  pickup:\n    max_distance_tiles: -1\n"},
+		{name: "verify ticks", content: "loot:\n  pickup:\n    verify_ticks: -1\n"},
+		{name: "verify timeout", content: "loot:\n  pickup:\n    verify_timeout_ms: -1\n"},
+		{name: "monster abort", content: "loot:\n  pickup:\n    monster_abort_distance_tiles: -1\n"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := &Config{
+				App:     AppConfig{Name: "d2rbot"},
+				Process: ProcessConfig{ProcessName: "D2R.exe"},
+				Runtime: RuntimeConfig{PollIntervalMs: 100},
+			}
+			if err := yaml.Unmarshal([]byte(tc.content), cfg); err != nil {
+				t.Fatal(err)
+			}
+			cfg.Input.applyDefaults()
+			cfg.Runs.applyDefaults()
+			cfg.Pathing.applyDefaults()
+			cfg.Loot.applyDefaults()
+			if err := cfg.validate(); err == nil {
+				t.Fatal("expected invalid loot.pickup config")
+			}
+		})
 	}
 }
 

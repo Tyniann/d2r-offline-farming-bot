@@ -8,6 +8,7 @@ Versionierung nach [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- Add Phase 5.5 hover-confirmed item pickup with `loot.pickup` safety limits and `--pathing-test pickup:item`
 - Add Phase 5.4 Loot Decision Pipeline with read-only stage decisions for Pickit matches, pickup candidates, Keep/Stash, and failure reasons
 - Add Phase 5.3 Pickit MVP with a small NIP subset, `loot.pickit_file`, and Countess default rules
 - Add Phase 5.2 read-only inventory model and `loot.inventory_lock` capacity guard

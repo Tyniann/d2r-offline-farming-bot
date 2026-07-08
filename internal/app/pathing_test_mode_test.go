@@ -22,6 +22,7 @@ func TestParsePathingTestSpec(t *testing.T) {
 		{"inspect:entrances", pathingTestSpec{kind: pathingTestInspect, entity: "entrances"}},
 		{"play-town-route:act1-waypoint", pathingTestSpec{kind: pathingTestPlayTown, route: "act1-waypoint"}},
 		{"record-town-route:act1-waypoint", pathingTestSpec{kind: pathingTestRecordTown, route: "act1-waypoint"}},
+		{"pickup:item", pathingTestSpec{kind: pathingTestPickupItem, entity: "item"}},
 	}
 	for _, tc := range cases {
 		got, err := parsePathingTestSpec(tc.spec)
@@ -38,7 +39,7 @@ func TestParsePathingTestSpecInvalid(t *testing.T) {
 	for _, spec := range []string{
 		"", "teleport", "teleport:abc,5", "teleport:5000", "hover:foo",
 		"move-area:unknown_area", "click-entity:monster", "inspect:objects", "play-town-route:act2-waypoint",
-		"record-town-route:act2-waypoint", "unknown:arg",
+		"record-town-route:act2-waypoint", "pickup:gold", "unknown:arg",
 	} {
 		if _, err := parsePathingTestSpec(spec); err == nil {
 			t.Fatalf("parsePathingTestSpec(%q) expected error", spec)
@@ -82,6 +83,13 @@ func TestPathingTestSpecRequiresInput(t *testing.T) {
 	if !play.requiresInput() {
 		t.Fatal("play-town-route must require input")
 	}
+	pickup, err := parsePathingTestSpec("pickup:item")
+	if err != nil {
+		t.Fatalf("parse error = %v", err)
+	}
+	if !pickup.requiresInput() {
+		t.Fatal("pickup:item must require input")
+	}
 }
 
 func TestValidatePathingTestModeConflicts(t *testing.T) {
@@ -104,6 +112,10 @@ func TestValidatePathingTestModeInputRequired(t *testing.T) {
 	err := validatePathingTestMode(disabled, Options{PathingTest: "move-area:6"})
 	if !errors.Is(err, errInputRequiredForPathingTest) {
 		t.Fatalf("err = %v, want errInputRequiredForPathingTest", err)
+	}
+	err = validatePathingTestMode(disabled, Options{PathingTest: "pickup:item"})
+	if !errors.Is(err, errInputRequiredForPathingTest) {
+		t.Fatalf("pickup:item err = %v, want errInputRequiredForPathingTest", err)
 	}
 
 	// hover:watch is read-only and works without input.

@@ -12,6 +12,7 @@ import (
 
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/config"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/input"
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/loot"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/pathing"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/version"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/world"
@@ -30,6 +31,7 @@ const (
 	pathingTestInspect     pathingTestKind = "inspect"
 	pathingTestPlayTown    pathingTestKind = "play_town_route"
 	pathingTestRecordTown  pathingTestKind = "record_town_route"
+	pathingTestPickupItem  pathingTestKind = "pickup_item"
 )
 
 // pathingTestSpec is a parsed --pathing-test argument.
@@ -50,7 +52,7 @@ func (s pathingTestSpec) requiresInput() bool {
 // parsePathingTestSpec parses specs like `teleport:5000,5000`, `hover:watch`,
 // `move-area:black_marsh`, `click-entity:waypoint`,
 // `inspect:entrances`, `play-town-route:act1-waypoint`,
-// `record-town-route:act1-waypoint`.
+// `record-town-route:act1-waypoint`, or `pickup:item`.
 func parsePathingTestSpec(spec string) (pathingTestSpec, error) {
 	raw := strings.TrimSpace(spec)
 	kind, arg, ok := strings.Cut(raw, ":")
@@ -109,6 +111,12 @@ func parsePathingTestSpec(spec string) (pathingTestSpec, error) {
 			return pathingTestSpec{}, fmt.Errorf("pathing test record-town-route: expected act1-waypoint, got %q", arg)
 		}
 		return pathingTestSpec{kind: pathingTestRecordTown, route: route}, nil
+	case "pickup":
+		target := strings.ToLower(arg)
+		if target != "item" {
+			return pathingTestSpec{}, fmt.Errorf("pathing test pickup: expected item, got %q", arg)
+		}
+		return pathingTestSpec{kind: pathingTestPickupItem, entity: target}, nil
 	default:
 		return pathingTestSpec{}, fmt.Errorf("pathing test: unknown spec kind %q", kind)
 	}
@@ -211,6 +219,8 @@ func (rt *Runtime) RunPathingTest(specStr string) error {
 		err = rt.runPathingPlayTownRoute(ctx, state, hotkeyEvents, ticker, deadline, cancel)
 	case pathingTestRecordTown:
 		err = rt.runPathingRecordTownRoute(ctx, state, hotkeyEvents, ticker, deadline, cancel)
+	case pathingTestPickupItem:
+		err = rt.runPathingPickupItem(ctx, state, hotkeyEvents, ticker, deadline, cancel)
 	default:
 		err = fmt.Errorf("pathing test: unsupported kind %q", spec.kind)
 	}
@@ -560,6 +570,125 @@ func (rt *Runtime) runPathingClickEntity(
 	}
 	rt.Log.Warn("pathing test click-entity timeout", "entity", spec.entity)
 	return nil
+}
+
+func (rt *Runtime) runPathingPickupItem(
+	ctx context.Context,
+	state *runState,
+	hotkeyEvents <-chan input.HotkeyEvent,
+	ticker *time.Ticker,
+	deadline time.Time,
+	cancel context.CancelFunc,
+) error {
+	driver, ok := rt.Input.(pathing.InputDriver)
+	if !ok {
+		return fmt.Errorf("pathing test: input controller does not support pathing actions")
+	}
+	pathingCfg := mapPathingConfig(rt.Config.Pathing)
+	clicker := pathing.NewEntityClicker(rt.Log, driver, pathingCfg.Projector(), pathingCfg.Click)
+	adapter := &pickupClickerAdapter{input: driver, clicker: clicker}
+
+	var exec *loot.PickupExecutor
+	var target loot.PickupTarget
+	for time.Now().Before(deadline) {
+		cur, stop, err := rt.pathingTestTick(ctx, state, hotkeyEvents, ticker, cancel)
+		if err != nil || stop {
+			return err
+		}
+		if !cur.Valid || cur.Phase != world.GamePhaseInGame {
+			continue
+		}
+
+		if exec == nil {
+			report := rt.Loot.Decide(cur)
+			var found bool
+			target, found = loot.SelectPickupCandidate(cur, report)
+			if !found {
+				rt.Log.Info("loot pickup test: no candidate",
+					"ground_item_count", len(cur.GroundItems()),
+					"decision_count", len(report.Decisions),
+				)
+				return nil
+			}
+			rt.Log.Info("loot pickup test target selected",
+				"unit_id", target.UnitID,
+				"name", target.Name,
+				"code", target.Code,
+				"pos_x", target.Position.X,
+				"pos_y", target.Position.Y,
+			)
+			exec = loot.NewPickupExecutor(rt.Log, mapLootPickupConfig(rt.Config.Loot.Pickup), adapter, target)
+		}
+
+		res := exec.Tick(cur, time.Now())
+		if res.Done {
+			rt.Log.Info("pathing test pickup:item finished",
+				"status", string(res.Status),
+				"unit_id", target.UnitID,
+				"name", target.Name,
+				"code", target.Code,
+				"retry", res.Retry,
+				"hover_attempts", res.HoverAttempt,
+			)
+			return nil
+		}
+	}
+	rt.Log.Warn("pathing test pickup:item timeout")
+	return nil
+}
+
+type pickupClickerAdapter struct {
+	input   pathing.InputDriver
+	clicker *pathing.EntityClicker
+}
+
+func (a *pickupClickerAdapter) Reset() {
+	a.clicker.Reset()
+}
+
+func (a *pickupClickerAdapter) Tick(state world.State, target loot.PickupClickTarget, maxDistance float64) (loot.PickupClickResult, error) {
+	if _, ok := a.input.Window(); !ok {
+		return loot.PickupClickResult{}, fmt.Errorf("input window not bound")
+	}
+	res, err := a.clicker.Tick(state, pathing.ClickTarget{
+		UnitID:   target.UnitID,
+		UnitType: world.HoverUnitTypeItem,
+		Position: target.Position,
+		Name:     target.Name,
+	}, maxDistance)
+	if err != nil {
+		return loot.PickupClickResult{Attempt: res.Attempt}, err
+	}
+	return loot.PickupClickResult{
+		Status:  mapPickupClickStatus(res.Status),
+		Attempt: res.Attempt,
+		Done:    res.Done,
+	}, nil
+}
+
+func mapPickupClickStatus(status pathing.ClickStatus) loot.PickupClickStatus {
+	switch status {
+	case pathing.ClickHit:
+		return loot.PickupClickHit
+	case pathing.ClickTooFar:
+		return loot.PickupClickTooFar
+	case pathing.ClickHoverNotFound:
+		return loot.PickupClickHoverNotFound
+	case pathing.ClickProjectionFailed:
+		return loot.PickupClickProjectionFailed
+	default:
+		return loot.PickupClickPending
+	}
+}
+
+func mapLootPickupConfig(cfg config.LootPickupConfig) loot.PickupConfig {
+	return loot.PickupConfig{
+		MaxRetries:                cfg.MaxRetries,
+		MaxDistanceTiles:          cfg.MaxDistanceTiles,
+		VerifyTicks:               cfg.VerifyTicks,
+		VerifyTimeout:             time.Duration(cfg.VerifyTimeoutMs) * time.Millisecond,
+		MonsterAbortDistanceTiles: cfg.MonsterAbortDistanceTiles,
+	}
 }
 
 func (rt *Runtime) runPathingPlayTownRoute(

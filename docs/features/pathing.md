@@ -124,6 +124,9 @@ go run ./cmd/d2rbot --pathing-test click-entity:entrance
 # Stufe C: Act-1-Town-Walk zum Waypoint (Force Move)
 go run ./cmd/d2rbot --pathing-test play-town-route:act1-waypoint
 go run ./cmd/d2rbot --pathing-test record-town-route:act1-waypoint
+
+# Phase 5.5: Hover-confirmed Pickup eines Pickit-Kandidaten
+go run ./cmd/d2rbot --pathing-test pickup:item --probe --verbose
 ```
 
 - `--pathing-test-timeout-ms` (Default 120000) begrenzt die Testdauer

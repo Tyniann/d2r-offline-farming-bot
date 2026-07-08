@@ -208,7 +208,7 @@ Umgesetzt als [Loot Decision Pipeline](loot-decision-pipeline.md): `Observe -> C
 
 ### 5.5 Hover-bestätigter Item-Pickup
 
-Items nur nach Hover-Match anklicken und Pickup über Ground-Verschwinden oder Location-Wechsel bestätigen.
+Umgesetzt als [Hover-Confirmed Item Pickup](hover-confirmed-item-pickup.md): Ein isolierter Pickup-Baustein friert einen Pickit-/Inventory-geprüften Ground-Item-Kandidaten ein, klickt nur nach `Hover.UnitType=item` und passender `UnitID`, bestätigt Erfolg über gültige In-Game-Verify-Ticks und bricht bei Retry-, Distanz- oder Monster-Sicherheitsgrenzen ab. Live-Validierung läuft über `--pathing-test pickup:item`; die Countess-Integration folgt in 5.6.
 
 ### 5.6 Countess-Loot-Phase
 

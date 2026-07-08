@@ -20,7 +20,7 @@ func main() {
 	inputTestObserveMs := flag.Int("input-test-observe-ms", 3000, "observation window in ms after input-test actions")
 	runFlag := flag.String("run", "", "active farming run (e.g. countess); overrides runs.active in config")
 	phaseFlag := flag.String("phase", "", "optional run phase (e.g. travel-marsh or travel-cellar5 with --run countess)")
-	pathingTest := flag.String("pathing-test", "", "manual pathing test spec (teleport:TX,TY | hover:watch | inspect:entrances | move-area:<id|name> | click-entity:waypoint|entrance)")
+	pathingTest := flag.String("pathing-test", "", "manual pathing test spec (teleport:TX,TY | hover:watch | inspect:entrances | move-area:<id|name> | click-entity:waypoint|entrance | pickup:item)")
 	pathingTestTimeoutMs := flag.Int("pathing-test-timeout-ms", 120000, "timeout in ms for the pathing test mode")
 	showVersion := flag.Bool("version", false, "print version and exit")
 	flag.Parse()

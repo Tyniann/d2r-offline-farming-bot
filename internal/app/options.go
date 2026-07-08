@@ -15,7 +15,7 @@ type Options struct {
 	// RunPhase selects an optional phase for the active run (e.g. travel-marsh).
 	RunPhase string
 	// PathingTest starts the manual pathing-test mode with the given spec (empty = disabled).
-	// Specs: teleport:TX,TY | hover:watch | inspect:entrances | move-area:<id|name> | click-entity:waypoint|entrance
+	// Specs: teleport:TX,TY | hover:watch | inspect:entrances | move-area:<id|name> | click-entity:waypoint|entrance | pickup:item
 	PathingTest string
 	// PathingTestTimeoutMs bounds the pathing-test duration (default 120000 when <=0).
 	PathingTestTimeoutMs int
