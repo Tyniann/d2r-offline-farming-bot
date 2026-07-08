@@ -204,7 +204,7 @@ Umgesetzt als [Pickit Engine](pickit-engine.md): kleiner, line-numbered NIP-Subs
 
 ### 5.4 Loot-Entscheidungspipeline
 
-`ignore`, `pick`, `keep` und `stash` als getrennte Entscheidungen modellieren und testen.
+Umgesetzt als [Loot Decision Pipeline](loot-decision-pipeline.md): `Observe -> Classify -> PickCandidate -> PickupAttempt -> Verify -> Keep/Stash/Fail` wird als read-only Stage-Liste modelliert. Pickit bleibt ein Regelmatch; `pick`, `keep` und `stash` bleiben getrennte Entscheidungen ohne Input-, Identify- oder Stash-Automation.
 
 ### 5.5 Hover-bestätigter Item-Pickup
 
@@ -239,4 +239,4 @@ Drop-, Pickit-, Pickup-, Inventory- und Stash-Ereignisse strukturiert protokolli
 - Kein Identify-/Sell-/Repair-/Merc-Loop im ersten Ground-Loot-MVP.
 
 ---
-*Zuletzt aktualisiert: 2026-07-04*
+*Zuletzt aktualisiert: 2026-07-08*
