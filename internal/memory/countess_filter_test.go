@@ -23,12 +23,12 @@ func TestCountessTowerNPCIDs(t *testing.T) {
 }
 
 func TestCountessFilterObjects(t *testing.T) {
-	for _, id := range []uint32{580, 119, 157} {
-		if !IsCountessObjectID(id) {
+	for _, id := range []uint32{584, 59, 119, 157} {
+		if !IsRuntimeObjectID(id) {
 			t.Fatalf("object %d should match", id)
 		}
 	}
-	if IsCountessObjectID(999) {
+	if IsRuntimeObjectID(999) {
 		t.Fatal("unexpected object match")
 	}
 }

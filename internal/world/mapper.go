@@ -53,6 +53,7 @@ func FromSnapshot(snap memory.Snapshot) State {
 			Monsters:  monsters,
 			Items:     items,
 			Hover:     hover,
+			UI:        mapUIState(snap.UI),
 		}
 	}
 
@@ -73,7 +74,12 @@ func FromSnapshot(snap memory.Snapshot) State {
 		Monsters:  monsters,
 		Items:     items,
 		Hover:     hover,
+		UI:        mapUIState(snap.UI),
 	}
+}
+
+func mapUIState(ui memory.UIState) UIState {
+	return UIState{InventoryOpen: ui.InventoryOpen, StashOpen: ui.StashOpen}
 }
 
 // mapHover converts the raw memory hover buffer into the world hover type.

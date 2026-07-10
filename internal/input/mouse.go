@@ -98,6 +98,57 @@ func (c *Controller) Click(button MouseButton) error {
 	return c.click(button, "mouse_click")
 }
 
+// ClickWithModifier holds one keyboard modifier for a mouse click and always releases it afterward.
+func (c *Controller) ClickWithModifier(modifier string, button MouseButton) error {
+	key, err := NormalizeKey(modifier)
+	if err != nil {
+		return err
+	}
+	if !isValidMouseButton(button) {
+		return fmt.Errorf("modified click: %w", ErrInvalidMouseButton)
+	}
+	c.mu.Lock()
+	bound := c.bound
+	c.mu.Unlock()
+	if !bound {
+		return fmt.Errorf("modified click: %w", ErrWindowNotBound)
+	}
+	if err := c.actionGuard("mouse", "modified_click", "mouse_modified_click", "modifier", key, "button", button); err != nil {
+		return err
+	}
+
+	c.keyMu.Lock()
+	defer c.keyMu.Unlock()
+	c.mouseMu.Lock()
+	defer c.mouseMu.Unlock()
+
+	if err := c.keys.KeyDown(key); err != nil {
+		return err
+	}
+	keyHeld := true
+	defer func() {
+		if keyHeld {
+			if releaseErr := c.keys.KeyUp(key); releaseErr != nil {
+				c.log.Warn("input modifier cleanup failed", "key", key, "error", releaseErr)
+			}
+		}
+	}()
+
+	if err := c.mouse.ButtonDown(button); err != nil {
+		return err
+	}
+	if err := c.mouse.ButtonUp(button); err != nil {
+		c.releaseMouseButton(button)
+		return err
+	}
+	if err := c.keys.KeyUp(key); err != nil {
+		return err
+	}
+	keyHeld = false
+	c.logAllowedAction("mouse", "modified_click", "mouse_modified_click", "modifier", key, "button", button)
+	return nil
+}
+
 func (c *Controller) moveTo(win WindowInfo, clientX, clientY int, reason string) error {
 	pt := clientToScreenPoint(win, clientX, clientY)
 

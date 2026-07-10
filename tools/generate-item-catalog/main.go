@@ -55,7 +55,19 @@ func readRows(src string) ([]row, error) {
 		}
 		rows = append(rows, fileRows...)
 	}
+	if err := validateGemDimensions(rows); err != nil {
+		return nil, err
+	}
 	return rows, nil
+}
+
+func validateGemDimensions(rows []row) error {
+	for _, item := range rows {
+		if strings.HasPrefix(item.Type, "gem") && (item.Width != 1 || item.Height != 1) {
+			return fmt.Errorf("gem %q (%s) has inventory dimensions %dx%d, want 1x1", item.Name, item.Code, item.Width, item.Height)
+		}
+	}
+	return nil
 }
 
 func readFile(path string) ([]row, error) {

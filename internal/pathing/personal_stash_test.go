@@ -1,0 +1,116 @@
+package pathing
+
+import (
+	"context"
+	"testing"
+	"time"
+
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/config"
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/input"
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/world"
+)
+
+func personalStashState(distance uint32) world.State {
+	return world.State{
+		At: time.Date(2026, 7, 10, 12, 0, 0, 0, time.UTC), Valid: true,
+		Phase: world.GamePhaseInGame, Area: world.LookupArea(world.RogueEncampment),
+		Player:  world.Player{Position: world.Position{X: 100, Y: 100}},
+		Objects: []world.Object{{Kind: world.ObjectKindPersonalStash, UnitID: 22, Name: "Stash", Position: world.Position{X: 100 + distance, Y: 100}}},
+	}
+}
+
+func TestPersonalStashActionsRejectsUnsupportedResolution(t *testing.T) {
+	in := newMockInput()
+	in.window.ClientWidth = 1920
+	a := NewPersonalStashActions(config.NewLogger("error"), in, DefaultConfig())
+	res := a.Tick(context.Background(), personalStashState(2))
+	if res.Status != PersonalStashUnsupportedResolution || !res.Done || len(in.moves) != 0 {
+		t.Fatalf("res=%+v moves=%v, want unsupported_resolution without input", res, in.moves)
+	}
+}
+
+func TestPersonalStashActionsAlreadyOpen(t *testing.T) {
+	in := newMockInput()
+	a := NewPersonalStashActions(config.NewLogger("error"), in, DefaultConfig())
+	st := personalStashState(2)
+	st.UI = world.UIState{InventoryOpen: true, StashOpen: true}
+	res := a.Tick(context.Background(), st)
+	if res.Status != PersonalStashOpened || !res.Done || len(in.moves) != 0 {
+		t.Fatalf("res=%+v moves=%v, want opened without input", res, in.moves)
+	}
+}
+
+func TestPersonalStashActionsInventoryOnlyFailsClosed(t *testing.T) {
+	in := newMockInput()
+	a := NewPersonalStashActions(config.NewLogger("error"), in, DefaultConfig())
+	st := personalStashState(2)
+	st.UI.InventoryOpen = true
+	res := a.Tick(context.Background(), st)
+	if res.Status != PersonalStashOpenFailed || !res.Done || len(in.moves) != 0 {
+		t.Fatalf("res=%+v moves=%v, want stash_open_failed without input", res, in.moves)
+	}
+}
+
+func TestPersonalStashActionsWalksWhenTooFar(t *testing.T) {
+	in := newMockInput()
+	a := NewPersonalStashActions(config.NewLogger("error"), in, DefaultConfig())
+	res := a.Tick(context.Background(), personalStashState(30))
+	if res.Status != PersonalStashPending || len(in.moves) != 1 || len(in.keys) != 1 || in.keys[0] != "e" {
+		t.Fatalf("res=%+v moves=%v keys=%v, want force-move approach", res, in.moves, in.keys)
+	}
+	if len(in.clicks) != 0 {
+		t.Fatalf("clicks=%v, want no stash click while too far", in.clicks)
+	}
+}
+
+func TestPersonalStashActionsUsesRelativeDetourAnchors(t *testing.T) {
+	in := newMockInput()
+	a := NewPersonalStashActions(config.NewLogger("error"), in, DefaultConfig())
+	st := personalStashState(30)
+	_ = a.Tick(context.Background(), st)
+	if a.routeIndex != 0 {
+		t.Fatalf("routeIndex=%d, want first detour anchor", a.routeIndex)
+	}
+
+	stash := st.Objects[0].Position
+	st.Player.Position = world.Position{X: stash.X + 10, Y: stash.Y + 18}
+	st.At = st.At.Add(time.Second)
+	_ = a.Tick(context.Background(), st)
+	if a.routeIndex != 1 {
+		t.Fatalf("routeIndex=%d, want second detour anchor", a.routeIndex)
+	}
+}
+
+func TestPersonalStashActionsClicksOnlyAfterHoverAndConfirmsUI(t *testing.T) {
+	in := newMockInput()
+	a := NewPersonalStashActions(config.NewLogger("error"), in, DefaultConfig())
+	st := personalStashState(2)
+	res := a.Tick(context.Background(), st)
+	if res.Status != PersonalStashPending || len(in.moves) != 1 || len(in.clicks) != 0 {
+		t.Fatalf("first tick res=%+v moves=%v clicks=%v", res, in.moves, in.clicks)
+	}
+	st.Hover = world.HoverInfo{IsHovered: true, UnitType: world.HoverUnitTypeObject, UnitID: 22}
+	res = a.Tick(context.Background(), st)
+	if res.Status != PersonalStashPending || len(in.clicks) != 1 || in.clicks[0] != input.MouseLeft {
+		t.Fatalf("hover tick res=%+v clicks=%v, want one left click", res, in.clicks)
+	}
+	st.UI = world.UIState{InventoryOpen: true, StashOpen: true}
+	res = a.Tick(context.Background(), st)
+	if res.Status != PersonalStashOpened || !res.Done {
+		t.Fatalf("UI confirmation res=%+v, want opened", res)
+	}
+}
+
+func TestPersonalStashActionsOpenTimeout(t *testing.T) {
+	in := newMockInput()
+	a := NewPersonalStashActions(config.NewLogger("error"), in, DefaultConfig())
+	st := personalStashState(2)
+	_ = a.Tick(context.Background(), st)
+	st.Hover = world.HoverInfo{IsHovered: true, UnitType: world.HoverUnitTypeObject, UnitID: 22}
+	_ = a.Tick(context.Background(), st)
+	st.At = st.At.Add(personalStashOpenTimeout)
+	res := a.Tick(context.Background(), st)
+	if res.Status != PersonalStashOpenFailed || !res.Done {
+		t.Fatalf("res=%+v, want stash_open_failed", res)
+	}
+}

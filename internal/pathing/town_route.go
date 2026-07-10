@@ -84,11 +84,3 @@ func (r TownRouteFile) positions() ([]world.Position, error) {
 	}
 	return out, nil
 }
-
-func defaultAct1WaypointRoute() []world.Position {
-	return []world.Position{
-		{X: 3940, Y: 5050},
-		{X: 3985, Y: 4990},
-		{X: 4020, Y: 4935},
-	}
-}

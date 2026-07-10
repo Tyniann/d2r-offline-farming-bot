@@ -44,4 +44,5 @@ type State struct {
 	Monsters  []Monster
 	Items     []Item
 	Hover     HoverInfo // Unit currently under the mouse cursor; zero value when none.
+	UI        UIState   // Read-only menu flags used for fail-closed UI actions.
 }

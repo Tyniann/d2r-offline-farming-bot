@@ -18,6 +18,7 @@ type PathingConfig struct {
 	Click              PathingClickConfig      `yaml:"click"`
 	Explore            PathingExploreConfig    `yaml:"explore"`
 	Waypoint           PathingWaypointConfig   `yaml:"waypoint"`
+	TownPortal         PathingTownPortalConfig `yaml:"town_portal"`
 	WaypointUI         PathingWaypointUIConfig `yaml:"waypoint_ui"`
 	TownWalk           PathingTownWalkConfig   `yaml:"town_walk"`
 
@@ -52,6 +53,12 @@ type PathingWaypointConfig struct {
 	MaxClickDistance float64 `yaml:"max_click_distance"`
 }
 
+// PathingTownPortalConfig tunes discovery and hover-confirmed portal entry.
+type PathingTownPortalConfig struct {
+	AppearTimeoutMs  int     `yaml:"appear_timeout_ms"`
+	MaxClickDistance float64 `yaml:"max_click_distance"`
+}
+
 // PathingWaypointUIConfig holds fixed client-relative waypoint menu coordinates.
 type PathingWaypointUIConfig struct {
 	// BlackMarshX is the client-relative X coordinate for Black Marsh.
@@ -68,13 +75,35 @@ type PathingPointConfig struct {
 
 // PathingTownWalkConfig tunes Act-1 town walking to the waypoint.
 type PathingTownWalkConfig struct {
-	RouteFile          string               `yaml:"route_file"`
-	ForceMoveKey       string               `yaml:"force_move_key"`
-	MoveIntervalMs     int                  `yaml:"move_interval_ms"`
-	SettleTimeoutMs    int                  `yaml:"settle_timeout_ms"`
-	StuckTimeoutMs     int                  `yaml:"stuck_timeout_ms"`
-	ArrivalDistance    float64              `yaml:"arrival_distance_tiles"`
-	Act1WaypointPoints []PathingPointConfig `yaml:"act1_waypoint_points"`
+	Difficulty         string                      `yaml:"difficulty"`
+	Routes             PathingTownWalkRoutesConfig `yaml:"routes"`
+	ForceMoveKey       string                      `yaml:"force_move_key"`
+	MoveIntervalMs     int                         `yaml:"move_interval_ms"`
+	SettleTimeoutMs    int                         `yaml:"settle_timeout_ms"`
+	StuckTimeoutMs     int                         `yaml:"stuck_timeout_ms"`
+	ArrivalDistance    float64                     `yaml:"arrival_distance_tiles"`
+	Act1WaypointPoints []PathingPointConfig        `yaml:"act1_waypoint_points"`
+}
+
+// PathingTownWalkRoutesConfig maps each offline difficulty to its recorded Act-1 town route.
+type PathingTownWalkRoutesConfig struct {
+	Normal    string `yaml:"normal"`
+	Nightmare string `yaml:"nightmare"`
+	Hell      string `yaml:"hell"`
+}
+
+// SelectedRouteFile returns the configured route file for the selected difficulty.
+func (c PathingTownWalkConfig) SelectedRouteFile() string {
+	switch c.Difficulty {
+	case "normal":
+		return c.Routes.Normal
+	case "nightmare":
+		return c.Routes.Nightmare
+	case "hell":
+		return c.Routes.Hell
+	default:
+		return ""
+	}
 }
 
 // UnmarshalYAML records whether the pathing section was present.
@@ -130,11 +159,20 @@ func (c *PathingConfig) validate() error {
 	if c.Waypoint.MaxClickDistance <= 0 {
 		return fmt.Errorf("pathing.waypoint.max_click_distance must be > 0")
 	}
+	if c.TownPortal.AppearTimeoutMs <= 0 {
+		return fmt.Errorf("pathing.town_portal.appear_timeout_ms must be > 0")
+	}
+	if c.TownPortal.MaxClickDistance <= 0 {
+		return fmt.Errorf("pathing.town_portal.max_click_distance must be > 0")
+	}
 	if c.WaypointUI.BlackMarshX < 0 || c.WaypointUI.BlackMarshY < 0 {
 		return fmt.Errorf("pathing.waypoint_ui.black_marsh_x/y must be >= 0")
 	}
-	if c.TownWalk.RouteFile == "" {
-		return fmt.Errorf("pathing.town_walk.route_file is required")
+	if c.TownWalk.Difficulty != "normal" && c.TownWalk.Difficulty != "nightmare" && c.TownWalk.Difficulty != "hell" {
+		return fmt.Errorf("pathing.town_walk.difficulty must be normal, nightmare, or hell")
+	}
+	if c.TownWalk.SelectedRouteFile() == "" {
+		return fmt.Errorf("pathing.town_walk.routes.%s is required", c.TownWalk.Difficulty)
 	}
 	if c.TownWalk.ForceMoveKey == "" {
 		return fmt.Errorf("pathing.town_walk.force_move_key is required")
@@ -208,14 +246,29 @@ func (c *PathingConfig) applyDefaults() {
 	if c.Waypoint.MaxClickDistance == 0 {
 		c.Waypoint.MaxClickDistance = 15
 	}
+	if c.TownPortal.AppearTimeoutMs == 0 {
+		c.TownPortal.AppearTimeoutMs = 2000
+	}
+	if c.TownPortal.MaxClickDistance == 0 {
+		c.TownPortal.MaxClickDistance = 15
+	}
 	if c.WaypointUI.BlackMarshX == 0 {
 		c.WaypointUI.BlackMarshX = 200
 	}
 	if c.WaypointUI.BlackMarshY == 0 {
 		c.WaypointUI.BlackMarshY = 342
 	}
-	if c.TownWalk.RouteFile == "" {
-		c.TownWalk.RouteFile = "configs/routes/act1-town-waypoint.yaml"
+	if c.TownWalk.Difficulty == "" {
+		c.TownWalk.Difficulty = "normal"
+	}
+	if c.TownWalk.Routes.Normal == "" {
+		c.TownWalk.Routes.Normal = "configs/routes/act1-town-waypoint.yaml"
+	}
+	if c.TownWalk.Routes.Nightmare == "" {
+		c.TownWalk.Routes.Nightmare = "configs/routes/act1-town-waypoint-nightmare.yaml"
+	}
+	if c.TownWalk.Routes.Hell == "" {
+		c.TownWalk.Routes.Hell = "configs/routes/act1-town-waypoint-hell.yaml"
 	}
 	if c.TownWalk.ForceMoveKey == "" {
 		c.TownWalk.ForceMoveKey = "e"

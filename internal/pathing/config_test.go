@@ -26,6 +26,8 @@ func TestConfigValidateRejectsInvalidValues(t *testing.T) {
 		{"zero step distance", func(c *Config) { c.Explore.StepDistanceTiles = 0 }},
 		{"zero click distance", func(c *Config) { c.Explore.MaxEntranceClickDistance = 0 }},
 		{"zero waypoint distance", func(c *Config) { c.Waypoint.MaxClickDistance = 0 }},
+		{"zero portal appear timeout", func(c *Config) { c.TownPortal.AppearTimeout = 0 }},
+		{"zero portal click distance", func(c *Config) { c.TownPortal.MaxClickDistance = 0 }},
 		{"negative waypoint ui x", func(c *Config) { c.WaypointUI.BlackMarshX = -1 }},
 		{"negative waypoint ui y", func(c *Config) { c.WaypointUI.BlackMarshY = -1 }},
 		{"missing town route", func(c *Config) { c.TownWalk.RouteFile = "" }},

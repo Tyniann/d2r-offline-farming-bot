@@ -3,6 +3,7 @@ package world
 import (
 	"io"
 	"log/slog"
+	"strings"
 	"testing"
 	"time"
 
@@ -26,6 +27,7 @@ func validSnapshot() memory.Snapshot {
 
 func TestFromSnapshotValid(t *testing.T) {
 	snap := validSnapshot()
+	snap.UI = memory.UIState{InventoryOpen: true, StashOpen: true}
 	state := FromSnapshot(snap)
 
 	if !state.Valid {
@@ -61,6 +63,9 @@ func TestFromSnapshotValid(t *testing.T) {
 	}
 	if state.Player.Mana != snap.Mana || state.Player.MaxMana != snap.MaxMana {
 		t.Fatalf("Mana = %d/%d, want %d/%d", state.Player.Mana, state.Player.MaxMana, snap.Mana, snap.MaxMana)
+	}
+	if !state.UI.InventoryOpen || !state.UI.StashOpen {
+		t.Fatalf("UI = %+v, want inventory and stash open", state.UI)
 	}
 }
 
@@ -265,6 +270,22 @@ func TestItemLocationAndQualityStrings(t *testing.T) {
 	}
 	if ItemQuality(99).String() != "unknown" {
 		t.Fatalf("unknown quality = %q", ItemQuality(99).String())
+	}
+}
+
+func TestLocalCatalogAllGemsHaveOneByOneInventoryDimensions(t *testing.T) {
+	gemCount := 0
+	for id, item := range itemCatalog {
+		if !strings.HasPrefix(item.Type, "gem") {
+			continue
+		}
+		gemCount++
+		if item.Width != 1 || item.Height != 1 {
+			t.Fatalf("gem %d (%s) dimensions = %dx%d, want 1x1 from local misc.txt", id, item.Code, item.Width, item.Height)
+		}
+	}
+	if gemCount == 0 {
+		t.Fatal("local item catalog contains no gems")
 	}
 }
 

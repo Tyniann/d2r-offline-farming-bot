@@ -129,6 +129,12 @@ go run ./cmd/d2rbot --pathing-test record-town-route:act1-waypoint
 go run ./cmd/d2rbot --pathing-test pickup:item --probe --verbose
 ```
 
+Ab Phase 5.7 verwendet `pathing.TownPortalActions` denselben fail-closed Entity-Clicker für den Eintritt in ein selbst gecastetes Town Portal. Die Portal-ID stammt aus dem lokalen `objects.txt`-Generator; der Baustein wartet `pathing.town_portal.appear_timeout_ms`, erzwingt `max_click_distance` und klickt nur bei passender Object-`UnitID` im Hover-Buffer.
+
+Ab Phase 5.8 läuft `pathing.PersonalStashActions` in Rogue Encampment ohne Teleport zum lokal generierten `Bank`-Objekt. Zwei relative Detour-Anker am Memory-Stash umgehen die live validierte Town-Geometrie; der finale Linksklick erfolgt ausschließlich nach Object-Hover-Bestätigung. Fixed-coordinate Stash-Aktionen sind hart auf exakt `1280×720` begrenzt.
+
+Der Act-1-Town-Walker spielt nie mehr eine globale Preset-Route ab. `pathing.town_walk.difficulty` wählt eine eigene Aufzeichnungsdatei aus `pathing.town_walk.routes` für `normal`, `nightmare` oder `hell`. Ist die ausgewählte Aufzeichnung nicht vorhanden oder ungültig, bricht der Town-Walk mit `route_missing` ohne Bewegungsinput ab.
+
 - `--pathing-test-timeout-ms` (Default 120000) begrenzt die Testdauer
 - `--pathing-test` ist mutual exclusive mit `--run` und `--input-test`
 - `input.enabled: true` erforderlich (außer `hover:watch`)

@@ -84,6 +84,41 @@ func TestMoveToWithoutBoundWindow(t *testing.T) {
 	}
 }
 
+func TestClickWithModifierOrdersAndReleasesInput(t *testing.T) {
+	keys := &mockKeySender{}
+	mouse := &mockMouseSender{}
+	api := &mockWindowAPI{findHWND: 0x1, area: testWindowFixture}
+	c := mustNewTestController(api, keys, mouse, DefaultKeyboardConfig(), testSafetyEnabled(), testKeyTimings())
+	if err := c.Bind(1); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.ClickWithModifier("ctrl", MouseLeft); err != nil {
+		t.Fatalf("ClickWithModifier() error = %v", err)
+	}
+	if len(keys.downCalls) != 1 || keys.downCalls[0] != "ctrl" || len(keys.upCalls) != 1 || keys.upCalls[0] != "ctrl" {
+		t.Fatalf("key down/up = %v/%v, want ctrl once", keys.downCalls, keys.upCalls)
+	}
+	if len(mouse.downCalls) != 1 || mouse.downCalls[0] != MouseLeft || len(mouse.upCalls) != 1 || mouse.upCalls[0] != MouseLeft {
+		t.Fatalf("mouse down/up = %v/%v, want left once", mouse.downCalls, mouse.upCalls)
+	}
+}
+
+func TestClickWithModifierReleasesCtrlAfterMouseFailure(t *testing.T) {
+	keys := &mockKeySender{}
+	mouse := &mockMouseSender{downErr: map[MouseButton]error{MouseLeft: errors.New("mouse failed")}}
+	api := &mockWindowAPI{findHWND: 0x1, area: testWindowFixture}
+	c := mustNewTestController(api, keys, mouse, DefaultKeyboardConfig(), testSafetyEnabled(), testKeyTimings())
+	if err := c.Bind(1); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.ClickWithModifier("ctrl", MouseLeft); err == nil {
+		t.Fatal("ClickWithModifier() error = nil, want mouse failure")
+	}
+	if len(keys.upCalls) != 1 || keys.upCalls[0] != "ctrl" {
+		t.Fatalf("key up calls = %v, want ctrl cleanup", keys.upCalls)
+	}
+}
+
 func TestClickWithoutBoundWindow(t *testing.T) {
 	mock := &mockMouseSender{}
 	c := testMouseController(&mockWindowAPI{}, mock)

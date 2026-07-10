@@ -8,6 +8,8 @@ const (
 	ObjectKindUnknown ObjectKind = iota
 	ObjectKindWaypoint
 	ObjectKindGoodChest
+	ObjectKindTownPortal
+	ObjectKindPersonalStash
 )
 
 // String returns a stable label for logging.
@@ -17,6 +19,10 @@ func (k ObjectKind) String() string {
 		return "waypoint"
 	case ObjectKindGoodChest:
 		return "good_chest"
+	case ObjectKindTownPortal:
+		return "town_portal"
+	case ObjectKindPersonalStash:
+		return "personal_stash"
 	default:
 		return "unknown"
 	}
@@ -39,6 +45,12 @@ func LookupObjectKind(id uint32) ObjectKind {
 	}
 	if id == GoodChestID {
 		return ObjectKindGoodChest
+	}
+	if id == TownPortalID {
+		return ObjectKindTownPortal
+	}
+	if id == PersonalStashID {
+		return ObjectKindPersonalStash
 	}
 	return ObjectKindUnknown
 }

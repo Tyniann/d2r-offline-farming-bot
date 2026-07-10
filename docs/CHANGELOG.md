@@ -8,6 +8,13 @@ Versionierung nach [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- Add Phase 5.10 fail-closed per-run JSONL telemetry for drop, Pickit, pickup, inventory-full, and stash events
+- Add Phase 5.9 identification policy with stat-rule gating and explicit `identify_required` Keep/Stash decisions
+- Add Phase 5.8 Personal Stash automation with Memory-gated town walking, protected Ctrl+LMB transfers, per-item verification, and clean UI close
+- Add live-calibrated Inventory/Stash UI flags and an isolated `--phase stash-personal` E2E workflow
+- Add generated inventory dimensions for every local item-catalog entry and enforce `1x1` for all local gem and skull rows
+- Add Phase 5.7 inventory-full recovery with hover-confirmed Town Portal entry and verified Rogue Encampment arrival
+- Add a versioned local `objects.txt` generator for synchronized Memory and World object IDs
 - Add Phase 5.6 Countess loot phase with `wait_for_drops`, `scan_loot`, `pick_loot`, and isolated `--phase loot-countess`
 - Add Phase 5.5 hover-confirmed item pickup with `loot.pickup` safety limits and `--pathing-test pickup:item`
 - Add Phase 5.4 Loot Decision Pipeline with read-only stage decisions for Pickit matches, pickup candidates, Keep/Stash, and failure reasons
@@ -17,10 +24,15 @@ Versionierung nach [Semantic Versioning](https://semver.org/).
 - Add Phase 5.0 loot and recovery concept documentation covering Ground-Loot, Pickit, Inventory-Lock, Stash safety, and recovery slices
 
 ### Changed
+- Select the Act-1 town waypoint route by configured difficulty and fail safely when its recording is unavailable
+- Rename the implemented stash decision reason from `stash_not_implemented` to `stash_candidate`
+- Extend `loot-countess` and the full Countess run from verified town arrival through Personal Stash completion
 - Expand read-only item probe diagnostics with generated item catalog type data and filtered verbose ground-item hints
 - Regenerate the item catalog from local D2R `3.2.92777` data so current Countess drops resolve correctly
 
 ### Fixed
+- Require three stable no-target loot scans so transient item reads cannot leave a second Pickit match behind
+- Fix the Countess good-chest object ID by generating `PlaceUniqueChest` from local D2R `3.2.92777` data
 - Increase the item snapshot cap so Countess ground drops are not hidden behind inventory/history item units
 
 ## [0.4.0] - 2026-07-04

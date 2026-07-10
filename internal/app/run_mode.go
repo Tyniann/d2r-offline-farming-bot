@@ -101,7 +101,7 @@ func validateRunMode(sel tasks.RunSelection, cfg *config.Config, opts Options, l
 
 func isSupportedCountessPhase(phase string) bool {
 	switch phase {
-	case tasks.CountessPhaseTravelMarsh, tasks.CountessPhaseTravelCellar5, tasks.CountessPhaseKillCountess, tasks.CountessPhaseLootCountess:
+	case tasks.CountessPhaseTravelMarsh, tasks.CountessPhaseTravelCellar5, tasks.CountessPhaseKillCountess, tasks.CountessPhaseLootCountess, tasks.CountessPhaseStashPersonal:
 		return true
 	default:
 		return false

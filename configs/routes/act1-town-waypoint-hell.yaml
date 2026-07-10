@@ -1,0 +1,13 @@
+id: act1-town-waypoint
+area_id: 1
+created_at: 2026-07-10T18:57:46.8422207Z
+sample_distance_tiles: 8
+points:
+    - x: 5813
+      "y": 4723
+    - x: 5811
+      "y": 4714
+    - x: 5807
+      "y": 4707
+    - x: 5799
+      "y": 4694

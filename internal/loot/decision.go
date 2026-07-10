@@ -24,14 +24,15 @@ type DecisionKind string
 // Decision kinds keep Pickit matching, pickup intent, and later keep/stash
 // handling separate so future automation cannot conflate them.
 const (
-	DecisionKindIgnore        DecisionKind = "ignore"
-	DecisionKindClassifyMatch DecisionKind = "classify_match"
-	DecisionKindPickCandidate DecisionKind = "pick_candidate"
-	DecisionKindPickupPending DecisionKind = "pickup_pending"
-	DecisionKindVerifyPending DecisionKind = "verify_pending"
-	DecisionKindKeep          DecisionKind = "keep"
-	DecisionKindStash         DecisionKind = "stash"
-	DecisionKindFail          DecisionKind = "fail"
+	DecisionKindIgnore           DecisionKind = "ignore"
+	DecisionKindClassifyMatch    DecisionKind = "classify_match"
+	DecisionKindPickCandidate    DecisionKind = "pick_candidate"
+	DecisionKindPickupPending    DecisionKind = "pickup_pending"
+	DecisionKindVerifyPending    DecisionKind = "verify_pending"
+	DecisionKindKeep             DecisionKind = "keep"
+	DecisionKindStash            DecisionKind = "stash"
+	DecisionKindIdentifyRequired DecisionKind = "identify_required"
+	DecisionKindFail             DecisionKind = "fail"
 )
 
 // DecisionReason gives stable machine-readable context for a loot decision.
@@ -40,16 +41,17 @@ type DecisionReason string
 // Decision reasons intentionally distinguish Pickit matching from real pickup,
 // verification, and stash actions, which are implemented in later phases.
 const (
-	DecisionReasonPickitNoMatch       DecisionReason = "pickit_no_match"
-	DecisionReasonPickitMatch         DecisionReason = "pickit_match"
-	DecisionReasonInventoryFull       DecisionReason = "inventory_full"
-	DecisionReasonCapacityUnsafe      DecisionReason = "capacity_unsafe"
-	DecisionReasonPickupNotAttempted  DecisionReason = "pickup_not_attempted"
-	DecisionReasonVerifyNotAttempted  DecisionReason = "verify_not_attempted"
-	DecisionReasonStashNotImplemented DecisionReason = "stash_not_implemented"
-	DecisionReasonUnknownSize         DecisionReason = DecisionReason(CapacityReasonUnknownSize)
-	DecisionReasonOutOfBounds         DecisionReason = DecisionReason(CapacityReasonOutOfBounds)
-	DecisionReasonOverlap             DecisionReason = DecisionReason(CapacityReasonOverlap)
+	DecisionReasonPickitNoMatch      DecisionReason = "pickit_no_match"
+	DecisionReasonPickitMatch        DecisionReason = "pickit_match"
+	DecisionReasonInventoryFull      DecisionReason = "inventory_full"
+	DecisionReasonCapacityUnsafe     DecisionReason = "capacity_unsafe"
+	DecisionReasonPickupNotAttempted DecisionReason = "pickup_not_attempted"
+	DecisionReasonVerifyNotAttempted DecisionReason = "verify_not_attempted"
+	DecisionReasonStashCandidate     DecisionReason = "stash_candidate"
+	DecisionReasonIdentifyRequired   DecisionReason = "identify_required"
+	DecisionReasonUnknownSize        DecisionReason = DecisionReason(CapacityReasonUnknownSize)
+	DecisionReasonOutOfBounds        DecisionReason = DecisionReason(CapacityReasonOutOfBounds)
+	DecisionReasonOverlap            DecisionReason = DecisionReason(CapacityReasonOverlap)
 )
 
 // ItemDecision is one ordered event in the loot decision pipeline.
@@ -136,11 +138,15 @@ func (f *Filter) Decide(state world.State) DecisionReport {
 		if !result.Matched {
 			continue
 		}
+		if RequiresIdentificationForKeep(item) {
+			report.Decisions = append(report.Decisions, newItemDecision(item, DecisionStageKeep, DecisionKindIdentifyRequired, DecisionReasonIdentifyRequired, result))
+			continue
+		}
 		report.Decisions = append(report.Decisions, newItemDecision(item, DecisionStageKeep, DecisionKindKeep, DecisionReasonPickitMatch, result))
 		if capacity.Unsafe || !stashEligible(f.inventoryLock, item) {
 			continue
 		}
-		report.Decisions = append(report.Decisions, newItemDecision(item, DecisionStageStash, DecisionKindStash, DecisionReasonStashNotImplemented, result))
+		report.Decisions = append(report.Decisions, newItemDecision(item, DecisionStageStash, DecisionKindStash, DecisionReasonStashCandidate, result))
 	}
 
 	return report

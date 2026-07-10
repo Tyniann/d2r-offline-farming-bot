@@ -10,9 +10,10 @@ go run ./cmd/d2rbot --run countess --phase travel-marsh --probe --verbose
 go run ./cmd/d2rbot --run countess --phase travel-cellar5 --probe --verbose
 go run ./cmd/d2rbot --run countess --phase kill-countess --probe --verbose
 go run ./cmd/d2rbot --run countess --phase loot-countess --probe --verbose
+go run ./cmd/d2rbot --run countess --phase stash-personal --verbose
 ```
 
-`--run countess` ohne `--phase` ist ab Phase 5.6 der vollständige Countess-Run: Act-1-Town-Waypoint -> Black Marsh -> Forgotten Tower -> Tower Cellar Level 5 -> Countess-Kill -> Loot-Pickup -> Town Portal -> `complete`.
+`--run countess` ohne `--phase` ist ab Phase 5.8 der vollständige Countess-Run: Act-1-Town-Waypoint -> Black Marsh -> Forgotten Tower -> Tower Cellar Level 5 -> Countess-Kill -> Loot-Pickup -> Town Portal -> Portal-Eintritt -> Rogue Encampment -> Personal Stash -> `complete`.
 
 `travel-marsh` führt vom Rogue Encampment über den Act-1-Waypoint nach `Black Marsh`.
 `travel-cellar5` nutzt diesen Prefix weiter, sucht anschließend den Forgotten Tower und traversiert best-effort bis `Tower Cellar Level 5`.
@@ -38,10 +39,11 @@ Der Full Run verwendet die bestehende State-Machine direkt:
 precheck -> acquire_town_waypoint -> open_waypoint -> select_black_marsh -> wait_black_marsh
 -> find_tower -> enter_cellar_1 -> enter_cellar_2 -> enter_cellar_3 -> enter_cellar_4
 -> enter_cellar_5 -> locate_countess -> engage_countess -> wait_for_drops -> scan_loot
--> pick_loot -> cast_town_portal -> complete
+-> pick_loot -> cast_town_portal -> enter_town_portal -> wait_act1_town
+-> open_personal_stash -> stash_items -> close_personal_stash -> complete
 ```
 
-`cast_town_portal` ist ein eigener Step. Er nutzt den konfigurierten `town_portal`-Skill und castet client-relativ auf die Fenstermitte (`ClientWidth/2`, `ClientHeight/2`). Nach erfolgreichem Cast loggt der Bot zusätzlich zum generischen `task run finished` ein `countess run complete` mit `completion=town_portal`.
+`cast_town_portal` nutzt den konfigurierten `town_portal`-Skill und castet client-relativ auf die Fenstermitte (`ClientWidth/2`, `ClientHeight/2`). Ab Phase 5.7 wartet `enter_town_portal` auf das aus lokalem D2R-`objects.txt` generierte Portal-Objekt und klickt es ausschließlich nach Hover-Bestätigung. `wait_act1_town` bestätigt die Ankunft im Rogue Encampment. Ab Phase 5.8 folgen Personal-Stash-Navigation, geschützte Transfers und bestätigtes Schließen; erst danach loggt der Full Run `completion=personal_stash_complete`.
 
 Die isolierten Phasen bleiben bewusst als Testoberflächen erhalten: Travel-Phasen enden am jeweiligen Zielgebiet, `kill-countess` endet nach defensiver Kill-Bestätigung ohne Portal, `loot-countess` prüft nur Loot und Portal nach einem manuellen oder vorherigen Kill.
 
@@ -82,7 +84,7 @@ Diese Belegung soll später durch den Nutzer konfigurierbar werden. Mana-Potions
 
 Es wird kein D2R-Waypoint-Hotkey vorausgesetzt. Der Ablauf folgt dem Koolo-Modell:
 
-1. `acquire_town_waypoint`: Wenn der Waypoint noch nicht enumeriert ist, läuft `pathing.TownWalker` per Force Move (`e`) entlang einer Act-1-Preset-Route Richtung nordöstlichem Waypoint.
+1. `acquire_town_waypoint`: Wenn der Waypoint noch nicht enumeriert ist, läuft `pathing.TownWalker` per Force Move (`e`) entlang der für den konfigurierten Schwierigkeitsgrad aufgezeichneten Act-1-Route Richtung Waypoint.
 2. `open_waypoint`: `pathing.WaypointActions.TickTownWaypoint` klickt den nächsten `ObjectKindWaypoint` erst nach Hover-Bestätigung.
 3. `select_black_marsh`: nach kurzer Menü-Settle-Zeit klickt `SelectBlackMarsh` die konfigurierte UI-Position.
 4. `wait_black_marsh`: Erfolg bei `world.BlackMarsh`, sonst Timeout über `runs.step_timeout_ms`.
@@ -93,7 +95,11 @@ Die Default-UI-Koordinate ist für 1280x720 windowed kalibriert:
 pathing:
   town_walk:
     force_move_key: e
-    route_file: configs/routes/act1-town-waypoint.yaml
+    difficulty: hell
+    routes:
+      normal: configs/routes/act1-town-waypoint.yaml
+      nightmare: configs/routes/act1-town-waypoint-nightmare.yaml
+      hell: configs/routes/act1-town-waypoint-hell.yaml
     move_interval_ms: 650
     settle_timeout_ms: 350
     stuck_timeout_ms: 3500
@@ -106,6 +112,8 @@ pathing:
 ```
 
 Bei abweichender Fenstergröße loggt der Bot eine separate Warnung für fixe Waypoint-UI-Koordinaten.
+
+Jeder Schwierigkeitsgrad benötigt eine eigene Aufzeichnung, weil Offline-Map-Layouts und damit die Waypoint-Position voneinander abweichen können. Fehlt die ausgewählte Datei oder ist sie ungültig, endet `acquire_town_waypoint` mit `town_route_missing`; der Bot verwendet niemals stillschweigend eine Route aus einer anderen Schwierigkeit.
 
 ## Tower-Traversal
 
@@ -186,17 +194,25 @@ go run ./cmd/d2rbot --run countess --phase loot-countess --probe --verbose
 `inspect:entrances` bewegt oder klickt nicht. Der Operator kann den Charakter manuell im `Forgotten Tower`-Vorraum oder an einem Durchgang positionieren; der Bot loggt Spielerposition, Hover-State und alle sichtbaren Entrance-IDs mit Unit-ID, Kind, Position, Delta und Distanz.
 Jeder CLI-Lauf schreibt denselben Logstream zusätzlich in eine timestamped Datei unter `logs/`, damit verbose Testläufe vollständig nachträglich auswertbar bleiben.
 
-Falls die Preset-Route in Town nicht zum lokalen Setup passt, kann eine Override-Route aufgezeichnet werden:
+Phase 5.7 wurde am 10.07.2026 mit `loot-countess` live validiert: hover-bestätigter Tir-Runen-Pickup, Portal-Erkennung aus dem lokalen `objects.txt`-Katalog, hover-bestätigter Portal-Klick und verifizierte Ankunft im Rogue Encampment endeten mit `outcome=success`.
+
+Phase 5.8 wurde am selben Tag isoliert live validiert: Town-Portalbereich → relative Stash-Detour → Hover-Klick → UI-Bestätigung sowie sechs einzeln Memory-bestätigte Ctrl+LMB-Transfers mit anschließend bestätigtem `Esc` endeten jeweils mit `outcome=success`.
+
+Ab Phase 5.10 erzeugt jeder aktive Countess-Lauf vor dem ersten Input eine eigene fail-closed JSONL-Datei unter `telemetry.directory`. Ein I/O-Fehler beendet den Run mit `telemetry_failed`.
+
+Falls die für den konfigurierten Schwierigkeitsgrad ausgewählte Town-Route noch fehlt, kann sie aufgezeichnet werden:
 
 ```powershell
 go run ./cmd/d2rbot --pathing-test record-town-route:act1-waypoint --probe --verbose
 ```
 
+Der Recorder speichert in die unter `pathing.town_walk.routes.<difficulty>` konfigurierte Datei und ergänzt die aus Memory gelesene Waypoint-Position als letzten Routenpunkt. Für Hell muss daher vor der Aufzeichnung `difficulty: hell` gesetzt sein.
+
 ## Grenzen
 
 - Town-Walk ist nur für Rogue Encampment / Act 1 vorgesehen.
 - Keine OCR-/Bild-Erkennung des Waypoint-Menüs.
-- Kein Stash-, Sell-, Identify- oder Inventory-Full-Recovery nach dem Pickup; No-Fit-Loot bleibt liegen.
+- Keine Shared-Stash-, Sell- oder Identify-Automation. Phase 5.8 automatisiert ausschließlich den Personal Stash für aktuelle Pickit-MVP-Typen.
 - `kill-countess` nutzt keine Curses, Summons, Bone Prison, Potion-Logik oder Good-Chest-Interaktion.
 - Kein robuster Tower-Solver: zufällige Tower-Layouts bleiben die größte Unsicherheit in Phase 4.5. Das ist bewusst als MVP-Grenze akzeptiert; spätere Run-Recording-/Playback-Routen sollen diesen Teil zuverlässig machen.
 

@@ -43,12 +43,12 @@ func TestReadPhaseInputsLoadingIndependentOfGate(t *testing.T) {
 	access, probe, moduleBase := setupProbeMock(t)
 	off := testOffsetSet()
 
-	uiBase := moduleBase + off.UI - 0xA
+	uiBase := moduleBase + off.UI - uiBufferBefore
 	buf := make([]byte, uiBufferSize)
 	buf[uiLoadingIndex] = 1
 	access.setBytes(uiBase, buf)
 
-	_, _, loading := probe.readPhaseInputs(moduleBase, off)
+	_, _, loading, _ := probe.readPhaseInputs(moduleBase, off)
 	if !loading {
 		t.Fatal("expected loading=true from UI buffer")
 	}
@@ -64,9 +64,38 @@ func TestReadPhaseInputsGateDisabled(t *testing.T) {
 	reader.Bind(access)
 	probe := NewProbeReader(reader, off)
 
-	_, gateDisabled, _ := probe.readPhaseInputs(access.moduleBase, off)
+	_, gateDisabled, _, _ := probe.readPhaseInputs(access.moduleBase, off)
 	if !gateDisabled {
 		t.Fatal("expected gate disabled when UI offset is zero")
+	}
+}
+
+func TestReadPhaseInputsInventoryAndStashFlags(t *testing.T) {
+	access, probe, moduleBase := setupProbeMock(t)
+	off := testOffsetSet()
+	uiBase := moduleBase + off.UI - uiBufferBefore
+	buf := make([]byte, uiBufferSize)
+	buf[uiInventoryIndex] = 1
+	buf[uiStashIndex] = 1
+	access.setBytes(uiBase, buf)
+
+	_, _, _, ui := probe.readPhaseInputs(moduleBase, off)
+	if !ui.InventoryOpen || !ui.StashOpen {
+		t.Fatalf("UI = %+v, want inventory and stash open", ui)
+	}
+}
+
+func TestReadPhaseInputsInventoryDoesNotImplyStash(t *testing.T) {
+	access, probe, moduleBase := setupProbeMock(t)
+	off := testOffsetSet()
+	uiBase := moduleBase + off.UI - uiBufferBefore
+	buf := make([]byte, uiBufferSize)
+	buf[uiInventoryIndex] = 1
+	access.setBytes(uiBase, buf)
+
+	_, _, _, ui := probe.readPhaseInputs(moduleBase, off)
+	if !ui.InventoryOpen || ui.StashOpen {
+		t.Fatalf("UI = %+v, want inventory open and stash closed", ui)
 	}
 }
 

@@ -14,7 +14,9 @@ type Deps struct {
 	Input    Input
 	Pathing  Navigator
 	Waypoint WaypointActions
+	Portal   TownPortalActions
 	TownWalk TownWalker
+	Stash    PersonalStashActions
 	Combat   CombatActions
 	Actions  RunActions
 	Loot     LootActions
@@ -44,10 +46,22 @@ type WaypointActions interface {
 	SelectBlackMarsh(context.Context) pathing.WaypointActionResult
 }
 
+// TownPortalActions is the narrow hover-confirmed portal-entry surface used by task runs.
+type TownPortalActions interface {
+	Reset()
+	Tick(context.Context, world.State, time.Time) pathing.TownPortalActionResult
+}
+
 // TownWalker is the narrow town-walk surface used by task runs.
 type TownWalker interface {
 	Reset()
 	TickAct1Waypoint(context.Context, world.State) pathing.TownWalkResult
+}
+
+// PersonalStashActions is the transfer-free town navigation and stash-open surface.
+type PersonalStashActions interface {
+	Reset()
+	Tick(context.Context, world.State) pathing.PersonalStashResult
 }
 
 // CombatActions is the narrow combat-action surface used by task runs.
@@ -76,16 +90,50 @@ type LootActions interface {
 	StartPickup(target LootTarget) error
 	// TickPickup advances the active pickup executor.
 	TickPickup(state world.State, now time.Time) LootPickupResult
+	// TickStash transfers Pickit-matching unlocked inventory items one at a time.
+	TickStash(state world.State, now time.Time) LootStashResult
+	// TickCloseStash closes the personal stash and confirms UI state.
+	TickCloseStash(state world.State, now time.Time) LootStashResult
 	// Reset clears active pickup and in-step skipped targets.
 	Reset()
 }
 
+// LootStashStatus is the task-visible personal-stash executor status.
+type LootStashStatus string
+
+// Personal-stash statuses shared with task state machines.
+const (
+	LootStashPending               LootStashStatus = "pending"
+	LootStashSuccess               LootStashStatus = "success"
+	LootStashFailed                LootStashStatus = "stash_failed"
+	LootStashFull                  LootStashStatus = "stash_full"
+	LootStashCloseFailed           LootStashStatus = "stash_close_failed"
+	LootStashClosed                LootStashStatus = "closed"
+	LootStashUnsupportedResolution LootStashStatus = "unsupported_resolution"
+	LootStashTelemetryFailed       LootStashStatus = "telemetry_failed"
+)
+
+// LootStashResult reports verified transfer progress or a terminal stash outcome.
+type LootStashResult struct {
+	Status      LootStashStatus
+	Done        bool
+	Attempted   bool
+	Transferred bool
+	UnitID      uint32
+	Code        string
+	Name        string
+	Attempt     int
+}
+
 // LootScanResult summarizes a task-visible loot scan without exposing pickit internals.
 type LootScanResult struct {
-	GroundItemCount int
-	CandidateCount  int
-	NextTarget      LootTarget
-	HasTarget       bool
+	GroundItemCount             int
+	CandidateCount              int
+	InventoryFullCandidateCount int
+	InventoryFull               bool
+	NextTarget                  LootTarget
+	HasTarget                   bool
+	TelemetryFailed             bool
 }
 
 // LootTarget is the frozen ground item selected for pickup.
@@ -114,12 +162,14 @@ const (
 	LootPickupMonsterNearby    LootPickupStatus = "monster_nearby"
 	LootPickupInvalidWorld     LootPickupStatus = "invalid_world"
 	LootPickupInputBlocked     LootPickupStatus = "input_blocked"
+	LootPickupTelemetryFailed  LootPickupStatus = "telemetry_failed"
 )
 
 // LootPickupResult reports one task-visible pickup tick.
 type LootPickupResult struct {
 	Status       LootPickupStatus
 	Done         bool
+	Attempted    bool
 	Target       LootTarget
 	Retry        int
 	HoverAttempt int

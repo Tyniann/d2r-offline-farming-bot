@@ -53,7 +53,7 @@ Die Kapazitätsprüfung ist eine Momentaufnahme pro Item. Sie reserviert keinen 
 
 Inventory-Items werden nach den Ground-Items in Snapshot-Reihenfolge aus `world.State.InventoryItems()` verarbeitet. Nicht gematchte Inventory-Items erzeugen in Phase 5.4 keine Decision, weil Inventory-Auswertung aktuell nur für Keep/Stash relevant ist.
 
-Ein gematchtes Inventory-Item erzeugt immer `keep/pickit_match`. Zusätzlich erzeugt es `stash/stash_not_implemented`, wenn:
+Ein gematchtes Inventory-Item erzeugt `keep/pickit_match`, sofern keine Identifikation aussteht. Unidentifizierte Magic/Rare/Set/Unique/Crafted-Items erzeugen stattdessen `keep/identify_required` und niemals eine Stash-Decision. Zusätzlich erzeugt ein final bewertbares Item `stash/stash_candidate`, wenn:
 
 - es ein persönliches Inventory-Item ist (`Location=inventory`, `PlayerOwned`, `Page=0`),
 - sein Footprint gültig ist,

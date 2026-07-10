@@ -39,6 +39,9 @@ type inputController interface {
 	Status() input.Status
 	CastBelt(src input.BeltBindingSource, slot int) error
 	CastSkillAt(src input.BindingSource, skillID uint16, clientX, clientY int) error
+	MoveTo(clientX, clientY int) error
+	ClickWithModifier(modifier string, button input.MouseButton) error
+	PressKey(key string) error
 	Window() (input.WindowInfo, bool)
 	TogglePause(reason string) bool
 	Stop(reason string)

@@ -89,12 +89,16 @@ func mapPathingConfig(cfg config.PathingConfig) pathing.Config {
 		Waypoint: pathing.WaypointConfig{
 			MaxClickDistance: cfg.Waypoint.MaxClickDistance,
 		},
+		TownPortal: pathing.TownPortalConfig{
+			AppearTimeout:    time.Duration(cfg.TownPortal.AppearTimeoutMs) * time.Millisecond,
+			MaxClickDistance: cfg.TownPortal.MaxClickDistance,
+		},
 		WaypointUI: pathing.WaypointUIConfig{
 			BlackMarshX: cfg.WaypointUI.BlackMarshX,
 			BlackMarshY: cfg.WaypointUI.BlackMarshY,
 		},
 		TownWalk: pathing.TownWalkConfig{
-			RouteFile:          cfg.TownWalk.RouteFile,
+			RouteFile:          cfg.TownWalk.SelectedRouteFile(),
 			ForceMoveKey:       cfg.TownWalk.ForceMoveKey,
 			MoveInterval:       time.Duration(cfg.TownWalk.MoveIntervalMs) * time.Millisecond,
 			SettleTimeout:      time.Duration(cfg.TownWalk.SettleTimeoutMs) * time.Millisecond,

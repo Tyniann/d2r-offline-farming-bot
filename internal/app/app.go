@@ -18,6 +18,7 @@ import (
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/pathing"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/process"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/tasks"
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/telemetry"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/version"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/world"
 )
@@ -29,20 +30,22 @@ type Runtime struct {
 	Log     *slog.Logger
 	logFile *os.File
 
-	Process  processController
-	Memory   *memory.Reader
-	Probe    snapshotReader
-	World    *world.Model
-	Input    inputController
-	Bindings configBindingSource
-	Tasks    *tasks.Runner
-	Pathing  *pathing.Navigator
-	TownWalk *pathing.TownWalker
-	Loot     *loot.Filter
+	Process   processController
+	Memory    *memory.Reader
+	Probe     snapshotReader
+	World     *world.Model
+	Input     inputController
+	Bindings  configBindingSource
+	Tasks     *tasks.Runner
+	Pathing   *pathing.Navigator
+	TownWalk  *pathing.TownWalker
+	Loot      *loot.Filter
+	Telemetry *telemetry.Recorder
 }
 
 // New builds a Runtime from config and CLI/runtime options.
 func New(cfg *config.Config, opts Options) (rt *Runtime, err error) {
+	var runTelemetry *telemetry.Recorder
 	logLevel := cfg.App.LogLevel
 	if opts.Verbose {
 		logLevel = "debug"
@@ -54,6 +57,9 @@ func New(cfg *config.Config, opts Options) (rt *Runtime, err error) {
 	defer func() {
 		if err != nil && logFile != nil {
 			_ = logFile.Close()
+		}
+		if err != nil && runTelemetry != nil {
+			_ = runTelemetry.Close()
 		}
 	}()
 	log = log.With("app", cfg.App.Name)
@@ -108,7 +114,9 @@ func New(cfg *config.Config, opts Options) (rt *Runtime, err error) {
 		Config:   pathingCfg,
 	})
 	waypoints := pathing.NewWaypointActions(log, inputCtrl, pathingCfg)
+	townPortals := pathing.NewTownPortalActions(log, inputCtrl, pathingCfg)
 	townWalker := pathing.NewTownWalker(log, inputCtrl, pathingCfg)
+	personalStash := pathing.NewPersonalStashActions(log, inputCtrl, pathingCfg)
 	runCfg := mapRunConfig(cfg.Runs)
 	combat := newCombatAdapter(log, inputCtrl, bindings, pathingCfg, runCfg.CountessCombat.AttackInterval)
 	runActions := newRunActionsAdapter(log, inputCtrl, bindings)
@@ -120,16 +128,26 @@ func New(cfg *config.Config, opts Options) (rt *Runtime, err error) {
 	if err != nil {
 		return nil, err
 	}
-	lootFilter := loot.NewFilter(log, inventoryLock, pickit)
-	lootActions := newLootActionsAdapter(log, lootFilter, cfg.Loot.Pickup, inputCtrl, pathingCfg)
-
-	probe := memory.NewProbeReader(mem, offsetSet)
-	probe.SetScannedCachePath(cfg.ResolvePath(memory.DefaultScannedCacheFile))
-
 	runSelection := resolveRunSelection(opts, cfg)
 	if err := validateRunMode(runSelection, cfg, opts, log); err != nil {
 		return nil, err
 	}
+	if runSelection.Run != "" {
+		runTelemetry, err = telemetry.New(cfg.Telemetry.Directory, runSelection.Run, runSelection.Phase)
+		if err != nil {
+			return nil, fmt.Errorf("create run telemetry: %w", err)
+		}
+		log.Info("run telemetry enabled", "run_id", runTelemetry.RunID(), "path", runTelemetry.Path())
+	}
+	lootFilter := loot.NewFilter(log, inventoryLock, pickit)
+	stashExecutor, err := loot.NewStashExecutor(log, lootFilter, inputCtrl, mapLootStashConfig(cfg.Loot.Stash))
+	if err != nil {
+		return nil, fmt.Errorf("loot stash config: %w", err)
+	}
+	lootActions := newLootActionsAdapter(log, lootFilter, cfg.Loot.Pickup, inputCtrl, pathingCfg, stashExecutor, runTelemetry)
+
+	probe := memory.NewProbeReader(mem, offsetSet)
+	probe.SetScannedCachePath(cfg.ResolvePath(memory.DefaultScannedCacheFile))
 
 	rt = &Runtime{
 		Config:   cfg,
@@ -146,14 +164,17 @@ func New(cfg *config.Config, opts Options) (rt *Runtime, err error) {
 			Input:    inputCtrl,
 			Pathing:  nav,
 			Waypoint: waypoints,
+			Portal:   townPortals,
 			TownWalk: townWalker,
+			Stash:    personalStash,
 			Combat:   combat,
 			Actions:  runActions,
 			Loot:     lootActions,
 		}),
-		Pathing:  nav,
-		TownWalk: townWalker,
-		Loot:     lootFilter,
+		Pathing:   nav,
+		TownWalk:  townWalker,
+		Loot:      lootFilter,
+		Telemetry: runTelemetry,
 	}
 
 	if err := rt.verifyEnvironment(); err != nil {
@@ -177,12 +198,20 @@ func loadPickit(cfg *config.Config) (*loot.Pickit, error) {
 
 // CloseLog closes the runtime log file when file logging is active.
 func (rt *Runtime) CloseLog() error {
-	if rt == nil || rt.logFile == nil {
+	if rt == nil {
 		return nil
 	}
-	err := rt.logFile.Close()
-	rt.logFile = nil
-	return err
+	var telemetryErr error
+	if rt.Telemetry != nil {
+		telemetryErr = rt.Telemetry.Close()
+		rt.Telemetry = nil
+	}
+	var logErr error
+	if rt.logFile != nil {
+		logErr = rt.logFile.Close()
+		rt.logFile = nil
+	}
+	return errors.Join(telemetryErr, logErr)
 }
 
 func (rt *Runtime) verifyEnvironment() error {

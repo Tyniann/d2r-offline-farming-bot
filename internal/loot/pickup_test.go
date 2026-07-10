@@ -76,8 +76,8 @@ func TestPickupVerifyGroundDisappearance(t *testing.T) {
 
 	exec.Tick(testPickupState(testGroundItem()), now)
 	res := exec.Tick(testPickupState(testGroundItem()), now.Add(100*time.Millisecond))
-	if res.Done {
-		t.Fatalf("click tick = %+v, want verify pending", res)
+	if res.Done || !res.Attempted {
+		t.Fatalf("click tick = %+v, want attempted verify pending", res)
 	}
 	res = exec.Tick(testPickupState(), now.Add(200*time.Millisecond))
 	if res.Done {

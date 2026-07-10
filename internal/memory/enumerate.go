@@ -50,7 +50,7 @@ func (p *ProbeReader) enumerateObjects(moduleBase uintptr, off OffsetSet, visite
 			return unitWalkContinue, nil
 		}
 		txtFileNo := rawTxt & 0xFFFF
-		if !IsCountessObjectID(txtFileNo) {
+		if !IsRuntimeObjectID(txtFileNo) {
 			return unitWalkContinue, nil
 		}
 
@@ -213,4 +213,10 @@ func emptyEntitySlices(snap Snapshot) Snapshot {
 func invalidSnapshot(now time.Time, phase GamePhase, reason string) Snapshot {
 	snap := Snapshot{At: now, Valid: false, Reason: reason, Phase: phase}
 	return emptyEntitySlices(snap)
+}
+
+func invalidSnapshotWithUI(now time.Time, phase GamePhase, reason string, ui UIState) Snapshot {
+	snap := invalidSnapshot(now, phase, reason)
+	snap.UI = ui
+	return snap
 }

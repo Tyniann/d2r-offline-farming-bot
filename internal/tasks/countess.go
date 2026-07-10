@@ -19,28 +19,36 @@ const (
 	CountessPhaseKillCountess = "kill-countess"
 	// CountessPhaseLootCountess selects the Cellar-5 Countess loot phase.
 	CountessPhaseLootCountess = "loot-countess"
+	// CountessPhaseStashPersonal selects transfer-free Act-1 personal-stash navigation and opening.
+	CountessPhaseStashPersonal = "stash-personal"
 
-	countessStepPrecheck       = "precheck"
-	countessStepAcquireTownWP  = "acquire_town_waypoint"
-	countessStepOpenWaypoint   = "open_waypoint"
-	countessStepSelectMarsh    = "select_black_marsh"
-	countessStepWaitBlackMarsh = "wait_black_marsh"
-	countessStepFindTower      = "find_tower"
-	countessStepEnterCellar1   = "enter_cellar_1"
-	countessStepEnterCellar2   = "enter_cellar_2"
-	countessStepEnterCellar3   = "enter_cellar_3"
-	countessStepEnterCellar4   = "enter_cellar_4"
-	countessStepEnterCellar5   = "enter_cellar_5"
-	countessStepLocateCountess = "locate_countess"
-	countessStepEngageCountess = "engage_countess"
-	countessStepWaitForDrops   = "wait_for_drops"
-	countessStepScanLoot       = "scan_loot"
-	countessStepPickLoot       = "pick_loot"
-	countessStepCastTownPortal = "cast_town_portal"
-	countessStepComplete       = "complete"
+	countessStepPrecheck        = "precheck"
+	countessStepAcquireTownWP   = "acquire_town_waypoint"
+	countessStepOpenWaypoint    = "open_waypoint"
+	countessStepSelectMarsh     = "select_black_marsh"
+	countessStepWaitBlackMarsh  = "wait_black_marsh"
+	countessStepFindTower       = "find_tower"
+	countessStepEnterCellar1    = "enter_cellar_1"
+	countessStepEnterCellar2    = "enter_cellar_2"
+	countessStepEnterCellar3    = "enter_cellar_3"
+	countessStepEnterCellar4    = "enter_cellar_4"
+	countessStepEnterCellar5    = "enter_cellar_5"
+	countessStepLocateCountess  = "locate_countess"
+	countessStepEngageCountess  = "engage_countess"
+	countessStepWaitForDrops    = "wait_for_drops"
+	countessStepScanLoot        = "scan_loot"
+	countessStepPickLoot        = "pick_loot"
+	countessStepCastTownPortal  = "cast_town_portal"
+	countessStepEnterTownPortal = "enter_town_portal"
+	countessStepWaitAct1Town    = "wait_act1_town"
+	countessStepOpenStash       = "open_personal_stash"
+	countessStepStashItems      = "stash_items"
+	countessStepCloseStash      = "close_personal_stash"
+	countessStepComplete        = "complete"
 
-	selectMarshSettleDelay = 500 * time.Millisecond
-	dropStableTicks        = 3
+	selectMarshSettleDelay  = 500 * time.Millisecond
+	dropStableTicks         = 3
+	lootNoTargetStableTicks = 3
 )
 
 // countessRun executes the Countess stub or a selected Countess phase.
@@ -58,6 +66,7 @@ type countessRun struct {
 	dropStableTicks        int
 	lootScanHasTarget      bool
 	lootPickupActive       bool
+	lootNoTargetTicks      int
 }
 
 func (c *countessRun) firstStep() string {
@@ -65,6 +74,22 @@ func (c *countessRun) firstStep() string {
 }
 
 func (c *countessRun) nextStep(current string) string {
+	if c.phase == CountessPhaseStashPersonal {
+		switch current {
+		case countessStepPrecheck:
+			return countessStepOpenStash
+		case countessStepOpenStash:
+			return countessStepStashItems
+		case countessStepStashItems:
+			return countessStepCloseStash
+		case countessStepCloseStash:
+			return countessStepComplete
+		case countessStepComplete:
+			return ""
+		default:
+			return ""
+		}
+	}
 	if c.phase == CountessPhaseKillCountess {
 		switch current {
 		case countessStepPrecheck:
@@ -91,6 +116,16 @@ func (c *countessRun) nextStep(current string) string {
 		case countessStepPickLoot:
 			return countessStepCastTownPortal
 		case countessStepCastTownPortal:
+			return countessStepEnterTownPortal
+		case countessStepEnterTownPortal:
+			return countessStepWaitAct1Town
+		case countessStepWaitAct1Town:
+			return countessStepOpenStash
+		case countessStepOpenStash:
+			return countessStepStashItems
+		case countessStepStashItems:
+			return countessStepCloseStash
+		case countessStepCloseStash:
 			return countessStepComplete
 		case countessStepComplete:
 			return ""
@@ -169,6 +204,16 @@ func (c *countessRun) nextStep(current string) string {
 	case countessStepPickLoot:
 		return countessStepCastTownPortal
 	case countessStepCastTownPortal:
+		return countessStepEnterTownPortal
+	case countessStepEnterTownPortal:
+		return countessStepWaitAct1Town
+	case countessStepWaitAct1Town:
+		return countessStepOpenStash
+	case countessStepOpenStash:
+		return countessStepStashItems
+	case countessStepStashItems:
+		return countessStepCloseStash
+	case countessStepCloseStash:
 		return countessStepComplete
 	case countessStepComplete:
 		return ""
@@ -182,6 +227,9 @@ func (c *countessRun) usesTickTimeout(step string) bool {
 }
 
 func (c *countessRun) allowsNonInputTick(step string) bool {
+	if step == countessStepWaitAct1Town && (c.phase == "" || c.phase == CountessPhaseLootCountess) {
+		return true
+	}
 	return (c.isTravelPhase() || c.phase == "") && step == countessStepWaitBlackMarsh
 }
 
@@ -193,9 +241,11 @@ func (c *countessRun) onStepEnter(step string) {
 	}
 	if step == countessStepScanLoot {
 		c.lootScanHasTarget = false
+		c.lootNoTargetTicks = 0
 	}
 	if step == countessStepPickLoot {
 		c.lootPickupActive = false
+		c.lootNoTargetTicks = 0
 	}
 	if step == countessStepLocateCountess {
 		c.chestFallbackStarted = false
@@ -206,11 +256,14 @@ func (c *countessRun) onStepEnter(step string) {
 }
 
 func (c *countessRun) onTick(ctx context.Context, deps Deps, step string, w world.State, now time.Time, stepStartedAt time.Time, ticksInStep int) stepResult {
+	if c.phase == CountessPhaseStashPersonal {
+		return c.onStashPersonalTick(ctx, deps, step, w)
+	}
 	if c.phase == CountessPhaseKillCountess {
 		return c.onKillCountessTick(ctx, deps, step, w, now)
 	}
 	if c.phase == CountessPhaseLootCountess {
-		return c.onLootCountessTick(deps, step, w, now)
+		return c.onLootCountessTick(ctx, deps, step, w, now)
 	}
 	if c.isTravelPhase() {
 		return c.onTravelMarshTick(ctx, deps, step, w, now, stepStartedAt)
@@ -219,6 +272,77 @@ func (c *countessRun) onTick(ctx context.Context, deps Deps, step string, w worl
 		return c.onFullRunTick(ctx, deps, step, w, now, stepStartedAt)
 	}
 	return stepResult{failed: true, reason: "unknown_step"}
+}
+
+func (c *countessRun) onStashPersonalTick(ctx context.Context, deps Deps, step string, w world.State) stepResult {
+	switch step {
+	case countessStepPrecheck:
+		if !w.Valid {
+			return stepResult{failed: true, reason: "invalid_world"}
+		}
+		if w.Phase != world.GamePhaseInGame {
+			return stepResult{failed: true, reason: "not_in_game"}
+		}
+		if w.Area.ID != world.RogueEncampment {
+			return stepResult{failed: true, reason: "not_act1_town"}
+		}
+		if deps.Stash == nil {
+			return stepResult{failed: true, reason: "stash_actions_not_wired"}
+		}
+		if deps.Loot == nil {
+			return stepResult{failed: true, reason: "loot_actions_not_wired"}
+		}
+		return stepResult{complete: true}
+	case countessStepOpenStash, countessStepStashItems, countessStepCloseStash:
+		return tickPersonalStashWorkflow(ctx, deps, step, w)
+	case countessStepComplete:
+		return stepResult{complete: true}
+	default:
+		return stepResult{failed: true, reason: "unknown_step"}
+	}
+}
+
+func tickPersonalStashWorkflow(ctx context.Context, deps Deps, step string, w world.State) stepResult {
+	switch step {
+	case countessStepOpenStash:
+		if deps.Stash == nil {
+			return stepResult{failed: true, reason: "stash_actions_not_wired"}
+		}
+		res := deps.Stash.Tick(ctx, w)
+		if !res.Done {
+			return stepResult{}
+		}
+		if res.Status == pathing.PersonalStashOpened {
+			return stepResult{complete: true}
+		}
+		return stepResult{failed: true, reason: string(res.Status)}
+	case countessStepStashItems:
+		if deps.Loot == nil {
+			return stepResult{failed: true, reason: "loot_actions_not_wired"}
+		}
+		res := deps.Loot.TickStash(w, w.At)
+		if !res.Done {
+			return stepResult{}
+		}
+		if res.Status == LootStashSuccess {
+			return stepResult{complete: true}
+		}
+		return stepResult{failed: true, reason: string(res.Status)}
+	case countessStepCloseStash:
+		if deps.Loot == nil {
+			return stepResult{failed: true, reason: "loot_actions_not_wired"}
+		}
+		res := deps.Loot.TickCloseStash(w, w.At)
+		if !res.Done {
+			return stepResult{}
+		}
+		if res.Status == LootStashClosed {
+			return stepResult{complete: true}
+		}
+		return stepResult{failed: true, reason: string(res.Status)}
+	default:
+		return stepResult{failed: true, reason: "unknown_step"}
+	}
 }
 
 func (c *countessRun) onFullRunTick(ctx context.Context, deps Deps, step string, w world.State, now time.Time, stepStartedAt time.Time) stepResult {
@@ -242,9 +366,15 @@ func (c *countessRun) onFullRunTick(ctx context.Context, deps Deps, step string,
 	case countessStepLocateCountess, countessStepEngageCountess:
 		return c.onKillCountessTick(ctx, deps, step, w, now)
 	case countessStepWaitForDrops, countessStepScanLoot, countessStepPickLoot:
-		return c.onLootCountessTick(deps, step, w, now)
+		return c.onLootCountessTick(ctx, deps, step, w, now)
 	case countessStepCastTownPortal:
 		return tickCountessTownPortal(deps, w)
+	case countessStepEnterTownPortal:
+		return tickCountessEnterTownPortal(ctx, deps, w, now)
+	case countessStepWaitAct1Town:
+		return tickCountessWaitAct1Town(w)
+	case countessStepOpenStash, countessStepStashItems, countessStepCloseStash:
+		return tickPersonalStashWorkflow(ctx, deps, step, w)
 	case countessStepComplete:
 		return stepResult{complete: true}
 	default:
@@ -252,7 +382,7 @@ func (c *countessRun) onFullRunTick(ctx context.Context, deps Deps, step string,
 	}
 }
 
-func (c *countessRun) onLootCountessTick(deps Deps, step string, w world.State, now time.Time) stepResult {
+func (c *countessRun) onLootCountessTick(ctx context.Context, deps Deps, step string, w world.State, now time.Time) stepResult {
 	switch step {
 	case countessStepPrecheck:
 		if !w.Valid {
@@ -292,8 +422,24 @@ func (c *countessRun) onLootCountessTick(deps Deps, step string, w world.State, 
 			return stepResult{}
 		}
 		scan := deps.Loot.Scan(w)
-		c.lootScanHasTarget = scan.HasTarget
-		return stepResult{complete: true}
+		if scan.TelemetryFailed {
+			return stepResult{failed: true, reason: "telemetry_failed"}
+		}
+		if scan.InventoryFull {
+			c.lootScanHasTarget = false
+			return stepResult{complete: true}
+		}
+		if scan.HasTarget {
+			c.lootNoTargetTicks = 0
+			c.lootScanHasTarget = true
+			return stepResult{complete: true}
+		}
+		c.lootScanHasTarget = false
+		c.lootNoTargetTicks++
+		if c.lootNoTargetTicks >= lootNoTargetStableTicks {
+			return stepResult{complete: true}
+		}
+		return stepResult{}
 	case countessStepPickLoot:
 		if deps.Loot == nil {
 			return stepResult{failed: true, reason: "loot_actions_not_wired"}
@@ -306,9 +452,20 @@ func (c *countessRun) onLootCountessTick(deps Deps, step string, w world.State, 
 		}
 		if !c.lootPickupActive {
 			scan := deps.Loot.Scan(w)
-			if !scan.HasTarget {
+			if scan.TelemetryFailed {
+				return stepResult{failed: true, reason: "telemetry_failed"}
+			}
+			if scan.InventoryFull {
 				return stepResult{complete: true}
 			}
+			if !scan.HasTarget {
+				c.lootNoTargetTicks++
+				if c.lootNoTargetTicks >= lootNoTargetStableTicks {
+					return stepResult{complete: true}
+				}
+				return stepResult{}
+			}
+			c.lootNoTargetTicks = 0
 			if err := deps.Loot.StartPickup(scan.NextTarget); err != nil {
 				return stepResult{failed: true, reason: "loot_pickup_start_failed"}
 			}
@@ -323,13 +480,19 @@ func (c *countessRun) onLootCountessTick(deps Deps, step string, w world.State, 
 			LootPickupTargetLost, LootPickupTargetUnstable, LootPickupTooFar, LootPickupFailed:
 			c.lootPickupActive = false
 			return stepResult{}
-		case LootPickupInputBlocked, LootPickupProjectionFailed, LootPickupInvalidWorld:
+		case LootPickupInputBlocked, LootPickupProjectionFailed, LootPickupInvalidWorld, LootPickupTelemetryFailed:
 			return stepResult{failed: true, reason: string(res.Status)}
 		default:
 			return stepResult{failed: true, reason: "loot_pickup_failed"}
 		}
 	case countessStepCastTownPortal:
 		return tickCountessTownPortal(deps, w)
+	case countessStepEnterTownPortal:
+		return tickCountessEnterTownPortal(ctx, deps, w, now)
+	case countessStepWaitAct1Town:
+		return tickCountessWaitAct1Town(w)
+	case countessStepOpenStash, countessStepStashItems, countessStepCloseStash:
+		return tickPersonalStashWorkflow(ctx, deps, step, w)
 	case countessStepComplete:
 		return stepResult{complete: true}
 	default:
@@ -361,6 +524,45 @@ func tickCountessTownPortal(deps Deps, w world.State) stepResult {
 		return stepResult{failed: true, reason: "town_portal_failed"}
 	}
 	return stepResult{complete: true}
+}
+
+func tickCountessEnterTownPortal(ctx context.Context, deps Deps, w world.State, now time.Time) stepResult {
+	if !w.Valid || w.Phase != world.GamePhaseInGame {
+		return stepResult{}
+	}
+	if w.Area.ID == world.RogueEncampment {
+		return stepResult{complete: true}
+	}
+	if w.Area.ID != world.TowerCellarLevel5 {
+		return stepResult{failed: true, reason: "unexpected_area"}
+	}
+	if deps.Portal == nil {
+		return stepResult{failed: true, reason: "town_portal_actions_not_wired"}
+	}
+	res := deps.Portal.Tick(ctx, w, now)
+	switch res.Status {
+	case pathing.TownPortalActionPending:
+		return stepResult{}
+	case pathing.TownPortalActionClicked:
+		return stepResult{complete: true}
+	case pathing.TownPortalActionNotFound:
+		return stepResult{failed: true, reason: "town_portal_not_found"}
+	default:
+		return stepResult{failed: true, reason: "town_portal_enter_failed"}
+	}
+}
+
+func tickCountessWaitAct1Town(w world.State) stepResult {
+	if !w.Valid || w.Phase != world.GamePhaseInGame {
+		return stepResult{}
+	}
+	if w.Area.ID == world.RogueEncampment {
+		return stepResult{complete: true}
+	}
+	if w.Area.ID != world.TowerCellarLevel5 {
+		return stepResult{failed: true, reason: "unexpected_area"}
+	}
+	return stepResult{}
 }
 
 func (c *countessRun) onKillCountessTick(ctx context.Context, deps Deps, step string, w world.State, now time.Time) stepResult {

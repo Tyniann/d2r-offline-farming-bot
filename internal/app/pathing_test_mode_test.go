@@ -92,6 +92,18 @@ func TestPathingTestSpecRequiresInput(t *testing.T) {
 	}
 }
 
+func TestTownRouteWaypointClickableReturnsWaypointPosition(t *testing.T) {
+	cur := world.State{
+		Valid:   true,
+		Player:  world.Player{Position: world.Position{X: 100, Y: 100}},
+		Objects: []world.Object{{Kind: world.ObjectKindWaypoint, UnitID: 42, Position: world.Position{X: 105, Y: 104}}},
+	}
+	waypoint, ok := townRouteWaypointClickable(cur, 8)
+	if !ok || waypoint.UnitID != 42 || waypoint.Position != (world.Position{X: 105, Y: 104}) {
+		t.Fatalf("townRouteWaypointClickable() = %+v, %t; want waypoint 42", waypoint, ok)
+	}
+}
+
 func TestValidatePathingTestModeConflicts(t *testing.T) {
 	cfg := &config.Config{Input: config.InputConfig{Enabled: true}}
 

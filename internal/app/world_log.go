@@ -36,6 +36,7 @@ func isPositionOnlyWorldChange(prev, cur world.State) bool {
 		prev.Player.MaxHP == cur.Player.MaxHP &&
 		prev.Player.Mana == cur.Player.Mana &&
 		prev.Player.MaxMana == cur.Player.MaxMana &&
+		prev.UI == cur.UI &&
 		entityFingerprint(prev) == entityFingerprint(cur) &&
 		(prev.Player.Position.X != cur.Player.Position.X || prev.Player.Position.Y != cur.Player.Position.Y)
 }
@@ -106,6 +107,9 @@ func worldShouldLog(prev, cur world.State, lastLog time.Time, heartbeat time.Dur
 		prev.Player.MaxMana != cur.Player.MaxMana {
 		return true
 	}
+	if prev.UI != cur.UI {
+		return true
+	}
 	if entityFingerprint(prev) != entityFingerprint(cur) {
 		return true
 	}
@@ -152,6 +156,8 @@ func worldLogAttrs(cur world.State, verbose bool) []slog.Attr {
 		slog.Uint64("mana_pct", uint64(cur.Player.ManaPercent())),
 		slog.Uint64("pos_x", uint64(cur.Player.Position.X)),
 		slog.Uint64("pos_y", uint64(cur.Player.Position.Y)),
+		slog.Bool("ui_inventory_open", cur.UI.InventoryOpen),
+		slog.Bool("ui_stash_open", cur.UI.StashOpen),
 	}
 	if cur.Hover.IsHovered {
 		attrs = append(attrs,
@@ -174,6 +180,9 @@ func worldLogAttrs(cur world.State, verbose bool) []slog.Attr {
 }
 
 func verboseEntityHint(cur world.State) string {
+	if o, ok := cur.NearestObject(world.ObjectKindPersonalStash); ok {
+		return fmt.Sprintf("personal_stash id=%d unit=%d x=%d y=%d distance=%.1f", o.ID, o.UnitID, o.Position.X, o.Position.Y, world.Distance(cur.Player.Position, o.Position))
+	}
 	if o, ok := cur.NearestObject(world.ObjectKindWaypoint); ok {
 		return fmt.Sprintf("waypoint id=%d unit=%d", o.ID, o.UnitID)
 	}

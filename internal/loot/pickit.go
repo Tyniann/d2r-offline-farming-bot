@@ -60,6 +60,19 @@ func (p *Pickit) Evaluate(item world.Item) PickitResult {
 	return PickitResult{}
 }
 
+// RequiresIdentificationForKeep reports whether final keep/stash evaluation must wait for identification.
+func RequiresIdentificationForKeep(item world.Item) bool {
+	if item.Identified {
+		return false
+	}
+	switch item.Quality {
+	case world.ItemQualityMagic, world.ItemQualitySet, world.ItemQualityRare, world.ItemQualityUnique, world.ItemQualityCrafted:
+		return true
+	default:
+		return false
+	}
+}
+
 func parsePickit(path, content string) (*Pickit, error) {
 	lines := strings.Split(content, "\n")
 	rules := make([]pickitRule, 0)
@@ -154,6 +167,9 @@ func (e compareExpr) eval(item world.Item) bool {
 		}
 		return !has
 	case fieldStat:
+		if !item.Identified {
+			return false
+		}
 		for _, stat := range item.Stats {
 			if stat.ID == e.field.statID && compareInt(int(stat.Value), e.op, e.lit.num) {
 				return true

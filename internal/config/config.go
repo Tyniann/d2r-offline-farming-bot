@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/input"
 	"gopkg.in/yaml.v3"
@@ -11,15 +12,16 @@ import (
 
 // Config holds application settings loaded from YAML.
 type Config struct {
-	App     AppConfig     `yaml:"app"`
-	Runtime RuntimeConfig `yaml:"runtime"`
-	Process ProcessConfig `yaml:"process"`
-	Memory  MemoryConfig  `yaml:"memory"`
-	Loot    LootConfig    `yaml:"loot"`
-	Input   InputConfig   `yaml:"input"`
-	Runs    RunsConfig    `yaml:"runs"`
-	Pathing PathingConfig `yaml:"pathing"`
-	Paths   PathsConfig   `yaml:"paths"`
+	App       AppConfig       `yaml:"app"`
+	Runtime   RuntimeConfig   `yaml:"runtime"`
+	Process   ProcessConfig   `yaml:"process"`
+	Memory    MemoryConfig    `yaml:"memory"`
+	Telemetry TelemetryConfig `yaml:"telemetry"`
+	Loot      LootConfig      `yaml:"loot"`
+	Input     InputConfig     `yaml:"input"`
+	Runs      RunsConfig      `yaml:"runs"`
+	Pathing   PathingConfig   `yaml:"pathing"`
+	Paths     PathsConfig     `yaml:"paths"`
 
 	// LoadedFrom is the path passed to [Load] (used to resolve relative file paths).
 	LoadedFrom string `yaml:"-"`
@@ -45,6 +47,11 @@ type MemoryConfig struct {
 	OffsetsFile string `yaml:"offsets_file"`
 }
 
+// TelemetryConfig selects the working-directory-relative JSONL output directory.
+type TelemetryConfig struct {
+	Directory string `yaml:"directory"`
+}
+
 type PathsConfig struct {
 	ConfigDir string `yaml:"config_dir"`
 }
@@ -53,6 +60,7 @@ type PathsConfig struct {
 type LootConfig struct {
 	PickitFile    string           `yaml:"pickit_file"`
 	Pickup        LootPickupConfig `yaml:"pickup"`
+	Stash         LootStashConfig  `yaml:"stash"`
 	InventoryLock [][]int          `yaml:"inventory_lock"`
 
 	inventoryLockPresent bool `yaml:"-"`
@@ -65,6 +73,17 @@ type LootPickupConfig struct {
 	VerifyTicks               int     `yaml:"verify_ticks"`
 	VerifyTimeoutMs           int     `yaml:"verify_timeout_ms"`
 	MonsterAbortDistanceTiles float64 `yaml:"monster_abort_distance_tiles"`
+}
+
+// LootStashConfig holds the hard-gated 1280x720 personal-inventory UI geometry and verification limits.
+type LootStashConfig struct {
+	MaxRetries      int `yaml:"max_retries"`
+	VerifyTimeoutMs int `yaml:"verify_timeout_ms"`
+	CloseTimeoutMs  int `yaml:"close_timeout_ms"`
+	InventoryLeft   int `yaml:"inventory_left"`
+	InventoryTop    int `yaml:"inventory_top"`
+	InventoryCellW  int `yaml:"inventory_cell_width"`
+	InventoryCellH  int `yaml:"inventory_cell_height"`
 }
 
 // UnmarshalYAML records whether inventory_lock was present.
@@ -217,6 +236,7 @@ func Load(path string) (*Config, error) {
 	cfg.Runs.applyDefaults()
 	cfg.Pathing.applyDefaults()
 	cfg.Loot.applyDefaults()
+	cfg.Telemetry.applyDefaults()
 	if err := cfg.validate(); err != nil {
 		return nil, err
 	}
@@ -240,6 +260,7 @@ func (c *Config) ResolvePath(rel string) string {
 
 func (c *Config) validate() error {
 	c.Loot.applyDefaults()
+	c.Telemetry.applyDefaults()
 	if c.App.Name == "" {
 		return fmt.Errorf("app.name is required")
 	}
@@ -251,6 +272,9 @@ func (c *Config) validate() error {
 	}
 	if c.Process.AttachTimeoutMs < 0 {
 		return fmt.Errorf("process.attach_timeout_ms must be >= 0")
+	}
+	if strings.TrimSpace(c.Telemetry.Directory) == "" {
+		return fmt.Errorf("telemetry.directory is required")
 	}
 	if err := c.Loot.validate(); err != nil {
 		return err
@@ -268,6 +292,12 @@ func (c *Config) validate() error {
 		return err
 	}
 	return nil
+}
+
+func (c *TelemetryConfig) applyDefaults() {
+	if c.Directory == "" {
+		c.Directory = filepath.Join("logs", "telemetry")
+	}
 }
 
 func (c CountessCombatConfig) validate() error {
@@ -300,12 +330,37 @@ func (c *LootConfig) applyDefaults() {
 		c.PickitFile = "pickit/countess.nip"
 	}
 	c.Pickup.applyDefaults()
+	c.Stash.applyDefaults()
 	if c.inventoryLockPresent {
 		return
 	}
 	c.InventoryLock = make([][]int, 4)
 	for row := range c.InventoryLock {
 		c.InventoryLock[row] = []int{1, 1, 1, 1, 1, 1, 1, 1, 1, 1}
+	}
+}
+
+func (c *LootStashConfig) applyDefaults() {
+	if c.MaxRetries == 0 {
+		c.MaxRetries = 3
+	}
+	if c.VerifyTimeoutMs == 0 {
+		c.VerifyTimeoutMs = 1500
+	}
+	if c.CloseTimeoutMs == 0 {
+		c.CloseTimeoutMs = 1500
+	}
+	if c.InventoryLeft == 0 {
+		c.InventoryLeft = 847
+	}
+	if c.InventoryTop == 0 {
+		c.InventoryTop = 369
+	}
+	if c.InventoryCellW == 0 {
+		c.InventoryCellW = 33
+	}
+	if c.InventoryCellH == 0 {
+		c.InventoryCellH = 33
 	}
 }
 
@@ -342,6 +397,12 @@ func (c LootConfig) validate() error {
 	}
 	if c.Pickup.MonsterAbortDistanceTiles <= 0 {
 		return fmt.Errorf("loot.pickup.monster_abort_distance_tiles must be > 0")
+	}
+	if c.Stash.MaxRetries <= 0 || c.Stash.VerifyTimeoutMs <= 0 || c.Stash.CloseTimeoutMs <= 0 {
+		return fmt.Errorf("loot.stash retry and timeout values must be > 0")
+	}
+	if c.Stash.InventoryLeft < 0 || c.Stash.InventoryTop < 0 || c.Stash.InventoryCellW <= 0 || c.Stash.InventoryCellH <= 0 {
+		return fmt.Errorf("loot.stash inventory geometry is invalid")
 	}
 	if len(c.InventoryLock) != 4 {
 		return fmt.Errorf("loot.inventory_lock must have 4 rows")

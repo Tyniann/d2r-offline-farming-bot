@@ -9,28 +9,80 @@ import (
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/loot"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/pathing"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/tasks"
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/telemetry"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/world"
 )
 
 type lootActionsAdapter struct {
-	log       *slog.Logger
-	filter    *loot.Filter
-	cfg       loot.PickupConfig
-	clicker   loot.PickupClicker
-	active    *loot.PickupExecutor
-	skipped   map[uint32]bool
-	lastStart tasks.LootTarget
+	log          *slog.Logger
+	filter       *loot.Filter
+	cfg          loot.PickupConfig
+	clicker      loot.PickupClicker
+	active       *loot.PickupExecutor
+	skipped      map[uint32]bool
+	lastStart    tasks.LootTarget
+	stash        *loot.StashExecutor
+	telemetry    telemetryEmitter
+	telemetryErr error
 }
 
-func newLootActionsAdapter(log *slog.Logger, filter *loot.Filter, pickupCfg config.LootPickupConfig, driver pathing.InputDriver, pathingCfg pathing.Config) *lootActionsAdapter {
+type telemetryEmitter interface {
+	Emit(telemetry.Event) error
+}
+
+func newLootActionsAdapter(log *slog.Logger, filter *loot.Filter, pickupCfg config.LootPickupConfig, driver pathing.InputDriver, pathingCfg pathing.Config, stash *loot.StashExecutor, runTelemetry telemetryEmitter) *lootActionsAdapter {
 	clicker := pathing.NewEntityClicker(log, driver, pathingCfg.Projector(), pathingCfg.Click)
 	return &lootActionsAdapter{
-		log:     log.With("component", "loot_actions"),
-		filter:  filter,
-		cfg:     mapLootPickupConfig(pickupCfg),
-		clicker: &pickupClickerAdapter{input: driver, clicker: clicker},
-		skipped: make(map[uint32]bool),
+		log:       log.With("component", "loot_actions"),
+		filter:    filter,
+		cfg:       mapLootPickupConfig(pickupCfg),
+		clicker:   &pickupClickerAdapter{input: driver, clicker: clicker},
+		skipped:   make(map[uint32]bool),
+		stash:     stash,
+		telemetry: runTelemetry,
 	}
+}
+
+func (a *lootActionsAdapter) TickStash(state world.State, now time.Time) tasks.LootStashResult {
+	if a == nil {
+		return tasks.LootStashResult{Status: tasks.LootStashFailed, Done: true}
+	}
+	if a.telemetryErr != nil {
+		return tasks.LootStashResult{Status: tasks.LootStashTelemetryFailed, Done: true}
+	}
+	if a == nil || a.stash == nil {
+		return tasks.LootStashResult{Status: tasks.LootStashFailed, Done: true}
+	}
+	res := a.stash.Tick(state, now)
+	if res.Attempted {
+		if err := a.emit(telemetry.Event{Timestamp: now, Event: telemetry.StashAttempt, AreaID: uint32(state.Area.ID), UnitID: res.UnitID, Code: res.Code, Name: res.Name, Attempt: res.Attempt, GridX: intPointer(res.GridX), GridY: intPointer(res.GridY)}); err != nil {
+			return tasks.LootStashResult{Status: tasks.LootStashTelemetryFailed, Done: true}
+		}
+	}
+	if res.Transferred {
+		if err := a.emit(telemetry.Event{Timestamp: now, Event: telemetry.StashSuccess, AreaID: uint32(state.Area.ID), UnitID: res.UnitID, Code: res.Code, Name: res.Name, Attempt: res.Attempt, GridX: intPointer(res.GridX), GridY: intPointer(res.GridY)}); err != nil {
+			return tasks.LootStashResult{Status: tasks.LootStashTelemetryFailed, Done: true}
+		}
+	}
+	if res.Status == loot.StashFull {
+		if err := a.emit(telemetry.Event{Timestamp: now, Event: telemetry.StashFull, AreaID: uint32(state.Area.ID), Reason: string(res.Status)}); err != nil {
+			return tasks.LootStashResult{Status: tasks.LootStashTelemetryFailed, Done: true}
+		}
+	}
+	return mapTaskLootStashResult(res)
+}
+
+func (a *lootActionsAdapter) TickCloseStash(state world.State, now time.Time) tasks.LootStashResult {
+	if a == nil {
+		return tasks.LootStashResult{Status: tasks.LootStashCloseFailed, Done: true}
+	}
+	if a.telemetryErr != nil {
+		return tasks.LootStashResult{Status: tasks.LootStashTelemetryFailed, Done: true}
+	}
+	if a == nil || a.stash == nil {
+		return tasks.LootStashResult{Status: tasks.LootStashCloseFailed, Done: true}
+	}
+	return mapTaskLootStashResult(a.stash.TickClose(state, now))
 }
 
 func (a *lootActionsAdapter) Scan(state world.State) tasks.LootScanResult {
@@ -38,12 +90,30 @@ func (a *lootActionsAdapter) Scan(state world.State) tasks.LootScanResult {
 		return tasks.LootScanResult{}
 	}
 	report := a.filter.Decide(state)
+	if a.telemetryErr != nil {
+		return tasks.LootScanResult{TelemetryFailed: true}
+	}
+	for _, item := range state.GroundItems() {
+		if err := a.emit(telemetry.Event{Timestamp: state.At, Event: telemetry.DropSeen, AreaID: uint32(state.Area.ID), UnitID: item.UnitID, TxtFileNo: item.TxtFileNo, Code: item.Code, Name: item.Name}); err != nil {
+			return tasks.LootScanResult{TelemetryFailed: true}
+		}
+	}
+	for _, decision := range report.Decisions {
+		if decision.Stage != loot.DecisionStageClassify || decision.Kind != loot.DecisionKindClassifyMatch {
+			continue
+		}
+		if err := a.emit(telemetry.Event{Timestamp: state.At, Event: telemetry.PickitMatch, AreaID: uint32(state.Area.ID), UnitID: decision.UnitID, TxtFileNo: decision.TxtFileNo, Code: decision.Code, Name: decision.Name}); err != nil {
+			return tasks.LootScanResult{TelemetryFailed: true}
+		}
+	}
 	target, found := loot.SelectPickupCandidateExcluding(state, report, a.skipped)
 	result := tasks.LootScanResult{
-		GroundItemCount: report.GroundItemCount,
-		CandidateCount:  countPickupCandidates(report, a.skipped),
-		HasTarget:       found,
+		GroundItemCount:             report.GroundItemCount,
+		CandidateCount:              countPickupCandidates(report, a.skipped),
+		InventoryFullCandidateCount: countInventoryFullCandidates(report),
+		HasTarget:                   found,
 	}
+	result.InventoryFull = result.InventoryFullCandidateCount > 0
 	if found {
 		result.NextTarget = mapTaskLootTarget(target)
 	}
@@ -51,12 +121,30 @@ func (a *lootActionsAdapter) Scan(state world.State) tasks.LootScanResult {
 		"ground_item_count", result.GroundItemCount,
 		"candidate_count", result.CandidateCount,
 		"blocked_candidate_count", countBlockedPickupCandidates(report),
+		"inventory_full_candidate_count", result.InventoryFullCandidateCount,
+		"inventory_full", result.InventoryFull,
 		"has_target", result.HasTarget,
 	)
+	if result.InventoryFull {
+		if err := a.emit(telemetry.Event{Timestamp: state.At, Event: telemetry.InventoryFull, AreaID: uint32(state.Area.ID), CandidateCount: result.InventoryFullCandidateCount, Reason: "no_unlocked_space"}); err != nil {
+			return tasks.LootScanResult{TelemetryFailed: true}
+		}
+		a.log.Warn("inventory_full",
+			"ground_item_count", result.GroundItemCount,
+			"inventory_full_candidate_count", result.InventoryFullCandidateCount,
+			"recovery", "town",
+		)
+	}
 	return result
 }
 
 func (a *lootActionsAdapter) StartPickup(target tasks.LootTarget) error {
+	if a == nil {
+		return fmt.Errorf("loot actions not wired")
+	}
+	if a.telemetryErr != nil {
+		return fmt.Errorf("telemetry_failed: %w", a.telemetryErr)
+	}
 	if a == nil || a.filter == nil || a.clicker == nil {
 		return fmt.Errorf("loot actions not wired")
 	}
@@ -75,11 +163,35 @@ func (a *lootActionsAdapter) StartPickup(target tasks.LootTarget) error {
 }
 
 func (a *lootActionsAdapter) TickPickup(state world.State, now time.Time) tasks.LootPickupResult {
+	if a == nil {
+		return tasks.LootPickupResult{Status: tasks.LootPickupInvalidWorld, Done: true}
+	}
+	if a.telemetryErr != nil {
+		return tasks.LootPickupResult{Status: tasks.LootPickupTelemetryFailed, Done: true}
+	}
 	if a == nil || a.active == nil {
 		return tasks.LootPickupResult{Status: tasks.LootPickupInvalidWorld, Done: true}
 	}
 	res := a.active.Tick(state, now)
 	out := mapTaskLootPickupResult(res)
+	if res.Attempted {
+		if err := a.emit(telemetry.Event{Timestamp: now, Event: telemetry.PickupAttempt, AreaID: uint32(state.Area.ID), UnitID: res.Target.UnitID, TxtFileNo: res.Target.TxtFileNo, Code: res.Target.Code, Name: res.Target.Name, Attempt: res.Retry, HoverAttempt: res.HoverAttempt}); err != nil {
+			a.active = nil
+			return tasks.LootPickupResult{Status: tasks.LootPickupTelemetryFailed, Done: true, Target: out.Target}
+		}
+	}
+	if res.Done {
+		event := telemetry.PickupFailed
+		reason := string(res.Status)
+		if res.Status == loot.PickupPickedUp {
+			event = telemetry.PickupSuccess
+			reason = ""
+		}
+		if err := a.emit(telemetry.Event{Timestamp: now, Event: event, AreaID: uint32(state.Area.ID), UnitID: res.Target.UnitID, TxtFileNo: res.Target.TxtFileNo, Code: res.Target.Code, Name: res.Target.Name, Reason: reason, Attempt: res.Retry, HoverAttempt: res.HoverAttempt}); err != nil {
+			a.active = nil
+			return tasks.LootPickupResult{Status: tasks.LootPickupTelemetryFailed, Done: true, Target: out.Target}
+		}
+	}
 	if out.Done {
 		a.active = nil
 		if isSkippedPickupStatus(out.Status) {
@@ -99,6 +211,39 @@ func (a *lootActionsAdapter) Reset() {
 	if a.clicker != nil {
 		a.clicker.Reset()
 	}
+	if a.stash != nil {
+		a.stash.Reset()
+	}
+}
+
+func (a *lootActionsAdapter) emit(event telemetry.Event) error {
+	if a == nil || a.telemetry == nil {
+		return nil
+	}
+	if a.telemetryErr != nil {
+		return a.telemetryErr
+	}
+	if err := a.telemetry.Emit(event); err != nil {
+		a.telemetryErr = err
+		a.log.Error("run telemetry failed", "error", err)
+		return err
+	}
+	return nil
+}
+
+func intPointer(value int) *int { return &value }
+
+func mapLootStashConfig(cfg config.LootStashConfig) loot.StashConfig {
+	return loot.StashConfig{
+		MaxRetries: cfg.MaxRetries, VerifyTimeout: time.Duration(cfg.VerifyTimeoutMs) * time.Millisecond,
+		CloseTimeout:  time.Duration(cfg.CloseTimeoutMs) * time.Millisecond,
+		InventoryLeft: cfg.InventoryLeft, InventoryTop: cfg.InventoryTop,
+		InventoryCellW: cfg.InventoryCellW, InventoryCellH: cfg.InventoryCellH,
+	}
+}
+
+func mapTaskLootStashResult(res loot.StashResult) tasks.LootStashResult {
+	return tasks.LootStashResult{Status: tasks.LootStashStatus(res.Status), Done: res.Done, Attempted: res.Attempted, Transferred: res.Transferred, UnitID: res.UnitID, Code: res.Code, Name: res.Name, Attempt: res.Attempt}
 }
 
 func countPickupCandidates(report loot.DecisionReport, skipped map[uint32]bool) int {
@@ -119,6 +264,18 @@ func countBlockedPickupCandidates(report loot.DecisionReport) int {
 	count := 0
 	for _, decision := range report.Decisions {
 		if decision.Stage == loot.DecisionStageFail && decision.Kind == loot.DecisionKindFail {
+			count++
+		}
+	}
+	return count
+}
+
+func countInventoryFullCandidates(report loot.DecisionReport) int {
+	count := 0
+	for _, decision := range report.Decisions {
+		if decision.Stage == loot.DecisionStageFail &&
+			decision.Kind == loot.DecisionKindFail &&
+			decision.Reason == loot.DecisionReasonInventoryFull {
 			count++
 		}
 	}
@@ -151,6 +308,7 @@ func mapTaskLootPickupResult(res loot.PickupResult) tasks.LootPickupResult {
 	return tasks.LootPickupResult{
 		Status:       mapTaskLootPickupStatus(res.Status),
 		Done:         res.Done,
+		Attempted:    res.Attempted,
 		Target:       mapTaskLootTarget(res.Target),
 		Retry:        res.Retry,
 		HoverAttempt: res.HoverAttempt,

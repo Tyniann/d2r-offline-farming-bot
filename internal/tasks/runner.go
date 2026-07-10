@@ -109,8 +109,14 @@ func (r *Runner) Reset(reason string) {
 	if r.deps.Waypoint != nil {
 		r.deps.Waypoint.Reset()
 	}
+	if r.deps.Portal != nil {
+		r.deps.Portal.Reset()
+	}
 	if r.deps.TownWalk != nil {
 		r.deps.TownWalk.Reset()
+	}
+	if r.deps.Stash != nil {
+		r.deps.Stash.Reset()
 	}
 	if r.deps.Pathing != nil {
 		r.deps.Pathing.Reset()
@@ -235,8 +241,14 @@ func (r *Runner) beginStep(name string, now time.Time) {
 	if r.deps.Waypoint != nil {
 		r.deps.Waypoint.Reset()
 	}
+	if r.deps.Portal != nil {
+		r.deps.Portal.Reset()
+	}
 	if r.deps.TownWalk != nil {
 		r.deps.TownWalk.Reset()
+	}
+	if r.deps.Stash != nil {
+		r.deps.Stash.Reset()
 	}
 	if r.deps.Pathing != nil {
 		r.deps.Pathing.Reset()
@@ -262,8 +274,8 @@ func (r *Runner) finishStepComplete(now time.Time) TickResult {
 		logArgs = append(logArgs, "elapsed_ms", r.tracker.elapsed(now).Milliseconds())
 	}
 	r.log.Info("task step complete", logArgs...)
-	if r.selection.Run == "countess" && r.selection.Phase == "" && step == countessStepCastTownPortal {
-		r.log.Info("countess run complete", "run", r.selection.Run, "step", countessStepComplete, "completion", "town_portal")
+	if r.selection.Run == "countess" && r.selection.Phase == "" && step == countessStepCloseStash {
+		r.log.Info("countess run complete", "run", r.selection.Run, "step", countessStepComplete, "completion", "personal_stash_complete")
 	}
 	if step == countessStepPickLoot && r.deps.Loot != nil {
 		r.deps.Loot.Reset()
@@ -306,8 +318,14 @@ func (r *Runner) finishStepFailed(now time.Time, reason string) TickResult {
 	if r.deps.Waypoint != nil {
 		r.deps.Waypoint.Reset()
 	}
+	if r.deps.Portal != nil {
+		r.deps.Portal.Reset()
+	}
 	if r.deps.TownWalk != nil {
 		r.deps.TownWalk.Reset()
+	}
+	if r.deps.Stash != nil {
+		r.deps.Stash.Reset()
 	}
 	if r.deps.Pathing != nil {
 		r.deps.Pathing.Reset()

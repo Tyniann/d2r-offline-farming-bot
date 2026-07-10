@@ -41,7 +41,9 @@ Unterstützte Felder:
 - `[type]` gegen `world.Item.Type`
 - `[quality]` gegen `world.ItemQuality.String()`
 - `[flag]` mit `identified` und `ethereal`
-- `[stat:<id>]` gegen rohe `world.Item.Stats`
+- `[stat:<id>]` gegen `world.Item.Stats`, ab Phase 5.9 ausschließlich bei `Identified=true`
+
+Quality-Regeln dürfen unidentifizierte Items weiterhin für einen späteren Pickup auswählen. Stat-Regeln matchen bis zur Identifikation nie; Keep/Stash wird zusätzlich über die [Identification-Strategie](identification-strategy.md) gegatet.
 
 Unterstützte Literale:
 

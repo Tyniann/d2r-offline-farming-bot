@@ -2,9 +2,8 @@ package pathing
 
 import (
 	"context"
-	"errors"
+	"fmt"
 	"log/slog"
-	"os"
 	"time"
 
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/world"
@@ -95,10 +94,7 @@ func (w *TownWalker) TickAct1Waypoint(ctx context.Context, state world.State) To
 		return TownWalkResult{Status: TownWalkWrongArea, Reason: string(TownWalkWrongArea), Done: true}
 	}
 	if err := w.ensureRoute(); err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return TownWalkResult{Status: TownWalkRouteMissing, Reason: err.Error(), Done: true}
-		}
-		return TownWalkResult{Status: TownWalkInputError, Reason: err.Error(), Done: true}
+		return TownWalkResult{Status: TownWalkRouteMissing, Reason: err.Error(), Done: true}
 	}
 	if w.index >= len(w.points) {
 		return TownWalkResult{Status: TownWalkRouteExhausted, Reason: string(TownWalkRouteExhausted), Done: true}
@@ -208,19 +204,13 @@ func (w *TownWalker) ensureRoute() error {
 		w.points = append([]world.Position(nil), w.cfg.Act1WaypointPoints...)
 		return nil
 	}
-	if w.cfg.RouteFile != "" {
-		points, err := LoadTownRoute(w.cfg.RouteFile)
-		if err == nil {
-			w.points = points
-			return nil
-		}
-		if !errors.Is(err, os.ErrNotExist) {
-			w.log.Warn("town route override ignored; using built-in preset",
-				"route_file", w.cfg.RouteFile,
-				"error", err,
-			)
-		}
+	if w.cfg.RouteFile == "" {
+		return fmt.Errorf("town route file is required")
 	}
-	w.points = defaultAct1WaypointRoute()
+	points, err := LoadTownRoute(w.cfg.RouteFile)
+	if err != nil {
+		return fmt.Errorf("load town route %q: %w", w.cfg.RouteFile, err)
+	}
+	w.points = points
 	return nil
 }

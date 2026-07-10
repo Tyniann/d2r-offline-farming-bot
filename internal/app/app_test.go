@@ -165,6 +165,16 @@ func (m *mockInput) CastSkillAt(_ input.BindingSource, skillID uint16, clientX, 
 	return nil
 }
 
+func (m *mockInput) MoveTo(clientX, clientY int) error {
+	m.lastClientX = clientX
+	m.lastClientY = clientY
+	return nil
+}
+
+func (m *mockInput) ClickWithModifier(string, input.MouseButton) error { return nil }
+
+func (m *mockInput) PressKey(string) error { return nil }
+
 func (m *mockInput) Window() (input.WindowInfo, bool) {
 	return input.WindowInfo{ClientWidth: 1280, ClientHeight: 720}, true
 }

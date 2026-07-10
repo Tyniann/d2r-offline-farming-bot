@@ -83,6 +83,7 @@ type PickupClicker interface {
 type PickupResult struct {
 	Status       PickupStatus
 	Done         bool
+	Attempted    bool
 	Target       PickupTarget
 	Retry        int
 	HoverAttempt int
@@ -234,7 +235,9 @@ func (e *PickupExecutor) tickClick(state world.State, now time.Time) PickupResul
 			"retry", e.retriesStarted,
 			"hover_attempts", res.Attempt,
 		)
-		return e.pending(res.Attempt)
+		result := e.pending(res.Attempt)
+		result.Attempted = true
+		return result
 	case PickupClickTooFar:
 		return e.finish(PickupTooFar, res.Attempt)
 	case PickupClickHoverNotFound:

@@ -160,7 +160,7 @@ func TestDecideMatchedInventoryItemEmitsKeepAndStashWhenEligible(t *testing.T) {
 
 	assertDecisionSequence(t, report.Decisions, []decisionWant{
 		{unitID: 2001, stage: DecisionStageKeep, kind: DecisionKindKeep, reason: DecisionReasonPickitMatch},
-		{unitID: 2001, stage: DecisionStageStash, kind: DecisionKindStash, reason: DecisionReasonStashNotImplemented},
+		{unitID: 2001, stage: DecisionStageStash, kind: DecisionKindStash, reason: DecisionReasonStashCandidate},
 	})
 }
 
@@ -224,6 +224,17 @@ func TestDecideNilFilterAndNilPickit(t *testing.T) {
 	report := filter.Decide(world.State{Items: []world.Item{groundItem(1001, "r01", "rune", 1, 1)}})
 	assertDecisionSequence(t, report.Decisions, []decisionWant{
 		{unitID: 1001, stage: DecisionStageClassify, kind: DecisionKindIgnore, reason: DecisionReasonPickitNoMatch},
+	})
+}
+
+func TestDecideMarksUnidentifiedQualityMatchAsIdentifyRequired(t *testing.T) {
+	filter := testDecisionFilter(t, allFreeLock(), "[quality] == unique")
+	item := inventoryItem(2001, "amu", "amul", 4, 2, 1, 1)
+	item.Quality = world.ItemQualityUnique
+	item.Identified = false
+	report := filter.Decide(world.State{Items: []world.Item{item}})
+	assertDecisionSequence(t, report.Decisions, []decisionWant{
+		{unitID: 2001, stage: DecisionStageKeep, kind: DecisionKindIdentifyRequired, reason: DecisionReasonIdentifyRequired},
 	})
 }
 

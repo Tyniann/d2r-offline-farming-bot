@@ -26,37 +26,28 @@ func (p GamePhase) String() string {
 	}
 }
 
-const (
-	uiBufferSize   = 0x16D
-	uiLoadingIndex = 0x168
-)
-
 // readPhaseInputs reads the in-game gate byte and loading-screen flag from the UI buffer.
 // Loading is read whenever off.UI != 0, independent of the gate offset.
-func (p *ProbeReader) readPhaseInputs(moduleBase uintptr, off OffsetSet) (gateValue uint8, gateDisabled, loading bool) {
+func (p *ProbeReader) readPhaseInputs(moduleBase uintptr, off OffsetSet) (gateValue uint8, gateDisabled, loading bool, ui UIState) {
 	gate := off.InGameGateOffset()
 	if gate == 0 {
 		gateDisabled = true
-	} else {
-		b, err := p.reader.ReadUint8(moduleBase + gate)
-		if err != nil {
-			gateValue = 0
-		} else {
-			gateValue = b
-		}
 	}
 
 	if off.UI == 0 {
-		return gateValue, gateDisabled, false
+		return gateValue, gateDisabled, false, UIState{}
 	}
 
-	uiBase := moduleBase + off.UI - 0xA
+	uiBase := moduleBase + off.UI - uiBufferBefore
 	buf, err := p.reader.ReadBytes(uiBase, uiBufferSize)
 	if err != nil || len(buf) <= uiLoadingIndex {
-		return gateValue, gateDisabled, false
+		return gateValue, gateDisabled, false, UIState{}
 	}
+	gateValue = buf[uiGateIndex]
 	loading = buf[uiLoadingIndex] != 0
-	return gateValue, gateDisabled, loading
+	ui.InventoryOpen = buf[uiInventoryIndex] != 0
+	ui.StashOpen = buf[uiStashIndex] != 0
+	return gateValue, gateDisabled, loading, ui
 }
 
 // finalizePhase resolves GamePhase after player discovery.

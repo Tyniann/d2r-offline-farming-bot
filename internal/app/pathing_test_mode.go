@@ -755,13 +755,18 @@ func (rt *Runtime) runPathingRecordTownRoute(
 					"pos_y", pos.Y,
 				)
 			}
-			if townRouteWaypointClickable(cur, pathingCfg.Waypoint.MaxClickDistance) && len(points) >= 2 {
+			if waypoint, ok := townRouteWaypointClickable(cur, pathingCfg.Waypoint.MaxClickDistance); ok && len(points) >= 2 {
+				if world.Distance(points[len(points)-1], waypoint.Position) > 0 {
+					points = append(points, waypoint.Position)
+				}
 				if err := pathing.SaveTownRoute(routeFile, sampleDistance, points); err != nil {
 					return fmt.Errorf("save town route: %w", err)
 				}
 				rt.Log.Info("town route recording completed",
 					"route_file", routeFile,
 					"points", len(points),
+					"waypoint_x", waypoint.Position.X,
+					"waypoint_y", waypoint.Position.Y,
 				)
 				return nil
 			}
@@ -783,15 +788,15 @@ func (rt *Runtime) runPathingRecordTownRoute(
 	return nil
 }
 
-func townRouteWaypointClickable(cur world.State, maxDistance float64) bool {
+func townRouteWaypointClickable(cur world.State, maxDistance float64) (world.Object, bool) {
 	wp, ok := cur.NearestObject(world.ObjectKindWaypoint)
 	if !ok {
-		return false
+		return world.Object{}, false
 	}
 	if maxDistance <= 0 {
-		return true
+		return wp, true
 	}
-	return world.Distance(cur.Player.Position, wp.Position) <= maxDistance
+	return wp, world.Distance(cur.Player.Position, wp.Position) <= maxDistance
 }
 
 type inspectEntrance struct {

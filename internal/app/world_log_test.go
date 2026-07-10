@@ -26,6 +26,24 @@ func TestWorldShouldLogEntityFingerprintChange(t *testing.T) {
 	}
 }
 
+func TestWorldShouldLogUIStateChange(t *testing.T) {
+	prev := validWorldState(100)
+	cur := validWorldState(100)
+	cur.UI.StashOpen = true
+	cur.UI.InventoryOpen = true
+	if !worldShouldLog(prev, cur, time.Now(), worldHeartbeat, false, false) {
+		t.Fatal("expected log on UI state change")
+	}
+	attrs := worldLogAttrs(cur, false)
+	found := map[string]bool{}
+	for _, attr := range attrs {
+		found[attr.Key] = true
+	}
+	if !found["ui_stash_open"] || !found["ui_inventory_open"] {
+		t.Fatalf("missing UI attrs: %v", found)
+	}
+}
+
 func TestWorldShouldLogGroundItemFingerprintChange(t *testing.T) {
 	prev := validWorldState(100)
 	cur := validWorldState(100)

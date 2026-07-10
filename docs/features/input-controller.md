@@ -55,6 +55,7 @@ Echte OS-Eingaben sind standardmäßig deaktiviert (`input.enabled: false`). Glo
 - Koordinaten sind **client-relativ**: `(0,0)` = obere linke Ecke des D2R-Clientbereichs aus `WindowInfo`.
 - `MoveTo` klemmt auf eine sichere Client-Fläche (Default-Rand 10 px), konvertiert dann zu Screen-Koordinaten (`ClientLeft/Top + geklemmte Werte`).
 - `Click` sendet Button Down/Up an der **aktuellen** Cursorposition; bewegt die Maus nicht.
+- `ClickWithModifier` hält für genau einen Maus-Down/Up-Zyklus einen Modifier wie `ctrl` und gibt ihn auf jedem Fehlerpfad best-effort wieder frei. Phase 5.8 nutzt dies für atomare Personal-Stash-Transfers.
 - Beide Methoden verlangen ein gebundenes Fenster (`ErrWindowNotBound` ohne `Bind`).
 - Erfolgreiche Aktionen: Log `input action` mit `kind=mouse`, `action=move|click`, `allowed=true`.
 - Windows-Backend: `SetCursorPos` + `SendInput` über User32/LazyDLL, ohne CGO. Separate `mouseInputRecord`-Structs (nicht Keyboard-`inputRecord` wiederverwenden).
@@ -237,7 +238,7 @@ Erwartung: Fenster gebunden, Aktionen in `input action`-Logs sichtbar, `input te
 
 ## Grenzen (Phase 3.5)
 
-- **Keine automatische Nutzung:** Run-Loop sendet keine Potions, Portale, Skills oder Mausklicks.
+- **Automatische Nutzung nur in aktiven Runs:** Der passive Modus sendet keine Eingaben; konfigurierte Countess-Phasen verwenden die Primitives hinter World-, Safety- und UI-Guards.
 - **Kein Fokus-Management:** Eingaben können woanders landen, wenn D2R nicht im Fokus ist — besonders relevant für `--input-test`.
 - **Input-Test sendet echte Eingaben:** nur mit explizitem `--input-test` und `input.enabled: true`.
 - **Keine Pathing-/UI-Klicks:** nur Low-Level-Primitives, kein semantisches D2R-UI-Modell.

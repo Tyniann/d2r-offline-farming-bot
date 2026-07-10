@@ -38,6 +38,7 @@ type Snapshot struct {
 	Items        []ItemUnit
 	PlayerSkills PlayerSkills
 	Hover        HoverState
+	UI           UIState
 }
 
 // ProbeReader resolves the main player via the unit table and reads vital stats.
@@ -210,7 +211,7 @@ func (p *ProbeReader) Snapshot() Snapshot {
 	off := p.ensureOffsets(moduleBase)
 
 	// Step 1: gate byte + UI buffer (loading flag).
-	gateValue, gateDisabled, loading := p.readPhaseInputs(moduleBase, off)
+	gateValue, gateDisabled, loading, ui := p.readPhaseInputs(moduleBase, off)
 	p.logGateChange(moduleBase, off, gateValue, gateDisabled)
 
 	// Step 2: player + vitals + area/position.
@@ -221,21 +222,21 @@ func (p *ProbeReader) Snapshot() Snapshot {
 
 	if !playerFound {
 		reason := p.playerNotFoundReason(playerErr, gateValue, gateDisabled, loading)
-		return invalidSnapshot(now, phase, reason)
+		return invalidSnapshotWithUI(now, phase, reason, ui)
 	}
 
 	areaID, posX, posY, err := p.readAreaAndPosition(playerPtr, off)
 	if err != nil {
-		return invalidSnapshot(now, phase, ReasonReadFailed)
+		return invalidSnapshotWithUI(now, phase, ReasonReadFailed, ui)
 	}
 	playerUnitID, err := p.reader.ReadUint32(playerPtr + off.Unit.UnitID)
 	if err != nil {
-		return invalidSnapshot(now, phase, ReasonReadFailed)
+		return invalidSnapshotWithUI(now, phase, ReasonReadFailed, ui)
 	}
 
 	statsListEx, err := p.reader.ReadUint64(playerPtr + off.Unit.StatsListEx)
 	if err != nil || statsListEx == 0 {
-		return invalidSnapshot(now, phase, ReasonStatsUnavailable)
+		return invalidSnapshotWithUI(now, phase, ReasonStatsUnavailable, ui)
 	}
 
 	vitals, statsSource, err := p.parseProbeVitalStats(uintptr(statsListEx), off)
@@ -245,7 +246,7 @@ func (p *ProbeReader) Snapshot() Snapshot {
 			"stats_list_ex", fmt.Sprintf("0x%X", statsListEx),
 			"error", err,
 		)
-		return invalidSnapshot(now, phase, ReasonStatsUnavailable)
+		return invalidSnapshotWithUI(now, phase, ReasonStatsUnavailable, ui)
 	}
 	vitals = p.normalizeVitalStats(playerPtr, vitals)
 
@@ -263,6 +264,7 @@ func (p *ProbeReader) Snapshot() Snapshot {
 		AreaID:       areaID,
 		PosX:         posX,
 		PosY:         posY,
+		UI:           ui,
 	}
 
 	// Step 4: entities and hover only when Valid && Phase == in_game.

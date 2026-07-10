@@ -27,16 +27,10 @@ func IsCountessTowerNPCID(id uint32) bool {
 	}
 }
 
-// IsCountessObjectID reports whether id is a Countess-route object (waypoints, good chest).
-func IsCountessObjectID(id uint32) bool {
-	switch id {
-	case 580: // Good chest (PlaceUniqueChest)
-		return true
-	case 119, 145, 156, 157, 237, 238, 288, 323, 324, 398, 402, 429, 494, 496, 511, 539:
-		return true
-	default:
-		return false
-	}
+// IsRuntimeObjectID reports whether id is needed by the current run and recovery features.
+func IsRuntimeObjectID(id uint32) bool {
+	_, ok := runtimeObjectIDs[id]
+	return ok
 }
 
 // IsCountessEntranceID reports whether id is a Countess-route entrance candidate.

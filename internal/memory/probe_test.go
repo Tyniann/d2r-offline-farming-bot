@@ -47,10 +47,10 @@ func setupProbeMock(t *testing.T) (*mockAccess, *ProbeReader, uintptr) {
 	access := newMockAccess()
 	access.moduleBase = moduleBase
 
-	// In-game gate byte and UI buffer (gate at index 0, loading at 0x168).
-	uiBase := moduleBase + off.UI - 0xA
+	// UI buffer includes the inventory flag, in-game gate, stash flag, and loading flag.
+	uiBase := moduleBase + off.UI - uiBufferBefore
 	uiBuf := make([]byte, uiBufferSize)
-	uiBuf[0] = 1
+	uiBuf[uiGateIndex] = 1
 	access.setBytes(uiBase, uiBuf)
 
 	// Expansion inactive.
@@ -175,7 +175,7 @@ func TestProbeReaderEarlyExitAfterMainPlayer(t *testing.T) {
 func TestProbeNotInGame(t *testing.T) {
 	access, probe, moduleBase := setupProbeMock(t)
 	off := testOffsetSet()
-	uiBase := moduleBase + off.UI - 0xA
+	uiBase := moduleBase + off.UI - uiBufferBefore
 	uiBuf := make([]byte, uiBufferSize) // gate byte 0
 	access.setBytes(uiBase, uiBuf)
 	access.setBytes(moduleBase+off.UnitTable, make([]byte, unitTableListHeads*unitTableHeadStride))
@@ -195,7 +195,7 @@ func TestProbeNotInGame(t *testing.T) {
 func TestProbeCanReadPlayerWhenInGameGateIsZero(t *testing.T) {
 	access, probe, moduleBase := setupProbeMock(t)
 	off := testOffsetSet()
-	uiBase := moduleBase + off.UI - 0xA
+	uiBase := moduleBase + off.UI - uiBufferBefore
 	uiBuf := make([]byte, uiBufferSize) // gate disabled semantics: byte 0 but player readable
 	access.setBytes(uiBase, uiBuf)
 
@@ -484,9 +484,9 @@ func TestProbeSnapshotEntitiesOnlyWhenInGame(t *testing.T) {
 	access, probe, moduleBase := setupProbeMock(t)
 	off := testOffsetSet()
 
-	uiBase := moduleBase + off.UI - 0xA
+	uiBase := moduleBase + off.UI - uiBufferBefore
 	buf := make([]byte, uiBufferSize)
-	buf[0] = 1
+	buf[uiGateIndex] = 1
 	buf[uiLoadingIndex] = 1
 	access.setBytes(uiBase, buf)
 

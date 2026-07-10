@@ -214,7 +214,9 @@ Umgesetzt im Countess-Run: Nach `engage_countess` wartet `wait_for_drops` auf dr
 Der Full Run endet jetzt:
 
 ```text
-engage_countess -> wait_for_drops -> scan_loot -> pick_loot -> cast_town_portal -> complete
+engage_countess -> wait_for_drops -> scan_loot -> pick_loot -> cast_town_portal
+-> enter_town_portal -> wait_act1_town -> open_personal_stash
+-> stash_items -> close_personal_stash -> complete
 ```
 
 Wenn keine passenden Kandidaten vorhanden sind oder alle Kandidaten übersprungen wurden, castet der Bot trotzdem Town Portal und beendet den Run regulär. Die isolierte Testphase ist umgesetzt:
@@ -227,19 +229,19 @@ go run ./cmd/d2rbot --run countess --phase loot-countess --probe --verbose
 
 ### 5.7 Inventory-Full-Recovery
 
-Keinen freien Slot als `inventory_full` erkennen. Bei wertvollem Loot kontrolliert abbrechen oder Town-/Stash-Routine vorbereiten.
+Umgesetzt als [Inventory-Full-Recovery](inventory-full-recovery.md): Ein Pickit-Match ohne passenden freien, nicht gelockten Platz erzeugt explizit `inventory_full`. Weitere Pickups stoppen; vorhandene Items werden niemals gedroppt. Full Run und `loot-countess` casten anschließend Town Portal, erkennen das Portal über den aus lokalem `objects.txt` generierten Objektkatalog, klicken nur nach passendem Memory-Hover und enden erst nach verifizierter Ankunft im Rogue Encampment. Ein endgültiges `pickup_failed` überspringt dagegen nur das betroffene Item.
 
 ### 5.8 Personal-Stash-MVP
 
-Nur Personal Stash, nur nicht gelockte Inventar-Items, keine Shared-Stash-Automatik.
+Umgesetzt als [Personal-Stash MVP](personal-stash-mvp.md): nur Pickit-Matches im persönlichen Inventory, niemals gelockte/reservierte Items, Ctrl+LMB-Autosortierung in die charaktergebundenen Gems/Materials/Runes-Tabs und Memory-Verifikation pro Item. Shared Stash und Droppen bleiben ausgeschlossen.
 
 ### 5.9 Identify-Strategie
 
-Nicht identifizierte Items aufnehmen, aber Stats erst nach einer späteren Identify-Routine final bewerten.
+Umgesetzt als [Identification-Strategie](identification-strategy.md): Quality-Regeln dürfen unidentifizierte Items zum Pickup auswählen, Statregeln sind bis `Identified=true` gesperrt. Magic/Rare/Set/Unique/Crafted erzeugen vor Keep/Stash explizit `identify_required`; eine echte Identify-Routine bleibt späteren Phasen vorbehalten.
 
 ### 5.10 Loot-Telemetrie
 
-Drop-, Pickit-, Pickup-, Inventory- und Stash-Ereignisse strukturiert protokollieren.
+Umgesetzt als [Run-Telemetrie](run-telemetry.md): eine fail-closed JSONL-Datei pro Run mit `drop_seen`, `pickit_match`, Pickup-, `inventory_full`- und Stash-Events. Beobachtungsereignisse werden je Unit-ID dedupliziert; echte Versuche werden einzeln geschrieben und sofort geflusht.
 
 ## Grenzen
 

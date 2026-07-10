@@ -29,6 +29,9 @@ func TestLoadExampleConfig(t *testing.T) {
 	if cfg.Memory.GameVersion != "3.2.92777" {
 		t.Errorf("Memory.GameVersion = %q, want 3.2.92777", cfg.Memory.GameVersion)
 	}
+	if filepath.Clean(cfg.Telemetry.Directory) != filepath.Join("logs", "telemetry") {
+		t.Fatalf("Telemetry.Directory = %q, want logs/telemetry", cfg.Telemetry.Directory)
+	}
 	if len(cfg.Loot.InventoryLock) != 4 || len(cfg.Loot.InventoryLock[0]) != 10 {
 		t.Fatalf("Loot.InventoryLock shape = %dx%d, want 4x10", len(cfg.Loot.InventoryLock), len(cfg.Loot.InventoryLock[0]))
 	}
@@ -44,6 +47,11 @@ func TestLoadExampleConfig(t *testing.T) {
 		cfg.Loot.Pickup.VerifyTimeoutMs != 1500 ||
 		cfg.Loot.Pickup.MonsterAbortDistanceTiles != 12 {
 		t.Fatalf("Loot.Pickup = %+v, want pickup defaults", cfg.Loot.Pickup)
+	}
+	if cfg.Loot.Stash.MaxRetries != 3 || cfg.Loot.Stash.VerifyTimeoutMs != 1500 ||
+		cfg.Loot.Stash.CloseTimeoutMs != 1500 || cfg.Loot.Stash.InventoryLeft != 847 ||
+		cfg.Loot.Stash.InventoryTop != 369 || cfg.Loot.Stash.InventoryCellW != 33 || cfg.Loot.Stash.InventoryCellH != 33 {
+		t.Fatalf("Loot.Stash = %+v, want 1280x720 stash defaults", cfg.Loot.Stash)
 	}
 	if cfg.Input.KeyDelayMsMin != 10 {
 		t.Errorf("Input.KeyDelayMsMin = %d, want 10", cfg.Input.KeyDelayMsMin)
@@ -305,6 +313,30 @@ func TestLootPickupValidation(t *testing.T) {
 				t.Fatal("expected invalid loot.pickup config")
 			}
 		})
+	}
+}
+
+func TestLootStashValidation(t *testing.T) {
+	tests := []string{
+		"loot:\n  stash:\n    max_retries: -1\n",
+		"loot:\n  stash:\n    verify_timeout_ms: -1\n",
+		"loot:\n  stash:\n    inventory_cell_width: -1\n",
+	}
+	for _, content := range tests {
+		var cfg Config
+		if err := yaml.Unmarshal([]byte(content), &cfg); err != nil {
+			t.Fatal(err)
+		}
+		cfg.App = AppConfig{Name: "d2rbot"}
+		cfg.Process = ProcessConfig{ProcessName: "D2R.exe"}
+		cfg.Runtime = RuntimeConfig{PollIntervalMs: 100}
+		cfg.Input.applyDefaults()
+		cfg.Runs.applyDefaults()
+		cfg.Pathing.applyDefaults()
+		cfg.Loot.applyDefaults()
+		if err := cfg.validate(); err == nil {
+			t.Fatalf("config %q unexpectedly valid", content)
+		}
 	}
 }
 

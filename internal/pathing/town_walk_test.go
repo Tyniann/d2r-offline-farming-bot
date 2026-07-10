@@ -151,7 +151,9 @@ func TestTownWalkerFailures(t *testing.T) {
 	t.Run("projection failed", func(t *testing.T) {
 		in := newMockInput()
 		in.unbound = true
-		walker := NewTownWalker(config.NewLogger("error"), in, DefaultConfig())
+		cfg := DefaultConfig()
+		cfg.TownWalk.Act1WaypointPoints = []world.Position{{X: 110, Y: 110}, {X: 120, Y: 120}}
+		walker := NewTownWalker(config.NewLogger("error"), in, cfg)
 		res := walker.TickAct1Waypoint(context.Background(), townWalkState(world.Position{X: 100, Y: 100}))
 		if res.Status != TownWalkProjectionFailed {
 			t.Fatalf("res = %+v, want projection_failed", res)
@@ -161,7 +163,9 @@ func TestTownWalkerFailures(t *testing.T) {
 	t.Run("input error", func(t *testing.T) {
 		in := newMockInput()
 		in.keyErr = fmt.Errorf("key failed")
-		walker := NewTownWalker(config.NewLogger("error"), in, DefaultConfig())
+		cfg := DefaultConfig()
+		cfg.TownWalk.Act1WaypointPoints = []world.Position{{X: 110, Y: 110}, {X: 120, Y: 120}}
+		walker := NewTownWalker(config.NewLogger("error"), in, cfg)
 		res := walker.TickAct1Waypoint(context.Background(), townWalkState(world.Position{X: 100, Y: 100}))
 		if res.Status != TownWalkInputError {
 			t.Fatalf("res = %+v, want input_error", res)
@@ -189,7 +193,7 @@ func TestTownWalkerFailures(t *testing.T) {
 	})
 }
 
-func TestTownWalkerInvalidOverrideFallsBackToPreset(t *testing.T) {
+func TestTownWalkerInvalidRouteFailsSafely(t *testing.T) {
 	dir := t.TempDir()
 	badRoute := filepath.Join(dir, "bad.yaml")
 	if err := os.WriteFile(badRoute, []byte("id: nope\narea_id: 1\npoints: []\n"), 0o644); err != nil {
@@ -201,10 +205,10 @@ func TestTownWalkerInvalidOverrideFallsBackToPreset(t *testing.T) {
 	walker := NewTownWalker(config.NewLogger("error"), in, cfg)
 
 	res := walker.TickAct1Waypoint(context.Background(), townWalkState(world.Position{X: 3900, Y: 5100}))
-	if res.Status != TownWalkPending {
-		t.Fatalf("res = %+v, want pending via built-in preset", res)
+	if res.Status != TownWalkRouteMissing || !res.Done {
+		t.Fatalf("res = %+v, want route_missing", res)
 	}
-	if len(in.keys) != 1 {
-		t.Fatalf("keys = %v, want preset playback input", in.keys)
+	if len(in.keys) != 0 || len(in.moves) != 0 {
+		t.Fatalf("input keys=%v moves=%v, want none", in.keys, in.moves)
 	}
 }

@@ -2,7 +2,7 @@
 
 ## Überblick
 
-Der Task Runner führt konfigurierbare Runs als State-Machine im Poll-Loop aus. Ab Phase 5.6 ist `--run countess` ohne Phase der vollständige Countess-Run mit Loot-Pickup; die isolierten Phasen `travel-marsh`, `travel-cellar5`, `kill-countess` und `loot-countess` bleiben als Testoberflächen verfügbar.
+Der Task Runner führt konfigurierbare Runs als State-Machine im Poll-Loop aus. Ab Phase 5.8 ist `--run countess` ohne Phase der vollständige Countess-Run mit Loot-Pickup und Personal Stash; die isolierten Phasen `travel-marsh`, `travel-cellar5`, `kill-countess`, `loot-countess` und `stash-personal` bleiben als Testoberflächen verfügbar.
 
 ## Ort im Code
 
@@ -44,7 +44,7 @@ Zwei Abschluss-Mechanismen (nicht vermischen):
 
 **Full Countess (5.6):**
 
-`precheck -> acquire_town_waypoint -> open_waypoint -> select_black_marsh -> wait_black_marsh -> find_tower -> enter_cellar_1 -> enter_cellar_2 -> enter_cellar_3 -> enter_cellar_4 -> enter_cellar_5 -> locate_countess -> engage_countess -> wait_for_drops -> scan_loot -> pick_loot -> cast_town_portal -> complete`
+`precheck -> acquire_town_waypoint -> open_waypoint -> select_black_marsh -> wait_black_marsh -> find_tower -> enter_cellar_1 -> enter_cellar_2 -> enter_cellar_3 -> enter_cellar_4 -> enter_cellar_5 -> locate_countess -> engage_countess -> wait_for_drops -> scan_loot -> pick_loot -> cast_town_portal -> enter_town_portal -> wait_act1_town -> open_personal_stash -> stash_items -> close_personal_stash -> complete`
 
 `wait_black_marsh` darf als Non-Input-Step während Loading/invalid Snapshots weitergetickt werden; alle anderen Input-Schritte laufen nur mit gültigem `in_game`-World-State. `wait_for_drops`, `scan_loot` und `pick_loot` verlangen gültige Cellar-5-Snapshots; ein gültiger Snapshot in einem anderen Gebiet bricht mit `unexpected_area` ab.
 
@@ -107,4 +107,4 @@ go run ./cmd/d2rbot --run countess --probe   # input.enabled: true erforderlich
 - [World Model](world-model.md) — `world.State` / Area-Katalog
 
 ---
-*Zuletzt aktualisiert: 2026-07-04*
+*Zuletzt aktualisiert: 2026-07-10*

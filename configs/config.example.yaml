@@ -19,6 +19,10 @@ memory:
   # Leer = eingebautes DefaultOffsetSet(); sonst YAML-Override (z. B. configs/offsets.local.yaml)
   offsets_file: ""
 
+telemetry:
+  # Eine fail-closed JSONL-Datei pro aktivem Run, relativ zum Arbeitsverzeichnis.
+  directory: logs/telemetry
+
 loot:
   # Relativ zur geladenen Config-Datei. Bei configs/config.yaml ergibt das configs/pickit/countess.nip.
   pickit_file: pickit/countess.nip
@@ -29,6 +33,15 @@ loot:
     verify_ticks: 3
     verify_timeout_ms: 1500
     monster_abort_distance_tiles: 12
+  stash:
+    # Ausschließlich für exakt 1280x720; Ursprung und Zellgröße stammen aus der live validierten D2R-UI.
+    max_retries: 3
+    verify_timeout_ms: 1500
+    close_timeout_ms: 1500
+    inventory_left: 847
+    inventory_top: 369
+    inventory_cell_width: 33
+    inventory_cell_height: 33
   inventory_lock:
     # 4x10 Grid; 1 = geschützt/nicht benutzen, 0 = für Loot verfügbar.
     # Beispiel: linke 4 Spalten für Cube, Tomes, Torch/Anni und Charms schützen.
@@ -112,6 +125,10 @@ pathing:
   waypoint:
     # Town waypoint object click distance gate; object must be visible/enumerated.
     max_click_distance: 15
+  town_portal:
+    # Portal must appear after casting and is clicked only after memory-hover confirmation.
+    appear_timeout_ms: 2000
+    max_click_distance: 15
   waypoint_ui:
     # Client-relative Black Marsh waypoint row; default for 1280x720 windowed.
     black_marsh_x: 200
@@ -119,7 +136,13 @@ pathing:
   town_walk:
     # Force Move key in D2R options; default key is E.
     force_move_key: e
-    route_file: configs/routes/act1-town-waypoint.yaml
+    # One recorded route per difficulty. The selected route must exist; the bot
+    # aborts safely instead of using a route from another difficulty.
+    difficulty: normal
+    routes:
+      normal: configs/routes/act1-town-waypoint.yaml
+      nightmare: configs/routes/act1-town-waypoint-nightmare.yaml
+      hell: configs/routes/act1-town-waypoint-hell.yaml
     move_interval_ms: 650
     settle_timeout_ms: 350
     stuck_timeout_ms: 3500

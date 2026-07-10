@@ -36,7 +36,12 @@ func TestMapPathingConfigMapsWaypointSettings(t *testing.T) {
 			BlackMarshY: 343,
 		},
 		TownWalk: config.PathingTownWalkConfig{
-			RouteFile:          "configs/routes/custom.yaml",
+			Difficulty: "nightmare",
+			Routes: config.PathingTownWalkRoutesConfig{
+				Normal:    "configs/routes/normal.yaml",
+				Nightmare: "configs/routes/custom.yaml",
+				Hell:      "configs/routes/hell.yaml",
+			},
 			ForceMoveKey:       "e",
 			MoveIntervalMs:     651,
 			SettleTimeoutMs:    351,

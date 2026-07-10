@@ -34,7 +34,7 @@ func TestPickitEvaluatesBareQuotedAndIntegerLiterals(t *testing.T) {
 	}{
 		{name: "bare type", item: world.Item{Type: "rune"}, line: 2},
 		{name: "quoted name", item: world.Item{Code: "pk1"}, line: 3},
-		{name: "integer stat", item: world.Item{Stats: []world.ItemStat{{ID: 42, Value: 10}}}, line: 4},
+		{name: "integer stat", item: world.Item{Identified: true, Stats: []world.ItemStat{{ID: 42, Value: 10}}}, line: 4},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -131,6 +131,43 @@ func TestPickitQualityFlagsAndStats(t *testing.T) {
 		if !got.Matched || got.Line != tc.line {
 			t.Fatalf("Evaluate(%+v) = %+v, want line %d", tc.item, got, tc.line)
 		}
+	}
+}
+
+func TestPickitStatRulesRequireIdentification(t *testing.T) {
+	p := loadPickitFromTestFile(t, "[stat:39] >= 30")
+	item := world.Item{Identified: false, Stats: []world.ItemStat{{ID: 39, Value: 40}}}
+	if p.Evaluate(item).Matched {
+		t.Fatal("unidentified item matched a stat rule")
+	}
+	item.Identified = true
+	if !p.Evaluate(item).Matched {
+		t.Fatal("identified item with matching stat did not match")
+	}
+}
+
+func TestPickitQualityCanSelectUnidentifiedPickup(t *testing.T) {
+	p := loadPickitFromTestFile(t, "[quality] == unique")
+	item := world.Item{Quality: world.ItemQualityUnique, Identified: false}
+	if !p.Evaluate(item).Matched {
+		t.Fatal("quality rule should be able to select an unidentified unique for pickup")
+	}
+	if !RequiresIdentificationForKeep(item) {
+		t.Fatal("unidentified unique should require identification before keep/stash")
+	}
+}
+
+func TestRequiresIdentificationForKeepByQuality(t *testing.T) {
+	for _, quality := range []world.ItemQuality{world.ItemQualityMagic, world.ItemQualitySet, world.ItemQualityRare, world.ItemQualityUnique, world.ItemQualityCrafted} {
+		if !RequiresIdentificationForKeep(world.Item{Quality: quality}) {
+			t.Fatalf("quality %s should require identification", quality)
+		}
+	}
+	if RequiresIdentificationForKeep(world.Item{Quality: world.ItemQualityNormal}) {
+		t.Fatal("normal item should not require identification")
+	}
+	if RequiresIdentificationForKeep(world.Item{Quality: world.ItemQualityUnique, Identified: true}) {
+		t.Fatal("identified unique should not remain gated")
 	}
 }
 

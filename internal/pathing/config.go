@@ -23,6 +23,7 @@ type Config struct {
 	Click      ClickConfig
 	Explore    ExploreConfig
 	Waypoint   WaypointConfig
+	TownPortal TownPortalConfig
 	WaypointUI WaypointUIConfig
 	TownWalk   TownWalkConfig
 }
@@ -60,6 +61,14 @@ type ExploreConfig struct {
 // WaypointConfig tunes hover-confirmed waypoint object actions.
 type WaypointConfig struct {
 	// MaxClickDistance gates waypoint object clicks; the object must be visible.
+	MaxClickDistance float64
+}
+
+// TownPortalConfig tunes player-cast portal discovery and hover-confirmed entry.
+type TownPortalConfig struct {
+	// AppearTimeout bounds how long the cast portal may remain absent.
+	AppearTimeout time.Duration
+	// MaxClickDistance gates portal clicks by tile distance.
 	MaxClickDistance float64
 }
 
@@ -113,6 +122,10 @@ func DefaultConfig() Config {
 			MaxEntranceClickDistance: 15,
 		},
 		Waypoint: WaypointConfig{
+			MaxClickDistance: 15,
+		},
+		TownPortal: TownPortalConfig{
+			AppearTimeout:    2 * time.Second,
 			MaxClickDistance: 15,
 		},
 		WaypointUI: WaypointUIConfig{
@@ -171,6 +184,12 @@ func (c Config) Validate() error {
 	}
 	if c.Waypoint.MaxClickDistance <= 0 {
 		return fmt.Errorf("pathing.waypoint.max_click_distance must be > 0")
+	}
+	if c.TownPortal.AppearTimeout <= 0 {
+		return fmt.Errorf("pathing.town_portal.appear_timeout_ms must be > 0")
+	}
+	if c.TownPortal.MaxClickDistance <= 0 {
+		return fmt.Errorf("pathing.town_portal.max_click_distance must be > 0")
 	}
 	if c.WaypointUI.BlackMarshX < 0 || c.WaypointUI.BlackMarshY < 0 {
 		return fmt.Errorf("pathing.waypoint_ui.black_marsh_x/y must be >= 0")
