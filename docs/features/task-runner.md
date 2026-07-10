@@ -2,7 +2,7 @@
 
 ## Überblick
 
-Der Task Runner führt konfigurierbare Runs als State-Machine im Poll-Loop aus. Ab Phase 4.7 ist `--run countess` ohne Phase der vollständige Countess-MVP-Run; die isolierten Phasen `travel-marsh`, `travel-cellar5` und `kill-countess` bleiben als Testoberflächen verfügbar.
+Der Task Runner führt konfigurierbare Runs als State-Machine im Poll-Loop aus. Ab Phase 5.6 ist `--run countess` ohne Phase der vollständige Countess-Run mit Loot-Pickup; die isolierten Phasen `travel-marsh`, `travel-cellar5`, `kill-countess` und `loot-countess` bleiben als Testoberflächen verfügbar.
 
 ## Ort im Code
 
@@ -42,11 +42,11 @@ Zwei Abschluss-Mechanismen (nicht vermischen):
 | **Tick-Zähler** (`ticksInStep`) | Deterministische kurze Steps, wenn ein Run sie explizit markiert |
 | **Sofort-Fail** | Bedingung klar verletzt -> sofort `task step failed` |
 
-**Full Countess (4.7):**
+**Full Countess (5.6):**
 
-`precheck -> acquire_town_waypoint -> open_waypoint -> select_black_marsh -> wait_black_marsh -> find_tower -> enter_cellar_1 -> enter_cellar_2 -> enter_cellar_3 -> enter_cellar_4 -> enter_cellar_5 -> locate_countess -> engage_countess -> cast_town_portal -> complete`
+`precheck -> acquire_town_waypoint -> open_waypoint -> select_black_marsh -> wait_black_marsh -> find_tower -> enter_cellar_1 -> enter_cellar_2 -> enter_cellar_3 -> enter_cellar_4 -> enter_cellar_5 -> locate_countess -> engage_countess -> wait_for_drops -> scan_loot -> pick_loot -> cast_town_portal -> complete`
 
-`wait_black_marsh` darf als Non-Input-Step während Loading/invalid Snapshots weitergetickt werden; alle anderen Input-Schritte laufen nur mit gültigem `in_game`-World-State.
+`wait_black_marsh` darf als Non-Input-Step während Loading/invalid Snapshots weitergetickt werden; alle anderen Input-Schritte laufen nur mit gültigem `in_game`-World-State. `wait_for_drops`, `scan_loot` und `pick_loot` verlangen gültige Cellar-5-Snapshots; ein gültiger Snapshot in einem anderen Gebiet bricht mit `unexpected_area` ab.
 
 ### Safety-Potion-Guard
 

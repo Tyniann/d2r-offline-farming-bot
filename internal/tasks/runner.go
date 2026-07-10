@@ -118,6 +118,9 @@ func (r *Runner) Reset(reason string) {
 	if r.deps.Combat != nil {
 		r.deps.Combat.Reset()
 	}
+	if r.deps.Loot != nil {
+		r.deps.Loot.Reset()
+	}
 	r.log.Info("task run reset", "run", r.selection.Run, "phase", r.selection.Phase, "reason", reason)
 }
 
@@ -241,6 +244,9 @@ func (r *Runner) beginStep(name string, now time.Time) {
 	if r.deps.Combat != nil {
 		r.deps.Combat.Reset()
 	}
+	if name == countessStepPickLoot && r.deps.Loot != nil {
+		r.deps.Loot.Reset()
+	}
 	if r.run != nil {
 		r.run.onStepEnter(name)
 	}
@@ -259,11 +265,17 @@ func (r *Runner) finishStepComplete(now time.Time) TickResult {
 	if r.selection.Run == "countess" && r.selection.Phase == "" && step == countessStepCastTownPortal {
 		r.log.Info("countess run complete", "run", r.selection.Run, "step", countessStepComplete, "completion", "town_portal")
 	}
+	if step == countessStepPickLoot && r.deps.Loot != nil {
+		r.deps.Loot.Reset()
+	}
 
 	next := r.run.nextStep(step)
 	if next == "" {
 		r.terminal = true
 		r.outcome = RunOutcomeSuccess
+		if r.deps.Loot != nil {
+			r.deps.Loot.Reset()
+		}
 		r.log.Info("task run finished", "run", r.selection.Run, "phase", r.selection.Phase, "outcome", RunOutcomeSuccess)
 		return TickResult{
 			Active:  true,
@@ -302,6 +314,9 @@ func (r *Runner) finishStepFailed(now time.Time, reason string) TickResult {
 	}
 	if r.deps.Combat != nil {
 		r.deps.Combat.Reset()
+	}
+	if r.deps.Loot != nil {
+		r.deps.Loot.Reset()
 	}
 	r.log.Info("task run finished",
 		"run", r.selection.Run,

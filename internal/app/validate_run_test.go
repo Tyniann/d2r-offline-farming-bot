@@ -129,6 +129,28 @@ func TestValidateRunModeKillCountessRequiresPhaseBindings(t *testing.T) {
 	}
 }
 
+func TestValidateRunModeLootCountessRequiresTeleportPortalAndBelt(t *testing.T) {
+	cfg := &config.Config{Input: config.InputConfig{Enabled: true}}
+	log := config.NewLogger("error")
+	err := validateRunMode(tasksSelection("countess", tasks.CountessPhaseLootCountess), cfg, Options{Run: "countess", RunPhase: tasks.CountessPhaseLootCountess}, log)
+	if err == nil {
+		t.Fatal("expected missing loot-countess binding error")
+	}
+
+	cfg = fullCountessConfig()
+	delete(cfg.Input.Bindings.Skills, "bone_spear")
+	err = validateRunMode(tasksSelection("countess", tasks.CountessPhaseLootCountess), cfg, Options{Run: "countess", RunPhase: tasks.CountessPhaseLootCountess}, log)
+	if err != nil {
+		t.Fatalf("loot-countess err = %v, want no bone spear requirement", err)
+	}
+
+	cfg.Input.Bindings.Skills["teleport"] = config.SkillBindingConfig{}
+	err = validateRunMode(tasksSelection("countess", tasks.CountessPhaseLootCountess), cfg, Options{Run: "countess", RunPhase: tasks.CountessPhaseLootCountess}, log)
+	if err == nil {
+		t.Fatal("expected missing teleport error")
+	}
+}
+
 func TestMapRunConfigResolvesCountessCombatSkill(t *testing.T) {
 	cfg := config.RunsConfig{
 		StepTimeoutMs: 30000,

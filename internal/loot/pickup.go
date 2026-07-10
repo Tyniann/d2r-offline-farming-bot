@@ -395,6 +395,12 @@ func monsterNearby(state world.State, maxDistance float64) bool {
 
 // SelectPickupCandidate chooses the nearest pickup-capable ground item from a decision report.
 func SelectPickupCandidate(state world.State, report DecisionReport) (PickupTarget, bool) {
+	return SelectPickupCandidateExcluding(state, report, nil)
+}
+
+// SelectPickupCandidateExcluding chooses the nearest pickup-capable ground item
+// while ignoring unit IDs already skipped in the current pickup phase.
+func SelectPickupCandidateExcluding(state world.State, report DecisionReport, skipped map[uint32]bool) (PickupTarget, bool) {
 	if !isValidInGame(state) {
 		return PickupTarget{}, false
 	}
@@ -405,6 +411,9 @@ func SelectPickupCandidate(state world.State, report DecisionReport) (PickupTarg
 		if decision.Stage != DecisionStagePickCandidate ||
 			decision.Kind != DecisionKindPickCandidate ||
 			!decision.CanFit {
+			continue
+		}
+		if skipped[decision.UnitID] {
 			continue
 		}
 		item, ok := findGroundItemByUnitID(state, decision.UnitID)

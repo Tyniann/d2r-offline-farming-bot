@@ -177,6 +177,26 @@ func TestSelectPickupCandidateNearestAndCurrentGroundOnly(t *testing.T) {
 	}
 }
 
+func TestSelectPickupCandidateExcludingSkipsFailedUnitIDs(t *testing.T) {
+	st := testPickupState(
+		world.Item{UnitID: 10, TxtFileNo: 1, Code: "r01", Name: "El Rune", Location: world.ItemLocationGround, Position: world.Position{X: 102, Y: 100}},
+		world.Item{UnitID: 11, TxtFileNo: 2, Code: "r02", Name: "Eld Rune", Location: world.ItemLocationGround, Position: world.Position{X: 110, Y: 100}},
+	)
+	report := DecisionReport{Decisions: []ItemDecision{
+		{UnitID: 10, Stage: DecisionStagePickCandidate, Kind: DecisionKindPickCandidate, CanFit: true},
+		{UnitID: 11, Stage: DecisionStagePickCandidate, Kind: DecisionKindPickCandidate, CanFit: true},
+	}}
+	target, ok := SelectPickupCandidateExcluding(st, report, map[uint32]bool{10: true})
+	if !ok || target.UnitID != 11 {
+		t.Fatalf("target = %+v ok=%t, want unit 11 after skipping unit 10", target, ok)
+	}
+
+	_, ok = SelectPickupCandidateExcluding(st, report, map[uint32]bool{10: true, 11: true})
+	if ok {
+		t.Fatal("expected no candidate after skipping all pick candidates")
+	}
+}
+
 func testPickupConfig() PickupConfig {
 	return PickupConfig{
 		MaxRetries:                1,

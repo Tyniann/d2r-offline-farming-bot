@@ -85,6 +85,11 @@ func validateRunMode(sel tasks.RunSelection, cfg *config.Config, opts Options, l
 			return err
 		}
 	}
+	if sel.Run == "countess" && sel.Phase == tasks.CountessPhaseLootCountess {
+		if err := validateLootCountessBindings(cfg); err != nil {
+			return err
+		}
+	}
 
 	source := "config"
 	if opts.Run != "" {
@@ -96,7 +101,7 @@ func validateRunMode(sel tasks.RunSelection, cfg *config.Config, opts Options, l
 
 func isSupportedCountessPhase(phase string) bool {
 	switch phase {
-	case tasks.CountessPhaseTravelMarsh, tasks.CountessPhaseTravelCellar5, tasks.CountessPhaseKillCountess:
+	case tasks.CountessPhaseTravelMarsh, tasks.CountessPhaseTravelCellar5, tasks.CountessPhaseKillCountess, tasks.CountessPhaseLootCountess:
 		return true
 	default:
 		return false
@@ -136,6 +141,26 @@ func validateKillCountessBindings(cfg *config.Config) error {
 	}
 	if _, err := bindings.Resolve(memory.SkillBoneSpear); err != nil {
 		return fmt.Errorf("kill-countess requires input.bindings.skills.bone_spear: %w", err)
+	}
+	return nil
+}
+
+func validateLootCountessBindings(cfg *config.Config) error {
+	bindings, err := newConfigBindingSource(cfg.Input.Bindings)
+	if err != nil {
+		return err
+	}
+	if _, err := bindings.Resolve(memory.SkillTeleport); err != nil {
+		return fmt.Errorf("loot-countess requires input.bindings.skills.teleport: %w", err)
+	}
+	if _, err := bindings.Resolve(memory.SkillTownPortal); err != nil {
+		return fmt.Errorf("loot-countess requires input.bindings.skills.town_portal: %w", err)
+	}
+	if err := validateBeltSlotConfigured(bindings, 1, "loot-countess"); err != nil {
+		return err
+	}
+	if err := validateBeltSlotConfigured(bindings, 4, "loot-countess"); err != nil {
+		return err
 	}
 	return nil
 }

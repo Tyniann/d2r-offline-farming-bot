@@ -120,6 +120,8 @@ func New(cfg *config.Config, opts Options) (rt *Runtime, err error) {
 	if err != nil {
 		return nil, err
 	}
+	lootFilter := loot.NewFilter(log, inventoryLock, pickit)
+	lootActions := newLootActionsAdapter(log, lootFilter, cfg.Loot.Pickup, inputCtrl, pathingCfg)
 
 	probe := memory.NewProbeReader(mem, offsetSet)
 	probe.SetScannedCachePath(cfg.ResolvePath(memory.DefaultScannedCacheFile))
@@ -147,10 +149,11 @@ func New(cfg *config.Config, opts Options) (rt *Runtime, err error) {
 			TownWalk: townWalker,
 			Combat:   combat,
 			Actions:  runActions,
+			Loot:     lootActions,
 		}),
 		Pathing:  nav,
 		TownWalk: townWalker,
-		Loot:     loot.NewFilter(log, inventoryLock, pickit),
+		Loot:     lootFilter,
 	}
 
 	if err := rt.verifyEnvironment(); err != nil {

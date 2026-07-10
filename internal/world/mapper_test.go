@@ -308,6 +308,8 @@ func TestItemCatalogLookupIncludesInventoryDimensions(t *testing.T) {
 		{619, 1, 2}, // Large Charm
 		{620, 1, 3}, // Grand Charm
 		{625, 1, 1}, // El Rune
+		{628, 1, 1}, // Nef Rune
+		{629, 1, 1}, // Eth Rune
 	}
 	for _, tc := range cases {
 		w, h := LookupItemDimensions(tc.id)

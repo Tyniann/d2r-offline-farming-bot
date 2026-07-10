@@ -138,6 +138,10 @@ func LookupItemDimensions(txtFileNo uint32) (width, height int) {
 
 func lookupItemCatalog(txtFileNo uint32) itemCatalogEntry {
 	if entry, ok := itemCatalog[txtFileNo]; ok {
+		if entry.Type == "rune" && (entry.Width <= 0 || entry.Height <= 0) {
+			entry.Width = 1
+			entry.Height = 1
+		}
 		return entry
 	}
 	return itemCatalogEntry{Name: "Unknown Item"}

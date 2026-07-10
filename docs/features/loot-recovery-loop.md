@@ -152,7 +152,7 @@ Die konkrete Struktur darf beim Implementieren an bestehende `world`-Konventione
 
 ## Operator / CLI
 
-Geplante Testoberflächen:
+Verfügbare Testoberflächen:
 
 ```powershell
 go run ./cmd/d2rbot --probe --verbose
@@ -161,17 +161,14 @@ go run ./cmd/d2rbot --run countess --phase loot-countess --probe --verbose
 
 `loot-countess` startet nur in `Tower Cellar Level 5` und enthält keinen Travel-Prefix. Der Operator kann Countess manuell oder über `kill-countess` töten und anschließend die Loot-Phase isoliert validieren.
 
-Geplante Logs:
+Wichtige Logs:
 
 | Event | Felder |
 |-------|--------|
-| `loot item seen` | `unit_id`, `name`, `quality`, `location`, `pos_x`, `pos_y` |
-| `pickit item matched` | `unit_id`, `name`, `rule`, `decision` |
+| `countess loot scan` | `ground_item_count`, `candidate_count`, `blocked_candidate_count`, `has_target` |
 | `loot pickup started` | `unit_id`, `name`, `distance` |
-| `loot pickup complete` | `unit_id`, `name`, `elapsed_ms` |
+| `loot pickup complete` | `unit_id`, `name`, `finding`, `retry` |
 | `loot pickup failed` | `unit_id`, `name`, `reason` |
-| `inventory full` | `free_slots`, `locked_slots` |
-| `stash item complete` | `unit_id`, `name`, `tab` |
 
 Für spätere Auswertung soll die Loot-Schicht JSONL-Telemetrie vorbereiten, ohne den menschenlesbaren `slog`-Stream zu ersetzen.
 
@@ -208,11 +205,25 @@ Umgesetzt als [Loot Decision Pipeline](loot-decision-pipeline.md): `Observe -> C
 
 ### 5.5 Hover-bestätigter Item-Pickup
 
-Umgesetzt als [Hover-Confirmed Item Pickup](hover-confirmed-item-pickup.md): Ein isolierter Pickup-Baustein friert einen Pickit-/Inventory-geprüften Ground-Item-Kandidaten ein, klickt nur nach `Hover.UnitType=item` und passender `UnitID`, bestätigt Erfolg über gültige In-Game-Verify-Ticks und bricht bei Retry-, Distanz- oder Monster-Sicherheitsgrenzen ab. Live-Validierung läuft über `--pathing-test pickup:item`; die Countess-Integration folgt in 5.6.
+Umgesetzt als [Hover-Confirmed Item Pickup](hover-confirmed-item-pickup.md): Ein isolierter Pickup-Baustein friert einen Pickit-/Inventory-geprüften Ground-Item-Kandidaten ein, klickt nur nach `Hover.UnitType=item` und passender `UnitID`, bestätigt Erfolg über gültige In-Game-Verify-Ticks und bricht bei Retry-, Distanz- oder Monster-Sicherheitsgrenzen ab. Live-Validierung läuft über `--pathing-test pickup:item`; die Countess-Integration ist in 5.6 umgesetzt.
 
 ### 5.6 Countess-Loot-Phase
 
-Full Run um `wait_for_drops`, `scan_loot` und `pick_loot` erweitern. Isolierte Phase `loot-countess` ergänzen.
+Umgesetzt im Countess-Run: Nach `engage_countess` wartet `wait_for_drops` auf drei gültige Cellar-5-Ticks, `scan_loot` bewertet Ground-Loot über Pickit und Inventory-Kapazität, und `pick_loot` hebt Kandidaten über den hover-bestätigten Pickup-Executor auf. Fehlgeschlagene Pickup-Kandidaten werden innerhalb des aktuellen `pick_loot`-Steps per `UnitID` übersprungen, damit derselbe Drop nicht endlos neu versucht wird.
+
+Der Full Run endet jetzt:
+
+```text
+engage_countess -> wait_for_drops -> scan_loot -> pick_loot -> cast_town_portal -> complete
+```
+
+Wenn keine passenden Kandidaten vorhanden sind oder alle Kandidaten übersprungen wurden, castet der Bot trotzdem Town Portal und beendet den Run regulär. Die isolierte Testphase ist umgesetzt:
+
+```powershell
+go run ./cmd/d2rbot --run countess --phase loot-countess --probe --verbose
+```
+
+`loot-countess` startet in `Tower Cellar Level 5`, verlangt Teleport wegen globalem Runtime-Precheck, Town Portal für den Abschluss und Belt-Slots 1/4 für die aktive Safety-Potion.
 
 ### 5.7 Inventory-Full-Recovery
 

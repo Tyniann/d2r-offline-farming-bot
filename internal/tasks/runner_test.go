@@ -125,6 +125,17 @@ type mockRunActions struct {
 	portalErr   error
 }
 
+type mockLootActions struct {
+	scans       []LootScanResult
+	ticks       []LootPickupResult
+	startErr    error
+	resetCalls  int
+	scanCalls   int
+	startCalls  []LootTarget
+	tickCalls   int
+	lastTickNow time.Time
+}
+
 type countingRun struct {
 	onTickCalls int
 	result      stepResult
@@ -207,6 +218,34 @@ func (m *mockRunActions) CastTownPortal() error {
 	m.portalCalls++
 	return m.portalErr
 }
+
+func (m *mockLootActions) Scan(world.State) LootScanResult {
+	m.scanCalls++
+	if len(m.scans) == 0 {
+		return LootScanResult{}
+	}
+	res := m.scans[0]
+	m.scans = m.scans[1:]
+	return res
+}
+
+func (m *mockLootActions) StartPickup(target LootTarget) error {
+	m.startCalls = append(m.startCalls, target)
+	return m.startErr
+}
+
+func (m *mockLootActions) TickPickup(_ world.State, now time.Time) LootPickupResult {
+	m.tickCalls++
+	m.lastTickNow = now
+	if len(m.ticks) == 0 {
+		return LootPickupResult{Status: LootPickupPending}
+	}
+	res := m.ticks[0]
+	m.ticks = m.ticks[1:]
+	return res
+}
+
+func (m *mockLootActions) Reset() { m.resetCalls++ }
 
 func (r *countingRun) firstStep() string              { return "count" }
 func (r *countingRun) nextStep(string) string         { return "" }
@@ -411,6 +450,7 @@ func TestCountessFullRunSuccessCastsTownPortal(t *testing.T) {
 		Pathing:  &mockNavigator{},
 		Combat:   &mockCombatActions{},
 		Actions:  actions,
+		Loot:     &mockLootActions{scans: []LootScanResult{{GroundItemCount: 0, CandidateCount: 0}}},
 	})
 	now := time.Now()
 	target := countessMonster(10, world.Position{X: 110, Y: 100})
@@ -430,6 +470,10 @@ func TestCountessFullRunSuccessCastsTownPortal(t *testing.T) {
 		healthy(areaState(world.TowerCellarLevel4)),
 		healthy(cellar5State(target)),
 		healthy(cellar5State(target)),
+		healthy(cellar5State()),
+		healthy(cellar5State()),
+		healthy(cellar5State()),
+		healthy(cellar5State()),
 		healthy(cellar5State()),
 		healthy(cellar5State()),
 		healthy(cellar5State()),
@@ -854,6 +898,201 @@ func TestCountessKillTeleportRepositionUsesEngageDistance(t *testing.T) {
 	_ = r.Tick(context.Background(), st, now.Add(2*time.Millisecond))
 	if combat.teleportCalls != 1 || combat.lastDesired != 22 {
 		t.Fatalf("teleports=%d desired=%.1f, want one teleport toward engage distance", combat.teleportCalls, combat.lastDesired)
+	}
+}
+
+func TestCountessLootWaitForDropsRequiresThreeStableTicks(t *testing.T) {
+	lootActions := &mockLootActions{}
+	actions := &mockRunActions{}
+	r := NewRunner(config.NewLogger("error"), RunSelection{Run: "countess", Phase: CountessPhaseLootCountess}, killRunConfig(), Deps{
+		Loot:    lootActions,
+		Actions: actions,
+	})
+	now := time.Now()
+	st := cellar5State()
+
+	res := r.Tick(context.Background(), st, now)
+	if res.Step != countessStepWaitForDrops || res.Outcome != RunOutcomeRunning {
+		t.Fatalf("precheck tick = %+v, want wait_for_drops running", res)
+	}
+	res = r.Tick(context.Background(), st, now.Add(time.Millisecond))
+	if res.Step != countessStepWaitForDrops || res.Outcome != RunOutcomeRunning {
+		t.Fatalf("stable tick 1 = %+v, want wait_for_drops running", res)
+	}
+	res = r.Tick(context.Background(), world.State{}, now.Add(2*time.Millisecond))
+	if res.Step != countessStepWaitForDrops || res.Outcome != RunOutcomeRunning {
+		t.Fatalf("invalid tick = %+v, want wait_for_drops running", res)
+	}
+	_ = r.Tick(context.Background(), st, now.Add(3*time.Millisecond))
+	_ = r.Tick(context.Background(), st, now.Add(4*time.Millisecond))
+	res = r.Tick(context.Background(), st, now.Add(5*time.Millisecond))
+	if res.Step != countessStepScanLoot || res.Outcome != RunOutcomeRunning {
+		t.Fatalf("stable tick 3 = %+v, want scan_loot running", res)
+	}
+}
+
+func TestCountessLootNoCandidatesCastsTownPortalAndSucceeds(t *testing.T) {
+	lootActions := &mockLootActions{scans: []LootScanResult{{GroundItemCount: 2}}}
+	actions := &mockRunActions{}
+	r := NewRunner(config.NewLogger("error"), RunSelection{Run: "countess", Phase: CountessPhaseLootCountess}, killRunConfig(), Deps{
+		Loot:    lootActions,
+		Actions: actions,
+	})
+	now := time.Now()
+	st := cellar5State()
+
+	_ = r.Tick(context.Background(), st, now)
+	_ = r.Tick(context.Background(), st, now.Add(time.Millisecond))
+	_ = r.Tick(context.Background(), st, now.Add(2*time.Millisecond))
+	_ = r.Tick(context.Background(), st, now.Add(3*time.Millisecond))
+	_ = r.Tick(context.Background(), st, now.Add(4*time.Millisecond))
+	res := r.Tick(context.Background(), st, now.Add(5*time.Millisecond))
+	if res.Step != countessStepComplete || res.Outcome != RunOutcomeRunning {
+		t.Fatalf("portal tick = %+v, want complete step running", res)
+	}
+	res = r.Tick(context.Background(), st, now.Add(6*time.Millisecond))
+	if res.Outcome != RunOutcomeSuccess || actions.portalCalls != 1 {
+		t.Fatalf("complete tick = %+v portalCalls=%d, want success with one portal", res, actions.portalCalls)
+	}
+}
+
+func TestCountessLootPickSkipsFailedCandidateAndFinishesWhenNoTargetsRemain(t *testing.T) {
+	target := LootTarget{UnitID: 10, TxtFileNo: 1, Code: "r01", Name: "El Rune", Position: world.Position{X: 101, Y: 100}, AreaID: world.TowerCellarLevel5}
+	lootActions := &mockLootActions{
+		scans: []LootScanResult{
+			{GroundItemCount: 1, CandidateCount: 1, HasTarget: true, NextTarget: target},
+			{GroundItemCount: 1, CandidateCount: 1, HasTarget: true, NextTarget: target},
+			{GroundItemCount: 1, CandidateCount: 0},
+		},
+		ticks: []LootPickupResult{{Status: LootPickupMonsterNearby, Done: true, Target: target}},
+	}
+	actions := &mockRunActions{}
+	r := NewRunner(config.NewLogger("error"), RunSelection{Run: "countess", Phase: CountessPhaseLootCountess}, killRunConfig(), Deps{
+		Loot:    lootActions,
+		Actions: actions,
+	})
+	now := time.Now()
+	st := cellar5State()
+
+	for i := 0; i < 7; i++ {
+		_ = r.Tick(context.Background(), st, now.Add(time.Duration(i)*time.Millisecond))
+	}
+	if len(lootActions.startCalls) != 1 {
+		t.Fatalf("StartPickup calls = %d, want 1", len(lootActions.startCalls))
+	}
+	if lootActions.scanCalls != 3 {
+		t.Fatalf("Scan calls = %d, want initial scan, pickup scan, rescan", lootActions.scanCalls)
+	}
+}
+
+func TestCountessLootHardPickupStatusFailsRun(t *testing.T) {
+	target := LootTarget{UnitID: 10, TxtFileNo: 1, Code: "r01", Name: "El Rune", Position: world.Position{X: 101, Y: 100}, AreaID: world.TowerCellarLevel5}
+	lootActions := &mockLootActions{
+		scans: []LootScanResult{
+			{GroundItemCount: 1, CandidateCount: 1, HasTarget: true, NextTarget: target},
+			{GroundItemCount: 1, CandidateCount: 1, HasTarget: true, NextTarget: target},
+		},
+		ticks: []LootPickupResult{{Status: LootPickupInputBlocked, Done: true, Target: target}},
+	}
+	r := NewRunner(config.NewLogger("error"), RunSelection{Run: "countess", Phase: CountessPhaseLootCountess}, killRunConfig(), Deps{
+		Loot:    lootActions,
+		Actions: &mockRunActions{},
+	})
+	now := time.Now()
+	st := cellar5State()
+	var res TickResult
+	for i := 0; i < 6; i++ {
+		res = r.Tick(context.Background(), st, now.Add(time.Duration(i)*time.Millisecond))
+	}
+	if res.Outcome != RunOutcomeFailed || res.Reason != string(LootPickupInputBlocked) {
+		t.Fatalf("tick = %+v, want input_blocked failure", res)
+	}
+}
+
+func TestCountessLootStartPickupErrorFailsRun(t *testing.T) {
+	target := LootTarget{UnitID: 10, TxtFileNo: 1, Code: "r01", Name: "El Rune", Position: world.Position{X: 101, Y: 100}, AreaID: world.TowerCellarLevel5}
+	lootActions := &mockLootActions{
+		scans: []LootScanResult{
+			{GroundItemCount: 1, CandidateCount: 1, HasTarget: true, NextTarget: target},
+			{GroundItemCount: 1, CandidateCount: 1, HasTarget: true, NextTarget: target},
+		},
+		startErr: errors.New("not wired"),
+	}
+	r := NewRunner(config.NewLogger("error"), RunSelection{Run: "countess", Phase: CountessPhaseLootCountess}, killRunConfig(), Deps{
+		Loot:    lootActions,
+		Actions: &mockRunActions{},
+	})
+	now := time.Now()
+	st := cellar5State()
+	var res TickResult
+	for i := 0; i < 6; i++ {
+		res = r.Tick(context.Background(), st, now.Add(time.Duration(i)*time.Millisecond))
+	}
+	if res.Outcome != RunOutcomeFailed || res.Reason != "loot_pickup_start_failed" {
+		t.Fatalf("tick = %+v, want loot_pickup_start_failed", res)
+	}
+}
+
+func TestCountessLootFailsOnNilLootActionsAndAreaChange(t *testing.T) {
+	r := NewRunner(config.NewLogger("error"), RunSelection{Run: "countess", Phase: CountessPhaseLootCountess}, killRunConfig(), Deps{})
+	res := r.Tick(context.Background(), cellar5State(), time.Now())
+	if res.Outcome != RunOutcomeFailed || res.Reason != "loot_actions_not_wired" {
+		t.Fatalf("nil loot tick = %+v, want loot_actions_not_wired", res)
+	}
+
+	r = NewRunner(config.NewLogger("error"), RunSelection{Run: "countess", Phase: CountessPhaseLootCountess}, killRunConfig(), Deps{
+		Loot:    &mockLootActions{},
+		Actions: &mockRunActions{},
+	})
+	now := time.Now()
+	_ = r.Tick(context.Background(), cellar5State(), now)
+	res = r.Tick(context.Background(), areaState(world.TowerCellarLevel4), now.Add(time.Millisecond))
+	if res.Outcome != RunOutcomeFailed || res.Reason != "unexpected_area" {
+		t.Fatalf("area tick = %+v, want unexpected_area", res)
+	}
+}
+
+func TestCountessLootFailsOnAreaChangeDuringPickLoot(t *testing.T) {
+	target := LootTarget{UnitID: 10, TxtFileNo: 1, Code: "r01", Name: "El Rune", Position: world.Position{X: 101, Y: 100}, AreaID: world.TowerCellarLevel5}
+	lootActions := &mockLootActions{
+		scans: []LootScanResult{{GroundItemCount: 1, CandidateCount: 1, HasTarget: true, NextTarget: target}},
+	}
+	r := NewRunner(config.NewLogger("error"), RunSelection{Run: "countess", Phase: CountessPhaseLootCountess}, killRunConfig(), Deps{
+		Loot:    lootActions,
+		Actions: &mockRunActions{},
+	})
+	now := time.Now()
+	st := cellar5State()
+	for i := 0; i < 5; i++ {
+		_ = r.Tick(context.Background(), st, now.Add(time.Duration(i)*time.Millisecond))
+	}
+	res := r.Tick(context.Background(), areaState(world.TowerCellarLevel4), now.Add(5*time.Millisecond))
+	if res.Outcome != RunOutcomeFailed || res.Reason != "unexpected_area" {
+		t.Fatalf("pick area tick = %+v, want unexpected_area", res)
+	}
+}
+
+func TestCountessKillStillEndsAfterKillWithoutPortalOrLoot(t *testing.T) {
+	combat := &mockCombatActions{}
+	lootActions := &mockLootActions{}
+	actions := &mockRunActions{}
+	r := NewRunner(config.NewLogger("error"), RunSelection{Run: "countess", Phase: CountessPhaseKillCountess}, killRunConfig(), Deps{
+		Combat:  combat,
+		Loot:    lootActions,
+		Actions: actions,
+	})
+	now := time.Now()
+	target := countessMonster(10, world.Position{X: 110, Y: 100})
+	visible := cellar5State(target)
+	absent := cellar5State()
+
+	_ = r.Tick(context.Background(), visible, now)
+	_ = r.Tick(context.Background(), visible, now.Add(time.Millisecond))
+	_ = r.Tick(context.Background(), absent, now.Add(2*time.Millisecond))
+	_ = r.Tick(context.Background(), absent, now.Add(3*time.Millisecond))
+	res := r.Tick(context.Background(), absent, now.Add(4*time.Millisecond))
+	if res.Outcome != RunOutcomeSuccess || actions.portalCalls != 0 || lootActions.scanCalls != 0 {
+		t.Fatalf("tick = %+v portalCalls=%d scanCalls=%d, want kill-only success", res, actions.portalCalls, lootActions.scanCalls)
 	}
 }
 

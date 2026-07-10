@@ -9,9 +9,10 @@ go run ./cmd/d2rbot --run countess --probe --verbose
 go run ./cmd/d2rbot --run countess --phase travel-marsh --probe --verbose
 go run ./cmd/d2rbot --run countess --phase travel-cellar5 --probe --verbose
 go run ./cmd/d2rbot --run countess --phase kill-countess --probe --verbose
+go run ./cmd/d2rbot --run countess --phase loot-countess --probe --verbose
 ```
 
-`--run countess` ohne `--phase` ist ab Phase 4.7 der vollständige MVP-Run: Act-1-Town-Waypoint -> Black Marsh -> Forgotten Tower -> Tower Cellar Level 5 -> Countess-Kill -> Town Portal -> `complete`.
+`--run countess` ohne `--phase` ist ab Phase 5.6 der vollständige Countess-Run: Act-1-Town-Waypoint -> Black Marsh -> Forgotten Tower -> Tower Cellar Level 5 -> Countess-Kill -> Loot-Pickup -> Town Portal -> `complete`.
 
 `travel-marsh` führt vom Rogue Encampment über den Act-1-Waypoint nach `Black Marsh`.
 `travel-cellar5` nutzt diesen Prefix weiter, sucht anschließend den Forgotten Tower und traversiert best-effort bis `Tower Cellar Level 5`.
@@ -22,25 +23,41 @@ go run ./cmd/d2rbot --run countess --phase kill-countess --probe --verbose
 
 - `--phase travel-marsh` und `--phase travel-cellar5` sind CLI-only und nur mit dem Countess-Run gültig.
 - `--phase kill-countess` ist CLI-only, startet nur in `Tower Cellar Level 5`, enthält keinen Travel-Prefix und castet kein Town Portal.
+- `--phase loot-countess` ist CLI-only, startet nur in `Tower Cellar Level 5`, enthält keinen Travel- oder Kill-Prefix und castet nach der Loot-Phase Town Portal.
 - `--run countess` ohne Phase startet den Full Run und verlangt zu Beginn `Rogue Encampment`; andere Gebiete schlagen mit `not_act1_town` fehl.
 - Der Travel-Flow nutzt Area-IDs für Entscheidungen; Area-Namen dienen nur Logs.
 - Input-Schritte laufen nur bei `Valid && Phase=in_game`.
 - `wait_black_marsh` darf für beide Travel-Phasen und den Full Run als Non-Input-Step während Loading/invalid Snapshots weitergetickt werden.
 - `travel-cellar5` kann für manuelle Tests aus `Black Marsh`, `Forgotten Tower` oder einem Tower-Cellar-Level fortgesetzt werden und springt dann direkt zum passenden Traversal-Step.
 
-## Full Run (Phase 4.7)
+## Full Run (Phase 5.6)
 
 Der Full Run verwendet die bestehende State-Machine direkt:
 
 ```text
 precheck -> acquire_town_waypoint -> open_waypoint -> select_black_marsh -> wait_black_marsh
 -> find_tower -> enter_cellar_1 -> enter_cellar_2 -> enter_cellar_3 -> enter_cellar_4
--> enter_cellar_5 -> locate_countess -> engage_countess -> cast_town_portal -> complete
+-> enter_cellar_5 -> locate_countess -> engage_countess -> wait_for_drops -> scan_loot
+-> pick_loot -> cast_town_portal -> complete
 ```
 
 `cast_town_portal` ist ein eigener Step. Er nutzt den konfigurierten `town_portal`-Skill und castet client-relativ auf die Fenstermitte (`ClientWidth/2`, `ClientHeight/2`). Nach erfolgreichem Cast loggt der Bot zusätzlich zum generischen `task run finished` ein `countess run complete` mit `completion=town_portal`.
 
-Die isolierten Phasen bleiben bewusst als Testoberflächen erhalten: Travel-Phasen enden am jeweiligen Zielgebiet, `kill-countess` endet nach defensiver Kill-Bestätigung ohne Portal.
+Die isolierten Phasen bleiben bewusst als Testoberflächen erhalten: Travel-Phasen enden am jeweiligen Zielgebiet, `kill-countess` endet nach defensiver Kill-Bestätigung ohne Portal, `loot-countess` prüft nur Loot und Portal nach einem manuellen oder vorherigen Kill.
+
+## Countess-Loot (Phase 5.6)
+
+`loot-countess` und der Full Run nutzen dieselben Loot-Schritte:
+
+| Step | Verhalten |
+|------|-----------|
+| `wait_for_drops` | verlangt drei aufeinanderfolgende gültige `in_game`-Snapshots in `Tower Cellar Level 5`; Drops sind nicht erforderlich |
+| `scan_loot` | führt einen stateless Scan über `rt.Loot.Decide(state)` aus und wählt den nächsten Pickit-/Inventory-tauglichen Kandidaten |
+| `pick_loot` | startet genau einen stateful Pickup-Executor pro Kandidat und tickt ihn bis zu einem terminalen Ergebnis |
+
+Während aller Loot-Schritte führt ein gültiger Snapshot außerhalb von `Tower Cellar Level 5` zu `unexpected_area`. Invalid-/Loading-Snapshots werden nicht als Input-Ticks ausgeführt und laufen in den äußeren Step-Timeout.
+
+Pickup-Ergebnisse mit Item-/World-Ursache (`monster_nearby`, `hover_not_found`, `target_lost`, `target_unstable`, `too_far`, `pickup_failed`) werden für die aktuelle `pick_loot`-Phase per `UnitID` übersprungen und danach erneut gescannt. Harte Verdrahtungs- oder Projektionsfehler (`input_blocked`, `projection_failed`, ein vom Loot-Adapter gemeldetes `invalid_world`) beenden den Run als Fehler. Inventory-Full/No-Fit entsteht im Scan als fehlender Pickup-Kandidat, nicht als Pickup-Executor-Fehler.
 
 ## Safety-Potions (Phase 4.7)
 
@@ -147,9 +164,10 @@ runs:
 - D2R windowed 1280x720 oder kalibrierte `pathing.waypoint_ui`-Koordinaten
 - Charakter steht in `Rogue Encampment`, entweder nahe Waypoint oder am Spawn-/Stash-Bereich
 - Force Move ist in D2R auf `pathing.town_walk.force_move_key` gebunden (Default `e`)
-- Teleport ist in `input.bindings.skills.teleport` konfiguriert; das bleibt in 4.7 ein globaler Runtime-Precheck für aktive Input-Runs, auch wenn eine isolierte Travel-Phase fachlich nur Travel nutzt
+- Teleport ist in `input.bindings.skills.teleport` konfiguriert; das bleibt in 5.6 ein globaler Runtime-Precheck für aktive Input-Runs, auch wenn eine isolierte Phase fachlich keinen Teleport nutzt
 - Für `--run countess`: `input.bindings.skills.bone_spear`, `input.bindings.skills.town_portal`, `input.bindings.belt.slot_1` und `input.bindings.belt.slot_4` sind konfiguriert
 - Für `kill-countess`: `input.bindings.skills.bone_spear` ist konfiguriert; die Phase castet kein Portal
+- Für `loot-countess`: `input.bindings.skills.teleport`, `input.bindings.skills.town_portal`, `input.bindings.belt.slot_1` und `input.bindings.belt.slot_4` sind konfiguriert; Bone Spear ist nicht erforderlich
 - Black-Marsh-Waypoint ist für Charakter und Schwierigkeit freigeschaltet
 
 ## Manuelle Validierung
@@ -161,6 +179,7 @@ go run ./cmd/d2rbot --pathing-test inspect:entrances --probe --verbose --pathing
 go run ./cmd/d2rbot --run countess --phase travel-marsh --probe --verbose
 go run ./cmd/d2rbot --run countess --phase travel-cellar5 --probe --verbose
 go run ./cmd/d2rbot --run countess --phase kill-countess --probe --verbose
+go run ./cmd/d2rbot --run countess --phase loot-countess --probe --verbose
 ```
 
 `click-entity:entrance` prüft nur Hover-/Klickmechanik auf der nächsten Entrance-Unit. Für die Tower-Annahmen müssen die verbose World-Logs zusätzlich zeigen, dass nahe Tower/Stairs die erwarteten Entrance-Kinds und Namen erscheinen.
@@ -177,9 +196,9 @@ go run ./cmd/d2rbot --pathing-test record-town-route:act1-waypoint --probe --ver
 
 - Town-Walk ist nur für Rogue Encampment / Act 1 vorgesehen.
 - Keine OCR-/Bild-Erkennung des Waypoint-Menüs.
-- Kein Pickit und kein Loot-Aufheben.
+- Kein Stash-, Sell-, Identify- oder Inventory-Full-Recovery nach dem Pickup; No-Fit-Loot bleibt liegen.
 - `kill-countess` nutzt keine Curses, Summons, Bone Prison, Potion-Logik oder Good-Chest-Interaktion.
 - Kein robuster Tower-Solver: zufällige Tower-Layouts bleiben die größte Unsicherheit in Phase 4.5. Das ist bewusst als MVP-Grenze akzeptiert; spätere Run-Recording-/Playback-Routen sollen diesen Teil zuverlässig machen.
 
 ---
-*Zuletzt aktualisiert: 2026-07-04*
+*Zuletzt aktualisiert: 2026-07-10*
