@@ -133,7 +133,7 @@ Wenn der aktuelle Snapshot bereits im Zielgebiet ist, schließt der Step ohne ne
 
 Die Traversierung ist bewusst best-effort: Der aktuelle Explorer nutzt Bearing-Explore, nähert sichtbare passende Entrances an und übergibt nahe Entrances an den Hover-Feedback-Klick. Wenn ein direkter Annäherungs-Teleport auf eine sichtbare Entrance-Unit blockiert, versucht der Navigator als Fallback den Hover-Klick auf genau diese Unit ohne Distanz-Gate. Er merkt sich keine besuchten Räume, folgt keinen Wänden und nutzt noch keine `Left`-Map-Reading-Heuristik. Zufällige Tower-Layouts können deshalb weiterhin mit `stuck`, `hover_not_found`, `projection_failed` oder `timeout` scheitern.
 
-Das ist kein offener 4.5-Blocker mehr. Der geplante robuste Weg ist eine spätere Recording-/Playback-Funktion: Der Spieler zeichnet eine vollständige Strecke einmal manuell auf, der Bot spielt diese Route deterministisch ab und nutzt den Navigator nur noch für kurze lokale Korrekturen, Hover-Checks und Area-Wechsel.
+Das ist kein offener Phase-4/5-Blocker mehr, aber die zentrale Zuverlässigkeitsgrenze des aktuellen Runs. Phase 6 implementiert deshalb generisches Recording und Playback als nächsten Projektmeilenstein: Der Spieler zeichnet die vollständige Strecke einmal manuell auf, der Bot spielt sie deterministisch ab und nutzt den Navigator nur noch für kurze lokale Korrekturen, Hover-Checks und Area-Wechsel. Im regulären Countess-Run wird Playback danach zum Primärpfad; globale Erkundung bleibt ein expliziter Diagnose-/Fallbackmodus. Countess bindet die run-unabhängige Route lediglich über eine stabile Route-ID ein.
 
 Wenn eine passende Entrance-Unit sichtbar ist, aber noch außerhalb der Klickdistanz liegt, priorisiert der Navigator sie als `entity_approach` und teleportiert auf sie zu. Verlässt `find_tower` versehentlich `Black Marsh` in ein anderes Gebiet, bricht der Step mit `unexpected_area` ab, statt im falschen Gebiet weiter zu explorieren.
 Für `enter_cellar_1` gibt es einen engen Sonderfall: Der `Forgotten Tower`-Vorraum ist stabil, aber die sichtbare Durchbruch-Unit wird nicht von den bekannten Tower-/Stair-IDs abgedeckt. Die Probe enumeriert deshalb auch unbekannte Entrance-Units. Der Step bevorzugt im `Forgotten Tower` für `Tower Cellar Level 1` eine unbekannte Entrance-Unit und ignoriert die bekannten Back-/Surface-Entrances. Erfolg bleibt ausschließlich der Area-Wechsel nach `Tower Cellar Level 1`. Ab `Tower Cellar Level 1` nutzt der Bot die beobachteten Tower-Cellar-IDs `8` (up/source) und `9` (down/next level), damit sichtbare Down-Exits priorisiert werden.
@@ -214,7 +214,7 @@ Der Recorder speichert in die unter `pathing.town_walk.routes.<difficulty>` konf
 - Keine OCR-/Bild-Erkennung des Waypoint-Menüs.
 - Keine Shared-Stash-, Sell- oder Identify-Automation. Phase 5.8 automatisiert ausschließlich den Personal Stash für aktuelle Pickit-MVP-Typen.
 - `kill-countess` nutzt keine Curses, Summons, Bone Prison, Potion-Logik oder Good-Chest-Interaktion.
-- Kein robuster Tower-Solver: zufällige Tower-Layouts bleiben die größte Unsicherheit in Phase 4.5. Das ist bewusst als MVP-Grenze akzeptiert; spätere Run-Recording-/Playback-Routen sollen diesen Teil zuverlässig machen.
+- Kein robuster Tower-Solver: zufällige Tower-Layouts bleiben die größte Unsicherheit des Phase-5-Stands. Phase 6 zieht Run Recording und Playback deshalb als direkte Nachfolgephase vor und ersetzt die globale Explorer-Traversierung im produktiven Countess-Run.
 
 ---
 *Zuletzt aktualisiert: 2026-07-10*

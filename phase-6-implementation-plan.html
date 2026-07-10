@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Phase 6 – Generisches Route Recording und Playback</title>
+  <style>
+    :root { color-scheme:dark; --bg:#0d1117; --panel:#161b22; --soft:#21262d; --line:#30363d; --text:#e6edf3; --muted:#9da7b3; --accent:#58a6ff; --good:#3fb950; --warn:#d29922; }
+    * { box-sizing:border-box } html { scroll-behavior:smooth } body { margin:0; background:var(--bg); color:var(--text); font:16px/1.6 system-ui,-apple-system,"Segoe UI",sans-serif }
+    main { max-width:1120px; margin:auto; padding:42px 24px 80px } h1,h2,h3 { line-height:1.2 } h1 { margin:.2rem 0 .7rem; font-size:clamp(2rem,5vw,3.25rem) }
+    h2 { margin:2.8rem 0 1rem; padding-top:1.2rem; border-top:1px solid var(--line) } h3 { margin:0 0 .5rem } p { margin:.55rem 0 } code { padding:.1rem .35rem; border:1px solid var(--line); border-radius:5px; background:var(--soft); color:#d2a8ff }
+    pre { overflow:auto; padding:1rem; border:1px solid var(--line); border-radius:10px; background:var(--soft) } pre code { padding:0; border:0 }
+    ul,ol { padding-left:1.35rem } li+li { margin-top:.35rem } .eyebrow { color:var(--accent); font-weight:750; letter-spacing:.08em; text-transform:uppercase }
+    .lead { max-width:880px; color:var(--muted); font-size:1.12rem } .chips,.flow { display:flex; flex-wrap:wrap; align-items:center; gap:.5rem; margin:1.2rem 0 }
+    .chip,.node { padding:.3rem .7rem; border:1px solid var(--line); border-radius:999px; background:var(--soft); color:var(--muted) } .node { border-radius:8px; color:var(--text) } .arrow { color:var(--accent); font-weight:800 }
+    .grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:1rem } .card,.phase,.callout { padding:1.15rem; border:1px solid var(--line); border-radius:12px; background:var(--panel) }
+    .metric { color:var(--accent); font-size:1.3rem; font-weight:800 } .phase { display:grid; grid-template-columns:90px 1fr; gap:1rem; margin-top:1rem } .phase-id { color:var(--accent); font-size:1.15rem; font-weight:800 }
+    .meta { color:var(--muted); font-size:.94rem } .gate { color:var(--good); font-weight:700 } .warning { border-left:4px solid var(--warn) }
+    table { width:100%; border-collapse:collapse; background:var(--panel) } th,td { padding:.75rem; border:1px solid var(--line); text-align:left; vertical-align:top } th { background:var(--soft); color:var(--muted) }
+    footer { margin-top:3rem; color:var(--muted); font-size:.9rem } @media(max-width:800px){.grid,.phase{grid-template-columns:1fr}table{display:block;overflow-x:auto}}
+    @media print{:root{color-scheme:light;--bg:#fff;--panel:#fff;--soft:#f3f4f6;--line:#d1d5db;--text:#111827;--muted:#4b5563;--accent:#1d4ed8}main{max-width:none}}
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <div class="eyebrow">D2R Offline Farming Bot · High-Level-Umsetzungsplan</div>
+    <h1>Phase 6: Generisches Route Recording und Playback</h1>
+    <p class="lead">Phase 6 baut eine run-unabhängige Infrastruktur zum Aufzeichnen, Verwalten und Wiedergeben von Navigationsrouten. Black Marsh bis Tower Cellar Level 5 ist der erste vollständig integrierte und live validierte Anwendungsfall.</p>
+    <div class="chips"><span class="chip">Wiederverwendbares Framework</span><span class="chip">Countess als erster Use Case</span><span class="chip">World-Koordinaten</span><span class="chip">Memory-verifiziert</span><span class="chip">GUI-ready</span></div>
+  </header>
+
+  <section class="grid" aria-label="Kernziele">
+    <article class="card"><div class="metric">Endziel</div><p>Ein generisches Routensystem, das Countess zuerst bedient und später ohne neuen Recorder für weitere Runs wiederverwendet wird.</p></article>
+    <article class="card"><div class="metric">Prinzip</div><p>Semantische Wegpunkte und verifizierte Area-Übergänge statt zeitgesteuerter Maus- und Tastaturmakros.</p></article>
+    <article class="card"><div class="metric">Abnahme</div><p>Mindestens zehn vollständige Replays im gebundenen Layout ohne globale Bearing-Explore-Traversierung.</p></article>
+  </section>
+
+  <h2>1. Motivation und Entscheidung</h2>
+  <p>Der Navigator und Explorer waren für Phase 4 und 5 ein sinnvoller best-effort Platzhalter. Ohne direkten Zugriff auf Map- oder Room-Graph-Daten können sie den Tower-Eingang und die fünf Kellerebenen jedoch nicht ausreichend zuverlässig und effizient finden.</p>
+  <p>Im Offline-Singleplayer bleibt das Layout für denselben Charakter und dieselbe Schwierigkeit stabil. Phase 6 nutzt diese Eigenschaft: Der Operator demonstriert die Route einmal, danach wird dieselbe World-Koordinatenfolge kontrolliert wiederverwendet.</p>
+  <div class="callout warning"><strong>Verbindliche Architekturentscheidung:</strong> Recorder, Route, Registry, Validator und Player sind generisch und kennen keinen Countess-Task. Nur die erste Run-Integration und ihre Abnahmeroute sind Countess-spezifisch. Playback wird dort der Primärpfad; eine fehlende Aufnahme löst kein stilles globales Erkunden aus.</div>
+
+  <h2>2. Scope</h2>
+  <p><strong>Enthalten:</strong> generischer Aufnahmevertrag, Recorder, Route Registry, Validierung und Persistenz, Replay-Engine, Segment- und Transition-Verifikation, lokale Driftkorrektur, CLI/Config, Countess-Integration, Telemetrie und Live-Abnahme.</p>
+  <p><strong>Nicht enthalten:</strong> eine GUI oder weitere live integrierte Farmziele, Town-Route zum Waypoint, Kill/Loot/Stash-Logik, autonomer Game-Lifecycle, Multi-Run-Dauerbetrieb, Map-Server sowie Identify-, Vendor- oder Repair-Automation. Datenmodell und Verwaltungs-API müssen diese späteren Nutzer jedoch unterstützen.</p>
+  <div class="flow" aria-label="Route"><span class="node">Black Marsh</span><span class="arrow">→</span><span class="node">Forgotten Tower</span><span class="arrow">→</span><span class="node">Cellar 1</span><span class="arrow">→</span><span class="node">Cellar 2</span><span class="arrow">→</span><span class="node">Cellar 3</span><span class="arrow">→</span><span class="node">Cellar 4</span><span class="arrow">→</span><span class="node">Cellar 5</span></div>
+
+  <h2>3. Technisches Zielbild</h2>
+  <table>
+    <thead><tr><th>Baustein</th><th>Verantwortung</th><th>Ort</th></tr></thead>
+    <tbody>
+      <tr><td>Route Contract</td><td>Run-unabhängiges YAML-Schema mit stabiler ID, Anzeigename, Metadaten, Segmenten, Wegpunkten und Transitionen.</td><td><code>internal/pathing</code></td></tr>
+      <tr><td>Route Registry</td><td>Listet Aufzeichnungen, löst Route-IDs auf, erkennt Duplikate und liefert Status/Metadaten für CLI und eine spätere GUI.</td><td><code>internal/pathing</code></td></tr>
+      <tr><td>Recorder</td><td>Liest konsistente World-States während manueller Bewegung, erkennt Area-Wechsel und erzeugt ausgedünnte Samples.</td><td><code>internal/pathing</code>, Wiring in <code>internal/app</code></td></tr>
+      <tr><td>Validator</td><td>Prüft Schema, Reihenfolge, Areas, Punktabstände, Metadaten und atomare Veröffentlichung.</td><td><code>internal/pathing</code></td></tr>
+      <tr><td>Player</td><td>Spielt Segmente über vorhandene Teleport-/Movement-Primitives ab und wartet auf Memory-bestätigte Ergebnisse.</td><td><code>internal/pathing</code></td></tr>
+      <tr><td>Transition Handler</td><td>Nähert Entrances an und verwendet den vorhandenen Hover-Feedback-Klick; Erfolg ist der erwartete Area-Wechsel.</td><td><code>internal/pathing</code></td></tr>
+      <tr><td>Countess Adapter</td><td>Ersetzt <code>find_tower</code> und <code>enter_cellar_1..5</code> durch Route Playback.</td><td><code>internal/tasks</code> / <code>internal/app</code></td></tr>
+    </tbody>
+  </table>
+
+  <h3>Trennung der Verantwortungen</h3>
+  <table>
+    <thead><tr><th>Modell</th><th>Bedeutung</th><th>Beispiel</th></tr></thead>
+    <tbody>
+      <tr><td>Route</td><td>Wiederverwendbare Navigationsaufzeichnung ohne Boss-, Loot- oder Stash-Logik.</td><td><code>black-marsh-to-cellar-5</code></td></tr>
+      <tr><td>Run-Definition</td><td>Spätere deklarative Auswahl und Reihenfolge fachlicher Schritte; referenziert Routen über stabile IDs.</td><td>Waypoint → Route → Kill → Loot → Town</td></tr>
+      <tr><td>Run-Ausführung</td><td>State-Machine, die eine Run-Definition mit World-State, Tasks und Actions ausführt.</td><td>Bestehender Countess-Task</td></tr>
+    </tbody>
+  </table>
+  <p>Phase 6 implementiert die Route-Schicht vollständig und bindet sie an den bestehenden Countess-Task an. Ein allgemeiner Run-Editor ist nicht Teil dieser Phase; ID-basierte Referenzen und Registry verhindern aber, dass Dateipfade oder Countess-Sondertypen später GUI und Playlists blockieren.</p>
+
+  <h2>4. Routenmodell</h2>
+  <p>Die Route speichert nicht bloß Input-Ereignisse oder Timestamps. Persistiert werden World-State-basierte Navigationsabsichten. Laufzeitabhängige Unit-IDs dürfen Diagnosewerte sein, aber keine alleinigen dauerhaften Anker.</p>
+  <pre><code>version: 1
+id: "black-marsh-to-cellar-5-hell-necro"
+name: "Black Marsh bis Tower Cellar 5"
+kind: navigation
+tags: [countess, act1, hell]
+metadata:
+  character: "..."
+  difficulty: hell
+  game_version: "3.2.92777"
+  recorded_at: "2026-07-10T...Z"
+segments:
+  - from_area: black_marsh
+    to_area: forgotten_tower
+    movement: teleport
+    points:
+      - { x: 1234, y: 5678 }
+    transition:
+      entrance_kind: wilderness_to_tower
+  - from_area: forgotten_tower
+    to_area: tower_cellar_level_1
+    movement: teleport
+    points: []
+    transition:
+      entrance_kind: unknown_antechamber</code></pre>
+  <p class="meta">Das Beispiel ist ein Entwurf. Phase 6.0 legt Feldnamen, Identitätsprüfung und Migrationsstrategie verbindlich fest.</p>
+
+  <h2>5. Herausforderungen</h2>
+  <div class="grid">
+    <article class="card"><h3>Routenidentität</h3><p class="meta">Charakter und Schwierigkeit müssen sicher bestimmt oder operatorseitig eindeutig gebunden werden. Spielversion allein beweist kein passendes Layout.</p></article>
+    <article class="card"><h3>Sampling</h3><p class="meta">Zu viele Punkte machen Replay langsam und fragil, zu wenige schneiden Ecken oder landen außerhalb des spielbaren Bereichs.</p></article>
+    <article class="card"><h3>Transitionen</h3><p class="meta">Entrances benötigen Laufzeit-Entity-Suche und Hover-Bestätigung. Ein gespeicherter Klickpunkt allein ist nicht ausreichend.</p></article>
+    <article class="card"><h3>Positionsdrift</h3><p class="meta">Animation, Hindernisse und Projektion erzeugen kleine Abweichungen. Korrektur ist erlaubt, globale Neu-Erkundung nicht.</p></article>
+    <article class="card"><h3>Snapshot-Konsistenz</h3><p class="meta">Loading und inkonsistente Reads dürfen weder aufgezeichnet werden noch den nächsten Replay-Schritt auslösen.</p></article>
+    <article class="card"><h3>Route-Publikation</h3><p class="meta">Abbruch während Recording darf keine halbfertige produktive Route hinterlassen. Schreiben erfolgt temporär und atomar.</p></article>
+  </div>
+
+  <h2>6. Umsetzung in Teilphasen</h2>
+  <article class="phase"><div class="phase-id">6.0</div><div><h3>Generischer Routenvertrag und Sicherheitsmodell</h3><p>Run-unabhängiges Schema, stabile Route-ID, Anzeigename, Tags, Segmentgrenzen, Identitätsmetadaten, Samplingregeln und Fehlerklassen definieren. Kein Core-Typ darf Countess voraussetzen.</p><p class="gate">Gate: Das Format kann eine hypothetische zweite Route ohne Schema- oder Player-Sonderfall beschreiben.</p></div></article>
+  <article class="phase"><div class="phase-id">6.1</div><div><h3>Routenmodell, Registry, Loader und Validator</h3><p>Godoc-dokumentierte Typen, Registry/List-API, ID-Auflösung, YAML Load/Save, Validierung und atomare Speicherung implementieren. Die API liefert GUI-taugliche Metadaten, ohne eine GUI einzuführen.</p><p class="gate">Gate: Tests decken mehrere Routen, IDs, Duplikate, Filtermetadaten und beschädigte Dateien ab.</p></div></article>
+  <article class="phase"><div class="phase-id">6.2</div><div><h3>Read-only Recorder</h3><p>CLI-Modus zeichnet während manueller Navigation nur valide In-Game-Snapshots auf. Area-Wechsel schließen Segmente; Pause/Stop funktionieren jederzeit. Sampling wird durch Mindestdistanz und Richtungsänderung reduziert.</p><p class="gate">Gate: Eine vollständige Black-Marsh-bis-Cellar-5-Aufnahme entsteht ohne Bot-Bewegungsinput und besteht den Validator.</p></div></article>
+  <article class="phase"><div class="phase-id">6.3</div><div><h3>Segment-Playback</h3><p>Ein isolierter Player arbeitet World-Punkte innerhalb genau einer Area ab. Jeder Cast wird geloggt und anhand der tatsächlichen Spielerposition bestätigt. Loading, falsche Area, Drift, Stuck oder Timeout brechen fail-closed ab.</p><p class="gate">Gate: Jedes Bewegungssegment lässt sich einzeln wiederholen; Fehler- und Stop-Tests erzeugen keine nachlaufenden Inputs.</p></div></article>
+  <article class="phase"><div class="phase-id">6.4</div><div><h3>Memory-verifizierte Area-Übergänge</h3><p>Der Player sucht am Segmentende eine passende Entrance, nähert sie lokal an und delegiert den finalen Klick an den Hover-Feedback-Clicker. Erfolg ist ausschließlich die erwartete Ziel-Area nach Loading.</p><p class="gate">Gate: Tower-Eingang und alle fünf Cellar-Übergänge funktionieren isoliert und lehnen falsche Entrances ab.</p></div></article>
+  <article class="phase"><div class="phase-id">6.5</div><div><h3>Vollständiges Route Playback</h3><p>Segmente werden zu einer Route-State-Machine verkettet. Resume ist nur an einer eindeutig erkannten Segmentgrenze erlaubt. Telemetrie korreliert Route, Segment, Zielpunkt, Transition und Ergebnis.</p><p class="gate">Gate: Mehrere vollständige Replays erreichen Cellar 5 ohne globale Explorer-Entscheidung.</p></div></article>
+  <article class="phase"><div class="phase-id">6.6</div><div><h3>Erster Adapter: Countess-Integration und Abnahme</h3><p>Ein dünner Countess-Adapter wählt eine Route per stabiler ID und übergibt sie an den generischen Player. Fehlende oder unpassende Routen enden vor Bewegungsinput.</p><p class="gate">Gate: Zehn Countess-Läufe sowie ein automatisierter Architekturtest mit einer zweiten synthetischen Route ohne Änderung an Recorder oder Player.</p></div></article>
+
+  <h2>7. Fehler- und Recovery-Policy</h2>
+  <table>
+    <thead><tr><th>Situation</th><th>Reaktion</th></tr></thead>
+    <tbody>
+      <tr><td>Route fehlt, ist ungültig oder passt nicht</td><td>Abbruch vor dem ersten Navigationsinput; kein automatischer Explorer-Fallback.</td></tr>
+      <tr><td>Snapshot ungültig oder Loading</td><td>Warten innerhalb eines begrenzten Timeouts; keine Aufnahme und keine Aktion.</td></tr>
+      <tr><td>Kleine Positionsabweichung</td><td>Begrenzte lokale Korrektur zum nächsten aufgezeichneten Punkt.</td></tr>
+      <tr><td>Drift über Grenzwert oder falsche Area</td><td>Playback abbrechen und diagnostischen Zustand loggen.</td></tr>
+      <tr><td>Entrance nicht hover-bestätigt</td><td>Begrenzte lokale Retries; danach Abbruch ohne Blindklick.</td></tr>
+      <tr><td>Pause oder Stop</td><td>Unmittelbar keine neuen Inputs; Stop beendet Recording/Playback kontrolliert.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>8. Test- und Abnahmestrategie</h2>
+  <ol>
+    <li><strong>Unit:</strong> Schema, Validierung, Sampling, Segmentfortschritt, Drift, Transitionen und Fehlerklassen.</li>
+    <li><strong>Integration mit Fakes:</strong> Snapshot-Sequenzen für Bewegung, Loading, falsche Area, Stuck, Pause und Stop.</li>
+    <li><strong>Live-Slices:</strong> Recorder; je ein Segment-Playback; jeder einzelne Entrance-Übergang.</li>
+    <li><strong>Live-E2E:</strong> vollständige Route bis Cellar 5, zuerst drei und danach mindestens zehn Wiederholungen.</li>
+    <li><strong>Countess-E2E:</strong> produktiver Run nutzt Playback, erreicht Kill-Phase und behält bestehende Loot-/Stash-Funktionalität.</li>
+  </ol>
+
+  <h2>9. Definition of Done</h2>
+  <ul>
+    <li>Der Operator kann beliebig benannte, versionierte Navigationsrouten per CLI aufzeichnen und über stabile IDs auflisten bzw. auswählen.</li>
+    <li>Recorder, Registry, Validator und Player enthalten keine Countess-spezifische Fachlogik.</li>
+    <li>Aufzeichnungen sind semantisch validiert, atomar gespeichert und an den unterstützten Kontext gebunden.</li>
+    <li>Replay bewegt anhand von World-Koordinaten und bestätigt jeden Area-Übergang über Memory und Hover.</li>
+    <li>Fehlende Route, falscher Kontext, Drift, Stuck, Timeout, Pause und Stop enden kontrolliert.</li>
+    <li>Der reguläre Countess-Run verwendet Playback als Primärpfad und fällt nicht still auf globale Erkundung zurück.</li>
+    <li>Mindestens zehn vollständige Replays im stabilen Layout erreichen Tower Cellar Level 5.</li>
+    <li><code>go test ./...</code> und <code>go build ./cmd/d2rbot</code> sind grün; Godoc, Feature-Docs, Index und Changelog sind bei Implementierung aktuell.</li>
+  </ul>
+
+  <footer>Planungsstand: 10. Juli 2026 · Phase 6: generisches Route Recording und Playback, live abgenommen mit Countess.</footer>
+</main>
+</body>
+</html>

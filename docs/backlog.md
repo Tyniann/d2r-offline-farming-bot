@@ -32,8 +32,8 @@ Spätere Navigation kann diese Regeln als Priorisierung nutzen: z. B. Tower Cell
 
 ## Route-Cache & Route-Recycling
 
-**Status:** `idea`  
-**Ziel-Phase:** nach Phase 4 (Exploration funktioniert) oder frühes Phase 5  
+**Status:** `planned`
+**Ziel-Phase:** Phase 6, gemeinsam mit Run Recorder und Playback
 **Verwandt:** Countess-Run, Pathing
 
 ### Kontext
@@ -52,18 +52,18 @@ Der Bot legt lokal eine Datei an (z. B. unter `configs/routes/` oder `.d2rbot/`)
 **Ablauf beim Run-Start:**
 
 1. Datei vorhanden?  
-   - **Nein** → normal erkunden; bei Erfolg Route + Metadaten speichern.  
+   - **Nein** → fail-closed abbrechen und den Operator zur manuellen Aufnahme auffordern.
    - **Ja** → Charakter + Diff mit aktuellem Spiel vergleichen.  
-     - **Gleich** → gespeicherte Route abspielen (mit Fallback bei Abweichung).  
-     - **Unterschiedlich** → erkunden, alte Route verwerfen oder separat pro Key ablegen.
+     - **Gleich** → gespeicherte Route Memory-verifiziert abspielen.
+     - **Unterschiedlich** → fail-closed abbrechen und eine separate Aufnahme verlangen.
 
 Nur **erfolgreiche** Runs persistieren — fehlgeschlagene Exploration nicht cachen.
 
 ### Fallback beim Abspielen
 
-- Area weicht von erwarteter Phase ab → erkunden oder Abort  
-- Position driftet über Schwellwert → erkunden  
-- Timeout in einer Phase → erkunden oder Abort mit klarem Log  
+- Area weicht von erwarteter Phase ab → Abort
+- Position driftet über Schwellwert → begrenzte lokale Korrektur, danach Abort
+- Timeout in einer Phase → Abort mit klarem Log
 
 ### Offene Punkte
 
@@ -75,9 +75,9 @@ Nur **erfolgreiche** Runs persistieren — fehlgeschlagene Exploration nicht cac
 
 ## Run Recorder (manuelle Route aufzeichnen)
 
-**Status:** `idea`  
-**Ziel-Phase:** nach Phase 4/5, wenn Bot-UI existiert (oder vorher minimal per CLI)  
-**Verwandt:** Route-Cache (#1), Input Controller, später Dashboard/UI
+**Status:** `planned`
+**Ziel-Phase:** Phase 6; CLI zuerst, eine UI ist keine Voraussetzung
+**Verwandt:** Route-Cache (#1), Input Controller, Run-Definitionen, später Dashboard/UI
 
 ### Kontext
 
@@ -89,10 +89,12 @@ Funktional **gleiches Ziel** wie Route-Cache (#1): eine abspielbare Sequenz von 
 
 Modus „Run Recorder“ (später im Bot-UI startbar):
 
-- Spieler führt den Countess-Weg einmal selbst aus (Bewegung, Klicks, Teleports, Interact, ggf. Skills).  
-- Bot zeichnet auf: Timestamp oder Tick, Area, Welt-/Client-Koordinaten, Aktionstyp (`teleport`, `click`, `interact`, `skill`, …).  
+- Spieler führt den Countess-Weg einmal selbst aus.
+- Bot zeichnet semantische World-Koordinaten, Area-Segmente, Bewegungsart und erwartete Übergänge auf; keine rohe zeitgesteuerte Input-Makrofolge.
 - Speichern in eine Datei (gleiches Format wie Cache-Route).  
 - **Replay:** Bei gleichem Charakter + Schwierigkeitsgrad Route abspielen — analog zum automatischen Cache.
+
+Recorder, Registry, Validator und Player sind generisch. Countess ist nur der erste Live-Use-Case. Stabile Route-IDs, Anzeigenamen, Tags und Validitätsmetadaten erlauben einer späteren GUI, Aufzeichnungen zu verwalten und Run-Definitionen oder Playlists zuzuordnen. Navigation bleibt von fachlichen Schritten wie Kampf, Loot und Stash getrennt.
 
 Vorteil für den Nutzer: Kein Warten auf zuverlässige Bot-Exploration; „ich zeig es dir einmal“.  
 Vorteil für uns: Recorder und Cache-Player können **dieselbe Abspiel-Engine** nutzen.
@@ -103,7 +105,7 @@ Z. B. `--record-route countess` / `--play-route configs/routes/my-sorc-hell.yaml
 
 ### Offene Punkte
 
-- Welche Events genau aufzeichnen (nur Input vs. zusätzlich World-State pro Schritt)  
+- Sampling-Distanz und Regeln zur Reduktion der World-State-Punkte
 - Pause/Stop während Recording  
 - Validierung vor Replay (Char, Diff, Version)  
 - UI-Integration vs. reine Config/CLI

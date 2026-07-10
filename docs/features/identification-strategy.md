@@ -43,7 +43,7 @@ Normal-, Low-Quality- und Superior-Items werden nicht pauschal gegatet; für das
 - Quantity-Management für Identify Scrolls/Tomes.
 - Finale Rare/Magic/Set/Unique-Stashstrategie.
 
-Diese Funktionen bleiben Phase 5.x oder Phase 6 vorbehalten.
+Diese Funktionen sind nicht Teil von Phase 6. Sie bleiben einer späteren Town-Service-Phase vorbehalten.
 
 ## Verwandte Features
 
