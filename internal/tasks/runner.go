@@ -20,6 +20,8 @@ type RunConfig struct {
 	StepTimeout time.Duration
 	// CountessCombat tunes the Countess kill phase.
 	CountessCombat CountessCombatConfig
+	// CountessRouteID is the stable generic route selected by the Countess adapter.
+	CountessRouteID string
 }
 
 // CountessCombatConfig holds resolved Countess combat settings for task logic.
@@ -120,6 +122,9 @@ func (r *Runner) Reset(reason string) {
 	}
 	if r.deps.Pathing != nil {
 		r.deps.Pathing.Reset()
+	}
+	if r.deps.Route != nil {
+		r.deps.Route.Reset()
 	}
 	if r.deps.Combat != nil {
 		r.deps.Combat.Reset()

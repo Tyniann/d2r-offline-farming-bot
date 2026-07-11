@@ -51,7 +51,7 @@ func (s pathingTestSpec) requiresInput() bool {
 
 // parsePathingTestSpec parses specs like `teleport:5000,5000`, `hover:watch`,
 // `move-area:black_marsh`, `click-entity:waypoint`,
-// `inspect:entrances`, `play-town-route:act1-waypoint`,
+// `inspect:entrances`, `inspect:layout`, `play-town-route:act1-waypoint`,
 // `record-town-route:act1-waypoint`, or `pickup:item`.
 func parsePathingTestSpec(spec string) (pathingTestSpec, error) {
 	raw := strings.TrimSpace(spec)
@@ -95,8 +95,8 @@ func parsePathingTestSpec(spec string) (pathingTestSpec, error) {
 		return pathingTestSpec{kind: pathingTestClickEntity, entity: entity}, nil
 	case "inspect":
 		entity := strings.ToLower(arg)
-		if entity != "entrances" {
-			return pathingTestSpec{}, fmt.Errorf("pathing test inspect: expected entrances, got %q", arg)
+		if entity != "entrances" && entity != "layout" {
+			return pathingTestSpec{}, fmt.Errorf("pathing test inspect: expected entrances or layout, got %q", arg)
 		}
 		return pathingTestSpec{kind: pathingTestInspect, entity: entity}, nil
 	case "play-town-route":
@@ -261,6 +261,25 @@ func (rt *Runtime) runPathingInspect(
 			if fp != last {
 				logInspectEntrances(rt.Log, cur)
 				last = fp
+			}
+		case "layout":
+			fp, err := pathing.BuildLayoutFingerprint(cur)
+			if errors.Is(err, pathing.ErrLayoutAnchorsUnavailable) {
+				continue
+			}
+			if err != nil {
+				return fmt.Errorf("pathing inspect layout: %w", err)
+			}
+			if fp.Hash != last {
+				rt.Log.Info("layout fingerprint observed",
+					"layout_fingerprint", fp.Hash,
+					"version", fp.Version,
+					"area_id", fp.AreaID,
+					"player_x", fp.PlayerX,
+					"player_y", fp.PlayerY,
+					"anchor_count", fp.AnchorCount,
+				)
+				last = fp.Hash
 			}
 		default:
 			return fmt.Errorf("pathing inspect: unsupported entity %q", spec.entity)

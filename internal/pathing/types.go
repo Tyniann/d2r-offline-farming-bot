@@ -31,10 +31,16 @@ func (k GoalKind) String() string {
 
 // Goal describes a navigation objective for [Navigator.Start].
 type Goal struct {
-	Kind        GoalKind
-	TargetArea  world.AreaID       // Required for GoalKindMoveToArea.
-	TargetPos   world.Position     // Required for GoalKindMoveToPosition.
-	ViaEntrance world.EntranceKind // Optional: entrance kind that leads to TargetArea.
+	Kind       GoalKind
+	TargetArea world.AreaID   // Required for GoalKindMoveToArea.
+	TargetPos  world.Position // Required for GoalKindMoveToPosition.
+	// ArrivalDistance overrides the general navigator tolerance when positive.
+	ArrivalDistance float64
+	ViaEntrance     world.EntranceKind // Optional: entrance kind that leads to TargetArea.
+	// ViaEntranceUnitID pins a strict transition to one runtime entrance unit.
+	ViaEntranceUnitID uint32
+	// StrictEntrance blocks bearing exploration when the expected entrance is unavailable.
+	StrictEntrance bool
 }
 
 // NavStatus describes the current navigator state-machine phase.
@@ -53,11 +59,12 @@ const (
 
 // NavResult reasons for terminal states.
 const (
-	ReasonStuck            = "stuck"
-	ReasonHoverNotFound    = "hover_not_found"
-	ReasonCancelled        = "cancelled"
-	ReasonInvalidGoal      = "invalid_goal"
-	ReasonProjectionFailed = "projection_failed"
+	ReasonStuck               = "stuck"
+	ReasonHoverNotFound       = "hover_not_found"
+	ReasonCancelled           = "cancelled"
+	ReasonInvalidGoal         = "invalid_goal"
+	ReasonProjectionFailed    = "projection_failed"
+	ReasonEntranceUnavailable = "entrance_unavailable"
 )
 
 // NavResult is the final outcome of a navigation goal.

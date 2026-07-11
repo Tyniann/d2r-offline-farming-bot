@@ -103,7 +103,7 @@ func TestValidateRunModeTravelMarshOK(t *testing.T) {
 }
 
 func TestValidateRunModeTravelCellar5OK(t *testing.T) {
-	cfg := &config.Config{Input: config.InputConfig{Enabled: true}}
+	cfg := &config.Config{Input: config.InputConfig{Enabled: true}, Runs: config.RunsConfig{Countess: config.CountessRunConfig{RouteID: "test-route"}}}
 	log := config.NewLogger("error")
 	err := validateRunMode(tasksSelection("countess", tasks.CountessPhaseTravelCellar5), cfg, Options{Run: "countess", RunPhase: tasks.CountessPhaseTravelCellar5}, log)
 	if err != nil {
@@ -154,7 +154,7 @@ func TestValidateRunModeLootCountessRequiresTeleportPortalAndBelt(t *testing.T) 
 func TestMapRunConfigResolvesCountessCombatSkill(t *testing.T) {
 	cfg := config.RunsConfig{
 		StepTimeoutMs: 30000,
-		Countess: config.CountessRunConfig{Combat: config.CountessCombatConfig{
+		Countess: config.CountessRunConfig{RouteID: "test-route", Combat: config.CountessCombatConfig{
 			Profile:                 "necro_bone_spear",
 			AttackSkill:             "bone_spear",
 			AttackIntervalMs:        350,
@@ -166,6 +166,9 @@ func TestMapRunConfigResolvesCountessCombatSkill(t *testing.T) {
 	got := mapRunConfig(cfg)
 	if got.CountessCombat.AttackSkillID != 84 || got.CountessCombat.AttackInterval.String() != "350ms" {
 		t.Fatalf("CountessCombat = %+v", got.CountessCombat)
+	}
+	if got.CountessRouteID != "test-route" {
+		t.Fatalf("CountessRouteID = %q", got.CountessRouteID)
 	}
 }
 
@@ -183,7 +186,7 @@ func tasksSelection(run, phase string) tasks.RunSelection {
 }
 
 func fullCountessConfig() *config.Config {
-	return &config.Config{Input: config.InputConfig{
+	return &config.Config{Runs: config.RunsConfig{Countess: config.CountessRunConfig{RouteID: "test-route"}}, Input: config.InputConfig{
 		Enabled: true,
 		Bindings: config.InputBindingsConfig{
 			Skills: map[string]config.SkillBindingConfig{

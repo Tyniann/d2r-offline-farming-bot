@@ -8,6 +8,22 @@ Versionierung nach [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- Add Phase 6.7 Countess route adapter and `runs.countess.route_id` without a best-effort Explorer fallback
+- Validate the Phase 6.7 Countess adapter live across all six recorded segments from Black Marsh to Tower Cellar Level 5
+- Validate ten complete Phase 6 route playbacks in the bound Nightmare layout, including one Countess adapter run
+- Add Phase 6.6 full route playback in one verified session with correlated route, segment, point, transition, stop, and failure telemetry
+- Add Phase 6.5 strict route transitions with semantic entrance selection, runtime UnitID pinning, bounded recovery, and Area-only success
+- Add Phase 6.4 isolated route segment playback with Memory-confirmed waypoints, drift limits, bounded corrections, and strict transitions
+- Add Phase 6.3 read-only route recorder with World-coordinate sampling, confirmed area transitions, pause, and Stop-only publication
+- Record and validate the first six-segment `MrBones` Nightmare route from Black Marsh to Tower Cellar Level 5
+- Add Phase 6.2 generic Route Contract v1 types, YAML storage, registry, validator, compatibility precheck, and read-only route CLI
+- Add Phase 6.1b three-snapshot character identity stabilization and confirmed World Model mapping
+- Add Phase 6.1c isolated controlled offline difficulty selection for the prepared 1280×720 character screen
+- Add Phase 6.1d deterministic layout fingerprints and read-only `--pathing-test inspect:layout` diagnostics
+- Validate controlled Hell/Nightmare selection and stable cross-game Nightmare layout fingerprints against a distinct Hell layout
+- Add Phase 6.1a read-only identity research probe for validated character name, class ID, and reconstructed offline map seed sources
+- Define Phase 6.0 generic Route Contract v1 with stable route IDs, Memory-confirmed game-identity binding, segment invariants, sampling rules, failure classes, and a future CLI contract
+- Plan Phase 6.1 read-only Game Identity for character name, class, and actual difficulty before route recording or playback
 - Add Phase 5.10 fail-closed per-run JSONL telemetry for drop, Pickit, pickup, inventory-full, and stash events
 - Add Phase 5.9 identification policy with stat-rule gating and explicit `identify_required` Keep/Stash decisions
 - Add Phase 5.8 Personal Stash automation with Memory-gated town walking, protected Ctrl+LMB transfers, per-item verification, and clean UI close
@@ -31,6 +47,9 @@ Versionierung nach [Semantic Versioning](https://semver.org/).
 - Regenerate the item catalog from local D2R `3.2.92777` data so current Countess drops resolve correctly
 
 ### Fixed
+- Recover bounded route drift by returning to the last confirmed recorded point without widening the drift limit
+- Prevent repeated entrance clicks while waiting for Loading or the expected Area transition
+- Align navigator goals with per-route waypoint tolerance to prevent repeated arrival at a stricter playback waypoint
 - Require three stable no-target loot scans so transient item reads cannot leave a second Pickit match behind
 - Fix the Countess good-chest object ID by generating `PlaceUniqueChest` from local D2R `3.2.92777` data
 - Increase the item snapshot cap so Countess ground drops are not hidden behind inventory/history item units

@@ -1,0 +1,163 @@
+version: 1
+id: black-marsh-cellar5-nightmare-mrbones
+name: Black Marsh bis Tower Cellar 5 – MrBones Nightmare
+kind: navigation
+binding:
+    character_name: MrBones
+    character_class: necromancer
+    difficulty: nightmare
+    map_seed: 466817790
+    game_version: 3.2.92777
+    layout_fingerprint:
+        version: 1
+        area_id: 6
+        anchor_count: 1
+        hash: 54f310a416649e926dca8ba067e30223d71b22043b753097a6065ffe82aec5be
+recording:
+    recorded_at: 2026-07-11T00:52:15.3742095Z
+    sample_distance_tiles: 4
+playback:
+    waypoint_tolerance_tiles: 3
+    max_drift_tiles: 8
+    max_local_corrections: 2
+    segment_timeout_ms: 30000
+    transition_timeout_ms: 10000
+segments:
+    - id: black-marsh
+      from_area_id: 6
+      to_area_id: 20
+      movement: teleport
+      points:
+        - x: 15498
+          "y": 5268
+        - x: 15521
+          "y": 5264
+        - x: 15546
+          "y": 5261
+        - x: 15571
+          "y": 5259
+        - x: 15598
+          "y": 5257
+        - x: 15626
+          "y": 5257
+        - x: 15654
+          "y": 5260
+        - x: 15678
+          "y": 5260
+        - x: 15708
+          "y": 5260
+        - x: 15687
+          "y": 5263
+      transition:
+        type: entrance
+        entrance_kind: wilderness_to_tower
+    - id: forgotten-tower
+      from_area_id: 20
+      to_area_id: 21
+      movement: teleport
+      points:
+        - x: 10005
+          "y": 8004
+        - x: 10009
+          "y": 8006
+        - x: 10006
+          "y": 8009
+      transition:
+        type: entrance
+        entrance_kind: unknown
+    - id: tower-cellar-level-1
+      from_area_id: 21
+      to_area_id: 22
+      movement: teleport
+      points:
+        - x: 12590
+          "y": 5173
+        - x: 12607
+          "y": 5172
+        - x: 12619
+          "y": 5172
+        - x: 12631
+          "y": 5152
+        - x: 12632
+          "y": 5122
+        - x: 12628
+          "y": 5094
+        - x: 12623
+          "y": 5068
+        - x: 12605
+          "y": 5052
+        - x: 12594
+          "y": 5029
+        - x: 12590
+          "y": 5024
+        - x: 12589
+          "y": 5023
+      transition:
+        type: entrance
+        entrance_kind: tower_cellar_down
+    - id: tower-cellar-level-2
+      from_area_id: 22
+      to_area_id: 23
+      movement: teleport
+      points:
+        - x: 12520
+          "y": 6667
+        - x: 12529
+          "y": 6683
+        - x: 12555
+          "y": 6688
+        - x: 12582
+          "y": 6687
+        - x: 12599
+          "y": 6671
+        - x: 12608
+          "y": 6656
+        - x: 12627
+          "y": 6645
+        - x: 12652
+          "y": 6637
+        - x: 12648
+          "y": 6638
+        - x: 12646
+          "y": 6638
+      transition:
+        type: entrance
+        entrance_kind: tower_cellar_down
+    - id: tower-cellar-level-3
+      from_area_id: 23
+      to_area_id: 24
+      movement: teleport
+      points:
+        - x: 12600
+          "y": 8248
+        - x: 12587
+          "y": 8257
+        - x: 12573
+          "y": 8268
+        - x: 12561
+          "y": 8282
+        - x: 12550
+          "y": 8297
+        - x: 12550
+          "y": 8298
+      transition:
+        type: entrance
+        entrance_kind: tower_cellar_down
+    - id: tower-cellar-level-4
+      from_area_id: 24
+      to_area_id: 25
+      movement: teleport
+      points:
+        - x: 12680
+          "y": 9507
+        - x: 12676
+          "y": 9529
+        - x: 12674
+          "y": 9553
+        - x: 12676
+          "y": 9568
+        - x: 12682
+          "y": 9592
+      transition:
+        type: entrance
+        entrance_kind: tower_cellar_down

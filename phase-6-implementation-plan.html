@@ -42,7 +42,7 @@
   <div class="callout warning"><strong>Verbindliche Architekturentscheidung:</strong> Recorder, Route, Registry, Validator und Player sind generisch und kennen keinen Countess-Task. Nur die erste Run-Integration und ihre Abnahmeroute sind Countess-spezifisch. Playback wird dort der Primärpfad; eine fehlende Aufnahme löst kein stilles globales Erkunden aus.</div>
 
   <h2>2. Scope</h2>
-  <p><strong>Enthalten:</strong> generischer Aufnahmevertrag, Recorder, Route Registry, Validierung und Persistenz, Replay-Engine, Segment- und Transition-Verifikation, lokale Driftkorrektur, CLI/Config, Countess-Integration, Telemetrie und Live-Abnahme.</p>
+  <p><strong>Enthalten:</strong> Character Identity, kontrollierte Offline-Difficulty-Auswahl, Layout-Fingerprint, generischer Aufnahmevertrag, Recorder, Route Registry, Replay-Engine, CLI/Config, Countess-Integration und Live-Abnahme.</p>
   <p><strong>Nicht enthalten:</strong> eine GUI oder weitere live integrierte Farmziele, Town-Route zum Waypoint, Kill/Loot/Stash-Logik, autonomer Game-Lifecycle, Multi-Run-Dauerbetrieb, Map-Server sowie Identify-, Vendor- oder Repair-Automation. Datenmodell und Verwaltungs-API müssen diese späteren Nutzer jedoch unterstützen.</p>
   <div class="flow" aria-label="Route"><span class="node">Black Marsh</span><span class="arrow">→</span><span class="node">Forgotten Tower</span><span class="arrow">→</span><span class="node">Cellar 1</span><span class="arrow">→</span><span class="node">Cellar 2</span><span class="arrow">→</span><span class="node">Cellar 3</span><span class="arrow">→</span><span class="node">Cellar 4</span><span class="arrow">→</span><span class="node">Cellar 5</span></div>
 
@@ -71,6 +71,16 @@
   </table>
   <p>Phase 6 implementiert die Route-Schicht vollständig und bindet sie an den bestehenden Countess-Task an. Ein allgemeiner Run-Editor ist nicht Teil dieser Phase; ID-basierte Referenzen und Registry verhindern aber, dass Dateipfade oder Countess-Sondertypen später GUI und Playlists blockieren.</p>
 
+  <h3>Auswahlkontext versus Layout-Fingerprint</h3>
+  <table>
+    <thead><tr><th>Artefakt</th><th>Zweck</th><th>Sicherheitswirkung</th></tr></thead>
+    <tbody>
+      <tr><td>Route Binding</td><td>Speichert Character Name, Character Class, gewählte Difficulty und Game Version direkt an der Aufnahme.</td><td>Character wird über Memory geprüft; Difficulty ist zunächst die kontrollierte Auswahl.</td></tr>
+      <tr><td>Flüchtiger Auswahlkontext</td><td>Merkt im laufenden Prozess, welche Difficulty der Bot gerade angeklickt hat.</td><td>Nur Logging und Erwartung; wird nicht persistiert und gibt Playback nicht frei.</td></tr>
+      <tr><td>Layout-Fingerprint</td><td>Beobachteter Fingerabdruck aus Area, Startposition und stabilen World-Ankern des aufgezeichneten Layouts.</td><td>Autoritativer Precheck: Mismatch blockiert den ersten Routeninput.</td></tr>
+    </tbody>
+  </table>
+
   <h2>4. Routenmodell</h2>
   <p>Die Route speichert nicht bloß Input-Ereignisse oder Timestamps. Persistiert werden World-State-basierte Navigationsabsichten. Laufzeitabhängige Unit-IDs dürfen Diagnosewerte sein, aber keine alleinigen dauerhaften Anker.</p>
   <pre><code>version: 1
@@ -78,30 +88,43 @@ id: "black-marsh-to-cellar-5-hell-necro"
 name: "Black Marsh bis Tower Cellar 5"
 kind: navigation
 tags: [countess, act1, hell]
-metadata:
-  character: "..."
+binding:
+  character_name: "MyNecro"
+  character_class: necromancer
   difficulty: hell
+  map_seed: 466817790
   game_version: "3.2.92777"
-  recorded_at: "2026-07-10T...Z"
+  profile_id: "necro-hell" # optional, nur Organisation
+recording:
+  recorded_at: "2026-07-10T20:00:00Z"
+  sample_distance_tiles: 4.0
+playback:
+  waypoint_tolerance_tiles: 3.0
+  max_drift_tiles: 8.0
+  max_local_corrections: 2
+  segment_timeout_ms: 30000
+  transition_timeout_ms: 10000
 segments:
-  - from_area: black_marsh
-    to_area: forgotten_tower
+  - id: black-marsh
+    from_area_id: 6
+    to_area_id: 20
     movement: teleport
     points:
       - { x: 1234, y: 5678 }
     transition:
       entrance_kind: wilderness_to_tower
-  - from_area: forgotten_tower
-    to_area: tower_cellar_level_1
+  - id: forgotten-tower
+    from_area_id: 20
+    to_area_id: 21
     movement: teleport
     points: []
     transition:
       entrance_kind: unknown_antechamber</code></pre>
-  <p class="meta">Das Beispiel ist ein Entwurf. Phase 6.0 legt Feldnamen, Identitätsprüfung und Migrationsstrategie verbindlich fest.</p>
+  <p class="meta">Contract v1 ist in der Feature-Dokumentation verbindlich beschrieben. Die Koordinaten dienen nur als Beispiel.</p>
 
   <h2>5. Herausforderungen</h2>
   <div class="grid">
-    <article class="card"><h3>Routenidentität</h3><p class="meta">Charakter und Schwierigkeit müssen sicher bestimmt oder operatorseitig eindeutig gebunden werden. Spielversion allein beweist kein passendes Layout.</p></article>
+    <article class="card"><h3>Routenidentität</h3><p class="meta">Der Bot kennt die gewählte Difficulty durch den eigenen Menü-Klick, bestätigt den Character über Memory und das resultierende Layout über einen Fingerprint.</p></article>
     <article class="card"><h3>Sampling</h3><p class="meta">Zu viele Punkte machen Replay langsam und fragil, zu wenige schneiden Ecken oder landen außerhalb des spielbaren Bereichs.</p></article>
     <article class="card"><h3>Transitionen</h3><p class="meta">Entrances benötigen Laufzeit-Entity-Suche und Hover-Bestätigung. Ein gespeicherter Klickpunkt allein ist nicht ausreichend.</p></article>
     <article class="card"><h3>Positionsdrift</h3><p class="meta">Animation, Hindernisse und Projektion erzeugen kleine Abweichungen. Korrektur ist erlaubt, globale Neu-Erkundung nicht.</p></article>
@@ -110,13 +133,17 @@ segments:
   </div>
 
   <h2>6. Umsetzung in Teilphasen</h2>
-  <article class="phase"><div class="phase-id">6.0</div><div><h3>Generischer Routenvertrag und Sicherheitsmodell</h3><p>Run-unabhängiges Schema, stabile Route-ID, Anzeigename, Tags, Segmentgrenzen, Identitätsmetadaten, Samplingregeln und Fehlerklassen definieren. Kein Core-Typ darf Countess voraussetzen.</p><p class="gate">Gate: Das Format kann eine hypothetische zweite Route ohne Schema- oder Player-Sonderfall beschreiben.</p></div></article>
-  <article class="phase"><div class="phase-id">6.1</div><div><h3>Routenmodell, Registry, Loader und Validator</h3><p>Godoc-dokumentierte Typen, Registry/List-API, ID-Auflösung, YAML Load/Save, Validierung und atomare Speicherung implementieren. Die API liefert GUI-taugliche Metadaten, ohne eine GUI einzuführen.</p><p class="gate">Gate: Tests decken mehrere Routen, IDs, Duplikate, Filtermetadaten und beschädigte Dateien ab.</p></div></article>
-  <article class="phase"><div class="phase-id">6.2</div><div><h3>Read-only Recorder</h3><p>CLI-Modus zeichnet während manueller Navigation nur valide In-Game-Snapshots auf. Area-Wechsel schließen Segmente; Pause/Stop funktionieren jederzeit. Sampling wird durch Mindestdistanz und Richtungsänderung reduziert.</p><p class="gate">Gate: Eine vollständige Black-Marsh-bis-Cellar-5-Aufnahme entsteht ohne Bot-Bewegungsinput und besteht den Validator.</p></div></article>
-  <article class="phase"><div class="phase-id">6.3</div><div><h3>Segment-Playback</h3><p>Ein isolierter Player arbeitet World-Punkte innerhalb genau einer Area ab. Jeder Cast wird geloggt und anhand der tatsächlichen Spielerposition bestätigt. Loading, falsche Area, Drift, Stuck oder Timeout brechen fail-closed ab.</p><p class="gate">Gate: Jedes Bewegungssegment lässt sich einzeln wiederholen; Fehler- und Stop-Tests erzeugen keine nachlaufenden Inputs.</p></div></article>
-  <article class="phase"><div class="phase-id">6.4</div><div><h3>Memory-verifizierte Area-Übergänge</h3><p>Der Player sucht am Segmentende eine passende Entrance, nähert sie lokal an und delegiert den finalen Klick an den Hover-Feedback-Clicker. Erfolg ist ausschließlich die erwartete Ziel-Area nach Loading.</p><p class="gate">Gate: Tower-Eingang und alle fünf Cellar-Übergänge funktionieren isoliert und lehnen falsche Entrances ab.</p></div></article>
-  <article class="phase"><div class="phase-id">6.5</div><div><h3>Vollständiges Route Playback</h3><p>Segmente werden zu einer Route-State-Machine verkettet. Resume ist nur an einer eindeutig erkannten Segmentgrenze erlaubt. Telemetrie korreliert Route, Segment, Zielpunkt, Transition und Ergebnis.</p><p class="gate">Gate: Mehrere vollständige Replays erreichen Cellar 5 ohne globale Explorer-Entscheidung.</p></div></article>
-  <article class="phase"><div class="phase-id">6.6</div><div><h3>Erster Adapter: Countess-Integration und Abnahme</h3><p>Ein dünner Countess-Adapter wählt eine Route per stabiler ID und übergibt sie an den generischen Player. Fehlende oder unpassende Routen enden vor Bewegungsinput.</p><p class="gate">Gate: Zehn Countess-Läufe sowie ein automatisierter Architekturtest mit einer zweiten synthetischen Route ohne Änderung an Recorder oder Player.</p></div></article>
+  <article class="phase"><div class="phase-id">6.0 ✓</div><div><h3>Generischer Routenvertrag und Sicherheitsmodell — abgeschlossen</h3><p>Contract v1 definiert run-unabhängiges Schema, stabile Route-ID, Anzeigename, Tags, Segmentinvarianten, Profil-/Difficulty-/Versionsbindung, Sampling, Playback-Limits, Fehlercodes und den generischen CLI-Vertrag. Kein Core-Typ darf Countess voraussetzen.</p><p class="gate">Gate erfüllt: Das Format kann weitere Routen ohne Schema- oder Player-Sonderfall beschreiben; Details stehen in der Feature-Dokumentation.</p></div></article>
+  <article class="phase"><div class="phase-id">6.1a ✓</div><div><h3>Read-only Identity-Quellenanalyse — abgeschlossen</h3><p>Character Name und Class ID sind live validiert. Der rekonstruierte Seed blieb bei <code>MrBones</code> Hell/Nightmare und <code>MrHammer</code> identisch und ist nur Diagnose. Auch der DRLG-Vergleich Hell <code>2</code> → Nightmare <code>1</code> lieferte keinen Difficulty-Kandidaten.</p><p class="gate">Ergebnis: Für 6.1b ist eine Game-/Client-State-Quelle zu erforschen oder ein konservativer Vertrag aus konfigurierter Difficulty plus Start-/Layoutankern festzulegen.</p></div></article>
+  <article class="phase"><div class="phase-id">6.1b ✓</div><div><h3>Character Identity stabilisieren — implementiert</h3><p>Character Name und Class ID werden über drei konsistente In-Game-Snapshots bestätigt, ins World Model übernommen und bei Loading, Detach oder Wechsel invalidiert.</p><p class="gate">Gate technisch erfüllt: Tests bestätigen Stabilisierung, Reset und Mapper-Grenze.</p></div></article>
+  <article class="phase"><div class="phase-id">6.1c ✓</div><div><h3>Kontrollierte Difficulty-Auswahl — abgeschlossen</h3><p>Vom manuell vorbereiteten Offline-Difficulty-Dialog klickt der isolierte CLI-Test die konfigurierte Difficulty über kalibrierte Koordinaten bei exakt 1280×720. Die Auswahl bleibt nur flüchtiger Kontext; nach <code>in_game</code> wird der Character bestätigt.</p><p class="gate">Gate erfüllt: Hell und Nightmare wurden kontrolliert gestartet und jeweils als <code>MrBones</code> / Necromancer bestätigt; falsche Geometrie endet fail-closed.</p></div></article>
+  <article class="phase"><div class="phase-id">6.1d ✓</div><div><h3>Layout-Fingerprint — abgeschlossen</h3><p>Ein kanonischer SHA-256 aus Area-ID und sortierten stabilen Objects/Entrances ohne UnitIDs bildet den autoritativen Layoutnachweis. Die Spielerposition bleibt Diagnosemetadatum und verändert den Hash nicht. <code>inspect:layout</code> erlaubt read-only Live-Prüfung.</p><p class="gate">Gate erfüllt: Nightmare reproduzierte über zwei neue Spiele exakt <code>c233f9b1…fb51c</code>; Hell ergab abweichend <code>c8b942fb…e3b8c</code>.</p></div></article>
+  <article class="phase"><div class="phase-id">6.2 ✓</div><div><h3>Routenmodell, Registry, Loader und Validator — abgeschlossen</h3><p>Godoc-dokumentierte Route-v1-Typen, GUI-neutrale Registry/List-API, stabile ID-Auflösung, YAML Load/Save, Character-/Versions-/Layout-Bindung, vollständige Validierung und validate-before-publish Speicherung sind implementiert. Read-only stehen <code>--route list</code>, <code>inspect:&lt;id&gt;</code> und <code>validate:&lt;id&gt;</code> bereit.</p><p class="gate">Gate erfüllt: Tests decken gültige und beschädigte Dateien, unbekannte Felder, Duplikat-IDs, Segmentinvarianten sowie Character- und Layout-Mismatches ab.</p></div></article>
+  <article class="phase"><div class="phase-id">6.3 ✓</div><div><h3>Read-only Recorder — abgeschlossen</h3><p><code>--route record:&lt;id&gt;</code> zeichnet während manueller Navigation ausschließlich valide In-Game-World-Snapshots mit bestätigter Game Identity und Start-Fingerprint auf. Area-Wechsel schließen Segmente; Loading wird ignoriert, Pause friert Sampling ein und nur Stop veröffentlicht eine vollständig validierte Route.</p><p class="gate">Gate erfüllt: <code>black-marsh-cellar5-nightmare-mrbones</code> wurde live mit sechs bestätigten Segmenten von Black Marsh bis Cellar 5 aufgezeichnet, veröffentlicht und über Registry sowie Validator erneut geprüft.</p></div></article>
+  <article class="phase"><div class="phase-id">6.4 ✓</div><div><h3>Segment-Playback — abgeschlossen</h3><p><code>--route play-segment:&lt;route-id&gt;/&lt;segment-id&gt;</code> arbeitet genau ein Segment punktweise ab. Ankunft, Drift und Area werden per Memory bestätigt; der Entrance-Übergang ist strikt und besitzt keinen Bearing-Explore-Fallback. Korrekturen, Segmentzeit und Transitionzeit sind hart begrenzt.</p><p class="gate">Gate erfüllt: Alle sechs Nightmare-Segmente wurden als getrennte Aufrufe erfolgreich bis zum bestätigten Area-Wechsel wiedergegeben. Ein absichtlich falscher Start auf Level 5 blockierte `black-marsh` vor Input; Cancel-Tests bestätigen Reset ohne nachlaufende Goals.</p></div></article>
+  <article class="phase"><div class="phase-id">6.5 ✓</div><div><h3>Memory-verifizierte Area-Übergänge — abgeschlossen</h3><p>Der Transition Handler selektiert ausschließlich den gespeicherten semantischen Entrance-Kind, bindet eine konkrete Laufzeit-Unit, nähert sie lokal an und delegiert den finalen Klick an den Hover-Feedback-Clicker. Kein Bearing-Fallback und kein Unit-Wechsel; Erfolg ist ausschließlich die erwartete Ziel-Area nach Loading.</p><p class="gate">Gate erfüllt: Tower-Eingang, Antechamber und alle vier Cellar-Abgänge funktionierten isoliert mit jeweils genau einem bestätigten Klick. Tests lehnen falsche Entrances ohne Input ab und begrenzen Recovery mit <code>route_transition_failed</code>.</p></div></article>
+  <article class="phase"><div class="phase-id">6.6 ✓</div><div><h3>Vollständiges Route Playback — abgeschlossen</h3><p><code>--route play:&lt;route-id&gt;</code> verkettet alle Segmente in einer einzigen überwachten Session. Der nächste Player entsteht erst nach bestätigter Segment-Ziel-Area. Pause/Stop, Segment-/Transition-Fristen und alle fail-closed Grenzen bleiben aktiv; JSONL korreliert Route, Segment, Punktziel und Transition. Begrenzte Drift-Recovery kehrt ausschließlich zum letzten bestätigten Routenpunkt zurück.</p><p class="gate">Gate erfüllt: Zehn vollständige Wiedergaben im gebundenen Nightmare-Layout erreichten Cellar 5 ohne globale Explorer-Entscheidung; neun über die direkte Route-CLI und eine über den Countess-Adapter. Jede erfolgreiche Telemetrie bestätigt sechs abgeschlossene Segmente. Drei Driftfehler brachen fail-closed mit exaktem Segment-/Punktkontext ab.</p></div></article>
+  <article class="phase"><div class="phase-id">6.7 ✓</div><div><h3>Erster Adapter: Countess-Integration — abgeschlossen</h3><p><code>runs.countess.route_id</code> wählt eine Registry-Route per stabiler ID. Der Task-Schritt <code>play_recorded_route</code> delegiert an den generischen Player und ersetzt im regulären Full Run sowie in <code>travel-cellar5</code> die sechs best-effort Explorer-Schritte. Fehler enden ohne Explorer-Fallback.</p><p class="gate">Gate erfüllt: Der Countess-Adapter spielte die konfigurierte Nightmare-Route live vom Black-Marsh-Wegpunkt über sechs bestätigte Segmente bis Tower Cellar Level 5 ab und beendete <code>travel-cellar5</code> erfolgreich. Ein zweiter synthetischer Routentest bestätigt die run-unabhängige Player-Architektur.</p></div></article>
 
   <h2>7. Fehler- und Recovery-Policy</h2>
   <table>
@@ -144,6 +171,8 @@ segments:
   <ul>
     <li>Der Operator kann beliebig benannte, versionierte Navigationsrouten per CLI aufzeichnen und über stabile IDs auflisten bzw. auswählen.</li>
     <li>Recorder, Registry, Validator und Player enthalten keine Countess-spezifische Fachlogik.</li>
+    <li>Character wird read-only bestätigt, Difficulty vom Bot kontrolliert ausgewählt und das resultierende Layout vor Playback per Fingerprint verifiziert.</li>
+    <li>Es wird kein persistenter „zuletzt gewählt“-Cache benötigt; nach jedem Start wird Character plus Layout erneut geprüft.</li>
     <li>Aufzeichnungen sind semantisch validiert, atomar gespeichert und an den unterstützten Kontext gebunden.</li>
     <li>Replay bewegt anhand von World-Koordinaten und bestätigt jeden Area-Übergang über Memory und Hover.</li>
     <li>Fehlende Route, falscher Kontext, Drift, Stuck, Timeout, Pause und Stop enden kontrolliert.</li>
@@ -152,7 +181,7 @@ segments:
     <li><code>go test ./...</code> und <code>go build ./cmd/d2rbot</code> sind grün; Godoc, Feature-Docs, Index und Changelog sind bei Implementierung aktuell.</li>
   </ul>
 
-  <footer>Planungsstand: 10. Juli 2026 · Phase 6: generisches Route Recording und Playback, live abgenommen mit Countess.</footer>
+  <footer>Planungsstand: 11. Juli 2026 · Phase 6 abgeschlossen: generisches Route Recording und Playback, live abgenommen mit Countess.</footer>
 </main>
 </body>
 </html>

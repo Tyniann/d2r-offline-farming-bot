@@ -20,6 +20,7 @@ func TestParsePathingTestSpec(t *testing.T) {
 		{"click-entity:waypoint", pathingTestSpec{kind: pathingTestClickEntity, entity: "waypoint"}},
 		{"click-entity:entrance", pathingTestSpec{kind: pathingTestClickEntity, entity: "entrance"}},
 		{"inspect:entrances", pathingTestSpec{kind: pathingTestInspect, entity: "entrances"}},
+		{"inspect:layout", pathingTestSpec{kind: pathingTestInspect, entity: "layout"}},
 		{"play-town-route:act1-waypoint", pathingTestSpec{kind: pathingTestPlayTown, route: "act1-waypoint"}},
 		{"record-town-route:act1-waypoint", pathingTestSpec{kind: pathingTestRecordTown, route: "act1-waypoint"}},
 		{"pickup:item", pathingTestSpec{kind: pathingTestPickupItem, entity: "item"}},
@@ -75,6 +76,13 @@ func TestPathingTestSpecRequiresInput(t *testing.T) {
 	}
 	if inspect.requiresInput() {
 		t.Fatal("inspect:entrances must not require input")
+	}
+	layout, err := parsePathingTestSpec("inspect:layout")
+	if err != nil {
+		t.Fatalf("parse error = %v", err)
+	}
+	if layout.requiresInput() {
+		t.Fatal("inspect:layout must not require input")
 	}
 	play, err := parsePathingTestSpec("play-town-route:act1-waypoint")
 	if err != nil {
@@ -136,6 +144,9 @@ func TestValidatePathingTestModeInputRequired(t *testing.T) {
 	}
 	if err := validatePathingTestMode(disabled, Options{PathingTest: "inspect:entrances"}); err != nil {
 		t.Fatalf("inspect:entrances err = %v, want nil", err)
+	}
+	if err := validatePathingTestMode(disabled, Options{PathingTest: "inspect:layout"}); err != nil {
+		t.Fatalf("inspect:layout err = %v, want nil", err)
 	}
 
 	enabled := &config.Config{Input: config.InputConfig{Enabled: true}}

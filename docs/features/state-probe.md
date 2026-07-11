@@ -4,6 +4,8 @@
 
 Phase-1 State-Probe über minimale D2R-Offsets. Der Bot findet den Main-Player über die UnitTable (d2go-Muster) und mappt HP, MaxHP, Mana, MaxMana, Area-ID sowie Position in `world.State`. Ab Phase 2.3 liest der App-Loop Memory-Snapshots nach jedem erfolgreichen `Poll()` im attached-Zustand; `--probe` steuert nur noch semantisches World-State-Logging. Ab Phase 5.1 ergänzt die Probe read-only positionierte Ground-Items.
 
+Ab Phase 6.1 enthält `memory.Snapshot.Identity` zusätzlich Charaktername, Class ID und einen rekonstruierten Offline-Map-Seed. Name und Klasse werden erst nach drei identischen validen In-Game-Snapshots als bestätigte `world.GameIdentity` gemappt. Loading, Detach oder wechselnde Werte setzen die Bestätigung zurück. Der Map-Seed dient ausschließlich der Diagnose.
+
 ## Ort im Code
 
 - **Paket:** `internal/memory/` (Reads), `internal/world/` (Mapping), `internal/app/` (Loop + Logging)

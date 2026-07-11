@@ -69,12 +69,25 @@ func FromSnapshot(snap memory.Snapshot) State {
 			Mana:     snap.Mana,
 			MaxMana:  snap.MaxMana,
 		},
+		Identity:  mapGameIdentity(snap.Identity),
 		Objects:   objects,
 		Entrances: entrances,
 		Monsters:  monsters,
 		Items:     items,
 		Hover:     hover,
 		UI:        mapUIState(snap.UI),
+	}
+}
+
+func mapGameIdentity(identity memory.IdentityProbe) GameIdentity {
+	if !identity.Valid || !identity.Confirmed || identity.ClassID > uint32(CharacterClassAssassin) {
+		return GameIdentity{}
+	}
+	return GameIdentity{
+		Valid:         true,
+		CharacterName: identity.CharacterName,
+		Class:         CharacterClass(identity.ClassID),
+		MapSeed:       identity.MapSeed,
 	}
 }
 

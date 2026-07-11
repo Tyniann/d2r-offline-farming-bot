@@ -28,6 +28,20 @@ const (
 	StashAttempt  EventName = "stash_attempt"
 	StashSuccess  EventName = "stash_success"
 	StashFull     EventName = "stash_full"
+	// RoutePlaybackStarted begins one full route playback session.
+	RoutePlaybackStarted EventName = "route_playback_started"
+	// RoutePointStarted identifies the next recorded World point.
+	RoutePointStarted EventName = "route_point_started"
+	// RouteTransitionStarted begins a strict expected Area transition.
+	RouteTransitionStarted EventName = "route_transition_started"
+	// RouteSegmentCompleted confirms one segment's target Area.
+	RouteSegmentCompleted EventName = "route_segment_completed"
+	// RoutePlaybackCompleted confirms the final route target Area.
+	RoutePlaybackCompleted EventName = "route_playback_completed"
+	// RoutePlaybackFailed records a fail-closed terminal error.
+	RoutePlaybackFailed EventName = "route_playback_failed"
+	// RoutePlaybackStopped records an explicit operator Stop.
+	RoutePlaybackStopped EventName = "route_playback_stopped"
 )
 
 // Event is one JSONL record. Zero-valued optional fields are omitted.
@@ -49,6 +63,13 @@ type Event struct {
 	GridX          *int      `json:"grid_x,omitempty"`
 	GridY          *int      `json:"grid_y,omitempty"`
 	CandidateCount int       `json:"candidate_count,omitempty"`
+	RouteID        string    `json:"route_id,omitempty"`
+	SegmentID      string    `json:"segment_id,omitempty"`
+	SegmentIndex   *int      `json:"segment_index,omitempty"`
+	PointIndex     *int      `json:"point_index,omitempty"`
+	TargetX        uint32    `json:"target_x,omitempty"`
+	TargetY        uint32    `json:"target_y,omitempty"`
+	TargetAreaID   uint32    `json:"target_area_id,omitempty"`
 }
 
 type flushWriter interface {

@@ -16,9 +16,9 @@ go run ./cmd/d2rbot --run countess --phase stash-personal --verbose
 `--run countess` ohne `--phase` ist ab Phase 5.8 der vollständige Countess-Run: Act-1-Town-Waypoint -> Black Marsh -> Forgotten Tower -> Tower Cellar Level 5 -> Countess-Kill -> Loot-Pickup -> Town Portal -> Portal-Eintritt -> Rogue Encampment -> Personal Stash -> `complete`.
 
 `travel-marsh` führt vom Rogue Encampment über den Act-1-Waypoint nach `Black Marsh`.
-`travel-cellar5` nutzt diesen Prefix weiter, sucht anschließend den Forgotten Tower und traversiert best-effort bis `Tower Cellar Level 5`.
+`travel-cellar5` nutzt diesen Prefix weiter und delegiert anschließend bis `Tower Cellar Level 5` an die über `runs.countess.route_id` ausgewählte Aufnahme.
 
-**Status Phase 4.5:** Der MVP ist abgeschlossen. `travel-cellar5` beweist den vollständigen Datenfluss Town-Waypoint → Black Marsh → Tower → Cellar-Ziele und ist als manuell validierbarer Startpunkt nutzbar. Der aktuelle generische Navigator ist aber ausdrücklich nicht zuverlässig genug, um zufällige Tower-Layouts stabil zu lösen. Dass er unterwegs mit `stuck`, `hover_not_found`, `projection_failed` oder `timeout` scheitert, ist für Phase 4.5 akzeptiert.
+**Status Phase 6.7:** Der reguläre Erfolgspfad verwendet Route Registry, Layout-Precheck und vollständiges Route Playback. Die frühere best-effort Erkundung bleibt nur Diagnosecode und wird nicht stillschweigend als Fallback gestartet.
 
 ## Verhalten
 
@@ -29,7 +29,7 @@ go run ./cmd/d2rbot --run countess --phase stash-personal --verbose
 - Der Travel-Flow nutzt Area-IDs für Entscheidungen; Area-Namen dienen nur Logs.
 - Input-Schritte laufen nur bei `Valid && Phase=in_game`.
 - `wait_black_marsh` darf für beide Travel-Phasen und den Full Run als Non-Input-Step während Loading/invalid Snapshots weitergetickt werden.
-- `travel-cellar5` kann für manuelle Tests aus `Black Marsh`, `Forgotten Tower` oder einem Tower-Cellar-Level fortgesetzt werden und springt dann direkt zum passenden Traversal-Step.
+- `travel-cellar5` kann nach Prozessstart nur aus Act-1-Town, vom verifizierten Black-Marsh-Routenstart oder bereits auf Cellar 5 fortgesetzt werden. Mittlere Route-Areas sind kein zulässiges Resume.
 
 ## Full Run (Phase 5.6)
 
@@ -37,8 +37,7 @@ Der Full Run verwendet die bestehende State-Machine direkt:
 
 ```text
 precheck -> acquire_town_waypoint -> open_waypoint -> select_black_marsh -> wait_black_marsh
--> find_tower -> enter_cellar_1 -> enter_cellar_2 -> enter_cellar_3 -> enter_cellar_4
--> enter_cellar_5 -> locate_countess -> engage_countess -> wait_for_drops -> scan_loot
+-> play_recorded_route -> locate_countess -> engage_countess -> wait_for_drops -> scan_loot
 -> pick_loot -> cast_town_portal -> enter_town_portal -> wait_act1_town
 -> open_personal_stash -> stash_items -> close_personal_stash -> complete
 ```
@@ -117,26 +116,19 @@ Jeder Schwierigkeitsgrad benötigt eine eigene Aufzeichnung, weil Offline-Map-La
 
 ## Tower-Traversal
 
-`travel-cellar5` hängt nach `wait_black_marsh` folgende Steps an:
+`travel-cellar5` hängt nach `wait_black_marsh` den generischen Route-Schritt an:
 
 | Step | Zielgebiet | Entrance |
 |------|------------|----------|
-| `find_tower` | `world.ForgottenTower` | `world.EntranceKindWildernessToTower` |
-| `enter_cellar_1` | `world.TowerCellarLevel1` | unbekannte Vorraum-Entrance im `Forgotten Tower` |
-| `enter_cellar_2` | `world.TowerCellarLevel2` | `world.EntranceKindTowerCellarDown` |
-| `enter_cellar_3` | `world.TowerCellarLevel3` | `world.EntranceKindTowerCellarDown` |
-| `enter_cellar_4` | `world.TowerCellarLevel4` | `world.EntranceKindTowerCellarDown` |
-| `enter_cellar_5` | `world.TowerCellarLevel5` | `world.EntranceKindTowerCellarDown` |
+| `play_recorded_route` | `world.TowerCellarLevel5` | Registry-Route aus `runs.countess.route_id`; der generische Player bestätigt Punkte und Transitions |
 
-Jeder Step startet ein `pathing.GoalKindMoveToArea` genau einmal und tickt danach den `pathing.Navigator`.
-Wenn der aktuelle Snapshot bereits im Zielgebiet ist, schließt der Step ohne neue Eingabe ab.
+Der Adapter lädt die Route per stabiler ID, führt Character-/Versions-/Layout-/Start-Precheck aus und tickt denselben `pathing.RoutePlayer` wie der isolierte CLI-Modus.
 
-Die Traversierung ist bewusst best-effort: Der aktuelle Explorer nutzt Bearing-Explore, nähert sichtbare passende Entrances an und übergibt nahe Entrances an den Hover-Feedback-Klick. Wenn ein direkter Annäherungs-Teleport auf eine sichtbare Entrance-Unit blockiert, versucht der Navigator als Fallback den Hover-Klick auf genau diese Unit ohne Distanz-Gate. Er merkt sich keine besuchten Räume, folgt keinen Wänden und nutzt noch keine `Left`-Map-Reading-Heuristik. Zufällige Tower-Layouts können deshalb weiterhin mit `stuck`, `hover_not_found`, `projection_failed` oder `timeout` scheitern.
+Die Traversierung verwendet keinen Bearing-Explore-Fallback. Fehlt die Route oder weicht der aktive Zustand ab, endet der Run fail-closed.
 
-Das ist kein offener Phase-4/5-Blocker mehr, aber die zentrale Zuverlässigkeitsgrenze des aktuellen Runs. Phase 6 implementiert deshalb generisches Recording und Playback als nächsten Projektmeilenstein: Der Spieler zeichnet die vollständige Strecke einmal manuell auf, der Bot spielt sie deterministisch ab und nutzt den Navigator nur noch für kurze lokale Korrekturen, Hover-Checks und Area-Wechsel. Im regulären Countess-Run wird Playback danach zum Primärpfad; globale Erkundung bleibt ein expliziter Diagnose-/Fallbackmodus. Countess bindet die run-unabhängige Route lediglich über eine stabile Route-ID ein.
+Countess bindet die run-unabhängige Route ausschließlich über `runs.countess.route_id`. Datei-, Segment- und Transition-Details bleiben außerhalb der Task-State-Machine.
 
-Wenn eine passende Entrance-Unit sichtbar ist, aber noch außerhalb der Klickdistanz liegt, priorisiert der Navigator sie als `entity_approach` und teleportiert auf sie zu. Verlässt `find_tower` versehentlich `Black Marsh` in ein anderes Gebiet, bricht der Step mit `unexpected_area` ab, statt im falschen Gebiet weiter zu explorieren.
-Für `enter_cellar_1` gibt es einen engen Sonderfall: Der `Forgotten Tower`-Vorraum ist stabil, aber die sichtbare Durchbruch-Unit wird nicht von den bekannten Tower-/Stair-IDs abgedeckt. Die Probe enumeriert deshalb auch unbekannte Entrance-Units. Der Step bevorzugt im `Forgotten Tower` für `Tower Cellar Level 1` eine unbekannte Entrance-Unit und ignoriert die bekannten Back-/Surface-Entrances. Erfolg bleibt ausschließlich der Area-Wechsel nach `Tower Cellar Level 1`. Ab `Tower Cellar Level 1` nutzt der Bot die beobachteten Tower-Cellar-IDs `8` (up/source) und `9` (down/next level), damit sichtbare Down-Exits priorisiert werden.
+Transitions nutzen die in der Aufnahme gespeicherte Semantik. Der Forgotten-Tower-Vorraum bleibt konservativ `unknown`; alle Cellar-Abgänge verwenden `tower_cellar_down`. Der Handler pinnt jeweils eine passende Laufzeit-Unit und bestätigt Erfolg ausschließlich über die erwartete Ziel-Area.
 
 ## Countess-Kill (Phase 4.6)
 
@@ -217,4 +209,4 @@ Der Recorder speichert in die unter `pathing.town_walk.routes.<difficulty>` konf
 - Kein robuster Tower-Solver: zufällige Tower-Layouts bleiben die größte Unsicherheit des Phase-5-Stands. Phase 6 zieht Run Recording und Playback deshalb als direkte Nachfolgephase vor und ersetzt die globale Explorer-Traversierung im produktiven Countess-Run.
 
 ---
-*Zuletzt aktualisiert: 2026-07-10*
+*Zuletzt aktualisiert: 2026-07-11*

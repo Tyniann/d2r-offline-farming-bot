@@ -538,6 +538,16 @@
           Cellar Level 5 einmal auf und der Bot spielt die Route Memory-verifiziert wieder ab.
         </p>
         <p>Stabile Route-IDs und GUI-taugliche Metadaten bereiten die spätere Verwaltung, Auswahl und Zuordnung aufgezeichneter Routen zu Run-Definitionen vor.</p>
+        <ul>
+          <li><span class="good">6.0 Route Contract v1</span> — generisches Schema, stabile IDs, Registry-Metadaten, Identity-Bindung, Sampling, Fehlerklassen und CLI-Vertrag. Abgeschlossen.</li>
+          <li><span class="good">6.1a–d Game Identity und Layout-Sicherheit</span> — abgeschlossen. Name/Klasse werden über drei Snapshots stabilisiert; Hell und Nightmare wurden kontrolliert gestartet; Nightmare reproduzierte denselben Layout-Fingerprint über zwei neue Spiele und unterschied sich von Hell. Kein persistenter Auswahl-Cache.</li>
+          <li><span class="good">6.2 Routenmodell und Registry</span> — Route Contract v1, YAML-Storage, Validator, Duplikatsperre, Compatibility-Precheck und read-only CLI abgeschlossen.</li>
+          <li><span class="good">6.3 Read-only Recorder</span> — abgeschlossen. Die Nightmare-Route für `MrBones` wurde mit sechs bestätigten Segmenten von Black Marsh bis Cellar 5 aufgezeichnet und erneut validiert.</li>
+          <li><span class="good">6.4 Segment-Playback</span> — abgeschlossen. Alle sechs Nightmare-Segmente wurden isoliert bis zum bestätigten Area-Wechsel wiedergegeben; falsche Start-Area blockiert vor Input.</li>
+          <li><span class="good">6.5 Memory-verifizierte Transitions</span> — abgeschlossen. Semantische Entrance-Auswahl, Unit-Pinning, begrenzte lokale Recovery und Click-Settle verhindern falsche oder wiederholte Klicks.</li>
+          <li><span class="good">6.6 Vollständiges Playback</span> — abgeschlossen. Zehn vollständige Wiedergaben im stabilen Nightmare-Layout (neun direkte Replays, ein Countess-Adapter-Lauf) erreichten Cellar 5; JSONL bestätigt jeweils sechs Segmente. Begrenzte Drift-Recovery nutzt nur bestätigte Routenpunkte; drei Driftfehler brachen fail-closed ab.</li>
+          <li><span class="good">6.7 Countess-Integration</span> — abgeschlossen. Stabile Route-ID, dünner App-Adapter und Task-Schritt ersetzen Explorer im regulären Erfolgspfad; die Live-Abnahme erreichte über sechs bestätigte Segmente Cellar 5.</li>
+        </ul>
         <p>Der autonome Multi-Run- und Game-Lifecycle folgt erst nach Phase 6.</p>
       </div>
     </div>
@@ -667,8 +677,8 @@
     <ul>
       <li>Wie zuverlässig ist der Hover-Feedback-Loop bei verdeckten oder knapp außerhalb des Screens liegenden Entities (Tower-Ecken, Treppen)?</li>
       <li>Welche Projektions-Kalibrierung (playable center, Tile-Skalierung) braucht es außerhalb von 1280×720?</li>
-      <li>Welche semantischen Samples und Übergangsanker benötigt das Phase-6-Routenformat für robustes Replay?</li>
-      <li>Wie wird eine Aufnahme sicher an Charakter, Schwierigkeit, Spielversion und Kartenlayout gebunden?</li>
+      <li>Welche Memory-Quelle kann später einen belastbaren Layout-Fingerprint ergänzen?</li>
+      <li>Welche Sampling- und Drift-Grenzwerte bewähren sich in den Phase-6-Live-Tests?</li>
       <li>Wie werden Stuck Detection, Timeouts und Wiederaufnahme nach Fehlern im Countess-Run robust modelliert?</li>
       <li>Wie lassen sich Run-Ergebnisse, Drops und Fehlergründe strukturiert loggen (JSONL-Telemetrie)?</li>
       <li>Wie sieht die Pickit-/Loot-Boundary (Phase 5) auf dem bestehenden World Model aus?</li>
@@ -683,6 +693,10 @@
         World→Screen braucht keine Kamera-Daten (Koolo-Methode, Abschnitt 5a). Die globale
         Tower-Erkundung bleibt best-effort; Phase 6 ersetzt sie im produktiven Countess-Run durch
         manuelle Routenaufzeichnung und deterministische, Memory-verifizierte Wiedergabe.
+        Route Contract v1 trennt Navigation von Run-Definitionen, verwendet stabile Route-IDs und bindet
+        fail-closed an Memory-bestätigten Charakter, Spielversion und einen reproduzierten Layout-Fingerprint.
+        Der in 6.1a gelesene Seed ist kein Identitätsschlüssel. Difficulty wird durch den Bot im Offline-Menü
+        kontrolliert gewählt, gibt Playback aber nicht frei; dafür ist ausschließlich der Layout-Precheck zuständig.
       </p>
     </div>
 
@@ -698,10 +712,9 @@
 
     <h2>10. Nächster konkreter Schritt</h2>
     <p>
-      Phase 6 mit einem versionierten, fail-closed Routenvertrag beginnen: zuerst Aufnahmeformat,
-      Gültigkeitsmetadaten und Segmentgrenzen definieren; danach einen read-only Recorder für
-      Black Marsh → Forgotten Tower → Tower Cellar Level 5 implementieren und erst anschließend
-      die Memory-verifizierte Wiedergabe verdrahten. Details stehen in
+      Phase 6 ist abgeschlossen. Als Nächstes den autonomen Game- und Multi-Run-Lifecycle planen. Route Recording und Playback sind generisch abgeschlossen;
+      der Countess-Adapter ist der erste live validierte Verbraucher. Details stehen in
+      <a href="docs/features/game-identity.md">Read-only Game Identity</a> und
       <a href="docs/features/route-recording-playback.md">Route Recording und Playback</a>.
     </p>
   </main>

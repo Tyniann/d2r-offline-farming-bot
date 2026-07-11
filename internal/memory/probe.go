@@ -39,24 +39,28 @@ type Snapshot struct {
 	PlayerSkills PlayerSkills
 	Hover        HoverState
 	UI           UIState
+	Identity     IdentityProbe
 }
 
 // ProbeReader resolves the main player via the unit table and reads vital stats.
 type ProbeReader struct {
-	reader           *Reader
-	offsets          OffsetSet
-	activeOffsets    OffsetSet
-	offsetsResolved  bool
-	lastModuleBase   uintptr
-	scannedCachePath string
-	lastScanAttempt  time.Time
-	scanFailCount    int
-	lastPlayerPtr    uintptr
-	observedMaxHP    uint32
-	observedMaxMana  uint32
-	lastGateValue    uint8
-	lastGateLog      time.Time
-	hasGateValue     bool
+	reader              *Reader
+	offsets             OffsetSet
+	activeOffsets       OffsetSet
+	offsetsResolved     bool
+	lastModuleBase      uintptr
+	scannedCachePath    string
+	lastScanAttempt     time.Time
+	scanFailCount       int
+	lastPlayerPtr       uintptr
+	observedMaxHP       uint32
+	observedMaxMana     uint32
+	lastGateValue       uint8
+	lastGateLog         time.Time
+	hasGateValue        bool
+	lastIdentityProbe   IdentityProbe
+	identityCandidate   IdentityProbe
+	identityStableTicks uint8
 }
 
 const (
@@ -221,6 +225,7 @@ func (p *ProbeReader) Snapshot() Snapshot {
 	phase := finalizePhase(gateValue, gateDisabled, loading, playerFound)
 
 	if !playerFound {
+		p.resetIdentityStability()
 		reason := p.playerNotFoundReason(playerErr, gateValue, gateDisabled, loading)
 		return invalidSnapshotWithUI(now, phase, reason, ui)
 	}
@@ -269,6 +274,8 @@ func (p *ProbeReader) Snapshot() Snapshot {
 
 	// Step 4: entities and hover only when Valid && Phase == in_game.
 	if snap.Valid && snap.Phase == GamePhaseInGame {
+		snap.Identity = p.stabilizeIdentity(p.readIdentityProbe(playerPtr, off))
+		p.logIdentityProbe(snap.Identity)
 		p.enrichPlayerSkills(playerPtr, off, &snap)
 		snap.Hover = p.readHover(moduleBase, off)
 		if err := p.enumerateEntities(moduleBase, off, &snap); err != nil {
@@ -286,8 +293,27 @@ func (p *ProbeReader) Snapshot() Snapshot {
 		}
 		return snap
 	}
+	p.resetIdentityStability()
 
 	return emptyEntitySlices(snap)
+}
+
+func (p *ProbeReader) logIdentityProbe(identity IdentityProbe) {
+	if identity == p.lastIdentityProbe {
+		return
+	}
+	p.lastIdentityProbe = identity
+	p.reader.log.Info("read-only game identity probe",
+		"valid", identity.Valid,
+		"confirmed", identity.Confirmed,
+		"stable_ticks", identity.StableTicks,
+		"character_name", identity.CharacterName,
+		"class_id", identity.ClassID,
+		"map_seed", identity.MapSeed,
+		"map_seed_valid", identity.MapSeedValid,
+		"difficulty_valid", identity.DifficultyOK,
+		"reason", identity.Reason,
+	)
 }
 
 func (p *ProbeReader) enrichPlayerSkills(playerPtr uintptr, off OffsetSet, snap *Snapshot) {

@@ -23,4 +23,7 @@ Spätere Ideen (noch nicht umgesetzt): [`docs/backlog.md`](../backlog.md).
 | [Personal-Stash MVP](personal-stash-mvp.md) | Phase 5.8: Memory-bestätigte Town-Navigation, geschützte Ctrl+LMB-Transfers und sauberer UI-Abschluss |
 | [Identification-Strategie](identification-strategy.md) | Phase 5.9: Statregeln nur für identifizierte Items und `identify_required` vor Keep/Stash |
 | [Run-Telemetrie](run-telemetry.md) | Phase 5.10: fail-closed JSONL pro Run für Drop-, Pickit-, Pickup-, Inventory- und Stash-Events |
-| [Route Recording und Playback](route-recording-playback.md) | Geplante Phase 6: generische, später GUI-verwaltbare Routeninfrastruktur; Countess von Black Marsh bis Tower Cellar Level 5 als erster Use Case |
+| [Route Recording und Playback](route-recording-playback.md) | Phase 6.7: generisches Playback und live validierter Countess-Adapter über stabile Route-ID |
+| [Read-only Game Identity](game-identity.md) | Phase 6.1: bestätigte Character Identity, kontrollierte Offline-Difficulty-Auswahl und autoritativer Layout-Fingerprint ohne persistenten Auswahl-Cache |
+| [Offline-Difficulty-Auswahl](offline-difficulty-selection.md) | Isolierter 1280×720-CLI-Test für den kontrollierten Normal-/Nightmare-/Hell-Menü-Klick und anschließende Character-Bestätigung |
+| [Layout-Fingerprint](layout-fingerprint.md) | Deterministischer Hash stabiler World-Anker als fail-closed Kartenprüfung vor Route Playback |

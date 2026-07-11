@@ -20,6 +20,14 @@ type Deps struct {
 	Combat   CombatActions
 	Actions  RunActions
 	Loot     LootActions
+	Route    RoutePlayback
+}
+
+// RoutePlayback is the generic full-route surface used by run adapters.
+type RoutePlayback interface {
+	Start(routeID string, state world.State) error
+	Tick(context.Context, world.State) (bool, error)
+	Reset()
 }
 
 // Input is the subset of input.Controller used by task runs.

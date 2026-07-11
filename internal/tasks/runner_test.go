@@ -122,6 +122,22 @@ type mockNavigator struct {
 	resetCalls  int
 }
 
+type mockRoutePlayback struct {
+	startedID  string
+	startErr   error
+	tickErr    error
+	resetCalls int
+}
+
+func (m *mockRoutePlayback) Start(routeID string, _ world.State) error {
+	m.startedID = routeID
+	return m.startErr
+}
+func (m *mockRoutePlayback) Tick(_ context.Context, state world.State) (bool, error) {
+	return state.Area.ID == world.TowerCellarLevel5, m.tickErr
+}
+func (m *mockRoutePlayback) Reset() { m.resetCalls++ }
+
 type mockCombatActions struct {
 	castCalls     int
 	teleportCalls int
@@ -328,7 +344,8 @@ func newTestRunner(runName string) *Runner {
 
 func killRunConfig() RunConfig {
 	return RunConfig{
-		StepTimeout: time.Second,
+		StepTimeout:     time.Second,
+		CountessRouteID: "test-countess-route",
 		CountessCombat: CountessCombatConfig{
 			AttackSkillID:           84,
 			AttackInterval:          350 * time.Millisecond,
@@ -558,6 +575,7 @@ func TestCountessFullRunSuccessCastsTownPortal(t *testing.T) {
 		Portal:   portals,
 		Stash:    &mockPersonalStashActions{},
 		Loot:     &mockLootActions{scans: []LootScanResult{{GroundItemCount: 0, CandidateCount: 0}}},
+		Route:    &mockRoutePlayback{},
 	})
 	now := time.Now()
 	target := countessMonster(10, world.Position{X: 110, Y: 100})
@@ -784,10 +802,12 @@ func TestCountessTravelMarshAcquiresWaypointByTownWalk(t *testing.T) {
 func TestCountessTravelCellar5SuccessStartsExpectedGoals(t *testing.T) {
 	wp := &mockWaypointActions{}
 	nav := &mockNavigator{}
-	r := NewRunner(config.NewLogger("error"), RunSelection{Run: "countess", Phase: CountessPhaseTravelCellar5}, RunConfig{StepTimeout: 5 * time.Second}, Deps{
+	route := &mockRoutePlayback{}
+	r := NewRunner(config.NewLogger("error"), RunSelection{Run: "countess", Phase: CountessPhaseTravelCellar5}, RunConfig{StepTimeout: 5 * time.Second, CountessRouteID: "test-countess-route"}, Deps{
 		Waypoint: wp,
 		TownWalk: &mockTownWalker{},
 		Pathing:  nav,
+		Route:    route,
 	})
 	now := time.Now()
 
@@ -804,19 +824,22 @@ func TestCountessTravelCellar5SuccessStartsExpectedGoals(t *testing.T) {
 		areaState(world.TowerCellarLevel2),
 		areaState(world.TowerCellarLevel3),
 		areaState(world.TowerCellarLevel4),
-		areaState(world.TowerCellarLevel4),
+		areaState(world.TowerCellarLevel5),
 	}
 
 	var res TickResult
 	for i, st := range ticks {
 		res = r.Tick(context.Background(), st, now.Add(time.Duration(i)*200*time.Millisecond))
 	}
-	if res.Outcome != RunOutcomeSuccess || res.Step != countessStepEnterCellar5 {
-		t.Fatalf("final tick = %+v, want success at enter_cellar_5", res)
+	if res.Outcome != RunOutcomeSuccess || res.Step != countessStepPlayRoute {
+		t.Fatalf("final tick = %+v, want success at play_recorded_route", res)
 	}
 
 	if len(nav.startGoals) > 1 {
 		t.Fatalf("Start calls = %d, want at most 1 when snapshots already reach target areas", len(nav.startGoals))
+	}
+	if route.startedID != "test-countess-route" {
+		t.Fatalf("route started = %q", route.startedID)
 	}
 }
 
@@ -840,19 +863,15 @@ func TestCountessTravelCellar5ResumesFromRouteAreas(t *testing.T) {
 		area     world.AreaID
 		wantStep string
 	}{
-		{"black marsh", world.BlackMarsh, countessStepFindTower},
-		{"forgotten tower", world.ForgottenTower, countessStepEnterCellar1},
-		{"cellar 1", world.TowerCellarLevel1, countessStepEnterCellar2},
-		{"cellar 2", world.TowerCellarLevel2, countessStepEnterCellar3},
-		{"cellar 3", world.TowerCellarLevel3, countessStepEnterCellar4},
-		{"cellar 4", world.TowerCellarLevel4, countessStepEnterCellar5},
+		{"black marsh", world.BlackMarsh, countessStepPlayRoute},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			r := NewRunner(config.NewLogger("error"), RunSelection{Run: "countess", Phase: CountessPhaseTravelCellar5}, RunConfig{StepTimeout: 5 * time.Second}, Deps{
+			r := NewRunner(config.NewLogger("error"), RunSelection{Run: "countess", Phase: CountessPhaseTravelCellar5}, RunConfig{StepTimeout: 5 * time.Second, CountessRouteID: "test-countess-route"}, Deps{
 				Waypoint: &mockWaypointActions{},
 				TownWalk: &mockTownWalker{},
 				Pathing:  &mockNavigator{tickResults: []pathing.NavTickResult{{Status: pathing.NavExploring}}},
+				Route:    &mockRoutePlayback{},
 			})
 
 			res := r.Tick(context.Background(), areaState(tc.area), time.Now())
@@ -860,6 +879,16 @@ func TestCountessTravelCellar5ResumesFromRouteAreas(t *testing.T) {
 				t.Fatalf("tick = %+v, want running step %s", res, tc.wantStep)
 			}
 		})
+	}
+}
+
+func TestCountessTravelCellar5RejectsIntermediateResume(t *testing.T) {
+	for _, area := range []world.AreaID{world.ForgottenTower, world.TowerCellarLevel1, world.TowerCellarLevel4} {
+		r := NewRunner(config.NewLogger("error"), RunSelection{Run: "countess", Phase: CountessPhaseTravelCellar5}, RunConfig{StepTimeout: time.Second, CountessRouteID: "test-countess-route"}, Deps{Route: &mockRoutePlayback{}})
+		res := r.Tick(context.Background(), areaState(area), time.Now())
+		if res.Outcome != RunOutcomeFailed || res.Reason != "not_act1_town" {
+			t.Fatalf("area %d result = %+v", area, res)
+		}
 	}
 }
 

@@ -27,6 +27,7 @@ const (
 	countessStepOpenWaypoint    = "open_waypoint"
 	countessStepSelectMarsh     = "select_black_marsh"
 	countessStepWaitBlackMarsh  = "wait_black_marsh"
+	countessStepPlayRoute       = "play_recorded_route"
 	countessStepFindTower       = "find_tower"
 	countessStepEnterCellar1    = "enter_cellar_1"
 	countessStepEnterCellar2    = "enter_cellar_2"
@@ -54,6 +55,7 @@ const (
 // countessRun executes the Countess stub or a selected Countess phase.
 type countessRun struct {
 	phase                  string
+	routeID                string
 	combat                 CountessCombatConfig
 	selectedOnce           bool
 	navStarted             bool
@@ -67,6 +69,7 @@ type countessRun struct {
 	lootScanHasTarget      bool
 	lootPickupActive       bool
 	lootNoTargetTicks      int
+	routeStarted           bool
 }
 
 func (c *countessRun) firstStep() string {
@@ -148,8 +151,10 @@ func (c *countessRun) nextStep(current string) string {
 			return countessStepWaitBlackMarsh
 		case countessStepWaitBlackMarsh:
 			if c.phase == CountessPhaseTravelCellar5 {
-				return countessStepFindTower
+				return countessStepPlayRoute
 			}
+			return ""
+		case countessStepPlayRoute:
 			return ""
 		case countessStepFindTower:
 			return countessStepEnterCellar1
@@ -177,7 +182,9 @@ func (c *countessRun) nextStep(current string) string {
 	case countessStepSelectMarsh:
 		return countessStepWaitBlackMarsh
 	case countessStepWaitBlackMarsh:
-		return countessStepFindTower
+		return countessStepPlayRoute
+	case countessStepPlayRoute:
+		return countessStepLocateCountess
 	case countessStepFindTower:
 		return countessStepEnterCellar1
 	case countessStepEnterCellar1:
@@ -223,19 +230,20 @@ func (c *countessRun) nextStep(current string) string {
 }
 
 func (c *countessRun) usesTickTimeout(step string) bool {
-	return false
+	return step == countessStepPlayRoute
 }
 
 func (c *countessRun) allowsNonInputTick(step string) bool {
 	if step == countessStepWaitAct1Town && (c.phase == "" || c.phase == CountessPhaseLootCountess) {
 		return true
 	}
-	return (c.isTravelPhase() || c.phase == "") && step == countessStepWaitBlackMarsh
+	return (c.isTravelPhase() || c.phase == "") && (step == countessStepWaitBlackMarsh || step == countessStepPlayRoute)
 }
 
 func (c *countessRun) onStepEnter(step string) {
 	c.selectedOnce = false
 	c.navStarted = false
+	c.routeStarted = false
 	if step == countessStepWaitForDrops {
 		c.dropStableTicks = 0
 	}
@@ -359,7 +367,7 @@ func (c *countessRun) onFullRunTick(ctx context.Context, deps Deps, step string,
 		}
 		return stepResult{failed: true, reason: "not_act1_town"}
 	case countessStepAcquireTownWP, countessStepOpenWaypoint, countessStepSelectMarsh,
-		countessStepWaitBlackMarsh, countessStepFindTower, countessStepEnterCellar1,
+		countessStepWaitBlackMarsh, countessStepPlayRoute, countessStepFindTower, countessStepEnterCellar1,
 		countessStepEnterCellar2, countessStepEnterCellar3, countessStepEnterCellar4,
 		countessStepEnterCellar5:
 		return c.onTravelMarshTick(ctx, deps, step, w, now, stepStartedAt)
@@ -775,6 +783,30 @@ func (c *countessRun) onTravelMarshTick(ctx context.Context, deps Deps, step str
 			return stepResult{complete: true}
 		}
 		return stepResult{}
+	case countessStepPlayRoute:
+		if deps.Route == nil {
+			return stepResult{failed: true, reason: "route_playback_not_wired"}
+		}
+		if c.routeID == "" {
+			return stepResult{failed: true, reason: "route_id_missing"}
+		}
+		if !c.routeStarted {
+			if err := deps.Route.Start(c.routeID, w); err != nil {
+				if errors.Is(err, pathing.ErrGameIdentityUnavailable) {
+					return stepResult{}
+				}
+				return stepResult{failed: true, reason: "route_playback_start_failed"}
+			}
+			c.routeStarted = true
+		}
+		done, err := deps.Route.Tick(ctx, w)
+		if err != nil {
+			return stepResult{failed: true, reason: "route_playback_failed"}
+		}
+		if done {
+			return stepResult{complete: true}
+		}
+		return stepResult{}
 	case countessStepFindTower, countessStepEnterCellar1, countessStepEnterCellar2, countessStepEnterCellar3, countessStepEnterCellar4, countessStepEnterCellar5:
 		goal, ok := countessNavigationGoal(step)
 		if !ok {
@@ -792,17 +824,7 @@ func (c *countessRun) onTravelMarshTick(ctx context.Context, deps Deps, step str
 func countessTravelCellar5ResumeStep(area world.AreaID) (string, bool) {
 	switch area {
 	case world.BlackMarsh:
-		return countessStepFindTower, true
-	case world.ForgottenTower:
-		return countessStepEnterCellar1, true
-	case world.TowerCellarLevel1:
-		return countessStepEnterCellar2, true
-	case world.TowerCellarLevel2:
-		return countessStepEnterCellar3, true
-	case world.TowerCellarLevel3:
-		return countessStepEnterCellar4, true
-	case world.TowerCellarLevel4:
-		return countessStepEnterCellar5, true
+		return countessStepPlayRoute, true
 	case world.TowerCellarLevel5:
 		return "", true
 	default:

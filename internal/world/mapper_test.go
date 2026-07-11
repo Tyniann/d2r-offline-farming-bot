@@ -69,6 +69,19 @@ func TestFromSnapshotValid(t *testing.T) {
 	}
 }
 
+func TestFromSnapshotMapsOnlyConfirmedIdentity(t *testing.T) {
+	snap := validSnapshot()
+	snap.Identity = memory.IdentityProbe{Valid: true, Confirmed: true, CharacterName: "MrBones", ClassID: 2, MapSeed: 123}
+	state := FromSnapshot(snap)
+	if !state.Identity.Valid || state.Identity.CharacterName != "MrBones" || state.Identity.Class != CharacterClassNecromancer || state.Identity.MapSeed != 123 {
+		t.Fatalf("Identity = %+v", state.Identity)
+	}
+	snap.Identity.Confirmed = false
+	if got := FromSnapshot(snap).Identity; got != (GameIdentity{}) {
+		t.Fatalf("unconfirmed identity mapped as %+v", got)
+	}
+}
+
 func TestFromSnapshotGamePhaseFromSnapshot(t *testing.T) {
 	snap := validSnapshot()
 	snap.Phase = memory.GamePhaseInGame

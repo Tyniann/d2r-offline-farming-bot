@@ -38,7 +38,8 @@ func resolveRunSelection(opts Options, cfg *config.Config) tasks.RunSelection {
 func mapRunConfig(runs config.RunsConfig) tasks.RunConfig {
 	attackSkillID, _ := memory.ParseSkillTestName(runs.Countess.Combat.AttackSkill)
 	return tasks.RunConfig{
-		StepTimeout: time.Duration(runs.StepTimeoutMs) * time.Millisecond,
+		StepTimeout:     time.Duration(runs.StepTimeoutMs) * time.Millisecond,
+		CountessRouteID: runs.Countess.RouteID,
 		CountessCombat: tasks.CountessCombatConfig{
 			AttackSkillID:           attackSkillID,
 			AttackInterval:          time.Duration(runs.Countess.Combat.AttackIntervalMs) * time.Millisecond,
@@ -51,6 +52,39 @@ func mapRunConfig(runs config.RunsConfig) tasks.RunConfig {
 
 // validateRunMode checks run prerequisites after resolving CLI vs config.
 func validateRunMode(sel tasks.RunSelection, cfg *config.Config, opts Options, log *slog.Logger) error {
+	if opts.Route != "" {
+		if opts.InputTest != "" || opts.PathingTest != "" || opts.OfflineDifficulty != "" || sel.Run != "" || sel.Phase != "" {
+			return fmt.Errorf("--route is mutually exclusive with run and other test modes")
+		}
+		command, err := parseRouteCommand(opts.Route)
+		if err != nil {
+			return err
+		}
+		if command.action == "record" {
+			if _, err := parseOfflineDifficulty(opts.RouteDifficulty); err != nil {
+				return fmt.Errorf("--route-difficulty is required for record: %w", err)
+			}
+		} else if opts.RouteName != "" || opts.RouteDifficulty != "" {
+			return fmt.Errorf("--route-name and --route-difficulty are only valid with route record")
+		}
+		if (command.action == "play-segment" || command.action == "play") && !cfg.Input.Enabled {
+			return fmt.Errorf("route playback requires input.enabled=true")
+		}
+	}
+	if opts.Route == "" && (opts.RouteName != "" || opts.RouteDifficulty != "") {
+		return fmt.Errorf("--route-name and --route-difficulty require --route record:<id>")
+	}
+	if opts.OfflineDifficulty != "" {
+		if !cfg.Input.Enabled {
+			return fmt.Errorf("offline difficulty test requires input.enabled=true")
+		}
+		if opts.InputTest != "" || opts.PathingTest != "" || sel.Run != "" || sel.Phase != "" {
+			return fmt.Errorf("--offline-difficulty-test is mutually exclusive with run and other test modes")
+		}
+		if _, err := parseOfflineDifficulty(opts.OfflineDifficulty); err != nil {
+			return err
+		}
+	}
 	if err := validatePathingTestMode(cfg, opts); err != nil {
 		return err
 	}
@@ -76,9 +110,15 @@ func validateRunMode(sel tasks.RunSelection, cfg *config.Config, opts Options, l
 		return fmt.Errorf("%w: run=%q phase=%q", errUnsupportedRunPhase, sel.Run, sel.Phase)
 	}
 	if sel.Run == "countess" && sel.Phase == "" {
+		if cfg.Runs.Countess.RouteID == "" {
+			return fmt.Errorf("runs.countess.route_id is required for the full Countess run")
+		}
 		if err := validateFullCountessBindings(cfg); err != nil {
 			return err
 		}
+	}
+	if sel.Run == "countess" && sel.Phase == tasks.CountessPhaseTravelCellar5 && cfg.Runs.Countess.RouteID == "" {
+		return fmt.Errorf("runs.countess.route_id is required for travel-cellar5")
 	}
 	if sel.Run == "countess" && sel.Phase == tasks.CountessPhaseKillCountess {
 		if err := validateKillCountessBindings(cfg); err != nil {

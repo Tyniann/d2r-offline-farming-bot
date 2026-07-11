@@ -145,6 +145,7 @@ func New(cfg *config.Config, opts Options) (rt *Runtime, err error) {
 		return nil, fmt.Errorf("loot stash config: %w", err)
 	}
 	lootActions := newLootActionsAdapter(log, lootFilter, cfg.Loot.Pickup, inputCtrl, pathingCfg, stashExecutor, runTelemetry)
+	routePlayback := newRoutePlaybackAdapter(log, cfg.ResolvePath(cfg.Routes.Directory), expectedVersion, nav, runTelemetry)
 
 	probe := memory.NewProbeReader(mem, offsetSet)
 	probe.SetScannedCachePath(cfg.ResolvePath(memory.DefaultScannedCacheFile))
@@ -170,6 +171,7 @@ func New(cfg *config.Config, opts Options) (rt *Runtime, err error) {
 			Combat:   combat,
 			Actions:  runActions,
 			Loot:     lootActions,
+			Route:    routePlayback,
 		}),
 		Pathing:   nav,
 		TownWalk:  townWalker,

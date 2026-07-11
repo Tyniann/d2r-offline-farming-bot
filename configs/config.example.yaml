@@ -23,6 +23,10 @@ telemetry:
   # Eine fail-closed JSONL-Datei pro aktivem Run, relativ zum Arbeitsverzeichnis.
   directory: logs/telemetry
 
+routes:
+  # Relativ zur Config-Datei; getrennt von den älteren Town-Walk-Dateien.
+  directory: routes/recordings
+
 loot:
   # Relativ zur geladenen Config-Datei. Bei configs/config.yaml ergibt das configs/pickit/countess.nip.
   pickit_file: pickit/countess.nip
@@ -89,6 +93,8 @@ runs:
   active: ""
   step_timeout_ms: 30000
   countess:
+    # Stabile ID einer unter routes.directory verwalteten Aufnahme.
+    route_id: ""
     combat:
       profile: necro_bone_spear
       attack_skill: bone_spear

@@ -20,6 +20,7 @@ type Config struct {
 	Loot      LootConfig      `yaml:"loot"`
 	Input     InputConfig     `yaml:"input"`
 	Runs      RunsConfig      `yaml:"runs"`
+	Routes    RoutesConfig    `yaml:"routes"`
 	Pathing   PathingConfig   `yaml:"pathing"`
 	Paths     PathsConfig     `yaml:"paths"`
 
@@ -54,6 +55,11 @@ type TelemetryConfig struct {
 
 type PathsConfig struct {
 	ConfigDir string `yaml:"config_dir"`
+}
+
+// RoutesConfig selects the directory containing generic Route Contract files.
+type RoutesConfig struct {
+	Directory string `yaml:"directory"`
 }
 
 // LootConfig holds read-only loot model settings.
@@ -159,6 +165,8 @@ type RunsConfig struct {
 
 // CountessRunConfig holds Countess-specific run tuning.
 type CountessRunConfig struct {
+	// RouteID selects the stable generic route used from Black Marsh to Cellar 5.
+	RouteID string `yaml:"route_id"`
 	// Combat tunes the optional Countess kill phase.
 	Combat CountessCombatConfig `yaml:"combat"`
 }
@@ -237,6 +245,7 @@ func Load(path string) (*Config, error) {
 	cfg.Pathing.applyDefaults()
 	cfg.Loot.applyDefaults()
 	cfg.Telemetry.applyDefaults()
+	cfg.Routes.applyDefaults()
 	if err := cfg.validate(); err != nil {
 		return nil, err
 	}
@@ -261,6 +270,7 @@ func (c *Config) ResolvePath(rel string) string {
 func (c *Config) validate() error {
 	c.Loot.applyDefaults()
 	c.Telemetry.applyDefaults()
+	c.Routes.applyDefaults()
 	if c.App.Name == "" {
 		return fmt.Errorf("app.name is required")
 	}
@@ -275,6 +285,9 @@ func (c *Config) validate() error {
 	}
 	if strings.TrimSpace(c.Telemetry.Directory) == "" {
 		return fmt.Errorf("telemetry.directory is required")
+	}
+	if strings.TrimSpace(c.Routes.Directory) == "" {
+		return fmt.Errorf("routes.directory is required")
 	}
 	if err := c.Loot.validate(); err != nil {
 		return err
@@ -297,6 +310,12 @@ func (c *Config) validate() error {
 func (c *TelemetryConfig) applyDefaults() {
 	if c.Directory == "" {
 		c.Directory = filepath.Join("logs", "telemetry")
+	}
+}
+
+func (c *RoutesConfig) applyDefaults() {
+	if c.Directory == "" {
+		c.Directory = filepath.Join("routes", "recordings")
 	}
 }
 

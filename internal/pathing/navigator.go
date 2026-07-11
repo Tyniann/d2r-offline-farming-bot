@@ -20,6 +20,10 @@ const tickGapReset = 2 * time.Second
 // tick would treat every cast as blocked and spin the bearing in circles.
 const teleportSettleTimeout = 700 * time.Millisecond
 
+// transitionClickSettleTimeout prevents repeated entrance clicks while the
+// game is about to enter Loading but still reports the source Area.
+const transitionClickSettleTimeout = time.Second
+
 // ErrNavigatorNotWired reports that movement dependencies were not injected.
 var ErrNavigatorNotWired = errors.New("navigator not wired")
 
@@ -51,6 +55,10 @@ type Navigator struct {
 		at             time.Time
 		pending        bool
 		approachUnitID uint32
+	}
+	transitionClick struct {
+		pending bool
+		at      time.Time
 	}
 }
 
@@ -98,6 +106,7 @@ func (n *Navigator) Reset() {
 	n.lastTickAt = time.Time{}
 	n.lastCast.pending = false
 	n.lastCast.approachUnitID = 0
+	n.transitionClick.pending = false
 	if n.mover != nil {
 		n.mover.Reset()
 	}
@@ -136,6 +145,7 @@ func (n *Navigator) Start(goal Goal) error {
 	n.lastTickAt = time.Time{}
 	n.lastCast.pending = false
 	n.lastCast.approachUnitID = 0
+	n.transitionClick.pending = false
 	n.mover.Reset()
 	n.clicker.Reset()
 	n.explorer.Reset()
@@ -205,13 +215,24 @@ func (n *Navigator) goalReached(state world.State) bool {
 	case GoalKindMoveToArea:
 		return state.Area.ID == n.goal.TargetArea
 	case GoalKindMoveToPosition:
-		return world.Distance(state.Player.Position, n.goal.TargetPos) <= n.deps.Config.ArrivalDistance
+		arrivalDistance := n.deps.Config.ArrivalDistance
+		if n.goal.ArrivalDistance > 0 {
+			arrivalDistance = n.goal.ArrivalDistance
+		}
+		return world.Distance(state.Player.Position, n.goal.TargetPos) <= arrivalDistance
 	default:
 		return false
 	}
 }
 
 func (n *Navigator) tickMoveToArea(now time.Time, state world.State) NavTickResult {
+	if n.transitionClick.pending {
+		if now.Sub(n.transitionClick.at) < transitionClickSettleTimeout {
+			return NavTickResult{Status: n.status}
+		}
+		n.transitionClick.pending = false
+		n.clicker.Reset()
+	}
 	// Judge the previous teleport before planning so a rotation affects the
 	// next target. While the cast has neither landed nor timed out, wait.
 	if !n.evaluatePendingCast(now, state) {
@@ -219,6 +240,9 @@ func (n *Navigator) tickMoveToArea(now time.Time, state world.State) NavTickResu
 	}
 
 	plan := n.explorer.Plan(state, n.goal)
+	if n.goal.StrictEntrance && plan.Mode == ExploreBearing {
+		return n.finish(NavFailed, ReasonEntranceUnavailable, state)
+	}
 
 	if plan.Mode == ExploreEntity {
 		n.status = NavClicking
@@ -241,6 +265,8 @@ func (n *Navigator) tickMoveToArea(now time.Time, state world.State) NavTickResu
 		switch res.Status {
 		case ClickHit:
 			// Area change confirms the transition on subsequent ticks.
+			n.transitionClick.pending = true
+			n.transitionClick.at = now
 			return NavTickResult{Status: n.status}
 		case ClickHoverNotFound:
 			return n.finish(NavFailed, ReasonHoverNotFound, state)

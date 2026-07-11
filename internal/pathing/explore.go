@@ -85,6 +85,14 @@ func (p *ExplorePlanner) Plan(state world.State, goal Goal) ExplorePlan {
 		p.hasArea = true
 	}
 
+	if goal.ViaEntranceUnitID != 0 {
+		for _, entrance := range state.Entrances {
+			if entrance.UnitID == goal.ViaEntranceUnitID && (goal.ViaEntrance == world.EntranceKindUnknown || entrance.Kind == goal.ViaEntrance) {
+				return p.planEntrance(state, entrance)
+			}
+		}
+		return ExplorePlan{Mode: ExploreBearing}
+	}
 	if goal.ViaEntrance != world.EntranceKindUnknown {
 		if e, ok := p.nearestEntrance(state, goal.ViaEntrance); ok {
 			return p.planEntrance(state, e)

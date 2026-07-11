@@ -15,8 +15,16 @@ type Options struct {
 	// RunPhase selects an optional phase for the active run (e.g. travel-marsh).
 	RunPhase string
 	// PathingTest starts the manual pathing-test mode with the given spec (empty = disabled).
-	// Specs: teleport:TX,TY | hover:watch | inspect:entrances | move-area:<id|name> | click-entity:waypoint|entrance | pickup:item
+	// Specs: teleport:TX,TY | hover:watch | inspect:entrances|layout | move-area:<id|name> | click-entity:waypoint|entrance | pickup:item
 	PathingTest string
 	// PathingTestTimeoutMs bounds the pathing-test duration (default 120000 when <=0).
 	PathingTestTimeoutMs int
+	// OfflineDifficulty starts an isolated offline-character-screen selection test.
+	OfflineDifficulty string
+	// Route selects a read-only route registry command in Phase 6.2.
+	Route string
+	// RouteName is reserved for the Phase 6.3 record command.
+	RouteName string
+	// RouteDifficulty is the explicit non-authorizing label for a new recording.
+	RouteDifficulty string
 }
