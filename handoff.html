@@ -435,6 +435,16 @@
           <td>Ist ein Run als klare, testbare Zustandsmaschine beschreibbar?</td>
         </tr>
         <tr>
+          <td><code>profile</code> <span class="warn">(ab Phase 8)</span></td>
+          <td>Character-/Encounter-Hooks sowie profilabhängige HP-, Mana- und Rejuvenation-Policies.</td>
+          <td>Bleiben Klassenverhalten und Ressourcenentscheidungen von einzelnen Runs entkoppelt?</td>
+        </tr>
+        <tr>
+          <td><code>town</code> <span class="warn">(ab Phase 9)</span></td>
+          <td>Aktbewusste Town-Profile, Service Registry, Bedarfsmodell, Anker-Routengraph und Vorbereitung.</td>
+          <td>Werden nur notwendige Dienste im korrekten Akt sicher und verifiziert ausgeführt?</td>
+        </tr>
+        <tr>
           <td><code>loot</code></td>
           <td>Item-Erkennung, Pickit-Regeln, Inventory/Stash-Handling.</td>
           <td>Kann er Runen erkennen und nur gewuenschte Items aufnehmen?</td>
@@ -448,6 +458,11 @@
           <td><code>telemetry</code></td>
           <td>Logs, Screenshots, Run-Dauer, Drops, Fehlergruende, Debug-Dumps.</td>
           <td>Kann man nach jedem Fehllauf nachvollziehen, warum er gescheitert ist?</td>
+        </tr>
+        <tr>
+          <td><code>api</code> <span class="warn">(ab Phase 11)</span></td>
+          <td>Lokaler, stabiler Steuer- und Live-Statusvertrag zwischen Go-Core und Bedienoberfläche.</td>
+          <td>Kann die GUI Sessions bedienen, ohne interne Pakete, YAML oder Logs direkt zu manipulieren?</td>
         </tr>
       </tbody>
     </table>
@@ -588,24 +603,48 @@
           <li>Generische Hooks wie <code>town_ready</code>, <code>boss_engage</code> und später weitere klar begrenzte Encounter-Ereignisse.</li>
           <li>Konfigurierbare Aktionen mit Zieltyp <code>self</code>, <code>boss</code> oder World-Position sowie <code>once_per_game</code>/<code>once_per_encounter</code>.</li>
           <li>Necromancer-Profil: Bone Armor einmal in Town und Bone Prison einmal auf die bestätigte Boss-Unit.</li>
+          <li>Profilkonfigurierbare Resource Policy für Healing, Mana und Rejuvenation; höchstens eine bestätigte Potion-Aktion pro Tick.</li>
           <li>Klassen-, Binding-, Reset-, Timeout- und Telemetrie-Gates als wiederverwendbarer Vertrag für Paladin und Sorceress.</li>
         </ul>
-        <p><strong>Abnahme:</strong> Drei Countess-Zyklen mit genau einem Bone-Armor-Cast pro Spiel und genau einem Bone-Prison-Cast pro Encounter; falsche Klasse oder fehlendes Binding blockiert vor dem Hook-Input.</p>
+        <p><strong>Abnahme:</strong> Drei gezielte manuelle Live-Durchläufe insgesamt: Bone Armor isoliert, kontrolliert niedriges Mana plus Bone Prison isoliert und ein vollständiger Countess-E2E-Zyklus; falsche Klasse, fehlendes Binding oder ungeeigneter Belt-Slot blockiert den betreffenden Input.</p>
+        <p>Detailplan: <a href="phase-8-implementation-plan.html">Phase-8-Umsetzungsplan</a>.</p>
       </div>
     </div>
 
     <div class="phase">
       <strong>Phase 9</strong>
       <div>
-        <h3>Erweiterbare Run-Definitionen und zweites Farmziel <span class="warn">— geplant</span></h3>
-        <p><strong>Ziel:</strong> Mit einem zweiten echten Farmziel beweisen, dass Session, Profile, Route, Loot, Stash und Recovery nicht Countess-spezifisch sind.</p>
-        <p><strong>Umfang:</strong> GUI-neutrale Run-Metadaten und Auswahl, wiederverwendbare Run-Schritte, routenspezifische Bindung sowie Integration eines noch festzulegenden zweiten Ziels, beispielsweise Mephisto.</p>
-        <p><strong>Abnahme:</strong> Countess und das zweite Farmziel sind über denselben Lifecycle auswählbar und bestehen jeweils einen vollständigen autonomen E2E-Zyklus ohne duplizierte Session- oder Input-Logik.</p>
+        <h3>Aktbewusste Town Services und Run-Vorbereitung <span class="warn">— geplant</span></h3>
+        <p><strong>Ziel:</strong> Vor einem Run nur tatsächlich notwendige Stadtaktionen sicher ausführen, unabhängig davon, in welchem Akt der Charakter startet oder aus welchem Run er zurückkehrt.</p>
+        <p><strong>Architektur:</strong></p>
+        <ul>
+          <li>Ein Town-Profil pro Akt beschreibt stabile Anker, verfügbare Dienste, bekannte NPCs und aufgezeichnete Wege.</li>
+          <li>Ein Service-Registry-Modell ordnet Bedarfe wie Potions, Scrolls, Identify, Sell, Repair und später Mercenary-Revive einem lokalen Anbieter zu.</li>
+          <li>Navigation verwendet einen Graph aus kurzen Routen zwischen Spawn, Portal-Ankunft, Stash, Waypoint und NPC-Nähe statt einer einzigen starren Town-Sequenz.</li>
+          <li>Die Route bringt den Charakter nur in Interaktionsnähe; ein NPC-Klick benötigt nach Möglichkeit Memory-Entity und Hover-bestätigte UnitID sowie einen bestätigten Shop-/Dialogzustand.</li>
+          <li>Lokale Dienste werden bevorzugt. Ein Aktwechsel erfolgt nur, wenn der benötigte Dienst lokal fehlt oder der nächste Run in einem anderen Akt startet.</li>
+          <li>Ein generischer, Memory-/Screen-gated Waypoint-Aktwechsel bestätigt Quellakt, Zielakt, Zielstadt und Ankunft vor dem nächsten Input.</li>
+        </ul>
+        <p><strong>Bedarfsmodell:</strong> Belt- und Inventarbestand, HP-/Mana-Potion-Zielbelegung, Town-Portal-/Identify-Vorrat, nicht identifizierte Items, explizite Vendor-Kandidaten, Reparaturzustand und verfügbare Goldkosten werden zuerst read-only bewertet. Bereits erfüllte Dienste werden übersprungen.</p>
+        <p><strong>Sicherheitsgrenzen:</strong> Unbekannter Akt, fehlendes Town-Profil, unbekannter Startanker, fehlende Route, nicht bestätigter NPC, unbestätigte Shop-UI oder nicht unterstützter Aktwechsel enden fail-closed ohne Blindlauf oder Blindklick.</p>
+        <p><strong>Reihenfolge für den späteren Detailplan:</strong> Town-Vertrag → Act-/Town-Erkennung → Service Registry → Anker-/Routengraph → Waypoint-Aktwechsel → Bedarfsmodell → Einkaufen → Identifizieren/Verkaufen/Reparieren → vollständige Run-Vorbereitung.</p>
+        <p><strong>Erster Scope:</strong> Act 1 wird vollständig live umgesetzt. Weitere Town-Profile werden erst mit Farmzielen in den jeweiligen Akten ergänzt; die Core-Verträge bleiben von Beginn an aktneutral.</p>
+        <p><strong>Abnahme:</strong> Ein Act-1-Preparation-Durchlauf erledigt ausschließlich erzeugte Bedarfe und startet danach einen Countess-Run. Negative Tests beweisen, dass ein Act-2-Zustand ohne validiertes Profil beziehungsweise ohne validierten Aktwechsel vor Input stoppt.</p>
       </div>
     </div>
 
     <div class="phase">
       <strong>Phase 10</strong>
+      <div>
+        <h3>Erweiterbare Run-Definitionen und zweites Farmziel <span class="warn">— geplant</span></h3>
+        <p><strong>Ziel:</strong> Mit einem zweiten echten Farmziel beweisen, dass Session, Profile, Route, Loot, Stash und Recovery nicht Countess-spezifisch sind.</p>
+        <p><strong>Umfang:</strong> GUI-neutrale Run-Metadaten und Auswahl, wiederverwendbare Run-Schritte, routenspezifische Bindung, das Town-Profil des benötigten Akts sowie Integration eines noch festzulegenden zweiten Ziels, beispielsweise Mephisto.</p>
+        <p><strong>Abnahme:</strong> Countess und das zweite Farmziel sind über denselben Lifecycle auswählbar und bestehen jeweils einen vollständigen autonomen E2E-Zyklus ohne duplizierte Session- oder Input-Logik.</p>
+      </div>
+    </div>
+
+    <div class="phase">
+      <strong>Phase 11</strong>
       <div>
         <h3>GUI-Grundgerüst mit lokaler Core-API und Live-Status <span class="warn">— geplant</span></h3>
         <p><strong>Ziel:</strong> Eine lokale Bedienoberfläche steuert den Go-Core über einen stabilen Vertrag, statt YAML, Logs oder interne Pakete direkt zu manipulieren.</p>
@@ -615,7 +654,7 @@
     </div>
 
     <div class="phase">
-      <strong>Phase 11</strong>
+      <strong>Phase 12</strong>
       <div>
         <h3>Routenverwaltung und Recorder-Oberfläche <span class="warn">— geplant</span></h3>
         <p><strong>Ziel:</strong> Aufzeichnungen ohne manuelle Dateiverwaltung erstellen, prüfen und Run-Definitionen zuordnen.</p>
@@ -625,7 +664,7 @@
     </div>
 
     <div class="phase">
-      <strong>Phase 12</strong>
+      <strong>Phase 13</strong>
       <div>
         <h3>Pickit-Editor <span class="warn">— geplant</span></h3>
         <p><strong>Ziel:</strong> Pickit-Regeln verständlich bearbeiten und vor produktiven Runs deterministisch prüfen.</p>
@@ -635,7 +674,7 @@
     </div>
 
     <div class="phase">
-      <strong>Phase 13</strong>
+      <strong>Phase 14</strong>
       <div>
         <h3>Telemetrie, Run-Historie und Statistiken <span class="warn">— geplant</span></h3>
         <p><strong>Ziel:</strong> Erfolge, Drops, Laufzeiten und Fehlerursachen über Sessions hinweg auswertbar machen.</p>
@@ -645,7 +684,7 @@
     </div>
 
     <div class="phase">
-      <strong>Phase 14</strong>
+      <strong>Phase 15</strong>
       <div>
         <h3>Packaging, Updates und Operator-Polish <span class="warn">— geplant</span></h3>
         <p><strong>Ziel:</strong> Den lokalen Bot reproduzierbar installieren, konfigurieren, aktualisieren und sicher betreiben.</p>
@@ -723,7 +762,11 @@
       </tbody>
     </table>
 
-    <h2>7. Vorgeschlagene Ordnerstruktur</h2>
+    <h2>7. Ordnerstruktur und geplante Erweiterungen</h2>
+    <p>
+      Die vorhandenen Paketgrenzen bleiben bestehen. Neue Ordner werden erst in der jeweils genannten Phase
+      angelegt; insbesondere wird der funktionierende Phase-7-Session-Code nicht vorsorglich verschoben.
+    </p>
     <table>
       <thead>
         <tr>
@@ -735,6 +778,14 @@
         <tr>
           <td><code>/cmd/d2rbot</code></td>
           <td>Main executable fuer den Bot.</td>
+        </tr>
+        <tr>
+          <td><code>/internal/app</code></td>
+          <td>Runtime-Wiring, Lifecycle und Adapter zwischen den fachlichen Paketen.</td>
+        </tr>
+        <tr>
+          <td><code>/internal/config</code></td>
+          <td>YAML laden, Defaults anwenden und Operator-Konfiguration fail-closed validieren.</td>
         </tr>
         <tr>
           <td><code>/internal/process</code></td>
@@ -761,8 +812,28 @@
           <td>Run-State-Machines.</td>
         </tr>
         <tr>
+          <td><code>/internal/profile</code> <span class="warn">(Phase 8)</span></td>
+          <td>Generische Character-/Encounter-Profile, Hook-Vertrag, Once-/Reset-Semantik und Resource Policy. Keine Unterordner pro Charakterklasse.</td>
+        </tr>
+        <tr>
+          <td><code>/internal/town</code> <span class="warn">(Phase 9)</span></td>
+          <td>Town-Profile pro Akt, Service Registry, Bedarfsmodell, Anker-Routengraph und endliche Town-Preparation. Bewegung selbst bleibt in <code>pathing</code>.</td>
+        </tr>
+        <tr>
           <td><code>/internal/loot</code></td>
           <td>Pickit-Regeln, Item-Filter, Inventory/Stash.</td>
+        </tr>
+        <tr>
+          <td><code>/internal/telemetry</code></td>
+          <td>Run-/Session-JSONL, stabile Ereignisse, Korrelation und spätere Historienbasis.</td>
+        </tr>
+        <tr>
+          <td><code>/internal/api</code> <span class="warn">(Phase 11)</span></td>
+          <td>Lokale Core-API und Live-Events. Alle mutierenden Befehle verwenden bestehende Safety-Gates.</td>
+        </tr>
+        <tr>
+          <td><code>/web</code> <span class="warn">(Phase 11)</span></td>
+          <td>TypeScript-/React-Oberfläche; kein direkter Zugriff auf Memory, Input, Tasks oder lokale YAML-Dateien.</td>
         </tr>
         <tr>
           <td><code>/configs</code></td>
@@ -774,6 +845,13 @@
         </tr>
       </tbody>
     </table>
+    <div class="note">
+      <strong>Abhängigkeitsgrenzen:</strong> <code>config</code> lädt Definitionen; <code>profile</code> und
+      <code>town</code> treffen fachliche Entscheidungen; <code>app</code> verdrahtet World und Input;
+      <code>input</code> führt ausschließlich bereits autorisierte Primitive aus. Die spätere GUI kommuniziert
+      nur über <code>internal/api</code>. Town-Dienste werden nicht in <code>pathing</code> und Klassenlogik wird
+      nicht in einzelne Run-State-Machines eingebaut.
+    </div>
 
     <h2>8. Offene technische Fragen</h2>
     <ul>

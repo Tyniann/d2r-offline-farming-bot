@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Phase 8 – Character- und Encounter-Profile</title>
+  <style>
+    :root { color-scheme: light dark; --bg:#111318; --panel:#191c23; --soft:#20242d; --text:#f3f5f7; --muted:#aeb6c2; --line:#343946; --accent:#72a7ff; --good:#7ddc9a; --warn:#ffd37a; --bad:#ff8d8d; --code:#d8e5ff; }
+    @media (prefers-color-scheme: light) { :root { --bg:#f6f7f9; --panel:#fff; --soft:#eef1f5; --text:#161a22; --muted:#586274; --line:#d9dee7; --accent:#245fb8; --good:#197a3d; --warn:#986a00; --bad:#b33030; --code:#14335f; } }
+    * { box-sizing:border-box; }
+    body { margin:0; background:var(--bg); color:var(--text); font:16px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif; }
+    main { max-width:1100px; margin:auto; padding:40px 24px 72px; }
+    h1,h2,h3 { line-height:1.2; margin:0; }
+    h1 { font-size:2.15rem; letter-spacing:-.03em; }
+    h2 { margin-top:42px; padding-top:22px; border-top:1px solid var(--line); font-size:1.45rem; }
+    h3 { font-size:1.05rem; }
+    p { margin:12px 0 0; }
+    a { color:var(--accent); }
+    code { color:var(--code); background:var(--soft); border:1px solid var(--line); border-radius:5px; padding:.1rem .32rem; }
+    ul,ol { margin:12px 0 0; padding-left:1.35rem; }
+    li+li { margin-top:6px; }
+    .hero,.card,.phase,.callout { border:1px solid var(--line); border-radius:12px; background:var(--panel); }
+    .hero { padding:26px; }
+    .lead { color:var(--muted); max-width:850px; font-size:1.08rem; }
+    .chips { display:flex; flex-wrap:wrap; gap:8px; margin-top:18px; }
+    .chip { background:var(--soft); border:1px solid var(--line); border-radius:999px; padding:5px 10px; font-size:.88rem; }
+    .grid { display:grid; grid-template-columns:repeat(3,1fr); gap:14px; margin-top:16px; }
+    .card { padding:18px; }
+    .card p { color:var(--muted); }
+    .phase { display:grid; grid-template-columns:100px 1fr; gap:18px; padding:20px; margin-top:14px; }
+    .phase-id { color:var(--accent); font-weight:750; font-size:1.05rem; }
+    .gate { color:var(--muted); }
+    .callout { padding:16px 18px; margin-top:16px; border-left:4px solid var(--warn); }
+    .good { color:var(--good); }
+    table { width:100%; margin-top:16px; border-collapse:collapse; background:var(--panel); border:1px solid var(--line); }
+    th,td { padding:11px 12px; border-bottom:1px solid var(--line); text-align:left; vertical-align:top; }
+    th { background:var(--soft); }
+    footer { margin-top:42px; color:var(--muted); }
+    @media(max-width:800px) { .grid,.phase { grid-template-columns:1fr; } }
+  </style>
+</head>
+<body>
+<main>
+  <section class="hero">
+    <div class="chip">D2R Offline Farming Bot · Phase 8</div>
+    <h1>Generische Character- und Encounter-Profile</h1>
+    <p class="lead">Phase 8 ergänzt klassenspezifische Vorbereitungs- und Kampfaktionen sowie eine generische Ressourcenpolitik, ohne sie in Countess oder andere Run-State-Machines einzubauen. Erster Use Case: Bone Armor einmal pro Spiel, Bone Prison einmal pro Bossbegegnung und bedarfsgesteuerter HP-/Mana-Trankverbrauch.</p>
+    <div class="chips"><span class="chip">Klassenneutraler Core</span><span class="chip">Konfigurierbare Hooks</span><span class="chip">Resource Policy</span><span class="chip">Once-Semantik</span><span class="chip">Memory-gated</span><span class="chip">Fail-closed</span></div>
+  </section>
+
+  <section class="grid" aria-label="Kernziele">
+    <article class="card"><h3>Endziel</h3><p>Der Necromancer schützt sich in Town, kontrolliert Superuniques vor dem Angriff und verwendet während des Runs notwendige HP-/Mana-Tränke.</p></article>
+    <article class="card"><h3>Architekturziel</h3><p>Paladin-, Sorceress- und weitere Profile können später dieselben Hooks verwenden, ohne Run-Code zu duplizieren.</p></article>
+    <article class="card"><h3>Abnahme</h3><p>Drei manuelle Live-Durchläufe insgesamt; alle übrigen Varianten werden automatisiert getestet.</p></article>
+  </section>
+
+  <h2>1. Scope und bewusste Grenzen</h2>
+  <table>
+    <thead><tr><th>Enthalten</th><th>Nicht Bestandteil von Phase 8</th></tr></thead>
+    <tbody>
+      <tr><td>Generische Hooks für <code>town_ready</code> und <code>boss_engage</code>.</td><td>Allgemeine Combat-AI oder freie Skill-Rotation.</td></tr>
+      <tr><td>Aktionen auf <code>self</code> und eine bestätigte Boss-Unit.</td><td>Summon-Management, Curse-Auswahl oder Minion-Recovery.</td></tr>
+      <tr><td>Necromancer: Bone Armor und Bone Prison.</td><td>Paladin-/Sorceress-Live-Implementierung; die Architektur wird nur vorbereitet.</td></tr>
+      <tr><td>Generische HP-, Mana- und Rejuvenation-Policy während aktiver Runs.</td><td>Einkauf und Belt-Auffüllung; diese gehören zu den Town Services in Phase 9.</td></tr>
+      <tr><td>Reset, Timeout, Binding-Precheck und Telemetrie.</td><td>Buff-Erkennung aus Memory, solange dafür keine belastbare Quelle vorliegt.</td></tr>
+      <tr><td>Countess als erster Encounter-Verbraucher.</td><td>Weitere Bosse; sie folgen nach den aktbewussten Town Services mit Phase 10.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>2. Leitentscheidungen</h2>
+  <div class="grid">
+    <article class="card"><h3>Semantische Hooks</h3><p>Runs melden Ereignisse. Sie kennen weder Charakterklasse noch konkrete Skills.</p></article>
+    <article class="card"><h3>Profile entscheiden</h3><p>Das aktive Profil löst passende Aktionen anhand bestätigter Character Identity und Config auf.</p></article>
+    <article class="card"><h3>Explizite Einmaligkeit</h3><p>Game-Generation und Boss-UnitID bestimmen, ob eine Aktion bereits erfolgreich angefordert wurde.</p></article>
+  </div>
+  <div class="callout"><strong>Fail-closed:</strong> Falsche Klasse, fehlendes Binding, unbekanntes Ziel, ungültiger World State oder abgelaufenes Budget erzeugen keinen Ersatz- oder Blindcast. Der Hook endet mit stabilem Reason-Code.</div>
+  <div class="callout"><strong>Ressourcentrennung:</strong> Phase 8 entscheidet während eines Runs, wann ein vorhandener Trank verbraucht wird. Phase 9 stellt in Town den konfigurierten Vorrat wieder her. Ein leerer Belt löst niemals wiederholte Tastendrücke aus.</div>
+
+  <h2>3. Zielmodell und Konfiguration</h2>
+  <p>Die endgültigen Namen werden in 8.0 festgelegt. Das beabsichtigte Operator-Modell sieht sinngemäß so aus:</p>
+  <pre><code>combat_profiles:
+  necro_bone:
+    character_class: necromancer
+    hooks:
+      town_ready:
+        - skill: bone_armor
+          target: self
+          once_per_game: true
+      boss_engage:
+        - skill: bone_prison
+          target: boss
+          once_per_encounter: true
+          settle_ms: 250
+    resources:
+      healing:
+        use_below_percent: 65
+        belt_slots: [1]
+      mana:
+        use_below_percent: 35
+        belt_slots: [2, 3]
+      rejuvenation:
+        use_below_hp_percent: 35
+        belt_slots: [4]
+
+input:
+  bindings:
+    skills:
+      bone_armor:  { key: f5, button: right }
+      bone_prison: { key: f3, button: right }</code></pre>
+  <p>Das Profil referenziert Skill-Namen, niemals Funktionstasten. Die vorhandene Binding-Schicht löst den tatsächlichen Key und Mausbutton auf.</p>
+
+  <h2>4. Umsetzungsphasen</h2>
+
+  <article class="phase"><div class="phase-id">8.0</div><div><h3>Vertrag und Zustandsmodell</h3><p>Hook-Namen, Zieltypen, Ergebnisse, Reason-Codes, Once-Semantik, Ressourcenprioritäten, Timeouts und Reset-Grenzen verbindlich definieren. Der Vertrag trennt Profil, Hook-Ausführung, Resource Policy und Run-State-Machine.</p><p class="gate"><strong>Gate:</strong> Tabellengetriebene Tests beweisen unbekannte Hooks/Ziele, falsche Klassen, doppelte Ausführung und konkurrierende Ressourcenentscheidungen ohne unautorisierten Input.</p></div></article>
+
+  <article class="phase"><div class="phase-id">8.1</div><div><h3>Skill-Katalog und Konfiguration</h3><p>Bone Armor ergänzen, vorhandenes Bone Prison wiederverwenden, YAML-Schema und Defaults implementieren sowie alle referenzierten Skills gegen <code>input.bindings.skills</code> prüfen.</p><p class="gate"><strong>Gate:</strong> Valide Necromancer-Config lädt; fehlendes F5-/F3-Binding und Klassenwiderspruch scheitern vor Runtime-Input.</p></div></article>
+
+  <article class="phase"><div class="phase-id">8.2</div><div><h3>Generischer Hook-Executor</h3><p>Ein Executor verarbeitet geordnete Aktionen, löst Self-/Boss-Ziele auf, nutzt die bestehende Input-/Combat-Schicht und protokolliert Start, Cast, Skip, Erfolg und Fehler. Er besitzt endliche Budgets und ist resetbar.</p><p class="gate"><strong>Gate:</strong> Mock-Tests decken Reihenfolge, Cancel, Timeout, Once-per-Game, Once-per-Encounter und Reset ab.</p></div></article>
+
+  <article class="phase"><div class="phase-id">8.3</div><div><h3>Generische Resource Policy</h3><p>Die bestehende hartcodierte HP-Tranklogik wird in eine profilkonfigurierbare Ressourcenentscheidung überführt. Sie läuft bei gültigen In-Game-Ticks vor Hook- und Task-Aktionen und wählt höchstens eine Aktion in der Reihenfolge kritische HP/Rejuvenation → niedrige HP/Healing → niedriges Mana/Mana Potion.</p><ul><li>Nur tatsächlich belegte und zum Tranktyp passende Belt-Slots sind wählbar.</li><li>Mehrere konfigurierte Mana-Slots werden nach Verfügbarkeit beziehungsweise kontrolliert abwechselnd verwendet.</li><li>Loading, offene blockierende UI, Pause und Stop sperren den Verbrauch.</li><li>Throttle verhindert Spam; eine Belt-/Inventory-Änderung bestätigt den Verbrauch.</li><li>Fehlender Vorrat erzeugt einmalig <code>mana_potion_unavailable</code> beziehungsweise den entsprechenden stabilen Reason-Code und signalisiert Phase 9 den späteren Auffüllbedarf.</li></ul><p class="gate"><strong>Gate:</strong> Automatisierte Tests decken Priorität, 65/35-Prozent-Grenzen, leere/falsche Slots, Cooldown, Bestätigung, Stop und genau eine Aktion pro Tick ab.</p></div></article>
+
+  <article class="phase"><div class="phase-id">8.4</div><div><h3>Town-Ready-Integration: Bone Armor</h3><p>Nach bestätigtem Rogue-Encampment-Start und vor Town-Walk meldet der Lifecycle <code>town_ready</code>. Das Necromancer-Profil castet Bone Armor auf den Spieler und setzt den Game-Marker erst nach erfolgreicher Input-Anforderung.</p><p class="gate"><strong>Manuelle Abnahme 1/3:</strong> Ein isolierter Town-Start erzeugt genau einen F5-Cast; erneute Town-Ticks erzeugen keinen zweiten Cast.</p></div></article>
+
+  <article class="phase"><div class="phase-id">8.5</div><div><h3>Boss-Engage-Integration: Bone Prison</h3><p>Nach bestätigter Countess-UnitID und unmittelbar vor dem ersten Bone-Spear-Angriff meldet der Task <code>boss_engage</code>. Bone Prison wird auf die aktuelle Bossposition gecastet; danach folgt ein kurzer konfigurierter Settle-Schritt.</p><p class="gate"><strong>Manuelle Abnahme 2/3:</strong> Ein isolierter Countess-Kill mit vorbereitet niedrigem Mana bestätigt einen Mana-Trank aus Slot 2/3 sowie genau einen F3-Cast vor dem ersten Bone-Spear-Cast. Damit entsteht kein zusätzlicher manueller Test nur für Mana.</p></div></article>
+
+  <article class="phase"><div class="phase-id">8.6</div><div><h3>Reset, Telemetrie und Recovery</h3><p>Hook- und Ressourcen-Zustand werden in die Session-Reset-Barriere aufgenommen. Run-Telemetrie erhält Profil, Hook, Skill, Ziel, UnitID sowie Ressourcenart, Schwellwert, Belt-Slot und Bestätigung. Fehler werden exakt klassifiziert; es gibt kein Text-Matching.</p><p class="gate"><strong>Gate:</strong> Automatisierte Session-Tests beweisen frischen Game-/Encounter-/Throttle-Zustand und keine nachlaufenden Casts oder Potion-Aktionen nach Stop oder Fehler.</p></div></article>
+
+  <article class="phase"><div class="phase-id">8.7</div><div><h3>Vollständiger E2E und Abschluss</h3><p>Der produktive Countess-Flow wird mit aktivem Necromancer-Profil und Resource Policy einmal vollständig ausgeführt. Bestehende Kill-, Loot-, Portal-, Stash- und Save-&amp;-Exit-Semantik darf sich nicht ändern.</p><p class="gate"><strong>Manuelle Abnahme 3/3:</strong> Ein vollständiger autonomer Countess-Zyklus mit genau einem Bone-Armor- und einem Bone-Prison-Cast sowie bedarfsgesteuertem Trankverhalten endet erfolgreich. Keine zehnfachen Wiederholungen.</p></div></article>
+
+  <h2>5. Technische Einordnung</h2>
+  <table>
+    <thead><tr><th>Baustein</th><th>Verantwortung</th><th>Voraussichtlicher Ort</th></tr></thead>
+    <tbody>
+      <tr><td>Profile Config</td><td>Klasse, Hooks, Aktionen und begrenzte Parameter.</td><td><code>internal/config</code></td></tr>
+      <tr><td>Resource Policy</td><td>Priorisierte HP-/Mana-/Rejuvenation-Entscheidung und bestätigter Belt-Verbrauch.</td><td><code>internal/tasks</code> mit Input-Adapter in <code>internal/app</code></td></tr>
+      <tr><td>Hook-Vertrag</td><td>Events, Ziele, Resultate und Reset-Semantik.</td><td><code>internal/tasks</code> oder eigenes kleines Profilpaket nach 8.0-Entscheidung</td></tr>
+      <tr><td>Executor/Adapter</td><td>World-gated Skill-Ausführung über bestehende Input-Bindings.</td><td><code>internal/app</code></td></tr>
+      <tr><td>Skill IDs</td><td>Stabile Namen für Bone Armor und Bone Prison.</td><td><code>internal/memory</code></td></tr>
+      <tr><td>Telemetry</td><td>Nachvollziehbare Hook- und Cast-Ereignisse.</td><td><code>internal/telemetry</code></td></tr>
+    </tbody>
+  </table>
+
+  <h2>6. Teststrategie ohne manuelle Testflut</h2>
+  <ul>
+    <li><strong>Automatisiert:</strong> Config, Profilauflösung, Zustandsübergänge, Once-Marker, Reset, Reihenfolge, Fehler und Telemetrie.</li>
+    <li><strong>Manuell 1:</strong> Bone Armor isoliert in Town.</li>
+    <li><strong>Manuell 2:</strong> Kontrolliert niedriges Mana plus Bone Prison isoliert bei der Countess.</li>
+    <li><strong>Manuell 3:</strong> Ein vollständiger autonomer Countess-E2E-Zyklus mit beiden Hooks und Resource Policy.</li>
+  </ul>
+  <div class="callout"><strong>Keine Wiederholungsserie pro Slice:</strong> Ein erfolgreicher, telemetrierter Live-Durchlauf genügt je manuellem Gate. Wiederholt wird nur bei einem tatsächlichen Fehlschlag oder wenn eine spätere Änderung genau diesen Flow berührt.</div>
+
+  <h2>7. Definition of Done</h2>
+  <ul>
+    <li>Keine Necromancer- oder Countess-Sonderabfrage im generischen Hook-Executor.</li>
+    <li>Bone Armor genau einmal pro Game-Generation; Bone Prison genau einmal pro Boss-UnitID.</li>
+    <li>Pro Tick höchstens eine priorisierte Potion-Aktion; leere oder falsch belegte Slots werden nicht gedrückt.</li>
+    <li>Mana-Verbrauch ist profilkonfigurierbar und vom späteren Town-Auffüllen getrennt.</li>
+    <li>Boss-Hook läuft nach Target-Bestätigung und vor dem ersten regulären Angriff.</li>
+    <li>Falsche Klasse, fehlendes Binding und ungültiges Ziel stoppen vor dem betreffenden Input.</li>
+    <li>Session-Reset, Stop und Fehler hinterlassen keine aktiven Hook-Aktionen.</li>
+    <li>Alle Aktionen und Entscheidungen sind in strukturierter Telemetrie nachvollziehbar.</li>
+    <li>Drei gezielte manuelle Gates und die automatisierten Tests sind erfolgreich.</li>
+  </ul>
+
+  <footer>Planungsstand: 12. Juli 2026 · Phase 8.0–8.7 geplant · Nächster Schritt: Vertrag und Zustandsmodell.</footer>
+</main>
+</body>
+</html>

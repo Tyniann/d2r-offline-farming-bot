@@ -8,6 +8,7 @@ Versionierung nach [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- Add the Phase 8 implementation plan for generic character and encounter hooks with three focused manual acceptance runs
 - Complete Phase 7.8 with three consecutive autonomous Nightmare Countess cycles covering start, navigation, kill, loot, stash, and Save & Exit
 - Add terminal route segments so recorded navigation can end at the Countess room without a synthetic area transition
 - Re-record and validate the active `MrBones` Nightmare town walk and six-segment Countess route after invalidating stale Countess layouts
@@ -73,7 +74,10 @@ Versionierung nach [Semantic Versioning](https://semver.org/).
 - Add Phase 5.0 loot and recovery concept documentation covering Ground-Loot, Pickit, Inventory-Lock, Stash safety, and recovery slices
 
 ### Changed
-- Update the central roadmap through Phase 14 with separate goals, scope, and acceptance gates for character profiles, a second farm target, GUI, route management, Pickit editing, telemetry, and packaging
+- Document planned `internal/profile`, `internal/town`, `internal/api`, and `web` boundaries without pre-creating packages or moving the stable Phase 7 runtime
+- Extend the Phase 8 plan with a profile-driven HP, mana, and rejuvenation resource policy while keeping manual acceptance at three combined live runs
+- Insert act-aware Town Services as Phase 9 with service discovery, anchor-route graphs, validated waypoint act changes, demand-driven preparation, and fail-closed unknown-town handling; renumber later roadmap phases through Phase 15
+- Update the central roadmap through Phase 15 with separate goals, scope, and acceptance gates for character profiles, Town Services, a second farm target, GUI, route management, Pickit editing, telemetry, and packaging
 - Extend the Phase 6.1c difficulty selector into the canonical Phase 7.3 full offline-start flow without duplicating its click primitive
 - Set the Phase 7 live acceptance baseline to three successful repetitions per isolated flow and three complete multi-run cycles
 - Select the Act-1 town waypoint route by configured difficulty and fail safely when its recording is unavailable
