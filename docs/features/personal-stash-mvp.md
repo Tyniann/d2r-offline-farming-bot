@@ -2,7 +2,7 @@
 
 ## Überblick
 
-Phase 5.8 leert nach der verifizierten Rückkehr ins Rogue Encampment ausgewählte Inventar-Items in den persönlichen Stash. Unterstützt werden die aktuellen Pickit-Matches Runen, Countess-Key sowie Flawless/Perfect Gems und Skulls. D2R sortiert sie per `Ctrl+LMB` automatisch in die charaktergebundenen Sammel-Tabs `Runes`, `Materials` und `Gems` ein.
+Phase 5.8 leert nach der verifizierten Rückkehr ins Rogue Encampment ausgewählte Inventar-Items in den persönlichen Stash. Unterstützt werden die aktuellen Pickit-Matches Runen, Countess-Key, Rejuvenation Potions sowie Flawless/Perfect Gems und Skulls. D2R sortiert sie per `Ctrl+LMB` in die charaktergebundenen Sammelbereiche; Rejuvenation-Nachschub wird gesammelt, aber in Phase 9 noch nicht automatisch aus dem 99er-Stash-Slot in den Belt zurückgeführt.
 
 Shared-Stash-Tabs, Tab-Wechsel, endliche Raster-Platzstrategien, Identify, Sell und das Droppen vorhandener Items sind ausdrücklich nicht Bestandteil dieses MVP.
 

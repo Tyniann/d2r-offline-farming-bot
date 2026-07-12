@@ -81,7 +81,7 @@ Jeder frische Session-Run bindet seinen eigenen Run-Recorder an den Profil-Execu
 
 - `town_ready` und `boss_engage` sind produktiv in den Countess-Flow integriert. Der Boss bleibt über seine bestätigte UnitID an die Encounter-Aktion gebunden.
 - Buff-Dauer wird nicht aus Memory gelesen. Bone Armor gilt nach bestätigter Input-Anforderung einmal pro Game-Generation als angefordert.
-- Phase 8 verbraucht vorhandene Tränke. Einkauf und Belt-Auffüllung gehören zu Phase 9.
+- Phase 8 verbraucht vorhandene Tränke. Phase 9 kauft nur Healing/Mana nach; Rejuvenation ist nicht kaufbar und kommt vorerst ausschließlich über Pickit-Loot.
 
 ## Verwandte Features
 

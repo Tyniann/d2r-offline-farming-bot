@@ -83,9 +83,10 @@ type PickitResult struct {
 
 - Runen per `[type] == rune`
 - Key of Terror per `[name] == pk1`
+- Rejuvenation und Full Rejuvenation per `[type] == rpot`, da sie nicht bei Town-Vendoren gekauft werden können
 - Flawless und Perfect Gems per expliziten Item-Codes
 
-Gold und Potion-Regeln sind nur kommentierte Beispiele. Potion-Aufnahme braucht später Belt-Zustand und gehört deshalb nicht in Phase 5.3.
+Gold sowie Healing-/Mana-Potion-Regeln bleiben kommentierte Beispiele. Rejuvenation bildet die bewusste Ausnahme: Sie wird als seltener Loot aufgenommen und kann zentral gestasht werden; Crafting und automatisches Auffüllen aus dem 99er-Stash-Slot sind nicht Bestandteil von Phase 9.
 
 ## Operator / CLI
 

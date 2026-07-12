@@ -8,6 +8,8 @@ Versionierung nach [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- Pick up Rejuvenation Potions as Countess loot because Town vendors cannot replenish them
+- Add the detailed Phase 9 implementation plan for act-aware, demand-driven Town Services with three combined manual gates
 - Complete and live-validate Phase 8.7 with visible Bone Armor and Bone Prison casts in one autonomous Countess cycle
 - Complete Phase 8.6 with run-scoped profile JSONL events, fail-closed telemetry errors, and reset coverage for hooks, potion verification, and cooldown state
 - Complete Phase 8.5 with a UnitID-pinned Bone Prison boss hook before the first Countess attack and live-validate the ordered full run
@@ -78,6 +80,9 @@ Versionierung nach [Semantic Versioning](https://semver.org/).
 - Add Phase 5.0 loot and recovery concept documentation covering Ground-Loot, Pickit, Inventory-Lock, Stash safety, and recovery slices
 
 ### Changed
+- Use combat-profile belt assignments, configurable restock thresholds, Shift-right-click bulk refill, and single-buy fallback for incomplete layouts in the Phase 9 plan
+- Exclude Rejuvenation buying, crafting, and 99-slot stash withdrawal from Phase 9 Town replenishment
+- Simplify Phase 9 to one central Act-1 stash/service hub with minimal per-act waypoint egress adapters and next-run handoff
 - Separate permanent Town route assets under `configs/routes/town/` from invalidatable character/difficulty Farming routes under `configs/routes/farming/`
 - Document planned `internal/profile`, `internal/town`, `internal/api`, and `web` boundaries without pre-creating packages or moving the stable Phase 7 runtime
 - Extend the Phase 8 plan with a profile-driven HP, mana, and rejuvenation resource policy while keeping manual acceptance at three combined live runs

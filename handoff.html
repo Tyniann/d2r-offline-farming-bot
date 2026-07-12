@@ -596,7 +596,7 @@
     <div class="phase">
       <strong>Phase 8</strong>
       <div>
-        <h3>Generische Character- und Encounter-Profile <span class="warn">— als Nächstes</span></h3>
+        <h3>Generische Character- und Encounter-Profile <span class="good">— abgeschlossen</span></h3>
         <p><strong>Ziel:</strong> Klassen- und kampfspezifisches Verhalten ergänzen, ohne Necromancer-Sonderlogik in einzelne Runs einzubauen.</p>
         <p><strong>Umfang:</strong></p>
         <ul>
@@ -614,22 +614,25 @@
     <div class="phase">
       <strong>Phase 9</strong>
       <div>
-        <h3>Aktbewusste Town Services und Run-Vorbereitung <span class="warn">— geplant</span></h3>
+        <h3>Aktbewusste Town Services und Run-Vorbereitung <span class="warn">— als Nächstes</span></h3>
         <p><strong>Ziel:</strong> Vor einem Run nur tatsächlich notwendige Stadtaktionen sicher ausführen, unabhängig davon, in welchem Akt der Charakter startet oder aus welchem Run er zurückkehrt.</p>
         <p><strong>Architektur:</strong></p>
         <ul>
-          <li>Ein Town-Profil pro Akt beschreibt stabile Anker, verfügbare Dienste, bekannte NPCs und aufgezeichnete Wege.</li>
+          <li>Rogue Encampment ist der zentrale Stash- und Service-Hub mit dem einzigen vollständigen Town-Graphen.</li>
           <li>Ein Service-Registry-Modell ordnet Bedarfe wie Potions, Scrolls, Identify, Sell, Repair und später Mercenary-Revive einem lokalen Anbieter zu.</li>
-          <li>Navigation verwendet einen Graph aus kurzen Routen zwischen Spawn, Portal-Ankunft, Stash, Waypoint und NPC-Nähe statt einer einzigen starren Town-Sequenz.</li>
+          <li>Andere Akte erhalten pro unterstütztem Farmziel nur einen minimalen Egress von Portal-/Startanker zum lokalen Waypoint; Stash- und NPC-Graphen werden dort nicht dupliziert.</li>
           <li>Die Route bringt den Charakter nur in Interaktionsnähe; ein NPC-Klick benötigt nach Möglichkeit Memory-Entity und Hover-bestätigte UnitID sowie einen bestätigten Shop-/Dialogzustand.</li>
-          <li>Lokale Dienste werden bevorzugt. Ein Aktwechsel erfolgt nur, wenn der benötigte Dienst lokal fehlt oder der nächste Run in einem anderen Akt startet.</li>
+          <li>Nach Fremdakt-Egress wechselt der Bot über den Waypoint nach Act 1, verstaut Loot zentral und erledigt dort alle benötigten Dienste.</li>
+          <li>Nach Abschluss endet Town Preparation am Act-1-Waypoint und übergibt von dort direkt an das Ziel des nächsten Runs.</li>
           <li>Ein generischer, Memory-/Screen-gated Waypoint-Aktwechsel bestätigt Quellakt, Zielakt, Zielstadt und Ankunft vor dem nächsten Input.</li>
         </ul>
-        <p><strong>Bedarfsmodell:</strong> Belt- und Inventarbestand, HP-/Mana-Potion-Zielbelegung, Town-Portal-/Identify-Vorrat, nicht identifizierte Items, explizite Vendor-Kandidaten, Reparaturzustand und verfügbare Goldkosten werden zuerst read-only bewertet. Bereits erfüllte Dienste werden übersprungen.</p>
+        <p><strong>Bedarfsmodell:</strong> Belt- und Inventarbestand, kaufbare HP-/Mana-Potion-Zielbelegung, Town-Portal-/Identify-Vorrat, nicht identifizierte Items, explizite Vendor-Kandidaten, Reparaturzustand und verfügbare Goldkosten werden zuerst read-only bewertet. Rejuvenation ist ausdrücklich kein Town-Kaufbedarf; vorhandene Bestände werden geschützt und Nachschub kommt vorerst nur über Pickit-Loot.</p>
+        <p><strong>Restock-Strategie:</strong> Belt-Spalten stammen ausschließlich aus dem aktiven Combat-Profil. Erst beim Unterschreiten einer konfigurierten Mindestmenge entsteht ein Restock-Bedarf. Bei vollständig typisiertem Belt beziehungsweise bestätigtem Tome ist Shift+RMB-Sammelkauf der Standard; unzugewiesene Belt-Spalten erzwingen den verifizierten Einzelkaufpfad.</p>
         <p><strong>Sicherheitsgrenzen:</strong> Unbekannter Akt, fehlendes Town-Profil, unbekannter Startanker, fehlende Route, nicht bestätigter NPC, unbestätigte Shop-UI oder nicht unterstützter Aktwechsel enden fail-closed ohne Blindlauf oder Blindklick.</p>
-        <p><strong>Reihenfolge für den späteren Detailplan:</strong> Town-Vertrag → Act-/Town-Erkennung → Service Registry → Anker-/Routengraph → Waypoint-Aktwechsel → Bedarfsmodell → Einkaufen → Identifizieren/Verkaufen/Reparieren → vollständige Run-Vorbereitung.</p>
-        <p><strong>Erster Scope:</strong> Act 1 wird vollständig live umgesetzt. Weitere Town-Profile werden erst mit Farmzielen in den jeweiligen Akten ergänzt; die Core-Verträge bleiben von Beginn an aktneutral.</p>
+        <p><strong>Reihenfolge:</strong> Hub-/Egress-Vertrag → Herkunftserkennung → Hub Planner → Act-1-Servicegraph → Waypoint-Hubtransfer → zentraler Stash → Einkaufen → Identifizieren/Verkaufen/Reparieren → Handoff zum nächsten Run.</p>
+        <p><strong>Erster Scope:</strong> Act 1 wird vollständig live umgesetzt. Weitere Farmziele ergänzen später nur ihre Ziel-Waypoints und minimalen Town-Egress-Routen; der Service-Hub bleibt Act 1.</p>
         <p><strong>Abnahme:</strong> Ein Act-1-Preparation-Durchlauf erledigt ausschließlich erzeugte Bedarfe und startet danach einen Countess-Run. Negative Tests beweisen, dass ein Act-2-Zustand ohne validiertes Profil beziehungsweise ohne validierten Aktwechsel vor Input stoppt.</p>
+        <p>Detailplan: <a href="phase-9-implementation-plan.html">Phase-9-Umsetzungsplan</a>.</p>
       </div>
     </div>
 
