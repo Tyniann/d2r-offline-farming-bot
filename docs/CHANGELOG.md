@@ -8,6 +8,39 @@ Versionierung nach [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- Complete Phase 7.8 with three consecutive autonomous Nightmare Countess cycles covering start, navigation, kill, loot, stash, and Save & Exit
+- Add terminal route segments so recorded navigation can end at the Countess room without a synthetic area transition
+- Re-record and validate the active `MrBones` Nightmare town walk and six-segment Countess route after invalidating stale Countess layouts
+- Validate one complete playback of the new Nightmare route from Black Marsh to Tower Cellar Level 5
+- Add the route-independent Phase 7.8 finite multi-run core with cooldown, duration/run limits, unique game/run IDs, recovery decisions, and terminal summaries
+- Cover three successful cycles, one budgeted hard-stuck restart, and terminal unknown failure without relying on invalidated route recordings
+- Add Phase 7.7 exact sentinel-based recovery classification with hard consecutive-failure and total-restart budgets
+- Add schema-v2 session lifecycle JSONL with correlated session, game, and run IDs plus terminal summaries
+- Add structured hard-stuck route, segment, point, drift, target, and local-recovery context
+- Add fail-closed hard-stuck ordering from `stuck_detected` through `run_aborted` to one recovery decision
+- Add Phase 7.6 per-game verification with generation-bound fresh snapshots for character, version, town, and closed UI
+- Add a mandatory cycle reset barrier for World, Navigator, Route, Loot, Combat, Stash, Waypoint, Portal, and Town-Walk state
+- Rebuild and validate the authoritative route layout at every Black Marsh route start before RoutePlayer or navigation activation
+- Add Phase 7.5 autonomous-session YAML with explicit opt-in, finite budgets, retry classes, and restrictive zero-value support
+- Add mutually exclusive `--session-inspect` JSON plan resolution before Runtime creation, process attach, hotkeys, or input
+- Add static session preflight for full-run registration, route binding, character anchors, difficulty, game version, and input opt-in
+- Add the Phase 7.4 generic single-cycle session orchestrator with a fresh run executor per cycle
+- Add fail-closed lifecycle action gates, reset-before-exit ordering, and canonical run outcome events
+- Cover three successful fake cycles, run failure, hard-stuck reset, pause, stop, loading timeout, and telemetry failure
+- Add the Phase 7.3 screen- and Memory-gated offline game start with explicit character verification
+- Add versioned narrow character, Play, and difficulty-dialog anchors for the supported 1280x720 frontend
+- Add read-only D2R client capture through `github.com/kbinani/screenshot`
+- Validate three complete Phase 7.3 Nightmare starts with exactly one Play and one difficulty click each
+- Add the Phase 7.2 isolated Memory-gated offline Save & Exit test with single-action invariants
+- Add stable town, quit-menu, geometry, and menu-arrival gates for offline game exit
+- Add a verified D2R foreground-focus guard for keyboard-sensitive lifecycle actions
+- Validate three complete Phase 7.2 offline exits with exactly one Escape press and one Save & Exit click each
+- Add and live-validate the Phase 7.1 read-only `QuitMenuOpen` flag at `UI-0xB`
+- Validate the Phase 7.1 UI-state matrix and select Memory plus narrow screen anchors for offline frontend control
+- Add the Phase 7.1 read-only UI-state capture CLI with stable and volatile byte classification
+- Add atomically published local UI-buffer research artifacts with raw samples, known state, and SHA-256 fingerprint
+- Define the Phase 7.0 session lifecycle contract with finite run, time, retry, and restart budgets
+- Define fail-closed lifecycle states, hard-stuck abort semantics, correlated session telemetry, and UI input invariants
 - Add Phase 6.7 Countess route adapter and `runs.countess.route_id` without a best-effort Explorer fallback
 - Validate the Phase 6.7 Countess adapter live across all six recorded segments from Black Marsh to Tower Cellar Level 5
 - Validate ten complete Phase 6 route playbacks in the bound Nightmare layout, including one Countess adapter run
@@ -40,6 +73,9 @@ Versionierung nach [Semantic Versioning](https://semver.org/).
 - Add Phase 5.0 loot and recovery concept documentation covering Ground-Loot, Pickit, Inventory-Lock, Stash safety, and recovery slices
 
 ### Changed
+- Update the central roadmap through Phase 14 with separate goals, scope, and acceptance gates for character profiles, a second farm target, GUI, route management, Pickit editing, telemetry, and packaging
+- Extend the Phase 6.1c difficulty selector into the canonical Phase 7.3 full offline-start flow without duplicating its click primitive
+- Set the Phase 7 live acceptance baseline to three successful repetitions per isolated flow and three complete multi-run cycles
 - Select the Act-1 town waypoint route by configured difficulty and fail safely when its recording is unavailable
 - Rename the implemented stash decision reason from `stash_not_implemented` to `stash_candidate`
 - Extend `loot-countess` and the full Countess run from verified town arrival through Personal Stash completion
@@ -47,6 +83,9 @@ Versionierung nach [Semantic Versioning](https://semver.org/).
 - Regenerate the item catalog from local D2R `3.2.92777` data so current Countess drops resolve correctly
 
 ### Fixed
+- Keep Windows global hotkey registration, message polling, and unregistration on one OS thread and wait for release between session stages
+- Allow explicit diagnostic and route-recording modes while an enabled Phase-7 session remains execution-gated
+- Block offline lifecycle input when D2R foreground activation is not confirmed
 - Recover bounded route drift by returning to the last confirmed recorded point without widening the drift limit
 - Prevent repeated entrance clicks while waiting for Loading or the expected Area transition
 - Align navigator goals with per-route waypoint tolerance to prevent repeated arrival at a stricter playback waypoint

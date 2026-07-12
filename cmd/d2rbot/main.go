@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
@@ -22,7 +23,13 @@ func main() {
 	phaseFlag := flag.String("phase", "", "optional run phase (e.g. travel-marsh or travel-cellar5 with --run countess)")
 	pathingTest := flag.String("pathing-test", "", "manual pathing test spec (teleport:TX,TY | hover:watch | inspect:entrances|layout | move-area:<id|name> | click-entity:waypoint|entrance | pickup:item)")
 	pathingTestTimeoutMs := flag.Int("pathing-test-timeout-ms", 120000, "timeout in ms for the pathing test mode")
-	offlineDifficulty := flag.String("offline-difficulty-test", "", "select normal, nightmare, or hell from the prepared offline character screen")
+	offlineDifficulty := flag.String("offline-difficulty-test", "", "start an offline game on normal, nightmare, or hell from the verified character screen")
+	offlineCharacter := flag.String("offline-character", "", "expected selected character for --offline-difficulty-test (e.g. MrBones)")
+	offlineExitTest := flag.Bool("offline-exit-test", false, "run one isolated Memory-gated Save & Exit test from Rogue Encampment")
+	uiStateProbe := flag.String("ui-state-probe", "", "read-only UI-buffer capture label (e.g. gameplay, quit-menu, character-screen, difficulty-dialog)")
+	uiStateProbeTimeoutMs := flag.Int("ui-state-probe-timeout-ms", 30000, "timeout in ms for a read-only UI-state capture")
+	screenAnchorCapture := flag.String("screen-anchor-capture", "", "capture a named 1280x720 frontend screenshot for Phase 7.3 calibration")
+	sessionInspect := flag.Bool("session-inspect", false, "validate and print the resolved autonomous-session plan without attaching or sending input")
 	routeCommand := flag.String("route", "", "route command (list | inspect:<id> | validate:<id> | record:<id> | play-segment:<id>/<segment-id> | play:<id>)")
 	routeName := flag.String("route-name", "", "display name for a route recording; only valid with record")
 	routeDifficulty := flag.String("route-difficulty", "", "recording label: normal, nightmare, or hell; required with record")
@@ -35,18 +42,24 @@ func main() {
 	}
 
 	opts := app.Options{
-		Probe:                *probe,
-		Verbose:              *verbose,
-		InputTest:            *inputTest,
-		InputTestObserveMs:   *inputTestObserveMs,
-		Run:                  *runFlag,
-		RunPhase:             *phaseFlag,
-		PathingTest:          *pathingTest,
-		PathingTestTimeoutMs: *pathingTestTimeoutMs,
-		OfflineDifficulty:    *offlineDifficulty,
-		Route:                *routeCommand,
-		RouteName:            *routeName,
-		RouteDifficulty:      *routeDifficulty,
+		Probe:                 *probe,
+		Verbose:               *verbose,
+		InputTest:             *inputTest,
+		InputTestObserveMs:    *inputTestObserveMs,
+		Run:                   *runFlag,
+		RunPhase:              *phaseFlag,
+		PathingTest:           *pathingTest,
+		PathingTestTimeoutMs:  *pathingTestTimeoutMs,
+		OfflineDifficulty:     *offlineDifficulty,
+		OfflineCharacter:      *offlineCharacter,
+		OfflineExitTest:       *offlineExitTest,
+		UIStateProbe:          *uiStateProbe,
+		UIStateProbeTimeoutMs: *uiStateProbeTimeoutMs,
+		ScreenAnchorCapture:   *screenAnchorCapture,
+		SessionInspect:        *sessionInspect,
+		Route:                 *routeCommand,
+		RouteName:             *routeName,
+		RouteDifficulty:       *routeDifficulty,
 	}
 	if err := run(*configPath, opts); err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
@@ -58,6 +71,18 @@ func run(configPath string, opts app.Options) error {
 	cfg, err := config.Load(configPath)
 	if err != nil {
 		return err
+	}
+	if opts.SessionInspect {
+		plan, err := app.ResolveSessionPlan(cfg, opts)
+		if err != nil {
+			return err
+		}
+		encoded, err := json.MarshalIndent(plan, "", "  ")
+		if err != nil {
+			return fmt.Errorf("encode session plan: %w", err)
+		}
+		fmt.Println(string(encoded))
+		return nil
 	}
 
 	rt, err := app.New(cfg, opts)
@@ -79,8 +104,20 @@ func run(configPath string, opts app.Options) error {
 	if opts.OfflineDifficulty != "" {
 		return rt.RunOfflineDifficultyTest(opts.OfflineDifficulty)
 	}
+	if opts.OfflineExitTest {
+		return rt.RunOfflineExitTest()
+	}
+	if opts.UIStateProbe != "" {
+		return rt.RunUIStateProbe(opts.UIStateProbe)
+	}
+	if opts.ScreenAnchorCapture != "" {
+		return rt.RunScreenAnchorCapture(opts.ScreenAnchorCapture)
+	}
 	if opts.PathingTest != "" {
 		return rt.RunPathingTest(opts.PathingTest)
+	}
+	if cfg.Session.Enabled {
+		return rt.RunSession()
 	}
 	return rt.Run()
 }

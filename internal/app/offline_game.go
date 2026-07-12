@@ -4,6 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"image"
+	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
@@ -14,8 +17,13 @@ import (
 const (
 	offlineDifficultyClientWidth  = 1280
 	offlineDifficultyClientHeight = 720
-	offlineDifficultyTimeout      = 30 * time.Second
+	offlineStartTimeout           = 45 * time.Second
+	offlineStartStageTimeout      = 15 * time.Second
+	offlinePlayX                  = 640
+	offlinePlayY                  = 648
 )
+
+var offlineCharacterNamePattern = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
 
 type offlineDifficulty string
 
@@ -28,6 +36,92 @@ const (
 type offlineDifficultyController interface {
 	inputController
 	Click(button input.MouseButton) error
+	CaptureClient() (*image.RGBA, error)
+}
+
+type offlineStartStage uint8
+
+const (
+	offlineStartAwaitCharacter offlineStartStage = iota
+	offlineStartAwaitDifficulty
+	offlineStartAwaitGame
+	offlineStartComplete
+)
+
+type offlineStartAction uint8
+
+const (
+	offlineStartNoAction offlineStartAction = iota
+	offlineStartVerifyCharacter
+	offlineStartVerifyDifficulty
+)
+
+type offlineStartMachine struct {
+	stage       offlineStartStage
+	stableTicks int
+	startedAt   time.Time
+	stageAt     time.Time
+	character   string
+}
+
+func (m *offlineStartMachine) tick(now time.Time, state world.State) (offlineStartAction, bool, error) {
+	if m.startedAt.IsZero() {
+		m.startedAt, m.stageAt = now, now
+	}
+	if now.Sub(m.startedAt) >= offlineStartTimeout {
+		return offlineStartNoAction, false, fmt.Errorf("offline game start timeout")
+	}
+	if now.Sub(m.stageAt) >= offlineStartStageTimeout {
+		return offlineStartNoAction, false, fmt.Errorf("offline game start timeout in stage %d", m.stage)
+	}
+	switch m.stage {
+	case offlineStartAwaitCharacter, offlineStartAwaitDifficulty:
+		if state.Phase == world.GamePhaseLoading {
+			m.stableTicks = 0
+			return offlineStartNoAction, false, nil
+		}
+		if state.Phase != world.GamePhaseMenu || state.Valid {
+			m.stableTicks = 0
+			return offlineStartNoAction, false, nil
+		}
+		m.stableTicks++
+		if m.stableTicks < offlineExitStableTicks {
+			return offlineStartNoAction, false, nil
+		}
+		if m.stage == offlineStartAwaitCharacter {
+			return offlineStartVerifyCharacter, false, nil
+		}
+		return offlineStartVerifyDifficulty, false, nil
+	case offlineStartAwaitGame:
+		if state.Phase == world.GamePhaseLoading || !state.Valid {
+			m.stableTicks = 0
+			return offlineStartNoAction, false, nil
+		}
+		if state.Phase != world.GamePhaseInGame {
+			return offlineStartNoAction, false, fmt.Errorf("offline game start expected in_game, got %s", state.Phase)
+		}
+		if !state.Identity.Valid || !strings.EqualFold(state.Identity.CharacterName, m.character) {
+			m.stableTicks = 0
+			return offlineStartNoAction, false, nil
+		}
+		if state.Area.ID != world.RogueEncampment {
+			return offlineStartNoAction, false, fmt.Errorf("offline game start expected Rogue Encampment, got %s", state.Area.Name)
+		}
+		m.stableTicks++
+		if m.stableTicks >= offlineExitStableTicks {
+			m.stage = offlineStartComplete
+			return offlineStartNoAction, true, nil
+		}
+		return offlineStartNoAction, false, nil
+	case offlineStartComplete:
+		return offlineStartNoAction, true, nil
+	default:
+		return offlineStartNoAction, false, fmt.Errorf("offline game start unknown stage %d", m.stage)
+	}
+}
+
+func (m *offlineStartMachine) advance(stage offlineStartStage, now time.Time) {
+	m.stage, m.stageAt, m.stableTicks = stage, now, 0
 }
 
 func parseOfflineDifficulty(raw string) (offlineDifficulty, error) {
@@ -37,6 +131,14 @@ func parseOfflineDifficulty(raw string) (offlineDifficulty, error) {
 	default:
 		return "", fmt.Errorf("offline difficulty must be normal, nightmare, or hell, got %q", raw)
 	}
+}
+
+func validateOfflineCharacter(raw string) (string, error) {
+	name := strings.TrimSpace(raw)
+	if !offlineCharacterNamePattern.MatchString(name) {
+		return "", fmt.Errorf("offline character must contain only letters, digits, underscore, or hyphen, got %q", raw)
+	}
+	return name, nil
 }
 
 func offlineDifficultyPoint(difficulty offlineDifficulty) (int, int) {
@@ -53,36 +155,68 @@ func offlineDifficultyPoint(difficulty offlineDifficulty) (int, int) {
 }
 
 func selectOfflineDifficulty(ctrl offlineDifficultyController, difficulty offlineDifficulty) error {
-	win, ok := ctrl.Window()
-	if !ok {
-		return fmt.Errorf("offline difficulty selection: input window not bound")
-	}
-	if win.ClientWidth != offlineDifficultyClientWidth || win.ClientHeight != offlineDifficultyClientHeight {
-		return fmt.Errorf("offline difficulty selection requires %dx%d, got %dx%d", offlineDifficultyClientWidth, offlineDifficultyClientHeight, win.ClientWidth, win.ClientHeight)
-	}
 	x, y := offlineDifficultyPoint(difficulty)
 	if x == 0 || y == 0 {
 		return fmt.Errorf("offline difficulty selection: unsupported difficulty %q", difficulty)
 	}
+	return clickOfflinePoint(ctrl, x, y, string(difficulty)+" difficulty")
+}
+
+func clickOfflinePoint(ctrl offlineDifficultyController, x, y int, label string) error {
+	if err := validateOfflineExitWindow(ctrl); err != nil {
+		return err
+	}
+	if err := ctrl.Focus(); err != nil {
+		return fmt.Errorf("focus before %s: %w", label, err)
+	}
 	if err := ctrl.MoveTo(x, y); err != nil {
-		return fmt.Errorf("move to %s difficulty: %w", difficulty, err)
+		return fmt.Errorf("move to %s: %w", label, err)
 	}
 	if err := ctrl.Click(input.MouseLeft); err != nil {
-		return fmt.Errorf("click %s difficulty: %w", difficulty, err)
+		return fmt.Errorf("click %s: %w", label, err)
 	}
 	return nil
 }
 
-// RunOfflineDifficultyTest performs one explicit difficulty click from a manually prepared
-// offline character screen and verifies in-game arrival plus confirmed character identity.
+func verifyOfflineAnchor(ctrl offlineDifficultyController, anchors ...screenAnchor) (map[string]float64, error) {
+	if err := validateOfflineExitWindow(ctrl); err != nil {
+		return nil, err
+	}
+	if err := ctrl.Focus(); err != nil {
+		return nil, fmt.Errorf("focus before screen verification: %w", err)
+	}
+	img, err := ctrl.CaptureClient()
+	if err != nil {
+		return nil, fmt.Errorf("capture before screen verification: %w", err)
+	}
+	scores := make(map[string]float64, len(anchors))
+	for _, anchor := range anchors {
+		score, err := matchScreenAnchor(img, anchor)
+		if err != nil {
+			return nil, err
+		}
+		scores[anchor.name] = score
+		if score > screenAnchorMaxMeanDifference {
+			return scores, fmt.Errorf("%s screen anchor mismatch: mean_difference=%.4f maximum=%.4f", anchor.name, score, screenAnchorMaxMeanDifference)
+		}
+	}
+	return scores, nil
+}
+
+// RunOfflineDifficultyTest starts one offline game from the verified character
+// screen and confirms the expected character in Rogue Encampment.
 func (rt *Runtime) RunOfflineDifficultyTest(rawDifficulty string) error {
 	difficulty, err := parseOfflineDifficulty(rawDifficulty)
 	if err != nil {
 		return err
 	}
+	character, err := validateOfflineCharacter(rt.Options.OfflineCharacter)
+	if err != nil {
+		return err
+	}
 	ctrl, ok := rt.Input.(offlineDifficultyController)
 	if !ok {
-		return fmt.Errorf("offline difficulty selection: controller lacks click support")
+		return fmt.Errorf("offline game start: controller lacks click or screenshot support")
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -93,17 +227,19 @@ func (rt *Runtime) RunOfflineDifficultyTest(rawDifficulty string) error {
 	if err != nil {
 		return err
 	}
+	defer rt.stopHotkeys(cancel)
 	ticker := time.NewTicker(time.Duration(rt.Config.Runtime.PollIntervalMs) * time.Millisecond)
 	defer ticker.Stop()
 	state := &runState{}
-	deadline := time.Now().Add(offlineDifficultyTimeout)
+	machine := &offlineStartMachine{character: character}
+	playClicked, difficultyClicked := false, false
+	characterSlug := strings.ToLower(character)
+	characterAnchor := screenAnchor{name: "selected_character", path: filepath.Join("configs", "ui", "characters", characterSlug+"-selected.png"), rect: image.Rect(1035, 48, 1245, 108)}
+	playAnchor := screenAnchor{name: "active_play", path: filepath.Join("configs", "ui", "character-play.png"), rect: image.Rect(538, 624, 741, 671)}
+	difficultyAnchor := screenAnchor{name: "difficulty_dialog", path: filepath.Join("configs", "ui", "difficulty-dialog.png"), rect: image.Rect(550, 245, 730, 420)}
 
-	rt.Log.Info("offline difficulty test waiting for prepared offline character screen",
-		"difficulty", difficulty,
-		"required_client_width", offlineDifficultyClientWidth,
-		"required_client_height", offlineDifficultyClientHeight,
-	)
-	for time.Now().Before(deadline) {
+	rt.Log.Info("offline game start waiting for verified character screen", "difficulty", difficulty, "character", character)
+	for {
 		select {
 		case <-ctx.Done():
 			return nil
@@ -111,42 +247,46 @@ func (rt *Runtime) RunOfflineDifficultyTest(rawDifficulty string) error {
 			rt.handleHotkeyEvent(event, cancel)
 		case <-ticker.C:
 			if err := rt.runTick(ctx, state); err != nil && !errors.Is(err, context.Canceled) {
+				return fmt.Errorf("offline game start poll: %w", err)
+			}
+			action, done, err := machine.tick(time.Now(), rt.World.Current())
+			if err != nil {
 				return err
 			}
-			cur := rt.World.Current()
-			if state.attached && rt.Input.Bound() && cur.Phase == world.GamePhaseMenu {
+			switch action {
+			case offlineStartVerifyCharacter:
+				if playClicked {
+					return fmt.Errorf("offline game start invariant: Play already clicked")
+				}
+				scores, err := verifyOfflineAnchor(ctrl, characterAnchor, playAnchor)
+				if err != nil {
+					return err
+				}
+				if err := clickOfflinePoint(ctrl, offlinePlayX, offlinePlayY, "Play"); err != nil {
+					return err
+				}
+				playClicked = true
+				machine.advance(offlineStartAwaitDifficulty, time.Now())
+				rt.Log.Info("offline game start Play clicked", "anchor_scores", scores)
+			case offlineStartVerifyDifficulty:
+				if !playClicked || difficultyClicked {
+					return fmt.Errorf("offline game start invariant: invalid difficulty click order")
+				}
+				scores, err := verifyOfflineAnchor(ctrl, difficultyAnchor)
+				if err != nil {
+					return err
+				}
 				if err := selectOfflineDifficulty(ctrl, difficulty); err != nil {
 					return err
 				}
-				rt.Log.Info("offline difficulty selected", "difficulty", difficulty)
-				return rt.waitOfflineGameIdentity(ctx, state, hotkeys, ticker, deadline, cancel, difficulty)
+				difficultyClicked = true
+				machine.advance(offlineStartAwaitGame, time.Now())
+				rt.Log.Info("offline game start difficulty clicked", "difficulty", difficulty, "anchor_scores", scores)
 			}
-		}
-	}
-	return fmt.Errorf("offline difficulty test timeout waiting for menu state")
-}
-
-func (rt *Runtime) waitOfflineGameIdentity(ctx context.Context, state *runState, hotkeys <-chan input.HotkeyEvent, ticker *time.Ticker, deadline time.Time, cancel context.CancelFunc, difficulty offlineDifficulty) error {
-	for time.Now().Before(deadline) {
-		select {
-		case <-ctx.Done():
-			return nil
-		case event := <-hotkeys:
-			rt.handleHotkeyEvent(event, cancel)
-		case <-ticker.C:
-			if err := rt.runTick(ctx, state); err != nil && !errors.Is(err, context.Canceled) {
-				return err
-			}
-			cur := rt.World.Current()
-			if cur.Valid && cur.Phase == world.GamePhaseInGame && cur.Identity.Valid {
-				rt.Log.Info("offline difficulty test completed",
-					"selected_difficulty", difficulty,
-					"character_name", cur.Identity.CharacterName,
-					"character_class", cur.Identity.Class.String(),
-				)
+			if done {
+				rt.Log.Info("offline game start completed", "difficulty", difficulty, "character", character, "play_clicks", boolCount(playClicked), "difficulty_clicks", boolCount(difficultyClicked))
 				return nil
 			}
 		}
 	}
-	return fmt.Errorf("offline difficulty test timeout waiting for confirmed in-game character")
 }

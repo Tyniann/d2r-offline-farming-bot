@@ -158,6 +158,7 @@ func worldLogAttrs(cur world.State, verbose bool) []slog.Attr {
 		slog.Uint64("pos_y", uint64(cur.Player.Position.Y)),
 		slog.Bool("ui_inventory_open", cur.UI.InventoryOpen),
 		slog.Bool("ui_stash_open", cur.UI.StashOpen),
+		slog.Bool("ui_quit_menu_open", cur.UI.QuitMenuOpen),
 	}
 	if cur.Hover.IsHovered {
 		attrs = append(attrs,

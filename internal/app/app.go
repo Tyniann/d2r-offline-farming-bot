@@ -33,6 +33,7 @@ type Runtime struct {
 	Process   processController
 	Memory    *memory.Reader
 	Probe     snapshotReader
+	UIProbe   uiBufferCaptureReader
 	World     *world.Model
 	Input     inputController
 	Bindings  configBindingSource
@@ -41,10 +42,25 @@ type Runtime struct {
 	TownWalk  *pathing.TownWalker
 	Loot      *loot.Filter
 	Telemetry *telemetry.Recorder
+
+	sessionReset     sessionResetBarrier
+	taskDeps         tasks.Deps
+	runConfig        tasks.RunConfig
+	sessionSelection tasks.RunSelection
+	routePlayback    *routePlaybackAdapter
+	lootActions      *lootActionsAdapter
 }
 
 // New builds a Runtime from config and CLI/runtime options.
 func New(cfg *config.Config, opts Options) (rt *Runtime, err error) {
+	if cfg.Session.Enabled && sessionExecutionRequested(opts) {
+		if _, planErr := ResolveSessionPlan(cfg, Options{SessionInspect: true}); planErr != nil {
+			return nil, planErr
+		}
+		if bindingErr := validateFullCountessBindings(cfg); bindingErr != nil {
+			return nil, fmt.Errorf("session bindings: %w", bindingErr)
+		}
+	}
 	var runTelemetry *telemetry.Recorder
 	logLevel := cfg.App.LogLevel
 	if opts.Verbose {
@@ -146,37 +162,49 @@ func New(cfg *config.Config, opts Options) (rt *Runtime, err error) {
 	}
 	lootActions := newLootActionsAdapter(log, lootFilter, cfg.Loot.Pickup, inputCtrl, pathingCfg, stashExecutor, runTelemetry)
 	routePlayback := newRoutePlaybackAdapter(log, cfg.ResolvePath(cfg.Routes.Directory), expectedVersion, nav, runTelemetry)
+	taskDeps := tasks.Deps{
+		Input: inputCtrl, Pathing: nav, Waypoint: waypoints, Portal: townPortals, TownWalk: townWalker,
+		Stash: personalStash, Combat: combat, Actions: runActions, Loot: lootActions, Route: routePlayback,
+	}
 
 	probe := memory.NewProbeReader(mem, offsetSet)
 	probe.SetScannedCachePath(cfg.ResolvePath(memory.DefaultScannedCacheFile))
 
 	rt = &Runtime{
-		Config:   cfg,
-		Options:  opts,
-		Log:      log,
-		logFile:  logFile,
-		Process:  proc,
-		Memory:   mem,
-		Probe:    probe,
-		World:    world.NewModel(log),
-		Input:    inputCtrl,
-		Bindings: bindings,
-		Tasks: tasks.NewRunner(log, runSelection, runCfg, tasks.Deps{
-			Input:    inputCtrl,
-			Pathing:  nav,
-			Waypoint: waypoints,
-			Portal:   townPortals,
-			TownWalk: townWalker,
-			Stash:    personalStash,
-			Combat:   combat,
-			Actions:  runActions,
-			Loot:     lootActions,
-			Route:    routePlayback,
-		}),
-		Pathing:   nav,
-		TownWalk:  townWalker,
-		Loot:      lootFilter,
-		Telemetry: runTelemetry,
+		Config:           cfg,
+		Options:          opts,
+		Log:              log,
+		logFile:          logFile,
+		Process:          proc,
+		Memory:           mem,
+		Probe:            probe,
+		UIProbe:          probe,
+		World:            world.NewModel(log),
+		Input:            inputCtrl,
+		Bindings:         bindings,
+		Tasks:            tasks.NewRunner(log, runSelection, runCfg, taskDeps),
+		Pathing:          nav,
+		TownWalk:         townWalker,
+		Loot:             lootFilter,
+		Telemetry:        runTelemetry,
+		taskDeps:         taskDeps,
+		runConfig:        runCfg,
+		sessionSelection: tasks.RunSelection{Run: cfg.Session.Run},
+		routePlayback:    routePlayback,
+		lootActions:      lootActions,
+	}
+	rt.sessionReset = sessionResetBarrier{
+		components: []sessionNamedResetter{
+			{name: "navigator", resetter: nav},
+			{name: "waypoint", resetter: waypoints},
+			{name: "town_portal", resetter: townPortals},
+			{name: "town_walk", resetter: townWalker},
+			{name: "personal_stash", resetter: personalStash},
+			{name: "combat", resetter: combat},
+			{name: "loot", resetter: lootActions},
+			{name: "route", resetter: routePlayback},
+		},
+		resetWorld: func(at time.Time, reason string) { rt.World.Reset(at, reason) },
 	}
 
 	if err := rt.verifyEnvironment(); err != nil {
@@ -187,6 +215,10 @@ func New(cfg *config.Config, opts Options) (rt *Runtime, err error) {
 
 	rt.verifyComponents()
 	return rt, nil
+}
+
+func sessionExecutionRequested(opts Options) bool {
+	return !opts.SessionInspect && !opts.Probe && opts.InputTest == "" && opts.Run == "" && opts.RunPhase == "" && opts.PathingTest == "" && opts.OfflineDifficulty == "" && opts.OfflineCharacter == "" && !opts.OfflineExitTest && opts.UIStateProbe == "" && opts.ScreenAnchorCapture == "" && opts.Route == ""
 }
 
 func loadPickit(cfg *config.Config) (*loot.Pickit, error) {
@@ -319,6 +351,13 @@ func (rt *Runtime) startHotkeys(ctx context.Context) (<-chan input.HotkeyEvent, 
 		return nil, fmt.Errorf("hotkey listener: %w", err)
 	}
 	return hotkeyEvents, nil
+}
+
+func (rt *Runtime) stopHotkeys(cancel context.CancelFunc) {
+	cancel()
+	if waiter, ok := rt.Input.(interface{ WaitHotkeys() }); ok {
+		waiter.WaitHotkeys()
+	}
 }
 
 func (rt *Runtime) logProcessStateChange(prev, next process.State) {

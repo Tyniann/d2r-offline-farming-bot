@@ -21,4 +21,6 @@ type WindowInfo struct {
 type windowAPI interface {
 	FindMainWindow(pid uint32, title string) (nativeWindow, error)
 	ClientArea(window nativeWindow) (WindowInfo, error)
+	Activate(window nativeWindow) error
+	IsForeground(window nativeWindow) bool
 }

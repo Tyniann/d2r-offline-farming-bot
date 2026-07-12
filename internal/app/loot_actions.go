@@ -26,6 +26,8 @@ type lootActionsAdapter struct {
 	telemetryErr error
 }
 
+func (a *lootActionsAdapter) setTelemetry(trace *telemetry.Recorder) { a.telemetry = trace }
+
 type telemetryEmitter interface {
 	Emit(telemetry.Event) error
 }

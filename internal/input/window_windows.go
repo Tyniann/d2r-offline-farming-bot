@@ -23,6 +23,8 @@ var (
 	procGetWindow                = modUser32.NewProc("GetWindow")
 	procGetClientRect            = modUser32.NewProc("GetClientRect")
 	procClientToScreen           = modUser32.NewProc("ClientToScreen")
+	procSetForegroundWindow      = modUser32.NewProc("SetForegroundWindow")
+	procGetForegroundWindow      = modUser32.NewProc("GetForegroundWindow")
 )
 
 type winRect struct {
@@ -102,6 +104,18 @@ func (w *user32WindowAPI) ClientArea(hwnd nativeWindow) (WindowInfo, error) {
 		ClientWidth:  width,
 		ClientHeight: height,
 	}, nil
+}
+
+func (w *user32WindowAPI) Activate(hwnd nativeWindow) error {
+	if r, _, _ := procSetForegroundWindow.Call(hwnd); r == 0 {
+		return fmt.Errorf("activate hwnd=%#x: %w", hwnd, ErrWindowNotForeground)
+	}
+	return nil
+}
+
+func (w *user32WindowAPI) IsForeground(hwnd nativeWindow) bool {
+	foreground, _, _ := procGetForegroundWindow.Call()
+	return foreground == hwnd
 }
 
 type enumWindowsContext struct {

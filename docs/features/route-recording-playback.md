@@ -315,6 +315,20 @@ Das vollständige Route Playback ist technisch implementiert:
 
 Am 11.07.2026 wurden zehn vollständige Wiedergaben im gebundenen Nightmare-Layout erfolgreich vom Black-Marsh-Wegpunkt bis Tower Cellar Level 5 ausgeführt: neun direkte `--route play`-Replays und ein Playback über den Countess-Adapter. Jede erfolgreiche JSONL-Datei endet mit `route_playback_completed` und enthält sechs `route_segment_completed`-Ereignisse.
 
+### Aktive Nightmare-Neuaufnahme vom 12.07.2026
+
+Nach zwischenzeitlichen Difficulty-Wechseln wurden die alten Countess-Aufzeichnungen bewusst verworfen. Die Town-Walk-Dateien bleiben davon unabhängig erhalten; nur die Nightmare-Town-Walk-Datei wurde zusätzlich vom aktuellen Spawn-/Stashbereich neu aufgenommen und einmal erfolgreich bis `waypoint_visible` abgespielt.
+
+Die aktive Route `black-marsh-cellar5-nightmare-mrbones` wurde vollständig neu von Black Marsh bis Tower Cellar Level 5 aufgezeichnet:
+
+- Character `MrBones`, Difficulty `nightmare`, Game-Version `3.2.92777`;
+- sechs Segmente mit neuem Start-Fingerprint `86fc206fbf0bea9e71ebace4478c2e6eab6f8898b9a3a2153d72478ea9c21424`;
+- Registry- und Route-v1-Validierung erfolgreich;
+- `--session-inspect` löst denselben Fingerprint mit `status=ready` auf;
+- ein vollständiger isolierter `--route play`-Lauf erreichte Tower Cellar Level 5 und schrieb `route_playback_completed` sowie sechs Segmentabschlüsse.
+
+Die alte Hell-Countess-Route wurde entfernt. Normal-/Hell-Town-Walk-Aufzeichnungen bleiben erhalten, da ihr fester Rogue-Encampment-Vertrag nicht an den Countess-Layout-Fingerprint gekoppelt ist.
+
 Zwei frühe Entwicklungsversuche endeten reproduzierbar und fail-closed auf Cellar 1, nachdem ein randgeklemmter Teleport seitlich mehr als `max_drift_tiles` von der aktiven Routenkante landete. Ein weiterer Wiederholungslauf brach auf dem letzten Segment nach zwei lokalen Korrekturen am Drift-Limit ab. Die daraus abgeleitete Recovery erhöht das Drift-Limit nicht: Sie kehrt höchstens `max_local_corrections`-mal zum letzten bestätigten aufgezeichneten Punkt zurück und versucht danach erneut ausschließlich den unveränderten nächsten Routenpunkt. Alle drei Fehler bleiben als `route_playback_failed` mit Segment- und Punktkontext in JSONL nachvollziehbar; sie lösten keinen Explorer-Fallback aus.
 
 Phase 6.6 ist damit abgeschlossen.

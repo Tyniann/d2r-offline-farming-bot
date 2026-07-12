@@ -2,6 +2,7 @@
 
 Sammlung von **späteren** Ideen und Verbesserungen — keine verbindliche Roadmap.
 Implementierte Features landen in `docs/features/` und `docs/CHANGELOG.md`.
+Die verbindliche Phasenfolge 0–14 steht in [`handoff.html`](../handoff.html); insbesondere GUI, Routenverwaltung, Pickit-Editor und Statistiken sind dort den Phasen 10–14 zugeordnet.
 
 **Status-Legende:** `idea` → `planned` → `in_progress` → `done` (dann hier entfernen oder nach `done` verschieben)
 

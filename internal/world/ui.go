@@ -4,4 +4,5 @@ package world
 type UIState struct {
 	InventoryOpen bool
 	StashOpen     bool
+	QuitMenuOpen  bool
 }

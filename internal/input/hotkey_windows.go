@@ -5,6 +5,7 @@ package input
 import (
 	"context"
 	"fmt"
+	"runtime"
 	"time"
 	"unsafe"
 )
@@ -59,6 +60,10 @@ func defaultHotkeyListener() HotkeyListener {
 }
 
 func (l *winHotkeyListener) Listen(ctx context.Context, bindings HotkeyBindings, events chan<- HotkeyEvent, ready chan<- error) {
+	// RegisterHotKey, PeekMessage, and UnregisterHotKey operate on the calling
+	// thread's message queue and therefore must remain on one OS thread.
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
 	registered := make([]int, 0, 2)
 
 	cleanup := func() {

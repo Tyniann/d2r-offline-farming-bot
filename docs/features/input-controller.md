@@ -4,6 +4,8 @@
 
 Phase 3.1 macht `internal/input` fensterbewusst; Phase 3.2 ergänzt mockbare Tastatur-Primitives mit YAML-konfigurierbarer Belegung; Phase 3.3 ergänzt client-relative Maus-Primitives (`MoveTo`, `Click`); Phase 3.4 ergänzt Safety-Opt-in, globale Pause/Stop-Hotkeys und einheitliches Action-Logging; Phase 3.5 ergänzt einen expliziten CLI-Testmodus zur manuellen Validierung der Input-Primitives im Offline-Spiel. Nach erfolgreichem D2R-Prozess-Attach wird das Hauptfenster per PID und Fenstertitel gefunden; HWND und Client-Geometrie in Screen-Koordinaten werden gespeichert. Der Controller kann einzelne Tasten drücken, halten/loslassen und Kombinationen senden sowie die Maus positionieren und klicken — der normale `Run()`-Loop löst noch keine automatischen Eingaben aus; der Testmodus (`--input-test`) führt konfigurierte Aktionen bewusst einmalig aus.
 
+Ab Phase 7.2 aktiviert `Controller.Focus` das gebundene D2R-Fenster über `SetForegroundWindow` und bestätigt es mit `GetForegroundWindow`. Keyboard-sensitive Lifecycle-Flows warten höchstens zehnmal 20 ms auf den asynchronen Fokuswechsel und brechen ohne Folgeinput ab, wenn D2R nicht als Foreground bestätigt wird.
+
 Echte OS-Eingaben sind standardmäßig deaktiviert (`input.enabled: false`). Globale Hotkeys steuern Pause und Stop unabhängig vom D2R-Fokus. Window Binding, Probe und World-Updates laufen weiter, auch wenn Input deaktiviert oder pausiert ist.
 
 ## Ort im Code
@@ -66,7 +68,7 @@ Echte OS-Eingaben sind standardmäßig deaktiviert (`input.enabled: false`). Glo
 - **Pause/Stop-State:** `Pause`, `Resume`, `TogglePause`, `Stop` am Controller; `Status()` liefert `Enabled`, `Paused`, `Stopped`.
 - **Action-Guards:** Alle Sender-Methoden prüfen vor OS-Aufrufen: `stopped` → `ErrInputStopped`, `!enabled` → `ErrInputDisabled`, `paused` → `ErrInputPaused`. Argumentvalidierung und `ErrWindowNotBound` haben Vorrang.
 - **Action-Logging:** Einheitliches `input action`-Log mit `allowed=true|false`; bei Blockierung zusätzlich `blocked_by` (`disabled|paused|stopped`).
-- **Globale Hotkeys:** `pause_hotkey` (Default `pause`) toggelt Pause; `stop_hotkey` (Default `f12`) stoppt Input und beendet den Bot. Hotkeys funktionieren unabhängig vom D2R-Fokus, sind aber Windows-global und können mit anderer Software kollidieren — bei Registrierungsfehler bricht der Start hart ab (`ErrHotkeyUnavailable`). Alternative Stop-Taste z. B. `stop_hotkey: f11`, falls `f12` belegt ist.
+- **Globale Hotkeys:** `pause_hotkey` (Default `pause`) toggelt Pause; `stop_hotkey` (Default `f12`) stoppt Input und beendet den Bot. Hotkeys funktionieren unabhängig vom D2R-Fokus, sind aber Windows-global und können mit anderer Software kollidieren — bei Registrierungsfehler bricht der Start hart ab (`ErrHotkeyUnavailable`). Registrierung, Message-Polling und Deregistrierung bleiben wegen der Windows-Threadbindung auf demselben OS-Thread; aufeinanderfolgende Session-Phasen warten synchron auf die Freigabe. Alternative Stop-Taste z. B. `stop_hotkey: f11`, falls `f12` belegt ist.
 - **Signal-Shutdown:** `SIGINT`/`SIGTERM` ruft `Stop("signal")` auf, analog zum Stop-Hotkey.
 - **Cleanup-Ausnahme:** Best-effort Key-/Button-Release nach begonnenem `PressCombo`/`Click` umgeht den Guard, damit keine Taste hängen bleibt.
 
@@ -239,7 +241,7 @@ Erwartung: Fenster gebunden, Aktionen in `input action`-Logs sichtbar, `input te
 ## Grenzen (Phase 3.5)
 
 - **Automatische Nutzung nur in aktiven Runs:** Der passive Modus sendet keine Eingaben; konfigurierte Countess-Phasen verwenden die Primitives hinter World-, Safety- und UI-Guards.
-- **Kein Fokus-Management:** Eingaben können woanders landen, wenn D2R nicht im Fokus ist — besonders relevant für `--input-test`.
+- **Fokus nur für Lifecycle-Flows:** Phase-7-Menüaktionen aktivieren und bestätigen D2R explizit; ältere allgemeine Run-/Test-Primitives besitzen nicht automatisch denselben semantischen Fokus-Guard.
 - **Input-Test sendet echte Eingaben:** nur mit explizitem `--input-test` und `input.enabled: true`.
 - **Keine Pathing-/UI-Klicks:** nur Low-Level-Primitives, kein semantisches D2R-UI-Modell.
 - **Globale Hotkeys:** können von anderer Software belegt sein; Start schlägt dann fehl statt ohne Safety zu laufen.
@@ -254,6 +256,7 @@ Erwartung: Fenster gebunden, Aktionen in `input action`-Logs sichtbar, `input te
 
 - Windows User32 (`EnumWindows`, `GetClientRect`, `ClientToScreen`, `SetCursorPos`, `SendInput`, `RegisterHotKey`, `PeekMessageW`, …)
 - `golang.org/x/sys/windows` (LazyDLL für User32-Procs)
+- `github.com/kbinani/screenshot` für read-only Client-Screenshots der Phase-7-Frontend-Anker
 - App-Loop in `internal/app` für Lifecycle-Wiring und Config-Mapping
 
 ## Verwandte Features

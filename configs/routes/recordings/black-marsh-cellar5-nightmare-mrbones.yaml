@@ -1,6 +1,6 @@
 version: 1
 id: black-marsh-cellar5-nightmare-mrbones
-name: Black Marsh bis Tower Cellar 5 – MrBones Nightmare
+name: Black Marsh Cellar5 Nightmare Mrbones
 kind: navigation
 binding:
     character_name: MrBones
@@ -11,10 +11,10 @@ binding:
     layout_fingerprint:
         version: 1
         area_id: 6
-        anchor_count: 1
-        hash: 54f310a416649e926dca8ba067e30223d71b22043b753097a6065ffe82aec5be
+        anchor_count: 2
+        hash: 86fc206fbf0bea9e71ebace4478c2e6eab6f8898b9a3a2153d72478ea9c21424
 recording:
-    recorded_at: 2026-07-11T00:52:15.3742095Z
+    recorded_at: 2026-07-12T01:47:35.6500124Z
     sample_distance_tiles: 4
 playback:
     waypoint_tolerance_tiles: 3
@@ -28,26 +28,30 @@ segments:
       to_area_id: 20
       movement: teleport
       points:
-        - x: 15498
-          "y": 5268
-        - x: 15521
-          "y": 5264
-        - x: 15546
-          "y": 5261
-        - x: 15571
-          "y": 5259
-        - x: 15598
-          "y": 5257
-        - x: 15626
-          "y": 5257
-        - x: 15654
-          "y": 5260
-        - x: 15678
-          "y": 5260
-        - x: 15708
-          "y": 5260
-        - x: 15687
-          "y": 5263
+        - x: 15258
+          "y": 5788
+        - x: 15243
+          "y": 5769
+        - x: 15231
+          "y": 5750
+        - x: 15219
+          "y": 5730
+        - x: 15212
+          "y": 5705
+        - x: 15204
+          "y": 5680
+        - x: 15204
+          "y": 5655
+        - x: 15199
+          "y": 5626
+        - x: 15190
+          "y": 5601
+        - x: 15189
+          "y": 5578
+        - x: 15173
+          "y": 5561
+        - x: 15171
+          "y": 5548
       transition:
         type: entrance
         entrance_kind: wilderness_to_tower
@@ -70,28 +74,24 @@ segments:
       to_area_id: 22
       movement: teleport
       points:
-        - x: 12590
-          "y": 5173
-        - x: 12607
-          "y": 5172
-        - x: 12619
-          "y": 5172
-        - x: 12631
-          "y": 5152
-        - x: 12632
-          "y": 5122
-        - x: 12628
-          "y": 5094
+        - x: 12640
+          "y": 5128
         - x: 12623
-          "y": 5068
-        - x: 12605
-          "y": 5052
-        - x: 12594
-          "y": 5029
-        - x: 12590
-          "y": 5024
-        - x: 12589
-          "y": 5023
+          "y": 5141
+        - x: 12601
+          "y": 5151
+        - x: 12577
+          "y": 5148
+        - x: 12555
+          "y": 5147
+        - x: 12532
+          "y": 5144
+        - x: 12512
+          "y": 5148
+        - x: 12508
+          "y": 5174
+        - x: 12507
+          "y": 5177
       transition:
         type: entrance
         entrance_kind: tower_cellar_down
@@ -100,26 +100,28 @@ segments:
       to_area_id: 23
       movement: teleport
       points:
-        - x: 12520
-          "y": 6667
-        - x: 12529
-          "y": 6683
-        - x: 12555
-          "y": 6688
-        - x: 12582
-          "y": 6687
-        - x: 12599
-          "y": 6671
-        - x: 12608
-          "y": 6656
-        - x: 12627
-          "y": 6645
-        - x: 12652
-          "y": 6637
+        - x: 12680
+          "y": 6507
+        - x: 12674
+          "y": 6520
+        - x: 12667
+          "y": 6528
         - x: 12648
-          "y": 6638
-        - x: 12646
-          "y": 6638
+          "y": 6547
+        - x: 12632
+          "y": 6557
+        - x: 12617
+          "y": 6568
+        - x: 12603
+          "y": 6583
+        - x: 12582
+          "y": 6592
+        - x: 12568
+          "y": 6605
+        - x: 12554
+          "y": 6613
+        - x: 12562
+          "y": 6632
       transition:
         type: entrance
         entrance_kind: tower_cellar_down
@@ -128,18 +130,34 @@ segments:
       to_area_id: 24
       movement: teleport
       points:
-        - x: 12600
-          "y": 8248
-        - x: 12587
-          "y": 8257
-        - x: 12573
-          "y": 8268
-        - x: 12561
-          "y": 8282
-        - x: 12550
-          "y": 8297
-        - x: 12550
-          "y": 8298
+        - x: 12675
+          "y": 8223
+        - x: 12675
+          "y": 8227
+        - x: 12672
+          "y": 8203
+        - x: 12660
+          "y": 8183
+        - x: 12643
+          "y": 8169
+        - x: 12632
+          "y": 8169
+        - x: 12608
+          "y": 8164
+        - x: 12593
+          "y": 8146
+        - x: 12593
+          "y": 8125
+        - x: 12588
+          "y": 8102
+        - x: 12567
+          "y": 8089
+        - x: 12542
+          "y": 8092
+        - x: 12521
+          "y": 8096
+        - x: 12502
+          "y": 8100
       transition:
         type: entrance
         entrance_kind: tower_cellar_down
@@ -149,15 +167,45 @@ segments:
       movement: teleport
       points:
         - x: 12680
-          "y": 9507
-        - x: 12676
-          "y": 9529
-        - x: 12674
-          "y": 9553
-        - x: 12676
-          "y": 9568
-        - x: 12682
-          "y": 9592
+          "y": 9628
+        - x: 12680
+          "y": 9632
+        - x: 12660
+          "y": 9635
+        - x: 12636
+          "y": 9632
+        - x: 12608
+          "y": 9623
+        - x: 12588
+          "y": 9605
+        - x: 12573
+          "y": 9587
+        - x: 12559
+          "y": 9569
+        - x: 12547
+          "y": 9557
       transition:
         type: entrance
         entrance_kind: tower_cellar_down
+    - id: tower-cellar-level-5
+      from_area_id: 25
+      to_area_id: 25
+      movement: teleport
+      points:
+        - x: 12635
+          "y": 11063
+        - x: 12635
+          "y": 11067
+        - x: 12609
+          "y": 11066
+        - x: 12584
+          "y": 11063
+        - x: 12572
+          "y": 11059
+        - x: 12554
+          "y": 11043
+        - x: 12537
+          "y": 11045
+      transition:
+        type: terminal
+        entrance_kind: ""

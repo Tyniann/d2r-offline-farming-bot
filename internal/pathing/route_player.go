@@ -71,5 +71,16 @@ func (p *RoutePlayer) PointIndex() int { return p.segment.PointIndex() }
 // CurrentTarget returns the active segment's next recorded point.
 func (p *RoutePlayer) CurrentTarget() (RoutePoint, bool) { return p.segment.CurrentTarget() }
 
+// LastConfirmedPointIndex returns the active segment's last confirmed point.
+func (p *RoutePlayer) LastConfirmedPointIndex() int { return p.segment.LastConfirmedPointIndex() }
+
+// LocalRecoveryAttempts returns corrections consumed by the active segment.
+func (p *RoutePlayer) LocalRecoveryAttempts() int { return p.segment.LocalRecoveryAttempts() }
+
+// DriftTiles returns the active segment's current path-edge drift.
+func (p *RoutePlayer) DriftTiles(position world.Position) float64 {
+	return p.segment.DriftTiles(position)
+}
+
 // Reset aborts playback and clears the delegated navigator.
 func (p *RoutePlayer) Reset() { p.navigator.Reset(); p.done = true }

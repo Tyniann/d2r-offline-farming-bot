@@ -16,6 +16,26 @@ func TestValidateRunModePassiveOK(t *testing.T) {
 	}
 }
 
+func TestValidateRunModeOfflineExitTest(t *testing.T) {
+	log := config.NewLogger("error")
+	cfg := &config.Config{Input: config.InputConfig{Enabled: true}}
+	opts := Options{OfflineExitTest: true}
+	if err := validateRunMode(resolveRunSelection(opts, cfg), cfg, opts, log); err != nil {
+		t.Fatalf("offline exit test error = %v", err)
+	}
+
+	cfg.Input.Enabled = false
+	if err := validateRunMode(resolveRunSelection(opts, cfg), cfg, opts, log); err == nil {
+		t.Fatal("expected input.enabled error")
+	}
+
+	cfg.Input.Enabled = true
+	opts.Run = "countess"
+	if err := validateRunMode(resolveRunSelection(opts, cfg), cfg, opts, log); err == nil {
+		t.Fatal("expected mode conflict")
+	}
+}
+
 func TestValidateRunModeUnknownRun(t *testing.T) {
 	cfg := &config.Config{Input: config.InputConfig{Enabled: true}}
 	log := config.NewLogger("error")

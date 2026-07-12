@@ -17,6 +17,7 @@ Ab Phase 6.1 enthält `memory.Snapshot.Identity` zusätzlich Charaktername, Clas
   - `probe.go` — `ProbeReader`, `Snapshot`, UnitTable-Walk
   - `unit_table.go` — `walkUnitSegment`, `readUnitTableSegment`
   - `phase.go` — `GamePhase`, `finalizePhase`, UI-Loading-Byte
+  - `ui.go` — bekannte UI-Flags und vollständiger read-only UI-Buffer-Capture für Phase 7.1
   - `countess_filter.go` — Allowlists für Countess-Entities
   - `enumerate.go` — Object/Entrance/Monster-Enumeration
   - `player_skills.go` — aktuell ausgewählte und gelernte Skills vom Main-Player
@@ -37,6 +38,7 @@ Ab Phase 6.1 enthält `memory.Snapshot.Identity` zusätzlich Charaktername, Clas
 | `--probe` | Zusätzlich semantisches World-State-Logging (`world state` / `world unavailable`) |
 | `--verbose` | Global Debug-Logging (`app.log_level` wird überschrieben) |
 | `--probe --verbose` | World-Logging aktiv; Positionsänderungen zusätzlich auf Debug |
+| `--ui-state-probe <label>` | Isolierter Phase-7.1-Modus: zwölf read-only UI-Buffer-Samples als lokales JSON-Artefakt; kein Menüinput |
 
 Startup-Log enthält `probe_enabled` (World-State-Logging-Schalter), `verbose` sowie `offset configuration` (`game_version`, `offset_set`, `offsets_file`, `attach_timeout_ms`).
 
@@ -121,10 +123,13 @@ Der Hover-Offset wird — wie UnitTable/UI — per d2go-Signature-Scan in `ScanP
 | `Items` | Positionierte Ground-Items aus UnitTable-Segment `4`; leer (nicht nil) außerhalb `in_game` |
 | `PlayerSkills` | `LeftSkill`, `RightSkill`, `SkillsKnown` vom Main-Player (Skill-Liste `unit+0x100`) |
 | `Hover` | `HoverState` (`IsHovered`, `UnitType`, `UnitID`) aus dem 12-Byte-Buffer bei `moduleBase+Hover`; nur bei `Valid && Phase=in_game` gelesen |
+| `UI` | Read-only `InventoryOpen`, `StashOpen` und ab Phase 7.1 das live validierte `QuitMenuOpen` bei `UI-0xB` |
 
 Details zu Casting und Precheck: [Input Controller](input-controller.md).
 
 Reason-Konstanten: `not_attached`, `not_in_game`, `unit_table_unavailable`, `player_pointer_unavailable`, `stats_unavailable`, `read_failed`.
+
+Benannte UI-Buffer-Forschung und Artefaktschema: [Read-only UI-State-Probe](ui-state-probe.md).
 
 ### Vital-Stats
 

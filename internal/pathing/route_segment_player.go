@@ -16,6 +16,11 @@ var (
 	ErrRouteDriftExceeded = errors.New("route drift exceeded")
 	// ErrRouteSegmentFailed indicates that the delegated navigator failed.
 	ErrRouteSegmentFailed = errors.New("route segment failed")
+	// ErrRouteHardStuck indicates exhausted route-local recovery after a
+	// navigator reported no progress.
+	ErrRouteHardStuck = errors.New("route hard stuck")
+	// ErrRouteSegmentTimeout indicates that a route segment exceeded its finite budget.
+	ErrRouteSegmentTimeout = errors.New("route segment timeout")
 )
 
 // SegmentNavigator is the movement surface required by [RouteSegmentPlayer].
@@ -95,6 +100,10 @@ func (p *RouteSegmentPlayer) Tick(ctx context.Context, state world.State) (bool,
 		p.navigator.Reset()
 	}
 	if p.point >= len(p.segment.Points) {
+		if p.segment.Transition.Type == "terminal" {
+			p.done = true
+			return true, nil
+		}
 		p.transition = true
 		p.transitionHandler = NewRouteTransitionHandler(p.navigator, p.segment, p.route.Playback.MaxLocalCorrections)
 		return false, nil
@@ -150,6 +159,21 @@ func (p *RouteSegmentPlayer) CurrentTarget() (RoutePoint, bool) {
 	return p.segment.Points[p.point], true
 }
 
+// LastConfirmedPointIndex returns the most recent confirmed point index, or -1
+// while playback is still approaching the first point.
+func (p *RouteSegmentPlayer) LastConfirmedPointIndex() int { return p.point - 1 }
+
+// LocalRecoveryAttempts returns corrections consumed in the active segment.
+func (p *RouteSegmentPlayer) LocalRecoveryAttempts() int { return p.corrections }
+
+// DriftTiles returns the current distance from the active recorded path edge.
+func (p *RouteSegmentPlayer) DriftTiles(position world.Position) float64 {
+	if p.transition || p.point >= len(p.segment.Points) {
+		return 0
+	}
+	return distanceToEdge(position, p.previous, routePointPosition(p.segment.Points[p.point]))
+}
+
 func (p *RouteSegmentPlayer) tickNavigator(ctx context.Context, state world.State) (bool, error) {
 	result := p.navigator.Tick(ctx, state)
 	if result.Done && result.Status != NavArrived {
@@ -157,6 +181,9 @@ func (p *RouteSegmentPlayer) tickNavigator(ctx context.Context, state world.Stat
 			p.corrections++
 			p.navigator.Reset()
 			return false, nil
+		}
+		if result.Reason == ReasonStuck {
+			return false, fmt.Errorf("%w: %w: status=%s", ErrRouteSegmentFailed, ErrRouteHardStuck, result.Status)
 		}
 		return false, fmt.Errorf("%w: status=%s reason=%s", ErrRouteSegmentFailed, result.Status, result.Reason)
 	}

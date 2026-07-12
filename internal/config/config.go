@@ -23,6 +23,7 @@ type Config struct {
 	Routes    RoutesConfig    `yaml:"routes"`
 	Pathing   PathingConfig   `yaml:"pathing"`
 	Paths     PathsConfig     `yaml:"paths"`
+	Session   SessionConfig   `yaml:"session"`
 
 	// LoadedFrom is the path passed to [Load] (used to resolve relative file paths).
 	LoadedFrom string `yaml:"-"`
@@ -246,6 +247,7 @@ func Load(path string) (*Config, error) {
 	cfg.Loot.applyDefaults()
 	cfg.Telemetry.applyDefaults()
 	cfg.Routes.applyDefaults()
+	cfg.Session.applyDefaults()
 	if err := cfg.validate(); err != nil {
 		return nil, err
 	}
@@ -271,6 +273,7 @@ func (c *Config) validate() error {
 	c.Loot.applyDefaults()
 	c.Telemetry.applyDefaults()
 	c.Routes.applyDefaults()
+	c.Session.applyDefaults()
 	if c.App.Name == "" {
 		return fmt.Errorf("app.name is required")
 	}
@@ -302,6 +305,9 @@ func (c *Config) validate() error {
 		return err
 	}
 	if err := c.Pathing.validate(); err != nil {
+		return err
+	}
+	if err := c.Session.validate(); err != nil {
 		return err
 	}
 	return nil

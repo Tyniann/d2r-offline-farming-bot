@@ -98,7 +98,7 @@ reset := model.Reset(at, "process_lost")
 | `Position` | Rohe Tile-Koordinaten |
 | `Player` | Position + HP/Mana |
 | `GamePhase` | `Unknown`, `Menu`, `Loading`, `InGame` — aus `memory.Snapshot.Phase` |
-| `State` | Tick-Snapshot mit `At`, `Phase`, `Valid`, `Reason`, `Area`, `Player`, Entity- und Item-Slices |
+| `State` | Tick-Snapshot mit `At`, `Phase`, `Valid`, `Reason`, `Area`, `Player`, Entity- und Item-Slices sowie read-only UI-Flags inklusive `QuitMenuOpen` ab Phase 7.1 |
 | `Object`/`Entrance`/`Monster` | Countess-relevante Entities mit Kind, ID, UnitID, Position, Name |
 | `Item` | Read-only Item mit UnitID, Code/Name, Qualität, Location, Position, Flags und Raw-Stats |
 

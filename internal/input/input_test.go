@@ -14,10 +14,13 @@ type mockWindowAPI struct {
 	area     WindowInfo
 	areaErr  error
 
-	findCalls int
-	areaCalls int
-	lastPID   uint32
-	lastTitle string
+	findCalls     int
+	areaCalls     int
+	lastPID       uint32
+	lastTitle     string
+	activateErr   error
+	foreground    bool
+	activateCalls int
 }
 
 func (m *mockWindowAPI) FindMainWindow(pid uint32, title string) (nativeWindow, error) {
@@ -37,6 +40,13 @@ func (m *mockWindowAPI) ClientArea(_ nativeWindow) (WindowInfo, error) {
 	}
 	return m.area, nil
 }
+
+func (m *mockWindowAPI) Activate(_ nativeWindow) error {
+	m.activateCalls++
+	return m.activateErr
+}
+
+func (m *mockWindowAPI) IsForeground(_ nativeWindow) bool { return m.foreground }
 
 func testSafetyEnabled() SafetyConfig {
 	return SafetyConfig{Enabled: true, PauseHotkey: "pause", StopHotkey: "f12"}
@@ -97,6 +107,38 @@ func TestBindStoresWindowInfo(t *testing.T) {
 	}
 	if info.PID != 42 || info.ClientWidth != 800 {
 		t.Fatalf("unexpected window info: %+v", info)
+	}
+}
+
+func TestFocusActivatesAndVerifiesBoundWindow(t *testing.T) {
+	api := &mockWindowAPI{findHWND: 0x1234, area: WindowInfo{Handle: 0x1234, ClientWidth: 1280, ClientHeight: 720}, foreground: true}
+	c := mustNewTestController(api, &mockKeySender{}, &mockMouseSender{}, DefaultKeyboardConfig(), testSafetyEnabled(), testKeyTimings())
+	if err := c.Bind(42); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.Focus(); err != nil {
+		t.Fatalf("Focus() error = %v", err)
+	}
+	if api.activateCalls != 1 {
+		t.Fatalf("activate calls = %d, want 1", api.activateCalls)
+	}
+}
+
+func TestFocusRejectsUnconfirmedForeground(t *testing.T) {
+	api := &mockWindowAPI{findHWND: 0x1234, area: WindowInfo{Handle: 0x1234, ClientWidth: 1280, ClientHeight: 720}}
+	c := mustNewTestController(api, &mockKeySender{}, &mockMouseSender{}, DefaultKeyboardConfig(), testSafetyEnabled(), testKeyTimings())
+	if err := c.Bind(42); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.Focus(); !errors.Is(err, ErrWindowNotForeground) {
+		t.Fatalf("Focus() error = %v, want ErrWindowNotForeground", err)
+	}
+}
+
+func TestCaptureClientRequiresBoundWindow(t *testing.T) {
+	c := testController(&mockWindowAPI{})
+	if _, err := c.CaptureClient(); !errors.Is(err, ErrWindowNotBound) {
+		t.Fatalf("CaptureClient() error = %v, want ErrWindowNotBound", err)
 	}
 }
 

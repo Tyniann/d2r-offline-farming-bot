@@ -73,7 +73,7 @@ Der isolierte `stash-personal`-Lauf wurde bei 1280×720 mit einer Dol-Rune (`r14
 
 - Noch keine Rotation, Kompression oder automatische Bereinigung.
 - Keine Dashboard-/Upload-Integration.
-- Run-State-, Combat- und Pathing-Events gehören noch nicht zum Phase-5.10-Mindestschema.
+- Phase 7.7 ergänzt einen separaten Schema-v2-Session-Recorder für Lifecycle-, Recovery- und Summary-Ereignisse; der Phase-5-Recorder bleibt für Run-/Loot-Details kompatibel.
 
 ## Verwandte Features
 

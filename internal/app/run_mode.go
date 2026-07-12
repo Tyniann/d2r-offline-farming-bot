@@ -25,6 +25,9 @@ var (
 
 // resolveActiveRun returns the configured run name; CLI overrides YAML.
 func resolveActiveRun(opts Options, cfg *config.Config) string {
+	if opts.UIStateProbe != "" || opts.ScreenAnchorCapture != "" || opts.OfflineExitTest || opts.OfflineDifficulty != "" {
+		return ""
+	}
 	if opts.Run != "" {
 		return opts.Run
 	}
@@ -52,8 +55,35 @@ func mapRunConfig(runs config.RunsConfig) tasks.RunConfig {
 
 // validateRunMode checks run prerequisites after resolving CLI vs config.
 func validateRunMode(sel tasks.RunSelection, cfg *config.Config, opts Options, log *slog.Logger) error {
+	if opts.UIStateProbe != "" {
+		if opts.InputTest != "" || opts.PathingTest != "" || opts.OfflineDifficulty != "" || opts.OfflineCharacter != "" || opts.OfflineExitTest || opts.ScreenAnchorCapture != "" || opts.Route != "" || opts.Run != "" || opts.RunPhase != "" {
+			return fmt.Errorf("--ui-state-probe is mutually exclusive with run and other test modes")
+		}
+		if err := validateUIStateProbeLabel(opts.UIStateProbe); err != nil {
+			return err
+		}
+		if opts.UIStateProbeTimeoutMs < 0 {
+			return fmt.Errorf("--ui-state-probe-timeout-ms must not be negative")
+		}
+	}
+	if opts.ScreenAnchorCapture != "" {
+		if opts.InputTest != "" || opts.PathingTest != "" || opts.OfflineDifficulty != "" || opts.OfflineCharacter != "" || opts.OfflineExitTest || opts.UIStateProbe != "" || opts.Route != "" || opts.Run != "" || opts.RunPhase != "" {
+			return fmt.Errorf("--screen-anchor-capture is mutually exclusive with run and other test modes")
+		}
+		if err := validateUIStateProbeLabel(opts.ScreenAnchorCapture); err != nil {
+			return fmt.Errorf("screen anchor label: %w", err)
+		}
+	}
+	if opts.OfflineExitTest {
+		if !cfg.Input.Enabled {
+			return fmt.Errorf("offline exit test requires input.enabled=true")
+		}
+		if opts.InputTest != "" || opts.PathingTest != "" || opts.OfflineDifficulty != "" || opts.OfflineCharacter != "" || opts.UIStateProbe != "" || opts.ScreenAnchorCapture != "" || opts.Route != "" || opts.Run != "" || opts.RunPhase != "" {
+			return fmt.Errorf("--offline-exit-test is mutually exclusive with run and other test modes")
+		}
+	}
 	if opts.Route != "" {
-		if opts.InputTest != "" || opts.PathingTest != "" || opts.OfflineDifficulty != "" || sel.Run != "" || sel.Phase != "" {
+		if opts.InputTest != "" || opts.PathingTest != "" || opts.OfflineDifficulty != "" || opts.OfflineExitTest || opts.ScreenAnchorCapture != "" || sel.Run != "" || sel.Phase != "" {
 			return fmt.Errorf("--route is mutually exclusive with run and other test modes")
 		}
 		command, err := parseRouteCommand(opts.Route)
@@ -78,12 +108,17 @@ func validateRunMode(sel tasks.RunSelection, cfg *config.Config, opts Options, l
 		if !cfg.Input.Enabled {
 			return fmt.Errorf("offline difficulty test requires input.enabled=true")
 		}
-		if opts.InputTest != "" || opts.PathingTest != "" || sel.Run != "" || sel.Phase != "" {
+		if opts.InputTest != "" || opts.PathingTest != "" || opts.OfflineExitTest || opts.ScreenAnchorCapture != "" || sel.Run != "" || sel.Phase != "" {
 			return fmt.Errorf("--offline-difficulty-test is mutually exclusive with run and other test modes")
 		}
 		if _, err := parseOfflineDifficulty(opts.OfflineDifficulty); err != nil {
 			return err
 		}
+		if _, err := validateOfflineCharacter(opts.OfflineCharacter); err != nil {
+			return err
+		}
+	} else if opts.OfflineCharacter != "" {
+		return fmt.Errorf("--offline-character requires --offline-difficulty-test")
 	}
 	if err := validatePathingTestMode(cfg, opts); err != nil {
 		return err

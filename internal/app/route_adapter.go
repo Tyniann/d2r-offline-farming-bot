@@ -23,14 +23,19 @@ type routePlaybackAdapter struct {
 	deadline    time.Time
 	lastTickAt  time.Time
 	transition  bool
+	lastFailure sessionStuckContext
+	hasFailure  bool
 }
 
 func newRoutePlaybackAdapter(log *slog.Logger, directory, gameVersion string, navigator pathing.SegmentNavigator, trace *telemetry.Recorder) *routePlaybackAdapter {
 	return &routePlaybackAdapter{log: log.With("component", "route_adapter"), directory: directory, gameVersion: gameVersion, navigator: navigator, telemetry: trace}
 }
 
+func (a *routePlaybackAdapter) setTelemetry(trace *telemetry.Recorder) { a.telemetry = trace }
+
 func (a *routePlaybackAdapter) Start(routeID string, state world.State) error {
 	a.Reset()
+	a.lastFailure, a.hasFailure = sessionStuckContext{}, false
 	registry, err := pathing.LoadRouteRegistry(a.directory)
 	if err != nil {
 		return err
@@ -75,11 +80,12 @@ func (a *routePlaybackAdapter) Tick(ctx context.Context, state world.State) (boo
 		if a.transition {
 			return false, fmt.Errorf("%w: timeout", pathing.ErrRouteTransitionFailed)
 		}
-		return false, fmt.Errorf("route segment timeout: %s", a.player.Segment().ID)
+		return false, fmt.Errorf("%w: %s", pathing.ErrRouteSegmentTimeout, a.player.Segment().ID)
 	}
 	before := a.player.SegmentIndex()
 	done, err := a.player.Tick(ctx, state)
 	if err != nil {
+		a.captureFailure(state)
 		_ = a.emit(telemetry.Event{Event: telemetry.RoutePlaybackFailed, RouteID: a.route.ID, SegmentID: a.player.Segment().ID, Reason: err.Error()})
 		return false, err
 	}
@@ -113,6 +119,23 @@ func (a *routePlaybackAdapter) Tick(ctx context.Context, state world.State) (boo
 		}
 	}
 	return false, nil
+}
+
+func (a *routePlaybackAdapter) captureFailure(state world.State) {
+	if a.player == nil {
+		return
+	}
+	target, _ := a.player.CurrentTarget()
+	a.lastFailure = sessionStuckContext{
+		RouteID: a.route.ID, SegmentID: a.player.Segment().ID, PointIndex: a.player.PointIndex(),
+		LastConfirmedPoint: a.player.LastConfirmedPointIndex(), TargetX: target.X, TargetY: target.Y,
+		DriftTiles: a.player.DriftTiles(state.Player.Position), LocalRecoveryAttempts: a.player.LocalRecoveryAttempts(),
+	}
+	a.hasFailure = true
+}
+
+func (a *routePlaybackAdapter) failureContext() (sessionStuckContext, bool) {
+	return a.lastFailure, a.hasFailure
 }
 
 func (a *routePlaybackAdapter) Reset() {

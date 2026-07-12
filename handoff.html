@@ -247,7 +247,7 @@
           <span class="pill">Memory Bot Core</span>
           <span class="pill">Go 1.26</span>
           <span class="pill">Countess MVP</span>
-          <span class="pill good">Stand: Phase 5 abgeschlossen</span>
+          <span class="pill good">Stand: Phase 7 abgeschlossen</span>
         </div>
       </div>
 
@@ -530,7 +530,7 @@
     <div class="phase">
       <strong>Phase 6</strong>
       <div>
-        <h3>Generische Routenaufzeichnung und Wiedergabe <span class="warn">— geplant</span></h3>
+        <h3>Generische Routenaufzeichnung und Wiedergabe <span class="good">— abgeschlossen</span></h3>
         <p>
           Recorder, Routenmodell, Registry, Validator und Player werden run-unabhängig gebaut und später
           auch von Mephisto-, Cow-, Baal- oder benutzerdefinierten Runs verwendet. Countess ist der erste
@@ -548,11 +548,113 @@
           <li><span class="good">6.6 Vollständiges Playback</span> — abgeschlossen. Zehn vollständige Wiedergaben im stabilen Nightmare-Layout (neun direkte Replays, ein Countess-Adapter-Lauf) erreichten Cellar 5; JSONL bestätigt jeweils sechs Segmente. Begrenzte Drift-Recovery nutzt nur bestätigte Routenpunkte; drei Driftfehler brachen fail-closed ab.</li>
           <li><span class="good">6.7 Countess-Integration</span> — abgeschlossen. Stabile Route-ID, dünner App-Adapter und Task-Schritt ersetzen Explorer im regulären Erfolgspfad; die Live-Abnahme erreichte über sechs bestätigte Segmente Cellar 5.</li>
         </ul>
-        <p>Der autonome Multi-Run- und Game-Lifecycle folgt erst nach Phase 6.</p>
+        <p>Detailplan und Abnahme: <a href="phase-6-implementation-plan.html">Phase-6-Umsetzungsplan</a>.</p>
       </div>
     </div>
 
-    <h2>5a. Koordinaten und Klick-Präzision — die Koolo-Methode</h2>
+    <div class="phase">
+      <strong>Phase 7</strong>
+      <div>
+        <h3>Autonomer Multi-Run- und Game-Lifecycle <span class="good">— abgeschlossen</span></h3>
+        <p>
+          Der Bot verlässt ein abgeschlossenes Offline-Spiel kontrolliert, startet das nächste Spiel mit
+          verifiziertem Charakter und Schwierigkeitsgrad, erzeugt frischen Run-Zustand und führt eine endliche
+          Session mit Recovery-Budgets und korrelierter JSONL-Telemetrie aus.
+        </p>
+        <ul>
+          <li>Memory- und Screen-gated Charakterauswahl, Difficulty-Auswahl sowie Save &amp; Exit.</li>
+          <li>Frische Game-/Run-IDs, vollständige Reset-Barriere, Cooldown sowie Run-, Zeit- und Restart-Limits.</li>
+          <li>Hard-Stuck-Abbruch und exakte, fail-closed Recovery-Klassifikation.</li>
+          <li>Terminaler Keller-5-Routenabschnitt bis in den Countess-Raum.</li>
+          <li>Drei autonome Nightmare-Countess-Zyklen einschließlich Kill, Loot, Town Portal, Stash und Save &amp; Exit erfolgreich.</li>
+        </ul>
+        <p>Detailplan und Live-Evidenz: <a href="phase-7-implementation-plan.html">Phase-7-Umsetzungsplan</a>.</p>
+      </div>
+    </div>
+
+    <h2>5a. Verbindliche Roadmap ab Phase 8</h2>
+    <p>
+      Diese Roadmap ist die zentrale Reihenfolge für die weitere Produktentwicklung. Detailpläne werden pro
+      Phase separat ausgearbeitet; der <a href="docs/backlog.md">Ideen-Backlog</a> bleibt unverbindlich.
+    </p>
+
+    <div class="phase">
+      <strong>Phase 8</strong>
+      <div>
+        <h3>Generische Character- und Encounter-Profile <span class="warn">— als Nächstes</span></h3>
+        <p><strong>Ziel:</strong> Klassen- und kampfspezifisches Verhalten ergänzen, ohne Necromancer-Sonderlogik in einzelne Runs einzubauen.</p>
+        <p><strong>Umfang:</strong></p>
+        <ul>
+          <li>Generische Hooks wie <code>town_ready</code>, <code>boss_engage</code> und später weitere klar begrenzte Encounter-Ereignisse.</li>
+          <li>Konfigurierbare Aktionen mit Zieltyp <code>self</code>, <code>boss</code> oder World-Position sowie <code>once_per_game</code>/<code>once_per_encounter</code>.</li>
+          <li>Necromancer-Profil: Bone Armor einmal in Town und Bone Prison einmal auf die bestätigte Boss-Unit.</li>
+          <li>Klassen-, Binding-, Reset-, Timeout- und Telemetrie-Gates als wiederverwendbarer Vertrag für Paladin und Sorceress.</li>
+        </ul>
+        <p><strong>Abnahme:</strong> Drei Countess-Zyklen mit genau einem Bone-Armor-Cast pro Spiel und genau einem Bone-Prison-Cast pro Encounter; falsche Klasse oder fehlendes Binding blockiert vor dem Hook-Input.</p>
+      </div>
+    </div>
+
+    <div class="phase">
+      <strong>Phase 9</strong>
+      <div>
+        <h3>Erweiterbare Run-Definitionen und zweites Farmziel <span class="warn">— geplant</span></h3>
+        <p><strong>Ziel:</strong> Mit einem zweiten echten Farmziel beweisen, dass Session, Profile, Route, Loot, Stash und Recovery nicht Countess-spezifisch sind.</p>
+        <p><strong>Umfang:</strong> GUI-neutrale Run-Metadaten und Auswahl, wiederverwendbare Run-Schritte, routenspezifische Bindung sowie Integration eines noch festzulegenden zweiten Ziels, beispielsweise Mephisto.</p>
+        <p><strong>Abnahme:</strong> Countess und das zweite Farmziel sind über denselben Lifecycle auswählbar und bestehen jeweils einen vollständigen autonomen E2E-Zyklus ohne duplizierte Session- oder Input-Logik.</p>
+      </div>
+    </div>
+
+    <div class="phase">
+      <strong>Phase 10</strong>
+      <div>
+        <h3>GUI-Grundgerüst mit lokaler Core-API und Live-Status <span class="warn">— geplant</span></h3>
+        <p><strong>Ziel:</strong> Eine lokale Bedienoberfläche steuert den Go-Core über einen stabilen Vertrag, statt YAML, Logs oder interne Pakete direkt zu manipulieren.</p>
+        <p><strong>Umfang:</strong> Lokale API für Status, Profile, Runs, Routen und Session Start/Pause/Stop; Live-Events für Session, Run, Step, Area und Fehler; erstes TypeScript/React-Dashboard.</p>
+        <p><strong>Abnahme:</strong> Eine Session kann über die GUI sicher gestartet, beobachtet, pausiert und gestoppt werden. Alle mutierenden Befehle verwenden dieselben Core-Safety-Gates wie CLI und Hotkeys.</p>
+      </div>
+    </div>
+
+    <div class="phase">
+      <strong>Phase 11</strong>
+      <div>
+        <h3>Routenverwaltung und Recorder-Oberfläche <span class="warn">— geplant</span></h3>
+        <p><strong>Ziel:</strong> Aufzeichnungen ohne manuelle Dateiverwaltung erstellen, prüfen und Run-Definitionen zuordnen.</p>
+        <p><strong>Umfang:</strong> Route Registry, Validitätsstatus, Character-/Difficulty-/Fingerprint-Bindung, Record/Stop/Validate sowie sichere Auswahl und Zuordnung.</p>
+        <p><strong>Abnahme:</strong> Eine neue Route kann vollständig über die GUI aufgezeichnet, validiert, einem Run zugewiesen und einmal erfolgreich abgespielt werden.</p>
+      </div>
+    </div>
+
+    <div class="phase">
+      <strong>Phase 12</strong>
+      <div>
+        <h3>Pickit-Editor <span class="warn">— geplant</span></h3>
+        <p><strong>Ziel:</strong> Pickit-Regeln verständlich bearbeiten und vor produktiven Runs deterministisch prüfen.</p>
+        <p><strong>Umfang:</strong> Regelansicht, Validierung, Testfälle gegen Item-Metadaten, Vorschau der Entscheidungskette und atomisches Speichern ohne Änderung der Loot-Core-Semantik.</p>
+        <p><strong>Abnahme:</strong> Eine Regel kann erstellt, gegen bekannte Items getestet, gespeichert und in einem isolierten Loot-Test nachvollziehbar angewendet werden.</p>
+      </div>
+    </div>
+
+    <div class="phase">
+      <strong>Phase 13</strong>
+      <div>
+        <h3>Telemetrie, Run-Historie und Statistiken <span class="warn">— geplant</span></h3>
+        <p><strong>Ziel:</strong> Erfolge, Drops, Laufzeiten und Fehlerursachen über Sessions hinweg auswertbar machen.</p>
+        <p><strong>Umfang:</strong> Lokale Historie, Filter nach Run/Charakter/Difficulty, Drop- und Laufzeitstatistiken sowie Drill-down in korrelierte Session-/Run-Ereignisse.</p>
+        <p><strong>Abnahme:</strong> GUI und Export zeigen dieselben aus JSONL abgeleiteten Summen; ein fehlgeschlagener Run ist bis zum konkreten Step und Reason-Code nachvollziehbar.</p>
+      </div>
+    </div>
+
+    <div class="phase">
+      <strong>Phase 14</strong>
+      <div>
+        <h3>Packaging, Updates und Operator-Polish <span class="warn">— geplant</span></h3>
+        <p><strong>Ziel:</strong> Den lokalen Bot reproduzierbar installieren, konfigurieren, aktualisieren und sicher betreiben.</p>
+        <p><strong>Umfang:</strong> Windows-Build/Installer, Config-Migration und Backup, Versions-/Offset-Kompatibilitätsanzeige, Diagnosepaket sowie verständliche First-Run- und Fehlerführung.</p>
+        <p><strong>Abnahme:</strong> Eine frische lokale Installation erreicht über einen dokumentierten Setup-Flow einen sicheren Diagnose- und Testlauf; inkompatible Versionen stoppen vor Input.</p>
+      </div>
+    </div>
+
+    <h2>5b. Koordinaten und Klick-Präzision — die Koolo-Methode</h2>
     <p>
       Für Bewegung und Entity-Klicks braucht der Bot eine Abbildung von Weltkoordinaten (Tiles) auf
       Bildschirmpixel. Ein früherer Ansatz sah vor, dafür die Kamera-/Viewport-Position per manuellem
@@ -710,13 +812,6 @@
       <li><a href="https://www.blizzard.com/en-us/legal/08b946df-660a-40e4-a072-1fbde65173b1/blizzard-end-user-license-agreement">Blizzard EULA</a> - rechtlicher Rahmen fuer automatisierende Drittsoftware.</li>
     </ul>
 
-    <h2>10. Nächster konkreter Schritt</h2>
-    <p>
-      Phase 6 ist abgeschlossen. Als Nächstes den autonomen Game- und Multi-Run-Lifecycle planen. Route Recording und Playback sind generisch abgeschlossen;
-      der Countess-Adapter ist der erste live validierte Verbraucher. Details stehen in
-      <a href="docs/features/game-identity.md">Read-only Game Identity</a> und
-      <a href="docs/features/route-recording-playback.md">Route Recording und Playback</a>.
-    </p>
   </main>
 </body>
 </html>

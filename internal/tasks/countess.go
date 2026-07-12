@@ -801,7 +801,7 @@ func (c *countessRun) onTravelMarshTick(ctx context.Context, deps Deps, step str
 		}
 		done, err := deps.Route.Tick(ctx, w)
 		if err != nil {
-			return stepResult{failed: true, reason: "route_playback_failed"}
+			return stepResult{failed: true, reason: routePlaybackFailureReason(err)}
 		}
 		if done {
 			return stepResult{complete: true}
@@ -818,6 +818,23 @@ func (c *countessRun) onTravelMarshTick(ctx context.Context, deps Deps, step str
 		return c.tickNavigateArea(ctx, deps, w, goal)
 	default:
 		return stepResult{failed: true, reason: "unknown_step"}
+	}
+}
+
+func routePlaybackFailureReason(err error) string {
+	switch {
+	case errors.Is(err, pathing.ErrRouteHardStuck):
+		return "hard_stuck"
+	case errors.Is(err, pathing.ErrRouteDriftExceeded):
+		return "route_drift_exceeded"
+	case errors.Is(err, pathing.ErrRouteTransitionFailed):
+		return "route_transition_failed"
+	case errors.Is(err, pathing.ErrRouteSegmentTimeout):
+		return "route_segment_timeout"
+	case errors.Is(err, pathing.ErrRouteUnexpectedArea):
+		return "unexpected_area"
+	default:
+		return "route_playback_failed"
 	}
 }
 

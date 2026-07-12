@@ -175,6 +175,8 @@ func (m *mockInput) ClickWithModifier(string, input.MouseButton) error { return 
 
 func (m *mockInput) PressKey(string) error { return nil }
 
+func (m *mockInput) Focus() error { return nil }
+
 func (m *mockInput) Window() (input.WindowInfo, bool) {
 	return input.WindowInfo{ClientWidth: 1280, ClientHeight: 720}, true
 }

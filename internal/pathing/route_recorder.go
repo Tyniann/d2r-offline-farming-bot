@@ -95,10 +95,18 @@ func (r *RouteRecorder) Observe(state world.State) (RouteRecorderEvent, error) {
 	return RouteRecorderEvent{SampleAccepted: accepted, AreaID: state.Area.ID, Position: position}, nil
 }
 
-// Finish returns completed segments and discards the unterminated current-area tail.
+// Finish returns completed segments and preserves the current-area tail as a
+// terminal segment when it contains an actual movement path.
 func (r *RouteRecorder) Finish() ([]RouteSegment, error) {
 	if !r.started {
 		return nil, ErrRouteRecordingNotStarted
+	}
+	if len(r.points) >= 2 {
+		last := r.previous.Player.Position
+		if routePointPosition(r.points[len(r.points)-1]) != last {
+			r.points = append(r.points, RoutePoint{X: last.X, Y: last.Y})
+		}
+		r.segments = append(r.segments, RouteSegment{ID: r.currentID, FromAreaID: r.currentArea, ToAreaID: r.currentArea, Movement: r.cfg.Movement, Points: append([]RoutePoint(nil), r.points...), Transition: RouteTransition{Type: "terminal"}})
 	}
 	if len(r.segments) == 0 {
 		return nil, ErrRouteRecordingIncomplete

@@ -2,8 +2,10 @@ package input
 
 import (
 	"fmt"
+	"image"
 	"log/slog"
 	"sync"
+	"time"
 )
 
 // Controller manages D2R window binding and keyboard/mouse input primitives.
@@ -21,12 +23,34 @@ type Controller struct {
 	stopped        bool
 	hotkeyBindings HotkeyBindings
 	hotkeyListen   HotkeyListener
+	hotkeyWG       sync.WaitGroup
 
 	mu      sync.Mutex
 	keyMu   sync.Mutex
 	mouseMu sync.Mutex
 	window  WindowInfo
 	bound   bool
+}
+
+// CaptureClient returns a read-only RGBA screenshot of the complete bound D2R
+// client area. The capture does not activate the window or produce input.
+func (c *Controller) CaptureClient() (*image.RGBA, error) {
+	c.mu.Lock()
+	if !c.bound {
+		c.mu.Unlock()
+		return nil, fmt.Errorf("capture client: %w", ErrWindowNotBound)
+	}
+	win := c.window
+	c.mu.Unlock()
+	img, err := captureClientWindow(win)
+	if err != nil {
+		return nil, err
+	}
+	c.log.Debug("input window captured",
+		"client_width", win.ClientWidth,
+		"client_height", win.ClientHeight,
+	)
+	return img, nil
 }
 
 // NewController creates an input controller with platform window, keyboard, and mouse backends.
@@ -138,4 +162,30 @@ func (c *Controller) Window() (WindowInfo, bool) {
 		return WindowInfo{}, false
 	}
 	return c.window, true
+}
+
+// Focus activates the bound D2R window and verifies that it became the
+// foreground window before a keyboard-sensitive workflow continues.
+func (c *Controller) Focus() error {
+	if err := c.actionGuard("window", "focus", "window_focus"); err != nil {
+		return err
+	}
+	c.mu.Lock()
+	if !c.bound {
+		c.mu.Unlock()
+		return fmt.Errorf("focus window: %w", ErrWindowNotBound)
+	}
+	hwnd := nativeWindow(c.window.Handle)
+	c.mu.Unlock()
+	if err := c.api.Activate(hwnd); err != nil {
+		return err
+	}
+	for attempt := 0; attempt < 10; attempt++ {
+		if c.api.IsForeground(hwnd) {
+			c.logAllowedAction("window", "focus", "window_focus", "hwnd", fmt.Sprintf("0x%X", hwnd), "verify_attempt", attempt+1)
+			return nil
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	return fmt.Errorf("focus window hwnd=%#x: %w", hwnd, ErrWindowNotForeground)
 }

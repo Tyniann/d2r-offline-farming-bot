@@ -35,5 +35,12 @@ func (c *Controller) ListenHotkeys(ctx context.Context, events chan<- HotkeyEven
 	if listener == nil {
 		listener = defaultHotkeyListener()
 	}
-	go listener.Listen(ctx, c.hotkeyBindings, events, ready)
+	c.hotkeyWG.Add(1)
+	go func() {
+		defer c.hotkeyWG.Done()
+		listener.Listen(ctx, c.hotkeyBindings, events, ready)
+	}()
 }
+
+// WaitHotkeys waits until all listeners have unregistered their global hotkeys.
+func (c *Controller) WaitHotkeys() { c.hotkeyWG.Wait() }

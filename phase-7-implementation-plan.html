@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Phase 7 – Autonomer Game- und Multi-Run-Lifecycle</title>
+  <style>
+    :root { color-scheme:dark; --bg:#0d1117; --panel:#161b22; --soft:#21262d; --line:#30363d; --text:#e6edf3; --muted:#9da7b3; --accent:#58a6ff; --good:#3fb950; --warn:#d29922; --bad:#f85149; }
+    * { box-sizing:border-box } html { scroll-behavior:smooth } body { margin:0; background:var(--bg); color:var(--text); font:16px/1.6 system-ui,-apple-system,"Segoe UI",sans-serif }
+    main { max-width:1120px; margin:auto; padding:42px 24px 80px } h1,h2,h3 { line-height:1.2 } h1 { margin:.2rem 0 .7rem; font-size:clamp(2rem,5vw,3.25rem) }
+    h2 { margin:2.8rem 0 1rem; padding-top:1.2rem; border-top:1px solid var(--line) } h3 { margin:0 0 .5rem } p { margin:.55rem 0 } code { padding:.1rem .35rem; border:1px solid var(--line); border-radius:5px; background:var(--soft); color:#d2a8ff }
+    ul,ol { padding-left:1.35rem } li+li { margin-top:.35rem } .eyebrow { color:var(--accent); font-weight:750; letter-spacing:.08em; text-transform:uppercase }
+    .lead { max-width:900px; color:var(--muted); font-size:1.12rem } .chips,.flow { display:flex; flex-wrap:wrap; align-items:center; gap:.5rem; margin:1.2rem 0 }
+    .chip,.node { padding:.3rem .7rem; border:1px solid var(--line); border-radius:999px; background:var(--soft); color:var(--muted) } .node { border-radius:8px; color:var(--text) } .arrow { color:var(--accent); font-weight:800 }
+    .grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:1rem } .card,.phase,.callout { padding:1.15rem; border:1px solid var(--line); border-radius:12px; background:var(--panel) }
+    .metric { color:var(--accent); font-size:1.3rem; font-weight:800 } .phase { display:grid; grid-template-columns:90px 1fr; gap:1rem; margin-top:1rem } .phase-id { color:var(--accent); font-size:1.15rem; font-weight:800 }
+    .meta { color:var(--muted); font-size:.94rem } .gate { color:var(--good); font-weight:700 } .warning { border-left:4px solid var(--warn) } .danger { border-left:4px solid var(--bad) }
+    table { width:100%; border-collapse:collapse; background:var(--panel) } th,td { padding:.75rem; border:1px solid var(--line); text-align:left; vertical-align:top } th { background:var(--soft); color:var(--muted) }
+    footer { margin-top:3rem; color:var(--muted); font-size:.9rem } @media(max-width:800px){.grid,.phase{grid-template-columns:1fr}table{display:block;overflow-x:auto}}
+    @media print{:root{color-scheme:light;--bg:#fff;--panel:#fff;--soft:#f3f4f6;--line:#d1d5db;--text:#111827;--muted:#4b5563;--accent:#1d4ed8}main{max-width:none}}
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <div class="eyebrow">D2R Offline Farming Bot · High-Level-Umsetzungsplan</div>
+    <h1>Phase 7: Autonomer Game- und Multi-Run-Lifecycle</h1>
+    <p class="lead">Phase 7 hebt den erfolgreich validierten Countess-Einzellauf in einen kontrollierten Dauerbetrieb: Spielzustand erkennen, Offline-Spiel sicher verlassen, ein neues Spiel mit passender Schwierigkeit starten, Identität und Layout erneut verifizieren und den nächsten Run ausführen.</p>
+    <div class="chips"><span class="chip">Offline/Singleplayer</span><span class="chip">Generischer Session-Orchestrator</span><span class="chip">Memory-gated UI</span><span class="chip">Fail-closed</span><span class="chip">Begrenzter Dauerbetrieb</span></div>
+  </header>
+
+  <section class="grid" aria-label="Kernziele">
+    <article class="card"><div class="metric">Endziel</div><p>Eine konfigurierte Serie vollständiger Countess-Runs läuft über mehrere neu erzeugte Offline-Spiele ohne manuelle Menüinteraktion.</p></article>
+    <article class="card"><div class="metric">Architektur</div><p>Der Lifecycle orchestriert vorhandene Run-State-Machines. Navigation, Kampf, Loot und Stash bleiben in ihren bestehenden Paketen.</p></article>
+    <article class="card"><div class="metric">Abnahme</div><p>Drei aufeinanderfolgende Game-Zyklen mit korrekter Identität, Layoutprüfung, Run-Ergebnis und sauberem Stop.</p></article>
+  </section>
+
+  <h2>1. Ausgangslage und Zielsetzung</h2>
+  <p>Phase 6 liefert eine wiederholbare, Memory-verifizierte Route bis Tower Cellar Level 5. Der vollständige Countess-Run kehrt nach Kampf und Loot in die Stadt zurück und verstaut Items, endet danach aber terminal. Ein neues Offline-Spiel muss noch manuell erzeugt werden.</p>
+  <p>Phase 7 schließt genau diese Lücke. Sie führt einen Session-Zustand oberhalb eines einzelnen Runs ein und macht den Game-Wechsel zu einem expliziten, beobachtbaren und abbrechbaren Ablauf.</p>
+  <div class="flow" aria-label="Lifecycle"><span class="node">Town bereit</span><span class="arrow">→</span><span class="node">Countess-Run</span><span class="arrow">→</span><span class="node">Run auswerten</span><span class="arrow">→</span><span class="node">Save &amp; Exit</span><span class="arrow">→</span><span class="node">Offline-Spiel starten</span><span class="arrow">→</span><span class="node">Identity + Layout prüfen</span><span class="arrow">↺</span></div>
+  <div class="callout warning"><strong>Leitentscheidung:</strong> Der Session-Orchestrator darf keinen Erfolg aus verstrichener Zeit ableiten. Jeder Zustandswechsel wird über Memory, bestätigte UI-Zustände oder eng begrenztes Feedback verifiziert. Bei unbekanntem Zustand erfolgt kein Blindklick.</div>
+
+  <h2>2. Scope und bewusste Grenzen</h2>
+  <table>
+    <thead><tr><th>Enthalten</th><th>Nicht Teil von Phase 7</th></tr></thead>
+    <tbody>
+      <tr><td>Autonomes Save &amp; Exit, erneuter Offline-Start und wiederholte Countess-Runs.</td><td>Battle.net, Online-Lobby, Account-Login oder Charaktererstellung.</td></tr>
+      <tr><td>Generische Session-State-Machine, Run-Zähler, Zeit- und Fehlerbudgets.</td><td>Mephisto-, Cow- oder Baal-Implementierungen; die Architektur bereitet sie nur vor.</td></tr>
+      <tr><td>Memory-/UI-gated Menüaktionen bei fest unterstützter Fenstergeometrie.</td><td>Beliebige Auflösungen, Computer-Vision oder ein allgemeines GUI-Automationsframework.</td></tr>
+      <tr><td>Run-Ergebnis- und Session-Telemetrie, kontrollierter Stop/Pause und Restart-Policy.</td><td>D2R-Prozessstart, Crash-Restart des Spiels, Savegame- oder Installationsdatei-Zugriffe.</td></tr>
+      <tr><td>Konservative Recovery bei bekannten transienten Zuständen.</td><td>Unbegrenzte Selbstheilung, Death-Recovery oder Fortsetzung aus beliebigen Zwischenzuständen.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>3. Die größten Herausforderungen</h2>
+  <div class="grid">
+    <article class="card"><h3>Menüzustand sicher erkennen</h3><p><code>menu</code> allein unterscheidet Charakterauswahl, Difficulty-Dialog und andere Oberflächen nicht zuverlässig. Vor produktiven Klicks werden belastbare UI-Flags oder konservative Zustandsbeweise benötigt.</p></article>
+    <article class="card"><h3>Run und Session trennen</h3><p>Der bestehende Runner ist nach <code>complete</code> terminal. Ein äußerer Orchestrator muss neue Runner-Instanzen sauber erzeugen, ohne alte Goals, Skip-Listen, Telemetrie oder Input-Zustände mitzunehmen.</p></article>
+    <article class="card"><h3>Neue Spiele verifizieren</h3><p>Nach jedem Start müssen Charakter, Klasse, Spielversion, Startgebiet und Layout-Fingerprint erneut bestätigt werden. Die konfigurierte Difficulty allein darf Playback nicht freigeben.</p></article>
+    <article class="card"><h3>Fehlerpolitik im Dauerbetrieb</h3><p>Ein Einzellauffehler darf weder eine Endlosschleife noch unkontrollierte Inputs auslösen. Insbesondere ein Hard Stuck im Route Playback muss den Run kontrolliert abbrechen. Fehler werden in retrybar, game-restartbar und terminal klassifiziert.</p></article>
+    <article class="card"><h3>UI-Geometrie und Fokus</h3><p>Fixe Koordinaten sind nur bei gebundenem D2R-Fenster und exakt unterstützter Clientgröße zulässig. Fokusverlust, Dialoge oder falsche Geometrie müssen vor Input blockieren.</p></article>
+    <article class="card"><h3>Nachweisbare Langzeitstabilität</h3><p>Leaks in State, Goroutines, Telemetrie-Dateien oder Navigator-Zielen zeigen sich oft erst nach vielen Zyklen. Abnahme braucht Serienläufe und Negativtests, nicht nur einen erfolgreichen Restart.</p></article>
+  </div>
+
+  <h2>4. Rechercheergebnis: Menüsteuerung und Koolo</h2>
+  <p>Koolo steuert den Offline-Game-Lifecycle nicht ausschließlich über Memory und auch nicht als reine zeitgesteuerte Klickfolge. Es kombiniert drei Mechanismen:</p>
+  <table>
+    <thead><tr><th>Mechanismus</th><th>Koolo-Verwendung</th><th>Übernahme für Phase 7</th></tr></thead>
+    <tbody>
+      <tr><td>Memory-Zustände</td><td><code>InGame()</code> bestätigt Eintritt und Austritt; <code>OpenMenus.QuitMenu</code> erkennt das Escape-/Quit-Menü; <code>OpenMenus.LoadingScreen</code> blockiert Aktionen während Loading.</td><td>Primäres Gate vor und nach jeder Lifecycle-Aktion. Benötigte UI-Flags werden zuerst read-only erforscht und über <code>memory</code> → <code>world</code> bereitgestellt.</td></tr>
+      <tr><td>Feste Client-Koordinaten</td><td>Save &amp; Exit, Start-Button und Difficulty werden bei der erwarteten Fenstergeometrie über feste Positionen geklickt. Difficulty: Normal <code>(640,311)</code>, Nightmare <code>(640,355)</code>, Hell <code>(640,403)</code>.</td><td>Die bereits live validierten Difficulty-Koordinaten bleiben erhalten. Weitere Klickpunkte sind versionierte 1280×720-Konfiguration und nur nach eindeutigem Zustands-Gate zulässig.</td></tr>
+      <tr><td>Enges Template Matching</td><td>Vor dem Offline-Start wartet Koolo auf das sichtbare Settings-Zahnrad des Charakterbildschirms.</td><td>Nur als zusätzlicher Beweis für den Charakterbildschirm, falls kein zuverlässiges Memory-Signal auffindbar ist. Keine allgemeine Pixelbot- oder Gameplay-Erkennung.</td></tr>
+    </tbody>
+  </table>
+  <p>Koolos Save-&amp;-Exit versucht zunächst <code>Esc</code> plus einen sofortigen festen Klick und prüft erst danach <code>InGame()</code>. Wenn das scheitert, wartet der Fallback auf <code>QuitMenu</code> und klickt erneut. Beim Offline-Start wartet Koolo visuell auf den Charakterbildschirm, klickt den Startbereich und danach die konfigurierte Difficulty; Erfolg ist ausschließlich <code>InGame()</code>.</p>
+  <div class="callout warning"><strong>Bewusste Abweichung von Koolo:</strong> Phase 7 führt keinen anfänglichen Blindklick aus. Verbindliche Reihenfolge ist <code>Zustand bestätigen → genau eine Input-Aktion → Ergebnis bestätigen</code>. Ein unbekannter Menüscreen, falsche Fenstergeometrie oder fehlender Fokus sperrt den Klick.</div>
+  <p class="meta">Quellbasis: Koolo-Mirror, Commit <code>91a04550a54684a2ff315919f1990651a97bb42e</code>: <a href="https://github.com/dulingzhi/koolo/blob/91a04550a54684a2ff315919f1990651a97bb42e/internal/helper/game_manager.go">GameManager</a>, <a href="https://github.com/dulingzhi/koolo/blob/91a04550a54684a2ff315919f1990651a97bb42e/internal/single_supervisor.go">SinglePlayerSupervisor</a> und <a href="https://github.com/dulingzhi/koolo/blob/91a04550a54684a2ff315919f1990651a97bb42e/internal/bot.go">Bot-Loop</a>. Koolo und d2go bleiben Recherchequellen, keine Runtime-Abhängigkeiten.</p>
+
+  <h3>Aktueller Stand dieses Projekts</h3>
+  <ul>
+    <li><code>GamePhaseMenu</code>, <code>GamePhaseLoading</code> und <code>GamePhaseInGame</code> sind über UI-Gate, Loading-Flag und Player-Präsenz verfügbar.</li>
+    <li>Inventory- und Stash-Flags werden bereits read-only aus dem UI-Buffer gelesen.</li>
+    <li>Character Identity und Layout-Fingerprint verifizieren den Kontext nach dem Start.</li>
+    <li>Der isolierte Difficulty-Test verwendet bei exakt 1280×720 bereits dieselben drei festen Koordinaten wie Koolo.</li>
+    <li>Noch fehlen ein <code>QuitMenu</code>-Flag, eine sichere Erkennung des Charakterbildschirms und des Difficulty-Dialogs sowie die automatische Charakterauswahl.</li>
+    <li><code>GamePhaseMenu</code> allein ist kein ausreichender Klicknachweis, weil es die verschiedenen Menüs nicht unterscheidet.</li>
+  </ul>
+
+  <h2>5. Technisches Zielbild</h2>
+  <table>
+    <thead><tr><th>Baustein</th><th>Verantwortung</th><th>Vorgesehener Ort</th></tr></thead>
+    <tbody>
+      <tr><td>Session Contract</td><td>Konfiguration für Run-Auswahl, maximale Runs/Laufzeit, Difficulty, Pausen, Retry- und Fehlerbudgets.</td><td><code>internal/config</code></td></tr>
+      <tr><td>Session Orchestrator</td><td>Äußere State-Machine, die Game-Lifecycle und jeweils genau einen Run koordiniert.</td><td><code>internal/app</code></td></tr>
+      <tr><td>Game UI State</td><td>Read-only Erkennung von Quit-Menü, Charakterbildschirm und Difficulty-Dialog; Erweiterung des World Models nur um semantisch benötigte Signale.</td><td><code>internal/memory</code> → <code>internal/world</code></td></tr>
+      <tr><td>Optionaler Screen-Nachweis</td><td>Eng begrenztes Template Matching für einen stabilen Charakterbildschirm-Anker, ausschließlich falls Memory keine eindeutige Quelle liefert.</td><td><code>internal/app</code> hinter mockbarem Interface</td></tr>
+      <tr><td>Offline Game Controller</td><td>Save &amp; Exit und neues Offline-Spiel über einzeln geloggte, client-relative 1280×720-Klicks mit Memory-/Screen-Gate vor und Memory-Bestätigung danach.</td><td><code>internal/app</code> mit Interfaces zu <code>internal/input</code></td></tr>
+      <tr><td>Run Factory/Reset</td><td>Erzeugt pro Zyklus frischen Task-Zustand und bindet die vorhandene Run-Registry, ohne Lifecycle-Wissen in <code>internal/tasks</code> zu drücken.</td><td><code>internal/tasks</code> / Wiring in <code>internal/app</code></td></tr>
+      <tr><td>Session Telemetry</td><td>Korreliert Session, Game und Run; protokolliert Start, Ende, Dauer, Ergebnis, Restart und terminalen Grund.</td><td><code>internal/telemetry</code></td></tr>
+    </tbody>
+  </table>
+
+  <h3>Vorgeschlagene Session-State-Machine</h3>
+  <table>
+    <thead><tr><th>Zustand</th><th>Erlaubte Aktion</th><th>Bestätigter Übergang</th></tr></thead>
+    <tbody>
+      <tr><td><code>preflight</code></td><td>Nur Konfiguration, Bindings, Fenster und Route prüfen.</td><td>Alle statischen Voraussetzungen erfüllt.</td></tr>
+      <tr><td><code>await_game</code></td><td>Warten; keine Gameplay-Aktion.</td><td>Bestätigter Charakter in Rogue Encampment oder eindeutig unterstützter Offline-Menüzustand.</td></tr>
+      <tr><td><code>verify_game</code></td><td>Read-only Identity-/Layout-Precheck.</td><td>Character, Version, Startzustand und Route kompatibel.</td></tr>
+      <tr><td><code>run_active</code></td><td>Vorhandenen Task Runner ticken.</td><td>Terminales Run-Ergebnis mit vollständigem Cleanup.</td></tr>
+      <tr><td><code>evaluate</code></td><td>Zähler und Budgets aktualisieren.</td><td>Stop, Retry, neues Spiel oder terminaler Fehler eindeutig gewählt.</td></tr>
+      <tr><td><code>exit_game</code></td><td>Save &amp; Exit genau einmal auslösen.</td><td>Memory bestätigt, dass kein In-Game-State mehr aktiv ist und der erwartete Menü-State stabil ist.</td></tr>
+      <tr><td><code>start_game</code></td><td>Offline-Charakter/Difficulty kontrolliert auswählen.</td><td>Loading gefolgt von bestätigtem In-Game-Charakter.</td></tr>
+      <tr><td><code>cooldown</code></td><td>Konfiguriert warten; Stop bleibt sofort wirksam.</td><td>Frist abgelaufen und Budgets erlauben nächsten Zyklus.</td></tr>
+      <tr><td><code>stopped</code> / <code>failed</code></td><td>Keine neuen Inputs.</td><td>Terminal; Summary und Telemetrie sind geflusht.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>6. Umsetzung in Teilphasen</h2>
+  <article class="phase"><div class="phase-id">7.0 ✓</div><div><h3>Lifecycle-Vertrag und Sicherheitsmodell — abgeschlossen</h3><p>Session-/Game-/Run-Identitäten, Zustände, Übergänge, unterstützte Startzustände, Run- und Session-Ergebnisse, explizite Fehlerklassen, Hard-Stuck-Abbruch, endliche Run-/Zeit-/Retry-/Restart-Budgets, Input-Invarianten und korrelierte JSONL-Events sind verbindlich definiert. Unbekannte Reason-Codes und UI-Zustände bleiben terminal; <code>GamePhaseMenu</code> allein autorisiert keinen Klick.</p><p class="gate">Gate erfüllt: Der testbare Vertrag steht in <a href="docs/features/session-lifecycle.md">Session-Lifecycle</a>. Phase 7.1 kann ohne offene Architekturentscheidung mit der ausschließlich read-only UI-State-Probe beginnen.</p></div></article>
+  <article class="phase"><div class="phase-id">7.1 ✓</div><div><h3>Read-only Game-/Menu-State-Probe — abgeschlossen</h3><p><code>--ui-state-probe &lt;label&gt;</code> liest ohne Input zwölf vollständige UI-Buffer-Samples, trennt stabile von volatilen Bytes und veröffentlicht atomische JSON-Artefakte. Die Live-Matrix umfasste Gameplay vor und nach einem neuen Spiel, Quit-Menü, Charakterbildschirm und Difficulty-Dialog mit jeweils mindestens drei Captures.</p><p><code>UI-0xB</code> ist als <code>QuitMenuOpen</code> gegen alle Negativzustände validiert und in Memory sowie World Model übernommen. Charakterbildschirm und Difficulty-Dialog sind im untersuchten Buffer nicht sicher unterscheidbar. Verbindliche Entscheidung: Memory-gated Save &amp; Exit; für die zwei Offline-Frontend-Screens jeweils ein enger visueller Zustandsnachweis, niemals ein zeitbasierter Blindklick.</p><p class="gate">Gate erfüllt: Live-Evidenz, Kandidatenmatrix und Architekturentscheidung stehen in <a href="docs/features/ui-state-probe.md">Read-only UI-State-Probe</a>. Phase 7.2 kann den isolierten Save-&amp;-Exit-Flow auf <code>QuitMenuOpen</code> aufbauen.</p></div></article>
+  <article class="phase"><div class="phase-id">7.2 ✓</div><div><h3>Isoliertes, verifiziertes Save &amp; Exit — abgeschlossen</h3><p><code>--offline-exit-test</code> verlangt drei stabile Rogue-Encampment-/Identity-Ticks, bestätigt D2R als Foreground, sendet genau ein <code>Esc</code>, wartet auf drei <code>QuitMenuOpen</code>-Ticks, fokussiert erneut, klickt bei exakt 1280×720 genau einmal auf <code>(640,327)</code> und bestätigt drei terminale Menü-Ticks ohne In-Game-Player.</p><p class="gate">Gate erfüllt: Drei vollständige Live-Exits endeten mit jeweils <code>escape_presses=1</code> und <code>save_exit_clicks=1</code>. Zwei Fokus-Negativfälle blockierten ohne Save-&amp;-Exit-Klick; daraus entstand der allgemeine verifizierte Foreground-Guard. Details stehen in <a href="docs/features/offline-game-exit.md">Verifiziertes Offline Save &amp; Exit</a>.</p></div></article>
+  <article class="phase"><div class="phase-id">7.3 ✓</div><div><h3>Isolierter Offline-Game-Start — abgeschlossen</h3><p>Der vollständige Start wartet auf drei stabile Menü-Ticks und beweist anschließend mit versionierten, engen Screen-Ankern den konfigurierten Charakter sowie den aktiven Play-Button. Nach genau einem Play-Klick wird der Difficulty-Dialog separat bestätigt und die bereits live validierte Phase-6.1c-Primitive für Normal <code>(640,311)</code>, Nightmare <code>(640,355)</code> oder Hell <code>(640,403)</code> wiederverwendet. Erfolg verlangt drei stabile In-Game-Snapshots mit erwarteter Character Identity und Rogue Encampment.</p><p class="gate">Gate erfüllt: Drei vollständige Nightmare-Starts mit <code>MrBones</code> erreichten bei 1280×720 die Stadt. Jeder Durchlauf führte exakt einen Play- und einen Difficulty-Klick aus; abweichende Anker, Identity, Fokus oder Geometrie brechen vor dem nächsten Input fail-closed ab. Details: <a href="docs/features/offline-difficulty-selection.md">Verifizierter Offline-Game-Start</a>.</p></div></article>
+  <article class="phase"><div class="phase-id">7.4 ✓</div><div><h3>Generischer Session-Orchestrator — abgeschlossen</h3><p>Der generische Einzelzyklus-Orchestrator arbeitet hinter mockbaren Grenzen für Start, Game-Verifikation, frische Run-Erzeugung, Exit, Pause/Stop und synchrone Lifecycle-Events. Er kennt keine Countess-Schritte. Nach jedem terminalen Run wird dessen Executor vor einem möglichen Exit zurückgesetzt; Telemetriefehler blockieren die jeweils folgende Aktion.</p><p class="gate">Gate erfüllt: Fake-basierte Integrationstests decken drei erfolgreiche Zyklen mit drei frischen Run-Instanzen, Run-Fehler/Hard-Stuck, Stop, Pause/Resume, Loading-/Verify-Timeout, State-Reset vor Exit und Telemetriefehler ohne nachlaufenden Input ab. Produktive CLI-, Budget- und Multi-Run-Verdrahtung bleibt bewusst Phase 7.5.</p></div></article>
+  <article class="phase"><div class="phase-id">7.5 ✓</div><div><h3>Session-Konfiguration und Operator-Oberfläche — abgeschlossen</h3><p>Das YAML besitzt nun ein explizites <code>session.enabled</code>, Character-/Full-Run-/Difficulty-Auswahl, positive Run-/Zeit-/State-Budgets, restriktiv konfigurierbare Nullwerte für Cooldown und Restarts sowie eine exakt validierte Liste erlaubter Retry-Klassen. <code>--session-inspect</code> löst den Plan als JSON vor Runtime-Erzeugung auf.</p><p class="gate">Gate erfüllt: Deaktivierter Plan, vollständig aufgelöster <code>MrBones</code>/Nightmare-Plan und absichtlicher Route-/Difficulty-Widerspruch sind abgedeckt. Bei aktivierter Session werden Input-Opt-in, leeres <code>runs.active</code>, Run Registry, Route Contract, Character-Anker, Difficulty und Game-Version vor Attach/Input geprüft. Produktive Session-Ausführung bleibt bis zur zyklischen Verifikation gesperrt.</p></div></article>
+  <article class="phase"><div class="phase-id">7.6 ✓</div><div><h3>Game- und Run-Verifikation pro Zyklus — abgeschlossen</h3><p>Jeder Zyklus beginnt mit einer verpflichtenden Reset-Barriere für World Model, Navigator, Route, Loot, Combat, Stash, Waypoint, Portal und Town-Walk. Danach bestätigen drei strikt frische Snapshots derselben Game-Generation Character, Version, Rogue Encampment und geschlossene UI. Der autoritative Layout-Fingerprint wird pro Game am tatsächlichen Black-Marsh-Routenstart neu aufgebaut und vor RoutePlayer-/Navigator-Aktivierung geprüft.</p><p class="gate">Gate erfüllt: Falscher Character, Version, Startbereich, offene UI, wiederverwendete Snapshots und falscher Layout-Fingerprint blockieren fail-closed. Drei simulierte Game-Generationen beweisen vollständige Reset-Aufrufe und übernehmen weder Stability-Ticks noch Adapterzustand aus dem vorherigen Zyklus.</p></div></article>
+  <article class="phase"><div class="phase-id">7.7 ✓</div><div><h3>Recovery-Policy und Session-Telemetrie — abgeschlossen</h3><p>Route-Fehler werden ausschließlich über Sentinels auf exakte stabile Codes gemappt. Ein Restart benötigt zusätzlich die explizite Freigabe in <code>session.retry_classes</code> und freie Consecutive-/Total-Budgets. Der synchron geflushte Schema-v2-Recorder korreliert Session, Game und Run; terminale Summaries enthalten Ergebniszähler, Restarts und Dauer.</p><p class="gate">Gate erfüllt: Fehler-Injektion beweist <code>stuck_detected</code> → <code>run_aborted</code> → genau eine Restart-Entscheidung mit Route-, Segment-, Punkt-, Ziel-, Drift- und Recovery-Kontext. Unbekannte Textvarianten, erschöpfte Budgets und Telemetriefehler enden terminal ohne nachlaufende Recovery-Aktion. Der reale kontrollierte Restart wird im Multi-Run-E2E 7.8 verdrahtet.</p></div></article>
+  <article class="phase"><div class="phase-id">7.8 ✓</div><div><h3>Countess Multi-Run E2E — abgeschlossen</h3><p>Der produktive Multi-Run-Orchestrator führt endliche Zyklen mit frischen Game-/Run-IDs, Cooldown, Run-/Zeitlimit, Recovery-Policy und terminaler Session-Summary aus. Die Nightmare-Route besitzt nun zusätzlich einen terminalen Keller-5-Abschnitt bis in den Countess-Raum; terminale Segmente benötigen keine künstliche Area-Transition.</p><p class="gate">Gate erfüllt: Session <code>session-20260712T020655.472818000Z-880ddc70</code> absolvierte drei autonome Countess-Zyklen hintereinander. Jeder Zyklus umfasste Spielstart, Town-Walk, Waypoint, sieben Route-Segmente, Kill, Loot, Town Portal, Stash sowie Save &amp; Exit. Die Session endete regulär mit <code>runs=3</code>. Aktiver Fingerprint: <code>86fc206fbf0bea9e71ebace4478c2e6eab6f8898b9a3a2153d72478ea9c21424</code>.</p></div></article>
+
+  <h2>7. Fehler- und Recovery-Matrix</h2>
+  <table>
+    <thead><tr><th>Situation</th><th>Klasse</th><th>Reaktion</th></tr></thead>
+    <tbody>
+      <tr><td>Kurzer Loading-/Snapshot-Ausfall</td><td>Transient</td><td>Begrenzt warten; keinerlei Input im unbestätigten Zustand.</td></tr>
+      <tr><td>Hard Stuck in Route Playback oder Navigation</td><td>Run-Abbruch; bedingt game-restartbar</td><td>Aktives Goal canceln, Inputs sperren und <code>stuck_detected</code> plus <code>run_aborted</code> mit Route-/Segment-/Punktkontext schreiben. Nur über einen separat validierten sicheren Exit-Flow ein neues Spiel starten.</td></tr>
+      <tr><td>Run endet mit bekanntem, restartbarem Pathing-/Loot-Fehler und Charakter ist sicher in Town</td><td>Game-restartbar</td><td>Fehlerbudget abbuchen, kontrolliert neues Spiel starten.</td></tr>
+      <tr><td>Run-Fehler außerhalb eines sicheren Exit-Zustands</td><td>Terminal im ersten Slice</td><td>Stop, solange kein validierter In-Game-Abort-/Exit-Flow existiert. Nach dessen isolierter Live-Abnahme darf ein Hard Stuck auch aus der gebundenen Route heraus einen Game-Restart auslösen.</td></tr>
+      <tr><td>Falscher Character, Version oder Layout-Fingerprint</td><td>Terminal</td><td>Vor Navigation abbrechen und erwarteten/aktuellen Kontext loggen.</td></tr>
+      <tr><td>Unbekannter Menü-/Dialogzustand oder Fokusverlust</td><td>Terminal</td><td>Keine weiteren Inputs; Operatorhinweis mit Diagnosezustand.</td></tr>
+      <tr><td>Max Runs, Max Duration oder Fehlerbudget erreicht</td><td>Geplanter Stop</td><td>Keine neue Game-Erstellung; Summary schreiben und sauber beenden.</td></tr>
+      <tr><td>Stop-Hotkey</td><td>Sofortiger Stop</td><td>Keine neuen Inputs; aktiven Executor canceln, Zustände resetten und Telemetrie flushen.</td></tr>
+    </tbody>
+  </table>
+  <div class="callout danger"><strong>MVP-Sicherheitsgrenze:</strong> Death-Recovery, Spiel-Crash-Recovery und ein Exit aus beliebigen Dungeon-Zuständen werden nicht implizit mitgelöst. Solche Fälle enden terminal, bis ein eigener, Memory-verifizierter Recovery-Flow geplant und live validiert ist.</div>
+
+  <h3>Diagnosevertrag für vorzeitig abgebrochene Runs</h3>
+  <p>Ein Hard Stuck muss in der JSONL-Telemetrie ohne Textlog-Rekonstruktion erklärbar sein. Mindestens zwei korrelierte Events werden synchron geflusht: die technische Erkennung und das fachliche Run-Ergebnis.</p>
+  <table>
+    <thead><tr><th>Event</th><th>Pflichtkontext</th><th>Zweck</th></tr></thead>
+    <tbody>
+      <tr><td><code>stuck_detected</code></td><td><code>session_id</code>, <code>game_id</code>, <code>run_id</code>, Run-Phase, Area, Position, Fehlercode, elapsed/timeout, Recovery-Versuche; bei Playback zusätzlich Route-ID, Segment-ID, Punktindex, letzter bestätigter Punkt und Drift.</td><td>Zeigt exakt, wo und nach welchem Grenzwert der Fortschritt ausblieb.</td></tr>
+      <tr><td><code>run_aborted</code></td><td>Dieselben Korrelations-IDs, <code>reason=hard_stuck</code>, Run-Dauer, letzter erfolgreicher Step und gewählte Recovery-Entscheidung.</td><td>Markiert den Run eindeutig als vorzeitig beendet statt als normalen Fehler oder Erfolg.</td></tr>
+      <tr><td><code>game_restart_requested</code> oder <code>session_failed</code></td><td>Abbruchgrund, verbrauchtes/verbleibendes Fehlerbudget und Sicherheitsnachweis für die Entscheidung.</td><td>Erklärt, warum anschließend ein neues Spiel gestartet oder die Session gestoppt wurde.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>8. Test- und Abnahmestrategie</h2>
+  <ol>
+    <li><strong>Unit:</strong> Session-Transitions, Budgetrechnung, Result-Klassifikation, Config-Validierung und Reset-Semantik.</li>
+    <li><strong>Integration mit Fakes:</strong> vollständige Snapshot-Sequenzen für In-Game, Menüs, Loading, falschen Charakter, Route-Hard-Stuck, Timeout, Pause und Stop.</li>
+    <li><strong>Read-only Live-Probe:</strong> Quit-Menü, Charakterbildschirm, Difficulty-Dialog, Loading und In-Game mehrfach beobachten, bevor Menüinput implementiert wird.</li>
+    <li><strong>UI-Gate-Negativtests:</strong> jeden festen Klick gegen falschen Screen, falsche Geometrie, Fokusverlust und unstabilen Zustandsnachweis testen.</li>
+    <li><strong>Isolierte Live-Slices:</strong> Save &amp; Exit und Game-Start getrennt jeweils dreimal erfolgreich validieren.</li>
+    <li><strong>Kurze Serien:</strong> zwei und fünf vollständige Countess-Zyklen; Logs, JSONL, Handles, Goroutines und State-Reset prüfen.</li>
+    <li><strong>Multi-Run-E2E:</strong> drei aufeinanderfolgende Zyklen plus automatisierter Negativtest mit absichtlich falscher Identity oder Route. Längere Serien sind optional.</li>
+  </ol>
+
+  <h2>9. Definition of Done</h2>
+  <ul>
+    <li>Ein Operator kann eine endliche Multi-Run-Session für einen registrierten Run konfigurieren und starten.</li>
+    <li>Der Session-Orchestrator ist run-unabhängig; Countess ist nur der erste registrierte Consumer.</li>
+    <li>Save &amp; Exit sowie Offline-Game-Start erfolgen ausschließlich aus bestätigten Memory-/Screen-Zuständen und mit einzeln geloggten, client-relativen Inputs.</li>
+    <li>Kein Save-&amp;-Exit-, Charakter-, Start- oder Difficulty-Klick wird allein durch Zeitablauf oder den zu groben Zustand <code>GamePhaseMenu</code> freigegeben.</li>
+    <li>Jedes neue Spiel bestätigt Character Identity, Version, Rogue Encampment und Routen-/Layout-Kompatibilität erneut.</li>
+    <li>Jeder Zyklus verwendet frischen Task-, Navigator-, Loot- und Telemetrie-Zustand.</li>
+    <li>Pause und Stop verhindern unmittelbar neue Inputs; Stop hinterlässt keine nachlaufenden Goals oder Retries.</li>
+    <li>Run-, Game-, Session-, Fehler- und Abschlussereignisse sind über stabile IDs korreliert; ein Hard Stuck enthält Route, Segment, Punkt, Position, Grenzwert und Recovery-Entscheidung.</li>
+    <li>Ein vorzeitig abgebrochener Run ist in JSONL eindeutig von <code>complete</code> und einem terminalen Session-Fehler unterscheidbar.</li>
+    <li>Alle Retry-, Run- und Zeitbudgets sind endlich, deterministisch und durch Tests abgedeckt.</li>
+    <li>Drei Countess-Zyklen laufen ohne manuelle Menüinteraktion; Abweichungen enden fail-closed und nachvollziehbar.</li>
+    <li><code>go test ./...</code> und <code>go build ./cmd/d2rbot</code> sind grün; Godoc, Feature-Dokumentation, Index und Changelog werden während der Implementierung je Slice aktualisiert.</li>
+  </ul>
+
+  <h2>10. Empfohlene Reihenfolge und erste Entscheidung</h2>
+  <p>Phase 7.0 bis 7.8 sind abgeschlossen. Der produktive Nightmare-Countess-Sessionflow wurde mit drei aufeinanderfolgenden autonomen E2E-Zyklen freigegeben.</p>
+  <p class="meta">Nächster verbindlicher Schritt laut <a href="handoff.html">Gesamtroadmap</a>: Phase 8 führt generische Character- und Encounter-Profile ein; der erste Use Case ergänzt Bone Armor in Town und Bone Prison beim Boss, ohne Necromancer-Sonderlogik in den Countess-Run einzubauen.</p>
+
+  <footer>Umsetzungsstand: 12. Juli 2026 · Phase 7 vollständig · Drei autonome Nightmare-Countess-Zyklen erfolgreich.</footer>
+</main>
+</body>
+</html>

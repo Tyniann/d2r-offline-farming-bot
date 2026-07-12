@@ -47,6 +47,7 @@ func (p *ProbeReader) readPhaseInputs(moduleBase uintptr, off OffsetSet) (gateVa
 	loading = buf[uiLoadingIndex] != 0
 	ui.InventoryOpen = buf[uiInventoryIndex] != 0
 	ui.StashOpen = buf[uiStashIndex] != 0
+	ui.QuitMenuOpen = buf[uiQuitMenuIndex] != 0
 	return gateValue, gateDisabled, loading, ui
 }
 

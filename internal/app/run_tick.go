@@ -42,6 +42,7 @@ type inputController interface {
 	MoveTo(clientX, clientY int) error
 	ClickWithModifier(modifier string, button input.MouseButton) error
 	PressKey(key string) error
+	Focus() error
 	Window() (input.WindowInfo, bool)
 	TogglePause(reason string) bool
 	Stop(reason string)
@@ -149,7 +150,7 @@ func (rt *Runtime) runTick(ctx context.Context, state *runState) error {
 
 	snap := rt.Probe.Snapshot()
 	cur := rt.World.Update(snap)
-	if rt.Config.Input.Enabled && rt.Options.InputTest == "" && rt.Options.OfflineDifficulty == "" && !rt.pathingTestIsReadOnly() && !rt.routeCommandIsReadOnly() && snap.Valid && snap.Phase == memory.GamePhaseInGame && !state.bindingsPrecheckDone {
+	if rt.Config.Input.Enabled && rt.Options.InputTest == "" && rt.Options.OfflineDifficulty == "" && !rt.Options.OfflineExitTest && rt.Options.UIStateProbe == "" && rt.Options.ScreenAnchorCapture == "" && !rt.pathingTestIsReadOnly() && !rt.routeCommandIsReadOnly() && snap.Valid && snap.Phase == memory.GamePhaseInGame && !state.bindingsPrecheckDone {
 		state.bindingsPrecheckDone = true
 		if err := BindingsPrecheck(rt.Log, rt.Bindings, snap, true); err != nil {
 			return fmt.Errorf("bindings precheck: %w", err)

@@ -47,10 +47,11 @@ type Runner struct {
 	run       runMachine
 	tracker   stepTracker
 
-	started  bool
-	terminal bool
-	reset    bool
-	outcome  RunOutcome
+	started        bool
+	terminal       bool
+	reset          bool
+	outcome        RunOutcome
+	terminalReason string
 
 	lastSafetyPotionAt time.Time
 }
@@ -91,6 +92,11 @@ func (r *Runner) ConfiguredPhase() string {
 // Terminal reports whether the run finished with success or failure.
 func (r *Runner) Terminal() bool {
 	return r.terminal
+}
+
+// Result returns the current or terminal run result without advancing the state machine.
+func (r *Runner) Result() TickResult {
+	return TickResult{Active: r.started && !r.terminal && !r.reset, Outcome: r.outcome, Step: r.tracker.name, Reason: r.terminalReason}
 }
 
 // WasReset reports whether the run was reset (e.g. after process lost).
@@ -320,6 +326,7 @@ func (r *Runner) finishStepFailed(now time.Time, reason string) TickResult {
 	)
 	r.terminal = true
 	r.outcome = RunOutcomeFailed
+	r.terminalReason = reason
 	if r.deps.Waypoint != nil {
 		r.deps.Waypoint.Reset()
 	}

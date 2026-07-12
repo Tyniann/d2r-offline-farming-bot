@@ -24,6 +24,11 @@ Spätere Ideen (noch nicht umgesetzt): [`docs/backlog.md`](../backlog.md).
 | [Identification-Strategie](identification-strategy.md) | Phase 5.9: Statregeln nur für identifizierte Items und `identify_required` vor Keep/Stash |
 | [Run-Telemetrie](run-telemetry.md) | Phase 5.10: fail-closed JSONL pro Run für Drop-, Pickit-, Pickup-, Inventory- und Stash-Events |
 | [Route Recording und Playback](route-recording-playback.md) | Phase 6.7: generisches Playback und live validierter Countess-Adapter über stabile Route-ID |
+| [Session-Lifecycle](session-lifecycle.md) | Phase 7.0/7.4/7.6: Lifecycle, generischer Einzelzyklus, verpflichtende Runtime-Reset-Barriere und frische Game-/Route-Verifikation pro Zyklus |
+| [Session-Konfiguration und Inspect](session-configuration.md) | Phase 7.5: explizites Opt-in, endliche Budgets und read-only Planauflösung mit Route-/Character-/Difficulty-Preflight vor Attach/Input |
+| [Session-Recovery und Lifecycle-Telemetrie](session-recovery-telemetry.md) | Phase 7.7: exakte Retry-Klassifikation, harte Fehler-/Restart-Budgets und synchron korrelierte Session-/Game-/Run-JSONL-Ereignisse |
+| [Read-only UI-State-Probe](ui-state-probe.md) | Phase 7.1: benannte UI-Buffer-Captures mit stabilen/volatilen Bytes, Fingerprint und lokalem JSON-Artefakt ohne Menüinput |
+| [Verifiziertes Offline Save & Exit](offline-game-exit.md) | Phase 7.2: isolierter Memory-gated Exit mit einmaligem Esc/Klick, 1280×720-Gate und bestätigter Menü-Ankunft |
 | [Read-only Game Identity](game-identity.md) | Phase 6.1: bestätigte Character Identity, kontrollierte Offline-Difficulty-Auswahl und autoritativer Layout-Fingerprint ohne persistenten Auswahl-Cache |
-| [Offline-Difficulty-Auswahl](offline-difficulty-selection.md) | Isolierter 1280×720-CLI-Test für den kontrollierten Normal-/Nightmare-/Hell-Menü-Klick und anschließende Character-Bestätigung |
+| [Verifizierter Offline-Game-Start](offline-difficulty-selection.md) | Phase 7.3: Screen- und Memory-gated Charakter-, Play- und Difficulty-Auswahl mit bestätigter Ankunft in Rogue Encampment |
 | [Layout-Fingerprint](layout-fingerprint.md) | Deterministischer Hash stabiler World-Anker als fail-closed Kartenprüfung vor Route Playback |

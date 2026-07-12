@@ -162,6 +162,9 @@ func (r Route) Validate() error {
 			return fmt.Errorf("segments[%d].id: duplicate %q", i, segment.ID)
 		}
 		seen[segment.ID] = struct{}{}
+		if segment.Transition.Type == "terminal" && i != len(r.Segments)-1 {
+			return fmt.Errorf("segments[%d].transition: terminal segment must be last", i)
+		}
 		if i > 0 && r.Segments[i-1].ToAreaID != segment.FromAreaID {
 			return fmt.Errorf("segments[%d].from_area_id: got %d, previous to_area_id is %d", i, segment.FromAreaID, r.Segments[i-1].ToAreaID)
 		}
@@ -238,8 +241,8 @@ func (s RouteSegment) validate() error {
 	if !routeIDPattern.MatchString(s.ID) {
 		return fmt.Errorf("id: invalid value %q", s.ID)
 	}
-	if s.FromAreaID == 0 || s.ToAreaID == 0 || s.FromAreaID == s.ToAreaID {
-		return fmt.Errorf("area_ids: must be non-zero and different")
+	if s.FromAreaID == 0 || s.ToAreaID == 0 {
+		return fmt.Errorf("area_ids: must be non-zero")
 	}
 	if s.Movement != RouteMovementTeleport && s.Movement != RouteMovementWalk {
 		return fmt.Errorf("movement: unsupported value %q", s.Movement)
@@ -255,8 +258,17 @@ func (s RouteSegment) validate() error {
 			return fmt.Errorf("points[%d]: step exceeds %.0f tiles", i, maxRoutePointStepTiles)
 		}
 	}
-	if s.Transition.Type != "entrance" || strings.TrimSpace(s.Transition.EntranceKind) == "" {
-		return fmt.Errorf("transition: type must be entrance with entrance_kind")
+	switch s.Transition.Type {
+	case "entrance":
+		if s.FromAreaID == s.ToAreaID || strings.TrimSpace(s.Transition.EntranceKind) == "" {
+			return fmt.Errorf("transition: entrance requires different areas and entrance_kind")
+		}
+	case "terminal":
+		if s.FromAreaID != s.ToAreaID || strings.TrimSpace(s.Transition.EntranceKind) != "" {
+			return fmt.Errorf("transition: terminal requires identical areas and no entrance_kind")
+		}
+	default:
+		return fmt.Errorf("transition: unsupported type %q", s.Transition.Type)
 	}
 	return nil
 }

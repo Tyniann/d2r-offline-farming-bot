@@ -21,6 +21,10 @@ var (
 	ErrKeySendFailed = errors.New("key send failed")
 	// ErrWindowNotBound is returned when a mouse action requires a bound D2R window.
 	ErrWindowNotBound = errors.New("window not bound")
+	// ErrWindowNotForeground is returned when D2R cannot be activated and verified as foreground.
+	ErrWindowNotForeground = errors.New("window not foreground")
+	// ErrWindowCaptureFailed is returned when the bound D2R client cannot be captured.
+	ErrWindowCaptureFailed = errors.New("window capture failed")
 	// ErrInvalidMouseButton is returned when a mouse button identifier is not left or right.
 	ErrInvalidMouseButton = errors.New("invalid mouse button")
 	// ErrMouseSendFailed is returned when the OS mouse backend rejects a send operation.

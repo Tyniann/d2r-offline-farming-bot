@@ -103,6 +103,27 @@ runs:
       reposition_distance_tiles: 32
       kill_confirm_ticks: 3
 
+session:
+  # Phase 7.5 stellt zunächst ausschließlich den read-only --session-inspect bereit.
+  # Echte Session-Ausführung bleibt bis zur vollständigen Zyklus-Verifikation deaktiviert.
+  enabled: false
+  run: countess
+  character: ""
+  difficulty: normal
+  max_runs: 3
+  max_duration_ms: 7200000
+  cooldown_ms: 3000
+  max_consecutive_failures: 2
+  max_total_restarts: 3
+  state_timeout_ms: 30000
+  exit_timeout_ms: 30000
+  start_timeout_ms: 45000
+  retry_classes:
+    - hard_stuck
+    - route_drift_exceeded
+    - route_segment_timeout
+    - route_transition_failed
+
 pathing:
   # Abbruch, wenn weder Position (>= stuck_progress_tiles) noch Area sich ändern
   stuck_timeout_ms: 8000

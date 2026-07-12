@@ -21,6 +21,18 @@ type Options struct {
 	PathingTestTimeoutMs int
 	// OfflineDifficulty starts an isolated offline-character-screen selection test.
 	OfflineDifficulty string
+	// OfflineCharacter names the character that the isolated offline start must verify.
+	OfflineCharacter string
+	// OfflineExitTest starts the isolated Phase-7.2 Save & Exit test.
+	OfflineExitTest bool
+	// UIStateProbe labels one read-only Phase-7.1 UI-buffer capture.
+	UIStateProbe string
+	// UIStateProbeTimeoutMs bounds the read-only UI-state capture.
+	UIStateProbeTimeoutMs int
+	// ScreenAnchorCapture labels one Phase-7.3 frontend screenshot capture.
+	ScreenAnchorCapture string
+	// SessionInspect resolves and prints the Phase-7.5 session plan without runtime initialization.
+	SessionInspect bool
 	// Route selects a read-only route registry command in Phase 6.2.
 	Route string
 	// RouteName is reserved for the Phase 6.3 record command.

@@ -27,7 +27,7 @@ func validSnapshot() memory.Snapshot {
 
 func TestFromSnapshotValid(t *testing.T) {
 	snap := validSnapshot()
-	snap.UI = memory.UIState{InventoryOpen: true, StashOpen: true}
+	snap.UI = memory.UIState{InventoryOpen: true, StashOpen: true, QuitMenuOpen: true}
 	state := FromSnapshot(snap)
 
 	if !state.Valid {
@@ -64,8 +64,8 @@ func TestFromSnapshotValid(t *testing.T) {
 	if state.Player.Mana != snap.Mana || state.Player.MaxMana != snap.MaxMana {
 		t.Fatalf("Mana = %d/%d, want %d/%d", state.Player.Mana, state.Player.MaxMana, snap.Mana, snap.MaxMana)
 	}
-	if !state.UI.InventoryOpen || !state.UI.StashOpen {
-		t.Fatalf("UI = %+v, want inventory and stash open", state.UI)
+	if !state.UI.InventoryOpen || !state.UI.StashOpen || !state.UI.QuitMenuOpen {
+		t.Fatalf("UI = %+v, want inventory, stash, and quit menu open", state.UI)
 	}
 }
 

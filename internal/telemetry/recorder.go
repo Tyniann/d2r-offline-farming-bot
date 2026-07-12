@@ -42,34 +42,75 @@ const (
 	RoutePlaybackFailed EventName = "route_playback_failed"
 	// RoutePlaybackStopped records an explicit operator Stop.
 	RoutePlaybackStopped EventName = "route_playback_stopped"
+	// SessionStarted begins one finite autonomous session.
+	SessionStarted EventName = "session_started"
+	// GameStarted confirms one verified offline game generation.
+	GameStarted EventName = "game_started"
+	// RunStarted begins one fresh run executor.
+	RunStarted EventName = "run_started"
+	// StuckDetected records the progress context that exhausted local recovery.
+	StuckDetected EventName = "stuck_detected"
+	// RunCompleted records a successful terminal run.
+	RunCompleted EventName = "run_completed"
+	// RunAborted records a controlled early run termination.
+	RunAborted EventName = "run_aborted"
+	// RunFailed records a terminal run failure.
+	RunFailed EventName = "run_failed"
+	// GameRestartRequested records the one recovery decision for a run result.
+	GameRestartRequested EventName = "game_restart_requested"
+	// SessionCompleted records planned budget completion.
+	SessionCompleted EventName = "session_completed"
+	// SessionStopped records an operator stop.
+	SessionStopped EventName = "session_stopped"
+	// SessionFailed records terminal session failure.
+	SessionFailed EventName = "session_failed"
 )
 
 // Event is one JSONL record. Zero-valued optional fields are omitted.
 type Event struct {
-	SchemaVersion  int       `json:"schema_version"`
-	Timestamp      time.Time `json:"timestamp"`
-	Event          EventName `json:"event"`
-	RunID          string    `json:"run_id"`
-	Run            string    `json:"run"`
-	Phase          string    `json:"phase,omitempty"`
-	AreaID         uint32    `json:"area_id,omitempty"`
-	UnitID         uint32    `json:"unit_id,omitempty"`
-	TxtFileNo      uint32    `json:"txt_file_no,omitempty"`
-	Code           string    `json:"code,omitempty"`
-	Name           string    `json:"name,omitempty"`
-	Reason         string    `json:"reason,omitempty"`
-	Attempt        int       `json:"attempt,omitempty"`
-	HoverAttempt   int       `json:"hover_attempt,omitempty"`
-	GridX          *int      `json:"grid_x,omitempty"`
-	GridY          *int      `json:"grid_y,omitempty"`
-	CandidateCount int       `json:"candidate_count,omitempty"`
-	RouteID        string    `json:"route_id,omitempty"`
-	SegmentID      string    `json:"segment_id,omitempty"`
-	SegmentIndex   *int      `json:"segment_index,omitempty"`
-	PointIndex     *int      `json:"point_index,omitempty"`
-	TargetX        uint32    `json:"target_x,omitempty"`
-	TargetY        uint32    `json:"target_y,omitempty"`
-	TargetAreaID   uint32    `json:"target_area_id,omitempty"`
+	SchemaVersion         int       `json:"schema_version"`
+	Timestamp             time.Time `json:"timestamp"`
+	Event                 EventName `json:"event"`
+	RunID                 string    `json:"run_id"`
+	SessionID             string    `json:"session_id,omitempty"`
+	GameID                string    `json:"game_id,omitempty"`
+	Run                   string    `json:"run"`
+	Phase                 string    `json:"phase,omitempty"`
+	AreaID                uint32    `json:"area_id,omitempty"`
+	UnitID                uint32    `json:"unit_id,omitempty"`
+	TxtFileNo             uint32    `json:"txt_file_no,omitempty"`
+	Code                  string    `json:"code,omitempty"`
+	Name                  string    `json:"name,omitempty"`
+	Reason                string    `json:"reason,omitempty"`
+	Attempt               int       `json:"attempt,omitempty"`
+	HoverAttempt          int       `json:"hover_attempt,omitempty"`
+	GridX                 *int      `json:"grid_x,omitempty"`
+	GridY                 *int      `json:"grid_y,omitempty"`
+	CandidateCount        int       `json:"candidate_count,omitempty"`
+	RouteID               string    `json:"route_id,omitempty"`
+	SegmentID             string    `json:"segment_id,omitempty"`
+	SegmentIndex          *int      `json:"segment_index,omitempty"`
+	PointIndex            *int      `json:"point_index,omitempty"`
+	TargetX               uint32    `json:"target_x,omitempty"`
+	TargetY               uint32    `json:"target_y,omitempty"`
+	TargetAreaID          uint32    `json:"target_area_id,omitempty"`
+	RunOrdinal            int       `json:"run_ordinal,omitempty"`
+	Outcome               string    `json:"outcome,omitempty"`
+	Decision              string    `json:"decision,omitempty"`
+	LastStep              string    `json:"last_step,omitempty"`
+	ElapsedMs             int64     `json:"elapsed_ms,omitempty"`
+	ConsecutiveFailures   int       `json:"consecutive_failures,omitempty"`
+	TotalRestarts         int       `json:"total_restarts,omitempty"`
+	RemainingRestarts     int       `json:"remaining_restarts,omitempty"`
+	LastConfirmedPoint    *int      `json:"last_confirmed_point,omitempty"`
+	DriftTiles            float64   `json:"drift_tiles,omitempty"`
+	LocalRecoveryAttempts int       `json:"local_recovery_attempts,omitempty"`
+	RunsStarted           int       `json:"runs_started,omitempty"`
+	RunsSuccessful        int       `json:"runs_successful,omitempty"`
+	RunsAborted           int       `json:"runs_aborted,omitempty"`
+	RunsFailed            int       `json:"runs_failed,omitempty"`
+	MaxRuns               int       `json:"max_runs,omitempty"`
+	MaxDurationMs         int64     `json:"max_duration_ms,omitempty"`
 }
 
 type flushWriter interface {
