@@ -64,6 +64,14 @@ const (
 	SessionStopped EventName = "session_stopped"
 	// SessionFailed records terminal session failure.
 	SessionFailed EventName = "session_failed"
+	// ProfileHookAction records one successful semantic hook input.
+	ProfileHookAction EventName = "profile_hook_action"
+	// ResourcePotionRequested records one successful belt input.
+	ResourcePotionRequested EventName = "resource_potion_requested"
+	// ResourceConsumptionConfirmed records Memory-confirmed potion consumption.
+	ResourceConsumptionConfirmed EventName = "resource_consumption_confirmed"
+	// ProfileActionFailed records a stable profile failure reason.
+	ProfileActionFailed EventName = "profile_action_failed"
 )
 
 // Event is one JSONL record. Zero-valued optional fields are omitted.
@@ -111,6 +119,15 @@ type Event struct {
 	RunsFailed            int       `json:"runs_failed,omitempty"`
 	MaxRuns               int       `json:"max_runs,omitempty"`
 	MaxDurationMs         int64     `json:"max_duration_ms,omitempty"`
+	Profile               string    `json:"profile,omitempty"`
+	Hook                  string    `json:"hook,omitempty"`
+	Skill                 string    `json:"skill,omitempty"`
+	SkillID               uint16    `json:"skill_id,omitempty"`
+	Target                string    `json:"target,omitempty"`
+	Resource              string    `json:"resource,omitempty"`
+	ThresholdPercent      uint8     `json:"threshold_percent,omitempty"`
+	BeltSlot              int       `json:"belt_slot,omitempty"`
+	Confirmed             bool      `json:"confirmed,omitempty"`
 }
 
 type flushWriter interface {

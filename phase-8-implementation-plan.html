@@ -86,21 +86,26 @@
         - skill: bone_armor
           target: self
           once_per_game: true
+          delay_ms: 5000
       boss_engage:
         - skill: bone_prison
           target: boss
           once_per_encounter: true
-          settle_ms: 250
+          delay_ms: 750
+          settle_ms: 1500
     resources:
       healing:
         use_below_percent: 65
         belt_slots: [1]
+        cooldown_ms: 4000
       mana:
         use_below_percent: 35
         belt_slots: [2, 3]
+        cooldown_ms: 4000
       rejuvenation:
-        use_below_hp_percent: 35
+        use_below_percent: 35
         belt_slots: [4]
+        cooldown_ms: 1500
 
 input:
   bindings:
@@ -111,21 +116,21 @@ input:
 
   <h2>4. Umsetzungsphasen</h2>
 
-  <article class="phase"><div class="phase-id">8.0</div><div><h3>Vertrag und Zustandsmodell</h3><p>Hook-Namen, Zieltypen, Ergebnisse, Reason-Codes, Once-Semantik, Ressourcenprioritäten, Timeouts und Reset-Grenzen verbindlich definieren. Der Vertrag trennt Profil, Hook-Ausführung, Resource Policy und Run-State-Machine.</p><p class="gate"><strong>Gate:</strong> Tabellengetriebene Tests beweisen unbekannte Hooks/Ziele, falsche Klassen, doppelte Ausführung und konkurrierende Ressourcenentscheidungen ohne unautorisierten Input.</p></div></article>
+  <article class="phase"><div class="phase-id">8.0 ✓</div><div><h3>Vertrag und Zustandsmodell — abgeschlossen</h3><p>Hook-Namen, Zieltypen, Ergebnisse, Reason-Codes, Once-Semantik, Ressourcenprioritäten, Timeouts und Reset-Grenzen sind in <code>internal/profile</code> definiert. Der Vertrag trennt Profil, Hook-Ausführung, Resource Policy und Run-State-Machine.</p><p class="gate"><strong>Gate erfüllt:</strong> Tests beweisen Hook-Settle/Once, Ressourcenpriorität, ungeeignete Belt-Slots und Consumption-Verifikation ohne unautorisierten Input.</p></div></article>
 
-  <article class="phase"><div class="phase-id">8.1</div><div><h3>Skill-Katalog und Konfiguration</h3><p>Bone Armor ergänzen, vorhandenes Bone Prison wiederverwenden, YAML-Schema und Defaults implementieren sowie alle referenzierten Skills gegen <code>input.bindings.skills</code> prüfen.</p><p class="gate"><strong>Gate:</strong> Valide Necromancer-Config lädt; fehlendes F5-/F3-Binding und Klassenwiderspruch scheitern vor Runtime-Input.</p></div></article>
+  <article class="phase"><div class="phase-id">8.1 ✓</div><div><h3>Skill-Katalog und Konfiguration — abgeschlossen</h3><p>Bone Armor ist als Skill 68 ergänzt, Bone Prison wird wiederverwendet. <code>combat_profiles</code> modelliert Hooks und Ressourcen; der Full-Run-Preflight prüft alle Skill-Bindings und Belt-Spalten.</p><p class="gate"><strong>Gate erfüllt:</strong> Beispiel- und lokale Necromancer-Config laden; Route und Session-Plan bleiben mit der migrierten Farming-Route valide.</p></div></article>
 
-  <article class="phase"><div class="phase-id">8.2</div><div><h3>Generischer Hook-Executor</h3><p>Ein Executor verarbeitet geordnete Aktionen, löst Self-/Boss-Ziele auf, nutzt die bestehende Input-/Combat-Schicht und protokolliert Start, Cast, Skip, Erfolg und Fehler. Er besitzt endliche Budgets und ist resetbar.</p><p class="gate"><strong>Gate:</strong> Mock-Tests decken Reihenfolge, Cancel, Timeout, Once-per-Game, Once-per-Encounter und Reset ab.</p></div></article>
+  <article class="phase"><div class="phase-id">8.2 ✓</div><div><h3>Generischer Hook-Executor — abgeschlossen</h3><p>Der Executor verarbeitet geordnete Self-/Boss-Aktionen, führt höchstens einen Input pro Tick aus, besitzt Settle-/Once-Zustand und ist Bestandteil der Session-Reset-Barriere.</p><p class="gate"><strong>Gate erfüllt:</strong> Mock-Tests decken Once-per-Game, Settle, Zielauflösung, Ressourcenverifikation und Reset ab.</p></div></article>
 
-  <article class="phase"><div class="phase-id">8.3</div><div><h3>Generische Resource Policy</h3><p>Die bestehende hartcodierte HP-Tranklogik wird in eine profilkonfigurierbare Ressourcenentscheidung überführt. Sie läuft bei gültigen In-Game-Ticks vor Hook- und Task-Aktionen und wählt höchstens eine Aktion in der Reihenfolge kritische HP/Rejuvenation → niedrige HP/Healing → niedriges Mana/Mana Potion.</p><ul><li>Nur tatsächlich belegte und zum Tranktyp passende Belt-Slots sind wählbar.</li><li>Mehrere konfigurierte Mana-Slots werden nach Verfügbarkeit beziehungsweise kontrolliert abwechselnd verwendet.</li><li>Loading, offene blockierende UI, Pause und Stop sperren den Verbrauch.</li><li>Throttle verhindert Spam; eine Belt-/Inventory-Änderung bestätigt den Verbrauch.</li><li>Fehlender Vorrat erzeugt einmalig <code>mana_potion_unavailable</code> beziehungsweise den entsprechenden stabilen Reason-Code und signalisiert Phase 9 den späteren Auffüllbedarf.</li></ul><p class="gate"><strong>Gate:</strong> Automatisierte Tests decken Priorität, 65/35-Prozent-Grenzen, leere/falsche Slots, Cooldown, Bestätigung, Stop und genau eine Aktion pro Tick ab.</p></div></article>
+  <article class="phase"><div class="phase-id">8.3 ✓</div><div><h3>Generische Resource Policy — abgeschlossen</h3><p>Die produktive Policy läuft vor Hook- und Task-Aktionen und wählt höchstens eine Aktion in der Reihenfolge kritische HP/Rejuvenation → niedrige HP/Healing → niedriges Mana/Mana Potion.</p><ul><li>Nur tatsächlich belegte und zum Tranktyp passende Belt-Slots sind wählbar.</li><li>Loading und blockierende UI sperren den Verbrauch.</li><li>Healing und Mana besitzen wegen ihres graduellen Effekts eine eigene viersekündige Sperrzeit; Rejuvenation bleibt mit 1,5 Sekunden separat konfiguriert.</li><li>Globaler Throttle und UnitID-Verifikation verhindern parallele Inputs und unbestätigten Fortschritt.</li><li>Fehlender Vorrat erzeugt einen stabilen Availability-Grund ohne Blindinput.</li></ul><p class="gate"><strong>Gate erfüllt:</strong> Automatisierte Tests decken Priorität, leere/falsche Slots, Bestätigung, typspezifische Cooldowns und genau eine Aktion pro Tick ab.</p></div></article>
 
-  <article class="phase"><div class="phase-id">8.4</div><div><h3>Town-Ready-Integration: Bone Armor</h3><p>Nach bestätigtem Rogue-Encampment-Start und vor Town-Walk meldet der Lifecycle <code>town_ready</code>. Das Necromancer-Profil castet Bone Armor auf den Spieler und setzt den Game-Marker erst nach erfolgreicher Input-Anforderung.</p><p class="gate"><strong>Manuelle Abnahme 1/3:</strong> Ein isolierter Town-Start erzeugt genau einen F5-Cast; erneute Town-Ticks erzeugen keinen zweiten Cast.</p></div></article>
+  <article class="phase"><div class="phase-id">8.4 ✓</div><div><h3>Town-Ready-Integration: Bone Armor — abgeschlossen</h3><p>Nach bestätigtem Rogue-Encampment-Start und vor Town-Walk meldet Countess <code>town_ready</code>. Das Necromancer-Profil castet Bone Armor auf den Spieler; ein Reihenfolgetest beweist, dass Town-Walk erst nach Action und Settle beginnt. Der isolierte Modus <code>--run countess --phase town-ready</code> endet danach ohne Navigation.</p><p class="gate"><strong>Manuelle Abnahme 1/3 erfüllt:</strong> Der Live-Lauf castete genau einmal F5/Bone Armor (Skill 68), absolvierte den Settle-Schritt und endete mit <code>outcome=success</code>. Dabei wurde ein CLI-Fallthrough in die aktivierte Session entdeckt und anschließend behoben.</p></div></article>
 
-  <article class="phase"><div class="phase-id">8.5</div><div><h3>Boss-Engage-Integration: Bone Prison</h3><p>Nach bestätigter Countess-UnitID und unmittelbar vor dem ersten Bone-Spear-Angriff meldet der Task <code>boss_engage</code>. Bone Prison wird auf die aktuelle Bossposition gecastet; danach folgt ein kurzer konfigurierter Settle-Schritt.</p><p class="gate"><strong>Manuelle Abnahme 2/3:</strong> Ein isolierter Countess-Kill mit vorbereitet niedrigem Mana bestätigt einen Mana-Trank aus Slot 2/3 sowie genau einen F3-Cast vor dem ersten Bone-Spear-Cast. Damit entsteht kein zusätzlicher manueller Test nur für Mana.</p></div></article>
+  <article class="phase"><div class="phase-id">8.5 ✓</div><div><h3>Boss-Engage-Integration: Bone Prison — abgeschlossen</h3><p>Nach bestätigter Countess-UnitID und unmittelbar vor dem ersten Bone-Spear-Angriff meldet der Task <code>boss_engage</code>. Bone Prison wird einmal pro gepinnter Boss-UnitID auf die aktuelle Bossposition gecastet; erst nach dem konfigurierten Settle darf der reguläre Angriff beginnen.</p><p class="gate"><strong>Manuelle Abnahme 2/3 erfüllt:</strong> Der autonome Live-Durchlauf bestätigte einen Mana-Trank aus Slot 2/3, danach genau einen F3-/Bone-Prison-Cast (Skill 88) auf Countess Unit 273 und erst 702 ms später den ersten Bone-Spear-Cast (Skill 84). Der Run endete einschließlich Loot, Stash und Save &amp; Exit erfolgreich. Das dabei erkannte Potion-Stacking wurde anschließend mit typspezifischen Cooldowns behoben und automatisiert abgesichert.</p></div></article>
 
-  <article class="phase"><div class="phase-id">8.6</div><div><h3>Reset, Telemetrie und Recovery</h3><p>Hook- und Ressourcen-Zustand werden in die Session-Reset-Barriere aufgenommen. Run-Telemetrie erhält Profil, Hook, Skill, Ziel, UnitID sowie Ressourcenart, Schwellwert, Belt-Slot und Bestätigung. Fehler werden exakt klassifiziert; es gibt kein Text-Matching.</p><p class="gate"><strong>Gate:</strong> Automatisierte Session-Tests beweisen frischen Game-/Encounter-/Throttle-Zustand und keine nachlaufenden Casts oder Potion-Aktionen nach Stop oder Fehler.</p></div></article>
+  <article class="phase"><div class="phase-id">8.6 ✓</div><div><h3>Reset, Telemetrie und Recovery — abgeschlossen</h3><p>Hook- und Ressourcen-Zustand sind Bestandteil der Session-Reset-Barriere. Jeder frische Run bindet seinen eigenen JSONL-Recorder; Hook-Aktion, Skill/Ziel/UnitID, Potion-Anforderung, Ressourcenart/Schwellwert/Belt-Slot/Potion-UnitID und Memory-Bestätigung werden synchron geschrieben. Fehler verwenden stabile Codes; ein Schreibfehler endet fail-closed mit <code>profile_telemetry_failed</code>.</p><p class="gate"><strong>Gate erfüllt:</strong> Automatisierte Tests beweisen frischen Game-/Encounter-/Settle-/Cooldown-Zustand, dynamische Run-Recorder-Bindung, exakte JSONL-Felder und keine nachlaufenden Casts oder Potion-Aktionen nach Reset oder Fehler.</p></div></article>
 
-  <article class="phase"><div class="phase-id">8.7</div><div><h3>Vollständiger E2E und Abschluss</h3><p>Der produktive Countess-Flow wird mit aktivem Necromancer-Profil und Resource Policy einmal vollständig ausgeführt. Bestehende Kill-, Loot-, Portal-, Stash- und Save-&amp;-Exit-Semantik darf sich nicht ändern.</p><p class="gate"><strong>Manuelle Abnahme 3/3:</strong> Ein vollständiger autonomer Countess-Zyklus mit genau einem Bone-Armor- und einem Bone-Prison-Cast sowie bedarfsgesteuertem Trankverhalten endet erfolgreich. Keine zehnfachen Wiederholungen.</p></div></article>
+  <article class="phase"><div class="phase-id">8.7 ✓</div><div><h3>Vollständiger E2E und Abschluss — abgeschlossen</h3><p>Der produktive Countess-Flow wurde mit aktivem Necromancer-Profil und Resource Policy genau einmal vollständig ausgeführt. Kill, Loot, Portal, Stash und Save &amp; Exit blieben erfolgreich.</p><p class="gate"><strong>Manuelle Abnahme 3/3 erfüllt:</strong> Nach fünf Sekunden stabilem Town-State wurden F5 und Bone Armor sichtbar ausgeführt; Town-Walk begann erst 1,67 Sekunden später. Bone Prison wurde sichtbar auf Countess Unit 225 gecastet und Bone Spear begann erst 1,81 Sekunden danach. Potion-Cooldowns, JSONL-Events, Loot, Stash, Save &amp; Exit und der Ein-Run-Sessionabschluss waren erfolgreich. Für Hell bleibt eine gezielte Optimierung des 750-ms-Boss-Vorlaufs vorgesehen, ohne die validierte Ankunftssicherheit aufzugeben.</p></div></article>
 
   <h2>5. Technische Einordnung</h2>
   <table>
@@ -162,7 +167,7 @@ input:
     <li>Drei gezielte manuelle Gates und die automatisierten Tests sind erfolgreich.</li>
   </ul>
 
-  <footer>Planungsstand: 12. Juli 2026 · Phase 8.0–8.7 geplant · Nächster Schritt: Vertrag und Zustandsmodell.</footer>
+  <footer>Umsetzungsstand: 12. Juli 2026 · Phase 8.0–8.7 vollständig abgeschlossen und live abgenommen.</footer>
 </main>
 </body>
 </html>

@@ -26,7 +26,7 @@ func TestFindSuperUniqueNearestWithFlag(t *testing.T) {
 
 func TestFindSuperUniqueIgnoresWrongFlag(t *testing.T) {
 	state := State{
-		Valid: true,
+		Valid:  true,
 		Player: Player{Position: Position{X: 0, Y: 0}},
 		Monsters: []Monster{
 			{NPCID: DarkStalker, UnitID: 1, MonsterTypeFlag: 0},

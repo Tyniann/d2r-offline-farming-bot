@@ -96,9 +96,9 @@ pathing:
     force_move_key: e
     difficulty: hell
     routes:
-      normal: configs/routes/act1-town-waypoint.yaml
-      nightmare: configs/routes/act1-town-waypoint-nightmare.yaml
-      hell: configs/routes/act1-town-waypoint-hell.yaml
+      normal: configs/routes/town/act1/waypoint/normal.yaml
+      nightmare: configs/routes/town/act1/waypoint/nightmare.yaml
+      hell: configs/routes/town/act1/waypoint/hell.yaml
     move_interval_ms: 650
     settle_timeout_ms: 350
     stuck_timeout_ms: 3500

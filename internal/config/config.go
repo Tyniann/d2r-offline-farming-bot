@@ -24,6 +24,7 @@ type Config struct {
 	Pathing   PathingConfig   `yaml:"pathing"`
 	Paths     PathsConfig     `yaml:"paths"`
 	Session   SessionConfig   `yaml:"session"`
+	Profiles  ProfilesConfig  `yaml:"combat_profiles"`
 
 	// LoadedFrom is the path passed to [Load] (used to resolve relative file paths).
 	LoadedFrom string `yaml:"-"`
@@ -248,6 +249,7 @@ func Load(path string) (*Config, error) {
 	cfg.Telemetry.applyDefaults()
 	cfg.Routes.applyDefaults()
 	cfg.Session.applyDefaults()
+	cfg.Profiles.applyDefaults()
 	if err := cfg.validate(); err != nil {
 		return nil, err
 	}
@@ -274,6 +276,7 @@ func (c *Config) validate() error {
 	c.Telemetry.applyDefaults()
 	c.Routes.applyDefaults()
 	c.Session.applyDefaults()
+	c.Profiles.applyDefaults()
 	if c.App.Name == "" {
 		return fmt.Errorf("app.name is required")
 	}
@@ -304,6 +307,9 @@ func (c *Config) validate() error {
 	if err := c.Runs.Countess.Combat.validate(); err != nil {
 		return err
 	}
+	if err := c.Profiles.validate(c.Runs.Countess.Combat.Profile); err != nil {
+		return err
+	}
 	if err := c.Pathing.validate(); err != nil {
 		return err
 	}
@@ -321,13 +327,13 @@ func (c *TelemetryConfig) applyDefaults() {
 
 func (c *RoutesConfig) applyDefaults() {
 	if c.Directory == "" {
-		c.Directory = filepath.Join("routes", "recordings")
+		c.Directory = filepath.Join("routes", "farming")
 	}
 }
 
 func (c CountessCombatConfig) validate() error {
-	if c.Profile != "necro_bone_spear" {
-		return fmt.Errorf("runs.countess.combat.profile must be necro_bone_spear")
+	if strings.TrimSpace(c.Profile) == "" {
+		return fmt.Errorf("runs.countess.combat.profile is required")
 	}
 	if c.AttackSkill != "bone_spear" {
 		return fmt.Errorf("runs.countess.combat.attack_skill must be bone_spear")

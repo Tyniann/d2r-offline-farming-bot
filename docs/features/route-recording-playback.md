@@ -13,9 +13,29 @@ Der vorhandene Navigator bleibt für kurze lokale Korrekturen, World-to-Screen-P
 - **Paket:** `internal/pathing/`
 - **Einstieg:** read-only Registry-Kommandos über `--route`; Recorder und Player folgen in späteren Slices
 - **Wichtige Dateien:** `route_model.go`, `route_storage.go`, `route_registry.go`, `route_compatibility.go`
-- **Config:** verwaltete Routen unter `configs/routes/recordings/`; ältere Town-Walk-Dateien bleiben getrennt. Run-Adapter referenzieren stabile Route-IDs statt Dateipfade
+- **Config:** invalidierbare Farming-Routen unter `configs/routes/farming/<character>/<difficulty>/`; permanente Town-Routen getrennt unter `configs/routes/town/<act>/`. Run-Adapter referenzieren stabile Route-IDs statt Dateipfade
 
 ## Funktionalität
+
+### Speicherstruktur nach Lebenszyklus
+
+```text
+configs/routes/
+├── town/
+│   └── act1/
+│       └── waypoint/
+│           ├── normal.yaml
+│           ├── nightmare.yaml
+│           └── hell.yaml
+└── farming/
+    └── mrbones/
+        └── nightmare/
+            └── black-marsh-cellar5.yaml
+```
+
+`town/` enthält dauerhafte, fachlich benannte Town-Assets und wird beim Wechsel von Charakter oder Schwierigkeit nicht invalidiert. Bereits separat aufgenommene Varianten bleiben erhalten und werden nicht mit Farming-Dateien vermischt.
+
+`farming/<character>/<difficulty>/` enthält ausschließlich layoutgebundene Route-Contract-Dateien. `routes.directory` zeigt auf genau einen aktiven Unterordner. Bei einem Character-/Difficulty-Wechsel darf nur der betroffene Farming-Unterordner archiviert oder gelöscht und neu aufgenommen werden; `town/` bleibt unangetastet. Registry und Recorder arbeiten ausschließlich innerhalb des konfigurierten aktiven Farming-Verzeichnisses.
 
 ### Aufnahme
 
@@ -212,7 +232,7 @@ go run ./cmd/d2rbot --route play:<route-id>
 - `--route-name` ist nur mit `record` gültig. Ohne Wert wird aus der ID ein Anzeigename abgeleitet.
 - `--route-difficulty normal|nightmare|hell` ist nur mit `record` gültig und wird niemals anstelle des Layout-Fingerprints vertraut.
 - Unbekannte Commands, leere IDs und gleichzeitige `--route`-/`--run`-/Testmodi werden vor Runtime-Start abgelehnt.
-- Das Routenverzeichnis wird über `routes.directory` festgelegt; Default ist `configs/routes/recordings` relativ zur Config-Datei.
+- Das aktive Farming-Routenverzeichnis wird über `routes.directory` festgelegt. Es zeigt auf genau einen Character-/Difficulty-Kontext, beispielsweise `configs/routes/farming/mrbones/nightmare` relativ zur Config-Datei.
 
 ## Implementierungsstand Phase 6.2
 
@@ -224,7 +244,7 @@ Phase 6.2 ist abgeschlossen:
 - Registry mit stabiler ID-Auflösung, defensiver Metadatensicht und sichtbaren `valid`, `invalid` sowie `duplicate_id` Status;
 - fail-closed Precheck für bestätigten Character, Game Version, Layout-Fingerprint, Start-Area und Startdistanz;
 - read-only CLI `--route list`, `inspect:<id>` und `validate:<id>`;
-- `routes.directory` mit Default `configs/routes/recordings`.
+- `routes.directory` mit Default `configs/routes/farming` und produktiver Auswahl eines konkreten `<character>/<difficulty>`-Unterordners.
 
 ## Implementierungsstand Phase 6.3
 
@@ -249,7 +269,7 @@ Am 11.07.2026 wurde `black-marsh-cellar5-nightmare-mrbones` vollständig read-on
 - sechs bestätigte Segmente von Black Marsh bis Tower Cellar Level 5;
 - bekannte Cellar-Abgänge als `tower_cellar_down`, Forgotten-Tower-Antechamber konservativ als `unknown`;
 - Veröffentlichung erst nach F11 auf Level 5;
-- gespeicherte Datei `configs/routes/recordings/black-marsh-cellar5-nightmare-mrbones.yaml` besteht die vollständige Route-v1-Validierung.
+- gespeicherte Datei `configs/routes/farming/mrbones/nightmare/black-marsh-cellar5.yaml` besteht die vollständige Route-v1-Validierung.
 
 Phase 6.3 ist damit abgeschlossen.
 

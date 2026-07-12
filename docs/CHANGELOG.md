@@ -8,6 +8,10 @@ Versionierung nach [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- Complete and live-validate Phase 8.7 with visible Bone Armor and Bone Prison casts in one autonomous Countess cycle
+- Complete Phase 8.6 with run-scoped profile JSONL events, fail-closed telemetry errors, and reset coverage for hooks, potion verification, and cooldown state
+- Complete Phase 8.5 with a UnitID-pinned Bone Prison boss hook before the first Countess attack and live-validate the ordered full run
+- Add Phase 8.0–8.4 generic profile contracts, Bone Armor skill/config, resettable hook executor, prioritized verified resource policy, and Town-ready Countess integration
 - Add the Phase 8 implementation plan for generic character and encounter hooks with three focused manual acceptance runs
 - Complete Phase 7.8 with three consecutive autonomous Nightmare Countess cycles covering start, navigation, kill, loot, stash, and Save & Exit
 - Add terminal route segments so recorded navigation can end at the Countess room without a synthetic area transition
@@ -74,6 +78,7 @@ Versionierung nach [Semantic Versioning](https://semver.org/).
 - Add Phase 5.0 loot and recovery concept documentation covering Ground-Loot, Pickit, Inventory-Lock, Stash safety, and recovery slices
 
 ### Changed
+- Separate permanent Town route assets under `configs/routes/town/` from invalidatable character/difficulty Farming routes under `configs/routes/farming/`
 - Document planned `internal/profile`, `internal/town`, `internal/api`, and `web` boundaries without pre-creating packages or moving the stable Phase 7 runtime
 - Extend the Phase 8 plan with a profile-driven HP, mana, and rejuvenation resource policy while keeping manual acceptance at three combined live runs
 - Insert act-aware Town Services as Phase 9 with service discovery, anchor-route graphs, validated waypoint act changes, demand-driven preparation, and fail-closed unknown-town handling; renumber later roadmap phases through Phase 15
@@ -87,6 +92,14 @@ Versionierung nach [Semantic Versioning](https://semver.org/).
 - Regenerate the item catalog from local D2R `3.2.92777` data so current Countess drops resolve correctly
 
 ### Fixed
+- Wait five seconds of stable town state before the first profile input because Memory can report in-game before D2R is visibly input-ready
+- Hold profile execution for 1.5 seconds after hook clicks to protect the complete in-game cast animation
+- Cast self-targeted profile skills at the neutral client center instead of the player anchor that D2R can interpret as movement
+- Delay profile hooks until the character is stable after game entry or route teleport before requesting the skill cast
+- Start profile skill settle windows after the blocking click completes so immediate town or attack inputs cannot cancel the cast animation
+- Omit misleading skill names from resource-only profile telemetry events
+- Prevent healing and mana potion spam by honoring their gradual four-second effect window while retaining a shorter rejuvenation cooldown
+- Prevent explicit `--run` phases and probes from falling through into an enabled autonomous session after their own runtime completes
 - Keep Windows global hotkey registration, message polling, and unregistration on one OS thread and wait for release between session stages
 - Allow explicit diagnostic and route-recording modes while an enabled Phase-7 session remains execution-gated
 - Block offline lifecycle input when D2R foreground activation is not confirmed

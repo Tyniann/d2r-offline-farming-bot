@@ -6,6 +6,7 @@ import (
 
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/input"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/pathing"
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/profile"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/world"
 )
 
@@ -21,6 +22,14 @@ type Deps struct {
 	Actions  RunActions
 	Loot     LootActions
 	Route    RoutePlayback
+	Profile  ProfileActions
+}
+
+// ProfileActions evaluates class-gated hooks and prioritized in-run resources.
+type ProfileActions interface {
+	TickHook(context.Context, profile.Hook, world.State, profile.EncounterTarget, time.Time) profile.Result
+	TickResources(world.State, time.Time) profile.Result
+	Reset()
 }
 
 // RoutePlayback is the generic full-route surface used by run adapters.

@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/profile"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/world"
 )
 
@@ -138,6 +139,9 @@ func (r *Runner) Reset(reason string) {
 	if r.deps.Loot != nil {
 		r.deps.Loot.Reset()
 	}
+	if r.deps.Profile != nil {
+		r.deps.Profile.Reset()
+	}
 	r.log.Info("task run reset", "run", r.selection.Run, "phase", r.selection.Phase, "reason", reason)
 }
 
@@ -162,7 +166,15 @@ func (r *Runner) Tick(ctx context.Context, w world.State, now time.Time) TickRes
 	}
 
 	r.tracker.incrementTick()
-	if res, ok := r.tickSafetyPotion(now, w); ok {
+	if r.deps.Profile != nil {
+		resource := r.deps.Profile.TickResources(w, now)
+		switch resource.Status {
+		case profile.StatusFailed:
+			return r.finishStepFailed(now, resource.Reason)
+		case profile.StatusAction, profile.StatusPending:
+			return TickResult{Active: true, Outcome: RunOutcomeRunning, Step: r.tracker.name}
+		}
+	} else if res, ok := r.tickSafetyPotion(now, w); ok {
 		return res
 	}
 	result := r.run.onTick(ctx, r.deps, r.tracker.name, w, now, r.tracker.startedAt, r.tracker.ticksInStep)

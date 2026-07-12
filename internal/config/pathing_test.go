@@ -40,7 +40,7 @@ func TestPathingConfigDefaults(t *testing.T) {
 		t.Fatalf("WaypointUI = %+v, want 200/342", cfg.WaypointUI)
 	}
 	if cfg.TownWalk.ForceMoveKey != "e" || cfg.TownWalk.Difficulty != "normal" ||
-		cfg.TownWalk.SelectedRouteFile() != "configs/routes/act1-town-waypoint.yaml" {
+		cfg.TownWalk.SelectedRouteFile() != "configs/routes/town/act1/waypoint/normal.yaml" {
 		t.Fatalf("TownWalk key/difficulty/route = %+v, want e/normal/default route", cfg.TownWalk)
 	}
 	if cfg.TownWalk.MoveIntervalMs != 650 || cfg.TownWalk.SettleTimeoutMs != 350 ||

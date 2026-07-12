@@ -24,8 +24,9 @@ telemetry:
   directory: logs/telemetry
 
 routes:
-  # Relativ zur Config-Datei; getrennt von den älteren Town-Walk-Dateien.
-  directory: routes/recordings
+  # Aktiver, invalidierbarer Farming-Satz für genau einen Character/Difficulty-Kontext.
+  # Permanente Town-Routen liegen separat unter routes/town/ und werden nie mitgelöscht.
+  directory: routes/farming/mrbones/nightmare
 
 loot:
   # Relativ zur geladenen Config-Datei. Bei configs/config.yaml ergibt das configs/pickit/countess.nip.
@@ -79,6 +80,12 @@ input:
       bone_spear:
         key: f8
         button: left
+      bone_armor:
+        key: f5
+        button: right
+      bone_prison:
+        key: f3
+        button: right
     belt:
       # MVP-Belegung für 4.7: Slot 1 = Heiltränke, Slot 2/3 = Manatränke,
       # Slot 4 = Full Rejuvenation Potions. Später soll diese Belegung
@@ -102,6 +109,38 @@ runs:
       engage_distance_tiles: 22
       reposition_distance_tiles: 32
       kill_confirm_ticks: 3
+
+combat_profiles:
+  necro_bone_spear:
+    character_class: necromancer
+    hooks:
+      town_ready:
+        - skill: bone_armor
+          target: self
+          once_per_game: true
+          delay_ms: 5000
+          settle_ms: 1500
+      boss_engage:
+        - skill: bone_prison
+          target: boss
+          once_per_encounter: true
+          delay_ms: 750
+          settle_ms: 1500
+    resources:
+      healing:
+        use_below_percent: 65
+        belt_slots: [1]
+        cooldown_ms: 4000
+      mana:
+        use_below_percent: 35
+        belt_slots: [2, 3]
+        cooldown_ms: 4000
+      rejuvenation:
+        use_below_percent: 35
+        belt_slots: [4]
+        cooldown_ms: 1500
+      throttle_ms: 1500
+      verify_timeout_ms: 1500
 
 session:
   # Phase 7.5 stellt zunächst ausschließlich den read-only --session-inspect bereit.
@@ -163,13 +202,12 @@ pathing:
   town_walk:
     # Force Move key in D2R options; default key is E.
     force_move_key: e
-    # One recorded route per difficulty. The selected route must exist; the bot
-    # aborts safely instead of using a route from another difficulty.
+    # Permanente Town-Assets, getrennt von invalidierbaren Farming-Routen.
     difficulty: normal
     routes:
-      normal: configs/routes/act1-town-waypoint.yaml
-      nightmare: configs/routes/act1-town-waypoint-nightmare.yaml
-      hell: configs/routes/act1-town-waypoint-hell.yaml
+      normal: configs/routes/town/act1/waypoint/normal.yaml
+      nightmare: configs/routes/town/act1/waypoint/nightmare.yaml
+      hell: configs/routes/town/act1/waypoint/hell.yaml
     move_interval_ms: 650
     settle_timeout_ms: 350
     stuck_timeout_ms: 3500

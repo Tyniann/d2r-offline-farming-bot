@@ -155,6 +155,16 @@ func validateRunMode(sel tasks.RunSelection, cfg *config.Config, opts Options, l
 	if sel.Run == "countess" && sel.Phase == tasks.CountessPhaseTravelCellar5 && cfg.Runs.Countess.RouteID == "" {
 		return fmt.Errorf("runs.countess.route_id is required for travel-cellar5")
 	}
+	if sel.Run == "countess" && sel.Phase == tasks.CountessPhaseTravelMarsh {
+		if err := validateProfileBindings(cfg); err != nil {
+			return err
+		}
+	}
+	if sel.Run == "countess" && sel.Phase == tasks.CountessPhaseTownReady {
+		if err := validateProfileBindings(cfg); err != nil {
+			return err
+		}
+	}
 	if sel.Run == "countess" && sel.Phase == tasks.CountessPhaseKillCountess {
 		if err := validateKillCountessBindings(cfg); err != nil {
 			return err
@@ -176,7 +186,7 @@ func validateRunMode(sel tasks.RunSelection, cfg *config.Config, opts Options, l
 
 func isSupportedCountessPhase(phase string) bool {
 	switch phase {
-	case tasks.CountessPhaseTravelMarsh, tasks.CountessPhaseTravelCellar5, tasks.CountessPhaseKillCountess, tasks.CountessPhaseLootCountess, tasks.CountessPhaseStashPersonal:
+	case tasks.CountessPhaseTravelMarsh, tasks.CountessPhaseTravelCellar5, tasks.CountessPhaseKillCountess, tasks.CountessPhaseLootCountess, tasks.CountessPhaseStashPersonal, tasks.CountessPhaseTownReady:
 		return true
 	default:
 		return false
@@ -202,6 +212,43 @@ func validateFullCountessBindings(cfg *config.Config) error {
 	}
 	if err := validateBeltSlotConfigured(bindings, 4, "countess"); err != nil {
 		return err
+	}
+	if err := validateProfileBindingsWithSource(cfg, bindings, "countess"); err != nil {
+		return err
+	}
+	return nil
+}
+
+func validateProfileBindings(cfg *config.Config) error {
+	bindings, err := newConfigBindingSource(cfg.Input.Bindings)
+	if err != nil {
+		return err
+	}
+	return validateProfileBindingsWithSource(cfg, bindings, "profile")
+}
+
+func validateProfileBindingsWithSource(cfg *config.Config, bindings configBindingSource, scope string) error {
+	profileCfg, ok := cfg.Profiles[cfg.Runs.Countess.Combat.Profile]
+	if !ok {
+		return fmt.Errorf("%s requires combat_profiles.%s", scope, cfg.Runs.Countess.Combat.Profile)
+	}
+	for _, actions := range [][]config.ProfileActionConfig{profileCfg.Hooks.TownReady, profileCfg.Hooks.BossEngage} {
+		for _, action := range actions {
+			skillID, err := memory.ParseSkillTestName(action.Skill)
+			if err != nil {
+				return fmt.Errorf("%s profile skill %q: %w", scope, action.Skill, err)
+			}
+			if _, err := bindings.Resolve(skillID); err != nil {
+				return fmt.Errorf("%s requires input.bindings.skills.%s: %w", scope, action.Skill, err)
+			}
+		}
+	}
+	for _, resource := range []config.ResourceRuleConfig{profileCfg.Resources.Healing, profileCfg.Resources.Mana, profileCfg.Resources.Rejuvenation} {
+		for _, slot := range resource.BeltSlots {
+			if err := validateBeltSlotConfigured(bindings, slot, scope); err != nil {
+				return err
+			}
+		}
 	}
 	return nil
 }

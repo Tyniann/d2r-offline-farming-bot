@@ -10,6 +10,7 @@ const (
 	SkillAttack     uint16 = 0
 	SkillThrow      uint16 = 2
 	SkillTeleport   uint16 = 54
+	SkillBoneArmor  uint16 = 68
 	SkillBoneWall   uint16 = 78
 	SkillBoneSpear  uint16 = 84
 	SkillBonePrison uint16 = 88
@@ -25,6 +26,8 @@ func SkillName(id uint16) string {
 		return "throw"
 	case SkillTeleport:
 		return "teleport"
+	case SkillBoneArmor:
+		return "bone_armor"
 	case SkillBoneWall:
 		return "bone_wall"
 	case SkillBoneSpear:
@@ -48,6 +51,8 @@ func ParseSkillTestName(name string) (uint16, error) {
 	switch strings.ToLower(strings.TrimSpace(name)) {
 	case "teleport":
 		return SkillTeleport, nil
+	case "bone_armor", "bonearmor", "bone armor":
+		return SkillBoneArmor, nil
 	case "bone_wall", "bonewall", "bone wall":
 		return SkillBoneWall, nil
 	case "bone_spear", "bonespear", "bone spear":
@@ -57,6 +62,6 @@ func ParseSkillTestName(name string) (uint16, error) {
 	case "town_portal", "townportal", "tp":
 		return SkillTownPortal, nil
 	default:
-		return 0, fmt.Errorf("unknown skill %q (use teleport, bone_wall, bone_prison, bone_spear, or town_portal)", name)
+		return 0, fmt.Errorf("unknown skill %q (use teleport, bone_armor, bone_wall, bone_prison, bone_spear, or town_portal)", name)
 	}
 }

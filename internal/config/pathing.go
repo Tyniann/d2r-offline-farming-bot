@@ -262,13 +262,13 @@ func (c *PathingConfig) applyDefaults() {
 		c.TownWalk.Difficulty = "normal"
 	}
 	if c.TownWalk.Routes.Normal == "" {
-		c.TownWalk.Routes.Normal = "configs/routes/act1-town-waypoint.yaml"
+		c.TownWalk.Routes.Normal = "configs/routes/town/act1/waypoint/normal.yaml"
 	}
 	if c.TownWalk.Routes.Nightmare == "" {
-		c.TownWalk.Routes.Nightmare = "configs/routes/act1-town-waypoint-nightmare.yaml"
+		c.TownWalk.Routes.Nightmare = "configs/routes/town/act1/waypoint/nightmare.yaml"
 	}
 	if c.TownWalk.Routes.Hell == "" {
-		c.TownWalk.Routes.Hell = "configs/routes/act1-town-waypoint-hell.yaml"
+		c.TownWalk.Routes.Hell = "configs/routes/town/act1/waypoint/hell.yaml"
 	}
 	if c.TownWalk.ForceMoveKey == "" {
 		c.TownWalk.ForceMoveKey = "e"

@@ -12,16 +12,17 @@ import (
 
 func validSnapshot() memory.Snapshot {
 	return memory.Snapshot{
-		At:      time.Date(2026, 6, 25, 12, 0, 0, 0, time.UTC),
-		Valid:   true,
-		Phase:   memory.GamePhaseInGame,
-		AreaID:  uint32(BlackMarsh),
-		PosX:    1234,
-		PosY:    5678,
-		HP:      100,
-		MaxHP:   125,
-		Mana:    50,
-		MaxMana: 75,
+		At:           time.Date(2026, 6, 25, 12, 0, 0, 0, time.UTC),
+		Valid:        true,
+		Phase:        memory.GamePhaseInGame,
+		AreaID:       uint32(BlackMarsh),
+		PosX:         1234,
+		PosY:         5678,
+		HP:           100,
+		MaxHP:        125,
+		Mana:         50,
+		MaxMana:      75,
+		PlayerSkills: memory.PlayerSkills{LeftSkill: memory.SkillBoneSpear, RightSkill: memory.SkillTeleport},
 	}
 }
 
@@ -63,6 +64,9 @@ func TestFromSnapshotValid(t *testing.T) {
 	}
 	if state.Player.Mana != snap.Mana || state.Player.MaxMana != snap.MaxMana {
 		t.Fatalf("Mana = %d/%d, want %d/%d", state.Player.Mana, state.Player.MaxMana, snap.Mana, snap.MaxMana)
+	}
+	if state.Player.LeftSkillID != memory.SkillBoneSpear || state.Player.RightSkillID != memory.SkillTeleport {
+		t.Fatalf("selected skills = %d/%d", state.Player.LeftSkillID, state.Player.RightSkillID)
 	}
 	if !state.UI.InventoryOpen || !state.UI.StashOpen || !state.UI.QuitMenuOpen {
 		t.Fatalf("UI = %+v, want inventory, stash, and quit menu open", state.UI)

@@ -2,11 +2,13 @@ package world
 
 // Player holds interpreted main-player vitals without memory pointers.
 type Player struct {
-	Position Position
-	HP       uint32 // Current life points.
-	MaxHP    uint32 // Maximum life points for percentage helpers.
-	Mana     uint32 // Current mana.
-	MaxMana  uint32 // Maximum mana for percentage helpers.
+	Position     Position
+	HP           uint32 // Current life points.
+	MaxHP        uint32 // Maximum life points for percentage helpers.
+	Mana         uint32 // Current mana.
+	MaxMana      uint32 // Maximum mana for percentage helpers.
+	LeftSkillID  uint16 // Currently selected left-mouse skill.
+	RightSkillID uint16 // Currently selected right-mouse skill.
 }
 
 // HPPercent returns current HP as an integer percentage of MaxHP.

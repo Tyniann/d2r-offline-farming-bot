@@ -102,6 +102,12 @@ func TestValidateRunModeFullCountessRequiresBindings(t *testing.T) {
 	if err := validateRunMode(tasksSelection("countess", ""), cfg, Options{Run: "countess"}, log); err == nil {
 		t.Fatal("expected missing belt slot 4 error")
 	}
+
+	cfg = fullCountessConfig()
+	delete(cfg.Input.Bindings.Skills, "bone_armor")
+	if err := validateRunMode(tasksSelection("countess", ""), cfg, Options{Run: "countess"}, log); err == nil {
+		t.Fatal("expected missing Bone Armor profile binding error")
+	}
 }
 
 func TestValidateRunModePhaseRequiresRun(t *testing.T) {
@@ -114,7 +120,7 @@ func TestValidateRunModePhaseRequiresRun(t *testing.T) {
 }
 
 func TestValidateRunModeTravelMarshOK(t *testing.T) {
-	cfg := &config.Config{Input: config.InputConfig{Enabled: true}}
+	cfg := fullCountessConfig()
 	log := config.NewLogger("error")
 	err := validateRunMode(tasksSelection("countess", "travel-marsh"), cfg, Options{Run: "countess", RunPhase: "travel-marsh"}, log)
 	if err != nil {
@@ -206,16 +212,30 @@ func tasksSelection(run, phase string) tasks.RunSelection {
 }
 
 func fullCountessConfig() *config.Config {
-	return &config.Config{Runs: config.RunsConfig{Countess: config.CountessRunConfig{RouteID: "test-route"}}, Input: config.InputConfig{
+	return &config.Config{Runs: config.RunsConfig{Countess: config.CountessRunConfig{RouteID: "test-route", Combat: config.CountessCombatConfig{Profile: "necro_bone_spear"}}}, Profiles: config.ProfilesConfig{
+		"necro_bone_spear": {CharacterClass: "necromancer", Hooks: config.ProfileHooksConfig{
+			TownReady:  []config.ProfileActionConfig{{Skill: "bone_armor", Target: "self", OncePerGame: true}},
+			BossEngage: []config.ProfileActionConfig{{Skill: "bone_prison", Target: "boss", OncePerEncounter: true}},
+		}, Resources: config.ProfileResourcesConfig{
+			Healing:      config.ResourceRuleConfig{UseBelowPercent: 65, BeltSlots: []int{1}, CooldownMs: 4000},
+			Mana:         config.ResourceRuleConfig{UseBelowPercent: 35, BeltSlots: []int{2, 3}, CooldownMs: 4000},
+			Rejuvenation: config.ResourceRuleConfig{UseBelowPercent: 35, BeltSlots: []int{4}, CooldownMs: 1500},
+			ThrottleMs:   1500, VerifyMs: 1500,
+		}},
+	}, Input: config.InputConfig{
 		Enabled: true,
 		Bindings: config.InputBindingsConfig{
 			Skills: map[string]config.SkillBindingConfig{
 				"teleport":    {Key: "f7", Button: "right"},
 				"bone_spear":  {Key: "f8", Button: "left"},
 				"town_portal": {Key: "f6", Button: "right"},
+				"bone_armor":  {Key: "f5", Button: "right"},
+				"bone_prison": {Key: "f3", Button: "right"},
 			},
 			Belt: config.BeltBindingsConfig{
 				Slot1: "1",
+				Slot2: "2",
+				Slot3: "3",
 				Slot4: "4",
 			},
 		},

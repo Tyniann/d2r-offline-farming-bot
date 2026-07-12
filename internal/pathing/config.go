@@ -133,7 +133,7 @@ func DefaultConfig() Config {
 			BlackMarshY: 342,
 		},
 		TownWalk: TownWalkConfig{
-			RouteFile:       "configs/routes/act1-town-waypoint.yaml",
+			RouteFile:       "configs/routes/town/act1/waypoint/normal.yaml",
 			ForceMoveKey:    "e",
 			MoveInterval:    650 * time.Millisecond,
 			SettleTimeout:   350 * time.Millisecond,

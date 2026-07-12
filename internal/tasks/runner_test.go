@@ -8,6 +8,7 @@ import (
 
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/config"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/pathing"
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/profile"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/world"
 )
 
@@ -101,6 +102,16 @@ type mockWaypointActions struct {
 type mockTownWalker struct {
 	results []pathing.TownWalkResult
 	resets  int
+	calls   int
+}
+
+type mockProfileActions struct {
+	hookResults     []profile.Result
+	hookCalls       int
+	hooks           []profile.Hook
+	targets         []profile.EncounterTarget
+	resourceResults []profile.Result
+	resetCalls      int
 }
 
 type mockTownPortalActions struct {
@@ -200,6 +211,7 @@ func (m *mockTownPortalActions) Tick(context.Context, world.State, time.Time) pa
 }
 
 func (m *mockTownWalker) TickAct1Waypoint(context.Context, world.State) pathing.TownWalkResult {
+	m.calls++
 	if len(m.results) == 0 {
 		return pathing.TownWalkResult{Status: pathing.TownWalkWaypointVisible, Done: true}
 	}
@@ -207,6 +219,29 @@ func (m *mockTownWalker) TickAct1Waypoint(context.Context, world.State) pathing.
 	m.results = m.results[1:]
 	return res
 }
+
+func (m *mockProfileActions) TickHook(_ context.Context, hook profile.Hook, _ world.State, target profile.EncounterTarget, _ time.Time) profile.Result {
+	m.hookCalls++
+	m.hooks = append(m.hooks, hook)
+	m.targets = append(m.targets, target)
+	if len(m.hookResults) == 0 {
+		return profile.Result{Status: profile.StatusComplete}
+	}
+	res := m.hookResults[0]
+	m.hookResults = m.hookResults[1:]
+	return res
+}
+
+func (m *mockProfileActions) TickResources(world.State, time.Time) profile.Result {
+	if len(m.resourceResults) == 0 {
+		return profile.Result{Status: profile.StatusComplete}
+	}
+	res := m.resourceResults[0]
+	m.resourceResults = m.resourceResults[1:]
+	return res
+}
+
+func (m *mockProfileActions) Reset() { m.resetCalls++ }
 
 func (m *mockWaypointActions) Reset() { m.resetCalls++ }
 
@@ -647,6 +682,64 @@ func TestCountessFullRunAllowsBlackMarshLoadingWait(t *testing.T) {
 	}
 }
 
+func TestCountessTownReadyHookCompletesBeforeTownWalk(t *testing.T) {
+	profileActions := &mockProfileActions{hookResults: []profile.Result{
+		{Status: profile.StatusAction, Hook: profile.HookTownReady},
+		{Status: profile.StatusPending, Hook: profile.HookTownReady},
+		{Status: profile.StatusComplete, Hook: profile.HookTownReady},
+	}}
+	townWalk := &mockTownWalker{}
+	r := NewRunner(config.NewLogger("error"), RunSelection{Run: "countess"}, RunConfig{StepTimeout: 5 * time.Second}, Deps{Profile: profileActions, TownWalk: townWalk})
+	now := time.Now()
+	state := healthy(townState())
+	_ = r.Tick(context.Background(), state, now) // precheck
+	_ = r.Tick(context.Background(), state, now.Add(100*time.Millisecond))
+	_ = r.Tick(context.Background(), state, now.Add(200*time.Millisecond))
+	if townWalk.calls != 0 {
+		t.Fatalf("town walk calls before hook completion = %d", townWalk.calls)
+	}
+	_ = r.Tick(context.Background(), state, now.Add(300*time.Millisecond))
+	if profileActions.hookCalls != 3 || townWalk.calls != 1 {
+		t.Fatalf("hook calls=%d town walk calls=%d, want 3 and 1", profileActions.hookCalls, townWalk.calls)
+	}
+}
+
+func TestCountessIsolatedTownReadyRunsHookWithoutTownWalk(t *testing.T) {
+	profileActions := &mockProfileActions{hookResults: []profile.Result{
+		{Status: profile.StatusAction, Hook: profile.HookTownReady},
+		{Status: profile.StatusPending, Hook: profile.HookTownReady},
+		{Status: profile.StatusComplete, Hook: profile.HookTownReady},
+	}}
+	townWalk := &mockTownWalker{}
+	r := NewRunner(config.NewLogger("error"), RunSelection{Run: "countess", Phase: CountessPhaseTownReady}, RunConfig{StepTimeout: 5 * time.Second}, Deps{Profile: profileActions, TownWalk: townWalk})
+	state := healthy(townState())
+	state.Identity = world.GameIdentity{Valid: true, CharacterName: "MrBones", Class: world.CharacterClassNecromancer}
+	now := time.Now()
+	for i := 0; i < 6 && !r.Terminal(); i++ {
+		_ = r.Tick(context.Background(), state, now.Add(time.Duration(i)*100*time.Millisecond))
+	}
+	if !r.Terminal() || r.Result().Outcome != RunOutcomeSuccess {
+		t.Fatalf("result=%+v", r.Result())
+	}
+	if profileActions.hookCalls != 3 || townWalk.calls != 0 {
+		t.Fatalf("hook calls=%d town walk=%d", profileActions.hookCalls, townWalk.calls)
+	}
+}
+
+func TestProfileTelemetryFailureTerminatesRunWithExactReasonAndReset(t *testing.T) {
+	profileActions := &mockProfileActions{resourceResults: []profile.Result{{Status: profile.StatusFailed, Reason: "profile_telemetry_failed"}}}
+	r := NewRunner(config.NewLogger("error"), RunSelection{Run: "count"}, RunConfig{StepTimeout: time.Second}, Deps{Profile: profileActions})
+	r.run = &countingRun{}
+	result := r.Tick(context.Background(), healthy(townState()), time.Now())
+	if result.Outcome != RunOutcomeFailed || result.Reason != "profile_telemetry_failed" {
+		t.Fatalf("result=%+v", result)
+	}
+	r.Reset("cycle_evaluate")
+	if profileActions.resetCalls != 1 {
+		t.Fatalf("profile reset calls=%d", profileActions.resetCalls)
+	}
+}
+
 func TestCountessFullRunPortalRequiresRunActions(t *testing.T) {
 	r := NewRunner(config.NewLogger("error"), RunSelection{Run: "countess"}, killRunConfig(), Deps{})
 	r.tracker.begin(countessStepCastTownPortal, time.Now(), time.Second)
@@ -1008,6 +1101,40 @@ func TestCountessKillEngageCastsEveryTaskTickAndConfirmsKill(t *testing.T) {
 	res := r.Tick(context.Background(), absent, now.Add(6*time.Millisecond))
 	if res.Outcome != RunOutcomeSuccess {
 		t.Fatalf("tick = %+v, want success after absent ticks", res)
+	}
+}
+
+func TestCountessBossHookCompletesBeforeFirstAttack(t *testing.T) {
+	combat := &mockCombatActions{}
+	profileActions := &mockProfileActions{hookResults: []profile.Result{
+		{Status: profile.StatusAction, Hook: profile.HookBossEngage},
+		{Status: profile.StatusPending, Hook: profile.HookBossEngage},
+		{Status: profile.StatusComplete, Hook: profile.HookBossEngage},
+	}, resourceResults: []profile.Result{
+		{Status: profile.StatusAction, Resource: profile.ResourceMana, BeltSlot: 2},
+		{Status: profile.StatusPending, Resource: profile.ResourceMana, BeltSlot: 2},
+		{Status: profile.StatusComplete, Resource: profile.ResourceMana, BeltSlot: 2},
+	}}
+	r := NewRunner(config.NewLogger("error"), RunSelection{Run: "countess", Phase: CountessPhaseKillCountess}, killRunConfig(), Deps{Combat: combat, Profile: profileActions})
+	now := time.Now()
+	target := countessMonster(77, world.Position{X: 110, Y: 100})
+	visible := healthy(cellar5State(target))
+
+	_ = r.Tick(context.Background(), visible, now)                       // mana action
+	_ = r.Tick(context.Background(), visible, now.Add(time.Millisecond)) // mana verify pending
+	_ = r.Tick(context.Background(), visible, now.Add(2*time.Millisecond))
+	_ = r.Tick(context.Background(), visible, now.Add(3*time.Millisecond)) // locate
+	_ = r.Tick(context.Background(), visible, now.Add(4*time.Millisecond)) // prison action
+	_ = r.Tick(context.Background(), visible, now.Add(5*time.Millisecond)) // prison settle
+	if combat.castCalls != 0 {
+		t.Fatalf("combat casts before hook completion = %d", combat.castCalls)
+	}
+	_ = r.Tick(context.Background(), visible, now.Add(6*time.Millisecond))
+	if combat.castCalls != 1 || profileActions.hookCalls != 3 || profileActions.hooks[0] != profile.HookBossEngage {
+		t.Fatalf("combat=%d hooks=%v calls=%d", combat.castCalls, profileActions.hooks, profileActions.hookCalls)
+	}
+	if profileActions.targets[0].UnitID != 77 || profileActions.targets[0].Position != target.Position {
+		t.Fatalf("target=%+v", profileActions.targets[0])
 	}
 }
 

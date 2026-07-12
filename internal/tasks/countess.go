@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/pathing"
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/profile"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/world"
 )
 
@@ -21,31 +22,34 @@ const (
 	CountessPhaseLootCountess = "loot-countess"
 	// CountessPhaseStashPersonal selects transfer-free Act-1 personal-stash navigation and opening.
 	CountessPhaseStashPersonal = "stash-personal"
+	// CountessPhaseTownReady selects the isolated class-profile Town-ready hook.
+	CountessPhaseTownReady = "town-ready"
 
-	countessStepPrecheck        = "precheck"
-	countessStepAcquireTownWP   = "acquire_town_waypoint"
-	countessStepOpenWaypoint    = "open_waypoint"
-	countessStepSelectMarsh     = "select_black_marsh"
-	countessStepWaitBlackMarsh  = "wait_black_marsh"
-	countessStepPlayRoute       = "play_recorded_route"
-	countessStepFindTower       = "find_tower"
-	countessStepEnterCellar1    = "enter_cellar_1"
-	countessStepEnterCellar2    = "enter_cellar_2"
-	countessStepEnterCellar3    = "enter_cellar_3"
-	countessStepEnterCellar4    = "enter_cellar_4"
-	countessStepEnterCellar5    = "enter_cellar_5"
-	countessStepLocateCountess  = "locate_countess"
-	countessStepEngageCountess  = "engage_countess"
-	countessStepWaitForDrops    = "wait_for_drops"
-	countessStepScanLoot        = "scan_loot"
-	countessStepPickLoot        = "pick_loot"
-	countessStepCastTownPortal  = "cast_town_portal"
-	countessStepEnterTownPortal = "enter_town_portal"
-	countessStepWaitAct1Town    = "wait_act1_town"
-	countessStepOpenStash       = "open_personal_stash"
-	countessStepStashItems      = "stash_items"
-	countessStepCloseStash      = "close_personal_stash"
-	countessStepComplete        = "complete"
+	countessStepPrecheck         = "precheck"
+	countessStepApplyTownProfile = "apply_town_profile"
+	countessStepAcquireTownWP    = "acquire_town_waypoint"
+	countessStepOpenWaypoint     = "open_waypoint"
+	countessStepSelectMarsh      = "select_black_marsh"
+	countessStepWaitBlackMarsh   = "wait_black_marsh"
+	countessStepPlayRoute        = "play_recorded_route"
+	countessStepFindTower        = "find_tower"
+	countessStepEnterCellar1     = "enter_cellar_1"
+	countessStepEnterCellar2     = "enter_cellar_2"
+	countessStepEnterCellar3     = "enter_cellar_3"
+	countessStepEnterCellar4     = "enter_cellar_4"
+	countessStepEnterCellar5     = "enter_cellar_5"
+	countessStepLocateCountess   = "locate_countess"
+	countessStepEngageCountess   = "engage_countess"
+	countessStepWaitForDrops     = "wait_for_drops"
+	countessStepScanLoot         = "scan_loot"
+	countessStepPickLoot         = "pick_loot"
+	countessStepCastTownPortal   = "cast_town_portal"
+	countessStepEnterTownPortal  = "enter_town_portal"
+	countessStepWaitAct1Town     = "wait_act1_town"
+	countessStepOpenStash        = "open_personal_stash"
+	countessStepStashItems       = "stash_items"
+	countessStepCloseStash       = "close_personal_stash"
+	countessStepComplete         = "complete"
 
 	selectMarshSettleDelay  = 500 * time.Millisecond
 	dropStableTicks         = 3
@@ -77,6 +81,18 @@ func (c *countessRun) firstStep() string {
 }
 
 func (c *countessRun) nextStep(current string) string {
+	if c.phase == CountessPhaseTownReady {
+		switch current {
+		case countessStepPrecheck:
+			return countessStepApplyTownProfile
+		case countessStepApplyTownProfile:
+			return countessStepComplete
+		case countessStepComplete:
+			return ""
+		default:
+			return ""
+		}
+	}
 	if c.phase == CountessPhaseStashPersonal {
 		switch current {
 		case countessStepPrecheck:
@@ -264,6 +280,9 @@ func (c *countessRun) onStepEnter(step string) {
 }
 
 func (c *countessRun) onTick(ctx context.Context, deps Deps, step string, w world.State, now time.Time, stepStartedAt time.Time, ticksInStep int) stepResult {
+	if c.phase == CountessPhaseTownReady {
+		return c.onTownReadyTick(ctx, deps, step, w, now)
+	}
 	if c.phase == CountessPhaseStashPersonal {
 		return c.onStashPersonalTick(ctx, deps, step, w)
 	}
@@ -280,6 +299,39 @@ func (c *countessRun) onTick(ctx context.Context, deps Deps, step string, w worl
 		return c.onFullRunTick(ctx, deps, step, w, now, stepStartedAt)
 	}
 	return stepResult{failed: true, reason: "unknown_step"}
+}
+
+func (c *countessRun) onTownReadyTick(ctx context.Context, deps Deps, step string, w world.State, now time.Time) stepResult {
+	switch step {
+	case countessStepPrecheck:
+		if !w.Valid || w.Phase != world.GamePhaseInGame {
+			return stepResult{failed: true, reason: "invalid_world"}
+		}
+		if w.Area.ID != world.RogueEncampment {
+			return stepResult{failed: true, reason: "not_act1_town"}
+		}
+		if !w.Identity.Valid {
+			return stepResult{}
+		}
+		return stepResult{complete: true}
+	case countessStepApplyTownProfile:
+		if deps.Profile == nil {
+			return stepResult{failed: true, reason: "profile_not_wired"}
+		}
+		res := deps.Profile.TickHook(ctx, profile.HookTownReady, w, profile.EncounterTarget{}, now)
+		switch res.Status {
+		case profile.StatusComplete:
+			return stepResult{complete: true}
+		case profile.StatusFailed:
+			return stepResult{failed: true, reason: res.Reason}
+		default:
+			return stepResult{}
+		}
+	case countessStepComplete:
+		return stepResult{complete: true}
+	default:
+		return stepResult{failed: true, reason: "unknown_step"}
+	}
 }
 
 func (c *countessRun) onStashPersonalTick(ctx context.Context, deps Deps, step string, w world.State) stepResult {
@@ -620,6 +672,15 @@ func (c *countessRun) onKillCountessTick(ctx context.Context, deps Deps, step st
 			return stepResult{}
 		}
 		c.targetAbsentTicks = 0
+		if deps.Profile != nil {
+			res := deps.Profile.TickHook(ctx, profile.HookBossEngage, w, profile.EncounterTarget{UnitID: target.UnitID, Position: target.Position}, now)
+			switch res.Status {
+			case profile.StatusFailed:
+				return stepResult{failed: true, reason: res.Reason}
+			case profile.StatusAction, profile.StatusPending:
+				return stepResult{}
+			}
+		}
 		return c.tickEngageTarget(deps, w, target, now)
 	default:
 		return stepResult{failed: true, reason: "unknown_step"}
@@ -745,6 +806,15 @@ func (c *countessRun) onTravelMarshTick(ctx context.Context, deps Deps, step str
 		c.resumeAfterPrecheck = ""
 		return stepResult{complete: true}
 	case countessStepAcquireTownWP:
+		if deps.Profile != nil {
+			res := deps.Profile.TickHook(ctx, profile.HookTownReady, w, profile.EncounterTarget{}, now)
+			switch res.Status {
+			case profile.StatusFailed:
+				return stepResult{failed: true, reason: res.Reason}
+			case profile.StatusAction, profile.StatusPending:
+				return stepResult{}
+			}
+		}
 		if deps.TownWalk == nil {
 			return stepResult{failed: true, reason: "town_walk_not_wired"}
 		}

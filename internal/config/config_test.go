@@ -80,6 +80,13 @@ func TestLoadExampleConfig(t *testing.T) {
 	if cfg.Runs.Countess.Combat.AttackSkill != "bone_spear" {
 		t.Errorf("Countess attack skill = %q, want bone_spear", cfg.Runs.Countess.Combat.AttackSkill)
 	}
+	profileCfg := cfg.Profiles[cfg.Runs.Countess.Combat.Profile]
+	if profileCfg.CharacterClass != "necromancer" || profileCfg.Hooks.TownReady[0].Skill != "bone_armor" || profileCfg.Resources.Mana.UseBelowPercent != 35 {
+		t.Fatalf("combat profile = %+v", profileCfg)
+	}
+	if filepath.Clean(cfg.Routes.Directory) != filepath.Join("routes", "farming", "mrbones", "nightmare") {
+		t.Fatalf("Routes.Directory = %q", cfg.Routes.Directory)
+	}
 	if cfg.LoadedFrom == "" {
 		t.Error("LoadedFrom should be set after Load")
 	}

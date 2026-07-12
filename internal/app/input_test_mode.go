@@ -352,6 +352,9 @@ func (rt *Runtime) logInputTestObservation(before, after world.State) {
 		"after_valid", after.Valid,
 		"hp_delta", int64(after.Player.HP) - int64(before.Player.HP),
 		"mana_delta", int64(after.Player.Mana) - int64(before.Player.Mana),
+		"before_right_skill_id", before.Player.RightSkillID,
+		"after_right_skill_id", after.Player.RightSkillID,
+		"after_right_skill", memory.SkillName(after.Player.RightSkillID),
 		"pos_x_delta", int64(after.Player.Position.X) - int64(before.Player.Position.X),
 		"pos_y_delta", int64(after.Player.Position.Y) - int64(before.Player.Position.Y),
 	}

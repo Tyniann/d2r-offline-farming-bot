@@ -17,6 +17,7 @@ import (
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/memory"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/pathing"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/process"
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/profile"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/tasks"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/telemetry"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/version"
@@ -30,18 +31,20 @@ type Runtime struct {
 	Log     *slog.Logger
 	logFile *os.File
 
-	Process   processController
-	Memory    *memory.Reader
-	Probe     snapshotReader
-	UIProbe   uiBufferCaptureReader
-	World     *world.Model
-	Input     inputController
-	Bindings  configBindingSource
-	Tasks     *tasks.Runner
-	Pathing   *pathing.Navigator
-	TownWalk  *pathing.TownWalker
-	Loot      *loot.Filter
-	Telemetry *telemetry.Recorder
+	Process          processController
+	Memory           *memory.Reader
+	Probe            snapshotReader
+	UIProbe          uiBufferCaptureReader
+	World            *world.Model
+	Input            inputController
+	Bindings         configBindingSource
+	Tasks            *tasks.Runner
+	Pathing          *pathing.Navigator
+	TownWalk         *pathing.TownWalker
+	Loot             *loot.Filter
+	Telemetry        *telemetry.Recorder
+	Profile          *profile.Executor
+	profileTelemetry *profileTelemetryAdapter
 
 	sessionReset     sessionResetBarrier
 	taskDeps         tasks.Deps
@@ -136,6 +139,11 @@ func New(cfg *config.Config, opts Options) (rt *Runtime, err error) {
 	runCfg := mapRunConfig(cfg.Runs)
 	combat := newCombatAdapter(log, inputCtrl, bindings, pathingCfg, runCfg.CountessCombat.AttackInterval)
 	runActions := newRunActionsAdapter(log, inputCtrl, bindings)
+	profileTrace := &profileTelemetryAdapter{}
+	profileExecutor, err := newProfileExecutor(log, cfg, inputCtrl, bindings, pathingCfg, profileTrace)
+	if err != nil {
+		return nil, fmt.Errorf("profile config: %w", err)
+	}
 	inventoryLock, err := loot.NewInventoryLock(cfg.Loot.InventoryLock)
 	if err != nil {
 		return nil, fmt.Errorf("loot inventory lock: %w", err)
@@ -154,6 +162,7 @@ func New(cfg *config.Config, opts Options) (rt *Runtime, err error) {
 			return nil, fmt.Errorf("create run telemetry: %w", err)
 		}
 		log.Info("run telemetry enabled", "run_id", runTelemetry.RunID(), "path", runTelemetry.Path())
+		profileTrace.setTelemetry(runTelemetry)
 	}
 	lootFilter := loot.NewFilter(log, inventoryLock, pickit)
 	stashExecutor, err := loot.NewStashExecutor(log, lootFilter, inputCtrl, mapLootStashConfig(cfg.Loot.Stash))
@@ -164,7 +173,7 @@ func New(cfg *config.Config, opts Options) (rt *Runtime, err error) {
 	routePlayback := newRoutePlaybackAdapter(log, cfg.ResolvePath(cfg.Routes.Directory), expectedVersion, nav, runTelemetry)
 	taskDeps := tasks.Deps{
 		Input: inputCtrl, Pathing: nav, Waypoint: waypoints, Portal: townPortals, TownWalk: townWalker,
-		Stash: personalStash, Combat: combat, Actions: runActions, Loot: lootActions, Route: routePlayback,
+		Stash: personalStash, Combat: combat, Actions: runActions, Loot: lootActions, Route: routePlayback, Profile: profileExecutor,
 	}
 
 	probe := memory.NewProbeReader(mem, offsetSet)
@@ -187,6 +196,8 @@ func New(cfg *config.Config, opts Options) (rt *Runtime, err error) {
 		TownWalk:         townWalker,
 		Loot:             lootFilter,
 		Telemetry:        runTelemetry,
+		Profile:          profileExecutor,
+		profileTelemetry: profileTrace,
 		taskDeps:         taskDeps,
 		runConfig:        runCfg,
 		sessionSelection: tasks.RunSelection{Run: cfg.Session.Run},
@@ -203,6 +214,7 @@ func New(cfg *config.Config, opts Options) (rt *Runtime, err error) {
 			{name: "combat", resetter: combat},
 			{name: "loot", resetter: lootActions},
 			{name: "route", resetter: routePlayback},
+			{name: "profile", resetter: profileExecutor},
 		},
 		resetWorld: func(at time.Time, reason string) { rt.World.Reset(at, reason) },
 	}
@@ -239,6 +251,9 @@ func (rt *Runtime) CloseLog() error {
 	if rt.Telemetry != nil {
 		telemetryErr = rt.Telemetry.Close()
 		rt.Telemetry = nil
+		if rt.profileTelemetry != nil {
+			rt.profileTelemetry.setTelemetry(nil)
+		}
 	}
 	var logErr error
 	if rt.logFile != nil {
@@ -269,6 +284,7 @@ func (rt *Runtime) verifyComponents() {
 		"tasks":   rt.Tasks.Ready(),
 		"pathing": rt.Pathing.Ready(),
 		"loot":    rt.Loot.Ready(),
+		"profile": rt.Profile.Ready(),
 	}
 
 	for name, ready := range components {

@@ -103,6 +103,9 @@ func (rt *Runtime) prepareSessionRun() (string, error) {
 	rt.Telemetry = trace
 	rt.routePlayback.setTelemetry(trace)
 	rt.lootActions.setTelemetry(trace)
+	if rt.profileTelemetry != nil {
+		rt.profileTelemetry.setTelemetry(trace)
+	}
 	rt.Tasks = tasks.NewRunner(rt.Log, rt.sessionSelection, rt.runConfig, rt.taskDeps)
 	return trace.RunID(), nil
 }
@@ -115,6 +118,9 @@ func (rt *Runtime) closeSessionRunTelemetry() error {
 	rt.Telemetry = nil
 	rt.routePlayback.setTelemetry(nil)
 	rt.lootActions.setTelemetry(nil)
+	if rt.profileTelemetry != nil {
+		rt.profileTelemetry.setTelemetry(nil)
+	}
 	return err
 }
 

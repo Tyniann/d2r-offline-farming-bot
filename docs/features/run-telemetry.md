@@ -39,6 +39,10 @@ Passive Probe-, Input-Test- und Pathing-Test-Läufe ohne aktiven Run erzeugen ke
 | `stash_attempt` | atomarer Ctrl+LMB-Transfer wurde tatsächlich ausgeführt | jeder echte Versuch |
 | `stash_success` | Item ist aus dem Inventory verschwunden oder hat die Location gewechselt | je bestätigtem Item |
 | `stash_full` | für spätere endliche Stash-Flächen reserviert | terminal |
+| `profile_hook_action` | Profil-Hook hat einen Skill-Input erfolgreich angefordert | jede echte Hook-Aktion |
+| `resource_potion_requested` | passender Belt-Trank wurde erfolgreich angefordert | jeder echte Potion-Input |
+| `resource_consumption_confirmed` | ursprüngliche Potion-UnitID ist aus dem Belt verschwunden | jede Memory-Bestätigung |
+| `profile_action_failed` | Skill-, Potion- oder Verify-Aktion endet mit stabilem Reason-Code | terminaler Profilfehler |
 
 `stash_full` wird im aktuellen Personal-Stash-MVP mit unbegrenzten Sammel-Tabs nicht heuristisch erzeugt.
 
@@ -56,6 +60,8 @@ Gemeinsame Felder:
 - Item-Kontext: `area_id`, `unit_id`, `txt_file_no`, `code`, `name`
 - Ergebnis-Kontext: `reason`, `attempt`, `hover_attempt`, `candidate_count`
 - Stash-Kontext kann zusätzlich Inventory-Grid-Koordinaten tragen.
+- Profil-Kontext: `profile`, `hook`, `skill`, `skill_id`, `target`, Boss-`unit_id`.
+- Ressourcen-Kontext: `resource`, `threshold_percent`, `belt_slot`, Potion-`unit_id`, `confirmed`.
 
 ## Fehlerverhalten
 
@@ -63,6 +69,7 @@ Gemeinsame Felder:
 - Write-/Flush-Fehler werden im Loot-Adapter gespeichert und bleiben für den restlichen Run aktiv.
 - Der aktuelle Task endet mit `telemetry_failed`.
 - Nach dem Fehler startet kein weiterer Pickup, Ctrl-Klick oder Stash-Close-Input.
+- Profil-Telemetriefehler beenden den Task mit `profile_telemetry_failed`; Reset entfernt pending Hooks, Potion-Verifikation und Cooldowns.
 - Ein Fehler, der beim Protokollieren einer gerade ausgeführten Aktion entsteht, kann diese bereits ausgeführte Aktion naturgemäß nicht rückgängig machen; er verhindert aber jede folgende Aktion.
 
 ## Live-Validierung
@@ -82,4 +89,4 @@ Der isolierte `stash-personal`-Lauf wurde bei 1280×720 mit einer Dol-Rune (`r14
 - [Personal-Stash MVP](personal-stash-mvp.md)
 
 ---
-*Zuletzt aktualisiert: 2026-07-10*
+*Zuletzt aktualisiert: 2026-07-12*

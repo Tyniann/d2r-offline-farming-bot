@@ -116,8 +116,12 @@ func run(configPath string, opts app.Options) error {
 	if opts.PathingTest != "" {
 		return rt.RunPathingTest(opts.PathingTest)
 	}
-	if cfg.Session.Enabled {
+	if shouldRunSession(cfg, opts) {
 		return rt.RunSession()
 	}
 	return rt.Run()
+}
+
+func shouldRunSession(cfg *config.Config, opts app.Options) bool {
+	return cfg.Session.Enabled && opts.Run == "" && opts.RunPhase == "" && !opts.Probe
 }

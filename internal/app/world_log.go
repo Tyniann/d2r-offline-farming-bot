@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/loot"
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/memory"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/world"
 )
 
@@ -154,6 +155,10 @@ func worldLogAttrs(cur world.State, verbose bool) []slog.Attr {
 		slog.Uint64("mana", uint64(cur.Player.Mana)),
 		slog.Uint64("max_mana", uint64(cur.Player.MaxMana)),
 		slog.Uint64("mana_pct", uint64(cur.Player.ManaPercent())),
+		slog.Uint64("left_skill_id", uint64(cur.Player.LeftSkillID)),
+		slog.String("left_skill", memory.SkillName(cur.Player.LeftSkillID)),
+		slog.Uint64("right_skill_id", uint64(cur.Player.RightSkillID)),
+		slog.String("right_skill", memory.SkillName(cur.Player.RightSkillID)),
 		slog.Uint64("pos_x", uint64(cur.Player.Position.X)),
 		slog.Uint64("pos_y", uint64(cur.Player.Position.Y)),
 		slog.Bool("ui_inventory_open", cur.UI.InventoryOpen),
