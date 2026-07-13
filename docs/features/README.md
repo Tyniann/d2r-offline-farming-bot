@@ -11,6 +11,7 @@ Spätere Ideen (noch nicht umgesetzt): [`docs/backlog.md`](../backlog.md).
 | [World Model](world-model.md) | Domain-Typen (Area, Player, State), eingebetteter Area-Katalog; kontinuierliches Update im App-Loop (2.3); Validierung Phase 2.4 |
 | [Input Controller](input-controller.md) | D2R-Fensterbindung per PID, Client-Geometrie (3.1); Tastatur-/Maus-Primitives; YAML-Bindings für Skills, Portal und Belt; Safety-Opt-in, globale Pause/Stop-Hotkeys; manueller CLI-Input-Testmodus |
 | [Character- und Encounter-Profile](character-encounter-profiles.md) | Phase 8: klassenbegrenzte Lifecycle-Hooks, Once-/Reset-Semantik und profilabhängige HP-/Mana-/Rejuvenation-Policy |
+| [Town Services](town-services.md) | Phase 9: fail-closed Bedarfsermittlung, zentraler Act-1-Hub und minimales Fremdakt-Egress-Format |
 | [Task Runner](task-runner.md) | Task-Framework, Lazy Run-Start, Countess-Stub (Phase 4.1); `--run countess` / `runs.active` |
 | [Pathing](pathing.md) | Teleport-Navigation (Phase 4.3): Relative-Projektion + Hover-Feedback-Loop, Bearing-Explore, Stuck-Detection; `--pathing-test` |
 | [Countess-Run](countess-run.md) | Phase 5.6: vollständiger Countess-Run mit Travel, Kill, Loot-Pickup, Safety-Potion und Town-Portal-Abschluss; isolierte Testphasen bleiben verfügbar |

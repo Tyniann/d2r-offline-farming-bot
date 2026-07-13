@@ -12,23 +12,27 @@ import (
 
 func validSnapshot() memory.Snapshot {
 	return memory.Snapshot{
-		At:           time.Date(2026, 6, 25, 12, 0, 0, 0, time.UTC),
-		Valid:        true,
-		Phase:        memory.GamePhaseInGame,
-		AreaID:       uint32(BlackMarsh),
-		PosX:         1234,
-		PosY:         5678,
-		HP:           100,
-		MaxHP:        125,
-		Mana:         50,
-		MaxMana:      75,
-		PlayerSkills: memory.PlayerSkills{LeftSkill: memory.SkillBoneSpear, RightSkill: memory.SkillTeleport},
+		At:                    time.Date(2026, 6, 25, 12, 0, 0, 0, time.UTC),
+		Valid:                 true,
+		Phase:                 memory.GamePhaseInGame,
+		AreaID:                uint32(BlackMarsh),
+		PosX:                  1234,
+		PosY:                  5678,
+		HP:                    100,
+		MaxHP:                 125,
+		Mana:                  50,
+		MaxMana:               75,
+		Gold:                  50938,
+		PrivateStashGold:      2401390,
+		GoldKnown:             true,
+		PrivateStashGoldKnown: true,
+		PlayerSkills:          memory.PlayerSkills{LeftSkill: memory.SkillBoneSpear, RightSkill: memory.SkillTeleport},
 	}
 }
 
 func TestFromSnapshotValid(t *testing.T) {
 	snap := validSnapshot()
-	snap.UI = memory.UIState{InventoryOpen: true, StashOpen: true, QuitMenuOpen: true}
+	snap.UI = memory.UIState{InventoryOpen: true, NPCInteractOpen: true, NPCShopOpen: true, StashOpen: true, QuitMenuOpen: true}
 	state := FromSnapshot(snap)
 
 	if !state.Valid {
@@ -65,11 +69,14 @@ func TestFromSnapshotValid(t *testing.T) {
 	if state.Player.Mana != snap.Mana || state.Player.MaxMana != snap.MaxMana {
 		t.Fatalf("Mana = %d/%d, want %d/%d", state.Player.Mana, state.Player.MaxMana, snap.Mana, snap.MaxMana)
 	}
+	if state.Player.Gold != 50938 || state.Player.PrivateStashGold != 2401390 || !state.Player.GoldKnown || !state.Player.PrivateStashGoldKnown {
+		t.Fatalf("Gold = %+v", state.Player)
+	}
 	if state.Player.LeftSkillID != memory.SkillBoneSpear || state.Player.RightSkillID != memory.SkillTeleport {
 		t.Fatalf("selected skills = %d/%d", state.Player.LeftSkillID, state.Player.RightSkillID)
 	}
-	if !state.UI.InventoryOpen || !state.UI.StashOpen || !state.UI.QuitMenuOpen {
-		t.Fatalf("UI = %+v, want inventory, stash, and quit menu open", state.UI)
+	if !state.UI.InventoryOpen || !state.UI.NPCInteractOpen || !state.UI.NPCShopOpen || !state.UI.StashOpen || !state.UI.QuitMenuOpen {
+		t.Fatalf("UI = %+v, want inventory, NPC interaction, shop, stash, and quit menu open", state.UI)
 	}
 }
 
@@ -406,6 +413,16 @@ func TestStateInventoryItemsUsesValidatedPersonalInventoryOnly(t *testing.T) {
 	}
 	if got := state.ItemsByLocation(ItemLocationUnknown); len(got) != 1 || got[0].UnitID != 4003 {
 		t.Fatalf("Unknown items = %+v, want non-player inventory unit 4003", got)
+	}
+}
+
+func TestVendorItemLocationRequiresVendorFlagAndSentinelOwner(t *testing.T) {
+	snap := validSnapshot()
+	snap.Items = []memory.ItemUnit{{TxtFileNo: 606, UnitID: 99, RawLocation: 0, OwnerID: ^uint32(0), Flags: 0x2000, GridX: 2, GridY: 3}}
+	state := FromSnapshot(snap)
+	items := state.ItemsByLocation(ItemLocationVendor)
+	if len(items) != 1 || items[0].UnitID != 99 || items[0].GridX != 2 || items[0].GridY != 3 {
+		t.Fatalf("vendor items = %+v", items)
 	}
 }
 

@@ -6,7 +6,6 @@ import (
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/config"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/input"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/pathing"
-	"github.com/Tyniann/d2r-offline-farming-bot/internal/world"
 )
 
 // Empfohlene Client-Größe für die Relative-Projektion (Koolo-Kalibrierung 19.8/9.9).
@@ -98,24 +97,11 @@ func mapPathingConfig(cfg config.PathingConfig) pathing.Config {
 			BlackMarshY: cfg.WaypointUI.BlackMarshY,
 		},
 		TownWalk: pathing.TownWalkConfig{
-			RouteFile:          cfg.TownWalk.SelectedRouteFile(),
-			ForceMoveKey:       cfg.TownWalk.ForceMoveKey,
-			MoveInterval:       time.Duration(cfg.TownWalk.MoveIntervalMs) * time.Millisecond,
-			SettleTimeout:      time.Duration(cfg.TownWalk.SettleTimeoutMs) * time.Millisecond,
-			StuckTimeout:       time.Duration(cfg.TownWalk.StuckTimeoutMs) * time.Millisecond,
-			ArrivalDistance:    cfg.TownWalk.ArrivalDistance,
-			Act1WaypointPoints: mapPathingPoints(cfg.TownWalk.Act1WaypointPoints),
+			ForceMoveKey:    cfg.TownWalk.ForceMoveKey,
+			MoveInterval:    time.Duration(cfg.TownWalk.MoveIntervalMs) * time.Millisecond,
+			SettleTimeout:   time.Duration(cfg.TownWalk.SettleTimeoutMs) * time.Millisecond,
+			StuckTimeout:    time.Duration(cfg.TownWalk.StuckTimeoutMs) * time.Millisecond,
+			ArrivalDistance: cfg.TownWalk.ArrivalDistance,
 		},
 	}
-}
-
-func mapPathingPoints(points []config.PathingPointConfig) []world.Position {
-	if len(points) == 0 {
-		return nil
-	}
-	out := make([]world.Position, len(points))
-	for i, p := range points {
-		out[i] = world.Position{X: p.X, Y: p.Y}
-	}
-	return out
 }

@@ -1,0 +1,77 @@
+version: 2
+area_id: 1
+edges:
+  - id: stash-waypoint
+    from: stash
+    to: waypoint
+    cost: 1
+    reversible: true
+    variants:
+      - layout: 76876927307330686a85da717370ee70ec4e0c2a47dcb7fa4bdba91cc9017381
+        route: stash-waypoint-768769273073.yaml
+      - layout: 911703945495707c9e6578c2db467e76ed70cf0548f119ac1b397368a8af5a53
+        route: stash-waypoint-911703945495.yaml
+      - layout: 5f635488a4db0cfc55a500d3ca392f7d63c9a256581cf292c352efd0e7a60f17
+        route: stash-waypoint-5f635488a4db.yaml
+      - layout: 4ad7f3b4018ecb39ef311d808dcf0b0b9b5991d8b548b8d3ac1688a657c33f30
+        route: stash-waypoint-4ad7f3b4018e.yaml
+  - id: portal-cain
+    from: portal_arrival
+    to: cain
+    cost: 1
+    reversible: true
+    variants:
+      - {layout: 76876927307330686a85da717370ee70ec4e0c2a47dcb7fa4bdba91cc9017381, route: portal-cain-768769273073.yaml}
+      - {layout: 911703945495707c9e6578c2db467e76ed70cf0548f119ac1b397368a8af5a53, route: portal-cain.yaml}
+      - {layout: 5f635488a4db0cfc55a500d3ca392f7d63c9a256581cf292c352efd0e7a60f17, route: portal-cain-5f635488a4db.yaml}
+      - {layout: 4ad7f3b4018ecb39ef311d808dcf0b0b9b5991d8b548b8d3ac1688a657c33f30, route: portal-cain-4ad7f3b4018e.yaml}
+  - id: stash-akara
+    from: stash
+    to: akara
+    cost: 1
+    reversible: true
+    variants:
+      - {layout: 76876927307330686a85da717370ee70ec4e0c2a47dcb7fa4bdba91cc9017381, route: stash-akara-768769273073.yaml}
+      - {layout: 911703945495707c9e6578c2db467e76ed70cf0548f119ac1b397368a8af5a53, route: stash-akara.yaml}
+      - {layout: 5f635488a4db0cfc55a500d3ca392f7d63c9a256581cf292c352efd0e7a60f17, route: stash-akara-5f635488a4db.yaml}
+      - {layout: 4ad7f3b4018ecb39ef311d808dcf0b0b9b5991d8b548b8d3ac1688a657c33f30, route: stash-akara-4ad7f3b4018e.yaml}
+  - id: akara-cain
+    from: akara
+    to: cain
+    cost: 1
+    reversible: true
+    variants:
+      - {layout: 76876927307330686a85da717370ee70ec4e0c2a47dcb7fa4bdba91cc9017381, route: akara-cain-768769273073.yaml}
+      - {layout: 911703945495707c9e6578c2db467e76ed70cf0548f119ac1b397368a8af5a53, route: akara-cain.yaml}
+      - {layout: 5f635488a4db0cfc55a500d3ca392f7d63c9a256581cf292c352efd0e7a60f17, route: akara-cain-5f635488a4db.yaml}
+      - {layout: 4ad7f3b4018ecb39ef311d808dcf0b0b9b5991d8b548b8d3ac1688a657c33f30, route: akara-cain-4ad7f3b4018e.yaml}
+  - id: akara-waypoint
+    from: akara
+    to: waypoint
+    cost: 1
+    reversible: true
+    variants:
+      - {layout: 76876927307330686a85da717370ee70ec4e0c2a47dcb7fa4bdba91cc9017381, route: akara-waypoint-768769273073.yaml}
+      - {layout: 911703945495707c9e6578c2db467e76ed70cf0548f119ac1b397368a8af5a53, route: akara-waypoint.yaml}
+      - {layout: 5f635488a4db0cfc55a500d3ca392f7d63c9a256581cf292c352efd0e7a60f17, route: akara-waypoint-5f635488a4db.yaml}
+      - {layout: 4ad7f3b4018ecb39ef311d808dcf0b0b9b5991d8b548b8d3ac1688a657c33f30, route: akara-waypoint-4ad7f3b4018e.yaml}
+  - id: cain-charsi
+    from: cain
+    to: charsi
+    cost: 1
+    reversible: true
+    variants:
+      - {layout: 76876927307330686a85da717370ee70ec4e0c2a47dcb7fa4bdba91cc9017381, route: cain-charsi-768769273073.yaml}
+      - {layout: 911703945495707c9e6578c2db467e76ed70cf0548f119ac1b397368a8af5a53, route: cain-charsi-911703945495.yaml}
+      - {layout: 5f635488a4db0cfc55a500d3ca392f7d63c9a256581cf292c352efd0e7a60f17, route: cain-charsi-5f635488a4db.yaml}
+      - {layout: 4ad7f3b4018ecb39ef311d808dcf0b0b9b5991d8b548b8d3ac1688a657c33f30, route: cain-charsi-4ad7f3b4018e.yaml}
+  - id: charsi-waypoint
+    from: charsi
+    to: waypoint
+    cost: 1
+    reversible: true
+    variants:
+      - {layout: 76876927307330686a85da717370ee70ec4e0c2a47dcb7fa4bdba91cc9017381, route: charsi-waypoint-768769273073.yaml}
+      - {layout: 911703945495707c9e6578c2db467e76ed70cf0548f119ac1b397368a8af5a53, route: charsi-waypoint-911703945495.yaml}
+      - {layout: 5f635488a4db0cfc55a500d3ca392f7d63c9a256581cf292c352efd0e7a60f17, route: charsi-waypoint-5f635488a4db.yaml}
+      - {layout: 4ad7f3b4018ecb39ef311d808dcf0b0b9b5991d8b548b8d3ac1688a657c33f30, route: charsi-waypoint-4ad7f3b4018e.yaml}

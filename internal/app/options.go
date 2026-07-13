@@ -33,10 +33,16 @@ type Options struct {
 	ScreenAnchorCapture string
 	// SessionInspect resolves and prints the Phase-7.5 session plan without runtime initialization.
 	SessionInspect bool
+	// SessionMaxRuns overrides the configured finite session count when positive.
+	SessionMaxRuns int
 	// Route selects a read-only route registry command in Phase 6.2.
 	Route string
 	// RouteName is reserved for the Phase 6.3 record command.
 	RouteName string
 	// RouteDifficulty is the explicit non-authorizing label for a new recording.
 	RouteDifficulty string
+	// TownInspect writes one read-only Phase-9.1 Town research report and never sends input.
+	TownInspect bool
+	// TownTest starts one isolated, fail-closed Town interaction acceptance flow.
+	TownTest string
 }

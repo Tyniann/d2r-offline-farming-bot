@@ -60,3 +60,26 @@ func TestParseVitalStatsAllFour(t *testing.T) {
 		t.Fatalf("vitals = %+v", vitals)
 	}
 }
+
+func TestParseGoldStatsReadsLayerZeroValues(t *testing.T) {
+	access := newMockAccess()
+	const header = uintptr(0x11000)
+	const array = uintptr(0x12000)
+	off := DefaultOffsetSet().Stats
+
+	writeU64(access, header+off.ListPtr, uint64(array))
+	writeU64(access, header+off.Count, 3)
+	writeStatEntry(access, array+0, 0, StatGold, 50938)
+	writeStatEntry(access, array+8, 0, StatGoldBank, 2401390)
+	writeStatEntry(access, array+16, 1, StatGold, 1)
+
+	reader := newTestReader(access)
+	reader.Bind(access)
+	got, err := parseGoldStats(reader, header, off)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !got.CarriedKnown || !got.StashKnown || got.Carried != 50938 || got.PrivateStash != 2401390 {
+		t.Fatalf("gold stats = %+v", got)
+	}
+}

@@ -21,8 +21,8 @@ func TestParsePathingTestSpec(t *testing.T) {
 		{"click-entity:entrance", pathingTestSpec{kind: pathingTestClickEntity, entity: "entrance"}},
 		{"inspect:entrances", pathingTestSpec{kind: pathingTestInspect, entity: "entrances"}},
 		{"inspect:layout", pathingTestSpec{kind: pathingTestInspect, entity: "layout"}},
-		{"play-town-route:act1-waypoint", pathingTestSpec{kind: pathingTestPlayTown, route: "act1-waypoint"}},
-		{"record-town-route:act1-waypoint", pathingTestSpec{kind: pathingTestRecordTown, route: "act1-waypoint"}},
+		{"record-town-edge:portal-cain", pathingTestSpec{kind: pathingTestRecordEdge, route: "portal-cain"}},
+		{"play-town-graph:portal_arrival,cain,akara,waypoint", pathingTestSpec{kind: pathingTestPlayGraph, route: "portal_arrival,cain,akara,waypoint"}},
 		{"pickup:item", pathingTestSpec{kind: pathingTestPickupItem, entity: "item"}},
 	}
 	for _, tc := range cases {
@@ -40,7 +40,8 @@ func TestParsePathingTestSpecInvalid(t *testing.T) {
 	for _, spec := range []string{
 		"", "teleport", "teleport:abc,5", "teleport:5000", "hover:foo",
 		"move-area:unknown_area", "click-entity:monster", "inspect:objects", "play-town-route:act2-waypoint",
-		"record-town-route:act2-waypoint", "pickup:gold", "unknown:arg",
+		"record-town-route:act1-waypoint", "record-town-route:act2-waypoint", "pickup:gold", "unknown:arg",
+		"record-town-edge:../escape", "play-town-graph:portal_arrival",
 	} {
 		if _, err := parsePathingTestSpec(spec); err == nil {
 			t.Fatalf("parsePathingTestSpec(%q) expected error", spec)
@@ -63,12 +64,13 @@ func TestPathingTestSpecRequiresInput(t *testing.T) {
 	if !move.requiresInput() {
 		t.Fatal("move-area must require input")
 	}
-	record, err := parsePathingTestSpec("record-town-route:act1-waypoint")
-	if err != nil {
-		t.Fatalf("parse error = %v", err)
+	edgeRecord, err := parsePathingTestSpec("record-town-edge:portal-cain")
+	if err != nil || edgeRecord.requiresInput() {
+		t.Fatalf("record-town-edge must be read-only: %v", err)
 	}
-	if record.requiresInput() {
-		t.Fatal("record-town-route must not require input")
+	graphPlay, err := parsePathingTestSpec("play-town-graph:portal_arrival,cain,waypoint")
+	if err != nil || !graphPlay.requiresInput() {
+		t.Fatalf("play-town-graph must require input: %v", err)
 	}
 	inspect, err := parsePathingTestSpec("inspect:entrances")
 	if err != nil {
@@ -84,31 +86,12 @@ func TestPathingTestSpecRequiresInput(t *testing.T) {
 	if layout.requiresInput() {
 		t.Fatal("inspect:layout must not require input")
 	}
-	play, err := parsePathingTestSpec("play-town-route:act1-waypoint")
-	if err != nil {
-		t.Fatalf("parse error = %v", err)
-	}
-	if !play.requiresInput() {
-		t.Fatal("play-town-route must require input")
-	}
 	pickup, err := parsePathingTestSpec("pickup:item")
 	if err != nil {
 		t.Fatalf("parse error = %v", err)
 	}
 	if !pickup.requiresInput() {
 		t.Fatal("pickup:item must require input")
-	}
-}
-
-func TestTownRouteWaypointClickableReturnsWaypointPosition(t *testing.T) {
-	cur := world.State{
-		Valid:   true,
-		Player:  world.Player{Position: world.Position{X: 100, Y: 100}},
-		Objects: []world.Object{{Kind: world.ObjectKindWaypoint, UnitID: 42, Position: world.Position{X: 105, Y: 104}}},
-	}
-	waypoint, ok := townRouteWaypointClickable(cur, 8)
-	if !ok || waypoint.UnitID != 42 || waypoint.Position != (world.Position{X: 105, Y: 104}) {
-		t.Fatalf("townRouteWaypointClickable() = %+v, %t; want waypoint 42", waypoint, ok)
 	}
 }
 

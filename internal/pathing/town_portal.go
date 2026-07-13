@@ -8,6 +8,10 @@ import (
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/world"
 )
 
+// townPortalActivationSettle preserves the hover budget until the newly cast
+// portal has completed the non-interactive part of its opening animation.
+const townPortalActivationSettle = 500 * time.Millisecond
+
 // TownPortalActionStatus is a stable per-tick outcome of player-cast portal entry.
 type TownPortalActionStatus string
 
@@ -31,10 +35,13 @@ type TownPortalActionResult struct {
 
 // TownPortalActions discovers and hover-clicks the temporary player-cast portal.
 type TownPortalActions struct {
-	log          *slog.Logger
-	clicker      *EntityClicker
-	cfg          TownPortalConfig
-	missingSince time.Time
+	log               *slog.Logger
+	clicker           *EntityClicker
+	cfg               TownPortalConfig
+	missingSince      time.Time
+	portalUnitID      uint32
+	portalPosition    world.Position
+	portalStableSince time.Time
 }
 
 // NewTownPortalActions wires safe portal entry to the shared entity clicker.
@@ -52,6 +59,9 @@ func (a *TownPortalActions) Reset() {
 		return
 	}
 	a.missingSince = time.Time{}
+	a.portalUnitID = 0
+	a.portalPosition = world.Position{}
+	a.portalStableSince = time.Time{}
 	if a.clicker != nil {
 		a.clicker.Reset()
 	}
@@ -67,6 +77,7 @@ func (a *TownPortalActions) Tick(ctx context.Context, state world.State, now tim
 	}
 	portal, ok := state.NearestObject(world.ObjectKindTownPortal)
 	if !ok {
+		a.resetPortalCandidate()
 		if a.missingSince.IsZero() {
 			a.missingSince = now
 			return TownPortalActionResult{Status: TownPortalActionPending}
@@ -78,10 +89,28 @@ func (a *TownPortalActions) Tick(ctx context.Context, state world.State, now tim
 		return TownPortalActionResult{Status: TownPortalActionNotFound, Reason: string(TownPortalActionNotFound), Done: true}
 	}
 	a.missingSince = time.Time{}
+	if world.Distance(state.Player.Position, portal.Position) > a.cfg.MaxClickDistance {
+		a.Reset()
+		return TownPortalActionResult{Status: TownPortalActionTooFar, Reason: string(TownPortalActionTooFar), Done: true}
+	}
+	if a.portalUnitID != portal.UnitID || world.Distance(a.portalPosition, portal.Position) >= 1 {
+		a.portalUnitID = portal.UnitID
+		a.portalPosition = portal.Position
+		a.portalStableSince = now
+		a.clicker.Reset()
+		return TownPortalActionResult{Status: TownPortalActionPending}
+	}
+	if a.portalStableSince.IsZero() {
+		a.portalStableSince = now
+		return TownPortalActionResult{Status: TownPortalActionPending}
+	}
+	if now.Sub(a.portalStableSince) < townPortalActivationSettle {
+		return TownPortalActionResult{Status: TownPortalActionPending}
+	}
 	res, err := a.clicker.Tick(state, ClickTarget{
-		UnitID:   portal.UnitID,
+		UnitID:   a.portalUnitID,
 		UnitType: world.HoverUnitTypeObject,
-		Position: portal.Position,
+		Position: a.portalPosition,
 		Name:     portal.Name,
 	}, a.cfg.MaxClickDistance)
 	if err != nil {
@@ -101,5 +130,14 @@ func (a *TownPortalActions) Tick(ctx context.Context, state world.State, now tim
 		return TownPortalActionResult{Status: TownPortalActionProjectionFailed, Reason: string(TownPortalActionProjectionFailed), Done: true}
 	default:
 		return TownPortalActionResult{Status: TownPortalActionInputError, Reason: string(res.Status), Done: true}
+	}
+}
+
+func (a *TownPortalActions) resetPortalCandidate() {
+	a.portalUnitID = 0
+	a.portalPosition = world.Position{}
+	a.portalStableSince = time.Time{}
+	if a.clicker != nil {
+		a.clicker.Reset()
 	}
 }

@@ -1,0 +1,24 @@
+id: cain-charsi
+area_id: 1
+created_at: 2026-07-13T11:09:50.1323702Z
+sample_distance_tiles: 8
+layout_fingerprint: 76876927307330686a85da717370ee70ec4e0c2a47dcb7fa4bdba91cc9017381
+layout_origin_x: 5646
+layout_origin_y: 5919
+points:
+    - x: 5665
+      "y": 5929
+    - x: 5661
+      "y": 5922
+    - x: 5656
+      "y": 5915
+    - x: 5650
+      "y": 5908
+    - x: 5641
+      "y": 5906
+    - x: 5632
+      "y": 5907
+    - x: 5623
+      "y": 5907
+    - x: 5618
+      "y": 5907

@@ -76,13 +76,15 @@ func TestReadPhaseInputsInventoryAndStashFlags(t *testing.T) {
 	uiBase := moduleBase + off.UI - uiBufferBefore
 	buf := make([]byte, uiBufferSize)
 	buf[uiInventoryIndex] = 1
+	buf[uiNPCInteractIndex] = 1
+	buf[uiNPCShopIndex] = 1
 	buf[uiQuitMenuIndex] = 1
 	buf[uiStashIndex] = 1
 	access.setBytes(uiBase, buf)
 
 	_, _, _, ui := probe.readPhaseInputs(moduleBase, off)
-	if !ui.InventoryOpen || !ui.StashOpen || !ui.QuitMenuOpen {
-		t.Fatalf("UI = %+v, want inventory, stash, and quit menu open", ui)
+	if !ui.InventoryOpen || !ui.NPCInteractOpen || !ui.NPCShopOpen || !ui.StashOpen || !ui.QuitMenuOpen {
+		t.Fatalf("UI = %+v, want inventory, NPC interaction, shop, stash, and quit menu open", ui)
 	}
 }
 

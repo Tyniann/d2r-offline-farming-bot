@@ -28,7 +28,6 @@ func TestResolveSessionPlanReadyForRecordedNightmareRoute(t *testing.T) {
 	cfg.Session.Enabled = true
 	cfg.Session.Character = "MrBones"
 	cfg.Session.Difficulty = "nightmare"
-	cfg.Pathing.TownWalk.Difficulty = "nightmare"
 	plan, err := ResolveSessionPlan(cfg, Options{SessionInspect: true})
 	if err != nil {
 		t.Fatal(err)
@@ -48,7 +47,6 @@ func TestResolveSessionPlanRejectsRouteDifficultyMismatch(t *testing.T) {
 	cfg.Session.Enabled = true
 	cfg.Session.Character = "MrBones"
 	cfg.Session.Difficulty = "hell"
-	cfg.Pathing.TownWalk.Difficulty = "hell"
 	if _, err := ResolveSessionPlan(cfg, Options{SessionInspect: true}); err == nil {
 		t.Fatal("expected route difficulty mismatch")
 	}

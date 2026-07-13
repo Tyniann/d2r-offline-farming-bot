@@ -150,7 +150,7 @@ func (rt *Runtime) runTick(ctx context.Context, state *runState) error {
 
 	snap := rt.Probe.Snapshot()
 	cur := rt.World.Update(snap)
-	if rt.Config.Input.Enabled && rt.Options.InputTest == "" && rt.Options.OfflineDifficulty == "" && !rt.Options.OfflineExitTest && rt.Options.UIStateProbe == "" && rt.Options.ScreenAnchorCapture == "" && !rt.pathingTestIsReadOnly() && !rt.routeCommandIsReadOnly() && snap.Valid && snap.Phase == memory.GamePhaseInGame && !state.bindingsPrecheckDone {
+	if rt.Config.Input.Enabled && rt.Options.InputTest == "" && rt.Options.OfflineDifficulty == "" && !rt.Options.OfflineExitTest && rt.Options.UIStateProbe == "" && rt.Options.ScreenAnchorCapture == "" && !rt.Options.TownInspect && rt.Options.TownTest == "" && !rt.pathingTestIsReadOnly() && !rt.routeCommandIsReadOnly() && snap.Valid && snap.Phase == memory.GamePhaseInGame && !state.bindingsPrecheckDone {
 		state.bindingsPrecheckDone = true
 		if err := BindingsPrecheck(rt.Log, rt.Bindings, snap, true); err != nil {
 			return fmt.Errorf("bindings precheck: %w", err)

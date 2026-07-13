@@ -9,6 +9,7 @@ import (
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/config"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/pathing"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/tasks"
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/town"
 )
 
 // SessionPlan is the fully resolved, read-only operator view of Phase-7 session
@@ -78,12 +79,9 @@ func ResolveSessionPlan(cfg *config.Config, opts Options) (SessionPlan, error) {
 	if cfg.Runs.Countess.RouteID == "" {
 		return SessionPlan{}, fmt.Errorf("runs.countess.route_id is required for session.run=countess")
 	}
-	if cfg.Pathing.TownWalk.Difficulty != session.Difficulty {
-		return SessionPlan{}, fmt.Errorf("session difficulty %q does not match town-walk difficulty %q", session.Difficulty, cfg.Pathing.TownWalk.Difficulty)
-	}
-	townRoutePath := resolveWorkspacePath(cfg, cfg.Pathing.TownWalk.SelectedRouteFile())
-	if _, err := os.Stat(townRoutePath); err != nil {
-		return SessionPlan{}, fmt.Errorf("session town-walk route %q: %w", townRoutePath, err)
+	townGraphPath := filepath.Join(cfg.ResolvePath(cfg.Town.Hub.RoutesDirectory), "graph.yaml")
+	if _, err := town.LoadServiceGraph(townGraphPath); err != nil {
+		return SessionPlan{}, fmt.Errorf("session town graph: %w", err)
 	}
 	registry, err := pathing.LoadRouteRegistry(cfg.ResolvePath(cfg.Routes.Directory))
 	if err != nil {

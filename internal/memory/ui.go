@@ -7,9 +7,11 @@ import (
 
 // UIState is the read-only subset of D2R menu flags needed for safe recovery actions.
 type UIState struct {
-	InventoryOpen bool
-	StashOpen     bool
-	QuitMenuOpen  bool
+	InventoryOpen   bool
+	NPCInteractOpen bool
+	NPCShopOpen     bool
+	StashOpen       bool
+	QuitMenuOpen    bool
 }
 
 // UIBufferCapture is one read-only copy of the D2R UI buffer around the
@@ -30,13 +32,15 @@ func (c UIBufferCapture) OffsetFromAnchor(index int) int {
 const (
 	// uiBuffer starts at UI-0x13. These indices were calibrated read-only
 	// against D2R 3.2.92777 for closed, inventory-only, and personal-stash UI.
-	uiInventoryIndex = 0x00
-	uiQuitMenuIndex  = 0x08 // UI-0x0B, live-validated in Phase 7.1.
-	uiGateIndex      = 0x09 // UI-0x0A
-	uiStashIndex     = 0x17 // UI+0x04
-	uiLoadingIndex   = 0x171
-	uiBufferBefore   = 0x13
-	uiBufferSize     = 0x172
+	uiInventoryIndex   = 0x00
+	uiNPCInteractIndex = 0x07 // UI-0x0C; d2go OpenMenus.NPCInteract.
+	uiNPCShopIndex     = 0x0A // UI-0x09; d2go OpenMenus.NPCShop.
+	uiQuitMenuIndex    = 0x08 // UI-0x0B, live-validated in Phase 7.1.
+	uiGateIndex        = 0x09 // UI-0x0A
+	uiStashIndex       = 0x17 // UI+0x04
+	uiLoadingIndex     = 0x171
+	uiBufferBefore     = 0x13
+	uiBufferSize       = 0x172
 )
 
 // CaptureUIBuffer reads the complete diagnostic UI window without producing

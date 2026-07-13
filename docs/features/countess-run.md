@@ -94,11 +94,6 @@ Die Default-UI-Koordinate ist für 1280x720 windowed kalibriert:
 pathing:
   town_walk:
     force_move_key: e
-    difficulty: hell
-    routes:
-      normal: configs/routes/town/act1/waypoint/normal.yaml
-      nightmare: configs/routes/town/act1/waypoint/nightmare.yaml
-      hell: configs/routes/town/act1/waypoint/hell.yaml
     move_interval_ms: 650
     settle_timeout_ms: 350
     stuck_timeout_ms: 3500
@@ -173,7 +168,7 @@ runs:
 ## Manuelle Validierung
 
 ```powershell
-go run ./cmd/d2rbot --pathing-test play-town-route:act1-waypoint --probe --verbose
+go run ./cmd/d2rbot --pathing-test play-town-graph:stash,waypoint --probe --verbose
 go run ./cmd/d2rbot --pathing-test click-entity:entrance --probe --verbose
 go run ./cmd/d2rbot --pathing-test inspect:entrances --probe --verbose --pathing-test-timeout-ms 30000
 go run ./cmd/d2rbot --run countess --phase travel-marsh --probe --verbose
@@ -192,13 +187,13 @@ Phase 5.8 wurde am selben Tag isoliert live validiert: Town-Portalbereich → re
 
 Ab Phase 5.10 erzeugt jeder aktive Countess-Lauf vor dem ersten Input eine eigene fail-closed JSONL-Datei unter `telemetry.directory`. Ein I/O-Fehler beendet den Run mit `telemetry_failed`.
 
-Falls die für den konfigurierten Schwierigkeitsgrad ausgewählte Town-Route noch fehlt, kann sie aufgezeichnet werden:
+Falls für das aktuell erkannte Town-Layout noch eine Graph-Kante fehlt, kann sie aufgezeichnet werden:
 
 ```powershell
-go run ./cmd/d2rbot --pathing-test record-town-route:act1-waypoint --probe --verbose
+go run ./cmd/d2rbot --pathing-test record-town-edge:stash-waypoint --probe --verbose
 ```
 
-Der Recorder speichert in die unter `pathing.town_walk.routes.<difficulty>` konfigurierte Datei und ergänzt die aus Memory gelesene Waypoint-Position als letzten Routenpunkt. Für Hell muss daher vor der Aufzeichnung `difficulty: hell` gesetzt sein.
+Der Recorder bindet die Aufnahme an den read-only aus Stash und Waypoint ermittelten `TownLayoutFingerprint`. Der Graphplayer und der produktive Run akzeptieren ausschließlich eine exakt passende Variante; Difficulty und Charakter sind keine Town-Routenschlüssel.
 
 ## Grenzen
 

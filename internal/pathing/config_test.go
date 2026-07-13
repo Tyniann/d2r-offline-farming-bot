@@ -30,7 +30,6 @@ func TestConfigValidateRejectsInvalidValues(t *testing.T) {
 		{"zero portal click distance", func(c *Config) { c.TownPortal.MaxClickDistance = 0 }},
 		{"negative waypoint ui x", func(c *Config) { c.WaypointUI.BlackMarshX = -1 }},
 		{"negative waypoint ui y", func(c *Config) { c.WaypointUI.BlackMarshY = -1 }},
-		{"missing town route", func(c *Config) { c.TownWalk.RouteFile = "" }},
 		{"missing force move key", func(c *Config) { c.TownWalk.ForceMoveKey = "" }},
 		{"zero town move interval", func(c *Config) { c.TownWalk.MoveInterval = 0 }},
 		{"zero town settle timeout", func(c *Config) { c.TownWalk.SettleTimeout = 0 }},

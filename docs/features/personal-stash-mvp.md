@@ -36,7 +36,7 @@ Ein normales Inventarfenster gibt Stash-Aktionen deshalb nicht frei. Fixed-coord
 
 `PersonalStashActions` sucht `ObjectKindPersonalStash` im World Model. Aus dem Town-Portalbereich läuft die Figur per Force Move zum Stash; Teleport wird in Town nicht verwendet. Zwei relativ zum Memory-Stash definierte Detour-Anker `(+10,+18)` und `(+4,+14)` umgehen die live beobachtete Town-Geometrie. Relative Punkte vermeiden eine Abhängigkeit vom absoluten Koordinatenursprung der Town-Instanz.
 
-Der Stash wird nur innerhalb der Klickdistanz und nach passender Object-`UnitID` im Hover-Buffer angeklickt. Erfolg ist ausschließlich `StashOpen=true` aus Memory.
+Der Stash wird nur innerhalb der Klickdistanz angeklickt. Nach dem letzten Force-Move muss die Memory-Position zunächst für `pathing.town_walk.settle_timeout_ms` stabil bleiben; jede Bewegung um mindestens ein Tile setzt diese Wartephase zurück und verwirft einen bereits begonnenen Hover-Versuch. Erst danach darf die passende Object-`UnitID` im Hover-Buffer den Klick freigeben. Erfolg ist ausschließlich `StashOpen=true` aus Memory.
 
 ### Auswahl und Schutz
 

@@ -2,7 +2,6 @@ package pathing
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 	"time"
 
@@ -34,15 +33,12 @@ type TownWalkResult struct {
 
 // TownWalker force-moves inside Rogue Encampment toward the Act-1 waypoint.
 type TownWalker struct {
-	log                   *slog.Logger
-	input                 InputDriver
-	projector             Projector
-	cfg                   TownWalkConfig
-	waypointClickDistance float64
-
-	points []world.Position
-	loaded bool
-	index  int
+	log       *slog.Logger
+	input     InputDriver
+	projector Projector
+	cfg       TownWalkConfig
+	points    []world.Position
+	index     int
 
 	lastMoveAt     time.Time
 	waiting        bool
@@ -51,14 +47,14 @@ type TownWalker struct {
 	lastPos        world.Position
 }
 
-// NewTownWalker wires town walking to input and pathing config.
-func NewTownWalker(log *slog.Logger, in InputDriver, cfg Config) *TownWalker {
+// NewTownRouteWalker creates a walker for one already validated Town graph edge.
+func NewTownRouteWalker(log *slog.Logger, in InputDriver, cfg Config, points []world.Position) *TownWalker {
 	return &TownWalker{
-		log:                   log.With("component", "pathing.town_walk"),
-		input:                 in,
-		projector:             cfg.Projector(),
-		cfg:                   cfg.TownWalk,
-		waypointClickDistance: cfg.Waypoint.MaxClickDistance,
+		log:       log.With("component", "pathing.town_walk"),
+		input:     in,
+		projector: cfg.Projector(),
+		cfg:       cfg.TownWalk,
+		points:    append([]world.Position(nil), points...),
 	}
 }
 
@@ -75,17 +71,17 @@ func (w *TownWalker) Reset() {
 	w.lastPos = world.Position{}
 }
 
-// TickAct1Waypoint advances the force-move route until the town waypoint is visible.
-func (w *TownWalker) TickAct1Waypoint(ctx context.Context, state world.State) TownWalkResult {
+// TickRoute advances a generic Act-1 graph edge and succeeds at its final recorded point.
+func (w *TownWalker) TickRoute(ctx context.Context, state world.State) TownWalkResult {
+	return w.tick(ctx, state)
+}
+
+func (w *TownWalker) tick(ctx context.Context, state world.State) TownWalkResult {
 	if ctx.Err() != nil {
 		return TownWalkResult{Status: TownWalkInputError, Reason: ctx.Err().Error(), Done: true}
 	}
 	if w == nil || w.input == nil {
 		return TownWalkResult{Status: TownWalkInputError, Reason: "town walker not wired", Done: true}
-	}
-	if townWaypointClickable(state, w.waypointClickDistance) {
-		w.Reset()
-		return TownWalkResult{Status: TownWalkWaypointVisible, Done: true}
 	}
 	if !state.Valid || state.Phase != world.GamePhaseInGame {
 		return TownWalkResult{Status: TownWalkPending}
@@ -93,8 +89,8 @@ func (w *TownWalker) TickAct1Waypoint(ctx context.Context, state world.State) To
 	if state.Area.ID != world.RogueEncampment {
 		return TownWalkResult{Status: TownWalkWrongArea, Reason: string(TownWalkWrongArea), Done: true}
 	}
-	if err := w.ensureRoute(); err != nil {
-		return TownWalkResult{Status: TownWalkRouteMissing, Reason: err.Error(), Done: true}
+	if len(w.points) < 2 {
+		return TownWalkResult{Status: TownWalkRouteMissing, Reason: string(TownWalkRouteMissing), Done: true}
 	}
 	if w.index >= len(w.points) {
 		return TownWalkResult{Status: TownWalkRouteExhausted, Reason: string(TownWalkRouteExhausted), Done: true}
@@ -181,36 +177,6 @@ func (w *TownWalker) tickFinalRoutePoint(now time.Time, state world.State) TownW
 	if now.Sub(w.lastProgressAt) < w.cfg.SettleTimeout {
 		return TownWalkResult{Status: TownWalkPending}
 	}
-	return TownWalkResult{Status: TownWalkRouteExhausted, Reason: string(TownWalkRouteExhausted), Done: true}
-}
-
-func townWaypointClickable(state world.State, maxDistance float64) bool {
-	wp, ok := state.NearestObject(world.ObjectKindWaypoint)
-	if !ok {
-		return false
-	}
-	if maxDistance <= 0 {
-		return true
-	}
-	return world.Distance(state.Player.Position, wp.Position) <= maxDistance
-}
-
-func (w *TownWalker) ensureRoute() error {
-	if w.loaded {
-		return nil
-	}
-	w.loaded = true
-	if len(w.cfg.Act1WaypointPoints) > 0 {
-		w.points = append([]world.Position(nil), w.cfg.Act1WaypointPoints...)
-		return nil
-	}
-	if w.cfg.RouteFile == "" {
-		return fmt.Errorf("town route file is required")
-	}
-	points, err := LoadTownRoute(w.cfg.RouteFile)
-	if err != nil {
-		return fmt.Errorf("load town route %q: %w", w.cfg.RouteFile, err)
-	}
-	w.points = points
-	return nil
+	w.Reset()
+	return TownWalkResult{Status: TownWalkArrived, Done: true}
 }

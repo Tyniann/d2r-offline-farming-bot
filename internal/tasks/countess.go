@@ -49,6 +49,7 @@ const (
 	countessStepOpenStash        = "open_personal_stash"
 	countessStepStashItems       = "stash_items"
 	countessStepCloseStash       = "close_personal_stash"
+	countessStepPrepareTown      = "prepare_town_handoff"
 	countessStepComplete         = "complete"
 
 	selectMarshSettleDelay  = 500 * time.Millisecond
@@ -237,6 +238,8 @@ func (c *countessRun) nextStep(current string) string {
 	case countessStepStashItems:
 		return countessStepCloseStash
 	case countessStepCloseStash:
+		return countessStepPrepareTown
+	case countessStepPrepareTown:
 		return countessStepComplete
 	case countessStepComplete:
 		return ""
@@ -355,6 +358,18 @@ func (c *countessRun) onStashPersonalTick(ctx context.Context, deps Deps, step s
 		return stepResult{complete: true}
 	case countessStepOpenStash, countessStepStashItems, countessStepCloseStash:
 		return tickPersonalStashWorkflow(ctx, deps, step, w)
+	case countessStepPrepareTown:
+		if deps.Town == nil {
+			return stepResult{failed: true, reason: "town_preparation_not_wired"}
+		}
+		res := deps.Town.Tick(ctx, w)
+		if !res.Done {
+			return stepResult{}
+		}
+		if res.Status == "complete" {
+			return stepResult{complete: true}
+		}
+		return stepResult{failed: true, reason: res.Reason}
 	case countessStepComplete:
 		return stepResult{complete: true}
 	default:
@@ -435,6 +450,18 @@ func (c *countessRun) onFullRunTick(ctx context.Context, deps Deps, step string,
 		return tickCountessWaitAct1Town(w)
 	case countessStepOpenStash, countessStepStashItems, countessStepCloseStash:
 		return tickPersonalStashWorkflow(ctx, deps, step, w)
+	case countessStepPrepareTown:
+		if deps.Town == nil {
+			return stepResult{failed: true, reason: "town_preparation_not_wired"}
+		}
+		res := deps.Town.Tick(ctx, w)
+		if !res.Done {
+			return stepResult{}
+		}
+		if res.Status == "complete" {
+			return stepResult{complete: true}
+		}
+		return stepResult{failed: true, reason: res.Reason}
 	case countessStepComplete:
 		return stepResult{complete: true}
 	default:

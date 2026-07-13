@@ -7,7 +7,63 @@ Versionierung nach [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-07-13
+
+### Changed
+- Wire the validated Akara restock planner, Town graph, NPC/shop gates, conservative table-derived prices, quantity verification, executor budgets, and run telemetry into the productive post-Countess handoff
+- Replace and live-validate the invalidated Nightmare Countess route with the newly recorded seven-segment `560356…19e37` Black-Marsh layout
+- Remove the obsolete difficulty-selected Act-1 Town walker, recorder, playback command, and runtime wiring; Town movement now accepts only layout-bound graph edges
+- Bind the previously recorded Act-1 service edges to their confirmed right-Waypoint Town fingerprint and Stash origin
+
+### Fixed
+- Preserve the complete Town Portal hover budget until the newly cast portal has a stable Memory identity and position for its observed activation period
+- Wait for a Memory-confirmed stationary period after the force-move stash approach before starting the hover-confirmed click
+- Complete an already executed vendor purchase without recalculating a now-zero missing quantity, allowing the verified shop-close and Akara-to-Waypoint gates to run
+- Expose and live-validate carried and private-stash gold from the player stat list instead of unconditionally aborting Town demand inspection with an unavailable gold source
+- Preserve the game-scoped Act-1 Town layout pin while Stash and Waypoint units are regionally unloaded, wait for confirmed game identity before persisting or restoring it, revalidate it when anchors return, and safely bridge isolated graph-test processes
+- Replace all remaining pre-fix south Town assets with continuous, endpoint-confirmed recordings
+- Re-record the south-layout `akara-cain` edge with eight preserved samples and live-confirmed Cain ID `265`
+- Use live hover-validated Rogue Encampment Cain ID `265` (`cain5`) and remove temporary multi-variant discovery
+- Pin the declared endpoint entity throughout Town recording so a transiently missing NPC in the F11 snapshot can be validated against its last position from the same recording
+- Buffer valid Town positions before the fingerprint becomes observable, clear that buffer across pre-pin invalid states, and bind it once the same Town layout anchors appear
+- Log Town recording rejection reasons structurally instead of exposing them only on stderr
+- Withdraw every unaccepted south-layout service variant recorded before the anchor-unloading fix; retain only separately live-validated edges
+- Re-record the south-layout `stash-akara` edge with all nine detour samples preserved after fixing fingerprint-anchor unloading
+- Continue sampling a pinned Town edge while Stash and Waypoint temporarily leave the enumerated region; revalidate the fingerprint whenever both anchors return and never skip Stop handling
+- Reject Town edge recordings unless the final player position is Memory-confirmed within interaction distance of the declared NPC, Waypoint, or Stash endpoint
+- Re-record and reactivate the south-layout `stash-akara` edge at the confirmed Akara boundary; retain isolated visual acceptance before combined use
+- Withdraw the south-layout `stash-akara` variant after visual acceptance exposed an inconsistent fourteen-tile Akara boundary despite technical graph completion
+- Replace the incompatible migrated `charsi-waypoint` path with a separately recorded edge sharing the confirmed Charsi boundary
+- Disable the incompatible migrated `charsi-waypoint` variant after strict edge composition exposed an eleven-tile Charsi anchor mismatch
+- Allow later Town graph edges to approach their own recorded boundary point after the preceding edge reaches the shared NPC anchor, while retaining strict start confirmation for the first edge
+- Replace the obstructed right-layout `cain-charsi` path with a separately recorded and layout-bound route
+- Disable the right-layout `cain-charsi` variant after live playback exposed an obstructed path; require a separate replacement recording before routing it again
+- Correct Act-1 Town routing to account for the randomly rolled Town preset instead of treating character or difficulty as the route binding
+- Remove unrecorded placeholder edges from the Act-1 service graph so production routing selects only existing route assets
+- Fix dropped back-to-back vendor inputs with a bounded 500 ms settle interval between Phase 9.5 purchases
+- Fix Phase 9.5 vendor purchases blocking on the world-entity hover buffer, which does not reliably expose shop UI items
+
 ### Added
+- Complete and live-validate the Phase 9 central post-Countess flow through portal return, stash, demand-driven Akara restock, verified shop close, Waypoint handoff, and Save & Exit
+- Add and live-validate the complete separately recorded west-exit `4ad7f3…33f30` Town graph variant set
+- Add and live-validate the complete separately recorded north-exit `768769…17381` Town graph variant set
+- Log the raw monster `npc_id` in read-only hover-watch mode for live catalog validation
+- Complete the south-exit `5f6354…60f17` Town graph with separately recorded `stash-waypoint` and `portal-cain` variants
+- Add five separately recorded service-edge variants for the newly observed `(-7,-30)` left-Waypoint Town fingerprint
+- Migrate the read-only confirmed right-Waypoint Town preset to an exact `stash-waypoint` graph variant
+- Migrate the first read-only confirmed left-Waypoint preset to a stash-relative direct `stash-waypoint` graph variant
+- Add Town graph schema v2 with Memory-derived layout fingerprints, exact route variants, layout-bound recording/loading, and fail-closed runtime resolution
+- Add a non-routable `stash-waypoint` recording draft so the direct edge can be captured before production graph activation
+- Add the Phase 9.10 central post-Countess stash-to-waypoint handoff with Memory-confirmed endpoint and a one-run session override for manual acceptance
+- Add Phase 9.9 finite Town plan execution, sticky telemetry safety, reset semantics, and detailed Town JSONL fields
+- Add Phase 9.8 fail-closed repair evidence and one-shot, area-verified hub/Countess waypoint transfer contracts
+- Add Phase 9.7 protected item-service planning with UnitID-pinned identify/sell actions and finite state/location verification
+- Add Phase 9.6 threshold-triggered restock orders with gold gates, one-shot bulk mode, bounded single-buy fallback, and finite quantity verification
+- Add fail-closed Phase 9.0 Town contracts, normalization phases, reason codes, and execution budgets
+- Add read-only Town research, validated central-hub and egress configuration, demand planning, and selective edge-based Town graph routing for Phase 9.1–9.4
+- Record and live-validate the central Act-1 service graph through Stash, Akara, Cain, Charsi, and Waypoint
+- Add and live-validate Phase 9.5 UnitID-pinned Town NPC interaction, Memory-confirmed dialog/shop and vendor-item gates, and atomic bulk/single purchase primitives
+
 - Pick up Rejuvenation Potions as Countess loot because Town vendors cannot replenish them
 - Add the detailed Phase 9 implementation plan for act-aware, demand-driven Town Services with three combined manual gates
 - Complete and live-validate Phase 8.7 with visible Bone Armor and Bone Prison casts in one autonomous Countess cycle
@@ -80,6 +136,7 @@ Versionierung nach [Semantic Versioning](https://semver.org/).
 - Add Phase 5.0 loot and recovery concept documentation covering Ground-Loot, Pickit, Inventory-Lock, Stash safety, and recovery slices
 
 ### Changed
+- Treat the Act-1 spawn as a navigation-free stash alias in the Town service graph
 - Use combat-profile belt assignments, configurable restock thresholds, Shift-right-click bulk refill, and single-buy fallback for incomplete layouts in the Phase 9 plan
 - Exclude Rejuvenation buying, crafting, and 99-slot stash withdrawal from Phase 9 Town replenishment
 - Simplify Phase 9 to one central Act-1 stash/service hub with minimal per-act waypoint egress adapters and next-run handoff

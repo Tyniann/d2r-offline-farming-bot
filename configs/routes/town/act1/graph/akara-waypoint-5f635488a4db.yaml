@@ -1,0 +1,30 @@
+id: akara-waypoint
+area_id: 1
+created_at: 2026-07-12T23:29:18.4201512Z
+sample_distance_tiles: 8
+layout_fingerprint: 5f635488a4db0cfc55a500d3ca392f7d63c9a256581cf292c352efd0e7a60f17
+layout_origin_x: 5806
+layout_origin_y: 4724
+points:
+    - x: 5870
+      "y": 4706
+    - x: 5862
+      "y": 4708
+    - x: 5854
+      "y": 4713
+    - x: 5847
+      "y": 4718
+    - x: 5838
+      "y": 4718
+    - x: 5829
+      "y": 4716
+    - x: 5821
+      "y": 4716
+    - x: 5813
+      "y": 4714
+    - x: 5807
+      "y": 4707
+    - x: 5800
+      "y": 4700
+    - x: 5799
+      "y": 4699

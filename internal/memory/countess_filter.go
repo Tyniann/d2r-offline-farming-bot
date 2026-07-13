@@ -17,6 +17,18 @@ func IsCountessMonsterCandidate(_ uint32, monsterTypeFlag uint8) bool {
 	return monsterTypeFlag == SuperUniqueMonsterFlag
 }
 
+// IsRuntimeMonsterCandidate reports whether a living unit is required by current run or Town features.
+func IsRuntimeMonsterCandidate(id uint32, monsterTypeFlag uint8) bool {
+	if IsCountessMonsterCandidate(id, monsterTypeFlag) {
+		return true
+	}
+	switch id {
+	case 148, 154, 265:
+		return true
+	}
+	return false
+}
+
 // IsCountessTowerNPCID reports tower-area trash monster NPC ids (Forgotten Tower cellars).
 func IsCountessTowerNPCID(id uint32) bool {
 	switch id {

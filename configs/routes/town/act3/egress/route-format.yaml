@@ -1,0 +1,4 @@
+act: act3
+area: kurast_docks
+route_id: act3-egress
+anchors: [portal_arrival, waypoint]

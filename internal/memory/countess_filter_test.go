@@ -14,6 +14,17 @@ func TestCountessMonsterCandidate(t *testing.T) {
 	}
 }
 
+func TestRuntimeMonsterCandidateIncludesAct1TownNPCs(t *testing.T) {
+	for _, id := range []uint32{148, 154, 265} {
+		if !IsRuntimeMonsterCandidate(id, 0) {
+			t.Fatalf("town NPC %d should match", id)
+		}
+	}
+	if IsRuntimeMonsterCandidate(149, 0) {
+		t.Fatal("unregistered normal monster should not match")
+	}
+}
+
 func TestCountessTowerNPCIDs(t *testing.T) {
 	for _, id := range []uint32{43, 44, 45, 46, 47} {
 		if !IsCountessTowerNPCID(id) {

@@ -18,28 +18,32 @@ const (
 
 // Snapshot is a read-only player and entity state sample for probing.
 type Snapshot struct {
-	At           time.Time
-	Valid        bool
-	Reason       string
-	Phase        GamePhase
-	PlayerPtr    uintptr
-	PlayerUnitID uint32
-	StatsSource  string // `base` or `active`, identifying the stat list used for vitals.
-	HP           uint32
-	MaxHP        uint32
-	Mana         uint32
-	MaxMana      uint32
-	AreaID       uint32
-	PosX         uint32
-	PosY         uint32
-	Objects      []ObjectUnit
-	Entrances    []EntranceUnit
-	Monsters     []MonsterUnit
-	Items        []ItemUnit
-	PlayerSkills PlayerSkills
-	Hover        HoverState
-	UI           UIState
-	Identity     IdentityProbe
+	At                    time.Time
+	Valid                 bool
+	Reason                string
+	Phase                 GamePhase
+	PlayerPtr             uintptr
+	PlayerUnitID          uint32
+	StatsSource           string // `base` or `active`, identifying the stat list used for vitals.
+	HP                    uint32
+	MaxHP                 uint32
+	Mana                  uint32
+	MaxMana               uint32
+	Gold                  uint32
+	PrivateStashGold      uint32
+	GoldKnown             bool
+	PrivateStashGoldKnown bool
+	AreaID                uint32
+	PosX                  uint32
+	PosY                  uint32
+	Objects               []ObjectUnit
+	Entrances             []EntranceUnit
+	Monsters              []MonsterUnit
+	Items                 []ItemUnit
+	PlayerSkills          PlayerSkills
+	Hover                 HoverState
+	UI                    UIState
+	Identity              IdentityProbe
 }
 
 // ProbeReader resolves the main player via the unit table and reads vital stats.
@@ -254,22 +258,34 @@ func (p *ProbeReader) Snapshot() Snapshot {
 		return invalidSnapshotWithUI(now, phase, ReasonStatsUnavailable, ui)
 	}
 	vitals = p.normalizeVitalStats(playerPtr, vitals)
+	statsHeader := uintptr(statsListEx) + off.Unit.StatsListBase
+	if statsSource == "active" {
+		statsHeader = uintptr(statsListEx) + off.Unit.StatsListActive
+	}
+	gold, goldErr := parseGoldStats(p.reader, statsHeader, off.Stats)
+	if goldErr != nil {
+		p.reader.log.Debug("player gold stats unavailable", "stats_source", statsSource, "error", goldErr)
+	}
 
 	snap := Snapshot{
-		At:           now,
-		Valid:        true,
-		Phase:        phase,
-		PlayerPtr:    playerPtr,
-		PlayerUnitID: playerUnitID,
-		StatsSource:  statsSource,
-		HP:           vitals.HP,
-		MaxHP:        vitals.MaxHP,
-		Mana:         vitals.Mana,
-		MaxMana:      vitals.MaxMana,
-		AreaID:       areaID,
-		PosX:         posX,
-		PosY:         posY,
-		UI:           ui,
+		At:                    now,
+		Valid:                 true,
+		Phase:                 phase,
+		PlayerPtr:             playerPtr,
+		PlayerUnitID:          playerUnitID,
+		StatsSource:           statsSource,
+		HP:                    vitals.HP,
+		MaxHP:                 vitals.MaxHP,
+		Mana:                  vitals.Mana,
+		MaxMana:               vitals.MaxMana,
+		Gold:                  gold.Carried,
+		PrivateStashGold:      gold.PrivateStash,
+		GoldKnown:             gold.CarriedKnown,
+		PrivateStashGoldKnown: gold.StashKnown,
+		AreaID:                areaID,
+		PosX:                  posX,
+		PosY:                  posY,
+		UI:                    ui,
 	}
 
 	// Step 4: entities and hover only when Valid && Phase == in_game.

@@ -72,6 +72,10 @@ const (
 	ResourceConsumptionConfirmed EventName = "resource_consumption_confirmed"
 	// ProfileActionFailed records a stable profile failure reason.
 	ProfileActionFailed EventName = "profile_action_failed"
+	// TownAction records one real preparation input and its decision context.
+	TownAction EventName = "town_action"
+	// TownStepCompleted records one verified preparation step.
+	TownStepCompleted EventName = "town_step_completed"
 )
 
 // Event is one JSONL record. Zero-valued optional fields are omitted.
@@ -128,6 +132,16 @@ type Event struct {
 	ThresholdPercent      uint8     `json:"threshold_percent,omitempty"`
 	BeltSlot              int       `json:"belt_slot,omitempty"`
 	Confirmed             bool      `json:"confirmed,omitempty"`
+	TownStep              *int      `json:"town_step,omitempty"`
+	TownKind              string    `json:"town_kind,omitempty"`
+	TownService           string    `json:"town_service,omitempty"`
+	CurrentCount          *int      `json:"current_count,omitempty"`
+	TriggerThreshold      *int      `json:"trigger_threshold,omitempty"`
+	BeltSlots             []int     `json:"belt_slots,omitempty"`
+	PurchaseMode          string    `json:"purchase_mode,omitempty"`
+	Vendor                string    `json:"vendor,omitempty"`
+	Cost                  *int      `json:"cost,omitempty"`
+	VerifiedFinalCount    *int      `json:"verified_final_count,omitempty"`
 }
 
 type flushWriter interface {

@@ -23,6 +23,20 @@ type Deps struct {
 	Loot     LootActions
 	Route    RoutePlayback
 	Profile  ProfileActions
+	Town     TownPreparationActions
+}
+
+// TownPreparationActions executes the central post-run preparation handoff.
+type TownPreparationActions interface {
+	Tick(context.Context, world.State) TownPreparationResult
+	Reset()
+}
+
+// TownPreparationResult reports the verified central Town endpoint.
+type TownPreparationResult struct {
+	Status string
+	Reason string
+	Done   bool
 }
 
 // ProfileActions evaluates class-gated hooks and prioritized in-run resources.

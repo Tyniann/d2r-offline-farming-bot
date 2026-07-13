@@ -139,8 +139,14 @@ func (r *Runner) Reset(reason string) {
 	if r.deps.Loot != nil {
 		r.deps.Loot.Reset()
 	}
+	if r.deps.Town != nil {
+		r.deps.Town.Reset()
+	}
 	if r.deps.Profile != nil {
 		r.deps.Profile.Reset()
+	}
+	if r.deps.Town != nil {
+		r.deps.Town.Reset()
 	}
 	r.log.Info("task run reset", "run", r.selection.Run, "phase", r.selection.Phase, "reason", reason)
 }
@@ -297,8 +303,8 @@ func (r *Runner) finishStepComplete(now time.Time) TickResult {
 		logArgs = append(logArgs, "elapsed_ms", r.tracker.elapsed(now).Milliseconds())
 	}
 	r.log.Info("task step complete", logArgs...)
-	if r.selection.Run == "countess" && r.selection.Phase == "" && step == countessStepCloseStash {
-		r.log.Info("countess run complete", "run", r.selection.Run, "step", countessStepComplete, "completion", "personal_stash_complete")
+	if r.selection.Run == "countess" && r.selection.Phase == "" && step == countessStepPrepareTown {
+		r.log.Info("countess run complete", "run", r.selection.Run, "step", countessStepComplete, "completion", "central_town_prepared", "next_run", "countess")
 	}
 	if step == countessStepPickLoot && r.deps.Loot != nil {
 		r.deps.Loot.Reset()

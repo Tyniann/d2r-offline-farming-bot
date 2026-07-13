@@ -39,9 +39,8 @@ func TestPathingConfigDefaults(t *testing.T) {
 	if cfg.WaypointUI.BlackMarshX != 200 || cfg.WaypointUI.BlackMarshY != 342 {
 		t.Fatalf("WaypointUI = %+v, want 200/342", cfg.WaypointUI)
 	}
-	if cfg.TownWalk.ForceMoveKey != "e" || cfg.TownWalk.Difficulty != "normal" ||
-		cfg.TownWalk.SelectedRouteFile() != "configs/routes/town/act1/waypoint/normal.yaml" {
-		t.Fatalf("TownWalk key/difficulty/route = %+v, want e/normal/default route", cfg.TownWalk)
+	if cfg.TownWalk.ForceMoveKey != "e" {
+		t.Fatalf("TownWalk key = %+v, want e", cfg.TownWalk)
 	}
 	if cfg.TownWalk.MoveIntervalMs != 650 || cfg.TownWalk.SettleTimeoutMs != 350 ||
 		cfg.TownWalk.StuckTimeoutMs != 3500 || cfg.TownWalk.ArrivalDistance != 8 {
@@ -86,16 +85,11 @@ func TestPathingConfigValidateRejectsInvalid(t *testing.T) {
 		{"zero portal click distance", func(c *PathingConfig) { c.TownPortal.MaxClickDistance = 0 }},
 		{"negative waypoint ui x", func(c *PathingConfig) { c.WaypointUI.BlackMarshX = -1 }},
 		{"negative waypoint ui y", func(c *PathingConfig) { c.WaypointUI.BlackMarshY = -1 }},
-		{"unsupported town difficulty", func(c *PathingConfig) { c.TownWalk.Difficulty = "invalid" }},
-		{"missing selected town route", func(c *PathingConfig) { c.TownWalk.Routes.Normal = "" }},
 		{"invalid force move key", func(c *PathingConfig) { c.TownWalk.ForceMoveKey = "mouse4" }},
 		{"zero town move interval", func(c *PathingConfig) { c.TownWalk.MoveIntervalMs = 0 }},
 		{"zero town settle timeout", func(c *PathingConfig) { c.TownWalk.SettleTimeoutMs = 0 }},
 		{"zero town stuck timeout", func(c *PathingConfig) { c.TownWalk.StuckTimeoutMs = 0 }},
 		{"zero town arrival distance", func(c *PathingConfig) { c.TownWalk.ArrivalDistance = 0 }},
-		{"zero town point coordinate", func(c *PathingConfig) {
-			c.TownWalk.Act1WaypointPoints = []PathingPointConfig{{X: 0, Y: 1}}
-		}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -106,19 +100,5 @@ func TestPathingConfigValidateRejectsInvalid(t *testing.T) {
 				t.Fatalf("validate() expected error for %s", tc.name)
 			}
 		})
-	}
-}
-
-func TestPathingTownWalkConfigSelectsDifficultyRoute(t *testing.T) {
-	cfg := PathingTownWalkConfig{
-		Difficulty: "hell",
-		Routes: PathingTownWalkRoutesConfig{
-			Normal:    "normal.yaml",
-			Nightmare: "nightmare.yaml",
-			Hell:      "hell.yaml",
-		},
-	}
-	if got := cfg.SelectedRouteFile(); got != "hell.yaml" {
-		t.Fatalf("SelectedRouteFile() = %q, want hell.yaml", got)
 	}
 }

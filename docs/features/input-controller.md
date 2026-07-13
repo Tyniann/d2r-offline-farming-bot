@@ -49,7 +49,7 @@ Echte OS-Eingaben sind standardmäßig deaktiviert (`input.enabled: false`). Glo
 - Erfolgreiche Aktionen: strukturiertes Log `input action` mit `kind`, `action`, `reason`, `allowed=true`.
 - Windows-Backend: `SendInput` über User32/LazyDLL, ohne CGO.
 
-**Unterstützte Keys:** `0`–`9`, `a`–`z`, `f1`–`f12`, `shift`/`ctrl`/`alt` (linke VKs), `esc`, `enter`, `space`, `tab`, `pause`, `,`, `.`, `-`, `]`. Aliase wie `control` oder `lctrl` sind ungültig.
+**Unterstützte Keys:** `0`–`9`, `a`–`z`, `f1`–`f12`, `shift`/`ctrl`/`alt` (linke VKs), `esc`, `enter`, `home`, `down`, `space`, `tab`, `pause`, `,`, `.`, `-`, `]`. Aliase wie `control` oder `lctrl` sind ungültig.
 
 ### Mouse Primitives (Phase 3.3)
 

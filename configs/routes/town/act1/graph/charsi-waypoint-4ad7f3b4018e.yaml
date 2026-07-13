@@ -1,0 +1,30 @@
+id: charsi-waypoint
+area_id: 1
+created_at: 2026-07-13T11:58:14.3624868Z
+sample_distance_tiles: 8
+layout_fingerprint: 4ad7f3b4018ecb39ef311d808dcf0b0b9b5991d8b548b8d3ac1688a657c33f30
+layout_origin_x: 4856
+layout_origin_y: 4574
+points:
+    - x: 4827
+      "y": 4561
+    - x: 4836
+      "y": 4558
+    - x: 4845
+      "y": 4559
+    - x: 4854
+      "y": 4560
+    - x: 4863
+      "y": 4563
+    - x: 4871
+      "y": 4567
+    - x: 4880
+      "y": 4568
+    - x: 4888
+      "y": 4566
+    - x: 4892
+      "y": 4558
+    - x: 4886
+      "y": 4552
+    - x: 4885
+      "y": 4552

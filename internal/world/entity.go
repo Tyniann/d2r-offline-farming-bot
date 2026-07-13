@@ -72,6 +72,36 @@ func (s State) FindSuperUnique(npcID uint32) (Monster, bool) {
 	return best, found
 }
 
+// FindNPC returns the nearest entity with the requested stable NPC ID.
+func (s State) FindNPC(npcID uint32) (Monster, bool) {
+	if !s.Valid {
+		return Monster{}, false
+	}
+	var best Monster
+	bestDistance := 0.0
+	found := false
+	for _, monster := range s.Monsters {
+		if monster.NPCID != npcID {
+			continue
+		}
+		distance := distanceSquared(s.Player.Position, monster.Position)
+		if !found || distance < bestDistance {
+			best, bestDistance, found = monster, distance, true
+		}
+	}
+	return best, found
+}
+
+// FindMonsterByUnitID returns the currently enumerated monster with unitID.
+func (s State) FindMonsterByUnitID(unitID uint32) (Monster, bool) {
+	for _, monster := range s.Monsters {
+		if monster.UnitID == unitID {
+			return monster, true
+		}
+	}
+	return Monster{}, false
+}
+
 func distanceSquared(a, b Position) float64 {
 	dx := float64(a.X) - float64(b.X)
 	dy := float64(a.Y) - float64(b.Y)

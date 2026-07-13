@@ -83,7 +83,7 @@ func (m *offlineExitMachine) tick(now time.Time, state world.State) (offlineExit
 			m.stableTicks = 0
 			return offlineExitNoAction, false, nil
 		}
-		if state.UI.InventoryOpen || state.UI.StashOpen {
+		if state.UI.InventoryOpen || state.UI.NPCInteractOpen || state.UI.NPCShopOpen || state.UI.StashOpen {
 			return offlineExitNoAction, false, fmt.Errorf("offline exit blocked by open inventory or stash")
 		}
 		if state.UI.QuitMenuOpen {
@@ -107,7 +107,7 @@ func (m *offlineExitMachine) tick(now time.Time, state world.State) (offlineExit
 		if state.Phase != world.GamePhaseInGame || state.Area.ID != world.RogueEncampment {
 			return offlineExitNoAction, false, fmt.Errorf("offline exit context changed before quit menu confirmation")
 		}
-		if state.UI.InventoryOpen || state.UI.StashOpen {
+		if state.UI.InventoryOpen || state.UI.NPCInteractOpen || state.UI.NPCShopOpen || state.UI.StashOpen {
 			return offlineExitNoAction, false, fmt.Errorf("offline exit blocked by open inventory or stash")
 		}
 		if !state.UI.QuitMenuOpen {

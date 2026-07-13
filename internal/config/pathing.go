@@ -68,42 +68,13 @@ type PathingWaypointUIConfig struct {
 }
 
 // PathingPointConfig is a YAML world-coordinate point.
-type PathingPointConfig struct {
-	X uint32 `yaml:"x"`
-	Y uint32 `yaml:"y"`
-}
-
-// PathingTownWalkConfig tunes Act-1 town walking to the waypoint.
+// PathingTownWalkConfig tunes layout-bound Act-1 graph-edge walking.
 type PathingTownWalkConfig struct {
-	Difficulty         string                      `yaml:"difficulty"`
-	Routes             PathingTownWalkRoutesConfig `yaml:"routes"`
-	ForceMoveKey       string                      `yaml:"force_move_key"`
-	MoveIntervalMs     int                         `yaml:"move_interval_ms"`
-	SettleTimeoutMs    int                         `yaml:"settle_timeout_ms"`
-	StuckTimeoutMs     int                         `yaml:"stuck_timeout_ms"`
-	ArrivalDistance    float64                     `yaml:"arrival_distance_tiles"`
-	Act1WaypointPoints []PathingPointConfig        `yaml:"act1_waypoint_points"`
-}
-
-// PathingTownWalkRoutesConfig maps each offline difficulty to its recorded Act-1 town route.
-type PathingTownWalkRoutesConfig struct {
-	Normal    string `yaml:"normal"`
-	Nightmare string `yaml:"nightmare"`
-	Hell      string `yaml:"hell"`
-}
-
-// SelectedRouteFile returns the configured route file for the selected difficulty.
-func (c PathingTownWalkConfig) SelectedRouteFile() string {
-	switch c.Difficulty {
-	case "normal":
-		return c.Routes.Normal
-	case "nightmare":
-		return c.Routes.Nightmare
-	case "hell":
-		return c.Routes.Hell
-	default:
-		return ""
-	}
+	ForceMoveKey    string  `yaml:"force_move_key"`
+	MoveIntervalMs  int     `yaml:"move_interval_ms"`
+	SettleTimeoutMs int     `yaml:"settle_timeout_ms"`
+	StuckTimeoutMs  int     `yaml:"stuck_timeout_ms"`
+	ArrivalDistance float64 `yaml:"arrival_distance_tiles"`
 }
 
 // UnmarshalYAML records whether the pathing section was present.
@@ -168,12 +139,6 @@ func (c *PathingConfig) validate() error {
 	if c.WaypointUI.BlackMarshX < 0 || c.WaypointUI.BlackMarshY < 0 {
 		return fmt.Errorf("pathing.waypoint_ui.black_marsh_x/y must be >= 0")
 	}
-	if c.TownWalk.Difficulty != "normal" && c.TownWalk.Difficulty != "nightmare" && c.TownWalk.Difficulty != "hell" {
-		return fmt.Errorf("pathing.town_walk.difficulty must be normal, nightmare, or hell")
-	}
-	if c.TownWalk.SelectedRouteFile() == "" {
-		return fmt.Errorf("pathing.town_walk.routes.%s is required", c.TownWalk.Difficulty)
-	}
 	if c.TownWalk.ForceMoveKey == "" {
 		return fmt.Errorf("pathing.town_walk.force_move_key is required")
 	}
@@ -191,11 +156,6 @@ func (c *PathingConfig) validate() error {
 	}
 	if c.TownWalk.ArrivalDistance <= 0 {
 		return fmt.Errorf("pathing.town_walk.arrival_distance_tiles must be > 0")
-	}
-	for i, p := range c.TownWalk.Act1WaypointPoints {
-		if p.X == 0 || p.Y == 0 {
-			return fmt.Errorf("pathing.town_walk.act1_waypoint_points[%d] x/y must be > 0", i)
-		}
 	}
 	return nil
 }
@@ -257,18 +217,6 @@ func (c *PathingConfig) applyDefaults() {
 	}
 	if c.WaypointUI.BlackMarshY == 0 {
 		c.WaypointUI.BlackMarshY = 342
-	}
-	if c.TownWalk.Difficulty == "" {
-		c.TownWalk.Difficulty = "normal"
-	}
-	if c.TownWalk.Routes.Normal == "" {
-		c.TownWalk.Routes.Normal = "configs/routes/town/act1/waypoint/normal.yaml"
-	}
-	if c.TownWalk.Routes.Nightmare == "" {
-		c.TownWalk.Routes.Nightmare = "configs/routes/town/act1/waypoint/nightmare.yaml"
-	}
-	if c.TownWalk.Routes.Hell == "" {
-		c.TownWalk.Routes.Hell = "configs/routes/town/act1/waypoint/hell.yaml"
 	}
 	if c.TownWalk.ForceMoveKey == "" {
 		c.TownWalk.ForceMoveKey = "e"

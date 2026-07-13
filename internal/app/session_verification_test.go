@@ -69,7 +69,7 @@ func TestSessionGameVerifierRejectsWrongContextBeforeRun(t *testing.T) {
 }
 
 func TestVerifySessionRouteStartRejectsFreshLayoutMismatch(t *testing.T) {
-	route, err := pathing.LoadRoute("../../configs/routes/farming/mrbones/nightmare/black-marsh-cellar5.yaml")
+	route, err := pathing.LoadRoute("../../configs/routes/farming/mrbones/nightmare/black-marsh-cellar5-nightmare-mrbones.yaml")
 	if err != nil {
 		t.Fatal(err)
 	}

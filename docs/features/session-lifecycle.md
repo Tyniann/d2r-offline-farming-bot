@@ -150,7 +150,7 @@ session:
 | `exit_timeout_ms` | Positive Gesamtfrist für den validierten Exit-Flow. |
 | `start_timeout_ms` | Positive Gesamtfrist für Auswahl, Loading und In-Game-Bestätigung. |
 
-`max_runs` und `max_duration_ms` sind beide erforderlich; die zuerst erreichte Grenze beendet die Session planmäßig. Der MVP kennt keinen Wert für „unbegrenzt“. Alle Werte werden vor Prozess-Attach und Input validiert. CLI-`--run` und `runs.active` bleiben Single-Run-Auswahl; der spätere Session-Modus erhält ein explizites, gegenseitig exklusives Opt-in.
+`max_runs` und `max_duration_ms` sind beide erforderlich; die zuerst erreichte Grenze beendet die Session planmäßig. Der MVP kennt keinen Wert für „unbegrenzt“. Alle Werte werden vor Prozess-Attach und Input validiert. CLI-`--run` und `runs.active` bleiben Single-Run-Auswahl; der spätere Session-Modus erhält ein explizites, gegenseitig exklusives Opt-in. `--session-max-runs N` überschreibt bei positivem `N` nur für den aktuellen Prozess die endliche Session-Anzahl; das Phase-9-Gate verwendet `--session-max-runs 1`, ohne die lokale YAML zu verändern.
 
 ## Budget-Semantik
 

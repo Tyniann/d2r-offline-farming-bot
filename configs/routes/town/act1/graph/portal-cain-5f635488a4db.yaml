@@ -1,0 +1,14 @@
+id: portal-cain
+area_id: 1
+created_at: 2026-07-12T23:29:45.6118799Z
+sample_distance_tiles: 8
+layout_fingerprint: 5f635488a4db0cfc55a500d3ca392f7d63c9a256581cf292c352efd0e7a60f17
+layout_origin_x: 5806
+layout_origin_y: 4724
+points:
+    - x: 5833
+      "y": 4758
+    - x: 5830
+      "y": 4749
+    - x: 5827
+      "y": 4741

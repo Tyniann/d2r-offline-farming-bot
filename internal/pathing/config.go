@@ -3,8 +3,6 @@ package pathing
 import (
 	"fmt"
 	"time"
-
-	"github.com/Tyniann/d2r-offline-farming-bot/internal/world"
 )
 
 // Config holds tuning parameters for the navigator, projection, entity clicks,
@@ -80,10 +78,8 @@ type WaypointUIConfig struct {
 	BlackMarshY int
 }
 
-// TownWalkConfig tunes force-move walking inside Rogue Encampment.
+// TownWalkConfig tunes force-move playback of validated Town graph edges.
 type TownWalkConfig struct {
-	// RouteFile is the optional recorded override path.
-	RouteFile string
 	// ForceMoveKey is the in-game Force Move key, usually "e".
 	ForceMoveKey string
 	// MoveInterval is the minimum delay between Force Move clicks.
@@ -94,8 +90,6 @@ type TownWalkConfig struct {
 	StuckTimeout time.Duration
 	// ArrivalDistance is the tile distance that satisfies a route point.
 	ArrivalDistance float64
-	// Act1WaypointPoints optionally overrides the built-in Act-1 preset route.
-	Act1WaypointPoints []world.Position
 }
 
 // DefaultConfig returns Phase 4.3 defaults matching configs/config.example.yaml.
@@ -133,7 +127,6 @@ func DefaultConfig() Config {
 			BlackMarshY: 342,
 		},
 		TownWalk: TownWalkConfig{
-			RouteFile:       "configs/routes/town/act1/waypoint/normal.yaml",
 			ForceMoveKey:    "e",
 			MoveInterval:    650 * time.Millisecond,
 			SettleTimeout:   350 * time.Millisecond,
@@ -193,9 +186,6 @@ func (c Config) Validate() error {
 	}
 	if c.WaypointUI.BlackMarshX < 0 || c.WaypointUI.BlackMarshY < 0 {
 		return fmt.Errorf("pathing.waypoint_ui.black_marsh_x/y must be >= 0")
-	}
-	if c.TownWalk.RouteFile == "" {
-		return fmt.Errorf("pathing.town_walk.route_file is required")
 	}
 	if c.TownWalk.ForceMoveKey == "" {
 		return fmt.Errorf("pathing.town_walk.force_move_key is required")

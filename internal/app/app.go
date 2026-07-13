@@ -20,6 +20,7 @@ import (
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/profile"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/tasks"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/telemetry"
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/town"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/version"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/world"
 )
@@ -40,7 +41,6 @@ type Runtime struct {
 	Bindings         configBindingSource
 	Tasks            *tasks.Runner
 	Pathing          *pathing.Navigator
-	TownWalk         *pathing.TownWalker
 	Loot             *loot.Filter
 	Telemetry        *telemetry.Recorder
 	Profile          *profile.Executor
@@ -52,6 +52,8 @@ type Runtime struct {
 	sessionSelection tasks.RunSelection
 	routePlayback    *routePlaybackAdapter
 	lootActions      *lootActionsAdapter
+	townLayout       *townLayoutPin
+	townTelemetry    *townTelemetryRelay
 }
 
 // New builds a Runtime from config and CLI/runtime options.
@@ -134,8 +136,19 @@ func New(cfg *config.Config, opts Options) (rt *Runtime, err error) {
 	})
 	waypoints := pathing.NewWaypointActions(log, inputCtrl, pathingCfg)
 	townPortals := pathing.NewTownPortalActions(log, inputCtrl, pathingCfg)
-	townWalker := pathing.NewTownWalker(log, inputCtrl, pathingCfg)
 	personalStash := pathing.NewPersonalStashActions(log, inputCtrl, pathingCfg)
+	townLayout := &townLayoutPin{}
+	townTrace := &townTelemetryRelay{}
+	townPreparation, err := newTownPreparationAdapter(log, inputCtrl, pathingCfg, cfg, townLayout, townTrace, true)
+	if err != nil {
+		return nil, err
+	}
+	townStartAdapter, err := newTownPreparationAdapter(log, inputCtrl, pathingCfg, cfg, townLayout, townTrace, false)
+	if err != nil {
+		return nil, err
+	}
+	townStartAdapter.thresholds = town.Thresholds{}
+	layoutTownWalker := &layoutTownWaypointWalker{adapter: townStartAdapter}
 	runCfg := mapRunConfig(cfg.Runs)
 	combat := newCombatAdapter(log, inputCtrl, bindings, pathingCfg, runCfg.CountessCombat.AttackInterval)
 	runActions := newRunActionsAdapter(log, inputCtrl, bindings)
@@ -163,6 +176,7 @@ func New(cfg *config.Config, opts Options) (rt *Runtime, err error) {
 		}
 		log.Info("run telemetry enabled", "run_id", runTelemetry.RunID(), "path", runTelemetry.Path())
 		profileTrace.setTelemetry(runTelemetry)
+		townTrace.setTelemetry(runTelemetry)
 	}
 	lootFilter := loot.NewFilter(log, inventoryLock, pickit)
 	stashExecutor, err := loot.NewStashExecutor(log, lootFilter, inputCtrl, mapLootStashConfig(cfg.Loot.Stash))
@@ -172,8 +186,8 @@ func New(cfg *config.Config, opts Options) (rt *Runtime, err error) {
 	lootActions := newLootActionsAdapter(log, lootFilter, cfg.Loot.Pickup, inputCtrl, pathingCfg, stashExecutor, runTelemetry)
 	routePlayback := newRoutePlaybackAdapter(log, cfg.ResolvePath(cfg.Routes.Directory), expectedVersion, nav, runTelemetry)
 	taskDeps := tasks.Deps{
-		Input: inputCtrl, Pathing: nav, Waypoint: waypoints, Portal: townPortals, TownWalk: townWalker,
-		Stash: personalStash, Combat: combat, Actions: runActions, Loot: lootActions, Route: routePlayback, Profile: profileExecutor,
+		Input: inputCtrl, Pathing: nav, Waypoint: waypoints, Portal: townPortals, TownWalk: layoutTownWalker,
+		Stash: personalStash, Combat: combat, Actions: runActions, Loot: lootActions, Route: routePlayback, Profile: profileExecutor, Town: townPreparation,
 	}
 
 	probe := memory.NewProbeReader(mem, offsetSet)
@@ -193,7 +207,6 @@ func New(cfg *config.Config, opts Options) (rt *Runtime, err error) {
 		Bindings:         bindings,
 		Tasks:            tasks.NewRunner(log, runSelection, runCfg, taskDeps),
 		Pathing:          nav,
-		TownWalk:         townWalker,
 		Loot:             lootFilter,
 		Telemetry:        runTelemetry,
 		Profile:          profileExecutor,
@@ -203,13 +216,17 @@ func New(cfg *config.Config, opts Options) (rt *Runtime, err error) {
 		sessionSelection: tasks.RunSelection{Run: cfg.Session.Run},
 		routePlayback:    routePlayback,
 		lootActions:      lootActions,
+		townLayout:       townLayout,
+		townTelemetry:    townTrace,
 	}
 	rt.sessionReset = sessionResetBarrier{
 		components: []sessionNamedResetter{
+			{name: "town_layout", resetter: townLayout},
 			{name: "navigator", resetter: nav},
 			{name: "waypoint", resetter: waypoints},
+			{name: "town_preparation", resetter: townPreparation},
+			{name: "town_start_layout", resetter: layoutTownWalker},
 			{name: "town_portal", resetter: townPortals},
-			{name: "town_walk", resetter: townWalker},
 			{name: "personal_stash", resetter: personalStash},
 			{name: "combat", resetter: combat},
 			{name: "loot", resetter: lootActions},
@@ -251,6 +268,9 @@ func (rt *Runtime) CloseLog() error {
 	if rt.Telemetry != nil {
 		telemetryErr = rt.Telemetry.Close()
 		rt.Telemetry = nil
+		if rt.townTelemetry != nil {
+			rt.townTelemetry.setTelemetry(nil)
+		}
 		if rt.profileTelemetry != nil {
 			rt.profileTelemetry.setTelemetry(nil)
 		}

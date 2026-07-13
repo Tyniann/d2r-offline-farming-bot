@@ -36,18 +36,11 @@ func TestMapPathingConfigMapsWaypointSettings(t *testing.T) {
 			BlackMarshY: 343,
 		},
 		TownWalk: config.PathingTownWalkConfig{
-			Difficulty: "nightmare",
-			Routes: config.PathingTownWalkRoutesConfig{
-				Normal:    "configs/routes/normal.yaml",
-				Nightmare: "configs/routes/custom.yaml",
-				Hell:      "configs/routes/hell.yaml",
-			},
-			ForceMoveKey:       "e",
-			MoveIntervalMs:     651,
-			SettleTimeoutMs:    351,
-			StuckTimeoutMs:     3501,
-			ArrivalDistance:    9,
-			Act1WaypointPoints: []config.PathingPointConfig{{X: 1, Y: 2}, {X: 3, Y: 4}},
+			ForceMoveKey:    "e",
+			MoveIntervalMs:  651,
+			SettleTimeoutMs: 351,
+			StuckTimeoutMs:  3501,
+			ArrivalDistance: 9,
 		},
 	}
 
@@ -58,11 +51,10 @@ func TestMapPathingConfigMapsWaypointSettings(t *testing.T) {
 	if got.WaypointUI.BlackMarshX != 201 || got.WaypointUI.BlackMarshY != 343 {
 		t.Fatalf("WaypointUI = %+v, want 201/343", got.WaypointUI)
 	}
-	if got.TownWalk.RouteFile != "configs/routes/custom.yaml" || got.TownWalk.ForceMoveKey != "e" {
-		t.Fatalf("TownWalk key/route = %+v", got.TownWalk)
+	if got.TownWalk.ForceMoveKey != "e" {
+		t.Fatalf("TownWalk key = %+v", got.TownWalk)
 	}
-	if got.TownWalk.ArrivalDistance != 9 || len(got.TownWalk.Act1WaypointPoints) != 2 ||
-		got.TownWalk.Act1WaypointPoints[0].X != 1 || got.TownWalk.Act1WaypointPoints[1].Y != 4 {
+	if got.TownWalk.ArrivalDistance != 9 {
 		t.Fatalf("TownWalk mapped = %+v", got.TownWalk)
 	}
 }

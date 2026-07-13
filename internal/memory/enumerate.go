@@ -172,7 +172,7 @@ func (p *ProbeReader) enumerateMonsters(moduleBase uintptr, off OffsetSet, visit
 		if err != nil {
 			return unitWalkContinue, nil
 		}
-		if !IsCountessMonsterCandidate(txtFileNo, flag) {
+		if !IsRuntimeMonsterCandidate(txtFileNo, flag) {
 			return unitWalkContinue, nil
 		}
 

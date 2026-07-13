@@ -62,7 +62,7 @@ func (v *sessionGameVerifier) Observe(state world.State, gameVersion string) (se
 	if state.Area.ID != v.expectation.StartArea {
 		return sessionGameVerification{}, false, fmt.Errorf("session start area mismatch: active=%s expected=%s", state.Area.Name, world.LookupArea(v.expectation.StartArea).Name)
 	}
-	if state.UI.InventoryOpen || state.UI.StashOpen || state.UI.QuitMenuOpen {
+	if state.UI.InventoryOpen || state.UI.NPCInteractOpen || state.UI.NPCShopOpen || state.UI.StashOpen || state.UI.QuitMenuOpen {
 		return sessionGameVerification{}, false, fmt.Errorf("session game verification blocked by open UI")
 	}
 	if !v.lastAt.IsZero() && !state.At.After(v.lastAt) {

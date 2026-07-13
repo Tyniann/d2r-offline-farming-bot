@@ -2,7 +2,7 @@
 
 ## Überblick
 
-Phase-1 State-Probe über minimale D2R-Offsets. Der Bot findet den Main-Player über die UnitTable (d2go-Muster) und mappt HP, MaxHP, Mana, MaxMana, Area-ID sowie Position in `world.State`. Ab Phase 2.3 liest der App-Loop Memory-Snapshots nach jedem erfolgreichen `Poll()` im attached-Zustand; `--probe` steuert nur noch semantisches World-State-Logging. Ab Phase 5.1 ergänzt die Probe read-only positionierte Ground-Items.
+Phase-1 State-Probe über minimale D2R-Offsets. Der Bot findet den Main-Player über die UnitTable und mappt HP, MaxHP, Mana, MaxMana, Carried Gold, Private-Stash-Gold, Area-ID sowie Position in `world.State`. Ab Phase 2.3 liest der App-Loop Memory-Snapshots nach jedem erfolgreichen `Poll()` im attached-Zustand; `--probe` steuert nur noch semantisches World-State-Logging. Ab Phase 5.1 ergänzt die Probe read-only positionierte Ground-Items.
 
 Ab Phase 6.1 enthält `memory.Snapshot.Identity` zusätzlich Charaktername, Class ID und einen rekonstruierten Offline-Map-Seed. Name und Klasse werden erst nach drei identischen validen In-Game-Snapshots als bestätigte `world.GameIdentity` gemappt. Loading, Detach oder wechselnde Werte setzen die Bestätigung zurück. Der Map-Seed dient ausschließlich der Diagnose.
 
@@ -22,7 +22,7 @@ Ab Phase 6.1 enthält `memory.Snapshot.Identity` zusätzlich Charaktername, Clas
   - `enumerate.go` — Object/Entrance/Monster-Enumeration
   - `player_skills.go` — aktuell ausgewählte und gelernte Skills vom Main-Player
   - `hover.go` — `HoverState`, 12-Byte-Hover-Read (`moduleBase+Hover`)
-  - `stats.go` — minimaler Life/Mana-Stat-Parser und bounded Raw-Stat-Parser für Items
+  - `stats.go` — Life-/Mana-/Gold-Stat-Parser und bounded Raw-Stat-Parser für Items
   - `items.go` — read-only Ground-Item-Enumeration aus UnitTable-Segment `4`
   - `world_log.go` (app) — sparsames CLI-Logging auf `world.State` mit Heartbeat und Verbose-Positionslogs
   - `run_tick.go` (app) — testbare Loop-Iteration
@@ -117,13 +117,14 @@ Der Hover-Offset wird — wie UnitTable/UI — per d2go-Signature-Scan in `ScanP
 | `Reason` | Technischer Grund bei `Valid=false` |
 | `StatsSource` | `base` oder `active`, Quelle der Vitalwerte (Memory-only, nicht im World-Log) |
 | `HP`/`MaxHP`/`Mana`/`MaxMana` | Dekodierte Anzeigewerte |
+| `Gold`/`PrivateStashGold` | Unskalierte Stats `gold=14` und `goldbank=15`; separate Known-Flags verhindern erfundene Nullwerte |
 | `AreaID` | Rohe Area-ID aus Level-Struct |
 | `PosX`/`PosY` | `uint32` in `memory.Snapshot` (aus uint16 Path-Reads erweitert; `world.Position` gleicher Typ) |
 | `Objects`/`Entrances`/`Monsters` | Countess-gefilterte Entity-Slices; leer (nicht nil) außerhalb `in_game` |
 | `Items` | Positionierte Ground-Items aus UnitTable-Segment `4`; leer (nicht nil) außerhalb `in_game` |
 | `PlayerSkills` | `LeftSkill`, `RightSkill`, `SkillsKnown` vom Main-Player (Skill-Liste `unit+0x100`) |
 | `Hover` | `HoverState` (`IsHovered`, `UnitType`, `UnitID`) aus dem 12-Byte-Buffer bei `moduleBase+Hover`; nur bei `Valid && Phase=in_game` gelesen |
-| `UI` | Read-only `InventoryOpen`, `StashOpen` und ab Phase 7.1 das live validierte `QuitMenuOpen` bei `UI-0xB` |
+| `UI` | Read-only `InventoryOpen`, `StashOpen`, `QuitMenuOpen` sowie ab Phase 9.5 getrennte `NPCInteractOpen`-/`NPCShopOpen`-Gates |
 
 Details zu Casting und Precheck: [Input Controller](input-controller.md).
 
@@ -139,6 +140,7 @@ Stat-Liste am Unit `+0x88`: Die Probe bevorzugt `BaseStats` bei `statsListEx + 0
 - Eintrag 8 Byte: Layer (uint16), ID (uint16), Wert (int32)
 - IDs: Life=6, MaxLife=7, Mana=8, MaxMana=9 (d2go `pkg/data/stat`)
 - Life/Mana-Skalierung: `value >> 8`
+- Gold-IDs: `gold=14`, `goldbank=15`, unskaliert. D2R `3.2.92777` `itemstatcost.txt` und ein Live-Vergleich (`50938`/`2401390`) bestätigen Quelle und Encoding; Shared-Stash-Gold wird nicht daraus abgeleitet.
 - `HP`/`Mana` sind die aktuellen Werte. `MaxHP`/`MaxMana` werden als effektiver beobachteter Max-Wert geführt, weil D2R `MaxLife`/`MaxMana` als unmodifizierte Basiswerte liefern kann, während Equipment/Boni bereits im aktuellen Wert sichtbar sind.
 - Fehlt einer der vier Werte → `Valid=false`, `reason=stats_unavailable`
 
@@ -205,4 +207,4 @@ Semantische World-State-Validierung (Countess-Route, Area-Namen, `hp_pct`, Log-P
 - [World Model](world-model.md) — Domain-Typen und kontinuierliches Update im App-Loop
 
 ---
-*Zuletzt aktualisiert: 2026-07-02*
+*Zuletzt aktualisiert: 2026-07-13*

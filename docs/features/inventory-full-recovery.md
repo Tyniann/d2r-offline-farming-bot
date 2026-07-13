@@ -40,7 +40,7 @@ scan_loot -> pick_loot? -> cast_town_portal -> enter_town_portal
 -> close_personal_stash -> complete
 ```
 
-`enter_town_portal` verwendet `pathing.TownPortalActions`. Der Baustein wartet begrenzt auf ein `ObjectKindTownPortal`, friert dessen `UnitID` und Position über den gemeinsamen Entity-Clicker ein und klickt nur, wenn der Memory-Hover `UnitType=object` und dieselbe `UnitID` bestätigt. Feste Portal-Bildschirmkoordinaten und blinde Klicks sind verboten.
+`enter_town_portal` verwendet `pathing.TownPortalActions`. Der Baustein wartet begrenzt auf ein `ObjectKindTownPortal`, verlangt vor dem Hover-Loop 500 ms lang dieselbe `UnitID` und Position und friert den bestätigten Kandidaten anschließend im eigenen Entity-Clicker ein. Ein Klick erfolgt nur, wenn der Memory-Hover `UnitType=object` und dieselbe `UnitID` bestätigt. Feste Portal-Bildschirmkoordinaten und blinde Klicks sind verboten.
 
 `wait_act1_town` darf während Loading und inkonsistenten Snapshots ohne Input weiterlaufen. Erfolg ist ausschließlich ein gültiger `in_game`-Snapshot im `Rogue Encampment`. Tower Cellar Level 5 bleibt während der Übergangswartezeit zulässig; jedes andere gültige Gebiet endet mit `unexpected_area`.
 

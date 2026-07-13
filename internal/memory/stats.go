@@ -4,15 +4,25 @@ import (
 	"fmt"
 )
 
-// Stat IDs for Life/Mana probing (d2go pkg/data/stat, iota from Strength=0).
+// Stat IDs used by the player probe; gold IDs are live-validated against known values on D2R `3.2.92777`.
 const (
-	StatLife    uint16 = 6
-	StatMaxLife uint16 = 7
-	StatMana    uint16 = 8
-	StatMaxMana uint16 = 9
+	StatLife     uint16 = 6
+	StatMaxLife  uint16 = 7
+	StatMana     uint16 = 8
+	StatMaxMana  uint16 = 9
+	StatGold     uint16 = 14
+	StatGoldBank uint16 = 15
 
 	maxRawStatEntries = 512
 )
+
+// GoldStats holds independently validated carried and private-stash gold values.
+type GoldStats struct {
+	Carried      uint32
+	PrivateStash uint32
+	CarriedKnown bool
+	StashKnown   bool
+}
 
 // VitalStats holds decoded HP/Mana values from a unit stat list.
 type VitalStats struct {
@@ -152,6 +162,28 @@ func parseRawStats(r *Reader, listHeader uintptr, off StatOffsets) ([]RawStat, e
 		stats = append(stats, RawStat{ID: statID, Layer: layer, Value: value})
 	}
 	return stats, nil
+}
+
+func parseGoldStats(r *Reader, listHeader uintptr, off StatOffsets) (GoldStats, error) {
+	stats, err := parseRawStats(r, listHeader, off)
+	if err != nil {
+		return GoldStats{}, err
+	}
+	var result GoldStats
+	for _, stat := range stats {
+		if stat.Layer != 0 || stat.Value < 0 {
+			continue
+		}
+		switch stat.ID {
+		case StatGold:
+			result.Carried = uint32(stat.Value)
+			result.CarriedKnown = true
+		case StatGoldBank:
+			result.PrivateStash = uint32(stat.Value)
+			result.StashKnown = true
+		}
+	}
+	return result, nil
 }
 
 // scaleVitalStat applies d2go decoding for Life/Mana stats (value >> 8).

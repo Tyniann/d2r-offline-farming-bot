@@ -133,8 +133,10 @@ func (a *PersonalStashActions) Tick(ctx context.Context, state world.State) Pers
 	if world.Distance(state.Player.Position, stash.Position) > a.maxClickDistance {
 		return a.tickApproach(now, state, stash)
 	}
+	if !a.approachSettled(now, state.Player.Position) {
+		return PersonalStashResult{Status: PersonalStashPending}
+	}
 	a.lastMoveAt = time.Time{}
-	a.lastProgressAt = time.Time{}
 
 	res, err := a.clicker.Tick(state, ClickTarget{
 		UnitID: stash.UnitID, UnitType: world.HoverUnitTypeObject,
@@ -155,6 +157,24 @@ func (a *PersonalStashActions) Tick(ctx context.Context, state world.State) Pers
 		a.Reset()
 		return PersonalStashResult{Status: PersonalStashOpenFailed, Reason: string(res.Status), Done: true}
 	}
+}
+
+// approachSettled confirms through consecutive Memory positions that the
+// force-move approach has stopped before the hover-click loop starts.
+func (a *PersonalStashActions) approachSettled(now time.Time, position world.Position) bool {
+	if a.lastProgressAt.IsZero() {
+		a.lastProgressAt = now
+		a.lastPos = position
+		a.clicker.Reset()
+		return false
+	}
+	if world.Distance(a.lastPos, position) >= 1 {
+		a.lastProgressAt = now
+		a.lastPos = position
+		a.clicker.Reset()
+		return false
+	}
+	return now.Sub(a.lastProgressAt) >= a.townWalk.SettleTimeout
 }
 
 func (a *PersonalStashActions) tickApproach(now time.Time, state world.State, stash world.Object) PersonalStashResult {

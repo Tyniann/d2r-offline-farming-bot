@@ -21,7 +21,7 @@ func main() {
 	inputTestObserveMs := flag.Int("input-test-observe-ms", 3000, "observation window in ms after input-test actions")
 	runFlag := flag.String("run", "", "active farming run (e.g. countess); overrides runs.active in config")
 	phaseFlag := flag.String("phase", "", "optional run phase (e.g. travel-marsh or travel-cellar5 with --run countess)")
-	pathingTest := flag.String("pathing-test", "", "manual pathing test spec (teleport:TX,TY | hover:watch | inspect:entrances|layout | move-area:<id|name> | click-entity:waypoint|entrance | pickup:item)")
+	pathingTest := flag.String("pathing-test", "", "manual pathing test spec (including record-town-edge:<id> or play-town-graph:<start,...,end>)")
 	pathingTestTimeoutMs := flag.Int("pathing-test-timeout-ms", 120000, "timeout in ms for the pathing test mode")
 	offlineDifficulty := flag.String("offline-difficulty-test", "", "start an offline game on normal, nightmare, or hell from the verified character screen")
 	offlineCharacter := flag.String("offline-character", "", "expected selected character for --offline-difficulty-test (e.g. MrBones)")
@@ -30,9 +30,12 @@ func main() {
 	uiStateProbeTimeoutMs := flag.Int("ui-state-probe-timeout-ms", 30000, "timeout in ms for a read-only UI-state capture")
 	screenAnchorCapture := flag.String("screen-anchor-capture", "", "capture a named 1280x720 frontend screenshot for Phase 7.3 calibration")
 	sessionInspect := flag.Bool("session-inspect", false, "validate and print the resolved autonomous-session plan without attaching or sending input")
+	sessionMaxRuns := flag.Int("session-max-runs", 0, "override the finite autonomous-session run count (0 uses config)")
 	routeCommand := flag.String("route", "", "route command (list | inspect:<id> | validate:<id> | record:<id> | play-segment:<id>/<segment-id> | play:<id>)")
 	routeName := flag.String("route-name", "", "display name for a route recording; only valid with record")
 	routeDifficulty := flag.String("route-difficulty", "", "recording label: normal, nightmare, or hell; required with record")
+	townInspect := flag.Bool("town-inspect", false, "write one read-only Phase-9.1 Town data-availability report")
+	townTest := flag.String("town-test", "", "isolated Town interaction test (akara-shop)")
 	showVersion := flag.Bool("version", false, "print version and exit")
 	flag.Parse()
 
@@ -57,9 +60,12 @@ func main() {
 		UIStateProbeTimeoutMs: *uiStateProbeTimeoutMs,
 		ScreenAnchorCapture:   *screenAnchorCapture,
 		SessionInspect:        *sessionInspect,
+		SessionMaxRuns:        *sessionMaxRuns,
 		Route:                 *routeCommand,
 		RouteName:             *routeName,
 		RouteDifficulty:       *routeDifficulty,
+		TownInspect:           *townInspect,
+		TownTest:              *townTest,
 	}
 	if err := run(*configPath, opts); err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
@@ -71,6 +77,12 @@ func run(configPath string, opts app.Options) error {
 	cfg, err := config.Load(configPath)
 	if err != nil {
 		return err
+	}
+	if opts.SessionMaxRuns < 0 {
+		return fmt.Errorf("--session-max-runs must be >= 0")
+	}
+	if opts.SessionMaxRuns > 0 {
+		cfg.Session.MaxRuns = opts.SessionMaxRuns
 	}
 	if opts.SessionInspect {
 		plan, err := app.ResolveSessionPlan(cfg, opts)
@@ -100,6 +112,12 @@ func run(configPath string, opts app.Options) error {
 	}
 	if opts.Route != "" {
 		return rt.RunRouteCommand(opts.Route)
+	}
+	if opts.TownInspect {
+		return rt.RunTownInspect()
+	}
+	if opts.TownTest != "" {
+		return rt.RunTownTest(opts.TownTest)
 	}
 	if opts.OfflineDifficulty != "" {
 		return rt.RunOfflineDifficultyTest(opts.OfflineDifficulty)

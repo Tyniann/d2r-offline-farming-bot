@@ -245,6 +245,14 @@ func (m *mockProfileActions) Reset() { m.resetCalls++ }
 
 func (m *mockWaypointActions) Reset() { m.resetCalls++ }
 
+type mockTownPreparationActions struct{ calls, resets int }
+
+func (m *mockTownPreparationActions) Tick(context.Context, world.State) TownPreparationResult {
+	m.calls++
+	return TownPreparationResult{Status: "complete", Done: true}
+}
+func (m *mockTownPreparationActions) Reset() { m.resets++ }
+
 func (m *mockWaypointActions) TickTownWaypoint(_ context.Context, st world.State) pathing.WaypointActionResult {
 	m.tickCalls++
 	m.lastTickState = st
@@ -599,6 +607,7 @@ func TestKnownRunsStable(t *testing.T) {
 func TestCountessFullRunSuccessCastsTownPortal(t *testing.T) {
 	actions := &mockRunActions{}
 	portals := &mockTownPortalActions{}
+	preparation := &mockTownPreparationActions{}
 	cfg := killRunConfig()
 	cfg.StepTimeout = 30 * time.Second
 	r := NewRunner(config.NewLogger("error"), RunSelection{Run: "countess"}, cfg, Deps{
@@ -611,6 +620,7 @@ func TestCountessFullRunSuccessCastsTownPortal(t *testing.T) {
 		Stash:    &mockPersonalStashActions{},
 		Loot:     &mockLootActions{scans: []LootScanResult{{GroundItemCount: 0, CandidateCount: 0}}},
 		Route:    &mockRoutePlayback{},
+		Town:     preparation,
 	})
 	now := time.Now()
 	target := countessMonster(10, world.Position{X: 110, Y: 100})
@@ -647,6 +657,8 @@ func TestCountessFullRunSuccessCastsTownPortal(t *testing.T) {
 		healthy(townState()),
 		healthy(townState()),
 		healthy(townState()),
+		healthy(townState()),
+		healthy(townState()),
 	}
 
 	var res TickResult
@@ -661,6 +673,9 @@ func TestCountessFullRunSuccessCastsTownPortal(t *testing.T) {
 	}
 	if portals.calls != 1 {
 		t.Fatalf("portal entry calls = %d, want 1", portals.calls)
+	}
+	if preparation.calls != 1 {
+		t.Fatalf("town preparation calls = %d, want 1 after stash", preparation.calls)
 	}
 }
 

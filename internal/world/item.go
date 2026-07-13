@@ -59,6 +59,7 @@ const (
 	ItemLocationSharedStash2 ItemLocation = "shared_stash_2"
 	ItemLocationSharedStash3 ItemLocation = "shared_stash_3"
 	ItemLocationSocket       ItemLocation = "socket"
+	ItemLocationVendor       ItemLocation = "vendor"
 )
 
 // String returns a stable label for structured logging.
@@ -184,6 +185,9 @@ func mapItem(i memory.ItemUnit, hover HoverInfo) Item {
 func mapItemLocation(i memory.ItemUnit) ItemLocation {
 	switch i.RawLocation {
 	case 0:
+		if i.Flags&0x00002000 != 0 && i.OwnerID == ^uint32(0) {
+			return ItemLocationVendor
+		}
 		if !i.PlayerOwned {
 			return ItemLocationUnknown
 		}

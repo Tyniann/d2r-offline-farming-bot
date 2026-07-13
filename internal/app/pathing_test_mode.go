@@ -29,9 +29,9 @@ const (
 	pathingTestMoveArea    pathingTestKind = "move_area"
 	pathingTestClickEntity pathingTestKind = "click_entity"
 	pathingTestInspect     pathingTestKind = "inspect"
-	pathingTestPlayTown    pathingTestKind = "play_town_route"
-	pathingTestRecordTown  pathingTestKind = "record_town_route"
 	pathingTestPickupItem  pathingTestKind = "pickup_item"
+	pathingTestRecordEdge  pathingTestKind = "record_town_edge"
+	pathingTestPlayGraph   pathingTestKind = "play_town_graph"
 )
 
 // pathingTestSpec is a parsed --pathing-test argument.
@@ -46,13 +46,13 @@ type pathingTestSpec struct {
 
 // requiresInput reports whether the spec performs real input actions.
 func (s pathingTestSpec) requiresInput() bool {
-	return s.kind != pathingTestHoverWatch && s.kind != pathingTestInspect && s.kind != pathingTestRecordTown
+	return s.kind != pathingTestHoverWatch && s.kind != pathingTestInspect && s.kind != pathingTestRecordEdge
 }
 
 // parsePathingTestSpec parses specs like `teleport:5000,5000`, `hover:watch`,
 // `move-area:black_marsh`, `click-entity:waypoint`,
-// `inspect:entrances`, `inspect:layout`, `play-town-route:act1-waypoint`,
-// `record-town-route:act1-waypoint`, or `pickup:item`.
+// `inspect:entrances`, `inspect:layout`, `record-town-edge:stash-waypoint`,
+// `play-town-graph:stash,waypoint`, or `pickup:item`.
 func parsePathingTestSpec(spec string) (pathingTestSpec, error) {
 	raw := strings.TrimSpace(spec)
 	kind, arg, ok := strings.Cut(raw, ":")
@@ -99,18 +99,23 @@ func parsePathingTestSpec(spec string) (pathingTestSpec, error) {
 			return pathingTestSpec{}, fmt.Errorf("pathing test inspect: expected entrances or layout, got %q", arg)
 		}
 		return pathingTestSpec{kind: pathingTestInspect, entity: entity}, nil
-	case "play-town-route":
-		route := strings.ToLower(arg)
-		if route != "act1-waypoint" {
-			return pathingTestSpec{}, fmt.Errorf("pathing test play-town-route: expected act1-waypoint, got %q", arg)
+	case "record-town-edge":
+		edgeID := strings.ToLower(arg)
+		if edgeID == "" || strings.ContainsAny(edgeID, "/\\:") {
+			return pathingTestSpec{}, fmt.Errorf("pathing test record-town-edge: invalid edge id %q", arg)
 		}
-		return pathingTestSpec{kind: pathingTestPlayTown, route: route}, nil
-	case "record-town-route":
-		route := strings.ToLower(arg)
-		if route != "act1-waypoint" {
-			return pathingTestSpec{}, fmt.Errorf("pathing test record-town-route: expected act1-waypoint, got %q", arg)
+		return pathingTestSpec{kind: pathingTestRecordEdge, route: edgeID}, nil
+	case "play-town-graph":
+		anchors := strings.Split(strings.ToLower(arg), ",")
+		if len(anchors) < 2 {
+			return pathingTestSpec{}, fmt.Errorf("pathing test play-town-graph: expected start[,required...]end")
 		}
-		return pathingTestSpec{kind: pathingTestRecordTown, route: route}, nil
+		for _, anchor := range anchors {
+			if strings.TrimSpace(anchor) == "" {
+				return pathingTestSpec{}, fmt.Errorf("pathing test play-town-graph: empty anchor")
+			}
+		}
+		return pathingTestSpec{kind: pathingTestPlayGraph, route: strings.Join(anchors, ",")}, nil
 	case "pickup":
 		target := strings.ToLower(arg)
 		if target != "item" {
@@ -215,10 +220,10 @@ func (rt *Runtime) RunPathingTest(specStr string) error {
 		err = rt.runPathingClickEntity(ctx, state, hotkeyEvents, ticker, deadline, cancel, spec)
 	case pathingTestInspect:
 		err = rt.runPathingInspect(ctx, state, hotkeyEvents, ticker, deadline, cancel, spec)
-	case pathingTestPlayTown:
-		err = rt.runPathingPlayTownRoute(ctx, state, hotkeyEvents, ticker, deadline, cancel)
-	case pathingTestRecordTown:
-		err = rt.runPathingRecordTownRoute(ctx, state, hotkeyEvents, ticker, deadline, cancel)
+	case pathingTestRecordEdge:
+		err = rt.runPathingRecordTownEdge(ctx, state, hotkeyEvents, ticker, deadline, cancel, spec.route)
+	case pathingTestPlayGraph:
+		err = rt.runPathingPlayTownGraph(ctx, state, hotkeyEvents, ticker, deadline, cancel, spec.route)
 	case pathingTestPickupItem:
 		err = rt.runPathingPickupItem(ctx, state, hotkeyEvents, ticker, deadline, cancel)
 	default:
@@ -413,6 +418,14 @@ func (rt *Runtime) logHoverChange(cur world.State) {
 	args := []any{
 		"unit_type", cur.Hover.UnitType.String(),
 		"unit_id", cur.Hover.UnitID,
+	}
+	if cur.Hover.UnitType == world.HoverUnitTypeMonster {
+		for _, monster := range cur.Monsters {
+			if monster.UnitID == cur.Hover.UnitID {
+				args = append(args, "npc_id", monster.NPCID)
+				break
+			}
+		}
 	}
 	if name := hoverEntityName(cur); name != "" {
 		args = append(args, "entity_name", name)
@@ -708,114 +721,6 @@ func mapLootPickupConfig(cfg config.LootPickupConfig) loot.PickupConfig {
 		VerifyTimeout:             time.Duration(cfg.VerifyTimeoutMs) * time.Millisecond,
 		MonsterAbortDistanceTiles: cfg.MonsterAbortDistanceTiles,
 	}
-}
-
-func (rt *Runtime) runPathingPlayTownRoute(
-	ctx context.Context,
-	state *runState,
-	hotkeyEvents <-chan input.HotkeyEvent,
-	ticker *time.Ticker,
-	deadline time.Time,
-	cancel context.CancelFunc,
-) error {
-	if rt.TownWalk == nil {
-		return fmt.Errorf("pathing test play-town-route: town walker not wired")
-	}
-	rt.TownWalk.Reset()
-	for time.Now().Before(deadline) {
-		cur, stop, err := rt.pathingTestTick(ctx, state, hotkeyEvents, ticker, cancel)
-		if err != nil || stop {
-			return err
-		}
-		res := rt.TownWalk.TickAct1Waypoint(ctx, cur)
-		if res.Done {
-			rt.Log.Info("pathing test play-town-route finished",
-				"status", string(res.Status),
-				"reason", res.Reason,
-				"area", cur.Area.Name,
-				"area_id", uint32(cur.Area.ID),
-			)
-			return nil
-		}
-	}
-	rt.Log.Warn("pathing test play-town-route timeout")
-	return nil
-}
-
-func (rt *Runtime) runPathingRecordTownRoute(
-	ctx context.Context,
-	state *runState,
-	hotkeyEvents <-chan input.HotkeyEvent,
-	ticker *time.Ticker,
-	deadline time.Time,
-	cancel context.CancelFunc,
-) error {
-	pathingCfg := mapPathingConfig(rt.Config.Pathing)
-	routeFile := pathingCfg.TownWalk.RouteFile
-	sampleDistance := pathingCfg.TownWalk.ArrivalDistance
-	points := make([]world.Position, 0, 16)
-	rt.Log.Info("town route recording active - manually walk from stash/spawn to Act-1 waypoint",
-		"route_file", routeFile,
-		"sample_distance_tiles", sampleDistance,
-	)
-
-	for time.Now().Before(deadline) {
-		cur, stop, err := rt.pathingTestTick(ctx, state, hotkeyEvents, ticker, cancel)
-		if err != nil {
-			return err
-		}
-		if cur.Valid && cur.Phase == world.GamePhaseInGame && cur.Area.ID == world.RogueEncampment {
-			pos := cur.Player.Position
-			if len(points) == 0 || world.Distance(points[len(points)-1], pos) >= sampleDistance {
-				points = append(points, pos)
-				rt.Log.Info("town route sample",
-					"index", len(points)-1,
-					"pos_x", pos.X,
-					"pos_y", pos.Y,
-				)
-			}
-			if waypoint, ok := townRouteWaypointClickable(cur, pathingCfg.Waypoint.MaxClickDistance); ok && len(points) >= 2 {
-				if world.Distance(points[len(points)-1], waypoint.Position) > 0 {
-					points = append(points, waypoint.Position)
-				}
-				if err := pathing.SaveTownRoute(routeFile, sampleDistance, points); err != nil {
-					return fmt.Errorf("save town route: %w", err)
-				}
-				rt.Log.Info("town route recording completed",
-					"route_file", routeFile,
-					"points", len(points),
-					"waypoint_x", waypoint.Position.X,
-					"waypoint_y", waypoint.Position.Y,
-				)
-				return nil
-			}
-		}
-		if stop {
-			break
-		}
-	}
-	if len(points) < 2 {
-		return fmt.Errorf("town route recording: need at least 2 samples, got %d", len(points))
-	}
-	if err := pathing.SaveTownRoute(routeFile, sampleDistance, points); err != nil {
-		return fmt.Errorf("save town route: %w", err)
-	}
-	rt.Log.Info("town route recording saved after stop/timeout",
-		"route_file", routeFile,
-		"points", len(points),
-	)
-	return nil
-}
-
-func townRouteWaypointClickable(cur world.State, maxDistance float64) (world.Object, bool) {
-	wp, ok := cur.NearestObject(world.ObjectKindWaypoint)
-	if !ok {
-		return world.Object{}, false
-	}
-	if maxDistance <= 0 {
-		return wp, true
-	}
-	return wp, world.Distance(cur.Player.Position, wp.Position) <= maxDistance
 }
 
 type inspectEntrance struct {

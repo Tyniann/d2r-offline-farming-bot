@@ -63,13 +63,17 @@ func FromSnapshot(snap memory.Snapshot) State {
 		Phase: phase,
 		Area:  LookupArea(AreaID(snap.AreaID)),
 		Player: Player{
-			Position:     Position{X: snap.PosX, Y: snap.PosY},
-			HP:           snap.HP,
-			MaxHP:        snap.MaxHP,
-			Mana:         snap.Mana,
-			MaxMana:      snap.MaxMana,
-			LeftSkillID:  snap.PlayerSkills.LeftSkill,
-			RightSkillID: snap.PlayerSkills.RightSkill,
+			Position:              Position{X: snap.PosX, Y: snap.PosY},
+			HP:                    snap.HP,
+			MaxHP:                 snap.MaxHP,
+			Mana:                  snap.Mana,
+			MaxMana:               snap.MaxMana,
+			Gold:                  snap.Gold,
+			PrivateStashGold:      snap.PrivateStashGold,
+			GoldKnown:             snap.GoldKnown,
+			PrivateStashGoldKnown: snap.PrivateStashGoldKnown,
+			LeftSkillID:           snap.PlayerSkills.LeftSkill,
+			RightSkillID:          snap.PlayerSkills.RightSkill,
 		},
 		Identity:  mapGameIdentity(snap.Identity),
 		Objects:   objects,
@@ -94,7 +98,7 @@ func mapGameIdentity(identity memory.IdentityProbe) GameIdentity {
 }
 
 func mapUIState(ui memory.UIState) UIState {
-	return UIState{InventoryOpen: ui.InventoryOpen, StashOpen: ui.StashOpen, QuitMenuOpen: ui.QuitMenuOpen}
+	return UIState{InventoryOpen: ui.InventoryOpen, NPCInteractOpen: ui.NPCInteractOpen, NPCShopOpen: ui.NPCShopOpen, StashOpen: ui.StashOpen, QuitMenuOpen: ui.QuitMenuOpen}
 }
 
 // mapHover converts the raw memory hover buffer into the world hover type.

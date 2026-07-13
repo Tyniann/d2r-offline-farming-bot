@@ -1,0 +1,22 @@
+id: stash-waypoint
+area_id: 1
+created_at: 2026-07-13T11:19:41.0674307Z
+sample_distance_tiles: 8
+layout_fingerprint: 4ad7f3b4018ecb39ef311d808dcf0b0b9b5991d8b548b8d3ac1688a657c33f30
+layout_origin_x: 4856
+layout_origin_y: 4574
+points:
+    - x: 4863
+      "y": 4573
+    - x: 4872
+      "y": 4572
+    - x: 4880
+      "y": 4572
+    - x: 4888
+      "y": 4570
+    - x: 4888
+      "y": 4562
+    - x: 4886
+      "y": 4553
+    - x: 4886
+      "y": 4552

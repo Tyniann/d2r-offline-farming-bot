@@ -83,12 +83,19 @@ func TestPersonalStashActionsUsesRelativeDetourAnchors(t *testing.T) {
 
 func TestPersonalStashActionsClicksOnlyAfterHoverAndConfirmsUI(t *testing.T) {
 	in := newMockInput()
-	a := NewPersonalStashActions(config.NewLogger("error"), in, DefaultConfig())
+	cfg := DefaultConfig()
+	a := NewPersonalStashActions(config.NewLogger("error"), in, cfg)
 	st := personalStashState(2)
 	res := a.Tick(context.Background(), st)
-	if res.Status != PersonalStashPending || len(in.moves) != 1 || len(in.clicks) != 0 {
-		t.Fatalf("first tick res=%+v moves=%v clicks=%v", res, in.moves, in.clicks)
+	if res.Status != PersonalStashPending || len(in.moves) != 0 || len(in.clicks) != 0 {
+		t.Fatalf("settle tick res=%+v moves=%v clicks=%v, want no input", res, in.moves, in.clicks)
 	}
+	st.At = st.At.Add(cfg.TownWalk.SettleTimeout)
+	res = a.Tick(context.Background(), st)
+	if res.Status != PersonalStashPending || len(in.moves) != 1 || len(in.clicks) != 0 {
+		t.Fatalf("first hover tick res=%+v moves=%v clicks=%v", res, in.moves, in.clicks)
+	}
+	st.At = st.At.Add(100 * time.Millisecond)
 	st.Hover = world.HoverInfo{IsHovered: true, UnitType: world.HoverUnitTypeObject, UnitID: 22}
 	res = a.Tick(context.Background(), st)
 	if res.Status != PersonalStashPending || len(in.clicks) != 1 || in.clicks[0] != input.MouseLeft {
@@ -103,14 +110,56 @@ func TestPersonalStashActionsClicksOnlyAfterHoverAndConfirmsUI(t *testing.T) {
 
 func TestPersonalStashActionsOpenTimeout(t *testing.T) {
 	in := newMockInput()
-	a := NewPersonalStashActions(config.NewLogger("error"), in, DefaultConfig())
+	cfg := DefaultConfig()
+	a := NewPersonalStashActions(config.NewLogger("error"), in, cfg)
 	st := personalStashState(2)
 	_ = a.Tick(context.Background(), st)
+	st.At = st.At.Add(cfg.TownWalk.SettleTimeout)
+	_ = a.Tick(context.Background(), st)
+	st.At = st.At.Add(100 * time.Millisecond)
 	st.Hover = world.HoverInfo{IsHovered: true, UnitType: world.HoverUnitTypeObject, UnitID: 22}
 	_ = a.Tick(context.Background(), st)
 	st.At = st.At.Add(personalStashOpenTimeout)
 	res := a.Tick(context.Background(), st)
 	if res.Status != PersonalStashOpenFailed || !res.Done {
 		t.Fatalf("res=%+v, want stash_open_failed", res)
+	}
+}
+
+func TestPersonalStashActionsWaitsForApproachToStopBeforeClicking(t *testing.T) {
+	in := newMockInput()
+	cfg := DefaultConfig()
+	a := NewPersonalStashActions(config.NewLogger("error"), in, cfg)
+	st := personalStashState(30)
+
+	_ = a.Tick(context.Background(), st)
+	if len(in.keys) != 1 {
+		t.Fatalf("keys=%v, want initial force-move input", in.keys)
+	}
+
+	st.At = st.At.Add(200 * time.Millisecond)
+	st.Player.Position = world.Position{X: 115, Y: 100}
+	_ = a.Tick(context.Background(), st)
+	if len(in.moves) != 1 || len(in.clicks) != 0 {
+		t.Fatalf("moves=%v clicks=%v, want settle without hover input", in.moves, in.clicks)
+	}
+
+	st.At = st.At.Add(cfg.TownWalk.SettleTimeout)
+	st.Player.Position = world.Position{X: 116, Y: 100}
+	_ = a.Tick(context.Background(), st)
+	if len(in.moves) != 1 || len(in.clicks) != 0 {
+		t.Fatalf("moves=%v clicks=%v, want movement to restart settle period", in.moves, in.clicks)
+	}
+
+	st.At = st.At.Add(cfg.TownWalk.SettleTimeout - time.Millisecond)
+	_ = a.Tick(context.Background(), st)
+	if len(in.moves) != 1 {
+		t.Fatalf("moves=%v, want no hover input before full settle period", in.moves)
+	}
+
+	st.At = st.At.Add(time.Millisecond)
+	_ = a.Tick(context.Background(), st)
+	if len(in.moves) != 2 || len(in.clicks) != 0 {
+		t.Fatalf("moves=%v clicks=%v, want hover input after confirmed stop", in.moves, in.clicks)
 	}
 }

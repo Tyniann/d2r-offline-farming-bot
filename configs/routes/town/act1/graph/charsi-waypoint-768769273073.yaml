@@ -1,0 +1,18 @@
+id: charsi-waypoint
+area_id: 1
+created_at: 2026-07-13T11:10:18.772671Z
+sample_distance_tiles: 8
+layout_fingerprint: 76876927307330686a85da717370ee70ec4e0c2a47dcb7fa4bdba91cc9017381
+layout_origin_x: 5646
+layout_origin_y: 5919
+points:
+    - x: 5618
+      "y": 5907
+    - x: 5627
+      "y": 5906
+    - x: 5634
+      "y": 5902
+    - x: 5636
+      "y": 5894
+    - x: 5636
+      "y": 5893

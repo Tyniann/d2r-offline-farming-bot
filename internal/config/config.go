@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/input"
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/town"
 	"gopkg.in/yaml.v3"
 )
 
@@ -25,6 +26,7 @@ type Config struct {
 	Paths     PathsConfig     `yaml:"paths"`
 	Session   SessionConfig   `yaml:"session"`
 	Profiles  ProfilesConfig  `yaml:"combat_profiles"`
+	Town      town.Config     `yaml:"town"`
 
 	// LoadedFrom is the path passed to [Load] (used to resolve relative file paths).
 	LoadedFrom string `yaml:"-"`
@@ -314,6 +316,9 @@ func (c *Config) validate() error {
 		return err
 	}
 	if err := c.Session.validate(); err != nil {
+		return err
+	}
+	if err := c.Town.Validate(); err != nil {
 		return err
 	}
 	return nil

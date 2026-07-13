@@ -1,0 +1,24 @@
+id: akara-cain
+area_id: 1
+created_at: 2026-07-12T19:20:45.0454129Z
+sample_distance_tiles: 8
+layout_fingerprint: 911703945495707c9e6578c2db467e76ed70cf0548f119ac1b397368a8af5a53
+layout_origin_x: 4313
+layout_origin_y: 5708
+points:
+    - x: 4373
+      "y": 5691
+    - x: 4364
+      "y": 5693
+    - x: 4356
+      "y": 5698
+    - x: 4349
+      "y": 5703
+    - x: 4343
+      "y": 5711
+    - x: 4337
+      "y": 5717
+    - x: 4330
+      "y": 5723
+    - x: 4325
+      "y": 5725

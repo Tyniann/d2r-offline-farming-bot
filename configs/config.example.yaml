@@ -142,6 +142,29 @@ combat_profiles:
       throttle_ms: 1500
       verify_timeout_ms: 1500
 
+town:
+  thresholds:
+    healing: 2
+    mana: 4
+    town_portal_scrolls: 5
+    identify_scrolls: 3
+  hub:
+    area: rogue_encampment
+    anchors: [spawn, portal_arrival, stash, waypoint, akara, charsi, cain]
+    services:
+      potions: akara
+      scrolls: akara
+      identify: cain
+      sell: akara
+      repair: charsi
+    routes_directory: routes/town/act1/graph
+  egress:
+    act3:
+      area: kurast_docks
+      anchors: [portal_arrival, waypoint]
+      routes_directory: routes/town/act3/egress
+
+
 session:
   # Phase 7.5 stellt zunächst ausschließlich den read-only --session-inspect bereit.
   # Echte Session-Ausführung bleibt bis zur vollständigen Zyklus-Verifikation deaktiviert.
@@ -202,15 +225,7 @@ pathing:
   town_walk:
     # Force Move key in D2R options; default key is E.
     force_move_key: e
-    # Permanente Town-Assets, getrennt von invalidierbaren Farming-Routen.
-    difficulty: normal
-    routes:
-      normal: configs/routes/town/act1/waypoint/normal.yaml
-      nightmare: configs/routes/town/act1/waypoint/nightmare.yaml
-      hell: configs/routes/town/act1/waypoint/hell.yaml
     move_interval_ms: 650
     settle_timeout_ms: 350
     stuck_timeout_ms: 3500
     arrival_distance_tiles: 8
-    # Optional override for the built-in Rogue Encampment stash/spawn -> waypoint route.
-    act1_waypoint_points: []
