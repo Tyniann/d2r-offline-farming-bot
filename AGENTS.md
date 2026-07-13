@@ -42,10 +42,16 @@ Feature-first unter `internal/`. Paket-Grenzen strikt einhalten:
 
 **MVP-Phasen** (nicht vorauslaufen): Phase 1 = read-only probe → Phase 2 = world model → Phase 3 = input → Phase 4 = Countess ohne Pickit → Phase 5 = loot/recovery loop.
 
-## Documentation
-1. **Pflicht:** Neue/exportierte Go-Symbole (Types, Funcs, Interfaces) sofort mit **Godoc** dokumentieren.
-2. **Syntax:** Satz mit Punkt beginnen; `[Name]` für verlinkte Symbole; `` `backticks` `` für Werte, Config-Keys, Windows-APIs.
-3. **Inhalt:** Warum/Wann — nicht Implementierungsdetails. Bei State-Machines: Zustände, Übergänge, Abbruchbedingungen benennen. Dokumentation und UI facing Strings müssen ordentliches Deutsch und Umlaute verwenden.
+## In-code-Dokumentation
+
+1. **Godoc-Pflicht:** Neue oder geänderte exportierte Go-Symbole sofort dokumentieren. Der Kommentar beginnt mit dem Symbolnamen und endet mit einem Punkt.
+2. **Design-Kommentare:** Nicht offensichtliche Invarianten, autoritative Datenquellen, Safety-Gates, Reihenfolgen sowie Retry-, Reset- und Fail-closed-Entscheidungen direkt am relevanten Code erklären.
+3. **State-Machines:** Zustände, erlaubte Übergänge, über mehrere Ticks persistierenden Zustand sowie Erfolgs-, Abbruch- und Timeout-Bedingungen benennen.
+4. **Wiederverwendung:** Verträge, Seiteneffekte und bewusste Einsatzgrenzen dokumentieren, wenn sie nicht bereits eindeutig aus Typen und API hervorgehen.
+5. **Kein Kommentarrauschen:** Warum und wann erklären; nicht wiederholen, was der Code eindeutig ausdrückt. Kommentare am kleinsten hilfreichen Scope platzieren, nicht zeilenweise kommentieren.
+6. **Syntax und Pflege:** `[Name]` für verlinkte Go-Symbole und `` `backticks` `` für Werte, Config-Keys und Windows-APIs verwenden. Kommentare bei jeder relevanten Verhaltensänderung aktualisieren oder entfernen.
+
+Dokumentation und UI-facing Strings müssen ordentliches Deutsch und Umlaute verwenden.
 
 ## Safety & bot behavior
 - **Stop/Pause-Hotkey** und Stuck/Timeout-Recovery früh mitdenken; Tasks müssen abbrechen können.

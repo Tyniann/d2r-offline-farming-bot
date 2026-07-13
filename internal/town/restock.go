@@ -38,6 +38,8 @@ type RestockOrder struct {
 }
 
 // MaximumRestockCost calculates a fail-closed upper bound before Town input.
+// It deliberately ignores discounts and uses the highest supported Akara tier,
+// so navigation never begins on optimistic or UI-dependent pricing.
 func MaximumRestockCost(levels []RestockLevel) (int, Reason) {
 	total := 0
 	seen := map[RestockResource]bool{}
@@ -60,6 +62,8 @@ func MaximumRestockCost(levels []RestockLevel) (int, Reason) {
 }
 
 // PlanRestock builds orders only for quantities strictly below their thresholds.
+// Bulk is safe only for a complete four-column belt profile; otherwise potion
+// orders use a finite single-click count derived from the observed deficit.
 func PlanRestock(input RestockInput) ([]RestockOrder, Reason) {
 	if !input.GoldKnown || !input.GoldSufficient {
 		return nil, ReasonGoldUnavailable
@@ -88,6 +92,8 @@ func PlanRestock(input RestockInput) ([]RestockOrder, Reason) {
 }
 
 // RestockVerifier bounds purchase input and requires a confirmed final count.
+// Authorization and verification are separate ticks so a delayed Memory update
+// can never cause a second bulk purchase.
 type RestockVerifier struct {
 	order       RestockOrder
 	clicks      int
@@ -117,6 +123,8 @@ func (v *RestockVerifier) Tick(current int) InteractionResult {
 		return InteractionResult{Status: InteractionComplete, Done: true}
 	}
 	if v.clicks < v.order.Clicks {
+		// Increment before returning authorization. Even if the caller fails
+		// after performing input, this verifier cannot authorize that click again.
 		v.clicks++
 		action := "vendor_buy_single"
 		if v.order.Mode == BuyModeBulk {

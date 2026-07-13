@@ -42,6 +42,8 @@ type PersonalStashResult struct {
 }
 
 // PersonalStashActions walks to the memory-discovered Act-1 stash and opens it after hover confirmation.
+// It is intentionally independent from the Town service graph because post-run
+// loot transfer begins at the portal and must establish the graph's Stash origin.
 type PersonalStashActions struct {
 	log              *slog.Logger
 	input            InputDriver
@@ -162,6 +164,8 @@ func (a *PersonalStashActions) Tick(ctx context.Context, state world.State) Pers
 // approachSettled confirms through consecutive Memory positions that the
 // force-move approach has stopped before the hover-click loop starts.
 func (a *PersonalStashActions) approachSettled(now time.Time, position world.Position) bool {
+	// Live validation showed that D2R can expose the correct Stash hover while
+	// ignoring a click sent during residual Force-Move movement.
 	if a.lastProgressAt.IsZero() {
 		a.lastProgressAt = now
 		a.lastPos = position

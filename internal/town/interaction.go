@@ -56,6 +56,8 @@ type EntityClicker interface {
 }
 
 // NPCInteractor pins one NPC UnitID and permits exactly one hover-confirmed click.
+// The pin prevents regional enumeration changes from silently switching to a
+// different NPC instance after interaction has begun.
 type NPCInteractor struct {
 	clicker     EntityClicker
 	npcID       uint32
@@ -117,6 +119,8 @@ func (i *NPCInteractor) Tick(state world.State) InteractionResult {
 		}
 	}
 	if i.clicked {
+		// A sent click is never repeated. Only the separately observed dialog or
+		// shop flag can complete the interaction.
 		if state.UI.NPCInteractOpen || state.UI.NPCShopOpen {
 			return InteractionResult{Status: InteractionComplete, UnitID: i.pinned, Done: true}
 		}
@@ -148,6 +152,8 @@ type ShopInput interface {
 }
 
 // ShopOpener selects Akara's Trade dialog option and separately verifies NPCShopOpen.
+// The fixed key sequence is Akara-specific and reusable only behind a confirmed
+// `NPCInteractOpen` gate at the supported client/UI version.
 type ShopOpener struct {
 	input   ShopInput
 	keys    []string
@@ -167,6 +173,8 @@ func (o *ShopOpener) Tick(state world.State) InteractionResult {
 		return InteractionResult{Status: InteractionFailed, Reason: "shop_state_invalid", Done: true}
 	}
 	if state.UI.NPCShopOpen {
+		// Dialog selection and shop readiness are distinct Memory states; vendor
+		// coordinates are forbidden until this stronger state is observed.
 		return InteractionResult{Status: InteractionComplete, Done: true}
 	}
 	now := state.At
@@ -208,7 +216,9 @@ type VendorRequest struct {
 	Mode BuyMode
 }
 
-// VendorBuyer pins one vendor item UnitID, confirms hover, and sends one purchase action.
+// VendorBuyer pins one vendor item UnitID and grid cell before one purchase action.
+// Shop items are not reliably represented by the world hover buffer, so the
+// second Memory snapshot revalidates UnitID and cell instead of faking a hover gate.
 type VendorBuyer struct {
 	input                                 ShopInput
 	request                               VendorRequest
@@ -230,6 +240,7 @@ func (b *VendorBuyer) Tick(state world.State) InteractionResult {
 		return InteractionResult{Status: InteractionFailed, Reason: "vendor_shop_not_confirmed", Done: true}
 	}
 	if b.acted {
+		// Completion reports the previously sent action; it never emits input.
 		return InteractionResult{Status: InteractionComplete, UnitID: b.pinned, Code: b.request.Code, Done: true}
 	}
 	item, found := findVendorItem(state, b.request, b.pinned)

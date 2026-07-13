@@ -55,6 +55,8 @@ func (rt *Runtime) runPathingRecordTownEdge(ctx context.Context, state *runState
 			return observeErr
 		}
 		if !sample && layout.Hash == "" {
+			// Positions observed before any authoritative layout anchor belong to
+			// no safe variant and must not leak into the later pinned recording.
 			points = points[:0]
 			lastPosition = world.Position{}
 			havePosition = false
@@ -72,6 +74,8 @@ func (rt *Runtime) runPathingRecordTownEdge(ctx context.Context, state *runState
 				}
 			}
 			if position, ok := townRecordingEndpointPosition(edge.To, current); ok {
+				// NPCs and objects can unload near regional boundaries. Retain the
+				// last endpoint from this recording, never from an earlier run.
 				endpointPosition, haveEndpointPosition = position, true
 			}
 			if layout.Hash == "" && observed.Hash != "" {
@@ -131,11 +135,15 @@ func townRecordingObservation(state world.State, pinned town.TownLayoutFingerpri
 	observed, reason := town.InspectTownLayout(state)
 	if pinned.Hash == "" {
 		if reason != "" {
+			// Buffer valid Town movement until Stash and Waypoint become visible;
+			// the caller binds those samples only when the same observation pins.
 			return pinned, true, nil
 		}
 		return observed, true, nil
 	}
 	if reason == "" && observed.Hash != pinned.Hash {
+		// Once anchors reappear, a mismatch invalidates the whole recording. A
+		// temporarily unloaded anchor is tolerated; a different preset is not.
 		return pinned, false, fmt.Errorf("%s", town.ReasonTownLayoutMismatch)
 	}
 	return pinned, true, nil
@@ -220,6 +228,8 @@ func (rt *Runtime) runPathingPlayTownGraph(ctx context.Context, state *runState,
 	layout, reason, directlyObserved := rt.townLayout.Resolve(current)
 	cachePath := filepath.Join("diagnostics", "town", "layout-pin.json")
 	if reason == town.ReasonTownLayoutUnavailable && start == town.AnchorPortalArrival {
+		// Portal arrival may regionally unload both fingerprint anchors. Only the
+		// short-lived, same-game diagnostic pin may bridge this CLI test case.
 		cached, cacheErr := loadTownLayoutTestPin(cachePath, rt.Process.Status().PID, current, time.Now())
 		if cacheErr == nil {
 			if seedErr := rt.townLayout.Seed(cached, current.Identity); seedErr != nil {
@@ -257,6 +267,8 @@ func (rt *Runtime) runPathingPlayTownGraph(ctx context.Context, state *runState,
 		if traversal.Reverse {
 			reversePositions(points)
 		}
+		// Confirm the operator-provided start once. Later graph edges compose at
+		// semantic anchors and are allowed to approach their own recording boundary.
 		if index == 0 && (!current.Valid || world.Distance(current.Player.Position, points[0]) > pathingCfg.TownWalk.ArrivalDistance) {
 			return fmt.Errorf("town graph edge %q start not confirmed: distance %.1f exceeds %.1f", traversal.Edge.ID, world.Distance(current.Player.Position, points[0]), pathingCfg.TownWalk.ArrivalDistance)
 		}

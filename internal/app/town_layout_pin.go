@@ -17,6 +17,9 @@ const (
 	townLayoutTestPinMaxAge  = 10 * time.Minute
 )
 
+// townLayoutPin keeps one game-scoped Town preset usable while regional object
+// enumeration temporarily unloads Stash or Waypoint. It may bridge missing
+// anchors, but never a game-identity change or a newly observed mismatch.
 type townLayoutPin struct {
 	fingerprint town.TownLayoutFingerprint
 	identity    world.GameIdentity
@@ -25,6 +28,8 @@ type townLayoutPin struct {
 func (p *townLayoutPin) Resolve(state world.State) (town.TownLayoutFingerprint, town.Reason, bool) {
 	observed, reason := town.InspectTownLayout(state)
 	if reason == "" {
+		// Reappearing anchors revalidate both preset hash and absolute origin.
+		// A changed origin inside the same identity is not silently translated.
 		if p.fingerprint.Hash != "" && (p.fingerprint.Hash != observed.Hash || p.fingerprint.StashX != observed.StashX || p.fingerprint.StashY != observed.StashY) {
 			return town.TownLayoutFingerprint{}, town.ReasonTownLayoutMismatch, true
 		}
@@ -38,6 +43,8 @@ func (p *townLayoutPin) Resolve(state world.State) (town.TownLayoutFingerprint, 
 	return p.fingerprint, "", false
 }
 
+// Seed exists only to restore a short-lived diagnostic playback pin after a
+// separate CLI process. Productive sessions establish their pin from Memory.
 func (p *townLayoutPin) Seed(fingerprint town.TownLayoutFingerprint, identity world.GameIdentity) error {
 	if len(fingerprint.Hash) != 64 || fingerprint.StashX == 0 || fingerprint.StashY == 0 || !identity.Valid || strings.TrimSpace(identity.CharacterName) == "" {
 		return fmt.Errorf("invalid Town layout pin")
@@ -53,9 +60,13 @@ func (p *townLayoutPin) Reset() {
 }
 
 func sameTownLayoutIdentity(a, b world.GameIdentity) bool {
+	// MapSeed scopes the pin to the current offline game; character and class
+	// prevent an otherwise coincidental seed match from crossing profiles.
 	return a.Valid && b.Valid && strings.EqualFold(a.CharacterName, b.CharacterName) && a.Class == b.Class && a.MapSeed == b.MapSeed
 }
 
+// townLayoutTestPinFile is a diagnostic bridge, not a persistent route binding.
+// Process, identity, age, and fingerprint are all revalidated before seeding.
 type townLayoutTestPinFile struct {
 	Version        int                        `json:"version"`
 	ObservedAt     time.Time                  `json:"observed_at"`

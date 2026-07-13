@@ -39,8 +39,9 @@ type ResearchReport struct {
 
 // Research inspects one immutable World snapshot without sending input.
 //
-// The result intentionally keeps bulk buying disabled until a later controlled
-// UI observation has proven both the belt layout and the vendor interaction.
+// The research surface intentionally reports bulk buying as unproven. Productive
+// approval belongs to the separate profile, shop, item-pin, and verifier gates;
+// it is never inherited from this read-only diagnostic report.
 func Research(state world.State) ResearchReport {
 	valid := state.Valid && state.Phase == world.GamePhaseInGame
 	report := ResearchReport{

@@ -13,12 +13,16 @@ import (
 )
 
 const (
+	// Budgets are global executor ceilings, not timing knobs. Lower-level gates
+	// retain their own finite limits and the executor remains the final backstop.
 	townExecutorInputBudget  = 256
 	townExecutorVerifyBudget = 6000
 	townRestockVerifyTicks   = 200
 )
 
 func (a *townPreparationAdapter) start(state world.State) string {
+	// Planning consumes one coherent snapshot. It must not mix belt or carried-
+	// gold values from later ticks before the immutable plan is constructed.
 	healing, mana := countPotionSupplies(state)
 	levels := []town.RestockLevel{
 		{Resource: town.RestockHealing, Current: healing, Threshold: a.thresholds.Healing, Target: len(a.profile.Healing.BeltSlots) * 4},
@@ -26,6 +30,8 @@ func (a *townPreparationAdapter) start(state world.State) string {
 	}
 	needsPotions := healing < a.thresholds.Healing || mana < a.thresholds.Mana
 	if !a.services || !needsPotions {
+		// No demand means no NPC detour. Initial run setup also enters here even
+		// with a low belt because its only responsibility is reaching Waypoint.
 		traversals, err := a.graph.RouteForLayout(a.layout, town.AnchorStash, nil, town.AnchorWaypoint)
 		if err != nil {
 			return err.Error()
@@ -40,6 +46,8 @@ func (a *townPreparationAdapter) start(state world.State) string {
 	if reason != "" {
 		return string(reason)
 	}
+	// Vendors consume carried gold. Private/shared Stash gold is intentionally
+	// excluded because Phase 9 has no verified withdrawal transaction.
 	if !state.Player.GoldKnown || uint64(state.Player.Gold) < uint64(maximumCost) {
 		a.log.Warn("town restock gold gate failed", "gold_known", state.Player.GoldKnown, "carried_gold", state.Player.Gold, "required_maximum", maximumCost)
 		return string(town.ReasonGoldUnavailable)
@@ -110,6 +118,9 @@ func completeBeltProfile(profile config.ProfileResourcesConfig) (bool, string) {
 	return len(assigned) == 4, ""
 }
 
+// townPreparationStepHandler owns the cross-step graph cursor and the current
+// service sub-state. ResetStep clears only the latter; Reset clears both.
+// Potion stages are `walk → npc → shop → orders → close → done`.
 type townPreparationStepHandler struct {
 	adapter       *townPreparationAdapter
 	traversals    []town.Traversal
@@ -224,6 +235,9 @@ func (h *townPreparationStepHandler) tickOrders(state world.State) town.Interact
 	}
 	if h.buyer != nil {
 		if h.buyerActed {
+			// The purchase may update the belt before VendorBuyer receives its
+			// completion tick. Never recompute a now-zero missing quantity or issue
+			// another click; finish the already recorded atomic action first.
 			result := h.buyer.Tick(state)
 			result.Current, result.Threshold, result.BeltSlots, result.Mode, result.Vendor = metadata.Current, metadata.Threshold, metadata.BeltSlots, metadata.Mode, metadata.Vendor
 			result.Code, result.Cost = h.buyerCode, h.buyerCost
@@ -234,6 +248,8 @@ func (h *townPreparationStepHandler) tickOrders(state world.State) town.Interact
 			}
 			return result
 		}
+		// Reprice the concrete live vendor code immediately before the only
+		// purchase action; the earlier maximum is solely a pre-navigation gate.
 		code, cost, ok := purchaseCostForState(state, order)
 		if !ok || !state.Player.GoldKnown || uint64(state.Player.Gold) < uint64(cost) {
 			metadata.Status, metadata.Reason, metadata.Done = town.InteractionFailed, string(town.ReasonGoldUnavailable), true
@@ -262,6 +278,8 @@ func (h *townPreparationStepHandler) tickOrders(state world.State) town.Interact
 	}
 	result := h.verifier.Tick(current)
 	if result.Status == town.InteractionAction {
+		// The verifier authorizes an input count; VendorBuyer separately pins the
+		// exact shop item and turns that authorization into one atomic click.
 		h.buyer = town.NewVendorBuyer(h.adapter.controller, vendorRequest(order))
 		return metadataWithStatus(metadata, town.InteractionPending)
 	}
@@ -295,6 +313,8 @@ func (h *townPreparationStepHandler) tickWalk(ctx context.Context, state world.S
 		if traversal.Reverse {
 			reversePositions(points)
 		}
+		// Strictly verify only the external start. Composed edges share semantic
+		// NPC boundaries whose separately recorded first points may differ slightly.
 		if h.traversal == 0 && world.Distance(state.Player.Position, points[0]) > h.adapter.pathCfg.TownWalk.ArrivalDistance {
 			return town.InteractionResult{Status: town.InteractionFailed, Reason: "town_edge_start_unconfirmed", Done: true}
 		}
@@ -325,6 +345,8 @@ func (h *townPreparationStepHandler) ResetStep() {
 	if h.npc != nil {
 		h.npc.Reset()
 	}
+	// Keep traversal, anchor, and completed order index: those belong to the
+	// whole plan. Drop every pin or action state owned by the finished step.
 	h.verifier, h.buyer = nil, nil
 	h.buyerActed, h.buyerCode, h.buyerCost = false, "", 0
 	h.settleUntil, h.shopCloseSent = time.Time{}, false
@@ -339,6 +361,7 @@ func (h *townPreparationStepHandler) Reset() {
 		h.walker.Reset()
 	}
 	h.ResetStep()
+	// A session/run reset invalidates graph continuity and all completed orders.
 	h.traversal, h.order, h.anchor = 0, 0, town.AnchorStash
 	h.walker = nil
 }
@@ -370,6 +393,8 @@ func purchaseCostForState(state world.State, order town.RestockOrder) (string, i
 		if item.Type != request.Type {
 			continue
 		}
+		// Higher TxtFileNo is the strongest available potion tier Akara exposes;
+		// pricing and the later buyer remain bound to the selected concrete code.
 		if !found || item.TxtFileNo > selected.TxtFileNo {
 			selected, found = item, true
 		}

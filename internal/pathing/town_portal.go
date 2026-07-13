@@ -8,8 +8,9 @@ import (
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/world"
 )
 
-// townPortalActivationSettle preserves the hover budget until the newly cast
-// portal has completed the non-interactive part of its opening animation.
+// townPortalActivationSettle preserves most of the hover budget while limiting
+// stationary exposure to enemies. Live runs first enumerated the object roughly
+// 270 ms after casting; a further 500 ms balances readiness against Hell safety.
 const townPortalActivationSettle = 500 * time.Millisecond
 
 // TownPortalActionStatus is a stable per-tick outcome of player-cast portal entry.
@@ -34,6 +35,8 @@ type TownPortalActionResult struct {
 }
 
 // TownPortalActions discovers and hover-clicks the temporary player-cast portal.
+// Its candidate must keep the same UnitID and position through activation;
+// candidate churn resets the gate without consuming hover attempts.
 type TownPortalActions struct {
 	log               *slog.Logger
 	clicker           *EntityClicker

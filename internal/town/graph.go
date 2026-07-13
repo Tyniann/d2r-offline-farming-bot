@@ -121,6 +121,8 @@ func (g ServiceGraph) Validate() error {
 }
 
 // RouteForLayout selects a lowest-cost route using only variants for layout.
+// Legacy or unbound route fields never participate: an unknown preset fails
+// before movement rather than borrowing geometrically similar assets.
 func (g ServiceGraph) RouteForLayout(layout string, start Anchor, required []Anchor, end Anchor) ([]Traversal, error) {
 	if len(layout) != 64 {
 		return nil, fmt.Errorf("%s", ReasonTownLayoutUnavailable)
@@ -188,6 +190,8 @@ func (g ServiceGraph) routeAvailable(start Anchor, required []Anchor, end Anchor
 	if !knownGraphAnchor(start) || !knownGraphAnchor(end) {
 		return nil, fmt.Errorf("unknown start or end anchor")
 	}
+	// Spawn canonicalizes to Stash because Act 1 places the character beside it;
+	// one graph node avoids duplicate zero-value movement edges.
 	start = canonicalGraphAnchor(start)
 	end = canonicalGraphAnchor(end)
 	bit := map[Anchor]uint64{}

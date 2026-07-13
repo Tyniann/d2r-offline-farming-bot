@@ -1,6 +1,8 @@
 package town
 
 // Planner creates finite preparation plans from immutable demand and registered town assets.
+// It has no World or input dependency: observation, authorization, and action
+// remain separate layers that can fail independently.
 type Planner struct{ config Config }
 
 // NewPlanner validates and binds the town registry without accessing memory or input.
@@ -64,7 +66,9 @@ func demandNeeds(d Demand, service Service) bool {
 }
 
 // GraphAnchors converts a validated Act-1 plan into an unordered set of required
-// service anchors bracketed by its confirmed start and final waypoint.
+// service anchors bracketed by its confirmed start and final waypoint. Required
+// anchors are deduplicated and unordered so routing can minimize travel rather
+// than inheriting arbitrary service declaration order.
 func (p *Planner) GraphAnchors(plan Plan) (Anchor, []Anchor, Anchor, Reason) {
 	if p == nil || plan.Origin.Act != OriginAct1 || !knownGraphAnchor(plan.Origin.Anchor) {
 		return "", nil, "", ReasonUnknownOrigin

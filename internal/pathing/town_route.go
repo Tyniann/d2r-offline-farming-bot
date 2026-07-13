@@ -43,6 +43,9 @@ func LoadNamedTownRoute(path, expectedID string) ([]world.Position, error) {
 }
 
 // LoadLayoutBoundTownRoute loads an edge only when its Town layout matches exactly.
+// Points are translated solely by the Stash-origin delta; the fingerprint still
+// selects the rolled preset, while translation handles different absolute Town
+// coordinate spaces across characters and difficulties.
 func LoadLayoutBoundTownRoute(path, expectedID, expectedLayout string, currentOrigin world.Position) ([]world.Position, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -80,6 +83,8 @@ func SaveNamedTownRoute(path, id string, sampleDistance float64, points []world.
 }
 
 // SaveLayoutBoundTownRoute writes a graph edge bound to one exact Town layout.
+// The Stash origin is stored with the fingerprint so later playback can
+// translate the same preset without weakening layout identity.
 func SaveLayoutBoundTownRoute(path, id, layout string, origin world.Position, sampleDistance float64, points []world.Position) error {
 	if len(layout) != 64 {
 		return fmt.Errorf("town layout fingerprint must be a SHA-256 hex string")

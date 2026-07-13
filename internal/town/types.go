@@ -154,12 +154,16 @@ type PlanStep struct {
 }
 
 // Plan is a finite, immutable preparation plan.
+// Planning authorizes only semantic work; every executor adapter must still
+// revalidate current Memory/UI state immediately before input.
 type Plan struct {
 	Origin Origin
 	Steps  []PlanStep
 }
 
 // Validate enforces the fail-closed phase ordering independently of later planning logic.
+// Foreign origins must complete `egress → hub transfer` before any Act-1
+// service, and handoff steps may occur only after normalization and services.
 func (p Plan) Validate() error {
 	if p.Origin.Act == OriginActUnknown {
 		return fmt.Errorf("%s", ReasonUnknownOrigin)

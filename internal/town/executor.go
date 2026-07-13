@@ -31,11 +31,15 @@ type ExecutorTelemetry interface {
 }
 
 // StepHandler executes the current already-planned step behind its own gates.
+// `InteractionAction` means real input occurred and permanently disables retry
+// for that step; completion must still be proven by a later World snapshot.
 type StepHandler interface {
 	Tick(context.Context, PlanStep, world.State) InteractionResult
 	Reset()
 }
 
+// stepStateResetter separates service-local state from graph progress shared by
+// consecutive plan steps. Falling back to Reset is safe but loses both scopes.
 type stepStateResetter interface {
 	ResetStep()
 }
@@ -49,6 +53,9 @@ type ExecutorResult struct {
 }
 
 // Executor runs a validated plan within global budgets and sticky safety gates.
+// It permits retries only before the first real action, records telemetry before
+// progressing, and makes telemetry failure terminal so observed input can never
+// be followed by an unrecorded action.
 type Executor struct {
 	plan          Plan
 	budgets       Budgets
@@ -106,6 +113,8 @@ func (e *Executor) Tick(ctx context.Context, state world.State, paused, stopped 
 	result := e.handler.Tick(ctx, step, state)
 	switch result.Status {
 	case InteractionAction:
+		// From this point the step is non-retryable: D2R may have accepted the
+		// input even when the following Memory verification is delayed or lost.
 		e.inputs++
 		e.stepAction = true
 		e.verifies = 0
@@ -118,6 +127,8 @@ func (e *Executor) Tick(ctx context.Context, state world.State, paused, stopped 
 		}
 		return ExecutorResult{Status: InteractionAction, Step: e.step}
 	case InteractionComplete:
+		// Emit before advancing. Consumers may therefore treat a persisted
+		// completion event as the authoritative plan transition.
 		if err := e.telemetry.EmitTown(executorEvent("town_step_completed", e.step, step, result)); err != nil {
 			e.telemetryFail = err
 			return e.fail(ReasonTelemetryFailed)
@@ -132,6 +143,7 @@ func (e *Executor) Tick(ctx context.Context, state world.State, paused, stopped 
 		}
 		return ExecutorResult{Status: InteractionPending, Step: e.step}
 	case InteractionFailed:
+		// Only failures that provably preceded input may rebuild step-local pins.
 		if !e.stepAction && e.retries < e.budgets.RetryAttempts {
 			e.retries++
 			e.verifies = 0
@@ -183,6 +195,8 @@ func (e *Executor) resetStepHandler() {
 		return
 	}
 	if resetter, ok := e.handler.(stepStateResetter); ok {
+		// Preserve graph traversal and anchor continuity between service and
+		// waypoint steps; only NPC/shop/order state belongs to the finished step.
 		resetter.ResetStep()
 		return
 	}

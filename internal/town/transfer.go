@@ -15,6 +15,8 @@ type RepairAssessment struct {
 }
 
 // PlanRepair authorizes repair only when every required evidence source is reliable.
+// Missing durability, price, or UI evidence is a stable skip/failure reason,
+// never permission to use a fixed-coordinate repair fallback.
 func PlanRepair(assessment RepairAssessment) (bool, Reason) {
 	if !assessment.Required {
 		return false, ""
@@ -37,6 +39,8 @@ type WaypointTransfer struct {
 }
 
 // WaypointTransferExecutor sends one selection and verifies the destination area.
+// Phase 9 intentionally registers only Act 3-to-hub normalization and the Act-1
+// Countess handoff; this is not a general waypoint travel API.
 type WaypointTransferExecutor struct {
 	input       WaypointTransferInput
 	transfer    WaypointTransfer
@@ -78,6 +82,8 @@ func (e *WaypointTransferExecutor) Tick(state world.State) InteractionResult {
 			return InteractionResult{Status: InteractionFailed, Reason: fmt.Sprintf("town_transfer_input_failed: %v", err), Done: true}
 		}
 		e.actionSent = true
+		// Selection is atomic and non-repeatable. Only the destination Area from
+		// a later Memory snapshot can complete the transfer.
 		return InteractionResult{Status: InteractionAction, Action: "waypoint_transfer"}
 	}
 	e.verifyTicks++

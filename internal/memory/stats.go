@@ -17,6 +17,8 @@ const (
 )
 
 // GoldStats holds independently validated carried and private-stash gold values.
+// Known flags distinguish a legitimate zero balance from an unavailable stat;
+// consumers must not infer one source from the other.
 type GoldStats struct {
 	Carried      uint32
 	PrivateStash uint32
@@ -165,6 +167,8 @@ func parseRawStats(r *Reader, listHeader uintptr, off StatOffsets) ([]RawStat, e
 }
 
 func parseGoldStats(r *Reader, listHeader uintptr, off StatOffsets) (GoldStats, error) {
+	// Gold IDs 14/15 are unscaled table values. Applying the Life/Mana `>> 8`
+	// transform would silently understate vendor funds and authorize wrong plans.
 	stats, err := parseRawStats(r, listHeader, off)
 	if err != nil {
 		return GoldStats{}, err

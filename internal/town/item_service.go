@@ -33,6 +33,8 @@ type ItemServiceOrder struct {
 }
 
 // PlanItemServices rejects conflicting classifications and protects keep/stash/lock items.
+// Protection wins over service intent: no later executor may reinterpret a
+// protected item as sellable or identifiable.
 func PlanItemServices(candidates []ItemServiceCandidate) ([]ItemServiceOrder, Reason) {
 	orders := make([]ItemServiceOrder, 0, len(candidates))
 	seen := map[uint32]bool{}
@@ -61,6 +63,8 @@ type ItemServiceInput interface {
 }
 
 // ItemServiceExecutor sends one input and verifies the pinned item transition.
+// It never retries after action because a delayed inventory update cannot prove
+// that D2R rejected the original identify or sell command.
 type ItemServiceExecutor struct {
 	input       ItemServiceInput
 	order       ItemServiceOrder
@@ -84,6 +88,8 @@ func (e *ItemServiceExecutor) Tick(state world.State) InteractionResult {
 	}
 	item, found := state.FindItemByUnitID(e.order.UnitID)
 	if e.actionSent {
+		// Identify preserves UnitID and changes a flag; sell must remove the item
+		// from the personal inventory. No weaker visual/UI signal completes either.
 		complete := e.order.Kind == ItemServiceIdentify && found && item.Identified
 		complete = complete || (e.order.Kind == ItemServiceSell && (!found || item.Location != world.ItemLocationInventory))
 		if complete {

@@ -31,7 +31,9 @@ type TownWalkResult struct {
 	Done   bool
 }
 
-// TownWalker force-moves inside Rogue Encampment toward the Act-1 waypoint.
+// TownWalker force-moves along one already validated Rogue Encampment graph edge.
+// It owns movement timing only; layout selection and semantic edge composition
+// remain caller responsibilities so this component is reusable across anchors.
 type TownWalker struct {
 	log       *slog.Logger
 	input     InputDriver
@@ -103,6 +105,8 @@ func (w *TownWalker) tick(ctx context.Context, state world.State) TownWalkResult
 	target := w.points[w.index]
 	if world.Distance(state.Player.Position, target) <= w.cfg.ArrivalDistance {
 		if w.index >= len(w.points)-1 {
+			// Entering the final tolerance radius is not arrival while Force Move
+			// may still be carrying the character beyond the recorded endpoint.
 			return w.tickFinalRoutePoint(now, state)
 		}
 		w.index++
@@ -158,6 +162,8 @@ func (w *TownWalker) tick(ctx context.Context, state world.State) TownWalkResult
 }
 
 func (w *TownWalker) tickFinalRoutePoint(now time.Time, state world.State) TownWalkResult {
+	// Require a stable Memory position rather than sleeping after input. Any
+	// whole-tile movement restarts the settle window and keeps the edge active.
 	if !w.waiting {
 		w.waiting = true
 		w.waitStartedAt = now

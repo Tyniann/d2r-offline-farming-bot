@@ -1,6 +1,8 @@
 package world
 
 // Player holds interpreted main-player vitals without memory pointers.
+// Carried and private-Stash gold remain separate because only carried gold is
+// a verified vendor source; the Known flags preserve unavailable-versus-zero.
 type Player struct {
 	Position              Position
 	HP                    uint32 // Current life points.

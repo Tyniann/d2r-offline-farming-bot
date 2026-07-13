@@ -13,6 +13,8 @@ import (
 )
 
 // RunTownInspect writes one read-only Town research report after a valid World snapshot.
+// It waits for the same authoritative Stash/Waypoint anchors used by routing and
+// never substitutes the short-lived diagnostic layout pin for direct observation.
 func (rt *Runtime) RunTownInspect() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()

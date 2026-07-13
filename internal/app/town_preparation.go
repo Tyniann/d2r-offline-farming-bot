@@ -14,12 +14,17 @@ import (
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/world"
 )
 
+// townPreparationController is the shared input surface required by graph
+// walking and gated shop actions; Status keeps pause/stop outside Town policy.
 type townPreparationController interface {
 	pathing.InputDriver
 	town.ShopInput
 	Status() input.Status
 }
 
+// townPreparationAdapter has two deliberately narrow modes. Initial run setup
+// uses only the layout-bound Stash-to-Waypoint path; post-run preparation may
+// additionally create and execute a demand-driven service plan.
 type townPreparationAdapter struct {
 	log          *slog.Logger
 	driver       pathing.InputDriver
@@ -44,6 +49,8 @@ type townPreparationAdapter struct {
 	handler      *townPreparationStepHandler
 }
 
+// layoutTownWaypointWalker adapts the initial no-service mode to the legacy
+// task dependency without reintroducing difficulty-selected Town routes.
 type layoutTownWaypointWalker struct{ adapter *townPreparationAdapter }
 
 func (w *layoutTownWaypointWalker) TickAct1Waypoint(ctx context.Context, state world.State) pathing.TownWalkResult {
@@ -94,6 +101,8 @@ func (a *townPreparationAdapter) Tick(ctx context.Context, state world.State) ta
 		return tasks.TownPreparationResult{Status: "failed", Reason: string(town.ReasonTownLayoutMismatch), Done: true}
 	}
 	if !a.started {
+		// Freeze the preset and translation origin before planning. Every later
+		// tick still revalidates the shared pin before it can send more input.
 		a.layout = fingerprint.Hash
 		a.layoutOrigin = world.Position{X: fingerprint.StashX, Y: fingerprint.StashY}
 		if reason := a.start(state); reason != "" {
@@ -101,6 +110,8 @@ func (a *townPreparationAdapter) Tick(ctx context.Context, state world.State) ta
 		}
 	}
 	if a.executor != nil {
+		// Service plans own their navigation inside the handler so graph progress
+		// survives the executor's per-step reset boundary.
 		status := a.controller.Status()
 		result := a.executor.Tick(ctx, state, status.Paused, status.Stopped)
 		if result.Done && result.Status == town.InteractionComplete {
@@ -114,6 +125,8 @@ func (a *townPreparationAdapter) Tick(ctx context.Context, state world.State) ta
 		return tasks.TownPreparationResult{Status: "pending"}
 	}
 	if a.index >= len(a.traversals) {
+		// Finishing route samples is insufficient: the handoff requires the live
+		// Waypoint entity to be present and within interaction distance.
 		waypoint, ok := state.NearestObject(world.ObjectKindWaypoint)
 		if !ok || world.Distance(state.Player.Position, waypoint.Position) > a.pathCfg.Waypoint.MaxClickDistance {
 			return tasks.TownPreparationResult{Status: "failed", Reason: "waypoint_handoff_unconfirmed", Done: true}
@@ -131,6 +144,8 @@ func (a *townPreparationAdapter) Tick(ctx context.Context, state world.State) ta
 		if traversal.Reverse {
 			reversePositions(points)
 		}
+		// The first edge proves the external starting anchor. Later edges compose
+		// at their recorded semantic boundary and may approach their own first point.
 		if a.index == 0 && world.Distance(state.Player.Position, points[0]) > a.pathCfg.TownWalk.ArrivalDistance {
 			return tasks.TownPreparationResult{Status: "failed", Reason: "town_edge_start_unconfirmed", Done: true}
 		}

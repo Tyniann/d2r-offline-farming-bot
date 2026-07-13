@@ -9,6 +9,8 @@ import (
 )
 
 // TownLayoutFingerprint binds route assets to one rolled Rogue Encampment preset.
+// Hash identity is translation-independent; Stash coordinates remain separate
+// as the absolute playback origin for the current game.
 type TownLayoutFingerprint struct {
 	Version        int    `json:"version"`
 	Hash           string `json:"hash"`
@@ -25,6 +27,8 @@ type TownLayoutFingerprint struct {
 }
 
 // InspectTownLayout derives a translation-independent preset identity from Memory anchors.
+// Stash and Waypoint are the only authoritative anchors because NPC enumeration
+// is region-dependent; NPC deltas are diagnostics and never affect the hash.
 func InspectTownLayout(state world.State) (TownLayoutFingerprint, Reason) {
 	if !state.Valid || state.Phase != world.GamePhaseInGame || state.Area.ID != world.RogueEncampment {
 		return TownLayoutFingerprint{}, ReasonTownLayoutUnavailable
