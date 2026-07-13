@@ -247,7 +247,7 @@
           <span class="pill">Memory Bot Core</span>
           <span class="pill">Go 1.26</span>
           <span class="pill">Countess MVP</span>
-          <span class="pill good">Stand: Phase 7 abgeschlossen</span>
+          <span class="pill good">Stand: Phase 9 abgeschlossen</span>
         </div>
       </div>
 
@@ -614,8 +614,8 @@
     <div class="phase">
       <strong>Phase 9</strong>
       <div>
-        <h3>Aktbewusste Town Services und Run-Vorbereitung <span class="warn">— als Nächstes</span></h3>
-        <p><strong>Ziel:</strong> Vor einem Run nur tatsächlich notwendige Stadtaktionen sicher ausführen, unabhängig davon, in welchem Akt der Charakter startet oder aus welchem Run er zurückkehrt.</p>
+        <h3>Aktbewusste Town Services und Run-Vorbereitung <span class="good">— abgeschlossen</span></h3>
+        <p><strong>Ergebnis:</strong> Vor einem Run werden nur tatsächlich notwendige Stadtaktionen sicher ausgeführt; Planung, Navigation, Interaktion und Verifikation bleiben getrennte fail-closed Gates.</p>
         <p><strong>Architektur:</strong></p>
         <ul>
           <li>Rogue Encampment ist der zentrale Stash- und Service-Hub mit dem einzigen vollständigen Town-Graphen.</li>
@@ -624,14 +624,14 @@
           <li>Die Route bringt den Charakter nur in Interaktionsnähe; ein NPC-Klick benötigt nach Möglichkeit Memory-Entity und Hover-bestätigte UnitID sowie einen bestätigten Shop-/Dialogzustand.</li>
           <li>Nach Fremdakt-Egress wechselt der Bot über den Waypoint nach Act 1, verstaut Loot zentral und erledigt dort alle benötigten Dienste.</li>
           <li>Nach Abschluss endet Town Preparation am Act-1-Waypoint und übergibt von dort direkt an das Ziel des nächsten Runs.</li>
-          <li>Ein generischer, Memory-/Screen-gated Waypoint-Aktwechsel bestätigt Quellakt, Zielakt, Zielstadt und Ankunft vor dem nächsten Input.</li>
+          <li>Der endliche Waypoint-Transfervertrag bestätigt Quellakt, Zielgebiet und Ankunft vor einem weiteren Input; Phase 9 registriert bewusst nur Act 3 → Rogue Encampment und Rogue Encampment → Black Marsh.</li>
         </ul>
         <p><strong>Bedarfsmodell:</strong> Belt- und Inventarbestand, kaufbare HP-/Mana-Potion-Zielbelegung, Town-Portal-/Identify-Vorrat, nicht identifizierte Items, explizite Vendor-Kandidaten, Reparaturzustand und verfügbare Goldkosten werden zuerst read-only bewertet. Rejuvenation ist ausdrücklich kein Town-Kaufbedarf; vorhandene Bestände werden geschützt und Nachschub kommt vorerst nur über Pickit-Loot.</p>
-        <p><strong>Restock-Strategie:</strong> Belt-Spalten stammen ausschließlich aus dem aktiven Combat-Profil. Erst beim Unterschreiten einer konfigurierten Mindestmenge entsteht ein Restock-Bedarf. Bei vollständig typisiertem Belt beziehungsweise bestätigtem Tome ist Shift+RMB-Sammelkauf der Standard; unzugewiesene Belt-Spalten erzwingen den verifizierten Einzelkaufpfad.</p>
+        <p><strong>Restock-Strategie:</strong> Belt-Spalten stammen ausschließlich aus dem aktiven Combat-Profil. Erst beim Unterschreiten einer konfigurierten Mindestmenge entsteht ein Restock-Bedarf. Ein vollständig typisierter Belt erlaubt genau einen Shift+RMB-Sammelkauf; unzugewiesene Belt-Spalten erzwingen einen begrenzten Einzelkaufpfad. Nicht verlässlich lesbare Tome-Zähler bleiben ein dokumentierter <code>unavailable_skip</code>.</p>
         <p><strong>Sicherheitsgrenzen:</strong> Unbekannter Akt, fehlendes Town-Profil, unbekannter Startanker, fehlende Route, nicht bestätigter NPC, unbestätigte Shop-UI oder nicht unterstützter Aktwechsel enden fail-closed ohne Blindlauf oder Blindklick.</p>
         <p><strong>Reihenfolge:</strong> Hub-/Egress-Vertrag → Herkunftserkennung → Hub Planner → Act-1-Servicegraph → Waypoint-Hubtransfer → zentraler Stash → Einkaufen → Identifizieren/Verkaufen/Reparieren → Handoff zum nächsten Run.</p>
-        <p><strong>Erster Scope:</strong> Act 1 wird vollständig live umgesetzt. Weitere Farmziele ergänzen später nur ihre Ziel-Waypoints und minimalen Town-Egress-Routen; der Service-Hub bleibt Act 1.</p>
-        <p><strong>Abnahme:</strong> Ein Act-1-Preparation-Durchlauf erledigt ausschließlich erzeugte Bedarfe und startet danach einen Countess-Run. Negative Tests beweisen, dass ein Act-2-Zustand ohne validiertes Profil beziehungsweise ohne validierten Aktwechsel vor Input stoppt.</p>
+        <p><strong>Umgesetzter Scope:</strong> Rogue Encampment ist der einzige vollständige Service-Hub. Nord-, Ost-, Süd- und West-Preset besitzen jeweils einen vollständigen layoutgebundenen Kantensatz; Character und Difficulty sind keine Town-Route-Bindings. Weitere Farmziele ergänzen später nur Ziel-Waypoints und minimale Town-Egress-Routen.</p>
+        <p><strong>Abnahme:</strong> Alle drei manuellen Gates sind erfüllt. Der finale autonome Nightmare-Lauf betrat das Portal nach dem 500-ms-Aktivierungsgate, verstaute acht Items, erzeugte ausschließlich den notwendigen Akara-Bedarf, erhöhte Mana mit genau einer Bulk-Aktion von 2 auf 12, bestätigte Shop-Close und Waypoint-Handoff und endete mit Save &amp; Exit sowie <code>runs_successful=1/1</code>. Negative Tests decken unbekannte Herkunft, fehlende Egress-/Layout-Routen, unbestätigte UI, unzureichendes Gold sowie endliche Input-/Verify-Budgets ab.</p>
         <p>Detailplan: <a href="phase-9-implementation-plan.html">Phase-9-Umsetzungsplan</a>.</p>
       </div>
     </div>
@@ -639,7 +639,7 @@
     <div class="phase">
       <strong>Phase 10</strong>
       <div>
-        <h3>Erweiterbare Run-Definitionen und zweites Farmziel <span class="warn">— geplant</span></h3>
+        <h3>Erweiterbare Run-Definitionen und zweites Farmziel <span class="warn">— als Nächstes</span></h3>
         <p><strong>Ziel:</strong> Mit einem zweiten echten Farmziel beweisen, dass Session, Profile, Route, Loot, Stash und Recovery nicht Countess-spezifisch sind.</p>
         <p><strong>Umfang:</strong> GUI-neutrale Run-Metadaten und Auswahl, wiederverwendbare Run-Schritte, routenspezifische Bindung, das Town-Profil des benötigten Akts sowie Integration eines noch festzulegenden zweiten Ziels, beispielsweise Mephisto.</p>
         <p><strong>Abnahme:</strong> Countess und das zweite Farmziel sind über denselben Lifecycle auswählbar und bestehen jeweils einen vollständigen autonomen E2E-Zyklus ohne duplizierte Session- oder Input-Logik.</p>
