@@ -1,0 +1,244 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Phase 10 – Detaillierter Umsetzungsplan</title>
+  <style>
+    :root{--bg:#0b1020;--panel:#121a2d;--panel2:#18233a;--text:#e8edf7;--muted:#aeb9cc;--line:#2b3a58;--accent:#67d4ff;--good:#73e2a7;--warn:#ffd166;--bad:#ff7b86;--code:#09101d}
+    *{box-sizing:border-box} body{margin:0;background:linear-gradient(145deg,#080d19,#10192b 55%,#0a1220);color:var(--text);font:16px/1.58 system-ui,-apple-system,"Segoe UI",sans-serif}
+    main{max-width:1180px;margin:auto;padding:42px 24px 80px}.hero{padding:34px;border:1px solid var(--line);border-radius:20px;background:linear-gradient(135deg,#17243e,#10192b);box-shadow:0 20px 60px #0006}
+    h1{font-size:clamp(2rem,5vw,3.7rem);line-height:1.08;margin:.25rem 0 1rem}h2{margin-top:44px;border-bottom:1px solid var(--line);padding-bottom:10px}h3{margin:.2rem 0 .5rem;color:#fff}.lead{font-size:1.17rem;color:var(--muted);max-width:950px}
+    .chips{display:flex;flex-wrap:wrap;gap:9px}.chip{border:1px solid #3f587c;border-radius:999px;padding:5px 11px;color:#c9ecff;background:#12233b}
+    .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:15px;margin:18px 0}.card,.phase,.callout{border:1px solid var(--line);border-radius:14px;background:var(--panel);padding:18px}.card p,.phase p{margin:.35rem 0;color:var(--muted)}
+    table{width:100%;border-collapse:collapse;background:var(--panel);border:1px solid var(--line)}th,td{padding:12px 14px;text-align:left;vertical-align:top;border-bottom:1px solid var(--line)}th{background:var(--panel2);color:#fff}code,pre{font-family:"Cascadia Code",Consolas,monospace}code{color:#aee9ff}pre{background:var(--code);border:1px solid var(--line);border-radius:12px;padding:16px;overflow:auto;color:#d9e7ff}
+    .phase{display:grid;grid-template-columns:92px 1fr;gap:16px;margin:13px 0}.phase-id{font-weight:800;color:var(--accent);font-size:1.25rem}.gate{border-left:4px solid var(--warn);padding-left:12px!important}.callout{border-left:4px solid var(--accent);margin:16px 0}.danger{border-left-color:var(--bad)}.success{border-left-color:var(--good)}li{margin:.35rem 0}footer{margin-top:48px;color:var(--muted);text-align:center}@media(max-width:650px){.phase{grid-template-columns:1fr}.hero{padding:22px}main{padding-inline:14px}}
+  </style>
+</head>
+<body><main>
+  <section class="hero">
+    <div class="chip">D2R Offline Farming Bot · Phase 10</div>
+    <h1>Erweiterbare Run-Definitionen und Mephisto</h1>
+    <p class="lead">Phase 10 löst den vollständigen Farming-Lifecycle aus der Countess-spezifischen State-Machine, migriert Countess ohne Verhaltensverlust auf einen gemeinsamen typisierten Run-Vertrag und integriert Act-3-Mephisto als zweites echtes Farmziel. Der erste Mephisto-Scope ist fest an <code>MrBones</code>, Nightmare, Durance-of-Hate-Level-2-Waypoint und eine gültige aufgezeichnete Route gebunden. Automatische Kartenerkundung bleibt ausgeschlossen.</p>
+    <div class="chips"><span class="chip">Ein Run pro Session</span><span class="chip">Typed Run Registry</span><span class="chip">Mephisto</span><span class="chip">Recorded Route Required</span><span class="chip">Act-3 Egress</span><span class="chip">Run Availability JSON</span><span class="chip">4 manuelle Gates</span></div>
+  </section>
+
+  <section class="grid" aria-label="Kernziele">
+    <article class="card"><h3>Architekturbeweis</h3><p>Countess und Mephisto verwenden denselben Session-, Waypoint-, Route-, Encounter-, Loot-, Portal- und Town-Lifecycle. Zielspezifisch bleiben nur Daten und nachweislich notwendige Strategien.</p></article>
+    <article class="card"><h3>Zweiter Run</h3><p>Act 1 → Durance Level 2 → aufgezeichnete Route → Mephisto → Loot → Kurast-Docks → Act-1-Hub → Save &amp; Exit.</p></article>
+    <article class="card"><h3>Loot-Test</h3><p>Makellose/perfekte Gems bleiben Stash-Loot. Exceptional-/Elite-Set- und Unique-Items werden aufgenommen, bei Cain identifiziert und bei Akara verkauft.</p></article>
+    <article class="card"><h3>GUI-Vorbereitung</h3><p>Eine read-only CLI-/JSON-Abfrage liefert Run-Metadaten und Verfügbarkeit. Die lokale API und GUI-Anbindung folgen erst in Phase 11.</p></article>
+  </section>
+
+  <h2>1. Verbindliche Produktentscheidungen</h2>
+  <table><thead><tr><th>Thema</th><th>Entscheidung für Phase 10</th></tr></thead><tbody>
+    <tr><td>Session-Auswahl</td><td>Genau ein Run pro Session: <code>countess</code> oder <code>mephisto</code>. Eine spätere GUI darf mehrere solcher Run-Ausführungen zu einer Farm-Reihenfolge kombinieren, implementiert diese Liste aber noch nicht.</td></tr>
+    <tr><td>Run-Modell</td><td>Gemeinsamer typisierter Vertrag und Registry; kein frei programmierbarer YAML-Workflow und keine Skriptsprache.</td></tr>
+    <tr><td>Mephisto-Bindung</td><td><code>MrBones</code>, Necromancer, Nightmare, Spielversion und aktuelle Offline-Map-Bindung. Der Durance-Level-2-Waypoint ist freigeschaltet.</td></tr>
+    <tr><td>Navigation</td><td>Eine gültige Aufnahme von Durance Level 2 über Level 3 bis zur Kampfposition ist Pflicht. Kein Explore-, Map-Solve- oder Blind-Fallback.</td></tr>
+    <tr><td>Encounter</td><td>Zweimal Bone Prison auf die gepinnte Mephisto-Unit, jeweils geordnet und mit Settle; danach Bone Spear bis zur Memory-bestätigten Tötung. Countess behält genau einen Bone-Prison-Cast.</td></tr>
+    <tr><td>Söldner</td><td>Keine Söldner-Erkennung, -Beobachtung, -Wiederbelebung oder Erfolgsbedingung. Die zwei Bone Prisons sind eine Kampftaktik, kein Mercenary-Test.</td></tr>
+    <tr><td>Loot</td><td>Alle sieben Gem-Familien wie bei Countess, jeweils makellos oder perfekt. Zusätzlich Exceptional-/Elite-Set- und Unique-Items als expliziter Identify-and-Sell-Testloot.</td></tr>
+    <tr><td>Inventar voll</td><td>Run beendet die Loot-Suche, verarbeitet bereits aufgenommenen Loot in Town und gibt verbleibenden Bodenloot auf. Keine Portal-Rückkehr zum Weiterlooten.</td></tr>
+    <tr><td>Rückweg</td><td>Town Portal → Kurast-Docks → lokaler Waypoint → Rogue Encampment → zentraler Town-Service/Stash → Act-1-Waypoint → Save &amp; Exit.</td></tr>
+    <tr><td>GUI</td><td>Keine GUI. Phase 10 liefert den GUI-neutralen Resolver plus JSON-Ausgabe; die Core-API-/GUI-Anbindung bleibt explizit offen für Phase 11.</td></tr>
+  </tbody></table>
+
+  <h2>2. Scope und bewusste Grenzen</h2>
+  <table><thead><tr><th>Enthalten</th><th>Bewusst nicht in Phase 10</th></tr></thead><tbody>
+    <tr><td>Gemeinsamer Run-Vertrag, Registry, Config-Auflösung, Preflight und Lifecycle für Countess und Mephisto.</td><td>Run-Playlist, gewichtete Rotation, Zeitplan oder GUI-Editor.</td></tr>
+    <tr><td>Read-only Verfügbarkeitsstatus pro Run für Charakter, Difficulty, Game-Version, Map-Bindung und Route.</td><td>HTTP-/WebSocket-Core-API und GUI-Verbrauch der Daten.</td></tr>
+    <tr><td>Generische Waypoint-Ziele Black Marsh, Durance Level 2 und Rogue Encampment.</td><td>Beliebige Waypoint-Ziele ohne registrierte und validierte UI-Aktion.</td></tr>
+    <tr><td>Act-3-Egress Kurast-Docks → Waypoint und Rücktransfer in den Act-1-Hub.</td><td>Vollständiger Kurast-Servicegraph oder Act-3-NPC-Dienste.</td></tr>
+    <tr><td>Versionsgebundener Mephisto-Katalogeintrag aus eigenem <code>monstats.txt</code>-Export sowie Item-Basistiers aus <code>armor.txt</code>/<code>weapons.txt</code>.</td><td>IDs aus d2go/Koolo übernehmen oder unbekannte Items heuristisch klassifizieren.</td></tr>
+    <tr><td>Produktive Cain-Identifikation und Akara-Verkauf expliziter Sell-Kandidaten.</td><td>Preisbewertung, Stat-Ranking, Keep-Ausnahmen, Gambling oder Shared-Stash-Verwaltung.</td></tr>
+    <tr><td>Ein validierter Nightmare-Mephisto-Record für den festgelegten Charakter und die aktuelle Map.</td><td>Automatische Erkundung, mehrere Difficulty-Sets oder Hell-Tuning.</td></tr>
+    <tr><td>Vollständige Countess-Regression nach dem Refactor.</td><td>Toter Countess-Sondercode als vermeintliches Sicherheitsnetz.</td></tr>
+  </tbody></table>
+  <div class="callout danger"><strong>Route ist eine Capability, kein optionales Tuning:</strong> Ohne passend gebundene, ladbare und intern valide Route ist Mephisto nicht ausführbar. Der Resolver darf den Run anzeigen, muss ihn aber mit stabilem Sperrgrund als nicht verfügbar markieren; Session-Start endet vor Runtime-Input.</div>
+
+  <h2>3. Zielarchitektur</h2>
+  <pre><code>Run ID + Character + Difficulty + Game Identity
+                    │
+                    ▼
+             Run Registry
+        metadata + typed definition
+                    │
+          ┌─────────┴─────────┐
+          ▼                   ▼
+ Availability Resolver   Session Preflight
+          │                   │
+          ▼                   ▼
+     CLI / JSON         Shared Run Pipeline
+                              │
+          ┌───────────────────┼───────────────────┐
+          ▼                   ▼                   ▼
+   Waypoint Target       Recorded Route      Encounter Strategy
+          │                   │                   │
+          └───────────────────┼───────────────────┘
+                              ▼
+                    Loot + Portal + Town
+                              │
+                              ▼
+              Origin Egress → Act-1 Hub → Exit</code></pre>
+  <table><thead><tr><th>Baustein</th><th>Verantwortung</th><th>Keine Verantwortung</th></tr></thead><tbody>
+    <tr><td><code>RunDefinition</code></td><td>Stabile ID, Anzeigename, Start-/Zielgebiete, Waypoint-Ziel, Bossdescriptor, Encounter-Sequenz, Herkunftsakt, benötigte Capabilities.</td><td>Keine Input-Ausführung und keine beliebigen Funktionscallbacks aus Config.</td></tr>
+    <tr><td><code>RunConfig</code></td><td>Route-ID, Combat-Profil/-Tuning und run-spezifische Loot-Policy-Dateien im gemeinsamen Schema.</td><td>Keine duplizierten Countess-/Mephisto-Structs.</td></tr>
+    <tr><td><code>RunRegistry</code></td><td>Definitionen registrieren, doppelte IDs verhindern, Metadaten listen und Config zuordnen.</td><td>Keine World-Abhängigkeit.</td></tr>
+    <tr><td><code>AvailabilityResolver</code></td><td>Config, Character, Difficulty, Game-Version, Map-Seed und Route-Bindung read-only bewerten.</td><td>Kein Playback und kein Versprechen über einen erst im Zielgebiet prüfbaren Live-Fingerprint.</td></tr>
+    <tr><td><code>RunPipeline</code></td><td>Gemeinsame endliche Zustandsfolge, Timeouts, Reset, Fehler und Telemetrie.</td><td>Keine NPC-/UI-Koordinaten und kein target-spezifischer Sonderpfad.</td></tr>
+    <tr><td>Waypoint Registry</td><td>Bestätigte, auflösungsgebundene Auswahlaktionen für Black Marsh, Durance Level 2 und Rogue Encampment.</td><td>Kein Klick auf unregistrierte Ziele.</td></tr>
+    <tr><td>Loot Policies</td><td>Pickup- und optionale Sell-Filter pro Run; eindeutige Disposition nach Identifikation.</td><td>Kein implizites Verkaufen jedes Pickit-Matches.</td></tr>
+    <tr><td>Town Worker</td><td>Origin-Normalisierung, Stash, Identify, Sell, Restock und Handoff aus vorhandenem Phase-9-Vertrag.</td><td>Keine Run-spezifischen Entscheidungen.</td></tr>
+  </tbody></table>
+
+  <h2>4. Gemeinsamer Run-Vertrag</h2>
+  <pre><code>type RunDefinition struct {
+    ID                 RunID
+    DisplayName        string
+    EntryArea          world.AreaID
+    RouteTerminalArea  world.AreaID
+    WaypointTarget     pathing.WaypointTargetID
+    Boss               BossDescriptor
+    BossEngageSequence []EncounterAction
+    ReturnOrigin       town.OriginAct
+    RequiredCaps       []RunCapability
+}
+
+type RunConfig struct {
+    RouteID string
+    Combat  CombatConfig
+    Loot    RunLootConfig
+}
+
+type RunAvailability struct {
+    RunID       RunID
+    DisplayName string
+    Status      string // available | unavailable | runtime_validation_required
+    Reasons     []string
+    Route       RouteAvailability
+}</code></pre>
+  <p>Die endgültigen Go-Namen werden in 10.0 festgeschrieben. Wichtig ist die Trennung: Produktidentität und feste Fähigkeiten kommen aus der Registry; operatorabhängige Route, Profil und Tuning kommen aus Config; Live-Layout und UI werden erst durch Preflight beziehungsweise den zuständigen Executor bestätigt.</p>
+  <div class="callout"><strong>Spätere Farm-Reihenfolge:</strong> Eine GUI soll später beispielsweise <code>mephisto → countess → baal</code> zusammenstellen. Phase 10 implementiert dafür stabile IDs, Metadaten und Verfügbarkeitsgründe. Die Session führt weiterhin genau eine ausgewählte Definition aus; der spätere Scheduler orchestriert mehrere Sessions, ohne Run-Interna zu kennen.</div>
+
+  <h2>5. Gemeinsame State-Machine</h2>
+  <pre><code>resolve_definition
+→ precheck
+→ town_ready_profile
+→ acquire_act1_waypoint
+→ select_run_waypoint
+→ wait_entry_area
+→ play_bound_route
+→ acquire_boss
+→ boss_engage_action[0..n]
+→ engage_boss
+→ confirm_kill
+→ scan_and_pick_loot
+→ cast_and_enter_town_portal
+→ wait_origin_town
+→ normalize_to_act1_hub
+→ stash_and_services
+→ reach_act1_waypoint
+→ complete</code></pre>
+  <ul>
+    <li>Jeder Zustand besitzt erlaubte Vorgänger, zulässige World-Areas, Input-/Verify-Budget, Timeout und stabilen terminalen Reason-Code.</li>
+    <li>Persistenter Zustand über Ticks: Definition, Route-/Layout-Bindung, gepinnte Boss-UnitID, Encounter-Aktionsindex, Loot-Skips, Town-Plan und Telemetrie-Recorder.</li>
+    <li><code>Reset</code> verwirft alle Pins, Once-/Settle-Zustände, laufende Player/Executor und Recorder-Bindungen. Es darf kein verzögerter Input in den nächsten Run gelangen.</li>
+    <li>Countess und Mephisto verwenden dieselbe Transition-Tabelle. Unterschiedliche Aktionsanzahl, Areas und IDs werden ausschließlich aus der Definition gelesen.</li>
+    <li>Loading-/inkonsistente Snapshots dürfen innerhalb der explizit erlaubten Übergangszustände warten; in jedem anderen Zustand gilt fail-closed.</li>
+  </ul>
+
+  <h2>6. Run-spezifische Daten</h2>
+  <table><thead><tr><th>Feld</th><th>Countess</th><th>Mephisto</th></tr></thead><tbody>
+    <tr><td>Waypoint-Ziel</td><td>Black Marsh</td><td>Durance of Hate Level 2</td></tr>
+    <tr><td>Routenende</td><td>Tower Cellar Level 5</td><td>Durance of Hate Level 3, definierte Kampfposition</td></tr>
+    <tr><td>Boss</td><td>Countess, vorhandener selbst extrahierter Katalogeintrag</td><td>Mephisto, <code>*hcIdx=242</code> aus lokalem D2R-<code>3.2.92777</code>-Export</td></tr>
+    <tr><td>Boss-Hook</td><td>Einmal Bone Prison</td><td>Zweimal Bone Prison, geordnet und jeweils verifiziert/gesettelt</td></tr>
+    <tr><td>Angriff</td><td>Bone Spear</td><td>Bone Spear</td></tr>
+    <tr><td>Town-Rückkehr</td><td>Rogue Encampment direkt</td><td>Kurast-Docks, danach Act-3-Egress und Waypoint-Transfer</td></tr>
+    <tr><td>Pickup</td><td>Bestehende Countess-Regeln</td><td>Countess-Gems plus Exceptional-/Elite-Set/Unique</td></tr>
+    <tr><td>Sell-Policy</td><td>Keine neue automatische Sell-Regel</td><td>Exceptional-/Elite-Set/Unique nach Cain-Identifikation immer Akara verkaufen</td></tr>
+  </tbody></table>
+
+  <h2>7. Umsetzungsabschnitte</h2>
+  <article class="phase"><div class="phase-id">10.0</div><div><h3>Vertrag, Characterization und Refactor-Grenzen</h3><p>Den gemeinsamen Run-Vertrag, Capabilities, Zustände, Übergänge, Reset-Grenzen, Availability-Status und Reason-Codes verbindlich festlegen. Vor Umbauten werden Characterization-Tests für den aktuellen Countess-Full-Run, Session-Preflight, Route-Bindung, Boss-Hook, Loot-Abschluss, Town-Handoff und Save &amp; Exit ergänzt. Alle Countess-spezifischen Kopplungspunkte werden in einer Migrationsmatrix einem gemeinsamen Baustein oder zulässigen Definitionsfeld zugeordnet.</p><ul><li>Kein Produktivverhalten ändern.</li><li>Invarianten und fail-closed Entscheidungen gemäß <code>AGENTS.md</code> direkt am kleinsten hilfreichen Code-Scope dokumentieren.</li><li>Explizit festhalten, welcher Altcode nach der Migration entfernt werden muss.</li></ul><p class="gate"><strong>Gate 10.0:</strong> Alle bestehenden Tests sowie neue Characterization-Tests laufen grün; die Migrationsmatrix enthält keinen ungeklärten Countess-Sonderpfad. <code>go test ./...</code> und <code>go build ./cmd/d2rbot</code> erfolgreich. Kein manueller Test.</p></div></article>
+
+  <article class="phase"><div class="phase-id">10.1</div><div><h3>Run Registry, gemeinsames Config-Schema und Definition Resolver</h3><p><code>RunDefinition</code>, <code>RunRegistry</code> und ein einheitliches <code>RunConfig</code>-Schema implementieren. Countess wird als erste registrierte Definition abgebildet; Mephisto darf zunächst nur Metadaten ohne produktive Ausführung besitzen. <code>runs.countess</code>-Sonderzugriffe werden durch ID-basierte Auflösung ersetzt. Run-spezifische Pickup-/Sell-Policy-Dateien gehören zur ausgewählten Config, globale Loot-Engine und Inventory-Lock bleiben gemeinsam.</p><pre><code>runs:
+  active: ""
+  step_timeout_ms: 30000
+  definitions:
+    countess:
+      route_id: "..."
+      combat: { profile: necro_bone_spear, attack_skill: bone_spear, ... }
+      loot: { pickup_file: pickit/countess.nip }
+    mephisto:
+      route_id: ""
+      combat: { profile: necro_bone_spear, attack_skill: bone_spear, ... }
+      loot:
+        pickup_file: pickit/mephisto.nip
+        sell_file: pickit/mephisto-sell.nip</code></pre><p>Die endgültige YAML-Struktur darf kompakter sein, muss aber für beide IDs exakt denselben Typ laden. Da das Projekt keine Legacy-Kompatibilität verlangt, wird das alte Countess-Sonderschema vollständig migriert und nicht parallel weitergeführt.</p><p class="gate"><strong>Gate 10.1:</strong> Tests decken doppelte/ungültige IDs, fehlende Config, unbekannte Run-Auswahl, ungültige Capability-Kombinationen, getrennte Loot-Dateien und identische Countess-Defaults ab. Repository-Suche findet außerhalb von Definition, Tests und Dokumentation keinen direkten Zugriff mehr auf <code>cfg.Runs.Countess</code>. Kein manueller Test.</p></div></article>
+
+  <article class="phase"><div class="phase-id">10.2</div><div><h3>Gemeinsame Run-Pipeline und vollständige Countess-Migration</h3><p>Die monolithische Countess-State-Machine in eine datengetriebene, aber typisierte Pipeline überführen. Waypoint-Reise, Routen-Playback, Boss-Pinning, Encounter-Aktionssequenz, Combat, Loot, Portal, Town und Abschluss werden gemeinsame Steps. Countess liefert ausschließlich Definition und Config. Bestehende isolierte Phasen werden entweder generisch benannt oder über einen dünnen, dokumentierten CLI-Alias auf gemeinsame Steps abgebildet.</p><ul><li>Ein Encounter-Aktionsindex erlaubt Countess genau eine Hook-Aktion und später Mephisto zwei.</li><li>Boss-Pin, Route-Player, Profile-Executor, Loot-Executor und Town-Executor werden an einer zentralen Reset-Barriere geleert.</li><li>Alte Countess-Step-Switches, doppelte Prechecks und unbenutzte Adapter unmittelbar entfernen; kein toter Fallback-Code.</li><li>Telemetry behält stabile Run-/Step-/Outcome-Felder und ergänzt Definition-ID sowie Aktionsindex.</li></ul><p class="gate"><strong>Gate 10.2:</strong> Die Characterization-Suite aus 10.0 läuft unverändert gegen die gemeinsame Pipeline. Transition-, Timeout-, Reset-, Stop-, Pause- und Telemetriefehler-Tests beweisen keine doppelten Inputs und keinen Zustandstransfer zwischen Runs. Kein manueller Test.</p></div></article>
+
+  <article class="phase"><div class="phase-id">10.3</div><div><h3>Generischer Session-Preflight und read-only Run-Verfügbarkeit</h3><p><code>ResolveSessionPlan</code> wird von Countess entkoppelt und fragt ausschließlich Registry, ausgewählte Config, Profil, Route Registry und Town-Capabilities ab. Eine neue read-only CLI-Ausgabe, beispielsweise <code>--runs-inspect</code>, listet JSON-stabil alle Run-Metadaten und deren Status für Character, Difficulty und aktuelle Game Identity.</p><ul><li><code>available</code>: statische Definition, Config, Profil und passend gebundener Route-Kandidat sind vorhanden.</li><li><code>runtime_validation_required</code>: Vorbedingungen passen, der exakte Zielgebiets-Fingerprint kann aber erst nach Ankunft validiert werden.</li><li><code>unavailable</code>: mindestens ein stabiler Sperrgrund wie <code>route_missing</code>, <code>route_binding_mismatch</code>, <code>profile_class_mismatch</code>, <code>waypoint_target_unsupported</code> oder <code>town_egress_missing</code>.</li><li>Die Abfrage registriert keine Hotkeys, sendet keinen Input und startet keine Session.</li></ul><p class="gate"><strong>Gate 10.3:</strong> Golden-/JSON-Tests beweisen deterministische Reihenfolge und stabile Reason-Codes. Countess wird für die gültige lokale Bindung verfügbar, Mephisto bleibt bis zur Aufnahme nachvollziehbar gesperrt. Session-Start mit gesperrtem Run endet vor Runtime-Input. Kein manueller Inputtest.</p></div></article>
+
+  <article class="phase"><div class="phase-id">10.4</div><div><h3>Countess-Regressionsabnahme nach dem Refactor</h3><p>Erst nach vollständigem Abschluss von 10.0–10.3 wird der migrierte Countess-Run einmal autonom auf <code>MrBones</code>/Nightmare ausgeführt. Geprüft werden Definition-Auflösung, Session-Preflight, Town-Waypoint, bestehende Route, genau ein Bone Prison, Bone Spear, Loot, Portal, Stash/Restock, Waypoint-Handoff, Save &amp; Exit und Sessionabschluss.</p><p class="gate"><strong>Manuelle Abnahme 1/4:</strong> Ein vollständiger telemetrierter Countess-Run endet mit <code>outcome=success</code>, genau einem Boss-Hook und genau einem Save-&amp;-Exit. Keine Countess-Regression und keine Aktivierung von Mephisto-Sondercode. Bei Fehlschlag wird 10.2/10.3 korrigiert und dieses Gate wiederholt; 10.5 beginnt erst nach Erfolg.</p></div></article>
+
+  <article class="phase"><div class="phase-id">10.5</div><div><h3>Versionsgebundene Mephisto- und Item-Tier-Daten</h3><p>Die eigenen Generatoren so erweitern, dass <code>monstats.txt</code> Mephisto über <code>*hcIdx=242</code> in Memory- und World-Kataloge übernimmt. <code>armor.txt</code> und <code>weapons.txt</code> liefern aus ihren Normal-/Exceptional-/Elite-Verknüpfungen eine generierte <code>BaseTier</code>-Klassifikation. Durance Level 2/3 erhalten die für Route und Transition nötigen semantischen Area-/Entrance-Kinds.</p><ul><li>Keine handgeschriebene Kopie großer Tabellen.</li><li>Generatoren validieren Pflichtspalten, Zyklen, unbekannte Referenzen und Game-Version.</li><li>Der Pickit-Ausdruck erhält einen klaren read-only Tier-Prädikatszugriff, ohne bestehende Countess-Regeln zu verändern.</li><li>Unbekannte oder nicht aus Waffen/Rüstung stammende Codes besitzen <code>unknown</code>, niemals heuristisch <code>elite</code>.</li></ul><p class="gate"><strong>Gate 10.5:</strong> Generator-Fixtures und Katalogtests bestätigen Mephisto 242 sowie bekannte Normal→Exceptional→Elite-Ketten aus Waffen und Rüstung. Negative Tests verwerfen defekte Tabellen. Alle generierten Dateien sind reproduzierbar und <code>go generate</code>/Generator-Check erzeugt keinen unerklärten Diff. Kein manueller Test.</p></div></article>
+
+  <article class="phase"><div class="phase-id">10.6</div><div><h3>Run-spezifische Loot-Policies und produktiver Identify-/Sell-Flow</h3><p>Pickup- und Sell-Filter werden getrennt ausgewertet. <code>mephisto.nip</code> nimmt die bestehenden makellosen/perfekten Gems einschließlich Schädel sowie Exceptional-/Elite-Set/Unique auf. <code>mephisto-sell.nip</code> klassifiziert ausschließlich letztere als Sell-Kandidaten. Gems bleiben Keep/Stash; normale Set-/Unique-Basen werden ignoriert.</p><p>Der in Phase 9 vorbereitete <code>ItemServiceExecutor</code> wird produktiv in Demand, Graphplanung und App-Input verdrahtet: ein unidentifizierter Sell-Kandidat geht zu Cain, wird anhand derselben UnitID als identifiziert bestätigt und danach bei Akara verkauft. Identifizierte Sell-Kandidaten überspringen Cain. Konflikte mit Keep/Stash/Inventory-Lock stoppen vor Input. Akara-Restock darf bei ohnehin geöffnetem Shop geordnet kombiniert werden; jedes UI wird vor Navigation bestätigt geschlossen.</p><p class="gate"><strong>Automatisches Gate 10.6:</strong> Tests decken alle Quality×Tier×Identified-Kombinationen, Gem-Schutz, UnitID-Pinning, Cain→Akara-Reihenfolge, Shop-Close, fehlenden Kandidaten, Konflikte und Verify-Timeout ohne Doppelinput ab.</p><p class="gate"><strong>Manuelle Abnahme 2/4:</strong> Mit genau einem vorbereiteten, unidentifizierten Exceptional-/Elite-Set- oder Unique-Item im ungeschützten Inventar führt ein isolierter Town-Test Cain-Identifikation und anschließenden Akara-Verkauf aus. Ein vorhandener Gem-/Keep-Gegenstand bleibt unangetastet. Dieses Gate ist unabhängig vom Zufall eines Mephisto-Drops.</p></div></article>
+
+  <article class="phase"><div class="phase-id">10.7</div><div><h3>Generische Waypoint-Ziele und sichere UI-Auswahl</h3><p><code>SelectBlackMarsh</code> wird durch eine registrierte <code>SelectWaypointTarget</code>-Aktion ersetzt. Registriert werden Black Marsh, Durance of Hate Level 2 und Rogue Encampment. Jede Aktion beschreibt erforderlichen Akt-Tab, Zielzeile, Auflösungsbindung, Settle und erwartete Ziel-Area; UI-Eingaben erfolgen nur nach bestätigtem Waypoint-UI-Zustand und höchstens einmal pro Tick.</p><ul><li>Black-Marsh-Koordinaten werden migriert, nicht dupliziert.</li><li>Durance Level 2 erfordert bestätigten Act-3-Tab und danach die registrierte Zeile.</li><li>Rogue Encampment wird für den Transfer aus Kurast-Docks registriert.</li><li>Nach Auswahl wartet der Step auf die erwartete Area; falsche Area oder Timeout wiederholt keinen Klick.</li></ul><p class="gate"><strong>Gate 10.7:</strong> Unit-/Adaptertests decken Act-Tab, Zielzeile, Settle, falsche Auflösung, unbekanntes Ziel, falsche Area, Timeout und Reset ab. Eine read-only/isolierte Kalibrierung liefert die finalen 1280×720-Koordinaten; echter Travel-Input wird mit dem kombinierten Gate 10.9 abgenommen.</p></div></article>
+
+  <article class="phase"><div class="phase-id">10.8</div><div><h3>Act-3-Egress und Hub-Transfer</h3><p>Kurast-Docks werden als produktiver <code>OriginAct3</code>-Rückkehrzustand integriert. Das vorhandene Egress-Schema wird mit einer echten, gebundenen Aufnahme <code>portal_arrival → waypoint</code> gefüllt. Playback bestätigt Area, World-/Identity-Bindung, Startnähe und Waypoint-Ankunft. Danach wählt der gemeinsame Waypoint-Executor Rogue Encampment; Town-Dienste beginnen erst nach bestätigter Act-1-Ankunft.</p><ul><li>Vor Aufnahme liefert ein read-only Inspect die stabilen Kurast-Anker und entscheidet anhand realer Daten, ob ein Layout-Fingerprint beziehungsweise eine Character-/Difficulty-Bindung erforderlich ist.</li><li>Kein vollständiger Act-3-Servicegraph.</li><li>Fehlende Egress-Route, falscher Startanker oder Binding-Mismatch stoppen vor Bewegung.</li><li>Portalrückkehr, Egress-Player und Waypoint-Transfer besitzen getrennte Reset-/Timeout-Budgets.</li></ul><p class="gate"><strong>Gate 10.8:</strong> Automatisierte Route-/Planner-Tests beweisen <code>Kurast-Docks → Waypoint → Rogue Encampment</code> und alle negativen Bindungsfälle. Aufnahme und echter Playback werden in Gate 10.9 mit der Mephisto-Route gebündelt.</p></div></article>
+
+  <article class="phase"><div class="phase-id">10.9</div><div><h3>Mephisto-Routenaufnahme und kombinierte Navigationsabnahme</h3><p>Mit dem bestehenden Recorder wird auf <code>MrBones</code>/Nightmare eine vollständige Route vom Durance-Level-2-Waypoint über den Übergang nach Level 3 bis zu einer reproduzierbaren Bone-Spear-Kampfposition aufgezeichnet. Die Route trägt Character, Class, Difficulty, Game-Version, Map-Seed, Layout-Fingerprint, Start-/Ziel-Areas und Segmentübergänge. Zusätzlich wird der Act-3-Egress aus 10.8 aufgenommen.</p><ol><li>Vor Aufnahme zeigt <code>--runs-inspect</code> Mephisto als <code>route_missing</code>.</li><li>Durance-Route und Kurast-Egress separat aufnehmen und strukturell validieren.</li><li>Keine Punkte manuell kürzen oder aus Konsolenausgabe rekonstruieren; die persistierte Datei ist autoritativ.</li><li>Kombinierter Test: Act-1-Waypoint → Durance Level 2 → Durance-Route bis Kampfposition; ohne Kampf anschließend separat Kurast-Portalankunft → Waypoint → Rogue Encampment.</li><li>Danach zeigt der Resolver einen passenden Route-Kandidaten beziehungsweise den präzisen Status <code>runtime_validation_required</code>.</li></ol><p class="gate"><strong>Manuelle Abnahme 3/4:</strong> Beide Aufnahmen spielen vollständig ohne Drift, Abkürzung oder halben Segmentabbruch ab. Durance Level 3 und Rogue Encampment werden jeweils per Memory bestätigt. Der CLI-Resolver wechselt nachvollziehbar von fehlender Route zu verfügbarer/Runtime-Validierung. Erst danach beginnt die Bossintegration.</p></div></article>
+
+  <article class="phase"><div class="phase-id">10.10</div><div><h3>Mephisto-Definition, doppeltes Bone Prison und Loot-Abschluss</h3><p>Die Mephisto-Definition wird produktiv freigeschaltet: Durance-Level-2-Waypoint, aufgezeichnete Route, Terminalarea Level 3, NPC-ID 242, zweimalige <code>boss_engage</code>-Aktion und Bone-Spear-Combat. Beide Bone-Prison-Aktionen verwenden dieselbe gepinnte Mephisto-UnitID, besitzen getrennte Aktionsindizes und Settle-Phasen; der erste Bone-Spear-Cast ist vorher gesperrt.</p><ul><li>Mephisto-Verlust, UnitID-Wechsel oder Tod vor Abschluss der Sequenz stoppt fail-closed.</li><li>Kill-Bestätigung verwendet mehrere konsistente Ticks und nicht nur das Verschwinden aus einem Snapshot.</li><li>Loot nutzt die Run-spezifischen Policies aus 10.6.</li><li>Bei Inventory Full endet der Scan und wechselt zum Town-Pfad; kein Rückkehrportal zum Restloot.</li><li>Nach Loot wird ausschließlich das eigene, hover-bestätigte Town Portal betreten und Kurast-Docks erwartet.</li></ul><p class="gate"><strong>Gate 10.10:</strong> State-Machine-/Integrationstests beweisen exakt zwei Bone Prisons, Reihenfolge und Settle vor Bone Spear, Kill-Confirm, zufälligen No-Drop, passenden Sell-Loot, Inventory Full, Portal und erwartete Act-3-Ankunft. Countess-Tests beweisen weiterhin exakt einen Bone-Prison-Cast. Kein separater Söldnertest.</p></div></article>
+
+  <article class="phase"><div class="phase-id">10.11</div><div><h3>Vollständige Session-Integration, Telemetrie und Abschluss</h3><p><code>session.run=mephisto</code> verwendet denselben Start-/Exit-/Restart-Lifecycle wie Countess. Der produktive Flow verbindet Definition-Resolver, Waypoint, Route, Encounter, Loot, Kurast-Egress, Act-1-Hub, Stash, optionale Cain-/Akara-Dienste, Waypoint-Handoff und genau ein Save &amp; Exit. Fehlende Loot-Drops überspringen Identify/Sell ohne künstlichen Fehler.</p><p>Telemetrie enthält Run-ID, Definition, Route-Bindung/Fingerprint, Waypoint-Ziel, Boss-UnitID, Encounter-Aktionsindex, Loot-Policy/Disposition, Town-Origin, Serviceplan und terminalen Reason-Code. Session-Retry bleibt an bestehende klassifizierte Fehler gebunden; Binding-/Capability-Fehler sind nicht retrybar.</p><p class="gate"><strong>Manuelle Abnahme 4/4:</strong> Ein autonomer <code>mephisto</code>-Run auf <code>MrBones</code>/Nightmare startet im Rogue Encampment, erreicht Durance Level 2/3, castet exakt zweimal Bone Prison vor Bone Spear, bestätigt Mephistos Tod, verarbeitet Loot, kehrt über Kurast-Docks und den Act-3-Egress nach Act 1 zurück und endet nach Town-Preparation mit genau einem Save &amp; Exit und <code>outcome=success</code>. Cain/Akara sind in diesem Zufallsrun nur erforderlich, wenn passender Sell-Loot fällt; ihre produktive Funktion ist bereits deterministisch in Gate 10.6 bewiesen.</p></div></article>
+
+  <article class="phase"><div class="phase-id">10.12</div><div><h3>Dokumentation, Dead-Code-Audit und Phase-Abschluss</h3><p>Feature-Dokumentation für Run Registry/Availability und Mephisto-Run anlegen beziehungsweise bestehende Session-, Countess-, Route-, Loot- und Town-Dokumente aktualisieren. <code>docs/features/README.md</code> und <code>docs/CHANGELOG.md</code> pflegen. Im Handoff Phase 10 als abgeschlossen markieren und ausdrücklich festhalten: Resolver und CLI-/JSON-Vertrag existieren, ihre lokale Core-API-/GUI-Anbindung sowie Farm-Reihenfolgen fehlen bis Phase 11.</p><ul><li>Godoc für alle neuen/geänderten exportierten Symbole.</li><li>Design-Kommentare an Registry-Invarianten, State-Machine, Route-/Availability-Gates, doppelter Encounter-Aktion und Item-Disposition.</li><li>Repository-weite Suche nach Countess-Sonderpreflight, <code>SelectBlackMarsh</code>-Altpfad, parallelem Config-Schema, ungenutzten Adaptern und auskommentiertem Fallback-Code.</li><li>SemVer-Minor-Bump für das zweite Farmziel gemäß Release-Workflow, ohne Commit oder Release ohne separate Nutzeranweisung.</li></ul><p class="gate"><strong>Gate 10.12:</strong> <code>gofmt</code>/<code>goimports</code>, <code>go test ./...</code>, <code>go build ./cmd/d2rbot</code> und <code>golangci-lint run</code> erfolgreich; HTML-Linkcheck und Config-Beispiel valide; keine verwaiste Countess-only Produktionslogik. Alle vier manuellen Gates sind mit Logs/Telemetrie dokumentiert.</p></div></article>
+
+  <h2>8. Manuelle Teststrategie ohne Zufallsabhängigkeit</h2>
+  <table><thead><tr><th>Gate</th><th>Beweist</th><th>Bewusst nicht gekoppelt</th></tr></thead><tbody>
+    <tr><td>1 – Countess-Regression</td><td>Gemeinsame Pipeline erhält den vollständigen vorhandenen Run.</td><td>Keine Mephisto-Funktion.</td></tr>
+    <tr><td>2 – Item-Service</td><td>Ein vorbereiteter Kandidat wird deterministisch Cain→Akara verarbeitet; Keep/Gem bleibt geschützt.</td><td>Kein zufälliger Mephisto-Drop erforderlich.</td></tr>
+    <tr><td>3 – Navigation</td><td>Waypoint-Auswahl, Durance-Record, Level-Transition, Kurast-Egress und Act-1-Transfer.</td><td>Kein Bosskampf; Navigationsfehler bleiben isolierbar.</td></tr>
+    <tr><td>4 – Mephisto-E2E</td><td>Der vollständige zweite Run im gemeinsamen Session-Lifecycle.</td><td>Kein Söldner-Erfolg und kein garantierter Sell-Drop.</td></tr>
+  </tbody></table>
+  <div class="callout success"><strong>Abnahmeprinzip:</strong> Varianten, Fehlerpfade und Random-Drop-Matrizen werden automatisiert geprüft. Ein erfolgreicher telemetrierter Live-Durchlauf pro Gate genügt; wiederholt wird nur nach einem echten Fehlschlag oder einer späteren Änderung genau dieses Pfads.</div>
+
+  <h2>9. Stabile Reason-Codes</h2>
+  <table><thead><tr><th>Bereich</th><th>Mindestens vorzusehende Gründe</th></tr></thead><tbody>
+    <tr><td>Registry/Config</td><td><code>run_unknown</code>, <code>run_config_missing</code>, <code>run_definition_invalid</code>, <code>run_capability_missing</code></td></tr>
+    <tr><td>Availability/Route</td><td><code>route_missing</code>, <code>route_binding_mismatch</code>, <code>route_layout_mismatch</code>, <code>route_runtime_validation_required</code></td></tr>
+    <tr><td>Waypoint</td><td><code>waypoint_target_unsupported</code>, <code>waypoint_ui_unconfirmed</code>, <code>waypoint_destination_timeout</code>, <code>unexpected_area</code></td></tr>
+    <tr><td>Encounter</td><td><code>boss_not_found</code>, <code>boss_pin_lost</code>, <code>encounter_action_failed</code>, <code>boss_kill_unconfirmed</code></td></tr>
+    <tr><td>Loot/Item-Service</td><td><code>loot_policy_invalid</code>, <code>item_tier_unknown</code>, <code>item_classification_conflict</code>, <code>item_identify_failed</code>, <code>item_sell_failed</code></td></tr>
+    <tr><td>Town</td><td><code>town_egress_missing</code>, <code>town_egress_binding_mismatch</code>, <code>hub_transfer_unsupported</code>, <code>town_service_verify_timeout</code></td></tr>
+  </tbody></table>
+  <p>Vorhandene semantisch identische Codes werden wiederverwendet. 10.0 entscheidet endgültig, welche neuen Namen tatsächlich nötig sind; die Implementierung darf keine zweite Synonymfamilie erzeugen.</p>
+
+  <h2>10. Definition of Done</h2>
+  <ol>
+    <li>Countess und Mephisto sind registrierte Definitionen desselben typisierten Schemas.</li>
+    <li>Beide Runs verwenden denselben Session-Preflight, Lifecycle, Reset, Telemetrie- und Input-Wiring-Pfad.</li>
+    <li>Es existiert kein produktiver Countess-only Session- oder Waypoint-Sonderpfad mehr.</li>
+    <li><code>--runs-inspect</code> oder das endgültig benannte Äquivalent liefert stabile JSON-Metadaten und Verfügbarkeitsgründe ohne Input.</li>
+    <li>Mephisto bleibt ohne gültige MrBones-/Nightmare-/Version-/Map-gebundene Route vor Input gesperrt.</li>
+    <li>Durance-Level-2-Waypoint, Durance-Route und Kurast-Egress wurden live aufgenommen und vollständig abgespielt.</li>
+    <li>Mephisto erhält genau zwei Bone Prisons; Countess weiterhin genau eines; Bone Spear beginnt jeweils erst nach dem Encounter-Settle.</li>
+    <li>Makellose/perfekte Gems werden wie bei Countess verstaut; Exceptional-/Elite-Set/Unique werden sicher identifiziert und verkauft.</li>
+    <li>Inventory Full beendet den Loot-Scope sauber ohne Rückkehr zum Bodenloot.</li>
+    <li>Act-3-Rückkehr normalisiert über den Kurast-Waypoint in den Act-1-Hub.</li>
+    <li>Countess-Regression und Mephisto-E2E enden jeweils autonom mit genau einem Save &amp; Exit.</li>
+    <li>Alle automatischen Gates, vier manuellen Gates, Dokumentation, Dead-Code-Audit, Build und Lint sind abgeschlossen.</li>
+  </ol>
+
+  <h2>11. Erwartetes Ergebnis für Phase 11</h2>
+  <p>Phase 11 kann über einen stabilen Core-Vertrag Run-Metadaten und Availability lesen, eine einzelne Run-ID für eine Session auswählen und Status/Reason-Codes anzeigen. Die GUI muss weder Countess-/Mephisto-Structs noch Route-Dateiformate kennen. Farm-Reihenfolgen wie <code>mephisto → countess → baal</code>, API-Endpunkte und GUI-Warnungen werden dort auf dem Phase-10-Resolver aufgebaut, nicht in Phase 10 vorweggenommen.</p>
+
+  <footer>Planungsstand: 13. Juli 2026 · Produktentscheidungen mit dem Nutzer geklärt · Umsetzung noch nicht begonnen.</footer>
+</main></body>
+</html>
