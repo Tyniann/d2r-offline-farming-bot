@@ -22,6 +22,7 @@ func TestDemandInspectorAndPlannerScenarios(t *testing.T) {
 		{"one scroll missing", Origin{Act: OriginAct1}, SupplySnapshot{Healing: 2, Mana: 4, TownPortalScrolls: 4, IdentifyScrolls: 3}, NextRunTarget{}, "", []StepKind{StepService}},
 		{"incomplete belt stays planable", Origin{Act: OriginAct1}, SupplySnapshot{Healing: 1, Mana: 4, TownPortalScrolls: 5, IdentifyScrolls: 3, BeltLayoutComplete: false}, NextRunTarget{}, "", []StepKind{StepService}},
 		{"countess handoff", Origin{Act: OriginAct1}, SupplySnapshot{Healing: 2, Mana: 4, TownPortalScrolls: 5, IdentifyScrolls: 3}, NextRunTarget{ID: "countess", Act: OriginAct1}, "", []StepKind{StepAct1Waypoint, StepHandoff}},
+		{"mephisto handoff", Origin{Act: OriginAct1}, SupplySnapshot{Healing: 2, Mana: 4, TownPortalScrolls: 5, IdentifyScrolls: 3}, NextRunTarget{ID: "mephisto", Act: OriginAct1}, "", []StepKind{StepAct1Waypoint, StepHandoff}},
 		{"missing egress", Origin{Act: OriginAct2, Anchor: AnchorPortalArrival}, SupplySnapshot{}, NextRunTarget{}, ReasonEgressMissing, nil},
 	}
 	for _, tc := range cases {
@@ -57,7 +58,7 @@ func TestPlannerGraphAnchorsDeduplicatesSharedAkaraServices(t *testing.T) {
 	if reason != "" || start != AnchorPortalArrival || end != AnchorWaypoint {
 		t.Fatalf("anchors = %s/%v/%s reason=%s", start, required, end, reason)
 	}
-	if len(required) != 2 || required[0] != AnchorAkara || required[1] != AnchorCain {
-		t.Fatalf("required = %v, want akara/cain once", required)
+	if len(required) != 2 || required[0] != AnchorCain || required[1] != AnchorAkara {
+		t.Fatalf("required = %v, want cain/akara once", required)
 	}
 }

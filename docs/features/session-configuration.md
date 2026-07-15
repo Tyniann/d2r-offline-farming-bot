@@ -4,7 +4,7 @@
 
 Phase 7.5 ergänzt den sicheren Operator-Vertrag für autonome Offline-Sessions. Das YAML enthält eine explizite Aktivierung, Character-/Run-/Difficulty-Auswahl, endliche Lauf- und Zeitbudgets sowie begrenzte Fehler-Restarts. `--session-inspect` löst den Plan read-only auf, bevor eine Runtime erzeugt, D2R attached, ein Hotkey registriert oder Input gesendet wird.
 
-Phase 7.5 führt noch keine produktive Session aus. `session.enabled: true` ohne `--session-inspect` wird ausdrücklich abgewiesen, bis die zyklische Game-/Run-Verifikation in den folgenden Phasen verdrahtet ist.
+Seit Phase 7.8 führt `session.enabled: true` endliche produktive Sessions aus. Phase 10.3 löst die ausgewählte Run-ID dabei über denselben generischen Availability-Resolver wie `--runs-inspect` auf.
 
 ## Ort im Code
 
@@ -51,15 +51,15 @@ Bei deaktivierter Session zeigt JSON `status: disabled` und die endlichen Defaul
 - `input.enabled: true` und leeres `runs.active`;
 - registrierter Full Run ohne Diagnosephase;
 - gültiger Character-Name und vorhandene Character-/Play-/Dialog-Anker;
-- vorhandene, eindeutige Route-ID;
-- Character, Difficulty und Game-Version stimmen mit dem Route Contract überein;
+- Run-Status aus Registry, gemeinsamem Config-Typ, Profil, Route Registry, Waypoint- und Town-Capabilities ist nicht `unavailable`;
+- Character, Difficulty und Game-Version stimmen mit dem Route Contract überein; der Live-Fingerprint darf bis zum Routenstart `runtime_validation_required` bleiben;
 - Telemetriepfad und feste 1280×720-Clientanforderung sind aufgelöst.
 
 Ein erfolgreicher Preflight liefert `status: ready`, Route-Pfad und erwarteten Layout-Fingerprint. Widersprüche enden mit einem Fehler, ohne D2R-Prozesszugriff oder Input. `--session-inspect` ist gegenseitig exklusiv zu Probe-, Run-, Route- und Testmodi.
 
 ## Abhängigkeiten und Grenzen
 
-- Die Planauflösung verwendet die vorhandene Route Registry und Run Registry read-only.
+- Die Planauflösung verwendet `ResolveRunAvailabilities`; ein Countess-/Mephisto-Sondergate existiert nicht.
 - Ein `ready`-Plan ist noch keine Input-Autorisierung und startet keine Session.
 - Phase 7.6 verifiziert Identity, Version und Rogue Encampment über drei frische Snapshots pro Game; der Layout-Fingerprint wird am Black-Marsh-Routenstart erneut aufgebaut.
 - Recovery-Klassifikation und korrelierte Session-Telemetrie folgen in Phase 7.7.
@@ -73,6 +73,7 @@ Die Phase-7.5-Abnahme umfasst drei Operatorfälle: einen deaktivierten Plan mit 
 - [Session-Lifecycle](session-lifecycle.md)
 - [Verifizierter Offline-Game-Start](offline-difficulty-selection.md)
 - [Route Recording und Playback](route-recording-playback.md)
+- [Run-Verfügbarkeit und Inspect](run-availability.md)
 
 ---
-*Zuletzt aktualisiert: 2026-07-11*
+*Zuletzt aktualisiert: 2026-07-13*

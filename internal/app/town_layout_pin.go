@@ -79,7 +79,7 @@ type townLayoutTestPinFile struct {
 
 func saveTownLayoutTestPin(path string, pid uint32, state world.State, fingerprint town.TownLayoutFingerprint, now time.Time) error {
 	if pid == 0 || !state.Identity.Valid {
-		return fmt.Errorf("Town layout test pin requires a live process and valid game identity")
+		return fmt.Errorf("town layout test pin requires a live process and valid game identity")
 	}
 	file := townLayoutTestPinFile{
 		Version: townLayoutTestPinVersion, ObservedAt: now.UTC(), ProcessID: pid,
@@ -110,14 +110,14 @@ func loadTownLayoutTestPin(path string, pid uint32, state world.State, now time.
 	}
 	age := now.Sub(file.ObservedAt)
 	if file.Version != townLayoutTestPinVersion || file.ProcessID != pid || age < 0 || age > townLayoutTestPinMaxAge {
-		return town.TownLayoutFingerprint{}, fmt.Errorf("Town layout test pin is stale or belongs to another process")
+		return town.TownLayoutFingerprint{}, fmt.Errorf("town layout test pin is stale or belongs to another process")
 	}
 	identity := world.GameIdentity{Valid: true, CharacterName: file.CharacterName, Class: file.CharacterClass, MapSeed: file.MapSeed}
 	if !sameTownLayoutIdentity(identity, state.Identity) {
-		return town.TownLayoutFingerprint{}, fmt.Errorf("Town layout test pin identity mismatch")
+		return town.TownLayoutFingerprint{}, fmt.Errorf("town layout test pin identity mismatch")
 	}
 	if len(file.Fingerprint.Hash) != 64 || file.Fingerprint.StashX == 0 || file.Fingerprint.StashY == 0 {
-		return town.TownLayoutFingerprint{}, fmt.Errorf("Town layout test pin fingerprint is invalid")
+		return town.TownLayoutFingerprint{}, fmt.Errorf("town layout test pin fingerprint is invalid")
 	}
 	return file.Fingerprint, nil
 }

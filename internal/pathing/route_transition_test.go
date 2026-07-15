@@ -29,6 +29,27 @@ func TestRouteTransitionHandlerPinsMatchingEntrance(t *testing.T) {
 	}
 }
 
+func TestRouteTransitionHandlerPinsDuranceDownEntrance(t *testing.T) {
+	nav := &segmentNavigatorMock{next: NavTickResult{Status: NavClicking}}
+	segment := RouteSegment{
+		FromAreaID: world.DuranceOfHateLevel2,
+		ToAreaID:   world.DuranceOfHateLevel3,
+		Transition: RouteTransition{Type: "entrance", EntranceKind: "durance_down"},
+	}
+	handler := NewRouteTransitionHandler(nav, segment, 2)
+	state := segmentPlaybackState(world.DuranceOfHateLevel2, 17705, 6513)
+	state.Entrances = []world.Entrance{
+		{UnitID: 1, Kind: world.EntranceKindDuranceDown, Position: world.Position{X: 17710, Y: 6511}},
+		{UnitID: 2, Kind: world.EntranceKindDuranceUp, Position: world.Position{X: 17685, Y: 8021}},
+	}
+	if done, err := handler.Tick(context.Background(), state); err != nil || done {
+		t.Fatalf("Tick() = %t, %v", done, err)
+	}
+	if len(nav.goals) != 1 || nav.goals[0].ViaEntrance != world.EntranceKindDuranceDown || nav.goals[0].ViaEntranceUnitID != 1 || !nav.goals[0].StrictEntrance {
+		t.Fatalf("Durance goal = %+v", nav.goals)
+	}
+}
+
 func TestRouteTransitionHandlerRejectsWrongEntrance(t *testing.T) {
 	nav := &segmentNavigatorMock{}
 	handler := NewRouteTransitionHandler(nav, validRoute().Segments[0], 2)

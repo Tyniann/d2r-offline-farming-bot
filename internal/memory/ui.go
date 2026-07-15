@@ -10,6 +10,7 @@ type UIState struct {
 	InventoryOpen   bool
 	NPCInteractOpen bool
 	NPCShopOpen     bool
+	WaypointOpen    bool
 	StashOpen       bool
 	QuitMenuOpen    bool
 }
@@ -38,6 +39,7 @@ const (
 	uiQuitMenuIndex    = 0x08 // UI-0x0B, live-validated in Phase 7.1.
 	uiGateIndex        = 0x09 // UI-0x0A
 	uiStashIndex       = 0x17 // UI+0x04
+	uiWaypointIndex    = 0x1C // UI+0x09; d2go OpenMenus.Waypoint.
 	uiLoadingIndex     = 0x171
 	uiBufferBefore     = 0x13
 	uiBufferSize       = 0x172

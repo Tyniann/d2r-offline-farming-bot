@@ -2,7 +2,7 @@
 
 ## Überblick
 
-Phase 9.0 definiert den fail-closed Vertrag für die spätere, bedarfsorientierte Run-Vorbereitung. Es wird noch kein Town-Input und keine Konfiguration eingebunden.
+Phase 9 definiert den fail-closed Vertrag für die bedarfsorientierte Run-Vorbereitung. Phase 10.6 bindet die vorbereiteten Identify-/Sell-Verträge produktiv an run-spezifische Loot-Policies, den geordneten Servicegraphen und Memory-verifizierten App-Input.
 
 ## Ort im Code
 
@@ -31,6 +31,12 @@ Abschnitt 9.3 führt `SupplySnapshot`, `Thresholds` und `DemandSnapshot` ein. Di
 Abschnitt 9.4 definiert den zentralen, kantenbasierten `ServiceGraph` unter `configs/routes/town/act1/graph/`. Jeder Edge besitzt eine stabile ID, `from`, `to`, eine eigene Aufnahme, positive Kosten und eine explizite `reversible`-Freigabe. Der Router erhält Start, eine ungeordnete Menge benötigter Serviceanker und das Endziel; er wählt den günstigsten Weg, der alle Bedarfe genau abdeckt. `spawn` wird für die Navigation zu `stash` normalisiert, weil der Charakter direkt am Stash erscheint; zwischen beiden entstehen weder Route noch Input. Damit kann beispielsweise `portal_arrival → cain → akara → waypoint` geplant werden, ohne Stash oder Charsi einzubeziehen. Rückwärtswiedergabe ist nur für explizit reversible Kanten erlaubt.
 
 `EgressRoute` bleibt davon getrennt und erlaubt für Fremdakte ausschließlich `portal_arrival → waypoint`. Beide Manifestformate werden strikt geladen; unbekannte Felder und Pfade außerhalb des Graphverzeichnisses werden verworfen.
+
+### Produktiver Act-3-Egress (Phase 10.8)
+
+Die gemeinsame Run-Pipeline normalisiert `OriginAct3` nach der bestätigten Portalankunft in Kurast-Docks über vier getrennte Schritte: gebundene Egress-Route bis zum lokalen Waypoint, hover-bestätigtes Öffnen, registrierte Auswahl von Rogue Encampment und Memory-bestätigte Act-1-Ankunft. Erst danach dürfen Personal Stash und zentrale Act-1-Dienste beginnen. Route Playback, Waypoint-Objekt, UI-Auswahl und Ziel-Area besitzen getrennten Zustand und werden an jeder Step- sowie Run-Grenze zurückgesetzt.
+
+`town.egress.act3` nennt zusätzlich die stabile `route_id: act3-egress`. Der Adapter lädt ausschließlich einen vollständigen Route-Contract aus `routes/town/act3/egress`, prüft Character, Klasse, Difficulty, Game-Version, Layout-Fingerprint und Startnähe vor dem ersten Bewegungsinput und akzeptiert nur einen terminalen Kurast-Docks-Walk. Playback verwendet Force Move und bleibt hart an Kurast-Docks gebunden; der allgemeine Teleport-Navigator darf diesen Pfad nicht ausführen. Solange die Aufnahme aus 10.9 fehlt, meldet der Resolver `town_egress_missing`.
 
 > **Korrigierte Live-Erkenntnis:** Der Act-1-Ausgang wird beim Charakter-/Difficulty-Wechsel neu auf Nord, Ost, Süd oder West gewürfelt; die Waypoint-Position hängt vom Preset ab. Difficulty und Charakter sind keine autoritativen Town-Route-Bindings. Die abgeschlossene Migration bindet alle produktiven Town-Aufnahmen an einen read-only `TownLayoutFingerprint`; ungebundene Aufnahmen werden nicht abgespielt.
 
@@ -93,6 +99,20 @@ Die Live-Abnahme am 12. Juli 2026 erfüllte diese Bedingungen. Das Log `d2rbot-2
 
 Jeder `ItemServiceExecutor` pinnt Code und Runtime-UnitID eines persönlichen Inventory-Items. Identify gilt erst mit unveränderter UnitID und `Identified=true` als abgeschlossen. Sell gilt erst dann als abgeschlossen, wenn die UnitID verschwunden ist oder das Item das persönliche Inventar verlassen hat. Nach einer Aktion wird nicht erneut geklickt; ein unveränderter Zustand endet mit `town_item_verify_timeout`.
 
+### Produktive Item-Services (10.6)
+
+Pickup- und Sell-Policy werden getrennt geladen. `mephisto.nip` schützt makellose/perfekte Gems und Schädel und nimmt Exceptional-/Elite-Set/Unique auf; `mephisto-sell.nip` autorisiert ausschließlich die zweite Gruppe zum Verkauf. Ein Sell-Match wird vor dem Personal-Stash-Transfer ausgeschlossen. Normale Set-/Unique-Basen und Gems erzeugen keinen Sell-Auftrag.
+
+Der App-Adapter klassifiziert nur persönliche, ungelockte Inventory-Items. Ein unidentifizierter Kandidat erzeugt für dieselbe UnitID zuerst `identify`, danach `sell`; ein bereits identifizierter Kandidat erzeugt nur `sell`. Keep-, Stash- oder Inventory-Lock-Konflikte enden mit `town_item_classification_invalid` vor jedem Input. Cain-Identifikation wird erst bei bestätigtem Dialog über die explizite Menüfolge `Home → Down → Enter` ausgelöst, weil `Talk` der erste und `Identify Items` der zweite Eintrag ist; abgeschlossen wird sie erst per unveränderter UnitID plus `Identified=true`. Akara-Verkauf verlangt bestätigten Shop, exakt 1280×720 und denselben Inventory-Footprint; Erfolg ist ausschließlich das Verschwinden der UnitID aus dem persönlichen Inventory.
+
+Der Planner hält für Item-Services die Reihenfolge Cain → Akara fest. Potion-Restock und Sell dürfen denselben bereits bestätigten Akara-Shop geordnet nutzen. Vor jeder anschließenden Navigation müssen Dialog und Shop per Memory als geschlossen bestätigt sein. Der isolierte Operatorpfad lautet `--town-test item-services:mephisto`; er nutzt dieselbe produktive Planung und dieselben Input-Gates.
+
+Der isolierte Pfad besitzt zusätzlich einen strikten Vorabcheck: Er bewegt die Figur nur bei exakt einem ungelockten Kandidaten. Ein unidentifizierter Kandidat muss `identify` und unmittelbar anschließend `sell` für dieselbe UnitID erzeugen. Ein durch einen früheren fehlgeschlagenen Versuch bereits identifizierter Kandidat darf direkt bei Akara fortgesetzt werden, damit der Operator keinen Ersatz-Drop farmen muss. Kein Kandidat, mehrere Kandidaten oder ein Pin-Konflikt enden vor Bewegungsinput. Der gemeinsame Auftragscursor bleibt beim Wechsel vom Cain- zum Akara-Schritt auf dem Sell-Auftrag stehen; ein Integrationstest führt Identifikation, Memory-Bestätigung, Servicegrenze, Verkauf und Verschwinden derselben UnitID vollständig aus.
+
+### Manuelle Abnahme 10.6 (abgeschlossen)
+
+Die Live-Abnahme am 14. Juli 2026 bestätigte die korrigierte Cain-Auswahl `Home → Down → Enter`, die Memory-bestätigte Identifikation sowie anschließend einen produktiven Akara-Resume. Dieser verkaufte UnitID `224` mit genau einem `item_sell`, bestätigte das Verschwinden aus dem Inventory, schloss den Shop, erreichte den Waypoint und endete mit `outcome=success`. Der vollständige kombinierte Identify→Sell-Auftrag über dieselbe UnitID ist zusätzlich durch den Regressionstest des korrigierten Service-Cursors belegt. Diese kombinierte Evidenz erfüllt Gate 10.6; ein weiterer seltener Testgegenstand ist nicht erforderlich.
+
 ## Repair und Waypoint-Transfers (9.8)
 
 `PlanRepair` verlangt bei Reparaturbedarf gemeinsam belastbare Haltbarkeit, Kosten und Repair-UI. Fehlt eine Quelle, entsteht ausschließlich `repair_state_unavailable`; es gibt keinen Klickfallback.
@@ -107,9 +127,9 @@ Der zentrale `Executor` konsumiert ausschließlich einen validierten `Plan`. Glo
 
 ## Zentraler Post-Run-Flow (9.10)
 
-Der Countess-Full-Run wechselt nach `close_personal_stash` in `prepare_town_handoff`. Der App-Adapter bewertet den belastbaren Belt-Bestand. Ohne Bedarf bleibt der direkte layoutgebundene Stash→Waypoint-Pfad erhalten. Bei Potion-Bedarf erstellt der produktive Planner ausschließlich den benötigten Akara-Service, prüft den konservativen Maximalpreis gegen Carried Gold und führt `stash → akara → waypoint → countess_handoff` über den zentralen Executor aus. NPC, Dialog, Shop, konkreter Vendor-Code, genau begrenzter Kauf, 500-ms-Settle und erneut gelesener Belt-Zielbestand bleiben getrennte Gates. Tome-Zähler bleiben als `unavailable_skip` sichtbar und erzeugen keinen erfundenen Scrollbedarf.
+Der gemeinsame Full-Run wechselt nach `close_personal_stash` in `prepare_town_handoff`. Der App-Adapter bewertet den belastbaren Belt-Bestand. Ohne Bedarf bleibt der direkte layoutgebundene Stash→Waypoint-Pfad erhalten. Bei Potion-Bedarf erstellt der produktive Planner ausschließlich den benötigten Akara-Service, prüft den konservativen Maximalpreis gegen Carried Gold und führt `stash → akara → waypoint → run_handoff` über den zentralen Executor aus. NPC, Dialog, Shop, konkreter Vendor-Code, genau begrenzter Kauf, 500-ms-Settle und erneut gelesener Belt-Zielbestand bleiben getrennte Gates. Tome-Zähler bleiben als `unavailable_skip` sichtbar und erzeugen keinen erfundenen Scrollbedarf.
 
-Ohne sicher belegten Servicebedarf spielt der Adapter ausgehend vom Stash nur vorhandene Kanten des zentralen Graphen bis zum Waypoint. Nicht aufgezeichnete Platzhalterkanten wurden aus `graph.yaml` entfernt. Abschluss verlangt einen per Memory gefundenen Waypoint innerhalb der konfigurierten Klickdistanz und protokolliert `central town preparation completed`, `anchor=waypoint` und `next_run=countess`. Session- und Run-Reset verwerfen die aktive Kante und den Handoff.
+Ohne sicher belegten Servicebedarf spielt der Adapter ausgehend vom Stash nur vorhandene Kanten des zentralen Graphen bis zum Waypoint. Nicht aufgezeichnete Platzhalterkanten wurden aus `graph.yaml` entfernt. Abschluss verlangt einen per Memory gefundenen Waypoint innerhalb der konfigurierten Klickdistanz und protokolliert `central town preparation completed`, `anchor=waypoint` und die ausgewählte Run-ID als `next_run`. Session- und Run-Reset verwerfen die aktive Kante und den Handoff.
 
 ### Manuelles Gate 3 (abgeschlossen)
 
@@ -128,4 +148,4 @@ Die Live-Abnahme am 13. Juli 2026 erfüllte das Gate vollständig. Der autonome 
 - [Character & Encounter Profiles](character-encounter-profiles.md)
 
 ---
-*Zuletzt aktualisiert: 13. Juli 2026*
+*Zuletzt aktualisiert: 15. Juli 2026*

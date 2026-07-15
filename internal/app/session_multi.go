@@ -68,8 +68,8 @@ func (r *sessionMultiRunner) run(ctx context.Context) (sessionMultiResult, error
 			return sessionMultiResult{Outcome: "failed", Reason: "cycle_failed"}, err
 		}
 		if execution.Result.Outcome == sessionCycleStopped {
-			if err := r.recovery.emitTerminal(telemetry.SessionStopped, "operator_stop", r.now().Sub(startedAt).Milliseconds()); err != nil {
-				return sessionMultiResult{Outcome: "failed", Reason: "telemetry_failed"}, err
+			if emitErr := r.recovery.emitTerminal(telemetry.SessionStopped, "operator_stop", r.now().Sub(startedAt).Milliseconds()); emitErr != nil {
+				return sessionMultiResult{Outcome: "failed", Reason: "telemetry_failed"}, emitErr
 			}
 			return sessionMultiResult{Outcome: "stopped", Reason: "operator_stop"}, nil
 		}

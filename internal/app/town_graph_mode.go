@@ -219,7 +219,7 @@ func (rt *Runtime) runPathingPlayTownGraph(ctx context.Context, state *runState,
 			return nil
 		}
 		if time.Now().After(deadline) {
-			return fmt.Errorf("Town graph playback timeout waiting for confirmed game identity")
+			return fmt.Errorf("town graph playback timeout waiting for confirmed game identity")
 		}
 	}
 	if rt.townLayout == nil {
@@ -245,8 +245,8 @@ func (rt *Runtime) runPathingPlayTownGraph(ctx context.Context, state *runState,
 		return fmt.Errorf("%s", reason)
 	}
 	if directlyObserved {
-		if err := saveTownLayoutTestPin(cachePath, rt.Process.Status().PID, current, layout, time.Now()); err != nil {
-			return err
+		if saveErr := saveTownLayoutTestPin(cachePath, rt.Process.Status().PID, current, layout, time.Now()); saveErr != nil {
+			return saveErr
 		}
 		rt.Log.Info("Town layout test pin saved", "town_layout", layout.Hash, "path", cachePath)
 	}
@@ -285,10 +285,10 @@ func (rt *Runtime) runPathingPlayTownGraph(ctx context.Context, state *runState,
 			}
 			resolved, layoutReason, observed := rt.townLayout.Resolve(current)
 			if layoutReason != "" {
-				return fmt.Errorf("Town layout validation during edge %q: %s", traversal.Edge.ID, layoutReason)
+				return fmt.Errorf("town layout validation during edge %q: %s", traversal.Edge.ID, layoutReason)
 			}
 			if resolved.Hash != layout.Hash {
-				return fmt.Errorf("Town layout validation during edge %q: %s", traversal.Edge.ID, town.ReasonTownLayoutMismatch)
+				return fmt.Errorf("town layout validation during edge %q: %s", traversal.Edge.ID, town.ReasonTownLayoutMismatch)
 			}
 			if observed {
 				layout = resolved

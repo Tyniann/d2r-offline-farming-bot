@@ -22,7 +22,6 @@ type Config struct {
 	Explore    ExploreConfig
 	Waypoint   WaypointConfig
 	TownPortal TownPortalConfig
-	WaypointUI WaypointUIConfig
 	TownWalk   TownWalkConfig
 }
 
@@ -70,14 +69,6 @@ type TownPortalConfig struct {
 	MaxClickDistance float64
 }
 
-// WaypointUIConfig holds fixed client-relative coordinates in the waypoint menu.
-type WaypointUIConfig struct {
-	// BlackMarshX is the client X coordinate for the Black Marsh waypoint row.
-	BlackMarshX int
-	// BlackMarshY is the client Y coordinate for the Black Marsh waypoint row.
-	BlackMarshY int
-}
-
 // TownWalkConfig tunes force-move playback of validated Town graph edges.
 type TownWalkConfig struct {
 	// ForceMoveKey is the in-game Force Move key, usually "e".
@@ -121,10 +112,6 @@ func DefaultConfig() Config {
 		TownPortal: TownPortalConfig{
 			AppearTimeout:    2 * time.Second,
 			MaxClickDistance: 15,
-		},
-		WaypointUI: WaypointUIConfig{
-			BlackMarshX: 200,
-			BlackMarshY: 342,
 		},
 		TownWalk: TownWalkConfig{
 			ForceMoveKey:    "e",
@@ -183,9 +170,6 @@ func (c Config) Validate() error {
 	}
 	if c.TownPortal.MaxClickDistance <= 0 {
 		return fmt.Errorf("pathing.town_portal.max_click_distance must be > 0")
-	}
-	if c.WaypointUI.BlackMarshX < 0 || c.WaypointUI.BlackMarshY < 0 {
-		return fmt.Errorf("pathing.waypoint_ui.black_marsh_x/y must be >= 0")
 	}
 	if c.TownWalk.ForceMoveKey == "" {
 		return fmt.Errorf("pathing.town_walk.force_move_key is required")

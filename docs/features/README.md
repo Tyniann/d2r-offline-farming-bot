@@ -12,9 +12,12 @@ Spätere Ideen (noch nicht umgesetzt): [`docs/backlog.md`](../backlog.md).
 | [Input Controller](input-controller.md) | D2R-Fensterbindung per PID, Client-Geometrie (3.1); Tastatur-/Maus-Primitives; YAML-Bindings für Skills, Portal und Belt; Safety-Opt-in, globale Pause/Stop-Hotkeys; manueller CLI-Input-Testmodus |
 | [Character- und Encounter-Profile](character-encounter-profiles.md) | Phase 8: klassenbegrenzte Lifecycle-Hooks, Once-/Reset-Semantik und profilabhängige HP-/Mana-/Rejuvenation-Policy |
 | [Town Services](town-services.md) | Phase 9: fail-closed Bedarfsermittlung, zentraler Act-1-Hub und minimales Fremdakt-Egress-Format |
-| [Task Runner](task-runner.md) | Task-Framework, Lazy Run-Start, Countess-Stub (Phase 4.1); `--run countess` / `runs.active` |
+| [Run Registry und gemeinsames Run-Schema](run-registry.md) | Phase 10.1: typisierte Countess-/Mephisto-Definitionen, gemeinsames Config-Schema und fail-closed Definition Resolver |
+| [Run-Verfügbarkeit und Inspect](run-availability.md) | Deterministischer read-only Availability-Resolver, Reason-Codes und `--runs-inspect`-JSON |
+| [Task Runner](task-runner.md) | Gemeinsame Run-Pipeline, Lazy Run-Start und Registry-Auflösung; `--run <id>` / `runs.active` |
 | [Pathing](pathing.md) | Teleport-Navigation (Phase 4.3): Relative-Projektion + Hover-Feedback-Loop, Bearing-Explore, Stuck-Detection; `--pathing-test` |
 | [Countess-Run](countess-run.md) | Phase 5.6: vollständiger Countess-Run mit Travel, Kill, Loot-Pickup, Safety-Potion und Town-Portal-Abschluss; isolierte Testphasen bleiben verfügbar |
+| [Mephisto-Run](mephisto-run.md) | Phase 10.10: gemeinsame Run-Pipeline mit Durance-Route, zwei gepinnten Boss-Aktionen, run-spezifischem Loot und Act-3-Normalisierung |
 | [Loot- und Recovery-Loop](loot-recovery-loop.md) | Phase 5.6: Ground-Loot, Pickit, Inventory-Lock, hover-bestätigter Pickup und Countess-Loot-Integration; spätere Recovery-Slices bleiben geplant |
 | [Item Enumeration Read-Only](item-enumeration.md) | Phase 5.1: positionierte Ground-Drops read-only aus Memory ins World Model und Probe-Log |
 | [Inventory Model und Lock Grid](inventory-lock-grid.md) | Phase 5.2: persönliche Inventar-Items, 4x10 Lock-Grid und fail-closed Pickup-Kapazität |

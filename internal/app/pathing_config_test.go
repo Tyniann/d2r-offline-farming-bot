@@ -31,10 +31,6 @@ func TestMapPathingConfigMapsWaypointSettings(t *testing.T) {
 		Waypoint: config.PathingWaypointConfig{
 			MaxClickDistance: 17,
 		},
-		WaypointUI: config.PathingWaypointUIConfig{
-			BlackMarshX: 201,
-			BlackMarshY: 343,
-		},
 		TownWalk: config.PathingTownWalkConfig{
 			ForceMoveKey:    "e",
 			MoveIntervalMs:  651,
@@ -47,9 +43,6 @@ func TestMapPathingConfigMapsWaypointSettings(t *testing.T) {
 	got := mapPathingConfig(cfg)
 	if got.Waypoint.MaxClickDistance != 17 {
 		t.Fatalf("Waypoint.MaxClickDistance = %v, want 17", got.Waypoint.MaxClickDistance)
-	}
-	if got.WaypointUI.BlackMarshX != 201 || got.WaypointUI.BlackMarshY != 343 {
-		t.Fatalf("WaypointUI = %+v, want 201/343", got.WaypointUI)
 	}
 	if got.TownWalk.ForceMoveKey != "e" {
 		t.Fatalf("TownWalk key = %+v", got.TownWalk)

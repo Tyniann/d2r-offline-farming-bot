@@ -3,7 +3,7 @@ package town
 import "testing"
 
 func validTownConfig() Config {
-	return Config{present: true, Hub: HubConfig{Area: "rogue_encampment", RoutesDirectory: "routes/town/act1/graph", Anchors: []Anchor{AnchorSpawn, AnchorPortalArrival, AnchorStash, AnchorWaypoint, AnchorAkara, AnchorCharsi, AnchorCain}, Services: map[Service]Anchor{ServicePotions: AnchorAkara, ServiceScrolls: AnchorAkara, ServiceIdentify: AnchorCain, ServiceSell: AnchorAkara, ServiceRepair: AnchorCharsi}}, Egress: map[OriginAct]EgressConfig{OriginAct3: {Area: "kurast_docks", Anchors: []Anchor{AnchorPortalArrival, AnchorWaypoint}, RoutesDirectory: "routes/town/act3/egress"}}}
+	return Config{present: true, Hub: HubConfig{Area: "rogue_encampment", RoutesDirectory: "routes/town/act1/graph", Anchors: []Anchor{AnchorSpawn, AnchorPortalArrival, AnchorStash, AnchorWaypoint, AnchorAkara, AnchorCharsi, AnchorCain}, Services: map[Service]Anchor{ServicePotions: AnchorAkara, ServiceScrolls: AnchorAkara, ServiceIdentify: AnchorCain, ServiceSell: AnchorAkara, ServiceRepair: AnchorCharsi}}, Egress: map[OriginAct]EgressConfig{OriginAct3: {Area: "kurast_docks", RouteID: "act3-egress", Anchors: []Anchor{AnchorPortalArrival, AnchorWaypoint}, RoutesDirectory: "routes/town/act3/egress"}}}
 }
 
 func TestTownConfigValidation(t *testing.T) {

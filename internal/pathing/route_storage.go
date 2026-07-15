@@ -39,8 +39,8 @@ func SaveRoute(path string, route Route) error {
 		return fmt.Errorf("encode route %q: %w", route.ID, err)
 	}
 	dir := filepath.Dir(path)
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return fmt.Errorf("create route directory %q: %w", dir, err)
+	if mkdirErr := os.MkdirAll(dir, 0o755); mkdirErr != nil {
+		return fmt.Errorf("create route directory %q: %w", dir, mkdirErr)
 	}
 	tmp, err := os.CreateTemp(dir, ".route-*.tmp")
 	if err != nil {

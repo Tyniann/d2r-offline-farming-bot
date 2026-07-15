@@ -18,8 +18,8 @@ func TestSaveScreenAnchorPNGPublishesImage(t *testing.T) {
 	if filepath.Dir(path) != dir || filepath.Ext(path) != ".png" {
 		t.Fatalf("path = %q", path)
 	}
-	if info, err := os.Stat(path); err != nil || info.Size() == 0 {
-		t.Fatalf("published image info=%v err=%v", info, err)
+	if info, statErr := os.Stat(path); statErr != nil || info.Size() == 0 {
+		t.Fatalf("published image info=%v err=%v", info, statErr)
 	}
 	matches, err := filepath.Glob(filepath.Join(dir, ".screen-anchor-*.tmp"))
 	if err != nil || len(matches) != 0 {

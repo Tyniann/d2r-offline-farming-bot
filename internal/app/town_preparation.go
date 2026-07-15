@@ -8,6 +8,7 @@ import (
 
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/config"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/input"
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/loot"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/pathing"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/tasks"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/town"
@@ -47,6 +48,14 @@ type townPreparationAdapter struct {
 	services     bool
 	executor     *town.Executor
 	handler      *townPreparationStepHandler
+	lootFilter   *loot.Filter
+	sellFilter   *loot.Pickit
+	stashConfig  config.LootStashConfig
+	nextRunID    string
+}
+
+func (a *townPreparationAdapter) setItemPolicies(filter *loot.Filter, sell *loot.Pickit, stash config.LootStashConfig) {
+	a.lootFilter, a.sellFilter, a.stashConfig = filter, sell, stash
 }
 
 // layoutTownWaypointWalker adapts the initial no-service mode to the legacy
@@ -73,14 +82,14 @@ func (w *layoutTownWaypointWalker) Reset() {
 	}
 }
 
-func newTownPreparationAdapter(log *slog.Logger, controller townPreparationController, pathCfg pathing.Config, cfg *config.Config, layoutPin *townLayoutPin, telemetry town.ExecutorTelemetry, services bool) (*townPreparationAdapter, error) {
+func newTownPreparationAdapter(log *slog.Logger, controller townPreparationController, pathCfg pathing.Config, cfg *config.Config, runID string, run config.RunConfig, layoutPin *townLayoutPin, telemetry town.ExecutorTelemetry, services bool) (*townPreparationAdapter, error) {
 	directory := cfg.ResolvePath(cfg.Town.Hub.RoutesDirectory)
 	graph, err := town.LoadServiceGraph(filepath.Join(directory, "graph.yaml"))
 	if err != nil {
 		return nil, fmt.Errorf("load central town graph: %w", err)
 	}
-	profile := cfg.Profiles[cfg.Runs.Countess.Combat.Profile].Resources
-	return &townPreparationAdapter{log: log, driver: controller, controller: controller, pathCfg: pathCfg, graph: graph, directory: directory, thresholds: cfg.Town.Thresholds, layoutPin: layoutPin, townCfg: cfg.Town, profile: profile, telemetry: telemetry, services: services}, nil
+	profile := cfg.Profiles[run.Combat.Profile].Resources
+	return &townPreparationAdapter{log: log, driver: controller, controller: controller, pathCfg: pathCfg, graph: graph, directory: directory, thresholds: cfg.Town.Thresholds, layoutPin: layoutPin, townCfg: cfg.Town, profile: profile, telemetry: telemetry, services: services, nextRunID: runID}, nil
 }
 
 func (a *townPreparationAdapter) Tick(ctx context.Context, state world.State) tasks.TownPreparationResult {
@@ -116,7 +125,7 @@ func (a *townPreparationAdapter) Tick(ctx context.Context, state world.State) ta
 		result := a.executor.Tick(ctx, state, status.Paused, status.Stopped)
 		if result.Done && result.Status == town.InteractionComplete {
 			a.done = true
-			a.log.Info("central town preparation completed", "anchor", "waypoint", "next_run", "countess")
+			a.log.Info("central town preparation completed", "anchor", "waypoint", "next_run", a.nextRunID)
 			return tasks.TownPreparationResult{Status: "complete", Done: true}
 		}
 		if result.Done {
@@ -132,7 +141,7 @@ func (a *townPreparationAdapter) Tick(ctx context.Context, state world.State) ta
 			return tasks.TownPreparationResult{Status: "failed", Reason: "waypoint_handoff_unconfirmed", Done: true}
 		}
 		a.done = true
-		a.log.Info("central town preparation completed", "anchor", "waypoint", "next_run", "countess")
+		a.log.Info("central town preparation completed", "anchor", "waypoint", "next_run", a.nextRunID)
 		return tasks.TownPreparationResult{Status: "complete", Done: true}
 	}
 	if a.walker == nil {

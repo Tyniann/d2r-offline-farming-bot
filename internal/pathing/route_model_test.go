@@ -70,8 +70,8 @@ func TestSaveLoadRouteAllowsUnknownFields(t *testing.T) {
 		t.Fatal(err)
 	}
 	data = append(data, []byte("future_field: ignored\n")...)
-	if err := os.WriteFile(path, data, 0o600); err != nil {
-		t.Fatal(err)
+	if writeErr := os.WriteFile(path, data, 0o600); writeErr != nil {
+		t.Fatal(writeErr)
 	}
 	got, err := LoadRoute(path)
 	if err != nil {

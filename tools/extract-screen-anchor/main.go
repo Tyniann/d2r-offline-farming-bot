@@ -39,8 +39,8 @@ func run(source, output string, rect image.Rectangle) error {
 	}
 	crop := image.NewRGBA(image.Rect(0, 0, rect.Dx(), rect.Dy()))
 	draw.Draw(crop, crop.Bounds(), img, rect.Min, draw.Src)
-	if err := os.MkdirAll(filepath.Dir(output), 0o755); err != nil {
-		return fmt.Errorf("create output directory: %w", err)
+	if mkdirErr := os.MkdirAll(filepath.Dir(output), 0o755); mkdirErr != nil {
+		return fmt.Errorf("create output directory: %w", mkdirErr)
 	}
 	tmp, err := os.CreateTemp(filepath.Dir(output), ".anchor-*.tmp")
 	if err != nil {

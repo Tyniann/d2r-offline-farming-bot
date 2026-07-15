@@ -7,7 +7,7 @@ Phase 7.7 klassifiziert terminale Run-Ergebnisse über exakte Reason-Codes und e
 ## Ort im Code
 
 - **Recovery-Policy:** `internal/app/session_recovery.go`
-- **Route-Reason-Mapping:** `internal/tasks/countess.go`
+- **Route-Reason-Mapping:** `internal/tasks/run_pipeline.go`
 - **Stuck-Kontext:** `internal/pathing/route_segment_player.go`, `internal/app/route_adapter.go`
 - **Recorder und Schema:** `internal/telemetry/session_recorder.go`, `internal/telemetry/recorder.go`
 - **Config:** `session.max_consecutive_failures`, `session.max_total_restarts`, `session.retry_classes`
@@ -53,7 +53,7 @@ logs/telemetry/session-<UTC-Zeit>-<Zufallssuffix>.jsonl
 
 Lifecycle-Events verwenden `schema_version=2` und tragen dieselbe `session_id`. Game-/Run-Events ergänzen `game_id`, `run_id`, Run-Ordinal und Ergebnisfelder. Terminale Events `session_completed`, `session_stopped` oder `session_failed` enthalten gestartete, erfolgreiche, abgebrochene und fehlgeschlagene Runs, aufeinanderfolgende Fehler, Restarts und Gesamtdauer.
 
-Der bestehende Phase-5-Run-Recorder bleibt kompatibel und schreibt weiterhin Schema 1 für Loot-/Route-Detailereignisse. Der Phase-7.8-Multi-Run-Kern erzeugt eindeutige korrelierte Run-IDs; die Live-Verdrahtung mit neu aufgenommenen Nightmare-Assets bleibt Teil der offenen E2E-Freigabe.
+Der bestehende Phase-5-Run-Recorder bleibt kompatibel und schreibt weiterhin Schema 1 für Loot-/Route-Detailereignisse. Jede frische Session-Run-Generation beginnt dort mit genau einem `run_context`, das Definition, Route/Fingerprint, Waypoint-Ziel, Pickup-/Sell-Policy und Town-Herkunft bindet. Der Kern erzeugt eindeutige korrelierte Run-IDs; Countess und Mephisto sind live freigegeben. Phase 10 wählt weiterhin genau eine Run-ID pro Session; Playlists und Farm-Reihenfolgen gehören erst zu Phase 11.
 
 ## Abnahme
 
@@ -67,4 +67,4 @@ Die Fehler-Injektion deckt die vollständige Hard-Stuck-Reihenfolge, exakte Reas
 - [Route Recording und Playback](route-recording-playback.md)
 
 ---
-*Zuletzt aktualisiert: 2026-07-11*
+*Zuletzt aktualisiert: 2026-07-15*

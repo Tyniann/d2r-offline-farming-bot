@@ -76,6 +76,8 @@ type Definition struct {
 type EncounterTarget struct {
 	UnitID   uint32
 	Position world.Position
+	// ActionIndex is the stable definition index; retries of one action keep the same value.
+	ActionIndex int
 }
 
 // Status is a stable hook or resource executor outcome.

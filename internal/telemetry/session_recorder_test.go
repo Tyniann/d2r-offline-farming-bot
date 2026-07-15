@@ -18,8 +18,8 @@ func TestSessionRecorderCorrelatesAndFlushesLifecycleEvents(t *testing.T) {
 		{Event: GameStarted, GameID: "game-1"},
 		{Event: RunStarted, GameID: "game-1", RunID: "run-1", Run: "countess"},
 	} {
-		if err := recorder.Emit(event); err != nil {
-			t.Fatal(err)
+		if emitErr := recorder.Emit(event); emitErr != nil {
+			t.Fatal(emitErr)
 		}
 	}
 	file, err := os.Open(path)

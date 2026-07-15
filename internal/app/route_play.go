@@ -33,8 +33,8 @@ func (rt *Runtime) RunRoutePlay(routeID string) (retErr error) {
 		if retErr != nil {
 			_ = trace.Emit(telemetry.Event{Event: telemetry.RoutePlaybackFailed, RouteID: routeID, SegmentID: player.Segment().ID, Reason: retErr.Error()})
 		}
-		if err := trace.Close(); err != nil && retErr == nil {
-			retErr = err
+		if closeErr := trace.Close(); closeErr != nil && retErr == nil {
+			retErr = closeErr
 		}
 	}()
 	ctx, cancel := context.WithCancel(context.Background())
@@ -42,8 +42,8 @@ func (rt *Runtime) RunRoutePlay(routeID string) (retErr error) {
 	rt.startShutdownSignals(ctx, cancel)
 	defer func() {
 		player.Reset()
-		if err := rt.Process.Detach(); err != nil {
-			rt.Log.Warn("detach after route playback", "error", err)
+		if detachErr := rt.Process.Detach(); detachErr != nil {
+			rt.Log.Warn("detach after route playback", "error", detachErr)
 		}
 	}()
 	defer rt.Input.Unbind()

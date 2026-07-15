@@ -1,6 +1,6 @@
 package world
 
-// EntranceKind classifies Countess-relevant entrances.
+// EntranceKind classifies registered dungeon and wilderness transitions.
 type EntranceKind int
 
 // EntranceKind values for tower and cellar transitions.
@@ -12,6 +12,8 @@ const (
 	EntranceKindWildernessToTower
 	EntranceKindCatacombsUp
 	EntranceKindCatacombsDown
+	EntranceKindDuranceUp
+	EntranceKindDuranceDown
 )
 
 // String returns a stable label for logging.
@@ -29,9 +31,23 @@ func (k EntranceKind) String() string {
 		return "catacombs_up"
 	case EntranceKindCatacombsDown:
 		return "catacombs_down"
+	case EntranceKindDuranceUp:
+		return "durance_up"
+	case EntranceKindDuranceDown:
+		return "durance_down"
 	default:
 		return "unknown"
 	}
+}
+
+// ParseEntranceKind resolves a stable route-contract label to its registered kind.
+func ParseEntranceKind(value string) (EntranceKind, bool) {
+	for kind := EntranceKindUnknown; kind <= EntranceKindDuranceDown; kind++ {
+		if kind.String() == value {
+			return kind, true
+		}
+	}
+	return EntranceKindUnknown, false
 }
 
 // Entrance is an interpreted world entrance with resolved kind and display name.
@@ -52,6 +68,10 @@ const (
 	EntranceTowerToWilderness uint32 = 11
 	EntranceCatacombsUp       uint32 = 17
 	EntranceCatacombsDown     uint32 = 18
+	EntranceDuranceUpLeft     uint32 = 65
+	EntranceDuranceUpRight    uint32 = 66
+	EntranceDuranceDownLeft   uint32 = 67
+	EntranceDuranceDownRight  uint32 = 68
 )
 
 var entranceIDs = []uint32{
@@ -61,6 +81,10 @@ var entranceIDs = []uint32{
 	EntranceTowerToWilderness,
 	EntranceCatacombsUp,
 	EntranceCatacombsDown,
+	EntranceDuranceUpLeft,
+	EntranceDuranceUpRight,
+	EntranceDuranceDownLeft,
+	EntranceDuranceDownRight,
 }
 
 var entranceNames = map[uint32]string{
@@ -70,6 +94,10 @@ var entranceNames = map[uint32]string{
 	EntranceTowerToWilderness: "Act 1 Tower to Wilderness",
 	EntranceCatacombsUp:       "Act 1 Catacombs Up",
 	EntranceCatacombsDown:     "Act 1 Catacombs Down",
+	EntranceDuranceUpLeft:     "Act 3 Durance Up Left",
+	EntranceDuranceUpRight:    "Act 3 Durance Up Right",
+	EntranceDuranceDownLeft:   "Act 3 Durance Down Left",
+	EntranceDuranceDownRight:  "Act 3 Durance Down Right",
 }
 
 // LookupEntranceKind resolves an entrance ID to its semantic kind.
@@ -87,6 +115,10 @@ func LookupEntranceKind(id uint32) EntranceKind {
 		return EntranceKindCatacombsUp
 	case EntranceCatacombsDown:
 		return EntranceKindCatacombsDown
+	case EntranceDuranceUpLeft, EntranceDuranceUpRight:
+		return EntranceKindDuranceUp
+	case EntranceDuranceDownLeft, EntranceDuranceDownRight:
+		return EntranceKindDuranceDown
 	default:
 		return EntranceKindUnknown
 	}
@@ -97,7 +129,7 @@ func LookupEntranceName(id uint32) string {
 	return entranceNames[id]
 }
 
-// AllEntranceIDs returns Countess-route entrance IDs.
+// AllEntranceIDs returns every semantically classified run entrance ID.
 func AllEntranceIDs() []uint32 {
 	return append([]uint32(nil), entranceIDs...)
 }

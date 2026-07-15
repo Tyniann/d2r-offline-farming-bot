@@ -51,6 +51,7 @@ type Runtime struct {
 	runConfig        tasks.RunConfig
 	sessionSelection tasks.RunSelection
 	routePlayback    *routePlaybackAdapter
+	townEgress       *townEgressAdapter
 	lootActions      *lootActionsAdapter
 	townLayout       *townLayoutPin
 	townTelemetry    *townTelemetryRelay
@@ -62,7 +63,7 @@ func New(cfg *config.Config, opts Options) (rt *Runtime, err error) {
 		if _, planErr := ResolveSessionPlan(cfg, Options{SessionInspect: true}); planErr != nil {
 			return nil, planErr
 		}
-		if bindingErr := validateFullCountessBindings(cfg); bindingErr != nil {
+		if bindingErr := validateFullRunBindings(cfg, cfg.Session.Run); bindingErr != nil {
 			return nil, fmt.Errorf("session bindings: %w", bindingErr)
 		}
 	}
@@ -124,10 +125,31 @@ func New(cfg *config.Config, opts Options) (rt *Runtime, err error) {
 	if err != nil {
 		return nil, fmt.Errorf("input bindings: %w", err)
 	}
+	runSelection := resolveRunSelection(opts, cfg)
+	if validationErr := validateRunMode(runSelection, cfg, opts, log); validationErr != nil {
+		return nil, validationErr
+	}
+	runtimeRunID := runSelection.Run
+	if cfg.Session.Enabled && sessionExecutionRequested(opts) {
+		runtimeRunID = cfg.Session.Run
+	}
+	if runtimeRunID == "" {
+		// Passive and isolated diagnostic modes retain the Countess profile and
+		// pickup policy without selecting or authorizing a farming run.
+		runtimeRunID = string(tasks.RunIDCountess)
+	}
+	selectedRunCfg, ok := cfg.Runs.Run(runtimeRunID)
+	if !ok {
+		return nil, fmt.Errorf("%s: %q", tasks.RunReasonConfigMissing, runtimeRunID)
+	}
+	runCfg, err := mapRunConfig(cfg.Runs, runtimeRunID)
+	if err != nil {
+		return nil, err
+	}
 
 	pathingCfg := mapPathingConfig(cfg.Pathing)
-	if err := pathingCfg.Validate(); err != nil {
-		return nil, fmt.Errorf("pathing config: %w", err)
+	if validationErr := pathingCfg.Validate(); validationErr != nil {
+		return nil, fmt.Errorf("pathing config: %w", validationErr)
 	}
 	nav := pathing.NewNavigator(log, pathing.Deps{
 		Input:    inputCtrl,
@@ -135,25 +157,25 @@ func New(cfg *config.Config, opts Options) (rt *Runtime, err error) {
 		Config:   pathingCfg,
 	})
 	waypoints := pathing.NewWaypointActions(log, inputCtrl, pathingCfg)
+	runWaypoints := &runWaypointAdapter{actions: waypoints}
 	townPortals := pathing.NewTownPortalActions(log, inputCtrl, pathingCfg)
 	personalStash := pathing.NewPersonalStashActions(log, inputCtrl, pathingCfg)
 	townLayout := &townLayoutPin{}
 	townTrace := &townTelemetryRelay{}
-	townPreparation, err := newTownPreparationAdapter(log, inputCtrl, pathingCfg, cfg, townLayout, townTrace, true)
+	townPreparation, err := newTownPreparationAdapter(log, inputCtrl, pathingCfg, cfg, runtimeRunID, selectedRunCfg, townLayout, townTrace, true)
 	if err != nil {
 		return nil, err
 	}
-	townStartAdapter, err := newTownPreparationAdapter(log, inputCtrl, pathingCfg, cfg, townLayout, townTrace, false)
+	townStartAdapter, err := newTownPreparationAdapter(log, inputCtrl, pathingCfg, cfg, runtimeRunID, selectedRunCfg, townLayout, townTrace, false)
 	if err != nil {
 		return nil, err
 	}
 	townStartAdapter.thresholds = town.Thresholds{}
 	layoutTownWalker := &layoutTownWaypointWalker{adapter: townStartAdapter}
-	runCfg := mapRunConfig(cfg.Runs)
-	combat := newCombatAdapter(log, inputCtrl, bindings, pathingCfg, runCfg.CountessCombat.AttackInterval)
+	combat := newCombatAdapter(log, inputCtrl, bindings, pathingCfg, runCfg.Combat.AttackInterval)
 	runActions := newRunActionsAdapter(log, inputCtrl, bindings)
 	profileTrace := &profileTelemetryAdapter{}
-	profileExecutor, err := newProfileExecutor(log, cfg, inputCtrl, bindings, pathingCfg, profileTrace)
+	profileExecutor, err := newProfileExecutor(log, cfg.Profiles, selectedRunCfg, inputCtrl, bindings, pathingCfg, profileTrace)
 	if err != nil {
 		return nil, fmt.Errorf("profile config: %w", err)
 	}
@@ -161,12 +183,12 @@ func New(cfg *config.Config, opts Options) (rt *Runtime, err error) {
 	if err != nil {
 		return nil, fmt.Errorf("loot inventory lock: %w", err)
 	}
-	pickit, err := loadPickit(cfg)
+	pickit, err := loadPickit(cfg, selectedRunCfg.Loot.PickupFile)
 	if err != nil {
 		return nil, err
 	}
-	runSelection := resolveRunSelection(opts, cfg)
-	if err := validateRunMode(runSelection, cfg, opts, log); err != nil {
+	sellPickit, err := loadOptionalPickit(cfg, selectedRunCfg.Loot.SellFile)
+	if err != nil {
 		return nil, err
 	}
 	if runSelection.Run != "" {
@@ -179,15 +201,25 @@ func New(cfg *config.Config, opts Options) (rt *Runtime, err error) {
 		townTrace.setTelemetry(runTelemetry)
 	}
 	lootFilter := loot.NewFilter(log, inventoryLock, pickit)
+	townPreparation.setItemPolicies(lootFilter, sellPickit, cfg.Loot.Stash)
 	stashExecutor, err := loot.NewStashExecutor(log, lootFilter, inputCtrl, mapLootStashConfig(cfg.Loot.Stash))
 	if err != nil {
 		return nil, fmt.Errorf("loot stash config: %w", err)
 	}
+	stashExecutor.SetSellFilter(sellPickit)
 	lootActions := newLootActionsAdapter(log, lootFilter, cfg.Loot.Pickup, inputCtrl, pathingCfg, stashExecutor, runTelemetry)
 	routePlayback := newRoutePlaybackAdapter(log, cfg.ResolvePath(cfg.Routes.Directory), expectedVersion, nav, runTelemetry)
+	townEgress := newTownEgressAdapter(log, cfg, expectedVersion, inputCtrl, pathingCfg, runTelemetry)
 	taskDeps := tasks.Deps{
-		Input: inputCtrl, Pathing: nav, Waypoint: waypoints, Portal: townPortals, TownWalk: layoutTownWalker,
-		Stash: personalStash, Combat: combat, Actions: runActions, Loot: lootActions, Route: routePlayback, Profile: profileExecutor, Town: townPreparation,
+		Input: inputCtrl, Pathing: nav, Waypoint: runWaypoints, Portal: townPortals, TownWalk: layoutTownWalker,
+		Stash: personalStash, Combat: combat, Actions: runActions, Loot: lootActions, Route: routePlayback, TownEgress: townEgress, Profile: profileExecutor, Town: townPreparation,
+	}
+	// Do not assign a nil *telemetry.Recorder to the interface: that would make
+	// the interface non-nil and turn the first fail-closed pipeline event into a
+	// false telemetry failure. Session runs bind their per-generation recorder
+	// in prepareSessionRun.
+	if runTelemetry != nil {
+		taskDeps.Telemetry = runTelemetry
 	}
 
 	probe := memory.NewProbeReader(mem, offsetSet)
@@ -215,6 +247,7 @@ func New(cfg *config.Config, opts Options) (rt *Runtime, err error) {
 		runConfig:        runCfg,
 		sessionSelection: tasks.RunSelection{Run: cfg.Session.Run},
 		routePlayback:    routePlayback,
+		townEgress:       townEgress,
 		lootActions:      lootActions,
 		townLayout:       townLayout,
 		townTelemetry:    townTrace,
@@ -231,6 +264,7 @@ func New(cfg *config.Config, opts Options) (rt *Runtime, err error) {
 			{name: "combat", resetter: combat},
 			{name: "loot", resetter: lootActions},
 			{name: "route", resetter: routePlayback},
+			{name: "town_egress", resetter: townEgress},
 			{name: "profile", resetter: profileExecutor},
 		},
 		resetWorld: func(at time.Time, reason string) { rt.World.Reset(at, reason) },
@@ -247,14 +281,26 @@ func New(cfg *config.Config, opts Options) (rt *Runtime, err error) {
 }
 
 func sessionExecutionRequested(opts Options) bool {
-	return !opts.SessionInspect && !opts.Probe && opts.InputTest == "" && opts.Run == "" && opts.RunPhase == "" && opts.PathingTest == "" && opts.OfflineDifficulty == "" && opts.OfflineCharacter == "" && !opts.OfflineExitTest && opts.UIStateProbe == "" && opts.ScreenAnchorCapture == "" && opts.Route == ""
+	return !opts.SessionInspect && !opts.RunsInspect && !opts.WaypointTargetsInspect && !opts.Probe && opts.InputTest == "" && opts.Run == "" && opts.RunPhase == "" && opts.PathingTest == "" && opts.OfflineDifficulty == "" && opts.OfflineCharacter == "" && !opts.OfflineExitTest && opts.UIStateProbe == "" && opts.ScreenAnchorCapture == "" && opts.Route == "" && !opts.TownInspect && opts.TownTest == ""
 }
 
-func loadPickit(cfg *config.Config) (*loot.Pickit, error) {
-	path := cfg.ResolvePath(cfg.Loot.PickitFile)
+func loadPickit(cfg *config.Config, pickupFile string) (*loot.Pickit, error) {
+	path := cfg.ResolvePath(pickupFile)
 	pickit, err := loot.LoadPickit(path)
 	if err != nil {
 		return nil, fmt.Errorf("pickit config invalid: %w", err)
+	}
+	return pickit, nil
+}
+
+func loadOptionalPickit(cfg *config.Config, policyFile string) (*loot.Pickit, error) {
+	if policyFile == "" {
+		return nil, nil
+	}
+	path := cfg.ResolvePath(policyFile)
+	pickit, err := loot.LoadPickit(path)
+	if err != nil {
+		return nil, fmt.Errorf("sell pickit config invalid: %w", err)
 	}
 	return pickit, nil
 }
@@ -338,6 +384,7 @@ func (rt *Runtime) Run() error {
 	if err != nil {
 		return err
 	}
+	defer rt.stopHotkeys(cancel)
 
 	ticker := time.NewTicker(time.Duration(rt.Config.Runtime.PollIntervalMs) * time.Millisecond)
 	defer ticker.Stop()
@@ -359,8 +406,33 @@ func (rt *Runtime) Run() error {
 				rt.Log.Error("run loop stopped", "error", err)
 				return err
 			}
+			if done, err := rt.configuredTaskResult(); done {
+				return err
+			}
 		}
 	}
+}
+
+// configuredTaskResult ends the generic poll loop only for an explicitly
+// selected run. Passive probe mode remains active until an operator stops it;
+// session mode owns its separate multi-run lifecycle.
+func (rt *Runtime) configuredTaskResult() (bool, error) {
+	if rt.Tasks.ConfiguredRun() == "" || !rt.Tasks.Terminal() {
+		return false, nil
+	}
+
+	result := rt.Tasks.Result()
+	if result.Outcome == tasks.RunOutcomeSuccess {
+		return true, nil
+	}
+
+	return true, fmt.Errorf(
+		"task run %s phase %s failed at step %s: %s",
+		rt.Tasks.ConfiguredRun(),
+		rt.Tasks.ConfiguredPhase(),
+		result.Step,
+		result.Reason,
+	)
 }
 
 func (rt *Runtime) startShutdownSignals(ctx context.Context, cancel context.CancelFunc) {

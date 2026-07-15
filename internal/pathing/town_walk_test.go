@@ -24,6 +24,20 @@ func TestTownRouteWalkerUsesForceMoveKey(t *testing.T) {
 	}
 }
 
+func TestAreaTownRouteWalkerAcceptsOnlyConfiguredArea(t *testing.T) {
+	in := newMockInput()
+	cfg := DefaultConfig()
+	walker := NewAreaTownRouteWalker(config.NewLogger("error"), in, cfg, world.KurastDocks, []world.Position{{X: 110, Y: 110}, {X: 120, Y: 120}})
+	state := townWalkState(world.Position{X: 100, Y: 100})
+	if result := walker.TickRoute(context.Background(), state); result.Status != TownWalkWrongArea || !result.Done {
+		t.Fatalf("Rogue result = %+v", result)
+	}
+	state.Area = world.LookupArea(world.KurastDocks)
+	if result := walker.TickRoute(context.Background(), state); result.Status != TownWalkPending || result.Done || len(in.keys) != 1 {
+		t.Fatalf("Kurast result = %+v keys=%v", result, in.keys)
+	}
+}
+
 func TestTownRouteWalkerArrivesWithoutWaypoint(t *testing.T) {
 	in := newMockInput()
 	cfg := DefaultConfig()

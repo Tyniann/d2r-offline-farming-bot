@@ -11,7 +11,7 @@ Die Telemetrie ist fail-closed: Kann die Datei beim Start nicht erstellt oder w�
 - **Paket:** `internal/telemetry/`
 - **Recorder:** `internal/telemetry/recorder.go`
 - **Event-Hooks:** `internal/app/loot_actions.go`
-- **Task-Abbruch:** `internal/tasks/countess.go`
+- **Task-Abbruch:** `internal/tasks/run_pipeline.go`
 - **Config:** `telemetry.directory` in `configs/config.example.yaml`
 
 ## Datei und Run-ID
@@ -43,6 +43,9 @@ Passive Probe-, Input-Test- und Pathing-Test-Läufe ohne aktiven Run erzeugen ke
 | `resource_potion_requested` | passender Belt-Trank wurde erfolgreich angefordert | jeder echte Potion-Input |
 | `resource_consumption_confirmed` | ursprüngliche Potion-UnitID ist aus dem Belt verschwunden | jede Memory-Bestätigung |
 | `profile_action_failed` | Skill-, Potion- oder Verify-Aktion endet mit stabilem Reason-Code | terminaler Profilfehler |
+| `run_context` | Frische Session-Run-Generation bindet Definition und Assets | genau einmal vor dem ersten Task-Tick |
+| `run_step_started` / `run_step_completed` / `run_step_failed` | gemeinsame Pipeline betritt oder beendet einen Step | jede Transition |
+| `run_encounter_action_started` / `run_encounter_action_completed` | eine geordnete Pre-Combat-Aktion beginnt oder endet | je Definition und Aktionsindex |
 
 `stash_full` wird im aktuellen Personal-Stash-MVP mit unbegrenzten Sammel-Tabs nicht heuristisch erzeugt.
 
@@ -57,6 +60,8 @@ Beispiel:
 Gemeinsame Felder:
 
 - `schema_version`, `timestamp`, `event`, `run_id`, `run`, optional `phase`
+- Pipeline-Kontext: `definition_id`, `step`, `outcome`, optional `action_index`; Encounter-Grenzen tragen zusätzlich die gepinnte Boss-`unit_id`.
+- Run-Kontext: `route_id`, `route_layout_fingerprint`, `waypoint_target`, `loot_pickup_policy`, optionale `loot_sell_policy` und `town_origin`.
 - Item-Kontext: `area_id`, `unit_id`, `txt_file_no`, `code`, `name`
 - Ergebnis-Kontext: `reason`, `attempt`, `hover_attempt`, `candidate_count`
 - Stash-Kontext kann zusätzlich Inventory-Grid-Koordinaten tragen.
@@ -70,6 +75,7 @@ Gemeinsame Felder:
 - Der aktuelle Task endet mit `telemetry_failed`.
 - Nach dem Fehler startet kein weiterer Pickup, Ctrl-Klick oder Stash-Close-Input.
 - Profil-Telemetriefehler beenden den Task mit `profile_telemetry_failed`; Reset entfernt pending Hooks, Potion-Verifikation und Cooldowns.
+- Pipeline-Telemetrie wird vor der folgenden Input-Gelegenheit geflusht. Ein Fehler beendet den Task mit `telemetry_failed` und durchläuft die zentrale Run-Reset-Barriere.
 - Ein Fehler, der beim Protokollieren einer gerade ausgeführten Aktion entsteht, kann diese bereits ausgeführte Aktion naturgemäß nicht rückgängig machen; er verhindert aber jede folgende Aktion.
 
 ## Live-Validierung
@@ -89,4 +95,4 @@ Der isolierte `stash-personal`-Lauf wurde bei 1280×720 mit einer Dol-Rune (`r14
 - [Personal-Stash MVP](personal-stash-mvp.md)
 
 ---
-*Zuletzt aktualisiert: 2026-07-12*
+*Zuletzt aktualisiert: 2026-07-13*

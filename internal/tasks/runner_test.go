@@ -3,12 +3,14 @@ package tasks
 import (
 	"context"
 	"errors"
+	"reflect"
 	"testing"
 	"time"
 
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/config"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/pathing"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/profile"
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/town"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/world"
 )
 
@@ -91,12 +93,13 @@ func countessMonster(unitID uint32, pos world.Position) world.Monster {
 }
 
 type mockWaypointActions struct {
-	results       []pathing.WaypointActionResult
-	selectResult  pathing.WaypointActionResult
-	tickCalls     int
-	selectCalls   int
-	resetCalls    int
-	lastTickState world.State
+	results        []pathing.WaypointActionResult
+	selectResult   pathing.WaypointActionResult
+	tickCalls      int
+	selectCalls    int
+	selectedTarget pathing.WaypointTargetID
+	resetCalls     int
+	lastTickState  world.State
 }
 
 type mockTownWalker struct {
@@ -151,7 +154,9 @@ func (m *mockRoutePlayback) Reset() { m.resetCalls++ }
 
 type mockCombatActions struct {
 	castCalls     int
+	castSkills    []uint16
 	teleportCalls int
+	stopCalls     int
 	resetCalls    int
 	lastSkillID   uint16
 	lastDesired   float64
@@ -247,6 +252,24 @@ func (m *mockWaypointActions) Reset() { m.resetCalls++ }
 
 type mockTownPreparationActions struct{ calls, resets int }
 
+type mockTownEgressPlayback struct {
+	starts []town.OriginAct
+	ticks  int
+	resets int
+	done   bool
+	err    error
+}
+
+func (m *mockTownEgressPlayback) Start(act town.OriginAct, _ world.State) error {
+	m.starts = append(m.starts, act)
+	return m.err
+}
+func (m *mockTownEgressPlayback) Tick(context.Context, world.State) (bool, error) {
+	m.ticks++
+	return m.done, m.err
+}
+func (m *mockTownEgressPlayback) Reset() { m.resets++ }
+
 func (m *mockTownPreparationActions) Tick(context.Context, world.State) TownPreparationResult {
 	m.calls++
 	return TownPreparationResult{Status: "complete", Done: true}
@@ -264,8 +287,9 @@ func (m *mockWaypointActions) TickTownWaypoint(_ context.Context, st world.State
 	return res
 }
 
-func (m *mockWaypointActions) SelectBlackMarsh(context.Context) pathing.WaypointActionResult {
+func (m *mockWaypointActions) SelectWaypointTarget(_ context.Context, _ world.State, target pathing.WaypointTargetID, _ time.Time) pathing.WaypointActionResult {
 	m.selectCalls++
+	m.selectedTarget = target
 	if m.selectResult.Status == "" {
 		return pathing.WaypointActionResult{Status: pathing.WaypointActionClicked, Done: true}
 	}
@@ -292,9 +316,24 @@ func (m *mockNavigator) Active() bool { return len(m.tickResults) > 0 }
 
 func (m *mockNavigator) Reset() { m.resetCalls++ }
 
+func (m *mockCombatActions) CastAttackAtWorld(_ time.Time, skillID uint16, _ world.Player, _ world.Position) error {
+	m.castCalls++
+	m.castSkills = append(m.castSkills, skillID)
+	m.lastSkillID = skillID
+	return nil
+}
+
 func (m *mockCombatActions) CastSkillAtWorld(_ time.Time, skillID uint16, _, _ world.Position) error {
 	m.castCalls++
+	m.castSkills = append(m.castSkills, skillID)
 	m.lastSkillID = skillID
+	return nil
+}
+
+func (m *mockCombatActions) CastBelt(int) error { return nil }
+
+func (m *mockCombatActions) StopAttack() error {
+	m.stopCalls++
 	return nil
 }
 
@@ -387,9 +426,9 @@ func newTestRunner(runName string) *Runner {
 
 func killRunConfig() RunConfig {
 	return RunConfig{
-		StepTimeout:     time.Second,
-		CountessRouteID: "test-countess-route",
-		CountessCombat: CountessCombatConfig{
+		StepTimeout: time.Second,
+		RouteID:     "test-countess-route",
+		Combat: CombatConfig{
 			AttackSkillID:           84,
 			AttackInterval:          350 * time.Millisecond,
 			EngageDistanceTiles:     22,
@@ -426,7 +465,7 @@ func TestRunnerLazyStartBeginsFullCountessRun(t *testing.T) {
 	}
 
 	res := r.Tick(context.Background(), townState(), now)
-	if !res.Active || res.Outcome != RunOutcomeRunning || res.Step != countessStepAcquireTownWP {
+	if !res.Active || res.Outcome != RunOutcomeRunning || res.Step != pipelineStepAcquireTownWaypoint {
 		t.Fatalf("first tick = %+v, want acquire_town_waypoint after precheck completes same tick", res)
 	}
 	if !r.started {
@@ -440,27 +479,27 @@ func TestCountessStashPersonalTransfersClosesAndSucceeds(t *testing.T) {
 		{Status: pathing.PersonalStashOpened, Done: true},
 	}}
 	lootActions := &mockLootActions{}
-	r := NewRunner(config.NewLogger("error"), RunSelection{Run: "countess", Phase: CountessPhaseStashPersonal}, RunConfig{StepTimeout: time.Second}, Deps{Stash: stash, Loot: lootActions})
+	r := NewRunner(config.NewLogger("error"), RunSelection{Run: "countess", Phase: RunPhaseStashPersonal}, RunConfig{StepTimeout: time.Second}, Deps{Stash: stash, Loot: lootActions})
 	now := time.Now()
 
 	res := r.Tick(context.Background(), townState(), now)
-	if res.Step != countessStepOpenStash || res.Outcome != RunOutcomeRunning {
+	if res.Step != pipelineStepOpenStash || res.Outcome != RunOutcomeRunning {
 		t.Fatalf("precheck tick = %+v, want open_personal_stash", res)
 	}
 	res = r.Tick(context.Background(), townState(), now.Add(time.Millisecond))
-	if res.Step != countessStepOpenStash || res.Outcome != RunOutcomeRunning {
+	if res.Step != pipelineStepOpenStash || res.Outcome != RunOutcomeRunning {
 		t.Fatalf("pending tick = %+v, want open_personal_stash", res)
 	}
 	res = r.Tick(context.Background(), townState(), now.Add(2*time.Millisecond))
-	if res.Step != countessStepStashItems || res.Outcome != RunOutcomeRunning {
+	if res.Step != pipelineStepStashItems || res.Outcome != RunOutcomeRunning {
 		t.Fatalf("opened tick = %+v, want stash_items", res)
 	}
 	res = r.Tick(context.Background(), townState(), now.Add(3*time.Millisecond))
-	if res.Step != countessStepCloseStash || res.Outcome != RunOutcomeRunning {
+	if res.Step != pipelineStepCloseStash || res.Outcome != RunOutcomeRunning {
 		t.Fatalf("stash tick = %+v, want close_personal_stash", res)
 	}
 	res = r.Tick(context.Background(), townState(), now.Add(4*time.Millisecond))
-	if res.Step != countessStepComplete || res.Outcome != RunOutcomeRunning {
+	if res.Step != pipelineStepComplete || res.Outcome != RunOutcomeRunning {
 		t.Fatalf("close tick = %+v, want complete", res)
 	}
 	res = r.Tick(context.Background(), townState(), now.Add(5*time.Millisecond))
@@ -473,7 +512,7 @@ func TestCountessStashPersonalPreservesStableFailureReason(t *testing.T) {
 	stash := &mockPersonalStashActions{results: []pathing.PersonalStashResult{{
 		Status: pathing.PersonalStashUnsupportedResolution, Done: true,
 	}}}
-	r := NewRunner(config.NewLogger("error"), RunSelection{Run: "countess", Phase: CountessPhaseStashPersonal}, RunConfig{StepTimeout: time.Second}, Deps{Stash: stash, Loot: &mockLootActions{}})
+	r := NewRunner(config.NewLogger("error"), RunSelection{Run: "countess", Phase: RunPhaseStashPersonal}, RunConfig{StepTimeout: time.Second}, Deps{Stash: stash, Loot: &mockLootActions{}})
 	now := time.Now()
 	_ = r.Tick(context.Background(), townState(), now)
 	res := r.Tick(context.Background(), townState(), now.Add(time.Millisecond))
@@ -592,14 +631,14 @@ func TestIsKnownRun(t *testing.T) {
 	if !IsKnownRun("countess") {
 		t.Fatal("countess should be known")
 	}
-	if IsKnownRun("mephisto") {
-		t.Fatal("mephisto should not be known in 4.1")
+	if !IsKnownRun("mephisto") {
+		t.Fatal("mephisto metadata should be registered in Phase 10.1")
 	}
 }
 
 func TestKnownRunsStable(t *testing.T) {
 	runs := KnownRuns()
-	if len(runs) != 1 || runs[0] != "countess" {
+	if !reflect.DeepEqual(runs, []string{"countess", "mephisto"}) {
 		t.Fatalf("KnownRuns() = %v", runs)
 	}
 }
@@ -665,7 +704,7 @@ func TestCountessFullRunSuccessCastsTownPortal(t *testing.T) {
 	for i, st := range ticks {
 		res = r.Tick(context.Background(), st, now.Add(time.Duration(i)*time.Second))
 	}
-	if res.Outcome != RunOutcomeSuccess || res.Step != countessStepComplete {
+	if res.Outcome != RunOutcomeSuccess || res.Step != pipelineStepComplete {
 		t.Fatalf("final tick = %+v, want success at complete", res)
 	}
 	if actions.portalCalls != 1 {
@@ -693,7 +732,7 @@ func TestCountessFullRunAllowsBlackMarshLoadingWait(t *testing.T) {
 	_ = r.Tick(context.Background(), healthy(townStateWithWaypoint()), now.Add(800*time.Millisecond))
 
 	if !r.CurrentStepAllowsNonInputTick() {
-		t.Fatal("full run wait_black_marsh should allow non-input ticks")
+		t.Fatal("full run wait_entry_area should allow non-input ticks")
 	}
 }
 
@@ -726,7 +765,7 @@ func TestCountessIsolatedTownReadyRunsHookWithoutTownWalk(t *testing.T) {
 		{Status: profile.StatusComplete, Hook: profile.HookTownReady},
 	}}
 	townWalk := &mockTownWalker{}
-	r := NewRunner(config.NewLogger("error"), RunSelection{Run: "countess", Phase: CountessPhaseTownReady}, RunConfig{StepTimeout: 5 * time.Second}, Deps{Profile: profileActions, TownWalk: townWalk})
+	r := NewRunner(config.NewLogger("error"), RunSelection{Run: "countess", Phase: RunPhaseTownReady}, RunConfig{StepTimeout: 5 * time.Second}, Deps{Profile: profileActions, TownWalk: townWalk})
 	state := healthy(townState())
 	state.Identity = world.GameIdentity{Valid: true, CharacterName: "MrBones", Class: world.CharacterClassNecromancer}
 	now := time.Now()
@@ -757,7 +796,7 @@ func TestProfileTelemetryFailureTerminatesRunWithExactReasonAndReset(t *testing.
 
 func TestCountessFullRunPortalRequiresRunActions(t *testing.T) {
 	r := NewRunner(config.NewLogger("error"), RunSelection{Run: "countess"}, killRunConfig(), Deps{})
-	r.tracker.begin(countessStepCastTownPortal, time.Now(), time.Second)
+	r.tracker.begin(pipelineStepCastTownPortal, time.Now(), time.Second)
 	r.started = true
 	r.outcome = RunOutcomeRunning
 
@@ -825,39 +864,42 @@ func TestCountessTravelMarshSuccessThroughLoading(t *testing.T) {
 		},
 	}
 	tw := &mockTownWalker{}
-	r := NewRunner(config.NewLogger("error"), RunSelection{Run: "countess", Phase: CountessPhaseTravelMarsh}, RunConfig{StepTimeout: time.Second}, Deps{Waypoint: wp, TownWalk: tw})
+	r := NewRunner(config.NewLogger("error"), RunSelection{Run: "countess", Phase: RunPhaseTravelEntry}, RunConfig{StepTimeout: time.Second}, Deps{Waypoint: wp, TownWalk: tw})
 	now := time.Now()
 
 	res := r.Tick(context.Background(), townStateWithWaypoint(), now)
-	if res.Step != countessStepAcquireTownWP || res.Outcome != RunOutcomeRunning {
+	if res.Step != pipelineStepAcquireTownWaypoint || res.Outcome != RunOutcomeRunning {
 		t.Fatalf("precheck tick = %+v, want acquire_town_waypoint running", res)
 	}
 	res = r.Tick(context.Background(), townStateWithWaypoint(), now.Add(50*time.Millisecond))
-	if res.Step != countessStepOpenWaypoint {
+	if res.Step != pipelineStepOpenWaypoint {
 		t.Fatalf("acquire tick = %+v, want open_waypoint", res)
 	}
 	res = r.Tick(context.Background(), townStateWithWaypoint(), now.Add(100*time.Millisecond))
-	if res.Step != countessStepOpenWaypoint || wp.tickCalls != 1 {
+	if res.Step != pipelineStepOpenWaypoint || wp.tickCalls != 1 {
 		t.Fatalf("open pending = %+v tickCalls=%d", res, wp.tickCalls)
 	}
 	res = r.Tick(context.Background(), townStateWithWaypoint(), now.Add(200*time.Millisecond))
-	if res.Step != countessStepSelectMarsh {
-		t.Fatalf("open clicked = %+v, want select_black_marsh", res)
+	if res.Step != pipelineStepSelectRunWaypoint {
+		t.Fatalf("open clicked = %+v, want select_run_waypoint", res)
 	}
 	res = r.Tick(context.Background(), townStateWithWaypoint(), now.Add(300*time.Millisecond))
-	if wp.selectCalls != 0 || res.Step != countessStepSelectMarsh {
+	if wp.selectCalls != 0 || res.Step != pipelineStepSelectRunWaypoint {
 		t.Fatalf("settle tick = %+v selectCalls=%d, want no click", res, wp.selectCalls)
 	}
 	res = r.Tick(context.Background(), townStateWithWaypoint(), now.Add(800*time.Millisecond))
-	if wp.selectCalls != 1 || res.Step != countessStepWaitBlackMarsh {
-		t.Fatalf("select tick = %+v selectCalls=%d, want wait_black_marsh", res, wp.selectCalls)
+	if wp.selectCalls != 1 || res.Step != pipelineStepWaitEntryArea {
+		t.Fatalf("select tick = %+v selectCalls=%d, want wait_entry_area", res, wp.selectCalls)
+	}
+	if wp.selectedTarget != pathing.WaypointTargetBlackMarsh {
+		t.Fatalf("selected target = %q, want Black Marsh", wp.selectedTarget)
 	}
 	if !r.CurrentStepAllowsNonInputTick() {
-		t.Fatal("wait_black_marsh should allow non-input ticks")
+		t.Fatal("wait_entry_area should allow non-input ticks")
 	}
 	loading := world.State{Phase: world.GamePhaseLoading, Valid: false}
 	res = r.Tick(context.Background(), loading, now.Add(900*time.Millisecond))
-	if res.Step != countessStepWaitBlackMarsh || res.Outcome != RunOutcomeRunning {
+	if res.Step != pipelineStepWaitEntryArea || res.Outcome != RunOutcomeRunning {
 		t.Fatalf("loading wait tick = %+v, want still waiting", res)
 	}
 	res = r.Tick(context.Background(), blackMarshState(), now.Add(time.Second))
@@ -866,8 +908,77 @@ func TestCountessTravelMarshSuccessThroughLoading(t *testing.T) {
 	}
 }
 
+func TestRunWaypointWaitRejectsWrongAreaAndUsesStableTimeoutReason(t *testing.T) {
+	now := time.Now()
+	newWaitingRunner := func() *Runner {
+		r := NewRunner(config.NewLogger("error"), RunSelection{Run: "countess", Phase: RunPhaseTravelEntry}, RunConfig{StepTimeout: time.Second}, Deps{})
+		r.started = true
+		r.outcome = RunOutcomeRunning
+		r.tracker.begin(pipelineStepWaitEntryArea, now, time.Second)
+		return r
+	}
+
+	r := newWaitingRunner()
+	res := r.Tick(context.Background(), areaState(world.TamoeHighland), now)
+	if res.Outcome != RunOutcomeFailed || res.Reason != string(RunReasonUnexpectedArea) {
+		t.Fatalf("wrong area tick = %+v", res)
+	}
+
+	r = newWaitingRunner()
+	res = r.Tick(context.Background(), areaState(world.RogueEncampment), now.Add(time.Second))
+	if res.Outcome != RunOutcomeFailed || res.Reason != string(RunReasonWaypointDestinationTimeout) {
+		t.Fatalf("timeout tick = %+v", res)
+	}
+}
+
+func TestMephistoTownNormalizationUsesBoundEgressAndRegisteredHubTarget(t *testing.T) {
+	definition, _ := DefaultRunRegistry().Definition(RunIDMephisto)
+	pipeline := &runPipeline{definition: definition}
+	if got := pipeline.nextStep(pipelineStepWaitOriginTown); got != pipelineStepPlayTownEgress {
+		t.Fatalf("wait origin successor = %q", got)
+	}
+	egress := &mockTownEgressPlayback{done: true}
+	waypoint := &mockWaypointActions{}
+	deps := Deps{TownEgress: egress, Waypoint: waypoint}
+	now := time.Now()
+	kurast := areaState(world.KurastDocks)
+
+	res := pipeline.onTownNormalizationTick(context.Background(), deps, pipelineStepPlayTownEgress, kurast, now, now)
+	if !res.complete || res.failed || len(egress.starts) != 1 || egress.starts[0] != town.OriginAct3 {
+		t.Fatalf("egress tick=%+v starts=%v", res, egress.starts)
+	}
+	res = pipeline.onTownNormalizationTick(context.Background(), deps, pipelineStepOpenOriginWaypoint, kurast, now, now)
+	if !res.complete || waypoint.tickCalls != 1 {
+		t.Fatalf("open waypoint tick=%+v calls=%d", res, waypoint.tickCalls)
+	}
+	res = pipeline.onTownNormalizationTick(context.Background(), deps, pipelineStepSelectHubWaypoint, kurast, now, now.Add(-time.Second))
+	if !res.complete || waypoint.selectedTarget != pathing.WaypointTargetRogueEncampment {
+		t.Fatalf("hub select=%+v target=%s", res, waypoint.selectedTarget)
+	}
+	res = pipeline.onTownNormalizationTick(context.Background(), deps, pipelineStepWaitHubArea, areaState(world.RogueEncampment), now, now)
+	if !res.complete || res.failed {
+		t.Fatalf("hub arrival=%+v", res)
+	}
+}
+
+func TestMephistoTownNormalizationFailsClosedBeforeMovement(t *testing.T) {
+	definition, _ := DefaultRunRegistry().Definition(RunIDMephisto)
+	pipeline := &runPipeline{definition: definition}
+	now := time.Now()
+	if res := pipeline.onTownNormalizationTick(context.Background(), Deps{}, pipelineStepPlayTownEgress, areaState(world.KurastDocks), now, now); !res.failed || res.reason != string(RunReasonTownEgressMissing) {
+		t.Fatalf("missing egress=%+v", res)
+	}
+	egress := &mockTownEgressPlayback{done: true}
+	if res := pipeline.onTownNormalizationTick(context.Background(), Deps{TownEgress: egress}, pipelineStepPlayTownEgress, areaState(world.RogueEncampment), now, now); !res.failed || res.reason != string(RunReasonUnexpectedArea) || len(egress.starts) != 0 {
+		t.Fatalf("wrong start=%+v starts=%v", res, egress.starts)
+	}
+	if res := pipeline.onTownNormalizationTick(context.Background(), Deps{}, pipelineStepWaitHubArea, areaState(world.TamoeHighland), now, now); !res.failed || res.reason != string(RunReasonUnexpectedArea) {
+		t.Fatalf("wrong hub area=%+v", res)
+	}
+}
+
 func TestCountessTravelMarshPrecheckFailsOutsideAct1Town(t *testing.T) {
-	r := NewRunner(config.NewLogger("error"), RunSelection{Run: "countess", Phase: CountessPhaseTravelMarsh}, RunConfig{StepTimeout: time.Second}, Deps{})
+	r := NewRunner(config.NewLogger("error"), RunSelection{Run: "countess", Phase: RunPhaseTravelEntry}, RunConfig{StepTimeout: time.Second}, Deps{})
 	res := r.Tick(context.Background(), blackMarshState(), time.Now())
 	if res.Outcome != RunOutcomeFailed || res.Reason != "not_act1_town" {
 		t.Fatalf("tick = %+v, want not_act1_town failure", res)
@@ -878,7 +989,7 @@ func TestCountessTravelMarshWaypointFailureReason(t *testing.T) {
 	wp := &mockWaypointActions{
 		results: []pathing.WaypointActionResult{{Status: pathing.WaypointActionHoverNotFound, Reason: string(pathing.WaypointActionHoverNotFound), Done: true}},
 	}
-	r := NewRunner(config.NewLogger("error"), RunSelection{Run: "countess", Phase: CountessPhaseTravelMarsh}, RunConfig{StepTimeout: time.Second}, Deps{Waypoint: wp, TownWalk: &mockTownWalker{}})
+	r := NewRunner(config.NewLogger("error"), RunSelection{Run: "countess", Phase: RunPhaseTravelEntry}, RunConfig{StepTimeout: time.Second}, Deps{Waypoint: wp, TownWalk: &mockTownWalker{}})
 	now := time.Now()
 	_ = r.Tick(context.Background(), townStateWithWaypoint(), now)
 	_ = r.Tick(context.Background(), townStateWithWaypoint(), now.Add(time.Millisecond))
@@ -894,15 +1005,15 @@ func TestCountessTravelMarshAcquiresWaypointByTownWalk(t *testing.T) {
 		{Status: pathing.TownWalkPending},
 		{Status: pathing.TownWalkWaypointVisible, Done: true},
 	}}
-	r := NewRunner(config.NewLogger("error"), RunSelection{Run: "countess", Phase: CountessPhaseTravelMarsh}, RunConfig{StepTimeout: time.Second}, Deps{Waypoint: wp, TownWalk: tw})
+	r := NewRunner(config.NewLogger("error"), RunSelection{Run: "countess", Phase: RunPhaseTravelEntry}, RunConfig{StepTimeout: time.Second}, Deps{Waypoint: wp, TownWalk: tw})
 	now := time.Now()
 	_ = r.Tick(context.Background(), townStateWithFarWaypoint(), now)
 	res := r.Tick(context.Background(), townStateWithFarWaypoint(), now.Add(time.Millisecond))
-	if res.Step != countessStepAcquireTownWP || res.Outcome != RunOutcomeRunning {
+	if res.Step != pipelineStepAcquireTownWaypoint || res.Outcome != RunOutcomeRunning {
 		t.Fatalf("pending acquire = %+v", res)
 	}
 	res = r.Tick(context.Background(), townStateWithFarWaypoint(), now.Add(2*time.Millisecond))
-	if res.Step != countessStepOpenWaypoint {
+	if res.Step != pipelineStepOpenWaypoint {
 		t.Fatalf("visible acquire = %+v, want open_waypoint", res)
 	}
 }
@@ -911,7 +1022,7 @@ func TestCountessTravelCellar5SuccessStartsExpectedGoals(t *testing.T) {
 	wp := &mockWaypointActions{}
 	nav := &mockNavigator{}
 	route := &mockRoutePlayback{}
-	r := NewRunner(config.NewLogger("error"), RunSelection{Run: "countess", Phase: CountessPhaseTravelCellar5}, RunConfig{StepTimeout: 5 * time.Second, CountessRouteID: "test-countess-route"}, Deps{
+	r := NewRunner(config.NewLogger("error"), RunSelection{Run: "countess", Phase: RunPhasePlayRoute}, RunConfig{StepTimeout: 5 * time.Second, RouteID: "test-countess-route"}, Deps{
 		Waypoint: wp,
 		TownWalk: &mockTownWalker{},
 		Pathing:  nav,
@@ -939,8 +1050,8 @@ func TestCountessTravelCellar5SuccessStartsExpectedGoals(t *testing.T) {
 	for i, st := range ticks {
 		res = r.Tick(context.Background(), st, now.Add(time.Duration(i)*200*time.Millisecond))
 	}
-	if res.Outcome != RunOutcomeSuccess || res.Step != countessStepPlayRoute {
-		t.Fatalf("final tick = %+v, want success at play_recorded_route", res)
+	if res.Outcome != RunOutcomeSuccess || res.Step != pipelineStepPlayRoute {
+		t.Fatalf("final tick = %+v, want success at play_bound_route", res)
 	}
 
 	if len(nav.startGoals) > 1 {
@@ -952,7 +1063,7 @@ func TestCountessTravelCellar5SuccessStartsExpectedGoals(t *testing.T) {
 }
 
 func TestCountessTravelCellar5AllowsBlackMarshLoadingWait(t *testing.T) {
-	r := NewRunner(config.NewLogger("error"), RunSelection{Run: "countess", Phase: CountessPhaseTravelCellar5}, RunConfig{StepTimeout: 5 * time.Second}, Deps{Waypoint: &mockWaypointActions{}, TownWalk: &mockTownWalker{}, Pathing: &mockNavigator{}})
+	r := NewRunner(config.NewLogger("error"), RunSelection{Run: "countess", Phase: RunPhasePlayRoute}, RunConfig{StepTimeout: 5 * time.Second}, Deps{Waypoint: &mockWaypointActions{}, TownWalk: &mockTownWalker{}, Pathing: &mockNavigator{}})
 	now := time.Now()
 	_ = r.Tick(context.Background(), townStateWithWaypoint(), now)
 	_ = r.Tick(context.Background(), townStateWithWaypoint(), now.Add(100*time.Millisecond))
@@ -961,7 +1072,7 @@ func TestCountessTravelCellar5AllowsBlackMarshLoadingWait(t *testing.T) {
 	_ = r.Tick(context.Background(), townStateWithWaypoint(), now.Add(800*time.Millisecond))
 
 	if !r.CurrentStepAllowsNonInputTick() {
-		t.Fatal("travel-cellar5 wait_black_marsh should allow non-input ticks")
+		t.Fatal("play-route wait_entry_area should allow non-input ticks")
 	}
 }
 
@@ -971,11 +1082,11 @@ func TestCountessTravelCellar5ResumesFromRouteAreas(t *testing.T) {
 		area     world.AreaID
 		wantStep string
 	}{
-		{"black marsh", world.BlackMarsh, countessStepPlayRoute},
+		{"black marsh", world.BlackMarsh, pipelineStepPlayRoute},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			r := NewRunner(config.NewLogger("error"), RunSelection{Run: "countess", Phase: CountessPhaseTravelCellar5}, RunConfig{StepTimeout: 5 * time.Second, CountessRouteID: "test-countess-route"}, Deps{
+			r := NewRunner(config.NewLogger("error"), RunSelection{Run: "countess", Phase: RunPhasePlayRoute}, RunConfig{StepTimeout: 5 * time.Second, RouteID: "test-countess-route"}, Deps{
 				Waypoint: &mockWaypointActions{},
 				TownWalk: &mockTownWalker{},
 				Pathing:  &mockNavigator{tickResults: []pathing.NavTickResult{{Status: pathing.NavExploring}}},
@@ -992,7 +1103,7 @@ func TestCountessTravelCellar5ResumesFromRouteAreas(t *testing.T) {
 
 func TestCountessTravelCellar5RejectsIntermediateResume(t *testing.T) {
 	for _, area := range []world.AreaID{world.ForgottenTower, world.TowerCellarLevel1, world.TowerCellarLevel4} {
-		r := NewRunner(config.NewLogger("error"), RunSelection{Run: "countess", Phase: CountessPhaseTravelCellar5}, RunConfig{StepTimeout: time.Second, CountessRouteID: "test-countess-route"}, Deps{Route: &mockRoutePlayback{}})
+		r := NewRunner(config.NewLogger("error"), RunSelection{Run: "countess", Phase: RunPhasePlayRoute}, RunConfig{StepTimeout: time.Second, RouteID: "test-countess-route"}, Deps{Route: &mockRoutePlayback{}})
 		res := r.Tick(context.Background(), areaState(area), time.Now())
 		if res.Outcome != RunOutcomeFailed || res.Reason != "not_act1_town" {
 			t.Fatalf("area %d result = %+v", area, res)
@@ -1001,26 +1112,26 @@ func TestCountessTravelCellar5RejectsIntermediateResume(t *testing.T) {
 }
 
 func TestCountessTravelCellar5ResumeAlreadyAtCellar5Completes(t *testing.T) {
-	r := NewRunner(config.NewLogger("error"), RunSelection{Run: "countess", Phase: CountessPhaseTravelCellar5}, RunConfig{StepTimeout: 5 * time.Second}, Deps{
+	r := NewRunner(config.NewLogger("error"), RunSelection{Run: "countess", Phase: RunPhasePlayRoute}, RunConfig{StepTimeout: 5 * time.Second}, Deps{
 		Waypoint: &mockWaypointActions{},
 		TownWalk: &mockTownWalker{},
 		Pathing:  &mockNavigator{},
 	})
 
 	res := r.Tick(context.Background(), areaState(world.TowerCellarLevel5), time.Now())
-	if res.Outcome != RunOutcomeSuccess || res.Step != countessStepPrecheck {
+	if res.Outcome != RunOutcomeSuccess || res.Step != pipelineStepPrecheck {
 		t.Fatalf("tick = %+v, want success from precheck at cellar 5", res)
 	}
 }
 
 func TestCountessKillPrecheckRequiresCellar5AndCombat(t *testing.T) {
-	r := NewRunner(config.NewLogger("error"), RunSelection{Run: "countess", Phase: CountessPhaseKillCountess}, killRunConfig(), Deps{Combat: &mockCombatActions{}})
+	r := NewRunner(config.NewLogger("error"), RunSelection{Run: "countess", Phase: RunPhaseBoss}, killRunConfig(), Deps{Combat: &mockCombatActions{}})
 	res := r.Tick(context.Background(), areaState(world.TowerCellarLevel4), time.Now())
 	if res.Outcome != RunOutcomeFailed || res.Reason != "not_cellar_5" {
 		t.Fatalf("wrong area tick = %+v, want not_cellar_5", res)
 	}
 
-	r = NewRunner(config.NewLogger("error"), RunSelection{Run: "countess", Phase: CountessPhaseKillCountess}, killRunConfig(), Deps{})
+	r = NewRunner(config.NewLogger("error"), RunSelection{Run: "countess", Phase: RunPhaseBoss}, killRunConfig(), Deps{})
 	res = r.Tick(context.Background(), cellar5State(), time.Now())
 	if res.Outcome != RunOutcomeFailed || res.Reason != "combat_not_wired" {
 		t.Fatalf("missing combat tick = %+v, want combat_not_wired", res)
@@ -1029,7 +1140,7 @@ func TestCountessKillPrecheckRequiresCellar5AndCombat(t *testing.T) {
 
 func TestCountessKillTargetsDarkStalkerBeforeGenericSuperUnique(t *testing.T) {
 	combat := &mockCombatActions{}
-	r := NewRunner(config.NewLogger("error"), RunSelection{Run: "countess", Phase: CountessPhaseKillCountess}, killRunConfig(), Deps{Combat: combat})
+	r := NewRunner(config.NewLogger("error"), RunSelection{Run: "countess", Phase: RunPhaseBoss}, killRunConfig(), Deps{Combat: combat})
 	now := time.Now()
 	generic := world.Monster{NPCID: 999, UnitID: 20, Position: world.Position{X: 101, Y: 101}, MonsterTypeFlag: world.SuperUniqueMonsterFlag}
 	countess := countessMonster(10, world.Position{X: 110, Y: 100})
@@ -1050,7 +1161,7 @@ func TestCountessKillGoodChestFallbackStartsOnceAndTicksPathing(t *testing.T) {
 		{Status: pathing.NavMoving},
 		{Status: pathing.NavArrived, Done: true},
 	}}
-	r := NewRunner(config.NewLogger("error"), RunSelection{Run: "countess", Phase: CountessPhaseKillCountess}, killRunConfig(), Deps{
+	r := NewRunner(config.NewLogger("error"), RunSelection{Run: "countess", Phase: RunPhaseBoss}, killRunConfig(), Deps{
 		Combat:  &mockCombatActions{},
 		Pathing: nav,
 	})
@@ -1072,7 +1183,7 @@ func TestCountessKillEntranceFallbackMovesInWhenChestMissing(t *testing.T) {
 	nav := &mockNavigator{tickResults: []pathing.NavTickResult{
 		{Status: pathing.NavMoving},
 	}}
-	r := NewRunner(config.NewLogger("error"), RunSelection{Run: "countess", Phase: CountessPhaseKillCountess}, killRunConfig(), Deps{
+	r := NewRunner(config.NewLogger("error"), RunSelection{Run: "countess", Phase: RunPhaseBoss}, killRunConfig(), Deps{
 		Combat:  &mockCombatActions{},
 		Pathing: nav,
 	})
@@ -1097,7 +1208,7 @@ func TestCountessKillEntranceFallbackMovesInWhenChestMissing(t *testing.T) {
 
 func TestCountessKillEngageCastsEveryTaskTickAndConfirmsKill(t *testing.T) {
 	combat := &mockCombatActions{}
-	r := NewRunner(config.NewLogger("error"), RunSelection{Run: "countess", Phase: CountessPhaseKillCountess}, killRunConfig(), Deps{Combat: combat})
+	r := NewRunner(config.NewLogger("error"), RunSelection{Run: "countess", Phase: RunPhaseBoss}, killRunConfig(), Deps{Combat: combat})
 	now := time.Now()
 	target := countessMonster(10, world.Position{X: 110, Y: 100})
 	visible := cellar5State(target)
@@ -1130,7 +1241,7 @@ func TestCountessBossHookCompletesBeforeFirstAttack(t *testing.T) {
 		{Status: profile.StatusPending, Resource: profile.ResourceMana, BeltSlot: 2},
 		{Status: profile.StatusComplete, Resource: profile.ResourceMana, BeltSlot: 2},
 	}}
-	r := NewRunner(config.NewLogger("error"), RunSelection{Run: "countess", Phase: CountessPhaseKillCountess}, killRunConfig(), Deps{Combat: combat, Profile: profileActions})
+	r := NewRunner(config.NewLogger("error"), RunSelection{Run: "countess", Phase: RunPhaseBoss}, killRunConfig(), Deps{Combat: combat, Profile: profileActions})
 	now := time.Now()
 	target := countessMonster(77, world.Position{X: 110, Y: 100})
 	visible := healthy(cellar5State(target))
@@ -1155,7 +1266,7 @@ func TestCountessBossHookCompletesBeforeFirstAttack(t *testing.T) {
 
 func TestCountessKillAbsenceResetAndAreaFailure(t *testing.T) {
 	combat := &mockCombatActions{}
-	r := NewRunner(config.NewLogger("error"), RunSelection{Run: "countess", Phase: CountessPhaseKillCountess}, killRunConfig(), Deps{Combat: combat})
+	r := NewRunner(config.NewLogger("error"), RunSelection{Run: "countess", Phase: RunPhaseBoss}, killRunConfig(), Deps{Combat: combat})
 	now := time.Now()
 	target := countessMonster(10, world.Position{X: 110, Y: 100})
 	visible := cellar5State(target)
@@ -1177,7 +1288,7 @@ func TestCountessKillAbsenceResetAndAreaFailure(t *testing.T) {
 
 func TestCountessKillTeleportRepositionUsesEngageDistance(t *testing.T) {
 	combat := &mockCombatActions{}
-	r := NewRunner(config.NewLogger("error"), RunSelection{Run: "countess", Phase: CountessPhaseKillCountess}, killRunConfig(), Deps{Combat: combat})
+	r := NewRunner(config.NewLogger("error"), RunSelection{Run: "countess", Phase: RunPhaseBoss}, killRunConfig(), Deps{Combat: combat})
 	now := time.Now()
 	target := countessMonster(10, world.Position{X: 200, Y: 100})
 	st := cellar5State(target)
@@ -1193,7 +1304,7 @@ func TestCountessKillTeleportRepositionUsesEngageDistance(t *testing.T) {
 func TestCountessLootWaitForDropsRequiresThreeStableTicks(t *testing.T) {
 	lootActions := &mockLootActions{}
 	actions := &mockRunActions{}
-	r := NewRunner(config.NewLogger("error"), RunSelection{Run: "countess", Phase: CountessPhaseLootCountess}, killRunConfig(), Deps{
+	r := NewRunner(config.NewLogger("error"), RunSelection{Run: "countess", Phase: RunPhaseLootAndReturn}, killRunConfig(), Deps{
 		Loot:    lootActions,
 		Actions: actions,
 	})
@@ -1201,21 +1312,21 @@ func TestCountessLootWaitForDropsRequiresThreeStableTicks(t *testing.T) {
 	st := cellar5State()
 
 	res := r.Tick(context.Background(), st, now)
-	if res.Step != countessStepWaitForDrops || res.Outcome != RunOutcomeRunning {
+	if res.Step != pipelineStepWaitForDrops || res.Outcome != RunOutcomeRunning {
 		t.Fatalf("precheck tick = %+v, want wait_for_drops running", res)
 	}
 	res = r.Tick(context.Background(), st, now.Add(time.Millisecond))
-	if res.Step != countessStepWaitForDrops || res.Outcome != RunOutcomeRunning {
+	if res.Step != pipelineStepWaitForDrops || res.Outcome != RunOutcomeRunning {
 		t.Fatalf("stable tick 1 = %+v, want wait_for_drops running", res)
 	}
 	res = r.Tick(context.Background(), world.State{}, now.Add(2*time.Millisecond))
-	if res.Step != countessStepWaitForDrops || res.Outcome != RunOutcomeRunning {
+	if res.Step != pipelineStepWaitForDrops || res.Outcome != RunOutcomeRunning {
 		t.Fatalf("invalid tick = %+v, want wait_for_drops running", res)
 	}
 	_ = r.Tick(context.Background(), st, now.Add(3*time.Millisecond))
 	_ = r.Tick(context.Background(), st, now.Add(4*time.Millisecond))
 	res = r.Tick(context.Background(), st, now.Add(5*time.Millisecond))
-	if res.Step != countessStepScanLoot || res.Outcome != RunOutcomeRunning {
+	if res.Step != pipelineStepScanLoot || res.Outcome != RunOutcomeRunning {
 		t.Fatalf("stable tick 3 = %+v, want scan_loot running", res)
 	}
 }
@@ -1223,7 +1334,7 @@ func TestCountessLootWaitForDropsRequiresThreeStableTicks(t *testing.T) {
 func TestCountessLootNoCandidatesCastsTownPortalAndSucceeds(t *testing.T) {
 	lootActions := &mockLootActions{scans: []LootScanResult{{GroundItemCount: 2}}}
 	actions := &mockRunActions{}
-	r := NewRunner(config.NewLogger("error"), RunSelection{Run: "countess", Phase: CountessPhaseLootCountess}, killRunConfig(), Deps{
+	r := NewRunner(config.NewLogger("error"), RunSelection{Run: "countess", Phase: RunPhaseLootAndReturn}, killRunConfig(), Deps{
 		Loot:    lootActions,
 		Actions: actions,
 		Portal:  &mockTownPortalActions{},
@@ -1239,31 +1350,31 @@ func TestCountessLootNoCandidatesCastsTownPortalAndSucceeds(t *testing.T) {
 	_ = r.Tick(context.Background(), st, now.Add(4*time.Millisecond))
 	_ = r.Tick(context.Background(), st, now.Add(5*time.Millisecond))
 	res := r.Tick(context.Background(), st, now.Add(6*time.Millisecond))
-	if res.Step != countessStepCastTownPortal || res.Outcome != RunOutcomeRunning {
+	if res.Step != pipelineStepCastTownPortal || res.Outcome != RunOutcomeRunning {
 		t.Fatalf("stable empty scan = %+v, want cast_town_portal running", res)
 	}
 	res = r.Tick(context.Background(), st, now.Add(7*time.Millisecond))
-	if res.Step != countessStepEnterTownPortal || res.Outcome != RunOutcomeRunning {
+	if res.Step != pipelineStepEnterTownPortal || res.Outcome != RunOutcomeRunning {
 		t.Fatalf("portal tick = %+v, want enter_town_portal running", res)
 	}
 	res = r.Tick(context.Background(), st, now.Add(8*time.Millisecond))
-	if res.Step != countessStepWaitAct1Town || res.Outcome != RunOutcomeRunning {
-		t.Fatalf("entry tick = %+v, want wait_act1_town running", res)
+	if res.Step != pipelineStepWaitOriginTown || res.Outcome != RunOutcomeRunning {
+		t.Fatalf("entry tick = %+v, want wait_origin_town running", res)
 	}
 	res = r.Tick(context.Background(), townState(), now.Add(9*time.Millisecond))
-	if res.Step != countessStepOpenStash || res.Outcome != RunOutcomeRunning {
+	if res.Step != pipelineStepOpenStash || res.Outcome != RunOutcomeRunning {
 		t.Fatalf("town tick = %+v, want open_personal_stash", res)
 	}
 	res = r.Tick(context.Background(), townState(), now.Add(10*time.Millisecond))
-	if res.Step != countessStepStashItems || res.Outcome != RunOutcomeRunning {
+	if res.Step != pipelineStepStashItems || res.Outcome != RunOutcomeRunning {
 		t.Fatalf("open tick = %+v, want stash_items", res)
 	}
 	res = r.Tick(context.Background(), townState(), now.Add(11*time.Millisecond))
-	if res.Step != countessStepCloseStash || res.Outcome != RunOutcomeRunning {
+	if res.Step != pipelineStepCloseStash || res.Outcome != RunOutcomeRunning {
 		t.Fatalf("stash tick = %+v, want close_personal_stash", res)
 	}
 	res = r.Tick(context.Background(), townState(), now.Add(12*time.Millisecond))
-	if res.Step != countessStepComplete || res.Outcome != RunOutcomeRunning {
+	if res.Step != pipelineStepComplete || res.Outcome != RunOutcomeRunning {
 		t.Fatalf("close tick = %+v, want complete", res)
 	}
 	res = r.Tick(context.Background(), townState(), now.Add(13*time.Millisecond))
@@ -1278,29 +1389,29 @@ func TestCountessLootDoesNotFinishOnTransientNoTargetScan(t *testing.T) {
 		{GroundItemCount: 1},
 		{GroundItemCount: 1, CandidateCount: 1, HasTarget: true, NextTarget: target},
 	}}
-	r := NewRunner(config.NewLogger("error"), RunSelection{Run: "countess", Phase: CountessPhaseLootCountess}, killRunConfig(), Deps{Loot: lootActions})
+	r := NewRunner(config.NewLogger("error"), RunSelection{Run: "countess", Phase: RunPhaseLootAndReturn}, killRunConfig(), Deps{Loot: lootActions})
 	r.started = true
 	r.outcome = RunOutcomeRunning
-	r.tracker.begin(countessStepScanLoot, time.Now(), time.Second)
-	r.run.onStepEnter(countessStepScanLoot)
+	r.tracker.begin(pipelineStepScanLoot, time.Now(), time.Second)
+	r.run.onStepEnter(pipelineStepScanLoot)
 
 	res := r.Tick(context.Background(), cellar5State(), time.Now())
-	if res.Step != countessStepScanLoot || res.Outcome != RunOutcomeRunning {
+	if res.Step != pipelineStepScanLoot || res.Outcome != RunOutcomeRunning {
 		t.Fatalf("empty tick = %+v, want scan_loot running", res)
 	}
 	res = r.Tick(context.Background(), cellar5State(), time.Now().Add(time.Millisecond))
-	if res.Step != countessStepPickLoot || res.Outcome != RunOutcomeRunning {
+	if res.Step != pipelineStepPickLoot || res.Outcome != RunOutcomeRunning {
 		t.Fatalf("reappeared target tick = %+v, want pick_loot running", res)
 	}
 }
 
 func TestCountessLootTelemetryFailureAbortsBeforePickup(t *testing.T) {
 	lootActions := &mockLootActions{scans: []LootScanResult{{TelemetryFailed: true}}}
-	r := NewRunner(config.NewLogger("error"), RunSelection{Run: "countess", Phase: CountessPhaseLootCountess}, killRunConfig(), Deps{Loot: lootActions})
+	r := NewRunner(config.NewLogger("error"), RunSelection{Run: "countess", Phase: RunPhaseLootAndReturn}, killRunConfig(), Deps{Loot: lootActions})
 	r.started = true
 	r.outcome = RunOutcomeRunning
-	r.tracker.begin(countessStepScanLoot, time.Now(), time.Second)
-	r.run.onStepEnter(countessStepScanLoot)
+	r.tracker.begin(pipelineStepScanLoot, time.Now(), time.Second)
+	r.run.onStepEnter(pipelineStepScanLoot)
 	res := r.Tick(context.Background(), cellar5State(), time.Now())
 	if res.Outcome != RunOutcomeFailed || res.Reason != "telemetry_failed" || len(lootActions.startCalls) != 0 {
 		t.Fatalf("tick=%+v starts=%v, want fail-closed telemetry_failed", res, lootActions.startCalls)
@@ -1315,7 +1426,7 @@ func TestCountessLootInventoryFullStopsPickupAndRecoversToTown(t *testing.T) {
 	}}}
 	actions := &mockRunActions{}
 	portals := &mockTownPortalActions{}
-	r := NewRunner(config.NewLogger("error"), RunSelection{Run: "countess", Phase: CountessPhaseLootCountess}, killRunConfig(), Deps{
+	r := NewRunner(config.NewLogger("error"), RunSelection{Run: "countess", Phase: RunPhaseLootAndReturn}, killRunConfig(), Deps{
 		Loot:    lootActions,
 		Actions: actions,
 		Portal:  portals,
@@ -1351,7 +1462,7 @@ func TestCountessTownPortalFailuresHaveStableReasons(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			r := NewRunner(config.NewLogger("error"), RunSelection{Run: "countess", Phase: CountessPhaseLootCountess}, killRunConfig(), Deps{
+			r := NewRunner(config.NewLogger("error"), RunSelection{Run: "countess", Phase: RunPhaseLootAndReturn}, killRunConfig(), Deps{
 				Loot:    &mockLootActions{},
 				Actions: &mockRunActions{},
 				Portal: &mockTownPortalActions{results: []pathing.TownPortalActionResult{{
@@ -1361,7 +1472,7 @@ func TestCountessTownPortalFailuresHaveStableReasons(t *testing.T) {
 			})
 			r.started = true
 			r.outcome = RunOutcomeRunning
-			r.tracker.begin(countessStepEnterTownPortal, time.Now(), time.Second)
+			r.tracker.begin(pipelineStepEnterTownPortal, time.Now(), time.Second)
 			res := r.Tick(context.Background(), cellar5State(), time.Now())
 			if res.Outcome != RunOutcomeFailed || res.Reason != tc.reason {
 				t.Fatalf("tick = %+v, want reason %s", res, tc.reason)
@@ -1371,12 +1482,12 @@ func TestCountessTownPortalFailuresHaveStableReasons(t *testing.T) {
 }
 
 func TestCountessWaitTownAllowsLoadingAndRejectsWrongArea(t *testing.T) {
-	r := NewRunner(config.NewLogger("error"), RunSelection{Run: "countess", Phase: CountessPhaseLootCountess}, killRunConfig(), Deps{})
+	r := NewRunner(config.NewLogger("error"), RunSelection{Run: "countess", Phase: RunPhaseLootAndReturn}, killRunConfig(), Deps{})
 	r.started = true
 	r.outcome = RunOutcomeRunning
-	r.tracker.begin(countessStepWaitAct1Town, time.Now(), time.Second)
+	r.tracker.begin(pipelineStepWaitOriginTown, time.Now(), time.Second)
 	if !r.CurrentStepAllowsNonInputTick() {
-		t.Fatal("wait_act1_town should allow loading ticks")
+		t.Fatal("wait_origin_town should allow loading ticks")
 	}
 	res := r.Tick(context.Background(), world.State{Phase: world.GamePhaseLoading}, time.Now())
 	if res.Outcome != RunOutcomeRunning {
@@ -1399,7 +1510,7 @@ func TestCountessLootPickSkipsFailedCandidateAndFinishesWhenNoTargetsRemain(t *t
 		ticks: []LootPickupResult{{Status: LootPickupMonsterNearby, Done: true, Target: target}},
 	}
 	actions := &mockRunActions{}
-	r := NewRunner(config.NewLogger("error"), RunSelection{Run: "countess", Phase: CountessPhaseLootCountess}, killRunConfig(), Deps{
+	r := NewRunner(config.NewLogger("error"), RunSelection{Run: "countess", Phase: RunPhaseLootAndReturn}, killRunConfig(), Deps{
 		Loot:    lootActions,
 		Actions: actions,
 	})
@@ -1426,7 +1537,7 @@ func TestCountessLootHardPickupStatusFailsRun(t *testing.T) {
 		},
 		ticks: []LootPickupResult{{Status: LootPickupInputBlocked, Done: true, Target: target}},
 	}
-	r := NewRunner(config.NewLogger("error"), RunSelection{Run: "countess", Phase: CountessPhaseLootCountess}, killRunConfig(), Deps{
+	r := NewRunner(config.NewLogger("error"), RunSelection{Run: "countess", Phase: RunPhaseLootAndReturn}, killRunConfig(), Deps{
 		Loot:    lootActions,
 		Actions: &mockRunActions{},
 	})
@@ -1450,7 +1561,7 @@ func TestCountessLootStartPickupErrorFailsRun(t *testing.T) {
 		},
 		startErr: errors.New("not wired"),
 	}
-	r := NewRunner(config.NewLogger("error"), RunSelection{Run: "countess", Phase: CountessPhaseLootCountess}, killRunConfig(), Deps{
+	r := NewRunner(config.NewLogger("error"), RunSelection{Run: "countess", Phase: RunPhaseLootAndReturn}, killRunConfig(), Deps{
 		Loot:    lootActions,
 		Actions: &mockRunActions{},
 	})
@@ -1466,13 +1577,13 @@ func TestCountessLootStartPickupErrorFailsRun(t *testing.T) {
 }
 
 func TestCountessLootFailsOnNilLootActionsAndAreaChange(t *testing.T) {
-	r := NewRunner(config.NewLogger("error"), RunSelection{Run: "countess", Phase: CountessPhaseLootCountess}, killRunConfig(), Deps{})
+	r := NewRunner(config.NewLogger("error"), RunSelection{Run: "countess", Phase: RunPhaseLootAndReturn}, killRunConfig(), Deps{})
 	res := r.Tick(context.Background(), cellar5State(), time.Now())
 	if res.Outcome != RunOutcomeFailed || res.Reason != "loot_actions_not_wired" {
 		t.Fatalf("nil loot tick = %+v, want loot_actions_not_wired", res)
 	}
 
-	r = NewRunner(config.NewLogger("error"), RunSelection{Run: "countess", Phase: CountessPhaseLootCountess}, killRunConfig(), Deps{
+	r = NewRunner(config.NewLogger("error"), RunSelection{Run: "countess", Phase: RunPhaseLootAndReturn}, killRunConfig(), Deps{
 		Loot:    &mockLootActions{},
 		Actions: &mockRunActions{},
 	})
@@ -1489,7 +1600,7 @@ func TestCountessLootFailsOnAreaChangeDuringPickLoot(t *testing.T) {
 	lootActions := &mockLootActions{
 		scans: []LootScanResult{{GroundItemCount: 1, CandidateCount: 1, HasTarget: true, NextTarget: target}},
 	}
-	r := NewRunner(config.NewLogger("error"), RunSelection{Run: "countess", Phase: CountessPhaseLootCountess}, killRunConfig(), Deps{
+	r := NewRunner(config.NewLogger("error"), RunSelection{Run: "countess", Phase: RunPhaseLootAndReturn}, killRunConfig(), Deps{
 		Loot:    lootActions,
 		Actions: &mockRunActions{},
 	})
@@ -1508,7 +1619,7 @@ func TestCountessKillStillEndsAfterKillWithoutPortalOrLoot(t *testing.T) {
 	combat := &mockCombatActions{}
 	lootActions := &mockLootActions{}
 	actions := &mockRunActions{}
-	r := NewRunner(config.NewLogger("error"), RunSelection{Run: "countess", Phase: CountessPhaseKillCountess}, killRunConfig(), Deps{
+	r := NewRunner(config.NewLogger("error"), RunSelection{Run: "countess", Phase: RunPhaseBoss}, killRunConfig(), Deps{
 		Combat:  combat,
 		Loot:    lootActions,
 		Actions: actions,
@@ -1533,7 +1644,7 @@ func TestCountessNavigateAreaStartsOnceWhilePending(t *testing.T) {
 		{Status: pathing.NavExploring},
 		{Status: pathing.NavExploring},
 	}}
-	c := &countessRun{}
+	c := &runPipeline{}
 	goal := pathing.Goal{Kind: pathing.GoalKindMoveToArea, TargetArea: world.ForgottenTower, ViaEntrance: world.EntranceKindWildernessToTower}
 
 	if res := c.tickNavigateArea(context.Background(), Deps{Pathing: nav}, blackMarshState(), goal); res.complete || res.failed {
@@ -1554,16 +1665,16 @@ func TestCountessNavigationGoalsStartExpectedPathingGoals(t *testing.T) {
 		target      world.AreaID
 		viaEntrance world.EntranceKind
 	}{
-		{countessStepFindTower, world.BlackMarsh, world.ForgottenTower, world.EntranceKindWildernessToTower},
-		{countessStepEnterCellar1, world.ForgottenTower, world.TowerCellarLevel1, world.EntranceKindUnknown},
-		{countessStepEnterCellar2, world.TowerCellarLevel1, world.TowerCellarLevel2, world.EntranceKindTowerCellarDown},
-		{countessStepEnterCellar3, world.TowerCellarLevel2, world.TowerCellarLevel3, world.EntranceKindTowerCellarDown},
-		{countessStepEnterCellar4, world.TowerCellarLevel3, world.TowerCellarLevel4, world.EntranceKindTowerCellarDown},
-		{countessStepEnterCellar5, world.TowerCellarLevel4, world.TowerCellarLevel5, world.EntranceKindTowerCellarDown},
+		{pipelineStepFindTower, world.BlackMarsh, world.ForgottenTower, world.EntranceKindWildernessToTower},
+		{pipelineStepEnterCellar1, world.ForgottenTower, world.TowerCellarLevel1, world.EntranceKindUnknown},
+		{pipelineStepEnterCellar2, world.TowerCellarLevel1, world.TowerCellarLevel2, world.EntranceKindTowerCellarDown},
+		{pipelineStepEnterCellar3, world.TowerCellarLevel2, world.TowerCellarLevel3, world.EntranceKindTowerCellarDown},
+		{pipelineStepEnterCellar4, world.TowerCellarLevel3, world.TowerCellarLevel4, world.EntranceKindTowerCellarDown},
+		{pipelineStepEnterCellar5, world.TowerCellarLevel4, world.TowerCellarLevel5, world.EntranceKindTowerCellarDown},
 	}
 	for _, tc := range cases {
 		t.Run(tc.step, func(t *testing.T) {
-			c := &countessRun{}
+			c := &runPipeline{}
 			nav := &mockNavigator{tickResults: []pathing.NavTickResult{{Status: pathing.NavExploring}}}
 			goal, ok := countessNavigationGoal(tc.step)
 			if !ok {
@@ -1585,11 +1696,11 @@ func TestCountessNavigationGoalsStartExpectedPathingGoals(t *testing.T) {
 }
 
 func TestCountessEnterCellar1UsesForgottenTowerSpecialCase(t *testing.T) {
-	c := &countessRun{}
+	c := &runPipeline{}
 	nav := &mockNavigator{tickResults: []pathing.NavTickResult{
 		{Status: pathing.NavClicking},
 	}}
-	goal, ok := countessNavigationGoal(countessStepEnterCellar1)
+	goal, ok := countessNavigationGoal(pipelineStepEnterCellar1)
 	if !ok {
 		t.Fatal("missing enter_cellar_1 goal")
 	}
@@ -1611,7 +1722,7 @@ func TestCountessEnterCellar1UsesForgottenTowerSpecialCase(t *testing.T) {
 
 func TestCountessNavigateAreaCompletesWithoutStartWhenAlreadyInTarget(t *testing.T) {
 	nav := &mockNavigator{}
-	c := &countessRun{}
+	c := &runPipeline{}
 	goal := pathing.Goal{Kind: pathing.GoalKindMoveToArea, TargetArea: world.ForgottenTower, ViaEntrance: world.EntranceKindWildernessToTower}
 
 	res := c.tickNavigateArea(context.Background(), Deps{Pathing: nav}, areaState(world.ForgottenTower), goal)
@@ -1624,11 +1735,11 @@ func TestCountessNavigateAreaCompletesWithoutStartWhenAlreadyInTarget(t *testing
 }
 
 func TestCountessNavigationSourceGuardFailsUnexpectedArea(t *testing.T) {
-	goal, ok := countessNavigationGoal(countessStepFindTower)
+	goal, ok := countessNavigationGoal(pipelineStepFindTower)
 	if !ok {
 		t.Fatal("missing find_tower goal")
 	}
-	res := countessNavigationSourceGuard(countessStepFindTower, areaState(world.TamoeHighland), goal)
+	res := countessNavigationSourceGuard(pipelineStepFindTower, areaState(world.TamoeHighland), goal)
 	if !res.failed || res.reason != "unexpected_area" {
 		t.Fatalf("guard = %+v, want unexpected_area failure", res)
 	}
@@ -1649,7 +1760,7 @@ func TestCountessNavigateAreaFailureReasons(t *testing.T) {
 	goal := pathing.Goal{Kind: pathing.GoalKindMoveToArea, TargetArea: world.ForgottenTower, ViaEntrance: world.EntranceKindWildernessToTower}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			c := &countessRun{}
+			c := &runPipeline{}
 			nav := &mockNavigator{tickResults: []pathing.NavTickResult{tc.res}}
 			res := c.tickNavigateArea(context.Background(), Deps{Pathing: nav}, blackMarshState(), goal)
 			if !res.failed || res.reason != tc.want {
@@ -1672,7 +1783,7 @@ func TestCountessNavigateAreaStartFailureReasons(t *testing.T) {
 	goal := pathing.Goal{Kind: pathing.GoalKindMoveToArea, TargetArea: world.ForgottenTower, ViaEntrance: world.EntranceKindWildernessToTower}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			c := &countessRun{}
+			c := &runPipeline{}
 			nav := &mockNavigator{startErr: tc.err}
 			res := c.tickNavigateArea(context.Background(), Deps{Pathing: nav}, blackMarshState(), goal)
 			if !res.failed || res.reason != tc.want {

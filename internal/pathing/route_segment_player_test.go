@@ -42,20 +42,20 @@ func TestRouteSegmentPlayerReplaysPointsAndStrictTransition(t *testing.T) {
 		t.Fatal(err)
 	}
 	state := segmentPlaybackState(world.BlackMarsh, 14858, 5068)
-	if _, err := player.Tick(context.Background(), state); err != nil {
-		t.Fatal(err)
+	if _, tickErr := player.Tick(context.Background(), state); tickErr != nil {
+		t.Fatal(tickErr)
 	}
 	if len(nav.goals) != 1 || nav.goals[0].Kind != GoalKindMoveToPosition {
 		t.Fatalf("goals = %+v", nav.goals)
 	}
 	state.Player.Position = world.Position{X: 14820, Y: 5065}
 	nav.active = false
-	if _, err := player.Tick(context.Background(), state); err != nil {
-		t.Fatal(err)
+	if _, tickErr := player.Tick(context.Background(), state); tickErr != nil {
+		t.Fatal(tickErr)
 	}
 	state.Entrances = []world.Entrance{{UnitID: 20, Kind: world.EntranceKindWildernessToTower, Position: state.Player.Position}}
-	if _, err := player.Tick(context.Background(), state); err != nil {
-		t.Fatal(err)
+	if _, tickErr := player.Tick(context.Background(), state); tickErr != nil {
+		t.Fatal(tickErr)
 	}
 	if len(nav.goals) != 2 || nav.goals[1].Kind != GoalKindMoveToArea || !nav.goals[1].StrictEntrance {
 		t.Fatalf("transition goal = %+v", nav.goals)

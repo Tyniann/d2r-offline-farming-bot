@@ -204,10 +204,8 @@ func distanceToEdge(point, start, end world.Position) float64 {
 }
 
 func parseEntranceKind(value string) world.EntranceKind {
-	for kind := world.EntranceKindUnknown; kind <= world.EntranceKindCatacombsDown; kind++ {
-		if kind.String() == value {
-			return kind
-		}
+	if kind, ok := world.ParseEntranceKind(value); ok {
+		return kind
 	}
 	return world.EntranceKindUnknown
 }

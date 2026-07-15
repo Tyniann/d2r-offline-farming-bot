@@ -158,6 +158,11 @@ func (m *mockInput) CastBelt(_ input.BeltBindingSource, slot int) error {
 	return nil
 }
 
+func (m *mockInput) SelectSkill(_ input.BindingSource, skillID uint16) error {
+	m.castSkillCalls = append(m.castSkillCalls, skillID)
+	return nil
+}
+
 func (m *mockInput) CastSkillAt(_ input.BindingSource, skillID uint16, clientX, clientY int) error {
 	m.castSkillCalls = append(m.castSkillCalls, skillID)
 	m.lastClientX = clientX
@@ -170,6 +175,8 @@ func (m *mockInput) MoveTo(clientX, clientY int) error {
 	m.lastClientY = clientY
 	return nil
 }
+
+func (m *mockInput) Click(input.MouseButton) error { return nil }
 
 func (m *mockInput) ClickWithModifier(string, input.MouseButton) error { return nil }
 
@@ -286,6 +293,62 @@ func testRuntimeWithTasks(proc processController, probe snapshotReader, in input
 		Pathing: rt.Pathing,
 	})
 	return rt
+}
+
+func TestConfiguredTaskResultEndsSuccessfulExplicitRun(t *testing.T) {
+	rt := testRuntime(&mockProcess{}, &mockProbe{}, Options{})
+	rt.Tasks = tasks.NewRunner(
+		config.NewLogger("error"),
+		tasks.RunSelection{Run: "countess", Phase: tasks.RunPhasePlayRoute},
+		tasks.RunConfig{StepTimeout: time.Second},
+		tasks.Deps{},
+	)
+	w := world.State{
+		Valid: true,
+		Phase: world.GamePhaseInGame,
+		Area:  world.LookupArea(world.TowerCellarLevel5),
+	}
+	result := rt.Tasks.Tick(context.Background(), w, time.Now())
+	if result.Outcome != tasks.RunOutcomeSuccess || !rt.Tasks.Terminal() {
+		t.Fatalf("terminal result = %+v, want success", result)
+	}
+
+	done, err := rt.configuredTaskResult()
+	if !done || err != nil {
+		t.Fatalf("configuredTaskResult() = (%t, %v), want (true, nil)", done, err)
+	}
+}
+
+func TestConfiguredTaskResultKeepsPassiveRuntimeActive(t *testing.T) {
+	rt := testRuntime(&mockProcess{}, &mockProbe{}, Options{})
+	done, err := rt.configuredTaskResult()
+	if done || err != nil {
+		t.Fatalf("configuredTaskResult() = (%t, %v), want (false, nil)", done, err)
+	}
+}
+
+func TestConfiguredTaskResultReturnsExplicitRunFailure(t *testing.T) {
+	rt := testRuntime(&mockProcess{}, &mockProbe{}, Options{})
+	rt.Tasks = tasks.NewRunner(
+		config.NewLogger("error"),
+		tasks.RunSelection{Run: "countess", Phase: tasks.RunPhasePlayRoute},
+		tasks.RunConfig{StepTimeout: time.Second},
+		tasks.Deps{},
+	)
+	w := world.State{
+		Valid: true,
+		Phase: world.GamePhaseInGame,
+		Area:  world.LookupArea(world.TowerCellarLevel4),
+	}
+	result := rt.Tasks.Tick(context.Background(), w, time.Now())
+	if result.Outcome != tasks.RunOutcomeFailed || !rt.Tasks.Terminal() {
+		t.Fatalf("terminal result = %+v, want failure", result)
+	}
+
+	done, err := rt.configuredTaskResult()
+	if !done || err == nil || !strings.Contains(err.Error(), "not_act1_town") {
+		t.Fatalf("configuredTaskResult() = (%t, %v), want terminal error", done, err)
+	}
 }
 
 func TestRunTickWithoutProbeUpdatesWorld(t *testing.T) {
@@ -750,10 +813,9 @@ func TestLoadPickitResolvesConfigRelativePath(t *testing.T) {
 	}
 	cfg := &config.Config{
 		LoadedFrom: filepath.Join(dir, "config.yaml"),
-		Loot:       config.LootConfig{PickitFile: "pickit/countess.nip"},
 	}
 
-	pickit, err := loadPickit(cfg)
+	pickit, err := loadPickit(cfg, "pickit/countess.nip")
 	if err != nil {
 		t.Fatalf("loadPickit() error = %v", err)
 	}
@@ -766,9 +828,8 @@ func TestLoadPickitWrapsMissingOrInvalidFile(t *testing.T) {
 	dir := t.TempDir()
 	cfg := &config.Config{
 		LoadedFrom: filepath.Join(dir, "config.yaml"),
-		Loot:       config.LootConfig{PickitFile: "pickit/missing.nip"},
 	}
-	if _, err := loadPickit(cfg); err == nil || !strings.Contains(err.Error(), "pickit config invalid") {
+	if _, err := loadPickit(cfg, "pickit/missing.nip"); err == nil || !strings.Contains(err.Error(), "pickit config invalid") {
 		t.Fatalf("missing file error = %v, want pickit config invalid", err)
 	}
 
@@ -778,8 +839,7 @@ func TestLoadPickitWrapsMissingOrInvalidFile(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dir, "pickit", "bad.nip"), []byte("[maxquantity] == 1\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	cfg.Loot.PickitFile = "pickit/bad.nip"
-	if _, err := loadPickit(cfg); err == nil || !strings.Contains(err.Error(), "pickit config invalid") || !strings.Contains(err.Error(), "unsupported keyword") {
+	if _, err := loadPickit(cfg, "pickit/bad.nip"); err == nil || !strings.Contains(err.Error(), "pickit config invalid") || !strings.Contains(err.Error(), "unsupported keyword") {
 		t.Fatalf("invalid file error = %v, want wrapped unsupported keyword", err)
 	}
 }

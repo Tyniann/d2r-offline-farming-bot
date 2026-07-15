@@ -7,9 +7,10 @@ func TestValidateAkaraBulkProfile(t *testing.T) {
 	if err := validateAkaraBulkProfile(cfg); err != nil {
 		t.Fatal(err)
 	}
-	profileCfg := cfg.Profiles[cfg.Runs.Countess.Combat.Profile]
+	runCfg, _ := cfg.Runs.Run("countess")
+	profileCfg := cfg.Profiles[runCfg.Combat.Profile]
 	profileCfg.Resources.Rejuvenation.BeltSlots = nil
-	cfg.Profiles[cfg.Runs.Countess.Combat.Profile] = profileCfg
+	cfg.Profiles[runCfg.Combat.Profile] = profileCfg
 	if err := validateAkaraBulkProfile(cfg); err == nil {
 		t.Fatal("incomplete belt profile accepted")
 	}
@@ -17,10 +18,11 @@ func TestValidateAkaraBulkProfile(t *testing.T) {
 
 func TestValidateAkaraBulkProfileProtectsRejuvenationSlot(t *testing.T) {
 	cfg := fullCountessConfig()
-	profileCfg := cfg.Profiles[cfg.Runs.Countess.Combat.Profile]
+	runCfg, _ := cfg.Runs.Run("countess")
+	profileCfg := cfg.Profiles[runCfg.Combat.Profile]
 	profileCfg.Resources.Rejuvenation.BeltSlots = []int{3}
 	profileCfg.Resources.Mana.BeltSlots = []int{2, 4}
-	cfg.Profiles[cfg.Runs.Countess.Combat.Profile] = profileCfg
+	cfg.Profiles[runCfg.Combat.Profile] = profileCfg
 	if err := validateAkaraBulkProfile(cfg); err == nil {
 		t.Fatal("unprotected slot 4 accepted")
 	}

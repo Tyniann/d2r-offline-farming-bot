@@ -78,9 +78,9 @@ func (a *profileActionsAdapter) CastBelt(slot int) error {
 	return nil
 }
 
-func newProfileExecutor(log *slog.Logger, cfg *config.Config, in inputController, bindings configBindingSource, pathCfg pathing.Config, trace *profileTelemetryAdapter) (*profile.Executor, error) {
-	id := cfg.Runs.Countess.Combat.Profile
-	definition, err := mapProfileDefinition(id, cfg.Profiles[id])
+func newProfileExecutor(log *slog.Logger, profiles config.ProfilesConfig, run config.RunConfig, in inputController, bindings configBindingSource, pathCfg pathing.Config, trace *profileTelemetryAdapter) (*profile.Executor, error) {
+	id := run.Combat.Profile
+	definition, err := mapProfileDefinition(id, profiles[id])
 	if err != nil {
 		return nil, err
 	}

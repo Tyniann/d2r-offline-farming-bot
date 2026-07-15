@@ -1,0 +1,2 @@
+// Only exceptional/elite Set and Unique bases are authorized for item service.
+([quality] == set || [quality] == unique) && ([tier] == exceptional || [tier] == elite)

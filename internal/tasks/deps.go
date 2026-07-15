@@ -7,23 +7,32 @@ import (
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/input"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/pathing"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/profile"
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/telemetry"
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/town"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/world"
 )
 
 // Deps holds shared runtime dependencies injected into task runs.
 type Deps struct {
-	Input    Input
-	Pathing  Navigator
-	Waypoint WaypointActions
-	Portal   TownPortalActions
-	TownWalk TownWalker
-	Stash    PersonalStashActions
-	Combat   CombatActions
-	Actions  RunActions
-	Loot     LootActions
-	Route    RoutePlayback
-	Profile  ProfileActions
-	Town     TownPreparationActions
+	Input      Input
+	Pathing    Navigator
+	Waypoint   WaypointActions
+	Portal     TownPortalActions
+	TownWalk   TownWalker
+	Stash      PersonalStashActions
+	Combat     CombatActions
+	Actions    RunActions
+	Loot       LootActions
+	Route      RoutePlayback
+	TownEgress TownEgressPlayback
+	Profile    ProfileActions
+	Town       TownPreparationActions
+	Telemetry  RunTelemetry
+}
+
+// RunTelemetry persists shared pipeline transitions before subsequent input.
+type RunTelemetry interface {
+	Emit(telemetry.Event) error
 }
 
 // TownPreparationActions executes the central post-run preparation handoff.
@@ -53,6 +62,13 @@ type RoutePlayback interface {
 	Reset()
 }
 
+// TownEgressPlayback replays the configured local route from a foreign portal arrival to its waypoint.
+type TownEgressPlayback interface {
+	Start(town.OriginAct, world.State) error
+	Tick(context.Context, world.State) (bool, error)
+	Reset()
+}
+
 // Input is the subset of input.Controller used by task runs.
 type Input interface {
 	Status() input.Status
@@ -74,7 +90,7 @@ type Navigator interface {
 type WaypointActions interface {
 	Reset()
 	TickTownWaypoint(context.Context, world.State) pathing.WaypointActionResult
-	SelectBlackMarsh(context.Context) pathing.WaypointActionResult
+	SelectWaypointTarget(context.Context, world.State, pathing.WaypointTargetID, time.Time) pathing.WaypointActionResult
 }
 
 // TownPortalActions is the narrow hover-confirmed portal-entry surface used by task runs.
@@ -97,8 +113,10 @@ type PersonalStashActions interface {
 
 // CombatActions is the narrow combat-action surface used by task runs.
 type CombatActions interface {
-	// CastSkillAtWorld casts skillID at targetPos projected from playerPos.
-	CastSkillAtWorld(now time.Time, skillID uint16, playerPos, targetPos world.Position) error
+	// CastAttackAtWorld verifies the configured mouse-side selection before attacking targetPos.
+	CastAttackAtWorld(now time.Time, skillID uint16, player world.Player, targetPos world.Position) error
+	// StopAttack releases any stateful attack input before combat stops or repositions.
+	StopAttack() error
 	// TeleportToward moves toward targetPos while trying to preserve desiredDistanceTiles.
 	TeleportToward(now time.Time, playerPos, targetPos world.Position, desiredDistanceTiles float64) error
 	// Reset clears per-step combat throttles.
@@ -113,7 +131,7 @@ type RunActions interface {
 	CastTownPortal() error
 }
 
-// LootActions exposes the stateful loot pickup loop used by Countess tasks.
+// LootActions exposes the stateful loot pickup loop used by run pipelines.
 type LootActions interface {
 	// Scan evaluates current loot and returns the next non-skipped target.
 	Scan(state world.State) LootScanResult
@@ -180,7 +198,7 @@ type LootTarget struct {
 // LootPickupStatus is the task-level result of one pickup executor tick.
 type LootPickupStatus string
 
-// Loot pickup statuses consumed by Countess task logic.
+// Loot pickup statuses consumed by shared run logic.
 const (
 	LootPickupPending          LootPickupStatus = "pending"
 	LootPickupPickedUp         LootPickupStatus = "picked_up"

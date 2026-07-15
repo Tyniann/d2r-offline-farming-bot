@@ -38,8 +38,19 @@ func TestLoadExampleConfig(t *testing.T) {
 	if cfg.Loot.InventoryLock[0][0] != 1 || cfg.Loot.InventoryLock[0][4] != 0 {
 		t.Fatalf("Loot.InventoryLock first row = %+v, want locked columns then free columns", cfg.Loot.InventoryLock[0])
 	}
-	if cfg.Loot.PickitFile != "pickit/countess.nip" {
-		t.Fatalf("Loot.PickitFile = %q, want pickit/countess.nip", cfg.Loot.PickitFile)
+	countess, ok := cfg.Runs.Run("countess")
+	if !ok {
+		t.Fatal("Countess run config missing")
+	}
+	if countess.Loot.PickupFile != "pickit/countess.nip" || countess.Loot.SellFile != "" {
+		t.Fatalf("Countess loot config = %+v", countess.Loot)
+	}
+	mephisto, ok := cfg.Runs.Run("mephisto")
+	if !ok || mephisto.Loot.PickupFile != "pickit/mephisto.nip" || mephisto.Loot.SellFile != "pickit/mephisto-sell.nip" {
+		t.Fatalf("Mephisto loot config = %+v, present=%t", mephisto.Loot, ok)
+	}
+	if countess.Combat != mephisto.Combat {
+		t.Fatalf("shared combat defaults differ: Countess=%+v Mephisto=%+v", countess.Combat, mephisto.Combat)
 	}
 	if cfg.Loot.Pickup.MaxRetries != 3 ||
 		cfg.Loot.Pickup.MaxDistanceTiles != 8 ||
@@ -74,13 +85,13 @@ func TestLoadExampleConfig(t *testing.T) {
 	if cfg.Runs.StepTimeoutMs != 30000 {
 		t.Errorf("Runs.StepTimeoutMs = %d, want 30000", cfg.Runs.StepTimeoutMs)
 	}
-	if cfg.Runs.Countess.Combat.Profile != "necro_bone_spear" {
-		t.Errorf("Countess combat profile = %q, want necro_bone_spear", cfg.Runs.Countess.Combat.Profile)
+	if countess.Combat.Profile != "necro_bone_spear" {
+		t.Errorf("Countess combat profile = %q, want necro_bone_spear", countess.Combat.Profile)
 	}
-	if cfg.Runs.Countess.Combat.AttackSkill != "bone_spear" {
-		t.Errorf("Countess attack skill = %q, want bone_spear", cfg.Runs.Countess.Combat.AttackSkill)
+	if countess.Combat.AttackSkill != "bone_spear" {
+		t.Errorf("Countess attack skill = %q, want bone_spear", countess.Combat.AttackSkill)
 	}
-	profileCfg := cfg.Profiles[cfg.Runs.Countess.Combat.Profile]
+	profileCfg := cfg.Profiles[countess.Combat.Profile]
 	if profileCfg.CharacterClass != "necromancer" || profileCfg.Hooks.TownReady[0].Skill != "bone_armor" || profileCfg.Resources.Mana.UseBelowPercent != 35 {
 		t.Fatalf("combat profile = %+v", profileCfg)
 	}
@@ -179,9 +190,6 @@ process:
 	if len(cfg.Loot.InventoryLock) != 4 {
 		t.Fatalf("rows = %d, want 4", len(cfg.Loot.InventoryLock))
 	}
-	if cfg.Loot.PickitFile != "pickit/countess.nip" {
-		t.Fatalf("PickitFile = %q, want default", cfg.Loot.PickitFile)
-	}
 	for row, cells := range cfg.Loot.InventoryLock {
 		if len(cells) != 10 {
 			t.Fatalf("row %d columns = %d, want 10", row, len(cells))
@@ -194,7 +202,7 @@ process:
 	}
 }
 
-func TestLootConfigWithOnlyPickitFileKeepsInventoryDefault(t *testing.T) {
+func TestRunLootPickupFileKeepsInventoryDefault(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "pickit-only.yaml")
 	content := `app:
@@ -203,8 +211,11 @@ runtime:
   poll_interval_ms: 100
 process:
   process_name: D2R.exe
-loot:
-  pickit_file: pickit/custom.nip
+runs:
+  definitions:
+    countess:
+      loot:
+        pickup_file: pickit/custom.nip
 `
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 		t.Fatal(err)
@@ -214,8 +225,9 @@ loot:
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.Loot.PickitFile != "pickit/custom.nip" {
-		t.Fatalf("PickitFile = %q, want pickit/custom.nip", cfg.Loot.PickitFile)
+	run, ok := cfg.Runs.Run("countess")
+	if !ok || run.Loot.PickupFile != "pickit/custom.nip" {
+		t.Fatalf("Countess run config = %+v, present=%t", run, ok)
 	}
 	for row, cells := range cfg.Loot.InventoryLock {
 		for col, cell := range cells {
@@ -226,7 +238,7 @@ loot:
 	}
 }
 
-func TestLootConfigWithOnlyInventoryLockKeepsPickitDefault(t *testing.T) {
+func TestLootConfigWithOnlyInventoryLockKeepsPickupDefaults(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "lock-only.yaml")
 	content := `app:
@@ -249,9 +261,6 @@ loot:
 	cfg, err := Load(path)
 	if err != nil {
 		t.Fatal(err)
-	}
-	if cfg.Loot.PickitFile != "pickit/countess.nip" {
-		t.Fatalf("PickitFile = %q, want default", cfg.Loot.PickitFile)
 	}
 	if cfg.Loot.Pickup.MaxRetries != 3 || cfg.Loot.Pickup.VerifyTimeoutMs != 1500 {
 		t.Fatalf("Pickup defaults = %+v, want populated defaults", cfg.Loot.Pickup)
@@ -585,11 +594,8 @@ process:
 	if cfg.Runs.Active != "" {
 		t.Fatalf("Active = %q, want empty", cfg.Runs.Active)
 	}
-	if cfg.Runs.Countess.Combat.AttackIntervalMs != 350 ||
-		cfg.Runs.Countess.Combat.EngageDistanceTiles != 22 ||
-		cfg.Runs.Countess.Combat.RepositionDistanceTiles != 32 ||
-		cfg.Runs.Countess.Combat.KillConfirmTicks != 3 {
-		t.Fatalf("Countess combat defaults = %+v", cfg.Runs.Countess.Combat)
+	if len(cfg.Runs.Definitions) != 0 {
+		t.Fatalf("missing runs section created definitions: %+v", cfg.Runs.Definitions)
 	}
 }
 
@@ -634,6 +640,42 @@ runs:
 	}
 }
 
+func TestRunsRejectLegacyCountessSchema(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "legacy.yaml")
+	content := `app:
+  name: d2rbot
+runtime:
+  poll_interval_ms: 100
+process:
+  process_name: D2R.exe
+runs:
+  countess:
+    route_id: legacy
+`
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Load(path); err == nil || !strings.Contains(err.Error(), "runs.countess is unsupported") {
+		t.Fatalf("legacy schema error = %v", err)
+	}
+}
+
+func TestRunDefinitionRequiresPickupPolicy(t *testing.T) {
+	cfg := &Config{
+		App: AppConfig{Name: "d2rbot"}, Runtime: RuntimeConfig{PollIntervalMs: 100},
+		Process: ProcessConfig{ProcessName: "D2R.exe"},
+		Runs: RunsConfig{StepTimeoutMs: 30000, Definitions: map[string]RunConfig{
+			"countess": {Combat: CombatConfig{Profile: "necro_bone_spear", AttackSkill: "bone_spear", AttackIntervalMs: 350, EngageDistanceTiles: 22, RepositionDistanceTiles: 32, KillConfirmTicks: 3}},
+		}},
+	}
+	cfg.Input.applyDefaults()
+	cfg.Pathing.applyDefaults()
+	if err := cfg.validate(); err == nil || !strings.Contains(err.Error(), "loot.pickup_file is required") {
+		t.Fatalf("missing pickup policy error = %v", err)
+	}
+}
+
 func TestRunsCountessCombatParsingFromYAML(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "runs.yaml")
@@ -646,14 +688,17 @@ process:
 runs:
   active: countess
   step_timeout_ms: 45000
-  countess:
-    combat:
-      profile: necro_bone_spear
-      attack_skill: bone_spear
-      attack_interval_ms: 400
-      engage_distance_tiles: 20
-      reposition_distance_tiles: 35
-      kill_confirm_ticks: 4
+  definitions:
+    countess:
+      combat:
+        profile: necro_bone_spear
+        attack_skill: bone_spear
+        attack_interval_ms: 400
+        engage_distance_tiles: 20
+        reposition_distance_tiles: 35
+        kill_confirm_ticks: 4
+      loot:
+        pickup_file: pickit/countess.nip
 `
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 		t.Fatal(err)
@@ -663,7 +708,11 @@ runs:
 	if err != nil {
 		t.Fatal(err)
 	}
-	got := cfg.Runs.Countess.Combat
+	run, ok := cfg.Runs.Run("countess")
+	if !ok {
+		t.Fatal("Countess run config missing")
+	}
+	got := run.Combat
 	if got.AttackIntervalMs != 400 || got.EngageDistanceTiles != 20 || got.RepositionDistanceTiles != 35 || got.KillConfirmTicks != 4 {
 		t.Fatalf("combat = %+v", got)
 	}
@@ -676,14 +725,14 @@ func TestRunsCountessCombatValidation(t *testing.T) {
 		Runtime: RuntimeConfig{PollIntervalMs: 100},
 		Runs: RunsConfig{
 			StepTimeoutMs: 30000,
-			Countess: CountessRunConfig{Combat: CountessCombatConfig{
+			Definitions: map[string]RunConfig{"countess": {Combat: CombatConfig{
 				Profile:                 "necro_bone_spear",
 				AttackSkill:             "bone_spear",
 				AttackIntervalMs:        350,
 				EngageDistanceTiles:     32,
 				RepositionDistanceTiles: 32,
 				KillConfirmTicks:        3,
-			}},
+			}, Loot: RunLootConfig{PickupFile: "pickit/countess.nip"}}},
 		},
 	}
 	cfg.Input.applyDefaults()
@@ -714,8 +763,8 @@ func TestNewFileLoggerWritesLogFile(t *testing.T) {
 	}
 
 	log.Debug("test log entry", "value", 42)
-	if err := file.Close(); err != nil {
-		t.Fatalf("Close() error = %v", err)
+	if closeErr := file.Close(); closeErr != nil {
+		t.Fatalf("Close() error = %v", closeErr)
 	}
 
 	content, err := os.ReadFile(path)

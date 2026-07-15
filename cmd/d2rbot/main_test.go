@@ -27,3 +27,9 @@ func TestShouldRunSessionDoesNotOverrideExplicitRunOrProbe(t *testing.T) {
 		t.Fatal("bare enabled config should run autonomous session")
 	}
 }
+
+func TestRunRunsInspectNeedsNoRuntimeOrInput(t *testing.T) {
+	if err := run(filepath.Join("..", "..", "configs", "config.example.yaml"), app.Options{RunsInspect: true}); err != nil {
+		t.Fatalf("runs inspect: %v", err)
+	}
+}

@@ -13,7 +13,10 @@ import (
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/world"
 )
 
-type preparationInputMock struct{ moves, keys, clicks, modified int }
+type preparationInputMock struct {
+	moves, keys, clicks, modified int
+	pressed                       []string
+}
 
 func (m *preparationInputMock) MoveTo(int, int) error         { m.moves++; return nil }
 func (m *preparationInputMock) Click(input.MouseButton) error { m.clicks++; return nil }
@@ -21,7 +24,11 @@ func (m *preparationInputMock) ClickWithModifier(string, input.MouseButton) erro
 	m.modified++
 	return nil
 }
-func (m *preparationInputMock) PressKey(string) error                                 { m.keys++; return nil }
+func (m *preparationInputMock) PressKey(key string) error {
+	m.keys++
+	m.pressed = append(m.pressed, key)
+	return nil
+}
 func (*preparationInputMock) CastSkillAt(input.BindingSource, uint16, int, int) error { return nil }
 func (*preparationInputMock) Window() (input.WindowInfo, bool) {
 	return input.WindowInfo{ClientWidth: 1280, ClientHeight: 720}, true
@@ -158,7 +165,8 @@ func TestTownPreparationBuildsProductivePotionPlanWithLiveGold(t *testing.T) {
 		t.Fatal(err)
 	}
 	in := &preparationInputMock{}
-	a, err := newTownPreparationAdapter(config.NewLogger("error"), in, pathing.DefaultConfig(), cfg, &townLayoutPin{}, &preparationTelemetryMock{}, true)
+	runCfg, _ := cfg.Runs.Run("countess")
+	a, err := newTownPreparationAdapter(config.NewLogger("error"), in, pathing.DefaultConfig(), cfg, "countess", runCfg, &townLayoutPin{}, &preparationTelemetryMock{}, true)
 	if err != nil {
 		t.Fatal(err)
 	}

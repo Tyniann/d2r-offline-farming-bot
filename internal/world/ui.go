@@ -5,6 +5,7 @@ type UIState struct {
 	InventoryOpen   bool
 	NPCInteractOpen bool
 	NPCShopOpen     bool
+	WaypointOpen    bool
 	StashOpen       bool
 	QuitMenuOpen    bool
 }

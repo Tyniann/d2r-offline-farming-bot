@@ -15,7 +15,7 @@ Phase 2 legt die semantische Spielzustands-Schicht im Paket `internal/world` an:
   - `player.go` — `Player` mit Vitalwerten und Prozent-Hilfen
   - `state.go` — `GamePhase`, immutable `State` inkl. Entity- und Item-Slices
   - `item.go` — `Item`, `ItemQuality`, `ItemLocation`, Code-/Name-Lookup und Item-Queries
-  - `object_ids.go`, `entrance_ids.go`, `npc_ids.go` — Countess-Kataloge
+  - `object_ids.go`, `entrance_ids.go`, `npc_ids.go` — semantische Run-Kataloge; Mephisto stammt versionsgebunden aus `monstats.txt`
   - `entity.go` — Query-Helfer (`NearestObject`, `FindSuperUnique`, …)
   - `mapper.go` — `FromSnapshot`, `mapPhase`
   - `world.go` — `Model` mit `slices.Clone` in `Update`/`Current`
@@ -68,6 +68,8 @@ Countess-minimale Enumeration in `memory.Snapshot`; Mapping nach `world.Object`,
 | Entrances | `State.NearestEntrance(kind)` |
 | Monsters | `State.FindSuperUnique(npcID)` — `MonsterTypeFlag == 10`; `npcID == 0` = jede Super-Unique (Countess) |
 | Items | `State.GroundItems()`, `State.ItemsByLocation(...)`, `State.FindItemByUnitID(...)` |
+
+Phase 10.5 ergänzt Mephisto über den eigenen `monstats.txt`-Generator als NPC-ID `242` in Memory-Allowlist und World-Namenskatalog. Durance of Hate Level 2/3 sind Act-3-Dungeons; die Entrance-IDs `65..68` werden als `durance_up` beziehungsweise `durance_down` klassifiziert. Der Item-Katalog trägt außerdem die aus den lokalen Waffen-/Rüstungstabellen generierte `BaseTier`-Klassifikation.
 
 Allowlists in `internal/memory/countess_filter.go` (sync mit `world/*_ids.go` via `TestCountessFilterMatchesWorldIDs`).
 
@@ -221,4 +223,4 @@ Low-Level Memory/Offset-Validierung: [State Probe](state-probe.md) (Phase 1, D2R
 - [Task Runner](task-runner.md) — Task-Ticks blockiert bei `Phase != InGame`
 
 ---
-*Zuletzt aktualisiert: 2026-06-26*
+*Zuletzt aktualisiert: 2026-07-14*

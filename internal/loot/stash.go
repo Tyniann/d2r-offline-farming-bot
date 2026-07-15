@@ -83,12 +83,20 @@ type StashExecutor struct {
 	filter *Filter
 	input  StashInput
 	cfg    StashConfig
+	sell   *Pickit
 
 	active    *stashTarget
 	attempt   int
 	attemptAt time.Time
 	closing   bool
 	closeAt   time.Time
+}
+
+// SetSellFilter excludes explicit vendor candidates from personal-stash input.
+func (e *StashExecutor) SetSellFilter(filter *Pickit) {
+	if e != nil {
+		e.sell = filter
+	}
 }
 
 // NewStashExecutor creates a fail-closed personal-stash executor.
@@ -204,7 +212,8 @@ func (e *StashExecutor) candidates(state world.State) ([]world.Item, bool) {
 	}
 	out := make([]world.Item, 0)
 	for _, item := range items {
-		if e.filter.evaluate(item).Matched && !RequiresIdentificationForKeep(item) && stashEligible(e.filter.inventoryLock, item) {
+		vendorCandidate := e.sell != nil && e.sell.Evaluate(item).Matched
+		if e.filter.evaluate(item).Matched && !vendorCandidate && !RequiresIdentificationForKeep(item) && stashEligible(e.filter.inventoryLock, item) {
 			out = append(out, item)
 		}
 	}

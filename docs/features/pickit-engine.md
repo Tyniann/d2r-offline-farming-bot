@@ -17,13 +17,13 @@ Die lokalen Dateien unter `.tmp/d2r-excel` sind nur Eingabe für die Katalog-Reg
 - **Paket:** `internal/loot/`
 - **Einstieg:** `loot.LoadPickit` beim App-Wiring in `internal/app/app.go`
 - **Wichtige Dateien:** `internal/loot/pickit.go`, `internal/loot/loot.go`
-- **Config:** `loot.pickit_file`, Standard `pickit/countess.nip`
+- **Config:** `runs.definitions.<run-id>.loot.pickup_file`; Countess verwendet `pickit/countess.nip`
 
 ## Funktionalität
 
 ### Datei und Pfadauflösung
 
-`loot.pickit_file` wird relativ zur geladenen Config-Datei aufgelöst. Beim normalen Layout bedeutet das:
+Die Pickup-Policy des ausgewählten Runs wird relativ zur geladenen Config-Datei aufgelöst. Beim normalen Layout bedeutet das:
 
 ```text
 configs/config.yaml -> configs/pickit/countess.nip
@@ -40,6 +40,7 @@ Unterstützte Felder:
 - `[name]` gegen `world.Item.Code`
 - `[type]` gegen `world.Item.Type`
 - `[quality]` gegen `world.ItemQuality.String()`
+- `[tier]` gegen die generierte `world.BaseTier` (`unknown`, `normal`, `exceptional`, `elite`)
 - `[flag]` mit `identified` und `ethereal`
 - `[stat:<id>]` gegen `world.Item.Stats`, ab Phase 5.9 ausschließlich bei `Identified=true`
 
@@ -58,7 +59,7 @@ Operatoren:
 - Logik: `&&`, `||`, Klammern
 - `#` wird im MVP wie `&&` behandelt
 
-String-Vergleiche sind case-insensitive. Die originale Regel bleibt im `PickitResult.Rule` erhalten.
+String-Vergleiche sind case-insensitive. Die originale Regel bleibt im `PickitResult.Rule` erhalten. `[tier]` ist ein rein read-only Prädikat; unbekannte Literale werden abgewiesen und Misc-Items werden niemals heuristisch als Elite behandelt.
 
 Nicht unterstützt sind unter anderem `[maxquantity]`, Prefix/Suffix, Charged Skills, Advanced Aliases und mehrteilige NIP-Sektionen. Solche Konstrukte schlagen beim Parsen mit Datei- und Zeilenkontext fehl.
 
@@ -104,4 +105,4 @@ Es gibt keine neue CLI-Oberfläche. Pickit wird beim Start geladen, sobald die A
 - [Countess-Run](countess-run.md)
 
 ---
-*Zuletzt aktualisiert: 2026-07-05*
+*Zuletzt aktualisiert: 2026-07-14*

@@ -20,7 +20,7 @@ func main() {
 	inputTest := flag.String("input-test", "", "manual input test spec (e.g. belt:1, portal, skill:1, center-click, click:640,360)")
 	inputTestObserveMs := flag.Int("input-test-observe-ms", 3000, "observation window in ms after input-test actions")
 	runFlag := flag.String("run", "", "active farming run (e.g. countess); overrides runs.active in config")
-	phaseFlag := flag.String("phase", "", "optional run phase (e.g. travel-marsh or travel-cellar5 with --run countess)")
+	phaseFlag := flag.String("phase", "", "optional run phase (e.g. travel-entry or play-route with --run countess)")
 	pathingTest := flag.String("pathing-test", "", "manual pathing test spec (including record-town-edge:<id> or play-town-graph:<start,...,end>)")
 	pathingTestTimeoutMs := flag.Int("pathing-test-timeout-ms", 120000, "timeout in ms for the pathing test mode")
 	offlineDifficulty := flag.String("offline-difficulty-test", "", "start an offline game on normal, nightmare, or hell from the verified character screen")
@@ -30,12 +30,14 @@ func main() {
 	uiStateProbeTimeoutMs := flag.Int("ui-state-probe-timeout-ms", 30000, "timeout in ms for a read-only UI-state capture")
 	screenAnchorCapture := flag.String("screen-anchor-capture", "", "capture a named 1280x720 frontend screenshot for Phase 7.3 calibration")
 	sessionInspect := flag.Bool("session-inspect", false, "validate and print the resolved autonomous-session plan without attaching or sending input")
+	runsInspect := flag.Bool("runs-inspect", false, "print read-only run metadata and availability as stable JSON")
+	waypointTargetsInspect := flag.Bool("waypoint-targets-inspect", false, "print registered read-only waypoint target calibration as stable JSON")
 	sessionMaxRuns := flag.Int("session-max-runs", 0, "override the finite autonomous-session run count (0 uses config)")
-	routeCommand := flag.String("route", "", "route command (list | inspect:<id> | validate:<id> | record:<id> | play-segment:<id>/<segment-id> | play:<id>)")
+	routeCommand := flag.String("route", "", "route command (list | inspect/validate/record/play:<id> | play-segment:<id>/<segment-id> | inspect/record/validate/play-egress:act3)")
 	routeName := flag.String("route-name", "", "display name for a route recording; only valid with record")
 	routeDifficulty := flag.String("route-difficulty", "", "recording label: normal, nightmare, or hell; required with record")
 	townInspect := flag.Bool("town-inspect", false, "write one read-only Phase-9.1 Town data-availability report")
-	townTest := flag.String("town-test", "", "isolated Town interaction test (akara-shop)")
+	townTest := flag.String("town-test", "", "isolated Town interaction test (akara-shop | item-services:mephisto)")
 	showVersion := flag.Bool("version", false, "print version and exit")
 	flag.Parse()
 
@@ -45,27 +47,29 @@ func main() {
 	}
 
 	opts := app.Options{
-		Probe:                 *probe,
-		Verbose:               *verbose,
-		InputTest:             *inputTest,
-		InputTestObserveMs:    *inputTestObserveMs,
-		Run:                   *runFlag,
-		RunPhase:              *phaseFlag,
-		PathingTest:           *pathingTest,
-		PathingTestTimeoutMs:  *pathingTestTimeoutMs,
-		OfflineDifficulty:     *offlineDifficulty,
-		OfflineCharacter:      *offlineCharacter,
-		OfflineExitTest:       *offlineExitTest,
-		UIStateProbe:          *uiStateProbe,
-		UIStateProbeTimeoutMs: *uiStateProbeTimeoutMs,
-		ScreenAnchorCapture:   *screenAnchorCapture,
-		SessionInspect:        *sessionInspect,
-		SessionMaxRuns:        *sessionMaxRuns,
-		Route:                 *routeCommand,
-		RouteName:             *routeName,
-		RouteDifficulty:       *routeDifficulty,
-		TownInspect:           *townInspect,
-		TownTest:              *townTest,
+		Probe:                  *probe,
+		Verbose:                *verbose,
+		InputTest:              *inputTest,
+		InputTestObserveMs:     *inputTestObserveMs,
+		Run:                    *runFlag,
+		RunPhase:               *phaseFlag,
+		PathingTest:            *pathingTest,
+		PathingTestTimeoutMs:   *pathingTestTimeoutMs,
+		OfflineDifficulty:      *offlineDifficulty,
+		OfflineCharacter:       *offlineCharacter,
+		OfflineExitTest:        *offlineExitTest,
+		UIStateProbe:           *uiStateProbe,
+		UIStateProbeTimeoutMs:  *uiStateProbeTimeoutMs,
+		ScreenAnchorCapture:    *screenAnchorCapture,
+		SessionInspect:         *sessionInspect,
+		RunsInspect:            *runsInspect,
+		WaypointTargetsInspect: *waypointTargetsInspect,
+		SessionMaxRuns:         *sessionMaxRuns,
+		Route:                  *routeCommand,
+		RouteName:              *routeName,
+		RouteDifficulty:        *routeDifficulty,
+		TownInspect:            *townInspect,
+		TownTest:               *townTest,
 	}
 	if err := run(*configPath, opts); err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
@@ -85,13 +89,37 @@ func run(configPath string, opts app.Options) error {
 		cfg.Session.MaxRuns = opts.SessionMaxRuns
 	}
 	if opts.SessionInspect {
-		plan, err := app.ResolveSessionPlan(cfg, opts)
-		if err != nil {
-			return err
+		plan, planErr := app.ResolveSessionPlan(cfg, opts)
+		if planErr != nil {
+			return planErr
 		}
-		encoded, err := json.MarshalIndent(plan, "", "  ")
-		if err != nil {
-			return fmt.Errorf("encode session plan: %w", err)
+		encoded, encodeErr := json.MarshalIndent(plan, "", "  ")
+		if encodeErr != nil {
+			return fmt.Errorf("encode session plan: %w", encodeErr)
+		}
+		fmt.Println(string(encoded))
+		return nil
+	}
+	if opts.RunsInspect {
+		report, reportErr := app.ResolveRunsInspectReport(cfg, opts)
+		if reportErr != nil {
+			return reportErr
+		}
+		encoded, encodeErr := json.MarshalIndent(report, "", "  ")
+		if encodeErr != nil {
+			return fmt.Errorf("encode run availability: %w", encodeErr)
+		}
+		fmt.Println(string(encoded))
+		return nil
+	}
+	if opts.WaypointTargetsInspect {
+		report, reportErr := app.ResolveWaypointTargetsInspectReport(opts)
+		if reportErr != nil {
+			return reportErr
+		}
+		encoded, encodeErr := json.MarshalIndent(report, "", "  ")
+		if encodeErr != nil {
+			return fmt.Errorf("encode waypoint target calibration: %w", encodeErr)
 		}
 		fmt.Println(string(encoded))
 		return nil

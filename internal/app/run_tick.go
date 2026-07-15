@@ -186,7 +186,6 @@ func (rt *Runtime) tryBindInput(state *runState) error {
 	if err == nil {
 		state.input.lastBindErr = ""
 		rt.warnPathingResolution()
-		rt.warnWaypointUIResolution()
 		return nil
 	}
 	if !input.IsBindRetryable(err) {

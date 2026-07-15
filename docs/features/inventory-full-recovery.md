@@ -9,7 +9,7 @@ Vorhandene Inventar-Items werden niemals gedroppt. Phase 5.8 hängt nach der Tow
 ## Ort im Code
 
 - **Pakete:** `internal/loot`, `internal/tasks`, `internal/pathing`, `internal/memory`, `internal/world`
-- **Einstieg:** `internal/tasks/countess.go`
+- **Einstieg:** `internal/tasks/run_pipeline.go`
 - **Wichtige Dateien:** `internal/app/loot_actions.go`, `internal/pathing/town_portal.go`, `internal/memory/object_ids_data.go`, `internal/world/object_ids_data.go`
 - **Config:** `pathing.town_portal` in `configs/config.example.yaml`
 - **Generator:** `tools/generate-object-catalog`
@@ -32,17 +32,17 @@ Ein einzelner gültiger Scan ohne Pickup-Kandidat beendet die Loot-Phase nicht. 
 
 ### Town-Recovery
 
-Der Abschluss des Full Runs und von `--phase loot-countess` lautet:
+Der Abschluss des Full Runs und von `--phase loot-and-return` lautet:
 
 ```text
 scan_loot -> pick_loot? -> cast_town_portal -> enter_town_portal
--> wait_act1_town -> open_personal_stash -> stash_items
+-> wait_origin_town -> open_personal_stash -> stash_items
 -> close_personal_stash -> complete
 ```
 
 `enter_town_portal` verwendet `pathing.TownPortalActions`. Der Baustein wartet begrenzt auf ein `ObjectKindTownPortal`, verlangt vor dem Hover-Loop 500 ms lang dieselbe `UnitID` und Position und friert den bestätigten Kandidaten anschließend im eigenen Entity-Clicker ein. Ein Klick erfolgt nur, wenn der Memory-Hover `UnitType=object` und dieselbe `UnitID` bestätigt. Feste Portal-Bildschirmkoordinaten und blinde Klicks sind verboten.
 
-`wait_act1_town` darf während Loading und inkonsistenten Snapshots ohne Input weiterlaufen. Erfolg ist ausschließlich ein gültiger `in_game`-Snapshot im `Rogue Encampment`. Tower Cellar Level 5 bleibt während der Übergangswartezeit zulässig; jedes andere gültige Gebiet endet mit `unexpected_area`.
+`wait_origin_town` darf während Loading und inkonsistenten Snapshots ohne Input weiterlaufen. Erfolg ist ausschließlich ein gültiger `in_game`-Snapshot im `Rogue Encampment`. Tower Cellar Level 5 bleibt während der Übergangswartezeit zulässig; jedes andere gültige Gebiet endet mit `unexpected_area`.
 
 ### Versionsgebundene Objekt-IDs
 
@@ -92,19 +92,19 @@ Stabile terminale Gründe:
 Manueller E2E-Test:
 
 ```powershell
-go run ./cmd/d2rbot --run countess --phase loot-countess --probe --verbose
+go run ./cmd/d2rbot --run countess --phase loot-and-return --probe --verbose
 ```
 
 Der Operator startet in Tower Cellar Level 5. Der Test verarbeitet vorhandenen Loot, castet und betritt das Portal und endet erst nach verifizierter Ankunft im Rogue Encampment.
 
 ### Live-Validierung
 
-Am 10.07.2026 wurde `loot-countess` mit D2R `3.2.92777` vollständig live validiert:
+Am 10.07.2026 wurde `loot-and-return` mit D2R `3.2.92777` vollständig live validiert:
 
 - Tir-Rune als Pickit-Kandidat erkannt, nach einem hover-bestätigten Klick aufgenommen und über `Location=inventory` bestätigt.
 - Town Portal nach dem Cast als generiertes `ObjectKindTownPortal` mit einer konkreten Runtime-`UnitID` enumeriert.
 - Portal-Hover nach acht Spiralpositionen bestätigt; vorher erfolgte kein Klick.
-- Linksklick führte nach Loading ins Rogue Encampment; `wait_act1_town` bestätigte das Gebiet nach 103 ms.
+- Linksklick führte nach Loading ins Rogue Encampment; `wait_origin_town` bestätigte das Gebiet nach 103 ms.
 - Task endete mit `outcome=success`.
 
 Der erste Live-Anlauf zeigte außerdem einen transienten Rescan-Fehler: Von zwei erkannten Runen wurde zunächst nur eine aufgenommen. Die Loot-Abschlussbedingung wurde daraufhin von einem einzelnen auf drei stabile No-Target-Scans verschärft und mit einem Reappear-Integrationstest abgesichert.

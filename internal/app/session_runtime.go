@@ -47,11 +47,11 @@ func (rt *Runtime) RunSession() error {
 			_ = recovery.emitTerminal(telemetry.SessionFailed, "run_creation_failed", time.Since(startedAt).Milliseconds())
 			return err
 		}
-		if err := sessionTrace.Emit(telemetry.Event{Event: telemetry.GameStarted, GameID: gameID, RunID: runID, Run: rt.Config.Session.Run, RunOrdinal: ordinal}); err != nil {
-			return err
+		if emitErr := sessionTrace.Emit(telemetry.Event{Event: telemetry.GameStarted, GameID: gameID, RunID: runID, Run: rt.Config.Session.Run, RunOrdinal: ordinal}); emitErr != nil {
+			return emitErr
 		}
-		if err := sessionTrace.Emit(telemetry.Event{Event: telemetry.RunStarted, GameID: gameID, RunID: runID, Run: rt.Config.Session.Run, RunOrdinal: ordinal}); err != nil {
-			return err
+		if emitErr := sessionTrace.Emit(telemetry.Event{Event: telemetry.RunStarted, GameID: gameID, RunID: runID, Run: rt.Config.Session.Run, RunOrdinal: ordinal}); emitErr != nil {
+			return emitErr
 		}
 		runStarted := time.Now()
 		result, err := rt.runTaskToTerminal()
@@ -100,9 +100,25 @@ func (rt *Runtime) prepareSessionRun() (string, error) {
 	if err != nil {
 		return "", err
 	}
+	contextEvent, err := rt.sessionRunContextEvent()
+	if err != nil {
+		_ = trace.Close()
+		return "", err
+	}
+	if err := trace.Emit(contextEvent); err != nil {
+		_ = trace.Close()
+		return "", fmt.Errorf("emit session run context: %w", err)
+	}
 	rt.Telemetry = trace
 	rt.routePlayback.setTelemetry(trace)
+	if rt.townEgress != nil {
+		rt.townEgress.setTelemetry(trace)
+	}
 	rt.lootActions.setTelemetry(trace)
+	// The runner owns a copy of taskDeps, so bind the new generation recorder
+	// before constructing it. Updating only the feature adapters leaves shared
+	// step and encounter telemetry disconnected and must fail closed.
+	rt.taskDeps.Telemetry = trace
 	if rt.townTelemetry != nil {
 		rt.townTelemetry.setTelemetry(trace)
 	}
@@ -113,6 +129,27 @@ func (rt *Runtime) prepareSessionRun() (string, error) {
 	return trace.RunID(), nil
 }
 
+func (rt *Runtime) sessionRunContextEvent() (telemetry.Event, error) {
+	plan, err := ResolveSessionPlan(rt.Config, Options{SessionInspect: true})
+	if err != nil {
+		return telemetry.Event{}, fmt.Errorf("resolve session run context: %w", err)
+	}
+	definition, ok := tasks.DefaultRunRegistry().Definition(tasks.RunID(rt.Config.Session.Run))
+	if !ok {
+		return telemetry.Event{}, fmt.Errorf("resolve session run context: %s: %q", tasks.RunReasonUnknown, rt.Config.Session.Run)
+	}
+	return telemetry.Event{
+		Event:                  telemetry.RunContext,
+		DefinitionID:           string(definition.ID),
+		RouteID:                plan.RouteID,
+		RouteLayoutFingerprint: plan.RouteLayoutFingerprint,
+		WaypointTarget:         string(definition.WaypointTarget),
+		LootPickupPolicy:       rt.runConfig.Loot.PickupFile,
+		LootSellPolicy:         rt.runConfig.Loot.SellFile,
+		TownOrigin:             string(definition.ReturnOrigin),
+	}, nil
+}
+
 func (rt *Runtime) closeSessionRunTelemetry() error {
 	if rt.Telemetry == nil {
 		return nil
@@ -120,7 +157,11 @@ func (rt *Runtime) closeSessionRunTelemetry() error {
 	err := rt.Telemetry.Close()
 	rt.Telemetry = nil
 	rt.routePlayback.setTelemetry(nil)
+	if rt.townEgress != nil {
+		rt.townEgress.setTelemetry(nil)
+	}
 	rt.lootActions.setTelemetry(nil)
+	rt.taskDeps.Telemetry = nil
 	if rt.townTelemetry != nil {
 		rt.townTelemetry.setTelemetry(nil)
 	}
@@ -134,7 +175,11 @@ func (rt *Runtime) runTaskToTerminal() (tasks.TickResult, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	rt.startShutdownSignals(ctx, cancel)
-	defer rt.Process.Detach()
+	defer func() {
+		if detachErr := rt.Process.Detach(); detachErr != nil {
+			rt.Log.Warn("process detach failed", "error", detachErr)
+		}
+	}()
 	defer rt.Input.Unbind()
 	hotkeys, err := rt.startHotkeys(ctx)
 	if err != nil {

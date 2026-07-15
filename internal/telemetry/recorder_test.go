@@ -8,7 +8,7 @@ import (
 )
 
 func TestRecorderWritesOneJSONLObjectPerLineAndDeduplicatesObservedUnits(t *testing.T) {
-	r, err := New(t.TempDir(), "countess", "loot-countess")
+	r, err := New(t.TempDir(), "countess", "loot-and-return")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -20,12 +20,12 @@ func TestRecorderWritesOneJSONLObjectPerLineAndDeduplicatesObservedUnits(t *test
 		{Event: PickupAttempt, UnitID: 7, Attempt: 1},
 		{Event: PickupAttempt, UnitID: 7, Attempt: 2},
 	} {
-		if err := r.Emit(event); err != nil {
-			t.Fatal(err)
+		if emitErr := r.Emit(event); emitErr != nil {
+			t.Fatal(emitErr)
 		}
 	}
-	if err := r.Close(); err != nil {
-		t.Fatal(err)
+	if closeErr := r.Close(); closeErr != nil {
+		t.Fatal(closeErr)
 	}
 
 	file, err := os.Open(path)
@@ -49,7 +49,7 @@ func TestRecorderWritesOneJSONLObjectPerLineAndDeduplicatesObservedUnits(t *test
 		t.Fatalf("event count=%d, want 4", len(events))
 	}
 	for _, event := range events {
-		if event.SchemaVersion != 1 || event.RunID != r.RunID() || event.Run != "countess" || event.Phase != "loot-countess" || event.Timestamp.IsZero() {
+		if event.SchemaVersion != 1 || event.RunID != r.RunID() || event.Run != "countess" || event.Phase != "loot-and-return" || event.Timestamp.IsZero() {
 			t.Fatalf("incomplete event: %+v", event)
 		}
 	}
@@ -65,6 +65,36 @@ func TestRecorderRejectsEmitAfterClose(t *testing.T) {
 	}
 	if err := r.Emit(Event{Event: DropSeen, UnitID: 1}); err == nil {
 		t.Fatal("Emit() after Close error=nil")
+	}
+}
+
+func TestRecorderPersistsResolvedRunContext(t *testing.T) {
+	r, err := New(t.TempDir(), "mephisto", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := r.Path()
+	want := Event{
+		Event: RunContext, DefinitionID: "mephisto", RouteID: "durance-route",
+		RouteLayoutFingerprint: "fingerprint", WaypointTarget: "durance_of_hate_level_2",
+		LootPickupPolicy: "pickit/mephisto.nip", LootSellPolicy: "pickit/mephisto-sell.nip", TownOrigin: "act3",
+	}
+	if emitErr := r.Emit(want); emitErr != nil {
+		t.Fatal(emitErr)
+	}
+	if closeErr := r.Close(); closeErr != nil {
+		t.Fatal(closeErr)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got Event
+	if err := json.Unmarshal(data, &got); err != nil {
+		t.Fatal(err)
+	}
+	if got.Event != RunContext || got.DefinitionID != want.DefinitionID || got.RouteID != want.RouteID || got.RouteLayoutFingerprint != want.RouteLayoutFingerprint || got.WaypointTarget != want.WaypointTarget || got.LootPickupPolicy != want.LootPickupPolicy || got.LootSellPolicy != want.LootSellPolicy || got.TownOrigin != want.TownOrigin {
+		t.Fatalf("run context=%+v", got)
 	}
 }
 

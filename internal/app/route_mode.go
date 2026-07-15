@@ -22,6 +22,12 @@ func parseRouteCommand(raw string) (routeCommand, error) {
 	if !ok || strings.TrimSpace(id) == "" {
 		return routeCommand{}, fmt.Errorf("route command must be list, inspect:<route-id>, or validate:<route-id>")
 	}
+	if action == "inspect-egress" || action == "record-egress" || action == "validate-egress" || action == "play-egress" {
+		if strings.TrimSpace(id) != "act3" {
+			return routeCommand{}, fmt.Errorf("%s expects act3", action)
+		}
+		return routeCommand{action: action, id: "act3"}, nil
+	}
 	if action == "play-segment" {
 		routeID, segmentID, ok := strings.Cut(id, "/")
 		if !ok || strings.TrimSpace(routeID) == "" || strings.TrimSpace(segmentID) == "" {
@@ -46,6 +52,18 @@ func (rt *Runtime) RunRouteCommand(raw string) error {
 	}
 	if command.action == "record" {
 		return rt.RunRouteRecord(command.id, rt.Options.RouteName, rt.Options.RouteDifficulty)
+	}
+	if command.action == "inspect-egress" {
+		return rt.RunTownEgressInspect()
+	}
+	if command.action == "record-egress" {
+		return rt.RunTownEgressRecord(rt.Options.RouteName, rt.Options.RouteDifficulty)
+	}
+	if command.action == "validate-egress" {
+		return rt.RunTownEgressValidate()
+	}
+	if command.action == "play-egress" {
+		return rt.RunTownEgressPlay()
 	}
 	if command.action == "play-segment" {
 		return rt.RunRouteSegment(command.id, command.segmentID)
@@ -86,5 +104,5 @@ func (rt *Runtime) routeCommandIsReadOnly() bool {
 		return false
 	}
 	command, err := parseRouteCommand(rt.Options.Route)
-	return err == nil && (command.action == "list" || command.action == "inspect" || command.action == "validate" || command.action == "record")
+	return err == nil && (command.action == "list" || command.action == "inspect" || command.action == "validate" || command.action == "record" || command.action == "inspect-egress" || command.action == "record-egress" || command.action == "validate-egress")
 }

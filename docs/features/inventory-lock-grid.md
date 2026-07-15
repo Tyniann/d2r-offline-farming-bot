@@ -80,7 +80,7 @@ Wenn Kapazität unsafe ist, ist `FreeSlots=0` und `CanFit` liefert immer `false`
 `internal/world/item_catalog_data.go` enthält zusätzlich Inventar-Dimensionen. Die Daten können über das manuelle Tool neu erzeugt werden:
 
 ```powershell
-go run ./tools/generate-item-catalog -src .tmp/d2r-excel -out internal/world/item_catalog_data.go
+go run ./tools/generate-item-catalog -src .tmp/d2r-excel -version 3.2.92777 -out internal/world/item_catalog_data.go
 ```
 
 Das Tool erwartet lokal extrahierte D2R-Dateien:

@@ -2,14 +2,14 @@
 
 ## Überblick
 
-Der Task Runner führt konfigurierbare Runs als State-Machine im Poll-Loop aus. Ab Phase 5.8 ist `--run countess` ohne Phase der vollständige Countess-Run mit Loot-Pickup und Personal Stash; die isolierten Phasen `travel-marsh`, `travel-cellar5`, `kill-countess`, `loot-countess` und `stash-personal` bleiben als Testoberflächen verfügbar.
+Der Task Runner führt registrierte Run-Definitionen über eine gemeinsame Pipeline im Poll-Loop aus. `--run <id>` ohne Phase nutzt diese Pipeline vollständig; die generischen CLI-Phasen `travel-entry`, `play-route`, `boss`, `loot-and-return`, `stash-personal` und `town-ready` wählen isolierte Ausschnitte derselben Pipeline. Ein isoliertes `play-route` aus Act 1 beginnt am bestätigten Stash-/Town-Start der layoutgebundenen Kante zum Waypoint; es setzt den Charakter nicht bereits direkt am Waypoint voraus.
 
 ## Ort im Code
 
 - **Paket:** `internal/tasks/`
-- **Einstieg:** `cmd/d2rbot` mit `--run countess` oder `runs.active` in der Config
+- **Einstieg:** `cmd/d2rbot` mit `--run <id>` oder `runs.active` in der Config
 - **App-Integration:** `internal/app/run_tick.go`, `internal/app/run_mode.go`
-- **Wichtige Dateien:** `runner.go`, `registry.go`, `countess.go`, `step.go`, `deps.go`, `result.go`
+- **Wichtige Dateien:** `runner.go`, `registry.go`, `run_pipeline.go`, `run_contract.go`, `step.go`, `deps.go`, `result.go`
 - **Config:** `configs/config.example.yaml` → Sektion `runs`
 
 ## Funktionalität
@@ -18,7 +18,7 @@ Der Task Runner führt konfigurierbare Runs als State-Machine im Poll-Loop aus. 
 
 - CLI `--run` überschreibt YAML `runs.active`
 - Leerer Name = passiver Modus (nur Monitor, wie bisher)
-- Bekannte Runs: `tasks.KnownRuns()` / `tasks.IsKnownRun()` — einzige Quelle für Run-Name-Validierung in `app.validateRunMode()`
+- Bekannte Definitionen: `countess` und `mephisto` aus der typisierten `RunRegistry`. Die Pipeline übergibt das Waypoint-Ziel der Definition an den gemeinsamen registrierten Executor; vorhandene Routen bleiben bis zur Live-Abnahme mit `route_runtime_validation_required` gesperrt.
 
 ### Lazy Run-Start
 
@@ -42,11 +42,13 @@ Zwei Abschluss-Mechanismen (nicht vermischen):
 | **Tick-Zähler** (`ticksInStep`) | Deterministische kurze Steps, wenn ein Run sie explizit markiert |
 | **Sofort-Fail** | Bedingung klar verletzt -> sofort `task step failed` |
 
-**Full Countess (5.6):**
+**Gemeinsame Full-Run-Pipeline (10.2, produktiv für Countess und Mephisto):**
 
-`precheck -> acquire_town_waypoint -> open_waypoint -> select_black_marsh -> wait_black_marsh -> find_tower -> enter_cellar_1 -> enter_cellar_2 -> enter_cellar_3 -> enter_cellar_4 -> enter_cellar_5 -> locate_countess -> engage_countess -> wait_for_drops -> scan_loot -> pick_loot -> cast_town_portal -> enter_town_portal -> wait_act1_town -> open_personal_stash -> stash_items -> close_personal_stash -> complete`
+`precheck -> acquire_town_waypoint -> open_waypoint -> select_run_waypoint -> wait_entry_area -> play_bound_route -> acquire_boss -> engage_boss -> wait_for_drops -> scan_loot -> pick_loot -> cast_town_portal -> enter_town_portal -> wait_origin_town -> open_personal_stash -> stash_items -> close_personal_stash -> prepare_town_handoff -> complete`
 
-`wait_black_marsh` darf als Non-Input-Step während Loading/invalid Snapshots weitergetickt werden; alle anderen Input-Schritte laufen nur mit gültigem `in_game`-World-State. `wait_for_drops`, `scan_loot` und `pick_loot` verlangen gültige Cellar-5-Snapshots; ein gültiger Snapshot in einem anderen Gebiet bricht mit `unexpected_area` ab.
+Entry-Area, Route-Terminal, Waypoint-Ziel, Boss, Suchanker, geordnete Encounter-Aktionen und Rückkehrakt stammen aus `RunDefinition`; Route, Combat und Loot-Policies aus dem ausgewählten `RunConfig`. `wait_entry_area`, Route-, Boss-, Loot- und Portal-Areagates vergleichen ausschließlich gegen diese Definition.
+
+Der Encounter-Aktionsindex beginnt pro Boss-Pin bei `0`. Jede Aktion erhält getrennte Start-/Abschluss-Telemetrie; erst danach darf regulärer Combat laufen. Pro Poll-Tick wird höchstens eine Action-Input-Gelegenheit konsumiert.
 
 ### Safety-Potion-Guard
 
@@ -62,11 +64,12 @@ Vor dem normalen `run.onTick` prüft der Runner globale Safety:
 ### Nach Run-Ende und process_lost
 
 - **`ConfiguredRun()`** bleibt gesetzt (CLI/config-Name) und dient weiterhin Logs/Diagnose, auch nach Terminal oder Reset
-- **`Terminal()`** (success/failed): keine weiteren `Tick`-Aufrufe; passiver World-Monitor läuft weiter
+- **`Terminal()`** (success/failed): keine weiteren `Tick`-Aufrufe; ein expliziter `--run`-Prozess kehrt danach mit Erfolg beziehungsweise Fehler selbstständig zur Shell zurück
+- **Passiver Modus ohne Run:** World-Monitor und Probe laufen weiterhin bis Stop-Hotkey oder Prozesssignal
 - **`WasReset()`** (z. B. `process_lost`): blockiert Lazy-Re-Start nach Re-Attach
 - **Kein zweiter Run ohne App-Neustart** — weder nach terminal noch nach reset
 
-Bei `process_lost` feste Reihenfolge: `Input.Unbind()` → `Tasks.Reset("process_lost")` → `World.Reset()`.
+Bei `process_lost` feste Reihenfolge: `Input.Unbind()` → `Tasks.Reset("process_lost")` → `World.Reset()`. Die zentrale, idempotente Run-Barriere leert dabei Waypoint, Portal, Town-Walk, Stash, Navigator, Route-Player, Combat, Loot, Town, Profil, Boss-Pin und Aktionsindex genau einmal.
 
 Pause blockiert Ticks still; Step-Timer und Tick-Zähler frieren ein (kein Tick = kein Fortschritt).
 
@@ -92,6 +95,8 @@ go run ./cmd/d2rbot --run countess --probe   # input.enabled: true erforderlich
 | `task run finished` | `run`, `outcome`, `reason` |
 | `task run reset` | `run`, `reason` |
 
+JSONL-Transitionen `run_step_started`, `run_step_completed` und `run_step_failed` enthalten `definition_id`, `step` und `outcome`. Encounter-Events ergänzen `action_index`. Schlägt das persistierende Telemetrie-Emit fehl, endet die Pipeline vor dem folgenden Input mit `telemetry_failed`.
+
 `--run` und `--input-test` schließen sich gegenseitig aus. Run erfordert `input.enabled: true`.
 
 ## Abhängigkeiten
@@ -107,4 +112,4 @@ go run ./cmd/d2rbot --run countess --probe   # input.enabled: true erforderlich
 - [World Model](world-model.md) — `world.State` / Area-Katalog
 
 ---
-*Zuletzt aktualisiert: 2026-07-10*
+*Zuletzt aktualisiert: 2026-07-15*

@@ -36,9 +36,6 @@ func TestPathingConfigDefaults(t *testing.T) {
 	if cfg.TownPortal.AppearTimeoutMs != 2000 || cfg.TownPortal.MaxClickDistance != 15 {
 		t.Fatalf("TownPortal = %+v, want 2000/15", cfg.TownPortal)
 	}
-	if cfg.WaypointUI.BlackMarshX != 200 || cfg.WaypointUI.BlackMarshY != 342 {
-		t.Fatalf("WaypointUI = %+v, want 200/342", cfg.WaypointUI)
-	}
 	if cfg.TownWalk.ForceMoveKey != "e" {
 		t.Fatalf("TownWalk key = %+v, want e", cfg.TownWalk)
 	}
@@ -83,8 +80,6 @@ func TestPathingConfigValidateRejectsInvalid(t *testing.T) {
 		{"negative waypoint distance", func(c *PathingConfig) { c.Waypoint.MaxClickDistance = -1 }},
 		{"zero portal appear timeout", func(c *PathingConfig) { c.TownPortal.AppearTimeoutMs = 0 }},
 		{"zero portal click distance", func(c *PathingConfig) { c.TownPortal.MaxClickDistance = 0 }},
-		{"negative waypoint ui x", func(c *PathingConfig) { c.WaypointUI.BlackMarshX = -1 }},
-		{"negative waypoint ui y", func(c *PathingConfig) { c.WaypointUI.BlackMarshY = -1 }},
 		{"invalid force move key", func(c *PathingConfig) { c.TownWalk.ForceMoveKey = "mouse4" }},
 		{"zero town move interval", func(c *PathingConfig) { c.TownWalk.MoveIntervalMs = 0 }},
 		{"zero town settle timeout", func(c *PathingConfig) { c.TownWalk.SettleTimeoutMs = 0 }},

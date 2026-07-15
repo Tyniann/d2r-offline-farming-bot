@@ -18,19 +18,21 @@ func itemServiceState(items ...world.Item) world.State { return world.State{Vali
 
 func TestPlanItemServicesMatrixProtectsKeepStashAndLock(t *testing.T) {
 	candidates := []ItemServiceCandidate{
-		{UnitID: 1, Code: "rin", IdentifyRequired: true},
+		{UnitID: 1, Code: "rin", IdentifyRequired: true, VendorCandidate: true},
 		{UnitID: 2, Code: "amu", VendorCandidate: true},
+	}
+	orders, reason := PlanItemServices(candidates)
+	if reason != "" || len(orders) != 3 || orders[0].Kind != ItemServiceIdentify || orders[1].Kind != ItemServiceSell || orders[0].UnitID != orders[1].UnitID || orders[2].Kind != ItemServiceSell {
+		t.Fatalf("orders=%+v reason=%s", orders, reason)
+	}
+	for _, conflict := range []ItemServiceCandidate{
 		{UnitID: 3, VendorCandidate: true, Keep: true},
 		{UnitID: 4, VendorCandidate: true, Stash: true},
 		{UnitID: 5, VendorCandidate: true, InventoryLocked: true},
-	}
-	orders, reason := PlanItemServices(candidates)
-	if reason != "" || len(orders) != 2 || orders[0].Kind != ItemServiceIdentify || orders[1].Kind != ItemServiceSell {
-		t.Fatalf("orders=%+v reason=%s", orders, reason)
-	}
-	candidates[0].VendorCandidate = true
-	if _, reason := PlanItemServices(candidates); reason != ReasonItemClassificationInvalid {
-		t.Fatalf("conflict reason=%s", reason)
+	} {
+		if _, reason := PlanItemServices([]ItemServiceCandidate{conflict}); reason != ReasonItemClassificationInvalid {
+			t.Fatalf("conflict %+v reason=%s", conflict, reason)
+		}
 	}
 }
 
@@ -67,5 +69,25 @@ func TestItemServiceExecutorRejectsWrongPinAndTimesOutWithoutRepeat(t *testing.T
 	_ = exec.Tick(itemServiceState(item))
 	if got := exec.Tick(itemServiceState(item)); got.Reason != string(ReasonItemVerifyTimeout) || len(in.sold) != 1 {
 		t.Fatalf("timeout=%+v sold=%v", got, in.sold)
+	}
+}
+
+func TestPlanItemServicesMissingAndIdentifiedCandidate(t *testing.T) {
+	orders, reason := PlanItemServices(nil)
+	if reason != "" || len(orders) != 0 {
+		t.Fatalf("missing candidate orders=%+v reason=%s", orders, reason)
+	}
+	orders, reason = PlanItemServices([]ItemServiceCandidate{{UnitID: 12, Code: "xap", VendorCandidate: true}})
+	if reason != "" || len(orders) != 1 || orders[0].Kind != ItemServiceSell {
+		t.Fatalf("identified candidate orders=%+v reason=%s", orders, reason)
+	}
+}
+
+func TestItemServiceExecutorAcceptsCainAlreadyIdentifiedWithoutInput(t *testing.T) {
+	in := &itemServiceInputMock{}
+	exec, _ := NewItemServiceExecutor(in, ItemServiceOrder{Kind: ItemServiceIdentify, UnitID: 11, Code: "rin"}, 2)
+	item := world.Item{UnitID: 11, Code: "rin", Location: world.ItemLocationInventory, PlayerOwned: true, Identified: true}
+	if got := exec.Tick(itemServiceState(item)); got.Status != InteractionComplete || len(in.identified) != 0 {
+		t.Fatalf("already identified result=%+v input=%v", got, in.identified)
 	}
 }

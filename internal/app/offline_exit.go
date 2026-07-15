@@ -174,7 +174,11 @@ func (rt *Runtime) RunOfflineExitTest() error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	rt.startShutdownSignals(ctx, cancel)
-	defer rt.Process.Detach()
+	defer func() {
+		if detachErr := rt.Process.Detach(); detachErr != nil {
+			rt.Log.Warn("process detach failed", "error", detachErr)
+		}
+	}()
 	defer rt.Input.Unbind()
 	hotkeys, err := rt.startHotkeys(ctx)
 	if err != nil {

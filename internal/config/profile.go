@@ -69,10 +69,10 @@ func (c *ProfilesConfig) applyDefaults() {
 	}
 }
 
-func (c ProfilesConfig) validate(selected string) error {
+func (c ProfilesConfig) validate(selected, source string) error {
 	profileCfg, ok := c[selected]
 	if !ok {
-		return fmt.Errorf("combat_profiles.%s is required by runs.countess.combat.profile", selected)
+		return fmt.Errorf("combat_profiles.%s is required by %s", selected, source)
 	}
 	supportedClass := map[string]bool{"amazon": true, "sorceress": true, "necromancer": true, "paladin": true, "barbarian": true, "druid": true, "assassin": true}
 	if !supportedClass[profileCfg.CharacterClass] {

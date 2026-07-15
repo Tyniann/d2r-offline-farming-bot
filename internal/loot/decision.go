@@ -159,6 +159,17 @@ func (f *Filter) evaluate(item world.Item) PickitResult {
 	return f.pickit.Evaluate(item)
 }
 
+// Evaluate applies this filter's policy without performing input.
+func (f *Filter) Evaluate(item world.Item) PickitResult { return f.evaluate(item) }
+
+// InventoryLocked reports whether any cell of item intersects the protected grid.
+func (f *Filter) InventoryLocked(item world.Item) bool {
+	if f == nil {
+		return true
+	}
+	return itemTouchesLockedSlot(f.inventoryLock, item)
+}
+
 func newItemDecision(item world.Item, stage DecisionStage, kind DecisionKind, reason DecisionReason, result PickitResult) ItemDecision {
 	return ItemDecision{
 		UnitID:    item.UnitID,

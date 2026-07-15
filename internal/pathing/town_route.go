@@ -36,8 +36,8 @@ func LoadNamedTownRoute(path, expectedID string) ([]world.Position, error) {
 		return nil, err
 	}
 	var route TownRouteFile
-	if err := yaml.Unmarshal(data, &route); err != nil {
-		return nil, fmt.Errorf("parse town route %q: %w", path, err)
+	if decodeErr := yaml.Unmarshal(data, &route); decodeErr != nil {
+		return nil, fmt.Errorf("parse town route %q: %w", path, decodeErr)
 	}
 	return route.positions(expectedID)
 }
@@ -52,8 +52,8 @@ func LoadLayoutBoundTownRoute(path, expectedID, expectedLayout string, currentOr
 		return nil, err
 	}
 	var route TownRouteFile
-	if err := yaml.Unmarshal(data, &route); err != nil {
-		return nil, fmt.Errorf("parse town route %q: %w", path, err)
+	if decodeErr := yaml.Unmarshal(data, &route); decodeErr != nil {
+		return nil, fmt.Errorf("parse town route %q: %w", path, decodeErr)
 	}
 	if len(expectedLayout) != 64 || route.LayoutFingerprint != expectedLayout {
 		return nil, fmt.Errorf("town layout fingerprint mismatch: got %q, want %q", route.LayoutFingerprint, expectedLayout)

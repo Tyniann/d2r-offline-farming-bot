@@ -124,8 +124,43 @@ func (g ServiceGraph) Validate() error {
 // Legacy or unbound route fields never participate: an unknown preset fails
 // before movement rather than borrowing geometrically similar assets.
 func (g ServiceGraph) RouteForLayout(layout string, start Anchor, required []Anchor, end Anchor) ([]Traversal, error) {
+	bound, err := g.forLayout(layout)
+	if err != nil {
+		return nil, err
+	}
+	if route, err := bound.routeAvailable(start, required, end); err == nil {
+		return route, nil
+	}
+	return nil, fmt.Errorf("%s", ReasonTownLayoutRouteMissing)
+}
+
+// RouteOrderedForLayout visits anchors in the supplied order using only the
+// selected layout's variants. Repeated non-consecutive anchors are preserved.
+func (g ServiceGraph) RouteOrderedForLayout(layout string, start Anchor, sequence []Anchor, end Anchor) ([]Traversal, error) {
+	bound, err := g.forLayout(layout)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]Traversal, 0)
+	at := start
+	for _, target := range append(append([]Anchor(nil), sequence...), end) {
+		if canonicalGraphAnchor(at) == canonicalGraphAnchor(target) {
+			at = target
+			continue
+		}
+		part, err := bound.routeAvailable(at, nil, target)
+		if err != nil {
+			return nil, fmt.Errorf("%s", ReasonTownLayoutRouteMissing)
+		}
+		out = append(out, part...)
+		at = target
+	}
+	return out, nil
+}
+
+func (g ServiceGraph) forLayout(layout string) (ServiceGraph, error) {
 	if len(layout) != 64 {
-		return nil, fmt.Errorf("%s", ReasonTownLayoutUnavailable)
+		return ServiceGraph{}, fmt.Errorf("%s", ReasonTownLayoutUnavailable)
 	}
 	bound := g
 	bound.Edges = make([]GraphEdge, 0, len(g.Edges))
@@ -139,12 +174,9 @@ func (g ServiceGraph) RouteForLayout(layout string, start Anchor, required []Anc
 		}
 	}
 	if len(bound.Edges) == 0 {
-		return nil, fmt.Errorf("%s", ReasonTownLayoutRouteMissing)
+		return ServiceGraph{}, fmt.Errorf("%s", ReasonTownLayoutRouteMissing)
 	}
-	if route, err := bound.routeAvailable(start, required, end); err == nil {
-		return route, nil
-	}
-	return nil, fmt.Errorf("%s", ReasonTownLayoutRouteMissing)
+	return bound, nil
 }
 
 func (g ServiceGraph) canReach(start, end Anchor) bool {

@@ -22,6 +22,9 @@ func IsRuntimeMonsterCandidate(id uint32, monsterTypeFlag uint8) bool {
 	if IsCountessMonsterCandidate(id, monsterTypeFlag) {
 		return true
 	}
+	if _, ok := runtimeBossNPCIDs[id]; ok {
+		return true
+	}
 	switch id {
 	case 148, 154, 265:
 		return true

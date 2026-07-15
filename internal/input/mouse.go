@@ -104,6 +104,10 @@ func (c *Controller) ClickWithModifier(modifier string, button MouseButton) erro
 	if err != nil {
 		return err
 	}
+	return c.clickWithModifier(key, button)
+}
+
+func (c *Controller) clickWithModifier(key Key, button MouseButton) error {
 	if !isValidMouseButton(button) {
 		return fmt.Errorf("modified click: %w", ErrInvalidMouseButton)
 	}
@@ -133,7 +137,6 @@ func (c *Controller) ClickWithModifier(modifier string, button MouseButton) erro
 			}
 		}
 	}()
-
 	if err := c.mouse.ButtonDown(button); err != nil {
 		return err
 	}

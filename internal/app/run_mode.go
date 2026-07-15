@@ -38,19 +38,33 @@ func resolveRunSelection(opts Options, cfg *config.Config) tasks.RunSelection {
 	return tasks.RunSelection{Run: resolveActiveRun(opts, cfg), Phase: opts.RunPhase}
 }
 
-func mapRunConfig(runs config.RunsConfig) tasks.RunConfig {
-	attackSkillID, _ := memory.ParseSkillTestName(runs.Countess.Combat.AttackSkill)
-	return tasks.RunConfig{
-		StepTimeout:     time.Duration(runs.StepTimeoutMs) * time.Millisecond,
-		CountessRouteID: runs.Countess.RouteID,
-		CountessCombat: tasks.CountessCombatConfig{
-			AttackSkillID:           attackSkillID,
-			AttackInterval:          time.Duration(runs.Countess.Combat.AttackIntervalMs) * time.Millisecond,
-			EngageDistanceTiles:     runs.Countess.Combat.EngageDistanceTiles,
-			RepositionDistanceTiles: runs.Countess.Combat.RepositionDistanceTiles,
-			KillConfirmTicks:        runs.Countess.Combat.KillConfirmTicks,
-		},
+func mapRunConfig(runs config.RunsConfig, runID string) (tasks.RunConfig, error) {
+	run, ok := runs.Run(runID)
+	if !ok {
+		return tasks.RunConfig{}, fmt.Errorf("%s: %q", tasks.RunReasonConfigMissing, runID)
 	}
+	attackSkillID, err := memory.ParseSkillTestName(run.Combat.AttackSkill)
+	if err != nil {
+		return tasks.RunConfig{}, fmt.Errorf("runs.definitions.%s.combat.attack_skill: %w", runID, err)
+	}
+	mapped := tasks.RunConfig{
+		StepTimeout: time.Duration(runs.StepTimeoutMs) * time.Millisecond,
+		RouteID:     run.RouteID,
+		Combat: tasks.CombatConfig{
+			Profile:                 run.Combat.Profile,
+			AttackSkillID:           attackSkillID,
+			AttackInterval:          time.Duration(run.Combat.AttackIntervalMs) * time.Millisecond,
+			EngageDistanceTiles:     run.Combat.EngageDistanceTiles,
+			RepositionDistanceTiles: run.Combat.RepositionDistanceTiles,
+			KillConfirmTicks:        run.Combat.KillConfirmTicks,
+		},
+		Loot: tasks.RunLootConfig{PickupFile: run.Loot.PickupFile, SellFile: run.Loot.SellFile},
+	}
+	resolved, err := tasks.DefaultRunRegistry().Resolve(tasks.RunID(runID), map[tasks.RunID]tasks.RunConfig{tasks.RunID(runID): mapped})
+	if err != nil {
+		return tasks.RunConfig{}, err
+	}
+	return resolved.Config, nil
 }
 
 // validateRunMode checks run prerequisites after resolving CLI vs config.
@@ -90,19 +104,19 @@ func validateRunMode(sel tasks.RunSelection, cfg *config.Config, opts Options, l
 		if err != nil {
 			return err
 		}
-		if command.action == "record" {
+		if command.action == "record" || command.action == "record-egress" {
 			if _, err := parseOfflineDifficulty(opts.RouteDifficulty); err != nil {
-				return fmt.Errorf("--route-difficulty is required for record: %w", err)
+				return fmt.Errorf("--route-difficulty is required for %s: %w", command.action, err)
 			}
 		} else if opts.RouteName != "" || opts.RouteDifficulty != "" {
-			return fmt.Errorf("--route-name and --route-difficulty are only valid with route record")
+			return fmt.Errorf("--route-name and --route-difficulty are only valid with route record or record-egress")
 		}
-		if (command.action == "play-segment" || command.action == "play") && !cfg.Input.Enabled {
+		if (command.action == "play-segment" || command.action == "play" || command.action == "play-egress") && !cfg.Input.Enabled {
 			return fmt.Errorf("route playback requires input.enabled=true")
 		}
 	}
 	if opts.Route == "" && (opts.RouteName != "" || opts.RouteDifficulty != "") {
-		return fmt.Errorf("--route-name and --route-difficulty require --route record:<id>")
+		return fmt.Errorf("--route-name and --route-difficulty require --route record:<id> or record-egress:act3")
 	}
 	if opts.OfflineDifficulty != "" {
 		if !cfg.Input.Enabled {
@@ -141,37 +155,51 @@ func validateRunMode(sel tasks.RunSelection, cfg *config.Config, opts Options, l
 	if !tasks.IsKnownRun(sel.Run) {
 		return fmt.Errorf("%w: %q", errUnknownRun, sel.Run)
 	}
-	if sel.Phase != "" && !(sel.Run == "countess" && isSupportedCountessPhase(sel.Phase)) {
+	runCfg, configured := cfg.Runs.Run(sel.Run)
+	if !configured {
+		return fmt.Errorf("%s: %q", tasks.RunReasonConfigMissing, sel.Run)
+	}
+	if sel.Phase != "" && !isSupportedRunPhase(sel.Phase) {
 		return fmt.Errorf("%w: run=%q phase=%q", errUnsupportedRunPhase, sel.Run, sel.Phase)
 	}
-	if sel.Run == "countess" && sel.Phase == "" {
-		if cfg.Runs.Countess.RouteID == "" {
-			return fmt.Errorf("runs.countess.route_id is required for the full Countess run")
-		}
-		if err := validateFullCountessBindings(cfg); err != nil {
+	availability, err := ResolveRunAvailabilities(cfg, RunAvailabilityContext{
+		Character: cfg.Session.Character, Difficulty: cfg.Session.Difficulty, GameVersion: cfg.Memory.GameVersion,
+	})
+	if err != nil {
+		return err
+	}
+	selected, ok := findRunAvailability(availability.Runs, tasks.RunID(sel.Run))
+	if !ok {
+		return fmt.Errorf("%s: %q", tasks.RunReasonUnknown, sel.Run)
+	}
+	if selected.Status == tasks.RunAvailabilityUnavailable {
+		return fmt.Errorf("run %q unavailable: %s", sel.Run, joinRunReasons(selected.Reasons))
+	}
+	if sel.Phase == "" {
+		if err := validateFullRunBindings(cfg, sel.Run); err != nil {
 			return err
 		}
 	}
-	if sel.Run == "countess" && sel.Phase == tasks.CountessPhaseTravelCellar5 && cfg.Runs.Countess.RouteID == "" {
-		return fmt.Errorf("runs.countess.route_id is required for travel-cellar5")
+	if sel.Phase == tasks.RunPhasePlayRoute && runCfg.RouteID == "" {
+		return fmt.Errorf("runs.definitions.%s.route_id is required for play-route", sel.Run)
 	}
-	if sel.Run == "countess" && sel.Phase == tasks.CountessPhaseTravelMarsh {
-		if err := validateProfileBindings(cfg); err != nil {
+	if sel.Phase == tasks.RunPhaseTravelEntry {
+		if err := validateProfileBindings(cfg, sel.Run); err != nil {
 			return err
 		}
 	}
-	if sel.Run == "countess" && sel.Phase == tasks.CountessPhaseTownReady {
-		if err := validateProfileBindings(cfg); err != nil {
+	if sel.Phase == tasks.RunPhaseTownReady {
+		if err := validateProfileBindings(cfg, sel.Run); err != nil {
 			return err
 		}
 	}
-	if sel.Run == "countess" && sel.Phase == tasks.CountessPhaseKillCountess {
-		if err := validateKillCountessBindings(cfg); err != nil {
+	if sel.Phase == tasks.RunPhaseBoss {
+		if err := validateBossBindings(cfg, sel.Run); err != nil {
 			return err
 		}
 	}
-	if sel.Run == "countess" && sel.Phase == tasks.CountessPhaseLootCountess {
-		if err := validateLootCountessBindings(cfg); err != nil {
+	if sel.Phase == tasks.RunPhaseLootAndReturn {
+		if err := validateLootBindings(cfg); err != nil {
 			return err
 		}
 	}
@@ -184,53 +212,69 @@ func validateRunMode(sel tasks.RunSelection, cfg *config.Config, opts Options, l
 	return nil
 }
 
-func isSupportedCountessPhase(phase string) bool {
+func isSupportedRunPhase(phase string) bool {
 	switch phase {
-	case tasks.CountessPhaseTravelMarsh, tasks.CountessPhaseTravelCellar5, tasks.CountessPhaseKillCountess, tasks.CountessPhaseLootCountess, tasks.CountessPhaseStashPersonal, tasks.CountessPhaseTownReady:
+	case tasks.RunPhaseTravelEntry, tasks.RunPhasePlayRoute, tasks.RunPhaseBoss, tasks.RunPhaseLootAndReturn, tasks.RunPhaseStashPersonal, tasks.RunPhaseTownReady:
 		return true
 	default:
 		return false
 	}
 }
 
-func validateFullCountessBindings(cfg *config.Config) error {
+func validateFullRunBindings(cfg *config.Config, runID string) error {
 	bindings, err := newConfigBindingSource(cfg.Input.Bindings)
 	if err != nil {
 		return err
 	}
-	if _, err := bindings.Resolve(memory.SkillTeleport); err != nil {
-		return fmt.Errorf("countess requires input.bindings.skills.teleport: %w", err)
+	if _, resolveErr := bindings.Resolve(memory.SkillTeleport); resolveErr != nil {
+		return fmt.Errorf("%s requires input.bindings.skills.teleport: %w", runID, resolveErr)
 	}
-	if _, err := bindings.Resolve(memory.SkillBoneSpear); err != nil {
-		return fmt.Errorf("countess requires input.bindings.skills.bone_spear: %w", err)
+	runCfg, ok := cfg.Runs.Run(runID)
+	if !ok {
+		return fmt.Errorf("%s: %q", tasks.RunReasonConfigMissing, runID)
+	}
+	attackSkill, err := memory.ParseSkillTestName(runCfg.Combat.AttackSkill)
+	if err != nil {
+		return fmt.Errorf("%s attack skill %q: %w", runID, runCfg.Combat.AttackSkill, err)
+	}
+	attackCast, err := bindings.Resolve(attackSkill)
+	if err != nil {
+		return fmt.Errorf("%s requires input.bindings.skills.%s: %w", runID, runCfg.Combat.AttackSkill, err)
+	}
+	if attackCast.CastButton != input.MouseRight {
+		return fmt.Errorf("%s attack skill %s must use right mouse, configured=%s", runID, runCfg.Combat.AttackSkill, attackCast.CastButton)
 	}
 	if _, err := bindings.Resolve(memory.SkillTownPortal); err != nil {
-		return fmt.Errorf("countess requires input.bindings.skills.town_portal: %w", err)
+		return fmt.Errorf("%s requires input.bindings.skills.town_portal: %w", runID, err)
 	}
-	if err := validateBeltSlotConfigured(bindings, 1, "countess"); err != nil {
+	if err := validateBeltSlotConfigured(bindings, 1, runID); err != nil {
 		return err
 	}
-	if err := validateBeltSlotConfigured(bindings, 4, "countess"); err != nil {
+	if err := validateBeltSlotConfigured(bindings, 4, runID); err != nil {
 		return err
 	}
-	if err := validateProfileBindingsWithSource(cfg, bindings, "countess"); err != nil {
+	if err := validateProfileBindingsWithSource(cfg, bindings, runID, runID); err != nil {
 		return err
 	}
 	return nil
 }
 
-func validateProfileBindings(cfg *config.Config) error {
+func validateProfileBindings(cfg *config.Config, runID string) error {
 	bindings, err := newConfigBindingSource(cfg.Input.Bindings)
 	if err != nil {
 		return err
 	}
-	return validateProfileBindingsWithSource(cfg, bindings, "profile")
+	return validateProfileBindingsWithSource(cfg, bindings, runID, "profile")
 }
 
-func validateProfileBindingsWithSource(cfg *config.Config, bindings configBindingSource, scope string) error {
-	profileCfg, ok := cfg.Profiles[cfg.Runs.Countess.Combat.Profile]
+func validateProfileBindingsWithSource(cfg *config.Config, bindings configBindingSource, runID, scope string) error {
+	runCfg, configured := cfg.Runs.Run(runID)
+	if !configured {
+		return fmt.Errorf("%s: %q", tasks.RunReasonConfigMissing, runID)
+	}
+	profileCfg, ok := cfg.Profiles[runCfg.Combat.Profile]
 	if !ok {
-		return fmt.Errorf("%s requires combat_profiles.%s", scope, cfg.Runs.Countess.Combat.Profile)
+		return fmt.Errorf("%s requires combat_profiles.%s", scope, runCfg.Combat.Profile)
 	}
 	for _, actions := range [][]config.ProfileActionConfig{profileCfg.Hooks.TownReady, profileCfg.Hooks.BossEngage} {
 		for _, action := range actions {
@@ -253,35 +297,47 @@ func validateProfileBindingsWithSource(cfg *config.Config, bindings configBindin
 	return nil
 }
 
-func validateKillCountessBindings(cfg *config.Config) error {
+func validateBossBindings(cfg *config.Config, runID string) error {
 	bindings, err := newConfigBindingSource(cfg.Input.Bindings)
 	if err != nil {
 		return err
 	}
-	if _, err := bindings.Resolve(memory.SkillTeleport); err != nil {
-		return fmt.Errorf("kill-countess requires input.bindings.skills.teleport: %w", err)
+	if _, resolveErr := bindings.Resolve(memory.SkillTeleport); resolveErr != nil {
+		return fmt.Errorf("boss requires input.bindings.skills.teleport: %w", resolveErr)
 	}
-	if _, err := bindings.Resolve(memory.SkillBoneSpear); err != nil {
-		return fmt.Errorf("kill-countess requires input.bindings.skills.bone_spear: %w", err)
+	runCfg, ok := cfg.Runs.Run(runID)
+	if !ok {
+		return fmt.Errorf("%s: %q", tasks.RunReasonConfigMissing, runID)
+	}
+	attackSkill, err := memory.ParseSkillTestName(runCfg.Combat.AttackSkill)
+	if err != nil {
+		return fmt.Errorf("boss attack skill %q: %w", runCfg.Combat.AttackSkill, err)
+	}
+	attackCast, err := bindings.Resolve(attackSkill)
+	if err != nil {
+		return fmt.Errorf("boss requires input.bindings.skills.%s: %w", runCfg.Combat.AttackSkill, err)
+	}
+	if attackCast.CastButton != input.MouseRight {
+		return fmt.Errorf("boss attack skill %s must use right mouse, configured=%s", runCfg.Combat.AttackSkill, attackCast.CastButton)
 	}
 	return nil
 }
 
-func validateLootCountessBindings(cfg *config.Config) error {
+func validateLootBindings(cfg *config.Config) error {
 	bindings, err := newConfigBindingSource(cfg.Input.Bindings)
 	if err != nil {
 		return err
 	}
 	if _, err := bindings.Resolve(memory.SkillTeleport); err != nil {
-		return fmt.Errorf("loot-countess requires input.bindings.skills.teleport: %w", err)
+		return fmt.Errorf("loot-and-return requires input.bindings.skills.teleport: %w", err)
 	}
 	if _, err := bindings.Resolve(memory.SkillTownPortal); err != nil {
-		return fmt.Errorf("loot-countess requires input.bindings.skills.town_portal: %w", err)
+		return fmt.Errorf("loot-and-return requires input.bindings.skills.town_portal: %w", err)
 	}
-	if err := validateBeltSlotConfigured(bindings, 1, "loot-countess"); err != nil {
+	if err := validateBeltSlotConfigured(bindings, 1, "loot-and-return"); err != nil {
 		return err
 	}
-	if err := validateBeltSlotConfigured(bindings, 4, "loot-countess"); err != nil {
+	if err := validateBeltSlotConfigured(bindings, 4, "loot-and-return"); err != nil {
 		return err
 	}
 	return nil

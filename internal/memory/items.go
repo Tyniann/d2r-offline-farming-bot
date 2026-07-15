@@ -143,10 +143,6 @@ func (p *ProbeReader) readItemStats(unitAddr uintptr, off OffsetSet) []RawStat {
 	return stats
 }
 
-func isGroundItemLocation(raw uint32) bool {
-	return raw == itemRawLocationGround || raw == itemRawLocationDropping
-}
-
 func isPlayerOwnedItem(ownerID, mainPlayerUnitID uint32) bool {
 	return ownerID == itemOwnerPlayerSentinel || (mainPlayerUnitID != 0 && ownerID == mainPlayerUnitID)
 }

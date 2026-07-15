@@ -42,6 +42,28 @@ func (q ItemQuality) String() string {
 	}
 }
 
+// BaseTier classifies weapon and armor bases from their generated D2R tier chain.
+type BaseTier string
+
+const (
+	// BaseTierUnknown covers misc items and incomplete or absent equipment chains.
+	BaseTierUnknown BaseTier = "unknown"
+	// BaseTierNormal identifies the normal member of an equipment base chain.
+	BaseTierNormal BaseTier = "normal"
+	// BaseTierExceptional identifies the exceptional member of an equipment base chain.
+	BaseTierExceptional BaseTier = "exceptional"
+	// BaseTierElite identifies the elite member of an equipment base chain.
+	BaseTierElite BaseTier = "elite"
+)
+
+// String returns the stable Pickit and telemetry label.
+func (t BaseTier) String() string {
+	if t == "" {
+		return string(BaseTierUnknown)
+	}
+	return string(t)
+}
+
 // ItemLocation describes where an item is located in the game state.
 type ItemLocation string
 
@@ -87,6 +109,7 @@ type Item struct {
 	NormalCode  string
 	UberCode    string
 	UltraCode   string
+	BaseTier    BaseTier
 	Quality     ItemQuality
 	Location    ItemLocation
 	RawLocation uint32
@@ -112,6 +135,7 @@ type itemCatalogEntry struct {
 	NormalCode string
 	UberCode   string
 	UltraCode  string
+	BaseTier   BaseTier
 	Width      int
 	Height     int
 }
@@ -163,6 +187,7 @@ func mapItem(i memory.ItemUnit, hover HoverInfo) Item {
 		NormalCode:  entry.NormalCode,
 		UberCode:    entry.UberCode,
 		UltraCode:   entry.UltraCode,
+		BaseTier:    entry.BaseTier,
 		Quality:     ItemQuality(i.Quality),
 		Location:    mapItemLocation(i),
 		RawLocation: i.RawLocation,

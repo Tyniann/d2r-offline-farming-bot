@@ -4,7 +4,7 @@
 
 Phase 5.8 leert nach der verifizierten Rückkehr ins Rogue Encampment ausgewählte Inventar-Items in den persönlichen Stash. Unterstützt werden die aktuellen Pickit-Matches Runen, Countess-Key, Rejuvenation Potions sowie Flawless/Perfect Gems und Skulls. D2R sortiert sie per `Ctrl+LMB` in die charaktergebundenen Sammelbereiche; Rejuvenation-Nachschub wird gesammelt, aber in Phase 9 noch nicht automatisch aus dem 99er-Stash-Slot in den Belt zurückgeführt.
 
-Shared-Stash-Tabs, Tab-Wechsel, endliche Raster-Platzstrategien, Identify, Sell und das Droppen vorhandener Items sind ausdrücklich nicht Bestandteil dieses MVP.
+Shared-Stash-Tabs, Tab-Wechsel, endliche Raster-Platzstrategien und das Droppen vorhandener Items sind ausdrücklich nicht Bestandteil dieses MVP. Phase 10.6 schließt run-spezifische Sell-Kandidaten vor dem Stash-Input aus; Identify/Sell selbst bleiben ein separater Town-Service.
 
 ## Ort im Code
 
@@ -12,7 +12,7 @@ Shared-Stash-Tabs, Tab-Wechsel, endliche Raster-Platzstrategien, Identify, Sell 
 - **Objektquelle:** `tools/generate-object-catalog`, generierte `object_ids_data.go`
 - **Town-Navigation:** `internal/pathing/personal_stash.go`
 - **Transfer:** `internal/loot/stash.go`
-- **Task-Integration:** `internal/tasks/countess.go`
+- **Task-Integration:** `internal/tasks/run_pipeline.go`
 - **Input:** `internal/input/mouse.go` (`ClickWithModifier`)
 - **Config:** `loot.stash` in `configs/config.example.yaml`
 
@@ -50,6 +50,8 @@ Ein Transferkandidat muss gleichzeitig:
 
 Damit bleiben Cube, Tomes, Potions und Charms in geschützten Slots unangetastet. Es werden auch keine nicht von Pickit bewerteten Items gestasht.
 
+Wenn die ausgewählte Run-Config eine Sell-Policy besitzt, werden deren Matches ebenfalls niemals gestasht. Dadurch bleiben Mephisto-Sell-Kandidaten für den UnitID-gepinnten Cain-/Akara-Service im Inventory, während Gems aus derselben Pickup-Policy weiterhin in den Personal Stash gelangen.
+
 Der lokale Item-Katalog enthält alle 35 Gem-/Skull-Zeilen aus `misc.txt` mit `1×1`. Der Generator bricht künftig ab, falls ein lokaler `gem*`-Eintrag andere Dimensionen liefert.
 
 ### Transfer und Verifikation
@@ -79,7 +81,7 @@ State-Machine:
 precheck -> open_personal_stash -> stash_items -> close_personal_stash -> complete
 ```
 
-`loot-countess` und der vollständige Countess-Run hängen denselben Workflow nach `wait_act1_town` an. Es gibt keine Rückkehr in den Dungeon.
+`loot-and-return` und der vollständige Countess-Run hängen denselben Workflow nach `wait_origin_town` an. Es gibt keine Rückkehr in den Dungeon.
 
 ## Fehler und Abbruch
 
@@ -104,7 +106,7 @@ Am 10.07.2026 wurden zwei E2E-Schnitte validiert:
 
 - Nur Personal Stash und die aktuellen Pickit-MVP-Typen.
 - Keine Shared-Stash-Automatik oder Tab-Klicks.
-- Keine Identify-Routine; Stats-basierte Keep-Entscheidungen für unidentifizierte Rare/Magic/Set/Unique bleiben späteren Phasen vorbehalten.
+- Keine allgemeine Identify-/Keep-Strategie; produktiv unterstützt ist ausschließlich der enge Mephisto-Sell-Pfad aus Phase 10.6.
 - Kein Droppen vorhandener Items.
 - Town-Detour ist für Rogue Encampment / Act 1 validiert.
 
@@ -116,4 +118,4 @@ Am 10.07.2026 wurden zwei E2E-Schnitte validiert:
 - [Countess-Run](countess-run.md)
 
 ---
-*Zuletzt aktualisiert: 2026-07-10*
+*Zuletzt aktualisiert: 2026-07-14*

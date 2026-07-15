@@ -32,7 +32,7 @@ func validSnapshot() memory.Snapshot {
 
 func TestFromSnapshotValid(t *testing.T) {
 	snap := validSnapshot()
-	snap.UI = memory.UIState{InventoryOpen: true, NPCInteractOpen: true, NPCShopOpen: true, StashOpen: true, QuitMenuOpen: true}
+	snap.UI = memory.UIState{InventoryOpen: true, NPCInteractOpen: true, NPCShopOpen: true, WaypointOpen: true, StashOpen: true, QuitMenuOpen: true}
 	state := FromSnapshot(snap)
 
 	if !state.Valid {
@@ -75,7 +75,7 @@ func TestFromSnapshotValid(t *testing.T) {
 	if state.Player.LeftSkillID != memory.SkillBoneSpear || state.Player.RightSkillID != memory.SkillTeleport {
 		t.Fatalf("selected skills = %d/%d", state.Player.LeftSkillID, state.Player.RightSkillID)
 	}
-	if !state.UI.InventoryOpen || !state.UI.NPCInteractOpen || !state.UI.NPCShopOpen || !state.UI.StashOpen || !state.UI.QuitMenuOpen {
+	if !state.UI.InventoryOpen || !state.UI.NPCInteractOpen || !state.UI.NPCShopOpen || !state.UI.WaypointOpen || !state.UI.StashOpen || !state.UI.QuitMenuOpen {
 		t.Fatalf("UI = %+v, want inventory, NPC interaction, shop, stash, and quit menu open", state.UI)
 	}
 }

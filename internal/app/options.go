@@ -12,7 +12,7 @@ type Options struct {
 	InputTestObserveMs int
 	// Run selects an active farming run; overrides config runs.active when set.
 	Run string
-	// RunPhase selects an optional phase for the active run (e.g. travel-marsh).
+	// RunPhase selects an optional phase for the active run (e.g. travel-entry).
 	RunPhase string
 	// PathingTest starts the manual pathing-test mode with the given spec (empty = disabled).
 	// Specs: teleport:TX,TY | hover:watch | inspect:entrances|layout | move-area:<id|name> | click-entity:waypoint|entrance | pickup:item
@@ -33,11 +33,15 @@ type Options struct {
 	ScreenAnchorCapture string
 	// SessionInspect resolves and prints the Phase-7.5 session plan without runtime initialization.
 	SessionInspect bool
+	// RunsInspect prints deterministic read-only availability for every run definition.
+	RunsInspect bool
+	// WaypointTargetsInspect prints the registered resolution-bound waypoint actions.
+	WaypointTargetsInspect bool
 	// SessionMaxRuns overrides the configured finite session count when positive.
 	SessionMaxRuns int
 	// Route selects a read-only route registry command in Phase 6.2.
 	Route string
-	// RouteName is reserved for the Phase 6.3 record command.
+	// RouteName labels farming-route and Town-egress recordings.
 	RouteName string
 	// RouteDifficulty is the explicit non-authorizing label for a new recording.
 	RouteDifficulty string

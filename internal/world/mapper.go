@@ -98,7 +98,7 @@ func mapGameIdentity(identity memory.IdentityProbe) GameIdentity {
 }
 
 func mapUIState(ui memory.UIState) UIState {
-	return UIState{InventoryOpen: ui.InventoryOpen, NPCInteractOpen: ui.NPCInteractOpen, NPCShopOpen: ui.NPCShopOpen, StashOpen: ui.StashOpen, QuitMenuOpen: ui.QuitMenuOpen}
+	return UIState{InventoryOpen: ui.InventoryOpen, NPCInteractOpen: ui.NPCInteractOpen, NPCShopOpen: ui.NPCShopOpen, WaypointOpen: ui.WaypointOpen, StashOpen: ui.StashOpen, QuitMenuOpen: ui.QuitMenuOpen}
 }
 
 // mapHover converts the raw memory hover buffer into the world hover type.

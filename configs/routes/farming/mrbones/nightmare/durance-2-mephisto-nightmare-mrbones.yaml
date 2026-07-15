@@ -1,0 +1,91 @@
+version: 1
+id: durance-2-mephisto-nightmare-mrbones
+name: Durance Level 2 bis Mephisto MrBones Nightmare
+kind: navigation
+binding:
+    character_name: MrBones
+    character_class: necromancer
+    difficulty: nightmare
+    map_seed: 466817790
+    game_version: 3.2.92777
+    layout_fingerprint:
+        version: 1
+        area_id: 101
+        anchor_count: 1
+        hash: 0de41461ba06defab2a2afb4477671fea7e0aeeb4a86193de1b869d647f203af
+recording:
+    recorded_at: 2026-07-14T22:39:47.1984978Z
+    sample_distance_tiles: 4
+playback:
+    waypoint_tolerance_tiles: 3
+    max_drift_tiles: 8
+    max_local_corrections: 2
+    segment_timeout_ms: 30000
+    transition_timeout_ms: 10000
+segments:
+    - id: durance-of-hate-level-2
+      from_area_id: 101
+      to_area_id: 102
+      movement: teleport
+      points:
+        - x: 17643
+          "y": 6823
+        - x: 17644
+          "y": 6818
+        - x: 17646
+          "y": 6789
+        - x: 17647
+          "y": 6767
+        - x: 17648
+          "y": 6742
+        - x: 17651
+          "y": 6719
+        - x: 17652
+          "y": 6695
+        - x: 17658
+          "y": 6675
+        - x: 17664
+          "y": 6654
+        - x: 17660
+          "y": 6628
+        - x: 17667
+          "y": 6607
+        - x: 17685
+          "y": 6594
+        - x: 17688
+          "y": 6579
+        - x: 17695
+          "y": 6556
+        - x: 17694
+          "y": 6533
+        - x: 17704
+          "y": 6512
+        - x: 17707
+          "y": 6512
+      transition:
+        type: entrance
+        entrance_kind: durance_down
+    - id: durance-of-hate-level-3
+      from_area_id: 102
+      to_area_id: 102
+      movement: teleport
+      points:
+        - x: 17685
+          "y": 8022
+        - x: 17677
+          "y": 8035
+        - x: 17662
+          "y": 8046
+        - x: 17647
+          "y": 8057
+        - x: 17633
+          "y": 8069
+        - x: 17617
+          "y": 8074
+        - x: 17591
+          "y": 8073
+        - x: 17570
+          "y": 8069
+      transition:
+        type: terminal
+        entrance_kind: ""

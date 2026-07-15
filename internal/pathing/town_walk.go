@@ -35,12 +35,13 @@ type TownWalkResult struct {
 // It owns movement timing only; layout selection and semantic edge composition
 // remain caller responsibilities so this component is reusable across anchors.
 type TownWalker struct {
-	log       *slog.Logger
-	input     InputDriver
-	projector Projector
-	cfg       TownWalkConfig
-	points    []world.Position
-	index     int
+	log          *slog.Logger
+	input        InputDriver
+	projector    Projector
+	cfg          TownWalkConfig
+	points       []world.Position
+	expectedArea world.AreaID
+	index        int
 
 	lastMoveAt     time.Time
 	waiting        bool
@@ -51,12 +52,19 @@ type TownWalker struct {
 
 // NewTownRouteWalker creates a walker for one already validated Town graph edge.
 func NewTownRouteWalker(log *slog.Logger, in InputDriver, cfg Config, points []world.Position) *TownWalker {
+	return NewAreaTownRouteWalker(log, in, cfg, world.RogueEncampment, points)
+}
+
+// NewAreaTownRouteWalker creates a force-move walker bound to one confirmed Town area.
+// It is used for foreign-Town egress routes where teleport movement is unavailable.
+func NewAreaTownRouteWalker(log *slog.Logger, in InputDriver, cfg Config, expectedArea world.AreaID, points []world.Position) *TownWalker {
 	return &TownWalker{
-		log:       log.With("component", "pathing.town_walk"),
-		input:     in,
-		projector: cfg.Projector(),
-		cfg:       cfg.TownWalk,
-		points:    append([]world.Position(nil), points...),
+		log:          log.With("component", "pathing.town_walk"),
+		input:        in,
+		projector:    cfg.Projector(),
+		cfg:          cfg.TownWalk,
+		points:       append([]world.Position(nil), points...),
+		expectedArea: expectedArea,
 	}
 }
 
@@ -88,7 +96,7 @@ func (w *TownWalker) tick(ctx context.Context, state world.State) TownWalkResult
 	if !state.Valid || state.Phase != world.GamePhaseInGame {
 		return TownWalkResult{Status: TownWalkPending}
 	}
-	if state.Area.ID != world.RogueEncampment {
+	if state.Area.ID != w.expectedArea {
 		return TownWalkResult{Status: TownWalkWrongArea, Reason: string(TownWalkWrongArea), Done: true}
 	}
 	if len(w.points) < 2 {

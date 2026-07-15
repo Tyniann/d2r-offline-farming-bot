@@ -1,6 +1,6 @@
 # D2R Offline Farming Bot
 
-Go-basierter Bot für Diablo II: Resurrected (Offline/Singleplayer). **v0.3.0** umfasst Phase 1 (read-only Prozessbindung, Memory-Reader, State-Probe), Phase 2 (World Model mit Area/Player-State) und Phase 3 (Input-Primitives mit Safety und manuellem CLI-Testmodus). Automatische Farming-Runs folgen in späteren Phasen.
+Go-basierter Bot für Diablo II: Resurrected (Offline/Singleplayer). **v0.6.0** umfasst den gemeinsamen, typisierten Farming-Lifecycle für Countess und Mephisto einschließlich Run Registry/Availability, gebundener Routen, Combat, Loot, Town-Diensten und autonomem Session-Abschluss.
 
 ## Voraussetzungen
 
@@ -11,7 +11,7 @@ Go-basierter Bot für Diablo II: Resurrected (Offline/Singleplayer). **v0.3.0** 
 ## Release (Windows EXE)
 
 ```powershell
-# Release-ZIP bauen (dist/d2rbot-v0.3.0-windows-amd64.zip)
+# Release-ZIP bauen (dist/d2rbot-v0.6.0-windows-amd64.zip)
 powershell -ExecutionPolicy Bypass -File scripts/build-release.ps1
 
 # Oder über Make
@@ -82,14 +82,14 @@ Release-ZIP lokal erzeugen und bei Bedarf manuell verteilen:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts/build-release.ps1
-# Ergebnis: dist\d2rbot-v0.3.0-windows-amd64.zip
+# Ergebnis: dist\d2rbot-v0.6.0-windows-amd64.zip
 ```
 
 Optional Version taggen (nur für Git-Historie):
 
 ```powershell
-git tag v0.3.0
-git push origin v0.3.0
+git tag v0.6.0
+git push origin v0.6.0
 ```
 
 ## Projektstruktur

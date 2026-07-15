@@ -32,18 +32,21 @@ type ItemServiceOrder struct {
 	Code   string
 }
 
-// PlanItemServices rejects conflicting classifications and protects keep/stash/lock items.
-// Protection wins over service intent: no later executor may reinterpret a
-// protected item as sellable or identifiable.
+// PlanItemServices rejects protected service candidates and emits identify then
+// sell for one unidentified vendor candidate while preserving its UnitID pin.
 func PlanItemServices(candidates []ItemServiceCandidate) ([]ItemServiceOrder, Reason) {
 	orders := make([]ItemServiceOrder, 0, len(candidates))
 	seen := map[uint32]bool{}
 	for _, candidate := range candidates {
-		if candidate.UnitID == 0 || seen[candidate.UnitID] || (candidate.IdentifyRequired && candidate.VendorCandidate) {
+		if candidate.UnitID == 0 || seen[candidate.UnitID] {
 			return nil, ReasonItemClassificationInvalid
 		}
 		seen[candidate.UnitID] = true
-		if candidate.Keep || candidate.Stash || candidate.InventoryLocked {
+		serviceIntent := candidate.IdentifyRequired || candidate.VendorCandidate
+		if serviceIntent && (candidate.Keep || candidate.Stash || candidate.InventoryLocked) {
+			return nil, ReasonItemClassificationInvalid
+		}
+		if !serviceIntent {
 			continue
 		}
 		if candidate.IdentifyRequired {
@@ -104,12 +107,14 @@ func (e *ItemServiceExecutor) Tick(state world.State) InteractionResult {
 	if !found || item.Location != world.ItemLocationInventory || !item.PlayerOwned || item.Page != 0 || (e.order.Code != "" && item.Code != e.order.Code) {
 		return InteractionResult{Status: InteractionFailed, Reason: string(ReasonItemPinInvalid), UnitID: e.order.UnitID, Done: true}
 	}
+	// Cain identifies the whole carried inventory. A later pinned identify order
+	// may therefore already be satisfied and must not emit a second UI action.
+	if e.order.Kind == ItemServiceIdentify && item.Identified {
+		return InteractionResult{Status: InteractionComplete, UnitID: e.order.UnitID, Done: true}
+	}
 	var err error
 	action := ""
 	if e.order.Kind == ItemServiceIdentify {
-		if item.Identified {
-			return InteractionResult{Status: InteractionFailed, Reason: string(ReasonItemStateInvalid), UnitID: e.order.UnitID, Done: true}
-		}
 		err, action = e.input.Identify(e.order.UnitID), "item_identify"
 	} else {
 		err, action = e.input.Sell(e.order.UnitID), "item_sell"

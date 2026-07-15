@@ -30,6 +30,7 @@ type Executor struct {
 	telemetry   Telemetry
 	hookIndex   map[Hook]int
 	hookReadyAt map[Hook]time.Time
+	hookAction  map[Hook]int
 	onceGame    map[string]bool
 	onceBoss    map[string]bool
 	waitUntil   time.Time
@@ -63,6 +64,7 @@ func (e *Executor) Ready() bool { return e != nil && e.definition.ID != "" && e.
 func (e *Executor) Reset() {
 	e.hookIndex = map[Hook]int{}
 	e.hookReadyAt = map[Hook]time.Time{}
+	e.hookAction = map[Hook]int{}
 	e.onceGame = map[string]bool{}
 	e.onceBoss = map[string]bool{}
 	e.waitUntil = time.Time{}
@@ -86,6 +88,18 @@ func (e *Executor) TickHook(ctx context.Context, hook Hook, state world.State, t
 	if now.IsZero() {
 		now = state.At
 	}
+	if target.UnitID != 0 {
+		if previous, seen := e.hookAction[hook]; !seen {
+			e.hookAction[hook] = target.ActionIndex
+		} else if previous != target.ActionIndex {
+			// A repeated semantic hook is a new definition-owned action only
+			// when its stable index advances. Poll retries retain the index and
+			// therefore cannot duplicate input.
+			e.hookAction[hook] = target.ActionIndex
+			e.hookIndex[hook] = 0
+			delete(e.hookReadyAt, hook)
+		}
+	}
 	if !e.waitUntil.IsZero() && now.Before(e.waitUntil) {
 		return Result{Status: StatusPending, Hook: hook}
 	}
@@ -108,7 +122,7 @@ func (e *Executor) TickHook(ctx context.Context, hook Hook, state world.State, t
 			}
 		}
 		gameKey := fmt.Sprintf("%s:%d", hook, index)
-		bossKey := fmt.Sprintf("%s:%d:%d", hook, index, target.UnitID)
+		bossKey := fmt.Sprintf("%s:%d:%d:%d", hook, index, target.UnitID, target.ActionIndex)
 		if action.OncePerGame && e.onceGame[gameKey] || action.OncePerEncounter && target.UnitID != 0 && e.onceBoss[bossKey] {
 			e.hookIndex[hook]++
 			continue

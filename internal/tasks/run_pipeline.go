@@ -1,0 +1,1204 @@
+package tasks
+
+import (
+	"context"
+	"errors"
+	"strings"
+	"time"
+
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/pathing"
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/profile"
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/telemetry"
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/town"
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/world"
+)
+
+const (
+	// RunPhaseTravelEntry selects travel from the Act-1 hub to the definition's entry area.
+	RunPhaseTravelEntry = "travel-entry"
+	// RunPhasePlayRoute selects travel through the definition's complete bound route.
+	RunPhasePlayRoute = "play-route"
+	// RunPhaseBoss selects boss acquisition, encounter actions, and combat.
+	RunPhaseBoss = "boss"
+	// RunPhaseLootAndReturn selects loot, portal return, and stash recovery.
+	RunPhaseLootAndReturn = "loot-and-return"
+	// RunPhaseStashPersonal selects transfer-free Act-1 personal-stash navigation and opening.
+	RunPhaseStashPersonal = "stash-personal"
+	// RunPhaseTownReady selects the isolated class-profile Town-ready hook.
+	RunPhaseTownReady = "town-ready"
+
+	pipelineStepPrecheck            = "precheck"
+	pipelineStepApplyTownProfile    = "town_ready_profile"
+	pipelineStepAcquireTownWaypoint = "acquire_town_waypoint"
+	pipelineStepOpenWaypoint        = "open_waypoint"
+	pipelineStepSelectRunWaypoint   = "select_run_waypoint"
+	pipelineStepWaitEntryArea       = "wait_entry_area"
+	pipelineStepPlayRoute           = "play_bound_route"
+	pipelineStepAcquireBoss         = "acquire_boss"
+	pipelineStepEngageBoss          = "engage_boss"
+	pipelineStepWaitForDrops        = "wait_for_drops"
+	pipelineStepScanLoot            = "scan_loot"
+	pipelineStepPickLoot            = "pick_loot"
+	pipelineStepCastTownPortal      = "cast_town_portal"
+	pipelineStepEnterTownPortal     = "enter_town_portal"
+	pipelineStepWaitOriginTown      = "wait_origin_town"
+	pipelineStepPlayTownEgress      = "play_town_egress"
+	pipelineStepOpenOriginWaypoint  = "open_origin_waypoint"
+	pipelineStepSelectHubWaypoint   = "select_hub_waypoint"
+	pipelineStepWaitHubArea         = "wait_hub_area"
+	pipelineStepOpenStash           = "open_personal_stash"
+	pipelineStepStashItems          = "stash_items"
+	pipelineStepCloseStash          = "close_personal_stash"
+	pipelineStepPrepareTown         = "prepare_town_handoff"
+	pipelineStepComplete            = "complete"
+
+	waypointSelectSettleDelay = 500 * time.Millisecond
+	dropStableTicks           = 3
+	lootNoTargetStableTicks   = 3
+)
+
+// runPipeline executes one immutable run definition or a thin isolated-phase alias.
+// Persistent executor state belongs to this generation and is cleared at the
+// runner's central reset barrier before another generation may start.
+type runPipeline struct {
+	definition             RunDefinition
+	phase                  string
+	routeID                string
+	combat                 CombatConfig
+	navStarted             bool
+	resumeAfterPrecheckSet bool
+	resumeAfterPrecheck    string
+	chestFallbackStarted   bool
+	targetSeen             bool
+	targetUnitID           uint32
+	targetAbsentTicks      int
+	dropStableTicks        int
+	lootScanHasTarget      bool
+	lootPickupActive       bool
+	lootNoTargetTicks      int
+	routeStarted           bool
+	egressStarted          bool
+	encounterActionIndex   int
+	encounterActionStarted bool
+}
+
+func (c *runPipeline) effectiveDefinition() RunDefinition {
+	return c.definition
+}
+
+func (c *runPipeline) resetGeneration() {
+	c.navStarted = false
+	c.resumeAfterPrecheckSet = false
+	c.resumeAfterPrecheck = ""
+	c.chestFallbackStarted = false
+	c.targetSeen = false
+	c.targetUnitID = 0
+	c.targetAbsentTicks = 0
+	c.dropStableTicks = 0
+	c.lootScanHasTarget = false
+	c.lootPickupActive = false
+	c.lootNoTargetTicks = 0
+	c.routeStarted = false
+	c.egressStarted = false
+	c.encounterActionIndex = 0
+	c.encounterActionStarted = false
+}
+
+func (c *runPipeline) firstStep() string {
+	return pipelineStepPrecheck
+}
+
+func (c *runPipeline) nextStep(current string) string {
+	if c.phase == RunPhaseTownReady {
+		switch current {
+		case pipelineStepPrecheck:
+			return pipelineStepApplyTownProfile
+		case pipelineStepApplyTownProfile:
+			return pipelineStepComplete
+		case pipelineStepComplete:
+			return ""
+		default:
+			return ""
+		}
+	}
+	if c.phase == RunPhaseStashPersonal {
+		switch current {
+		case pipelineStepPrecheck:
+			return pipelineStepOpenStash
+		case pipelineStepOpenStash:
+			return pipelineStepStashItems
+		case pipelineStepStashItems:
+			return pipelineStepCloseStash
+		case pipelineStepCloseStash:
+			return pipelineStepComplete
+		case pipelineStepComplete:
+			return ""
+		default:
+			return ""
+		}
+	}
+	if c.phase == RunPhaseBoss {
+		switch current {
+		case pipelineStepPrecheck:
+			return pipelineStepAcquireBoss
+		case pipelineStepAcquireBoss:
+			return pipelineStepEngageBoss
+		case pipelineStepEngageBoss:
+			return ""
+		default:
+			return ""
+		}
+	}
+	if c.phase == RunPhaseLootAndReturn {
+		switch current {
+		case pipelineStepPrecheck:
+			return pipelineStepWaitForDrops
+		case pipelineStepWaitForDrops:
+			return pipelineStepScanLoot
+		case pipelineStepScanLoot:
+			if c.lootScanHasTarget {
+				return pipelineStepPickLoot
+			}
+			return pipelineStepCastTownPortal
+		case pipelineStepPickLoot:
+			return pipelineStepCastTownPortal
+		case pipelineStepCastTownPortal:
+			return pipelineStepEnterTownPortal
+		case pipelineStepEnterTownPortal:
+			return pipelineStepWaitOriginTown
+		case pipelineStepWaitOriginTown:
+			if c.effectiveDefinition().ReturnOrigin == town.OriginAct3 {
+				return pipelineStepPlayTownEgress
+			}
+			return pipelineStepOpenStash
+		case pipelineStepPlayTownEgress:
+			return pipelineStepOpenOriginWaypoint
+		case pipelineStepOpenOriginWaypoint:
+			return pipelineStepSelectHubWaypoint
+		case pipelineStepSelectHubWaypoint:
+			return pipelineStepWaitHubArea
+		case pipelineStepWaitHubArea:
+			return pipelineStepOpenStash
+		case pipelineStepOpenStash:
+			return pipelineStepStashItems
+		case pipelineStepStashItems:
+			return pipelineStepCloseStash
+		case pipelineStepCloseStash:
+			return pipelineStepComplete
+		case pipelineStepComplete:
+			return ""
+		default:
+			return ""
+		}
+	}
+	if c.isTravelPhase() {
+		switch current {
+		case pipelineStepPrecheck:
+			if c.resumeAfterPrecheckSet {
+				return c.resumeAfterPrecheck
+			}
+			return pipelineStepAcquireTownWaypoint
+		case pipelineStepAcquireTownWaypoint:
+			return pipelineStepOpenWaypoint
+		case pipelineStepOpenWaypoint:
+			return pipelineStepSelectRunWaypoint
+		case pipelineStepSelectRunWaypoint:
+			return pipelineStepWaitEntryArea
+		case pipelineStepWaitEntryArea:
+			if c.phase == RunPhasePlayRoute {
+				return pipelineStepPlayRoute
+			}
+			return ""
+		case pipelineStepPlayRoute:
+			return ""
+		default:
+			return ""
+		}
+	}
+	switch current {
+	case pipelineStepPrecheck:
+		return pipelineStepAcquireTownWaypoint
+	case pipelineStepAcquireTownWaypoint:
+		return pipelineStepOpenWaypoint
+	case pipelineStepOpenWaypoint:
+		return pipelineStepSelectRunWaypoint
+	case pipelineStepSelectRunWaypoint:
+		return pipelineStepWaitEntryArea
+	case pipelineStepWaitEntryArea:
+		return pipelineStepPlayRoute
+	case pipelineStepPlayRoute:
+		return pipelineStepAcquireBoss
+	case pipelineStepAcquireBoss:
+		return pipelineStepEngageBoss
+	case pipelineStepEngageBoss:
+		return pipelineStepWaitForDrops
+	case pipelineStepWaitForDrops:
+		return pipelineStepScanLoot
+	case pipelineStepScanLoot:
+		if c.lootScanHasTarget {
+			return pipelineStepPickLoot
+		}
+		return pipelineStepCastTownPortal
+	case pipelineStepPickLoot:
+		return pipelineStepCastTownPortal
+	case pipelineStepCastTownPortal:
+		return pipelineStepEnterTownPortal
+	case pipelineStepEnterTownPortal:
+		return pipelineStepWaitOriginTown
+	case pipelineStepWaitOriginTown:
+		if c.effectiveDefinition().ReturnOrigin == town.OriginAct3 {
+			return pipelineStepPlayTownEgress
+		}
+		return pipelineStepOpenStash
+	case pipelineStepPlayTownEgress:
+		return pipelineStepOpenOriginWaypoint
+	case pipelineStepOpenOriginWaypoint:
+		return pipelineStepSelectHubWaypoint
+	case pipelineStepSelectHubWaypoint:
+		return pipelineStepWaitHubArea
+	case pipelineStepWaitHubArea:
+		return pipelineStepOpenStash
+	case pipelineStepOpenStash:
+		return pipelineStepStashItems
+	case pipelineStepStashItems:
+		return pipelineStepCloseStash
+	case pipelineStepCloseStash:
+		return pipelineStepPrepareTown
+	case pipelineStepPrepareTown:
+		return pipelineStepComplete
+	case pipelineStepComplete:
+		return ""
+	default:
+		return ""
+	}
+}
+
+func (c *runPipeline) usesTickTimeout(step string) bool {
+	return step == pipelineStepPlayRoute
+}
+
+func (c *runPipeline) timeoutReason(step string) string {
+	if step == pipelineStepWaitEntryArea || step == pipelineStepWaitHubArea {
+		return string(RunReasonWaypointDestinationTimeout)
+	}
+	return "timeout"
+}
+
+func (c *runPipeline) allowsNonInputTick(step string) bool {
+	if step == pipelineStepWaitOriginTown && (c.phase == "" || c.phase == RunPhaseLootAndReturn) {
+		return true
+	}
+	return (c.isTravelPhase() || c.phase == "") && (step == pipelineStepWaitEntryArea || step == pipelineStepPlayRoute)
+}
+
+func (c *runPipeline) onStepEnter(step string) {
+	c.navStarted = false
+	c.routeStarted = false
+	c.egressStarted = false
+	if step == pipelineStepWaitForDrops {
+		c.dropStableTicks = 0
+	}
+	if step == pipelineStepScanLoot {
+		c.lootScanHasTarget = false
+		c.lootNoTargetTicks = 0
+	}
+	if step == pipelineStepPickLoot {
+		c.lootPickupActive = false
+		c.lootNoTargetTicks = 0
+	}
+	if step == pipelineStepAcquireBoss {
+		c.chestFallbackStarted = false
+		c.targetSeen = false
+		c.targetUnitID = 0
+		c.targetAbsentTicks = 0
+		c.encounterActionIndex = 0
+		c.encounterActionStarted = false
+	}
+}
+
+func (c *runPipeline) onTick(ctx context.Context, deps Deps, step string, w world.State, now time.Time, stepStartedAt time.Time, ticksInStep int) stepResult {
+	if c.phase == RunPhaseTownReady {
+		return c.onTownReadyTick(ctx, deps, step, w, now)
+	}
+	if c.phase == RunPhaseStashPersonal {
+		return c.onStashPersonalTick(ctx, deps, step, w)
+	}
+	if c.phase == RunPhaseBoss {
+		return c.onBossTick(ctx, deps, step, w, now)
+	}
+	if c.phase == RunPhaseLootAndReturn {
+		return c.onLootTick(ctx, deps, step, w, now, stepStartedAt)
+	}
+	if c.isTravelPhase() {
+		return c.onTravelTick(ctx, deps, step, w, now, stepStartedAt)
+	}
+	if c.phase == "" {
+		return c.onRunTick(ctx, deps, step, w, now, stepStartedAt)
+	}
+	return stepResult{failed: true, reason: "unknown_step"}
+}
+
+func (c *runPipeline) onTownReadyTick(ctx context.Context, deps Deps, step string, w world.State, now time.Time) stepResult {
+	switch step {
+	case pipelineStepPrecheck:
+		if !w.Valid || w.Phase != world.GamePhaseInGame {
+			return stepResult{failed: true, reason: "invalid_world"}
+		}
+		if w.Area.ID != world.RogueEncampment {
+			return stepResult{failed: true, reason: "not_act1_town"}
+		}
+		if !w.Identity.Valid {
+			return stepResult{}
+		}
+		return stepResult{complete: true}
+	case pipelineStepApplyTownProfile:
+		if deps.Profile == nil {
+			return stepResult{failed: true, reason: "profile_not_wired"}
+		}
+		res := deps.Profile.TickHook(ctx, profile.HookTownReady, w, profile.EncounterTarget{}, now)
+		switch res.Status {
+		case profile.StatusComplete:
+			return stepResult{complete: true}
+		case profile.StatusFailed:
+			return stepResult{failed: true, reason: res.Reason}
+		default:
+			return stepResult{}
+		}
+	case pipelineStepComplete:
+		return stepResult{complete: true}
+	default:
+		return stepResult{failed: true, reason: "unknown_step"}
+	}
+}
+
+func (c *runPipeline) onStashPersonalTick(ctx context.Context, deps Deps, step string, w world.State) stepResult {
+	switch step {
+	case pipelineStepPrecheck:
+		if !w.Valid {
+			return stepResult{failed: true, reason: "invalid_world"}
+		}
+		if w.Phase != world.GamePhaseInGame {
+			return stepResult{failed: true, reason: "not_in_game"}
+		}
+		if w.Area.ID != world.RogueEncampment {
+			return stepResult{failed: true, reason: "not_act1_town"}
+		}
+		if deps.Stash == nil {
+			return stepResult{failed: true, reason: "stash_actions_not_wired"}
+		}
+		if deps.Loot == nil {
+			return stepResult{failed: true, reason: "loot_actions_not_wired"}
+		}
+		return stepResult{complete: true}
+	case pipelineStepOpenStash, pipelineStepStashItems, pipelineStepCloseStash:
+		return tickPersonalStashWorkflow(ctx, deps, step, w)
+	case pipelineStepPrepareTown:
+		if deps.Town == nil {
+			return stepResult{failed: true, reason: "town_preparation_not_wired"}
+		}
+		res := deps.Town.Tick(ctx, w)
+		if !res.Done {
+			return stepResult{}
+		}
+		if res.Status == "complete" {
+			return stepResult{complete: true}
+		}
+		return stepResult{failed: true, reason: res.Reason}
+	case pipelineStepComplete:
+		return stepResult{complete: true}
+	default:
+		return stepResult{failed: true, reason: "unknown_step"}
+	}
+}
+
+func tickPersonalStashWorkflow(ctx context.Context, deps Deps, step string, w world.State) stepResult {
+	switch step {
+	case pipelineStepOpenStash:
+		if deps.Stash == nil {
+			return stepResult{failed: true, reason: "stash_actions_not_wired"}
+		}
+		res := deps.Stash.Tick(ctx, w)
+		if !res.Done {
+			return stepResult{}
+		}
+		if res.Status == pathing.PersonalStashOpened {
+			return stepResult{complete: true}
+		}
+		return stepResult{failed: true, reason: string(res.Status)}
+	case pipelineStepStashItems:
+		if deps.Loot == nil {
+			return stepResult{failed: true, reason: "loot_actions_not_wired"}
+		}
+		res := deps.Loot.TickStash(w, w.At)
+		if !res.Done {
+			return stepResult{}
+		}
+		if res.Status == LootStashSuccess {
+			return stepResult{complete: true}
+		}
+		return stepResult{failed: true, reason: string(res.Status)}
+	case pipelineStepCloseStash:
+		if deps.Loot == nil {
+			return stepResult{failed: true, reason: "loot_actions_not_wired"}
+		}
+		res := deps.Loot.TickCloseStash(w, w.At)
+		if !res.Done {
+			return stepResult{}
+		}
+		if res.Status == LootStashClosed {
+			return stepResult{complete: true}
+		}
+		return stepResult{failed: true, reason: string(res.Status)}
+	default:
+		return stepResult{failed: true, reason: "unknown_step"}
+	}
+}
+
+func (c *runPipeline) onRunTick(ctx context.Context, deps Deps, step string, w world.State, now time.Time, stepStartedAt time.Time) stepResult {
+	switch step {
+	case pipelineStepPrecheck:
+		if !w.Valid {
+			return stepResult{failed: true, reason: "invalid_world"}
+		}
+		if w.Phase != world.GamePhaseInGame {
+			return stepResult{failed: true, reason: "not_in_game"}
+		}
+		if w.Area.ID == world.RogueEncampment {
+			return stepResult{complete: true}
+		}
+		return stepResult{failed: true, reason: "not_act1_town"}
+	case pipelineStepAcquireTownWaypoint, pipelineStepOpenWaypoint, pipelineStepSelectRunWaypoint,
+		pipelineStepWaitEntryArea, pipelineStepPlayRoute:
+		return c.onTravelTick(ctx, deps, step, w, now, stepStartedAt)
+	case pipelineStepAcquireBoss, pipelineStepEngageBoss:
+		return c.onBossTick(ctx, deps, step, w, now)
+	case pipelineStepWaitForDrops, pipelineStepScanLoot, pipelineStepPickLoot:
+		return c.onLootTick(ctx, deps, step, w, now, stepStartedAt)
+	case pipelineStepCastTownPortal:
+		return tickRunTownPortal(deps, w)
+	case pipelineStepEnterTownPortal:
+		return c.tickEnterTownPortal(ctx, deps, w, now)
+	case pipelineStepWaitOriginTown:
+		return c.tickWaitOriginTown(w)
+	case pipelineStepPlayTownEgress, pipelineStepOpenOriginWaypoint, pipelineStepSelectHubWaypoint, pipelineStepWaitHubArea:
+		return c.onTownNormalizationTick(ctx, deps, step, w, now, stepStartedAt)
+	case pipelineStepOpenStash, pipelineStepStashItems, pipelineStepCloseStash:
+		return tickPersonalStashWorkflow(ctx, deps, step, w)
+	case pipelineStepPrepareTown:
+		if deps.Town == nil {
+			return stepResult{failed: true, reason: "town_preparation_not_wired"}
+		}
+		res := deps.Town.Tick(ctx, w)
+		if !res.Done {
+			return stepResult{}
+		}
+		if res.Status == "complete" {
+			return stepResult{complete: true}
+		}
+		return stepResult{failed: true, reason: res.Reason}
+	case pipelineStepComplete:
+		return stepResult{complete: true}
+	default:
+		return stepResult{failed: true, reason: "unknown_step"}
+	}
+}
+
+func (c *runPipeline) onLootTick(ctx context.Context, deps Deps, step string, w world.State, now, stepStartedAt time.Time) stepResult {
+	switch step {
+	case pipelineStepPrecheck:
+		if !w.Valid {
+			return stepResult{failed: true, reason: "invalid_world"}
+		}
+		if w.Phase != world.GamePhaseInGame {
+			return stepResult{failed: true, reason: "not_in_game"}
+		}
+		if w.Area.ID != c.effectiveDefinition().RouteTerminalArea {
+			return stepResult{failed: true, reason: "not_cellar_5"}
+		}
+		if deps.Loot == nil {
+			return stepResult{failed: true, reason: "loot_actions_not_wired"}
+		}
+		return stepResult{complete: true}
+	case pipelineStepWaitForDrops:
+		if res := c.lootAreaGuard(w); res.failed {
+			return res
+		}
+		if !w.Valid || w.Phase != world.GamePhaseInGame {
+			c.dropStableTicks = 0
+			return stepResult{}
+		}
+		c.dropStableTicks++
+		if c.dropStableTicks >= dropStableTicks {
+			return stepResult{complete: true}
+		}
+		return stepResult{}
+	case pipelineStepScanLoot:
+		if deps.Loot == nil {
+			return stepResult{failed: true, reason: "loot_actions_not_wired"}
+		}
+		if res := c.lootAreaGuard(w); res.failed {
+			return res
+		}
+		if !w.Valid || w.Phase != world.GamePhaseInGame {
+			return stepResult{}
+		}
+		scan := deps.Loot.Scan(w)
+		if scan.TelemetryFailed {
+			return stepResult{failed: true, reason: "telemetry_failed"}
+		}
+		if scan.InventoryFull {
+			c.lootScanHasTarget = false
+			return stepResult{complete: true}
+		}
+		if scan.HasTarget {
+			c.lootNoTargetTicks = 0
+			c.lootScanHasTarget = true
+			return stepResult{complete: true}
+		}
+		c.lootScanHasTarget = false
+		c.lootNoTargetTicks++
+		if c.lootNoTargetTicks >= lootNoTargetStableTicks {
+			return stepResult{complete: true}
+		}
+		return stepResult{}
+	case pipelineStepPickLoot:
+		if deps.Loot == nil {
+			return stepResult{failed: true, reason: "loot_actions_not_wired"}
+		}
+		if res := c.lootAreaGuard(w); res.failed {
+			return res
+		}
+		if !w.Valid || w.Phase != world.GamePhaseInGame {
+			return stepResult{}
+		}
+		if !c.lootPickupActive {
+			scan := deps.Loot.Scan(w)
+			if scan.TelemetryFailed {
+				return stepResult{failed: true, reason: "telemetry_failed"}
+			}
+			if scan.InventoryFull {
+				return stepResult{complete: true}
+			}
+			if !scan.HasTarget {
+				c.lootNoTargetTicks++
+				if c.lootNoTargetTicks >= lootNoTargetStableTicks {
+					return stepResult{complete: true}
+				}
+				return stepResult{}
+			}
+			c.lootNoTargetTicks = 0
+			if err := deps.Loot.StartPickup(scan.NextTarget); err != nil {
+				return stepResult{failed: true, reason: "loot_pickup_start_failed"}
+			}
+			c.lootPickupActive = true
+		}
+		res := deps.Loot.TickPickup(w, now)
+		if !res.Done {
+			return stepResult{}
+		}
+		switch res.Status {
+		case LootPickupPickedUp, LootPickupMonsterNearby, LootPickupHoverNotFound,
+			LootPickupTargetLost, LootPickupTargetUnstable, LootPickupTooFar, LootPickupFailed:
+			c.lootPickupActive = false
+			return stepResult{}
+		case LootPickupInputBlocked, LootPickupProjectionFailed, LootPickupInvalidWorld, LootPickupTelemetryFailed:
+			return stepResult{failed: true, reason: string(res.Status)}
+		default:
+			return stepResult{failed: true, reason: "loot_pickup_failed"}
+		}
+	case pipelineStepCastTownPortal:
+		return tickRunTownPortal(deps, w)
+	case pipelineStepEnterTownPortal:
+		return c.tickEnterTownPortal(ctx, deps, w, now)
+	case pipelineStepWaitOriginTown:
+		return c.tickWaitOriginTown(w)
+	case pipelineStepPlayTownEgress, pipelineStepOpenOriginWaypoint, pipelineStepSelectHubWaypoint, pipelineStepWaitHubArea:
+		return c.onTownNormalizationTick(ctx, deps, step, w, now, stepStartedAt)
+	case pipelineStepOpenStash, pipelineStepStashItems, pipelineStepCloseStash:
+		return tickPersonalStashWorkflow(ctx, deps, step, w)
+	case pipelineStepComplete:
+		return stepResult{complete: true}
+	default:
+		return stepResult{failed: true, reason: "unknown_step"}
+	}
+}
+
+func (c *runPipeline) lootAreaGuard(w world.State) stepResult {
+	if !w.Valid || w.Phase != world.GamePhaseInGame {
+		return stepResult{}
+	}
+	if w.Area.ID != c.effectiveDefinition().RouteTerminalArea {
+		return stepResult{failed: true, reason: "unexpected_area"}
+	}
+	return stepResult{}
+}
+
+func tickRunTownPortal(deps Deps, w world.State) stepResult {
+	if !w.Valid {
+		return stepResult{failed: true, reason: "invalid_world"}
+	}
+	if w.Phase != world.GamePhaseInGame {
+		return stepResult{failed: true, reason: "not_in_game"}
+	}
+	if deps.Actions == nil {
+		return stepResult{failed: true, reason: "run_actions_not_wired"}
+	}
+	if err := deps.Actions.CastTownPortal(); err != nil {
+		return stepResult{failed: true, reason: "town_portal_failed"}
+	}
+	return stepResult{complete: true}
+}
+
+func (c *runPipeline) tickEnterTownPortal(ctx context.Context, deps Deps, w world.State, now time.Time) stepResult {
+	if !w.Valid || w.Phase != world.GamePhaseInGame {
+		return stepResult{}
+	}
+	if w.Area.ID == c.originTownArea() {
+		return stepResult{complete: true}
+	}
+	if w.Area.ID != c.effectiveDefinition().RouteTerminalArea {
+		return stepResult{failed: true, reason: "unexpected_area"}
+	}
+	if deps.Portal == nil {
+		return stepResult{failed: true, reason: "town_portal_actions_not_wired"}
+	}
+	res := deps.Portal.Tick(ctx, w, now)
+	switch res.Status {
+	case pathing.TownPortalActionPending:
+		return stepResult{}
+	case pathing.TownPortalActionClicked:
+		return stepResult{complete: true}
+	case pathing.TownPortalActionNotFound:
+		return stepResult{failed: true, reason: "town_portal_not_found"}
+	default:
+		return stepResult{failed: true, reason: "town_portal_enter_failed"}
+	}
+}
+
+func (c *runPipeline) tickWaitOriginTown(w world.State) stepResult {
+	if !w.Valid || w.Phase != world.GamePhaseInGame {
+		return stepResult{}
+	}
+	if w.Area.ID == c.originTownArea() {
+		return stepResult{complete: true}
+	}
+	if w.Area.ID != c.effectiveDefinition().RouteTerminalArea {
+		return stepResult{failed: true, reason: "unexpected_area"}
+	}
+	return stepResult{}
+}
+
+func (c *runPipeline) onTownNormalizationTick(ctx context.Context, deps Deps, step string, w world.State, now, stepStartedAt time.Time) stepResult {
+	if c.effectiveDefinition().ReturnOrigin != town.OriginAct3 {
+		return stepResult{failed: true, reason: string(RunReasonHubTransferUnsupported)}
+	}
+	switch step {
+	case pipelineStepPlayTownEgress:
+		if !w.Valid || w.Phase != world.GamePhaseInGame {
+			return stepResult{}
+		}
+		if w.Area.ID != world.KurastDocks {
+			return stepResult{failed: true, reason: string(RunReasonUnexpectedArea)}
+		}
+		if deps.TownEgress == nil {
+			return stepResult{failed: true, reason: string(RunReasonTownEgressMissing)}
+		}
+		if !c.egressStarted {
+			if err := deps.TownEgress.Start(town.OriginAct3, w); err != nil {
+				return stepResult{failed: true, reason: townEgressFailureReason(err)}
+			}
+			c.egressStarted = true
+		}
+		done, err := deps.TownEgress.Tick(ctx, w)
+		if err != nil {
+			return stepResult{failed: true, reason: townEgressFailureReason(err)}
+		}
+		return stepResult{complete: done}
+	case pipelineStepOpenOriginWaypoint:
+		if deps.Waypoint == nil {
+			return stepResult{failed: true, reason: "waypoint_actions_not_wired"}
+		}
+		res := deps.Waypoint.TickTownWaypoint(ctx, w)
+		if res.Status == pathing.WaypointActionPending {
+			return stepResult{}
+		}
+		if res.Status == pathing.WaypointActionClicked {
+			return stepResult{complete: true}
+		}
+		return stepResult{failed: true, reason: waypointFailureReason(res)}
+	case pipelineStepSelectHubWaypoint:
+		if deps.Waypoint == nil {
+			return stepResult{failed: true, reason: "waypoint_actions_not_wired"}
+		}
+		if !stepStartedAt.IsZero() && now.Sub(stepStartedAt) < waypointSelectSettleDelay {
+			return stepResult{}
+		}
+		res := deps.Waypoint.SelectWaypointTarget(ctx, w, pathing.WaypointTargetRogueEncampment, now)
+		if res.Status == pathing.WaypointActionPending {
+			return stepResult{}
+		}
+		if res.Status == pathing.WaypointActionClicked {
+			return stepResult{complete: true}
+		}
+		return stepResult{failed: true, reason: waypointFailureReason(res)}
+	case pipelineStepWaitHubArea:
+		if w.Valid && w.Area.ID == world.RogueEncampment {
+			return stepResult{complete: true}
+		}
+		if w.Valid && w.Phase == world.GamePhaseInGame && w.Area.ID != world.KurastDocks {
+			return stepResult{failed: true, reason: string(RunReasonUnexpectedArea)}
+		}
+		return stepResult{}
+	default:
+		return stepResult{failed: true, reason: "unknown_step"}
+	}
+}
+
+func townEgressFailureReason(err error) string {
+	if errors.Is(err, pathing.ErrRouteCharacterMismatch) || errors.Is(err, pathing.ErrRouteGameVersionMismatch) || errors.Is(err, pathing.ErrRouteLayoutUnverified) || errors.Is(err, pathing.ErrRouteLayoutMismatch) || errors.Is(err, pathing.ErrRouteStartMismatch) {
+		return string(RunReasonTownEgressBindingMismatch)
+	}
+	if errors.Is(err, pathing.ErrRouteNotFound) {
+		return string(RunReasonTownEgressMissing)
+	}
+	return "town_egress_failed"
+}
+
+func (c *runPipeline) originTownArea() world.AreaID {
+	switch c.effectiveDefinition().ReturnOrigin {
+	case town.OriginAct1:
+		return world.RogueEncampment
+	case town.OriginAct3:
+		return world.KurastDocks
+	default:
+		return world.None
+	}
+}
+
+func (c *runPipeline) onBossTick(ctx context.Context, deps Deps, step string, w world.State, now time.Time) stepResult {
+	switch step {
+	case pipelineStepPrecheck:
+		if !w.Valid {
+			return stepResult{failed: true, reason: "invalid_world"}
+		}
+		if w.Phase != world.GamePhaseInGame {
+			return stepResult{failed: true, reason: "not_in_game"}
+		}
+		if w.Area.ID != c.effectiveDefinition().RouteTerminalArea {
+			return stepResult{failed: true, reason: "not_cellar_5"}
+		}
+		if deps.Combat == nil {
+			return stepResult{failed: true, reason: "combat_not_wired"}
+		}
+		return stepResult{complete: true}
+	case pipelineStepAcquireBoss:
+		if res := c.killAreaGuard(w); res.failed {
+			return res
+		}
+		if !w.Valid || w.Phase != world.GamePhaseInGame {
+			return stepResult{}
+		}
+		if target, ok := c.findBossTarget(w); ok {
+			c.storeBossTarget(target)
+			return stepResult{complete: true}
+		}
+		return c.tickBossSearchFallback(ctx, deps, w)
+	case pipelineStepEngageBoss:
+		if res := c.killAreaGuard(w); res.failed {
+			if deps.Combat != nil {
+				if err := deps.Combat.StopAttack(); err != nil {
+					return stepResult{failed: true, reason: "combat_action_failed"}
+				}
+			}
+			return res
+		}
+		if !w.Valid || w.Phase != world.GamePhaseInGame {
+			if deps.Combat != nil {
+				if err := deps.Combat.StopAttack(); err != nil {
+					return stepResult{failed: true, reason: "combat_action_failed"}
+				}
+			}
+			return stepResult{}
+		}
+		if !c.targetSeen {
+			return stepResult{failed: true, reason: "target_not_set"}
+		}
+		actions := c.effectiveDefinition().BossEngageSequence
+		target, visible := c.findMonsterByUnitID(w, c.targetUnitID)
+		if !visible {
+			if deps.Combat != nil {
+				if err := deps.Combat.StopAttack(); err != nil {
+					return stepResult{failed: true, reason: "combat_action_failed"}
+				}
+			}
+			// A boss disappearing or changing UnitID before every indexed
+			// encounter action completed is not valid kill evidence. Once the
+			// sequence is complete, a different live boss with the configured
+			// NPC ID still invalidates the original pin before absence counting.
+			if deps.Profile != nil && c.encounterActionIndex < len(actions) {
+				return stepResult{failed: true, reason: string(RunReasonBossPinLost)}
+			}
+			if replacement, found := c.findConfiguredBossTarget(w); found && replacement.UnitID != c.targetUnitID {
+				return stepResult{failed: true, reason: string(RunReasonBossPinLost)}
+			}
+			c.targetAbsentTicks++
+			if c.targetAbsentTicks >= c.combat.KillConfirmTicks {
+				return stepResult{complete: true}
+			}
+			return stepResult{}
+		}
+		c.targetAbsentTicks = 0
+		if c.encounterActionIndex < len(actions) && deps.Profile != nil {
+			action := actions[c.encounterActionIndex]
+			if !c.encounterActionStarted {
+				if err := c.emitEncounterAction(deps, telemetry.RunEncounterActionStarted, RunOutcomeRunning, "", target.UnitID); err != nil {
+					return stepResult{failed: true, reason: "telemetry_failed"}
+				}
+				c.encounterActionStarted = true
+			}
+			res := deps.Profile.TickHook(ctx, action.Hook, w, profile.EncounterTarget{UnitID: target.UnitID, Position: target.Position, ActionIndex: c.encounterActionIndex}, now)
+			switch res.Status {
+			case profile.StatusFailed:
+				return stepResult{failed: true, reason: res.Reason}
+			case profile.StatusAction, profile.StatusPending:
+				return stepResult{}
+			case profile.StatusComplete:
+				if err := c.emitEncounterAction(deps, telemetry.RunEncounterActionCompleted, RunOutcomeSuccess, "", target.UnitID); err != nil {
+					return stepResult{failed: true, reason: "telemetry_failed"}
+				}
+				c.encounterActionIndex++
+				c.encounterActionStarted = false
+				if c.encounterActionIndex < len(actions) {
+					// Indexed actions are separate input opportunities; one poll
+					// can never advance more than one action.
+					return stepResult{}
+				}
+			}
+		} else if deps.Profile == nil {
+			// Isolated combat diagnostics may intentionally omit the profile;
+			// productive app wiring validates it before starting the run.
+			c.encounterActionIndex = len(actions)
+		}
+		return c.tickEngageTarget(deps, w, target, now)
+	default:
+		return stepResult{failed: true, reason: "unknown_step"}
+	}
+}
+
+func (c *runPipeline) emitEncounterAction(deps Deps, event telemetry.EventName, outcome RunOutcome, reason string, unitID uint32) error {
+	if deps.Telemetry == nil {
+		return nil
+	}
+	index := c.encounterActionIndex
+	return deps.Telemetry.Emit(telemetry.Event{
+		Event: event, DefinitionID: string(c.effectiveDefinition().ID), Step: pipelineStepEngageBoss,
+		ActionIndex: &index, UnitID: unitID, Outcome: string(outcome), Reason: reason,
+	})
+}
+
+func (c *runPipeline) killAreaGuard(w world.State) stepResult {
+	if !w.Valid || w.Phase != world.GamePhaseInGame {
+		return stepResult{}
+	}
+	if w.Area.ID != c.effectiveDefinition().RouteTerminalArea {
+		return stepResult{failed: true, reason: "unexpected_area"}
+	}
+	return stepResult{}
+}
+
+func (c *runPipeline) findBossTarget(w world.State) (world.Monster, bool) {
+	definition := c.effectiveDefinition()
+	if !w.Valid || w.Phase != world.GamePhaseInGame || w.Area.ID != definition.RouteTerminalArea {
+		return world.Monster{}, false
+	}
+	if target, ok := c.findConfiguredBossTarget(w); ok {
+		return target, true
+	}
+	if !definition.Boss.AllowAnySuperUniqueFallback {
+		return world.Monster{}, false
+	}
+	return w.FindSuperUnique(0)
+}
+
+func (c *runPipeline) findConfiguredBossTarget(w world.State) (world.Monster, bool) {
+	definition := c.effectiveDefinition()
+	if definition.Boss.RequireSuperUnique {
+		// Countess shares a base NPC ID with ordinary Dark Stalkers and must
+		// retain the super-unique flag gate before its explicit fallback.
+		return w.FindSuperUnique(definition.Boss.NPCID)
+	}
+	// Act bosses such as Mephisto have an exact generated NPC ID but do not
+	// carry d2go's super-unique type flag. Their NPC identity is authoritative.
+	return w.FindNPC(definition.Boss.NPCID)
+}
+
+func (c *runPipeline) findMonsterByUnitID(w world.State, unitID uint32) (world.Monster, bool) {
+	if !w.Valid || w.Phase != world.GamePhaseInGame || w.Area.ID != c.effectiveDefinition().RouteTerminalArea {
+		return world.Monster{}, false
+	}
+	for _, m := range w.Monsters {
+		if m.UnitID == unitID {
+			return m, true
+		}
+	}
+	return world.Monster{}, false
+}
+
+func (c *runPipeline) storeBossTarget(target world.Monster) {
+	c.targetSeen = true
+	c.targetUnitID = target.UnitID
+	c.targetAbsentTicks = 0
+}
+
+func (c *runPipeline) tickBossSearchFallback(ctx context.Context, deps Deps, w world.State) stepResult {
+	if !c.chestFallbackStarted {
+		target, ok := c.bossSearchAnchor(w)
+		if !ok {
+			return stepResult{}
+		}
+		if deps.Pathing == nil {
+			return stepResult{failed: true, reason: "pathing_not_wired"}
+		}
+		goal := pathing.Goal{Kind: pathing.GoalKindMoveToPosition, TargetPos: target}
+		if err := deps.Pathing.Start(goal); err != nil {
+			return stepResult{failed: true, reason: pathingStartFailureReason(err)}
+		}
+		c.chestFallbackStarted = true
+	}
+	if deps.Pathing == nil {
+		return stepResult{failed: true, reason: "pathing_not_wired"}
+	}
+	if !deps.Pathing.Active() {
+		return stepResult{}
+	}
+	res := deps.Pathing.Tick(ctx, w)
+	if !res.Done {
+		return stepResult{}
+	}
+	if res.Status == pathing.NavArrived {
+		return stepResult{}
+	}
+	return stepResult{failed: true, reason: navigatorFailureReason(res)}
+}
+
+func (c *runPipeline) bossSearchAnchor(w world.State) (world.Position, bool) {
+	boss := c.effectiveDefinition().Boss
+	if boss.SearchAnchorObject != world.ObjectKindUnknown {
+		if chest, ok := w.NearestObject(boss.SearchAnchorObject); ok {
+			return chest.Position, true
+		}
+	}
+	if boss.SearchAnchorEntrance != world.EntranceKindUnknown {
+		if down, ok := w.NearestEntrance(boss.SearchAnchorEntrance); ok {
+			return down.Position, true
+		}
+	}
+	return world.Position{}, false
+}
+
+func (c *runPipeline) tickEngageTarget(deps Deps, w world.State, target world.Monster, now time.Time) stepResult {
+	if deps.Combat == nil {
+		return stepResult{failed: true, reason: "combat_not_wired"}
+	}
+	distance := world.Distance(w.Player.Position, target.Position)
+	var err error
+	if distance > c.combat.RepositionDistanceTiles {
+		err = deps.Combat.TeleportToward(now, w.Player.Position, target.Position, c.combat.EngageDistanceTiles)
+	} else {
+		err = deps.Combat.CastAttackAtWorld(now, c.combat.AttackSkillID, w.Player, target.Position)
+	}
+	if err != nil {
+		return stepResult{failed: true, reason: "combat_action_failed"}
+	}
+	return stepResult{}
+}
+
+func (c *runPipeline) onTravelTick(ctx context.Context, deps Deps, step string, w world.State, now time.Time, stepStartedAt time.Time) stepResult {
+	switch step {
+	case pipelineStepPrecheck:
+		if !w.Valid {
+			return stepResult{failed: true, reason: "invalid_world"}
+		}
+		if w.Phase != world.GamePhaseInGame {
+			return stepResult{failed: true, reason: "not_in_game"}
+		}
+		if c.phase == RunPhasePlayRoute {
+			if next, ok := c.runRouteResumeStep(w.Area.ID); ok {
+				c.resumeAfterPrecheckSet = true
+				c.resumeAfterPrecheck = next
+				return stepResult{complete: true}
+			}
+		}
+		if w.Area.ID != world.RogueEncampment {
+			return stepResult{failed: true, reason: "not_act1_town"}
+		}
+		c.resumeAfterPrecheckSet = false
+		c.resumeAfterPrecheck = ""
+		return stepResult{complete: true}
+	case pipelineStepAcquireTownWaypoint:
+		if deps.Profile != nil {
+			res := deps.Profile.TickHook(ctx, profile.HookTownReady, w, profile.EncounterTarget{}, now)
+			switch res.Status {
+			case profile.StatusFailed:
+				return stepResult{failed: true, reason: res.Reason}
+			case profile.StatusAction, profile.StatusPending:
+				return stepResult{}
+			}
+		}
+		if deps.TownWalk == nil {
+			return stepResult{failed: true, reason: "town_walk_not_wired"}
+		}
+		res := deps.TownWalk.TickAct1Waypoint(ctx, w)
+		switch res.Status {
+		case pathing.TownWalkPending:
+			return stepResult{}
+		case pathing.TownWalkWaypointVisible, pathing.TownWalkArrived:
+			return stepResult{complete: true}
+		default:
+			return stepResult{failed: true, reason: townWalkFailureReason(res)}
+		}
+	case pipelineStepOpenWaypoint:
+		if deps.Waypoint == nil {
+			return stepResult{failed: true, reason: "waypoint_actions_not_wired"}
+		}
+		res := deps.Waypoint.TickTownWaypoint(ctx, w)
+		switch res.Status {
+		case pathing.WaypointActionPending:
+			return stepResult{}
+		case pathing.WaypointActionClicked:
+			return stepResult{complete: true}
+		default:
+			return stepResult{failed: true, reason: waypointFailureReason(res)}
+		}
+	case pipelineStepSelectRunWaypoint:
+		if deps.Waypoint == nil {
+			return stepResult{failed: true, reason: "waypoint_actions_not_wired"}
+		}
+		if now.Sub(stepStartedAt) < waypointSelectSettleDelay {
+			return stepResult{}
+		}
+		return c.selectRunWaypoint(ctx, deps, w, now)
+	case pipelineStepWaitEntryArea:
+		if w.Valid && w.Area.ID == c.effectiveDefinition().EntryArea {
+			return stepResult{complete: true}
+		}
+		// Waypoint travel can expose a short-lived `in_game` snapshot with
+		// Area 0 while the destination room is loading. It contains no usable
+		// position and must not be classified as a confirmed wrong area.
+		if !w.Valid || w.Phase != world.GamePhaseInGame || w.Area.ID == world.None {
+			return stepResult{}
+		}
+		if w.Valid && w.Phase == world.GamePhaseInGame && w.Area.ID != world.RogueEncampment {
+			return stepResult{failed: true, reason: string(RunReasonUnexpectedArea)}
+		}
+		return stepResult{}
+	case pipelineStepPlayRoute:
+		if deps.Route == nil {
+			return stepResult{failed: true, reason: "route_playback_not_wired"}
+		}
+		if c.routeID == "" {
+			return stepResult{failed: true, reason: "route_id_missing"}
+		}
+		if !c.routeStarted {
+			if err := deps.Route.Start(c.routeID, w); err != nil {
+				if errors.Is(err, pathing.ErrGameIdentityUnavailable) {
+					return stepResult{}
+				}
+				return stepResult{failed: true, reason: "route_playback_start_failed"}
+			}
+			c.routeStarted = true
+		}
+		done, err := deps.Route.Tick(ctx, w)
+		if err != nil {
+			return stepResult{failed: true, reason: routePlaybackFailureReason(err)}
+		}
+		if done {
+			return stepResult{complete: true}
+		}
+		return stepResult{}
+	default:
+		return stepResult{failed: true, reason: "unknown_step"}
+	}
+}
+
+func routePlaybackFailureReason(err error) string {
+	switch {
+	case errors.Is(err, pathing.ErrRouteHardStuck):
+		return "hard_stuck"
+	case errors.Is(err, pathing.ErrRouteDriftExceeded):
+		return "route_drift_exceeded"
+	case errors.Is(err, pathing.ErrRouteTransitionFailed):
+		return "route_transition_failed"
+	case errors.Is(err, pathing.ErrRouteSegmentTimeout):
+		return "route_segment_timeout"
+	case errors.Is(err, pathing.ErrRouteUnexpectedArea):
+		return "unexpected_area"
+	default:
+		return "route_playback_failed"
+	}
+}
+
+func (c *runPipeline) runRouteResumeStep(area world.AreaID) (string, bool) {
+	definition := c.effectiveDefinition()
+	switch area {
+	case definition.EntryArea:
+		return pipelineStepPlayRoute, true
+	case definition.RouteTerminalArea:
+		return "", true
+	default:
+		return "", false
+	}
+}
+
+func (c *runPipeline) isTravelPhase() bool {
+	return c.phase == RunPhaseTravelEntry || c.phase == RunPhasePlayRoute
+}
+
+func (c *runPipeline) selectRunWaypoint(ctx context.Context, deps Deps, state world.State, now time.Time) stepResult {
+	res := deps.Waypoint.SelectWaypointTarget(ctx, state, c.effectiveDefinition().WaypointTarget, now)
+	switch res.Status {
+	case pathing.WaypointActionPending:
+		return stepResult{}
+	case pathing.WaypointActionClicked:
+		return stepResult{complete: true}
+	default:
+		return stepResult{failed: true, reason: waypointFailureReason(res)}
+	}
+}
+
+func pathingStartFailureReason(err error) string {
+	if errors.Is(err, pathing.ErrNavigatorNotWired) {
+		return "pathing_not_wired"
+	}
+	if strings.Contains(err.Error(), pathing.ReasonInvalidGoal) {
+		return pathing.ReasonInvalidGoal
+	}
+	return "pathing_start_failed"
+}
+
+func navigatorFailureReason(res pathing.NavTickResult) string {
+	if res.Reason != "" {
+		return res.Reason
+	}
+	return string(res.Status)
+}
+
+func waypointFailureReason(res pathing.WaypointActionResult) string {
+	if res.Reason != "" {
+		return res.Reason
+	}
+	return string(res.Status)
+}
+
+func townWalkFailureReason(res pathing.TownWalkResult) string {
+	if res.Reason != "" {
+		return res.Reason
+	}
+	return string(res.Status)
+}
+
+type stepResult struct {
+	complete bool
+	failed   bool
+	reason   string
+}

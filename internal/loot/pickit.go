@@ -152,6 +152,8 @@ func (e compareExpr) eval(item world.Item) bool {
 		return compareString(strings.ToLower(item.Type), e.op, e.lit.text)
 	case fieldQuality:
 		return compareString(strings.ToLower(item.Quality.String()), e.op, e.lit.text)
+	case fieldTier:
+		return compareString(strings.ToLower(item.BaseTier.String()), e.op, e.lit.text)
 	case fieldFlag:
 		var has bool
 		switch e.lit.text {
@@ -215,6 +217,7 @@ const (
 	fieldName pickitFieldKind = iota
 	fieldType
 	fieldQuality
+	fieldTier
 	fieldFlag
 	fieldStat
 )
@@ -345,6 +348,8 @@ func parsePickitField(raw string) (pickitField, error) {
 		return pickitField{kind: fieldType, label: label}, nil
 	case "quality":
 		return pickitField{kind: fieldQuality, label: label}, nil
+	case "tier":
+		return pickitField{kind: fieldTier, label: label}, nil
 	case "flag":
 		return pickitField{kind: fieldFlag, label: label}, nil
 	default:
@@ -361,14 +366,18 @@ func parsePickitField(raw string) (pickitField, error) {
 
 func parsePickitLiteral(field pickitField, op tokenKind, tok pickitToken) (pickitLiteral, error) {
 	switch field.kind {
-	case fieldName, fieldType, fieldQuality:
+	case fieldName, fieldType, fieldQuality, fieldTier:
 		if op != tokenEqual && op != tokenNotEqual {
 			return pickitLiteral{}, fmt.Errorf("[%s] supports only == and !=", field.label)
 		}
 		if tok.kind == tokenInteger {
 			return pickitLiteral{}, fmt.Errorf("[%s] requires a string literal", field.label)
 		}
-		return pickitLiteral{kind: literalString, text: strings.ToLower(tok.value)}, nil
+		value := strings.ToLower(tok.value)
+		if field.kind == fieldTier && value != string(world.BaseTierUnknown) && value != string(world.BaseTierNormal) && value != string(world.BaseTierExceptional) && value != string(world.BaseTierElite) {
+			return pickitLiteral{}, fmt.Errorf("unsupported tier %q", tok.value)
+		}
+		return pickitLiteral{kind: literalString, text: value}, nil
 	case fieldFlag:
 		if op != tokenEqual && op != tokenNotEqual {
 			return pickitLiteral{}, fmt.Errorf("[flag] supports only == and !=")

@@ -32,11 +32,11 @@ func TestProfileTelemetryAdapterMapsCorrelatedJSONLFields(t *testing.T) {
 	}
 	path := recorder.Path()
 	adapter := &profileTelemetryAdapter{recorder: recorder}
-	if err := adapter.EmitProfile(profile.Event{Name: profile.EventHookAction, Profile: "necro_bone_spear", Hook: profile.HookBossEngage, SkillID: 88, Target: profile.TargetBoss, TargetUnitID: 273}); err != nil {
-		t.Fatal(err)
+	if emitErr := adapter.EmitProfile(profile.Event{Name: profile.EventHookAction, Profile: "necro_bone_spear", Hook: profile.HookBossEngage, SkillID: 88, Target: profile.TargetBoss, TargetUnitID: 273}); emitErr != nil {
+		t.Fatal(emitErr)
 	}
-	if err := recorder.Close(); err != nil {
-		t.Fatal(err)
+	if closeErr := recorder.Close(); closeErr != nil {
+		t.Fatal(closeErr)
 	}
 	file, err := os.Open(path)
 	if err != nil {
@@ -63,11 +63,11 @@ func TestProfileTelemetryAdapterOmitsSkillForPotionEvents(t *testing.T) {
 	}
 	path := recorder.Path()
 	adapter := &profileTelemetryAdapter{recorder: recorder}
-	if err := adapter.EmitProfile(profile.Event{Name: profile.EventPotionRequested, Profile: "necro_bone_spear", Resource: profile.ResourceMana, ThresholdPercent: 35, BeltSlot: 2, PotionUnitID: 217}); err != nil {
-		t.Fatal(err)
+	if emitErr := adapter.EmitProfile(profile.Event{Name: profile.EventPotionRequested, Profile: "necro_bone_spear", Resource: profile.ResourceMana, ThresholdPercent: 35, BeltSlot: 2, PotionUnitID: 217}); emitErr != nil {
+		t.Fatal(emitErr)
 	}
-	if err := recorder.Close(); err != nil {
-		t.Fatal(err)
+	if closeErr := recorder.Close(); closeErr != nil {
+		t.Fatal(closeErr)
 	}
 	data, err := os.ReadFile(path)
 	if err != nil {

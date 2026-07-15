@@ -639,12 +639,13 @@
     <div class="phase">
       <strong>Phase 10</strong>
       <div>
-        <h3>Erweiterbare Run-Definitionen und Mephisto <span class="warn">— als Nächstes</span></h3>
+        <h3>Erweiterbare Run-Definitionen und Mephisto <span class="good">— abgeschlossen</span></h3>
         <p><strong>Ziel:</strong> Mit Act-3-Mephisto als zweitem echten Farmziel beweisen, dass Session, Profile, Route, Loot, Stash und Recovery nicht Countess-spezifisch sind.</p>
         <p><strong>Festgelegter Scope:</strong> Eine typisierte, GUI-neutrale Run Registry ersetzt Countess-spezifische Config-, Preflight- und State-Machine-Kopplung. Pro Session wird genau ein Run ausgewählt. Der erste Mephisto-Run gilt für MrBones auf Nightmare, verlangt eine passende aufgezeichnete Durance-Route, castet zweimal Bone Prison vor Bone Spear und kehrt über Kurast-Docks sowie den Act-3-Egress in den Act-1-Hub zurück. Automatische Kartenerkundung und Söldnerlogik bleiben ausgeschlossen.</p>
         <p><strong>Loot-Test:</strong> Makellose und perfekte Gems bleiben Stash-Loot. Exceptional-/Elite-Set- und Unique-Items werden aufgenommen, bei Cain identifiziert und anschließend bei Akara verkauft. Verbleibender Bodenloot darf bei vollem Inventar aufgegeben werden.</p>
         <p><strong>GUI-Vorbereitung:</strong> Phase 10 liefert eine read-only CLI-/JSON-Abfrage für Run-Metadaten und Routenverfügbarkeit. Die lokale Core-API, GUI-Anbindung und frei zusammenstellbare Farm-Reihenfolgen wie Mephisto → Countess → Baal fehlen weiterhin und werden erst ab Phase 11 umgesetzt.</p>
-        <p><strong>Abnahme:</strong> Countess und Mephisto sind über denselben Lifecycle auswählbar und bestehen jeweils einen vollständigen autonomen E2E-Zyklus ohne duplizierte Session- oder Input-Logik.</p>
+        <p><strong>Umgesetzt:</strong> Countess und Mephisto sind typisierte Definitionen derselben Registry und verwenden denselben Session-, Waypoint-, Route-, Encounter-, Loot-, Portal-, Town- und Exit-Lifecycle. Run-Availability ist read-only über CLI/JSON verfügbar. Mephisto bindet die aufgezeichnete Durance-Route und den Act-3-Egress, zwei indexierte Bone Prisons, run-spezifische Pickup-/Sell-Policies sowie Memory-bestätigten RMB-Bone-Spear-Combat. Die lokale Core-API, GUI-Anbindung und Farm-Reihenfolgen bleiben ausdrücklich Phase 11.</p>
+        <p><strong>Abnahme:</strong> Alle vier manuellen Gates sind erfüllt. Countess und Mephisto bestanden jeweils einen vollständigen autonomen E2E-Zyklus. Die nachgelagerte Combat-Optimierung wurde zusätzlich live bestätigt: F8 selektiert Bone Spear auf der rechten Skillseite, Memory bestätigt <code>RightSkillID=84</code> vor dem ersten RMB-Cast, und Mephisto wird ohne LMB-Laufsemantik bekämpft.</p>
         <p>Detailplan: <a href="phase-10-implementation-plan.html">Phase-10-Umsetzungsplan</a>.</p>
       </div>
     </div>

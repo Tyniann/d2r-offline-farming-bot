@@ -1,0 +1,9 @@
+// Mephisto pickup policy: protected gems plus service candidates.
+[name] == gzv || [name] == gpv
+[name] == gly || [name] == gpy
+[name] == glb || [name] == gpb
+[name] == glg || [name] == gpg
+[name] == glr || [name] == gpr
+[name] == glw || [name] == gpw
+[name] == skl || [name] == skz
+([quality] == set || [quality] == unique) && ([tier] == exceptional || [tier] == elite)

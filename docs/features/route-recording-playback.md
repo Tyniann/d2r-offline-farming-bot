@@ -37,6 +37,8 @@ configs/routes/
 
 `farming/<character>/<difficulty>/` enthält ausschließlich layoutgebundene Route-Contract-Dateien. `routes.directory` zeigt auf genau einen aktiven Unterordner. Bei einem Character-/Difficulty-Wechsel darf nur der betroffene Farming-Unterordner archiviert oder gelöscht und neu aufgenommen werden; `town/` bleibt unangetastet. Registry und Recorder arbeiten ausschließlich innerhalb des konfigurierten aktiven Farming-Verzeichnisses.
 
+Ab Phase 10.8 verwendet der minimale Act-3-Egress denselben vollständigen Route-Contract in einem getrennten Verzeichnis. Er besteht aus genau einem terminalen Walk-Segment innerhalb Kurast-Docks. Der produktive Adapter verlangt die konfigurierte Route-ID sowie alle normalen Binding-, Layout- und Startnähe-Gates. Die Wiedergabe delegiert bewusst nicht an den Teleport-Navigator, sondern an den area-gebundenen Force-Move-Walker; ein als `teleport` deklariertes Egress-Asset wird vor Input abgewiesen.
+
 ### Aufnahme
 
 Der Recorder beobachtet den World-State, während der Spieler die Route manuell durchläuft. Er zeichnet keine unkontrollierte Folge roher Mauspositionen auf, sondern versionierte Segmente mit World-Koordinaten, Area, Bewegungsart und erwarteten Übergängen. Loading-Snapshots und inkonsistente Reads werden nicht als Routenpunkte übernommen.
@@ -55,7 +57,7 @@ Abweichungen führen nur innerhalb enger Grenzen zu einer lokalen Korrektur durc
 
 ### Integration in den Countess-Run
 
-Nach isolierter Live-Validierung ersetzt Playback die Explorer-Schritte `find_tower` und `enter_cellar_1` bis `enter_cellar_5` im regulären Countess-Run. Fehlt eine passende Aufnahme, startet der Bot nicht stillschweigend eine globale Erkundung. Der Operator muss Explorer-Fallback ausdrücklich als Test- oder Diagnosemodus wählen.
+Nach isolierter Live-Validierung ersetzte Playback die früheren Explorer-Schritte im regulären Countess-Run. Die gemeinsame Run-Pipeline enthält keinen Explorer-Fallback mehr; fehlt eine passende Aufnahme, endet sie fail-closed.
 
 ### Wiederverwendung und spätere GUI
 
@@ -223,6 +225,10 @@ go run ./cmd/d2rbot --route validate:<route-id>
 go run ./cmd/d2rbot --route record:<route-id> --route-name "Anzeigename" --route-difficulty hell
 go run ./cmd/d2rbot --route play-segment:<route-id>/<segment-id>
 go run ./cmd/d2rbot --route play:<route-id>
+go run ./cmd/d2rbot --route inspect-egress:act3
+go run ./cmd/d2rbot --route record-egress:act3 --route-name "Kurast-Docks Portal bis Waypoint" --route-difficulty nightmare
+go run ./cmd/d2rbot --route validate-egress:act3
+go run ./cmd/d2rbot --route play-egress:act3
 ```
 
 - `list`, `inspect` und `validate` erzeugen keinen Gameplay-Input.
@@ -233,6 +239,7 @@ go run ./cmd/d2rbot --route play:<route-id>
 - `--route-difficulty normal|nightmare|hell` ist nur mit `record` gültig und wird niemals anstelle des Layout-Fingerprints vertraut.
 - Unbekannte Commands, leere IDs und gleichzeitige `--route`-/`--run`-/Testmodi werden vor Runtime-Start abgelehnt.
 - Das aktive Farming-Routenverzeichnis wird über `routes.directory` festgelegt. Es zeigt auf genau einen Character-/Difficulty-Kontext, beispielsweise `configs/routes/farming/mrbones/nightmare` relativ zur Config-Datei.
+- Die vier `*-egress:act3`-Kommandos verwenden ausschließlich `town.egress.act3.routes_directory` und `route_id`. Inspect beobachtet Kurast read-only, Record akzeptiert nur einen gleichbleibenden Kurast-Walk, Validate verlangt genau ein terminales Walk-Segment und Play kombiniert den Lauf mit dem registrierten Transfer nach Rogue Encampment.
 
 ## Implementierungsstand Phase 6.2
 
@@ -358,16 +365,16 @@ Phase 6.6 ist damit abgeschlossen.
 
 Der Countess-Adapter verwendet die generische Route-Infrastruktur ohne eigene Routenlogik:
 
-- `runs.countess.route_id` referenziert ausschließlich eine stabile Registry-ID, niemals einen Dateipfad;
-- der neue Task-Schritt `play_recorded_route` ersetzt im regulären Full Run und in `travel-cellar5` die sechs best-effort Explorer-Schritte;
+- `runs.definitions.countess.route_id` referenziert ausschließlich eine stabile Registry-ID, niemals einen Dateipfad;
+- der neue Task-Schritt `play_bound_route` ersetzt im regulären Full Run und in `play-route` die sechs best-effort Explorer-Schritte;
 - App-seitig lädt der Adapter Registry und Route, bildet den aktuellen Layout-Fingerprint und führt den vollständigen Route-Precheck aus;
 - anschließend delegiert er an denselben generischen `RoutePlayer` aus Phase 6.6;
 - Route-, Segment-, Transition-, Abschluss- und Fehlerereignisse werden in die bestehende Countess-Run-Telemetrie geschrieben;
 - fehlende ID, unbekannte/ungültige Route, Identity-/Layout-Mismatch oder Playback-Fehler beenden den Task fail-closed;
 - kein stiller Explorer-Fallback im regulären Erfolgspfad;
-- `travel-cellar5` darf nach Prozessstart nur in Act-1-Town, am verifizierten Black-Marsh-Start oder bereits auf Cellar 5 beginnen. Mittlere Route-Areas sind kein zulässiges Resume.
+- `play-route` darf nach Prozessstart nur in Act-1-Town, am verifizierten Black-Marsh-Start oder bereits auf Cellar 5 beginnen. Mittlere Route-Areas sind kein zulässiges Resume.
 
-Die Live-Abnahme des Countess-Adapters wurde am 11.07.2026 mit `travel-cellar5` durchgeführt. Die konfigurierte Nightmare-Route startete am verifizierten Black-Marsh-Wegpunkt, schloss alle sechs Segmente ab, erreichte Tower Cellar Level 5 und beendete den Task mit `outcome=success`. Der Player wird zusätzlich mit einer zweiten synthetischen Route getestet, damit die Infrastruktur nicht unbemerkt an Countess-Metadaten gekoppelt wird.
+Die Live-Abnahme des Countess-Adapters wurde am 11.07.2026 mit `play-route` durchgeführt. Die konfigurierte Nightmare-Route startete am verifizierten Black-Marsh-Wegpunkt, schloss alle sechs Segmente ab, erreichte Tower Cellar Level 5 und beendete den Task mit `outcome=success`. Der Player wird zusätzlich mit einer zweiten synthetischen Route getestet, damit die Infrastruktur nicht unbemerkt an Countess-Metadaten gekoppelt wird.
 
 Pause und Stop müssen in Aufnahme und Wiedergabe jederzeit wirksam sein.
 

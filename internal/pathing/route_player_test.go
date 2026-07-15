@@ -15,8 +15,8 @@ func TestRoutePlayerChainsOnlyConfirmedSegments(t *testing.T) {
 		t.Fatal(err)
 	}
 	state := segmentPlaybackState(world.BlackMarsh, 14858, 5068)
-	if done, err := player.Tick(context.Background(), state); err != nil || done {
-		t.Fatalf("start = %t, %v", done, err)
+	if done, tickErr := player.Tick(context.Background(), state); tickErr != nil || done {
+		t.Fatalf("start = %t, %v", done, tickErr)
 	}
 	state.Player.Position = world.Position{X: 14820, Y: 5065}
 	nav.active = false
@@ -25,8 +25,8 @@ func TestRoutePlayerChainsOnlyConfirmedSegments(t *testing.T) {
 	_, _ = player.Tick(context.Background(), state)
 	state.Area = world.LookupArea(world.ForgottenTower)
 	state.Player.Position = world.Position{X: 1000, Y: 1000}
-	if done, err := player.Tick(context.Background(), state); err != nil || done || player.SegmentIndex() != 1 {
-		t.Fatalf("boundary = %t, %v index=%d", done, err, player.SegmentIndex())
+	if done, tickErr := player.Tick(context.Background(), state); tickErr != nil || done || player.SegmentIndex() != 1 {
+		t.Fatalf("boundary = %t, %v index=%d", done, tickErr, player.SegmentIndex())
 	}
 	_, _ = player.Tick(context.Background(), state)
 	state.Entrances = []world.Entrance{{UnitID: 30, Kind: world.EntranceKindUnknown, Position: state.Player.Position}}

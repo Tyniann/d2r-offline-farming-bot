@@ -3,10 +3,18 @@ package tasks
 import (
 	"context"
 	"fmt"
+	"regexp"
+	"sort"
+	"strings"
 	"time"
 
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/pathing"
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/profile"
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/town"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/world"
 )
+
+var runIDPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{2,63}$`)
 
 // RunSelection identifies the configured run and optional phase.
 type RunSelection struct {
@@ -26,9 +34,173 @@ type runMachine interface {
 	onTick(ctx context.Context, deps Deps, step string, w world.State, now time.Time, stepStartedAt time.Time, ticksInStep int) stepResult
 }
 
+// RunRegistry stores immutable definitions by stable ID without World or input dependencies.
+type RunRegistry struct {
+	definitions map[RunID]RunDefinition
+	ids         []RunID
+}
+
+// ResolvedRun pairs one immutable definition with its selected operator config.
+type ResolvedRun struct {
+	Definition RunDefinition
+	Config     RunConfig
+}
+
+// NewRunRegistry validates and registers definitions, rejecting duplicate IDs.
+func NewRunRegistry(definitions ...RunDefinition) (*RunRegistry, error) {
+	registry := &RunRegistry{definitions: make(map[RunID]RunDefinition, len(definitions))}
+	for i, definition := range definitions {
+		if err := validateRunDefinition(definition); err != nil {
+			return nil, fmt.Errorf("definition[%d]: %s: %w", i, RunReasonDefinitionInvalid, err)
+		}
+		if _, exists := registry.definitions[definition.ID]; exists {
+			return nil, fmt.Errorf("definition[%d]: %s: duplicate id %q", i, RunReasonDefinitionInvalid, definition.ID)
+		}
+		registry.definitions[definition.ID] = cloneRunDefinition(definition)
+		registry.ids = append(registry.ids, definition.ID)
+	}
+	sort.Slice(registry.ids, func(i, j int) bool { return registry.ids[i] < registry.ids[j] })
+	return registry, nil
+}
+
+// DefaultRunRegistry returns the Phase-10 Countess and Mephisto product definitions.
+func DefaultRunRegistry() *RunRegistry {
+	registry, err := NewRunRegistry(defaultRunDefinitions()...)
+	if err != nil {
+		panic(fmt.Sprintf("invalid built-in run registry: %v", err))
+	}
+	return registry
+}
+
+// Definition returns a defensive copy of the registered definition for id.
+func (r *RunRegistry) Definition(id RunID) (RunDefinition, bool) {
+	if r == nil {
+		return RunDefinition{}, false
+	}
+	definition, ok := r.definitions[id]
+	return cloneRunDefinition(definition), ok
+}
+
+// Definitions returns all registered definitions ordered by stable ID.
+func (r *RunRegistry) Definitions() []RunDefinition {
+	if r == nil {
+		return nil
+	}
+	definitions := make([]RunDefinition, 0, len(r.ids))
+	for _, id := range r.ids {
+		definition, _ := r.Definition(id)
+		definitions = append(definitions, definition)
+	}
+	return definitions
+}
+
+// Resolve pairs a registered definition with the config selected for the same ID.
+func (r *RunRegistry) Resolve(id RunID, configs map[RunID]RunConfig) (ResolvedRun, error) {
+	definition, ok := r.Definition(id)
+	if !ok {
+		return ResolvedRun{}, fmt.Errorf("%s: %q", RunReasonUnknown, id)
+	}
+	config, ok := configs[id]
+	if !ok {
+		return ResolvedRun{}, fmt.Errorf("%s: %q", RunReasonConfigMissing, id)
+	}
+	return ResolvedRun{Definition: definition, Config: config}, nil
+}
+
 // KnownRuns returns registered run names in stable order.
 func KnownRuns() []string {
-	return []string{"countess"}
+	definitions := DefaultRunRegistry().Definitions()
+	runs := make([]string, len(definitions))
+	for i, definition := range definitions {
+		runs[i] = string(definition.ID)
+	}
+	return runs
+}
+
+func defaultRunDefinitions() []RunDefinition {
+	shared := []RunCapability{
+		RunCapabilityWaypointTravel,
+		RunCapabilityRecordedRoute,
+		RunCapabilityEncounterProfile,
+		RunCapabilityLoot,
+		RunCapabilityTownPortal,
+		RunCapabilityAct1TownServices,
+	}
+	return []RunDefinition{
+		{
+			ID: RunIDCountess, DisplayName: "Countess", EntryArea: world.BlackMarsh,
+			RouteTerminalArea: world.TowerCellarLevel5, WaypointTarget: pathing.WaypointTargetBlackMarsh,
+			Boss: BossDescriptor{
+				NPCID: world.DarkStalker, Name: "Countess", RequireSuperUnique: true, AllowAnySuperUniqueFallback: true,
+				SearchAnchorObject: world.ObjectKindGoodChest, SearchAnchorEntrance: world.EntranceKindTowerCellarDown,
+			},
+			BossEngageSequence: []EncounterAction{{Hook: profile.HookBossEngage}}, ReturnOrigin: town.OriginAct1,
+			RequiredCaps: append([]RunCapability(nil), shared...),
+		},
+		{
+			ID: RunIDMephisto, DisplayName: "Mephisto", EntryArea: world.DuranceOfHateLevel2,
+			RouteTerminalArea: world.DuranceOfHateLevel3, WaypointTarget: pathing.WaypointTargetDuranceOfHateLevel2,
+			Boss:               BossDescriptor{NPCID: 242, Name: "Mephisto"},
+			BossEngageSequence: []EncounterAction{{Hook: profile.HookBossEngage}, {Hook: profile.HookBossEngage}}, ReturnOrigin: town.OriginAct3,
+			RequiredCaps: append(append([]RunCapability(nil), shared...), RunCapabilityForeignTownEgress),
+		},
+	}
+}
+
+func validateRunDefinition(definition RunDefinition) error {
+	if !runIDPattern.MatchString(string(definition.ID)) {
+		return fmt.Errorf("id %q must match %s", definition.ID, runIDPattern)
+	}
+	if strings.TrimSpace(definition.DisplayName) == "" || definition.EntryArea == world.None || definition.RouteTerminalArea == world.None {
+		return fmt.Errorf("display name, entry area, and terminal area are required")
+	}
+	if definition.WaypointTarget == "" || definition.Boss.NPCID == 0 || strings.TrimSpace(definition.Boss.Name) == "" {
+		return fmt.Errorf("waypoint target and boss descriptor are required")
+	}
+	if len(definition.BossEngageSequence) == 0 {
+		return fmt.Errorf("boss engage sequence is required")
+	}
+	for i, action := range definition.BossEngageSequence {
+		if action.Hook != profile.HookBossEngage {
+			return fmt.Errorf("boss engage sequence[%d] must use %q", i, profile.HookBossEngage)
+		}
+	}
+	if definition.Boss.AllowAnySuperUniqueFallback && !definition.Boss.RequireSuperUnique {
+		return fmt.Errorf("boss super-unique fallback requires the super-unique identity gate")
+	}
+	if definition.ReturnOrigin == town.OriginActUnknown {
+		return fmt.Errorf("return origin is required")
+	}
+	required := map[RunCapability]bool{
+		RunCapabilityWaypointTravel: true, RunCapabilityRecordedRoute: true,
+		RunCapabilityEncounterProfile: true, RunCapabilityLoot: true,
+		RunCapabilityTownPortal: true, RunCapabilityAct1TownServices: true,
+	}
+	seen := make(map[RunCapability]bool, len(definition.RequiredCaps))
+	for _, capability := range definition.RequiredCaps {
+		if capability == "" || seen[capability] {
+			return fmt.Errorf("required capabilities contain an empty or duplicate value %q", capability)
+		}
+		seen[capability] = true
+	}
+	for capability := range required {
+		if !seen[capability] {
+			return fmt.Errorf("%s: %s", RunReasonCapabilityMissing, capability)
+		}
+	}
+	if definition.ReturnOrigin == town.OriginAct1 && seen[RunCapabilityForeignTownEgress] {
+		return fmt.Errorf("Act-1 return must not require foreign Town egress")
+	}
+	if definition.ReturnOrigin != town.OriginAct1 && !seen[RunCapabilityForeignTownEgress] {
+		return fmt.Errorf("%s: %s", RunReasonCapabilityMissing, RunCapabilityForeignTownEgress)
+	}
+	return nil
+}
+
+func cloneRunDefinition(definition RunDefinition) RunDefinition {
+	definition.BossEngageSequence = append([]EncounterAction(nil), definition.BossEngageSequence...)
+	definition.RequiredCaps = append([]RunCapability(nil), definition.RequiredCaps...)
+	return definition
 }
 
 // IsKnownRun reports whether name is a registered run.
@@ -42,17 +214,14 @@ func IsKnownRun(name string) bool {
 }
 
 func newRunMachine(sel RunSelection, cfg RunConfig) (runMachine, error) {
-	switch sel.Run {
-	case "countess":
-		switch sel.Phase {
-		case "":
-			return &countessRun{combat: cfg.CountessCombat, routeID: cfg.CountessRouteID}, nil
-		case CountessPhaseTravelMarsh, CountessPhaseTravelCellar5, CountessPhaseKillCountess, CountessPhaseLootCountess, CountessPhaseStashPersonal, CountessPhaseTownReady:
-			return &countessRun{phase: sel.Phase, combat: cfg.CountessCombat, routeID: cfg.CountessRouteID}, nil
-		default:
-			return nil, fmt.Errorf("unknown countess phase %q", sel.Phase)
-		}
+	definition, ok := DefaultRunRegistry().Definition(RunID(sel.Run))
+	if !ok {
+		return nil, fmt.Errorf("%s: %q", RunReasonUnknown, sel.Run)
+	}
+	switch sel.Phase {
+	case "", RunPhaseTravelEntry, RunPhasePlayRoute, RunPhaseBoss, RunPhaseLootAndReturn, RunPhaseStashPersonal, RunPhaseTownReady:
+		return &runPipeline{definition: definition, phase: sel.Phase, combat: cfg.Combat, routeID: cfg.RouteID}, nil
 	default:
-		return nil, fmt.Errorf("unknown run %q", sel.Run)
+		return nil, fmt.Errorf("unknown run phase %q", sel.Phase)
 	}
 }

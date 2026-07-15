@@ -116,21 +116,88 @@ func TestWaypointActionsResetClearsHoverState(t *testing.T) {
 	}
 }
 
-func TestWaypointActionsSelectBlackMarsh(t *testing.T) {
-	in := newMockInput()
-	cfg := DefaultConfig()
-	cfg.WaypointUI.BlackMarshX = 201
-	cfg.WaypointUI.BlackMarshY = 343
-	actions := NewWaypointActions(config.NewLogger("error"), in, cfg)
+func waypointMenuState() world.State {
+	return world.State{Valid: true, Phase: world.GamePhaseInGame, Area: world.LookupArea(world.RogueEncampment), UI: world.UIState{WaypointOpen: true}}
+}
 
-	res := actions.SelectBlackMarsh(context.Background())
-	if res.Status != WaypointActionClicked || !res.Done {
-		t.Fatalf("res = %+v, want clicked", res)
+func TestDefaultWaypointTargetRegistryCalibration(t *testing.T) {
+	registry := DefaultWaypointTargetRegistry()
+	want := map[WaypointTargetID]WaypointTargetAction{
+		WaypointTargetBlackMarsh:          {Act: 1, TabX: 159, TabY: 148, RowX: 200, RowY: 342, ExpectedAreaID: world.BlackMarsh},
+		WaypointTargetDuranceOfHateLevel2: {Act: 3, TabX: 273, TabY: 148, RowX: 200, RowY: 506, ExpectedAreaID: world.DuranceOfHateLevel2},
+		WaypointTargetRogueEncampment:     {Act: 1, TabX: 159, TabY: 148, RowX: 200, RowY: 178, ExpectedAreaID: world.RogueEncampment},
 	}
-	if len(in.moves) != 1 || in.moves[0] != [2]int{201, 343} {
-		t.Fatalf("moves = %v, want [201 343]", in.moves)
+	if len(registry.Actions()) != len(want) {
+		t.Fatalf("Actions = %d, want %d", len(registry.Actions()), len(want))
 	}
-	if len(in.clicks) != 1 || in.clicks[0] != input.MouseLeft {
-		t.Fatalf("clicks = %v, want [left]", in.clicks)
+	for id, expected := range want {
+		action, ok := registry.Action(id)
+		if !ok || action.Act != expected.Act || action.TabX != expected.TabX || action.TabY != expected.TabY || action.RowX != expected.RowX || action.RowY != expected.RowY || action.ExpectedAreaID != expected.ExpectedAreaID || action.ClientWidth != 1280 || action.ClientHeight != 720 || action.SettleMs != 200 {
+			t.Fatalf("Action(%s) = %+v, want calibrated %+v", id, action, expected)
+		}
+	}
+}
+
+func TestWaypointActionsSelectTargetTabSettleAndRow(t *testing.T) {
+	in := newMockInput()
+	actions := NewWaypointActions(config.NewLogger("error"), in, DefaultConfig())
+	now := time.Now()
+	state := waypointMenuState()
+
+	res := actions.SelectWaypointTarget(context.Background(), state, WaypointTargetDuranceOfHateLevel2, now)
+	if res.Status != WaypointActionPending || len(in.moves) != 1 || in.moves[0] != [2]int{273, 148} || len(in.clicks) != 1 {
+		t.Fatalf("tab tick = %+v moves=%v clicks=%v", res, in.moves, in.clicks)
+	}
+	res = actions.SelectWaypointTarget(context.Background(), state, WaypointTargetDuranceOfHateLevel2, now.Add(199*time.Millisecond))
+	if res.Status != WaypointActionPending || len(in.clicks) != 1 {
+		t.Fatalf("settle tick = %+v clicks=%v, want no input", res, in.clicks)
+	}
+	res = actions.SelectWaypointTarget(context.Background(), state, WaypointTargetDuranceOfHateLevel2, now.Add(200*time.Millisecond))
+	if res.Status != WaypointActionClicked || !res.Done || len(in.moves) != 2 || in.moves[1] != [2]int{200, 506} || len(in.clicks) != 2 {
+		t.Fatalf("row tick = %+v moves=%v clicks=%v", res, in.moves, in.clicks)
+	}
+	res = actions.SelectWaypointTarget(context.Background(), state, WaypointTargetDuranceOfHateLevel2, now.Add(time.Second))
+	if res.Status != WaypointActionClicked || len(in.clicks) != 2 {
+		t.Fatalf("completed tick = %+v clicks=%v, want no repeated click", res, in.clicks)
+	}
+}
+
+func TestWaypointActionsSelectTargetFailsClosed(t *testing.T) {
+	t.Run("menu unconfirmed", func(t *testing.T) {
+		in := newMockInput()
+		actions := NewWaypointActions(config.NewLogger("error"), in, DefaultConfig())
+		res := actions.SelectWaypointTarget(context.Background(), world.State{Valid: true, Phase: world.GamePhaseInGame}, WaypointTargetBlackMarsh, time.Now())
+		if res.Status != WaypointActionUIUnconfirmed || len(in.clicks) != 0 {
+			t.Fatalf("res=%+v clicks=%v", res, in.clicks)
+		}
+	})
+	t.Run("unsupported resolution", func(t *testing.T) {
+		in := newMockInput()
+		in.window.ClientWidth = 1920
+		actions := NewWaypointActions(config.NewLogger("error"), in, DefaultConfig())
+		res := actions.SelectWaypointTarget(context.Background(), waypointMenuState(), WaypointTargetBlackMarsh, time.Now())
+		if res.Status != WaypointActionUnsupportedResolution || len(in.clicks) != 0 {
+			t.Fatalf("res=%+v clicks=%v", res, in.clicks)
+		}
+	})
+	t.Run("unknown target", func(t *testing.T) {
+		in := newMockInput()
+		actions := NewWaypointActions(config.NewLogger("error"), in, DefaultConfig())
+		res := actions.SelectWaypointTarget(context.Background(), waypointMenuState(), WaypointTargetID("unknown"), time.Now())
+		if res.Status != WaypointActionTargetUnsupported || len(in.clicks) != 0 {
+			t.Fatalf("res=%+v clicks=%v", res, in.clicks)
+		}
+	})
+}
+
+func TestWaypointActionsSelectionResetRestartsAtActTab(t *testing.T) {
+	in := newMockInput()
+	actions := NewWaypointActions(config.NewLogger("error"), in, DefaultConfig())
+	now := time.Now()
+	_ = actions.SelectWaypointTarget(context.Background(), waypointMenuState(), WaypointTargetBlackMarsh, now)
+	actions.Reset()
+	res := actions.SelectWaypointTarget(context.Background(), waypointMenuState(), WaypointTargetBlackMarsh, now.Add(time.Second))
+	if res.Status != WaypointActionPending || len(in.moves) != 2 || in.moves[1] != [2]int{159, 148} || len(in.clicks) != 2 {
+		t.Fatalf("res=%+v moves=%v clicks=%v", res, in.moves, in.clicks)
 	}
 }

@@ -38,30 +38,6 @@ func (rt *Runtime) warnPathingResolution() {
 	)
 }
 
-// warnWaypointUIResolution logs a warning for fixed waypoint menu coordinates.
-func (rt *Runtime) warnWaypointUIResolution() {
-	ctrl, ok := rt.Input.(interface {
-		Window() (input.WindowInfo, bool)
-	})
-	if !ok {
-		return
-	}
-	win, ok := ctrl.Window()
-	if !ok {
-		return
-	}
-	if win.ClientWidth == recommendedClientWidth && win.ClientHeight == recommendedClientHeight {
-		return
-	}
-	rt.Log.Warn("Fenstergroesse weicht von der Empfehlung ab - fixe Waypoint-UI-Koordinaten ggf. ungenau",
-		"client_width", win.ClientWidth,
-		"client_height", win.ClientHeight,
-		"empfohlen", "1280x720 (windowed)",
-		"black_marsh_x", rt.Config.Pathing.WaypointUI.BlackMarshX,
-		"black_marsh_y", rt.Config.Pathing.WaypointUI.BlackMarshY,
-	)
-}
-
 // mapPathingConfig converts YAML pathing settings into the pathing package config.
 func mapPathingConfig(cfg config.PathingConfig) pathing.Config {
 	return pathing.Config{
@@ -91,10 +67,6 @@ func mapPathingConfig(cfg config.PathingConfig) pathing.Config {
 		TownPortal: pathing.TownPortalConfig{
 			AppearTimeout:    time.Duration(cfg.TownPortal.AppearTimeoutMs) * time.Millisecond,
 			MaxClickDistance: cfg.TownPortal.MaxClickDistance,
-		},
-		WaypointUI: pathing.WaypointUIConfig{
-			BlackMarshX: cfg.WaypointUI.BlackMarshX,
-			BlackMarshY: cfg.WaypointUI.BlackMarshY,
 		},
 		TownWalk: pathing.TownWalkConfig{
 			ForceMoveKey:    cfg.TownWalk.ForceMoveKey,

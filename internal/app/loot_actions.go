@@ -52,7 +52,7 @@ func (a *lootActionsAdapter) TickStash(state world.State, now time.Time) tasks.L
 	if a.telemetryErr != nil {
 		return tasks.LootStashResult{Status: tasks.LootStashTelemetryFailed, Done: true}
 	}
-	if a == nil || a.stash == nil {
+	if a.stash == nil {
 		return tasks.LootStashResult{Status: tasks.LootStashFailed, Done: true}
 	}
 	res := a.stash.Tick(state, now)
@@ -81,7 +81,7 @@ func (a *lootActionsAdapter) TickCloseStash(state world.State, now time.Time) ta
 	if a.telemetryErr != nil {
 		return tasks.LootStashResult{Status: tasks.LootStashTelemetryFailed, Done: true}
 	}
-	if a == nil || a.stash == nil {
+	if a.stash == nil {
 		return tasks.LootStashResult{Status: tasks.LootStashCloseFailed, Done: true}
 	}
 	return mapTaskLootStashResult(a.stash.TickClose(state, now))
@@ -119,7 +119,7 @@ func (a *lootActionsAdapter) Scan(state world.State) tasks.LootScanResult {
 	if found {
 		result.NextTarget = mapTaskLootTarget(target)
 	}
-	a.log.Info("countess loot scan",
+	a.log.Info("run loot scan",
 		"ground_item_count", result.GroundItemCount,
 		"candidate_count", result.CandidateCount,
 		"blocked_candidate_count", countBlockedPickupCandidates(report),
@@ -147,7 +147,7 @@ func (a *lootActionsAdapter) StartPickup(target tasks.LootTarget) error {
 	if a.telemetryErr != nil {
 		return fmt.Errorf("telemetry_failed: %w", a.telemetryErr)
 	}
-	if a == nil || a.filter == nil || a.clicker == nil {
+	if a.filter == nil || a.clicker == nil {
 		return fmt.Errorf("loot actions not wired")
 	}
 	if a.active != nil {
@@ -171,7 +171,7 @@ func (a *lootActionsAdapter) TickPickup(state world.State, now time.Time) tasks.
 	if a.telemetryErr != nil {
 		return tasks.LootPickupResult{Status: tasks.LootPickupTelemetryFailed, Done: true}
 	}
-	if a == nil || a.active == nil {
+	if a.active == nil {
 		return tasks.LootPickupResult{Status: tasks.LootPickupInvalidWorld, Done: true}
 	}
 	res := a.active.Tick(state, now)

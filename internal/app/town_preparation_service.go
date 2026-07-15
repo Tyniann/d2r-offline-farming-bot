@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/config"
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/input"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/pathing"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/town"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/world"
@@ -29,7 +30,12 @@ func (a *townPreparationAdapter) start(state world.State) string {
 		{Resource: town.RestockMana, Current: mana, Threshold: a.thresholds.Mana, Target: len(a.profile.Mana.BeltSlots) * 4},
 	}
 	needsPotions := healing < a.thresholds.Healing || mana < a.thresholds.Mana
-	if !a.services || !needsPotions {
+	itemOrders, itemReason := a.planItemServiceOrders(state)
+	if itemReason != "" {
+		return string(itemReason)
+	}
+	needsIdentify, needsSell := itemServiceDemand(itemOrders)
+	if !a.services || (!needsPotions && len(itemOrders) == 0) {
 		// No demand means no NPC detour. Initial run setup also enters here even
 		// with a low belt because its only responsibility is reaching Waypoint.
 		traversals, err := a.graph.RouteForLayout(a.layout, town.AnchorStash, nil, town.AnchorWaypoint)
@@ -38,27 +44,34 @@ func (a *townPreparationAdapter) start(state world.State) string {
 		}
 		a.traversals = traversals
 		a.started = true
-		a.log.Info("central town preparation started", "origin", "stash", "services", []string{}, "handoff", "countess", "edge_count", len(traversals), "scroll_demand", "unavailable_skip", "town_layout", a.layout)
+		a.log.Info("central town preparation started", "origin", "stash", "services", []string{}, "handoff", a.nextRunID, "edge_count", len(traversals), "scroll_demand", "unavailable_skip", "town_layout", a.layout)
 		return ""
 	}
 
-	maximumCost, reason := town.MaximumRestockCost(levels)
-	if reason != "" {
-		return string(reason)
-	}
-	// Vendors consume carried gold. Private/shared Stash gold is intentionally
-	// excluded because Phase 9 has no verified withdrawal transaction.
-	if !state.Player.GoldKnown || uint64(state.Player.Gold) < uint64(maximumCost) {
-		a.log.Warn("town restock gold gate failed", "gold_known", state.Player.GoldKnown, "carried_gold", state.Player.Gold, "required_maximum", maximumCost)
-		return string(town.ReasonGoldUnavailable)
-	}
-	beltComplete, slotsReason := completeBeltProfile(a.profile)
-	if slotsReason != "" {
-		return slotsReason
-	}
-	orders, reason := town.PlanRestock(town.RestockInput{Levels: levels, BeltLayoutComplete: beltComplete, GoldKnown: true, GoldSufficient: true})
-	if reason != "" {
-		return string(reason)
+	maximumCost := 0
+	beltComplete := true
+	restockOrders := []town.RestockOrder(nil)
+	if needsPotions {
+		var reason town.Reason
+		maximumCost, reason = town.MaximumRestockCost(levels)
+		if reason != "" {
+			return string(reason)
+		}
+		// Vendors consume carried gold. Private/shared Stash gold is intentionally
+		// excluded because Phase 9 has no verified withdrawal transaction.
+		if !state.Player.GoldKnown || uint64(state.Player.Gold) < uint64(maximumCost) {
+			a.log.Warn("town restock gold gate failed", "gold_known", state.Player.GoldKnown, "carried_gold", state.Player.Gold, "required_maximum", maximumCost)
+			return string(town.ReasonGoldUnavailable)
+		}
+		var slotsReason string
+		beltComplete, slotsReason = completeBeltProfile(a.profile)
+		if slotsReason != "" {
+			return slotsReason
+		}
+		restockOrders, reason = town.PlanRestock(town.RestockInput{Levels: levels, BeltLayoutComplete: beltComplete, GoldKnown: true, GoldSufficient: true})
+		if reason != "" {
+			return string(reason)
+		}
 	}
 	planner, err := town.NewPlanner(a.townCfg)
 	if err != nil {
@@ -67,20 +80,21 @@ func (a *townPreparationAdapter) start(state world.State) string {
 	snapshot := town.InspectDemand(town.SupplySnapshot{
 		Healing: healing, Mana: mana, BeltLayoutComplete: beltComplete,
 		TownPortalScrolls: a.thresholds.TownPortalScrolls, IdentifyScrolls: a.thresholds.IdentifyScrolls,
+		IdentifyRequired: needsIdentify, VendorCandidates: needsSell,
 	}, a.thresholds)
-	plan, reason := planner.Plan(town.Origin{Act: town.OriginAct1, Anchor: town.AnchorStash}, snapshot, town.NextRunTarget{ID: "countess", Act: town.OriginAct1})
+	plan, reason := planner.Plan(town.Origin{Act: town.OriginAct1, Anchor: town.AnchorStash}, snapshot, town.NextRunTarget{ID: a.nextRunID, Act: town.OriginAct1})
 	if reason != "" {
 		return string(reason)
 	}
-	start, required, end, reason := planner.GraphAnchors(plan)
+	start, required, end, reason := planner.GraphAnchorSequence(plan)
 	if reason != "" {
 		return string(reason)
 	}
-	traversals, err := a.graph.RouteForLayout(a.layout, start, required, end)
+	traversals, err := a.graph.RouteOrderedForLayout(a.layout, start, required, end)
 	if err != nil {
 		return err.Error()
 	}
-	handler := newTownPreparationStepHandler(a, traversals, orders)
+	handler := newTownPreparationStepHandler(a, traversals, restockOrders, itemOrders)
 	executor, err := town.NewExecutor(plan, town.Budgets{InputAttempts: townExecutorInputBudget, VerifyAttempts: townExecutorVerifyBudget, RetryAttempts: 0, TotalSteps: len(plan.Steps)}, handler, a.telemetry)
 	if err != nil {
 		return err.Error()
@@ -89,8 +103,34 @@ func (a *townPreparationAdapter) start(state world.State) string {
 	a.handler = handler
 	a.executor = executor
 	a.started = true
-	a.log.Info("central town preparation started", "origin", "stash", "services", []string{"potions"}, "handoff", "countess", "edge_count", len(traversals), "healing", healing, "mana", mana, "gold", state.Player.Gold, "required_maximum_gold", maximumCost, "town_layout", a.layout)
+	a.log.Info("central town preparation started", "origin", "stash", "potions", needsPotions, "identify", needsIdentify, "sell", needsSell, "item_orders", len(itemOrders), "handoff", a.nextRunID, "edge_count", len(traversals), "healing", healing, "mana", mana, "gold", state.Player.Gold, "required_maximum_gold", maximumCost, "town_layout", a.layout)
 	return ""
+}
+
+func (a *townPreparationAdapter) planItemServiceOrders(state world.State) ([]town.ItemServiceOrder, town.Reason) {
+	if a == nil || a.sellFilter == nil {
+		return nil, ""
+	}
+	candidates := make([]town.ItemServiceCandidate, 0)
+	for _, item := range state.InventoryItems() {
+		if !a.sellFilter.Evaluate(item).Matched {
+			continue
+		}
+		locked := a.lootFilter == nil || a.lootFilter.InventoryLocked(item)
+		candidates = append(candidates, town.ItemServiceCandidate{
+			UnitID: item.UnitID, Code: item.Code, IdentifyRequired: !item.Identified,
+			VendorCandidate: true, InventoryLocked: locked,
+		})
+	}
+	return town.PlanItemServices(candidates)
+}
+
+func itemServiceDemand(orders []town.ItemServiceOrder) (identify, sell bool) {
+	for _, order := range orders {
+		identify = identify || order.Kind == town.ItemServiceIdentify
+		sell = sell || order.Kind == town.ItemServiceSell
+	}
+	return identify, sell
 }
 
 func countPotionSupplies(state world.State) (healing, mana int) {
@@ -129,6 +169,10 @@ type townPreparationStepHandler struct {
 	walker        *pathing.TownWalker
 	orders        []town.RestockOrder
 	order         int
+	itemOrders    []town.ItemServiceOrder
+	itemOrder     int
+	itemExecutor  *town.ItemServiceExecutor
+	itemInput     *townItemServiceInput
 	stage         string
 	npc           *town.NPCInteractor
 	shop          *town.ShopOpener
@@ -141,14 +185,10 @@ type townPreparationStepHandler struct {
 	shopCloseSent bool
 }
 
-func newTownPreparationStepHandler(adapter *townPreparationAdapter, traversals []town.Traversal, orders []town.RestockOrder) *townPreparationStepHandler {
-	clickCfg := adapter.pathCfg.Click
-	clickCfg.AnchorOffsetTiles = 0
-	clicker := pathing.NewEntityClicker(adapter.log, adapter.controller, adapter.pathCfg.Projector(), clickCfg)
+func newTownPreparationStepHandler(adapter *townPreparationAdapter, traversals []town.Traversal, orders []town.RestockOrder, itemOrders []town.ItemServiceOrder) *townPreparationStepHandler {
 	return &townPreparationStepHandler{
-		adapter: adapter, traversals: append([]town.Traversal(nil), traversals...), orders: append([]town.RestockOrder(nil), orders...),
-		anchor: town.AnchorStash, stage: "walk", npc: town.NewNPCInteractor(townNPCClickerAdapter{clicker: clicker}, world.Akara, 15, 8*time.Second),
-		shop: town.NewShopOpener(adapter.controller, 8*time.Second),
+		adapter: adapter, traversals: append([]town.Traversal(nil), traversals...), orders: append([]town.RestockOrder(nil), orders...), itemOrders: orderedItemServiceOrders(itemOrders),
+		anchor: town.AnchorStash, stage: "walk", itemInput: &townItemServiceInput{controller: adapter.controller, cfg: adapter.stashConfig},
 	}
 }
 
@@ -158,10 +198,16 @@ func (h *townPreparationStepHandler) Tick(ctx context.Context, step town.PlanSte
 	}
 	switch step.Kind {
 	case town.StepService:
-		if step.Service != town.ServicePotions {
+		switch step.Service {
+		case town.ServicePotions:
+			return h.tickPotions(ctx, state)
+		case town.ServiceIdentify:
+			return h.tickItems(ctx, state, town.ServiceIdentify)
+		case town.ServiceSell:
+			return h.tickItems(ctx, state, town.ServiceSell)
+		default:
 			return town.InteractionResult{Status: town.InteractionFailed, Reason: "town_service_unsupported", Done: true}
 		}
-		return h.tickPotions(ctx, state)
 	case town.StepAct1Waypoint:
 		return h.tickWalk(ctx, state, town.AnchorWaypoint)
 	case town.StepHandoff:
@@ -185,6 +231,7 @@ func (h *townPreparationStepHandler) tickPotions(ctx context.Context, state worl
 		h.stage = "npc"
 		return town.InteractionResult{Status: town.InteractionPending}
 	case "npc":
+		h.ensureNPC(world.Akara)
 		result := h.npc.Tick(state)
 		if result.Status == town.InteractionComplete {
 			h.stage = "shop"
@@ -192,6 +239,11 @@ func (h *townPreparationStepHandler) tickPotions(ctx context.Context, state worl
 		}
 		return result
 	case "shop":
+		if state.UI.NPCShopOpen {
+			h.stage = "orders"
+			return town.InteractionResult{Status: town.InteractionPending}
+		}
+		h.ensureShop()
 		result := h.shop.Tick(state)
 		if result.Status == town.InteractionComplete {
 			h.stage = "orders"
@@ -201,15 +253,13 @@ func (h *townPreparationStepHandler) tickPotions(ctx context.Context, state worl
 	case "orders":
 		return h.tickOrders(state)
 	case "close":
-		if !h.shopCloseSent {
-			if err := h.adapter.controller.PressKey("esc"); err != nil {
-				return town.InteractionResult{Status: town.InteractionFailed, Reason: fmt.Sprintf("town_shop_close_failed: %v", err), Done: true}
-			}
-			h.shopCloseSent = true
-			return town.InteractionResult{Status: town.InteractionAction, Action: "shop_close", Vendor: town.AnchorAkara}
+		if hasItemOrders(h.itemOrders, town.ItemServiceSell) {
+			// The ordered sell step remains at Akara and may reuse this shop.
+			h.stage = "done"
+			return town.InteractionResult{Status: town.InteractionComplete, Done: true}
 		}
-		if state.UI.NPCShopOpen || state.UI.NPCInteractOpen {
-			return town.InteractionResult{Status: town.InteractionPending}
+		if result := h.tickCloseUI(state, town.AnchorAkara); result.Status != town.InteractionComplete {
+			return result
 		}
 		h.stage = "done"
 		healing, mana := countPotionSupplies(state)
@@ -219,6 +269,190 @@ func (h *townPreparationStepHandler) tickPotions(ctx context.Context, state worl
 	default:
 		return town.InteractionResult{Status: town.InteractionFailed, Reason: "town_service_state_invalid", Done: true}
 	}
+}
+
+func (h *townPreparationStepHandler) tickItems(ctx context.Context, state world.State, service town.Service) town.InteractionResult {
+	anchor, npcID, kind := town.AnchorAkara, world.Akara, town.ItemServiceSell
+	if service == town.ServiceIdentify {
+		anchor, npcID, kind = town.AnchorCain, world.DeckardCain, town.ItemServiceIdentify
+	}
+	switch h.stage {
+	case "walk":
+		result := h.tickWalk(ctx, state, anchor)
+		if result.Status != town.InteractionComplete {
+			return result
+		}
+		if service == town.ServiceSell && state.UI.NPCShopOpen {
+			h.stage = "items"
+		} else {
+			h.stage = "npc"
+		}
+		return town.InteractionResult{Status: town.InteractionPending}
+	case "npc":
+		h.ensureNPC(npcID)
+		result := h.npc.Tick(state)
+		if result.Status == town.InteractionComplete {
+			if service == town.ServiceSell {
+				h.stage = "shop"
+			} else {
+				h.stage = "items"
+			}
+			return town.InteractionResult{Status: town.InteractionPending}
+		}
+		return result
+	case "shop":
+		if state.UI.NPCShopOpen {
+			h.stage = "items"
+			return town.InteractionResult{Status: town.InteractionPending}
+		}
+		h.ensureShop()
+		result := h.shop.Tick(state)
+		if result.Status == town.InteractionComplete {
+			h.stage = "items"
+			return town.InteractionResult{Status: town.InteractionPending}
+		}
+		return result
+	case "items":
+		return h.tickItemOrders(state, kind, anchor)
+	case "close":
+		result := h.tickCloseUI(state, anchor)
+		if result.Status == town.InteractionComplete {
+			h.stage = "done"
+			result.Done = true
+		}
+		return result
+	case "done":
+		return town.InteractionResult{Status: town.InteractionComplete, Done: true}
+	default:
+		return town.InteractionResult{Status: town.InteractionFailed, Reason: "town_item_service_state_invalid", Done: true}
+	}
+}
+
+func (h *townPreparationStepHandler) tickItemOrders(state world.State, kind town.ItemServiceKind, anchor town.Anchor) town.InteractionResult {
+	if h.itemOrder >= len(h.itemOrders) || h.itemOrders[h.itemOrder].Kind != kind {
+		// Orders are grouped Identify then Sell. Reaching the next service kind
+		// completes only the current step; the shared cursor must remain pinned
+		// so the following Akara step can execute the same item's sell order.
+		h.stage = "close"
+		return town.InteractionResult{Status: town.InteractionPending}
+	}
+	order := h.itemOrders[h.itemOrder]
+	if h.itemExecutor == nil {
+		executor, err := town.NewItemServiceExecutor(h.itemInput, order, townRestockVerifyTicks)
+		if err != nil {
+			return town.InteractionResult{Status: town.InteractionFailed, Reason: err.Error(), Done: true}
+		}
+		h.itemExecutor = executor
+	}
+	h.itemInput.bind(state)
+	result := h.itemExecutor.Tick(state)
+	result.Vendor = anchor
+	if result.Status == town.InteractionComplete {
+		h.itemOrder++
+		h.itemExecutor = nil
+		return town.InteractionResult{Status: town.InteractionPending, UnitID: order.UnitID, Vendor: anchor}
+	}
+	return result
+}
+
+func (h *townPreparationStepHandler) tickCloseUI(state world.State, anchor town.Anchor) town.InteractionResult {
+	if !state.UI.NPCShopOpen && !state.UI.NPCInteractOpen {
+		return town.InteractionResult{Status: town.InteractionComplete, Vendor: anchor, Done: true}
+	}
+	if !h.shopCloseSent {
+		if err := h.adapter.controller.PressKey("esc"); err != nil {
+			return town.InteractionResult{Status: town.InteractionFailed, Reason: fmt.Sprintf("town_ui_close_failed: %v", err), Done: true}
+		}
+		h.shopCloseSent = true
+		return town.InteractionResult{Status: town.InteractionAction, Action: "shop_close", Vendor: anchor}
+	}
+	return town.InteractionResult{Status: town.InteractionPending, Vendor: anchor}
+}
+
+func (h *townPreparationStepHandler) ensureNPC(id uint32) {
+	if h.npc != nil {
+		return
+	}
+	clickCfg := h.adapter.pathCfg.Click
+	clickCfg.AnchorOffsetTiles = 0
+	clicker := pathing.NewEntityClicker(h.adapter.log, h.adapter.controller, h.adapter.pathCfg.Projector(), clickCfg)
+	h.npc = town.NewNPCInteractor(townNPCClickerAdapter{clicker: clicker}, id, 15, 8*time.Second)
+}
+
+func (h *townPreparationStepHandler) ensureShop() {
+	if h.shop == nil {
+		h.shop = town.NewShopOpener(h.adapter.controller, 8*time.Second)
+	}
+}
+
+func hasItemOrders(orders []town.ItemServiceOrder, kind town.ItemServiceKind) bool {
+	for _, order := range orders {
+		if order.Kind == kind {
+			return true
+		}
+	}
+	return false
+}
+
+func orderedItemServiceOrders(orders []town.ItemServiceOrder) []town.ItemServiceOrder {
+	out := make([]town.ItemServiceOrder, 0, len(orders))
+	for _, kind := range []town.ItemServiceKind{town.ItemServiceIdentify, town.ItemServiceSell} {
+		for _, order := range orders {
+			if order.Kind == kind {
+				out = append(out, order)
+			}
+		}
+	}
+	return out
+}
+
+// townItemServiceInput converts an already classified and UnitID-pinned order
+// into the smallest supported Cain or Akara UI action.
+type townItemServiceInput struct {
+	controller townPreparationController
+	cfg        config.LootStashConfig
+	state      world.State
+}
+
+func (i *townItemServiceInput) bind(state world.State) { i.state = state }
+
+func (i *townItemServiceInput) Identify(unitID uint32) error {
+	item, ok := i.state.FindItemByUnitID(unitID)
+	if !ok || item.Location != world.ItemLocationInventory || item.Identified || !i.state.UI.NPCInteractOpen || i.state.UI.NPCShopOpen {
+		return fmt.Errorf("cain identification gate failed for UnitID %d", unitID)
+	}
+	if err := i.controller.PressKey("home"); err != nil {
+		return fmt.Errorf("select Cain identify option: %w", err)
+	}
+	// Cain's first dialog entry is Talk; Identify Items is the next entry.
+	// Home alone therefore must never be confirmed.
+	if err := i.controller.PressKey("down"); err != nil {
+		return fmt.Errorf("select Cain identify option: %w", err)
+	}
+	if err := i.controller.PressKey("enter"); err != nil {
+		return fmt.Errorf("confirm Cain identify option: %w", err)
+	}
+	return nil
+}
+
+func (i *townItemServiceInput) Sell(unitID uint32) error {
+	item, ok := i.state.FindItemByUnitID(unitID)
+	if !ok || item.Location != world.ItemLocationInventory || !item.Identified || !i.state.UI.NPCShopOpen {
+		return fmt.Errorf("akara sell gate failed for UnitID %d", unitID)
+	}
+	window, ok := i.controller.Window()
+	if !ok || window.ClientWidth != 1280 || window.ClientHeight != 720 {
+		return fmt.Errorf("akara sell requires 1280x720")
+	}
+	x := i.cfg.InventoryLeft + item.GridX*i.cfg.InventoryCellW + i.cfg.InventoryCellW/2
+	y := i.cfg.InventoryTop + item.GridY*i.cfg.InventoryCellH + i.cfg.InventoryCellH/2
+	if err := i.controller.MoveTo(x, y); err != nil {
+		return fmt.Errorf("move to sell candidate: %w", err)
+	}
+	if err := i.controller.ClickWithModifier("ctrl", input.MouseLeft); err != nil {
+		return fmt.Errorf("sell candidate: %w", err)
+	}
+	return nil
 }
 
 func (h *townPreparationStepHandler) tickOrders(state world.State) town.InteractionResult {
@@ -347,6 +581,7 @@ func (h *townPreparationStepHandler) ResetStep() {
 	}
 	// Keep traversal, anchor, and completed order index: those belong to the
 	// whole plan. Drop every pin or action state owned by the finished step.
+	h.npc, h.shop, h.itemExecutor = nil, nil, nil
 	h.verifier, h.buyer = nil, nil
 	h.buyerActed, h.buyerCode, h.buyerCost = false, "", 0
 	h.settleUntil, h.shopCloseSent = time.Time{}, false
@@ -362,7 +597,7 @@ func (h *townPreparationStepHandler) Reset() {
 	}
 	h.ResetStep()
 	// A session/run reset invalidates graph continuity and all completed orders.
-	h.traversal, h.order, h.anchor = 0, 0, town.AnchorStash
+	h.traversal, h.order, h.itemOrder, h.anchor = 0, 0, 0, town.AnchorStash
 	h.walker = nil
 }
 

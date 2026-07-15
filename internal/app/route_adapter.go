@@ -46,10 +46,10 @@ func (a *routePlaybackAdapter) Start(routeID string, state world.State) error {
 	}
 	fingerprint, err := pathing.BuildLayoutFingerprint(state)
 	if err != nil {
-		return fmt.Errorf("countess route layout: %w", err)
+		return fmt.Errorf("run route layout: %w", err)
 	}
-	if err := pathing.ValidateRoutePrecheck(route, pathing.RoutePrecheckInput{Identity: state.Identity, GameVersion: a.gameVersion, Layout: fingerprint, World: state}); err != nil {
-		return fmt.Errorf("countess route precheck: %w", err)
+	if validationErr := pathing.ValidateRoutePrecheck(route, pathing.RoutePrecheckInput{Identity: state.Identity, GameVersion: a.gameVersion, Layout: fingerprint, World: state}); validationErr != nil {
+		return fmt.Errorf("run route precheck: %w", validationErr)
 	}
 	player, err := pathing.NewRoutePlayer(a.navigator, route)
 	if err != nil {
@@ -62,13 +62,13 @@ func (a *routePlaybackAdapter) Start(routeID string, state world.State) error {
 		a.Reset()
 		return err
 	}
-	a.log.Info("Countess route playback started", "route_id", route.ID, "character", state.Identity.CharacterName, "layout_fingerprint", fingerprint.Hash)
+	a.log.Info("run route playback started", "route_id", route.ID, "character", state.Identity.CharacterName, "layout_fingerprint", fingerprint.Hash)
 	return nil
 }
 
 func (a *routePlaybackAdapter) Tick(ctx context.Context, state world.State) (bool, error) {
 	if a.player == nil {
-		return false, fmt.Errorf("Countess route playback not started")
+		return false, fmt.Errorf("run route playback not started")
 	}
 	if !a.lastTickAt.IsZero() && !state.At.IsZero() && state.At.Sub(a.lastTickAt) > 2*time.Second {
 		a.deadline = a.deadline.Add(state.At.Sub(a.lastTickAt))
@@ -97,7 +97,7 @@ func (a *routePlaybackAdapter) Tick(ctx context.Context, state world.State) (boo
 		}
 		a.transition = false
 		a.deadline = time.Now().Add(time.Duration(a.route.Playback.SegmentTimeoutMs) * time.Millisecond)
-		a.log.Info("Countess route segment completed", "route_id", a.route.ID, "segment_id", completed.ID, "area_id", state.Area.ID)
+		a.log.Info("run route segment completed", "route_id", a.route.ID, "segment_id", completed.ID, "area_id", state.Area.ID)
 	}
 	if done {
 		idx := len(a.route.Segments) - 1
@@ -107,7 +107,7 @@ func (a *routePlaybackAdapter) Tick(ctx context.Context, state world.State) (boo
 		if err := a.emit(telemetry.Event{Event: telemetry.RoutePlaybackCompleted, RouteID: a.route.ID, SegmentID: a.route.Segments[idx].ID, AreaID: uint32(state.Area.ID)}); err != nil {
 			return false, err
 		}
-		a.log.Info("Countess route playback completed", "route_id", a.route.ID, "area_id", state.Area.ID)
+		a.log.Info("run route playback completed", "route_id", a.route.ID, "area_id", state.Area.ID)
 		return true, nil
 	}
 	if a.player.Transitioning() && !a.transition {
@@ -156,7 +156,7 @@ func (a *routePlaybackAdapter) emit(event telemetry.Event) error {
 		return nil
 	}
 	if err := a.telemetry.Emit(event); err != nil {
-		return fmt.Errorf("Countess route telemetry: %w", err)
+		return fmt.Errorf("run route telemetry: %w", err)
 	}
 	return nil
 }

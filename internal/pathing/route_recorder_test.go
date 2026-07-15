@@ -21,8 +21,8 @@ func TestRouteRecorderSamplesAndCompletesTransitions(t *testing.T) {
 		t.Fatal(err)
 	}
 	start := recorderState(world.BlackMarsh, 100, 100)
-	if event, err := recorder.Observe(start); err != nil || !event.SampleAccepted {
-		t.Fatalf("start = %+v, %v", event, err)
+	if event, observeErr := recorder.Observe(start); observeErr != nil || !event.SampleAccepted {
+		t.Fatalf("start = %+v, %v", event, observeErr)
 	}
 	near := recorderState(world.BlackMarsh, 102, 100)
 	if event, _ := recorder.Observe(near); event.SampleAccepted {

@@ -28,8 +28,6 @@ func TestConfigValidateRejectsInvalidValues(t *testing.T) {
 		{"zero waypoint distance", func(c *Config) { c.Waypoint.MaxClickDistance = 0 }},
 		{"zero portal appear timeout", func(c *Config) { c.TownPortal.AppearTimeout = 0 }},
 		{"zero portal click distance", func(c *Config) { c.TownPortal.MaxClickDistance = 0 }},
-		{"negative waypoint ui x", func(c *Config) { c.WaypointUI.BlackMarshX = -1 }},
-		{"negative waypoint ui y", func(c *Config) { c.WaypointUI.BlackMarshY = -1 }},
 		{"missing force move key", func(c *Config) { c.TownWalk.ForceMoveKey = "" }},
 		{"zero town move interval", func(c *Config) { c.TownWalk.MoveInterval = 0 }},
 		{"zero town settle timeout", func(c *Config) { c.TownWalk.SettleTimeout = 0 }},

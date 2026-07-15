@@ -27,6 +27,9 @@ const SuperUniqueMonsterFlag uint8 = 10
 
 // LookupNPCName returns a display name for known Countess-route NPC IDs.
 func LookupNPCName(id uint32) string {
+	if name := generatedNPCNames[id]; name != "" {
+		return name
+	}
 	switch id {
 	case DarkStalker:
 		return "Dark Stalker"

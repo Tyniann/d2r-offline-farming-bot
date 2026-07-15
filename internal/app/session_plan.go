@@ -48,9 +48,10 @@ func ResolveSessionPlan(cfg *config.Config, opts Options) (SessionPlan, error) {
 		return SessionPlan{}, err
 	}
 	session := cfg.Session
+	runCfg, _ := cfg.Runs.Run(session.Run)
 	plan := SessionPlan{
 		Status: "disabled", Enabled: session.Enabled, Run: session.Run, Character: session.Character,
-		Difficulty: session.Difficulty, RouteID: cfg.Runs.Countess.RouteID, GameVersion: cfg.Memory.GameVersion,
+		Difficulty: session.Difficulty, RouteID: runCfg.RouteID, GameVersion: cfg.Memory.GameVersion,
 		MaxRuns: session.MaxRuns, MaxDurationMs: session.MaxDurationMs, CooldownMs: session.CooldownMs,
 		MaxConsecutiveFailures: session.MaxConsecutiveFailures, MaxTotalRestarts: session.MaxTotalRestarts,
 		StateTimeoutMs: session.StateTimeoutMs, ExitTimeoutMs: session.ExitTimeoutMs, StartTimeoutMs: session.StartTimeoutMs,
@@ -66,39 +67,30 @@ func ResolveSessionPlan(cfg *config.Config, opts Options) (SessionPlan, error) {
 	if cfg.Runs.Active != "" {
 		return SessionPlan{}, fmt.Errorf("session.enabled=true requires runs.active to be empty")
 	}
-	if !tasks.IsKnownRun(session.Run) {
-		return SessionPlan{}, fmt.Errorf("session.run is unknown: %q", session.Run)
-	}
-	if session.Run != "countess" {
-		return SessionPlan{}, fmt.Errorf("session.run %q has no Phase-7 full-run preflight", session.Run)
-	}
 	character, err := validateOfflineCharacter(session.Character)
 	if err != nil {
 		return SessionPlan{}, fmt.Errorf("session.character: %w", err)
 	}
-	if cfg.Runs.Countess.RouteID == "" {
-		return SessionPlan{}, fmt.Errorf("runs.countess.route_id is required for session.run=countess")
+	availability, err := resolveRunAvailabilities(cfg, RunAvailabilityContext{
+		Character: character, Difficulty: session.Difficulty, GameVersion: cfg.Memory.GameVersion,
+	})
+	if err != nil {
+		return SessionPlan{}, err
+	}
+	selected, ok := findRunAvailability(availability.report.Runs, tasks.RunID(session.Run))
+	if !ok {
+		return SessionPlan{}, fmt.Errorf("%s: %q", tasks.RunReasonUnknown, session.Run)
+	}
+	if selected.Status == tasks.RunAvailabilityUnavailable {
+		return SessionPlan{}, fmt.Errorf("session.run %q unavailable: %s", session.Run, joinRunReasons(selected.Reasons))
+	}
+	route, ok := availability.routes[tasks.RunID(session.Run)]
+	if !ok {
+		return SessionPlan{}, fmt.Errorf("session.run %q unavailable: %s", session.Run, tasks.RunReasonRouteMissing)
 	}
 	townGraphPath := filepath.Join(cfg.ResolvePath(cfg.Town.Hub.RoutesDirectory), "graph.yaml")
 	if _, err := town.LoadServiceGraph(townGraphPath); err != nil {
 		return SessionPlan{}, fmt.Errorf("session town graph: %w", err)
-	}
-	registry, err := pathing.LoadRouteRegistry(cfg.ResolvePath(cfg.Routes.Directory))
-	if err != nil {
-		return SessionPlan{}, fmt.Errorf("session route registry: %w", err)
-	}
-	route, err := registry.Get(cfg.Runs.Countess.RouteID)
-	if err != nil {
-		return SessionPlan{}, fmt.Errorf("session route: %w", err)
-	}
-	if !strings.EqualFold(route.Binding.CharacterName, character) {
-		return SessionPlan{}, fmt.Errorf("session character %q does not match route character %q", character, route.Binding.CharacterName)
-	}
-	if string(route.Binding.Difficulty) != session.Difficulty {
-		return SessionPlan{}, fmt.Errorf("session difficulty %q does not match route difficulty %q", session.Difficulty, route.Binding.Difficulty)
-	}
-	if cfg.Memory.GameVersion != "" && route.Binding.GameVersion != cfg.Memory.GameVersion {
-		return SessionPlan{}, fmt.Errorf("session game version %q does not match route game version %q", cfg.Memory.GameVersion, route.Binding.GameVersion)
 	}
 	configDirectory := filepath.Dir(cfg.LoadedFrom)
 	for _, template := range []string{
@@ -111,19 +103,26 @@ func ResolveSessionPlan(cfg *config.Config, opts Options) (SessionPlan, error) {
 		}
 	}
 	plan.Status = "ready"
-	plan.RoutePath = routeSourcePath(registry, route.ID)
+	plan.RoutePath = routeSourcePath(availability.registry, route.ID)
 	plan.RouteLayoutFingerprint = route.Binding.LayoutFingerprint.Hash
 	return plan, nil
 }
 
-func resolveWorkspacePath(cfg *config.Config, path string) string {
-	if filepath.IsAbs(path) {
-		return path
+func findRunAvailability(availabilities []tasks.RunAvailability, id tasks.RunID) (tasks.RunAvailability, bool) {
+	for _, availability := range availabilities {
+		if availability.RunID == id {
+			return availability, true
+		}
 	}
-	if _, err := os.Stat(path); err == nil || cfg.LoadedFrom == "" {
-		return path
+	return tasks.RunAvailability{}, false
+}
+
+func joinRunReasons(reasons []tasks.RunReason) string {
+	values := make([]string, len(reasons))
+	for i, reason := range reasons {
+		values[i] = string(reason)
 	}
-	return filepath.Join(filepath.Dir(filepath.Dir(cfg.LoadedFrom)), path)
+	return strings.Join(values, ",")
 }
 
 func routeSourcePath(registry *pathing.RouteRegistry, routeID string) string {
@@ -139,7 +138,7 @@ func validateSessionInspectExclusivity(opts Options) error {
 	if !opts.SessionInspect {
 		return fmt.Errorf("session inspect mode is not selected")
 	}
-	if opts.Probe || opts.InputTest != "" || opts.Run != "" || opts.RunPhase != "" || opts.PathingTest != "" || opts.OfflineDifficulty != "" || opts.OfflineCharacter != "" || opts.OfflineExitTest || opts.UIStateProbe != "" || opts.ScreenAnchorCapture != "" || opts.Route != "" || opts.RouteName != "" || opts.RouteDifficulty != "" {
+	if opts.RunsInspect || opts.Probe || opts.InputTest != "" || opts.Run != "" || opts.RunPhase != "" || opts.PathingTest != "" || opts.OfflineDifficulty != "" || opts.OfflineCharacter != "" || opts.OfflineExitTest || opts.UIStateProbe != "" || opts.ScreenAnchorCapture != "" || opts.Route != "" || opts.RouteName != "" || opts.RouteDifficulty != "" {
 		return fmt.Errorf("--session-inspect is mutually exclusive with run, probe, route, and test modes")
 	}
 	return nil

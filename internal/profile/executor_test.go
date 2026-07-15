@@ -103,7 +103,7 @@ func TestTownHookCastsOnceAndSettles(t *testing.T) {
 	}
 }
 
-func TestBossHookPinsTargetAndCastsOncePerEncounter(t *testing.T) {
+func TestBossHookPinsTargetAndCastsOncePerIndexedEncounterAction(t *testing.T) {
 	definition := testDefinition()
 	definition.Hooks[HookBossEngage] = []Action{{SkillID: 88, Target: TargetBoss, OncePerEncounter: true}}
 	actions := &actionMock{}
@@ -118,6 +118,16 @@ func TestBossHookPinsTargetAndCastsOncePerEncounter(t *testing.T) {
 	}
 	if len(actions.skills) != 1 {
 		t.Fatalf("skills=%v", actions.skills)
+	}
+	target.ActionIndex = 1
+	if got := e.TickHook(context.Background(), HookBossEngage, state, target, now.Add(2*time.Millisecond)); got.Status != StatusAction || got.SkillID != 88 {
+		t.Fatalf("second indexed action=%+v", got)
+	}
+	if got := e.TickHook(context.Background(), HookBossEngage, state, target, now.Add(3*time.Millisecond)); got.Status != StatusComplete {
+		t.Fatalf("second indexed completion=%+v", got)
+	}
+	if len(actions.skills) != 2 {
+		t.Fatalf("skills=%v, want two indexed casts", actions.skills)
 	}
 }
 

@@ -19,7 +19,6 @@ type PathingConfig struct {
 	Explore            PathingExploreConfig    `yaml:"explore"`
 	Waypoint           PathingWaypointConfig   `yaml:"waypoint"`
 	TownPortal         PathingTownPortalConfig `yaml:"town_portal"`
-	WaypointUI         PathingWaypointUIConfig `yaml:"waypoint_ui"`
 	TownWalk           PathingTownWalkConfig   `yaml:"town_walk"`
 
 	sectionPresent bool `yaml:"-"`
@@ -57,14 +56,6 @@ type PathingWaypointConfig struct {
 type PathingTownPortalConfig struct {
 	AppearTimeoutMs  int     `yaml:"appear_timeout_ms"`
 	MaxClickDistance float64 `yaml:"max_click_distance"`
-}
-
-// PathingWaypointUIConfig holds fixed client-relative waypoint menu coordinates.
-type PathingWaypointUIConfig struct {
-	// BlackMarshX is the client-relative X coordinate for Black Marsh.
-	BlackMarshX int `yaml:"black_marsh_x"`
-	// BlackMarshY is the client-relative Y coordinate for Black Marsh.
-	BlackMarshY int `yaml:"black_marsh_y"`
 }
 
 // PathingPointConfig is a YAML world-coordinate point.
@@ -135,9 +126,6 @@ func (c *PathingConfig) validate() error {
 	}
 	if c.TownPortal.MaxClickDistance <= 0 {
 		return fmt.Errorf("pathing.town_portal.max_click_distance must be > 0")
-	}
-	if c.WaypointUI.BlackMarshX < 0 || c.WaypointUI.BlackMarshY < 0 {
-		return fmt.Errorf("pathing.waypoint_ui.black_marsh_x/y must be >= 0")
 	}
 	if c.TownWalk.ForceMoveKey == "" {
 		return fmt.Errorf("pathing.town_walk.force_move_key is required")
@@ -211,12 +199,6 @@ func (c *PathingConfig) applyDefaults() {
 	}
 	if c.TownPortal.MaxClickDistance == 0 {
 		c.TownPortal.MaxClickDistance = 15
-	}
-	if c.WaypointUI.BlackMarshX == 0 {
-		c.WaypointUI.BlackMarshX = 200
-	}
-	if c.WaypointUI.BlackMarshY == 0 {
-		c.WaypointUI.BlackMarshY = 342
 	}
 	if c.TownWalk.ForceMoveKey == "" {
 		c.TownWalk.ForceMoveKey = "e"

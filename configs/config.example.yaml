@@ -29,8 +29,6 @@ routes:
   directory: routes/farming/mrbones/nightmare
 
 loot:
-  # Relativ zur geladenen Config-Datei. Bei configs/config.yaml ergibt das configs/pickit/countess.nip.
-  pickit_file: pickit/countess.nip
   pickup:
     # Hover-confirmed Pickup: nur klicken, wenn Hover.UnitType=item und Hover.UnitID passt.
     max_retries: 3
@@ -79,7 +77,7 @@ input:
         button: right
       bone_spear:
         key: f8
-        button: left
+        button: right
       bone_armor:
         key: f5
         button: right
@@ -96,19 +94,35 @@ input:
       slot_4: "]"
 
 runs:
-  # countess | leer — Validierung nur zur Laufzeit via Registry
+  # countess | mephisto | leer — stabile IDs aus der Run Registry.
   active: ""
   step_timeout_ms: 30000
-  countess:
-    # Stabile ID einer unter routes.directory verwalteten Aufnahme.
-    route_id: ""
-    combat:
-      profile: necro_bone_spear
-      attack_skill: bone_spear
-      attack_interval_ms: 350
-      engage_distance_tiles: 22
-      reposition_distance_tiles: 32
-      kill_confirm_ticks: 3
+  definitions:
+    countess:
+      # Stabile ID einer unter routes.directory verwalteten Aufnahme.
+      route_id: ""
+      combat:
+        profile: necro_bone_spear
+        attack_skill: bone_spear
+        attack_interval_ms: 350
+        engage_distance_tiles: 22
+        reposition_distance_tiles: 32
+        kill_confirm_ticks: 3
+      loot:
+        pickup_file: pickit/countess.nip
+    mephisto:
+      # MrBones/Nightmare-Aufnahme aus Gate 10.9; andere Bindungen benötigen eine eigene Route.
+      route_id: durance-2-mephisto-nightmare-mrbones
+      combat:
+        profile: necro_bone_spear
+        attack_skill: bone_spear
+        attack_interval_ms: 350
+        engage_distance_tiles: 22
+        reposition_distance_tiles: 32
+        kill_confirm_ticks: 3
+      loot:
+        pickup_file: pickit/mephisto.nip
+        sell_file: pickit/mephisto-sell.nip
 
 combat_profiles:
   necro_bone_spear:
@@ -161,6 +175,7 @@ town:
   egress:
     act3:
       area: kurast_docks
+      route_id: act3-egress
       anchors: [portal_arrival, waypoint]
       routes_directory: routes/town/act3/egress
 
@@ -218,10 +233,6 @@ pathing:
     # Portal must appear after casting and is clicked only after memory-hover confirmation.
     appear_timeout_ms: 2000
     max_click_distance: 15
-  waypoint_ui:
-    # Client-relative Black Marsh waypoint row; default for 1280x720 windowed.
-    black_marsh_x: 200
-    black_marsh_y: 342
   town_walk:
     # Force Move key in D2R options; default key is E.
     force_move_key: e

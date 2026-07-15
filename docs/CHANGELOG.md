@@ -7,6 +7,48 @@ Versionierung nach [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-07-15
+
+### Added
+- Add the productive Mephisto definition flow with its bound Durance route, two indexed boss actions, run-specific loot policies, and Act-3 return normalization
+- Add isolated read-only inspect, walk recording, structural validation, and Kurast-to-Rogue playback commands for the Act-3 egress acceptance gate
+- Add a read-only waypoint-target calibration report and registered 1280×720 actions for Black Marsh, Durance of Hate Level 2, and Rogue Encampment
+- Add bound Act-3 egress playback from Kurast portal arrival through the local waypoint and registered Rogue Encampment transfer
+- Add typed Countess and Mephisto run definitions, immutable registry metadata, capability validation, shared lifecycle contracts, and a fail-closed definition resolver
+- Add a definition-driven run pipeline with indexed encounter actions, centralized generation resets, and fail-closed step telemetry
+- Add deterministic read-only run availability, stable blocking reasons, generic session preflight, and `--runs-inspect` JSON output
+- Complete the live Countess regression gate with one successful run, one indexed boss hook, and one Save & Exit
+- Add version-bound Mephisto monster data, Durance semantics, generated equipment base tiers, and the read-only Pickit `[tier]` predicate
+- Add run-specific Mephisto pickup/sell policies and a productive UnitID-pinned Cain-to-Akara item-service acceptance flow
+- Complete the live Phase 10.6 item-service acceptance with verified Cain identification, Akara sale, shop close, and Town handoff
+
+### Changed
+- Bind Town handoff planning and telemetry to the selected Run ID instead of a hard-coded Countess target
+- Move Bone Spear combat to interval-paced right-clicks and require Memory confirmation that F8 selected Bone Spear on the right skill slot before the first attack
+- Replace the Black-Marsh-only waypoint selector with a Memory-gated generic executor that selects act tab and destination on separate ticks and never repeats the destination click
+- Require a complete route contract and stable route ID for foreign-Town egress instead of accepting a non-playable format placeholder
+- Replace the Countess-only run and global Pickit configuration with one ID-keyed run schema containing route, combat, pickup, and optional sell policies
+- Replace Countess-specific CLI phase names and task-step identifiers with generic run phases and definition-neutral pipeline steps
+- Keep explicit sell candidates out of personal-stash transfers and order Cain identification before combined Akara restock/sell work
+
+### Fixed
+- Reject left-mouse attack bindings before runtime input and fail closed without clicking when the configured hotkey does not produce the expected right-side skill selection
+- Acquire Mephisto by his exact generated act-boss NPC ID instead of incorrectly requiring Countess's super-unique type flag
+- Preserve the definition action index through the real profile executor so Mephisto casts both Bone Prisons while retries of either action remain idempotent
+- Fail closed with `boss_pin_lost` when a boss disappears before its encounter sequence completes or reappears under a different UnitID
+- Exit explicit CLI runs automatically after their terminal task result instead of requiring the F11 stop hotkey after successful playback
+- Resolve registered Durance entrance kinds during route playback instead of truncating conversion at the former Act-1 enum boundary
+- Keep waypoint travel pending across transient Area-0 loading snapshots instead of aborting before the confirmed destination appears
+- Wait for the stable read-only game identity before starting isolated Act-3 egress playback
+- Accept route name and difficulty options for the dedicated Act-3 egress recorder
+- Force Act-3 egress playback through an area-bound walking executor instead of delegating a `walk` route to the teleport navigator
+- Bind each session run recorder to shared pipeline telemetry before the first transition, preventing a false `telemetry_failed` abort in Town
+- Select Cain's second dialog entry before confirming Identify Items instead of activating Talk
+- Preserve the pending sell order across the Cain service boundary and reject isolated item-service tests without exactly one unidentified candidate before movement
+
+### Removed
+- Remove the legacy `SelectBlackMarsh` action and `pathing.waypoint_ui` Black-Marsh coordinate schema
+
 ## [0.5.0] - 2026-07-13
 
 ### Changed
@@ -127,7 +169,7 @@ Versionierung nach [Semantic Versioning](https://semver.org/).
 - Add generated inventory dimensions for every local item-catalog entry and enforce `1x1` for all local gem and skull rows
 - Add Phase 5.7 inventory-full recovery with hover-confirmed Town Portal entry and verified Rogue Encampment arrival
 - Add a versioned local `objects.txt` generator for synchronized Memory and World object IDs
-- Add Phase 5.6 Countess loot phase with `wait_for_drops`, `scan_loot`, `pick_loot`, and isolated `--phase loot-countess`
+- Add Phase 5.6 Countess loot phase with `wait_for_drops`, `scan_loot`, `pick_loot`, and isolated `--phase loot-and-return`
 - Add Phase 5.5 hover-confirmed item pickup with `loot.pickup` safety limits and `--pathing-test pickup:item`
 - Add Phase 5.4 Loot Decision Pipeline with read-only stage decisions for Pickit matches, pickup candidates, Keep/Stash, and failure reasons
 - Add Phase 5.3 Pickit MVP with a small NIP subset, `loot.pickit_file`, and Countess default rules
@@ -149,7 +191,7 @@ Versionierung nach [Semantic Versioning](https://semver.org/).
 - Set the Phase 7 live acceptance baseline to three successful repetitions per isolated flow and three complete multi-run cycles
 - Select the Act-1 town waypoint route by configured difficulty and fail safely when its recording is unavailable
 - Rename the implemented stash decision reason from `stash_not_implemented` to `stash_candidate`
-- Extend `loot-countess` and the full Countess run from verified town arrival through Personal Stash completion
+- Extend `loot-and-return` and the full Countess run from verified town arrival through Personal Stash completion
 - Expand read-only item probe diagnostics with generated item catalog type data and filtered verbose ground-item hints
 - Regenerate the item catalog from local D2R `3.2.92777` data so current Countess drops resolve correctly
 
@@ -176,12 +218,12 @@ Versionierung nach [Semantic Versioning](https://semver.org/).
 
 ### Added
 - Add Countess run orchestration 4.7: full `--run countess` flow from Act-1 town through Countess kill, safety potion guard, and Town Portal completion
-- Add Countess kill phase 4.6: `--run countess --phase kill-countess`, Necro Bone Spear combat, Good Chest position fallback, and defensive kill confirmation without loot pickup
+- Add Countess kill phase 4.6: `--run countess --phase boss`, Necro Bone Spear combat, Good Chest position fallback, and defensive kill confirmation without loot pickup
 - Add automatic runtime log files under `logs/` so verbose manual test runs remain inspectable after the terminal buffer scrolls away
 - Add read-only `--pathing-test inspect:entrances` to capture player position, hover state, and visible entrance coordinates during manual calibration
-- Add Countess tower traversal phase 4.5: `--run countess --phase travel-cellar5`, best-effort Forgotten Tower search, and hover-confirmed cellar transitions through Tower Cellar Level 5
+- Add Countess tower traversal phase 4.5: `--run countess --phase play-route`, best-effort Forgotten Tower search, and hover-confirmed cellar transitions through Tower Cellar Level 5
 - Add Act-1 town waypoint acquisition (Phase 4.5): Force Move town walking from Rogue Encampment stash/spawn toward the waypoint, optional route record/play pathing tests, and Countess `acquire_town_waypoint` step
-- Add Countess travel phase 4.4: `--run countess --phase travel-marsh`, hover-confirmed Town-Waypoint click, fixed Black-Marsh waypoint UI selection, and loading-safe arrival wait
+- Add Countess travel phase 4.4: `--run countess --phase travel-entry`, hover-confirmed Town-Waypoint click, fixed Black-Marsh waypoint UI selection, and loading-safe arrival wait
 - Add teleport-based pathing (Phase 4.3): player-relative isometric projection, `Navigator` state machine with bearing explore and stuck detection, and `TeleportMover` using YAML teleport bindings
 - Add memory hover read via d2go signature scan (`HoverState` in snapshot, `Hover` in world state, per-entity `IsHovered` matching)
 - Add `EntityClicker` hover-feedback click loop: spiral search around the projected point, click only after confirmed hover match (fail-closed, no blind clicks)
@@ -205,7 +247,7 @@ Versionierung nach [Semantic Versioning](https://semver.org/).
 - Fall back from a blocked visible-entrance approach to hover-clicking that entrance so Tower Cellar down exits are not ignored behind room geometry
 - Enumerate unknown entrance units and make `enter_cellar_1` prefer the hidden Forgotten Tower antechamber entrance instead of known back-to-surface entrances
 - Classify observed Tower Cellar entrance IDs `8`/`9` as up/down so cellar traversal approaches the visible down exit instead of continuing bearing exploration
-- Allow `travel-cellar5` to resume from Black Marsh, Forgotten Tower, or Tower Cellar route areas during manual testing instead of requiring a town start every time
+- Allow `play-route` to resume from Black Marsh, Forgotten Tower, or Tower Cellar route areas during manual testing instead of requiring a town start every time
 - Prioritize visible Countess-route entrances before bearing exploration and stop `find_tower` when it leaves Black Marsh for an unexpected area
 - Fix bearing explore spinning in circles: judge a teleport cast as blocked only after a settle timeout (cast animation delays the memory position update), confirm progress immediately for fast cast chaining
 - Fix entity enumeration: walk entrances and monsters before the large object segment; do not require `unitData` for entrances (aligned with d2go); treat unreadable unit-table segments as empty instead of discarding already-enumerated entities

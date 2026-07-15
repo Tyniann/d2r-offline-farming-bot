@@ -9,7 +9,7 @@ Der MVP bleibt bewusst eng: Runen und Countess-relevante Keys sind das erste Zie
 ## Ort im Code
 
 - **Paket:** `internal/loot/`
-- **Einstieg:** Countess-State-Machine in `internal/tasks/countess.go`
+- **Einstieg:** gemeinsame Run-Pipeline in `internal/tasks/run_pipeline.go`
 - **Wichtige Dateien:** geplant `internal/memory/items.go`, `internal/world/item.go`, `internal/loot/filter.go`, `internal/loot/pickit.go`, `internal/pathing/item_clicker.go`
 - **Config:** geplant `configs/pickit/*.nip`, `configs/config.example.yaml` unter `loot:`
 
@@ -156,10 +156,10 @@ Verfügbare Testoberflächen:
 
 ```powershell
 go run ./cmd/d2rbot --probe --verbose
-go run ./cmd/d2rbot --run countess --phase loot-countess --probe --verbose
+go run ./cmd/d2rbot --run countess --phase loot-and-return --probe --verbose
 ```
 
-`loot-countess` startet nur in `Tower Cellar Level 5` und enthält keinen Travel-Prefix. Der Operator kann Countess manuell oder über `kill-countess` töten und anschließend die Loot-Phase isoliert validieren.
+`loot-and-return` startet nur in `Tower Cellar Level 5` und enthält keinen Travel-Prefix. Der Operator kann Countess manuell oder über `boss` töten und anschließend die Loot-Phase isoliert validieren.
 
 Wichtige Logs:
 
@@ -197,7 +197,7 @@ Umgesetzt als [Inventory Model und Lock Grid](inventory-lock-grid.md): persönli
 
 ### 5.3 Pickit-MVP
 
-Umgesetzt als [Pickit Engine](pickit-engine.md): kleiner, line-numbered NIP-Subset mit `loot.pickit_file`, Default `configs/pickit/countess.nip` und read-only Match-Ergebnissen. Pickit bewertet ausschließlich `world.Item`-Felder aus dem generierten Item-Katalog (`Code`, `Type`, `Name`, `Quality`, Flags, Stats); die lokale D2R-Extraktion bleibt nur Regenerationsquelle, siehe [Item Enumeration Read-Only](item-enumeration.md).
+Umgesetzt als [Pickit Engine](pickit-engine.md): kleiner, line-numbered NIP-Subset mit `runs.definitions.<run-id>.loot.pickup_file`, Countess-Policy `configs/pickit/countess.nip` und read-only Match-Ergebnissen. Pickit bewertet ausschließlich `world.Item`-Felder aus dem generierten Item-Katalog (`Code`, `Type`, `Name`, `Quality`, Flags, Stats); die lokale D2R-Extraktion bleibt nur Regenerationsquelle, siehe [Item Enumeration Read-Only](item-enumeration.md).
 
 ### 5.4 Loot-Entscheidungspipeline
 
@@ -209,27 +209,27 @@ Umgesetzt als [Hover-Confirmed Item Pickup](hover-confirmed-item-pickup.md): Ein
 
 ### 5.6 Countess-Loot-Phase
 
-Umgesetzt im Countess-Run: Nach `engage_countess` wartet `wait_for_drops` auf drei gültige Cellar-5-Ticks, `scan_loot` bewertet Ground-Loot über Pickit und Inventory-Kapazität, und `pick_loot` hebt Kandidaten über den hover-bestätigten Pickup-Executor auf. Fehlgeschlagene Pickup-Kandidaten werden innerhalb des aktuellen `pick_loot`-Steps per `UnitID` übersprungen, damit derselbe Drop nicht endlos neu versucht wird.
+Umgesetzt im Countess-Run: Nach `engage_boss` wartet `wait_for_drops` auf drei gültige Cellar-5-Ticks, `scan_loot` bewertet Ground-Loot über Pickit und Inventory-Kapazität, und `pick_loot` hebt Kandidaten über den hover-bestätigten Pickup-Executor auf. Fehlgeschlagene Pickup-Kandidaten werden innerhalb des aktuellen `pick_loot`-Steps per `UnitID` übersprungen, damit derselbe Drop nicht endlos neu versucht wird.
 
 Der Full Run endet jetzt:
 
 ```text
-engage_countess -> wait_for_drops -> scan_loot -> pick_loot -> cast_town_portal
--> enter_town_portal -> wait_act1_town -> open_personal_stash
+engage_boss -> wait_for_drops -> scan_loot -> pick_loot -> cast_town_portal
+-> enter_town_portal -> wait_origin_town -> open_personal_stash
 -> stash_items -> close_personal_stash -> complete
 ```
 
 Wenn keine passenden Kandidaten vorhanden sind oder alle Kandidaten übersprungen wurden, castet der Bot trotzdem Town Portal und beendet den Run regulär. Die isolierte Testphase ist umgesetzt:
 
 ```powershell
-go run ./cmd/d2rbot --run countess --phase loot-countess --probe --verbose
+go run ./cmd/d2rbot --run countess --phase loot-and-return --probe --verbose
 ```
 
-`loot-countess` startet in `Tower Cellar Level 5`, verlangt Teleport wegen globalem Runtime-Precheck, Town Portal für den Abschluss und Belt-Slots 1/4 für die aktive Safety-Potion.
+`loot-and-return` startet in `Tower Cellar Level 5`, verlangt Teleport wegen globalem Runtime-Precheck, Town Portal für den Abschluss und Belt-Slots 1/4 für die aktive Safety-Potion.
 
 ### 5.7 Inventory-Full-Recovery
 
-Umgesetzt als [Inventory-Full-Recovery](inventory-full-recovery.md): Ein Pickit-Match ohne passenden freien, nicht gelockten Platz erzeugt explizit `inventory_full`. Weitere Pickups stoppen; vorhandene Items werden niemals gedroppt. Full Run und `loot-countess` casten anschließend Town Portal, erkennen das Portal über den aus lokalem `objects.txt` generierten Objektkatalog, klicken nur nach passendem Memory-Hover und enden erst nach verifizierter Ankunft im Rogue Encampment. Ein endgültiges `pickup_failed` überspringt dagegen nur das betroffene Item.
+Umgesetzt als [Inventory-Full-Recovery](inventory-full-recovery.md): Ein Pickit-Match ohne passenden freien, nicht gelockten Platz erzeugt explizit `inventory_full`. Weitere Pickups stoppen; vorhandene Items werden niemals gedroppt. Full Run und `loot-and-return` casten anschließend Town Portal, erkennen das Portal über den aus lokalem `objects.txt` generierten Objektkatalog, klicken nur nach passendem Memory-Hover und enden erst nach verifizierter Ankunft im Rogue Encampment. Ein endgültiges `pickup_failed` überspringt dagegen nur das betroffene Item.
 
 ### 5.8 Personal-Stash-MVP
 

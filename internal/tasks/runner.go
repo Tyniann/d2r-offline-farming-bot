@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/profile"
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/telemetry"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/world"
 )
 
@@ -19,14 +20,18 @@ const (
 type RunConfig struct {
 	// StepTimeout is the default per-step wait timeout for non-tick-based steps.
 	StepTimeout time.Duration
-	// CountessCombat tunes the Countess kill phase.
-	CountessCombat CountessCombatConfig
-	// CountessRouteID is the stable generic route selected by the Countess adapter.
-	CountessRouteID string
+	// RouteID is the stable generic route selected for this run.
+	RouteID string
+	// Combat tunes regular boss combat after encounter actions.
+	Combat CombatConfig
+	// Loot selects the run-specific pickup and optional sell policies.
+	Loot RunLootConfig
 }
 
-// CountessCombatConfig holds resolved Countess combat settings for task logic.
-type CountessCombatConfig struct {
+// CombatConfig holds resolved shared boss-combat settings for task logic.
+type CombatConfig struct {
+	// Profile identifies the resolved character and encounter profile.
+	Profile string
 	// AttackSkillID is the resolved skill ID used for attack casts.
 	AttackSkillID uint16
 	// AttackInterval is the minimum delay between real combat inputs.
@@ -39,6 +44,14 @@ type CountessCombatConfig struct {
 	KillConfirmTicks int
 }
 
+// RunLootConfig holds resolved run-specific loot policy paths.
+type RunLootConfig struct {
+	// PickupFile selects the pickup and keep policy.
+	PickupFile string
+	// SellFile selects the optional post-identification sell policy.
+	SellFile string
+}
+
 // Runner executes high-level run state machines.
 type Runner struct {
 	log       *slog.Logger
@@ -48,11 +61,13 @@ type Runner struct {
 	run       runMachine
 	tracker   stepTracker
 
-	started        bool
-	terminal       bool
-	reset          bool
-	outcome        RunOutcome
-	terminalReason string
+	started         bool
+	terminal        bool
+	reset           bool
+	outcome         RunOutcome
+	terminalReason  string
+	initReason      string
+	generationReset bool
 
 	lastSafetyPotionAt time.Time
 }
@@ -70,6 +85,8 @@ func NewRunner(log *slog.Logger, sel RunSelection, cfg RunConfig, deps Deps) *Ru
 		run, err := newRunMachine(sel, cfg)
 		if err == nil {
 			r.run = run
+		} else {
+			r.initReason = err.Error()
 		}
 	}
 	return r
@@ -115,6 +132,17 @@ func (r *Runner) Reset(reason string) {
 	}
 	r.reset = true
 	r.outcome = RunOutcomeIdle
+	r.resetGeneration()
+	r.log.Info("task run reset", "run", r.selection.Run, "phase", r.selection.Phase, "reason", reason)
+}
+
+// resetGeneration is the single run-boundary barrier. Step-local resets remain
+// in beginStep, but no stateful adapter or boss pin may cross this barrier.
+func (r *Runner) resetGeneration() {
+	if r.generationReset {
+		return
+	}
+	r.generationReset = true
 	if r.deps.Waypoint != nil {
 		r.deps.Waypoint.Reset()
 	}
@@ -133,6 +161,9 @@ func (r *Runner) Reset(reason string) {
 	if r.deps.Route != nil {
 		r.deps.Route.Reset()
 	}
+	if r.deps.TownEgress != nil {
+		r.deps.TownEgress.Reset()
+	}
 	if r.deps.Combat != nil {
 		r.deps.Combat.Reset()
 	}
@@ -145,10 +176,9 @@ func (r *Runner) Reset(reason string) {
 	if r.deps.Profile != nil {
 		r.deps.Profile.Reset()
 	}
-	if r.deps.Town != nil {
-		r.deps.Town.Reset()
+	if resetter, ok := r.run.(interface{ resetGeneration() }); ok {
+		resetter.resetGeneration()
 	}
-	r.log.Info("task run reset", "run", r.selection.Run, "phase", r.selection.Phase, "reason", reason)
 }
 
 // Tick advances the configured run by one poll when guards allow.
@@ -157,10 +187,14 @@ func (r *Runner) Tick(ctx context.Context, w world.State, now time.Time) TickRes
 		return r.inactiveResult()
 	}
 	if r.run == nil {
+		reason := r.initReason
+		if reason == "" {
+			reason = string(RunReasonUnknown)
+		}
 		return TickResult{
 			Active:  false,
 			Outcome: RunOutcomeFailed,
-			Reason:  "unknown_run",
+			Reason:  reason,
 		}
 	}
 
@@ -168,7 +202,9 @@ func (r *Runner) Tick(ctx context.Context, w world.State, now time.Time) TickRes
 		r.started = true
 		r.outcome = RunOutcomeRunning
 		r.log.Info("task run started", "run", r.selection.Run, "phase", r.selection.Phase)
-		r.beginStep(r.run.firstStep(), now)
+		if err := r.beginStep(r.run.firstStep(), now); err != nil {
+			return r.finishTelemetryFailed(now, err)
+		}
 	}
 
 	r.tracker.incrementTick()
@@ -192,7 +228,11 @@ func (r *Runner) Tick(ctx context.Context, w world.State, now time.Time) TickRes
 		return r.finishStepComplete(now)
 	}
 	if r.tracker.timedOut(now) {
-		return r.finishStepFailed(now, "timeout")
+		reason := "timeout"
+		if provider, ok := r.run.(interface{ timeoutReason(string) string }); ok {
+			reason = provider.timeoutReason(r.tracker.name)
+		}
+		return r.finishStepFailed(now, reason)
 	}
 
 	return TickResult{
@@ -261,7 +301,7 @@ func (r *Runner) inactiveResult() TickResult {
 	}
 }
 
-func (r *Runner) beginStep(name string, now time.Time) {
+func (r *Runner) beginStep(name string, now time.Time) error {
 	timeout := time.Duration(0)
 	if r.run != nil && !r.run.usesTickTimeout(name) {
 		timeout = r.runConfig.StepTimeout
@@ -282,20 +322,30 @@ func (r *Runner) beginStep(name string, now time.Time) {
 	if r.deps.Pathing != nil {
 		r.deps.Pathing.Reset()
 	}
+	if r.deps.TownEgress != nil {
+		r.deps.TownEgress.Reset()
+	}
 	if r.deps.Combat != nil {
 		r.deps.Combat.Reset()
 	}
-	if name == countessStepPickLoot && r.deps.Loot != nil {
+	if name == pipelineStepPickLoot && r.deps.Loot != nil {
 		r.deps.Loot.Reset()
 	}
 	if r.run != nil {
 		r.run.onStepEnter(name)
 	}
+	if err := r.emitStep(telemetry.RunStepStarted, name, RunOutcomeRunning, ""); err != nil {
+		return err
+	}
 	r.log.Info("task step started", "run", r.selection.Run, "phase", r.selection.Phase, "step", name)
+	return nil
 }
 
 func (r *Runner) finishStepComplete(now time.Time) TickResult {
 	step := r.tracker.name
+	if err := r.emitStep(telemetry.RunStepCompleted, step, RunOutcomeSuccess, ""); err != nil {
+		return r.finishTelemetryFailed(now, err)
+	}
 	logArgs := []any{"run", r.selection.Run, "phase", r.selection.Phase, "step", step}
 	if r.run != nil && r.run.usesTickTimeout(step) {
 		logArgs = append(logArgs, "ticks", r.tracker.ticksInStep)
@@ -303,10 +353,10 @@ func (r *Runner) finishStepComplete(now time.Time) TickResult {
 		logArgs = append(logArgs, "elapsed_ms", r.tracker.elapsed(now).Milliseconds())
 	}
 	r.log.Info("task step complete", logArgs...)
-	if r.selection.Run == "countess" && r.selection.Phase == "" && step == countessStepPrepareTown {
-		r.log.Info("countess run complete", "run", r.selection.Run, "step", countessStepComplete, "completion", "central_town_prepared", "next_run", "countess")
+	if r.selection.Phase == "" && step == pipelineStepPrepareTown {
+		r.log.Info("run pipeline complete", "run", r.selection.Run, "definition_id", r.selection.Run, "step", pipelineStepComplete, "completion", "central_town_prepared")
 	}
-	if step == countessStepPickLoot && r.deps.Loot != nil {
+	if step == pipelineStepPickLoot && r.deps.Loot != nil {
 		r.deps.Loot.Reset()
 	}
 
@@ -314,9 +364,7 @@ func (r *Runner) finishStepComplete(now time.Time) TickResult {
 	if next == "" {
 		r.terminal = true
 		r.outcome = RunOutcomeSuccess
-		if r.deps.Loot != nil {
-			r.deps.Loot.Reset()
-		}
+		r.resetGeneration()
 		r.log.Info("task run finished", "run", r.selection.Run, "phase", r.selection.Phase, "outcome", RunOutcomeSuccess)
 		return TickResult{
 			Active:  true,
@@ -325,7 +373,9 @@ func (r *Runner) finishStepComplete(now time.Time) TickResult {
 		}
 	}
 
-	r.beginStep(next, now)
+	if err := r.beginStep(next, now); err != nil {
+		return r.finishTelemetryFailed(now, err)
+	}
 	return TickResult{
 		Active:  true,
 		Outcome: RunOutcomeRunning,
@@ -335,6 +385,9 @@ func (r *Runner) finishStepComplete(now time.Time) TickResult {
 
 func (r *Runner) finishStepFailed(now time.Time, reason string) TickResult {
 	step := r.tracker.name
+	if err := r.emitStep(telemetry.RunStepFailed, step, RunOutcomeFailed, reason); err != nil {
+		return r.finishTelemetryFailed(now, err)
+	}
 	r.log.Info("task step failed",
 		"run", r.selection.Run,
 		"phase", r.selection.Phase,
@@ -345,27 +398,7 @@ func (r *Runner) finishStepFailed(now time.Time, reason string) TickResult {
 	r.terminal = true
 	r.outcome = RunOutcomeFailed
 	r.terminalReason = reason
-	if r.deps.Waypoint != nil {
-		r.deps.Waypoint.Reset()
-	}
-	if r.deps.Portal != nil {
-		r.deps.Portal.Reset()
-	}
-	if r.deps.TownWalk != nil {
-		r.deps.TownWalk.Reset()
-	}
-	if r.deps.Stash != nil {
-		r.deps.Stash.Reset()
-	}
-	if r.deps.Pathing != nil {
-		r.deps.Pathing.Reset()
-	}
-	if r.deps.Combat != nil {
-		r.deps.Combat.Reset()
-	}
-	if r.deps.Loot != nil {
-		r.deps.Loot.Reset()
-	}
+	r.resetGeneration()
 	r.log.Info("task run finished",
 		"run", r.selection.Run,
 		"phase", r.selection.Phase,
@@ -378,4 +411,32 @@ func (r *Runner) finishStepFailed(now time.Time, reason string) TickResult {
 		Step:    step,
 		Reason:  reason,
 	}
+}
+
+func (r *Runner) finishTelemetryFailed(now time.Time, err error) TickResult {
+	step := r.tracker.name
+	reason := "telemetry_failed"
+	r.terminal = true
+	r.outcome = RunOutcomeFailed
+	r.terminalReason = reason
+	r.resetGeneration()
+	r.log.Error("task telemetry failed", "run", r.selection.Run, "phase", r.selection.Phase, "step", step, "error", err, "elapsed_ms", r.tracker.elapsed(now).Milliseconds())
+	return TickResult{Active: true, Outcome: RunOutcomeFailed, Step: step, Reason: reason}
+}
+
+func (r *Runner) emitStep(event telemetry.EventName, step string, outcome RunOutcome, reason string) error {
+	if r.deps.Telemetry == nil {
+		return nil
+	}
+	record := telemetry.Event{
+		Event: event, DefinitionID: r.selection.Run, Step: step, Outcome: string(outcome), Reason: reason,
+	}
+	if pipeline, ok := r.run.(*runPipeline); ok && step == pipelineStepEngageBoss {
+		index := pipeline.encounterActionIndex
+		record.ActionIndex = &index
+	}
+	if err := r.deps.Telemetry.Emit(record); err != nil {
+		return err
+	}
+	return nil
 }

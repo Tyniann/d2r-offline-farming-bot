@@ -188,6 +188,7 @@ Phase 7 erweitert das vorhandene JSONL-Schema additiv. Vorgesehene Lifecycle-Eve
 | `session_started` | `session_id`, aufgelöste Run-Auswahl und Budgetgrenzen |
 | `game_started` | `session_id`, `game_id`, Character Identity, Difficulty-Label, Version |
 | `run_started` | alle IDs, Run-Name, ordinaler Run-Zähler |
+| `run_context` | Definition, Route/Fingerprint, Waypoint-Ziel, Loot-Policies und Town-Herkunft der frischen Run-Generation |
 | `stuck_detected` | alle IDs plus Route-/Segment-/Punkt- und Fortschrittskontext |
 | `run_completed` | alle IDs, Ergebnis `success`, Dauer, letzter Step |
 | `run_aborted` | alle IDs, Ergebnis `aborted`, stabiler Reason-Code, Dauer, letzter Step |

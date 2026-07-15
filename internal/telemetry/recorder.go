@@ -48,6 +48,8 @@ const (
 	GameStarted EventName = "game_started"
 	// RunStarted begins one fresh run executor.
 	RunStarted EventName = "run_started"
+	// RunContext binds one run generation to its resolved definition and assets.
+	RunContext EventName = "run_context"
 	// StuckDetected records the progress context that exhausted local recovery.
 	StuckDetected EventName = "stuck_detected"
 	// RunCompleted records a successful terminal run.
@@ -76,72 +78,90 @@ const (
 	TownAction EventName = "town_action"
 	// TownStepCompleted records one verified preparation step.
 	TownStepCompleted EventName = "town_step_completed"
+	// RunStepStarted records entry into one shared run-pipeline step.
+	RunStepStarted EventName = "run_step_started"
+	// RunStepCompleted records successful completion of one shared run-pipeline step.
+	RunStepCompleted EventName = "run_step_completed"
+	// RunStepFailed records terminal failure of one shared run-pipeline step.
+	RunStepFailed EventName = "run_step_failed"
+	// RunEncounterActionStarted records one indexed pre-combat action boundary.
+	RunEncounterActionStarted EventName = "run_encounter_action_started"
+	// RunEncounterActionCompleted records verified completion of one indexed pre-combat action.
+	RunEncounterActionCompleted EventName = "run_encounter_action_completed"
 )
 
 // Event is one JSONL record. Zero-valued optional fields are omitted.
 type Event struct {
-	SchemaVersion         int       `json:"schema_version"`
-	Timestamp             time.Time `json:"timestamp"`
-	Event                 EventName `json:"event"`
-	RunID                 string    `json:"run_id"`
-	SessionID             string    `json:"session_id,omitempty"`
-	GameID                string    `json:"game_id,omitempty"`
-	Run                   string    `json:"run"`
-	Phase                 string    `json:"phase,omitempty"`
-	AreaID                uint32    `json:"area_id,omitempty"`
-	UnitID                uint32    `json:"unit_id,omitempty"`
-	TxtFileNo             uint32    `json:"txt_file_no,omitempty"`
-	Code                  string    `json:"code,omitempty"`
-	Name                  string    `json:"name,omitempty"`
-	Reason                string    `json:"reason,omitempty"`
-	Attempt               int       `json:"attempt,omitempty"`
-	HoverAttempt          int       `json:"hover_attempt,omitempty"`
-	GridX                 *int      `json:"grid_x,omitempty"`
-	GridY                 *int      `json:"grid_y,omitempty"`
-	CandidateCount        int       `json:"candidate_count,omitempty"`
-	RouteID               string    `json:"route_id,omitempty"`
-	SegmentID             string    `json:"segment_id,omitempty"`
-	SegmentIndex          *int      `json:"segment_index,omitempty"`
-	PointIndex            *int      `json:"point_index,omitempty"`
-	TargetX               uint32    `json:"target_x,omitempty"`
-	TargetY               uint32    `json:"target_y,omitempty"`
-	TargetAreaID          uint32    `json:"target_area_id,omitempty"`
-	RunOrdinal            int       `json:"run_ordinal,omitempty"`
-	Outcome               string    `json:"outcome,omitempty"`
-	Decision              string    `json:"decision,omitempty"`
-	LastStep              string    `json:"last_step,omitempty"`
-	ElapsedMs             int64     `json:"elapsed_ms,omitempty"`
-	ConsecutiveFailures   int       `json:"consecutive_failures,omitempty"`
-	TotalRestarts         int       `json:"total_restarts,omitempty"`
-	RemainingRestarts     int       `json:"remaining_restarts,omitempty"`
-	LastConfirmedPoint    *int      `json:"last_confirmed_point,omitempty"`
-	DriftTiles            float64   `json:"drift_tiles,omitempty"`
-	LocalRecoveryAttempts int       `json:"local_recovery_attempts,omitempty"`
-	RunsStarted           int       `json:"runs_started,omitempty"`
-	RunsSuccessful        int       `json:"runs_successful,omitempty"`
-	RunsAborted           int       `json:"runs_aborted,omitempty"`
-	RunsFailed            int       `json:"runs_failed,omitempty"`
-	MaxRuns               int       `json:"max_runs,omitempty"`
-	MaxDurationMs         int64     `json:"max_duration_ms,omitempty"`
-	Profile               string    `json:"profile,omitempty"`
-	Hook                  string    `json:"hook,omitempty"`
-	Skill                 string    `json:"skill,omitempty"`
-	SkillID               uint16    `json:"skill_id,omitempty"`
-	Target                string    `json:"target,omitempty"`
-	Resource              string    `json:"resource,omitempty"`
-	ThresholdPercent      uint8     `json:"threshold_percent,omitempty"`
-	BeltSlot              int       `json:"belt_slot,omitempty"`
-	Confirmed             bool      `json:"confirmed,omitempty"`
-	TownStep              *int      `json:"town_step,omitempty"`
-	TownKind              string    `json:"town_kind,omitempty"`
-	TownService           string    `json:"town_service,omitempty"`
-	CurrentCount          *int      `json:"current_count,omitempty"`
-	TriggerThreshold      *int      `json:"trigger_threshold,omitempty"`
-	BeltSlots             []int     `json:"belt_slots,omitempty"`
-	PurchaseMode          string    `json:"purchase_mode,omitempty"`
-	Vendor                string    `json:"vendor,omitempty"`
-	Cost                  *int      `json:"cost,omitempty"`
-	VerifiedFinalCount    *int      `json:"verified_final_count,omitempty"`
+	SchemaVersion          int       `json:"schema_version"`
+	Timestamp              time.Time `json:"timestamp"`
+	Event                  EventName `json:"event"`
+	RunID                  string    `json:"run_id"`
+	SessionID              string    `json:"session_id,omitempty"`
+	GameID                 string    `json:"game_id,omitempty"`
+	Run                    string    `json:"run"`
+	DefinitionID           string    `json:"definition_id,omitempty"`
+	Phase                  string    `json:"phase,omitempty"`
+	Step                   string    `json:"step,omitempty"`
+	ActionIndex            *int      `json:"action_index,omitempty"`
+	AreaID                 uint32    `json:"area_id,omitempty"`
+	UnitID                 uint32    `json:"unit_id,omitempty"`
+	TxtFileNo              uint32    `json:"txt_file_no,omitempty"`
+	Code                   string    `json:"code,omitempty"`
+	Name                   string    `json:"name,omitempty"`
+	Reason                 string    `json:"reason,omitempty"`
+	Attempt                int       `json:"attempt,omitempty"`
+	HoverAttempt           int       `json:"hover_attempt,omitempty"`
+	GridX                  *int      `json:"grid_x,omitempty"`
+	GridY                  *int      `json:"grid_y,omitempty"`
+	CandidateCount         int       `json:"candidate_count,omitempty"`
+	RouteID                string    `json:"route_id,omitempty"`
+	RouteLayoutFingerprint string    `json:"route_layout_fingerprint,omitempty"`
+	WaypointTarget         string    `json:"waypoint_target,omitempty"`
+	LootPickupPolicy       string    `json:"loot_pickup_policy,omitempty"`
+	LootSellPolicy         string    `json:"loot_sell_policy,omitempty"`
+	TownOrigin             string    `json:"town_origin,omitempty"`
+	SegmentID              string    `json:"segment_id,omitempty"`
+	SegmentIndex           *int      `json:"segment_index,omitempty"`
+	PointIndex             *int      `json:"point_index,omitempty"`
+	TargetX                uint32    `json:"target_x,omitempty"`
+	TargetY                uint32    `json:"target_y,omitempty"`
+	TargetAreaID           uint32    `json:"target_area_id,omitempty"`
+	RunOrdinal             int       `json:"run_ordinal,omitempty"`
+	Outcome                string    `json:"outcome,omitempty"`
+	Decision               string    `json:"decision,omitempty"`
+	LastStep               string    `json:"last_step,omitempty"`
+	ElapsedMs              int64     `json:"elapsed_ms,omitempty"`
+	ConsecutiveFailures    int       `json:"consecutive_failures,omitempty"`
+	TotalRestarts          int       `json:"total_restarts,omitempty"`
+	RemainingRestarts      int       `json:"remaining_restarts,omitempty"`
+	LastConfirmedPoint     *int      `json:"last_confirmed_point,omitempty"`
+	DriftTiles             float64   `json:"drift_tiles,omitempty"`
+	LocalRecoveryAttempts  int       `json:"local_recovery_attempts,omitempty"`
+	RunsStarted            int       `json:"runs_started,omitempty"`
+	RunsSuccessful         int       `json:"runs_successful,omitempty"`
+	RunsAborted            int       `json:"runs_aborted,omitempty"`
+	RunsFailed             int       `json:"runs_failed,omitempty"`
+	MaxRuns                int       `json:"max_runs,omitempty"`
+	MaxDurationMs          int64     `json:"max_duration_ms,omitempty"`
+	Profile                string    `json:"profile,omitempty"`
+	Hook                   string    `json:"hook,omitempty"`
+	Skill                  string    `json:"skill,omitempty"`
+	SkillID                uint16    `json:"skill_id,omitempty"`
+	Target                 string    `json:"target,omitempty"`
+	Resource               string    `json:"resource,omitempty"`
+	ThresholdPercent       uint8     `json:"threshold_percent,omitempty"`
+	BeltSlot               int       `json:"belt_slot,omitempty"`
+	Confirmed              bool      `json:"confirmed,omitempty"`
+	TownStep               *int      `json:"town_step,omitempty"`
+	TownKind               string    `json:"town_kind,omitempty"`
+	TownService            string    `json:"town_service,omitempty"`
+	CurrentCount           *int      `json:"current_count,omitempty"`
+	TriggerThreshold       *int      `json:"trigger_threshold,omitempty"`
+	BeltSlots              []int     `json:"belt_slots,omitempty"`
+	PurchaseMode           string    `json:"purchase_mode,omitempty"`
+	Vendor                 string    `json:"vendor,omitempty"`
+	Cost                   *int      `json:"cost,omitempty"`
+	VerifiedFinalCount     *int      `json:"verified_final_count,omitempty"`
 }
 
 type flushWriter interface {

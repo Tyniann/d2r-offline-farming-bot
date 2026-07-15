@@ -59,7 +59,7 @@ func TestWaypointTransferNegativeReasonsAndNoRepeat(t *testing.T) {
 
 func TestPlannerStableNegativeReasons(t *testing.T) {
 	cfg := validTownConfig()
-	cfg.Egress[OriginAct2] = EgressConfig{Area: "lut_gholein", Anchors: []Anchor{AnchorPortalArrival, AnchorWaypoint}, RoutesDirectory: "routes/town/act2/egress"}
+	cfg.Egress[OriginAct2] = EgressConfig{Area: "lut_gholein", RouteID: "act2-egress", Anchors: []Anchor{AnchorPortalArrival, AnchorWaypoint}, RoutesDirectory: "routes/town/act2/egress"}
 	planner, err := NewPlanner(cfg)
 	if err != nil {
 		t.Fatal(err)
@@ -67,7 +67,7 @@ func TestPlannerStableNegativeReasons(t *testing.T) {
 	if _, reason := planner.Plan(Origin{Act: OriginAct2}, DemandSnapshot{}, NextRunTarget{}); reason != ReasonHubTransferUnsupported {
 		t.Fatalf("hub planner reason=%s", reason)
 	}
-	if _, reason := planner.Plan(Origin{Act: OriginAct1}, DemandSnapshot{}, NextRunTarget{ID: "unknown", Act: OriginAct1}); reason != ReasonNextTargetUnsupported {
+	if _, reason := planner.Plan(Origin{Act: OriginAct1}, DemandSnapshot{}, NextRunTarget{ID: "unknown", Act: OriginAct2}); reason != ReasonNextTargetUnsupported {
 		t.Fatalf("target planner reason=%s", reason)
 	}
 }

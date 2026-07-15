@@ -86,6 +86,34 @@ func TestGraphRouteForLayoutIgnoresLegacyAndSelectsExactVariants(t *testing.T) {
 	}
 }
 
+func TestGraphOrderedLayoutRoutePreservesCainBeforeAkara(t *testing.T) {
+	graph := loadCommittedGraph(t)
+	const layout = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	for i := range graph.Edges {
+		route := graph.Edges[i].Route
+		if route == "" && len(graph.Edges[i].Variants) > 0 {
+			route = graph.Edges[i].Variants[0].Route
+		}
+		graph.Edges[i].Variants = []GraphRouteVariant{{Layout: layout, Route: route}}
+	}
+	route, err := graph.RouteOrderedForLayout(layout, AnchorStash, []Anchor{AnchorCain, AnchorAkara}, AnchorWaypoint)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []struct {
+		id      string
+		reverse bool
+	}{{"stash-akara", false}, {"akara-cain", false}, {"akara-cain", true}, {"akara-waypoint", false}}
+	if len(route) != len(want) {
+		t.Fatalf("route=%+v", route)
+	}
+	for index := range want {
+		if route[index].Edge.ID != want[index].id || route[index].Reverse != want[index].reverse {
+			t.Fatalf("route[%d]=%+v want=%+v", index, route[index], want[index])
+		}
+	}
+}
+
 func TestGraphRejectsUnsafeRouteAndNonReversibleReverse(t *testing.T) {
 	graph := loadCommittedGraph(t)
 	graph.Edges[0].Route = "../escape.yaml"
@@ -95,12 +123,6 @@ func TestGraphRejectsUnsafeRouteAndNonReversibleReverse(t *testing.T) {
 	graph = ServiceGraph{Version: ServiceGraphVersion, AreaID: 1, Edges: []GraphEdge{{ID: "one-way", From: AnchorSpawn, To: AnchorWaypoint, Route: "one.yaml", Cost: 1}}}
 	if _, err := graph.Route(AnchorWaypoint, nil, AnchorSpawn); err == nil {
 		t.Fatal("non-reversible edge replayed backwards")
-	}
-}
-
-func TestCommittedEgressFormatValidates(t *testing.T) {
-	if _, err := LoadEgressRoute(filepath.Join("..", "..", "configs", "routes", "town", "act3", "egress", "route-format.yaml")); err != nil {
-		t.Fatal(err)
 	}
 }
 

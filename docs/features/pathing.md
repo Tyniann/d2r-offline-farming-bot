@@ -142,6 +142,18 @@ Der Act-1-Town-Walker erhält ausschließlich bereits validierte Punkte einer Gr
 - Stop/Pause-Hotkeys und Process-Lost-Behandlung wie im Input-Test
 - Area-Spec: Katalogname (`black_marsh`, `Black Marsh`) oder numerische ID (`6`)
 
+### Generische Waypoint-Ziele (Phase 10.7)
+
+`WaypointTargetRegistry` registriert ausschließlich drei auf 1280×720 gebundene Ziele: Black Marsh, Durance of Hate Level 2 und Rogue Encampment. Jede Aktion enthält Akt-Tab, Zielzeile, 200-ms-Settle und erwartete Ziel-Area. Vor jedem Tab- oder Zeilenklick muss `world.UIState.WaypointOpen` aus dem Memory-UI-Buffer bestätigt sein. Ein Tick führt höchstens einen Klick aus; nach dem Zielklick wird niemals erneut geklickt. Falsche Auflösung, unbekanntes Ziel, fehlendes UI-Gate, falsche Ziel-Area und Timeout enden fail-closed.
+
+Die frühere konfigurierbare Black-Marsh-Sonderaktion wurde vollständig entfernt. Die autoritative read-only Kalibrierung ist abrufbar mit:
+
+```powershell
+go run ./cmd/d2rbot --config configs/config.yaml --waypoint-targets-inspect
+```
+
+Sie liefert für 1280×720: Act-1-Tab `(159,148)`, Act-3-Tab `(273,148)`, Black Marsh `(200,342)`, Durance Level 2 `(200,506)` und Rogue Encampment `(200,178)`. Der Befehl attachiert keinen Prozess, registriert keine Hotkeys und sendet keinen Input.
+
 ### Kalibrierung
 
 1. `--pathing-test teleport:TX,TY` mit bekannter Zielkoordinate ausführen
@@ -183,4 +195,4 @@ Der Act-1-Town-Walker erhält ausschließlich bereits validierte Punkte einer Gr
 - [Input Controller](input-controller.md) — führt alle Maus-/Tastatur-Aktionen aus
 
 ---
-*Zuletzt aktualisiert: 2026-07-02*
+*Zuletzt aktualisiert: 2026-07-15*

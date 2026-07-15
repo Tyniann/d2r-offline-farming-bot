@@ -19,7 +19,11 @@ func (rt *Runtime) RunTownInspect() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	rt.startShutdownSignals(ctx, cancel)
-	defer rt.Process.Detach()
+	defer func() {
+		if detachErr := rt.Process.Detach(); detachErr != nil {
+			rt.Log.Warn("process detach failed", "error", detachErr)
+		}
+	}()
 	defer rt.Input.Unbind()
 	ticker := time.NewTicker(time.Duration(rt.Config.Runtime.PollIntervalMs) * time.Millisecond)
 	defer ticker.Stop()

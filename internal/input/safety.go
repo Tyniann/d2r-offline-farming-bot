@@ -33,20 +33,21 @@ func (c *Controller) Status() Status {
 // SetEnabled toggles whether real keyboard and mouse actions are permitted.
 func (c *Controller) SetEnabled(enabled bool) {
 	c.stateMu.Lock()
-	defer c.stateMu.Unlock()
 	c.enabled = enabled
+	c.stateMu.Unlock()
 }
 
 // Pause blocks real input actions until [Controller.Resume] or [Controller.TogglePause].
 func (c *Controller) Pause(reason string) {
 	c.stateMu.Lock()
-	defer c.stateMu.Unlock()
 	if c.stopped {
 		c.log.Debug("input pause ignored", "reason", reason, "cause", "stopped")
+		c.stateMu.Unlock()
 		return
 	}
 	c.paused = true
 	c.log.Info("input safety state changed", "paused", true, "reason", reason)
+	c.stateMu.Unlock()
 }
 
 // Resume clears a pause set by [Controller.Pause] or [Controller.TogglePause].
@@ -64,26 +65,30 @@ func (c *Controller) Resume(reason string) {
 // TogglePause flips the pause state and returns the new paused value.
 func (c *Controller) TogglePause(reason string) bool {
 	c.stateMu.Lock()
-	defer c.stateMu.Unlock()
 	if c.stopped {
 		c.log.Debug("input toggle pause ignored", "reason", reason, "cause", "stopped")
-		return c.paused
+		paused := c.paused
+		c.stateMu.Unlock()
+		return paused
 	}
 	c.paused = !c.paused
-	c.log.Info("input safety state changed", "paused", c.paused, "reason", reason)
-	return c.paused
+	paused := c.paused
+	c.log.Info("input safety state changed", "paused", paused, "reason", reason)
+	c.stateMu.Unlock()
+	return paused
 }
 
 // Stop marks the controller as terminally stopped; pause/resume become no-ops afterward.
 func (c *Controller) Stop(reason string) {
 	c.stateMu.Lock()
-	defer c.stateMu.Unlock()
 	if c.stopped {
+		c.stateMu.Unlock()
 		return
 	}
 	c.stopped = true
 	c.paused = false
 	c.log.Info("input safety stop requested", "reason", reason)
+	c.stateMu.Unlock()
 }
 
 func (c *Controller) actionGuard(kind, action, reason string, attrs ...any) error {

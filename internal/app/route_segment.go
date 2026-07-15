@@ -38,8 +38,8 @@ func (rt *Runtime) RunRouteSegment(routeID, segmentID string) error {
 	defer cancel()
 	rt.startShutdownSignals(ctx, cancel)
 	defer func() {
-		if err := rt.Process.Detach(); err != nil {
-			rt.Log.Warn("detach after segment playback", "error", err)
+		if detachErr := rt.Process.Detach(); detachErr != nil {
+			rt.Log.Warn("detach after segment playback", "error", detachErr)
 		}
 	}()
 	defer rt.Input.Unbind()

@@ -21,11 +21,11 @@ func TestMatchScreenAnchor(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := png.Encode(file, template); err != nil {
-		t.Fatal(err)
+	if encodeErr := png.Encode(file, template); encodeErr != nil {
+		t.Fatal(encodeErr)
 	}
-	if err := file.Close(); err != nil {
-		t.Fatal(err)
+	if closeErr := file.Close(); closeErr != nil {
+		t.Fatal(closeErr)
 	}
 	actual := image.NewRGBA(image.Rect(0, 0, 4, 4))
 	for y := 1; y < 3; y++ {

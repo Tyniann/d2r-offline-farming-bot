@@ -11,7 +11,7 @@ Die Pipeline führt keine Eingaben aus. Sie klickt keine Items an, prüft keinen
 - **Paket:** `internal/loot/`
 - **Einstieg:** `(*loot.Filter).Decide`
 - **Wichtige Dateien:** `internal/loot/decision.go`, `internal/loot/pickit.go`, `internal/loot/inventory.go`
-- **Config:** keine neuen Keys; nutzt `loot.pickit_file` und `loot.inventory_lock`
+- **Config:** nutzt `runs.definitions.<run-id>.loot.pickup_file` und das gemeinsame `loot.inventory_lock`
 
 ## Funktionalität
 
@@ -35,6 +35,8 @@ Observe -> Classify -> PickCandidate -> PickupAttempt -> Verify -> Keep/Stash/Fa
 | `fail` | Die Pipeline kann für ein gematchtes Item nicht sicher fortfahren. |
 
 `Pickit.Evaluate` bleibt nur ein Regelmatch. Ein Pickit-Match ist deshalb noch kein Pickup, kein Keep und kein Stash.
+
+Phase 10.6 lädt zusätzlich eine getrennte, run-spezifische Sell-Policy. Sie verändert die read-only Decision Pipeline nicht, sondern liefert dem Town-Adapter eine explizite `VendorCandidate`-Disposition. Ein Sell-Match wird vor Stash-Input ausgeschlossen; Pickup-/Keep-Regeln und Inventory-Lock bleiben eigenständige Safety-Gates.
 
 ### Ground-Items
 
@@ -74,7 +76,7 @@ Zentrale Typen:
 
 ## Operator / CLI
 
-Phase 5.4 ergänzt keine CLI-Oberfläche und verändert den Countess-Run nicht. `Filter.Decide` ist für spätere Phasen vorbereitet, wird aber noch nicht in `cmd`, `app` oder `tasks` verdrahtet.
+Die read-only Pipeline besitzt keine eigene CLI-Oberfläche. Ihre Pickup-Auswertung ist produktiv in Run und Stash verdrahtet; der getrennte Item-Service kann isoliert mit `--town-test item-services:mephisto` abgenommen werden.
 
 ## Abhängigkeiten
 
@@ -89,4 +91,4 @@ Phase 5.4 ergänzt keine CLI-Oberfläche und verändert den Countess-Run nicht. 
 - [Countess-Run](countess-run.md)
 
 ---
-*Zuletzt aktualisiert: 2026-07-08*
+*Zuletzt aktualisiert: 2026-07-14*

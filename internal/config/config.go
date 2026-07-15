@@ -68,7 +68,6 @@ type RoutesConfig struct {
 
 // LootConfig holds read-only loot model settings.
 type LootConfig struct {
-	PickitFile    string           `yaml:"pickit_file"`
 	Pickup        LootPickupConfig `yaml:"pickup"`
 	Stash         LootStashConfig  `yaml:"stash"`
 	InventoryLock [][]int          `yaml:"inventory_lock"`
@@ -160,23 +159,25 @@ func (c *InputConfig) UnmarshalYAML(value *yaml.Node) error {
 
 // RunsConfig holds active run selection and step timing defaults.
 type RunsConfig struct {
-	Active        string            `yaml:"active"`
-	StepTimeoutMs int               `yaml:"step_timeout_ms"`
-	Countess      CountessRunConfig `yaml:"countess"`
+	Active        string               `yaml:"active"`
+	StepTimeoutMs int                  `yaml:"step_timeout_ms"`
+	Definitions   map[string]RunConfig `yaml:"definitions"`
 
 	sectionPresent bool `yaml:"-"`
 }
 
-// CountessRunConfig holds Countess-specific run tuning.
-type CountessRunConfig struct {
-	// RouteID selects the stable generic route used from Black Marsh to Cellar 5.
+// RunConfig holds operator-selected tuning shared by every run definition.
+type RunConfig struct {
+	// RouteID selects a stable generic navigation route.
 	RouteID string `yaml:"route_id"`
-	// Combat tunes the optional Countess kill phase.
-	Combat CountessCombatConfig `yaml:"combat"`
+	// Combat selects the profile and regular attack tuning.
+	Combat CombatConfig `yaml:"combat"`
+	// Loot selects run-specific pickup and optional sell policies.
+	Loot RunLootConfig `yaml:"loot"`
 }
 
-// CountessCombatConfig holds Countess kill-phase combat tuning.
-type CountessCombatConfig struct {
+// CombatConfig holds shared boss-combat tuning.
+type CombatConfig struct {
 	// Profile selects the fixed MVP combat profile.
 	Profile string `yaml:"profile"`
 	// AttackSkill names the configured attack skill.
@@ -191,6 +192,12 @@ type CountessCombatConfig struct {
 	KillConfirmTicks int `yaml:"kill_confirm_ticks"`
 }
 
+// RunLootConfig selects the independent pickup and sell policy files for one run.
+type RunLootConfig struct {
+	PickupFile string `yaml:"pickup_file"`
+	SellFile   string `yaml:"sell_file"`
+}
+
 // UnmarshalYAML records whether the runs section was present in the YAML document.
 func (c *RunsConfig) UnmarshalYAML(value *yaml.Node) error {
 	type runsConfigAlias RunsConfig
@@ -200,6 +207,11 @@ func (c *RunsConfig) UnmarshalYAML(value *yaml.Node) error {
 	}
 	*c = RunsConfig(alias)
 	c.sectionPresent = true
+	for i := 0; i < len(value.Content)-1; i += 2 {
+		if value.Content[i].Value == "countess" {
+			return fmt.Errorf("runs.countess is unsupported; use runs.definitions.countess")
+		}
+	}
 	return nil
 }
 
@@ -207,10 +219,19 @@ func (c *RunsConfig) applyDefaults() {
 	if c.StepTimeoutMs == 0 {
 		c.StepTimeoutMs = 30000
 	}
-	c.Countess.Combat.applyDefaults()
+	if c.Definitions == nil {
+		c.Definitions = map[string]RunConfig{}
+	}
+	for id, run := range c.Definitions {
+		run.Combat.applyDefaults()
+		if run.Loot.PickupFile == "" && id == "countess" {
+			run.Loot.PickupFile = "pickit/countess.nip"
+		}
+		c.Definitions[id] = run
+	}
 }
 
-func (c *CountessCombatConfig) applyDefaults() {
+func (c *CombatConfig) applyDefaults() {
 	if c.Profile == "" {
 		c.Profile = "necro_bone_spear"
 	}
@@ -229,6 +250,12 @@ func (c *CountessCombatConfig) applyDefaults() {
 	if c.KillConfirmTicks == 0 {
 		c.KillConfirmTicks = 3
 	}
+}
+
+// Run returns the config selected for id without exposing the mutable map entry.
+func (c RunsConfig) Run(id string) (RunConfig, bool) {
+	run, ok := c.Definitions[id]
+	return run, ok
 }
 
 // Load reads and validates a YAML config file.
@@ -306,11 +333,13 @@ func (c *Config) validate() error {
 	if c.Runs.StepTimeoutMs <= 0 {
 		return fmt.Errorf("runs.step_timeout_ms must be > 0")
 	}
-	if err := c.Runs.Countess.Combat.validate(); err != nil {
-		return err
-	}
-	if err := c.Profiles.validate(c.Runs.Countess.Combat.Profile); err != nil {
-		return err
+	for id, run := range c.Runs.Definitions {
+		if err := run.validate(id); err != nil {
+			return err
+		}
+		if err := c.Profiles.validate(run.Combat.Profile, "runs.definitions."+id+".combat.profile"); err != nil {
+			return err
+		}
 	}
 	if err := c.Pathing.validate(); err != nil {
 		return err
@@ -336,35 +365,42 @@ func (c *RoutesConfig) applyDefaults() {
 	}
 }
 
-func (c CountessCombatConfig) validate() error {
+func (c RunConfig) validate(id string) error {
+	if strings.TrimSpace(id) == "" {
+		return fmt.Errorf("runs.definitions contains an empty run id")
+	}
+	if strings.TrimSpace(c.Loot.PickupFile) == "" {
+		return fmt.Errorf("runs.definitions.%s.loot.pickup_file is required", id)
+	}
+	return c.Combat.validate("runs.definitions." + id + ".combat")
+}
+
+func (c CombatConfig) validate(path string) error {
 	if strings.TrimSpace(c.Profile) == "" {
-		return fmt.Errorf("runs.countess.combat.profile is required")
+		return fmt.Errorf("%s.profile is required", path)
 	}
 	if c.AttackSkill != "bone_spear" {
-		return fmt.Errorf("runs.countess.combat.attack_skill must be bone_spear")
+		return fmt.Errorf("%s.attack_skill must be bone_spear", path)
 	}
 	if c.AttackIntervalMs <= 0 {
-		return fmt.Errorf("runs.countess.combat.attack_interval_ms must be > 0")
+		return fmt.Errorf("%s.attack_interval_ms must be > 0", path)
 	}
 	if c.EngageDistanceTiles <= 0 {
-		return fmt.Errorf("runs.countess.combat.engage_distance_tiles must be > 0")
+		return fmt.Errorf("%s.engage_distance_tiles must be > 0", path)
 	}
 	if c.RepositionDistanceTiles <= 0 {
-		return fmt.Errorf("runs.countess.combat.reposition_distance_tiles must be > 0")
+		return fmt.Errorf("%s.reposition_distance_tiles must be > 0", path)
 	}
 	if c.EngageDistanceTiles >= c.RepositionDistanceTiles {
-		return fmt.Errorf("runs.countess.combat.engage_distance_tiles must be < reposition_distance_tiles")
+		return fmt.Errorf("%s.engage_distance_tiles must be < reposition_distance_tiles", path)
 	}
 	if c.KillConfirmTicks <= 0 {
-		return fmt.Errorf("runs.countess.combat.kill_confirm_ticks must be > 0")
+		return fmt.Errorf("%s.kill_confirm_ticks must be > 0", path)
 	}
 	return nil
 }
 
 func (c *LootConfig) applyDefaults() {
-	if c.PickitFile == "" {
-		c.PickitFile = "pickit/countess.nip"
-	}
 	c.Pickup.applyDefaults()
 	c.Stash.applyDefaults()
 	if c.inventoryLockPresent {

@@ -7,7 +7,10 @@ import (
 	"time"
 
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/config"
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/loot"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/pathing"
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/tasks"
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/telemetry"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/town"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/world"
 )
@@ -30,11 +33,19 @@ func (a townNPCClickerAdapter) TickNPC(state world.State, target town.NPCClickTa
 
 func (a townNPCClickerAdapter) Reset() { a.clicker.Reset() }
 
-// RunTownTest executes one isolated Phase-9 Town interaction acceptance flow.
+// RunTownTest executes one isolated Town interaction acceptance flow.
 func (rt *Runtime) RunTownTest(spec string) error {
-	if strings.ToLower(strings.TrimSpace(spec)) != "akara-shop" {
+	switch strings.ToLower(strings.TrimSpace(spec)) {
+	case "akara-shop":
+		return rt.runAkaraShopTownTest()
+	case "item-services:mephisto":
+		return rt.runItemServicesTownTest()
+	default:
 		return fmt.Errorf("town test: unsupported spec %q", spec)
 	}
+}
+
+func (rt *Runtime) runAkaraShopTownTest() error {
 	if !rt.Input.Status().Enabled {
 		return fmt.Errorf("town test requires input.enabled=true")
 	}
@@ -53,7 +64,11 @@ func (rt *Runtime) RunTownTest(spec string) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	rt.startShutdownSignals(ctx, cancel)
-	defer rt.Process.Detach()
+	defer func() {
+		if detachErr := rt.Process.Detach(); detachErr != nil {
+			rt.Log.Warn("process detach failed", "error", detachErr)
+		}
+	}()
 	defer rt.Input.Unbind()
 	hotkeys, err := rt.startHotkeys(ctx)
 	if err != nil {
@@ -94,7 +109,8 @@ func (rt *Runtime) RunTownTest(spec string) error {
 	purchaseSettleUntil := time.Time{}
 	escapeSent := false
 	deadline := time.Now().Add(townTestTimeout)
-	rt.Log.Info("town Akara acceptance started", "profile", rt.Config.Runs.Countess.Combat.Profile, "bulk_items", labels)
+	runCfg, _ := rt.Config.Runs.Run(string(tasks.RunIDCountess))
+	rt.Log.Info("town Akara acceptance started", "profile", runCfg.Combat.Profile, "bulk_items", labels)
 	for time.Now().Before(deadline) {
 		current, stop, tickErr := rt.pathingTestTick(ctx, state, hotkeys, ticker, cancel)
 		if tickErr != nil {
@@ -166,6 +182,116 @@ func (rt *Runtime) RunTownTest(spec string) error {
 	return fmt.Errorf("town test timeout after %s", townTestTimeout)
 }
 
+func (rt *Runtime) runItemServicesTownTest() error {
+	if !rt.Input.Status().Enabled {
+		return fmt.Errorf("town item-service test requires input.enabled=true")
+	}
+	ctrl, ok := rt.Input.(townTestController)
+	if !ok {
+		return fmt.Errorf("town item-service test: controller lacks click or modified-click support")
+	}
+	runCfg, configured := rt.Config.Runs.Run("mephisto")
+	if !configured {
+		return fmt.Errorf("town item-service test: Mephisto run config unavailable")
+	}
+	pickup, err := loadPickit(rt.Config, runCfg.Loot.PickupFile)
+	if err != nil {
+		return err
+	}
+	sell, err := loadOptionalPickit(rt.Config, runCfg.Loot.SellFile)
+	if err != nil {
+		return err
+	}
+	if sell == nil {
+		return fmt.Errorf("town item-service test: Mephisto sell policy unavailable")
+	}
+	lock, err := loot.NewInventoryLock(rt.Config.Loot.InventoryLock)
+	if err != nil {
+		return fmt.Errorf("town item-service test inventory lock: %w", err)
+	}
+	trace, err := telemetry.New(rt.Config.Telemetry.Directory, "town-item-services", "mephisto")
+	if err != nil {
+		return fmt.Errorf("town item-service test telemetry: %w", err)
+	}
+	defer trace.Close()
+	adapter, err := newTownPreparationAdapter(rt.Log, ctrl, mapPathingConfig(rt.Config.Pathing), rt.Config, "mephisto", runCfg, &townLayoutPin{}, townTelemetryAdapter{emitter: trace}, true)
+	if err != nil {
+		return err
+	}
+	adapter.thresholds = town.Thresholds{}
+	adapter.setItemPolicies(loot.NewFilter(rt.Log, lock, pickup), sell, rt.Config.Loot.Stash)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	rt.startShutdownSignals(ctx, cancel)
+	defer func() {
+		if detachErr := rt.Process.Detach(); detachErr != nil {
+			rt.Log.Warn("process detach failed", "error", detachErr)
+		}
+	}()
+	defer rt.Input.Unbind()
+	hotkeys, err := rt.startHotkeys(ctx)
+	if err != nil {
+		return err
+	}
+	defer rt.stopHotkeys(cancel)
+	ticker := time.NewTicker(time.Duration(rt.Config.Runtime.PollIntervalMs) * time.Millisecond)
+	defer ticker.Stop()
+	state := &runState{}
+	if err := rt.waitPathingTestReady(ctx, state, hotkeys, ticker, time.Now().Add(rt.attachTimeoutOrDefault(60*time.Second)), cancel, true); err != nil {
+		return err
+	}
+	initial := rt.World.Current()
+	orders, reason := adapter.planItemServiceOrders(initial)
+	if reason != "" {
+		return fmt.Errorf("town item-service test preflight failed: %s", reason)
+	}
+	if err := validateItemServicesAcceptanceOrders(orders); err != nil {
+		return err
+	}
+	expectedOrder := "Akara"
+	if len(orders) == 2 {
+		expectedOrder = "Cain -> Akara"
+	}
+	candidate := orders[len(orders)-1]
+	deadline := time.Now().Add(2 * townTestTimeout)
+	rt.Log.Info("town item-service acceptance started", "run", "mephisto", "expected_order", expectedOrder, "candidate_unit_id", candidate.UnitID, "candidate_code", candidate.Code)
+	for time.Now().Before(deadline) {
+		current, stop, tickErr := rt.pathingTestTick(ctx, state, hotkeys, ticker, cancel)
+		if tickErr != nil {
+			return tickErr
+		}
+		if stop {
+			return nil
+		}
+		if !current.Valid || current.Area.ID != world.RogueEncampment {
+			continue
+		}
+		result := adapter.Tick(ctx, current)
+		if !result.Done {
+			continue
+		}
+		if result.Status != "complete" {
+			return fmt.Errorf("town item-service test failed: %s", result.Reason)
+		}
+		rt.Log.Info("town item-service acceptance completed", "outcome", "success")
+		return nil
+	}
+	return fmt.Errorf("town item-service test timeout after %s", 2*townTestTimeout)
+}
+
+func validateItemServicesAcceptanceOrders(orders []town.ItemServiceOrder) error {
+	if len(orders) == 1 && orders[0].Kind == town.ItemServiceSell && orders[0].UnitID != 0 {
+		// A candidate identified by an earlier failed acceptance attempt remains
+		// useful: resume at Akara instead of forcing the operator to farm again.
+		return nil
+	}
+	if len(orders) != 2 || orders[0].Kind != town.ItemServiceIdentify || orders[1].Kind != town.ItemServiceSell || orders[0].UnitID == 0 || orders[0].UnitID != orders[1].UnitID || orders[0].Code != orders[1].Code {
+		return fmt.Errorf("town item-service test requires exactly one unlocked Exceptional/Elite Set or Unique sell candidate; no input was sent")
+	}
+	return nil
+}
+
 func logTownInteraction(rt *Runtime, stage string, result town.InteractionResult) error {
 	if result.Status == town.InteractionFailed {
 		return fmt.Errorf("town test %s failed: %s", stage, result.Reason)
@@ -186,7 +312,11 @@ func validateAkaraBulkProfile(cfg *config.Config) error {
 	if cfg == nil {
 		return fmt.Errorf("town test: config unavailable")
 	}
-	profileCfg, ok := cfg.Profiles[cfg.Runs.Countess.Combat.Profile]
+	runCfg, configured := cfg.Runs.Run(string(tasks.RunIDCountess))
+	if !configured {
+		return fmt.Errorf("town test: Countess run config unavailable")
+	}
+	profileCfg, ok := cfg.Profiles[runCfg.Combat.Profile]
 	if !ok {
 		return fmt.Errorf("town test: active combat profile unavailable")
 	}

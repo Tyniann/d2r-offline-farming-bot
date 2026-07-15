@@ -54,32 +54,32 @@ func (m *mockTaskWaypointActions) TickTownWaypoint(context.Context, world.State)
 	return res
 }
 
-func (m *mockTaskWaypointActions) SelectBlackMarsh(context.Context) pathing.WaypointActionResult {
+func (m *mockTaskWaypointActions) SelectWaypointTarget(context.Context, world.State, pathing.WaypointTargetID, time.Time) pathing.WaypointActionResult {
 	m.selectCalls++
 	return pathing.WaypointActionResult{Status: pathing.WaypointActionClicked, Done: true}
 }
 
 func TestShouldTickTasksAllowsLoadingOnlyForCurrentNonInputStep(t *testing.T) {
 	in := &mockInput{enabled: true, bound: true}
-	rt := testRuntimeWithTasks(attachedProc(), &mockProbe{}, in, Options{RunPhase: tasks.CountessPhaseTravelMarsh}, "countess")
+	rt := testRuntimeWithTasks(attachedProc(), &mockProbe{}, in, Options{RunPhase: tasks.RunPhaseTravelEntry}, "countess")
 	wp := &mockTaskWaypointActions{
 		results: []pathing.WaypointActionResult{{Status: pathing.WaypointActionClicked, Done: true}},
 	}
-	rt.Tasks = tasks.NewRunner(config.NewLogger("error"), tasks.RunSelection{Run: "countess", Phase: tasks.CountessPhaseTravelMarsh}, tasks.RunConfig{StepTimeout: time.Second}, tasks.Deps{Waypoint: wp, TownWalk: mockTaskTownWalker{}})
+	rt.Tasks = tasks.NewRunner(config.NewLogger("error"), tasks.RunSelection{Run: "countess", Phase: tasks.RunPhaseTravelEntry}, tasks.RunConfig{StepTimeout: time.Second}, tasks.Deps{Waypoint: wp, TownWalk: mockTaskTownWalker{}})
 	now := time.Now()
 	_ = rt.Tasks.Tick(context.Background(), validWorldState(100), now)
 	_ = rt.Tasks.Tick(context.Background(), validWorldState(100), now.Add(time.Millisecond))
 	_ = rt.Tasks.Tick(context.Background(), validWorldState(100), now.Add(2*time.Millisecond))
 	_ = rt.Tasks.Tick(context.Background(), validWorldState(100), now.Add(time.Second))
 	if !rt.Tasks.CurrentStepAllowsNonInputTick() {
-		t.Fatal("expected wait_black_marsh to allow non-input ticks")
+		t.Fatal("expected wait_entry_area to allow non-input ticks")
 	}
 
 	st := validWorldState(100)
 	st.Valid = false
 	st.Phase = world.GamePhaseLoading
 	if !rt.shouldTickTasks(st) {
-		t.Fatal("expected loading tick for wait_black_marsh")
+		t.Fatal("expected loading tick for wait_entry_area")
 	}
 }
 

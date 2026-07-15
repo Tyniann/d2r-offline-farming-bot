@@ -1,6 +1,11 @@
 package main
 
-import "testing"
+import (
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+)
 
 func TestValidateGemDimensions(t *testing.T) {
 	rows := []row{
@@ -10,6 +15,68 @@ func TestValidateGemDimensions(t *testing.T) {
 	}
 	if err := validateGemDimensions(rows); err != nil {
 		t.Fatalf("validateGemDimensions() error = %v", err)
+	}
+}
+
+func TestReadFileRejectsMissingRequiredColumnAndInvalidDimension(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "weapons.txt")
+	missing := "code\tname\ttype\tinvwidth\tinvheight\tnormcode\tubercode\ncap\tCap\thelm\t2\t2\tcap\txap\n"
+	if err := os.WriteFile(path, []byte(missing), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := readFile(path); err == nil || !strings.Contains(err.Error(), "ultracode") {
+		t.Fatalf("missing-column error = %v", err)
+	}
+	broken := "code\tname\ttype\tinvwidth\tinvheight\tnormcode\tubercode\tultracode\ncap\tCap\thelm\twide\t2\tcap\txap\tuap\n"
+	if err := os.WriteFile(path, []byte(broken), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := readFile(path); err == nil || !strings.Contains(err.Error(), "invalid invwidth") {
+		t.Fatalf("invalid-dimension error = %v", err)
+	}
+}
+
+func TestClassifyBaseTiersFromEquipmentChain(t *testing.T) {
+	rows := []row{
+		{Code: "cap", NormalCode: "cap", UberCode: "xap", UltraCode: "uap", BaseTier: "unknown"},
+		{Code: "xap", NormalCode: "cap", UberCode: "xap", UltraCode: "uap", BaseTier: "unknown"},
+		{Code: "uap", NormalCode: "cap", UberCode: "xap", UltraCode: "uap", BaseTier: "unknown"},
+	}
+	if err := classifyBaseTiers(rows); err != nil {
+		t.Fatal(err)
+	}
+	if rows[0].BaseTier != "normal" || rows[1].BaseTier != "exceptional" || rows[2].BaseTier != "elite" {
+		t.Fatalf("tiers = %q/%q/%q", rows[0].BaseTier, rows[1].BaseTier, rows[2].BaseTier)
+	}
+}
+
+func TestClassifyBaseTiersRejectsUnknownReferenceAndCycle(t *testing.T) {
+	tests := []struct {
+		name string
+		rows []row
+		want string
+	}{
+		{"unknown", []row{{Code: "cap", NormalCode: "cap", UberCode: "missing"}}, "unknown tier code"},
+		{"cycle", []row{{Code: "a", NormalCode: "a", UberCode: "b"}, {Code: "b", NormalCode: "b", UberCode: "a"}}, "tier cycle"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := classifyBaseTiers(tt.rows)
+			if err == nil || !strings.Contains(err.Error(), tt.want) {
+				t.Fatalf("error = %v, want %q", err, tt.want)
+			}
+		})
+	}
+}
+
+func TestRenderIncludesVersionAndTier(t *testing.T) {
+	data, err := render("3.2.test", []row{{Code: "uap", BaseTier: "elite"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(data)
+	if !strings.Contains(text, "D2R 3.2.test") || !strings.Contains(text, "BaseTier: BaseTierElite") {
+		t.Fatalf("generated source = %s", text)
 	}
 }
 

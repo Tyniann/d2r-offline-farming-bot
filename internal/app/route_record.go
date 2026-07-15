@@ -17,6 +17,10 @@ const routeRecordSampleDistance = 4.0
 
 // RunRouteRecord observes manual navigation until the Stop hotkey and publishes a valid route.
 func (rt *Runtime) RunRouteRecord(id, name, difficultyLabel string) error {
+	return rt.runRouteRecord(id, name, difficultyLabel, pathing.RouteMovementTeleport, rt.Config.ResolvePath(rt.Config.Routes.Directory), 0)
+}
+
+func (rt *Runtime) runRouteRecord(id, name, difficultyLabel string, movement pathing.RouteMovement, directory string, expectedArea world.AreaID) error {
 	if err := pathing.ValidateRouteID(id); err != nil {
 		return err
 	}
@@ -30,7 +34,7 @@ func (rt *Runtime) RunRouteRecord(id, name, difficultyLabel string) error {
 	if strings.TrimSpace(rt.Config.Memory.GameVersion) == "" {
 		return fmt.Errorf("route recording requires memory.game_version")
 	}
-	recorder, err := pathing.NewRouteRecorder(pathing.RouteRecorderConfig{SampleDistanceTiles: routeRecordSampleDistance, Movement: pathing.RouteMovementTeleport})
+	recorder, err := pathing.NewRouteRecorder(pathing.RouteRecorderConfig{SampleDistanceTiles: routeRecordSampleDistance, Movement: movement})
 	if err != nil {
 		return err
 	}
@@ -38,8 +42,8 @@ func (rt *Runtime) RunRouteRecord(id, name, difficultyLabel string) error {
 	defer cancel()
 	rt.startShutdownSignals(ctx, cancel)
 	defer func() {
-		if err := rt.Process.Detach(); err != nil {
-			rt.Log.Warn("detach after route recording", "error", err)
+		if detachErr := rt.Process.Detach(); detachErr != nil {
+			rt.Log.Warn("detach after route recording", "error", detachErr)
 		}
 	}()
 	defer rt.Input.Unbind()
@@ -64,7 +68,7 @@ func (rt *Runtime) RunRouteRecord(id, name, difficultyLabel string) error {
 			if !stopRequested {
 				return fmt.Errorf("route recording cancelled before operator Stop: %w", ctx.Err())
 			}
-			return rt.finishRouteRecording(recorder, id, name, pathing.RouteDifficulty(difficulty), recordedAt, startFingerprint)
+			return rt.finishRouteRecording(recorder, id, name, pathing.RouteDifficulty(difficulty), recordedAt, startFingerprint, directory, expectedArea)
 		case event := <-hotkeys:
 			if event.Action == input.HotkeyActionStop {
 				stopRequested = true
@@ -82,6 +86,9 @@ func (rt *Runtime) RunRouteRecord(id, name, difficultyLabel string) error {
 			}
 			cur := rt.World.Current()
 			if startFingerprint.Hash == "" && cur.Valid && cur.Phase == world.GamePhaseInGame && cur.Identity.Valid {
+				if expectedArea != 0 && cur.Area.ID != expectedArea {
+					continue
+				}
 				fingerprint, err := pathing.BuildLayoutFingerprint(cur)
 				if errors.Is(err, pathing.ErrLayoutAnchorsUnavailable) {
 					continue
@@ -94,6 +101,9 @@ func (rt *Runtime) RunRouteRecord(id, name, difficultyLabel string) error {
 			}
 			if startFingerprint.Hash == "" {
 				continue
+			}
+			if expectedArea != 0 && cur.Area.ID != expectedArea {
+				return fmt.Errorf("route recording left required area: got %d want %d", cur.Area.ID, expectedArea)
 			}
 			event, err := recorder.Observe(cur)
 			if err != nil {
@@ -109,7 +119,7 @@ func (rt *Runtime) RunRouteRecord(id, name, difficultyLabel string) error {
 	}
 }
 
-func (rt *Runtime) finishRouteRecording(recorder *pathing.RouteRecorder, id, name string, difficulty pathing.RouteDifficulty, recordedAt time.Time, fingerprint pathing.LayoutFingerprint) error {
+func (rt *Runtime) finishRouteRecording(recorder *pathing.RouteRecorder, id, name string, difficulty pathing.RouteDifficulty, recordedAt time.Time, fingerprint pathing.LayoutFingerprint, directory string, expectedArea world.AreaID) error {
 	segments, err := recorder.Finish()
 	if err != nil {
 		return fmt.Errorf("route recording not published: %w", err)
@@ -123,7 +133,11 @@ func (rt *Runtime) finishRouteRecording(recorder *pathing.RouteRecorder, id, nam
 		Playback:  pathing.RoutePlayback{WaypointToleranceTiles: 3, MaxDriftTiles: 8, MaxLocalCorrections: 2, SegmentTimeoutMs: 30000, TransitionTimeoutMs: 10000},
 		Segments:  segments,
 	}
-	directory := rt.Config.ResolvePath(rt.Config.Routes.Directory)
+	if expectedArea == world.KurastDocks {
+		if err := validateAct3EgressRoute(route); err != nil {
+			return fmt.Errorf("route recording not published: %w", err)
+		}
+	}
 	path := filepath.Join(directory, id+".yaml")
 	if err := pathing.SaveRoute(path, route); err != nil {
 		return fmt.Errorf("route recording publish: %w", err)

@@ -13,8 +13,10 @@ import (
 
 type recordingCombatInput struct {
 	mockInput
-	castCalls int
-	lastSkill uint16
+	castCalls   int
+	selectCalls int
+	clickCalls  []input.MouseButton
+	lastSkill   uint16
 }
 
 func (r *recordingCombatInput) CastSkillAt(_ input.BindingSource, skillID uint16, _, _ int) error {
@@ -23,31 +25,62 @@ func (r *recordingCombatInput) CastSkillAt(_ input.BindingSource, skillID uint16
 	return nil
 }
 
-func TestCombatAdapterThrottlesSkillCasts(t *testing.T) {
+func (r *recordingCombatInput) SelectSkill(_ input.BindingSource, skillID uint16) error {
+	r.selectCalls++
+	r.lastSkill = skillID
+	return nil
+}
+
+func (r *recordingCombatInput) Click(button input.MouseButton) error {
+	r.clickCalls = append(r.clickCalls, button)
+	return nil
+}
+
+func TestCombatAdapterConfirmsRightSkillBeforePulsing(t *testing.T) {
 	in := &recordingCombatInput{}
 	bindings := configBindingSource{skills: map[uint16]input.SkillCast{
-		memory.SkillBoneSpear: {SkillID: memory.SkillBoneSpear, SelectKey: "f8", CastButton: input.MouseLeft},
+		memory.SkillBoneSpear: {SkillID: memory.SkillBoneSpear, SelectKey: "f8", CastButton: input.MouseRight},
 		memory.SkillTeleport:  {SkillID: memory.SkillTeleport, SelectKey: "f7", CastButton: input.MouseRight},
 	}}
 	adapter := newCombatAdapter(config.NewLogger("error"), in, bindings, pathing.DefaultConfig(), 350*time.Millisecond)
 	now := time.Now()
-	player := world.Position{X: 100, Y: 100}
+	player := world.Player{Position: world.Position{X: 100, Y: 100}, RightSkillID: memory.SkillBonePrison}
 	target := world.Position{X: 105, Y: 100}
 
-	if err := adapter.CastSkillAtWorld(now, memory.SkillBoneSpear, player, target); err != nil {
+	if err := adapter.CastAttackAtWorld(now, memory.SkillBoneSpear, player, target); err != nil {
 		t.Fatal(err)
 	}
-	if err := adapter.CastSkillAtWorld(now.Add(100*time.Millisecond), memory.SkillBoneSpear, player, target); err != nil {
+	if err := adapter.CastAttackAtWorld(now.Add(100*time.Millisecond), memory.SkillBoneSpear, player, target); err != nil {
 		t.Fatal(err)
 	}
-	if in.castCalls != 1 {
-		t.Fatalf("castCalls after throttled tick = %d, want 1", in.castCalls)
+	if in.selectCalls != 1 || len(in.clickCalls) != 0 {
+		t.Fatalf("selectCalls=%d clickCalls=%v before confirmation, want 1/0", in.selectCalls, in.clickCalls)
 	}
-	if err := adapter.CastSkillAtWorld(now.Add(400*time.Millisecond), memory.SkillBoneSpear, player, target); err != nil {
+	player.RightSkillID = memory.SkillBoneSpear
+	if err := adapter.CastAttackAtWorld(now.Add(400*time.Millisecond), memory.SkillBoneSpear, player, target); err != nil {
 		t.Fatal(err)
 	}
-	if in.castCalls != 2 || in.lastSkill != memory.SkillBoneSpear {
-		t.Fatalf("castCalls=%d lastSkill=%d, want second Bone Spear cast", in.castCalls, in.lastSkill)
+	if len(in.clickCalls) != 1 || in.clickCalls[0] != input.MouseRight {
+		t.Fatalf("clickCalls=%v, want one confirmed right-click", in.clickCalls)
+	}
+}
+
+func TestCombatAdapterFailsWhenRightSkillSelectionIsNotConfirmed(t *testing.T) {
+	in := &recordingCombatInput{}
+	bindings := configBindingSource{skills: map[uint16]input.SkillCast{
+		memory.SkillBoneSpear: {SkillID: memory.SkillBoneSpear, SelectKey: "f8", CastButton: input.MouseRight},
+	}}
+	adapter := newCombatAdapter(config.NewLogger("error"), in, bindings, pathing.DefaultConfig(), 350*time.Millisecond)
+	player := world.Player{Position: world.Position{X: 100, Y: 100}, LeftSkillID: memory.SkillBoneSpear, RightSkillID: memory.SkillBonePrison}
+	now := time.Now()
+	if err := adapter.CastAttackAtWorld(now, memory.SkillBoneSpear, player, world.Position{X: 105, Y: 100}); err != nil {
+		t.Fatal(err)
+	}
+	if err := adapter.CastAttackAtWorld(now.Add(400*time.Millisecond), memory.SkillBoneSpear, player, world.Position{X: 105, Y: 100}); err == nil {
+		t.Fatal("CastAttackAtWorld error = nil, want unconfirmed right-skill failure")
+	}
+	if len(in.clickCalls) != 0 {
+		t.Fatalf("clickCalls=%v, want no click for left-bound F8", in.clickCalls)
 	}
 }
 
@@ -63,5 +96,15 @@ func TestCombatAdapterTeleportTowardKeepsDesiredDistance(t *testing.T) {
 	}
 	if in.castCalls != 1 || in.lastSkill != memory.SkillTeleport {
 		t.Fatalf("castCalls=%d lastSkill=%d, want teleport cast", in.castCalls, in.lastSkill)
+	}
+}
+
+func TestCombatAdapterResetClearsPendingSelection(t *testing.T) {
+	in := &recordingCombatInput{}
+	adapter := newCombatAdapter(config.NewLogger("error"), in, configBindingSource{}, pathing.DefaultConfig(), time.Millisecond)
+	adapter.pendingSkill = memory.SkillBoneSpear
+	adapter.Reset()
+	if adapter.pendingSkill != 0 {
+		t.Fatalf("pendingSkill=%d, want reset", adapter.pendingSkill)
 	}
 }

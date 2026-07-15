@@ -20,7 +20,7 @@ func TestProfileValidationRejectsMissingResourceCooldown(t *testing.T) {
 	got := profiles["necro_bone_spear"]
 	got.Resources.Healing.CooldownMs = 0
 	profiles["necro_bone_spear"] = got
-	if err := profiles.validate("necro_bone_spear"); err == nil {
+	if err := profiles.validate("necro_bone_spear", "test"); err == nil {
 		t.Fatal("expected resource cooldown error")
 	}
 }
@@ -31,7 +31,7 @@ func TestProfileValidationRejectsInvalidSlot(t *testing.T) {
 	got := profiles["necro_bone_spear"]
 	got.Resources.Mana.BeltSlots = []int{2, 2}
 	profiles["necro_bone_spear"] = got
-	if err := profiles.validate("necro_bone_spear"); err == nil {
+	if err := profiles.validate("necro_bone_spear", "test"); err == nil {
 		t.Fatal("expected duplicate belt slot error")
 	}
 }

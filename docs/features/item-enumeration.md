@@ -23,7 +23,7 @@ Item-Fehler sind fail-open: Ein kaputter Item-Walk liefert eine leere Item-Liste
 
 ### World Model
 
-`memory.ItemUnit` bleibt roh und enthält keine semantischen Labels. `world.Item` löst daraus Qualität, Location, Name/Code, Item-Type, Hover-Status sowie ab 5.2 Grid-Position und Inventar-Dimensionen auf. Der Item-Katalog ist eine statische, repo-lokale Generierung aus den lokal extrahierten D2R-Tabellen `data/global/excel/weapons.txt`, `armor.txt` und `misc.txt` für D2R `3.2.92777`; er enthält Code, Name, Type, Tier-Codes und Inventargröße, damit Drops und Inventaritems im Log lesbar werden, ohne d2go als Runtime-Dependency einzubinden.
+`memory.ItemUnit` bleibt roh und enthält keine semantischen Labels. `world.Item` löst daraus Qualität, Location, Name/Code, Item-Type, `BaseTier`, Hover-Status sowie ab 5.2 Grid-Position und Inventar-Dimensionen auf. Der Item-Katalog ist eine statische, repo-lokale Generierung aus den lokal extrahierten D2R-Tabellen `data/global/excel/weapons.txt`, `armor.txt` und `misc.txt` für D2R `3.2.92777`; er enthält Code, Name, Type, Tier-Codes und Inventargröße, damit Drops und Inventaritems im Log lesbar werden, ohne d2go als Runtime-Dependency einzubinden. `BaseTier` wird ausschließlich für Waffen und Rüstungen aus konsistenten `normcode`/`ubercode`/`ultracode`-Ketten als `normal`, `exceptional` oder `elite` erzeugt. Misc-Items und unvollständige Equipment-Ketten bleiben `unknown`.
 
 ### Item-Katalog regenerieren
 
@@ -38,7 +38,7 @@ Der Katalog wird aus der lokalen D2R-Installation neu erzeugt:
    - `data/global/excel/misc.txt`
 3. Die Dateien temporär unter `.tmp/d2r-excel/` ablegen.
 4. `internal/world/item_catalog_data.go` aus genau dieser Reihenfolge generieren: `weapons.txt` -> `armor.txt` -> `misc.txt`.
-5. Wie d2go Zeilen ohne `code` überspringen; jede akzeptierte Zeile erhöht die `TxtFileNo`.
+5. Wie d2go Zeilen ohne `code` überspringen; jede akzeptierte Zeile erhöht die `TxtFileNo`. Pflichtspalten, Zahlen, doppelte Codes, unbekannte Tier-Referenzen und Zyklen werden vor dem Schreiben validiert.
 6. Vor dem Einsatz konkrete Live-Beweise testen, z. B. für D2R `3.2.92777`: `538 -> Gold`, `615 -> Flawless Skull`, `634 -> Thul Rune`, `635 -> Amn Rune`, `662 -> Key of Terror`.
 
 Diese Vorgehensweise ist absichtlich datengetrieben: Wenn zukünftige D2R-Versionen Item-IDs verschieben, wird der Katalog aus den Spieldaten aktualisiert. Memory-Offsets werden erst angefasst, wenn Hover/Unit/Position nicht mehr zusammenpassen oder der Reader selbst widersprüchliche Rohdaten liefert.
@@ -91,4 +91,4 @@ Nach einem Countess-Kill sollen Ground-Drops im `world state` erscheinen, z. B. 
 - [Loot- und Recovery-Loop](loot-recovery-loop.md)
 
 ---
-*Zuletzt aktualisiert: 2026-07-04*
+*Zuletzt aktualisiert: 2026-07-14*
