@@ -375,8 +375,8 @@
         </tr>
         <tr>
           <td>Spaetere UI</td>
-          <td>TypeScript/React oder Electron optional</td>
-          <td>Gut fuer Dashboard, Kartenansicht, Pickit-Editor und Statistiken, aber nicht ideal als Memory-Core.</td>
+          <td>TypeScript/React, spaeter Electron</td>
+          <td>Phase 11 baut die shell-neutrale Web-Anwendung und lokale Core-API. Electron ist die angestrebte Phase-15-Shell fuer Fenster, Tray, Updates und ein moegliches Overlay; der Memory-Core bleibt Go.</td>
         </tr>
       </tbody>
     </table>
@@ -654,9 +654,14 @@
       <strong>Phase 11</strong>
       <div>
         <h3>GUI-Grundgerüst mit lokaler Core-API und Live-Status <span class="warn">— geplant</span></h3>
-        <p><strong>Ziel:</strong> Eine lokale Bedienoberfläche steuert den Go-Core über einen stabilen Vertrag, statt YAML, Logs oder interne Pakete direkt zu manipulieren.</p>
-        <p><strong>Umfang:</strong> Lokale API für Status, Profile, Runs, Routen und Session Start/Pause/Stop; Live-Events für Session, Run, Step, Area und Fehler; erstes TypeScript/React-Dashboard.</p>
-        <p><strong>Abnahme:</strong> Eine Session kann über die GUI sicher gestartet, beobachtet, pausiert und gestoppt werden. Alle mutierenden Befehle verwenden dieselben Core-Safety-Gates wie CLI und Hotkeys.</p>
+        <p><strong>Ziel:</strong> Eine lokale Bedienoberfläche steuert den Go-Core über einen stabilen HTTP-/Live-Event-Vertrag, statt YAML, Logs, Route-Dateien oder interne Pakete direkt zu manipulieren. <code>d2rbot.exe --ui</code> hostet API und React-Anwendung lokal im selben Go-Prozess und öffnet das Browser-Dashboard.</p>
+        <p><strong>Farm-Queue:</strong> Countess und Mephisto können als geordnete Liste mit Duplikaten zyklisch bis zum Stop ausgeführt werden. Jeder Eintrag bleibt eine vollständige Phase-10-Session mit Town und Save &amp; Exit. Retry bleibt beim aktuellen Eintrag; nur Erfolg schaltet weiter. Die bestehenden YAML-Budgets bleiben harte Grenzen. Dashboard-Änderungen an der Queue sind in Phase 11 absichtlich nur Runtime-Overrides und gehen beim Neustart verloren; persistente GUI-Konfiguration muss später nachgereicht werden.</p>
+        <p><strong>Pause/Stop:</strong> Es gibt keine fortsetzbare Mid-Run-Pause. <em>Nach aktuellem Run pausieren</em> wartet auf Town und Save &amp; Exit und hält vor dem nächsten Eintrag. <em>Nach aktuellem Run stoppen</em> endet ebenfalls geordnet; <em>Sofort stoppen</em> entspricht der unmittelbaren F11-Cancellation ohne garantierten Save &amp; Exit. Charakter, Difficulty und Queue bleiben während Running und Paused gesperrt.</p>
+        <p><strong>Charakterauswahl:</strong> Offline-Charaktere werden read-only aus den Namen lokaler <code>*.d2s</code>-Dateien gelistet, ohne Savegame-Inhalte zu öffnen. Die Auswahl verwendet ausschließlich die vorhandene Screenshot-Infrastruktur, <code>Home</code> plus begrenzte Pfeiltastenschritte und einen versionsgebundenen <code>&lt;name&gt;-selected.png</code>-Anker; Character-Screen-Memory-Offsets, OCR und Blindklick-Fallbacks sind ausgeschlossen. Vor Play bestätigt der Bildanker, nach Game-Start bestätigt Memory die In-game-Identität.</p>
+        <p><strong>Routeninvalidierung:</strong> Dropdown-Änderungen besitzen keine Nebenwirkung. <em>Auswahl in D2R anwenden</em> zeigt bei einem Difficulty-Wechsel zuerst alle betroffenen Farming-Routen an. Erst ein vollständig bestätigter Game-Start markiert sämtliche Farming-Routen dieses Charakters persistent als <code>stale</code>. Dateien werden niemals automatisch gelöscht, verschoben oder überschrieben. Reiner Charakterwechsel, Abbruch und gleiche Difficulty invalidieren nichts; Town- und Fremdcharakter-Routen bleiben unberührt. Eine autoritative Live-Fingerprint-Abweichung markiert ebenfalls alle Farming-Routen nur dieses Charakters stale. Beim einmaligen Phase-11-Bootstrap gilt der bestehende YAML-Charakter-/Difficulty-Kontext als zu bestätigende Erwartung; eine davon abweichende erste Aktivierung wird bereits als invalidierender Wechsel behandelt.</p>
+        <p><strong>Umfang:</strong> Loopback-only API für Status, Charaktere, Profile, Runs, Routen, Selection Preview/Apply und Session Commands; Live-Events für Session, Queue, Run, Step, Area und Fehler; TypeScript/React-Dashboard; persistenter Farming-Route-Lifecycle-Katalog. D2R muss bereits laufen und auf dem Offline-Charakterbildschirm stehen.</p>
+        <p><strong>Abnahme:</strong> Charakter/Difficulty werden verifiziert angewendet, ohne bei Fehlern Routenstatus zu verändern. Countess und Mephisto laufen anschließend über die GUI in einer gemeinsamen Queue; Pause-after-run, Resume, Stop-after-run und Emergency Stop erfüllen ihre dokumentierte Semantik. Alle mutierenden Befehle verwenden dieselben Core-Safety-Gates wie CLI und Hotkeys.</p>
+        <p>Detailplan: <a href="phase-11-implementation-plan.html">Phase-11-Umsetzungsplan</a>.</p>
       </div>
     </div>
 
@@ -664,8 +669,8 @@
       <strong>Phase 12</strong>
       <div>
         <h3>Routenverwaltung und Recorder-Oberfläche <span class="warn">— geplant</span></h3>
-        <p><strong>Ziel:</strong> Aufzeichnungen ohne manuelle Dateiverwaltung erstellen, prüfen und Run-Definitionen zuordnen.</p>
-        <p><strong>Umfang:</strong> Route Registry, Validitätsstatus, Character-/Difficulty-/Fingerprint-Bindung, Record/Stop/Validate sowie sichere Auswahl und Zuordnung.</p>
+        <p><strong>Ziel:</strong> Aufzeichnungen ohne manuelle Dateiverwaltung erstellen, prüfen und Run-Definitionen zuordnen. Diese manuelle Verwaltung bleibt bewusst getrennt von der bereits in Phase 11 zentral implementierten automatischen Invalidierung.</p>
+        <p><strong>Umfang:</strong> Bestehenden RouteCatalog/Lifecycle-Status verwenden; Record/Stop/Validate, sichere Auswahl und Zuordnung sowie explizites Replace/Archive/Delete mit Bestätigung. Phase 12 implementiert keinen zweiten Character-/Difficulty-/Fingerprint-Lebenszyklus.</p>
         <p><strong>Abnahme:</strong> Eine neue Route kann vollständig über die GUI aufgezeichnet, validiert, einem Run zugewiesen und einmal erfolgreich abgespielt werden.</p>
       </div>
     </div>
@@ -694,8 +699,8 @@
       <strong>Phase 15</strong>
       <div>
         <h3>Packaging, Updates und Operator-Polish <span class="warn">— geplant</span></h3>
-        <p><strong>Ziel:</strong> Den lokalen Bot reproduzierbar installieren, konfigurieren, aktualisieren und sicher betreiben.</p>
-        <p><strong>Umfang:</strong> Windows-Build/Installer, Config-Migration und Backup, Versions-/Offset-Kompatibilitätsanzeige, Diagnosepaket sowie verständliche First-Run- und Fehlerführung.</p>
+        <p><strong>Ziel:</strong> Den lokalen Bot reproduzierbar installieren, konfigurieren, aktualisieren und sicher betreiben. Electron ist die angestrebte Desktop-Shell für die bereits shell-neutral gebaute React-Anwendung; ein React-Rewrite ist ausdrücklich nicht vorgesehen.</p>
+        <p><strong>Umfang:</strong> Electron-Fenster und Tray, Windows-Build/Installer, Config-Migration und Backup, Versions-/Offset-Kompatibilitätsanzeige, Diagnosepaket sowie verständliche First-Run- und Fehlerführung. Ein optionales D2R-Overlay wird evaluiert und verwendet denselben lokalen API-Vertrag für Status, Stop und sichere Operator-Aktionen. Persistente GUI-Konfiguration ersetzt spätestens hier die Runtime-only Overrides aus Phase 11.</p>
         <p><strong>Abnahme:</strong> Eine frische lokale Installation erreicht über einen dokumentierten Setup-Flow einen sicheren Diagnose- und Testlauf; inkompatible Versionen stoppen vor Input.</p>
       </div>
     </div>
@@ -808,7 +813,11 @@
         </tr>
         <tr>
           <td><code>/internal/pathing</code></td>
-          <td>Teleport-/Navigationslogik.</td>
+          <td>Teleport-/Navigationslogik sowie bestehende Route-Contracts, Recorder und Playback.</td>
+        </tr>
+        <tr>
+          <td><code>/internal/pathing/routecatalog</code> <span class="warn">(Phase 11)</span></td>
+          <td>Read-only Katalog aller Farming-Route-Sets, atomisches Lifecycle-Manifest, Statusableitung und automatische Invalidation. Das Unterpaket darf Route-Dateien niemals selbst löschen, verschieben oder umschreiben.</td>
         </tr>
         <tr>
           <td><code>/internal/input</code></td>
@@ -836,15 +845,23 @@
         </tr>
         <tr>
           <td><code>/internal/api</code> <span class="warn">(Phase 11)</span></td>
-          <td>Lokale Core-API und Live-Events. Alle mutierenden Befehle verwenden bestehende Safety-Gates.</td>
+          <td>Loopback-HTTP-/JSON-Transport, DTO-Mapping, Security Envelope und SSE-Live-Events. Alle mutierenden Befehle verwenden bestehende Core-Safety-Gates; Business-Logik gehört nicht in Handler.</td>
+        </tr>
+        <tr>
+          <td><code>/internal/api/ui</code> <span class="warn">(Phase 11)</span></td>
+          <td>Kleines Go-Embed-Paket für den reproduzierbar erzeugten React-Produktionsbuild unter <code>dist/</code>. Die TypeScript-Quelle bleibt ausschließlich unter <code>/web</code>.</td>
         </tr>
         <tr>
           <td><code>/web</code> <span class="warn">(Phase 11)</span></td>
-          <td>TypeScript-/React-Oberfläche; kein direkter Zugriff auf Memory, Input, Tasks oder lokale YAML-Dateien.</td>
+          <td>TypeScript-/React-Oberfläche mit Build-Konfiguration und gemeinsamem App-Shell. Kein direkter Zugriff auf Memory, Input, Tasks, Route-Dateien oder lokale YAML-Dateien.</td>
+        </tr>
+        <tr>
+          <td><code>/web/src/features</code> <span class="warn">(Phase 11)</span></td>
+          <td>Feature-first UI-Module für <code>selection</code>, <code>availability</code>, <code>queue</code>, <code>session</code> und <code>live-status</code>. Generierte API-Typen und der Client liegen getrennt unter <code>/web/src/api</code>; nur tatsächlich gemeinsam verwendete UI-Bausteine gehören nach <code>/web/src/components</code>.</td>
         </tr>
         <tr>
           <td><code>/configs</code></td>
-          <td>YAML/JSON für Builds, Runs, Hotkeys und Pickit. Permanente Town-Assets liegen unter <code>routes/town/&lt;act&gt;/</code>, invalidierbare Farming-Sätze unter <code>routes/farming/&lt;character&gt;/&lt;difficulty&gt;/</code>.</td>
+          <td>YAML/JSON für Builds, Runs, Hotkeys und Pickit. Permanente Town-Assets liegen unter <code>routes/town/&lt;act&gt;/</code>, invalidierbare Farming-Sätze unter <code>routes/farming/&lt;character&gt;/&lt;difficulty&gt;/</code>. Phase 11 ersetzt den einzelnen <code>routes.directory</code>-Zeiger durch <code>routes.farming_root</code> und hält den atomischen, gitignorierten Lifecycle standardmäßig in <code>route-lifecycle.local.yaml</code>; es bleibt keine parallele Active-Directory-Quelle.</td>
         </tr>
         <tr>
           <td><code>/docs</code></td>
@@ -857,7 +874,10 @@
       <code>town</code> treffen fachliche Entscheidungen; <code>app</code> verdrahtet World und Input;
       <code>input</code> führt ausschließlich bereits autorisierte Primitive aus. Die spätere GUI kommuniziert
       nur über <code>internal/api</code>. Town-Dienste werden nicht in <code>pathing</code> und Klassenlogik wird
-      nicht in einzelne Run-State-Machines eingebaut.
+      nicht in einzelne Run-State-Machines eingebaut. Phase 11 verschiebt keine funktionierenden Phase-10-Pakete
+      vorsorglich: Supervisor, Queue und Selection-Wiring bleiben in <code>internal/app</code>; nur API, eingebettete
+      Web-Assets und der klar abgegrenzte RouteCatalog erhalten neue Paketgrenzen. Zusätzliche parallele Ordner wie
+      <code>/backend</code>, <code>/frontend</code>, <code>/core</code> oder <code>/var</code> sind nicht vorgesehen.
     </div>
 
     <h2>8. Offene technische Fragen</h2>

@@ -1,0 +1,322 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Phase 11 – Detaillierter Umsetzungsplan</title>
+  <style>
+    :root{--bg:#0b1020;--panel:#121a2d;--panel2:#18233a;--text:#e8edf7;--muted:#aeb9cc;--line:#2b3a58;--accent:#67d4ff;--good:#73e2a7;--warn:#ffd166;--bad:#ff7b86;--code:#09101d}
+    *{box-sizing:border-box}body{margin:0;background:linear-gradient(145deg,#080d19,#10192b 55%,#0a1220);color:var(--text);font:16px/1.58 system-ui,-apple-system,"Segoe UI",sans-serif}
+    main{max-width:1180px;margin:auto;padding:42px 24px 80px}.hero{padding:34px;border:1px solid var(--line);border-radius:20px;background:linear-gradient(135deg,#17243e,#10192b);box-shadow:0 20px 60px #0006}
+    h1{font-size:clamp(2rem,5vw,3.7rem);line-height:1.08;margin:.25rem 0 1rem}h2{margin-top:44px;border-bottom:1px solid var(--line);padding-bottom:10px}h3{margin:.2rem 0 .5rem;color:#fff}.lead{font-size:1.17rem;color:var(--muted);max-width:980px}
+    .chips{display:flex;flex-wrap:wrap;gap:9px}.chip{border:1px solid #3f587c;border-radius:999px;padding:5px 11px;color:#c9ecff;background:#12233b}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:15px;margin:18px 0}
+    .card,.phase,.callout{border:1px solid var(--line);border-radius:14px;background:var(--panel);padding:18px}.card p,.phase p{margin:.35rem 0;color:var(--muted)}table{width:100%;border-collapse:collapse;background:var(--panel);border:1px solid var(--line)}th,td{padding:12px 14px;text-align:left;vertical-align:top;border-bottom:1px solid var(--line)}th{background:var(--panel2);color:#fff}
+    code,pre{font-family:"Cascadia Code",Consolas,monospace}code{color:#aee9ff}pre{background:var(--code);border:1px solid var(--line);border-radius:12px;padding:16px;overflow:auto;color:#d9e7ff}.phase{display:grid;grid-template-columns:92px 1fr;gap:16px;margin:13px 0}.phase-id{font-weight:800;color:var(--accent);font-size:1.25rem}.warn{color:var(--warn)}.good{color:var(--good)}.bad{color:var(--bad)}.gate{border-left:4px solid var(--warn);padding-left:12px!important}.callout{border-left:4px solid var(--accent);margin:16px 0}.danger{border-left-color:var(--bad)}.success{border-left-color:var(--good)}li{margin:.35rem 0}footer{margin-top:48px;color:var(--muted);text-align:center}@media(max-width:650px){.phase{grid-template-columns:1fr}.hero{padding:22px}main{padding-inline:14px}}
+  </style>
+</head>
+<body><main>
+  <section class="hero">
+    <div class="chip">D2R Offline Farming Bot · Phase 11</div>
+    <h1>Lokale Core-API, Farm-Queue und React-Dashboard</h1>
+    <p class="lead">Phase 11 macht den bestehenden Go-Core über einen stabilen lokalen Vertrag bedienbar, führt Countess und Mephisto als frei sortierbare zyklische Farm-Queue aus und zeigt den Live-Zustand verständlich im Browser. Charakter und Schwierigkeit werden als zentrale, sicherheitskritische Auswahl behandelt. Farming-Routen werden bei bestätigtem Kartenwechsel nicht gelöscht, sondern nachvollziehbar und persistent invalidiert.</p>
+    <div class="chips"><span class="chip">React + TypeScript</span><span class="chip">Loopback API</span><span class="chip">Live-Events</span><span class="chip">Screenshot-gated Character Select</span><span class="chip">Route Lifecycle</span><span class="chip">Run until stopped</span><span class="chip">Electron-ready</span></div>
+  </section>
+
+  <section class="grid" aria-label="Kernziele">
+    <article class="card"><h3>Stabiler Core-Vertrag</h3><p>Die Oberfläche kennt DTOs, Befehle und Reason-Codes, aber weder Go-Interna noch YAML-, Route- oder Telemetrie-Dateiformate.</p></article>
+    <article class="card"><h3>Echte Farm-Reihenfolge</h3><p>Countess und Mephisto können mehrfach, sortierbar und zyklisch ausgeführt werden. Erfolg schaltet weiter; Retry bleibt beim aktuellen Eintrag.</p></article>
+    <article class="card"><h3>Sichere Identität</h3><p>Offline-Charaktere werden aus Save-Dateinamen gelistet und ausschließlich mit vorhandenen Screenshot-Ankern ausgewählt und bestätigt.</p></article>
+    <article class="card"><h3>Kein Routenverlust</h3><p>Difficulty-Wechsel oder autoritative Layoutabweichungen markieren betroffene Farming-Routen als <code>stale</code>; Dateien bleiben unverändert erhalten.</p></article>
+  </section>
+
+  <h2>1. Verbindliche Produktentscheidungen</h2>
+  <table><thead><tr><th>Thema</th><th>Entscheidung für Phase 11</th></tr></thead><tbody>
+    <tr><td>UI und Prozessmodell</td><td><code>d2rbot.exe --ui</code> startet Go-Core und Loopback-HTTP-Server im selben Prozess und öffnet das React-Dashboard im Standardbrowser. Im Entwicklungsmodus läuft Vite separat gegen dieselbe API.</td></tr>
+    <tr><td>Spätere Desktop-Shell</td><td>React und API bleiben shell-neutral. Electron ist die angestrebte Phase-15-Shell; sie verpackt dieselbe Anwendung und ergänzt Fenster, Tray, Update-Flow und optional ein D2R-Overlay. WebView2 ist nicht das angestrebte Endziel.</td></tr>
+    <tr><td>Queue</td><td>Geordnete Run-IDs, Duplikate erlaubt. Standard ist zyklisch <em>run until stopped</em>; bestehende harte YAML-Budgets für Runs, Dauer, Fehler und Neustarts bleiben autoritativ und werden sichtbar angezeigt.</td></tr>
+    <tr><td>Queue-Persistenz</td><td>YAML liefert die Startreihenfolge. Änderungen im Dashboard sind in Phase 11 reine Runtime-Overrides und gehen beim Neustart verloren. Persistente GUI-Konfiguration ist ausdrücklich ein späteres Ziel.</td></tr>
+    <tr><td>Run-Fehler</td><td>Retry wiederholt denselben Queue-Eintrag innerhalb der bestehenden Budgets. Nur Erfolg schaltet zum nächsten Eintrag. Ein endgültiger oder nicht retrybarer Fehler stoppt die gesamte Schleife.</td></tr>
+    <tr><td>Pause</td><td>Keine fortsetzbare Mid-Run-Pause. <strong>Nach aktuellem Run pausieren</strong> beendet Town und Save &amp; Exit und hält vor dem nächsten Eintrag. Resume startet den nächsten Run frisch.</td></tr>
+    <tr><td>Stop</td><td><strong>Nach aktuellem Run stoppen</strong> beendet nach Save &amp; Exit und verwirft die aktive Queue. <strong>Sofort stoppen</strong> entspricht F11: unmittelbare Cancellation ohne garantierten Save &amp; Exit.</td></tr>
+    <tr><td>Bearbeitung während Aktivität</td><td>Charakter, Difficulty und Queue sind während Running, Stop-after-run und Paused-between-runs gesperrt. Änderungen sind erst nach vollständigem Stop zulässig.</td></tr>
+    <tr><td>YAML</td><td>YAML bleibt Source of Truth. Phase 11 liest Defaults und sendet typisierte Runtime-Befehle; das Dashboard schreibt keine YAML und bietet keinen allgemeinen Config-Editor.</td></tr>
+    <tr><td>D2R-Voraussetzung</td><td>D2R muss bereits laufen und für die Auswahl auf dem Offline-Charakterbildschirm stehen. D2R-Start, Main-Menu-Automation und First-Run-Setup bleiben Phase 15.</td></tr>
+    <tr><td>Charakterkatalog</td><td>Offline-Charakternamen werden read-only ausschließlich aus <code>*.d2s</code>-Dateinamen des bekannten Windows-Save-Verzeichnisses gewonnen. Dateien werden weder geöffnet noch geparst. Unkonfigurierte Charaktere bleiben sichtbar, aber mit stabilen Gründen deaktiviert.</td></tr>
+    <tr><td>Charakterauswahl</td><td>Keine Character-Screen-Memory-Offsets. Auswahl erfolgt über <code>Home</code>, begrenzte Pfeiltastenschritte und vorhandene versionierte <code>&lt;name&gt;-selected.png</code>-Anker bei 1280×720. Vor Play bestätigt der Bildanker, nach Game-Start bestätigt Memory Name und Klasse.</td></tr>
+    <tr><td>Difficulty-Aktivierung</td><td>Dropdowns ändern noch nichts. Erst <strong>Auswahl in D2R anwenden</strong> startet den verifizierten Menüablauf. Ein Difficulty-Wechsel verlangt vorher explizite Bestätigung und invalidiert erst nach erfolgreich bestätigtem Spielstart.</td></tr>
+    <tr><td>Routenlebenszyklus</td><td>Farming-Routen werden niemals automatisch gelöscht oder überschrieben. Bestätigte Difficulty-Wechsel und autoritative Layoutabweichungen markieren sie persistent als <code>stale</code>. Town-Routen und Fremdcharakter-Routen bleiben unangetastet.</td></tr>
+    <tr><td>GUI-Sprache</td><td>Bedienoberfläche und Benutzertexte sind ordentliches Deutsch. API-Codes bleiben stabile englische Maschinenwerte.</td></tr>
+  </tbody></table>
+
+  <h2>2. Scope und bewusste Grenzen</h2>
+  <table><thead><tr><th>Enthalten</th><th>Bewusst nicht in Phase 11</th></tr></thead><tbody>
+    <tr><td>Lokale versionierte HTTP/JSON-API sowie Server-Sent Events für Snapshot und Live-Status.</td><td>Remote-Zugriff, Cloud-Konto, Netzwerkfreigabe oder Steuerung eines zweiten Rechners.</td></tr>
+    <tr><td>React-/TypeScript-Dashboard mit zentraler Charakter-/Difficulty-Auswahl, Queue, Availability und Session-Steuerung.</td><td>Electron-Binary, Tray, Installer, Autoupdater und Overlay; diese werden in Phase 15 auf dieselbe Web-App gesetzt.</td></tr>
+    <tr><td>Actual D2R Offline-Charakter- und Difficulty-Auswahl vom vorbereiteten Charakterbildschirm.</td><td>D2R starten, Online-Modus, Charakter erstellen, Main-Menu-Erkundung oder Auflösungen außer 1280×720.</td></tr>
+    <tr><td>Read-only Charakterliste aus Dateinamen und Screenshot-verifizierte Auswahl.</td><td>Savegame-Inhalt lesen, verändern oder Character-Screen-Memory reverse engineeren.</td></tr>
+    <tr><td>Persistenter Lifecycle-Katalog für Farming-Routen und automatische Invalidierung.</td><td>Route aufnehmen, ersetzen, archivieren, löschen oder manuell neu zuordnen; das ist Phase 12.</td></tr>
+    <tr><td>Runtime-Queue mit Countess und Mephisto, Duplikaten, Retry und zyklischer Ausführung.</td><td>Zeitpläne, Gewichte, Bedingungen, zufällige Auswahl, Drag-and-drop zwischen mehreren Profilen oder Baal ohne registrierte Definition.</td></tr>
+    <tr><td>Live-Status und begrenzter Prozess-Eventfeed.</td><td>Persistente Historie, Statistiken, Drop-Auswertung und Log-Drill-down; diese folgen in Phase 14.</td></tr>
+    <tr><td>Read-only Anzeige der relevanten YAML-Werte und tatsächlichen Safety-Budgets.</td><td>Charakter-, Skill-, Hotkey-, Belt- oder allgemeiner YAML-Editor.</td></tr>
+  </tbody></table>
+  <div class="callout danger"><strong>Keine zweite Autorität:</strong> React entscheidet weder Run-Verfügbarkeit noch Routenstatus oder erlaubte Zustandsübergänge. Jeder mutierende API-Befehl wird im Go-Core gegen den aktuellen Snapshot und dieselben Safety-Gates wie CLI und Hotkeys geprüft.</div>
+
+  <h2>3. Zielarchitektur und Paketgrenzen</h2>
+  <pre><code>Browser / später Electron / später Overlay
+                    │ HTTP/JSON + SSE
+                    ▼
+          internal/api (Transport)
+                    │ Commands / Queries / Events
+                    ▼
+        internal/app SessionSupervisor
+          │          │          │
+          ▼          ▼          ▼
+ Character UI   RouteCatalog   FarmQueue
+      Gate        Lifecycle    Scheduler
+          │          │          │
+          └──────────┴──────────┘
+                    ▼
+       bestehender Phase-10-Core
+ process → memory → world → tasks → input
+
+internal/
+├─ api/                          HTTP/JSON, Security, DTO-Mapping und SSE
+│  └─ ui/
+│     ├─ embed.go               eigenes Go-Embed-Paket
+│     └─ dist/                  generierter React-Produktionsbuild
+├─ app/                          bestehende Orchestrierungsgrenze
+│  ├─ supervisor*.go            Command-/Lifecycle-State-Machine
+│  ├─ queue_scheduler*.go       zyklische Runtime-Queue
+│  └─ selection_service*.go     Preview/Apply-Wiring
+├─ pathing/
+│  ├─ ...                       bestehende Route-/Playback-Logik
+│  └─ routecatalog/
+│     ├─ catalog.go             immutable Katalog-Snapshots
+│     ├─ lifecycle.go           Status und Übergänge
+│     ├─ manifest.go            atomische Persistenz
+│     └─ invalidation.go        fail-closed Invalidation
+└─ telemetry/                   JSONL plus nicht blockierender Live-Publisher
+
+web/
+├─ package.json                 gepinnte Build-/Testabhängigkeiten
+├─ vite.config.ts
+└─ src/
+   ├─ api/                      generierter Client und DTOs
+   ├─ app/                      App-Shell, Routing und Provider
+   ├─ components/               nur wirklich gemeinsam verwendete UI
+   └─ features/
+      ├─ selection/
+      ├─ availability/
+      ├─ queue/
+      ├─ session/
+      └─ live-status/
+
+configs/routes/farming/         katalogisierte Farming-Route-Dateien
+configs/route-lifecycle.local.yaml  atomischer, gitignorierter Lifecycle-Zustand</code></pre>
+  <table><thead><tr><th>Baustein</th><th>Verantwortung</th><th>Verbotene Kopplung</th></tr></thead><tbody>
+    <tr><td><code>internal/api</code></td><td>Loopback-Server, DTO-Mapping, Authentisierung, Request-Validierung, SSE und HTTP-Fehler.</td><td>Keine Session-, Route- oder Input-Business-Logik.</td></tr>
+    <tr><td><code>internal/api/ui</code></td><td>Stellt ausschließlich das eingebettete, reproduzierbar erzeugte React-<code>dist</code> als <code>fs.FS</code> bereit.</td><td>Keine Handler, DTOs oder handgeschriebenen Frontend-Quellen.</td></tr>
+    <tr><td><code>internal/app</code></td><td>Long-lived Supervisor, Command-State-Machine, Queue-Orchestrierung, Character-Activation-Wiring und Statusprojektion.</td><td>Keine React- oder HTTP-Typen in fachlichen APIs.</td></tr>
+    <tr><td><code>internal/pathing/routecatalog</code></td><td>Katalog, atomisches Manifest, Statusableitung, Invalidation und Availability-Integration auf den bestehenden <code>pathing</code>-Route-Contracts.</td><td>Keine Route-Datei automatisch löschen, verschieben oder umschreiben; keine Bewegungs- oder Input-Ausführung.</td></tr>
+    <tr><td><code>internal/telemetry</code></td><td>Typisierte Live-Ereignisse zusätzlich zum bestehenden JSONL-Sink.</td><td>Langsame SSE-Clients dürfen Bot oder JSONL niemals blockieren.</td></tr>
+    <tr><td><code>web/src/api</code></td><td>Aus dem Core-Vertrag erzeugter Client und TypeScript-DTOs.</td><td>Keine parallelen handgeschriebenen API-Modelle.</td></tr>
+    <tr><td><code>web/src/features</code></td><td>Feature-first Ansichten und UI-Zustand für Selection, Availability, Queue, Session und Live-Status.</td><td>Kein Filesystem-, YAML-, Memory-, Windows-Input- oder Route-Dateizugriff.</td></tr>
+  </tbody></table>
+  <p>Die vorhandene Feature-first-Struktur bleibt erhalten. Phase 11 ergänzt ausschließlich die tatsächlich benötigten Grenzen; funktionierender Phase-10-Code wird nicht in vorsorgliche Unterordner verschoben. Supervisor, Queue und Selection-Wiring bleiben deshalb in <code>internal/app</code>, statt eine konkurrierende zweite Session-Architektur unter <code>internal/session</code> zu beginnen. Der Web-Build wird reproduzierbar in <code>internal/api/ui/dist</code> übertragen und dort durch das kleine Embed-Paket ausgeliefert. Zusätzliche parallele Wurzeln wie <code>backend</code>, <code>frontend</code>, <code>core</code> oder <code>var</code> werden nicht angelegt.</p>
+  <p><strong>Config-Migration ohne Doppelquelle:</strong> Der bisherige aktive Einzelordner <code>routes.directory</code> wird durch <code>routes.farming_root: routes/farming</code> ersetzt. Katalog, Resolver und Recorder leiten <code>&lt;character&gt;/&lt;difficulty&gt;</code> unterhalb dieses Roots aus dem expliziten Kontext ab; kein zweiter Active-Directory-Zeiger bleibt bestehen. Das alte Feld wird mit einem eindeutigen Migrationsfehler abgewiesen. <code>routes.lifecycle_file: route-lifecycle.local.yaml</code> zeigt auf den atomischen, durch die bestehende <code>*.local.yaml</code>-Regel gitignorierten Status. Town-Pfade bleiben getrennt und unverändert.</p>
+
+  <h2>4. Supervisor- und Queue-State-Machine</h2>
+  <pre><code>idle
+  ├─ apply_selection ─→ activating_selection ─→ idle_in_game | idle
+  └─ start_queue ─────→ starting_run ─→ running_run
+                                            │
+                       ┌────────────────────┼────────────────────┐
+                       ▼                    ▼                    ▼
+                 run_success          retry_current       terminal_error
+                       │                    │                    │
+              pause requested?        same queue index          ▼
+                │ yes     │ no             └────────────→ stopped_error
+                ▼         ▼
+          paused_between  next queue index (cyclic)
+                │
+              resume ────────────────→ starting_run
+
+stop_after_run: running_run bleibt bis Run + Town + SaveExit vollständig
+emergency_stop/F11: aus jedem aktiven Zustand → cancelling → idle/stopped_error</code></pre>
+  <ul>
+    <li>Genau eine aktive Command-Generation und genau eine Session-Goroutine. Parallele Starts werden mit <code>command_conflict</code> abgewiesen.</li>
+    <li>Queue-Eintrag, Zyklusindex, Retry-Zähler, gewünschter Terminalmodus und Session-/Run-Korrelation persistieren über Ticks, aber nicht über Prozessneustart.</li>
+    <li>Ein Run ist weiterhin eine vollständige Phase-10-Session mit Game-Start, Run, Town und Save &amp; Exit. Der Scheduler verbindet diese Einheiten, er springt nicht innerhalb einer Run-State-Machine.</li>
+    <li>Pause/Stop-after-run werden idempotent vorgemerkt. Sofort-Stopp gewinnt stets und verwendet denselben Cancellation-Pfad wie F11.</li>
+    <li>Die API bleibt nach Session-Erfolg, Fehler oder Cancellation verfügbar; nur der kontrollierte Bot-Worker endet.</li>
+    <li>Der nächste Eintrag startet nur, wenn alle unveränderten Queue-, Route-, Charakter- und Difficulty-Gates weiterhin gültig sind.</li>
+  </ul>
+
+  <h2>5. API-, Sicherheits- und Live-Vertrag</h2>
+  <table><thead><tr><th>Endpunkt</th><th>Zweck</th><th>Mutierend</th></tr></thead><tbody>
+    <tr><td><code>GET /api/v1/status</code></td><td>Autoritativer Supervisor-Snapshot einschließlich Core/D2R/UI-State, Auswahl, Queue, aktuellem Run/Step/Area, Budgets und letztem Fehler.</td><td>Nein</td></tr>
+    <tr><td><code>GET /api/v1/catalog</code></td><td>Charaktere, Difficulties, Profile, Run-Metadaten, Route-Status und Availability-Gründe für den aktuellen Entwurf.</td><td>Nein</td></tr>
+    <tr><td><code>GET /api/v1/events</code></td><td>SSE: Snapshot zuerst, danach monoton sequenzierte Session-/Run-/Step-/Area-/Command-/Error-Ereignisse.</td><td>Nein</td></tr>
+    <tr><td><code>POST /api/v1/selection/preview</code></td><td>Seiteneffektfreie Vorschau: Voraussetzungen, betroffene Routen, Invalidation-Reason und Bestätigungspflicht.</td><td>Nein</td></tr>
+    <tr><td><code>POST /api/v1/selection/apply</code></td><td>Bestätigte Auswahl in D2R anwenden; Confirmation-Token muss exakt zur unveränderten Preview passen.</td><td>Ja</td></tr>
+    <tr><td><code>POST /api/v1/queue/validate</code></td><td>Gesamte Queue read-only auf Run-, Profil-, Routen- und Safety-Verfügbarkeit prüfen.</td><td>Nein</td></tr>
+    <tr><td><code>POST /api/v1/session/start</code></td><td>Validierte Runtime-Queue starten.</td><td>Ja</td></tr>
+    <tr><td><code>POST /api/v1/session/pause-after-run</code></td><td>Pause vor dem nächsten Run vormerken.</td><td>Ja</td></tr>
+    <tr><td><code>POST /api/v1/session/resume</code></td><td>Unveränderte Queue beim nächsten Eintrag fortsetzen.</td><td>Ja</td></tr>
+    <tr><td><code>POST /api/v1/session/stop-after-run</code></td><td>Nach aktuellem Run geordnet stoppen.</td><td>Ja</td></tr>
+    <tr><td><code>POST /api/v1/session/emergency-stop</code></td><td>Sofortige Cancellation wie F11.</td><td>Ja</td></tr>
+  </tbody></table>
+  <ul>
+    <li>Bindung ausschließlich an <code>127.0.0.1</code>; kein <code>0.0.0.0</code>, kein CORS-Wildcard und kein stiller Remote-Modus.</li>
+    <li>Freier Loopback-Port wird beim Start gewählt und die exakte URL geöffnet. Ein kryptografisch zufälliges, pro Prozess erzeugtes Control-Token schützt mutierende Requests vor fremden Webseiten; es wird weder geloggt noch persistent gespeichert. Die Browser-Bootstrap-URL übergibt es einmalig im URL-Fragment, das nicht an HTTP gesendet wird; React übernimmt es nur in Memory, entfernt das Fragment sofort per History-Replace und sendet es danach als Header.</li>
+    <li><code>Origin</code>/<code>Host</code>, Content-Type, Body-Limit, Methoden und Token werden fail-closed geprüft. API-Fehler liefern stabilen <code>code</code>, deutsche <code>message</code>, optionale <code>details</code> und <code>request_id</code>.</li>
+    <li>Mutationen tragen Command-ID und erwartete Supervisor-Generation. Wiederholung derselben ID ist idempotent; veraltete Generationen liefern <code>state_changed</code>.</li>
+    <li>OpenAPI oder ein gleichwertiges maschinenlesbares Schema erzeugt beziehungsweise prüft die TypeScript-DTOs. Handgeschriebene, abweichende Paralleltypen sind verboten.</li>
+    <li>SSE besitzt einen kleinen begrenzten In-Memory-Ring für Reconnects. Überlauf oder langsame Clients trennt nur den Client; JSONL und Bot-State bleiben unbeeinflusst. Persistente Historie bleibt Phase 14.</li>
+  </ul>
+
+  <h2>6. Charakterauswahl ohne Memory-Ratespiel</h2>
+  <ol>
+    <li>Der Katalog ermittelt das bekannte Windows-Save-Verzeichnis über die vorgesehene Windows-Shell-API und listet ausschließlich reguläre <code>*.d2s</code>-Dateinamen. Symlinks/Reparse-Points, ungültige Namen und Duplikate werden abgewiesen. Kein Dateiinhalt wird gelesen.</li>
+    <li>Ein Charakter ist sichtbar, aber nur auswählbar, wenn sein Combat-/Session-Kontext auflösbar ist und der versionsgebundene Anker <code>configs/ui/characters/&lt;slug&gt;-selected.png</code> valide geladen werden kann. Fehlende Routen sperren Farm-Start, nicht zwingend die reine D2R-Auswahl.</li>
+    <li><code>ApplySelection</code> verlangt gebundenes D2R-Fenster, 1280×720 Clientfläche, erkannten Offline-Character-Screen, geschlossene störende Dialoge und aktives Input-Opt-in.</li>
+    <li>Der Selector sendet genau einmal <code>Home</code> und danach höchstens <code>character_count - 1</code> einzelne <code>Down</code>-Schritte. Nach jedem Schritt wartet er auf UI-Settle und prüft ausschließlich den Zielanker. Er klickt nicht blind auf Portraitkoordinaten.</li>
+    <li>Erst mehrere stabile Zielanker-Treffer autorisieren genau einen Play-Klick. Danach bestätigt der vorhandene Difficulty-Dialog-Anker genau einen Difficulty-Klick.</li>
+    <li>Die bestehende Game-Start-Verifikation muss anschließend den erwarteten Charakternamen und die erwartete Klasse im Spiel bestätigen. Ein Fehler bricht ab und invalidiert keine Route.</li>
+  </ol>
+  <div class="callout danger"><strong>Explizit ausgeschlossen:</strong> Kein Panel-Manager-Offset, keine d2go-/Koolo-Abhängigkeit, kein Signatur- oder Pointer-Raten für den Character Screen, kein OCR-Fallback und kein Klick anhand einer vermuteten Listenposition. Fehlt ein zuverlässiger Screenshot-Anker, bleibt der Charakter deaktiviert.</div>
+
+  <h2>7. Autoritativer Farming-Routenlebenszyklus</h2>
+  <h3>7.1 Persistentes Modell</h3>
+  <pre><code>RouteLifecycleManifest
+  schema_version
+  revision
+  characters:
+    mrbones:
+      last_confirmed_difficulty: nightmare
+      confirmed_at: 2026-07-16T...
+      routes:
+        black-marsh-cellar5-nightmare-mrbones:
+          recorded_at: ...
+          observed_file_fingerprint: ...
+          invalidated_at: null
+          invalidation_reason: ""
+        durance-2-mephisto-nightmare-mrbones:
+          recorded_at: ...
+          invalidated_at: ...
+          invalidation_reason: difficulty_changed</code></pre>
+  <p>Das Manifest enthält nur Lifecycle-Metadaten. Route-Dateien bleiben die Source of Truth für Route, Bindung, Recording und Layout-Fingerprint. Der Katalog scannt alle Unterordner von <code>routes.farming_root</code>, korreliert Dateien deterministisch mit Manifest-Einträgen und veröffentlicht eine immutable Snapshot-Revision. Speicherung erfolgt standardmäßig in <code>configs/route-lifecycle.local.yaml</code> atomisch über temporäre Datei im selben Verzeichnis, Flush und Windows-kompatibles Replace; Korruption oder fehlgeschlagene Writes sperren jede invalidierende Mutation.</p>
+  <h3>7.2 Exakte Status</h3>
+  <table><thead><tr><th>Status</th><th>Bedeutung</th><th>Darf Farm-Start passieren?</th></tr></thead><tbody>
+    <tr><td><code>valid</code></td><td>Datei und Bindung sind statisch valide, nach letzter Invalidation aufgenommen und der aktuelle Ziel-Layout-Fingerprint wurde für diese Session bestätigt.</td><td>Ja</td></tr>
+    <tr><td><code>runtime_validation_required</code></td><td>Statische Bindung und Lifecycle sind valide; Zielgebiet-Fingerprint kann erst im Run bestätigt werden.</td><td>Ja, aber Playback bleibt bis Live-Bestätigung gesperrt.</td></tr>
+    <tr><td><code>stale</code></td><td>Route wurde vor oder bei einer bestätigten Invalidation aufgenommen oder nach autoritativer Layoutabweichung invalidiert.</td><td>Nein</td></tr>
+    <tr><td><code>unavailable</code></td><td>Datei fehlt, ist unlesbar, doppelt, schema-/binding-ungültig oder gehört nicht zum gewählten Kontext.</td><td>Nein</td></tr>
+  </tbody></table>
+  <h3>7.3 Invalidation-Transaktionen</h3>
+  <table><thead><tr><th>Auslöser</th><th>Wirkung</th><th>Keine Wirkung</th></tr></thead><tbody>
+    <tr><td>Dropdown geändert</td><td>Nur Preview neu berechnen.</td><td>Kein D2R-Input, kein Manifest-Write.</td></tr>
+    <tr><td>Apply abgebrochen oder Game-Start fehlgeschlagen</td><td>Fehler und unveränderter vorheriger Zustand.</td><td>Keine Route stale, keine Difficulty bestätigt.</td></tr>
+    <tr><td>Einmaliger Phase-11-Bootstrap ohne Lifecycle-Eintrag</td><td>Der bestehende YAML-Charakter-/Difficulty-Kontext wird als <code>bootstrap_expected</code> gespeichert, vorhandene Route-Dateien werden read-only importiert und Farm-Start bleibt bis zur Bestätigung gesperrt. Erfolgreiches Apply exakt dieses Kontexts setzt <code>last_confirmed_difficulty</code>, ohne die importierten Routen pauschal zu invalidieren; ihre Live-Fingerprints bleiben dennoch Runtime-Pflicht.</td><td>YAML allein autorisiert noch kein Playback und wird nicht still als tatsächlich aktives Spiel behandelt.</td></tr>
+    <tr><td>Erstes Apply weicht vom <code>bootstrap_expected</code>-Kontext ab</td><td>Preview behandelt dies bereits als Difficulty-Wechsel. Nach erfolgreich bestätigtem Game-Start werden alle Farming-Routen dieses Charakters mit <code>difficulty_changed</code> stale markiert und erst dann die neue Difficulty bestätigt.</td><td>Keine Annahme, die unbekannte Historie sei harmlos; keine Fremdcharakter- oder Town-Route ändern.</td></tr>
+    <tr><td>Bestätigter Start mit gleicher zuletzt bestätigter Difficulty</td><td><code>confirmed_at</code> aktualisieren; bestehende Status bleiben.</td><td>Keine Invalidation.</td></tr>
+    <tr><td>Bestätigter Start mit anderer Difficulty</td><td>Alle Farming-Routen dieses Charakters in allen Difficulty-Unterordnern in einer Manifest-Revision mit <code>difficulty_changed</code> und gemeinsamem <code>invalidated_at</code> stale markieren; neue Difficulty danach bestätigen.</td><td>Keine Dateien löschen/verschieben; keine Town- oder Fremdcharakter-Routen ändern.</td></tr>
+    <tr><td>Live-Fingerprint weicht von gebundener Route ab</td><td>Playback vor Input stoppen und alle Farming-Routen dieses Charakters atomisch mit <code>layout_mismatch_detected</code> stale markieren.</td><td>Kein Retry mit anderer Route, kein Ignorieren als transienter Fehler.</td></tr>
+    <tr><td>Neue Aufnahme nach Invalidation</td><td>Nur diese Route wird anhand ihres späteren <code>recorded_at</code> und gültigen Bindings wieder <code>runtime_validation_required</code>/<code>valid</code>.</td><td>Keine automatische Rehabilitation älterer Geschwisterrouten.</td></tr>
+  </tbody></table>
+  <p>Die Apply-Preview nennt Charakter, alte/neue Difficulty, sämtliche betroffenen Route-IDs und die irreversible Auswirkung auf ihre <em>Verwendbarkeit</em>. Das Bestätigungstoken bindet exakt diese Preview-Revision. Ändert sich Katalog oder Auswahl, ist das Token ungültig. Nach bestätigtem Game-Start schreibt der Core zuerst die vollständige neue Manifest-Revision; erst nach erfolgreichem atomischem Commit wird der neue Zustand veröffentlicht. Bei Write-Fehler bleibt Farm-Start gesperrt und der Fehler sichtbar.</p>
+
+  <h2>8. Dashboard-Schnitt und Bedienlogik</h2>
+  <ul>
+    <li><strong>Kopfbereich:</strong> Core-Version, API-Verbindung, D2R-Prozess/Fenster, Input-Opt-in, aktueller Supervisor-Zustand und F11-Hinweis.</li>
+    <li><strong>Zentrale Auswahl:</strong> Charakter zuerst, Difficulty direkt danach, klarer Aktiv-/Entwurfsvergleich und eigener Button <em>Auswahl in D2R anwenden</em>. Invalidation-Modal nennt Konsequenzen und betroffene Routen vollständig.</li>
+    <li><strong>Availability:</strong> Countess/Mephisto mit Anzeigename, Route, Status, übersetztem Hauptgrund und aufklappbaren technischen Reason-Codes. Unkonfigurierte Charaktere bleiben sichtbar.</li>
+    <li><strong>Queue Builder:</strong> verfügbare Runs hinzufügen, Duplikate erlauben, Reihenfolge per zugänglichen Hoch/Runter-Aktionen sowie optional Drag-and-drop ändern, Einträge entfernen und auf YAML-Default zurücksetzen.</li>
+    <li><strong>Session Controls:</strong> Start, <em>Nach aktuellem Run pausieren</em>, Resume, <em>Nach aktuellem Run stoppen</em> und visuell getrenntes <em>Sofort stoppen</em> mit Bestätigung.</li>
+    <li><strong>Live-Bereich:</strong> Session-ID, Queue-Position/Zyklus, Run, Step, Area, Laufzeit, Retry, harte Safety-Budgets und letzter Fehler. Ein begrenzter Eventfeed dient Live-Diagnose, nicht als Historie.</li>
+    <li><strong>Locking:</strong> Während aktiver oder pausierter Queue werden Auswahl und Reihenfolge deaktiviert und der Grund erklärt. Frontend-Disable ist Komfort; der Core lehnt verbotene Befehle zusätzlich ab.</li>
+    <li><strong>Zugänglichkeit:</strong> Tastaturbedienung, sichtbarer Fokus, semantische Dialoge, keine reine Farbcodierung, verständliche deutsche Texte und responsive Darstellung.</li>
+  </ul>
+
+  <h2>9. Sequenzieller Umsetzungsplan</h2>
+  <article class="phase"><div class="phase-id">11.0</div><div><h3>Vertrag, Characterization und Risikogrenzen</h3><p>Vor Umbauten den Phase-10-Session-Lifecycle, F11-Cancellation, Run-Availability, Offline-Game-Start, UI-Anker und Telemetrie-Sinks durch Characterization-Tests einfrieren. Supervisor-Zustände, Commands, DTOs, Queue-Semantik, Lifecycle-Status, stabile Reason-Codes und verbotene Übergänge verbindlich dokumentieren. Eine Migrationsmatrix ordnet bestehende One-shot-Runtime-Aufrufe dem künftigen Supervisor zu und benennt später zu entfernendes Wiring.</p><ul><li>Keine Verhaltensänderung und kein Web-Scaffold vor festgeschriebenem Vertrag.</li><li>Entscheidungen aus den Kapiteln 1 bis 8 als Testspezifikationen abbilden.</li><li>Godoc und Design-Kommentare für State-, Safety-, Invalidation- und Event-Invarianten von Beginn an pflegen.</li></ul><p class="gate"><strong>Gate 11.0:</strong> Characterization- und Vertragstests, <code>go test ./...</code> und <code>go build ./cmd/d2rbot</code> grün; keine produktive Input-Sequenz geändert. Kein manueller Test.</p></div></article>
+
+  <article class="phase"><div class="phase-id">11.1</div><div><h3>Long-lived Session Supervisor und Command-State-Machine</h3><p>Eine thread-safe Supervisor-Grenze implementieren, die Statusabfragen, genau eine aktive Session-Generation, Cancellation, Pause-after-run, Stop-after-run und terminale Ergebnisse besitzt. Bestehende CLI-Ausführung verwendet denselben Command-Service oder einen dünnen Adapter; es entsteht keine zweite Session-Pipeline. Der API-Prozess bleibt nach Worker-Ende lebendig.</p><ul><li>Race-freie immutable Status-Snapshots und monotone Generation.</li><li>Idempotente Commands, parallele Start-Abweisung und F11-Priorität.</li><li>Fake-Runner-Tests für alle Zustände, Retry, Cancellation und Shutdown.</li><li><code>go test -race</code> für die neuen plattformneutralen Supervisor-Pakete.</li></ul><p class="gate"><strong>Gate 11.1:</strong> Vollständige Transition-Matrix automatisch grün; CLI-Countess und CLI-Mephisto lösen weiterhin denselben Phase-10-Plan auf. Kein manueller D2R-Test.</p></div></article>
+
+  <article class="phase"><div class="phase-id">11.2</div><div><h3>Loopback-API, Security Envelope und Web-Build</h3><p><code>internal/api</code>, <code>--ui</code>, Loopback-Portwahl, Control-Token, DTO-Schema und eingebettete statische Assets implementieren. React/TypeScript/Vite unter <code>web/</code> minimal aufsetzen; stabile Versionen werden bei Umsetzung bewusst gepinnt. Ein reproduzierbarer Build erzeugt die embed-fähigen Assets, ohne Node als Runtime-Abhängigkeit des ausgelieferten Go-Binaries.</p><ul><li>Transporttests für Host/Origin/Token, Body-Limit, Methoden, Content-Type, Command-ID, Generation und strukturierte Fehler.</li><li>API darf beim Start keinerlei Session automatisch ausführen, selbst wenn YAML Session-Defaults enthält.</li><li>Browser-Öffnen ist Komfort; die URL wird zusätzlich einmal sicher an der Konsole ausgegeben, ohne Token zu loggen.</li><li>Frontend-Typecheck, Unit-Tests und Produktionsbuild in den Projektworkflow aufnehmen.</li></ul><p class="gate"><strong>Gate 11.2:</strong> API-Contract-/Security-Tests, <code>npm test</code>, <code>npm run build</code>, Go-Test und Go-Build grün. Ein Fremd-Origin-Request kann keinen Input-Befehl auslösen. Kein manueller D2R-Test.</p></div></article>
+
+  <article class="phase"><div class="phase-id">11.3</div><div><h3>Statusprojektion, Live-Events und Dashboard-Shell</h3><p>Core-/D2R-/Supervisor-Snapshot, Katalog und SSE anbinden. Bestehende Telemetrie wird über einen nicht blockierenden typisierten Publisher zusätzlich live projiziert; JSONL bleibt unverändert autoritativ für persistente Diagnose. Das Dashboard implementiert Verbindung, Reconnect, Header, Live-Karten, begrenzten Eventfeed und deutsche Fehlertexte.</p><ul><li>Snapshot-then-stream verhindert Lücken beim Einstieg.</li><li>Monotone Eventsequenzen, begrenzter Ring, Slow-Client-Abwurf und Shutdown.</li><li>Area-/Step-Updates werden gedrosselt oder dedupliziert, ohne terminale Ereignisse zu verlieren.</li><li>Browser-Refresh rekonstruiert den Zustand ausschließlich aus API-Snapshot und Stream.</li></ul><p class="gate"><strong>Manuelle Abnahme 1/4 — STOP:</strong> <code>d2rbot.exe --ui</code> öffnet das Dashboard, zeigt D2R/Core/Input-Zustand korrekt und aktualisiert Attach/Detach sowie eine ungefährliche read-only Statusänderung live. Browser-Refresh und kurzzeitiger SSE-Abbruch stellen den Zustand wieder her. Es wird kein Game-Input gesendet. Erst nach Abnahme beginnt 11.4.</p></div></article>
+
+  <article class="phase"><div class="phase-id">11.4</div><div><h3>Read-only Charakterkatalog und Screenshot-gated Selector</h3><p>Save-Dateinamen-Katalog, Anker-Availability und den begrenzten Screenshot-Selector implementieren. Die bestehende Capture-/Anchor-Infrastruktur und der bestehende Play-/Difficulty-/In-game-Verify-Flow werden wiederverwendet und zu einer einzigen State-Machine verbunden. Unbekannte oder ankerlose Charaktere werden im Dashboard sichtbar mit Gründen deaktiviert.</p><ul><li>Dateinamen-, Reparse-Point-, Duplikat-, Slug- und Missing-Anchor-Tests.</li><li>Bildfixtures für Home/Down, stable match, no match, falsche Auflösung, Dialog und Timeout.</li><li>Kein Character-Screen-Memory-Code und kein alternativer Blindpfad.</li><li>Selection Apply ohne Difficulty-Wechsel darf keinerlei Route-State verändern.</li></ul><p class="gate"><strong>Manuelle Abnahme 2/4 — STOP:</strong> D2R läuft auf dem Offline-Charakterbildschirm. Das Dashboard listet die lokalen Charaktere, deaktiviert fehlende Kontexte/Anker nachvollziehbar und wählt einen vorbereiteten Zielcharakter über Home/Down aus. Bildanker bestätigt vor Play, Difficulty-Dialog vor Klick und Memory bestätigt Name/Klasse im Spiel. Zusätzlich muss ein absichtlich fehlender Anker vor Input abbrechen. Erst nach Abnahme beginnt 11.5.</p></div></article>
+
+  <article class="phase"><div class="phase-id">11.5</div><div><h3>RouteCatalog, Config-Migration, atomisches Lifecycle-Manifest und Invalidation</h3><p><code>routes.directory</code> ohne Legacy-Alias zu <code>routes.farming_root</code> migrieren, alle Farming-Route-Sets katalogisieren, den persistenten Lifecycle implementieren und Phase-10-Availability auf die Status aus Kapitel 7 umstellen. Recorder und Resolver leiten den aktiven Unterordner aus Charakter/Difficulty ab. Town-Routen bleiben außerhalb dieses Modells. Der einmalige <code>bootstrap_expected</code>-Kontext schützt vorhandene MrBones-/Nightmare-Routen, ohne YAML allein zu einer Playback-Autorität zu machen.</p><ul><li>Tabellentests für jeden Trigger und jede Nicht-Wirkung aus 7.3.</li><li>Matrix mit MrBones/MrHammer × Normal/Nightmare/Hell × alte/neue Aufnahme × Town/Farming.</li><li>Erststart exakt im Bootstrap-Kontext gegenüber abweichender erster Difficulty explizit testen.</li><li>Crash-/Write-Fehler, beschädigtes Manifest, doppelte Route-ID, geänderte Datei und gleichzeitige Preview/Apply-Revision.</li><li>Layout mismatch stoppt Playback vor dem ersten Route-Input und invalidiert alle Farming-Routen nur des betroffenen Charakters.</li><li>Kein automatisches Delete, Move, Rewrite oder Route-Fallback.</li></ul><p class="gate"><strong>Gate 11.5:</strong> Config-Migration sowie vollständige Lifecycle- und Negativmatrix laufen ausschließlich auf temporären Route-Fixtures grün. Ein Repository-Diff beweist, dass reale Route-Dateien unverändert sind. Kein destruktiver manueller Difficulty-Wechsel erforderlich.</p></div></article>
+
+  <article class="phase"><div class="phase-id">11.6</div><div><h3>Zweistufiges Selection Apply und Invalidation-Modal</h3><p>Preview/Confirmation/Apply mit unveränderlicher Katalogrevision verbinden. Das Dashboard unterscheidet Entwurf und bestätigten aktiven Kontext, zeigt bei Difficulty-Wechsel alle betroffenen Farming-Routen und verlangt eine eindeutige Bestätigung. Erst der erfolgreich Memory-bestätigte Game-Start committed Invalidation und neue Difficulty; danach bleibt der Charakter im Spiel und es startet kein Run.</p><ul><li>Abbruch, Timeout, falscher Charakter, stale Confirmation-Token und Manifest-Write-Fehler lassen den vorherigen Lifecycle unverändert.</li><li>Gleiche Difficulty aktualisiert nur Confirmation-Zeit.</li><li>Reiner Charakterwechsel invalidiert weder alten noch neuen Charakter.</li><li>Nach Invalidation blockiert Availability die Queue, bis passende neue Aufnahmen existieren; UI verweist vorläufig auf CLI-Recorder und Phase 12.</li></ul><p class="gate"><strong>Manuelle Abnahme 3/4 — STOP:</strong> Zuerst denselben bestätigten Charakter/Difficulty-Kontext erneut anwenden und beweisen, dass keine Route stale wird. Danach den Dialog und die betroffene Routenliste mit einem ungefährlichen Kontext ohne produktive Routen live prüfen oder den Commit über isolierte Fixtures demonstrieren. Abbruch verändert nichts; erfolgreiche Anwendung aktualisiert nur den erwarteten Charakter. Produktive MrBones-Nightmare-Routen dürfen für dieses Gate nicht zerstört werden. Erst nach Abnahme beginnt 11.7.</p></div></article>
+
+  <article class="phase"><div class="phase-id">11.7</div><div><h3>FarmQueue Scheduler, Retry und Safety-Budgets</h3><p>Den Supervisor um die typisierte Runtime-Queue erweitern. Der vollständige Queue-Preflight löst alle Einträge gegen denselben bestätigten Charakter/Difficulty-Kontext und den aktuellen RouteCatalog auf. Scheduler führt pro Eintrag genau eine vollständige Phase-10-Session aus, schaltet nur nach Erfolg zyklisch weiter und zeigt Budgets/Retry eindeutig.</p><ul><li>Leere Queue, unbekannte IDs, Duplikate, stale/missing Routes, gemischte Kontexte und veraltete Katalogrevision sperren Start.</li><li>Retry bleibt beim selben Index; terminaler Fehler stoppt die Queue.</li><li>Run-, Dauer-, Failure- und Restart-Budgets aus YAML gewinnen immer gegen <em>until stopped</em>.</li><li>Queue ist Runtime-only; Neustart lädt YAML-Default und beginnt bei Index 0.</li></ul><p class="gate"><strong>Gate 11.7:</strong> Fake-Session-Tests beweisen <code>countess → mephisto → countess</code>, Duplikate, Wrap-around, Retry-same-index, Budget-Ende und Terminalfehler. Phase-10-Einzelrun-Tests bleiben unverändert grün. Kein manueller D2R-Test.</p></div></article>
+
+  <article class="phase"><div class="phase-id">11.8</div><div><h3>Queue Builder und sichere Session Controls</h3><p>Availability-Karten, Queue-Editor, Start-Validierung, Running-Lock, Pause-after-run, Resume, Stop-after-run und Emergency Stop vollständig an den Supervisor anbinden. Begriffe werden nicht verkürzt: Die UI sagt ausdrücklich, wann der aktuelle Run inklusive Save &amp; Exit weiterläuft.</p><ul><li>Optimistic UI ist für Mutationen verboten; sichtbarer Zustand folgt dem bestätigten Core-Snapshot.</li><li>Doppelklick, Browser-Refresh und wiederholte Requests bleiben idempotent.</li><li>Emergency Stop visuell getrennt, bestätigt und mit F11-Gleichheit erklärt.</li><li>Komponenten-/E2E-Tests mit simuliertem API-Server decken Sperren, Fehlermeldungen, Fokus und Tastaturbedienung ab.</li></ul><p class="gate"><strong>Gate 11.8:</strong> Frontend-E2E gegen Fake-Core beweist den vollständigen Bedienfluss und alle verbotenen Mutationen. Produktionsbuild, Typecheck und Accessibility-Basisprüfung grün. Noch kein echter Farm-Run.</p></div></article>
+
+  <article class="phase"><div class="phase-id">11.9</div><div><h3>Live-Integration und vollständige GUI-Abnahme</h3><p>Die vorhandenen gültigen MrBones-/Nightmare-Routen für Countess und Mephisto read-only vorprüfen. Über das Dashboard die Queue <code>countess → mephisto</code> starten, Live-Status beobachten, nach einem aktuellen Run pausieren, anschließend fortsetzen und nach einem weiteren vollständigen Run geordnet stoppen. Falls zufälliger Loot/Town-Service variiert, bleibt nur der bestehende produktive Run-Vertrag maßgeblich.</p><p class="gate"><strong>Manuelle Abnahme 4/4 — STOP:</strong> Beide Runs müssen mindestens einmal als aufeinanderfolgende Queue-Einträge erfolgreich enden. Pause wird erst nach vollständigem Run, Town und Save &amp; Exit aktiv; Resume beginnt den nächsten Eintrag frisch; Stop-after-run endet ebenfalls erst nach Save &amp; Exit. Queue-Index, Run, Step, Area, Retry/Budgets und terminales Ergebnis stimmen in Dashboard, API und Telemetrie überein. Abschließend wird Emergency Stop in einem sicheren, kontrollierten Zustand separat ausgelöst und muss denselben Cancellation-Grund wie F11 liefern. Erst nach ausdrücklicher Abnahme beginnt 11.10.</p></div></article>
+
+  <article class="phase"><div class="phase-id">11.10</div><div><h3>Dokumentation, Dead-Code-Audit und Phase-Abschluss</h3><p>Feature-Dokumentation für Core-API, Supervisor/FarmQueue, Charakterauswahl, Route-Lifecycle und Dashboard anlegen beziehungsweise Session-, Route-, Game-Start- und Telemetrie-Dokumente aktualisieren. <code>docs/features/README.md</code>, <code>docs/CHANGELOG.md</code> und Handoff pflegen.</p><ul><li>Godoc für alle neuen/geänderten exportierten Go-Symbole.</li><li>Design-/State-Machine-Kommentare an Command-, Security-, Screenshot-, Invalidation-, Queue- und SSE-Invarianten.</li><li>Dead-Code-Suche nach One-shot-Session-Duplikaten, Character-Screen-Memory-Experimenten, parallelen DTOs, direktem YAML-/Route-Zugriff aus React, Alt-Availability und ungenutzten Web-Adaptern.</li><li>Handoff hält Runtime-only Queue als spätere Lücke, Phase-12-Routenverwaltung, Phase-14-Historie sowie Electron/Overlay in Phase 15 ausdrücklich fest.</li><li>SemVer-Minor-Bump nach erfolgreicher Abnahme; kein Commit oder Release ohne separate Nutzeranweisung.</li></ul><p class="gate"><strong>Gate 11.10:</strong> <code>gofmt</code>, <code>goimports</code>, <code>go test ./...</code>, relevante Race-Tests, <code>go build ./cmd/d2rbot</code>, <code>golangci-lint run</code>, Frontend-Test/Typecheck/Build, HTML-Linkcheck und <code>git diff --check</code> grün. Alle vier manuellen Gates dokumentiert; keine tote Parallelarchitektur.</p></div></article>
+
+  <h2>10. Automatische Testmatrix</h2>
+  <table><thead><tr><th>Bereich</th><th>Pflichttests</th></tr></thead><tbody>
+    <tr><td>Supervisor</td><td>Jeder erlaubte/verbotene Übergang, Concurrent Start, Idempotenz, Generation, Worker-Panic, Shutdown, F11, Pause/Stop-after-run und Statussnapshot.</td></tr>
+    <tr><td>API Security</td><td>Loopback only, Host/Origin, Token, Methoden, Content-Type, Body-Limit, malformed JSON, Request-ID, stale generation und keine Secrets in Logs.</td></tr>
+    <tr><td>SSE</td><td>Snapshot-first, Sequenz, Reconnect, Ring-Überlauf, Slow Client, Disconnect, Deduplikation und verlustfreie terminale Events.</td></tr>
+    <tr><td>Character Catalog</td><td>Savepfad, nur Dateinamen, ungültige/duplizierte Namen, Reparse-Points, fehlender Anker, unkonfigurierter Charakter und deterministische Sortierung.</td></tr>
+    <tr><td>Character Selector</td><td>Home/Down-Budget, stable anchor, false positive, falsche Auflösung, Play-/Difficulty-Reihenfolge, In-game-Namens-/Klassenabweichung und Cancellation.</td></tr>
+    <tr><td>Route Lifecycle</td><td>Erstimport, gleiche/andere Difficulty, Characterwechsel, externe Layoutabweichung, Town-Ausnahme, Recording-Zeit, Manifestkorruption, Write-Crash, Preview-Revision und keine Dateimutationen.</td></tr>
+    <tr><td>Queue</td><td>Duplikate, Zyklus, Retry-same-index, terminaler Fehler, jedes Safety-Budget, Availability-Änderung zwischen Runs, Pause/Resume, beide Stoparten und Runtime-Reset.</td></tr>
+    <tr><td>Frontend</td><td>Loading/empty/error, Reason-Code-Texte, Modal-Inhalt, Controls/Locking, Refresh, Reconnect, Keyboard/Focus, responsive Layout und API-Schema-Kompatibilität.</td></tr>
+  </tbody></table>
+
+  <h2>11. Stabile Reason-Codes</h2>
+  <table><thead><tr><th>Bereich</th><th>Mindestens vorzusehende Codes</th></tr></thead><tbody>
+    <tr><td>Supervisor</td><td><code>command_conflict</code>, <code>state_changed</code>, <code>session_not_running</code>, <code>session_not_paused</code>, <code>emergency_stop_requested</code></td></tr>
+    <tr><td>API</td><td><code>request_unauthorized</code>, <code>origin_rejected</code>, <code>request_invalid</code>, <code>payload_too_large</code>, <code>api_version_unsupported</code></td></tr>
+    <tr><td>Charakter</td><td><code>character_save_missing</code>, <code>character_unconfigured</code>, <code>character_anchor_missing</code>, <code>character_screen_unconfirmed</code>, <code>character_selection_unconfirmed</code>, <code>character_identity_mismatch</code></td></tr>
+    <tr><td>Difficulty</td><td><code>selection_confirmation_required</code>, <code>selection_preview_stale</code>, <code>difficulty_dialog_unconfirmed</code>, <code>difficulty_change_failed</code></td></tr>
+    <tr><td>Route Lifecycle</td><td><code>route_stale</code>, <code>route_lifecycle_unavailable</code>, <code>route_manifest_corrupt</code>, <code>route_manifest_write_failed</code>, <code>route_layout_mismatch</code>, <code>route_runtime_validation_required</code></td></tr>
+    <tr><td>Queue</td><td><code>queue_empty</code>, <code>queue_entry_unavailable</code>, <code>queue_context_mismatch</code>, <code>queue_locked</code>, <code>run_budget_exhausted</code>, <code>duration_budget_exhausted</code></td></tr>
+  </tbody></table>
+  <p>Vorhandene semantisch identische Codes aus Phase 10 werden wiederverwendet. Abschnitt 11.0 legt die endgültige Liste fest; Implementierung und UI dürfen keine Synonymfamilien erzeugen.</p>
+
+  <h2>12. Manuelle Gates im Überblick</h2>
+  <table><thead><tr><th>Gate</th><th>Beweist</th><th>Bewusst ausgeschlossen</th></tr></thead><tbody>
+    <tr><td>1 – Dashboard/Live</td><td>Loopback-App, Snapshot, SSE, Refresh und D2R-Attach ohne Input.</td><td>Keine Charakterauswahl und kein Run.</td></tr>
+    <tr><td>2 – Charakterauswahl</td><td>Save-Katalog, Home/Down, Screenshot-Anker, Play, Difficulty und In-game-Identität.</td><td>Kein Memory-Read des Character Screens.</td></tr>
+    <tr><td>3 – Lifecycle Apply</td><td>Zweistufige Auswahl, Modal, keine Invalidation bei Abbruch/gleicher Difficulty und isolierter Commit.</td><td>Keine Zerstörung der produktiven Nightmare-Routen.</td></tr>
+    <tr><td>4 – Queue E2E</td><td>Countess und Mephisto in einer Queue sowie Pause-after-run, Resume, Stop-after-run und Emergency Stop.</td><td>Keine zufällige Loot-/Mercenary-Erfolgsbedingung.</td></tr>
+  </tbody></table>
+  <div class="callout success"><strong>Gate-Prinzip:</strong> Varianten und zerstörerische Lifecycle-Matrizen werden mit temporären Fixtures automatisiert geprüft. Live-Gates beweisen nur Integration und sichtbares Verhalten; sie dürfen keine wertvollen Routen unnötig invalidieren.</div>
+
+  <h2>13. Definition of Done</h2>
+  <ol>
+    <li><code>d2rbot.exe --ui</code> startet eine ausschließlich lokale, geschützte Core-API und das eingebettete React-Dashboard ohne automatische Bot-Session.</li>
+    <li>UI, zukünftiges Electron und Overlay können denselben versionierten HTTP/SSE-Vertrag verwenden.</li>
+    <li>Charaktere werden ohne Savegame-Parsing gelistet und ohne Character-Screen-Memory-Offsets screenshot-verifiziert ausgewählt.</li>
+    <li>Charakter, Difficulty und Queue sind zentrale, während Aktivität unveränderliche Session-Parameter.</li>
+    <li>Selection Preview/Apply invalidiert erst nach bestätigtem Game-Start und niemals durch Dropdown, Abbruch oder Fehler.</li>
+    <li>Difficulty-Wechsel und autoritative Layoutabweichung markieren exakt die Farming-Routen des betroffenen Charakters persistent stale; Dateien, Town- und Fremdcharakter-Routen bleiben unverändert.</li>
+    <li>Countess und Mephisto können mit Duplikaten in einer zyklischen Runtime-Queue ausgeführt werden; YAML-Budgets bleiben harte Endbedingungen.</li>
+    <li>Retry bleibt beim aktuellen Eintrag; nur Erfolg schaltet weiter; terminale Fehler stoppen die Schleife.</li>
+    <li>Pause-after-run, Resume, Stop-after-run und Emergency Stop besitzen die dokumentierte, im Dashboard eindeutige Semantik.</li>
+    <li>Live-Status zeigt Session, Queue-Index, Run, Step, Area, Budgets und Fehler ohne JSONL oder Core-Lifecycle zu blockieren.</li>
+    <li>Frontend schreibt weder YAML noch Route-Dateien; Runtime-Queue-Verlust beim Neustart wird sichtbar dokumentiert.</li>
+    <li>Alle automatischen Gates, vier manuellen Gates, Dokumentation, Dead-Code-Audit, Builds, Lint und SemVer-Bump sind abgeschlossen.</li>
+  </ol>
+
+  <h2>14. Übergabe an spätere Phasen</h2>
+  <ul>
+    <li><strong>Phase 12:</strong> verwendet RouteCatalog und Lifecycle-Manifest für manuelles Record/Validate/Replace/Archive/Delete. Automatische Invalidation bleibt davon getrennt und darf nicht neu implementiert werden.</li>
+    <li><strong>Phase 13:</strong> ergänzt einen Pickit-Editor über neue Core-API-Verträge, ohne YAML-/Dateizugriff aus React.</li>
+    <li><strong>Phase 14:</strong> baut persistente Historie und Statistiken auf Telemetrie auf; der Phase-11-Eventring bleibt nur Live-Transport.</li>
+    <li><strong>Phase 15:</strong> verpackt dieselbe React-App bevorzugt mit Electron, ergänzt Installer, Tray, Updates, First-Run und evaluiert ein optionales D2R-Overlay mit denselben API-Befehlen. Zu diesem Zeitpunkt wird außerdem persistente GUI-Konfiguration statt Runtime-only Overrides abgeschlossen.</li>
+  </ul>
+
+  <footer>Planungsstand: 16. Juli 2026 · Phase 11 vollständig durchgeplant · Umsetzung noch nicht begonnen · Vier manuelle Gates vorgesehen</footer>
+</main></body>
+</html>
