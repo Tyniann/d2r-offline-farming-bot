@@ -12,7 +12,11 @@ import (
 
 // RunRouteSegment replays exactly one named segment and its confirmed transition.
 func (rt *Runtime) RunRouteSegment(routeID, segmentID string) error {
-	registry, err := pathing.LoadRouteRegistry(rt.Config.ResolvePath(rt.Config.Routes.Directory))
+	directory, err := configuredFarmingRouteDirectory(rt.Config)
+	if err != nil {
+		return err
+	}
+	registry, err := pathing.LoadRouteRegistry(directory)
 	if err != nil {
 		return err
 	}

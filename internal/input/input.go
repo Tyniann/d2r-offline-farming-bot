@@ -177,10 +177,13 @@ func (c *Controller) Focus() error {
 	}
 	hwnd := nativeWindow(c.window.Handle)
 	c.mu.Unlock()
-	if err := c.api.Activate(hwnd); err != nil {
-		return err
-	}
 	for attempt := 0; attempt < 10; attempt++ {
+		// Windows may reject the first foreground request while the dashboard owns
+		// the foreground lock. Retrying remains input-free; the authoritative gate
+		// is still GetForegroundWindow below.
+		if err := c.api.Activate(hwnd); err != nil {
+			return err
+		}
 		if c.api.IsForeground(hwnd) {
 			c.logAllowedAction("window", "focus", "window_focus", "hwnd", fmt.Sprintf("0x%X", hwnd), "verify_attempt", attempt+1)
 			return nil

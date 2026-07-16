@@ -17,7 +17,7 @@ const routeRecordSampleDistance = 4.0
 
 // RunRouteRecord observes manual navigation until the Stop hotkey and publishes a valid route.
 func (rt *Runtime) RunRouteRecord(id, name, difficultyLabel string) error {
-	return rt.runRouteRecord(id, name, difficultyLabel, pathing.RouteMovementTeleport, rt.Config.ResolvePath(rt.Config.Routes.Directory), 0)
+	return rt.runRouteRecord(id, name, difficultyLabel, pathing.RouteMovementTeleport, "", 0)
 }
 
 func (rt *Runtime) runRouteRecord(id, name, difficultyLabel string, movement pathing.RouteMovement, directory string, expectedArea world.AreaID) error {
@@ -125,6 +125,12 @@ func (rt *Runtime) finishRouteRecording(recorder *pathing.RouteRecorder, id, nam
 		return fmt.Errorf("route recording not published: %w", err)
 	}
 	identity := recorder.Identity()
+	if expectedArea == 0 {
+		directory, err = farmingRouteDirectory(rt.Config, identity.CharacterName, string(difficulty))
+		if err != nil {
+			return fmt.Errorf("route recording directory: %w", err)
+		}
+	}
 	seed := identity.MapSeed
 	route := pathing.Route{
 		Version: pathing.RouteVersion, ID: id, Name: name, Kind: pathing.RouteKindNavigation,
@@ -141,6 +147,15 @@ func (rt *Runtime) finishRouteRecording(recorder *pathing.RouteRecorder, id, nam
 	path := filepath.Join(directory, id+".yaml")
 	if err := pathing.SaveRoute(path, route); err != nil {
 		return fmt.Errorf("route recording publish: %w", err)
+	}
+	if expectedArea == 0 {
+		lifecycle, err := NewRouteLifecycleStore(rt.Config)
+		if err != nil {
+			return fmt.Errorf("route recording lifecycle: %w", err)
+		}
+		if _, err := lifecycle.RecordRoute(path); err != nil {
+			return fmt.Errorf("route recording lifecycle commit: %w", err)
+		}
 	}
 	rt.Log.Info("route recording published", "route_id", id, "path", path, "segments", len(segments), "character", identity.CharacterName, "difficulty", difficulty, "layout_fingerprint", fingerprint.Hash)
 	return nil

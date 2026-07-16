@@ -29,9 +29,9 @@ type RunsInspectReport struct {
 }
 
 type runAvailabilityResolution struct {
-	report   RunsInspectReport
-	routes   map[tasks.RunID]pathing.Route
-	registry *pathing.RouteRegistry
+	report     RunsInspectReport
+	routes     map[tasks.RunID]pathing.Route
+	routePaths map[string]string
 }
 
 // ResolveRunAvailabilities evaluates every registered run without process
@@ -66,12 +66,22 @@ func resolveRunAvailabilities(cfg *config.Config, context RunAvailabilityContext
 	if cfg == nil {
 		return runAvailabilityResolution{}, fmt.Errorf("resolve run availability requires config")
 	}
-	routes, err := pathing.LoadRouteRegistry(cfg.ResolvePath(cfg.Routes.Directory))
+	lifecycle, err := NewRouteLifecycleStore(cfg)
 	if err != nil {
-		return runAvailabilityResolution{}, fmt.Errorf("load run route registry: %w", err)
+		return runAvailabilityResolution{}, err
+	}
+	_, catalog, err := lifecycle.Snapshot()
+	if err != nil {
+		return runAvailabilityResolution{}, fmt.Errorf("load run route catalog: %w", err)
 	}
 	result := runAvailabilityResolution{
-		report: RunsInspectReport{Context: context}, routes: make(map[tasks.RunID]pathing.Route), registry: routes,
+		report: RunsInspectReport{Context: context}, routes: make(map[tasks.RunID]pathing.Route), routePaths: make(map[string]string),
+	}
+	candidates := make(map[string]FarmingRouteCatalogEntry)
+	for _, entry := range catalog.Entries {
+		if entry.ID != "" {
+			candidates[entry.ID] = entry
+		}
 	}
 	for _, definition := range tasks.DefaultRunRegistry().Definitions() {
 		availability := tasks.RunAvailability{
@@ -96,18 +106,25 @@ func resolveRunAvailabilities(cfg *config.Config, context RunAvailabilityContext
 			availability.Reasons = append(availability.Reasons, tasks.RunReasonRouteMissing)
 		} else {
 			availability.Route.RouteID = runCfg.RouteID
-			candidate, routeErr := routes.Get(runCfg.RouteID)
-			if routeErr != nil {
+			candidate, found := candidates[runCfg.RouteID]
+			if !found {
 				availability.Route.Reason = tasks.RunReasonRouteMissing
 				availability.Reasons = append(availability.Reasons, tasks.RunReasonRouteMissing)
+			} else if candidate.Status == RouteLifecycleStale {
+				availability.Route.Reason = tasks.RunReasonRouteStale
+				availability.Reasons = append(availability.Reasons, tasks.RunReasonRouteStale)
+			} else if candidate.Status == RouteLifecycleUnavailable {
+				availability.Route.Reason = tasks.RunReasonRouteLifecycleUnavailable
+				availability.Reasons = append(availability.Reasons, tasks.RunReasonRouteLifecycleUnavailable)
 			} else {
-				route = candidate
-				result.routes[definition.ID] = candidate
-				if !routeMatchesDefinitionAndContext(candidate, definition, runCfg.Combat.Profile, context) {
+				route = candidate.Route
+				result.routes[definition.ID] = candidate.Route
+				result.routePaths[candidate.ID] = candidate.Path
+				if !routeMatchesDefinitionAndContext(candidate.Route, definition, runCfg.Combat.Profile, context) {
 					availability.Route.Reason = tasks.RunReasonRouteBindingMismatch
 					availability.Reasons = append(availability.Reasons, tasks.RunReasonRouteBindingMismatch)
 				}
-				if profileConfigured && !strings.EqualFold(candidate.Binding.CharacterClass, profileCfg.CharacterClass) {
+				if profileConfigured && !strings.EqualFold(candidate.Route.Binding.CharacterClass, profileCfg.CharacterClass) {
 					availability.Reasons = append(availability.Reasons, tasks.RunReasonProfileClassMismatch)
 				}
 			}

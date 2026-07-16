@@ -7,6 +7,35 @@ Versionierung nach [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- Add the Phase 11 core contract with immutable supervisor states, command transitions, queue semantics, stable reason codes, characterization coverage, and a one-shot runtime migration matrix
+- Add a thread-safe long-lived session supervisor with immutable snapshots, monotonic generations, idempotent commands, between-run intents, panic containment, and immediate cancellation
+- Add a versioned loopback-only Core API, fail-closed host/origin/token envelope, OpenAPI-generated TypeScript client, pinned React/Vite build, and embedded dashboard assets
+- Add a read-only live dashboard with Core, D2R, input and World projections, bounded monotonic SSE events, replay, reconnect, deduplication, and slow-client isolation
+- Add a filename-only offline character catalog and bounded screenshot-gated Home/Down selector with Play, difficulty-dialog, class, name, and in-game verification
+- Add a recursive Farming RouteCatalog with an atomically persisted lifecycle manifest, bootstrap protection, precise difficulty/layout invalidation, and file-fingerprint correlation
+- Add revision-bound selection previews, explicit route-impact confirmation, and post-Memory lifecycle commits for safe difficulty changes
+- Add a cyclic runtime FarmQueue scheduler with full-queue preflight, duplicate entries, retry-same-index, between-run revalidation, and YAML-authoritative safety budgets
+- Add an accessible runtime Queue Builder with duplicate/reorder/remove/reset operations and Core-backed start, pause-after-run, resume, stop-after-run, and confirmed emergency-stop controls
+
+### Changed
+- Route CLI autonomous sessions through the shared supervisor command boundary while preserving the existing Phase 10 worker, input order, recovery budgets, and Countess/Mephisto plan resolution
+- Make `--ui` an explicit passive mode that never starts YAML session or run defaults and prints only the token-free loopback URL
+- Replace the single `routes.directory` authority with `routes.farming_root`, `routes.lifecycle_file`, and context-derived resolver/recorder paths
+- Show confirmed and draft selection contexts separately and require an accessible modal before a difficulty change can invalidate Farming routes
+- Project queue index, cycle, retry counters and hard budgets through the versioned Core API
+- Execute each dashboard queue entry through a fresh run-specific Phase 10 runtime while consuming an existing game only from the confirmed `idle_in_game` state
+
+### Fixed
+- Reposition at the last Memory-confirmed Countess position after kill confirmation before scanning and picking loot
+- Route the dashboard queue Pause hotkey to pause-after-run without suspending active route input or requiring browser focus
+- Retry visually unstable post-exit character and difficulty screens within a bounded settle window before starting the next queued game
+- Classify the character screen by a decisive Play-versus-dialog anchor margin instead of misusing the tolerant positive-match threshold as an absence check
+- Retry D2R foreground activation through bounded Windows GUI input-queue attachment when the dashboard owns the foreground lock
+- Refresh the dashboard status projection after every serialized live delta so D2R attach, window binding, resolution and World changes no longer remain hidden behind the initial snapshot
+- Restore the process-local control token through a same-origin custom-header bootstrap after browser refresh without persisting it in browser storage, cookies, files, history, or logs
+- Focus D2R and wait for UI settle before the first character-screen capture, and keep selection failures visible across subsequent live status refreshes
+
 ## [0.6.0] - 2026-07-15
 
 ### Added

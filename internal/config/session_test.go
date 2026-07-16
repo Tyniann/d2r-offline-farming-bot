@@ -1,6 +1,7 @@
 package config
 
 import (
+	"reflect"
 	"testing"
 
 	"gopkg.in/yaml.v3"
@@ -11,6 +12,9 @@ func TestSessionDefaultsAreFiniteAndDisabled(t *testing.T) {
 	cfg.applyDefaults()
 	if cfg.Enabled || cfg.Run != "countess" || cfg.Difficulty != "normal" {
 		t.Fatalf("selection defaults = %+v", cfg)
+	}
+	if !reflect.DeepEqual(cfg.Queue, []string{"countess"}) {
+		t.Fatalf("queue default = %v", cfg.Queue)
 	}
 	if cfg.MaxRuns != 3 || cfg.MaxDurationMs != 7200000 || cfg.StateTimeoutMs <= 0 || cfg.ExitTimeoutMs <= 0 || cfg.StartTimeoutMs <= 0 {
 		t.Fatalf("budget defaults = %+v", cfg)
@@ -51,6 +55,8 @@ func TestSessionValidationRejectsUnsafeValues(t *testing.T) {
 		{"unbounded duration", func(c *SessionConfig) { c.MaxDurationMs = -1 }},
 		{"negative cooldown", func(c *SessionConfig) { c.CooldownMs = -1 }},
 		{"invalid difficulty", func(c *SessionConfig) { c.Difficulty = "players8" }},
+		{"empty queue", func(c *SessionConfig) { c.Queue = []string{} }},
+		{"empty queue entry", func(c *SessionConfig) { c.Queue = []string{"countess", ""} }},
 		{"unknown retry", func(c *SessionConfig) { c.RetryClasses = []string{"unknown"} }},
 		{"duplicate retry", func(c *SessionConfig) { c.RetryClasses = []string{"hard_stuck", "hard_stuck"} }},
 	}

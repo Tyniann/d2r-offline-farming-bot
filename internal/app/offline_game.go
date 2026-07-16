@@ -19,6 +19,7 @@ const (
 	offlineDifficultyClientHeight = 720
 	offlineStartTimeout           = 45 * time.Second
 	offlineStartStageTimeout      = 15 * time.Second
+	offlineCharacterSettleDelay   = 1200 * time.Millisecond
 	offlinePlayX                  = 640
 	offlinePlayY                  = 648
 )
@@ -57,11 +58,22 @@ const (
 )
 
 type offlineStartMachine struct {
-	stage       offlineStartStage
-	stableTicks int
-	startedAt   time.Time
-	stageAt     time.Time
-	character   string
+	stage         offlineStartStage
+	stableTicks   int
+	startedAt     time.Time
+	stageAt       time.Time
+	character     string
+	expectedClass world.CharacterClass
+	verifyClass   bool
+}
+
+type screenAnchorMismatchError struct {
+	name       string
+	difference float64
+}
+
+func (e *screenAnchorMismatchError) Error() string {
+	return fmt.Sprintf("%s screen anchor mismatch: mean_difference=%.4f maximum=%.4f", e.name, e.difference, screenAnchorMaxMeanDifference)
 }
 
 func (m *offlineStartMachine) tick(now time.Time, state world.State) (offlineStartAction, bool, error) {
@@ -89,6 +101,12 @@ func (m *offlineStartMachine) tick(now time.Time, state world.State) (offlineSta
 			return offlineStartNoAction, false, nil
 		}
 		if m.stage == offlineStartAwaitCharacter {
+			// Memory reaches `menu` before D2R has necessarily finished painting
+			// the character screen after Save & Exit. Input remains fail-closed
+			// until both the state and this render-settle window have elapsed.
+			if now.Sub(m.stageAt) < offlineCharacterSettleDelay {
+				return offlineStartNoAction, false, nil
+			}
 			return offlineStartVerifyCharacter, false, nil
 		}
 		return offlineStartVerifyDifficulty, false, nil
@@ -103,6 +121,9 @@ func (m *offlineStartMachine) tick(now time.Time, state world.State) (offlineSta
 		if !state.Identity.Valid || !strings.EqualFold(state.Identity.CharacterName, m.character) {
 			m.stableTicks = 0
 			return offlineStartNoAction, false, nil
+		}
+		if m.verifyClass && state.Identity.Class != m.expectedClass {
+			return offlineStartNoAction, false, fmt.Errorf("offline game start expected class %s, got %s", m.expectedClass, state.Identity.Class)
 		}
 		if state.Area.ID != world.RogueEncampment {
 			return offlineStartNoAction, false, fmt.Errorf("offline game start expected Rogue Encampment, got %s", state.Area.Name)
@@ -197,7 +218,7 @@ func verifyOfflineAnchor(ctrl offlineDifficultyController, anchors ...screenAnch
 		}
 		scores[anchor.name] = score
 		if score > screenAnchorMaxMeanDifference {
-			return scores, fmt.Errorf("%s screen anchor mismatch: mean_difference=%.4f maximum=%.4f", anchor.name, score, screenAnchorMaxMeanDifference)
+			return scores, &screenAnchorMismatchError{name: anchor.name, difference: score}
 		}
 	}
 	return scores, nil
@@ -206,6 +227,14 @@ func verifyOfflineAnchor(ctrl offlineDifficultyController, anchors ...screenAnch
 // RunOfflineDifficultyTest starts one offline game from the verified character
 // screen and confirms the expected character in Rogue Encampment.
 func (rt *Runtime) RunOfflineDifficultyTest(rawDifficulty string) error {
+	err := rt.runOfflineDifficultyTest(context.Background(), rawDifficulty)
+	if errors.Is(err, context.Canceled) {
+		return nil
+	}
+	return err
+}
+
+func (rt *Runtime) runOfflineDifficultyTest(parent context.Context, rawDifficulty string) error {
 	difficulty, err := parseOfflineDifficulty(rawDifficulty)
 	if err != nil {
 		return err
@@ -214,11 +243,15 @@ func (rt *Runtime) RunOfflineDifficultyTest(rawDifficulty string) error {
 	if err != nil {
 		return err
 	}
+	return rt.runOfflineDifficultyForCharacter(parent, difficulty, character, 0, false)
+}
+
+func (rt *Runtime) runOfflineDifficultyForCharacter(parent context.Context, difficulty offlineDifficulty, character string, expectedClass world.CharacterClass, verifyClass bool) error {
 	ctrl, ok := rt.Input.(offlineDifficultyController)
 	if !ok {
 		return fmt.Errorf("offline game start: controller lacks click or screenshot support")
 	}
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(parent)
 	defer cancel()
 	rt.startShutdownSignals(ctx, cancel)
 	defer func() {
@@ -235,7 +268,7 @@ func (rt *Runtime) RunOfflineDifficultyTest(rawDifficulty string) error {
 	ticker := time.NewTicker(time.Duration(rt.Config.Runtime.PollIntervalMs) * time.Millisecond)
 	defer ticker.Stop()
 	state := &runState{}
-	machine := &offlineStartMachine{character: character}
+	machine := &offlineStartMachine{character: character, expectedClass: expectedClass, verifyClass: verifyClass}
 	playClicked, difficultyClicked := false, false
 	characterSlug := strings.ToLower(character)
 	characterAnchor := screenAnchor{name: "selected_character", path: filepath.Join("configs", "ui", "characters", characterSlug+"-selected.png"), rect: image.Rect(1035, 48, 1245, 108)}
@@ -246,7 +279,7 @@ func (rt *Runtime) RunOfflineDifficultyTest(rawDifficulty string) error {
 	for {
 		select {
 		case <-ctx.Done():
-			return nil
+			return ctx.Err()
 		case event := <-hotkeys:
 			rt.handleHotkeyEvent(event, cancel)
 		case <-ticker.C:
@@ -264,6 +297,12 @@ func (rt *Runtime) RunOfflineDifficultyTest(rawDifficulty string) error {
 				}
 				scores, err := verifyOfflineAnchor(ctrl, characterAnchor, playAnchor)
 				if err != nil {
+					var mismatch *screenAnchorMismatchError
+					if errors.As(err, &mismatch) {
+						machine.stableTicks = 0
+						rt.Log.Debug("offline character screen not visually stable yet", "error", err, "anchor_scores", scores)
+						continue
+					}
 					return err
 				}
 				if err := clickOfflinePoint(ctrl, offlinePlayX, offlinePlayY, "Play"); err != nil {
@@ -278,6 +317,12 @@ func (rt *Runtime) RunOfflineDifficultyTest(rawDifficulty string) error {
 				}
 				scores, err := verifyOfflineAnchor(ctrl, difficultyAnchor)
 				if err != nil {
+					var mismatch *screenAnchorMismatchError
+					if errors.As(err, &mismatch) {
+						machine.stableTicks = 0
+						rt.Log.Debug("offline difficulty dialog not visually stable yet", "error", err, "anchor_scores", scores)
+						continue
+					}
 					return err
 				}
 				if err := selectOfflineDifficulty(ctrl, difficulty); err != nil {

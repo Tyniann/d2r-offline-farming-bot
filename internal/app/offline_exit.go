@@ -167,11 +167,19 @@ func validateOfflineExitWindow(ctrl offlineWindowController) error {
 // RunOfflineExitTest performs one isolated Memory-gated Save & Exit from a
 // stable Rogue Encampment state and confirms arrival in the offline menu.
 func (rt *Runtime) RunOfflineExitTest() error {
+	err := rt.runOfflineExitTest(context.Background())
+	if errors.Is(err, context.Canceled) {
+		return nil
+	}
+	return err
+}
+
+func (rt *Runtime) runOfflineExitTest(parent context.Context) error {
 	ctrl, ok := rt.Input.(offlineExitController)
 	if !ok {
 		return fmt.Errorf("offline exit: controller lacks click support")
 	}
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(parent)
 	defer cancel()
 	rt.startShutdownSignals(ctx, cancel)
 	defer func() {
@@ -200,7 +208,7 @@ func (rt *Runtime) RunOfflineExitTest() error {
 	for {
 		select {
 		case <-ctx.Done():
-			return nil
+			return ctx.Err()
 		case event := <-hotkeys:
 			rt.handleHotkeyEvent(event, cancel)
 		case <-ticker.C:

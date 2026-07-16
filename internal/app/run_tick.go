@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -75,7 +76,16 @@ type worldLoopState struct {
 }
 
 // runTick executes one poll-loop iteration: attach, poll, snapshot read, and world update.
-func (rt *Runtime) runTick(ctx context.Context, state *runState) error {
+func (rt *Runtime) runTick(ctx context.Context, state *runState) (err error) {
+	defer func() {
+		if rt.uiStatusPublisher != nil {
+			lastError := ""
+			if err != nil && !errors.Is(err, context.Canceled) {
+				lastError = err.Error()
+			}
+			rt.uiStatusPublisher(rt.CurrentUIStatus(lastError))
+		}
+	}()
 	if !state.attached {
 		if !state.hasEverAttached {
 			if timeout := rt.Config.Process.AttachTimeoutMs; timeout > 0 {

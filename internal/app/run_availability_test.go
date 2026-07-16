@@ -2,6 +2,7 @@ package app
 
 import (
 	"encoding/json"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -10,7 +11,7 @@ import (
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/town"
 )
 
-const testCountessFingerprint = "56035675f9c30f9c11bfdea89e1da882d48e95f8423822bd2e95c01291619e37"
+const testCountessFingerprint = "e6020b03a517d9aab52964cb0d8fb5fb362f17606408ac65cfa6f68ed5c519e3"
 
 func availabilityConfig(t *testing.T) *config.Config {
 	t.Helper()
@@ -20,6 +21,7 @@ func availabilityConfig(t *testing.T) *config.Config {
 	}
 	cfg.Session.Character = "MrBones"
 	cfg.Session.Difficulty = "nightmare"
+	cfg.Routes.LifecycleFile = filepath.Join(t.TempDir(), "route-lifecycle.local.yaml")
 	// Availability tests must not change when an operator records the real
 	// Phase-10 Egress asset in the repository workspace.
 	egress := cfg.Town.Egress[town.OriginAct3]

@@ -71,7 +71,10 @@ func (rt *Runtime) RunRouteCommand(raw string) error {
 	if command.action == "play" {
 		return rt.RunRoutePlay(command.id)
 	}
-	directory := rt.Config.ResolvePath(rt.Config.Routes.Directory)
+	directory, err := configuredFarmingRouteDirectory(rt.Config)
+	if err != nil {
+		return err
+	}
 	registry, err := pathing.LoadRouteRegistry(directory)
 	if err != nil {
 		return err

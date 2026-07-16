@@ -61,9 +61,27 @@ type PathsConfig struct {
 	ConfigDir string `yaml:"config_dir"`
 }
 
-// RoutesConfig selects the directory containing generic Route Contract files.
+// RoutesConfig selects the root containing character/difficulty Farming route sets.
 type RoutesConfig struct {
-	Directory string `yaml:"directory"`
+	FarmingRoot   string `yaml:"farming_root"`
+	LifecycleFile string `yaml:"lifecycle_file"`
+}
+
+// UnmarshalYAML rejects the removed single-directory route source instead of
+// retaining a second authority beside the Phase-11 catalog root.
+func (c *RoutesConfig) UnmarshalYAML(value *yaml.Node) error {
+	type routesConfigAlias RoutesConfig
+	var alias routesConfigAlias
+	if err := value.Decode(&alias); err != nil {
+		return err
+	}
+	for i := 0; i < len(value.Content)-1; i += 2 {
+		if value.Content[i].Value == "directory" {
+			return fmt.Errorf("routes.directory is unsupported; migrate to routes.farming_root")
+		}
+	}
+	*c = RoutesConfig(alias)
+	return nil
 }
 
 // LootConfig holds read-only loot model settings.
@@ -321,8 +339,11 @@ func (c *Config) validate() error {
 	if strings.TrimSpace(c.Telemetry.Directory) == "" {
 		return fmt.Errorf("telemetry.directory is required")
 	}
-	if strings.TrimSpace(c.Routes.Directory) == "" {
-		return fmt.Errorf("routes.directory is required")
+	if strings.TrimSpace(c.Routes.FarmingRoot) == "" {
+		return fmt.Errorf("routes.farming_root is required")
+	}
+	if strings.TrimSpace(c.Routes.LifecycleFile) == "" {
+		return fmt.Errorf("routes.lifecycle_file is required")
 	}
 	if err := c.Loot.validate(); err != nil {
 		return err
@@ -360,8 +381,11 @@ func (c *TelemetryConfig) applyDefaults() {
 }
 
 func (c *RoutesConfig) applyDefaults() {
-	if c.Directory == "" {
-		c.Directory = filepath.Join("routes", "farming")
+	if c.FarmingRoot == "" {
+		c.FarmingRoot = filepath.Join("routes", "farming")
+	}
+	if c.LifecycleFile == "" {
+		c.LifecycleFile = "route-lifecycle.local.yaml"
 	}
 }
 

@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"time"
@@ -18,6 +19,7 @@ type routePlaybackAdapter struct {
 	gameVersion string
 	navigator   pathing.SegmentNavigator
 	telemetry   *telemetry.Recorder
+	lifecycle   *RouteLifecycleStore
 	route       pathing.Route
 	player      *pathing.RoutePlayer
 	deadline    time.Time
@@ -27,8 +29,12 @@ type routePlaybackAdapter struct {
 	hasFailure  bool
 }
 
-func newRoutePlaybackAdapter(log *slog.Logger, directory, gameVersion string, navigator pathing.SegmentNavigator, trace *telemetry.Recorder) *routePlaybackAdapter {
-	return &routePlaybackAdapter{log: log.With("component", "route_adapter"), directory: directory, gameVersion: gameVersion, navigator: navigator, telemetry: trace}
+func newRoutePlaybackAdapter(log *slog.Logger, directory, gameVersion string, navigator pathing.SegmentNavigator, trace *telemetry.Recorder, lifecycle ...*RouteLifecycleStore) *routePlaybackAdapter {
+	adapter := &routePlaybackAdapter{log: log.With("component", "route_adapter"), directory: directory, gameVersion: gameVersion, navigator: navigator, telemetry: trace}
+	if len(lifecycle) > 0 {
+		adapter.lifecycle = lifecycle[0]
+	}
+	return adapter
 }
 
 func (a *routePlaybackAdapter) setTelemetry(trace *telemetry.Recorder) { a.telemetry = trace }
@@ -36,19 +42,51 @@ func (a *routePlaybackAdapter) setTelemetry(trace *telemetry.Recorder) { a.telem
 func (a *routePlaybackAdapter) Start(routeID string, state world.State) error {
 	a.Reset()
 	a.lastFailure, a.hasFailure = sessionStuckContext{}, false
-	registry, err := pathing.LoadRouteRegistry(a.directory)
-	if err != nil {
-		return err
-	}
-	route, err := registry.Get(routeID)
-	if err != nil {
-		return err
+	var route pathing.Route
+	if a.lifecycle != nil {
+		_, catalog, err := a.lifecycle.Snapshot()
+		if err != nil {
+			return err
+		}
+		found := false
+		for _, entry := range catalog.Entries {
+			if entry.ID != routeID {
+				continue
+			}
+			if entry.Status == RouteLifecycleStale || entry.Status == RouteLifecycleUnavailable {
+				return fmt.Errorf("route %q lifecycle status %s: %s", routeID, entry.Status, entry.Reason)
+			}
+			route, found = entry.Route, true
+			break
+		}
+		if !found {
+			return fmt.Errorf("%w: %q", pathing.ErrRouteNotFound, routeID)
+		}
+	} else {
+		registry, err := pathing.LoadRouteRegistry(a.directory)
+		if err != nil {
+			return err
+		}
+		candidate, getErr := registry.Get(routeID)
+		if getErr != nil {
+			return getErr
+		}
+		route = candidate
 	}
 	fingerprint, err := pathing.BuildLayoutFingerprint(state)
 	if err != nil {
 		return fmt.Errorf("run route layout: %w", err)
 	}
 	if validationErr := pathing.ValidateRoutePrecheck(route, pathing.RoutePrecheckInput{Identity: state.Identity, GameVersion: a.gameVersion, Layout: fingerprint, World: state}); validationErr != nil {
+		if errors.Is(validationErr, pathing.ErrRouteLayoutMismatch) && a.lifecycle != nil {
+			manifest, _, snapshotErr := a.lifecycle.Snapshot()
+			if snapshotErr != nil {
+				return fmt.Errorf("run route lifecycle before layout invalidation: %w", snapshotErr)
+			}
+			if _, invalidationErr := a.lifecycle.InvalidateLayout(route.Binding.CharacterName, manifest.Revision, time.Now().UTC()); invalidationErr != nil {
+				return fmt.Errorf("run route lifecycle layout invalidation: %w", invalidationErr)
+			}
+		}
 		return fmt.Errorf("run route precheck: %w", validationErr)
 	}
 	player, err := pathing.NewRoutePlayer(a.navigator, route)

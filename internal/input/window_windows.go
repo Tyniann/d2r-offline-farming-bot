@@ -5,6 +5,7 @@ package input
 import (
 	"fmt"
 	"log/slog"
+	"runtime"
 	"sync"
 	"syscall"
 	"unsafe"
@@ -12,7 +13,10 @@ import (
 	"golang.org/x/sys/windows"
 )
 
-const gwOwner = 4
+const (
+	gwOwner   = 4
+	swRestore = 9
+)
 
 var (
 	modUser32                    = windows.NewLazySystemDLL("user32.dll")
@@ -25,6 +29,12 @@ var (
 	procClientToScreen           = modUser32.NewProc("ClientToScreen")
 	procSetForegroundWindow      = modUser32.NewProc("SetForegroundWindow")
 	procGetForegroundWindow      = modUser32.NewProc("GetForegroundWindow")
+	procAttachThreadInput        = modUser32.NewProc("AttachThreadInput")
+	procBringWindowToTop         = modUser32.NewProc("BringWindowToTop")
+	procSetActiveWindow          = modUser32.NewProc("SetActiveWindow")
+	procShowWindow               = modUser32.NewProc("ShowWindow")
+	modKernel32                  = windows.NewLazySystemDLL("kernel32.dll")
+	procGetCurrentThreadID       = modKernel32.NewProc("GetCurrentThreadId")
 )
 
 type winRect struct {
@@ -107,10 +117,54 @@ func (w *user32WindowAPI) ClientArea(hwnd nativeWindow) (WindowInfo, error) {
 }
 
 func (w *user32WindowAPI) Activate(hwnd nativeWindow) error {
-	if r, _, _ := procSetForegroundWindow.Call(hwnd); r == 0 {
-		return fmt.Errorf("activate hwnd=%#x: %w", hwnd, ErrWindowNotForeground)
+	// Windows' foreground lock can reject SetForegroundWindow while the local
+	// dashboard is active. Temporarily joining the GUI input queues lets us make
+	// a bounded activation request without synthesizing Alt, mouse, or keyboard
+	// input. Controller.Focus remains the fail-closed authority and verifies the
+	// result with GetForegroundWindow before any gameplay input is permitted.
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	_, _, _ = procShowWindow.Call(hwnd, swRestore)
+	if r, _, _ := procSetForegroundWindow.Call(hwnd); r != 0 {
+		return nil
 	}
+
+	currentThread, _, _ := procGetCurrentThreadID.Call()
+	foreground, _, _ := procGetForegroundWindow.Call()
+	foregroundThread, _, _ := procGetWindowThreadProcessId.Call(foreground, 0)
+	targetThread, _, _ := procGetWindowThreadProcessId.Call(hwnd, 0)
+
+	attachedForeground := attachThreadInput(currentThread, foregroundThread, true)
+	attachedTarget := false
+	if targetThread != foregroundThread {
+		attachedTarget = attachThreadInput(currentThread, targetThread, true)
+	}
+	defer func() {
+		if attachedTarget {
+			attachThreadInput(currentThread, targetThread, false)
+		}
+		if attachedForeground {
+			attachThreadInput(currentThread, foregroundThread, false)
+		}
+	}()
+
+	_, _, _ = procBringWindowToTop.Call(hwnd)
+	_, _, _ = procSetActiveWindow.Call(hwnd)
+	_, _, _ = procSetForegroundWindow.Call(hwnd)
 	return nil
+}
+
+func attachThreadInput(source, target uintptr, attach bool) bool {
+	if source == 0 || target == 0 || source == target {
+		return false
+	}
+	value := uintptr(0)
+	if attach {
+		value = 1
+	}
+	result, _, _ := procAttachThreadInput.Call(source, target, value)
+	return result != 0
 }
 
 func (w *user32WindowAPI) IsForeground(hwnd nativeWindow) bool {

@@ -67,8 +67,10 @@ type RunDefinition struct {
 	WaypointTarget     pathing.WaypointTargetID
 	Boss               BossDescriptor
 	BossEngageSequence []EncounterAction
-	ReturnOrigin       town.OriginAct
-	RequiredCaps       []RunCapability
+	// RepositionAtBossBeforeLoot moves to the last Memory-confirmed boss position after kill confirmation.
+	RepositionAtBossBeforeLoot bool
+	ReturnOrigin               town.OriginAct
+	RequiredCaps               []RunCapability
 }
 
 // RunStep identifies one state in the shared finite run lifecycle.
@@ -97,6 +99,8 @@ const (
 	RunStepEngageBoss RunStep = "engage_boss"
 	// RunStepConfirmKill confirms boss death over consistent snapshots.
 	RunStepConfirmKill RunStep = "confirm_kill"
+	// RunStepRepositionForLoot moves to the retained boss position before scanning drops.
+	RunStepRepositionForLoot RunStep = "reposition_for_loot"
 	// RunStepScanAndPickLoot executes the selected run's pickup policy.
 	RunStepScanAndPickLoot RunStep = "scan_and_pick_loot"
 	// RunStepCastAndEnterTownPortal creates and enters the owned portal.
@@ -132,7 +136,8 @@ var sharedRunStepContracts = []RunStepContract{
 	{Step: RunStepAcquireBoss, AllowedNext: []RunStep{RunStepBossEngageAction}},
 	{Step: RunStepBossEngageAction, AllowedNext: []RunStep{RunStepBossEngageAction, RunStepEngageBoss}},
 	{Step: RunStepEngageBoss, AllowedNext: []RunStep{RunStepConfirmKill}},
-	{Step: RunStepConfirmKill, AllowedNext: []RunStep{RunStepScanAndPickLoot}},
+	{Step: RunStepConfirmKill, AllowedNext: []RunStep{RunStepRepositionForLoot, RunStepScanAndPickLoot}},
+	{Step: RunStepRepositionForLoot, AllowedNext: []RunStep{RunStepScanAndPickLoot}},
 	{Step: RunStepScanAndPickLoot, AllowedNext: []RunStep{RunStepCastAndEnterTownPortal}},
 	{Step: RunStepCastAndEnterTownPortal, AllowedNext: []RunStep{RunStepWaitOriginTown}},
 	{Step: RunStepWaitOriginTown, AllowedNext: []RunStep{RunStepNormalizeToAct1Hub}},
@@ -220,6 +225,10 @@ const (
 	RunReasonRouteLayoutMismatch RunReason = "route_layout_mismatch"
 	// RunReasonRouteRuntimeValidation reports a live fingerprint that is not observable yet.
 	RunReasonRouteRuntimeValidation RunReason = "route_runtime_validation_required"
+	// RunReasonRouteStale reports a lifecycle-invalidated Farming route.
+	RunReasonRouteStale RunReason = "route_stale"
+	// RunReasonRouteLifecycleUnavailable reports unusable or inconsistent lifecycle metadata.
+	RunReasonRouteLifecycleUnavailable RunReason = "route_lifecycle_unavailable"
 	// RunReasonProfileClassMismatch reports a character/profile class mismatch.
 	RunReasonProfileClassMismatch RunReason = "profile_class_mismatch"
 	// RunReasonWaypointTargetUnsupported reports a target without registered UI action.

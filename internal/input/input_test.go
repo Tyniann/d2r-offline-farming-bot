@@ -20,6 +20,7 @@ type mockWindowAPI struct {
 	lastTitle     string
 	activateErr   error
 	foreground    bool
+	foregroundAt  int
 	activateCalls int
 }
 
@@ -46,7 +47,9 @@ func (m *mockWindowAPI) Activate(_ nativeWindow) error {
 	return m.activateErr
 }
 
-func (m *mockWindowAPI) IsForeground(_ nativeWindow) bool { return m.foreground }
+func (m *mockWindowAPI) IsForeground(_ nativeWindow) bool {
+	return m.foreground || (m.foregroundAt > 0 && m.activateCalls >= m.foregroundAt)
+}
 
 func testSafetyEnabled() SafetyConfig {
 	return SafetyConfig{Enabled: true, PauseHotkey: "pause", StopHotkey: "f12"}
@@ -132,6 +135,24 @@ func TestFocusRejectsUnconfirmedForeground(t *testing.T) {
 	}
 	if err := c.Focus(); !errors.Is(err, ErrWindowNotForeground) {
 		t.Fatalf("Focus() error = %v, want ErrWindowNotForeground", err)
+	}
+}
+
+func TestFocusRetriesActivationUntilForegroundConfirmed(t *testing.T) {
+	api := &mockWindowAPI{
+		findHWND:     0x1234,
+		area:         WindowInfo{Handle: 0x1234, ClientWidth: 1280, ClientHeight: 720},
+		foregroundAt: 3,
+	}
+	c := mustNewTestController(api, &mockKeySender{}, &mockMouseSender{}, DefaultKeyboardConfig(), testSafetyEnabled(), testKeyTimings())
+	if err := c.Bind(42); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.Focus(); err != nil {
+		t.Fatalf("Focus() error = %v", err)
+	}
+	if api.activateCalls != 3 {
+		t.Fatalf("activate calls = %d, want 3", api.activateCalls)
 	}
 }
 

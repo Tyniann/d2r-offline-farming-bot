@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/config"
-	"github.com/Tyniann/d2r-offline-farming-bot/internal/pathing"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/tasks"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/town"
 )
@@ -18,6 +17,7 @@ type SessionPlan struct {
 	Status                 string   `json:"status"`
 	Enabled                bool     `json:"enabled"`
 	Run                    string   `json:"run"`
+	Queue                  []string `json:"queue"`
 	Character              string   `json:"character"`
 	Difficulty             string   `json:"difficulty"`
 	RouteID                string   `json:"route_id"`
@@ -50,7 +50,7 @@ func ResolveSessionPlan(cfg *config.Config, opts Options) (SessionPlan, error) {
 	session := cfg.Session
 	runCfg, _ := cfg.Runs.Run(session.Run)
 	plan := SessionPlan{
-		Status: "disabled", Enabled: session.Enabled, Run: session.Run, Character: session.Character,
+		Status: "disabled", Enabled: session.Enabled, Run: session.Run, Queue: append([]string(nil), session.Queue...), Character: session.Character,
 		Difficulty: session.Difficulty, RouteID: runCfg.RouteID, GameVersion: cfg.Memory.GameVersion,
 		MaxRuns: session.MaxRuns, MaxDurationMs: session.MaxDurationMs, CooldownMs: session.CooldownMs,
 		MaxConsecutiveFailures: session.MaxConsecutiveFailures, MaxTotalRestarts: session.MaxTotalRestarts,
@@ -103,7 +103,7 @@ func ResolveSessionPlan(cfg *config.Config, opts Options) (SessionPlan, error) {
 		}
 	}
 	plan.Status = "ready"
-	plan.RoutePath = routeSourcePath(availability.registry, route.ID)
+	plan.RoutePath = availability.routePaths[route.ID]
 	plan.RouteLayoutFingerprint = route.Binding.LayoutFingerprint.Hash
 	return plan, nil
 }
@@ -123,15 +123,6 @@ func joinRunReasons(reasons []tasks.RunReason) string {
 		values[i] = string(reason)
 	}
 	return strings.Join(values, ",")
-}
-
-func routeSourcePath(registry *pathing.RouteRegistry, routeID string) string {
-	for _, entry := range registry.Entries() {
-		if entry.ID == routeID && entry.Status == pathing.RouteRegistryValid {
-			return entry.Path
-		}
-	}
-	return ""
 }
 
 func validateSessionInspectExclusivity(opts Options) error {

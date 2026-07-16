@@ -23,8 +23,20 @@ func TestShouldRunSessionDoesNotOverrideExplicitRunOrProbe(t *testing.T) {
 	if shouldRunSession(cfg, app.Options{Probe: true}) {
 		t.Fatal("probe must not fall through to autonomous session")
 	}
+	if shouldRunSession(cfg, app.Options{UI: true}) {
+		t.Fatal("UI mode must never start the YAML autonomous session")
+	}
 	if !shouldRunSession(cfg, app.Options{}) {
 		t.Fatal("bare enabled config should run autonomous session")
+	}
+}
+
+func TestValidateUIModeRejectsRuntimeCommands(t *testing.T) {
+	if err := validateUIMode(app.Options{UI: true}); err != nil {
+		t.Fatal(err)
+	}
+	if err := validateUIMode(app.Options{UI: true, Run: "countess"}); err == nil {
+		t.Fatal("expected UI/run conflict")
 	}
 }
 

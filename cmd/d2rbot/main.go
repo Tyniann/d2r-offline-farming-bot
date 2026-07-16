@@ -1,14 +1,23 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
+	"os/signal"
 	"path/filepath"
+	"sync"
+	"sync/atomic"
+	"syscall"
+	"time"
 
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/api"
+	apiui "github.com/Tyniann/d2r-offline-farming-bot/internal/api/ui"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/app"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/config"
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/telemetry"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/version"
 )
 
@@ -39,6 +48,7 @@ func main() {
 	townInspect := flag.Bool("town-inspect", false, "write one read-only Phase-9.1 Town data-availability report")
 	townTest := flag.String("town-test", "", "isolated Town interaction test (akara-shop | item-services:mephisto)")
 	showVersion := flag.Bool("version", false, "print version and exit")
+	uiMode := flag.Bool("ui", false, "start the local Core API and embedded dashboard without an automatic session")
 	flag.Parse()
 
 	if *showVersion {
@@ -47,6 +57,7 @@ func main() {
 	}
 
 	opts := app.Options{
+		UI:                     *uiMode,
 		Probe:                  *probe,
 		Verbose:                *verbose,
 		InputTest:              *inputTest,
@@ -87,6 +98,9 @@ func run(configPath string, opts app.Options) error {
 	}
 	if opts.SessionMaxRuns > 0 {
 		cfg.Session.MaxRuns = opts.SessionMaxRuns
+	}
+	if err := validateUIMode(opts); err != nil {
+		return err
 	}
 	if opts.SessionInspect {
 		plan, planErr := app.ResolveSessionPlan(cfg, opts)
@@ -134,6 +148,9 @@ func run(configPath string, opts app.Options) error {
 			fmt.Fprintf(os.Stderr, "warning: close log file: %v\n", err)
 		}
 	}()
+	if opts.UI {
+		return runUI(cfg, rt)
+	}
 
 	if opts.InputTest != "" {
 		return rt.RunInputTest(opts.InputTest)
@@ -168,6 +185,144 @@ func run(configPath string, opts app.Options) error {
 	return rt.Run()
 }
 
+func validateUIMode(opts app.Options) error {
+	if !opts.UI {
+		return nil
+	}
+	if opts.Probe || opts.InputTest != "" || opts.Run != "" || opts.RunPhase != "" || opts.PathingTest != "" || opts.OfflineDifficulty != "" || opts.OfflineCharacter != "" || opts.OfflineExitTest || opts.UIStateProbe != "" || opts.ScreenAnchorCapture != "" || opts.SessionInspect || opts.RunsInspect || opts.WaypointTargetsInspect || opts.SessionMaxRuns != 0 || opts.Route != "" || opts.RouteName != "" || opts.RouteDifficulty != "" || opts.TownInspect || opts.TownTest != "" {
+		return fmt.Errorf("--ui is mutually exclusive with session, run, inspect, probe, route, town, and test modes")
+	}
+	return nil
+}
+
+func runUI(cfg *config.Config, rt *app.Runtime) error {
+	assets, err := apiui.FS()
+	if err != nil {
+		return err
+	}
+	publisher := telemetry.NewLivePublisher(256, 64)
+	defer publisher.Close()
+	backend, err := api.NewLiveBackend(cfg, publisher)
+	if err != nil {
+		return err
+	}
+	backend.Update(rt.CurrentUIStatus(""), app.SupervisorSnapshot{State: app.SupervisorStateIdle})
+	server, err := api.New(api.Config{Backend: backend, Assets: assets, Logger: rt.Log, Events: publisher})
+	if err != nil {
+		return err
+	}
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	var monitorMu sync.Mutex
+	var monitorCancel context.CancelFunc
+	var monitorDone chan error
+	monitorRunning := false
+	startMonitor := func() {
+		monitorMu.Lock()
+		defer monitorMu.Unlock()
+		if monitorRunning || ctx.Err() != nil {
+			return
+		}
+		monitorCtx, cancel := context.WithCancel(ctx)
+		done := make(chan error, 1)
+		monitorCancel, monitorDone = cancel, done
+		monitorRunning = true
+		go func() { done <- rt.RunUIMonitor(monitorCtx, backend.UpdateRuntime) }()
+	}
+	stopMonitor := func() error {
+		monitorMu.Lock()
+		if !monitorRunning {
+			monitorMu.Unlock()
+			return nil
+		}
+		cancel, done := monitorCancel, monitorDone
+		monitorRunning = false
+		monitorMu.Unlock()
+		cancel()
+		return <-done
+	}
+	queueRunner, err := app.NewRuntimeQueueRunner(cfg, backend.UpdateRuntime)
+	if err != nil {
+		return err
+	}
+	supervisor, err := app.NewSessionSupervisor(queueRunner)
+	if err != nil {
+		return err
+	}
+	var pauseHotkeySequence atomic.Uint64
+	queueRunner.SetPauseAfterRunHandler(func() error {
+		snapshot := supervisor.Snapshot()
+		updated, pauseErr := supervisor.PauseAfterRun(app.SupervisorCommandMeta{
+			CommandID:          fmt.Sprintf("pause-hotkey-%d", pauseHotkeySequence.Add(1)),
+			ExpectedGeneration: snapshot.Generation,
+		})
+		if pauseErr != nil {
+			return pauseErr
+		}
+		backend.UpdateSupervisor(updated)
+		return nil
+	})
+	if err := backend.SetSessionSupervisor(supervisor, stopMonitor, queueRunner.BeginQueue); err != nil {
+		return err
+	}
+	startMonitor()
+	backend.SetSelectionHandler(func(request app.CharacterSelectionRequest) error {
+		if err := stopMonitor(); err != nil {
+			return fmt.Errorf("stop passive monitor for selection: %w", err)
+		}
+		err := rt.ApplyCharacterSelection(ctx, request)
+		if ctx.Err() == nil {
+			startMonitor()
+		}
+		return err
+	})
+	go func() {
+		ticker := time.NewTicker(100 * time.Millisecond)
+		defer ticker.Stop()
+		lastGeneration := supervisor.Snapshot().Generation
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				snapshot := supervisor.Snapshot()
+				if snapshot.Generation == lastGeneration {
+					continue
+				}
+				lastGeneration = snapshot.Generation
+				backend.UpdateSupervisor(snapshot)
+				switch snapshot.State {
+				case app.SupervisorStateIdle, app.SupervisorStateIdleInGame, app.SupervisorStatePausedBetweenRuns, app.SupervisorStateStoppedError:
+					startMonitor()
+				}
+			}
+		}
+	}()
+	if err := server.Start(); err != nil {
+		stop()
+		_ = stopMonitor()
+		return err
+	}
+	fmt.Printf("D2R-Bot-Dashboard: %s\n", server.URL())
+	if err := api.OpenBrowser(server.BootstrapURL()); err != nil {
+		rt.Log.Warn("dashboard browser could not be opened", "error", err, "url", server.URL())
+	}
+	<-ctx.Done()
+	stop()
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := supervisor.Shutdown(shutdownCtx); err != nil {
+		return fmt.Errorf("shutdown session supervisor: %w", err)
+	}
+	if err := server.Shutdown(shutdownCtx); err != nil {
+		return err
+	}
+	if monitorErr := stopMonitor(); monitorErr != nil {
+		return fmt.Errorf("stop UI monitor: %w", monitorErr)
+	}
+	return nil
+}
+
 func shouldRunSession(cfg *config.Config, opts app.Options) bool {
-	return cfg.Session.Enabled && opts.Run == "" && opts.RunPhase == "" && !opts.Probe
+	return cfg.Session.Enabled && !opts.UI && opts.Run == "" && opts.RunPhase == "" && !opts.Probe
 }

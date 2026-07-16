@@ -36,6 +36,7 @@ const (
 	pipelineStepPlayRoute           = "play_bound_route"
 	pipelineStepAcquireBoss         = "acquire_boss"
 	pipelineStepEngageBoss          = "engage_boss"
+	pipelineStepRepositionForLoot   = "reposition_for_loot"
 	pipelineStepWaitForDrops        = "wait_for_drops"
 	pipelineStepScanLoot            = "scan_loot"
 	pipelineStepPickLoot            = "pick_loot"
@@ -55,6 +56,7 @@ const (
 	waypointSelectSettleDelay = 500 * time.Millisecond
 	dropStableTicks           = 3
 	lootNoTargetStableTicks   = 3
+	postKillLootDistanceTiles = 4
 )
 
 // runPipeline executes one immutable run definition or a thin isolated-phase alias.
@@ -71,6 +73,8 @@ type runPipeline struct {
 	chestFallbackStarted   bool
 	targetSeen             bool
 	targetUnitID           uint32
+	targetPosition         world.Position
+	targetPositionSet      bool
 	targetAbsentTicks      int
 	dropStableTicks        int
 	lootScanHasTarget      bool
@@ -93,6 +97,8 @@ func (c *runPipeline) resetGeneration() {
 	c.chestFallbackStarted = false
 	c.targetSeen = false
 	c.targetUnitID = 0
+	c.targetPosition = world.Position{}
+	c.targetPositionSet = false
 	c.targetAbsentTicks = 0
 	c.dropStableTicks = 0
 	c.lootScanHasTarget = false
@@ -231,6 +237,11 @@ func (c *runPipeline) nextStep(current string) string {
 	case pipelineStepAcquireBoss:
 		return pipelineStepEngageBoss
 	case pipelineStepEngageBoss:
+		if c.effectiveDefinition().RepositionAtBossBeforeLoot {
+			return pipelineStepRepositionForLoot
+		}
+		return pipelineStepWaitForDrops
+	case pipelineStepRepositionForLoot:
 		return pipelineStepWaitForDrops
 	case pipelineStepWaitForDrops:
 		return pipelineStepScanLoot
@@ -310,6 +321,8 @@ func (c *runPipeline) onStepEnter(step string) {
 		c.chestFallbackStarted = false
 		c.targetSeen = false
 		c.targetUnitID = 0
+		c.targetPosition = world.Position{}
+		c.targetPositionSet = false
 		c.targetAbsentTicks = 0
 		c.encounterActionIndex = 0
 		c.encounterActionStarted = false
@@ -470,7 +483,7 @@ func (c *runPipeline) onRunTick(ctx context.Context, deps Deps, step string, w w
 	case pipelineStepAcquireTownWaypoint, pipelineStepOpenWaypoint, pipelineStepSelectRunWaypoint,
 		pipelineStepWaitEntryArea, pipelineStepPlayRoute:
 		return c.onTravelTick(ctx, deps, step, w, now, stepStartedAt)
-	case pipelineStepAcquireBoss, pipelineStepEngageBoss:
+	case pipelineStepAcquireBoss, pipelineStepEngageBoss, pipelineStepRepositionForLoot:
 		return c.onBossTick(ctx, deps, step, w, now)
 	case pipelineStepWaitForDrops, pipelineStepScanLoot, pipelineStepPickLoot:
 		return c.onLootTick(ctx, deps, step, w, now, stepStartedAt)
@@ -847,6 +860,8 @@ func (c *runPipeline) onBossTick(ctx context.Context, deps Deps, step string, w 
 			}
 			return stepResult{}
 		}
+		c.targetPosition = target.Position
+		c.targetPositionSet = true
 		c.targetAbsentTicks = 0
 		if c.encounterActionIndex < len(actions) && deps.Profile != nil {
 			action := actions[c.encounterActionIndex]
@@ -880,6 +895,26 @@ func (c *runPipeline) onBossTick(ctx context.Context, deps Deps, step string, w 
 			c.encounterActionIndex = len(actions)
 		}
 		return c.tickEngageTarget(deps, w, target, now)
+	case pipelineStepRepositionForLoot:
+		if res := c.killAreaGuard(w); res.failed {
+			return res
+		}
+		if !w.Valid || w.Phase != world.GamePhaseInGame {
+			return stepResult{}
+		}
+		if deps.Combat == nil {
+			return stepResult{failed: true, reason: "combat_not_wired"}
+		}
+		if !c.targetPositionSet {
+			return stepResult{failed: true, reason: "boss_position_missing"}
+		}
+		if world.Distance(w.Player.Position, c.targetPosition) <= postKillLootDistanceTiles {
+			return stepResult{complete: true}
+		}
+		if err := deps.Combat.TeleportToward(now, w.Player.Position, c.targetPosition, 0); err != nil {
+			return stepResult{failed: true, reason: "post_kill_reposition_failed"}
+		}
+		return stepResult{}
 	default:
 		return stepResult{failed: true, reason: "unknown_step"}
 	}
@@ -947,6 +982,8 @@ func (c *runPipeline) findMonsterByUnitID(w world.State, unitID uint32) (world.M
 func (c *runPipeline) storeBossTarget(target world.Monster) {
 	c.targetSeen = true
 	c.targetUnitID = target.UnitID
+	c.targetPosition = target.Position
+	c.targetPositionSet = true
 	c.targetAbsentTicks = 0
 }
 

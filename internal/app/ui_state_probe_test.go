@@ -74,7 +74,7 @@ func TestSaveUIStateProbeArtifactPublishesJSON(t *testing.T) {
 }
 
 func TestResolveActiveRunDisabledForUIStateProbe(t *testing.T) {
-	cfg := fullCountessConfig()
+	cfg := fullCountessConfig(t)
 	cfg.Runs.Active = "countess"
 	if got := resolveActiveRun(Options{UIStateProbe: "gameplay"}, cfg); got != "" {
 		t.Fatalf("active run = %q, want empty", got)

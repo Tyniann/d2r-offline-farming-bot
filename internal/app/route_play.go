@@ -13,7 +13,11 @@ import (
 
 // RunRoutePlay replays every segment in one continuously verified session.
 func (rt *Runtime) RunRoutePlay(routeID string) (retErr error) {
-	registry, err := pathing.LoadRouteRegistry(rt.Config.ResolvePath(rt.Config.Routes.Directory))
+	directory, err := configuredFarmingRouteDirectory(rt.Config)
+	if err != nil {
+		return err
+	}
+	registry, err := pathing.LoadRouteRegistry(directory)
 	if err != nil {
 		return err
 	}

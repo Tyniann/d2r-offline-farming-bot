@@ -107,7 +107,7 @@ func TestValidateOfflineExitWindow(t *testing.T) {
 }
 
 func TestResolveActiveRunDisabledForOfflineExitTest(t *testing.T) {
-	cfg := fullCountessConfig()
+	cfg := fullCountessConfig(t)
 	cfg.Runs.Active = "countess"
 	if got := resolveActiveRun(Options{OfflineExitTest: true}, cfg); got != "" {
 		t.Fatalf("active run = %q, want empty", got)

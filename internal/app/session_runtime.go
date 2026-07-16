@@ -10,9 +10,43 @@ import (
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/telemetry"
 )
 
-// RunSession executes one finite autonomous offline session using the validated
-// Phase-7 start, run, exit, recovery, and telemetry contracts.
+// RunSession executes one finite autonomous offline session through the same
+// long-lived command boundary used by future UI clients.
 func (rt *Runtime) RunSession() error {
+	supervisor, err := NewSessionSupervisor(runtimeSessionRunner{runtime: rt})
+	if err != nil {
+		return err
+	}
+	start, err := supervisor.Start(SupervisorCommandMeta{CommandID: "cli-session-start", ExpectedGeneration: 0}, SupervisorRunRequest{RunID: rt.Config.Session.Run})
+	if err != nil {
+		return err
+	}
+	if err := supervisor.Wait(context.Background()); err != nil {
+		return err
+	}
+	result := supervisor.Snapshot().LastResult
+	if result.Disposition != QueueRunAdvance {
+		return fmt.Errorf("autonomous session stopped: %s", result.Reason)
+	}
+	rt.Log.Debug("CLI session supervisor completed", "generation", start.Generation, "run", rt.Config.Session.Run)
+	return nil
+}
+
+type runtimeSessionRunner struct {
+	runtime *Runtime
+}
+
+func (r runtimeSessionRunner) Run(ctx context.Context, _ SupervisorRunRequest) SupervisorRunResult {
+	if err := r.runtime.runSession(ctx); err != nil {
+		if errors.Is(err, context.Canceled) {
+			return SupervisorRunResult{Disposition: QueueRunStop, Reason: string(SupervisorReasonEmergencyStopRequested)}
+		}
+		return SupervisorRunResult{Disposition: QueueRunStop, Reason: err.Error()}
+	}
+	return SupervisorRunResult{Disposition: QueueRunAdvance}
+}
+
+func (rt *Runtime) runSession(ctx context.Context) error {
 	sessionTrace, err := telemetry.NewSessionRecorder(rt.Config.Telemetry.Directory)
 	if err != nil {
 		return err
@@ -36,7 +70,7 @@ func (rt *Runtime) RunSession() error {
 		}
 		rt.Options.OfflineDifficulty = rt.Config.Session.Difficulty
 		rt.Options.OfflineCharacter = rt.Config.Session.Character
-		if err := rt.RunOfflineDifficultyTest(rt.Config.Session.Difficulty); err != nil {
+		if err := rt.runOfflineDifficultyTest(ctx, rt.Config.Session.Difficulty); err != nil {
 			_ = recovery.emitTerminal(telemetry.SessionFailed, "start_game_failed", time.Since(startedAt).Milliseconds())
 			return err
 		}
@@ -54,7 +88,7 @@ func (rt *Runtime) RunSession() error {
 			return emitErr
 		}
 		runStarted := time.Now()
-		result, err := rt.runTaskToTerminal()
+		result, err := rt.runTaskToTerminal(ctx)
 		if closeErr := rt.closeSessionRunTelemetry(); err == nil && closeErr != nil {
 			err = closeErr
 		}
@@ -74,7 +108,7 @@ func (rt *Runtime) RunSession() error {
 		if err != nil {
 			return err
 		}
-		if err := rt.RunOfflineExitTest(); err != nil {
+		if err := rt.runOfflineExitTest(ctx); err != nil {
 			_ = recovery.emitTerminal(telemetry.SessionFailed, "exit_game_failed", time.Since(startedAt).Milliseconds())
 			return err
 		}
@@ -88,7 +122,7 @@ func (rt *Runtime) RunSession() error {
 			rt.Log.Info("autonomous session completed", "session_id", sessionTrace.SessionID(), "runs", ordinal)
 			return nil
 		}
-		if err := waitSessionCooldown(context.Background(), time.Duration(rt.Config.Session.CooldownMs)*time.Millisecond); err != nil {
+		if err := waitSessionCooldown(ctx, time.Duration(rt.Config.Session.CooldownMs)*time.Millisecond); err != nil {
 			return err
 		}
 	}
@@ -171,8 +205,8 @@ func (rt *Runtime) closeSessionRunTelemetry() error {
 	return err
 }
 
-func (rt *Runtime) runTaskToTerminal() (tasks.TickResult, error) {
-	ctx, cancel := context.WithCancel(context.Background())
+func (rt *Runtime) runTaskToTerminal(parent context.Context) (tasks.TickResult, error) {
+	ctx, cancel := context.WithCancel(parent)
 	defer cancel()
 	rt.startShutdownSignals(ctx, cancel)
 	defer func() {

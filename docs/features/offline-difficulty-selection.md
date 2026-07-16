@@ -33,6 +33,8 @@ go run ./cmd/d2rbot --offline-difficulty-test nightmare --offline-character MrBo
 
 Der Modus ist gegenseitig exklusiv zu Runs, Route-, Input-, Pathing-, Exit- und Probe-Modi. `input.enabled=true` ist erforderlich. Pause/Stop, Fokusprüfung, Client-Geometrie und endliche Stage-/Gesamt-Timeouts bleiben aktiv.
 
+Nach Save & Exit kann Memory bereits `menu` melden, während D2R den Charakterbildschirm noch zeichnet. Der Offline-Start wartet deshalb zusätzlich auf ein begrenztes Render-Settle. Ein noch nicht passender Charakter- oder Difficulty-Anker führt innerhalb des Stage-Timeouts zu einer erneuten stabilen Prüfung, niemals zu einem optimistischen Klick.
+
 ## Sicherheitsgrenzen
 
 - Kein Klick wird allein durch `menu` oder einen Timer freigegeben.

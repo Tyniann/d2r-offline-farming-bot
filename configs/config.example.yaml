@@ -24,9 +24,11 @@ telemetry:
   directory: logs/telemetry
 
 routes:
-  # Aktiver, invalidierbarer Farming-Satz für genau einen Character/Difficulty-Kontext.
-  # Permanente Town-Routen liegen separat unter routes/town/ und werden nie mitgelöscht.
-  directory: routes/farming/mrbones/nightmare
+  # Alle invalidierbaren Farming-Sätze; der aktive Unterordner wird ausschließlich
+  # aus session.character und session.difficulty abgeleitet.
+  farming_root: routes/farming
+  # Atomische lokale Lifecycle-Metadaten; *.local.yaml bleibt gitignoriert.
+  lifecycle_file: route-lifecycle.local.yaml
 
 loot:
   pickup:
@@ -99,7 +101,7 @@ runs:
   step_timeout_ms: 30000
   definitions:
     countess:
-      # Stabile ID einer unter routes.directory verwalteten Aufnahme.
+      # Stabile ID einer unter routes.farming_root verwalteten Aufnahme.
       route_id: ""
       combat:
         profile: necro_bone_spear
@@ -185,6 +187,8 @@ session:
   # Echte Session-Ausführung bleibt bis zur vollständigen Zyklus-Verifikation deaktiviert.
   enabled: false
   run: countess
+  # Phase-11 runtime default; order and duplicates are preserved.
+  queue: [countess, mephisto]
   character: ""
   difficulty: normal
   max_runs: 3

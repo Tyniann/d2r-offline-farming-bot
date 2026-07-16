@@ -3,7 +3,7 @@ package app
 import "testing"
 
 func TestValidateAkaraBulkProfile(t *testing.T) {
-	cfg := fullCountessConfig()
+	cfg := fullCountessConfig(t)
 	if err := validateAkaraBulkProfile(cfg); err != nil {
 		t.Fatal(err)
 	}
@@ -17,7 +17,7 @@ func TestValidateAkaraBulkProfile(t *testing.T) {
 }
 
 func TestValidateAkaraBulkProfileProtectsRejuvenationSlot(t *testing.T) {
-	cfg := fullCountessConfig()
+	cfg := fullCountessConfig(t)
 	runCfg, _ := cfg.Runs.Run("countess")
 	profileCfg := cfg.Profiles[runCfg.Combat.Profile]
 	profileCfg.Resources.Rejuvenation.BeltSlots = []int{3}

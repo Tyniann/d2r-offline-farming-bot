@@ -9,9 +9,21 @@ import (
 func (rt *Runtime) handleHotkeyEvent(ev input.HotkeyEvent, cancel context.CancelFunc) {
 	switch ev.Action {
 	case input.HotkeyActionPause:
+		if rt.pauseHotkeyHandler != nil {
+			if err := rt.pauseHotkeyHandler(); err != nil {
+				rt.Log.Warn("pause-after-run hotkey rejected", "error", err)
+			} else {
+				rt.Log.Info("pause-after-run hotkey accepted")
+			}
+			return
+		}
 		rt.Input.TogglePause("hotkey")
 	case input.HotkeyActionStop:
 		rt.Input.Stop("hotkey")
 		cancel()
 	}
+}
+
+func (rt *Runtime) setPauseHotkeyHandler(handler func() error) {
+	rt.pauseHotkeyHandler = handler
 }

@@ -35,7 +35,7 @@ configs/routes/
 
 `town/` enthält dauerhafte, fachlich benannte Town-Assets und wird beim Wechsel von Charakter oder Schwierigkeit nicht invalidiert. Bereits separat aufgenommene Varianten bleiben erhalten und werden nicht mit Farming-Dateien vermischt.
 
-`farming/<character>/<difficulty>/` enthält ausschließlich layoutgebundene Route-Contract-Dateien. `routes.directory` zeigt auf genau einen aktiven Unterordner. Bei einem Character-/Difficulty-Wechsel darf nur der betroffene Farming-Unterordner archiviert oder gelöscht und neu aufgenommen werden; `town/` bleibt unangetastet. Registry und Recorder arbeiten ausschließlich innerhalb des konfigurierten aktiven Farming-Verzeichnisses.
+`farming/<character>/<difficulty>/` enthält ausschließlich layoutgebundene Route-Contract-Dateien. Seit Phase 11.5 zeigt `routes.farming_root` auf die gemeinsame Wurzel; Resolver und Recorder leiten den Kontextunterordner ausschließlich aus Charakter und Difficulty ab. Der frühere Einzelzeiger `routes.directory` wird abgewiesen. Difficulty- und Layoutwechsel markieren Lifecycle-Metadaten stale, löschen, verschieben oder überschreiben aber keine Route-Datei; `town/` bleibt unangetastet.
 
 Ab Phase 10.8 verwendet der minimale Act-3-Egress denselben vollständigen Route-Contract in einem getrennten Verzeichnis. Er besteht aus genau einem terminalen Walk-Segment innerhalb Kurast-Docks. Der produktive Adapter verlangt die konfigurierte Route-ID sowie alle normalen Binding-, Layout- und Startnähe-Gates. Die Wiedergabe delegiert bewusst nicht an den Teleport-Navigator, sondern an den area-gebundenen Force-Move-Walker; ein als `teleport` deklariertes Egress-Asset wird vor Input abgewiesen.
 
@@ -238,7 +238,7 @@ go run ./cmd/d2rbot --route play-egress:act3
 - `--route-name` ist nur mit `record` gültig. Ohne Wert wird aus der ID ein Anzeigename abgeleitet.
 - `--route-difficulty normal|nightmare|hell` ist nur mit `record` gültig und wird niemals anstelle des Layout-Fingerprints vertraut.
 - Unbekannte Commands, leere IDs und gleichzeitige `--route`-/`--run`-/Testmodi werden vor Runtime-Start abgelehnt.
-- Das aktive Farming-Routenverzeichnis wird über `routes.directory` festgelegt. Es zeigt auf genau einen Character-/Difficulty-Kontext, beispielsweise `configs/routes/farming/mrbones/nightmare` relativ zur Config-Datei.
+- Das Farming-Root wird über `routes.farming_root` festgelegt. Der aktive Character-/Difficulty-Unterordner wird daraus abgeleitet; `routes.lifecycle_file` benennt das lokale atomische Manifest.
 - Die vier `*-egress:act3`-Kommandos verwenden ausschließlich `town.egress.act3.routes_directory` und `route_id`. Inspect beobachtet Kurast read-only, Record akzeptiert nur einen gleichbleibenden Kurast-Walk, Validate verlangt genau ein terminales Walk-Segment und Play kombiniert den Lauf mit dem registrierten Transfer nach Rogue Encampment.
 
 ## Implementierungsstand Phase 6.2
@@ -251,7 +251,7 @@ Phase 6.2 ist abgeschlossen:
 - Registry mit stabiler ID-Auflösung, defensiver Metadatensicht und sichtbaren `valid`, `invalid` sowie `duplicate_id` Status;
 - fail-closed Precheck für bestätigten Character, Game Version, Layout-Fingerprint, Start-Area und Startdistanz;
 - read-only CLI `--route list`, `inspect:<id>` und `validate:<id>`;
-- `routes.directory` mit Default `configs/routes/farming` und produktiver Auswahl eines konkreten `<character>/<difficulty>`-Unterordners.
+- `routes.farming_root` mit Default `configs/routes/farming` und `routes.lifecycle_file` mit Default `configs/route-lifecycle.local.yaml`.
 
 ## Implementierungsstand Phase 6.3
 
@@ -351,6 +351,8 @@ Nach den Town-Preset-Abnahmen wurde die aktive Route `black-marsh-cellar5-nightm
 - Character `MrBones`, Difficulty `nightmare`, Game-Version `3.2.92777`;
 - sieben Segmente mit neuem Start-Fingerprint `56035675f9c30f9c11bfdea89e1da882d48e95f8423822bd2e95c01291619e37`;
 - sechs bestätigte Area-Übergänge bis Tower Cellar Level 5 sowie ein terminaler Level-5-Pfad mit zehn Punkten bis `(12547,11065)` im Countess-Raum;
+
+Am 16.07.2026 wurde die produktive Route nach den Phase-11-Lifecycle-Tests erneut unter derselben stabilen ID veröffentlicht. Die sieben Segmente führen vom Black-Marsh-Wegpunkt bis `(12548,11065)` vor die Countess und binden den aktuellen Start-Fingerprint `e6020b03a517d9aab52964cb0d8fb5fb362f17606408ac65cfa6f68ed5c519e3`. CLI-Validierung und Lifecycle-Korrelation waren unmittelbar nach `F11` erfolgreich; die vorherige Sicherung wurde nach der Abnahme entfernt.
 - Countess- und Monsterzustand werden nicht im Navigationsasset gespeichert;
 - die ungültige Altdatei mit derselben internen ID wurde entfernt; Registry-, Route-v1- und Session-Validierung sind erfolgreich;
 - das isolierte Gesamt-Playback vom 13.07.2026 schloss alle sieben Segmente ohne Drift-, Recovery-, Stuck- oder Fehlerereignis ab und endete mit `route_playback_completed` am terminalen Punkt im Countess-Raum.

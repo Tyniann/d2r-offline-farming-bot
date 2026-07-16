@@ -33,7 +33,7 @@ func TestPhase10CharacterizationCountessSessionPreflightBinding(t *testing.T) {
 	if plan.RouteID != "black-marsh-cellar5-nightmare-mrbones" || !strings.HasSuffix(plan.RoutePath, "black-marsh-cellar5-nightmare-mrbones.yaml") {
 		t.Fatalf("resolved Countess route binding = %+v", plan)
 	}
-	if plan.RouteLayoutFingerprint != "56035675f9c30f9c11bfdea89e1da882d48e95f8423822bd2e95c01291619e37" {
+	if plan.RouteLayoutFingerprint != "e6020b03a517d9aab52964cb0d8fb5fb362f17606408ac65cfa6f68ed5c519e3" {
 		t.Fatalf("resolved Countess layout fingerprint = %q", plan.RouteLayoutFingerprint)
 	}
 }

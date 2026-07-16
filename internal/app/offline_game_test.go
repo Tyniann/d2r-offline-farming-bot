@@ -60,7 +60,11 @@ func TestOfflineStartMachineCompletesAfterStableIdentity(t *testing.T) {
 	machine := &offlineStartMachine{character: "MrBones"}
 	menu := world.State{Phase: world.GamePhaseMenu}
 	for i := 0; i < offlineExitStableTicks; i++ {
-		action, _, err := machine.tick(now.Add(time.Duration(i)*time.Millisecond), menu)
+		tickAt := now.Add(time.Duration(i) * time.Millisecond)
+		if i == offlineExitStableTicks-1 {
+			tickAt = now.Add(offlineCharacterSettleDelay)
+		}
+		action, _, err := machine.tick(tickAt, menu)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -88,5 +92,23 @@ func TestOfflineStartMachineCompletesAfterStableIdentity(t *testing.T) {
 		if done != (i == offlineExitStableTicks-1) {
 			t.Fatalf("tick %d done = %t", i, done)
 		}
+	}
+}
+
+func TestOfflineStartMachineRejectsWrongCharacterClass(t *testing.T) {
+	now := time.Now()
+	machine := &offlineStartMachine{stage: offlineStartAwaitGame, character: "MrBones", expectedClass: world.CharacterClassNecromancer, verifyClass: true}
+	state := world.State{Valid: true, Phase: world.GamePhaseInGame, Area: world.Area{ID: world.RogueEncampment}, Identity: world.GameIdentity{Valid: true, CharacterName: "MrBones", Class: world.CharacterClassPaladin}}
+	if _, _, err := machine.tick(now, state); err == nil {
+		t.Fatal("wrong character class was accepted")
+	}
+}
+
+func TestOfflineStartMachineTimesOutWithoutMenu(t *testing.T) {
+	now := time.Now()
+	machine := &offlineStartMachine{}
+	_, _, _ = machine.tick(now, world.State{})
+	if _, _, err := machine.tick(now.Add(offlineStartTimeout), world.State{}); err == nil {
+		t.Fatal("offline start did not time out")
 	}
 }

@@ -663,6 +663,8 @@ func TestCountessFullRunSuccessCastsTownPortal(t *testing.T) {
 	})
 	now := time.Now()
 	target := countessMonster(10, world.Position{X: 110, Y: 100})
+	arrivedAtCountess := healthy(cellar5State())
+	arrivedAtCountess.Player.Position = target.Position
 
 	ticks := []world.State{
 		healthy(townStateWithWaypoint()),
@@ -682,6 +684,7 @@ func TestCountessFullRunSuccessCastsTownPortal(t *testing.T) {
 		healthy(cellar5State()),
 		healthy(cellar5State()),
 		healthy(cellar5State()),
+		arrivedAtCountess,
 		healthy(cellar5State()),
 		healthy(cellar5State()),
 		healthy(cellar5State()),
@@ -1298,6 +1301,40 @@ func TestCountessKillTeleportRepositionUsesEngageDistance(t *testing.T) {
 	_ = r.Tick(context.Background(), st, now.Add(2*time.Millisecond))
 	if combat.teleportCalls != 1 || combat.lastDesired != 22 {
 		t.Fatalf("teleports=%d desired=%.1f, want one teleport toward engage distance", combat.teleportCalls, combat.lastDesired)
+	}
+}
+
+func TestCountessRepositionsAtLastBossPositionBeforeLoot(t *testing.T) {
+	combat := &mockCombatActions{}
+	definition, _ := DefaultRunRegistry().Definition(RunIDCountess)
+	position := world.Position{X: 130, Y: 100}
+	pipeline := &runPipeline{
+		definition: definition, combat: killRunConfig().Combat,
+		targetSeen: true, targetUnitID: 10, targetPosition: position, targetPositionSet: true,
+	}
+	now := time.Now()
+	state := cellar5State()
+	state.Player.Position = world.Position{X: 100, Y: 100}
+
+	res := pipeline.onBossTick(context.Background(), Deps{Combat: combat}, pipelineStepRepositionForLoot, state, now)
+	if res.complete || res.failed || combat.teleportCalls != 1 || combat.lastDesired != 0 {
+		t.Fatalf("first reposition = %+v teleports=%d desired=%.1f", res, combat.teleportCalls, combat.lastDesired)
+	}
+	state.Player.Position = position
+	res = pipeline.onBossTick(context.Background(), Deps{Combat: combat}, pipelineStepRepositionForLoot, state, now.Add(time.Millisecond))
+	if !res.complete || res.failed || combat.teleportCalls != 1 {
+		t.Fatalf("arrival = %+v teleports=%d, want complete without another cast", res, combat.teleportCalls)
+	}
+}
+
+func TestOnlyConfiguredRunsRepositionBeforeLoot(t *testing.T) {
+	countess, _ := DefaultRunRegistry().Definition(RunIDCountess)
+	mephisto, _ := DefaultRunRegistry().Definition(RunIDMephisto)
+	if got := (&runPipeline{definition: countess}).nextStep(pipelineStepEngageBoss); got != pipelineStepRepositionForLoot {
+		t.Fatalf("countess successor = %q, want %q", got, pipelineStepRepositionForLoot)
+	}
+	if got := (&runPipeline{definition: mephisto}).nextStep(pipelineStepEngageBoss); got != pipelineStepWaitForDrops {
+		t.Fatalf("mephisto successor = %q, want %q", got, pipelineStepWaitForDrops)
 	}
 }
 

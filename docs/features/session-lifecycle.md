@@ -253,6 +253,28 @@ Drei fake-basierte Zyklen beweisen frische IDs und die Sequenz Initial-Game → 
 
 Die produktive Freigabe erfolgte am 12.07.2026 mit Session `session-20260712T020655.472818000Z-880ddc70`: drei aufeinanderfolgende autonome Nightmare-Countess-Zyklen einschließlich Spielstart, Navigation, Kill, Loot, Town Portal, Stash und Save & Exit endeten erfolgreich. Die Route enthält dafür einen terminalen Keller-5-Abschnitt bis zum Countess-Raum.
 
+## Long-lived SessionSupervisor Phase 11.1
+
+`app.SessionSupervisor` ist die thread-sichere Command-Grenze oberhalb des unveränderten Session-Workers. Er besitzt genau eine cancellable Worker-Generation, monotone Generationen, immutable Snapshots und eine pro Prozess idempotente Command-ID-Tabelle. Dieselbe Command-ID mit identischem Inhalt liefert das ursprüngliche Ergebnis; Wiederverwendung mit anderem Inhalt wird abgewiesen. Mutationen gegen eine veraltete Generation liefern `state_changed`, parallele Starts `command_conflict`.
+
+Der Supervisor hält `pause_after_run` und `stop_after_run` ausschließlich als Intent während `running_run`. Erst das terminale Ergebnis der vollständigen Session-Einheit wechselt nach `paused_between_runs` beziehungsweise `idle`. `resume` erzeugt eine frische Worker-Generation. `emergency_stop` setzt zuerst `cancelling`, cancelt den Worker und veröffentlicht nach dessen Ende `emergency_stop_requested`; dieser Reason ist mit F11 identisch. Ein Worker-Panic wird an der Goroutine-Grenze abgefangen und als `worker_panic` in `stopped_error` projiziert.
+
+Der bestehende CLI-Sessionpfad startet seinen bisherigen Runtime-Worker jetzt über `SessionSupervisor.Start` und wartet über `Wait`. Offline-Start, Run-Polling, Save & Exit und Cooldown akzeptieren dabei den Supervisor-Context. Die fachliche Phase-7-/Phase-10-Pipeline wurde nicht dupliziert und keine produktive Input-Reihenfolge geändert.
+
+## FarmQueue-Scheduler Phase 11.7
+
+Der Supervisor besitzt nun zusätzlich eine immutable Runtime-Queue mit Index, Zyklus, Retry und den YAML-authoritativen Run-, Dauer-, Failure- und Restart-Budgets. `StartQueue` startet pro Eintrag genau einen frischen `SupervisorRunner`; Erfolg schaltet modulo Queue-Länge weiter, Retry behält Index und Zyklus, terminale Ergebnisse stoppen. Vor jedem Folgestart kann ein `FarmQueueGuard` den vollständigen Preflight erneut ausführen, sodass eine zwischen Runs geänderte Availability vor Worker und Input sperrt.
+
+## Dashboard-Controls Phase 11.8
+
+Der lokale API-Backend serialisiert Selection- und Session-Commands und bindet sie an monotone Core-Generationen. Wiederholte `command_id` mit identischem Namen, Generation und Payload liefern exakt die gespeicherte Antwort; eine Wiederverwendung mit anderem Inhalt wird vor dem Supervisor abgewiesen. Start validiert die vollständige Queue erneut gegen bestätigte Auswahl und aktuelle Katalogrevision und beendet den passiven Monitor, bevor ein produktiver Worker attachen darf.
+
+`RuntimeQueueRunner` erzeugt für jeden Eintrag eine frische, auf die Run-ID konfigurierte Runtime. Nur der erste Worker eines aus `idle_in_game` gestarteten Queue-Laufs konsumiert das bereits bestätigte Spiel. Nach Save & Exit starten folgende Einträge jeweils ein neues Spiel. Jeder Worker verwendet unverändert Run-State-Machine, Route, Profil, Loot, Town und Offline-Exit aus Phase 10. Ein retrybarer terminaler Run liefert `retry_current`; andere Fehler stoppen. F11 im Worker wird als `emergency_stop_requested` an denselben Supervisor-Abschluss wie der API-Emergency-Command übergeben.
+
+Der Statussnapshot projiziert aktive und YAML-Default-Queue getrennt, damit „Auf YAML-Default zurücksetzen“ auch nach einem verworfenen Runtime-Entwurf funktioniert. Pending Intent, aktiver Run, Step, Index, Zyklus, Retry und Budgets stammen ausschließlich aus Core-Snapshots. Passive Monitor-Ticks dürfen diese Supervisor-Felder nicht überschreiben.
+
+`session.queue` liefert die Startreihenfolge und erlaubt Duplikate. Die Queue bleibt prozesslokal; ein Neustart lädt YAML und beginnt bei Index 0. Der bisherige CLI-Adapter bleibt ein expliziter Einzel-Worker-Aufruf derselben Supervisor-Grenze und erzeugt keine konkurrierende Queue-Pipeline.
+
 ## Abnahme Phase 7.0
 
 Phase 7.0 ist abgeschlossen, wenn Zustände und Übergänge, unterstützte Startzustände, Run-/Session-Ergebnisse, Hard-Stuck-Semantik, fail-closed Fehlerklassen, endliche Budgets, Input-Invarianten sowie Telemetrie- und Korrelationsverträge festgelegt sind. Phase 7.1 muss danach ohne offene Architekturentscheidung mit read-only UI-State-Forschung beginnen können.
@@ -265,6 +287,7 @@ Phase 7.0 ist abgeschlossen, wenn Zustände und Übergänge, unterstützte Start
 - [Offline-Difficulty-Auswahl](offline-difficulty-selection.md)
 - [Route Recording und Playback](route-recording-playback.md)
 - [Input Controller](input-controller.md)
+- [Phase-11-Core-Vertrag](phase-11-core-contract.md)
 
 ---
-*Zuletzt aktualisiert: 2026-07-12 (Phase 7.8 E2E abgeschlossen)*
+*Zuletzt aktualisiert: 2026-07-16 (Phase 11.8 Dashboard-Controls)*

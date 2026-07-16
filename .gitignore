@@ -19,6 +19,8 @@ go.work.sum
 
 # Dependencies (vendoring optional)
 /vendor/
+/web/node_modules/
+/web/.tmp-gocache/
 
 # IDE
 .idea/

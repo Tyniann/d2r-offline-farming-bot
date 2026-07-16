@@ -46,15 +46,17 @@ type Runtime struct {
 	Profile          *profile.Executor
 	profileTelemetry *profileTelemetryAdapter
 
-	sessionReset     sessionResetBarrier
-	taskDeps         tasks.Deps
-	runConfig        tasks.RunConfig
-	sessionSelection tasks.RunSelection
-	routePlayback    *routePlaybackAdapter
-	townEgress       *townEgressAdapter
-	lootActions      *lootActionsAdapter
-	townLayout       *townLayoutPin
-	townTelemetry    *townTelemetryRelay
+	sessionReset       sessionResetBarrier
+	taskDeps           tasks.Deps
+	runConfig          tasks.RunConfig
+	sessionSelection   tasks.RunSelection
+	routePlayback      *routePlaybackAdapter
+	townEgress         *townEgressAdapter
+	lootActions        *lootActionsAdapter
+	townLayout         *townLayoutPin
+	townTelemetry      *townTelemetryRelay
+	uiStatusPublisher  func(UIStatusSnapshot)
+	pauseHotkeyHandler func() error
 }
 
 // New builds a Runtime from config and CLI/runtime options.
@@ -208,7 +210,11 @@ func New(cfg *config.Config, opts Options) (rt *Runtime, err error) {
 	}
 	stashExecutor.SetSellFilter(sellPickit)
 	lootActions := newLootActionsAdapter(log, lootFilter, cfg.Loot.Pickup, inputCtrl, pathingCfg, stashExecutor, runTelemetry)
-	routePlayback := newRoutePlaybackAdapter(log, cfg.ResolvePath(cfg.Routes.Directory), expectedVersion, nav, runTelemetry)
+	routeLifecycle, err := NewRouteLifecycleStore(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("route lifecycle: %w", err)
+	}
+	routePlayback := newRoutePlaybackAdapter(log, cfg.ResolvePath(cfg.Routes.FarmingRoot), expectedVersion, nav, runTelemetry, routeLifecycle)
 	townEgress := newTownEgressAdapter(log, cfg, expectedVersion, inputCtrl, pathingCfg, runTelemetry)
 	taskDeps := tasks.Deps{
 		Input: inputCtrl, Pathing: nav, Waypoint: runWaypoints, Portal: townPortals, TownWalk: layoutTownWalker,
@@ -281,7 +287,7 @@ func New(cfg *config.Config, opts Options) (rt *Runtime, err error) {
 }
 
 func sessionExecutionRequested(opts Options) bool {
-	return !opts.SessionInspect && !opts.RunsInspect && !opts.WaypointTargetsInspect && !opts.Probe && opts.InputTest == "" && opts.Run == "" && opts.RunPhase == "" && opts.PathingTest == "" && opts.OfflineDifficulty == "" && opts.OfflineCharacter == "" && !opts.OfflineExitTest && opts.UIStateProbe == "" && opts.ScreenAnchorCapture == "" && opts.Route == "" && !opts.TownInspect && opts.TownTest == ""
+	return !opts.UI && !opts.SessionInspect && !opts.RunsInspect && !opts.WaypointTargetsInspect && !opts.Probe && opts.InputTest == "" && opts.Run == "" && opts.RunPhase == "" && opts.PathingTest == "" && opts.OfflineDifficulty == "" && opts.OfflineCharacter == "" && !opts.OfflineExitTest && opts.UIStateProbe == "" && opts.ScreenAnchorCapture == "" && opts.Route == "" && !opts.TownInspect && opts.TownTest == ""
 }
 
 func loadPickit(cfg *config.Config, pickupFile string) (*loot.Pickit, error) {

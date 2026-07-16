@@ -95,8 +95,11 @@ func TestLoadExampleConfig(t *testing.T) {
 	if profileCfg.CharacterClass != "necromancer" || profileCfg.Hooks.TownReady[0].Skill != "bone_armor" || profileCfg.Resources.Mana.UseBelowPercent != 35 {
 		t.Fatalf("combat profile = %+v", profileCfg)
 	}
-	if filepath.Clean(cfg.Routes.Directory) != filepath.Join("routes", "farming", "mrbones", "nightmare") {
-		t.Fatalf("Routes.Directory = %q", cfg.Routes.Directory)
+	if filepath.Clean(cfg.Routes.FarmingRoot) != filepath.Join("routes", "farming") {
+		t.Fatalf("Routes.FarmingRoot = %q", cfg.Routes.FarmingRoot)
+	}
+	if cfg.Routes.LifecycleFile != "route-lifecycle.local.yaml" {
+		t.Fatalf("Routes.LifecycleFile = %q", cfg.Routes.LifecycleFile)
 	}
 	if cfg.LoadedFrom == "" {
 		t.Error("LoadedFrom should be set after Load")
@@ -109,6 +112,21 @@ func TestResolvePathRelative(t *testing.T) {
 	want := filepath.Join("configs", "offsets.local.yaml")
 	if got != want {
 		t.Errorf("ResolvePath() = %q, want %q", got, want)
+	}
+}
+
+func TestLoadRejectsRemovedRoutesDirectory(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	data, err := os.ReadFile(filepath.Join("..", "..", "configs", "config.example.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	legacy := strings.Replace(string(data), "farming_root: routes/farming\n  # Atomische lokale Lifecycle-Metadaten; *.local.yaml bleibt gitignoriert.\n  lifecycle_file: route-lifecycle.local.yaml", "directory: routes/farming/mrbones/nightmare", 1)
+	if err := os.WriteFile(path, []byte(legacy), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Load(path); err == nil || !strings.Contains(err.Error(), "routes.directory is unsupported") {
+		t.Fatalf("legacy routes.directory error = %v", err)
 	}
 }
 

@@ -134,7 +134,7 @@ func defaultRunDefinitions() []RunDefinition {
 				NPCID: world.DarkStalker, Name: "Countess", RequireSuperUnique: true, AllowAnySuperUniqueFallback: true,
 				SearchAnchorObject: world.ObjectKindGoodChest, SearchAnchorEntrance: world.EntranceKindTowerCellarDown,
 			},
-			BossEngageSequence: []EncounterAction{{Hook: profile.HookBossEngage}}, ReturnOrigin: town.OriginAct1,
+			BossEngageSequence: []EncounterAction{{Hook: profile.HookBossEngage}}, RepositionAtBossBeforeLoot: true, ReturnOrigin: town.OriginAct1,
 			RequiredCaps: append([]RunCapability(nil), shared...),
 		},
 		{

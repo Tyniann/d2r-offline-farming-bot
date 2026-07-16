@@ -35,6 +35,8 @@ Ein passender expliziter Map-Seed und Fingerprint machen Countess `available`. A
 
 `ResolveSessionPlan` verwendet denselben Resolver. `unavailable` beendet den Start vor Runtime-Erzeugung; `runtime_validation_required` ist zulässig, weil Route Playback den Fingerprint später vor dem ersten Routeninput erneut Memory-basiert prüft. Der frühere Countess-Sonderpreflight und das feste `session.run == "countess"`-Gate existieren nicht mehr.
 
+Seit Phase 11.5 bezieht der Resolver Kandidaten aus dem rekursiven Farming-RouteCatalog statt aus einem einzelnen aktiven Verzeichnis. `route_stale` blockiert bestätigte Lifecycle-Invalidationen, `route_lifecycle_unavailable` blockiert beschädigte, doppelte, geänderte oder nicht korrelierbare Einträge. Eine statisch valide Route bleibt `runtime_validation_required`, bis der aktuelle Live-Fingerprint passt; erst dann wird der Run `available`.
+
 ## Datenmodell
 
 - `app.RunAvailabilityContext`: read-only Identitätsbeleg.

@@ -85,7 +85,8 @@ Der isolierte `stash-personal`-Lauf wurde bei 1280×720 mit einer Dol-Rune (`r14
 ## Grenzen
 
 - Noch keine Rotation, Kompression oder automatische Bereinigung.
-- Keine Dashboard-/Upload-Integration.
+- Abschnitt 11.3 projiziert ausgewählte Zustandsänderungen zusätzlich über einen flüchtigen, begrenzten Live-Publisher ins lokale Dashboard. Dieser Pfad blockiert niemals den Bot und ersetzt keine JSONL-Ereignisse; JSONL bleibt die autoritative persistente Diagnosequelle.
+- Keine Upload-Integration.
 - Phase 7.7 ergänzt einen separaten Schema-v2-Session-Recorder für Lifecycle-, Recovery- und Summary-Ereignisse; der Phase-5-Recorder bleibt für Run-/Loot-Details kompatibel.
 
 ## Verwandte Features
@@ -95,4 +96,4 @@ Der isolierte `stash-personal`-Lauf wurde bei 1280×720 mit einer Dol-Rune (`r14
 - [Personal-Stash MVP](personal-stash-mvp.md)
 
 ---
-*Zuletzt aktualisiert: 2026-07-13*
+*Zuletzt aktualisiert: 2026-07-16*

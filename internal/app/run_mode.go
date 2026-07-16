@@ -25,7 +25,7 @@ var (
 
 // resolveActiveRun returns the configured run name; CLI overrides YAML.
 func resolveActiveRun(opts Options, cfg *config.Config) string {
-	if opts.UIStateProbe != "" || opts.ScreenAnchorCapture != "" || opts.OfflineExitTest || opts.OfflineDifficulty != "" {
+	if opts.UI || opts.UIStateProbe != "" || opts.ScreenAnchorCapture != "" || opts.OfflineExitTest || opts.OfflineDifficulty != "" {
 		return ""
 	}
 	if opts.Run != "" {

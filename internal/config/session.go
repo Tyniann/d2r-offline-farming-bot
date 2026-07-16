@@ -18,6 +18,7 @@ var supportedSessionRetryClasses = map[string]struct{}{
 type SessionConfig struct {
 	Enabled                bool     `yaml:"enabled"`
 	Run                    string   `yaml:"run"`
+	Queue                  []string `yaml:"queue"`
 	Character              string   `yaml:"character"`
 	Difficulty             string   `yaml:"difficulty"`
 	MaxRuns                int      `yaml:"max_runs"`
@@ -52,6 +53,9 @@ func (c *SessionConfig) UnmarshalYAML(value *yaml.Node) error {
 func (c *SessionConfig) applyDefaults() {
 	if c.Run == "" {
 		c.Run = "countess"
+	}
+	if c.Queue == nil {
+		c.Queue = []string{c.Run}
 	}
 	if c.Difficulty == "" {
 		c.Difficulty = "normal"
@@ -88,6 +92,14 @@ func (c *SessionConfig) applyDefaults() {
 func (c SessionConfig) validate() error {
 	if c.Run == "" {
 		return fmt.Errorf("session.run is required")
+	}
+	if len(c.Queue) == 0 {
+		return fmt.Errorf("session.queue must contain at least one run")
+	}
+	for i, run := range c.Queue {
+		if run == "" {
+			return fmt.Errorf("session.queue[%d] must not be empty", i)
+		}
 	}
 	switch c.Difficulty {
 	case "normal", "nightmare", "hell":

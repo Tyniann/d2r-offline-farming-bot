@@ -37,7 +37,7 @@ Der Full Run verwendet die gemeinsame Pipeline direkt:
 
 ```text
 precheck -> acquire_town_waypoint -> open_waypoint -> select_run_waypoint -> wait_entry_area
--> play_bound_route -> acquire_boss -> engage_boss -> wait_for_drops -> scan_loot
+-> play_bound_route -> acquire_boss -> engage_boss -> reposition_for_loot -> wait_for_drops -> scan_loot
 -> pick_loot -> cast_town_portal -> enter_town_portal -> wait_origin_town
 -> open_personal_stash -> stash_items -> close_personal_stash -> complete
 ```
@@ -59,6 +59,8 @@ Die isolierten Phasen bleiben bewusst als Testoberflächen erhalten: Travel-Phas
 Während aller Loot-Schritte führt ein gültiger Snapshot außerhalb von `Tower Cellar Level 5` zu `unexpected_area`. Invalid-/Loading-Snapshots werden nicht als Input-Ticks ausgeführt und laufen in den äußeren Step-Timeout.
 
 Pickup-Ergebnisse mit Item-/World-Ursache (`monster_nearby`, `hover_not_found`, `target_lost`, `target_unstable`, `too_far`, `pickup_failed`) werden für die aktuelle `pick_loot`-Phase per `UnitID` übersprungen und danach erneut gescannt. Harte Verdrahtungs- oder Projektionsfehler (`input_blocked`, `projection_failed`, ein vom Loot-Adapter gemeldetes `invalid_world`) beenden den Run als Fehler. Inventory-Full/No-Fit entsteht im Scan als fehlender Pickup-Kandidat, nicht als Pickup-Executor-Fehler.
+
+Nach bestätigtem Countess-Kill bewahrt die State Machine ihre letzte Memory-bestätigte Weltposition auf. `reposition_for_loot` teleportiert fail-closed zu dieser Position und bestätigt die Ankunft, bevor Drop-Stabilisierung und Pickit-Scan beginnen. Damit bleiben Runen erreichbar, wenn die Countess außerhalb der bisherigen Pickup-Reichweite in Bone Prison stirbt. Andere Run-Definitionen erhalten diesen Schritt nur nach ausdrücklichem Opt-in.
 
 ## Safety-Potions (Phase 4.7)
 
@@ -202,4 +204,4 @@ Der Recorder bindet die Aufnahme an den read-only aus Stash und Waypoint ermitte
 - Kein robuster Tower-Solver: zufällige Tower-Layouts bleiben die größte Unsicherheit des Phase-5-Stands. Phase 6 zieht Run Recording und Playback deshalb als direkte Nachfolgephase vor und ersetzt die globale Explorer-Traversierung im produktiven Countess-Run.
 
 ---
-*Zuletzt aktualisiert: 2026-07-15*
+*Zuletzt aktualisiert: 2026-07-16*

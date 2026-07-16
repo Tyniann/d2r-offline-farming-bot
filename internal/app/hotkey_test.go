@@ -24,6 +24,25 @@ func TestHandleHotkeyEventPause(t *testing.T) {
 	}
 }
 
+func TestHandleHotkeyEventRoutesPauseToQueueIntentWithoutSuspendingInput(t *testing.T) {
+	in := &mockInput{}
+	rt := testRuntimeWithInput(&mockProcess{}, &mockProbe{}, in, Options{})
+	calls := 0
+	rt.setPauseHotkeyHandler(func() error {
+		calls++
+		return nil
+	})
+
+	rt.handleHotkeyEvent(input.HotkeyEvent{Action: input.HotkeyActionPause}, func() {})
+
+	if calls != 1 {
+		t.Fatalf("pause-after-run calls = %d, want 1", calls)
+	}
+	if in.toggleCalls != 0 || in.paused {
+		t.Fatalf("mid-run input pause was changed: calls=%d paused=%t", in.toggleCalls, in.paused)
+	}
+}
+
 func TestHandleHotkeyEventStop(t *testing.T) {
 	in := &mockInput{}
 	rt := testRuntimeWithInput(&mockProcess{}, &mockProbe{}, in, Options{})
