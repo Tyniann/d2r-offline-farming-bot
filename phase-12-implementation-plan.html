@@ -1,0 +1,282 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Phase 12 – Detaillierter Umsetzungsplan</title>
+  <style>
+    :root{--bg:#0b1020;--panel:#121a2d;--panel2:#18233a;--text:#e8edf7;--muted:#aeb9cc;--line:#2b3a58;--accent:#67d4ff;--good:#73e2a7;--warn:#ffd166;--bad:#ff7b86;--code:#09101d}
+    *{box-sizing:border-box}body{margin:0;background:linear-gradient(145deg,#080d19,#10192b 55%,#0a1220);color:var(--text);font:16px/1.58 system-ui,-apple-system,"Segoe UI",sans-serif}
+    main{max-width:1180px;margin:auto;padding:42px 24px 80px}.hero{padding:34px;border:1px solid var(--line);border-radius:20px;background:linear-gradient(135deg,#17243e,#10192b);box-shadow:0 20px 60px #0006}
+    h1{font-size:clamp(2rem,5vw,3.7rem);line-height:1.08;margin:.25rem 0 1rem}h2{margin-top:44px;border-bottom:1px solid var(--line);padding-bottom:10px}h3{margin:.2rem 0 .5rem;color:#fff}.lead{font-size:1.17rem;color:var(--muted);max-width:980px}
+    .chips{display:flex;flex-wrap:wrap;gap:9px}.chip{border:1px solid #3f587c;border-radius:999px;padding:5px 11px;color:#c9ecff;background:#12233b}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:15px;margin:18px 0}
+    .card,.phase,.callout{border:1px solid var(--line);border-radius:14px;background:var(--panel);padding:18px}.card p,.phase p{margin:.35rem 0;color:var(--muted)}table{width:100%;border-collapse:collapse;background:var(--panel);border:1px solid var(--line)}th,td{padding:12px 14px;text-align:left;vertical-align:top;border-bottom:1px solid var(--line)}th{background:var(--panel2);color:#fff}
+    code,pre{font-family:"Cascadia Code",Consolas,monospace}code{color:#aee9ff}pre{background:var(--code);border:1px solid var(--line);border-radius:12px;padding:16px;overflow:auto;color:#d9e7ff}.phase{display:grid;grid-template-columns:92px 1fr;gap:16px;margin:13px 0}.phase-id{font-weight:800;color:var(--accent);font-size:1.25rem}.warn{color:var(--warn)}.good{color:var(--good)}.bad{color:var(--bad)}.gate{border-left:4px solid var(--warn);padding-left:12px!important}.callout{border-left:4px solid var(--accent);margin:16px 0}.danger{border-left-color:var(--bad)}.success{border-left-color:var(--good)}li{margin:.35rem 0}footer{margin-top:48px;color:var(--muted);text-align:center}@media(max-width:650px){.phase{grid-template-columns:1fr}.hero{padding:22px}main{padding-inline:14px}}
+  </style>
+</head>
+<body><main>
+  <section class="hero">
+    <div class="chip">D2R Offline Farming Bot · Phase 12</div>
+    <h1>Routenbibliothek und geführte Aufnahme</h1>
+    <p class="lead">Phase 12 macht Farming-Routen erstmals vollständig über das Dashboard verwaltbar. Registrierte Runs führen den Benutzer durch Aufnahme, semantische Endpunktprüfung, sicheren Town-Portal-Rückweg, testweise Wiedergabe und atomische Freigabe. Bestehende aktive Routen werden niemals überschrieben, sondern beim Ersetzen archiviert. Town- und Egress-Routen bleiben aus der Bibliothek verborgen; ein eigener System-Setup-Flow ergänzt nur die globalen Portal-zum-Wegpunkt-Routen der Akte 2, 4 und 5.</p>
+    <div class="chips"><span class="chip">Candidate first</span><span class="chip">Ein Abnahme-Gate</span><span class="chip">F9 Aufnahme beenden</span><span class="chip">TP statt Save &amp; Exit</span><span class="chip">Replace → Archive</span><span class="chip">Per Character + Run</span><span class="chip">Fail-closed</span></div>
+  </section>
+
+  <section class="grid" aria-label="Kernziele">
+    <article class="card"><h3>Geführte Aufnahme</h3><p>Nur registrierte Runs sind aufnehmbar. Das Dashboard nennt Startwegpunkt, Startaktion, Ziel und Bedienung; der Benutzer bestimmt die gewünschte Kampfposition selbst.</p></article>
+    <article class="card"><h3>Sichere Freigabe</h3><p>Eine Aufnahme wird zuerst unveränderlicher Kandidat. Erst bestandene Wiedergabe und eine bewusste Bestätigung ändern Zuordnung oder aktive Route.</p></article>
+    <article class="card"><h3>Kein Routenverlust</h3><p>Replace archiviert die bisher aktive Route. Archive sind wiederherstellbar; endgültiges Löschen ist nur unzugeordnet und mit Route-ID-Bestätigung erlaubt.</p></article>
+    <article class="card"><h3>Eine Autorität</h3><p>Phase 12 erweitert den vorhandenen Phase-11-Lifecycle. Automatische Invalidierung, Live-Fingerprint und manuelle Verwaltung bleiben getrennte Vorgänge im selben konsistenten Modell.</p></article>
+  </section>
+
+  <h2>1. Verbindliche Produktentscheidungen</h2>
+  <table><thead><tr><th>Thema</th><th>Entscheidung für Phase 12</th></tr></thead><tbody>
+    <tr><td>Sichtbarer Routentyp</td><td>Die normale Routenbibliothek zeigt ausschließlich Farming-Routen. Town-Graph und Egress-Routen erscheinen weder als Einträge noch in Farming-Filtern, Detailseiten oder Löschaktionen.</td></tr>
+    <tr><td>Unterstützte Ziele</td><td>Aufnahmen sind nur für typisiert registrierte Runs möglich; in Phase 12 sind das Countess und Mephisto. Freie Zielnamen und beliebige Custom-Bosse sind ausgeschlossen. Ein späterer Boss erscheint erst nach Registrierung von Boss-Selektor, Startwegpunkt, erlaubten Gebieten, Terminalvertrag sowie Combat-/Loot-/Town-Verhalten.</td></tr>
+    <tr><td>Start und Ende</td><td>Der Benutzer reist zum angezeigten Zielwegpunkt, startet dort die Aufnahme und bewegt den Charakter bis zur selbst gewählten Kampfposition. Bossnähe beendet die Aufnahme niemals automatisch. F9 beziehungsweise der Dashboard-Befehl <em>Aufnahme beenden</em> ist der autoritative Abschluss.</td></tr>
+    <tr><td>Endpunktprüfung</td><td>Beim Abschluss müssen das registrierte Terminalgebiet und der lebende, über Memory eindeutig bestätigte Boss vorhanden sein. Die gemessene Bossdistanz wird angezeigt. Nur eine großzügige run-spezifische Maximaldistanz verhindert offensichtlich unsinnige Endpunkte; es gibt keine erzwungene Mindestdistanz.</td></tr>
+    <tr><td>Sicherheitsrückweg</td><td>Nach dem Einfrieren und Prüfen des Kandidaten öffnet der Bot ein Town Portal und betritt es. Save &amp; Exit ist ausdrücklich nicht Teil des Aufnahme- oder Testflows. Dadurch beginnt jeder Rückweg am bereits definierten <code>portal_arrival</code> und es werden keine zusätzlichen <code>game_spawn → waypoint</code>-Routen benötigt.</td></tr>
+    <tr><td>Test</td><td>Der Bot geht über den versteckten Egress beziehungsweise Act-1-Town-Graph zum Wegpunkt, wählt den registrierten Zielwegpunkt und spielt den Kandidaten im selben Spiel ohne Combat, Loot oder Town Service ab. Am Ziel werden Gebiet, Boss und Enddistanz erneut geprüft; danach kehrt der Bot per TP ins aktuelle Dorf zurück.</td></tr>
+    <tr><td>Manuelle Abnahme</td><td>Es gibt pro Aufnahme genau ein Benutzer-Gate: Der Benutzer beobachtet die automatische Kandidatenwiedergabe und bestätigt anschließend die Veröffentlichung. Ein zusätzlicher vollständiger Farming-Run mit Kampf ist keine zweite Abnahmevoraussetzung.</td></tr>
+    <tr><td>Zuordnung</td><td>Eine Zuordnung ist durch <code>(character, run)</code> eindeutig. Pro Paar gibt es höchstens eine aktive Route. Difficulty bleibt bindender Bestandteil der Route und des Lifecycle-Kontexts, ist aber kein zweiter paralleler Assignment-Slot. Ein Charakter besitzt weiterhin genau einen bestätigten Difficulty-Kontext.</td></tr>
+    <tr><td>Difficulty-Wechsel</td><td>Die automatische Phase-11-Invalidierung bleibt unverändert maßgeblich: Ein bestätigter Difficulty-Wechsel oder autoritativer Layout-Mismatch markiert den vollständigen Farming-Satz dieses Charakters stale. Assignments dürfen weiter auf stale Routen zeigen, autorisieren aber kein Playback.</td></tr>
+    <tr><td>Replace</td><td>Eine aktive Route wird niemals überschrieben. Beim bestätigten Replace wird die alte Route archiviert und erst danach der getestete Kandidat aktiv zugeordnet. Scheitert irgendein Commit-Schritt, bleibt die alte Route aktiv und der Kandidat erhalten.</td></tr>
+    <tr><td>Archive</td><td>Archivierung ist reversibel, entfernt die Route aus der normalen Ansicht und blockiert Playback. Eine archivierte Route bleibt als unveränderte Datei erhalten und kann nur dann wiederhergestellt werden, wenn Bindung und Lifecycle noch kompatibel sind und der resultierende Replace-Impact bestätigt wurde.</td></tr>
+    <tr><td>Delete</td><td>Endgültiges Löschen ist nur für nicht aktive und nicht zugewiesene Routen erlaubt. Der Dialog verlangt die exakte Route-ID. Kandidaten besitzen eine separate Verwerfen-Aktion; Town-/Egress-Dateien sind über die Farming-API grundsätzlich nicht adressierbar.</td></tr>
+    <tr><td>Charakterfilter</td><td>Standardmäßig werden nur Routen des aktuell ausgewählten Charakters gezeigt. Die Verwaltung kann bewusst auf einen anderen Charakter umgeschaltet werden, ohne die Auswahl in D2R zu ändern. Aufnahme, Test und Live-Validierung bleiben auf den tatsächlich bestätigten Spielcharakter beschränkt.</td></tr>
+    <tr><td>Egress</td><td>Act 1 verwendet seinen vorhandenen Town-Graph. Die Akte 2, 3, 4 und 5 besitzen je genau eine globale, charakter- und difficulty-unabhängige Systemroute <code>portal_arrival → waypoint</code>. Act 3 wird aus dem fehlerhaft charaktergebundenen Sonderpfad in denselben generischen Vertrag migriert; Akte 2, 4 und 5 werden in Phase 12 aufgenommen.</td></tr>
+    <tr><td>Hotkeys</td><td>F9 beendet ausschließlich eine aktive Aufnahme kontrolliert. F10 bleibt Stop-after-run, F11 bleibt globaler Emergency Stop und verwirft eine noch nicht eingefrorene Aufnahme ohne TP-Garantie. Das Dashboard zeigt alle konfigurierten globalen und kontextabhängigen Hotkeys dauerhaft an und wiederholt F9/F11 im Aufnahmefenster.</td></tr>
+    <tr><td>Sprache</td><td>UI-Hinweise, Bestätigungen und Fehlertexte sind ordentliches Deutsch. API-, Lifecycle- und Telemetrie-Codes bleiben stabile englische Maschinenwerte.</td></tr>
+  </tbody></table>
+
+  <h2>2. Scope und bewusste Grenzen</h2>
+  <table><thead><tr><th>Enthalten</th><th>Bewusst nicht in Phase 12</th></tr></thead><tbody>
+    <tr><td>Farming-Routenbibliothek mit aktiven, stale, archivierten und unverfügbaren Einträgen sowie explizitem Charakterfilter.</td><td>Town-Graph-Editor, sichtbare Egress-Dateiliste oder freie Bearbeitung von Wegpunkten und Koordinaten.</td></tr>
+    <tr><td>Geführte Countess-/Mephisto-Aufnahme mit Kandidat, Validierung, TP-Rückweg, Playback-Test und Freigabe.</td><td>Automatische Erkundung, automatische Bossdistanzwahl, Combat-Test oder neue Farmziele.</td></tr>
+    <tr><td>Persistente Route-Zuordnung pro Charakter und Run in einer eigenen atomischen lokalen YAML-Autorität.</td><td>Allgemeiner YAML-Editor oder direkte Dateizugriffe aus React.</td></tr>
+    <tr><td>Replace, Archive, Restore und Delete über Preview/Confirm mit Revisionsbindung.</td><td>Bulk-Delete, Undo nach endgültigem Delete, Cloud-Sync, Import/Export oder Teilen zwischen Rechnern.</td></tr>
+    <tr><td>Generischer System-Egress für Akte 2–5; Act 3 wird migriert, 2/4/5 werden live aufgenommen.</td><td>Vollständige Town-Servicegraphen außerhalb von Akt 1 und <code>game_spawn → waypoint</code>-Kanten.</td></tr>
+    <tr><td>Dauerhafte Hotkey-Übersicht und recorderbezogene Zustandsanzeigen.</td><td>Hotkey-Editor; konfigurierbare Tasten folgen in einer späteren allgemeinen Konfigurationsoberfläche.</td></tr>
+  </tbody></table>
+  <div class="callout danger"><strong>Keine versteckte zweite Route:</strong> Weder ein globales <code>route_id</code> noch eine Legacy-Zuordnung bleibt neben der neuen Charakter-/Run-Zuordnung aktiv. Migration geschieht einmalig und fail-closed; danach besitzen Availability, SessionPlan, Queue und Recorder dieselbe Assignment-Auflösung.</div>
+
+  <h2>3. Zielarchitektur und Ordnerstruktur</h2>
+  <pre><code>React: web/src/features/routes
+  Route Library ── Recording Wizard ── Candidate Review ── Hotkey Help
+                              │ HTTP/JSON + SSE
+                              ▼
+internal/api          Transport, DTOs, Preview/Confirm, Eventstream
+                              │
+                              ▼
+internal/app          RouteManagementService + RecordingCoordinator
+  ├─ vorhandener RouteLifecycleStore (automatische Invalidation + Status)
+  ├─ RouteAssignmentStore       (YAML-Assignment pro Character + Run)
+  ├─ CandidateStore             (unveröffentlichte Aufnahmen)
+  └─ exklusiver Recording-/Test-Owner
+             │                       │
+             ▼                       ▼
+internal/pathing              internal/tasks RunRegistry
+Recorder / Validator /       RecordingContract je Run
+Player / TP / Waypoint
+             │
+             ▼
+internal/town
+generischer globaler Egress-Vertrag für Act 2–5
+
+configs/
+├─ route-assignments.local.yaml       gitignored, atomische YAML-Source-of-Truth
+├─ route-lifecycle.local.yaml         bestehende Phase-11-Autorität
+└─ routes/
+   ├─ farming/&lt;character&gt;/&lt;difficulty&gt;/   veröffentlichte und archivierte Dateien
+   ├─ candidates/                          unveröffentlichte lokale Kandidaten
+   └─ town/
+      ├─ act1/graph/                       vorhandener Town-Graph
+      ├─ act2/egress/portal-waypoint.yaml
+      ├─ act3/egress/portal-waypoint.yaml
+      ├─ act4/egress/portal-waypoint.yaml
+      └─ act5/egress/portal-waypoint.yaml</code></pre>
+  <table><thead><tr><th>Ort</th><th>Verantwortung</th><th>Verbot</th></tr></thead><tbody>
+    <tr><td><code>internal/app</code></td><td>Erweitert den tatsächlich dort implementierten Phase-11-Lifecycle um Management, Assignment, Kandidaten und exklusives Recording-/Test-Wiring. Zusammengehörige Dateien bleiben im Paket; kein künstliches <code>internal/pathing/routecatalog</code>.</td><td>Keine zweite automatische Invalidation und keine ungeprüften Input-Aufrufe aus API-Handlern.</td></tr>
+    <tr><td><code>internal/pathing</code></td><td>Generische Aufnahme-, Speicher-, Validierungs- und Playback-Primitive sowie TP-/Waypoint-Navigation.</td><td>Keine Run-, Boss-, Lifecycle- oder GUI-Entscheidungen.</td></tr>
+    <tr><td><code>internal/tasks</code></td><td>Typisierter <code>RecordingContract</code> als Teil jeder registrierten Run-Definition.</td><td>Keine Dateiverwaltung und kein React-spezifisches DTO.</td></tr>
+    <tr><td><code>internal/town</code></td><td>Globale Egress-Definitionen und semantische Start-/Endanker je Akt.</td><td>Keine Charakter-, Difficulty- oder Farming-Lifecycle-Bindung.</td></tr>
+    <tr><td><code>internal/api</code></td><td>Versionierte Queries, Commands, Preview-/Confirm-Tokens und SSE-Events.</td><td>Keine Dateipfade in DTOs, kein YAML-Schreiben und keine Business-Transitions.</td></tr>
+    <tr><td><code>web/src/features/routes</code></td><td>Bibliothek, Wizard, Kandidatenprüfung, Modals und Hotkey-Hilfe als erstes tatsächlich ausgegliedertes Feature-Modul.</td><td>Keine Statusberechnung, Route-Validierung oder direkte lokale Dateiverwaltung.</td></tr>
+  </tbody></table>
+
+  <h2>4. Autoritative Datenmodelle</h2>
+  <pre><code>RouteAssignmentManifest
+  schema_version: 1
+  revision: N
+  assignments:
+    mrbones:
+      countess: black-marsh-cellar5-nightmare-mrbones-v2
+      mephisto: durance-2-mephisto-nightmare-mrbones-v2
+
+RouteLifecycleRoute
+  recorded_at: ...
+  observed_file_fingerprint: ...
+  management_status: active | archived
+  run_id: countess | mephisto
+  invalidated_at: ...          # ausschließlich Phase-11-Invalidierung
+  invalidation_reason: ...
+
+RouteCandidate
+  candidate_id: ...            # API-/Workflow-ID, nicht automatisch aktive Route-ID
+  immutable_route_file: ...
+  run_id / character / difficulty / game_version
+  state: recorded | validated | test_running | test_passed | failed
+  measured_boss_distance: ...
+  source_catalog_revision / source_assignment_revision
+  created_at / tested_at / failure_reason</code></pre>
+  <ul>
+    <li>Route-Dateien bleiben Source of Truth für Punkte, Segmente, Bindings, Fingerprints und Recording-Metadaten. Lifecycle und Assignments enthalten keine Kopie dieser Nutzdaten.</li>
+    <li>Der vorhandene <code>RouteLifecycleStore</code> bleibt alleinige Autorität für automatische Invalidation. <code>management_status</code> ist orthogonal: Eine Route kann beispielsweise <code>archived + stale</code> sein.</li>
+    <li>Assignments wählen eine Route aus, machen eine stale/unavailable Route aber niemals gültig. Availability ist die Schnittmenge aus Assignment, Managementstatus, Lifecycle, statischem Vertrag und Live-Fingerprint.</li>
+    <li>Die bisherigen globalen <code>runs.definitions.&lt;run&gt;.route_id</code>-Felder werden einmalig in das Assignment-Manifest überführt und anschließend aus Config, DTOs, Tests und Runtime entfernt. Es gibt keinen lesenden Legacy-Fallback.</li>
+    <li>Archivieren ändert nur Lifecycle-/Assignment-Metadaten; die Route-Datei bleibt unverändert im Farming-Verzeichnis. Dadurch gibt es keinen fehleranfälligen Dateiverschiebe-Vertrag.</li>
+    <li>Endgültiges Delete verwendet Quarantäne-Rename, atomischen Manifest-Commit und anschließendes Entfernen. Ein kleines Recovery-Journal entscheidet nach Absturz deterministisch zwischen Rollback und Abschluss; halbe Zustände starten fail-closed.</li>
+  </ul>
+
+  <h2>5. Run-Recording-Vertrag</h2>
+  <pre><code>RecordingContract
+  run_id
+  instructions_de
+  start_waypoint
+  allowed_start_area
+  allowed_route_areas
+  terminal_area
+  boss_selector              # dieselbe autoritative Identität wie Combat
+  terminal_max_distance_tiles
+  movement                   # teleport für Farming
+  safety_return              # town_portal
+  egress_origin_act</code></pre>
+  <p>Countess verlangt den Black-Marsh-Wegpunkt und Tower Cellar Level 5 mit lebender Countess. Mephisto verlangt Durance of Hate Level 2 und Durance of Hate Level 3 mit lebendem Mephisto. Der Vertrag verwendet die vorhandene Boss-Identität der Run Registry; Recorder und Combat dürfen keine getrennten Unit-ID-Tabellen besitzen.</p>
+  <p>Vor Aufnahmebeginn bestätigt der Core Charakter, Klasse, Difficulty, Map Seed, Game Version, Startgebiet, Start-Fingerprint, registrierten Wegpunktkontext, geschlossene blockierende UIs, D2R-Fokus und einen exklusiven Input-Owner. Die Aufnahme selbst bleibt read-only, bis F9 beziehungsweise Finish die anschließende TP-Sicherheitssequenz autorisiert.</p>
+  <p>Bei Finish wird zuerst ein unveränderlicher Rohkandidat geschrieben und gehasht. Danach folgen Struktur- und Semantikprüfung. Auch bei semantischer Ablehnung versucht der Coordinator den vereinbarten TP-Rückweg, sofern der Spielzustand ihn sicher erlaubt. Der abgelehnte Kandidat bleibt als diagnostischer, nicht veröffentlichbarer Entwurf sichtbar und kann verworfen oder durch eine neue Aufnahme ersetzt werden.</p>
+
+  <h2>6. Recording- und Test-State-Machine</h2>
+  <pre><code>idle
+  → preflight
+  → recording
+  → freezing
+  → validating
+  → returning_via_portal
+  → candidate_ready
+  → preparing_playback
+  → playing_candidate
+  → validating_terminal
+  → returning_after_test
+  → awaiting_publish_confirmation
+  → publishing
+  → completed
+
+Jeder Zustand → failed_safe
+recording + F11 → emergency_cancelled</code></pre>
+  <ul>
+    <li>Nur <code>idle</code> akzeptiert Start. Session, Selection Apply, Queue, Egress-Setup und Route-Mutation sind während des Workflows gesperrt.</li>
+    <li>F9 wird ausschließlich in <code>recording</code> als Finish interpretiert. Wiederholte Finish-/API-Befehle sind idempotent und erzeugen weder einen zweiten Kandidaten noch ein zweites TP.</li>
+    <li>F11 cancelt sofort. Vor <code>freezing</code> existiert kein Kandidat und es gibt keine TP-Garantie; danach bleibt der bereits persistierte Kandidat erhalten, wird aber nicht veröffentlicht.</li>
+    <li>TP-Cast, Portal-Hover, Klick, Gebietswechsel, Egress, Waypoint-UI, Zielauswahl, Playback und zweiter TP besitzen getrennte endliche Input-/Verify-Budgets. Kein Fehler löst Save &amp; Exit oder einen blinden Alternativpfad aus.</li>
+    <li>Playback sendet nur Navigationsinput. Combat-Hooks, Pickit, Stash, Shopping und Session-Supervisor bleiben inaktiv.</li>
+    <li>Publish erfordert <code>test_passed</code>, unveränderte Kandidatendatei, unveränderten Live-Charakter/Difficulty-Kontext und ein an die aktuellen Katalog-/Assignment-Revisionen gebundenes Bestätigungstoken.</li>
+  </ul>
+
+  <h2>7. Replace-, Archive-, Restore- und Delete-Transaktionen</h2>
+  <table><thead><tr><th>Operation</th><th>Preview</th><th>Atomischer Commit</th><th>Fehlerverhalten</th></tr></thead><tbody>
+    <tr><td>Publish ohne Vorgänger</td><td>Kandidat, Run, Charakter, Difficulty, neue Route-ID und Availability-Auswirkung.</td><td>Kandidatenroute exklusiv publizieren, Lifecycle importieren, Assignment setzen, Revisionen erhöhen.</td><td>Kein Assignment ohne vollständige Route; Kandidat bleibt retrybar.</td></tr>
+    <tr><td>Replace</td><td>Zusätzlich alte aktive Route, deren Status und Archivwirkung.</td><td>Neue Route publizieren, alte <code>archived</code>, Assignment auf neue ID; erst danach Kandidat abgeschlossen.</td><td>Alte Route bleibt bei jedem Fehler aktiv; niemals überschreiben.</td></tr>
+    <tr><td>Archive</td><td>Route, betroffener Run und Verlust der Availability.</td><td>Assignment entfernen, Managementstatus archiviert.</td><td>Keine Mutation bei stale Preview oder Write-Fehler.</td></tr>
+    <tr><td>Restore</td><td>Kompatibilität, eventuell zu ersetzende aktive Route und resultierender Run-Status.</td><td>Wie Replace: bisher aktive archivieren, restaurierte Route aktiv zuordnen.</td><td>Stale/misbound bleibt archiviert; keine automatische Rehabilitation.</td></tr>
+    <tr><td>Delete</td><td>Exakte Route-ID, Nachweis <em>nicht aktiv/nicht zugewiesen</em>, endgültige Wirkung.</td><td>Quarantäne, Manifest-/Assignment-Commit, Datei entfernen, Journal abschließen.</td><td>Recovery rollt eindeutig zurück oder beendet; unbekannter Zustand sperrt Management.</td></tr>
+  </tbody></table>
+
+  <h2>8. Lokale API, Events und UI-Vertrag</h2>
+  <table><thead><tr><th>Endpoint/Command</th><th>Zweck</th></tr></thead><tbody>
+    <tr><td><code>GET /api/v1/routes</code></td><td>Farming-Bibliothek nach Charakter und optionalem <code>include_archived</code>; keine lokalen Pfade und keine Systemrouten.</td></tr>
+    <tr><td><code>GET /api/v1/route-recording/options</code></td><td>Aufnehmbare registrierte Runs, deutsche Anweisungen, Availability und erforderliche Start-/Terminaldaten.</td></tr>
+    <tr><td><code>POST /api/v1/route-recordings</code></td><td>Preflight-gebundenen Workflow starten.</td></tr>
+    <tr><td><code>POST /api/v1/route-recordings/{id}/finish</code></td><td>Dasselbe kontrollierte Finish wie F9.</td></tr>
+    <tr><td><code>POST /api/v1/route-candidates/{id}/test</code></td><td>TP-/Egress-/Waypoint-/Playback-/TP-Test starten.</td></tr>
+    <tr><td><code>POST /api/v1/route-candidates/{id}/publish/preview|confirm</code></td><td>Neue Zuordnung beziehungsweise Replace sicher vorbereiten und bestätigen.</td></tr>
+    <tr><td><code>POST /api/v1/routes/{id}/archive|restore|delete/preview|confirm</code></td><td>Revisionsgebundene Verwaltungsoperationen; Delete verlangt zusätzlich die Route-ID im Confirm-Body.</td></tr>
+    <tr><td><code>GET /api/v1/system-routes/status</code></td><td>Nur zusammengefasste Readiness pro Akt für den Setup-Assistenten; keine Route-Dateien oder Farming-Aktionen.</td></tr>
+  </tbody></table>
+  <p>SSE ergänzt Recording-, Candidate-, Test- und Mutationsevents mit Workflow-ID, Zustand, Run, Area, Segment, Fortschritt und stabilem Reason-Code. Der bestehende Snapshot-first-/Reconnect-Vertrag bleibt erhalten.</p>
+  <p>Die UI besitzt eine Farming-Bibliothek, Detail-/Archivansicht, einen schrittweisen Aufnahmeassistenten, Kandidatenprüfung und bestätigungsgebundene Modals. Ein kompakter, dauerhaft erreichbarer Bereich <em>Hotkeys</em> zeigt Pause, Stop-after-run, Emergency Stop und Aufnahme beenden aus der geladenen Core-Konfiguration; während einer Aufnahme stehen F9 und F11 zusätzlich unmittelbar neben dem Status.</p>
+
+  <h2>9. Umsetzungsabschnitte</h2>
+
+  <article class="phase"><div class="phase-id">12.0</div><div><h3>Baseline, Characterization und verbindliche Verträge</h3><p>Vor jeder Mutation werden Phase-11-Lifecycle, Availability, SessionPlan, Queue, Route Contract v1, CLI-Recorder, TP-/Waypoint-Flow, Act-1-Town-Graph und Act-3-Egress durch Characterization-Tests eingefroren. Der Abschnitt dokumentiert die tatsächliche Paketlage in <code>internal/app</code> und entfernt aus dem Plan die nie realisierte <code>internal/pathing/routecatalog</code>-Annahme.</p><p>Festgelegt werden Assignment-Schema, Lifecycle-Erweiterung, Candidate-Schema, <code>RecordingContract</code>, System-Egress-Vertrag, Workflow-State-Machine, API-/SSE-DTOs, Reason-Codes, Dateirevisionen, Lock-Reihenfolge und Recovery-Journal. Für jede persistente Operation wird vor Implementierung die Crash-Matrix beschrieben.</p><p class="gate"><strong>Automatisches Gate 12.0:</strong> Bestehende Countess-/Mephisto-Availability, Queue und beide produktiven Route-Dateien sind unverändert charakterisiert. Schema-Fixtures und Zustands-/Transaktionstabellen sind testbar; es gibt keine offene Produktentscheidung und keinen unbenannten Owner. Erst danach beginnt 12.1.</p></div></article>
+
+  <article class="phase"><div class="phase-id">12.1</div><div><h3>Assignment- und Lifecycle-Fundament</h3><p>Der vorhandene <code>RouteLifecycleStore</code> erhält orthogonalen Managementstatus und Run-Zuordnung. Ein eigener atomischer <code>RouteAssignmentStore</code> verwaltet die YAML-Source-of-Truth pro Charakter und Run. Die bestehenden globalen <code>route_id</code>-Werte werden einmalig migriert; Config, Availability, SessionPlan, Queue und Task-Wiring lesen anschließend ausschließlich die neue Auflösung.</p><p>Scanner und Katalog erkennen aktive, stale, archivierte, malformed, changed und missing Dateien deterministisch. Town/Egress werden durch Root und Vertrag ausgeschlossen. Locks folgen einer dokumentierten Reihenfolge; Katalog-, Lifecycle- und Assignment-Revisionen verhindern TOCTOU-Commits.</p><p class="gate"><strong>Automatisches Gate 12.1:</strong> Migration ist idempotent, verliert keine produktive Route und hinterlässt kein Legacy-Feld. Tests decken je Charakter mehrere Runs, Characterwechsel, Difficulty-Invalidierung, stale Assignment, archivierte Route, Manifestkorruption, parallele Preview/Confirm-Versuche und atomische Write-Fehler ab. Countess und Mephisto bleiben mit denselben Dateien verfügbar. Erst danach beginnt 12.2.</p></div></article>
+
+  <article class="phase"><div class="phase-id">12.2</div><div><h3>Generischer globaler System-Egress</h3><p>Der Act-3-Sonderadapter wird durch eine aktgenerische Definition für Act 2–5 ersetzt. Der Systemvertrag bindet Akt, Town-Area, Game Version, Layout-Fingerprint, <code>portal_arrival</code>, Waypoint-Anker, Walk-Bewegung und Ankunftstoleranz – niemals Character, Class, Difficulty oder Map Seed. Speicher und Validierung verwenden gemeinsame Pathing-Primitiven, aber nicht den Farming-Lifecycle.</p><p>Die bestehende Act-3-Punktfolge wird einmalig in den neuen Vertrag migriert und regression-getestet. Setup-Record/Validate/Play akzeptiert einen Aktparameter statt eigener Act-3-Befehle; alte Act-3-only-Pfade und charactergebundene Egress-Bindings werden entfernt.</p><p class="gate"><strong>Automatisches Gate 12.2:</strong> Fixtures für Acts 2–5 beweisen Portal-Start, Town-Area, Waypoint-Endpunkt, Layout-/Version-Mismatch, Walk-only, fehlende Route und strikte Farming-Ausgrenzung. Der migrierte Act-3-Egress spielt über denselben generischen Adapter; Quelltextsuche findet keinen produktiven Act-3-Sonderpfad und kein Egress-Character-/Difficulty-Gate. Erst danach beginnt 12.3.</p></div></article>
+
+  <article class="phase"><div class="phase-id">12.3</div><div><h3>Candidate Store und geführter Recorder-Core</h3><p>Der bestehende Recorder wird hinter einem exklusiven <code>RecordingCoordinator</code> wiederverwendet. Run Registry und <code>RecordingContract</code> liefern Start-/Terminalsemantik. Der Coordinator implementiert Preflight, F9-Finish, unveränderliches Freeze, Hash, Struktur-/Boss-/Distanzvalidierung, TP-Sicherheitsrückweg und diagnostische Ablehnung.</p><p>Rohkandidaten liegen außerhalb des Farming-Roots und können Availability nie beeinflussen. Bestehendes F11-Verhalten wird sauber getrennt: Emergency cancel während Recording ersetzt nicht F9, erzeugt keinen halben Publish und verspricht keinen Portalrückweg.</p><p class="gate"><strong>Automatisches Gate 12.3:</strong> Tests decken alle Zustände und verbotenen Übergänge, doppelte Commands, Cancellation an jedem Tick, zwei-Punkt-/Sampling-Regression, Gebietsübergänge, falschen/toten/fehlenden Boss, frei gewählte gültige Distanz, Maximaldistanz, Freeze-before-TP, TP-Fehler und Kandidatenintegrität ab. Kein Test schreibt in produktive Farming-Routen. Erst danach beginnt 12.4.</p></div></article>
+
+  <article class="phase"><div class="phase-id">12.4</div><div><h3>Kandidaten-Playback und sichere Veröffentlichung</h3><p>Der Testorchestrator komponiert vorhandene TP-, Town-/Egress-, Waypoint- und Route-Player-Bausteine. Er wählt aus dem Recording-Vertrag den richtigen Zielwegpunkt, spielt nur den Kandidaten ab, validiert Terminalgebiet/Boss/Distanz und bringt den Charakter erneut per TP ins Dorf. Combat, Loot und Services sind ausgeschlossen.</p><p>Publish/Replace/Archive/Restore/Delete werden als Preview-/Confirm-Transaktionen mit Candidate-Hash, Revisionen, Confirmation Token und Recovery-Journal implementiert. Route-IDs werden kollisionsfrei vom Core erzeugt; Anzeigenamen dürfen benutzerfreundlich sein, IDs bleiben unveränderlich.</p><p class="gate"><strong>Automatisches Gate 12.4:</strong> Erfolgs- und Fehlermatrix beweist exakt einen aktiven Assignment-Slot pro <code>(character, run)</code>, Archive-before-Replace, Rollback bei jedem injizierten Write-/Rename-Fehler, Restore-Kompatibilität, Delete-Sperren, Route-ID-Bestätigung und Startup-Recovery. Test-Playback ruft weder Combat, Loot, Town Service noch Save &amp; Exit auf. Erst danach beginnt 12.5.</p></div></article>
+
+  <article class="phase"><div class="phase-id">12.5</div><div><h3>API, React-Routenfeature und Hotkey-Hilfe</h3><p>Die versionierten Route-/Recording-/Candidate-/Systemstatus-Endpunkte und SSE-Events werden an den Core gebunden. OpenAPI bleibt Autorität für generierte TypeScript-Typen. React erhält unter <code>web/src/features/routes</code> Bibliothek, Charakterfilter, Archivansicht, Wizard, Fortschritt, Kandidatenreview und Preview-/Confirm-Modals.</p><p>Die normale Navigation zeigt niemals Town-/Egress-Routen. Fehlende System-Egress-Readiness erscheint nur als geführter Setup-Bedarf pro Akt. Die Hotkey-Hilfe liest Werte aus dem Core, ist dauerhaft auffindbar und erklärt F9, F10, F11 und Pause semantisch korrekt.</p><p class="gate"><strong>Automatisches Gate 12.5:</strong> API-Security, Generation/Revision, stale Confirm, DTO-Pfad-Leak, SSE-Reconnect, Browser-Refresh, Fokus/Keyboard, Loading/Empty/Error, Charakterfilter, Archivansicht, Modaltexte und Hotkeyanzeige sind getestet. Web-Test, Typecheck und Produktionsbuild sind grün; der eingebettete Build wird erst danach aktualisiert. Erst danach beginnt das erste manuelle Gate 12.6.</p></div></article>
+
+  <article class="phase"><div class="phase-id">12.6</div><div><h3>Globale Egress-Aufnahmen für Akt 2, 4 und 5</h3><p>Der Setup-Assistent führt nacheinander durch jeden fehlenden Akt: Der Benutzer öffnet in einem bestehenden Spiel ein TP im jeweiligen Akt, betritt es, startet am <code>portal_arrival</code> die Aufnahme, läuft zum lokalen Waypoint und beendet mit F9. Jeder Entwurf wird strukturell und semantisch geprüft und anschließend einmal isoliert vom Portal-Anker zum Waypoint abgespielt. Act 3 wird nur regressionsgeprüft, nicht unnötig neu aufgenommen.</p><p class="gate"><strong>Manuelle Abnahme 1/2 — STOP:</strong> Act 2, Act 4 und Act 5 besitzen je eine vollständige, globale <code>portal_arrival → waypoint</code>-Route. Alle drei Playbacks erreichen den Memory-bestätigten Waypoint ohne Drift, Character-/Difficulty-Abhängigkeit oder Farming-Katalogeintrag. Der Assistent zeigt danach alle benötigten System-Egresses als bereit. Erst nach ausdrücklicher Abnahme beginnt 12.7.</p></div></article>
+
+  <article class="phase"><div class="phase-id">12.7</div><div><h3>Vollständige GUI-Aufnahme, Test und Freigabe</h3><p>Für einen der beiden registrierten Runs wird die aktive Route vollständig über das Dashboard neu aufgenommen. Der Benutzer folgt der Startanweisung, wählt seine Kampfposition und beendet mit F9. Der Bot friert den Kandidaten ein, kehrt per TP zurück, erreicht über Town/Egress und Waypoint den Start, spielt den Kandidaten ohne Kampf ab, prüft Boss/Terminalposition und kehrt erneut per TP ins Dorf zurück.</p><p>Im anschließenden einzigen Bestätigungsdialog wird die bisher aktive Route als zu archivierende Vorgängerroute gezeigt. Nach Bestätigung wird der Kandidat aktiv; die alte Route bleibt unverändert archiviert. Die Bibliothek zeigt standardmäßig nur den aktiven Eintrag, die Archivansicht den Vorgänger. Archive/Restore/Delete werden zusätzlich an einem ungefährlichen, nicht produktiv zugewiesenen Testartefakt geprüft; keine wertvolle Route wird für den Delete-Nachweis geopfert.</p><p class="gate"><strong>Manuelle Abnahme 2/2 — STOP:</strong> Aufnahme, F9, TP-Rückweg, Egress/Town-Wegpunkt, kandidatengenaues Playback, Boss-/Distanzprüfung, zweiter TP, genau eine Benutzerfreigabe und atomisches Replace sind sichtbar erfolgreich. Die neue Route ist exakt diesem Charakter und Run zugeordnet; die alte ist wiederherstellbar archiviert. Kein Combat-/Loot-/Save-&amp;-Exit-Input tritt im Test auf. Ein separater vollständiger Farming-Run ist ausdrücklich keine weitere Abnahme. Erst nach ausdrücklicher Abnahme beginnt 12.8.</p></div></article>
+
+  <article class="phase"><div class="phase-id">12.8</div><div><h3>Regression, Dokumentation, Dead-Code-Audit und Abschluss</h3><p>Nach beiden manuellen Gates werden alle Verträge endgültig dokumentiert und die produktive Konfiguration geprüft. Feature-Dokumente beschreiben Bibliothek, Assignment, Recorder/Test-State-Machine und globalen Egress; README, Changelog, Handoff und Config-Beispiel werden synchronisiert.</p><ul><li>Godoc für alle neuen/geänderten exportierten Symbole sowie Design-Kommentare an Lifecycle-, Transaktions-, State-Machine-, Retry- und Fail-closed-Invarianten.</li><li>Dead-Code-Suche nach globalem <code>route_id</code>, Act-3-only Egress, charactergebundenem Egress, altem F11-as-Finish, direktem GUI-Dateizugriff und parallelen Katalog-/Assignment-Berechnungen.</li><li>Ownership-Audit: höchstens ein aktiver Recording-/Test-/Session-Input-Owner; Monitore und Hotkeys werden bei jedem terminalen Übergang sauber übergeben.</li><li>Produktive Route-Dateien und Lifecycle-/Assignment-Manifeste werden gegen Backups, Hashes und Katalog geprüft; keine unbeabsichtigte Route fehlt.</li><li><code>gofmt</code>, <code>goimports</code>, <code>go test ./...</code>, relevante UCRT64-Race-Tests, <code>go build ./cmd/d2rbot</code>, <code>golangci-lint run</code>, Webtests, Typecheck, Build, HTML-Linkcheck und <code>git diff --check</code>.</li></ul><p class="gate"><strong>Gate 12.8:</strong> Beide manuellen Gates und die vollständige automatische Matrix sind dokumentiert, sämtliche Route-Autoritäten stimmen überein, Dead Code ist entfernt oder konkret begründet und Phase 12 ist im Handoff abgeschlossen. SemVer-Minor-Bump erst nach erfolgreichem Gate; kein Commit oder Release ohne separate Nutzeranweisung.</p></div></article>
+
+  <h2>10. Automatische Testmatrix</h2>
+  <table><thead><tr><th>Bereich</th><th>Pflichttests</th></tr></thead><tbody>
+    <tr><td>Assignment/Lifecycle</td><td>Migration, Revision, Character+Run-Eindeutigkeit, Difficulty-Invalidierung, Layout-Mismatch, aktive/archivierte Orthogonalität, externe Dateiänderung und keine Town-/Egress-Aufnahme.</td></tr>
+    <tr><td>Recorder</td><td>Preflight, Sampling, Übergänge, Finish/F9, F11, Idempotenz, Boss alive/identity, Distanz, Freeze, Cancellation und Timeout.</td></tr>
+    <tr><td>Testworkflow</td><td>TP, Portalwechsel, Act-1-Graph, Act-2–5-Egress, Waypoint, kandidatengenaues Playback, Terminalprüfung, zweiter TP sowie Ausschluss von Combat/Loot/Exit.</td></tr>
+    <tr><td>Transaktionen</td><td>Publish, Replace, Archive, Restore, Delete, Quarantäne, Recovery nach jedem Crashpunkt, Hash-/Revision-Mismatch und Concurrent Confirm.</td></tr>
+    <tr><td>Egress</td><td>Jeder Akt, Start-/Endanker, Layout/Game-Version, Walk-only, globale Bindung, Missing/Malformed und unsichtbar im Farming-Katalog.</td></tr>
+    <tr><td>API/SSE</td><td>Security Envelope, Workflow-Generation, Preview Token, stale Revision, Retry/Idempotenz, Snapshot-first, Reconnect, terminale Events und keine Dateipfade.</td></tr>
+    <tr><td>Frontend</td><td>Charakterfilter, andere Charaktere, Archivansicht, Wizard, Reason-Texte, Kandidat, Modals, Route-ID-Delete, Hotkeys, Responsive/Fokus und Refresh-Recovery.</td></tr>
+    <tr><td>Regression</td><td>Phase-11 Selection/Invalidation/Queue, Countess und Mephisto Availability, CLI-Diagnosepfade, produktive Route-Hashes und Town-Servicegraph.</td></tr>
+  </tbody></table>
+
+  <h2>11. Stabile Reason-Codes</h2>
+  <table><thead><tr><th>Bereich</th><th>Mindestens vorzusehende Codes</th></tr></thead><tbody>
+    <tr><td>Recording</td><td><code>recording_conflict</code>, <code>recording_preflight_failed</code>, <code>recording_start_area_mismatch</code>, <code>recording_finish_requested</code>, <code>recording_emergency_cancelled</code>, <code>recording_terminal_area_mismatch</code>, <code>recording_boss_missing</code>, <code>recording_boss_dead</code>, <code>recording_endpoint_too_far</code></td></tr>
+    <tr><td>Candidate/Test</td><td><code>route_candidate_invalid</code>, <code>route_candidate_changed</code>, <code>route_test_start_failed</code>, <code>route_test_playback_failed</code>, <code>route_test_terminal_mismatch</code>, <code>route_test_passed</code>, <code>route_safety_return_failed</code></td></tr>
+    <tr><td>Management</td><td><code>route_assignment_missing</code>, <code>route_assignment_conflict</code>, <code>route_replace_confirmation_required</code>, <code>route_archived</code>, <code>route_restore_incompatible</code>, <code>route_delete_assigned</code>, <code>route_delete_confirmation_mismatch</code>, <code>route_transaction_recovery_required</code></td></tr>
+    <tr><td>Egress</td><td><code>town_egress_missing</code>, <code>town_egress_start_unconfirmed</code>, <code>town_egress_layout_mismatch</code>, <code>town_egress_waypoint_unconfirmed</code>, <code>town_egress_recording_required</code></td></tr>
+  </tbody></table>
+  <p>Vorhandene semantisch identische Phase-6–11-Codes werden wiederverwendet. Abschnitt 12.0 friert die endgültige Liste ein; API und UI dürfen keine Synonyme erfinden.</p>
+
+  <h2>12. Manuelle Gates im Überblick</h2>
+  <table><thead><tr><th>Gate</th><th>Beweist</th><th>Bewusst ausgeschlossen</th></tr></thead><tbody>
+    <tr><td>1 – System-Egress</td><td>Globale Portal-zum-Wegpunkt-Routen für Acts 2, 4 und 5 sowie generischer Act-3-Regressionspfad.</td><td>Keine Farming-Route und keine Character-/Difficulty-Bindung.</td></tr>
+    <tr><td>2 – GUI E2E</td><td>Ein vollständiger Aufnahme-, TP-, Playback-, Prüf-, Freigabe- und Replace-Zyklus mit archiviertem Vorgänger.</td><td>Kein Combat, Loot oder zweiter voller Run; genau eine Benutzerabnahme.</td></tr>
+  </tbody></table>
+  <div class="callout success"><strong>Gate-Prinzip:</strong> Fehler-, Crash-, Restore- und Delete-Matrizen werden mit temporären Fixtures automatisiert geprüft. Live-Gates beweisen ausschließlich reale D2R-Anker, Input-Komposition und sichtbaren Benutzerfluss; sie zerstören keine wertvolle Route.</div>
+
+  <h2>13. Definition of Done</h2>
+  <ol>
+    <li>Das Dashboard verwaltet ausschließlich Farming-Routen und zeigt standardmäßig den aktuell ausgewählten Charakter; andere Charaktere sind ohne D2R-Wechsel gezielt einsehbar.</li>
+    <li>Countess und Mephisto liefern vollständige typisierte Recording-Verträge; nicht registrierte Ziele sind nicht aufnehmbar.</li>
+    <li>F9 beendet die Aufnahme kontrolliert, F11 bleibt Emergency Stop, und alle Hotkeys sind dauerhaft verständlich im UI sichtbar.</li>
+    <li>Ein gültiger Kandidat wird vor jedem Input-Rückweg unveränderlich gespeichert und kann vor bestandenem Test keine aktive Route beeinflussen.</li>
+    <li>Aufnahme und Test verwenden Town Portal, niemals Save &amp; Exit; <code>game_spawn → waypoint</code> ist nicht erforderlich.</li>
+    <li>Der Test spielt exakt den Kandidaten ohne Combat/Loot/Services ab, validiert Boss/Terminalposition und endet sicher im aktuellen Dorf.</li>
+    <li>Ein einziges Benutzer-Gate veröffentlicht den getesteten Kandidaten. Ein vollständiger Kampf-Run ist keine zweite Freigabe.</li>
+    <li>Assignments sind eindeutig pro Charakter und Run; Difficulty- und Fingerprint-Invalidierung bleiben alleinige Phase-11-Autorität.</li>
+    <li>Replace archiviert den Vorgänger atomisch; Restore ist kompatibilitätsgeprüft; Delete ist nur unzugeordnet mit exakter Route-ID möglich.</li>
+    <li>Act 2–5 besitzen globale <code>portal_arrival → waypoint</code>-Egress-Routen ohne Character, Difficulty oder Map Seed. Town/Egress bleiben aus der Farming-Bibliothek verborgen.</li>
+    <li>Globale <code>route_id</code>- und Act-3-Sonderpfade sind vollständig entfernt; es gibt keinen Legacy-Fallback und keine zweite Katalogautorität.</li>
+    <li>API, SSE, React, CLI-Diagnose, Dokumentation, Dead-Code-Audit, Builds, Lint, Race-Tests und beide manuellen Gates sind abgeschlossen.</li>
+  </ol>
+
+  <h2>14. Übergabe an spätere Phasen</h2>
+  <ul>
+    <li><strong>Neue Runs:</strong> Eine spätere Boss-Definition ergänzt denselben Run-/Recording-Vertrag und erscheint danach automatisch im Aufnahmeassistenten; Phase 12 enthält keinen Custom-Boss-Editor.</li>
+    <li><strong>Phase 13:</strong> Der Pickit-Editor bleibt unabhängig von Route-Dateien, Assignments und Recorder-State.</li>
+    <li><strong>Phase 14:</strong> Historie kann Recording-/Test-/Managementevents aus Telemetrie auswerten, verändert aber keinen Lifecycle.</li>
+    <li><strong>Phase 15:</strong> Electron und ein mögliches Overlay verwenden dieselben API-Befehle. Die dauerhaft sichtbare Hotkey-Hilfe liefert dafür bereits die semantische Grundlage.</li>
+  </ul>
+
+  <footer>Planungsstand: 18. Juli 2026 · Produktentscheidungen vollständig geklärt · Umsetzung noch nicht begonnen</footer>
+</main></body>
+</html>

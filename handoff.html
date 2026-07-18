@@ -669,9 +669,12 @@
       <strong>Phase 12</strong>
       <div>
         <h3>Routenverwaltung und Recorder-Oberfläche <span class="warn">— geplant</span></h3>
-        <p><strong>Ziel:</strong> Aufzeichnungen ohne manuelle Dateiverwaltung erstellen, prüfen und Run-Definitionen zuordnen. Diese manuelle Verwaltung bleibt bewusst getrennt von der bereits in Phase 11 zentral implementierten automatischen Invalidierung.</p>
-        <p><strong>Umfang:</strong> Bestehenden RouteCatalog/Lifecycle-Status verwenden; Record/Stop/Validate, sichere Auswahl und Zuordnung sowie explizites Replace/Archive/Delete mit Bestätigung. Phase 12 implementiert keinen zweiten Character-/Difficulty-/Fingerprint-Lebenszyklus.</p>
-        <p><strong>Abnahme:</strong> Eine neue Route kann vollständig über die GUI aufgezeichnet, validiert, einem Run zugewiesen und einmal erfolgreich abgespielt werden.</p>
+        <p><strong>Ziel:</strong> Aufzeichnungen ohne manuelle Dateiverwaltung erstellen, prüfen und registrierten Runs zuordnen. Diese manuelle Verwaltung bleibt bewusst getrennt von der bereits in Phase 11 zentral implementierten automatischen Invalidierung.</p>
+        <p><strong>Farming-Vertrag:</strong> Die GUI bietet ausschließlich registrierte Runs an, zunächst Countess und Mephisto. Der Benutzer startet am angezeigten Zielwegpunkt, wählt die gewünschte Kampfposition selbst und beendet mit F9 oder dem Dashboard. Terminalgebiet und lebender Boss werden Memory-verifiziert; Bossnähe beendet nie automatisch. Der unveränderlich gespeicherte Kandidat wird anschließend im selben Spiel über Town Portal, versteckten Town-/Egress-Pfad und Waypoint ohne Combat oder Loot abgespielt und am Ziel erneut geprüft. Save &amp; Exit und zusätzliche <code>game_spawn → waypoint</code>-Routen gehören ausdrücklich nicht zu diesem Workflow.</p>
+        <p><strong>Zuordnung und Schutz:</strong> Pro <code>(character, run)</code> existiert höchstens eine aktive Zuordnung; Difficulty bleibt Route-/Lifecycle-Binding und kein paralleler Assignment-Slot. Ein Replace archiviert die bisher aktive Route atomisch, statt sie zu überschreiben. Archive sind wiederherstellbar. Endgültiges Delete ist nur unzugeordnet und nach Eingabe der exakten Route-ID erlaubt. Die automatische Difficulty-/Fingerprint-Invalidierung aus Phase 11 bleibt die einzige Invalidation-Autorität.</p>
+        <p><strong>Sichtbarkeit und Systemrouten:</strong> Town- und Egress-Routen erscheinen niemals in der Farming-Bibliothek. Ein geführter System-Setup-Flow ergänzt globale, charakter- und difficulty-unabhängige <code>portal_arrival → waypoint</code>-Egress-Routen für Akt 2, 4 und 5; der bestehende Act-3-Sonderpfad wird in denselben generischen Vertrag migriert. Act 1 verwendet weiterhin den Town-Graph. Das Dashboard erhält außerdem eine dauerhaft auffindbare Hotkey-Hilfe; F9 beendet Recording, F10 bleibt Stop-after-run und F11 Emergency Stop.</p>
+        <p><strong>Abnahme:</strong> Es gibt zwei manuelle Gates: einmalige kombinierte Aufnahme/Wiedergabe der fehlenden Egress-Routen sowie genau einen vollständigen GUI-Zyklus aus Farming-Aufnahme, TP-Rückweg, kandidatengenauem Playback, Terminalprüfung und atomischer Freigabe mit archiviertem Vorgänger. Ein zusätzlicher Farming-Run mit Kampf ist keine zweite Benutzerabnahme.</p>
+        <p>Detailplan: <a href="phase-12-implementation-plan.html">Phase-12-Umsetzungsplan</a>.</p>
       </div>
     </div>
 
@@ -816,8 +819,8 @@
           <td>Teleport-/Navigationslogik sowie bestehende Route-Contracts, Recorder und Playback.</td>
         </tr>
         <tr>
-          <td><code>/internal/pathing/routecatalog</code> <span class="warn">(Phase 11)</span></td>
-          <td>Read-only Katalog aller Farming-Route-Sets, atomisches Lifecycle-Manifest, Statusableitung und automatische Invalidation. Das Unterpaket darf Route-Dateien niemals selbst löschen, verschieben oder umschreiben.</td>
+          <td><code>/internal/app</code> – Route Lifecycle/Management <span class="warn">(Phase 11–12)</span></td>
+          <td>Der tatsächlich in Phase 11 hier implementierte read-only Farming-Katalog, das atomische Lifecycle-Manifest und die automatische Invalidation bleiben im Orchestrierungspaket. Phase 12 ergänzt in zusammengehörigen Dateien Assignment, Candidate Store und Management-Transaktionen; der früher geplante Ordner <code>internal/pathing/routecatalog</code> wurde bewusst nicht angelegt.</td>
         </tr>
         <tr>
           <td><code>/internal/input</code></td>
@@ -857,11 +860,11 @@
         </tr>
         <tr>
           <td><code>/web/src/features</code> <span class="warn">(Phase 11)</span></td>
-          <td>Feature-first UI-Module für <code>selection</code>, <code>availability</code>, <code>queue</code>, <code>session</code> und <code>live-status</code>. Generierte API-Typen und der Client liegen getrennt unter <code>/web/src/api</code>; nur tatsächlich gemeinsam verwendete UI-Bausteine gehören nach <code>/web/src/components</code>.</td>
+          <td>Feature-first UI-Module. Phase 12 legt mit <code>/web/src/features/routes</code> Bibliothek, Aufnahmeassistent, Kandidatenprüfung, Archivverwaltung und Hotkey-Hilfe an. Generierte API-Typen und der Client bleiben getrennt unter <code>/web/src/api</code>; nur tatsächlich gemeinsam verwendete UI-Bausteine gehören nach <code>/web/src/components</code>.</td>
         </tr>
         <tr>
           <td><code>/configs</code></td>
-          <td>YAML/JSON für Builds, Runs, Hotkeys und Pickit. Permanente Town-Assets liegen unter <code>routes/town/&lt;act&gt;/</code>, invalidierbare Farming-Sätze unter <code>routes/farming/&lt;character&gt;/&lt;difficulty&gt;/</code>. Phase 11 ersetzt den einzelnen <code>routes.directory</code>-Zeiger durch <code>routes.farming_root</code> und hält den atomischen, gitignorierten Lifecycle standardmäßig in <code>route-lifecycle.local.yaml</code>; es bleibt keine parallele Active-Directory-Quelle.</td>
+          <td>YAML/JSON für Builds, Runs, Hotkeys und Pickit. Permanente Town-Assets liegen unter <code>routes/town/&lt;act&gt;/</code>, invalidierbare Farming-Sätze unter <code>routes/farming/&lt;character&gt;/&lt;difficulty&gt;/</code> und unveröffentlichte Phase-12-Kandidaten außerhalb des Farming-Roots unter <code>routes/candidates/</code>. Der atomische, gitignorierte Lifecycle bleibt in <code>route-lifecycle.local.yaml</code>; <code>route-assignments.local.yaml</code> wird die einzige persistente Zuordnungsautorität pro Charakter und Run. Globale <code>runs.definitions.*.route_id</code>-Felder werden ohne Legacy-Fallback migriert.</td>
         </tr>
         <tr>
           <td><code>/docs</code></td>
