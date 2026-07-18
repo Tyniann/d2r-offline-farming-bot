@@ -41,7 +41,7 @@ func TestSessionSupervisorStartPauseResumeAndStopAfterRun(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	start, err := supervisor.Start(SupervisorCommandMeta{CommandID: "start-1", ExpectedGeneration: 0}, SupervisorRunRequest{RunID: "countess"})
+	start, err := supervisor.StartQueue(SupervisorCommandMeta{CommandID: "start-1", ExpectedGeneration: 0}, queueSchedulerTestPlan([]string{"countess"}, 3))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -79,7 +79,7 @@ func TestSessionSupervisorStartPauseResumeAndStopAfterRun(t *testing.T) {
 func TestSessionSupervisorEmergencyStopUsesF11Reason(t *testing.T) {
 	runner := &supervisorFakeRunner{started: make(chan SupervisorRunRequest, 1), release: make(chan SupervisorRunResult)}
 	supervisor, _ := NewSessionSupervisor(runner)
-	_, err := supervisor.Start(SupervisorCommandMeta{CommandID: "start", ExpectedGeneration: 0}, SupervisorRunRequest{RunID: "mephisto"})
+	_, err := supervisor.StartQueue(SupervisorCommandMeta{CommandID: "start", ExpectedGeneration: 0}, queueSchedulerTestPlan([]string{"mephisto"}, 1))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -107,7 +107,7 @@ func TestSessionSupervisorRejectsConcurrentStartAndStaleGeneration(t *testing.T)
 		wg.Add(1)
 		go func(commandID string) {
 			defer wg.Done()
-			_, err := supervisor.Start(SupervisorCommandMeta{CommandID: commandID, ExpectedGeneration: 0}, SupervisorRunRequest{RunID: "countess"})
+			_, err := supervisor.StartQueue(SupervisorCommandMeta{CommandID: commandID, ExpectedGeneration: 0}, queueSchedulerTestPlan([]string{"countess"}, 1))
 			errs <- err
 		}(id)
 	}
@@ -141,18 +141,19 @@ func TestSessionSupervisorCommandReplayIsIdempotent(t *testing.T) {
 	runner := &supervisorFakeRunner{started: make(chan SupervisorRunRequest, 1), release: make(chan SupervisorRunResult)}
 	supervisor, _ := NewSessionSupervisor(runner)
 	meta := SupervisorCommandMeta{CommandID: "same", ExpectedGeneration: 0}
-	first, err := supervisor.Start(meta, SupervisorRunRequest{RunID: "countess"})
+	plan := queueSchedulerTestPlan([]string{"countess"}, 1)
+	first, err := supervisor.StartQueue(meta, plan)
 	if err != nil {
 		t.Fatal(err)
 	}
-	second, err := supervisor.Start(meta, SupervisorRunRequest{RunID: "countess"})
+	second, err := supervisor.StartQueue(meta, plan)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !reflect.DeepEqual(first, second) || runner.calls.Load() > 1 {
 		t.Fatalf("idempotent replay first=%+v second=%+v calls=%d", first, second, runner.calls.Load())
 	}
-	if _, err := supervisor.Start(meta, SupervisorRunRequest{RunID: "mephisto"}); err == nil {
+	if _, err := supervisor.StartQueue(meta, queueSchedulerTestPlan([]string{"mephisto"}, 1)); err == nil {
 		t.Fatal("expected reused command ID with different request to fail")
 	}
 	<-runner.started
@@ -163,7 +164,7 @@ func TestSessionSupervisorCommandReplayIsIdempotent(t *testing.T) {
 func TestSessionSupervisorRecoversWorkerPanic(t *testing.T) {
 	runner := &supervisorFakeRunner{panic: true}
 	supervisor, _ := NewSessionSupervisor(runner)
-	_, err := supervisor.Start(SupervisorCommandMeta{CommandID: "panic", ExpectedGeneration: 0}, SupervisorRunRequest{RunID: "countess"})
+	_, err := supervisor.StartQueue(SupervisorCommandMeta{CommandID: "panic", ExpectedGeneration: 0}, queueSchedulerTestPlan([]string{"countess"}, 1))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -176,7 +177,7 @@ func TestSessionSupervisorRecoversWorkerPanic(t *testing.T) {
 func TestSessionSupervisorShutdownCancelsWorker(t *testing.T) {
 	runner := &supervisorFakeRunner{started: make(chan SupervisorRunRequest, 1), release: make(chan SupervisorRunResult)}
 	supervisor, _ := NewSessionSupervisor(runner)
-	_, _ = supervisor.Start(SupervisorCommandMeta{CommandID: "start", ExpectedGeneration: 0}, SupervisorRunRequest{RunID: "countess"})
+	_, _ = supervisor.StartQueue(SupervisorCommandMeta{CommandID: "start", ExpectedGeneration: 0}, queueSchedulerTestPlan([]string{"countess"}, 1))
 	<-runner.started
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()

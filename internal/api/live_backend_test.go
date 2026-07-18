@@ -11,6 +11,7 @@ import (
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/app"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/config"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/telemetry"
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/world"
 )
 
 type liveBackendQueueRunner struct {
@@ -103,8 +104,8 @@ func TestLiveBackendSessionCommandsUseSupervisorAndRemainIdempotent(t *testing.T
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := backend.SetSessionSupervisor(supervisor, nil, nil); err != nil {
-		t.Fatal(err)
+	if setupErr := backend.SetSessionSupervisor(supervisor, nil, nil); setupErr != nil {
+		t.Fatal(setupErr)
 	}
 	payload, _ := json.Marshal(SessionStartPayload{Entries: []string{"countess", "mephisto"}, Character: "MrBones", Difficulty: "nightmare", CatalogRevision: revision})
 	startRequest := CommandRequest{CommandID: "start-queue", ExpectedGeneration: 0, Payload: payload}
@@ -162,6 +163,59 @@ func TestLiveBackendSessionCommandsUseSupervisorAndRemainIdempotent(t *testing.T
 	backend.UpdateSupervisor(supervisor.Snapshot())
 	if backend.Status().State != string(app.SupervisorStateIdle) || len(backend.Status().Queue.Entries) != 0 || backend.Status().LastResult == nil || backend.Status().LastResult.Reason != string(app.SupervisorReasonEmergencyStopRequested) {
 		t.Fatalf("emergency status = %+v", backend.Status())
+	}
+}
+
+func TestLiveBackendQueueAdoptsPassiveConfirmedOpenGameFromIdle(t *testing.T) {
+	cfg, err := config.Load("../../configs/config.example.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.Routes.LifecycleFile = filepath.Join(t.TempDir(), "route-lifecycle.local.yaml")
+	countess, _ := cfg.Runs.Run("countess")
+	countess.RouteID = "black-marsh-cellar5-nightmare-mrbones"
+	cfg.Runs.Definitions["countess"] = countess
+	backend, err := NewLiveBackend(cfg, telemetry.NewLivePublisher(16, 4))
+	if err != nil {
+		t.Fatal(err)
+	}
+	backend.mu.Lock()
+	backend.status.State = string(app.SupervisorStateIdle)
+	backend.status.Selection = SelectionStatusDTO{Character: "MrBones", Difficulty: "nightmare"}
+	revision := backend.catalog.Revision
+	backend.mu.Unlock()
+	backend.UpdateRuntime(app.UIStatusSnapshot{
+		ProcessState: "attached", WindowBound: true, WorldValid: true,
+		WorldPhase: "in_game", AreaID: uint32(world.RogueEncampment), AreaName: "Rogue Encampment",
+	})
+	runner := &liveBackendQueueRunner{started: make(chan app.SupervisorRunRequest, 1), release: make(chan app.SupervisorRunResult, 1)}
+	supervisor, err := app.NewSessionSupervisor(runner)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		if err := supervisor.Shutdown(ctx); err != nil {
+			t.Errorf("shutdown supervisor: %v", err)
+		}
+	})
+	beginCalled := false
+	adopted := false
+	if err := backend.SetSessionSupervisor(supervisor, nil, func(initialInGame bool) {
+		beginCalled = true
+		adopted = initialInGame
+	}); err != nil {
+		t.Fatal(err)
+	}
+	payload, _ := json.Marshal(SessionStartPayload{
+		Entries: []string{"countess"}, Character: "MrBones", Difficulty: "nightmare", CatalogRevision: revision,
+	})
+	if _, err := backend.Command("start_queue", CommandRequest{CommandID: "adopt-open-game", ExpectedGeneration: backend.Status().Generation, Payload: payload}); err != nil {
+		t.Fatal(err)
+	}
+	if !beginCalled || !adopted {
+		t.Fatalf("queue begin called=%t adopted=%t; want confirmed open game adoption", beginCalled, adopted)
 	}
 }
 
@@ -236,6 +290,26 @@ func TestLiveBackendRejectsMissingAnchorBeforeSelectionInput(t *testing.T) {
 	}
 }
 
+func TestLiveBackendCorrelatesRunsWithoutGameExitBetweenEntries(t *testing.T) {
+	publisher := telemetry.NewLivePublisher(32, 8)
+	backend := &LiveBackend{publisher: publisher, status: StatusDTO{State: "idle", LifecyclePhase: "idle", Queue: QueueStatusDTO{Entries: []string{"countess", "mephisto"}}}}
+	backend.UpdateSupervisor(app.SupervisorSnapshot{Generation: 1, State: app.SupervisorStateRunningRun, QueueKnown: true, Queue: []string{"countess", "mephisto"}, QueueIndex: 0, GameID: "game-001", ActiveRunID: "countess", RunInstanceID: "run-001"})
+	backend.UpdateSupervisor(app.SupervisorSnapshot{Generation: 2, State: app.SupervisorStateRunningRun, QueueKnown: true, Queue: []string{"countess", "mephisto"}, QueueIndex: 1, GameID: "game-001", ActiveRunID: "mephisto", RunInstanceID: "run-002"})
+	backend.UpdateSupervisor(app.SupervisorSnapshot{Generation: 3, State: app.SupervisorStateExitingGame, QueueKnown: true, Queue: []string{"countess", "mephisto"}, QueueIndex: 0, GameID: "game-001", ActiveRunID: "mephisto", RunInstanceID: "run-002"})
+	backend.UpdateSupervisor(app.SupervisorSnapshot{Generation: 4, State: app.SupervisorStateRunningRun, QueueKnown: true, Queue: []string{"countess", "mephisto"}, QueueIndex: 0, Cycle: 1, GameID: "game-002", ActiveRunID: "countess", RunInstanceID: "run-003"})
+	replay, subscription := publisher.Subscribe(0)
+	subscription.Close()
+	var gameEvents []telemetry.LiveEvent
+	for _, event := range replay {
+		if event.Event == "game_started" || event.Event == "game_exited" {
+			gameEvents = append(gameEvents, event)
+		}
+	}
+	if len(gameEvents) != 3 || gameEvents[0].Event != "game_started" || gameEvents[0].GameID != "game-001" || gameEvents[1].Event != "game_exited" || gameEvents[1].GameID != "game-001" || gameEvents[2].Event != "game_started" || gameEvents[2].GameID != "game-002" {
+		t.Fatalf("game events = %+v", gameEvents)
+	}
+}
+
 func TestSelectionPreviewIsSideEffectFreeAndListsDifficultyImpact(t *testing.T) {
 	backend := newSelectionTestBackend(t)
 	before, _, err := backend.lifecycle.Snapshot()
@@ -246,8 +320,8 @@ func TestSelectionPreviewIsSideEffectFreeAndListsDifficultyImpact(t *testing.T) 
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := backend.lifecycle.Confirm(exact, time.Now().UTC()); err != nil {
-		t.Fatal(err)
+	if _, confirmErr := backend.lifecycle.Confirm(exact, time.Now().UTC()); confirmErr != nil {
+		t.Fatal(confirmErr)
 	}
 	confirmed, _, err := backend.lifecycle.Snapshot()
 	if err != nil {
@@ -275,8 +349,8 @@ func TestSelectionRejectsStalePreviewBeforeInput(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := backend.lifecycle.InvalidateLayout("MrBones", preview.LifecycleRevision, time.Now().UTC()); err != nil {
-		t.Fatal(err)
+	if _, invalidateErr := backend.lifecycle.InvalidateLayout("MrBones", preview.LifecycleRevision, time.Now().UTC()); invalidateErr != nil {
+		t.Fatal(invalidateErr)
 	}
 	calls := 0
 	backend.SetSelectionHandler(func(app.CharacterSelectionRequest) error { calls++; return nil })
@@ -298,7 +372,7 @@ func TestSelectionFailureLeavesLifecycleUnchanged(t *testing.T) {
 		t.Fatal(err)
 	}
 	backend.SetSelectionHandler(func(app.CharacterSelectionRequest) error { return errors.New("memory confirmation failed") })
-	if _, err := backend.Command("apply_selection", selectionCommand(t, preview, 0)); err == nil {
+	if _, commandErr := backend.Command("apply_selection", selectionCommand(t, preview, 0)); commandErr == nil {
 		t.Fatal("unconfirmed game entry was accepted")
 	}
 	after, _, err := backend.lifecycle.Snapshot()
@@ -316,8 +390,8 @@ func TestSelectionCommitsDifficultyInvalidationAfterVerifiedInput(t *testing.T) 
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := backend.lifecycle.Confirm(exact, time.Now().UTC()); err != nil {
-		t.Fatal(err)
+	if _, confirmErr := backend.lifecycle.Confirm(exact, time.Now().UTC()); confirmErr != nil {
+		t.Fatal(confirmErr)
 	}
 	preview, err := backend.PreviewSelection(SelectionPreviewRequest{Character: "MrBones", Difficulty: "hell", CatalogRevision: 1})
 	if err != nil {
@@ -325,8 +399,8 @@ func TestSelectionCommitsDifficultyInvalidationAfterVerifiedInput(t *testing.T) 
 	}
 	called := false
 	backend.SetSelectionHandler(func(app.CharacterSelectionRequest) error { called = true; return nil })
-	if _, err := backend.Command("apply_selection", selectionCommand(t, preview, 0)); err != nil {
-		t.Fatal(err)
+	if _, commandErr := backend.Command("apply_selection", selectionCommand(t, preview, 0)); commandErr != nil {
+		t.Fatal(commandErr)
 	}
 	manifest, catalog, err := backend.lifecycle.Snapshot()
 	if err != nil {

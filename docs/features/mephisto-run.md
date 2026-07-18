@@ -28,6 +28,8 @@ Der anschließende Bone-Spear-Angriff verwendet ausschließlich die rechte Skill
 
 ### Loot und Rückkehr
 
+Nach bestätigtem Kill teleportiert die gemeinsame Run-Pipeline zunächst bis auf Pickup-Distanz zur letzten Memory-bestätigten Bossposition. Diese Repositionierung ist für alle registrierten Boss-Runs verbindlich und läuft vor Drop-Wartezeit, Pickit-Scan und Pickup; ein fehlender Positionspin oder Teleportfehler stoppt fail-closed.
+
 `pickit/mephisto.nip` nimmt geschützte makellose/perfekte Gems sowie Exceptional-/Elite-Set/Unique auf. `pickit/mephisto-sell.nip` autorisiert ausschließlich letztere Gruppe für den späteren UnitID-gepinnten Cain→Akara-Service. No-Drop wechselt nach stabiler Leerscan-Bestätigung direkt zum Portal. `inventory_full` beendet weitere Pickups ebenfalls und kehrt ohne erneuten Bodenloot-Versuch zurück.
 
 Nach Eintritt in das eigene, hover-bestätigte Town Portal wird Kurast-Docks erwartet. Die gebundene Act-3-Egress-Walkroute führt zum lokalen Waypoint; der gemeinsame Waypoint-Executor wählt Rogue Encampment genau einmal. Erst nach bestätigter Act-1-Ankunft beginnen Stash und optionale Item-Services.

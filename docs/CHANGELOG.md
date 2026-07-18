@@ -7,7 +7,11 @@ Versionierung nach [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-07-18
+
 ### Added
+- Add a configurable global F10 stop-after-run hotkey that preserves D2R focus and completes the active run before the supervisor-owned exit
+- Correlate queue session, game, and run boundaries in status, SSE, and synchronously flushed session JSONL telemetry
 - Add the Phase 11 core contract with immutable supervisor states, command transitions, queue semantics, stable reason codes, characterization coverage, and a one-shot runtime migration matrix
 - Add a thread-safe long-lived session supervisor with immutable snapshots, monotonic generations, idempotent commands, between-run intents, panic containment, and immediate cancellation
 - Add a versioned loopback-only Core API, fail-closed host/origin/token envelope, OpenAPI-generated TypeScript client, pinned React/Vite build, and embedded dashboard assets
@@ -15,18 +19,28 @@ Versionierung nach [Semantic Versioning](https://semver.org/).
 - Add a filename-only offline character catalog and bounded screenshot-gated Home/Down selector with Play, difficulty-dialog, class, name, and in-game verification
 - Add a recursive Farming RouteCatalog with an atomically persisted lifecycle manifest, bootstrap protection, precise difficulty/layout invalidation, and file-fingerprint correlation
 - Add revision-bound selection previews, explicit route-impact confirmation, and post-Memory lifecycle commits for safe difficulty changes
-- Add a cyclic runtime FarmQueue scheduler with full-queue preflight, duplicate entries, retry-same-index, between-run revalidation, and YAML-authoritative safety budgets
-- Add an accessible runtime Queue Builder with duplicate/reorder/remove/reset operations and Core-backed start, pause-after-run, resume, stop-after-run, and confirmed emergency-stop controls
+- Add a cyclic runtime FarmQueue scheduler with full-queue preflight, unique per-game run entries, retry-same-index, between-run revalidation, and YAML-authoritative safety budgets
+- Add an accessible runtime Queue Builder with unique-entry/reorder/remove/reset operations and Core-backed start, pause-after-run, resume, stop-after-run, and confirmed emergency-stop controls
 
 ### Changed
-- Route CLI autonomous sessions through the shared supervisor command boundary while preserving the existing Phase 10 worker, input order, recovery budgets, and Countess/Mephisto plan resolution
+- Complete the Phase 11 live queue acceptance for same-game pause/resume, natural wrap, global stop-after-run, and one supervisor-owned exit
+- Reposition every registered boss run at the last Memory-confirmed boss position before scanning and picking loot
+- Run unique queued farms sequentially within one verified offline game and move Save & Exit to the supervisor-owned wrap, stop, budget, or recovery boundary
+- Keep pause-after-run in the open game, revalidate the same game on resume, and reject duplicate queue runs before attach or input
+- Route CLI autonomous queues through the same `RuntimeQueueRunner`, supervisor, game lifecycle, run executor, recovery budgets, and Countess/Mephisto plan validation as the dashboard
 - Make `--ui` an explicit passive mode that never starts YAML session or run defaults and prints only the token-free loopback URL
 - Replace the single `routes.directory` authority with `routes.farming_root`, `routes.lifecycle_file`, and context-derived resolver/recorder paths
 - Show confirmed and draft selection contexts separately and require an accessible modal before a difficulty change can invalidate Farming routes
 - Project queue index, cycle, retry counters and hard budgets through the versioned Core API
-- Execute each dashboard queue entry through a fresh run-specific Phase 10 runtime while consuming an existing game only from the confirmed `idle_in_game` state
+- Execute each dashboard queue entry with fresh run-specific state while retaining one verified game context until wrap, stop, budget, or safe recovery
 
 ### Fixed
+- Remove the data race in the app probe mock used by world-delta observation tests
+- Respect the validated `session.retry_classes` allowlist before restarting a failed queue entry
+- Refresh run-scoped Bone Armor on every same-game queue entry without repeating the new-game five-second settle delay
+- Reuse the confirmed Waypoint handoff when a fresh same-game queue run starts instead of incorrectly replaying the Stash-to-Waypoint edge
+- Focus and verify the bound D2R window through the shared guarded input controller before dashboard queue start or resume continues
+- Reuse a passively Memory-confirmed Rogue Encampment game when starting a dashboard queue after a Core restart instead of incorrectly waiting for the offline character screen
 - Reposition at the last Memory-confirmed Countess position after kill confirmation before scanning and picking loot
 - Route the dashboard queue Pause hotkey to pause-after-run without suspending active route input or requiring browser focus
 - Retry visually unstable post-exit character and difficulty screens within a bounded settle window before starting the next queued game
@@ -35,6 +49,9 @@ Versionierung nach [Semantic Versioning](https://semver.org/).
 - Refresh the dashboard status projection after every serialized live delta so D2R attach, window binding, resolution and World changes no longer remain hidden behind the initial snapshot
 - Restore the process-local control token through a same-origin custom-header bootstrap after browser refresh without persisting it in browser storage, cookies, files, history, or logs
 - Focus D2R and wait for UI settle before the first character-screen capture, and keep selection failures visible across subsequent live status refreshes
+
+### Removed
+- Remove the superseded per-run `sessionCycleOrchestrator`, `sessionMultiRunner`, recovery stack, and duplicate CLI session lifecycle after the Phase 11 ownership audit
 
 ## [0.6.0] - 2026-07-15
 

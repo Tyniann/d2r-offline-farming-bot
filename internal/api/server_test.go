@@ -20,6 +20,7 @@ import (
 type apiTestBackend struct {
 	commands atomic.Int32
 	previews atomic.Int32
+	queueErr error
 }
 
 func (b *apiTestBackend) Status() StatusDTO {
@@ -36,6 +37,9 @@ func (b *apiTestBackend) PreviewSelection(request SelectionPreviewRequest) (Sele
 }
 
 func (b *apiTestBackend) ValidateQueue(request QueueValidationRequest) (QueueValidationDTO, error) {
+	if b.queueErr != nil {
+		return QueueValidationDTO{}, b.queueErr
+	}
 	return QueueValidationDTO{Entries: append([]string(nil), request.Entries...), Character: request.Character, Difficulty: request.Difficulty, CatalogRevision: request.CatalogRevision}, nil
 }
 
@@ -86,7 +90,7 @@ func TestSelectionPreviewIsTokenFreeStrictAndOriginProtected(t *testing.T) {
 
 func TestQueueValidationIsTokenFreeAndStrict(t *testing.T) {
 	server, _ := startAPITestServer(t)
-	request, err := http.NewRequest(http.MethodPost, server.URL()+"/api/v1/queue/validate", strings.NewReader(`{"entries":["countess","mephisto","countess"],"character":"MrBones","difficulty":"nightmare","catalog_revision":1}`))
+	request, err := http.NewRequest(http.MethodPost, server.URL()+"/api/v1/queue/validate", strings.NewReader(`{"entries":["countess","mephisto"],"character":"MrBones","difficulty":"nightmare","catalog_revision":1}`))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -97,10 +101,10 @@ func TestQueueValidationIsTokenFreeAndStrict(t *testing.T) {
 	}
 	defer response.Body.Close()
 	var validation QueueValidationDTO
-	if err := json.NewDecoder(response.Body).Decode(&validation); err != nil {
-		t.Fatal(err)
+	if decodeErr := json.NewDecoder(response.Body).Decode(&validation); decodeErr != nil {
+		t.Fatal(decodeErr)
 	}
-	if response.StatusCode != http.StatusOK || validation.SchemaVersion != 1 || len(validation.Entries) != 3 || validation.Entries[0] != validation.Entries[2] {
+	if response.StatusCode != http.StatusOK || validation.SchemaVersion != 1 || len(validation.Entries) != 2 {
 		t.Fatalf("queue validation status=%d body=%+v", response.StatusCode, validation)
 	}
 
@@ -115,6 +119,28 @@ func TestQueueValidationIsTokenFreeAndStrict(t *testing.T) {
 	}
 	defer response.Body.Close()
 	assertAPIError(t, response, http.StatusBadRequest, "request_invalid")
+}
+
+func TestQueueValidationReturnsDuplicateIndices(t *testing.T) {
+	server, backend := startAPITestServer(t)
+	backend.queueErr = &commandError{code: "queue_duplicate_run", message: "Die Farm-Queue enthält einen Run mehrfach.", details: map[string]any{"run_id": "countess", "first_index": 0, "duplicate_index": 2}}
+	request, err := http.NewRequest(http.MethodPost, server.URL()+"/api/v1/queue/validate", strings.NewReader(`{"entries":["countess","mephisto","countess"],"character":"MrBones","difficulty":"nightmare","catalog_revision":1}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	request.Header.Set("Content-Type", "application/json")
+	response, err := http.DefaultClient.Do(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer response.Body.Close()
+	var apiErr ErrorDTO
+	if err := json.NewDecoder(response.Body).Decode(&apiErr); err != nil {
+		t.Fatal(err)
+	}
+	if response.StatusCode != http.StatusConflict || apiErr.Code != "queue_duplicate_run" || apiErr.Details["run_id"] != "countess" || apiErr.Details["first_index"] != float64(0) || apiErr.Details["duplicate_index"] != float64(2) {
+		t.Fatalf("duplicate response status=%d body=%+v", response.StatusCode, apiErr)
+	}
 }
 
 func TestServerEventsSendSnapshotAndReplay(t *testing.T) {

@@ -6,7 +6,7 @@ Phase 3.1 macht `internal/input` fensterbewusst; Phase 3.2 ergänzt mockbare Tas
 
 Ab Phase 7.2 aktiviert `Controller.Focus` das gebundene D2R-Fenster über die Windows-Fokus-APIs und bestätigt es mit `GetForegroundWindow`. Keyboard-sensitive Lifecycle-Flows wiederholen Aktivierung und Prüfung höchstens zehnmal im Abstand von 20 ms und brechen ohne Folgeinput ab, wenn D2R nicht als Foreground bestätigt wird. Falls Windows den ersten `SetForegroundWindow`-Aufruf wegen des Foreground-Locks ablehnt, verbindet der Backend-Aufruf kurzzeitig die beteiligten GUI-Input-Queues und wiederholt die Aktivierung; dabei wird kein Alt-, Maus- oder Tastaturinput synthetisiert.
 
-Echte OS-Eingaben sind standardmäßig deaktiviert (`input.enabled: false`). Globale Hotkeys steuern Pause und Stop unabhängig vom D2R-Fokus. Window Binding, Probe und World-Updates laufen weiter, auch wenn Input deaktiviert oder pausiert ist.
+Echte OS-Eingaben sind standardmäßig deaktiviert (`input.enabled: false`). Globale Hotkeys steuern Pause, geordnetes Stop-after-run und Emergency Stop unabhängig vom D2R-Fokus. Window Binding, Probe und World-Updates laufen weiter, auch wenn Input deaktiviert oder pausiert ist.
 
 ## Ort im Code
 
@@ -68,11 +68,11 @@ Echte OS-Eingaben sind standardmäßig deaktiviert (`input.enabled: false`). Glo
 - **Pause/Stop-State:** `Pause`, `Resume`, `TogglePause`, `Stop` am Controller; `Status()` liefert `Enabled`, `Paused`, `Stopped`.
 - **Action-Guards:** Alle Sender-Methoden prüfen vor OS-Aufrufen: `stopped` → `ErrInputStopped`, `!enabled` → `ErrInputDisabled`, `paused` → `ErrInputPaused`. Argumentvalidierung und `ErrWindowNotBound` haben Vorrang.
 - **Action-Logging:** Einheitliches `input action`-Log mit `allowed=true|false`; bei Blockierung zusätzlich `blocked_by` (`disabled|paused|stopped`).
-- **Globale Hotkeys:** `pause_hotkey` (Default `pause`) toggelt Pause; `stop_hotkey` (Default `f12`) stoppt Input und beendet den Bot. Hotkeys funktionieren unabhängig vom D2R-Fokus, sind aber Windows-global und können mit anderer Software kollidieren — bei Registrierungsfehler bricht der Start hart ab (`ErrHotkeyUnavailable`). Registrierung, Message-Polling und Deregistrierung bleiben wegen der Windows-Threadbindung auf demselben OS-Thread; aufeinanderfolgende Session-Phasen warten synchron auf die Freigabe. Alternative Stop-Taste z. B. `stop_hotkey: f11`, falls `f12` belegt ist.
+- **Globale Hotkeys:** `pause_hotkey` (Default `pause`) steuert Pause beziehungsweise in einer Queue Pause-after-run; `stop_after_run_hotkey` (Default `f10`) setzt in einer aktiven Queue den geordneten Stop-Intent ohne Cancellation; `stop_hotkey` (Default `f12`) stoppt Input sofort und beendet den Bot. Hotkeys funktionieren unabhängig vom D2R-Fokus, sind aber Windows-global und können mit anderer Software kollidieren — bei Registrierungsfehler bricht der Start hart ab (`ErrHotkeyUnavailable`). Registrierung, Message-Polling und Deregistrierung bleiben wegen der Windows-Threadbindung auf demselben OS-Thread; aufeinanderfolgende Session-Phasen warten synchron auf die Freigabe. Die drei Tasten müssen verschieden sein.
 - **Signal-Shutdown:** `SIGINT`/`SIGTERM` ruft `Stop("signal")` auf, analog zum Stop-Hotkey.
 - **Cleanup-Ausnahme:** Best-effort Key-/Button-Release nach begonnenem `PressCombo`/`Click` umgeht den Guard, damit keine Taste hängen bleibt.
 
-Startup-Log: `input safety configured enabled=… pause_hotkey=… stop_hotkey=…`.
+Startup-Log: `input safety configured enabled=… pause_hotkey=… stop_after_run_hotkey=… stop_hotkey=…`.
 
 ### Manual Input Test (Phase 3.5)
 
@@ -139,7 +139,8 @@ Komma trennt kurze Sequenzen. Bei `click:X,Y` in Sequenzen wird die Koordinate i
 | App-Start | Hotkey-Listener registrieren (unabhängig von `input.enabled`) |
 | Prozess-Attach | `Bind(pid)` (soft retry) |
 | Attached, noch nicht bound | erneutes `Bind` vor jedem Snapshot (gedrosselt) |
-| Pause-Hotkey | `TogglePause("hotkey")` |
+| Pause-Hotkey | In aktiver Queue Pause-after-run, sonst `TogglePause("hotkey")` |
+| Stop-after-run-Hotkey | In aktiver Queue Supervisor-Intent setzen; kein Input-Stop und kein Context-Cancel |
 | Stop-Hotkey / Signal | `Stop(…)`, Context-Cancel, sauberes Shutdown |
 | Prozess lost | `Unbind()` **vor** World-Reset |
 | Shutdown | idempotentes `Unbind()` vor `Process.Detach()` |
@@ -164,9 +165,10 @@ type KeyboardConfig struct {
 }
 
 type SafetyConfig struct {
-    Enabled     bool
-    PauseHotkey string
-    StopHotkey  string
+    Enabled            bool
+    PauseHotkey        string
+    StopAfterRunHotkey string
+    StopHotkey         string
 }
 
 type Status struct {
@@ -189,6 +191,7 @@ type MouseButton string // "left" | "right"
 input:
   enabled: false
   pause_hotkey: pause
+  stop_after_run_hotkey: f10
   stop_hotkey: f12
   key_delay_ms_min: 10
   key_delay_ms_max: 40
@@ -213,7 +216,7 @@ input:
 
 Skill- und Belt-Hotkeys müssen zu den D2R-Optionen passen. `button` ist `left` oder `right` und bestimmt, welchen Mausbutton ein folgender `click` für diese Skill-Auswahl verwendet.
 
-Fehlt die gesamte `input`-Sektion, werden sichere Defaults angewendet (`enabled=false`, Hotkeys `pause`/`f12`, Timing-Defaults).
+Fehlt die gesamte `input`-Sektion, werden sichere Defaults angewendet (`enabled=false`, Hotkeys `pause`/`f10`/`f12`, Timing-Defaults).
 
 ## Operator / CLI
 

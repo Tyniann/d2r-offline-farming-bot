@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
 	"testing"
 	"time"
 )
@@ -48,21 +49,21 @@ func TestWinHotkeyListenerPartialRegistrationCleanup(t *testing.T) {
 
 	events := make(chan HotkeyEvent, 1)
 	ready := make(chan error, 1)
-	go listener.Listen(ctx, HotkeyBindings{Pause: "pause", Stop: "f12"}, events, ready)
+	go listener.Listen(ctx, HotkeyBindings{Pause: "pause", StopAfterRun: "f10", Stop: "f12"}, events, ready)
 
 	err := <-ready
 	if !errors.Is(err, ErrHotkeyUnavailable) {
 		t.Fatalf("ready err = %v, want ErrHotkeyUnavailable", err)
 	}
-	if len(registered) != 1 || registered[0] != hotkeyIDPause {
-		t.Fatalf("registered = %v, want [pause]", registered)
+	if !reflect.DeepEqual(registered, []int{hotkeyIDPause, hotkeyIDStopAfterRun}) {
+		t.Fatalf("registered = %v, want [pause stop-after-run]", registered)
 	}
-	if len(unregistered) != 1 || unregistered[0] != hotkeyIDPause {
-		t.Fatalf("unregistered = %v, want [pause]", unregistered)
+	if !reflect.DeepEqual(unregistered, []int{hotkeyIDStopAfterRun, hotkeyIDPause}) {
+		t.Fatalf("unregistered = %v, want reverse registration order", unregistered)
 	}
 }
 
-func TestWinHotkeyListenerPeekDispatchesEvents(t *testing.T) {
+func TestWinHotkeyListenerDispatchesStopAfterRun(t *testing.T) {
 	peekCalls := 0
 	listener := &winHotkeyListener{
 		register:   func(int, uint16) error { return nil },
@@ -70,7 +71,7 @@ func TestWinHotkeyListenerPeekDispatchesEvents(t *testing.T) {
 		peek: func() (int, bool) {
 			peekCalls++
 			if peekCalls == 1 {
-				return hotkeyIDPause, true
+				return hotkeyIDStopAfterRun, true
 			}
 			return 0, false
 		},
@@ -82,7 +83,7 @@ func TestWinHotkeyListenerPeekDispatchesEvents(t *testing.T) {
 
 	events := make(chan HotkeyEvent, 4)
 	ready := make(chan error, 1)
-	go listener.Listen(ctx, HotkeyBindings{Pause: "pause", Stop: "f12"}, events, ready)
+	go listener.Listen(ctx, HotkeyBindings{Pause: "pause", StopAfterRun: "f10", Stop: "f12"}, events, ready)
 
 	if err := <-ready; err != nil {
 		t.Fatal(err)
@@ -90,8 +91,8 @@ func TestWinHotkeyListenerPeekDispatchesEvents(t *testing.T) {
 
 	select {
 	case ev := <-events:
-		if ev.Action != HotkeyActionPause || ev.Key != "pause" {
-			t.Fatalf("event = %+v, want pause action", ev)
+		if ev.Action != HotkeyActionStopAfterRun || ev.Key != "f10" {
+			t.Fatalf("event = %+v, want stop-after-run/f10 action", ev)
 		}
 	default:
 		t.Fatal("expected pause hotkey event")

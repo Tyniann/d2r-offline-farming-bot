@@ -46,17 +46,18 @@ type Runtime struct {
 	Profile          *profile.Executor
 	profileTelemetry *profileTelemetryAdapter
 
-	sessionReset       sessionResetBarrier
-	taskDeps           tasks.Deps
-	runConfig          tasks.RunConfig
-	sessionSelection   tasks.RunSelection
-	routePlayback      *routePlaybackAdapter
-	townEgress         *townEgressAdapter
-	lootActions        *lootActionsAdapter
-	townLayout         *townLayoutPin
-	townTelemetry      *townTelemetryRelay
-	uiStatusPublisher  func(UIStatusSnapshot)
-	pauseHotkeyHandler func() error
+	sessionReset              sessionResetBarrier
+	taskDeps                  tasks.Deps
+	runConfig                 tasks.RunConfig
+	sessionSelection          tasks.RunSelection
+	routePlayback             *routePlaybackAdapter
+	townEgress                *townEgressAdapter
+	lootActions               *lootActionsAdapter
+	townLayout                *townLayoutPin
+	townTelemetry             *townTelemetryRelay
+	uiStatusPublisher         func(UIStatusSnapshot)
+	pauseHotkeyHandler        func() error
+	stopAfterRunHotkeyHandler func() error
 }
 
 // New builds a Runtime from config and CLI/runtime options.

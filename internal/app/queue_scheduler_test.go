@@ -19,9 +19,9 @@ func TestFarmQueueCyclesCountessMephistoUntilRunBudget(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := []SupervisorRunRequest{
-		{RunID: "countess", QueueIndex: 0, Cycle: 0, Retry: 0},
-		{RunID: "mephisto", QueueIndex: 1, Cycle: 0, Retry: 0},
-		{RunID: "countess", QueueIndex: 0, Cycle: 1, Retry: 0},
+		{RunID: "countess", ExecutionID: "run-001", QueueIndex: 0, Cycle: 0, Retry: 0},
+		{RunID: "mephisto", ExecutionID: "run-002", QueueIndex: 1, Cycle: 0, Retry: 0},
+		{RunID: "countess", ExecutionID: "run-003", QueueIndex: 0, Cycle: 1, Retry: 0},
 	}
 	got := make([]SupervisorRunRequest, 0, len(want))
 	for range want {
@@ -38,23 +38,16 @@ func TestFarmQueueCyclesCountessMephistoUntilRunBudget(t *testing.T) {
 	}
 }
 
-func TestFarmQueuePreservesDuplicatesAndWraps(t *testing.T) {
-	runner := &supervisorFakeRunner{started: make(chan SupervisorRunRequest, 3), release: make(chan SupervisorRunResult, 3)}
+func TestFarmQueueRejectsDuplicateBeforeWorker(t *testing.T) {
+	runner := &supervisorFakeRunner{started: make(chan SupervisorRunRequest, 1), release: make(chan SupervisorRunResult, 1)}
 	supervisor, _ := NewSessionSupervisor(runner)
-	if _, err := supervisor.StartQueue(SupervisorCommandMeta{CommandID: "duplicates", ExpectedGeneration: 0}, queueSchedulerTestPlan([]string{"countess", "countess"}, 3)); err != nil {
-		t.Fatal(err)
+	_, err := supervisor.StartQueue(SupervisorCommandMeta{CommandID: "duplicates", ExpectedGeneration: 0}, queueSchedulerTestPlan([]string{"countess", "countess"}, 3))
+	var queueErr *QueueValidationError
+	if !errors.As(err, &queueErr) || queueErr.Code != QueueReasonDuplicateRun || queueErr.FirstIndex != 0 || queueErr.EntryIndex != 1 || queueErr.RunID != "countess" {
+		t.Fatalf("duplicate error = %#v, %v", queueErr, err)
 	}
-	indices := make([]int, 0, 3)
-	cycles := make([]int, 0, 3)
-	for i := 0; i < 3; i++ {
-		request := <-runner.started
-		indices = append(indices, request.QueueIndex)
-		cycles = append(cycles, request.Cycle)
-		runner.release <- SupervisorRunResult{Disposition: QueueRunAdvance}
-	}
-	waitSupervisorState(t, supervisor, SupervisorStateIdle)
-	if !reflect.DeepEqual(indices, []int{0, 1, 0}) || !reflect.DeepEqual(cycles, []int{0, 0, 1}) {
-		t.Fatalf("duplicate queue indices=%v cycles=%v", indices, cycles)
+	if runner.calls.Load() != 0 {
+		t.Fatalf("worker calls = %d, want 0", runner.calls.Load())
 	}
 }
 
@@ -173,6 +166,7 @@ func TestValidateFarmQueueRejectsInvalidContextRevisionAndEntry(t *testing.T) {
 		code    string
 	}{
 		{name: "empty", request: FarmQueueValidationRequest{Character: "MrBones", Difficulty: "nightmare", CatalogRevision: 7}, code: string(QueueReasonEmpty)},
+		{name: "duplicate", request: FarmQueueValidationRequest{RunIDs: []string{"countess", "countess"}, Character: "MrBones", Difficulty: "nightmare", CatalogRevision: 7}, code: string(QueueReasonDuplicateRun)},
 		{name: "revision", request: FarmQueueValidationRequest{RunIDs: []string{"countess"}, Character: "MrBones", Difficulty: "nightmare", CatalogRevision: 6}, code: string(SupervisorReasonStateChanged)},
 		{name: "context", request: FarmQueueValidationRequest{RunIDs: []string{"countess"}, Character: "MrBones", Difficulty: "hell", CatalogRevision: 7}, code: string(QueueReasonContextMismatch)},
 		{name: "unknown", request: FarmQueueValidationRequest{RunIDs: []string{"unknown"}, Character: "MrBones", Difficulty: "nightmare", CatalogRevision: 7}, code: string(QueueReasonEntryUnavailable)},
@@ -187,16 +181,14 @@ func TestValidateFarmQueueRejectsInvalidContextRevisionAndEntry(t *testing.T) {
 	}
 }
 
-func TestValidateFarmQueuePreservesAvailableDuplicates(t *testing.T) {
+func TestValidateFarmQueueRejectsAvailableDuplicatesWithIndices(t *testing.T) {
 	cfg := newQueueValidationConfig(t)
 	context := FarmQueueValidationContext{Character: "MrBones", Difficulty: "nightmare", CatalogRevision: 3}
 	request := FarmQueueValidationRequest{RunIDs: []string{"countess", "mephisto", "countess"}, Character: "MrBones", Difficulty: "nightmare", CatalogRevision: 3}
-	plan, err := ValidateFarmQueue(cfg, request, context)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !reflect.DeepEqual(plan.RunIDs, request.RunIDs) || plan.Budgets.MaxRuns != cfg.Session.MaxRuns {
-		t.Fatalf("validated plan = %+v", plan)
+	_, err := ValidateFarmQueue(cfg, request, context)
+	var queueErr *QueueValidationError
+	if !errors.As(err, &queueErr) || queueErr.Code != QueueReasonDuplicateRun || queueErr.FirstIndex != 0 || queueErr.EntryIndex != 2 || queueErr.RunID != "countess" {
+		t.Fatalf("duplicate error = %#v, %v", queueErr, err)
 	}
 }
 

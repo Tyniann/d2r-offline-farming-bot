@@ -15,6 +15,8 @@ type QueueReason string
 const (
 	// QueueReasonEmpty rejects a queue without entries.
 	QueueReasonEmpty QueueReason = "queue_empty"
+	// QueueReasonDuplicateRun rejects a repeated run before process attach or input.
+	QueueReasonDuplicateRun QueueReason = "queue_duplicate_run"
 	// QueueReasonEntryUnavailable rejects an unknown or unavailable entry.
 	QueueReasonEntryUnavailable QueueReason = "queue_entry_unavailable"
 	// QueueReasonContextMismatch rejects a queue for another confirmed selection.
@@ -63,6 +65,7 @@ type FarmQueuePlan struct {
 type QueueValidationError struct {
 	Code       QueueReason
 	EntryIndex int
+	FirstIndex int
 	RunID      string
 	Reasons    []tasks.RunReason
 }
@@ -75,11 +78,14 @@ func (e *QueueValidationError) Error() string {
 	if e.RunID == "" {
 		return string(e.Code)
 	}
+	if e.Code == QueueReasonDuplicateRun {
+		return fmt.Sprintf("%s: queue[%d]=%q duplicates queue[%d]", e.Code, e.EntryIndex, e.RunID, e.FirstIndex)
+	}
 	return fmt.Sprintf("%s: queue[%d]=%q: %s", e.Code, e.EntryIndex, e.RunID, joinRunReasons(e.Reasons))
 }
 
 // ValidateFarmQueue resolves every entry against one confirmed context and one catalog revision.
-// Duplicate IDs are intentionally retained; no worker, process attach, or input is created here.
+// Duplicate IDs fail before availability resolution; no worker, process attach, or input is created here.
 func ValidateFarmQueue(cfg *config.Config, request FarmQueueValidationRequest, current FarmQueueValidationContext) (FarmQueuePlan, error) {
 	if cfg == nil {
 		return FarmQueuePlan{}, fmt.Errorf("farm queue validation requires config")
@@ -87,11 +93,15 @@ func ValidateFarmQueue(cfg *config.Config, request FarmQueueValidationRequest, c
 	if len(request.RunIDs) == 0 {
 		return FarmQueuePlan{}, &QueueValidationError{Code: QueueReasonEmpty, EntryIndex: -1}
 	}
+	queue, err := validateUniqueQueueRunIDs(request.RunIDs)
+	if err != nil {
+		return FarmQueuePlan{}, err
+	}
 	if request.CatalogRevision != current.CatalogRevision {
 		return FarmQueuePlan{}, &SupervisorCommandError{Code: SupervisorReasonStateChanged}
 	}
 	if !strings.EqualFold(strings.TrimSpace(request.Character), strings.TrimSpace(current.Character)) ||
-		strings.ToLower(strings.TrimSpace(request.Difficulty)) != strings.ToLower(strings.TrimSpace(current.Difficulty)) {
+		!strings.EqualFold(strings.TrimSpace(request.Difficulty), strings.TrimSpace(current.Difficulty)) {
 		return FarmQueuePlan{}, &QueueValidationError{Code: QueueReasonContextMismatch, EntryIndex: -1}
 	}
 	report, err := ResolveRunAvailabilities(cfg, RunAvailabilityContext{
@@ -104,9 +114,7 @@ func ValidateFarmQueue(cfg *config.Config, request FarmQueueValidationRequest, c
 	for _, entry := range report.Runs {
 		available[string(entry.RunID)] = entry
 	}
-	queue := make([]string, len(request.RunIDs))
-	for i, rawID := range request.RunIDs {
-		id := strings.TrimSpace(rawID)
+	for i, id := range queue {
 		entry, ok := available[id]
 		if !ok {
 			return FarmQueuePlan{}, &QueueValidationError{Code: QueueReasonEntryUnavailable, EntryIndex: i, RunID: id, Reasons: []tasks.RunReason{tasks.RunReasonUnknown}}
@@ -114,7 +122,6 @@ func ValidateFarmQueue(cfg *config.Config, request FarmQueueValidationRequest, c
 		if entry.Status == tasks.RunAvailabilityUnavailable {
 			return FarmQueuePlan{}, &QueueValidationError{Code: QueueReasonEntryUnavailable, EntryIndex: i, RunID: id, Reasons: append([]tasks.RunReason(nil), entry.Reasons...)}
 		}
-		queue[i] = id
 	}
 	budgets := FarmQueueBudgets{
 		MaxRuns: cfg.Session.MaxRuns, MaxDuration: time.Duration(cfg.Session.MaxDurationMs) * time.Millisecond,
@@ -127,6 +134,23 @@ func ValidateFarmQueue(cfg *config.Config, request FarmQueueValidationRequest, c
 		RunIDs: queue, Character: current.Character, Difficulty: current.Difficulty,
 		CatalogRevision: current.CatalogRevision, Budgets: budgets,
 	}, nil
+}
+
+func validateUniqueQueueRunIDs(runIDs []string) ([]string, error) {
+	queue := make([]string, len(runIDs))
+	seen := make(map[string]int, len(runIDs))
+	for i, rawID := range runIDs {
+		id := strings.TrimSpace(rawID)
+		if id == "" {
+			return nil, &QueueValidationError{Code: QueueReasonEntryUnavailable, EntryIndex: i}
+		}
+		if first, duplicate := seen[id]; duplicate {
+			return nil, &QueueValidationError{Code: QueueReasonDuplicateRun, EntryIndex: i, FirstIndex: first, RunID: id}
+		}
+		seen[id] = i
+		queue[i] = id
+	}
+	return queue, nil
 }
 
 func validateFarmQueueBudgets(budgets FarmQueueBudgets) error {

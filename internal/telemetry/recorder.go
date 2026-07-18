@@ -46,6 +46,8 @@ const (
 	SessionStarted EventName = "session_started"
 	// GameStarted confirms one verified offline game generation.
 	GameStarted EventName = "game_started"
+	// GameExited confirms one supervisor-owned Save-&-Exit boundary.
+	GameExited EventName = "game_exited"
 	// RunStarted begins one fresh run executor.
 	RunStarted EventName = "run_started"
 	// RunContext binds one run generation to its resolved definition and assets.

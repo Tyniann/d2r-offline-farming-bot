@@ -2,18 +2,16 @@
 
 ## Überblick
 
-Phase 7 führt einen generischen Session-Lifecycle oberhalb des bestehenden Task Runners ein. Eine Session führt endliche Folgen registrierter Farming-Runs über mehrere Offline-Spiele aus. Der Lifecycle entscheidet ausschließlich über Spielverifikation, Run-Start, Run-Auswertung, Save & Exit, Offline-Game-Start, Cooldown und Session-Ende. Navigation, Kampf, Loot und Stash bleiben in ihren bestehenden Paketen.
+Der Session-Lifecycle führt eine endliche, duplikatfreie Folge registrierter Farming-Runs über bestätigte Offline-Spiele aus. Innerhalb eines Spiels teilen mehrere Runs den Game-Kontext, erhalten aber jeweils frischen Run-Zustand. Der zentrale Lifecycle entscheidet über Spielverifikation, Queue-Wrap, Retry-Spielgrenzen, Save & Exit und Session-Ende. Navigation, Kampf, Loot und Stash bleiben in ihren bestehenden Paketen.
 
-Phase 7.0 definiert den Vertrag und das Sicherheitsmodell. Sie implementiert noch keine Menüerkennung, UI-Klicks oder Multi-Run-Schleife. Die folgenden Slices dürfen den Vertrag nur mit dokumentierter Verhaltensänderung erweitern.
-
-Phase 7.4 implementiert den generischen Einzelzyklus-Orchestrator hinter mockbaren Executor-Grenzen. CLI, Session-Konfiguration, Budgetverwaltung und die produktive Multi-Run-Schleife folgen weiterhin in Phase 7.5 und späteren Slices.
+Die Phase-7-Einzelzyklusarchitektur ist historischer Kontext. Seit Phase 11 verwenden Dashboard und autonome CLI denselben `SessionSupervisor` und `RuntimeQueueRunner`; der alte Cycle-/Multi-/Recovery-Stack wurde entfernt.
 
 ## Ort im Code
 
-- **Orchestrierung:** `internal/app/session_cycle.go`
+- **Orchestrierung:** `internal/app/supervisor.go`, `internal/app/queue_runtime.go`
 - **Bestehender Run-Vertrag:** `internal/tasks/result.go`, `internal/tasks/runner.go`, `internal/tasks/registry.go`
 - **Konfiguration und Inspect:** `internal/config/session.go`, `internal/app/session_plan.go`
-- **Zukünftige Telemetrie:** `internal/telemetry/`
+- **Telemetrie:** `internal/telemetry/`
 - **Input- und Prozessgrenzen:** `internal/input/`, `internal/process/`
 - **Konzeptplan:** [`phase-7-implementation-plan.html`](../../phase-7-implementation-plan.html)
 
@@ -23,7 +21,7 @@ Phase 7.4 implementiert den generischen Einzelzyklus-Orchestrator hinter mockbar
 |---------|-----------|-------------|
 | Session | Eine vom Operator gestartete, endliche Multi-Run-Ausführung. | Vom Preflight bis `stopped`, `completed` oder `failed`. |
 | Game | Genau eine bestätigte Offline-In-Game-Instanz zwischen Game-Start und Save & Exit. | Innerhalb einer Session. |
-| Run | Genau eine frische Ausführung eines Namens aus `tasks.KnownRuns()`. | Innerhalb eines Game; Phase-7-MVP führt einen Full Run pro Game aus. |
+| Run | Genau eine frische Ausführung eines Namens aus `tasks.KnownRuns()`. | Innerhalb eines Game; mehrere eindeutige Queue-Einträge dürfen denselben Game-Kontext teilen. |
 | Attempt | Ein begrenzter technischer Versuch innerhalb einer Lifecycle-Aktion. | Innerhalb eines Zustands, niemals über dessen Budget hinaus. |
 
 Jede Session erhält eine stabile `session_id`. Jedes bestätigte Spiel erhält eine innerhalb der Session eindeutige `game_id`; jeder gestartete Run eine eindeutige `run_id`. Alle Lifecycle- und Run-Telemetrieereignisse tragen die verfügbaren IDs. IDs werden nie für Recovery-Entscheidungen wiederverwendet.
@@ -208,19 +206,9 @@ Jedes Ereignis wird synchron geflusht. Ein terminales Session-Ereignis enthält 
 - Enges Template Matching für einen Charakterbildschirm-Anker ist nur zulässig, wenn Memory keinen eindeutigen Nachweis liefert. Gameplay bleibt Memory-basiert.
 - D2R-Prozessstart, Crash-Restart, Death-Recovery, Online-Modus und beliebige Auflösungen bleiben außerhalb von Phase 7.
 
-## Implementierung Phase 7.4
+## Historischer Phase-7-Zyklus
 
-`sessionCycleOrchestrator` führt genau einen generischen Zyklus aus und kennt weder Countess-Schritte noch konkrete UI-Koordinaten. Ein `sessionCycleDriver` stellt folgende Grenzen bereit:
-
-- `AwaitReady` sperrt jede neue Lifecycle-Aktion während Pause oder Stop.
-- `StartGame` und `ExitGame` werden später durch die validierten Phase-7.3-/7.2-Executors erfüllt.
-- `VerifyGame` kapselt Loading sowie die stabile Character-, Area-, Version- und Layout-Prüfung.
-- `NewRun` liefert für jeden Zyklus zwingend eine frische Run-Instanz.
-- `EmitLifecycle` muss ein Event synchron veröffentlichen; ein Fehler blockiert die folgende Aktion.
-
-Nach jedem terminalen Run-Ergebnis wird der Run-Executor vor einem möglichen Game-Exit zurückgesetzt. Die äußere Recovery-/Multi-Run-Schicht bildet `success`, `failed` und `aborted` anschließend auf `run_completed`, `run_failed` und `run_aborted` ab. Bei Operator-Stop wird der aktive Executor zurückgesetzt, aber keine neue Exit- oder Start-Aktion begonnen. Ein Run-Fehler darf einen Exit anfordern; ob der aktuelle In-Game-Zustand sicher verlassen werden kann, entscheidet allein der Exit-Executor fail-closed.
-
-Die fake-basierten Integrationstests decken drei erfolgreiche Zyklen mit drei verschiedenen Run-Instanzen, Run-Fehler/Hard-Stuck, Reset-vor-Exit, Pause/Resume, Stop ohne Folgeinput, Loading-/Verify-Timeout, aktiven In-Game-Start sowie Telemetriefehler vor Input ab.
+Phase 7 führte pro Run einen vollständigen Start-/Run-/Exit-Zyklus aus. Diese Komposition war für den damaligen Einzelrun korrekt, wurde aber in Phase 11 vollständig entfernt, weil eine Queue mehrere frische Runs innerhalb desselben Spiels ausführt. Die weiterhin gültigen Verify-, Run-, Town- und Exit-Bausteine werden nun ausschließlich durch `RuntimeQueueRunner` und `SessionSupervisor` komponiert.
 
 ## Game- und Run-Verifikation Phase 7.6
 
@@ -239,41 +227,37 @@ Der Route-Layout-Nachweis bleibt bewusst ein zweites Gate: Der aufgezeichnete Fi
 
 Eine frische Run-Instanz wird weiterhin ausschließlich über `NewRun` erzeugt. Damit gehören Task-Ergebnis, Route Player, Navigator-Ziele, Loot-Skip-Zustände und der spätere Run-Telemetrie-Recorder genau einem Zyklus; Phase 7.7 ergänzt dafür die korrelierten Session-/Game-/Run-IDs.
 
-## Recovery-Policy und Telemetrie Phase 7.7
+## Recovery-Policy und Telemetrie
 
-Phase 7.7 implementiert die exakte Klassifikation und harte Budgets aus diesem Vertrag. Route-Fehler werden per Sentinel auf `hard_stuck`, `route_drift_exceeded`, `route_segment_timeout` oder `route_transition_failed` gemappt. Nur zusätzlich in `session.retry_classes` erlaubte Codes dürfen einen Restart anfordern; unbekannte oder ähnlich benannte Gründe sind terminal.
+Route-Fehler werden weiterhin auf die stabilen Codes `hard_stuck`, `route_drift_exceeded`, `route_segment_timeout` oder `route_transition_failed` gemappt. Der Supervisor hält die harten Run-, Dauer-, Fehler- und Restart-Budgets; Retry bleibt auf dem aktuellen Queue-Index und beginnt über eine kontrollierte Spielgrenze neu. Unbekannte Gründe sind terminal.
 
-Der Schema-v2-Session-Recorder korreliert `session_id`, `game_id` und `run_id` und flusht jedes Ereignis synchron. Ein Hard Stuck erzeugt zwingend `stuck_detected` mit Route-/Segment-/Punkt-/Drift-Kontext, danach `run_aborted` und anschließend höchstens ein `game_restart_requested`. Jeder Telemetriefehler stoppt diese Sequenz vor der folgenden Recovery-Aktion. Terminale Session-Events enthalten Ergebniszähler, Fehlerfolge, Restarts und Gesamtdauer.
+Der Schema-v2-Recorder korreliert `session_id`, `game_id` und `run_id` und flusht jedes Ereignis synchron. Ein Telemetriefehler blockiert die folgende Lifecycle-Aktion fail-closed.
 
-## Multi-Run-Kern Phase 7.8
+## Historischer Phase-7-Multi-Run
 
-`sessionMultiRunner` konsumiert den generischen Einzelzyklus und führt ausschließlich endliche Sessions aus. Er schreibt `session_started`, erzeugt pro Ordinal eindeutige Game-/Run-IDs, wertet jedes Run-Ergebnis über die Phase-7.7-Policy aus, erzwingt Cooldown und beendet bei `max_runs`, `max_duration`, Stop, terminalem Fehler oder Telemetriefehler mit genau einem Summary-Event.
-
-Drei fake-basierte Zyklen beweisen frische IDs und die Sequenz Initial-Game → Exit → neuer Game-Start. Ein injizierter Hard Stuck fordert innerhalb des Budgets genau einen Restart an; ein unbekannter Fehler beendet die Session.
-
-Die produktive Freigabe erfolgte am 12.07.2026 mit Session `session-20260712T020655.472818000Z-880ddc70`: drei aufeinanderfolgende autonome Nightmare-Countess-Zyklen einschließlich Spielstart, Navigation, Kill, Loot, Town Portal, Stash und Save & Exit endeten erfolgreich. Die Route enthält dafür einen terminalen Keller-5-Abschnitt bis zum Countess-Raum.
+Der frühere `sessionMultiRunner` startete für jeden Run ein neues Spiel. Er wurde im Phase-11-Abschlussaudit zusammen mit dem alten Cycle- und Recovery-Stack entfernt. Der Live-Nachweis vom 12.07.2026 bleibt als historische Einzelrun-Charakterisierung erhalten, ist aber nicht mehr die Queue-Semantik.
 
 ## Long-lived SessionSupervisor Phase 11.1
 
 `app.SessionSupervisor` ist die thread-sichere Command-Grenze oberhalb des unveränderten Session-Workers. Er besitzt genau eine cancellable Worker-Generation, monotone Generationen, immutable Snapshots und eine pro Prozess idempotente Command-ID-Tabelle. Dieselbe Command-ID mit identischem Inhalt liefert das ursprüngliche Ergebnis; Wiederverwendung mit anderem Inhalt wird abgewiesen. Mutationen gegen eine veraltete Generation liefern `state_changed`, parallele Starts `command_conflict`.
 
-Der Supervisor hält `pause_after_run` und `stop_after_run` ausschließlich als Intent während `running_run`. Erst das terminale Ergebnis der vollständigen Session-Einheit wechselt nach `paused_between_runs` beziehungsweise `idle`. `resume` erzeugt eine frische Worker-Generation. `emergency_stop` setzt zuerst `cancelling`, cancelt den Worker und veröffentlicht nach dessen Ende `emergency_stop_requested`; dieser Reason ist mit F11 identisch. Ein Worker-Panic wird an der Goroutine-Grenze abgefangen und als `worker_panic` in `stopped_error` projiziert.
+Der Supervisor hält `pause_after_run` und `stop_after_run` ausschließlich als Intent während `running_run`. Nach dem sicheren Town-Handoff bleibt Pause im aktuellen Spiel und `resume` revalidiert diesen Kontext; Stop führt über den zentralen Lifecycle zu Save & Exit. `emergency_stop` setzt zuerst `cancelling`, cancelt den Worker und veröffentlicht nach dessen Ende `emergency_stop_requested`; dieser Reason ist mit F11 identisch. Ein Worker-Panic wird an der Goroutine-Grenze abgefangen und als `worker_panic` in `stopped_error` projiziert.
 
-Der bestehende CLI-Sessionpfad startet seinen bisherigen Runtime-Worker jetzt über `SessionSupervisor.Start` und wartet über `Wait`. Offline-Start, Run-Polling, Save & Exit und Cooldown akzeptieren dabei den Supervisor-Context. Die fachliche Phase-7-/Phase-10-Pipeline wurde nicht dupliziert und keine produktive Input-Reihenfolge geändert.
+Dashboard und autonome CLI starten beide über `SessionSupervisor.StartQueue`. Die CLI baut den Plan aus der YAML-Queue und beginnt am vorbereiteten Charakterbildschirm; das Dashboard kann zusätzlich einen bereits bestätigten `idle_in_game`-Kontext übernehmen. Beide verwenden denselben `RuntimeQueueRunner`, dieselbe Run-Pipeline und denselben Exit-Owner.
 
 ## FarmQueue-Scheduler Phase 11.7
 
-Der Supervisor besitzt nun zusätzlich eine immutable Runtime-Queue mit Index, Zyklus, Retry und den YAML-authoritativen Run-, Dauer-, Failure- und Restart-Budgets. `StartQueue` startet pro Eintrag genau einen frischen `SupervisorRunner`; Erfolg schaltet modulo Queue-Länge weiter, Retry behält Index und Zyklus, terminale Ergebnisse stoppen. Vor jedem Folgestart kann ein `FarmQueueGuard` den vollständigen Preflight erneut ausführen, sodass eine zwischen Runs geänderte Availability vor Worker und Input sperrt.
+Der Phase-11-Supervisor besitzt zusätzlich eine immutable, duplikatfreie Runtime-Queue mit Index, Spielzyklus, Retry und den YAML-authoritativen Run-, Dauer-, Failure- und Restart-Budgets. Die Queue beschreibt mehrere Runs innerhalb eines Spiels: Jeder Eintrag erhält frischen Run-Zustand, während Game-ID und bestätigter Kontext bis zum Wrap stabil bleiben. Erst der letzte Eintrag, geordneter Stop, Budgetende oder sichere Recovery führt über den zentralen Game-Lifecycle zu Save & Exit. Retry behält den Index; terminale Ergebnisse stoppen. Vor jedem Folgestart führt `FarmQueueGuard` den vollständigen Preflight erneut aus, sodass geänderte Availability vor Worker und Input sperrt.
 
 ## Dashboard-Controls Phase 11.8
 
 Der lokale API-Backend serialisiert Selection- und Session-Commands und bindet sie an monotone Core-Generationen. Wiederholte `command_id` mit identischem Namen, Generation und Payload liefern exakt die gespeicherte Antwort; eine Wiederverwendung mit anderem Inhalt wird vor dem Supervisor abgewiesen. Start validiert die vollständige Queue erneut gegen bestätigte Auswahl und aktuelle Katalogrevision und beendet den passiven Monitor, bevor ein produktiver Worker attachen darf.
 
-`RuntimeQueueRunner` erzeugt für jeden Eintrag eine frische, auf die Run-ID konfigurierte Runtime. Nur der erste Worker eines aus `idle_in_game` gestarteten Queue-Laufs konsumiert das bereits bestätigte Spiel. Nach Save & Exit starten folgende Einträge jeweils ein neues Spiel. Jeder Worker verwendet unverändert Run-State-Machine, Route, Profil, Loot, Town und Offline-Exit aus Phase 10. Ein retrybarer terminaler Run liefert `retry_current`; andere Fehler stoppen. F11 im Worker wird als `emergency_stop_requested` an denselben Supervisor-Abschluss wie der API-Emergency-Command übergeben.
+`RuntimeQueueRunner` erzeugt für jeden Eintrag eine frische, auf die Run-ID konfigurierte Runtime. Ein aus `idle_in_game` gestarteter Queue-Lauf übernimmt das bereits bestätigte Spiel; folgende Einträge laufen nach ihrem sicheren Town-Handoff im selben Spiel. Erst Queue-Wrap, geordneter Stop, Budgetende oder sichere Recovery führen zu Save & Exit. Jeder Worker verwendet dieselbe Run-State-Machine, Route, Profil, Loot und Town-Rückkehr aus Phase 10. Ein retrybarer terminaler Run liefert `retry_current`; andere Fehler stoppen. F11 im Worker wird als `emergency_stop_requested` an denselben Supervisor-Abschluss wie der API-Emergency-Command übergeben.
 
 Der Statussnapshot projiziert aktive und YAML-Default-Queue getrennt, damit „Auf YAML-Default zurücksetzen“ auch nach einem verworfenen Runtime-Entwurf funktioniert. Pending Intent, aktiver Run, Step, Index, Zyklus, Retry und Budgets stammen ausschließlich aus Core-Snapshots. Passive Monitor-Ticks dürfen diese Supervisor-Felder nicht überschreiben.
 
-`session.queue` liefert die Startreihenfolge und erlaubt Duplikate. Die Queue bleibt prozesslokal; ein Neustart lädt YAML und beginnt bei Index 0. Der bisherige CLI-Adapter bleibt ein expliziter Einzel-Worker-Aufruf derselben Supervisor-Grenze und erzeugt keine konkurrierende Queue-Pipeline.
+`session.queue` liefert die duplikatfreie Startreihenfolge. Die Queue bleibt prozesslokal; ein Neustart lädt YAML und beginnt bei Index 0. Der CLI-Aufruf verwendet dieselbe Queue-, Supervisor- und Lifecycle-Pipeline wie das Dashboard.
 
 ## Abnahme Phase 7.0
 
@@ -290,4 +274,4 @@ Phase 7.0 ist abgeschlossen, wenn Zustände und Übergänge, unterstützte Start
 - [Phase-11-Core-Vertrag](phase-11-core-contract.md)
 
 ---
-*Zuletzt aktualisiert: 2026-07-16 (Phase 11.8 Dashboard-Controls)*
+*Zuletzt aktualisiert: 2026-07-17 (Phase 11.10 Abschlussaudit)*

@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -100,13 +101,22 @@ func (m *mockProcess) Detach() error { return nil }
 func (m *mockProcess) Ready() bool { return true }
 
 type mockProbe struct {
+	mu    sync.RWMutex
 	snap  memory.Snapshot
 	calls int
 }
 
 func (m *mockProbe) Snapshot() memory.Snapshot {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.calls++
 	return m.snap
+}
+
+func (m *mockProbe) setSnapshot(snapshot memory.Snapshot) {
+	m.mu.Lock()
+	m.snap = snapshot
+	m.mu.Unlock()
 }
 
 type mockInput struct {
@@ -128,6 +138,8 @@ type mockInput struct {
 	castSkillCalls   []uint16
 	lastClientX      int
 	lastClientY      int
+	focusCalls       int
+	focusErr         error
 }
 
 func (m *mockInput) Bind(pid uint32) error {
@@ -182,7 +194,10 @@ func (m *mockInput) ClickWithModifier(string, input.MouseButton) error { return 
 
 func (m *mockInput) PressKey(string) error { return nil }
 
-func (m *mockInput) Focus() error { return nil }
+func (m *mockInput) Focus() error {
+	m.focusCalls++
+	return m.focusErr
+}
 
 func (m *mockInput) Window() (input.WindowInfo, bool) {
 	return input.WindowInfo{ClientWidth: 1280, ClientHeight: 720}, true

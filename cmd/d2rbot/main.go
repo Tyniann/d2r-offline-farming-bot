@@ -99,8 +99,8 @@ func run(configPath string, opts app.Options) error {
 	if opts.SessionMaxRuns > 0 {
 		cfg.Session.MaxRuns = opts.SessionMaxRuns
 	}
-	if err := validateUIMode(opts); err != nil {
-		return err
+	if validationErr := validateUIMode(opts); validationErr != nil {
+		return validationErr
 	}
 	if opts.SessionInspect {
 		plan, planErr := app.ResolveSessionPlan(cfg, opts)
@@ -137,6 +137,10 @@ func run(configPath string, opts app.Options) error {
 		}
 		fmt.Println(string(encoded))
 		return nil
+	}
+
+	if shouldRunSession(cfg, opts) {
+		return app.RunConfiguredQueue(cfg)
 	}
 
 	rt, err := app.New(cfg, opts)
@@ -178,9 +182,6 @@ func run(configPath string, opts app.Options) error {
 	}
 	if opts.PathingTest != "" {
 		return rt.RunPathingTest(opts.PathingTest)
-	}
-	if shouldRunSession(cfg, opts) {
-		return rt.RunSession()
 	}
 	return rt.Run()
 }
@@ -250,6 +251,7 @@ func runUI(cfg *config.Config, rt *app.Runtime) error {
 		return err
 	}
 	var pauseHotkeySequence atomic.Uint64
+	var stopAfterRunHotkeySequence atomic.Uint64
 	queueRunner.SetPauseAfterRunHandler(func() error {
 		snapshot := supervisor.Snapshot()
 		updated, pauseErr := supervisor.PauseAfterRun(app.SupervisorCommandMeta{
@@ -258,6 +260,18 @@ func runUI(cfg *config.Config, rt *app.Runtime) error {
 		})
 		if pauseErr != nil {
 			return pauseErr
+		}
+		backend.UpdateSupervisor(updated)
+		return nil
+	})
+	queueRunner.SetStopAfterRunHandler(func() error {
+		snapshot := supervisor.Snapshot()
+		updated, stopErr := supervisor.StopAfterRun(app.SupervisorCommandMeta{
+			CommandID:          fmt.Sprintf("stop-after-run-hotkey-%d", stopAfterRunHotkeySequence.Add(1)),
+			ExpectedGeneration: snapshot.Generation,
+		})
+		if stopErr != nil {
+			return stopErr
 		}
 		backend.UpdateSupervisor(updated)
 		return nil

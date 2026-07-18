@@ -103,6 +103,21 @@ func TestTownHookCastsOnceAndSettles(t *testing.T) {
 	}
 }
 
+func TestSkipInitialDelayRetainsHookAction(t *testing.T) {
+	definition := testDefinition()
+	definition.Hooks[HookTownReady][0].Delay = 5 * time.Second
+	actions := &actionMock{}
+	executor, _ := NewExecutor(config.NewLogger("error"), definition, actions)
+	state, now := profileState(), time.Now()
+	executor.SkipInitialDelay(HookTownReady)
+	if got := executor.TickHook(context.Background(), HookTownReady, state, EncounterTarget{}, now); got.Status != StatusAction {
+		t.Fatalf("hook=%+v, want immediate action", got)
+	}
+	if len(actions.skills) != 1 {
+		t.Fatalf("skills=%v, want Bone Armor action retained", actions.skills)
+	}
+}
+
 func TestBossHookPinsTargetAndCastsOncePerIndexedEncounterAction(t *testing.T) {
 	definition := testDefinition()
 	definition.Hooks[HookBossEngage] = []Action{{SkillID: 88, Target: TargetBoss, OncePerEncounter: true}}

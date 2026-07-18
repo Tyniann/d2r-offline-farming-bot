@@ -2,69 +2,45 @@
 
 ## Überblick
 
-Phase 7.7 klassifiziert terminale Run-Ergebnisse über exakte Reason-Codes und entscheidet innerhalb harter Fehler-/Restart-Budgets. Ein eigener synchron geflushter JSONL-Recorder korreliert Session, Game und Run. Unbekannte, ähnlich benannte oder nicht konfigurierte Gründe sind niemals automatisch retrybar.
+Der Phase-11-Supervisor klassifiziert terminale Run-Ergebnisse über exakte Reason-Codes und entscheidet innerhalb harter Fehler-/Restart-Budgets. Ein synchron geflushter JSONL-Recorder korreliert Session, Game und Run. Unbekannte, ähnlich benannte oder nicht konfigurierte Gründe sind niemals automatisch retrybar.
 
 ## Ort im Code
 
-- **Recovery-Policy:** `internal/app/session_recovery.go`
+- **Recovery-Entscheidung und Budgets:** `internal/app/supervisor.go`
+- **Konfigurierbare Retry-Freigabe:** `internal/app/run_failure.go`
+- **Produktiver Game-/Run-Adapter:** `internal/app/queue_runtime.go`
 - **Route-Reason-Mapping:** `internal/tasks/run_pipeline.go`
-- **Stuck-Kontext:** `internal/pathing/route_segment_player.go`, `internal/app/route_adapter.go`
 - **Recorder und Schema:** `internal/telemetry/session_recorder.go`, `internal/telemetry/recorder.go`
 - **Config:** `session.max_consecutive_failures`, `session.max_total_restarts`, `session.retry_classes`
 
 ## Stabile Fehlerklassifikation
 
-Nur folgende exakten Codes können als `run_restartable` gelten:
+Nur die validierten Codes `hard_stuck`, `route_drift_exceeded`, `route_segment_timeout` und `route_transition_failed` können einen Retry auslösen. Zusätzlich muss der konkrete Code in `session.retry_classes` erlaubt sein. Texte wie `hard_stuck_extra` oder ein Fehlerstring, der zufällig „hard_stuck“ enthält, bleiben terminal.
 
-- `hard_stuck`
-- `route_drift_exceeded`
-- `route_segment_timeout`
-- `route_transition_failed`
+## Budget- und Lifecycle-Semantik
 
-Zusätzlich muss der Code in `session.retry_classes` erlaubt sein. Das Mapping verwendet ausschließlich `errors.Is` gegen Sentinel-Fehler. Texte wie `hard_stuck_extra` oder ein Fehlerstring, der zufällig „hard_stuck“ enthält, bleiben terminal.
-
-Der Route Player erzeugt `ErrRouteHardStuck` erst, nachdem Navigator und route-lokale Korrekturen ausgeschöpft sind. Der Adapter hält Route-ID, Segment-ID, nächsten und letzten bestätigten Punkt, Zielkoordinaten, Drift und lokale Recovery-Versuche strukturiert fest.
-
-## Budget-Semantik
-
-- Ein erfolgreicher Run setzt `consecutive_failures` auf null.
-- `failed` und `aborted` erhöhen den Zähler; Operator-Stop verbraucht kein Fehler- oder Restart-Budget.
-- Ein Restart wird nur erlaubt, wenn Reason exakt klassifiziert und konfiguriert ist, die neue Fehleranzahl das Maximum nicht überschreitet und noch ein Total-Restart verfügbar ist.
-- Budgets werden vor der geloggten Recovery-Entscheidung atomar aktualisiert.
-- Ein unbekannter Reason-Code, ein erschöpftes Budget oder ein Telemetriefehler ergibt `fail_session`.
-
-## Ereignisreihenfolge
-
-Bei Hard Stuck gilt zwingend:
-
-1. `stuck_detected` mit vollständigem Fortschrittskontext;
-2. `run_aborted` mit stabilem Reason, letztem Step und Laufzeit;
-3. genau eine Entscheidung `game_restart_requested` oder terminaler Session-Abschluss.
-
-Jedes Event wird geschrieben und geflusht, bevor die nächste Stufe berechnet beziehungsweise freigegeben wird. Scheitert `stuck_detected` oder `run_aborted`, bleibt das Restart-Budget unverändert und es darf kein Exit-/Restart-Input folgen.
+- Erfolg setzt `consecutive_failures` auf null und schaltet zum nächsten Queue-Index.
+- Ein retrybarer Fehler bleibt am aktuellen Index und erhöht Fehler-/Restart-Zähler innerhalb der YAML-Budgets.
+- Eine Recovery verlässt nur einen als sicher bestätigten Game-Kontext über den zentralen `ExitGame`-Owner; andernfalls stoppt die Queue fail-closed.
+- Normaler Queue-Wrap und Recovery-Restart sind getrennte Spielgrenzen. Nur Recovery verbraucht ein Restart-Budget.
+- Ein unbekannter Reason-Code, ein erschöpftes Budget oder ein Telemetriefehler beendet die Queue terminal.
 
 ## Session-Recorder
 
-`telemetry.NewSessionRecorder` erzeugt vor Session-Input eine Datei:
+`telemetry.NewSessionRecorder` erzeugt vor Session-Input eine Datei `logs/telemetry/session-<UTC-Zeit>-<Zufallssuffix>.jsonl`. Lifecycle-Events verwenden `schema_version=2` und tragen dieselbe `session_id`; Game-/Run-Events ergänzen `game_id`, `run_id`, Queue-Index, Zyklus und Ergebnisfelder. Zwischen zwei erfolgreichen Queue-Einträgen desselben Spiels gibt es kein `game_exited`.
 
-```text
-logs/telemetry/session-<UTC-Zeit>-<Zufallssuffix>.jsonl
-```
-
-Lifecycle-Events verwenden `schema_version=2` und tragen dieselbe `session_id`. Game-/Run-Events ergänzen `game_id`, `run_id`, Run-Ordinal und Ergebnisfelder. Terminale Events `session_completed`, `session_stopped` oder `session_failed` enthalten gestartete, erfolgreiche, abgebrochene und fehlgeschlagene Runs, aufeinanderfolgende Fehler, Restarts und Gesamtdauer.
-
-Der bestehende Phase-5-Run-Recorder bleibt kompatibel und schreibt weiterhin Schema 1 für Loot-/Route-Detailereignisse. Jede frische Session-Run-Generation beginnt dort mit genau einem `run_context`, das Definition, Route/Fingerprint, Waypoint-Ziel, Pickup-/Sell-Policy und Town-Herkunft bindet. Der Kern erzeugt eindeutige korrelierte Run-IDs; Countess und Mephisto sind live freigegeben. Phase 10 wählt weiterhin genau eine Run-ID pro Session; Playlists und Farm-Reihenfolgen gehören erst zu Phase 11.
+Der Phase-5-Run-Recorder schreibt weiterhin Schema 1 für Loot-/Route-Detailereignisse. Jede frische Run-Generation beginnt mit genau einem `run_context`, das Definition, Route/Fingerprint, Waypoint-Ziel, Pickup-/Sell-Policy und Town-Herkunft bindet.
 
 ## Abnahme
 
-Die Fehler-Injektion deckt die vollständige Hard-Stuck-Reihenfolge, exakte Reason-Prüfung ohne Text-Matching, erlaubte und erschöpfte Restart-Budgets, Erfolgs-Reset, Telemetriefehler vor Recovery, korrelierte JSONL-IDs und terminale Summary-Zähler ab. Reale Multi-Run-Steuerung und der kontrollierte Game-Restart folgen im E2E-Slice 7.8.
+Supervisor-, Queue-Lifecycle- und Telemetrietests decken exakte Retry-Freigabe, erschöpfte Budgets, Erfolgs-Reset, Retry am selben Index, kontrollierten Game-Restart, korrelierte IDs und den fehlenden Exit zwischen Countess und Mephisto ab. Die Live-Abnahme vom 17. Juli 2026 bestätigte Same-game-Pause/Resume, natürlichen Wrap sowie Stop-after-run mit genau einem abschließenden Exit.
 
 ## Verwandte Features
 
 - [Session-Lifecycle](session-lifecycle.md)
+- [FarmQueue-Scheduler](farm-queue-scheduler.md)
 - [Session-Konfiguration und Inspect](session-configuration.md)
 - [Run-Telemetrie](run-telemetry.md)
-- [Route Recording und Playback](route-recording-playback.md)
 
 ---
-*Zuletzt aktualisiert: 2026-07-15*
+*Zuletzt aktualisiert: 2026-07-17*

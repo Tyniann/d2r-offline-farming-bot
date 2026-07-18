@@ -18,7 +18,7 @@ Phase 8 führt generische, klassenbegrenzte Lifecycle-Hooks und eine profilabhä
 | `town_ready` | Nach stabilem Town-/Identity-State und vor Town-Walk | Bone Armor auf `self` |
 | `boss_engage` | Nach bestätigter Boss-UnitID und vor regulärem Angriff | Bone Prison auf `boss` |
 
-Der Executor führt pro Tick höchstens eine Skill-Aktion aus. `once_per_game` und `once_per_encounter` sind explizite Marker; Settle-Zeiten blockieren nachfolgende Hook-Aktionen ohne weitere Inputs. Wiederholt eine Run-Definition denselben Encounter-Hook, wird der stabile Aktionsindex bis zum Executor geführt: Retries desselben Index bleiben idempotent, ein höherer Index startet dagegen eine eigene Delay-/Cast-/Settle-Ausführung auf derselben gepinnten UnitID. `Reset` löscht Game-, Encounter-, Index-, Settle-, Potion- und Throttle-Zustand.
+Der Executor führt pro Tick höchstens eine Skill-Aktion aus. `once_per_game` und `once_per_encounter` sind explizite Marker; Settle-Zeiten blockieren nachfolgende Hook-Aktionen ohne weitere Inputs. Bone Armor ist bewusst kein `once_per_game`-Hook, sondern wird zu Beginn jedes Runs aufgefrischt. Bei einem Queue-Folgerun im bereits bestätigten Spiel entfällt nur das New-Game-Delay, nicht der Cast oder dessen Settle-Verifikation. Wiederholt eine Run-Definition denselben Encounter-Hook, wird der stabile Aktionsindex bis zum Executor geführt: Retries desselben Index bleiben idempotent, ein höherer Index startet dagegen eine eigene Delay-/Cast-/Settle-Ausführung auf derselben gepinnten UnitID. `Reset` löscht Game-, Encounter-, Index-, Settle-, Potion- und Throttle-Zustand.
 
 Self-Targets werden an der neutralen geometrischen Client-Mitte gecastet. Der projizierte Spieleranker wird bewusst nicht angeklickt, da D2R diesen Rechtsklick als Bewegung interpretieren kann. Boss-Targets verwenden weiterhin die World-zu-Client-Projektion der gepinnten Unit-Position.
 
@@ -42,7 +42,7 @@ combat_profiles:
       town_ready:
         - skill: bone_armor
           target: self
-          once_per_game: true
+          once_per_game: false
           delay_ms: 5000
           settle_ms: 1500
       boss_engage:
@@ -80,7 +80,7 @@ Jeder frische Session-Run bindet seinen eigenen Run-Recorder an den Profil-Execu
 ## Grenzen
 
 - `town_ready` und `boss_engage` sind produktiv in die gemeinsamen Countess-/Mephisto-Flows integriert. Der Boss bleibt über seine bestätigte UnitID an jede indexierte Encounter-Aktion gebunden.
-- Buff-Dauer wird nicht aus Memory gelesen. Bone Armor gilt nach bestätigter Input-Anforderung einmal pro Game-Generation als angefordert.
+- Buff-Dauer wird nicht aus Memory gelesen. Bone Armor wird deshalb bewusst zu Beginn jedes Runs neu angefordert; nur das New-Game-Delay entfällt beim Same-game-Folgerun.
 - Phase 8 verbraucht vorhandene Tränke. Phase 9 kauft nur Healing/Mana nach; Rejuvenation ist nicht kaufbar und kommt vorerst ausschließlich über Pickit-Loot.
 
 ## Verwandte Features

@@ -100,6 +100,11 @@ func (c SessionConfig) validate() error {
 		if run == "" {
 			return fmt.Errorf("session.queue[%d] must not be empty", i)
 		}
+		for first := 0; first < i; first++ {
+			if c.Queue[first] == run {
+				return fmt.Errorf("queue_duplicate_run: session.queue[%d]=%q duplicates session.queue[%d]", i, run, first)
+			}
+		}
 	}
 	switch c.Difficulty {
 	case "normal", "nightmare", "hell":

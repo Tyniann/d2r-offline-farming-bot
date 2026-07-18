@@ -1304,7 +1304,7 @@ func TestCountessKillTeleportRepositionUsesEngageDistance(t *testing.T) {
 	}
 }
 
-func TestCountessRepositionsAtLastBossPositionBeforeLoot(t *testing.T) {
+func TestBossRunRepositionsAtLastBossPositionBeforeLoot(t *testing.T) {
 	combat := &mockCombatActions{}
 	definition, _ := DefaultRunRegistry().Definition(RunIDCountess)
 	position := world.Position{X: 130, Y: 100}
@@ -1327,14 +1327,14 @@ func TestCountessRepositionsAtLastBossPositionBeforeLoot(t *testing.T) {
 	}
 }
 
-func TestOnlyConfiguredRunsRepositionBeforeLoot(t *testing.T) {
+func TestAllRegisteredRunsRepositionBeforeLoot(t *testing.T) {
 	countess, _ := DefaultRunRegistry().Definition(RunIDCountess)
 	mephisto, _ := DefaultRunRegistry().Definition(RunIDMephisto)
 	if got := (&runPipeline{definition: countess}).nextStep(pipelineStepEngageBoss); got != pipelineStepRepositionForLoot {
 		t.Fatalf("countess successor = %q, want %q", got, pipelineStepRepositionForLoot)
 	}
-	if got := (&runPipeline{definition: mephisto}).nextStep(pipelineStepEngageBoss); got != pipelineStepWaitForDrops {
-		t.Fatalf("mephisto successor = %q, want %q", got, pipelineStepWaitForDrops)
+	if got := (&runPipeline{definition: mephisto}).nextStep(pipelineStepEngageBoss); got != pipelineStepRepositionForLoot {
+		t.Fatalf("mephisto successor = %q, want %q", got, pipelineStepRepositionForLoot)
 	}
 }
 

@@ -79,20 +79,21 @@ describe("App", () => {
     expect(screen.getByText("Character-Screen nicht bestätigt")).toBeInTheDocument();
   });
 
-  it("baut eine Queue mit Duplikaten und startet nach vollständigem Preflight genau einmal", async () => {
+  it("verhindert Queue-Duplikate und startet nach vollständigem Preflight genau einmal", async () => {
     const ready = { ...detached, state: "idle_in_game", generation: 5, selection: { character: "MrBones", difficulty: "nightmare" } };
     mocks.getCatalog.mockResolvedValue({ schema_version: 1, revision: 9, default_difficulty: "nightmare", profiles: [], characters: [], difficulties: [], runs: [{ run_id: "countess", display_name: "Countess", status: "runtime_validation_required" }, { run_id: "mephisto", display_name: "Mephisto", status: "runtime_validation_required" }] });
     mocks.getStatus.mockReset().mockResolvedValue(ready);
     mocks.validateQueue.mockResolvedValue({ entries: [], budgets: {} });
     mocks.startQueue.mockResolvedValue({ state: "starting_run", generation: 6 });
     render(<App />);
-    fireEvent.click(await screen.findByRole("button", { name: "Countess zur Queue hinzufügen" }));
-    expect(screen.getAllByText("countess")).toHaveLength(2);
+    const addCountess = await screen.findByRole("button", { name: "Countess zur Queue hinzufügen" });
+    expect(addCountess).toBeDisabled();
+    expect(screen.getAllByText("countess")).toHaveLength(1);
     const start = screen.getByRole("button", { name: "Queue prüfen und starten" });
     fireEvent.click(start);
     fireEvent.click(start);
     await waitFor(() => expect(mocks.validateQueue).toHaveBeenCalledOnce());
-    expect(mocks.validateQueue).toHaveBeenCalledWith(["countess", "mephisto", "countess"], "MrBones", "nightmare", 9);
+    expect(mocks.validateQueue).toHaveBeenCalledWith(["countess", "mephisto"], "MrBones", "nightmare", 9);
     await waitFor(() => expect(mocks.startQueue).toHaveBeenCalledOnce());
   });
 

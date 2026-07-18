@@ -71,8 +71,8 @@ func TestRouteLifecycleDifficultyChangeInvalidatesOnlyCharacterFarmingRoutes(t *
 		t.Fatalf("difficulty preview = %+v", preview)
 	}
 	invalidatedAt := time.Now().UTC()
-	if _, err := store.Confirm(preview, invalidatedAt); err != nil {
-		t.Fatal(err)
+	if _, confirmErr := store.Confirm(preview, invalidatedAt); confirmErr != nil {
+		t.Fatal(confirmErr)
 	}
 	_, catalog, err := store.Snapshot()
 	if err != nil {

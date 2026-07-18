@@ -66,6 +66,15 @@ func (w *layoutTownWaypointWalker) TickAct1Waypoint(ctx context.Context, state w
 	if w == nil || w.adapter == nil {
 		return pathing.TownWalkResult{Status: pathing.TownWalkRouteMissing, Reason: string(town.ReasonTownLayoutRouteMissing), Done: true}
 	}
+	// A previous same-game run hands the character off at the live Waypoint.
+	// Requiring the fresh run's default Stash origin in that state would replay
+	// the wrong graph edge. The entity and distance gate are the same proof used
+	// when Town preparation completes; no input is sent by this fast path.
+	if waypoint, ok := state.NearestObject(world.ObjectKindWaypoint); ok &&
+		world.Distance(state.Player.Position, waypoint.Position) <= w.adapter.pathCfg.Waypoint.MaxClickDistance {
+		w.adapter.log.Info("town waypoint handoff reused", "distance", world.Distance(state.Player.Position, waypoint.Position))
+		return pathing.TownWalkResult{Status: pathing.TownWalkWaypointVisible, Done: true}
+	}
 	result := w.adapter.Tick(ctx, state)
 	if !result.Done {
 		return pathing.TownWalkResult{Status: pathing.TownWalkPending}

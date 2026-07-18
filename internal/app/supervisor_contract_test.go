@@ -15,6 +15,8 @@ func TestPhase11SupervisorCommandMatrix(t *testing.T) {
 		{SupervisorStateActivatingSelection, SupervisorCommandStartQueue, false},
 		{SupervisorStateIdleInGame, SupervisorCommandApplySelection, true},
 		{SupervisorStateIdleInGame, SupervisorCommandStartQueue, true},
+		{SupervisorStateStartingGame, SupervisorCommandEmergencyStop, true},
+		{SupervisorStateStartingGame, SupervisorCommandPauseAfterRun, false},
 		{SupervisorStateStartingRun, SupervisorCommandEmergencyStop, true},
 		{SupervisorStateStartingRun, SupervisorCommandPauseAfterRun, false},
 		{SupervisorStateRunningRun, SupervisorCommandPauseAfterRun, true},
@@ -24,6 +26,8 @@ func TestPhase11SupervisorCommandMatrix(t *testing.T) {
 		{SupervisorStatePausedBetweenRuns, SupervisorCommandResume, true},
 		{SupervisorStatePausedBetweenRuns, SupervisorCommandEmergencyStop, true},
 		{SupervisorStatePausedBetweenRuns, SupervisorCommandStartQueue, false},
+		{SupervisorStateExitingGame, SupervisorCommandEmergencyStop, true},
+		{SupervisorStateExitingGame, SupervisorCommandResume, false},
 		{SupervisorStateCancelling, SupervisorCommandEmergencyStop, false},
 		{SupervisorStateStoppedError, SupervisorCommandApplySelection, true},
 		{SupervisorStateStoppedError, SupervisorCommandStartQueue, true},
@@ -50,8 +54,8 @@ func TestPhase11SupervisorContractHasUniqueStableValues(t *testing.T) {
 			commands[command] = true
 		}
 	}
-	if len(states) != 8 {
-		t.Fatalf("state count = %d, want 8", len(states))
+	if len(states) != 10 {
+		t.Fatalf("state count = %d, want 10", len(states))
 	}
 	if len(commands) != 6 {
 		t.Fatalf("command count = %d, want 6", len(commands))

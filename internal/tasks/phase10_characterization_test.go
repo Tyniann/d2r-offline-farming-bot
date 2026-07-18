@@ -24,6 +24,7 @@ func TestPhase10CharacterizationCountessFullRunTransitionsWithoutLoot(t *testing
 		pipelineStepPlayRoute,
 		pipelineStepAcquireBoss,
 		pipelineStepEngageBoss,
+		pipelineStepRepositionForLoot,
 		pipelineStepWaitForDrops,
 		pipelineStepScanLoot,
 		pipelineStepCastTownPortal,

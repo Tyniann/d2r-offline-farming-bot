@@ -7,7 +7,7 @@ import { getCatalog, getStatus, type CatalogDTO, type LiveEvent, type SelectionP
 import "./app.css";
 
 const editableStates = new Set(["idle", "idle_in_game", "stopped_error"]);
-const emergencyStates = new Set(["starting_run", "running_run", "paused_between_runs"]);
+const emergencyStates = new Set(["starting_game", "starting_run", "running_run", "paused_between_runs", "exiting_game"]);
 
 export function App() {
   const [status, setStatus] = useState<StatusDTO | null>(null);
@@ -191,12 +191,13 @@ export function App() {
       </section>
 
       <section>
-        <h2>Farm-Queue</h2>
-        <p>Die Queue gilt nur bis zum Programmende. Duplikate sind erlaubt. Änderungen sind während einer aktiven oder pausierten Session gesperrt.</p>
+        <h2>Run-Reihenfolge pro Spiel</h2>
+        <p>Jeder verfügbare Run kann genau einmal enthalten sein. Die Reihenfolge läuft innerhalb desselben Spiels; erst nach der vollständigen Folge beginnt bei freien Budgets ein neues Spiel. Änderungen sind während einer aktiven oder pausierten Session gesperrt.</p>
         {queueError && <p role="alert">{queueError}</p>}
         <div className="run-grid">{catalog?.runs.map((run) => {
           const available = run.status === "available" || run.status === "runtime_validation_required";
-          return <article key={run.run_id}><strong>{run.display_name}</strong><span>{run.status}</span>{run.reasons?.map((reason) => <small key={reason}>{reason}</small>)}<button type="button" aria-label={`${run.display_name} zur Queue hinzufügen`} disabled={editorLocked || !available} onClick={() => setQueue((current) => [...current, run.run_id])}>Zur Queue hinzufügen</button></article>;
+          const alreadyQueued = queue.includes(run.run_id);
+          return <article key={run.run_id}><strong>{run.display_name}</strong><span>{run.status}</span>{run.reasons?.map((reason) => <small key={reason}>{reason}</small>)}<button type="button" aria-label={`${run.display_name} zur Queue hinzufügen`} disabled={editorLocked || !available || alreadyQueued} title={alreadyQueued ? "Dieser Run ist bereits in der Reihenfolge enthalten." : undefined} onClick={() => setQueue((current) => current.includes(run.run_id) ? current : [...current, run.run_id])}>{alreadyQueued ? "Bereits enthalten" : "Zur Queue hinzufügen"}</button></article>;
         }) ?? <p>Katalog wird geladen …</p>}</div>
         <h3>Queue-Entwurf</h3>
         {queue.length === 0 ? <p>Die Queue ist leer und kann nicht gestartet werden.</p> : <ol className="queue-list">{queue.map((runID, index) => <li key={`${runID}-${index}`}><span>{index + 1}</span><strong>{runID}</strong><div className="queue-actions"><button type="button" className="secondary" aria-label={`${runID} an Position ${index + 1} nach oben`} disabled={editorLocked || index === 0} onClick={() => setQueue((current) => moveEntry(current, index, index - 1))}>↑</button><button type="button" className="secondary" aria-label={`${runID} an Position ${index + 1} nach unten`} disabled={editorLocked || index === queue.length - 1} onClick={() => setQueue((current) => moveEntry(current, index, index + 1))}>↓</button><button type="button" className="secondary" aria-label={`${runID} an Position ${index + 1} entfernen`} disabled={editorLocked} onClick={() => setQueue((current) => current.filter((_, itemIndex) => itemIndex !== index))}>Entfernen</button></div></li>)}</ol>}
@@ -204,14 +205,14 @@ export function App() {
           <button type="button" className="secondary" disabled={editorLocked} onClick={() => setQueue([...yamlDefault])}>Auf YAML-Default zurücksetzen</button>
           <button type="button" disabled={editorLocked || queue.length === 0 || !status?.selection.character} onClick={() => void submitQueue()}>{commandPending ? "Core bestätigt …" : "Queue prüfen und starten"}</button>
         </div>
-        {status && <div className="queue-status" aria-live="polite"><strong>Core-Queue:</strong> {status.queue.entries.length ? status.queue.entries.join(" → ") : "keine aktive Queue"}<span>Index {status.queue.index + 1} · Zyklus {status.queue.cycle} · Retry {status.queue.retry}</span><span>Gestartet {status.queue.started_runs}/{status.queue.budgets.max_runs} · Restarts {status.queue.total_restarts}/{status.queue.budgets.max_total_restarts}</span>{status.active_run_id && <span>Aktiv: {status.active_run_id}{status.step ? ` · ${status.step}` : ""}</span>}{hasPendingIntent && <span>Vorgemerkt: {status.pending_intent}</span>}{status.last_result && <span>Letztes Ergebnis: {status.last_result.disposition}{status.last_result.reason ? ` · ${status.last_result.reason}` : ""}</span>}</div>}
+        {status && <div className="queue-status" aria-live="polite"><strong>Core-Queue:</strong> {status.queue.entries.length ? status.queue.entries.join(" → ") : "keine aktive Queue"}<span>Spiel {status.game_id || "–"} · Spielzyklus {status.queue.cycle + 1} · Lifecycle {status.lifecycle_phase}</span><span>Index {status.queue.index + 1} · Retry {status.queue.retry} · Run-ID {status.run_id || "–"}</span><span>Gestartet {status.queue.started_runs}/{status.queue.budgets.max_runs} · Restarts {status.queue.total_restarts}/{status.queue.budgets.max_total_restarts}</span>{status.active_run_id && <span>Aktiv: {status.active_run_id}{status.step ? ` · ${status.step}` : ""}</span>}{hasPendingIntent && <span>Vorgemerkt: {status.pending_intent}</span>}{status.last_result && <span>Letztes Ergebnis: {status.last_result.disposition}{status.last_result.reason ? ` · ${status.last_result.reason}` : ""}</span>}</div>}
         <div className="session-controls">
           <button type="button" disabled={commandPending || status?.state !== "running_run" || hasPendingIntent} onClick={() => status && void runCommand(() => pauseAfterRun(status.generation))}>Nach aktuellem Run pausieren</button>
           <button type="button" disabled={commandPending || status?.state !== "paused_between_runs"} onClick={() => status && void runCommand(() => resumeQueue(status.generation))}>Queue fortsetzen</button>
           <button type="button" disabled={commandPending || status?.state !== "running_run" || hasPendingIntent} onClick={() => status && void runCommand(() => stopAfterRun(status.generation))}>Nach aktuellem Run stoppen</button>
           <button type="button" className="danger" disabled={commandPending || !status || !emergencyStates.has(status.state)} onClick={() => setConfirmEmergency(true)}>Emergency Stop</button>
         </div>
-        <p className="hint">Die globale Pause-Taste merkt „nach aktuellem Run pausieren“ vor, ohne D2R den Fokus zu nehmen. Pause und geordneter Stopp werden erst nach dem aktuellen Run einschließlich Town und Save &amp; Exit aktiv. Emergency Stop und F11 brechen sofort ab und garantieren kein Save &amp; Exit.</p>
+        <p className="hint">Die globale Pause-Taste merkt „nach aktuellem Run pausieren“ vor, ohne D2R den Fokus zu nehmen. Pause wartet auf Loot und den sicheren Town-Handoff und lässt das aktuelle Spiel geöffnet. Fortsetzen revalidiert dasselbe Spiel. „Nach aktuellem Run stoppen“ verlässt das Spiel danach genau einmal. Emergency Stop und F11 brechen sofort ab und garantieren kein Save &amp; Exit.</p>
         {confirmEmergency && <div className="modal-backdrop"><div role="dialog" aria-modal="true" aria-labelledby="emergency-title" className="modal danger-modal"><h3 id="emergency-title">Session sofort abbrechen?</h3><p>Der aktuelle Input wird sofort gesperrt. Save &amp; Exit ist nicht garantiert. Dies entspricht F11 im Spiel.</p><div className="modal-actions"><button type="button" className="secondary" onClick={() => setConfirmEmergency(false)}>Abbrechen</button><button ref={emergencyConfirmRef} type="button" className="danger" onClick={() => { setConfirmEmergency(false); if (status) void runCommand(() => emergencyStop(status.generation)); }}>Emergency Stop bestätigen</button></div></div></div>}
       </section>
 

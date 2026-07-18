@@ -57,6 +57,7 @@ func TestSessionValidationRejectsUnsafeValues(t *testing.T) {
 		{"invalid difficulty", func(c *SessionConfig) { c.Difficulty = "players8" }},
 		{"empty queue", func(c *SessionConfig) { c.Queue = []string{} }},
 		{"empty queue entry", func(c *SessionConfig) { c.Queue = []string{"countess", ""} }},
+		{"duplicate queue entry", func(c *SessionConfig) { c.Queue = []string{"countess", "countess"} }},
 		{"unknown retry", func(c *SessionConfig) { c.RetryClasses = []string{"unknown"} }},
 		{"duplicate retry", func(c *SessionConfig) { c.RetryClasses = []string{"hard_stuck", "hard_stuck"} }},
 	}

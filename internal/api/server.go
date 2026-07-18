@@ -267,17 +267,6 @@ func (s *Server) handleCatalog(w http.ResponseWriter, r *http.Request) {
 	s.writeJSON(w, http.StatusOK, catalog)
 }
 
-func (s *Server) handleReadCommand(w http.ResponseWriter, r *http.Request) {
-	if !requireJSONPost(w, r, s, false) {
-		return
-	}
-	var body json.RawMessage
-	if !s.decodeBody(w, r, &body) {
-		return
-	}
-	s.writeJSON(w, http.StatusNotImplemented, ErrorDTO{Code: "request_invalid", Message: "Dieser read-only Vertrag wird in einem späteren Abschnitt angebunden.", RequestID: requestIDFrom(r)})
-}
-
 func (s *Server) handleSelectionPreview(w http.ResponseWriter, r *http.Request) {
 	if !requireJSONPost(w, r, s, false) {
 		return
@@ -290,7 +279,7 @@ func (s *Server) handleSelectionPreview(w http.ResponseWriter, r *http.Request) 
 	if err != nil {
 		var commandErr *commandError
 		if errors.As(err, &commandErr) {
-			s.writeError(w, http.StatusConflict, commandErr.code, commandErr.message, requestIDFrom(r), nil)
+			s.writeError(w, http.StatusConflict, commandErr.code, commandErr.message, requestIDFrom(r), commandErr.details)
 			return
 		}
 		s.writeError(w, http.StatusConflict, "state_changed", "Der Auswahlkontext hat sich geändert.", requestIDFrom(r), nil)
@@ -312,7 +301,7 @@ func (s *Server) handleQueueValidation(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		var commandErr *commandError
 		if errors.As(err, &commandErr) {
-			s.writeError(w, http.StatusConflict, commandErr.code, commandErr.message, requestIDFrom(r), nil)
+			s.writeError(w, http.StatusConflict, commandErr.code, commandErr.message, requestIDFrom(r), commandErr.details)
 			return
 		}
 		s.writeError(w, http.StatusConflict, "queue_entry_unavailable", "Die Farm-Queue konnte nicht sicher geprüft werden.", requestIDFrom(r), nil)
@@ -339,7 +328,7 @@ func (s *Server) handleCommand(w http.ResponseWriter, r *http.Request, command s
 		var commandErr *commandError
 		if errors.As(err, &commandErr) {
 			s.logger.Warn("API command rejected", "command", command, "code", commandErr.code, "request_id", requestIDFrom(r))
-			s.writeError(w, http.StatusConflict, commandErr.code, commandErr.message, requestIDFrom(r), nil)
+			s.writeError(w, http.StatusConflict, commandErr.code, commandErr.message, requestIDFrom(r), commandErr.details)
 			return
 		}
 		s.writeError(w, http.StatusConflict, "state_changed", "Der Core-Zustand hat sich geändert.", requestIDFrom(r), nil)

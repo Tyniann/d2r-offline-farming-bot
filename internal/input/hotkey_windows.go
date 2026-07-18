@@ -11,8 +11,9 @@ import (
 )
 
 const (
-	hotkeyIDPause = 1
-	hotkeyIDStop  = 2
+	hotkeyIDPause        = 1
+	hotkeyIDStopAfterRun = 2
+	hotkeyIDStop         = 3
 
 	wmHotkey   = 0x0312
 	pmRemove   = 0x0001
@@ -64,7 +65,7 @@ func (l *winHotkeyListener) Listen(ctx context.Context, bindings HotkeyBindings,
 	// thread's message queue and therefore must remain on one OS thread.
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
-	registered := make([]int, 0, 2)
+	registered := make([]int, 0, 3)
 
 	cleanup := func() {
 		for i := len(registered) - 1; i >= 0; i-- {
@@ -82,6 +83,19 @@ func (l *winHotkeyListener) Listen(ctx context.Context, bindings HotkeyBindings,
 		return
 	}
 	registered = append(registered, hotkeyIDPause)
+
+	stopAfterRunVK, ok := virtualKey(bindings.StopAfterRun)
+	if !ok {
+		cleanup()
+		ready <- fmt.Errorf("register stop-after-run hotkey: %w", ErrHotkeyUnavailable)
+		return
+	}
+	if err := l.register(hotkeyIDStopAfterRun, stopAfterRunVK); err != nil {
+		cleanup()
+		ready <- fmt.Errorf("register stop-after-run hotkey: %w", err)
+		return
+	}
+	registered = append(registered, hotkeyIDStopAfterRun)
 
 	stopVK, ok := virtualKey(bindings.Stop)
 	if !ok {
@@ -110,6 +124,8 @@ func (l *winHotkeyListener) Listen(ctx context.Context, bindings HotkeyBindings,
 			switch id {
 			case hotkeyIDPause:
 				events <- HotkeyEvent{Action: HotkeyActionPause, Key: bindings.Pause}
+			case hotkeyIDStopAfterRun:
+				events <- HotkeyEvent{Action: HotkeyActionStopAfterRun, Key: bindings.StopAfterRun}
 			case hotkeyIDStop:
 				events <- HotkeyEvent{Action: HotkeyActionStop, Key: bindings.Stop}
 			}

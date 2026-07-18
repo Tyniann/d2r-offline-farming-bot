@@ -1,7 +1,6 @@
 package app
 
 import (
-	"context"
 	"strings"
 	"testing"
 
@@ -36,34 +35,4 @@ func TestPhase10CharacterizationCountessSessionPreflightBinding(t *testing.T) {
 	if plan.RouteLayoutFingerprint != "e6020b03a517d9aab52964cb0d8fb5fb362f17606408ac65cfa6f68ed5c519e3" {
 		t.Fatalf("resolved Countess layout fingerprint = %q", plan.RouteLayoutFingerprint)
 	}
-}
-
-func TestPhase10CharacterizationSuccessfulActiveGameExitsExactlyOnce(t *testing.T) {
-	driver := &fakeSessionDriver{}
-	result, err := newSessionCycleOrchestrator(driver).execute(context.Background(), true)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if result.Outcome != sessionCycleSuccess {
-		t.Fatalf("cycle result = %+v", result)
-	}
-	if got := countCall(driver.calls, "exit:success"); got != 1 {
-		t.Fatalf("successful exits = %d, want exactly 1; calls=%v", got, driver.calls)
-	}
-	if got := countCall(driver.calls, "start"); got != 0 {
-		t.Fatalf("active game unexpectedly started a new game %d time(s); calls=%v", got, driver.calls)
-	}
-	if reset, exit := indexOf(driver.calls, "run.reset:cycle_evaluate"), indexOf(driver.calls, "exit:success"); reset < 0 || exit < 0 || reset >= exit {
-		t.Fatalf("run reset must precede Save & Exit: %v", driver.calls)
-	}
-}
-
-func countCall(calls []string, target string) int {
-	count := 0
-	for _, call := range calls {
-		if call == target {
-			count++
-		}
-	}
-	return count
 }

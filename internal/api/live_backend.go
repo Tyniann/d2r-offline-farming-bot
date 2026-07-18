@@ -147,8 +147,11 @@ func (b *LiveBackend) UpdateSupervisor(supervisor app.SupervisorSnapshot) {
 		b.supervisorObserved = supervisor.Generation
 	}
 	b.status.State = string(supervisor.State)
+	b.status.LifecyclePhase = string(supervisor.State)
 	b.status.PendingIntent = string(supervisor.PendingIntent)
 	b.status.ActiveRunID = supervisor.ActiveRunID
+	b.status.RunInstanceID = supervisor.RunInstanceID
+	b.status.GameID = supervisor.GameID
 	if supervisor.ActiveRunID == "" {
 		b.status.Step = ""
 	}
@@ -176,7 +179,8 @@ func (b *LiveBackend) Update(runtime app.UIStatusSnapshot, supervisor app.Superv
 	previous := b.status
 	status := StatusDTO{
 		CoreVersion: previous.CoreVersion, State: string(supervisor.State), Generation: supervisor.Generation,
-		PendingIntent: string(supervisor.PendingIntent), ActiveRunID: supervisor.ActiveRunID, Step: runtime.Step,
+		LifecyclePhase: string(supervisor.State), PendingIntent: string(supervisor.PendingIntent), ActiveRunID: supervisor.ActiveRunID,
+		RunInstanceID: supervisor.RunInstanceID, GameID: supervisor.GameID, Step: runtime.Step,
 		D2R:       D2RDTO{State: runtime.ProcessState, PID: runtime.PID, WindowBound: runtime.WindowBound, ClientWidth: runtime.ClientWidth, ClientHeight: runtime.ClientHeight},
 		Input:     InputDTO{Enabled: runtime.InputEnabled, Paused: runtime.InputPaused, Stopped: runtime.InputStopped},
 		World:     WorldDTO{Valid: runtime.WorldValid, Phase: runtime.WorldPhase, AreaID: runtime.AreaID, AreaName: runtime.AreaName},
@@ -197,7 +201,23 @@ func (b *LiveBackend) Update(runtime app.UIStatusSnapshot, supervisor app.Superv
 
 func (b *LiveBackend) publishStatusDeltas(previous, status StatusDTO) {
 	if previous.State != status.State || previous.Generation != status.Generation {
-		b.publisher.Publish(telemetry.LiveEvent{Event: "supervisor_state_changed", Details: map[string]any{"state": status.State, "generation": status.Generation}})
+		b.publisher.Publish(telemetry.LiveEvent{Event: "supervisor_state_changed", GameID: status.GameID, RunID: status.RunInstanceID, Run: status.ActiveRunID, Details: map[string]any{"state": status.State, "generation": status.Generation}})
+	}
+	if previous.GameID != status.GameID {
+		if previous.GameID != "" {
+			b.publisher.Publish(telemetry.LiveEvent{Event: "game_exited", GameID: previous.GameID, RunID: previous.RunInstanceID, Run: previous.ActiveRunID})
+		}
+		if status.GameID != "" {
+			b.publisher.Publish(telemetry.LiveEvent{Event: "game_started", GameID: status.GameID, RunID: status.RunInstanceID, Run: status.ActiveRunID, Details: map[string]any{"cycle": status.Queue.Cycle}})
+		}
+	}
+	if previous.RunInstanceID != status.RunInstanceID {
+		if previous.RunInstanceID != "" {
+			b.publisher.Publish(telemetry.LiveEvent{Event: "run_finished", GameID: previous.GameID, RunID: previous.RunInstanceID, Run: previous.ActiveRunID})
+		}
+		if status.RunInstanceID != "" {
+			b.publisher.Publish(telemetry.LiveEvent{Event: "run_started", GameID: status.GameID, RunID: status.RunInstanceID, Run: status.ActiveRunID, Details: map[string]any{"queue_index": status.Queue.Index, "cycle": status.Queue.Cycle}})
+		}
 	}
 	if previous.D2R != status.D2R {
 		b.publisher.Publish(telemetry.LiveEvent{Event: "d2r_state_changed", Details: map[string]any{"state": status.D2R.State, "window_bound": status.D2R.WindowBound}})
@@ -212,7 +232,7 @@ func (b *LiveBackend) publishStatusDeltas(previous, status StatusDTO) {
 		b.publisher.Publish(telemetry.LiveEvent{Event: "world_state_changed", Details: map[string]any{"valid": status.World.Valid, "phase": status.World.Phase}})
 	}
 	if previous.Step != status.Step && status.Step != "" {
-		b.publisher.Publish(telemetry.LiveEvent{Event: "step_changed", Run: status.ActiveRunID, Step: status.Step})
+		b.publisher.Publish(telemetry.LiveEvent{Event: "step_changed", GameID: status.GameID, RunID: status.RunInstanceID, Run: status.ActiveRunID, Step: status.Step})
 	}
 	if status.LastError != nil && (previous.LastError == nil || previous.LastError.Message != status.LastError.Message) {
 		b.publisher.Publish(telemetry.LiveEvent{Event: "runtime_error", Reason: status.LastError.Code, Details: map[string]any{"message": status.LastError.Message}})
@@ -240,7 +260,7 @@ func (b *LiveBackend) ValidateQueue(request QueueValidationRequest) (QueueValida
 	if err != nil {
 		var queueErr *app.QueueValidationError
 		if errors.As(err, &queueErr) {
-			return QueueValidationDTO{}, &commandError{code: string(queueErr.Code), message: "Die Farm-Queue ist nicht verfügbar: " + queueErr.Error()}
+			return QueueValidationDTO{}, queueCommandError(queueErr)
 		}
 		var supervisorErr *app.SupervisorCommandError
 		if errors.As(err, &supervisorErr) {
@@ -450,6 +470,13 @@ func (b *LiveBackend) sessionCommand(name string, request CommandRequest) (Comma
 	}
 	statusGeneration := b.status.Generation
 	statusState := b.status.State
+	startRuntime := app.UIStatusSnapshot{
+		ProcessState: b.status.D2R.State,
+		WindowBound:  b.status.D2R.WindowBound,
+		WorldValid:   b.status.World.Valid,
+		WorldPhase:   b.status.World.Phase,
+		AreaID:       b.status.World.AreaID,
+	}
 	selection := b.status.Selection
 	catalogRevision := b.catalog.Revision
 	supervisor := b.supervisor
@@ -470,7 +497,7 @@ func (b *LiveBackend) sessionCommand(name string, request CommandRequest) (Comma
 	switch name {
 	case "start_queue":
 		var payload SessionStartPayload
-		if err := decodeCommandPayload(request.Payload, &payload); err != nil {
+		if decodeErr := decodeCommandPayload(request.Payload, &payload); decodeErr != nil {
 			return CommandResponse{}, &commandError{code: "request_invalid", message: "Die Queue-Startdaten sind ungültig."}
 		}
 		plan, validateErr := app.ValidateFarmQueue(b.cfg, app.FarmQueueValidationRequest{
@@ -480,12 +507,12 @@ func (b *LiveBackend) sessionCommand(name string, request CommandRequest) (Comma
 			return CommandResponse{}, mapQueueCommandError(validateErr)
 		}
 		if beforeWorker != nil {
-			if err := beforeWorker(); err != nil {
-				return CommandResponse{}, &commandError{code: "command_conflict", message: "Der passive Monitor konnte vor dem Queue-Start nicht beendet werden: " + err.Error()}
+			if monitorErr := beforeWorker(); monitorErr != nil {
+				return CommandResponse{}, &commandError{code: "command_conflict", message: "Der passive Monitor konnte vor dem Queue-Start nicht beendet werden: " + monitorErr.Error()}
 			}
 		}
 		if beginQueue != nil {
-			beginQueue(statusState == string(app.SupervisorStateIdleInGame))
+			beginQueue(app.CanAdoptQueueGame(app.SupervisorState(statusState), startRuntime))
 		}
 		snapshot, err = supervisor.StartQueue(meta, plan)
 	case "pause_after_run":
@@ -503,8 +530,8 @@ func (b *LiveBackend) sessionCommand(name string, request CommandRequest) (Comma
 			return CommandResponse{}, &commandError{code: "request_invalid", message: "Resume akzeptiert keine Nutzdaten."}
 		}
 		if beforeWorker != nil {
-			if err := beforeWorker(); err != nil {
-				return CommandResponse{}, &commandError{code: "command_conflict", message: "Der passive Monitor konnte vor Resume nicht beendet werden: " + err.Error()}
+			if monitorErr := beforeWorker(); monitorErr != nil {
+				return CommandResponse{}, &commandError{code: "command_conflict", message: "Der passive Monitor konnte vor Resume nicht beendet werden: " + monitorErr.Error()}
 			}
 		}
 		snapshot, err = supervisor.Resume(meta)
@@ -577,13 +604,21 @@ func emptyCommandPayload(raw json.RawMessage) bool {
 func mapQueueCommandError(err error) error {
 	var queueErr *app.QueueValidationError
 	if errors.As(err, &queueErr) {
-		return &commandError{code: string(queueErr.Code), message: "Die Farm-Queue ist nicht verfügbar: " + queueErr.Error()}
+		return queueCommandError(queueErr)
 	}
 	var supervisorErr *app.SupervisorCommandError
 	if errors.As(err, &supervisorErr) {
 		return &commandError{code: string(supervisorErr.Code), message: "Der Queue-Kontext hat sich geändert."}
 	}
 	return &commandError{code: "queue_entry_unavailable", message: "Die Farm-Queue konnte nicht sicher geprüft werden."}
+}
+
+func queueCommandError(queueErr *app.QueueValidationError) *commandError {
+	details := map[string]any{"run_id": queueErr.RunID, "duplicate_index": queueErr.EntryIndex}
+	if queueErr.Code == app.QueueReasonDuplicateRun {
+		details["first_index"] = queueErr.FirstIndex
+	}
+	return &commandError{code: string(queueErr.Code), message: "Die Farm-Queue ist nicht verfügbar: " + queueErr.Error(), details: details}
 }
 
 func mapSupervisorCommandError(err error) error {

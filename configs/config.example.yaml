@@ -63,6 +63,7 @@ input:
   # Für --input-test muss enabled: true gesetzt sein.
   enabled: false
   pause_hotkey: pause
+  stop_after_run_hotkey: f10
   stop_hotkey: f12
   key_delay_ms_min: 10
   key_delay_ms_max: 40
@@ -133,7 +134,7 @@ combat_profiles:
       town_ready:
         - skill: bone_armor
           target: self
-          once_per_game: true
+          once_per_game: false
           delay_ms: 5000
           settle_ms: 1500
       boss_engage:

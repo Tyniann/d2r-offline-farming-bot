@@ -58,6 +58,21 @@ func TestHandleHotkeyEventStop(t *testing.T) {
 	}
 }
 
+func TestHandleHotkeyEventRoutesStopAfterRunWithoutCancellingInput(t *testing.T) {
+	in := &mockInput{}
+	rt := testRuntimeWithInput(&mockProcess{}, &mockProbe{}, in, Options{})
+	calls := 0
+	rt.setStopAfterRunHotkeyHandler(func() error {
+		calls++
+		return nil
+	})
+	cancelled := false
+	rt.handleHotkeyEvent(input.HotkeyEvent{Action: input.HotkeyActionStopAfterRun}, func() { cancelled = true })
+	if calls != 1 || cancelled || in.stopCalls != 0 {
+		t.Fatalf("calls=%d cancelled=%t stop_calls=%d", calls, cancelled, in.stopCalls)
+	}
+}
+
 func TestRunHotkeyReadyError(t *testing.T) {
 	in := &mockInput{}
 	in.listenCalls = 0

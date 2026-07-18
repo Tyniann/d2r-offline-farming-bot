@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"image"
-	"strings"
 	"time"
 
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/world"
@@ -152,20 +151,20 @@ func (rt *Runtime) navigateOfflineCharacter(ctx context.Context, character, anch
 			if err != nil {
 				return fmt.Errorf("character selection capture: %w", err)
 			}
-			if err := verifyCharacterScreenCapture(capture, play, dialog); err != nil {
-				return err
+			if verifyErr := verifyCharacterScreenCapture(capture, play, dialog); verifyErr != nil {
+				return verifyErr
 			}
 			targetMatched := false
 			if machine.homeSent {
-				targetScore, err := matchScreenAnchor(capture, target)
-				if err != nil {
-					return err
+				targetScore, targetErr := matchScreenAnchor(capture, target)
+				if targetErr != nil {
+					return targetErr
 				}
 				targetMatched = targetScore <= screenAnchorMaxMeanDifference
 			}
-			action, err := machine.tick(targetMatched)
-			if err != nil {
-				return err
+			action, actionErr := machine.tick(targetMatched)
+			if actionErr != nil {
+				return actionErr
 			}
 			switch action {
 			case characterNavigationHome:
@@ -208,8 +207,4 @@ func verifyCharacterScreenCapture(capture image.Image, play, dialog screenAnchor
 		return fmt.Errorf("character_screen_unconfirmed: difficulty dialog is open (play=%.4f dialog=%.4f)", playScore, dialogScore)
 	}
 	return fmt.Errorf("character_screen_unconfirmed: screen anchors are ambiguous (play=%.4f dialog=%.4f)", playScore, dialogScore)
-}
-
-func sameCharacter(a, b string) bool {
-	return strings.EqualFold(strings.TrimSpace(a), strings.TrimSpace(b))
 }

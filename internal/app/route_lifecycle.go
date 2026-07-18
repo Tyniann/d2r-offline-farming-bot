@@ -152,8 +152,8 @@ func (s *RouteLifecycleStore) Confirm(preview RouteLifecyclePreview, at time.Tim
 		return RouteLifecycleManifest{}, err
 	}
 	if created {
-		if err := s.writeLocked(manifest); err != nil {
-			return RouteLifecycleManifest{}, err
+		if writeErr := s.writeLocked(manifest); writeErr != nil {
+			return RouteLifecycleManifest{}, writeErr
 		}
 	}
 	if manifest.Revision != preview.Revision {
@@ -202,8 +202,8 @@ func (s *RouteLifecycleStore) InvalidateLayout(character string, expectedRevisio
 		return RouteLifecycleManifest{}, err
 	}
 	if created {
-		if err := s.writeLocked(manifest); err != nil {
-			return RouteLifecycleManifest{}, err
+		if writeErr := s.writeLocked(manifest); writeErr != nil {
+			return RouteLifecycleManifest{}, writeErr
 		}
 	}
 	if manifest.Revision != expectedRevision {
@@ -237,8 +237,8 @@ func (s *RouteLifecycleStore) RecordRoute(path string) (RouteLifecycleManifest, 
 		return RouteLifecycleManifest{}, err
 	}
 	if created {
-		if err := s.writeLocked(manifest); err != nil {
-			return RouteLifecycleManifest{}, err
+		if writeErr := s.writeLocked(manifest); writeErr != nil {
+			return RouteLifecycleManifest{}, writeErr
 		}
 	}
 	route, err := pathing.LoadRoute(path)
@@ -271,11 +271,11 @@ func (s *RouteLifecycleStore) loadOrBootstrapLocked() (RouteLifecycleManifest, [
 	data, err := os.ReadFile(s.path)
 	if err == nil {
 		var manifest RouteLifecycleManifest
-		if err := yaml.Unmarshal(data, &manifest); err != nil {
-			return RouteLifecycleManifest{}, nil, false, fmt.Errorf("decode route lifecycle %q: %w", s.path, err)
+		if decodeErr := yaml.Unmarshal(data, &manifest); decodeErr != nil {
+			return RouteLifecycleManifest{}, nil, false, fmt.Errorf("decode route lifecycle %q: %w", s.path, decodeErr)
 		}
-		if err := validateRouteLifecycleManifest(manifest); err != nil {
-			return RouteLifecycleManifest{}, nil, false, err
+		if validationErr := validateRouteLifecycleManifest(manifest); validationErr != nil {
+			return RouteLifecycleManifest{}, nil, false, validationErr
 		}
 		return manifest, entries, false, nil
 	}
@@ -311,8 +311,8 @@ func (s *RouteLifecycleStore) writeLocked(manifest RouteLifecycleManifest) error
 		return fmt.Errorf("encode route lifecycle: %w", err)
 	}
 	directory := filepath.Dir(s.path)
-	if err := os.MkdirAll(directory, 0o755); err != nil {
-		return fmt.Errorf("create route lifecycle directory %q: %w", directory, err)
+	if mkdirErr := os.MkdirAll(directory, 0o755); mkdirErr != nil {
+		return fmt.Errorf("create route lifecycle directory %q: %w", directory, mkdirErr)
 	}
 	tmp, err := os.CreateTemp(directory, ".route-lifecycle-*.tmp")
 	if err != nil {

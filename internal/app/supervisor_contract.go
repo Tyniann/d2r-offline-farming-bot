@@ -12,12 +12,16 @@ const (
 	SupervisorStateActivatingSelection SupervisorState = "activating_selection"
 	// SupervisorStateIdleInGame accepts commands while a verified game is active and no run executes.
 	SupervisorStateIdleInGame SupervisorState = "idle_in_game"
+	// SupervisorStateStartingGame starts and verifies one game before the first run of a queue cycle.
+	SupervisorStateStartingGame SupervisorState = "starting_game"
 	// SupervisorStateStartingRun performs the preflight and reset barrier for one queue entry.
 	SupervisorStateStartingRun SupervisorState = "starting_run"
-	// SupervisorStateRunningRun executes one complete Phase-10 session unit through Save & Exit.
+	// SupervisorStateRunningRun executes one run through loot and the safe Town handoff.
 	SupervisorStateRunningRun SupervisorState = "running_run"
-	// SupervisorStatePausedBetweenRuns waits after a complete run and before the next queue entry.
+	// SupervisorStatePausedBetweenRuns waits in the verified open game before the next queue entry.
 	SupervisorStatePausedBetweenRuns SupervisorState = "paused_between_runs"
+	// SupervisorStateExitingGame performs the supervisor-owned verified Save & Exit boundary.
+	SupervisorStateExitingGame SupervisorState = "exiting_game"
 	// SupervisorStateCancelling propagates immediate cancellation and permits no new gameplay input.
 	SupervisorStateCancelling SupervisorState = "cancelling"
 	// SupervisorStateStoppedError exposes a terminal queue error until a new valid command resets it.
@@ -33,11 +37,11 @@ const (
 	SupervisorCommandApplySelection SupervisorCommand = "apply_selection"
 	// SupervisorCommandStartQueue starts a fully preflighted runtime queue.
 	SupervisorCommandStartQueue SupervisorCommand = "start_queue"
-	// SupervisorCommandPauseAfterRun requests a pause after Town and Save & Exit complete.
+	// SupervisorCommandPauseAfterRun requests a pause after the safe Town handoff without leaving the game.
 	SupervisorCommandPauseAfterRun SupervisorCommand = "pause_after_run"
-	// SupervisorCommandResume starts the next queue entry after a between-runs pause.
+	// SupervisorCommandResume revalidates the open game and starts the next queue entry.
 	SupervisorCommandResume SupervisorCommand = "resume"
-	// SupervisorCommandStopAfterRun requests an orderly stop after Town and Save & Exit complete.
+	// SupervisorCommandStopAfterRun requests one orderly Save & Exit after the safe Town handoff.
 	SupervisorCommandStopAfterRun SupervisorCommand = "stop_after_run"
 	// SupervisorCommandEmergencyStop requests the same immediate cancellation path as F11.
 	SupervisorCommandEmergencyStop SupervisorCommand = "emergency_stop"
@@ -50,7 +54,7 @@ type SupervisorIntent string
 const (
 	// SupervisorIntentNone allows cyclic queue advancement after success.
 	SupervisorIntentNone SupervisorIntent = "none"
-	// SupervisorIntentPauseAfterRun pauses before the next queue entry.
+	// SupervisorIntentPauseAfterRun pauses in the open game before the next queue entry.
 	SupervisorIntentPauseAfterRun SupervisorIntent = "pause_after_run"
 	// SupervisorIntentStopAfterRun discards the active queue after the current run.
 	SupervisorIntentStopAfterRun SupervisorIntent = "stop_after_run"
@@ -81,9 +85,11 @@ var supervisorTransitionContracts = []SupervisorTransitionContract{
 	{State: SupervisorStateIdle, Commands: []SupervisorCommand{SupervisorCommandApplySelection, SupervisorCommandStartQueue}},
 	{State: SupervisorStateActivatingSelection, Commands: []SupervisorCommand{SupervisorCommandEmergencyStop}},
 	{State: SupervisorStateIdleInGame, Commands: []SupervisorCommand{SupervisorCommandApplySelection, SupervisorCommandStartQueue}},
+	{State: SupervisorStateStartingGame, Commands: []SupervisorCommand{SupervisorCommandEmergencyStop}},
 	{State: SupervisorStateStartingRun, Commands: []SupervisorCommand{SupervisorCommandEmergencyStop}},
 	{State: SupervisorStateRunningRun, Commands: []SupervisorCommand{SupervisorCommandPauseAfterRun, SupervisorCommandStopAfterRun, SupervisorCommandEmergencyStop}},
 	{State: SupervisorStatePausedBetweenRuns, Commands: []SupervisorCommand{SupervisorCommandResume, SupervisorCommandEmergencyStop}},
+	{State: SupervisorStateExitingGame, Commands: []SupervisorCommand{SupervisorCommandEmergencyStop}},
 	{State: SupervisorStateCancelling},
 	{State: SupervisorStateStoppedError, Commands: []SupervisorCommand{SupervisorCommandApplySelection, SupervisorCommandStartQueue}},
 }

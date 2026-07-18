@@ -132,13 +132,14 @@ func (c *LootConfig) UnmarshalYAML(value *yaml.Node) error {
 
 // InputConfig holds keyboard timing, safety settings, and explicit in-game bindings.
 type InputConfig struct {
-	Enabled       bool                `yaml:"enabled"`
-	PauseHotkey   string              `yaml:"pause_hotkey"`
-	StopHotkey    string              `yaml:"stop_hotkey"`
-	KeyDelayMsMin int                 `yaml:"key_delay_ms_min"`
-	KeyDelayMsMax int                 `yaml:"key_delay_ms_max"`
-	ComboHoldMs   int                 `yaml:"combo_hold_ms"`
-	Bindings      InputBindingsConfig `yaml:"bindings"`
+	Enabled            bool                `yaml:"enabled"`
+	PauseHotkey        string              `yaml:"pause_hotkey"`
+	StopAfterRunHotkey string              `yaml:"stop_after_run_hotkey"`
+	StopHotkey         string              `yaml:"stop_hotkey"`
+	KeyDelayMsMin      int                 `yaml:"key_delay_ms_min"`
+	KeyDelayMsMax      int                 `yaml:"key_delay_ms_max"`
+	ComboHoldMs        int                 `yaml:"combo_hold_ms"`
+	Bindings           InputBindingsConfig `yaml:"bindings"`
 
 	sectionPresent bool `yaml:"-"`
 }
@@ -521,6 +522,7 @@ func (c *InputConfig) applyDefaults() {
 	if !c.sectionPresent {
 		c.Enabled = false
 		c.PauseHotkey = "pause"
+		c.StopAfterRunHotkey = "f10"
 		c.StopHotkey = "f12"
 		c.KeyDelayMsMin = def.KeyDelayMsMin
 		c.KeyDelayMsMax = def.KeyDelayMsMax
@@ -530,6 +532,9 @@ func (c *InputConfig) applyDefaults() {
 
 	if c.PauseHotkey == "" {
 		c.PauseHotkey = "pause"
+	}
+	if c.StopAfterRunHotkey == "" {
+		c.StopAfterRunHotkey = "f10"
 	}
 	if c.StopHotkey == "" {
 		c.StopHotkey = "f12"
@@ -552,14 +557,20 @@ func (c *InputConfig) validate() error {
 	if c.PauseHotkey == "" {
 		return fmt.Errorf("input.pause_hotkey is required")
 	}
+	if c.StopAfterRunHotkey == "" {
+		return fmt.Errorf("input.stop_after_run_hotkey is required")
+	}
 	if c.StopHotkey == "" {
 		return fmt.Errorf("input.stop_hotkey is required")
 	}
-	if c.PauseHotkey == c.StopHotkey {
-		return fmt.Errorf("input.pause_hotkey and input.stop_hotkey must differ")
+	if c.PauseHotkey == c.StopAfterRunHotkey || c.PauseHotkey == c.StopHotkey || c.StopAfterRunHotkey == c.StopHotkey {
+		return fmt.Errorf("input pause, stop-after-run, and stop hotkeys must differ")
 	}
 	if err := input.ValidateKeyStrings(c.PauseHotkey); err != nil {
 		return fmt.Errorf("input.pause_hotkey: %w", err)
+	}
+	if err := input.ValidateKeyStrings(c.StopAfterRunHotkey); err != nil {
+		return fmt.Errorf("input.stop_after_run_hotkey: %w", err)
 	}
 	if err := input.ValidateKeyStrings(c.StopHotkey); err != nil {
 		return fmt.Errorf("input.stop_hotkey: %w", err)

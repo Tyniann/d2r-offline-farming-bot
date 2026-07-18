@@ -1,58 +1,170 @@
 package app
 
 import (
+	"bufio"
 	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"os"
+	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
+
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/config"
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/telemetry"
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/world"
 )
 
-func TestRuntimeQueueRunnerConsumesOnlyFirstConfirmedGame(t *testing.T) {
-	var initial []bool
-	runner := &RuntimeQueueRunner{initialInGame: true}
-	runner.execute = func(_ context.Context, _ SupervisorRunRequest, active bool) (SupervisorRunResult, bool) {
-		initial = append(initial, active)
-		return SupervisorRunResult{Disposition: QueueRunAdvance}, true
+type fakeQueueRunUnit struct {
+	runID         string
+	events        *[]string
+	continuations *[]bool
+	result        SupervisorRunResult
+}
+
+func (u *fakeQueueRunUnit) StartOrVerifyGame(_ context.Context, active bool) error {
+	*u.events = append(*u.events, fmt.Sprintf("start:%s:%t", u.runID, active))
+	return nil
+}
+
+func (u *fakeQueueRunUnit) VerifySameGame(context.Context) error {
+	*u.events = append(*u.events, "verify:"+u.runID)
+	return nil
+}
+
+func (u *fakeQueueRunUnit) RunToTown(_ context.Context, _ SupervisorRunRequest, sameGameContinuation bool) SupervisorRunResult {
+	*u.events = append(*u.events, "run:"+u.runID)
+	if u.continuations != nil {
+		*u.continuations = append(*u.continuations, sameGameContinuation)
 	}
-	for _, runID := range []string{"countess", "mephisto", "countess"} {
-		if result := runner.Run(context.Background(), SupervisorRunRequest{RunID: runID}); result.Disposition != QueueRunAdvance {
-			t.Fatalf("result = %+v", result)
-		}
+	return u.result
+}
+
+func (u *fakeQueueRunUnit) ExitGame(context.Context) error {
+	*u.events = append(*u.events, "exit:"+u.runID)
+	return nil
+}
+
+func (u *fakeQueueRunUnit) Close() {
+	*u.events = append(*u.events, "close:"+u.runID)
+}
+
+func newFakeRuntimeQueueRunner(events *[]string) *RuntimeQueueRunner {
+	return &RuntimeQueueRunner{newUnit: func(runID string) (queueRunUnit, error) {
+		return &fakeQueueRunUnit{runID: runID, events: events, result: SupervisorRunResult{Disposition: QueueRunAdvance, SafeToExit: true}}, nil
+	}}
+}
+
+func TestCanAdoptQueueGameUsesConfirmedPassiveRuntime(t *testing.T) {
+	inGame := UIStatusSnapshot{
+		ProcessState: "attached",
+		WindowBound:  true,
+		WorldValid:   true,
+		WorldPhase:   world.GamePhaseInGame.String(),
+		AreaID:       uint32(world.RogueEncampment),
 	}
-	if want := []bool{true, false, false}; !reflect.DeepEqual(initial, want) {
-		t.Fatalf("initial-in-game sequence = %v, want %v", initial, want)
+	tests := []struct {
+		name    string
+		state   SupervisorState
+		runtime UIStatusSnapshot
+		want    bool
+	}{
+		{name: "explicit idle in game", state: SupervisorStateIdleInGame, want: true},
+		{name: "passive monitor confirmed open game", state: SupervisorStateIdle, runtime: inGame, want: true},
+		{name: "character screen", state: SupervisorStateIdle, runtime: UIStatusSnapshot{ProcessState: "attached", WindowBound: true, WorldValid: true, WorldPhase: world.GamePhaseMenu.String()}, want: false},
+		{name: "wrong start area", state: SupervisorStateIdle, runtime: UIStatusSnapshot{ProcessState: "attached", WindowBound: true, WorldValid: true, WorldPhase: world.GamePhaseInGame.String(), AreaID: uint32(world.BlackMarsh)}, want: false},
+		{name: "detached", state: SupervisorStateIdle, runtime: UIStatusSnapshot{}, want: false},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if got := CanAdoptQueueGame(test.state, test.runtime); got != test.want {
+				t.Fatalf("CanAdoptQueueGame() = %t, want %t", got, test.want)
+			}
+		})
 	}
 }
 
-func TestRuntimeQueueRunnerPreservesConfirmedGameBeforeExit(t *testing.T) {
-	var initial []bool
-	runner := &RuntimeQueueRunner{initialInGame: true}
-	runner.execute = func(_ context.Context, _ SupervisorRunRequest, active bool) (SupervisorRunResult, bool) {
-		initial = append(initial, active)
-		if len(initial) == 1 {
-			return SupervisorRunResult{Disposition: QueueRunStop, Reason: "preflight_failed"}, false
-		}
-		return SupervisorRunResult{Disposition: QueueRunAdvance}, true
+func TestFocusVerifiedQueueGameReusesGuardedInputFocus(t *testing.T) {
+	controller := &mockInput{}
+	if err := focusVerifiedQueueGame(controller); err != nil {
+		t.Fatal(err)
 	}
-	runner.Run(context.Background(), SupervisorRunRequest{RunID: "countess"})
-	runner.Run(context.Background(), SupervisorRunRequest{RunID: "countess"})
-	if want := []bool{true, true}; !reflect.DeepEqual(initial, want) {
-		t.Fatalf("initial-in-game sequence = %v, want %v", initial, want)
+	if controller.focusCalls != 1 {
+		t.Fatalf("focus calls = %d, want 1", controller.focusCalls)
+	}
+	controller.focusErr = errors.New("foreground denied")
+	if err := focusVerifiedQueueGame(controller); err == nil || !strings.Contains(err.Error(), "focus verified queue game") {
+		t.Fatalf("focus failure = %v", err)
 	}
 }
 
-func TestRuntimeQueueRunnerResetsInitialGameForEveryQueue(t *testing.T) {
-	var initial []bool
-	runner := &RuntimeQueueRunner{}
-	runner.execute = func(_ context.Context, _ SupervisorRunRequest, active bool) (SupervisorRunResult, bool) {
-		initial = append(initial, active)
-		return SupervisorRunResult{Disposition: QueueRunAdvance}, true
+func TestRuntimeQueueRunnerSeparatesRunFromExit(t *testing.T) {
+	var events []string
+	runner := newFakeRuntimeQueueRunner(&events)
+	runner.BeginQueue(true)
+	request := SupervisorRunRequest{RunID: "countess"}
+	if err := runner.StartGame(context.Background(), request); err != nil {
+		t.Fatal(err)
+	}
+	if result := runner.Run(context.Background(), request); result.Disposition != QueueRunAdvance || !result.SafeToExit {
+		t.Fatalf("run result = %+v", result)
+	}
+	if reflect.DeepEqual(events, []string{"start:countess:true", "verify:countess", "run:countess", "exit:countess"}) {
+		t.Fatal("RunToTown performed an exit")
+	}
+	if err := runner.ExitGame(context.Background(), request, "queue_wrap"); err != nil {
+		t.Fatal(err)
+	}
+	if err := runner.ExitGame(context.Background(), request, "duplicate"); err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"start:countess:true", "verify:countess", "run:countess", "exit:countess"}
+	if !reflect.DeepEqual(events, want) {
+		t.Fatalf("events = %v, want %v", events, want)
+	}
+}
+
+func TestRuntimeQueueRunnerKeepsGameAcrossFreshRunUnits(t *testing.T) {
+	var events []string
+	var continuations []bool
+	runner := newFakeRuntimeQueueRunner(&events)
+	runner.newUnit = func(runID string) (queueRunUnit, error) {
+		return &fakeQueueRunUnit{runID: runID, events: &events, continuations: &continuations, result: SupervisorRunResult{Disposition: QueueRunAdvance, SafeToExit: true}}, nil
 	}
 	runner.BeginQueue(false)
-	runner.Run(context.Background(), SupervisorRunRequest{RunID: "countess"})
+	countess := SupervisorRunRequest{RunID: "countess", QueueIndex: 0}
+	mephisto := SupervisorRunRequest{RunID: "mephisto", QueueIndex: 1}
+	if err := runner.StartGame(context.Background(), countess); err != nil {
+		t.Fatal(err)
+	}
+	runner.Run(context.Background(), countess)
+	runner.Run(context.Background(), mephisto)
+	want := []string{"start:countess:false", "verify:countess", "run:countess", "close:countess", "verify:mephisto", "run:mephisto"}
+	if !reflect.DeepEqual(events, want) {
+		t.Fatalf("events = %v, want %v", events, want)
+	}
+	if !reflect.DeepEqual(continuations, []bool{false, true}) {
+		t.Fatalf("same-game continuations = %v, want [false true]", continuations)
+	}
+}
+
+func TestRuntimeQueueRunnerRevalidatesPausedGame(t *testing.T) {
+	var events []string
+	runner := newFakeRuntimeQueueRunner(&events)
 	runner.BeginQueue(true)
-	runner.Run(context.Background(), SupervisorRunRequest{RunID: "mephisto"})
-	if want := []bool{false, true}; !reflect.DeepEqual(initial, want) {
-		t.Fatalf("queue reset sequence = %v, want %v", initial, want)
+	countess := SupervisorRunRequest{RunID: "countess"}
+	mephisto := SupervisorRunRequest{RunID: "mephisto"}
+	if err := runner.StartGame(context.Background(), countess); err != nil {
+		t.Fatal(err)
+	}
+	if err := runner.RevalidateGame(context.Background(), mephisto); err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"start:countess:true", "close:countess", "verify:mephisto"}
+	if !reflect.DeepEqual(events, want) {
+		t.Fatalf("events = %v, want %v", events, want)
 	}
 }
 
@@ -68,5 +180,72 @@ func TestRuntimeQueueRunnerRoutesPauseAfterRun(t *testing.T) {
 	}
 	if calls != 1 {
 		t.Fatalf("pause-after-run calls = %d, want 1", calls)
+	}
+}
+
+func TestRuntimeQueueRunnerRoutesStopAfterRun(t *testing.T) {
+	runner := &RuntimeQueueRunner{}
+	calls := 0
+	runner.SetStopAfterRunHandler(func() error {
+		calls++
+		return nil
+	})
+	if err := runner.requestStopAfterRun(); err != nil {
+		t.Fatal(err)
+	}
+	if calls != 1 {
+		t.Fatalf("stop-after-run calls = %d, want 1", calls)
+	}
+}
+
+func TestRuntimeQueueRunnerPersistsGameAndRunBoundaries(t *testing.T) {
+	var events []string
+	cfg := &config.Config{Telemetry: config.TelemetryConfig{Directory: t.TempDir()}, Session: config.SessionConfig{MaxRuns: 4, MaxDurationMs: 60000}}
+	runner := newFakeRuntimeQueueRunner(&events)
+	runner.config = cfg
+	runner.persistEvents = true
+	runner.BeginQueue(true)
+	countess := SupervisorRunRequest{RunID: "countess", ExecutionID: "run-001", GameID: "game-001"}
+	mephisto := SupervisorRunRequest{RunID: "mephisto", ExecutionID: "run-002", GameID: "game-001"}
+	if err := runner.StartGame(context.Background(), countess); err != nil {
+		t.Fatal(err)
+	}
+	runner.Run(context.Background(), countess)
+	runner.Run(context.Background(), mephisto)
+	if err := runner.ExitGame(context.Background(), mephisto, "queue_wrap"); err != nil {
+		t.Fatal(err)
+	}
+	runner.CloseQueue()
+	files, err := filepath.Glob(filepath.Join(cfg.Telemetry.Directory, "session-*.jsonl"))
+	if err != nil || len(files) != 1 {
+		t.Fatalf("session files=%v err=%v", files, err)
+	}
+	file, err := os.Open(files[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer file.Close()
+	var persisted []telemetry.Event
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		var event telemetry.Event
+		if err := json.Unmarshal(scanner.Bytes(), &event); err != nil {
+			t.Fatal(err)
+		}
+		persisted = append(persisted, event)
+	}
+	if err := scanner.Err(); err != nil {
+		t.Fatal(err)
+	}
+	got := make([]telemetry.EventName, len(persisted))
+	for i, event := range persisted {
+		got[i] = event.Event
+	}
+	want := []telemetry.EventName{telemetry.SessionStarted, telemetry.GameStarted, telemetry.RunStarted, telemetry.RunCompleted, telemetry.RunStarted, telemetry.RunCompleted, telemetry.GameExited}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("persisted events = %v, want %v", got, want)
+	}
+	if persisted[2].GameID != persisted[4].GameID || persisted[2].RunID == persisted[4].RunID {
+		t.Fatalf("run correlation = %+v / %+v", persisted[2], persisted[4])
 	}
 }

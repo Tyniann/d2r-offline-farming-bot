@@ -52,11 +52,11 @@ func (m *mockWindowAPI) IsForeground(_ nativeWindow) bool {
 }
 
 func testSafetyEnabled() SafetyConfig {
-	return SafetyConfig{Enabled: true, PauseHotkey: "pause", StopHotkey: "f12"}
+	return SafetyConfig{Enabled: true, PauseHotkey: "pause", StopAfterRunHotkey: "f10", StopHotkey: "f12"}
 }
 
 func testSafetyDisabled() SafetyConfig {
-	return SafetyConfig{Enabled: false, PauseHotkey: "pause", StopHotkey: "f12"}
+	return SafetyConfig{Enabled: false, PauseHotkey: "pause", StopAfterRunHotkey: "f10", StopHotkey: "f12"}
 }
 
 func mustNewTestController(api windowAPI, keys KeySender, mouse MouseSender, kb KeyboardConfig, safety SafetyConfig, timings keyTimings) *Controller {

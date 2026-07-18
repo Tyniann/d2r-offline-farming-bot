@@ -49,6 +49,19 @@ func preparationState(pos world.Position, at time.Time, fullBelt bool) world.Sta
 	return state
 }
 
+func TestLayoutTownWaypointWalkerReusesConfirmedWaypointHandoff(t *testing.T) {
+	in := &preparationInputMock{}
+	adapter := &townPreparationAdapter{log: config.NewLogger("error"), driver: in, pathCfg: pathing.DefaultConfig()}
+	state := preparationState(world.Position{X: 80, Y: 70}, time.Now(), true)
+	result := (&layoutTownWaypointWalker{adapter: adapter}).TickAct1Waypoint(context.Background(), state)
+	if result.Status != pathing.TownWalkWaypointVisible || !result.Done {
+		t.Fatalf("waypoint handoff result = %+v", result)
+	}
+	if adapter.started || in.moves != 0 || in.keys != 0 || in.clicks != 0 {
+		t.Fatalf("waypoint handoff started route or input: started=%t input=%d/%d/%d", adapter.started, in.moves, in.keys, in.clicks)
+	}
+}
+
 func TestTownPreparationFailsBeforeInputWhenPotionGoldUnavailable(t *testing.T) {
 	in := &preparationInputMock{}
 	a := &townPreparationAdapter{

@@ -8,20 +8,23 @@ const schemaVersion = 1
 
 // StatusDTO is the transport projection returned by GET /api/v1/status.
 type StatusDTO struct {
-	SchemaVersion int                `json:"schema_version"`
-	CoreVersion   string             `json:"core_version"`
-	State         string             `json:"state"`
-	Generation    uint64             `json:"generation"`
-	PendingIntent string             `json:"pending_intent,omitempty"`
-	ActiveRunID   string             `json:"active_run_id,omitempty"`
-	Step          string             `json:"step,omitempty"`
-	D2R           D2RDTO             `json:"d2r"`
-	Input         InputDTO           `json:"input"`
-	World         WorldDTO           `json:"world"`
-	Selection     SelectionStatusDTO `json:"selection"`
-	Queue         QueueStatusDTO     `json:"queue"`
-	LastResult    *SessionResultDTO  `json:"last_result,omitempty"`
-	LastError     *ErrorDTO          `json:"last_error,omitempty"`
+	SchemaVersion  int                `json:"schema_version"`
+	CoreVersion    string             `json:"core_version"`
+	State          string             `json:"state"`
+	Generation     uint64             `json:"generation"`
+	PendingIntent  string             `json:"pending_intent,omitempty"`
+	ActiveRunID    string             `json:"active_run_id,omitempty"`
+	RunInstanceID  string             `json:"run_id,omitempty"`
+	GameID         string             `json:"game_id,omitempty"`
+	LifecyclePhase string             `json:"lifecycle_phase"`
+	Step           string             `json:"step,omitempty"`
+	D2R            D2RDTO             `json:"d2r"`
+	Input          InputDTO           `json:"input"`
+	World          WorldDTO           `json:"world"`
+	Selection      SelectionStatusDTO `json:"selection"`
+	Queue          QueueStatusDTO     `json:"queue"`
+	LastResult     *SessionResultDTO  `json:"last_result,omitempty"`
+	LastError      *ErrorDTO          `json:"last_error,omitempty"`
 }
 
 // SessionResultDTO projects the last terminal worker disposition and reason.
@@ -203,6 +206,7 @@ type Backend interface {
 type commandError struct {
 	code    string
 	message string
+	details map[string]any
 }
 
 func (e *commandError) Error() string { return e.code }

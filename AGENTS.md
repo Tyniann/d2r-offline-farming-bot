@@ -20,6 +20,7 @@ alwaysApply: true
 - **Config:** YAML unter `configs/` (`config.example.yaml` versionieren; `config.yaml` lokal, gitignored).
 - **Logging:** `log/slog` (strukturiert). Später optional JSONL für Run-Telemetrie.
 - **Lint / format:** `golangci-lint`, `goimports`, `gofmt` (siehe `.golangci.yml`, `Makefile`).
+- **Race Detector / MSYS2:** Unter Windows die native **UCRT64**-Toolchain (`/ucrt64/bin/gcc`, Target `x86_64-w64-mingw32`) verwenden, nicht die MSYS-Toolchain unter `/usr/bin`. Aus PowerShell Race-Tests über eine initialisierte UCRT64-Shell starten: `$env:MSYSTEM='UCRT64'; $env:CHERE_INVOKING='1'; C:\msys64\usr\bin\bash.exe -lc 'export PATH=/ucrt64/bin:/c/Program\ Files/Go/bin:/usr/bin; cd /d/CSharpProjekte/D2R-Offline-Farming-Bot; go test -race -p 1 ./...'`. Nur `C:\msys64\ucrt64\bin` an `PATH` anzuhängen reicht auf diesem Host nicht zuverlässig.
 - **Später optional:** TypeScript/React nur für Dashboard/Pickit-Editor — **nicht** als Memory-/Input-Core.
 
 ## Layout & architecture

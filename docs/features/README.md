@@ -30,11 +30,11 @@ Spätere Ideen (noch nicht umgesetzt): [`docs/backlog.md`](../backlog.md).
 | [Run-Telemetrie](run-telemetry.md) | Phase 5.10: fail-closed JSONL pro Run für Drop-, Pickit-, Pickup-, Inventory- und Stash-Events |
 | [Route Recording und Playback](route-recording-playback.md) | Phase 6.7: generisches Playback und live validierter Countess-Adapter über stabile Route-ID |
 | [Farming-RouteCatalog und Lifecycle](route-lifecycle.md) | Abschnitt 11.5: rekursiver Farming-Katalog, atomisches Manifest, Bootstrap und präzise Difficulty-/Layout-Invalidation |
-| [Session-Lifecycle](session-lifecycle.md) | Phase 7.0/7.4/7.6: Lifecycle, generischer Einzelzyklus, verpflichtende Runtime-Reset-Barriere und frische Game-/Route-Verifikation pro Zyklus |
+| [Session-Lifecycle](session-lifecycle.md) | Zentraler Phase-11-Game-Lifecycle, frischer Run-Zustand pro Queue-Eintrag, Same-game-Folge, Pause/Stop und verifizierte Spielgrenzen |
 | [FarmQueue-Scheduler](farm-queue-scheduler.md) | Abschnitt 11.7: vollständiger Queue-Preflight, zyklischer Scheduler, Retry-same-index und YAML-authoritative Safety-Budgets |
 | [Session-Konfiguration und Inspect](session-configuration.md) | Phase 7.5: explizites Opt-in, endliche Budgets und read-only Planauflösung mit Route-/Character-/Difficulty-Preflight vor Attach/Input |
 | [Session-Recovery und Lifecycle-Telemetrie](session-recovery-telemetry.md) | Phase 7.7: exakte Retry-Klassifikation, harte Fehler-/Restart-Budgets und synchron korrelierte Session-/Game-/Run-JSONL-Ereignisse |
-| [Phase-11-Core-Vertrag](phase-11-core-contract.md) | Abschnitt 11.0: Supervisor-Zustände, Commands, Queue-/Lifecycle-Semantik, DTO-Grundformen, Reason-Codes und One-shot-Migrationsmatrix |
+| [Phase-11-Core-Vertrag](phase-11-core-contract.md) | Supervisor-Zustände, Commands, Queue-/Lifecycle-Semantik, DTO-Grundformen, Reason-Codes und finale Ownership-Matrix |
 | [Lokale Core-API und eingebettete Web-Anwendung](local-core-api.md) | Abschnitt 11.2: Loopback-only HTTP/JSON, Security Envelope, OpenAPI-generierter TypeScript-Client und eingebetteter React-Build |
 | [Live-Dashboard und Session-Steuerung](live-dashboard.md) | Live-Projektion, Queue Builder, sichere Supervisor-Controls, Reconnect und deutsche Statuskarten |
 | [Read-only Charakterkatalog und Screenshot-gated Selector](character-selection.md) | Abschnitt 11.4: Save-Dateinamen-Katalog, fail-closed Anker-Availability und begrenzte Home/Down-Auswahl mit Memory-Bestätigung |

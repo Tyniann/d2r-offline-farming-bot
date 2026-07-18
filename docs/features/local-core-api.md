@@ -30,7 +30,7 @@ Der Server wählt über `net.Listen("tcp4", "127.0.0.1:0")` einen freien Loopbac
 
 | Endpunkt | Stand 11.3 |
 |---|---|
-| `GET /api/v1/status` | Aktueller Core-, D2R-, Input-, World- und Queue-Snapshot einschließlich Index, Zyklus, Retry und Safety-Budgets. |
+| `GET /api/v1/status` | Aktueller Core-, D2R-, Input-, World- und Queue-Snapshot einschließlich Game-ID, Run-ID, Lifecycle-Phase, Index, Spielzyklus, Retry und Safety-Budgets. |
 | `GET /api/v1/catalog` | Read-only Run-Katalog aus dem bestehenden Availability-Resolver. |
 | `GET /api/v1/events` | SSE: vollständiger Snapshot, Replay ab `Last-Event-ID`, danach Live-Deltas und Heartbeats. |
 | `GET /api/v1/control/bootstrap` | Same-origin Wiederherstellung des rein im Memory gehaltenen Prozess-Tokens nach Refresh; Custom Header und Security Envelope sind Pflicht. |
@@ -38,9 +38,9 @@ Der Server wählt über `net.Listen("tcp4", "127.0.0.1:0")` einen freien Loopbac
 | `POST /api/v1/selection/apply` | Wendet exakt die unveränderte Vorschau screenshot- und Memory-verifiziert an; Lifecycle-Commit erfolgt erst nach bestätigtem Spieleintritt. |
 | `POST /api/v1/queue/validate` | Seiteneffektfreier Gesamt-Preflight gegen bestätigte Auswahl, Katalogrevision, Availability, Lifecycle und Safety-Budgets. |
 | `POST /api/v1/session/start` | Validiert den unveränderten Queue-Kontext erneut und startet genau eine Core-eigene Supervisor-Queue. |
-| `POST /api/v1/session/pause-after-run` | Merkt Pause erst nach aktuellem Run, Town und Save & Exit vor. |
-| `POST /api/v1/session/resume` | Startet den bereits bestimmten nächsten Queue-Eintrag frisch. |
-| `POST /api/v1/session/stop-after-run` | Merkt geordneten Stopp nach aktuellem vollständigem Run vor. |
+| `POST /api/v1/session/pause-after-run` | Merkt Pause nach Run, Loot und Town-Handoff vor; das Spiel bleibt geöffnet. |
+| `POST /api/v1/session/resume` | Revalidiert dasselbe offene Spiel und startet den nächsten Queue-Eintrag mit frischem Run-Zustand. |
+| `POST /api/v1/session/stop-after-run` | Merkt nach Town genau einen supervisor-eigenen Save-&-Exit vor. |
 | `POST /api/v1/session/emergency-stop` | Bricht sofort mit demselben Grund wie F11 ab; Save & Exit ist nicht garantiert. |
 
 Unbekannte `/api/`-Versionen oder Endpunkte liefern `api_version_unsupported` und niemals die SPA-Fallbackseite.
@@ -101,4 +101,4 @@ go run ./cmd/d2rbot --config configs/config.yaml --ui
 - [Run-Verfügbarkeit und Inspect](run-availability.md)
 
 ---
-*Zuletzt aktualisiert: 16. Juli 2026*
+*Zuletzt aktualisiert: 17. Juli 2026*

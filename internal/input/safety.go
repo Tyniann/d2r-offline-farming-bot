@@ -7,9 +7,10 @@ import (
 
 // SafetyConfig holds operator safety settings for real OS input and global hotkeys.
 type SafetyConfig struct {
-	Enabled     bool
-	PauseHotkey string
-	StopHotkey  string
+	Enabled            bool
+	PauseHotkey        string
+	StopAfterRunHotkey string
+	StopHotkey         string
 }
 
 // Status reports the current runtime safety state of the input controller.
@@ -146,17 +147,22 @@ func normalizeHotkeyBindings(cfg SafetyConfig) (HotkeyBindings, error) {
 	if err != nil {
 		return HotkeyBindings{}, fmt.Errorf("pause hotkey: %w", err)
 	}
+	stopAfterRun, err := NormalizeKey(cfg.StopAfterRunHotkey)
+	if err != nil {
+		return HotkeyBindings{}, fmt.Errorf("stop-after-run hotkey: %w", err)
+	}
 	stop, err := NormalizeKey(cfg.StopHotkey)
 	if err != nil {
 		return HotkeyBindings{}, fmt.Errorf("stop hotkey: %w", err)
 	}
-	return HotkeyBindings{Pause: pause, Stop: stop}, nil
+	return HotkeyBindings{Pause: pause, StopAfterRun: stopAfterRun, Stop: stop}, nil
 }
 
 func logSafetyConfigured(log *slog.Logger, cfg SafetyConfig) {
 	log.Info("input safety configured",
 		"enabled", cfg.Enabled,
 		"pause_hotkey", cfg.PauseHotkey,
+		"stop_after_run_hotkey", cfg.StopAfterRunHotkey,
 		"stop_hotkey", cfg.StopHotkey,
 	)
 }

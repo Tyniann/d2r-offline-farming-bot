@@ -39,9 +39,9 @@ Die Oberfläche zeigt:
 - read-only Run-Katalog;
 - die letzten 40 Live-Ereignisse.
 
-Availability-Karten können Runs mehrfach in einen Runtime-Entwurf aufnehmen. Die geordnete Liste lässt sich per beschrifteten Auf-/Ab-Buttons verschieben, einzeln entfernen und jederzeit auf `session.queue` zurücksetzen. Während `starting_run`, `running_run`, `paused_between_runs` und `cancelling` sind Auswahl und Queue-Änderungen gesperrt. Browser-Refresh rekonstruiert aktive Queue, Index, Zyklus, Retry, Budgets, Run, Step und das letzte terminale Ergebnis aus dem Core-Snapshot.
+Availability-Karten können jeden Run genau einmal in die „Run-Reihenfolge pro Spiel“ aufnehmen. Bereits enthaltene Runs sind mit Erklärung deaktiviert; der Core lehnt Duplikate unabhängig davon mit `queue_duplicate_run` ab. Die Liste lässt sich per beschrifteten Auf-/Ab-Buttons verschieben, einzeln entfernen und auf `session.queue` zurücksetzen. Während `starting_game`, `starting_run`, `running_run`, `paused_between_runs`, `exiting_game` und `cancelling` sind Auswahl und Queue-Änderungen gesperrt. Browser-Refresh rekonstruiert Queue, Game-ID, Run-ID, Lifecycle-Phase, Index, Spielzyklus, Retry, Budgets, Step und terminales Ergebnis aus dem Core-Snapshot.
 
-Start führt zuerst den tokenfreien Gesamt-Preflight und danach denselben Kontext als token-geschützten `start_queue`-Command aus. Pause und geordneter Stopp sind ausdrücklich „nach aktuellem Run“ und warten auf Town sowie Save & Exit. Zusätzlich merkt die konfigurierte globale Pause-Taste denselben Pause-after-run-Intent vor, ohne Browserfokus und ohne die laufende Route anzuhalten. Resume startet den bereits bestimmten nächsten Eintrag. Emergency Stop ist visuell getrennt, erfordert einen fokussierten Bestätigungsdialog, lässt sich mit Escape abbrechen und erklärt die Gleichheit zu F11. Sichtbarer mutierter Zustand wird erst nach der Core-Antwort erneut geladen; ein lokaler Command-Lock verhindert Doppelklick-Starts.
+Start führt zuerst den tokenfreien Gesamt-Preflight und danach denselben Kontext als token-geschützten `start_queue`-Command aus. Nach der Core-seitigen Memory-Verifikation aktivieren Start und Resume das gebundene D2R-Fenster über den gemeinsamen gegateten Fokuspfad; React aktiviert kein Fenster selbst. Pause wartet auf Loot und Town, lässt das Spiel geöffnet und benötigt durch den globalen Hotkey keinen Browserfokus. Resume revalidiert dasselbe Spiel. Geordneter Stopp verlässt es danach genau einmal; der natürliche Wrap verlässt es erst nach der vollständigen Folge. Emergency Stop bleibt visuell getrennt, bestätigt und F11-identisch. Sichtbarer mutierter Zustand folgt ausschließlich der Core-Antwort; ein lokaler Command-Lock verhindert Doppelklick-Starts.
 
 Alle Operator-Texte und Fehler sind deutsch. Der Control-Token bleibt ausschließlich im Browser-Memory und ist für den read-only SSE-GET nicht erforderlich.
 
@@ -68,4 +68,4 @@ Für die manuelle Abnahme D2R zunächst geschlossen lassen, dann starten und wie
 - [State Probe](state-probe.md)
 
 ---
-*Zuletzt aktualisiert: 16. Juli 2026*
+*Zuletzt aktualisiert: 17. Juli 2026*

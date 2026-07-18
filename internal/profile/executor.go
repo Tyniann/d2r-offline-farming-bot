@@ -38,6 +38,7 @@ type Executor struct {
 	lastPotion  time.Time
 	lastByKind  map[ResourceKind]time.Time
 	unavailable map[ResourceKind]bool
+	skipDelay   map[Hook]bool
 }
 
 // NewExecutor creates a resettable executor for one validated definition.
@@ -72,6 +73,17 @@ func (e *Executor) Reset() {
 	e.lastPotion = time.Time{}
 	e.lastByKind = map[ResourceKind]time.Time{}
 	e.unavailable = map[ResourceKind]bool{}
+	e.skipDelay = map[Hook]bool{}
+}
+
+// SkipInitialDelay skips the configured delay before the first action of hook
+// while retaining the action and its settle verification. Queue continuations
+// use this only after the same open game has already reached a safe Town handoff.
+func (e *Executor) SkipInitialDelay(hook Hook) {
+	if e == nil {
+		return
+	}
+	e.skipDelay[hook] = true
 }
 
 // TickHook advances an ordered semantic hook by at most one input action.
@@ -111,7 +123,14 @@ func (e *Executor) TickHook(ctx context.Context, hook Hook, state world.State, t
 	for e.hookIndex[hook] < len(actions) {
 		index := e.hookIndex[hook]
 		action := actions[index]
-		if action.Delay > 0 {
+		gameKey := fmt.Sprintf("%s:%d", hook, index)
+		bossKey := fmt.Sprintf("%s:%d:%d:%d", hook, index, target.UnitID, target.ActionIndex)
+		if (action.OncePerGame && e.onceGame[gameKey]) || (action.OncePerEncounter && target.UnitID != 0 && e.onceBoss[bossKey]) {
+			e.hookIndex[hook]++
+			delete(e.hookReadyAt, hook)
+			continue
+		}
+		if action.Delay > 0 && !e.skipDelay[hook] {
 			readyAt, started := e.hookReadyAt[hook]
 			if !started {
 				e.hookReadyAt[hook] = now.Add(action.Delay)
@@ -121,12 +140,7 @@ func (e *Executor) TickHook(ctx context.Context, hook Hook, state world.State, t
 				return Result{Status: StatusPending, Hook: hook}
 			}
 		}
-		gameKey := fmt.Sprintf("%s:%d", hook, index)
-		bossKey := fmt.Sprintf("%s:%d:%d:%d", hook, index, target.UnitID, target.ActionIndex)
-		if action.OncePerGame && e.onceGame[gameKey] || action.OncePerEncounter && target.UnitID != 0 && e.onceBoss[bossKey] {
-			e.hookIndex[hook]++
-			continue
-		}
+		delete(e.skipDelay, hook)
 		targetPos := state.Player.Position
 		if action.Target == TargetBoss {
 			if target.UnitID == 0 || target.Position.X == 0 || target.Position.Y == 0 {

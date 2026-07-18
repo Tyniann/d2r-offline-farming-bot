@@ -79,6 +79,9 @@ func TestLoadExampleConfig(t *testing.T) {
 	if cfg.Input.PauseHotkey != "pause" {
 		t.Errorf("Input.PauseHotkey = %q, want pause", cfg.Input.PauseHotkey)
 	}
+	if cfg.Input.StopAfterRunHotkey != "f10" {
+		t.Errorf("Input.StopAfterRunHotkey = %q, want f10", cfg.Input.StopAfterRunHotkey)
+	}
 	if cfg.Input.StopHotkey != "f12" {
 		t.Errorf("Input.StopHotkey = %q, want f12", cfg.Input.StopHotkey)
 	}
@@ -182,8 +185,8 @@ process:
 	if def.Enabled {
 		t.Fatal("expected enabled=false when input section missing")
 	}
-	if def.PauseHotkey != "pause" || def.StopHotkey != "f12" {
-		t.Fatalf("hotkey defaults = pause=%q stop=%q", def.PauseHotkey, def.StopHotkey)
+	if def.PauseHotkey != "pause" || def.StopAfterRunHotkey != "f10" || def.StopHotkey != "f12" {
+		t.Fatalf("hotkey defaults = pause=%q stop-after-run=%q stop=%q", def.PauseHotkey, def.StopAfterRunHotkey, def.StopHotkey)
 	}
 }
 
@@ -552,6 +555,22 @@ func TestInputValidateSameHotkeys(t *testing.T) {
 	cfg.Input.applyDefaults()
 	if err := cfg.validate(); err == nil {
 		t.Fatal("expected error when pause and stop hotkeys are equal")
+	}
+}
+
+func TestInputValidateStopAfterRunHotkeyDiffersFromEmergencyStop(t *testing.T) {
+	cfg := &Config{
+		App:     AppConfig{Name: "d2rbot"},
+		Process: ProcessConfig{ProcessName: "D2R.exe"},
+		Runtime: RuntimeConfig{PollIntervalMs: 100},
+		Input: InputConfig{
+			PauseHotkey:        "pause",
+			StopAfterRunHotkey: "f11",
+			StopHotkey:         "f11",
+		},
+	}
+	if err := cfg.validate(); err == nil {
+		t.Fatal("expected error when stop-after-run and emergency hotkeys are equal")
 	}
 }
 

@@ -349,7 +349,7 @@ func TestObserveInputTestWorldDeltas(t *testing.T) {
 
 	go func() {
 		<-time.After(12 * time.Millisecond)
-		probe.snap = snap2
+		probe.setSnapshot(snap2)
 	}()
 
 	err := rt.observeInputTestWorld(ctx, state, hotkeys, ticker, 20*time.Millisecond, cancel)

@@ -5,8 +5,11 @@ export interface StatusDTO {
   core_version: string;
   state: string;
   generation: number;
+  lifecycle_phase: string;
   pending_intent?: string;
   active_run_id?: string;
+  run_id?: string;
+  game_id?: string;
   step?: string;
   d2r: D2RDTO;
   input: InputDTO;

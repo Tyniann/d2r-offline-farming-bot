@@ -8,6 +8,8 @@ type HotkeyAction string
 const (
 	// HotkeyActionPause toggles the pause state of the input controller.
 	HotkeyActionPause HotkeyAction = "pause"
+	// HotkeyActionStopAfterRun requests an orderly stop at the next safe run boundary.
+	HotkeyActionStopAfterRun HotkeyAction = "stop_after_run"
 	// HotkeyActionStop terminates input and signals application shutdown.
 	HotkeyActionStop HotkeyAction = "stop"
 )
@@ -18,10 +20,11 @@ type HotkeyEvent struct {
 	Key    Key
 }
 
-// HotkeyBindings holds normalized keys for global pause and stop hotkeys.
+// HotkeyBindings holds normalized keys for global queue-control and emergency hotkeys.
 type HotkeyBindings struct {
-	Pause Key
-	Stop  Key
+	Pause        Key
+	StopAfterRun Key
+	Stop         Key
 }
 
 // HotkeyListener registers global hotkeys and delivers events until ctx is cancelled.

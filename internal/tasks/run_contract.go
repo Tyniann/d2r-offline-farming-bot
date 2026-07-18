@@ -67,10 +67,8 @@ type RunDefinition struct {
 	WaypointTarget     pathing.WaypointTargetID
 	Boss               BossDescriptor
 	BossEngageSequence []EncounterAction
-	// RepositionAtBossBeforeLoot moves to the last Memory-confirmed boss position after kill confirmation.
-	RepositionAtBossBeforeLoot bool
-	ReturnOrigin               town.OriginAct
-	RequiredCaps               []RunCapability
+	ReturnOrigin       town.OriginAct
+	RequiredCaps       []RunCapability
 }
 
 // RunStep identifies one state in the shared finite run lifecycle.

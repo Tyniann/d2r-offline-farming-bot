@@ -237,10 +237,10 @@ func (c *runPipeline) nextStep(current string) string {
 	case pipelineStepAcquireBoss:
 		return pipelineStepEngageBoss
 	case pipelineStepEngageBoss:
-		if c.effectiveDefinition().RepositionAtBossBeforeLoot {
-			return pipelineStepRepositionForLoot
-		}
-		return pipelineStepWaitForDrops
+		// Every registered farming run owns a Memory-pinned boss. Reaching its
+		// last confirmed position before scanning is therefore a shared loot
+		// invariant, not run-specific metadata.
+		return pipelineStepRepositionForLoot
 	case pipelineStepRepositionForLoot:
 		return pipelineStepWaitForDrops
 	case pipelineStepWaitForDrops:
