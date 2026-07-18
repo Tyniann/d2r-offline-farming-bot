@@ -13,6 +13,12 @@ import (
 // 270 ms after casting; a further 500 ms balances readiness against Hell safety.
 const townPortalActivationSettle = 500 * time.Millisecond
 
+// A freshly cast portal can be partially covered by the living boss pack
+// during guided recording. Keep the generic entity-click budget unchanged,
+// but let the portal-specific spiral sweep a wider area before failing. Every
+// eventual click still requires the portal's exact Memory hover UnitID.
+const townPortalHoverAttemptMultiplier = 3
+
 // TownPortalActionStatus is a stable per-tick outcome of player-cast portal entry.
 type TownPortalActionStatus string
 
@@ -49,9 +55,11 @@ type TownPortalActions struct {
 
 // NewTownPortalActions wires safe portal entry to the shared entity clicker.
 func NewTownPortalActions(log *slog.Logger, in InputDriver, cfg Config) *TownPortalActions {
+	portalClick := cfg.Click
+	portalClick.MaxHoverAttempts *= townPortalHoverAttemptMultiplier
 	return &TownPortalActions{
 		log:     log.With("component", "pathing.town_portal"),
-		clicker: NewEntityClicker(log, in, cfg.Projector(), cfg.Click),
+		clicker: NewEntityClicker(log, in, cfg.Projector(), portalClick),
 		cfg:     cfg.TownPortal,
 	}
 }

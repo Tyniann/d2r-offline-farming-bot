@@ -17,17 +17,17 @@ func TestValidateRunModePassiveOK(t *testing.T) {
 	}
 }
 
-func TestValidateRunModeAllowsAct3EgressRecordingOptions(t *testing.T) {
+func TestValidateRunModeAllowsGlobalEgressRecordingWithoutDifficulty(t *testing.T) {
 	cfg := &config.Config{Input: config.InputConfig{Enabled: true}}
 	log := config.NewLogger("error")
-	opts := Options{Route: "record-egress:act3", RouteName: "Kurast-Docks Portal bis Waypoint", RouteDifficulty: "nightmare"}
+	opts := Options{Route: "record-egress:act4", RouteName: "Portal bis Wegpunkt"}
 	if err := validateRunMode(resolveRunSelection(opts, cfg), cfg, opts, log); err != nil {
 		t.Fatalf("record-egress options error = %v", err)
 	}
 
-	opts.RouteDifficulty = ""
+	opts.RouteDifficulty = "nightmare"
 	if err := validateRunMode(resolveRunSelection(opts, cfg), cfg, opts, log); err == nil {
-		t.Fatal("expected missing record-egress difficulty error")
+		t.Fatal("expected global Egress difficulty rejection")
 	}
 }
 
@@ -200,9 +200,9 @@ func TestValidateRunModeLootCountessRequiresTeleportPortalAndBelt(t *testing.T) 
 }
 
 func TestMapRunConfigResolvesCountessCombatSkill(t *testing.T) {
-	cfg := config.RunsConfig{
+	cfg := &config.Config{Session: config.SessionConfig{Character: "MrBones"}, Routes: config.RoutesConfig{AssignmentsFile: filepath.Join(t.TempDir(), "assignments.yaml")}, Runs: config.RunsConfig{
 		StepTimeoutMs: 30000,
-		Definitions: map[string]config.RunConfig{"countess": {RouteID: "test-route", Combat: config.CombatConfig{
+		Definitions: map[string]config.RunConfig{"countess": {Combat: config.CombatConfig{
 			Profile:                 "necro_bone_spear",
 			AttackSkill:             "bone_spear",
 			AttackIntervalMs:        350,
@@ -210,7 +210,8 @@ func TestMapRunConfigResolvesCountessCombatSkill(t *testing.T) {
 			RepositionDistanceTiles: 32,
 			KillConfirmTicks:        3,
 		}, Loot: config.RunLootConfig{PickupFile: "pickit/countess.nip"}}},
-	}
+	}}
+	writeTestRouteAssignments(t, cfg, map[tasks.RunID]string{tasks.RunIDCountess: "test-route"})
 	got, err := mapRunConfig(cfg, "countess")
 	if err != nil {
 		t.Fatal(err)
@@ -238,7 +239,7 @@ func tasksSelection(run, phase string) tasks.RunSelection {
 
 func fullCountessConfig(t *testing.T) *config.Config {
 	t.Helper()
-	return &config.Config{Memory: config.MemoryConfig{GameVersion: "3.2.92777"}, Routes: config.RoutesConfig{FarmingRoot: "../../configs/routes/farming", LifecycleFile: filepath.Join(t.TempDir(), "route-lifecycle.local.yaml")}, Session: config.SessionConfig{Character: "MrBones", Difficulty: "nightmare"}, Runs: config.RunsConfig{Definitions: map[string]config.RunConfig{"countess": {RouteID: "black-marsh-cellar5-nightmare-mrbones", Combat: config.CombatConfig{Profile: "necro_bone_spear", AttackSkill: "bone_spear", AttackIntervalMs: 350, EngageDistanceTiles: 22, RepositionDistanceTiles: 32, KillConfirmTicks: 3}, Loot: config.RunLootConfig{PickupFile: "pickit/countess.nip"}}}}, Profiles: config.ProfilesConfig{
+	cfg := &config.Config{Memory: config.MemoryConfig{GameVersion: "3.2.92777"}, Routes: config.RoutesConfig{FarmingRoot: "../../configs/routes/farming", LifecycleFile: filepath.Join(t.TempDir(), "route-lifecycle.local.yaml"), AssignmentsFile: filepath.Join(t.TempDir(), "route-assignments.local.yaml")}, Session: config.SessionConfig{Character: "MrBones", Difficulty: "nightmare"}, Runs: config.RunsConfig{Definitions: map[string]config.RunConfig{"countess": {Combat: config.CombatConfig{Profile: "necro_bone_spear", AttackSkill: "bone_spear", AttackIntervalMs: 350, EngageDistanceTiles: 22, RepositionDistanceTiles: 32, KillConfirmTicks: 3}, Loot: config.RunLootConfig{PickupFile: "pickit/countess.nip"}}}}, Profiles: config.ProfilesConfig{
 		"necro_bone_spear": {CharacterClass: "necromancer", Hooks: config.ProfileHooksConfig{
 			TownReady:  []config.ProfileActionConfig{{Skill: "bone_armor", Target: "self", OncePerGame: true}},
 			BossEngage: []config.ProfileActionConfig{{Skill: "bone_prison", Target: "boss", OncePerEncounter: true}},
@@ -266,4 +267,6 @@ func fullCountessConfig(t *testing.T) *config.Config {
 			},
 		},
 	}}
+	writeTestRouteAssignments(t, cfg, map[tasks.RunID]string{tasks.RunIDCountess: "black-marsh-cellar5-nightmare-mrbones"})
+	return cfg
 }

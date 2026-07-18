@@ -20,6 +20,8 @@ Mephisto ist als zweite produktive Definition registriert. Die gemeinsame Pipeli
 
 `RunDefinition` beschreibt stabile ID, Anzeigename, Entry-/Terminal-Area, Waypoint-Ziel, Boss, geordnete Encounter-Aktionen, Rückkehrakt und erforderliche Capabilities. `RunRegistry` validiert Definitionen, verwirft ungültige oder doppelte IDs und liefert defensive Kopien in deterministischer ID-Reihenfolge.
 
+Seit Phase 12.0 enthält jede Definition zusätzlich einen typisierten `RecordingContract`. Er bindet deutsche Anleitung, Startwegpunkt und -gebiet, erlaubte Routengebiete, Terminalgebiet, denselben autoritativen `BossDescriptor` wie Combat, großzügige Maximaldistanz, Teleport-Bewegung, Town-Portal-Rückweg und Herkunftsakt. Countess akzeptiert Black Marsh bis Cellar 5 mit maximal 80 Tiles Bossdistanz; Mephisto Durance 2 bis 3 mit maximal 60 Tiles. Bossnähe beendet keine Aufnahme automatisch.
+
 Countess besitzt eine `boss_engage`-Aktion, verlangt wegen ihrer geteilten Dark-Stalker-Basis-ID das Super-Unique-Flag und kehrt direkt in Act 1 zurück. Mephisto besitzt zwei getrennte `boss_engage`-Aktionen, die eindeutige Aktboss-NPC-ID `242` ohne Super-Unique-Flag-Gate und verlangt wegen der Rückkehr nach Kurast-Docks zusätzlich `foreign_town_egress`.
 
 ### Gemeinsames Config-Schema
@@ -73,4 +75,4 @@ Fehlende Config liefert `run_config_missing`, unbekannte ID `run_unknown`, ungü
 - [Route Recording und Playback](route-recording-playback.md)
 
 ---
-*Zuletzt aktualisiert: 13. Juli 2026*
+*Zuletzt aktualisiert: 18. Juli 2026*

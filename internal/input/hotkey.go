@@ -10,6 +10,8 @@ const (
 	HotkeyActionPause HotkeyAction = "pause"
 	// HotkeyActionStopAfterRun requests an orderly stop at the next safe run boundary.
 	HotkeyActionStopAfterRun HotkeyAction = "stop_after_run"
+	// HotkeyActionRecordingFinish requests controlled F9 recording freeze.
+	HotkeyActionRecordingFinish HotkeyAction = "recording_finish"
 	// HotkeyActionStop terminates input and signals application shutdown.
 	HotkeyActionStop HotkeyAction = "stop"
 )
@@ -22,9 +24,10 @@ type HotkeyEvent struct {
 
 // HotkeyBindings holds normalized keys for global queue-control and emergency hotkeys.
 type HotkeyBindings struct {
-	Pause        Key
-	StopAfterRun Key
-	Stop         Key
+	Pause           Key
+	StopAfterRun    Key
+	RecordingFinish Key
+	Stop            Key
 }
 
 // HotkeyListener registers global hotkeys and delivers events until ctx is cancelled.

@@ -145,7 +145,7 @@ func New(cfg *config.Config, opts Options) (rt *Runtime, err error) {
 	if !ok {
 		return nil, fmt.Errorf("%s: %q", tasks.RunReasonConfigMissing, runtimeRunID)
 	}
-	runCfg, err := mapRunConfig(cfg.Runs, runtimeRunID)
+	runCfg, err := mapRunConfig(cfg, runtimeRunID)
 	if err != nil {
 		return nil, err
 	}

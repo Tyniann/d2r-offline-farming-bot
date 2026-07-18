@@ -14,6 +14,7 @@ import (
 
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/config"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/pathing"
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/tasks"
 	"gopkg.in/yaml.v3"
 )
 
@@ -56,22 +57,26 @@ type RouteLifecycleCharacter struct {
 
 // RouteLifecycleRoute correlates one route file without duplicating its route contract.
 type RouteLifecycleRoute struct {
-	RecordedAt              time.Time  `yaml:"recorded_at"`
-	ObservedFileFingerprint string     `yaml:"observed_file_fingerprint"`
-	InvalidatedAt           *time.Time `yaml:"invalidated_at,omitempty"`
-	InvalidationReason      string     `yaml:"invalidation_reason,omitempty"`
+	RecordedAt              time.Time             `yaml:"recorded_at"`
+	ObservedFileFingerprint string                `yaml:"observed_file_fingerprint"`
+	InvalidatedAt           *time.Time            `yaml:"invalidated_at,omitempty"`
+	InvalidationReason      string                `yaml:"invalidation_reason,omitempty"`
+	ManagementStatus        RouteManagementStatus `yaml:"management_status"`
+	RunID                   tasks.RunID           `yaml:"run_id"`
 }
 
 // FarmingRouteCatalogEntry is one deterministic recursive catalog result.
 type FarmingRouteCatalogEntry struct {
-	ID              string
-	Path            string
-	Character       string
-	Difficulty      string
-	Route           pathing.Route
-	FileFingerprint string
-	Status          RouteLifecycleStatus
-	Reason          string
+	ID               string
+	Path             string
+	Character        string
+	Difficulty       string
+	Route            pathing.Route
+	FileFingerprint  string
+	Status           RouteLifecycleStatus
+	Reason           string
+	ManagementStatus RouteManagementStatus
+	RunID            tasks.RunID
 }
 
 // FarmingRouteCatalog is an immutable snapshot of all Farming route sets below one root.
@@ -171,6 +176,13 @@ func (s *RouteLifecycleStore) Confirm(preview RouteLifecyclePreview, at time.Tim
 	if character.Routes == nil {
 		character.Routes = map[string]RouteLifecycleRoute{}
 	}
+	// Reconfirming the exact persisted context proves the current game to the
+	// runtime but changes no route authority. Keeping the manifest revision
+	// stable lets an immutable candidate survive a Core restart while every
+	// actual difficulty, layout, file or management mutation remains revisioned.
+	if preview.Reason == "" && manifest.BootstrapExpected == nil && strings.EqualFold(character.LastConfirmedDifficulty, preview.NewDifficulty) {
+		return cloneRouteLifecycleManifest(manifest), nil
+	}
 	if preview.Reason == "difficulty_changed" {
 		for id, route := range character.Routes {
 			stamp := at.UTC()
@@ -254,8 +266,83 @@ func (s *RouteLifecycleStore) RecordRoute(path string) (RouteLifecycleManifest, 
 	if character.Routes == nil {
 		character.Routes = map[string]RouteLifecycleRoute{}
 	}
-	character.Routes[route.ID] = RouteLifecycleRoute{RecordedAt: route.Recording.RecordedAt.UTC(), ObservedFileFingerprint: fingerprint}
+	character.Routes[route.ID] = RouteLifecycleRoute{RecordedAt: route.Recording.RecordedAt.UTC(), ObservedFileFingerprint: fingerprint, ManagementStatus: RouteManagementActive, RunID: runIDForRoute(route)}
 	manifest.Characters[slug] = character
+	manifest.Revision++
+	if err := s.writeLocked(manifest); err != nil {
+		return RouteLifecycleManifest{}, err
+	}
+	return cloneRouteLifecycleManifest(manifest), nil
+}
+
+// SetManagement commits orthogonal management status and run ownership at one revision.
+func (s *RouteLifecycleStore) SetManagement(routeID string, status RouteManagementStatus, runID tasks.RunID, expectedRevision uint64) (RouteLifecycleManifest, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	manifest, _, created, err := s.loadOrBootstrapLocked()
+	if err != nil {
+		return RouteLifecycleManifest{}, err
+	}
+	if created {
+		if err := s.writeLocked(manifest); err != nil {
+			return RouteLifecycleManifest{}, err
+		}
+	}
+	if manifest.Revision != expectedRevision {
+		return RouteLifecycleManifest{}, fmt.Errorf("route lifecycle revision changed")
+	}
+	if status != RouteManagementActive && status != RouteManagementArchived {
+		return RouteLifecycleManifest{}, fmt.Errorf("invalid route management status")
+	}
+	if _, ok := tasks.DefaultRunRegistry().Definition(runID); !ok {
+		return RouteLifecycleManifest{}, fmt.Errorf("invalid route run ID")
+	}
+	found := false
+	for slug, character := range manifest.Characters {
+		if route, ok := character.Routes[routeID]; ok {
+			route.ManagementStatus, route.RunID = status, runID
+			character.Routes[routeID] = route
+			manifest.Characters[slug] = character
+			found = true
+		}
+	}
+	if !found {
+		return RouteLifecycleManifest{}, fmt.Errorf("route lifecycle route %q not found", routeID)
+	}
+	manifest.Revision++
+	if err := s.writeLocked(manifest); err != nil {
+		return RouteLifecycleManifest{}, err
+	}
+	return cloneRouteLifecycleManifest(manifest), nil
+}
+
+// RemoveRoute deletes lifecycle metadata for an already quarantined, unassigned route.
+func (s *RouteLifecycleStore) RemoveRoute(routeID string, expectedRevision uint64) (RouteLifecycleManifest, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	manifest, _, created, err := s.loadOrBootstrapLocked()
+	if err != nil {
+		return RouteLifecycleManifest{}, err
+	}
+	if created {
+		if err := s.writeLocked(manifest); err != nil {
+			return RouteLifecycleManifest{}, err
+		}
+	}
+	if manifest.Revision != expectedRevision {
+		return RouteLifecycleManifest{}, fmt.Errorf("route lifecycle revision changed")
+	}
+	found := false
+	for slug, character := range manifest.Characters {
+		if _, ok := character.Routes[routeID]; ok {
+			delete(character.Routes, routeID)
+			manifest.Characters[slug] = character
+			found = true
+		}
+	}
+	if !found {
+		return RouteLifecycleManifest{}, fmt.Errorf("route lifecycle route %q not found", routeID)
+	}
 	manifest.Revision++
 	if err := s.writeLocked(manifest); err != nil {
 		return RouteLifecycleManifest{}, err
@@ -274,10 +361,11 @@ func (s *RouteLifecycleStore) loadOrBootstrapLocked() (RouteLifecycleManifest, [
 		if decodeErr := yaml.Unmarshal(data, &manifest); decodeErr != nil {
 			return RouteLifecycleManifest{}, nil, false, fmt.Errorf("decode route lifecycle %q: %w", s.path, decodeErr)
 		}
+		changed := migrateRouteLifecycleManagement(&manifest, entries)
 		if validationErr := validateRouteLifecycleManifest(manifest); validationErr != nil {
 			return RouteLifecycleManifest{}, nil, false, validationErr
 		}
-		return manifest, entries, false, nil
+		return manifest, entries, changed, nil
 	}
 	if !os.IsNotExist(err) {
 		return RouteLifecycleManifest{}, nil, false, fmt.Errorf("read route lifecycle %q: %w", s.path, err)
@@ -296,7 +384,7 @@ func (s *RouteLifecycleStore) loadOrBootstrapLocked() (RouteLifecycleManifest, [
 		if character.Routes == nil {
 			character.Routes = map[string]RouteLifecycleRoute{}
 		}
-		character.Routes[entry.ID] = RouteLifecycleRoute{RecordedAt: entry.Route.Recording.RecordedAt.UTC(), ObservedFileFingerprint: entry.FileFingerprint}
+		character.Routes[entry.ID] = RouteLifecycleRoute{RecordedAt: entry.Route.Recording.RecordedAt.UTC(), ObservedFileFingerprint: entry.FileFingerprint, ManagementStatus: RouteManagementActive, RunID: runIDForRoute(entry.Route)}
 		manifest.Characters[slug] = character
 	}
 	return manifest, entries, true, nil
@@ -434,6 +522,7 @@ func catalogFrom(manifest RouteLifecycleManifest, scanned []FarmingRouteCatalogE
 			entry.Status, entry.Reason = RouteLifecycleUnavailable, "route_file_changed"
 			continue
 		}
+		entry.ManagementStatus, entry.RunID = lifecycle.ManagementStatus, lifecycle.RunID
 		if lifecycle.InvalidatedAt != nil && !entry.Route.Recording.RecordedAt.After(*lifecycle.InvalidatedAt) {
 			entry.Status, entry.Reason = RouteLifecycleStale, lifecycle.InvalidationReason
 		}
@@ -482,7 +571,55 @@ func validateRouteLifecycleManifest(manifest RouteLifecycleManifest) error {
 	if manifest.Characters == nil {
 		return fmt.Errorf("route lifecycle characters are required")
 	}
+	for _, character := range manifest.Characters {
+		for _, route := range character.Routes {
+			if route.ManagementStatus != RouteManagementActive && route.ManagementStatus != RouteManagementArchived {
+				return fmt.Errorf("route lifecycle management_status is invalid")
+			}
+			if _, ok := tasks.DefaultRunRegistry().Definition(route.RunID); !ok {
+				return fmt.Errorf("route lifecycle run_id is invalid")
+			}
+		}
+	}
 	return nil
+}
+
+func migrateRouteLifecycleManagement(manifest *RouteLifecycleManifest, entries []FarmingRouteCatalogEntry) bool {
+	byID := map[string]pathing.Route{}
+	for _, entry := range entries {
+		byID[entry.ID] = entry.Route
+	}
+	changed := false
+	for slug, character := range manifest.Characters {
+		for routeID, route := range character.Routes {
+			if route.ManagementStatus == "" {
+				route.ManagementStatus = RouteManagementActive
+				changed = true
+			}
+			if route.RunID == "" {
+				route.RunID = runIDForRoute(byID[routeID])
+				changed = true
+			}
+			character.Routes[routeID] = route
+		}
+		manifest.Characters[slug] = character
+	}
+	if changed {
+		manifest.Revision++
+	}
+	return changed
+}
+
+func runIDForRoute(route pathing.Route) tasks.RunID {
+	if len(route.Segments) == 0 {
+		return ""
+	}
+	for _, definition := range tasks.DefaultRunRegistry().Definitions() {
+		if route.Segments[0].FromAreaID == definition.EntryArea && route.Segments[len(route.Segments)-1].ToAreaID == definition.RouteTerminalArea {
+			return definition.ID
+		}
+	}
+	return ""
 }
 
 func fileSHA256(path string) (string, error) {

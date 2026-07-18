@@ -1,0 +1,13 @@
+schema_version: 1
+candidate_id: candidate-20260718-countess
+immutable_route_file: candidate-20260718-countess.yaml
+immutable_route_sha256: 8d3dbd3bfc693689739aab56dbb9086d606d9eb9691629dfef5abad701ee0d1f
+run_id: countess
+character: MrBones
+difficulty: nightmare
+game_version: 3.2.92777
+state: validated
+measured_boss_distance: 18.5
+source_catalog_revision: 4
+source_assignment_revision: 7
+created_at: 2026-07-18T12:00:00Z

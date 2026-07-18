@@ -7,6 +7,39 @@ Versionierung nach [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-07-18
+
+### Added
+- Add the Phase 12 baseline and core contract with typed recording metadata, assignment and candidate schemas, global system-egress boundaries, workflow transitions, lock ownership, recovery checkpoints, DTO shapes, and productive-route characterization
+- Add an atomic revisioned route-assignment authority per character and run with idempotent legacy migration and lifecycle management metadata
+- Add global walk-only system Egress contracts, setup commands, validation, and playback for Acts 2–5
+- Add an exclusive guided recording coordinator with immutable hash-checked candidate storage, F9 finish semantics, terminal boss validation, and safe TP return states
+- Add the global F9 recording-finish hotkey and separate it from F10 stop-after-run and F11 emergency stop
+- Add isolated candidate-only playback and revision-bound publish, replace, archive, restore, and delete management with startup recovery
+- Add a path-free versioned route API and React route library with character/archive views, guided recording, candidate review, system-Egress setup, accessible confirmations, and Core-backed hotkey help
+
+### Changed
+- Migrate the productive Act-3 Egress points to the global `portal-waypoint.yaml` format without character, difficulty, or map-seed bindings
+- Reuse the existing Runtime recorder and navigation components for dashboard recording, API finish, candidate playback, and system-Egress setup instead of introducing a parallel input architecture
+- Bind guided recording to the confirmed character and class, enforce finite recording timeouts, and project Core workflow area, segment, progress, and state through SSE
+- Enforce the exact Phase-12 route API paths, workflow-wide selection/queue/session/mutation exclusion, and live character/difficulty revalidation before candidate test or publish
+- Require portal proximity at system-Egress recording start and waypoint proximity at finish, and atomically replace malformed drafts without overwriting a valid ready route
+- Guide farming recording, candidate playback, and route management with state-specific German instructions, workflow-wide action locks, and explicit predecessor and delete confirmations
+- Complete the Phase 12 live route-management acceptance with global Act 2–5 Egress assets and an atomic Countess candidate replacement that preserves the previous route as an archive
+
+### Fixed
+- Fix system-Egress recording preflight to use the configured Memory-confirmed portal and waypoint interaction distances and keep the affected Act's waiting, recording, and failure state visible in the dashboard
+- Fix explicit route CLI commands being preempted by the configured automatic farming session
+- Fix guided farming recording starting from anywhere in the waypoint area by requiring configured Memory-confirmed proximity to the start waypoint
+- Fix guided recording remaining in preflight because D2R retains the waypoint UI flag after a completed waypoint transfer
+- Fix guided-recording safety return failing when living monsters occlude the cast Town Portal by widening only its bounded, Memory-confirmed hover search
+- Keep same-character and same-difficulty lifecycle confirmation revision-idempotent so frozen route candidates survive a Core restart
+- Fix the dashboard candidate review staying empty when the confirmed character arrives after the route feature's initial mount
+- Mark candidates with failed post-freeze safety returns as non-testable while retaining their immutable diagnostic route
+- Reject candidate playback outside a Memory-confirmed Town portal-arrival handoff without invalidating the retryable candidate
+- Fix candidate playback rejecting a valid portal arrival when its variable landing position is outside the Town graph's narrower first-point tolerance, and log the exact playback failure
+- Characterize the newly assigned Countess route alongside its unchanged archived predecessor and the existing Mephisto route
+
 ## [0.7.0] - 2026-07-18
 
 ### Added

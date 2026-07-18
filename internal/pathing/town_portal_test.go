@@ -86,11 +86,32 @@ func TestTownPortalActionsFailsClosed(t *testing.T) {
 		now := time.Now()
 		_ = actions.Tick(context.Background(), townPortalState(), now)
 		_ = actions.Tick(context.Background(), townPortalState(), now.Add(townPortalActivationSettle))
-		res := actions.Tick(context.Background(), townPortalState(), now.Add(townPortalActivationSettle+time.Millisecond))
+		var res TownPortalActionResult
+		for attempt := 0; attempt < townPortalHoverAttemptMultiplier; attempt++ {
+			res = actions.Tick(context.Background(), townPortalState(), now.Add(townPortalActivationSettle+time.Duration(attempt+1)*time.Millisecond))
+		}
 		if res.Status != TownPortalActionHoverNotFound || !res.Done {
 			t.Fatalf("tick = %+v, want hover_not_found", res)
 		}
 	})
+}
+
+func TestTownPortalActionsFindsCrowdedPortalOutsideGenericHoverBudget(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.Click.MaxHoverAttempts = 1
+	in := newMockInput()
+	actions := NewTownPortalActions(config.NewLogger("error"), in, cfg)
+	now := time.Now()
+	state := townPortalState()
+
+	_ = actions.Tick(context.Background(), state, now)
+	_ = actions.Tick(context.Background(), state, now.Add(townPortalActivationSettle))
+	_ = actions.Tick(context.Background(), state, now.Add(townPortalActivationSettle+time.Millisecond))
+	state.Hover = world.HoverInfo{IsHovered: true, UnitType: world.HoverUnitTypeObject, UnitID: 77}
+	res := actions.Tick(context.Background(), state, now.Add(townPortalActivationSettle+2*time.Millisecond))
+	if res.Status != TownPortalActionClicked || !res.Done {
+		t.Fatalf("tick = %+v, want portal click after expanded hover search", res)
+	}
 }
 
 func TestTownPortalActionsRestartsActivationSettleWhenPortalMoves(t *testing.T) {

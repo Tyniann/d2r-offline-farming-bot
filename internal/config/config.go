@@ -63,8 +63,11 @@ type PathsConfig struct {
 
 // RoutesConfig selects the root containing character/difficulty Farming route sets.
 type RoutesConfig struct {
-	FarmingRoot   string `yaml:"farming_root"`
-	LifecycleFile string `yaml:"lifecycle_file"`
+	FarmingRoot     string `yaml:"farming_root"`
+	CandidateRoot   string `yaml:"candidate_root"`
+	LifecycleFile   string `yaml:"lifecycle_file"`
+	AssignmentsFile string `yaml:"assignments_file"`
+	RecoveryFile    string `yaml:"recovery_file"`
 }
 
 // UnmarshalYAML rejects the removed single-directory route source instead of
@@ -132,14 +135,15 @@ func (c *LootConfig) UnmarshalYAML(value *yaml.Node) error {
 
 // InputConfig holds keyboard timing, safety settings, and explicit in-game bindings.
 type InputConfig struct {
-	Enabled            bool                `yaml:"enabled"`
-	PauseHotkey        string              `yaml:"pause_hotkey"`
-	StopAfterRunHotkey string              `yaml:"stop_after_run_hotkey"`
-	StopHotkey         string              `yaml:"stop_hotkey"`
-	KeyDelayMsMin      int                 `yaml:"key_delay_ms_min"`
-	KeyDelayMsMax      int                 `yaml:"key_delay_ms_max"`
-	ComboHoldMs        int                 `yaml:"combo_hold_ms"`
-	Bindings           InputBindingsConfig `yaml:"bindings"`
+	Enabled               bool                `yaml:"enabled"`
+	PauseHotkey           string              `yaml:"pause_hotkey"`
+	StopAfterRunHotkey    string              `yaml:"stop_after_run_hotkey"`
+	RecordingFinishHotkey string              `yaml:"recording_finish_hotkey"`
+	StopHotkey            string              `yaml:"stop_hotkey"`
+	KeyDelayMsMin         int                 `yaml:"key_delay_ms_min"`
+	KeyDelayMsMax         int                 `yaml:"key_delay_ms_max"`
+	ComboHoldMs           int                 `yaml:"combo_hold_ms"`
+	Bindings              InputBindingsConfig `yaml:"bindings"`
 
 	sectionPresent bool `yaml:"-"`
 }
@@ -182,13 +186,12 @@ type RunsConfig struct {
 	StepTimeoutMs int                  `yaml:"step_timeout_ms"`
 	Definitions   map[string]RunConfig `yaml:"definitions"`
 
-	sectionPresent bool `yaml:"-"`
+	sectionPresent bool              `yaml:"-"`
+	legacyRouteIDs map[string]string `yaml:"-"`
 }
 
 // RunConfig holds operator-selected tuning shared by every run definition.
 type RunConfig struct {
-	// RouteID selects a stable generic navigation route.
-	RouteID string `yaml:"route_id"`
 	// Combat selects the profile and regular attack tuning.
 	Combat CombatConfig `yaml:"combat"`
 	// Loot selects run-specific pickup and optional sell policies.
@@ -226,12 +229,36 @@ func (c *RunsConfig) UnmarshalYAML(value *yaml.Node) error {
 	}
 	*c = RunsConfig(alias)
 	c.sectionPresent = true
+	c.legacyRouteIDs = map[string]string{}
+	for i := 0; i+1 < len(value.Content); i += 2 {
+		if value.Content[i].Value != "definitions" || value.Content[i+1].Kind != yaml.MappingNode {
+			continue
+		}
+		definitions := value.Content[i+1]
+		for j := 0; j+1 < len(definitions.Content); j += 2 {
+			runID, runNode := definitions.Content[j].Value, definitions.Content[j+1]
+			for k := 0; k+1 < len(runNode.Content); k += 2 {
+				if runNode.Content[k].Value == "route_id" {
+					c.legacyRouteIDs[runID] = strings.TrimSpace(runNode.Content[k+1].Value)
+				}
+			}
+		}
+	}
 	for i := 0; i < len(value.Content)-1; i += 2 {
 		if value.Content[i].Value == "countess" {
 			return fmt.Errorf("runs.countess is unsupported; use runs.definitions.countess")
 		}
 	}
 	return nil
+}
+
+// LegacyRouteIDs returns a defensive copy used only by the one-shot assignment migration.
+func (c RunsConfig) LegacyRouteIDs() map[string]string {
+	result := make(map[string]string, len(c.legacyRouteIDs))
+	for runID, routeID := range c.legacyRouteIDs {
+		result[runID] = routeID
+	}
+	return result
 }
 
 func (c *RunsConfig) applyDefaults() {
@@ -343,8 +370,20 @@ func (c *Config) validate() error {
 	if strings.TrimSpace(c.Routes.FarmingRoot) == "" {
 		return fmt.Errorf("routes.farming_root is required")
 	}
+	if strings.TrimSpace(c.Routes.CandidateRoot) == "" {
+		return fmt.Errorf("routes.candidate_root is required")
+	}
+	if filepath.Clean(c.ResolvePath(c.Routes.CandidateRoot)) == filepath.Clean(c.ResolvePath(c.Routes.FarmingRoot)) {
+		return fmt.Errorf("routes.candidate_root must differ from routes.farming_root")
+	}
 	if strings.TrimSpace(c.Routes.LifecycleFile) == "" {
 		return fmt.Errorf("routes.lifecycle_file is required")
+	}
+	if strings.TrimSpace(c.Routes.AssignmentsFile) == "" {
+		return fmt.Errorf("routes.assignments_file is required")
+	}
+	if strings.TrimSpace(c.Routes.RecoveryFile) == "" {
+		return fmt.Errorf("routes.recovery_file is required")
 	}
 	if err := c.Loot.validate(); err != nil {
 		return err
@@ -385,8 +424,17 @@ func (c *RoutesConfig) applyDefaults() {
 	if c.FarmingRoot == "" {
 		c.FarmingRoot = filepath.Join("routes", "farming")
 	}
+	if c.CandidateRoot == "" {
+		c.CandidateRoot = filepath.Join("routes", "candidates")
+	}
 	if c.LifecycleFile == "" {
 		c.LifecycleFile = "route-lifecycle.local.yaml"
+	}
+	if c.AssignmentsFile == "" {
+		c.AssignmentsFile = "route-assignments.local.yaml"
+	}
+	if c.RecoveryFile == "" {
+		c.RecoveryFile = "route-recovery.local.yaml"
 	}
 }
 
@@ -523,7 +571,8 @@ func (c *InputConfig) applyDefaults() {
 		c.Enabled = false
 		c.PauseHotkey = "pause"
 		c.StopAfterRunHotkey = "f10"
-		c.StopHotkey = "f12"
+		c.RecordingFinishHotkey = "f9"
+		c.StopHotkey = "f11"
 		c.KeyDelayMsMin = def.KeyDelayMsMin
 		c.KeyDelayMsMax = def.KeyDelayMsMax
 		c.ComboHoldMs = def.ComboHoldMs
@@ -536,8 +585,11 @@ func (c *InputConfig) applyDefaults() {
 	if c.StopAfterRunHotkey == "" {
 		c.StopAfterRunHotkey = "f10"
 	}
+	if c.RecordingFinishHotkey == "" {
+		c.RecordingFinishHotkey = "f9"
+	}
 	if c.StopHotkey == "" {
-		c.StopHotkey = "f12"
+		c.StopHotkey = "f11"
 	}
 	if c.ComboHoldMs == 0 {
 		c.ComboHoldMs = def.ComboHoldMs
@@ -563,14 +615,24 @@ func (c *InputConfig) validate() error {
 	if c.StopHotkey == "" {
 		return fmt.Errorf("input.stop_hotkey is required")
 	}
-	if c.PauseHotkey == c.StopAfterRunHotkey || c.PauseHotkey == c.StopHotkey || c.StopAfterRunHotkey == c.StopHotkey {
-		return fmt.Errorf("input pause, stop-after-run, and stop hotkeys must differ")
+	if c.RecordingFinishHotkey == "" {
+		return fmt.Errorf("input.recording_finish_hotkey is required")
+	}
+	unique := map[string]bool{}
+	for _, key := range []string{c.PauseHotkey, c.RecordingFinishHotkey, c.StopAfterRunHotkey, c.StopHotkey} {
+		if unique[key] {
+			return fmt.Errorf("input pause, recording-finish, stop-after-run, and stop hotkeys must differ")
+		}
+		unique[key] = true
 	}
 	if err := input.ValidateKeyStrings(c.PauseHotkey); err != nil {
 		return fmt.Errorf("input.pause_hotkey: %w", err)
 	}
 	if err := input.ValidateKeyStrings(c.StopAfterRunHotkey); err != nil {
 		return fmt.Errorf("input.stop_after_run_hotkey: %w", err)
+	}
+	if err := input.ValidateKeyStrings(c.RecordingFinishHotkey); err != nil {
+		return fmt.Errorf("input.recording_finish_hotkey: %w", err)
 	}
 	if err := input.ValidateKeyStrings(c.StopHotkey); err != nil {
 		return fmt.Errorf("input.stop_hotkey: %w", err)

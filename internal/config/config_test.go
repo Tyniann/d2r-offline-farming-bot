@@ -82,8 +82,8 @@ func TestLoadExampleConfig(t *testing.T) {
 	if cfg.Input.StopAfterRunHotkey != "f10" {
 		t.Errorf("Input.StopAfterRunHotkey = %q, want f10", cfg.Input.StopAfterRunHotkey)
 	}
-	if cfg.Input.StopHotkey != "f12" {
-		t.Errorf("Input.StopHotkey = %q, want f12", cfg.Input.StopHotkey)
+	if cfg.Input.RecordingFinishHotkey != "f9" || cfg.Input.StopHotkey != "f11" {
+		t.Errorf("recording/stop hotkeys = %q/%q, want f9/f11", cfg.Input.RecordingFinishHotkey, cfg.Input.StopHotkey)
 	}
 	if cfg.Runs.StepTimeoutMs != 30000 {
 		t.Errorf("Runs.StepTimeoutMs = %d, want 30000", cfg.Runs.StepTimeoutMs)
@@ -124,7 +124,7 @@ func TestLoadRejectsRemovedRoutesDirectory(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	legacy := strings.Replace(string(data), "farming_root: routes/farming\n  # Atomische lokale Lifecycle-Metadaten; *.local.yaml bleibt gitignoriert.\n  lifecycle_file: route-lifecycle.local.yaml", "directory: routes/farming/mrbones/nightmare", 1)
+	legacy := strings.Replace(string(data), "routes:\n", "routes:\n  directory: routes/farming/mrbones/nightmare\n", 1)
 	if err := os.WriteFile(path, []byte(legacy), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -185,8 +185,8 @@ process:
 	if def.Enabled {
 		t.Fatal("expected enabled=false when input section missing")
 	}
-	if def.PauseHotkey != "pause" || def.StopAfterRunHotkey != "f10" || def.StopHotkey != "f12" {
-		t.Fatalf("hotkey defaults = pause=%q stop-after-run=%q stop=%q", def.PauseHotkey, def.StopAfterRunHotkey, def.StopHotkey)
+	if def.PauseHotkey != "pause" || def.RecordingFinishHotkey != "f9" || def.StopAfterRunHotkey != "f10" || def.StopHotkey != "f11" {
+		t.Fatalf("hotkey defaults = pause=%q finish=%q stop-after-run=%q stop=%q", def.PauseHotkey, def.RecordingFinishHotkey, def.StopAfterRunHotkey, def.StopHotkey)
 	}
 }
 

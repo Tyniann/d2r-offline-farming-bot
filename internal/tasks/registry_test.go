@@ -4,8 +4,10 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/pathing"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/profile"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/town"
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/world"
 )
 
 func TestDefaultRunRegistryMetadataAndOrder(t *testing.T) {
@@ -18,6 +20,12 @@ func TestDefaultRunRegistryMetadataAndOrder(t *testing.T) {
 	}
 	if len(definitions[1].BossEngageSequence) != 2 || definitions[1].Boss.NPCID != 242 || definitions[1].Boss.RequireSuperUnique || definitions[1].ReturnOrigin != town.OriginAct3 {
 		t.Fatalf("Mephisto definition = %+v", definitions[1])
+	}
+	if definitions[0].Recording.StartWaypoint != pathing.WaypointTargetBlackMarsh || definitions[0].Recording.TerminalArea != world.TowerCellarLevel5 || definitions[0].Recording.Boss.NPCID != definitions[0].Boss.NPCID || definitions[0].Recording.TerminalMaxDistanceTiles != 80 {
+		t.Fatalf("Countess recording contract = %+v", definitions[0].Recording)
+	}
+	if definitions[1].Recording.StartWaypoint != pathing.WaypointTargetDuranceOfHateLevel2 || definitions[1].Recording.TerminalArea != world.DuranceOfHateLevel3 || definitions[1].Recording.Boss.NPCID != definitions[1].Boss.NPCID || definitions[1].Recording.TerminalMaxDistanceTiles != 60 {
+		t.Fatalf("Mephisto recording contract = %+v", definitions[1].Recording)
 	}
 }
 
@@ -82,8 +90,9 @@ func TestRunRegistryReturnsDefensiveDefinitionCopies(t *testing.T) {
 	definition, _ := registry.Definition(RunIDMephisto)
 	definition.BossEngageSequence[0].Hook = profile.HookTownReady
 	definition.RequiredCaps[0] = "mutated"
+	definition.Recording.AllowedRouteAreas[0] = world.None
 	again, _ := registry.Definition(RunIDMephisto)
-	if again.BossEngageSequence[0].Hook != profile.HookBossEngage || again.RequiredCaps[0] == "mutated" {
+	if again.BossEngageSequence[0].Hook != profile.HookBossEngage || again.RequiredCaps[0] == "mutated" || again.Recording.AllowedRouteAreas[0] == world.None {
 		t.Fatalf("registry definition mutated through returned slices: %+v", again)
 	}
 }

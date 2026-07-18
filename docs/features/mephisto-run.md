@@ -10,7 +10,7 @@ Der Mephisto-Run ist das zweite Farmziel der gemeinsamen Run-Pipeline. Er verwen
 - **Einstieg:** `cmd/d2rbot --run mephisto`
 - **Wichtige Dateien:** `registry.go`, `run_pipeline.go`, `phase10_mephisto_run_test.go`
 - **Config:** `runs.definitions.mephisto`, `town.egress.act3`
-- **Assets:** `configs/routes/farming/mrbones/nightmare/durance-2-mephisto-nightmare-mrbones.yaml`, `configs/routes/town/act3/egress/act3-egress.yaml`
+- **Assets:** `configs/routes/farming/mrbones/nightmare/durance-2-mephisto-nightmare-mrbones.yaml`, `configs/routes/town/act3/egress/portal-waypoint.yaml`
 
 ## Funktionalität
 

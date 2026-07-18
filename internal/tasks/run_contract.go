@@ -56,6 +56,30 @@ type EncounterAction struct {
 	Hook profile.Hook
 }
 
+// RecordingSafetyReturn identifies the only post-recording return flow a run permits.
+type RecordingSafetyReturn string
+
+const (
+	// RecordingSafetyReturnTownPortal requires a Memory-gated Town Portal return.
+	RecordingSafetyReturnTownPortal RecordingSafetyReturn = "town_portal"
+)
+
+// RecordingContract defines the immutable start, route and terminal semantics
+// used by a guided recording. It deliberately reuses the run's authoritative
+// boss descriptor instead of maintaining a second NPC identity table.
+type RecordingContract struct {
+	InstructionsDE           string
+	StartWaypoint            pathing.WaypointTargetID
+	AllowedStartArea         world.AreaID
+	AllowedRouteAreas        []world.AreaID
+	TerminalArea             world.AreaID
+	Boss                     BossDescriptor
+	TerminalMaxDistanceTiles float64
+	Movement                 pathing.RouteMovement
+	SafetyReturn             RecordingSafetyReturn
+	EgressOriginAct          town.OriginAct
+}
+
 // RunDefinition contains immutable product metadata and required capabilities.
 // Operator-selected route, combat tuning, and loot files belong to RunConfig and
 // must not be embedded in a definition.
@@ -69,6 +93,7 @@ type RunDefinition struct {
 	BossEngageSequence []EncounterAction
 	ReturnOrigin       town.OriginAct
 	RequiredCaps       []RunCapability
+	Recording          RecordingContract
 }
 
 // RunStep identifies one state in the shared finite run lifecycle.
@@ -227,6 +252,8 @@ const (
 	RunReasonRouteStale RunReason = "route_stale"
 	// RunReasonRouteLifecycleUnavailable reports unusable or inconsistent lifecycle metadata.
 	RunReasonRouteLifecycleUnavailable RunReason = "route_lifecycle_unavailable"
+	// RunReasonRouteAssignmentMissing reports an absent character/run assignment.
+	RunReasonRouteAssignmentMissing RunReason = "route_assignment_missing"
 	// RunReasonProfileClassMismatch reports a character/profile class mismatch.
 	RunReasonProfileClassMismatch RunReason = "profile_class_mismatch"
 	// RunReasonWaypointTargetUnsupported reports a target without registered UI action.

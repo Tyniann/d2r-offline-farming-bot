@@ -32,11 +32,11 @@ Abschnitt 9.4 definiert den zentralen, kantenbasierten `ServiceGraph` unter `con
 
 `EgressRoute` bleibt davon getrennt und erlaubt für Fremdakte ausschließlich `portal_arrival → waypoint`. Beide Manifestformate werden strikt geladen; unbekannte Felder und Pfade außerhalb des Graphverzeichnisses werden verworfen.
 
-### Produktiver Act-3-Egress (Phase 10.8)
+### Globaler System-Egress (Phase 12.2)
 
-Die gemeinsame Run-Pipeline normalisiert `OriginAct3` nach der bestätigten Portalankunft in Kurast-Docks über vier getrennte Schritte: gebundene Egress-Route bis zum lokalen Waypoint, hover-bestätigtes Öffnen, registrierte Auswahl von Rogue Encampment und Memory-bestätigte Act-1-Ankunft. Erst danach dürfen Personal Stash und zentrale Act-1-Dienste beginnen. Route Playback, Waypoint-Objekt, UI-Auswahl und Ziel-Area besitzen getrennten Zustand und werden an jeder Step- sowie Run-Grenze zurückgesetzt.
+Die gemeinsame Run-Pipeline normalisiert `OriginAct2` bis `OriginAct5` nach der bestätigten Portalankunft über dieselben vier Schritte: globaler Egress bis zum lokalen Waypoint, hover-bestätigtes Öffnen, registrierte Auswahl von Rogue Encampment und Memory-bestätigte Act-1-Ankunft. Erst danach dürfen Personal Stash und zentrale Act-1-Dienste beginnen.
 
-`town.egress.act3` nennt zusätzlich die stabile `route_id: act3-egress`. Der Adapter lädt ausschließlich einen vollständigen Route-Contract aus `routes/town/act3/egress`, prüft Character, Klasse, Difficulty, Game-Version, Layout-Fingerprint und Startnähe vor dem ersten Bewegungsinput und akzeptiert nur einen terminalen Kurast-Docks-Walk. Playback verwendet Force Move und bleibt hart an Kurast-Docks gebunden; der allgemeine Teleport-Navigator darf diesen Pfad nicht ausführen. Solange die Aufnahme aus 10.9 fehlt, meldet der Resolver `town_egress_missing`.
+`town.egress.act2` bis `act5` benennen nur Area, Anker und Verzeichnis. Der Adapter lädt die feste Datei `portal-waypoint.yaml` und prüft Akt, Town-Area, Game-Version, Layout-Fingerprint sowie Startnähe. Character, Klasse, Difficulty und Map Seed sind weder persistiert noch Gates. Playback verwendet ausschließlich Force Move; fehlende Aufnahmen melden `town_egress_missing`.
 
 > **Korrigierte Live-Erkenntnis:** Der Act-1-Ausgang wird beim Charakter-/Difficulty-Wechsel neu auf Nord, Ost, Süd oder West gewürfelt; die Waypoint-Position hängt vom Preset ab. Difficulty und Charakter sind keine autoritativen Town-Route-Bindings. Die abgeschlossene Migration bindet alle produktiven Town-Aufnahmen an einen read-only `TownLayoutFingerprint`; ungebundene Aufnahmen werden nicht abgespielt.
 
@@ -117,7 +117,7 @@ Die Live-Abnahme am 14. Juli 2026 bestätigte die korrigierte Cain-Auswahl `Home
 
 `PlanRepair` verlangt bei Reparaturbedarf gemeinsam belastbare Haltbarkeit, Kosten und Repair-UI. Fehlt eine Quelle, entsteht ausschließlich `repair_state_unavailable`; es gibt keinen Klickfallback.
 
-`WaypointTransferExecutor` kennt nur registrierte Übergänge. Aktuell sind Act 3 → Rogue Encampment zur Hub-Normalisierung und Rogue Encampment → Black Marsh für Countess zugelassen. Die Quelle muss eine Town im erwarteten Act sein. Nach genau einer Zielauswahl wird bis zur bestätigten Ziel-Area gewartet; Timeout wiederholt die Auswahl nicht. Andere Fremdakte beziehungsweise Run-Ziele enden mit `hub_transfer_unsupported` oder `next_target_unsupported`.
+`WaypointTransferExecutor` kennt nur registrierte Übergänge. Aktuell sind Act 2–5 → Rogue Encampment zur Hub-Normalisierung und Rogue Encampment → Black Marsh für Countess zugelassen. Die Quelle muss eine Town im erwarteten Act sein. Nach genau einer Zielauswahl wird bis zur bestätigten Ziel-Area gewartet; Timeout wiederholt die Auswahl nicht. Andere Run-Ziele enden mit `next_target_unsupported`.
 
 ## Endlicher Executor und Telemetrie (9.9)
 

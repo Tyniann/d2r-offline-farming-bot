@@ -38,8 +38,8 @@ func resolveRunSelection(opts Options, cfg *config.Config) tasks.RunSelection {
 	return tasks.RunSelection{Run: resolveActiveRun(opts, cfg), Phase: opts.RunPhase}
 }
 
-func mapRunConfig(runs config.RunsConfig, runID string) (tasks.RunConfig, error) {
-	run, ok := runs.Run(runID)
+func mapRunConfig(cfg *config.Config, runID string) (tasks.RunConfig, error) {
+	run, ok := cfg.Runs.Run(runID)
 	if !ok {
 		return tasks.RunConfig{}, fmt.Errorf("%s: %q", tasks.RunReasonConfigMissing, runID)
 	}
@@ -48,8 +48,7 @@ func mapRunConfig(runs config.RunsConfig, runID string) (tasks.RunConfig, error)
 		return tasks.RunConfig{}, fmt.Errorf("runs.definitions.%s.combat.attack_skill: %w", runID, err)
 	}
 	mapped := tasks.RunConfig{
-		StepTimeout: time.Duration(runs.StepTimeoutMs) * time.Millisecond,
-		RouteID:     run.RouteID,
+		StepTimeout: time.Duration(cfg.Runs.StepTimeoutMs) * time.Millisecond,
 		Combat: tasks.CombatConfig{
 			Profile:                 run.Combat.Profile,
 			AttackSkillID:           attackSkillID,
@@ -59,6 +58,14 @@ func mapRunConfig(runs config.RunsConfig, runID string) (tasks.RunConfig, error)
 			KillConfirmTicks:        run.Combat.KillConfirmTicks,
 		},
 		Loot: tasks.RunLootConfig{PickupFile: run.Loot.PickupFile, SellFile: run.Loot.SellFile},
+	}
+	assignmentStore, err := NewRouteAssignmentStore(cfg)
+	if err != nil {
+		return tasks.RunConfig{}, err
+	}
+	mapped.RouteID, _, err = assignmentStore.Resolve(cfg.Session.Character, tasks.RunID(runID))
+	if err != nil {
+		return tasks.RunConfig{}, err
 	}
 	resolved, err := tasks.DefaultRunRegistry().Resolve(tasks.RunID(runID), map[tasks.RunID]tasks.RunConfig{tasks.RunID(runID): mapped})
 	if err != nil {
@@ -104,9 +111,16 @@ func validateRunMode(sel tasks.RunSelection, cfg *config.Config, opts Options, l
 		if err != nil {
 			return err
 		}
-		if command.action == "record" || command.action == "record-egress" {
+		if command.action == "record" {
+			if !cfg.Input.Enabled {
+				return fmt.Errorf("guided route recording requires input.enabled=true for the TP safety return")
+			}
 			if _, err := parseOfflineDifficulty(opts.RouteDifficulty); err != nil {
 				return fmt.Errorf("--route-difficulty is required for %s: %w", command.action, err)
+			}
+		} else if command.action == "record-egress" {
+			if opts.RouteDifficulty != "" {
+				return fmt.Errorf("--route-difficulty is invalid for global system Egress recording")
 			}
 		} else if opts.RouteName != "" || opts.RouteDifficulty != "" {
 			return fmt.Errorf("--route-name and --route-difficulty are only valid with route record or record-egress")
@@ -116,7 +130,7 @@ func validateRunMode(sel tasks.RunSelection, cfg *config.Config, opts Options, l
 		}
 	}
 	if opts.Route == "" && (opts.RouteName != "" || opts.RouteDifficulty != "") {
-		return fmt.Errorf("--route-name and --route-difficulty require --route record:<id> or record-egress:act3")
+		return fmt.Errorf("--route-name and --route-difficulty require --route record:<id> or record-egress:<act2|act3|act4|act5>")
 	}
 	if opts.OfflineDifficulty != "" {
 		if !cfg.Input.Enabled {
@@ -155,7 +169,7 @@ func validateRunMode(sel tasks.RunSelection, cfg *config.Config, opts Options, l
 	if !tasks.IsKnownRun(sel.Run) {
 		return fmt.Errorf("%w: %q", errUnknownRun, sel.Run)
 	}
-	runCfg, configured := cfg.Runs.Run(sel.Run)
+	_, configured := cfg.Runs.Run(sel.Run)
 	if !configured {
 		return fmt.Errorf("%s: %q", tasks.RunReasonConfigMissing, sel.Run)
 	}
@@ -179,9 +193,6 @@ func validateRunMode(sel tasks.RunSelection, cfg *config.Config, opts Options, l
 		if err := validateFullRunBindings(cfg, sel.Run); err != nil {
 			return err
 		}
-	}
-	if sel.Phase == tasks.RunPhasePlayRoute && runCfg.RouteID == "" {
-		return fmt.Errorf("runs.definitions.%s.route_id is required for play-route", sel.Run)
 	}
 	if sel.Phase == tasks.RunPhaseTravelEntry {
 		if err := validateProfileBindings(cfg, sel.Run); err != nil {

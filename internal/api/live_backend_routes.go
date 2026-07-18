@@ -1,0 +1,363 @@
+package api
+
+import (
+	"fmt"
+	"path/filepath"
+	"sort"
+	"strings"
+
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/app"
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/tasks"
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/telemetry"
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/town"
+)
+
+// RouteLibrary returns a path-free Farming catalog projection.
+func (b *LiveBackend) RouteLibrary(character string, includeArchived bool) (RouteLibraryDTO, error) {
+	manifest, catalog, err := b.lifecycle.Snapshot()
+	if err != nil {
+		return RouteLibraryDTO{}, err
+	}
+	assignments, err := b.routeAssignments.Snapshot()
+	if err != nil {
+		return RouteLibraryDTO{}, err
+	}
+	filter := strings.ToLower(strings.TrimSpace(character))
+	result := RouteLibraryDTO{SchemaVersion: schemaVersion, Revision: catalog.Revision, Character: character, Routes: []RouteEntryDTO{}}
+	for _, entry := range catalog.Entries {
+		if filter != "" && !strings.EqualFold(entry.Character, filter) {
+			continue
+		}
+		isArchived := entry.ManagementStatus == app.RouteManagementArchived
+		if isArchived && !includeArchived {
+			continue
+		}
+		assigned := assignments.Assignments[strings.ToLower(entry.Character)][entry.RunID] == entry.ID
+		result.Routes = append(result.Routes, RouteEntryDTO{RouteID: entry.ID, DisplayName: entry.Route.Name, RunID: string(entry.RunID), Character: entry.Character, Difficulty: entry.Difficulty, LifecycleStatus: string(entry.Status), ManagementStatus: string(entry.ManagementStatus), Assigned: assigned, Reason: entry.Reason})
+	}
+	sort.Slice(result.Routes, func(i, j int) bool { return result.Routes[i].RouteID < result.Routes[j].RouteID })
+	_ = manifest
+	return result, nil
+}
+
+// RecordingOptions returns contracts from the authoritative run registry.
+func (b *LiveBackend) RecordingOptions() []RecordingOptionDTO {
+	b.mu.RLock()
+	selection := b.status.Selection
+	supervisorState := b.status.State
+	workflowState := b.routeWorkflow.State
+	b.mu.RUnlock()
+	definitions := tasks.DefaultRunRegistry().Definitions()
+	result := make([]RecordingOptionDTO, 0, len(definitions))
+	for _, definition := range definitions {
+		areas := make([]uint32, len(definition.Recording.AllowedRouteAreas))
+		for i, area := range definition.Recording.AllowedRouteAreas {
+			areas[i] = uint32(area)
+		}
+		available, reason := true, ""
+		if !b.cfg.Input.Enabled {
+			available, reason = false, "input_disabled"
+		} else if selection.Character == "" || selection.Difficulty == "" {
+			available, reason = false, "selection_unconfirmed"
+		} else if routeWorkflowBusy(workflowState) {
+			available, reason = false, "route_workflow_active"
+		} else if supervisorState != string(app.SupervisorStateIdle) && supervisorState != string(app.SupervisorStateIdleInGame) {
+			available, reason = false, "session_active"
+		}
+		result = append(result, RecordingOptionDTO{RunID: string(definition.ID), DisplayName: definition.DisplayName, InstructionsDE: definition.Recording.InstructionsDE, StartWaypoint: string(definition.Recording.StartWaypoint), AllowedStartAreaID: uint32(definition.Recording.AllowedStartArea), AllowedRouteAreaIDs: areas, TerminalAreaID: uint32(definition.Recording.TerminalArea), TerminalMaxDistanceTiles: definition.Recording.TerminalMaxDistanceTiles, Available: available, Reason: reason})
+	}
+	return result
+}
+
+// RouteCandidates returns immutable candidate identity without filesystem locations.
+func (b *LiveBackend) RouteCandidates() ([]RouteCandidateDTO, error) {
+	entries, err := b.routeCandidates.List()
+	if err != nil {
+		return nil, err
+	}
+	result := make([]RouteCandidateDTO, 0, len(entries))
+	for _, entry := range entries {
+		result = append(result, RouteCandidateDTO{CandidateID: entry.CandidateID, RunID: string(entry.RunID), Character: entry.Character, Difficulty: entry.Difficulty, State: string(entry.State), MeasuredBossDistance: entry.MeasuredBossDistance, RouteSHA256: entry.ImmutableRouteSHA256, Reason: string(entry.FailureReason)})
+	}
+	return result, nil
+}
+
+// SystemRouteStatuses reports setup readiness for global Act 2-5 Egresses.
+func (b *LiveBackend) SystemRouteStatuses() []SystemRouteStatusDTO {
+	acts := []town.OriginAct{town.OriginAct2, town.OriginAct3, town.OriginAct4, town.OriginAct5}
+	result := make([]SystemRouteStatusDTO, 0, len(acts))
+	for _, act := range acts {
+		entry := SystemRouteStatusDTO{Act: string(act)}
+		_, reason := b.cfg.Town.EgressFor(act)
+		if reason != "" {
+			entry.Reason = string(reason)
+		} else {
+			if err := b.systemEgressReady(act); err != nil {
+				entry.Reason = "egress_missing_or_invalid"
+			} else {
+				entry.Ready = true
+			}
+		}
+		result = append(result, entry)
+	}
+	return result
+}
+
+func (b *LiveBackend) systemEgressReady(act town.OriginAct) error {
+	cfg, reason := b.cfg.Town.EgressFor(act)
+	if reason != "" {
+		return fmt.Errorf("system Egress unavailable: %s", reason)
+	}
+	route, err := town.LoadSystemEgressRoute(filepath.Join(b.cfg.ResolvePath(cfg.RoutesDirectory), town.SystemEgressFilename))
+	if err != nil {
+		return err
+	}
+	expectedArea, ok := town.TownAreaForAct(act)
+	if !ok || route.Contract.Act != act || route.Contract.TownArea != expectedArea || route.Contract.GameVersion != b.cfg.Memory.GameVersion {
+		return fmt.Errorf("system Egress contract does not match act or game version")
+	}
+	return nil
+}
+
+// HotkeyHelp returns the effective values read by the Core.
+func (b *LiveBackend) HotkeyHelp() HotkeyHelpDTO {
+	return HotkeyHelpDTO{RecordingFinish: b.cfg.Input.RecordingFinishHotkey, StopAfterRun: b.cfg.Input.StopAfterRunHotkey, EmergencyStop: b.cfg.Input.StopHotkey, Pause: b.cfg.Input.PauseHotkey}
+}
+
+// RouteWorkflow returns the current exclusive workflow projection.
+func (b *LiveBackend) RouteWorkflow() RouteWorkflowDTO {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+	return b.routeWorkflow
+}
+
+// PreviewRouteMutation delegates revision binding to RouteManagementService.
+func (b *LiveBackend) PreviewRouteMutation(request RouteMutationPreviewRequest) (RouteMutationPreviewDTO, error) {
+	b.mu.RLock()
+	workflowState := b.routeWorkflow.State
+	selection := b.status.Selection
+	b.mu.RUnlock()
+	if routeWorkflowBusy(workflowState) {
+		return RouteMutationPreviewDTO{}, fmt.Errorf("route mutation conflicts with active workflow")
+	}
+	var preview app.RouteMutationPreview
+	var err error
+	if request.CandidateID != "" {
+		candidate, _, loadErr := b.routeCandidates.Load(request.CandidateID)
+		if loadErr != nil {
+			return RouteMutationPreviewDTO{}, loadErr
+		}
+		if !strings.EqualFold(selection.Character, candidate.Character) || !strings.EqualFold(selection.Difficulty, candidate.Difficulty) {
+			return RouteMutationPreviewDTO{}, fmt.Errorf("live candidate context changed")
+		}
+		preview, err = b.routeManagement.PreviewCandidate(request.CandidateID)
+	} else {
+		preview, err = b.routeManagement.PreviewRoute(app.RouteMutationOperation(request.Operation), request.RouteID)
+	}
+	if err != nil {
+		return RouteMutationPreviewDTO{}, err
+	}
+	return RouteMutationPreviewDTO{Operation: string(preview.Operation), RouteID: preview.RouteID, CandidateID: preview.CandidateID, ReplacedRouteID: preview.PreviousRouteID, CatalogRevision: preview.CatalogRevision, LifecycleRevision: preview.LifecycleRevision, AssignmentRevision: preview.AssignmentRevision, ConfirmationToken: preview.Token}, nil
+}
+
+// ConfirmRouteMutation consumes the one-use preview and refreshes the catalog generation.
+func (b *LiveBackend) ConfirmRouteMutation(request RouteMutationConfirmRequest) error {
+	b.commandMu.Lock()
+	defer b.commandMu.Unlock()
+	b.mu.RLock()
+	workflowState := b.routeWorkflow.State
+	selection := b.status.Selection
+	b.mu.RUnlock()
+	if routeWorkflowBusy(workflowState) {
+		return fmt.Errorf("route mutation conflicts with active workflow")
+	}
+	// Candidate publication is revalidated immediately before the one-use
+	// management capability is consumed; route-only operations have no candidate.
+	if preview, ok := b.routeManagement.PreviewForToken(request.ConfirmationToken); ok && preview.CandidateID != "" {
+		candidate, _, err := b.routeCandidates.Load(preview.CandidateID)
+		if err != nil {
+			return err
+		}
+		if !strings.EqualFold(selection.Character, candidate.Character) || !strings.EqualFold(selection.Difficulty, candidate.Difficulty) {
+			return fmt.Errorf("live candidate context changed")
+		}
+	}
+	if err := b.routeManagement.Confirm(app.RouteMutationConfirm{Token: request.ConfirmationToken, ConfirmRouteID: request.ConfirmRouteID}); err != nil {
+		return err
+	}
+	b.mu.Lock()
+	b.catalog.Revision++
+	generation := b.catalog.Revision
+	b.mu.Unlock()
+	b.publisher.Publish(routeEvent("route_library_changed", generation, ""))
+	return nil
+}
+
+// StartRouteWorkflow starts the already-wired Core workflow asynchronously.
+func (b *LiveBackend) StartRouteWorkflow(request RouteWorkflowRequest) (RouteWorkflowDTO, error) {
+	b.commandMu.Lock()
+	defer b.commandMu.Unlock()
+	var testCandidate *app.RouteCandidate
+	switch request.Operation {
+	case "record":
+		if _, ok := tasks.DefaultRunRegistry().Definition(tasks.RunID(request.RunID)); !ok {
+			return RouteWorkflowDTO{}, fmt.Errorf("unknown recording run")
+		}
+	case "test":
+		if strings.TrimSpace(request.CandidateID) == "" {
+			return RouteWorkflowDTO{}, fmt.Errorf("candidate ID is required")
+		}
+		candidate, _, err := b.routeCandidates.Load(request.CandidateID)
+		if err != nil {
+			return RouteWorkflowDTO{}, err
+		}
+		testCandidate = &candidate
+	case "system_record", "system_test":
+		act := town.OriginAct(request.Act)
+		if act != town.OriginAct2 && act != town.OriginAct3 && act != town.OriginAct4 && act != town.OriginAct5 {
+			return RouteWorkflowDTO{}, fmt.Errorf("unsupported system Egress act")
+		}
+		readyErr := b.systemEgressReady(act)
+		if request.Operation == "system_record" && readyErr == nil {
+			return RouteWorkflowDTO{}, fmt.Errorf("system Egress is already ready")
+		}
+		if request.Operation == "system_test" && readyErr != nil {
+			return RouteWorkflowDTO{}, fmt.Errorf("system Egress is missing or invalid")
+		}
+	default:
+		return RouteWorkflowDTO{}, fmt.Errorf("unsupported route workflow")
+	}
+	b.mu.Lock()
+	selection := b.status.Selection
+	if request.ExpectedGeneration != b.routeWorkflow.Generation {
+		b.mu.Unlock()
+		return RouteWorkflowDTO{}, fmt.Errorf("route workflow generation changed")
+	}
+	if b.status.State != string(app.SupervisorStateIdle) && b.status.State != string(app.SupervisorStateIdleInGame) {
+		b.mu.Unlock()
+		return RouteWorkflowDTO{}, fmt.Errorf("route workflow conflicts with active session")
+	}
+	if !b.cfg.Input.Enabled {
+		b.mu.Unlock()
+		return RouteWorkflowDTO{}, fmt.Errorf("route workflow requires enabled input")
+	}
+	if request.Operation == "record" && (selection.Character == "" || selection.Difficulty == "") {
+		b.mu.Unlock()
+		return RouteWorkflowDTO{}, fmt.Errorf("route recording requires confirmed character and difficulty")
+	}
+	if testCandidate != nil && (!strings.EqualFold(selection.Character, testCandidate.Character) || !strings.EqualFold(selection.Difficulty, testCandidate.Difficulty)) {
+		b.mu.Unlock()
+		return RouteWorkflowDTO{}, fmt.Errorf("live candidate context changed")
+	}
+	if routeWorkflowBusy(b.routeWorkflow.State) {
+		b.mu.Unlock()
+		return RouteWorkflowDTO{}, fmt.Errorf("%s", app.RouteReasonRecordingConflict)
+	}
+	handler := b.routeWorkflowRun
+	if handler == nil {
+		b.mu.Unlock()
+		return RouteWorkflowDTO{}, fmt.Errorf("route workflow is not available")
+	}
+	token, err := randomToken(12)
+	if err != nil {
+		b.mu.Unlock()
+		return RouteWorkflowDTO{}, err
+	}
+	state := app.RouteWorkflowPreflight
+	if request.Operation == "test" || request.Operation == "system_test" {
+		state = app.RouteWorkflowPreparingPlayback
+	}
+	runID, character := request.RunID, selection.Character
+	if testCandidate != nil {
+		runID, character = string(testCandidate.RunID), testCandidate.Character
+	}
+	if request.Operation == "system_record" || request.Operation == "system_test" {
+		character = ""
+	}
+	b.routeWorkflow = RouteWorkflowDTO{WorkflowID: token, Generation: b.routeWorkflow.Generation + 1, State: string(state), RunID: runID, Character: character, Act: request.Act}
+	finishRequests := make(chan struct{}, 1)
+	b.routeWorkflowFinish = finishRequests
+	snapshot := b.routeWorkflow
+	b.mu.Unlock()
+	b.publisher.Publish(routeWorkflowEvent("route_workflow_changed", snapshot))
+	report := func(progress app.RouteWorkflowProgress) {
+		b.mu.Lock()
+		if b.routeWorkflow.WorkflowID != token || !routeWorkflowBusy(b.routeWorkflow.State) {
+			b.mu.Unlock()
+			return
+		}
+		if b.routeWorkflow.State == string(progress.State) && b.routeWorkflow.AreaID == progress.AreaID && b.routeWorkflow.Segment == progress.Segment && b.routeWorkflow.Progress == progress.Progress && b.routeWorkflow.Reason == progress.Reason {
+			b.mu.Unlock()
+			return
+		}
+		b.routeWorkflow.Generation++
+		b.routeWorkflow.State = string(progress.State)
+		b.routeWorkflow.AreaID = progress.AreaID
+		b.routeWorkflow.Segment = progress.Segment
+		b.routeWorkflow.Progress = progress.Progress
+		b.routeWorkflow.Reason = progress.Reason
+		updated := b.routeWorkflow
+		b.mu.Unlock()
+		b.publisher.Publish(routeWorkflowEvent("route_workflow_changed", updated))
+	}
+	go func() {
+		runErr := handler(request, finishRequests, report)
+		b.mu.Lock()
+		b.routeWorkflow.Generation++
+		if runErr != nil {
+			if strings.Contains(strings.ToLower(runErr.Error()), "cancel") {
+				b.routeWorkflow.State = string(app.RouteWorkflowEmergencyCancelled)
+			} else {
+				b.routeWorkflow.State = string(app.RouteWorkflowFailedSafe)
+			}
+			b.routeWorkflow.Reason = runErr.Error()
+		} else {
+			b.routeWorkflow.State = string(app.RouteWorkflowCompleted)
+			b.routeWorkflow.Reason = ""
+		}
+		completed := b.routeWorkflow
+		b.routeWorkflowFinish = nil
+		b.mu.Unlock()
+		b.publisher.Publish(routeWorkflowEvent("route_workflow_changed", completed))
+	}()
+	return snapshot, nil
+}
+
+// FinishRouteWorkflow submits the same one-shot finish intent as F9.
+func (b *LiveBackend) FinishRouteWorkflow(workflowID string, request RouteWorkflowFinishRequest) (RouteWorkflowDTO, error) {
+	b.commandMu.Lock()
+	defer b.commandMu.Unlock()
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if workflowID == "" || workflowID != b.routeWorkflow.WorkflowID {
+		return RouteWorkflowDTO{}, fmt.Errorf("route workflow ID changed")
+	}
+	if b.routeWorkflow.State != string(app.RouteWorkflowRecording) {
+		switch b.routeWorkflow.State {
+		case string(app.RouteWorkflowFreezing), string(app.RouteWorkflowValidating), string(app.RouteWorkflowReturningViaPortal), string(app.RouteWorkflowCandidateReady), string(app.RouteWorkflowCompleted):
+			return b.routeWorkflow, nil
+		default:
+			return RouteWorkflowDTO{}, fmt.Errorf("route workflow is not recording")
+		}
+	}
+	if request.ExpectedGeneration != b.routeWorkflow.Generation || b.routeWorkflowFinish == nil {
+		return RouteWorkflowDTO{}, fmt.Errorf("route workflow generation changed")
+	}
+	select {
+	case b.routeWorkflowFinish <- struct{}{}:
+	default:
+	}
+	b.routeWorkflow.Generation++
+	b.routeWorkflow.State = string(app.RouteWorkflowFreezing)
+	snapshot := b.routeWorkflow
+	b.publisher.Publish(routeWorkflowEvent("route_workflow_changed", snapshot))
+	return snapshot, nil
+}
+
+func routeEvent(name string, generation uint64, state string) telemetry.LiveEvent {
+	return telemetry.LiveEvent{Event: name, State: state, Details: map[string]any{"generation": generation}}
+}
+
+func routeWorkflowEvent(name string, workflow RouteWorkflowDTO) telemetry.LiveEvent {
+	return telemetry.LiveEvent{Event: name, WorkflowID: workflow.WorkflowID, State: workflow.State, Run: workflow.RunID, Act: workflow.Act, AreaID: workflow.AreaID, Segment: workflow.Segment, Progress: workflow.Progress, Reason: workflow.Reason, Details: map[string]any{"generation": workflow.Generation}}
+}

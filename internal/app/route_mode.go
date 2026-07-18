@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/pathing"
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/town"
 )
 
 type routeCommand struct {
@@ -23,10 +24,11 @@ func parseRouteCommand(raw string) (routeCommand, error) {
 		return routeCommand{}, fmt.Errorf("route command must be list, inspect:<route-id>, or validate:<route-id>")
 	}
 	if action == "inspect-egress" || action == "record-egress" || action == "validate-egress" || action == "play-egress" {
-		if strings.TrimSpace(id) != "act3" {
-			return routeCommand{}, fmt.Errorf("%s expects act3", action)
+		act := town.OriginAct(strings.TrimSpace(id))
+		if _, ok := town.TownAreaForAct(act); !ok {
+			return routeCommand{}, fmt.Errorf("%s expects act2, act3, act4, or act5", action)
 		}
-		return routeCommand{action: action, id: "act3"}, nil
+		return routeCommand{action: action, id: string(act)}, nil
 	}
 	if action == "play-segment" {
 		routeID, segmentID, ok := strings.Cut(id, "/")
@@ -54,16 +56,16 @@ func (rt *Runtime) RunRouteCommand(raw string) error {
 		return rt.RunRouteRecord(command.id, rt.Options.RouteName, rt.Options.RouteDifficulty)
 	}
 	if command.action == "inspect-egress" {
-		return rt.RunTownEgressInspect()
+		return rt.RunTownEgressInspect(town.OriginAct(command.id))
 	}
 	if command.action == "record-egress" {
-		return rt.RunTownEgressRecord(rt.Options.RouteName, rt.Options.RouteDifficulty)
+		return rt.RunTownEgressRecord(town.OriginAct(command.id), rt.Options.RouteName)
 	}
 	if command.action == "validate-egress" {
-		return rt.RunTownEgressValidate()
+		return rt.RunTownEgressValidate(town.OriginAct(command.id))
 	}
 	if command.action == "play-egress" {
-		return rt.RunTownEgressPlay()
+		return rt.RunTownEgressPlay(town.OriginAct(command.id))
 	}
 	if command.action == "play-segment" {
 		return rt.RunRouteSegment(command.id, command.segmentID)

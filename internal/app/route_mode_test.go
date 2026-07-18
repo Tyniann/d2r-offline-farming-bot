@@ -14,6 +14,9 @@ func TestParseRouteCommand(t *testing.T) {
 		"record-egress:act3":                  {action: "record-egress", id: "act3"},
 		"validate-egress:act3":                {action: "validate-egress", id: "act3"},
 		"play-egress:act3":                    {action: "play-egress", id: "act3"},
+		"record-egress:act2":                  {action: "record-egress", id: "act2"},
+		"validate-egress:act4":                {action: "validate-egress", id: "act4"},
+		"inspect-egress:act5":                 {action: "inspect-egress", id: "act5"},
 	}
 	for raw, want := range tests {
 		got, err := parseRouteCommand(raw)

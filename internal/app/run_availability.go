@@ -74,6 +74,14 @@ func resolveRunAvailabilities(cfg *config.Config, context RunAvailabilityContext
 	if err != nil {
 		return runAvailabilityResolution{}, fmt.Errorf("load run route catalog: %w", err)
 	}
+	assignmentStore, err := NewRouteAssignmentStore(cfg)
+	if err != nil {
+		return runAvailabilityResolution{}, err
+	}
+	assignments, err := assignmentStore.Snapshot()
+	if err != nil {
+		return runAvailabilityResolution{}, fmt.Errorf("load route assignments: %w", err)
+	}
 	result := runAvailabilityResolution{
 		report: RunsInspectReport{Context: context}, routes: make(map[tasks.RunID]pathing.Route), routePaths: make(map[string]string),
 	}
@@ -101,12 +109,13 @@ func resolveRunAvailabilities(cfg *config.Config, context RunAvailabilityContext
 		}
 
 		var route pathing.Route
-		if strings.TrimSpace(runCfg.RouteID) == "" {
+		routeID := assignments.Assignments[strings.ToLower(strings.TrimSpace(context.Character))][definition.ID]
+		if strings.TrimSpace(routeID) == "" {
 			availability.Route.Reason = tasks.RunReasonRouteMissing
-			availability.Reasons = append(availability.Reasons, tasks.RunReasonRouteMissing)
+			availability.Reasons = append(availability.Reasons, tasks.RunReasonRouteAssignmentMissing)
 		} else {
-			availability.Route.RouteID = runCfg.RouteID
-			candidate, found := candidates[runCfg.RouteID]
+			availability.Route.RouteID = routeID
+			candidate, found := candidates[routeID]
 			if !found {
 				availability.Route.Reason = tasks.RunReasonRouteMissing
 				availability.Reasons = append(availability.Reasons, tasks.RunReasonRouteMissing)
@@ -114,6 +123,9 @@ func resolveRunAvailabilities(cfg *config.Config, context RunAvailabilityContext
 				availability.Route.Reason = tasks.RunReasonRouteStale
 				availability.Reasons = append(availability.Reasons, tasks.RunReasonRouteStale)
 			} else if candidate.Status == RouteLifecycleUnavailable {
+				availability.Route.Reason = tasks.RunReasonRouteLifecycleUnavailable
+				availability.Reasons = append(availability.Reasons, tasks.RunReasonRouteLifecycleUnavailable)
+			} else if candidate.ManagementStatus == RouteManagementArchived {
 				availability.Route.Reason = tasks.RunReasonRouteLifecycleUnavailable
 				availability.Reasons = append(availability.Reasons, tasks.RunReasonRouteLifecycleUnavailable)
 			} else {
@@ -160,19 +172,18 @@ func resolveRunAvailabilities(cfg *config.Config, context RunAvailabilityContext
 }
 
 func validateTownEgressAvailability(cfg *config.Config, egress town.EgressConfig, origin town.OriginAct, context RunAvailabilityContext) tasks.RunReason {
-	registry, err := pathing.LoadRouteRegistry(cfg.ResolvePath(egress.RoutesDirectory))
+	route, err := town.LoadSystemEgressRoute(cfg.ResolvePath(egress.RoutesDirectory + "/" + town.SystemEgressFilename))
 	if err != nil {
 		return tasks.RunReasonTownEgressMissing
 	}
-	route, err := registry.Get(egress.RouteID)
-	if err != nil || validateAct3EgressRoute(route) != nil || origin != town.OriginAct3 {
+	area, ok := town.TownAreaForAct(origin)
+	if !ok || route.Contract.Act != origin || route.Contract.TownArea != area {
 		return tasks.RunReasonTownEgressMissing
 	}
-	if context.Character != "" && !strings.EqualFold(route.Binding.CharacterName, context.Character) ||
-		context.CharacterClass != "" && !strings.EqualFold(route.Binding.CharacterClass, context.CharacterClass) ||
-		context.Difficulty != "" && string(route.Binding.Difficulty) != context.Difficulty ||
-		context.GameVersion != "" && route.Binding.GameVersion != context.GameVersion ||
-		context.MapSeed != nil && (route.Binding.MapSeed == nil || *route.Binding.MapSeed != *context.MapSeed) {
+	if context.GameVersion != "" && route.Contract.GameVersion != context.GameVersion {
+		return tasks.RunReasonTownEgressBindingMismatch
+	}
+	if context.LayoutFingerprint != "" && route.Contract.LayoutFingerprint.Hash != context.LayoutFingerprint {
 		return tasks.RunReasonTownEgressBindingMismatch
 	}
 	return ""

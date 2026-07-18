@@ -16,7 +16,6 @@ type HubConfig struct {
 // EgressConfig permits a foreign act to register only its local departure route.
 type EgressConfig struct {
 	Area            string             `yaml:"area"`
-	RouteID         string             `yaml:"route_id"`
 	Anchors         []Anchor           `yaml:"anchors"`
 	RoutesDirectory string             `yaml:"routes_directory"`
 	Services        map[Service]Anchor `yaml:"services"`
@@ -82,8 +81,12 @@ func (c Config) Validate() error {
 		if act != OriginAct2 && act != OriginAct3 && act != OriginAct4 && act != OriginAct5 {
 			return fmt.Errorf("town.egress.%s is unsupported", act)
 		}
-		if strings.TrimSpace(egress.Area) == "" || strings.TrimSpace(egress.RouteID) == "" || strings.TrimSpace(egress.RoutesDirectory) == "" {
-			return fmt.Errorf("town.egress.%s area, route_id, and routes_directory are required", act)
+		if strings.TrimSpace(egress.Area) == "" || strings.TrimSpace(egress.RoutesDirectory) == "" {
+			return fmt.Errorf("town.egress.%s area and routes_directory are required", act)
+		}
+		area, _ := TownAreaForAct(act)
+		if egress.Area != systemEgressAreaName(act) {
+			return fmt.Errorf("town.egress.%s area must identify town area %d", act, area)
 		}
 		if len(egress.Anchors) != 2 || egress.Anchors[0] != AnchorPortalArrival || egress.Anchors[1] != AnchorWaypoint {
 			return fmt.Errorf("town.egress.%s anchors must be portal_arrival, waypoint", act)
@@ -93,6 +96,21 @@ func (c Config) Validate() error {
 		}
 	}
 	return nil
+}
+
+func systemEgressAreaName(act OriginAct) string {
+	switch act {
+	case OriginAct2:
+		return "lut_gholein"
+	case OriginAct3:
+		return "kurast_docks"
+	case OriginAct4:
+		return "the_pandemonium_fortress"
+	case OriginAct5:
+		return "harrogath"
+	default:
+		return ""
+	}
 }
 
 // EgressFor resolves the foreign-act egress or returns the stable fail-closed reason.

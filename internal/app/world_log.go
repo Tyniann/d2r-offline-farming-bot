@@ -164,6 +164,7 @@ func worldLogAttrs(cur world.State, verbose bool) []slog.Attr {
 		slog.Bool("ui_inventory_open", cur.UI.InventoryOpen),
 		slog.Bool("ui_npc_interact_open", cur.UI.NPCInteractOpen),
 		slog.Bool("ui_npc_shop_open", cur.UI.NPCShopOpen),
+		slog.Bool("ui_waypoint_open", cur.UI.WaypointOpen),
 		slog.Bool("ui_stash_open", cur.UI.StashOpen),
 		slog.Bool("ui_quit_menu_open", cur.UI.QuitMenuOpen),
 	}

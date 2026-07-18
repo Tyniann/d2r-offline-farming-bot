@@ -173,7 +173,7 @@ func (c *runPipeline) nextStep(current string) string {
 		case pipelineStepEnterTownPortal:
 			return pipelineStepWaitOriginTown
 		case pipelineStepWaitOriginTown:
-			if c.effectiveDefinition().ReturnOrigin == town.OriginAct3 {
+			if foreignTownOrigin(c.effectiveDefinition().ReturnOrigin) {
 				return pipelineStepPlayTownEgress
 			}
 			return pipelineStepOpenStash
@@ -257,7 +257,7 @@ func (c *runPipeline) nextStep(current string) string {
 	case pipelineStepEnterTownPortal:
 		return pipelineStepWaitOriginTown
 	case pipelineStepWaitOriginTown:
-		if c.effectiveDefinition().ReturnOrigin == town.OriginAct3 {
+		if foreignTownOrigin(c.effectiveDefinition().ReturnOrigin) {
 			return pipelineStepPlayTownEgress
 		}
 		return pipelineStepOpenStash
@@ -702,7 +702,7 @@ func (c *runPipeline) tickWaitOriginTown(w world.State) stepResult {
 }
 
 func (c *runPipeline) onTownNormalizationTick(ctx context.Context, deps Deps, step string, w world.State, now, stepStartedAt time.Time) stepResult {
-	if c.effectiveDefinition().ReturnOrigin != town.OriginAct3 {
+	if c.effectiveDefinition().ReturnOrigin == town.OriginAct1 {
 		return stepResult{failed: true, reason: string(RunReasonHubTransferUnsupported)}
 	}
 	switch step {
@@ -710,14 +710,14 @@ func (c *runPipeline) onTownNormalizationTick(ctx context.Context, deps Deps, st
 		if !w.Valid || w.Phase != world.GamePhaseInGame {
 			return stepResult{}
 		}
-		if w.Area.ID != world.KurastDocks {
+		if w.Area.ID != c.originTownArea() {
 			return stepResult{failed: true, reason: string(RunReasonUnexpectedArea)}
 		}
 		if deps.TownEgress == nil {
 			return stepResult{failed: true, reason: string(RunReasonTownEgressMissing)}
 		}
 		if !c.egressStarted {
-			if err := deps.TownEgress.Start(town.OriginAct3, w); err != nil {
+			if err := deps.TownEgress.Start(c.effectiveDefinition().ReturnOrigin, w); err != nil {
 				return stepResult{failed: true, reason: townEgressFailureReason(err)}
 			}
 			c.egressStarted = true
@@ -758,7 +758,7 @@ func (c *runPipeline) onTownNormalizationTick(ctx context.Context, deps Deps, st
 		if w.Valid && w.Area.ID == world.RogueEncampment {
 			return stepResult{complete: true}
 		}
-		if w.Valid && w.Phase == world.GamePhaseInGame && w.Area.ID != world.KurastDocks {
+		if w.Valid && w.Phase == world.GamePhaseInGame && w.Area.ID != c.originTownArea() {
 			return stepResult{failed: true, reason: string(RunReasonUnexpectedArea)}
 		}
 		return stepResult{}
@@ -783,8 +783,23 @@ func (c *runPipeline) originTownArea() world.AreaID {
 		return world.RogueEncampment
 	case town.OriginAct3:
 		return world.KurastDocks
+	case town.OriginAct2:
+		return world.LutGholein
+	case town.OriginAct4:
+		return world.ThePandemoniumFortress
+	case town.OriginAct5:
+		return world.Harrogath
 	default:
 		return world.None
+	}
+}
+
+func foreignTownOrigin(act town.OriginAct) bool {
+	switch act {
+	case town.OriginAct2, town.OriginAct3, town.OriginAct4, town.OriginAct5:
+		return true
+	default:
+		return false
 	}
 }
 

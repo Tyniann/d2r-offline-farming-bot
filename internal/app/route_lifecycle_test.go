@@ -11,6 +11,7 @@ import (
 
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/config"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/pathing"
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/tasks"
 )
 
 func TestRouteLifecycleBootstrapExactContextDoesNotInvalidate(t *testing.T) {
@@ -120,6 +121,25 @@ func TestRouteLifecycleCharacterSwitchAndSameDifficultyDoNotInvalidate(t *testin
 	}
 }
 
+func TestRouteLifecycleSameContextConfirmationIsRevisionIdempotent(t *testing.T) {
+	cfg, root := lifecycleTestConfig(t, "MrBones", "nightmare")
+	saveLifecycleTestRoute(t, root, "MrBones", "nightmare", "mrbones-route", time.Now().Add(-time.Hour))
+	store, _ := NewRouteLifecycleStore(cfg)
+	firstPreview, _ := store.Preview("MrBones", "nightmare")
+	first, err := store.Confirm(firstPreview, time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	secondPreview, _ := store.Preview("MrBones", "nightmare")
+	second, err := store.Confirm(secondPreview, time.Now().Add(time.Hour))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if second.Revision != first.Revision || !second.Characters["mrbones"].ConfirmedAt.Equal(*first.Characters["mrbones"].ConfirmedAt) {
+		t.Fatalf("same-context confirmation mutated lifecycle: first=%+v second=%+v", first, second)
+	}
+}
+
 func TestRouteLifecycleRejectsDuplicateCorruptAndStaleRevision(t *testing.T) {
 	cfg, root := lifecycleTestConfig(t, "MrBones", "nightmare")
 	saveLifecycleTestRoute(t, root, "MrBones", "nightmare", "duplicate-route", time.Now())
@@ -205,6 +225,28 @@ func TestRouteLifecycleWriteFailurePublishesNoManifest(t *testing.T) {
 	store, _ := NewRouteLifecycleStore(cfg)
 	if _, _, err := store.Snapshot(); err == nil {
 		t.Fatalf("write failure error = %v", err)
+	}
+}
+
+func TestRouteLifecycleManagementIsOrthogonalToInvalidation(t *testing.T) {
+	cfg, root := lifecycleTestConfig(t, "MrBones", "nightmare")
+	saveLifecycleTestRoute(t, root, "MrBones", "nightmare", "managed-route", time.Now().Add(-time.Hour))
+	store, _ := NewRouteLifecycleStore(cfg)
+	manifest, _, err := store.Snapshot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	manifest, err = store.SetManagement("managed-route", RouteManagementArchived, tasks.RunIDCountess, manifest.Revision)
+	if err != nil {
+		t.Fatal(err)
+	}
+	manifest, err = store.InvalidateLayout("MrBones", manifest.Revision, time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	route := manifest.Characters["mrbones"].Routes["managed-route"]
+	if route.ManagementStatus != RouteManagementArchived || route.InvalidatedAt == nil || route.InvalidationReason != "layout_mismatch_detected" {
+		t.Fatalf("orthogonal route=%+v", route)
 	}
 }
 

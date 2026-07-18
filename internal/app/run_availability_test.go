@@ -2,6 +2,7 @@ package app
 
 import (
 	"encoding/json"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -9,6 +10,7 @@ import (
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/config"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/tasks"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/town"
+	"gopkg.in/yaml.v3"
 )
 
 const testCountessFingerprint = "e6020b03a517d9aab52964cb0d8fb5fb362f17606408ac65cfa6f68ed5c519e3"
@@ -22,15 +24,36 @@ func availabilityConfig(t *testing.T) *config.Config {
 	cfg.Session.Character = "MrBones"
 	cfg.Session.Difficulty = "nightmare"
 	cfg.Routes.LifecycleFile = filepath.Join(t.TempDir(), "route-lifecycle.local.yaml")
+	cfg.Routes.AssignmentsFile = filepath.Join(t.TempDir(), "route-assignments.local.yaml")
 	// Availability tests must not change when an operator records the real
 	// Phase-10 Egress asset in the repository workspace.
 	egress := cfg.Town.Egress[town.OriginAct3]
 	egress.RoutesDirectory = t.TempDir()
 	cfg.Town.Egress[town.OriginAct3] = egress
-	countess := cfg.Runs.Definitions[string(tasks.RunIDCountess)]
-	countess.RouteID = "black-marsh-cellar5-nightmare-mrbones"
-	cfg.Runs.Definitions[string(tasks.RunIDCountess)] = countess
+	writeTestRouteAssignments(t, cfg, map[tasks.RunID]string{tasks.RunIDCountess: "black-marsh-cellar5-nightmare-mrbones", tasks.RunIDMephisto: "durance-2-mephisto-nightmare-mrbones"})
 	return cfg
+}
+
+func writeTestRouteAssignments(t *testing.T, cfg *config.Config, routes map[tasks.RunID]string) {
+	t.Helper()
+	if cfg.Routes.AssignmentsFile == "" {
+		cfg.Routes.AssignmentsFile = filepath.Join(t.TempDir(), "route-assignments.local.yaml")
+	}
+	character := strings.ToLower(cfg.Session.Character)
+	if character == "" {
+		character = "mrbones"
+	}
+	manifest := RouteAssignmentManifest{SchemaVersion: 1, Revision: 1, Assignments: map[string]map[tasks.RunID]string{character: routes}}
+	data, err := yaml.Marshal(manifest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Dir(cfg.ResolvePath(cfg.Routes.AssignmentsFile)), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(cfg.ResolvePath(cfg.Routes.AssignmentsFile), data, 0o600); err != nil {
+		t.Fatal(err)
+	}
 }
 
 func TestResolveRunAvailabilitiesGoldenOrderAndReasons(t *testing.T) {

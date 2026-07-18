@@ -18,9 +18,41 @@ import (
 )
 
 type apiTestBackend struct {
-	commands atomic.Int32
-	previews atomic.Int32
-	queueErr error
+	commands      atomic.Int32
+	previews      atomic.Int32
+	routeConfirms atomic.Int32
+	queueErr      error
+}
+
+func (b *apiTestBackend) RouteLibrary(string, bool) (RouteLibraryDTO, error) {
+	return RouteLibraryDTO{Revision: 3, Routes: []RouteEntryDTO{{RouteID: "countess-mrbones-1", DisplayName: "Countess", RunID: "countess", Character: "mrbones", Difficulty: "nightmare", LifecycleStatus: "valid", ManagementStatus: "active", Assigned: true}}}, nil
+}
+func (b *apiTestBackend) RecordingOptions() []RecordingOptionDTO { return []RecordingOptionDTO{} }
+func (b *apiTestBackend) RouteCandidates() ([]RouteCandidateDTO, error) {
+	return []RouteCandidateDTO{{CandidateID: "candidate-1", RunID: "countess", Character: "MrBones", Difficulty: "nightmare", State: "test_passed", RouteSHA256: strings.Repeat("a", 64)}}, nil
+}
+func (b *apiTestBackend) SystemRouteStatuses() []SystemRouteStatusDTO {
+	return []SystemRouteStatusDTO{{Act: "act3", Ready: true}}
+}
+func (b *apiTestBackend) HotkeyHelp() HotkeyHelpDTO {
+	return HotkeyHelpDTO{RecordingFinish: "f9", StopAfterRun: "f10", EmergencyStop: "f11", Pause: "pause"}
+}
+func (b *apiTestBackend) RouteWorkflow() RouteWorkflowDTO {
+	return RouteWorkflowDTO{Generation: 1, State: "idle"}
+}
+func (b *apiTestBackend) PreviewRouteMutation(RouteMutationPreviewRequest) (RouteMutationPreviewDTO, error) {
+	return RouteMutationPreviewDTO{Operation: "archive", RouteID: "countess-mrbones-1", ConfirmationToken: "one-use", CatalogRevision: 3, LifecycleRevision: 4, AssignmentRevision: 5}, nil
+}
+func (b *apiTestBackend) ConfirmRouteMutation(RouteMutationConfirmRequest) error {
+	b.routeConfirms.Add(1)
+	return nil
+}
+func (b *apiTestBackend) StartRouteWorkflow(RouteWorkflowRequest) (RouteWorkflowDTO, error) {
+	return RouteWorkflowDTO{WorkflowID: "workflow", Generation: 2, State: "preflight"}, nil
+}
+
+func (b *apiTestBackend) FinishRouteWorkflow(string, RouteWorkflowFinishRequest) (RouteWorkflowDTO, error) {
+	return RouteWorkflowDTO{WorkflowID: "workflow", Generation: 3, State: "freezing"}, nil
 }
 
 func (b *apiTestBackend) Status() StatusDTO {
@@ -210,6 +242,96 @@ func TestServerBindsLoopbackAndServesVersionedQueries(t *testing.T) {
 	}
 	if backend.commands.Load() != 0 {
 		t.Fatal("read-only status invoked a command")
+	}
+}
+
+func TestRouteDTOsDoNotLeakPathsAndMutationRequiresToken(t *testing.T) {
+	server, backend := startAPITestServer(t)
+	for _, path := range []string{"/api/v1/routes", "/api/v1/routes/candidates", "/api/v1/routes/system-status", "/api/v1/routes/hotkeys"} {
+		response, err := http.Get(server.URL() + path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var body bytes.Buffer
+		_, _ = body.ReadFrom(response.Body)
+		_ = response.Body.Close()
+		if response.StatusCode != http.StatusOK || strings.Contains(strings.ToLower(body.String()), "path") || strings.Contains(body.String(), `:\\`) {
+			t.Fatalf("unsafe route DTO %s: %s", path, body.String())
+		}
+	}
+	request, _ := http.NewRequest(http.MethodPost, server.URL()+"/api/v1/routes/confirm", strings.NewReader(`{"confirmation_token":"one-use"}`))
+	request.Header.Set("Content-Type", "application/json")
+	response, err := http.DefaultClient.Do(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusUnauthorized || backend.routeConfirms.Load() != 0 {
+		t.Fatalf("unguarded mutation status=%d calls=%d", response.StatusCode, backend.routeConfirms.Load())
+	}
+}
+
+func TestPhase12ExactRouteEndpointsAndMutationSecurity(t *testing.T) {
+	server, backend := startAPITestServer(t)
+	for _, path := range []string{
+		"/api/v1/routes?character=MrBones&include_archived=true",
+		"/api/v1/route-recording/options",
+		"/api/v1/system-routes/status",
+	} {
+		response, err := http.Get(server.URL() + path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_ = response.Body.Close()
+		if response.StatusCode != http.StatusOK {
+			t.Fatalf("GET %s status=%d", path, response.StatusCode)
+		}
+	}
+	preview, err := http.NewRequest(http.MethodPost, server.URL()+"/api/v1/routes/countess-mrbones-1/archive/preview", strings.NewReader(`{}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	preview.Header.Set("Content-Type", "application/json")
+	response, err := http.DefaultClient.Do(preview)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = response.Body.Close()
+	if response.StatusCode != http.StatusOK {
+		t.Fatalf("named preview status=%d", response.StatusCode)
+	}
+	confirm, _ := http.NewRequest(http.MethodPost, server.URL()+"/api/v1/routes/countess-mrbones-1/archive/confirm", strings.NewReader(`{"confirmation_token":"one-use"}`))
+	confirm.Header.Set("Content-Type", "application/json")
+	response, err = http.DefaultClient.Do(confirm)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = response.Body.Close()
+	if response.StatusCode != http.StatusUnauthorized || backend.routeConfirms.Load() != 0 {
+		t.Fatalf("unguarded named confirm status=%d calls=%d", response.StatusCode, backend.routeConfirms.Load())
+	}
+	for _, request := range []*http.Request{
+		newCommandRequest(t, server, "/api/v1/route-recordings", `{"expected_generation":1,"run_id":"countess"}`),
+		newCommandRequest(t, server, "/api/v1/route-recordings/workflow/finish", `{"expected_generation":2}`),
+		newCommandRequest(t, server, "/api/v1/route-candidates/candidate-1/test", `{"expected_generation":1}`),
+	} {
+		response, err = http.DefaultClient.Do(request)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_ = response.Body.Close()
+		if response.StatusCode != http.StatusAccepted {
+			t.Fatalf("POST %s status=%d", request.URL.Path, response.StatusCode)
+		}
+	}
+	strict := newCommandRequest(t, server, "/api/v1/route-recordings", `{"expected_generation":1,"run_id":"countess","operation":"test"}`)
+	response, err = http.DefaultClient.Do(strict)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusBadRequest {
+		t.Fatalf("non-strict recording start status=%d", response.StatusCode)
 	}
 }
 

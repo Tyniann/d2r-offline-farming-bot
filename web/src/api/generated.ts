@@ -78,10 +78,15 @@ export interface LiveEvent {
   game_id?: string;
   run_id?: string;
   run?: string;
+  act?: string;
   step?: string;
   area_id?: number;
   area?: string;
   reason?: string;
+  workflow_id?: string;
+  state?: string;
+  segment?: number;
+  progress?: number;
   details?: Record<string, unknown>;
 }
 
@@ -175,6 +180,114 @@ export interface SessionStartPayload {
   catalog_revision: number;
 }
 
+export interface RouteLibraryDTO {
+  schema_version: number;
+  revision: number;
+  character: string;
+  routes: Array<RouteEntryDTO>;
+}
+
+export interface RouteEntryDTO {
+  route_id: string;
+  display_name: string;
+  run_id: string;
+  character: string;
+  difficulty: string;
+  lifecycle_status: string;
+  management_status: string;
+  assigned: boolean;
+  reason?: string;
+}
+
+export interface RecordingOptionDTO {
+  run_id: string;
+  display_name: string;
+  instructions_de: string;
+  start_waypoint: string;
+  allowed_start_area_id: number;
+  allowed_route_area_ids: Array<number>;
+  terminal_area_id: number;
+  terminal_max_distance_tiles: number;
+  available: boolean;
+  reason?: string;
+}
+
+export interface RouteCandidateDTO {
+  candidate_id: string;
+  run_id: string;
+  character: string;
+  difficulty: string;
+  state: string;
+  measured_boss_distance: number;
+  route_sha256: string;
+  reason?: string;
+}
+
+export interface SystemRouteStatusDTO {
+  act: string;
+  ready: boolean;
+  reason?: string;
+}
+
+export interface HotkeyHelpDTO {
+  recording_finish: string;
+  stop_after_run: string;
+  emergency_stop: string;
+  pause: string;
+}
+
+export interface RouteWorkflowDTO {
+  workflow_id: string;
+  generation: number;
+  state: string;
+  run_id: string;
+  character: string;
+  act?: string;
+  area_id?: number;
+  segment?: number;
+  progress?: number;
+  reason?: string;
+}
+
+export interface RouteMutationPreviewDTO {
+  operation: string;
+  route_id: string;
+  candidate_id?: string;
+  replaced_route_id?: string;
+  catalog_revision: number;
+  lifecycle_revision: number;
+  assignment_revision: number;
+  confirmation_token: string;
+}
+
+export interface RouteWorkflowRequest {
+  expected_generation: number;
+  operation: string;
+  run_id?: string;
+  candidate_id?: string;
+  act?: string;
+}
+
+export interface RouteRecordingStartRequest {
+  expected_generation: number;
+  run_id: string;
+}
+
+export interface RouteWorkflowFinishRequest {
+  expected_generation: number;
+}
+
+export interface RouteMutationPreviewRequest {
+  operation: string;
+  route_id?: string;
+  candidate_id?: string;
+}
+
+export interface RouteMutationConfirmRequest {
+  confirmation_token: string;
+  confirm_route_id?: string;
+}
+
 export interface ErrorDTO {
   code: string;
   message: string;
@@ -196,4 +309,29 @@ export function getStatus(signal?: AbortSignal): Promise<StatusDTO> {
 
 export function getCatalog(signal?: AbortSignal): Promise<CatalogDTO> {
   return getJSON<CatalogDTO>("/api/v1/catalog", signal);
+}
+
+export function getRouteLibrary(character = "", archived = false, signal?: AbortSignal): Promise<RouteLibraryDTO> {
+  const query = new URLSearchParams({ character, include_archived: archived ? "true" : "false" });
+  return getJSON<RouteLibraryDTO>("/api/v1/routes?" + query.toString(), signal);
+}
+
+export function getRecordingOptions(signal?: AbortSignal): Promise<Array<RecordingOptionDTO>> {
+  return getJSON<Array<RecordingOptionDTO>>("/api/v1/route-recording/options", signal);
+}
+
+export function getRouteCandidates(signal?: AbortSignal): Promise<Array<RouteCandidateDTO>> {
+  return getJSON<Array<RouteCandidateDTO>>("/api/v1/routes/candidates", signal);
+}
+
+export function getSystemRouteStatus(signal?: AbortSignal): Promise<Array<SystemRouteStatusDTO>> {
+  return getJSON<Array<SystemRouteStatusDTO>>("/api/v1/system-routes/status", signal);
+}
+
+export function getHotkeyHelp(signal?: AbortSignal): Promise<HotkeyHelpDTO> {
+  return getJSON<HotkeyHelpDTO>("/api/v1/routes/hotkeys", signal);
+}
+
+export function getRouteWorkflow(signal?: AbortSignal): Promise<RouteWorkflowDTO> {
+  return getJSON<RouteWorkflowDTO>("/api/v1/routes/workflow", signal);
 }

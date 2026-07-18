@@ -207,9 +207,7 @@ func newQueueValidationConfig(t *testing.T) *config.Config {
 	}
 	cfg.Session.Character = "MrBones"
 	cfg.Session.Difficulty = "nightmare"
-	countess := cfg.Runs.Definitions["countess"]
-	countess.RouteID = "black-marsh-cellar5-nightmare-mrbones"
-	cfg.Runs.Definitions["countess"] = countess
+	writeTestRouteAssignments(t, cfg, map[tasks.RunID]string{tasks.RunIDCountess: "black-marsh-cellar5-nightmare-mrbones", tasks.RunIDMephisto: "durance-2-mephisto-nightmare-mrbones"})
 	cfg.Routes.LifecycleFile = filepath.Join(t.TempDir(), "route-lifecycle.local.yaml")
 	// Bootstrap the isolated manifest without changing production lifecycle metadata.
 	store, err := NewRouteLifecycleStore(cfg)

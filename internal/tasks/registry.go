@@ -136,6 +136,13 @@ func defaultRunDefinitions() []RunDefinition {
 			},
 			BossEngageSequence: []EncounterAction{{Hook: profile.HookBossEngage}}, ReturnOrigin: town.OriginAct1,
 			RequiredCaps: append([]RunCapability(nil), shared...),
+			Recording: RecordingContract{
+				InstructionsDE: "Reise zum Wegpunkt Schwarzmarsch, starte dort die Aufnahme und bewege dich bis zu deiner gewünschten Kampfposition bei der Gräfin. Beende die Aufnahme mit F9.",
+				StartWaypoint:  pathing.WaypointTargetBlackMarsh, AllowedStartArea: world.BlackMarsh,
+				AllowedRouteAreas: []world.AreaID{world.BlackMarsh, world.ForgottenTower, world.TowerCellarLevel1, world.TowerCellarLevel2, world.TowerCellarLevel3, world.TowerCellarLevel4, world.TowerCellarLevel5},
+				TerminalArea:      world.TowerCellarLevel5, Boss: BossDescriptor{NPCID: world.DarkStalker, Name: "Countess", RequireSuperUnique: true, AllowAnySuperUniqueFallback: true, SearchAnchorObject: world.ObjectKindGoodChest, SearchAnchorEntrance: world.EntranceKindTowerCellarDown},
+				TerminalMaxDistanceTiles: 80, Movement: pathing.RouteMovementTeleport, SafetyReturn: RecordingSafetyReturnTownPortal, EgressOriginAct: town.OriginAct1,
+			},
 		},
 		{
 			ID: RunIDMephisto, DisplayName: "Mephisto", EntryArea: world.DuranceOfHateLevel2,
@@ -143,6 +150,13 @@ func defaultRunDefinitions() []RunDefinition {
 			Boss:               BossDescriptor{NPCID: 242, Name: "Mephisto"},
 			BossEngageSequence: []EncounterAction{{Hook: profile.HookBossEngage}, {Hook: profile.HookBossEngage}}, ReturnOrigin: town.OriginAct3,
 			RequiredCaps: append(append([]RunCapability(nil), shared...), RunCapabilityForeignTownEgress),
+			Recording: RecordingContract{
+				InstructionsDE: "Reise zum Wegpunkt Kerker des Hasses – Ebene 2, starte dort die Aufnahme und bewege dich bis zu deiner gewünschten Kampfposition bei Mephisto. Beende die Aufnahme mit F9.",
+				StartWaypoint:  pathing.WaypointTargetDuranceOfHateLevel2, AllowedStartArea: world.DuranceOfHateLevel2,
+				AllowedRouteAreas: []world.AreaID{world.DuranceOfHateLevel2, world.DuranceOfHateLevel3},
+				TerminalArea:      world.DuranceOfHateLevel3, Boss: BossDescriptor{NPCID: 242, Name: "Mephisto"},
+				TerminalMaxDistanceTiles: 60, Movement: pathing.RouteMovementTeleport, SafetyReturn: RecordingSafetyReturnTownPortal, EgressOriginAct: town.OriginAct3,
+			},
 		},
 	}
 }
@@ -194,12 +208,43 @@ func validateRunDefinition(definition RunDefinition) error {
 	if definition.ReturnOrigin != town.OriginAct1 && !seen[RunCapabilityForeignTownEgress] {
 		return fmt.Errorf("%s: %s", RunReasonCapabilityMissing, RunCapabilityForeignTownEgress)
 	}
+	if err := validateRecordingContract(definition); err != nil {
+		return err
+	}
+	return nil
+}
+
+func validateRecordingContract(definition RunDefinition) error {
+	contract := definition.Recording
+	if strings.TrimSpace(contract.InstructionsDE) == "" || contract.StartWaypoint == "" || contract.AllowedStartArea == world.None || contract.TerminalArea == world.None {
+		return fmt.Errorf("recording instructions, start waypoint, start area, and terminal area are required")
+	}
+	if contract.StartWaypoint != definition.WaypointTarget || contract.TerminalArea != definition.RouteTerminalArea {
+		return fmt.Errorf("recording start waypoint and terminal area must match the run definition")
+	}
+	if contract.Boss.NPCID != definition.Boss.NPCID || contract.Boss.RequireSuperUnique != definition.Boss.RequireSuperUnique {
+		return fmt.Errorf("recording boss selector must match the run boss descriptor")
+	}
+	if len(contract.AllowedRouteAreas) == 0 || contract.AllowedRouteAreas[0] != contract.AllowedStartArea || contract.AllowedRouteAreas[len(contract.AllowedRouteAreas)-1] != contract.TerminalArea {
+		return fmt.Errorf("recording allowed areas must start and end at the declared anchors")
+	}
+	seenAreas := make(map[world.AreaID]bool, len(contract.AllowedRouteAreas))
+	for _, area := range contract.AllowedRouteAreas {
+		if area == world.None || seenAreas[area] {
+			return fmt.Errorf("recording allowed areas contain an empty or duplicate area")
+		}
+		seenAreas[area] = true
+	}
+	if contract.TerminalMaxDistanceTiles <= 0 || contract.Movement != pathing.RouteMovementTeleport || contract.SafetyReturn != RecordingSafetyReturnTownPortal || contract.EgressOriginAct != definition.ReturnOrigin {
+		return fmt.Errorf("recording distance, teleport movement, Town Portal return, and origin act are required")
+	}
 	return nil
 }
 
 func cloneRunDefinition(definition RunDefinition) RunDefinition {
 	definition.BossEngageSequence = append([]EncounterAction(nil), definition.BossEngageSequence...)
 	definition.RequiredCaps = append([]RunCapability(nil), definition.RequiredCaps...)
+	definition.Recording.AllowedRouteAreas = append([]world.AreaID(nil), definition.Recording.AllowedRouteAreas...)
 	return definition
 }
 

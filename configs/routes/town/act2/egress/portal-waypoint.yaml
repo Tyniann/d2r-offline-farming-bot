@@ -1,0 +1,72 @@
+schema_version: 1
+contract:
+    act: act2
+    town_area_id: 40
+    game_version: 3.2.92777
+    layout_fingerprint:
+        version: 1
+        area_id: 40
+        anchor_count: 1
+        hash: 0cbfeef80cc27eaaf5e8d936f38e5180007128fdfd0f53be577f3afda8375f83
+    from: portal_arrival
+    to: waypoint
+    movement: walk
+    arrival_tolerance_tiles: 15
+sample_distance_tiles: 4
+points:
+    - x: 5183
+      "y": 5058
+    - x: 5179
+      "y": 5058
+    - x: 5174
+      "y": 5058
+    - x: 5170
+      "y": 5059
+    - x: 5166
+      "y": 5059
+    - x: 5161
+      "y": 5059
+    - x: 5157
+      "y": 5060
+    - x: 5152
+      "y": 5060
+    - x: 5148
+      "y": 5060
+    - x: 5143
+      "y": 5061
+    - x: 5139
+      "y": 5061
+    - x: 5134
+      "y": 5061
+    - x: 5130
+      "y": 5062
+    - x: 5126
+      "y": 5062
+    - x: 5121
+      "y": 5062
+    - x: 5117
+      "y": 5062
+    - x: 5112
+      "y": 5062
+    - x: 5108
+      "y": 5062
+    - x: 5103
+      "y": 5065
+    - x: 5099
+      "y": 5069
+    - x: 5096
+      "y": 5073
+    - x: 5093
+      "y": 5078
+    - x: 5090
+      "y": 5082
+    - x: 5086
+      "y": 5085
+    - x: 5082
+      "y": 5086
+    - x: 5078
+      "y": 5085
+    - x: 5073
+      "y": 5084
+    - x: 5071
+      "y": 5084

@@ -43,8 +43,8 @@ func TestWaypointTransfersVerifyHubAndCountessHandoff(t *testing.T) {
 
 func TestWaypointTransferNegativeReasonsAndNoRepeat(t *testing.T) {
 	in := &transferInputMock{}
-	if _, reason := NewWaypointTransferExecutor(in, WaypointTransfer{FromAct: OriginAct2, ToArea: world.RogueEncampment}, 1); reason != ReasonHubTransferUnsupported {
-		t.Fatalf("hub reason=%s", reason)
+	if _, reason := NewWaypointTransferExecutor(in, WaypointTransfer{FromAct: OriginAct2, ToArea: world.RogueEncampment}, 1); reason != "" {
+		t.Fatalf("Act-2 hub reason=%s", reason)
 	}
 	if _, reason := NewWaypointTransferExecutor(in, WaypointTransfer{FromAct: OriginAct1, ToArea: world.LutGholein}, 1); reason != ReasonNextTargetUnsupported {
 		t.Fatalf("target reason=%s", reason)
@@ -59,13 +59,13 @@ func TestWaypointTransferNegativeReasonsAndNoRepeat(t *testing.T) {
 
 func TestPlannerStableNegativeReasons(t *testing.T) {
 	cfg := validTownConfig()
-	cfg.Egress[OriginAct2] = EgressConfig{Area: "lut_gholein", RouteID: "act2-egress", Anchors: []Anchor{AnchorPortalArrival, AnchorWaypoint}, RoutesDirectory: "routes/town/act2/egress"}
+	cfg.Egress[OriginAct2] = EgressConfig{Area: "lut_gholein", Anchors: []Anchor{AnchorPortalArrival, AnchorWaypoint}, RoutesDirectory: "routes/town/act2/egress"}
 	planner, err := NewPlanner(cfg)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, reason := planner.Plan(Origin{Act: OriginAct2}, DemandSnapshot{}, NextRunTarget{}); reason != ReasonHubTransferUnsupported {
-		t.Fatalf("hub planner reason=%s", reason)
+	if plan, reason := planner.Plan(Origin{Act: OriginAct2}, DemandSnapshot{}, NextRunTarget{}); reason != "" || len(plan.Steps) < 2 {
+		t.Fatalf("Act-2 hub planner plan=%+v reason=%s", plan, reason)
 	}
 	if _, reason := planner.Plan(Origin{Act: OriginAct1}, DemandSnapshot{}, NextRunTarget{ID: "unknown", Act: OriginAct2}); reason != ReasonNextTargetUnsupported {
 		t.Fatalf("target planner reason=%s", reason)

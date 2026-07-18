@@ -68,7 +68,7 @@ Echte OS-Eingaben sind standardmäßig deaktiviert (`input.enabled: false`). Glo
 - **Pause/Stop-State:** `Pause`, `Resume`, `TogglePause`, `Stop` am Controller; `Status()` liefert `Enabled`, `Paused`, `Stopped`.
 - **Action-Guards:** Alle Sender-Methoden prüfen vor OS-Aufrufen: `stopped` → `ErrInputStopped`, `!enabled` → `ErrInputDisabled`, `paused` → `ErrInputPaused`. Argumentvalidierung und `ErrWindowNotBound` haben Vorrang.
 - **Action-Logging:** Einheitliches `input action`-Log mit `allowed=true|false`; bei Blockierung zusätzlich `blocked_by` (`disabled|paused|stopped`).
-- **Globale Hotkeys:** `pause_hotkey` (Default `pause`) steuert Pause beziehungsweise in einer Queue Pause-after-run; `stop_after_run_hotkey` (Default `f10`) setzt in einer aktiven Queue den geordneten Stop-Intent ohne Cancellation; `stop_hotkey` (Default `f12`) stoppt Input sofort und beendet den Bot. Hotkeys funktionieren unabhängig vom D2R-Fokus, sind aber Windows-global und können mit anderer Software kollidieren — bei Registrierungsfehler bricht der Start hart ab (`ErrHotkeyUnavailable`). Registrierung, Message-Polling und Deregistrierung bleiben wegen der Windows-Threadbindung auf demselben OS-Thread; aufeinanderfolgende Session-Phasen warten synchron auf die Freigabe. Die drei Tasten müssen verschieden sein.
+- **Globale Hotkeys:** `pause_hotkey` (Default `pause`) steuert Pause beziehungsweise Pause-after-run; `recording_finish_hotkey` (Default `f9`) beendet ausschließlich eine aktive Aufnahme kontrolliert; `stop_after_run_hotkey` (Default `f10`) setzt den geordneten Stop-Intent; `stop_hotkey` (Default `f11`) ist Emergency Stop. Hotkeys funktionieren unabhängig vom D2R-Fokus, sind Windows-global und müssen sämtlich verschieden sein. Bei Registrierungsfehler bricht der Start hart ab (`ErrHotkeyUnavailable`).
 - **Signal-Shutdown:** `SIGINT`/`SIGTERM` ruft `Stop("signal")` auf, analog zum Stop-Hotkey.
 - **Cleanup-Ausnahme:** Best-effort Key-/Button-Release nach begonnenem `PressCombo`/`Click` umgeht den Guard, damit keine Taste hängen bleibt.
 
@@ -191,8 +191,9 @@ type MouseButton string // "left" | "right"
 input:
   enabled: false
   pause_hotkey: pause
+  recording_finish_hotkey: f9
   stop_after_run_hotkey: f10
-  stop_hotkey: f12
+  stop_hotkey: f11
   key_delay_ms_min: 10
   key_delay_ms_max: 40
   combo_hold_ms: 200
@@ -216,7 +217,7 @@ input:
 
 Skill- und Belt-Hotkeys müssen zu den D2R-Optionen passen. `button` ist `left` oder `right` und bestimmt, welchen Mausbutton ein folgender `click` für diese Skill-Auswahl verwendet.
 
-Fehlt die gesamte `input`-Sektion, werden sichere Defaults angewendet (`enabled=false`, Hotkeys `pause`/`f10`/`f12`, Timing-Defaults).
+Fehlt die gesamte `input`-Sektion, werden sichere Defaults angewendet (`enabled=false`, Hotkeys `pause`/`f9`/`f10`/`f11`, Timing-Defaults).
 
 ## Operator / CLI
 

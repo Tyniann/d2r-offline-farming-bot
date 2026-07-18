@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/config"
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/tasks"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/telemetry"
 )
 
@@ -25,9 +26,7 @@ func TestResolveSessionPlanReadyForRecordedNightmareRoute(t *testing.T) {
 	}
 	cfg.Input.Enabled = true
 	cfg.Runs.Active = ""
-	countess, _ := cfg.Runs.Run("countess")
-	countess.RouteID = "black-marsh-cellar5-nightmare-mrbones"
-	cfg.Runs.Definitions["countess"] = countess
+	writeTestRouteAssignments(t, cfg, map[tasks.RunID]string{tasks.RunIDCountess: "countess-mrbones-fd1756c208", tasks.RunIDMephisto: "durance-2-mephisto-nightmare-mrbones"})
 	cfg.Session.Enabled = true
 	cfg.Session.Character = "MrBones"
 	cfg.Session.Difficulty = "nightmare"
@@ -72,7 +71,7 @@ func TestMephistoSessionRunContextBindsDefinitionAssetsAndPolicies(t *testing.T)
 	cfg.Session.Run = "mephisto"
 	cfg.Session.Character = "MrBones"
 	cfg.Session.Difficulty = "nightmare"
-	runConfig, err := mapRunConfig(cfg.Runs, "mephisto")
+	runConfig, err := mapRunConfig(cfg, "mephisto")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -96,9 +95,7 @@ func TestResolveSessionPlanRejectsRouteDifficultyMismatch(t *testing.T) {
 		t.Fatal(err)
 	}
 	cfg.Input.Enabled = true
-	countess, _ := cfg.Runs.Run("countess")
-	countess.RouteID = "black-marsh-cellar5-nightmare-mrbones"
-	cfg.Runs.Definitions["countess"] = countess
+	writeTestRouteAssignments(t, cfg, map[tasks.RunID]string{tasks.RunIDCountess: "black-marsh-cellar5-nightmare-mrbones", tasks.RunIDMephisto: "durance-2-mephisto-nightmare-mrbones"})
 	cfg.Session.Enabled = true
 	cfg.Session.Character = "MrBones"
 	cfg.Session.Difficulty = "hell"

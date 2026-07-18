@@ -42,6 +42,19 @@ type Config struct {
 	Events  *telemetry.LivePublisher
 }
 
+type routeBackend interface {
+	RouteLibrary(string, bool) (RouteLibraryDTO, error)
+	RecordingOptions() []RecordingOptionDTO
+	RouteCandidates() ([]RouteCandidateDTO, error)
+	SystemRouteStatuses() []SystemRouteStatusDTO
+	HotkeyHelp() HotkeyHelpDTO
+	RouteWorkflow() RouteWorkflowDTO
+	PreviewRouteMutation(RouteMutationPreviewRequest) (RouteMutationPreviewDTO, error)
+	ConfirmRouteMutation(RouteMutationConfirmRequest) error
+	StartRouteWorkflow(RouteWorkflowRequest) (RouteWorkflowDTO, error)
+	FinishRouteWorkflow(string, RouteWorkflowFinishRequest) (RouteWorkflowDTO, error)
+}
+
 // Server owns one random loopback listener and its process-local control token.
 type Server struct {
 	backend    Backend
@@ -138,9 +151,276 @@ func (s *Server) routes() http.Handler {
 	}
 	mux.HandleFunc("/api/v1/selection/preview", s.handleSelectionPreview)
 	mux.HandleFunc("/api/v1/queue/validate", s.handleQueueValidation)
+	mux.HandleFunc("/api/v1/routes", s.handleRouteLibrary)
+	mux.HandleFunc("/api/v1/routes/recording-options", s.handleRecordingOptions)
+	mux.HandleFunc("/api/v1/route-recording/options", s.handleRecordingOptions)
+	mux.HandleFunc("/api/v1/route-recordings", s.handleRouteRecordingStart)
+	mux.HandleFunc("/api/v1/route-recordings/{workflowID}/finish", s.handleRouteRecordingFinish)
+	mux.HandleFunc("/api/v1/route-candidates/{candidateID}/test", s.handleRouteCandidateTest)
+	mux.HandleFunc("/api/v1/route-candidates/{candidateID}/publish/{stage}", s.handleCandidatePublish)
+	mux.HandleFunc("/api/v1/routes/{routeID}/{operation}/{stage}", s.handleNamedRouteMutation)
+	mux.HandleFunc("/api/v1/routes/candidates", s.handleRouteCandidates)
+	mux.HandleFunc("/api/v1/routes/system-status", s.handleSystemRouteStatus)
+	mux.HandleFunc("/api/v1/system-routes/status", s.handleSystemRouteStatus)
+	mux.HandleFunc("/api/v1/routes/hotkeys", s.handleHotkeyHelp)
+	mux.HandleFunc("/api/v1/routes/workflow", s.handleRouteWorkflow)
+	mux.HandleFunc("/api/v1/routes/workflow/start", s.handleRouteWorkflowStart)
+	mux.HandleFunc("/api/v1/routes/preview", s.handleRouteMutationPreview)
+	mux.HandleFunc("/api/v1/routes/confirm", s.handleRouteMutationConfirm)
 	mux.HandleFunc("/api/", s.handleUnsupportedAPI)
 	mux.Handle("/", spaHandler(s.assets))
 	return s.security(mux)
+}
+
+func (s *Server) handleRouteRecordingStart(w http.ResponseWriter, r *http.Request) {
+	if !requireJSONPost(w, r, s, true) {
+		return
+	}
+	backend, ok := s.routesBackend(w, r)
+	if !ok {
+		return
+	}
+	var request RouteRecordingStartRequest
+	if !s.decodeBody(w, r, &request) {
+		return
+	}
+	workflowRequest := RouteWorkflowRequest{ExpectedGeneration: request.ExpectedGeneration, Operation: "record", RunID: request.RunID}
+	value, err := backend.StartRouteWorkflow(workflowRequest)
+	if err != nil {
+		s.writeError(w, http.StatusConflict, "route_workflow_conflict", err.Error(), requestIDFrom(r), nil)
+		return
+	}
+	s.writeJSON(w, http.StatusAccepted, value)
+}
+
+func (s *Server) handleRouteRecordingFinish(w http.ResponseWriter, r *http.Request) {
+	if !requireJSONPost(w, r, s, true) {
+		return
+	}
+	backend, ok := s.routesBackend(w, r)
+	if !ok {
+		return
+	}
+	var request RouteWorkflowFinishRequest
+	if !s.decodeBody(w, r, &request) {
+		return
+	}
+	value, err := backend.FinishRouteWorkflow(r.PathValue("workflowID"), request)
+	if err != nil {
+		s.writeError(w, http.StatusConflict, "route_workflow_changed", err.Error(), requestIDFrom(r), nil)
+		return
+	}
+	s.writeJSON(w, http.StatusAccepted, value)
+}
+
+func (s *Server) handleRouteCandidateTest(w http.ResponseWriter, r *http.Request) {
+	if !requireJSONPost(w, r, s, true) {
+		return
+	}
+	backend, ok := s.routesBackend(w, r)
+	if !ok {
+		return
+	}
+	var request RouteWorkflowFinishRequest
+	if !s.decodeBody(w, r, &request) {
+		return
+	}
+	value, err := backend.StartRouteWorkflow(RouteWorkflowRequest{ExpectedGeneration: request.ExpectedGeneration, Operation: "test", CandidateID: r.PathValue("candidateID")})
+	if err != nil {
+		s.writeError(w, http.StatusConflict, "route_workflow_conflict", err.Error(), requestIDFrom(r), nil)
+		return
+	}
+	s.writeJSON(w, http.StatusAccepted, value)
+}
+
+func (s *Server) handleCandidatePublish(w http.ResponseWriter, r *http.Request) {
+	if r.PathValue("stage") == "preview" {
+		s.handleRouteMutationPreviewValue(w, r, RouteMutationPreviewRequest{Operation: "publish", CandidateID: r.PathValue("candidateID")})
+		return
+	}
+	if r.PathValue("stage") == "confirm" {
+		s.handleRouteMutationConfirm(w, r)
+		return
+	}
+	s.handleUnsupportedAPI(w, r)
+}
+
+func (s *Server) handleNamedRouteMutation(w http.ResponseWriter, r *http.Request) {
+	operation := r.PathValue("operation")
+	if operation != "archive" && operation != "restore" && operation != "delete" {
+		s.handleUnsupportedAPI(w, r)
+		return
+	}
+	if r.PathValue("stage") == "preview" {
+		s.handleRouteMutationPreviewValue(w, r, RouteMutationPreviewRequest{Operation: operation, RouteID: r.PathValue("routeID")})
+		return
+	}
+	if r.PathValue("stage") == "confirm" {
+		s.handleRouteMutationConfirm(w, r)
+		return
+	}
+	s.handleUnsupportedAPI(w, r)
+}
+
+func (s *Server) handleRouteMutationPreviewValue(w http.ResponseWriter, r *http.Request, request RouteMutationPreviewRequest) {
+	if !requireJSONPost(w, r, s, false) {
+		return
+	}
+	backend, ok := s.routesBackend(w, r)
+	if !ok {
+		return
+	}
+	// Named preview endpoints deliberately accept an empty JSON object only.
+	var body struct{}
+	if !s.decodeBody(w, r, &body) {
+		return
+	}
+	value, err := backend.PreviewRouteMutation(request)
+	if err != nil {
+		s.writeError(w, http.StatusConflict, "route_preview_stale", err.Error(), requestIDFrom(r), nil)
+		return
+	}
+	s.writeJSON(w, http.StatusOK, value)
+}
+
+func (s *Server) routesBackend(w http.ResponseWriter, r *http.Request) (routeBackend, bool) {
+	backend, ok := s.backend.(routeBackend)
+	if !ok {
+		s.writeError(w, http.StatusServiceUnavailable, "route_feature_unavailable", "Die Routenverwaltung ist noch nicht verfügbar.", requestIDFrom(r), nil)
+	}
+	return backend, ok
+}
+
+func (s *Server) handleRouteLibrary(w http.ResponseWriter, r *http.Request) {
+	if !requireMethod(w, r, http.MethodGet, s) {
+		return
+	}
+	backend, ok := s.routesBackend(w, r)
+	if !ok {
+		return
+	}
+	includeArchived := r.URL.Query().Get("view") == "archive"
+	if raw := strings.TrimSpace(r.URL.Query().Get("include_archived")); raw != "" {
+		parsed, err := strconv.ParseBool(raw)
+		if err != nil {
+			s.writeError(w, http.StatusBadRequest, "request_invalid", "include_archived ist ungültig.", requestIDFrom(r), nil)
+			return
+		}
+		includeArchived = parsed
+	}
+	value, err := backend.RouteLibrary(r.URL.Query().Get("character"), includeArchived)
+	if err != nil {
+		s.writeError(w, http.StatusConflict, "route_catalog_unavailable", err.Error(), requestIDFrom(r), nil)
+		return
+	}
+	s.writeJSON(w, http.StatusOK, value)
+}
+func (s *Server) handleRecordingOptions(w http.ResponseWriter, r *http.Request) {
+	if !requireMethod(w, r, http.MethodGet, s) {
+		return
+	}
+	backend, ok := s.routesBackend(w, r)
+	if ok {
+		s.writeJSON(w, http.StatusOK, backend.RecordingOptions())
+	}
+}
+func (s *Server) handleRouteCandidates(w http.ResponseWriter, r *http.Request) {
+	if !requireMethod(w, r, http.MethodGet, s) {
+		return
+	}
+	backend, ok := s.routesBackend(w, r)
+	if !ok {
+		return
+	}
+	value, err := backend.RouteCandidates()
+	if err != nil {
+		s.writeError(w, http.StatusConflict, "route_candidates_unavailable", err.Error(), requestIDFrom(r), nil)
+		return
+	}
+	s.writeJSON(w, http.StatusOK, value)
+}
+func (s *Server) handleSystemRouteStatus(w http.ResponseWriter, r *http.Request) {
+	if !requireMethod(w, r, http.MethodGet, s) {
+		return
+	}
+	backend, ok := s.routesBackend(w, r)
+	if ok {
+		s.writeJSON(w, http.StatusOK, backend.SystemRouteStatuses())
+	}
+}
+func (s *Server) handleHotkeyHelp(w http.ResponseWriter, r *http.Request) {
+	if !requireMethod(w, r, http.MethodGet, s) {
+		return
+	}
+	backend, ok := s.routesBackend(w, r)
+	if ok {
+		s.writeJSON(w, http.StatusOK, backend.HotkeyHelp())
+	}
+}
+func (s *Server) handleRouteWorkflow(w http.ResponseWriter, r *http.Request) {
+	if !requireMethod(w, r, http.MethodGet, s) {
+		return
+	}
+	backend, ok := s.routesBackend(w, r)
+	if ok {
+		s.writeJSON(w, http.StatusOK, backend.RouteWorkflow())
+	}
+}
+func (s *Server) handleRouteMutationPreview(w http.ResponseWriter, r *http.Request) {
+	if !requireJSONPost(w, r, s, false) {
+		return
+	}
+	backend, ok := s.routesBackend(w, r)
+	if !ok {
+		return
+	}
+	var request RouteMutationPreviewRequest
+	if !s.decodeBody(w, r, &request) {
+		return
+	}
+	value, err := backend.PreviewRouteMutation(request)
+	if err != nil {
+		s.writeError(w, http.StatusConflict, "route_preview_stale", err.Error(), requestIDFrom(r), nil)
+		return
+	}
+	s.writeJSON(w, http.StatusOK, value)
+}
+func (s *Server) handleRouteMutationConfirm(w http.ResponseWriter, r *http.Request) {
+	if !requireJSONPost(w, r, s, true) {
+		return
+	}
+	backend, ok := s.routesBackend(w, r)
+	if !ok {
+		return
+	}
+	var request RouteMutationConfirmRequest
+	if !s.decodeBody(w, r, &request) {
+		return
+	}
+	if err := backend.ConfirmRouteMutation(request); err != nil {
+		s.writeError(w, http.StatusConflict, "route_confirmation_stale", err.Error(), requestIDFrom(r), nil)
+		return
+	}
+	s.writeJSON(w, http.StatusOK, map[string]string{"status": "completed"})
+}
+func (s *Server) handleRouteWorkflowStart(w http.ResponseWriter, r *http.Request) {
+	if !requireJSONPost(w, r, s, true) {
+		return
+	}
+	backend, ok := s.routesBackend(w, r)
+	if !ok {
+		return
+	}
+	var request RouteWorkflowRequest
+	if !s.decodeBody(w, r, &request) {
+		return
+	}
+	value, err := backend.StartRouteWorkflow(request)
+	if err != nil {
+		s.writeError(w, http.StatusConflict, "route_workflow_conflict", err.Error(), requestIDFrom(r), nil)
+		return
+	}
+	s.writeJSON(w, http.StatusAccepted, value)
 }
 
 func (s *Server) handleControlBootstrap(w http.ResponseWriter, r *http.Request) {

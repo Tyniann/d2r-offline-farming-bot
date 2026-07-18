@@ -9,18 +9,23 @@ import (
 // LiveEvent is one non-persistent event for the local dashboard. Persistent
 // JSONL remains authoritative and is never coupled to this publisher.
 type LiveEvent struct {
-	Sequence  uint64         `json:"sequence"`
-	Timestamp time.Time      `json:"timestamp"`
-	Event     string         `json:"event"`
-	SessionID string         `json:"session_id,omitempty"`
-	GameID    string         `json:"game_id,omitempty"`
-	RunID     string         `json:"run_id,omitempty"`
-	Run       string         `json:"run,omitempty"`
-	Step      string         `json:"step,omitempty"`
-	AreaID    uint32         `json:"area_id,omitempty"`
-	Area      string         `json:"area,omitempty"`
-	Reason    string         `json:"reason,omitempty"`
-	Details   map[string]any `json:"details,omitempty"`
+	Sequence   uint64         `json:"sequence"`
+	Timestamp  time.Time      `json:"timestamp"`
+	Event      string         `json:"event"`
+	SessionID  string         `json:"session_id,omitempty"`
+	GameID     string         `json:"game_id,omitempty"`
+	RunID      string         `json:"run_id,omitempty"`
+	Run        string         `json:"run,omitempty"`
+	Act        string         `json:"act,omitempty"`
+	Step       string         `json:"step,omitempty"`
+	AreaID     uint32         `json:"area_id,omitempty"`
+	Area       string         `json:"area,omitempty"`
+	Reason     string         `json:"reason,omitempty"`
+	WorkflowID string         `json:"workflow_id,omitempty"`
+	State      string         `json:"state,omitempty"`
+	Segment    int            `json:"segment,omitempty"`
+	Progress   float64        `json:"progress,omitempty"`
+	Details    map[string]any `json:"details,omitempty"`
 }
 
 // Subscription owns a bounded event channel. Slow consumers are disconnected

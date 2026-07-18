@@ -39,6 +39,8 @@ Seit Phase 11.5 bezieht der Resolver Kandidaten aus dem rekursiven Farming-Route
 
 ## Datenmodell
 
+Seit Phase 12.1 stammt die Route-ID ausschließlich aus dem atomischen Assignment für `(character, run)`. Fehlende Zuordnung liefert `route_assignment_missing`; ein archivierter Eintrag blockiert Playback. Config, SessionPlan und Queue besitzen keinen globalen Farming-`route_id`-Fallback mehr.
+
 - `app.RunAvailabilityContext`: read-only Identitätsbeleg.
 - `app.RunsInspectReport`: Kontext plus geordnete `runs`.
 - `tasks.RunAvailability`: ID, Anzeigename, Status, Reasons und Route-Ergebnis.
@@ -50,7 +52,7 @@ Seit Phase 11.5 bezieht der Resolver Kandidaten aus dem rekursiven Farming-Route
 go run ./cmd/d2rbot --config configs/config.yaml --runs-inspect
 ```
 
-Für die aktuellen lokalen Countess- und Mephisto-Bindungen wird ohne Attach jeweils `runtime_validation_required` mit Route-ID ausgegeben. Das registrierte Mephisto-Waypoint-Ziel, die Durance-Aufnahme und der gebundene Act-3-Egress sind vorhanden; Missing-Gründe werden nur noch für tatsächlich fehlende konfigurierte Assets ausgegeben.
+Für die aktuellen lokalen Countess- und Mephisto-Bindungen wird ohne Attach jeweils `runtime_validation_required` mit Route-ID ausgegeben. Das registrierte Mephisto-Waypoint-Ziel, die Durance-Aufnahme und der globale Act-3-System-Egress sind vorhanden; Missing-Gründe werden nur noch für tatsächlich fehlende konfigurierte Assets ausgegeben. Egress-Availability prüft ausschließlich Akt, Town-Area, Game-Version und optional den Live-Layout-Fingerprint, niemals Character, Difficulty oder Map Seed.
 
 `--runs-inspect` ist mit Session-, Run-, Probe-, Route-, Town- und Testmodi gegenseitig ausgeschlossen. `input.enabled` darf `false` sein.
 
@@ -68,4 +70,4 @@ Für die aktuellen lokalen Countess- und Mephisto-Bindungen wird ohne Attach jew
 - [Route Recording und Playback](route-recording-playback.md)
 
 ---
-*Zuletzt aktualisiert: 13. Juli 2026*
+*Zuletzt aktualisiert: 18. Juli 2026*

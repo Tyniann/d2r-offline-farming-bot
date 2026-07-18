@@ -1,4 +1,4 @@
-import type { CommandResponse, QueueValidationDTO, SelectionPreviewDTO } from "./generated";
+import type { CommandResponse, QueueValidationDTO, RouteMutationPreviewDTO, RouteWorkflowDTO, SelectionPreviewDTO } from "./generated";
 
 let controlToken = "";
 
@@ -100,6 +100,38 @@ export function emergencyStop(expectedGeneration: number): Promise<CommandRespon
   return sessionCommand("/api/v1/session/emergency-stop", expectedGeneration);
 }
 
+export async function previewRouteMutation(operation: string, routeId = "", candidateId = ""): Promise<RouteMutationPreviewDTO> {
+  const path = candidateId ? `/api/v1/route-candidates/${encodeURIComponent(candidateId)}/publish/preview` : `/api/v1/routes/${encodeURIComponent(routeId)}/${encodeURIComponent(operation)}/preview`;
+  const response = await fetch(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+  if (!response.ok) throw await errorMessage(response, "Routenvorschau fehlgeschlagen");
+  return response.json() as Promise<RouteMutationPreviewDTO>;
+}
+
+export async function confirmRouteMutation(preview: RouteMutationPreviewDTO, confirmRouteId = ""): Promise<void> {
+  await ensureControlToken();
+  const path = preview.candidate_id ? `/api/v1/route-candidates/${encodeURIComponent(preview.candidate_id)}/publish/confirm` : `/api/v1/routes/${encodeURIComponent(preview.route_id)}/${encodeURIComponent(preview.operation)}/confirm`;
+  const response = await fetch(path, { method: "POST", headers: controlHeaders(), body: JSON.stringify({ confirmation_token: preview.confirmation_token, confirm_route_id: preview.operation === "delete" ? confirmRouteId : undefined }) });
+  if (!response.ok) throw await errorMessage(response, "Routenänderung fehlgeschlagen");
+}
+
+export async function startRouteWorkflow(operation: string, expectedGeneration: number, options: { runId?: string; candidateId?: string; act?: string }): Promise<RouteWorkflowDTO> {
+  await ensureControlToken();
+  let path = "/api/v1/routes/workflow/start";
+  let body: Record<string, unknown> = { expected_generation: expectedGeneration, operation, run_id: options.runId, candidate_id: options.candidateId, act: options.act };
+  if (operation === "record") { path = "/api/v1/route-recordings"; body = { expected_generation: expectedGeneration, run_id: options.runId }; }
+  if (operation === "test" && options.candidateId) { path = `/api/v1/route-candidates/${encodeURIComponent(options.candidateId)}/test`; body = { expected_generation: expectedGeneration }; }
+  const response = await fetch(path, { method: "POST", headers: controlHeaders(), body: JSON.stringify(body) });
+  if (!response.ok) throw await errorMessage(response, "Routen-Workflow konnte nicht gestartet werden");
+  return response.json() as Promise<RouteWorkflowDTO>;
+}
+
+export async function finishRouteRecording(workflowId: string, expectedGeneration: number): Promise<RouteWorkflowDTO> {
+  await ensureControlToken();
+  const response = await fetch(`/api/v1/route-recordings/${encodeURIComponent(workflowId)}/finish`, { method: "POST", headers: controlHeaders(), body: JSON.stringify({ expected_generation: expectedGeneration }) });
+  if (!response.ok) throw await errorMessage(response, "Aufnahme konnte nicht beendet werden");
+  return response.json() as Promise<RouteWorkflowDTO>;
+}
+
 export type LiveConnectionState = "wird verbunden" | "verbunden" | "getrennt";
 
 export function connectLiveEvents(
@@ -112,7 +144,7 @@ export function connectLiveEvents(
   source.onopen = () => onState("verbunden");
   source.onerror = () => onState("getrennt");
   source.addEventListener("snapshot", (event) => onSnapshot(JSON.parse((event as MessageEvent<string>).data)));
-  for (const name of ["supervisor_state_changed", "session_result", "selection_completed", "selection_failed", "d2r_state_changed", "input_state_changed", "world_state_changed", "area_changed", "runtime_error", "runtime_error_cleared", "step_changed"]) {
+  for (const name of ["supervisor_state_changed", "session_result", "selection_completed", "selection_failed", "d2r_state_changed", "input_state_changed", "world_state_changed", "area_changed", "runtime_error", "runtime_error_cleared", "step_changed", "route_workflow_changed", "route_library_changed"]) {
     source.addEventListener(name, (event) => onEvent(JSON.parse((event as MessageEvent<string>).data)));
   }
   return () => source.close();

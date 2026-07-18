@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"os"
 	"path/filepath"
 	"testing"
 	"time"
@@ -79,6 +80,135 @@ func TestLiveBackendProjectsStatusAndMeaningfulEvents(t *testing.T) {
 	}
 }
 
+func TestRouteWorkflowRejectsStaleGenerationAndActiveSession(t *testing.T) {
+	cfg, err := config.Load("../../configs/config.example.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	root := t.TempDir()
+	cfg.Routes.FarmingRoot = filepath.Join(root, "farming")
+	cfg.Routes.CandidateRoot = filepath.Join(root, "candidates")
+	cfg.Routes.LifecycleFile = filepath.Join(root, "lifecycle.yaml")
+	cfg.Routes.AssignmentsFile = filepath.Join(root, "assignments.yaml")
+	cfg.Routes.RecoveryFile = filepath.Join(root, "recovery.yaml")
+	cfg.Input.Enabled = true
+	backend, err := NewLiveBackend(cfg, telemetry.NewLivePublisher(16, 4))
+	if err != nil {
+		t.Fatal(err)
+	}
+	backend.SetRouteWorkflowHandler(func(RouteWorkflowRequest, <-chan struct{}, app.RouteWorkflowReporter) error { return nil })
+	if _, routeErr := backend.StartRouteWorkflow(RouteWorkflowRequest{ExpectedGeneration: 99, Operation: "record", RunID: "countess"}); routeErr == nil {
+		t.Fatal("stale generation accepted")
+	}
+	backend.mu.Lock()
+	backend.status.State = string(app.SupervisorStateRunningRun)
+	backend.mu.Unlock()
+	if _, routeErr := backend.StartRouteWorkflow(RouteWorkflowRequest{ExpectedGeneration: 1, Operation: "record", RunID: "countess"}); routeErr == nil {
+		t.Fatal("active session conflict accepted")
+	}
+	backend.mu.Lock()
+	backend.status.State = string(app.SupervisorStateIdle)
+	backend.status.Selection = SelectionStatusDTO{Character: "MrBones", Difficulty: "nightmare"}
+	backend.mu.Unlock()
+	snapshot, err := backend.StartRouteWorkflow(RouteWorkflowRequest{ExpectedGeneration: 1, Operation: "record", RunID: "countess"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if snapshot.Generation != 2 || snapshot.State != string(app.RouteWorkflowPreflight) {
+		t.Fatalf("workflow = %+v", snapshot)
+	}
+}
+
+func TestRouteWorkflowFinishIsOneShotIdempotentAndPublishesWorkflowFields(t *testing.T) {
+	cfg, err := config.Load("../../configs/config.example.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	root := t.TempDir()
+	cfg.Routes.FarmingRoot = filepath.Join(root, "farming")
+	cfg.Routes.CandidateRoot = filepath.Join(root, "candidates")
+	cfg.Routes.LifecycleFile = filepath.Join(root, "lifecycle.yaml")
+	cfg.Routes.AssignmentsFile = filepath.Join(root, "assignments.yaml")
+	cfg.Routes.RecoveryFile = filepath.Join(root, "recovery.yaml")
+	cfg.Input.Enabled = true
+	publisher := telemetry.NewLivePublisher(16, 4)
+	backend, err := NewLiveBackend(cfg, publisher)
+	if err != nil {
+		t.Fatal(err)
+	}
+	finishReceived := make(chan struct{})
+	recordingReady := make(chan struct{})
+	release := make(chan struct{})
+	backend.SetRouteWorkflowHandler(func(_ RouteWorkflowRequest, finish <-chan struct{}, reporter app.RouteWorkflowReporter) error {
+		reporter(app.RouteWorkflowProgress{State: app.RouteWorkflowRecording, AreaID: uint32(world.BlackMarsh), Segment: 1, Progress: 0.25})
+		close(recordingReady)
+		<-finish
+		close(finishReceived)
+		<-release
+		return nil
+	})
+	backend.mu.Lock()
+	backend.status.Selection = SelectionStatusDTO{Character: "MrBones", Difficulty: "nightmare"}
+	backend.mu.Unlock()
+	started, err := backend.StartRouteWorkflow(RouteWorkflowRequest{ExpectedGeneration: 1, Operation: "record", RunID: "countess"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	<-recordingReady
+	recording := backend.RouteWorkflow()
+	first, err := backend.FinishRouteWorkflow(started.WorkflowID, RouteWorkflowFinishRequest{ExpectedGeneration: recording.Generation})
+	if err != nil {
+		t.Fatal(err)
+	}
+	<-finishReceived
+	second, err := backend.FinishRouteWorkflow(started.WorkflowID, RouteWorkflowFinishRequest{ExpectedGeneration: recording.Generation})
+	if err != nil || second != first || first.State != string(app.RouteWorkflowFreezing) {
+		t.Fatalf("idempotent finish first=%+v second=%+v err=%v", first, second, err)
+	}
+	replay, subscription := publisher.Subscribe(0)
+	subscription.Close()
+	found := false
+	for _, event := range replay {
+		if event.Event == "route_workflow_changed" && event.WorkflowID == started.WorkflowID && event.State == string(app.RouteWorkflowFreezing) && event.Run == "countess" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("workflow SSE fields missing: %+v", replay)
+	}
+	close(release)
+}
+
+func TestRouteWorkflowBlocksSelectionAndRouteMutation(t *testing.T) {
+	cfg, err := config.Load("../../configs/config.example.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	root := t.TempDir()
+	cfg.Routes.FarmingRoot = filepath.Join(root, "farming")
+	cfg.Routes.CandidateRoot = filepath.Join(root, "candidates")
+	cfg.Routes.LifecycleFile = filepath.Join(root, "lifecycle.yaml")
+	cfg.Routes.AssignmentsFile = filepath.Join(root, "assignments.yaml")
+	cfg.Routes.RecoveryFile = filepath.Join(root, "recovery.yaml")
+	backend, err := NewLiveBackend(cfg, telemetry.NewLivePublisher(16, 4))
+	if err != nil {
+		t.Fatal(err)
+	}
+	backend.mu.Lock()
+	backend.routeWorkflow.State = string(app.RouteWorkflowRecording)
+	revision := backend.catalog.Revision
+	backend.mu.Unlock()
+	if _, err = backend.PreviewSelection(SelectionPreviewRequest{Character: "MrBones", Difficulty: "nightmare", CatalogRevision: revision}); err == nil {
+		t.Fatal("selection preview accepted during route workflow")
+	}
+	if _, err = backend.PreviewRouteMutation(RouteMutationPreviewRequest{Operation: "archive", RouteID: "route"}); err == nil {
+		t.Fatal("route mutation preview accepted during route workflow")
+	}
+	if _, err = backend.ValidateQueue(QueueValidationRequest{}); err == nil {
+		t.Fatal("queue validation accepted during route workflow")
+	}
+}
+
 func TestLiveBackendSessionCommandsUseSupervisorAndRemainIdempotent(t *testing.T) {
 	cfg, err := config.Load("../../configs/config.example.yaml")
 	if err != nil {
@@ -86,9 +216,7 @@ func TestLiveBackendSessionCommandsUseSupervisorAndRemainIdempotent(t *testing.T
 	}
 	cfg.Routes.LifecycleFile = filepath.Join(t.TempDir(), "route-lifecycle.local.yaml")
 	cfg.Session.MaxRuns = 4
-	countess, _ := cfg.Runs.Run("countess")
-	countess.RouteID = "black-marsh-cellar5-nightmare-mrbones"
-	cfg.Runs.Definitions["countess"] = countess
+	writeAPITestAssignments(t, cfg)
 	publisher := telemetry.NewLivePublisher(32, 8)
 	backend, err := NewLiveBackend(cfg, publisher)
 	if err != nil {
@@ -172,9 +300,7 @@ func TestLiveBackendQueueAdoptsPassiveConfirmedOpenGameFromIdle(t *testing.T) {
 		t.Fatal(err)
 	}
 	cfg.Routes.LifecycleFile = filepath.Join(t.TempDir(), "route-lifecycle.local.yaml")
-	countess, _ := cfg.Runs.Run("countess")
-	countess.RouteID = "black-marsh-cellar5-nightmare-mrbones"
-	cfg.Runs.Definitions["countess"] = countess
+	writeAPITestAssignments(t, cfg)
 	backend, err := NewLiveBackend(cfg, telemetry.NewLivePublisher(16, 4))
 	if err != nil {
 		t.Fatal(err)
@@ -216,6 +342,15 @@ func TestLiveBackendQueueAdoptsPassiveConfirmedOpenGameFromIdle(t *testing.T) {
 	}
 	if !beginCalled || !adopted {
 		t.Fatalf("queue begin called=%t adopted=%t; want confirmed open game adoption", beginCalled, adopted)
+	}
+}
+
+func writeAPITestAssignments(t *testing.T, cfg *config.Config) {
+	t.Helper()
+	cfg.Routes.AssignmentsFile = filepath.Join(t.TempDir(), "route-assignments.local.yaml")
+	body := []byte("schema_version: 1\nrevision: 1\nassignments:\n  mrbones:\n    countess: black-marsh-cellar5-nightmare-mrbones\n    mephisto: durance-2-mephisto-nightmare-mrbones\n")
+	if err := os.WriteFile(cfg.ResolvePath(cfg.Routes.AssignmentsFile), body, 0o600); err != nil {
+		t.Fatal(err)
 	}
 }
 
@@ -454,4 +589,17 @@ func containsLiveEvent(events []telemetry.LiveEvent, name string) bool {
 		}
 	}
 	return false
+}
+
+func TestRouteWorkflowEventProjectsSystemAct(t *testing.T) {
+	event := routeWorkflowEvent("route_workflow_changed", RouteWorkflowDTO{
+		WorkflowID: "egress-1",
+		Generation: 2,
+		State:      string(app.RouteWorkflowPreflight),
+		Act:        "act2",
+		Reason:     "town_egress_start_unconfirmed",
+	})
+	if event.Act != "act2" || event.State != string(app.RouteWorkflowPreflight) || event.Reason != "town_egress_start_unconfirmed" {
+		t.Fatalf("system workflow diagnostics were not projected: %+v", event)
+	}
 }

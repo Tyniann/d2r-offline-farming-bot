@@ -17,9 +17,10 @@ func mapInputConfig(cfg config.InputConfig) input.KeyboardConfig {
 // mapSafetyConfig converts YAML input safety settings to the input package safety config.
 func mapSafetyConfig(cfg config.InputConfig) input.SafetyConfig {
 	return input.SafetyConfig{
-		Enabled:            cfg.Enabled,
-		PauseHotkey:        cfg.PauseHotkey,
-		StopAfterRunHotkey: cfg.StopAfterRunHotkey,
-		StopHotkey:         cfg.StopHotkey,
+		Enabled:               cfg.Enabled,
+		PauseHotkey:           cfg.PauseHotkey,
+		StopAfterRunHotkey:    cfg.StopAfterRunHotkey,
+		RecordingFinishHotkey: cfg.RecordingFinishHotkey,
+		StopHotkey:            cfg.StopHotkey,
 	}
 }

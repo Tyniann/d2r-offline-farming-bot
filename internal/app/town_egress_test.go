@@ -2,6 +2,7 @@ package app
 
 import (
 	"errors"
+	"os"
 	"path/filepath"
 	"testing"
 	"time"
@@ -12,14 +13,13 @@ import (
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/world"
 )
 
-func egressTestState(t *testing.T) (world.State, pathing.LayoutFingerprint) {
+func egressTestStateForAct(t *testing.T, act town.OriginAct) (world.State, pathing.LayoutFingerprint) {
 	t.Helper()
-	state := world.State{
-		At: time.Now(), Valid: true, Phase: world.GamePhaseInGame, Area: world.LookupArea(world.KurastDocks),
-		Player:   world.Player{Position: world.Position{X: 5100, Y: 5100}},
-		Identity: world.GameIdentity{Valid: true, CharacterName: "MrBones", Class: world.CharacterClassNecromancer, MapSeed: 42},
-		Objects:  []world.Object{{ID: 237, UnitID: 7, Kind: world.ObjectKindWaypoint, Position: world.Position{X: 5120, Y: 5080}}},
+	area, ok := town.TownAreaForAct(act)
+	if !ok {
+		t.Fatalf("unsupported act %s", act)
 	}
+	state := world.State{At: time.Now(), Valid: true, Phase: world.GamePhaseInGame, Area: world.LookupArea(area), Player: world.Player{Position: world.Position{X: 5100, Y: 5100}}, Identity: world.GameIdentity{Valid: true, CharacterName: "MrBones", Class: world.CharacterClassNecromancer, MapSeed: 42}, Objects: []world.Object{{ID: 237, UnitID: 7, Kind: world.ObjectKindWaypoint, Position: world.Position{X: 5120, Y: 5080}}}}
 	fingerprint, err := pathing.BuildLayoutFingerprint(state)
 	if err != nil {
 		t.Fatal(err)
@@ -27,51 +27,51 @@ func egressTestState(t *testing.T) (world.State, pathing.LayoutFingerprint) {
 	return state, fingerprint
 }
 
-func saveEgressTestRoute(t *testing.T, directory string, state world.State, fingerprint pathing.LayoutFingerprint) {
+func egressTestState(t *testing.T) (world.State, pathing.LayoutFingerprint) {
+	return egressTestStateForAct(t, town.OriginAct3)
+}
+
+func saveEgressTestRouteForAct(t *testing.T, directory string, act town.OriginAct, state world.State, fingerprint pathing.LayoutFingerprint) {
 	t.Helper()
-	seed := state.Identity.MapSeed
-	route := pathing.Route{
-		Version: pathing.RouteVersion, ID: "act3-egress", Name: "Kurast-Docks-Egress", Kind: pathing.RouteKindNavigation,
-		Binding:   pathing.RouteBinding{CharacterName: "MrBones", CharacterClass: "necromancer", Difficulty: pathing.RouteDifficultyNightmare, MapSeed: &seed, GameVersion: "3.2.92777", LayoutFingerprint: pathing.RouteLayoutFingerprint{Version: fingerprint.Version, AreaID: fingerprint.AreaID, AnchorCount: fingerprint.AnchorCount, Hash: fingerprint.Hash}},
-		Recording: pathing.RouteRecording{RecordedAt: time.Now().UTC(), SampleDistanceTiles: 4},
-		Playback:  pathing.RoutePlayback{WaypointToleranceTiles: 3, MaxDriftTiles: 8, MaxLocalCorrections: 2, SegmentTimeoutMs: 30000, TransitionTimeoutMs: 10000},
-		Segments:  []pathing.RouteSegment{{ID: "kurast-docks-egress", FromAreaID: world.KurastDocks, ToAreaID: world.KurastDocks, Movement: pathing.RouteMovementWalk, Points: []pathing.RoutePoint{{X: 5100, Y: 5100}, {X: 5110, Y: 5090}}, Transition: pathing.RouteTransition{Type: "terminal"}}},
-	}
-	if err := pathing.SaveRoute(filepath.Join(directory, "act3-egress.yaml"), route); err != nil {
+	route := town.SystemEgressRoute{SchemaVersion: town.SystemEgressSchemaVersion, Contract: town.SystemEgressContract{Act: act, TownArea: state.Area.ID, GameVersion: "3.2.92777", LayoutFingerprint: town.SystemEgressLayoutFingerprint{Version: fingerprint.Version, AreaID: fingerprint.AreaID, AnchorCount: fingerprint.AnchorCount, Hash: fingerprint.Hash}, From: town.AnchorPortalArrival, To: town.AnchorWaypoint, Movement: town.SystemEgressMovementWalk, ArrivalToleranceTiles: 3}, SampleDistanceTiles: 4, Points: []town.SystemEgressPoint{{X: 5100, Y: 5100}, {X: 5110, Y: 5090}}}
+	if err := town.SaveSystemEgressRoute(filepath.Join(directory, town.SystemEgressFilename), route); err != nil {
 		t.Fatal(err)
 	}
 }
 
-func TestTownEgressAdapterRequiresBoundRouteAndStartAnchor(t *testing.T) {
-	cfg, err := config.Load(filepath.Join("..", "..", "configs", "config.example.yaml"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	directory := t.TempDir()
-	egress := cfg.Town.Egress[town.OriginAct3]
-	egress.RoutesDirectory = directory
-	cfg.Town.Egress[town.OriginAct3] = egress
-	state, fingerprint := egressTestState(t)
-	saveEgressTestRoute(t, directory, state, fingerprint)
-	adapter := newTownEgressAdapter(config.NewLogger("error"), cfg, "3.2.92777", &preparationInputMock{}, pathing.DefaultConfig(), nil)
-	if err := adapter.Start(town.OriginAct3, state); err != nil {
-		t.Fatalf("Start() error = %v", err)
-	}
-	adapter.Reset()
+func saveEgressTestRoute(t *testing.T, directory string, state world.State, fingerprint pathing.LayoutFingerprint) {
+	saveEgressTestRouteForAct(t, directory, town.OriginAct3, state, fingerprint)
+}
 
-	wrongCharacter := state
-	wrongCharacter.Identity.CharacterName = "Other"
-	if err := adapter.Start(town.OriginAct3, wrongCharacter); !errors.Is(err, pathing.ErrRouteCharacterMismatch) {
-		t.Fatalf("character mismatch error = %v", err)
-	}
-	far := state
-	far.Player.Position = world.Position{X: 5200, Y: 5200}
-	if err := adapter.Start(town.OriginAct3, far); !errors.Is(err, pathing.ErrRouteStartMismatch) {
-		t.Fatalf("start mismatch error = %v", err)
+func TestTownEgressAdapterSupportsGlobalRoutesForAllForeignActs(t *testing.T) {
+	for _, act := range []town.OriginAct{town.OriginAct2, town.OriginAct3, town.OriginAct4, town.OriginAct5} {
+		t.Run(string(act), func(t *testing.T) {
+			cfg, err := config.Load(filepath.Join("..", "..", "configs", "config.example.yaml"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			directory := t.TempDir()
+			egress := cfg.Town.Egress[act]
+			egress.RoutesDirectory = directory
+			cfg.Town.Egress[act] = egress
+			state, fingerprint := egressTestStateForAct(t, act)
+			saveEgressTestRouteForAct(t, directory, act, state, fingerprint)
+			adapter := newTownEgressAdapter(config.NewLogger("error"), cfg, "3.2.92777", &preparationInputMock{}, pathing.DefaultConfig(), nil)
+			if err := adapter.Start(act, state); err != nil {
+				t.Fatalf("Start() error = %v", err)
+			}
+			adapter.Reset()
+			otherCharacter := state
+			otherCharacter.Identity.CharacterName = "Other"
+			otherCharacter.Identity.MapSeed = 999
+			if err := adapter.Start(act, otherCharacter); err != nil {
+				t.Fatalf("global route rejected character/seed: %v", err)
+			}
+		})
 	}
 }
 
-func TestTownEgressAdapterMissingRouteStopsBeforeNavigatorInput(t *testing.T) {
+func TestTownEgressAdapterRejectsMissingVersionLayoutAndFarStart(t *testing.T) {
 	cfg, err := config.Load(filepath.Join("..", "..", "configs", "config.example.yaml"))
 	if err != nil {
 		t.Fatal(err)
@@ -79,27 +79,48 @@ func TestTownEgressAdapterMissingRouteStopsBeforeNavigatorInput(t *testing.T) {
 	egress := cfg.Town.Egress[town.OriginAct3]
 	egress.RoutesDirectory = t.TempDir()
 	cfg.Town.Egress[town.OriginAct3] = egress
-	state, _ := egressTestState(t)
+	state, fingerprint := egressTestState(t)
 	adapter := newTownEgressAdapter(config.NewLogger("error"), cfg, "3.2.92777", &preparationInputMock{}, pathing.DefaultConfig(), nil)
 	if err := adapter.Start(town.OriginAct3, state); !errors.Is(err, pathing.ErrRouteNotFound) {
 		t.Fatalf("missing route error = %v", err)
 	}
+	saveEgressTestRoute(t, egress.RoutesDirectory, state, fingerprint)
+	adapter.gameVersion = "other"
+	if err := adapter.Start(town.OriginAct3, state); !errors.Is(err, pathing.ErrRouteGameVersionMismatch) {
+		t.Fatalf("version error = %v", err)
+	}
+	adapter.gameVersion = "3.2.92777"
+	layout := state
+	layout.Objects = append([]world.Object(nil), state.Objects...)
+	layout.Objects[0].Position.X++
+	if err := adapter.Start(town.OriginAct3, layout); !errors.Is(err, pathing.ErrRouteLayoutMismatch) {
+		t.Fatalf("layout error = %v", err)
+	}
+	far := state
+	far.Player.Position = world.Position{X: 5200, Y: 5200}
+	if err := adapter.Start(town.OriginAct3, far); !errors.Is(err, pathing.ErrRouteStartMismatch) {
+		t.Fatalf("start error = %v", err)
+	}
 }
 
-func TestAct3EgressRouteRejectsTeleportPlayback(t *testing.T) {
+func TestSystemEgressRouteRejectsTeleportAndFarmingFields(t *testing.T) {
 	state, fingerprint := egressTestState(t)
 	directory := t.TempDir()
 	saveEgressTestRoute(t, directory, state, fingerprint)
-	registry, err := pathing.LoadRouteRegistry(directory)
+	path := filepath.Join(directory, town.SystemEgressFilename)
+	route, err := town.LoadSystemEgressRoute(path)
 	if err != nil {
 		t.Fatal(err)
 	}
-	route, err := registry.Get("act3-egress")
-	if err != nil {
+	route.Contract.Movement = town.SystemEgressMovement("teleport")
+	if err := route.Validate(); err == nil {
+		t.Fatal("teleport egress accepted")
+	}
+	data := []byte("schema_version: 1\ncharacter_name: MrBones\n")
+	if err := os.WriteFile(path, data, 0o644); err != nil {
 		t.Fatal(err)
 	}
-	route.Segments[0].Movement = pathing.RouteMovementTeleport
-	if err := validateAct3EgressRoute(route); !errors.Is(err, pathing.ErrRouteStartMismatch) {
-		t.Fatalf("teleport egress error = %v", err)
+	if _, err := town.LoadSystemEgressRoute(path); err == nil {
+		t.Fatal("farming binding field accepted")
 	}
 }

@@ -39,6 +39,31 @@ export function getStatus(signal?: AbortSignal): Promise<StatusDTO> {
 
 export function getCatalog(signal?: AbortSignal): Promise<CatalogDTO> {
   return getJSON<CatalogDTO>("/api/v1/catalog", signal);
+}
+
+export function getRouteLibrary(character = "", archived = false, signal?: AbortSignal): Promise<RouteLibraryDTO> {
+  const query = new URLSearchParams({ character, include_archived: archived ? "true" : "false" });
+  return getJSON<RouteLibraryDTO>("/api/v1/routes?" + query.toString(), signal);
+}
+
+export function getRecordingOptions(signal?: AbortSignal): Promise<Array<RecordingOptionDTO>> {
+  return getJSON<Array<RecordingOptionDTO>>("/api/v1/route-recording/options", signal);
+}
+
+export function getRouteCandidates(signal?: AbortSignal): Promise<Array<RouteCandidateDTO>> {
+  return getJSON<Array<RouteCandidateDTO>>("/api/v1/routes/candidates", signal);
+}
+
+export function getSystemRouteStatus(signal?: AbortSignal): Promise<Array<SystemRouteStatusDTO>> {
+  return getJSON<Array<SystemRouteStatusDTO>>("/api/v1/system-routes/status", signal);
+}
+
+export function getHotkeyHelp(signal?: AbortSignal): Promise<HotkeyHelpDTO> {
+  return getJSON<HotkeyHelpDTO>("/api/v1/routes/hotkeys", signal);
+}
+
+export function getRouteWorkflow(signal?: AbortSignal): Promise<RouteWorkflowDTO> {
+  return getJSON<RouteWorkflowDTO>("/api/v1/routes/workflow", signal);
 }`;
 const output = `// Code generated from internal/api/schema/openapi.json; DO NOT EDIT.\n\n${definitions.join("\n\n")}\n\n${client}\n`;
 if (process.argv.includes("--check")) {

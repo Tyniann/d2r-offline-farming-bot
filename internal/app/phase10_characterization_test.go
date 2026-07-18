@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/config"
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/tasks"
 )
 
 func TestPhase10CharacterizationCountessSessionPreflightBinding(t *testing.T) {
@@ -14,9 +15,7 @@ func TestPhase10CharacterizationCountessSessionPreflightBinding(t *testing.T) {
 	}
 	cfg.Input.Enabled = true
 	cfg.Runs.Active = ""
-	countess, _ := cfg.Runs.Run("countess")
-	countess.RouteID = "black-marsh-cellar5-nightmare-mrbones"
-	cfg.Runs.Definitions["countess"] = countess
+	writeTestRouteAssignments(t, cfg, map[tasks.RunID]string{tasks.RunIDCountess: "countess-mrbones-fd1756c208", tasks.RunIDMephisto: "durance-2-mephisto-nightmare-mrbones"})
 	cfg.Session.Enabled = true
 	cfg.Session.Run = "countess"
 	cfg.Session.Character = "MrBones"
@@ -29,7 +28,7 @@ func TestPhase10CharacterizationCountessSessionPreflightBinding(t *testing.T) {
 	if plan.Status != "ready" || plan.Run != "countess" || plan.Character != "MrBones" || plan.Difficulty != "nightmare" {
 		t.Fatalf("resolved Countess plan = %+v", plan)
 	}
-	if plan.RouteID != "black-marsh-cellar5-nightmare-mrbones" || !strings.HasSuffix(plan.RoutePath, "black-marsh-cellar5-nightmare-mrbones.yaml") {
+	if plan.RouteID != "countess-mrbones-fd1756c208" || !strings.HasSuffix(plan.RoutePath, "countess-mrbones-fd1756c208.yaml") {
 		t.Fatalf("resolved Countess route binding = %+v", plan)
 	}
 	if plan.RouteLayoutFingerprint != "e6020b03a517d9aab52964cb0d8fb5fb362f17606408ac65cfa6f68ed5c519e3" {

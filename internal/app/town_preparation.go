@@ -52,6 +52,7 @@ type townPreparationAdapter struct {
 	sellFilter   *loot.Pickit
 	stashConfig  config.LootStashConfig
 	nextRunID    string
+	startAnchor  town.Anchor
 }
 
 func (a *townPreparationAdapter) setItemPolicies(filter *loot.Filter, sell *loot.Pickit, stash config.LootStashConfig) {
@@ -98,7 +99,7 @@ func newTownPreparationAdapter(log *slog.Logger, controller townPreparationContr
 		return nil, fmt.Errorf("load central town graph: %w", err)
 	}
 	profile := cfg.Profiles[run.Combat.Profile].Resources
-	return &townPreparationAdapter{log: log, driver: controller, controller: controller, pathCfg: pathCfg, graph: graph, directory: directory, thresholds: cfg.Town.Thresholds, layoutPin: layoutPin, townCfg: cfg.Town, profile: profile, telemetry: telemetry, services: services, nextRunID: runID}, nil
+	return &townPreparationAdapter{log: log, driver: controller, controller: controller, pathCfg: pathCfg, graph: graph, directory: directory, thresholds: cfg.Town.Thresholds, layoutPin: layoutPin, townCfg: cfg.Town, profile: profile, telemetry: telemetry, services: services, nextRunID: runID, startAnchor: town.AnchorStash}, nil
 }
 
 func (a *townPreparationAdapter) Tick(ctx context.Context, state world.State) tasks.TownPreparationResult {
@@ -162,9 +163,11 @@ func (a *townPreparationAdapter) Tick(ctx context.Context, state world.State) ta
 		if traversal.Reverse {
 			reversePositions(points)
 		}
-		// The first edge proves the external starting anchor. Later edges compose
-		// at their recorded semantic boundary and may approach their own first point.
-		if a.index == 0 && world.Distance(state.Player.Position, points[0]) > a.pathCfg.TownWalk.ArrivalDistance {
+		// A portal arrival varies within the portal's interaction radius, so its
+		// Memory-confirmed entity is the authoritative external-anchor proof. Other
+		// origins retain the stricter first-point check. The walker may safely close
+		// the small gap from a confirmed portal arrival to the recorded first point.
+		if a.index == 0 && !a.externalStartConfirmed(state, points[0]) {
 			return tasks.TownPreparationResult{Status: "failed", Reason: "town_edge_start_unconfirmed", Done: true}
 		}
 		a.walker = pathing.NewTownRouteWalker(a.log, a.driver, a.pathCfg, points)
@@ -181,6 +184,21 @@ func (a *townPreparationAdapter) Tick(ctx context.Context, state world.State) ta
 	a.index++
 	a.walker = nil
 	return tasks.TownPreparationResult{Status: "pending"}
+}
+
+func (a *townPreparationAdapter) externalStartConfirmed(state world.State, firstPoint world.Position) bool {
+	if a.startAnchor == town.AnchorPortalArrival {
+		return townPortalArrivalReady(state, a.pathCfg.TownPortal.MaxClickDistance)
+	}
+	return world.Distance(state.Player.Position, firstPoint) <= a.pathCfg.TownWalk.ArrivalDistance
+}
+
+func townPortalArrivalReady(state world.State, tolerance float64) bool {
+	if !state.Valid || state.Phase != world.GamePhaseInGame || !state.Area.ID.IsTown() || tolerance <= 0 {
+		return false
+	}
+	portal, visible := state.NearestObject(world.ObjectKindTownPortal)
+	return visible && world.Distance(state.Player.Position, portal.Position) <= tolerance
 }
 
 func (a *townPreparationAdapter) Reset() {

@@ -39,8 +39,7 @@ type WaypointTransfer struct {
 }
 
 // WaypointTransferExecutor sends one selection and verifies the destination area.
-// Phase 9 intentionally registers only Act 3-to-hub normalization and the Act-1
-// Countess handoff; this is not a general waypoint travel API.
+// Foreign-town normalization supports Acts 2–5; this remains a finite transfer API.
 type WaypointTransferExecutor struct {
 	input       WaypointTransferInput
 	transfer    WaypointTransfer
@@ -55,7 +54,7 @@ func NewWaypointTransferExecutor(input WaypointTransferInput, transfer WaypointT
 		return nil, ReasonTransferStateInvalid
 	}
 	toAct := originActFromWorld(transfer.ToArea.Act())
-	validHub := transfer.FromAct == OriginAct3 && transfer.ToArea == world.RogueEncampment
+	validHub := transfer.FromAct != OriginActUnknown && transfer.FromAct != OriginAct1 && transfer.ToArea == world.RogueEncampment
 	validHandoff := transfer.FromAct == OriginAct1 && toAct == OriginAct1 && transfer.ToArea == world.BlackMarsh
 	if !validHub && !validHandoff {
 		if transfer.FromAct != OriginAct1 && transfer.ToArea == world.RogueEncampment {

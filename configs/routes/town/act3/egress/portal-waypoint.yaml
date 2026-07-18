@@ -1,0 +1,26 @@
+schema_version: 1
+contract:
+  act: act3
+  town_area_id: 75
+  game_version: 3.2.92777
+  layout_fingerprint:
+    version: 1
+    area_id: 75
+    anchor_count: 2
+    hash: c8cb0be7d1721b7e78f724a2644103e35b8928c554f65d5dceb1c0a7982064e9
+  from: portal_arrival
+  to: waypoint
+  movement: walk
+  arrival_tolerance_tiles: 3
+sample_distance_tiles: 4
+points:
+  - x: 5158
+    y: 5068
+  - x: 5160
+    y: 5063
+  - x: 5160
+    y: 5058
+  - x: 5160
+    y: 5053
+  - x: 5159
+    y: 5050

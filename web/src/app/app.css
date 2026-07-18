@@ -42,5 +42,9 @@ button.danger { background: #8d2635; border-color: #d85a6d; }
 .queue-status { display: grid; gap: 6px; margin-top: 16px; padding: 14px; border: 1px solid #365779; border-radius: 10px; background: #0b1422; }
 .queue-status span, .hint { color: #9fb2cc; }
 .danger-modal { border-color: #a84a59; }
+.route-toolbar, .route-actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: end; margin-bottom: 16px; }
+.route-actions { margin: 8px 0 0; }
+.hotkey-help { margin-top: 20px; padding: 14px; border: 1px solid #365779; border-radius: 10px; background: #0b1422; }
+.hotkey-help summary { cursor: pointer; font-weight: 700; }
 button:focus-visible, select:focus-visible { outline: 3px solid #70d7ff; outline-offset: 2px; }
 @media (max-width: 700px) { main { padding: 24px 0; } header, section { padding: 20px; } dl div, .selection-grid, .queue-list li { grid-template-columns: 1fr; gap: 8px; } .queue-actions { justify-content: flex-start; } }

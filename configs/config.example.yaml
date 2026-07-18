@@ -27,8 +27,12 @@ routes:
   # Alle invalidierbaren Farming-Sätze; der aktive Unterordner wird ausschließlich
   # aus session.character und session.difficulty abgeleitet.
   farming_root: routes/farming
+  # Unveröffentlichte, immutable Kandidaten liegen strikt außerhalb des Farming-Roots.
+  candidate_root: routes/candidates
   # Atomische lokale Lifecycle-Metadaten; *.local.yaml bleibt gitignoriert.
   lifecycle_file: route-lifecycle.local.yaml
+  assignments_file: route-assignments.local.yaml
+  recovery_file: route-recovery.local.yaml
 
 loot:
   pickup:
@@ -64,7 +68,8 @@ input:
   enabled: false
   pause_hotkey: pause
   stop_after_run_hotkey: f10
-  stop_hotkey: f12
+  recording_finish_hotkey: f9
+  stop_hotkey: f11
   key_delay_ms_min: 10
   key_delay_ms_max: 40
   combo_hold_ms: 200
@@ -102,8 +107,6 @@ runs:
   step_timeout_ms: 30000
   definitions:
     countess:
-      # Stabile ID einer unter routes.farming_root verwalteten Aufnahme.
-      route_id: ""
       combat:
         profile: necro_bone_spear
         attack_skill: bone_spear
@@ -115,7 +118,6 @@ runs:
         pickup_file: pickit/countess.nip
     mephisto:
       # MrBones/Nightmare-Aufnahme aus Gate 10.9; andere Bindungen benötigen eine eigene Route.
-      route_id: durance-2-mephisto-nightmare-mrbones
       combat:
         profile: necro_bone_spear
         attack_skill: bone_spear
@@ -176,11 +178,22 @@ town:
       repair: charsi
     routes_directory: routes/town/act1/graph
   egress:
+    act2:
+      area: lut_gholein
+      anchors: [portal_arrival, waypoint]
+      routes_directory: routes/town/act2/egress
     act3:
       area: kurast_docks
-      route_id: act3-egress
       anchors: [portal_arrival, waypoint]
       routes_directory: routes/town/act3/egress
+    act4:
+      area: the_pandemonium_fortress
+      anchors: [portal_arrival, waypoint]
+      routes_directory: routes/town/act4/egress
+    act5:
+      area: harrogath
+      anchors: [portal_arrival, waypoint]
+      routes_directory: routes/town/act5/egress
 
 
 session:

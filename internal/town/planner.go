@@ -23,9 +23,6 @@ func (p *Planner) Plan(origin Origin, snapshot DemandSnapshot, target NextRunTar
 		if _, reason := p.config.EgressFor(origin.Act); reason != "" {
 			return Plan{}, reason
 		}
-		if origin.Act != OriginAct3 {
-			return Plan{}, ReasonHubTransferUnsupported
-		}
 		steps = append(steps, PlanStep{Phase: PlanPhaseNormalize, Kind: StepEgress, Act: origin.Act}, PlanStep{Phase: PlanPhaseNormalize, Kind: StepHubTransfer, Act: OriginAct1})
 	}
 	if snapshot.Demand.Stash {

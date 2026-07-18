@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 
@@ -35,34 +36,42 @@ func (a *townEgressAdapter) Start(act town.OriginAct, state world.State) error {
 		return fmt.Errorf("%w: egress adapter unavailable", pathing.ErrRouteNotFound)
 	}
 	egress, reason := a.config.Town.EgressFor(act)
-	if reason != "" || act != town.OriginAct3 || state.Area.ID != world.KurastDocks || egress.Area != "kurast_docks" {
+	expectedArea, supported := town.TownAreaForAct(act)
+	if reason != "" || !supported || state.Area.ID != expectedArea {
 		return fmt.Errorf("%w: act=%s area=%s", pathing.ErrRouteStartMismatch, act, state.Area.ID)
 	}
-	registry, err := pathing.LoadRouteRegistry(a.config.ResolvePath(egress.RoutesDirectory))
+	path := a.config.ResolvePath(egress.RoutesDirectory + "/" + town.SystemEgressFilename)
+	route, err := town.LoadSystemEgressRoute(path)
 	if err != nil {
-		return fmt.Errorf("town egress %s registry: %w", act, err)
+		if errors.Is(err, pathing.ErrRouteNotFound) || errors.Is(err, context.Canceled) {
+			return err
+		}
+		return fmt.Errorf("%w: town egress %s: %v", pathing.ErrRouteNotFound, act, err)
 	}
-	route, err := registry.Get(egress.RouteID)
-	if err != nil {
-		return fmt.Errorf("town egress %s: %w", act, err)
-	}
-	if validationErr := validateAct3EgressRoute(route); validationErr != nil {
-		return fmt.Errorf("town egress %s: %w", act, validationErr)
+	if route.Contract.Act != act || route.Contract.TownArea != expectedArea {
+		return fmt.Errorf("%w: system egress contract act/area mismatch", pathing.ErrRouteStartMismatch)
 	}
 	fingerprint, err := pathing.BuildLayoutFingerprint(state)
 	if err != nil {
 		return fmt.Errorf("town egress %s layout: %w", act, err)
 	}
-	if err := pathing.ValidateRoutePrecheck(route, pathing.RoutePrecheckInput{Identity: state.Identity, GameVersion: a.gameVersion, Layout: fingerprint, World: state}); err != nil {
-		return fmt.Errorf("town egress %s: %w", act, err)
+	if route.Contract.GameVersion != a.gameVersion {
+		return fmt.Errorf("%w: got %s want %s", pathing.ErrRouteGameVersionMismatch, a.gameVersion, route.Contract.GameVersion)
 	}
-	points := make([]world.Position, 0, len(route.Segments[0].Points))
-	for _, point := range route.Segments[0].Points {
+	bound := route.Contract.LayoutFingerprint
+	if fingerprint.Version != bound.Version || fingerprint.AreaID != bound.AreaID || fingerprint.AnchorCount != bound.AnchorCount || fingerprint.Hash != bound.Hash {
+		return fmt.Errorf("%w: system egress layout differs", pathing.ErrRouteLayoutMismatch)
+	}
+	if world.Distance(state.Player.Position, world.Position{X: route.Points[0].X, Y: route.Points[0].Y}) > route.Contract.ArrivalToleranceTiles {
+		return fmt.Errorf("%w: portal arrival is outside route start tolerance", pathing.ErrRouteStartMismatch)
+	}
+	points := make([]world.Position, 0, len(route.Points))
+	for _, point := range route.Points {
 		points = append(points, world.Position{X: point.X, Y: point.Y})
 	}
-	a.walker = pathing.NewAreaTownRouteWalker(a.log, a.driver, a.pathCfg, world.KurastDocks, points)
+	a.walker = pathing.NewAreaTownRouteWalker(a.log, a.driver, a.pathCfg, expectedArea, points)
 	a.activeAct = act
-	a.log.Info("foreign town egress started", "act", act, "route_id", egress.RouteID, "area_id", state.Area.ID)
+	a.log.Info("foreign town egress started", "act", act, "route_file", town.SystemEgressFilename, "area_id", state.Area.ID)
 	return nil
 }
 
@@ -92,15 +101,4 @@ func (a *townEgressAdapter) Reset() {
 	}
 	a.walker = nil
 	a.activeAct = town.OriginActUnknown
-}
-
-func validateAct3EgressRoute(route pathing.Route) error {
-	if len(route.Segments) != 1 {
-		return fmt.Errorf("%w: Act-3 egress requires exactly one segment", pathing.ErrRouteStartMismatch)
-	}
-	segment := route.Segments[0]
-	if segment.FromAreaID != world.KurastDocks || segment.ToAreaID != world.KurastDocks || segment.Movement != pathing.RouteMovementWalk || segment.Transition.Type != "terminal" {
-		return fmt.Errorf("%w: Act-3 egress requires one terminal Kurast-Docks walk segment", pathing.ErrRouteStartMismatch)
-	}
-	return nil
 }

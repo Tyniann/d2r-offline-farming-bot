@@ -15,6 +15,8 @@ Abschnitt 11.5 katalogisiert alle Farming-Routen unter einem gemeinsamen Root un
 
 ## Funktionalität
 
+Die erneute Memory-bestätigte Auswahl desselben bereits persistierten Charakters und derselben Schwierigkeit ist revisions-idempotent: Sie bestätigt den Runtime-Kontext, verändert aber keine Route-Autorität. Dadurch bleibt ein hashgeschützter Kandidat über einen Core-Neustart verwendbar. Difficulty-, Layout-, Datei- und Managementänderungen erhöhen die Revision weiterhin und machen darauf gebundene Vorschauen beziehungsweise Kandidaten fail-closed ungültig.
+
 ### Katalog und Kontextpfade
 
 Der Katalog scannt rekursiv ausschließlich `<farming_root>/<character>/<difficulty>/*.yaml`. Pfadkontext und Route-Binding müssen übereinstimmen. Ungültige Dateien, Symlinks, unerwartete Pfadtiefen, globale doppelte Route-IDs und geänderte Dateien werden als `unavailable` gesperrt. Town-Routen liegen außerhalb des Farming-Roots und werden weder katalogisiert noch invalidiert.
@@ -40,6 +42,10 @@ Dropdown-Änderung, Preview, Abbruch, Game-Start-Fehler und falsche Identität s
 
 ## Operator / CLI
 
+### Managementstatus und Run-Zuordnung (Phase 12.1)
+
+Das Lifecycle-Manifest enthält zusätzlich `management_status: active|archived` und die registrierte `run_id`. Diese Metadaten sind orthogonal zur automatischen Invalidation: Eine Route kann gleichzeitig `archived + stale` sein. Bestehende Phase-11-Manifeste werden deterministisch anhand ihrer typisierten Start-/Terminal-Areas erweitert; die Route-Datei bleibt unverändert.
+
 ```yaml
 routes:
   farming_root: routes/farming
@@ -62,4 +68,4 @@ Das Manifest ist lokale Runtime-Metadaten. Es soll nicht manuell als Ersatz für
 - [Session-Lifecycle](session-lifecycle.md)
 
 ---
-*Zuletzt aktualisiert: 16. Juli 2026*
+*Zuletzt aktualisiert: 18. Juli 2026*

@@ -48,10 +48,9 @@ func ResolveSessionPlan(cfg *config.Config, opts Options) (SessionPlan, error) {
 		return SessionPlan{}, err
 	}
 	session := cfg.Session
-	runCfg, _ := cfg.Runs.Run(session.Run)
 	plan := SessionPlan{
 		Status: "disabled", Enabled: session.Enabled, Run: session.Run, Queue: append([]string(nil), session.Queue...), Character: session.Character,
-		Difficulty: session.Difficulty, RouteID: runCfg.RouteID, GameVersion: cfg.Memory.GameVersion,
+		Difficulty: session.Difficulty, GameVersion: cfg.Memory.GameVersion,
 		MaxRuns: session.MaxRuns, MaxDurationMs: session.MaxDurationMs, CooldownMs: session.CooldownMs,
 		MaxConsecutiveFailures: session.MaxConsecutiveFailures, MaxTotalRestarts: session.MaxTotalRestarts,
 		StateTimeoutMs: session.StateTimeoutMs, ExitTimeoutMs: session.ExitTimeoutMs, StartTimeoutMs: session.StartTimeoutMs,
@@ -84,6 +83,7 @@ func ResolveSessionPlan(cfg *config.Config, opts Options) (SessionPlan, error) {
 	if selected.Status == tasks.RunAvailabilityUnavailable {
 		return SessionPlan{}, fmt.Errorf("session.run %q unavailable: %s", session.Run, joinRunReasons(selected.Reasons))
 	}
+	plan.RouteID = selected.Route.RouteID
 	route, ok := availability.routes[tasks.RunID(session.Run)]
 	if !ok {
 		return SessionPlan{}, fmt.Errorf("session.run %q unavailable: %s", session.Run, tasks.RunReasonRouteMissing)

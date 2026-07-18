@@ -46,5 +46,6 @@ desktop.ini
 # Logs & runtime artifacts
 /logs/
 /diagnostics/
+/configs/routes/candidates/
 *.log
 /tmp/

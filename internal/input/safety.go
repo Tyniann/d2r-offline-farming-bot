@@ -7,10 +7,11 @@ import (
 
 // SafetyConfig holds operator safety settings for real OS input and global hotkeys.
 type SafetyConfig struct {
-	Enabled            bool
-	PauseHotkey        string
-	StopAfterRunHotkey string
-	StopHotkey         string
+	Enabled               bool
+	PauseHotkey           string
+	StopAfterRunHotkey    string
+	RecordingFinishHotkey string
+	StopHotkey            string
 }
 
 // Status reports the current runtime safety state of the input controller.
@@ -143,6 +144,9 @@ func (c *Controller) logAllowedAction(kind, action, reason string, attrs ...any)
 }
 
 func normalizeHotkeyBindings(cfg SafetyConfig) (HotkeyBindings, error) {
+	if cfg.RecordingFinishHotkey == "" {
+		cfg.RecordingFinishHotkey = "f9"
+	}
 	pause, err := NormalizeKey(cfg.PauseHotkey)
 	if err != nil {
 		return HotkeyBindings{}, fmt.Errorf("pause hotkey: %w", err)
@@ -151,11 +155,15 @@ func normalizeHotkeyBindings(cfg SafetyConfig) (HotkeyBindings, error) {
 	if err != nil {
 		return HotkeyBindings{}, fmt.Errorf("stop-after-run hotkey: %w", err)
 	}
+	recordingFinish, err := NormalizeKey(cfg.RecordingFinishHotkey)
+	if err != nil {
+		return HotkeyBindings{}, fmt.Errorf("recording-finish hotkey: %w", err)
+	}
 	stop, err := NormalizeKey(cfg.StopHotkey)
 	if err != nil {
 		return HotkeyBindings{}, fmt.Errorf("stop hotkey: %w", err)
 	}
-	return HotkeyBindings{Pause: pause, StopAfterRun: stopAfterRun, Stop: stop}, nil
+	return HotkeyBindings{Pause: pause, RecordingFinish: recordingFinish, StopAfterRun: stopAfterRun, Stop: stop}, nil
 }
 
 func logSafetyConfigured(log *slog.Logger, cfg SafetyConfig) {
@@ -163,6 +171,7 @@ func logSafetyConfigured(log *slog.Logger, cfg SafetyConfig) {
 		"enabled", cfg.Enabled,
 		"pause_hotkey", cfg.PauseHotkey,
 		"stop_after_run_hotkey", cfg.StopAfterRunHotkey,
+		"recording_finish_hotkey", cfg.RecordingFinishHotkey,
 		"stop_hotkey", cfg.StopHotkey,
 	)
 }

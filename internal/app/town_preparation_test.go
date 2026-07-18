@@ -62,6 +62,21 @@ func TestLayoutTownWaypointWalkerReusesConfirmedWaypointHandoff(t *testing.T) {
 	}
 }
 
+func TestTownPreparationPortalStartUsesNearbyPortalProof(t *testing.T) {
+	cfg := pathing.DefaultConfig()
+	adapter := &townPreparationAdapter{pathCfg: cfg, startAnchor: town.AnchorPortalArrival}
+	state := preparationState(world.Position{X: 100, Y: 100}, time.Now(), true)
+	state.Objects = append(state.Objects, world.Object{UnitID: 9, Kind: world.ObjectKindTownPortal, Position: world.Position{X: 110, Y: 100}})
+
+	if !adapter.externalStartConfirmed(state, world.Position{X: 120, Y: 100}) {
+		t.Fatal("nearby Memory-confirmed portal arrival was rejected")
+	}
+	state.Objects[len(state.Objects)-1].Position = world.Position{X: 130, Y: 100}
+	if adapter.externalStartConfirmed(state, world.Position{X: 120, Y: 100}) {
+		t.Fatal("distant portal must not confirm portal arrival")
+	}
+}
+
 func TestTownPreparationFailsBeforeInputWhenPotionGoldUnavailable(t *testing.T) {
 	in := &preparationInputMock{}
 	a := &townPreparationAdapter{

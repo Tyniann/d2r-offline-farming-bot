@@ -17,21 +17,27 @@ import (
 
 // LiveBackend projects read-only runtime changes and publishes bounded events.
 type LiveBackend struct {
-	mu                 sync.RWMutex
-	commandMu          sync.Mutex
-	bootstrap          *BootstrapBackend
-	cfg                *config.Config
-	lifecycle          *app.RouteLifecycleStore
-	publisher          *telemetry.LivePublisher
-	status             StatusDTO
-	catalog            CatalogDTO
-	selection          func(app.CharacterSelectionRequest) error
-	supervisor         *app.SessionSupervisor
-	beforeWorker       func() error
-	beginQueue         func(bool)
-	supervisorObserved uint64
-	commands           map[string]apiCommandRecord
-	previews           map[string]selectionPreviewRecord
+	mu                  sync.RWMutex
+	commandMu           sync.Mutex
+	bootstrap           *BootstrapBackend
+	cfg                 *config.Config
+	lifecycle           *app.RouteLifecycleStore
+	publisher           *telemetry.LivePublisher
+	status              StatusDTO
+	catalog             CatalogDTO
+	selection           func(app.CharacterSelectionRequest) error
+	supervisor          *app.SessionSupervisor
+	beforeWorker        func() error
+	beginQueue          func(bool)
+	supervisorObserved  uint64
+	commands            map[string]apiCommandRecord
+	previews            map[string]selectionPreviewRecord
+	routeCandidates     *app.CandidateStore
+	routeAssignments    *app.RouteAssignmentStore
+	routeManagement     *app.RouteManagementService
+	routeWorkflow       RouteWorkflowDTO
+	routeWorkflowRun    func(RouteWorkflowRequest, <-chan struct{}, app.RouteWorkflowReporter) error
+	routeWorkflowFinish chan struct{}
 }
 
 // SetSessionSupervisor binds the single Core-owned queue state machine. The
@@ -86,6 +92,18 @@ func NewLiveBackend(cfg *config.Config, publisher *telemetry.LivePublisher) (*Li
 	if err != nil {
 		return nil, err
 	}
+	candidates, err := app.NewCandidateStore(cfg)
+	if err != nil {
+		return nil, err
+	}
+	assignments, err := app.NewRouteAssignmentStore(cfg)
+	if err != nil {
+		return nil, err
+	}
+	management, err := app.NewRouteManagementService(cfg, app.RouteManagementHooks{})
+	if err != nil {
+		return nil, err
+	}
 	manifest, _, err := lifecycle.Snapshot()
 	if err != nil {
 		return nil, fmt.Errorf("load route lifecycle: %w", err)
@@ -104,7 +122,14 @@ func NewLiveBackend(cfg *config.Config, publisher *telemetry.LivePublisher) (*Li
 	if character := manifest.Characters[strings.ToLower(cfg.Session.Character)]; character.LastConfirmedDifficulty != "" {
 		status.Selection = SelectionStatusDTO{Character: cfg.Session.Character, Difficulty: character.LastConfirmedDifficulty}
 	}
-	return &LiveBackend{bootstrap: bootstrap, cfg: cfg, lifecycle: lifecycle, publisher: publisher, status: status, catalog: bootstrap.Catalog(), commands: make(map[string]apiCommandRecord), previews: make(map[string]selectionPreviewRecord)}, nil
+	return &LiveBackend{bootstrap: bootstrap, cfg: cfg, lifecycle: lifecycle, publisher: publisher, status: status, catalog: bootstrap.Catalog(), commands: make(map[string]apiCommandRecord), previews: make(map[string]selectionPreviewRecord), routeCandidates: candidates, routeAssignments: assignments, routeManagement: management, routeWorkflow: RouteWorkflowDTO{Generation: 1, State: string(app.RouteWorkflowIdle)}}, nil
+}
+
+// SetRouteWorkflowHandler binds UI workflow starts to the existing Runtime recorder/test adapters.
+func (b *LiveBackend) SetRouteWorkflowHandler(handler func(RouteWorkflowRequest, <-chan struct{}, app.RouteWorkflowReporter) error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.routeWorkflowRun = handler
 }
 
 // SetSelectionHandler binds the single Core-owned character activation flow.
@@ -250,7 +275,11 @@ func (b *LiveBackend) ValidateQueue(request QueueValidationRequest) (QueueValida
 	b.mu.RLock()
 	selection := b.status.Selection
 	catalogRevision := b.catalog.Revision
+	workflowState := b.routeWorkflow.State
 	b.mu.RUnlock()
+	if routeWorkflowBusy(workflowState) {
+		return QueueValidationDTO{}, &commandError{code: "command_conflict", message: "Die Queue ist während eines Routen-Workflows gesperrt."}
+	}
 	plan, err := app.ValidateFarmQueue(b.cfg, app.FarmQueueValidationRequest{
 		RunIDs: append([]string(nil), request.Entries...), Character: request.Character,
 		Difficulty: request.Difficulty, CatalogRevision: request.CatalogRevision,
@@ -304,8 +333,12 @@ func (b *LiveBackend) PreviewSelection(request SelectionPreviewRequest) (Selecti
 	b.mu.RLock()
 	catalogRevision := b.catalog.Revision
 	state := b.status.State
+	routeState := b.routeWorkflow.State
 	difficulties := append([]DifficultyCatalogEntry(nil), b.catalog.Difficulties...)
 	b.mu.RUnlock()
+	if routeWorkflowBusy(routeState) {
+		return SelectionPreviewDTO{}, &commandError{code: "command_conflict", message: "Die Auswahl ist während eines Routen-Workflows gesperrt."}
+	}
 	if request.CatalogRevision != catalogRevision {
 		return SelectionPreviewDTO{}, &commandError{code: "state_changed", message: "Der Katalog hat sich geändert."}
 	}
@@ -363,6 +396,10 @@ func (b *LiveBackend) applySelectionCommand(request CommandRequest) (CommandResp
 	if request.ExpectedGeneration != b.status.Generation || (b.status.State != string(app.SupervisorStateIdle) && b.status.State != string(app.SupervisorStateIdleInGame)) {
 		b.mu.Unlock()
 		return CommandResponse{}, &commandError{code: "state_changed", message: "Der Core-Zustand hat sich geändert."}
+	}
+	if routeWorkflowBusy(b.routeWorkflow.State) {
+		b.mu.Unlock()
+		return CommandResponse{}, &commandError{code: "command_conflict", message: "Die Auswahl ist während eines Routen-Workflows gesperrt."}
 	}
 	var payload struct {
 		Character         string `json:"character"`
@@ -482,7 +519,11 @@ func (b *LiveBackend) sessionCommand(name string, request CommandRequest) (Comma
 	supervisor := b.supervisor
 	beforeWorker := b.beforeWorker
 	beginQueue := b.beginQueue
+	routeState := b.routeWorkflow.State
 	b.mu.RUnlock()
+	if routeWorkflowBusy(routeState) {
+		return CommandResponse{}, &commandError{code: "command_conflict", message: "Session-Befehle sind während eines Routen-Workflows gesperrt."}
+	}
 	if request.ExpectedGeneration != statusGeneration {
 		return CommandResponse{}, &commandError{code: string(app.SupervisorReasonStateChanged), message: "Der Core-Zustand hat sich geändert."}
 	}
@@ -553,6 +594,15 @@ func (b *LiveBackend) sessionCommand(name string, request CommandRequest) (Comma
 	b.rememberCommandLocked(name, request, response)
 	b.mu.Unlock()
 	return response, nil
+}
+
+func routeWorkflowBusy(state string) bool {
+	switch app.RouteWorkflowState(state) {
+	case app.RouteWorkflowIdle, app.RouteWorkflowCompleted, app.RouteWorkflowFailedSafe, app.RouteWorkflowEmergencyCancelled:
+		return false
+	default:
+		return true
+	}
 }
 
 func (b *LiveBackend) replayCommandLocked(name string, request CommandRequest) (CommandResponse, bool, error) {

@@ -49,16 +49,16 @@ func TestWinHotkeyListenerPartialRegistrationCleanup(t *testing.T) {
 
 	events := make(chan HotkeyEvent, 1)
 	ready := make(chan error, 1)
-	go listener.Listen(ctx, HotkeyBindings{Pause: "pause", StopAfterRun: "f10", Stop: "f12"}, events, ready)
+	go listener.Listen(ctx, HotkeyBindings{Pause: "pause", RecordingFinish: "f9", StopAfterRun: "f10", Stop: "f12"}, events, ready)
 
 	err := <-ready
 	if !errors.Is(err, ErrHotkeyUnavailable) {
 		t.Fatalf("ready err = %v, want ErrHotkeyUnavailable", err)
 	}
-	if !reflect.DeepEqual(registered, []int{hotkeyIDPause, hotkeyIDStopAfterRun}) {
-		t.Fatalf("registered = %v, want [pause stop-after-run]", registered)
+	if !reflect.DeepEqual(registered, []int{hotkeyIDPause, hotkeyIDStopAfterRun, hotkeyIDRecordingFinish}) {
+		t.Fatalf("registered = %v, want [pause stop-after-run recording-finish]", registered)
 	}
-	if !reflect.DeepEqual(unregistered, []int{hotkeyIDStopAfterRun, hotkeyIDPause}) {
+	if !reflect.DeepEqual(unregistered, []int{hotkeyIDRecordingFinish, hotkeyIDStopAfterRun, hotkeyIDPause}) {
 		t.Fatalf("unregistered = %v, want reverse registration order", unregistered)
 	}
 }
@@ -83,7 +83,7 @@ func TestWinHotkeyListenerDispatchesStopAfterRun(t *testing.T) {
 
 	events := make(chan HotkeyEvent, 4)
 	ready := make(chan error, 1)
-	go listener.Listen(ctx, HotkeyBindings{Pause: "pause", StopAfterRun: "f10", Stop: "f12"}, events, ready)
+	go listener.Listen(ctx, HotkeyBindings{Pause: "pause", RecordingFinish: "f9", StopAfterRun: "f10", Stop: "f12"}, events, ready)
 
 	if err := <-ready; err != nil {
 		t.Fatal(err)

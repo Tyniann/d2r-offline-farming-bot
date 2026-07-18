@@ -11,17 +11,21 @@ import (
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/world"
 )
 
-func (rt *Runtime) act3EgressConfig() (town.EgressConfig, error) {
-	egress, reason := rt.Config.Town.EgressFor(town.OriginAct3)
+func (rt *Runtime) systemEgressConfig(act town.OriginAct) (town.EgressConfig, world.AreaID, error) {
+	egress, reason := rt.Config.Town.EgressFor(act)
 	if reason != "" {
-		return town.EgressConfig{}, fmt.Errorf("Act-3 egress: %s", reason)
+		return town.EgressConfig{}, world.None, fmt.Errorf("%s egress: %s", act, reason)
 	}
-	return egress, nil
+	area, ok := town.TownAreaForAct(act)
+	if !ok {
+		return town.EgressConfig{}, world.None, fmt.Errorf("unsupported system egress act %q", act)
+	}
+	return egress, area, nil
 }
 
-// RunTownEgressInspect reports the live, read-only Kurast binding and waypoint anchor.
-func (rt *Runtime) RunTownEgressInspect() error {
-	egress, err := rt.act3EgressConfig()
+// RunTownEgressInspect reports the live, read-only Town binding and waypoint anchor.
+func (rt *Runtime) RunTownEgressInspect(act town.OriginAct) error {
+	_, area, err := rt.systemEgressConfig(act)
 	if err != nil {
 		return err
 	}
@@ -40,13 +44,13 @@ func (rt *Runtime) RunTownEgressInspect() error {
 	for {
 		select {
 		case <-ctx.Done():
-			return fmt.Errorf("Act-3 egress inspect timeout waiting for Kurast Docks identity and waypoint")
+			return fmt.Errorf("%s egress inspect timeout waiting for town identity and waypoint", act)
 		case <-ticker.C:
 			if err := rt.runTick(ctx, state); err != nil && !errors.Is(err, context.Canceled) {
 				return err
 			}
 			current := rt.World.Current()
-			if !current.Valid || !current.Identity.Valid || current.Area.ID != world.KurastDocks {
+			if !current.Valid || current.Area.ID != area {
 				continue
 			}
 			waypoint, ok := current.NearestObject(world.ObjectKindWaypoint)
@@ -57,46 +61,46 @@ func (rt *Runtime) RunTownEgressInspect() error {
 			if err != nil {
 				continue
 			}
-			rt.Log.Info("Act-3 egress live binding confirmed", "route_id", egress.RouteID, "character", current.Identity.CharacterName, "character_class", current.Identity.Class, "map_seed", current.Identity.MapSeed, "game_version", rt.Config.Memory.GameVersion, "area_id", current.Area.ID, "player_x", current.Player.Position.X, "player_y", current.Player.Position.Y, "waypoint_unit_id", waypoint.UnitID, "waypoint_x", waypoint.Position.X, "waypoint_y", waypoint.Position.Y, "layout_fingerprint", fingerprint.Hash)
+			rt.Log.Info("system egress live binding confirmed", "act", act, "game_version", rt.Config.Memory.GameVersion, "area_id", current.Area.ID, "player_x", current.Player.Position.X, "player_y", current.Player.Position.Y, "waypoint_unit_id", waypoint.UnitID, "waypoint_x", waypoint.Position.X, "waypoint_y", waypoint.Position.Y, "layout_fingerprint", fingerprint.Hash)
 			return nil
 		}
 	}
 }
 
-// RunTownEgressRecord records the configured Act-3 portal-arrival-to-waypoint walk route.
-func (rt *Runtime) RunTownEgressRecord(name, difficulty string) error {
-	egress, err := rt.act3EgressConfig()
+// RunTownEgressRecord records one global portal-arrival-to-waypoint walk route.
+func (rt *Runtime) RunTownEgressRecord(act town.OriginAct, name string) error {
+	egress, area, err := rt.systemEgressConfig(act)
 	if err != nil {
 		return err
 	}
-	return rt.runRouteRecord(egress.RouteID, name, difficulty, pathing.RouteMovementWalk, rt.Config.ResolvePath(egress.RoutesDirectory), world.KurastDocks)
+	return rt.runSystemEgressRecord(act, name, rt.Config.ResolvePath(egress.RoutesDirectory), area, nil, nil)
 }
 
-// RunTownEgressValidate structurally validates the configured Act-3 egress asset.
-func (rt *Runtime) RunTownEgressValidate() error {
-	egress, err := rt.act3EgressConfig()
+// RunTownEgressValidate structurally validates one configured global Egress asset.
+func (rt *Runtime) RunTownEgressValidate(act town.OriginAct) error {
+	egress, area, err := rt.systemEgressConfig(act)
 	if err != nil {
 		return err
 	}
-	registry, err := pathing.LoadRouteRegistry(rt.Config.ResolvePath(egress.RoutesDirectory))
+	route, err := town.LoadSystemEgressRoute(rt.Config.ResolvePath(egress.RoutesDirectory + "/" + town.SystemEgressFilename))
 	if err != nil {
 		return err
 	}
-	route, err := registry.Get(egress.RouteID)
-	if err != nil {
-		return err
+	if route.Contract.Act != act || route.Contract.TownArea != area {
+		return fmt.Errorf("system egress contract does not match %s", act)
 	}
-	if err := validateAct3EgressRoute(route); err != nil {
-		return err
-	}
-	rt.Log.Info("Act-3 egress route valid", "route_id", route.ID, "movement", route.Segments[0].Movement, "point_count", len(route.Segments[0].Points), "layout_fingerprint", route.Binding.LayoutFingerprint.Hash)
+	rt.Log.Info("system egress route valid", "act", act, "movement", route.Contract.Movement, "point_count", len(route.Points), "layout_fingerprint", route.Contract.LayoutFingerprint.Hash)
 	return nil
 }
 
-// RunTownEgressPlay performs the isolated Kurast walk and registered transfer to Rogue Encampment.
-func (rt *Runtime) RunTownEgressPlay() error {
+// RunTownEgressPlay performs the isolated Town walk and transfer to Rogue Encampment.
+func (rt *Runtime) RunTownEgressPlay(act town.OriginAct) error {
 	if !rt.Input.Status().Enabled {
-		return fmt.Errorf("Act-3 egress playback requires input.enabled=true")
+		return fmt.Errorf("%s egress playback requires input.enabled=true", act)
+	}
+	_, area, err := rt.systemEgressConfig(act)
+	if err != nil {
+		return err
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -119,6 +123,11 @@ func (rt *Runtime) RunTownEgressPlay() error {
 	if err := rt.waitPathingTestReady(ctx, state, hotkeys, ticker, deadline, cancel, true); err != nil {
 		return err
 	}
+	// Dashboard starts leave the browser in front. Reuse the guarded Core focus
+	// path before the first playback input instead of relying on operator timing.
+	if err := rt.Input.Focus(); err != nil {
+		return fmt.Errorf("focus D2R for %s egress playback: %w", act, err)
+	}
 	stage := 0
 	rt.townEgress.Reset()
 	rt.taskDeps.Waypoint.Reset()
@@ -132,10 +141,10 @@ func (rt *Runtime) RunTownEgressPlay() error {
 		}
 		switch stage {
 		case 0:
-			if !current.Valid || current.Area.ID != world.KurastDocks {
+			if !current.Valid || current.Area.ID != area {
 				continue
 			}
-			if err := rt.townEgress.Start(town.OriginAct3, current); err != nil {
+			if err := rt.townEgress.Start(act, current); err != nil {
 				// The isolated test may become input-ready one or two ticks before
 				// the read-only identity probe reaches its consistency threshold.
 				if errors.Is(err, pathing.ErrGameIdentityUnavailable) {
@@ -155,7 +164,7 @@ func (rt *Runtime) RunTownEgressPlay() error {
 		case 2:
 			result := rt.taskDeps.Waypoint.TickTownWaypoint(ctx, current)
 			if result.Done && result.Status != pathing.WaypointActionClicked {
-				return fmt.Errorf("Act-3 waypoint open failed: status=%s reason=%s", result.Status, result.Reason)
+				return fmt.Errorf("%s waypoint open failed: status=%s reason=%s", act, result.Status, result.Reason)
 			}
 			if result.Status == pathing.WaypointActionClicked {
 				stage = 3
@@ -173,10 +182,10 @@ func (rt *Runtime) RunTownEgressPlay() error {
 			}
 		case 4:
 			if current.Area.ID == world.RogueEncampment {
-				rt.Log.Info("Act-3 egress acceptance completed", "target_area_id", current.Area.ID, "outcome", "success")
+				rt.Log.Info("system egress acceptance completed", "act", act, "target_area_id", current.Area.ID, "outcome", "success")
 				return nil
 			}
 		}
 	}
-	return fmt.Errorf("Act-3 egress playback timeout at stage %d", stage)
+	return fmt.Errorf("%s egress playback timeout at stage %d", act, stage)
 }

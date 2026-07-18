@@ -38,13 +38,17 @@ func (a *townPreparationAdapter) start(state world.State) string {
 	if !a.services || (!needsPotions && len(itemOrders) == 0) {
 		// No demand means no NPC detour. Initial run setup also enters here even
 		// with a low belt because its only responsibility is reaching Waypoint.
-		traversals, err := a.graph.RouteForLayout(a.layout, town.AnchorStash, nil, town.AnchorWaypoint)
+		startAnchor := a.startAnchor
+		if startAnchor == "" {
+			startAnchor = town.AnchorStash
+		}
+		traversals, err := a.graph.RouteForLayout(a.layout, startAnchor, nil, town.AnchorWaypoint)
 		if err != nil {
 			return err.Error()
 		}
 		a.traversals = traversals
 		a.started = true
-		a.log.Info("central town preparation started", "origin", "stash", "services", []string{}, "handoff", a.nextRunID, "edge_count", len(traversals), "scroll_demand", "unavailable_skip", "town_layout", a.layout)
+		a.log.Info("central town preparation started", "origin", startAnchor, "services", []string{}, "handoff", a.nextRunID, "edge_count", len(traversals), "scroll_demand", "unavailable_skip", "town_layout", a.layout)
 		return ""
 	}
 

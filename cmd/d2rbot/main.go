@@ -18,6 +18,7 @@ import (
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/app"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/config"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/telemetry"
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/town"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/version"
 )
 
@@ -42,7 +43,7 @@ func main() {
 	runsInspect := flag.Bool("runs-inspect", false, "print read-only run metadata and availability as stable JSON")
 	waypointTargetsInspect := flag.Bool("waypoint-targets-inspect", false, "print registered read-only waypoint target calibration as stable JSON")
 	sessionMaxRuns := flag.Int("session-max-runs", 0, "override the finite autonomous-session run count (0 uses config)")
-	routeCommand := flag.String("route", "", "route command (list | inspect/validate/record/play:<id> | play-segment:<id>/<segment-id> | inspect/record/validate/play-egress:act3)")
+	routeCommand := flag.String("route", "", "route command (list | inspect/validate/record/play:<id> | play-segment:<id>/<segment-id> | inspect/record/validate/play-egress:<act2|act3|act4|act5>)")
 	routeName := flag.String("route-name", "", "display name for a route recording; only valid with record")
 	routeDifficulty := flag.String("route-difficulty", "", "recording label: normal, nightmare, or hell; required with record")
 	townInspect := flag.Bool("town-inspect", false, "write one read-only Phase-9.1 Town data-availability report")
@@ -290,6 +291,32 @@ func runUI(cfg *config.Config, rt *app.Runtime) error {
 		}
 		return err
 	})
+	backend.SetRouteWorkflowHandler(func(request api.RouteWorkflowRequest, finishRequests <-chan struct{}, reporter app.RouteWorkflowReporter) error {
+		if err := stopMonitor(); err != nil {
+			return fmt.Errorf("stop passive monitor for route workflow: %w", err)
+		}
+		defer func() {
+			if ctx.Err() == nil {
+				startMonitor()
+			}
+		}()
+		switch request.Operation {
+		case "record":
+			status := backend.Status()
+			if status.Selection.Difficulty == "" {
+				return fmt.Errorf("vor der Aufnahme muss Charakter und Schwierigkeit bestätigt sein")
+			}
+			return rt.RunRouteRecordWithFinish(request.RunID, status.Selection.Difficulty, status.Selection.Character, finishRequests, reporter)
+		case "system_record":
+			return rt.RunSystemEgressRecordWithFinish(town.OriginAct(request.Act), finishRequests, reporter)
+		case "system_test":
+			return rt.RunTownEgressPlay(town.OriginAct(request.Act))
+		case "test":
+			return rt.RunCandidateTestWithProgress(request.CandidateID, reporter)
+		default:
+			return fmt.Errorf("unbekannter Routen-Workflow %q", request.Operation)
+		}
+	})
 	go func() {
 		ticker := time.NewTicker(100 * time.Millisecond)
 		defer ticker.Stop()
@@ -338,5 +365,5 @@ func runUI(cfg *config.Config, rt *app.Runtime) error {
 }
 
 func shouldRunSession(cfg *config.Config, opts app.Options) bool {
-	return cfg.Session.Enabled && !opts.UI && opts.Run == "" && opts.RunPhase == "" && !opts.Probe
+	return cfg.Session.Enabled && !opts.UI && opts.Run == "" && opts.RunPhase == "" && !opts.Probe && opts.Route == ""
 }

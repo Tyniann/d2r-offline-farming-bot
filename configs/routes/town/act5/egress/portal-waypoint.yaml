@@ -1,0 +1,36 @@
+schema_version: 1
+contract:
+    act: act5
+    town_area_id: 109
+    game_version: 3.2.92777
+    layout_fingerprint:
+        version: 1
+        area_id: 109
+        anchor_count: 2
+        hash: 3831813f8f90de51e8dfa37bfc1a63a4c9ed5a659cab8b09ae4af169dc18afa4
+    from: portal_arrival
+    to: waypoint
+    movement: walk
+    arrival_tolerance_tiles: 15
+sample_distance_tiles: 4
+points:
+    - x: 5101
+      "y": 5026
+    - x: 5104
+      "y": 5031
+    - x: 5105
+      "y": 5035
+    - x: 5106
+      "y": 5040
+    - x: 5106
+      "y": 5044
+    - x: 5106
+      "y": 5049
+    - x: 5107
+      "y": 5053
+    - x: 5109
+      "y": 5057
+    - x: 5111
+      "y": 5062
+    - x: 5112
+      "y": 5065

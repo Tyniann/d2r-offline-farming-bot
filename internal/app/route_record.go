@@ -10,161 +10,179 @@ import (
 
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/input"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/pathing"
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/tasks"
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/town"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/world"
 )
 
-const routeRecordSampleDistance = 4.0
+const (
+	routeRecordSampleDistance = 4.0
+	systemEgressRecordTimeout = 30 * time.Minute
+)
 
-// RunRouteRecord observes manual navigation until the Stop hotkey and publishes a valid route.
-func (rt *Runtime) RunRouteRecord(id, name, difficultyLabel string) error {
-	return rt.runRouteRecord(id, name, difficultyLabel, pathing.RouteMovementTeleport, "", 0)
+// RunRouteRecord starts the candidate-first guided recorder for a registered run.
+func (rt *Runtime) RunRouteRecord(runID, _ string, difficultyLabel string) error {
+	return rt.runGuidedRouteRecord(tasks.RunID(runID), difficultyLabel, rt.Config.Session.Character, nil, nil)
 }
 
-func (rt *Runtime) runRouteRecord(id, name, difficultyLabel string, movement pathing.RouteMovement, directory string, expectedArea world.AreaID) error {
-	if err := pathing.ValidateRouteID(id); err != nil {
-		return err
+// RunRouteRecordWithFinish starts guided recording and accepts the same
+// idempotent finish intent from an API workflow as the global F9 hotkey.
+func (rt *Runtime) RunRouteRecordWithFinish(runID, difficultyLabel, expectedCharacter string, finishRequests <-chan struct{}, reporter RouteWorkflowReporter) error {
+	return rt.runGuidedRouteRecord(tasks.RunID(runID), difficultyLabel, expectedCharacter, finishRequests, reporter)
+}
+
+// RunSystemEgressRecord reuses the CLI recorder for one configured global Act Egress.
+func (rt *Runtime) RunSystemEgressRecord(act town.OriginAct) error {
+	return rt.runConfiguredSystemEgressRecord(act, nil, nil)
+}
+
+// RunSystemEgressRecordWithFinish records a global Egress and accepts the
+// dashboard finish intent through the same validation path as F9.
+func (rt *Runtime) RunSystemEgressRecordWithFinish(act town.OriginAct, finishRequests <-chan struct{}, reporter RouteWorkflowReporter) error {
+	return rt.runConfiguredSystemEgressRecord(act, finishRequests, reporter)
+}
+
+func (rt *Runtime) runConfiguredSystemEgressRecord(act town.OriginAct, finishRequests <-chan struct{}, reporter RouteWorkflowReporter) error {
+	egress, reason := rt.Config.Town.EgressFor(act)
+	if reason != "" {
+		return fmt.Errorf("system egress %s unavailable: %s", act, reason)
 	}
-	difficulty, err := parseOfflineDifficulty(difficultyLabel)
-	if err != nil {
-		return err
+	area, ok := town.TownAreaForAct(act)
+	if !ok {
+		return fmt.Errorf("unsupported system egress act %q", act)
 	}
+	return rt.runSystemEgressRecord(act, "", rt.Config.ResolvePath(egress.RoutesDirectory), area, finishRequests, reporter)
+}
+
+// runSystemEgressRecord is deliberately separate from Farming recording: its
+// global contract has no run, boss, candidate, assignment, or publish lifecycle.
+func (rt *Runtime) runSystemEgressRecord(act town.OriginAct, name, directory string, expectedArea world.AreaID, finishRequests <-chan struct{}, reporter RouteWorkflowReporter) error {
 	if strings.TrimSpace(name) == "" {
-		name = routeDisplayName(id)
+		name = "System-Egress " + string(act)
 	}
-	if strings.TrimSpace(rt.Config.Memory.GameVersion) == "" {
-		return fmt.Errorf("route recording requires memory.game_version")
-	}
-	recorder, err := pathing.NewRouteRecorder(pathing.RouteRecorderConfig{SampleDistanceTiles: routeRecordSampleDistance, Movement: movement})
+	recorder, err := pathing.NewRouteRecorder(pathing.RouteRecorderConfig{SampleDistanceTiles: routeRecordSampleDistance, Movement: pathing.RouteMovementWalk})
 	if err != nil {
 		return err
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	rt.startShutdownSignals(ctx, cancel)
-	defer func() {
-		if detachErr := rt.Process.Detach(); detachErr != nil {
-			rt.Log.Warn("detach after route recording", "error", detachErr)
-		}
-	}()
+	defer func() { _ = rt.Process.Detach() }()
 	defer rt.Input.Unbind()
 	hotkeys, err := rt.startHotkeys(ctx)
 	if err != nil {
 		return err
 	}
+	defer rt.stopHotkeys(cancel)
 	ticker := time.NewTicker(time.Duration(rt.Config.Runtime.PollIntervalMs) * time.Millisecond)
 	defer ticker.Stop()
 	state := &runState{}
-	var startFingerprint pathing.LayoutFingerprint
-	recordedAt := time.Now().UTC()
-	stopRequested := false
+	var fingerprint pathing.LayoutFingerprint
+	started := false
+	var startedAt time.Time
+	portalTolerance := rt.Config.Pathing.TownPortal.MaxClickDistance
+	waypointTolerance := rt.Config.Pathing.Waypoint.MaxClickDistance
+	lastWaitingReport := time.Time{}
+	finish := func() error {
+		if !started {
+			err := fmt.Errorf("system egress not published: recording has not started at portal_arrival")
+			rt.Log.Warn("system egress recording finish rejected", "act", act, "reason", "town_egress_start_unconfirmed", "error", err)
+			return err
+		}
+		current := rt.World.Current()
+		reportRouteWorkflow(reporter, RouteWorkflowProgress{State: RouteWorkflowValidating, AreaID: uint32(current.Area.ID), Progress: 0.9})
+		if err := rt.finishSystemEgressRecording(recorder, act, directory, expectedArea, fingerprint, current, portalTolerance, waypointTolerance); err != nil {
+			rt.Log.Warn("system egress recording finish rejected", "act", act, "reason", "town_egress_waypoint_unconfirmed", "error", err)
+			return err
+		}
+		return nil
+	}
 
-	rt.Log.Info("route recording waiting for confirmed in-game identity and stable start anchor",
-		"route_id", id, "difficulty", difficulty, "sample_distance_tiles", routeRecordSampleDistance,
-		"stop_hotkey", rt.Config.Input.StopHotkey,
-	)
+	rt.Log.Info("system egress recording waiting for portal arrival", "act", act, "route_name", name, "finish_hotkey", rt.Config.Input.RecordingFinishHotkey, "emergency_stop_hotkey", rt.Config.Input.StopHotkey)
+	reportRouteWorkflow(reporter, RouteWorkflowProgress{State: RouteWorkflowPreflight})
 	for {
 		select {
 		case <-ctx.Done():
-			if !stopRequested {
-				return fmt.Errorf("route recording cancelled before operator Stop: %w", ctx.Err())
-			}
-			return rt.finishRouteRecording(recorder, id, name, pathing.RouteDifficulty(difficulty), recordedAt, startFingerprint, directory, expectedArea)
+			return fmt.Errorf("system egress recording cancelled: %w", ctx.Err())
 		case event := <-hotkeys:
-			if event.Action == input.HotkeyActionStop {
-				stopRequested = true
+			if event.Action == input.HotkeyActionRecordingFinish {
+				return finish()
 			}
 			rt.handleHotkeyEvent(event, cancel)
+		case <-finishRequests:
+			return finish()
 		case <-ticker.C:
 			if err := rt.runTick(ctx, state); err != nil && !errors.Is(err, context.Canceled) {
 				return err
 			}
-			if state.hasEverAttached && !state.attached {
-				return fmt.Errorf("route recording: process lost")
+			current := rt.World.Current()
+			if started && time.Since(startedAt) > systemEgressRecordTimeout {
+				return fmt.Errorf("system egress recording timeout")
 			}
-			if rt.Input.Status().Paused {
-				continue
-			}
-			cur := rt.World.Current()
-			if startFingerprint.Hash == "" && cur.Valid && cur.Phase == world.GamePhaseInGame && cur.Identity.Valid {
-				if expectedArea != 0 && cur.Area.ID != expectedArea {
+			if !started {
+				if !systemEgressRecordingStartReady(current, expectedArea, portalTolerance) {
+					if lastWaitingReport.IsZero() || time.Since(lastWaitingReport) >= 2*time.Second {
+						lastWaitingReport = time.Now()
+						portal, portalVisible := current.NearestObject(world.ObjectKindTownPortal)
+						distance := -1.0
+						if portalVisible {
+							distance = world.Distance(current.Player.Position, portal.Position)
+						}
+						rt.Log.Info("system egress recording preflight waiting", "act", act, "world_valid", current.Valid, "area_id", current.Area.ID, "expected_area_id", expectedArea, "portal_visible", portalVisible, "portal_distance", distance, "maximum_distance", portalTolerance)
+						reportRouteWorkflow(reporter, RouteWorkflowProgress{State: RouteWorkflowPreflight, AreaID: uint32(current.Area.ID), Progress: 0, Reason: "town_egress_start_unconfirmed"})
+					}
 					continue
 				}
-				fingerprint, err := pathing.BuildLayoutFingerprint(cur)
-				if errors.Is(err, pathing.ErrLayoutAnchorsUnavailable) {
+				built, buildErr := pathing.BuildLayoutFingerprint(current)
+				if buildErr != nil {
 					continue
 				}
-				if err != nil {
-					return fmt.Errorf("route recording start fingerprint: %w", err)
-				}
-				startFingerprint = fingerprint
-				rt.Log.Info("route recording started", "route_id", id, "character", cur.Identity.CharacterName, "area_id", cur.Area.ID, "layout_fingerprint", fingerprint.Hash)
+				fingerprint = built
+				started = true
+				startedAt = time.Now()
+				reportRouteWorkflow(reporter, RouteWorkflowProgress{State: RouteWorkflowRecording, AreaID: uint32(current.Area.ID), Progress: 0.1})
 			}
-			if startFingerprint.Hash == "" {
-				continue
+			if current.Valid && current.Area.ID != expectedArea {
+				return fmt.Errorf("system egress recording left required area: got %d want %d", current.Area.ID, expectedArea)
 			}
-			if expectedArea != 0 && cur.Area.ID != expectedArea {
-				return fmt.Errorf("route recording left required area: got %d want %d", cur.Area.ID, expectedArea)
-			}
-			event, err := recorder.Observe(cur)
-			if err != nil {
-				return fmt.Errorf("route recording observe: %w", err)
-			}
-			if event.SampleAccepted {
-				rt.Log.Info("route sample accepted", "route_id", id, "area_id", event.AreaID, "pos_x", event.Position.X, "pos_y", event.Position.Y)
-			}
-			if event.SegmentComplete {
-				rt.Log.Info("route segment completed", "route_id", id, "segment_id", event.Segment.ID, "from_area_id", event.Segment.FromAreaID, "to_area_id", event.Segment.ToAreaID, "points", len(event.Segment.Points), "entrance_kind", event.Segment.Transition.EntranceKind)
+			if _, err := recorder.Observe(current); err != nil {
+				return fmt.Errorf("system egress observe: %w", err)
 			}
 		}
 	}
 }
 
-func (rt *Runtime) finishRouteRecording(recorder *pathing.RouteRecorder, id, name string, difficulty pathing.RouteDifficulty, recordedAt time.Time, fingerprint pathing.LayoutFingerprint, directory string, expectedArea world.AreaID) error {
+func (rt *Runtime) finishSystemEgressRecording(recorder *pathing.RouteRecorder, act town.OriginAct, directory string, expectedArea world.AreaID, fingerprint pathing.LayoutFingerprint, state world.State, portalTolerance, waypointTolerance float64) error {
+	waypoint, ok := state.NearestObject(world.ObjectKindWaypoint)
+	if !state.Valid || state.Area.ID != expectedArea || !ok || waypointTolerance <= 0 || world.Distance(state.Player.Position, waypoint.Position) > waypointTolerance {
+		return fmt.Errorf("system egress not published: finish requires Memory-confirmed waypoint proximity")
+	}
 	segments, err := recorder.Finish()
 	if err != nil {
-		return fmt.Errorf("route recording not published: %w", err)
+		return fmt.Errorf("system egress not published: %w", err)
 	}
-	identity := recorder.Identity()
-	if expectedArea == 0 {
-		directory, err = farmingRouteDirectory(rt.Config, identity.CharacterName, string(difficulty))
-		if err != nil {
-			return fmt.Errorf("route recording directory: %w", err)
-		}
+	if len(segments) != 1 || segments[0].FromAreaID != expectedArea || segments[0].ToAreaID != expectedArea || segments[0].Movement != pathing.RouteMovementWalk {
+		return fmt.Errorf("system egress not published: requires one same-town walk segment")
 	}
-	seed := identity.MapSeed
-	route := pathing.Route{
-		Version: pathing.RouteVersion, ID: id, Name: name, Kind: pathing.RouteKindNavigation,
-		Binding:   pathing.RouteBinding{CharacterName: identity.CharacterName, CharacterClass: identity.Class.String(), Difficulty: difficulty, MapSeed: &seed, GameVersion: rt.Config.Memory.GameVersion, LayoutFingerprint: pathing.RouteLayoutFingerprint{Version: fingerprint.Version, AreaID: fingerprint.AreaID, AnchorCount: fingerprint.AnchorCount, Hash: fingerprint.Hash}},
-		Recording: pathing.RouteRecording{RecordedAt: recordedAt, SampleDistanceTiles: routeRecordSampleDistance},
-		Playback:  pathing.RoutePlayback{WaypointToleranceTiles: 3, MaxDriftTiles: 8, MaxLocalCorrections: 2, SegmentTimeoutMs: 30000, TransitionTimeoutMs: 10000},
-		Segments:  segments,
+	if portalTolerance <= 0 {
+		return fmt.Errorf("system egress not published: portal arrival tolerance is invalid")
 	}
-	if expectedArea == world.KurastDocks {
-		if err := validateAct3EgressRoute(route); err != nil {
-			return fmt.Errorf("route recording not published: %w", err)
-		}
+	route := town.SystemEgressRoute{SchemaVersion: town.SystemEgressSchemaVersion, Contract: town.SystemEgressContract{Act: act, TownArea: expectedArea, GameVersion: rt.Config.Memory.GameVersion, LayoutFingerprint: town.SystemEgressLayoutFingerprint{Version: fingerprint.Version, AreaID: fingerprint.AreaID, AnchorCount: fingerprint.AnchorCount, Hash: fingerprint.Hash}, From: town.AnchorPortalArrival, To: town.AnchorWaypoint, Movement: town.SystemEgressMovementWalk, ArrivalToleranceTiles: portalTolerance}, SampleDistanceTiles: routeRecordSampleDistance, Points: make([]town.SystemEgressPoint, 0, len(segments[0].Points))}
+	for _, point := range segments[0].Points {
+		route.Points = append(route.Points, town.SystemEgressPoint{X: point.X, Y: point.Y})
 	}
-	path := filepath.Join(directory, id+".yaml")
-	if err := pathing.SaveRoute(path, route); err != nil {
-		return fmt.Errorf("route recording publish: %w", err)
+	path := filepath.Join(directory, town.SystemEgressFilename)
+	if err := town.SaveSystemEgressRoute(path, route); err != nil {
+		return fmt.Errorf("system egress publish: %w", err)
 	}
-	if expectedArea == 0 {
-		lifecycle, err := NewRouteLifecycleStore(rt.Config)
-		if err != nil {
-			return fmt.Errorf("route recording lifecycle: %w", err)
-		}
-		if _, err := lifecycle.RecordRoute(path); err != nil {
-			return fmt.Errorf("route recording lifecycle commit: %w", err)
-		}
-	}
-	rt.Log.Info("route recording published", "route_id", id, "path", path, "segments", len(segments), "character", identity.CharacterName, "difficulty", difficulty, "layout_fingerprint", fingerprint.Hash)
+	rt.Log.Info("system egress recording published", "act", act, "path", path, "points", len(route.Points), "layout_fingerprint", fingerprint.Hash)
 	return nil
 }
 
-func routeDisplayName(id string) string {
-	words := strings.Fields(strings.ReplaceAll(id, "-", " "))
-	for i := range words {
-		words[i] = strings.ToUpper(words[i][:1]) + words[i][1:]
+func systemEgressRecordingStartReady(state world.State, expectedArea world.AreaID, tolerance float64) bool {
+	if !state.Valid || state.Phase != world.GamePhaseInGame || state.Area.ID != expectedArea || tolerance <= 0 {
+		return false
 	}
-	return strings.Join(words, " ")
+	portal, ok := state.NearestObject(world.ObjectKindTownPortal)
+	return ok && world.Distance(state.Player.Position, portal.Position) <= tolerance
 }

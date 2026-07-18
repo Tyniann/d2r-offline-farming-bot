@@ -5,6 +5,7 @@ import {
 } from "../api/client";
 import { getCatalog, getStatus, type CatalogDTO, type LiveEvent, type SelectionPreviewDTO, type StatusDTO } from "../api/generated";
 import "./app.css";
+import { RouteFeature } from "../features/routes/RouteFeature";
 
 const editableStates = new Set(["idle", "idle_in_game", "stopped_error"]);
 const emergencyStates = new Set(["starting_game", "starting_run", "running_run", "paused_between_runs", "exiting_game"]);
@@ -25,6 +26,7 @@ export function App() {
   const [queueError, setQueueError] = useState("");
   const [preview, setPreview] = useState<SelectionPreviewDTO | null>(null);
   const [confirmEmergency, setConfirmEmergency] = useState(false);
+  const [routeRefreshKey, setRouteRefreshKey] = useState(0);
   const emergencyConfirmRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
@@ -67,6 +69,7 @@ export function App() {
         (data) => setStatus(data as StatusDTO),
         (data) => {
           setEvents((current) => [data as LiveEvent, ...current].slice(0, 40));
+          if ((data as LiveEvent).event.startsWith("route_")) setRouteRefreshKey((value) => value + 1);
           void refreshStatus();
         },
         setConnection,
@@ -175,6 +178,8 @@ export function App() {
           <article><span>Gebiet</span><strong>{status.world.area_name || "Unbekannt"}</strong><small>{status.world.valid ? status.world.phase : "World Model noch ungültig"}</small></article>
         </div>}
       </section>
+
+      <RouteFeature characters={catalog?.characters.map((entry) => entry.name) ?? []} selectedCharacter={status?.selection.character ?? character} refreshKey={routeRefreshKey} />
 
       <section>
         <h2>Charakter und Schwierigkeit</h2>

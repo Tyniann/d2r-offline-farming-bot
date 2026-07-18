@@ -26,9 +26,9 @@ func TestMapInputConfig(t *testing.T) {
 }
 
 func TestMapSafetyConfigIncludesQueueStopHotkey(t *testing.T) {
-	cfg := config.InputConfig{Enabled: true, PauseHotkey: "pause", StopAfterRunHotkey: "f10", StopHotkey: "f11"}
+	cfg := config.InputConfig{Enabled: true, PauseHotkey: "pause", RecordingFinishHotkey: "f9", StopAfterRunHotkey: "f10", StopHotkey: "f11"}
 	got := mapSafetyConfig(cfg)
-	want := input.SafetyConfig{Enabled: true, PauseHotkey: "pause", StopAfterRunHotkey: "f10", StopHotkey: "f11"}
+	want := input.SafetyConfig{Enabled: true, PauseHotkey: "pause", RecordingFinishHotkey: "f9", StopAfterRunHotkey: "f10", StopHotkey: "f11"}
 	if got != want {
 		t.Fatalf("mapSafetyConfig() = %+v, want %+v", got, want)
 	}

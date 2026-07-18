@@ -37,9 +37,11 @@ configs/routes/
 
 `farming/<character>/<difficulty>/` enthält ausschließlich layoutgebundene Route-Contract-Dateien. Seit Phase 11.5 zeigt `routes.farming_root` auf die gemeinsame Wurzel; Resolver und Recorder leiten den Kontextunterordner ausschließlich aus Charakter und Difficulty ab. Der frühere Einzelzeiger `routes.directory` wird abgewiesen. Difficulty- und Layoutwechsel markieren Lifecycle-Metadaten stale, löschen, verschieben oder überschreiben aber keine Route-Datei; `town/` bleibt unangetastet.
 
-Ab Phase 10.8 verwendet der minimale Act-3-Egress denselben vollständigen Route-Contract in einem getrennten Verzeichnis. Er besteht aus genau einem terminalen Walk-Segment innerhalb Kurast-Docks. Der produktive Adapter verlangt die konfigurierte Route-ID sowie alle normalen Binding-, Layout- und Startnähe-Gates. Die Wiedergabe delegiert bewusst nicht an den Teleport-Navigator, sondern an den area-gebundenen Force-Move-Walker; ein als `teleport` deklariertes Egress-Asset wird vor Input abgewiesen.
+Ab Phase 12.2 verwenden Akt 2–5 einen eigenen globalen System-Egress-Vertrag in `portal-waypoint.yaml`. Er enthält nur Akt, Town-Area, Game-Version, Layout-Fingerprint, semantische Anker, Walk-Punkte und Toleranzen. Character, Klasse, Difficulty und Map Seed sind ausgeschlossen. Die Wiedergabe delegiert ausschließlich an den area-gebundenen Force-Move-Walker.
 
 ### Aufnahme
+
+Seit Abschnitt 12.3 ist die geführte Farming-Aufnahme zusätzlich über den exklusiven `RecordingCoordinator` verfügbar. Sie friert mit F9 zuerst einen SHA-256-gebundenen Kandidaten unter `routes.candidates` ein und validiert danach Terminalgebiet, Boss und Distanz. F11 ist nur Emergency Cancel und beendet keine Aufnahme kontrolliert. Details: [Geführte Farming-Routenaufnahme](guided-route-recording.md).
 
 Der Recorder beobachtet den World-State, während der Spieler die Route manuell durchläuft. Er zeichnet keine unkontrollierte Folge roher Mauspositionen auf, sondern versionierte Segmente mit World-Koordinaten, Area, Bewegungsart und erwarteten Übergängen. Loading-Snapshots und inkonsistente Reads werden nicht als Routenpunkte übernommen.
 
@@ -222,24 +224,24 @@ Phase 6 verwendet einen eigenen, generischen Route-Modus. Phase 6.2 implementier
 go run ./cmd/d2rbot --route list
 go run ./cmd/d2rbot --route inspect:<route-id>
 go run ./cmd/d2rbot --route validate:<route-id>
-go run ./cmd/d2rbot --route record:<route-id> --route-name "Anzeigename" --route-difficulty hell
+go run ./cmd/d2rbot --route record:<run-id> --route-difficulty hell
 go run ./cmd/d2rbot --route play-segment:<route-id>/<segment-id>
 go run ./cmd/d2rbot --route play:<route-id>
 go run ./cmd/d2rbot --route inspect-egress:act3
-go run ./cmd/d2rbot --route record-egress:act3 --route-name "Kurast-Docks Portal bis Waypoint" --route-difficulty nightmare
+go run ./cmd/d2rbot --route record-egress:act3 --route-name "Kurast-Docks Portal bis Waypoint"
 go run ./cmd/d2rbot --route validate-egress:act3
 go run ./cmd/d2rbot --route play-egress:act3
 ```
 
 - `list`, `inspect` und `validate` erzeugen keinen Gameplay-Input.
-- `record` beobachtet ausschließlich die manuelle Bewegung und benötigt eine valide Memory-bestätigte Game Identity, einen stabilen Startanker sowie Pause/Stop-Hotkeys. `--route-difficulty` ist als nicht autorisierendes Label verpflichtend.
+- `record` ist seit 12.3 der CLI-Adapter des gemeinsamen `RecordingCoordinator`: Die ID muss ein registrierter Run sein, F9 friert einen Kandidaten ein und der kontrollierte TP-Rückweg folgt vor `candidate_ready`. Es gibt keinen direkten Farming-Publish.
 - `play` ist input-aktiv, verlangt `input.enabled: true` und alle Pathing-Prechecks.
 - `play-segment` ist der isolierte Phase-6.4-Testmodus. Segment 1 verlangt den vollständigen Layout-Precheck; spätere Segmente sind explizite Diagnoseaufrufe mit Character-, Versions-, Area- und Startdistanzprüfung.
 - `--route-name` ist nur mit `record` gültig. Ohne Wert wird aus der ID ein Anzeigename abgeleitet.
 - `--route-difficulty normal|nightmare|hell` ist nur mit `record` gültig und wird niemals anstelle des Layout-Fingerprints vertraut.
 - Unbekannte Commands, leere IDs und gleichzeitige `--route`-/`--run`-/Testmodi werden vor Runtime-Start abgelehnt.
 - Das Farming-Root wird über `routes.farming_root` festgelegt. Der aktive Character-/Difficulty-Unterordner wird daraus abgeleitet; `routes.lifecycle_file` benennt das lokale atomische Manifest.
-- Die vier `*-egress:act3`-Kommandos verwenden ausschließlich `town.egress.act3.routes_directory` und `route_id`. Inspect beobachtet Kurast read-only, Record akzeptiert nur einen gleichbleibenden Kurast-Walk, Validate verlangt genau ein terminales Walk-Segment und Play kombiniert den Lauf mit dem registrierten Transfer nach Rogue Encampment.
+- Die vier `*-egress:<act2|act3|act4|act5>`-Kommandos verwenden ausschließlich das jeweilige `town.egress.<act>.routes_directory`. Record publiziert den globalen Walk atomisch; eine Difficulty-Angabe wird abgewiesen. Play kombiniert den Lauf mit dem registrierten Transfer nach Rogue Encampment.
 
 ## Implementierungsstand Phase 6.2
 
@@ -264,7 +266,7 @@ Der read-only Recorder ist technisch implementiert:
 - Area-Wechsel schließen ein Segment und speichern den letzten validen Punkt vor der Transition;
 - semantisch nächster Entrance-Kind wird als Transition-Metadatum übernommen;
 - Character-Wechsel und Prozessverlust brechen fail-closed ab;
-- Pause friert Sampling ein; ausschließlich der Stop-Hotkey veröffentlicht eine vollständige, erneut validierte Route;
+- Pause friert Sampling ein; bei geführten Farming-Aufnahmen friert ausschließlich F9 einen unveränderlichen Kandidaten ein, während F11 ohne Veröffentlichung abbricht;
 - das unvollständige aktuelle Area-Endstück wird beim Stop verworfen, da ihm keine bestätigte Transition folgt.
 
 ### Live-Abnahme Phase 6.3
@@ -359,6 +361,8 @@ Am 16.07.2026 wurde die produktive Route nach den Phase-11-Lifecycle-Tests erneu
 
 Die alte Hell-Countess-Route wurde entfernt. Normal-/Hell-Town-Walk-Aufzeichnungen bleiben erhalten, da ihr fester Rogue-Encampment-Vertrag nicht an den Countess-Layout-Fingerprint gekoppelt ist.
 
+Phase 12 ersetzte die produktive Zuordnung nach einem vollständig bestandenen GUI-Aufnahme- und Kandidatentest atomisch durch `countess-mrbones-fd1756c208`. Die hier historisch dokumentierte Datei `black-marsh-cellar5-nightmare-mrbones` blieb unverändert erhalten und ist seitdem über den orthogonalen Managementstatus archiviert.
+
 Zwei frühe Entwicklungsversuche endeten reproduzierbar und fail-closed auf Cellar 1, nachdem ein randgeklemmter Teleport seitlich mehr als `max_drift_tiles` von der aktiven Routenkante landete. Ein weiterer Wiederholungslauf brach auf dem letzten Segment nach zwei lokalen Korrekturen am Drift-Limit ab. Die daraus abgeleitete Recovery erhöht das Drift-Limit nicht: Sie kehrt höchstens `max_local_corrections`-mal zum letzten bestätigten aufgezeichneten Punkt zurück und versucht danach erneut ausschließlich den unveränderten nächsten Routenpunkt. Alle drei Fehler bleiben als `route_playback_failed` mit Segment- und Punktkontext in JSONL nachvollziehbar; sie lösten keinen Explorer-Fallback aus.
 
 Phase 6.6 ist damit abgeschlossen.
@@ -367,7 +371,7 @@ Phase 6.6 ist damit abgeschlossen.
 
 Der Countess-Adapter verwendet die generische Route-Infrastruktur ohne eigene Routenlogik:
 
-- `runs.definitions.countess.route_id` referenziert ausschließlich eine stabile Registry-ID, niemals einen Dateipfad;
+- das Assignment für `(character, countess)` referenziert ausschließlich eine stabile Registry-ID, niemals einen Dateipfad;
 - der neue Task-Schritt `play_bound_route` ersetzt im regulären Full Run und in `play-route` die sechs best-effort Explorer-Schritte;
 - App-seitig lädt der Adapter Registry und Route, bildet den aktuellen Layout-Fingerprint und führt den vollständigen Route-Precheck aus;
 - anschließend delegiert er an denselben generischen `RoutePlayer` aus Phase 6.6;

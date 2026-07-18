@@ -16,7 +16,7 @@ go run ./cmd/d2rbot --run countess --phase stash-personal --verbose
 `--run countess` ohne `--phase` ist ab Phase 5.8 der vollständige Countess-Run: Act-1-Town-Waypoint -> Black Marsh -> Forgotten Tower -> Tower Cellar Level 5 -> Countess-Kill -> Loot-Pickup -> Town Portal -> Portal-Eintritt -> Rogue Encampment -> Personal Stash -> `complete`.
 
 `travel-entry` führt vom Rogue Encampment über den Act-1-Waypoint nach `Black Marsh`.
-`play-route` nutzt diesen Prefix weiter und delegiert anschließend bis `Tower Cellar Level 5` an die über `runs.definitions.countess.route_id` ausgewählte Aufnahme.
+`play-route` nutzt diesen Prefix weiter und delegiert anschließend bis `Tower Cellar Level 5` an die über das Character-/Run-Assignment ausgewählte Aufnahme.
 
 **Status Phase 10.2:** Der Erfolgspfad verwendet die gemeinsame `runPipeline`. Countess-spezifische Daten liegen in der Registry-Definition und im ID-basierten Config-Eintrag. Der frühere produktive Explorer-/Cellar-Fallback ist entfernt.
 
@@ -114,13 +114,13 @@ Jeder Schwierigkeitsgrad benötigt eine eigene Aufzeichnung, weil Offline-Map-La
 
 | Step | Zielgebiet | Entrance |
 |------|------------|----------|
-| `play_bound_route` | `world.TowerCellarLevel5` | Registry-Route aus `runs.definitions.countess.route_id`; der generische Player bestätigt Punkte und Transitions |
+| `play_bound_route` | `world.TowerCellarLevel5` | Assignment-Route für `(character, countess)`; der generische Player bestätigt Punkte und Transitions |
 
 Der Adapter lädt die Route per stabiler ID, führt Character-/Versions-/Layout-/Start-Precheck aus und tickt denselben `pathing.RoutePlayer` wie der isolierte CLI-Modus.
 
 Die Traversierung verwendet keinen Bearing-Explore-Fallback. Fehlt die Route oder weicht der aktive Zustand ab, endet der Run fail-closed.
 
-Countess bindet die run-unabhängige Route ausschließlich über `runs.definitions.countess.route_id`. Datei-, Segment- und Transition-Details bleiben außerhalb der Task-State-Machine.
+Countess bindet die run-unabhängige Route ausschließlich über das atomische Assignment-Manifest. Datei-, Segment- und Transition-Details bleiben außerhalb der Task-State-Machine.
 
 Transitions nutzen die in der Aufnahme gespeicherte Semantik. Der Forgotten-Tower-Vorraum bleibt konservativ `unknown`; alle Cellar-Abgänge verwenden `tower_cellar_down`. Der Handler pinnt jeweils eine passende Laufzeit-Unit und bestätigt Erfolg ausschließlich über die erwartete Ziel-Area.
 
