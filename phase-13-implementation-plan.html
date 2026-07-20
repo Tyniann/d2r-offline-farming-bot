@@ -1,0 +1,353 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Phase 13 – Detaillierter Umsetzungsplan</title>
+  <style>
+    :root{--bg:#0b1020;--panel:#121a2d;--panel2:#18233a;--text:#e8edf7;--muted:#aeb9cc;--line:#2b3a58;--accent:#67d4ff;--good:#73e2a7;--warn:#ffd166;--bad:#ff7b86;--code:#09101d}
+    *{box-sizing:border-box}body{margin:0;background:linear-gradient(145deg,#080d19,#10192b 55%,#0a1220);color:var(--text);font:16px/1.58 system-ui,-apple-system,"Segoe UI",sans-serif}
+    main{max-width:1180px;margin:auto;padding:42px 24px 80px}.hero{padding:34px;border:1px solid var(--line);border-radius:20px;background:linear-gradient(135deg,#17243e,#10192b);box-shadow:0 20px 60px #0006}
+    h1{font-size:clamp(2rem,5vw,3.7rem);line-height:1.08;margin:.25rem 0 1rem}h2{margin-top:44px;border-bottom:1px solid var(--line);padding-bottom:10px}h3{margin:.2rem 0 .5rem;color:#fff}.lead{font-size:1.17rem;color:var(--muted);max-width:980px}
+    .chips{display:flex;flex-wrap:wrap;gap:9px}.chip{border:1px solid #3f587c;border-radius:999px;padding:5px 11px;color:#c9ecff;background:#12233b}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:15px;margin:18px 0}
+    .card,.phase,.callout{border:1px solid var(--line);border-radius:14px;background:var(--panel);padding:18px}.card p,.phase p{margin:.35rem 0;color:var(--muted)}table{width:100%;border-collapse:collapse;background:var(--panel);border:1px solid var(--line)}th,td{padding:12px 14px;text-align:left;vertical-align:top;border-bottom:1px solid var(--line)}th{background:var(--panel2);color:#fff}
+    code,pre{font-family:"Cascadia Code",Consolas,monospace}code{color:#aee9ff}pre{background:var(--code);border:1px solid var(--line);border-radius:12px;padding:16px;overflow:auto;color:#d9e7ff}.phase{display:grid;grid-template-columns:92px 1fr;gap:16px;margin:13px 0}.phase-id{font-weight:800;color:var(--accent);font-size:1.25rem}.warn{color:var(--warn)}.good{color:var(--good)}.bad{color:var(--bad)}.gate{border-left:4px solid var(--warn);padding-left:12px!important}.callout{border-left:4px solid var(--accent);margin:16px 0}.danger{border-left-color:var(--bad)}.success{border-left-color:var(--good)}li{margin:.35rem 0}footer{margin-top:48px;color:var(--muted);text-align:center}@media(max-width:650px){.phase{grid-template-columns:1fr}.hero{padding:22px}main{padding-inline:14px}}
+  </style>
+</head>
+<body><main>
+  <section class="hero">
+    <div class="chip">D2R Offline Farming Bot · Phase 13</div>
+    <h1>Pickit-Profile verständlich erstellen, prüfen und sicher anwenden</h1>
+    <p class="lead">Phase 13 ersetzt technische Einzeldateien durch kleine, wiederverwendbare Pickit-Profile mit geführter Itemsuche, zwei eindeutigen Aktionen und einer nachvollziehbaren Entscheidungsvorschau. Der vorhandene Loot-Core bleibt die Ausführungsautorität. Patchgenaue Set-/Unique-Identitäten werden aus den selbst extrahierten D2R-Excel-Dateien generiert; eine fremde Itemdatenbank oder ein vollständiger NIP-Interpreter entstehen nicht.</p>
+    <div class="chips"><span class="chip">KISS + YAGNI</span><span class="chip">CASC als Datenquelle</span><span class="chip">Tal Rasha auswählbar</span><span class="chip">Ethereal + Base Item</span><span class="chip">YAML Source of Truth</span><span class="chip">NIP-Subset Import</span><span class="chip">Fail-closed</span></div>
+  </section>
+
+  <section class="grid" aria-label="Kernziele">
+    <article class="card"><h3>Items statt Codes</h3><p>Der Benutzer sucht nach Sets, einzelnen Set-/Unique-Items, Basisitems, Gems, Runen oder Keys und erhält daraus transparente Regeln.</p></article>
+    <article class="card"><h3>Wiederverwendbare Profile</h3><p>Globale Profile wie „Gems“, „Tal Rasha“ oder „Keys“ werden pro Charakter und Run in einer eindeutigen Reihenfolge zugeordnet.</p></article>
+    <article class="card"><h3>Erklärbare Entscheidung</h3><p>Vor dem Speichern zeigt eine deterministische Vorschau jede geprüfte Regel, das erste Match und die resultierende Aktion.</p></article>
+    <article class="card"><h3>Sicherer Runtime-Wechsel</h3><p>Ein laufender Run behält seinen unveränderlichen Snapshot. Gespeicherte Änderungen gelten erst an der nächsten Run-Grenze.</p></article>
+  </section>
+
+  <h2>1. Verbindliche Produktentscheidungen</h2>
+  <table><thead><tr><th>Thema</th><th>Entscheidung für Phase 13</th></tr></thead><tbody>
+    <tr><td>Leitprinzip</td><td>KISS und YAGNI sind verbindlich. Phase 13 erweitert nur die nachgewiesene Produktlücke: verständliche Profile, exakte Set-/Unique-Auswahl und <code>ethereal + base item</code>. Es entsteht weder eine allgemeine Regelsprache noch eine handgepflegte Itemdatenbank.</td></tr>
+    <tr><td>Datenquelle</td><td><code>weapons.txt</code>, <code>armor.txt</code>, <code>misc.txt</code>, <code>itemstatcost.txt</code>, <code>setitems.txt</code>, <code>uniqueitems.txt</code> und die englischen Werte aus <code>item-names.json</code> aus dem lokalen CASC-Export sind die einzige Build-Time-Datenquelle. Runtime-Code liest weder <code>.tmp/</code> noch D2R-Dateien.</td></tr>
+    <tr><td>Itemnamen</td><td>Kanonische englische D2R-Namen sind in Phase 13 akzeptabel. Deutsche UI-Texte erklären Aktionen und Fehler; eine lokalisierte Itemnamendatenbank ist nicht Teil dieser Phase.</td></tr>
+    <tr><td>Exakte Identität</td><td>Set-/Unique-Items dürfen beim Drop direkt anhand ihrer zweifelsfrei gelesenen D2R-Identität ausgewählt werden. Qualität, Basiscode, Identitätsart, ID und generierter Katalogeintrag müssen konsistent sein; andernfalls matcht die Regel fail-closed nicht.</td></tr>
+    <tr><td>Patchstabilität</td><td>Profile speichern den stabilen Excel-/String-Schlüssel, keine numerischen Set-/Unique-IDs und keinen lokalisierten Anzeigenamen. Die UI zeigt den englischen Wert aus <code>item-names.json</code>. Beim Laden wird der Schlüssel eindeutig gegen den für die dokumentierte D2R-Version generierten Katalog aufgelöst. Fehlende, doppelte oder widersprüchliche Einträge machen das Profil ungültig.</td></tr>
+    <tr><td>Ethereal</td><td>„Ätherischer Thresher“ und entsprechende Kombinationen aus konkretem Basisitem plus <code>ethereal</code> gehören zum geführten Editor. Dafür wird ausschließlich das bereits vorhandene <code>[flag] == ethereal</code> verwendet.</td></tr>
+    <tr><td>Aktionen</td><td>Eine Regel besitzt genau eine Aktion: <strong>Aufheben und behalten</strong> oder <strong>Aufheben, erforderlichenfalls identifizieren und verkaufen</strong>. Kein Match bedeutet ignorieren. Weitere Aktionen werden nicht vorweggenommen.</td></tr>
+    <tr><td>Profile</td><td>Profile sind global wiederverwendbar. Pro <code>(character, run)</code> wird eine nicht leere, geordnete und duplikatfreie Liste von Profil-IDs zugeordnet. Profilreihenfolge, danach Regelreihenfolge bilden eine einzige Entscheidungskette; das erste Match entscheidet.</td></tr>
+    <tr><td>Queue</td><td>Die bestehende Farm-Queue bleibt duplikatfrei. Ein Run kann pro Spiel nur einmal vorkommen; Phase 13 führt keine Queue-Positions-spezifischen Pickit-Overrides ein.</td></tr>
+    <tr><td>Vollständiges Set</td><td>Die Auswahl eines Sets wie „Tal Rasha’s Wrappings“ erzeugt explizit eine sichtbare Regel je Set-Item. Es bleibt keine dynamische Gruppenreferenz zurück, die sich bei einem Patch unbemerkt erweitern könnte.</td></tr>
+    <tr><td>Editor</td><td>Geführte Suche und Schnellkategorien decken den Normalfall ab. Ein validiertes Ausdrucksfeld erschließt das bereits unterstützte NIP-Subset. Es gibt keinen visuellen Drag-and-drop-AST für beliebige Boolesche Ausdrücke.</td></tr>
+    <tr><td>Dateiformat</td><td>Versionierte YAML-Profildokumente sind die einzige persistente Autorität für Name, Regeln, Aktionen und Reihenfolge. NIP ist ausschließlich ein begrenztes Import-/Exportformat für unterstützte Ausdrücke, nicht zweite Source of Truth.</td></tr>
+    <tr><td>Import</td><td>Paste- und Dateiimport akzeptieren nur das dokumentierte Subset. Der Benutzer wählt vor dem Import eine Aktion. Alle aktiven Zeilen werden gemeinsam validiert; eine fehlerhafte oder nicht unterstützte Zeile verhindert die gesamte Übernahme.</td></tr>
+    <tr><td>Laufende Session</td><td>Jeder Run verwendet einen unveränderlichen Profil-/Assignment-Snapshot mit Revision. Speichern bleibt möglich, verändert den aktuellen Run aber nie. Die Änderung gilt frühestens an der nächsten Run-Grenze; eine dann ungültige Konfiguration hält die Schleife vor weiterem Input fail-closed an.</td></tr>
+    <tr><td>Fehlende Zuordnung</td><td>Ohne gültige Pickit-Zuordnung darf ein produktiver Run nicht starten. Es gibt weder „nichts aufheben“ als stillen Fallback noch einen Legacy-Pfad über alte <code>pickup_file</code>/<code>sell_file</code>-Felder.</td></tr>
+    <tr><td>Löschen</td><td>Profil-IDs sind unveränderlich, Anzeigenamen editierbar. Ein zugeordnetes Profil kann nicht gelöscht werden. Es gibt keine Kaskadenlöschung; „Duplizieren“ erzeugt eine neue stabile ID.</td></tr>
+  </tbody></table>
+
+  <h2>2. Scope und bewusste Grenzen</h2>
+  <table><thead><tr><th>Enthalten</th><th>Bewusst nicht in Phase 13</th></tr></thead><tbody>
+    <tr><td>Profil-CRUD, Duplizieren, Regelreihenfolge, zwei Aktionen und Zuordnung pro Charakter/Run.</td><td>Profile pro Queue-Position, Bedingungen pro Spielzyklus, Zeitpläne, Gewichte oder zufällige Regeln.</td></tr>
+    <tr><td>Geführter Katalog für Sets, Set-Items, Uniques, Basisitems, Qualität, Tier, Gems, Runen, Keys und ätherische Basisitems.</td><td>Affix-/Suffix-Datenbank, Runeword-Planer, Item-Level-Optimierer, Preisbewertung oder vollständige D2R-Enzyklopädie.</td></tr>
+    <tr><td>Bestehende Felder <code>name</code>, <code>type</code>, <code>quality</code>, <code>tier</code>, <code>flag</code>, <code>stat:&lt;id&gt;</code> sowie exakt <code>setitem</code> und <code>uniqueitem</code>.</td><td><code>maxquantity</code>, Sockel-Builder, allgemeine Property-Aliase, Prefix/Suffix, Character-Level- oder Preisbedingungen und vollständige NIP-Kompatibilität.</td></tr>
+    <tr><td>Statische Syntax-/Referenzvalidierung, Item-Testfälle und vollständige Entscheidungsketten-Vorschau.</td><td>Ein mathematisch vollständiger Überschneidungsbeweis beliebiger Boolescher Regeln. Nur identische widersprüchliche Bedingungen werden sicher blockiert.</td></tr>
+    <tr><td>Atomisches Speichern, Optimistic Concurrency und sichere Aktivierung an Run-Grenzen.</td><td>Cloud-Sync, gemeinsame Mehrbenutzerbearbeitung, Profilhistorie, Undo nach bestätigtem Löschen oder Git-Steuerung aus der UI.</td></tr>
+    <tr><td>Ein isolierter Live-Loot-Test als manuelles Abschlussgate.</td><td>Vollständiger Countess-/Mephisto-Farming-Run als zweites Pflichtgate.</td></tr>
+  </tbody></table>
+  <div class="callout danger"><strong>Explizite spätere Erweiterung:</strong> Regeln wie „Elite Polearm mit vier Sockeln“ bleiben geplant, aber außerhalb Phase 13. Dafür müssen Socket-Wert, Sichtbarkeit vor Identifikation, Typvererbung und UI-Semantik gemeinsam entworfen werden. Phase 13 legt keine halbfertige <code>sockets</code>-Syntax und keinen numerischen Sonderfall an.</div>
+
+  <h2>3. Zielarchitektur und Ordnerstruktur</h2>
+  <pre><code>React: web/src/features/pickit
+  Profile Library ─ Rule Editor ─ Item Catalog ─ Decision Preview ─ Assignments
+                                  │ HTTP/JSON + SSE
+                                  ▼
+internal/api          DTOs, Mutation-Token, Revisionen, Fehlerabbildung
+                                  │
+                                  ▼
+internal/app          PickitProfileService + PickitAssignmentStore
+  ├─ atomische Profile/Assignments
+  ├─ immutable EffectivePolicy je Run-Grenze
+  └─ Session-Preflight und nächste sichere Aktivierung
+                    │                         │
+                    ▼                         ▼
+internal/loot                           internal/world
+Parser + Action Rules + Trace           Item + Identity Catalog
+Pickup/Keep/Sell-Vertrag                Set/Unique-Auflösung
+                    ▲                         ▲
+                    │                         │
+               internal/memory        generierter Go-Katalog
+               raw Unique/Set ID              ▲
+                                               │ Build-Time
+tools/generate-item-catalog  ◄── .tmp/d2r-excel/*.txt
+
+configs/
+├─ pickit/
+│  └─ profiles/
+│     ├─ gems.yaml
+│     ├─ keys.yaml
+│     ├─ countess-standard.yaml
+│     ├─ mephisto-standard.yaml
+│     └─ tal-rasha.yaml
+├─ pickit-assignments.local.yaml      gitignored, atomische Zuordnungsautorität
+└─ pickit-assignments.example.yaml    versioniertes Schema-Beispiel
+
+web/src/features/pickit/              ausschließlich Pickit-UI
+internal/api/schema/openapi.json      autoritativer Transportvertrag
+docs/features/pickit-editor.md        Bedienung, Datenfluss und Grenzen</code></pre>
+  <ul>
+    <li><code>internal/memory</code> liefert nur rohe, validierbare Identitätsdaten; dort werden keine Itemnamen oder Pickit-Entscheidungen getroffen.</li>
+    <li><code>internal/world</code> löst Raw-ID, Qualität und Basisitem gegen den generierten Katalog auf und kennzeichnet die Identität explizit als verfügbar oder unverfügbar.</li>
+    <li><code>internal/loot</code> besitzt Parser, Evaluation, Aktion und Trace. Es liest keine YAML-Dateien und kennt keine HTTP-DTOs.</li>
+    <li><code>internal/app</code> besitzt Persistenz, Migration, Zuordnung, Revisionen und Run-Snapshot. React greift niemals direkt auf Dateien zu.</li>
+    <li>Kein neues Top-Level-Paket ist erforderlich. Vorhandene Paketgrenzen reichen aus.</li>
+  </ul>
+
+  <h2>4. Persistentes Profil- und Assignment-Modell</h2>
+  <pre><code>schema_version: 1
+id: tal-rasha
+name: Tal Rasha Set
+rules:
+  - id: tal-rasha-adjudication
+    action: keep
+    expression: "[setitem] == \"Tal Rasha's Adjudication\""
+
+# pickit-assignments.local.yaml
+schema_version: 1
+revision: 12
+assignments:
+  MrBones:
+    countess: [gems, keys, countess-standard]
+    mephisto: [tal-rasha, gems, mephisto-standard]</code></pre>
+  <ul>
+    <li>Profil-ID und Regel-ID verwenden normalisierte, case-insensitive eindeutige Slugs. Nach dem ersten Speichern ist die Profil-ID unveränderlich.</li>
+    <li>Regeln werden genau in YAML-Reihenfolge ausgewertet. Profile werden genau in Assignment-Reihenfolge gefaltet; es gibt keine versteckte alphabetische Sortierung.</li>
+    <li>Das YAML speichert die vom Benutzer bearbeitbare kanonische Expression. Der geladene AST und aufgelöste numerische Identitäten sind reine immutable Runtime-Artefakte.</li>
+    <li>Speichern validiert Schema, IDs, Namen, Aktion, Ausdruck, Katalogreferenzen, doppelte Regel-IDs und exakt identische widersprüchliche Bedingungen vor dem ersten Dateisystemwechsel.</li>
+    <li>Mutationen verwenden erwartete Revision beziehungsweise ETag. Stale Browserentwürfe erhalten einen Konflikt und überschreiben keine neuere Datei.</li>
+    <li>Atomischer Commit bedeutet: temporäre Datei im selben Verzeichnis, Flush/Close, Replace/Rename und anschließendes Re-Read. Scheitert ein Schritt, bleibt die vorherige gültige Version autoritativ.</li>
+  </ul>
+
+  <h2>5. Entscheidungs- und Runtime-Vertrag</h2>
+  <table><thead><tr><th>Phase</th><th>Vertrag</th></tr></thead><tbody>
+    <tr><td>Run-Preflight</td><td>Löst <code>(character, run)</code> zu einer nicht leeren Profilliste auf, lädt alle Profile, validiert Katalogrevisionen und erzeugt eine immutable <code>EffectivePolicy</code> mit Profil-/Regelherkunft.</td></tr>
+    <tr><td>Ground classify</td><td>Die geordnete Kette wird einmal ausgewertet. Sowohl <code>keep</code> als auch <code>sell</code> autorisieren den bestehenden geschützten Pickup-Pfad. Kein Match bleibt <code>ignore</code>.</td></tr>
+    <tr><td>Exakte Identität</td><td><code>setitem</code>/<code>uniqueitem</code> matchen nur bei passender Qualität, bekanntem Katalogeintrag, übereinstimmendem Basiscode und gültiger Raw-ID. Unbekannt, mehrdeutig oder widersprüchlich bedeutet No-Match und einen strukturierten Diagnosegrund.</td></tr>
+    <tr><td>Keep</td><td>Qualitäten, die der bestehende Vertrag als identifikationspflichtig klassifiziert, werden zuerst bei Cain identifiziert und danach mit derselben Snapshot-Regel erneut bestätigt. Nur ein erneutes <code>keep</code> erlaubt Stash.</td></tr>
+    <tr><td>Sell</td><td>Identifikationspflichtige Kandidaten werden zuerst identifiziert und danach erneut gegen denselben Snapshot geprüft. Nur ein erneutes <code>sell</code> erlaubt Vendor-Verkauf. Ein Identitäts- oder Regelwechsel endet fail-closed und verkauft nicht blind.</td></tr>
+    <tr><td>Mehrfachmatch</td><td>Nur das erste Match entscheidet. Trace und Telemetrie enthalten Profil-ID, Regel-ID, Aktion, Index und Revision; spätere Regeln werden als wegen First-Match nicht ausgewertet gekennzeichnet.</td></tr>
+    <tr><td>Session-Wechsel</td><td>Der aktive Run hält seine Policy bis zum terminalen Loot-/Town-Handoff. Vor dem nächsten Run lädt der Supervisor die aktuelle Assignment-Revision erneut. Ungültigkeit verhindert Start und hält zwischen Runs ohne Gameplay-Input an.</td></tr>
+  </tbody></table>
+  <div class="callout"><strong>Keine neue Loot-Pipeline:</strong> Pickup, Inventarkapazität, Cain, Stash, Akara, Hover-Verifikation und Retry-Budgets bleiben bestehen. Phase 13 ersetzt lediglich die zwei getrennten Dateimatches durch eine einmal kompilierte, aktionsfähige Entscheidungskette und erhält alle Safety-Gates.</div>
+
+  <h2>6. API- und UI-Vertrag</h2>
+  <table><thead><tr><th>Endpoint-Gruppe</th><th>Zweck</th><th>Mutation</th></tr></thead><tbody>
+    <tr><td><code>GET /api/v1/pickit/catalog</code></td><td>Read-only Sets, Einzelitems, Uniques, Basisitems und Schnellkategorien mit Katalogversion; keine internen Memory-Adressen.</td><td>Nein</td></tr>
+    <tr><td><code>GET /api/v1/pickit/profiles</code></td><td>Profilübersicht, Regeln, Revision, Validität und alle betroffenen Assignments.</td><td>Nein</td></tr>
+    <tr><td><code>POST /api/v1/pickit/profiles/validate</code></td><td>Seiteneffektfreie Validierung eines vollständigen Entwurfs inklusive normalisierter Zusammenfassung.</td><td>Nein</td></tr>
+    <tr><td><code>POST /api/v1/pickit/preview</code></td><td>Entscheidungstrace für Katalogitem oder kontrolliertes Testitem gegen Profilentwurf oder effektive Assignment-Kette.</td><td>Nein</td></tr>
+    <tr><td><code>POST/PUT/DELETE /api/v1/pickit/profiles…</code></td><td>Erstellen, Speichern, Duplizieren, Umbenennen und unzugeordnetes Löschen mit Control-Token und erwarteter Revision.</td><td>Ja</td></tr>
+    <tr><td><code>GET/PUT /api/v1/pickit/assignments…</code></td><td>Geordnete Profilliste pro Charakter/Run lesen und atomisch ersetzen; Run Registry und Charakterkatalog bleiben autoritativ.</td><td>Ja</td></tr>
+    <tr><td><code>POST /api/v1/pickit/import</code></td><td>NIP-Text oder Dateiinhalt plus gewählte Aktion vollständig parsen und als noch ungespeicherten Entwurf zurückgeben.</td><td>Nein</td></tr>
+    <tr><td><code>GET /api/v1/pickit/profiles/{id}/export</code></td><td>Unterstützte Expressions als NIP-Text exportieren; Aktion/Profilmetadaten werden deutlich als nicht durch Standard-NIP transportierbar markiert.</td><td>Nein</td></tr>
+  </tbody></table>
+  <ul>
+    <li>OpenAPI bleibt Source of Truth; TypeScript-Typen und Client werden generiert. Keine parallelen handgeschriebenen DTO-Typen.</li>
+    <li>Alle Mutationen verwenden denselben Loopback-, Origin-, Token-, Body-Limit- und Command-Lock-Vertrag wie Phase 11/12.</li>
+    <li>API-Fehler enthalten stabile Codes, Feld-/Regelpfad, Zeile/Spalte bei Ausdrücken und aktuelle Revision bei Konflikten.</li>
+    <li>SSE meldet nur relevante Änderungen: Profil gespeichert/gelöscht, Assignment geändert, Revision für nächsten Run vorgemerkt oder Aktivierung fehlgeschlagen.</li>
+  </ul>
+
+  <h2>7. Dashboard-Bedienung</h2>
+  <ol>
+    <li><strong>Profilbibliothek:</strong> Name, ID, Regelanzahl, Validität und Verwendungen anzeigen; erstellen, duplizieren, umbenennen und nur unzugeordnet löschen.</li>
+    <li><strong>Geführte Suche:</strong> Freitextsuche über kanonischen Namen, Setname, Basisname und Code. Filter für Sets, Uniques, Basisitems, Gems, Runen, Keys, Qualität und Tier.</li>
+    <li><strong>Regel hinzufügen:</strong> Aktion wählen; bei einem Basisitem optional „Nur ätherisch“. Ein vollständiges Set expandiert vor dem Speichern sichtbar in einzelne Regeln.</li>
+    <li><strong>Regelliste:</strong> Beschriftete Hoch-/Runter-Buttons statt neuer Drag-and-drop-Abhängigkeit, Aktion, deutsche Zusammenfassung, kanonischer Ausdruck, Validitätsstatus und Entfernen.</li>
+    <li><strong>Fortgeschritten:</strong> Das Ausdrucksfeld ist einklappbar, akzeptiert nur den bestehenden Parserumfang plus <code>setitem</code>/<code>uniqueitem</code> und validiert debounced ohne automatische Bedeutungsänderung.</li>
+    <li><strong>Vorschau:</strong> Testitem wählen oder kontrollierte Werte setzen. Jede Regel erscheint als Match/No-Match/übersprungen; das Ergebnis benennt Aktion und Herkunft.</li>
+    <li><strong>Zuordnungen:</strong> Charakter und registrierten Run auswählen, Profile duplikatfrei hinzufügen, sichtbar ordnen und atomisch speichern. Fehlende Zuordnung erklärt, warum der Run blockiert ist.</li>
+    <li><strong>Unsaved State:</strong> Navigation bei Änderungen warnt; Serverantwort ist nach Save autoritativ. „Gespeichert – gilt ab dem nächsten Run“ erscheint nur bei aktiver Session.</li>
+  </ol>
+
+  <h2>8. NIP-Import und -Export</h2>
+  <ul>
+    <li>Import akzeptiert Paste oder lokalen Dateiinhalt. Der Browser sendet Text; der Go-Core öffnet keinen vom Browser gelieferten Dateipfad.</li>
+    <li>Vor dem Parsen wird genau eine Aktion für alle importierten Regeln gewählt. Gemischte Aktionen erfordern getrennte Importe.</li>
+    <li>Leerzeilen und vorhandene Kommentarformen bleiben erlaubt. Jede aktive Zeile muss vollständig in das dokumentierte Subset passen.</li>
+    <li>Fehler werden gesammelt mit Zeile, Spalte, Ausdruck und Ursache angezeigt. Es gibt keine Teilübernahme und kein stilles Entfernen unbekannter NIP-Sektionen.</li>
+    <li>Import erzeugt lediglich einen UI-Entwurf. Erst normale Validierung und atomisches Speichern erzeugen oder verändern ein Profil.</li>
+    <li>Export dient Portabilität der Ausdrücke. Weil Standard-NIP die Profilaktion nicht verlustfrei trägt, werden Keep- und Sell-Regeln getrennt und mit deutlichen Kommentaren ausgegeben.</li>
+    <li>Koolo-/Kolbot-Kompatibilität wird nicht behauptet. Ein Fremdfile ist nur dann importierbar, wenn jede aktive Regel zufällig vollständig in unserem dokumentierten Subset liegt.</li>
+  </ul>
+
+  <h2>9. Stabile Reason-Codes</h2>
+  <table><thead><tr><th>Bereich</th><th>Mindestens vorzusehende Codes</th></tr></thead><tbody>
+    <tr><td>Katalog/Memory</td><td><code>item_identity_unavailable</code>, <code>item_identity_unknown</code>, <code>item_identity_quality_mismatch</code>, <code>item_identity_base_mismatch</code>, <code>pickit_catalog_version_mismatch</code></td></tr>
+    <tr><td>Profil</td><td><code>pickit_profile_missing</code>, <code>pickit_profile_invalid</code>, <code>pickit_profile_id_conflict</code>, <code>pickit_profile_assigned</code>, <code>pickit_profile_revision_conflict</code>, <code>pickit_profile_write_failed</code></td></tr>
+    <tr><td>Regel</td><td><code>pickit_rule_invalid</code>, <code>pickit_rule_reference_unknown</code>, <code>pickit_rule_conflict</code>, <code>pickit_rule_no_match</code>, <code>pickit_rule_matched</code></td></tr>
+    <tr><td>Assignment</td><td><code>pickit_assignment_missing</code>, <code>pickit_assignment_empty</code>, <code>pickit_assignment_duplicate_profile</code>, <code>pickit_assignment_context_unknown</code>, <code>pickit_assignment_revision_conflict</code></td></tr>
+    <tr><td>Import/Runtime</td><td><code>pickit_import_unsupported</code>, <code>pickit_import_invalid</code>, <code>pickit_reload_pending</code>, <code>pickit_reload_failed</code>, <code>pickit_snapshot_activated</code></td></tr>
+  </tbody></table>
+  <p>Vorhandene semantisch gleiche Loot-, Config-, API- und Session-Codes werden wiederverwendet. Abschnitt 13.0 friert die endgültige Liste ein; UI und Transport erfinden keine Synonyme.</p>
+
+  <h2>10. Sequenzieller Umsetzungsplan</h2>
+
+  <section class="phase">
+    <div class="phase-id">13.0</div><div><h3>Baseline, Verträge und Characterization</h3>
+      <ul>
+        <li>Aktuellen Parser, First-Match-Verhalten, Pickup-/Keep-/Identify-/Stash-/Sell-Pipeline, Config-Pfade, Run-Preflight, API-Sicherheitsvertrag und React-Struktur mit Characterization-Tests einfrieren.</li>
+        <li>Endgültige YAML-Schemas, Actions, Reason-Codes, Revisionsregeln, Paketgrenzen und Migrationsmatrix dokumentieren, bevor produktiver Code geändert wird.</li>
+        <li>Explizite Non-Goals als Tests/Validierungsfehler festhalten: <code>maxquantity</code>, Sockelalias, Prefix/Suffix und unbekannte NIP-Sektionen.</li>
+      </ul>
+      <div class="callout gate"><strong>Gate 13.0 – automatisiert:</strong> Bestehende Countess-/Mephisto-Policies liefern vor dem Refactor dieselbe dokumentierte Matchmatrix; Config-, Loot- und Session-Tests sind grün. Plan und Handoff enthalten KISS/YAGNI sowie den verschobenen Socket-Scope.</div>
+    </div>
+  </section>
+
+  <section class="phase">
+    <div class="phase-id">13.1</div><div><h3>Patchgenauer Identitätskatalog</h3>
+      <ul>
+        <li>Den vorhandenen Itemgenerator minimal um <code>setitems.txt</code>, <code>uniqueitems.txt</code> und <code>item-names.json</code> erweitern oder einen kleinen gemeinsam genutzten Subgenerator hinzufügen; kein zweiter Basisitemkatalog.</li>
+        <li>Pflichtspalten, <code>*ID</code>, String-Schlüssel, Setnamen, Codes, Spawnability, eindeutige IDs/Schlüssel und Referenzen auf den Basisitemkatalog validieren. Abschnittsmarker ohne numerische <code>*ID</code> werden ausdrücklich als Metadatenzeilen übersprungen, nicht als Items oder defekte Stringreferenzen behandelt.</li>
+        <li>Jeden akzeptierten Set-/Unique-Schlüssel eindeutig gegen <code>item-names.json</code> auflösen und <code>enUS</code> als Anzeigenamen generieren; globale doppelte String-Schlüssel außerhalb der tatsächlich referenzierten Itemmenge blockieren den Itemkatalog nicht.</li>
+        <li>Generierten Go-Code mit D2R-Quellversion versehen. Reproduzierbarkeit testen; normale Builds und Tests bleiben unabhängig von <code>.tmp/</code>.</li>
+        <li>Katalogabdeckung für alle fünf Tal-Rasha-Items sowie ausgewählte Unique- und Mehrfach-Amulettfälle fest verdrahten.</li>
+      </ul>
+      <div class="callout gate"><strong>Gate 13.1 – automatisiert:</strong> Zweimalige Generierung ist byteidentisch; 140 echte Set- und 433 echte Unique-Zeilen sind von Abschnittsmarkern getrennt. Korrupte Header, doppelte relevante IDs/Schlüssel, fehlende englische Anzeigenamen, unbekannte Basiscodes und falsche Quellversionen schlagen vor dem Schreiben fehl.</div>
+    </div>
+  </section>
+
+  <section class="phase">
+    <div class="phase-id">13.2</div><div><h3>Memory-/World-Identität und read-only Live-Beweis</h3>
+      <ul>
+        <li>Die bekannte Raw-Referenz für Set/Unique am Item-Data-Modell lesen und durch <code>memory.ItemUnit</code> transportieren; Leseprobleme machen nur die Identität unavailable und erzeugen niemals einen geratenen Namen.</li>
+        <li><code>world.Item</code> um typisierte Identitätsart, Raw-ID, kanonischen Namen und Validitätsgrund ergänzen. Auflösung prüft Qualität und Basiscode gegen den generierten Katalog.</li>
+        <li>Eine read-only Diagnose zeigt bei Inventory-/Ground-Items Code, Qualität, Ethereal, Raw-ID, aufgelösten Namen und Konsistenzstatus. Sie führt keinen Input aus.</li>
+      </ul>
+      <div class="callout gate"><strong>Manuelles Gate A – Identitätsprobe:</strong> Mit mindestens einem bekannten Set- oder Unique-Item wird live bestätigt, dass Raw-ID, kanonischer Name, Qualität und Basiscode übereinstimmen. Wenn möglich wird zusätzlich ein ätherisches Basisitem geprüft; dessen Fehlen blockiert die Identitätsabnahme nicht. Bei Abweichung stoppt die Umsetzung hier – kein Offset-Raten und kein Katalog-Heftpflaster.</div>
+    </div>
+  </section>
+
+  <section class="phase">
+    <div class="phase-id">13.3</div><div><h3>Minimaler Parser- und Aktionsvertrag</h3>
+      <ul>
+        <li><code>[setitem]</code> und <code>[uniqueitem]</code> als einzige neue Felder ergänzen; beide akzeptieren stabile Katalogschlüssel mit <code>==</code>/<code>!=</code> und werden beim Laden eindeutig aufgelöst.</li>
+        <li>Die vorhandene Quote-Behandlung nur so weit ergänzen, dass der kanonische Serializer Apostrophe, doppelte Anführungszeichen und Backslashes eindeutig roundtrippen kann; keine allgemeine String-Escape-Sprache erfinden.</li>
+        <li>Bestehendes <code>[flag] == ethereal</code> unverändert für Basisitemkombinationen wiederverwenden.</li>
+        <li>Regelmetadaten um stabile Regel-ID, Aktion und Profilherkunft ergänzen; Evaluation liefert einen vollständigen Trace ohne die vorhandene AST-Logik zu duplizieren.</li>
+        <li>First-Match, Re-Evaluation nach Identifikation und fail-closed Identitätsdrift automatisiert abdecken.</li>
+      </ul>
+      <div class="callout gate"><strong>Gate 13.3 – automatisiert:</strong> Tal-Rasha-Adjudication matcht exakt und ein anderes Set-Amulett nicht; ein ätherischer Thresher matcht, ein nicht ätherischer Thresher und ein anderes ätherisches Basisitem nicht. Alle bisherigen Parserfälle bleiben unverändert grün.</div>
+    </div>
+  </section>
+
+  <section class="phase">
+    <div class="phase-id">13.4</div><div><h3>Profile, Assignments und einmalige Migration</h3>
+      <ul>
+        <li>YAML-Loader/Writer, Profilservice und Assignment-Store mit Revision, atomischem Replace, Re-Read und Recovery-fähigen Fehlern implementieren.</li>
+        <li>CRUD, Duplizieren, unveränderliche IDs, blockiertes Löschen zugeordneter Profile und duplikatfreie geordnete Assignments implementieren.</li>
+        <li>Bestehende Countess-/Mephisto-Pickup- und Sell-Policies semantisch in initiale Profile migrieren. Die Matchmatrix muss vor/nach Migration gleich bleiben.</li>
+        <li><code>runs.definitions.*.loot.pickup_file</code> und <code>sell_file</code> nach erfolgreicher Migration aus Schema, Wiring, Beispielen und Tests entfernen; kein Runtime-Fallback und kein toter Loaderpfad.</li>
+      </ul>
+      <div class="callout gate"><strong>Gate 13.4 – automatisiert:</strong> Crash-/Write-/Revision-/Delete-/Duplicate-Matrix mit Temp-Verzeichnissen besteht. Migrierte Policies reproduzieren Countess und Mephisto exakt; alte Felder werden mit klarer Migrationsmeldung abgelehnt.</div>
+    </div>
+  </section>
+
+  <section class="phase">
+    <div class="phase-id">13.5</div><div><h3>API, Revisionen und sichere Run-Grenze</h3>
+      <ul>
+        <li>OpenAPI, Go-DTOs, Backend und generierten TypeScript-Client für Katalog, Profile, Validierung, Preview, Assignments, Import und Export ergänzen.</li>
+        <li>Mutationen mit Control-Token, erwarteter Revision, Payload-Limit und bestehenden exklusiven Workflow-Sperren schützen.</li>
+        <li>Session-Preflight um Pickit-Assignment und immutable Policy-Snapshot ergänzen. Eine gespeicherte Änderung wird erst vor dem nächsten Run geladen.</li>
+        <li>Wenn Reload/Validierung scheitert, bleibt der abgeschlossene Run abgeschlossen; der nächste Run startet nicht und die Session wartet fail-closed mit sichtbarem Grund.</li>
+      </ul>
+      <div class="callout gate"><strong>Gate 13.5 – automatisiert:</strong> API-Vertrag, unautorisierte Mutation, stale Revision, parallele Saves, Save während Run und ungültiger Reload an Run-Grenze sind getestet. Keine Mutation verändert den aktiven Policy-Snapshot.</div>
+    </div>
+  </section>
+
+  <section class="phase">
+    <div class="phase-id">13.6</div><div><h3>React-Profilbibliothek und geführter Editor</h3>
+      <ul>
+        <li><code>web/src/features/pickit</code> als eigenes Feature mit Profilbibliothek, Editor, Katalogsuche, Regelreihenfolge, Assignments und Unsaved-State anlegen.</li>
+        <li>Sets/Items/Basisitems verständlich suchen; Setexpansion, Ethereal-Checkbox, zwei Aktionen und deutsche Regelzusammenfassung umsetzen.</li>
+        <li>Fortgeschrittenes Ausdrucksfeld und NIP-Paste/File-Import nur gegen Core-Validierung anbieten. Keine Parserlogik in React nachbauen.</li>
+        <li>Accessibility, Keyboard-Bedienung, Loading/Error/Empty/Conflict-Zustände und kleine Viewports abdecken.</li>
+      </ul>
+      <div class="callout gate"><strong>Gate 13.6 – Browser automatisiert:</strong> Tal Rasha expandiert in fünf Regeln; Ethereal Thresher erzeugt eine kombinierte Regel; Reihenfolge, Duplicate, Delete-Block, Importfehler, stale Save und Assignment-Validierung sind über Benutzerinteraktionen getestet.</div>
+    </div>
+  </section>
+
+  <section class="phase">
+    <div class="phase-id">13.7</div><div><h3>Entscheidungsvorschau und Runtime-Loot-Integration</h3>
+      <ul>
+        <li>Katalogitem-/Testitem-Vorschau im Core implementieren und den vollständigen Profil-/Regeltrace an die UI liefern.</li>
+        <li>Die effektive Action Policy in bestehende Classify-, Pickup-, Identify-, Keep-, Stash- und Sell-Schritte integrieren, ohne Hover-, Kapazitäts-, Gold- oder Input-Gates zu lockern.</li>
+        <li>Nach Identifikation mit demselben Snapshot erneut prüfen. Kein Match oder Identitätsdrift darf weder Stash noch Verkauf autorisieren.</li>
+        <li>Logs/JSONL um Profil-ID, Regel-ID, Aktion und Revision ergänzen; keine vollständigen Inventar- oder Pfaddaten in SSE duplizieren.</li>
+      </ul>
+      <div class="callout gate"><strong>Gate 13.7 – automatisiert:</strong> Keep-, Sell-, No-Match-, Multi-Profil-First-Match-, Identifikations- und Driftmatrizen bestehen. Vorherige Countess-/Mephisto-Loot-Ergebnisse bleiben als Characterization grün.</div>
+    </div>
+  </section>
+
+  <section class="phase">
+    <div class="phase-id">13.8</div><div><h3>Isolierter Live-Loot-Test</h3>
+      <ul>
+        <li>Ein bewusstes Abnahmeprofil mit einem verfügbaren, risikoarmen Testitem erstellen und einem bestätigten Charakter/Run zuordnen.</li>
+        <li>Im Dashboard denselben Gegenstand zuerst synthetisch prüfen, Profil atomisch speichern und die Revision anzeigen.</li>
+        <li>Den vorhandenen isolierten Loot-Test verwenden: Ground-Erkennung, Matchtrace, geschützter Pickup und je nach Testaktion Stash beziehungsweise Identify/Sell beobachten.</li>
+        <li>Ein zweiter vollständiger Boss-Run ist ausdrücklich nicht erforderlich. Exakte Tal-Rasha-Auswahl wird deterministisch über Katalog-/Parsertests und Gate A bewiesen; ein seltener Drop ist keine Abnahmevoraussetzung.</li>
+      </ul>
+      <div class="callout gate"><strong>Manuelles Gate B – GUI bis Loot:</strong> Der Benutzer erstellt oder bearbeitet eine Regel, prüft sie gegen ein bekanntes Item, speichert und ordnet sie zu. Der isolierte Live-Test führt exakt die angezeigte Aktion aus; UI, Core-Log und JSONL nennen dieselbe Profil-/Regelrevision. Abweichung oder unbestätigter Input beendet den Test fail-closed.</div>
+    </div>
+  </section>
+
+  <section class="phase">
+    <div class="phase-id">13.9</div><div><h3>Abschluss, Dokumentation und Dead-Code-Audit</h3>
+      <ul>
+        <li><code>docs/features/pickit-editor.md</code> anlegen; <code>pickit-engine.md</code>, Loot-/Town-/Session-Dokumente, Feature-Index, Changelog, Config-Beispiele und Handoff aktualisieren.</li>
+        <li>Unterstützte Syntax, Aktionen, Identitätsvertrauen, Profilpriorität, Importgrenze, Aktivierung an Run-Grenzen und Operatorfehler dokumentieren.</li>
+        <li>Socket-Regeln ausdrücklich als geplante, noch nicht spezifizierte Erweiterung festhalten.</li>
+        <li>Alte Pickup-/Sell-Config, doppelte Loader, ungenutzte DTOs, Legacy-NIP-Wiring und temporäre Migrationspfade entfernen.</li>
+        <li><code>gofmt</code>, <code>goimports</code>, Lint, Go-/Web-Tests, Windows-Build und dokumentierten UCRT64-Race-Test ausführen.</li>
+      </ul>
+      <div class="callout gate"><strong>Gate 13.9 – Abschlussmatrix:</strong> Beide manuellen Gates sind protokolliert; Generator, Unit-, API-, Browser-, Integration-, Race- und Build-Matrix sind grün; Handoff markiert Phase 13 erst danach als abgeschlossen.</div>
+    </div>
+  </section>
+
+  <h2>11. Manuelle Gates im Überblick</h2>
+  <table><thead><tr><th>Gate</th><th>Beweist</th><th>Bewusst ausgeschlossen</th></tr></thead><tbody>
+    <tr><td>A – read-only Identität</td><td>Live-Raw-ID, Qualität, Basiscode und generierter Set-/Unique-Name stimmen zweifelsfrei überein.</td><td>Kein Input, kein Pickup, kein geratenes Offset und kein vollständiger Run.</td></tr>
+    <tr><td>B – GUI bis Loot</td><td>Regel erstellen, testen, speichern, zuordnen und über den bestehenden sicheren Lootpfad sichtbar anwenden.</td><td>Kein seltener Tal-Rasha-Drop und kein zweiter vollständiger Boss-Run als Pflicht.</td></tr>
+  </tbody></table>
+  <div class="callout success"><strong>Gate-Prinzip:</strong> Seltene Drops und zufällige Bossläufe sind ungeeignete Funktionsbeweise. Automatische Fixtures beweisen die Entscheidungssemantik; Live-Gates beweisen ausschließlich die reale Memory-Identität sowie UI/API/Core/Input-Komposition.</div>
+
+  <h2>12. Definition of Done</h2>
+  <ol>
+    <li>Der Benutzer kann Profile erstellen, duplizieren, umbenennen, ordnen und nur unzugeordnet löschen.</li>
+    <li>Eine geführte Suche bietet Sets, Einzel-Setitems, Uniques, Basisitems, Gems, Runen, Keys, Qualität und Tier aus generierten patchgenauen Daten an.</li>
+    <li>„Tal Rasha’s Wrappings“ expandiert deterministisch in fünf explizite Regeln; ein anderes Set-Amulett matcht Tal Rasha’s Adjudication nicht.</li>
+    <li>Ein konkretes ätherisches Basisitem ist ohne Raw-Code-Kenntnis konfigurierbar und matcht nur Basiscode plus Ethereal-Flag.</li>
+    <li>YAML-Profile und lokale Assignments sind die einzigen persistenten Autoritäten. Alte Pickup-/Sell-Dateipfade besitzen keinen Fallback.</li>
+    <li>Mehrere Profile werden pro Charakter/Run duplikatfrei geordnet; das erste Match liefert nachvollziehbar Keep oder Sell.</li>
+    <li>Fehlende/ungültige Zuordnung blockiert produktive Runs vor Input. Änderungen während eines Runs gelten erst an der nächsten validierten Grenze.</li>
+    <li>NIP-Paste/File-Import akzeptiert ausschließlich das dokumentierte Subset und arbeitet all-or-nothing; Export behauptet keine vollständige Fremdkompatibilität.</li>
+    <li>Editorvorschau und Runtime verwenden denselben Go-Parser und dieselbe Katalogauflösung; React enthält keine zweite Entscheidungsengine.</li>
+    <li>Set-/Unique-Auflösung ist live bewiesen und fail-closed. Unbekannte Identität autorisiert weder Pickup durch eine exakte Regel noch Verkauf.</li>
+    <li>Pickup, Cain, Stash, Vendor, Inventory-Safety und Input-Verifikation bleiben regressionsfrei.</li>
+    <li>Godoc, Designkommentare, Feature-Dokumentation, Handoff, Changelog, Dead-Code-Audit, Builds, Lint, Race-Tests und beide manuellen Gates sind abgeschlossen.</li>
+  </ol>
+
+  <h2>13. Übergabe an spätere Phasen</h2>
+  <ul>
+    <li><strong>Sockelregeln:</strong> „Elite Polearm mit vier Sockeln“ bleibt geplante Erweiterung. Vor Umsetzung sind Socket-Datenquelle, Sichtbarkeit, Typvererbung und Regel-/UI-Syntax gemeinsam festzulegen.</li>
+    <li><strong>Weitere Itembedingungen:</strong> Mengenlimits, Affixe, Suffixe, Item Level, Character Level, Runewords und Preislogik benötigen eigene Produktentscheidungen; Phase 13 schafft dafür keine leeren Abstraktionen.</li>
+    <li><strong>Phase 14:</strong> Historie darf Profil-/Regel-ID und Revision aus Telemetrie anzeigen, verändert aber weder Profile noch Lootentscheidungen.</li>
+    <li><strong>Phase 15:</strong> Electron und ein mögliches Overlay verwenden dieselbe Pickit-API und dieselbe React-Anwendung; es entsteht keine Shell-spezifische Editorlogik.</li>
+  </ul>
+
+  <footer>Planungsstand: 21. Juli 2026 · Umsetzung noch nicht begonnen · zwei gezielte manuelle Gates · KISS/YAGNI verbindlich</footer>
+</main></body>
+</html>
