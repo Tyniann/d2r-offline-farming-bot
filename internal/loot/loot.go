@@ -27,3 +27,8 @@ func (f *Filter) InventoryLock() InventoryLock {
 func (f *Filter) Pickit() *Pickit {
 	return f.pickit
 }
+
+// SetPickit aktiviert eine vollständig kompilierte Policy ausschließlich an einer sicheren Run-Grenze.
+func (f *Filter) SetPickit(pickit *Pickit) {
+	f.pickit = pickit
+}

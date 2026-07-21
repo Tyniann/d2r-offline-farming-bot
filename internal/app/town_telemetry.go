@@ -49,5 +49,7 @@ func (a townTelemetryAdapter) EmitTown(event town.ExecutorEvent) error {
 		TownStep: &step, TownKind: string(event.Kind), TownService: string(event.Service),
 		CurrentCount: &current, TriggerThreshold: &threshold, BeltSlots: append([]int(nil), event.BeltSlots...),
 		PurchaseMode: string(event.Mode), Vendor: string(event.Vendor), Cost: &cost, VerifiedFinalCount: &verified,
+		PickitProfileID: event.ProfileID, PickitRuleID: event.RuleID, PickitAction: event.PickitAction,
+		PickitProfileRevision: event.ProfileRevision, PickitAssignmentRevision: event.AssignmentRevision,
 	})
 }

@@ -7,7 +7,9 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"runtime"
+	"strings"
 	"syscall"
 	"time"
 
@@ -32,19 +34,22 @@ type Runtime struct {
 	Log     *slog.Logger
 	logFile *os.File
 
-	Process          processController
-	Memory           *memory.Reader
-	Probe            snapshotReader
-	UIProbe          uiBufferCaptureReader
-	World            *world.Model
-	Input            inputController
-	Bindings         configBindingSource
-	Tasks            *tasks.Runner
-	Pathing          *pathing.Navigator
-	Loot             *loot.Filter
-	Telemetry        *telemetry.Recorder
-	Profile          *profile.Executor
-	profileTelemetry *profileTelemetryAdapter
+	Process           processController
+	Memory            *memory.Reader
+	Probe             snapshotReader
+	UIProbe           uiBufferCaptureReader
+	World             *world.Model
+	Input             inputController
+	Bindings          configBindingSource
+	Tasks             *tasks.Runner
+	Pathing           *pathing.Navigator
+	Loot              *loot.Filter
+	PickitProfiles    *PickitProfileService
+	PickitAssignments *PickitAssignmentStore
+	ActivePickit      PickitPolicySnapshot
+	Telemetry         *telemetry.Recorder
+	Profile           *profile.Executor
+	profileTelemetry  *profileTelemetryAdapter
 
 	sessionReset              sessionResetBarrier
 	taskDeps                  tasks.Deps
@@ -55,6 +60,8 @@ type Runtime struct {
 	lootActions               *lootActionsAdapter
 	townLayout                *townLayoutPin
 	townTelemetry             *townTelemetryRelay
+	townPreparation           *townPreparationAdapter
+	stashExecutor             *loot.StashExecutor
 	uiStatusPublisher         func(UIStatusSnapshot)
 	pauseHotkeyHandler        func() error
 	stopAfterRunHotkeyHandler func() error
@@ -145,7 +152,7 @@ func New(cfg *config.Config, opts Options) (rt *Runtime, err error) {
 	if !ok {
 		return nil, fmt.Errorf("%s: %q", tasks.RunReasonConfigMissing, runtimeRunID)
 	}
-	runCfg, err := mapRunConfig(cfg, runtimeRunID)
+	runCfg, err := mapRunConfig(cfg, runtimeRunID, !runPhaseAllowsUnavailableFarmingRoute(runSelection.Phase))
 	if err != nil {
 		return nil, err
 	}
@@ -186,11 +193,15 @@ func New(cfg *config.Config, opts Options) (rt *Runtime, err error) {
 	if err != nil {
 		return nil, fmt.Errorf("loot inventory lock: %w", err)
 	}
-	pickit, err := loadPickit(cfg, selectedRunCfg.Loot.PickupFile)
+	pickitProfiles, err := NewPickitProfileService(cfg.ResolvePath(filepath.Join("pickit", "profiles")))
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("pickit profiles: %w", err)
 	}
-	sellPickit, err := loadOptionalPickit(cfg, selectedRunCfg.Loot.SellFile)
+	pickitAssignments, err := NewPickitAssignmentStore(cfg.ResolvePath("pickit-assignments.local.yaml"), pickitProfiles)
+	if err != nil {
+		return nil, fmt.Errorf("pickit assignments: %w", err)
+	}
+	pickit, err := loadEffectivePickitPolicy(pickitAssignments, cfg.Session.Character, tasks.RunID(runtimeRunID))
 	if err != nil {
 		return nil, err
 	}
@@ -204,12 +215,11 @@ func New(cfg *config.Config, opts Options) (rt *Runtime, err error) {
 		townTrace.setTelemetry(runTelemetry)
 	}
 	lootFilter := loot.NewFilter(log, inventoryLock, pickit)
-	townPreparation.setItemPolicies(lootFilter, sellPickit, cfg.Loot.Stash)
+	townPreparation.setItemPolicies(lootFilter, cfg.Loot.Stash)
 	stashExecutor, err := loot.NewStashExecutor(log, lootFilter, inputCtrl, mapLootStashConfig(cfg.Loot.Stash))
 	if err != nil {
 		return nil, fmt.Errorf("loot stash config: %w", err)
 	}
-	stashExecutor.SetSellFilter(sellPickit)
 	lootActions := newLootActionsAdapter(log, lootFilter, cfg.Loot.Pickup, inputCtrl, pathingCfg, stashExecutor, runTelemetry)
 	routeLifecycle, err := NewRouteLifecycleStore(cfg)
 	if err != nil {
@@ -233,31 +243,35 @@ func New(cfg *config.Config, opts Options) (rt *Runtime, err error) {
 	probe.SetScannedCachePath(cfg.ResolvePath(memory.DefaultScannedCacheFile))
 
 	rt = &Runtime{
-		Config:           cfg,
-		Options:          opts,
-		Log:              log,
-		logFile:          logFile,
-		Process:          proc,
-		Memory:           mem,
-		Probe:            probe,
-		UIProbe:          probe,
-		World:            world.NewModel(log),
-		Input:            inputCtrl,
-		Bindings:         bindings,
-		Tasks:            tasks.NewRunner(log, runSelection, runCfg, taskDeps),
-		Pathing:          nav,
-		Loot:             lootFilter,
-		Telemetry:        runTelemetry,
-		Profile:          profileExecutor,
-		profileTelemetry: profileTrace,
-		taskDeps:         taskDeps,
-		runConfig:        runCfg,
-		sessionSelection: tasks.RunSelection{Run: cfg.Session.Run},
-		routePlayback:    routePlayback,
-		townEgress:       townEgress,
-		lootActions:      lootActions,
-		townLayout:       townLayout,
-		townTelemetry:    townTrace,
+		Config:            cfg,
+		Options:           opts,
+		Log:               log,
+		logFile:           logFile,
+		Process:           proc,
+		Memory:            mem,
+		Probe:             probe,
+		UIProbe:           probe,
+		World:             world.NewModel(log),
+		Input:             inputCtrl,
+		Bindings:          bindings,
+		Tasks:             tasks.NewRunner(log, runSelection, runCfg, taskDeps),
+		Pathing:           nav,
+		Loot:              lootFilter,
+		PickitProfiles:    pickitProfiles,
+		PickitAssignments: pickitAssignments,
+		Telemetry:         runTelemetry,
+		Profile:           profileExecutor,
+		profileTelemetry:  profileTrace,
+		taskDeps:          taskDeps,
+		runConfig:         runCfg,
+		sessionSelection:  tasks.RunSelection{Run: cfg.Session.Run},
+		routePlayback:     routePlayback,
+		townEgress:        townEgress,
+		lootActions:       lootActions,
+		townLayout:        townLayout,
+		townTelemetry:     townTrace,
+		townPreparation:   townPreparation,
+		stashExecutor:     stashExecutor,
 	}
 	rt.sessionReset = sessionResetBarrier{
 		components: []sessionNamedResetter{
@@ -291,25 +305,18 @@ func sessionExecutionRequested(opts Options) bool {
 	return !opts.UI && !opts.SessionInspect && !opts.RunsInspect && !opts.WaypointTargetsInspect && !opts.Probe && opts.InputTest == "" && opts.Run == "" && opts.RunPhase == "" && opts.PathingTest == "" && opts.OfflineDifficulty == "" && opts.OfflineCharacter == "" && !opts.OfflineExitTest && opts.UIStateProbe == "" && opts.ScreenAnchorCapture == "" && opts.Route == "" && !opts.TownInspect && opts.TownTest == ""
 }
 
-func loadPickit(cfg *config.Config, pickupFile string) (*loot.Pickit, error) {
-	path := cfg.ResolvePath(pickupFile)
-	pickit, err := loot.LoadPickit(path)
+func loadEffectivePickitPolicy(assignments *PickitAssignmentStore, character string, runID tasks.RunID) (*loot.Pickit, error) {
+	if strings.TrimSpace(character) == "" {
+		// Passive Diagnosemodi besitzen noch keinen bestätigten Charakterkontext.
+		// Eine leere Policy bleibt fail-closed und ist keine Legacy-Autorität.
+		empty, err := loot.CompilePickitRules("unassigned pickit", nil)
+		return empty, err
+	}
+	effective, err := assignments.Resolve(character, runID)
 	if err != nil {
-		return nil, fmt.Errorf("pickit config invalid: %w", err)
+		return nil, fmt.Errorf("pickit assignment invalid for %s/%s: %w", character, runID, err)
 	}
-	return pickit, nil
-}
-
-func loadOptionalPickit(cfg *config.Config, policyFile string) (*loot.Pickit, error) {
-	if policyFile == "" {
-		return nil, nil
-	}
-	path := cfg.ResolvePath(policyFile)
-	pickit, err := loot.LoadPickit(path)
-	if err != nil {
-		return nil, fmt.Errorf("sell pickit config invalid: %w", err)
-	}
-	return pickit, nil
+	return effective.All, nil
 }
 
 // CloseLog closes the runtime log file when file logging is active.

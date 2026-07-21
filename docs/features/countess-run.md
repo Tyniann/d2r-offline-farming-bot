@@ -50,6 +50,10 @@ Die isolierten Phasen bleiben bewusst als Testoberflächen erhalten: Travel-Phas
 
 `loot-and-return` und der Full Run nutzen dieselben Loot-Schritte:
 
+Für Phase-13-Gate B dient `loot-and-return` zusätzlich als isolierter GUI-bis-Loot-Nachweis: Das unzugeordnete Profil `phase13-live-acceptance` matcht ausschließlich einen billigen Pfeilköcher (`aqv`), den keine bestehende Countess-Regel abfängt. Nach synthetischer Core-Vorschau, revisionsgebundenem Profil-Save und expliziter Countess-Zuordnung prüft der Lauf Ground-Erkennung, hover-bestätigten Pickup, Portalrückkehr und Memory-bestätigten Personal-Stash-Transfer ohne Travel- oder Bosskampf. Profil-/Regel-ID, Aktion und Revisionen müssen zwischen Dashboard, Core-Log und Run-JSONL übereinstimmen.
+
+Nur für diese ausdrücklich routefreie Phase werden Farming-Route-Reasons wie `route_lifecycle_unavailable` beim CLI-Preflight ausgeblendet. Full Run, `travel-entry`, `play-route`, `boss`, `stash-personal` und `town-ready` behalten ihr bisheriges Route-Gate unverändert. Profil-, Loot-, Portal-, Belt-, Town-, Telemetrie- und Input-Sicherheitsprüfungen bleiben auch für `loot-and-return` verpflichtend.
+
 | Step | Verhalten |
 |------|-----------|
 | `wait_for_drops` | verlangt drei aufeinanderfolgende gültige `in_game`-Snapshots in `Tower Cellar Level 5`; Drops sind nicht erforderlich |

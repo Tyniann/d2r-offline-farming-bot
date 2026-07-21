@@ -25,30 +25,42 @@ type row struct {
 	BaseTier   string
 }
 
+const supportedSourceVersion = "3.2.92777"
+
 func main() {
 	src := flag.String("src", ".tmp/d2r-excel", "directory containing weapons.txt, armor.txt, misc.txt")
 	version := flag.String("version", "", "D2R version that produced the TXT files")
 	out := flag.String("out", filepath.Join("internal", "world", "item_catalog_data.go"), "generated Go file path")
 	flag.Parse()
-	if strings.TrimSpace(*version) == "" {
-		fmt.Fprintln(os.Stderr, "generate item catalog: -version is required")
-		os.Exit(1)
-	}
-
-	rows, err := readRows(*src)
-	if err != nil {
+	if err := generateCatalog(*version, *src, *out); err != nil {
 		fmt.Fprintf(os.Stderr, "generate item catalog: %v\n", err)
 		os.Exit(1)
 	}
-	data, err := render(*version, rows)
+}
+
+func generateCatalog(version, src, out string) error {
+	if strings.TrimSpace(version) == "" {
+		return fmt.Errorf("-version is required")
+	}
+	if err := validateSourceVersion(version); err != nil {
+		return err
+	}
+	rows, err := readRows(src)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "render item catalog: %v\n", err)
-		os.Exit(1)
+		return err
 	}
-	if err := os.WriteFile(*out, data, 0o644); err != nil {
-		fmt.Fprintf(os.Stderr, "write %s: %v\n", *out, err)
-		os.Exit(1)
+	identities, _, err := readIdentityRows(src, rows)
+	if err != nil {
+		return err
 	}
+	data, err := render(version, rows, identities)
+	if err != nil {
+		return fmt.Errorf("render item catalog: %w", err)
+	}
+	if err := os.WriteFile(out, data, 0o644); err != nil {
+		return fmt.Errorf("write %s: %w", out, err)
+	}
+	return nil
 }
 
 func readRows(src string) ([]row, error) {
@@ -245,17 +257,38 @@ func firstNonEmpty(values ...string) string {
 	return ""
 }
 
-func render(version string, rows []row) ([]byte, error) {
+func render(version string, rows []row, identities []identityRow) ([]byte, error) {
 	var b bytes.Buffer
-	fmt.Fprintf(&b, "// Code generated from D2R %s local data/global/excel weapons.txt, armor.txt, misc.txt; DO NOT EDIT.\n", version)
+	fmt.Fprintf(&b, "// Code generated from D2R %s local item Excel and item-names.json data; DO NOT EDIT.\n", version)
 	b.WriteString("package world\n\n")
+	fmt.Fprintf(&b, "const generatedItemIdentityCatalogVersion = %q\n\n", version)
 	b.WriteString("var itemCatalog = map[uint32]itemCatalogEntry{\n")
 	for i, r := range rows {
 		fmt.Fprintf(&b, "\t%d: {Code: %q, Name: %q, Type: %q, NormalCode: %q, UberCode: %q, UltraCode: %q, Width: %d, Height: %d, BaseTier: %s},\n",
 			i, r.Code, r.Name, r.Type, r.NormalCode, r.UberCode, r.UltraCode, r.Width, r.Height, baseTierIdentifier(r.BaseTier))
 	}
+	b.WriteString("}\n\n")
+	b.WriteString("var generatedItemIdentityCatalog = []ItemIdentityCatalogEntry{\n")
+	for _, identity := range identities {
+		fmt.Fprintf(&b, "\t{Kind: %s, RawID: %d, Key: %q, DisplayName: %q, BaseCode: %q, SetKey: %q, SetName: %q, Spawnable: %t},\n",
+			identityKindIdentifier(identity.Kind), identity.RawID, identity.Key, identity.DisplayName, identity.BaseCode, identity.SetKey, identity.SetName, identity.Spawnable)
+	}
 	b.WriteString("}\n")
 	return format.Source(b.Bytes())
+}
+
+func validateSourceVersion(version string) error {
+	if strings.TrimSpace(version) != supportedSourceVersion {
+		return fmt.Errorf("source version %q is unsupported; want %s", version, supportedSourceVersion)
+	}
+	return nil
+}
+
+func identityKindIdentifier(kind string) string {
+	if kind == "set" {
+		return "ItemIdentitySet"
+	}
+	return "ItemIdentityUnique"
 }
 
 func baseTierIdentifier(tier string) string {

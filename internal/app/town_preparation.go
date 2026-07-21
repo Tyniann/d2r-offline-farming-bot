@@ -49,14 +49,13 @@ type townPreparationAdapter struct {
 	executor     *town.Executor
 	handler      *townPreparationStepHandler
 	lootFilter   *loot.Filter
-	sellFilter   *loot.Pickit
 	stashConfig  config.LootStashConfig
 	nextRunID    string
 	startAnchor  town.Anchor
 }
 
-func (a *townPreparationAdapter) setItemPolicies(filter *loot.Filter, sell *loot.Pickit, stash config.LootStashConfig) {
-	a.lootFilter, a.sellFilter, a.stashConfig = filter, sell, stash
+func (a *townPreparationAdapter) setItemPolicies(filter *loot.Filter, stash config.LootStashConfig) {
+	a.lootFilter, a.stashConfig = filter, stash
 }
 
 // layoutTownWaypointWalker adapts the initial no-service mode to the legacy

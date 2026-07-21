@@ -32,6 +32,7 @@ const (
 	DecisionKindKeep             DecisionKind = "keep"
 	DecisionKindStash            DecisionKind = "stash"
 	DecisionKindIdentifyRequired DecisionKind = "identify_required"
+	DecisionKindSell             DecisionKind = "sell"
 	DecisionKindFail             DecisionKind = "fail"
 )
 
@@ -49,6 +50,7 @@ const (
 	DecisionReasonVerifyNotAttempted DecisionReason = "verify_not_attempted"
 	DecisionReasonStashCandidate     DecisionReason = "stash_candidate"
 	DecisionReasonIdentifyRequired   DecisionReason = "identify_required"
+	DecisionReasonSellCandidate      DecisionReason = "sell_candidate"
 	DecisionReasonUnknownSize        DecisionReason = DecisionReason(CapacityReasonUnknownSize)
 	DecisionReasonOutOfBounds        DecisionReason = DecisionReason(CapacityReasonOutOfBounds)
 	DecisionReasonOverlap            DecisionReason = DecisionReason(CapacityReasonOverlap)
@@ -136,6 +138,14 @@ func (f *Filter) Decide(state world.State) DecisionReport {
 	for _, item := range inventoryItems {
 		result := f.evaluate(item)
 		if !result.Matched {
+			continue
+		}
+		if result.Action == ActionSell {
+			if !item.Identified {
+				report.Decisions = append(report.Decisions, newItemDecision(item, DecisionStageKeep, DecisionKindIdentifyRequired, DecisionReasonIdentifyRequired, result))
+				continue
+			}
+			report.Decisions = append(report.Decisions, newItemDecision(item, DecisionStageKeep, DecisionKindSell, DecisionReasonSellCandidate, result))
 			continue
 		}
 		if RequiresIdentificationForKeep(item) {

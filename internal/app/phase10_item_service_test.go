@@ -1,7 +1,6 @@
 package app
 
 import (
-	"path/filepath"
 	"testing"
 
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/config"
@@ -11,17 +10,16 @@ import (
 )
 
 func TestTownPreparationClassifiesOnlyUnlockedMephistoSellCandidates(t *testing.T) {
-	pickup, err := loot.LoadPickit(filepath.Join("..", "..", "configs", "pickit", "mephisto.nip"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	sell, err := loot.LoadPickit(filepath.Join("..", "..", "configs", "pickit", "mephisto-sell.nip"))
+	pickup, err := loot.CompilePickitRules("test", []loot.PickitRuleSpec{
+		{ProfileID: "gems", RuleID: "gem", Action: loot.ActionKeep, Expression: `[name] == gpv`},
+		{ProfileID: "mephisto-standard", RuleID: "candidate", Action: loot.ActionSell, Expression: `([quality] == set || [quality] == unique) && ([tier] == exceptional || [tier] == elite)`},
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	grid := [][]int{{0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, {0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, {0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, {0, 0, 0, 0, 0, 0, 0, 0, 0, 0}}
 	lock, _ := loot.NewInventoryLock(grid)
-	adapter := &townPreparationAdapter{sellFilter: sell, lootFilter: loot.NewFilter(config.NewLogger("error"), lock, pickup)}
+	adapter := &townPreparationAdapter{lootFilter: loot.NewFilter(config.NewLogger("error"), lock, pickup)}
 	item := world.Item{UnitID: 31, Code: "xap", Quality: world.ItemQualityUnique, BaseTier: world.BaseTierExceptional, Location: world.ItemLocationInventory, PlayerOwned: true, Width: 2, Height: 2}
 	orders, reason := adapter.planItemServiceOrders(world.State{Items: []world.Item{item}})
 	if reason != "" || len(orders) != 2 || orders[0].Kind != town.ItemServiceIdentify || orders[1].Kind != town.ItemServiceSell || orders[0].UnitID != orders[1].UnitID {
@@ -70,9 +68,17 @@ func TestTownItemServiceInputGatesCainAkaraAndClosesUI(t *testing.T) {
 
 func TestTownItemServiceHandlerPreservesSellOrderAfterIdentify(t *testing.T) {
 	in := &preparationInputMock{}
+	policy, err := loot.CompilePickitRules("test", []loot.PickitRuleSpec{{ProfileID: "mephisto", RuleID: "sell", Action: loot.ActionSell, Expression: `[name] == "xap"`}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	lock, err := loot.NewInventoryLock([][]int{make([]int, 10), make([]int, 10), make([]int, 10), make([]int, 10)})
+	if err != nil {
+		t.Fatal(err)
+	}
 	cfg := config.LootStashConfig{InventoryLeft: 847, InventoryTop: 369, InventoryCellW: 33, InventoryCellH: 33}
 	handler := &townPreparationStepHandler{
-		adapter: &townPreparationAdapter{controller: in},
+		adapter: &townPreparationAdapter{controller: in, lootFilter: loot.NewFilter(config.NewLogger("error"), lock, policy)},
 		itemOrders: orderedItemServiceOrders([]town.ItemServiceOrder{
 			{Kind: town.ItemServiceIdentify, UnitID: 51, Code: "xap"},
 			{Kind: town.ItemServiceSell, UnitID: 51, Code: "xap"},
@@ -102,6 +108,31 @@ func TestTownItemServiceHandlerPreservesSellOrderAfterIdentify(t *testing.T) {
 	akara.Items = nil
 	if got := handler.tickItemOrders(akara, town.ItemServiceSell, town.AnchorAkara); got.Status != town.InteractionPending || handler.itemOrder != 2 {
 		t.Fatalf("sell verify=%+v cursor=%d", got, handler.itemOrder)
+	}
+}
+
+func TestTownSellRechecksIdentityAndRevokesDriftedMatch(t *testing.T) {
+	in := &preparationInputMock{}
+	policy, err := loot.CompilePickitRules("drift", []loot.PickitRuleSpec{{ProfileID: "unique", RuleID: "shako", Action: loot.ActionSell, Expression: `[uniqueitem] == "Harlequin Crest"`, ProfileRevision: 3, AssignmentRevision: 5}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	lock, _ := loot.NewInventoryLock([][]int{make([]int, 10), make([]int, 10), make([]int, 10), make([]int, 10)})
+	handler := &townPreparationStepHandler{adapter: &townPreparationAdapter{controller: in, lootFilter: loot.NewFilter(config.NewLogger("error"), lock, policy)}, itemOrders: orderedItemServiceOrders([]town.ItemServiceOrder{{Kind: town.ItemServiceIdentify, UnitID: 71, Code: "uap"}, {Kind: town.ItemServiceSell, UnitID: 71, Code: "uap"}}), itemInput: &townItemServiceInput{controller: in, cfg: config.LootStashConfig{InventoryLeft: 847, InventoryTop: 369, InventoryCellW: 33, InventoryCellH: 33}}, stage: "items"}
+	item := world.Item{UnitID: 71, Code: "uap", Location: world.ItemLocationInventory, PlayerOwned: true, Page: 0, IdentityKind: world.ItemIdentityUnique, IdentityKey: "Harlequin Crest", IdentityAvailable: true, IdentityValid: true}
+	state := world.State{Valid: true, UI: world.UIState{NPCInteractOpen: true}, Items: []world.Item{item}}
+	if got := handler.tickItemOrders(state, town.ItemServiceIdentify, town.AnchorCain); got.Action != "item_identify" || got.ProfileRevision != 3 {
+		t.Fatalf("identify = %+v", got)
+	}
+	item.Identified, item.IdentityValid = true, false
+	state.Items = []world.Item{item}
+	if got := handler.tickItemOrders(state, town.ItemServiceIdentify, town.AnchorCain); got.Status != town.InteractionPending {
+		t.Fatalf("identify verify = %+v", got)
+	}
+	handler.ResetStep()
+	handler.stage = "items"
+	if got := handler.tickItemOrders(state, town.ItemServiceSell, town.AnchorAkara); got.Reason != "pickit_recheck_no_match" || in.modified != 0 {
+		t.Fatalf("drifted sell = %+v modified=%d", got, in.modified)
 	}
 }
 

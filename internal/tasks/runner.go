@@ -24,8 +24,6 @@ type RunConfig struct {
 	RouteID string
 	// Combat tunes regular boss combat after encounter actions.
 	Combat CombatConfig
-	// Loot selects the run-specific pickup and optional sell policies.
-	Loot RunLootConfig
 }
 
 // CombatConfig holds resolved shared boss-combat settings for task logic.
@@ -42,14 +40,6 @@ type CombatConfig struct {
 	RepositionDistanceTiles float64
 	// KillConfirmTicks confirms death after consecutive valid absence ticks.
 	KillConfirmTicks int
-}
-
-// RunLootConfig holds resolved run-specific loot policy paths.
-type RunLootConfig struct {
-	// PickupFile selects the pickup and keep policy.
-	PickupFile string
-	// SellFile selects the optional post-identification sell policy.
-	SellFile string
 }
 
 // Runner executes high-level run state machines.

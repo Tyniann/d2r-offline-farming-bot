@@ -143,6 +143,15 @@ func (s *Server) routes() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/v1/status", s.handleStatus)
 	mux.HandleFunc("/api/v1/catalog", s.handleCatalog)
+	mux.HandleFunc("/api/v1/pickit/catalog", s.handlePickitCatalog)
+	mux.HandleFunc("/api/v1/pickit/profiles", s.handlePickitProfiles)
+	mux.HandleFunc("/api/v1/pickit/profiles/validate", s.handlePickitValidation)
+	mux.HandleFunc("/api/v1/pickit/preview", s.handlePickitPreview)
+	mux.HandleFunc("/api/v1/pickit/assignments", s.handlePickitAssignments)
+	mux.HandleFunc("/api/v1/pickit/import", s.handlePickitImport)
+	mux.HandleFunc("/api/v1/pickit/profiles/{profileID}/duplicate", s.handlePickitDuplicate)
+	mux.HandleFunc("/api/v1/pickit/profiles/{profileID}/export", s.handlePickitExport)
+	mux.HandleFunc("/api/v1/pickit/profiles/{profileID}", s.handlePickitProfile)
 	mux.HandleFunc("/api/v1/events", s.handleEvents)
 	mux.HandleFunc("/api/v1/control/bootstrap", s.handleControlBootstrap)
 	for path, command := range commandPaths {
@@ -170,6 +179,233 @@ func (s *Server) routes() http.Handler {
 	mux.HandleFunc("/api/", s.handleUnsupportedAPI)
 	mux.Handle("/", spaHandler(s.assets))
 	return s.security(mux)
+}
+
+func (s *Server) pickitBackend(w http.ResponseWriter, r *http.Request) (pickitBackend, bool) {
+	backend, ok := s.backend.(pickitBackend)
+	if !ok {
+		s.writeError(w, http.StatusNotImplemented, "feature_unavailable", "Pickit ist nicht verfügbar.", requestIDFrom(r), nil)
+	}
+	return backend, ok
+}
+
+func (s *Server) handlePickitCatalog(w http.ResponseWriter, r *http.Request) {
+	if !requireMethod(w, r, http.MethodGet, s) {
+		return
+	}
+	backend, ok := s.pickitBackend(w, r)
+	if ok {
+		s.writeJSON(w, http.StatusOK, backend.PickitCatalog())
+	}
+}
+func (s *Server) handlePickitProfiles(w http.ResponseWriter, r *http.Request) {
+	backend, ok := s.pickitBackend(w, r)
+	if !ok {
+		return
+	}
+	switch r.Method {
+	case http.MethodGet:
+		value, err := backend.PickitProfiles()
+		if err != nil {
+			s.writePickitError(w, r, err)
+			return
+		}
+		s.writeJSON(w, http.StatusOK, value)
+	case http.MethodPost:
+		if !requireJSONMutation(w, r, s, http.MethodPost) {
+			return
+		}
+		var request PickitCreateRequest
+		if !s.decodeBody(w, r, &request) {
+			return
+		}
+		value, err := backend.CreatePickit(request)
+		if err != nil {
+			s.writePickitError(w, r, err)
+			return
+		}
+		s.writeJSON(w, http.StatusCreated, value)
+	default:
+		requireMethod(w, r, http.MethodGet, s)
+	}
+}
+func (s *Server) handlePickitValidation(w http.ResponseWriter, r *http.Request) {
+	if !requireJSONPost(w, r, s, false) {
+		return
+	}
+	backend, ok := s.pickitBackend(w, r)
+	if !ok {
+		return
+	}
+	var request PickitValidationRequest
+	if !s.decodeBody(w, r, &request) {
+		return
+	}
+	value, err := backend.ValidatePickit(request)
+	if err != nil {
+		s.writePickitError(w, r, err)
+		return
+	}
+	s.writeJSON(w, http.StatusOK, value)
+}
+func (s *Server) handlePickitPreview(w http.ResponseWriter, r *http.Request) {
+	if !requireJSONPost(w, r, s, false) {
+		return
+	}
+	backend, ok := s.pickitBackend(w, r)
+	if !ok {
+		return
+	}
+	var request PickitPreviewRequest
+	if !s.decodeBody(w, r, &request) {
+		return
+	}
+	value, err := backend.PreviewPickit(request)
+	if err != nil {
+		s.writePickitError(w, r, err)
+		return
+	}
+	s.writeJSON(w, http.StatusOK, value)
+}
+func (s *Server) handlePickitProfile(w http.ResponseWriter, r *http.Request) {
+	backend, ok := s.pickitBackend(w, r)
+	if !ok {
+		return
+	}
+	id := r.PathValue("profileID")
+	switch r.Method {
+	case http.MethodPut:
+		if !requireJSONMutation(w, r, s, http.MethodPut) {
+			return
+		}
+		var request PickitUpdateRequest
+		if !s.decodeBody(w, r, &request) {
+			return
+		}
+		value, err := backend.UpdatePickit(id, request)
+		if err != nil {
+			s.writePickitError(w, r, err)
+			return
+		}
+		s.writeJSON(w, http.StatusOK, value)
+	case http.MethodDelete:
+		if !requireJSONMutation(w, r, s, http.MethodDelete) {
+			return
+		}
+		var request PickitDeleteRequest
+		if !s.decodeBody(w, r, &request) {
+			return
+		}
+		if err := backend.DeletePickit(id, request); err != nil {
+			s.writePickitError(w, r, err)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	default:
+		requireMethod(w, r, http.MethodPut, s)
+	}
+}
+func (s *Server) handlePickitDuplicate(w http.ResponseWriter, r *http.Request) {
+	if !requireJSONMutation(w, r, s, http.MethodPost) {
+		return
+	}
+	backend, ok := s.pickitBackend(w, r)
+	if !ok {
+		return
+	}
+	var request PickitDuplicateRequest
+	if !s.decodeBody(w, r, &request) {
+		return
+	}
+	value, err := backend.DuplicatePickit(r.PathValue("profileID"), request)
+	if err != nil {
+		s.writePickitError(w, r, err)
+		return
+	}
+	s.writeJSON(w, http.StatusCreated, value)
+}
+func (s *Server) handlePickitAssignments(w http.ResponseWriter, r *http.Request) {
+	backend, ok := s.pickitBackend(w, r)
+	if !ok {
+		return
+	}
+	if r.Method == http.MethodGet {
+		value, err := backend.PickitAssignments()
+		if err != nil {
+			s.writePickitError(w, r, err)
+			return
+		}
+		s.writeJSON(w, http.StatusOK, value)
+		return
+	}
+	if !requireJSONMutation(w, r, s, http.MethodPut) {
+		return
+	}
+	var request PickitAssignmentUpdateRequest
+	if !s.decodeBody(w, r, &request) {
+		return
+	}
+	value, err := backend.UpdatePickitAssignment(request)
+	if err != nil {
+		s.writePickitError(w, r, err)
+		return
+	}
+	s.writeJSON(w, http.StatusOK, value)
+}
+func (s *Server) handlePickitImport(w http.ResponseWriter, r *http.Request) {
+	if !requireJSONPost(w, r, s, false) {
+		return
+	}
+	backend, ok := s.pickitBackend(w, r)
+	if !ok {
+		return
+	}
+	var request PickitImportRequest
+	if !s.decodeBody(w, r, &request) {
+		return
+	}
+	value, err := backend.ImportPickit(request)
+	if err != nil {
+		s.writePickitError(w, r, err)
+		return
+	}
+	s.writeJSON(w, http.StatusOK, value)
+}
+func (s *Server) handlePickitExport(w http.ResponseWriter, r *http.Request) {
+	if !requireMethod(w, r, http.MethodGet, s) {
+		return
+	}
+	backend, ok := s.pickitBackend(w, r)
+	if !ok {
+		return
+	}
+	value, err := backend.ExportPickit(r.PathValue("profileID"))
+	if err != nil {
+		s.writePickitError(w, r, err)
+		return
+	}
+	s.writeJSON(w, http.StatusOK, value)
+}
+
+func (s *Server) writePickitError(w http.ResponseWriter, r *http.Request, err error) {
+	var commandErr *commandError
+	if errors.As(err, &commandErr) {
+		s.writeError(w, http.StatusConflict, commandErr.code, commandErr.message, requestIDFrom(r), commandErr.details)
+		return
+	}
+	code, status := "pickit_invalid", http.StatusBadRequest
+	switch {
+	case strings.Contains(err.Error(), "revision_conflict"):
+		code, status = "revision_conflict", http.StatusConflict
+	case strings.Contains(err.Error(), "id_conflict"):
+		code, status = "id_conflict", http.StatusConflict
+	case strings.Contains(err.Error(), "assigned"):
+		code, status = "profile_assigned", http.StatusConflict
+	case errors.Is(err, fs.ErrNotExist), strings.Contains(err.Error(), "file does not exist"):
+		code, status = "pickit_not_found", http.StatusNotFound
+	}
+	details := map[string]any{"path": "pickit", "error": err.Error()}
+	s.writeError(w, status, code, err.Error(), requestIDFrom(r), details)
 }
 
 func (s *Server) handleRouteRecordingStart(w http.ResponseWriter, r *http.Request) {
@@ -638,6 +874,22 @@ func requireJSONPost(w http.ResponseWriter, r *http.Request, s *Server, tokenReq
 		return false
 	}
 	if tokenRequired && r.Header.Get(controlTokenHeader) != s.token {
+		s.writeError(w, http.StatusUnauthorized, "request_unauthorized", "Control-Token fehlt oder ist ungültig.", requestIDFrom(r), nil)
+		return false
+	}
+	return true
+}
+
+func requireJSONMutation(w http.ResponseWriter, r *http.Request, s *Server, method string) bool {
+	if !requireMethod(w, r, method, s) {
+		return false
+	}
+	mediaType := strings.ToLower(strings.TrimSpace(strings.Split(r.Header.Get("Content-Type"), ";")[0]))
+	if mediaType != "application/json" {
+		s.writeError(w, http.StatusUnsupportedMediaType, "request_invalid", "Content-Type application/json ist erforderlich.", requestIDFrom(r), nil)
+		return false
+	}
+	if r.Header.Get(controlTokenHeader) != s.token {
 		s.writeError(w, http.StatusUnauthorized, "request_unauthorized", "Control-Token fehlt oder ist ungültig.", requestIDFrom(r), nil)
 		return false
 	}

@@ -316,6 +316,23 @@ func TestWorldLogAttrsGroundItemsHintOnlyVerbose(t *testing.T) {
 	}
 }
 
+func TestVerboseGroundItemsHintIncludesIdentityDiagnosis(t *testing.T) {
+	st := validWorldState(100)
+	st.Items = []world.Item{{
+		TxtFileNo: 535, UnitID: 4001, Code: "amu", Name: "Amulet",
+		Quality: world.ItemQualitySet, Ethereal: true, Location: world.ItemLocationGround,
+		IdentityKind: world.ItemIdentitySet, IdentityRawID: 77, IdentityAvailable: true,
+		IdentityName: "Tal Rasha's Adjudication", IdentityValid: true,
+	}}
+
+	hint := verboseGroundItemsHint(st)
+	for _, want := range []string{`code="amu"`, "quality=set", "ethereal=true", `identity_kind="set"`, "identity_raw_id=77", "identity_available=true", `identity_name="Tal Rasha's Adjudication"`, "identity_consistent=true"} {
+		if !strings.Contains(hint, want) {
+			t.Fatalf("ground hint %q missing %q", hint, want)
+		}
+	}
+}
+
 func TestWorldLogAttrsGroundItemsHintFiltersBodyItems(t *testing.T) {
 	st := validWorldState(100)
 	st.Items = []world.Item{
@@ -393,6 +410,22 @@ func TestRuntimeWorldLogAttrsInventoryVerbose(t *testing.T) {
 	for _, key := range []string{"inventory_item_count", "inventory_free_slots", "inventory_locked_slots", "inventory_capacity_unsafe", "inventory_items_hint"} {
 		if !found[key] {
 			t.Fatalf("missing runtime inventory attr %q", key)
+		}
+	}
+}
+
+func TestVerboseInventoryItemsHintIncludesIdentityDiagnosis(t *testing.T) {
+	items := []world.Item{{
+		TxtFileNo: 535, UnitID: 4001, Code: "amu", Name: "Amulet",
+		Quality: world.ItemQualitySet, Location: world.ItemLocationInventory,
+		IdentityKind: world.ItemIdentitySet, IdentityRawID: 77, IdentityAvailable: true,
+		IdentityReason: world.ItemIdentityReasonBaseMismatch,
+	}}
+
+	hint := verboseInventoryItemsHint(items)
+	for _, want := range []string{`code="amu"`, "quality=set", "ethereal=false", `identity_kind="set"`, "identity_raw_id=77", "identity_available=true", "identity_consistent=false", `identity_reason="item_identity_base_mismatch"`} {
+		if !strings.Contains(hint, want) {
+			t.Fatalf("inventory hint %q missing %q", hint, want)
 		}
 	}
 }

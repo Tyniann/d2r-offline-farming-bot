@@ -3,6 +3,7 @@ package app
 import (
 	"errors"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/config"
@@ -199,6 +200,48 @@ func TestValidateRunModeLootCountessRequiresTeleportPortalAndBelt(t *testing.T) 
 	}
 }
 
+func TestValidateRunModeLootAndReturnDoesNotRequireFarmingRouteLifecycle(t *testing.T) {
+	cfg := fullCountessConfig(t)
+	writeTestRouteAssignments(t, cfg, map[tasks.RunID]string{tasks.RunIDCountess: "missing-or-archived-route"})
+	log := config.NewLogger("error")
+
+	err := validateRunMode(
+		tasksSelection("countess", tasks.RunPhaseLootAndReturn),
+		cfg,
+		Options{Run: "countess", RunPhase: tasks.RunPhaseLootAndReturn},
+		log,
+	)
+	if err != nil {
+		t.Fatalf("loot-and-return must not consume a Farming route: %v", err)
+	}
+	for _, phase := range []string{"", tasks.RunPhaseTravelEntry, tasks.RunPhasePlayRoute, tasks.RunPhaseBoss, tasks.RunPhaseStashPersonal, tasks.RunPhaseTownReady} {
+		t.Run("unchanged_"+phase, func(t *testing.T) {
+			err := validateRunMode(
+				tasksSelection("countess", phase),
+				cfg,
+				Options{Run: "countess", RunPhase: phase},
+				log,
+			)
+			if err == nil || !strings.Contains(err.Error(), string(tasks.RunReasonRouteMissing)) {
+				t.Fatalf("phase %q error = %v, want route_missing", phase, err)
+			}
+		})
+	}
+}
+
+func TestMapRunConfigSkipsAssignmentOnlyForLootAndReturn(t *testing.T) {
+	cfg := fullCountessConfig(t)
+	cfg.Routes.AssignmentsFile = filepath.Join(t.TempDir(), "missing-assignments.yaml")
+
+	got, err := mapRunConfig(cfg, "countess", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.RouteID != "" {
+		t.Fatalf("RouteID = %q, want empty for route-independent phase", got.RouteID)
+	}
+}
+
 func TestMapRunConfigResolvesCountessCombatSkill(t *testing.T) {
 	cfg := &config.Config{Session: config.SessionConfig{Character: "MrBones"}, Routes: config.RoutesConfig{AssignmentsFile: filepath.Join(t.TempDir(), "assignments.yaml")}, Runs: config.RunsConfig{
 		StepTimeoutMs: 30000,
@@ -209,10 +252,10 @@ func TestMapRunConfigResolvesCountessCombatSkill(t *testing.T) {
 			EngageDistanceTiles:     22,
 			RepositionDistanceTiles: 32,
 			KillConfirmTicks:        3,
-		}, Loot: config.RunLootConfig{PickupFile: "pickit/countess.nip"}}},
+		}}},
 	}}
 	writeTestRouteAssignments(t, cfg, map[tasks.RunID]string{tasks.RunIDCountess: "test-route"})
-	got, err := mapRunConfig(cfg, "countess")
+	got, err := mapRunConfig(cfg, "countess", true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -239,7 +282,7 @@ func tasksSelection(run, phase string) tasks.RunSelection {
 
 func fullCountessConfig(t *testing.T) *config.Config {
 	t.Helper()
-	cfg := &config.Config{Memory: config.MemoryConfig{GameVersion: "3.2.92777"}, Routes: config.RoutesConfig{FarmingRoot: "../../configs/routes/farming", LifecycleFile: filepath.Join(t.TempDir(), "route-lifecycle.local.yaml"), AssignmentsFile: filepath.Join(t.TempDir(), "route-assignments.local.yaml")}, Session: config.SessionConfig{Character: "MrBones", Difficulty: "nightmare"}, Runs: config.RunsConfig{Definitions: map[string]config.RunConfig{"countess": {Combat: config.CombatConfig{Profile: "necro_bone_spear", AttackSkill: "bone_spear", AttackIntervalMs: 350, EngageDistanceTiles: 22, RepositionDistanceTiles: 32, KillConfirmTicks: 3}, Loot: config.RunLootConfig{PickupFile: "pickit/countess.nip"}}}}, Profiles: config.ProfilesConfig{
+	cfg := &config.Config{Memory: config.MemoryConfig{GameVersion: "3.2.92777"}, Routes: config.RoutesConfig{FarmingRoot: "../../configs/routes/farming", LifecycleFile: filepath.Join(t.TempDir(), "route-lifecycle.local.yaml"), AssignmentsFile: filepath.Join(t.TempDir(), "route-assignments.local.yaml")}, Session: config.SessionConfig{Character: "MrBones", Difficulty: "nightmare"}, Runs: config.RunsConfig{Definitions: map[string]config.RunConfig{"countess": {Combat: config.CombatConfig{Profile: "necro_bone_spear", AttackSkill: "bone_spear", AttackIntervalMs: 350, EngageDistanceTiles: 22, RepositionDistanceTiles: 32, KillConfirmTicks: 3}}}}, Profiles: config.ProfilesConfig{
 		"necro_bone_spear": {CharacterClass: "necromancer", Hooks: config.ProfileHooksConfig{
 			TownReady:  []config.ProfileActionConfig{{Skill: "bone_armor", Target: "self", OncePerGame: true}},
 			BossEngage: []config.ProfileActionConfig{{Skill: "bone_prison", Target: "boss", OncePerEncounter: true}},

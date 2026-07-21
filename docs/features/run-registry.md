@@ -34,16 +34,12 @@ runs:
     countess:
       route_id: "..."
       combat: { profile: necro_bone_spear, attack_skill: bone_spear }
-      loot: { pickup_file: pickit/countess.nip }
     mephisto:
       route_id: ""
       combat: { profile: necro_bone_spear, attack_skill: bone_spear }
-      loot:
-        pickup_file: pickit/mephisto.nip
-        sell_file: pickit/mephisto-sell.nip
 ```
 
-Das frühere `runs.countess`-Sonderschema und `loot.pickit_file` sind entfernt. Ein alter `runs.countess`-Block wird ausdrücklich abgelehnt, statt still ignoriert zu werden. Globale Pickup-Budgets, Stash-Geometrie und Inventory-Lock bleiben unter `loot`; nur fachliche Policies sind run-spezifisch.
+Das frühere `runs.countess`-Sonderschema und ab Abschnitt 13.4 auch run-spezifische `pickup_file`-/`sell_file`-Felder sind entfernt. Alte Blöcke werden ausdrücklich mit Migrationshinweis abgelehnt, statt still ignoriert zu werden. Globale Pickup-Budgets, Stash-Geometrie und Inventory-Lock bleiben unter `loot`; fachliche Policies liegen in globalen Profilen und werden pro Charakter/Run zugeordnet.
 
 ## Datenmodell
 
@@ -75,4 +71,4 @@ Fehlende Config liefert `run_config_missing`, unbekannte ID `run_unknown`, ungü
 - [Route Recording und Playback](route-recording-playback.md)
 
 ---
-*Zuletzt aktualisiert: 18. Juli 2026*
+*Zuletzt aktualisiert: 21. Juli 2026*

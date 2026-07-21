@@ -101,9 +101,9 @@ Jeder `ItemServiceExecutor` pinnt Code und Runtime-UnitID eines persönlichen In
 
 ### Produktive Item-Services (10.6)
 
-Pickup- und Sell-Policy werden getrennt geladen. `mephisto.nip` schützt makellose/perfekte Gems und Schädel und nimmt Exceptional-/Elite-Set/Unique auf; `mephisto-sell.nip` autorisiert ausschließlich die zweite Gruppe zum Verkauf. Ein Sell-Match wird vor dem Personal-Stash-Transfer ausgeschlossen. Normale Set-/Unique-Basen und Gems erzeugen keinen Sell-Auftrag.
+Die effektive Assignment-Policy wird einmal geordnet kompiliert; das erste Match und dessen Aktion sind für Pickup, Stash und Item-Services autoritativ. `gems` schützt makellose/perfekte Gems und Schädel; `mephisto-standard` nimmt Exceptional-/Elite-Set/Unique mit Aktion `sell` auf. Ein Sell-Match wird vor dem Personal-Stash-Transfer ausgeschlossen. Normale Set-/Unique-Basen und Gems erzeugen keinen Sell-Auftrag.
 
-Der App-Adapter klassifiziert nur persönliche, ungelockte Inventory-Items. Ein unidentifizierter Kandidat erzeugt für dieselbe UnitID zuerst `identify`, danach `sell`; ein bereits identifizierter Kandidat erzeugt nur `sell`. Keep-, Stash- oder Inventory-Lock-Konflikte enden mit `town_item_classification_invalid` vor jedem Input. Cain-Identifikation wird erst bei bestätigtem Dialog über die explizite Menüfolge `Home → Down → Enter` ausgelöst, weil `Talk` der erste und `Identify Items` der zweite Eintrag ist; abgeschlossen wird sie erst per unveränderter UnitID plus `Identified=true`. Akara-Verkauf verlangt bestätigten Shop, exakt 1280×720 und denselben Inventory-Footprint; Erfolg ist ausschließlich das Verschwinden der UnitID aus dem persönlichen Inventory.
+Der App-Adapter klassifiziert nur persönliche, ungelockte Inventory-Items. Ein unidentifizierter Sell-Kandidat erzeugt für dieselbe UnitID zuerst `identify`, danach `sell`; ein bereits identifizierter Kandidat erzeugt nur `sell`. Vor der Erstellung jedes Executors wird das Live-Item erneut gegen denselben unveränderlichen Policy-Snapshot geprüft. No-Match, geänderte Regel/Aktion oder Identitätsdrift überspringen den Auftrag ohne Input. Keep-, Stash- oder Inventory-Lock-Konflikte enden mit `town_item_classification_invalid` vor jedem Input. Cain-Identifikation wird erst bei bestätigtem Dialog über die explizite Menüfolge `Home → Down → Enter` ausgelöst, weil `Talk` der erste und `Identify Items` der zweite Eintrag ist; abgeschlossen wird sie erst per unveränderter UnitID plus `Identified=true`. Akara-Verkauf verlangt bestätigten Shop, exakt 1280×720 und denselben Inventory-Footprint; Erfolg ist ausschließlich das Verschwinden der UnitID aus dem persönlichen Inventory.
 
 Der Planner hält für Item-Services die Reihenfolge Cain → Akara fest. Potion-Restock und Sell dürfen denselben bereits bestätigten Akara-Shop geordnet nutzen. Vor jeder anschließenden Navigation müssen Dialog und Shop per Memory als geschlossen bestätigt sein. Der isolierte Operatorpfad lautet `--town-test item-services:mephisto`; er nutzt dieselbe produktive Planung und dieselben Input-Gates.
 
@@ -148,4 +148,4 @@ Die Live-Abnahme am 13. Juli 2026 erfüllte das Gate vollständig. Der autonome 
 - [Character & Encounter Profiles](character-encounter-profiles.md)
 
 ---
-*Zuletzt aktualisiert: 15. Juli 2026*
+*Zuletzt aktualisiert: 21. Juli 2026*

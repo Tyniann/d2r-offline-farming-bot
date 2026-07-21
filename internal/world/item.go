@@ -1,6 +1,10 @@
 package world
 
-import "github.com/Tyniann/d2r-offline-farming-bot/internal/memory"
+import (
+	"sort"
+
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/memory"
+)
 
 // ItemQuality describes the item quality tier reported by D2R.
 type ItemQuality uint32
@@ -99,33 +103,54 @@ type ItemStat struct {
 	Value int32
 }
 
+// ItemIdentityReason beschreibt, warum eine Set-/Unique-Identität nicht konsistent aufgelöst wurde.
+type ItemIdentityReason string
+
+const (
+	// ItemIdentityReasonUnavailable bedeutet, dass die rohe Referenz nicht gelesen werden konnte.
+	ItemIdentityReasonUnavailable ItemIdentityReason = "item_identity_unavailable"
+	// ItemIdentityReasonUnknown bedeutet, dass die rohe Referenz im patchgenauen Katalog fehlt.
+	ItemIdentityReasonUnknown ItemIdentityReason = "item_identity_unknown"
+	// ItemIdentityReasonQualityMismatch bedeutet, dass Katalogart und Item-Qualität widersprechen.
+	ItemIdentityReasonQualityMismatch ItemIdentityReason = "item_identity_quality_mismatch"
+	// ItemIdentityReasonBaseMismatch bedeutet, dass Katalog- und Item-Basiscode widersprechen.
+	ItemIdentityReasonBaseMismatch ItemIdentityReason = "item_identity_base_mismatch"
+)
+
 // Item is a semantic item in the world model.
 type Item struct {
-	TxtFileNo   uint32
-	UnitID      uint32
-	Code        string
-	Name        string
-	Type        string
-	NormalCode  string
-	UberCode    string
-	UltraCode   string
-	BaseTier    BaseTier
-	Quality     ItemQuality
-	Location    ItemLocation
-	RawLocation uint32
-	OwnerID     uint32
-	PlayerOwned bool
-	Page        int
-	GridX       int // Inventory column 0..9; [Item.Width] expands across columns.
-	GridY       int // Inventory row 0..3; [Item.Height] expands across rows.
-	Width       int // Inventory footprint width in columns.
-	Height      int // Inventory footprint height in rows.
-	Position    Position
-	Flags       uint32
-	Identified  bool
-	Ethereal    bool
-	IsHovered   bool
-	Stats       []ItemStat
+	TxtFileNo         uint32
+	UnitID            uint32
+	Code              string
+	Name              string
+	Type              string
+	NormalCode        string
+	UberCode          string
+	UltraCode         string
+	BaseTier          BaseTier
+	Quality           ItemQuality
+	IdentityKind      ItemIdentityKind
+	IdentityRawID     uint32
+	IdentityKey       string
+	IdentityName      string
+	IdentityAvailable bool
+	IdentityValid     bool
+	IdentityReason    ItemIdentityReason
+	Location          ItemLocation
+	RawLocation       uint32
+	OwnerID           uint32
+	PlayerOwned       bool
+	Page              int
+	GridX             int // Inventory column 0..9; [Item.Width] expands across columns.
+	GridY             int // Inventory row 0..3; [Item.Height] expands across rows.
+	Width             int // Inventory footprint width in columns.
+	Height            int // Inventory footprint height in rows.
+	Position          Position
+	Flags             uint32
+	Identified        bool
+	Ethereal          bool
+	IsHovered         bool
+	Stats             []ItemStat
 }
 
 type itemCatalogEntry struct {
@@ -138,6 +163,25 @@ type itemCatalogEntry struct {
 	BaseTier   BaseTier
 	Width      int
 	Height     int
+}
+
+// ItemCatalogEntry beschreibt einen stabilen Basiseintrag des eingebetteten Item-Katalogs.
+type ItemCatalogEntry struct {
+	TxtFileNo uint32
+	Code      string
+	Name      string
+	Type      string
+	BaseTier  BaseTier
+}
+
+// ItemCatalogEntries liefert eine defensive, nach TxtFileNo geordnete Katalogkopie.
+func ItemCatalogEntries() []ItemCatalogEntry {
+	entries := make([]ItemCatalogEntry, 0, len(itemCatalog))
+	for id, entry := range itemCatalog {
+		entries = append(entries, ItemCatalogEntry{TxtFileNo: id, Code: entry.Code, Name: entry.Name, Type: entry.Type, BaseTier: entry.BaseTier})
+	}
+	sort.Slice(entries, func(i, j int) bool { return entries[i].TxtFileNo < entries[j].TxtFileNo })
+	return entries
 }
 
 // LookupItemCode returns the stable item code for a D2R item text ID.
@@ -178,7 +222,7 @@ func mapItem(i memory.ItemUnit, hover HoverInfo) Item {
 		stats = append(stats, ItemStat{ID: s.ID, Layer: s.Layer, Value: s.Value})
 	}
 	entry := lookupItemCatalog(i.TxtFileNo)
-	return Item{
+	item := Item{
 		TxtFileNo:   i.TxtFileNo,
 		UnitID:      i.UnitID,
 		Code:        entry.Code,
@@ -205,6 +249,48 @@ func mapItem(i memory.ItemUnit, hover HoverInfo) Item {
 		IsHovered:   hover.Matches(HoverUnitTypeItem, i.UnitID),
 		Stats:       stats,
 	}
+	applyItemIdentity(&item, i.UniqueSetID, i.UniqueSetIDAvailable, LookupItemIdentity)
+	return item
+}
+
+type itemIdentityLookup func(ItemIdentityKind, uint32) (ItemIdentityCatalogEntry, bool)
+
+func applyItemIdentity(item *Item, rawID int32, available bool, lookup itemIdentityLookup) {
+	switch item.Quality {
+	case ItemQualitySet:
+		item.IdentityKind = ItemIdentitySet
+	case ItemQualityUnique:
+		item.IdentityKind = ItemIdentityUnique
+	default:
+		return
+	}
+
+	item.IdentityAvailable = available
+	if !available {
+		item.IdentityReason = ItemIdentityReasonUnavailable
+		return
+	}
+	if rawID < 0 {
+		item.IdentityReason = ItemIdentityReasonUnknown
+		return
+	}
+	item.IdentityRawID = uint32(rawID)
+	entry, ok := lookup(item.IdentityKind, item.IdentityRawID)
+	if !ok {
+		item.IdentityReason = ItemIdentityReasonUnknown
+		return
+	}
+	if entry.Kind != item.IdentityKind {
+		item.IdentityReason = ItemIdentityReasonQualityMismatch
+		return
+	}
+	if entry.BaseCode != item.Code {
+		item.IdentityReason = ItemIdentityReasonBaseMismatch
+		return
+	}
+	item.IdentityKey = entry.Key
+	item.IdentityName = entry.DisplayName
+	item.IdentityValid = true
 }
 
 func mapItemLocation(i memory.ItemUnit) ItemLocation {

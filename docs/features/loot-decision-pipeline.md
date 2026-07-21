@@ -4,14 +4,14 @@
 
 Phase 5.4 führt eine read-only Entscheidungspipeline für Loot ein. Sie trennt Beobachtung, Pickit-Klassifikation, Pickup-Kandidaten, spätere Pickup-/Verify-Schritte sowie Keep-/Stash-Entscheidungen ausdrücklich voneinander.
 
-Die Pipeline führt keine Eingaben aus. Sie klickt keine Items an, prüft keinen echten Pickup-Erfolg, identifiziert nichts und bewegt keine Items in den Stash. Ihr Zweck ist ein stabiles, testbares Entscheidungsmodell, damit spätere Phasen nicht Pickit-Match, Aufheben, Behalten und Stashen vermischen.
+Die Pipeline selbst führt keine Eingaben aus. Produktive Pickup-, Stash- und Town-Adapter konsumieren ihre Action Policy und behalten ihre eigenen Hover-, Kapazitäts-, Lock-, UI- und Verifikationsgates.
 
 ## Ort im Code
 
 - **Paket:** `internal/loot/`
 - **Einstieg:** `(*loot.Filter).Decide`
 - **Wichtige Dateien:** `internal/loot/decision.go`, `internal/loot/pickit.go`, `internal/loot/inventory.go`
-- **Config:** nutzt `runs.definitions.<run-id>.loot.pickup_file` und das gemeinsame `loot.inventory_lock`
+- **Config:** nutzt die effektive Pickit-Assignment-Policy und das gemeinsame `loot.inventory_lock`
 
 ## Funktionalität
 
@@ -34,9 +34,7 @@ Observe -> Classify -> PickCandidate -> PickupAttempt -> Verify -> Keep/Stash/Fa
 | `stash` | Ein behaltenes Inventory-Item wäre für eine spätere Stash-Routine geeignet. |
 | `fail` | Die Pipeline kann für ein gematchtes Item nicht sicher fortfahren. |
 
-`Pickit.Evaluate` bleibt nur ein Regelmatch. Ein Pickit-Match ist deshalb noch kein Pickup, kein Keep und kein Stash.
-
-Phase 10.6 lädt zusätzlich eine getrennte, run-spezifische Sell-Policy. Sie verändert die read-only Decision Pipeline nicht, sondern liefert dem Town-Adapter eine explizite `VendorCandidate`-Disposition. Ein Sell-Match wird vor Stash-Input ausgeschlossen; Pickup-/Keep-Regeln und Inventory-Lock bleiben eigenständige Safety-Gates.
+`Pickit.Evaluate` bleibt eine read-only Regelauswertung und liefert stabile Profil-/Regelherkunft, `keep`/`sell`, beide Revisionen und den bis zum ersten Treffer tatsächlich ausgewerteten Trace. Seit Abschnitt 13.7 ist die eine geordnete effektive Policy autoritativ: `keep` kann Keep/Stash autorisieren, `sell` kann nach erforderlicher Identifikation ausschließlich den Vendorpfad autorisieren. Ein Match allein umgeht weiterhin kein Safety-Gate.
 
 ### Ground-Items
 
@@ -55,7 +53,7 @@ Die Kapazitätsprüfung ist eine Momentaufnahme pro Item. Sie reserviert keinen 
 
 Inventory-Items werden nach den Ground-Items in Snapshot-Reihenfolge aus `world.State.InventoryItems()` verarbeitet. Nicht gematchte Inventory-Items erzeugen in Phase 5.4 keine Decision, weil Inventory-Auswertung aktuell nur für Keep/Stash relevant ist.
 
-Ein gematchtes Inventory-Item erzeugt `keep/pickit_match`, sofern keine Identifikation aussteht. Unidentifizierte Magic/Rare/Set/Unique/Crafted-Items erzeugen stattdessen `keep/identify_required` und niemals eine Stash-Decision. Zusätzlich erzeugt ein final bewertbares Item `stash/stash_candidate`, wenn:
+Ein `keep`-gematchtes Inventory-Item erzeugt `keep/pickit_match`, sofern keine Identifikation aussteht. Ein `sell`-Match erzeugt nach Identifikation `sell/sell_candidate`. Unidentifizierte Magic/Rare/Set/Unique/Crafted-Items erzeugen für beide Aktionen zunächst `identify_required` und niemals eine Stash- oder Sell-Freigabe. Zusätzlich erzeugt ein final bewertbares Keep-Item `stash/stash_candidate`, wenn:
 
 - es ein persönliches Inventory-Item ist (`Location=inventory`, `PlayerOwned`, `Page=0`),
 - sein Footprint gültig ist,
@@ -63,6 +61,8 @@ Ein gematchtes Inventory-Item erzeugt `keep/pickit_match`, sofern keine Identifi
 - keine Zelle des Item-Footprints durch `loot.inventory_lock` geschützt ist.
 
 Ein teilweise gelocktes mehrzelliges Item wird nie als `stash` markiert. Bei unsafe Capacity wird ein gematchtes Inventory-Item weiter als `keep` markiert, aber nicht als `stash`.
+
+Stash und Town-Services werten das gepinnte Item unmittelbar vor jedem Transfer-, Identify- oder Sell-Input erneut gegen denselben aktiven Policy-Snapshot aus. No-Match, geänderte Aktion, Regelwechsel oder Identitätsdrift widerrufen die Freigabe fail-closed.
 
 ## Datenmodell
 
@@ -91,4 +91,4 @@ Die read-only Pipeline besitzt keine eigene CLI-Oberfläche. Ihre Pickup-Auswert
 - [Countess-Run](countess-run.md)
 
 ---
-*Zuletzt aktualisiert: 2026-07-14*
+*Zuletzt aktualisiert: 2026-07-21*

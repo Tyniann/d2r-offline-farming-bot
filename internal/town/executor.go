@@ -9,20 +9,25 @@ import (
 
 // ExecutorEvent describes one correlated Town plan transition or action.
 type ExecutorEvent struct {
-	Event         string
-	Step          int
-	Kind          StepKind
-	Service       Service
-	Action        string
-	Reason        string
-	Current       int
-	Threshold     int
-	BeltSlots     []int
-	Mode          BuyMode
-	VendorUnitID  uint32
-	Vendor        Anchor
-	Cost          int
-	VerifiedFinal int
+	Event              string
+	Step               int
+	Kind               StepKind
+	Service            Service
+	Action             string
+	Reason             string
+	Current            int
+	Threshold          int
+	BeltSlots          []int
+	Mode               BuyMode
+	VendorUnitID       uint32
+	Vendor             Anchor
+	Cost               int
+	VerifiedFinal      int
+	ProfileID          string
+	RuleID             string
+	PickitAction       string
+	ProfileRevision    uint64
+	AssignmentRevision uint64
 }
 
 // ExecutorTelemetry synchronously persists Town events before progression.
@@ -165,6 +170,8 @@ func executorEvent(name string, index int, step PlanStep, result InteractionResu
 		Event: name, Step: index, Kind: step.Kind, Service: step.Service, Action: result.Action, Reason: result.Reason,
 		Current: result.Current, Threshold: result.Threshold, BeltSlots: append([]int(nil), result.BeltSlots...), Mode: result.Mode,
 		VendorUnitID: result.UnitID, Vendor: result.Vendor, Cost: result.Cost, VerifiedFinal: result.VerifiedFinal,
+		ProfileID: result.ProfileID, RuleID: result.RuleID, PickitAction: result.PickitAction,
+		ProfileRevision: result.ProfileRevision, AssignmentRevision: result.AssignmentRevision,
 	}
 }
 

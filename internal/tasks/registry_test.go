@@ -75,12 +75,12 @@ func TestRunRegistryResolveRejectsUnknownAndMissingConfig(t *testing.T) {
 		t.Fatalf("missing config error = %v", err)
 	}
 
-	config := RunConfig{RouteID: "route", Loot: RunLootConfig{PickupFile: "pickit/countess.nip"}}
+	config := RunConfig{RouteID: "route"}
 	resolved, err := registry.Resolve(RunIDCountess, map[RunID]RunConfig{RunIDCountess: config})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if resolved.Definition.ID != RunIDCountess || resolved.Config.Loot.PickupFile != "pickit/countess.nip" {
+	if resolved.Definition.ID != RunIDCountess || resolved.Config.RouteID != "route" {
 		t.Fatalf("resolved run = %+v", resolved)
 	}
 }

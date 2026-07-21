@@ -194,17 +194,11 @@ func (rt *Runtime) runItemServicesTownTest() error {
 	if !configured {
 		return fmt.Errorf("town item-service test: Mephisto run config unavailable")
 	}
-	pickup, err := loadPickit(rt.Config, runCfg.Loot.PickupFile)
+	effective, err := rt.PickitAssignments.Resolve(rt.Config.Session.Character, tasks.RunIDMephisto)
 	if err != nil {
-		return err
+		return fmt.Errorf("town item-service test: Mephisto pickit assignment unavailable: %w", err)
 	}
-	sell, err := loadOptionalPickit(rt.Config, runCfg.Loot.SellFile)
-	if err != nil {
-		return err
-	}
-	if sell == nil {
-		return fmt.Errorf("town item-service test: Mephisto sell policy unavailable")
-	}
+	pickup := effective.All
 	lock, err := loot.NewInventoryLock(rt.Config.Loot.InventoryLock)
 	if err != nil {
 		return fmt.Errorf("town item-service test inventory lock: %w", err)
@@ -219,7 +213,7 @@ func (rt *Runtime) runItemServicesTownTest() error {
 		return err
 	}
 	adapter.thresholds = town.Thresholds{}
-	adapter.setItemPolicies(loot.NewFilter(rt.Log, lock, pickup), sell, rt.Config.Loot.Stash)
+	adapter.setItemPolicies(loot.NewFilter(rt.Log, lock, pickup), rt.Config.Loot.Stash)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

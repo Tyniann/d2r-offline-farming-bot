@@ -70,13 +70,34 @@ func TestClassifyBaseTiersRejectsUnknownReferenceAndCycle(t *testing.T) {
 }
 
 func TestRenderIncludesVersionAndTier(t *testing.T) {
-	data, err := render("3.2.test", []row{{Code: "uap", BaseTier: "elite"}})
+	data, err := render(supportedSourceVersion, []row{{Code: "uap", BaseTier: "elite"}}, []identityRow{{Kind: "set", RawID: 7, Key: "Set Key", DisplayName: "Set Name", BaseCode: "uap"}})
 	if err != nil {
 		t.Fatal(err)
 	}
 	text := string(data)
-	if !strings.Contains(text, "D2R 3.2.test") || !strings.Contains(text, "BaseTier: BaseTierElite") {
+	if !strings.Contains(text, "D2R "+supportedSourceVersion) || !strings.Contains(text, "BaseTier: BaseTierElite") || !strings.Contains(text, "Kind: ItemIdentitySet") {
 		t.Fatalf("generated source = %s", text)
+	}
+}
+
+func TestValidateSourceVersionRejectsWrongVersion(t *testing.T) {
+	if err := validateSourceVersion("3.2.wrong"); err == nil {
+		t.Fatal("wrong source version was accepted")
+	}
+	out := filepath.Join(t.TempDir(), "catalog.go")
+	want := []byte("existing output")
+	if err := os.WriteFile(out, want, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := generateCatalog("3.2.wrong", t.TempDir(), out); err == nil {
+		t.Fatal("generation with wrong source version succeeded")
+	}
+	got, err := os.ReadFile(out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got) != string(want) {
+		t.Fatalf("wrong source version changed output to %q", got)
 	}
 }
 

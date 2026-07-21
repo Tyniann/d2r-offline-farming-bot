@@ -26,6 +26,8 @@ Der Dateiname ohne Erweiterung ist die `run_id`, die in jeder Zeile wiederholt w
 
 Passive Probe-, Input-Test- und Pathing-Test-Läufe ohne aktiven Run erzeugen keine Run-Telemetrie.
 
+Der isolierte `--run countess --phase loot-and-return` erzeugt dagegen bewusst eine Run-Datei. Dadurch kann Phase-13-Gate B denselben Pickit-Gewinner über Vorschau, Core-Log, `pickit_match`, `stash_attempt` und `stash_success` korrelieren.
+
 ## Events
 
 | Event | Zeitpunkt | Deduplizierung |
@@ -63,6 +65,7 @@ Gemeinsame Felder:
 - Pipeline-Kontext: `definition_id`, `step`, `outcome`, optional `action_index`; Encounter-Grenzen tragen zusätzlich die gepinnte Boss-`unit_id`.
 - Run-Kontext: `route_id`, `route_layout_fingerprint`, `waypoint_target`, `loot_pickup_policy`, optionale `loot_sell_policy` und `town_origin`.
 - Item-Kontext: `area_id`, `unit_id`, `txt_file_no`, `code`, `name`
+- Pickit-Kontext: `pickit_profile_id`, `pickit_rule_id`, `pickit_action`, `pickit_profile_revision`, `pickit_assignment_revision`
 - Ergebnis-Kontext: `reason`, `attempt`, `hover_attempt`, `candidate_count`
 - Stash-Kontext kann zusätzlich Inventory-Grid-Koordinaten tragen.
 - Profil-Kontext: `profile`, `hook`, `skill`, `skill_id`, `target`, Boss-`unit_id`.
@@ -81,6 +84,8 @@ Gemeinsame Felder:
 ## Live-Validierung
 
 Der isolierte `stash-personal`-Lauf wurde bei 1280×720 mit einer Dol-Rune (`r14`) im ungeschützten Inventory-Bereich geprüft. Der Ctrl+LMB-Transfer wurde über Memory bestätigt und die zugehörige Run-Datei enthielt genau die erwartete Reihenfolge `stash_attempt` → `stash_success` mit derselben Run- und Unit-ID. Die Stash-Oberfläche wurde anschließend per Escape geschlossen und beide UI-Flags wurden als geschlossen bestätigt.
+
+Phase-13-Gate B bestätigte dieselbe Korrelation für UnitID `225` (`Arrows`/`aqv`): `pickit_match`, `stash_attempt` und `stash_success` tragen übereinstimmend `phase13-live-acceptance`, `arrows-live-gate`, `keep`, Profilrevision `2` und Assignment-Revision `2`; dazwischen liegen genau ein `pickup_attempt` und ein `pickup_success`. Der isolierte Run endete mit `outcome=success`.
 
 ## Grenzen
 

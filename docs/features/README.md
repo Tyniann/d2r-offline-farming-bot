@@ -23,7 +23,10 @@ Spätere Ideen (noch nicht umgesetzt): [`docs/backlog.md`](../backlog.md).
 | [Item Enumeration Read-Only](item-enumeration.md) | Phase 5.1: positionierte Ground-Drops read-only aus Memory ins World Model und Probe-Log |
 | [Inventory Model und Lock Grid](inventory-lock-grid.md) | Phase 5.2: persönliche Inventar-Items, 4x10 Lock-Grid und fail-closed Pickup-Kapazität |
 | [Pickit Engine](pickit-engine.md) | Phase 5.3: kleiner NIP-Subset gegen `world.Item`, Default-Countess-Regeln und read-only Match-Ergebnisse |
-| [Loot Decision Pipeline](loot-decision-pipeline.md) | Phase 5.4: read-only Stage-Liste für Pickit-Match, Pickup-Kandidaten, Keep/Stash und Fail-Gründe |
+| [Pickit-Profile und Assignments](pickit-profiles.md) | Abschnitt 13.4: atomare revisionierte YAML-Profile, geordnete Charakter-/Run-Zuordnung und fallback-freie Policy-Migration |
+| [Pickit-API und sichere Run-Grenze](pickit-api.md) | Abschnitt 13.5: vollständiger HTTP-Vertrag, sichere revisionierte Mutationen und unveränderlicher Policy-Snapshot pro Run |
+| [Pickit-Profilbibliothek und Editor](pickit-editor.md) | Abschnitte 13.6–13.7: geführte Katalogregeln, Profil-CRUD, Assignments und Core-basierte Testitem-Vorschau mit vollständigem Trace |
+| [Loot Decision Pipeline](loot-decision-pipeline.md) | Phase 5.4 und Abschnitt 13.7: Action-gesteuerte Pickup-/Keep-/Stash-/Sell-Entscheidungen mit fail-closed Recheck |
 | [Hover-Confirmed Item Pickup](hover-confirmed-item-pickup.md) | Phase 5.5: Hover-bestätigter Ground-Item-Pickup mit Retry-, Distanz-, Verify- und Monster-Abbruchregeln |
 | [Inventory-Full-Recovery](inventory-full-recovery.md) | Phase 5.7: explizites `inventory_full`, hover-bestätigter Town-Portal-Eintritt und verifizierte Rückkehr ins Rogue Encampment |
 | [Personal-Stash MVP](personal-stash-mvp.md) | Phase 5.8: Memory-bestätigte Town-Navigation, geschützte Ctrl+LMB-Transfers und sauberer UI-Abschluss |
@@ -41,6 +44,7 @@ Spätere Ideen (noch nicht umgesetzt): [`docs/backlog.md`](../backlog.md).
 | [Session-Recovery und Lifecycle-Telemetrie](session-recovery-telemetry.md) | Phase 7.7: exakte Retry-Klassifikation, harte Fehler-/Restart-Budgets und synchron korrelierte Session-/Game-/Run-JSONL-Ereignisse |
 | [Phase-11-Core-Vertrag](phase-11-core-contract.md) | Supervisor-Zustände, Commands, Queue-/Lifecycle-Semantik, DTO-Grundformen, Reason-Codes und finale Ownership-Matrix |
 | [Phase-12-Core-Vertrag](phase-12-core-contract.md) | Baseline, Assignment-/Kandidaten-Schemas, Recording-/System-Egress-Verträge, Workflow, Locks, Crash-Matrix und Ownership |
+| [Phase-13-Core-Vertrag](phase-13-core-contract.md) | Abschnitt 13.0: Pickit-Baseline, Profil-/Assignment-Schemas, Aktionen, Revisionen, Reason-Codes, Paketgrenzen und fallback-freie Migrationsmatrix |
 | [Lokale Core-API und eingebettete Web-Anwendung](local-core-api.md) | Abschnitt 11.2: Loopback-only HTTP/JSON, Security Envelope, OpenAPI-generierter TypeScript-Client und eingebetteter React-Build |
 | [Live-Dashboard und Session-Steuerung](live-dashboard.md) | Live-Projektion, Queue Builder, sichere Supervisor-Controls, Reconnect und deutsche Statuskarten |
 | [Read-only Charakterkatalog und Screenshot-gated Selector](character-selection.md) | Abschnitt 11.4: Save-Dateinamen-Katalog, fail-closed Anker-Availability und begrenzte Home/Down-Auswahl mit Memory-Bestätigung |

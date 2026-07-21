@@ -57,12 +57,16 @@ func (a *lootActionsAdapter) TickStash(state world.State, now time.Time) tasks.L
 	}
 	res := a.stash.Tick(state, now)
 	if res.Attempted {
-		if err := a.emit(telemetry.Event{Timestamp: now, Event: telemetry.StashAttempt, AreaID: uint32(state.Area.ID), UnitID: res.UnitID, Code: res.Code, Name: res.Name, Attempt: res.Attempt, GridX: intPointer(res.GridX), GridY: intPointer(res.GridY)}); err != nil {
+		event := telemetry.Event{Timestamp: now, Event: telemetry.StashAttempt, AreaID: uint32(state.Area.ID), UnitID: res.UnitID, Code: res.Code, Name: res.Name, Attempt: res.Attempt, GridX: intPointer(res.GridX), GridY: intPointer(res.GridY)}
+		applyPickitTelemetry(&event, res.Pickit)
+		if err := a.emit(event); err != nil {
 			return tasks.LootStashResult{Status: tasks.LootStashTelemetryFailed, Done: true}
 		}
 	}
 	if res.Transferred {
-		if err := a.emit(telemetry.Event{Timestamp: now, Event: telemetry.StashSuccess, AreaID: uint32(state.Area.ID), UnitID: res.UnitID, Code: res.Code, Name: res.Name, Attempt: res.Attempt, GridX: intPointer(res.GridX), GridY: intPointer(res.GridY)}); err != nil {
+		event := telemetry.Event{Timestamp: now, Event: telemetry.StashSuccess, AreaID: uint32(state.Area.ID), UnitID: res.UnitID, Code: res.Code, Name: res.Name, Attempt: res.Attempt, GridX: intPointer(res.GridX), GridY: intPointer(res.GridY)}
+		applyPickitTelemetry(&event, res.Pickit)
+		if err := a.emit(event); err != nil {
 			return tasks.LootStashResult{Status: tasks.LootStashTelemetryFailed, Done: true}
 		}
 	}
@@ -104,7 +108,10 @@ func (a *lootActionsAdapter) Scan(state world.State) tasks.LootScanResult {
 		if decision.Stage != loot.DecisionStageClassify || decision.Kind != loot.DecisionKindClassifyMatch {
 			continue
 		}
-		if err := a.emit(telemetry.Event{Timestamp: state.At, Event: telemetry.PickitMatch, AreaID: uint32(state.Area.ID), UnitID: decision.UnitID, TxtFileNo: decision.TxtFileNo, Code: decision.Code, Name: decision.Name}); err != nil {
+		event := telemetry.Event{Timestamp: state.At, Event: telemetry.PickitMatch, AreaID: uint32(state.Area.ID), UnitID: decision.UnitID, TxtFileNo: decision.TxtFileNo, Code: decision.Code, Name: decision.Name}
+		applyPickitTelemetry(&event, decision.Pickit)
+		a.log.Info("pickit decision", "unit_id", decision.UnitID, "profile_id", decision.Pickit.ProfileID, "rule_id", decision.Pickit.RuleID, "action", decision.Pickit.Action, "profile_revision", decision.Pickit.ProfileRevision, "assignment_revision", decision.Pickit.AssignmentRevision)
+		if err := a.emit(event); err != nil {
 			return tasks.LootScanResult{TelemetryFailed: true}
 		}
 	}
@@ -138,6 +145,14 @@ func (a *lootActionsAdapter) Scan(state world.State) tasks.LootScanResult {
 		)
 	}
 	return result
+}
+
+func applyPickitTelemetry(event *telemetry.Event, result loot.PickitResult) {
+	if event == nil {
+		return
+	}
+	event.PickitProfileID, event.PickitRuleID, event.PickitAction = result.ProfileID, result.RuleID, string(result.Action)
+	event.PickitProfileRevision, event.PickitAssignmentRevision = result.ProfileRevision, result.AssignmentRevision
 }
 
 func (a *lootActionsAdapter) StartPickup(target tasks.LootTarget) error {

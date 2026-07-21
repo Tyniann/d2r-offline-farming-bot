@@ -10,8 +10,8 @@ Der MVP bleibt bewusst eng: Runen und Countess-relevante Keys sind das erste Zie
 
 - **Paket:** `internal/loot/`
 - **Einstieg:** gemeinsame Run-Pipeline in `internal/tasks/run_pipeline.go`
-- **Wichtige Dateien:** geplant `internal/memory/items.go`, `internal/world/item.go`, `internal/loot/filter.go`, `internal/loot/pickit.go`, `internal/pathing/item_clicker.go`
-- **Config:** geplant `configs/pickit/*.nip`, `configs/config.example.yaml` unter `loot:`
+- **Wichtige Dateien:** `internal/memory/items.go`, `internal/world/item.go`, `internal/loot/pickit.go`, `internal/loot/pickup.go`
+- **Config:** `configs/pickit/profiles/*.yaml`, `configs/pickit-assignments.local.yaml` und globale Safety-Werte unter `loot:`
 
 ## Funktionalität
 
@@ -197,7 +197,7 @@ Umgesetzt als [Inventory Model und Lock Grid](inventory-lock-grid.md): persönli
 
 ### 5.3 Pickit-MVP
 
-Umgesetzt als [Pickit Engine](pickit-engine.md): kleiner, line-numbered NIP-Subset mit `runs.definitions.<run-id>.loot.pickup_file`, Countess-Policy `configs/pickit/countess.nip` und read-only Match-Ergebnissen. Pickit bewertet ausschließlich `world.Item`-Felder aus dem generierten Item-Katalog (`Code`, `Type`, `Name`, `Quality`, Flags, Stats); die lokale D2R-Extraktion bleibt nur Regenerationsquelle, siehe [Item Enumeration Read-Only](item-enumeration.md).
+Umgesetzt als [Pickit Engine](pickit-engine.md): kleiner Ausdrucks-Subset mit revisionierten YAML-Profilen, geordneter Charakter-/Run-Zuordnung und read-only Match-Ergebnissen. Pickit bewertet ausschließlich `world.Item`-Felder aus den generierten Katalogen (`Code`, `Type`, `Name`, `Quality`, exakte Identität, Flags, Stats); die lokale D2R-Extraktion bleibt nur Regenerationsquelle, siehe [Item Enumeration Read-Only](item-enumeration.md).
 
 ### 5.4 Loot-Entscheidungspipeline
 
@@ -252,4 +252,4 @@ Umgesetzt als [Run-Telemetrie](run-telemetry.md): eine fail-closed JSONL-Datei p
 - Kein Identify-/Sell-/Repair-/Merc-Loop im ersten Ground-Loot-MVP.
 
 ---
-*Zuletzt aktualisiert: 2026-07-08*
+*Zuletzt aktualisiert: 2026-07-21*

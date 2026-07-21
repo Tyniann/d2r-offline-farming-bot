@@ -10,7 +10,19 @@ import (
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/telemetry"
 )
 
+// PickitPolicySnapshot bindet die exakten Assignment- und Profilrevisionen einer Run-Generation.
+type PickitPolicySnapshot struct {
+	Character          string
+	RunID              tasks.RunID
+	Profiles           []string
+	ProfileRevisions   map[string]uint64
+	AssignmentRevision uint64
+}
+
 func (rt *Runtime) prepareSessionRun() (string, error) {
+	if err := rt.reloadPickitPolicy(); err != nil {
+		return "", err
+	}
 	trace, err := telemetry.New(rt.Config.Telemetry.Directory, rt.Config.Session.Run, "")
 	if err != nil {
 		return "", err
@@ -44,6 +56,32 @@ func (rt *Runtime) prepareSessionRun() (string, error) {
 	return trace.RunID(), nil
 }
 
+func (rt *Runtime) reloadPickitPolicy() error {
+	if rt.PickitAssignments == nil {
+		return nil
+	}
+	effective, err := rt.PickitAssignments.Resolve(rt.Config.Session.Character, tasks.RunID(rt.Config.Session.Run))
+	if err != nil {
+		return fmt.Errorf("reload pickit policy at run boundary: %w", err)
+	}
+	// Erst die vollständig validierte, neu kompilierte Policy wird als Ganzes
+	// aktiviert. Ein Reload-Fehler lässt den bisherigen Snapshot unverändert.
+	rt.Loot.SetPickit(effective.All)
+	if rt.townPreparation != nil {
+		rt.townPreparation.setItemPolicies(rt.Loot, rt.Config.Loot.Stash)
+	}
+	rt.ActivePickit = PickitPolicySnapshot{Character: rt.Config.Session.Character, RunID: tasks.RunID(rt.Config.Session.Run), Profiles: append([]string(nil), effective.Profiles...), ProfileRevisions: cloneRevisionMap(effective.ProfileRevisions), AssignmentRevision: effective.AssignmentRevision}
+	return nil
+}
+
+func cloneRevisionMap(source map[string]uint64) map[string]uint64 {
+	clone := make(map[string]uint64, len(source))
+	for key, value := range source {
+		clone[key] = value
+	}
+	return clone
+}
+
 func (rt *Runtime) sessionRunContextEvent() (telemetry.Event, error) {
 	plan, err := ResolveSessionPlan(rt.Config, Options{SessionInspect: true})
 	if err != nil {
@@ -59,8 +97,6 @@ func (rt *Runtime) sessionRunContextEvent() (telemetry.Event, error) {
 		RouteID:                plan.RouteID,
 		RouteLayoutFingerprint: plan.RouteLayoutFingerprint,
 		WaypointTarget:         string(definition.WaypointTarget),
-		LootPickupPolicy:       rt.runConfig.Loot.PickupFile,
-		LootSellPolicy:         rt.runConfig.Loot.SellFile,
 		TownOrigin:             string(definition.ReturnOrigin),
 	}, nil
 }

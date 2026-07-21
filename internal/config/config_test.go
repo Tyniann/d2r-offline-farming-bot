@@ -42,12 +42,9 @@ func TestLoadExampleConfig(t *testing.T) {
 	if !ok {
 		t.Fatal("Countess run config missing")
 	}
-	if countess.Loot.PickupFile != "pickit/countess.nip" || countess.Loot.SellFile != "" {
-		t.Fatalf("Countess loot config = %+v", countess.Loot)
-	}
 	mephisto, ok := cfg.Runs.Run("mephisto")
-	if !ok || mephisto.Loot.PickupFile != "pickit/mephisto.nip" || mephisto.Loot.SellFile != "pickit/mephisto-sell.nip" {
-		t.Fatalf("Mephisto loot config = %+v, present=%t", mephisto.Loot, ok)
+	if !ok {
+		t.Fatal("Mephisto run config missing")
 	}
 	if countess.Combat != mephisto.Combat {
 		t.Fatalf("shared combat defaults differ: Countess=%+v Mephisto=%+v", countess.Combat, mephisto.Combat)
@@ -135,8 +132,8 @@ func TestLoadRejectsRemovedRoutesDirectory(t *testing.T) {
 
 func TestResolvePickitPathRelativeToConfig(t *testing.T) {
 	cfg := &Config{LoadedFrom: filepath.Join("configs", "config.yaml")}
-	got := cfg.ResolvePath("pickit/countess.nip")
-	want := filepath.Join("configs", "pickit", "countess.nip")
+	got := cfg.ResolvePath("pickit/profiles/countess-standard.yaml")
+	want := filepath.Join("configs", "pickit", "profiles", "countess-standard.yaml")
 	if got != want {
 		t.Errorf("ResolvePath() = %q, want %q", got, want)
 	}
@@ -223,7 +220,7 @@ process:
 	}
 }
 
-func TestRunLootPickupFileKeepsInventoryDefault(t *testing.T) {
+func TestLegacyRunLootPolicyIsRejectedWithMigrationMessage(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "pickit-only.yaml")
 	content := `app:
@@ -242,20 +239,9 @@ runs:
 		t.Fatal(err)
 	}
 
-	cfg, err := Load(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	run, ok := cfg.Runs.Run("countess")
-	if !ok || run.Loot.PickupFile != "pickit/custom.nip" {
-		t.Fatalf("Countess run config = %+v, present=%t", run, ok)
-	}
-	for row, cells := range cfg.Loot.InventoryLock {
-		for col, cell := range cells {
-			if cell != 1 {
-				t.Fatalf("cell %d,%d = %d, want all locked", row, col, cell)
-			}
-		}
+	_, err := Load(path)
+	if err == nil || !strings.Contains(err.Error(), "pickup_file/sell_file is unsupported") || !strings.Contains(err.Error(), "pickit-assignments.local.yaml") {
+		t.Fatalf("legacy loot error = %v", err)
 	}
 }
 
@@ -698,7 +684,7 @@ runs:
 	}
 }
 
-func TestRunDefinitionRequiresPickupPolicy(t *testing.T) {
+func TestRunDefinitionNoLongerRequiresLegacyPickupPolicy(t *testing.T) {
 	cfg := &Config{
 		App: AppConfig{Name: "d2rbot"}, Runtime: RuntimeConfig{PollIntervalMs: 100},
 		Process: ProcessConfig{ProcessName: "D2R.exe"},
@@ -708,8 +694,8 @@ func TestRunDefinitionRequiresPickupPolicy(t *testing.T) {
 	}
 	cfg.Input.applyDefaults()
 	cfg.Pathing.applyDefaults()
-	if err := cfg.validate(); err == nil || !strings.Contains(err.Error(), "loot.pickup_file is required") {
-		t.Fatalf("missing pickup policy error = %v", err)
+	if err := cfg.validate(); err != nil {
+		t.Fatalf("run without legacy pickup policy error = %v", err)
 	}
 }
 
@@ -734,8 +720,6 @@ runs:
         engage_distance_tiles: 20
         reposition_distance_tiles: 35
         kill_confirm_ticks: 4
-      loot:
-        pickup_file: pickit/countess.nip
 `
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 		t.Fatal(err)
@@ -769,7 +753,7 @@ func TestRunsCountessCombatValidation(t *testing.T) {
 				EngageDistanceTiles:     32,
 				RepositionDistanceTiles: 32,
 				KillConfirmTicks:        3,
-			}, Loot: RunLootConfig{PickupFile: "pickit/countess.nip"}}},
+			}}},
 		},
 	}
 	cfg.Input.applyDefaults()

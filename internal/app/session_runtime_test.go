@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/config"
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/loot"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/tasks"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/world"
 )
@@ -49,5 +50,42 @@ func TestPrepareSessionRunBindsSharedPipelineTelemetry(t *testing.T) {
 	}
 	if !strings.Contains(string(data), `"event":"run_step_started"`) {
 		t.Fatalf("session run telemetry does not contain the first shared pipeline transition: %s", data)
+	}
+}
+
+func TestPickitReloadFailureKeepsActiveRunSnapshotImmutable(t *testing.T) {
+	root := t.TempDir()
+	if err := os.MkdirAll(root+"/profiles", 0o755); err != nil {
+		t.Fatal(err)
+	}
+	profiles, err := NewPickitProfileService(root + "/profiles")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = profiles.Create(PickitProfileDocument{SchemaVersion: 1, Revision: 1, ID: "base", Name: "Base", Rules: []PickitProfileRuleDocument{{ID: "rune", Action: loot.ActionKeep, Expression: `[type] == "rune"`}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	assignments, err := NewPickitAssignmentStore(root+"/assignments.yaml", profiles)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = assignments.Initialize(map[string]map[tasks.RunID][]string{"MrBones": {tasks.RunIDCountess: {"base"}}}); err != nil {
+		t.Fatal(err)
+	}
+	empty, _ := loot.CompilePickitRules("empty", nil)
+	rt := &Runtime{Config: &config.Config{Session: config.SessionConfig{Character: "MrBones", Run: string(tasks.RunIDCountess)}}, Loot: loot.NewFilter(config.NewLogger("error"), loot.InventoryLock{}, empty), PickitAssignments: assignments}
+	if err := rt.reloadPickitPolicy(); err != nil {
+		t.Fatal(err)
+	}
+	activePolicy, activeRevision := rt.Loot.Pickit(), rt.ActivePickit.AssignmentRevision
+	if err := os.WriteFile(root+"/profiles/base.yaml", []byte("schema_version: 1\nrevision: 2\nid: base\nname: kaputt\nrules: []\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := rt.reloadPickitPolicy(); err == nil || !strings.Contains(err.Error(), "reload pickit policy") {
+		t.Fatalf("reload err=%v", err)
+	}
+	if rt.Loot.Pickit() != activePolicy || rt.ActivePickit.AssignmentRevision != activeRevision {
+		t.Fatal("failed reload mutated active Pickit snapshot")
 	}
 }

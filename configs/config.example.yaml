@@ -114,8 +114,6 @@ runs:
         engage_distance_tiles: 22
         reposition_distance_tiles: 32
         kill_confirm_ticks: 3
-      loot:
-        pickup_file: pickit/countess.nip
     mephisto:
       # MrBones/Nightmare-Aufnahme aus Gate 10.9; andere Bindungen benötigen eine eigene Route.
       combat:
@@ -125,9 +123,6 @@ runs:
         engage_distance_tiles: 22
         reposition_distance_tiles: 32
         kill_confirm_ticks: 3
-      loot:
-        pickup_file: pickit/mephisto.nip
-        sell_file: pickit/mephisto-sell.nip
 
 combat_profiles:
   necro_bone_spear:

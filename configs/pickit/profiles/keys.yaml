@@ -1,0 +1,8 @@
+schema_version: 1
+revision: 1
+id: keys
+name: Schlüssel
+rules:
+  - id: key-of-terror
+    action: keep
+    expression: '[name] == pk1'

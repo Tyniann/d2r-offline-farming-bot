@@ -89,8 +89,8 @@ func ResolveSessionPlan(cfg *config.Config, opts Options) (SessionPlan, error) {
 		return SessionPlan{}, fmt.Errorf("session.run %q unavailable: %s", session.Run, tasks.RunReasonRouteMissing)
 	}
 	townGraphPath := filepath.Join(cfg.ResolvePath(cfg.Town.Hub.RoutesDirectory), "graph.yaml")
-	if _, err := town.LoadServiceGraph(townGraphPath); err != nil {
-		return SessionPlan{}, fmt.Errorf("session town graph: %w", err)
+	if _, graphErr := town.LoadServiceGraph(townGraphPath); graphErr != nil {
+		return SessionPlan{}, fmt.Errorf("session town graph: %w", graphErr)
 	}
 	configDirectory := filepath.Dir(cfg.LoadedFrom)
 	for _, template := range []string{
@@ -98,8 +98,21 @@ func ResolveSessionPlan(cfg *config.Config, opts Options) (SessionPlan, error) {
 		filepath.Join(configDirectory, "ui", "difficulty-dialog.png"),
 		filepath.Join(configDirectory, "ui", "characters", strings.ToLower(character)+"-selected.png"),
 	} {
-		if _, err := os.Stat(template); err != nil {
-			return SessionPlan{}, fmt.Errorf("session UI anchor %q: %w", template, err)
+		if _, statErr := os.Stat(template); statErr != nil {
+			return SessionPlan{}, fmt.Errorf("session UI anchor %q: %w", template, statErr)
+		}
+	}
+	profiles, err := NewPickitProfileService(cfg.ResolvePath(filepath.Join("pickit", "profiles")))
+	if err != nil {
+		return SessionPlan{}, fmt.Errorf("session pickit profiles: %w", err)
+	}
+	assignments, err := NewPickitAssignmentStore(cfg.ResolvePath("pickit-assignments.local.yaml"), profiles)
+	if err != nil {
+		return SessionPlan{}, fmt.Errorf("session pickit assignments: %w", err)
+	}
+	for _, runID := range session.Queue {
+		if _, err := assignments.Resolve(character, tasks.RunID(runID)); err != nil {
+			return SessionPlan{}, fmt.Errorf("session pickit assignment %s/%s: %w", character, runID, err)
 		}
 	}
 	plan.Status = "ready"

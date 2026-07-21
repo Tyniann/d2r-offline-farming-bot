@@ -71,7 +71,7 @@ func TestMephistoSessionRunContextBindsDefinitionAssetsAndPolicies(t *testing.T)
 	cfg.Session.Run = "mephisto"
 	cfg.Session.Character = "MrBones"
 	cfg.Session.Difficulty = "nightmare"
-	runConfig, err := mapRunConfig(cfg, "mephisto")
+	runConfig, err := mapRunConfig(cfg, "mephisto", true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -84,7 +84,7 @@ func TestMephistoSessionRunContextBindsDefinitionAssetsAndPolicies(t *testing.T)
 	if event.Event != telemetry.RunContext || event.DefinitionID != "mephisto" || event.RouteID != "durance-2-mephisto-nightmare-mrbones" || event.RouteLayoutFingerprint == "" {
 		t.Fatalf("context identity = %+v", event)
 	}
-	if event.WaypointTarget != "durance_of_hate_level_2" || event.LootPickupPolicy != "pickit/mephisto.nip" || event.LootSellPolicy != "pickit/mephisto-sell.nip" || event.TownOrigin != "act3" {
+	if event.WaypointTarget != "durance_of_hate_level_2" || event.TownOrigin != "act3" {
 		t.Fatalf("context assets = %+v", event)
 	}
 }

@@ -7,10 +7,11 @@ const (
 
 	itemOffsetRawLocation = 0x0C
 
-	itemDataOffsetQuality = 0x00
-	itemDataOffsetOwnerID = 0x0C
-	itemDataOffsetFlags   = 0x18
-	itemDataOffsetPage    = 0x55
+	itemDataOffsetQuality     = 0x00
+	itemDataOffsetOwnerID     = 0x0C
+	itemDataOffsetFlags       = 0x18
+	itemDataOffsetUniqueSetID = 0x34
+	itemDataOffsetPage        = 0x55
 
 	itemFlagIdentified = 0x10
 	itemFlagEthereal   = 0x400000
@@ -98,23 +99,28 @@ func (p *ProbeReader) readItemUnit(unitAddr uintptr, off OffsetSet, mainPlayerUn
 		return ItemUnit{}, false
 	}
 	stats := p.readItemStats(unitAddr, off)
+	// Die Set-/Unique-Referenz ist eine optionale Diagnosequelle. Ein einzelner
+	// fehlgeschlagener Read darf das ansonsten konsistente Item nicht verwerfen.
+	uniqueSetIDRaw, uniqueSetIDErr := p.reader.ReadUint32(uintptr(unitData) + itemDataOffsetUniqueSetID)
 
 	return ItemUnit{
-		TxtFileNo:   txtFileNo,
-		UnitID:      unitID,
-		Quality:     quality,
-		RawLocation: rawLocation,
-		OwnerID:     ownerID,
-		PlayerOwned: isPlayerOwnedItem(ownerID, mainPlayerUnitID),
-		Page:        uint32(page),
-		GridX:       uint32(posX),
-		GridY:       uint32(posY),
-		PosX:        uint32(posX),
-		PosY:        uint32(posY),
-		Flags:       flags,
-		Identified:  flags&itemFlagIdentified != 0,
-		Ethereal:    flags&itemFlagEthereal != 0,
-		Stats:       stats,
+		TxtFileNo:            txtFileNo,
+		UnitID:               unitID,
+		Quality:              quality,
+		UniqueSetID:          int32(uniqueSetIDRaw),
+		UniqueSetIDAvailable: uniqueSetIDErr == nil,
+		RawLocation:          rawLocation,
+		OwnerID:              ownerID,
+		PlayerOwned:          isPlayerOwnedItem(ownerID, mainPlayerUnitID),
+		Page:                 uint32(page),
+		GridX:                uint32(posX),
+		GridY:                uint32(posY),
+		PosX:                 uint32(posX),
+		PosY:                 uint32(posY),
+		Flags:                flags,
+		Identified:           flags&itemFlagIdentified != 0,
+		Ethereal:             flags&itemFlagEthereal != 0,
+		Stats:                stats,
 	}, true
 }
 

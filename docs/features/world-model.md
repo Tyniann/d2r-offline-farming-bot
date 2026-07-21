@@ -102,7 +102,7 @@ reset := model.Reset(at, "process_lost")
 | `GamePhase` | `Unknown`, `Menu`, `Loading`, `InGame` — aus `memory.Snapshot.Phase` |
 | `State` | Tick-Snapshot mit `At`, `Phase`, `Valid`, `Reason`, `Area`, `Player`, Entity- und Item-Slices sowie read-only UI-Flags inklusive `QuitMenuOpen` ab Phase 7.1 |
 | `Object`/`Entrance`/`Monster` | Countess-relevante Entities mit Kind, ID, UnitID, Position, Name |
-| `Item` | Read-only Item mit UnitID, Code/Name, Qualität, Location, Position, Flags und Raw-Stats |
+| `Item` | Read-only Item mit UnitID, Code/Name, Qualität, Location, Position, Flags, Raw-Stats sowie optionaler, gegen Qualität und Basiscode validierter Set-/Unique-Identität |
 
 ## Operator / CLI
 
@@ -212,7 +212,7 @@ Low-Level Memory/Offset-Validierung: [State Probe](state-probe.md) (Phase 1, D2R
 
 ## Grenzen
 
-- Item-Live-Validierung in Phase 5.1 ist auf positionierte Ground-Drops begrenzt; Nicht-Ground-Locations sind vorbereitet, aber noch kein Pass-Kriterium
+- Die automatisierte Set-/Unique-Auflösung aus Phase 13.2 deckt Ground- und persönliche Inventory-Items ab; ihre Live-Abnahme bleibt bis zum manuellen Gate A offen
 - `Model` ohne Concurrency-Schutz (single-threaded Run-Loop)
 - Shutdown/Detach setzt den World-State in 2.3 nicht zurück (nur `process lost`)
 
@@ -223,4 +223,4 @@ Low-Level Memory/Offset-Validierung: [State Probe](state-probe.md) (Phase 1, D2R
 - [Task Runner](task-runner.md) — Task-Ticks blockiert bei `Phase != InGame`
 
 ---
-*Zuletzt aktualisiert: 2026-07-14*
+*Zuletzt aktualisiert: 2026-07-21*

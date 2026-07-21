@@ -38,7 +38,7 @@ func resolveRunSelection(opts Options, cfg *config.Config) tasks.RunSelection {
 	return tasks.RunSelection{Run: resolveActiveRun(opts, cfg), Phase: opts.RunPhase}
 }
 
-func mapRunConfig(cfg *config.Config, runID string) (tasks.RunConfig, error) {
+func mapRunConfig(cfg *config.Config, runID string, requireFarmingRoute bool) (tasks.RunConfig, error) {
 	run, ok := cfg.Runs.Run(runID)
 	if !ok {
 		return tasks.RunConfig{}, fmt.Errorf("%s: %q", tasks.RunReasonConfigMissing, runID)
@@ -57,15 +57,16 @@ func mapRunConfig(cfg *config.Config, runID string) (tasks.RunConfig, error) {
 			RepositionDistanceTiles: run.Combat.RepositionDistanceTiles,
 			KillConfirmTicks:        run.Combat.KillConfirmTicks,
 		},
-		Loot: tasks.RunLootConfig{PickupFile: run.Loot.PickupFile, SellFile: run.Loot.SellFile},
 	}
-	assignmentStore, err := NewRouteAssignmentStore(cfg)
-	if err != nil {
-		return tasks.RunConfig{}, err
-	}
-	mapped.RouteID, _, err = assignmentStore.Resolve(cfg.Session.Character, tasks.RunID(runID))
-	if err != nil {
-		return tasks.RunConfig{}, err
+	if requireFarmingRoute {
+		assignmentStore, assignmentErr := NewRouteAssignmentStore(cfg)
+		if assignmentErr != nil {
+			return tasks.RunConfig{}, assignmentErr
+		}
+		mapped.RouteID, _, assignmentErr = assignmentStore.Resolve(cfg.Session.Character, tasks.RunID(runID))
+		if assignmentErr != nil {
+			return tasks.RunConfig{}, assignmentErr
+		}
 	}
 	resolved, err := tasks.DefaultRunRegistry().Resolve(tasks.RunID(runID), map[tasks.RunID]tasks.RunConfig{tasks.RunID(runID): mapped})
 	if err != nil {
@@ -186,8 +187,12 @@ func validateRunMode(sel tasks.RunSelection, cfg *config.Config, opts Options, l
 	if !ok {
 		return fmt.Errorf("%s: %q", tasks.RunReasonUnknown, sel.Run)
 	}
-	if selected.Status == tasks.RunAvailabilityUnavailable {
-		return fmt.Errorf("run %q unavailable: %s", sel.Run, joinRunReasons(selected.Reasons))
+	blockingReasons := selected.Reasons
+	if runPhaseAllowsUnavailableFarmingRoute(sel.Phase) {
+		blockingReasons = withoutFarmingRouteReasons(blockingReasons)
+	}
+	if selected.Status == tasks.RunAvailabilityUnavailable && len(blockingReasons) > 0 {
+		return fmt.Errorf("run %q unavailable: %s", sel.Run, joinRunReasons(blockingReasons))
 	}
 	if sel.Phase == "" {
 		if err := validateFullRunBindings(cfg, sel.Run); err != nil {
@@ -221,6 +226,29 @@ func validateRunMode(sel tasks.RunSelection, cfg *config.Config, opts Options, l
 	}
 	log.Info("task run configured", "run", sel.Run, "phase", sel.Phase, "source", source)
 	return nil
+}
+
+func runPhaseAllowsUnavailableFarmingRoute(phase string) bool {
+	return phase == tasks.RunPhaseLootAndReturn
+}
+
+func withoutFarmingRouteReasons(reasons []tasks.RunReason) []tasks.RunReason {
+	filtered := make([]tasks.RunReason, 0, len(reasons))
+	for _, reason := range reasons {
+		switch reason {
+		case tasks.RunReasonRouteAssignmentMissing,
+			tasks.RunReasonRouteMissing,
+			tasks.RunReasonRouteBindingMismatch,
+			tasks.RunReasonRouteLayoutMismatch,
+			tasks.RunReasonRouteRuntimeValidation,
+			tasks.RunReasonRouteStale,
+			tasks.RunReasonRouteLifecycleUnavailable:
+			continue
+		default:
+			filtered = append(filtered, reason)
+		}
+	}
+	return filtered
 }
 
 func isSupportedRunPhase(phase string) bool {

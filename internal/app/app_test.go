@@ -3,8 +3,6 @@ package app
 import (
 	"context"
 	"errors"
-	"os"
-	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -815,46 +813,5 @@ func TestShutdownCleanupUnbindsBeforeDetach(t *testing.T) {
 
 	if len(order) != 2 || order[0] != "unbind" || order[1] != "detach" {
 		t.Fatalf("cleanup order = %v, want [unbind detach]", order)
-	}
-}
-
-func TestLoadPickitResolvesConfigRelativePath(t *testing.T) {
-	dir := t.TempDir()
-	if err := os.Mkdir(filepath.Join(dir, "pickit"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(dir, "pickit", "countess.nip"), []byte("[type] == rune\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	cfg := &config.Config{
-		LoadedFrom: filepath.Join(dir, "config.yaml"),
-	}
-
-	pickit, err := loadPickit(cfg, "pickit/countess.nip")
-	if err != nil {
-		t.Fatalf("loadPickit() error = %v", err)
-	}
-	if got := pickit.Evaluate(world.Item{Type: "rune"}); !got.Matched {
-		t.Fatalf("Evaluate() = %+v, want match", got)
-	}
-}
-
-func TestLoadPickitWrapsMissingOrInvalidFile(t *testing.T) {
-	dir := t.TempDir()
-	cfg := &config.Config{
-		LoadedFrom: filepath.Join(dir, "config.yaml"),
-	}
-	if _, err := loadPickit(cfg, "pickit/missing.nip"); err == nil || !strings.Contains(err.Error(), "pickit config invalid") {
-		t.Fatalf("missing file error = %v, want pickit config invalid", err)
-	}
-
-	if err := os.Mkdir(filepath.Join(dir, "pickit"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(dir, "pickit", "bad.nip"), []byte("[maxquantity] == 1\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := loadPickit(cfg, "pickit/bad.nip"); err == nil || !strings.Contains(err.Error(), "pickit config invalid") || !strings.Contains(err.Error(), "unsupported keyword") {
-		t.Fatalf("invalid file error = %v, want wrapped unsupported keyword", err)
 	}
 }

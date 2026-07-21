@@ -1,0 +1,6 @@
+schema_version: 1
+revision: 1
+assignments:
+  MrBones:
+    countess: [gems, keys, countess-standard]
+    mephisto: [tal-rasha, gems, mephisto-standard]

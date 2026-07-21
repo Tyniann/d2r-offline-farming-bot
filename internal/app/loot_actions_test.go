@@ -2,8 +2,6 @@ package app
 
 import (
 	"errors"
-	"os"
-	"path/filepath"
 	"testing"
 	"time"
 
@@ -39,12 +37,7 @@ func TestCountInventoryFullCandidatesCountsOnlyExplicitNoFit(t *testing.T) {
 }
 
 func TestLootScanEmitsDropAndPickitTelemetry(t *testing.T) {
-	dir := t.TempDir()
-	pickitPath := filepath.Join(dir, "test.nip")
-	if err := os.WriteFile(pickitPath, []byte("[type] == rune\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	pickit, err := loot.LoadPickit(pickitPath)
+	pickit, err := loot.CompilePickitRules("test", []loot.PickitRuleSpec{{ProfileID: "keys", RuleID: "rune", Action: loot.ActionKeep, Expression: `[type] == "rune"`, ProfileRevision: 3, AssignmentRevision: 8}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -58,6 +51,10 @@ func TestLootScanEmitsDropAndPickitTelemetry(t *testing.T) {
 	result := adapter.Scan(state)
 	if result.TelemetryFailed || len(emitter.events) != 2 || emitter.events[0].Event != telemetry.DropSeen || emitter.events[1].Event != telemetry.PickitMatch {
 		t.Fatalf("result=%+v events=%+v", result, emitter.events)
+	}
+	match := emitter.events[1]
+	if match.PickitProfileID != "keys" || match.PickitRuleID != "rune" || match.PickitAction != "keep" || match.PickitProfileRevision != 3 || match.PickitAssignmentRevision != 8 {
+		t.Fatalf("pickit telemetry = %+v", match)
 	}
 }
 

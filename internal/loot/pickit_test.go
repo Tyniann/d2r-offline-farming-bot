@@ -190,7 +190,11 @@ func TestPickitRejectsUnsupportedSyntax(t *testing.T) {
 		want    string
 	}{
 		{name: "unsupported keyword", content: "[maxquantity] == 1", want: "unsupported keyword"},
-		{name: "unknown flag", content: "[flag] == socketed", want: "unsupported flag"},
+		{name: "socket alias", content: "[sockets] == 4", want: "unsupported keyword"},
+		{name: "socket flag", content: "[flag] == socketed", want: "unsupported flag"},
+		{name: "prefix", content: "[prefix] == fools", want: "unsupported keyword"},
+		{name: "suffix", content: "[suffix] == whale", want: "unsupported keyword"},
+		{name: "unknown NIP section", content: "[name] == r01 # [unknown] == value", want: "unsupported keyword"},
 		{name: "invalid string operator", content: "[name] > r01", want: "supports only == and !="},
 		{name: "invalid stat literal", content: "[stat:12] >= rune", want: "requires an integer literal"},
 		{name: "invalid syntax", content: "[type] == rune &&", want: "expected field"},

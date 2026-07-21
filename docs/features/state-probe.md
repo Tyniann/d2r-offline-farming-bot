@@ -121,7 +121,7 @@ Der Hover-Offset wird — wie UnitTable/UI — per d2go-Signature-Scan in `ScanP
 | `AreaID` | Rohe Area-ID aus Level-Struct |
 | `PosX`/`PosY` | `uint32` in `memory.Snapshot` (aus uint16 Path-Reads erweitert; `world.Position` gleicher Typ) |
 | `Objects`/`Entrances`/`Monsters` | Countess-gefilterte Entity-Slices; leer (nicht nil) außerhalb `in_game` |
-| `Items` | Positionierte Ground-Items aus UnitTable-Segment `4`; leer (nicht nil) außerhalb `in_game` |
+| `Items` | Ground- und persönliche Inventory-Items aus UnitTable-Segment `4`; ab Phase 13.2 mit optionaler roher Set-/Unique-Referenz, leer (nicht nil) außerhalb `in_game` |
 | `PlayerSkills` | `LeftSkill`, `RightSkill`, `SkillsKnown` vom Main-Player (Skill-Liste `unit+0x100`) |
 | `Hover` | `HoverState` (`IsHovered`, `UnitType`, `UnitID`) aus dem 12-Byte-Buffer bei `moduleBase+Hover`; nur bei `Valid && Phase=in_game` gelesen |
 | `UI` | Read-only `InventoryOpen`, `StashOpen`, `QuitMenuOpen` sowie ab Phase 9.5 getrennte `NPCInteractOpen`-/`NPCShopOpen`-Gates |
@@ -162,7 +162,7 @@ world unavailable reason=... phase=loading
 Regeln:
 
 - Log bei Phase-, HP-/Mana-/Area-, Entity- oder Ground-Item-Fingerprint-Änderung; reine Positionsänderungen nur mit `--probe --verbose` (Debug)
-- `--probe --verbose` ergänzt einen gekappten `ground_items_hint` mit Item-Code, Type, Name, Qualität und Position; Dummy-Type `body` wird aus dem Hint ausgeblendet
+- `--probe --verbose` ergänzt gekappte Ground-/Inventory-Hints mit Basiscode, Qualität, Ethereal, roher Set-/Unique-ID, kanonischem Namen und Konsistenzstatus; Dummy-Type `body` wird aus dem Ground-Hint ausgeblendet
 - Heartbeat alle 5 s (fest, kein Config-Key)
 - Ungültige Heartbeats auf Debug; neuer Reason oder Phase einmalig auf Info
 - Snapshot-Read nur im attached-Zustand nach `Poll()`; bei `process lost` kein Read, World-State wird auf `process_lost` zurückgesetzt
@@ -207,4 +207,4 @@ Semantische World-State-Validierung (Countess-Route, Area-Namen, `hp_pct`, Log-P
 - [World Model](world-model.md) — Domain-Typen und kontinuierliches Update im App-Loop
 
 ---
-*Zuletzt aktualisiert: 2026-07-13*
+*Zuletzt aktualisiert: 2026-07-21*

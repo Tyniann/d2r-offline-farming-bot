@@ -20,19 +20,24 @@ const (
 
 // InteractionResult reports an ordered action or terminal fail-closed outcome.
 type InteractionResult struct {
-	Status        InteractionStatus
-	Reason        string
-	Action        string
-	UnitID        uint32
-	Code          string
-	Current       int
-	Threshold     int
-	BeltSlots     []int
-	Mode          BuyMode
-	Vendor        Anchor
-	Cost          int
-	VerifiedFinal int
-	Done          bool
+	Status             InteractionStatus
+	Reason             string
+	Action             string
+	UnitID             uint32
+	Code               string
+	Current            int
+	Threshold          int
+	BeltSlots          []int
+	Mode               BuyMode
+	Vendor             Anchor
+	Cost               int
+	VerifiedFinal      int
+	Done               bool
+	ProfileID          string
+	RuleID             string
+	PickitAction       string
+	ProfileRevision    uint64
+	AssignmentRevision uint64
 }
 
 // NPCClickTarget is the pinned semantic target passed to the app-level click adapter.

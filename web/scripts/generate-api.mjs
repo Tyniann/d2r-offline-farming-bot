@@ -29,8 +29,16 @@ const client = `export const API_VERSION = "v1" as const;
 
 async function getJSON<T>(path: string, signal?: AbortSignal): Promise<T> {
   const response = await fetch(path, { signal, headers: { Accept: "application/json" } });
-  if (!response.ok) throw new Error(\`API-Abfrage fehlgeschlagen (\${response.status})\`);
+  if (!response.ok) { const error = await response.json().catch(() => null) as { message?: string } | null; throw new Error(error?.message ?? \`API-Abfrage fehlgeschlagen (\${response.status})\`); }
   return response.json() as Promise<T>;
+}
+
+async function sendJSON<T>(path: string, method: string, body: unknown, token = "", signal?: AbortSignal): Promise<T> {
+  const headers: Record<string, string> = { Accept: "application/json", "Content-Type": "application/json" };
+  if (token) headers["X-D2RBot-Control-Token"] = token;
+  const response = await fetch(path, { method, body: JSON.stringify(body), signal, headers });
+  if (!response.ok) { const error = await response.json().catch(() => null) as { message?: string } | null; throw new Error(error?.message ?? \`API-Mutation fehlgeschlagen (\${response.status})\`); }
+  return response.status === 204 ? (undefined as T) : response.json() as Promise<T>;
 }
 
 export function getStatus(signal?: AbortSignal): Promise<StatusDTO> {
@@ -40,6 +48,19 @@ export function getStatus(signal?: AbortSignal): Promise<StatusDTO> {
 export function getCatalog(signal?: AbortSignal): Promise<CatalogDTO> {
   return getJSON<CatalogDTO>("/api/v1/catalog", signal);
 }
+
+export function getPickitCatalog(signal?: AbortSignal): Promise<PickitCatalogDTO> { return getJSON<PickitCatalogDTO>("/api/v1/pickit/catalog", signal); }
+export function getPickitProfiles(signal?: AbortSignal): Promise<PickitProfilesDTO> { return getJSON<PickitProfilesDTO>("/api/v1/pickit/profiles", signal); }
+export function validatePickitProfile(request: PickitValidationRequest, signal?: AbortSignal): Promise<PickitValidationDTO> { return sendJSON<PickitValidationDTO>("/api/v1/pickit/profiles/validate", "POST", request, "", signal); }
+export function previewPickit(request: PickitPreviewRequest, signal?: AbortSignal): Promise<PickitPreviewDTO> { return sendJSON<PickitPreviewDTO>("/api/v1/pickit/preview", "POST", request, "", signal); }
+export function createPickitProfile(request: PickitCreateRequest, token: string, signal?: AbortSignal): Promise<PickitProfileDTO> { return sendJSON<PickitProfileDTO>("/api/v1/pickit/profiles", "POST", request, token, signal); }
+export function updatePickitProfile(id: string, request: PickitUpdateRequest, token: string, signal?: AbortSignal): Promise<PickitProfileDTO> { return sendJSON<PickitProfileDTO>(\`/api/v1/pickit/profiles/\${encodeURIComponent(id)}\`, "PUT", request, token, signal); }
+export function duplicatePickitProfile(id: string, request: PickitDuplicateRequest, token: string, signal?: AbortSignal): Promise<PickitProfileDTO> { return sendJSON<PickitProfileDTO>(\`/api/v1/pickit/profiles/\${encodeURIComponent(id)}/duplicate\`, "POST", request, token, signal); }
+export function deletePickitProfile(id: string, request: PickitDeleteRequest, token: string, signal?: AbortSignal): Promise<void> { return sendJSON<void>(\`/api/v1/pickit/profiles/\${encodeURIComponent(id)}\`, "DELETE", request, token, signal); }
+export function getPickitAssignments(signal?: AbortSignal): Promise<PickitAssignmentsDTO> { return getJSON<PickitAssignmentsDTO>("/api/v1/pickit/assignments", signal); }
+export function updatePickitAssignment(request: PickitAssignmentUpdateRequest, token: string, signal?: AbortSignal): Promise<PickitAssignmentsDTO> { return sendJSON<PickitAssignmentsDTO>("/api/v1/pickit/assignments", "PUT", request, token, signal); }
+export function importPickit(request: PickitImportRequest, signal?: AbortSignal): Promise<PickitImportDTO> { return sendJSON<PickitImportDTO>("/api/v1/pickit/import", "POST", request, "", signal); }
+export function exportPickitProfile(id: string, signal?: AbortSignal): Promise<PickitExportDTO> { return getJSON<PickitExportDTO>(\`/api/v1/pickit/profiles/\${encodeURIComponent(id)}/export\`, signal); }
 
 export function getRouteLibrary(character = "", archived = false, signal?: AbortSignal): Promise<RouteLibraryDTO> {
   const query = new URLSearchParams({ character, include_archived: archived ? "true" : "false" });

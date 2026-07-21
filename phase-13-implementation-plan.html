@@ -18,7 +18,7 @@
   <section class="hero">
     <div class="chip">D2R Offline Farming Bot · Phase 13</div>
     <h1>Pickit-Profile verständlich erstellen, prüfen und sicher anwenden</h1>
-    <p class="lead">Phase 13 ersetzt technische Einzeldateien durch kleine, wiederverwendbare Pickit-Profile mit geführter Itemsuche, zwei eindeutigen Aktionen und einer nachvollziehbaren Entscheidungsvorschau. Der vorhandene Loot-Core bleibt die Ausführungsautorität. Patchgenaue Set-/Unique-Identitäten werden aus den selbst extrahierten D2R-Excel-Dateien generiert; eine fremde Itemdatenbank oder ein vollständiger NIP-Interpreter entstehen nicht.</p>
+    <p class="lead">Phase 13 ersetzt technische Einzeldateien durch kleine, wiederverwendbare Pickit-Profile mit geführter Itemsuche, zwei eindeutigen Aktionen und Core-validierten Entwürfen. Der vorhandene Loot-Core bleibt die Ausführungsautorität. Patchgenaue Set-/Unique-Identitäten werden aus den selbst extrahierten D2R-Excel-Dateien generiert; eine fremde Itemdatenbank oder ein vollständiger NIP-Interpreter entstehen nicht.</p>
     <div class="chips"><span class="chip">KISS + YAGNI</span><span class="chip">CASC als Datenquelle</span><span class="chip">Tal Rasha auswählbar</span><span class="chip">Ethereal + Base Item</span><span class="chip">YAML Source of Truth</span><span class="chip">NIP-Subset Import</span><span class="chip">Fail-closed</span></div>
   </section>
 
@@ -62,7 +62,7 @@
 
   <h2>3. Zielarchitektur und Ordnerstruktur</h2>
   <pre><code>React: web/src/features/pickit
-  Profile Library ─ Rule Editor ─ Item Catalog ─ Decision Preview ─ Assignments
+  Profile Library ─ Rule Editor ─ Item Catalog ─ Assignments
                                   │ HTTP/JSON + SSE
                                   ▼
 internal/api          DTOs, Mutation-Token, Revisionen, Fehlerabbildung
@@ -197,18 +197,19 @@ assignments:
   <h2>10. Sequenzieller Umsetzungsplan</h2>
 
   <section class="phase">
-    <div class="phase-id">13.0</div><div><h3>Baseline, Verträge und Characterization</h3>
+    <div class="phase-id">13.0</div><div><h3>Baseline, Verträge und Characterization <span class="good">— abgeschlossen</span></h3>
       <ul>
         <li>Aktuellen Parser, First-Match-Verhalten, Pickup-/Keep-/Identify-/Stash-/Sell-Pipeline, Config-Pfade, Run-Preflight, API-Sicherheitsvertrag und React-Struktur mit Characterization-Tests einfrieren.</li>
         <li>Endgültige YAML-Schemas, Actions, Reason-Codes, Revisionsregeln, Paketgrenzen und Migrationsmatrix dokumentieren, bevor produktiver Code geändert wird.</li>
         <li>Explizite Non-Goals als Tests/Validierungsfehler festhalten: <code>maxquantity</code>, Sockelalias, Prefix/Suffix und unbekannte NIP-Sektionen.</li>
       </ul>
       <div class="callout gate"><strong>Gate 13.0 – automatisiert:</strong> Bestehende Countess-/Mephisto-Policies liefern vor dem Refactor dieselbe dokumentierte Matchmatrix; Config-, Loot- und Session-Tests sind grün. Plan und Handoff enthalten KISS/YAGNI sowie den verschobenen Socket-Scope.</div>
+      <div class="callout success"><strong>Status und Erkenntnisse vom 21. Juli 2026:</strong> Die Vorher-Matrix für Countess-Pickup sowie Mephisto-Pickup/-Sell, First-Match und die Parser-Non-Goals ist automatisiert festgeschrieben. Profil- und Assignment-Schema v1 verwenden positive Revisionen, unveränderliche Slug-IDs, geordnete Regeln beziehungsweise Profillisten und ausschließlich <code>keep</code>/<code>sell</code>. Paketgrenzen, atomare Revisionsregeln, bestehende und neue Reason-Codes sowie die einmalige fallback-freie Migration sind in <code>docs/features/phase-13-core-contract.md</code> eingefroren. Die Baseline bestand <code>go test ./...</code>, die fokussierten Config-/Loot-/Session-/API-Tests sowie 21 Browser-Tests und TypeScript-Typecheck. 13.1 wurde vor Abschluss dieses Gates nicht begonnen.</div>
     </div>
   </section>
 
   <section class="phase">
-    <div class="phase-id">13.1</div><div><h3>Patchgenauer Identitätskatalog</h3>
+    <div class="phase-id">13.1</div><div><h3>Patchgenauer Identitätskatalog <span class="good">— abgeschlossen</span></h3>
       <ul>
         <li>Den vorhandenen Itemgenerator minimal um <code>setitems.txt</code>, <code>uniqueitems.txt</code> und <code>item-names.json</code> erweitern oder einen kleinen gemeinsam genutzten Subgenerator hinzufügen; kein zweiter Basisitemkatalog.</li>
         <li>Pflichtspalten, <code>*ID</code>, String-Schlüssel, Setnamen, Codes, Spawnability, eindeutige IDs/Schlüssel und Referenzen auf den Basisitemkatalog validieren. Abschnittsmarker ohne numerische <code>*ID</code> werden ausdrücklich als Metadatenzeilen übersprungen, nicht als Items oder defekte Stringreferenzen behandelt.</li>
@@ -217,22 +218,25 @@ assignments:
         <li>Katalogabdeckung für alle fünf Tal-Rasha-Items sowie ausgewählte Unique- und Mehrfach-Amulettfälle fest verdrahten.</li>
       </ul>
       <div class="callout gate"><strong>Gate 13.1 – automatisiert:</strong> Zweimalige Generierung ist byteidentisch; 140 echte Set- und 433 echte Unique-Zeilen sind von Abschnittsmarkern getrennt. Korrupte Header, doppelte relevante IDs/Schlüssel, fehlende englische Anzeigenamen, unbekannte Basiscodes und falsche Quellversionen schlagen vor dem Schreiben fehl.</div>
+      <div class="callout success"><strong>Status und Erkenntnisse vom 21. Juli 2026:</strong> Der bestehende Basisitemgenerator erzeugt zusätzlich den eingebetteten Identitätskatalog für D2R <code>3.2.92777</code>. Exakt 140 Set- und 433 Unique-Zeilen werden von einer Set- und sechs Unique-Metadatenzeilen getrennt; alle fünf Tal-Rasha-Items, ausgewählte Uniques und mehrere Set-Amulette sind fest getestet. Zwei reale Quelldatenkollisionen wurden sichtbar: die alte/aktuelle <code>Azurewrath</code>-Zeile und acht <code>Rainbow Facet</code>-Varianten. Ausschließlich diese erhalten deterministische, aus Basiscode und vorhandenen Excel-Eigenschaften abgeleitete Schlüssel; der englische Anzeigename bleibt unverändert. Zwei vollständige Generierungen waren mit SHA-256 <code>49C2AF56BF3B0C72433B93D6FB1C006FC14FE3DD59135326AF06A2C287F6A9E9</code> byteidentisch. Generator-, World-, Gesamt-Go-Tests und Windows-Build sind grün; normale Builds lesen keine Dateien aus <code>.tmp</code>.</div>
     </div>
   </section>
 
   <section class="phase">
-    <div class="phase-id">13.2</div><div><h3>Memory-/World-Identität und read-only Live-Beweis</h3>
+    <div class="phase-id">13.2</div><div><h3>Memory-/World-Identität und read-only Live-Beweis <span class="good">— abgeschlossen · Gate A bestanden</span></h3>
       <ul>
         <li>Die bekannte Raw-Referenz für Set/Unique am Item-Data-Modell lesen und durch <code>memory.ItemUnit</code> transportieren; Leseprobleme machen nur die Identität unavailable und erzeugen niemals einen geratenen Namen.</li>
         <li><code>world.Item</code> um typisierte Identitätsart, Raw-ID, kanonischen Namen und Validitätsgrund ergänzen. Auflösung prüft Qualität und Basiscode gegen den generierten Katalog.</li>
         <li>Eine read-only Diagnose zeigt bei Inventory-/Ground-Items Code, Qualität, Ethereal, Raw-ID, aufgelösten Namen und Konsistenzstatus. Sie führt keinen Input aus.</li>
       </ul>
-      <div class="callout gate"><strong>Manuelles Gate A – Identitätsprobe:</strong> Mit mindestens einem bekannten Set- oder Unique-Item wird live bestätigt, dass Raw-ID, kanonischer Name, Qualität und Basiscode übereinstimmen. Wenn möglich wird zusätzlich ein ätherisches Basisitem geprüft; dessen Fehlen blockiert die Identitätsabnahme nicht. Bei Abweichung stoppt die Umsetzung hier – kein Offset-Raten und kein Katalog-Heftpflaster.</div>
+      <div class="callout gate"><strong>Manuelles Gate A – Identitätsprobe:</strong> Aus dem Repo mit laufendem D2R und einem bekannten Set- oder Unique-Item im persönlichen Inventar oder am Boden exakt <code>go run ./cmd/d2rbot --config configs/config.yaml --probe --verbose</code> ausführen. Im betreffenden <code>inventory_items_hint</code> oder <code>ground_items_hint</code> müssen Basiscode, Qualität, Raw-ID und kanonischer Name zum sichtbaren Item passen; <code>identity_available=true</code>, <code>identity_consistent=true</code> und ein leerer <code>identity_reason</code> sind Pflicht. Wenn möglich wird zusätzlich <code>ethereal=true</code> an einem ätherischen Basisitem geprüft; dessen Fehlen blockiert die Identitätsabnahme nicht. Bei Abweichung stoppt die Umsetzung hier – kein Offset-Raten und kein Katalog-Heftpflaster.</div>
+      <div class="callout success"><strong>Status und Erkenntnisse vom 21. Juli 2026:</strong> Die aus der referenzierten Item-Data-Struktur bekannte vorzeichenbehaftete Set-/Unique-ID wird mit eigenem Available-Flag transportiert. Ein isolierter Lesefehler behält das Item und markiert nur die Identität unavailable. Das World Model übernimmt einen Namen ausschließlich bei passender Set-/Unique-Qualität, vorhandenem Eintrag im getrennten ID-Raum und identischem Basiscode; negativer Sentinel, unbekannte ID sowie Qualitäts- oder Basiswiderspruch bleiben ohne geratenen Namen fail-closed. Die verbose Ground-/Inventory-Diagnose zeigt Code, Qualität, Ethereal, Raw-ID, kanonischen Namen und Konsistenz ohne Input. Fokussierte Memory-/World-/App-Tests, <code>golangci-lint run</code>, <code>go test ./...</code> und <code>go build ./cmd/d2rbot</code> sind grün. 13.3 wurde nicht begonnen.</div>
+      <div class="callout success"><strong>Live-Abnahme Gate A vom 21. Juli 2026:</strong> Ground-Item <code>Cow King's Hide</code> wurde als Set mit Basiscode <code>stu</code> und Raw-ID <code>118</code> konsistent aufgelöst. Im persönlichen Inventar wurden <code>Hellfire Torch</code> als Unique <code>cm2</code>/<code>400</code> und <code>Annihilus</code> als Unique <code>cm1</code>/<code>381</code> konsistent aufgelöst. Alle drei meldeten <code>identity_available=true</code>, <code>identity_consistent=true</code> und leeren Reason. Zusätzlich bestätigte ein ätherischer <code>Bill</code> mit Basiscode <code>9vo</code> die optionale Ethereal-Diagnose. Der Probe-Lauf endete kontrolliert per Stop-Hotkey ohne Spielinput.</div>
     </div>
   </section>
 
   <section class="phase">
-    <div class="phase-id">13.3</div><div><h3>Minimaler Parser- und Aktionsvertrag</h3>
+    <div class="phase-id">13.3</div><div><h3>Minimaler Parser- und Aktionsvertrag <span class="good">— abgeschlossen</span></h3>
       <ul>
         <li><code>[setitem]</code> und <code>[uniqueitem]</code> als einzige neue Felder ergänzen; beide akzeptieren stabile Katalogschlüssel mit <code>==</code>/<code>!=</code> und werden beim Laden eindeutig aufgelöst.</li>
         <li>Die vorhandene Quote-Behandlung nur so weit ergänzen, dass der kanonische Serializer Apostrophe, doppelte Anführungszeichen und Backslashes eindeutig roundtrippen kann; keine allgemeine String-Escape-Sprache erfinden.</li>
@@ -241,11 +245,12 @@ assignments:
         <li>First-Match, Re-Evaluation nach Identifikation und fail-closed Identitätsdrift automatisiert abdecken.</li>
       </ul>
       <div class="callout gate"><strong>Gate 13.3 – automatisiert:</strong> Tal-Rasha-Adjudication matcht exakt und ein anderes Set-Amulett nicht; ein ätherischer Thresher matcht, ein nicht ätherischer Thresher und ein anderes ätherisches Basisitem nicht. Alle bisherigen Parserfälle bleiben unverändert grün.</div>
+      <div class="callout success"><strong>Status und Erkenntnisse vom 21. Juli 2026:</strong> <code>[setitem]</code> und <code>[uniqueitem]</code> werden beim Kompilieren eindeutig im getrennten Katalograum aufgelöst und matchen nur eine valide Identität der richtigen Art; selbst <code>!=</code> bleibt bei Identitätsdrift fail-closed. Der kanonische Serializer verwendet doppelte Quotes und roundtrippt Apostrophe, Quotes und Backslashes ohne allgemeine Escape-Sprache. <code>CompilePickitRules</code> bindet geordnete Regeln an Profil-ID, Regel-ID und <code>keep</code>/<code>sell</code>; <code>Evaluate</code> liefert den tatsächlich bis zum ersten Treffer durchlaufenen Trace aus derselben AST-Auswertung. Tal Rasha's Adjudication gegen ein anderes Set-Amulett, Identifikations-Re-Evaluation, ein ätherischer Thresher gegen negative Basen, unbekannte Referenzen, Metadatenkonflikte und alle Legacy-Parserfälle sind getestet. <code>golangci-lint run</code>, <code>go test ./...</code> und der Windows-Build sind grün. 13.4 wurde vor Abschluss nicht begonnen.</div>
     </div>
   </section>
 
   <section class="phase">
-    <div class="phase-id">13.4</div><div><h3>Profile, Assignments und einmalige Migration</h3>
+    <div class="phase-id">13.4</div><div><h3>Profile, Assignments und einmalige Migration <span class="good">— abgeschlossen</span></h3>
       <ul>
         <li>YAML-Loader/Writer, Profilservice und Assignment-Store mit Revision, atomischem Replace, Re-Read und Recovery-fähigen Fehlern implementieren.</li>
         <li>CRUD, Duplizieren, unveränderliche IDs, blockiertes Löschen zugeordneter Profile und duplikatfreie geordnete Assignments implementieren.</li>
@@ -253,11 +258,12 @@ assignments:
         <li><code>runs.definitions.*.loot.pickup_file</code> und <code>sell_file</code> nach erfolgreicher Migration aus Schema, Wiring, Beispielen und Tests entfernen; kein Runtime-Fallback und kein toter Loaderpfad.</li>
       </ul>
       <div class="callout gate"><strong>Gate 13.4 – automatisiert:</strong> Crash-/Write-/Revision-/Delete-/Duplicate-Matrix mit Temp-Verzeichnissen besteht. Migrierte Policies reproduzieren Countess und Mephisto exakt; alte Felder werden mit klarer Migrationsmeldung abgelehnt.</div>
+      <div class="callout success"><strong>Status und Erkenntnisse vom 21. Juli 2026:</strong> <code>PickitProfileService</code> und <code>PickitAssignmentStore</code> laden strikt, prüfen Schema/IDs/Aktionen/Ausdrücke/Katalogreferenzen vollständig vor dem Schreiben und persistieren über Temp-Datei, Flush, Close, atomischen Replace und Re-Read. Create, Update, Duplicate, immutable ID, idempotente Wiederholung, optimistische Revision, blockiertes Delete zugeordneter Profile, case-insensitive Charaktere sowie geordnete duplikatfreie Assignments sind abgedeckt. Die fünf versionierten Startprofile <code>gems</code>, <code>keys</code>, <code>countess-standard</code>, <code>mephisto-standard</code> und <code>tal-rasha</code> sind valide. Die produktive Baseline migriert Countess auf <code>[gems, keys, countess-standard]</code> und Mephisto auf <code>[gems, mephisto-standard]</code>; dadurch bleibt die vollständige Vorher-/Nachher-Matrix für Pickup, Keep und Sell exakt. <code>tal-rasha</code> bleibt bewusst unzugeordnet, bis der Benutzer diese Verhaltensänderung wählt; das Schema-Beispiel zeigt die explizite Priorisierung. Alte NIP-Policy-Dateien, Run-Config-Felder, Task-/Telemetry-Wiring und App-Loader sind entfernt. Legacy-YAML wird mit konkretem Migrationshinweis abgelehnt. Fehler-, Revision-, Duplicate-, Delete-, Referenz- und Write-Rollback-Tests sowie <code>golangci-lint run</code>, <code>go test ./...</code> und Windows-Build sind grün.</div>
     </div>
   </section>
 
   <section class="phase">
-    <div class="phase-id">13.5</div><div><h3>API, Revisionen und sichere Run-Grenze</h3>
+    <div class="phase-id">13.5</div><div><h3>API, Revisionen und sichere Run-Grenze <span class="good">— abgeschlossen</span></h3>
       <ul>
         <li>OpenAPI, Go-DTOs, Backend und generierten TypeScript-Client für Katalog, Profile, Validierung, Preview, Assignments, Import und Export ergänzen.</li>
         <li>Mutationen mit Control-Token, erwarteter Revision, Payload-Limit und bestehenden exklusiven Workflow-Sperren schützen.</li>
@@ -265,11 +271,12 @@ assignments:
         <li>Wenn Reload/Validierung scheitert, bleibt der abgeschlossene Run abgeschlossen; der nächste Run startet nicht und die Session wartet fail-closed mit sichtbarem Grund.</li>
       </ul>
       <div class="callout gate"><strong>Gate 13.5 – automatisiert:</strong> API-Vertrag, unautorisierte Mutation, stale Revision, parallele Saves, Save während Run und ungültiger Reload an Run-Grenze sind getestet. Keine Mutation verändert den aktiven Policy-Snapshot.</div>
+      <div class="callout success"><strong>Status und Erkenntnisse vom 21. Juli 2026:</strong> OpenAPI, Go-DTOs, <code>LiveBackend</code>, HTTP-Handler und generierter TypeScript-Client decken Katalog, Profile, Entwurfsvalidierung, kontrollierte Vorschau, Assignments sowie NIP-Import/-Export ab. Persistierende Aufrufe verwenden Control-Token, 64-KiB-Limit, strikte JSON-Felder, erwartete Revision und denselben serialisierten Command-/Workflow-Lock wie der Core. Konflikte melden stabile Codes und Revisionsdetails; erfolgreiche Änderungen erzeugen SSE-Ereignisse. Queue- und Session-Preflight lösen jede Pickit-Zuordnung fail-closed auf. Vor jeder Run-Generation werden Profil-IDs, Profilrevisionen, Assignment-Revision und die eine aktionsfähige Policy vollständig kompiliert und erst danach gemeinsam aktiviert; ein ungültiger Reload startet den nächsten Run nicht und lässt den aktiven Snapshot unverändert. API-, Unauthorized-, Stale-, Parallel-, Run-Lock- und Reload-Negativtests sowie Web-Tests/Build, <code>golangci-lint run</code>, <code>go test ./...</code> und Windows-Build sind grün. 13.6 wurde nicht begonnen.</div>
     </div>
   </section>
 
   <section class="phase">
-    <div class="phase-id">13.6</div><div><h3>React-Profilbibliothek und geführter Editor</h3>
+    <div class="phase-id">13.6</div><div><h3>React-Profilbibliothek und geführter Editor <span class="good">— abgeschlossen</span></h3>
       <ul>
         <li><code>web/src/features/pickit</code> als eigenes Feature mit Profilbibliothek, Editor, Katalogsuche, Regelreihenfolge, Assignments und Unsaved-State anlegen.</li>
         <li>Sets/Items/Basisitems verständlich suchen; Setexpansion, Ethereal-Checkbox, zwei Aktionen und deutsche Regelzusammenfassung umsetzen.</li>
@@ -277,6 +284,7 @@ assignments:
         <li>Accessibility, Keyboard-Bedienung, Loading/Error/Empty/Conflict-Zustände und kleine Viewports abdecken.</li>
       </ul>
       <div class="callout gate"><strong>Gate 13.6 – Browser automatisiert:</strong> Tal Rasha expandiert in fünf Regeln; Ethereal Thresher erzeugt eine kombinierte Regel; Reihenfolge, Duplicate, Delete-Block, Importfehler, stale Save und Assignment-Validierung sind über Benutzerinteraktionen getestet.</div>
+      <div class="callout success"><strong>Status und Erkenntnisse vom 21. Juli 2026:</strong> <code>web/src/features/pickit</code> enthält eine eigenständige Profilbibliothek mit revisionssichtbarem Editor, Unsaved-State, Neu/Duplicate/Delete, geordneter Assignment-Pflege und geführter Katalogsuche. Vollständige Sets expandieren sichtbar in Einzelregeln; Tal Rasha erzeugt exakt fünf. Ein ätherischer Thresher erzeugt mit dem stabilen Excel-Code genau <code>[name] == "7s8" &amp;&amp; [ethereal] == true</code>; der Anzeigename wird nicht als Runtime-Schlüssel gespeichert. Zwei verständliche Aktionen, Umordnen, erweitertes Ausdrucksfeld sowie NIP-Paste/-Dateiimport verwenden ausschließlich Core-Validierung. Loading, Empty, Error, Delete-Block, stale Save, leere Assignment-Validierung, Tastatursemantik und der Einspalten-Breakpoint sind abgedeckt. 25 Vitest-Interaktionstests und der Produktions-Build sind grün. Das echte eingebettete UI wurde zusätzlich im Browser gegen den laufenden lokalen Core geprüft: Tal-Rasha-Expansion und Ethereal-Thresher stimmen, Assignments zeigen die produktive Reihenfolge, die Konsole ist fehlerfrei und 390 × 844 besitzt keinen horizontalen Überlauf. 13.7 wurde nicht begonnen.</div>
     </div>
   </section>
 
@@ -289,11 +297,12 @@ assignments:
         <li>Logs/JSONL um Profil-ID, Regel-ID, Aktion und Revision ergänzen; keine vollständigen Inventar- oder Pfaddaten in SSE duplizieren.</li>
       </ul>
       <div class="callout gate"><strong>Gate 13.7 – automatisiert:</strong> Keep-, Sell-, No-Match-, Multi-Profil-First-Match-, Identifikations- und Driftmatrizen bestehen. Vorherige Countess-/Mephisto-Loot-Ergebnisse bleiben als Characterization grün.</div>
+      <div class="callout success"><strong>Status und Erkenntnisse vom 21. Juli 2026:</strong> Die kontrollierte Katalog-Testitem-Vorschau liefert Gewinner und vollständigen First-Match-Trace einschließlich Profil-, Regel- und Assignment-Revision aus derselben Core-Auswertung. Die effektive Aktion steuert Ground-Klassifikation, Pickup, Identify, Keep, Stash und Sell; Stash und Town-Services prüfen die gepinnte Identität unmittelbar vor jedem Input erneut. Ein fehlendes Match, Aktionswechsel oder Identitätsdrift widerruft die Aktion fail-closed. Textlog und Run-JSONL tragen Profil-ID, Regel-ID, Aktion, Profilrevision und Assignment-Revision. Keep-, Sell-, No-Match-, Multi-Profil-, Identifikations- und Driftmatrizen sowie die bestehenden Countess-/Mephisto-Characterizations, <code>golangci-lint run</code>, <code>go test ./...</code>, 25 Webtests und der Produktions-Build sind grün. 13.8 wurde nicht begonnen.</div>
     </div>
   </section>
 
   <section class="phase">
-    <div class="phase-id">13.8</div><div><h3>Isolierter Live-Loot-Test</h3>
+    <div class="phase-id">13.8</div><div><h3>Isolierter Live-Loot-Test <span class="good">— abgeschlossen</span></h3>
       <ul>
         <li>Ein bewusstes Abnahmeprofil mit einem verfügbaren, risikoarmen Testitem erstellen und einem bestätigten Charakter/Run zuordnen.</li>
         <li>Im Dashboard denselben Gegenstand zuerst synthetisch prüfen, Profil atomisch speichern und die Revision anzeigen.</li>
@@ -301,11 +310,12 @@ assignments:
         <li>Ein zweiter vollständiger Boss-Run ist ausdrücklich nicht erforderlich. Exakte Tal-Rasha-Auswahl wird deterministisch über Katalog-/Parsertests und Gate A bewiesen; ein seltener Drop ist keine Abnahmevoraussetzung.</li>
       </ul>
       <div class="callout gate"><strong>Manuelles Gate B – GUI bis Loot:</strong> Der Benutzer erstellt oder bearbeitet eine Regel, prüft sie gegen ein bekanntes Item, speichert und ordnet sie zu. Der isolierte Live-Test führt exakt die angezeigte Aktion aus; UI, Core-Log und JSONL nennen dieselbe Profil-/Regelrevision. Abweichung oder unbestätigter Input beendet den Test fail-closed.</div>
+      <div class="callout success"><strong>Gate B bestanden am 21. Juli 2026:</strong> UI-Vorschau und Live-Lauf stimmen vollständig überein: Profil <code>phase13-live-acceptance</code>, Regel <code>arrows-live-gate</code>, Aktion <code>keep</code>, Profilrevision <code>2</code> und Assignment-Revision <code>2</code>. Run <code>countess-20260721T202554.236158500Z-2087bad0</code> erkannte <code>Arrows</code>/<code>aqv</code> als Unit <code>225</code>, bestätigte genau einen Hover-/Pickup-Versuch, nahm den Köcher auf, kehrte per Town Portal sicher ins Rogue Encampment zurück, öffnete den persönlichen Stash, lagerte dieselbe Unit genau einmal ein und endete erfolgreich. Core-Log und JSONL enthalten denselben Gewinner und beide Revisionen; es gab keine Warnung, keinen Fehler, keinen Retry und keinen fehlgeschlagenen Schritt. Die Route-Ausnahme bleibt ausschließlich auf das dokumentiert routefreie <code>loot-and-return</code> begrenzt; Full Run und alle anderen Phasen behalten ihr Route-Gate.</div>
     </div>
   </section>
 
   <section class="phase">
-    <div class="phase-id">13.9</div><div><h3>Abschluss, Dokumentation und Dead-Code-Audit</h3>
+    <div class="phase-id">13.9</div><div><h3>Abschluss, Dokumentation und Dead-Code-Audit <span class="good">— abgeschlossen</span></h3>
       <ul>
         <li><code>docs/features/pickit-editor.md</code> anlegen; <code>pickit-engine.md</code>, Loot-/Town-/Session-Dokumente, Feature-Index, Changelog, Config-Beispiele und Handoff aktualisieren.</li>
         <li>Unterstützte Syntax, Aktionen, Identitätsvertrauen, Profilpriorität, Importgrenze, Aktivierung an Run-Grenzen und Operatorfehler dokumentieren.</li>
@@ -314,6 +324,7 @@ assignments:
         <li><code>gofmt</code>, <code>goimports</code>, Lint, Go-/Web-Tests, Windows-Build und dokumentierten UCRT64-Race-Test ausführen.</li>
       </ul>
       <div class="callout gate"><strong>Gate 13.9 – Abschlussmatrix:</strong> Beide manuellen Gates sind protokolliert; Generator, Unit-, API-, Browser-, Integration-, Race- und Build-Matrix sind grün; Handoff markiert Phase 13 erst danach als abgeschlossen.</div>
+      <div class="callout success"><strong>Status und Erkenntnisse vom 21. Juli 2026:</strong> Feature-Dokumentation, Index, Changelog und Handoff beschreiben den finalen Profil-, Assignment-, API-, Run-Grenzen-, Runtime- und Telemetrievertrag einschließlich der ausdrücklich vertagten Socket-Regeln. Der Dead-Code-Audit entfernte die separat kompilierte Sell-Teilpolicy und das ungenutzte <code>SetSellFilter</code>-Wiring; Runtime und Town-Service verwenden nur noch dieselbe aktionsfähige First-Match-Policy. Die geführte Basisitemsuche speichert nun den stabilen Excel-Code statt des Anzeigenamens; Browser-QA bestätigte für den ungespeicherten Entwurf <code>[name] == "7s8" &amp;&amp; [ethereal] == true</code> bei leerer Warnungs-/Fehlerkonsole. Nach bestandener Live-Abnahme wurde außerdem die nur dafür benötigte synthetische Entscheidungsvorschau samt UI-State und Styling aus dem Editor entfernt; der seiteneffektfreie Core-Endpunkt bleibt für automatisierte Diagnose- und Vertragstests bestehen. <code>goimports</code>, <code>golangci-lint run</code>, <code>go test ./...</code>, Generator-Test, Windows-Build, API-Generierung, 25 Webtests, TypeScript-Typecheck, Produktions-Build und der dokumentierte UCRT64-Race-Test <code>go test -race -p 1 ./...</code> sind grün. Gate A und Gate B sind mit Live-Evidenz protokolliert; Phase 13 ist abgeschlossen.</div>
     </div>
   </section>
 
@@ -348,6 +359,6 @@ assignments:
     <li><strong>Phase 15:</strong> Electron und ein mögliches Overlay verwenden dieselbe Pickit-API und dieselbe React-Anwendung; es entsteht keine Shell-spezifische Editorlogik.</li>
   </ul>
 
-  <footer>Planungsstand: 21. Juli 2026 · Umsetzung noch nicht begonnen · zwei gezielte manuelle Gates · KISS/YAGNI verbindlich</footer>
+  <footer>Umsetzungsstand: 21. Juli 2026 · Phase 13.0–13.9 abgeschlossen · Gate A und Gate B bestanden · Abschlussmatrix grün · KISS/YAGNI verbindlich</footer>
 </main></body>
 </html>

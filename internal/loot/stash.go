@@ -71,10 +71,12 @@ type StashResult struct {
 	Attempt     int
 	GridX       int
 	GridY       int
+	Pickit      PickitResult
 }
 
 type stashTarget struct {
-	item world.Item
+	item   world.Item
+	pickit PickitResult
 }
 
 // StashExecutor transfers Pickit-matching unlocked inventory items via Ctrl+LMB and verifies Memory state.
@@ -83,20 +85,12 @@ type StashExecutor struct {
 	filter *Filter
 	input  StashInput
 	cfg    StashConfig
-	sell   *Pickit
 
 	active    *stashTarget
 	attempt   int
 	attemptAt time.Time
 	closing   bool
 	closeAt   time.Time
-}
-
-// SetSellFilter excludes explicit vendor candidates from personal-stash input.
-func (e *StashExecutor) SetSellFilter(filter *Pickit) {
-	if e != nil {
-		e.sell = filter
-	}
 }
 
 // NewStashExecutor creates a fail-closed personal-stash executor.
@@ -142,18 +136,19 @@ func (e *StashExecutor) Tick(state world.State, now time.Time) StashResult {
 	if e.active != nil {
 		item, found := state.FindItemByUnitID(e.active.item.UnitID)
 		if !found || item.Location != world.ItemLocationInventory {
-			result := StashResult{Status: StashPending, Transferred: true, UnitID: e.active.item.UnitID, Code: e.active.item.Code, Name: e.active.item.Name, Attempt: e.attempt, GridX: e.active.item.GridX, GridY: e.active.item.GridY}
-			e.log.Info("stash_success", "unit_id", result.UnitID, "code", result.Code, "name", result.Name, "attempt", result.Attempt)
+			result := StashResult{Status: StashPending, Transferred: true, UnitID: e.active.item.UnitID, Code: e.active.item.Code, Name: e.active.item.Name, Attempt: e.attempt, GridX: e.active.item.GridX, GridY: e.active.item.GridY, Pickit: e.active.pickit}
+			e.log.Info("stash_success", "unit_id", result.UnitID, "code", result.Code, "name", result.Name, "attempt", result.Attempt, "profile_id", result.Pickit.ProfileID, "rule_id", result.Pickit.RuleID, "action", result.Pickit.Action, "profile_revision", result.Pickit.ProfileRevision, "assignment_revision", result.Pickit.AssignmentRevision)
 			e.active = nil
 			e.attempt = 0
 			e.attemptAt = time.Time{}
 			return result
 		}
-		if item.GridX != e.active.item.GridX || item.GridY != e.active.item.GridY || !stashEligible(e.filter.inventoryLock, item) || !e.filter.evaluate(item).Matched {
+		current := e.filter.evaluate(item)
+		if item.GridX != e.active.item.GridX || item.GridY != e.active.item.GridY || !stashEligible(e.filter.inventoryLock, item) || !current.Matched || current.Action != ActionKeep || current.ProfileID != e.active.pickit.ProfileID || current.RuleID != e.active.pickit.RuleID {
 			return e.failActive("target_changed")
 		}
 		if now.Sub(e.attemptAt) < e.cfg.VerifyTimeout {
-			return StashResult{Status: StashPending, UnitID: item.UnitID, Code: item.Code, Name: item.Name, Attempt: e.attempt}
+			return StashResult{Status: StashPending, UnitID: item.UnitID, Code: item.Code, Name: item.Name, Attempt: e.attempt, Pickit: e.active.pickit}
 		}
 		if e.attempt >= e.cfg.MaxRetries {
 			return e.failActive("verify_timeout")
@@ -168,7 +163,8 @@ func (e *StashExecutor) Tick(state world.State, now time.Time) StashResult {
 	if len(candidates) == 0 {
 		return StashResult{Status: StashSuccess, Done: true}
 	}
-	e.active = &stashTarget{item: candidates[0]}
+	match := e.filter.evaluate(candidates[0])
+	e.active = &stashTarget{item: candidates[0], pickit: match}
 	e.attempt = 0
 	return e.transfer(candidates[0], now)
 }
@@ -212,8 +208,8 @@ func (e *StashExecutor) candidates(state world.State) ([]world.Item, bool) {
 	}
 	out := make([]world.Item, 0)
 	for _, item := range items {
-		vendorCandidate := e.sell != nil && e.sell.Evaluate(item).Matched
-		if e.filter.evaluate(item).Matched && !vendorCandidate && !RequiresIdentificationForKeep(item) && stashEligible(e.filter.inventoryLock, item) {
+		result := e.filter.evaluate(item)
+		if result.Matched && result.Action == ActionKeep && !RequiresIdentificationForKeep(item) && stashEligible(e.filter.inventoryLock, item) {
 			out = append(out, item)
 		}
 	}
@@ -230,6 +226,10 @@ func (e *StashExecutor) candidates(state world.State) ([]world.Item, bool) {
 }
 
 func (e *StashExecutor) transfer(item world.Item, now time.Time) StashResult {
+	result := e.filter.evaluate(item)
+	if !result.Matched || result.Action != ActionKeep || (e.active != nil && (result.ProfileID != e.active.pickit.ProfileID || result.RuleID != e.active.pickit.RuleID)) {
+		return e.failActive("policy_changed")
+	}
 	x := e.cfg.InventoryLeft + item.GridX*e.cfg.InventoryCellW + e.cfg.InventoryCellW/2
 	y := e.cfg.InventoryTop + item.GridY*e.cfg.InventoryCellH + e.cfg.InventoryCellH/2
 	if err := e.input.MoveTo(x, y); err != nil {
@@ -240,8 +240,8 @@ func (e *StashExecutor) transfer(item world.Item, now time.Time) StashResult {
 	}
 	e.attempt++
 	e.attemptAt = now
-	e.log.Info("stash_attempt", "unit_id", item.UnitID, "code", item.Code, "name", item.Name, "grid_x", item.GridX, "grid_y", item.GridY, "client_x", x, "client_y", y, "attempt", e.attempt)
-	return StashResult{Status: StashPending, Attempted: true, UnitID: item.UnitID, Code: item.Code, Name: item.Name, Attempt: e.attempt, GridX: item.GridX, GridY: item.GridY}
+	e.log.Info("stash_attempt", "unit_id", item.UnitID, "code", item.Code, "name", item.Name, "grid_x", item.GridX, "grid_y", item.GridY, "client_x", x, "client_y", y, "attempt", e.attempt, "profile_id", result.ProfileID, "rule_id", result.RuleID, "action", result.Action, "profile_revision", result.ProfileRevision, "assignment_revision", result.AssignmentRevision)
+	return StashResult{Status: StashPending, Attempted: true, UnitID: item.UnitID, Code: item.Code, Name: item.Name, Attempt: e.attempt, GridX: item.GridX, GridY: item.GridY, Pickit: result}
 }
 
 func (e *StashExecutor) failActive(reason string) StashResult {
@@ -251,6 +251,7 @@ func (e *StashExecutor) failActive(reason string) StashResult {
 		result.Code = e.active.item.Code
 		result.Name = e.active.item.Name
 		result.Attempt = e.attempt
+		result.Pickit = e.active.pickit
 	}
 	e.log.Warn("stash_failed", "reason", reason, "unit_id", result.UnitID, "code", result.Code, "attempt", result.Attempt)
 	e.Reset()

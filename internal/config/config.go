@@ -194,8 +194,22 @@ type RunsConfig struct {
 type RunConfig struct {
 	// Combat selects the profile and regular attack tuning.
 	Combat CombatConfig `yaml:"combat"`
-	// Loot selects run-specific pickup and optional sell policies.
-	Loot RunLootConfig `yaml:"loot"`
+}
+
+// UnmarshalYAML lehnt die entfernte NIP-Policy-Autorität mit Migrationshinweis ab.
+func (c *RunConfig) UnmarshalYAML(value *yaml.Node) error {
+	for i := 0; i+1 < len(value.Content); i += 2 {
+		if value.Content[i].Value == "loot" {
+			return fmt.Errorf("runs.definitions.*.loot pickup_file/sell_file is unsupported; migrate to configs/pickit/profiles and pickit-assignments.local.yaml")
+		}
+	}
+	type runConfigAlias RunConfig
+	var alias runConfigAlias
+	if err := value.Decode(&alias); err != nil {
+		return err
+	}
+	*c = RunConfig(alias)
+	return nil
 }
 
 // CombatConfig holds shared boss-combat tuning.
@@ -212,12 +226,6 @@ type CombatConfig struct {
 	RepositionDistanceTiles float64 `yaml:"reposition_distance_tiles"`
 	// KillConfirmTicks confirms death after consecutive valid absence ticks.
 	KillConfirmTicks int `yaml:"kill_confirm_ticks"`
-}
-
-// RunLootConfig selects the independent pickup and sell policy files for one run.
-type RunLootConfig struct {
-	PickupFile string `yaml:"pickup_file"`
-	SellFile   string `yaml:"sell_file"`
 }
 
 // UnmarshalYAML records whether the runs section was present in the YAML document.
@@ -270,9 +278,6 @@ func (c *RunsConfig) applyDefaults() {
 	}
 	for id, run := range c.Definitions {
 		run.Combat.applyDefaults()
-		if run.Loot.PickupFile == "" && id == "countess" {
-			run.Loot.PickupFile = "pickit/countess.nip"
-		}
 		c.Definitions[id] = run
 	}
 }
@@ -441,9 +446,6 @@ func (c *RoutesConfig) applyDefaults() {
 func (c RunConfig) validate(id string) error {
 	if strings.TrimSpace(id) == "" {
 		return fmt.Errorf("runs.definitions contains an empty run id")
-	}
-	if strings.TrimSpace(c.Loot.PickupFile) == "" {
-		return fmt.Errorf("runs.definitions.%s.loot.pickup_file is required", id)
 	}
 	return c.Combat.validate("runs.definitions." + id + ".combat")
 }

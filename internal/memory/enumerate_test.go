@@ -115,6 +115,7 @@ func setupItemUnit(access *mockAccess, unitAddr, unitData, path, statsListEx, st
 	binary.LittleEndian.PutUint32(dataBuf[itemDataOffsetQuality:], quality)
 	binary.LittleEndian.PutUint32(dataBuf[itemDataOffsetOwnerID:], ownerID)
 	binary.LittleEndian.PutUint32(dataBuf[itemDataOffsetFlags:], flags)
+	binary.LittleEndian.PutUint32(dataBuf[itemDataOffsetUniqueSetID:], ^uint32(0))
 	dataBuf[itemDataOffsetPage] = page
 	access.setBytes(unitData, dataBuf)
 
@@ -365,6 +366,7 @@ func TestProbeSnapshotEnumeratesGroundItems(t *testing.T) {
 
 	writeSegmentHead(access, moduleBase, off.UnitTable, unitSegmentItem, itemUnit)
 	setupGroundItemUnit(access, itemUnit, itemData, itemPath, statsListEx, statsArray, 610, 4001, 2, itemFlagIdentified|itemFlagEthereal)
+	writeU32(access, itemData+itemDataOffsetUniqueSetID, 77)
 
 	snap := probe.Snapshot()
 	if len(snap.Items) != 1 {
@@ -377,8 +379,33 @@ func TestProbeSnapshotEnumeratesGroundItems(t *testing.T) {
 	if got.PosX != 700 || got.PosY != 800 || !got.Identified || !got.Ethereal {
 		t.Fatalf("Item flags/position = %+v, want identified ethereal at 700,800", got)
 	}
+	if !got.UniqueSetIDAvailable || got.UniqueSetID != 77 {
+		t.Fatalf("UniqueSetID = %d available=%t, want 77/true", got.UniqueSetID, got.UniqueSetIDAvailable)
+	}
 	if len(got.Stats) != 1 || got.Stats[0].ID != 123 || got.Stats[0].Layer != 2 || got.Stats[0].Value != 456 {
 		t.Fatalf("Stats = %+v, want raw stat 123/2/456", got.Stats)
+	}
+}
+
+func TestItemIdentityReadFailureKeepsItem(t *testing.T) {
+	access, probe, moduleBase := setupProbeMock(t)
+	off := testOffsetSet()
+
+	const (
+		itemUnit = uintptr(0x69000)
+		itemData = uintptr(0x6A000)
+		itemPath = uintptr(0x6B000)
+	)
+	writeSegmentHead(access, moduleBase, off.UnitTable, unitSegmentItem, itemUnit)
+	setupGroundItemUnit(access, itemUnit, itemData, itemPath, 0, 0, 610, 4001, 5, 0)
+	access.partialAt = itemData + itemDataOffsetUniqueSetID
+
+	snap := probe.Snapshot()
+	if len(snap.Items) != 1 {
+		t.Fatalf("Items = %+v, want item despite unavailable identity", snap.Items)
+	}
+	if snap.Items[0].UniqueSetIDAvailable {
+		t.Fatalf("UniqueSetIDAvailable = true, want false: %+v", snap.Items[0])
 	}
 }
 

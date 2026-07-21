@@ -77,7 +77,7 @@ func TestRecorderPersistsResolvedRunContext(t *testing.T) {
 	want := Event{
 		Event: RunContext, DefinitionID: "mephisto", RouteID: "durance-route",
 		RouteLayoutFingerprint: "fingerprint", WaypointTarget: "durance_of_hate_level_2",
-		LootPickupPolicy: "pickit/mephisto.nip", LootSellPolicy: "pickit/mephisto-sell.nip", TownOrigin: "act3",
+		TownOrigin: "act3",
 	}
 	if emitErr := r.Emit(want); emitErr != nil {
 		t.Fatal(emitErr)
@@ -93,7 +93,7 @@ func TestRecorderPersistsResolvedRunContext(t *testing.T) {
 	if err := json.Unmarshal(data, &got); err != nil {
 		t.Fatal(err)
 	}
-	if got.Event != RunContext || got.DefinitionID != want.DefinitionID || got.RouteID != want.RouteID || got.RouteLayoutFingerprint != want.RouteLayoutFingerprint || got.WaypointTarget != want.WaypointTarget || got.LootPickupPolicy != want.LootPickupPolicy || got.LootSellPolicy != want.LootSellPolicy || got.TownOrigin != want.TownOrigin {
+	if got.Event != RunContext || got.DefinitionID != want.DefinitionID || got.RouteID != want.RouteID || got.RouteLayoutFingerprint != want.RouteLayoutFingerprint || got.WaypointTarget != want.WaypointTarget || got.TownOrigin != want.TownOrigin {
 		t.Fatalf("run context=%+v", got)
 	}
 }

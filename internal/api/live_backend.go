@@ -12,6 +12,7 @@ import (
 
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/app"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/config"
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/tasks"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/telemetry"
 )
 
@@ -38,6 +39,8 @@ type LiveBackend struct {
 	routeWorkflow       RouteWorkflowDTO
 	routeWorkflowRun    func(RouteWorkflowRequest, <-chan struct{}, app.RouteWorkflowReporter) error
 	routeWorkflowFinish chan struct{}
+	pickitProfiles      *app.PickitProfileService
+	pickitAssignments   *app.PickitAssignmentStore
 }
 
 // SetSessionSupervisor binds the single Core-owned queue state machine. The
@@ -104,6 +107,14 @@ func NewLiveBackend(cfg *config.Config, publisher *telemetry.LivePublisher) (*Li
 	if err != nil {
 		return nil, err
 	}
+	pickitProfiles, err := app.NewPickitProfileService(cfg.ResolvePath("pickit/profiles"))
+	if err != nil {
+		return nil, fmt.Errorf("pickit profiles: %w", err)
+	}
+	pickitAssignments, err := app.NewPickitAssignmentStore(cfg.ResolvePath("pickit-assignments.local.yaml"), pickitProfiles)
+	if err != nil {
+		return nil, fmt.Errorf("pickit assignments: %w", err)
+	}
 	manifest, _, err := lifecycle.Snapshot()
 	if err != nil {
 		return nil, fmt.Errorf("load route lifecycle: %w", err)
@@ -122,7 +133,7 @@ func NewLiveBackend(cfg *config.Config, publisher *telemetry.LivePublisher) (*Li
 	if character := manifest.Characters[strings.ToLower(cfg.Session.Character)]; character.LastConfirmedDifficulty != "" {
 		status.Selection = SelectionStatusDTO{Character: cfg.Session.Character, Difficulty: character.LastConfirmedDifficulty}
 	}
-	return &LiveBackend{bootstrap: bootstrap, cfg: cfg, lifecycle: lifecycle, publisher: publisher, status: status, catalog: bootstrap.Catalog(), commands: make(map[string]apiCommandRecord), previews: make(map[string]selectionPreviewRecord), routeCandidates: candidates, routeAssignments: assignments, routeManagement: management, routeWorkflow: RouteWorkflowDTO{Generation: 1, State: string(app.RouteWorkflowIdle)}}, nil
+	return &LiveBackend{bootstrap: bootstrap, cfg: cfg, lifecycle: lifecycle, publisher: publisher, status: status, catalog: bootstrap.Catalog(), commands: make(map[string]apiCommandRecord), previews: make(map[string]selectionPreviewRecord), routeCandidates: candidates, routeAssignments: assignments, routeManagement: management, routeWorkflow: RouteWorkflowDTO{Generation: 1, State: string(app.RouteWorkflowIdle)}, pickitProfiles: pickitProfiles, pickitAssignments: pickitAssignments}, nil
 }
 
 // SetRouteWorkflowHandler binds UI workflow starts to the existing Runtime recorder/test adapters.
@@ -296,6 +307,11 @@ func (b *LiveBackend) ValidateQueue(request QueueValidationRequest) (QueueValida
 			return QueueValidationDTO{}, &commandError{code: string(supervisorErr.Code), message: "Der Katalog hat sich seit dem Queue-Entwurf geändert."}
 		}
 		return QueueValidationDTO{}, err
+	}
+	for _, runID := range plan.RunIDs {
+		if _, resolveErr := b.pickitAssignments.Resolve(plan.Character, tasks.RunID(runID)); resolveErr != nil {
+			return QueueValidationDTO{}, &commandError{code: "pickit_assignment_invalid", message: "Die Pickit-Zuordnung ist unvollständig oder ungültig.", details: map[string]any{"run_id": runID}}
+		}
 	}
 	return QueueValidationDTO{
 		Entries: append([]string(nil), plan.RunIDs...), Character: plan.Character, Difficulty: plan.Difficulty,

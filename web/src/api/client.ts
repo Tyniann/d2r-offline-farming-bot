@@ -1,4 +1,4 @@
-import type { CommandResponse, QueueValidationDTO, RouteMutationPreviewDTO, RouteWorkflowDTO, SelectionPreviewDTO } from "./generated";
+import type { CommandResponse, PickitAssignmentUpdateRequest, PickitAssignmentsDTO, PickitCreateRequest, PickitDeleteRequest, PickitDuplicateRequest, PickitProfileDTO, PickitUpdateRequest, QueueValidationDTO, RouteMutationPreviewDTO, RouteWorkflowDTO, SelectionPreviewDTO } from "./generated";
 
 let controlToken = "";
 
@@ -132,6 +132,19 @@ export async function finishRouteRecording(workflowId: string, expectedGeneratio
   return response.json() as Promise<RouteWorkflowDTO>;
 }
 
+async function pickitMutation<T>(path: string, method: string, body: unknown): Promise<T> {
+  await ensureControlToken();
+  const response = await fetch(path, { method, headers: controlHeaders(), body: JSON.stringify(body) });
+  if (!response.ok) throw await errorMessage(response, "Pickit-Änderung fehlgeschlagen");
+  return response.status === 204 ? (undefined as T) : response.json() as Promise<T>;
+}
+
+export function createPickitProfile(request: PickitCreateRequest): Promise<PickitProfileDTO> { return pickitMutation("/api/v1/pickit/profiles", "POST", request); }
+export function updatePickitProfile(id: string, request: PickitUpdateRequest): Promise<PickitProfileDTO> { return pickitMutation(`/api/v1/pickit/profiles/${encodeURIComponent(id)}`, "PUT", request); }
+export function duplicatePickitProfile(id: string, request: PickitDuplicateRequest): Promise<PickitProfileDTO> { return pickitMutation(`/api/v1/pickit/profiles/${encodeURIComponent(id)}/duplicate`, "POST", request); }
+export function deletePickitProfile(id: string, request: PickitDeleteRequest): Promise<void> { return pickitMutation(`/api/v1/pickit/profiles/${encodeURIComponent(id)}`, "DELETE", request); }
+export function updatePickitAssignment(request: PickitAssignmentUpdateRequest): Promise<PickitAssignmentsDTO> { return pickitMutation("/api/v1/pickit/assignments", "PUT", request); }
+
 export type LiveConnectionState = "wird verbunden" | "verbunden" | "getrennt";
 
 export function connectLiveEvents(
@@ -144,7 +157,7 @@ export function connectLiveEvents(
   source.onopen = () => onState("verbunden");
   source.onerror = () => onState("getrennt");
   source.addEventListener("snapshot", (event) => onSnapshot(JSON.parse((event as MessageEvent<string>).data)));
-  for (const name of ["supervisor_state_changed", "session_result", "selection_completed", "selection_failed", "d2r_state_changed", "input_state_changed", "world_state_changed", "area_changed", "runtime_error", "runtime_error_cleared", "step_changed", "route_workflow_changed", "route_library_changed"]) {
+  for (const name of ["supervisor_state_changed", "session_result", "selection_completed", "selection_failed", "d2r_state_changed", "input_state_changed", "world_state_changed", "area_changed", "runtime_error", "runtime_error_cleared", "step_changed", "route_workflow_changed", "route_library_changed", "pickit_profile_changed", "pickit_assignment_changed"]) {
     source.addEventListener(name, (event) => onEvent(JSON.parse((event as MessageEvent<string>).data)));
   }
   return () => source.close();

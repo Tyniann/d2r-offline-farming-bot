@@ -1,7 +1,7 @@
 package loot
 
 import (
-	"path/filepath"
+	"fmt"
 	"testing"
 
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/world"
@@ -47,13 +47,18 @@ func TestMephistoPoliciesProtectFlawlessAndPerfectGems(t *testing.T) {
 }
 
 func TestMephistoSellCandidateIsExcludedFromStashButGemRemains(t *testing.T) {
-	pickup := mustLoadPhase10Policy(t, "mephisto.nip")
-	sell := mustLoadPhase10Policy(t, "mephisto-sell.nip")
+	pickup, err := CompilePickitRules("phase13 effective", []PickitRuleSpec{
+		{ProfileID: "gems", RuleID: "perfect", Action: ActionKeep, Expression: `[name] == "gpv"`},
+		{ProfileID: "mephisto", RuleID: "sell", Action: ActionSell, Expression: `([quality] == "unique") && ([tier] == "exceptional")`},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
 	lock, err := NewInventoryLock(unlockedInventory())
 	if err != nil {
 		t.Fatal(err)
 	}
-	executor := &StashExecutor{filter: NewFilter(testLogger(), lock, pickup), sell: sell}
+	executor := &StashExecutor{filter: NewFilter(testLogger(), lock, pickup)}
 	gem := world.Item{UnitID: 1, Code: "gpv", Quality: world.ItemQualityNormal, BaseTier: world.BaseTierUnknown, Location: world.ItemLocationInventory, PlayerOwned: true, Page: 0, Width: 1, Height: 1}
 	candidate := world.Item{UnitID: 2, Code: "xap", Quality: world.ItemQualityUnique, BaseTier: world.BaseTierExceptional, Identified: true, Location: world.ItemLocationInventory, PlayerOwned: true, Page: 0, GridX: 2, Width: 2, Height: 2}
 	candidates, safe := executor.candidates(stashState(candidate, gem))
@@ -64,7 +69,34 @@ func TestMephistoSellCandidateIsExcludedFromStashButGemRemains(t *testing.T) {
 
 func mustLoadPhase10Policy(t *testing.T, name string) *Pickit {
 	t.Helper()
-	policy, err := LoadPickit(filepath.Join("..", "..", "configs", "pickit", name))
+	var expressions []string
+	switch name {
+	case "countess.nip":
+		expressions = []string{
+			`[type] == rune`, `[name] == pk1`, `[type] == rpot`,
+			`[name] == gzv || [name] == gpv`, `[name] == gly || [name] == gpy`,
+			`[name] == glb || [name] == gpb`, `[name] == glg || [name] == gpg`,
+			`[name] == glr || [name] == gpr`, `[name] == glw || [name] == gpw`,
+			`[name] == skl || [name] == skz`,
+		}
+	case "mephisto.nip":
+		expressions = []string{
+			`[name] == gzv || [name] == gpv`, `[name] == gly || [name] == gpy`,
+			`[name] == glb || [name] == gpb`, `[name] == glg || [name] == gpg`,
+			`[name] == glr || [name] == gpr`, `[name] == glw || [name] == gpw`,
+			`[name] == skl || [name] == skz`,
+			`([quality] == set || [quality] == unique) && ([tier] == exceptional || [tier] == elite)`,
+		}
+	case "mephisto-sell.nip":
+		expressions = []string{`([quality] == set || [quality] == unique) && ([tier] == exceptional || [tier] == elite)`}
+	default:
+		t.Fatalf("unknown characterized policy %q", name)
+	}
+	specs := make([]PickitRuleSpec, 0, len(expressions))
+	for index, expression := range expressions {
+		specs = append(specs, PickitRuleSpec{ProfileID: "legacy-characterization", RuleID: fmt.Sprintf("rule-%d", index+1), Action: ActionKeep, Expression: expression})
+	}
+	policy, err := CompilePickitRules(name, specs)
 	if err != nil {
 		t.Fatal(err)
 	}

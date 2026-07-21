@@ -8,6 +8,7 @@ import (
 
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/config"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/input"
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/loot"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/pathing"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/town"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/world"
@@ -112,12 +113,13 @@ func (a *townPreparationAdapter) start(state world.State) string {
 }
 
 func (a *townPreparationAdapter) planItemServiceOrders(state world.State) ([]town.ItemServiceOrder, town.Reason) {
-	if a == nil || a.sellFilter == nil {
+	if a == nil || a.lootFilter == nil {
 		return nil, ""
 	}
 	candidates := make([]town.ItemServiceCandidate, 0)
 	for _, item := range state.InventoryItems() {
-		if !a.sellFilter.Evaluate(item).Matched {
+		result := a.lootFilter.Evaluate(item)
+		if !result.Matched || result.Action != loot.ActionSell {
 			continue
 		}
 		locked := a.lootFilter == nil || a.lootFilter.InventoryLocked(item)
@@ -176,6 +178,7 @@ type townPreparationStepHandler struct {
 	itemOrders    []town.ItemServiceOrder
 	itemOrder     int
 	itemExecutor  *town.ItemServiceExecutor
+	itemPolicy    loot.PickitResult
 	itemInput     *townItemServiceInput
 	stage         string
 	npc           *town.NPCInteractor
@@ -342,18 +345,36 @@ func (h *townPreparationStepHandler) tickItemOrders(state world.State, kind town
 	}
 	order := h.itemOrders[h.itemOrder]
 	if h.itemExecutor == nil {
+		item, found := state.FindItemByUnitID(order.UnitID)
+		policy := loot.PickitResult{}
+		if found && h.adapter.lootFilter != nil {
+			policy = h.adapter.lootFilter.Evaluate(item)
+		}
+		if !found || !policy.Matched || policy.Action != loot.ActionSell {
+			// Identify may change identity-dependent predicates. A missing or drifted
+			// match revokes the queued operation without authorizing Stash or Sell.
+			h.itemOrder++
+			return town.InteractionResult{Status: town.InteractionPending, UnitID: order.UnitID, Reason: "pickit_recheck_no_match", Vendor: anchor}
+		}
 		executor, err := town.NewItemServiceExecutor(h.itemInput, order, townRestockVerifyTicks)
 		if err != nil {
 			return town.InteractionResult{Status: town.InteractionFailed, Reason: err.Error(), Done: true}
 		}
 		h.itemExecutor = executor
+		h.itemPolicy = policy
 	}
 	h.itemInput.bind(state)
 	result := h.itemExecutor.Tick(state)
+	result.ProfileID, result.RuleID, result.PickitAction = h.itemPolicy.ProfileID, h.itemPolicy.RuleID, string(h.itemPolicy.Action)
+	result.ProfileRevision, result.AssignmentRevision = h.itemPolicy.ProfileRevision, h.itemPolicy.AssignmentRevision
+	if result.Status == town.InteractionAction && h.adapter.log != nil {
+		h.adapter.log.Info("pickit town action", "unit_id", order.UnitID, "input_action", result.Action, "profile_id", result.ProfileID, "rule_id", result.RuleID, "action", result.PickitAction, "profile_revision", result.ProfileRevision, "assignment_revision", result.AssignmentRevision)
+	}
 	result.Vendor = anchor
 	if result.Status == town.InteractionComplete {
 		h.itemOrder++
 		h.itemExecutor = nil
+		h.itemPolicy = loot.PickitResult{}
 		return town.InteractionResult{Status: town.InteractionPending, UnitID: order.UnitID, Vendor: anchor}
 	}
 	return result
@@ -586,6 +607,7 @@ func (h *townPreparationStepHandler) ResetStep() {
 	// Keep traversal, anchor, and completed order index: those belong to the
 	// whole plan. Drop every pin or action state owned by the finished step.
 	h.npc, h.shop, h.itemExecutor = nil, nil, nil
+	h.itemPolicy = loot.PickitResult{}
 	h.verifier, h.buyer = nil, nil
 	h.buyerActed, h.buyerCode, h.buyerCost = false, "", 0
 	h.settleUntil, h.shopCloseSent = time.Time{}, false

@@ -1,0 +1,26 @@
+schema_version: 1
+revision: 1
+id: gems
+name: Makellose und perfekte Edelsteine
+rules:
+  - id: amethyst
+    action: keep
+    expression: '[name] == gzv || [name] == gpv'
+  - id: topaz
+    action: keep
+    expression: '[name] == gly || [name] == gpy'
+  - id: sapphire
+    action: keep
+    expression: '[name] == glb || [name] == gpb'
+  - id: emerald
+    action: keep
+    expression: '[name] == glg || [name] == gpg'
+  - id: ruby
+    action: keep
+    expression: '[name] == glr || [name] == gpr'
+  - id: diamond
+    action: keep
+    expression: '[name] == glw || [name] == gpw'
+  - id: skull
+    action: keep
+    expression: '[name] == skl || [name] == skz'

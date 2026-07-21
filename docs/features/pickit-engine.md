@@ -2,12 +2,12 @@
 
 ## Überblick
 
-Phase 5.3 führt eine kleine Pickit-Engine ein, die einen bewusst begrenzten NIP-Subset lädt und gegen Items aus dem bestehenden World Model auswertet. Die Engine entscheidet nur, ob ein Item zu einer Regel passt. Sie hebt nichts auf, bewegt keine Items, identifiziert nichts und führt keine Stash- oder Quantity-Logik aus.
+Phase 5.3 führt eine kleine Pickit-Engine ein, die einen bewusst begrenzten NIP-Subset lädt und gegen Items aus dem bestehenden World Model auswertet. Abschnitt 13.3 ergänzt exakt aufgelöste Set-/Unique-Identitäten, die Aktionen `keep`/`sell`, stabile Regelherkunft und einen geordneten First-Match-Trace. Die Engine hebt weiterhin nichts auf, bewegt keine Items und führt selbst weder Identify-, Stash- noch Vendor-Input aus.
 
 Die Item-Identität kommt ausschließlich aus dem generierten `internal/world`-Katalog:
 
 ```text
-memory.TxtFileNo -> world.Item via generated itemCatalog -> loot.Pickit evaluation
+memory raw item -> world.Item via generated base/identity catalog -> loot.Pickit evaluation
 ```
 
 Die lokalen Dateien unter `.tmp/d2r-excel` sind nur Eingabe für die Katalog-Regeneration. Runtime-Code liest diese Dateien nicht.
@@ -15,23 +15,15 @@ Die lokalen Dateien unter `.tmp/d2r-excel` sind nur Eingabe für die Katalog-Reg
 ## Ort im Code
 
 - **Paket:** `internal/loot/`
-- **Einstieg:** `loot.LoadPickit` beim App-Wiring in `internal/app/app.go`
+- **Einstieg:** `loot.CompilePickitRules` über den Assignment-Resolver in `internal/app/pickit_store.go`
 - **Wichtige Dateien:** `internal/loot/pickit.go`, `internal/loot/loot.go`
-- **Config:** `runs.definitions.<run-id>.loot.pickup_file`; Countess verwendet `pickit/countess.nip`
+- **Config:** `configs/pickit/profiles/*.yaml` und `configs/pickit-assignments.local.yaml`
 
 ## Funktionalität
 
-### Datei und Pfadauflösung
+### Profile und Pfadauflösung
 
-Die Pickup-Policy des ausgewählten Runs wird relativ zur geladenen Config-Datei aufgelöst. Beim normalen Layout bedeutet das:
-
-```text
-configs/config.yaml -> configs/pickit/countess.nip
-```
-
-Wenn ein Operator eine Config an einem anderen Ort nutzt, z. B. `C:\somewhere\custom.yaml`, zeigt der Standard entsprechend auf `C:\somewhere\pickit\countess.nip`.
-
-Fehlende, nicht lesbare oder syntaktisch ungültige Pickit-Dateien brechen den Start mit `pickit config invalid` ab. Eine leere Datei ist gültig und matcht keine Items.
+Globale Profile liegen relativ zur geladenen Config unter `pickit/profiles/`; die lokale, gitignorierte Zuordnung liegt in `pickit-assignments.local.yaml`. Beide werden strikt und kataloggebunden geladen. Fehlende, nicht lesbare, syntaktisch ungültige oder unbekannt referenzierte Profile brechen den autorisierten Kontext fail-closed ab. Die frühere Run-Config mit `pickup_file`/`sell_file` und deren NIP-Dateien wurde in 13.4 entfernt.
 
 ### Unterstützter NIP-Subset
 
@@ -41,6 +33,8 @@ Unterstützte Felder:
 - `[type]` gegen `world.Item.Type`
 - `[quality]` gegen `world.ItemQuality.String()`
 - `[tier]` gegen die generierte `world.BaseTier` (`unknown`, `normal`, `exceptional`, `elite`)
+- `[setitem]` gegen den stabilen Schlüssel einer konsistent aufgelösten Set-Identität
+- `[uniqueitem]` gegen den stabilen Schlüssel einer konsistent aufgelösten Unique-Identität
 - `[flag]` mit `identified` und `ethereal`
 - `[stat:<id>]` gegen `world.Item.Stats`, ab Phase 5.9 ausschließlich bei `Identified=true`
 
@@ -61,7 +55,11 @@ Operatoren:
 
 String-Vergleiche sind case-insensitive. Die originale Regel bleibt im `PickitResult.Rule` erhalten. `[tier]` ist ein rein read-only Prädikat; unbekannte Literale werden abgewiesen und Misc-Items werden niemals heuristisch als Elite behandelt.
 
-Nicht unterstützt sind unter anderem `[maxquantity]`, Prefix/Suffix, Charged Skills, Advanced Aliases und mehrteilige NIP-Sektionen. Solche Konstrukte schlagen beim Parsen mit Datei- und Zeilenkontext fehl.
+`[setitem]` und `[uniqueitem]` akzeptieren ausschließlich `==` und `!=`. Jede Referenz wird bereits beim Kompilieren case-insensitiv eindeutig im patchgenauen World-Katalog aufgelöst und kanonisch serialisiert. Ein Item matcht nur bei `IdentityValid=true` und passender Identitätsart. Unavailable, unbekannte oder widersprüchliche Identität bleibt auch bei einer `!=`-Bedingung fail-closed. Dadurch erzeugt weder ein Katalogdrift noch ein fehlgeschlagener Raw-Read ein positives Match.
+
+Der kanonische Serializer verwendet doppelte Anführungszeichen. Apostrophe bleiben literal; doppelte Anführungszeichen und Backslashes werden eindeutig als `\"` beziehungsweise `\\` geschrieben. Nur Quote und Backslash besitzen Escape-Bedeutung, andere bestehende Backslash-Folgen bleiben literal. `#` wird kanonisch als `&&` ausgegeben.
+
+Nicht unterstützt sind unter anderem `[maxquantity]`, Socket-/Sockelbedingungen, Prefix/Suffix, Charged Skills, Advanced Aliases und mehrteilige NIP-Sektionen. Solche Konstrukte schlagen beim Parsen mit Datei- und Zeilenkontext fehl. „Elite Polearm mit vier Sockeln“ bleibt eine spätere Erweiterung, bis Socket-Datenquelle, Sichtbarkeit vor Identifikation, Typvererbung und UI-Semantik gemeinsam spezifiziert sind.
 
 ### Ergebnis
 
@@ -73,14 +71,20 @@ type PickitResult struct {
     RuleIndex int
     Line      int
     Rule      string
+    RuleID    string
+    ProfileID string
+    Action    Action
+    ProfileRevision    int
+    AssignmentRevision int
+    Trace     []PickitTraceEntry
 }
 ```
 
-`RuleIndex` ist nullbasiert innerhalb der geparsten Regeln. `Line` ist die einbasierte Zeile in der Pickit-Datei.
+`RuleIndex` ist nullbasiert innerhalb der geparsten Regeln. `Line` ist die einbasierte Zeile in der Pickit-Datei. `CompilePickitRules` bindet jede Regel an stabile Profil-/Regel-IDs, die aktiven Revisionen und genau eine Aktion. Der Trace enthält ausschließlich tatsächlich in Reihenfolge ausgewertete Regeln und endet beim ersten Treffer; Katalogvorschau und Runtime verwenden dieselbe Auswertung. Der Legacy-Dateiloader wurde mit der Migration in 13.4 entfernt.
 
 ## Default Countess Pickit
 
-`configs/pickit/countess.nip` startet bewusst klein:
+Die Assignment-Kette `[gems, keys, countess-standard]` reproduziert die bisherige Countess-Policy:
 
 - Runen per `[type] == rune`
 - Key of Terror per `[name] == pk1`
@@ -91,13 +95,14 @@ Gold sowie Healing-/Mana-Potion-Regeln bleiben kommentierte Beispiele. Rejuvenat
 
 ## Operator / CLI
 
-Es gibt keine neue CLI-Oberfläche. Pickit wird beim Start geladen, sobald die App-Komponenten verdrahtet werden. Für manuelle Validierung bleiben die bestehenden read-only Probe-Logs und spätere Loot-Phasen relevant.
+Es gibt in 13.4 noch keine neue CLI-Oberfläche. Profile und Zuordnung werden beim Start über die App-Services geladen. Für manuelle Validierung bleiben die bestehenden read-only Probe-Logs und Loot-Testmodi relevant.
 
 ## Abhängigkeiten
 
 - [Item Enumeration Read-Only](item-enumeration.md) - beschreibt den generierten Item-Katalog und die lokale D2R-Extraktion
 - [Inventory Model und Lock Grid](inventory-lock-grid.md) - liefert spätere Kapazitätsgrenzen
 - [Loot- und Recovery-Loop](loot-recovery-loop.md) - ordnet Pickit in die Phase-5-Slices ein
+- [Pickit-Profile und Assignments](pickit-profiles.md) - persistente Source of Truth und effektive Policy
 
 ## Verwandte Features
 
@@ -105,4 +110,4 @@ Es gibt keine neue CLI-Oberfläche. Pickit wird beim Start geladen, sobald die A
 - [Countess-Run](countess-run.md)
 
 ---
-*Zuletzt aktualisiert: 2026-07-14*
+*Zuletzt aktualisiert: 2026-07-21*

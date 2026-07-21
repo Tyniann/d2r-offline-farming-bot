@@ -17,16 +17,49 @@ type Pickit struct {
 
 // PickitResult describes the first Pickit rule matched by an item.
 type PickitResult struct {
-	Matched   bool
-	RuleIndex int
-	Line      int
-	Rule      string
+	Matched            bool
+	RuleIndex          int
+	Line               int
+	Rule               string
+	RuleID             string
+	ProfileID          string
+	Action             Action
+	ProfileRevision    uint64
+	AssignmentRevision uint64
+	Trace              []PickitTraceEntry
+}
+
+// PickitRuleSpec beschreibt eine geordnete Runtime-Regel samt stabiler Herkunft.
+type PickitRuleSpec struct {
+	ProfileID          string
+	RuleID             string
+	Action             Action
+	Expression         string
+	ProfileRevision    uint64
+	AssignmentRevision uint64
+}
+
+// PickitTraceEntry beschreibt genau eine tatsächlich ausgewertete Regel.
+type PickitTraceEntry struct {
+	RuleIndex          int
+	ProfileID          string
+	RuleID             string
+	Action             Action
+	Expression         string
+	Matched            bool
+	ProfileRevision    uint64
+	AssignmentRevision uint64
 }
 
 type pickitRule struct {
-	line int
-	text string
-	expr pickitExpr
+	line               int
+	text               string
+	profileID          string
+	ruleID             string
+	action             Action
+	profileRevision    uint64
+	assignmentRevision uint64
+	expr               pickitExpr
 }
 
 // LoadPickit reads and parses a Pickit file for later read-only item evaluation.
@@ -47,17 +80,70 @@ func (p *Pickit) Evaluate(item world.Item) PickitResult {
 	if p == nil {
 		return PickitResult{}
 	}
+	trace := make([]PickitTraceEntry, 0, len(p.rules))
 	for idx, rule := range p.rules {
-		if rule.expr.eval(item) {
+		matched := rule.expr.eval(item)
+		trace = append(trace, PickitTraceEntry{
+			RuleIndex:          idx,
+			ProfileID:          rule.profileID,
+			RuleID:             rule.ruleID,
+			Action:             rule.action,
+			Expression:         rule.text,
+			Matched:            matched,
+			ProfileRevision:    rule.profileRevision,
+			AssignmentRevision: rule.assignmentRevision,
+		})
+		if matched {
 			return PickitResult{
-				Matched:   true,
-				RuleIndex: idx,
-				Line:      rule.line,
-				Rule:      rule.text,
+				Matched:            true,
+				RuleIndex:          idx,
+				Line:               rule.line,
+				Rule:               rule.text,
+				RuleID:             rule.ruleID,
+				ProfileID:          rule.profileID,
+				Action:             rule.action,
+				ProfileRevision:    rule.profileRevision,
+				AssignmentRevision: rule.assignmentRevision,
+				Trace:              trace,
 			}
 		}
 	}
-	return PickitResult{}
+	return PickitResult{Trace: trace}
+}
+
+// CompilePickitRules validiert und kompiliert geordnete Profilregeln für die bestehende First-Match-Auswertung.
+func CompilePickitRules(source string, specs []PickitRuleSpec) (*Pickit, error) {
+	rules := make([]pickitRule, 0, len(specs))
+	seen := make(map[string]struct{}, len(specs))
+	for index, spec := range specs {
+		if strings.TrimSpace(spec.ProfileID) == "" || strings.TrimSpace(spec.RuleID) == "" {
+			return nil, fmt.Errorf("%s:%d: profile and rule id are required", source, index+1)
+		}
+		if !spec.Action.Valid() {
+			return nil, fmt.Errorf("%s:%d: unsupported action %q", source, index+1, spec.Action)
+		}
+		key := spec.ProfileID + "\x00" + spec.RuleID
+		if _, duplicate := seen[key]; duplicate {
+			return nil, fmt.Errorf("%s:%d: duplicate rule %s/%s", source, index+1, spec.ProfileID, spec.RuleID)
+		}
+		seen[key] = struct{}{}
+		canonical, expr, err := canonicalPickitExpression(source, index+1, spec.Expression)
+		if err != nil {
+			return nil, err
+		}
+		rules = append(rules, pickitRule{
+			line: index + 1, text: canonical, profileID: spec.ProfileID,
+			ruleID: spec.RuleID, action: spec.Action, expr: expr,
+			profileRevision: spec.ProfileRevision, assignmentRevision: spec.AssignmentRevision,
+		})
+	}
+	return &Pickit{rules: rules}, nil
+}
+
+// CanonicalPickitExpression validiert einen Ausdruck und serialisiert ihn eindeutig.
+func CanonicalPickitExpression(expression string) (string, error) {
+	canonical, _, err := canonicalPickitExpression("expression", 1, expression)
+	return canonical, err
 }
 
 // RequiresIdentificationForKeep reports whether final keep/stash evaluation must wait for identification.
@@ -86,7 +172,10 @@ func parsePickit(path, content string) (*Pickit, error) {
 		if err != nil {
 			return nil, err
 		}
-		rules = append(rules, pickitRule{line: lineNo, text: text, expr: expr})
+		rules = append(rules, pickitRule{
+			line: lineNo, text: text, profileID: path, ruleID: fmt.Sprintf("line-%d", lineNo),
+			action: ActionKeep, expr: expr,
+		})
 	}
 	return &Pickit{rules: rules}, nil
 }
@@ -116,6 +205,14 @@ func parsePickitExpression(path string, line int, text string) (pickitExpr, erro
 		return nil, parser.errf("unexpected token %q", parser.peek().value)
 	}
 	return expr, nil
+}
+
+func canonicalPickitExpression(path string, line int, text string) (string, pickitExpr, error) {
+	expr, err := parsePickitExpression(path, line, strings.TrimSpace(text))
+	if err != nil {
+		return "", nil, err
+	}
+	return formatPickitExpr(expr, 0), expr, nil
 }
 
 type pickitExpr interface {
@@ -154,6 +251,16 @@ func (e compareExpr) eval(item world.Item) bool {
 		return compareString(strings.ToLower(item.Quality.String()), e.op, e.lit.text)
 	case fieldTier:
 		return compareString(strings.ToLower(item.BaseTier.String()), e.op, e.lit.text)
+	case fieldSetItem:
+		if !item.IdentityValid || item.IdentityKind != world.ItemIdentitySet {
+			return false
+		}
+		return compareString(strings.ToLower(item.IdentityKey), e.op, strings.ToLower(e.lit.text))
+	case fieldUniqueItem:
+		if !item.IdentityValid || item.IdentityKind != world.ItemIdentityUnique {
+			return false
+		}
+		return compareString(strings.ToLower(item.IdentityKey), e.op, strings.ToLower(e.lit.text))
 	case fieldFlag:
 		var has bool
 		switch e.lit.text {
@@ -179,6 +286,58 @@ func (e compareExpr) eval(item world.Item) bool {
 		}
 	}
 	return false
+}
+
+func formatPickitExpr(expr pickitExpr, parentPrecedence int) string {
+	switch value := expr.(type) {
+	case compareExpr:
+		literal := strconv.Itoa(value.lit.num)
+		if value.lit.kind == literalString {
+			literal = quotePickitString(value.lit.text)
+		}
+		return fmt.Sprintf("[%s] %s %s", value.field.label, tokenText(value.op), literal)
+	case binaryExpr:
+		precedence := 1
+		if value.op == tokenAnd {
+			precedence = 2
+		}
+		formatted := formatPickitExpr(value.left, precedence) + " " + tokenText(value.op) + " " + formatPickitExpr(value.right, precedence)
+		if precedence < parentPrecedence {
+			return "(" + formatted + ")"
+		}
+		return formatted
+	default:
+		return ""
+	}
+}
+
+func quotePickitString(value string) string {
+	value = strings.ReplaceAll(value, `\`, `\\`)
+	value = strings.ReplaceAll(value, `"`, `\"`)
+	return `"` + value + `"`
+}
+
+func tokenText(kind tokenKind) string {
+	switch kind {
+	case tokenAnd:
+		return "&&"
+	case tokenOr:
+		return "||"
+	case tokenGreater:
+		return ">"
+	case tokenGreaterEqual:
+		return ">="
+	case tokenLess:
+		return "<"
+	case tokenLessEqual:
+		return "<="
+	case tokenEqual:
+		return "=="
+	case tokenNotEqual:
+		return "!="
+	default:
+		return ""
+	}
 }
 
 func compareString(left string, op tokenKind, right string) bool {
@@ -218,6 +377,8 @@ const (
 	fieldType
 	fieldQuality
 	fieldTier
+	fieldSetItem
+	fieldUniqueItem
 	fieldFlag
 	fieldStat
 )
@@ -350,6 +511,10 @@ func parsePickitField(raw string) (pickitField, error) {
 		return pickitField{kind: fieldQuality, label: label}, nil
 	case "tier":
 		return pickitField{kind: fieldTier, label: label}, nil
+	case "setitem":
+		return pickitField{kind: fieldSetItem, label: label}, nil
+	case "uniqueitem":
+		return pickitField{kind: fieldUniqueItem, label: label}, nil
 	case "flag":
 		return pickitField{kind: fieldFlag, label: label}, nil
 	default:
@@ -366,7 +531,7 @@ func parsePickitField(raw string) (pickitField, error) {
 
 func parsePickitLiteral(field pickitField, op tokenKind, tok pickitToken) (pickitLiteral, error) {
 	switch field.kind {
-	case fieldName, fieldType, fieldQuality, fieldTier:
+	case fieldName, fieldType, fieldQuality, fieldTier, fieldSetItem, fieldUniqueItem:
 		if op != tokenEqual && op != tokenNotEqual {
 			return pickitLiteral{}, fmt.Errorf("[%s] supports only == and !=", field.label)
 		}
@@ -376,6 +541,17 @@ func parsePickitLiteral(field pickitField, op tokenKind, tok pickitToken) (picki
 		value := strings.ToLower(tok.value)
 		if field.kind == fieldTier && value != string(world.BaseTierUnknown) && value != string(world.BaseTierNormal) && value != string(world.BaseTierExceptional) && value != string(world.BaseTierElite) {
 			return pickitLiteral{}, fmt.Errorf("unsupported tier %q", tok.value)
+		}
+		if field.kind == fieldSetItem || field.kind == fieldUniqueItem {
+			kind := world.ItemIdentitySet
+			if field.kind == fieldUniqueItem {
+				kind = world.ItemIdentityUnique
+			}
+			entry, ok := world.LookupItemIdentityKey(kind, tok.value)
+			if !ok {
+				return pickitLiteral{}, fmt.Errorf("unknown [%s] reference %q", field.label, tok.value)
+			}
+			value = entry.Key
 		}
 		return pickitLiteral{kind: literalString, text: value}, nil
 	case fieldFlag:
@@ -490,15 +666,27 @@ func lexPickit(path string, line int, text string) ([]pickitToken, error) {
 			i += end + 1
 		case text[i] == '"' || text[i] == '\'':
 			quote := text[i]
-			start := i + 1
 			i++
+			var value strings.Builder
 			for i < len(text) && text[i] != quote {
+				if text[i] == '\\' {
+					if i+1 < len(text) && (text[i+1] == quote || text[i+1] == '\\') {
+						i++
+					} else {
+						// Andere Backslash-Folgen bleiben wie im bisherigen Parser literal;
+						// nur Quote und Backslash besitzen eine Escape-Bedeutung.
+						value.WriteByte('\\')
+						i++
+						continue
+					}
+				}
+				value.WriteByte(text[i])
 				i++
 			}
 			if i >= len(text) {
 				return nil, fmt.Errorf("%s:%d: unterminated string literal", path, line)
 			}
-			tokens = append(tokens, pickitToken{kind: tokenString, value: text[start:i]})
+			tokens = append(tokens, pickitToken{kind: tokenString, value: value.String()})
 			i++
 		case text[i] == '-' || isASCIIDigit(text[i]):
 			start := i

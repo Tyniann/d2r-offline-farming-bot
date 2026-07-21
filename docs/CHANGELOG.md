@@ -7,6 +7,29 @@ Versionierung nach [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-07-21
+
+### Added
+- Add the Phase 13 baseline and core contract with Countess/Mephisto policy characterization, strict parser non-goals, profile and assignment schemas, actions, revisions, ownership, reason codes, and a fallback-free migration matrix
+- Add a deterministic D2R `3.2.92777` Set/Unique identity catalog with 140 Set rows, 433 Unique rows, English names, collision-safe stable keys, source validation, and Tal Rasha coverage
+- Add fail-closed Set/Unique identity transport and World resolution with quality/base validation and read-only Ground/Inventory diagnostics
+- Add exact `[setitem]`/`[uniqueitem]` Pickit fields, canonical escaped expressions, `keep`/`sell` rule metadata, and ordered First-Match evaluation traces
+- Add atomic revisioned Pickit profile and assignment stores with CRUD, duplicate/delete guards, strict references, and migrated Countess/Mephisto policies
+- Add the complete Pickit Core API, generated TypeScript client, serialized revision-safe mutations, queue preflight, and immutable per-run policy snapshots
+- Add the accessible React Pickit profile library and guided catalog editor with set expansion, ethereal base rules, advanced import, conflict handling, and assignments
+- Add Core-backed Pickit decision previews and enforce effective keep/sell actions with fail-closed identity rechecks and revision-correlated logs and JSONL telemetry
+- Add an unassigned low-risk arrow-quiver acceptance profile for the isolated Phase 13 GUI-to-loot gate
+- Complete the Phase 13 GUI-to-loot acceptance with revision-correlated match, hover-confirmed pickup, portal return, stash transfer, and successful JSONL completion
+
+### Fixed
+- Allow only the isolated `loot-and-return` phase to start when an unrelated Farming-route lifecycle entry is unavailable, while leaving every other run mode and all loot/input gates unchanged
+- Store stable Excel codes rather than English display names when guided base-item rules are created
+
+### Removed
+- Remove run-level `pickup_file`/`sell_file` configuration and the three legacy NIP policy authorities after equivalent profile migration
+- Remove the unused separately compiled Pickit sell subset and its dead Stash/Town wiring after all consumers switched to the single First-Match action policy
+- Remove the temporary synthetic decision-preview controls and their UI-only state from the Pickit editor after the Phase 13 live acceptance
+
 ## [0.8.0] - 2026-07-18
 
 ### Added

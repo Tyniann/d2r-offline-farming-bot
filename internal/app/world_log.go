@@ -241,13 +241,20 @@ func verboseGroundItemsHint(cur world.State) string {
 		if name == "" {
 			name = "Unknown Item"
 		}
-		parts = append(parts, fmt.Sprintf("unit=%d id=%d code=%q type=%q name=%q quality=%s x=%d y=%d",
+		parts = append(parts, fmt.Sprintf("unit=%d id=%d code=%q type=%q name=%q quality=%s ethereal=%t identity_kind=%q identity_raw_id=%d identity_available=%t identity_name=%q identity_consistent=%t identity_reason=%q x=%d y=%d",
 			item.UnitID,
 			item.TxtFileNo,
 			item.Code,
 			item.Type,
 			name,
 			item.Quality.String(),
+			item.Ethereal,
+			item.IdentityKind,
+			item.IdentityRawID,
+			item.IdentityAvailable,
+			item.IdentityName,
+			item.IdentityValid,
+			item.IdentityReason,
 			item.Position.X,
 			item.Position.Y,
 		))
@@ -308,11 +315,19 @@ func verboseInventoryItemsHint(items []world.Item) string {
 		if name == "" {
 			name = "Unknown Item"
 		}
-		parts = append(parts, fmt.Sprintf("unit=%d id=%d code=%q name=%q grid=%d,%d size=%dx%d",
+		parts = append(parts, fmt.Sprintf("unit=%d id=%d code=%q name=%q quality=%s ethereal=%t identity_kind=%q identity_raw_id=%d identity_available=%t identity_name=%q identity_consistent=%t identity_reason=%q grid=%d,%d size=%dx%d",
 			item.UnitID,
 			item.TxtFileNo,
 			item.Code,
 			name,
+			item.Quality.String(),
+			item.Ethereal,
+			item.IdentityKind,
+			item.IdentityRawID,
+			item.IdentityAvailable,
+			item.IdentityName,
+			item.IdentityValid,
+			item.IdentityReason,
 			item.GridX,
 			item.GridY,
 			item.Width,

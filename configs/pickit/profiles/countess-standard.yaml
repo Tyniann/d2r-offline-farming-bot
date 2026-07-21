@@ -1,0 +1,11 @@
+schema_version: 1
+revision: 1
+id: countess-standard
+name: Countess Standard
+rules:
+  - id: runes
+    action: keep
+    expression: '[type] == rune'
+  - id: rejuvenation
+    action: keep
+    expression: '[type] == rpot'

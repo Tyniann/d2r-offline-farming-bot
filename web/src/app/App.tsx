@@ -6,6 +6,7 @@ import {
 import { getCatalog, getStatus, type CatalogDTO, type LiveEvent, type SelectionPreviewDTO, type StatusDTO } from "../api/generated";
 import "./app.css";
 import { RouteFeature } from "../features/routes/RouteFeature";
+import { PickitFeature } from "../features/pickit/PickitFeature";
 
 const editableStates = new Set(["idle", "idle_in_game", "stopped_error"]);
 const emergencyStates = new Set(["starting_game", "starting_run", "running_run", "paused_between_runs", "exiting_game"]);
@@ -27,6 +28,7 @@ export function App() {
   const [preview, setPreview] = useState<SelectionPreviewDTO | null>(null);
   const [confirmEmergency, setConfirmEmergency] = useState(false);
   const [routeRefreshKey, setRouteRefreshKey] = useState(0);
+  const [pickitRefreshKey, setPickitRefreshKey] = useState(0);
   const emergencyConfirmRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
@@ -70,6 +72,7 @@ export function App() {
         (data) => {
           setEvents((current) => [data as LiveEvent, ...current].slice(0, 40));
           if ((data as LiveEvent).event.startsWith("route_")) setRouteRefreshKey((value) => value + 1);
+          if ((data as LiveEvent).event.startsWith("pickit_")) setPickitRefreshKey((value) => value + 1);
           void refreshStatus();
         },
         setConnection,
@@ -180,6 +183,8 @@ export function App() {
       </section>
 
       <RouteFeature characters={catalog?.characters.map((entry) => entry.name) ?? []} selectedCharacter={status?.selection.character ?? character} refreshKey={routeRefreshKey} />
+
+      <PickitFeature characters={catalog?.characters.map((entry) => entry.name) ?? []} selectedCharacter={status?.selection.character ?? character} runs={catalog?.runs.map((entry) => entry.run_id) ?? []} locked={!!status && !editableStates.has(status.state)} refreshKey={pickitRefreshKey} />
 
       <section>
         <h2>Charakter und Schwierigkeit</h2>

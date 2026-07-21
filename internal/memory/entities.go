@@ -34,19 +34,21 @@ type RawStat struct {
 
 // ItemUnit is a primitive item entity from the unit table item segment.
 type ItemUnit struct {
-	TxtFileNo   uint32
-	UnitID      uint32
-	Quality     uint32
-	RawLocation uint32
-	OwnerID     uint32
-	PlayerOwned bool
-	Page        uint32
-	GridX       uint32
-	GridY       uint32
-	PosX        uint32
-	PosY        uint32
-	Flags       uint32
-	Identified  bool
-	Ethereal    bool
-	Stats       []RawStat
+	TxtFileNo            uint32
+	UnitID               uint32
+	Quality              uint32
+	UniqueSetID          int32
+	UniqueSetIDAvailable bool
+	RawLocation          uint32
+	OwnerID              uint32
+	PlayerOwned          bool
+	Page                 uint32
+	GridX                uint32
+	GridY                uint32
+	PosX                 uint32
+	PosY                 uint32
+	Flags                uint32
+	Identified           bool
+	Ethereal             bool
+	Stats                []RawStat
 }

@@ -288,6 +288,151 @@ export interface RouteMutationConfirmRequest {
   confirm_route_id?: string;
 }
 
+export interface PickitCatalogDTO {
+  schema_version: number;
+  catalog_version: string;
+  bases: Array<PickitBaseDTO>;
+  identities: Array<PickitIdentityDTO>;
+  actions: Array<string>;
+  qualities: Array<string>;
+  speed_categories: Array<string>;
+}
+
+export interface PickitBaseDTO {
+  txt_file_no: number;
+  code: string;
+  name: string;
+  type: string;
+  base_tier: string;
+}
+
+export interface PickitIdentityDTO {
+  kind: string;
+  raw_id: number;
+  key: string;
+  display_name: string;
+  base_code: string;
+  set_key?: string;
+  set_name?: string;
+  spawnable: boolean;
+}
+
+export interface PickitRuleDTO {
+  id: string;
+  action: string;
+  expression: string;
+}
+
+export interface PickitProfileDTO {
+  schema_version: number;
+  revision: number;
+  id: string;
+  name: string;
+  rules: Array<PickitRuleDTO>;
+}
+
+export interface PickitProfilesDTO {
+  profiles: Array<PickitProfileDTO>;
+  assignment_revision: number;
+}
+
+export interface PickitValidationRequest {
+  profile: PickitProfileDTO;
+}
+
+export interface PickitValidationDTO {
+  valid: boolean;
+  profile: PickitProfileDTO;
+}
+
+export interface PickitPreviewItemDTO {
+  code: string;
+  name?: string;
+  type?: string;
+  quality: string;
+  identity_kind?: string;
+  identity_key?: string;
+  identity_available?: boolean;
+  identity_valid?: boolean;
+  identified?: boolean;
+  ethereal?: boolean;
+}
+
+export interface PickitPreviewRequest {
+  profile: PickitProfileDTO;
+  item: PickitPreviewItemDTO;
+}
+
+export interface PickitTraceDTO {
+  rule_index: number;
+  profile_id: string;
+  rule_id: string;
+  action: string;
+  expression: string;
+  matched: boolean;
+  profile_revision: number;
+  assignment_revision: number;
+}
+
+export interface PickitPreviewDTO {
+  matched: boolean;
+  rule_index: number;
+  profile_id: string;
+  rule_id: string;
+  action: string;
+  profile_revision: number;
+  assignment_revision: number;
+  trace: Array<PickitTraceDTO>;
+}
+
+export interface PickitCreateRequest {
+  profile: PickitProfileDTO;
+}
+
+export interface PickitUpdateRequest {
+  expected_revision: number;
+  profile: PickitProfileDTO;
+}
+
+export interface PickitDuplicateRequest {
+  target_id: string;
+  target_name: string;
+}
+
+export interface PickitDeleteRequest {
+  expected_revision: number;
+}
+
+export interface PickitAssignmentsDTO {
+  schema_version: number;
+  revision: number;
+  assignments: Record<string, unknown>;
+}
+
+export interface PickitAssignmentUpdateRequest {
+  character: string;
+  run_id: string;
+  profile_ids: Array<string>;
+  expected_revision: number;
+}
+
+export interface PickitImportRequest {
+  text: string;
+  action: string;
+}
+
+export interface PickitImportDTO {
+  rules: Array<PickitRuleDTO>;
+  warnings: Array<string>;
+}
+
+export interface PickitExportDTO {
+  profile_id: string;
+  revision: number;
+  text: string;
+  warning: string;
+}
+
 export interface ErrorDTO {
   code: string;
   message: string;
@@ -299,8 +444,16 @@ export const API_VERSION = "v1" as const;
 
 async function getJSON<T>(path: string, signal?: AbortSignal): Promise<T> {
   const response = await fetch(path, { signal, headers: { Accept: "application/json" } });
-  if (!response.ok) throw new Error(`API-Abfrage fehlgeschlagen (${response.status})`);
+  if (!response.ok) { const error = await response.json().catch(() => null) as { message?: string } | null; throw new Error(error?.message ?? `API-Abfrage fehlgeschlagen (${response.status})`); }
   return response.json() as Promise<T>;
+}
+
+async function sendJSON<T>(path: string, method: string, body: unknown, token = "", signal?: AbortSignal): Promise<T> {
+  const headers: Record<string, string> = { Accept: "application/json", "Content-Type": "application/json" };
+  if (token) headers["X-D2RBot-Control-Token"] = token;
+  const response = await fetch(path, { method, body: JSON.stringify(body), signal, headers });
+  if (!response.ok) { const error = await response.json().catch(() => null) as { message?: string } | null; throw new Error(error?.message ?? `API-Mutation fehlgeschlagen (${response.status})`); }
+  return response.status === 204 ? (undefined as T) : response.json() as Promise<T>;
 }
 
 export function getStatus(signal?: AbortSignal): Promise<StatusDTO> {
@@ -310,6 +463,19 @@ export function getStatus(signal?: AbortSignal): Promise<StatusDTO> {
 export function getCatalog(signal?: AbortSignal): Promise<CatalogDTO> {
   return getJSON<CatalogDTO>("/api/v1/catalog", signal);
 }
+
+export function getPickitCatalog(signal?: AbortSignal): Promise<PickitCatalogDTO> { return getJSON<PickitCatalogDTO>("/api/v1/pickit/catalog", signal); }
+export function getPickitProfiles(signal?: AbortSignal): Promise<PickitProfilesDTO> { return getJSON<PickitProfilesDTO>("/api/v1/pickit/profiles", signal); }
+export function validatePickitProfile(request: PickitValidationRequest, signal?: AbortSignal): Promise<PickitValidationDTO> { return sendJSON<PickitValidationDTO>("/api/v1/pickit/profiles/validate", "POST", request, "", signal); }
+export function previewPickit(request: PickitPreviewRequest, signal?: AbortSignal): Promise<PickitPreviewDTO> { return sendJSON<PickitPreviewDTO>("/api/v1/pickit/preview", "POST", request, "", signal); }
+export function createPickitProfile(request: PickitCreateRequest, token: string, signal?: AbortSignal): Promise<PickitProfileDTO> { return sendJSON<PickitProfileDTO>("/api/v1/pickit/profiles", "POST", request, token, signal); }
+export function updatePickitProfile(id: string, request: PickitUpdateRequest, token: string, signal?: AbortSignal): Promise<PickitProfileDTO> { return sendJSON<PickitProfileDTO>(`/api/v1/pickit/profiles/${encodeURIComponent(id)}`, "PUT", request, token, signal); }
+export function duplicatePickitProfile(id: string, request: PickitDuplicateRequest, token: string, signal?: AbortSignal): Promise<PickitProfileDTO> { return sendJSON<PickitProfileDTO>(`/api/v1/pickit/profiles/${encodeURIComponent(id)}/duplicate`, "POST", request, token, signal); }
+export function deletePickitProfile(id: string, request: PickitDeleteRequest, token: string, signal?: AbortSignal): Promise<void> { return sendJSON<void>(`/api/v1/pickit/profiles/${encodeURIComponent(id)}`, "DELETE", request, token, signal); }
+export function getPickitAssignments(signal?: AbortSignal): Promise<PickitAssignmentsDTO> { return getJSON<PickitAssignmentsDTO>("/api/v1/pickit/assignments", signal); }
+export function updatePickitAssignment(request: PickitAssignmentUpdateRequest, token: string, signal?: AbortSignal): Promise<PickitAssignmentsDTO> { return sendJSON<PickitAssignmentsDTO>("/api/v1/pickit/assignments", "PUT", request, token, signal); }
+export function importPickit(request: PickitImportRequest, signal?: AbortSignal): Promise<PickitImportDTO> { return sendJSON<PickitImportDTO>("/api/v1/pickit/import", "POST", request, "", signal); }
+export function exportPickitProfile(id: string, signal?: AbortSignal): Promise<PickitExportDTO> { return getJSON<PickitExportDTO>(`/api/v1/pickit/profiles/${encodeURIComponent(id)}/export`, signal); }
 
 export function getRouteLibrary(character = "", archived = false, signal?: AbortSignal): Promise<RouteLibraryDTO> {
   const query = new URLSearchParams({ character, include_archived: archived ? "true" : "false" });

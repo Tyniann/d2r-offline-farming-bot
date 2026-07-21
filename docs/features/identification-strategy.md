@@ -37,7 +37,7 @@ Normal-, Low-Quality- und Superior-Items werden nicht pauschal gegatet; für das
 
 ## Produktiver Mephisto-Sell-Pfad
 
-Ein unidentifiziertes Exceptional-/Elite-Set/Unique aus `mephisto-sell.nip` wird anhand seiner Runtime-UnitID zu Cain geplant. Erst `Identified=true` für dieselbe UnitID gibt den anschließenden Akara-Verkauf frei. Identifizierte Kandidaten überspringen Cain. Nach einer gesendeten Aktion gibt es keinen zweiten Inputversuch; ein ausbleibender Memory-Übergang endet fail-closed. Gems, normale Set-/Unique-Basen und gelockte Items gelangen nie in diesen Pfad.
+Ein unidentifiziertes Exceptional-/Elite-Set/Unique mit `sell`-Match aus dem zugeordneten `mephisto-standard`-Profil wird anhand seiner Runtime-UnitID zu Cain geplant. Erst `Identified=true` für dieselbe UnitID gibt den anschließenden Akara-Verkauf frei. Identifizierte Kandidaten überspringen Cain. Nach einer gesendeten Aktion gibt es keinen zweiten Inputversuch; ein ausbleibender Memory-Übergang endet fail-closed. Gems, normale Set-/Unique-Basen und gelockte Items gelangen nie in diesen Pfad.
 
 ## Nicht umgesetzt
 
@@ -53,4 +53,4 @@ Diese Funktionen sind nicht Teil von Phase 6. Sie bleiben einer späteren Town-S
 - [Personal-Stash MVP](personal-stash-mvp.md)
 
 ---
-*Zuletzt aktualisiert: 2026-07-14*
+*Zuletzt aktualisiert: 2026-07-21*

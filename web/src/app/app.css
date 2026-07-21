@@ -22,7 +22,7 @@ li { display: grid; grid-template-columns: 90px minmax(160px, 1fr) 2fr; gap: 12p
 time, li span { color: #8fa7c5; }
 .selection-grid { display: grid; grid-template-columns: 1fr 1fr auto; gap: 14px; align-items: end; }
 label { display: grid; gap: 7px; color: #8fa7c5; }
-select, button { min-height: 42px; border: 1px solid #365779; border-radius: 9px; padding: 8px 12px; color: #edf4ff; background: #0b1422; }
+select, button, input, textarea { min-height: 42px; border: 1px solid #365779; border-radius: 9px; padding: 8px 12px; color: #edf4ff; background: #0b1422; box-sizing: border-box; }
 button { cursor: pointer; background: #176b58; font-weight: 700; }
 button:disabled { cursor: not-allowed; opacity: .5; }
 .character-list { margin-top: 14px; }
@@ -47,4 +47,28 @@ button.danger { background: #8d2635; border-color: #d85a6d; }
 .hotkey-help { margin-top: 20px; padding: 14px; border: 1px solid #365779; border-radius: 10px; background: #0b1422; }
 .hotkey-help summary { cursor: pointer; font-weight: 700; }
 button:focus-visible, select:focus-visible { outline: 3px solid #70d7ff; outline-offset: 2px; }
-@media (max-width: 700px) { main { padding: 24px 0; } header, section { padding: 20px; } dl div, .selection-grid, .queue-list li { grid-template-columns: 1fr; gap: 8px; } .queue-actions { justify-content: flex-start; } }
+.pickit-layout { display: grid; grid-template-columns: minmax(210px, .7fr) minmax(0, 2fr); gap: 18px; }
+.pickit-library, .pickit-editor, .assignment-editor, fieldset { border: 1px solid #294360; border-radius: 12px; padding: 16px; background: #0b1422; }
+.pickit-library ul, .search-results { display: grid; gap: 8px; padding: 0; }
+.pickit-library li, .rule-list li, .assignment-editor li { display: flex; grid-template-columns: none; align-items: center; justify-content: space-between; gap: 12px; }
+.pickit-library button { width: 100%; text-align: left; display: grid; gap: 4px; }
+.pickit-library button.active { border-color: #70d7ff; background: #176b58; }
+.section-heading, .inline-actions, .editor-actions { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; }
+.section-heading h3, .section-heading p { margin: 0; }
+.guided-rule { display: grid; grid-template-columns: minmax(220px, 1fr) 220px auto; gap: 10px; align-items: end; }
+.check { display: flex; align-items: center; gap: 8px; min-height: 42px; }
+.check input { min-height: 0; }
+.search-results { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); margin-top: 12px; }
+.quick-rules { display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin-top: 12px; }
+.search-results button { text-align: left; }
+.rule-list { margin: 12px 0; }
+.rule-list li { flex-wrap: wrap; border: 1px solid #263b55; border-radius: 9px; padding: 12px; }
+.rule-list li > div:first-child { display: grid; gap: 6px; min-width: 0; }
+.rule-list code { color: #9de4ff; overflow-wrap: anywhere; }
+.rule-list label, .import-box { flex-basis: 100%; }
+.import-box { display: grid; gap: 10px; margin-top: 12px; }
+textarea { min-height: 120px; resize: vertical; }
+.editor-actions { justify-content: flex-end; margin-top: 16px; }
+.assignment-editor { margin-top: 18px; }
+button:focus-visible, select:focus-visible, input:focus-visible, textarea:focus-visible { outline: 3px solid #70d7ff; outline-offset: 2px; }
+@media (max-width: 700px) { main { padding: 24px 0; } header, section { padding: 20px; } dl div, li, .selection-grid, .queue-list li, .pickit-layout, .guided-rule { grid-template-columns: minmax(0, 1fr); gap: 8px; } .selection-grid > *, select, input, textarea { min-width: 0; max-width: 100%; width: 100%; } .queue-actions { justify-content: flex-start; } .inline-actions button, .editor-actions button { flex: 1; } }
