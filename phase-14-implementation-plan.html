@@ -1,0 +1,356 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Phase 14 – Detaillierter Umsetzungsplan</title>
+  <style>
+    :root{--bg:#0b1020;--panel:#121a2d;--panel2:#18233a;--text:#e8edf7;--muted:#aeb9cc;--line:#2b3a58;--accent:#67d4ff;--good:#73e2a7;--warn:#ffd166;--bad:#ff7b86;--code:#09101d}
+    *{box-sizing:border-box}body{margin:0;background:linear-gradient(145deg,#080d19,#10192b 55%,#0a1220);color:var(--text);font:16px/1.58 system-ui,-apple-system,"Segoe UI",sans-serif}
+    main{max-width:1180px;margin:auto;padding:42px 24px 80px}.hero{padding:34px;border:1px solid var(--line);border-radius:20px;background:linear-gradient(135deg,#17243e,#10192b);box-shadow:0 20px 60px #0006}
+    h1{font-size:clamp(2rem,5vw,3.7rem);line-height:1.08;margin:.25rem 0 1rem}h2{margin-top:44px;border-bottom:1px solid var(--line);padding-bottom:10px}h3{margin:.2rem 0 .5rem;color:#fff}.lead{font-size:1.17rem;color:var(--muted);max-width:980px}
+    .chips{display:flex;flex-wrap:wrap;gap:9px}.chip{border:1px solid #3f587c;border-radius:999px;padding:5px 11px;color:#c9ecff;background:#12233b}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:15px;margin:18px 0}
+    .card,.phase,.callout{border:1px solid var(--line);border-radius:14px;background:var(--panel);padding:18px}.card p,.phase p{margin:.35rem 0;color:var(--muted)}table{width:100%;border-collapse:collapse;background:var(--panel);border:1px solid var(--line)}th,td{padding:12px 14px;text-align:left;vertical-align:top;border-bottom:1px solid var(--line)}th{background:var(--panel2);color:#fff}
+    code,pre{font-family:"Cascadia Code",Consolas,monospace}code{color:#aee9ff}pre{background:var(--code);border:1px solid var(--line);border-radius:12px;padding:16px;overflow:auto;color:#d9e7ff}.phase{display:grid;grid-template-columns:92px 1fr;gap:16px;margin:13px 0}.phase-id{font-weight:800;color:var(--accent);font-size:1.25rem}.warn{color:var(--warn)}.good{color:var(--good)}.bad{color:var(--bad)}.gate{border-left:4px solid var(--warn);padding-left:12px!important}.callout{border-left:4px solid var(--accent);margin:16px 0}.danger{border-left-color:var(--bad)}.success{border-left-color:var(--good)}li{margin:.35rem 0}footer{margin-top:48px;color:var(--muted);text-align:center}@media(max-width:650px){.phase{grid-template-columns:1fr}.hero{padding:22px}main{padding-inline:14px}}
+  </style>
+</head>
+<body><main>
+  <section class="hero">
+    <div class="chip">D2R Offline Farming Bot · Phase 14</div>
+    <h1>Farming-Ertrag vergleichen, Zeitfresser erkennen und Fehlläufe verstehen</h1>
+    <p class="lead">Phase 14 macht ausschließlich neue, vollständig korrelierte Farming-Runs lokal auswertbar. Eine schlanke Historienseite vergleicht Boss- und Routenertrag, zeigt gesicherten Keep-Loot pro aktiver Stunde und pro bestätigtem Bosskill und führt bei Verlusten oder Fehlläufen zur relevanten Ursache. JSONL bleibt die einzige persistente Autorität; es entstehen weder SQLite-Datenbank noch technisches Eventlexikon oder ökonomischer Fantasiewert.</p>
+    <div class="chips"><span class="chip">KISS + YAGNI</span><span class="chip">Phase-14-Epoche</span><span class="chip">JSONL Source of Truth</span><span class="chip">Boss + Route</span><span class="chip">Keep-Loot pro Stunde</span><span class="chip">Read-only</span><span class="chip">Kein SQLite</span><span class="chip">Keine Altlog-Migration</span></div>
+  </section>
+
+  <section class="grid" aria-label="Kernziele">
+    <article class="card"><h3>Ertrag statt Eventmenge</h3><p>Gewünschter und tatsächlich gesicherter Loot wird pro Bosskill, Run und aktiver Stunde sichtbar, ohne Vendor-Loot als gleichwertigen Return auszugeben.</p></article>
+    <article class="card"><h3>Faire Routenvergleiche</h3><p>Fehlgeschlagene Versuche verbrauchen Zeit im Nenner. Eine instabile Route kann dadurch nicht mit wenigen schnellen Erfolgen künstlich gut aussehen.</p></article>
+    <article class="card"><h3>Nutzbare Diagnose</h3><p>Ein Drill-down zeigt Zeitanteile, verlorenen Loot und die konkrete Fehlerstelle in verständlichen Begriffen; Low-Level-Ereignisse bleiben optional.</p></article>
+    <article class="card"><h3>Eine Rechenautorität</h3><p>GUI sowie JSON- und CSV-Export verwenden dieselben Core-Aggregate und denselben Filtervertrag. React berechnet keine zweite Statistik.</p></article>
+  </section>
+
+  <h2>1. Verbindliche Produktentscheidungen</h2>
+  <table><thead><tr><th>Thema</th><th>Entscheidung für Phase 14</th></tr></thead><tbody>
+    <tr><td>Leitfrage</td><td>Jede sichtbare Kennzahl muss helfen, Boss-/Routen-Ertrag zu vergleichen, Zeitverluste zu finden oder einen Farming-Fehler zu erklären. Ein allgemeiner JSONL-Browser und ein technologisches Lexikon sind kein Produktziel.</td></tr>
+    <tr><td>Historienbeginn</td><td>Die auswertbare Historie beginnt mit dem neuen Phase-14-Telemetrievertrag. Bestehende Schema-1-/Schema-2-Dateien bleiben unverändert auf Platte, werden weder migriert noch heuristisch korreliert und fließen in keine Phase-14-Ansicht oder Summe ein.</td></tr>
+    <tr><td>Hauptpopulation</td><td>Nur neue, vollständig sessiongebundene produktive Farming-Runs zählen in Hauptstatistik und Boss-/Routenvergleich. Route-Playbacks, Town-, Loot-, Input- und sonstige Diagnose-/Abnahmemodi bleiben ausgeschlossen und werden nicht über einen UI-Schalter zugemischt.</td></tr>
+    <tr><td>Vergleichseinheit</td><td>Ergebnisse werden mindestens nach <code>(character, difficulty, run_definition, route_id)</code> getrennt. Jede stabile Route-ID behält ihre eigene historische Zeile; Archivierung, Ersetzung oder das spätere Fehlen der Routendatei verschmilzt keine Daten.</td></tr>
+    <tr><td>Primäre Kennzahl</td><td>Standardsortierung ist <strong>erfolgreich eingelagerte <code>keep</code>-Items pro aktiver Stunde</strong>. Der Nenner enthält die Laufzeit aller terminalen produktiven Versuche im Filter, einschließlich fehlgeschlagener und abgebrochener Runs. Unvollständige oder aktive Runs fließen nicht in Rate, Mittelwert oder Median ein.</td></tr>
+    <tr><td>Boss-Denominator</td><td>Item-Ausbeute pro Boss verwendet ausschließlich semantisch bestätigte Bosskills. Ein vor dem Boss gescheiterter Run verschlechtert nicht die Dropausbeute pro Kill, wohl aber Erfolgsquote und Return pro aktiver Stunde.</td></tr>
+    <tr><td>Return</td><td>Ein gesicherter Return benötigt innerhalb derselben Run-ID dieselbe Unit-ID über <code>pickit_match(action=keep)</code>, <code>pickup_success</code> und <code>stash_success</code>. Bereits vorhandene Inventory-Items, bloß gesehene Drops oder ein unbestätigter Pickup zählen nicht.</td></tr>
+    <tr><td>Sell-Aktion</td><td>Bestätigt verkaufte Items werden separat ausgewiesen. Solange kein belastbarer Goldzuwachs pro Verkauf gemessen wird, zählen sie nicht als Keep-Return und erhalten keinen geschätzten Geld- oder Handelswert.</td></tr>
+    <tr><td>Drop-Funnel</td><td><code>gesehen → Pickit-Match → aufgehoben → eingelagert/verkauft</code> bleibt als getrennte Kette sichtbar. Die Oberfläche verwendet niemals die unqualifizierte Zahl „Drops“, wenn eigentlich nur Matches oder gesicherte Items gemeint sind.</td></tr>
+    <tr><td>Itemidentität</td><td>Neue Events aggregieren exakte Set-/Unique-Items über stabilen Katalogschlüssel, sonst über Basiscode plus Qualität. Englische D2R-Namen sind Anzeige, nicht Aggregationsschlüssel. Mehrdeutige oder unvollständige Identität wird nicht geraten.</td></tr>
+    <tr><td>Zeit</td><td>Run-Zeit wird in vier nutzerverständliche, disjunkte Kategorien geteilt: <code>travel</code>, <code>combat</code>, <code>loot</code> und <code>return_town</code>. Technische Step-Namen bestimmen nicht die UI-Semantik und bleiben nur für gezielte Diagnose sichtbar.</td></tr>
+    <tr><td>Kennzahlen</td><td>Anzahl, Erfolg/Fehler/Abbruch/unvollständig, Erfolgsquote, Durchschnitt, Median, Minimum und Maximum, Ertrag pro Run/Kill/Stunde, Pickup-Verluste sowie häufigste Fehlerstelle/-ursache. Kein p95, keine Signifikanzrechnung, Prognose oder ökonomische Bewertung.</td></tr>
+    <tr><td>Datenbasis</td><td>Jeder Vergleich zeigt die Anzahl bestätigter Bosskills. Unter zehn bestätigten Kills erscheint deutlich <code>geringe Datenbasis</code>; die Zeile bleibt nutzbar, wird aber nicht als belastbarer Sieger dargestellt.</td></tr>
+    <tr><td>Filter</td><td><code>Heute</code>, <code>7 Tage</code>, <code>30 Tage</code>, <code>Alles</code> und freier Zeitraum sowie Run, Charakter, Difficulty, Ergebnis, Reason-Code und optional Pickit-Profil. Grenzen werden im Browser in lokaler Zeit gewählt und als UTC-Intervalle an den Core gesendet.</td></tr>
+    <tr><td>Oberfläche</td><td>Eine eigene, minimal implementierte Seite beziehungsweise Navigation <strong>Historie</strong> verwendet Karten und responsive Tabellen. Phase 14 führt keine Chart-Bibliothek und keine umfangreichen Diagramme ein.</td></tr>
+    <tr><td>UI-Abnahme</td><td>Die minimale Phase-14-Oberfläche wird über Vitest/jsdom-Interaktionstests, Accessibility-Prüfungen, Typecheck und Produktionsbuild abgesichert. Das Starten eines lokalen UI-Servers sowie manuelle oder automatisierte Abnahmen in Zen, Codex Browser oder einem anderen externen Browser sind kein Abschlussgate.</td></tr>
+    <tr><td>Drill-down</td><td>Run-Details zeigen Ergebnis, vier Zeitanteile, Loot-Funnel, relevante Items, Profil-/Regelherkunft und bei Fehlern Step plus Reason-Code mit deutscher Erklärung. Vollständige Rohereignisse sind optional eingeklappt und nie die primäre Ansicht.</td></tr>
+    <tr><td>Export</td><td>Ein gefilterter JSON-Bericht enthält Metadaten, Filter, exakt dieselben Aggregate, Vergleiche und Run-/Itemdaten wie die GUI. CSV exportiert die aktuell gefilterte Run- oder Itemtabelle. Beide werden serverseitig aus derselben Analyse erzeugt.</td></tr>
+    <tr><td>Persistenz</td><td>JSONL bleibt die einzige persistente Autorität. Ein inkrementeller In-Memory-Index wird beim Start aus der Phase-14-Epoche aufgebaut und bei Dateiänderungen aktualisiert. Keine SQLite-Datenbank und kein persistenter Cache in Phase 14.</td></tr>
+    <tr><td>Unvollständig/aktiv</td><td>Eine Run-Datei ohne terminalen Lifecycle-Ausgang erscheint als <code>unvollständig</code>, beziehungsweise bei bestätigtem aktiven Core als <code>läuft</code>. Die beobachtete Dauer bis zum letzten Event ist sichtbar, aber nicht Teil terminaler Aggregate.</td></tr>
+    <tr><td>Beschädigung</td><td>Eine beschädigte, unbekannte oder zu große Phase-14-Datei wird als Diagnose gemeldet und vollständig aus Aggregaten ausgeschlossen. Sie blockiert weder Bot noch übrige Historie; einzelne Zeilen werden nicht still übersprungen.</td></tr>
+    <tr><td>Mutation</td><td>Historie ist read-only. Phase 14 löscht, rotiert, komprimiert oder repariert keine Telemetriedatei und verändert weder Profile, Assignments, Routen noch Botentscheidungen.</td></tr>
+  </tbody></table>
+
+  <h2>2. Scope und bewusste Grenzen</h2>
+  <table><thead><tr><th>Enthalten</th><th>Bewusst nicht in Phase 14</th></tr></thead><tbody>
+    <tr><td>Vollständig korrelierter neuer JSONL-Vertrag für Session, Game, Run, Charakter, Difficulty, Route, Boss, Pickit und Itemausgang.</td><td>Altlog-Import, Zeitfenster-Heuristiken, Erraten fehlender Charakter-/Difficulty-Werte oder Umschreiben vorhandener Dateien.</td></tr>
+    <tr><td>Farming-Übersicht, Boss-/Routenvergleich, Itemausbeute, Verlustpfad, Fehler- und Zeitdiagnose.</td><td>Marktpreise, Trade-Werte, Drop-Table-Wahrscheinlichkeiten, Magic-Find-Normalisierung, Runeword- oder Build-Empfehlungen.</td></tr>
+    <tr><td>Durchschnitt, Median, Minimum, Maximum und transparentes Sample.</td><td>p95, Konfidenzintervalle, Signifikanztests, Hochrechnungen, automatische Gewinnerbehauptungen oder ML.</td></tr>
+    <tr><td>Serverseitige Filter, stabile Pagination, JSON-Report sowie Run-/Item-CSV.</td><td>PDF-Bericht, ZIP-Diagnosepaket, Cloud-Export, Fremd-Analytics, Upload oder Live-Sharing.</td></tr>
+    <tr><td>In-Memory-Index mit inkrementeller Dateierkennung und deterministischem Rebuild.</td><td>SQLite, persistenter Analysecache, Hintergrunddienst, File-Watcher-Pflicht oder eigene Datenbankmigration.</td></tr>
+    <tr><td>Minimaler React-Navigationspunkt mit Karten, Tabellen und Drill-down.</td><td>Chart-Bibliothek, Dashboard-Designer, frei konfigurierbare Widgets oder Electron-spezifisches Layout.</td></tr>
+    <tr><td>Read-only Sicht auf stabile Profil-/Regel-IDs und Revisionen aus dem Run-Snapshot.</td><td>Profilbearbeitung, Retrospektiv-Neubewertung alter Drops gegen aktuelle Regeln oder Änderung einer Lootentscheidung aus der Historie.</td></tr>
+    <tr><td>Manueller Refresh und Aktualisierung nach relevanten Core-Ereignissen.</td><td>Subsekunden-Live-Tailing jeder JSONL-Zeile, Kopie der vollständigen Run-Telemetrie in SSE oder browserbasierter E2E-Testbetrieb als Phase-14-Pflichtgate.</td></tr>
+  </tbody></table>
+  <div class="callout danger"><strong>Keine erfundete Profitabilität:</strong> „Beste Returns“ bedeutet in Phase 14 ausschließlich messbare gewünschte und gesicherte Items. Ohne bestätigten Goldzuwachs, Marktpreisquelle und Magic-Find-Kontext gibt es weder Gold-pro-Stunde noch Itemscore oder vermeintliche ökonomische Rangliste.</div>
+
+  <h2>3. Zielarchitektur und Ownership</h2>
+  <pre><code>produktiver Supervisor / Run Pipeline / Loot / Town
+          │ semantische, vollständig gebundene Events
+          ▼
+internal/telemetry
+  ├─ Session-JSONL ─┐  schema v3 + dieselbe run_id
+  ├─ Run-JSONL ─────┘  UTC, context, stage, item outcome
+  ├─ HistoryReader      strikt, begrenzt, dateiweise fail-soft
+  ├─ HistoryIndex       rebuildbar, nur Memory
+  └─ Analyzer           Filter, Aggregate, Vergleich, Drill-down
+          │
+          ▼
+internal/api
+  History DTOs + Pagination + JSON/CSV Export
+          │ HTTP/JSON, read-only, Loopback
+          ▼
+web/src/features/history
+  Übersicht ─ Boss/Routen ─ Runs ─ Run-Detail
+
+Nicht beteiligt:
+SSE als Datenquelle · React-Statistiklogik · SQLite · alte Schema-1/2-Dateien</code></pre>
+  <ul>
+    <li><code>internal/telemetry</code> besitzt Eventschema, Dateileser, Korrelation und reine Aggregation. Es liest weder Profile noch Routendateien nachträglich und führt keinen Input aus.</li>
+    <li><code>internal/app</code> erzeugt den unveränderlichen produktiven Kontext vor dem ersten Run-Input und übergibt genau eine Run-ID an Session- und Run-Recorder.</li>
+    <li><code>internal/tasks</code> liefert semantischen Stage- und Bosskill-Kontext; die API leitet keine Fachbedeutung aus Step-Strings ab.</li>
+    <li><code>internal/api</code> mappt Core-Ergebnisse auf pfadfreie DTOs und streamt Exporte. Handler berechnen keine abweichenden Summen.</li>
+    <li><code>web/src/features/history</code> besitzt Darstellung, Filterzustand und Navigation, aber keine Rechenregeln oder rohe Dateizugriffe.</li>
+    <li>Kein neues Top-Level-Paket ist erforderlich. Der vorhandene <code>internal/telemetry</code>-Owner wird gezielt erweitert.</li>
+  </ul>
+
+  <h2>4. Phase-14-Telemetrievertrag</h2>
+  <p>Schema <code>3</code> ist die gemeinsame auswertbare Epoche für beide weiterhin getrennt geschriebenen JSONL-Ströme. Schema 1 und 2 bleiben lesbare Rohartefakte für manuelle Diagnose, sind aber kein Input des HistoryReader.</p>
+  <pre><code>{
+  "schema_version": 3,
+  "stream": "run",
+  "timestamp": "2026-07-22T18:04:15.120Z",
+  "event": "stash_success",
+  "session_id": "session-...",
+  "game_id": "game-...",
+  "run_id": "countess-...",
+  "mode": "productive_farming",
+  "character": "MrBones",
+  "difficulty": "nightmare",
+  "run": "countess",
+  "route_id": "countess-mrbones-fd1756c208",
+  "stage": "return_town",
+  "unit_id": 225,
+  "item_key": "base:aqv:normal",
+  "item_name": "Arrows",
+  "base_code": "aqv",
+  "quality": "normal",
+  "pickit_profile_id": "countess-standard",
+  "pickit_rule_id": "arrows",
+  "pickit_action": "keep",
+  "pickit_profile_revision": 2,
+  "pickit_assignment_revision": 2
+}</code></pre>
+  <table><thead><tr><th>Vertragsbereich</th><th>Invariante</th></tr></thead><tbody>
+    <tr><td>Korrelation</td><td><code>session_id</code>, <code>game_id</code> und eine global eindeutige <code>run_id</code> werden vor <code>run_started</code> erzeugt. Die Run-Datei trägt exakt diese Run-ID im Dateinamen und in jeder Zeile; es gibt keinen zweiten „run-001“-Namensraum.</td></tr>
+    <tr><td>Kontext</td><td><code>mode</code>, Charakter, Difficulty, D2R-Version, Run-Definition, Route-ID, Layout-Fingerprint, Queue-Index/-Zyklus und Startzeit werden immutable gebunden. Nur <code>productive_farming</code> ist statistikfähig.</td></tr>
+    <tr><td>Lifecycle</td><td><code>session_started</code>, <code>game_started</code>, <code>run_started</code>, genau ein terminales <code>run_completed</code>/<code>run_failed</code>/<code>run_aborted</code> und die Game-/Session-Grenzen sind eindeutig. Ein Prozessabbruch ohne Terminalereignis bleibt erkennbar unvollständig.</td></tr>
+    <tr><td>Boss</td><td><code>boss_kill_confirmed</code> wird genau einmal nach Memory-bestätigtem Tod der gepinnten Boss-Unit emittiert und enthält stabile Bossidentität. Step-Abschluss oder bloßer Combat-Start ersetzen dieses Ereignis nicht.</td></tr>
+    <tr><td>Stage</td><td>Jede Pipeline-Step-Grenze trägt genau eine stabile Stage: <code>travel</code>, <code>combat</code>, <code>loot</code> oder <code>return_town</code>. Die Zuordnung wird nahe der Run-Definition getestet und nicht in React gepflegt.</td></tr>
+    <tr><td>Item</td><td>Alle Funnel-Ereignisse tragen soweit verfügbar denselben Itemkey, Anzeigenamen, Basiscode, Qualität, exakte Identitätsart/-schlüssel und Unit-ID. Ein bestätigter Verkauf erhält ein eigenes terminales Itemereignis statt aus einem NPC-Klick geraten zu werden.</td></tr>
+    <tr><td>Pickit</td><td>Match, Pickup-Ende, Stash und Verkauf tragen denselben immutable Policy-Snapshot: Profil-ID, Regel-ID, Aktion, Profilrevision und Assignment-Revision.</td></tr>
+    <tr><td>Zeit</td><td>UTC-Timestamps bleiben autoritativ. Negative Dauer, rückwärts laufende Zeit innerhalb einer Datei, doppelte terminale Ergebnisse oder überlappende Stage-Grenzen machen den betreffenden Run ungültig für Aggregate.</td></tr>
+  </tbody></table>
+
+  <h2>5. Berechnungs- und Vergleichsvertrag</h2>
+  <table><thead><tr><th>Kennzahl</th><th>Exakte Definition</th></tr></thead><tbody>
+    <tr><td>Aktive Run-Zeit</td><td>Summe <code>run_started → terminales Run-Ereignis</code> aller terminalen produktiven Versuche im Filter. Zeit zwischen Runs und eine Pause zwischen Runs zählt nicht.</td></tr>
+    <tr><td>Erfolgsquote</td><td><code>run_completed / alle terminalen produktiven Versuche</code>. Fehler und Abbruch stehen im Nenner; unvollständig/läuft nicht.</td></tr>
+    <tr><td>Bosskills</td><td>Anzahl gültiger, pro Run deduplizierter <code>boss_kill_confirmed</code>-Ereignisse.</td></tr>
+    <tr><td>Keep-Return</td><td>Anzahl unterschiedlicher <code>(run_id, unit_id)</code> mit lückenloser Keep-Kette bis <code>stash_success</code>.</td></tr>
+    <tr><td>Keep pro Stunde</td><td><code>Keep-Return / aktive Run-Zeit in Stunden</code>. Bei null terminaler Zeit wird kein Wert angezeigt.</td></tr>
+    <tr><td>Keep pro Kill</td><td><code>Keep-Return / bestätigte Bosskills</code>. Ohne bestätigten Kill wird kein Wert angezeigt.</td></tr>
+    <tr><td>Pickup-Verlust</td><td>Pickit-gematchte Unit ohne <code>pickup_success</code>. Grund ist der letzte stabile Pickup-Reason-Code oder <code>unvollständig</code>; ein bloß wiederholter Attempt erhöht die Itemzahl nicht.</td></tr>
+    <tr><td>Nach-Pickup-Verlust</td><td>Erfolgreich aufgehobenes Keep-Item ohne bestätigten Stash. Dies bleibt getrennt vom Pickup-Verlust sichtbar.</td></tr>
+    <tr><td>Stage-Dauer</td><td>Summe gültiger, sequenzieller Stepintervalle je Stage. Die vier Summen dürfen die aktive Run-Zeit nicht überschreiten; verbleibender Core-Overhead wird separat als <code>sonstige Laufzeit</code> ausgewiesen und nicht still verteilt.</td></tr>
+    <tr><td>Fehlerhäufigkeit</td><td>Anzahl terminaler Runs je <code>(letzter_step, reason_code)</code>; zusätzlich verlorene aktive Zeit dieser Versuche.</td></tr>
+    <tr><td>Stichprobenwarnung</td><td><code>low_sample=true</code>, wenn eine Vergleichszeile weniger als zehn bestätigte Bosskills besitzt.</td></tr>
+  </tbody></table>
+  <div class="callout"><strong>Keine nachträgliche Bedeutungsänderung:</strong> Gespeicherte Profil-/Regelrevisionen erklären, warum ein Item damals gematcht wurde. Die Historie evaluiert alte Items niemals gegen das aktuell editierte Profil neu.</div>
+
+  <h2>6. HistoryReader, Index und Fehlerverhalten</h2>
+  <ul>
+    <li>Nur reguläre <code>*.jsonl</code>-Dateien direkt unter <code>telemetry.directory</code> werden betrachtet; Pfade, Handles und Dateinamen verlassen den Core nicht.</li>
+    <li>Der Reader akzeptiert ausschließlich Schema 3 und bekannte Stream-/Eventformen. Schema 1/2 wird als erwartete Vor-Epoche ignoriert, nicht als Fehler gezählt.</li>
+    <li>Dateigröße, Zeilenlänge und Eventanzahl besitzen feste, dokumentierte Sicherheitsgrenzen. Überschreitung erzeugt eine Dateidiagnose und keine Teilstatistik.</li>
+    <li>Ein Indexeintrag bindet Dateigröße, Änderungszeit und einen stabilen Inhaltsnachweis. Unveränderte Dateien werden nicht erneut geparst; geänderte aktive Dateien werden vollständig und deterministisch neu aufgebaut.</li>
+    <li>Der Index ist reine Prozess-Memory und jederzeit aus JSONL rekonstruierbar. Ein Neustart besitzt kein Recovery- oder Migrationsproblem.</li>
+    <li>Einzelne beschädigte Dateien werden isoliert. Die API liefert Anzahl und verständliche Diagnose, aber niemals absolute lokale Pfade oder rohe I/O-Details an die UI.</li>
+    <li>Neue terminale Runs lösen ein kleines <code>history_changed</code>-SSE-Signal aus. Der Browser lädt daraufhin serialisiert neu; einzelne Telemetrieevents werden nicht in SSE dupliziert. Ein manueller Refresh bleibt verfügbar.</li>
+    <li>History-Fehler sind für Gameplay nicht fail-closed: Der Writer bleibt für Bot-Safety autoritativ fail-closed, aber ein Analyse-/Indexfehler darf einen laufenden Bot weder stoppen noch verzögern.</li>
+  </ul>
+
+  <h2>7. API- und Exportvertrag</h2>
+  <table><thead><tr><th>Endpoint</th><th>Zweck</th></tr></thead><tbody>
+    <tr><td><code>GET /api/v1/history/summary</code></td><td>Gefilterte Population, Ergebniszahlen, Dauerstatistik, Funnel, Fehler- und Speicherdiagnose.</td></tr>
+    <tr><td><code>GET /api/v1/history/comparisons</code></td><td>Serverseitig sortierte Boss-/Routenzeilen mit Sample, Ertrag, Zeitanteilen und häufigster Fehlerursache.</td></tr>
+    <tr><td><code>GET /api/v1/history/items</code></td><td>Paginierte Itemausbeute nach stabilem Itemkey sowie Run-/Routenbezug.</td></tr>
+    <tr><td><code>GET /api/v1/history/runs</code></td><td>Stabil cursor-paginierte Run-Liste; Default-Limit und hartes Maximallimit verhindern ungebundene Antworten.</td></tr>
+    <tr><td><code>GET /api/v1/history/runs/{runID}</code></td><td>Nutzerorientierter Drill-down mit Stage-Zeiten, Funnel, Items, Fehlerkontext und optionalen Rohereignissen.</td></tr>
+    <tr><td><code>GET /api/v1/history/export?format=json</code></td><td>Vollständiger gefilterter Report aus derselben Analyzer-Antwort mit Erzeugungszeit, Zeitzone und Filterecho.</td></tr>
+    <tr><td><code>GET /api/v1/history/export?format=csv&amp;dataset=runs|items</code></td><td>UTF-8-CSV mit stabiler Spaltenreihenfolge, UTC-ISO-Zeit und sicherem Downloadnamen.</td></tr>
+  </tbody></table>
+  <ul>
+    <li>OpenAPI bleibt Transport-Source-of-Truth; TypeScript-Typen und Client werden generiert.</li>
+    <li>Alle History-Endpunkte sind read-only, loopback-/origin-geschützt und benötigen keinen Control-Token. Es existiert keine History-Mutation.</li>
+    <li>Ein kanonisches Filterobjekt gilt identisch für Summary, Vergleiche, Items, Runs und Export. Ungültige Zeitintervalle, Runs, Difficulties, Outcomes oder Limits liefern stabile Fehlercodes.</li>
+    <li>Sortierung besitzt immer einen deterministischen ID-Tiebreaker. Pagination darf bei identischem Indexstand keine Zeile doppelt ausgeben oder überspringen.</li>
+    <li>CSV-Inhalte werden gegen Spreadsheet-Formel-Injection neutralisiert; Dateinamen enthalten keine ungeprüften Filterwerte.</li>
+    <li>Export liest keine Browser-Dateipfade und bietet keinen Download beliebiger lokaler JSONL-Dateien.</li>
+  </ul>
+
+  <h2>8. Minimaler Dashboard-Vertrag</h2>
+  <ol>
+    <li><strong>Navigation:</strong> Ein eigener Punkt <em>Historie</em> neben Live-Betrieb, Routen und Pickit. Direktlinks und Browser-Refresh stellen dieselbe Seite wieder her.</li>
+    <li><strong>Filterleiste:</strong> Zeitraum-Presets, freier Zeitraum, Charakter, Difficulty, Run, Ergebnis, Reason und optional Pickit-Profil; aktive Filter und Zurücksetzen sind sichtbar.</li>
+    <li><strong>Übersicht:</strong> Terminale Runs, Bosskills, Erfolgsquote, Keep-Items, Keep/Stunde, Median und Durchschnitt sowie häufigster Fehler. Keine Karten ohne klare Einheit oder Denominator.</li>
+    <li><strong>Boss-/Routentabelle:</strong> Standardmäßig nach Keep/Stunde; Sample, Warnung unter zehn Kills, Erfolg, Dauer, vier Stage-Anteile, Keep/Run, Keep/Kill, Sell separat und Fehlerursache.</li>
+    <li><strong>Itemtabelle:</strong> Itemname/Identität, gesehen, gematcht, aufgehoben, eingelagert, verkauft, verloren sowie Yield pro Kill/Run/Stunde.</li>
+    <li><strong>Runliste:</strong> Start, Boss/Run, Route, Ergebnis, Dauer, Keep/Sell/Verlust und Fehlerkurztext; serverseitig paginiert.</li>
+    <li><strong>Detail:</strong> Zeitaufteilung, semantische Milestones, konkrete Funnel-Ketten und deutsche Fehlererklärung. Rohereignisse sind ein eingeklappter Diagnoseabschnitt.</li>
+    <li><strong>Zustände:</strong> Loading, Empty, No-results, geringe Datenbasis, aktive/unvollständige Runs, beschädigte Datei, API-Fehler und Exportfehler sind eigenständig und zugänglich.</li>
+    <li><strong>Responsive:</strong> Große Tabellen werden auf kleinen Viewports zu lesbaren Zeilengruppen; kein horizontaler Seitenüberlauf. Keyboard-Fokus und Tabellenbeschriftungen bleiben erhalten.</li>
+    <li><strong>Keine Charts:</strong> Phase 14 visualisiert nicht dekorativ. Eine spätere Chart-Bibliothek in Phase 15 verwendet denselben Analyzer-/API-Vertrag.</li>
+  </ol>
+
+  <h2>9. Stabile Reason-Codes</h2>
+  <table><thead><tr><th>Bereich</th><th>Mindestens vorzusehende Codes</th></tr></thead><tbody>
+    <tr><td>Reader</td><td><code>history_file_invalid</code>, <code>history_file_too_large</code>, <code>history_line_too_large</code>, <code>history_schema_unsupported</code>, <code>history_event_invalid</code></td></tr>
+    <tr><td>Korrelation</td><td><code>history_context_missing</code>, <code>history_run_id_mismatch</code>, <code>history_stream_missing</code>, <code>history_terminal_duplicate</code>, <code>history_time_invalid</code></td></tr>
+    <tr><td>Farming-Semantik</td><td><code>history_boss_duplicate</code>, <code>history_stage_invalid</code>, <code>history_item_identity_invalid</code>, <code>history_item_chain_invalid</code></td></tr>
+    <tr><td>API/Filter</td><td><code>history_filter_invalid</code>, <code>history_run_not_found</code>, <code>history_cursor_invalid</code>, <code>history_export_invalid</code>, <code>history_unavailable</code></td></tr>
+  </tbody></table>
+  <p>Vorhandene semantisch identische API-, Session-, Run-, Loot- und Town-Codes werden wiederverwendet. Abschnitt 14.0 friert die endgültige Liste und deutsche Benutzertexte ein; React erfindet keine Synonyme.</p>
+
+  <h2>10. Sequenzieller Umsetzungsplan</h2>
+
+  <section class="phase">
+    <div class="phase-id">14.0</div><div><h3>Baseline, Metrikvertrag und Characterization</h3>
+      <ul>
+        <li>Schema-1-Run-, Schema-2-Session-, Queue-, Step-, Loot-, Town-, Pickit-, API- und React-Baseline mit Characterization-Tests einfrieren.</li>
+        <li>Population, Denominatoren, Funnel, Stage-Zuordnung, Itemkey, Sample-Warnung, Filter, Sortierung, Pagination, Exportspalten und Reason-Codes als Core-Vertrag dokumentieren.</li>
+        <li>Deterministische Fixture-Matrix mit erfolgreichem Countess-Run, erfolgreichem Mephisto-Run, Routevariante, Vor-Boss-Fehler, Nach-Boss-Fehler, Keep, Sell, Pickup-Verlust, unvollständigem Run und beschädigter Datei erstellen.</li>
+        <li>Explizite Non-Goals testen: Schema 1/2 wird nicht importiert, Diagnosemodi zählen nicht, Sell ist kein Keep-Return, React berechnet keine Aggregate.</li>
+      </ul>
+      <div class="callout gate"><strong>Gate 14.0 – automatisiert:</strong> Die aktuelle Event-/Dateimatrix ist reproduziert; sämtliche Formeln liefern an handgerechneten Fixtures exakt dieselben Werte. Kein produktiver Writer und kein History-Code wird vor dem eingefrorenen Vertrag verändert.</div>
+    </div>
+  </section>
+
+  <section class="phase">
+    <div class="phase-id">14.1</div><div><h3>Schema 3 und lückenlose Run-Korrelation</h3>
+      <ul>
+        <li>Eine global eindeutige Run-ID vor dem ersten Lifecycle-Event erzeugen und unverändert an Session- und Run-Recorder, Dateinamen, Status und Logs übergeben.</li>
+        <li>Immutable Kontextfelder für Stream, Modus, Charakter, Difficulty, D2R-Version, Definition, Route/Fingerprint, Queue-Index/-Zyklus und Pickit-Snapshot ergänzen.</li>
+        <li>Session-/Game-/Run-Terminals eindeutig machen und Recorder-Close-/Reset-Reihenfolge einschließlich Telemetriefehler charakterisieren.</li>
+        <li>Isolierte Modi explizit anders typisieren, damit Dateinamen oder Run-IDs niemals die Produktpopulation bestimmen.</li>
+      </ul>
+      <div class="callout gate"><strong>Gate 14.1 – automatisiert:</strong> Parallel und sequenziell erzeugte Runs besitzen kollisionsfreie IDs; beide Streams korrelieren exakt. Fehlender Kontext, falsche Run-ID, doppeltes Terminal oder Modusdrift schlägt vor Statistikaufnahme fehl. Bestehende Bot-Safety bei Writer-Fehlern bleibt unverändert fail-closed.</div>
+    </div>
+  </section>
+
+  <section class="phase">
+    <div class="phase-id">14.2</div><div><h3>Farming-Milestones, Stages und Itemausgänge</h3>
+      <ul>
+        <li>Genau ein <code>boss_kill_confirmed</code> nach der bereits vorhandenen Memory-bestätigten Boss-Todesbedingung emittieren; kein neuer Memory-Read.</li>
+        <li>Jeden Run-Step in der Definition beziehungsweise Pipeline genau einer stabilen Stage zuordnen und Vollständigkeit für Countess und Mephisto testen.</li>
+        <li>Drop-, Match-, Pickup-, Stash- und Sell-Ereignisse um stabilen Itemkey, Qualität, exakte Identität sowie identischen Pickit-Snapshot ergänzen.</li>
+        <li>Einen bestätigten Verkauf erst nach der vorhandenen Inventory-Transition als terminalen Itemausgang schreiben; NPC-/Shop-Klick ist kein Verkaufserfolg.</li>
+      </ul>
+      <div class="callout gate"><strong>Gate 14.2 – automatisiert:</strong> Bosskill-Deduplizierung, vier vollständige Stage-Kategorien, Keep-/Sell-Ketten, Identitätsdrift, fehlender Pickup, fehlender Stash und bestätigter Vendor-Ausgang sind deterministisch. Kein neues Input-Gate und keine geänderte Lootentscheidung entsteht.</div>
+    </div>
+  </section>
+
+  <section class="phase">
+    <div class="phase-id">14.3</div><div><h3>Strikter HistoryReader und rebuildbarer Memory-Index</h3>
+      <ul>
+        <li>Begrenzten Schema-3-Reader, Dateivalidierung, Cross-Stream-Korrelation und immutable History-Modelle implementieren.</li>
+        <li>Startscan und inkrementelle Aktualisierung über Dateimetadaten/Inhaltsnachweis umsetzen; keine SQLite-, Cache- oder Watcher-Abhängigkeit.</li>
+        <li>Aktiv, unvollständig und terminal unterscheiden. Eine kaputte Datei isoliert diagnostizieren und komplett aus Summen entfernen.</li>
+        <li>Deterministischen Rebuild, stabile Sortierung, Race-Sicherheit und gleichzeitiges Lesen synchron geflushter Writer testen.</li>
+      </ul>
+      <div class="callout gate"><strong>Gate 14.3 – automatisiert:</strong> Vollscan und inkrementeller Index sind byteunabhängig ergebnisgleich. Schema 1/2 wird ignoriert; korrupte/überlange/geänderte Dateien, Crash-Ende, parallele Abfrage und laufender Writer verändern weder Bot noch gültige Aggregate.</div>
+    </div>
+  </section>
+
+  <section class="phase">
+    <div class="phase-id">14.4</div><div><h3>Eine Analyzer- und Vergleichsautorität</h3>
+      <ul>
+        <li>Filter, terminale Population, Ergebnisquoten, Durchschnitt/Median/Min/Max, Stage-Zeiten, Funnel und Itemketten als reine Core-Funktionen implementieren.</li>
+        <li>Boss-/Routengruppen und Items pro Run/Kill/Stunde berechnen; fehlgeschlagene/abgebrochene Laufzeit im Stundennenner, unvollständige nicht.</li>
+        <li>Häufigsten Fehler nach Step/Reason samt verlorener aktiver Zeit und <code>low_sample</code> unter zehn Bosskills bestimmen.</li>
+        <li>Division-by-zero, identische Zeitstempel, Routeersetzung, Profilrevisionen und deterministische Tiebreaker testen.</li>
+      </ul>
+      <div class="callout gate"><strong>Gate 14.4 – automatisiert:</strong> Handgerechnete Countess-/Mephisto-/Routenfixtures stimmen für jede Kennzahl exakt; Filterpartitionen summieren sich korrekt. Eine instabile Route mit hoher Fehlerrate kann bei gleichem Loot nicht durch Ausschluss ihrer Fehlzeit gewinnen.</div>
+    </div>
+  </section>
+
+  <section class="phase">
+    <div class="phase-id">14.5</div><div><h3>Read-only API, Pagination und Exportparität</h3>
+      <ul>
+        <li>OpenAPI, Go-DTOs und generierten TypeScript-Client für Summary, Vergleiche, Items, Runs, Detail sowie JSON-/CSV-Export ergänzen.</li>
+        <li>Ein kanonisches Filter-/Sortiermodell, Cursor-Pagination, Limits, UTC-Grenzen und stabile deutsche Fehlerabbildung implementieren.</li>
+        <li>JSON-Report direkt aus dem Analyzer-Modell erzeugen; CSV für Run-/Itemtabellen mit identischer Filterung, sicheren Zellen und Downloadnamen streamen.</li>
+        <li>Nach terminalem Indexwechsel ein begrenztes <code>history_changed</code>-Signal publizieren; keine Telemetriezeilen über SSE senden.</li>
+      </ul>
+      <div class="callout gate"><strong>Gate 14.5 – automatisiert:</strong> GUI-DTO, JSON-Report und CSV-Tabellen bilden dieselbe gefilterte Population und dieselben Summen ab. Cursor, Limits, Invalid-Filter, Origin/Host, Formel-Injection, Content-Type und Content-Disposition sind getestet.</div>
+    </div>
+  </section>
+
+  <section class="phase">
+    <div class="phase-id">14.6</div><div><h3>Minimale React-Historienseite</h3>
+      <ul>
+        <li><code>web/src/features/history</code> als eigenes Feature mit Navigation, Filterleiste, Übersicht, Vergleichs-, Item- und Run-Tabelle sowie Detailansicht anlegen.</li>
+        <li>Keep/Stunde als Standardsortierung, Einheiten/Denominatoren, Samplezahl und Warnung unter zehn Kills sichtbar machen.</li>
+        <li>Fehler und Zeitverlust nutzerverständlich priorisieren; Rohereignisse nur eingeklappt anzeigen. Kein Chart-Paket hinzufügen.</li>
+        <li>Loading, Empty, No-results, aktiv/unvollständig, Dateidiagnose, Exportfehler, Tastaturbedienung und kleine Viewports abdecken.</li>
+      </ul>
+      <div class="callout gate"><strong>Gate 14.6 – Web automatisiert:</strong> Vitest/jsdom deckt Filter, Sortierung, Pagination, Samplewarnung, Routevariante, Keep/Sell-Trennung, Verlustpfad, Fehler-Drill-down, Exportaufrufe, Accessibility und die responsive Komponentenstruktur über Benutzerinteraktionen ab. Typecheck und Produktionsbuild sind grün; ein externer Browser oder gestarteter UI-Server ist nicht erforderlich.</div>
+    </div>
+  </section>
+
+  <section class="phase">
+    <div class="phase-id">14.7</div><div><h3>Live-Korrelation und automatisierte Produktabnahme</h3>
+      <ul>
+        <li>Eine produktive GUI-Queue mit mindestens einem vollständigen, bestätigten Boss-Run ausführen und Schema-3-Kontext, Bosskill, Stages, Route und Terminal über beide Streams prüfen.</li>
+        <li>Den entstandenen Run über HistoryReader, Analyzer und API lesen; JSON-Export und CSV müssen dieselbe Run-/Boss-/Dauer-/Lootpopulation zeigen. Dafür ist kein UI-Server oder Browser erforderlich.</li>
+        <li>Die deterministische Fixture-Matrix über Go-, API- und React-Komponententests prüfen, damit Keep, Sell, Verlust und Fehlerdiagnose nicht von einem zufälligen Live-Drop oder absichtlich provozierten Gameplay-Fehler abhängen.</li>
+      </ul>
+      <div class="callout gate"><strong>Manuelles Gate A – Live-Provenienz:</strong> Eine reale produktive Run-ID korreliert Session- und Run-JSONL, Charakter, Difficulty, Run, Route, bestätigten Bosskill, vier Stage-Anteile und terminales Ergebnis. Die Historie erfindet keinen fehlenden Loot.</div>
+      <div class="callout gate"><strong>Automatisiertes Gate B – Nutzerwert und Export:</strong> Für eine kontrollierte Fixture mit zwei Bossen, zwei Routen, Keep, Sell, Verlust und Fehllauf stimmen Analyzer, API, React-Darstellung, JSON und CSV. Die projizierten DTOs machen ohne Roh-JSON erkennbar, welche Route besseren gesicherten Return liefert und wo Zeit beziehungsweise Loot verloren ging.</div>
+    </div>
+  </section>
+
+  <section class="phase">
+    <div class="phase-id">14.8</div><div><h3>Abschluss, Dokumentation und Dead-Code-Audit</h3>
+      <ul>
+        <li><code>docs/features/run-history.md</code> und <code>docs/features/phase-14-core-contract.md</code> anlegen; Telemetrie-, Dashboard-, API-, Index-, Changelog- und Handoff-Dokumente aktualisieren.</li>
+        <li>Metriken, Denominatoren, Historienbeginn, Schema 3, Retention-Grenze, Beschädigungsverhalten, Filter, Export und Operatorfehler dokumentieren.</li>
+        <li>Alte Run-ID-Doppeldeutigkeit, ungenutzte Summary-Felder, parallele Aggregationshelfer, handgeschriebene DTOs und UI-Rechenlogik entfernen.</li>
+        <li><code>gofmt</code>, <code>goimports</code>, Lint, Go-/API-/Web-/Integrationstests, OpenAPI-Check, Typecheck, Windows-/Web-Build und dokumentierten UCRT64-Race-Test ausführen.</li>
+      </ul>
+      <div class="callout gate"><strong>Gate 14.8 – Abschlussmatrix:</strong> Das manuelle Live-Gate und das automatisierte Produktgate sind protokolliert; Writer, Reader, Index, Analyzer, API, Export, React-Komponententests, Race und Builds sind grün. Handoff markiert Phase 14 erst danach als abgeschlossen.</div>
+    </div>
+  </section>
+
+  <h2>11. Abnahmegates im Überblick</h2>
+  <table><thead><tr><th>Gate</th><th>Beweist</th><th>Bewusst ausgeschlossen</th></tr></thead><tbody>
+    <tr><td>A – Live-Provenienz</td><td>Neue reale Daten sind von Session bis Itemausgang eindeutig gebunden und als produktiver Farming-Run auswertbar.</td><td>Kein absichtlich verursachter Fehllauf, kein seltener Drop und kein Vergleich auf Basis alter Logs.</td></tr>
+    <tr><td>B – automatisierte Nutzerwert-/Paritätsmatrix</td><td>Analyzer, API, React-Projektion, JSON und CSV bilden Ertrag, Zeitverlust und Fehlerursache exakt und konsistent ab.</td><td>Kein externer Browser, kein UI-Server, keine Chart-Abnahme, keine SQLite-Performance und keine destruktive Dateiverwaltung.</td></tr>
+  </tbody></table>
+
+  <h2>12. Definition of Done</h2>
+  <ol>
+    <li>Nur neue Schema-3-Daten produktiver, sessiongebundener Farming-Runs fließen in die Historie; Schema 1/2 wird weder migriert noch geraten.</li>
+    <li>Session-, Game- und Run-Stream verwenden dieselbe global eindeutige Run-ID sowie immutable Charakter-, Difficulty-, Route-, Modus- und Pickit-Kontexte.</li>
+    <li>Bosskills sind semantisch Memory-bestätigt und nicht aus einem UI- oder Step-Namen abgeleitet.</li>
+    <li>Travel, Combat, Loot und Return/Town sind vollständig, disjunkt und Core-autoritativ klassifiziert.</li>
+    <li>Keep-Return verlangt Match, bestätigten Pickup und bestätigten Stash derselben Unit im selben Run; Sell bleibt separat.</li>
+    <li>Boss-/Routenvergleich zeigt Sample, Erfolgsquote, Dauer, vier Zeitanteile, Keep pro Run/Kill/Stunde, Verluste und häufigste Fehlerursache.</li>
+    <li>Keep pro aktiver Stunde enthält auch Zeit fehlgeschlagener und abgebrochener terminaler Versuche; aktive/unvollständige Runs verzerren keine Aggregate.</li>
+    <li>Unter zehn Bosskills ist die geringe Datenbasis sichtbar; es gibt weder p95 noch ökonomischen Score oder statistische Siegerbehauptung.</li>
+    <li>Beschädigte Dateien werden isoliert gemeldet und vollständig ausgeschlossen, ohne Bot oder gültige Historie zu blockieren.</li>
+    <li>Der In-Memory-Index ist race-sicher, inkrementell und vollständig aus JSONL rebuildbar; es existiert kein SQLite-/Cache-Fallback.</li>
+    <li>History-API, JSON-Report und CSV verwenden exakt dieselben Filter, Aggregate, Sortierungen und stabilen IDs.</li>
+    <li>Die minimale React-Seite ist verständlich, zugänglich, responsive und enthält keine zweite Statistikengine oder Chart-Abhängigkeit.</li>
+    <li>Historie bleibt read-only und verändert/löscht weder Telemetrie noch Profile, Routen oder Botentscheidungen.</li>
+    <li>Godoc, Designkommentare, Feature-Dokumentation, Handoff, Changelog, Dead-Code-Audit, Lint, Tests, Race- und Builds sowie das manuelle Live-Gate und das automatisierte Produktgate sind abgeschlossen.</li>
+  </ol>
+
+  <h2>13. Übergabe an Phase 15</h2>
+  <ul>
+    <li><strong>React bleibt:</strong> Electron lädt dieselbe React-Anwendung in einem nativen Hauptfenster. Das geplante visuelle Redesign ersetzt App-Shell, Navigation und Komponenten innerhalb React, nicht den funktionierenden Core-/API-/Feature-Code durch eine zweite UI-Technologie.</li>
+    <li><strong>Charts:</strong> Phase 15 darf eine umfangreiche Chart-Bibliothek ergänzen und Trends, Verteilungen sowie Boss-/Routenvergleiche visualisieren. Tabellen bleiben als zugängliche und exakte Alternative erhalten; die Rechenautorität bleibt Phase-14-Core/API.</li>
+    <li><strong>Overlay:</strong> Ein optionales D2R-Overlay ist eine zweite, stark reduzierte React-Einstiegsoberfläche für Status, Pause/Resume, Stop-after-run und Emergency Stop. Es verwendet denselben generierten API-Client und dieselben Command-Gates; keine duplizierte Sessionlogik.</li>
+    <li><strong>UI-QA:</strong> Visuelle und native E2E-Abnahme findet in Phase 15 gezielt im echten Electron-Hauptfenster beziehungsweise Overlay statt. Zen, Codex Browser oder ein separat gestarteter Browser-Dev-Server sind keine Produkt-Abnahmeoberfläche.</li>
+    <li><strong>Aufbewahrung:</strong> Phase 15 muss destruktive Historienverwaltung spezifizieren und implementieren, voraussichtlich konfigurierbare automatische Retention mit sicherer Vorschau, klarer Alters-/Größenwirkung und bestätigter manueller Bereinigung. Phase 14 löscht nichts.</li>
+    <li><strong>SQLite-Eskalation:</strong> Ein vollständig aus JSONL rebuildbarer SQLite-Index wird erst evaluiert, wenn gemessene Start-, Speicher- oder Abfragezeiten definierte Produktgrenzen überschreiten. Er darf nie neue Telemetrieautorität werden.</li>
+    <li><strong>Packaging:</strong> Hauptfenster, Tray, Overlay, Updates und Diagnosepaket bleiben Electron-Aufgaben. Der Go-Core hostet weiterhin denselben loopback-only API-Vertrag und besitzt alle Safety-Gates.</li>
+  </ul>
+
+  <footer>Planungsstand: 22. Juli 2026 · Produktentscheidungen geklärt · Phase 14 noch nicht implementiert · KISS/YAGNI verbindlich</footer>
+</main></body>
+</html>
