@@ -374,9 +374,9 @@
           <td>Schnelle Iteration; UI kann spaeter wachsen.</td>
         </tr>
         <tr>
-          <td>Spaetere UI</td>
-          <td>TypeScript/React, spaeter Electron</td>
-          <td>Phase 11 baut die shell-neutrale Web-Anwendung und lokale Core-API. Electron ist die angestrebte Phase-15-Shell fuer Fenster, Tray, Updates und ein moegliches Overlay; der Memory-Core bleibt Go.</td>
+          <td>Spätere UI</td>
+          <td>TypeScript/React in Electron</td>
+          <td>Phase 11 baut die React-Anwendung und lokale Core-API. Phase 15 liefert exakt diese eine Anwendung ausschließlich in Electron für Fenster, Tray und Packaging aus; Browser-Produktmodus und Overlay entfallen, der Memory-Core bleibt Go.</td>
         </tr>
       </tbody>
     </table>
@@ -729,11 +729,13 @@
     <div class="phase">
       <strong>Phase 15</strong>
       <div>
-        <h3>Packaging, Updates und Operator-Polish <span class="warn">— geplant</span></h3>
-        <p><strong>Ziel:</strong> Den lokalen Bot reproduzierbar installieren, konfigurieren, aktualisieren und sicher betreiben. Electron ist die Desktop-Shell für die shell-neutral gebaute React-Anwendung. Das UI wird visuell neu gestaltet, aber nicht in einer zweiten Technologie oder als Kopie der Features neu implementiert: App-Shell, Navigation und Komponenten werden innerhalb React ersetzt beziehungsweise erweitert.</p>
-        <p><strong>Umfang:</strong> Electron-Hauptfenster und Tray, Windows-Build/Installer, Config-Migration und Backup, Versions-/Offset-Kompatibilitätsanzeige, Diagnosepaket sowie verständliche First-Run- und Fehlerführung. Die Phase-14-Historie erhält umfangreichere Visualisierungen über eine geeignete Chart-Bibliothek, verwendet aber weiterhin dieselbe Core-Analyse/API und behält Tabellen als zugängliche Exaktdarstellung. Ein optionales D2R-Overlay wird als zweite stark reduzierte React-Einstiegsoberfläche für Status, Pause/Resume, Stop-after-run und Emergency Stop evaluiert; es nutzt denselben generierten API-Client und dieselben Core-Safety-Gates statt duplizierter Sessionlogik. Visuelle und native E2E-Abnahme erfolgt gezielt im echten Electron-Hauptfenster beziehungsweise Overlay; Zen, Codex Browser und ein separater Browser-Dev-Server sind keine Produkt-Abnahmeoberflächen. Persistente GUI-Konfiguration ersetzt spätestens hier die Runtime-only Overrides aus Phase 11.</p>
-        <p><strong>Historienbetrieb:</strong> Phase 15 implementiert die in Phase 14 bewusst vertagte destruktive Historienverwaltung, voraussichtlich als konfigurierbare automatische Retention mit sicherer Vorschau sowie bestätigter manueller Bereinigung. Ein aus JSONL vollständig rebuildbarer SQLite-Index wird nur bei gemessenen Start-, Speicher- oder Abfrageproblemen evaluiert und wird niemals Telemetrieautorität.</p>
-        <p><strong>Abnahme:</strong> Eine frische lokale Installation erreicht über einen dokumentierten Setup-Flow einen sicheren Diagnose- und Testlauf; inkompatible Versionen stoppen vor Input.</p>
+        <h3>Installierbare Electron-App und Operator-Polish <span class="warn">— geplant</span></h3>
+        <p><strong>Ziel:</strong> Den lokalen Bot als verständliche Windows-10/11-x64-App installieren, konfigurieren und sicher betreiben. Electron ist die einzige Produktoberfläche für exakt die bestehende React-Anwendung; Browsermodus, zweite UI und Overlay entfallen. Der Go-Core bleibt alleinige Daten-, Config-, Statistik- und Safety-Autorität.</p>
+        <p><strong>Umfang:</strong> Per-user NSIS-Installer, ein Electron-Hauptfenster mit nativer Titelleiste, Tray und Benachrichtigungen, genau ein gebündelter Core-Kindprozess, LocalAppData-Datenroot, atomarer Bestandsimport, charakterbezogene Queue/Difficulty, sichere GUI-Operatorwerte, tatsächliches D2R-Dateiversionsgate, Diagnosepaket und geführter First Run bis zur optionalen ersten echten Routenaufnahme. Das moderne Dark-UI verwendet eine feste linke Navigation für Dashboard, Routen, Pickit, Historie und Einstellungen, ohne Router-, Komponenten- oder State-Framework.</p>
+        <p><strong>Historienbetrieb:</strong> Recharts visualisiert ausschließlich Core-berechnete Tagestrends, Boss-/Routenvergleich, Stage-Zeit und Loot-Funnel; Tabellen bleiben exakt und zugänglich. Automatische Retention ist standardmäßig 60 Tage und löscht nur vollständige alte terminale Session-Bundles samt aller referenzierten Run-Dateien. Eine getrennte bestätigte Komplettlöschung entfernt alle nicht aktiven direkten Historien-JSONL einschließlich Legacy, unvollständig und beschädigt. SQLite bleibt ohne gemessenen Bedarf ausgeschlossen.</p>
+        <p><strong>Updates und Release:</strong> Kein Auto-Update. Ein anonymer nicht blockierender GitHub-Latest-Check zeigt nur einen manuellen Release-Link. Der lokale Releasebuild erzeugt einen unsignierten NSIS-Installer und SHA-256; GitHub stellt Sourcearchive zum Tag bereit.</p>
+        <p><strong>Abnahme:</strong> Eine frische installierte App durchläuft First Run, tatsächliches Versionsgate, erste Countess-Route und einen vollständigen Countess-Run im echten Electron-Fenster. Tray, Import, Restart, Retention, Diagnose, Upgrade und Deinstallation sind eigene Gates; inkompatible Versionen stoppen vor Hotkey, Fokus und Input.</p>
+        <p>Detailplan: <a href="phase-15-implementation-plan.html">Phase-15-Umsetzungsplan</a>.</p>
       </div>
     </div>
 
@@ -917,8 +919,6 @@
       <li>Wie zuverlässig ist der Hover-Feedback-Loop bei verdeckten oder knapp außerhalb des Screens liegenden Entities (Tower-Ecken, Treppen)?</li>
       <li>Welche Projektions-Kalibrierung (playable center, Tile-Skalierung) braucht es außerhalb von 1280×720?</li>
       <li>Welche gemessenen Start-, Speicher- oder Abfragegrenzen rechtfertigen später einen rebuildbaren SQLite-Index?</li>
-      <li>Welche automatische Retention und bestätigte manuelle Bereinigung sind für lange Historien sicher und verständlich?</li>
-      <li>Welche Visualisierungen liefern in Phase 15 zusätzlichen Nutzen, ohne die Core-Analyse im UI zu duplizieren?</li>
     </ul>
 
     <div class="note">

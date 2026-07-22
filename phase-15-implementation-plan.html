@@ -1,0 +1,471 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Phase 15 – Detaillierter Umsetzungsplan</title>
+  <style>
+    :root{--bg:#0b0d12;--panel:#151820;--panel2:#1d222c;--text:#f1f2f5;--muted:#b7bdc8;--line:#343a46;--accent:#df6a3f;--gold:#d6ad5c;--good:#69d59f;--warn:#f0c96a;--bad:#f0525f;--code:#090b0f}
+    *{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at 85% 0,#351711 0,transparent 26%),linear-gradient(145deg,#08090d,#11141a 55%,#0a0c10);color:var(--text);font:16px/1.58 system-ui,-apple-system,"Segoe UI",sans-serif}
+    main{max-width:1200px;margin:auto;padding:42px 24px 80px}.hero{padding:34px;border:1px solid var(--line);border-radius:20px;background:linear-gradient(135deg,#211713,#171a21 52%,#12151b);box-shadow:0 20px 60px #0008}
+    h1{font-size:clamp(2rem,5vw,3.7rem);line-height:1.08;margin:.25rem 0 1rem}h2{margin-top:44px;border-bottom:1px solid var(--line);padding-bottom:10px}h3{margin:.2rem 0 .5rem;color:#fff}.lead{font-size:1.17rem;color:var(--muted);max-width:1000px}
+    .chips{display:flex;flex-wrap:wrap;gap:9px}.chip{border:1px solid #684334;border-radius:999px;padding:5px 11px;color:#ffd8c8;background:#251510}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:15px;margin:18px 0}
+    .card,.phase,.callout{border:1px solid var(--line);border-radius:14px;background:var(--panel);padding:18px}.card p,.phase p{margin:.35rem 0;color:var(--muted)}table{width:100%;border-collapse:collapse;background:var(--panel);border:1px solid var(--line)}th,td{padding:12px 14px;text-align:left;vertical-align:top;border-bottom:1px solid var(--line)}th{background:var(--panel2);color:#fff}
+    code,pre{font-family:"Cascadia Code",Consolas,monospace}code{color:#f6bd88}pre{background:var(--code);border:1px solid var(--line);border-radius:12px;padding:16px;overflow:auto;color:#e5e8ed}.phase{display:grid;grid-template-columns:92px 1fr;gap:16px;margin:13px 0}.phase-id{font-weight:800;color:var(--accent);font-size:1.25rem}.warn{color:var(--warn)}.good{color:var(--good)}.bad{color:var(--bad)}.gold{color:var(--gold)}.gate{border-left:4px solid var(--warn);padding-left:12px!important}.callout{border-left:4px solid var(--accent);margin:16px 0}.danger{border-left-color:var(--bad)}.success{border-left-color:var(--good)}li{margin:.35rem 0}footer{margin-top:48px;color:var(--muted);text-align:center}@media(max-width:650px){.phase{grid-template-columns:1fr}.hero{padding:22px}main{padding-inline:14px}}
+  </style>
+</head>
+<body><main>
+  <section class="hero">
+    <div class="chip">D2R Offline Farming Bot · Phase 15</div>
+    <h1>Vom lokalen Core zur sicheren, verständlichen Windows-App</h1>
+    <p class="lead">Phase 15 liefert den bestehenden Go-Core und exakt eine React-Anwendung als installierbare Electron-App aus. Ein modernes Desktop-UI führt durch Einrichtung, Routenaufnahme, Farming, Historie und Diagnose, ohne Safety-, Config- oder Statistiklogik in Electron zu duplizieren. Der Installer bleibt unkompliziert, alle Nutzerdaten liegen außerhalb des Installationsverzeichnisses und inkompatible D2R-Versionen stoppen vor jedem Input.</p>
+    <div class="chips"><span class="chip">KISS + YAGNI</span><span class="chip">Windows x64</span><span class="chip">Eine React-App</span><span class="chip">Go bleibt Core</span><span class="chip">Electron-Shell</span><span class="chip">NSIS per User</span><span class="chip">LocalAppData</span><span class="chip">Fail-closed</span><span class="chip">Kein Overlay</span><span class="chip">Kein SQLite</span></div>
+  </section>
+
+  <section class="grid" aria-label="Kernziele">
+    <article class="card"><h3>Eine Produktoberfläche</h3><p>Electron zeigt dieselbe React-Anwendung, die bereits Routen, Pickit und Historie bedient. Browsermodus, zweite Shell-UI und parallele Fachlogik entfallen.</p></article>
+    <article class="card"><h3>Sicherer Desktop-Lifecycle</h3><p>Electron besitzt Fenster, Tray und genau einen Core-Kindprozess. Der Go-Core besitzt weiterhin D2R, Memory, Tasks, Input und jedes Safety-Gate.</p></article>
+    <article class="card"><h3>Geführter erster Erfolg</h3><p>Ein First-Run-Assistent erklärt Voraussetzungen, importiert vorhandene Daten sicher und führt optional direkt in die bestehende Aufnahme der ersten echten Farming-Route.</p></article>
+    <article class="card"><h3>Betreibbare Historie</h3><p>Core-berechnete Charts, standardmäßige 60-Tage-Retention und eine ausdrücklich bestätigte Komplettlöschung halten Auswertung nützlich und Datenmenge beherrschbar.</p></article>
+  </section>
+
+  <h2>1. Verbindliche Produktentscheidungen</h2>
+  <table><thead><tr><th>Thema</th><th>Entscheidung für Phase 15</th></tr></thead><tbody>
+    <tr><td>Plattform</td><td>Ausschließlich Windows 10/11 x64. Es entstehen keine x86-, ARM-, Linux-, macOS-, Store- oder MSI-Artefakte.</td></tr>
+    <tr><td>Core</td><td>Der bestehende Go-Core bleibt alleinige Autorität für Prozess, Memory, World Model, Tasks, Input, Routen, Pickit, persistente Operatorwerte, Kompatibilität und Historienberechnung. Es gibt weder Rust-Komponente noch Node-FFI.</td></tr>
+    <tr><td>Produktoberfläche</td><td>Electron ist die einzige ausgelieferte Oberfläche. React bleibt eine einzige Anwendung; bestehende Features werden innerhalb derselben Komponentenstruktur neu angeordnet und gestaltet, nicht kopiert.</td></tr>
+    <tr><td>Navigation</td><td>Kein Routing-Paket und insbesondere kein zweiter Router. Stabile Hash-Ziele und genau ein kleiner App-Navigationszustand wählen Dashboard, Routen, Pickit, Historie oder Einstellungen.</td></tr>
+    <tr><td>Browsermodus</td><td>Der öffentliche CLI-Schalter <code>--ui</code>, Browserstart und Browser-Produktabnahme entfallen nach bestandener Electron-Parität. Loopback-API und eingebettete React-Assets bleiben als interne Transportgrenze bestehen.</td></tr>
+    <tr><td>Desktop-Prozess</td><td>Electron startet genau einen gebündelten <code>d2rbot.exe</code>-Kindprozess, wartet auf einen begrenzten sicheren Handshake und beendet ihn beim vollständigen App-Ende. Weder zweite Electron-Instanz noch zweiter Desktop-Core sind erlaubt.</td></tr>
+    <tr><td>Fenster und Tray</td><td>Native Windows-Titelleiste, Startgröße ungefähr 1440×900, Mindestgröße ungefähr 1100×700, gespeicherte Bounds. Während aktiver oder pausierter Session schließt X in den Tray; inaktiv beendet X nach kurzer Bestätigung. Tray bietet Öffnen, Status, Pause nach Run, Stop nach Run, Emergency Stop und Beenden.</td></tr>
+    <tr><td>Autostart</td><td>Optional und standardmäßig aus. Ein Windows-Autostart öffnet nur App und Core; er startet niemals D2R oder eine Farming-Session.</td></tr>
+    <tr><td>D2R-Start</td><td>D2R wird weiterhin manuell gestartet. Die App wartet verständlich auf den Prozess und bietet bei Privilegienkonflikt ausschließlich einen expliziten Neustart der App als Administrator an.</td></tr>
+    <tr><td>Core-Ausfall</td><td>Automatischer Core-Neustart nur, wenn nachweislich keine Session und kein mutierender Workflow aktiv war. Sonst bleibt die App fail-closed und verlangt eine bewusste Wiederherstellung.</td></tr>
+    <tr><td>Installation</td><td>Ein unkomplizierter unsignierter per-user NSIS-Installer ohne erforderliche Administratorrechte. SmartScreen-Hinweise werden dokumentiert; ein Code-Signing-Zertifikat ist keine Voraussetzung.</td></tr>
+    <tr><td>Release-Artefakte</td><td>GitHub Release enthält Installer und SHA-256-Prüfsumme. GitHub stellt Source-ZIP und Source-Tarball zum Tag automatisch bereit. Ein portables Produkt-ZIP wird nicht erzeugt.</td></tr>
+    <tr><td>Datenort</td><td>Installationsdateien sind read-only. Veränderliche Daten liegen unter <code>%LOCALAPPDATA%\D2ROfflineFarmingBot\</code>. Repository-/CLI-Entwicklung behält ihre relativen Workspace-Pfade.</td></tr>
+    <tr><td>Import</td><td>Der First Run kann den geschlossenen Datenstand einer bestehenden Installation importieren. Quelle bleibt unverändert; Config, Profile, Assignments und Routen müssen vollständig valide sein. Telemetrie wird durch den strikten HistoryReader klassifiziert; isolierbare Legacy-/Korruptionsdiagnosen dürfen den sonst validen Import nicht blockieren. Alte Runtime-Logs und Diagnose-ZIPs werden nicht importiert.</td></tr>
+    <tr><td>Persistente GUI-Werte</td><td>Charakterbezogene Queue und letzte Difficulty sowie globale Budgets, Input-Freigabe, Hotkeys und Retention werden revisionsgebunden und atomar vom Core gespeichert. Pathing, Kampf, Memory und Klickgeometrie bleiben erweiterte YAML-Konfiguration.</td></tr>
+    <tr><td>Queue</td><td>Genau eine persistente Queue pro Charakter, unabhängig von Difficulty. Difficulty-Wechsel invalidiert wie bisher betroffene Routen und erzwingt erneute Queue-Validierung beziehungsweise Neuaufbau. Queue-Duplikate bleiben ausnahmslos verboten.</td></tr>
+    <tr><td>Mutation</td><td>Queue-, Budget-, Auswahl- und Operatorwertänderungen sind nur im inaktiven Corezustand erlaubt. Erwartete Revision und Supervisorgeneration verhindern stale oder parallele Writes.</td></tr>
+    <tr><td>Input-Freigabe</td><td>Die bewusst erteilte Freigabe darf Neustarts überleben. Trotzdem startet weder App- noch D2R-Start automatisch eine Session; jeder produktive Start bleibt explizit und Core-gegatet.</td></tr>
+    <tr><td>First Run</td><td>Begrüßung, Datenanlage/Import, Versions-/Berechtigungscheck, read-only Attach, Safety-/Hotkey-Erklärung, explizite Input-Freigabe, Profile-/Routen-/Queue-Prüfung und optionaler Einstieg in die erste Routenaufnahme. Überspringen ist nur mit deaktiviertem Input möglich.</td></tr>
+    <tr><td>Erste Route</td><td>Countess ist empfohlen und vorausgewählt, Mephisto bleibt wählbar. Eine Checkliste erklärt Charakter, Difficulty, 1280×720, Wegpunkt, Teleport und Town Portal. Eine unterbrochene Aufnahme ist ungültig und muss neu gestartet werden; es gibt kein Resume- oder Onboarding-Reset-Modell.</td></tr>
+    <tr><td>Versionsgate</td><td>Die tatsächliche <code>D2R.exe</code>-Dateiversion wird read-only ermittelt und exakt gegen den unterstützten Core-/Offsetstand geprüft. Inkompatibilität blockiert alle Inputs, Hotkeys, Workflows und Sessions; Electron bleibt für Erklärung, Historie, Einstellungen und Diagnose offen. Es gibt keinen Override.</td></tr>
+    <tr><td>Design</td><td>Dark Mode only, Desktop-first, native Titelleiste. Anthrazit/dunkles Blau bilden die Fläche, gedämpftes Ember-Rot/Orange die Marke, Gold normale Hauptaktionen und kräftiges Crimson ausschließlich Fehler/Emergency. Bedeutung verwendet zusätzlich Text und Icon.</td></tr>
+    <tr><td>App-Struktur</td><td>Feste linke Navigation mit Dashboard, Routen, Pickit, Historie und Einstellungen. Unten stehen Verbindungsstatus, App- und Core-Version; Klick führt zu Systemdiagnose.</td></tr>
+    <tr><td>Overlay</td><td>Kein Overlay in Phase 15. Hauptfenster, Tray und globale Hotkeys decken den Bedienbedarf ohne zusätzliche Fokus-, Click-through- oder Safety-Oberfläche.</td></tr>
+    <tr><td>Charts</td><td>Recharts visualisiert tägliche Entwicklung, Boss-/Routenvergleich, Stage-Zeitanteile und Loot-Funnel. Der Go-Analyzer erzeugt alle lokalen Tages-Buckets und Kennzahlen; Tabellen bleiben die zugängliche Exaktdarstellung.</td></tr>
+    <tr><td>Retention</td><td>Automatische Retention ist standardmäßig aktiv und löscht vollständig korrelierte terminale Historie nach 60 Tagen, beim Start und danach höchstens täglich sowie nur außerhalb aktiver Workflows. Beschädigte, unvollständige, aktive oder unklare Dateien werden automatisch nie gelöscht.</td></tr>
+    <tr><td>Komplettlöschung</td><td>„Gesamte Historie löschen“ umfasst nach Vorschau und Bestätigung ausdrücklich auch Legacy-, obsolete, unvollständige, beschädigte und nicht korrelierbare direkte JSONL-Dateien. Aktive Dateien bleiben die einzige Ausnahme; ihr Schutz wird unmittelbar vor dem Löschen erneut geprüft.</td></tr>
+    <tr><td>Updates</td><td>Kein Download und keine automatische Installation. Electron prüft beim Start einmal nicht blockierend und ohne Token die neueste stabile öffentliche GitHub-Releaseversion. Neue Versionen erscheinen als Symbol und Link; private Repo-, Offline-, Timeout- oder Rate-Limit-Antworten bleiben neutrale Zustände.</td></tr>
+    <tr><td>Netzwerk</td><td>Außer diesem einzelnen Updatecheck und einem explizit geöffneten GitHub-Link arbeitet die App vollständig lokal. Keine Telemetrie, kein Cloud-Upload, kein Remote-UI und kein fremder Inhalt im Renderer.</td></tr>
+    <tr><td>Diagnose</td><td>Lokales ZIP mit Versionen, redigierter Config, Lifecycle-/Assignment-Metadaten, letzten Logs und Reader-Diagnosen. Vollständige Telemetrie und Routenkoordinaten nur nach separater expliziter Auswahl; niemals Savegames, Memory-Dumps, Screenshots, Token oder Upload.</td></tr>
+    <tr><td>Dependencies</td><td>Zusätzlich nur Electron, <code>electron-builder</code>, <code>lucide-react</code>, Recharts und Playwright. Kein Tailwind, keine Komponentenbibliothek, kein State-Manager, kein <code>electron-updater</code>, kein weiterer Router und kein <code>electron-store</code>.</td></tr>
+  </tbody></table>
+
+  <h2>2. Scope und bewusste Grenzen</h2>
+  <table><thead><tr><th>Enthalten</th><th>Bewusst nicht in Phase 15</th></tr></thead><tbody>
+    <tr><td>Sichere Electron-Shell, ein Hauptfenster, Tray, native Benachrichtigungen und exakt ein Core-Kindprozess.</td><td>Overlay, Multi-Window-Dashboard, Webview, Remote-UI, Browser-Produktmodus oder paralleler Core.</td></tr>
+    <tr><td>NSIS-x64-Installer, LocalAppData-Datenroot, Import, vorwärtsgerichtete Migration und höchstens zehn Config-Backups.</td><td>MSI/MSIX, Store, portable Edition, Cloud-Sync, Mehrbenutzerprofile oder beliebige Datenverzeichnis-Synchronisation.</td></tr>
+    <tr><td>Persistente charakterbezogene Queue/Difficulty und schmale sichere Operatorwerte.</td><td>Vollständiger GUI-Editor für Memory-Offsets, Pathing, Combat, Input-Timing oder jeden YAML-Key.</td></tr>
+    <tr><td>Modernes Dark-Desktop-UI mit eigenem abstraktem Runen-/Portal-Icon, fünf Hauptbereichen und nativer Titelleiste.</td><td>Light Theme, Theme-Editor, kopierte Diablo-Assets/Fonts, rahmenlose Titelleiste oder Mobile-/Touch-Produkt.</td></tr>
+    <tr><td>Core-berechnete Tagestrends und vier fachlich begründete Visualisierungen.</td><td>UI-Statistik, frei konfigurierbare Widgets, Pie-/Donut-Charts, Marktpreise, Prognosen oder Gewinnerbehauptungen.</td></tr>
+    <tr><td>Automatische 60-Tage-Retention und bestätigte vollständige Historienlöschung.</td><td>Beliebige Stichtage, Papierkorb, Telemetriebackup, Rotation nach Größe, Kompression oder Reparatur beschädigter Logs.</td></tr>
+    <tr><td>Versionshinweis über GitHub <code>releases/latest</code> und manueller Downloadlink.</td><td>Auto-Download, Auto-Install, Updatekanäle, private GitHub-Tokens, Delta-Updates oder Hintergrundpolling.</td></tr>
+    <tr><td>Reproduzierbare lokale Builds, echtes Electron-E2E und installierte Live-Abnahme.</td><td>Neue GitHub Actions, Zertifikatskauf, Code Signing oder Browser-/Zen-Abnahme als Produktgate.</td></tr>
+    <tr><td>Bestehender rebuildbarer In-Memory-HistoryIndex mit Performance-fixtures.</td><td>SQLite, persistenter Analysecache, File-Watcher-Pflicht oder neue Telemetrieautorität.</td></tr>
+  </tbody></table>
+  <div class="callout danger"><strong>Kein Desktop-Bypass:</strong> Electron darf niemals direkt D2R fokussieren, Memory lesen, Inputs senden, Routen verändern, Queuezustände erfinden oder Historie aggregieren. Jede fachliche Aktion läuft über den bestehenden generierten API-Vertrag und die Core-seitigen Revision-, Generation- und Safety-Gates.</div>
+
+  <h2>3. Zielarchitektur und Ownership</h2>
+  <pre><code>Installierte Windows-App
+├─ Electron Main Process                         Desktop-Owner
+│  ├─ Single-instance + Datenroot
+│  ├─ startet/beendet gebündelten d2rbot.exe
+│  ├─ sicherer einmaliger Loopback-Handshake
+│  ├─ BrowserWindow + Tray + Notifications
+│  ├─ native Fenster-/Autostart-Einstellungen
+│  ├─ GitHub-Latest-Check + erlaubte externe Links
+│  └─ Installer-/Diagnose-Dateidialoge
+│
+├─ Go Core Child Process                         Fach-/Safety-Owner
+│  ├─ loopback-only HTTP/JSON/SSE + Control-Token
+│  ├─ process → memory → world → tasks → input
+│  ├─ Supervisor, Routes, Pickit, History
+│  ├─ tatsächliches D2R-Version-Gate
+│  ├─ OperatorSettingsStore + Migration/Backup
+│  └─ History buckets + Retention/Delete-Service
+│
+├─ React Renderer                                Projektions-/Intent-Owner
+│  ├─ eine App-Shell, fünf Hash-Ziele, kein Routerpaket
+│  ├─ Dashboard / Routes / Pickit / History / Settings
+│  ├─ First Run + Core-gelieferte Fehlertexte
+│  └─ Recharts auf bereits berechneten Core-DTOs
+│
+└─ %LOCALAPPDATA%\D2ROfflineFarmingBot\          persistente Daten
+   ├─ configs\                                    Core-Config, Routen, Pickit
+   ├─ logs\telemetry\                            JSONL-Autorität
+   ├─ backups\                                    max. 10 Config-/Migrationsbackups
+   ├─ diagnostics\                                lokal erzeugte ZIPs
+   └─ desktop-settings.json                       nur Fenster/Autostart/Onboarding
+
+Verboten
+├─ Node-Integration im Renderer
+├─ React-Zugriff auf Dateisystem/Prozess/D2R
+├─ Electron-eigene Queue-, Config- oder Statistikengine
+├─ zweites UI, Overlay, Browserprodukt oder Remote-Content
+└─ SQLite, electron-updater, FFI oder neue Gameplay-Pfade</code></pre>
+
+  <table><thead><tr><th>Verantwortung</th><th>Einziger Owner</th><th>Vertrag</th></tr></thead><tbody>
+    <tr><td>D2R-/Input-Safety, Run-/Workflow-Locks</td><td>Go-Core</td><td>Bestehender Supervisor, Availability, Preview/Confirm und Control-Token.</td></tr>
+    <tr><td>Operatorwerte und Historienmutation</td><td>Go-Core</td><td>Versionierte Stores, erwartete Revision, atomisches Schreiben und aktive Generation.</td></tr>
+    <tr><td>Fenster, Tray, Autostart, Benachrichtigung</td><td>Electron Main</td><td>Schmale IPC-Kommandos ohne Gameplaysemantik.</td></tr>
+    <tr><td>App-/Core-Prozessbeziehung</td><td>Electron Main</td><td>Ein Kindprozess, begrenzter Handshake, Exit-/Crash-Policy und Datenroot-Lock.</td></tr>
+    <tr><td>Renderer-Darstellung und Intents</td><td>React</td><td>Generierter API-Client plus enge Desktop-Bridge; keine Node-Primitiven.</td></tr>
+    <tr><td>Historienzahlen und Tages-Buckets</td><td><code>internal/telemetry.AnalyzeHistory</code></td><td>API, JSON-Export, Charts und Tabellen erhalten denselben gefilterten Core-Snapshot.</td></tr>
+    <tr><td>Diagnoseinhalt und Redaktion</td><td>Go-Core</td><td>Allowlist der Inhalte; Electron wählt nur Ziel und öffnet den Ordner.</td></tr>
+    <tr><td>Updateabfrage</td><td>Electron Main</td><td>Exakt ein HTTPS-GET pro Start, harte URL-Allowlist, Timeout, keine Credentials.</td></tr>
+  </tbody></table>
+
+  <h2>4. Electron-, Prozess- und Sicherheitsvertrag</h2>
+  <ol>
+    <li><strong>Single Instance:</strong> Electron erwirbt zuerst <code>requestSingleInstanceLock</code>. Eine zweite Instanz aktiviert nur das bestehende Fenster. Der Desktop-Core schützt zusätzlich den kanonischen Datenroot mit einem Windows-Mutex/Lock; Konflikt endet vor API, Hotkeys oder Input.</li>
+    <li><strong>Daten vor Core:</strong> Electron löst den installierten Datenroot auf und führt ausschließlich erforderliche, getestete Datenanlage beziehungsweise Migration aus. Der Core erhält einen absoluten expliziten Datenroot; er errät keinen Working Directory.</li>
+    <li><strong>Handshake:</strong> Desktop-Modus bindet wie bisher einen zufälligen Port ausschließlich auf <code>127.0.0.1</code>. Der tokenhaltige Bootstrap wird einmal über die private Parent/Child-Pipe übertragen, weder geloggt noch in Argumentliste, Datei oder Environment persistiert. Ein Timeout beendet Kindprozess und zeigt Recovery.</li>
+    <li><strong>Renderer:</strong> <code>nodeIntegration=false</code>, <code>contextIsolation=true</code>, <code>sandbox=true</code>, keine <code>webview</code>, keine experimentellen Features. CSP erlaubt nur die lokale Core-Origin; Navigation und neue Fenster werden blockiert.</li>
+    <li><strong>IPC:</strong> Preload exponiert nur typisierte Desktop-Intents für Fenster-/Appinfo, Autostart, Update-Link, Diagnoseziel und Neustart als Administrator. Jeder Handler validiert Sender, Argumente und Appzustand. Keine generische Shell-, Datei-, Prozess- oder IPC-Brücke.</li>
+    <li><strong>Externe Links:</strong> Ausschließlich die fest konfigurierte HTTPS-Release-URL darf nach explizitem Klick mit <code>shell.openExternal</code> geöffnet werden. API-Antworten oder Renderertext dürfen keine Ziel-URL bestimmen.</li>
+    <li><strong>Schließen:</strong> X versteckt das Fenster nur bei <code>starting_game</code>, <code>starting_run</code>, <code>running_run</code>, <code>paused_between_runs</code>, <code>exiting_game</code> oder <code>cancelling</code>. Inaktive Zustände fragen kurz nach vollständigem Beenden. „Beenden“ im Tray verlangt bei aktiver Session zuerst Emergency Stop beziehungsweise geordneten Stop; es killt den Core nicht blind.</li>
+    <li><strong>Crash:</strong> Exitcode, letzter bekannter Corezustand und Handshakegeneration entscheiden. Nur sicher inaktiv wird einmal begrenzt neu gestartet; Schleifen sind verboten. Aktiver/unklarer Crash setzt <code>core_recovery_required</code>, deaktiviert Controls und erklärt nächste Schritte.</li>
+    <li><strong>Kein Browserpfad:</strong> Nach Paritätsgate werden <code>OpenBrowser</code>, Windows-Browserstub, öffentlicher <code>--ui</code>-Text und browserbezogene Fallbackanweisungen entfernt. API-Server-Tests bleiben direkte HTTP-Tests; Renderer-E2E läuft in Electron.</li>
+  </ol>
+
+  <h2>5. Datenroot, Operatorwerte und Migration</h2>
+  <pre><code>%LOCALAPPDATA%\D2ROfflineFarmingBot\
+├─ configs\
+│  ├─ config.yaml                       erweiterte Core-Basiskonfiguration
+│  ├─ operator-settings.local.yaml      GUI-editierbare Core-Autorität
+│  ├─ offsets.scanned.yaml
+│  ├─ routes\...
+│  ├─ pickit\profiles\...
+│  ├─ route-*.local.yaml
+│  └─ pickit-assignments.local.yaml
+├─ logs\telemetry\*.jsonl
+├─ logs\d2rbot-*.log
+├─ backups\...
+├─ diagnostics\...
+└─ desktop-settings.json                Fenster, Autostart, Onboarding</code></pre>
+
+  <table><thead><tr><th>Persistenter Vertrag</th><th>Pflichtverhalten</th></tr></thead><tbody>
+    <tr><td><code>operator-settings.local.yaml</code></td><td>Striktes Schema 1, positive globale Revision, charakterbezogene <code>last_difficulty</code> und geordnete eindeutige Queue sowie globale endliche Budgets, Input-Freigabe, Hotkeys und <code>history.retention_enabled=true</code>/<code>retention_days=60</code>.</td></tr>
+    <tr><td>Save</td><td>Nur inaktiv, Control-Token, erwartete Revision und Generation. Vollständig validieren, Temp-Datei im selben Verzeichnis, Flush, Close, atomischer Replace, Re-Read. Fehler behält alten effektiven Stand.</td></tr>
+    <tr><td>Backup</td><td>Vor erfolgreicher Schema-/Inhaltsmigration und vor ersetzenden Config-Änderungen. Nach erfolgreichem Commit auf die zehn neuesten validen Backups begrenzen; Bereinigungsfehler verändern nicht die aktive Config.</td></tr>
+    <tr><td>Anwendung</td><td>Queue, Difficulty und Budgets werden nach Save neu projiziert. Input-/Hotkeywerte, die gebundene Ressourcen verändern, liefern <code>restart_required</code>; Electron bietet ausschließlich im inaktiven Zustand einen kontrollierten Core-Neustart an.</td></tr>
+    <tr><td>Desktopsettings</td><td>Kleines strikt validiertes JSON mit Fensterbounds, Autostart und <code>onboarding_completed</code>. Atomisch schreiben, ungültige Bounds verwerfen, keine Fach- oder Safetywerte aufnehmen.</td></tr>
+    <tr><td>Defaults</td><td>Versionierte read-only Defaults liegen in Electron Resources. First Run kopiert sie nur in einen noch nicht veröffentlichten Staging-Root und validiert mit demselben produktiven Core-Loader.</td></tr>
+    <tr><td>Import</td><td>Ausgewählter bestehender Root wird ohne Symlink-/Reparse-Follow gelesen. Config, Profile, Assignments, Routen und Telemetrie werden als geschlossener Stand in Staging kopiert. Fachkonfiguration muss vollständig validieren; Telemetrie wird mit den bestehenden isolierenden Reader-Regeln klassifiziert. Kein Merge und keine Änderung der Quelle.</td></tr>
+    <tr><td>Publish/Rollback</td><td>Erst nach erfolgreicher Validierung wird Staging atomar zum neuen Datenroot. Fehler hinterlässt den vorherigen Root bytegleich, entfernt nur das eindeutig eigene Staging und erzeugt eine lokale Diagnose.</td></tr>
+    <tr><td>Uninstall</td><td>Benutzerdaten bleiben standardmäßig erhalten. Eine separate standardmäßig deaktivierte Option mit zusätzlicher eindeutiger Bestätigung darf exakt den kanonischen App-Datenroot entfernen, niemals frei gewählte Pfade.</td></tr>
+  </tbody></table>
+
+  <h2>6. D2R-Version und blockierter Betriebsmodus</h2>
+  <ol>
+    <li><code>internal/process</code> liest nach Prozessfund den kanonischen Image-Pfad und die Windows-Product/FileVersion der gebundenen <code>D2R.exe</code> read-only über ein mockbares Interface. Dateiname, Prozessbindung und Versionsresource müssen zusammenpassen.</li>
+    <li>Der Core besitzt eine einzige unterstützte Version aus dem aktiven Offset-/Buildvertrag. Konfigurierte Erwartung, Offsetversion und tatsächlich erkannte Datei müssen exakt übereinstimmen. Die bisherige reine Warnung bei Offsetdrift wird für den Desktop-Produktpfad zum harten Compatibility-Gate.</li>
+    <li>Vor erfolgreichem Gate entstehen weder Input-Controller-Freigabe, globale Gameplay-Hotkeys, RecordingCoordinator noch Supervisor-Worker. Read-only Prozess-/Versionsdiagnose bleibt zulässig.</li>
+    <li>Status/API projiziert <code>not_detected</code>, <code>compatible</code>, <code>incompatible</code> oder <code>unreadable</code> sowie App-, Core-, erwartete, Offset- und erkannte D2R-Version. Absolute Installationspfade verlassen den Core nicht.</li>
+    <li>Bei <code>incompatible</code>/<code>unreadable</code> ersetzt eine prominente Blockierfläche das Dashboard. Routenbibliothek bleibt read-only, Historie, Einstellungen und Diagnose erreichbar; Aufnahme, Test, Publish mit Live-Workflow, Auswahl, Queue-Start und jeder Input sind gesperrt.</li>
+    <li>Wird D2R geschlossen, lautet der Livezustand wieder <code>not_detected</code>. Ein letzter Messwert wird nicht als aktuell präsentiert oder persistiert. Es gibt keinen „Trotzdem starten“-Schalter, CLI-Override oder versteckten Dev-Bypass im Releasebuild.</li>
+  </ol>
+
+  <h2>7. UI-, Design- und Bedienvertrag</h2>
+  <table><thead><tr><th>Bereich</th><th>Verbindlicher Inhalt</th></tr></thead><tbody>
+    <tr><td>App-Shell</td><td>Feste linke Navigation, kompakter Seitenkopf, scrollbarer Inhaltsbereich, native Titelleiste. Version/Verbindung unten links; Dashboard ist Startziel. Fensterbounds werden auf sichtbare Monitore geklemmt.</td></tr>
+    <tr><td>Dashboard</td><td>Core/D2R/Input/Kompatibilität, bestätigter Charakter/Difficulty-Kontext, charakterbezogene Queue, aktiver Run/Step/Area/Budgets und klar getrennte Start-, Pause-, Resume-, Stop- und Emergency-Aktionen. Keine technische Eventliste als primärer Inhalt.</td></tr>
+    <tr><td>Routen</td><td>Bestehende Bibliothek, Kandidaten, Aufnahme, Test, Publish, Archive, Restore und Delete werden in die Shell eingepasst. Keine zweite Recordinglogik; First Run verlinkt exakt denselben Workflow.</td></tr>
+    <tr><td>Pickit</td><td>Bestehende Profilbibliothek, Editor und Assignments mit gleicher Core-Validierung. Das Redesign verändert keine Regel-, Revisions- oder Safe-Run-Grenze.</td></tr>
+    <tr><td>Historie</td><td>Bestehende Filter, Tabellen, Detail und Exporte plus vier Charts. Zeitraumstandard 30 Tage; gesamte vorhandene Historie bleibt wählbar.</td></tr>
+    <tr><td>Einstellungen</td><td>Allgemein/Desktop, Charakter/Queue/Budgets, Input/Hotkeys, Historie und System/Diagnose. Erweiterte YAML-Werte nur mit effektiver read-only Anzeige und Dateipfad ohne Inline-Editor.</td></tr>
+    <tr><td>Feedback</td><td>Loading, Empty, No-results, Offline/Core-down, incompatible, restart-required, stale revision und mutierende Erfolge/Fehler sind getrennt. Toasts ergänzen, ersetzen aber niemals persistent relevante Zustände.</td></tr>
+    <tr><td>Notifications</td><td>Nur Session abgeschlossen, terminaler Fehler, erreichte Pause und verfügbare Version; ausschließlich wenn Fenster nicht fokussiert. Klick öffnet das Hauptfenster am passenden stabilen Hash-Ziel.</td></tr>
+    <tr><td>Accessibility</td><td>Tastaturreihenfolge, sichtbarer Fokus, Dialog-Fokusfalle/-Rückgabe, zugängliche Namen, Kontrast, Text/Icon zusätzlich zu Farbe, <code>prefers-reduced-motion</code> und Tabellenalternative für Charts.</td></tr>
+    <tr><td>Visuals</td><td>CSS-Custom-Properties und kleine wiederverwendbare Layout-/Control-Komponenten. Lucide-Icons standardmäßig dekorativ; semantische Icons erhalten Label. Keine Tailwind-/Theme- oder Komponentenframework-Abstraktion.</td></tr>
+  </tbody></table>
+  <div class="callout"><strong>Redesign, kein Rewrite:</strong> Die ausführenden Agenten extrahieren App-Shell und kleine gemeinsame Controls um die vorhandenen Features. API-Calls, Preview/Confirm-Flows, Test-Fixtures und Featurekomponenten werden wiederverwendet. Eine parallele „neue“ Dashboardimplementierung mit späterer Migration ist ausdrücklich verboten.</div>
+
+  <h2>8. First-Run- und Recovery-Vertrag</h2>
+  <ol>
+    <li><strong>Daten:</strong> Neuer lokaler Root oder expliziter Import. Vor Abschluss ist kein produktiver Core aktiv.</li>
+    <li><strong>System:</strong> App-/Core-Version, Windows x64, Datenroot, Schreibbarkeit und Berechtigungsmodell erklären; kein Adminzwang.</li>
+    <li><strong>D2R:</strong> Auf manuell gestartetes D2R warten, tatsächliche Version read-only bestätigen und Privilegienkonflikt konkret erklären.</li>
+    <li><strong>Charakter:</strong> Bestehende Core-Katalog-/Anchor-Availability anzeigen; Charakter und Difficulty über den vorhandenen Preview/Confirm-Vertrag wählen.</li>
+    <li><strong>Safety:</strong> 1280×720, Pause nach Run, Stop nach Run, F11/Emergency Stop und fehlende Save-&-Exit-Garantie beim Notstopp erklären. Input wird separat bewusst freigegeben.</li>
+    <li><strong>Readiness:</strong> Pickit-Zuordnung, Hotkeys, Teleport, Town Portal, Run-Availability und Queue vollständig Core-seitig prüfen.</li>
+    <li><strong>Erste Route:</strong> Countess empfohlen/vorausgewählt oder Mephisto wählen, Voraussetzungen als Checkliste zeigen und den existierenden Routenworkflow starten. Unterbrechung verwirft den unfertigen Workflow; späterer Neustart beginnt sauber von vorn.</li>
+    <li><strong>Abschluss:</strong> Onboarding darf ohne fertige Route beendet werden. Dashboard zeigt dann dauerhaft einen konkreten CTA „Erste Route aufnehmen“. Kein synthetischer Testlauf und kein automatisch gestarteter Farm-Run.</li>
+    <li><strong>Wiederaufruf:</strong> Einstellungen können den Assistenten jederzeit erneut öffnen. Überspringen eines noch nicht abgeschlossenen First Runs hält Input deaktiviert; ein bestehender erfolgreicher Datenimport wird nicht zurückgesetzt.</li>
+  </ol>
+
+  <h2>9. Charts und Core-Aggregation</h2>
+  <table><thead><tr><th>Visualisierung</th><th>Core-Daten</th><th>Zugängliche Exaktdarstellung</th></tr></thead><tbody>
+    <tr><td>Täglicher Verlauf</td><td>Lokale Kalendertage der angefragten validen IANA-Zeitzone; terminale Runs, erfolgreiche Runs, Erfolgsquote, aktive Stunden, Keep und Keep/Stunde. UI-Umschalter zeigt jeweils Runs, Erfolgsquote oder Keep/Stunde.</td><td>Tages-Tabelle mit exakt denselben Buckets und Einheiten.</td></tr>
+    <tr><td>Boss-/Routenvergleich</td><td>Vorhandene Core-Gruppen und Sortierung nach Keep/Stunde; Samplewarnung bleibt Teil jedes Balkens.</td><td>Bestehende Vergleichstabelle.</td></tr>
+    <tr><td>Stage-Verteilung</td><td>Vorhandene disjunkte <code>travel</code>, <code>combat</code>, <code>loot</code>, <code>return_town</code> und <code>other</code>-Dauern pro Core-Gruppe.</td><td>Stage-Spalten der Vergleichstabelle.</td></tr>
+    <tr><td>Loot-Funnel</td><td>Vorhandene Seen-/Matched-/Picked-up-/Stashed-/Sold-/Lost-Werte; Keep und Sell bleiben getrennte Enden.</td><td>Bestehende Item-/Funnel-Tabelle.</td></tr>
+  </tbody></table>
+  <ul>
+    <li>Der Request übergibt die von der JavaScript-Runtime erkannte IANA-Zeitzone. Der Core validiert sie mit eingebetteten Go-Zeitzonendaten; unbekannte Werte enden mit <code>history_timezone_invalid</code>. DST-Tage dürfen 23 oder 25 Stunden besitzen.</li>
+    <li><code>AnalyzeHistory</code> erzeugt die Buckets aus vorhandenen UTC-Timestamps nach demselben kanonischen Filter. Es entstehen keine neuen Writer-Events, keine zweite Indexform und keine UI-Gruppierung.</li>
+    <li>GUI-DTO und JSON-Bericht enthalten dieselben Buckets. CSV bleibt eine Run-/Item-Exakttabelle und erhält keine künstlichen Chartzeilen.</li>
+    <li>Standardfilter sind letzte 30 Tage; Retentionstandard bleibt 60 Tage. Leere Tage werden nur innerhalb des angefragten begrenzten Zeitraums deterministisch als Null-Bucket geliefert.</li>
+    <li>Keine Dual-Axis-Kombination, Pie-/Donut-Charts, Chartanimation bei Datenrefresh oder Trend-/Gewinnertext. Geringe Stichprobe bleibt sichtbar und Core-autoritativ.</li>
+  </ul>
+
+  <h2>10. Historien-Retention und Komplettlöschung</h2>
+  <table><thead><tr><th>Operation</th><th>Kandidaten</th><th>Safety-Gate</th></tr></thead><tbody>
+    <tr><td>Automatisch</td><td>Nur vollständig geschlossene Schema-3-Session-Bundles: genau eine valide terminale Sessiondatei und alle daraus referenzierten validen terminalen Run-Dateien. Sessionterminal und neuestes Run-Terminal müssen strikt älter als <code>now - retention_days</code> sein.</td><td>Standard 60 Tage, beim stabilen Start und danach höchstens einmal täglich, nur bei inaktivem Supervisor/Workflow. Fehlende/zusätzliche Gegenstreams, aktive, unvollständige, Legacy-, beschädigte und unklare Quellen überspringen das gesamte Bundle und werden diagnostiziert.</td></tr>
+    <tr><td>Manuelle Vorschau</td><td>Alle regulären direkten <code>*.jsonl</code>-Dateien im kanonischen Telemetrieverzeichnis: valide, Legacy, obsolete, unvollständig, beschädigt und unkorrelierbar. Aktive Session-/Run-Dateien werden separat als geschützt ausgewiesen.</td><td>Read-only Vorschau liefert signierten/zufälligen Confirmation-Token, Indexgeneration, Anzahl, Bytes und Kategorien; keine absoluten Pfade in React.</td></tr>
+    <tr><td>„Alles löschen“</td><td>Exakt der an die Vorschau gebundene Dateisatz abzüglich unmittelbar neu bestimmter aktiver Dateien.</td><td>Nur reguläre direkte Dateien, keine Reparse Points/Symlinks/Unterverzeichnisse. Zweite klare Bestätigung, Token/Generation/Metadaten-Recheck, dann begrenzte Löschung und atomarer Index-Refresh.</td></tr>
+  </tbody></table>
+  <ul>
+    <li>Keine freie Pfad-, Glob- oder Stichtagseingabe. Der Service besitzt ausschließlich den beim Start kanonisch aufgelösten Telemetrie-Root.</li>
+    <li>Keine Telemetriebackups, kein Papierkorb und keine Reparatur. Teilfehler werden pro neutraler Datei-ID diagnostiziert; niemals wird Erfolg gemeldet, wenn ein vorgesehener Kandidat verblieb.</li>
+    <li>Writer und Active-Set werden vor jeder Destruktion unter der gemeinsamen Core-Orchestrierung geprüft. Der aktuelle Writer darf selbst bei stale Preview niemals geöffnet, umbenannt oder gelöscht werden.</li>
+    <li>Nach erfolgreicher oder teilweiser Mutation wird der In-Memory-Index vollständig gegen den verbleibenden JSONL-Bestand refreshed. <code>history_changed</code> publiziert nur die neue autoritative Generation.</li>
+  </ul>
+
+  <h2>11. Update-, Diagnose- und Releasevertrag</h2>
+  <ol>
+    <li><strong>Updatecheck:</strong> Electron Main sendet im paketierten Produkt einmal nach <code>app.ready</code> einen GET mit kurzem Timeout an den fest kompilierten öffentlichen GitHub-Endpunkt <code>/repos/Tyniann/d2r-offline-farming-bot/releases/latest</code>. Dev/Test führt ohne expliziten Fake niemals einen echten Request aus. Keine Wiederholung im Hintergrund; ein manueller Retry in Einstellungen ist erlaubt.</li>
+    <li><strong>Vergleich:</strong> Nur veröffentlichte stabile SemVer-Tags werden mit der gebauten App-Version verglichen. Gleiche/ältere Version ist <code>up_to_date</code>; neuere ist <code>available</code>. 404 bei privatem Repository, offline, Rate Limit, Timeout oder ungültige Antwort ist <code>unavailable</code>, kein Appfehler.</li>
+    <li><strong>Download:</strong> Es wird nichts automatisch heruntergeladen. Das sichtbare Symbol beziehungsweise der Einstellungslink öffnet nach Klick ausschließlich die fest konfigurierte HTTPS-Releaseseite im Standardbrowser.</li>
+    <li><strong>Diagnose:</strong> Der Core baut das ZIP aus einer festen Allowlist und redigiert Tokens, absolute Benutzerpfade und nicht freigegebene Telemetrie. Der Dateiname ist neutral; Electron speichert lokal und kann ausschließlich den erzeugten Pfad im Explorer zeigen.</li>
+    <li><strong>Build:</strong> Das vorhandene lokale PowerShell-Release-Skript orchestriert <code>pnpm install --frozen-lockfile</code>, Clientgeneration, Tests, Typecheck, Renderer-/Electron-Build, Go-Tests, Windows-Core-Build und <code>electron-builder --win nsis --x64</code>. Kein CI-Publish.</li>
+    <li><strong>Version:</strong> Ein Releaseparameter speist Go-Ldflags, Electron-Appversion, Paketmetadaten und Installername. Der Build bricht bei abweichenden sichtbaren Versionen ab.</li>
+    <li><strong>Inhalt:</strong> NSIS <code>extraResources</code> enthält genau den Core, read-only Defaults, Lizenz/Installhinweis und benötigte Assets. Node-DevDependencies, Workspace-Logs, lokale Config, Routen, Telemetrie und Secrets dürfen nie im Paket landen.</li>
+    <li><strong>Unsigniert:</strong> Installer und App bleiben funktional, dokumentieren aber SmartScreen. Es gibt keine Umgehungsautomatik und keine falsche „verifiziert“-Behauptung.</li>
+  </ol>
+
+  <h2>12. Stabile Reason-Codes</h2>
+  <table><thead><tr><th>Bereich</th><th>Mindestens vorzusehende Codes</th></tr></thead><tbody>
+    <tr><td>Desktop/Core</td><td><code>desktop_instance_running</code>, <code>core_start_failed</code>, <code>core_handshake_timeout</code>, <code>core_handshake_invalid</code>, <code>core_exited</code>, <code>core_recovery_required</code>, <code>core_shutdown_failed</code></td></tr>
+    <tr><td>Daten/Migration</td><td><code>data_root_unavailable</code>, <code>data_root_locked</code>, <code>data_import_invalid</code>, <code>data_import_conflict</code>, <code>data_import_failed</code>, <code>config_schema_unsupported</code>, <code>config_revision_conflict</code>, <code>config_restart_required</code></td></tr>
+    <tr><td>Kompatibilität</td><td><code>d2r_version_not_detected</code>, <code>d2r_version_unreadable</code>, <code>d2r_version_unsupported</code>, <code>offset_version_mismatch</code>, <code>privilege_mismatch</code></td></tr>
+    <tr><td>First Run</td><td><code>onboarding_input_disabled</code>, <code>onboarding_route_prerequisite_missing</code>, <code>onboarding_route_interrupted</code></td></tr>
+    <tr><td>Historie</td><td><code>history_timezone_invalid</code>, <code>history_retention_blocked</code>, <code>history_retention_partial</code>, <code>history_delete_preview_stale</code>, <code>history_delete_active_protected</code>, <code>history_delete_failed</code></td></tr>
+    <tr><td>Desktopdienste</td><td><code>update_check_unavailable</code>, <code>update_response_invalid</code>, <code>external_link_rejected</code>, <code>diagnostic_bundle_failed</code>, <code>diagnostic_content_rejected</code></td></tr>
+  </tbody></table>
+  <p>Vorhandene semantisch identische Phase-11–14-Codes werden wiederverwendet. Deutsche Benutzertexte liegen zentral beim jeweiligen Owner; React und Electron erfinden keine Synonyme. Ein neutraler Update-Fehlschlag erscheint nicht als roter Runtimefehler.</p>
+
+  <h2>13. Sequenzieller Umsetzungsplan</h2>
+  <section class="phase">
+    <div class="phase-id">15.0</div><div><h3>Baseline, Verträge und messbare Budgets</h3>
+      <ul>
+        <li>Phase-11–14-Core-, API-, React-, Safety-, Route-, Pickit- und History-Characterization unverändert grün einfrieren.</li>
+        <li><code>docs/features/phase-15-core-contract.md</code> mit Ownership, Datenroot, Desktop-Lifecycle, Version-Gate, Settings, Retention und Reason-Codes anlegen, bevor produktiver Code verschoben wird.</li>
+        <li>Aktuellen Start, History-Rebuild und 30-/60-Tage-Abfragen an einer deterministischen 10.000-Run-Fixture messen. SQLite bleibt ausgeschlossen; zuerst gelten die vorhandenen In-Memory-Strukturen und die 60-Tage-Produktgrenze.</li>
+        <li>Dependency-Set und exakte Versionen nach Kompatibilitätsprüfung pinnen; <code>pnpm-lock.yaml</code> ist vollständig reproduzierbar. Keine transitive UI-Architektur hinzufügen.</li>
+      </ul>
+      <div class="callout gate"><strong>Gate 15.0 – automatisiert:</strong> Bestehende Go-/Web-/OpenAPI-/Race-Charakterisierung ist grün; Ownership und Non-Goals sind compile-/testnah dokumentiert; die Performancefixture besitzt reproduzierbare Baselinewerte, ohne SQLite-Scaffold.</div>
+    </div>
+  </section>
+
+  <section class="phase">
+    <div class="phase-id">15.1</div><div><h3>Installierter Datenroot, Defaults und sicherer Import</h3>
+      <ul>
+        <li>Expliziten Core-Datenroot einführen; relative interne Layouts bleiben darunter erhalten. Repository-CLI verwendet ohne Desktopmodus weiterhin den bisherigen Workspace-Kontext.</li>
+        <li>Read-only Defaultbundle, Staginganlage, kanonische Pfadprüfung, Reparse-/Traversal-Schutz und atomische Veröffentlichung implementieren.</li>
+        <li>Bestehenden Datenstand ohne Logs/Diagnose-ZIPs importieren, alle Loader/Reader anwenden und bei jedem Fehler Quelle sowie Ziel bytegleich erhalten.</li>
+        <li>Desktopsettings atomar und streng getrennt von Core-Fachwerten speichern; ungültige Fensterbounds und unbekannte Felder fail-closed auf sichere Defaults zurücksetzen.</li>
+      </ul>
+      <div class="callout gate"><strong>Gate 15.1 – Temp-Root-Matrix:</strong> Fresh Root, valider Import, unbekanntes Schema, kaputte Route, beschädigte Telemetrie, Kollision, schreibgeschütztes Ziel, Reparse Point, Crash vor Publish und Re-Run sind deterministisch. Nie entsteht ein halb veröffentlichter Datenroot.</div>
+    </div>
+  </section>
+
+  <section class="phase">
+    <div class="phase-id">15.2</div><div><h3>OperatorSettingsStore und persistente GUI-Konfiguration</h3>
+      <ul>
+        <li>Schema-1-Store, Defaults/Migration, Revision, atomischen Writer, Re-Read und auf zehn begrenzte Backups implementieren.</li>
+        <li>Queue pro Charakter, letzte Difficulty, globale Budgets, Input-Freigabe, Hotkeys und 60-Tage-Retention strikt validieren. Leere/duplizierte/unknown Queueeinträge bleiben verboten.</li>
+        <li>Read-/Preview-/Update-/Reset-API und OpenAPI-generierten TypeScript-Client ergänzen; alle Mutationen verwenden Control-Token, erwartete Revision, Generation und Idle-Lock.</li>
+        <li>Neustartpflichtige Input-/Hotkeyänderungen explizit projizieren; niemals mutable Controller halb live rekonfigurieren.</li>
+      </ul>
+      <div class="callout gate"><strong>Gate 15.2 – Config-Matrix:</strong> Zwei Charakterqueues, Difficultywechsel, Duplikat, stale Revision, aktive Session, Write-/Re-Read-Fehler, Reset, Backupgrenze und kontrollierter Restart sind vollständig getestet. Kein GUI-Wert umgeht den Core.</div>
+    </div>
+  </section>
+
+  <section class="phase">
+    <div class="phase-id">15.3</div><div><h3>Sichere Electron-Shell und Core-Kindprozess</h3>
+      <ul>
+        <li>Electron Main/Preload im bestehenden <code>web</code>-Workspace anlegen; Renderer bleibt die vorhandene React-App. Electron, Builder und Playwright exakt pinnen.</li>
+        <li>Single-instance, Datenroot-Lock, Core-Spawn, private Pipe, Handshake-Timeout, Window-Bootstrap, Shutdown und begrenzte inaktive Crash-Recovery implementieren.</li>
+        <li>Sandbox, Context Isolation, CSP, Navigation-/Window-Open-Block, Senderprüfung und minimale Desktop-Bridge durch direkte Security-Tests absichern.</li>
+        <li>Öffentlichen Browsermodus noch nicht löschen, bis API-/Command-/Refresh-Parität in Electron bewiesen ist; er bleibt während dieses Abschnitts ausschließlich Baseline.</li>
+      </ul>
+      <div class="callout gate"><strong>Gate 15.3 – native Automatisierung:</strong> Playwright startet Electron mit Fake-Core, erhält genau ein Fenster, lädt den Snapshot, blockiert zweite Instanz/Navigation/unerlaubtes IPC und deckt validen, verspäteten, falschen und abgebrochenen Handshake sowie aktiven/inaktiven Core-Exit ab.</div>
+    </div>
+  </section>
+
+  <section class="phase">
+    <div class="phase-id">15.4</div><div><h3>Tatsächliches D2R-Versionsgate</h3>
+      <ul>
+        <li>Mockbaren Windows-Dateiversionsleser an die bestehende Prozessbindung setzen; kanonischer Image-Pfad und gebundene PID bleiben Voraussetzung.</li>
+        <li>Supported-/Expected-/Offset-/Actual-Matrix implementieren und Status/OpenAPI/SSE um den Compatibilityzustand erweitern.</li>
+        <li>Inputfähige Komponenten erst nach <code>compatible</code> aktivieren; alle APIs/Workflows zusätzlich serverseitig gegen Inkompatibilität sperren.</li>
+        <li>Neustart-als-Administrator ausschließlich bei nachgewiesenem Privilegienproblem über die enge Electron-Bridge anbieten.</li>
+      </ul>
+      <div class="callout gate"><strong>Gate 15.4 – fail-closed:</strong> Match, Mismatch, fehlende/kaputte Versionresource, PID-/Pfaddrift, Detach/Reattach und Offsetdrift sind getestet. Kein Fall erzeugt vor bestätigter Kompatibilität einen Hotkey-, Fokus- oder Gameplay-Inputpfad.</div>
+    </div>
+  </section>
+
+  <section class="phase">
+    <div class="phase-id">15.5</div><div><h3>App-Shell, Designsystem und Featuremigration</h3>
+      <ul>
+        <li>Originales abstraktes App-Icon/Portalzeichen und kleine CSS-Tokenbasis für Ember, Gold, Crimson, Flächen, Typografie, Fokus, Spacing und Zustände erstellen.</li>
+        <li>Linke Navigation und stabile Hash-Ziele ohne Routerbibliothek bauen; Dashboard, Routes, Pickit, History und Settings werden jeweils aus den bestehenden Featurekomponenten gerendert.</li>
+        <li>Gemeinsame Buttons, Dialoge, Statusbadges, Empty/Error/Loading und Seitenkopf nur dort extrahieren, wo mindestens zwei reale Verbraucher existieren.</li>
+        <li>Dashboard neu ordnen und Event-Rohfeed in Diagnose verschieben; alle Command-, Preview-/Confirm- und Refreshsemantiken bleiben Core-getrieben.</li>
+      </ul>
+      <div class="callout gate"><strong>Gate 15.5 – React:</strong> Vitest/jsdom prüft fünf Ziele, Deep Links, Tastaturnavigation, Dialogfokus, Farben plus Text/Icon, reduced motion, kleine Desktopgröße und bestehende Route-/Pickit-/History-Interaktionen. Keine zweite Featureimplementierung oder UI-Aggregation existiert.</div>
+    </div>
+  </section>
+
+  <section class="phase">
+    <div class="phase-id">15.6</div><div><h3>Desktop-Betrieb, Settings, Tray und Notifications</h3>
+      <ul>
+        <li>Settings-Seite an OperatorSettings- und Desktopsettings-Verträge anbinden; Resetvorschau, Restart-required und stale Revision verständlich abbilden.</li>
+        <li>Native Fensterbounds, Autostart-off-by-default, aktive X→Tray-Semantik, inaktive Exitbestätigung und erlaubtes Tray-Menü implementieren.</li>
+        <li>Native Benachrichtigungen nur für die vier beschlossenen Zustände und nur unfokussiert ausgeben; Klick aktiviert das vorhandene Fenster am stabilen Ziel.</li>
+        <li>Emergency/Stop/Quit-Reihenfolge gegen Coregeneration und bestehenden Cancellationvertrag testen; Electron beendet niemals blind einen aktiven Core.</li>
+      </ul>
+      <div class="callout gate"><strong>Gate 15.6 – Desktop-State-Matrix:</strong> Idle, running, pause pending, paused, stop pending, cancelling, error und core-down bestimmen exakt Fenster-, Tray-, Notification- und Quitverhalten. Doppelklicks und zweite Instanz erzeugen keinen zweiten Command.</div>
+    </div>
+  </section>
+
+  <section class="phase">
+    <div class="phase-id">15.7</div><div><h3>First Run, Importführung und erste Route</h3>
+      <ul>
+        <li>Neun Schritte des First-Run-Vertrags als fortsetzbare reine UI-Führung implementieren; jeder fachliche Check stammt aus Core/API.</li>
+        <li>Import, Versionsblock, Privilegienhinweis, Charakter/Difficulty, Inputopt-in und vollständige Readiness mit konkreten Recoverylinks verbinden.</li>
+        <li>Countess empfohlen oder Mephisto wählen und die Voraussetzungsliste vor Start des vorhandenen RecordingCoordinator zeigen.</li>
+        <li>Abbruch verwirft unfertige Aufnahme kontrolliert und bietet später „neu starten“; kein Resume, kein synthetischer Testlauf, kein Auto-Farming.</li>
+      </ul>
+      <div class="callout gate"><strong>Gate 15.7 – Onboarding-Matrix:</strong> Fresh, Skip, Import, inkompatibel, Input abgelehnt, fehlender Wegpunkt/Teleport/TP, unterbrochene Aufnahme und erfolgreiche Übergabe an denselben Route-Workflow sind über Fake-Core deterministisch. Überspringen kann Input nie aktivieren.</div>
+    </div>
+  </section>
+
+  <section class="phase">
+    <div class="phase-id">15.8</div><div><h3>Lokale Tages-Buckets und vier Charts</h3>
+      <ul>
+        <li>Analyzer um validierte IANA-Zeitzone und tägliche Core-Buckets erweitern; Go-Zeitzonendaten für installierte Windows-Ausführung einbetten.</li>
+        <li>API/OpenAPI/JSON-Bericht ergänzen und Parität für Filter, Summen und Buckets erzwingen. React erhält nur darstellungsfertige Werte.</li>
+        <li>Recharts und Lucide exakt pinnen; Verlauf mit Kennzahlenumschalter, Routenbalken, gestapelte Stages und Funnel implementieren.</li>
+        <li>Jedes Chart mit Titel, Einheit, Samplewarnung, Empty/Error und direkt zugehöriger Tabelle versehen; Animation bei Refresh aus.</li>
+      </ul>
+      <div class="callout gate"><strong>Gate 15.8 – Rechenparität:</strong> UTC, Europe/Vienna, 23-/25-Stunden-DST, halboffene Filter, Nulltage, geringe Samples und fünf bekannte Phase-14-Runs liefern handgerechnete Buckets. API, JSON, Chartprops und Tabellenwerte sind identisch.</div>
+    </div>
+  </section>
+
+  <section class="phase">
+    <div class="phase-id">15.9</div><div><h3>Retention und bestätigte Komplettlöschung</h3>
+      <ul>
+        <li>HistoryMaintenanceService mit kanonischem Root, automatischer Auswahl vollständiger geschlossener Session-Bundles, täglichem Idle-Scheduler und Diagnoseprojektion implementieren.</li>
+        <li>Manuelle Vorschau über alle direkten JSONL-Kategorien, confirmation-gebundene Metadaten und Active-Set-Schutz implementieren.</li>
+        <li>Destruktion auf reguläre direkte Dateien begrenzen, vor jedem Remove revalidieren und anschließend Index/SSE konsistent aktualisieren.</li>
+        <li>Keine Pfade, Globs, Stichtage, Papierkorb-, Backup-, Repair- oder Kompressionsabstraktion hinzufügen.</li>
+      </ul>
+      <div class="callout gate"><strong>Gate 15.9 – Destruktionsmatrix:</strong> 59/60/61 Tage, Session mit einem/mehreren Runs, gemischtem Alter, fehlendem/zusätzlichem Gegenstream, laufender Writer, stale Preview, neue aktive ID, Legacy, korrupt, Unterverzeichnis, Reparse Point, Locked File und Teilfehler sind mit Temp-Roots getestet. Automatik löscht nur vollständige alte Bundles; „Alles“ löscht alles Vorgesehene außer aktiv.</div>
+    </div>
+  </section>
+
+  <section class="phase">
+    <div class="phase-id">15.10</div><div><h3>Diagnosepaket und einfacher Versionshinweis</h3>
+      <ul>
+        <li>Core-seitigen Diagnose-Collector, Redaktionsregeln, optionale Telemetrie-/Routenbeigaben und lokale ZIP-Erzeugung implementieren.</li>
+        <li>Electron-Latest-Check mit hartem GitHub-Endpunkt, SemVervergleich, Timeout, neutralen Fehlerzuständen und manuellem Retry implementieren.</li>
+        <li>Renderer zeigt Versionssymbol und Settingsstatus; externer Klick ist auf die fest kompilierte Release-HTTPS-URL begrenzt.</li>
+        <li>Keine Updatebibliothek, Credentials, periodischen Requests, Download- oder Installationslogik einführen.</li>
+      </ul>
+      <div class="callout gate"><strong>Gate 15.10 – Daten-/Netzgrenze:</strong> Gleich, älter, neuer, Prerelease, 404/private, offline, Timeout, Rate Limit und malformed JSON sind über Fake-Fetch getestet. ZIP-Snapshots beweisen Redaktion und Opt-in; ohne Klick verlässt außer dem einen Latest-Request kein Byte die App.</div>
+    </div>
+  </section>
+
+  <section class="phase">
+    <div class="phase-id">15.11</div><div><h3>NSIS-Paket und reproduzierbarer lokaler Releasebuild</h3>
+      <ul>
+        <li><code>electron-builder</code> für per-user NSIS x64, App-ID, Icon, Startmenü, Deinstallationsdatenoption und minimale <code>extraResources</code> konfigurieren.</li>
+        <li>PowerShell-Releasepipeline auf eine Versionsquelle, frozen Lockfile, alle Checks, Go-Ldflags, Electronbuild, Installer und SHA-256 erweitern.</li>
+        <li>Unpacked-/Installer-Inhalt gegen Secrets, lokale Daten und DevDependencies prüfen; Installation/Upgrade/Uninstall in temporären Windows-Profilpfaden smoketesten.</li>
+        <li>Releasehinweis erklärt Windows 10/11 x64, Offline-only, manuelles D2R, SmartScreen, Datenort und dass Sourcearchive von GitHub zum Tag bereitgestellt werden.</li>
+      </ul>
+      <div class="callout gate"><strong>Gate 15.11 – Artefakt:</strong> Ein frischer lokaler Build erzeugt exakt einen installierbaren NSIS-Setup-EXE plus Prüfsumme; installierte App/Go-Core/Sidebar zeigen dieselbe Version und keinen <code>dev</code>-Commit. Kein Workspace-Artefakt ist enthalten.</div>
+    </div>
+  </section>
+
+  <section class="phase">
+    <div class="phase-id">15.12</div><div><h3>Manuelle installierte Produktabnahme</h3>
+      <ul>
+        <li><strong>Gate A – frischer Benutzer:</strong> In sauberem LocalAppData installieren, First Run ohne Import durchlaufen, tatsächliche D2R-Version bestätigen, Countess-Route geführt aufnehmen, testen und veröffentlichen, dann einen vollständigen Countess-Run über das Dashboard ausführen.</li>
+        <li><strong>Gate B – Desktop-Lifecycle:</strong> Während des Runs X→Tray, Status/Notification prüfen, Fenster wieder öffnen, Pause nach Run, Resume und geordneten Stop testen; Emergency bleibt ein separater kontrollierter Abnahmefall.</li>
+        <li><strong>Gate C – Datenbetrieb:</strong> Bestehenden Phase-14-Datenstand in einen zweiten frischen Root importieren, Queue/Difficulty/Settings über Neustart prüfen, Charts/Retention/Komplettlöschung an Fixtures abnehmen und Diagnose-ZIP inspizieren.</li>
+        <li><strong>Gate D – Installation:</strong> Upgrade über neuen lokalen Installer, Core-Crash in idle/active Fake-Modi, inkompatiblen Testbuild, Offline-Updatecheck und Deinstallation mit standardmäßig erhaltenem Datenroot prüfen.</li>
+      </ul>
+      <div class="callout gate"><strong>Gate 15.12 – Abschlussbedingung:</strong> Kein Browserfenster oder Dev-Server dient als Ersatz. Echte Electron-Screens, Tray, installierter Core, D2R-Attach und mindestens ein kompletter realer Farming-Run sind protokolliert; zufälliger Loot ist kein Erfolgskriterium.</div>
+    </div>
+  </section>
+
+  <section class="phase">
+    <div class="phase-id">15.13</div><div><h3>Browserentfernung, Dokumentation und Dead-Code-Audit</h3>
+      <ul>
+        <li>Nach bestandener Electron-Parität <code>--ui</code>, Browserlauncher/-stubs, Browserinstalltexte und ausschließlich browserbedingte Tests entfernen; interne API und direkte Server-Tests bleiben.</li>
+        <li>Feature-Dokumente für Desktop-Shell, installierten Datenroot/Settings, Version-Gate, Onboarding, History-Charts/-Maintenance, Diagnose und Packaging anlegen beziehungsweise aktualisieren; Index, Handoff und Changelog pflegen.</li>
+        <li>Handgeschriebene DTO-Duplikate, alte Runtime-only Queue-Overrides, parallele CSS-Shell, ungenutzte Embed-/Bootstrap-Pfade und tote Release-ZIP-Logik entfernen.</li>
+        <li><code>gofmt</code>, <code>goimports</code>, vollständigen Go-Lint/Test/Windows-Build/UCRT64-Race, OpenAPI-Check, Vitest, Typecheck, Web-/Electron-Build, Playwright und Installer-Smoke ausführen.</li>
+      </ul>
+      <div class="callout gate"><strong>Gate 15.13 – Abschlussmatrix:</strong> Automatische Matrix und Gates A–D sind grün; Dokumentation beschreibt reale Artefakte und Operatorpfade; Repository enthält genau eine React-App, eine Core-API und einen Desktopproduktpfad. Erst dann wird Phase 15 im Handoff als abgeschlossen markiert.</div>
+    </div>
+  </section>
+
+  <h2>14. Manuelle Abnahmegates im Überblick</h2>
+  <table><thead><tr><th>Gate</th><th>Beweist</th><th>Bewusst ausgeschlossen</th></tr></thead><tbody>
+    <tr><td>A – frischer Benutzer</td><td>Installer, Datenroot, First Run, tatsächliches Versionsgate, erste Route und erster echter Run funktionieren als zusammenhängendes Produkt.</td><td>Kein synthetischer Testlauf, kein automatisch gestartetes Farming und kein vorausgesetzter alter Datenstand.</td></tr>
+    <tr><td>B – Desktop-Lifecycle</td><td>Fenster, Tray, Notifications, Pause/Resume/Stop/Emergency und Core-Lifecycle erhalten alle Safety-Grenzen.</td><td>Kein Overlay, kein zweites Fenster und kein Browserfokus.</td></tr>
+    <tr><td>C – Datenbetrieb</td><td>Import, persistente charakterbezogene Queue, Charts, Retention, Komplettlöschung und Diagnose sind revisions-, restart- und dateisicher.</td><td>Kein Merge, keine Cloud, kein Telemetriebackup und kein SQLite.</td></tr>
+    <tr><td>D – Distribution/Recovery</td><td>Upgrade, inkompatible Version, Crashpolicy, Offline-Updatehinweis und Deinstallation verhalten sich im installierten Produkt verständlich und fail-closed.</td><td>Kein Code Signing, Auto-Update oder CI-Publish.</td></tr>
+  </tbody></table>
+
+  <h2>15. Definition of Done</h2>
+  <ol>
+    <li>Ein per-user NSIS-Installer für Windows 10/11 x64 installiert Electron, exakt einen gebündelten Go-Core und read-only Defaults ohne lokale Entwicklungsdaten.</li>
+    <li>Electron ist die einzige Produktoberfläche; öffentlicher Browsermodus und Overlay existieren nicht. React bleibt eine einzige Anwendung ohne Routerpaket oder duplizierte Featurelogik.</li>
+    <li>Electron Main besitzt ausschließlich Fenster, Tray, Notifications, Appsettings, Coreprozess und Updatehinweis; alle Bot-, Config-, Safety- und Statistikentscheidungen bleiben im Go-Core.</li>
+    <li>Renderer läuft sandboxed mit Context Isolation, ohne Node-Integration, Remote-Content, freie Navigation oder generische IPC-/Datei-/Shell-Brücke.</li>
+    <li>Genau eine App- und Desktop-Core-Instanz darf denselben installierten Datenroot verwenden; Handshake, Shutdown und Crash-Recovery sind begrenzt und getestet.</li>
+    <li>Alle veränderlichen Nutzerdaten liegen unter LocalAppData; Installation/Upgrade verändert sie nicht und Uninstall behält sie standardmäßig.</li>
+    <li>Fresh Defaults und bestehender Datenimport sind vollständig validiert, atomar, rollbackfähig und folgen keinen Reparse Points oder fremden Pfaden.</li>
+    <li>Queue und letzte Difficulty sind pro Charakter persistent; Queue-Duplikate sind unmöglich. Budgets, Input, Hotkeys und Retention sind Core-revisionsgebunden und nur inaktiv änderbar.</li>
+    <li>Die tatsächliche D2R-Dateiversion wird read-only erkannt. Jede Abweichung blockiert vor Hotkeys, Fokus und Input ohne Override, während Erklärung und Diagnose erreichbar bleiben.</li>
+    <li>First Run erklärt Voraussetzungen, erlaubt sicheren Import/Skip und führt optional in exakt den bestehenden Route-Workflow. Unterbrochene Aufnahmen werden nicht fortgesetzt; Farming startet nie automatisch.</li>
+    <li>Modernes Dark-UI besitzt fünf klare Bereiche, native Windows-Titelleiste, originale Visual Identity, zugängliche Dialoge/Fokus/Zustände und sinnvolle Desktop-Skalierung.</li>
+    <li>Vier Recharts-Visualisierungen verwenden ausschließlich Core-berechnete Werte; lokale Tages-Buckets einschließlich DST stammen aus <code>AnalyzeHistory</code> und sind API-/JSON-/Tabellen-paritätisch.</li>
+    <li>Automatische Retention ist mit 60 Tagen aktiv und löscht nur vollständige alte terminale Session-Bundles. Bestätigte Komplettlöschung entfernt alle nicht aktiven direkten JSONL-Kategorien mit Vorschau und Recheck.</li>
+    <li>Diagnose-ZIP ist lokal, allowlist-basiert und redigiert; Telemetrie/Routenkoordinaten sind Opt-in, Savegames/Memory/Screenshots/Secrets immer ausgeschlossen.</li>
+    <li>Ein einmaliger anonymer GitHub-Latest-Check zeigt nur einen manuellen Release-Link. Offline/privat/Rate-Limit blockiert weder App noch Bot; keine Auto-Update-Abhängigkeit existiert.</li>
+    <li>GitHub-Release benötigt nur Installer und SHA-256 als eigene Assets; Sourcearchive kommen automatisch vom Tag. Lokale Releasepipeline erzwingt identische App-/Core-/Installer-Versionen.</li>
+    <li>Vitest, Playwright-Electron, Go-Tests, OpenAPI, Lint, Windows-Build, UCRT64-Race, Installer-Smoke und die vier installierten Produktgates sind grün.</li>
+    <li>Godoc, Designkommentare, neue Feature-Dokumente, Index, Changelog, Handoff und Dead-Code-Audit entsprechen dem tatsächlich ausgelieferten Produkt.</li>
+  </ol>
+
+  <h2>16. Bewusste Übergaben nach Phase 15</h2>
+  <ul>
+    <li><strong>Auto-Update:</strong> Download/Installation wird erst neu entschieden, wenn Repository öffentlich, Releaseprozess stabil und gegebenenfalls Code Signing verfügbar ist. Der Phase-15-Check schafft keine halbe Updaterarchitektur.</li>
+    <li><strong>Overlay:</strong> Nur bei später nachgewiesenem Bedienproblem neu bewerten. Es gibt keinen vorbereiteten Window-, IPC- oder Komponentenpfad.</li>
+    <li><strong>Weitere Plattformen:</strong> Windows x64 bleibt Produktvertrag; keine Cross-Platform-Abstraktion auf Vorrat.</li>
+    <li><strong>SQLite:</strong> Nur bei reproduzierbarem Verfehlen konkreter Start-/Speicher-/Abfrageziele trotz 60-Tage-Retention und Optimierung des bestehenden Index neu evaluieren. JSONL bleibt immer Autorität.</li>
+    <li><strong>Weitere Themes/Charts:</strong> Light Theme, Widgetsystem und zusätzliche Kennzahlen benötigen einen belegten Nutzerwert; Phase 15 schafft keine leeren Erweiterungspunkte.</li>
+  </ul>
+
+  <footer>Planungsstand: 22. Juli 2026 · Produktentscheidungen vollständig geklärt · Umsetzung noch nicht begonnen · KISS/YAGNI verbindlich</footer>
+</main></body>
+</html>
