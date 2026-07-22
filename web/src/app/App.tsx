@@ -7,6 +7,7 @@ import { getCatalog, getStatus, type CatalogDTO, type LiveEvent, type SelectionP
 import "./app.css";
 import { RouteFeature } from "../features/routes/RouteFeature";
 import { PickitFeature } from "../features/pickit/PickitFeature";
+import { HistoryFeature } from "../features/history/HistoryFeature";
 
 const editableStates = new Set(["idle", "idle_in_game", "stopped_error"]);
 const emergencyStates = new Set(["starting_game", "starting_run", "running_run", "paused_between_runs", "exiting_game"]);
@@ -29,6 +30,7 @@ export function App() {
   const [confirmEmergency, setConfirmEmergency] = useState(false);
   const [routeRefreshKey, setRouteRefreshKey] = useState(0);
   const [pickitRefreshKey, setPickitRefreshKey] = useState(0);
+  const [historyRefreshKey, setHistoryRefreshKey] = useState(0);
   const emergencyConfirmRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
@@ -73,6 +75,7 @@ export function App() {
           setEvents((current) => [data as LiveEvent, ...current].slice(0, 40));
           if ((data as LiveEvent).event.startsWith("route_")) setRouteRefreshKey((value) => value + 1);
           if ((data as LiveEvent).event.startsWith("pickit_")) setPickitRefreshKey((value) => value + 1);
+          if ((data as LiveEvent).event === "history_changed") setHistoryRefreshKey((value) => value + 1);
           void refreshStatus();
         },
         setConnection,
@@ -170,7 +173,9 @@ export function App() {
         <span className={`connection ${connection === "verbunden" ? "online" : ""}`}>Live: {connection}</span>
       </header>
 
-      <section aria-live="polite">
+      <nav className="main-navigation" aria-label="Dashboard-Bereiche"><a href="#betrieb">Betrieb</a><a href="#routes">Routen</a><a href="#pickit">Pickit</a><a href="#history">Historie</a></nav>
+
+      <section id="betrieb" aria-live="polite">
         <h2>Core-Status</h2>
         {error && <p role="alert">{error}</p>}
         {!error && !status && <p>Verbindung wird hergestellt …</p>}
@@ -182,9 +187,11 @@ export function App() {
         </div>}
       </section>
 
-      <RouteFeature characters={catalog?.characters.map((entry) => entry.name) ?? []} selectedCharacter={status?.selection.character ?? character} refreshKey={routeRefreshKey} />
+      <div id="routes"><RouteFeature characters={catalog?.characters.map((entry) => entry.name) ?? []} selectedCharacter={status?.selection.character ?? character} refreshKey={routeRefreshKey} /></div>
 
-      <PickitFeature characters={catalog?.characters.map((entry) => entry.name) ?? []} selectedCharacter={status?.selection.character ?? character} runs={catalog?.runs.map((entry) => entry.run_id) ?? []} locked={!!status && !editableStates.has(status.state)} refreshKey={pickitRefreshKey} />
+      <div id="pickit"><PickitFeature characters={catalog?.characters.map((entry) => entry.name) ?? []} selectedCharacter={status?.selection.character ?? character} runs={catalog?.runs.map((entry) => entry.run_id) ?? []} locked={!!status && !editableStates.has(status.state)} refreshKey={pickitRefreshKey} /></div>
+
+      <HistoryFeature characters={catalog?.characters.map((entry) => entry.name) ?? []} runs={catalog?.runs.map((entry) => entry.run_id) ?? []} refreshKey={historyRefreshKey} />
 
       <section>
         <h2>Charakter und Schwierigkeit</h2>

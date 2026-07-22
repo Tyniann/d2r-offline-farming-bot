@@ -28,6 +28,10 @@ const (
 	StashAttempt  EventName = "stash_attempt"
 	StashSuccess  EventName = "stash_success"
 	StashFull     EventName = "stash_full"
+	// SellSuccess bestätigt die Inventory-Transition einer gepinnten Sell-Unit.
+	SellSuccess EventName = "sell_success"
+	// BossKillConfirmed bestätigt den Memory-basierten Tod der gepinnten Boss-Unit.
+	BossKillConfirmed EventName = "boss_kill_confirmed"
 	// RoutePlaybackStarted begins one full route playback session.
 	RoutePlaybackStarted EventName = "route_playback_started"
 	// RoutePointStarted identifies the next recorded World point.
@@ -94,79 +98,124 @@ const (
 
 // Event is one JSONL record. Zero-valued optional fields are omitted.
 type Event struct {
-	SchemaVersion            int       `json:"schema_version"`
-	Timestamp                time.Time `json:"timestamp"`
-	Event                    EventName `json:"event"`
-	RunID                    string    `json:"run_id"`
-	SessionID                string    `json:"session_id,omitempty"`
-	GameID                   string    `json:"game_id,omitempty"`
-	Run                      string    `json:"run"`
-	DefinitionID             string    `json:"definition_id,omitempty"`
-	Phase                    string    `json:"phase,omitempty"`
-	Step                     string    `json:"step,omitempty"`
-	ActionIndex              *int      `json:"action_index,omitempty"`
-	AreaID                   uint32    `json:"area_id,omitempty"`
-	UnitID                   uint32    `json:"unit_id,omitempty"`
-	TxtFileNo                uint32    `json:"txt_file_no,omitempty"`
-	Code                     string    `json:"code,omitempty"`
-	Name                     string    `json:"name,omitempty"`
-	Reason                   string    `json:"reason,omitempty"`
-	Attempt                  int       `json:"attempt,omitempty"`
-	HoverAttempt             int       `json:"hover_attempt,omitempty"`
-	GridX                    *int      `json:"grid_x,omitempty"`
-	GridY                    *int      `json:"grid_y,omitempty"`
-	CandidateCount           int       `json:"candidate_count,omitempty"`
-	RouteID                  string    `json:"route_id,omitempty"`
-	RouteLayoutFingerprint   string    `json:"route_layout_fingerprint,omitempty"`
-	WaypointTarget           string    `json:"waypoint_target,omitempty"`
-	TownOrigin               string    `json:"town_origin,omitempty"`
-	SegmentID                string    `json:"segment_id,omitempty"`
-	SegmentIndex             *int      `json:"segment_index,omitempty"`
-	PointIndex               *int      `json:"point_index,omitempty"`
-	TargetX                  uint32    `json:"target_x,omitempty"`
-	TargetY                  uint32    `json:"target_y,omitempty"`
-	TargetAreaID             uint32    `json:"target_area_id,omitempty"`
-	RunOrdinal               int       `json:"run_ordinal,omitempty"`
-	Outcome                  string    `json:"outcome,omitempty"`
-	Decision                 string    `json:"decision,omitempty"`
-	LastStep                 string    `json:"last_step,omitempty"`
-	ElapsedMs                int64     `json:"elapsed_ms,omitempty"`
-	ConsecutiveFailures      int       `json:"consecutive_failures,omitempty"`
-	TotalRestarts            int       `json:"total_restarts,omitempty"`
-	RemainingRestarts        int       `json:"remaining_restarts,omitempty"`
-	LastConfirmedPoint       *int      `json:"last_confirmed_point,omitempty"`
-	DriftTiles               float64   `json:"drift_tiles,omitempty"`
-	LocalRecoveryAttempts    int       `json:"local_recovery_attempts,omitempty"`
-	RunsStarted              int       `json:"runs_started,omitempty"`
-	RunsSuccessful           int       `json:"runs_successful,omitempty"`
-	RunsAborted              int       `json:"runs_aborted,omitempty"`
-	RunsFailed               int       `json:"runs_failed,omitempty"`
-	MaxRuns                  int       `json:"max_runs,omitempty"`
-	MaxDurationMs            int64     `json:"max_duration_ms,omitempty"`
-	Profile                  string    `json:"profile,omitempty"`
-	Hook                     string    `json:"hook,omitempty"`
-	Skill                    string    `json:"skill,omitempty"`
-	SkillID                  uint16    `json:"skill_id,omitempty"`
-	Target                   string    `json:"target,omitempty"`
-	Resource                 string    `json:"resource,omitempty"`
-	ThresholdPercent         uint8     `json:"threshold_percent,omitempty"`
-	BeltSlot                 int       `json:"belt_slot,omitempty"`
-	Confirmed                bool      `json:"confirmed,omitempty"`
-	TownStep                 *int      `json:"town_step,omitempty"`
-	TownKind                 string    `json:"town_kind,omitempty"`
-	TownService              string    `json:"town_service,omitempty"`
-	CurrentCount             *int      `json:"current_count,omitempty"`
-	TriggerThreshold         *int      `json:"trigger_threshold,omitempty"`
-	BeltSlots                []int     `json:"belt_slots,omitempty"`
-	PurchaseMode             string    `json:"purchase_mode,omitempty"`
-	Vendor                   string    `json:"vendor,omitempty"`
-	Cost                     *int      `json:"cost,omitempty"`
-	VerifiedFinalCount       *int      `json:"verified_final_count,omitempty"`
-	PickitProfileID          string    `json:"pickit_profile_id,omitempty"`
-	PickitRuleID             string    `json:"pickit_rule_id,omitempty"`
-	PickitAction             string    `json:"pickit_action,omitempty"`
-	PickitProfileRevision    uint64    `json:"pickit_profile_revision,omitempty"`
-	PickitAssignmentRevision uint64    `json:"pickit_assignment_revision,omitempty"`
+	SchemaVersion            int                    `json:"schema_version"`
+	Stream                   HistoryStream          `json:"stream"`
+	Timestamp                time.Time              `json:"timestamp"`
+	Event                    EventName              `json:"event"`
+	RunID                    string                 `json:"run_id"`
+	SessionID                string                 `json:"session_id,omitempty"`
+	GameID                   string                 `json:"game_id,omitempty"`
+	Mode                     HistoryMode            `json:"mode"`
+	Character                string                 `json:"character,omitempty"`
+	Difficulty               string                 `json:"difficulty,omitempty"`
+	GameVersion              string                 `json:"game_version,omitempty"`
+	Run                      string                 `json:"run"`
+	DefinitionID             string                 `json:"definition_id,omitempty"`
+	Phase                    string                 `json:"phase,omitempty"`
+	Step                     string                 `json:"step,omitempty"`
+	Stage                    HistoryStage           `json:"stage,omitempty"`
+	ActionIndex              *int                   `json:"action_index,omitempty"`
+	AreaID                   uint32                 `json:"area_id,omitempty"`
+	UnitID                   uint32                 `json:"unit_id,omitempty"`
+	TxtFileNo                uint32                 `json:"txt_file_no,omitempty"`
+	Code                     string                 `json:"code,omitempty"`
+	Name                     string                 `json:"name,omitempty"`
+	BossID                   string                 `json:"boss_id,omitempty"`
+	BossName                 string                 `json:"boss_name,omitempty"`
+	ItemKey                  string                 `json:"item_key,omitempty"`
+	ItemName                 string                 `json:"item_name,omitempty"`
+	BaseCode                 string                 `json:"base_code,omitempty"`
+	Quality                  string                 `json:"quality,omitempty"`
+	ItemIdentityKind         string                 `json:"item_identity_kind,omitempty"`
+	ItemIdentityKey          string                 `json:"item_identity_key,omitempty"`
+	Reason                   string                 `json:"reason,omitempty"`
+	Attempt                  int                    `json:"attempt,omitempty"`
+	HoverAttempt             int                    `json:"hover_attempt,omitempty"`
+	GridX                    *int                   `json:"grid_x,omitempty"`
+	GridY                    *int                   `json:"grid_y,omitempty"`
+	CandidateCount           int                    `json:"candidate_count,omitempty"`
+	RouteID                  string                 `json:"route_id,omitempty"`
+	RouteLayoutFingerprint   string                 `json:"route_layout_fingerprint,omitempty"`
+	WaypointTarget           string                 `json:"waypoint_target,omitempty"`
+	TownOrigin               string                 `json:"town_origin,omitempty"`
+	SegmentID                string                 `json:"segment_id,omitempty"`
+	SegmentIndex             *int                   `json:"segment_index,omitempty"`
+	PointIndex               *int                   `json:"point_index,omitempty"`
+	TargetX                  uint32                 `json:"target_x,omitempty"`
+	TargetY                  uint32                 `json:"target_y,omitempty"`
+	TargetAreaID             uint32                 `json:"target_area_id,omitempty"`
+	RunOrdinal               int                    `json:"run_ordinal,omitempty"`
+	QueueIndex               *int                   `json:"queue_index,omitempty"`
+	QueueCycle               *int                   `json:"queue_cycle,omitempty"`
+	RunStartedAt             *time.Time             `json:"run_started_at,omitempty"`
+	Outcome                  string                 `json:"outcome,omitempty"`
+	Decision                 string                 `json:"decision,omitempty"`
+	LastStep                 string                 `json:"last_step,omitempty"`
+	ElapsedMs                int64                  `json:"elapsed_ms,omitempty"`
+	ConsecutiveFailures      int                    `json:"consecutive_failures,omitempty"`
+	TotalRestarts            int                    `json:"total_restarts,omitempty"`
+	RemainingRestarts        int                    `json:"remaining_restarts,omitempty"`
+	LastConfirmedPoint       *int                   `json:"last_confirmed_point,omitempty"`
+	DriftTiles               float64                `json:"drift_tiles,omitempty"`
+	LocalRecoveryAttempts    int                    `json:"local_recovery_attempts,omitempty"`
+	RunsStarted              int                    `json:"runs_started,omitempty"`
+	RunsSuccessful           int                    `json:"runs_successful,omitempty"`
+	RunsAborted              int                    `json:"runs_aborted,omitempty"`
+	RunsFailed               int                    `json:"runs_failed,omitempty"`
+	MaxRuns                  int                    `json:"max_runs,omitempty"`
+	MaxDurationMs            int64                  `json:"max_duration_ms,omitempty"`
+	Profile                  string                 `json:"profile,omitempty"`
+	Hook                     string                 `json:"hook,omitempty"`
+	Skill                    string                 `json:"skill,omitempty"`
+	SkillID                  uint16                 `json:"skill_id,omitempty"`
+	Target                   string                 `json:"target,omitempty"`
+	Resource                 string                 `json:"resource,omitempty"`
+	ThresholdPercent         uint8                  `json:"threshold_percent,omitempty"`
+	BeltSlot                 int                    `json:"belt_slot,omitempty"`
+	Confirmed                bool                   `json:"confirmed,omitempty"`
+	TownStep                 *int                   `json:"town_step,omitempty"`
+	TownKind                 string                 `json:"town_kind,omitempty"`
+	TownService              string                 `json:"town_service,omitempty"`
+	CurrentCount             *int                   `json:"current_count,omitempty"`
+	TriggerThreshold         *int                   `json:"trigger_threshold,omitempty"`
+	BeltSlots                []int                  `json:"belt_slots,omitempty"`
+	PurchaseMode             string                 `json:"purchase_mode,omitempty"`
+	Vendor                   string                 `json:"vendor,omitempty"`
+	Cost                     *int                   `json:"cost,omitempty"`
+	VerifiedFinalCount       *int                   `json:"verified_final_count,omitempty"`
+	PickitProfileID          string                 `json:"pickit_profile_id,omitempty"`
+	PickitRuleID             string                 `json:"pickit_rule_id,omitempty"`
+	PickitAction             string                 `json:"pickit_action,omitempty"`
+	PickitProfileRevision    uint64                 `json:"pickit_profile_revision,omitempty"`
+	PickitAssignmentRevision uint64                 `json:"pickit_assignment_revision,omitempty"`
+	PickitProfiles           []PickitProfileContext `json:"pickit_profiles,omitempty"`
+}
+
+// PickitProfileContext bindet ein Profil und seine Revision an eine Run-Generation.
+type PickitProfileContext struct {
+	ID       string `json:"id"`
+	Revision uint64 `json:"revision"`
+}
+
+// RunRecorderContext ist der unveränderliche Kontext einer Schema-3-Run-Datei.
+type RunRecorderContext struct {
+	RunID                    string
+	SessionID                string
+	GameID                   string
+	Mode                     HistoryMode
+	Character                string
+	Difficulty               string
+	GameVersion              string
+	Run                      string
+	DefinitionID             string
+	Phase                    string
+	RouteID                  string
+	RouteLayoutFingerprint   string
+	QueueIndex               int
+	QueueCycle               int
+	StartedAt                time.Time
+	PickitProfiles           []PickitProfileContext
+	PickitAssignmentRevision uint64
 }
 
 type flushWriter interface {
@@ -176,35 +225,45 @@ type flushWriter interface {
 
 // Recorder owns one JSONL file and flushes every event before returning.
 type Recorder struct {
-	mu     sync.Mutex
-	file   *os.File
-	writer flushWriter
-	path   string
-	runID  string
-	run    string
-	phase  string
-	seen   map[string]struct{}
-	closed bool
+	mu      sync.Mutex
+	file    *os.File
+	writer  flushWriter
+	path    string
+	runID   string
+	run     string
+	phase   string
+	context RunRecorderContext
+	seen    map[string]struct{}
+	closed  bool
 }
 
 // New creates one telemetry file for the selected run.
 func New(directory, run, phase string) (*Recorder, error) {
-	if strings.TrimSpace(directory) == "" || strings.TrimSpace(run) == "" {
-		return nil, fmt.Errorf("telemetry directory and run are required")
+	return NewRunRecorder(directory, RunRecorderContext{RunID: NewRunID(run), Mode: HistoryModeDiagnostic, Run: run, Phase: phase, StartedAt: time.Now().UTC()})
+}
+
+// NewRunID erzeugt eine pro Prozess und Neustart global eindeutige Run-ID.
+func NewRunID(run string) string {
+	now := time.Now().UTC()
+	return fmt.Sprintf("%s-%s-%s", safePart(run), now.Format("20060102t150405999999999z"), randomSuffix())
+}
+
+// NewRunRecorder erstellt eine Schema-3-Datei mit unveränderlichem Run-Kontext.
+func NewRunRecorder(directory string, context RunRecorderContext) (*Recorder, error) {
+	if err := validateRunRecorderContext(context); err != nil {
+		return nil, err
 	}
 	if err := os.MkdirAll(directory, 0o755); err != nil {
 		return nil, fmt.Errorf("create telemetry directory: %w", err)
 	}
-	now := time.Now().UTC()
-	runID := fmt.Sprintf("%s-%s-%s", safePart(run), now.Format("20060102T150405.000000000Z"), randomSuffix())
-	path := filepath.Join(directory, runID+".jsonl")
+	path := filepath.Join(directory, context.RunID+".jsonl")
 	file, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o644)
 	if err != nil {
 		return nil, fmt.Errorf("create telemetry file %q: %w", path, err)
 	}
 	return &Recorder{
 		file: file, writer: bufio.NewWriter(file), path: path,
-		runID: runID, run: run, phase: phase, seen: make(map[string]struct{}),
+		runID: context.RunID, run: context.Run, phase: context.Phase, context: cloneRunRecorderContext(context), seen: make(map[string]struct{}),
 	}, nil
 }
 
@@ -224,15 +283,15 @@ func (r *Recorder) Emit(event Event) error {
 			return nil
 		}
 	}
-	event.SchemaVersion = 1
+	if err := r.applyContext(&event); err != nil {
+		return err
+	}
+	event.SchemaVersion = HistorySchemaVersion
 	if event.Timestamp.IsZero() {
 		event.Timestamp = time.Now().UTC()
 	} else {
 		event.Timestamp = event.Timestamp.UTC()
 	}
-	event.RunID = r.runID
-	event.Run = r.run
-	event.Phase = r.phase
 	line, err := json.Marshal(event)
 	if err != nil {
 		return fmt.Errorf("marshal telemetry event %q: %w", event.Event, err)
@@ -248,6 +307,84 @@ func (r *Recorder) Emit(event Event) error {
 		r.seen[key] = struct{}{}
 	}
 	return nil
+}
+
+func (r *Recorder) applyContext(event *Event) error {
+	if event.RunID != "" && event.RunID != r.context.RunID {
+		return fmt.Errorf("%s: event run_id %q does not match recorder %q", HistoryReasonRunIDMismatch, event.RunID, r.context.RunID)
+	}
+	if event.Mode != "" && event.Mode != r.context.Mode {
+		return fmt.Errorf("%s: event mode %q does not match recorder %q", HistoryReasonContextMissing, event.Mode, r.context.Mode)
+	}
+	for _, field := range []struct {
+		name   string
+		target *string
+		value  string
+	}{
+		{name: "session_id", target: &event.SessionID, value: r.context.SessionID},
+		{name: "game_id", target: &event.GameID, value: r.context.GameID},
+		{name: "character", target: &event.Character, value: r.context.Character},
+		{name: "difficulty", target: &event.Difficulty, value: r.context.Difficulty},
+		{name: "game_version", target: &event.GameVersion, value: r.context.GameVersion},
+		{name: "run", target: &event.Run, value: r.context.Run},
+	} {
+		if err := applyImmutableString(field.name, field.target, field.value); err != nil {
+			return err
+		}
+	}
+	event.Stream = HistoryStreamRun
+	event.RunID = r.context.RunID
+	event.Mode = r.context.Mode
+	if err := applyImmutableString("definition_id", &event.DefinitionID, r.context.DefinitionID); err != nil {
+		return err
+	}
+	event.Phase = r.context.Phase
+	if err := applyImmutableString("route_id", &event.RouteID, r.context.RouteID); err != nil {
+		return err
+	}
+	if err := applyImmutableString("route_layout_fingerprint", &event.RouteLayoutFingerprint, r.context.RouteLayoutFingerprint); err != nil {
+		return err
+	}
+	if r.context.Mode == HistoryModeProductiveFarming {
+		queueIndex, queueCycle, startedAt := r.context.QueueIndex, r.context.QueueCycle, r.context.StartedAt.UTC()
+		event.QueueIndex, event.QueueCycle, event.RunStartedAt = &queueIndex, &queueCycle, &startedAt
+	}
+	event.PickitProfiles = append([]PickitProfileContext(nil), r.context.PickitProfiles...)
+	event.PickitAssignmentRevision = r.context.PickitAssignmentRevision
+	return nil
+}
+
+func applyImmutableString(field string, target *string, value string) error {
+	if value == "" {
+		return nil
+	}
+	if *target != "" && *target != value {
+		return fmt.Errorf("%s: event %s %q does not match recorder %q", HistoryReasonContextMissing, field, *target, value)
+	}
+	*target = value
+	return nil
+}
+
+func validateRunRecorderContext(context RunRecorderContext) error {
+	if strings.TrimSpace(context.RunID) == "" || safePart(context.RunID) != context.RunID || strings.TrimSpace(context.Run) == "" {
+		return fmt.Errorf("%s: telemetry run_id and run are required", HistoryReasonContextMissing)
+	}
+	if context.Mode != HistoryModeProductiveFarming && context.Mode != HistoryModeDiagnostic {
+		return fmt.Errorf("%s: unsupported telemetry mode %q", HistoryReasonContextMissing, context.Mode)
+	}
+	if context.StartedAt.IsZero() {
+		return fmt.Errorf("%s: run start time is required", HistoryReasonContextMissing)
+	}
+	if context.Mode == HistoryModeProductiveFarming && (context.SessionID == "" || context.GameID == "" || context.Character == "" || context.Difficulty == "" || context.GameVersion == "" || context.DefinitionID == "" || context.RouteID == "") {
+		return fmt.Errorf("%s: productive farming context is incomplete", HistoryReasonContextMissing)
+	}
+	return nil
+}
+
+func cloneRunRecorderContext(context RunRecorderContext) RunRecorderContext {
+	context.PickitProfiles = append([]PickitProfileContext(nil), context.PickitProfiles...)
+	context.StartedAt = context.StartedAt.UTC()
+	return context
 }
 
 // Path returns the JSONL file path.

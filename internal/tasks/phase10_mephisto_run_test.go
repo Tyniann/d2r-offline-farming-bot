@@ -170,7 +170,8 @@ func TestMephistoRejectsReplacementUnitAndConfirmsTrueAbsence(t *testing.T) {
 		encounterActionIndex: len(definition.BossEngageSequence),
 	}
 	combat := &mockCombatActions{}
-	replacement := pipeline.onBossTick(context.Background(), Deps{Combat: combat}, pipelineStepEngageBoss, mephistoState(mephistoMonster(11)), time.Now())
+	trace := &pipelineTelemetry{}
+	replacement := pipeline.onBossTick(context.Background(), Deps{Combat: combat, Telemetry: trace}, pipelineStepEngageBoss, mephistoState(mephistoMonster(11)), time.Now())
 	if !replacement.failed || replacement.reason != string(RunReasonBossPinLost) {
 		t.Fatalf("replacement result=%+v, want boss_pin_lost", replacement)
 	}
@@ -180,7 +181,7 @@ func TestMephistoRejectsReplacementUnitAndConfirmsTrueAbsence(t *testing.T) {
 
 	pipeline.targetAbsentTicks = 0
 	for tick := 1; tick <= pipeline.combat.KillConfirmTicks; tick++ {
-		result := pipeline.onBossTick(context.Background(), Deps{Combat: combat}, pipelineStepEngageBoss, mephistoState(), time.Now())
+		result := pipeline.onBossTick(context.Background(), Deps{Combat: combat, Telemetry: trace}, pipelineStepEngageBoss, mephistoState(), time.Now())
 		if tick < pipeline.combat.KillConfirmTicks && (result.complete || result.failed) {
 			t.Fatalf("absence tick %d=%+v, want pending", tick, result)
 		}
@@ -190,6 +191,26 @@ func TestMephistoRejectsReplacementUnitAndConfirmsTrueAbsence(t *testing.T) {
 	}
 	if combat.stopCalls != 1+pipeline.combat.KillConfirmTicks {
 		t.Fatalf("StopAttack calls = %d, want release on every absent-target tick", combat.stopCalls)
+	}
+	if len(trace.events) != 1 || trace.events[0].Event != telemetry.BossKillConfirmed || trace.events[0].UnitID != 10 || trace.events[0].BossID != "mephisto" || trace.events[0].BossName != "Mephisto" || trace.events[0].Stage != telemetry.HistoryStageCombat {
+		t.Fatalf("boss kill events=%+v", trace.events)
+	}
+	_ = pipeline.onBossTick(context.Background(), Deps{Combat: combat, Telemetry: trace}, pipelineStepEngageBoss, mephistoState(), time.Now())
+	if len(trace.events) != 1 {
+		t.Fatalf("boss kill duplicated: %+v", trace.events)
+	}
+}
+
+func TestBossKillTelemetryFailurePreventsKillCompletion(t *testing.T) {
+	definition, _ := DefaultRunRegistry().Definition(RunIDMephisto)
+	pipeline := &runPipeline{
+		definition: definition, combat: killRunConfig().Combat, targetSeen: true, targetUnitID: 10,
+		encounterActionIndex: len(definition.BossEngageSequence), targetAbsentTicks: killRunConfig().Combat.KillConfirmTicks - 1,
+	}
+	trace := &pipelineTelemetry{failAt: 1}
+	result := pipeline.onBossTick(context.Background(), Deps{Combat: &mockCombatActions{}, Telemetry: trace}, pipelineStepEngageBoss, mephistoState(), time.Now())
+	if !result.failed || result.complete || result.reason != "telemetry_failed" || pipeline.bossKillEmitted {
+		t.Fatalf("result=%+v emitted=%t", result, pipeline.bossKillEmitted)
 	}
 }
 

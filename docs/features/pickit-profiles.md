@@ -35,9 +35,9 @@ Die versionierten Startprofile sind:
 - `keys`: Key of Terror, `keep`
 - `countess-standard`: Runen und Rejuvenation Potions, `keep`
 - `mephisto-standard`: Exceptional-/Elite-Set/Unique, `sell`
-- `tal-rasha`: fünf exakte Set-Identitäten, `keep`, initial nicht Teil der produktiven Baseline
+- Das optionale Abnahmeprofil `tal-rasha` ist nach Phase 13 nicht Teil der versionierten Produktprofile. Es kann bei Bedarf über den Editor neu angelegt werden.
 
-Die lokale Baseline-Zuordnung für `MrBones` lautet Countess `[gems, keys, countess-standard]` und Mephisto `[gems, mephisto-standard]`. Damit bleibt die charakterisierte Pickup-/Keep-/Sell-Matrix exakt erhalten. Das versionierte Beispiel zeigt zusätzlich, wie `tal-rasha` bewusst vor die Mephisto-Baseline gelegt werden kann.
+Die lokale Baseline-Zuordnung für `MrBones` lautet Countess `[gems, keys, countess-standard]` und Mephisto `[gems, mephisto-standard]`. Damit bleibt die charakterisierte Pickup-/Keep-/Sell-Matrix exakt erhalten. Das versionierte Beispiel referenziert ausschließlich vorhandene Produktprofile.
 
 `runs.definitions.*.loot.pickup_file`, `sell_file` und die drei alten NIP-Policy-Dateien sind entfernt. Ein altes `loot`-Run-Schema wird mit einem konkreten Migrationshinweis abgelehnt und niemals still als Fallback gelesen.
 

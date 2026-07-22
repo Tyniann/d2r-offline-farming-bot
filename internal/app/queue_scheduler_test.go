@@ -19,9 +19,9 @@ func TestFarmQueueCyclesCountessMephistoUntilRunBudget(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := []SupervisorRunRequest{
-		{RunID: "countess", ExecutionID: "run-001", QueueIndex: 0, Cycle: 0, Retry: 0},
-		{RunID: "mephisto", ExecutionID: "run-002", QueueIndex: 1, Cycle: 0, Retry: 0},
-		{RunID: "countess", ExecutionID: "run-003", QueueIndex: 0, Cycle: 1, Retry: 0},
+		{DefinitionID: "countess", QueueIndex: 0, Cycle: 0, Retry: 0},
+		{DefinitionID: "mephisto", QueueIndex: 1, Cycle: 0, Retry: 0},
+		{DefinitionID: "countess", QueueIndex: 0, Cycle: 1, Retry: 0},
 	}
 	got := make([]SupervisorRunRequest, 0, len(want))
 	for range want {
@@ -29,6 +29,15 @@ func TestFarmQueueCyclesCountessMephistoUntilRunBudget(t *testing.T) {
 		runner.release <- SupervisorRunResult{Disposition: QueueRunAdvance}
 	}
 	waitSupervisorState(t, supervisor, SupervisorStateIdle)
+	seen := make(map[string]bool, len(got))
+	for index := range got {
+		executionID := got[index].ExecutionID
+		got[index].ExecutionID = ""
+		if executionID == "" || seen[executionID] {
+			t.Fatalf("execution IDs are not globally unique: %+v", got)
+		}
+		seen[executionID] = true
+	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("queue sequence = %+v, want %+v", got, want)
 	}
@@ -65,7 +74,7 @@ func TestFarmQueueRetryStaysOnSameIndex(t *testing.T) {
 	second := <-runner.started
 	runner.release <- SupervisorRunResult{Disposition: QueueRunAdvance}
 	third := <-runner.started
-	if first.RunID != "countess" || second.RunID != "countess" || second.QueueIndex != 0 || second.Retry != 1 || third.RunID != "mephisto" || third.QueueIndex != 1 {
+	if first.DefinitionID != "countess" || second.DefinitionID != "countess" || second.QueueIndex != 0 || second.Retry != 1 || third.DefinitionID != "mephisto" || third.QueueIndex != 1 {
 		t.Fatalf("retry sequence first=%+v second=%+v third=%+v", first, second, third)
 	}
 	runner.release <- SupervisorRunResult{Disposition: QueueRunStop, Reason: "terminal"}

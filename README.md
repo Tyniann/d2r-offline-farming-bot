@@ -11,7 +11,7 @@ Go-basierter Bot für Diablo II: Resurrected (Offline/Singleplayer). **v0.6.0** 
 ## Release (Windows EXE)
 
 ```powershell
-# Release-ZIP bauen (dist/d2rbot-v0.6.0-windows-amd64.zip)
+# Release-ZIP bauen (dist/d2rbot-v0.10.0-windows-amd64.zip)
 powershell -ExecutionPolicy Bypass -File scripts/build-release.ps1
 
 # Oder über Make
@@ -88,8 +88,8 @@ powershell -ExecutionPolicy Bypass -File scripts/build-release.ps1
 Optional Version taggen (nur für Git-Historie):
 
 ```powershell
-git tag v0.6.0
-git push origin v0.6.0
+git tag v0.10.0
+git push origin v0.10.0
 ```
 
 ## Projektstruktur

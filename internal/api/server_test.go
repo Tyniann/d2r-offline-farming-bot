@@ -22,6 +22,15 @@ type apiTestBackend struct {
 	previews      atomic.Int32
 	routeConfirms atomic.Int32
 	queueErr      error
+	history       historyData
+	historyErr    error
+	historyFilter telemetry.HistoryFilter
+}
+
+func (b *apiTestBackend) History(filter telemetry.HistoryFilter) (historyData, error) {
+	b.historyFilter = filter
+	b.history.analysis.Filter = filter
+	return b.history, b.historyErr
 }
 
 func (b *apiTestBackend) RouteLibrary(string, bool) (RouteLibraryDTO, error) {

@@ -33,6 +33,12 @@ Der Server wählt über `net.Listen("tcp4", "127.0.0.1:0")` einen freien Loopbac
 | `GET /api/v1/status` | Aktueller Core-, D2R-, Input-, World- und Queue-Snapshot einschließlich Game-ID, Run-ID, Lifecycle-Phase, Index, Spielzyklus, Retry und Safety-Budgets. |
 | `GET /api/v1/catalog` | Read-only Run-Katalog aus dem bestehenden Availability-Resolver. |
 | `GET /api/v1/events` | SSE: vollständiger Snapshot, Replay ab `Last-Event-ID`, danach Live-Deltas und Heartbeats. |
+| `GET /api/v1/history/summary` | Gefilterte Historienpopulation mit Ergebnis-, Dauer-, Stage-, Funnel-, Fehler- und Dateidiagnosewerten. |
+| `GET /api/v1/history/comparisons` | Core-sortierte Charakter-/Difficulty-/Definition-/Routenvergleiche mit Samplewarnung. |
+| `GET /api/v1/history/items` | Cursor-paginierte Itemerträge und getrennte Keep-, Sell- und Verlustpfade. |
+| `GET /api/v1/history/runs` | Cursor-paginierte, stabil nach UTC-Start und Run-ID sortierte Runliste. |
+| `GET /api/v1/history/runs/{runID}` | Nutzerorientierter Run-Drill-down mit optionalen Rohereignissen. |
+| `GET /api/v1/history/export` | Gefilterter JSON-Gesamtreport oder sichere CSV-Run-/Itemtabelle. |
 | `GET /api/v1/control/bootstrap` | Same-origin Wiederherstellung des rein im Memory gehaltenen Prozess-Tokens nach Refresh; Custom Header und Security Envelope sind Pflicht. |
 | `POST /api/v1/selection/preview` | Seiteneffektfreie, an Katalog- und Lifecycle-Revision gebundene Vorschau einschließlich betroffener Route-IDs und kurzlebigem Confirmation-Token. |
 | `POST /api/v1/selection/apply` | Wendet exakt die unveränderte Vorschau screenshot- und Memory-verifiziert an; Lifecycle-Commit erfolgt erst nach bestätigtem Spieleintritt. |
@@ -62,6 +68,8 @@ Ein Fremd-Origin, falscher Host, fehlender Token, falsche Methode, falscher Cont
 ### Live-Stream
 
 Der Core vergibt pro Live-Ereignis eine streng monotone Sequenz und hält nur einen begrenzten Ring im Speicher. Jede SSE-Verbindung erhält zunächst einen vollständigen Status-Snapshot. Mit `Last-Event-ID` werden anschließend noch verfügbare Deltas nachgeliefert; ohne Header beginnt der Client am aktuellen Rand. Pro Client existiert eine begrenzte Queue. Ein langsamer oder abgebrochener Browser wird getrennt, statt Core, JSONL oder andere Clients zu blockieren. Area- und Step-Ereignisse werden bei unveränderter Identität dedupliziert.
+
+Nach einem terminalen Run-Wechsel aktualisiert das Live-Backend den flüchtigen History-Index. Eine geänderte Generation erzeugt ausschließlich `history_changed` mit der Generation; persistente Telemetriezeilen und lokale Pfade werden nicht in SSE kopiert.
 
 ## Frontend-Build
 
@@ -99,6 +107,7 @@ go run ./cmd/d2rbot --config configs/config.yaml --ui
 - [Phase-11-Core-Vertrag](phase-11-core-contract.md)
 - [Session-Lifecycle](session-lifecycle.md)
 - [Run-Verfügbarkeit und Inspect](run-availability.md)
+- [Historien-API und Export](history-api-export.md)
 
 ---
-*Zuletzt aktualisiert: 17. Juli 2026*
+*Zuletzt aktualisiert: 22. Juli 2026*

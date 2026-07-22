@@ -27,7 +27,7 @@ func TestRunConfiguredQueueUsesLifecycleAndSingleExitBoundary(t *testing.T) {
 	if countLifecycleEvent(events, "start_game") != 1 || countLifecycleEvent(events, "run") != 1 || countLifecycleEvent(events, "exit_game") != 1 {
 		t.Fatalf("lifecycle events = %+v", events)
 	}
-	if request.RunID != "countess" || events[len(events)-2].Reason != string(QueueReasonRunBudgetExhausted) {
+	if request.DefinitionID != "countess" || events[len(events)-2].Reason != string(QueueReasonRunBudgetExhausted) {
 		t.Fatalf("request=%+v events=%+v", request, events)
 	}
 }

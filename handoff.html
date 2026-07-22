@@ -247,7 +247,7 @@
           <span class="pill">Memory Bot Core</span>
           <span class="pill">Go 1.26</span>
           <span class="pill">Countess MVP</span>
-          <span class="pill good">Stand: Phase 13 abgeschlossen · Gate A und Gate B bestanden</span>
+          <span class="pill good">Stand: Phase 14 abgeschlossen · Live- und Produktgate bestanden</span>
         </div>
       </div>
 
@@ -255,8 +255,8 @@
         <div class="metric">Go Core</div>
         <p class="muted">
           Umgesetzter Stack: Go für Memory Reader, World Model, Input Controller und Task Runner;
-          YAML-Konfiguration, <code>slog</code>-Logging. Später optional TypeScript/React für Dashboard,
-          Pickit-Editor und Run-Auswertung.
+          YAML-Konfiguration, <code>slog</code>-Logging sowie TypeScript/React für Dashboard,
+          Pickit-Editor und Core-berechnete Run-Historie.
         </p>
       </aside>
     </section>
@@ -708,13 +708,20 @@
     <div class="phase">
       <strong>Phase 14</strong>
       <div>
-        <h3>Telemetrie, Run-Historie und Statistiken <span class="warn">— geplant</span></h3>
+        <h3>Telemetrie, Run-Historie und Statistiken <span class="good">— abgeschlossen</span></h3>
         <p><strong>Ziel:</strong> Ein Farmer erkennt, welcher Boss und welche stabile Route die meisten gewünschten, tatsächlich gesicherten Items pro aktiver Stunde und pro bestätigtem Bosskill liefert, wo Zeit verloren geht und warum Runs oder Lootketten scheitern.</p>
         <p><strong>Datenvertrag:</strong> Die auswertbare Historie beginnt bewusst erst mit einem neuen, vollständig korrelierten Schema-3-Vertrag. Bestehende Schema-1-/Schema-2-Dateien werden weder migriert noch heuristisch verknüpft. Nur sessiongebundene produktive Farming-Runs zählen; Diagnose-, Route-, Town- und isolierte Testläufe bleiben ausgeschlossen. Session- und Run-Stream verwenden dieselbe global eindeutige Run-ID sowie immutable Charakter-, Difficulty-, Run-, Route-, Boss-, Stage-, Item- und Pickit-Kontexte.</p>
         <p><strong>Ertrag und Effizienz:</strong> Hauptkennzahl und Standardsortierung ist bestätigter <code>keep</code>-Loot pro aktiver Stunde. Fehlgeschlagene und abgebrochene terminale Versuche verbrauchen Zeit im Nenner; aktive/unvollständige Runs nicht. Itemausbeute pro Boss verwendet ausschließlich einen semantisch Memory-bestätigten Bosskill. Keep-Return verlangt innerhalb derselben Run-ID dieselbe Unit über Pickit-Match, bestätigten Pickup und bestätigten Stash. Sell-Items bleiben ohne gemessenen Goldzuwachs getrennt und erhalten keinen erfundenen Wert.</p>
         <p><strong>Oberfläche:</strong> Eine minimale eigene React-Seite <em>Historie</em> bietet Zeitraum-/Run-/Charakter-/Difficulty-/Ergebnis-/Reason-/Profilfilter, Übersichtskarten, responsive Boss-/Routen-, Item- und Run-Tabellen sowie einen nutzerorientierten Drill-down. Vier Core-autoritativ klassifizierte Zeitanteile heißen Anreise/Route, Bosskampf, Loot und Rückkehr/Town. Unter zehn bestätigten Bosskills wird die geringe Datenbasis markiert. Rohereignisse bleiben optional eingeklappt; Phase 14 führt keine Chart-Bibliothek ein.</p>
         <p><strong>Persistenz und Export:</strong> JSONL bleibt die einzige Source of Truth. Ein rebuildbarer inkrementeller In-Memory-Index liefert Filter, Aggregate und Pagination; SQLite und persistenter Cache bleiben ausgeschlossen. JSON-Report und Run-/Item-CSV verwenden dieselbe Core-Analyse wie die GUI. Beschädigte Phase-14-Dateien werden einzeln diagnostiziert und vollständig aus Summen ausgeschlossen. Die Historie ist read-only und löscht, rotiert oder repariert nichts.</p>
         <p><strong>Abnahme:</strong> Ein realer produktiver Run beweist einmalig die Korrelation von Session, Game, Run, Route, Bosskill, Stages und Ergebnis. Eine deterministische Go-/API-/React-Testmatrix beweist anschließend, dass Analyzer, minimale UI-Projektion, JSON und CSV für zwei Bosse/Routen, Keep, Sell, Verlust und Fehllauf dieselben Summen liefern und ohne Roh-JSON eine Optimierungsentscheidung ermöglichen. Phase 14 verlangt weder einen gestarteten UI-Server noch manuelle oder automatisierte Abnahmen in Zen, Codex Browser oder einem anderen externen Browser; Vitest/jsdom, Accessibility-Tests, Typecheck und Produktionsbuild sichern die Übergangsoberfläche.</p>
+        <ul>
+          <li><span class="good">14.0–14.2 Vertrag und Writer — abgeschlossen.</span> Schema 3, globale Run-Instanz-ID, immutable produktiver Kontext, Memory-bestätigter Bosskill, vollständige Stage-Klassifikation sowie stabile Keep-/Sell-Itemketten sind die einzige neue Historienepoche.</li>
+          <li><span class="good">14.3–14.5 Reader, Analyzer, API und Export — abgeschlossen.</span> Der begrenzte read-only Reader isoliert beschädigte oder driftende Dateien; der race-sichere In-Memory-Index ist vollständig aus JSONL rebuildbar. Eine Core-Analyse liefert Filter, Kennzahlen, Vergleiche, Detail, JSON und CSV ohne SQLite oder zweite Aggregationslogik.</li>
+          <li><span class="good">14.6 Historienoberfläche — abgeschlossen.</span> Die responsive React-Seite verwendet ausschließlich generierte API-Typen und zeigt Filter, Summary, Routenvergleich, Items, Runs, Drill-down, Dateidiagnosen und Exporte ohne Chart-Abhängigkeit oder UI-eigene Kennzahlberechnung.</li>
+          <li><span class="good">14.7 Live- und Produktgate — bestanden.</span> Run <code>countess-20260722t022448999999999z-8ae8e37f</code> korreliert Session und Run vollständig: 68,523 Sekunden, ein Bosskill, 14 gesehene Items, zwei Matches, zwei Pickups, zwei Stash-Erfolge und keine Verluste. API, JSON und CSV stimmen exakt. Die deterministische Countess-/Mephisto-Matrix bestätigt fünf terminale Runs, drei Keep, einen Sell und beide Verlustpfade über Analyzer, API und React.</li>
+          <li><span class="good">14.8 Abschluss und Dead-Code-Audit — abgeschlossen.</span> Supervisor-Requests trennen <code>DefinitionID</code> und globale <code>ExecutionID</code> ausdrücklich. History-DTOs im Web stammen ausschließlich aus OpenAPI; React formatiert Core-Kennzahlen, aggregiert sie aber nicht. Lint, Tests, Builds und UCRT64-Race sind grün.</li>
+        </ul>
         <p>Detailplan: <a href="phase-14-implementation-plan.html">Phase-14-Umsetzungsplan</a>.</p>
       </div>
     </div>
@@ -909,11 +916,9 @@
     <ul>
       <li>Wie zuverlässig ist der Hover-Feedback-Loop bei verdeckten oder knapp außerhalb des Screens liegenden Entities (Tower-Ecken, Treppen)?</li>
       <li>Welche Projektions-Kalibrierung (playable center, Tile-Skalierung) braucht es außerhalb von 1280×720?</li>
-      <li>Welche Memory-Quelle kann später einen belastbaren Layout-Fingerprint ergänzen?</li>
-      <li>Welche Sampling- und Drift-Grenzwerte bewähren sich in den Phase-6-Live-Tests?</li>
-      <li>Wie werden Stuck Detection, Timeouts und Wiederaufnahme nach Fehlern im Countess-Run robust modelliert?</li>
-      <li>Wie lassen sich Run-Ergebnisse, Drops und Fehlergründe strukturiert loggen (JSONL-Telemetrie)?</li>
-      <li>Wie sieht die Pickit-/Loot-Boundary (Phase 5) auf dem bestehenden World Model aus?</li>
+      <li>Welche gemessenen Start-, Speicher- oder Abfragegrenzen rechtfertigen später einen rebuildbaren SQLite-Index?</li>
+      <li>Welche automatische Retention und bestätigte manuelle Bereinigung sind für lange Historien sicher und verständlich?</li>
+      <li>Welche Visualisierungen liefern in Phase 15 zusätzlichen Nutzen, ohne die Core-Analyse im UI zu duplizieren?</li>
     </ul>
 
     <div class="note">

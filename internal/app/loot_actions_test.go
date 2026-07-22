@@ -47,14 +47,42 @@ func TestLootScanEmitsDropAndPickitTelemetry(t *testing.T) {
 	}
 	emitter := &telemetryEmitterMock{}
 	adapter := &lootActionsAdapter{log: config.NewLogger("error"), filter: loot.NewFilter(config.NewLogger("error"), lock, pickit), skipped: map[uint32]bool{}, telemetry: emitter}
-	state := world.State{At: time.Now(), Valid: true, Phase: world.GamePhaseInGame, Area: world.LookupArea(world.TowerCellarLevel5), Items: []world.Item{{UnitID: 7, TxtFileNo: 627, Code: "r03", Name: "Tir Rune", Type: "rune", Location: world.ItemLocationGround, Width: 1, Height: 1}}}
+	state := world.State{At: time.Now(), Valid: true, Phase: world.GamePhaseInGame, Area: world.LookupArea(world.TowerCellarLevel5), Items: []world.Item{{UnitID: 7, TxtFileNo: 627, Code: "r03", Name: "Tir Rune", Type: "rune", Quality: world.ItemQualityNormal, Location: world.ItemLocationGround, Width: 1, Height: 1}}}
 	result := adapter.Scan(state)
 	if result.TelemetryFailed || len(emitter.events) != 2 || emitter.events[0].Event != telemetry.DropSeen || emitter.events[1].Event != telemetry.PickitMatch {
 		t.Fatalf("result=%+v events=%+v", result, emitter.events)
 	}
 	match := emitter.events[1]
+	if emitter.events[0].Stage != telemetry.HistoryStageLoot || match.Stage != telemetry.HistoryStageLoot || emitter.events[0].ItemKey != "base:r03:normal" || match.ItemKey != emitter.events[0].ItemKey {
+		t.Fatalf("item correlation drop=%+v match=%+v", emitter.events[0], match)
+	}
+	if emitter.events[0].PickitProfileID != match.PickitProfileID || emitter.events[0].PickitRuleID != match.PickitRuleID || emitter.events[0].PickitProfileRevision != match.PickitProfileRevision || emitter.events[0].PickitAssignmentRevision != match.PickitAssignmentRevision {
+		t.Fatalf("pickit correlation drop=%+v match=%+v", emitter.events[0], match)
+	}
 	if match.PickitProfileID != "keys" || match.PickitRuleID != "rune" || match.PickitAction != "keep" || match.PickitProfileRevision != 3 || match.PickitAssignmentRevision != 8 {
 		t.Fatalf("pickit telemetry = %+v", match)
+	}
+}
+
+func TestPhase14LootTargetPreservesExactIdentityAndPickitContext(t *testing.T) {
+	target := loot.PickupTarget{
+		UnitID: 91, Code: "uap", Name: "Harlequin Crest", Quality: world.ItemQualityUnique,
+		IdentityKind: world.ItemIdentityUnique, IdentityKey: "Harlequin Crest", IdentityValid: true,
+		Pickit: loot.PickitResult{ProfileID: "mephisto", RuleID: "keep-shako", Action: loot.ActionKeep, ProfileRevision: 4, AssignmentRevision: 12},
+		AreaID: world.DuranceOfHateLevel3,
+	}
+	roundTrip := mapLootPickupTarget(mapTaskLootTarget(target))
+	if roundTrip.IdentityKind != target.IdentityKind || roundTrip.IdentityKey != target.IdentityKey || !roundTrip.IdentityValid ||
+		roundTrip.Pickit.ProfileID != target.Pickit.ProfileID || roundTrip.Pickit.RuleID != target.Pickit.RuleID ||
+		roundTrip.Pickit.Action != target.Pickit.Action || roundTrip.Pickit.ProfileRevision != target.Pickit.ProfileRevision ||
+		roundTrip.Pickit.AssignmentRevision != target.Pickit.AssignmentRevision {
+		t.Fatalf("round trip=%+v want=%+v", roundTrip, target)
+	}
+	event := telemetry.Event{}
+	applyItemTelemetry(&event, roundTrip.Code, roundTrip.Name, roundTrip.Quality, roundTrip.IdentityKind, roundTrip.IdentityKey, roundTrip.IdentityValid)
+	applyPickitTelemetry(&event, roundTrip.Pickit)
+	if event.ItemKey != "unique:Harlequin Crest" || event.PickitRuleID != "keep-shako" || event.PickitAssignmentRevision != 12 {
+		t.Fatalf("event=%+v", event)
 	}
 }
 

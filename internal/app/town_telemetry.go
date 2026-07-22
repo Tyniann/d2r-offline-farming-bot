@@ -40,16 +40,26 @@ func (a townTelemetryAdapter) EmitTown(event town.ExecutorEvent) error {
 	// Reject arbitrary event names so executor progress cannot be disguised as
 	// another telemetry category by a malformed handler result.
 	name := telemetry.EventName(event.Event)
-	if name != telemetry.TownAction && name != telemetry.TownStepCompleted {
+	if name != telemetry.TownAction && name != telemetry.TownStepCompleted && name != telemetry.SellSuccess {
 		return fmt.Errorf("unsupported town telemetry event %q", event.Event)
 	}
 	step, current, threshold, cost, verified := event.Step, event.Current, event.Threshold, event.Cost, event.VerifiedFinal
 	return a.emitter.Emit(telemetry.Event{
-		Event: name, Reason: event.Reason, UnitID: event.VendorUnitID, Decision: event.Action,
+		Event: name, Stage: telemetry.HistoryStageReturnTown, Reason: event.Reason, UnitID: event.VendorUnitID, Decision: event.Action,
 		TownStep: &step, TownKind: string(event.Kind), TownService: string(event.Service),
 		CurrentCount: &current, TriggerThreshold: &threshold, BeltSlots: append([]int(nil), event.BeltSlots...),
 		PurchaseMode: string(event.Mode), Vendor: string(event.Vendor), Cost: &cost, VerifiedFinalCount: &verified,
 		PickitProfileID: event.ProfileID, PickitRuleID: event.RuleID, PickitAction: event.PickitAction,
 		PickitProfileRevision: event.ProfileRevision, PickitAssignmentRevision: event.AssignmentRevision,
+		Code: event.Code, Name: event.Name,
+		ItemName: event.Name, BaseCode: event.Code, Quality: event.Quality.String(),
+		ItemIdentityKind: string(event.IdentityKind),
+		ItemIdentityKey: func() string {
+			if event.IdentityValid {
+				return event.IdentityKey
+			}
+			return ""
+		}(),
+		ItemKey: itemTelemetryKey(event.Code, event.Quality, event.IdentityKind, event.IdentityKey, event.IdentityValid),
 	})
 }

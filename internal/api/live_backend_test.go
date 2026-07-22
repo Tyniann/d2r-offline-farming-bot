@@ -248,7 +248,7 @@ func TestLiveBackendSessionCommandsUseSupervisorAndRemainIdempotent(t *testing.T
 	if _, err := backend.Command("start_queue", CommandRequest{CommandID: "start-queue", ExpectedGeneration: 0, Payload: changedPayload}); err == nil {
 		t.Fatal("command ID reuse with changed queue was accepted")
 	}
-	if request := <-runner.started; request.RunID != "countess" || request.QueueIndex != 0 {
+	if request := <-runner.started; request.DefinitionID != "countess" || request.QueueIndex != 0 {
 		t.Fatalf("first request = %+v", request)
 	}
 	backend.UpdateSupervisor(supervisor.Snapshot())
@@ -265,7 +265,7 @@ func TestLiveBackendSessionCommandsUseSupervisorAndRemainIdempotent(t *testing.T
 	if _, err := backend.Command("resume", CommandRequest{CommandID: "resume", ExpectedGeneration: backend.Status().Generation}); err != nil {
 		t.Fatal(err)
 	}
-	if request := <-runner.started; request.RunID != "mephisto" || request.QueueIndex != 1 {
+	if request := <-runner.started; request.DefinitionID != "mephisto" || request.QueueIndex != 1 {
 		t.Fatalf("resumed request = %+v", request)
 	}
 	backend.UpdateSupervisor(supervisor.Snapshot())

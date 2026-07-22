@@ -6,6 +6,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/telemetry"
 )
 
 // SupervisorReason is a stable machine-readable command or terminal reason.
@@ -50,12 +52,13 @@ type SupervisorCommandMeta struct {
 
 // SupervisorRunRequest is the immutable input owned by one worker generation.
 type SupervisorRunRequest struct {
-	RunID       string
-	ExecutionID string
-	QueueIndex  int
-	Cycle       int
-	Retry       int
-	GameID      string
+	DefinitionID string
+	ExecutionID  string
+	SessionID    string
+	QueueIndex   int
+	Cycle        int
+	Retry        int
+	GameID       string
 }
 
 // SupervisorRunResult is the terminal result of one complete worker unit.
@@ -387,7 +390,8 @@ func (s *SessionSupervisor) startWorkerLocked() {
 	s.generation++
 	s.startedRuns++
 	generation := s.generation
-	s.request = SupervisorRunRequest{RunID: s.plan.RunIDs[s.queueIndex], ExecutionID: fmt.Sprintf("run-%03d", s.startedRuns), QueueIndex: s.queueIndex, Cycle: s.cycle, Retry: s.retry, GameID: s.gameID}
+	runID := s.plan.RunIDs[s.queueIndex]
+	s.request = SupervisorRunRequest{DefinitionID: runID, ExecutionID: telemetry.NewRunID(runID), QueueIndex: s.queueIndex, Cycle: s.cycle, Retry: s.retry, GameID: s.gameID}
 	request := s.request
 	go s.runWorker(ctx, generation, request)
 }
@@ -508,7 +512,7 @@ func (s *SessionSupervisor) completeLifecycleRun(ctx context.Context, lifecycle 
 		intent := s.intent
 		if intent == SupervisorIntentStopAfterRun || budgetReason != "" {
 			reason := "stop_after_run"
-			terminal := result
+			terminal := SupervisorRunResult{Disposition: QueueRunStop, Reason: reason, SafeToExit: true}
 			if budgetReason != "" {
 				reason = budgetReason
 				terminal = SupervisorRunResult{Disposition: QueueRunStop, Reason: budgetReason, SafeToExit: true}
@@ -614,8 +618,7 @@ func (s *SessionSupervisor) exitLifecycleGame(ctx context.Context, lifecycle Far
 	return true
 }
 
-func (s *SessionSupervisor) finishLifecycleFailure(lifecycle FarmQueueLifecycleRunner, reason SupervisorReason) {
-	lifecycle.CloseQueue()
+func (s *SessionSupervisor) finishLifecycleFailure(_ FarmQueueLifecycleRunner, reason SupervisorReason) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.state == SupervisorStateCancelling || s.shutdown {
@@ -739,7 +742,7 @@ func (s *SessionSupervisor) rememberLocked(meta SupervisorCommandMeta, command S
 
 func (s *SessionSupervisor) snapshotLocked() SupervisorSnapshot {
 	return SupervisorSnapshot{
-		Generation: s.generation, State: s.state, PendingIntent: s.intent, ActiveRunID: s.request.RunID, RunInstanceID: s.request.ExecutionID,
+		Generation: s.generation, State: s.state, PendingIntent: s.intent, ActiveRunID: s.request.DefinitionID, RunInstanceID: s.request.ExecutionID,
 		QueueKnown: true, Queue: append([]string(nil), s.plan.RunIDs...), QueueIndex: s.queueIndex, Cycle: s.cycle, Retry: s.retry,
 		StartedRuns: s.startedRuns, ConsecutiveFailures: s.consecutiveFailures, TotalRestarts: s.totalRestarts,
 		Budgets: s.plan.Budgets, LastResult: s.result, GameID: s.gameID,
@@ -758,6 +761,12 @@ func (s *SessionSupervisor) exhaustedBudgetLocked() string {
 
 func (s *SessionSupervisor) finishQueueLocked(state SupervisorState, result SupervisorRunResult, clear bool) {
 	if lifecycle, ok := s.runner.(FarmQueueLifecycleRunner); ok {
+		if finisher, ok := s.runner.(farmQueueLifecycleFinisher); ok {
+			if err := finisher.FinishQueue(result, state); err != nil {
+				state = SupervisorStateStoppedError
+				result = SupervisorRunResult{Disposition: QueueRunStop, Reason: "telemetry_failed"}
+			}
+		}
 		lifecycle.CloseQueue()
 	}
 	s.state = state

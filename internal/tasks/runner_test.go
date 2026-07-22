@@ -1320,8 +1320,12 @@ func TestBossRunRepositionsAtLastBossPositionBeforeLoot(t *testing.T) {
 	if res.complete || res.failed || combat.teleportCalls != 1 || combat.lastDesired != 0 {
 		t.Fatalf("first reposition = %+v teleports=%d desired=%.1f", res, combat.teleportCalls, combat.lastDesired)
 	}
-	state.Player.Position = position
 	res = pipeline.onBossTick(context.Background(), Deps{Combat: combat}, pipelineStepRepositionForLoot, state, now.Add(time.Millisecond))
+	if res.complete || res.failed || combat.teleportCalls != 1 {
+		t.Fatalf("stale snapshot = %+v teleports=%d, want wait without another cast", res, combat.teleportCalls)
+	}
+	state.Player.Position = position
+	res = pipeline.onBossTick(context.Background(), Deps{Combat: combat}, pipelineStepRepositionForLoot, state, now.Add(2*time.Millisecond))
 	if !res.complete || res.failed || combat.teleportCalls != 1 {
 		t.Fatalf("arrival = %+v teleports=%d, want complete without another cast", res, combat.teleportCalls)
 	}

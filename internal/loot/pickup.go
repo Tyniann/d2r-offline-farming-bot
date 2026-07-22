@@ -38,12 +38,17 @@ type PickupConfig struct {
 
 // PickupTarget is a frozen ground-item target selected before pickup starts.
 type PickupTarget struct {
-	UnitID    uint32
-	TxtFileNo uint32
-	Code      string
-	Name      string
-	Position  world.Position
-	AreaID    world.AreaID
+	UnitID        uint32
+	TxtFileNo     uint32
+	Code          string
+	Name          string
+	Quality       world.ItemQuality
+	IdentityKind  world.ItemIdentityKind
+	IdentityKey   string
+	IdentityValid bool
+	Pickit        PickitResult
+	Position      world.Position
+	AreaID        world.AreaID
 }
 
 // PickupClickTarget is the target shape passed to a hover-confirming clicker.
@@ -432,8 +437,10 @@ func SelectPickupCandidateExcluding(state world.State, report DecisionReport, sk
 				TxtFileNo: item.TxtFileNo,
 				Code:      item.Code,
 				Name:      item.Name,
-				Position:  item.Position,
-				AreaID:    state.Area.ID,
+				Quality:   item.Quality, IdentityKind: item.IdentityKind, IdentityKey: item.IdentityKey, IdentityValid: item.IdentityValid,
+				Pickit:   decision.Pickit,
+				Position: item.Position,
+				AreaID:   state.Area.ID,
 			}
 		}
 	}

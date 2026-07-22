@@ -19,17 +19,28 @@ type PickitPolicySnapshot struct {
 	AssignmentRevision uint64
 }
 
-func (rt *Runtime) prepareSessionRun() (string, error) {
+func (rt *Runtime) prepareSessionRun(request SupervisorRunRequest) (string, error) {
 	if err := rt.reloadPickitPolicy(); err != nil {
-		return "", err
-	}
-	trace, err := telemetry.New(rt.Config.Telemetry.Directory, rt.Config.Session.Run, "")
-	if err != nil {
 		return "", err
 	}
 	contextEvent, err := rt.sessionRunContextEvent()
 	if err != nil {
-		_ = trace.Close()
+		return "", err
+	}
+	profiles := make([]telemetry.PickitProfileContext, 0, len(rt.ActivePickit.Profiles))
+	for _, profileID := range rt.ActivePickit.Profiles {
+		profiles = append(profiles, telemetry.PickitProfileContext{ID: profileID, Revision: rt.ActivePickit.ProfileRevisions[profileID]})
+	}
+	trace, err := telemetry.NewRunRecorder(rt.Config.Telemetry.Directory, telemetry.RunRecorderContext{
+		RunID: request.ExecutionID, SessionID: request.SessionID, GameID: request.GameID,
+		Mode: telemetry.HistoryModeProductiveFarming, Character: rt.Config.Session.Character,
+		Difficulty: rt.Config.Session.Difficulty, GameVersion: rt.Config.Memory.GameVersion,
+		Run: rt.Config.Session.Run, DefinitionID: contextEvent.DefinitionID,
+		RouteID: contextEvent.RouteID, RouteLayoutFingerprint: contextEvent.RouteLayoutFingerprint,
+		QueueIndex: request.QueueIndex, QueueCycle: request.Cycle, StartedAt: time.Now().UTC(),
+		PickitProfiles: profiles, PickitAssignmentRevision: rt.ActivePickit.AssignmentRevision,
+	})
+	if err != nil {
 		return "", err
 	}
 	if err := trace.Emit(contextEvent); err != nil {
@@ -91,10 +102,14 @@ func (rt *Runtime) sessionRunContextEvent() (telemetry.Event, error) {
 	if !ok {
 		return telemetry.Event{}, fmt.Errorf("resolve session run context: %s: %q", tasks.RunReasonUnknown, rt.Config.Session.Run)
 	}
+	routeID := plan.RouteID
+	if routeID == "" {
+		routeID = rt.runConfig.RouteID
+	}
 	return telemetry.Event{
 		Event:                  telemetry.RunContext,
 		DefinitionID:           string(definition.ID),
-		RouteID:                plan.RouteID,
+		RouteID:                routeID,
 		RouteLayoutFingerprint: plan.RouteLayoutFingerprint,
 		WaypointTarget:         string(definition.WaypointTarget),
 		TownOrigin:             string(definition.ReturnOrigin),
@@ -120,6 +135,22 @@ func (rt *Runtime) closeSessionRunTelemetry() error {
 		rt.profileTelemetry.setTelemetry(nil)
 	}
 	return err
+}
+
+func (rt *Runtime) finishSessionRunTelemetry(result SupervisorRunResult) error {
+	if rt.Telemetry == nil {
+		return fmt.Errorf("session run telemetry is not active")
+	}
+	terminal := telemetry.Event{Event: queueRunTerminalEvent(result), Reason: result.Reason}
+	emitErr := rt.Telemetry.Emit(terminal)
+	closeErr := rt.closeSessionRunTelemetry()
+	if emitErr != nil {
+		return fmt.Errorf("emit session run terminal: %w", emitErr)
+	}
+	if closeErr != nil {
+		return fmt.Errorf("close session run telemetry: %w", closeErr)
+	}
+	return nil
 }
 
 func (rt *Runtime) runTaskToTerminal(parent context.Context) (tasks.TickResult, error) {

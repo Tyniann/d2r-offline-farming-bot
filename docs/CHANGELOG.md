@@ -7,6 +7,29 @@ Versionierung nach [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-07-22
+
+### Added
+- Add the Phase 14 baseline and core contract with schema-3 fixture characterization, farming metrics, denominators, funnel, stages, filters, pagination, exports, and stable history reason codes
+- Add globally unique run IDs and schema-3 session/run streams with immutable productive context, explicit diagnostic mode, exact cross-stream correlation, and duplicate-terminal/context-drift rejection
+- Add memory-confirmed boss-kill and vendor-sale milestones, complete run-stage classification, and stable item/Pickit correlation across the loot funnel
+- Add a bounded schema-3 history reader and race-safe rebuildable in-memory index with strict cross-stream correlation, content fingerprints, incomplete/active projection, and isolated file diagnostics
+- Add the canonical history analyzer with UTC filters, terminal duration statistics, stage time, item funnels, failure loss, and boss/route yields per run, kill, and active hour
+- Add the read-only history API with canonical filters, generation-bound pagination, German reason projections, parity-preserving JSON/CSV exports, generated TypeScript contracts, and bounded SSE invalidation
+- Add the accessible responsive React run-history feature with visible filters, Core-sorted route comparisons, item and run pagination, semantic drill-downs, diagnostics, and filtered downloads
+- Complete the Phase 14 live provenance and deterministic Countess/Mephisto product-parity gates across history, API, JSON, CSV, and React
+
+### Fixed
+- Remove deleted Phase 13 acceptance profiles from the example assignment and stale profile characterization so the repository baseline is reproducible
+- Write the correlated terminal event to productive run telemetry before closing it so completed queue runs appear in strict history views
+- Prevent stale post-kill Memory snapshots from triggering a second teleport away from the boss-drop position
+- Isolate route-assignment test fixtures from the real ignored operator manifest so the test suite cannot restore an archived farming route
+- Keep run IDs off session-level game boundary events so productive session files satisfy the strict history-reader contract
+- Separate supervisor run definitions from globally unique execution IDs and remove derived aggregate arithmetic from the history UI
+- Show the immutable Pickit profile, rule, action, revisions, failure reason code, and last step in the history run drill-down
+- Publish `history_changed` only when the correlated terminal history population changes, not for each flushed in-progress event
+- Reuse fully validated history projections when their SHA-256 content fingerprint is unchanged instead of reparsing every file on each refresh
+
 ## [0.9.0] - 2026-07-21
 
 ### Added

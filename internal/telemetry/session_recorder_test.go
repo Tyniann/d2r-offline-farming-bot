@@ -34,7 +34,7 @@ func TestSessionRecorderCorrelatesAndFlushesLifecycleEvents(t *testing.T) {
 		if err := json.Unmarshal(scanner.Bytes(), &event); err != nil {
 			t.Fatal(err)
 		}
-		if event.SchemaVersion != 2 || event.SessionID != recorder.SessionID() || event.Timestamp.IsZero() {
+		if event.SchemaVersion != HistorySchemaVersion || event.Stream != HistoryStreamSession || event.Mode != HistoryModeDiagnostic || event.SessionID != recorder.SessionID() || event.Timestamp.IsZero() {
 			t.Fatalf("event = %+v", event)
 		}
 		count++

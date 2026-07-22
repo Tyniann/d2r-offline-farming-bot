@@ -95,7 +95,7 @@ go run ./cmd/d2rbot --run countess --probe   # input.enabled: true erforderlich
 | `task run finished` | `run`, `outcome`, `reason` |
 | `task run reset` | `run`, `reason` |
 
-JSONL-Transitionen `run_step_started`, `run_step_completed` und `run_step_failed` enthalten `definition_id`, `step` und `outcome`. Encounter-Events ergänzen `action_index`. Schlägt das persistierende Telemetrie-Emit fehl, endet die Pipeline vor dem folgenden Input mit `telemetry_failed`.
+JSONL-Transitionen `run_step_started`, `run_step_completed` und `run_step_failed` enthalten `definition_id`, `step`, `stage` und `outcome`. Die vollständige Core-Zuordnung ordnet jeden gemeinsamen Countess-/Mephisto-Step genau einer der stabilen Kategorien `travel`, `combat`, `loot` oder `return_town` zu; unbekannte Steps werden nicht ohne Stage persistiert. Encounter-Events ergänzen `action_index`. Nach der bestehenden Memory-bestätigten Kill-Bedingung schreibt die Pipeline genau ein `boss_kill_confirmed` für die gepinnte Unit. Schlägt ein persistierendes Telemetrie-Emit fehl, endet die Pipeline vor dem folgenden Input beziehungsweise Kill-Abschluss mit `telemetry_failed`.
 
 `--run` und `--input-test` schließen sich gegenseitig aus. Run erfordert `input.enabled: true`.
 
@@ -112,4 +112,4 @@ JSONL-Transitionen `run_step_started`, `run_step_completed` und `run_step_failed
 - [World Model](world-model.md) — `world.State` / Area-Katalog
 
 ---
-*Zuletzt aktualisiert: 2026-07-15*
+*Zuletzt aktualisiert: 2026-07-22*

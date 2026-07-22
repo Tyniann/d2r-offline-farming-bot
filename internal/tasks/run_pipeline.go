@@ -84,6 +84,8 @@ type runPipeline struct {
 	egressStarted          bool
 	encounterActionIndex   int
 	encounterActionStarted bool
+	bossKillEmitted        bool
+	postKillTeleportSent   bool
 }
 
 func (c *runPipeline) effectiveDefinition() RunDefinition {
@@ -108,6 +110,8 @@ func (c *runPipeline) resetGeneration() {
 	c.egressStarted = false
 	c.encounterActionIndex = 0
 	c.encounterActionStarted = false
+	c.bossKillEmitted = false
+	c.postKillTeleportSent = false
 }
 
 func (c *runPipeline) firstStep() string {
@@ -306,6 +310,9 @@ func (c *runPipeline) onStepEnter(step string) {
 	c.navStarted = false
 	c.routeStarted = false
 	c.egressStarted = false
+	if step == pipelineStepRepositionForLoot {
+		c.postKillTeleportSent = false
+	}
 	if step == pipelineStepWaitForDrops {
 		c.dropStableTicks = 0
 	}
@@ -871,6 +878,12 @@ func (c *runPipeline) onBossTick(ctx context.Context, deps Deps, step string, w 
 			}
 			c.targetAbsentTicks++
 			if c.targetAbsentTicks >= c.combat.KillConfirmTicks {
+				if !c.bossKillEmitted {
+					if err := c.emitBossKill(deps); err != nil {
+						return stepResult{failed: true, reason: "telemetry_failed"}
+					}
+					c.bossKillEmitted = true
+				}
 				return stepResult{complete: true}
 			}
 			return stepResult{}
@@ -926,9 +939,17 @@ func (c *runPipeline) onBossTick(ctx context.Context, deps Deps, step string, w 
 		if world.Distance(w.Player.Position, c.targetPosition) <= postKillLootDistanceTiles {
 			return stepResult{complete: true}
 		}
+		if c.postKillTeleportSent {
+			// Der Input-Aufruf blockiert kurz, während der World-Snapshot noch die
+			// Position vor dem Teleport enthalten kann. Nur Memory darf die Ankunft
+			// bestätigen; ein zweiter Cast auf Basis dieses alten Snapshots könnte
+			// den Spieler wieder vom Loot weg oder hinter eine Wand versetzen.
+			return stepResult{}
+		}
 		if err := deps.Combat.TeleportToward(now, w.Player.Position, c.targetPosition, 0); err != nil {
 			return stepResult{failed: true, reason: "post_kill_reposition_failed"}
 		}
+		c.postKillTeleportSent = true
 		return stepResult{}
 	default:
 		return stepResult{failed: true, reason: "unknown_step"}
@@ -942,7 +963,18 @@ func (c *runPipeline) emitEncounterAction(deps Deps, event telemetry.EventName, 
 	index := c.encounterActionIndex
 	return deps.Telemetry.Emit(telemetry.Event{
 		Event: event, DefinitionID: string(c.effectiveDefinition().ID), Step: pipelineStepEngageBoss,
-		ActionIndex: &index, UnitID: unitID, Outcome: string(outcome), Reason: reason,
+		Stage: telemetry.HistoryStageCombat, ActionIndex: &index, UnitID: unitID, Outcome: string(outcome), Reason: reason,
+	})
+}
+
+func (c *runPipeline) emitBossKill(deps Deps) error {
+	if deps.Telemetry == nil {
+		return nil
+	}
+	definition := c.effectiveDefinition()
+	return deps.Telemetry.Emit(telemetry.Event{
+		Event: telemetry.BossKillConfirmed, DefinitionID: string(definition.ID), Step: pipelineStepEngageBoss,
+		Stage: telemetry.HistoryStageCombat, UnitID: c.targetUnitID, BossID: string(definition.ID), BossName: definition.Boss.Name,
 	})
 }
 

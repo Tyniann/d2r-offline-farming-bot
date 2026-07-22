@@ -104,7 +104,7 @@ func TestRuntimeQueueRunnerSeparatesRunFromExit(t *testing.T) {
 	var events []string
 	runner := newFakeRuntimeQueueRunner(&events)
 	runner.BeginQueue(true)
-	request := SupervisorRunRequest{RunID: "countess"}
+	request := SupervisorRunRequest{DefinitionID: "countess"}
 	if err := runner.StartGame(context.Background(), request); err != nil {
 		t.Fatal(err)
 	}
@@ -126,6 +126,22 @@ func TestRuntimeQueueRunnerSeparatesRunFromExit(t *testing.T) {
 	}
 }
 
+func TestQueueRunTerminalEventMatchesDisposition(t *testing.T) {
+	tests := []struct {
+		disposition QueueRunDisposition
+		want        telemetry.EventName
+	}{
+		{disposition: QueueRunAdvance, want: telemetry.RunCompleted},
+		{disposition: QueueRunRetryCurrent, want: telemetry.RunAborted},
+		{disposition: QueueRunStop, want: telemetry.RunFailed},
+	}
+	for _, test := range tests {
+		if got := queueRunTerminalEvent(SupervisorRunResult{Disposition: test.disposition}); got != test.want {
+			t.Fatalf("terminal for %q = %q, want %q", test.disposition, got, test.want)
+		}
+	}
+}
+
 func TestRuntimeQueueRunnerKeepsGameAcrossFreshRunUnits(t *testing.T) {
 	var events []string
 	var continuations []bool
@@ -134,8 +150,8 @@ func TestRuntimeQueueRunnerKeepsGameAcrossFreshRunUnits(t *testing.T) {
 		return &fakeQueueRunUnit{runID: runID, events: &events, continuations: &continuations, result: SupervisorRunResult{Disposition: QueueRunAdvance, SafeToExit: true}}, nil
 	}
 	runner.BeginQueue(false)
-	countess := SupervisorRunRequest{RunID: "countess", QueueIndex: 0}
-	mephisto := SupervisorRunRequest{RunID: "mephisto", QueueIndex: 1}
+	countess := SupervisorRunRequest{DefinitionID: "countess", QueueIndex: 0}
+	mephisto := SupervisorRunRequest{DefinitionID: "mephisto", QueueIndex: 1}
 	if err := runner.StartGame(context.Background(), countess); err != nil {
 		t.Fatal(err)
 	}
@@ -154,8 +170,8 @@ func TestRuntimeQueueRunnerRevalidatesPausedGame(t *testing.T) {
 	var events []string
 	runner := newFakeRuntimeQueueRunner(&events)
 	runner.BeginQueue(true)
-	countess := SupervisorRunRequest{RunID: "countess"}
-	mephisto := SupervisorRunRequest{RunID: "mephisto"}
+	countess := SupervisorRunRequest{DefinitionID: "countess"}
+	mephisto := SupervisorRunRequest{DefinitionID: "mephisto"}
 	if err := runner.StartGame(context.Background(), countess); err != nil {
 		t.Fatal(err)
 	}
@@ -200,19 +216,22 @@ func TestRuntimeQueueRunnerRoutesStopAfterRun(t *testing.T) {
 
 func TestRuntimeQueueRunnerPersistsGameAndRunBoundaries(t *testing.T) {
 	var events []string
-	cfg := &config.Config{Telemetry: config.TelemetryConfig{Directory: t.TempDir()}, Session: config.SessionConfig{MaxRuns: 4, MaxDurationMs: 60000}}
+	cfg := &config.Config{Telemetry: config.TelemetryConfig{Directory: t.TempDir()}, Session: config.SessionConfig{Character: "MrBones", Difficulty: "nightmare", MaxRuns: 4, MaxDurationMs: 60000}, Memory: config.MemoryConfig{GameVersion: "3.2.92777"}}
 	runner := newFakeRuntimeQueueRunner(&events)
 	runner.config = cfg
 	runner.persistEvents = true
 	runner.BeginQueue(true)
-	countess := SupervisorRunRequest{RunID: "countess", ExecutionID: "run-001", GameID: "game-001"}
-	mephisto := SupervisorRunRequest{RunID: "mephisto", ExecutionID: "run-002", GameID: "game-001"}
+	countess := SupervisorRunRequest{DefinitionID: "countess", ExecutionID: "run-001", GameID: "game-001"}
+	mephisto := SupervisorRunRequest{DefinitionID: "mephisto", ExecutionID: "run-002", GameID: "game-001"}
 	if err := runner.StartGame(context.Background(), countess); err != nil {
 		t.Fatal(err)
 	}
 	runner.Run(context.Background(), countess)
 	runner.Run(context.Background(), mephisto)
 	if err := runner.ExitGame(context.Background(), mephisto, "queue_wrap"); err != nil {
+		t.Fatal(err)
+	}
+	if err := runner.FinishQueue(SupervisorRunResult{Disposition: QueueRunStop, Reason: string(QueueReasonRunBudgetExhausted)}, SupervisorStateIdle); err != nil {
 		t.Fatal(err)
 	}
 	runner.CloseQueue()
@@ -241,11 +260,26 @@ func TestRuntimeQueueRunnerPersistsGameAndRunBoundaries(t *testing.T) {
 	for i, event := range persisted {
 		got[i] = event.Event
 	}
-	want := []telemetry.EventName{telemetry.SessionStarted, telemetry.GameStarted, telemetry.RunStarted, telemetry.RunCompleted, telemetry.RunStarted, telemetry.RunCompleted, telemetry.GameExited}
+	want := []telemetry.EventName{telemetry.SessionStarted, telemetry.GameStarted, telemetry.RunStarted, telemetry.RunCompleted, telemetry.RunStarted, telemetry.RunCompleted, telemetry.GameExited, telemetry.SessionCompleted}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("persisted events = %v, want %v", got, want)
 	}
 	if persisted[2].GameID != persisted[4].GameID || persisted[2].RunID == persisted[4].RunID {
 		t.Fatalf("run correlation = %+v / %+v", persisted[2], persisted[4])
+	}
+	for _, event := range persisted {
+		if event.SchemaVersion != telemetry.HistorySchemaVersion || event.Stream != telemetry.HistoryStreamSession || event.Mode != telemetry.HistoryModeProductiveFarming || event.SessionID == "" || event.Character != "MrBones" || event.Difficulty != "nightmare" || event.GameVersion != "3.2.92777" {
+			t.Fatalf("incomplete schema-3 session event: %+v", event)
+		}
+	}
+	reader, readerErr := telemetry.NewHistoryReader(cfg.Telemetry.Directory)
+	if readerErr != nil {
+		t.Fatal(readerErr)
+	}
+	if _, err := reader.Read(filepath.Base(files[0])); err != nil {
+		t.Fatalf("persisted queue session violates history reader contract: %v", err)
+	}
+	if persisted[1].RunID != "" || persisted[1].Run != "" || persisted[6].RunID != "" || persisted[6].Run != "" {
+		t.Fatalf("game lifecycle leaked run context: started=%+v exited=%+v", persisted[1], persisted[6])
 	}
 }

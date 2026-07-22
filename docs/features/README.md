@@ -45,6 +45,11 @@ Spätere Ideen (noch nicht umgesetzt): [`docs/backlog.md`](../backlog.md).
 | [Phase-11-Core-Vertrag](phase-11-core-contract.md) | Supervisor-Zustände, Commands, Queue-/Lifecycle-Semantik, DTO-Grundformen, Reason-Codes und finale Ownership-Matrix |
 | [Phase-12-Core-Vertrag](phase-12-core-contract.md) | Baseline, Assignment-/Kandidaten-Schemas, Recording-/System-Egress-Verträge, Workflow, Locks, Crash-Matrix und Ownership |
 | [Phase-13-Core-Vertrag](phase-13-core-contract.md) | Abschnitt 13.0: Pickit-Baseline, Profil-/Assignment-Schemas, Aktionen, Revisionen, Reason-Codes, Paketgrenzen und fallback-freie Migrationsmatrix |
+| [Phase-14-Core-Vertrag](phase-14-core-contract.md) | Abschnitt 14.0: Historienpopulation, Metriken, Denominatoren, Funnel, Stages, Filter, Pagination, Export und Reason-Codes |
+| [History-Reader und In-Memory-Index](history-reader-index.md) | Abschnitt 14.3: strikter Schema-3-Reader, Cross-Stream-Korrelation, Dateidiagnosen und vollständig rebuildbarer flüchtiger Index |
+| [Historienanalyse und Boss-/Routenvergleich](history-analysis.md) | Abschnitt 14.4: kanonische Filter, terminale Kennzahlen, Stage-Zeiten, Funnel, Itemertrag und fehlzeitgerechter Vergleich |
+| [Historien-API und Export](history-api-export.md) | Abschnitt 14.5: read-only DTOs, kanonische Filter, stabile Cursor-Pagination, JSON-/CSV-Parität und begrenztes Änderungssignal |
+| [Run-Historie im Dashboard](run-history.md) | Abschnitt 14.6: Filter, Kennzahlen, Core-sortierter Routenvergleich, Item-/Runlisten, Drill-down, Exporte und responsive Zustände |
 | [Lokale Core-API und eingebettete Web-Anwendung](local-core-api.md) | Abschnitt 11.2: Loopback-only HTTP/JSON, Security Envelope, OpenAPI-generierter TypeScript-Client und eingebetteter React-Build |
 | [Live-Dashboard und Session-Steuerung](live-dashboard.md) | Live-Projektion, Queue Builder, sichere Supervisor-Controls, Reconnect und deutsche Statuskarten |
 | [Read-only Charakterkatalog und Screenshot-gated Selector](character-selection.md) | Abschnitt 11.4: Save-Dateinamen-Katalog, fail-closed Anker-Availability und begrenzte Home/Down-Auswahl mit Memory-Bestätigung |

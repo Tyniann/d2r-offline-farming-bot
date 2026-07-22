@@ -2,6 +2,7 @@ package api
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -41,6 +42,9 @@ type LiveBackend struct {
 	routeWorkflowFinish chan struct{}
 	pickitProfiles      *app.PickitProfileService
 	pickitAssignments   *app.PickitAssignmentStore
+	historyMu           sync.Mutex
+	history             *telemetry.HistoryIndex
+	historyTerminalHash [sha256.Size]byte
 }
 
 // SetSessionSupervisor binds the single Core-owned queue state machine. The
@@ -115,6 +119,13 @@ func NewLiveBackend(cfg *config.Config, publisher *telemetry.LivePublisher) (*Li
 	if err != nil {
 		return nil, fmt.Errorf("pickit assignments: %w", err)
 	}
+	history, err := telemetry.NewHistoryIndex(cfg.Telemetry.Directory)
+	if err != nil {
+		return nil, fmt.Errorf("history index: %w", err)
+	}
+	if refreshErr := history.Refresh(); refreshErr != nil {
+		return nil, fmt.Errorf("initialize history index: %w", refreshErr)
+	}
 	manifest, _, err := lifecycle.Snapshot()
 	if err != nil {
 		return nil, fmt.Errorf("load route lifecycle: %w", err)
@@ -133,7 +144,8 @@ func NewLiveBackend(cfg *config.Config, publisher *telemetry.LivePublisher) (*Li
 	if character := manifest.Characters[strings.ToLower(cfg.Session.Character)]; character.LastConfirmedDifficulty != "" {
 		status.Selection = SelectionStatusDTO{Character: cfg.Session.Character, Difficulty: character.LastConfirmedDifficulty}
 	}
-	return &LiveBackend{bootstrap: bootstrap, cfg: cfg, lifecycle: lifecycle, publisher: publisher, status: status, catalog: bootstrap.Catalog(), commands: make(map[string]apiCommandRecord), previews: make(map[string]selectionPreviewRecord), routeCandidates: candidates, routeAssignments: assignments, routeManagement: management, routeWorkflow: RouteWorkflowDTO{Generation: 1, State: string(app.RouteWorkflowIdle)}, pickitProfiles: pickitProfiles, pickitAssignments: pickitAssignments}, nil
+	historySnapshot := history.Snapshot("")
+	return &LiveBackend{bootstrap: bootstrap, cfg: cfg, lifecycle: lifecycle, publisher: publisher, status: status, catalog: bootstrap.Catalog(), commands: make(map[string]apiCommandRecord), previews: make(map[string]selectionPreviewRecord), routeCandidates: candidates, routeAssignments: assignments, routeManagement: management, routeWorkflow: RouteWorkflowDTO{Generation: 1, State: string(app.RouteWorkflowIdle)}, pickitProfiles: pickitProfiles, pickitAssignments: pickitAssignments, history: history, historyTerminalHash: terminalHistoryHash(historySnapshot.Runs)}, nil
 }
 
 // SetRouteWorkflowHandler binds UI workflow starts to the existing Runtime recorder/test adapters.
@@ -254,6 +266,9 @@ func (b *LiveBackend) publishStatusDeltas(previous, status StatusDTO) {
 		if status.RunInstanceID != "" {
 			b.publisher.Publish(telemetry.LiveEvent{Event: "run_started", GameID: status.GameID, RunID: status.RunInstanceID, Run: status.ActiveRunID, Details: map[string]any{"queue_index": status.Queue.Index, "cycle": status.Queue.Cycle}})
 		}
+		if previous.RunInstanceID != "" {
+			_, _ = b.refreshHistory(status.RunInstanceID)
+		}
 	}
 	if previous.D2R != status.D2R {
 		b.publisher.Publish(telemetry.LiveEvent{Event: "d2r_state_changed", Details: map[string]any{"state": status.D2R.State, "window_bound": status.D2R.WindowBound}})
@@ -279,6 +294,64 @@ func (b *LiveBackend) publishStatusDeltas(previous, status StatusDTO) {
 	if status.LastResult != nil && (previous.LastResult == nil || *previous.LastResult != *status.LastResult) {
 		b.publisher.Publish(telemetry.LiveEvent{Event: "session_result", Reason: status.LastResult.Reason, Details: map[string]any{"disposition": status.LastResult.Disposition}})
 	}
+}
+
+// History refreshes JSONL and returns one defensive analyzer generation.
+func (b *LiveBackend) History(filter telemetry.HistoryFilter) (historyData, error) {
+	if b == nil || b.history == nil {
+		return historyData{}, fmt.Errorf("%s: history is unavailable", telemetry.HistoryReasonUnavailable)
+	}
+	b.mu.RLock()
+	activeRunID := b.status.RunInstanceID
+	b.mu.RUnlock()
+	snapshot, err := b.refreshHistory(activeRunID)
+	if err != nil {
+		return historyData{}, err
+	}
+	analysis, err := telemetry.AnalyzeHistory(snapshot, filter)
+	if err != nil {
+		return historyData{}, err
+	}
+	return historyData{analysis: analysis, snapshot: snapshot}, nil
+}
+
+func (b *LiveBackend) refreshHistory(activeRunID string) (telemetry.HistorySnapshot, error) {
+	b.historyMu.Lock()
+	defer b.historyMu.Unlock()
+	if b.history == nil {
+		return telemetry.HistorySnapshot{}, nil
+	}
+	if err := b.history.Refresh(); err != nil {
+		return telemetry.HistorySnapshot{}, fmt.Errorf("refresh history index: %w", err)
+	}
+	snapshot := b.history.Snapshot(activeRunID)
+	terminalHash := terminalHistoryHash(snapshot.Runs)
+	if terminalHash != b.historyTerminalHash {
+		b.historyTerminalHash = terminalHash
+		b.publisher.Publish(telemetry.LiveEvent{Event: "history_changed", Details: map[string]any{"generation": snapshot.Generation}})
+	}
+	return snapshot, nil
+}
+
+// terminalHistoryHash changes only when the correlated terminal population
+// changes. In-progress writer events remain queryable through manual refresh,
+// but do not create an SSE reload storm for every flushed telemetry line.
+func terminalHistoryHash(runs []telemetry.HistoryRun) [sha256.Size]byte {
+	hash := sha256.New()
+	for _, run := range runs {
+		if run.EndedAt == nil {
+			continue
+		}
+		// HistoryRun contains only JSON-compatible, reader-owned values. Hash the
+		// complete terminal projection so even an isolated external file rewrite
+		// causes one refresh signal without exposing its payload through SSE.
+		encoded, _ := json.Marshal(run)
+		_, _ = hash.Write(encoded)
+		_, _ = hash.Write([]byte{0})
+	}
+	var result [sha256.Size]byte
+	copy(result[:], hash.Sum(nil))
+	return result
 }
 
 // ValidateQueue performs a side-effect-free full preflight against the confirmed selection.

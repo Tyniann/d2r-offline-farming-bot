@@ -187,12 +187,21 @@ type LootScanResult struct {
 
 // LootTarget is the frozen ground item selected for pickup.
 type LootTarget struct {
-	UnitID    uint32
-	TxtFileNo uint32
-	Code      string
-	Name      string
-	Position  world.Position
-	AreaID    world.AreaID
+	UnitID                   uint32
+	TxtFileNo                uint32
+	Code                     string
+	Name                     string
+	Quality                  world.ItemQuality
+	IdentityKind             world.ItemIdentityKind
+	IdentityKey              string
+	IdentityValid            bool
+	PickitProfileID          string
+	PickitRuleID             string
+	PickitAction             string
+	PickitProfileRevision    uint64
+	PickitAssignmentRevision uint64
+	Position                 world.Position
+	AreaID                   world.AreaID
 }
 
 // LootPickupStatus is the task-level result of one pickup executor tick.

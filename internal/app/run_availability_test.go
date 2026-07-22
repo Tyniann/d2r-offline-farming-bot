@@ -36,9 +36,10 @@ func availabilityConfig(t *testing.T) *config.Config {
 
 func writeTestRouteAssignments(t *testing.T, cfg *config.Config, routes map[tasks.RunID]string) {
 	t.Helper()
-	if cfg.Routes.AssignmentsFile == "" {
-		cfg.Routes.AssignmentsFile = filepath.Join(t.TempDir(), "route-assignments.local.yaml")
-	}
+	// Auch aus config.example.yaml geladene Tests dürfen niemals dessen realen,
+	// gitignorierten Operatorpfad beschreiben. Jede Fixture erhält deshalb eine
+	// eigene Autorität, unabhängig vom zuvor konfigurierten Dateinamen.
+	cfg.Routes.AssignmentsFile = filepath.Join(t.TempDir(), "route-assignments.local.yaml")
 	character := strings.ToLower(cfg.Session.Character)
 	if character == "" {
 		character = "mrbones"

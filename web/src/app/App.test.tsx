@@ -15,6 +15,7 @@ vi.mock("../api/client", () => ({
   confirmRouteMutation: mocks.confirmRouteMutation, previewRouteMutation: mocks.previewRouteMutation, startRouteWorkflow: mocks.startRouteWorkflow, finishRouteRecording: mocks.finishRouteRecording,
 }));
 vi.mock("../api/generated", () => ({ getCatalog: mocks.getCatalog, getStatus: mocks.getStatus, getRouteLibrary: mocks.getRouteLibrary, getRouteCandidates: mocks.getRouteCandidates, getRecordingOptions: mocks.getRecordingOptions, getSystemRouteStatus: mocks.getSystemRouteStatus, getHotkeyHelp: mocks.getHotkeyHelp, getRouteWorkflow: mocks.getRouteWorkflow }));
+vi.mock("../features/history/HistoryFeature", () => ({ HistoryFeature: () => <section><h2>Historie</h2></section> }));
 
 const queue = { entries: ["countess", "mephisto"], default_entries: ["countess", "mephisto"], index: 0, cycle: 0, retry: 0, started_runs: 0, consecutive_failures: 0, total_restarts: 0, budgets: { max_runs: 4, max_duration_ms: 60000, max_consecutive_failures: 2, max_total_restarts: 2 } };
 const detached = {
@@ -35,6 +36,13 @@ describe("App", () => {
     mocks.getRouteCandidates.mockResolvedValue([]); mocks.getRecordingOptions.mockResolvedValue([]); mocks.getSystemRouteStatus.mockResolvedValue([]);
     mocks.getHotkeyHelp.mockResolvedValue({ recording_finish: "f9", stop_after_run: "f10", emergency_stop: "f11", pause: "pause" });
     mocks.getRouteWorkflow.mockResolvedValue({ workflow_id: "", generation: 1, state: "idle", run_id: "", character: "" });
+  });
+
+  it("bindet die Core-autoritäre Historie über die Hauptnavigation ein", async () => {
+    render(<App />);
+    expect(await screen.findByRole("heading", { name: "Lokales Dashboard" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Historie" })).toHaveAttribute("href", "#history");
+    expect(screen.getByRole("heading", { name: "Historie" })).toBeInTheDocument();
   });
 
   it("lädt nach einem Live-Delta die aktuelle Statusprojektion neu", async () => {

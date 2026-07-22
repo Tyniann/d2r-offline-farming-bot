@@ -50,6 +50,10 @@ type FarmQueueLifecycleRunner interface {
 	CloseQueue()
 }
 
+type farmQueueLifecycleFinisher interface {
+	FinishQueue(SupervisorRunResult, SupervisorState) error
+}
+
 // RuntimeQueueRunner owns the production game boundary while creating fresh
 // run-specific state for every queue entry. Closing one Go runtime never ends
 // the D2R game; only [RuntimeQueueRunner.ExitGame] may send Save & Exit.
@@ -147,12 +151,15 @@ func (r *RuntimeQueueRunner) StartGame(ctx context.Context, request SupervisorRu
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.runsInGame = 0
-	unit, err := r.ensureUnitLocked(request.RunID)
+	unit, err := r.ensureUnitLocked(request.DefinitionID)
 	if err != nil {
 		return err
 	}
 	if r.persistEvents && r.sessionTrace == nil {
-		r.sessionTrace, err = telemetry.NewSessionRecorder(r.config.Telemetry.Directory)
+		r.sessionTrace, err = telemetry.NewSessionRecorderWithContext(r.config.Telemetry.Directory, telemetry.SessionRecorderContext{
+			Mode: telemetry.HistoryModeProductiveFarming, Character: r.config.Session.Character,
+			Difficulty: r.config.Session.Difficulty, GameVersion: r.config.Memory.GameVersion,
+		})
 		if err != nil {
 			return fmt.Errorf("start queue telemetry: %w", err)
 		}
@@ -164,7 +171,7 @@ func (r *RuntimeQueueRunner) StartGame(ctx context.Context, request SupervisorRu
 		return fmt.Errorf("start queue game: %w", err)
 	}
 	if r.sessionTrace != nil {
-		if err := r.sessionTrace.Emit(telemetry.Event{Event: telemetry.GameStarted, GameID: request.GameID, RunID: request.ExecutionID, Run: request.RunID}); err != nil {
+		if err := r.sessionTrace.Emit(queueTelemetryEvent(telemetry.GameStarted, request)); err != nil {
 			return fmt.Errorf("emit queue game start: %w", err)
 		}
 	}
@@ -184,7 +191,7 @@ func (r *RuntimeQueueRunner) RevalidateGame(ctx context.Context, request Supervi
 	if !r.gameOpen {
 		return fmt.Errorf("%s", SupervisorReasonPausedGameLost)
 	}
-	unit, err := r.ensureUnitLocked(request.RunID)
+	unit, err := r.ensureUnitLocked(request.DefinitionID)
 	if err != nil {
 		return err
 	}
@@ -205,9 +212,9 @@ func (r *RuntimeQueueRunner) Run(ctx context.Context, request SupervisorRunReque
 	if !r.gameOpen {
 		return SupervisorRunResult{Disposition: QueueRunStop, Reason: "queue_game_not_active"}
 	}
-	unit, err := r.ensureUnitLocked(request.RunID)
+	unit, err := r.ensureUnitLocked(request.DefinitionID)
 	if err != nil {
-		return queueRuntimeTerminal(fmt.Errorf("initialize queue run %q: %w", request.RunID, err))
+		return queueRuntimeTerminal(fmt.Errorf("initialize queue run %q: %w", request.DefinitionID, err))
 	}
 	if err := unit.VerifySameGame(ctx); err != nil {
 		return queueRuntimeTerminal(fmt.Errorf("verify queue game: %w", err))
@@ -216,21 +223,17 @@ func (r *RuntimeQueueRunner) Run(ctx context.Context, request SupervisorRunReque
 		return SupervisorRunResult{Disposition: QueueRunStop, Reason: "telemetry_failed"}
 	}
 	if r.sessionTrace != nil {
-		if err := r.sessionTrace.Emit(telemetry.Event{Event: telemetry.RunStarted, GameID: request.GameID, RunID: request.ExecutionID, Run: request.RunID}); err != nil {
+		request.SessionID = r.sessionTrace.SessionID()
+		if err := r.sessionTrace.Emit(queueTelemetryEvent(telemetry.RunStarted, request)); err != nil {
 			return SupervisorRunResult{Disposition: QueueRunStop, Reason: "telemetry_failed"}
 		}
 	}
 	result := unit.RunToTown(ctx, request, r.runsInGame > 0)
 	r.runsInGame++
-	event := telemetry.RunFailed
-	switch result.Disposition {
-	case QueueRunAdvance:
-		event = telemetry.RunCompleted
-	case QueueRunRetryCurrent:
-		event = telemetry.RunAborted
-	}
 	if r.sessionTrace != nil {
-		if err := r.sessionTrace.Emit(telemetry.Event{Event: event, GameID: request.GameID, RunID: request.ExecutionID, Run: request.RunID, Reason: result.Reason}); err != nil {
+		terminal := queueTelemetryEvent(queueRunTerminalEvent(result), request)
+		terminal.Reason = result.Reason
+		if err := r.sessionTrace.Emit(terminal); err != nil {
 			return SupervisorRunResult{Disposition: QueueRunStop, Reason: "telemetry_failed", SafeToExit: result.SafeToExit}
 		}
 	}
@@ -248,7 +251,7 @@ func (r *RuntimeQueueRunner) ExitGame(ctx context.Context, request SupervisorRun
 	if !r.gameOpen {
 		return nil
 	}
-	unit, err := r.ensureUnitLocked(request.RunID)
+	unit, err := r.ensureUnitLocked(request.DefinitionID)
 	if err != nil {
 		return err
 	}
@@ -256,7 +259,9 @@ func (r *RuntimeQueueRunner) ExitGame(ctx context.Context, request SupervisorRun
 		return fmt.Errorf("exit queue game (%s): %w", reason, err)
 	}
 	if r.sessionTrace != nil {
-		if err := r.sessionTrace.Emit(telemetry.Event{Event: telemetry.GameExited, GameID: request.GameID, RunID: request.ExecutionID, Run: request.RunID, Reason: reason}); err != nil {
+		exited := queueTelemetryEvent(telemetry.GameExited, request)
+		exited.Reason = reason
+		if err := r.sessionTrace.Emit(exited); err != nil {
 			return fmt.Errorf("emit queue game exit: %w", err)
 		}
 	}
@@ -279,6 +284,42 @@ func (r *RuntimeQueueRunner) CloseQueue() {
 	}
 	r.gameOpen = false
 	r.runsInGame = 0
+}
+
+// FinishQueue schreibt genau ein terminales Schema-3-Sessionereignis vor dem Close.
+func (r *RuntimeQueueRunner) FinishQueue(result SupervisorRunResult, state SupervisorState) error {
+	if r == nil {
+		return nil
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.sessionTrace == nil {
+		return nil
+	}
+	event := telemetry.SessionCompleted
+	if state == SupervisorStateStoppedError {
+		event = telemetry.SessionFailed
+	} else if result.Reason == string(SupervisorReasonEmergencyStopRequested) || result.Reason == "stop_after_run" {
+		event = telemetry.SessionStopped
+	}
+	if err := r.sessionTrace.Emit(telemetry.Event{Event: event, Reason: result.Reason}); err != nil {
+		return fmt.Errorf("emit queue session terminal: %w", err)
+	}
+	return nil
+}
+
+func queueTelemetryEvent(name telemetry.EventName, request SupervisorRunRequest) telemetry.Event {
+	event := telemetry.Event{Event: name, GameID: request.GameID}
+	if name != telemetry.RunStarted && name != telemetry.RunCompleted && name != telemetry.RunAborted && name != telemetry.RunFailed {
+		// Game-Grenzen gehören zur Session und dürfen nicht zufällig den gerade
+		// verfügbaren Run-Kontext übernehmen. Nur Run-Lifecycle-Events tragen die
+		// Korrelations-ID und Queueposition des konkreten Versuchs.
+		return event
+	}
+	queueIndex, queueCycle := request.QueueIndex, request.Cycle
+	event.RunID, event.Run = request.ExecutionID, request.DefinitionID
+	event.QueueIndex, event.QueueCycle = &queueIndex, &queueCycle
+	return event
 }
 
 func (r *RuntimeQueueRunner) ensureUnitLocked(runID string) (queueRunUnit, error) {
@@ -345,30 +386,31 @@ func (u *runtimeQueueUnit) VerifySameGame(ctx context.Context) error {
 	return u.runtime.verifyActiveQueueGame(ctx)
 }
 
-func (u *runtimeQueueUnit) RunToTown(ctx context.Context, _ SupervisorRunRequest, sameGameContinuation bool) SupervisorRunResult {
+func (u *runtimeQueueUnit) RunToTown(ctx context.Context, request SupervisorRunRequest, sameGameContinuation bool) SupervisorRunResult {
 	u.runtime.Tasks.Reset("queue_run_start")
 	if sameGameContinuation {
 		// The prior run's verified Town handoff replaces the new-game settle
 		// delay. The hook action itself remains run-scoped and still executes.
 		u.runtime.Profile.SkipInitialDelay(profile.HookTownReady)
 	}
-	if _, err := u.runtime.prepareSessionRun(); err != nil {
+	if _, err := u.runtime.prepareSessionRun(request); err != nil {
 		return queueRuntimeTerminal(fmt.Errorf("prepare queue run: %w", err))
 	}
 	taskResult, runErr := u.runtime.runTaskToTerminal(ctx)
-	if closeErr := u.runtime.closeSessionRunTelemetry(); runErr == nil && closeErr != nil {
-		runErr = closeErr
-	}
+	var result SupervisorRunResult
 	if runErr != nil {
-		return queueRuntimeTerminal(fmt.Errorf("execute queue run: %w", runErr))
+		result = queueRuntimeTerminal(fmt.Errorf("execute queue run: %w", runErr))
+	} else if taskResult.Outcome == tasks.RunOutcomeSuccess {
+		result = SupervisorRunResult{Disposition: QueueRunAdvance, SafeToExit: true}
+	} else if isRestartableSessionFailure(taskResult.Reason, u.runtime.Config.Session.RetryClasses) {
+		result = SupervisorRunResult{Disposition: QueueRunRetryCurrent, Reason: taskResult.Reason}
+	} else {
+		result = SupervisorRunResult{Disposition: QueueRunStop, Reason: taskResult.Reason}
 	}
-	if taskResult.Outcome == tasks.RunOutcomeSuccess {
-		return SupervisorRunResult{Disposition: QueueRunAdvance, SafeToExit: true}
+	if err := u.runtime.finishSessionRunTelemetry(result); err != nil {
+		return SupervisorRunResult{Disposition: QueueRunStop, Reason: "telemetry_failed", SafeToExit: result.SafeToExit}
 	}
-	if isRestartableSessionFailure(taskResult.Reason, u.runtime.Config.Session.RetryClasses) {
-		return SupervisorRunResult{Disposition: QueueRunRetryCurrent, Reason: taskResult.Reason}
-	}
-	return SupervisorRunResult{Disposition: QueueRunStop, Reason: taskResult.Reason}
+	return result
 }
 
 func (u *runtimeQueueUnit) ExitGame(ctx context.Context) error {
@@ -439,4 +481,15 @@ func queueRuntimeTerminal(err error) SupervisorRunResult {
 		return SupervisorRunResult{Disposition: QueueRunStop, Reason: string(SupervisorReasonEmergencyStopRequested)}
 	}
 	return SupervisorRunResult{Disposition: QueueRunStop, Reason: err.Error()}
+}
+
+func queueRunTerminalEvent(result SupervisorRunResult) telemetry.EventName {
+	switch result.Disposition {
+	case QueueRunAdvance:
+		return telemetry.RunCompleted
+	case QueueRunRetryCurrent:
+		return telemetry.RunAborted
+	default:
+		return telemetry.RunFailed
+	}
 }

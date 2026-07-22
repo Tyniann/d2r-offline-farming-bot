@@ -18,6 +18,11 @@ const (
 type ItemServiceCandidate struct {
 	UnitID           uint32
 	Code             string
+	Name             string
+	Quality          world.ItemQuality
+	IdentityKind     world.ItemIdentityKind
+	IdentityKey      string
+	IdentityValid    bool
 	IdentifyRequired bool
 	VendorCandidate  bool
 	Keep             bool
@@ -27,9 +32,14 @@ type ItemServiceCandidate struct {
 
 // ItemServiceOrder pins one item and its only authorized operation.
 type ItemServiceOrder struct {
-	Kind   ItemServiceKind
-	UnitID uint32
-	Code   string
+	Kind          ItemServiceKind
+	UnitID        uint32
+	Code          string
+	Name          string
+	Quality       world.ItemQuality
+	IdentityKind  world.ItemIdentityKind
+	IdentityKey   string
+	IdentityValid bool
 }
 
 // PlanItemServices rejects protected service candidates and emits identify then
@@ -50,13 +60,21 @@ func PlanItemServices(candidates []ItemServiceCandidate) ([]ItemServiceOrder, Re
 			continue
 		}
 		if candidate.IdentifyRequired {
-			orders = append(orders, ItemServiceOrder{Kind: ItemServiceIdentify, UnitID: candidate.UnitID, Code: candidate.Code})
+			orders = append(orders, itemServiceOrder(ItemServiceIdentify, candidate))
 		}
 		if candidate.VendorCandidate {
-			orders = append(orders, ItemServiceOrder{Kind: ItemServiceSell, UnitID: candidate.UnitID, Code: candidate.Code})
+			orders = append(orders, itemServiceOrder(ItemServiceSell, candidate))
 		}
 	}
 	return orders, ""
+}
+
+func itemServiceOrder(kind ItemServiceKind, candidate ItemServiceCandidate) ItemServiceOrder {
+	return ItemServiceOrder{
+		Kind: kind, UnitID: candidate.UnitID, Code: candidate.Code, Name: candidate.Name,
+		Quality: candidate.Quality, IdentityKind: candidate.IdentityKind,
+		IdentityKey: candidate.IdentityKey, IdentityValid: candidate.IdentityValid,
+	}
 }
 
 // ItemServiceInput performs one already-gated item operation.

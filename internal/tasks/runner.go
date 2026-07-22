@@ -2,6 +2,7 @@ package tasks
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"time"
 
@@ -421,6 +422,11 @@ func (r *Runner) emitStep(event telemetry.EventName, step string, outcome RunOut
 	record := telemetry.Event{
 		Event: event, DefinitionID: r.selection.Run, Step: step, Outcome: string(outcome), Reason: reason,
 	}
+	stage, ok := RunStageForStep(step)
+	if !ok {
+		return fmt.Errorf("history stage missing for run step %q", step)
+	}
+	record.Stage = stage
 	if pipeline, ok := r.run.(*runPipeline); ok && step == pipelineStepEngageBoss {
 		index := pipeline.encounterActionIndex
 		record.ActionIndex = &index

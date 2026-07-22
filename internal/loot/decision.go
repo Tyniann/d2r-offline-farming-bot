@@ -63,6 +63,10 @@ type ItemDecision struct {
 	Code           string
 	Name           string
 	Type           string
+	Quality        world.ItemQuality
+	IdentityKind   world.ItemIdentityKind
+	IdentityKey    string
+	IdentityValid  bool
 	Location       world.ItemLocation
 	Stage          DecisionStage
 	Kind           DecisionKind
@@ -182,18 +186,22 @@ func (f *Filter) InventoryLocked(item world.Item) bool {
 
 func newItemDecision(item world.Item, stage DecisionStage, kind DecisionKind, reason DecisionReason, result PickitResult) ItemDecision {
 	return ItemDecision{
-		UnitID:    item.UnitID,
-		TxtFileNo: item.TxtFileNo,
-		Code:      item.Code,
-		Name:      item.Name,
-		Type:      item.Type,
-		Location:  item.Location,
-		Stage:     stage,
-		Kind:      kind,
-		Reason:    reason,
-		Pickit:    result,
-		Width:     item.Width,
-		Height:    item.Height,
+		UnitID:        item.UnitID,
+		TxtFileNo:     item.TxtFileNo,
+		Code:          item.Code,
+		Name:          item.Name,
+		Type:          item.Type,
+		Quality:       item.Quality,
+		IdentityKind:  item.IdentityKind,
+		IdentityKey:   item.IdentityKey,
+		IdentityValid: item.IdentityValid,
+		Location:      item.Location,
+		Stage:         stage,
+		Kind:          kind,
+		Reason:        reason,
+		Pickit:        result,
+		Width:         item.Width,
+		Height:        item.Height,
 	}
 }
 

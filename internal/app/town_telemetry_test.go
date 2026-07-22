@@ -5,11 +5,29 @@ import (
 
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/telemetry"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/town"
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/world"
 )
 
 type townTelemetryMock struct {
 	events []telemetry.Event
 	err    error
+}
+
+func TestTownTelemetryAdapterMapsVerifiedSellIdentity(t *testing.T) {
+	m := &townTelemetryMock{}
+	err := (townTelemetryAdapter{emitter: m}).EmitTown(town.ExecutorEvent{
+		Event: string(telemetry.SellSuccess), VendorUnitID: 77, Vendor: town.AnchorAkara,
+		Code: "uap", Name: "Harlequin Crest", Quality: world.ItemQualityUnique,
+		IdentityKind: world.ItemIdentityUnique, IdentityKey: "Harlequin Crest", IdentityValid: true,
+		ProfileID: "mephisto", RuleID: "sell-shako", PickitAction: "sell", ProfileRevision: 3, AssignmentRevision: 9,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := m.events[0]
+	if got.Event != telemetry.SellSuccess || got.Stage != telemetry.HistoryStageReturnTown || got.ItemKey != "unique:Harlequin Crest" || got.ItemIdentityKey != "Harlequin Crest" || got.PickitRuleID != "sell-shako" {
+		t.Fatalf("sell event=%+v", got)
+	}
 }
 
 func (m *townTelemetryMock) Emit(e telemetry.Event) error {

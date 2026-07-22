@@ -39,8 +39,36 @@ func TestRunPipelineTelemetryCarriesDefinitionStepOutcomeAndActionIndex(t *testi
 		t.Fatalf("events = %d, want 1", len(trace.events))
 	}
 	event := trace.events[0]
-	if event.DefinitionID != "countess" || event.Step != pipelineStepEngageBoss || event.Outcome != string(RunOutcomeRunning) || event.ActionIndex == nil || *event.ActionIndex != 0 {
+	if event.DefinitionID != "countess" || event.Step != pipelineStepEngageBoss || event.Stage != telemetry.HistoryStageCombat || event.Outcome != string(RunOutcomeRunning) || event.ActionIndex == nil || *event.ActionIndex != 0 {
 		t.Fatalf("event = %+v", event)
+	}
+}
+
+func TestPhase14AllPipelineStepsHaveExactlyOneStableStage(t *testing.T) {
+	tests := map[telemetry.HistoryStage][]string{
+		telemetry.HistoryStageTravel:     {pipelineStepPrecheck, pipelineStepApplyTownProfile, pipelineStepAcquireTownWaypoint, pipelineStepOpenWaypoint, pipelineStepSelectRunWaypoint, pipelineStepWaitEntryArea, pipelineStepPlayRoute},
+		telemetry.HistoryStageCombat:     {pipelineStepAcquireBoss, pipelineStepEngageBoss},
+		telemetry.HistoryStageLoot:       {pipelineStepRepositionForLoot, pipelineStepWaitForDrops, pipelineStepScanLoot, pipelineStepPickLoot},
+		telemetry.HistoryStageReturnTown: {pipelineStepCastTownPortal, pipelineStepEnterTownPortal, pipelineStepWaitOriginTown, pipelineStepPlayTownEgress, pipelineStepOpenOriginWaypoint, pipelineStepSelectHubWaypoint, pipelineStepWaitHubArea, pipelineStepOpenStash, pipelineStepStashItems, pipelineStepCloseStash, pipelineStepPrepareTown, pipelineStepComplete},
+	}
+	seen := make(map[string]telemetry.HistoryStage)
+	for wantStage, steps := range tests {
+		for _, step := range steps {
+			stage, ok := RunStageForStep(step)
+			if !ok || stage != wantStage {
+				t.Fatalf("step %q stage=%q ok=%t, want %q", step, stage, ok, wantStage)
+			}
+			if previous, duplicate := seen[step]; duplicate {
+				t.Fatalf("step %q mapped twice to %q and %q", step, previous, stage)
+			}
+			seen[step] = stage
+		}
+	}
+	if len(seen) != 25 {
+		t.Fatalf("mapped steps=%d, want 25", len(seen))
+	}
+	if _, ok := RunStageForStep("unknown"); ok {
+		t.Fatal("unknown step received a stage")
 	}
 }
 

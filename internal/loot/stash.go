@@ -61,17 +61,21 @@ const (
 
 // StashResult reports one verified transfer or terminal stash outcome.
 type StashResult struct {
-	Status      StashStatus
-	Done        bool
-	Attempted   bool
-	Transferred bool
-	UnitID      uint32
-	Code        string
-	Name        string
-	Attempt     int
-	GridX       int
-	GridY       int
-	Pickit      PickitResult
+	Status        StashStatus
+	Done          bool
+	Attempted     bool
+	Transferred   bool
+	UnitID        uint32
+	Code          string
+	Name          string
+	Quality       world.ItemQuality
+	IdentityKind  world.ItemIdentityKind
+	IdentityKey   string
+	IdentityValid bool
+	Attempt       int
+	GridX         int
+	GridY         int
+	Pickit        PickitResult
 }
 
 type stashTarget struct {
@@ -136,7 +140,7 @@ func (e *StashExecutor) Tick(state world.State, now time.Time) StashResult {
 	if e.active != nil {
 		item, found := state.FindItemByUnitID(e.active.item.UnitID)
 		if !found || item.Location != world.ItemLocationInventory {
-			result := StashResult{Status: StashPending, Transferred: true, UnitID: e.active.item.UnitID, Code: e.active.item.Code, Name: e.active.item.Name, Attempt: e.attempt, GridX: e.active.item.GridX, GridY: e.active.item.GridY, Pickit: e.active.pickit}
+			result := StashResult{Status: StashPending, Transferred: true, UnitID: e.active.item.UnitID, Code: e.active.item.Code, Name: e.active.item.Name, Quality: e.active.item.Quality, IdentityKind: e.active.item.IdentityKind, IdentityKey: e.active.item.IdentityKey, IdentityValid: e.active.item.IdentityValid, Attempt: e.attempt, GridX: e.active.item.GridX, GridY: e.active.item.GridY, Pickit: e.active.pickit}
 			e.log.Info("stash_success", "unit_id", result.UnitID, "code", result.Code, "name", result.Name, "attempt", result.Attempt, "profile_id", result.Pickit.ProfileID, "rule_id", result.Pickit.RuleID, "action", result.Pickit.Action, "profile_revision", result.Pickit.ProfileRevision, "assignment_revision", result.Pickit.AssignmentRevision)
 			e.active = nil
 			e.attempt = 0
@@ -148,7 +152,7 @@ func (e *StashExecutor) Tick(state world.State, now time.Time) StashResult {
 			return e.failActive("target_changed")
 		}
 		if now.Sub(e.attemptAt) < e.cfg.VerifyTimeout {
-			return StashResult{Status: StashPending, UnitID: item.UnitID, Code: item.Code, Name: item.Name, Attempt: e.attempt, Pickit: e.active.pickit}
+			return StashResult{Status: StashPending, UnitID: item.UnitID, Code: item.Code, Name: item.Name, Quality: item.Quality, IdentityKind: item.IdentityKind, IdentityKey: item.IdentityKey, IdentityValid: item.IdentityValid, Attempt: e.attempt, Pickit: e.active.pickit}
 		}
 		if e.attempt >= e.cfg.MaxRetries {
 			return e.failActive("verify_timeout")
@@ -241,7 +245,7 @@ func (e *StashExecutor) transfer(item world.Item, now time.Time) StashResult {
 	e.attempt++
 	e.attemptAt = now
 	e.log.Info("stash_attempt", "unit_id", item.UnitID, "code", item.Code, "name", item.Name, "grid_x", item.GridX, "grid_y", item.GridY, "client_x", x, "client_y", y, "attempt", e.attempt, "profile_id", result.ProfileID, "rule_id", result.RuleID, "action", result.Action, "profile_revision", result.ProfileRevision, "assignment_revision", result.AssignmentRevision)
-	return StashResult{Status: StashPending, Attempted: true, UnitID: item.UnitID, Code: item.Code, Name: item.Name, Attempt: e.attempt, GridX: item.GridX, GridY: item.GridY, Pickit: result}
+	return StashResult{Status: StashPending, Attempted: true, UnitID: item.UnitID, Code: item.Code, Name: item.Name, Quality: item.Quality, IdentityKind: item.IdentityKind, IdentityKey: item.IdentityKey, IdentityValid: item.IdentityValid, Attempt: e.attempt, GridX: item.GridX, GridY: item.GridY, Pickit: result}
 }
 
 func (e *StashExecutor) failActive(reason string) StashResult {

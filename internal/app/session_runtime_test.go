@@ -17,15 +17,17 @@ func TestPrepareSessionRunBindsSharedPipelineTelemetry(t *testing.T) {
 	rt := &Runtime{
 		Config: &config.Config{
 			Telemetry: config.TelemetryConfig{Directory: t.TempDir()},
-			Session:   config.SessionConfig{Run: string(tasks.RunIDCountess)},
+			Session:   config.SessionConfig{Run: string(tasks.RunIDCountess), Character: "MrBones", Difficulty: "nightmare"},
+			Memory:    config.MemoryConfig{GameVersion: "3.2.92777"},
 		},
 		Log:              config.NewLogger("error"),
 		sessionSelection: tasks.RunSelection{Run: string(tasks.RunIDCountess)},
 		routePlayback:    &routePlaybackAdapter{},
 		lootActions:      &lootActionsAdapter{},
+		runConfig:        tasks.RunConfig{RouteID: "countess-route"},
 	}
 
-	if _, err := rt.prepareSessionRun(); err != nil {
+	if _, err := rt.prepareSessionRun(SupervisorRunRequest{ExecutionID: "countess-test-run", SessionID: "session-test", GameID: "game-1", QueueIndex: 0, Cycle: 0}); err != nil {
 		t.Fatal(err)
 	}
 	telemetryPath := rt.Telemetry.Path()
@@ -37,7 +39,7 @@ func TestPrepareSessionRunBindsSharedPipelineTelemetry(t *testing.T) {
 	if result.Reason == "telemetry_failed" {
 		t.Fatalf("first session tick failed because pipeline telemetry was not bound: %+v", result)
 	}
-	if err := rt.closeSessionRunTelemetry(); err != nil {
+	if err := rt.finishSessionRunTelemetry(SupervisorRunResult{Disposition: QueueRunAdvance, SafeToExit: true}); err != nil {
 		t.Fatal(err)
 	}
 	if rt.taskDeps.Telemetry != nil {
@@ -50,6 +52,9 @@ func TestPrepareSessionRunBindsSharedPipelineTelemetry(t *testing.T) {
 	}
 	if !strings.Contains(string(data), `"event":"run_step_started"`) {
 		t.Fatalf("session run telemetry does not contain the first shared pipeline transition: %s", data)
+	}
+	if !strings.Contains(string(data), `"event":"run_completed"`) {
+		t.Fatalf("session run telemetry does not contain its terminal event: %s", data)
 	}
 }
 

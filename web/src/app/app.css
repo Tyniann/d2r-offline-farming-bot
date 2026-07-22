@@ -3,6 +3,9 @@ body { margin: 0; min-width: 320px; min-height: 100vh; background: radial-gradie
 main { width: min(1100px, calc(100% - 32px)); margin: 0 auto; padding: 64px 0; }
 header, section { border: 1px solid #2d4566; border-radius: 18px; padding: 28px; background: #101a2aee; box-shadow: 0 20px 70px #0007; }
 section { margin-top: 20px; }
+.main-navigation { position: sticky; top: 8px; z-index: 5; display: flex; flex-wrap: wrap; gap: 8px; margin: 14px 0; padding: 10px; border: 1px solid #2d4566; border-radius: 12px; background: #0b1422ee; }
+.main-navigation a { padding: 9px 12px; border-radius: 8px; color: #bfeaff; font-weight: 700; text-decoration: none; }
+.main-navigation a:hover, .main-navigation a:focus-visible { background: #176b58; outline: 2px solid #70d7ff; }
 .eyebrow { color: #70d7ff; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
 h1 { font-size: clamp(2rem, 6vw, 4.5rem); margin: 0; }
 h2 { margin-top: 0; }
@@ -70,5 +73,27 @@ button:focus-visible, select:focus-visible { outline: 3px solid #70d7ff; outline
 textarea { min-height: 120px; resize: vertical; }
 .editor-actions { justify-content: flex-end; margin-top: 16px; }
 .assignment-editor { margin-top: 18px; }
+.history-filters { display: grid; grid-template-columns: repeat(3, minmax(150px, 1fr)); gap: 12px; align-items: end; margin: 20px 0; }
+.history-filters .inline-actions { align-self: end; }
+.active-filters { padding: 10px 12px; border-left: 3px solid #70d7ff; background: #0b1422; }
+.history-summary { margin: 18px 0; }
+.history-priority { margin: 16px 0; border-color: #986a36; }
+.history-diagnostics, .history-export, .history-empty { margin: 18px 0; padding: 16px; border: 1px solid #365779; border-radius: 12px; background: #0b1422; }
+.history-diagnostics li, .history-detail li { grid-template-columns: minmax(130px, .7fr) 2fr; }
+.history-detail li > small { grid-column: 1 / -1; color: #8fa7c5; overflow-wrap: anywhere; }
+.table-scroll { margin: 12px 0; overflow-x: auto; }
+table { width: 100%; min-width: 760px; border-collapse: collapse; }
+caption { padding: 0 0 10px; color: #8fa7c5; text-align: left; }
+th, td { padding: 11px; border-bottom: 1px solid #294360; text-align: left; vertical-align: top; }
+th small, td small { display: block; margin-top: 5px; color: #8fa7c5; font-weight: 400; }
+.sample-warning { display: block; margin-top: 5px; color: #ffd38a; font-size: .8rem; }
+.outcome { display: inline-flex; padding: 3px 7px; border-radius: 999px; background: #263b55; }
+.outcome-success { color: #79e8bd; background: #153b32; }
+.outcome-failed, .outcome-aborted { color: #ffb0b6; background: #37252a; }
+.outcome-running, .outcome-incomplete { color: #ffd38a; background: #45391f; }
+.history-detail { margin-top: 18px; }
+.history-detail pre { max-height: 320px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; color: #bfeaff; }
+.history-detail summary { cursor: pointer; font-weight: 700; }
+.history-export .inline-actions { justify-content: flex-start; }
 button:focus-visible, select:focus-visible, input:focus-visible, textarea:focus-visible { outline: 3px solid #70d7ff; outline-offset: 2px; }
-@media (max-width: 700px) { main { padding: 24px 0; } header, section { padding: 20px; } dl div, li, .selection-grid, .queue-list li, .pickit-layout, .guided-rule { grid-template-columns: minmax(0, 1fr); gap: 8px; } .selection-grid > *, select, input, textarea { min-width: 0; max-width: 100%; width: 100%; } .queue-actions { justify-content: flex-start; } .inline-actions button, .editor-actions button { flex: 1; } }
+@media (max-width: 700px) { main { padding: 24px 0; } header, section { padding: 20px; } dl div, li, .selection-grid, .queue-list li, .pickit-layout, .guided-rule, .history-filters { grid-template-columns: minmax(0, 1fr); gap: 8px; } .selection-grid > *, select, input, textarea { min-width: 0; max-width: 100%; width: 100%; } .queue-actions { justify-content: flex-start; } .inline-actions button, .editor-actions button { flex: 1; } .main-navigation { position: static; } .history-feature .table-scroll { overflow: visible; } .history-feature table, .history-feature tbody, .history-feature tr { display: block; min-width: 0; } .history-feature thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); } .history-feature tr { margin: 12px 0; padding: 8px; border: 1px solid #294360; border-radius: 10px; background: #0b1422; } .history-feature td, .history-feature th[scope="row"] { display: grid; grid-template-columns: minmax(110px, .7fr) minmax(0, 1.3fr); gap: 8px; border: 0; padding: 7px; } .history-feature td::before, .history-feature th[scope="row"]::before { content: attr(data-label); color: #8fa7c5; font-weight: 400; } }

@@ -27,6 +27,8 @@ Snapshot-Fehler werden als deutscher `last_error` sichtbar und beim nächsten Ti
 
 Der SSE-Endpunkt sendet zuerst einen vollständigen `snapshot`, optional Replay ab `Last-Event-ID` und danach Live-Deltas. Heartbeats halten inaktive Verbindungen erkennbar. Jedes Delta stößt im Browser eine serialisierte Status-Neuabfrage an; bei einem Burst folgt nach der laufenden Abfrage genau eine weitere, sodass keine ältere HTTP-Antwort einen neueren Zustand überschreibt. Browser-`EventSource` reconnectet automatisch und reicht seine letzte Event-ID weiter; ein kompletter Refresh rekonstruiert alles aus Status-, Katalog- und Stream-Snapshot. Die manuelle Abnahme bestätigte zusätzlich einen echten Verbindungsverlust durch Deaktivieren des LAN-Adapters und die automatische Wiederverbindung nach etwa 30–60 Sekunden.
 
+Das kleine `history_changed`-Delta enthält nur die geänderte Indexgeneration. Es fordert die Historienseite zum serialisierten Nachladen über die read-only API auf; einzelne JSONL-Ereignisse werden niemals über SSE dupliziert.
+
 ### Dashboard und Queue Builder
 
 Die Oberfläche zeigt:
@@ -44,6 +46,10 @@ Availability-Karten können jeden Run genau einmal in die „Run-Reihenfolge pro
 Start führt zuerst den tokenfreien Gesamt-Preflight und danach denselben Kontext als token-geschützten `start_queue`-Command aus. Nach der Core-seitigen Memory-Verifikation aktivieren Start und Resume das gebundene D2R-Fenster über den gemeinsamen gegateten Fokuspfad; React aktiviert kein Fenster selbst. Pause wartet auf Loot und Town, lässt das Spiel geöffnet und benötigt durch den globalen Hotkey keinen Browserfokus. Resume revalidiert dasselbe Spiel. Geordneter Stopp verlässt es danach genau einmal; der natürliche Wrap verlässt es erst nach der vollständigen Folge. Emergency Stop bleibt visuell getrennt, bestätigt und F11-identisch. Sichtbarer mutierter Zustand folgt ausschließlich der Core-Antwort; ein lokaler Command-Lock verhindert Doppelklick-Starts.
 
 Alle Operator-Texte und Fehler sind deutsch. Der Control-Token bleibt ausschließlich im Browser-Memory und ist für den read-only SSE-GET nicht erforderlich.
+
+### Historie
+
+Abschnitt 14.6 ergänzt den eigenen Navigationspunkt `Historie`. Zeitraum-, Kontext-, Ergebnis-, Reason- und Pickit-Filter, Übersicht, Core-sortierter Boss-/Routenvergleich, Item- und Run-Pagination, semantischer Drill-down und Exporte bleiben vollständig read-only. Tabellen wechseln auf kleinen Viewports in beschriftete Zeilengruppen. Details stehen in [Run-Historie im Dashboard](run-history.md).
 
 ## Operator / CLI
 
@@ -66,6 +72,7 @@ Für die manuelle Abnahme D2R zunächst geschlossen lassen, dann starten und wie
 - [Run-Telemetrie](run-telemetry.md)
 - [Input Controller](input-controller.md)
 - [State Probe](state-probe.md)
+- [Historien-API und Export](history-api-export.md)
 
 ---
-*Zuletzt aktualisiert: 17. Juli 2026*
+*Zuletzt aktualisiert: 22. Juli 2026*

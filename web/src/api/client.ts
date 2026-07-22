@@ -157,7 +157,7 @@ export function connectLiveEvents(
   source.onopen = () => onState("verbunden");
   source.onerror = () => onState("getrennt");
   source.addEventListener("snapshot", (event) => onSnapshot(JSON.parse((event as MessageEvent<string>).data)));
-  for (const name of ["supervisor_state_changed", "session_result", "selection_completed", "selection_failed", "d2r_state_changed", "input_state_changed", "world_state_changed", "area_changed", "runtime_error", "runtime_error_cleared", "step_changed", "route_workflow_changed", "route_library_changed", "pickit_profile_changed", "pickit_assignment_changed"]) {
+  for (const name of ["supervisor_state_changed", "session_result", "selection_completed", "selection_failed", "d2r_state_changed", "input_state_changed", "world_state_changed", "area_changed", "runtime_error", "runtime_error_cleared", "step_changed", "route_workflow_changed", "route_library_changed", "pickit_profile_changed", "pickit_assignment_changed", "history_changed"]) {
     source.addEventListener(name, (event) => onEvent(JSON.parse((event as MessageEvent<string>).data)));
   }
   return () => source.close();

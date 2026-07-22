@@ -5,6 +5,7 @@ import (
 
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/config"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/loot"
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/telemetry"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/town"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/world"
 )
@@ -77,8 +78,9 @@ func TestTownItemServiceHandlerPreservesSellOrderAfterIdentify(t *testing.T) {
 		t.Fatal(err)
 	}
 	cfg := config.LootStashConfig{InventoryLeft: 847, InventoryTop: 369, InventoryCellW: 33, InventoryCellH: 33}
+	trace := &preparationTelemetryMock{}
 	handler := &townPreparationStepHandler{
-		adapter: &townPreparationAdapter{controller: in, lootFilter: loot.NewFilter(config.NewLogger("error"), lock, policy)},
+		adapter: &townPreparationAdapter{controller: in, lootFilter: loot.NewFilter(config.NewLogger("error"), lock, policy), telemetry: trace},
 		itemOrders: orderedItemServiceOrders([]town.ItemServiceOrder{
 			{Kind: town.ItemServiceIdentify, UnitID: 51, Code: "xap"},
 			{Kind: town.ItemServiceSell, UnitID: 51, Code: "xap"},
@@ -105,9 +107,18 @@ func TestTownItemServiceHandlerPreservesSellOrderAfterIdentify(t *testing.T) {
 	if got := handler.tickItemOrders(akara, town.ItemServiceSell, town.AnchorAkara); got.Action != "item_sell" || in.modified != 1 {
 		t.Fatalf("sell action=%+v modified=%d", got, in.modified)
 	}
+	if len(trace.events) != 0 {
+		t.Fatalf("sell click emitted terminal event: %+v", trace.events)
+	}
+	if got := handler.tickItemOrders(akara, town.ItemServiceSell, town.AnchorAkara); got.Status != town.InteractionPending || len(trace.events) != 0 {
+		t.Fatalf("unchanged inventory emitted terminal event: result=%+v events=%+v", got, trace.events)
+	}
 	akara.Items = nil
 	if got := handler.tickItemOrders(akara, town.ItemServiceSell, town.AnchorAkara); got.Status != town.InteractionPending || handler.itemOrder != 2 {
 		t.Fatalf("sell verify=%+v cursor=%d", got, handler.itemOrder)
+	}
+	if len(trace.events) != 1 || trace.events[0].Event != string(telemetry.SellSuccess) || trace.events[0].VendorUnitID != 51 {
+		t.Fatalf("verified sell events=%+v", trace.events)
 	}
 }
 

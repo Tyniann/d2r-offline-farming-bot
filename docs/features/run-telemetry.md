@@ -16,17 +16,21 @@ Die Telemetrie ist fail-closed: Kann die Datei beim Start nicht erstellt oder w�
 
 ## Datei und Run-ID
 
-Für jeden konfigurierten Run erzeugt `app.New` vor dem ersten Spielinput:
+Seit Abschnitt 14.1 schreiben neue Run-Dateien Schema 3 und tragen `stream=run`. Produktive Queue-Runs erhalten ihre global eindeutige Run-ID vor dem ersten Lifecycle-Ereignis vom Supervisor; exakt diese ID wird an Session-Recorder, Run-Recorder, Dateinamen, Status und Logs weitergereicht:
 
 ```text
 logs/telemetry/countess-<UTC-Zeit>-<Zufallssuffix>.jsonl
 ```
 
-Der Dateiname ohne Erweiterung ist die `run_id`, die in jeder Zeile wiederholt wird. Jede Zeile ist ein vollständiges JSON-Objekt mit `schema_version=1`. Nach jedem Event wird synchron geflusht.
+Der Dateiname ohne Erweiterung ist die `run_id`, die in jeder Zeile wiederholt wird. Jede Zeile ist ein vollständiges JSON-Objekt mit `schema_version=3`. Produktive Events tragen zusätzlich `mode=productive_farming`, `session_id`, `game_id`, Charakter, Difficulty, D2R-Version, Definition, Route/Fingerprint, Queue-Index/-Zyklus, Startzeit und den unveränderlichen Pickit-Snapshot. Eine abweichende Run-ID, Route oder ein Moduswechsel wird vor dem Write abgewiesen.
+
+Isolierte CLI-, Route- und Town-Telemetrie wird explizit mit `mode=diagnostic` geschrieben und kann deshalb niemals anhand von Dateiname oder Run-ID in die Produktpopulation geraten. Bereits vorhandene Schema-1-Dateien bleiben unverändert auf Platte und werden von der Phase-14-Historie ignoriert.
 
 Passive Probe-, Input-Test- und Pathing-Test-Läufe ohne aktiven Run erzeugen keine Run-Telemetrie.
 
 Der isolierte `--run countess --phase loot-and-return` erzeugt dagegen bewusst eine Run-Datei. Dadurch kann Phase-13-Gate B denselben Pickit-Gewinner über Vorschau, Core-Log, `pickit_match`, `stash_attempt` und `stash_success` korrelieren.
+
+Bei produktiven Queue-Runs schreibt der Runtime-Owner vor dem Schließen des Run-Recorders genau das zum Supervisor-Ergebnis passende Terminal: `run_completed` für Advance, `run_aborted` für einen kontrollierten Retry und `run_failed` für Stop. Erst danach schreibt der Queue-Owner dasselbe Terminal in den Session-Stream. So kann der strikt korrelierende HistoryReader einen vollständig abgeschlossenen Run aufnehmen; ein Emit- oder Close-Fehler bleibt `telemetry_failed` und wird nicht als Erfolg kaschiert.
 
 ## Events
 
@@ -48,6 +52,8 @@ Der isolierte `--run countess --phase loot-and-return` erzeugt dagegen bewusst e
 | `run_context` | Frische Session-Run-Generation bindet Definition und Assets | genau einmal vor dem ersten Task-Tick |
 | `run_step_started` / `run_step_completed` / `run_step_failed` | gemeinsame Pipeline betritt oder beendet einen Step | jede Transition |
 | `run_encounter_action_started` / `run_encounter_action_completed` | eine geordnete Pre-Combat-Aktion beginnt oder endet | je Definition und Aktionsindex |
+| `boss_kill_confirmed` | die bestehende Kill-Bedingung bestätigt das Verschwinden der gepinnten Boss-Unit | genau einmal je Run |
+| `sell_success` | die gepinnte Unit hat das persönliche Inventory nach dem Sell-Input verlassen | terminal je verkauftem Item |
 
 `stash_full` wird im aktuellen Personal-Stash-MVP mit unbegrenzten Sammel-Tabs nicht heuristisch erzeugt.
 
@@ -62,9 +68,9 @@ Beispiel:
 Gemeinsame Felder:
 
 - `schema_version`, `timestamp`, `event`, `run_id`, `run`, optional `phase`
-- Pipeline-Kontext: `definition_id`, `step`, `outcome`, optional `action_index`; Encounter-Grenzen tragen zusätzlich die gepinnte Boss-`unit_id`.
+- Pipeline-Kontext: `definition_id`, `step`, `stage`, `outcome`, optional `action_index`; Encounter-Grenzen tragen zusätzlich die gepinnte Boss-`unit_id`. Jeder Step gehört Core-autoritativ genau zu `travel`, `combat`, `loot` oder `return_town`.
 - Run-Kontext: `route_id`, `route_layout_fingerprint`, `waypoint_target`, `loot_pickup_policy`, optionale `loot_sell_policy` und `town_origin`.
-- Item-Kontext: `area_id`, `unit_id`, `txt_file_no`, `code`, `name`
+- Item-Kontext: `area_id`, `unit_id`, `txt_file_no`, `code`, `name`, `item_key`, `item_name`, `base_code`, `quality`, `item_identity_kind` und bei belastbarer Set-/Unique-Auflösung `item_identity_key`. Exakte Set-/Unique-Items verwenden ihren stabilen Katalogschlüssel, andere Items Basiscode plus Qualität; unvollständige Identität wird nicht geraten.
 - Pickit-Kontext: `pickit_profile_id`, `pickit_rule_id`, `pickit_action`, `pickit_profile_revision`, `pickit_assignment_revision`
 - Ergebnis-Kontext: `reason`, `attempt`, `hover_attempt`, `candidate_count`
 - Stash-Kontext kann zusätzlich Inventory-Grid-Koordinaten tragen.
@@ -80,6 +86,8 @@ Gemeinsame Felder:
 - Profil-Telemetriefehler beenden den Task mit `profile_telemetry_failed`; Reset entfernt pending Hooks, Potion-Verifikation und Cooldowns.
 - Pipeline-Telemetrie wird vor der folgenden Input-Gelegenheit geflusht. Ein Fehler beendet den Task mit `telemetry_failed` und durchläuft die zentrale Run-Reset-Barriere.
 - Ein Fehler, der beim Protokollieren einer gerade ausgeführten Aktion entsteht, kann diese bereits ausgeführte Aktion naturgemäß nicht rückgängig machen; er verhindert aber jede folgende Aktion.
+- Ein Boss-Kill wird nicht aus Combat-Start oder Step-Abschluss abgeleitet. Schlägt sein synchroner Emit fehl, darf der Kill-Step nicht erfolgreich abschließen.
+- Ein `item_sell`-Shopinput ist nur `town_action`. Erst ein späterer kohärenter World-Snapshot, in dem die gepinnte Unit das persönliche Inventory verlassen hat, erzeugt `sell_success`.
 
 ## Live-Validierung
 
@@ -92,7 +100,7 @@ Phase-13-Gate B bestätigte dieselbe Korrelation für UnitID `225` (`Arrows`/`aq
 - Noch keine Rotation, Kompression oder automatische Bereinigung.
 - Abschnitt 11.3 projiziert ausgewählte Zustandsänderungen zusätzlich über einen flüchtigen, begrenzten Live-Publisher ins lokale Dashboard. Dieser Pfad blockiert niemals den Bot und ersetzt keine JSONL-Ereignisse; JSONL bleibt die autoritative persistente Diagnosequelle.
 - Keine Upload-Integration.
-- Phase 7.7 ergänzt einen separaten Schema-v2-Session-Recorder für Lifecycle-, Recovery- und Summary-Ereignisse; der Phase-5-Recorder bleibt für Run-/Loot-Details kompatibel.
+- Abschnitt 14.1 hebt beide weiterhin getrennten Streams für neue Daten auf Schema 3. Alte Schema-1-/Schema-2-Dateien bleiben reine Diagnoseartefakte und werden nicht migriert.
 
 ## Verwandte Features
 
@@ -101,4 +109,4 @@ Phase-13-Gate B bestätigte dieselbe Korrelation für UnitID `225` (`Arrows`/`aq
 - [Personal-Stash MVP](personal-stash-mvp.md)
 
 ---
-*Zuletzt aktualisiert: 2026-07-16*
+*Zuletzt aktualisiert: 2026-07-22*

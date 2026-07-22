@@ -25,6 +25,11 @@ type InteractionResult struct {
 	Action             string
 	UnitID             uint32
 	Code               string
+	Name               string
+	Quality            world.ItemQuality
+	IdentityKind       world.ItemIdentityKind
+	IdentityKey        string
+	IdentityValid      bool
 	Current            int
 	Threshold          int
 	BeltSlots          []int

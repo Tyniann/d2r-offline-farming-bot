@@ -21,6 +21,12 @@ type ExecutorEvent struct {
 	Mode               BuyMode
 	VendorUnitID       uint32
 	Vendor             Anchor
+	Code               string
+	Name               string
+	Quality            world.ItemQuality
+	IdentityKind       world.ItemIdentityKind
+	IdentityKey        string
+	IdentityValid      bool
 	Cost               int
 	VerifiedFinal      int
 	ProfileID          string
@@ -170,6 +176,8 @@ func executorEvent(name string, index int, step PlanStep, result InteractionResu
 		Event: name, Step: index, Kind: step.Kind, Service: step.Service, Action: result.Action, Reason: result.Reason,
 		Current: result.Current, Threshold: result.Threshold, BeltSlots: append([]int(nil), result.BeltSlots...), Mode: result.Mode,
 		VendorUnitID: result.UnitID, Vendor: result.Vendor, Cost: result.Cost, VerifiedFinal: result.VerifiedFinal,
+		Code: result.Code, Name: result.Name, Quality: result.Quality, IdentityKind: result.IdentityKind,
+		IdentityKey: result.IdentityKey, IdentityValid: result.IdentityValid,
 		ProfileID: result.ProfileID, RuleID: result.RuleID, PickitAction: result.PickitAction,
 		ProfileRevision: result.ProfileRevision, AssignmentRevision: result.AssignmentRevision,
 	}

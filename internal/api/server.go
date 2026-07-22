@@ -153,6 +153,12 @@ func (s *Server) routes() http.Handler {
 	mux.HandleFunc("/api/v1/pickit/profiles/{profileID}/export", s.handlePickitExport)
 	mux.HandleFunc("/api/v1/pickit/profiles/{profileID}", s.handlePickitProfile)
 	mux.HandleFunc("/api/v1/events", s.handleEvents)
+	mux.HandleFunc("/api/v1/history/summary", s.handleHistorySummary)
+	mux.HandleFunc("/api/v1/history/comparisons", s.handleHistoryComparisons)
+	mux.HandleFunc("/api/v1/history/items", s.handleHistoryItems)
+	mux.HandleFunc("/api/v1/history/runs/{runID}", s.handleHistoryRunDetail)
+	mux.HandleFunc("/api/v1/history/runs", s.handleHistoryRuns)
+	mux.HandleFunc("/api/v1/history/export", s.handleHistoryExport)
 	mux.HandleFunc("/api/v1/control/bootstrap", s.handleControlBootstrap)
 	for path, command := range commandPaths {
 		commandName := command

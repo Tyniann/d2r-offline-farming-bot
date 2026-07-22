@@ -27,9 +27,9 @@ Nur die validierten Codes `hard_stuck`, `route_drift_exceeded`, `route_segment_t
 
 ## Session-Recorder
 
-`telemetry.NewSessionRecorder` erzeugt vor Session-Input eine Datei `logs/telemetry/session-<UTC-Zeit>-<Zufallssuffix>.jsonl`. Lifecycle-Events verwenden `schema_version=2` und tragen dieselbe `session_id`; Game-/Run-Events ergänzen `game_id`, `run_id`, Queue-Index, Zyklus und Ergebnisfelder. Zwischen zwei erfolgreichen Queue-Einträgen desselben Spiels gibt es kein `game_exited`.
+`telemetry.NewSessionRecorderWithContext` erzeugt vor Session-Input eine Datei `logs/telemetry/session-<UTC-Zeit>-<Zufallssuffix>.jsonl`. Neue Lifecycle-Events verwenden seit Abschnitt 14.1 `schema_version=3`, `stream=session`, `mode=productive_farming` und tragen dieselbe `session_id` sowie unveränderlich Charakter, Difficulty und D2R-Version. `game_started` und `game_exited` ergänzen ausschließlich die `game_id`; sie gehören zur Session-Grenze und übernehmen keinen zufällig aktuellen Run-Kontext. Nur `run_started` und das zugehörige Run-Terminal tragen die global eindeutige `run_id`, Run-Definition, Queue-Index und Zyklus. Zwischen zwei erfolgreichen Queue-Einträgen desselben Spiels gibt es kein `game_exited`. Doppelte Run- oder Session-Terminals sowie Kontextdrift werden vor dem Write abgewiesen.
 
-Der Phase-5-Run-Recorder schreibt weiterhin Schema 1 für Loot-/Route-Detailereignisse. Jede frische Run-Generation beginnt mit genau einem `run_context`, das Definition, Route/Fingerprint, Waypoint-Ziel, Pickup-/Sell-Policy und Town-Herkunft bindet.
+Der getrennte Run-Recorder schreibt für neue Daten ebenfalls Schema 3 und verwendet exakt dieselbe Supervisor-Run-ID im Dateinamen und in jeder Zeile. Jede frische Run-Generation beginnt mit genau einem `run_context`, das Definition, Route/Fingerprint, Queue-Kontext und Pickit-Snapshot bindet. Alte Schema-1-/Schema-2-Dateien werden nicht verändert oder importiert.
 
 ## Abnahme
 
@@ -43,4 +43,4 @@ Supervisor-, Queue-Lifecycle- und Telemetrietests decken exakte Retry-Freigabe, 
 - [Run-Telemetrie](run-telemetry.md)
 
 ---
-*Zuletzt aktualisiert: 2026-07-17*
+*Zuletzt aktualisiert: 2026-07-22*

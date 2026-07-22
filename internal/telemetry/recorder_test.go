@@ -49,7 +49,7 @@ func TestRecorderWritesOneJSONLObjectPerLineAndDeduplicatesObservedUnits(t *test
 		t.Fatalf("event count=%d, want 4", len(events))
 	}
 	for _, event := range events {
-		if event.SchemaVersion != 1 || event.RunID != r.RunID() || event.Run != "countess" || event.Phase != "loot-and-return" || event.Timestamp.IsZero() {
+		if event.SchemaVersion != HistorySchemaVersion || event.Stream != HistoryStreamRun || event.Mode != HistoryModeDiagnostic || event.RunID != r.RunID() || event.Run != "countess" || event.Phase != "loot-and-return" || event.Timestamp.IsZero() {
 			t.Fatalf("incomplete event: %+v", event)
 		}
 	}

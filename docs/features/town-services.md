@@ -123,7 +123,7 @@ Die Live-Abnahme am 14. Juli 2026 bestätigte die korrigierte Cain-Auswahl `Home
 
 Der zentrale `Executor` konsumiert ausschließlich einen validierten `Plan`. Globale Budgets begrenzen Planlänge, Inputs, Verify-Ticks und Voraktions-Retries. Nach der ersten realen Aktion eines Schritts ist Retry gesperrt. Pause ruft keinen Handler auf; Stop und `Reset` verwerfen Fortschritt und alle untergeordneten Pin-/UI-Zustände. Ein synchroner Telemetriefehler wird sticky und verhindert jeden weiteren Handleraufruf.
 
-`town_action` und `town_step_completed` werden auf JSONL abgebildet. Das Schema kann Ist-Menge, Auslöseschwelle, Belt-Spalten, `bulk`/`single`, Vendor-UnitID, Anbieter, Kosten und verifizierten Endbestand tragen. Dadurch bleibt die Kaufentscheidung getrennt von der realen Aktion und ihrer Bestätigung nachvollziehbar.
+`town_action` und `town_step_completed` werden auf JSONL abgebildet. Das Schema kann Ist-Menge, Auslöseschwelle, Belt-Spalten, `bulk`/`single`, Vendor-UnitID, Anbieter, Kosten und verifizierten Endbestand tragen. Dadurch bleibt die Kaufentscheidung getrennt von der realen Aktion und ihrer Bestätigung nachvollziehbar. Ein `item_sell` bleibt ausschließlich eine Input-Aktion. Erst nachdem ein späterer World-Snapshot das Verlassen des persönlichen Inventory durch dieselbe gepinnte Unit bestätigt, schreibt der Handler genau ein terminales `sell_success` mit stabilem Itemkey und dem beim Sell erneut bestätigten Pickit-Profil-, Regel- und Revisionskontext. Unveränderte Inventory-Zustände, Timeout oder Telemetriefehler erzeugen keinen Verkaufserfolg.
 
 ## Zentraler Post-Run-Flow (9.10)
 
@@ -148,4 +148,4 @@ Die Live-Abnahme am 13. Juli 2026 erfüllte das Gate vollständig. Der autonome 
 - [Character & Encounter Profiles](character-encounter-profiles.md)
 
 ---
-*Zuletzt aktualisiert: 21. Juli 2026*
+*Zuletzt aktualisiert: 22. Juli 2026*

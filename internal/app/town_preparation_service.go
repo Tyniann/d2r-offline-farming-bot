@@ -10,6 +10,7 @@ import (
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/input"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/loot"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/pathing"
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/telemetry"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/town"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/world"
 )
@@ -124,8 +125,10 @@ func (a *townPreparationAdapter) planItemServiceOrders(state world.State) ([]tow
 		}
 		locked := a.lootFilter == nil || a.lootFilter.InventoryLocked(item)
 		candidates = append(candidates, town.ItemServiceCandidate{
-			UnitID: item.UnitID, Code: item.Code, IdentifyRequired: !item.Identified,
-			VendorCandidate: true, InventoryLocked: locked,
+			UnitID: item.UnitID, Code: item.Code, Name: item.Name, Quality: item.Quality,
+			IdentityKind: item.IdentityKind, IdentityKey: item.IdentityKey, IdentityValid: item.IdentityValid,
+			IdentifyRequired: !item.Identified,
+			VendorCandidate:  true, InventoryLocked: locked,
 		})
 	}
 	return town.PlanItemServices(candidates)
@@ -356,6 +359,11 @@ func (h *townPreparationStepHandler) tickItemOrders(state world.State, kind town
 			h.itemOrder++
 			return town.InteractionResult{Status: town.InteractionPending, UnitID: order.UnitID, Reason: "pickit_recheck_no_match", Vendor: anchor}
 		}
+		// Identification may refine set/unique identity. Freeze the latest
+		// memory-backed item context together with the revalidated sell policy.
+		order.Code, order.Name, order.Quality = item.Code, item.Name, item.Quality
+		order.IdentityKind, order.IdentityKey, order.IdentityValid = item.IdentityKind, item.IdentityKey, item.IdentityValid
+		h.itemOrders[h.itemOrder] = order
 		executor, err := town.NewItemServiceExecutor(h.itemInput, order, townRestockVerifyTicks)
 		if err != nil {
 			return town.InteractionResult{Status: town.InteractionFailed, Reason: err.Error(), Done: true}
@@ -365,6 +373,8 @@ func (h *townPreparationStepHandler) tickItemOrders(state world.State, kind town
 	}
 	h.itemInput.bind(state)
 	result := h.itemExecutor.Tick(state)
+	result.Code, result.Name, result.Quality = order.Code, order.Name, order.Quality
+	result.IdentityKind, result.IdentityKey, result.IdentityValid = order.IdentityKind, order.IdentityKey, order.IdentityValid
 	result.ProfileID, result.RuleID, result.PickitAction = h.itemPolicy.ProfileID, h.itemPolicy.RuleID, string(h.itemPolicy.Action)
 	result.ProfileRevision, result.AssignmentRevision = h.itemPolicy.ProfileRevision, h.itemPolicy.AssignmentRevision
 	if result.Status == town.InteractionAction && h.adapter.log != nil {
@@ -372,6 +382,23 @@ func (h *townPreparationStepHandler) tickItemOrders(state world.State, kind town
 	}
 	result.Vendor = anchor
 	if result.Status == town.InteractionComplete {
+		if order.Kind == town.ItemServiceSell {
+			// The item-service executor returns complete only after a coherent World
+			// snapshot proves that the pinned UnitID left personal inventory. The
+			// terminal sell event therefore cannot be derived from the vendor click.
+			if h.adapter == nil || h.adapter.telemetry == nil {
+				return town.InteractionResult{Status: town.InteractionFailed, Reason: string(town.ReasonTelemetryFailed), UnitID: order.UnitID, Done: true}
+			}
+			if err := h.adapter.telemetry.EmitTown(town.ExecutorEvent{
+				Event: string(telemetry.SellSuccess), VendorUnitID: order.UnitID, Vendor: anchor,
+				Code: order.Code, Name: order.Name, Quality: order.Quality,
+				IdentityKind: order.IdentityKind, IdentityKey: order.IdentityKey, IdentityValid: order.IdentityValid,
+				ProfileID: h.itemPolicy.ProfileID, RuleID: h.itemPolicy.RuleID, PickitAction: string(h.itemPolicy.Action),
+				ProfileRevision: h.itemPolicy.ProfileRevision, AssignmentRevision: h.itemPolicy.AssignmentRevision,
+			}); err != nil {
+				return town.InteractionResult{Status: town.InteractionFailed, Reason: string(town.ReasonTelemetryFailed), UnitID: order.UnitID, Done: true}
+			}
+		}
 		h.itemOrder++
 		h.itemExecutor = nil
 		h.itemPolicy = loot.PickitResult{}

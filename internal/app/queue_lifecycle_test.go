@@ -177,7 +177,7 @@ func TestSameGamePauseResumeAndStopUseOneOpenGame(t *testing.T) {
 		t.Fatal(err)
 	}
 	second := <-runner.started
-	if second.RunID != "mephisto" || second.GameID != first.GameID {
+	if second.DefinitionID != "mephisto" || second.GameID != first.GameID {
 		t.Fatalf("same-game resume first=%+v second=%+v", first, second)
 	}
 	running = supervisor.Snapshot()

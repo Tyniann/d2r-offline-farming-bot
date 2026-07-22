@@ -49,6 +49,49 @@ export function getCatalog(signal?: AbortSignal): Promise<CatalogDTO> {
   return getJSON<CatalogDTO>("/api/v1/catalog", signal);
 }
 
+export interface HistoryQuery {
+  from?: string;
+  to?: string;
+  run?: string[];
+  character?: string[];
+  difficulty?: string[];
+  outcome?: string[];
+  reason?: string[];
+  pickit_profile?: string[];
+  sort?: "keep_per_hour" | "success_rate" | "average_duration";
+  limit?: number;
+  cursor?: string;
+}
+
+function historyQuery(query: HistoryQuery = {}): string {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(query)) {
+    if (value === undefined || value === "" || Array.isArray(value) && value.length === 0) continue;
+    if (Array.isArray(value)) value.forEach((entry) => params.append(key, entry));
+    else params.set(key, String(value));
+  }
+  const encoded = params.toString();
+  return encoded ? "?" + encoded : "";
+}
+
+export function getHistorySummary(query: HistoryQuery = {}, signal?: AbortSignal): Promise<HistorySummaryResponse> { return getJSON<HistorySummaryResponse>("/api/v1/history/summary" + historyQuery(query), signal); }
+export function getHistoryComparisons(query: HistoryQuery = {}, signal?: AbortSignal): Promise<HistoryComparisonsResponse> { return getJSON<HistoryComparisonsResponse>("/api/v1/history/comparisons" + historyQuery(query), signal); }
+export function getHistoryItems(query: HistoryQuery = {}, signal?: AbortSignal): Promise<HistoryItemsResponse> { return getJSON<HistoryItemsResponse>("/api/v1/history/items" + historyQuery(query), signal); }
+export function getHistoryRuns(query: HistoryQuery = {}, signal?: AbortSignal): Promise<HistoryRunsResponse> { return getJSON<HistoryRunsResponse>("/api/v1/history/runs" + historyQuery(query), signal); }
+export function getHistoryRun(runID: string, includeRaw = false, signal?: AbortSignal): Promise<HistoryRunDetailResponse> { return getJSON<HistoryRunDetailResponse>(\`/api/v1/history/runs/\${encodeURIComponent(runID)}?include_raw=\${includeRaw}\`, signal); }
+export function getHistoryExportURL(format: "json" | "csv", dataset: "" | "runs" | "items" = "", query: HistoryQuery = {}): string {
+  const suffix = historyQuery(query);
+  const separator = suffix ? "&" : "?";
+  return "/api/v1/history/export" + suffix + separator + new URLSearchParams({ format, ...(dataset ? { dataset } : {}) }).toString();
+}
+export async function downloadHistoryExport(format: "json" | "csv", dataset: "" | "runs" | "items" = "", query: HistoryQuery = {}, signal?: AbortSignal): Promise<{ blob: Blob; filename: string }> {
+  const response = await fetch(getHistoryExportURL(format, dataset, query), { signal, headers: { Accept: format === "json" ? "application/json" : "text/csv" } });
+  if (!response.ok) { const error = await response.json().catch(() => null) as { message?: string } | null; throw new Error(error?.message ?? \`Historienexport fehlgeschlagen (\${response.status})\`); }
+  const disposition = response.headers.get("Content-Disposition") ?? "";
+  const filename = disposition.match(/filename="([A-Za-z0-9._-]+)"/)?.[1] ?? \`d2r-history.\${format}\`;
+  return { blob: await response.blob(), filename };
+}
+
 export function getPickitCatalog(signal?: AbortSignal): Promise<PickitCatalogDTO> { return getJSON<PickitCatalogDTO>("/api/v1/pickit/catalog", signal); }
 export function getPickitProfiles(signal?: AbortSignal): Promise<PickitProfilesDTO> { return getJSON<PickitProfilesDTO>("/api/v1/pickit/profiles", signal); }
 export function validatePickitProfile(request: PickitValidationRequest, signal?: AbortSignal): Promise<PickitValidationDTO> { return sendJSON<PickitValidationDTO>("/api/v1/pickit/profiles/validate", "POST", request, "", signal); }

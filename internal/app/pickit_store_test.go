@@ -129,7 +129,7 @@ func TestMigratedPickitProfilesReproduceCountessAndMephistoPolicies(t *testing.T
 		t.Fatal(err)
 	}
 	allProfiles, err := profiles.List()
-	if err != nil || len(allProfiles) != 6 {
+	if err != nil || len(allProfiles) != 4 {
 		t.Fatalf("initial profiles = %d error=%v", len(allProfiles), err)
 	}
 	assignments, err := NewPickitAssignmentStore(filepath.Join(t.TempDir(), "assignments.yaml"), profiles)
@@ -180,21 +180,6 @@ func TestMigratedPickitProfilesReproduceCountessAndMephistoPolicies(t *testing.T
 		})
 	}
 
-	manifest, err := assignments.Snapshot()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, replaceErr := assignments.Replace("MrBones", tasks.RunIDCountess, []string{"gems", "keys", "countess-standard", "phase13-live-acceptance"}, manifest.Revision); replaceErr != nil {
-		t.Fatal(replaceErr)
-	}
-	acceptance, err := assignments.Resolve("MrBones", tasks.RunIDCountess)
-	if err != nil {
-		t.Fatal(err)
-	}
-	result := acceptance.All.Evaluate(world.Item{Code: "aqv", Name: "Arrows", Type: "bowq"})
-	if !result.Matched || result.ProfileID != "phase13-live-acceptance" || result.RuleID != "arrows-live-gate" || result.Action != loot.ActionKeep {
-		t.Fatalf("acceptance result = %+v", result)
-	}
 }
 
 func TestRepositoryPickitAssignmentExampleReferencesValidProfiles(t *testing.T) {
