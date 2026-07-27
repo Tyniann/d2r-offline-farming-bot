@@ -3,6 +3,7 @@
 export interface StatusDTO {
   schema_version: number;
   core_version: string;
+  app_version: string;
   state: string;
   generation: number;
   lifecycle_phase: string;
@@ -12,12 +13,23 @@ export interface StatusDTO {
   game_id?: string;
   step?: string;
   d2r: D2RDTO;
+  compatibility: CompatibilityDTO;
   input: InputDTO;
   world: WorldDTO;
   selection: SelectionStatusDTO;
   queue: QueueStatusDTO;
   last_result?: SessionResultDTO;
   last_error?: ErrorDTO;
+}
+
+export interface CompatibilityDTO {
+  state: "not_detected" | "compatible" | "incompatible" | "unreadable";
+  reason?: string;
+  supported_version: string;
+  expected_version: string;
+  offset_version: string;
+  actual_version?: string;
+  privilege_mismatch: boolean;
 }
 
 export interface SessionResultDTO {
@@ -47,6 +59,61 @@ export interface QueueBudgetsDTO {
   max_duration_ms: number;
   max_consecutive_failures: number;
   max_total_restarts: number;
+}
+
+export interface OperatorCharacterSettingsDTO {
+  last_difficulty: "normal" | "nightmare" | "hell";
+  queue: Array<string>;
+}
+
+export interface OperatorBudgetSettingsDTO {
+  max_runs: number;
+  max_duration_ms: number;
+  max_consecutive_failures: number;
+  max_total_restarts: number;
+}
+
+export interface OperatorInputSettingsDTO {
+  enabled: boolean;
+  pause_hotkey: string;
+  stop_after_run_hotkey: string;
+  recording_finish_hotkey: string;
+  emergency_stop_hotkey: string;
+}
+
+export interface OperatorHistorySettingsDTO {
+  retention_enabled: boolean;
+  retention_days: number;
+}
+
+export interface OperatorSettingsDTO {
+  schema_version: number;
+  revision: number;
+  last_character?: string;
+  characters: Record<string, OperatorCharacterSettingsDTO>;
+  budgets: OperatorBudgetSettingsDTO;
+  input: OperatorInputSettingsDTO;
+  history: OperatorHistorySettingsDTO;
+}
+
+export interface OperatorSettingsMutationRequest {
+  expected_revision: number;
+  expected_generation: number;
+  settings: OperatorSettingsDTO;
+}
+
+export interface OperatorSettingsResetRequest {
+  expected_revision: number;
+  expected_generation: number;
+}
+
+export interface OperatorSettingsChangeDTO {
+  schema_version: number;
+  generation: number;
+  settings: OperatorSettingsDTO;
+  changed_fields: Array<string>;
+  restart_required: boolean;
+  reason_code?: string;
 }
 
 export interface D2RDTO {
@@ -199,6 +266,12 @@ export interface RouteEntryDTO {
   reason?: string;
 }
 
+export interface RecordingPrerequisiteDTO {
+  id: "waypoint" | "teleport" | "town_portal" | "pickit";
+  ready: boolean;
+  reason?: string;
+}
+
 export interface RecordingOptionDTO {
   run_id: string;
   display_name: string;
@@ -210,6 +283,7 @@ export interface RecordingOptionDTO {
   terminal_max_distance_tiles: number;
   available: boolean;
   reason?: string;
+  prerequisites: Array<RecordingPrerequisiteDTO>;
 }
 
 export interface RouteCandidateDTO {
@@ -436,6 +510,7 @@ export interface PickitExportDTO {
 export interface HistoryFilterDTO {
   from_utc?: string;
   to_utc?: string;
+  timezone: string;
   runs: Array<string>;
   characters: Array<string>;
   difficulties: Array<string>;
@@ -619,9 +694,23 @@ export interface HistoryRunDetailDTO {
   raw_events?: Array<Record<string, unknown>>;
 }
 
+export interface HistoryDailyBucketDTO {
+  date: string;
+  start_utc: string;
+  end_utc: string;
+  terminal_runs: number;
+  successful: number;
+  success_rate?: number;
+  active_duration_ms: number;
+  active_hours: number;
+  keep_return: number;
+  keep_per_hour?: number;
+}
+
 export interface HistorySummaryResponse {
   meta: HistoryMetaDTO;
   summary: HistorySummaryDTO;
+  daily_buckets: Array<HistoryDailyBucketDTO>;
 }
 
 export interface HistoryComparisonsResponse {
@@ -649,9 +738,56 @@ export interface HistoryRunDetailResponse {
 export interface HistoryReportDTO {
   meta: HistoryMetaDTO;
   summary: HistorySummaryDTO;
+  daily_buckets: Array<HistoryDailyBucketDTO>;
   comparisons: Array<HistoryComparisonDTO>;
   items: Array<HistoryItemDTO>;
   runs: Array<HistoryRunDTO>;
+}
+
+export interface HistoryMaintenanceDiagnosticDTO {
+  file_id?: string;
+  code: string;
+  message: string;
+}
+
+export interface HistoryDeletePreviewRequest {
+  expected_generation: number;
+}
+
+export interface HistoryDeletePreviewDTO {
+  confirmation_token: string;
+  index_generation: number;
+  candidate_files: number;
+  candidate_bytes: number;
+  protected_files: number;
+  categories: Record<string, number>;
+}
+
+export interface HistoryDeleteConfirmRequest {
+  expected_generation: number;
+  confirmation_token: string;
+  index_generation: number;
+  candidate_files: number;
+  candidate_bytes: number;
+}
+
+export interface HistoryDeleteResultDTO {
+  deleted_files: number;
+  deleted_bytes: number;
+  protected_files: number;
+  diagnostics: Array<HistoryMaintenanceDiagnosticDTO>;
+}
+
+export interface DiagnosticBundleRequest {
+  include_telemetry: boolean;
+  include_routes: boolean;
+}
+
+export interface DiagnosticBundleDTO {
+  filename: string;
+  bytes: number;
+  included_telemetry: boolean;
+  included_routes: boolean;
 }
 
 export interface ErrorDTO {
@@ -685,9 +821,30 @@ export function getCatalog(signal?: AbortSignal): Promise<CatalogDTO> {
   return getJSON<CatalogDTO>("/api/v1/catalog", signal);
 }
 
+export function getOperatorSettings(signal?: AbortSignal): Promise<OperatorSettingsDTO> {
+  return getJSON<OperatorSettingsDTO>("/api/v1/settings/operator", signal);
+}
+
+export function previewOperatorSettings(request: OperatorSettingsMutationRequest, signal?: AbortSignal): Promise<OperatorSettingsChangeDTO> {
+  return sendJSON<OperatorSettingsChangeDTO>("/api/v1/settings/operator/preview", "POST", request, "", signal);
+}
+
+export function updateOperatorSettings(request: OperatorSettingsMutationRequest, token: string, signal?: AbortSignal): Promise<OperatorSettingsChangeDTO> {
+  return sendJSON<OperatorSettingsChangeDTO>("/api/v1/settings/operator", "PUT", request, token, signal);
+}
+
+export function resetOperatorSettings(request: OperatorSettingsResetRequest, token: string, signal?: AbortSignal): Promise<OperatorSettingsChangeDTO> {
+  return sendJSON<OperatorSettingsChangeDTO>("/api/v1/settings/operator/reset", "POST", request, token, signal);
+}
+
+export function previewResetOperatorSettings(request: OperatorSettingsResetRequest, signal?: AbortSignal): Promise<OperatorSettingsChangeDTO> {
+  return sendJSON<OperatorSettingsChangeDTO>("/api/v1/settings/operator/reset/preview", "POST", request, "", signal);
+}
+
 export interface HistoryQuery {
   from?: string;
   to?: string;
+  timezone?: string;
   run?: string[];
   character?: string[];
   difficulty?: string[];
@@ -726,6 +883,16 @@ export async function downloadHistoryExport(format: "json" | "csv", dataset: "" 
   const disposition = response.headers.get("Content-Disposition") ?? "";
   const filename = disposition.match(/filename="([A-Za-z0-9._-]+)"/)?.[1] ?? `d2r-history.${format}`;
   return { blob: await response.blob(), filename };
+}
+
+export function previewHistoryDeleteAll(request: HistoryDeletePreviewRequest, token: string, signal?: AbortSignal): Promise<HistoryDeletePreviewDTO> {
+  return sendJSON<HistoryDeletePreviewDTO>("/api/v1/history/delete-all/preview", "POST", request, token, signal);
+}
+export function confirmHistoryDeleteAll(request: HistoryDeleteConfirmRequest, token: string, signal?: AbortSignal): Promise<HistoryDeleteResultDTO> {
+  return sendJSON<HistoryDeleteResultDTO>("/api/v1/history/delete-all/confirm", "POST", request, token, signal);
+}
+export function createDiagnosticBundle(request: DiagnosticBundleRequest, token: string, signal?: AbortSignal): Promise<DiagnosticBundleDTO> {
+  return sendJSON<DiagnosticBundleDTO>("/api/v1/diagnostics/bundle", "POST", request, token, signal);
 }
 
 export function getPickitCatalog(signal?: AbortSignal): Promise<PickitCatalogDTO> { return getJSON<PickitCatalogDTO>("/api/v1/pickit/catalog", signal); }

@@ -8,10 +8,15 @@ vi.mock("../../api/generated", () => ({
   getHistoryRuns: mocks.runs, getHistoryRun: mocks.detail, downloadHistoryExport: mocks.download,
 }));
 
-const meta = { schema_version: 3, generated_at: "2026-07-22T12:00:00Z", timezone: "UTC", index_generation: 4, filter: { runs: [], characters: [], difficulties: [], outcomes: [], reasons: [], pickit_profiles: [] }, diagnostics: [{ file: "broken.jsonl", code: "history_file_invalid", message: "Die Datei ist beschädigt." }], ignored_files: 2 };
+const meta = { schema_version: 3, generated_at: "2026-07-22T12:00:00Z", timezone: "UTC", index_generation: 4, filter: { timezone: "UTC", runs: [], characters: [], difficulties: [], outcomes: [], reasons: [], pickit_profiles: [] }, diagnostics: [{ file: "broken.jsonl", code: "history_file_invalid", message: "Die Datei ist beschädigt." }], ignored_files: 2 };
 const durations = { count: 5, total_ms: 360000, average_ms: 72000, median_ms: 60000, minimum_ms: 30000, maximum_ms: 120000 };
 const stages = { travel_ms: 150000, combat_ms: 55000, loot_ms: 55000, return_town_ms: 40000, other_ms: 60000 };
 const funnel = { seen: 6, matched: 6, picked_up: 5, stashed: 3, sold: 1, keep_return: 3, pickup_lost: 1, post_pickup_lost: 1 };
+const dailyBuckets = [
+  { date: "2026-07-20", start_utc: "2026-07-20T00:00:00Z", end_utc: "2026-07-21T00:00:00Z", terminal_runs: 3, successful: 2, success_rate: 2 / 3, active_duration_ms: 180000, active_hours: .05, keep_return: 2, keep_per_hour: 40 },
+  { date: "2026-07-21", start_utc: "2026-07-21T00:00:00Z", end_utc: "2026-07-22T00:00:00Z", terminal_runs: 0, successful: 0, active_duration_ms: 0, active_hours: 0, keep_return: 0 },
+  { date: "2026-07-22", start_utc: "2026-07-22T00:00:00Z", end_utc: "2026-07-23T00:00:00Z", terminal_runs: 2, successful: 1, success_rate: .5, active_duration_ms: 180000, active_hours: .05, keep_return: 1, keep_per_hour: 20 },
+];
 const failure = { step: "acquire_boss", reason: "boss_not_found", reason_message: "Der Boss wurde nicht gefunden.", count: 1, lost_duration_ms: 120000 };
 const routeA = { id: "a", character: "MrBones", difficulty: "nightmare", definition_id: "countess", run: "countess", route_id: "countess-route-a", terminal_runs: 2, successful: 1, failed: 1, aborted: 0, success_rate: .5, boss_kills: 1, low_sample: true, durations: { ...durations, count: 2, total_ms: 180000, average_ms: 90000 }, stages, funnel, keep_per_run: .5, keep_per_kill: 1, keep_per_hour: 20, top_failure: failure };
 const routeB = { ...routeA, id: "b", route_id: "countess-route-b", terminal_runs: 1, successful: 1, failed: 0, success_rate: 1, durations: { ...durations, count: 1, total_ms: 90000, average_ms: 90000 }, keep_per_run: 1, keep_per_hour: 40, top_failure: undefined };
@@ -23,7 +28,7 @@ describe("HistoryFeature", () => {
   afterEach(cleanup);
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.summary.mockResolvedValue({ meta, summary: { runs: 7, terminal_runs: 5, successful: 3, failed: 2, aborted: 0, incomplete: 1, running: 1, success_rate: .6, boss_kills: 4, durations, stages, funnel, keep_per_run: .6, keep_per_kill: .75, keep_per_hour: 30, top_failure: failure } });
+    mocks.summary.mockResolvedValue({ meta, daily_buckets: dailyBuckets, summary: { runs: 7, terminal_runs: 5, successful: 3, failed: 2, aborted: 0, incomplete: 1, running: 1, success_rate: .6, boss_kills: 4, durations, stages, funnel, keep_per_run: .6, keep_per_kill: .75, keep_per_hour: 30, top_failure: failure } });
     mocks.comparisons.mockResolvedValue({ meta, comparisons: [routeA, routeB, routeMephisto] });
     mocks.items.mockResolvedValue({ meta, items: [item], next_cursor: "items-next" });
     mocks.runs.mockResolvedValue({ meta, runs: [run], next_cursor: "runs-next" });
@@ -43,7 +48,14 @@ describe("HistoryFeature", () => {
     expect(screen.getByText("Nicht aggregiert: 1 aktiv, 1 unvollständig.")).toBeInTheDocument();
     expect(screen.getByText("Die Datei ist beschädigt.")).toBeInTheDocument();
     expect(screen.getByRole("table", { name: /Keep, Verkauf und Verluste/ })).toBeInTheDocument();
-    expect(container.querySelectorAll(".table-scroll")).toHaveLength(3);
+    expect(container.querySelectorAll(".table-scroll")).toHaveLength(7);
+    expect(screen.getByRole("heading", { name: "Tagesverlauf" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Routenvergleich" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Run-Stages" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Loot-Funnel" })).toBeInTheDocument();
+    const dailyTable = screen.getByRole("table", { name: "Exakte Core-Werte des Tagesverlaufs" });
+    expect(within(dailyTable).getByText("2026-07-21").closest("tr")).toHaveTextContent("2026-07-212026-07-21T00:00:00Z – 2026-07-22T00:00:00Z0–00–");
+    fireEvent.change(screen.getByLabelText("Tageskennzahl"), { target: { value: "keep_per_hour" } });
     const comparison = screen.getByRole("table", { name: /Vergleich derselben/ });
     expect(within(comparison).getAllByRole("row")[1]).toHaveTextContent("countess-route-a");
     fireEvent.change(screen.getByLabelText("Sortierung"), { target: { value: "average_duration" } });
@@ -84,11 +96,11 @@ describe("HistoryFeature", () => {
     const { rerender } = render(<HistoryFeature characters={[]} runs={[]} refreshKey={0} />);
     await screen.findByRole("button", { name: "JSON-Report" });
     fireEvent.click(screen.getByRole("button", { name: "JSON-Report" }));
-    await waitFor(() => expect(mocks.download).toHaveBeenCalledWith("json", "", {}));
+    await waitFor(() => expect(mocks.download).toHaveBeenCalledWith("json", "", expect.objectContaining({ timezone: expect.any(String), from: expect.stringMatching(/Z$/), to: expect.stringMatching(/Z$/) })));
     mocks.download.mockRejectedValueOnce(new Error("Export nicht verfügbar"));
     fireEvent.click(screen.getByRole("button", { name: "Run-CSV" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Export nicht verfügbar");
-    mocks.summary.mockResolvedValue({ meta, summary: { runs: 0, terminal_runs: 0, successful: 0, failed: 0, aborted: 0, incomplete: 0, running: 0, boss_kills: 0, durations: { ...durations, count: 0 }, stages, funnel } });
+    mocks.summary.mockResolvedValue({ meta, daily_buckets: [], summary: { runs: 0, terminal_runs: 0, successful: 0, failed: 0, aborted: 0, incomplete: 0, running: 0, boss_kills: 0, durations: { ...durations, count: 0 }, stages, funnel } });
     rerender(<HistoryFeature characters={[]} runs={[]} refreshKey={1} />);
     expect(await screen.findByRole("heading", { name: "Noch keine Historie" })).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("Ergebnis"), { target: { value: "failed" } });

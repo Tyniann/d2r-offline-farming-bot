@@ -1,0 +1,78 @@
+# Persistente Operator-Einstellungen
+
+## Überblick
+
+Abschnitt 15.2 macht den Go-Core zur einzigen Autorität für alle über die GUI editierbaren Fach- und Safetywerte. `operator-settings.local.yaml` ist ein strikter, revisionierter Schema-1-Vertrag. Fehlt die Datei nach einem frischen Defaultbundle oder einem Phase-14-Import, wird sie einmalig aus der validierten Basiskonfiguration migriert.
+
+## Ort im Code
+
+- **Paket:** `internal/app/`
+- **Store:** `OperatorSettingsStore` in `internal/app/operator_settings.go`
+- **HTTP-Vertrag:** `internal/api/operator_settings_dto.go`, `internal/api/operator_settings_backend.go`, `internal/api/server.go`
+- **Schema:** `internal/api/schema/openapi.json`
+- **Generierter Client:** `web/src/api/generated.ts`
+- **Persistenz:** `<Datenroot>/configs/operator-settings.local.yaml`
+- **Backups:** `<Datenroot>/backups/operator-settings-*.yaml`
+
+## Funktionalität
+
+### Schema und Werte
+
+Der Store enthält eine positive Revision und:
+
+- `last_character` als zuletzt erfolgreich vom Core bestätigten Bedienkontext;
+- pro kanonischem Charakternamen eine nicht leere, geordnete und duplikatfreie Queue sowie `normal`, `nightmare` oder `hell` als letzte Difficulty;
+- globale Grenzen für maximale Runs, Dauer, aufeinanderfolgende Fehler und Restarts;
+- explizite Input-Freigabe sowie paarweise verschiedene, vom Input-Core unterstützte Pause-, Stop-after-run-, Recording-Finish- und Emergency-Hotkeys;
+- History-Retention mit sicheren Defaults `retention_enabled: true` und `retention_days: 60`.
+
+Unbekannte YAML-Felder, weitere YAML-Dokumente, Schemaabweichungen, Revision `0`, leere oder duplizierte Queues, unbekannte Run-IDs, unendliche beziehungsweise außerhalb der Grenzen liegende Budgets und ungültige Hotkeys werden vollständig abgelehnt.
+
+### Migration, Schreiben und Backups
+
+Beim ersten Öffnen erzeugt der Store Revision 1 aus den bereits validierten `config.yaml`-Werten und den bekannten Charakteren. Jede echte Änderung erzeugt vor dem Replace ein vollständiges Backup des alten Standes. Backups sind nach Revision stabil sortierbar und werden auf exakt zehn Dateien begrenzt.
+
+Eine erfolgreiche Charakterauswahl aktualisiert `last_character` und dessen `last_difficulty` gemeinsam über denselben Store, ohne Queue, Budgets, Input oder History zu ersetzen. Beim nächsten Core-Start wird dieser Kontext vor dem Aufbau der Runtime angewendet. Für bereits installierte Roots ohne `last_character` wird genau ein eindeutig im Route-Lifecycle bestätigter und weiterhin auswählbarer Charakter einmalig übernommen und anschließend in OperatorSettings persistiert. Mehrere bestätigte Charaktere werden nicht geraten.
+
+Ein Update validiert zuerst den Gesamtvertrag, schreibt eine Temp-Datei im gleichen Verzeichnis über den vorhandenen atomaren Windows-Replace, flusht und schließt sie und liest den neuen Stand erneut. Erst der identische Re-Read wird effektiv. Bei Write- oder Re-Read-Fehler bleibt der bisherige effektive Stand erhalten; nach einem fehlgeschlagenen Re-Read wird die alte Datei best-effort atomar zurückgeschrieben.
+
+### Vorschau, Update und Reset
+
+Die API stellt Read, Änderungsvorschau, Resetvorschau, Update und Reset bereit. Vorschauen sind seiteneffektfrei. Update und Reset benötigen zusätzlich zum Control-Token:
+
+- `expected_revision` des Store-Snapshots;
+- `expected_generation` des Supervisors;
+- einen inaktiven Corezustand ohne aktiven Routen-Workflow.
+
+Eine veraltete Revision liefert `config_revision_conflict`; eine veraltete Generation liefert den bestehenden `state_changed`-Vertrag. Während einer Session wird mit `command_conflict` abgelehnt. Änderungen an Input-Freigabe oder Hotkeys liefern `restart_required: true` und `config_restart_required`. Der bereits aufgebaute Input-Controller wird niemals halb live verändert. Beim nächsten kontrollierten Core-Start werden die persistenten Settings vor Konstruktion von Runtime, Hotkeys und Input auf die Core-Konfiguration angewendet.
+
+## Datenmodell
+
+- `OperatorSettings`: Schema, Revision, letzter Charakter, Charakterwerte, Budgets, Input und History.
+- `OperatorSettingsChange`: validierter Ergebnisstand, geänderte Bereiche und Neustartpflicht.
+- `OperatorSettingsMutationRequest`: erwartete Revision, Supervisorgeneration und vollständiger Ersatzvertrag.
+- `OperatorSettingsResetRequest`: erwartete Revision und Supervisorgeneration.
+
+## Operator / CLI
+
+Die Datei ist Core-eigene Persistenz und nicht für paralleles manuelles Editieren während des Betriebs gedacht. Konflikte werden nicht gemergt. Der Repositorybetrieb ohne expliziten Datenroot bleibt weiterhin allein durch `config.yaml` bestimmt.
+
+Seit Abschnitt 15.6 bildet die Settings-Seite Read, Preview, Update, Resetvorschau und Reset direkt ab. Sie hält Revisionkonflikte bis zum expliziten Neuladen sichtbar, sperrt Mutationen während aktiver Sessions und bietet bei `restart_required` ausschließlich den kontrollierten Electron-Core-Neustart an. Effektive Werte und Speicherort werden nur lesbar projiziert.
+
+## Abhängigkeiten
+
+- `internal/tasks.DefaultRunRegistry` für erlaubte Queueeinträge.
+- `internal/input.ValidateKeyStrings` für dieselbe Hotkeyvalidierung wie produktive Controller.
+- Bestehender atomarer YAML-Writer und Windows-`MoveFileEx`-Replace.
+- Bestehender API-Control-Token und Supervisorgeneration.
+
+## Verwandte Features
+
+- [Installierter Datenroot und Desktop-Einstellungen](installed-data-root.md)
+- [FarmQueue-Scheduler](farm-queue-scheduler.md)
+- [Lokale Core-API](local-core-api.md)
+- [Phase-15-Core-Vertrag](phase-15-core-contract.md)
+- [Desktop-Betrieb und Einstellungen](desktop-operation.md)
+
+---
+*Zuletzt aktualisiert: 26. Juli 2026*

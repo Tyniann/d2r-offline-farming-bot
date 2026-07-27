@@ -49,7 +49,7 @@ Der `town_ready`-Profilhook bleibt bewusst run-spezifisch: Bone Armor wird zu Be
 
 `pause_after_run` beendet Run, Loot und Town-Handoff, lässt das Spiel geöffnet und setzt den Index bereits auf den nächsten Eintrag. `resume` verlangt denselben Prozess, dasselbe Spiel, Charakter, Difficulty, Rogue Encampment und sicheren UI-Kontext. Abweichungen liefern `paused_game_lost` vor Input.
 
-`stop_after_run` gewinnt gegen Pause und führt nach Town genau einen Exit aus. Der globale, konfigurierbare `input.stop_after_run_hotkey` setzt denselben Supervisor-Intent wie der Dashboard-Button, ohne Browserfokus, Mid-Run-Cancellation oder Änderung des Input-Pausezustands. Standard ist F10. Emergency Stop und der separate `input.stop_hotkey` verwenden `emergency_stop_requested`, canceln unmittelbar und garantieren keinen Exit. Die globale Pause-Taste setzt ausschließlich den Supervisor-Intent; sie pausiert keine Route mitten im Input und benötigt keinen Browserfokus.
+`stop_after_run` gewinnt gegen Pause und führt nach Town genau einen Exit aus. Der globale, konfigurierbare `input.stop_after_run_hotkey` setzt denselben Supervisor-Intent wie der Dashboard-Button, ohne Rendererfokus, Mid-Run-Cancellation oder Änderung des Input-Pausezustands. Standard ist F10. Emergency Stop und der separate `input.stop_hotkey` verwenden `emergency_stop_requested`, canceln unmittelbar und garantieren keinen Exit. Die globale Pause-Taste setzt ausschließlich den Supervisor-Intent; sie pausiert keine Route mitten im Input und benötigt keinen Rendererfokus.
 
 ## Datenmodell und Telemetrie
 
@@ -76,7 +76,7 @@ Die vollständige Phase-11-Abnahme wurde am 17. Juli 2026 abgeschlossen. Pause u
 
 ## Grenzen
 
-- Runtime-Overrides werden nicht persistiert; Neustart lädt den YAML-Default bei Index 0.
+- Der Desktop startet ausschließlich die persistente Charakter-Queue aus den Core-eigenen Operator-Einstellungen. Explizite CLI-Testoverrides bleiben auf den Repositorybetrieb begrenzt und sind keine zweite Produktkonfiguration.
 - Keine Zeitpläne, Gewichte, Zufallsauswahl oder Mehrspiel-Separatoren.
 - Keine zweite Run-, Recovery-, Exit- oder Telemetrie-Pipeline.
 - Queue-Preflight und Scheduling verändern keine Route-Datei.

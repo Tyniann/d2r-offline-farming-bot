@@ -133,78 +133,39 @@ func candidatePortalArrivalReady(state world.State, tolerance float64) bool {
 	return townPortalArrivalReady(state, tolerance)
 }
 
-func (d *runtimeCandidatePlaybackDriver) NormalizeToAct1(ctx context.Context, act town.OriginAct) error {
-	if act == town.OriginAct1 {
-		if current := d.rt.World.Current(); current.Valid && current.Area.ID == world.RogueEncampment {
-			return nil
-		}
-		return fmt.Errorf("candidate test expected Rogue Encampment")
-	}
-	d.rt.townEgress.Reset()
-	d.rt.taskDeps.Waypoint.Reset()
-	stage := 0
-	deadline := time.Now().Add(2 * time.Minute)
-	for time.Now().Before(deadline) {
-		current, err := d.tick(ctx)
-		if err != nil {
-			return err
-		}
-		switch stage {
-		case 0:
-			if err := d.rt.townEgress.Start(act, current); err != nil {
-				return err
-			}
-			stage = 1
-		case 1:
-			done, err := d.rt.townEgress.Tick(ctx, current)
-			if err != nil {
-				return err
-			}
-			if done {
-				stage = 2
-			}
-		case 2:
-			result := d.rt.taskDeps.Waypoint.TickTownWaypoint(ctx, current)
-			if result.Done && result.Status != pathing.WaypointActionClicked {
-				return fmt.Errorf("waypoint open failed: %s", result.Reason)
-			}
-			if result.Status == pathing.WaypointActionClicked {
-				stage = 3
-			}
-		case 3:
-			if !current.UI.WaypointOpen {
-				continue
-			}
-			result := d.rt.taskDeps.Waypoint.SelectWaypointTarget(ctx, current, pathing.WaypointTargetRogueEncampment, time.Now())
-			if result.Done && result.Status != pathing.WaypointActionClicked {
-				return fmt.Errorf("select Rogue Encampment failed: %s", result.Reason)
-			}
-			if result.Status == pathing.WaypointActionClicked {
-				stage = 4
-			}
-		case 4:
-			if current.Area.ID == world.RogueEncampment {
-				return nil
-			}
-		}
-	}
-	return fmt.Errorf("candidate test Egress timeout")
-}
-
-func (d *runtimeCandidatePlaybackDriver) TravelToStart(ctx context.Context, target pathing.WaypointTargetID) error {
+func (d *runtimeCandidatePlaybackDriver) TravelToStart(ctx context.Context, act town.OriginAct, target pathing.WaypointTargetID) error {
 	action, ok := pathing.DefaultWaypointTargetRegistry().Action(target)
 	if !ok {
 		return fmt.Errorf("candidate waypoint target %q unsupported", target)
 	}
-	walker, ok := d.rt.taskDeps.TownWalk.(*layoutTownWaypointWalker)
-	if !ok || walker.adapter == nil {
-		return fmt.Errorf("candidate Town walker not wired")
+	expectedTown, ok := town.TownAreaForAct(act)
+	if !ok {
+		return fmt.Errorf("candidate origin act %q unsupported", act)
 	}
-	walker.Reset()
-	walker.adapter.startAnchor = town.AnchorPortalArrival
-	defer func() { walker.adapter.startAnchor = town.AnchorStash; walker.Reset() }()
+
+	var walker *layoutTownWaypointWalker
+	if act == town.OriginAct1 {
+		walker, ok = d.rt.taskDeps.TownWalk.(*layoutTownWaypointWalker)
+		if !ok || walker.adapter == nil {
+			return fmt.Errorf("candidate Town walker not wired")
+		}
+		walker.Reset()
+		walker.adapter.startAnchor = town.AnchorPortalArrival
+		defer func() {
+			walker.adapter.startAnchor = town.AnchorStash
+			walker.Reset()
+		}()
+	} else {
+		if d.rt.townEgress == nil {
+			return fmt.Errorf("candidate Town egress not wired")
+		}
+		d.rt.townEgress.Reset()
+		defer d.rt.townEgress.Reset()
+	}
+
 	d.rt.taskDeps.Waypoint.Reset()
 	stage := 0
+	egressStarted := false
 	deadline := time.Now().Add(2 * time.Minute)
 	for time.Now().Before(deadline) {
 		current, err := d.tick(ctx)
@@ -213,8 +174,24 @@ func (d *runtimeCandidatePlaybackDriver) TravelToStart(ctx context.Context, targ
 		}
 		switch stage {
 		case 0:
-			if current.Area.ID != world.RogueEncampment {
-				return fmt.Errorf("candidate start travel requires Rogue Encampment")
+			if current.Area.ID != expectedTown {
+				return fmt.Errorf("candidate start travel requires %s", expectedTown)
+			}
+			if act != town.OriginAct1 {
+				if !egressStarted {
+					if err := d.rt.townEgress.Start(act, current); err != nil {
+						return err
+					}
+					egressStarted = true
+				}
+				done, err := d.rt.townEgress.Tick(ctx, current)
+				if err != nil {
+					return err
+				}
+				if done {
+					stage = 1
+				}
+				continue
 			}
 			result := walker.TickAct1Waypoint(ctx, current)
 			if !result.Done {

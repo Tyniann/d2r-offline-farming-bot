@@ -17,7 +17,7 @@ import (
 func TestHistoryAPIProjectsSameAnalysisAcrossEndpointsAndJSONExport(t *testing.T) {
 	server, backend := startAPITestServer(t)
 	backend.history = historyAPIFixture()
-	query := "?difficulty=nightmare"
+	query := "?difficulty=nightmare&timezone=Europe%2FVienna"
 
 	var summary HistorySummaryResponse
 	getHistoryJSON(t, server.URL()+"/api/v1/history/summary"+query, &summary)
@@ -34,10 +34,10 @@ func TestHistoryAPIProjectsSameAnalysisAcrossEndpointsAndJSONExport(t *testing.T
 		t.Fatalf("JSON content type=%q", contentType)
 	}
 
-	if summary.Summary.TerminalRuns != report.Summary.TerminalRuns || len(comparisons.Comparisons) != len(report.Comparisons) || len(items.Items) != len(report.Items) || len(runs.Runs) != len(report.Runs) {
+	if summary.Summary.TerminalRuns != report.Summary.TerminalRuns || len(summary.DailyBuckets) != len(report.DailyBuckets) || len(comparisons.Comparisons) != len(report.Comparisons) || len(items.Items) != len(report.Items) || len(runs.Runs) != len(report.Runs) {
 		t.Fatalf("endpoint/export parity failed: summary=%+v comparisons=%d/%d items=%d/%d runs=%d/%d", summary.Summary, len(comparisons.Comparisons), len(report.Comparisons), len(items.Items), len(report.Items), len(runs.Runs), len(report.Runs))
 	}
-	if summary.Meta.IndexGeneration != 7 || summary.Meta.Timezone != "UTC" || len(summary.Meta.Diagnostics) != 1 || len(backend.historyFilter.Difficulties) != 1 || backend.historyFilter.Difficulties[0] != "nightmare" {
+	if summary.Meta.IndexGeneration != 7 || summary.Meta.Timezone != "Europe/Vienna" || len(summary.Meta.Diagnostics) != 1 || len(backend.historyFilter.Difficulties) != 1 || backend.historyFilter.Difficulties[0] != "nightmare" || backend.historyFilter.Timezone != "Europe/Vienna" {
 		t.Fatalf("meta/filter=%+v backend=%+v", summary.Meta, backend.historyFilter)
 	}
 	if runs.Runs[1].ReasonMessage != "Der Boss wurde nicht gefunden." {
@@ -139,6 +139,7 @@ func TestHistoryAPIRejectsInvalidFiltersLimitsSortsAndMethods(t *testing.T) {
 	for _, path := range []string{
 		"/api/v1/history/summary?from=2026-07-20T10:00:00%2B02:00",
 		"/api/v1/history/summary?unknown=true",
+		"/api/v1/history/summary?timezone=Europe%2FDoes-Not-Exist",
 		"/api/v1/history/runs?limit=201",
 		"/api/v1/history/runs?sort=keep_per_hour",
 		"/api/v1/history/export?format=csv&dataset=unknown",
@@ -197,7 +198,9 @@ func historyAPIFixture() historyData {
 	}
 	return historyData{
 		analysis: telemetry.HistoryAnalysis{
-			Summary: telemetry.HistorySummary{Runs: 7, TerminalRuns: 5, Successful: 3, Failed: 2, Running: 1, Incomplete: 1, SuccessRate: float64Pointer(0.6), BossKills: 4, Durations: telemetry.HistoryDurationStats{Count: 5, TotalMs: 360_000, AverageMs: 72_000, MedianMs: 60_000, MinimumMs: 30_000, MaximumMs: 120_000}, Funnel: telemetry.HistoryFunnel{Seen: 6, Matched: 6, PickedUp: 5, Stashed: 3, Sold: 1, KeepReturn: 3, PickupLost: 1, PostPickupLost: 1}, KeepPerRun: float64Pointer(0.6), KeepPerKill: float64Pointer(0.75), KeepPerHour: float64Pointer(30)},
+			Filter:       telemetry.HistoryFilter{Timezone: "Europe/Vienna", Difficulties: []string{"nightmare"}},
+			Summary:      telemetry.HistorySummary{Runs: 7, TerminalRuns: 5, Successful: 3, Failed: 2, Running: 1, Incomplete: 1, SuccessRate: float64Pointer(0.6), BossKills: 4, Durations: telemetry.HistoryDurationStats{Count: 5, TotalMs: 360_000, AverageMs: 72_000, MedianMs: 60_000, MinimumMs: 30_000, MaximumMs: 120_000}, Funnel: telemetry.HistoryFunnel{Seen: 6, Matched: 6, PickedUp: 5, Stashed: 3, Sold: 1, KeepReturn: 3, PickupLost: 1, PostPickupLost: 1}, KeepPerRun: float64Pointer(0.6), KeepPerKill: float64Pointer(0.75), KeepPerHour: float64Pointer(30)},
+			DailyBuckets: []telemetry.HistoryDailyBucket{{Date: "2026-07-20", StartUTC: started.Add(-8 * time.Hour), EndUTC: started.Add(16 * time.Hour), TerminalRuns: 5, Successful: 3, SuccessRate: float64Pointer(0.6), ActiveDurationMs: 360_000, ActiveHours: 0.1, KeepReturn: 3, KeepPerHour: float64Pointer(30)}},
 			Comparisons: []telemetry.HistoryComparison{
 				{ID: "countess-a", Character: "MrBones", Difficulty: "nightmare", DefinitionID: "countess", Run: "countess", RouteID: "countess-route-a", TerminalRuns: 2, Successful: 1, Failed: 1, SuccessRate: float64Pointer(0.5), BossKills: 1, LowSample: true, KeepPerHour: &countessRouteAKeepPerHour},
 				{ID: "countess-b", Character: "MrBones", Difficulty: "nightmare", DefinitionID: "countess", Run: "countess", RouteID: "countess-route-b", TerminalRuns: 1, Successful: 1, SuccessRate: float64Pointer(1), BossKills: 1, LowSample: true, KeepPerHour: &countessRouteBKeepPerHour},

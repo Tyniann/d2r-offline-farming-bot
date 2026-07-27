@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { CircleAlert, CircleArrowUp, History, LayoutDashboard, Map, Settings, SlidersHorizontal, Wifi, WifiOff } from "lucide-react";
 import {
   applySelection, connectLiveEvents, consumeBootstrapToken, emergencyStop, pauseAfterRun,
   previewSelection, resumeQueue, startQueue, stopAfterRun, validateQueue, type LiveConnectionState,
@@ -8,18 +9,51 @@ import "./app.css";
 import { RouteFeature } from "../features/routes/RouteFeature";
 import { PickitFeature } from "../features/pickit/PickitFeature";
 import { HistoryFeature } from "../features/history/HistoryFeature";
+import { SettingsFeature } from "../features/settings/SettingsFeature";
+import { ProvisioningFeature } from "../features/onboarding/ProvisioningFeature";
+import { OnboardingFeature } from "../features/onboarding/OnboardingFeature";
+import { clearOnboardingResume, readOnboardingResumeStep } from "../features/onboarding/onboardingResume";
+import { targetFromHash, type AppTarget } from "./navigation";
+import { Button, Dialog, PageHeader, StateMessage, StatusBadge } from "./ui";
+import { characterAvailabilityText } from "./characterReasons";
 
 const editableStates = new Set(["idle", "idle_in_game", "stopped_error"]);
 const emergencyStates = new Set(["starting_game", "starting_run", "running_run", "paused_between_runs", "exiting_game"]);
+const navigation = [
+  { target: "dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { target: "routes", label: "Routen", icon: Map },
+  { target: "pickit", label: "Pickit", icon: SlidersHorizontal },
+  { target: "history", label: "Historie", icon: History },
+  { target: "settings", label: "Einstellungen", icon: Settings },
+] as const;
 
 export function App() {
+  const bridge = window.d2rDesktop;
+  const [provisioning, setProvisioning] = useState<boolean | null>(() => bridge?.getProvisioningState ? null : false);
+
+  useEffect(() => {
+    if (!bridge?.getProvisioningState) return;
+    let active = true;
+    void bridge.getProvisioningState()
+      .then((state) => { if (active) setProvisioning(state.required); })
+      .catch(() => { if (active) setProvisioning(false); });
+    return () => { active = false; };
+  }, [bridge]);
+
+  if (provisioning === null) return <main className="provisioning-shell"><StateMessage kind="loading" title="Lokaler Datenroot wird geprüft" /></main>;
+  if (provisioning) return <ProvisioningFeature />;
+  return <CoreApp />;
+}
+
+function CoreApp() {
+  const [onboardingStep, setOnboardingStep] = useState(() => readOnboardingResumeStep(8));
+  const [target, setTarget] = useState<AppTarget>(() => targetFromHash(window.location.hash));
   const [status, setStatus] = useState<StatusDTO | null>(null);
   const [catalog, setCatalog] = useState<CatalogDTO | null>(null);
   const [events, setEvents] = useState<LiveEvent[]>([]);
   const [connection, setConnection] = useState<LiveConnectionState>("wird verbunden");
   const [character, setCharacter] = useState("");
   const [difficulty, setDifficulty] = useState("");
-  const [queue, setQueue] = useState<string[]>([]);
   const [applying, setApplying] = useState(false);
   const [commandPending, setCommandPending] = useState(false);
   const commandLock = useRef(false);
@@ -31,7 +65,51 @@ export function App() {
   const [routeRefreshKey, setRouteRefreshKey] = useState(0);
   const [pickitRefreshKey, setPickitRefreshKey] = useState(0);
   const [historyRefreshKey, setHistoryRefreshKey] = useState(0);
+  const [onboardingOpen, setOnboardingOpen] = useState(false);
+  const [routeOpenedFromOnboarding, setRouteOpenedFromOnboarding] = useState(false);
+  const [preferredRecordingRun, setPreferredRecordingRun] = useState("countess");
+  const [updateAvailable, setUpdateAvailable] = useState(false);
   const emergencyConfirmRef = useRef<HTMLButtonElement>(null);
+  const contentRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    clearOnboardingResume();
+  }, []);
+
+  useEffect(() => {
+    if (!window.location.hash) window.history.replaceState(null, "", "#dashboard");
+    const syncTarget = () => {
+      const next = targetFromHash(window.location.hash);
+      setTarget(next);
+      document.title = `${navigation.find((entry) => entry.target === next)?.label ?? "Dashboard"} · D2R Offline Farming Bot`;
+    };
+    syncTarget();
+    window.addEventListener("hashchange", syncTarget);
+    return () => window.removeEventListener("hashchange", syncTarget);
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    void window.d2rDesktop?.getDesktopSettings().then((settings) => {
+      if (active && !settings.onboarding_completed) setOnboardingOpen(true);
+    });
+    return () => { active = false; };
+  }, []);
+
+  useEffect(() => window.d2rDesktop?.onNavigate((next) => {
+    const resolved = targetFromHash(`#${next}`);
+    if (window.location.hash !== `#${resolved}`) window.location.hash = resolved;
+    else setTarget(resolved);
+  }), []);
+
+  useEffect(() => {
+    void window.d2rDesktop?.getUpdateStatus?.().then((value) => setUpdateAvailable(value.status === "available"));
+    return window.d2rDesktop?.onUpdateStatus?.((value) => setUpdateAvailable(value.status === "available"));
+  }, []);
+
+  useEffect(() => {
+    contentRef.current?.focus();
+  }, [target]);
 
   useEffect(() => {
     consumeBootstrapToken();
@@ -66,14 +144,16 @@ export function App() {
       if (controller.signal.aborted) return;
       setStatus(nextStatus);
       setCatalog(nextCatalog);
-      setQueue(nextStatus.queue?.entries ?? []);
       setCharacter(nextCatalog.characters.find((entry) => entry.selectable)?.name ?? "");
       setDifficulty(nextCatalog.default_difficulty);
       disconnect = connectLiveEvents(
         (data) => setStatus(data as StatusDTO),
         (data) => {
           setEvents((current) => [data as LiveEvent, ...current].slice(0, 40));
-          if ((data as LiveEvent).event.startsWith("route_")) setRouteRefreshKey((value) => value + 1);
+          if ((data as LiveEvent).event.startsWith("route_")) {
+            setRouteRefreshKey((value) => value + 1);
+            void getCatalog(controller.signal).then(setCatalog).catch(reportError);
+          }
           if ((data as LiveEvent).event.startsWith("pickit_")) setPickitRefreshKey((value) => value + 1);
           if ((data as LiveEvent).event === "history_changed") setHistoryRefreshKey((value) => value + 1);
           void refreshStatus();
@@ -84,21 +164,10 @@ export function App() {
     return () => { controller.abort(); disconnect(); };
   }, []);
 
-  useEffect(() => {
-    if (!confirmEmergency) return;
-    emergencyConfirmRef.current?.focus();
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setConfirmEmergency(false);
-    };
-    window.addEventListener("keydown", closeOnEscape);
-    return () => window.removeEventListener("keydown", closeOnEscape);
-  }, [confirmEmergency]);
-
   const refreshAfterCommand = async () => {
     const [nextStatus, nextCatalog] = await Promise.all([getStatus(), getCatalog()]);
     setStatus(nextStatus);
     setCatalog(nextCatalog);
-    setQueue(nextStatus.queue.entries);
   };
 
   const applyPreview = async (selectionPreview: SelectionPreviewDTO) => {
@@ -153,97 +222,108 @@ export function App() {
 
   const submitQueue = async () => {
     if (!status || !catalog || !status.selection.character || !status.selection.difficulty) return;
+    const entries = status.queue.default_entries ?? [];
     await runCommand(async () => {
-      await validateQueue(queue, status.selection.character!, status.selection.difficulty!, catalog.revision);
-      await startQueue(queue, status.selection.character!, status.selection.difficulty!, catalog.revision, status.generation);
+      await validateQueue(entries, status.selection.character!, status.selection.difficulty!, catalog.revision);
+      await startQueue(entries, status.selection.character!, status.selection.difficulty!, catalog.revision, status.generation);
     });
   };
 
-  const editorLocked = !status || !editableStates.has(status.state) || commandPending;
   const selectionLocked = applying || commandPending || (!!status && !editableStates.has(status.state));
-  const yamlDefault = status?.queue.default_entries ?? [];
+  const configuredQueue = status?.queue.default_entries ?? [];
   const hasPendingIntent = !!status?.pending_intent && status.pending_intent !== "none";
+  const compatibilityState = status?.compatibility?.state ?? "not_detected";
+  const liveLocked = compatibilityState !== "compatible";
+  const queueStartLocked = !status || !editableStates.has(status.state) || commandPending || liveLocked;
+  const effectiveSelectionLocked = selectionLocked || liveLocked || !status?.input.enabled || status.input.paused || status.input.stopped;
+  const needsFirstRoute = !!catalog && catalog.runs.length > 0
+    && !catalog.runs.some((run) => run.status === "available" || run.status === "runtime_validation_required");
+  const openRoutes = (runID = "countess") => {
+    setPreferredRecordingRun(runID);
+    setRouteOpenedFromOnboarding(true);
+    setOnboardingOpen(false);
+    if (window.location.hash !== "#routes") window.location.hash = "routes";
+    else setTarget("routes");
+  };
+  const returnToOnboarding = () => {
+    setOnboardingStep(7);
+    setRouteOpenedFromOnboarding(false);
+    setOnboardingOpen(true);
+    if (window.location.hash !== "#dashboard") window.location.hash = "dashboard";
+    else setTarget("dashboard");
+  };
 
   return (
-    <main>
-      <header>
-        <p className="eyebrow">D2R Offline Farming Bot</p>
-        <h1>Lokales Dashboard</h1>
-        <p>Live-Sicht auf Core, D2R und World Model. Gameplay-Input wird nur nach einer explizit bestätigten Aktion gesendet.</p>
-        <span className={`connection ${connection === "verbunden" ? "online" : ""}`}>Live: {connection}</span>
-      </header>
-
-      <nav className="main-navigation" aria-label="Dashboard-Bereiche"><a href="#betrieb">Betrieb</a><a href="#routes">Routen</a><a href="#pickit">Pickit</a><a href="#history">Historie</a></nav>
-
-      <section id="betrieb" aria-live="polite">
-        <h2>Core-Status</h2>
-        {error && <p role="alert">{error}</p>}
-        {!error && !status && <p>Verbindung wird hergestellt …</p>}
-        {status && <div className="cards">
-          <article><span>Core</span><strong>{status.state}</strong><small>Generation {status.generation}</small></article>
-          <article><span>D2R</span><strong>{status.d2r.state}</strong><small>{status.d2r.window_bound ? `${status.d2r.client_width ?? 0} × ${status.d2r.client_height ?? 0}` : "Kein Fenster gebunden"}</small></article>
-          <article><span>Input</span><strong>{status.input.stopped ? "gestoppt" : status.input.paused ? "pausiert" : status.input.enabled ? "freigegeben" : "deaktiviert"}</strong><small>Safety-Gates aus dem Core</small></article>
-          <article><span>Gebiet</span><strong>{status.world.area_name || "Unbekannt"}</strong><small>{status.world.valid ? status.world.phase : "World Model noch ungültig"}</small></article>
-        </div>}
-      </section>
-
-      <div id="routes"><RouteFeature characters={catalog?.characters.map((entry) => entry.name) ?? []} selectedCharacter={status?.selection.character ?? character} refreshKey={routeRefreshKey} /></div>
-
-      <div id="pickit"><PickitFeature characters={catalog?.characters.map((entry) => entry.name) ?? []} selectedCharacter={status?.selection.character ?? character} runs={catalog?.runs.map((entry) => entry.run_id) ?? []} locked={!!status && !editableStates.has(status.state)} refreshKey={pickitRefreshKey} /></div>
-
-      <HistoryFeature characters={catalog?.characters.map((entry) => entry.name) ?? []} runs={catalog?.runs.map((entry) => entry.run_id) ?? []} refreshKey={historyRefreshKey} />
-
-      <section>
-        <h2>Charakter und Schwierigkeit</h2>
-        <p>D2R muss auf dem Offline-Charakterbildschirm bei 1280 × 720 stehen. Die Auswahl wird vor jedem Klick visuell und anschließend im Spiel über Memory bestätigt.</p>
-        {selectionError && <p role="alert">{selectionError}</p>}
-        <p><strong>Aktiv bestätigt:</strong> {status?.selection.character ? `${status.selection.character} / ${status.selection.difficulty}` : "Noch kein Kontext bestätigt"}<br /><strong>Entwurf:</strong> {character || "–"} / {difficulty || "–"}</p>
-        <div className="selection-grid">
-          <label>Charakter<select value={character} onChange={(event) => setCharacter(event.target.value)} disabled={selectionLocked}>{catalog?.characters.map((entry) => <option key={entry.slug} value={entry.name} disabled={!entry.selectable}>{entry.name}{entry.selectable ? "" : ` – ${entry.reasons?.join(", ")}`}</option>)}</select></label>
-          <label>Schwierigkeit<select value={difficulty} onChange={(event) => setDifficulty(event.target.value)} disabled={selectionLocked}>{catalog?.difficulties.map((entry) => <option key={entry.id} value={entry.id}>{entry.display_name}</option>)}</select></label>
-          <button type="button" disabled={selectionLocked || !character || (status?.state !== "idle" && status?.state !== "idle_in_game" && status?.state !== "stopped_error")} onClick={() => void submitSelection()}>{applying ? "Auswahl wird geprüft …" : "Auswahl in D2R anwenden"}</button>
+    <div className="app-shell">
+      <aside className="sidebar">
+        <a className="brand" href="#dashboard" aria-label="D2R Offline Farming Bot – Dashboard">
+          <img src="/portal-mark.svg" alt="" width="46" height="46" />
+          <span><strong>D2R Offline</strong><small>Farming Bot</small></span>
+        </a>
+        <nav className="main-navigation" aria-label="Hauptnavigation">
+          {navigation.map(({ target: itemTarget, label, icon: Icon }) => <a key={itemTarget} href={`#${itemTarget}`} aria-current={target === itemTarget ? "page" : undefined}><Icon aria-hidden="true" size={19} /><span>{label}</span></a>)}
+        </nav>
+        <div className="sidebar-meta">
+          <StatusBadge tone={connection === "verbunden" ? "success" : "danger"} icon={connection === "verbunden" ? Wifi : WifiOff}>Core {connection}</StatusBadge>
+          {updateAvailable && <a href="#settings" aria-label="Neue App-Version verfügbar"><StatusBadge tone="warning" icon={CircleArrowUp}>Update verfügbar</StatusBadge></a>}
+          <small>App {status?.app_version ?? "–"}</small><small>Core {status?.core_version ?? "–"}</small>
         </div>
-        {preview && <div className="modal-backdrop"><div role="dialog" aria-modal="true" aria-labelledby="selection-confirm-title" className="modal"><h3 id="selection-confirm-title">Routen werden unbrauchbar</h3><p>Der Wechsel von <strong>{preview.old_difficulty || "unbestätigt"}</strong> auf <strong>{preview.new_difficulty}</strong> markiert folgende Farming-Routen als <code>stale</code>:</p><ul>{preview.affected_routes.map((route) => <li key={route}>{route}</li>)}</ul><p>Die Dateien werden nicht gelöscht oder verändert. Neue Aufnahmen sind vor Farming erforderlich.</p><div className="modal-actions"><button type="button" className="secondary" onClick={() => setPreview(null)} disabled={applying}>Abbrechen</button><button type="button" onClick={() => void applyPreview(preview)} disabled={applying}>{applying ? "Wird angewendet …" : "Auswirkungen bestätigen und anwenden"}</button></div></div></div>}
-        <ul className="character-list">{catalog?.characters.filter((entry) => !entry.selectable).map((entry) => <li key={entry.slug}><strong>{entry.name}</strong><span>{entry.reasons?.join(", ")}</span></li>)}</ul>
-      </section>
+      </aside>
 
-      <section>
-        <h2>Run-Reihenfolge pro Spiel</h2>
-        <p>Jeder verfügbare Run kann genau einmal enthalten sein. Die Reihenfolge läuft innerhalb desselben Spiels; erst nach der vollständigen Folge beginnt bei freien Budgets ein neues Spiel. Änderungen sind während einer aktiven oder pausierten Session gesperrt.</p>
-        {queueError && <p role="alert">{queueError}</p>}
-        <div className="run-grid">{catalog?.runs.map((run) => {
-          const available = run.status === "available" || run.status === "runtime_validation_required";
-          const alreadyQueued = queue.includes(run.run_id);
-          return <article key={run.run_id}><strong>{run.display_name}</strong><span>{run.status}</span>{run.reasons?.map((reason) => <small key={reason}>{reason}</small>)}<button type="button" aria-label={`${run.display_name} zur Queue hinzufügen`} disabled={editorLocked || !available || alreadyQueued} title={alreadyQueued ? "Dieser Run ist bereits in der Reihenfolge enthalten." : undefined} onClick={() => setQueue((current) => current.includes(run.run_id) ? current : [...current, run.run_id])}>{alreadyQueued ? "Bereits enthalten" : "Zur Queue hinzufügen"}</button></article>;
-        }) ?? <p>Katalog wird geladen …</p>}</div>
-        <h3>Queue-Entwurf</h3>
-        {queue.length === 0 ? <p>Die Queue ist leer und kann nicht gestartet werden.</p> : <ol className="queue-list">{queue.map((runID, index) => <li key={`${runID}-${index}`}><span>{index + 1}</span><strong>{runID}</strong><div className="queue-actions"><button type="button" className="secondary" aria-label={`${runID} an Position ${index + 1} nach oben`} disabled={editorLocked || index === 0} onClick={() => setQueue((current) => moveEntry(current, index, index - 1))}>↑</button><button type="button" className="secondary" aria-label={`${runID} an Position ${index + 1} nach unten`} disabled={editorLocked || index === queue.length - 1} onClick={() => setQueue((current) => moveEntry(current, index, index + 1))}>↓</button><button type="button" className="secondary" aria-label={`${runID} an Position ${index + 1} entfernen`} disabled={editorLocked} onClick={() => setQueue((current) => current.filter((_, itemIndex) => itemIndex !== index))}>Entfernen</button></div></li>)}</ol>}
-        <div className="queue-toolbar">
-          <button type="button" className="secondary" disabled={editorLocked} onClick={() => setQueue([...yamlDefault])}>Auf YAML-Default zurücksetzen</button>
-          <button type="button" disabled={editorLocked || queue.length === 0 || !status?.selection.character} onClick={() => void submitQueue()}>{commandPending ? "Core bestätigt …" : "Queue prüfen und starten"}</button>
-        </div>
-        {status && <div className="queue-status" aria-live="polite"><strong>Core-Queue:</strong> {status.queue.entries.length ? status.queue.entries.join(" → ") : "keine aktive Queue"}<span>Spiel {status.game_id || "–"} · Spielzyklus {status.queue.cycle + 1} · Lifecycle {status.lifecycle_phase}</span><span>Index {status.queue.index + 1} · Retry {status.queue.retry} · Run-ID {status.run_id || "–"}</span><span>Gestartet {status.queue.started_runs}/{status.queue.budgets.max_runs} · Restarts {status.queue.total_restarts}/{status.queue.budgets.max_total_restarts}</span>{status.active_run_id && <span>Aktiv: {status.active_run_id}{status.step ? ` · ${status.step}` : ""}</span>}{hasPendingIntent && <span>Vorgemerkt: {status.pending_intent}</span>}{status.last_result && <span>Letztes Ergebnis: {status.last_result.disposition}{status.last_result.reason ? ` · ${status.last_result.reason}` : ""}</span>}</div>}
-        <div className="session-controls">
-          <button type="button" disabled={commandPending || status?.state !== "running_run" || hasPendingIntent} onClick={() => status && void runCommand(() => pauseAfterRun(status.generation))}>Nach aktuellem Run pausieren</button>
-          <button type="button" disabled={commandPending || status?.state !== "paused_between_runs"} onClick={() => status && void runCommand(() => resumeQueue(status.generation))}>Queue fortsetzen</button>
-          <button type="button" disabled={commandPending || status?.state !== "running_run" || hasPendingIntent} onClick={() => status && void runCommand(() => stopAfterRun(status.generation))}>Nach aktuellem Run stoppen</button>
-          <button type="button" className="danger" disabled={commandPending || !status || !emergencyStates.has(status.state)} onClick={() => setConfirmEmergency(true)}>Emergency Stop</button>
-        </div>
-        <p className="hint">Die globale Pause-Taste merkt „nach aktuellem Run pausieren“ vor, ohne D2R den Fokus zu nehmen. Pause wartet auf Loot und den sicheren Town-Handoff und lässt das aktuelle Spiel geöffnet. Fortsetzen revalidiert dasselbe Spiel. „Nach aktuellem Run stoppen“ verlässt das Spiel danach genau einmal. Emergency Stop und F11 brechen sofort ab und garantieren kein Save &amp; Exit.</p>
-        {confirmEmergency && <div className="modal-backdrop"><div role="dialog" aria-modal="true" aria-labelledby="emergency-title" className="modal danger-modal"><h3 id="emergency-title">Session sofort abbrechen?</h3><p>Der aktuelle Input wird sofort gesperrt. Save &amp; Exit ist nicht garantiert. Dies entspricht F11 im Spiel.</p><div className="modal-actions"><button type="button" className="secondary" onClick={() => setConfirmEmergency(false)}>Abbrechen</button><button ref={emergencyConfirmRef} type="button" className="danger" onClick={() => { setConfirmEmergency(false); if (status) void runCommand(() => emergencyStop(status.generation)); }}>Emergency Stop bestätigen</button></div></div></div>}
-      </section>
+      <main ref={contentRef} id="app-content" className="app-content" tabIndex={-1}>
+        {onboardingOpen && status && catalog && <OnboardingFeature status={status} catalog={catalog} initialStep={onboardingStep} onRefresh={refreshAfterCommand} onClose={() => { setRouteOpenedFromOnboarding(false); setOnboardingOpen(false); }} onOpenRoutes={openRoutes} />}
+        {!onboardingOpen && <>{target === "dashboard" && <>
+          <PageHeader eyebrow="Betrieb" title="Lokales Dashboard" description="Core-autoritärer Überblick für Auswahl, Queue und Session. Keine Anzeige berechnet einen zweiten Fachzustand." actions={<StatusBadge tone={connection === "verbunden" ? "success" : "danger"} icon={connection === "verbunden" ? Wifi : WifiOff}>Live: {connection}</StatusBadge>} />
+          {needsFirstRoute && <section className="first-route-cta"><div><p className="eyebrow">Einrichtung fortsetzen</p><h2>Erste Route aufnehmen</h2><p>Für den bestätigten Kontext fehlt noch eine verwendbare Farming-Route. Die geführte Aufnahme verwendet denselben Core-Workflow wie die Routenbibliothek.</p></div><Button onClick={() => openRoutes("countess")}>Erste Route aufnehmen</Button></section>}
+          {status && liveLocked && <section className="compatibility-block" role="alert" aria-labelledby="compatibility-title"><CircleAlert aria-hidden="true" size={28} /><div><h2 id="compatibility-title">D2R-Kompatibilität blockiert Input</h2><p>Zustand <strong>{compatibilityState}</strong>{status.compatibility?.reason ? ` · ${status.compatibility.reason}` : ""}. Einstellungen, Historie und Diagnose bleiben verfügbar.</p><small>Erwartet {status.compatibility?.expected_version || "–"} · Offsets {status.compatibility?.offset_version || "–"} · Erkannt {status.compatibility?.actual_version || "–"}</small></div></section>}
+          <section aria-live="polite">
+            <div className="section-heading"><div><p className="eyebrow">Live-Projektion</p><h2>Core-Status</h2></div>{status && <StatusBadge tone={compatibilityState === "compatible" ? "success" : compatibilityState === "not_detected" ? "warning" : "danger"}>{compatibilityState}</StatusBadge>}</div>
+            {error && <StateMessage kind="error" title="Statusabfrage fehlgeschlagen">{error}</StateMessage>}
+            {!error && !status && <StateMessage kind="loading" title="Verbindung wird hergestellt">Der lokale Core wird kontaktiert.</StateMessage>}
+            {status && <div className="cards">
+              <article><span>Core</span><strong>{status.state}</strong><small>Generation {status.generation}</small></article>
+              <article><span>D2R</span><strong>{status.d2r.state}</strong><small>{status.d2r.window_bound ? `${status.d2r.client_width ?? 0} × ${status.d2r.client_height ?? 0}` : "Kein Fenster gebunden"}</small></article>
+              <article><span>Input</span><strong>{status.input.stopped ? "gestoppt" : status.input.paused ? "pausiert" : status.input.enabled ? "freigegeben" : "deaktiviert"}</strong><small>Safety-Gates aus dem Core</small></article>
+              <article><span>Gebiet</span><strong>{status.world.area_name || "Unbekannt"}</strong><small>{status.world.valid ? status.world.phase : "World Model noch ungültig"}</small></article>
+            </div>}
+          </section>
 
-      <section>
-        <h2>Live-Ereignisse</h2>
-        {events.length === 0 ? <p>Noch keine Zustandsänderung.</p> : <ol>{events.map((event) => <li key={event.sequence}><time>{new Date(event.timestamp).toLocaleTimeString("de-DE")}</time><strong>{event.event}</strong><span>{event.area || event.step || event.reason || "Core-Aktualisierung"}</span></li>)}</ol>}
-      </section>
-    </main>
+          <section>
+            <div className="section-heading"><div><p className="eyebrow">Voraussetzung</p><h2>Charakter und Schwierigkeit</h2></div></div>
+            <p>D2R muss auf dem Offline-Charakterbildschirm bei 1280 × 720 stehen. Die Auswahl wird vor jedem Klick visuell und anschließend im Spiel über Memory bestätigt.</p>
+            {selectionError && <p role="alert">{selectionError}</p>}
+            <p><strong>Aktiv bestätigt:</strong> {status?.selection.character ? `${status.selection.character} / ${status.selection.difficulty}` : "Noch kein Kontext bestätigt"}<br /><strong>Entwurf:</strong> {character || "–"} / {difficulty || "–"}</p>
+            <div className="selection-grid">
+              <label>Charakter<select value={character} onChange={(event) => setCharacter(event.target.value)} disabled={effectiveSelectionLocked}>{catalog?.characters.map((entry) => <option key={entry.slug} value={entry.name} disabled={!entry.selectable}>{entry.name}{entry.selectable ? "" : " – nicht verfügbar"}</option>)}</select></label>
+              <label>Schwierigkeit<select value={difficulty} onChange={(event) => setDifficulty(event.target.value)} disabled={effectiveSelectionLocked}>{catalog?.difficulties.map((entry) => <option key={entry.id} value={entry.id}>{entry.display_name}</option>)}</select></label>
+              <button type="button" disabled={effectiveSelectionLocked || !character || (status?.state !== "idle" && status?.state !== "idle_in_game" && status?.state !== "stopped_error")} onClick={() => void submitSelection()}>{applying ? "Auswahl wird geprüft …" : "Auswahl in D2R anwenden"}</button>
+            </div>
+            <ul className="character-list">{catalog?.characters.filter((entry) => !entry.selectable).map((entry) => <li key={entry.slug}><strong>{entry.name}</strong><span>{characterAvailabilityText(entry, catalog)}</span></li>)}</ul>
+          </section>
+
+          <section>
+            <div className="section-heading"><div><p className="eyebrow">Farming</p><h2>Run-Reihenfolge pro Spiel</h2></div></div>
+            <p>Die Reihenfolge wird persistent pro Charakter gespeichert. Änderungen erfolgen zentral unter <a href="#settings">Einstellungen</a>.</p>
+            {queueError && <p role="alert">{queueError}</p>}
+            <div className="run-grid">{catalog?.runs.map((run) => <article key={run.run_id}><strong>{run.display_name}</strong><span>{run.status}</span>{run.reasons?.map((reason) => <small key={reason}>{reason}</small>)}</article>) ?? <StateMessage kind="loading" title="Katalog wird geladen" />}</div>
+            <h3>Konfigurierte Queue</h3>
+            {configuredQueue.length === 0 ? <StateMessage kind="empty" title="Keine Queue konfiguriert">Lege die Run-Reihenfolge in den Einstellungen für den ausgewählten Charakter fest.</StateMessage> : <ol className="queue-list">{configuredQueue.map((runID, index) => <li key={`${runID}-${index}`}><span>{index + 1}</span><strong>{runID}</strong></li>)}</ol>}
+            <div className="queue-toolbar"><a className="button secondary" href="#settings">Queue in Einstellungen ändern</a><button type="button" disabled={queueStartLocked || configuredQueue.length === 0 || !status?.selection.character} onClick={() => void submitQueue()}>{commandPending ? "Core bestätigt …" : "Queue prüfen und starten"}</button></div>
+            {status && <div className="queue-status" aria-live="polite"><strong>Core-Queue:</strong> {status.queue.entries.length ? status.queue.entries.join(" → ") : "keine aktive Queue"}<span>Spiel {status.game_id || "–"} · Spielzyklus {status.queue.cycle + 1} · Lifecycle {status.lifecycle_phase}</span><span>Index {status.queue.index + 1} · Retry {status.queue.retry} · Run-ID {status.run_id || "–"}</span><span>Gestartet {status.queue.started_runs}/{status.queue.budgets.max_runs} · Restarts {status.queue.total_restarts}/{status.queue.budgets.max_total_restarts}</span>{status.active_run_id && <span>Aktiv: {status.active_run_id}{status.step ? ` · ${status.step}` : ""}</span>}{hasPendingIntent && <span>Vorgemerkt: {status.pending_intent}</span>}{status.last_result && <span>Letztes Ergebnis: {status.last_result.disposition}{status.last_result.reason ? ` · ${status.last_result.reason}` : ""}</span>}</div>}
+            <div className="session-controls"><button type="button" disabled={commandPending || status?.state !== "running_run" || hasPendingIntent} onClick={() => status && void runCommand(() => pauseAfterRun(status.generation))}>Nach aktuellem Run pausieren</button><button type="button" disabled={liveLocked || commandPending || status?.state !== "paused_between_runs"} onClick={() => status && void runCommand(() => resumeQueue(status.generation))}>Queue fortsetzen</button><button type="button" disabled={commandPending || status?.state !== "running_run" || hasPendingIntent} onClick={() => status && void runCommand(() => stopAfterRun(status.generation))}>Nach aktuellem Run stoppen</button><button type="button" className="danger" disabled={commandPending || !status || !emergencyStates.has(status.state)} onClick={() => setConfirmEmergency(true)}>Emergency Stop</button></div>
+            <p className="hint">Pause und Stop warten auf die sichere Run-Grenze. Emergency Stop und F11 brechen sofort ab und garantieren kein Save &amp; Exit.</p>
+          </section>
+        </>}
+
+        {target === "routes" && <><PageHeader eyebrow="Bibliothek" title="Routen" description="Geführte Aufnahme, isolierter Test und revisionsgebundene Veröffentlichung über den bestehenden Core." />{liveLocked && <StateMessage kind="error" title="Live-Routenaktionen sind gesperrt">Die Routenbibliothek bleibt read-only, bis D2R kompatibel bestätigt ist.</StateMessage>}<RouteFeature characters={catalog?.characters.map((entry) => entry.name) ?? []} selectedCharacter={status?.selection.character ?? character} refreshKey={routeRefreshKey} liveLocked={liveLocked} preferredRecordingRun={preferredRecordingRun} onReturnToOnboarding={routeOpenedFromOnboarding ? returnToOnboarding : undefined} /></>}
+        {target === "pickit" && <><PageHeader eyebrow="Loot-Policy" title="Pickit" description="Profile, Regeln und Zuordnungen bleiben Core-validiert und gelten erst an einer sicheren Run-Grenze." /><PickitFeature characters={catalog?.characters.map((entry) => entry.name) ?? []} selectedCharacter={status?.selection.character ?? character} runs={catalog?.runs.map((entry) => entry.run_id) ?? []} locked={!!status && !editableStates.has(status.state)} refreshKey={pickitRefreshKey} /></>}
+        {target === "history" && <><PageHeader eyebrow="Auswertung" title="Historie" description="Core-berechnete Runs, Itemertrag, Vergleiche und Exporte ohne UI-eigene Aggregation." /><HistoryFeature characters={catalog?.characters.map((entry) => entry.name) ?? []} runs={catalog?.runs.map((entry) => entry.run_id) ?? []} refreshKey={historyRefreshKey} /></>}
+        {target === "settings" && <><PageHeader eyebrow="System" title="Einstellungen" description="Core-revisionierte Operatorwerte, atomare Desktopwerte und lokale Diagnose ohne zweiten Konfigurationsowner." /><SettingsFeature generation={status?.generation ?? 0} coreState={status?.state ?? ""} characters={catalog?.characters.map((entry) => entry.name) ?? []} runs={catalog?.runs.map((entry) => ({ id: entry.run_id, label: entry.display_name })) ?? []} events={events} onOpenOnboarding={() => { setOnboardingStep(0); setOnboardingOpen(true); }} /></>}
+        </>}
+      </main>
+
+      {preview && <Dialog title="Routen werden unbrauchbar" onClose={() => !applying && setPreview(null)}><p>Der Wechsel von <strong>{preview.old_difficulty || "unbestätigt"}</strong> auf <strong>{preview.new_difficulty}</strong> markiert folgende Farming-Routen als <code>stale</code>:</p><ul>{preview.affected_routes.map((route) => <li key={route}>{route}</li>)}</ul><p>Die Dateien werden nicht gelöscht oder verändert. Neue Aufnahmen sind vor Farming erforderlich.</p><div className="modal-actions"><Button variant="secondary" onClick={() => setPreview(null)} disabled={applying}>Abbrechen</Button><Button onClick={() => void applyPreview(preview)} disabled={applying}>{applying ? "Wird angewendet …" : "Auswirkungen bestätigen und anwenden"}</Button></div></Dialog>}
+      {confirmEmergency && <Dialog title="Session sofort abbrechen?" onClose={() => setConfirmEmergency(false)} initialFocusRef={emergencyConfirmRef}><p>Der aktuelle Input wird sofort gesperrt. Save &amp; Exit ist nicht garantiert. Dies entspricht F11 im Spiel.</p><div className="modal-actions"><Button variant="secondary" onClick={() => setConfirmEmergency(false)}>Abbrechen</Button><Button ref={emergencyConfirmRef} variant="danger" onClick={() => { setConfirmEmergency(false); if (status) void runCommand(() => emergencyStop(status.generation)); }}>Emergency Stop bestätigen</Button></div></Dialog>}
+    </div>
   );
-}
-
-function moveEntry(entries: string[], from: number, to: number): string[] {
-  const next = [...entries];
-  const [entry] = next.splice(from, 1);
-  next.splice(to, 0, entry);
-  return next;
 }

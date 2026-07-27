@@ -5,6 +5,7 @@ package process
 import (
 	"errors"
 	"fmt"
+	"path/filepath"
 	"strings"
 	"syscall"
 	"unsafe"
@@ -76,6 +77,120 @@ func (w *windowsAPI) OpenReadHandle(pid uint32) (nativeHandle, error) {
 		return 0, fmt.Errorf("open process pid=%d: %w", pid, mapWindowsError(err))
 	}
 	return nativeHandle(handle), nil
+}
+
+func (w *windowsAPI) BoundPID(handle nativeHandle) (uint32, error) {
+	pid, err := windows.GetProcessId(windows.Handle(handle))
+	if err != nil {
+		return 0, fmt.Errorf("read bound process PID: %w", mapWindowsError(err))
+	}
+	return pid, nil
+}
+
+func (w *windowsAPI) ProcessImagePath(handle nativeHandle) (string, error) {
+	buffer := make([]uint16, 32*1024)
+	size := uint32(len(buffer))
+	if err := windows.QueryFullProcessImageName(windows.Handle(handle), 0, &buffer[0], &size); err != nil {
+		return "", fmt.Errorf("query bound process image path: %w", mapWindowsError(err))
+	}
+	path := filepath.Clean(windows.UTF16ToString(buffer[:size]))
+	canonical, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		return "", fmt.Errorf("canonicalize bound process image path: %w", err)
+	}
+	absolute, err := filepath.Abs(canonical)
+	if err != nil {
+		return "", fmt.Errorf("make bound process image path absolute: %w", err)
+	}
+	return filepath.Clean(absolute), nil
+}
+
+func (w *windowsAPI) FileVersion(path string) (string, error) {
+	size, err := windows.GetFileVersionInfoSize(path, nil)
+	if err != nil {
+		return "", fmt.Errorf("read file version resource size: %w", err)
+	}
+	if size == 0 {
+		return "", fmt.Errorf("read file version resource size: empty resource")
+	}
+	buffer := make([]byte, size)
+	if err := windows.GetFileVersionInfo(path, 0, size, unsafe.Pointer(&buffer[0])); err != nil {
+		return "", fmt.Errorf("read file version resource: %w", err)
+	}
+	if version := queryStringFileVersion(buffer); version != "" {
+		return version, nil
+	}
+	var value unsafe.Pointer
+	var valueSize uint32
+	if err := windows.VerQueryValue(unsafe.Pointer(&buffer[0]), `\`, unsafe.Pointer(&value), &valueSize); err != nil {
+		return "", fmt.Errorf("query fixed file version: %w", err)
+	}
+	if value == nil || valueSize < uint32(unsafe.Sizeof(vsFixedFileInfo{})) {
+		return "", fmt.Errorf("query fixed file version: malformed resource")
+	}
+	fixed := (*vsFixedFileInfo)(value)
+	if fixed.Signature != 0xFEEF04BD {
+		return "", fmt.Errorf("query fixed file version: invalid signature")
+	}
+	parts := []uint16{uint16(fixed.FileVersionMS >> 16), uint16(fixed.FileVersionMS), uint16(fixed.FileVersionLS >> 16), uint16(fixed.FileVersionLS)}
+	return canonicalWindowsVersion(fmt.Sprintf("%d.%d.%d.%d", parts[0], parts[1], parts[2], parts[3])), nil
+}
+
+func queryStringFileVersion(buffer []byte) string {
+	var translations unsafe.Pointer
+	var translationBytes uint32
+	if err := windows.VerQueryValue(unsafe.Pointer(&buffer[0]), `\VarFileInfo\Translation`, unsafe.Pointer(&translations), &translationBytes); err != nil || translations == nil || translationBytes < 4 {
+		return ""
+	}
+	values := unsafe.Slice((*uint16)(translations), translationBytes/2)
+	for index := 0; index+1 < len(values); index += 2 {
+		for _, field := range []string{"ProductVersion", "FileVersion"} {
+			subBlock := fmt.Sprintf(`\StringFileInfo\%04x%04x\%s`, values[index], values[index+1], field)
+			var text unsafe.Pointer
+			var characters uint32
+			if err := windows.VerQueryValue(unsafe.Pointer(&buffer[0]), subBlock, unsafe.Pointer(&text), &characters); err != nil || text == nil || characters == 0 {
+				continue
+			}
+			if version := canonicalWindowsVersion(windows.UTF16ToString(unsafe.Slice((*uint16)(text), characters))); version != "" {
+				return version
+			}
+		}
+	}
+	return ""
+}
+
+func canonicalWindowsVersion(value string) string {
+	value = strings.ReplaceAll(strings.TrimSpace(value), ",", ".")
+	value = strings.ReplaceAll(value, " ", "")
+	parts := strings.Split(value, ".")
+	for _, part := range parts {
+		if part == "" || strings.Trim(part, "0123456789") != "" {
+			return ""
+		}
+	}
+	if len(parts) == 4 && parts[3] == "0" {
+		parts = parts[:3]
+	}
+	if len(parts) < 3 || len(parts) > 4 {
+		return ""
+	}
+	return strings.Join(parts, ".")
+}
+
+type vsFixedFileInfo struct {
+	Signature        uint32
+	StructVersion    uint32
+	FileVersionMS    uint32
+	FileVersionLS    uint32
+	ProductVersionMS uint32
+	ProductVersionLS uint32
+	FileFlagsMask    uint32
+	FileFlags        uint32
+	FileOS           uint32
+	FileType         uint32
+	FileSubtype      uint32
+	FileDateMS       uint32
+	FileDateLS       uint32
 }
 
 func (w *windowsAPI) ModuleImage(pid uint32, moduleName string) (uintptr, uint32, error) {

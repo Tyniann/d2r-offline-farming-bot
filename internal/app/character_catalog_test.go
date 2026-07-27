@@ -37,8 +37,60 @@ func TestCharacterCatalogUsesOnlyRegularSaveNamesAndAvailability(t *testing.T) {
 	if got := catalog.Characters[0]; got.Name != "MrBones" || got.Slug != "mrbones" || !got.Selectable || got.ExpectedClass != "necromancer" {
 		t.Fatalf("configured character = %+v", got)
 	}
-	if got := catalog.Characters[1]; got.Name != "Other" || got.Selectable || len(got.Reasons) != 2 || got.Reasons[0] != CharacterReasonAnchorMissing || got.Reasons[1] != CharacterReasonUnconfigured {
-		t.Fatalf("unconfigured character = %+v", got)
+	if !filepath.IsAbs(catalog.Characters[0].AnchorPath) {
+		t.Fatalf("configured character anchor is relative: %q", catalog.Characters[0].AnchorPath)
+	}
+	if got := catalog.Characters[1]; got.Name != "Other" || got.Selectable || got.ExpectedClass != "" ||
+		!containsFold(got.Reasons, CharacterReasonUnconfigured) || !containsFold(got.Reasons, CharacterReasonAnchorMissing) {
+		t.Fatalf("character without anchor = %+v", got)
+	}
+}
+
+func TestCharacterCatalogAllowsAnchoredSaveWithEmptySessionDefault(t *testing.T) {
+	root := t.TempDir()
+	saves := filepath.Join(root, "saves")
+	if err := os.MkdirAll(saves, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(saves, "MrBones.d2s"), []byte("content must never be read"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	writeCatalogPNG(t, filepath.Join(root, "ui", "character-play.png"), 203, 47)
+	writeCatalogPNG(t, filepath.Join(root, "ui", "difficulty-dialog.png"), 180, 175)
+	writeCatalogPNG(t, filepath.Join(root, "ui", "characters", "mrbones-selected.png"), 210, 60)
+	cfg := catalogTestConfig(filepath.Join(root, "config.yaml"))
+	cfg.Session.Character = ""
+
+	catalog, err := resolveCharacterCatalogAt(cfg, saves)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(catalog.Characters) != 1 || !catalog.Characters[0].Selectable || catalog.Characters[0].ExpectedClass != "necromancer" {
+		t.Fatalf("fresh-root character = %+v", catalog.Characters)
+	}
+}
+
+func TestCharacterCatalogStillRequiresCombatProfileContext(t *testing.T) {
+	root := t.TempDir()
+	saves := filepath.Join(root, "saves")
+	if err := os.MkdirAll(saves, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(saves, "MrBones.d2s"), []byte("content must never be read"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	writeCatalogPNG(t, filepath.Join(root, "ui", "character-play.png"), 203, 47)
+	writeCatalogPNG(t, filepath.Join(root, "ui", "difficulty-dialog.png"), 180, 175)
+	writeCatalogPNG(t, filepath.Join(root, "ui", "characters", "mrbones-selected.png"), 210, 60)
+	cfg := catalogTestConfig(filepath.Join(root, "config.yaml"))
+	cfg.Profiles = nil
+
+	catalog, err := resolveCharacterCatalogAt(cfg, saves)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(catalog.Characters) != 1 || catalog.Characters[0].Selectable || !containsFold(catalog.Characters[0].Reasons, CharacterReasonUnconfigured) {
+		t.Fatalf("character without combat context = %+v", catalog.Characters)
 	}
 }
 

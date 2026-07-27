@@ -25,7 +25,7 @@ var (
 
 // resolveActiveRun returns the configured run name; CLI overrides YAML.
 func resolveActiveRun(opts Options, cfg *config.Config) string {
-	if opts.UI || opts.UIStateProbe != "" || opts.ScreenAnchorCapture != "" || opts.OfflineExitTest || opts.OfflineDifficulty != "" {
+	if opts.Desktop || opts.UIStateProbe != "" || opts.ScreenAnchorCapture != "" || opts.OfflineExitTest || opts.OfflineDifficulty != "" {
 		return ""
 	}
 	if opts.Run != "" {
@@ -48,7 +48,8 @@ func mapRunConfig(cfg *config.Config, runID string, requireFarmingRoute bool) (t
 		return tasks.RunConfig{}, fmt.Errorf("runs.definitions.%s.combat.attack_skill: %w", runID, err)
 	}
 	mapped := tasks.RunConfig{
-		StepTimeout: time.Duration(cfg.Runs.StepTimeoutMs) * time.Millisecond,
+		StepTimeout:             time.Duration(cfg.Runs.StepTimeoutMs) * time.Millisecond,
+		LootPickupDistanceTiles: cfg.Loot.Pickup.MaxDistanceTiles,
 		Combat: tasks.CombatConfig{
 			Profile:                 run.Combat.Profile,
 			AttackSkillID:           attackSkillID,
@@ -394,6 +395,9 @@ func validateBeltSlotConfigured(bindings configBindingSource, slot int, scope st
 }
 
 func (rt *Runtime) shouldTickTasks(cur world.State) bool {
+	if rt.CompatibilitySnapshot().State != D2RCompatibilityCompatible {
+		return false
+	}
 	if rt.Tasks.ConfiguredRun() == "" {
 		return false
 	}

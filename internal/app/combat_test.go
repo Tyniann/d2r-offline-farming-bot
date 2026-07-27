@@ -90,12 +90,29 @@ func TestCombatAdapterTeleportTowardKeepsDesiredDistance(t *testing.T) {
 		memory.SkillTeleport: {SkillID: memory.SkillTeleport, SelectKey: "f7", CastButton: input.MouseRight},
 	}}
 	adapter := newCombatAdapter(config.NewLogger("error"), in, bindings, pathing.DefaultConfig(), time.Millisecond)
-	err := adapter.TeleportToward(time.Now(), world.Position{X: 100, Y: 100}, world.Position{X: 200, Y: 100}, 22)
+	sent, err := adapter.TeleportToward(time.Now(), world.Position{X: 100, Y: 100}, world.Position{X: 200, Y: 100}, 22)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if in.castCalls != 1 || in.lastSkill != memory.SkillTeleport {
-		t.Fatalf("castCalls=%d lastSkill=%d, want teleport cast", in.castCalls, in.lastSkill)
+	if !sent || in.castCalls != 1 || in.lastSkill != memory.SkillTeleport {
+		t.Fatalf("sent=%t castCalls=%d lastSkill=%d, want teleport cast", sent, in.castCalls, in.lastSkill)
+	}
+}
+
+func TestCombatAdapterReportsThrottledTeleportWithoutInput(t *testing.T) {
+	in := &recordingCombatInput{}
+	bindings := configBindingSource{skills: map[uint16]input.SkillCast{
+		memory.SkillTeleport: {SkillID: memory.SkillTeleport, SelectKey: "f7", CastButton: input.MouseRight},
+	}}
+	adapter := newCombatAdapter(config.NewLogger("error"), in, bindings, pathing.DefaultConfig(), time.Second)
+	now := time.Now()
+	sent, err := adapter.TeleportToward(now, world.Position{X: 100, Y: 100}, world.Position{X: 120, Y: 100}, 0)
+	if err != nil || !sent {
+		t.Fatalf("first teleport sent=%t err=%v", sent, err)
+	}
+	sent, err = adapter.TeleportToward(now.Add(100*time.Millisecond), world.Position{X: 100, Y: 100}, world.Position{X: 120, Y: 100}, 0)
+	if err != nil || sent || in.castCalls != 1 {
+		t.Fatalf("throttled teleport sent=%t err=%v casts=%d, want no second input", sent, err, in.castCalls)
 	}
 }
 

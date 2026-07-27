@@ -20,13 +20,23 @@ Abschnitt 11.4 listet lokale Offline-Charaktere ausschließlich anhand reguläre
 
 Unter Windows ermittelt der Core `FOLDERID_SavedGames` über `SHGetKnownFolderPath` und betrachtet darunter `Diablo II Resurrected`. Er verwendet nur Dateinamen regulärer `*.d2s`-Dateien. Symlinks, Reparse Points, Verzeichnisse, ungültige Namen und case-insensitive Duplikate werden verworfen. Kein Save wird geöffnet oder geparst.
 
-Der konfigurierte `session.character` bleibt auch bei fehlendem Save sichtbar. Ein Charakter ist nur auswählbar, wenn Save, Session-/Combat-Profil-Kontext und alle versionsgebundenen PNG-Anker gültig sind. Stabile Sperrgründe sind:
+Der konfigurierte `session.character` bleibt auch bei fehlendem Save sichtbar und dient als Startvorauswahl, aber nicht als Allowlist. Das ist für einen frischen installierten Root erforderlich, dessen Vorauswahl absichtlich leer ist und erst im Onboarding getroffen wird. Ein Charakter ist nur auswählbar, wenn sein reguläres Save existiert, der aktuelle Run einen gültigen Combat-Profil-/Klassenkontext liefert und alle globalen sowie charakterbezogenen versionsgebundenen PNG-Bestätigungen gültig sind. Erst eine gültige charakterbezogene Bestätigung bindet den Save-Namen an den aktuellen unterstützten Profilkontext; ein bloß sichtbarer fremder Save erbt nicht stillschweigend die Klasse des aktuellen Runs. Stabile Sperrgründe sind:
 
 - `character_save_missing`;
 - `character_unconfigured`;
 - `character_anchor_missing`.
 
-Unkonfigurierte Charaktere bleiben im Dashboard sichtbar. Fehlende Farming-Routen sperren später den Queue-Start, nicht die reine D2R-Auswahl.
+Unvorbereitete Charaktere bleiben im Dashboard und Onboarding mit deutsch erklärtem Sperrgrund sichtbar. Die Oberfläche zeigt keine internen Begriffe oder Reason-Codes, sondern erklärt beispielsweise „Kein unterstütztes Kampfprofil zugeordnet“, nennt die derzeit unterstützte Klasse und trennt dies von „Automatische Auswahl dieses Charakters in D2R ist noch nicht eingerichtet“. Da Save-Inhalte auch für die First-Run-Auswahl nicht gelesen werden, behauptet die App für einen nicht eingerichteten Save keine automatisch erkannte Klasse. Fehlende Farming-Routen sperren später den Queue-Start, nicht die reine D2R-Auswahl.
+
+### Offene Folgearbeit: geführte Charaktereinrichtung
+
+Die Charaktereinrichtung soll ohne zusätzlichen Wizard in den vorhandenen Charakterschritt integriert werden. Für jeden lokalen Charakter muss sie mindestens die Klasse und ein kompatibles Standard-Kampfprofil persistent zuordnen. Die Basisinstallation soll pro unterstützter Klasse ein vorkonfiguriertes Standardprofil mitbringen; beim ersten Einrichten wird dieses Profil automatisch gewählt. Später darf der Benutzer in den Einstellungen ein anderes kompatibles Profil auswählen beziehungsweise die Profildetails bearbeiten.
+
+Zur vollständigen Run-Readiness gehört außerdem eine initiale Pickit-Zuordnung. Die Basisinstallation enthält bereits globale Standard-Lootprofile für Countess und Mephisto; diese sind fachlich primär runbezogen und müssen nicht pro Charakterklasse dupliziert werden. Bei der Charaktereinrichtung soll der Core für jeden unterstützten Run automatisch die vorgesehene Standard-Profilkette als charakterbezogene Zuordnung anlegen. Spätere Änderungen erfolgen weiterhin über den vorhandenen Pickit-Editor. Fehlt ein Default oder ist dessen Profilkette ungültig, bleibt nur der betroffene Run mit verständlichem Grund gesperrt.
+
+Als bevorzugte Verbesserung ist eine eng begrenzte read-only Erkennung der Charakterklasse aus dem D2S-Header zu untersuchen. Sie darf ausschließlich die für Name/Version/Klasse nötigen Headerfelder lesen, niemals schreiben und keine Items, Skills oder Statistiken auswerten. Reguläre Datei, Reparse-Schutz, maximale Dateigröße, unterstützte Save-Versionen, feste Headergrenzen und synthetische Testfixtures sind vor einer Umsetzung verbindlich festzulegen. Das wäre eine bewusste Änderung des bisherigen Vertrags „Save-Inhalte werden nicht geöffnet“ und benötigt deshalb einen eigenen geprüften Implementierungsabschnitt samt Aktualisierung der Architekturunterlagen.
+
+Damit kann der bestehende Onboarding-Schritt sofort zwischen „unterstützte Klasse mit verfügbarem Standardprofil“, „nicht unterstützte Klasse“, „Klasse nicht sicher ermittelbar“ und „Standardprofil fehlt“ unterscheiden. Ein kompletter Charakter-Wizard ist dafür nicht nötig. Die weiterhin erforderliche visuelle, namensgebundene D2R-Bestätigung wird im selben Schritt als kurze manuelle Einrichtung angeboten: Benutzer markiert den Charakter auf dem Offline-Charakterbildschirm, der Core erzeugt beziehungsweise bestätigt die begrenzte Auswahlreferenz und prüft sie vor dem ersten Spieleintritt. Erst Klasse, Profil und sichere Auswahl zusammen machen einen Charakter auswählbar.
 
 ### Begrenzter Selector
 
@@ -59,13 +69,9 @@ Vor der ersten Bildschirmprüfung aktiviert der Selector D2R und bestätigt das 
 
 Während der synchron verifizierten Auswahl zeigt der Core `activating_selection`; Erfolg endet in `idle_in_game`, ein sicherer Abbruch wieder in `idle` mit strukturiertem Fehler. Derselbe Command ist idempotent. Der passive UI-Monitor wird für die Auswahl vollständig gestoppt und danach neu gestartet, sodass niemals zwei Poll-/Input-Pipelines konkurrieren.
 
-## Operator / CLI
+## Operator / Desktop
 
-```powershell
-.\d2rbot.exe --config .\configs\config.yaml --ui
-```
-
-D2R muss bereits auf dem Offline-Charakterbildschirm bei 1280×720 stehen. Das Dashboard zeigt deaktivierte Charaktere einschließlich Reason-Codes und bietet für den vorbereiteten Kontext „Auswahl in D2R anwenden“.
+D2R muss bereits auf dem Offline-Charakterbildschirm bei 1280×720 stehen. Das Dashboard der installierten App zeigt deaktivierte Charaktere einschließlich Reason-Codes und bietet für den vorbereiteten Kontext „Auswahl in D2R anwenden“.
 
 ## Grenzen
 
@@ -82,4 +88,4 @@ D2R muss bereits auf dem Offline-Charakterbildschirm bei 1280×720 stehen. Das D
 - [Phase-11-Core-Vertrag](phase-11-core-contract.md)
 
 ---
-*Zuletzt aktualisiert: 16. Juli 2026*
+*Zuletzt aktualisiert: 26. Juli 2026*

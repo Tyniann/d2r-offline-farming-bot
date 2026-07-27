@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -30,6 +31,8 @@ type Config struct {
 
 	// LoadedFrom is the path passed to [Load] (used to resolve relative file paths).
 	LoadedFrom string `yaml:"-"`
+	// DataRoot ist ausschließlich im installierten Desktopmodus der explizite absolute Nutzerdatenroot.
+	DataRoot string `yaml:"-"`
 }
 
 type AppConfig struct {
@@ -317,7 +320,15 @@ func Load(path string) (*Config, error) {
 	}
 
 	var cfg Config
-	if err := yaml.Unmarshal(data, &cfg); err != nil {
+	decoder := yaml.NewDecoder(strings.NewReader(string(data)))
+	decoder.KnownFields(true)
+	if err := decoder.Decode(&cfg); err != nil {
+		return nil, fmt.Errorf("parse config %q: %w", path, err)
+	}
+	if err := decoder.Decode(&struct{}{}); err != io.EOF {
+		if err == nil {
+			return nil, fmt.Errorf("parse config %q: multiple YAML documents are unsupported", path)
+		}
 		return nil, fmt.Errorf("parse config %q: %w", path, err)
 	}
 
@@ -335,6 +346,23 @@ func Load(path string) (*Config, error) {
 	}
 
 	return &cfg, nil
+}
+
+// LoadFromDataRoot lädt die installierte Core-Konfiguration aus einem expliziten absoluten Datenroot.
+func LoadFromDataRoot(root string) (*Config, error) {
+	if strings.TrimSpace(root) == "" || !filepath.IsAbs(root) {
+		return nil, fmt.Errorf("data root must be an absolute path")
+	}
+	clean := filepath.Clean(root)
+	cfg, err := Load(filepath.Join(clean, "configs", "config.yaml"))
+	if err != nil {
+		return nil, err
+	}
+	cfg.DataRoot = clean
+	// Telemetrie ist im Desktopprodukt immer datenrootgebunden und darf nicht
+	// vom geerbten Working Directory des Kindprozesses abhängen.
+	cfg.Telemetry.Directory = filepath.Join(clean, "logs", "telemetry")
+	return cfg, nil
 }
 
 // ResolvePath resolves rel against the directory of the loaded config file.

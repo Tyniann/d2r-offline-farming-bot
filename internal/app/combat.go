@@ -98,20 +98,20 @@ func (c *combatAdapter) StopAttack() error {
 	return nil
 }
 
-func (c *combatAdapter) TeleportToward(now time.Time, playerPos, targetPos world.Position, desiredDistanceTiles float64) error {
+func (c *combatAdapter) TeleportToward(now time.Time, playerPos, targetPos world.Position, desiredDistanceTiles float64) (bool, error) {
 	if err := c.StopAttack(); err != nil {
-		return err
+		return false, err
 	}
 	if !c.ready(now) {
-		return nil
+		return false, nil
 	}
 	teleportTarget := combatStepTowardTarget(playerPos, targetPos, desiredDistanceTiles)
 	clientX, clientY, err := c.project(playerPos, teleportTarget)
 	if err != nil {
-		return err
+		return false, err
 	}
 	if err := c.input.CastSkillAt(c.bindings, memory.SkillTeleport, clientX, clientY); err != nil {
-		return fmt.Errorf("combat teleport: %w", err)
+		return false, fmt.Errorf("combat teleport: %w", err)
 	}
 	c.lastAction = now
 	c.log.Debug("combat teleport toward",
@@ -121,7 +121,7 @@ func (c *combatAdapter) TeleportToward(now time.Time, playerPos, targetPos world
 		"teleport_y", teleportTarget.Y,
 		"desired_distance_tiles", desiredDistanceTiles,
 	)
-	return nil
+	return true, nil
 }
 
 func (c *combatAdapter) Reset() {

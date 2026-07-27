@@ -23,16 +23,24 @@ type RouteEntryDTO struct {
 
 // RecordingOptionDTO describes one registered run's guided recording contract.
 type RecordingOptionDTO struct {
-	RunID                    string   `json:"run_id"`
-	DisplayName              string   `json:"display_name"`
-	InstructionsDE           string   `json:"instructions_de"`
-	StartWaypoint            string   `json:"start_waypoint"`
-	AllowedStartAreaID       uint32   `json:"allowed_start_area_id"`
-	AllowedRouteAreaIDs      []uint32 `json:"allowed_route_area_ids"`
-	TerminalAreaID           uint32   `json:"terminal_area_id"`
-	TerminalMaxDistanceTiles float64  `json:"terminal_max_distance_tiles"`
-	Available                bool     `json:"available"`
-	Reason                   string   `json:"reason,omitempty"`
+	RunID                    string                     `json:"run_id"`
+	DisplayName              string                     `json:"display_name"`
+	InstructionsDE           string                     `json:"instructions_de"`
+	StartWaypoint            string                     `json:"start_waypoint"`
+	AllowedStartAreaID       uint32                     `json:"allowed_start_area_id"`
+	AllowedRouteAreaIDs      []uint32                   `json:"allowed_route_area_ids"`
+	TerminalAreaID           uint32                     `json:"terminal_area_id"`
+	TerminalMaxDistanceTiles float64                    `json:"terminal_max_distance_tiles"`
+	Available                bool                       `json:"available"`
+	Reason                   string                     `json:"reason,omitempty"`
+	Prerequisites            []RecordingPrerequisiteDTO `json:"prerequisites"`
+}
+
+// RecordingPrerequisiteDTO projects one Core-checked onboarding prerequisite without exposing config files.
+type RecordingPrerequisiteDTO struct {
+	ID     string `json:"id"`
+	Ready  bool   `json:"ready"`
+	Reason string `json:"reason,omitempty"`
 }
 
 // RouteWorkflowDTO projects the exclusive recording/test workflow.

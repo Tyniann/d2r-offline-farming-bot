@@ -59,7 +59,11 @@ func resolveCharacterCatalogAt(cfg *config.Config, saveDirectory string) (Charac
 		names = append(names, configured)
 	}
 	sort.Slice(names, func(i, j int) bool { return strings.ToLower(names[i]) < strings.ToLower(names[j]) })
-	configDirectory := filepath.Dir(cfg.LoadedFrom)
+	loadedFrom, err := filepath.Abs(cfg.LoadedFrom)
+	if err != nil {
+		return CharacterCatalog{}, fmt.Errorf("resolve character catalog config path: %w", err)
+	}
+	configDirectory := filepath.Dir(loadedFrom)
 	globalAnchorsValid := validPNGSize(filepath.Join(configDirectory, "ui", "character-play.png"), image.Pt(203, 47)) &&
 		validPNGSize(filepath.Join(configDirectory, "ui", "difficulty-dialog.png"), image.Pt(180, 175))
 	class := configuredCharacterClass(cfg)
@@ -67,18 +71,20 @@ func resolveCharacterCatalogAt(cfg *config.Config, saveDirectory string) (Charac
 	for _, name := range names {
 		slug := characterSlug(name)
 		entry := CharacterCatalogEntry{Name: name, Slug: slug, AnchorPath: filepath.Join(configDirectory, "ui", "characters", slug+"-selected.png")}
-		if !strings.EqualFold(name, configured) {
+		characterAnchorValid := validPNGSize(entry.AnchorPath, image.Pt(210, 60))
+		// Ein namensgebundener Auswahlanker ist die explizite Konfiguration des
+		// Charakters. `session.character` bleibt nur die Startvorauswahl; andernfalls
+		// könnte ein frischer Root mit absichtlich leerer Vorauswahl nie über das
+		// Onboarding eingerichtet werden.
+		if class == "" || !characterAnchorValid {
 			entry.Reasons = append(entry.Reasons, CharacterReasonUnconfigured)
 		} else {
 			entry.ExpectedClass = class
-			if !saveExistsRegular(saveDirectory, name) {
-				entry.Reasons = append(entry.Reasons, CharacterReasonSaveMissing)
-			}
-			if class == "" {
-				entry.Reasons = append(entry.Reasons, CharacterReasonUnconfigured)
-			}
 		}
-		if !globalAnchorsValid || !validPNGSize(entry.AnchorPath, image.Pt(210, 60)) {
+		if !saveExistsRegular(saveDirectory, name) {
+			entry.Reasons = append(entry.Reasons, CharacterReasonSaveMissing)
+		}
+		if !globalAnchorsValid || !characterAnchorValid {
 			entry.Reasons = append(entry.Reasons, CharacterReasonAnchorMissing)
 		}
 		entry.Reasons = uniqueSorted(entry.Reasons)

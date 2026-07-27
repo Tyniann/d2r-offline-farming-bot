@@ -43,6 +43,11 @@ func IsFatal(err error) bool {
 		errors.Is(err, ErrModuleNotFound)
 }
 
+// IsAccessDenied reports whether process discovery proved a privilege mismatch.
+func IsAccessDenied(err error) bool {
+	return errors.Is(err, ErrAccessDenied)
+}
+
 // IsReadRetryable reports whether [memory.Reader] should retry a failed read.
 // Only [ErrReadFailed] without structural sentinel errors in the chain is retryable.
 func IsReadRetryable(err error) bool {

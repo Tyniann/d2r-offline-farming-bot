@@ -255,7 +255,7 @@ Der lokale API-Backend serialisiert Selection- und Session-Commands und bindet s
 
 `RuntimeQueueRunner` erzeugt für jeden Eintrag eine frische, auf die Run-ID konfigurierte Runtime. Ein aus `idle_in_game` gestarteter Queue-Lauf übernimmt das bereits bestätigte Spiel; folgende Einträge laufen nach ihrem sicheren Town-Handoff im selben Spiel. Erst Queue-Wrap, geordneter Stop, Budgetende oder sichere Recovery führen zu Save & Exit. Jeder Worker verwendet dieselbe Run-State-Machine, Route, Profil, Loot und Town-Rückkehr aus Phase 10. Ein retrybarer terminaler Run liefert `retry_current`; andere Fehler stoppen. F11 im Worker wird als `emergency_stop_requested` an denselben Supervisor-Abschluss wie der API-Emergency-Command übergeben.
 
-Der Statussnapshot projiziert aktive und YAML-Default-Queue getrennt, damit „Auf YAML-Default zurücksetzen“ auch nach einem verworfenen Runtime-Entwurf funktioniert. Pending Intent, aktiver Run, Step, Index, Zyklus, Retry und Budgets stammen ausschließlich aus Core-Snapshots. Passive Monitor-Ticks dürfen diese Supervisor-Felder nicht überschreiben.
+Der Statussnapshot projiziert aktive und effektive persistente Charakter-Queue getrennt. Das Dashboard startet diese Core-autoritativ gespeicherte Reihenfolge read-only; Änderungen erfolgen ausschließlich über die revisionierten Operator-Einstellungen. Pending Intent, aktiver Run, Step, Index, Zyklus, Retry und Budgets stammen ausschließlich aus Core-Snapshots. Passive Monitor-Ticks dürfen diese Supervisor-Felder nicht überschreiben.
 
 `session.queue` liefert die duplikatfreie Startreihenfolge. Die Queue bleibt prozesslokal; ein Neustart lädt YAML und beginnt bei Index 0. Der CLI-Aufruf verwendet dieselbe Queue-, Supervisor- und Lifecycle-Pipeline wie das Dashboard.
 

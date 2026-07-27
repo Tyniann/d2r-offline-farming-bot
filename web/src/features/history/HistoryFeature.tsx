@@ -1,5 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import {
+  Bar, BarChart, CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis,
+} from "recharts";
+import {
   downloadHistoryExport, getHistoryComparisons, getHistoryItems, getHistoryRun, getHistoryRuns, getHistorySummary,
   type HistoryComparisonDTO, type HistoryItemsResponse, type HistoryQuery, type HistoryRunDetailResponse,
   type HistoryRunsResponse, type HistorySummaryResponse,
@@ -8,18 +11,19 @@ import {
 interface Props { characters: string[]; runs: string[]; refreshKey: number }
 interface FilterDraft { period: string; from: string; to: string; character: string; run: string; difficulty: string; outcome: string; reason: string; pickitProfile: string }
 
-const emptyFilter: FilterDraft = { period: "all", from: "", to: "", character: "", run: "", difficulty: "", outcome: "", reason: "", pickitProfile: "" };
+const emptyFilter: FilterDraft = { period: "30d", from: "", to: "", character: "", run: "", difficulty: "", outcome: "", reason: "", pickitProfile: "" };
 const outcomeLabels: Record<string, string> = { success: "Erfolg", failed: "Fehlgeschlagen", aborted: "Abgebrochen", incomplete: "Unvollständig", running: "Aktiv" };
 
 export function HistoryFeature({ characters, runs, refreshKey }: Props) {
   const [draft, setDraft] = useState<FilterDraft>(emptyFilter);
-  const [query, setQuery] = useState<HistoryQuery>({});
+  const [query, setQuery] = useState<HistoryQuery>(() => filterQuery(emptyFilter));
   const [summary, setSummary] = useState<HistorySummaryResponse | null>(null);
   const [comparisons, setComparisons] = useState<HistoryComparisonDTO[]>([]);
   const [items, setItems] = useState<HistoryItemsResponse | null>(null);
   const [runList, setRunList] = useState<HistoryRunsResponse | null>(null);
   const [detail, setDetail] = useState<HistoryRunDetailResponse | null>(null);
   const [comparisonSort, setComparisonSort] = useState("keep_per_hour");
+  const [dailyMetric, setDailyMetric] = useState<"terminal_runs" | "success_rate" | "keep_per_hour">("terminal_runs");
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [exporting, setExporting] = useState(false);
@@ -54,7 +58,7 @@ export function HistoryFeature({ characters, runs, refreshKey }: Props) {
   }, [query, refreshKey, comparisonSort]); // `history_changed`, Filter und Core-Sortierung laden serialisiert neu.
 
   const applyFilters = () => setQuery(filterQuery(draft));
-  const resetFilters = () => { setDraft(emptyFilter); setQuery({}); };
+  const resetFilters = () => { setDraft(emptyFilter); setQuery(filterQuery(emptyFilter)); };
 
   const loadMore = async (kind: "runs" | "items") => {
     const cursor = kind === "runs" ? runList?.next_cursor : items?.next_cursor;
@@ -93,7 +97,7 @@ export function HistoryFeature({ characters, runs, refreshKey }: Props) {
     } finally { setExporting(false); }
   };
 
-  const filtered = Object.values(query).some((value) => Array.isArray(value) ? value.length > 0 : value !== undefined && value !== "");
+  const filtered = draft.period !== "30d" || [query.character, query.run, query.difficulty, query.outcome, query.reason, query.pickit_profile].some((value) => value?.length);
   const noRuns = !loading && !error && summary?.summary.runs === 0;
 
   return <section id="history" aria-labelledby="history-title" className="history-feature">
@@ -130,6 +134,8 @@ export function HistoryFeature({ characters, runs, refreshKey }: Props) {
       {summary.summary.top_failure && <article className="history-priority"><span>Größter Fehler- und Zeitverlust</span><strong>{summary.summary.top_failure.reason_message}</strong><small>{summary.summary.top_failure.count} × in {summary.summary.top_failure.step || "unbekanntem Schritt"} · {duration(summary.summary.top_failure.lost_duration_ms)} verloren</small></article>}
       {summary.meta.diagnostics.length > 0 && <aside className="history-diagnostics" aria-labelledby="history-diagnostics-title"><h3 id="history-diagnostics-title">Dateidiagnose</h3><p>{summary.meta.diagnostics.length} Datei(en) wurden isoliert; {summary.meta.ignored_files} ältere Datei(en) liegen vor der auswertbaren Epoche.</p><ul>{summary.meta.diagnostics.map((item) => <li key={`${item.file}-${item.code}`}><strong>{item.file}</strong><span>{item.message}</span></li>)}</ul></aside>}
 
+      <HistoryCharts summary={summary} comparisons={comparisons} dailyMetric={dailyMetric} onDailyMetric={setDailyMetric} />
+
       <div className="section-heading"><h3>Boss- und Routenvergleich</h3><label>Sortierung<select value={comparisonSort} onChange={(event) => setComparisonSort(event.target.value)}><option value="keep_per_hour">Keep / Stunde</option><option value="success_rate">Erfolgsquote</option><option value="average_duration">Ø Dauer</option></select></label></div>
       <div className="table-scroll"><table className="comparison-table"><caption>Vergleich derselben Charakter-, Difficulty- und Run-Definition nach Route</caption><thead><tr><th>Route</th><th>Sample</th><th>Keep / Stunde</th><th>Keep / Run</th><th>Keep / Kill</th><th>Sell</th><th>Erfolg</th><th>Ø Dauer</th><th>Stages R/K/L/S</th><th>Fehler</th></tr></thead><tbody>{comparisons.map((row) => <tr key={row.id}><th scope="row" data-label="Route">{row.run}<small>{row.character} · {row.difficulty} · {row.route_id}</small></th><td data-label="Sample">{row.boss_kills}{row.low_sample && <span className="sample-warning">Kleine Stichprobe (&lt; 10 Kills)</span>}</td><td data-label="Keep / Stunde">{rate(row.keep_per_hour)}</td><td data-label="Keep / Run">{rate(row.keep_per_run)}</td><td data-label="Keep / Kill">{rate(row.keep_per_kill)}</td><td data-label="Verkauft">{row.funnel.sold}</td><td data-label="Erfolg">{percent(row.success_rate)}</td><td data-label="Ø Dauer">{duration(row.durations.average_ms)}</td><td data-label="Stages">{duration(row.stages.travel_ms)} / {duration(row.stages.combat_ms)} / {duration(row.stages.loot_ms)} / {duration(row.stages.return_town_ms)}</td><td data-label="Fehler">{row.top_failure?.reason_message ?? "–"}</td></tr>)}</tbody></table></div>
 
@@ -163,6 +169,7 @@ function filterQuery(filter: FilterDraft): HistoryQuery {
   return {
     from: from?.toISOString(),
     to: to?.toISOString(),
+    timezone: browserTimezone(),
     character: filter.character ? [filter.character] : undefined,
     run: filter.run ? [filter.run] : undefined,
     difficulty: filter.difficulty ? [filter.difficulty] : undefined,
@@ -172,9 +179,64 @@ function filterQuery(filter: FilterDraft): HistoryQuery {
   };
 }
 
+function browserTimezone(): string {
+  return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+}
+
+function HistoryCharts({ summary, comparisons, dailyMetric, onDailyMetric }: {
+  summary: HistorySummaryResponse;
+  comparisons: HistoryComparisonDTO[];
+  dailyMetric: "terminal_runs" | "success_rate" | "keep_per_hour";
+  onDailyMetric(value: "terminal_runs" | "success_rate" | "keep_per_hour"): void;
+}) {
+  const metric = {
+    terminal_runs: { label: "Runs", unit: "terminale Runs", color: "#f1a65a" },
+    success_rate: { label: "Erfolgsquote", unit: "Anteil", color: "#77c7a5" },
+    keep_per_hour: { label: "Keep / Stunde", unit: "Items pro aktiver Stunde", color: "#87a8ff" },
+  }[dailyMetric];
+  const funnelRows = [
+    { stage: "Gesehen", value: summary.summary.funnel.seen },
+    { stage: "Gematcht", value: summary.summary.funnel.matched },
+    { stage: "Aufgehoben", value: summary.summary.funnel.picked_up },
+    { stage: "Keep gesichert", value: summary.summary.funnel.keep_return },
+    { stage: "Verkauft", value: summary.summary.funnel.sold },
+  ];
+  const lowSample = comparisons.some((row) => row.low_sample);
+
+  return <div className="history-charts" aria-label="Historiencharts">
+    <figure className="history-chart">
+      <figcaption><div><h3>Tagesverlauf</h3><p>Einheit: {metric.unit} · Zeitzone {summary.meta.timezone}</p></div><label>Kennzahl<select aria-label="Tageskennzahl" value={dailyMetric} onChange={(event) => onDailyMetric(event.target.value as typeof dailyMetric)}><option value="terminal_runs">Runs</option><option value="success_rate">Erfolgsquote</option><option value="keep_per_hour">Keep / Stunde</option></select></label></figcaption>
+      {summary.daily_buckets.length === 0 ? <p className="chart-empty">Keine lokalen Tages-Buckets vorhanden.</p> : <ResponsiveContainer width="100%" height={250}><LineChart data={summary.daily_buckets} accessibilityLayer><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="date" /><YAxis /><Tooltip /><Legend /><Line name={metric.label} dataKey={dailyMetric} stroke={metric.color} strokeWidth={2} connectNulls={false} isAnimationActive={false} /></LineChart></ResponsiveContainer>}
+      <div className="table-scroll"><table><caption>Exakte Core-Werte des Tagesverlaufs</caption><thead><tr><th>Lokaler Tag</th><th>UTC-Grenzen</th><th>Runs</th><th>Erfolg</th><th>Aktive Stunden</th><th>Keep</th><th>Keep / Stunde</th></tr></thead><tbody>{summary.daily_buckets.map((row) => <tr key={row.date}><th scope="row">{row.date}</th><td>{row.start_utc} – {row.end_utc}</td><td>{row.terminal_runs}</td><td>{percent(row.success_rate)}</td><td>{rate(row.active_hours)}</td><td>{row.keep_return}</td><td>{rate(row.keep_per_hour)}</td></tr>)}</tbody></table></div>
+    </figure>
+
+    <figure className="history-chart">
+      <figcaption><div><h3>Routenvergleich</h3><p>Einheit: gesicherte Keep-Items pro aktiver Stunde</p></div></figcaption>
+      {lowSample && <p className="sample-warning">Mindestens eine Route besitzt eine kleine Stichprobe (&lt; 10 Bosskills).</p>}
+      {comparisons.length === 0 ? <p className="chart-empty">Keine vergleichbaren Routen vorhanden.</p> : <ResponsiveContainer width="100%" height={250}><BarChart data={comparisons} accessibilityLayer><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="route_id" /><YAxis /><Tooltip /><Legend /><Bar name="Keep / Stunde" dataKey="keep_per_hour" fill="#f1a65a" isAnimationActive={false} /></BarChart></ResponsiveContainer>}
+      <div className="table-scroll"><table><caption>Exakte Core-Werte des Routenbalkens</caption><thead><tr><th>Route</th><th>Terminale Runs</th><th>Bosskills</th><th>Keep / Stunde</th></tr></thead><tbody>{comparisons.map((row) => <tr key={row.id}><th scope="row">{row.route_id}</th><td>{row.terminal_runs}</td><td>{row.boss_kills}</td><td>{rate(row.keep_per_hour)}</td></tr>)}</tbody></table></div>
+    </figure>
+
+    <figure className="history-chart">
+      <figcaption><div><h3>Run-Stages</h3><p>Einheit: Millisekunden aktiver Run-Zeit</p></div></figcaption>
+      {lowSample && <p className="sample-warning">Stage-Vergleiche mit weniger als 10 Bosskills sind nur ein Hinweis.</p>}
+      {comparisons.length === 0 ? <p className="chart-empty">Keine Stage-Werte vorhanden.</p> : <ResponsiveContainer width="100%" height={250}><BarChart data={comparisons} accessibilityLayer><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="route_id" /><YAxis /><Tooltip /><Legend /><Bar name="Reise" dataKey="stages.travel_ms" stackId="stages" fill="#87a8ff" isAnimationActive={false} /><Bar name="Kampf" dataKey="stages.combat_ms" stackId="stages" fill="#e97872" isAnimationActive={false} /><Bar name="Loot" dataKey="stages.loot_ms" stackId="stages" fill="#77c7a5" isAnimationActive={false} /><Bar name="Stadt" dataKey="stages.return_town_ms" stackId="stages" fill="#f1a65a" isAnimationActive={false} /><Bar name="Sonstiges" dataKey="stages.other_ms" stackId="stages" fill="#9896a6" isAnimationActive={false} /></BarChart></ResponsiveContainer>}
+      <div className="table-scroll"><table><caption>Exakte Core-Werte der gestapelten Stages</caption><thead><tr><th>Route</th><th>Reise</th><th>Kampf</th><th>Loot</th><th>Stadt</th><th>Sonstiges</th></tr></thead><tbody>{comparisons.map((row) => <tr key={row.id}><th scope="row">{row.route_id}</th><td>{row.stages.travel_ms}</td><td>{row.stages.combat_ms}</td><td>{row.stages.loot_ms}</td><td>{row.stages.return_town_ms}</td><td>{row.stages.other_ms}</td></tr>)}</tbody></table></div>
+    </figure>
+
+    <figure className="history-chart">
+      <figcaption><div><h3>Loot-Funnel</h3><p>Einheit: unterschiedliche Item-Units</p></div></figcaption>
+      {summary.summary.boss_kills < 10 && <p className="sample-warning">Kleine Stichprobe (&lt; 10 Bosskills): Funnel nur als Hinweis lesen.</p>}
+      {funnelRows.every((row) => row.value === 0) ? <p className="chart-empty">Keine Item-Units für den Funnel vorhanden.</p> : <ResponsiveContainer width="100%" height={250}><BarChart data={funnelRows} layout="vertical" accessibilityLayer><CartesianGrid strokeDasharray="3 3" /><XAxis type="number" /><YAxis type="category" dataKey="stage" width={110} /><Tooltip /><Legend /><Bar name="Item-Units" dataKey="value" fill="#77c7a5" isAnimationActive={false} /></BarChart></ResponsiveContainer>}
+      <div className="table-scroll"><table><caption>Exakte Core-Werte des Loot-Funnels</caption><thead><tr><th>Stufe</th><th>Item-Units</th></tr></thead><tbody>{funnelRows.map((row) => <tr key={row.stage}><th scope="row">{row.stage}</th><td>{row.value}</td></tr>)}</tbody></table></div>
+    </figure>
+  </div>;
+}
+
 function activeFilterText(query: HistoryQuery): string {
 	const labels: string[] = [];
 	if (query.from || query.to) labels.push(`${query.from ? new Date(query.from).toLocaleString("de-DE") : "Anfang"} bis ${query.to ? new Date(query.to).toLocaleString("de-DE") : "jetzt"}`);
+	if (query.timezone) labels.push(`Zeitzone: ${query.timezone}`);
 	for (const [label, values] of [["Charakter", query.character], ["Run", query.run], ["Difficulty", query.difficulty], ["Ergebnis", query.outcome], ["Reason", query.reason], ["Pickit", query.pickit_profile]] as const) {
 		if (values?.length) labels.push(`${label}: ${values.join(", ")}`);
 	}

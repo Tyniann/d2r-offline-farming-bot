@@ -3,24 +3,100 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "main": "dist-electron/main.js",
+  "description": "Installierte Windows-App für wiederholbare D2R-Offline-Farming-Runs",
+  "author": "Tyniann",
   "scripts": {
     "generate": "node scripts/generate-api.mjs",
     "pretest": "node scripts/generate-api.mjs --check",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit",
+    "typecheck:renderer": "tsc --noEmit",
+    "typecheck:electron": "tsc -p tsconfig.electron.json --noEmit",
+    "typecheck": "pnpm typecheck:renderer && pnpm typecheck:electron",
+    "build:electron": "tsc -p tsconfig.electron.build.json && node electron/copy-assets.mjs",
+    "build:icon": "node electron/create-build-icon.mjs",
+    "package:win": "pnpm build && pnpm build:icon && electron-builder --win nsis --x64",
+    "pretest:electron": "pnpm build",
+    "test:electron": "playwright test -c playwright.electron.config.ts",
     "prebuild": "node scripts/generate-api.mjs --check",
-    "build": "tsc --noEmit && vite build"
+    "build": "pnpm typecheck && vite build && pnpm build:electron"
   },
   "dependencies": {
+    "lucide-react": "1.25.0",
     "react": "19.2.7",
-    "react-dom": "19.2.7"
+    "react-dom": "19.2.7",
+    "recharts": "3.10.0"
+  },
+  "build": {
+    "appId": "io.github.tyniann.d2rofflinefarmingbot",
+    "productName": "D2R Offline Farming Bot",
+    "asar": true,
+    "compression": "store",
+    "npmRebuild": false,
+    "removePackageScripts": true,
+    "directories": {
+      "output": "../dist/electron-builder"
+    },
+    "files": [
+      "dist-electron/**/*",
+      "package.json",
+      "!node_modules/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "release-resources/core",
+        "to": "core",
+        "filter": ["d2rbot.exe"]
+      },
+      {
+        "from": "release-resources/defaults",
+        "to": "defaults",
+        "filter": ["**/*"]
+      },
+      {
+        "from": "../docs/RELEASE-NOTES.md",
+        "to": "INSTALLATION.md"
+      }
+    ],
+    "win": {
+      "icon": "build/icon.ico",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        }
+      ],
+      "artifactName": "D2R-Offline-Farming-Bot-${version}-Setup.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowElevation": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": false,
+      "createStartMenuShortcut": true,
+      "shortcutName": "D2R Offline Farming Bot",
+      "uninstallDisplayName": "D2R Offline Farming Bot",
+      "deleteAppDataOnUninstall": false,
+      "runAfterFinish": false,
+      "differentialPackage": false,
+      "include": "build/installer.nsh",
+      "installerLanguages": ["de_DE"],
+      "language": "1031",
+      "warningsAsErrors": true
+    }
   },
   "devDependencies": {
+    "@electron/asar": "3.4.1",
+    "@playwright/test": "1.61.1",
     "@testing-library/jest-dom": "6.9.1",
     "@testing-library/react": "16.3.2",
+    "@types/node": "20.19.43",
     "@types/react": "19.2.17",
     "@types/react-dom": "19.2.3",
     "@vitejs/plugin-react": "6.0.3",
+    "electron": "39.8.10",
+    "electron-builder": "26.15.3",
     "jsdom": "29.1.1",
     "typescript": "7.0.2",
     "vite": "8.1.4",

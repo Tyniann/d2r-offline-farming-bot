@@ -13,6 +13,7 @@ function typeOf(value) {
   if (value.type === "array") return `Array<${typeOf(value.items)}>`;
   if (value.type === "integer" || value.type === "number") return "number";
   if (value.type === "boolean") return "boolean";
+  if (value.type === "object" && typeof value.additionalProperties === "object") return `Record<string, ${typeOf(value.additionalProperties)}>`;
   if (value.type === "object") return "Record<string, unknown>";
   return "string";
 }
@@ -49,9 +50,30 @@ export function getCatalog(signal?: AbortSignal): Promise<CatalogDTO> {
   return getJSON<CatalogDTO>("/api/v1/catalog", signal);
 }
 
+export function getOperatorSettings(signal?: AbortSignal): Promise<OperatorSettingsDTO> {
+  return getJSON<OperatorSettingsDTO>("/api/v1/settings/operator", signal);
+}
+
+export function previewOperatorSettings(request: OperatorSettingsMutationRequest, signal?: AbortSignal): Promise<OperatorSettingsChangeDTO> {
+  return sendJSON<OperatorSettingsChangeDTO>("/api/v1/settings/operator/preview", "POST", request, "", signal);
+}
+
+export function updateOperatorSettings(request: OperatorSettingsMutationRequest, token: string, signal?: AbortSignal): Promise<OperatorSettingsChangeDTO> {
+  return sendJSON<OperatorSettingsChangeDTO>("/api/v1/settings/operator", "PUT", request, token, signal);
+}
+
+export function resetOperatorSettings(request: OperatorSettingsResetRequest, token: string, signal?: AbortSignal): Promise<OperatorSettingsChangeDTO> {
+  return sendJSON<OperatorSettingsChangeDTO>("/api/v1/settings/operator/reset", "POST", request, token, signal);
+}
+
+export function previewResetOperatorSettings(request: OperatorSettingsResetRequest, signal?: AbortSignal): Promise<OperatorSettingsChangeDTO> {
+  return sendJSON<OperatorSettingsChangeDTO>("/api/v1/settings/operator/reset/preview", "POST", request, "", signal);
+}
+
 export interface HistoryQuery {
   from?: string;
   to?: string;
+  timezone?: string;
   run?: string[];
   character?: string[];
   difficulty?: string[];
@@ -90,6 +112,16 @@ export async function downloadHistoryExport(format: "json" | "csv", dataset: "" 
   const disposition = response.headers.get("Content-Disposition") ?? "";
   const filename = disposition.match(/filename="([A-Za-z0-9._-]+)"/)?.[1] ?? \`d2r-history.\${format}\`;
   return { blob: await response.blob(), filename };
+}
+
+export function previewHistoryDeleteAll(request: HistoryDeletePreviewRequest, token: string, signal?: AbortSignal): Promise<HistoryDeletePreviewDTO> {
+  return sendJSON<HistoryDeletePreviewDTO>("/api/v1/history/delete-all/preview", "POST", request, token, signal);
+}
+export function confirmHistoryDeleteAll(request: HistoryDeleteConfirmRequest, token: string, signal?: AbortSignal): Promise<HistoryDeleteResultDTO> {
+  return sendJSON<HistoryDeleteResultDTO>("/api/v1/history/delete-all/confirm", "POST", request, token, signal);
+}
+export function createDiagnosticBundle(request: DiagnosticBundleRequest, token: string, signal?: AbortSignal): Promise<DiagnosticBundleDTO> {
+  return sendJSON<DiagnosticBundleDTO>("/api/v1/diagnostics/bundle", "POST", request, token, signal);
 }
 
 export function getPickitCatalog(signal?: AbortSignal): Promise<PickitCatalogDTO> { return getJSON<PickitCatalogDTO>("/api/v1/pickit/catalog", signal); }

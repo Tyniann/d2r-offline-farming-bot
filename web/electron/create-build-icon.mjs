@@ -1,0 +1,22 @@
+import { mkdir, writeFile } from "node:fs/promises";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { createPortalIconPNG } from "../dist-electron/portal-icon.js";
+
+const webRoot = dirname(dirname(fileURLToPath(import.meta.url)));
+const png = createPortalIconPNG(256);
+const header = Buffer.alloc(22);
+header.writeUInt16LE(0, 0);
+header.writeUInt16LE(1, 2);
+header.writeUInt16LE(1, 4);
+header[6] = 0;
+header[7] = 0;
+header[8] = 0;
+header[9] = 0;
+header.writeUInt16LE(1, 10);
+header.writeUInt16LE(32, 12);
+header.writeUInt32LE(png.length, 14);
+header.writeUInt32LE(header.length, 18);
+const target = join(webRoot, "build", "icon.ico");
+await mkdir(dirname(target), { recursive: true });
+await writeFile(target, Buffer.concat([header, png]));

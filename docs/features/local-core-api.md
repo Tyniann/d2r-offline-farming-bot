@@ -2,7 +2,7 @@
 
 ## Überblick
 
-Abschnitt 11.2 stellt den Go-Core über eine versionierte lokale HTTP-/JSON-Grenze bereit und liefert einen reproduzierbar gebauten React-/TypeScript-Client aus demselben Prozess aus. Abschnitt 11.3 ergänzt den read-only Runtime-Status und einen nicht blockierenden SSE-Stream. `d2rbot.exe --ui` bindet ausschließlich einen zufälligen Port auf `127.0.0.1`, öffnet den Standardbrowser und startet unabhängig von YAML-Session-Defaults niemals automatisch einen Bot-Run.
+Abschnitt 11.2 stellt den Go-Core über eine versionierte lokale HTTP-/JSON-Grenze bereit und liefert einen reproduzierbar gebauten React-/TypeScript-Client aus demselben Prozess aus. Abschnitt 11.3 ergänzt den read-only Runtime-Status und einen nicht blockierenden SSE-Stream. Seit Abschluss von Phase 15 ist diese Grenze ausschließlich der interne Transport zwischen dem gebündelten Core und dem Electron-Renderer; ein öffentlicher Browsermodus existiert nicht mehr.
 
 ## Ort im Code
 
@@ -16,21 +16,21 @@ Abschnitt 11.2 stellt den Go-Core über eine versionierte lokale HTTP-/JSON-Gren
 - **Embed-Paket:** `internal/api/ui/embed.go`
 - **Produktionsassets:** `internal/api/ui/dist/`
 - **Frontend-Quelle:** `web/`
-- **CLI:** `cmd/d2rbot/main.go` → `--ui`
+- **Desktop-Wiring:** `cmd/d2rbot/main.go` → private `--desktop-handshake-pipe`
 
 ## Funktionalität
 
 ### Prozessmodell
 
-`--ui` erzeugt die normale Core-Runtime, startet aber weder deren Task-Loop noch `RunSession`. Ein eigener passiver Monitor verwendet den bestehenden Snapshot-Tick für Prozess-Attach, Fensterbindung und World-Update. Er ruft keine Farming-Tasks auf. Gameplay-Input ist ausschließlich über den expliziten, screenshot- und Memory-bestätigten Selection-Apply erlaubt. Das Live-Backend projiziert D2R, Input-Safety-Gates, World Model, aktive Auswahl und Supervisor.
+Der private Desktopmodus wird ausschließlich durch eine Electron-eigene Handshake-Pipe aktiviert. Er erzeugt die normale Core-Runtime, startet aber weder deren Task-Loop noch `RunSession`. Ein eigener passiver Monitor verwendet den bestehenden Snapshot-Tick für Prozess-Attach, Fensterbindung und World-Update. Er ruft keine Farming-Tasks auf. Gameplay-Input ist ausschließlich über den expliziten, screenshot- und Memory-bestätigten Selection-Apply erlaubt. Das Live-Backend projiziert D2R, Input-Safety-Gates, World Model, aktive Auswahl und Supervisor.
 
-Der Server wählt über `net.Listen("tcp4", "127.0.0.1:0")` einen freien Loopback-Port. Die sichere URL ohne Secret wird einmal an der Konsole ausgegeben. Der Control-Token steht bei der ersten Navigation in der Browser-URL als Fragment, wird von React in Memory übernommen und sofort per `history.replaceState` aus der sichtbaren URL entfernt. Nach einem Refresh erneuert `GET /api/v1/control/bootstrap` denselben Prozess-Token ausschließlich für einen Request mit dem nicht einfachen Header `X-D2RBot-Bootstrap: 1`. Eine fremde Webseite müsste dafür einen CORS-Preflight ausführen, der bereits am exakten Origin-Gate scheitert. Der Token wird weiterhin weder in Web Storage noch in Cookie, Datei, URL-History oder Log persistiert.
+Der Server wählt über `net.Listen("tcp4", "127.0.0.1:0")` einen freien Loopback-Port. URL und einmaliger Bootstrap-Token gelangen nur über die PID-gebundene Named Pipe an Electron. Der Control-Token steht bei der ersten Renderer-Navigation im URL-Fragment, wird von React in Memory übernommen und sofort per `history.replaceState` entfernt. Nach einem Reload erneuert `GET /api/v1/control/bootstrap` denselben Prozess-Token ausschließlich für einen Request mit dem nicht einfachen Header `X-D2RBot-Bootstrap: 1`. Ein fremder Origin scheitert am exakten Origin-Gate. Der Token wird weder in Web Storage noch in Cookie, Datei, URL-History, Standardausgabe oder Log persistiert.
 
 ### Endpunkte
 
 | Endpunkt | Stand 11.3 |
 |---|---|
-| `GET /api/v1/status` | Aktueller Core-, D2R-, Input-, World- und Queue-Snapshot einschließlich Game-ID, Run-ID, Lifecycle-Phase, Index, Spielzyklus, Retry und Safety-Budgets. |
+| `GET /api/v1/status` | Aktueller App-/Core-, D2R-Compatibility-, Input-, World- und Queue-Snapshot einschließlich tatsächlicher/erwarteter/Offsetversion, Game-ID, Run-ID, Lifecycle-Phase, Index, Spielzyklus, Retry und Safety-Budgets. |
 | `GET /api/v1/catalog` | Read-only Run-Katalog aus dem bestehenden Availability-Resolver. |
 | `GET /api/v1/events` | SSE: vollständiger Snapshot, Replay ab `Last-Event-ID`, danach Live-Deltas und Heartbeats. |
 | `GET /api/v1/history/summary` | Gefilterte Historienpopulation mit Ergebnis-, Dauer-, Stage-, Funnel-, Fehler- und Dateidiagnosewerten. |
@@ -67,9 +67,11 @@ Ein Fremd-Origin, falscher Host, fehlender Token, falsche Methode, falscher Cont
 
 ### Live-Stream
 
-Der Core vergibt pro Live-Ereignis eine streng monotone Sequenz und hält nur einen begrenzten Ring im Speicher. Jede SSE-Verbindung erhält zunächst einen vollständigen Status-Snapshot. Mit `Last-Event-ID` werden anschließend noch verfügbare Deltas nachgeliefert; ohne Header beginnt der Client am aktuellen Rand. Pro Client existiert eine begrenzte Queue. Ein langsamer oder abgebrochener Browser wird getrennt, statt Core, JSONL oder andere Clients zu blockieren. Area- und Step-Ereignisse werden bei unveränderter Identität dedupliziert.
+Der Core vergibt pro Live-Ereignis eine streng monotone Sequenz und hält nur einen begrenzten Ring im Speicher. Jede SSE-Verbindung erhält zunächst einen vollständigen Status-Snapshot. Mit `Last-Event-ID` werden anschließend noch verfügbare Deltas nachgeliefert; ohne Header beginnt der Client am aktuellen Rand. Pro Client existiert eine begrenzte Queue. Ein langsamer oder abgebrochener Renderer wird getrennt, statt Core, JSONL oder andere Clients zu blockieren. Area- und Step-Ereignisse werden bei unveränderter Identität dedupliziert.
 
 Nach einem terminalen Run-Wechsel aktualisiert das Live-Backend den flüchtigen History-Index. Eine geänderte Generation erzeugt ausschließlich `history_changed` mit der Generation; persistente Telemetriezeilen und lokale Pfade werden nicht in SSE kopiert.
+
+`compatibility_changed` enthält nur Zustand, stabilen Reason-Code und die vier pfadfreien Versionswerte. Auswahl-Apply, Queue-Start/Resume sowie Live-Routenworkflows und deren Publish-Mutationen werden zusätzlich im Backend abgewiesen, solange der Zustand nicht `compatible` ist.
 
 ## Frontend-Build
 
@@ -85,13 +87,9 @@ pnpm build
 
 Vite schreibt den Produktionsbuild direkt nach `internal/api/ui/dist`. Das ausgelieferte Go-Binary benötigt deshalb weder Node.js noch einen separaten Webserver.
 
-## Operator / CLI
+## Operator / Desktop
 
-```powershell
-go run ./cmd/d2rbot --config configs/config.yaml --ui
-```
-
-`--ui` ist mit Session-, Run-, Inspect-, Probe-, Route-, Town- und Testmodi gegenseitig exklusiv. `--verbose` bleibt als reine Logging-Option zulässig. Browser-Öffnen ist Komfort: Schlägt es fehl, bleibt der Server aktiv und die sichere tokenfreie Base-URL steht an der Konsole. Der Prozess endet über `Ctrl+C`/`SIGTERM` mit einem begrenzten HTTP-Shutdown.
+Die API wird nicht direkt vom Operator gestartet. Electron übergibt absoluten Datenroot und private Handshake-Pipe an den gebündelten Core. Desktopmodus und Session-, Run-, Inspect-, Probe-, Route-, Town- oder Testmodi sind gegenseitig exklusiv. Der Prozess endet über den kontrollierten Electron-Shutdown oder `SIGTERM` mit einem begrenzten HTTP-Shutdown.
 
 ## Abhängigkeiten und Grenzen
 
@@ -110,4 +108,4 @@ go run ./cmd/d2rbot --config configs/config.yaml --ui
 - [Historien-API und Export](history-api-export.md)
 
 ---
-*Zuletzt aktualisiert: 22. Juli 2026*
+*Zuletzt aktualisiert: 26. Juli 2026*

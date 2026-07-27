@@ -64,7 +64,9 @@ Während aller Loot-Schritte führt ein gültiger Snapshot außerhalb von `Tower
 
 Pickup-Ergebnisse mit Item-/World-Ursache (`monster_nearby`, `hover_not_found`, `target_lost`, `target_unstable`, `too_far`, `pickup_failed`) werden für die aktuelle `pick_loot`-Phase per `UnitID` übersprungen und danach erneut gescannt. Harte Verdrahtungs- oder Projektionsfehler (`input_blocked`, `projection_failed`, ein vom Loot-Adapter gemeldetes `invalid_world`) beenden den Run als Fehler. Inventory-Full/No-Fit entsteht im Scan als fehlender Pickup-Kandidat, nicht als Pickup-Executor-Fehler.
 
-Nach bestätigtem Countess-Kill bewahrt die State Machine ihre letzte Memory-bestätigte Weltposition auf. `reposition_for_loot` sendet exakt einen Teleport zu dieser Position und wartet danach ausschließlich auf die Memory-bestätigte Ankunft, bevor Drop-Stabilisierung und Pickit-Scan beginnen. Ein noch nicht aktualisierter Snapshot kann dadurch keinen zweiten Teleport weg vom Loot auslösen; bleibt die Ankunft aus, endet der bestehende Step-Timeout fail-closed. Damit bleiben Runen erreichbar, wenn die Countess außerhalb der bisherigen Pickup-Reichweite in Bone Prison stirbt. Andere Run-Definitionen erhalten diesen Schritt nur nach ausdrücklichem Opt-in.
+Nach bestätigtem Countess-Kill bewahrt die State Machine ihre letzte Memory-bestätigte Weltposition auf. `reposition_for_loot` versucht höchstens dreimal, sich dieser Position zu nähern. Nur ein tatsächlich gesendeter Teleport verbraucht einen Versuch; ein durch das Input-Throttling unterdrückter Aufruf zählt nicht. Zwischen zwei Versuchen müssen mindestens 500 ms und ein neuerer Memory-Snapshot liegen. Bleibt die bestätigte Ankunft innerhalb von vier Tiles auch nach dem letzten Versuch aus, beginnt die Drop-Stabilisierung trotzdem: Die aktuellen Item-Positionen sind für den anschließenden Pickup genauer als die historische Bossposition.
+
+Für jeden ausgewählten Pickit-Kandidaten wird dessen `UnitID` vor Input erneut im aktuellen World-State aufgelöst. Liegt das Item außerhalb von `loot.pickup.max_distance_tiles`, folgen nach denselben Snapshot-/Zeitgrenzen höchstens drei Teleports direkt zu seiner aktuellen Memory-Position. Erst danach übernimmt der vorhandene hover-bestätigte Pickup-Executor. Ist das Item weiterhin zu weit entfernt, wird es mit `too_far` für diese Loot-Phase übersprungen; Input-, Projektions- und ungültige World-Fehler bleiben terminal. Dadurch kann ein ungünstig liegender Drop gezielt erreicht werden, ohne blinde Teleport- oder Klickschleifen zu erzeugen. Andere Run-Definitionen erhalten die Post-Kill-Repositionierung nur nach ausdrücklichem Opt-in.
 
 ## Safety-Potions (Phase 4.7)
 
@@ -208,4 +210,4 @@ Der Recorder bindet die Aufnahme an den read-only aus Stash und Waypoint ermitte
 - Kein robuster Tower-Solver: zufällige Tower-Layouts bleiben die größte Unsicherheit des Phase-5-Stands. Phase 6 zieht Run Recording und Playback deshalb als direkte Nachfolgephase vor und ersetzt die globale Explorer-Traversierung im produktiven Countess-Run.
 
 ---
-*Zuletzt aktualisiert: 2026-07-16*
+*Zuletzt aktualisiert: 2026-07-26*

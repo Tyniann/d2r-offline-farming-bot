@@ -10,6 +10,7 @@ import (
 type HistoryFilterDTO struct {
 	FromUTC        *time.Time                 `json:"from_utc,omitempty"`
 	ToUTC          *time.Time                 `json:"to_utc,omitempty"`
+	Timezone       string                     `json:"timezone"`
 	Runs           []string                   `json:"runs"`
 	Characters     []string                   `json:"characters"`
 	Difficulties   []string                   `json:"difficulties"`
@@ -17,6 +18,20 @@ type HistoryFilterDTO struct {
 	Reasons        []string                   `json:"reasons"`
 	PickitProfiles []string                   `json:"pickit_profiles"`
 	Sort           telemetry.HistorySort      `json:"sort,omitempty"`
+}
+
+// HistoryDailyBucketDTO is a display-ready local calendar-day projection.
+type HistoryDailyBucketDTO struct {
+	Date             string    `json:"date"`
+	StartUTC         time.Time `json:"start_utc"`
+	EndUTC           time.Time `json:"end_utc"`
+	TerminalRuns     int       `json:"terminal_runs"`
+	Successful       int       `json:"successful"`
+	SuccessRate      *float64  `json:"success_rate,omitempty"`
+	ActiveDurationMs int64     `json:"active_duration_ms"`
+	ActiveHours      float64   `json:"active_hours"`
+	KeepReturn       int       `json:"keep_return"`
+	KeepPerHour      *float64  `json:"keep_per_hour,omitempty"`
 }
 
 // HistoryDiagnosticDTO exposes only a basename and stable error explanation.
@@ -193,8 +208,9 @@ type HistoryRunDetailDTO struct {
 
 // HistorySummaryResponse is the summary endpoint envelope.
 type HistorySummaryResponse struct {
-	Meta    HistoryMetaDTO    `json:"meta"`
-	Summary HistorySummaryDTO `json:"summary"`
+	Meta         HistoryMetaDTO          `json:"meta"`
+	Summary      HistorySummaryDTO       `json:"summary"`
+	DailyBuckets []HistoryDailyBucketDTO `json:"daily_buckets"`
 }
 
 // HistoryComparisonsResponse is the comparison endpoint envelope.
@@ -225,9 +241,49 @@ type HistoryRunDetailResponse struct {
 
 // HistoryReportDTO is the complete filtered JSON export from the same analysis.
 type HistoryReportDTO struct {
-	Meta        HistoryMetaDTO         `json:"meta"`
-	Summary     HistorySummaryDTO      `json:"summary"`
-	Comparisons []HistoryComparisonDTO `json:"comparisons"`
-	Items       []HistoryItemDTO       `json:"items"`
-	Runs        []HistoryRunDTO        `json:"runs"`
+	Meta         HistoryMetaDTO          `json:"meta"`
+	Summary      HistorySummaryDTO       `json:"summary"`
+	DailyBuckets []HistoryDailyBucketDTO `json:"daily_buckets"`
+	Comparisons  []HistoryComparisonDTO  `json:"comparisons"`
+	Items        []HistoryItemDTO        `json:"items"`
+	Runs         []HistoryRunDTO         `json:"runs"`
+}
+
+// HistoryMaintenanceDiagnosticDTO is one path-free maintenance diagnostic.
+type HistoryMaintenanceDiagnosticDTO struct {
+	FileID  string `json:"file_id,omitempty"`
+	Code    string `json:"code"`
+	Message string `json:"message"`
+}
+
+// HistoryDeletePreviewRequest binds preview creation to the current supervisor generation.
+type HistoryDeletePreviewRequest struct {
+	ExpectedGeneration uint64 `json:"expected_generation"`
+}
+
+// HistoryDeletePreviewDTO is the first non-destructive delete-all confirmation stage.
+type HistoryDeletePreviewDTO struct {
+	ConfirmationToken string         `json:"confirmation_token"`
+	IndexGeneration   uint64         `json:"index_generation"`
+	CandidateFiles    int            `json:"candidate_files"`
+	CandidateBytes    int64          `json:"candidate_bytes"`
+	ProtectedFiles    int            `json:"protected_files"`
+	Categories        map[string]int `json:"categories"`
+}
+
+// HistoryDeleteConfirmRequest is the exact second confirmation payload.
+type HistoryDeleteConfirmRequest struct {
+	ExpectedGeneration uint64 `json:"expected_generation"`
+	ConfirmationToken  string `json:"confirmation_token"`
+	IndexGeneration    uint64 `json:"index_generation"`
+	CandidateFiles     int    `json:"candidate_files"`
+	CandidateBytes     int64  `json:"candidate_bytes"`
+}
+
+// HistoryDeleteResultDTO reports complete or partial delete-all results without paths.
+type HistoryDeleteResultDTO struct {
+	DeletedFiles   int                               `json:"deleted_files"`
+	DeletedBytes   int64                             `json:"deleted_bytes"`
+	ProtectedFiles int                               `json:"protected_files"`
+	Diagnostics    []HistoryMaintenanceDiagnosticDTO `json:"diagnostics"`
 }

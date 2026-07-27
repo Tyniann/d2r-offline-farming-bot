@@ -65,6 +65,7 @@ Echte OS-Eingaben sind standardmäßig deaktiviert (`input.enabled: false`). Glo
 ### Safety & Logging (Phase 3.4)
 
 - **`input.enabled`:** Default `false`. Echte Tastatur-/Mausaktionen werden abgelehnt (`ErrInputDisabled`), bis in der lokalen YAML explizit `enabled: true` gesetzt wird.
+- **Installierter Operatorwert:** Die Desktop-App persistiert das Opt-in in `operator-settings.local.yaml`; Controller und Hotkeys übernehmen es erst beim kontrollierten Core-Neustart. Das Onboarding zeigt gespeicherten und effektiven Zustand getrennt und lässt die Charakterauswahl erst bei `Enabled=true`, `Paused=false` und `Stopped=false` im laufenden Core zu. Der API-Apply prüft denselben effektiven Zustand nochmals vor dem Selection-Handler.
 - **Pause/Stop-State:** `Pause`, `Resume`, `TogglePause`, `Stop` am Controller; `Status()` liefert `Enabled`, `Paused`, `Stopped`.
 - **Action-Guards:** Alle Sender-Methoden prüfen vor OS-Aufrufen: `stopped` → `ErrInputStopped`, `!enabled` → `ErrInputDisabled`, `paused` → `ErrInputPaused`. Argumentvalidierung und `ErrWindowNotBound` haben Vorrang.
 - **Action-Logging:** Einheitliches `input action`-Log mit `allowed=true|false`; bei Blockierung zusätzlich `blocked_by` (`disabled|paused|stopped`).
@@ -136,8 +137,8 @@ Komma trennt kurze Sequenzen. Bei `click:X,Y` in Sequenzen wird die Koordinate i
 
 | Ereignis | Aktion |
 |----------|--------|
-| App-Start | Hotkey-Listener registrieren (unabhängig von `input.enabled`) |
-| Prozess-Attach | `Bind(pid)` (soft retry) |
+| App-Start | Ausschließlich read-only Prozess-/Versionsprüfung; noch keine Gameplay-Hotkeys |
+| Bestätigtes `compatible` | Hotkey-Listener registrieren und danach `Bind(pid)` (soft retry) |
 | Attached, noch nicht bound | erneutes `Bind` vor jedem Snapshot (gedrosselt) |
 | Pause-Hotkey | In aktiver Queue Pause-after-run, sonst `TogglePause("hotkey")` |
 | Stop-after-run-Hotkey | In aktiver Queue Supervisor-Intent setzen; kein Input-Stop und kein Context-Cancel |
@@ -249,6 +250,7 @@ Erwartung: Fenster gebunden, Aktionen in `input action`-Logs sichtbar, `input te
 - **Input-Test sendet echte Eingaben:** nur mit explizitem `--input-test` und `input.enabled: true`.
 - **Keine Pathing-/UI-Klicks:** nur Low-Level-Primitives, kein semantisches D2R-UI-Modell.
 - **Globale Hotkeys:** können von anderer Software belegt sein; Start schlägt dann fehl statt ohne Safety zu laufen.
+- **Versionsgate:** Vor exakt bestätigtem `compatible` werden weder Hotkeys noch Window-Bind, Fokus oder Gameplay-Input erreicht.
 - **Statische Geometrie:** Client-Rect wird nur bei `Bind` aktualisiert; Move/Resize erfordert später `Refresh()` oder Re-Bind.
 - **Teleport-Bewegung:** `SetCursorPos` setzt den Cursor sofort; keine schrittweise Bewegung in 3.3.
 - **DPI/Multi-Monitor:** Screen-Koordinaten hängen von `ClientToScreen` und der DPI-Awareness des Prozesses ab; kein eigener DPI-Fix in 3.3.

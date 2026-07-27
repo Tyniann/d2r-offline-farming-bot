@@ -39,19 +39,30 @@ Spätere Ideen (noch nicht umgesetzt): [`docs/backlog.md`](../backlog.md).
 | [Kandidaten-Playback und Routenverwaltung](route-management.md) | Abschnitt 12.4: isolierter Navigationstest sowie revisions- und Recovery-gesicherte Publish/Replace/Archive/Restore/Delete-Transaktionen |
 | [Routenbibliothek und Setup-Assistent](route-dashboard.md) | Abschnitt 12.5: pfadfreie Core-API, React-Routenfeature, System-Egress-Setup und Core-geladene Hotkey-Hilfe |
 | [Session-Lifecycle](session-lifecycle.md) | Zentraler Phase-11-Game-Lifecycle, frischer Run-Zustand pro Queue-Eintrag, Same-game-Folge, Pause/Stop und verifizierte Spielgrenzen |
-| [FarmQueue-Scheduler](farm-queue-scheduler.md) | Abschnitt 11.7: vollständiger Queue-Preflight, zyklischer Scheduler, Retry-same-index und YAML-authoritative Safety-Budgets |
+| [FarmQueue-Scheduler](farm-queue-scheduler.md) | Abschnitt 11.7/15.13: vollständiger Queue-Preflight, persistente Charakter-Queue, zyklischer Scheduler, Retry-same-index und Core-autoritative Safety-Budgets |
 | [Session-Konfiguration und Inspect](session-configuration.md) | Phase 7.5: explizites Opt-in, endliche Budgets und read-only Planauflösung mit Route-/Character-/Difficulty-Preflight vor Attach/Input |
 | [Session-Recovery und Lifecycle-Telemetrie](session-recovery-telemetry.md) | Phase 7.7: exakte Retry-Klassifikation, harte Fehler-/Restart-Budgets und synchron korrelierte Session-/Game-/Run-JSONL-Ereignisse |
 | [Phase-11-Core-Vertrag](phase-11-core-contract.md) | Supervisor-Zustände, Commands, Queue-/Lifecycle-Semantik, DTO-Grundformen, Reason-Codes und finale Ownership-Matrix |
 | [Phase-12-Core-Vertrag](phase-12-core-contract.md) | Baseline, Assignment-/Kandidaten-Schemas, Recording-/System-Egress-Verträge, Workflow, Locks, Crash-Matrix und Ownership |
 | [Phase-13-Core-Vertrag](phase-13-core-contract.md) | Abschnitt 13.0: Pickit-Baseline, Profil-/Assignment-Schemas, Aktionen, Revisionen, Reason-Codes, Paketgrenzen und fallback-freie Migrationsmatrix |
 | [Phase-14-Core-Vertrag](phase-14-core-contract.md) | Abschnitt 14.0: Historienpopulation, Metriken, Denominatoren, Funnel, Stages, Filter, Pagination, Export und Reason-Codes |
+| [Phase-15-Core-Vertrag](phase-15-core-contract.md) | Abschnitt 15.0: Desktop-/Core-Ownership, Datenroot, Lifecycle, Version-Gate, Operatorwerte, Retention, Reason-Codes und 10.000-Run-Performancebaseline |
+| [Installierter Datenroot und Desktop-Einstellungen](installed-data-root.md) | Abschnitt 15.1: expliziter Core-Root, hashgebundene Defaults, stagingbasierter Import und getrennter atomarer Desktop-Settings-Store |
+| [Persistente Operator-Einstellungen](operator-settings.md) | Abschnitt 15.2: Core-eigene charakterbezogene Queues, Budgets, Input, Hotkeys und Retention mit Revisionen, Preview/Reset, Idle-Lock und zehn Backups |
+| [Sichere Electron-Shell und Core-Kindprozess](desktop-shell.md) | Abschnitt 15.3: gehärtetes Einzelfenster, private Handshake-Pipe, Datenroot-Lock, minimale IPC-Bridge und fail-closed Crash-Recovery |
+| [Tatsächliches D2R-Versionsgate](d2r-version-gate.md) | Abschnitt 15.4: PID-/pfadgebundene Windows-Dateiversion, exakte Compatibility-Matrix und Input-/Workflow-Sperre vor `compatible` |
+| [Desktop-App-Shell und Designsystem](desktop-app-shell.md) | Abschnitt 15.5: eine responsive Shell mit fünf stabilen Hash-Zielen, gemeinsamer Zustandsbasis und unveränderten Core-getriebenen Featureflüssen |
+| [Desktop-Betrieb und Einstellungen](desktop-operation.md) | Abschnitt 15.6: Core-revisionierte Settings, achtstufige native Zustandsmatrix, sichtbare Fensterbounds, Opt-in-Autostart, Tray, begrenzte Notifications und fail-closed Quit-Ordering |
+| [First Run, Provisionierung und erste Route](first-run-onboarding.md) | Abschnitt 15.7: Pre-Core-Provisionierung derselben React-App, einmaliger Go-Import, neun Core-getriebene Schritte und Übergabe an denselben RecordingCoordinator |
 | [History-Reader und In-Memory-Index](history-reader-index.md) | Abschnitt 14.3: strikter Schema-3-Reader, Cross-Stream-Korrelation, Dateidiagnosen und vollständig rebuildbarer flüchtiger Index |
-| [Historienanalyse und Boss-/Routenvergleich](history-analysis.md) | Abschnitt 14.4: kanonische Filter, terminale Kennzahlen, Stage-Zeiten, Funnel, Itemertrag und fehlzeitgerechter Vergleich |
+| [Historienanalyse und Boss-/Routenvergleich](history-analysis.md) | Abschnitte 14.4/15.8: kanonische Filter, IANA-lokale Tages-Buckets, DST, terminale Kennzahlen, Stages, Funnel und Vergleich |
 | [Historien-API und Export](history-api-export.md) | Abschnitt 14.5: read-only DTOs, kanonische Filter, stabile Cursor-Pagination, JSON-/CSV-Parität und begrenztes Änderungssignal |
-| [Run-Historie im Dashboard](run-history.md) | Abschnitt 14.6: Filter, Kennzahlen, Core-sortierter Routenvergleich, Item-/Runlisten, Drill-down, Exporte und responsive Zustände |
+| [Run-Historie im Dashboard](run-history.md) | Abschnitte 14.6/15.8: Filter, Kennzahlen, vier tabellengestützte Charts, Core-sortierte Vergleiche, Drill-down und Exporte |
+| [Historien-Retention und Komplettlöschung](history-maintenance.md) | Abschnitt 15.9: vollständige alte Session-Bundles, tägliches Idle-Gate und metadatengebundene Komplettlöschung mit Active-Set-Schutz |
+| [Lokales Diagnosepaket und Versionshinweis](diagnostics-and-update-check.md) | Abschnitt 15.10: Core-Allowlist und Redaktion, getrennte sensitive Opt-ins sowie einmaliger stabiler GitHub-SemVer-Hinweis ohne Download |
+| [Windows-Installer und lokale Releasepipeline](windows-packaging.md) | Abschnitt 15.11: per-user NSIS x64, eine Releaseversion, minimale Ressourcen, Inhaltsaudit, temporärer Install-/Upgrade-/Uninstall-Smoke und SHA-256 |
 | [Lokale Core-API und eingebettete Web-Anwendung](local-core-api.md) | Abschnitt 11.2: Loopback-only HTTP/JSON, Security Envelope, OpenAPI-generierter TypeScript-Client und eingebetteter React-Build |
-| [Live-Dashboard und Session-Steuerung](live-dashboard.md) | Live-Projektion, Queue Builder, sichere Supervisor-Controls, Reconnect und deutsche Statuskarten |
+| [Live-Dashboard und Session-Steuerung](live-dashboard.md) | Electron-Live-Projektion, read-only persistente Charakter-Queue, sichere Supervisor-Controls, Reconnect und deutsche Statuskarten |
 | [Read-only Charakterkatalog und Screenshot-gated Selector](character-selection.md) | Abschnitt 11.4: Save-Dateinamen-Katalog, fail-closed Anker-Availability und begrenzte Home/Down-Auswahl mit Memory-Bestätigung |
 | [Read-only UI-State-Probe](ui-state-probe.md) | Phase 7.1: benannte UI-Buffer-Captures mit stabilen/volatilen Bytes, Fingerprint und lokalem JSON-Artefakt ohne Menüinput |
 | [Verifiziertes Offline Save & Exit](offline-game-exit.md) | Phase 7.2: isolierter Memory-gated Exit mit einmaligem Esc/Klick, 1280×720-Gate und bestätigter Menü-Ankunft |

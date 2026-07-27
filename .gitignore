@@ -21,6 +21,13 @@ go.work.sum
 /vendor/
 /web/node_modules/
 /web/.tmp-gocache/
+/web/dist-electron/
+/web/test-results/
+/web/playwright-report/
+/web/build/icon.ico
+/web/release-resources/
+/dist/electron-builder/
+/dist/release/
 
 # IDE
 .idea/

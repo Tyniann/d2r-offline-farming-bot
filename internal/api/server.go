@@ -55,6 +55,19 @@ type routeBackend interface {
 	FinishRouteWorkflow(string, RouteWorkflowFinishRequest) (RouteWorkflowDTO, error)
 }
 
+type operatorSettingsBackend interface {
+	OperatorSettings() (OperatorSettingsDTO, error)
+	PreviewOperatorSettings(OperatorSettingsMutationRequest) (OperatorSettingsChangeDTO, error)
+	PreviewResetOperatorSettings(OperatorSettingsResetRequest) (OperatorSettingsChangeDTO, error)
+	UpdateOperatorSettings(OperatorSettingsMutationRequest) (OperatorSettingsChangeDTO, error)
+	ResetOperatorSettings(OperatorSettingsResetRequest) (OperatorSettingsChangeDTO, error)
+}
+
+type historyMaintenanceBackend interface {
+	PreviewHistoryDeleteAll(HistoryDeletePreviewRequest) (HistoryDeletePreviewDTO, error)
+	ConfirmHistoryDeleteAll(HistoryDeleteConfirmRequest) (HistoryDeleteResultDTO, error)
+}
+
 // Server owns one random loopback listener and its process-local control token.
 type Server struct {
 	backend    Backend
@@ -159,6 +172,13 @@ func (s *Server) routes() http.Handler {
 	mux.HandleFunc("/api/v1/history/runs/{runID}", s.handleHistoryRunDetail)
 	mux.HandleFunc("/api/v1/history/runs", s.handleHistoryRuns)
 	mux.HandleFunc("/api/v1/history/export", s.handleHistoryExport)
+	mux.HandleFunc("/api/v1/history/delete-all/preview", s.handleHistoryDeleteAllPreview)
+	mux.HandleFunc("/api/v1/history/delete-all/confirm", s.handleHistoryDeleteAllConfirm)
+	mux.HandleFunc("/api/v1/diagnostics/bundle", s.handleDiagnosticBundle)
+	mux.HandleFunc("/api/v1/settings/operator", s.handleOperatorSettings)
+	mux.HandleFunc("/api/v1/settings/operator/preview", s.handleOperatorSettingsPreview)
+	mux.HandleFunc("/api/v1/settings/operator/reset", s.handleOperatorSettingsReset)
+	mux.HandleFunc("/api/v1/settings/operator/reset/preview", s.handleOperatorSettingsResetPreview)
 	mux.HandleFunc("/api/v1/control/bootstrap", s.handleControlBootstrap)
 	for path, command := range commandPaths {
 		commandName := command
@@ -185,6 +205,115 @@ func (s *Server) routes() http.Handler {
 	mux.HandleFunc("/api/", s.handleUnsupportedAPI)
 	mux.Handle("/", spaHandler(s.assets))
 	return s.security(mux)
+}
+
+func (s *Server) operatorSettingsBackend(w http.ResponseWriter, r *http.Request) (operatorSettingsBackend, bool) {
+	backend, ok := s.backend.(operatorSettingsBackend)
+	if !ok {
+		s.writeError(w, http.StatusNotImplemented, "feature_unavailable", "Einstellungen sind nicht verfügbar.", requestIDFrom(r), nil)
+	}
+	return backend, ok
+}
+
+func (s *Server) handleOperatorSettings(w http.ResponseWriter, r *http.Request) {
+	backend, ok := s.operatorSettingsBackend(w, r)
+	if !ok {
+		return
+	}
+	switch r.Method {
+	case http.MethodGet:
+		value, err := backend.OperatorSettings()
+		if err != nil {
+			s.writeOperatorSettingsError(w, r, err)
+			return
+		}
+		s.writeJSON(w, http.StatusOK, value)
+	case http.MethodPut:
+		if !requireJSONMutation(w, r, s, http.MethodPut) {
+			return
+		}
+		var request OperatorSettingsMutationRequest
+		if !s.decodeBody(w, r, &request) {
+			return
+		}
+		value, err := backend.UpdateOperatorSettings(request)
+		if err != nil {
+			s.writeOperatorSettingsError(w, r, err)
+			return
+		}
+		s.writeJSON(w, http.StatusOK, value)
+	default:
+		requireMethod(w, r, http.MethodGet, s)
+	}
+}
+
+func (s *Server) handleOperatorSettingsPreview(w http.ResponseWriter, r *http.Request) {
+	if !requireJSONPost(w, r, s, false) {
+		return
+	}
+	backend, ok := s.operatorSettingsBackend(w, r)
+	if !ok {
+		return
+	}
+	var request OperatorSettingsMutationRequest
+	if !s.decodeBody(w, r, &request) {
+		return
+	}
+	value, err := backend.PreviewOperatorSettings(request)
+	if err != nil {
+		s.writeOperatorSettingsError(w, r, err)
+		return
+	}
+	s.writeJSON(w, http.StatusOK, value)
+}
+
+func (s *Server) handleOperatorSettingsReset(w http.ResponseWriter, r *http.Request) {
+	if !requireJSONMutation(w, r, s, http.MethodPost) {
+		return
+	}
+	backend, ok := s.operatorSettingsBackend(w, r)
+	if !ok {
+		return
+	}
+	var request OperatorSettingsResetRequest
+	if !s.decodeBody(w, r, &request) {
+		return
+	}
+	value, err := backend.ResetOperatorSettings(request)
+	if err != nil {
+		s.writeOperatorSettingsError(w, r, err)
+		return
+	}
+	s.writeJSON(w, http.StatusOK, value)
+}
+
+func (s *Server) handleOperatorSettingsResetPreview(w http.ResponseWriter, r *http.Request) {
+	if !requireJSONPost(w, r, s, false) {
+		return
+	}
+	backend, ok := s.operatorSettingsBackend(w, r)
+	if !ok {
+		return
+	}
+	var request OperatorSettingsResetRequest
+	if !s.decodeBody(w, r, &request) {
+		return
+	}
+	value, err := backend.PreviewResetOperatorSettings(request)
+	if err != nil {
+		s.writeOperatorSettingsError(w, r, err)
+		return
+	}
+	s.writeJSON(w, http.StatusOK, value)
+}
+
+func (s *Server) writeOperatorSettingsError(w http.ResponseWriter, r *http.Request, err error) {
+	var commandErr *commandError
+	if errors.As(err, &commandErr) {
+		s.writeError(w, http.StatusConflict, commandErr.code, commandErr.message, requestIDFrom(r), commandErr.details)
+		return
+	}
+	s.writeError(w, http.StatusServiceUnavailable, "config_unavailable", "Die Einstellungen konnten nicht geladen werden.", requestIDFrom(r), nil)
 }
 
 func (s *Server) pickitBackend(w http.ResponseWriter, r *http.Request) (pickitBackend, bool) {
@@ -429,7 +558,7 @@ func (s *Server) handleRouteRecordingStart(w http.ResponseWriter, r *http.Reques
 	workflowRequest := RouteWorkflowRequest{ExpectedGeneration: request.ExpectedGeneration, Operation: "record", RunID: request.RunID}
 	value, err := backend.StartRouteWorkflow(workflowRequest)
 	if err != nil {
-		s.writeError(w, http.StatusConflict, "route_workflow_conflict", err.Error(), requestIDFrom(r), nil)
+		s.writeCommandOrConflict(w, r, "route_workflow_conflict", err)
 		return
 	}
 	s.writeJSON(w, http.StatusAccepted, value)
@@ -449,7 +578,7 @@ func (s *Server) handleRouteRecordingFinish(w http.ResponseWriter, r *http.Reque
 	}
 	value, err := backend.FinishRouteWorkflow(r.PathValue("workflowID"), request)
 	if err != nil {
-		s.writeError(w, http.StatusConflict, "route_workflow_changed", err.Error(), requestIDFrom(r), nil)
+		s.writeCommandOrConflict(w, r, "route_workflow_changed", err)
 		return
 	}
 	s.writeJSON(w, http.StatusAccepted, value)
@@ -469,7 +598,7 @@ func (s *Server) handleRouteCandidateTest(w http.ResponseWriter, r *http.Request
 	}
 	value, err := backend.StartRouteWorkflow(RouteWorkflowRequest{ExpectedGeneration: request.ExpectedGeneration, Operation: "test", CandidateID: r.PathValue("candidateID")})
 	if err != nil {
-		s.writeError(w, http.StatusConflict, "route_workflow_conflict", err.Error(), requestIDFrom(r), nil)
+		s.writeCommandOrConflict(w, r, "route_workflow_conflict", err)
 		return
 	}
 	s.writeJSON(w, http.StatusAccepted, value)
@@ -519,7 +648,7 @@ func (s *Server) handleRouteMutationPreviewValue(w http.ResponseWriter, r *http.
 	}
 	value, err := backend.PreviewRouteMutation(request)
 	if err != nil {
-		s.writeError(w, http.StatusConflict, "route_preview_stale", err.Error(), requestIDFrom(r), nil)
+		s.writeCommandOrConflict(w, r, "route_preview_stale", err)
 		return
 	}
 	s.writeJSON(w, http.StatusOK, value)
@@ -622,7 +751,7 @@ func (s *Server) handleRouteMutationPreview(w http.ResponseWriter, r *http.Reque
 	}
 	value, err := backend.PreviewRouteMutation(request)
 	if err != nil {
-		s.writeError(w, http.StatusConflict, "route_preview_stale", err.Error(), requestIDFrom(r), nil)
+		s.writeCommandOrConflict(w, r, "route_preview_stale", err)
 		return
 	}
 	s.writeJSON(w, http.StatusOK, value)
@@ -640,7 +769,7 @@ func (s *Server) handleRouteMutationConfirm(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	if err := backend.ConfirmRouteMutation(request); err != nil {
-		s.writeError(w, http.StatusConflict, "route_confirmation_stale", err.Error(), requestIDFrom(r), nil)
+		s.writeCommandOrConflict(w, r, "route_confirmation_stale", err)
 		return
 	}
 	s.writeJSON(w, http.StatusOK, map[string]string{"status": "completed"})
@@ -659,7 +788,7 @@ func (s *Server) handleRouteWorkflowStart(w http.ResponseWriter, r *http.Request
 	}
 	value, err := backend.StartRouteWorkflow(request)
 	if err != nil {
-		s.writeError(w, http.StatusConflict, "route_workflow_conflict", err.Error(), requestIDFrom(r), nil)
+		s.writeCommandOrConflict(w, r, "route_workflow_conflict", err)
 		return
 	}
 	s.writeJSON(w, http.StatusAccepted, value)
@@ -924,6 +1053,15 @@ func (s *Server) decodeBody(w http.ResponseWriter, r *http.Request, target any) 
 
 func (s *Server) writeError(w http.ResponseWriter, status int, code, message, requestID string, details map[string]any) {
 	s.writeJSON(w, status, ErrorDTO{Code: code, Message: message, Details: details, RequestID: requestID})
+}
+
+func (s *Server) writeCommandOrConflict(w http.ResponseWriter, r *http.Request, fallback string, err error) {
+	var commandErr *commandError
+	if errors.As(err, &commandErr) {
+		s.writeError(w, http.StatusConflict, commandErr.code, commandErr.message, requestIDFrom(r), commandErr.details)
+		return
+	}
+	s.writeError(w, http.StatusConflict, fallback, err.Error(), requestIDFrom(r), nil)
 }
 
 func (s *Server) writeJSON(w http.ResponseWriter, status int, value any) {

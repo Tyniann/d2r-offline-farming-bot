@@ -49,8 +49,8 @@ combat_profiles:
         - skill: bone_prison
           target: boss
           once_per_encounter: true
-          delay_ms: 750
-          settle_ms: 1500
+          delay_ms: 250
+          settle_ms: 1000
     resources:
       healing: { use_below_percent: 65, belt_slots: [1], cooldown_ms: 4000 }
       mana: { use_below_percent: 35, belt_slots: [2, 3], cooldown_ms: 4000 }
@@ -92,9 +92,9 @@ Jeder frische Session-Run bindet seinen eigenen Run-Recorder an den Profil-Execu
 
 Der isolierte Live-Lauf am 12.07.2026 bestätigte genau einen F5-/Bone-Armor-Cast (Skill 68), Settle und `outcome=success` ohne Town-Navigation. Ein dabei sichtbares CLI-Fallthrough in die aktivierte Session wurde behoben; explizite Runs und Probes besitzen nun Vorrang. Die zweite Live-Abnahme bestätigte Bone Prison (Skill 88) auf Countess Unit 273 und den ersten Bone-Spear-Cast erst 702 ms später; der vollständige Run endete erfolgreich.
 
-Der erste E2E-Abnahmeversuch am 12.07.2026 bestätigte Potion-Cooldowns, Loot, Stash, Save & Exit, Sessionabschluss und die neuen JSONL-Events. Die sichtbare Skill-Abnahme schlug dagegen fehl: Der Settle begann vor dem blockierenden Input und war beim abgeschlossenen Klick fast verbraucht. Town-Walk folgte deshalb 44 ms nach dem Bone-Armor-Klick und F8 100 ms nach Bone Prison. Weitere Versuche zeigten zusätzliche E2E-Unterschiede: Memory meldet den In-Game-State vor der sichtbaren Eingabebereitschaft, ein Self-Cast auf den projizierten Spieleranker kann als Bewegung interpretiert werden und 500 ms Nachlauf reichen nicht zuverlässig für die komplette Castanimation. Deshalb verlangt `town_ready` fünf Sekunden stabilen Town-State, `boss_engage` wartet 750 ms, Self-Targets verwenden die neutrale Client-Mitte und beide Hooks halten nach dem Klick 1,5 Sekunden absolute Aktionsruhe. Eine Input-/JSONL-Anforderung allein gilt ausdrücklich nicht als Beweis eines ausgeführten In-Game-Casts.
+Der erste E2E-Abnahmeversuch am 12.07.2026 bestätigte Potion-Cooldowns, Loot, Stash, Save & Exit, Sessionabschluss und die neuen JSONL-Events. Die sichtbare Skill-Abnahme schlug dagegen fehl: Der Settle begann vor dem blockierenden Input und war beim abgeschlossenen Klick fast verbraucht. Town-Walk folgte deshalb 44 ms nach dem Bone-Armor-Klick und F8 100 ms nach Bone Prison. Weitere Versuche zeigten zusätzliche E2E-Unterschiede: Memory meldet den In-Game-State vor der sichtbaren Eingabebereitschaft, ein Self-Cast auf den projizierten Spieleranker kann als Bewegung interpretiert werden und 500 ms Nachlauf reichen nicht zuverlässig für die komplette Castanimation. Deshalb verlangte `town_ready` fünf Sekunden stabilen Town-State, `boss_engage` zunächst 750 ms, Self-Targets verwenden die neutrale Client-Mitte und beide Hooks halten nach dem Klick 1,5 Sekunden absolute Aktionsruhe. Eine Input-/JSONL-Anforderung allein gilt ausdrücklich nicht als Beweis eines ausgeführten In-Game-Casts.
 
-Der abschließende E2E-Lauf bestätigte Bone Armor sichtbar nach fünf Sekunden Town-Stabilisierung und 1,67 Sekunden Abstand bis Town-Walk. Bone Prison wurde sichtbar auf Countess Unit 225 ausgeführt; Bone Spear folgte nach 1,81 Sekunden. Der vollständige autonome Run einschließlich Potion-Policy, Loot, Stash und Save & Exit endete erfolgreich. Der 750-ms-Vorlauf vor dem Boss-Cast bleibt für eine spätere Hell-Optimierung explizit beobachtbar.
+Der abschließende E2E-Lauf bestätigte Bone Armor sichtbar nach fünf Sekunden Town-Stabilisierung und 1,67 Sekunden Abstand bis Town-Walk. Bone Prison wurde sichtbar auf Countess Unit 225 ausgeführt; Bone Spear folgte nach 1,81 Sekunden. Der vollständige autonome Run einschließlich Potion-Policy, Loot, Stash und Save & Exit endete erfolgreich. Beim installierten Hell-Gate am 26.07.2026 benötigte die Boss-Erkennung nach Ende der Route nur 72 ms; der historische 750-ms-Vorlauf dominierte den verbleibenden Leerlauf. Er ist deshalb auf 250 ms reduziert. Der kurze Puffer schützt weiterhin den Übergang aus dem letzten Teleport. Die sichtbare Nachruhe vor Bone Spear wurde anschließend kontrolliert von 1,5 auf 1,0 Sekunden reduziert.
 
 ---
-*Zuletzt aktualisiert: 2026-07-12 (Phase 8 abgeschlossen)*
+*Zuletzt aktualisiert: 2026-07-26 (Hell-Vorlauf optimiert)*

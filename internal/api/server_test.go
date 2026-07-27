@@ -18,19 +18,38 @@ import (
 )
 
 type apiTestBackend struct {
-	commands      atomic.Int32
-	previews      atomic.Int32
-	routeConfirms atomic.Int32
-	queueErr      error
-	history       historyData
-	historyErr    error
-	historyFilter telemetry.HistoryFilter
+	commands             atomic.Int32
+	previews             atomic.Int32
+	routeConfirms        atomic.Int32
+	queueErr             error
+	history              historyData
+	historyErr           error
+	historyFilter        telemetry.HistoryFilter
+	historyDeletePreview HistoryDeletePreviewDTO
+	historyDeleteResult  HistoryDeleteResultDTO
+	historyDeleteErr     error
+	diagnosticRequest    DiagnosticBundleRequest
+	diagnosticResult     DiagnosticBundleDTO
+	diagnosticErr        error
+}
+
+func (b *apiTestBackend) CreateDiagnosticBundle(request DiagnosticBundleRequest) (DiagnosticBundleDTO, error) {
+	b.diagnosticRequest = request
+	return b.diagnosticResult, b.diagnosticErr
 }
 
 func (b *apiTestBackend) History(filter telemetry.HistoryFilter) (historyData, error) {
 	b.historyFilter = filter
 	b.history.analysis.Filter = filter
 	return b.history, b.historyErr
+}
+
+func (b *apiTestBackend) PreviewHistoryDeleteAll(HistoryDeletePreviewRequest) (HistoryDeletePreviewDTO, error) {
+	return b.historyDeletePreview, b.historyDeleteErr
+}
+
+func (b *apiTestBackend) ConfirmHistoryDeleteAll(HistoryDeleteConfirmRequest) (HistoryDeleteResultDTO, error) {
+	return b.historyDeleteResult, b.historyDeleteErr
 }
 
 func (b *apiTestBackend) RouteLibrary(string, bool) (RouteLibraryDTO, error) {
@@ -523,6 +542,42 @@ func TestControlBootstrapRestoresProcessTokenWithoutCaching(t *testing.T) {
 	if response.StatusCode != http.StatusOK || body.Token != server.token || response.Header.Get("Cache-Control") != "no-store" {
 		t.Fatalf("bootstrap status=%d token_match=%t cache=%q", response.StatusCode, body.Token == server.token, response.Header.Get("Cache-Control"))
 	}
+}
+
+func TestDiagnosticBundleRequiresTokenAndProjectsOnlyNeutralFilename(t *testing.T) {
+	server, backend := startAPITestServer(t)
+	backend.diagnosticResult = DiagnosticBundleDTO{
+		Filename: "diagnose-20260726T120000Z-aabbccdd.zip", Bytes: 1234,
+		IncludedTelemetry: true, IncludedRoutes: false,
+	}
+	request := newCommandRequest(t, server, "/api/v1/diagnostics/bundle", `{"include_telemetry":true,"include_routes":false}`)
+	response, err := http.DefaultClient.Do(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusCreated {
+		t.Fatalf("status = %d", response.StatusCode)
+	}
+	var result DiagnosticBundleDTO
+	if decodeErr := json.NewDecoder(response.Body).Decode(&result); decodeErr != nil {
+		t.Fatal(decodeErr)
+	}
+	if result.Filename != backend.diagnosticResult.Filename || !backend.diagnosticRequest.IncludeTelemetry || backend.diagnosticRequest.IncludeRoutes {
+		t.Fatalf("result=%+v request=%+v", result, backend.diagnosticRequest)
+	}
+
+	unauthorized, err := http.NewRequest(http.MethodPost, server.URL()+"/api/v1/diagnostics/bundle", strings.NewReader(`{"include_telemetry":false,"include_routes":false}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	unauthorized.Header.Set("Content-Type", "application/json")
+	response, err = http.DefaultClient.Do(unauthorized)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer response.Body.Close()
+	assertAPIError(t, response, http.StatusUnauthorized, "request_unauthorized")
 }
 
 func startAPITestServer(t *testing.T) (*Server, *apiTestBackend) {

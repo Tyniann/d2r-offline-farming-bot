@@ -41,7 +41,10 @@ func (s *Server) handleHistorySummary(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	s.writeJSON(w, http.StatusOK, HistorySummaryResponse{Meta: historyMeta(data, generatedAt), Summary: historySummaryDTO(data.analysis.Summary)})
+	s.writeJSON(w, http.StatusOK, HistorySummaryResponse{
+		Meta: historyMeta(data, generatedAt), Summary: historySummaryDTO(data.analysis.Summary),
+		DailyBuckets: historyDailyBucketsDTO(data.analysis.DailyBuckets),
+	})
 }
 
 func (s *Server) handleHistoryComparisons(w http.ResponseWriter, r *http.Request) {
@@ -157,7 +160,8 @@ func (s *Server) handleHistoryExport(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="d2r-history-%s.json"`, stamp))
 		s.writeJSON(w, http.StatusOK, HistoryReportDTO{
 			Meta: historyMeta(data, generatedAt), Summary: historySummaryDTO(data.analysis.Summary),
-			Comparisons: historyComparisonsDTO(data.analysis.Comparisons), Items: historyItemsDTO(data.analysis.Items), Runs: historyRunsDTO(data.analysis.Runs),
+			DailyBuckets: historyDailyBucketsDTO(data.analysis.DailyBuckets), Comparisons: historyComparisonsDTO(data.analysis.Comparisons),
+			Items: historyItemsDTO(data.analysis.Items), Runs: historyRunsDTO(data.analysis.Runs),
 		})
 		return
 	}
@@ -185,7 +189,11 @@ type historyQueryOptions struct {
 func (s *Server) historyData(w http.ResponseWriter, r *http.Request, options historyQueryOptions) (historyData, time.Time, bool) {
 	filter, err := parseHistoryFilter(r.URL.Query(), options)
 	if err != nil {
-		s.writeHistoryError(w, r, telemetry.HistoryReasonFilterInvalid)
+		code := telemetry.HistoryErrorCode(err)
+		if code != telemetry.HistoryReasonTimezoneInvalid {
+			code = telemetry.HistoryReasonFilterInvalid
+		}
+		s.writeHistoryError(w, r, code)
 		return historyData{}, time.Time{}, false
 	}
 	backend, ok := s.historyBackend(w, r)
@@ -201,7 +209,7 @@ func (s *Server) historyData(w http.ResponseWriter, r *http.Request, options his
 }
 
 func parseHistoryFilter(query url.Values, options historyQueryOptions) (telemetry.HistoryFilter, error) {
-	allowed := map[string]bool{"from": true, "to": true, "run": true, "character": true, "difficulty": true, "outcome": true, "reason": true, "pickit_profile": true}
+	allowed := map[string]bool{"from": true, "to": true, "timezone": true, "run": true, "character": true, "difficulty": true, "outcome": true, "reason": true, "pickit_profile": true}
 	if options.sort != "" {
 		allowed["sort"] = true
 	}
@@ -214,7 +222,7 @@ func parseHistoryFilter(query url.Values, options historyQueryOptions) (telemetr
 	if unknown := unknownHistoryQuery(query, allowed); unknown != "" {
 		return telemetry.HistoryFilter{}, fmt.Errorf("%s: unknown query %q", telemetry.HistoryReasonFilterInvalid, unknown)
 	}
-	for _, key := range []string{"from", "to", "sort", "limit", "cursor", "format", "dataset"} {
+	for _, key := range []string{"from", "to", "timezone", "sort", "limit", "cursor", "format", "dataset"} {
 		if len(query[key]) > 1 {
 			return telemetry.HistoryFilter{}, fmt.Errorf("%s: repeated query %q", telemetry.HistoryReasonFilterInvalid, key)
 		}
@@ -226,9 +234,15 @@ func parseHistoryFilter(query url.Values, options historyQueryOptions) (telemetr
 		}
 	}
 	filter := telemetry.HistoryFilter{
-		Runs: queryList(query, "run"), Characters: queryList(query, "character"), Difficulties: queryList(query, "difficulty"),
+		Timezone: query.Get("timezone"),
+		Runs:     queryList(query, "run"), Characters: queryList(query, "character"), Difficulties: queryList(query, "difficulty"),
 		Reasons: queryList(query, "reason"), PickitProfiles: queryList(query, "pickit_profile"),
 	}
+	timezone, timezoneErr := telemetry.NormalizeHistoryTimezone(filter.Timezone)
+	if timezoneErr != nil {
+		return telemetry.HistoryFilter{}, timezoneErr
+	}
+	filter.Timezone = timezone
 	if options.comparisonSort {
 		filter.Sort = telemetry.HistorySort(requestedSort)
 		if filter.Sort == "" {

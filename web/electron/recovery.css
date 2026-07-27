@@ -1,0 +1,4 @@
+:root { color-scheme: dark; font-family: "Segoe UI", sans-serif; background: #0d1118; color: #f1e7d6; }
+body { margin: 0; min-height: 100vh; display: grid; place-items: center; }
+main { max-width: 42rem; margin: 2rem; padding: 2rem; border: 1px solid #6d4631; border-radius: 0.75rem; background: #151b24; }
+h1 { color: #e2aa63; }

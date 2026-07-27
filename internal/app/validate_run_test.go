@@ -242,8 +242,17 @@ func TestMapRunConfigSkipsAssignmentOnlyForLootAndReturn(t *testing.T) {
 	}
 }
 
+func TestPassiveDesktopUIAllowsMissingInitialFarmingAssignment(t *testing.T) {
+	opts := Options{Desktop: true}
+	selection := resolveRunSelection(opts, &config.Config{})
+	requireFarmingRoute := (!opts.Desktop || selection.Run != "") && !runPhaseAllowsUnavailableFarmingRoute(selection.Phase)
+	if requireFarmingRoute {
+		t.Fatal("passive desktop UI must start before the first route assignment exists")
+	}
+}
+
 func TestMapRunConfigResolvesCountessCombatSkill(t *testing.T) {
-	cfg := &config.Config{Session: config.SessionConfig{Character: "MrBones"}, Routes: config.RoutesConfig{AssignmentsFile: filepath.Join(t.TempDir(), "assignments.yaml")}, Runs: config.RunsConfig{
+	cfg := &config.Config{Session: config.SessionConfig{Character: "MrBones"}, Routes: config.RoutesConfig{AssignmentsFile: filepath.Join(t.TempDir(), "assignments.yaml")}, Loot: config.LootConfig{Pickup: config.LootPickupConfig{MaxDistanceTiles: 6}}, Runs: config.RunsConfig{
 		StepTimeoutMs: 30000,
 		Definitions: map[string]config.RunConfig{"countess": {Combat: config.CombatConfig{
 			Profile:                 "necro_bone_spear",
@@ -264,6 +273,9 @@ func TestMapRunConfigResolvesCountessCombatSkill(t *testing.T) {
 	}
 	if got.RouteID != "test-route" {
 		t.Fatalf("RouteID = %q", got.RouteID)
+	}
+	if got.LootPickupDistanceTiles != 6 {
+		t.Fatalf("LootPickupDistanceTiles = %v, want 6", got.LootPickupDistanceTiles)
 	}
 }
 

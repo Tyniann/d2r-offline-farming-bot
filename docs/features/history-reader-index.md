@@ -44,7 +44,7 @@ Snapshots sind defensiv kopiert und stabil nach Startzeit plus Run-ID sortiert. 
 
 - Die Berechnung von Kennzahlen, Funnel-Verlusten und Stage-Dauern beginnt erst in Abschnitt 14.4.
 - API, Pagination und Exporte werden erst in Abschnitt 14.5 auf den Index gesetzt.
-- Es gibt keine automatische Rotation, Kompression oder Retention.
+- Es gibt keine Rotation oder Kompression; Abschnitt 15.9 ergänzt einen getrennten Core-Service für vollständige alte Bundles und bestätigte Komplettlöschung.
 
 ## Verwandte Features
 
@@ -53,4 +53,4 @@ Snapshots sind defensiv kopiert und stabil nach Startzeit plus Run-ID sortiert. 
 - [Session-/Recovery-Telemetrie](session-recovery-telemetry.md)
 
 ---
-*Zuletzt aktualisiert: 2026-07-22*
+*Zuletzt aktualisiert: 2026-07-26*

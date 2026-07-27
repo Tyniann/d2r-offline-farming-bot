@@ -13,7 +13,7 @@ build:
 	go build -ldflags "$(LDFLAGS)" -o $(BIN_DIR)/$(APP_NAME).exe $(CMD_PATH)
 
 release:
-	powershell -ExecutionPolicy Bypass -File scripts/build-release.ps1
+	powershell -ExecutionPolicy Bypass -File scripts/build-release.ps1 -Version $(VERSION)
 
 run:
 	go run $(CMD_PATH)

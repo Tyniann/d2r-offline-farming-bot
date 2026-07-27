@@ -18,6 +18,18 @@ func (s *stubAPI) OpenReadHandle(pid uint32) (nativeHandle, error) {
 	return 0, fmt.Errorf("open process pid=%d: %w", pid, ErrAccessDenied)
 }
 
+func (s *stubAPI) BoundPID(handle nativeHandle) (uint32, error) {
+	return 0, fmt.Errorf("bound PID: %w", ErrAccessDenied)
+}
+
+func (s *stubAPI) ProcessImagePath(handle nativeHandle) (string, error) {
+	return "", fmt.Errorf("process image path: %w", ErrAccessDenied)
+}
+
+func (s *stubAPI) FileVersion(path string) (string, error) {
+	return "", fmt.Errorf("file version: %w", ErrAccessDenied)
+}
+
 func (s *stubAPI) ModuleImage(pid uint32, moduleName string) (uintptr, uint32, error) {
 	return 0, 0, fmt.Errorf("module %s in pid=%d: %w", moduleName, pid, ErrModuleNotFound)
 }

@@ -69,7 +69,7 @@ Verboten sind insbesondere parallele Starts, Resume außerhalb `paused_between_r
 - `retry_current` verändert den Index nicht und verbraucht die bestehenden Fehler-/Restart-Budgets.
 - `stop` beginnt keinen weiteren Eintrag.
 - Run-, Dauer-, Failure- und Restart-Budgets aus YAML gewinnen gegen den zyklischen Modus.
-- Ein Prozessneustart lädt den YAML-Default und beginnt bei Index `0`; Session-, Game-, Run-, Command- und Kataloggenerationen werden nicht wiederverwendet.
+- Ein Prozessneustart lädt die effektive persistente Charakter-Queue und beginnt bei Index `0`; Session-, Game-, Run-, Command- und Kataloggenerationen werden nicht wiederverwendet.
 
 ## Ownership und Refactoring-Naht
 

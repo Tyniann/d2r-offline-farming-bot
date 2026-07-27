@@ -96,10 +96,10 @@ input:
       # MVP-Belegung für 4.7: Slot 1 = Heiltränke, Slot 2/3 = Manatränke,
       # Slot 4 = Full Rejuvenation Potions. Später soll diese Belegung
       # benutzerkonfigurierbar werden.
-      slot_1: ","
-      slot_2: "."
-      slot_3: "-"
-      slot_4: "]"
+      slot_1: "1"
+      slot_2: "2"
+      slot_3: "3"
+      slot_4: "4"
 
 runs:
   # countess | mephisto | leer — stabile IDs aus der Run Registry.
@@ -138,8 +138,8 @@ combat_profiles:
         - skill: bone_prison
           target: boss
           once_per_encounter: true
-          delay_ms: 750
-          settle_ms: 1500
+          delay_ms: 250
+          settle_ms: 1000
     resources:
       healing:
         use_below_percent: 65

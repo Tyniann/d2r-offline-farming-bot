@@ -2,7 +2,7 @@
 
 ## Überblick
 
-Die Phase-14-Historienanalyse ist die einzige Rechenautorität für Farming-Kennzahlen. Sie verarbeitet defensive `HistorySnapshot`-Runs als reine Core-Funktion und liefert Summary, Boss-/Routenvergleich, Itemausbeute und Run-Drill-down. React, Export und API übernehmen später exakt diese Ergebnisse und berechnen keine eigenen Statistiken.
+Die Historienanalyse ist die einzige Rechenautorität für Farming-Kennzahlen. Sie verarbeitet defensive `HistorySnapshot`-Runs als reine Core-Funktion und liefert Summary, lokale Tages-Buckets, Boss-/Routenvergleich, Itemausbeute und Run-Drill-down. React, Export und API übernehmen exakt diese Ergebnisse und berechnen keine eigenen Statistiken.
 
 ## Ort im Code
 
@@ -16,6 +16,10 @@ Die Phase-14-Historienanalyse ist die einzige Rechenautorität für Farming-Kenn
 ### Kanonische Population und Filter
 
 Nur `productive_farming` wird analysiert. Zeitraumgrenzen sind ein halboffenes UTC-Intervall. Run, Charakter, Difficulty, Ergebnis, Reason-Code und Pickit-Profil werden innerhalb ihrer Kategorie als Auswahlmenge und zwischen Kategorien gemeinsam angewendet. Aktive und unvollständige Runs bleiben in der Runliste sichtbar, fließen aber nicht in terminale Quoten, Dauern oder Ertragsraten ein.
+
+### Lokale Tages-Buckets
+
+Der Request benennt eine validierte IANA-Zeitzone; leer bedeutet `UTC`, unbekannte Werte liefern `history_timezone_invalid`. Die installierte Windows-Binärdatei enthält Go-`tzdata`, sodass die Auswertung nicht vom Hostbestand abhängt. Ein Bucket entspricht einem lokalen Kalendertag und veröffentlicht seine exakten UTC-Grenzen. Daher besitzen DST-Wechseltage in `Europe/Vienna` korrekt 23 beziehungsweise 25 Stunden. Tage ohne Runs bleiben als Nulltage erhalten. Terminale Runs, Erfolge, Erfolgsquote, aktive Millisekunden/Stunden, gesicherter Keep und Keep pro aktiver Stunde werden vollständig im Core berechnet.
 
 ### Zeit und Fehler
 
@@ -41,6 +45,7 @@ Vergleiche trennen mindestens `(character, difficulty, definition_id, route_id)`
 - Abbruchzeit bleibt im Nenner; null aktive Zeit liefert keine erfundene Stundenrate.
 - Neun Bosskills markieren geringe Datenbasis, zehn nicht.
 - Filterpartitionen, gleiche Zeitstempel, stabile Tiebreaker und Division durch null sind deterministisch.
+- UTC, `Europe/Vienna`, 23-/25-Stunden-DST, halboffene Grenzen und Nulltage besitzen handgerechnete Tests.
 
 ## Grenzen
 
@@ -55,4 +60,4 @@ Vergleiche trennen mindestens `(character, difficulty, definition_id, route_id)`
 - [Run-Telemetrie](run-telemetry.md)
 
 ---
-*Zuletzt aktualisiert: 2026-07-22*
+*Zuletzt aktualisiert: 2026-07-26*

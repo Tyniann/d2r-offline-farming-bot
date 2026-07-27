@@ -9,7 +9,7 @@ import (
 func TestCurrentUIStatusProjectsReadOnlyComponentState(t *testing.T) {
 	proc := &mockProcess{status: process.Status{State: process.StateAttached, PID: 42}}
 	in := &mockInput{enabled: true, bound: true}
-	rt := testRuntimeWithInput(proc, &mockProbe{}, in, Options{UI: true})
+	rt := testRuntimeWithInput(proc, &mockProbe{}, in, Options{Desktop: true})
 
 	snapshot := rt.CurrentUIStatus("test error")
 	if snapshot.ProcessState != "attached" || snapshot.PID != 42 || !snapshot.InputEnabled || !snapshot.WindowBound {

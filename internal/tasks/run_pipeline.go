@@ -57,35 +57,46 @@ const (
 	dropStableTicks           = 3
 	lootNoTargetStableTicks   = 3
 	postKillLootDistanceTiles = 4
+	defaultLootPickupDistance = 8
+	lootRepositionRetryDelay  = 500 * time.Millisecond
+	lootRepositionMaxAttempts = 3
 )
 
 // runPipeline executes one immutable run definition or a thin isolated-phase alias.
 // Persistent executor state belongs to this generation and is cleared at the
 // runner's central reset barrier before another generation may start.
 type runPipeline struct {
-	definition             RunDefinition
-	phase                  string
-	routeID                string
-	combat                 CombatConfig
-	navStarted             bool
-	resumeAfterPrecheckSet bool
-	resumeAfterPrecheck    string
-	chestFallbackStarted   bool
-	targetSeen             bool
-	targetUnitID           uint32
-	targetPosition         world.Position
-	targetPositionSet      bool
-	targetAbsentTicks      int
-	dropStableTicks        int
-	lootScanHasTarget      bool
-	lootPickupActive       bool
-	lootNoTargetTicks      int
-	routeStarted           bool
-	egressStarted          bool
-	encounterActionIndex   int
-	encounterActionStarted bool
-	bossKillEmitted        bool
-	postKillTeleportSent   bool
+	definition               RunDefinition
+	phase                    string
+	routeID                  string
+	combat                   CombatConfig
+	navStarted               bool
+	resumeAfterPrecheckSet   bool
+	resumeAfterPrecheck      string
+	chestFallbackStarted     bool
+	targetSeen               bool
+	targetUnitID             uint32
+	targetPosition           world.Position
+	targetPositionSet        bool
+	targetAbsentTicks        int
+	dropStableTicks          int
+	lootScanHasTarget        bool
+	lootPickupActive         bool
+	lootNoTargetTicks        int
+	routeStarted             bool
+	egressStarted            bool
+	encounterActionIndex     int
+	encounterActionStarted   bool
+	bossKillEmitted          bool
+	lootPickupDistanceTiles  float64
+	postKillTeleportAttempts int
+	postKillTeleportAt       time.Time
+	postKillTeleportSnapshot time.Time
+	lootApproachTarget       LootTarget
+	lootApproachTargetSet    bool
+	lootApproachAttempts     int
+	lootApproachAt           time.Time
+	lootApproachSnapshot     time.Time
 }
 
 func (c *runPipeline) effectiveDefinition() RunDefinition {
@@ -111,7 +122,8 @@ func (c *runPipeline) resetGeneration() {
 	c.encounterActionIndex = 0
 	c.encounterActionStarted = false
 	c.bossKillEmitted = false
-	c.postKillTeleportSent = false
+	c.resetPostKillReposition()
+	c.resetLootApproach()
 }
 
 func (c *runPipeline) firstStep() string {
@@ -311,7 +323,7 @@ func (c *runPipeline) onStepEnter(step string) {
 	c.routeStarted = false
 	c.egressStarted = false
 	if step == pipelineStepRepositionForLoot {
-		c.postKillTeleportSent = false
+		c.resetPostKillReposition()
 	}
 	if step == pipelineStepWaitForDrops {
 		c.dropStableTicks = 0
@@ -323,6 +335,7 @@ func (c *runPipeline) onStepEnter(step string) {
 	if step == pipelineStepPickLoot {
 		c.lootPickupActive = false
 		c.lootNoTargetTicks = 0
+		c.resetLootApproach()
 	}
 	if step == pipelineStepAcquireBoss {
 		c.chestFallbackStarted = false
@@ -592,25 +605,69 @@ func (c *runPipeline) onLootTick(ctx context.Context, deps Deps, step string, w 
 			return stepResult{}
 		}
 		if !c.lootPickupActive {
-			scan := deps.Loot.Scan(w)
-			if scan.TelemetryFailed {
-				return stepResult{failed: true, reason: "telemetry_failed"}
-			}
-			if scan.InventoryFull {
-				return stepResult{complete: true}
-			}
-			if !scan.HasTarget {
-				c.lootNoTargetTicks++
-				if c.lootNoTargetTicks >= lootNoTargetStableTicks {
+			targetSelectedThisTick := false
+			if !c.lootApproachTargetSet {
+				scan := deps.Loot.Scan(w)
+				if scan.TelemetryFailed {
+					return stepResult{failed: true, reason: "telemetry_failed"}
+				}
+				if scan.InventoryFull {
 					return stepResult{complete: true}
 				}
-				return stepResult{}
+				if !scan.HasTarget {
+					c.lootNoTargetTicks++
+					if c.lootNoTargetTicks >= lootNoTargetStableTicks {
+						return stepResult{complete: true}
+					}
+					return stepResult{}
+				}
+				c.lootNoTargetTicks = 0
+				c.lootApproachTarget = scan.NextTarget
+				c.lootApproachTargetSet = true
+				targetSelectedThisTick = true
 			}
-			c.lootNoTargetTicks = 0
-			if err := deps.Loot.StartPickup(scan.NextTarget); err != nil {
+			target := c.lootApproachTarget
+			if !targetSelectedThisTick {
+				var found bool
+				target, found = currentLootTarget(w, target)
+				if !found {
+					// The frozen candidate disappeared or changed before input.
+					// Rescan on a later tick instead of acting on stale coordinates.
+					c.resetLootApproach()
+					return stepResult{}
+				}
+				c.lootApproachTarget = target
+			}
+			if world.Distance(w.Player.Position, target.Position) > c.effectiveLootPickupDistance() {
+				if deps.Combat == nil {
+					return stepResult{failed: true, reason: "combat_not_wired"}
+				}
+				if c.lootApproachAttempts < lootRepositionMaxAttempts {
+					if !lootRepositionReady(now, w.At, c.lootApproachAt, c.lootApproachSnapshot) {
+						return stepResult{}
+					}
+					sent, err := deps.Combat.TeleportToward(now, w.Player.Position, target.Position, 0)
+					if err != nil {
+						return stepResult{failed: true, reason: "loot_reposition_failed"}
+					}
+					if sent {
+						c.lootApproachAttempts++
+						c.lootApproachAt = now
+						c.lootApproachSnapshot = w.At
+					}
+					return stepResult{}
+				}
+				if !lootRepositionReady(now, w.At, c.lootApproachAt, c.lootApproachSnapshot) {
+					return stepResult{}
+				}
+				// Let the existing pickup executor record `too_far` and skip
+				// this exact UnitID after the bounded reposition budget.
+			}
+			if err := deps.Loot.StartPickup(target); err != nil {
 				return stepResult{failed: true, reason: "loot_pickup_start_failed"}
 			}
 			c.lootPickupActive = true
+			c.resetLootApproach()
 		}
 		res := deps.Loot.TickPickup(w, now)
 		if !res.Done {
@@ -620,6 +677,7 @@ func (c *runPipeline) onLootTick(ctx context.Context, deps Deps, step string, w 
 		case LootPickupPickedUp, LootPickupMonsterNearby, LootPickupHoverNotFound,
 			LootPickupTargetLost, LootPickupTargetUnstable, LootPickupTooFar, LootPickupFailed:
 			c.lootPickupActive = false
+			c.resetLootApproach()
 			return stepResult{}
 		case LootPickupInputBlocked, LootPickupProjectionFailed, LootPickupInvalidWorld, LootPickupTelemetryFailed:
 			return stepResult{failed: true, reason: string(res.Status)}
@@ -939,17 +997,26 @@ func (c *runPipeline) onBossTick(ctx context.Context, deps Deps, step string, w 
 		if world.Distance(w.Player.Position, c.targetPosition) <= postKillLootDistanceTiles {
 			return stepResult{complete: true}
 		}
-		if c.postKillTeleportSent {
-			// Der Input-Aufruf blockiert kurz, während der World-Snapshot noch die
-			// Position vor dem Teleport enthalten kann. Nur Memory darf die Ankunft
-			// bestätigen; ein zweiter Cast auf Basis dieses alten Snapshots könnte
-			// den Spieler wieder vom Loot weg oder hinter eine Wand versetzen.
+		if c.postKillTeleportAttempts >= lootRepositionMaxAttempts {
+			if lootRepositionReady(now, w.At, c.postKillTeleportAt, c.postKillTeleportSnapshot) {
+				// Boss repositioning is a best-effort first approach. Candidate-
+				// specific repositioning after the drop scan remains authoritative.
+				return stepResult{complete: true}
+			}
 			return stepResult{}
 		}
-		if err := deps.Combat.TeleportToward(now, w.Player.Position, c.targetPosition, 0); err != nil {
+		if !lootRepositionReady(now, w.At, c.postKillTeleportAt, c.postKillTeleportSnapshot) {
+			return stepResult{}
+		}
+		sent, err := deps.Combat.TeleportToward(now, w.Player.Position, c.targetPosition, 0)
+		if err != nil {
 			return stepResult{failed: true, reason: "post_kill_reposition_failed"}
 		}
-		c.postKillTeleportSent = true
+		if sent {
+			c.postKillTeleportAttempts++
+			c.postKillTeleportAt = now
+			c.postKillTeleportSnapshot = w.At
+		}
 		return stepResult{}
 	default:
 		return stepResult{failed: true, reason: "unknown_step"}
@@ -1087,7 +1154,7 @@ func (c *runPipeline) tickEngageTarget(deps Deps, w world.State, target world.Mo
 	distance := world.Distance(w.Player.Position, target.Position)
 	var err error
 	if distance > c.combat.RepositionDistanceTiles {
-		err = deps.Combat.TeleportToward(now, w.Player.Position, target.Position, c.combat.EngageDistanceTiles)
+		_, err = deps.Combat.TeleportToward(now, w.Player.Position, target.Position, c.combat.EngageDistanceTiles)
 	} else {
 		err = deps.Combat.CastAttackAtWorld(now, c.combat.AttackSkillID, w.Player, target.Position)
 	}
@@ -1095,6 +1162,54 @@ func (c *runPipeline) tickEngageTarget(deps Deps, w world.State, target world.Mo
 		return stepResult{failed: true, reason: "combat_action_failed"}
 	}
 	return stepResult{}
+}
+
+func (c *runPipeline) effectiveLootPickupDistance() float64 {
+	if c.lootPickupDistanceTiles > 0 {
+		return c.lootPickupDistanceTiles
+	}
+	return defaultLootPickupDistance
+}
+
+func (c *runPipeline) resetPostKillReposition() {
+	c.postKillTeleportAttempts = 0
+	c.postKillTeleportAt = time.Time{}
+	c.postKillTeleportSnapshot = time.Time{}
+}
+
+func (c *runPipeline) resetLootApproach() {
+	c.lootApproachTarget = LootTarget{}
+	c.lootApproachTargetSet = false
+	c.lootApproachAttempts = 0
+	c.lootApproachAt = time.Time{}
+	c.lootApproachSnapshot = time.Time{}
+}
+
+// lootRepositionReady prevents a retry from reusing the snapshot that caused
+// the previous cast. Both a newer Memory sample and the bounded retry interval
+// are required before another input opportunity.
+func lootRepositionReady(now, snapshotAt, lastAttemptAt, lastSnapshotAt time.Time) bool {
+	if lastAttemptAt.IsZero() {
+		return true
+	}
+	return snapshotAt.After(lastSnapshotAt) && now.Sub(lastAttemptAt) >= lootRepositionRetryDelay
+}
+
+func currentLootTarget(state world.State, frozen LootTarget) (LootTarget, bool) {
+	if !state.Valid || state.Phase != world.GamePhaseInGame || state.Area.ID != frozen.AreaID {
+		return LootTarget{}, false
+	}
+	for _, item := range state.Items {
+		if item.UnitID != frozen.UnitID {
+			continue
+		}
+		if item.Location != world.ItemLocationGround || item.TxtFileNo != frozen.TxtFileNo || item.Code != frozen.Code {
+			return LootTarget{}, false
+		}
+		frozen.Position = item.Position
+		return frozen, true
+	}
+	return LootTarget{}, false
 }
 
 func (c *runPipeline) onTravelTick(ctx context.Context, deps Deps, step string, w world.State, now time.Time, stepStartedAt time.Time) stepResult {

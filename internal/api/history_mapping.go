@@ -22,7 +22,7 @@ func historyMeta(data historyData, generatedAt time.Time) HistoryMetaDTO {
 		diagnostics[index] = HistoryDiagnosticDTO{File: diagnostic.File, Code: string(diagnostic.Code), Message: diagnostic.Message}
 	}
 	return HistoryMetaDTO{
-		SchemaVersion: schemaVersion, GeneratedAt: generatedAt.UTC(), Timezone: "UTC",
+		SchemaVersion: schemaVersion, GeneratedAt: generatedAt.UTC(), Timezone: data.analysis.Filter.Timezone,
 		IndexGeneration: data.snapshot.Generation, Filter: historyFilterDTO(data.analysis.Filter),
 		Diagnostics: diagnostics, IgnoredFiles: data.snapshot.IgnoredFiles,
 	}
@@ -30,12 +30,25 @@ func historyMeta(data historyData, generatedAt time.Time) HistoryMetaDTO {
 
 func historyFilterDTO(filter telemetry.HistoryFilter) HistoryFilterDTO {
 	return HistoryFilterDTO{
-		FromUTC: filter.FromUTC, ToUTC: filter.ToUTC,
+		FromUTC: filter.FromUTC, ToUTC: filter.ToUTC, Timezone: filter.Timezone,
 		Runs: append([]string(nil), filter.Runs...), Characters: append([]string(nil), filter.Characters...),
 		Difficulties: append([]string(nil), filter.Difficulties...), Outcomes: append([]telemetry.HistoryOutcome(nil), filter.Outcomes...),
 		Reasons: append([]string(nil), filter.Reasons...), PickitProfiles: append([]string(nil), filter.PickitProfiles...),
 		Sort: filter.Sort,
 	}
+}
+
+func historyDailyBucketsDTO(values []telemetry.HistoryDailyBucket) []HistoryDailyBucketDTO {
+	out := make([]HistoryDailyBucketDTO, len(values))
+	for index, value := range values {
+		out[index] = HistoryDailyBucketDTO{
+			Date: value.Date, StartUTC: value.StartUTC, EndUTC: value.EndUTC,
+			TerminalRuns: value.TerminalRuns, Successful: value.Successful,
+			SuccessRate: cloneFloat(value.SuccessRate), ActiveDurationMs: value.ActiveDurationMs,
+			ActiveHours: value.ActiveHours, KeepReturn: value.KeepReturn, KeepPerHour: cloneFloat(value.KeepPerHour),
+		}
+	}
+	return out
 }
 
 func historySummaryDTO(value telemetry.HistorySummary) HistorySummaryDTO {

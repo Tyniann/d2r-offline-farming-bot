@@ -15,23 +15,29 @@ import (
 )
 
 type mockAPI struct {
-	processes   map[string][]ProcessInfo
-	handles     map[uint32]nativeHandle
-	moduleBases map[uint32]uintptr
-	moduleSizes map[uint32]uint32
-	alive       map[nativeHandle]bool
-	nextHandle  atomic.Uint64
-	openErr     error
-	moduleErr   error
-	findErr     error
-	closeCount  atomic.Int32
-	findCalls   atomic.Int32
-	moduleCalls atomic.Int32
-	memory      map[uintptr][]byte
+	processes    map[string][]ProcessInfo
+	handles      map[uint32]nativeHandle
+	moduleBases  map[uint32]uintptr
+	moduleSizes  map[uint32]uint32
+	alive        map[nativeHandle]bool
+	nextHandle   atomic.Uint64
+	openErr      error
+	moduleErr    error
+	findErr      error
+	closeCount   atomic.Int32
+	findCalls    atomic.Int32
+	moduleCalls  atomic.Int32
+	memory       map[uintptr][]byte
+	boundPIDs    map[nativeHandle]uint32
+	imagePaths   map[nativeHandle]string
+	versions     map[string]string
+	boundPIDErr  error
+	imagePathErr error
+	versionErr   error
 	readMemoryFn func(handle nativeHandle, addr uintptr, buf []byte) error
-	readCalls   atomic.Int32
-	lastRead    readMemoryCall
-	mu          sync.Mutex
+	readCalls    atomic.Int32
+	lastRead     readMemoryCall
+	mu           sync.Mutex
 }
 
 type readMemoryCall struct {
@@ -48,6 +54,9 @@ func newMockAPI() *mockAPI {
 		moduleSizes: make(map[uint32]uint32),
 		alive:       make(map[nativeHandle]bool),
 		memory:      make(map[uintptr][]byte),
+		boundPIDs:   make(map[nativeHandle]uint32),
+		imagePaths:  make(map[nativeHandle]string),
+		versions:    make(map[string]string),
 	}
 }
 
@@ -63,7 +72,64 @@ func (m *mockAPI) addProcess(name string, pid uint32, moduleBase uintptr) native
 	handle := nativeHandle(m.nextHandle.Add(1))
 	m.handles[pid] = handle
 	m.alive[handle] = true
+	path := `C:\Games\D2R.exe`
+	m.boundPIDs[handle] = pid
+	m.imagePaths[handle] = path
+	m.versions[path] = "3.2.92777"
 	return handle
+}
+
+func TestAttachBindsCanonicalImageVersionToDiscoveredPID(t *testing.T) {
+	api := newMockAPI()
+	handle := api.addProcess("D2R.exe", 4242, 0x140000000)
+	svc := newWithAPI(testLogger(), "D2R.exe", api)
+	if err := svc.Attach(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	status := svc.Status()
+	if status.PID != 4242 || status.ImagePath != api.imagePaths[handle] || status.FileVersion != "3.2.92777" || status.VersionError != "" {
+		t.Fatalf("unexpected bound version status: %+v", status)
+	}
+}
+
+func TestAttachRetainsReadOnlyBindingWhenVersionResourceIsUnreadable(t *testing.T) {
+	api := newMockAPI()
+	api.addProcess("D2R.exe", 4242, 0x140000000)
+	api.versionErr = errors.New("version resource missing")
+	svc := newWithAPI(testLogger(), "D2R.exe", api)
+	if err := svc.Attach(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	status := svc.Status()
+	if status.State != StateAttached || status.FileVersion != "" || status.VersionError == "" {
+		t.Fatalf("unexpected unreadable status: %+v", status)
+	}
+}
+
+func TestAttachRejectsPIDAndImagePathDrift(t *testing.T) {
+	for _, test := range []struct {
+		name   string
+		mutate func(*mockAPI, nativeHandle)
+	}{
+		{name: "pid", mutate: func(api *mockAPI, handle nativeHandle) { api.boundPIDs[handle] = 9999 }},
+		{name: "path", mutate: func(api *mockAPI, handle nativeHandle) { api.imagePaths[handle] = `C:\Games\Other.exe` }},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			api := newMockAPI()
+			handle := api.addProcess("D2R.exe", 4242, 0x140000000)
+			test.mutate(api, handle)
+			svc := newWithAPI(testLogger(), "D2R.exe", api)
+			if err := svc.Attach(context.Background()); err == nil {
+				t.Fatal("expected fail-closed drift rejection")
+			}
+			if status := svc.Status(); status.State != StateDetached || status.VersionError == "" {
+				t.Fatalf("unexpected drift status: %+v", status)
+			}
+			if api.closeCount.Load() != 1 {
+				t.Fatalf("close count = %d, want 1", api.closeCount.Load())
+			}
+		})
+	}
 }
 
 func (m *mockAPI) FindProcessByName(name string) (ProcessInfo, error) {
@@ -99,6 +165,33 @@ func (m *mockAPI) OpenReadHandle(pid uint32) (nativeHandle, error) {
 		return 0, fmt.Errorf("open process pid=%s: %w", strconv.FormatUint(uint64(pid), 10), ErrAccessDenied)
 	}
 	return handle, nil
+}
+
+func (m *mockAPI) BoundPID(handle nativeHandle) (uint32, error) {
+	if m.boundPIDErr != nil {
+		return 0, m.boundPIDErr
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.boundPIDs[handle], nil
+}
+
+func (m *mockAPI) ProcessImagePath(handle nativeHandle) (string, error) {
+	if m.imagePathErr != nil {
+		return "", m.imagePathErr
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.imagePaths[handle], nil
+}
+
+func (m *mockAPI) FileVersion(path string) (string, error) {
+	if m.versionErr != nil {
+		return "", m.versionErr
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.versions[path], nil
 }
 
 func (m *mockAPI) ModuleImage(pid uint32, moduleName string) (uintptr, uint32, error) {
@@ -253,6 +346,9 @@ func TestAttachOpenProcessFailureDoesNotClose(t *testing.T) {
 	}
 	if api.closeCount.Load() != 0 {
 		t.Fatalf("Close calls = %d, want 0", api.closeCount.Load())
+	}
+	if status := svc.Status(); status.PID != 77 || !status.PrivilegeMismatch {
+		t.Fatalf("privilege status = %+v", status)
 	}
 }
 

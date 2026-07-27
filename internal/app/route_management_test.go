@@ -65,10 +65,66 @@ func freezeTestPassedCandidate(t *testing.T, cfg *config.Config) RouteCandidate 
 	return passed
 }
 
+func freezeMephistoManagementCandidate(t *testing.T, cfg *config.Config) RouteCandidate {
+	t.Helper()
+	lifecycle, err := NewRouteLifecycleStore(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, catalog, err := lifecycle.Snapshot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	assignments, _ := NewRouteAssignmentStore(cfg)
+	assignment, err := assignments.Snapshot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	store, _ := NewCandidateStore(cfg)
+	seed := uint32(43)
+	route := pathing.Route{
+		Version: 1, ID: "mephisto-candidate-route", Name: "Mephisto-Kandidat", Kind: pathing.RouteKindNavigation,
+		Binding: pathing.RouteBinding{
+			CharacterName: "MrBones", CharacterClass: "necromancer", Difficulty: pathing.RouteDifficultyNightmare,
+			MapSeed: &seed, GameVersion: "3.2.92777",
+			LayoutFingerprint: pathing.RouteLayoutFingerprint{Version: 1, AreaID: world.DuranceOfHateLevel2, AnchorCount: 1, Hash: strings.Repeat("b", 64)},
+		},
+		Recording: pathing.RouteRecording{RecordedAt: time.Now().UTC(), SampleDistanceTiles: 4},
+		Playback:  pathing.RoutePlayback{WaypointToleranceTiles: 3, MaxDriftTiles: 8, MaxLocalCorrections: 2, SegmentTimeoutMs: 30000, TransitionTimeoutMs: 10000},
+		Segments: []pathing.RouteSegment{
+			{
+				ID: "durance-level-2", FromAreaID: world.DuranceOfHateLevel2, ToAreaID: world.DuranceOfHateLevel3,
+				Movement: pathing.RouteMovementTeleport, Points: []pathing.RoutePoint{{X: 100, Y: 100}, {X: 110, Y: 110}},
+				Transition: pathing.RouteTransition{Type: "entrance", EntranceKind: "durance_down"},
+			},
+			{
+				ID: "durance-level-3", FromAreaID: world.DuranceOfHateLevel3, ToAreaID: world.DuranceOfHateLevel3,
+				Movement: pathing.RouteMovementTeleport, Points: []pathing.RoutePoint{{X: 120, Y: 120}, {X: 125, Y: 125}},
+				Transition: pathing.RouteTransition{Type: "terminal"},
+			},
+		},
+	}
+	candidate, err := store.Freeze(route, RouteCandidate{
+		RunID: tasks.RunIDMephisto, Character: "MrBones", Difficulty: "nightmare", GameVersion: "3.2.92777",
+		State: RouteCandidateRecorded, MeasuredBossDistance: 20,
+		SourceCatalogRevision: catalog.Revision, SourceAssignmentRevision: assignment.Revision, CreatedAt: time.Now().UTC(),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	candidate, err = store.UpdateState(candidate.CandidateID, RouteCandidateValidated, "", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return candidate
+}
+
 type candidatePlaybackMock struct {
 	calls    []string
 	evidence RecordingTerminalEvidence
 	failAt   string
+	startAct town.OriginAct
+	target   pathing.WaypointTargetID
 }
 
 func (m *candidatePlaybackMock) call(name string) error {
@@ -81,10 +137,9 @@ func (m *candidatePlaybackMock) call(name string) error {
 func (m *candidatePlaybackMock) EnsureTown(context.Context, town.OriginAct) error {
 	return m.call("ensure_town")
 }
-func (m *candidatePlaybackMock) NormalizeToAct1(context.Context, town.OriginAct) error {
-	return m.call("normalize")
-}
-func (m *candidatePlaybackMock) TravelToStart(context.Context, pathing.WaypointTargetID) error {
+func (m *candidatePlaybackMock) TravelToStart(_ context.Context, act town.OriginAct, target pathing.WaypointTargetID) error {
+	m.startAct = act
+	m.target = target
 	return m.call("waypoint")
 }
 func (m *candidatePlaybackMock) PlayCandidate(context.Context, pathing.Route) error {
@@ -118,9 +173,12 @@ func TestCandidatePlaybackUsesNavigationOnlyAndMarksPassed(t *testing.T) {
 	if passed.State != RouteCandidateTestPassed || passed.TestedAt == nil {
 		t.Fatalf("candidate=%+v", passed)
 	}
-	want := []string{"ensure_town", "normalize", "waypoint", "play_candidate", "terminal", "return"}
+	want := []string{"ensure_town", "waypoint", "play_candidate", "terminal", "return"}
 	if !reflect.DeepEqual(driver.calls, want) {
 		t.Fatalf("calls=%v want=%v", driver.calls, want)
+	}
+	if driver.startAct != town.OriginAct1 || driver.target != pathing.WaypointTargetBlackMarsh {
+		t.Fatalf("candidate start=%s/%s", driver.startAct, driver.target)
 	}
 	wantProgress := []RouteWorkflowState{RouteWorkflowPreparingPlayback, RouteWorkflowPreparingPlayback, RouteWorkflowPreparingPlayback, RouteWorkflowPlayingCandidate, RouteWorkflowValidatingTerminal, RouteWorkflowReturningAfterTest, RouteWorkflowAwaitingPublishConfirmation}
 	if !reflect.DeepEqual(progress, wantProgress) {
@@ -158,6 +216,24 @@ func TestCandidatePlaybackStartFailureKeepsValidatedCandidateRetryable(t *testin
 	}
 	if loaded.State != RouteCandidateValidated || loaded.FailureReason != "" {
 		t.Fatalf("start failure invalidated candidate: %+v", loaded)
+	}
+}
+
+func TestCandidatePlaybackUsesOriginActWaypointWithoutAct1Normalization(t *testing.T) {
+	cfg := managementTestConfig(t)
+	candidate := freezeMephistoManagementCandidate(t, cfg)
+	store, _ := NewCandidateStore(cfg)
+	orchestrator, _ := NewCandidateTestOrchestrator(store, tasks.DefaultRunRegistry())
+	driver := &candidatePlaybackMock{failAt: "waypoint"}
+
+	if _, err := orchestrator.Test(context.Background(), candidate.CandidateID, driver); err == nil {
+		t.Fatal("waypoint start failure accepted")
+	}
+	if driver.startAct != town.OriginAct3 || driver.target != pathing.WaypointTargetDuranceOfHateLevel2 {
+		t.Fatalf("Mephisto candidate start=%s/%s", driver.startAct, driver.target)
+	}
+	if want := []string{"ensure_town", "waypoint"}; !reflect.DeepEqual(driver.calls, want) {
+		t.Fatalf("calls=%v want=%v", driver.calls, want)
 	}
 }
 

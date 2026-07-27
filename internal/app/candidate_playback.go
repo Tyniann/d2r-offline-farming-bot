@@ -15,8 +15,7 @@ import (
 // Combat, loot, Town services, and Save & Exit are deliberately absent.
 type CandidatePlaybackDriver interface {
 	EnsureTown(context.Context, town.OriginAct) error
-	NormalizeToAct1(context.Context, town.OriginAct) error
-	TravelToStart(context.Context, pathing.WaypointTargetID) error
+	TravelToStart(context.Context, town.OriginAct, pathing.WaypointTargetID) error
 	PlayCandidate(context.Context, pathing.Route) error
 	TerminalEvidence(context.Context) (RecordingTerminalEvidence, error)
 	ReturnAfterTest(context.Context, town.OriginAct) error
@@ -84,13 +83,10 @@ func (o *CandidateTestOrchestrator) TestWithProgress(ctx context.Context, candid
 		return startFail(actionErr)
 	}
 	reportRouteWorkflow(reporter, RouteWorkflowProgress{State: RouteWorkflowPreparingPlayback, Progress: 0.2})
-	if actionErr := driver.NormalizeToAct1(ctx, definition.Recording.EgressOriginAct); actionErr != nil {
+	if actionErr := driver.TravelToStart(ctx, definition.Recording.EgressOriginAct, definition.Recording.StartWaypoint); actionErr != nil {
 		return startFail(actionErr)
 	}
 	reportRouteWorkflow(reporter, RouteWorkflowProgress{State: RouteWorkflowPreparingPlayback, Progress: 0.35})
-	if actionErr := driver.TravelToStart(ctx, definition.Recording.StartWaypoint); actionErr != nil {
-		return startFail(actionErr)
-	}
 	reportRouteWorkflow(reporter, RouteWorkflowProgress{State: RouteWorkflowPlayingCandidate, AreaID: uint32(definition.Recording.AllowedStartArea), Progress: 0.5})
 	if actionErr := driver.PlayCandidate(ctx, route); actionErr != nil {
 		return fail(RouteReasonTestPlaybackFailed, actionErr)

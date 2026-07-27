@@ -82,25 +82,31 @@ const (
 type HistoryReasonCode string
 
 const (
-	HistoryReasonFileInvalid         HistoryReasonCode = "history_file_invalid"
-	HistoryReasonFileTooLarge        HistoryReasonCode = "history_file_too_large"
-	HistoryReasonLineTooLarge        HistoryReasonCode = "history_line_too_large"
-	HistoryReasonSchemaUnsupported   HistoryReasonCode = "history_schema_unsupported"
-	HistoryReasonEventInvalid        HistoryReasonCode = "history_event_invalid"
-	HistoryReasonContextMissing      HistoryReasonCode = "history_context_missing"
-	HistoryReasonRunIDMismatch       HistoryReasonCode = "history_run_id_mismatch"
-	HistoryReasonStreamMissing       HistoryReasonCode = "history_stream_missing"
-	HistoryReasonTerminalDuplicate   HistoryReasonCode = "history_terminal_duplicate"
-	HistoryReasonTimeInvalid         HistoryReasonCode = "history_time_invalid"
-	HistoryReasonBossDuplicate       HistoryReasonCode = "history_boss_duplicate"
-	HistoryReasonStageInvalid        HistoryReasonCode = "history_stage_invalid"
-	HistoryReasonItemIdentityInvalid HistoryReasonCode = "history_item_identity_invalid"
-	HistoryReasonItemChainInvalid    HistoryReasonCode = "history_item_chain_invalid"
-	HistoryReasonFilterInvalid       HistoryReasonCode = "history_filter_invalid"
-	HistoryReasonRunNotFound         HistoryReasonCode = "history_run_not_found"
-	HistoryReasonCursorInvalid       HistoryReasonCode = "history_cursor_invalid"
-	HistoryReasonExportInvalid       HistoryReasonCode = "history_export_invalid"
-	HistoryReasonUnavailable         HistoryReasonCode = "history_unavailable"
+	HistoryReasonFileInvalid           HistoryReasonCode = "history_file_invalid"
+	HistoryReasonFileTooLarge          HistoryReasonCode = "history_file_too_large"
+	HistoryReasonLineTooLarge          HistoryReasonCode = "history_line_too_large"
+	HistoryReasonSchemaUnsupported     HistoryReasonCode = "history_schema_unsupported"
+	HistoryReasonEventInvalid          HistoryReasonCode = "history_event_invalid"
+	HistoryReasonContextMissing        HistoryReasonCode = "history_context_missing"
+	HistoryReasonRunIDMismatch         HistoryReasonCode = "history_run_id_mismatch"
+	HistoryReasonStreamMissing         HistoryReasonCode = "history_stream_missing"
+	HistoryReasonTerminalDuplicate     HistoryReasonCode = "history_terminal_duplicate"
+	HistoryReasonTimeInvalid           HistoryReasonCode = "history_time_invalid"
+	HistoryReasonBossDuplicate         HistoryReasonCode = "history_boss_duplicate"
+	HistoryReasonStageInvalid          HistoryReasonCode = "history_stage_invalid"
+	HistoryReasonItemIdentityInvalid   HistoryReasonCode = "history_item_identity_invalid"
+	HistoryReasonItemChainInvalid      HistoryReasonCode = "history_item_chain_invalid"
+	HistoryReasonFilterInvalid         HistoryReasonCode = "history_filter_invalid"
+	HistoryReasonTimezoneInvalid       HistoryReasonCode = "history_timezone_invalid"
+	HistoryReasonRetentionBlocked      HistoryReasonCode = "history_retention_blocked"
+	HistoryReasonRetentionPartial      HistoryReasonCode = "history_retention_partial"
+	HistoryReasonDeletePreviewStale    HistoryReasonCode = "history_delete_preview_stale"
+	HistoryReasonDeleteActiveProtected HistoryReasonCode = "history_delete_active_protected"
+	HistoryReasonDeleteFailed          HistoryReasonCode = "history_delete_failed"
+	HistoryReasonRunNotFound           HistoryReasonCode = "history_run_not_found"
+	HistoryReasonCursorInvalid         HistoryReasonCode = "history_cursor_invalid"
+	HistoryReasonExportInvalid         HistoryReasonCode = "history_export_invalid"
+	HistoryReasonUnavailable           HistoryReasonCode = "history_unavailable"
 )
 
 // HistoryReasonMessage liefert den einzigen deutschen Benutzertext für einen Historiencode.
@@ -125,6 +131,12 @@ var historyReasonMessages = map[HistoryReasonCode]string{
 	HistoryReasonItemIdentityInvalid:    "Die Itemidentität ist unvollständig oder widersprüchlich.",
 	HistoryReasonItemChainInvalid:       "Die Itemkette ist nicht lückenlos innerhalb desselben Runs korreliert.",
 	HistoryReasonFilterInvalid:          "Die gewählten Historienfilter sind ungültig.",
+	HistoryReasonTimezoneInvalid:        "Die lokale Zeitzone ist unbekannt oder ungültig.",
+	HistoryReasonRetentionBlocked:       "Die automatische Retention hat ein unvollständiges oder geschütztes Bundle übersprungen.",
+	HistoryReasonRetentionPartial:       "Die automatische Retention konnte nicht alle vorgesehenen Dateien löschen.",
+	HistoryReasonDeletePreviewStale:     "Die Löschvorschau ist nicht mehr aktuell und muss neu erstellt werden.",
+	HistoryReasonDeleteActiveProtected:  "Eine aktive Historiendatei wurde geschützt und nicht gelöscht.",
+	HistoryReasonDeleteFailed:           "Die bestätigte Historienlöschung konnte nicht vollständig abgeschlossen werden.",
 	HistoryReasonRunNotFound:            "Der angeforderte Run ist in der Historie nicht vorhanden.",
 	HistoryReasonCursorInvalid:          "Die angeforderte Historienseite ist nicht mehr gültig.",
 	HistoryReasonExportInvalid:          "Der angeforderte Historienexport ist ungültig.",

@@ -10,6 +10,7 @@ const schemaVersion = 1
 type StatusDTO struct {
 	SchemaVersion  int                `json:"schema_version"`
 	CoreVersion    string             `json:"core_version"`
+	AppVersion     string             `json:"app_version"`
 	State          string             `json:"state"`
 	Generation     uint64             `json:"generation"`
 	PendingIntent  string             `json:"pending_intent,omitempty"`
@@ -19,12 +20,24 @@ type StatusDTO struct {
 	LifecyclePhase string             `json:"lifecycle_phase"`
 	Step           string             `json:"step,omitempty"`
 	D2R            D2RDTO             `json:"d2r"`
+	Compatibility  CompatibilityDTO   `json:"compatibility"`
 	Input          InputDTO           `json:"input"`
 	World          WorldDTO           `json:"world"`
 	Selection      SelectionStatusDTO `json:"selection"`
 	Queue          QueueStatusDTO     `json:"queue"`
 	LastResult     *SessionResultDTO  `json:"last_result,omitempty"`
 	LastError      *ErrorDTO          `json:"last_error,omitempty"`
+}
+
+// CompatibilityDTO projects the path-free authoritative D2R version gate.
+type CompatibilityDTO struct {
+	State             string `json:"state"`
+	Reason            string `json:"reason,omitempty"`
+	SupportedVersion  string `json:"supported_version"`
+	ExpectedVersion   string `json:"expected_version"`
+	OffsetVersion     string `json:"offset_version"`
+	ActualVersion     string `json:"actual_version,omitempty"`
+	PrivilegeMismatch bool   `json:"privilege_mismatch"`
 }
 
 // SessionResultDTO projects the last terminal worker disposition and reason.

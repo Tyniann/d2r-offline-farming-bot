@@ -153,13 +153,15 @@ func (m *mockRoutePlayback) Tick(_ context.Context, state world.State) (bool, er
 func (m *mockRoutePlayback) Reset() { m.resetCalls++ }
 
 type mockCombatActions struct {
-	castCalls     int
-	castSkills    []uint16
-	teleportCalls int
-	stopCalls     int
-	resetCalls    int
-	lastSkillID   uint16
-	lastDesired   float64
+	castCalls          int
+	castSkills         []uint16
+	teleportCalls      int
+	stopCalls          int
+	resetCalls         int
+	lastSkillID        uint16
+	lastDesired        float64
+	lastTeleportTarget world.Position
+	teleportSent       []bool
 }
 
 type mockRunActions struct {
@@ -337,10 +339,16 @@ func (m *mockCombatActions) StopAttack() error {
 	return nil
 }
 
-func (m *mockCombatActions) TeleportToward(_ time.Time, _ world.Position, _ world.Position, desiredDistanceTiles float64) error {
+func (m *mockCombatActions) TeleportToward(_ time.Time, _ world.Position, target world.Position, desiredDistanceTiles float64) (bool, error) {
 	m.teleportCalls++
 	m.lastDesired = desiredDistanceTiles
-	return nil
+	m.lastTeleportTarget = target
+	if len(m.teleportSent) == 0 {
+		return true, nil
+	}
+	sent := m.teleportSent[0]
+	m.teleportSent = m.teleportSent[1:]
+	return sent, nil
 }
 
 func (m *mockCombatActions) Reset() { m.resetCalls++ }
@@ -1328,6 +1336,94 @@ func TestBossRunRepositionsAtLastBossPositionBeforeLoot(t *testing.T) {
 	res = pipeline.onBossTick(context.Background(), Deps{Combat: combat}, pipelineStepRepositionForLoot, state, now.Add(2*time.Millisecond))
 	if !res.complete || res.failed || combat.teleportCalls != 1 {
 		t.Fatalf("arrival = %+v teleports=%d, want complete without another cast", res, combat.teleportCalls)
+	}
+}
+
+func TestBossLootRepositionRetriesOnlyAfterFreshSnapshotsThenContinuesToItemScan(t *testing.T) {
+	combat := &mockCombatActions{}
+	definition, _ := DefaultRunRegistry().Definition(RunIDCountess)
+	position := world.Position{X: 130, Y: 100}
+	pipeline := &runPipeline{
+		definition: definition, combat: killRunConfig().Combat,
+		targetSeen: true, targetUnitID: 10, targetPosition: position, targetPositionSet: true,
+	}
+	now := time.Now()
+	state := cellar5State()
+	state.At = now
+	state.Player.Position = world.Position{X: 100, Y: 100}
+
+	res := pipeline.onBossTick(context.Background(), Deps{Combat: combat}, pipelineStepRepositionForLoot, state, now)
+	if res.complete || res.failed || combat.teleportCalls != 1 || pipeline.postKillTeleportAttempts != 1 {
+		t.Fatalf("first attempt=%+v calls=%d state=%+v", res, combat.teleportCalls, pipeline)
+	}
+	res = pipeline.onBossTick(context.Background(), Deps{Combat: combat}, pipelineStepRepositionForLoot, state, now.Add(time.Second))
+	if res.complete || res.failed || combat.teleportCalls != 1 {
+		t.Fatalf("stale snapshot retried: result=%+v calls=%d", res, combat.teleportCalls)
+	}
+	for attempt := 2; attempt <= lootRepositionMaxAttempts; attempt++ {
+		state.At = now.Add(time.Duration(attempt) * lootRepositionRetryDelay)
+		res = pipeline.onBossTick(context.Background(), Deps{Combat: combat}, pipelineStepRepositionForLoot, state, state.At)
+		if res.complete || res.failed || combat.teleportCalls != attempt {
+			t.Fatalf("attempt %d result=%+v calls=%d", attempt, res, combat.teleportCalls)
+		}
+	}
+	state.At = state.At.Add(lootRepositionRetryDelay)
+	res = pipeline.onBossTick(context.Background(), Deps{Combat: combat}, pipelineStepRepositionForLoot, state, state.At)
+	if !res.complete || res.failed || combat.teleportCalls != lootRepositionMaxAttempts {
+		t.Fatalf("bounded fallback=%+v calls=%d", res, combat.teleportCalls)
+	}
+}
+
+func TestBossLootRepositionDoesNotConsumeRetryForThrottledNoOp(t *testing.T) {
+	combat := &mockCombatActions{teleportSent: []bool{false, true}}
+	definition, _ := DefaultRunRegistry().Definition(RunIDCountess)
+	pipeline := &runPipeline{
+		definition: definition, targetPosition: world.Position{X: 130, Y: 100}, targetPositionSet: true,
+	}
+	state := cellar5State()
+	state.At = time.Now()
+	state.Player.Position = world.Position{X: 100, Y: 100}
+
+	_ = pipeline.onBossTick(context.Background(), Deps{Combat: combat}, pipelineStepRepositionForLoot, state, state.At)
+	if pipeline.postKillTeleportAttempts != 0 {
+		t.Fatalf("throttled call consumed retry: %+v", pipeline)
+	}
+	_ = pipeline.onBossTick(context.Background(), Deps{Combat: combat}, pipelineStepRepositionForLoot, state, state.At.Add(time.Millisecond))
+	if pipeline.postKillTeleportAttempts != 1 || combat.teleportCalls != 2 {
+		t.Fatalf("real retry attempts=%d calls=%d", pipeline.postKillTeleportAttempts, combat.teleportCalls)
+	}
+}
+
+func TestLootCandidateRepositionsToCurrentItemBeforePickup(t *testing.T) {
+	combat := &mockCombatActions{}
+	definition, _ := DefaultRunRegistry().Definition(RunIDCountess)
+	target := LootTarget{
+		UnitID: 10, TxtFileNo: 1, Code: "r01", Name: "El Rune",
+		Position: world.Position{X: 130, Y: 100}, AreaID: world.TowerCellarLevel5,
+	}
+	lootActions := &mockLootActions{
+		scans: []LootScanResult{{GroundItemCount: 1, CandidateCount: 1, HasTarget: true, NextTarget: target}},
+	}
+	pipeline := &runPipeline{definition: definition, lootPickupDistanceTiles: 8}
+	now := time.Now()
+	state := cellar5State()
+	state.At = now
+	state.Player.Position = world.Position{X: 100, Y: 100}
+	state.Items = []world.Item{{
+		UnitID: target.UnitID, TxtFileNo: target.TxtFileNo, Code: target.Code, Name: target.Name,
+		Location: world.ItemLocationGround, Position: target.Position,
+	}}
+
+	res := pipeline.onLootTick(context.Background(), Deps{Loot: lootActions, Combat: combat}, pipelineStepPickLoot, state, now, now)
+	if res.complete || res.failed || combat.teleportCalls != 1 || len(lootActions.startCalls) != 0 || combat.lastTeleportTarget != target.Position {
+		t.Fatalf("approach result=%+v teleports=%d target=%+v starts=%d", res, combat.teleportCalls, combat.lastTeleportTarget, len(lootActions.startCalls))
+	}
+	arrived := state
+	arrived.At = now.Add(100 * time.Millisecond)
+	arrived.Player.Position = target.Position
+	res = pipeline.onLootTick(context.Background(), Deps{Loot: lootActions, Combat: combat}, pipelineStepPickLoot, arrived, arrived.At, now)
+	if res.complete || res.failed || combat.teleportCalls != 1 || len(lootActions.startCalls) != 1 || lootActions.startCalls[0].UnitID != target.UnitID {
+		t.Fatalf("arrival result=%+v teleports=%d starts=%+v", res, combat.teleportCalls, lootActions.startCalls)
 	}
 }
 

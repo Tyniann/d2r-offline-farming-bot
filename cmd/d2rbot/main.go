@@ -25,6 +25,10 @@ import (
 func main() {
 	defaultConfig := filepath.Join("configs", "config.yaml")
 	configPath := flag.String("config", defaultConfig, "path to YAML config file")
+	dataRoot := flag.String("data-root", "", "absolute installed data root; loads configs/config.yaml below it")
+	provisionDataRoot := flag.Bool("provision-data-root", false, "provision an installed data root and exit without starting the runtime")
+	defaultsRoot := flag.String("defaults-root", "", "absolute read-only default bundle used with --provision-data-root")
+	importRoot := flag.String("import-root", "", "absolute existing data root imported with --provision-data-root")
 	probe := flag.Bool("probe", false, "enable world-state logging (memory snapshots are always read when attached)")
 	verbose := flag.Bool("verbose", false, "enable debug logging (shows position changes with --probe)")
 	inputTest := flag.String("input-test", "", "manual input test spec (e.g. belt:1, portal, skill:1, center-click, click:640,360)")
@@ -49,16 +53,33 @@ func main() {
 	townInspect := flag.Bool("town-inspect", false, "write one read-only Phase-9.1 Town data-availability report")
 	townTest := flag.String("town-test", "", "isolated Town interaction test (akara-shop | item-services:mephisto)")
 	showVersion := flag.Bool("version", false, "print version and exit")
-	uiMode := flag.Bool("ui", false, "start the local Core API and embedded dashboard without an automatic session")
+	desktopHandshakePipe := flag.String("desktop-handshake-pipe", "", "private one-shot Electron handshake pipe")
 	flag.Parse()
 
 	if *showVersion {
 		fmt.Printf("d2rbot %s (%s)\n", version.Version, version.Commit)
 		return
 	}
+	if *provisionDataRoot {
+		result, err := provisionInstalledDataRoot(context.Background(), *dataRoot, *defaultsRoot, *importRoot)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "error: %v\n", err)
+			os.Exit(1)
+		}
+		if err := json.NewEncoder(os.Stdout).Encode(result); err != nil {
+			fmt.Fprintf(os.Stderr, "error: encode provisioning result: %v\n", err)
+			os.Exit(1)
+		}
+		return
+	}
+	if *defaultsRoot != "" || *importRoot != "" {
+		fmt.Fprintln(os.Stderr, "error: --defaults-root and --import-root require --provision-data-root")
+		os.Exit(1)
+	}
 
 	opts := app.Options{
-		UI:                     *uiMode,
+		Desktop:                *desktopHandshakePipe != "",
+		DesktopHandshakePipe:   *desktopHandshakePipe,
 		Probe:                  *probe,
 		Verbose:                *verbose,
 		InputTest:              *inputTest,
@@ -83,16 +104,69 @@ func main() {
 		TownInspect:            *townInspect,
 		TownTest:               *townTest,
 	}
-	if err := run(*configPath, opts); err != nil {
+	if err := runWithDataRoot(*configPath, *dataRoot, opts); err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		os.Exit(1)
 	}
 }
 
+type provisioningResult struct {
+	SchemaVersion   int                `json:"schema_version"`
+	Status          app.DataRootStatus `json:"status"`
+	DiagnosticCount int                `json:"diagnostic_count"`
+}
+
+func provisionInstalledDataRoot(ctx context.Context, target, defaultsRoot, importRoot string) (provisioningResult, error) {
+	if defaultsRoot == "" == (importRoot == "") {
+		return provisioningResult{}, fmt.Errorf("exactly one of --defaults-root or --import-root is required")
+	}
+	manager, err := app.NewDataRootManager(target)
+	if err != nil {
+		return provisioningResult{}, err
+	}
+	var result app.DataRootResult
+	if defaultsRoot != "" {
+		result, err = manager.InitializeDefaults(ctx, defaultsRoot)
+	} else {
+		result, err = manager.Import(ctx, importRoot)
+	}
+	if err != nil {
+		return provisioningResult{}, err
+	}
+	return provisioningResult{SchemaVersion: 1, Status: result.Status, DiagnosticCount: len(result.Diagnostics)}, nil
+}
+
 func run(configPath string, opts app.Options) error {
-	cfg, err := config.Load(configPath)
+	return runWithDataRoot(configPath, "", opts)
+}
+
+func runWithDataRoot(configPath, dataRoot string, opts app.Options) error {
+	if opts.DesktopHandshakePipe != "" && (dataRoot == "" || !opts.Desktop) {
+		return fmt.Errorf("--desktop-handshake-pipe requires desktop mode and --data-root")
+	}
+	cfg, err := loadConfig(configPath, dataRoot)
 	if err != nil {
 		return err
+	}
+	var operatorSettings *app.OperatorSettingsStore
+	var dataRootLock *app.DataRootLock
+	if dataRoot != "" {
+		if opts.DesktopHandshakePipe != "" {
+			dataRootLock, err = app.AcquireDataRootLock(dataRoot)
+			if err != nil {
+				return err
+			}
+			defer dataRootLock.Close()
+		}
+		store, settings, settingsErr := app.OpenOperatorSettings(cfg)
+		if settingsErr != nil {
+			return fmt.Errorf("load operator settings: %w", settingsErr)
+		}
+		app.ApplyOperatorSettingsToConfig(cfg, settings)
+		if settingsErr := app.RestoreUniqueConfirmedSelection(cfg); settingsErr != nil {
+			return fmt.Errorf("restore confirmed selection: %w", settingsErr)
+		}
+		operatorSettings = store
 	}
 	if opts.SessionMaxRuns < 0 {
 		return fmt.Errorf("--session-max-runs must be >= 0")
@@ -100,7 +174,7 @@ func run(configPath string, opts app.Options) error {
 	if opts.SessionMaxRuns > 0 {
 		cfg.Session.MaxRuns = opts.SessionMaxRuns
 	}
-	if validationErr := validateUIMode(opts); validationErr != nil {
+	if validationErr := validateDesktopMode(opts); validationErr != nil {
 		return validationErr
 	}
 	if opts.SessionInspect {
@@ -153,8 +227,8 @@ func run(configPath string, opts app.Options) error {
 			fmt.Fprintf(os.Stderr, "warning: close log file: %v\n", err)
 		}
 	}()
-	if opts.UI {
-		return runUI(cfg, rt)
+	if opts.Desktop {
+		return runDesktopAPI(cfg, rt, operatorSettings, opts.DesktopHandshakePipe)
 	}
 
 	if opts.InputTest != "" {
@@ -187,17 +261,30 @@ func run(configPath string, opts app.Options) error {
 	return rt.Run()
 }
 
-func validateUIMode(opts app.Options) error {
-	if !opts.UI {
+func loadConfig(configPath, dataRoot string) (*config.Config, error) {
+	if dataRoot == "" {
+		return config.Load(configPath)
+	}
+	if configPath != filepath.Join("configs", "config.yaml") {
+		return nil, fmt.Errorf("--data-root and a custom --config path are mutually exclusive")
+	}
+	return config.LoadFromDataRoot(dataRoot)
+}
+
+func validateDesktopMode(opts app.Options) error {
+	if !opts.Desktop {
 		return nil
 	}
 	if opts.Probe || opts.InputTest != "" || opts.Run != "" || opts.RunPhase != "" || opts.PathingTest != "" || opts.OfflineDifficulty != "" || opts.OfflineCharacter != "" || opts.OfflineExitTest || opts.UIStateProbe != "" || opts.ScreenAnchorCapture != "" || opts.SessionInspect || opts.RunsInspect || opts.WaypointTargetsInspect || opts.SessionMaxRuns != 0 || opts.Route != "" || opts.RouteName != "" || opts.RouteDifficulty != "" || opts.TownInspect || opts.TownTest != "" {
-		return fmt.Errorf("--ui is mutually exclusive with session, run, inspect, probe, route, town, and test modes")
+		return fmt.Errorf("desktop mode is mutually exclusive with session, run, inspect, probe, route, town, and test modes")
 	}
 	return nil
 }
 
-func runUI(cfg *config.Config, rt *app.Runtime) error {
+func runDesktopAPI(cfg *config.Config, rt *app.Runtime, operatorSettings *app.OperatorSettingsStore, desktopHandshakePipe string) error {
+	if desktopHandshakePipe == "" {
+		return fmt.Errorf("desktop mode requires a private handshake pipe")
+	}
 	assets, err := apiui.FS()
 	if err != nil {
 		return err
@@ -208,6 +295,9 @@ func runUI(cfg *config.Config, rt *app.Runtime) error {
 	if err != nil {
 		return err
 	}
+	if settingsBindErr := backend.SetOperatorSettingsStore(operatorSettings); settingsBindErr != nil {
+		return settingsBindErr
+	}
 	backend.Update(rt.CurrentUIStatus(""), app.SupervisorSnapshot{State: app.SupervisorStateIdle})
 	server, err := api.New(api.Config{Backend: backend, Assets: assets, Logger: rt.Log, Events: publisher})
 	if err != nil {
@@ -215,6 +305,7 @@ func runUI(cfg *config.Config, rt *app.Runtime) error {
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	backend.StartHistoryMaintenance(ctx)
 	var monitorMu sync.Mutex
 	var monitorCancel context.CancelFunc
 	var monitorDone chan error
@@ -344,9 +435,16 @@ func runUI(cfg *config.Config, rt *app.Runtime) error {
 		_ = stopMonitor()
 		return err
 	}
-	fmt.Printf("D2R-Bot-Dashboard: %s\n", server.URL())
-	if err := api.OpenBrowser(server.BootstrapURL()); err != nil {
-		rt.Log.Warn("dashboard browser could not be opened", "error", err, "url", server.URL())
+	handshakeCtx, handshakeCancel := context.WithTimeout(ctx, 5*time.Second)
+	defer handshakeCancel()
+	if err := app.WriteDesktopHandshake(handshakeCtx, desktopHandshakePipe, app.DesktopHandshake{
+		SchemaVersion: 1, CorePID: os.Getpid(), Generation: 1,
+		BaseURL: server.URL(), BootstrapURL: server.BootstrapURL(),
+	}); err != nil {
+		stop()
+		_ = server.Shutdown(context.Background())
+		_ = stopMonitor()
+		return fmt.Errorf("desktop handshake: %w", err)
 	}
 	<-ctx.Done()
 	stop()
@@ -365,5 +463,5 @@ func runUI(cfg *config.Config, rt *app.Runtime) error {
 }
 
 func shouldRunSession(cfg *config.Config, opts app.Options) bool {
-	return cfg.Session.Enabled && !opts.UI && opts.Run == "" && opts.RunPhase == "" && !opts.Probe && opts.Route == ""
+	return cfg.Session.Enabled && !opts.Desktop && opts.Run == "" && opts.RunPhase == "" && !opts.Probe && opts.Route == ""
 }

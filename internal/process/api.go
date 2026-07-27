@@ -13,6 +13,9 @@ type nativeHandle uintptr
 type processAPI interface {
 	FindProcessByName(name string) (ProcessInfo, error)
 	OpenReadHandle(pid uint32) (nativeHandle, error)
+	BoundPID(handle nativeHandle) (uint32, error)
+	ProcessImagePath(handle nativeHandle) (string, error)
+	FileVersion(path string) (string, error)
 	ModuleImage(pid uint32, moduleName string) (base uintptr, size uint32, err error)
 	IsAlive(handle nativeHandle) bool
 	Close(handle nativeHandle) error

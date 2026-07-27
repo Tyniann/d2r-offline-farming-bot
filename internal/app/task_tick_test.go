@@ -16,8 +16,8 @@ import (
 
 func attachedProc() *mockProcess {
 	return &mockProcess{
-		pollStatus: process.Status{State: process.StateAttached},
-		status:     process.Status{State: process.StateAttached, PID: 1},
+		pollStatus: process.Status{State: process.StateAttached, FileVersion: "3.2.92777"},
+		status:     process.Status{State: process.StateAttached, PID: 1, FileVersion: "3.2.92777"},
 	}
 }
 

@@ -12,6 +12,7 @@ import (
 type HistoryFilter struct {
 	FromUTC        *time.Time
 	ToUTC          *time.Time
+	Timezone       string
 	Runs           []string
 	Characters     []string
 	Difficulties   []string
@@ -19,6 +20,20 @@ type HistoryFilter struct {
 	Reasons        []string
 	PickitProfiles []string
 	Sort           HistorySort
+}
+
+// HistoryDailyBucket enthält ausschließlich Core-berechnete Werte eines lokalen Kalendertags.
+type HistoryDailyBucket struct {
+	Date             string
+	StartUTC         time.Time
+	EndUTC           time.Time
+	TerminalRuns     int
+	Successful       int
+	SuccessRate      *float64
+	ActiveDurationMs int64
+	ActiveHours      float64
+	KeepReturn       int
+	KeepPerHour      *float64
 }
 
 // HistoryDurationStats fasst ausschließlich terminale aktive Run-Zeit zusammen.
@@ -169,16 +184,22 @@ type HistoryItemAggregate struct {
 
 // HistoryAnalysis ist die einzige Core-Autorität für Summary, Vergleiche, Items und Runs.
 type HistoryAnalysis struct {
-	Filter      HistoryFilter
-	Summary     HistorySummary
-	Comparisons []HistoryComparison
-	Items       []HistoryItemAggregate
-	Runs        []HistoryRunAnalysis
+	Filter       HistoryFilter
+	Summary      HistorySummary
+	DailyBuckets []HistoryDailyBucket
+	Comparisons  []HistoryComparison
+	Items        []HistoryItemAggregate
+	Runs         []HistoryRunAnalysis
 }
 
 // AnalyzeHistory filtert immutable Runs und berechnet alle Phase-14-Aggregate rein im Core.
 func AnalyzeHistory(snapshot HistorySnapshot, filter HistoryFilter) (HistoryAnalysis, error) {
 	filter = cloneHistoryFilter(filter)
+	timezone, timezoneErr := NormalizeHistoryTimezone(filter.Timezone)
+	if timezoneErr != nil {
+		return HistoryAnalysis{}, timezoneErr
+	}
+	filter.Timezone = timezone
 	if err := validateHistoryFilter(filter); err != nil {
 		return HistoryAnalysis{}, err
 	}
@@ -200,9 +221,27 @@ func AnalyzeHistory(snapshot HistorySnapshot, filter HistoryFilter) (HistoryAnal
 		return analysis.Runs[a].StartedAt.After(analysis.Runs[b].StartedAt)
 	})
 	analysis.Summary = summarizeHistoryRuns(analysis.Runs)
+	analysis.DailyBuckets, timezoneErr = historyDailyBuckets(analysis.Runs, filter)
+	if timezoneErr != nil {
+		return HistoryAnalysis{}, timezoneErr
+	}
 	analysis.Comparisons = compareHistoryRuns(analysis.Runs, filter.Sort)
 	analysis.Items = aggregateHistoryItems(analysis.Runs, analysis.Summary)
 	return analysis, nil
+}
+
+// NormalizeHistoryTimezone validiert eine IANA-Zeitzone und normalisiert einen leeren Wert auf `UTC`.
+func NormalizeHistoryTimezone(value string) (string, error) {
+	if value == "" {
+		return "UTC", nil
+	}
+	if strings.TrimSpace(value) != value || value == "Local" {
+		return "", historyReadError(HistoryReasonTimezoneInvalid, "invalid history timezone")
+	}
+	if _, err := time.LoadLocation(value); err != nil {
+		return "", historyReadError(HistoryReasonTimezoneInvalid, "unknown history timezone %q", value)
+	}
+	return value, nil
 }
 
 func validateHistoryFilter(filter HistoryFilter) error {
@@ -261,6 +300,72 @@ func historyRunMatches(run HistoryRun, filter HistoryFilter) bool {
 		return false
 	}
 	return true
+}
+
+func historyDailyBuckets(runs []HistoryRunAnalysis, filter HistoryFilter) ([]HistoryDailyBucket, error) {
+	location, err := time.LoadLocation(filter.Timezone)
+	if err != nil {
+		return nil, historyReadError(HistoryReasonTimezoneInvalid, "unknown history timezone %q", filter.Timezone)
+	}
+	var first, last time.Time
+	if filter.FromUTC != nil {
+		first = localDay(*filter.FromUTC, location)
+	}
+	if filter.ToUTC != nil {
+		last = localDay(filter.ToUTC.Add(-time.Nanosecond), location)
+	}
+	for _, run := range runs {
+		if !terminalHistoryOutcome(run.Outcome) {
+			continue
+		}
+		day := localDay(run.StartedAt, location)
+		if first.IsZero() || day.Before(first) {
+			first = day
+		}
+		if last.IsZero() || day.After(last) {
+			last = day
+		}
+	}
+	if first.IsZero() || last.IsZero() || first.After(last) {
+		return []HistoryDailyBucket{}, nil
+	}
+	buckets := make([]HistoryDailyBucket, 0, int(last.Sub(first).Hours()/24)+2)
+	byDate := make(map[string]int)
+	for day := first; !day.After(last); day = day.AddDate(0, 0, 1) {
+		next := day.AddDate(0, 0, 1)
+		buckets = append(buckets, HistoryDailyBucket{
+			Date: day.Format("2006-01-02"), StartUTC: day.UTC(), EndUTC: next.UTC(),
+		})
+		byDate[day.Format("2006-01-02")] = len(buckets) - 1
+	}
+	for _, run := range runs {
+		if !terminalHistoryOutcome(run.Outcome) {
+			continue
+		}
+		index, ok := byDate[run.StartedAt.In(location).Format("2006-01-02")]
+		if !ok {
+			continue
+		}
+		bucket := &buckets[index]
+		bucket.TerminalRuns++
+		if run.Outcome == HistoryOutcomeSuccess {
+			bucket.Successful++
+		}
+		bucket.ActiveDurationMs += run.DurationMs
+		bucket.KeepReturn += run.Funnel.KeepReturn
+	}
+	for index := range buckets {
+		bucket := &buckets[index]
+		bucket.SuccessRate = ratio(bucket.Successful, bucket.TerminalRuns)
+		bucket.ActiveHours = float64(bucket.ActiveDurationMs) / float64(time.Hour/time.Millisecond)
+		bucket.KeepPerHour = perHour(bucket.KeepReturn, bucket.ActiveDurationMs)
+	}
+	return buckets, nil
+}
+
+func localDay(value time.Time, location *time.Location) time.Time {
+	local := value.In(location)
+	return time.Date(local.Year(), local.Month(), local.Day(), 0, 0, 0, 0, location)
 }
 
 func matchesStringFilter(value string, allowed []string) bool {

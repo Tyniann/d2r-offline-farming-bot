@@ -55,13 +55,14 @@ Diese Trennung ist wichtig, weil ein nicht identifiziertes Unique zwar `pick` se
 Item-Pickup folgt dem bestehenden Hover-Feedback-Prinzip:
 
 1. Kandidat per `UnitID` aus `world.State.GroundItems` auswählen.
-2. Zum Item navigieren, wenn es außerhalb der Pickup-Distanz liegt.
-3. Maus per spielerrelativer Projektion und Spiral-Suche bewegen.
-4. Nur klicken, wenn `Hover.UnitType` und `Hover.UnitID` das Ziel-Item bestätigen.
-5. Erfolg nur akzeptieren, wenn das Item vom Boden verschwindet oder nach `inventory` wechselt.
-6. Nach Retry-/Timeout-Limit mit klarer Fehlerklasse abbrechen.
+2. Den Kandidaten vor Input anhand seiner `UnitID` im aktuellen Snapshot erneut auflösen.
+3. Liegt er außerhalb von `loot.pickup.max_distance_tiles`, höchstens drei durch frische Snapshots und 500 ms getrennte Teleports zu seiner aktuellen Memory-Position senden. Nur tatsächlich gesendete Inputs zählen als Versuch.
+4. Maus per spielerrelativer Projektion und Spiral-Suche bewegen.
+5. Nur klicken, wenn `Hover.UnitType` und `Hover.UnitID` das Ziel-Item bestätigen.
+6. Erfolg nur akzeptieren, wenn das Item vom Boden verschwindet oder nach `inventory` wechselt.
+7. Nach Retry-/Timeout-Limit mit klarer Fehlerklasse abbrechen oder den unerreichbaren Kandidaten für die aktuelle Loot-Phase überspringen.
 
-Es gibt keine Blind-Klicks. Wenn Hover nicht bestätigt wird, bleibt der Bot passiv oder markiert das Item als `loot_unreachable`.
+Es gibt keine Blind-Klicks und keine unbeschränkten Teleport-Schleifen. Die historische Bossposition dient nur als erste Annäherung; für den Pickup ist die aktuelle Position des ausgewählten Items autoritativ. Wenn Hover nicht bestätigt wird oder das Item nach den Annäherungsversuchen weiterhin zu weit entfernt ist, bleibt der Bot passiv und überspringt nur dessen `UnitID`.
 
 ### Inventory-Lock
 
@@ -252,4 +253,4 @@ Umgesetzt als [Run-Telemetrie](run-telemetry.md): eine fail-closed JSONL-Datei p
 - Kein Identify-/Sell-/Repair-/Merc-Loop im ersten Ground-Loot-MVP.
 
 ---
-*Zuletzt aktualisiert: 2026-07-21*
+*Zuletzt aktualisiert: 2026-07-26*

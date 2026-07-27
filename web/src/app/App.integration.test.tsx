@@ -12,7 +12,7 @@ it("durchläuft Queue, Pause, Resume, Stop und Emergency Stop gegen einen Fake-C
   let index = 0;
   const requests: Array<{ path: string; body?: Record<string, unknown> }> = [];
   const queueStatus = () => ({ entries: activeEntries, default_entries: ["countess", "mephisto"], index, cycle: 0, retry: 0, started_runs: state === "idle_in_game" ? 0 : 1, consecutive_failures: 0, total_restarts: 0, budgets: { max_runs: 6, max_duration_ms: 7200000, max_consecutive_failures: 2, max_total_restarts: 3 } });
-  const status = () => ({ schema_version: 1, core_version: "test", state, lifecycle_phase: state, generation, pending_intent: pendingIntent, active_run_id: state === "running_run" ? activeEntries[index] : undefined, run_id: state === "running_run" ? `run-${index + 1}` : undefined, game_id: state === "running_run" || state === "paused_between_runs" ? "game-001" : undefined, d2r: { state: "attached", window_bound: true, client_width: 1280, client_height: 720 }, input: { enabled: true, paused: false, stopped: false }, world: { valid: true, phase: "in_game", area_id: 1, area_name: "Rogue Encampment" }, selection: { character: "MrBones", difficulty: "nightmare" }, queue: queueStatus() });
+  const status = () => ({ schema_version: 1, app_version: "test", core_version: "test", state, lifecycle_phase: state, generation, pending_intent: pendingIntent, active_run_id: state === "running_run" ? activeEntries[index] : undefined, run_id: state === "running_run" ? `run-${index + 1}` : undefined, game_id: state === "running_run" || state === "paused_between_runs" ? "game-001" : undefined, d2r: { state: "attached", window_bound: true, client_width: 1280, client_height: 720 }, compatibility: { state: "compatible", supported_version: "3.2.92777", expected_version: "3.2.92777", offset_version: "3.2.92777", actual_version: "3.2.92777", privilege_mismatch: false }, input: { enabled: true, paused: false, stopped: false }, world: { valid: true, phase: "in_game", area_id: 1, area_name: "Rogue Encampment" }, selection: { character: "MrBones", difficulty: "nightmare" }, queue: queueStatus() });
   const catalog = { schema_version: 1, revision: 8, default_difficulty: "nightmare", characters: [{ name: "MrBones", slug: "mrbones", selectable: true }], difficulties: [{ id: "nightmare", display_name: "Alptraum" }], profiles: [], runs: [{ run_id: "countess", display_name: "Countess", status: "runtime_validation_required" }, { run_id: "mephisto", display_name: "Mephisto", status: "runtime_validation_required" }] };
 
   vi.stubGlobal("crypto", { randomUUID: () => `command-${requests.length}` });
@@ -46,7 +46,7 @@ it("durchläuft Queue, Pause, Resume, Stop und Emergency Stop gegen einen Fake-C
   vi.stubGlobal("EventSource", FakeEventSource);
 
   render(<App />);
-  expect(await screen.findByRole("button", { name: "Countess zur Queue hinzufügen" })).toBeDisabled();
+  expect(await screen.findByRole("heading", { name: "Konfigurierte Queue" })).toBeInTheDocument();
   fireEvent.click(screen.getByRole("button", { name: "Queue prüfen und starten" }));
   await waitFor(() => expect(screen.getByText("running_run")).toBeInTheDocument());
   expect(requests.some((request) => request.path === "/api/v1/queue/validate")).toBe(true);

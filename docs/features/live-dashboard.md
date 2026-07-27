@@ -2,7 +2,7 @@
 
 ## Überblick
 
-Abschnitt 11.3 zeigt den laufenden Core, den D2R-Attach, die Input-Safety-Gates und den letzten gültigen World-Zustand live im lokalen Browser. Abschnitt 11.8 ergänzt den Runtime-Queue-Builder und sichere Session-Controls. Nur explizite, token-geschützte Befehle dürfen den Core mutieren.
+Abschnitt 11.3 zeigt den laufenden Core, den D2R-Attach, die Input-Safety-Gates und den letzten gültigen World-Zustand im Electron-Renderer. Abschnitt 11.8 ergänzt sichere Session-Controls. Nur explizite, token-geschützte Befehle dürfen den Core mutieren.
 
 ## Ort im Code
 
@@ -11,7 +11,7 @@ Abschnitt 11.3 zeigt den laufenden Core, den D2R-Attach, die Input-Safety-Gates 
 - **Live-Publisher:** `internal/telemetry/publisher.go`
 - **SSE-Transport:** `internal/api/server.go`
 - **Dashboard:** `web/src/app/App.tsx`
-- **CLI:** `cmd/d2rbot/main.go` mit `--ui`
+- **Desktop-Wiring:** `cmd/d2rbot/main.go` mit privater Electron-Handshake-Pipe
 
 ## Funktionalität
 
@@ -41,30 +41,26 @@ Die Oberfläche zeigt:
 - read-only Run-Katalog;
 - die letzten 40 Live-Ereignisse.
 
-Availability-Karten können jeden Run genau einmal in die „Run-Reihenfolge pro Spiel“ aufnehmen. Bereits enthaltene Runs sind mit Erklärung deaktiviert; der Core lehnt Duplikate unabhängig davon mit `queue_duplicate_run` ab. Die Liste lässt sich per beschrifteten Auf-/Ab-Buttons verschieben, einzeln entfernen und auf `session.queue` zurücksetzen. Während `starting_game`, `starting_run`, `running_run`, `paused_between_runs`, `exiting_game` und `cancelling` sind Auswahl und Queue-Änderungen gesperrt. Browser-Refresh rekonstruiert Queue, Game-ID, Run-ID, Lifecycle-Phase, Index, Spielzyklus, Retry, Budgets, Step und terminales Ergebnis aus dem Core-Snapshot.
+Availability-Karten zeigen den Core-Katalog read-only. Das Dashboard projiziert die persistente Charakter-Queue aus `operator-settings.local.yaml`, startet exakt diese Reihenfolge und verweist für Änderungen auf den einzigen Editor unter „Einstellungen“. Damit existiert kein zweiter Runtime-only Queue-Entwurf. Der Core lehnt Duplikate unabhängig von der UI mit `queue_duplicate_run` ab. Während `starting_game`, `starting_run`, `running_run`, `paused_between_runs`, `exiting_game` und `cancelling` sind Settings-Mutationen gesperrt. Ein Renderer-Reload rekonstruiert Queue, Game-ID, Run-ID, Lifecycle-Phase, Index, Spielzyklus, Retry, Budgets, Step und terminales Ergebnis aus dem Core-Snapshot.
 
-Start führt zuerst den tokenfreien Gesamt-Preflight und danach denselben Kontext als token-geschützten `start_queue`-Command aus. Nach der Core-seitigen Memory-Verifikation aktivieren Start und Resume das gebundene D2R-Fenster über den gemeinsamen gegateten Fokuspfad; React aktiviert kein Fenster selbst. Pause wartet auf Loot und Town, lässt das Spiel geöffnet und benötigt durch den globalen Hotkey keinen Browserfokus. Resume revalidiert dasselbe Spiel. Geordneter Stopp verlässt es danach genau einmal; der natürliche Wrap verlässt es erst nach der vollständigen Folge. Emergency Stop bleibt visuell getrennt, bestätigt und F11-identisch. Sichtbarer mutierter Zustand folgt ausschließlich der Core-Antwort; ein lokaler Command-Lock verhindert Doppelklick-Starts.
+Start führt zuerst den tokenfreien Gesamt-Preflight und danach denselben Kontext als token-geschützten `start_queue`-Command aus. Nach der Core-seitigen Memory-Verifikation aktivieren Start und Resume das gebundene D2R-Fenster über den gemeinsamen gegateten Fokuspfad; React aktiviert kein Fenster selbst. Pause wartet auf Loot und Town, lässt das Spiel geöffnet und benötigt durch den globalen Hotkey keinen Rendererfokus. Resume revalidiert dasselbe Spiel. Geordneter Stopp verlässt es danach genau einmal; der natürliche Wrap verlässt es erst nach der vollständigen Folge. Emergency Stop bleibt visuell getrennt, bestätigt und F11-identisch. Sichtbarer mutierter Zustand folgt ausschließlich der Core-Antwort; ein lokaler Command-Lock verhindert Doppelklick-Starts.
 
-Alle Operator-Texte und Fehler sind deutsch. Der Control-Token bleibt ausschließlich im Browser-Memory und ist für den read-only SSE-GET nicht erforderlich.
+Alle Operator-Texte und Fehler sind deutsch. Der Control-Token bleibt ausschließlich im Renderer-Memory und ist für den read-only SSE-GET nicht erforderlich.
 
 ### Historie
 
 Abschnitt 14.6 ergänzt den eigenen Navigationspunkt `Historie`. Zeitraum-, Kontext-, Ergebnis-, Reason- und Pickit-Filter, Übersicht, Core-sortierter Boss-/Routenvergleich, Item- und Run-Pagination, semantischer Drill-down und Exporte bleiben vollständig read-only. Tabellen wechseln auf kleinen Viewports in beschriftete Zeilengruppen. Details stehen in [Run-Historie im Dashboard](run-history.md).
 
-## Operator / CLI
+## Operator / Desktop
 
-```powershell
-go run ./cmd/d2rbot --config configs/config.yaml --ui
-```
-
-Für die manuelle Abnahme D2R zunächst geschlossen lassen, dann starten und wieder beenden. Das Dashboard muss `detached` → `attached` → `detached`, Fensterbindung und eine Gebietsänderung live zeigen. Browser-Refresh und eine kurz getrennte Netzwerkverbindung müssen den aktuellen Snapshot wiederherstellen. In den Logs darf keine Gameplay-Input-Aktion erscheinen.
+Das Dashboard ist das Startziel der installierten App. Für eine Lifecycle-Abnahme D2R zunächst geschlossen lassen, dann starten und wieder beenden. Das Dashboard muss `detached` → `attached` → `detached`, Fensterbindung und eine Gebietsänderung live zeigen. Renderer-Reload und eine kurz getrennte Netzwerkverbindung müssen den aktuellen Snapshot wiederherstellen. In den Logs darf ohne expliziten Command keine Gameplay-Input-Aktion erscheinen.
 
 ## Abhängigkeiten und Grenzen
 
 - Ausschließlich lokaler Loopback-Transport; keine Remote-Freigabe.
-- Queue-Entwürfe sind Runtime-only; ein Prozessneustart lädt den YAML-Default bei Index 0.
+- Die Queue wird ausschließlich in den Core-eigenen Operator-Einstellungen persistiert und vom Dashboard nur projiziert.
 - Keine Persistenz des Eventrings; JSONL bleibt autoritativ.
-- Ein fehlender Browser oder ein langsamer SSE-Client beeinflusst den Core nicht.
+- Ein langsamer oder neu geladener Renderer beeinflusst den Core nicht.
 
 ## Verwandte Features
 
@@ -75,4 +71,4 @@ Für die manuelle Abnahme D2R zunächst geschlossen lassen, dann starten und wie
 - [Historien-API und Export](history-api-export.md)
 
 ---
-*Zuletzt aktualisiert: 22. Juli 2026*
+*Zuletzt aktualisiert: 26. Juli 2026*

@@ -166,8 +166,8 @@ func TestRunInputTestReadyTimeoutReportsState(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected ready timeout error")
 	}
-	if !strings.Contains(err.Error(), "world_valid=false") {
-		t.Fatalf("err = %v, want world_valid in message", err)
+	if !strings.Contains(err.Error(), string(Phase15ReasonD2RVersionNotDetected)) || in.listenCalls != 0 {
+		t.Fatalf("err = %v listen_calls=%d, want fail-closed compatibility timeout", err, in.listenCalls)
 	}
 }
 
@@ -238,8 +238,8 @@ func TestRunInputTestProcessLostDuringReadyWait(t *testing.T) {
 
 	select {
 	case err := <-done:
-		if err == nil || !strings.Contains(err.Error(), "process lost during input test") {
-			t.Fatalf("err = %v, want process lost", err)
+		if err == nil || !strings.Contains(err.Error(), string(Phase15ReasonD2RVersionNotDetected)) || in.listenCalls != 0 {
+			t.Fatalf("err = %v listen_calls=%d, want pre-hotkey compatibility block", err, in.listenCalls)
 		}
 	case <-time.After(2 * time.Second):
 		t.Fatal("timed out")
@@ -261,13 +261,14 @@ func TestRunInputTestStopHotkeyDuringWait(t *testing.T) {
 	proc := &mockProcess{attachErr: process.ErrNotFound}
 	rt := testRuntimeWithInput(proc, &mockProbe{}, in, Options{InputTestObserveMs: 50})
 	rt.Config.Runtime.PollIntervalMs = 10
+	rt.Config.Process.AttachTimeoutMs = 30
 
 	err := rt.RunInputTest("belt:1")
-	if err != nil {
-		t.Fatalf("RunInputTest() err = %v, want clean stop", err)
+	if err == nil || !strings.Contains(err.Error(), string(Phase15ReasonD2RVersionNotDetected)) {
+		t.Fatalf("RunInputTest() err = %v, want compatibility block", err)
 	}
-	if in.stopCalls != 1 {
-		t.Fatalf("stop calls = %d", in.stopCalls)
+	if in.stopCalls != 0 || in.listenCalls != 0 {
+		t.Fatalf("stop calls=%d listen calls=%d, want no hotkey path", in.stopCalls, in.listenCalls)
 	}
 }
 
@@ -408,14 +409,14 @@ func (p *lostAfterReadyProcess) Attach(_ context.Context) error {
 func (p *lostAfterReadyProcess) Poll() process.Status {
 	p.pollCount++
 	if p.pollCount <= 2 {
-		return process.Status{State: process.StateAttached, PID: 42}
+		return process.Status{State: process.StateAttached, PID: 42, FileVersion: "3.2.92777"}
 	}
 	return process.Status{State: process.StateLost, PID: 42}
 }
 
 func (p *lostAfterReadyProcess) Status() process.Status {
 	if p.pollCount <= 2 {
-		return process.Status{State: process.StateAttached, PID: 42}
+		return process.Status{State: process.StateAttached, PID: 42, FileVersion: "3.2.92777"}
 	}
 	return process.Status{State: process.StateLost, PID: 42}
 }

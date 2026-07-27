@@ -19,18 +19,20 @@ Abschnitt 14.5 stellt die vom Core berechnete Run-Historie read-only für Dashbo
 
 | Endpunkt | Inhalt |
 |---|---|
-| `GET /api/v1/history/summary` | Population, Ergebnisse, Dauer, Stages, Funnel, Top-Fehler und Dateidiagnosen |
+| `GET /api/v1/history/summary` | Population, lokale Tages-Buckets, Ergebnisse, Dauer, Stages, Funnel, Top-Fehler und Dateidiagnosen |
 | `GET /api/v1/history/comparisons` | Charakter-/Difficulty-/Definition-/Routenvergleich; Core-Sortierung nach Keep/Stunde, Erfolgsquote oder Durchschnittsdauer |
 | `GET /api/v1/history/items` | Stabil nach Itemname und Itemkey sortierte, cursor-paginierte Itemaggregate |
 | `GET /api/v1/history/runs` | Absteigend nach UTC-Start und Run-ID sortierte, cursor-paginierte Runliste |
 | `GET /api/v1/history/runs/{runID}` | Semantischer Drill-down; `include_raw=true` ergänzt eingeklappte Rohereignisse |
 | `GET /api/v1/history/export` | Vollständiger JSON-Report oder CSV-Tabelle `runs` beziehungsweise `items` |
 
-Die Endpunkte benötigen keinen Control-Token, bleiben aber unter dem bestehenden Loopback-, Host- und Origin-Sicherheitsumschlag. Mutierende History-Routen existieren nicht.
+Die Auswertungs- und Exportendpunkte benötigen keinen Control-Token und bleiben read-only unter dem bestehenden Loopback-, Host- und Origin-Sicherheitsumschlag.
+
+Abschnitt 15.9 ergänzt `POST /api/v1/history/delete-all/preview` und `POST /api/v1/history/delete-all/confirm`. Beide verlangen den Control-Token; die Bestätigung ist zusätzlich an Supervisorgeneration, zufälligen Einmaltoken, Indexgeneration, Anzahl und Bytes gebunden.
 
 ### Filter und Pagination
 
-Das identische Filtermodell unterstützt `from`, `to`, `run`, `character`, `difficulty`, `outcome`, `reason` und `pickit_profile`. Listenwerte dürfen als wiederholte Parameter oder kommasepariert ankommen und werden kanonisch sortiert und dedupliziert. Zeitgrenzen müssen explizites UTC-RFC3339 bilden; das Intervall ist halboffen `[from,to)`. Vergleiche akzeptieren `keep_per_hour`, `success_rate` und `average_duration` als Core-seitig deterministisch gebrochene Sortierungen. Ungültige Filter liefern `history_filter_invalid` mit stabilem deutschem Text.
+Das identische Filtermodell unterstützt `from`, `to`, `timezone`, `run`, `character`, `difficulty`, `outcome`, `reason` und `pickit_profile`. Listenwerte dürfen als wiederholte Parameter oder kommasepariert ankommen und werden kanonisch sortiert und dedupliziert. Zeitgrenzen müssen explizites UTC-RFC3339 bilden; das Intervall ist halboffen `[from,to)`. `timezone` ist eine validierte IANA-Zeitzone und normalisiert leer auf `UTC`; unbekannte Werte liefern `history_timezone_invalid`. Vergleiche akzeptieren `keep_per_hour`, `success_rate` und `average_duration` als Core-seitig deterministisch gebrochene Sortierungen.
 
 Run- und Itemseiten verwenden standardmäßig 50 und höchstens 200 Zeilen. Ein opaker Cursor bindet Offset, Dataset, Filter, Serversortierung und Indexgeneration. Eine geänderte Population oder Query wird mit `history_cursor_invalid` abgelehnt, statt Zeilen zu überspringen oder doppelt zu liefern.
 
@@ -44,11 +46,7 @@ Jede History-Abfrage aktualisiert den rebuildbaren In-Memory-Index serialisiert.
 
 ## Operator / CLI
 
-Die Historie ist Teil des normalen lokalen UI-Modus:
-
-```powershell
-go run ./cmd/d2rbot --config configs/config.yaml --ui
-```
+Die Historie ist Teil der installierten Desktop-App unter `#history`.
 
 Beschädigte Dateien erscheinen einzeln mit Basisdateiname, stabilem Code und deutscher Erklärung. Der übrige gültige Datenbestand bleibt auswertbar. Ein History-Fehler stoppt keinen laufenden Bot und verändert keine JSONL-Datei.
 
@@ -66,4 +64,4 @@ Beschädigte Dateien erscheinen einzeln mit Basisdateiname, stabilem Code und de
 - [Lokale Core-API](local-core-api.md)
 
 ---
-*Zuletzt aktualisiert: 22. Juli 2026*
+*Zuletzt aktualisiert: 26. Juli 2026*

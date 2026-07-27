@@ -6,7 +6,14 @@ import {
   type RouteMutationPreviewDTO, type RouteWorkflowDTO, type SystemRouteStatusDTO,
 } from "../../api/generated";
 
-interface Props { characters: string[]; selectedCharacter: string; refreshKey: number }
+interface Props {
+  characters: string[];
+  selectedCharacter: string;
+  refreshKey: number;
+  liveLocked?: boolean;
+  preferredRecordingRun?: string;
+  onReturnToOnboarding?(): void;
+}
 const terminalWorkflowStates = new Set(["idle", "completed", "failed_safe", "emergency_cancelled"]);
 
 const workflowLabels: Record<string, string> = {
@@ -32,6 +39,7 @@ const reasonLabels: Record<string, string> = {
   recording_boss_missing: "Der registrierte lebende Boss wurde nicht bestätigt.",
   recording_boss_dead: "Der Boss muss beim Aufnahmeende noch leben.",
   recording_endpoint_too_far: "Die gewählte Endposition ist zu weit vom Boss entfernt.",
+  pickit_assignment_missing: "Für diesen Charakter und Run ist noch kein Lootprofil zugeordnet.",
   route_test_playback_failed: "Die isolierte Wiedergabe ist fehlgeschlagen.",
   route_test_terminal_mismatch: "Die Zielprüfung nach der Wiedergabe ist fehlgeschlagen.",
   route_safety_return_failed: "Die sichere Rückkehr per Town Portal ist fehlgeschlagen.",
@@ -70,7 +78,7 @@ function workflowInstruction(workflow: RouteWorkflowDTO, hotkeys: HotkeyHelpDTO 
   }
 }
 
-export function RouteFeature({ characters, selectedCharacter, refreshKey }: Props) {
+export function RouteFeature({ characters, selectedCharacter, refreshKey, liveLocked = false, preferredRecordingRun = "", onReturnToOnboarding }: Props) {
   const [character, setCharacter] = useState(selectedCharacter);
   const [archive, setArchive] = useState(false);
   const [routes, setRoutes] = useState<RouteEntryDTO[] | null>(null);
@@ -86,8 +94,10 @@ export function RouteFeature({ characters, selectedCharacter, refreshKey }: Prop
   const confirmRef = useRef<HTMLButtonElement>(null);
   const deleteRef = useRef<HTMLInputElement>(null);
   const workflowBusy = !!workflow && !terminalWorkflowStates.has(workflow.state);
+  const liveActionLocked = liveLocked || pending || workflowBusy;
   const visibleCandidates = candidates.filter((candidate) => candidate.character.toLocaleLowerCase() === character.toLocaleLowerCase());
   const activeWorkflowInstruction = workflow ? workflowInstruction(workflow, hotkeys) : "";
+  const orderedOptions = [...options].sort((left, right) => Number(right.run_id === preferredRecordingRun) - Number(left.run_id === preferredRecordingRun));
 
   const refresh = async (signal?: AbortSignal) => {
     try {
@@ -110,6 +120,10 @@ export function RouteFeature({ characters, selectedCharacter, refreshKey }: Prop
   return <section aria-labelledby="routes-title">
     <h2 id="routes-title">Farming-Routen</h2>
     <p>Aufnahmen, Tests und Veröffentlichung verwenden denselben Core wie die CLI. Town- und Egress-Dateien erscheinen nie in dieser Bibliothek.</p>
+    {onReturnToOnboarding && <div className="onboarding-return">
+      <div><strong>Aus der Einrichtung geöffnet</strong><p>Du kannst Aufnahme, Test und Veröffentlichung hier abschließen und anschließend zum First-Run-Assistenten zurückkehren.</p></div>
+      <button type="button" className="secondary" onClick={onReturnToOnboarding}>Zurück zur Einrichtung</button>
+    </div>}
     <div className="route-toolbar">
       <label>Charakter<select value={character} onChange={(event) => setCharacter(event.target.value)}>{characters.map((name) => <option key={name}>{name}</option>)}</select></label>
       <button type="button" className="secondary" aria-pressed={archive} onClick={() => setArchive((value) => !value)}>{archive ? "Aktive Routen" : "Archiv anzeigen"}</button>
@@ -117,18 +131,18 @@ export function RouteFeature({ characters, selectedCharacter, refreshKey }: Prop
     {error && <p role="alert">{error}</p>}
     {routes === null && !error && <p>Routen werden geladen …</p>}
     {routes?.length === 0 && <p>{archive ? "Das Archiv ist leer." : "Für diesen Charakter gibt es noch keine Farming-Route."}</p>}
-    {!!routes?.length && <div className="run-grid">{routes.map((route) => <article key={route.route_id}><strong>{route.display_name}</strong><span>{route.run_id} · {route.difficulty}</span><small>{route.lifecycle_status} · {route.management_status}{route.assigned ? " · zugewiesen" : ""}</small><div className="route-actions">{archive ? <><button disabled={pending || workflowBusy} onClick={() => void prepare("restore", route.route_id)}>Wiederherstellen</button><button className="danger" disabled={pending || workflowBusy} onClick={() => void prepare("delete", route.route_id)}>Endgültig löschen</button></> : <button disabled={pending || workflowBusy} onClick={() => void prepare("archive", route.route_id)}>Archivieren</button>}</div></article>)}</div>}
+    {!!routes?.length && <div className="run-grid">{routes.map((route) => <article key={route.route_id}><strong>{route.display_name}</strong><span>{route.run_id} · {route.difficulty}</span><small>{route.lifecycle_status} · {route.management_status}{route.assigned ? " · zugewiesen" : ""}</small><div className="route-actions">{archive ? <><button disabled={liveActionLocked} onClick={() => void prepare("restore", route.route_id)}>Wiederherstellen</button><button className="danger" disabled={liveActionLocked} onClick={() => void prepare("delete", route.route_id)}>Endgültig löschen</button></> : <button disabled={liveActionLocked} onClick={() => void prepare("archive", route.route_id)}>Archivieren</button>}</div></article>)}</div>}
 
     <h3>Geführte Aufnahme</h3>
-    <div className="run-grid">{options.map((option) => <article key={option.run_id}><strong>{option.display_name}</strong><p>{option.instructions_de}</p><small>Start: {option.start_waypoint} · Zielgebiet {option.terminal_area_id} · maximale Bossdistanz {option.terminal_max_distance_tiles.toFixed(0)} Tiles</small>{!option.available && option.reason && <small>{reasonLabel(option.reason)}</small>}<button disabled={pending || workflowBusy || !option.available} onClick={() => void start("record", { runId: option.run_id })}>Aufnahme starten</button></article>)}</div>
-    {workflow && <div className="queue-status" aria-live="polite"><strong>Routen-Workflow: {workflow.state}</strong><span>{workflowLabels[workflow.state] ?? workflow.state} · Generation {workflow.generation}{workflow.run_id ? ` · ${workflow.run_id}` : ""}{workflow.act ? ` · ${workflow.act.toUpperCase()}` : ""}</span>{activeWorkflowInstruction && <span>{activeWorkflowInstruction}</span>}{workflow.state === "recording" && <button disabled={pending} onClick={() => void finishRouteRecording(workflow.workflow_id, workflow.generation).then(setWorkflow).catch((reason: unknown) => setError(reason instanceof Error ? reason.message : "Finish fehlgeschlagen"))}>Aufnahme beenden</button>}{workflow.reason && workflow.state !== "failed_safe" && workflow.state !== "emergency_cancelled" && <span>{reasonLabel(workflow.reason)}</span>}</div>}
+    <div className="run-grid">{orderedOptions.map((option) => <article key={option.run_id} className={option.run_id === preferredRecordingRun ? "preferred-route" : undefined}><strong>{option.display_name}{option.run_id === preferredRecordingRun ? " · ausgewählt" : ""}</strong><p>{option.instructions_de}</p><small>Start: {option.start_waypoint} · Zielgebiet {option.terminal_area_id} · maximale Bossdistanz {option.terminal_max_distance_tiles.toFixed(0)} Tiles</small>{(option.prerequisites ?? []).map((entry) => <small key={entry.id}>{entry.id}: {entry.ready ? "bereit" : reasonLabel(entry.reason)}</small>)}{!option.available && option.reason && <small>{reasonLabel(option.reason)}</small>}<button disabled={liveActionLocked || !option.available || (option.prerequisites ?? []).some((entry) => !entry.ready)} onClick={() => void start("record", { runId: option.run_id })}>Aufnahme starten</button></article>)}</div>
+    {workflow && <div className="queue-status" aria-live="polite"><strong>Routen-Workflow: {workflow.state}</strong><span>{workflowLabels[workflow.state] ?? workflow.state} · Generation {workflow.generation}{workflow.run_id ? ` · ${workflow.run_id}` : ""}{workflow.act ? ` · ${workflow.act.toUpperCase()}` : ""}</span>{activeWorkflowInstruction && <span>{activeWorkflowInstruction}</span>}{workflow.state === "recording" && <button disabled={liveLocked || pending} onClick={() => void finishRouteRecording(workflow.workflow_id, workflow.generation).then(setWorkflow).catch((reason: unknown) => setError(reason instanceof Error ? reason.message : "Finish fehlgeschlagen"))}>Aufnahme beenden</button>}{workflow.reason && workflow.state !== "failed_safe" && workflow.state !== "emergency_cancelled" && <span>{reasonLabel(workflow.reason)}</span>}</div>}
 
     <h3>Kandidatenreview</h3>
-    {visibleCandidates.length === 0 ? <p>Für diesen Charakter gibt es noch keinen aufgenommenen Kandidaten.</p> : <div className="run-grid">{visibleCandidates.map((candidate) => <article key={candidate.candidate_id}><strong>{candidate.run_id}</strong><code>{candidate.candidate_id}</code><span>{candidate.character} · {candidate.difficulty}</span><small>{candidateLabels[candidate.state] ?? candidate.state} · Bossdistanz {candidate.measured_boss_distance.toFixed(1)} Tiles</small>{candidate.reason && <small>{reasonLabel(candidate.reason)}</small>}<div className="route-actions"><button disabled={pending || workflowBusy || candidate.state !== "validated"} onClick={() => void start("test", { candidateId: candidate.candidate_id })}>{candidate.state === "test_passed" ? "Test bestanden" : "Isoliert testen"}</button><button disabled={pending || workflowBusy || candidate.state !== "test_passed"} onClick={() => void prepare("publish", "", candidate.candidate_id)}>Veröffentlichen</button></div></article>)}</div>}
+    {visibleCandidates.length === 0 ? <p>Für diesen Charakter gibt es noch keinen aufgenommenen Kandidaten.</p> : <div className="run-grid">{visibleCandidates.map((candidate) => <article key={candidate.candidate_id}><strong>{candidate.run_id}</strong><code>{candidate.candidate_id}</code><span>{candidate.character} · {candidate.difficulty}</span><small>{candidateLabels[candidate.state] ?? candidate.state} · Bossdistanz {candidate.measured_boss_distance.toFixed(1)} Tiles</small>{candidate.reason && <small>{reasonLabel(candidate.reason)}</small>}<div className="route-actions"><button disabled={liveActionLocked || candidate.state !== "validated"} onClick={() => void start("test", { candidateId: candidate.candidate_id })}>{candidate.state === "test_passed" ? "Test bestanden" : "Isoliert testen"}</button><button disabled={liveActionLocked || candidate.state !== "test_passed"} onClick={() => void prepare("publish", "", candidate.candidate_id)}>Veröffentlichen</button></div></article>)}</div>}
 
     <h3>System-Egress-Setup</h3>
     <p>Nur fehlende globale Portal→Wegpunkt-Routen werden als Setup-Bedarf gezeigt; sie gehören nicht zur Farming-Bibliothek.</p>
-    <div className="run-grid">{system.map((entry) => <article key={entry.act}><strong>{entry.act.toUpperCase()}</strong><span>{entry.ready ? "bereit" : "Setup erforderlich"}</span>{workflow?.act === entry.act && <p aria-live="polite"><strong>Core-Status: {workflow.state}</strong>{workflow.state === "preflight" ? " – am Portal stehen bleiben; Aufnahme noch nicht gestartet." : workflow.state === "recording" ? " – Aufnahme läuft; jetzt zum Wegpunkt gehen." : workflow.reason ? ` – ${workflow.reason}` : ""}</p>}{entry.ready ? <><p>Stelle dich für den isolierten Test wieder direkt an den Portal-Ankunftspunkt dieses Akts. Der Core prüft die Startnähe vor dem ersten Walk-Input.</p><button disabled={pending || workflowBusy} onClick={() => void start("system_test", { act: entry.act })}>Playback prüfen</button></> : <><p>Öffne in einem bestehenden Spiel in diesem Akt ein Town Portal, betrete es und starte direkt am Portal-Ankunftspunkt. Laufe ohne Teleport zum lokalen Wegpunkt und beende dort mit {hotkeys?.recording_finish ?? "F9"}.</p><small>{entry.reason}</small><button disabled={pending || workflowBusy} onClick={() => void start("system_record", { act: entry.act })}>Egress aufnehmen</button></>}</article>)}</div>
+    <div className="run-grid">{system.map((entry) => <article key={entry.act}><strong>{entry.act.toUpperCase()}</strong><span>{entry.ready ? "bereit" : "Setup erforderlich"}</span>{workflow?.act === entry.act && <p aria-live="polite"><strong>Core-Status: {workflow.state}</strong>{workflow.state === "preflight" ? " – am Portal stehen bleiben; Aufnahme noch nicht gestartet." : workflow.state === "recording" ? " – Aufnahme läuft; jetzt zum Wegpunkt gehen." : workflow.reason ? ` – ${workflow.reason}` : ""}</p>}{entry.ready ? <><p>Stelle dich für den isolierten Test wieder direkt an den Portal-Ankunftspunkt dieses Akts. Der Core prüft die Startnähe vor dem ersten Walk-Input.</p><button disabled={liveActionLocked} onClick={() => void start("system_test", { act: entry.act })}>Playback prüfen</button></> : <><p>Öffne in einem bestehenden Spiel in diesem Akt ein Town Portal, betrete es und starte direkt am Portal-Ankunftspunkt. Laufe ohne Teleport zum lokalen Wegpunkt und beende dort mit {hotkeys?.recording_finish ?? "F9"}.</p><small>{entry.reason}</small><button disabled={liveActionLocked} onClick={() => void start("system_record", { act: entry.act })}>Egress aufnehmen</button></>}</article>)}</div>
 
     <details className="hotkey-help"><summary>Hotkey-Hilfe</summary>{hotkeys ? <dl><div><dt>{hotkeys.recording_finish}</dt><dd>Aufnahme einfrieren und sicher abschließen</dd></div><div><dt>{hotkeys.stop_after_run}</dt><dd>Nach dem aktuellen Run stoppen</dd></div><div><dt>{hotkeys.emergency_stop}</dt><dd>Sofortiger Emergency Stop; kein Save &amp; Exit garantiert</dd></div><div><dt>{hotkeys.pause}</dt><dd>Nach dem aktuellen Run pausieren</dd></div></dl> : <p>Hotkeys werden geladen …</p>}</details>
 

@@ -86,6 +86,11 @@ func (rt *Runtime) runTick(ctx context.Context, state *runState) (err error) {
 			rt.uiStatusPublisher(rt.CurrentUIStatus(lastError))
 		}
 	}()
+	if !state.attached && rt.processPreAttached.Swap(false) {
+		state.attached = true
+		state.hasEverAttached = true
+		state.waitingLogged = false
+	}
 	if !state.attached {
 		if !state.hasEverAttached {
 			if timeout := rt.Config.Process.AttachTimeoutMs; timeout > 0 {
@@ -130,6 +135,10 @@ func (rt *Runtime) runTick(ctx context.Context, state *runState) (err error) {
 		}
 		rt.logProcessStateChange(state.lastLoggedState, process.StateAttached)
 		state.lastLoggedState = process.StateAttached
+		if rt.CompatibilitySnapshot().State != D2RCompatibilityCompatible {
+			rt.Input.Unbind()
+			return nil
+		}
 		if err := rt.tryBindInput(state); err != nil {
 			return err
 		}
@@ -151,6 +160,10 @@ func (rt *Runtime) runTick(ctx context.Context, state *runState) (err error) {
 		state.attached = false
 		rt.logProcessStateChange(state.lastLoggedState, process.StateLost)
 		state.lastLoggedState = process.StateLost
+		return nil
+	}
+	if rt.CompatibilitySnapshot().State != D2RCompatibilityCompatible {
+		rt.Input.Unbind()
 		return nil
 	}
 
@@ -181,6 +194,9 @@ func (rt *Runtime) runTick(ctx context.Context, state *runState) (err error) {
 }
 
 func (rt *Runtime) tryBindInput(state *runState) error {
+	if err := rt.requireCompatible(); err != nil {
+		return err
+	}
 	if rt.Input.Bound() {
 		return nil
 	}

@@ -166,6 +166,73 @@ func TestHistoryAnalyzerIncludesFailedAndAbortedTimeInHourlyDenominator(t *testi
 	}
 }
 
+func TestHistoryDailyBucketsUseLocalCalendarDaysAndPreserveZeroDays(t *testing.T) {
+	from := time.Date(2026, 7, 19, 22, 0, 0, 0, time.UTC)
+	to := time.Date(2026, 7, 22, 22, 0, 0, 0, time.UTC)
+	runs := []HistoryRun{
+		analyzerRun("day-one", time.Date(2026, 7, 20, 21, 59, 0, 0, time.UTC), 60, HistoryOutcomeSuccess, "countess", "route-a", true, [4]int64{}, "", "", []analyzerItemFixture{{unitID: 1, key: "r01", action: "keep", matched: true, picked: true, stash: true}}),
+		analyzerRun("day-three", time.Date(2026, 7, 21, 22, 0, 0, 0, time.UTC), 120, HistoryOutcomeFailed, "countess", "route-a", false, [4]int64{}, "boss", "boss_not_found", nil),
+	}
+	analysis, err := AnalyzeHistory(HistorySnapshot{Runs: runs}, HistoryFilter{FromUTC: &from, ToUTC: &to, Timezone: "Europe/Vienna"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(analysis.DailyBuckets) != 3 {
+		t.Fatalf("buckets=%+v", analysis.DailyBuckets)
+	}
+	first, zero, last := analysis.DailyBuckets[0], analysis.DailyBuckets[1], analysis.DailyBuckets[2]
+	if first.Date != "2026-07-20" || first.TerminalRuns != 1 || first.Successful != 1 || first.KeepReturn != 1 || first.ActiveDurationMs != 60_000 {
+		t.Fatalf("first=%+v", first)
+	}
+	assertHistoryFloat(t, "daily success", first.SuccessRate, 1)
+	assertHistoryFloat(t, "daily keep/hour", first.KeepPerHour, 60)
+	if zero.Date != "2026-07-21" || zero.TerminalRuns != 0 || zero.SuccessRate != nil || zero.KeepPerHour != nil {
+		t.Fatalf("zero=%+v", zero)
+	}
+	if last.Date != "2026-07-22" || last.TerminalRuns != 1 || last.Successful != 0 || last.ActiveDurationMs != 120_000 {
+		t.Fatalf("last=%+v", last)
+	}
+}
+
+func TestHistoryDailyBucketsExposeDSTDayBoundaries(t *testing.T) {
+	tests := []struct {
+		name  string
+		from  time.Time
+		to    time.Time
+		hours time.Duration
+	}{
+		{name: "23 hours", from: time.Date(2026, 3, 28, 23, 0, 0, 0, time.UTC), to: time.Date(2026, 3, 29, 22, 0, 0, 0, time.UTC), hours: 23 * time.Hour},
+		{name: "25 hours", from: time.Date(2026, 10, 24, 22, 0, 0, 0, time.UTC), to: time.Date(2026, 10, 25, 23, 0, 0, 0, time.UTC), hours: 25 * time.Hour},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			analysis, err := AnalyzeHistory(HistorySnapshot{}, HistoryFilter{FromUTC: &test.from, ToUTC: &test.to, Timezone: "Europe/Vienna"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(analysis.DailyBuckets) != 1 || analysis.DailyBuckets[0].EndUTC.Sub(analysis.DailyBuckets[0].StartUTC) != test.hours {
+				t.Fatalf("buckets=%+v", analysis.DailyBuckets)
+			}
+		})
+	}
+}
+
+func TestHistoryTimezoneValidationAndHalfOpenUTCFilter(t *testing.T) {
+	start := time.Date(2026, 7, 20, 10, 0, 0, 0, time.UTC)
+	to := start.Add(time.Hour)
+	runs := []HistoryRun{
+		analyzerRun("inside", start, 10, HistoryOutcomeSuccess, "countess", "route", true, [4]int64{}, "", "", nil),
+		analyzerRun("excluded-at-to", to, 10, HistoryOutcomeSuccess, "countess", "route", true, [4]int64{}, "", "", nil),
+	}
+	analysis, err := AnalyzeHistory(HistorySnapshot{Runs: runs}, HistoryFilter{FromUTC: &start, ToUTC: &to, Timezone: "UTC"})
+	if err != nil || analysis.Summary.TerminalRuns != 1 || analysis.Runs[0].RunID != "inside" {
+		t.Fatalf("analysis=%+v err=%v", analysis, err)
+	}
+	if _, err := AnalyzeHistory(HistorySnapshot{}, HistoryFilter{Timezone: "Europe/Does-Not-Exist"}); historyErrorCode(err) != HistoryReasonTimezoneInvalid {
+		t.Fatalf("timezone err=%v", err)
+	}
+}
+
 func analyzerRun(id string, start time.Time, durationSeconds int64, outcome HistoryOutcome, runName, route string, boss bool, stageSeconds [4]int64, failedStep, reason string, items []analyzerItemFixture) HistoryRun {
 	end := start.Add(time.Duration(durationSeconds) * time.Second)
 	run := HistoryRun{

@@ -7,6 +7,8 @@ import (
 	"strings"
 
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/app"
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/config"
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/pathing"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/tasks"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/telemetry"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/town"
@@ -64,9 +66,45 @@ func (b *LiveBackend) RecordingOptions() []RecordingOptionDTO {
 		} else if supervisorState != string(app.SupervisorStateIdle) && supervisorState != string(app.SupervisorStateIdleInGame) {
 			available, reason = false, "session_active"
 		}
-		result = append(result, RecordingOptionDTO{RunID: string(definition.ID), DisplayName: definition.DisplayName, InstructionsDE: definition.Recording.InstructionsDE, StartWaypoint: string(definition.Recording.StartWaypoint), AllowedStartAreaID: uint32(definition.Recording.AllowedStartArea), AllowedRouteAreaIDs: areas, TerminalAreaID: uint32(definition.Recording.TerminalArea), TerminalMaxDistanceTiles: definition.Recording.TerminalMaxDistanceTiles, Available: available, Reason: reason})
+		result = append(result, RecordingOptionDTO{RunID: string(definition.ID), DisplayName: definition.DisplayName, InstructionsDE: definition.Recording.InstructionsDE, StartWaypoint: string(definition.Recording.StartWaypoint), AllowedStartAreaID: uint32(definition.Recording.AllowedStartArea), AllowedRouteAreaIDs: areas, TerminalAreaID: uint32(definition.Recording.TerminalArea), TerminalMaxDistanceTiles: definition.Recording.TerminalMaxDistanceTiles, Available: available, Reason: reason, Prerequisites: b.recordingPrerequisites(definition)})
 	}
 	return result
+}
+
+func (b *LiveBackend) recordingPrerequisites(definition tasks.RunDefinition) []RecordingPrerequisiteDTO {
+	b.mu.RLock()
+	character := b.status.Selection.Character
+	b.mu.RUnlock()
+	_, waypointReady := pathing.DefaultWaypointTargetRegistry().Action(definition.WaypointTarget)
+	teleport := configuredSkillBinding(b.cfg.Input.Bindings, "teleport", true)
+	townPortal := configuredSkillBinding(b.cfg.Input.Bindings, "town_portal", true)
+	pickitReady := false
+	if character != "" {
+		_, pickitErr := b.pickitAssignments.Resolve(character, definition.ID)
+		pickitReady = pickitErr == nil
+	}
+	return []RecordingPrerequisiteDTO{
+		{ID: "waypoint", Ready: waypointReady, Reason: prerequisiteReason(waypointReady, "onboarding_waypoint_required")},
+		{ID: "teleport", Ready: teleport, Reason: prerequisiteReason(teleport, "onboarding_teleport_binding_missing")},
+		{ID: "town_portal", Ready: townPortal, Reason: prerequisiteReason(townPortal, "onboarding_town_portal_binding_missing")},
+		{ID: "pickit", Ready: pickitReady, Reason: prerequisiteReason(pickitReady, "pickit_assignment_missing")},
+	}
+}
+
+func configuredSkillBinding(bindings config.InputBindingsConfig, name string, requireRight bool) bool {
+	for candidate, binding := range bindings.Skills {
+		if strings.EqualFold(strings.TrimSpace(candidate), name) {
+			return strings.TrimSpace(binding.Key) != "" && (!requireRight || strings.EqualFold(strings.TrimSpace(binding.Button), "right"))
+		}
+	}
+	return false
+}
+
+func prerequisiteReason(ready bool, reason string) string {
+	if ready {
+		return ""
+	}
+	return reason
 }
 
 // RouteCandidates returns immutable candidate identity without filesystem locations.
@@ -136,7 +174,11 @@ func (b *LiveBackend) PreviewRouteMutation(request RouteMutationPreviewRequest) 
 	b.mu.RLock()
 	workflowState := b.routeWorkflow.State
 	selection := b.status.Selection
+	compatibility := b.status.Compatibility
 	b.mu.RUnlock()
+	if compatibility.State != string(app.D2RCompatibilityCompatible) {
+		return RouteMutationPreviewDTO{}, compatibilityCommandError(compatibility)
+	}
 	if routeWorkflowBusy(workflowState) {
 		return RouteMutationPreviewDTO{}, fmt.Errorf("route mutation conflicts with active workflow")
 	}
@@ -167,7 +209,11 @@ func (b *LiveBackend) ConfirmRouteMutation(request RouteMutationConfirmRequest) 
 	b.mu.RLock()
 	workflowState := b.routeWorkflow.State
 	selection := b.status.Selection
+	compatibility := b.status.Compatibility
 	b.mu.RUnlock()
+	if compatibility.State != string(app.D2RCompatibilityCompatible) {
+		return compatibilityCommandError(compatibility)
+	}
 	if routeWorkflowBusy(workflowState) {
 		return fmt.Errorf("route mutation conflicts with active workflow")
 	}
@@ -185,11 +231,28 @@ func (b *LiveBackend) ConfirmRouteMutation(request RouteMutationConfirmRequest) 
 	if err := b.routeManagement.Confirm(app.RouteMutationConfirm{Token: request.ConfirmationToken, ConfirmRouteID: request.ConfirmRouteID}); err != nil {
 		return err
 	}
+	report, refreshErr := app.ResolveRunAvailabilities(b.cfg, app.RunAvailabilityContext{
+		Character: selection.Character, Difficulty: selection.Difficulty, GameVersion: b.cfg.Memory.GameVersion,
+	})
 	b.mu.Lock()
 	b.catalog.Revision++
+	if refreshErr == nil {
+		b.catalog.Runs = runCatalogEntries(report)
+	} else {
+		// Die Mutation ist zu diesem Zeitpunkt bereits atomar veröffentlicht.
+		// Ein fehlgeschlagener Re-Read darf keinen alten, scheinbar verfügbaren
+		// Katalog behalten; bis zur nächsten erfolgreichen Projektion gilt fail-closed.
+		for i := range b.catalog.Runs {
+			b.catalog.Runs[i].Status = "unavailable"
+			b.catalog.Runs[i].Reasons = []string{"route_lifecycle_unavailable"}
+		}
+	}
 	generation := b.catalog.Revision
 	b.mu.Unlock()
 	b.publisher.Publish(routeEvent("route_library_changed", generation, ""))
+	if refreshErr != nil {
+		b.publisher.Publish(telemetry.LiveEvent{Event: "runtime_error", Reason: "run_catalog_refresh_failed", Details: map[string]any{"message": refreshErr.Error()}})
+	}
 	return nil
 }
 
@@ -229,6 +292,10 @@ func (b *LiveBackend) StartRouteWorkflow(request RouteWorkflowRequest) (RouteWor
 	}
 	b.mu.Lock()
 	selection := b.status.Selection
+	if err := b.requireCompatibleLocked(); err != nil {
+		b.mu.Unlock()
+		return RouteWorkflowDTO{}, err
+	}
 	if request.ExpectedGeneration != b.routeWorkflow.Generation {
 		b.mu.Unlock()
 		return RouteWorkflowDTO{}, fmt.Errorf("route workflow generation changed")
@@ -329,6 +396,9 @@ func (b *LiveBackend) FinishRouteWorkflow(workflowID string, request RouteWorkfl
 	defer b.commandMu.Unlock()
 	b.mu.Lock()
 	defer b.mu.Unlock()
+	if err := b.requireCompatibleLocked(); err != nil {
+		return RouteWorkflowDTO{}, err
+	}
 	if workflowID == "" || workflowID != b.routeWorkflow.WorkflowID {
 		return RouteWorkflowDTO{}, fmt.Errorf("route workflow ID changed")
 	}

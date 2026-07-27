@@ -25,6 +25,8 @@ type RunConfig struct {
 	RouteID string
 	// Combat tunes regular boss combat after encounter actions.
 	Combat CombatConfig
+	// LootPickupDistanceTiles is the maximum distance before candidate-specific repositioning.
+	LootPickupDistanceTiles float64
 }
 
 // CombatConfig holds resolved shared boss-combat settings for task logic.

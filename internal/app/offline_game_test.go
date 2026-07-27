@@ -3,9 +3,11 @@ package app
 import (
 	"context"
 	"image"
+	"path/filepath"
 	"testing"
 	"time"
 
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/config"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/input"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/world"
 )
@@ -52,6 +54,24 @@ func TestSelectOfflineDifficultyRejectsResolution(t *testing.T) {
 	mock := &offlineSelectionMock{window: input.WindowInfo{ClientWidth: 1920, ClientHeight: 1080}}
 	if err := selectOfflineDifficulty(mock, offlineDifficultyHell); err == nil {
 		t.Fatal("expected resolution error")
+	}
+}
+
+func TestInstalledOfflineAnchorsResolveBelowAbsoluteConfigDirectory(t *testing.T) {
+	root := t.TempDir()
+	cfg := &config.Config{LoadedFrom: filepath.Join(root, "configs", "config.yaml")}
+	paths := []string{
+		cfg.ResolvePath(filepath.Join("ui", "characters", "mrbones-selected.png")),
+		cfg.ResolvePath(filepath.Join("ui", "character-play.png")),
+		cfg.ResolvePath(filepath.Join("ui", "difficulty-dialog.png")),
+	}
+	for _, path := range paths {
+		if !filepath.IsAbs(path) || filepath.Dir(path) == "." {
+			t.Fatalf("installed anchor path is not absolute: %q", path)
+		}
+		if rel, err := filepath.Rel(filepath.Join(root, "configs"), path); err != nil || rel == ".." || filepath.IsAbs(rel) {
+			t.Fatalf("installed anchor escaped config directory: path=%q rel=%q err=%v", path, rel, err)
+		}
 	}
 }
 

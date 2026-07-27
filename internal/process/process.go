@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"path/filepath"
+	"strings"
 	"sync"
 )
 
@@ -21,12 +23,16 @@ const (
 
 // Status is a read-only snapshot of the process service state.
 type Status struct {
-	State      State
-	PID        uint32
-	Process    string
-	ModuleBase uintptr
-	ModuleSize uint32
-	LastError  string
+	State             State
+	PID               uint32
+	Process           string
+	ModuleBase        uintptr
+	ModuleSize        uint32
+	ImagePath         string
+	FileVersion       string
+	VersionError      string
+	PrivilegeMismatch bool
+	LastError         string
 }
 
 // Service finds and manages the D2R game process.
@@ -87,7 +93,30 @@ func (s *Service) Attach(ctx context.Context) error {
 
 	handle, err := s.api.OpenReadHandle(info.PID)
 	if err != nil {
+		s.status.PID = info.PID
+		s.status.PrivilegeMismatch = IsAccessDenied(err)
 		s.setLastErrorLocked(err.Error())
+		return err
+	}
+	boundPID, err := s.api.BoundPID(handle)
+	if err != nil || boundPID != info.PID {
+		_ = s.api.Close(handle)
+		if err == nil {
+			err = fmt.Errorf("bound process PID drift: found=%d handle=%d", info.PID, boundPID)
+		}
+		s.status = Status{State: StateDetached, PID: info.PID, Process: s.processName, VersionError: err.Error(), LastError: err.Error()}
+		return err
+	}
+	imagePath, err := s.api.ProcessImagePath(handle)
+	if err != nil {
+		_ = s.api.Close(handle)
+		s.status = Status{State: StateDetached, PID: info.PID, Process: s.processName, VersionError: err.Error(), LastError: err.Error()}
+		return err
+	}
+	if !strings.EqualFold(filepath.Base(imagePath), s.processName) {
+		_ = s.api.Close(handle)
+		err = fmt.Errorf("bound process image mismatch: got %q want %q", filepath.Base(imagePath), s.processName)
+		s.status = Status{State: StateDetached, PID: info.PID, Process: s.processName, VersionError: err.Error(), LastError: err.Error()}
 		return err
 	}
 
@@ -106,6 +135,13 @@ func (s *Service) Attach(ctx context.Context) error {
 		Process:    s.processName,
 		ModuleBase: moduleBase,
 		ModuleSize: moduleSize,
+		ImagePath:  imagePath,
+	}
+	fileVersion, versionErr := s.api.FileVersion(imagePath)
+	if versionErr != nil {
+		s.status.VersionError = versionErr.Error()
+	} else {
+		s.status.FileVersion = fileVersion
 	}
 	s.log.Debug("process attached",
 		"pid", info.PID,
@@ -133,10 +169,13 @@ func (s *Service) Poll() Status {
 	s.handle = 0
 	s.state = StateLost
 	s.status = Status{
-		State:      StateLost,
-		PID:        s.status.PID,
-		Process:    s.processName,
-		ModuleBase: s.status.ModuleBase,
+		State:        StateLost,
+		PID:          s.status.PID,
+		Process:      s.processName,
+		ModuleBase:   s.status.ModuleBase,
+		ImagePath:    s.status.ImagePath,
+		FileVersion:  s.status.FileVersion,
+		VersionError: s.status.VersionError,
 	}
 	s.log.Debug("process lost", "pid", s.status.PID, "process", s.processName)
 	return s.status

@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -34,22 +35,24 @@ type Runtime struct {
 	Log     *slog.Logger
 	logFile *os.File
 
-	Process           processController
-	Memory            *memory.Reader
-	Probe             snapshotReader
-	UIProbe           uiBufferCaptureReader
-	World             *world.Model
-	Input             inputController
-	Bindings          configBindingSource
-	Tasks             *tasks.Runner
-	Pathing           *pathing.Navigator
-	Loot              *loot.Filter
-	PickitProfiles    *PickitProfileService
-	PickitAssignments *PickitAssignmentStore
-	ActivePickit      PickitPolicySnapshot
-	Telemetry         *telemetry.Recorder
-	Profile           *profile.Executor
-	profileTelemetry  *profileTelemetryAdapter
+	Process            processController
+	Memory             *memory.Reader
+	Probe              snapshotReader
+	UIProbe            uiBufferCaptureReader
+	World              *world.Model
+	Input              inputController
+	Bindings           configBindingSource
+	Tasks              *tasks.Runner
+	Pathing            *pathing.Navigator
+	Loot               *loot.Filter
+	PickitProfiles     *PickitProfileService
+	PickitAssignments  *PickitAssignmentStore
+	ActivePickit       PickitPolicySnapshot
+	Telemetry          *telemetry.Recorder
+	Profile            *profile.Executor
+	profileTelemetry   *profileTelemetryAdapter
+	compatibility      d2rCompatibilityContract
+	processPreAttached atomic.Bool
 
 	sessionReset              sessionResetBarrier
 	taskDeps                  tasks.Deps
@@ -152,7 +155,11 @@ func New(cfg *config.Config, opts Options) (rt *Runtime, err error) {
 	if !ok {
 		return nil, fmt.Errorf("%s: %q", tasks.RunReasonConfigMissing, runtimeRunID)
 	}
-	runCfg, err := mapRunConfig(cfg, runtimeRunID, !runPhaseAllowsUnavailableFarmingRoute(runSelection.Phase))
+	// Der passive Desktop-UI-Start muss einen frisch provisionierten Root ohne
+	// Farming-Zuweisung erklären können. Erst konkrete Run-/Sessionpfade
+	// verlangen weiterhin fail-closed eine veröffentlichte Assignment-Route.
+	requireFarmingRoute := (!opts.Desktop || runSelection.Run != "") && !runPhaseAllowsUnavailableFarmingRoute(runSelection.Phase)
+	runCfg, err := mapRunConfig(cfg, runtimeRunID, requireFarmingRoute)
 	if err != nil {
 		return nil, err
 	}
@@ -264,14 +271,19 @@ func New(cfg *config.Config, opts Options) (rt *Runtime, err error) {
 		profileTelemetry:  profileTrace,
 		taskDeps:          taskDeps,
 		runConfig:         runCfg,
-		sessionSelection:  tasks.RunSelection{Run: cfg.Session.Run},
-		routePlayback:     routePlayback,
-		townEgress:        townEgress,
-		lootActions:       lootActions,
-		townLayout:        townLayout,
-		townTelemetry:     townTrace,
-		townPreparation:   townPreparation,
-		stashExecutor:     stashExecutor,
+		compatibility: d2rCompatibilityContract{
+			supportedVersion: memory.DefaultOffsetSet().D2RVersion,
+			expectedVersion:  expectedVersion,
+			offsetVersion:    offsetSet.D2RVersion,
+		},
+		sessionSelection: tasks.RunSelection{Run: cfg.Session.Run},
+		routePlayback:    routePlayback,
+		townEgress:       townEgress,
+		lootActions:      lootActions,
+		townLayout:       townLayout,
+		townTelemetry:    townTrace,
+		townPreparation:  townPreparation,
+		stashExecutor:    stashExecutor,
 	}
 	rt.sessionReset = sessionResetBarrier{
 		components: []sessionNamedResetter{
@@ -302,7 +314,7 @@ func New(cfg *config.Config, opts Options) (rt *Runtime, err error) {
 }
 
 func sessionExecutionRequested(opts Options) bool {
-	return !opts.UI && !opts.SessionInspect && !opts.RunsInspect && !opts.WaypointTargetsInspect && !opts.Probe && opts.InputTest == "" && opts.Run == "" && opts.RunPhase == "" && opts.PathingTest == "" && opts.OfflineDifficulty == "" && opts.OfflineCharacter == "" && !opts.OfflineExitTest && opts.UIStateProbe == "" && opts.ScreenAnchorCapture == "" && opts.Route == "" && !opts.TownInspect && opts.TownTest == ""
+	return !opts.Desktop && !opts.SessionInspect && !opts.RunsInspect && !opts.WaypointTargetsInspect && !opts.Probe && opts.InputTest == "" && opts.Run == "" && opts.RunPhase == "" && opts.PathingTest == "" && opts.OfflineDifficulty == "" && opts.OfflineCharacter == "" && !opts.OfflineExitTest && opts.UIStateProbe == "" && opts.ScreenAnchorCapture == "" && opts.Route == "" && !opts.TownInspect && opts.TownTest == ""
 }
 
 func loadEffectivePickitPolicy(assignments *PickitAssignmentStore, character string, runID tasks.RunID) (*loot.Pickit, error) {
@@ -465,6 +477,9 @@ func (rt *Runtime) startShutdownSignals(ctx context.Context, cancel context.Canc
 }
 
 func (rt *Runtime) startHotkeys(ctx context.Context) (<-chan input.HotkeyEvent, error) {
+	if err := rt.waitForCompatibility(ctx); err != nil {
+		return nil, err
+	}
 	hotkeyEvents := make(chan input.HotkeyEvent, 4)
 	hotkeyReady := make(chan error, 1)
 	rt.Input.ListenHotkeys(ctx, hotkeyEvents, hotkeyReady)

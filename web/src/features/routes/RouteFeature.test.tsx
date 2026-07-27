@@ -20,6 +20,14 @@ describe("RouteFeature", () => {
 		mocks.finish.mockResolvedValue({ workflow_id: "workflow-1", generation: 4, state: "freezing", run_id: "countess", character: "MrBones" });
   });
 
+  it("bietet nach einer Onboarding-Übergabe jederzeit den manuellen Rückweg an", async () => {
+    const onReturn = vi.fn();
+    render(<RouteFeature characters={["MrBones"]} selectedCharacter="MrBones" refreshKey={0} onReturnToOnboarding={onReturn} />);
+    expect(await screen.findByText("Aus der Einrichtung geöffnet")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Zurück zur Einrichtung" }));
+    expect(onReturn).toHaveBeenCalledOnce();
+  });
+
 	it("beendet eine aktive Aufnahme über denselben Core-Finish-Intent wie F9", async () => {
 		mocks.workflow.mockResolvedValue({ workflow_id: "workflow-1", generation: 3, state: "recording", run_id: "countess", character: "MrBones" });
 		render(<RouteFeature characters={["MrBones"]} selectedCharacter="MrBones" refreshKey={0} />);

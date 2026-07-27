@@ -118,7 +118,8 @@ type CombatActions interface {
 	// StopAttack releases any stateful attack input before combat stops or repositions.
 	StopAttack() error
 	// TeleportToward moves toward targetPos while trying to preserve desiredDistanceTiles.
-	TeleportToward(now time.Time, playerPos, targetPos world.Position, desiredDistanceTiles float64) error
+	// The boolean reports whether this call actually sent input; throttled calls return false.
+	TeleportToward(now time.Time, playerPos, targetPos world.Position, desiredDistanceTiles float64) (bool, error)
 	// Reset clears per-step combat throttles.
 	Reset()
 }

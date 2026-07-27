@@ -8,22 +8,23 @@ import (
 // UIStatusSnapshot is the immutable read-only runtime projection consumed by
 // the local API. It contains no Memory addresses or mutable World slices.
 type UIStatusSnapshot struct {
-	At           time.Time
-	ProcessState string
-	PID          uint32
-	WindowBound  bool
-	ClientWidth  int
-	ClientHeight int
-	InputEnabled bool
-	InputPaused  bool
-	InputStopped bool
-	WorldValid   bool
-	WorldPhase   string
-	AreaID       uint32
-	AreaName     string
-	RunID        string
-	Step         string
-	LastError    string
+	At            time.Time
+	ProcessState  string
+	PID           uint32
+	WindowBound   bool
+	ClientWidth   int
+	ClientHeight  int
+	InputEnabled  bool
+	InputPaused   bool
+	InputStopped  bool
+	WorldValid    bool
+	WorldPhase    string
+	AreaID        uint32
+	AreaName      string
+	RunID         string
+	Step          string
+	LastError     string
+	Compatibility D2RCompatibilitySnapshot
 }
 
 // CurrentUIStatus returns a consistent projection from component snapshots.
@@ -31,11 +32,13 @@ func (rt *Runtime) CurrentUIStatus(lastError string) UIStatusSnapshot {
 	processStatus := rt.Process.Status()
 	inputStatus := rt.Input.Status()
 	worldState := rt.World.Current()
+	compatibility := rt.CompatibilitySnapshot()
 	window, windowBound := rt.Input.Window()
 	snapshot := UIStatusSnapshot{
 		At: time.Now().UTC(), ProcessState: string(processStatus.State), PID: processStatus.PID,
-		WindowBound: windowBound, InputEnabled: inputStatus.Enabled, InputPaused: inputStatus.Paused,
+		WindowBound: windowBound, InputEnabled: inputStatus.Enabled && compatibility.State == D2RCompatibilityCompatible, InputPaused: inputStatus.Paused,
 		InputStopped: inputStatus.Stopped, WorldValid: worldState.Valid, WorldPhase: worldState.Phase.String(), LastError: lastError,
+		Compatibility: compatibility,
 	}
 	if windowBound {
 		snapshot.ClientWidth, snapshot.ClientHeight = window.ClientWidth, window.ClientHeight

@@ -274,6 +274,14 @@ func testRuntime(proc processController, probe snapshotReader, opts Options) *Ru
 }
 
 func testRuntimeWithInput(proc processController, probe snapshotReader, in inputController, opts Options) *Runtime {
+	if mocked, ok := proc.(*mockProcess); ok {
+		if mocked.status.State == process.StateAttached && mocked.status.FileVersion == "" {
+			mocked.status.FileVersion = "3.2.92777"
+		}
+		if mocked.pollStatus.State == process.StateAttached && mocked.pollStatus.FileVersion == "" {
+			mocked.pollStatus.FileVersion = "3.2.92777"
+		}
+	}
 	nav := pathing.NewNavigator(config.NewLogger("error"), pathing.Deps{Config: pathing.DefaultConfig()})
 	cfg := &config.Config{
 		Process: config.ProcessConfig{ProcessName: "D2R.exe"},
@@ -293,6 +301,7 @@ func testRuntimeWithInput(proc processController, probe snapshotReader, in input
 			Input:   in,
 			Pathing: nav,
 		}),
+		compatibility: d2rCompatibilityContract{supportedVersion: "3.2.92777", expectedVersion: "3.2.92777", offsetVersion: "3.2.92777"},
 	}
 }
 
@@ -780,7 +789,7 @@ func TestRunTickReattachAfterLostCallsBind(t *testing.T) {
 	}
 
 	attachProc := &mockProcess{
-		status: process.Status{State: process.StateAttached, PID: 99, ModuleBase: 0x1000},
+		status: process.Status{State: process.StateAttached, PID: 99, ModuleBase: 0x1000, FileVersion: "3.2.92777"},
 	}
 	rt.Process = attachProc
 	state.attached = false

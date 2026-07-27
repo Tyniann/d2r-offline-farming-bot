@@ -79,7 +79,7 @@ func TestRunHotkeyReadyError(t *testing.T) {
 	listen := func(_ context.Context, _ chan<- input.HotkeyEvent, ready chan<- error) {
 		ready <- input.ErrHotkeyUnavailable
 	}
-	rt := testRuntimeWithInput(&mockProcess{}, &mockProbe{}, &hotkeyInjectInput{mockInput: *in, listenFn: listen}, Options{})
+	rt := testRuntimeWithInput(attachedProc(), &mockProbe{}, &hotkeyInjectInput{mockInput: *in, listenFn: listen}, Options{})
 	rt.Config.Runtime.PollIntervalMs = 100000
 
 	err := rt.Run()
@@ -100,7 +100,7 @@ func TestRunProcessesStopHotkeyEvent(t *testing.T) {
 			<-ctx.Done()
 		},
 	}
-	rt := testRuntimeWithInput(&mockProcess{}, &mockProbe{}, in, Options{})
+	rt := testRuntimeWithInput(attachedProc(), &mockProbe{}, in, Options{})
 	rt.Config.Runtime.PollIntervalMs = 50
 
 	done := make(chan error, 1)
@@ -133,7 +133,7 @@ func TestRunProcessesPauseHotkeyEvent(t *testing.T) {
 			<-ctx.Done()
 		},
 	}
-	rt := testRuntimeWithInput(&mockProcess{}, &mockProbe{}, in, Options{})
+	rt := testRuntimeWithInput(attachedProc(), &mockProbe{}, in, Options{})
 	rt.Config.Runtime.PollIntervalMs = 50
 
 	done := make(chan error, 1)

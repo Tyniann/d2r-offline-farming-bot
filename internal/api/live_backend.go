@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -42,8 +43,11 @@ type LiveBackend struct {
 	routeWorkflowFinish chan struct{}
 	pickitProfiles      *app.PickitProfileService
 	pickitAssignments   *app.PickitAssignmentStore
+	operatorSettings    *app.OperatorSettingsStore
 	historyMu           sync.Mutex
 	history             *telemetry.HistoryIndex
+	historyMaintenance  *telemetry.HistoryMaintenanceService
+	diagnostics         *app.DiagnosticBundleCollector
 	historyTerminalHash [sha256.Size]byte
 }
 
@@ -88,14 +92,18 @@ type apiCommandRecord struct {
 
 // NewLiveBackend creates an idle live projection from the existing resolver.
 func NewLiveBackend(cfg *config.Config, publisher *telemetry.LivePublisher) (*LiveBackend, error) {
-	bootstrap, err := NewBootstrapBackend(cfg)
-	if err != nil {
-		return nil, err
-	}
 	if publisher == nil {
 		return nil, fmt.Errorf("live event publisher is required")
 	}
 	lifecycle, err := app.NewRouteLifecycleStore(cfg)
+	if err != nil {
+		return nil, err
+	}
+	manifest, _, err := lifecycle.Snapshot()
+	if err != nil {
+		return nil, fmt.Errorf("load route lifecycle: %w", err)
+	}
+	bootstrap, err := NewBootstrapBackend(cfg)
 	if err != nil {
 		return nil, err
 	}
@@ -119,20 +127,31 @@ func NewLiveBackend(cfg *config.Config, publisher *telemetry.LivePublisher) (*Li
 	if err != nil {
 		return nil, fmt.Errorf("pickit assignments: %w", err)
 	}
-	history, err := telemetry.NewHistoryIndex(cfg.Telemetry.Directory)
+	historyRoot, err := filepath.Abs(cfg.Telemetry.Directory)
+	if err != nil {
+		return nil, fmt.Errorf("resolve history root: %w", err)
+	}
+	history, err := telemetry.NewHistoryIndex(historyRoot)
 	if err != nil {
 		return nil, fmt.Errorf("history index: %w", err)
 	}
 	if refreshErr := history.Refresh(); refreshErr != nil {
 		return nil, fmt.Errorf("initialize history index: %w", refreshErr)
 	}
-	manifest, _, err := lifecycle.Snapshot()
+	maintenance, err := telemetry.NewHistoryMaintenanceService(historyRoot, history)
 	if err != nil {
-		return nil, fmt.Errorf("load route lifecycle: %w", err)
+		return nil, fmt.Errorf("history maintenance: %w", err)
+	}
+	var diagnostics *app.DiagnosticBundleCollector
+	if cfg.DataRoot != "" {
+		diagnostics, err = app.NewDiagnosticBundleCollector(cfg.DataRoot, history)
+		if err != nil {
+			return nil, fmt.Errorf("diagnostic bundle collector: %w", err)
+		}
 	}
 	status := bootstrap.Status()
 	status.D2R = D2RDTO{State: "detached"}
-	status.Input = InputDTO{Enabled: cfg.Input.Enabled}
+	status.Input = InputDTO{Enabled: false}
 	status.World = WorldDTO{Phase: "unknown"}
 	status.Queue = QueueStatusDTO{
 		Entries: append([]string(nil), cfg.Session.Queue...), DefaultEntries: append([]string(nil), cfg.Session.Queue...),
@@ -145,7 +164,7 @@ func NewLiveBackend(cfg *config.Config, publisher *telemetry.LivePublisher) (*Li
 		status.Selection = SelectionStatusDTO{Character: cfg.Session.Character, Difficulty: character.LastConfirmedDifficulty}
 	}
 	historySnapshot := history.Snapshot("")
-	return &LiveBackend{bootstrap: bootstrap, cfg: cfg, lifecycle: lifecycle, publisher: publisher, status: status, catalog: bootstrap.Catalog(), commands: make(map[string]apiCommandRecord), previews: make(map[string]selectionPreviewRecord), routeCandidates: candidates, routeAssignments: assignments, routeManagement: management, routeWorkflow: RouteWorkflowDTO{Generation: 1, State: string(app.RouteWorkflowIdle)}, pickitProfiles: pickitProfiles, pickitAssignments: pickitAssignments, history: history, historyTerminalHash: terminalHistoryHash(historySnapshot.Runs)}, nil
+	return &LiveBackend{bootstrap: bootstrap, cfg: cfg, lifecycle: lifecycle, publisher: publisher, status: status, catalog: bootstrap.Catalog(), commands: make(map[string]apiCommandRecord), previews: make(map[string]selectionPreviewRecord), routeCandidates: candidates, routeAssignments: assignments, routeManagement: management, routeWorkflow: RouteWorkflowDTO{Generation: 1, State: string(app.RouteWorkflowIdle)}, pickitProfiles: pickitProfiles, pickitAssignments: pickitAssignments, history: history, historyMaintenance: maintenance, diagnostics: diagnostics, historyTerminalHash: terminalHistoryHash(historySnapshot.Runs)}, nil
 }
 
 // SetRouteWorkflowHandler binds UI workflow starts to the existing Runtime recorder/test adapters.
@@ -167,7 +186,8 @@ func (b *LiveBackend) UpdateRuntime(runtime app.UIStatusSnapshot) {
 	b.mu.Lock()
 	previous := b.status
 	b.status.D2R = D2RDTO{State: runtime.ProcessState, PID: runtime.PID, WindowBound: runtime.WindowBound, ClientWidth: runtime.ClientWidth, ClientHeight: runtime.ClientHeight}
-	b.status.Input = InputDTO{Enabled: runtime.InputEnabled, Paused: runtime.InputPaused, Stopped: runtime.InputStopped}
+	b.status.Compatibility = compatibilityDTO(runtime.Compatibility)
+	b.status.Input = InputDTO{Enabled: runtime.InputEnabled && runtime.Compatibility.State == app.D2RCompatibilityCompatible, Paused: runtime.InputPaused, Stopped: runtime.InputStopped}
 	b.status.World = WorldDTO{Valid: runtime.WorldValid, Phase: runtime.WorldPhase, AreaID: runtime.AreaID, AreaName: runtime.AreaName}
 	b.status.Step = runtime.Step
 	if runtime.RunID != "" {
@@ -226,14 +246,15 @@ func (b *LiveBackend) Update(runtime app.UIStatusSnapshot, supervisor app.Superv
 	b.mu.Lock()
 	previous := b.status
 	status := StatusDTO{
-		CoreVersion: previous.CoreVersion, State: string(supervisor.State), Generation: supervisor.Generation,
+		CoreVersion: previous.CoreVersion, AppVersion: previous.AppVersion, State: string(supervisor.State), Generation: supervisor.Generation,
 		LifecyclePhase: string(supervisor.State), PendingIntent: string(supervisor.PendingIntent), ActiveRunID: supervisor.ActiveRunID,
 		RunInstanceID: supervisor.RunInstanceID, GameID: supervisor.GameID, Step: runtime.Step,
-		D2R:       D2RDTO{State: runtime.ProcessState, PID: runtime.PID, WindowBound: runtime.WindowBound, ClientWidth: runtime.ClientWidth, ClientHeight: runtime.ClientHeight},
-		Input:     InputDTO{Enabled: runtime.InputEnabled, Paused: runtime.InputPaused, Stopped: runtime.InputStopped},
-		World:     WorldDTO{Valid: runtime.WorldValid, Phase: runtime.WorldPhase, AreaID: runtime.AreaID, AreaName: runtime.AreaName},
-		Selection: previous.Selection,
-		Queue:     previous.Queue,
+		D2R:           D2RDTO{State: runtime.ProcessState, PID: runtime.PID, WindowBound: runtime.WindowBound, ClientWidth: runtime.ClientWidth, ClientHeight: runtime.ClientHeight},
+		Compatibility: compatibilityDTO(runtime.Compatibility),
+		Input:         InputDTO{Enabled: runtime.InputEnabled && runtime.Compatibility.State == app.D2RCompatibilityCompatible, Paused: runtime.InputPaused, Stopped: runtime.InputStopped},
+		World:         WorldDTO{Valid: runtime.WorldValid, Phase: runtime.WorldPhase, AreaID: runtime.AreaID, AreaName: runtime.AreaName},
+		Selection:     previous.Selection,
+		Queue:         previous.Queue,
 	}
 	if supervisor.QueueKnown {
 		status.Queue = queueStatusDTO(supervisor)
@@ -272,6 +293,9 @@ func (b *LiveBackend) publishStatusDeltas(previous, status StatusDTO) {
 	}
 	if previous.D2R != status.D2R {
 		b.publisher.Publish(telemetry.LiveEvent{Event: "d2r_state_changed", Details: map[string]any{"state": status.D2R.State, "window_bound": status.D2R.WindowBound}})
+	}
+	if previous.Compatibility != status.Compatibility {
+		b.publisher.Publish(telemetry.LiveEvent{Event: "compatibility_changed", Reason: status.Compatibility.Reason, Details: map[string]any{"state": status.Compatibility.State, "supported_version": status.Compatibility.SupportedVersion, "expected_version": status.Compatibility.ExpectedVersion, "offset_version": status.Compatibility.OffsetVersion, "actual_version": status.Compatibility.ActualVersion, "privilege_mismatch": status.Compatibility.PrivilegeMismatch}})
 	}
 	if previous.Input != status.Input {
 		b.publisher.Publish(telemetry.LiveEvent{Event: "input_state_changed", Details: map[string]any{"enabled": status.Input.Enabled, "paused": status.Input.Paused, "stopped": status.Input.Stopped}})
@@ -377,7 +401,7 @@ func (b *LiveBackend) ValidateQueue(request QueueValidationRequest) (QueueValida
 		}
 		var supervisorErr *app.SupervisorCommandError
 		if errors.As(err, &supervisorErr) {
-			return QueueValidationDTO{}, &commandError{code: string(supervisorErr.Code), message: "Der Katalog hat sich seit dem Queue-Entwurf geändert."}
+			return QueueValidationDTO{}, &commandError{code: string(supervisorErr.Code), message: "Der Katalog hat sich seit der Queue-Prüfung geändert."}
 		}
 		return QueueValidationDTO{}, err
 	}
@@ -478,6 +502,10 @@ func (b *LiveBackend) Command(name string, request CommandRequest) (CommandRespo
 
 func (b *LiveBackend) applySelectionCommand(request CommandRequest) (CommandResponse, error) {
 	b.mu.Lock()
+	if err := b.requireCompatibleLocked(); err != nil {
+		b.mu.Unlock()
+		return CommandResponse{}, err
+	}
 	if response, ok, err := b.replayCommandLocked("apply_selection", request); ok || err != nil {
 		b.mu.Unlock()
 		return response, err
@@ -510,6 +538,13 @@ func (b *LiveBackend) applySelectionCommand(request CommandRequest) (CommandResp
 		b.mu.Unlock()
 		return CommandResponse{}, &commandError{code: "selection_confirmation_invalid", message: "Die Auswahlvorschau fehlt oder ist veraltet."}
 	}
+	if !b.status.Input.Enabled || b.status.Input.Paused || b.status.Input.Stopped {
+		b.mu.Unlock()
+		return CommandResponse{}, &commandError{
+			code:    "input_not_ready",
+			message: "Gameplay-Input ist im laufenden Core nicht freigegeben. Gehe im Assistenten zum Schritt „Input“, aktiviere die Freigabe und warte den kontrollierten Core-Neustart ab.",
+		}
+	}
 	manifest, _, lifecycleErr := b.lifecycle.Snapshot()
 	if lifecycleErr != nil || manifest.Revision != previewRecord.dto.LifecycleRevision {
 		b.mu.Unlock()
@@ -528,11 +563,16 @@ func (b *LiveBackend) applySelectionCommand(request CommandRequest) (CommandResp
 
 	err := handler(app.CharacterSelectionRequest{Character: entry.Name, Difficulty: payload.Difficulty, CatalogRevision: payload.CatalogRevision, CharacterCount: len(b.bootstrap.catalog.Characters), AnchorPath: entry.AnchorPath, ExpectedClass: entry.ExpectedClass})
 	var commitErr error
+	var settingsErr error
+	var settingsChange app.OperatorSettingsChange
 	var refreshedRuns []RunCatalogEntry
 	var refreshErr error
 	if err == nil {
 		_, commitErr = b.lifecycle.Confirm(previewRecord.lifecycle, time.Now().UTC())
 		if commitErr == nil {
+			if b.operatorSettings != nil {
+				settingsChange, settingsErr = b.operatorSettings.ConfirmSelection(entry.Name, payload.Difficulty)
+			}
 			var report app.RunsInspectReport
 			report, refreshErr = app.ResolveRunAvailabilities(b.cfg, app.RunAvailabilityContext{Character: entry.Name, Difficulty: payload.Difficulty, GameVersion: b.cfg.Memory.GameVersion})
 			if refreshErr == nil {
@@ -549,12 +589,21 @@ func (b *LiveBackend) applySelectionCommand(request CommandRequest) (CommandResp
 		b.status.LastError = &ErrorDTO{Code: lifecycleErrorCode(commitErr), Message: commitErr.Error()}
 	} else {
 		b.status.State = string(app.SupervisorStateIdleInGame)
-		if refreshErr == nil {
+		if settingsErr != nil {
+			b.status.LastError = &ErrorDTO{Code: "selection_persistence_failed", Message: settingsErr.Error()}
+		} else if refreshErr == nil {
 			b.status.LastError = nil
 		} else {
 			b.status.LastError = &ErrorDTO{Code: "run_catalog_refresh_failed", Message: refreshErr.Error()}
 		}
 		b.status.Selection = SelectionStatusDTO{Character: entry.Name, Difficulty: payload.Difficulty}
+		b.cfg.Session.Character = entry.Name
+		b.cfg.Session.Difficulty = payload.Difficulty
+		if value, ok := settingsChange.Settings.Characters[strings.ToLower(entry.Name)]; ok {
+			b.cfg.Session.Queue = append([]string(nil), value.Queue...)
+			b.status.Queue.Entries = append([]string(nil), value.Queue...)
+			b.status.Queue.DefaultEntries = append([]string(nil), value.Queue...)
+		}
 		b.previews = make(map[string]selectionPreviewRecord)
 		b.catalog.Revision++
 		if refreshErr == nil {
@@ -584,6 +633,9 @@ func (b *LiveBackend) applySelectionCommand(request CommandRequest) (CommandResp
 	if refreshErr != nil {
 		b.publisher.Publish(telemetry.LiveEvent{Event: "runtime_error", Reason: "run_catalog_refresh_failed", Details: map[string]any{"message": refreshErr.Error()}})
 	}
+	if settingsErr != nil {
+		b.publisher.Publish(telemetry.LiveEvent{Event: "runtime_error", Reason: "selection_persistence_failed", Details: map[string]any{"message": settingsErr.Error()}})
+	}
 	b.publisher.Publish(telemetry.LiveEvent{Event: "selection_completed", Reason: response.State, Details: map[string]any{"character": entry.Name, "difficulty": payload.Difficulty}})
 	return response, nil
 }
@@ -596,6 +648,7 @@ func (b *LiveBackend) sessionCommand(name string, request CommandRequest) (Comma
 	}
 	statusGeneration := b.status.Generation
 	statusState := b.status.State
+	compatibility := b.status.Compatibility
 	startRuntime := app.UIStatusSnapshot{
 		ProcessState: b.status.D2R.State,
 		WindowBound:  b.status.D2R.WindowBound,
@@ -612,6 +665,9 @@ func (b *LiveBackend) sessionCommand(name string, request CommandRequest) (Comma
 	b.mu.RUnlock()
 	if routeWorkflowBusy(routeState) {
 		return CommandResponse{}, &commandError{code: "command_conflict", message: "Session-Befehle sind während eines Routen-Workflows gesperrt."}
+	}
+	if (name == "start_queue" || name == "resume") && compatibility.State != string(app.D2RCompatibilityCompatible) {
+		return CommandResponse{}, compatibilityCommandError(compatibility)
 	}
 	if request.ExpectedGeneration != statusGeneration {
 		return CommandResponse{}, &commandError{code: string(app.SupervisorReasonStateChanged), message: "Der Core-Zustand hat sich geändert."}
@@ -683,6 +739,29 @@ func (b *LiveBackend) sessionCommand(name string, request CommandRequest) (Comma
 	b.rememberCommandLocked(name, request, response)
 	b.mu.Unlock()
 	return response, nil
+}
+
+func compatibilityDTO(snapshot app.D2RCompatibilitySnapshot) CompatibilityDTO {
+	return CompatibilityDTO{
+		State: string(snapshot.State), Reason: string(snapshot.Reason), SupportedVersion: snapshot.SupportedVersion,
+		ExpectedVersion: snapshot.ExpectedVersion, OffsetVersion: snapshot.OffsetVersion, ActualVersion: snapshot.ActualVersion,
+		PrivilegeMismatch: snapshot.PrivilegeMismatch,
+	}
+}
+
+func (b *LiveBackend) requireCompatibleLocked() error {
+	if b.status.Compatibility.State == string(app.D2RCompatibilityCompatible) {
+		return nil
+	}
+	return compatibilityCommandError(b.status.Compatibility)
+}
+
+func compatibilityCommandError(compatibility CompatibilityDTO) error {
+	code := compatibility.Reason
+	if code == "" {
+		code = string(app.Phase15ReasonD2RVersionNotDetected)
+	}
+	return &commandError{code: code, message: "Die tatsächliche D2R-Version ist nicht als kompatibel bestätigt; Input und Live-Workflows bleiben gesperrt."}
 }
 
 func routeWorkflowBusy(state string) bool {

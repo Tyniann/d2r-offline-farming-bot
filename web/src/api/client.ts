@@ -1,4 +1,4 @@
-import type { CommandResponse, PickitAssignmentUpdateRequest, PickitAssignmentsDTO, PickitCreateRequest, PickitDeleteRequest, PickitDuplicateRequest, PickitProfileDTO, PickitUpdateRequest, QueueValidationDTO, RouteMutationPreviewDTO, RouteWorkflowDTO, SelectionPreviewDTO } from "./generated";
+import { confirmHistoryDeleteAll as confirmHistoryDeleteAllGenerated, createDiagnosticBundle as createDiagnosticBundleGenerated, previewHistoryDeleteAll as previewHistoryDeleteAllGenerated, resetOperatorSettings as resetOperatorSettingsGenerated, updateOperatorSettings as updateOperatorSettingsGenerated, type CommandResponse, type DiagnosticBundleDTO, type DiagnosticBundleRequest, type HistoryDeleteConfirmRequest, type HistoryDeletePreviewDTO, type HistoryDeleteResultDTO, type OperatorSettingsChangeDTO, type OperatorSettingsMutationRequest, type OperatorSettingsResetRequest, type PickitAssignmentUpdateRequest, type PickitAssignmentsDTO, type PickitCreateRequest, type PickitDeleteRequest, type PickitDuplicateRequest, type PickitProfileDTO, type PickitUpdateRequest, type QueueValidationDTO, type RouteMutationPreviewDTO, type RouteWorkflowDTO, type SelectionPreviewDTO } from "./generated";
 
 let controlToken = "";
 
@@ -100,6 +100,26 @@ export function emergencyStop(expectedGeneration: number): Promise<CommandRespon
   return sessionCommand("/api/v1/session/emergency-stop", expectedGeneration);
 }
 
+export async function saveOperatorSettings(request: OperatorSettingsMutationRequest): Promise<OperatorSettingsChangeDTO> {
+  return updateOperatorSettingsGenerated(request, await ensureControlToken());
+}
+
+export async function restoreOperatorSettings(request: OperatorSettingsResetRequest): Promise<OperatorSettingsChangeDTO> {
+  return resetOperatorSettingsGenerated(request, await ensureControlToken());
+}
+
+export async function previewHistoryDeleteAll(expectedGeneration: number): Promise<HistoryDeletePreviewDTO> {
+  return previewHistoryDeleteAllGenerated({ expected_generation: expectedGeneration }, await ensureControlToken());
+}
+
+export async function confirmHistoryDeleteAll(request: HistoryDeleteConfirmRequest): Promise<HistoryDeleteResultDTO> {
+  return confirmHistoryDeleteAllGenerated(request, await ensureControlToken());
+}
+
+export async function createDiagnosticBundle(request: DiagnosticBundleRequest): Promise<DiagnosticBundleDTO> {
+  return createDiagnosticBundleGenerated(request, await ensureControlToken());
+}
+
 export async function previewRouteMutation(operation: string, routeId = "", candidateId = ""): Promise<RouteMutationPreviewDTO> {
   const path = candidateId ? `/api/v1/route-candidates/${encodeURIComponent(candidateId)}/publish/preview` : `/api/v1/routes/${encodeURIComponent(routeId)}/${encodeURIComponent(operation)}/preview`;
   const response = await fetch(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
@@ -157,7 +177,7 @@ export function connectLiveEvents(
   source.onopen = () => onState("verbunden");
   source.onerror = () => onState("getrennt");
   source.addEventListener("snapshot", (event) => onSnapshot(JSON.parse((event as MessageEvent<string>).data)));
-  for (const name of ["supervisor_state_changed", "session_result", "selection_completed", "selection_failed", "d2r_state_changed", "input_state_changed", "world_state_changed", "area_changed", "runtime_error", "runtime_error_cleared", "step_changed", "route_workflow_changed", "route_library_changed", "pickit_profile_changed", "pickit_assignment_changed", "history_changed"]) {
+  for (const name of ["supervisor_state_changed", "session_result", "selection_completed", "selection_failed", "d2r_state_changed", "input_state_changed", "world_state_changed", "area_changed", "runtime_error", "runtime_error_cleared", "step_changed", "route_workflow_changed", "route_library_changed", "pickit_profile_changed", "pickit_assignment_changed", "history_changed", "history_maintenance"]) {
     source.addEventListener(name, (event) => onEvent(JSON.parse((event as MessageEvent<string>).data)));
   }
   return () => source.close();

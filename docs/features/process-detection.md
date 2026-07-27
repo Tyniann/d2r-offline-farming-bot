@@ -2,7 +2,7 @@
 
 ## Überblick
 
-Read-only Bindung an den lokalen `D2R.exe`-Prozess: Prozess finden, Read-Handle öffnen, Modul-Basisadresse ermitteln und Lifecycle (attached / lost / detached) verfolgen. Kein Memory-Snapshot und keine Spielsteuerung.
+Read-only Bindung an den lokalen `D2R.exe`-Prozess: Prozess finden, Read-Handle öffnen, Handle-PID, kanonischen Image-Pfad, Windows-Dateiversion und Modul-Basisadresse ermitteln sowie den Lifecycle (attached / lost / detached) verfolgen. Kein Memory-Snapshot und keine Spielsteuerung.
 
 ## Ort im Code
 
@@ -25,6 +25,9 @@ Read-only Bindung an den lokalen `D2R.exe`-Prozess: Prozess finden, Read-Handle 
 ### Handle und Modulbasis
 
 - `OpenProcess` mit `PROCESS_QUERY_INFORMATION | PROCESS_VM_READ`
+- Handle-PID via `GetProcessId`; Abweichung zur gefundenen PID verwirft das Handle
+- kanonischer Image-Pfad via `QueryFullProcessImageName`; der Dateiname muss weiterhin `D2R.exe` sein
+- Windows-Product-/FileVersion aus derselben gebundenen Datei; Pfad bleibt Core-intern
 - Modulbasis via `TH32CS_SNAPMODULE` (64-bit), Modulname case-insensitive
 - Alive-Check: `GetExitCodeProcess` + `STILL_ACTIVE`
 
@@ -73,6 +76,11 @@ type Status struct {
     PID        uint32
     Process    string
     ModuleBase uintptr
+    ModuleSize uint32
+    ImagePath string       // ausschließlich Core-intern
+    FileVersion string
+    VersionError string
+    PrivilegeMismatch bool
     LastError  string
 }
 ```
@@ -90,7 +98,7 @@ go run ./cmd/d2rbot --probe
 - Ohne `--probe`: Prozess-Lifecycle-Logs; Memory-Snapshots und World-Update laufen intern ohne Operator-Log (Default)
 - D2R schließen → einmalig `process lost`, danach wieder warten
 - D2R neu starten → automatischer Re-Attach
-- Bei UAC-Problemen: Bot ggf. als Administrator starten
+- Im Desktopprodukt wird ein Neustart als Administrator ausschließlich angeboten, wenn `OpenProcess` nach Prozessfund tatsächlich `access denied` meldet.
 
 ## Abhängigkeiten
 
@@ -110,4 +118,4 @@ go run ./cmd/d2rbot --probe
 - [State Probe](state-probe.md) — Phase 1 Schritt 3, Main-Player-Minimalsnapshot
 
 ---
-*Zuletzt aktualisiert: 2026-06-25*
+*Zuletzt aktualisiert: 22. Juli 2026*

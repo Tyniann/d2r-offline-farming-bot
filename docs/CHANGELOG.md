@@ -7,6 +7,46 @@ Versionierung nach [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-07-27
+
+### Added
+- Add the Phase 15 core contract with compile-tested desktop ownership, data-root boundaries, lifecycle states, version and settings gates, retention defaults, stable reason codes, pinned desktop dependencies, and a reproducible 10,000-run history performance baseline
+- Add an explicit installed Core data root with hash-bound defaults, reparse-safe staging import, productive-loader validation, atomic publication, and a separate strict Electron desktop-settings store
+- Add revisioned Core-owned operator settings with per-character queues and difficulty, finite budgets, input and hotkeys, retention defaults, atomic re-read, ten backups, restart projection, and guarded generated API clients
+- Add a hardened single-instance Electron shell with a private PID-bound Core handshake, per-data-root ownership lock, minimal sender-validated IPC bridge, and bounded inactive crash recovery
+- Add a PID- and image-bound Windows D2R version gate with exact build/expected/offset/actual compatibility, path-free API and SSE projection, and pre-hotkey input/workflow blocking
+- Add a responsive single React app shell with five stable hash targets, an original portal mark, Ember/Gold/Crimson design tokens, accessible shared controls, and unchanged Core-driven route, Pickit, history, and session flows
+- Add Core-revisioned settings UI and an eight-state native desktop lifecycle with persisted visible window bounds, opt-in autostart, guarded tray controls, unfocused notifications, and generation-bound quit and command safety
+- Add a pre-Core provisioning mode in the same React app, one-shot Go-owned data import, a nine-step Core-driven first-run assistant, route prerequisite projection, safe skip semantics, and handoff to the existing recording workflow
+- Add IANA-local Core day buckets with embedded timezone data, DST-safe boundaries, parity-preserving API/JSON transport, and four table-backed non-animated history charts
+- Add daily idle-only retention for complete terminal session bundles and a token-, generation-, metadata-, and active-set-bound delete-all workflow for direct history JSONL
+- Add a Core-owned local diagnostic ZIP with fixed allowlists, token and user-path redaction, explicit telemetry and route opt-ins, and a path-free reveal contract
+- Add one packaged-start GitHub latest-release check with stable SemVer comparison, neutral network failures, manual retry, and one compiled release-page link without download or installation
+- Add a per-user Windows x64 NSIS package with one release-version parameter, fixed App ID and icon, minimal Core/default resources, preserved uninstall data by default, and SHA-256 output
+- Add a frozen local release pipeline with ASAR/content audits and temporary install, packaged App/Core/sidebar version, upgrade, and default-uninstall data-preservation smoke tests
+
+### Changed
+- Reduce the confirmed-boss-to-Bone-Prison lead-in from 750 ms to 250 ms and its post-cast settle from 1.5 seconds to 1 second while retaining target pinning
+- Make the Dashboard project and start the persistent per-character queue while keeping all queue mutations in the revisioned Core settings editor
+
+### Fixed
+- Preserve a valid completed onboarding state across data-root import before starting the productive renderer without importing autostart or window bounds
+- Recover post-kill loot positioning with actual-input-aware bounded retries and candidate-specific teleports before hover-confirmed pickup
+- Use the standard D2R belt hotkeys `1` through `4` in fresh installed data roots instead of stale developer-specific punctuation bindings
+- Persist the last Core-confirmed character together with its difficulty, and migrate one unambiguous lifecycle-confirmed context so an installed restart does not lock route recording and candidate testing
+- Keep isolated route-candidate travel in the run's origin act and select its registered start waypoint directly instead of detouring Mephisto through Rogue Encampment
+- Recompute and live-refresh run availability after route publication, and finish first-route onboarding once any run has a published runtime-validatable route instead of requiring every optional run
+- Place unfinished first-route setup first on the Dashboard and preserve an explicit return from the routed recording, test, and publish workflow to the matching onboarding step
+- Refresh route-recording prerequisites immediately after confirmed character selection, translate missing Pickit readiness for users, and explain that the recording button starts while F9 only finishes an active recording
+- Preserve the current onboarding step across an input-triggered controlled Core restart, and resolve every installed character-selection anchor from the absolute loaded Core configuration directory
+- Explain unsupported or unprepared local characters with user-facing class and setup reasons, avoid assigning an unconfigured save the current run class, require effective runtime input before character selection, and exclude stale renderer bundles from rebuilt installers
+- Allow an anchored local character to be selected from a fresh empty-session onboarding context, order Safety and Input opt-in before controlled D2R selection, and isolate onboarding steppers and prose lists from the global three-column list layout
+- Keep Electron's disposable Chromium runtime profile and pre-Core window state outside an unpublished data root so first-run provisioning can atomically publish a truly fresh target
+- Allow the passive installed desktop UI to start against a freshly provisioned root before the first Farming route assignment exists, while concrete run and session paths remain fail-closed
+
+### Removed
+- Remove the public `--ui` browser product mode, OS browser launchers, browser fallback text, and the Dashboard-only runtime queue draft after Electron parity
+
 ## [0.10.0] - 2026-07-22
 
 ### Added

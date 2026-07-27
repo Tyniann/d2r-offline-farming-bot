@@ -48,7 +48,7 @@ func NewBootstrapBackend(cfg *config.Config) (*BootstrapBackend, error) {
 	}
 	sort.Slice(profiles, func(i, j int) bool { return profiles[i].ID < profiles[j].ID })
 	return &BootstrapBackend{
-		status:  StatusDTO{CoreVersion: version.Version, State: "idle", LifecyclePhase: "idle", D2R: D2RDTO{State: "detached"}, Input: InputDTO{Enabled: cfg.Input.Enabled}, World: WorldDTO{Phase: "unknown"}},
+		status:  StatusDTO{CoreVersion: version.Version, AppVersion: version.Version, State: "idle", LifecyclePhase: "idle", D2R: D2RDTO{State: "detached"}, Compatibility: CompatibilityDTO{State: "not_detected", Reason: string(app.Phase15ReasonD2RVersionNotDetected), ExpectedVersion: cfg.Memory.GameVersion}, Input: InputDTO{Enabled: false}, World: WorldDTO{Phase: "unknown"}},
 		catalog: CatalogDTO{Revision: 1, DefaultDifficulty: cfg.Session.Difficulty, Characters: characters, Difficulties: []DifficultyCatalogEntry{{ID: "normal", DisplayName: "Normal"}, {ID: "nightmare", DisplayName: "Alptraum"}, {ID: "hell", DisplayName: "Hölle"}}, Profiles: profiles, Runs: runs}, characters: characterEntries, difficulty: cfg.Session.Difficulty,
 	}, nil
 }

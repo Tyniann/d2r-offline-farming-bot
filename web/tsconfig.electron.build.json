@@ -1,0 +1,11 @@
+{
+  "extends": "./tsconfig.electron.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "outDir": "dist-electron",
+    "rootDir": "electron",
+    "declaration": false,
+    "sourceMap": false
+  },
+  "exclude": ["electron/**/*.test.ts", "electron/e2e/**", "electron/test-fixtures/**"]
+}

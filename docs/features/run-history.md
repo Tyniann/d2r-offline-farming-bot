@@ -14,9 +14,15 @@ Abschnitt 14.6 ergänzt das lokale React-Dashboard um eine eigenständige Histor
 
 ## Funktionalität
 
+### Vier zugängliche Charts
+
+Abschnitt 15.8 ergänzt einen lokalen Tagesverlauf mit Umschalter für terminale Runs, Erfolgsquote und Keep pro aktiver Stunde, einen Routenbalken, gestapelte Run-Stages und einen Loot-Funnel. Recharts erhält ausschließlich darstellungsfertige Core-DTOs. Refresh-Animation ist deaktiviert. Jedes Chart nennt Titel und Einheit, zeigt geringe Samples sowie Empty/Error-Zustände und besitzt direkt darunter eine Tabelle mit denselben API-Werten.
+
+Der Standardzeitraum beträgt 30 Tage; die gesamte Historie bleibt auswählbar. Die JavaScript-Runtime reicht ihre IANA-Zeitzone an den Core weiter. Kalendergrenzen und DST-Arithmetik entstehen nicht im Renderer.
+
 ### Navigation und Filter
 
-Der Navigationspunkt `Historie` verwendet den stabilen Direktlink `#history`; Browser-Refresh rekonstruiert dieselbe Seite aus Core-Daten. Die Filterleiste bietet gesamte Historie, heute, 7 Tage, 30 Tage oder einen freien lokalen Zeitraum sowie Charakter, Difficulty, Run, Ergebnis, Reason-Code und optionales Pickit-Profil. Zeitwerte werden vor dem Request in UTC konvertiert. Angewendete Filter bleiben als Text sichtbar und lassen sich vollständig zurücksetzen.
+Der Navigationspunkt `Historie` verwendet den stabilen Direktlink `#history`; ein Renderer-Reload rekonstruiert dieselbe Seite aus Core-Daten. Die Filterleiste bietet gesamte Historie, heute, 7 Tage, 30 Tage oder einen freien lokalen Zeitraum sowie Charakter, Difficulty, Run, Ergebnis, Reason-Code und optionales Pickit-Profil. Zeitwerte werden vor dem Request in UTC konvertiert. Angewendete Filter bleiben als Text sichtbar und lassen sich vollständig zurücksetzen.
 
 ### Übersicht und Vergleich
 
@@ -34,13 +40,9 @@ Der Drill-down zeigt Kontext, Route, Ergebnis, Memory-bestätigte Bosskills, den
 
 Loading, leere Historie, gefiltert ohne Treffer, API-Fehler, Exportfehler, aktive/unvollständige Runs, geringe Stichprobe und isolierte Dateidiagnosen besitzen getrennte zugängliche Texte. `history_changed` wird nur nach einer geänderten korrelierten terminalen Population gesendet; einzelne Flushes eines laufenden Runs erzeugen kein SSE-Reload. Das Signal und der manuelle Aktualisieren-Button lösen denselben serialisierten Reload aus. JSON-, Run-CSV- und Item-CSV-Downloads verwenden die aktiven Filter und den vom Core gelieferten sicheren Dateinamen.
 
-Auf kleinen Viewports werden die drei großen Tabellen innerhalb des Features in beschriftete Zeilengruppen umgestellt. Dadurch entsteht kein horizontaler Seitenüberlauf. Tabellen-Captions, native Labels, Fokusrahmen, Buttons und der eingeklappte Diagnosebereich bleiben per Tastatur erreichbar. Phase 14 verwendet keine Chart-Bibliothek.
+Auf kleinen Viewports werden die Tabellen innerhalb des Features in beschriftete Zeilengruppen umgestellt. Dadurch entsteht kein horizontaler Seitenüberlauf. Tabellen-Captions, native Labels, Fokusrahmen, Buttons und der eingeklappte Diagnosebereich bleiben per Tastatur erreichbar. Die in Abschnitt 15.8 ergänzten Recharts-Ansichten besitzen jeweils dieselbe zugängliche Datentabelle.
 
-## Operator / CLI
-
-```powershell
-go run ./cmd/d2rbot --config configs/config.yaml --ui
-```
+## Operator / Desktop
 
 Die Seite ist read-only. Filter, Sortierung, Detail und Export senden keinen Control-Command und können keinen Gameplay-Input auslösen.
 
@@ -54,7 +56,7 @@ Das automatisierte Produktgate verwendet in Analyzer, API/JSON/CSV und React die
 
 ## Abhängigkeiten
 
-- React und Browser-Standard-APIs; kein Chart- oder Statistikpaket.
+- React, exakt gepinntes Recharts und Browser-Standard-APIs; kein Statistikpaket.
 - Generierte OpenAPI-DTOs und History-Clientfunktionen.
 - [Historien-API und Export](history-api-export.md) als Transportgrenze.
 
@@ -65,4 +67,4 @@ Das automatisierte Produktgate verwendet in Analyzer, API/JSON/CSV und React die
 - [Live-Dashboard und Session-Steuerung](live-dashboard.md)
 
 ---
-*Zuletzt aktualisiert: 22. Juli 2026*
+*Zuletzt aktualisiert: 26. Juli 2026*

@@ -271,9 +271,9 @@ func (rt *Runtime) runOfflineDifficultyForCharacter(parent context.Context, diff
 	machine := &offlineStartMachine{character: character, expectedClass: expectedClass, verifyClass: verifyClass}
 	playClicked, difficultyClicked := false, false
 	characterSlug := strings.ToLower(character)
-	characterAnchor := screenAnchor{name: "selected_character", path: filepath.Join("configs", "ui", "characters", characterSlug+"-selected.png"), rect: image.Rect(1035, 48, 1245, 108)}
-	playAnchor := screenAnchor{name: "active_play", path: filepath.Join("configs", "ui", "character-play.png"), rect: image.Rect(538, 624, 741, 671)}
-	difficultyAnchor := screenAnchor{name: "difficulty_dialog", path: filepath.Join("configs", "ui", "difficulty-dialog.png"), rect: image.Rect(550, 245, 730, 420)}
+	characterAnchor := screenAnchor{name: "selected_character", path: rt.Config.ResolvePath(filepath.Join("ui", "characters", characterSlug+"-selected.png")), rect: image.Rect(1035, 48, 1245, 108)}
+	playAnchor := screenAnchor{name: "active_play", path: rt.Config.ResolvePath(filepath.Join("ui", "character-play.png")), rect: image.Rect(538, 624, 741, 671)}
+	difficultyAnchor := screenAnchor{name: "difficulty_dialog", path: rt.Config.ResolvePath(filepath.Join("ui", "difficulty-dialog.png")), rect: image.Rect(550, 245, 730, 420)}
 
 	rt.Log.Info("offline game start waiting for verified character screen", "difficulty", difficulty, "character", character)
 	for {
