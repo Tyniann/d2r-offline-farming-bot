@@ -68,6 +68,8 @@ Nach bestätigtem Countess-Kill bewahrt die State Machine ihre letzte Memory-bes
 
 Für jeden ausgewählten Pickit-Kandidaten wird dessen `UnitID` vor Input erneut im aktuellen World-State aufgelöst. Liegt das Item außerhalb von `loot.pickup.max_distance_tiles`, folgen nach denselben Snapshot-/Zeitgrenzen höchstens drei Teleports direkt zu seiner aktuellen Memory-Position. Erst danach übernimmt der vorhandene hover-bestätigte Pickup-Executor. Ist das Item weiterhin zu weit entfernt, wird es mit `too_far` für diese Loot-Phase übersprungen; Input-, Projektions- und ungültige World-Fehler bleiben terminal. Dadurch kann ein ungünstig liegender Drop gezielt erreicht werden, ohne blinde Teleport- oder Klickschleifen zu erzeugen. Andere Run-Definitionen erhalten die Post-Kill-Repositionierung nur nach ausdrücklichem Opt-in.
 
+Endet der Pickup mit `hover_not_found` oder `pickup_failed`, folgt einmalig pro `UnitID` ein distanzignorierender Teleport auf die aktuelle Item-Position (z. B. aus Bone Prison), danach genau ein erneuter Pickup-Versuch. Scheitert auch der, bleibt das bisherige Skip-Verhalten.
+
 ## Safety-Potions (Phase 4.7)
 
 Vor jedem normalen Task-Tick prüft der Runner den aktuellen HP-Stand. Die Safety greift nur bei gültigem `in_game`-Snapshot und `MaxHP > 0`.
@@ -210,4 +212,4 @@ Der Recorder bindet die Aufnahme an den read-only aus Stash und Waypoint ermitte
 - Kein robuster Tower-Solver: zufällige Tower-Layouts bleiben die größte Unsicherheit des Phase-5-Stands. Phase 6 zieht Run Recording und Playback deshalb als direkte Nachfolgephase vor und ersetzt die globale Explorer-Traversierung im produktiven Countess-Run.
 
 ---
-*Zuletzt aktualisiert: 2026-07-26*
+*Zuletzt aktualisiert: 2026-07-27*

@@ -192,6 +192,14 @@ func (a *lootActionsAdapter) StartPickup(target tasks.LootTarget) error {
 	return nil
 }
 
+// ClearSkippedPickup removes unitID from the in-step skip set so one recovery retry may StartPickup again.
+func (a *lootActionsAdapter) ClearSkippedPickup(unitID uint32) {
+	if a == nil || unitID == 0 || a.skipped == nil {
+		return
+	}
+	delete(a.skipped, unitID)
+}
+
 func (a *lootActionsAdapter) TickPickup(state world.State, now time.Time) tasks.LootPickupResult {
 	if a == nil {
 		return tasks.LootPickupResult{Status: tasks.LootPickupInvalidWorld, Done: true}

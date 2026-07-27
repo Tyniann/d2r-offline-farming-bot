@@ -97,6 +97,13 @@ type runPipeline struct {
 	lootApproachAttempts     int
 	lootApproachAt           time.Time
 	lootApproachSnapshot     time.Time
+	// lootPickupRecovered bounds post-fail item teleports to one attempt per UnitID.
+	lootPickupRecovered      map[uint32]bool
+	lootRecoveryPending      bool
+	lootRecoveryTarget       LootTarget
+	lootRecoveryTeleportSent bool
+	lootRecoveryAt           time.Time
+	lootRecoverySnapshot     time.Time
 }
 
 func (c *runPipeline) effectiveDefinition() RunDefinition {
@@ -124,6 +131,7 @@ func (c *runPipeline) resetGeneration() {
 	c.bossKillEmitted = false
 	c.resetPostKillReposition()
 	c.resetLootApproach()
+	c.resetLootPickupRecovery()
 }
 
 func (c *runPipeline) firstStep() string {
@@ -605,77 +613,93 @@ func (c *runPipeline) onLootTick(ctx context.Context, deps Deps, step string, w 
 			return stepResult{}
 		}
 		if !c.lootPickupActive {
-			targetSelectedThisTick := false
-			if !c.lootApproachTargetSet {
-				scan := deps.Loot.Scan(w)
-				if scan.TelemetryFailed {
-					return stepResult{failed: true, reason: "telemetry_failed"}
+			if c.lootRecoveryPending {
+				if res := c.tickLootPickupRecovery(deps, w, now); res.failed || res.complete {
+					return res
 				}
-				if scan.InventoryFull {
-					return stepResult{complete: true}
+				if !c.lootPickupActive {
+					return stepResult{}
 				}
-				if !scan.HasTarget {
-					c.lootNoTargetTicks++
-					if c.lootNoTargetTicks >= lootNoTargetStableTicks {
+			} else {
+				targetSelectedThisTick := false
+				if !c.lootApproachTargetSet {
+					scan := deps.Loot.Scan(w)
+					if scan.TelemetryFailed {
+						return stepResult{failed: true, reason: "telemetry_failed"}
+					}
+					if scan.InventoryFull {
 						return stepResult{complete: true}
 					}
-					return stepResult{}
+					if !scan.HasTarget {
+						c.lootNoTargetTicks++
+						if c.lootNoTargetTicks >= lootNoTargetStableTicks {
+							return stepResult{complete: true}
+						}
+						return stepResult{}
+					}
+					c.lootNoTargetTicks = 0
+					c.lootApproachTarget = scan.NextTarget
+					c.lootApproachTargetSet = true
+					targetSelectedThisTick = true
 				}
-				c.lootNoTargetTicks = 0
-				c.lootApproachTarget = scan.NextTarget
-				c.lootApproachTargetSet = true
-				targetSelectedThisTick = true
-			}
-			target := c.lootApproachTarget
-			if !targetSelectedThisTick {
-				var found bool
-				target, found = currentLootTarget(w, target)
-				if !found {
-					// The frozen candidate disappeared or changed before input.
-					// Rescan on a later tick instead of acting on stale coordinates.
-					c.resetLootApproach()
-					return stepResult{}
+				target := c.lootApproachTarget
+				if !targetSelectedThisTick {
+					var found bool
+					target, found = currentLootTarget(w, target)
+					if !found {
+						// The frozen candidate disappeared or changed before input.
+						// Rescan on a later tick instead of acting on stale coordinates.
+						c.resetLootApproach()
+						return stepResult{}
+					}
+					c.lootApproachTarget = target
 				}
-				c.lootApproachTarget = target
-			}
-			if world.Distance(w.Player.Position, target.Position) > c.effectiveLootPickupDistance() {
-				if deps.Combat == nil {
-					return stepResult{failed: true, reason: "combat_not_wired"}
-				}
-				if c.lootApproachAttempts < lootRepositionMaxAttempts {
+				if world.Distance(w.Player.Position, target.Position) > c.effectiveLootPickupDistance() {
+					if deps.Combat == nil {
+						return stepResult{failed: true, reason: "combat_not_wired"}
+					}
+					if c.lootApproachAttempts < lootRepositionMaxAttempts {
+						if !lootRepositionReady(now, w.At, c.lootApproachAt, c.lootApproachSnapshot) {
+							return stepResult{}
+						}
+						sent, err := deps.Combat.TeleportToward(now, w.Player.Position, target.Position, 0)
+						if err != nil {
+							return stepResult{failed: true, reason: "loot_reposition_failed"}
+						}
+						if sent {
+							c.lootApproachAttempts++
+							c.lootApproachAt = now
+							c.lootApproachSnapshot = w.At
+						}
+						return stepResult{}
+					}
 					if !lootRepositionReady(now, w.At, c.lootApproachAt, c.lootApproachSnapshot) {
 						return stepResult{}
 					}
-					sent, err := deps.Combat.TeleportToward(now, w.Player.Position, target.Position, 0)
-					if err != nil {
-						return stepResult{failed: true, reason: "loot_reposition_failed"}
-					}
-					if sent {
-						c.lootApproachAttempts++
-						c.lootApproachAt = now
-						c.lootApproachSnapshot = w.At
-					}
-					return stepResult{}
+					// Let the existing pickup executor record `too_far` and skip
+					// this exact UnitID after the bounded reposition budget.
 				}
-				if !lootRepositionReady(now, w.At, c.lootApproachAt, c.lootApproachSnapshot) {
-					return stepResult{}
+				if err := deps.Loot.StartPickup(target); err != nil {
+					return stepResult{failed: true, reason: "loot_pickup_start_failed"}
 				}
-				// Let the existing pickup executor record `too_far` and skip
-				// this exact UnitID after the bounded reposition budget.
+				c.lootPickupActive = true
+				c.resetLootApproach()
 			}
-			if err := deps.Loot.StartPickup(target); err != nil {
-				return stepResult{failed: true, reason: "loot_pickup_start_failed"}
-			}
-			c.lootPickupActive = true
-			c.resetLootApproach()
 		}
 		res := deps.Loot.TickPickup(w, now)
 		if !res.Done {
 			return stepResult{}
 		}
 		switch res.Status {
-		case LootPickupPickedUp, LootPickupMonsterNearby, LootPickupHoverNotFound,
-			LootPickupTargetLost, LootPickupTargetUnstable, LootPickupTooFar, LootPickupFailed:
+		case LootPickupHoverNotFound, LootPickupFailed:
+			c.lootPickupActive = false
+			c.resetLootApproach()
+			if c.beginLootPickupRecovery(deps, res.Target) {
+				return stepResult{}
+			}
+			return stepResult{}
+		case LootPickupPickedUp, LootPickupMonsterNearby,
+			LootPickupTargetLost, LootPickupTargetUnstable, LootPickupTooFar:
 			c.lootPickupActive = false
 			c.resetLootApproach()
 			return stepResult{}
@@ -1183,6 +1207,80 @@ func (c *runPipeline) resetLootApproach() {
 	c.lootApproachAttempts = 0
 	c.lootApproachAt = time.Time{}
 	c.lootApproachSnapshot = time.Time{}
+}
+
+func (c *runPipeline) resetLootPickupRecovery() {
+	c.lootPickupRecovered = nil
+	c.clearLootRecoveryPending()
+}
+
+func (c *runPipeline) clearLootRecoveryPending() {
+	c.lootRecoveryPending = false
+	c.lootRecoveryTarget = LootTarget{}
+	c.lootRecoveryTeleportSent = false
+	c.lootRecoveryAt = time.Time{}
+	c.lootRecoverySnapshot = time.Time{}
+}
+
+// beginLootPickupRecovery arms one distance-ignoring item teleport after hover_not_found
+// or pickup_failed, so Bone-Prison and similar blockers can be escaped once per UnitID.
+func (c *runPipeline) beginLootPickupRecovery(deps Deps, target LootTarget) bool {
+	if target.UnitID == 0 || c.lootPickupRecovered[target.UnitID] {
+		return false
+	}
+	if c.lootPickupRecovered == nil {
+		c.lootPickupRecovered = make(map[uint32]bool)
+	}
+	c.lootPickupRecovered[target.UnitID] = true
+	if deps.Loot != nil {
+		deps.Loot.ClearSkippedPickup(target.UnitID)
+	}
+	c.lootRecoveryPending = true
+	c.lootRecoveryTarget = target
+	c.lootRecoveryTeleportSent = false
+	c.lootRecoveryAt = time.Time{}
+	c.lootRecoverySnapshot = time.Time{}
+	return true
+}
+
+// tickLootPickupRecovery teleports onto the failed candidate once, settles, then restarts pickup.
+func (c *runPipeline) tickLootPickupRecovery(deps Deps, w world.State, now time.Time) stepResult {
+	target, found := currentLootTarget(w, c.lootRecoveryTarget)
+	if !found {
+		c.clearLootRecoveryPending()
+		return stepResult{}
+	}
+	c.lootRecoveryTarget = target
+	if deps.Combat == nil {
+		c.clearLootRecoveryPending()
+		return stepResult{failed: true, reason: "combat_not_wired"}
+	}
+	if !c.lootRecoveryTeleportSent {
+		if !lootRepositionReady(now, w.At, c.lootRecoveryAt, c.lootRecoverySnapshot) {
+			return stepResult{}
+		}
+		sent, err := deps.Combat.TeleportToward(now, w.Player.Position, target.Position, 0)
+		if err != nil {
+			c.clearLootRecoveryPending()
+			return stepResult{failed: true, reason: "loot_recovery_teleport_failed"}
+		}
+		if sent {
+			c.lootRecoveryTeleportSent = true
+			c.lootRecoveryAt = now
+			c.lootRecoverySnapshot = w.At
+		}
+		return stepResult{}
+	}
+	if !lootRepositionReady(now, w.At, c.lootRecoveryAt, c.lootRecoverySnapshot) {
+		return stepResult{}
+	}
+	if err := deps.Loot.StartPickup(target); err != nil {
+		c.clearLootRecoveryPending()
+		return stepResult{failed: true, reason: "loot_pickup_start_failed"}
+	}
+	c.lootPickupActive = true
+	c.clearLootRecoveryPending()
+	return stepResult{}
 }
 
 // lootRepositionReady prevents a retry from reusing the snapshot that caused

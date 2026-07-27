@@ -93,6 +93,8 @@ func TestRunPipelineCentralResetBarrierClearsGenerationOnce(t *testing.T) {
 		lootPickupActive: true, encounterActionIndex: 1,
 		postKillTeleportAttempts: 2, lootApproachTargetSet: true,
 		lootApproachTarget: LootTarget{UnitID: 99}, lootApproachAttempts: 2,
+		lootPickupRecovered: map[uint32]bool{7: true}, lootRecoveryPending: true,
+		lootRecoveryTarget: LootTarget{UnitID: 7}, lootRecoveryTeleportSent: true,
 	}
 	profileActions := &mockProfileActions{}
 	lootActions := &mockLootActions{}
@@ -102,7 +104,8 @@ func TestRunPipelineCentralResetBarrierClearsGenerationOnce(t *testing.T) {
 	runner.Reset("process_lost")
 	runner.Reset("duplicate")
 	if pipeline.targetSeen || pipeline.targetUnitID != 0 || pipeline.routeStarted || pipeline.lootPickupActive || pipeline.encounterActionIndex != 0 ||
-		pipeline.postKillTeleportAttempts != 0 || pipeline.lootApproachTargetSet || pipeline.lootApproachTarget.UnitID != 0 || pipeline.lootApproachAttempts != 0 {
+		pipeline.postKillTeleportAttempts != 0 || pipeline.lootApproachTargetSet || pipeline.lootApproachTarget.UnitID != 0 || pipeline.lootApproachAttempts != 0 ||
+		pipeline.lootPickupRecovered != nil || pipeline.lootRecoveryPending || pipeline.lootRecoveryTarget.UnitID != 0 || pipeline.lootRecoveryTeleportSent {
 		t.Fatalf("pipeline state crossed reset barrier: %+v", pipeline)
 	}
 	if profileActions.resetCalls != 1 || lootActions.resetCalls != 1 {

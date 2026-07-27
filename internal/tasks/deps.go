@@ -140,6 +140,8 @@ type LootActions interface {
 	StartPickup(target LootTarget) error
 	// TickPickup advances the active pickup executor.
 	TickPickup(state world.State, now time.Time) LootPickupResult
+	// ClearSkippedPickup removes unitID from the in-step skip set so one recovery retry may StartPickup again.
+	ClearSkippedPickup(unitID uint32)
 	// TickStash transfers Pickit-matching unlocked inventory items one at a time.
 	TickStash(state world.State, now time.Time) LootStashResult
 	// TickCloseStash closes the personal stash and confirms UI state.

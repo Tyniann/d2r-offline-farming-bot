@@ -172,16 +172,17 @@ type mockRunActions struct {
 }
 
 type mockLootActions struct {
-	scans       []LootScanResult
-	ticks       []LootPickupResult
-	startErr    error
-	resetCalls  int
-	scanCalls   int
-	startCalls  []LootTarget
-	tickCalls   int
-	lastTickNow time.Time
-	stashTicks  []LootStashResult
-	closeTicks  []LootStashResult
+	scans        []LootScanResult
+	ticks        []LootPickupResult
+	startErr     error
+	resetCalls   int
+	scanCalls    int
+	startCalls   []LootTarget
+	clearSkipIDs []uint32
+	tickCalls    int
+	lastTickNow  time.Time
+	stashTicks   []LootStashResult
+	closeTicks   []LootStashResult
 }
 
 type countingRun struct {
@@ -376,6 +377,10 @@ func (m *mockLootActions) Scan(world.State) LootScanResult {
 func (m *mockLootActions) StartPickup(target LootTarget) error {
 	m.startCalls = append(m.startCalls, target)
 	return m.startErr
+}
+
+func (m *mockLootActions) ClearSkippedPickup(unitID uint32) {
+	m.clearSkipIDs = append(m.clearSkipIDs, unitID)
 }
 
 func (m *mockLootActions) TickPickup(_ world.State, now time.Time) LootPickupResult {
@@ -1424,6 +1429,103 @@ func TestLootCandidateRepositionsToCurrentItemBeforePickup(t *testing.T) {
 	res = pipeline.onLootTick(context.Background(), Deps{Loot: lootActions, Combat: combat}, pipelineStepPickLoot, arrived, arrived.At, now)
 	if res.complete || res.failed || combat.teleportCalls != 1 || len(lootActions.startCalls) != 1 || lootActions.startCalls[0].UnitID != target.UnitID {
 		t.Fatalf("arrival result=%+v teleports=%d starts=%+v", res, combat.teleportCalls, lootActions.startCalls)
+	}
+}
+
+func TestLootPickupRecoversOnceAfterHoverNotFound(t *testing.T) {
+	combat := &mockCombatActions{}
+	definition, _ := DefaultRunRegistry().Definition(RunIDCountess)
+	target := LootTarget{
+		UnitID: 10, TxtFileNo: 1, Code: "r33", Name: "Ral Rune",
+		Position: world.Position{X: 105, Y: 100}, AreaID: world.TowerCellarLevel5,
+	}
+	lootActions := &mockLootActions{
+		scans: []LootScanResult{{GroundItemCount: 1, CandidateCount: 1, HasTarget: true, NextTarget: target}},
+		ticks: []LootPickupResult{
+			{Status: LootPickupHoverNotFound, Done: true, Target: target},
+			{Status: LootPickupPickedUp, Done: true, Target: target},
+		},
+	}
+	pipeline := &runPipeline{definition: definition, lootPickupDistanceTiles: 8}
+	now := time.Now()
+	state := cellar5State()
+	state.At = now
+	state.Player.Position = world.Position{X: 100, Y: 100}
+	state.Items = []world.Item{{
+		UnitID: target.UnitID, TxtFileNo: target.TxtFileNo, Code: target.Code, Name: target.Name,
+		Location: world.ItemLocationGround, Position: target.Position,
+	}}
+	deps := Deps{Loot: lootActions, Combat: combat}
+
+	res := pipeline.onLootTick(context.Background(), deps, pipelineStepPickLoot, state, now, now)
+	if res.failed || res.complete || len(lootActions.startCalls) != 1 || len(lootActions.clearSkipIDs) != 1 ||
+		lootActions.clearSkipIDs[0] != target.UnitID || !pipeline.lootRecoveryPending || combat.teleportCalls != 0 {
+		t.Fatalf("hover fail result=%+v starts=%d clears=%v pending=%v teleports=%d",
+			res, len(lootActions.startCalls), lootActions.clearSkipIDs, pipeline.lootRecoveryPending, combat.teleportCalls)
+	}
+
+	res = pipeline.onLootTick(context.Background(), deps, pipelineStepPickLoot, state, now.Add(time.Millisecond), now)
+	if res.failed || res.complete || combat.teleportCalls != 1 || combat.lastTeleportTarget != target.Position ||
+		len(lootActions.startCalls) != 1 || !pipeline.lootRecoveryTeleportSent {
+		t.Fatalf("recovery teleport result=%+v teleports=%d target=%+v starts=%d sent=%v",
+			res, combat.teleportCalls, combat.lastTeleportTarget, len(lootActions.startCalls), pipeline.lootRecoveryTeleportSent)
+	}
+
+	settled := state
+	settled.At = now.Add(lootRepositionRetryDelay + time.Millisecond)
+	settled.Player.Position = target.Position
+	res = pipeline.onLootTick(context.Background(), deps, pipelineStepPickLoot, settled, settled.At, now)
+	if res.failed || res.complete || len(lootActions.startCalls) != 2 || lootActions.tickCalls != 2 ||
+		pipeline.lootRecoveryPending || combat.teleportCalls != 1 {
+		t.Fatalf("recovery pickup result=%+v starts=%d ticks=%d pending=%v teleports=%d",
+			res, len(lootActions.startCalls), lootActions.tickCalls, pipeline.lootRecoveryPending, combat.teleportCalls)
+	}
+}
+
+func TestLootPickupRecoveryIsBoundedToOneTeleportPerUnit(t *testing.T) {
+	combat := &mockCombatActions{}
+	definition, _ := DefaultRunRegistry().Definition(RunIDCountess)
+	target := LootTarget{
+		UnitID: 10, TxtFileNo: 1, Code: "r33", Name: "Ral Rune",
+		Position: world.Position{X: 105, Y: 100}, AreaID: world.TowerCellarLevel5,
+	}
+	lootActions := &mockLootActions{
+		scans: []LootScanResult{
+			{GroundItemCount: 1, CandidateCount: 1, HasTarget: true, NextTarget: target},
+			{GroundItemCount: 1, CandidateCount: 0},
+			{GroundItemCount: 1, CandidateCount: 0},
+			{GroundItemCount: 1, CandidateCount: 0},
+		},
+		ticks: []LootPickupResult{
+			{Status: LootPickupHoverNotFound, Done: true, Target: target},
+			{Status: LootPickupFailed, Done: true, Target: target},
+		},
+	}
+	pipeline := &runPipeline{definition: definition, lootPickupDistanceTiles: 8}
+	now := time.Now()
+	state := cellar5State()
+	state.At = now
+	state.Player.Position = world.Position{X: 100, Y: 100}
+	state.Items = []world.Item{{
+		UnitID: target.UnitID, TxtFileNo: target.TxtFileNo, Code: target.Code, Name: target.Name,
+		Location: world.ItemLocationGround, Position: target.Position,
+	}}
+	deps := Deps{Loot: lootActions, Combat: combat}
+
+	_ = pipeline.onLootTick(context.Background(), deps, pipelineStepPickLoot, state, now, now)
+	_ = pipeline.onLootTick(context.Background(), deps, pipelineStepPickLoot, state, now.Add(time.Millisecond), now)
+	settled := state
+	settled.At = now.Add(lootRepositionRetryDelay + time.Millisecond)
+	_ = pipeline.onLootTick(context.Background(), deps, pipelineStepPickLoot, settled, settled.At, now)
+	if combat.teleportCalls != 1 || len(lootActions.startCalls) != 2 || pipeline.lootRecoveryPending {
+		t.Fatalf("after second fail teleports=%d starts=%d pending=%v", combat.teleportCalls, len(lootActions.startCalls), pipeline.lootRecoveryPending)
+	}
+
+	later := settled
+	later.At = settled.At.Add(time.Millisecond)
+	_ = pipeline.onLootTick(context.Background(), deps, pipelineStepPickLoot, later, later.At, now)
+	if combat.teleportCalls != 1 || len(lootActions.startCalls) != 2 || pipeline.lootRecoveryPending {
+		t.Fatalf("bounded recovery teleports=%d starts=%d pending=%v", combat.teleportCalls, len(lootActions.startCalls), pipeline.lootRecoveryPending)
 	}
 }
 

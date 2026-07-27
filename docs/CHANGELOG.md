@@ -8,6 +8,7 @@ Versionierung nach [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Fixed
+- Retry one distance-ignoring item teleport after `hover_not_found` or `pickup_failed` so Bone-Prison and similar blockers cannot skip reachable loot
 - Keep Act-1 town waypoint handoff reuse as a cold-start skip only, so mid-walk Force Move cannot open or select the waypoint while still sliding past it
 
 ## [0.11.0] - 2026-07-27
