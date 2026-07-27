@@ -1,0 +1,486 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Phase 16 – Detaillierter Umsetzungsplan</title>
+  <style>
+    :root{--bg:#0b0d12;--panel:#151820;--panel2:#1d222c;--text:#f1f2f5;--muted:#b7bdc8;--line:#343a46;--accent:#df6a3f;--gold:#d6ad5c;--good:#69d59f;--warn:#f0c96a;--bad:#f0525f;--code:#090b0f}
+    *{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at 85% 0,#351711 0,transparent 26%),linear-gradient(145deg,#08090d,#11141a 55%,#0a0c10);color:var(--text);font:16px/1.58 system-ui,-apple-system,"Segoe UI",sans-serif}
+    main{max-width:1200px;margin:auto;padding:42px 24px 80px}.hero{padding:34px;border:1px solid var(--line);border-radius:20px;background:linear-gradient(135deg,#211713,#171a21 52%,#12151b);box-shadow:0 20px 60px #0008}
+    h1{font-size:clamp(2rem,5vw,3.7rem);line-height:1.08;margin:.25rem 0 1rem}h2{margin-top:44px;border-bottom:1px solid var(--line);padding-bottom:10px}h3{margin:.2rem 0 .5rem;color:#fff}.lead{font-size:1.17rem;color:var(--muted);max-width:1000px}
+    .chips{display:flex;flex-wrap:wrap;gap:9px}.chip{border:1px solid #684334;border-radius:999px;padding:5px 11px;color:#ffd8c8;background:#251510}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:15px;margin:18px 0}
+    .card,.phase,.callout{border:1px solid var(--line);border-radius:14px;background:var(--panel);padding:18px}.card p,.phase p{margin:.35rem 0;color:var(--muted)}table{width:100%;border-collapse:collapse;background:var(--panel);border:1px solid var(--line)}th,td{padding:12px 14px;text-align:left;vertical-align:top;border-bottom:1px solid var(--line)}th{background:var(--panel2);color:#fff}
+    code,pre{font-family:"Cascadia Code",Consolas,monospace}code{color:#f6bd88}pre{background:var(--code);border:1px solid var(--line);border-radius:12px;padding:16px;overflow:auto;color:#e5e8ed}.phase{display:grid;grid-template-columns:92px 1fr;gap:16px;margin:13px 0}.phase-id{font-weight:800;color:var(--accent);font-size:1.25rem}.warn{color:var(--warn)}.good{color:var(--good)}.bad{color:var(--bad)}.gold{color:var(--gold)}.gate{border-left:4px solid var(--warn);padding-left:12px!important}.callout{border-left:4px solid var(--accent);margin:16px 0}.danger{border-left-color:var(--bad)}.success{border-left-color:var(--good)}li{margin:.35rem 0}footer{margin-top:48px;color:var(--muted);text-align:center}@media(max-width:650px){.phase{grid-template-columns:1fr}.hero{padding:22px}main{padding-inline:14px}}
+  </style>
+</head>
+<body><main>
+  <section class="hero">
+    <div class="chip">D2R Offline Farming Bot · Phase 16</div>
+    <h1>Vom gefundenen Save zum sicher eingerichteten Charakter</h1>
+    <p class="lead">Phase 16 erweitert exakt den vorhandenen Onboarding-Charakterschritt. Der Go-Core liest einen festen 41-Byte-Präfix lokaler Offline-Saves, erkennt Name und Klasse, ordnet ein vom Entwickler freigegebenes Standard-Kampfprofil sowie fehlende Standard-Pickit-Ketten zu und erfasst bei Bedarf den vorhandenen visuellen Auswahlbeleg. Es entstehen weder ein allgemeiner Savegame-Parser noch ein zweiter Wizard, ein neuer Store oder eine vorsorgliche Combat-Architektur.</p>
+    <div class="chips"><span class="chip">KISS + YAGNI</span><span class="chip">Read-only D2S</span><span class="chip">41 Byte maximal</span><span class="chip">Schema 2</span><span class="chip">Entwickler-Default</span><span class="chip">Ein Onboarding</span><span class="chip">Atomare Einzelwrites</span><span class="chip">Fail-closed</span><span class="chip">Keine Legacy-Migration</span></div>
+  </section>
+
+  <section class="grid" aria-label="Kernziele">
+    <article class="card"><h3>Klasse sicher erkennen</h3><p>Nur Magic, Save-Version, Headername und Klassen-ID werden aus einem festen Präfix gelesen. Savegames werden niemals geschrieben, vollständig geparst, kopiert oder diagnostisch gebündelt.</p></article>
+    <article class="card"><h3>Profil bewusst freigeben</h3><p>Das Kampfprofil selbst trägt deutschen Anzeigenamen, Setup-Freigabe und Entwickler-Default. Das bloße Vorhandensein eines Profils macht eine Klasse nicht unterstützt.</p></article>
+    <article class="card"><h3>Inline einrichten</h3><p>Der bestehende Charakterschritt zeigt Klasse, verständlichen Status, Profil und klare Schritte für den Bildbeleg. Keine neue Navigation, kein Technikvokabular und kein Renderer-Dateizugriff.</p></article>
+    <article class="card"><h3>Bestehende Autoritäten nutzen</h3><p>OperatorSettings speichert Klasse und Profil; PickitAssignments speichert weiterhin Lootketten; der vorhandene Screenshot- und Memory-Flow bestätigt Auswahl und Spieleintritt.</p></article>
+  </section>
+
+  <h2>1. Verbindliche Produktentscheidungen</h2>
+  <table><thead><tr><th>Thema</th><th>Entscheidung für Phase 16</th></tr></thead><tbody>
+    <tr><td>Produktoberfläche</td><td>Der vorhandene Schritt „Charakter“ im Phase-15-Onboarding wird inline erweitert. Es gibt keinen neuen Wizard, kein neues Modal-System, keine neue Hauptnavigation und keine zweite Character-Setup-Seite.</td></tr>
+    <tr><td>Savegame-Zugriff</td><td>Der Core öffnet ausschließlich reguläre, reparse-freie lokale <code>*.d2s</code>-Dateien read-only, liest mit genau einem begrenzten <code>io.ReadFull</code> maximal 41 Byte und schließt die Datei unmittelbar. Es gibt keinen Schreibhandle und keine Mutation.</td></tr>
+    <tr><td>D2S-Umfang</td><td>Ausgewertet werden nur Magic, Save-Version, Headername und Klassen-ID. Deklarierte Dateigröße, Checksumme, Status und Progression werden nicht fachlich ausgewertet. Items, Skills, Stats, Quests, Mercenary, Stash und restlicher Dateiinhalt bleiben vollständig außerhalb des Scopes.</td></tr>
+    <tr><td>Versionen</td><td>Nur in Gate 16.0 an den vorhandenen lokalen D2R-Saves read-only bestätigte Save-Versionen kommen in eine explizite Allowlist. Unbekannte Werte werden niemals tolerant akzeptiert oder aus der D2R-Dateiversion erraten.</td></tr>
+    <tr><td>Klassen</td><td>Die acht aktuellen D2R-Klassen-IDs <code>0…7</code> einschließlich Warlock werden erkannt. Fachlich unterstützt ist zunächst ausschließlich <code>necromancer</code> mit <code>necro_bone_spear</code>. Eine bekannte, aber nicht freigegebene Klasse bleibt sichtbar und gesperrt.</td></tr>
+    <tr><td>Profilfreigabe</td><td>Jedes Kampfprofil kann direkt <code>display_name</code>, <code>setup.enabled</code> und <code>setup.default</code> tragen. Nur ausdrücklich freigegebene Profile erscheinen im Setup. Experimentelle oder nur intern konfigurierte Profile bleiben unsichtbar.</td></tr>
+    <tr><td>Entwickler-Default</td><td>Für jede Klasse mit mindestens einem freigegebenen Profil existiert exakt ein freigegebener Default. Bei einem Profil wird es ohne Auswahl verwendet; bei mehreren erscheint ein Dropdown mit diesem Default. Default und Freigabe werden nur in YAML vom Entwickler gepflegt, niemals durch den Benutzer.</td></tr>
+    <tr><td>Profilanzeige</td><td>Benutzer sehen ausschließlich den deutschen <code>display_name</code>, beispielsweise „Knochen-Speer“. Interne IDs bleiben API-/Persistenzwerte und erscheinen nur in Logs, Diagnose und Entwickleransichten.</td></tr>
+    <tr><td>Persistenz</td><td>Es entsteht kein Setup-Store. <code>operator-settings.local.yaml</code> Schema 2 ergänzt pro Charakter <code>character_class</code> und <code>combat_profile</code>. <code>pickit-assignments.local.yaml</code> bleibt alleinige Zuordnung pro Charakter und Run.</td></tr>
+    <tr><td>Legacy</td><td>Es gibt keine Migration von OperatorSettings Schema 1 und keinen Runtime-Fallback auf die bisherige indirekte Ableitung. Das private Produkt wird mit frischem Datenroot abgenommen; unbekannte oder alte Schemas bleiben fail-closed.</td></tr>
+    <tr><td>Setup-Mutation</td><td>Nur der neue Core-Setup-Command darf Klasse und Profil ändern. Die allgemeine Settings-API projiziert beide Felder read-only und lehnt Änderungen daran ab. Ein Settings-Reset bewahrt beide Werte.</td></tr>
+    <tr><td>Pickit-Defaults</td><td>Countess erhält bei vollständig fehlender Zuordnung <code>[gems, keys, countess-standard]</code>, Mephisto <code>[gems, mephisto-standard]</code>. Bestehende nicht leere Benutzerketten werden weder überschrieben noch ergänzt oder umsortiert.</td></tr>
+    <tr><td>Teilfehler</td><td>OperatorSettings, PickitAssignments und PNG verwenden ihre vorhandenen atomaren Einzelwrites. Es gibt kein Cross-Store-Journal, Rollback oder Transaktionsframework. Der Ablauf ist idempotent und setzt nach einem Teilfehler anhand des neu gelesenen Iststands fort.</td></tr>
+    <tr><td>Charakter-Readiness</td><td>Auswählbar ist ein Charakter erst mit validem Header, unterstützter Klasse, persistiertem freigegebenen Profil sowie globalen und namensgebundenen Bildbelegen. Fehlendes Pickit sperrt nicht den Charakter, sondern ausschließlich den jeweiligen Run beziehungsweise die Queue.</td></tr>
+    <tr><td>Bildbeleg</td><td>Der Benutzer erklärt mit dem Klick ausdrücklich, dass der genannte Charakter aktuell in D2R markiert ist. Der Core prüft Fenster, Version, Auflösung und Character-Screen, fokussiert D2R und erfasst nur den bestehenden 210×60-Bereich. Er sendet dabei kein Home, Down, Play oder anderes Navigationsinput.</td></tr>
+    <tr><td>Überschreiben</td><td>Ein gültiger bestehender Charakterbeleg wird in Phase 16 nicht überschrieben. Eine fehlende oder formal ungültige PNG darf durch die explizite Erfassung atomar ersetzt werden. Eine allgemeine Funktion „neu erfassen“ bleibt späterer Scope.</td></tr>
+    <tr><td>Katalogaktualisierung</td><td>Kein Watcher und kein persistenter Cache. Ein explizites „Charaktere neu laden“ lässt den Core den kleinen Katalog neu aufbauen. Derselbe Reload erfolgt nach Setup und Bilderfassung.</td></tr>
+    <tr><td>Settings-Seite</td><td>Phase 16 ergänzt dort keine Kampfprofil- oder Default-Auswahl. Das Onboarding kann erneut geöffnet werden. Eine eigene Settings-Auswahl wird erst zusammen mit einem zweiten tatsächlich lauffähigen Profil neu bewertet und im Handoff ausdrücklich so dokumentiert.</td></tr>
+    <tr><td>UI-Sprache</td><td>Alle Texte sind einfaches, korrektes Deutsch. Rohe Reason-Codes, Profil-IDs, „Anker“, „Capture“, „Slug“, „D2S-Header“ oder technische Dateipfade werden nicht als Bedienhinweis angezeigt.</td></tr>
+    <tr><td>Abnahme</td><td>Frischer Root, Necromancer-Setup, Bildbeleg, Neustartpersistenz, gesperrter Paladin, grüner Mephisto-Preflight und ein vollständiger Countess-Run sind Pflicht. Kein Installer-Smoke ohne Packagingänderung und kein Race-Lauf ohne Nebenläufigkeitsänderung.</td></tr>
+  </tbody></table>
+
+  <h2>2. Ausgangslage und zu ersetzende Semantik</h2>
+  <table><thead><tr><th>Heute nach Phase 15</th><th>Ziel nach Phase 16</th></tr></thead><tbody>
+    <tr><td><code>ResolveCharacterCatalog</code> liest ausschließlich Dateinamen.</td><td>Der Katalog liest zusätzlich den festen 41-Byte-Präfix jeder zulässigen Datei.</td></tr>
+    <tr><td><code>configuredCharacterClass</code> leitet eine globale Klasse aus <code>session.run → run.combat.profile → character_class</code> ab.</td><td>Jeder Save besitzt seine erkannte Klasse; nach Setup sind Klasse und gewähltes Profil charakterbezogen in OperatorSettings autoritativ.</td></tr>
+    <tr><td>Ein vorhandener 210×60-Anker gilt implizit als Charakterkonfiguration.</td><td>Der Anker belegt nur die visuelle Auswahl. Klasse und Kampfprofil sind getrennte, explizite Voraussetzungen.</td></tr>
+    <tr><td><code>character_unconfigured</code> vermischt fehlenden Profilkontext und fehlenden Bildbeleg.</td><td>Stabile interne Gründe unterscheiden Save, Version, Name, Klasse, Profil und Bildbeleg; die UI zeigt daraus genau passende Alltagstexte.</td></tr>
+    <tr><td>Der allgemeine OperatorSettings-Vertrag kennt nur Difficulty und Queue pro Charakter.</td><td>Schema 2 ergänzt zwei read-only projizierte Setupfelder und schützt sie vor der allgemeinen Settings-Mutation.</td></tr>
+    <tr><td>Pickit-Zuordnungen müssen außerhalb des Charakterflows existieren.</td><td>Der Setup-Command ergänzt ausschließlich vollständig fehlende Standardketten idempotent.</td></tr>
+    <tr><td>Der Katalog bleibt im API-Backend statisch auf Revision 1.</td><td>Expliziter Reload erzeugt eine neue immutable Projektion und erhöht die prozesslokale Revision nur bei fachlicher Änderung.</td></tr>
+  </tbody></table>
+  <div class="callout danger"><strong>Verbotener Legacy-Fallback:</strong> Nach Einführung der charakterbezogenen Klasse darf kein produktiver Desktoppfad bei leerem oder ungültigem Setup erneut aus <code>session.run</code>, Queueposition, Route, aktivem Run oder irgendeinem anderen globalen Kontext eine Klasse oder ein Profil erraten. Leere Werte bedeuten „noch nicht eingerichtet“.</div>
+
+  <h2>3. Scope und Nicht-Ziele</h2>
+  <table><thead><tr><th>Enthalten</th><th>Bewusst nicht in Phase 16</th></tr></thead><tbody>
+    <tr><td>Read-only Präfixleser und acht Klassen-IDs einschließlich Warlock.</td><td>Vollständiger D2S-Parser, externe Parserdependency, Checksumprüfung, Save-Reparatur oder Save-Editor.</td></tr>
+    <tr><td>Entwicklergepflegte Setup-Metadaten direkt am bestehenden Kampfprofil.</td><td>Separates Klassen-Mapping, Profilregistry, Pluginmodell oder UI zur Entwickler-Defaultpflege.</td></tr>
+    <tr><td>Schema-2-Felder im bestehenden OperatorSettingsStore.</td><td>Legacy-Migration, zweiter Store, Datenbank, Cross-Store-Transaktion oder Rollbackframework.</td></tr>
+    <tr><td>Fehlende Countess-/Mephisto-Pickit-Defaults ergänzen.</td><td>Bestehende Ketten mergen, „intelligent“ vervollständigen, globale Profile duplizieren oder Pickit-Editorlogik kopieren.</td></tr>
+    <tr><td>Ein Setup-Preview, ein Setup-Confirm und ein separater Capture-Command.</td><td>Generischer Workflow-Builder, neue Command-Bus-Abstraktion oder Renderer-Dateisystemzugriff.</td></tr>
+    <tr><td>Klare Inline-Anweisungen und bedingtes Profildropdown.</td><td>Techniktexte, erweiterter Profilparametereditor oder Kampfprofil-Auswahl auf der normalen Settings-Seite.</td></tr>
+    <tr><td>Bestehender 1280×720-Screenshotpfad und 210×60-Crop.</td><td>OCR, Bilderkennung des Charakternamens, Blindklick, andere Auflösungen oder automatisches Scrollen während der Erfassung.</td></tr>
+    <tr><td>Persistiertes Profil in Katalog, Selection und Run-Preflight.</td><td>Verschieben von Angriffsskill, Timing oder anderen buildabhängigen Run-Werten in Profile.</td></tr>
+    <tr><td>Expliziter Katalogreload.</td><td>FileSystemWatcher, Hintergrundpolling, Headercache oder Datenbankindex.</td></tr>
+    <tr><td>Synthetische Bytefixtures.</td><td>Echte Savegames, anonymisierte Saves, Hexdumps oder Screenshots im Repository.</td></tr>
+  </tbody></table>
+
+  <h2>4. Zielarchitektur und Ownership</h2>
+  <pre><code>Windows Saved Games\Diablo II Resurrected\*.d2s
+  │ read-only, regulär, kein Reparse Point, exakt 41 Byte
+  ▼
+internal/app
+  ├─ D2S-Präfixleser                    Magic, Version, Name, Klasse
+  ├─ CharacterCatalog                   sichtbare Projektion + Revision
+  ├─ CharacterSetupService              Preview + idempotente Orchestrierung
+  ├─ OperatorSettingsStore Schema 2     Klasse + gewähltes Kampfprofil
+  ├─ PickitAssignmentStore              fehlende Run-Defaults
+  └─ Runtime/Selection/Run-Preflight     fail-closed Verwendung
+  │
+  ▼
+internal/api
+  ├─ CatalogDTO + SetupDTOs
+  ├─ Preview                            read-only
+  ├─ Confirm                            Token + Revision + Generation
+  └─ Capture                            Token + Revision + Generation + Safety
+  │
+  ▼
+eine vorhandene React-App
+  └─ bestehender Onboarding-Schritt „Charakter“
+       ├─ Klasse und verständlicher Zustand
+       ├─ Profilname / bedingtes Dropdown
+       ├─ „Charakter einrichten“
+       ├─ vier einfache Schritte zur Auswahl
+       ├─ „Auswahl erfassen“
+       └─ „Charaktere neu laden“</code></pre>
+  <table><thead><tr><th>Verantwortung</th><th>Einziger Owner</th><th>Verbotene zweite Autorität</th></tr></thead><tbody>
+    <tr><td>D2S-Dateizugriff und Headerauswertung</td><td><code>internal/app</code></td><td>React, Electron, API-Handler, Memory-Paket oder externe Library</td></tr>
+    <tr><td>Bekannte Klassen-ID-Zuordnung</td><td>ein compile-naher App-Vertrag unter Wiederverwendung der kanonischen <code>world.CharacterClass</code>-Werte</td><td>UI-eigene Mappinglogik oder zweite Configtabelle</td></tr>
+    <tr><td>Profilfreigabe und Entwickler-Default</td><td><code>config.ProfileConfig.Setup</code></td><td>separates Klassenmapping, OperatorSettings oder UI</td></tr>
+    <tr><td>Gewähltes Charakterprofil</td><td><code>OperatorSettingsStore</code></td><td><code>session.run</code>, Queue, Route oder React-State</td></tr>
+    <tr><td>Pickit-Zuordnung</td><td><code>PickitAssignmentStore</code></td><td>OperatorSettings, Profilmetadata oder Renderer</td></tr>
+    <tr><td>Bilddatei</td><td>bestehender Core-PNG-Writer im Configroot</td><td>Electron-/Renderer-Dateizugriff</td></tr>
+    <tr><td>Safety und Input</td><td>bestehender Go-Core, Supervisor und Input-Controller</td><td>neuer Setup-spezifischer Controller</td></tr>
+    <tr><td>Benutzertexte</td><td>zentrale React-Projektion aus stabilen Core-Gründen</td><td>rohe API-Codes oder pro Komponente abweichende Synonyme</td></tr>
+  </tbody></table>
+
+  <h2>5. Exakter D2S-Präfixvertrag</h2>
+  <table><thead><tr><th>Offset</th><th>Länge</th><th>Feld</th><th>Phase-16-Verhalten</th></tr></thead><tbody>
+    <tr><td><code>0x00</code></td><td>4</td><td>Magic, little-endian</td><td>Muss exakt <code>0xAA55AA55</code> sein.</td></tr>
+    <tr><td><code>0x04</code></td><td>4</td><td>Save-Version, little-endian</td><td>Muss in der in Gate 16.0 belegten Allowlist liegen.</td></tr>
+    <tr><td><code>0x08</code></td><td>4</td><td>deklarierte Dateigröße</td><td>Wird eingelesen, aber bewusst nicht validiert oder projiziert.</td></tr>
+    <tr><td><code>0x0C</code></td><td>4</td><td>Checksumme</td><td>Wird eingelesen, aber bewusst nicht geprüft oder projiziert.</td></tr>
+    <tr><td><code>0x10</code></td><td>4</td><td>aktive Waffe</td><td>Wird ignoriert.</td></tr>
+    <tr><td><code>0x14</code></td><td>16</td><td>Charaktername</td><td>ASCII bis zum ersten NUL oder alle 16 Byte; nach dem ersten NUL müssen alle Bytes NUL sein. Danach denselben Namensvalidator wie Dateiname verwenden.</td></tr>
+    <tr><td><code>0x24</code></td><td>1</td><td>Status</td><td>Wird ignoriert.</td></tr>
+    <tr><td><code>0x25</code></td><td>1</td><td>Progression</td><td>Wird ignoriert.</td></tr>
+    <tr><td><code>0x26</code></td><td>2</td><td>unbekannt/reserviert</td><td>Wird ignoriert.</td></tr>
+    <tr><td><code>0x28</code></td><td>1</td><td>Klassen-ID</td><td><code>0</code> Amazon, <code>1</code> Sorceress, <code>2</code> Necromancer, <code>3</code> Paladin, <code>4</code> Barbarian, <code>5</code> Druid, <code>6</code> Assassin, <code>7</code> Warlock; jeder andere Wert ist unbekannt.</td></tr>
+  </tbody></table>
+  <p>Der Reader besitzt eine feste Präfixlänge von 41 Byte. Er verwendet weder <code>ReadAll</code> noch <code>Seek</code> in weitere Bereiche. Eine separate Maximalgröße der Gesamtdatei ist nicht nötig, weil der gelesene Umfang bereits hart begrenzt ist. Eine Datei unter 41 Byte ist ein ungültiger Header; zusätzlicher Dateiinhalt wird nicht betrachtet.</p>
+  <p>Der Dateiname ohne Erweiterung und der Headername müssen nach Trimmen ausschließlich der vom Projekt bereits erlaubten Charakter-Namenssyntax entsprechen und mit <code>strings.EqualFold</code> übereinstimmen. Die gespeicherte Anzeige übernimmt die Schreibweise des Headernamens; Dateisuche und Persistenzschlüssel bleiben case-insensitiv beziehungsweise kanonisch wie bisher.</p>
+  <p><strong>Recherchebeleg für Warlock:</strong> <a href="https://news.blizzard.com/de-de/article/24243863/lasst-es-in-reign-of-the-warlock-vernichtung-regnen">Blizzard</a> bestätigt den Warlock als neue spielbare D2R-Klasse und verwendet in der deutschen Oberfläche die Bezeichnung „Hexenmeister“. Zwei aktuelle Parserquellen für Reign of the Warlock führen ihn unabhängig als Klassenindex <code>7</code>: <a href="https://github.com/joshsymonds/savecraft.gg/blob/main/.claude/skills/working-on-d2r/SKILL.md">Savecraft</a> nennt den Index ausdrücklich und <a href="https://github.com/prowner/d2s/blob/master/src/data/versions/105_constant_data.ts">D2RuneWizard/d2s</a> führt Warlock als achten Eintrag der für den Headerindex verwendeten Klassenliste. Diese Recherche ist Beleg für das Mapping, wird aber nicht als Ersatz für den kleinen lokalen Smoke-Test behandelt.</p>
+  <div class="callout gate"><strong>Gate-16.0-Regel für Save-Versionen und Warlock:</strong> Vor produktivem Code liest ein kleiner einmaliger Charakterisierungsschritt nach ausdrücklicher Freigabe ausschließlich die ersten 41 Byte der vorhandenen lokalen Charaktere MrBones, MrHammer und MrBook. D2R muss davor geschlossen sein. Der Schritt öffnet jeden Save ausschließlich read-only, meldet nur Version, validierten Namen und Klassen-ID und schreibt weder Save noch Fixture. Für den vorhandenen Warlock MrBook muss der Headername exakt passen und Byte <code>0x28</code> den Wert <code>7</code> enthalten. Bei einer Abweichung stoppt Gate 16.0; das Mapping darf dann nicht geraten oder durch einen toleranten Fallback ersetzt werden. Kein Save wird verändert, kopiert oder ins Repository aufgenommen. Nur lokal bestätigte Save-Versionen kommen in die Allowlist.</div>
+
+  <h2>6. Dateisystem- und Katalogvertrag</h2>
+  <ol>
+    <li><code>FOLDERID_SavedGames</code> und der feste Unterordner <code>Diablo II Resurrected</code> bleiben die einzige Suchwurzel.</li>
+    <li>Es werden nur direkte Verzeichniseinträge mit case-insensitiver Erweiterung <code>.d2s</code> betrachtet; keine Rekursion.</li>
+    <li><code>os.Lstat</code> muss reguläre Datei, kein Symlink und unter Windows kein Reparse Point bestätigen. Nicht-Dateien, Reparse Points und ungültige Dateinamen bleiben vollständig unsichtbar.</li>
+    <li>Nach dem Öffnen bestätigt <code>File.Stat</code> erneut eine reguläre Datei. Wenn sich der Eintrag zwischen Prüfung und Öffnen ändert oder der Read fehlschlägt, bleibt der gültig benannte Eintrag sichtbar, aber gesperrt.</li>
+    <li>Ein Fehler eines einzelnen Saves bricht den restlichen Katalog nicht ab. Nur ein nicht isolierbarer Fehler der Suchwurzel oder der Basisconfig macht den gesamten Katalog nicht verfügbar.</li>
+    <li>Case-insensitive Duplikate werden nicht geraten. Der gesamte Katalogreload wird mit <code>character_save_name_conflict</code> abgelehnt, weil keine Datei autoritativ gewählt werden kann. Die zuletzt erfolgreich veröffentlichte Projektion bleibt unverändert.</li>
+    <li>Ein in <code>session.character</code> konfigurierter, aber nicht vorhandener Name darf weiterhin als gesperrter <code>character_save_missing</code>-Eintrag erscheinen. Daraus werden weder Klasse noch Profil abgeleitet.</li>
+  </ol>
+  <p>Das API-Backend hält genau die aktuell veröffentlichte immutable Katalogprojektion und eine prozesslokale Revision. „Neu laden“, erfolgreiches Setup und erfolgreiche Bilderfassung bauen vollständig neu auf. Ist die kanonische Projektion unverändert, bleibt die Revision gleich; bei fachlicher Änderung steigt sie exakt um eins. Es gibt keinen Headercache, Watcher oder Hintergrundscan.</p>
+
+  <h2>7. Stabile interne Gründe und UI-Texte</h2>
+  <table><thead><tr><th>Interner Grund</th><th>Wann</th><th>Verbindlicher deutscher UI-Text</th></tr></thead><tbody>
+    <tr><td><code>character_save_missing</code></td><td>Konfigurierter Charakter besitzt keine reguläre Save-Datei.</td><td>„Der lokale Offline-Spielstand wurde nicht gefunden.“</td></tr>
+    <tr><td><code>character_save_unreadable</code></td><td>Datei lässt sich nicht öffnen, lesen oder nach dem Öffnen als regulär bestätigen.</td><td>„Der Spielstand konnte nicht gelesen werden. Schließe D2R kurz und versuche es erneut.“</td></tr>
+    <tr><td><code>character_save_header_invalid</code></td><td>Zu kurz, falsche Magic, ungültiger oder nicht sauber terminierter Headername.</td><td>„Der Spielstand hat kein unterstütztes Format.“</td></tr>
+    <tr><td><code>character_save_version_unsupported</code></td><td>Save-Version liegt nicht in der Allowlist.</td><td>„Diese Spielstand-Version wird noch nicht unterstützt.“</td></tr>
+    <tr><td><code>character_save_name_mismatch</code></td><td>Dateiname und Headername stimmen case-insensitiv nicht überein.</td><td>„Dateiname und Charaktername passen nicht zusammen.“</td></tr>
+    <tr><td><code>character_save_name_conflict</code></td><td>Zwei direkte Saves verwenden denselben Namen ohne Beachtung der Großschreibung.</td><td>„Mehrere Spielstände verwenden denselben Charakternamen.“</td></tr>
+    <tr><td><code>character_class_unknown</code></td><td>Klassen-ID liegt nicht in <code>0…7</code>.</td><td>„Die Charakterklasse konnte nicht erkannt werden.“</td></tr>
+    <tr><td><code>character_class_unsupported</code></td><td>Klasse bekannt, aber ohne freigegebenes Setup-Profil.</td><td>„Diese Klasse wird noch nicht unterstützt.“</td></tr>
+    <tr><td><code>character_profile_missing</code></td><td>Klasse unterstützt, aber noch kein Profil persistiert.</td><td>„Der Charakter muss noch eingerichtet werden.“</td></tr>
+    <tr><td><code>character_profile_incompatible</code></td><td>Persistierte ID fehlt, ist nicht freigegeben oder gehört zu einer anderen Klasse.</td><td>„Das gespeicherte Kampfprofil passt nicht zu diesem Charakter. Richte ihn erneut ein.“</td></tr>
+    <tr><td><code>character_profile_run_incompatible</code></td><td>Der gewählte Run ist an ein anderes Kampfprofil gebunden.</td><td>„Das Kampfprofil dieses Charakters unterstützt diesen Run noch nicht.“</td></tr>
+    <tr><td><code>character_anchor_missing</code></td><td>Namensgebundene PNG fehlt oder hat nicht 210×60.</td><td>„Die automatische Auswahl in D2R muss noch eingerichtet werden.“</td></tr>
+    <tr><td><code>character_anchor_exists</code></td><td>Capture soll einen bereits gültigen Beleg überschreiben.</td><td>„Die Auswahl ist bereits eingerichtet.“</td></tr>
+  </tbody></table>
+  <p>Die Katalogauswertung ist stufenweise. Nach Save-/Headerfehlern werden keine Klassen- oder Profilgründe ergänzt; nach unbekannter oder nicht unterstützter Klasse kein Profilgrund. So erhält der Benutzer den zuerst lösbaren Grund statt einer Kaskade technischer Folgefehler. <code>character_anchor_missing</code> wird nur für eine unterstützte Klasse mit gültigem oder noch fehlendem Profil gezeigt.</p>
+  <div class="callout danger"><strong>Keine Rohcodes im Produkt:</strong> Der Renderer besitzt eine exhaustive zentrale Zuordnung für alle oben genannten Gründe. Der Default-Zweig zeigt „Der Charakter ist derzeit nicht verfügbar.“ und loggt den unbekannten Code ausschließlich diagnostisch. Er rendert niemals den unbekannten String selbst.</div>
+
+  <h2>8. Profil- und Defaultvertrag</h2>
+  <pre><code>combat_profiles:
+  necro_bone_spear:
+    character_class: necromancer
+    display_name: Knochen-Speer
+    setup:
+      enabled: true
+      default: true
+    hooks:
+      ...
+    resources:
+      ...
+
+character_setup:
+  pickit_defaults:
+    countess: [gems, keys, countess-standard]
+    mephisto: [gems, mephisto-standard]</code></pre>
+  <p><code>display_name</code> ist für jedes <code>setup.enabled: true</code>-Profil erforderlich, getrimmt, höchstens 64 Zeichen lang und darf keine Steuerzeichen enthalten. Bei nicht freigegebenen Profilen darf es für andere Entwicklerprojektionen vorhanden sein, ist aber kein Freigabesignal.</p>
+  <p>Nach Validierung jedes Einzelprofils folgt eine klassenweite zweite Validierung:</p>
+  <ol>
+    <li><code>setup.default: true</code> verlangt <code>setup.enabled: true</code>.</li>
+    <li>Eine Klasse ohne freigegebenes Profil ist valide, aber im Produkt nicht unterstützt.</li>
+    <li>Eine Klasse mit mindestens einem freigegebenen Profil besitzt exakt einen Default.</li>
+    <li>Profil-IDs und <code>character_class</code> bleiben die bestehenden stabilen Werte.</li>
+    <li>Jede Pickit-Defaultkette ist nicht leer, duplikatfrei, verweist auf vorhandene globale Profile und verwendet registrierte Run-IDs.</li>
+    <li>Countess und Mephisto müssen exakt die oben festgelegten Ketten besitzen; keine automatische Sortierung.</li>
+  </ol>
+  <p>Der Profilkatalog liefert für Setup-Zwecke nur freigegebene Profile mit ID, deutschem Anzeigenamen, Klasse und Defaultflag. Der allgemeine bestehende Profilkatalog darf weiterhin alle konfigurierten Profile projizieren, muss die Setup-Freigabe aber eindeutig kennzeichnen. React filtert nicht selbst, sondern verwendet die bereits Core-gefilterte Setup-Liste.</p>
+
+  <h2>9. OperatorSettings Schema 2</h2>
+  <pre><code>schema_version: 2
+revision: 1
+last_character: MrBones
+characters:
+  mrbones:
+    character_class: necromancer
+    combat_profile: necro_bone_spear
+    last_difficulty: nightmare
+    queue: [countess, mephisto]</code></pre>
+  <ul>
+    <li>Schema 2 ist die einzige unterstützte Version. Schema 1 wird weder gelesen noch migriert.</li>
+    <li><code>character_class</code> und <code>combat_profile</code> sind entweder beide leer oder beide nicht leer. Ein halbes Paar ist ungültig.</li>
+    <li>Leere Paare sind für neu gefundene, noch nicht eingerichtete Charaktere valide.</li>
+    <li>Nicht leere Werte müssen gegen den aktuellen Header sowie die freigegebenen Profilmetadaten validiert werden, sobald der Katalog sie verwendet. Der Store selbst validiert die strukturelle Form und bekannte Configreferenzen; eine vorübergehend fehlende Save-Datei zerstört den gespeicherten Stand nicht.</li>
+    <li>Die allgemeine Settings-Preview-/Update-API muss beide Felder bytegleich zum aktuellen Stand erhalten. Jede Änderung darüber wird mit einem stabilen Configfehler abgelehnt.</li>
+    <li><code>PreviewReset</code> und <code>Reset</code> übernehmen Klasse und Profil aus dem aktuellen Stand, setzen aber wie bisher Difficulty, Queue, Budgets, Input, Hotkeys und Retention auf sichere Defaults.</li>
+    <li>Der dedizierte Setup-Storepfad setzt beide Felder gemeinsam in genau einem atomaren OperatorSettings-Write.</li>
+    <li>Ein während des laufenden Prozesses neu gefundener Charakter wird beim ersten Setup mit den bestehenden sicheren Defaults für Difficulty und Queue angelegt; kein Core-Neustart ist dafür nötig.</li>
+  </ul>
+
+  <h2>10. Setup-Preview und Schreibreihenfolge</h2>
+  <p>Die read-only Vorschau wird immer aus einem frisch aufgelösten Katalogeintrag, der aktuellen OperatorSettings-Revision, der aktuellen Pickit-Assignment-Revision und der validierten Basisconfig gebaut. Sie enthält keine Dateipfade.</p>
+  <pre><code>CharacterSetupPreviewDTO
+├─ schema_version
+├─ catalog_revision
+├─ operator_settings_revision
+├─ pickit_assignment_revision
+├─ character { name, slug, character_class, class_display_name }
+├─ supported
+├─ profiles[] { id, display_name, is_default, is_selected }
+├─ selected_profile_id
+├─ default_profile_id
+├─ pickit_defaults[] { run_id, run_display_name, profile_names[], state }
+├─ anchor_state                      missing | ready | invalid
+├─ setup_state                       blocked | needs_setup | needs_anchor | ready
+└─ reasons[]                         stabile interne Codes</code></pre>
+  <p>Die API darf IDs transportieren, weil sie Mutationsreferenzen sind. React zeigt im normalen Text nur Anzeigenamen. Bei genau einem Profil sendet React dessen ID automatisch; bei mehreren die explizit ausgewählte ID, initial den Core-Default.</p>
+  <p>Der bestätigte Setup-Command arbeitet unter dem bestehenden serialisierten Mutationslock:</p>
+  <ol>
+    <li>Control-Token, Command-ID, erwartete Supervisorgeneration, Idle-Zustand und inaktiven Routenworkflow prüfen.</li>
+    <li>Erwartete Katalog-, OperatorSettings- und Pickit-Revision prüfen. Stale Werte führen vor jedem Write zu Konflikt.</li>
+    <li>Save neu lesen; Name, Klasse und Version erneut bestätigen.</li>
+    <li>Gewähltes Profil gegen Freigabe und Klasse prüfen. Leere Auswahl ist nur erlaubt, wenn exakt ein Profil existiert; der Core setzt dann den Default.</li>
+    <li>OperatorSettings-Klasse und -Profil atomar gemeinsam schreiben. Identischer Stand erzeugt keinen Write und keine Revisionserhöhung.</li>
+    <li>Unter demselben Setup-Ablauf die fehlenden Pickit-Defaults in genau einem atomaren Assignment-Write ergänzen. Jeder bereits nicht leere Run-Eintrag bleibt bytegleich.</li>
+    <li>Stores erneut lesen, Katalog neu aufbauen und vollständigen Ergebnisstand zurückgeben.</li>
+  </ol>
+  <p>Die Reihenfolge OperatorSettings vor Pickit ist verbindlich. Scheitert der zweite Write, bleibt ein sicher eingerichtetes Profil mit konkret fehlender Run-Zuordnung zurück; der betreffende Run bleibt fail-closed. Die API liefert einen strukturierten Teilfehler und keine falsche Erfolgsmeldung. Der Benutzer lädt neu und wiederholt mit neuer Command-ID; der idempotente Ablauf überspringt den identischen OperatorSettings-Stand und ergänzt nur noch fehlendes Pickit. Erfolgreiche Command-IDs werden wie bestehende Commands dedupliziert; fehlgeschlagene Versuche werden nicht als Erfolg wiedergegeben.</p>
+
+  <h2>11. Pickit-Defaultoperation</h2>
+  <p>Der vorhandene <code>PickitAssignmentStore</code> erhält genau eine schmale Operation, sinngemäß <code>EnsureMissingDefaults(character, defaults, expectedRevision)</code>:</p>
+  <ol>
+    <li>Manifest einmal unter dem bestehenden Storelock laden und vollständig validieren.</li>
+    <li>Charakter case-insensitiv auf einen vorhandenen gespeicherten Schlüssel abbilden oder mit der bestätigten Header-Schreibweise neu anlegen.</li>
+    <li>Pro fest konfiguriertem Run ausschließlich dann die Defaultkette kopieren, wenn kein Eintrag beziehungsweise keine effektive Kette existiert.</li>
+    <li>Eine vorhandene nicht leere Kette niemals vergleichen, normalisieren, erweitern, sortieren oder ersetzen.</li>
+    <li>Ohne Änderung unveränderten Snapshot und Revision liefern.</li>
+    <li>Mit Änderung erwartete Revision prüfen, globale Revision exakt einmal erhöhen, Manifest einmal atomar schreiben und erneut validieren.</li>
+  </ol>
+  <p>Wenn eine vorhandene leere Kette nach dem bisherigen Manifestvertrag ungültig ist, bleibt das gesamte Manifest wie heute ungültig; Phase 16 repariert keine beschädigte Benutzerdatei.</p>
+
+  <h2>12. API-Vertrag</h2>
+  <table><thead><tr><th>Endpoint</th><th>Semantik</th><th>Schutz</th></tr></thead><tbody>
+    <tr><td><code>POST /api/v1/characters/reload</code></td><td>Katalog synchron neu aufbauen; keine D2R- oder Persistenzmutation.</td><td>Control-Token nicht nötig; bounded read-only.</td></tr>
+    <tr><td><code>POST /api/v1/characters/setup/preview</code></td><td>Read-only Setup-, Profil-, Pickit- und Bildzustand für einen Charakternamen liefern.</td><td>Kein Control-Token; Requestgröße und Charaktername strikt validieren.</td></tr>
+    <tr><td><code>POST /api/v1/characters/setup/confirm</code></td><td>Klasse/Profil persistieren und fehlende Pickit-Defaults ergänzen.</td><td>Control-Token, Command-ID, Katalogrevision, zwei Store-Revisionen, Generation, Idle-/Workflow-Lock.</td></tr>
+    <tr><td><code>POST /api/v1/characters/selection/capture</code></td><td>Aktuell markierten 210×60-Auswahlbereich als namensgebundenen PNG-Beleg speichern.</td><td>Control-Token, Command-ID, Katalogrevision, Generation, D2R-Version, Window, Input, Screen und Workflow-Gates.</td></tr>
+  </tbody></table>
+  <p>Die Endpunkte verwenden den bestehenden Error-Envelope und keine HTTP-200-Fehlerobjekte. Falsche Methode liefert <code>405</code>, falscher Content-Type <code>415</code>, fehlender/falscher Token <code>401</code>, ungültiges oder unbekannte Felder enthaltendes JSON <code>400</code> und ein zu großer Body <code>413</code>. Alle erwarteten fachlichen Ablehnungen der Setup-/Capture-Commands einschließlich Revision, Generation, Profil, Zustand und Runtimevoraussetzung liefern wie bestehende Commands <code>409</code>. Ein unerwartet nicht ladbarer Setup-Backendstand liefert <code>503</code> mit stabilem <code>character_setup_unavailable</code>. Erfolgreicher Reload, Preview, Confirm und Capture liefern jeweils <code>200</code>. Gate 16.3 friert diese Zuordnung in API-Tests ein.</p>
+  <p>Nach erfolgreichem Setup, Capture oder Reload veröffentlicht der Core genau ein vorhandenes beziehungsweise minimal ergänztes Katalog-Invalidationsevent. React lädt Katalog, Setup-Preview, OperatorSettings und Recording-Readiness daraufhin neu. Es werden keine Dateiinhalte oder Pfade über SSE projiziert.</p>
+
+  <h2>13. Capture- und Safety-Vertrag</h2>
+  <ol>
+    <li>Charakter existiert im aktuellen Katalog, Header ist valide, Klasse unterstützt und ein kompatibles Profil persistiert.</li>
+    <li>Namensgebundener Beleg fehlt oder ist formal ungültig. Ein gültiger 210×60-Beleg führt vor Fokus und Capture zu <code>character_anchor_exists</code>.</li>
+    <li>Supervisor ist exakt in einem editierbaren inaktiven Zustand; keine Session, Auswahlaktivierung, Routenaufnahme, Kandidatenprüfung, Town- oder andere exklusive Operation läuft.</li>
+    <li>D2R-Prozess und gebundenes Fenster gehören weiterhin zur bestätigten kompatiblen Version.</li>
+    <li>Clientbereich ist exakt 1280×720. Keine Skalierung oder Koordinatentransformation wird hinzugefügt.</li>
+    <li>Input ist effektiv freigegeben, nicht pausiert und nicht gestoppt. F11/Cancellation bleibt während der Operation wirksam.</li>
+    <li>Core fokussiert über den bestehenden Guarded Controller D2R und loggt Aktion, Grund und Ergebnis.</li>
+    <li>Nach bestehendem Settle wird genau ein Clientbild erfasst. Der vorhandene Play-vs-Difficulty-Dialog-Vergleich muss eindeutig den Offline-Charakterbildschirm bestätigen.</li>
+    <li>Der feste Bereich <code>(1035,48)–(1245,108)</code> wird ausgeschnitten und als exakt 210×60 großes PNG im bestehenden Pfad <code>configs/ui/characters/&lt;slug&gt;-selected.png</code> atomar veröffentlicht.</li>
+    <li>Es werden kein Home, Down, Enter, Play, Mausklick oder Difficulty-Input gesendet. Der Core behauptet nicht, den sichtbaren Namen erkannt zu haben.</li>
+    <li>Write und PNG-Dimension werden erneut geprüft; erst danach Katalogreload und Erfolg.</li>
+  </ol>
+  <div class="callout danger"><strong>Explizite Benutzerverantwortung:</strong> Die UI sagt vor dem Button eindeutig: „Mit dem Klick bestätigst du, dass in D2R gerade <em>&lt;Name&gt;</em> markiert ist.“ Es darf keine Formulierung geben, die eine automatische Namenserkennung suggeriert.</div>
+
+  <h2>14. UI- und Bedienvertrag</h2>
+  <p>Der bestehende Onboarding-Schritt behält seine Position, Navigation und Fortschrittslogik. Für den ausgewählten Katalogeintrag erscheint ein kompakter Setupbereich:</p>
+  <ol>
+    <li><strong>Name und Klasse:</strong> „MrBones · Totenbeschwörer“. Bei Headerfehlern nur Name und verständlicher Sperrtext.</li>
+    <li><strong>Kampfprofil:</strong> Bei genau einem Profil „Kampfprofil: Knochen-Speer“. Kein deaktiviertes Ein-Optionen-Dropdown. Bei mehreren ein normales Label „Kampfprofil“ mit Defaultvorauswahl.</li>
+    <li><strong>Loot:</strong> Runweise lesbare Vorschau wie „Countess: Edelsteine, Schlüssel, Countess-Standard“. Interne Pickit-IDs werden durch vorhandene Profilnamen ersetzt.</li>
+    <li><strong>Setup:</strong> „Charakter einrichten“ ist nur bei unterstützter Klasse und vollständiger Profilauswahl aktiv. Der Button startet kein D2R und sendet kein Gameplayinput.</li>
+    <li><strong>Bildbeleg:</strong> Nur wenn nach Setup noch nötig, erscheinen genau vier nummerierte Anweisungen und „Auswahl erfassen“.</li>
+    <li><strong>Reload:</strong> „Charaktere neu laden“ bleibt als sekundäre Aktion sichtbar und verlässt den Schritt nicht.</li>
+  </ol>
+  <pre><code>1. Starte D2R und öffne die Offline-Charakterauswahl.
+2. Markiere „MrBones“ einmal in der Liste.
+3. Lass „MrBones“ markiert und kehre zu dieser App zurück.
+4. Klicke auf „Auswahl erfassen“.
+
+Mit dem Klick bestätigst du, dass in D2R gerade „MrBones“ markiert ist.</code></pre>
+  <p>Nach Setup oder Erfassung bleibt der Benutzer auf demselben Schritt. Während des Requests sind nur dessen Aktionen gesperrt; Ergebnis oder Fehler bleibt sichtbar. Erfolg lädt Katalog, Setupstatus und Readiness neu. Sobald der Eintrag auswählbar ist, verwendet der unveränderte „Über Core bestätigen“-Flow weiterhin Home/Down, Zielbild, Play, Difficulty und Memory-Bestätigung.</p>
+  <p>Bekannte, aber nicht unterstützte Klassen erhalten weder Profilwahl noch Setup- oder Capture-Button. Beispiele: „Paladin – Diese Klasse wird noch nicht unterstützt.“ und „Hexenmeister – Diese Klasse wird noch nicht unterstützt.“ Intern heißen Klasse und Persistenzwert weiterhin <code>warlock</code>; die UI zeigt den deutschen Namen. Keine Liste angeblich unterstützter Klassen wird aus allen konfigurierten Profilen berechnet; nur <code>setup.enabled</code> zählt.</p>
+
+  <h2>15. Runtime-, Selection- und Run-Preflight</h2>
+  <ol>
+    <li>CharacterCatalog und Selection Preview verwenden ausschließlich die erkannte Headerklasse und das persistierte Profilpaar.</li>
+    <li><code>CharacterSelectionRequest.ExpectedClass</code> wird aus der charakterbezogenen Persistenz gesetzt und unmittelbar vor Input erneut gegen den frisch gelesenen Header geprüft.</li>
+    <li>Nach Spieleintritt bestätigt der bestehende Memory-Flow weiterhin Name und Klasse. D2S ist nur Setup-/Preflightquelle und ersetzt niemals die In-game-Bestätigung.</li>
+    <li>Der produktive Desktop-Queue-Start verlangt für den bestätigten Charakter ein nicht leeres, freigegebenes und klassenkompatibles Profil.</li>
+    <li>Vor jedem Run wird zusätzlich geprüft, dass <code>run.combat.profile</code> mit dem ausgewählten Charakterprofil übereinstimmt. Abweichung liefert einen stabilen Run-Availability-Grund und sendet keinen Input.</li>
+    <li>Die effektive Pickit-Kette wird wie bisher ausschließlich über <code>PickitAssignmentStore.Resolve(character, run)</code> geladen. Fehlende Zuordnung sperrt nur diesen Run.</li>
+    <li>CLI-Test-, Probe-, Recorder- und explizite One-shot-Modi, die bewusst ohne installierte OperatorSettings arbeiten, behalten ihren configgebundenen Profilpfad. Sie erhalten keinen erfundenen OperatorSettings-Fallback.</li>
+    <li>Die heute im Run liegenden Angriffsskills, Intervalle, Distanzen und Kill-Ticks bleiben unverändert. Phase 16 verschiebt keine Felder.</li>
+  </ol>
+  <p>Die Regel <code>run.combat.profile == character.combat_profile</code> ist die einfache Phase-16-Kompatibilitätsgrenze. Wenn später ein zweites Profil denselben Run mit anderen buildabhängigen Parametern unterstützen soll, muss diese Grenze zusammen mit der im Handoff vorgemerkten Combat-Entkopplung bewusst erweitert werden. Phase 16 baut dafür keine zweite Run-Profilmatrix auf Vorrat.</p>
+
+  <h2>16. Testvertrag</h2>
+  <table><thead><tr><th>Bereich</th><th>Pflichtfälle</th></tr></thead><tbody>
+    <tr><td>D2S-Reader</td><td>Gültiger Necromancer; alle acht Klassen einschließlich <code>7 → Warlock</code>; falsche Magic; unbekannte Version; 0–40 Byte; gültiger 41-Byte-Präfix mit Restdaten; ungültiges ASCII; NUL mit nicht-NUL-Rest; Dateiname/Headername gleiche und unterschiedliche Großschreibung; Namensabweichung; unbekannte Klassen-ID <code>8</code>.</td></tr>
+    <tr><td>Dateisystem</td><td>Reguläre Datei; Symlink; Windows-Reparse-Point-Vertrag; Verzeichnis mit <code>.d2s</code>; Readfehler; Datei verschwindet; Wurzel fehlt; ungültiger Dateiname; case-insensitive Duplikat; ein kaputter neben einem validen Save.</td></tr>
+    <tr><td>Profilconfig</td><td>Keine Freigabe; genau ein freigegebener Default; mehrere Profile mit einem Default; kein Default; zwei Defaults; Default ohne Enabled; fehlender/zu langer Anzeigename; unbekannte Klasse; experimentelles nicht freigegebenes Profil bleibt unsichtbar.</td></tr>
+    <tr><td>Pickit-Defaults</td><td>Beide Runs fehlen; einer fehlt; beide vorhanden; abweichende Benutzerkette; idempotenter Retry; stale Revision; unbekanntes Profil; unbekannter Run; Write-/Re-Read-Fehler; exakt eine Revision für mehrere Ergänzungen.</td></tr>
+    <tr><td>OperatorSettings</td><td>Schema 2 round-trip; Schema 1 abgelehnt; beide Setupfelder leer; halbes Paar abgelehnt; dedizierter gemeinsamer Write; allgemeines Update darf sie nicht ändern; Reset bewahrt sie; neuer Charakter erhält sichere Queue-/Difficulty-Defaults; Backupgrenze bleibt unverändert.</td></tr>
+    <tr><td>Setup-Service</td><td>Ein Profil automatisch; mehrere synthetische Profile mit Default; explizite Nicht-Default-Auswahl; unbekannte ID; nicht freigegeben; falsche Klasse; stale Katalog-/Store-/Generation; aktive Session; Operatorwrite erfolgreich/Pickitwrite fehlschlägt; Retry vollendet; zweiter identischer Aufruf ohne Write.</td></tr>
+    <tr><td>Capture</td><td>Happy Path; gültiger Beleg existiert; ungültige PNG ersetzt; falsche Auflösung; D2R fehlt; inkompatible Version; Input aus/pausiert/gestoppt; aktiver Supervisor/Workflow; Play-vs-Dialog uneindeutig; Cropgrenze; PNG-Writefehler; Cancellation; kein Navigationsinput.</td></tr>
+    <tr><td>API</td><td>Methoden, Content-Type, Bodylimit, Token, Command-ID, Revisionen, Generation, Statuscodes, Fehler-Envelope, DTO ohne Pfade, OpenAPI und generierter TypeScript-Client.</td></tr>
+    <tr><td>React</td><td>Verständliche Texte für jeden Grund; unbekannter Code wird nicht gerendert; unterstützter Necromancer; gesperrter Paladin; gesperrter Warlock wird als „Hexenmeister“ angezeigt; ein Profil ohne Dropdown; mehrere mit Default; vier Capture-Schritte; Busy/Retry; Reload bleibt im Schritt; kein Technikbegriff; kein Settings-Profilfeld.</td></tr>
+    <tr><td>Runtime</td><td>Persistierte Klasse statt Run-Ableitung; Memory-Match; Memory-Klassenabweichung; Profil-/Run-Match; Profil-/Run-Mismatch; fehlendes Pickit sperrt nur Run; CLI-Testpfade behalten Configverhalten.</td></tr>
+  </tbody></table>
+  <p>Synthetische Savefixtures werden im Test aus kleinen Bytearrays erzeugt; keine binären 41-Byte-Dateien sind nötig, wenn Builderfunktionen die Offsets lesbar und deterministisch setzen. Produktiver Code darf keine Testfixture-Builder importieren.</p>
+
+  <h2>17. Sequenzieller Umsetzungsplan</h2>
+  <section class="phase">
+    <div class="phase-id">16.0</div><div><h3>Baseline, lokale Charakterisierung und compile-naher Vertrag</h3>
+      <ul>
+        <li>Vor Änderungen vollständige Go-/Web-/OpenAPI-/Windows-Build-Baseline ausführen und aktuellen MrBones-/MrHammer-Katalog, OperatorSettings Schema 1, PickitAssignments und Selection-/Run-Verhalten mit fokussierten Characterization-Tests einfrieren.</li>
+        <li>Nach Benutzerfreigabe die ersten 41 Byte von MrBones und MrHammer ausschließlich read-only charakterisieren. Nur validierte Version, Name und Klassen-ID ausgeben; keine vollständigen Bytes, Pfade oder Saves kopieren.</li>
+        <li>Den vorhandenen lokalen Warlock <code>MrBook</code> mit geschlossenem D2R durch denselben einmaligen Präfixleser ausschließlich read-only charakterisieren. Headername <code>MrBook</code> und <code>prefix[0x28] == 7</code> müssen gelten. Bei jeder Abweichung Gate 16.0 stoppen; MrBook niemals verändern, kopieren, herunterladen oder als Fixture versionieren.</li>
+        <li><code>docs/features/phase-16-core-contract.md</code> anlegen: Ownership, D2S-Offsets, Allowlist, Klassenmapping, Profildefault, Reason-Codes, Schema 2, Schreibreihenfolge, Reset, Capture, Runtimegrenze und Non-Goals.</li>
+        <li>Compile-nahe Konstanten/Tabellen für Präfixlänge, Magic, bestätigte Save-Versionen, Klassen-IDs <code>0…7</code>, Reason-Codes, Default-Pickit-Ketten und Non-Goals ergänzen. Die bestehende kanonische <code>world.CharacterClass</code> um <code>CharacterClassWarlock</code> mit Wert <code>7</code> und die Stringprojektion <code>warlock</code> erweitern; keine zweite Klassen-Enumeration und keine generische D2S-Struktur modellieren.</li>
+        <li>Exakte Quellensuche nach <code>configuredCharacterClass</code>, <code>CharacterReasonUnconfigured</code>, <code>ExpectedClass</code>, direkter Profilableitung, 210×60-Crop und OperatorSettings-Schema dokumentieren, damit jeder später zu entfernende oder bewusst verbleibende Pfad bekannt ist.</li>
+      </ul>
+      <div class="callout gate"><strong>Gate 16.0:</strong> Baseline grün; MrBones, MrHammer und MrBook bestätigen lokal denselben erlaubten D2R-Saveformatvertrag und ihre erwarteten Klassen; MrBook bestätigt zwingend Warlock-ID <code>7</code>; kein Saveartefakt liegt im Repository; der compile-nahe Vertrag enthält alle Autoritäten und verbietet Legacy-Fallback, Vollparser, zweite Persistenz und Combat-Refactor.</div>
+    </div>
+  </section>
+
+  <section class="phase">
+    <div class="phase-id">16.1</div><div><h3>Begrenzter D2S-Präfixleser und revidierbarer Charakterkatalog</h3>
+      <ul>
+        <li>Den Präfixleser klein im Paket <code>internal/app</code> implementieren; ein unexportierter Resulttyp mit Name, SaveVersion und <code>world.CharacterClass</code> genügt.</li>
+        <li>Reader strikt nach Abschnitt 5 implementieren: 41 Byte, Little Endian, Magic, Allowlist, Namenspadding, bestehender Namensvalidator und Klassenmapping.</li>
+        <li>Die bestehende Memory-Identitätsgrenze und alle Obergrenzenprüfungen von Assassin auf Warlock erweitern. D2S und Memory müssen denselben <code>world.CharacterClass</code>-Wert verwenden; Warlock bleibt mangels freigegebenem Kampfprofil fachlich <code>character_class_unsupported</code>.</li>
+        <li><code>readCharacterSaveNames</code> in eine Katalogauflösung erweitern, die pro zulässigem Eintrag isolierte Ergebnisse erzeugt. Reparse-/Nicht-Datei-Ausschluss unverändert bewahren.</li>
+        <li>Reason-Präzedenz und Sichtbarkeit aus Abschnitt 7 exakt testen. Einen defekten Save neben validen Einträgen nicht zum globalen Fehler machen.</li>
+        <li>Prozesslokale Katalogprojektion mit explizitem Reload und Änderungserkennung ergänzen. Revision nur bei kanonisch verändertem Inhalt erhöhen; keine Pfade oder Dateizeiten projizieren.</li>
+        <li>Alte globale <code>configuredCharacterClass</code>-Ableitung aus dem Katalog entfernen. Zu diesem Zwischengate darf ein unterstützter Save mangels Schema-2-Zuordnung noch bewusst <code>character_profile_missing</code> sein.</li>
+      </ul>
+      <div class="callout gate"><strong>Gate 16.1:</strong> Vollständige synthetische Byte-/Dateisystemmatrix grün; jede Datei wird maximal 41 Byte gelesen; unbekannte Formate bleiben sichtbar und fail-closed; kein Katalogeintrag erbt Klasse oder Profil von <code>session.run</code>.</div>
+    </div>
+  </section>
+
+  <section class="phase">
+    <div class="phase-id">16.2</div><div><h3>Profilmetadaten, OperatorSettings Schema 2 und Pickit-Defaults</h3>
+      <ul>
+        <li><code>ProfileConfig</code> minimal um <code>DisplayName</code> und eine kleine <code>ProfileSetupConfig</code> mit <code>Enabled</code>/<code>Default</code> ergänzen; Godoc für exportierte Symbole.</li>
+        <li>Einzel- und klassenweite Validierung aus Abschnitt 8 implementieren. <code>necro_bone_spear</code> in <code>config.example.yaml</code> als „Knochen-Speer“, enabled und default markieren.</li>
+        <li><code>CharacterSetupConfig.PickitDefaults</code> mit exakt Countess-/Mephisto-Ketten ergänzen und beim vollständigen Configload gegen RunRegistry und PickitProfileService validieren.</li>
+        <li>OperatorSettings auf Schema 2 heben, beide Charakterfelder und die Regeln aus Abschnitt 9 ergänzen. Keinen Schema-1-Decoder oder Migrationstest behalten.</li>
+        <li>Allgemeine Settings-Mutationen gegen Änderungen der Setupfelder sperren; Reset explizit bewahrend implementieren und UI-Draft/DTO so führen, dass unveränderte Werte round-trippen.</li>
+        <li>Dedizierte gemeinsame Profilzuordnung für bestehende und während des Prozesses neu gefundene Charaktere implementieren.</li>
+        <li><code>EnsureMissingDefaults</code> nach Abschnitt 11 implementieren; vorhandene Benutzerketten mit Byte-/Strukturvergleich in Tests schützen.</li>
+      </ul>
+      <div class="callout gate"><strong>Gate 16.2:</strong> Configmatrix, Schema-2-Store, Settings-Schreibschutz, Resetbewahrung und Pickit-Idempotenz grün. Ein Default pro freigegebener Klasse ist zwingend; ein allgemeines Settings-Update kann Klasse/Profil nicht manipulieren; Benutzer-Pickit bleibt unverändert.</div>
+    </div>
+  </section>
+
+  <section class="phase">
+    <div class="phase-id">16.3</div><div><h3>Setup-Service, Core-API und sichere Bilderfassung</h3>
+      <ul>
+        <li>Den kleinen exportierten <code>app.CharacterSetupService</code> in <code>internal/app/character_setup.go</code> implementieren. Er besitzt ausschließlich Preview, Confirm und Capture-Orchestrierung über die bestehenden Stores/Runtimebausteine; keine allgemeine Service-/Repository-Schicht einführen.</li>
+        <li>Preview exakt aus frischem Katalog, ProfileConfig, OperatorSettings und PickitAssignments erzeugen; keine UI-Berechnung von Default, Unterstützung oder fehlenden Writes.</li>
+        <li>Confirm mit allen Revision-/Generation-/Idle-Gates und verbindlicher Schreibreihenfolge implementieren. Teilfehler, Re-Read und Retry direkt testen.</li>
+        <li>Capture auf bestehenden Window-, Focus-, Capture-, Character-Screen- und PNG-Bausteinen aufsetzen. Keine zweite Screenshotpipeline und keinen neuen Inputcontroller erstellen.</li>
+        <li>API-Endpunkte, DTOs, OpenAPI-Schema und generierten TypeScript-Client ergänzen. Handgeschriebene parallele TypeScripttypen sind verboten.</li>
+        <li>Ein einziges Katalog-Invalidationsevent nach fachlicher Änderung publizieren; bestehende Eventgrenzen und Slow-Client-Sicherheit erhalten.</li>
+      </ul>
+      <div class="callout gate"><strong>Gate 16.3:</strong> API-/Service-/Capture-Matrix grün; stale Zustände schreiben nichts; Capture sendet außer protokolliertem Fokus keinerlei Input; gültige Belege werden nicht überschrieben; Teilfehler bleiben sicher und per neuem Versuch behebbar.</div>
+    </div>
+  </section>
+
+  <section class="phase">
+    <div class="phase-id">16.4</div><div><h3>Bestehenden Onboarding-Schritt verständlich erweitern</h3>
+      <ul>
+        <li>Bestehende Komponente erweitern, nicht kopieren. Charakterauswahl, Difficulty und „Über Core bestätigen“ bleiben derselbe Flow.</li>
+        <li>Profil-, Default-, Pickit- und Setupstatus ausschließlich aus den generierten DTOs rendern. Bei genau einem Profil kein Dropdown; bei mehreren Core-Default vorauswählen.</li>
+        <li>Zentrale exhaustive Reason-Textfunktion nach Abschnitt 7 aktualisieren. Bestehende Berechnung „unterstützte Klassen = alle Profile“ entfernen.</li>
+        <li>Vier Capture-Schritte und explizite Benutzerbestätigung wortnah aus Abschnitt 14 anzeigen. Keine technischen Begriffe oder Dateipfade.</li>
+        <li>Setup, Capture und Reload mit klaren Busy-, Erfolgs-, Konflikt- und Retry-Zuständen implementieren; der aktuelle Onboarding-Schritt bleibt erhalten.</li>
+        <li>SettingsFeature nur für Schema-2-Roundtrip anpassen; keine editierbare Profil-/Defaultsteuerung hinzufügen.</li>
+        <li>Layout bei 1440×900 und 1100×700 ohne horizontalen Überlauf oder unbeabsichtigte Mehrspaltenlisten prüfen.</li>
+      </ul>
+      <div class="callout gate"><strong>Gate 16.4:</strong> Vitest/jsdom deckt alle Zustände und Texte ab; keine rohe ID wird gerendert; ein Profil erzeugt kein Dropdown; Paladin bietet keine falsche Aktion; Setup und Capture bleiben im selben Schritt; Settings enthält keine Profilwahl.</div>
+    </div>
+  </section>
+
+  <section class="phase">
+    <div class="phase-id">16.5</div><div><h3>Selection-, Queue- und Runtime-Integration</h3>
+      <ul>
+        <li>Selection Preview/Apply auf Headerklasse plus persistiertes Profil umstellen; globale Run-Ableitung vollständig entfernen.</li>
+        <li>Vor dem ersten Character-Screen-Input Saveheader, Katalogrevision, Profilfreigabe und Klasse erneut prüfen.</li>
+        <li>Bestehende Memory-Bestätigung von Name und Klasse unverändert als letzte Spieleintrittsautorität bewahren.</li>
+        <li>Run Availability, Queue Validation und Run-Start um Profil-/Klassen-/Run-Match ergänzen; Pickit weiterhin per AssignmentStore auflösen.</li>
+        <li>CLI-Testmodi charakterisieren und nur dort den bestehenden configgebundenen Profilpfad erhalten, wo OperatorSettings bewusst nicht beteiligt ist.</li>
+        <li>Quelltextaudit beweist: kein produktiver Desktoppfad ruft <code>configuredCharacterClass</code> auf oder rekonstruiert Charakterprofil aus Run/Queue/Route.</li>
+      </ul>
+      <div class="callout gate"><strong>Gate 16.5:</strong> Selection und Memory-Match grün; falsche Klasse oder Profil-/Run-Mismatch stoppen vor Input; fehlendes Pickit sperrt nur den Run; Countess und Mephisto sind mit MrBones syntaktisch/preflight-seitig bereit; CLI-Diagnosepfade regressieren nicht.</div>
+    </div>
+  </section>
+
+  <section class="phase">
+    <div class="phase-id">16.6</div><div><h3>Dokumentation, vollständige Matrix und manuelle Produktabnahme</h3>
+      <ul>
+        <li><code>docs/features/character-setup.md</code> nach Projekttemplate anlegen. Zusätzlich <code>character-selection.md</code>, <code>character-encounter-profiles.md</code>, <code>first-run-onboarding.md</code>, <code>operator-settings.md</code>, <code>pickit-profiles.md</code>, <code>local-core-api.md</code> und betroffene Runtime-Dokumente aktualisieren.</li>
+        <li><code>docs/features/README.md</code>, <code>docs/CHANGELOG.md</code> unter Unreleased/Added+Changed und <code>handoff.html</code> auf reale Symbol-, Endpoint-, Schema- und Gatewerte bringen.</li>
+        <li>Godoc und Designkommentare für Read-only-Grenze, Version-Allowlist, Defaultinvariante, Store-Schreibschutz, Teilfehlerreihenfolge, Resetbewahrung, Benutzerbestätigung und Runtime-Fail-closed prüfen.</li>
+        <li>Dead-Code-Audit: <code>character_unconfigured</code>, globale Klassenableitung, UI-seitige Unterstützungsberechnung, alte Schema-1-Annahmen und nicht mehr benötigte Sondertexte entfernen.</li>
+        <li>Goimports/gofmt, vollständige Go-Tests, <code>go vet</code>, <code>go test ./...</code>, <code>go build ./cmd/d2rbot</code>, Windows-Build, Lint, OpenAPI-Generierungscheck, Vitest, beide Typechecks, Web-/Electron-Produktionsbuild ausführen.</li>
+        <li>UCRT64-Race nur ausführen, wenn Phase 16 neue Nebenläufigkeit, Locks oder Goroutines eingeführt hat. Ein expliziter synchroner Reload allein begründet keinen Race-Lauf.</li>
+        <li>Keinen vollständigen Installer-Smoke ausführen, solange Packaging und Installer unverändert sind.</li>
+      </ul>
+      <div class="callout gate"><strong>Gate 16.6:</strong> Automatische Matrix grün, Dokumentation widerspruchsfrei und manuelles Gate A–D vollständig protokolliert. Erst danach Phase 16 im Handoff als abgeschlossen markieren.</div>
+    </div>
+  </section>
+
+  <h2>18. Manuelle Abnahme im frischen installierten Produkt</h2>
+  <table><thead><tr><th>Gate</th><th>Vorbereitung und Schritte</th><th>Erwartetes Ergebnis</th></tr></thead><tbody>
+    <tr><td>A – frischer Root und Erkennung</td><td>App erst jetzt vollständig deinstallieren, im Uninstaller App-Daten entfernen und prüfen, dass <code>%LOCALAPPDATA%\D2ROfflineFarmingBot</code> fehlt. Neu installieren/provisionieren, D2R starten und Charaktere neu laden.</td><td>MrBones erscheint als Totenbeschwörer mit „Knochen-Speer“ und Setupbedarf. MrHammer erscheint als Paladin mit ausschließlich „Diese Klasse wird noch nicht unterstützt“. Keine rohe ID.</td></tr>
+    <tr><td>B – Setup und Bildbeleg</td><td>MrBones einrichten; Pickit-Vorschau prüfen. D2R Offline-Auswahl öffnen, MrBones markieren, markiert lassen, zur App zurückkehren, Bestätigung lesen und „Auswahl erfassen“ klicken.</td><td>OperatorSettings enthält Klasse/Profil; beide fehlenden Pickit-Ketten sind exakt ergänzt; PNG ist 210×60; kein Home/Down/Play wurde bei Capture gesendet; Charakter wird anschließend auswählbar.</td></tr>
+    <tr><td>C – Auswahl, Neustart und Preflight</td><td>MrBones über den bestehenden Core-Flow auswählen, Spieleintritt abwarten, zurückkehren, App/Core geordnet neu starten und Katalog/Settings erneut prüfen. Mephisto-Queuepreflight ausführen.</td><td>Memory bestätigt Name und Necromancer; Setup überlebt Neustart; kein erneuter Setup-/Capturebedarf; Mephisto verwendet <code>[gems, mephisto-standard]</code> und erreicht grünen Preflight ohne Farmingpflicht.</td></tr>
+    <tr><td>D – vollständiger Countess-Run</td><td>Countess als einzigen Queueeintrag starten und einen vollständigen echten Run einschließlich Kill, Lootpolicy, Town-Handoff und geordnetem Save &amp; Exit ausführen.</td><td>Profil <code>necro_bone_spear</code> und Countess-Pickitkette sind im Run-Snapshot/Log korrekt korreliert; kein Setup- oder Availability-Regression; zufälliger Loot ist kein Erfolgskriterium.</td></tr>
+  </tbody></table>
+  <p>Bei einem Gatefehler wird nicht „zur Sicherheit“ manuell in YAML oder PNG nachgebessert. Zuerst werden Coregrund, Revisionen, Katalogprojektion und atomare Storestände diagnostiziert. Nach einem Fix beginnt nur das betroffene Gate neu, sofern der erforderliche Ausgangszustand noch nachweislich unverändert ist; andernfalls wird der frische Root erneut hergestellt.</p>
+
+  <h2>19. Definition of Done</h2>
+  <ol>
+    <li>Der produktive Reader öffnet zulässige Saves ausschließlich read-only und liest nie mehr als 41 Byte.</li>
+    <li>Magic, empirisch bestätigte Save-Version, Name und Klassen-ID werden strikt validiert; unbekannte Werte bleiben fail-closed.</li>
+    <li>Keine echte Save-, Hexdump- oder Screenshotfixture wurde neu versioniert.</li>
+    <li>Alle acht aktuellen D2R-Klassen einschließlich Warlock mit ID <code>7</code> werden erkannt; nur ausdrücklich freigegebene Profile definieren Produktunterstützung.</li>
+    <li><code>necro_bone_spear</code> ist als „Knochen-Speer“, enabled und einziger Necromancer-Default konfiguriert.</li>
+    <li>Pro Klasse mit freigegebenen Profilen erzwingt der Configloader exakt einen Entwickler-Default.</li>
+    <li>Es gibt kein separates Klassenmapping und keine UI zur Defaultkonfiguration.</li>
+    <li>OperatorSettings Schema 2 speichert Klasse und Profil gemeinsam; Schema 1 und Legacy-Fallback werden nicht unterstützt.</li>
+    <li>Allgemeine Settings-Mutationen können Setupfelder nicht verändern; Reset bewahrt sie.</li>
+    <li>PickitDefaults ergänzen ausschließlich fehlende Countess-/Mephisto-Ketten und verändern keine Benutzerkette.</li>
+    <li>Setup ist über Storegrenzen idempotent; Teilfehler bleiben sicher, sichtbar und ohne Rollbackframework wiederholbar.</li>
+    <li>Ein Charakter ist unabhängig von Pickit auswählbar, sobald Header, Klasse, Profil und Bildbelege valide sind; jeder Run prüft Pickit separat.</li>
+    <li>Capture verwendet vorhandene Core-Safety-, Focus-, Screen- und PNG-Bausteine, sendet kein Navigationsinput und überschreibt keinen gültigen Beleg.</li>
+    <li>Der Benutzer bestätigt in einfacher Sprache ausdrücklich den aktuell markierten Namen.</li>
+    <li>Kein UI-Pfad zeigt rohe Reason-Codes, Profil-IDs, Dateipfade oder Technikvokabular.</li>
+    <li>Ein Profil erzeugt kein Dropdown; mehrere synthetische freigegebene Profile verwenden den Core-Default.</li>
+    <li>Die normale Settings-Seite enthält keine Profil-/Defaultauswahl; Handoff und Feature-Dokumente sagen dasselbe.</li>
+    <li>Expliziter Reload findet neue Saves ohne App-Neustart; kein Watcher oder Headercache existiert.</li>
+    <li>Selection verwendet persistierte Charakterklasse/-profil und bestätigt Name/Klasse weiterhin über Memory.</li>
+    <li>Run-Preflight lehnt Profil-/Klassen-/Run-Mismatch vor Input ab und verwendet Pickit ausschließlich aus Assignments.</li>
+    <li>Die alte globale Ableitung aus <code>session.run</code> und <code>character_unconfigured</code> sind aus produktiven Pfaden entfernt.</li>
+    <li>OpenAPI und generierter TypeScript-Client sind aktuell; es existieren keine parallelen handgeschriebenen DTOs.</li>
+    <li>Godoc, Designkommentare, Feature-Dokumente, Index, Changelog und Handoff entsprechen dem ausgelieferten Verhalten.</li>
+    <li>Normale Go-/Web-/OpenAPI-/Lint-/Windows-/Electron-Matrix ist grün; Race und Installer-Smoke folgen den ausdrücklich begrenzten Regeln.</li>
+    <li>Manuelle Gates A–D einschließlich vollständigem Countess-Run und Mephisto-Preflight sind dokumentiert grün.</li>
+  </ol>
+
+  <h2>20. Bewusste Übergaben nach Phase 16</h2>
+  <ul>
+    <li><strong>Zweites echtes Kampfprofil:</strong> Erst dann normale Settings-Auswahl und Wechselworkflow bewerten. Das Onboarding-Dropdown und der Entwickler-Default liefern bereits die notwendige Produktsemantik, aber keine vorsorgliche Parameterarchitektur.</li>
+    <li><strong>Combat-Entkopplung:</strong> Wenn mehrere Builds denselben Run unterstützen sollen, Angriffsskill, Timing und weitere buildabhängige Werte gezielt aus der Run-Konfiguration lösen. Phase 16 verwendet bis dahin den einfachen Profil-/Run-Match.</li>
+    <li><strong>Weitere Klasse:</strong> Erst nach vollständig implementiertem Combat und Run-Validierung ein Profil mit <code>setup.enabled: true</code> freigeben. Das Klassen-ID-Mapping allein genügt nicht.</li>
+    <li><strong>Anker neu erfassen:</strong> Nur bei realem Bedarf einen bewusst bestätigten Replace-Flow entwerfen. Phase 16 ersetzt ausschließlich fehlende oder formal ungültige Belege.</li>
+    <li><strong>Weitere Save-Version:</strong> Erst nach read-only Charakterisierung realer D2R-Saves die Allowlist und synthetischen Fixtures erweitern; niemals tolerant durchreichen.</li>
+  </ul>
+
+  <footer>Planungsstand: 27. Juli 2026 · Produktentscheidungen vollständig geklärt · Umsetzung noch nicht begonnen · KISS/YAGNI verbindlich</footer>
+</main></body>
+</html>
