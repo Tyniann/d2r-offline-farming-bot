@@ -62,6 +62,25 @@ func TestLayoutTownWaypointWalkerReusesConfirmedWaypointHandoff(t *testing.T) {
 	}
 }
 
+func TestLayoutTownWaypointWalkerDoesNotReuseHandoffAfterWalkStarted(t *testing.T) {
+	// Once town walking has started, proximity alone must not short-circuit
+	// acquire: that caused open/select while Force Move was still carrying the
+	// character past the waypoint.
+	adapter := &townPreparationAdapter{
+		log:     config.NewLogger("error"),
+		pathCfg: pathing.DefaultConfig(),
+		started: true,
+	}
+	state := preparationState(world.Position{X: 80, Y: 70}, time.Now(), true)
+	result := (&layoutTownWaypointWalker{adapter: adapter}).TickAct1Waypoint(context.Background(), state)
+	if result.Status == pathing.TownWalkWaypointVisible {
+		t.Fatalf("mid-walk handoff reused: %+v", result)
+	}
+	if result.Status != pathing.TownWalkRouteMissing || result.Reason != "town_preparation_state_invalid" || !result.Done {
+		t.Fatalf("expected Tick failure after started walk, got %+v", result)
+	}
+}
+
 func TestTownPreparationPortalStartUsesNearbyPortalProof(t *testing.T) {
 	cfg := pathing.DefaultConfig()
 	adapter := &townPreparationAdapter{pathCfg: cfg, startAnchor: town.AnchorPortalArrival}
