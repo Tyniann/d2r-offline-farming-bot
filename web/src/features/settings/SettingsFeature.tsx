@@ -158,7 +158,7 @@ export function SettingsFeature({ generation, coreState, characters, runs, event
   }
 
   return <>
-    {!mutable && <StateMessage kind="error" title="Änderungen sind während einer Session gesperrt">Vorschau, Speichern und Reset sind erst im inaktiven Corezustand möglich.</StateMessage>}
+    {!mutable && <StateMessage kind="error" title="Diese Einstellungen sind gesperrt">Die Felder und Speicheraktionen sind derzeit nicht änderbar. Speichern ist erst wieder möglich, wenn der Core vollständig inaktiv ist.</StateMessage>}
     {stale && <div className="settings-feedback"><StateMessage kind="error" title="Revision ist veraltet">Lade den aktuellen Core-Stand neu, bevor du erneut änderst.</StateMessage><Button variant="secondary" onClick={() => void load()}>Aktuellen Stand laden</Button></div>}
     {error && !stale && <StateMessage kind="error" title="Änderung fehlgeschlagen">{error}</StateMessage>}
     {message && <div className="settings-success" role="status"><strong>{message}</strong></div>}
@@ -188,34 +188,34 @@ export function SettingsFeature({ generation, coreState, characters, runs, event
       <div className="section-heading"><div><p className="eyebrow">Charakter</p><h2>Queue und Schwierigkeit</h2></div><StatusBadge tone="neutral">Revision {settings.revision}</StatusBadge></div>
       {characterNames.length === 0 || !characterSettings ? <StateMessage kind="empty" title="Keine Charakterwerte">Der Core hat noch keine charakterbezogenen Operatorwerte geliefert.</StateMessage> : <>
         <div className="settings-grid two-columns">
-          <label>Charakter<select value={selectedCharacter} onChange={(event) => setSelectedCharacter(event.target.value)}>{characterNames.map((name) => <option key={name} value={name}>{name}</option>)}</select></label>
-          <label>Letzte Schwierigkeit<select value={characterSettings.last_difficulty} onChange={(event) => changeDraft((next) => { next.characters[selectedCharacter].last_difficulty = event.target.value as "normal" | "nightmare" | "hell"; return next; })}><option value="normal">Normal</option><option value="nightmare">Alptraum</option><option value="hell">Hölle</option></select></label>
+          <label>Charakter<select value={selectedCharacter} onChange={(event) => setSelectedCharacter(event.target.value)} disabled={!mutable}>{characterNames.map((name) => <option key={name} value={name}>{name}</option>)}</select></label>
+          <label>Letzte Schwierigkeit<select value={characterSettings.last_difficulty} disabled={!mutable} onChange={(event) => changeDraft((next) => { next.characters[selectedCharacter].last_difficulty = event.target.value as "normal" | "nightmare" | "hell"; return next; })}><option value="normal">Normal</option><option value="nightmare">Alptraum</option><option value="hell">Hölle</option></select></label>
         </div>
-        <ol className="queue-list settings-queue">{characterSettings.queue.map((runID, index) => <li key={runID}><span>{index + 1}</span><strong>{runs.find((run) => run.id === runID)?.label ?? runID}</strong><div className="queue-actions"><Button variant="secondary" aria-label={`${runID} nach oben`} disabled={index === 0} onClick={() => changeDraft((next) => { next.characters[selectedCharacter].queue = move(next.characters[selectedCharacter].queue, index, index - 1); return next; })}>↑</Button><Button variant="secondary" aria-label={`${runID} nach unten`} disabled={index === characterSettings.queue.length - 1} onClick={() => changeDraft((next) => { next.characters[selectedCharacter].queue = move(next.characters[selectedCharacter].queue, index, index + 1); return next; })}>↓</Button><Button variant="secondary" onClick={() => changeDraft((next) => { next.characters[selectedCharacter].queue = next.characters[selectedCharacter].queue.filter((entry) => entry !== runID); return next; })}>Entfernen</Button></div></li>)}</ol>
-        <div className="inline-actions"><label>Run hinzufügen<select value={queueCandidate} onChange={(event) => setQueueCandidate(event.target.value)}><option value="">Bitte wählen</option>{runs.filter((run) => !characterSettings.queue.includes(run.id)).map((run) => <option key={run.id} value={run.id}>{run.label}</option>)}</select></label><Button variant="secondary" disabled={!queueCandidate} onClick={() => { changeDraft((next) => { if (!next.characters[selectedCharacter].queue.includes(queueCandidate)) next.characters[selectedCharacter].queue.push(queueCandidate); return next; }); setQueueCandidate(""); }}>Hinzufügen</Button></div>
+        <ol className="queue-list settings-queue">{characterSettings.queue.map((runID, index) => <li key={runID}><span>{index + 1}</span><strong>{runs.find((run) => run.id === runID)?.label ?? runID}</strong><div className="queue-actions"><Button variant="secondary" aria-label={`${runID} nach oben`} disabled={!mutable || index === 0} onClick={() => changeDraft((next) => { next.characters[selectedCharacter].queue = move(next.characters[selectedCharacter].queue, index, index - 1); return next; })}>↑</Button><Button variant="secondary" aria-label={`${runID} nach unten`} disabled={!mutable || index === characterSettings.queue.length - 1} onClick={() => changeDraft((next) => { next.characters[selectedCharacter].queue = move(next.characters[selectedCharacter].queue, index, index + 1); return next; })}>↓</Button><Button variant="secondary" disabled={!mutable} onClick={() => changeDraft((next) => { next.characters[selectedCharacter].queue = next.characters[selectedCharacter].queue.filter((entry) => entry !== runID); return next; })}>Entfernen</Button></div></li>)}</ol>
+        <div className="inline-actions"><label>Run hinzufügen<select value={queueCandidate} disabled={!mutable} onChange={(event) => setQueueCandidate(event.target.value)}><option value="">Bitte wählen</option>{runs.filter((run) => !characterSettings.queue.includes(run.id)).map((run) => <option key={run.id} value={run.id}>{run.label}</option>)}</select></label><Button variant="secondary" disabled={!mutable || !queueCandidate} onClick={() => { changeDraft((next) => { if (!next.characters[selectedCharacter].queue.includes(queueCandidate)) next.characters[selectedCharacter].queue.push(queueCandidate); return next; }); setQueueCandidate(""); }}>Hinzufügen</Button></div>
       </>}
     </section>
 
     <section>
       <div className="section-heading"><div><p className="eyebrow">Sicherheit</p><h2>Budgets, Input und Hotkeys</h2></div></div>
       <div className="settings-grid four-columns">
-        <NumberField label="Maximale Runs" value={draft.budgets.max_runs} onChange={(value) => changeDraft((next) => { next.budgets.max_runs = value; return next; })} />
-        <NumberField label="Maximale Dauer (ms)" value={draft.budgets.max_duration_ms} onChange={(value) => changeDraft((next) => { next.budgets.max_duration_ms = value; return next; })} />
-        <NumberField label="Fehler in Folge" value={draft.budgets.max_consecutive_failures} onChange={(value) => changeDraft((next) => { next.budgets.max_consecutive_failures = value; return next; })} />
-        <NumberField label="Gesamte Restarts" value={draft.budgets.max_total_restarts} onChange={(value) => changeDraft((next) => { next.budgets.max_total_restarts = value; return next; })} />
+        <NumberField label="Maximale Runs" value={draft.budgets.max_runs} disabled={!mutable} onChange={(value) => changeDraft((next) => { next.budgets.max_runs = value; return next; })} />
+        <NumberField label="Maximale Dauer (ms)" value={draft.budgets.max_duration_ms} disabled={!mutable} onChange={(value) => changeDraft((next) => { next.budgets.max_duration_ms = value; return next; })} />
+        <NumberField label="Fehler in Folge" value={draft.budgets.max_consecutive_failures} disabled={!mutable} onChange={(value) => changeDraft((next) => { next.budgets.max_consecutive_failures = value; return next; })} />
+        <NumberField label="Gesamte Restarts" value={draft.budgets.max_total_restarts} disabled={!mutable} onChange={(value) => changeDraft((next) => { next.budgets.max_total_restarts = value; return next; })} />
       </div>
-      <label className="check"><input type="checkbox" checked={draft.input.enabled} onChange={(event) => changeDraft((next) => { next.input.enabled = event.target.checked; return next; })} /> Gameplay-Input ausdrücklich freigeben</label>
+      <label className="check"><input type="checkbox" checked={draft.input.enabled} disabled={!mutable} onChange={(event) => changeDraft((next) => { next.input.enabled = event.target.checked; return next; })} /> Gameplay-Input ausdrücklich freigeben</label>
       <div className="settings-grid four-columns">
-        <TextField label="Pause" value={draft.input.pause_hotkey} onChange={(value) => changeDraft((next) => { next.input.pause_hotkey = value; return next; })} />
-        <TextField label="Stop nach Run" value={draft.input.stop_after_run_hotkey} onChange={(value) => changeDraft((next) => { next.input.stop_after_run_hotkey = value; return next; })} />
-        <TextField label="Aufnahme beenden" value={draft.input.recording_finish_hotkey} onChange={(value) => changeDraft((next) => { next.input.recording_finish_hotkey = value; return next; })} />
-        <TextField label="Emergency Stop" value={draft.input.emergency_stop_hotkey} onChange={(value) => changeDraft((next) => { next.input.emergency_stop_hotkey = value; return next; })} />
+        <TextField label="Pause" value={draft.input.pause_hotkey} disabled={!mutable} onChange={(value) => changeDraft((next) => { next.input.pause_hotkey = value; return next; })} />
+        <TextField label="Stop nach Run" value={draft.input.stop_after_run_hotkey} disabled={!mutable} onChange={(value) => changeDraft((next) => { next.input.stop_after_run_hotkey = value; return next; })} />
+        <TextField label="Aufnahme beenden" value={draft.input.recording_finish_hotkey} disabled={!mutable} onChange={(value) => changeDraft((next) => { next.input.recording_finish_hotkey = value; return next; })} />
+        <TextField label="Emergency Stop" value={draft.input.emergency_stop_hotkey} disabled={!mutable} onChange={(value) => changeDraft((next) => { next.input.emergency_stop_hotkey = value; return next; })} />
       </div>
     </section>
 
     <section>
       <div className="section-heading"><div><p className="eyebrow">Historie</p><h2>Aufbewahrung</h2></div></div>
-      <div className="settings-grid two-columns"><label className="check"><input type="checkbox" checked={draft.history.retention_enabled} onChange={(event) => changeDraft((next) => { next.history.retention_enabled = event.target.checked; return next; })} /> Automatische Retention aktiv</label><NumberField label="Retention in Tagen" value={draft.history.retention_days} onChange={(value) => changeDraft((next) => { next.history.retention_days = value; return next; })} /></div>
+      <div className="settings-grid two-columns"><label className="check"><input type="checkbox" checked={draft.history.retention_enabled} disabled={!mutable} onChange={(event) => changeDraft((next) => { next.history.retention_enabled = event.target.checked; return next; })} /> Automatische Retention aktiv</label><NumberField label="Retention in Tagen" value={draft.history.retention_days} disabled={!mutable} onChange={(value) => changeDraft((next) => { next.history.retention_days = value; return next; })} /></div>
       <div className="danger-zone"><h3>Gesamte Historie löschen</h3><p>Die Vorschau umfasst alle direkten JSONL-Kategorien. Aktive Writer bleiben auch nach der zweiten Bestätigung geschützt. Es gibt weder Papierkorb noch Telemetriebackup.</p><Button variant="danger" onClick={() => void previewDeleteHistory()} disabled={!mutable || busy}>Löschvorschau erstellen</Button></div>
     </section>
 
@@ -247,12 +247,12 @@ export function SettingsFeature({ generation, coreState, characters, runs, event
   </>;
 }
 
-function NumberField({ label, value, onChange }: { label: string; value: number; onChange: (value: number) => void }) {
-  return <label>{label}<input type="number" min={1} step={1} value={value} onChange={(event) => onChange(Number(event.target.value))} /></label>;
+function NumberField({ label, value, onChange, disabled }: { label: string; value: number; onChange: (value: number) => void; disabled?: boolean }) {
+  return <label>{label}<input type="number" min={1} step={1} value={value} disabled={disabled} onChange={(event) => onChange(Number(event.target.value))} /></label>;
 }
 
-function TextField({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
-  return <label>{label}<input value={value} onChange={(event) => onChange(event.target.value)} /></label>;
+function TextField({ label, value, onChange, disabled }: { label: string; value: string; onChange: (value: string) => void; disabled?: boolean }) {
+  return <label>{label}<input value={value} disabled={disabled} onChange={(event) => onChange(event.target.value)} /></label>;
 }
 
 function cloneSettings(settings: OperatorSettingsDTO): OperatorSettingsDTO {

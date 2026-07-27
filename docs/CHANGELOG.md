@@ -7,7 +7,11 @@ Versionierung nach [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+- Raise the default run `step_timeout_ms` from 30s to 45s so longer Hell boss engages like Mephisto are less likely to abort at kill confirmation
+
 ### Fixed
+- Keep operator-settings fields disabled together with a clear lock notice whenever the Core is not fully inactive
 - Retry one distance-ignoring item teleport after `hover_not_found` or `pickup_failed` so Bone-Prison and similar blockers cannot skip reachable loot
 - Keep Act-1 town waypoint handoff reuse as a cold-start skip only, so mid-walk Force Move cannot open or select the waypoint while still sliding past it
 

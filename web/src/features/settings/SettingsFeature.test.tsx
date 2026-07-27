@@ -83,12 +83,21 @@ describe("SettingsFeature", () => {
     expect(screen.getByRole("button", { name: "Aktuellen Stand laden" })).toBeInTheDocument();
   });
 
-  it("sperrt Mutationen während einer aktiven Session", async () => {
-    render(<SettingsFeature generation={12} coreState="running_run" characters={["mrbones"]} runs={[{ id: "countess", label: "Countess" }]} events={[]} />);
-    expect(await screen.findByText("Änderungen sind während einer Session gesperrt")).toBeInTheDocument();
+  it("zeigt Sperrhinweis und gesperrte Felder außerhalb des inaktiven Corezustands", async () => {
+    render(<SettingsFeature generation={12} coreState="idle_in_game" characters={["mrbones"]} runs={[{ id: "countess", label: "Countess" }]} events={[]} />);
+    expect(await screen.findByText("Diese Einstellungen sind gesperrt")).toBeInTheDocument();
+    expect(screen.getByText(/Die Felder und Speicheraktionen sind derzeit nicht änderbar/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Änderungen prüfen" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Sichere Defaults vorschauen" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Löschvorschau erstellen" })).toBeDisabled();
+    expect(screen.getByLabelText("Maximale Runs")).toBeDisabled();
+  });
+
+  it("zeigt keinen Sperrhinweis und lässt Felder im inaktiven Zustand zu", async () => {
+    renderFeature();
+    expect(await screen.findByLabelText("Maximale Runs")).toBeEnabled();
+    expect(screen.queryByText("Diese Einstellungen sind gesperrt")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Änderungen prüfen" })).toBeEnabled();
   });
 
   it("löscht Historie nur über metadatengebundene zweite Bestätigung", async () => {

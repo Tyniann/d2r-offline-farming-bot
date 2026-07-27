@@ -274,7 +274,7 @@ func (c RunsConfig) LegacyRouteIDs() map[string]string {
 
 func (c *RunsConfig) applyDefaults() {
 	if c.StepTimeoutMs == 0 {
-		c.StepTimeoutMs = 30000
+		c.StepTimeoutMs = 45000
 	}
 	if c.Definitions == nil {
 		c.Definitions = map[string]RunConfig{}

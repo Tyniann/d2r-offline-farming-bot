@@ -104,7 +104,7 @@ input:
 runs:
   # countess | mephisto | leer — stabile IDs aus der Run Registry.
   active: ""
-  step_timeout_ms: 30000
+  step_timeout_ms: 45000
   definitions:
     countess:
       combat:

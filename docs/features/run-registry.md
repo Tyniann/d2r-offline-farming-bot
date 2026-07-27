@@ -29,7 +29,7 @@ Countess besitzt eine `boss_engage`-Aktion, verlangt wegen ihrer geteilten Dark-
 ```yaml
 runs:
   active: ""
-  step_timeout_ms: 30000
+  step_timeout_ms: 45000
   definitions:
     countess:
       route_id: "..."

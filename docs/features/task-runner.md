@@ -38,7 +38,7 @@ Zwei Abschluss-Mechanismen (nicht vermischen):
 
 | Mechanismus | Verwendung |
 |-------------|------------|
-| **Zeit-Timeout** (`step_timeout_ms`, Default 30000) | Warte-Steps auf Zustandsänderung |
+| **Zeit-Timeout** (`step_timeout_ms`, Default 45000) | Warte-Steps auf Zustandsänderung |
 | **Tick-Zähler** (`ticksInStep`) | Deterministische kurze Steps, wenn ein Run sie explizit markiert |
 | **Sofort-Fail** | Bedingung klar verletzt -> sofort `task step failed` |
 

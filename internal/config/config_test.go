@@ -82,8 +82,8 @@ func TestLoadExampleConfig(t *testing.T) {
 	if cfg.Input.RecordingFinishHotkey != "f9" || cfg.Input.StopHotkey != "f11" {
 		t.Errorf("recording/stop hotkeys = %q/%q, want f9/f11", cfg.Input.RecordingFinishHotkey, cfg.Input.StopHotkey)
 	}
-	if cfg.Runs.StepTimeoutMs != 30000 {
-		t.Errorf("Runs.StepTimeoutMs = %d, want 30000", cfg.Runs.StepTimeoutMs)
+	if cfg.Runs.StepTimeoutMs != 45000 {
+		t.Errorf("Runs.StepTimeoutMs = %d, want 45000", cfg.Runs.StepTimeoutMs)
 	}
 	if countess.Combat.Profile != "necro_bone_spear" {
 		t.Errorf("Countess combat profile = %q, want necro_bone_spear", countess.Combat.Profile)
@@ -611,8 +611,8 @@ process:
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.Runs.StepTimeoutMs != 30000 {
-		t.Fatalf("StepTimeoutMs = %d, want 30000", cfg.Runs.StepTimeoutMs)
+	if cfg.Runs.StepTimeoutMs != 45000 {
+		t.Fatalf("StepTimeoutMs = %d, want 45000", cfg.Runs.StepTimeoutMs)
 	}
 	if cfg.Runs.Active != "" {
 		t.Fatalf("Active = %q, want empty", cfg.Runs.Active)
