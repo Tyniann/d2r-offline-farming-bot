@@ -48,7 +48,7 @@ func TestReadIdentityProbeUsesKnownPlayerSources(t *testing.T) {
 	}
 }
 
-func TestReadIdentityProbeRejectsUnknownClass(t *testing.T) {
+func TestReadIdentityProbeAcceptsWarlockAndRejectsUnknownClass(t *testing.T) {
 	access, probe, _ := setupProbeMock(t)
 	off := testOffsetSet()
 	const player = uintptr(0x20000)
@@ -60,6 +60,11 @@ func TestReadIdentityProbeRejectsUnknownClass(t *testing.T) {
 	writeU32(access, player+identityPlayerClassOffset, 7)
 
 	got := probe.readIdentityProbe(player, off)
+	if !got.Valid || got.ClassID != 7 {
+		t.Fatalf("warlock readIdentityProbe() = %+v", got)
+	}
+	writeU32(access, player+identityPlayerClassOffset, 8)
+	got = probe.readIdentityProbe(player, off)
 	if got.Valid || got.Reason != "character_class_invalid" {
 		t.Fatalf("readIdentityProbe() = %+v", got)
 	}

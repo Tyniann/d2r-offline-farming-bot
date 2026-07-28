@@ -46,8 +46,13 @@ func (rt *Runtime) runGuidedRouteRecord(runID tasks.RunID, difficultyLabel, expe
 	if err != nil {
 		return fmt.Errorf("recording assignment snapshot: %w", err)
 	}
-	expectedClass := configuredCharacterClass(rt.Config)
-	if expectedClass == "" {
+	// Der bestehende Recordingpfad arbeitet bis zur charakterbezogenen
+	// Runtime-Umstellung in 16.5 weiterhin ausdrücklich mit der Run-Config.
+	// Diese Ableitung darf nicht in den Charakterkatalog zurückfließen.
+	runConfig, runConfigured := rt.Config.Runs.Run(string(runID))
+	profile, profileConfigured := rt.Config.Profiles[runConfig.Combat.Profile]
+	expectedClass := profile.CharacterClass
+	if !runConfigured || !profileConfigured || expectedClass == "" {
 		return fmt.Errorf("guided recording requires configured character class")
 	}
 	if expectedCharacter == "" {

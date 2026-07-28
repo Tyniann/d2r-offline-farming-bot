@@ -48,7 +48,7 @@ Die Pipeline führt mit frozen Lockfile nacheinander Clientgeneration, alle Vite
 1. per-user Silent-Install in einen eindeutigen Workspace-Tempordner;
 2. Start der installierten App gegen einen nachweislich noch nicht existierenden Datenroot und Auswahl „Neu“ in derselben React-Shell;
 3. frische Core-Provisionierung aus den installierten Defaults und anschließender Start der echten React-Shell mit realem Core;
-4. App-, Core- und Sidebarversionsvergleich ohne `dev`;
+4. App-, Core- und Sidebarversionsvergleich ohne `dev` sowie frische Provisionierung mit beiden globalen UI-Belegen, aber ohne namensgebundenen Charakterbeleg;
 5. erneute Installation als Upgrade bei unverändertem Datenroot;
 6. Silent-Uninstall mit nachgewiesen erhaltenem Datenroot.
 

@@ -3,16 +3,31 @@ package config
 import (
 	"fmt"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 )
 
 // ProfilesConfig maps stable profile IDs to character and encounter behavior.
 type ProfilesConfig map[string]ProfileConfig
 
-// ProfileConfig defines class-gated hooks and in-run resource policies.
+// ProfileConfig defines class-gated hooks, setup metadata and in-run resource policies.
 type ProfileConfig struct {
 	CharacterClass string                 `yaml:"character_class"`
+	DisplayName    string                 `yaml:"display_name,omitempty"`
+	Setup          ProfileSetupConfig     `yaml:"setup,omitempty"`
 	Hooks          ProfileHooksConfig     `yaml:"hooks"`
 	Resources      ProfileResourcesConfig `yaml:"resources"`
+}
+
+// ProfileSetupConfig steuert die explizite Freigabe und den Entwickler-Default im Charakter-Setup.
+type ProfileSetupConfig struct {
+	Enabled bool `yaml:"enabled"`
+	Default bool `yaml:"default"`
+}
+
+// CharacterSetupConfig enthält die festen Pickit-Defaultketten für neue Charakterzuordnungen.
+type CharacterSetupConfig struct {
+	PickitDefaults map[string][]string `yaml:"pickit_defaults"`
 }
 
 // ProfileHooksConfig groups semantic hook actions by lifecycle event.
@@ -56,6 +71,8 @@ func (c *ProfilesConfig) applyDefaults() {
 	}
 	(*c)["necro_bone_spear"] = ProfileConfig{
 		CharacterClass: "necromancer",
+		DisplayName:    "Knochen-Speer",
+		Setup:          ProfileSetupConfig{Enabled: true, Default: true},
 		Hooks: ProfileHooksConfig{
 			TownReady:  []ProfileActionConfig{{Skill: "bone_armor", Target: "self", OncePerGame: true, DelayMs: 5000, SettleMs: 1500}},
 			BossEngage: []ProfileActionConfig{{Skill: "bone_prison", Target: "boss", OncePerEncounter: true, DelayMs: 750, SettleMs: 1500}},
@@ -69,13 +86,94 @@ func (c *ProfilesConfig) applyDefaults() {
 	}
 }
 
+func (c *CharacterSetupConfig) applyDefaults() {
+	if c.PickitDefaults != nil {
+		return
+	}
+	c.PickitDefaults = map[string][]string{
+		"countess": {"gems", "keys", "countess-standard"},
+		"mephisto": {"gems", "mephisto-standard"},
+	}
+}
+
+func (c CharacterSetupConfig) validate() error {
+	if c.PickitDefaults == nil {
+		return fmt.Errorf("character_setup.pickit_defaults is required")
+	}
+	for rawRunID, profiles := range c.PickitDefaults {
+		runID := strings.TrimSpace(rawRunID)
+		if runID == "" || runID != rawRunID {
+			return fmt.Errorf("character_setup.pickit_defaults contains a non-canonical run id")
+		}
+		if len(profiles) == 0 {
+			return fmt.Errorf("character_setup.pickit_defaults.%s must not be empty", runID)
+		}
+		seen := make(map[string]struct{}, len(profiles))
+		for _, rawProfileID := range profiles {
+			profileID := strings.TrimSpace(rawProfileID)
+			if profileID == "" || profileID != rawProfileID {
+				return fmt.Errorf("character_setup.pickit_defaults.%s contains a non-canonical profile id", runID)
+			}
+			if _, duplicate := seen[profileID]; duplicate {
+				return fmt.Errorf("character_setup.pickit_defaults.%s contains duplicate profile %q", runID, profileID)
+			}
+			seen[profileID] = struct{}{}
+		}
+	}
+	return nil
+}
+
+func (c ProfilesConfig) validateSetupMetadata() error {
+	enabledByClass := map[string]int{}
+	defaultsByClass := map[string]int{}
+	for id, profileCfg := range c {
+		if strings.TrimSpace(id) == "" || strings.TrimSpace(id) != id {
+			return fmt.Errorf("combat_profiles contains a non-canonical profile id")
+		}
+		if !supportedProfileClass(profileCfg.CharacterClass) {
+			return fmt.Errorf("combat_profiles.%s.character_class is unsupported", id)
+		}
+		if profileCfg.DisplayName != "" {
+			if profileCfg.DisplayName != strings.TrimSpace(profileCfg.DisplayName) {
+				return fmt.Errorf("combat_profiles.%s.display_name must be trimmed", id)
+			}
+			if utf8.RuneCountInString(profileCfg.DisplayName) > 64 {
+				return fmt.Errorf("combat_profiles.%s.display_name must contain at most 64 characters", id)
+			}
+			for _, value := range profileCfg.DisplayName {
+				if unicode.IsControl(value) {
+					return fmt.Errorf("combat_profiles.%s.display_name must not contain control characters", id)
+				}
+			}
+		}
+		if profileCfg.Setup.Default && !profileCfg.Setup.Enabled {
+			return fmt.Errorf("combat_profiles.%s.setup.default requires setup.enabled", id)
+		}
+		if !profileCfg.Setup.Enabled {
+			continue
+		}
+		if profileCfg.DisplayName == "" {
+			return fmt.Errorf("combat_profiles.%s.display_name is required for setup.enabled", id)
+		}
+		enabledByClass[profileCfg.CharacterClass]++
+		if profileCfg.Setup.Default {
+			defaultsByClass[profileCfg.CharacterClass]++
+		}
+	}
+	for class, count := range enabledByClass {
+		if count > 0 && defaultsByClass[class] != 1 {
+			return fmt.Errorf("combat_profiles class %s must have exactly one enabled setup default", class)
+		}
+	}
+	return nil
+}
+
 func (c ProfilesConfig) validate(selected, source string) error {
 	profileCfg, ok := c[selected]
 	if !ok {
 		return fmt.Errorf("combat_profiles.%s is required by %s", selected, source)
 	}
-	supportedClass := map[string]bool{"amazon": true, "sorceress": true, "necromancer": true, "paladin": true, "barbarian": true, "druid": true, "assassin": true}
-	if !supportedClass[profileCfg.CharacterClass] {
+	if !supportedProfileClass(profileCfg.CharacterClass) {
 		return fmt.Errorf("combat_profiles.%s.character_class is unsupported", selected)
 	}
 	for hook, actions := range map[string][]ProfileActionConfig{"town_ready": profileCfg.Hooks.TownReady, "boss_engage": profileCfg.Hooks.BossEngage} {
@@ -113,4 +211,13 @@ func (c ProfilesConfig) validate(selected, source string) error {
 		return fmt.Errorf("combat_profiles.%s.resources throttle and verify timeouts must be > 0", selected)
 	}
 	return nil
+}
+
+func supportedProfileClass(class string) bool {
+	switch class {
+	case "amazon", "sorceress", "necromancer", "paladin", "barbarian", "druid", "assassin", "warlock":
+		return true
+	default:
+		return false
+	}
 }

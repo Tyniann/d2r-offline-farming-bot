@@ -27,7 +27,9 @@ type Config struct {
 	Paths     PathsConfig     `yaml:"paths"`
 	Session   SessionConfig   `yaml:"session"`
 	Profiles  ProfilesConfig  `yaml:"combat_profiles"`
-	Town      town.Config     `yaml:"town"`
+	// CharacterSetup enthält ausschließlich entwicklerverwaltete Setup-Defaults.
+	CharacterSetup CharacterSetupConfig `yaml:"character_setup"`
+	Town           town.Config          `yaml:"town"`
 
 	// LoadedFrom is the path passed to [Load] (used to resolve relative file paths).
 	LoadedFrom string `yaml:"-"`
@@ -341,6 +343,7 @@ func Load(path string) (*Config, error) {
 	cfg.Routes.applyDefaults()
 	cfg.Session.applyDefaults()
 	cfg.Profiles.applyDefaults()
+	cfg.CharacterSetup.applyDefaults()
 	if err := cfg.validate(); err != nil {
 		return nil, err
 	}
@@ -385,6 +388,7 @@ func (c *Config) validate() error {
 	c.Routes.applyDefaults()
 	c.Session.applyDefaults()
 	c.Profiles.applyDefaults()
+	c.CharacterSetup.applyDefaults()
 	if c.App.Name == "" {
 		return fmt.Errorf("app.name is required")
 	}
@@ -434,6 +438,12 @@ func (c *Config) validate() error {
 		if err := c.Profiles.validate(run.Combat.Profile, "runs.definitions."+id+".combat.profile"); err != nil {
 			return err
 		}
+	}
+	if err := c.Profiles.validateSetupMetadata(); err != nil {
+		return err
+	}
+	if err := c.CharacterSetup.validate(); err != nil {
+		return err
 	}
 	if err := c.Pathing.validate(); err != nil {
 		return err

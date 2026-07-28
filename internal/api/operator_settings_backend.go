@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/app"
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/telemetry"
 )
 
 // SetOperatorSettingsStore bindet die einzige Core-eigene GUI-Konfigurationsautorität.
@@ -16,14 +17,52 @@ func (b *LiveBackend) SetOperatorSettingsStore(store *app.OperatorSettingsStore)
 	b.mu.RLock()
 	selection := b.status.Selection
 	b.mu.RUnlock()
-	if selection.Character != "" && selection.Difficulty != "" {
-		if _, err := store.ConfirmSelection(selection.Character, selection.Difficulty); err != nil {
-			return fmt.Errorf("persist confirmed selection: %w", err)
+	catalog, err := b.characterCatalog.BindOperatorSettings(store)
+	if err != nil {
+		return fmt.Errorf("bind character catalog settings: %w", err)
+	}
+	selectionConfigured := false
+	var configuredEntry app.CharacterCatalogEntry
+	for _, entry := range catalog.Characters {
+		if strings.EqualFold(entry.Name, selection.Character) && entry.Selectable && entry.CombatProfile != "" {
+			selectionConfigured = true
+			configuredEntry = entry
+			break
 		}
 	}
+	if selection.Character != "" && selection.Difficulty != "" && selectionConfigured {
+		if _, confirmErr := store.ConfirmSelection(selection.Character, selection.Difficulty); confirmErr != nil {
+			return fmt.Errorf("persist confirmed selection: %w", confirmErr)
+		}
+	} else if selection.Character != "" {
+		b.mu.Lock()
+		b.status.Selection = SelectionStatusDTO{}
+		b.mu.Unlock()
+	}
+	service, err := app.NewCharacterSetupService(app.CharacterSetupDependencies{
+		Config: b.cfg, Catalog: b.characterCatalog, Settings: store,
+		PickitAssignments: b.pickitAssignments, PickitProfiles: b.pickitProfiles, Capture: b.characterCapture,
+	})
+	if err != nil {
+		return fmt.Errorf("character setup service: %w", err)
+	}
 	b.mu.Lock()
-	defer b.mu.Unlock()
 	b.operatorSettings = store
+	b.characterSetup = service
+	b.mu.Unlock()
+	b.publishCharacterCatalog(catalog, false)
+	if selectionConfigured {
+		report, resolveErr := app.ResolveRunAvailabilities(b.cfg, app.RunAvailabilityContext{
+			Character: configuredEntry.Name, CharacterClass: configuredEntry.ExpectedClass, CombatProfile: configuredEntry.CombatProfile,
+			Difficulty: selection.Difficulty, GameVersion: b.cfg.Memory.GameVersion,
+		})
+		if resolveErr != nil {
+			return fmt.Errorf("resolve configured character runs: %w", resolveErr)
+		}
+		b.mu.Lock()
+		b.catalog.Runs = runCatalogEntries(report)
+		b.mu.Unlock()
+	}
 	return nil
 }
 
@@ -133,7 +172,6 @@ func (b *LiveBackend) applyOperatorSettingsChange(change app.OperatorSettingsCha
 		return
 	}
 	b.mu.Lock()
-	defer b.mu.Unlock()
 	// Input und Hotkeys bleiben bis zum kontrollierten Core-Neustart an den
 	// bereits aufgebauten Controllern unverändert. Alle übrigen Werte dürfen
 	// in idle für die nächste Queuegeneration übernommen werden.
@@ -151,8 +189,16 @@ func (b *LiveBackend) applyOperatorSettingsChange(change app.OperatorSettingsCha
 		if len(value.Queue) > 0 {
 			b.cfg.Session.Run = value.Queue[0]
 		}
+		b.status.Queue.Entries = append([]string(nil), value.Queue...)
 		b.status.Queue.DefaultEntries = append([]string(nil), value.Queue...)
 	}
+	b.mu.Unlock()
+	// Ohne ein Event behält der Renderer nach dem Speichern seine alte
+	// Statusprojektion und würde diese veraltete Queue wieder an den Core senden.
+	b.publisher.Publish(telemetry.LiveEvent{
+		Event:   "operator_settings_changed",
+		Details: map[string]any{"revision": change.Settings.Revision},
+	})
 }
 
 func operatorSettingsCommandError(err error) error {

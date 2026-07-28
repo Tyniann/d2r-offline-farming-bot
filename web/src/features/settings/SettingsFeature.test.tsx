@@ -23,9 +23,9 @@ vi.mock("../../api/client", () => ({
 }));
 
 const operator: OperatorSettingsDTO = {
-  schema_version: 1,
+  schema_version: 2,
   revision: 4,
-  characters: { mrbones: { last_difficulty: "nightmare", queue: ["countess", "mephisto"] } },
+  characters: { mrbones: { character_class: "necromancer", combat_profile: "necro_bone_spear", last_difficulty: "nightmare", queue: ["countess", "mephisto"] } },
   budgets: { max_runs: 20, max_duration_ms: 7_200_000, max_consecutive_failures: 3, max_total_restarts: 4 },
   input: { enabled: false, pause_hotkey: "pause", stop_after_run_hotkey: "f10", recording_finish_hotkey: "f9", emergency_stop_hotkey: "f11" },
   history: { retention_enabled: true, retention_days: 60 },
@@ -59,6 +59,10 @@ describe("SettingsFeature", () => {
     fireEvent.click(screen.getByRole("button", { name: "Änderungen prüfen" }));
     expect(await screen.findByRole("dialog", { name: "Änderungen speichern?" })).toHaveTextContent("input.pause_hotkey");
     expect(mocks.preview).toHaveBeenCalledWith(expect.objectContaining({ expected_revision: 4, expected_generation: 12, settings: expect.objectContaining({ revision: 4 }) }));
+    expect(mocks.preview.mock.calls[0][0].settings.characters.mrbones).toMatchObject({
+      character_class: "necromancer",
+      combat_profile: "necro_bone_spear",
+    });
     const save = screen.getByRole("button", { name: "Revisionsgebunden speichern" });
     await waitFor(() => expect(save).toBeEnabled());
     fireEvent.click(save);

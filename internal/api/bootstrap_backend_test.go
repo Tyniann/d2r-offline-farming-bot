@@ -11,6 +11,11 @@ func TestBootstrapBackendIsReadOnlyAndDeterministic(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	experimental := cfg.Profiles["necro_bone_spear"]
+	experimental.CharacterClass = "paladin"
+	experimental.Setup.Enabled = false
+	experimental.Setup.Default = false
+	cfg.Profiles["experimental_paladin"] = experimental
 	backend, err := NewBootstrapBackend(cfg)
 	if err != nil {
 		t.Fatal(err)
@@ -21,6 +26,9 @@ func TestBootstrapBackendIsReadOnlyAndDeterministic(t *testing.T) {
 	first := backend.Catalog()
 	if len(first.Runs) != 2 {
 		t.Fatalf("bootstrap runs = %+v", first.Runs)
+	}
+	if len(first.Profiles) != 1 || first.Profiles[0].ID != "necro_bone_spear" {
+		t.Fatalf("bootstrap setup profiles = %+v", first.Profiles)
 	}
 	first.Runs[0].RunID = "mutated"
 	if second := backend.Catalog(); second.Runs[0].RunID == "mutated" {

@@ -105,6 +105,21 @@ func TestResolveRunAvailabilitiesUsesStableMismatchReasons(t *testing.T) {
 	}
 }
 
+func TestResolveRunAvailabilitiesRejectsRunProfileDifferentFromConfirmedCharacterProfile(t *testing.T) {
+	cfg := availabilityConfig(t)
+	report, err := ResolveRunAvailabilities(cfg, RunAvailabilityContext{
+		Character: "MrBones", CharacterClass: "necromancer", CombatProfile: "another_necro_profile",
+		Difficulty: "nightmare", GameVersion: "3.2.92777",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	countess, _ := findRunAvailability(report.Runs, tasks.RunIDCountess)
+	if !containsRunReason(countess.Reasons, tasks.RunReasonCharacterProfileRunIncompatible) {
+		t.Fatalf("Countess reasons = %v", countess.Reasons)
+	}
+}
+
 func TestResolveSessionPlanBlocksUnavailableRunBeforeRuntime(t *testing.T) {
 	cfg := availabilityConfig(t)
 	cfg.Session.Enabled = true

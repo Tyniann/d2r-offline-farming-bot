@@ -127,6 +127,10 @@ runs:
 combat_profiles:
   necro_bone_spear:
     character_class: necromancer
+    display_name: Knochen-Speer
+    setup:
+      enabled: true
+      default: true
     hooks:
       town_ready:
         - skill: bone_armor
@@ -155,6 +159,11 @@ combat_profiles:
         cooldown_ms: 1500
       throttle_ms: 1500
       verify_timeout_ms: 1500
+
+character_setup:
+  pickit_defaults:
+    countess: [gems, keys, countess-standard]
+    mephisto: [gems, mephisto-standard]
 
 town:
   thresholds:

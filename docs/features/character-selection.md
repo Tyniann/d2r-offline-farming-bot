@@ -2,11 +2,12 @@
 
 ## Überblick
 
-Abschnitt 11.4 listet lokale Offline-Charaktere ausschließlich anhand regulärer `*.d2s`-Dateinamen und wählt einen freigegebenen Charakter über eine streng begrenzte, bildbestätigte State-Machine. Abschnitt 11.6 setzt davor eine seiteneffektfreie, revisionsgebundene Lifecycle-Vorschau. Save-Inhalte werden niemals geöffnet oder verändert. Character-Screen-Memory, OCR und Blindklick-Fallbacks sind ausgeschlossen.
+Abschnitt 16.1 listet lokale Offline-Charaktere anhand regulärer `*.d2s`-Dateien und liest read-only exakt den für Magic, Version, Klasse und Namen nötigen 315-Byte-v105-Präfix. Die eigentliche Auswahl bleibt die streng begrenzte, bild- und anschließend Memory-bestätigte State-Machine aus Phase 11. Savegames werden niemals geschrieben oder über den Präfix hinaus gelesen. Character-Screen-Memory, OCR und Blindklick-Fallbacks sind ausgeschlossen.
 
 ## Ort im Code
 
 - **Katalog:** `internal/app/character_catalog.go`
+- **D2S-Präfixleser:** `internal/app/character_save.go`
 - **Windows Saved Games:** `internal/app/saved_games_windows.go`
 - **Selector:** `internal/app/character_selector.go`
 - **Bestehender Game-Start:** `internal/app/offline_game.go`
@@ -18,25 +19,21 @@ Abschnitt 11.4 listet lokale Offline-Charaktere ausschließlich anhand reguläre
 
 ### Read-only Katalog
 
-Unter Windows ermittelt der Core `FOLDERID_SavedGames` über `SHGetKnownFolderPath` und betrachtet darunter `Diablo II Resurrected`. Er verwendet nur Dateinamen regulärer `*.d2s`-Dateien. Symlinks, Reparse Points, Verzeichnisse, ungültige Namen und case-insensitive Duplikate werden verworfen. Kein Save wird geöffnet oder geparst.
+Unter Windows ermittelt der Core zuerst `FOLDERID_SavedGames` über `SHGetKnownFolderPath` und betrachtet darunter `Diablo II Resurrected`. Liefert Windows für diesen Known Folder `FILE_NOT_FOUND`, obwohl das lokale Profil den physischen Standardordner besitzt, wird ausschließlich `FOLDERID_Profile\Saved Games` als validiertes reguläres, reparse-freies Fallback verwendet. Ein registrierter oder umgeleiteter Saved-Games-Pfad behält immer Vorrang.
 
-Der konfigurierte `session.character` bleibt auch bei fehlendem Save sichtbar und dient als Startvorauswahl, aber nicht als Allowlist. Das ist für einen frischen installierten Root erforderlich, dessen Vorauswahl absichtlich leer ist und erst im Onboarding getroffen wird. Ein Charakter ist nur auswählbar, wenn sein reguläres Save existiert, der aktuelle Run einen gültigen Combat-Profil-/Klassenkontext liefert und alle globalen sowie charakterbezogenen versionsgebundenen PNG-Bestätigungen gültig sind. Erst eine gültige charakterbezogene Bestätigung bindet den Save-Namen an den aktuellen unterstützten Profilkontext; ein bloß sichtbarer fremder Save erbt nicht stillschweigend die Klasse des aktuellen Runs. Stabile Sperrgründe sind:
+Der Core betrachtet nur direkte reguläre Dateien mit case-insensitiver Erweiterung `.d2s`. Symlinks, Reparse Points, Verzeichnisse und ungültige Namen bleiben unsichtbar. Case-insensitive Namenskollisionen lehnen den gesamten Reload mit `character_save_name_conflict` ab. Nach dem read-only Öffnen werden Handle und Pfad erneut als dieselbe reguläre, reparse-freie Datei bestätigt.
 
-- `character_save_missing`;
-- `character_unconfigured`;
-- `character_anchor_missing`.
+Der Reader verwendet genau ein begrenztes `io.ReadFull` über 315 Byte. Für die allein erlaubte Save-Version 105 gelten Magic `0xAA55AA55`, Klasse bei `0x18` und der erste NUL-terminierte Namensslot ab `0x12B`. Dateiname und Headername müssen case-insensitiv übereinstimmen. Checksumme, deklarierte Größe, Status, Progression und der restliche Save werden nicht ausgewertet. Die acht IDs `0…7` verwenden direkt `world.CharacterClass`; ID 7 ist `warlock`. Auch die Memory-Projektion akzeptiert diese kanonische Obergrenze, während ID 8 fail-closed bleibt.
 
-Unvorbereitete Charaktere bleiben im Dashboard und Onboarding mit deutsch erklärtem Sperrgrund sichtbar. Die Oberfläche zeigt keine internen Begriffe oder Reason-Codes, sondern erklärt beispielsweise „Kein unterstütztes Kampfprofil zugeordnet“, nennt die derzeit unterstützte Klasse und trennt dies von „Automatische Auswahl dieses Charakters in D2R ist noch nicht eingerichtet“. Da Save-Inhalte auch für die First-Run-Auswahl nicht gelesen werden, behauptet die App für einen nicht eingerichteten Save keine automatisch erkannte Klasse. Fehlende Farming-Routen sperren später den Queue-Start, nicht die reine D2R-Auswahl.
+Ein Fehler eines einzelnen gültig benannten Saves sperrt nur diesen sichtbaren Eintrag. Die Präzedenz unterscheidet fehlend, nicht lesbar, ungültiger Header, nicht unterstützte Version, Namensabweichung und unbekannte Klasse. Ein bekannter Paladin oder Warlock bleibt mit `character_class_unsupported` sichtbar. Ein unterstützter Charakter ohne gespeichertes Profil erhält `character_profile_missing`; ein nicht mehr zur Klasse oder Config passendes gespeichertes Profil erhält `character_profile_incompatible`. Kein Eintrag erbt Klasse oder Profil aus `session.run`.
 
-### Offene Folgearbeit: geführte Charaktereinrichtung
+`CharacterCatalogStore` hält die letzte erfolgreiche immutable Projektion. Ein expliziter Reload liest vollständig neu, behält bei identischem Fachzustand dieselbe Revision und erhöht sie bei Änderung genau einmal. Ein global fehlgeschlagener Reload veröffentlicht keinen Teilstand. Es gibt keinen Watcher, Hintergrundscan oder Headercache.
 
-Die Charaktereinrichtung soll ohne zusätzlichen Wizard in den vorhandenen Charakterschritt integriert werden. Für jeden lokalen Charakter muss sie mindestens die Klasse und ein kompatibles Standard-Kampfprofil persistent zuordnen. Die Basisinstallation soll pro unterstützter Klasse ein vorkonfiguriertes Standardprofil mitbringen; beim ersten Einrichten wird dieses Profil automatisch gewählt. Später darf der Benutzer in den Einstellungen ein anderes kompatibles Profil auswählen beziehungsweise die Profildetails bearbeiten.
+### Charaktereinrichtung und frische Auswahlprüfung
 
-Zur vollständigen Run-Readiness gehört außerdem eine initiale Pickit-Zuordnung. Die Basisinstallation enthält bereits globale Standard-Lootprofile für Countess und Mephisto; diese sind fachlich primär runbezogen und müssen nicht pro Charakterklasse dupliziert werden. Bei der Charaktereinrichtung soll der Core für jeden unterstützten Run automatisch die vorgesehene Standard-Profilkette als charakterbezogene Zuordnung anlegen. Spätere Änderungen erfolgen weiterhin über den vorhandenen Pickit-Editor. Fehlt ein Default oder ist dessen Profilkette ungültig, bleibt nur der betroffene Run mit verständlichem Grund gesperrt.
+Das charakterbezogen in OperatorSettings persistierte Profil muss ausdrücklich für Setup freigegeben sein und zur frisch gelesenen Headerklasse passen. Nur dann und mit vorhandenem Auswahlbild ist der Katalogeintrag auswählbar. Setup, Pickit-Defaults und die sichere Erfassung des namensgebundenen Bildbelegs laufen im bestehenden Onboarding-Charakterschritt.
 
-Als bevorzugte Verbesserung ist eine eng begrenzte read-only Erkennung der Charakterklasse aus dem D2S-Header zu untersuchen. Sie darf ausschließlich die für Name/Version/Klasse nötigen Headerfelder lesen, niemals schreiben und keine Items, Skills oder Statistiken auswerten. Reguläre Datei, Reparse-Schutz, maximale Dateigröße, unterstützte Save-Versionen, feste Headergrenzen und synthetische Testfixtures sind vor einer Umsetzung verbindlich festzulegen. Das wäre eine bewusste Änderung des bisherigen Vertrags „Save-Inhalte werden nicht geöffnet“ und benötigt deshalb einen eigenen geprüften Implementierungsabschnitt samt Aktualisierung der Architekturunterlagen.
-
-Damit kann der bestehende Onboarding-Schritt sofort zwischen „unterstützte Klasse mit verfügbarem Standardprofil“, „nicht unterstützte Klasse“, „Klasse nicht sicher ermittelbar“ und „Standardprofil fehlt“ unterscheiden. Ein kompletter Charakter-Wizard ist dafür nicht nötig. Die weiterhin erforderliche visuelle, namensgebundene D2R-Bestätigung wird im selben Schritt als kurze manuelle Einrichtung angeboten: Benutzer markiert den Charakter auf dem Offline-Charakterbildschirm, der Core erzeugt beziehungsweise bestätigt die begrenzte Auswahlreferenz und prüft sie vor dem ersten Spieleintritt. Erst Klasse, Profil und sichere Auswahl zusammen machen einen Charakter auswählbar.
+Selection Preview lädt den Savekatalog erneut. Apply wiederholt denselben Reload unmittelbar vor Fokus, Screenshot und erstem Auswahlinput und lehnt eine geänderte Klasse, ein entferntes Profil oder eine stale Katalogrevision ab. Der Selector erhält die erwartete Klasse ausschließlich aus diesem frischen Eintrag. Nach dem Spieleintritt bestätigt Memory weiterhin Name und Klasse.
 
 ### Begrenzter Selector
 
@@ -47,11 +44,11 @@ Vor dem ersten Input verlangt der Core:
 - eine eindeutige Zwei-Anker-Klassifikation, bei der der Character-Play-Anker mit Sicherheitsabstand besser als der Difficulty-Dialog-Anker passt;
 - einen freigegebenen Zielanker aus dem unveränderten Katalog.
 
-Der Core aktiviert anschließend zuerst das gebundene D2R-Fenster und wartet erneut auf UI-Settle, bevor er den ersten Screenshot erfasst. Dadurch darf das Dashboard beim Klick im Vordergrund stehen, ohne dass dessen Pixel irrtümlich gegen den D2R-Anker geprüft werden. Danach sendet der Selector genau einmal `Home`, wartet erneut auf UI-Settle und sendet höchstens `character_count - 1` einzelne `Down`-Tasten. Drei stabile Treffer des Zielankers sind nötig. No-Match und Timeout enden ohne Play-Klick.
+Der Core aktiviert anschließend zuerst das gebundene D2R-Fenster und wartet erneut auf UI-Settle, bevor er den ersten Screenshot erfasst. Dadurch darf das Dashboard beim Klick im Vordergrund stehen, ohne dass dessen Pixel irrtümlich gegen den D2R-Anker geprüft werden. Danach sendet der Selector genau einmal `Home`, wartet erneut auf UI-Settle und sendet höchstens `character_count - 1` einzelne `Down`-Tasten. Die geprüfte 210×60-Zeile folgt dabei mit jedem `Down` der sichtbaren D2R-Auswahl; nach dem letzten sichtbaren Eintrag bleibt sie an der unteren Listenzeile. Für die Charakteridentität wird aus dem Beleg ausschließlich die stabile Namenszeile mit einem eigenen strengen Grenzwert und höchstens drei Pixeln Schrifttoleranz verglichen. Titel, Level und Klassenzeile sind veränderlich und dürfen die Auswahl nicht beeinflussen. Zusätzlich muss dieselbe Zeile den goldenen D2R-Auswahlrahmen tragen. Drei stabile gemeinsame Treffer aus Name und Auswahlrahmen sind nötig. No-Match und Timeout enden ohne Play-Klick.
 
 Der allgemeine Anker-Grenzwert ist für positive Erkennung bewusst tolerant. Er darf deshalb nicht umgekehrt als Abwesenheitsnachweis verwendet werden: Auf den dunklen Frontend-Flächen können Play- und Dialog-Anker isoliert beide unter dem Grenzwert liegen. Der Selector vergleicht stattdessen beide Scores und akzeptiert nur einen klaren Play-Sieg; ein klarer Dialog-Sieg oder ein uneindeutiges Ergebnis bricht vor `Home` ab. Der spätere bewährte Difficulty-Flow bestätigt den Dialog weiterhin positiv nach dem Play-Klick.
 
-Nach dem Treffer übernimmt der unveränderte Phase-7.3-Flow: Ziel- und Play-Anker bestätigen vor dem Play-Klick, der Difficulty-Dialog bestätigt vor genau einem Difficulty-Klick und Memory bestätigt anschließend Name, erwartete Klasse und Rogue Encampment. F11 und Prozess-Cancellation bleiben auch während der Listen-Navigation wirksam.
+Nach dem Treffer übernimmt der Phase-7.3-Flow: Namenszeile, Auswahlrahmen und Play-Anker bestätigen unmittelbar vor dem Play-Klick dieselbe gefundene Listenzeile, der Difficulty-Dialog bestätigt vor genau einem Difficulty-Klick und Memory bestätigt anschließend Name, erwartete Klasse und Rogue Encampment. F11 und Prozess-Cancellation bleiben auch während der Listen-Navigation wirksam.
 
 ### Zweistufige Auswahl und Lifecycle-Commit
 
@@ -77,7 +74,7 @@ D2R muss bereits auf dem Offline-Charakterbildschirm bei 1280×720 stehen. Das D
 
 - Kein D2R-Start und keine Main-Menu-Automation.
 - Keine Auflösung außer 1280×720.
-- Kein Lesen oder Schreiben von Save-Inhalten.
+- Kein Lesen über den festen 315-Byte-v105-Präfix und keinerlei Schreiben von Save-Inhalten.
 - Kein Difficulty-Commit ohne aktuelle Vorschau, explizite Bestätigung der Auswirkung und Memory-bestätigten Spieleintritt.
 - Kein Fallback ohne gültigen Zielanker.
 
@@ -86,6 +83,7 @@ D2R muss bereits auf dem Offline-Charakterbildschirm bei 1280×720 stehen. Das D
 - [Verifizierter Offline-Game-Start](offline-difficulty-selection.md)
 - [Lokale Core-API](local-core-api.md)
 - [Phase-11-Core-Vertrag](phase-11-core-contract.md)
+- [Phase-16-Core-Vertrag](phase-16-core-contract.md)
 
 ---
-*Zuletzt aktualisiert: 26. Juli 2026*
+*Zuletzt aktualisiert: 28. Juli 2026*

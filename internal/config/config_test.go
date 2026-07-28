@@ -121,7 +121,8 @@ func TestLoadRejectsRemovedRoutesDirectory(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	legacy := strings.Replace(string(data), "routes:\n", "routes:\n  directory: routes/farming/mrbones/nightmare\n", 1)
+	normalized := strings.ReplaceAll(string(data), "\r\n", "\n")
+	legacy := strings.Replace(normalized, "routes:\n", "routes:\n  directory: routes/farming/mrbones/nightmare\n", 1)
 	if err := os.WriteFile(path, []byte(legacy), 0o600); err != nil {
 		t.Fatal(err)
 	}

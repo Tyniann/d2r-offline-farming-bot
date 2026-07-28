@@ -11,7 +11,7 @@ import (
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/config"
 )
 
-func TestOperatorSettingsMigratesDefaultsAndPersistsTwoCharacterQueues(t *testing.T) {
+func TestOperatorSettingsInitializesDefaultsAndPersistsTwoCharacterQueues(t *testing.T) {
 	store, root := newOperatorSettingsTestStore(t)
 	initial, err := store.Snapshot()
 	if err != nil {
@@ -36,6 +36,102 @@ func TestOperatorSettingsMigratesDefaultsAndPersistsTwoCharacterQueues(t *testin
 	reloaded, err := store.Snapshot()
 	if err != nil || reloaded.Characters["mrhammer"].LastDifficulty != "hell" || reloaded.Characters["mrbones"].Queue[1] != "mephisto" {
 		t.Fatalf("reloaded=%+v err=%v", reloaded, err)
+	}
+}
+
+func TestOperatorSettingsSchema2SetupAssignmentProtectionResetAndNewCharacter(t *testing.T) {
+	store, _ := newOperatorSettingsTestStore(t)
+	initial, err := store.Snapshot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if initial.SchemaVersion != 2 || initial.Characters["mrbones"].CharacterClass != "" || initial.Characters["mrbones"].CombatProfile != "" {
+		t.Fatalf("initial=%+v", initial)
+	}
+
+	assigned, err := store.AssignCharacterProfile("MrBones", "necromancer", "necro_bone_spear", initial.Revision)
+	if err != nil {
+		t.Fatal(err)
+	}
+	value := assigned.Settings.Characters["mrbones"]
+	if assigned.Settings.Revision != 2 || value.CharacterClass != "necromancer" || value.CombatProfile != "necro_bone_spear" {
+		t.Fatalf("assigned=%+v", assigned)
+	}
+
+	mutated := cloneOperatorSettings(assigned.Settings)
+	mutated.Characters["mrbones"] = OperatorCharacterSettings{
+		CharacterClass: "paladin", CombatProfile: "necro_bone_spear",
+		LastDifficulty: value.LastDifficulty, Queue: append([]string(nil), value.Queue...),
+	}
+	if _, updateErr := store.Update(assigned.Settings.Revision, mutated); updateErr == nil || updateErr.Error() != "operator_settings_setup_read_only" {
+		t.Fatalf("general setup mutation error=%v", updateErr)
+	}
+
+	preview, err := store.PreviewReset(assigned.Settings.Revision)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := preview.Settings.Characters["mrbones"]; got.CharacterClass != value.CharacterClass || got.CombatProfile != value.CombatProfile {
+		t.Fatalf("preview reset lost setup=%+v", got)
+	}
+	reset, err := store.Reset(assigned.Settings.Revision)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := reset.Settings.Characters["mrbones"]; got.CharacterClass != value.CharacterClass || got.CombatProfile != value.CombatProfile {
+		t.Fatalf("reset lost setup=%+v", got)
+	}
+
+	added, err := store.AssignCharacterProfile("FreshHero", "necromancer", "necro_bone_spear", reset.Settings.Revision)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fresh := added.Settings.Characters["freshhero"]
+	if fresh.CharacterClass != "necromancer" || fresh.CombatProfile != "necro_bone_spear" ||
+		fresh.LastDifficulty != store.characterDefaults.LastDifficulty || !reflect.DeepEqual(fresh.Queue, store.characterDefaults.Queue) {
+		t.Fatalf("fresh=%+v defaults=%+v", fresh, store.characterDefaults)
+	}
+	reloaded, err := store.Snapshot()
+	if err != nil || !reflect.DeepEqual(reloaded, added.Settings) {
+		t.Fatalf("schema-2 round-trip=%+v err=%v", reloaded, err)
+	}
+	idempotent, err := store.AssignCharacterProfile("FreshHero", "necromancer", "necro_bone_spear", reloaded.Revision)
+	if err != nil || idempotent.Settings.Revision != reloaded.Revision || len(idempotent.ChangedFields) != 0 {
+		t.Fatalf("idempotent=%+v err=%v", idempotent, err)
+	}
+}
+
+func TestOperatorSettingsSetupPairValidationAndSchema1Rejection(t *testing.T) {
+	store, _ := newOperatorSettingsTestStore(t)
+	initial, err := store.Snapshot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	half := cloneOperatorSettings(initial)
+	value := half.Characters["mrbones"]
+	value.CharacterClass = "necromancer"
+	half.Characters["mrbones"] = value
+	if validationErr := validateOperatorSettings(half, store.profiles); validationErr == nil {
+		t.Fatal("half setup pair was accepted")
+	}
+	value.CombatProfile = "necro_bone_spear"
+	half.Characters["mrbones"] = value
+	if validationErr := validateOperatorSettings(half, store.profiles); validationErr != nil {
+		t.Fatalf("complete setup pair rejected: %v", validationErr)
+	}
+
+	schema1 := cloneOperatorSettings(initial)
+	schema1.SchemaVersion = 1
+	if mkdirErr := os.MkdirAll(filepath.Dir(store.path), 0o755); mkdirErr != nil {
+		t.Fatal(mkdirErr)
+	}
+	if writeErr := os.WriteFile(store.path, mustMarshalOperatorSettings(schema1), 0o600); writeErr != nil {
+		t.Fatal(writeErr)
+	}
+	_, err = store.Snapshot()
+	var settingsErr *OperatorSettingsError
+	if !errors.As(err, &settingsErr) || settingsErr.Code != Phase15ReasonConfigSchemaUnsupported {
+		t.Fatalf("schema-1 error=%v", err)
 	}
 }
 

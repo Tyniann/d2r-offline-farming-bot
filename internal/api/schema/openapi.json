@@ -49,6 +49,104 @@
         }
       }
     },
+    "/api/v1/characters/reload": {
+      "post": {
+        "operationId": "reloadCharacters",
+        "responses": {
+          "200": {
+            "description": "Reloaded character catalog",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CharacterReloadDTO"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/characters/setup/preview": {
+      "post": {
+        "operationId": "previewCharacterSetup",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CharacterSetupPreviewRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Character setup preview",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CharacterSetupPreviewDTO"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/characters/setup/confirm": {
+      "post": {
+        "operationId": "confirmCharacterSetup",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CharacterSetupConfirmRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Confirmed character setup",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CharacterSetupPreviewDTO"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/characters/selection/capture": {
+      "post": {
+        "operationId": "captureCharacterSelection",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CharacterSelectionCaptureRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Captured character selection anchor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CharacterSetupPreviewDTO"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/settings/operator": {
       "get": {
         "operationId": "getOperatorSettings",
@@ -1735,6 +1833,101 @@
           }
         }
       },
+      "CharacterReloadDTO": {
+        "type": "object",
+        "required": ["schema_version", "catalog"],
+        "additionalProperties": false,
+        "properties": {
+          "schema_version": {"type": "integer"},
+          "catalog": {"$ref": "#/components/schemas/CatalogDTO"}
+        }
+      },
+      "CharacterSetupPreviewRequest": {
+        "type": "object",
+        "required": ["character"],
+        "additionalProperties": false,
+        "properties": {
+          "character": {"type": "string"}
+        }
+      },
+      "CharacterSetupCharacterDTO": {
+        "type": "object",
+        "required": ["name", "slug", "character_class", "class_display_name"],
+        "additionalProperties": false,
+        "properties": {
+          "name": {"type": "string"},
+          "slug": {"type": "string"},
+          "character_class": {"type": "string"},
+          "class_display_name": {"type": "string"}
+        }
+      },
+      "CharacterSetupProfileDTO": {
+        "type": "object",
+        "required": ["id", "display_name", "is_default", "is_selected"],
+        "additionalProperties": false,
+        "properties": {
+          "id": {"type": "string"},
+          "display_name": {"type": "string"},
+          "is_default": {"type": "boolean"},
+          "is_selected": {"type": "boolean"}
+        }
+      },
+      "CharacterSetupPickitDefaultDTO": {
+        "type": "object",
+        "required": ["run_id", "run_display_name", "profile_names", "state"],
+        "additionalProperties": false,
+        "properties": {
+          "run_id": {"type": "string"},
+          "run_display_name": {"type": "string"},
+          "profile_names": {"type": "array", "items": {"type": "string"}},
+          "state": {"type": "string", "enum": ["missing", "ready"]}
+        }
+      },
+      "CharacterSetupPreviewDTO": {
+        "type": "object",
+        "required": ["schema_version", "catalog_revision", "operator_settings_revision", "pickit_assignment_revision", "character", "supported", "profiles", "pickit_defaults", "anchor_state", "setup_state", "reasons"],
+        "additionalProperties": false,
+        "properties": {
+          "schema_version": {"type": "integer"},
+          "catalog_revision": {"type": "integer"},
+          "operator_settings_revision": {"type": "integer"},
+          "pickit_assignment_revision": {"type": "integer"},
+          "character": {"$ref": "#/components/schemas/CharacterSetupCharacterDTO"},
+          "supported": {"type": "boolean"},
+          "profiles": {"type": "array", "items": {"$ref": "#/components/schemas/CharacterSetupProfileDTO"}},
+          "selected_profile_id": {"type": "string"},
+          "default_profile_id": {"type": "string"},
+          "pickit_defaults": {"type": "array", "items": {"$ref": "#/components/schemas/CharacterSetupPickitDefaultDTO"}},
+          "anchor_state": {"type": "string", "enum": ["missing", "ready", "invalid"]},
+          "setup_state": {"type": "string", "enum": ["blocked", "needs_setup", "needs_anchor", "ready"]},
+          "reasons": {"type": "array", "items": {"type": "string"}}
+        }
+      },
+      "CharacterSetupConfirmRequest": {
+        "type": "object",
+        "required": ["command_id", "character", "expected_catalog_revision", "expected_operator_settings_revision", "expected_pickit_assignment_revision", "expected_generation"],
+        "additionalProperties": false,
+        "properties": {
+          "command_id": {"type": "string"},
+          "character": {"type": "string"},
+          "profile_id": {"type": "string"},
+          "expected_catalog_revision": {"type": "integer"},
+          "expected_operator_settings_revision": {"type": "integer"},
+          "expected_pickit_assignment_revision": {"type": "integer"},
+          "expected_generation": {"type": "integer"}
+        }
+      },
+      "CharacterSelectionCaptureRequest": {
+        "type": "object",
+        "required": ["command_id", "character", "expected_catalog_revision", "expected_generation"],
+        "additionalProperties": false,
+        "properties": {
+          "command_id": {"type": "string"},
+          "character": {"type": "string"},
+          "expected_catalog_revision": {"type": "integer"},
+          "expected_generation": {"type": "integer"}
+        }
+      },
       "OperatorCharacterSettingsDTO": {
         "type": "object",
         "required": [
@@ -1743,6 +1936,12 @@
         ],
         "additionalProperties": false,
         "properties": {
+          "character_class": {
+            "type": "string"
+          },
+          "combat_profile": {
+            "type": "string"
+          },
           "last_difficulty": {
             "type": "string",
             "enum": [

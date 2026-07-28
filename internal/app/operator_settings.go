@@ -22,7 +22,7 @@ import (
 
 const (
 	// OperatorSettingsSchemaVersion ist die einzige unterstützte persistente Operatorversion.
-	OperatorSettingsSchemaVersion = 1
+	OperatorSettingsSchemaVersion = 2
 	operatorSettingsBackupLimit   = 10
 	operatorSettingsFilename      = "operator-settings.local.yaml"
 )
@@ -38,8 +38,10 @@ type OperatorSettings struct {
 	History       OperatorHistorySettings              `yaml:"history" json:"history"`
 }
 
-// OperatorCharacterSettings bindet Queue und letzte Difficulty an genau einen Charakter.
+// OperatorCharacterSettings bindet Setup-Paar, Queue und letzte Difficulty an genau einen Charakter.
 type OperatorCharacterSettings struct {
+	CharacterClass string   `yaml:"character_class,omitempty" json:"character_class,omitempty"`
+	CombatProfile  string   `yaml:"combat_profile,omitempty" json:"combat_profile,omitempty"`
 	LastDifficulty string   `yaml:"last_difficulty" json:"last_difficulty"`
 	Queue          []string `yaml:"queue" json:"queue"`
 }
@@ -98,19 +100,21 @@ func (e *OperatorSettingsError) Unwrap() error {
 
 // OperatorSettingsStore besitzt Schema, Revision, Backups und den effektiven Core-Stand.
 type OperatorSettingsStore struct {
-	mu         *sync.Mutex
-	path       string
-	backupRoot string
-	defaults   OperatorSettings
-	read       func(string) ([]byte, error)
-	write      func(string, []byte, string) error
-	now        func() time.Time
-	effective  *OperatorSettings
+	mu                *sync.Mutex
+	path              string
+	backupRoot        string
+	defaults          OperatorSettings
+	profiles          config.ProfilesConfig
+	characterDefaults OperatorCharacterSettings
+	read              func(string) ([]byte, error)
+	write             func(string, []byte, string) error
+	now               func() time.Time
+	effective         *OperatorSettings
 }
 
 var operatorSettingsLocks sync.Map
 
-// OpenOperatorSettings öffnet den installierten Store, migriert fehlende Defaults und liefert seinen validierten Snapshot.
+// OpenOperatorSettings öffnet oder initialisiert den installierten Schema-2-Store und liefert seinen validierten Snapshot.
 func OpenOperatorSettings(cfg *config.Config) (*OperatorSettingsStore, OperatorSettings, error) {
 	if cfg == nil || cfg.DataRoot == "" {
 		return nil, OperatorSettings{}, fmt.Errorf("installed operator settings require an explicit data root")
@@ -134,7 +138,7 @@ func OpenOperatorSettings(cfg *config.Config) (*OperatorSettingsStore, OperatorS
 	return store, settings, nil
 }
 
-// NewOperatorSettingsStore erstellt einen Store für einen absoluten Datenroot und migriert bei Bedarf Config-Defaults.
+// NewOperatorSettingsStore erstellt einen Store für einen absoluten Datenroot und dessen sichere Config-Defaults.
 func NewOperatorSettingsStore(dataRoot string, cfg *config.Config, characterNames []string) (*OperatorSettingsStore, error) {
 	if cfg == nil || strings.TrimSpace(dataRoot) == "" || !filepath.IsAbs(dataRoot) {
 		return nil, fmt.Errorf("operator settings require config and an absolute data root")
@@ -149,10 +153,16 @@ func NewOperatorSettingsStore(dataRoot string, cfg *config.Config, characterName
 		}
 	}
 	defaults := operatorSettingsDefaults(cfg, characters)
+	profiles := make(config.ProfilesConfig, len(cfg.Profiles))
+	for id, profile := range cfg.Profiles {
+		profiles[id] = profile
+	}
 	lock, _ := operatorSettingsLocks.LoadOrStore(path, &sync.Mutex{})
 	return &OperatorSettingsStore{
 		mu: lock.(*sync.Mutex), path: path, backupRoot: filepath.Join(cleanRoot, "backups"),
-		defaults: defaults, read: os.ReadFile, write: writeAtomicYAML, now: time.Now,
+		defaults: defaults, profiles: profiles,
+		characterDefaults: OperatorCharacterSettings{LastDifficulty: cfg.Session.Difficulty, Queue: append([]string(nil), cfg.Session.Queue...)},
+		read:              os.ReadFile, write: writeAtomicYAML, now: time.Now,
 	}, nil
 }
 
@@ -182,7 +192,7 @@ func (s *OperatorSettingsStore) Preview(expectedRevision uint64, replacement Ope
 	if err != nil {
 		return OperatorSettingsChange{}, err
 	}
-	return s.previewLocked(current, expectedRevision, replacement)
+	return s.previewLocked(current, expectedRevision, replacement, false)
 }
 
 // PreviewReset validiert die sicheren Defaults und ihre Neustartwirkung ohne Mutation.
@@ -193,9 +203,8 @@ func (s *OperatorSettingsStore) PreviewReset(expectedRevision uint64) (OperatorS
 	if err != nil {
 		return OperatorSettingsChange{}, err
 	}
-	replacement := cloneOperatorSettings(s.defaults)
-	replacement.Revision = expectedRevision
-	return s.previewLocked(current, expectedRevision, replacement)
+	replacement := s.resetReplacement(current, expectedRevision)
+	return s.previewLocked(current, expectedRevision, replacement, false)
 }
 
 // Update ersetzt den Gesamtvertrag atomar, liest ihn erneut und behält bei Fehlern den alten effektiven Stand.
@@ -206,14 +215,14 @@ func (s *OperatorSettingsStore) Update(expectedRevision uint64, replacement Oper
 	if err != nil {
 		return OperatorSettingsChange{}, err
 	}
-	change, err := s.previewLocked(current, expectedRevision, replacement)
+	change, err := s.previewLocked(current, expectedRevision, replacement, false)
 	if err != nil || len(change.ChangedFields) == 0 {
 		return change, err
 	}
 	return s.commitLocked(current, change)
 }
 
-// Reset stellt die migrierten sicheren Defaults mit einer neuen Revision wieder her.
+// Reset stellt die sicheren Defaults mit einer neuen Revision wieder her und bewahrt jedes Setup-Paar.
 func (s *OperatorSettingsStore) Reset(expectedRevision uint64) (OperatorSettingsChange, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -221,9 +230,8 @@ func (s *OperatorSettingsStore) Reset(expectedRevision uint64) (OperatorSettings
 	if err != nil {
 		return OperatorSettingsChange{}, err
 	}
-	replacement := cloneOperatorSettings(s.defaults)
-	replacement.Revision = expectedRevision
-	change, err := s.previewLocked(current, expectedRevision, replacement)
+	replacement := s.resetReplacement(current, expectedRevision)
+	change, err := s.previewLocked(current, expectedRevision, replacement, false)
 	if err != nil || len(change.ChangedFields) == 0 {
 		return change, err
 	}
@@ -248,7 +256,7 @@ func (s *OperatorSettingsStore) ConfirmSelection(character, difficulty string) (
 	replacement.LastCharacter = strings.TrimSpace(character)
 	value.LastDifficulty = strings.ToLower(strings.TrimSpace(difficulty))
 	replacement.Characters[key] = value
-	change, err := s.previewLocked(current, current.Revision, replacement)
+	change, err := s.previewLocked(current, current.Revision, replacement, false)
 	if err != nil || len(change.ChangedFields) == 0 {
 		return change, err
 	}
@@ -266,13 +274,51 @@ func (s *OperatorSettingsStore) currentLocked() (OperatorSettings, error) {
 	return current, nil
 }
 
-func (s *OperatorSettingsStore) previewLocked(current OperatorSettings, expectedRevision uint64, replacement OperatorSettings) (OperatorSettingsChange, error) {
+// AssignCharacterProfile setzt Klasse und freigegebenes Profil gemeinsam und legt einen neu gefundenen Charakter mit sicheren Defaults an.
+func (s *OperatorSettingsStore) AssignCharacterProfile(character, characterClass, combatProfile string, expectedRevision uint64) (OperatorSettingsChange, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	current, err := s.currentLocked()
+	if err != nil {
+		return OperatorSettingsChange{}, err
+	}
+	displayName := strings.TrimSpace(character)
+	key := strings.ToLower(displayName)
+	if displayName == "" || !offlineCharacterNamePattern.MatchString(displayName) {
+		return OperatorSettingsChange{}, fmt.Errorf("operator settings character %q is invalid", character)
+	}
+	characterClass = strings.TrimSpace(characterClass)
+	combatProfile = strings.TrimSpace(combatProfile)
+	replacement := cloneOperatorSettings(current)
+	value, ok := replacement.Characters[key]
+	if !ok {
+		value = s.characterDefaults
+		value.Queue = append([]string(nil), s.characterDefaults.Queue...)
+	}
+	value.CharacterClass = characterClass
+	value.CombatProfile = combatProfile
+	replacement.Characters[key] = value
+	return s.previewAndCommitLocked(current, expectedRevision, replacement, true)
+}
+
+func (s *OperatorSettingsStore) previewAndCommitLocked(current OperatorSettings, expectedRevision uint64, replacement OperatorSettings, allowSetupMutation bool) (OperatorSettingsChange, error) {
+	change, err := s.previewLocked(current, expectedRevision, replacement, allowSetupMutation)
+	if err != nil || len(change.ChangedFields) == 0 {
+		return change, err
+	}
+	return s.commitLocked(current, change)
+}
+
+func (s *OperatorSettingsStore) previewLocked(current OperatorSettings, expectedRevision uint64, replacement OperatorSettings, allowSetupMutation bool) (OperatorSettingsChange, error) {
 	if current.Revision != expectedRevision || replacement.Revision != expectedRevision {
 		return OperatorSettingsChange{}, &OperatorSettingsError{Code: Phase15ReasonConfigRevisionConflict, Err: fmt.Errorf("expected revision %d, current revision %d", expectedRevision, current.Revision)}
 	}
+	if !allowSetupMutation && !sameOperatorSetup(current, replacement) {
+		return OperatorSettingsChange{}, fmt.Errorf("operator_settings_setup_read_only")
+	}
 	replacement.SchemaVersion = OperatorSettingsSchemaVersion
 	replacement.Revision = current.Revision + 1
-	if err := validateOperatorSettings(replacement); err != nil {
+	if err := validateOperatorSettings(replacement, s.profiles); err != nil {
 		return OperatorSettingsChange{}, err
 	}
 	changed := operatorSettingsChangedFields(current, replacement)
@@ -329,7 +375,7 @@ func (s *OperatorSettingsStore) loadLocked() (OperatorSettings, error) {
 	if settings.SchemaVersion != OperatorSettingsSchemaVersion {
 		return OperatorSettings{}, &OperatorSettingsError{Code: Phase15ReasonConfigSchemaUnsupported, Err: fmt.Errorf("unsupported operator settings schema %d", settings.SchemaVersion)}
 	}
-	if validationErr := validateOperatorSettings(settings); validationErr != nil {
+	if validationErr := validateOperatorSettings(settings, s.profiles); validationErr != nil {
 		return OperatorSettings{}, validationErr
 	}
 	return settings, nil
@@ -400,7 +446,7 @@ func operatorSettingsDefaults(cfg *config.Config, characters map[string]string) 
 	return settings
 }
 
-func validateOperatorSettings(settings OperatorSettings) error {
+func validateOperatorSettings(settings OperatorSettings, profiles config.ProfilesConfig) error {
 	if settings.SchemaVersion != OperatorSettingsSchemaVersion {
 		return &OperatorSettingsError{Code: Phase15ReasonConfigSchemaUnsupported, Err: fmt.Errorf("unsupported operator settings schema %d", settings.SchemaVersion)}
 	}
@@ -422,6 +468,24 @@ func validateOperatorSettings(settings OperatorSettings) error {
 		character := strings.ToLower(strings.TrimSpace(rawCharacter))
 		if character == "" || character != rawCharacter || !offlineCharacterNamePattern.MatchString(character) {
 			return fmt.Errorf("operator settings character keys must be canonical lowercase names")
+		}
+		if (value.CharacterClass == "") != (value.CombatProfile == "") {
+			return fmt.Errorf("operator settings character %q must set character_class and combat_profile together", rawCharacter)
+		}
+		if value.CharacterClass != "" {
+			if value.CharacterClass != strings.TrimSpace(value.CharacterClass) || value.CombatProfile != strings.TrimSpace(value.CombatProfile) {
+				return fmt.Errorf("operator settings character %q setup values must be trimmed", rawCharacter)
+			}
+			profile, ok := profiles[value.CombatProfile]
+			if !ok {
+				return fmt.Errorf("operator settings character %q references unknown combat profile %q", rawCharacter, value.CombatProfile)
+			}
+			if !profile.Setup.Enabled {
+				return fmt.Errorf("operator settings character %q references a profile not enabled for setup", rawCharacter)
+			}
+			if profile.CharacterClass != value.CharacterClass {
+				return fmt.Errorf("operator settings character %q class and combat profile are incompatible", rawCharacter)
+			}
 		}
 		switch value.LastDifficulty {
 		case "normal", "nightmare", "hell":
@@ -464,6 +528,22 @@ func validateOperatorSettings(settings OperatorSettings) error {
 	return nil
 }
 
+func (s *OperatorSettingsStore) resetReplacement(current OperatorSettings, expectedRevision uint64) OperatorSettings {
+	replacement := cloneOperatorSettings(s.defaults)
+	replacement.Revision = expectedRevision
+	for character, currentValue := range current.Characters {
+		value, ok := replacement.Characters[character]
+		if !ok {
+			value = s.characterDefaults
+			value.Queue = append([]string(nil), s.characterDefaults.Queue...)
+		}
+		value.CharacterClass = currentValue.CharacterClass
+		value.CombatProfile = currentValue.CombatProfile
+		replacement.Characters[character] = value
+	}
+	return replacement
+}
+
 // ApplyOperatorSettingsToConfig setzt einen validierten persistenten Stand vor dem Aufbau mutabler Runtime-Komponenten.
 func ApplyOperatorSettingsToConfig(cfg *config.Config, settings OperatorSettings) {
 	if cfg == nil {
@@ -495,46 +575,6 @@ func ApplyOperatorSettingsToConfig(cfg *config.Config, settings OperatorSettings
 	cfg.Input.StopHotkey = settings.Input.EmergencyStopHotkey
 }
 
-// RestoreUniqueConfirmedSelection migrates an installed root that predates
-// `last_character` from one unambiguous, selectable lifecycle confirmation.
-// Multiple previously confirmed characters remain unselected fail-closed.
-func RestoreUniqueConfirmedSelection(cfg *config.Config) error {
-	if cfg == nil || strings.TrimSpace(cfg.Session.Character) != "" {
-		return nil
-	}
-	lifecycle, err := NewRouteLifecycleStore(cfg)
-	if err != nil {
-		return err
-	}
-	manifest, _, err := lifecycle.Snapshot()
-	if err != nil {
-		return fmt.Errorf("load route lifecycle for selection migration: %w", err)
-	}
-	catalog, err := ResolveCharacterCatalog(cfg)
-	if err != nil {
-		return fmt.Errorf("resolve characters for selection migration: %w", err)
-	}
-	var selectedCharacter, selectedDifficulty string
-	for _, entry := range catalog.Characters {
-		if !entry.Selectable {
-			continue
-		}
-		difficulty := manifest.Characters[entry.Slug].LastConfirmedDifficulty
-		if difficulty == "" {
-			continue
-		}
-		if selectedCharacter != "" {
-			return nil
-		}
-		selectedCharacter, selectedDifficulty = entry.Name, difficulty
-	}
-	if selectedCharacter != "" {
-		cfg.Session.Character = selectedCharacter
-		cfg.Session.Difficulty = selectedDifficulty
-	}
-	return nil
-}
-
 func operatorSettingsChangedFields(current, next OperatorSettings) []string {
 	fields := make([]string, 0, 4)
 	if current.LastCharacter != next.LastCharacter {
@@ -553,6 +593,19 @@ func operatorSettingsChangedFields(current, next OperatorSettings) []string {
 		fields = append(fields, "history")
 	}
 	return fields
+}
+
+func sameOperatorSetup(left, right OperatorSettings) bool {
+	if len(left.Characters) != len(right.Characters) {
+		return false
+	}
+	for character, leftValue := range left.Characters {
+		rightValue, ok := right.Characters[character]
+		if !ok || leftValue.CharacterClass != rightValue.CharacterClass || leftValue.CombatProfile != rightValue.CombatProfile {
+			return false
+		}
+	}
+	return true
 }
 
 func containsOperatorField(fields []string, expected string) bool {

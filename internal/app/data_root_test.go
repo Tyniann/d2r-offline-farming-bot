@@ -19,6 +19,14 @@ import (
 
 func TestDataRootFreshDefaultsAndRerunAreAtomic(t *testing.T) {
 	bundle := buildTestDefaultBundle(t)
+	for _, relative := range []string{"configs/ui/character-play.png", "configs/ui/difficulty-dialog.png"} {
+		if _, err := os.Stat(filepath.Join(bundle, filepath.FromSlash(relative))); err != nil {
+			t.Fatalf("missing global UI evidence %s: %v", relative, err)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(bundle, "configs", "ui", "characters", "mrbones-selected.png")); !errors.Is(err, fs.ErrNotExist) {
+		t.Fatalf("fresh default bundle contains character-specific evidence: %v", err)
+	}
 	target := filepath.Join(t.TempDir(), Phase15DataRootDirectoryName)
 	manager, err := NewDataRootManager(target)
 	if err != nil {

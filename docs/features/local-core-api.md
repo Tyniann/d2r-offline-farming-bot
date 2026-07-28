@@ -28,7 +28,7 @@ Der Server wählt über `net.Listen("tcp4", "127.0.0.1:0")` einen freien Loopbac
 
 ### Endpunkte
 
-| Endpunkt | Stand 11.3 |
+| Endpunkt | Verhalten |
 |---|---|
 | `GET /api/v1/status` | Aktueller App-/Core-, D2R-Compatibility-, Input-, World- und Queue-Snapshot einschließlich tatsächlicher/erwarteter/Offsetversion, Game-ID, Run-ID, Lifecycle-Phase, Index, Spielzyklus, Retry und Safety-Budgets. |
 | `GET /api/v1/catalog` | Read-only Run-Katalog aus dem bestehenden Availability-Resolver. |
@@ -40,6 +40,10 @@ Der Server wählt über `net.Listen("tcp4", "127.0.0.1:0")` einen freien Loopbac
 | `GET /api/v1/history/runs/{runID}` | Nutzerorientierter Run-Drill-down mit optionalen Rohereignissen. |
 | `GET /api/v1/history/export` | Gefilterter JSON-Gesamtreport oder sichere CSV-Run-/Itemtabelle. |
 | `GET /api/v1/control/bootstrap` | Same-origin Wiederherstellung des rein im Memory gehaltenen Prozess-Tokens nach Refresh; Custom Header und Security Envelope sind Pflicht. |
+| `POST /api/v1/characters/reload` | Liest die begrenzten lokalen Saveheader neu; unveränderter Fachzustand bleibt revisions- und ereignisneutral. |
+| `POST /api/v1/characters/setup/preview` | Liefert Core-validierte Klasse, kompatible Profile, Entwickler-Default, Setupstatus, Pickit-Zuordnungen und alle gebundenen Revisionen. |
+| `POST /api/v1/characters/setup/confirm` | Speichert das klassenkompatible Profil und ergänzt ausschließlich vollständig fehlende Standard-Pickit-Zuordnungen. |
+| `POST /api/v1/characters/selection/capture` | Erfasst nach expliziter Nutzerbestätigung den markierten 210×60-Charakterbereich ohne Navigationsinput und veröffentlicht ihn atomar. |
 | `POST /api/v1/selection/preview` | Seiteneffektfreie, an Katalog- und Lifecycle-Revision gebundene Vorschau einschließlich betroffener Route-IDs und kurzlebigem Confirmation-Token. |
 | `POST /api/v1/selection/apply` | Wendet exakt die unveränderte Vorschau screenshot- und Memory-verifiziert an; Lifecycle-Commit erfolgt erst nach bestätigtem Spieleintritt. |
 | `POST /api/v1/queue/validate` | Seiteneffektfreier Gesamt-Preflight gegen bestätigte Auswahl, Katalogrevision, Availability, Lifecycle und Safety-Budgets. |
@@ -73,6 +77,8 @@ Nach einem terminalen Run-Wechsel aktualisiert das Live-Backend den flüchtigen 
 
 `compatibility_changed` enthält nur Zustand, stabilen Reason-Code und die vier pfadfreien Versionswerte. Auswahl-Apply, Queue-Start/Resume sowie Live-Routenworkflows und deren Publish-Mutationen werden zusätzlich im Backend abgewiesen, solange der Zustand nicht `compatible` ist.
 
+`catalog_changed` enthält ausschließlich die neue Katalogrevision. Reload, Setup und Capture veröffentlichen es genau einmal, wenn sich die fachliche Katalogprojektion tatsächlich geändert hat; Pfade, Saveinhalte und Bilddaten werden nie über SSE übertragen. Der Renderer lädt daraufhin die abhängigen read-only Projektionen neu.
+
 ## Frontend-Build
 
 `web/package.json` pinnt React, TypeScript, Vite, Vitest und Testabhängigkeiten exakt. `pnpm-lock.yaml` hält den vollständigen aufgelösten Dependency-Graph. Das OpenAPI-Dokument ist die einzige DTO-Quelle; `web/scripts/generate-api.mjs` erzeugt `web/src/api/generated.ts` einschließlich Query-Client. `pretest` und `prebuild` brechen ab, wenn das generierte Ergebnis veraltet ist.
@@ -105,7 +111,8 @@ Die API wird nicht direkt vom Operator gestartet. Electron übergibt absoluten D
 - [Phase-11-Core-Vertrag](phase-11-core-contract.md)
 - [Session-Lifecycle](session-lifecycle.md)
 - [Run-Verfügbarkeit und Inspect](run-availability.md)
+- [Charaktereinrichtung](character-setup.md)
 - [Historien-API und Export](history-api-export.md)
 
 ---
-*Zuletzt aktualisiert: 26. Juli 2026*
+*Zuletzt aktualisiert: 28. Juli 2026*

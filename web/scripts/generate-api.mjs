@@ -50,6 +50,22 @@ export function getCatalog(signal?: AbortSignal): Promise<CatalogDTO> {
   return getJSON<CatalogDTO>("/api/v1/catalog", signal);
 }
 
+export function reloadCharacters(signal?: AbortSignal): Promise<CharacterReloadDTO> {
+  return sendJSON<CharacterReloadDTO>("/api/v1/characters/reload", "POST", {}, "", signal);
+}
+
+export function previewCharacterSetup(request: CharacterSetupPreviewRequest, signal?: AbortSignal): Promise<CharacterSetupPreviewDTO> {
+  return sendJSON<CharacterSetupPreviewDTO>("/api/v1/characters/setup/preview", "POST", request, "", signal);
+}
+
+export function confirmCharacterSetup(request: CharacterSetupConfirmRequest, token: string, signal?: AbortSignal): Promise<CharacterSetupPreviewDTO> {
+  return sendJSON<CharacterSetupPreviewDTO>("/api/v1/characters/setup/confirm", "POST", request, token, signal);
+}
+
+export function captureCharacterSelection(request: CharacterSelectionCaptureRequest, token: string, signal?: AbortSignal): Promise<CharacterSetupPreviewDTO> {
+  return sendJSON<CharacterSetupPreviewDTO>("/api/v1/characters/selection/capture", "POST", request, token, signal);
+}
+
 export function getOperatorSettings(signal?: AbortSignal): Promise<OperatorSettingsDTO> {
   return getJSON<OperatorSettingsDTO>("/api/v1/settings/operator", signal);
 }

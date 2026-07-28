@@ -106,6 +106,9 @@ func ResolveSessionPlan(cfg *config.Config, opts Options) (SessionPlan, error) {
 	if err != nil {
 		return SessionPlan{}, fmt.Errorf("session pickit profiles: %w", err)
 	}
+	if setupErr := ValidateCharacterSetupConfig(cfg, profiles); setupErr != nil {
+		return SessionPlan{}, fmt.Errorf("session character setup config: %w", setupErr)
+	}
 	assignments, err := NewPickitAssignmentStore(cfg.ResolvePath("pickit-assignments.local.yaml"), profiles)
 	if err != nil {
 		return SessionPlan{}, fmt.Errorf("session pickit assignments: %w", err)

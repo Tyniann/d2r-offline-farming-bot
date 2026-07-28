@@ -70,10 +70,11 @@ type offlineStartMachine struct {
 type screenAnchorMismatchError struct {
 	name       string
 	difference float64
+	maximum    float64
 }
 
 func (e *screenAnchorMismatchError) Error() string {
-	return fmt.Sprintf("%s screen anchor mismatch: mean_difference=%.4f maximum=%.4f", e.name, e.difference, screenAnchorMaxMeanDifference)
+	return fmt.Sprintf("%s screen anchor mismatch: mean_difference=%.4f maximum=%.4f", e.name, e.difference, e.maximum)
 }
 
 func (m *offlineStartMachine) tick(now time.Time, state world.State) (offlineStartAction, bool, error) {
@@ -217,11 +218,28 @@ func verifyOfflineAnchor(ctrl offlineDifficultyController, anchors ...screenAnch
 			return nil, err
 		}
 		scores[anchor.name] = score
-		if score > screenAnchorMaxMeanDifference {
-			return scores, &screenAnchorMismatchError{name: anchor.name, difference: score}
+		maximum := anchor.maximumMeanDifference()
+		if score > maximum {
+			return scores, &screenAnchorMismatchError{name: anchor.name, difference: score, maximum: maximum}
+		}
+		if anchor.requireSelectedBorder {
+			borderMatched, borderErr := matchSelectedCharacterBorder(img, anchor)
+			if borderErr != nil {
+				return scores, borderErr
+			}
+			if !borderMatched {
+				return scores, &screenAnchorMismatchError{name: anchor.name + "_selected_border", difference: 1, maximum: 0}
+			}
 		}
 	}
 	return scores, nil
+}
+
+func canceledInputOperationError(ctx context.Context, status input.Status, stopHotkey string) error {
+	if status.Stopped {
+		return fmt.Errorf("mit Not-Aus (%s) abgebrochen; starte die App neu und versuche es erneut", strings.ToUpper(stopHotkey))
+	}
+	return ctx.Err()
 }
 
 // RunOfflineDifficultyTest starts one offline game from the verified character
@@ -243,10 +261,10 @@ func (rt *Runtime) runOfflineDifficultyTest(parent context.Context, rawDifficult
 	if err != nil {
 		return err
 	}
-	return rt.runOfflineDifficultyForCharacter(parent, difficulty, character, 0, false)
+	return rt.runOfflineDifficultyForCharacter(parent, difficulty, character, 0, false, phase16CharacterAnchorRect)
 }
 
-func (rt *Runtime) runOfflineDifficultyForCharacter(parent context.Context, difficulty offlineDifficulty, character string, expectedClass world.CharacterClass, verifyClass bool) error {
+func (rt *Runtime) runOfflineDifficultyForCharacter(parent context.Context, difficulty offlineDifficulty, character string, expectedClass world.CharacterClass, verifyClass bool, characterAnchorRect image.Rectangle) error {
 	ctrl, ok := rt.Input.(offlineDifficultyController)
 	if !ok {
 		return fmt.Errorf("offline game start: controller lacks click or screenshot support")
@@ -271,7 +289,12 @@ func (rt *Runtime) runOfflineDifficultyForCharacter(parent context.Context, diff
 	machine := &offlineStartMachine{character: character, expectedClass: expectedClass, verifyClass: verifyClass}
 	playClicked, difficultyClicked := false, false
 	characterSlug := strings.ToLower(character)
-	characterAnchor := screenAnchor{name: "selected_character", path: rt.Config.ResolvePath(filepath.Join("ui", "characters", characterSlug+"-selected.png")), rect: image.Rect(1035, 48, 1245, 108)}
+	characterAnchor := screenAnchor{
+		name: "selected_character", path: rt.Config.ResolvePath(filepath.Join("ui", "characters", characterSlug+"-selected.png")), rect: characterAnchorRect,
+		comparisonRegion: characterNameAnchorRegion, maxMeanDifference: characterNameAnchorMaxDifference,
+		brightThreshold: characterNameAnchorBrightThreshold, brightShiftRadius: characterNameAnchorShiftRadius,
+		requireSelectedBorder: true,
+	}
 	playAnchor := screenAnchor{name: "active_play", path: rt.Config.ResolvePath(filepath.Join("ui", "character-play.png")), rect: image.Rect(538, 624, 741, 671)}
 	difficultyAnchor := screenAnchor{name: "difficulty_dialog", path: rt.Config.ResolvePath(filepath.Join("ui", "difficulty-dialog.png")), rect: image.Rect(550, 245, 730, 420)}
 
@@ -279,7 +302,7 @@ func (rt *Runtime) runOfflineDifficultyForCharacter(parent context.Context, diff
 	for {
 		select {
 		case <-ctx.Done():
-			return ctx.Err()
+			return canceledInputOperationError(ctx, ctrl.Status(), rt.Config.Input.StopHotkey)
 		case event := <-hotkeys:
 			rt.handleHotkeyEvent(event, cancel)
 		case <-ticker.C:

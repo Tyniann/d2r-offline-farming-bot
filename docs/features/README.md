@@ -10,7 +10,7 @@ Spätere Ideen (noch nicht umgesetzt): [`docs/backlog.md`](../backlog.md).
 | [State Probe](state-probe.md) | Memory-Reads, World-Update im App-Loop; `--probe` für semantisches World-State-Logging |
 | [World Model](world-model.md) | Domain-Typen (Area, Player, State), eingebetteter Area-Katalog; kontinuierliches Update im App-Loop (2.3); Validierung Phase 2.4 |
 | [Input Controller](input-controller.md) | D2R-Fensterbindung per PID, Client-Geometrie (3.1); Tastatur-/Maus-Primitives; YAML-Bindings für Skills, Portal und Belt; Safety-Opt-in, globale Pause/Stop-Hotkeys; manueller CLI-Input-Testmodus |
-| [Character- und Encounter-Profile](character-encounter-profiles.md) | Phase 8: klassenbegrenzte Lifecycle-Hooks, Once-/Reset-Semantik und profilabhängige HP-/Mana-/Rejuvenation-Policy |
+| [Character- und Encounter-Profile](character-encounter-profiles.md) | Klassenbegrenzte Lifecycle-Hooks, Resource Policy und entwicklerverwaltete Phase-16-Setup-Freigabe samt Default |
 | [Town Services](town-services.md) | Phase 9: fail-closed Bedarfsermittlung, zentraler Act-1-Hub und minimales Fremdakt-Egress-Format |
 | [Globaler System-Egress](system-egress.md) | Abschnitt 12.2: aktgenerische globale Portal-zum-Wegpunkt-Routen für Akt 2–5 ohne Character-/Difficulty-Bindung |
 | [Run Registry und gemeinsames Run-Schema](run-registry.md) | Phase 10.1: typisierte Countess-/Mephisto-Definitionen, gemeinsames Config-Schema und fail-closed Definition Resolver |
@@ -23,7 +23,7 @@ Spätere Ideen (noch nicht umgesetzt): [`docs/backlog.md`](../backlog.md).
 | [Item Enumeration Read-Only](item-enumeration.md) | Phase 5.1: positionierte Ground-Drops read-only aus Memory ins World Model und Probe-Log |
 | [Inventory Model und Lock Grid](inventory-lock-grid.md) | Phase 5.2: persönliche Inventar-Items, 4x10 Lock-Grid und fail-closed Pickup-Kapazität |
 | [Pickit Engine](pickit-engine.md) | Phase 5.3: kleiner NIP-Subset gegen `world.Item`, Default-Countess-Regeln und read-only Match-Ergebnisse |
-| [Pickit-Profile und Assignments](pickit-profiles.md) | Abschnitt 13.4: atomare revisionierte YAML-Profile, geordnete Charakter-/Run-Zuordnung und fallback-freie Policy-Migration |
+| [Pickit-Profile und Assignments](pickit-profiles.md) | Atomare revisionierte YAML-Profile, geordnete Charakter-/Run-Zuordnung und idempotente Ergänzung vollständig fehlender Setup-Defaults |
 | [Pickit-API und sichere Run-Grenze](pickit-api.md) | Abschnitt 13.5: vollständiger HTTP-Vertrag, sichere revisionierte Mutationen und unveränderlicher Policy-Snapshot pro Run |
 | [Pickit-Profilbibliothek und Editor](pickit-editor.md) | Abschnitte 13.6–13.7: geführte Katalogregeln, Profil-CRUD, Assignments und Core-basierte Testitem-Vorschau mit vollständigem Trace |
 | [Loot Decision Pipeline](loot-decision-pipeline.md) | Phase 5.4 und Abschnitt 13.7: Action-gesteuerte Pickup-/Keep-/Stash-/Sell-Entscheidungen mit fail-closed Recheck |
@@ -47,8 +47,10 @@ Spätere Ideen (noch nicht umgesetzt): [`docs/backlog.md`](../backlog.md).
 | [Phase-13-Core-Vertrag](phase-13-core-contract.md) | Abschnitt 13.0: Pickit-Baseline, Profil-/Assignment-Schemas, Aktionen, Revisionen, Reason-Codes, Paketgrenzen und fallback-freie Migrationsmatrix |
 | [Phase-14-Core-Vertrag](phase-14-core-contract.md) | Abschnitt 14.0: Historienpopulation, Metriken, Denominatoren, Funnel, Stages, Filter, Pagination, Export und Reason-Codes |
 | [Phase-15-Core-Vertrag](phase-15-core-contract.md) | Abschnitt 15.0: Desktop-/Core-Ownership, Datenroot, Lifecycle, Version-Gate, Operatorwerte, Retention, Reason-Codes und 10.000-Run-Performancebaseline |
+| [Phase-16-Core-Vertrag](phase-16-core-contract.md) | Abschnitt 16.0: D2S-v105-Präfix, Klassenmapping einschließlich Warlock, Charakter-Setup-Ownership, Reason-Codes, Defaults und Nicht-Ziele |
+| [Charaktereinrichtung](character-setup.md) | Phase 16: Core-validierte Profil- und Pickit-Einrichtung, sichere Auswahlbilderfassung und erneute Selection-/Queue-/Run-Gates |
 | [Installierter Datenroot und Desktop-Einstellungen](installed-data-root.md) | Abschnitt 15.1: expliziter Core-Root, hashgebundene Defaults, stagingbasierter Import und getrennter atomarer Desktop-Settings-Store |
-| [Persistente Operator-Einstellungen](operator-settings.md) | Abschnitt 15.2: Core-eigene charakterbezogene Queues, Budgets, Input, Hotkeys und Retention mit Revisionen, Preview/Reset, Idle-Lock und zehn Backups |
+| [Persistente Operator-Einstellungen](operator-settings.md) | Schema 2 mit geschütztem Charakterprofil-Paar, Queues, Budgets, Input, Hotkeys, Retention, Preview/Reset und zehn Backups |
 | [Sichere Electron-Shell und Core-Kindprozess](desktop-shell.md) | Abschnitt 15.3: gehärtetes Einzelfenster, private Handshake-Pipe, Datenroot-Lock, minimale IPC-Bridge und fail-closed Crash-Recovery |
 | [Tatsächliches D2R-Versionsgate](d2r-version-gate.md) | Abschnitt 15.4: PID-/pfadgebundene Windows-Dateiversion, exakte Compatibility-Matrix und Input-/Workflow-Sperre vor `compatible` |
 | [Desktop-App-Shell und Designsystem](desktop-app-shell.md) | Abschnitt 15.5: eine responsive Shell mit fünf stabilen Hash-Zielen, gemeinsamer Zustandsbasis und unveränderten Core-getriebenen Featureflüssen |

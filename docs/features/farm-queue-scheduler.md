@@ -20,6 +20,8 @@ Der `SessionSupervisor` führt eine eindeutige, geordnete Run-Folge innerhalb ei
 
 Unbekannte, `stale`, `unavailable` oder kontextfremde Einträge behalten ihre präzisen Reason-Codes. `runtime_validation_required` bleibt zulässig, weil Playback vor dem ersten Routeninput live gegatet wird.
 
+Im Desktoppfad lädt der Core vor Queue-Validierung und Queue-Start den Savekatalog frisch. Der ausgewählte Charakter muss weiterhin dieselbe Headerklasse und dasselbe in OperatorSettings gespeicherte, freigegebene Kampfprofil besitzen. Jeder angeforderte Run muss exakt dieses Profil verlangen und eine gültige Pickit-Zuordnung besitzen. Dasselbe enge Gate läuft nochmals vor jedem vom Supervisor gestarteten Queue-Eintrag. Klassen- oder Profilabweichungen stoppen vor Worker und Input; eine fehlende Pickit-Zuordnung sperrt ausschließlich den betroffenen Run.
+
 ### Game-Lifecycle und Run-Executor
 
 Der produktive Queue-Runner besitzt zwei getrennte Grenzen:
@@ -89,4 +91,4 @@ Die vollständige Phase-11-Abnahme wurde am 17. Juli 2026 abgeschlossen. Pause u
 - [Phase-11-Core-Vertrag](phase-11-core-contract.md)
 
 ---
-*Zuletzt aktualisiert: 17. Juli 2026*
+*Zuletzt aktualisiert: 28. Juli 2026*

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -200,6 +201,155 @@ func TestRepositoryPickitAssignmentExampleReferencesValidProfiles(t *testing.T) 
 			t.Fatalf("resolve example %s: %v", runID, err)
 		}
 	}
+}
+
+func TestEnsureMissingPickitDefaultsPreservesUserChainsAndIsIdempotent(t *testing.T) {
+	profiles, err := NewPickitProfileService(filepath.Join("..", "..", "configs", "pickit", "profiles"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defaults := Phase16DefaultPickitChains()
+
+	t.Run("both missing use one revision", func(t *testing.T) {
+		assignments, err := NewPickitAssignmentStore(filepath.Join(t.TempDir(), "assignments.yaml"), profiles)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err = assignments.Initialize(map[string]map[tasks.RunID][]string{"MrBones": {}}); err != nil {
+			t.Fatal(err)
+		}
+		got, err := assignments.EnsureMissingDefaults("mrbones", defaults, 1)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got.Revision != 2 || len(got.Assignments) != 1 ||
+			!equalStrings(findPickitAssignment(got, "MrBones", tasks.RunIDCountess), defaults[tasks.RunIDCountess]) ||
+			!equalStrings(findPickitAssignment(got, "MrBones", tasks.RunIDMephisto), defaults[tasks.RunIDMephisto]) {
+			t.Fatalf("manifest=%+v", got)
+		}
+		retry, err := assignments.EnsureMissingDefaults("MRBONES", defaults, 1)
+		if err != nil || retry.Revision != 2 {
+			t.Fatalf("retry=%+v err=%v", retry, err)
+		}
+	})
+
+	t.Run("one missing preserves differing user chain byte for byte", func(t *testing.T) {
+		assignments, err := NewPickitAssignmentStore(filepath.Join(t.TempDir(), "assignments.yaml"), profiles)
+		if err != nil {
+			t.Fatal(err)
+		}
+		userChain := []string{"keys", "gems"}
+		if _, err = assignments.Initialize(map[string]map[tasks.RunID][]string{"MrBones": {
+			tasks.RunIDCountess: append([]string(nil), userChain...),
+		}}); err != nil {
+			t.Fatal(err)
+		}
+		got, err := assignments.EnsureMissingDefaults("mrbones", defaults, 1)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got.Revision != 2 || !reflect.DeepEqual(got.Assignments["MrBones"][tasks.RunIDCountess], userChain) {
+			t.Fatalf("user chain changed: %+v", got)
+		}
+	})
+
+	t.Run("both existing ignore stale revision", func(t *testing.T) {
+		assignments, err := NewPickitAssignmentStore(filepath.Join(t.TempDir(), "assignments.yaml"), profiles)
+		if err != nil {
+			t.Fatal(err)
+		}
+		existing := map[tasks.RunID][]string{
+			tasks.RunIDCountess: {"keys"},
+			tasks.RunIDMephisto: {"mephisto-standard", "gems"},
+		}
+		if _, err = assignments.Initialize(map[string]map[tasks.RunID][]string{"MrBones": existing}); err != nil {
+			t.Fatal(err)
+		}
+		got, err := assignments.EnsureMissingDefaults("MrBones", defaults, 99)
+		if err != nil || got.Revision != 1 || !reflect.DeepEqual(got.Assignments["MrBones"], existing) {
+			t.Fatalf("manifest=%+v err=%v", got, err)
+		}
+	})
+}
+
+func TestEnsureMissingPickitDefaultsRejectsStaleAndInvalidDefaults(t *testing.T) {
+	profiles, err := NewPickitProfileService(filepath.Join("..", "..", "configs", "pickit", "profiles"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	assignments, err := NewPickitAssignmentStore(filepath.Join(t.TempDir(), "assignments.yaml"), profiles)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = assignments.Initialize(map[string]map[tasks.RunID][]string{"MrBones": {}}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = assignments.EnsureMissingDefaults("MrBones", Phase16DefaultPickitChains(), 99); err == nil || !strings.Contains(err.Error(), "revision_conflict") {
+		t.Fatalf("stale error=%v", err)
+	}
+	invalid := []map[tasks.RunID][]string{
+		{tasks.RunID("andariel"): {"gems"}},
+		{tasks.RunIDCountess: {"missing"}},
+		{tasks.RunIDCountess: {"gems", "gems"}},
+	}
+	for _, defaults := range invalid {
+		if _, err = assignments.EnsureMissingDefaults("MrBones", defaults, 1); err == nil {
+			t.Fatalf("invalid defaults accepted: %v", defaults)
+		}
+	}
+	current, err := assignments.Snapshot()
+	if err != nil || current.Revision != 1 || len(current.Assignments["MrBones"]) != 0 {
+		t.Fatalf("current=%+v err=%v", current, err)
+	}
+}
+
+func TestEnsureMissingPickitDefaultsReportsWriteAndReReadFailures(t *testing.T) {
+	profiles, err := NewPickitProfileService(filepath.Join("..", "..", "configs", "pickit", "profiles"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Run("write", func(t *testing.T) {
+		assignments, err := NewPickitAssignmentStore(filepath.Join(t.TempDir(), "assignments.yaml"), profiles)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err = assignments.Initialize(map[string]map[tasks.RunID][]string{"MrBones": {}}); err != nil {
+			t.Fatal(err)
+		}
+		assignments.write = func(string, []byte, string) error { return errors.New("injected write failure") }
+		if _, err = assignments.EnsureMissingDefaults("MrBones", Phase16DefaultPickitChains(), 1); err == nil {
+			t.Fatal("write failure was ignored")
+		}
+		current, snapshotErr := assignments.Snapshot()
+		if snapshotErr != nil || current.Revision != 1 || len(current.Assignments["MrBones"]) != 0 {
+			t.Fatalf("current=%+v err=%v", current, snapshotErr)
+		}
+	})
+	t.Run("re-read", func(t *testing.T) {
+		assignments, err := NewPickitAssignmentStore(filepath.Join(t.TempDir(), "assignments.yaml"), profiles)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err = assignments.Initialize(map[string]map[tasks.RunID][]string{"MrBones": {}}); err != nil {
+			t.Fatal(err)
+		}
+		reads := 0
+		assignments.read = func(path string) ([]byte, error) {
+			reads++
+			if reads == 2 {
+				return nil, errors.New("injected re-read failure")
+			}
+			return os.ReadFile(path)
+		}
+		if _, err = assignments.EnsureMissingDefaults("MrBones", Phase16DefaultPickitChains(), 1); err == nil || !strings.Contains(err.Error(), "verify") {
+			t.Fatalf("re-read error=%v", err)
+		}
+		assignments.read = os.ReadFile
+		current, snapshotErr := assignments.Snapshot()
+		if snapshotErr != nil || current.Revision != 2 {
+			t.Fatalf("persisted current=%+v err=%v", current, snapshotErr)
+		}
+	})
 }
 
 func TestPickitProfileStrictDecodeRejectsUnknownFields(t *testing.T) {

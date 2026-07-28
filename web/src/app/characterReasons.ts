@@ -8,6 +8,7 @@ const classLabels: Record<string, string> = {
   necromancer: "Totenbeschwörer",
   paladin: "Paladin",
   sorceress: "Zauberin",
+  warlock: "Hexenmeister",
 };
 
 export function supportedCharacterClasses(catalog: CatalogDTO): string {
@@ -19,12 +20,28 @@ export function characterReasonText(reason: string, catalog: CatalogDTO): string
   switch (reason) {
     case "character_save_missing":
       return "Lokaler Offline-Spielstand fehlt.";
-    case "character_unconfigured":
-      return `Kein unterstütztes Kampfprofil zugeordnet. Derzeit unterstützt: ${supportedCharacterClasses(catalog)}.`;
+    case "character_save_unreadable":
+      return "Der lokale Offline-Spielstand kann nicht sicher gelesen werden.";
+    case "character_save_header_invalid":
+      return "Der lokale Offline-Spielstand hat keinen gültigen D2R-Kopf.";
+    case "character_save_version_unsupported":
+      return "Diese Spielstandsversion wird noch nicht unterstützt.";
+    case "character_save_name_mismatch":
+      return "Dateiname und Charaktername im Spielstand stimmen nicht überein.";
+    case "character_save_name_conflict":
+      return "Mehrere Spielstände verwenden denselben Charakternamen.";
+    case "character_class_unknown":
+      return "Die Charakterklasse dieses Spielstands ist unbekannt.";
+    case "character_class_unsupported":
+      return `Für diese Klasse gibt es noch kein freigegebenes Kampfprofil. Derzeit unterstützt: ${supportedCharacterClasses(catalog)}.`;
+    case "character_profile_missing":
+      return "Das feste Kampfprofil für diesen Charakter muss noch bestätigt werden.";
+    case "character_profile_incompatible":
+      return "Das gespeicherte Kampfprofil passt nicht zur Charakterklasse.";
     case "character_anchor_missing":
-      return "Automatische Auswahl dieses Charakters in D2R ist noch nicht eingerichtet.";
+      return "Das Auswahlbild für diesen Charakter fehlt noch.";
     default:
-      return reason;
+      return "Dieser Charakter ist derzeit nicht verfügbar.";
   }
 }
 

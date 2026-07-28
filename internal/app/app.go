@@ -204,6 +204,9 @@ func New(cfg *config.Config, opts Options) (rt *Runtime, err error) {
 	if err != nil {
 		return nil, fmt.Errorf("pickit profiles: %w", err)
 	}
+	if setupErr := ValidateCharacterSetupConfig(cfg, pickitProfiles); setupErr != nil {
+		return nil, fmt.Errorf("character setup config: %w", setupErr)
+	}
 	pickitAssignments, err := NewPickitAssignmentStore(cfg.ResolvePath("pickit-assignments.local.yaml"), pickitProfiles)
 	if err != nil {
 		return nil, fmt.Errorf("pickit assignments: %w", err)

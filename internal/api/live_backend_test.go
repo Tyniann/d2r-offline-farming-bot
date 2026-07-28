@@ -85,7 +85,7 @@ func TestLiveBackendProjectsStatusAndMeaningfulEvents(t *testing.T) {
 	}
 }
 
-func TestLiveBackendMigratesUniqueConfirmedSelectionAcrossRestart(t *testing.T) {
+func TestLiveBackendDoesNotRestoreSelectionWithoutCharacterProfile(t *testing.T) {
 	cfg, err := config.Load("../../configs/config.example.yaml")
 	if err != nil {
 		t.Fatal(err)
@@ -118,26 +118,25 @@ func TestLiveBackendMigratesUniqueConfirmedSelectionAcrossRestart(t *testing.T) 
 	if _, err = lifecycle.Confirm(preview, time.Now().UTC()); err != nil {
 		t.Fatal(err)
 	}
-	if err = app.RestoreUniqueConfirmedSelection(cfg); err != nil {
-		t.Fatal(err)
-	}
-
 	backend, err := NewLiveBackend(cfg, telemetry.NewLivePublisher(16, 4))
 	if err != nil {
 		t.Fatal(err)
 	}
+	backend.mu.Lock()
+	backend.status.Selection = SelectionStatusDTO{Character: "MrBones", Difficulty: "hell"}
+	backend.mu.Unlock()
 	if err = backend.SetOperatorSettingsStore(settings); err != nil {
 		t.Fatal(err)
 	}
 	status := backend.Status()
-	if status.Selection.Character != "MrBones" || status.Selection.Difficulty != "hell" {
+	if status.Selection.Character != "" || status.Selection.Difficulty != "" {
 		t.Fatalf("selection=%+v", status.Selection)
 	}
 	persisted, err := settings.Snapshot()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if persisted.LastCharacter != "MrBones" || persisted.Characters["mrbones"].LastDifficulty != "hell" {
+	if persisted.LastCharacter != "" {
 		t.Fatalf("persisted=%+v", persisted)
 	}
 }
@@ -391,6 +390,7 @@ func TestLiveBackendSessionCommandsUseSupervisorAndRemainIdempotent(t *testing.T
 	if err != nil {
 		t.Fatal(err)
 	}
+	configureDesktopCharacterContract(t, backend, cfg, "countess", "mephisto")
 	markBackendCompatible(backend)
 	backend.mu.Lock()
 	backend.status.State = string(app.SupervisorStateIdleInGame)
@@ -475,6 +475,7 @@ func TestLiveBackendQueueAdoptsPassiveConfirmedOpenGameFromIdle(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	configureDesktopCharacterContract(t, backend, cfg, "countess")
 	backend.mu.Lock()
 	backend.status.State = string(app.SupervisorStateIdle)
 	backend.status.Selection = SelectionStatusDTO{Character: "MrBones", Difficulty: "nightmare"}
@@ -551,9 +552,7 @@ func TestLiveBackendAppliesOnlySelectableSameDifficultyCharacter(t *testing.T) {
 		t.Fatal(err)
 	}
 	markBackendCompatible(backend)
-	entry := app.CharacterCatalogEntry{Name: "MrBones", Slug: "mrbones", ExpectedClass: "necromancer", Selectable: true, AnchorPath: "anchor.png"}
-	backend.bootstrap.characters = map[string]app.CharacterCatalogEntry{"mrbones": entry}
-	backend.bootstrap.catalog.Characters = []CharacterCatalogEntry{{Name: "MrBones", Slug: "mrbones", Selectable: true}}
+	configureDesktopCharacterContract(t, backend, cfg)
 	called := 0
 	backend.SetSelectionHandler(func(request app.CharacterSelectionRequest) error {
 		called++
@@ -593,7 +592,7 @@ func TestLiveBackendRejectsMissingAnchorBeforeSelectionInput(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	backend.bootstrap.characters = map[string]app.CharacterCatalogEntry{"missing": {Name: "Missing", Slug: "missing", Selectable: false, Reasons: []string{app.CharacterReasonAnchorMissing}}}
+	setBackendCharacterCatalogProjection(backend, app.CharacterCatalogEntry{Name: "Missing", Slug: "missing", ExpectedClass: "necromancer", Selectable: false, Reasons: []string{app.CharacterReasonAnchorMissing}})
 	backend.SetSelectionHandler(func(app.CharacterSelectionRequest) error { t.Fatal("disabled character reached selector"); return nil })
 	if _, err := backend.PreviewSelection(SelectionPreviewRequest{Character: "Missing", Difficulty: cfg.Session.Difficulty, CatalogRevision: 1}); err == nil {
 		t.Fatal("missing anchor selection was accepted")
@@ -671,6 +670,29 @@ func TestSelectionRejectsStalePreviewBeforeInput(t *testing.T) {
 	}
 }
 
+func TestSelectionReloadsSaveProjectionAndStopsChangedClassBeforeInput(t *testing.T) {
+	backend := newSelectionTestBackend(t)
+	preview, err := backend.PreviewSelection(SelectionPreviewRequest{Character: "MrBones", Difficulty: "nightmare", CatalogRevision: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	changed := app.CharacterCatalog{Revision: 2, Characters: []app.CharacterCatalogEntry{{
+		Name: "MrBones", Slug: "mrbones", ExpectedClass: "paladin",
+		Reasons: []string{app.CharacterReasonClassUnsupported},
+	}}}
+	backend.mu.Lock()
+	backend.characterCatalogReload = func() (app.CharacterCatalog, error) { return changed, nil }
+	backend.mu.Unlock()
+	calls := 0
+	backend.SetSelectionHandler(func(app.CharacterSelectionRequest) error { calls++; return nil })
+
+	_, err = backend.Command("apply_selection", selectionCommand(t, preview, 0))
+	var commandErr *commandError
+	if !errors.As(err, &commandErr) || commandErr.code != "selection_confirmation_invalid" || calls != 0 {
+		t.Fatalf("changed save err=%v calls=%d", err, calls)
+	}
+}
+
 func TestSelectionFailureLeavesLifecycleUnchanged(t *testing.T) {
 	backend := newSelectionTestBackend(t)
 	preview, err := backend.PreviewSelection(SelectionPreviewRequest{Character: "MrBones", Difficulty: "nightmare", CatalogRevision: 1})
@@ -740,9 +762,7 @@ func newSelectionTestBackend(t *testing.T) *LiveBackend {
 		t.Fatal(err)
 	}
 	markBackendCompatible(backend)
-	entry := app.CharacterCatalogEntry{Name: "MrBones", Slug: "mrbones", ExpectedClass: "necromancer", Selectable: true, AnchorPath: "anchor.png"}
-	backend.bootstrap.characters = map[string]app.CharacterCatalogEntry{"mrbones": entry}
-	backend.bootstrap.catalog.Characters = []CharacterCatalogEntry{{Name: "MrBones", Slug: "mrbones", Selectable: true}}
+	configureDesktopCharacterContract(t, backend, cfg)
 	backend.mu.Lock()
 	backend.status.Input = InputDTO{Enabled: true}
 	backend.mu.Unlock()
@@ -768,6 +788,49 @@ func TestSelectionRequiresEffectiveRuntimeInputBeforeHandler(t *testing.T) {
 	var commandErr *commandError
 	if !errors.As(err, &commandErr) || commandErr.code != "input_not_ready" || calls != 0 {
 		t.Fatalf("err=%v calls=%d, want input_not_ready before handler", err, calls)
+	}
+}
+
+func TestDesktopCharacterContractRejectsRunProfileMismatchBeforeQueueValidation(t *testing.T) {
+	cfg, err := config.Load("../../configs/config.example.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.Routes.LifecycleFile = filepath.Join(t.TempDir(), "route-lifecycle.local.yaml")
+	backend, err := NewLiveBackend(cfg, telemetry.NewLivePublisher(8, 2))
+	if err != nil {
+		t.Fatal(err)
+	}
+	configureDesktopCharacterContract(t, backend, cfg, "countess")
+	run := cfg.Runs.Definitions["countess"]
+	run.Combat.Profile = "different_profile"
+	cfg.Runs.Definitions["countess"] = run
+
+	_, _, err = backend.validateDesktopCharacterContract("MrBones", []string{"countess"})
+	var commandErr *commandError
+	if !errors.As(err, &commandErr) || commandErr.code != string(tasks.RunReasonCharacterProfileRunIncompatible) {
+		t.Fatalf("profile mismatch error = %v", err)
+	}
+}
+
+func TestDesktopCharacterContractChecksPickitOnlyForRequestedRun(t *testing.T) {
+	cfg, err := config.Load("../../configs/config.example.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.Routes.LifecycleFile = filepath.Join(t.TempDir(), "route-lifecycle.local.yaml")
+	backend, err := NewLiveBackend(cfg, telemetry.NewLivePublisher(8, 2))
+	if err != nil {
+		t.Fatal(err)
+	}
+	configureDesktopCharacterContract(t, backend, cfg, "countess")
+	if _, _, err = backend.validateDesktopCharacterContract("MrBones", []string{"countess"}); err != nil {
+		t.Fatalf("configured run rejected: %v", err)
+	}
+	_, _, err = backend.validateDesktopCharacterContract("MrBones", []string{"mephisto"})
+	var commandErr *commandError
+	if !errors.As(err, &commandErr) || commandErr.code != "pickit_assignment_invalid" {
+		t.Fatalf("missing Mephisto pickit error = %v", err)
 	}
 }
 
@@ -798,6 +861,53 @@ func markBackendCompatible(backend *LiveBackend) {
 
 func compatibleRuntimeSnapshot() app.D2RCompatibilitySnapshot {
 	return app.D2RCompatibilitySnapshot{State: app.D2RCompatibilityCompatible, SupportedVersion: "3.2.92777", ExpectedVersion: "3.2.92777", OffsetVersion: "3.2.92777", ActualVersion: "3.2.92777"}
+}
+
+func configureDesktopCharacterContract(t *testing.T, backend *LiveBackend, cfg *config.Config, runIDs ...string) {
+	t.Helper()
+	settings, err := app.NewOperatorSettingsStore(t.TempDir(), cfg, []string{"MrBones"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	snapshot, err := settings.Snapshot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = settings.AssignCharacterProfile("MrBones", "necromancer", "necro_bone_spear", snapshot.Revision); err != nil {
+		t.Fatal(err)
+	}
+	if err = backend.SetOperatorSettingsStore(settings); err != nil {
+		t.Fatal(err)
+	}
+	assignments, err := app.NewPickitAssignmentStore(filepath.Join(t.TempDir(), "pickit-assignments.local.yaml"), backend.pickitProfiles)
+	if err != nil {
+		t.Fatal(err)
+	}
+	values := make(map[string]map[tasks.RunID][]string)
+	if len(runIDs) > 0 {
+		values["mrbones"] = make(map[tasks.RunID][]string, len(runIDs))
+		for _, runID := range runIDs {
+			values["mrbones"][tasks.RunID(runID)] = append([]string(nil), cfg.CharacterSetup.PickitDefaults[runID]...)
+		}
+	}
+	if _, err = assignments.Initialize(values); err != nil {
+		t.Fatal(err)
+	}
+	backend.mu.Lock()
+	backend.pickitAssignments = assignments
+	backend.mu.Unlock()
+	setBackendCharacterCatalogProjection(backend, app.CharacterCatalogEntry{
+		Name: "MrBones", Slug: "mrbones", ExpectedClass: "necromancer", CombatProfile: "necro_bone_spear",
+		Selectable: true, AnchorPath: "anchor.png",
+	})
+}
+
+func setBackendCharacterCatalogProjection(backend *LiveBackend, entry app.CharacterCatalogEntry) {
+	catalog := app.CharacterCatalog{Revision: 1, Characters: []app.CharacterCatalogEntry{entry}}
+	backend.mu.Lock()
+	backend.characterCatalogReload = func() (app.CharacterCatalog, error) { return catalog, nil }
+	backend.mu.Unlock()
+	backend.publishCharacterCatalog(catalog, false)
 }
 
 func TestRouteWorkflowEventProjectsSystemAct(t *testing.T) {

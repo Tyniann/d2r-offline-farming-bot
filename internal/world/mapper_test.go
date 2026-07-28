@@ -91,6 +91,14 @@ func TestFromSnapshotMapsOnlyConfirmedIdentity(t *testing.T) {
 	if got := FromSnapshot(snap).Identity; got != (GameIdentity{}) {
 		t.Fatalf("unconfirmed identity mapped as %+v", got)
 	}
+	snap.Identity = memory.IdentityProbe{Valid: true, Confirmed: true, CharacterName: "MrBook", ClassID: 7, MapSeed: 456}
+	if got := FromSnapshot(snap).Identity; !got.Valid || got.Class != CharacterClassWarlock || got.CharacterName != "MrBook" {
+		t.Fatalf("warlock identity = %+v", got)
+	}
+	snap.Identity.ClassID = 8
+	if got := FromSnapshot(snap).Identity; got != (GameIdentity{}) {
+		t.Fatalf("unknown identity mapped as %+v", got)
+	}
 }
 
 func TestFromSnapshotGamePhaseFromSnapshot(t *testing.T) {

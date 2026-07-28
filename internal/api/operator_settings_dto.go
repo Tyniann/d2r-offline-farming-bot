@@ -2,7 +2,7 @@ package api
 
 import "github.com/Tyniann/d2r-offline-farming-bot/internal/app"
 
-// OperatorSettingsDTO projiziert den vollständigen Core-eigenen Schema-1-Stand.
+// OperatorSettingsDTO projiziert den vollständigen Core-eigenen Schema-2-Stand.
 type OperatorSettingsDTO struct {
 	SchemaVersion int                                     `json:"schema_version"`
 	Revision      uint64                                  `json:"revision"`
@@ -13,8 +13,10 @@ type OperatorSettingsDTO struct {
 	History       OperatorHistorySettingsDTO              `json:"history"`
 }
 
-// OperatorCharacterSettingsDTO enthält charakterbezogene Queue und Difficulty.
+// OperatorCharacterSettingsDTO enthält read-only Setupwerte sowie charakterbezogene Queue und Difficulty.
 type OperatorCharacterSettingsDTO struct {
+	CharacterClass string   `json:"character_class,omitempty"`
+	CombatProfile  string   `json:"combat_profile,omitempty"`
 	LastDifficulty string   `json:"last_difficulty"`
 	Queue          []string `json:"queue"`
 }
@@ -68,7 +70,10 @@ type OperatorSettingsChangeDTO struct {
 func operatorSettingsDTO(settings app.OperatorSettings) OperatorSettingsDTO {
 	characters := make(map[string]OperatorCharacterSettingsDTO, len(settings.Characters))
 	for character, value := range settings.Characters {
-		characters[character] = OperatorCharacterSettingsDTO{LastDifficulty: value.LastDifficulty, Queue: append([]string(nil), value.Queue...)}
+		characters[character] = OperatorCharacterSettingsDTO{
+			CharacterClass: value.CharacterClass, CombatProfile: value.CombatProfile,
+			LastDifficulty: value.LastDifficulty, Queue: append([]string(nil), value.Queue...),
+		}
 	}
 	return OperatorSettingsDTO{
 		SchemaVersion: settings.SchemaVersion, Revision: settings.Revision, LastCharacter: settings.LastCharacter, Characters: characters,
@@ -79,7 +84,10 @@ func operatorSettingsDTO(settings app.OperatorSettings) OperatorSettingsDTO {
 func operatorSettingsFromDTO(settings OperatorSettingsDTO) app.OperatorSettings {
 	characters := make(map[string]app.OperatorCharacterSettings, len(settings.Characters))
 	for character, value := range settings.Characters {
-		characters[character] = app.OperatorCharacterSettings{LastDifficulty: value.LastDifficulty, Queue: append([]string(nil), value.Queue...)}
+		characters[character] = app.OperatorCharacterSettings{
+			CharacterClass: value.CharacterClass, CombatProfile: value.CombatProfile,
+			LastDifficulty: value.LastDifficulty, Queue: append([]string(nil), value.Queue...),
+		}
 	}
 	return app.OperatorSettings{
 		SchemaVersion: settings.SchemaVersion, Revision: settings.Revision, LastCharacter: settings.LastCharacter, Characters: characters,

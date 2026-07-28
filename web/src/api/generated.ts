@@ -61,7 +61,72 @@ export interface QueueBudgetsDTO {
   max_total_restarts: number;
 }
 
+export interface CharacterReloadDTO {
+  schema_version: number;
+  catalog: CatalogDTO;
+}
+
+export interface CharacterSetupPreviewRequest {
+  character: string;
+}
+
+export interface CharacterSetupCharacterDTO {
+  name: string;
+  slug: string;
+  character_class: string;
+  class_display_name: string;
+}
+
+export interface CharacterSetupProfileDTO {
+  id: string;
+  display_name: string;
+  is_default: boolean;
+  is_selected: boolean;
+}
+
+export interface CharacterSetupPickitDefaultDTO {
+  run_id: string;
+  run_display_name: string;
+  profile_names: Array<string>;
+  state: "missing" | "ready";
+}
+
+export interface CharacterSetupPreviewDTO {
+  schema_version: number;
+  catalog_revision: number;
+  operator_settings_revision: number;
+  pickit_assignment_revision: number;
+  character: CharacterSetupCharacterDTO;
+  supported: boolean;
+  profiles: Array<CharacterSetupProfileDTO>;
+  selected_profile_id?: string;
+  default_profile_id?: string;
+  pickit_defaults: Array<CharacterSetupPickitDefaultDTO>;
+  anchor_state: "missing" | "ready" | "invalid";
+  setup_state: "blocked" | "needs_setup" | "needs_anchor" | "ready";
+  reasons: Array<string>;
+}
+
+export interface CharacterSetupConfirmRequest {
+  command_id: string;
+  character: string;
+  profile_id?: string;
+  expected_catalog_revision: number;
+  expected_operator_settings_revision: number;
+  expected_pickit_assignment_revision: number;
+  expected_generation: number;
+}
+
+export interface CharacterSelectionCaptureRequest {
+  command_id: string;
+  character: string;
+  expected_catalog_revision: number;
+  expected_generation: number;
+}
+
 export interface OperatorCharacterSettingsDTO {
+  character_class?: string;
+  combat_profile?: string;
   last_difficulty: "normal" | "nightmare" | "hell";
   queue: Array<string>;
 }
@@ -819,6 +884,22 @@ export function getStatus(signal?: AbortSignal): Promise<StatusDTO> {
 
 export function getCatalog(signal?: AbortSignal): Promise<CatalogDTO> {
   return getJSON<CatalogDTO>("/api/v1/catalog", signal);
+}
+
+export function reloadCharacters(signal?: AbortSignal): Promise<CharacterReloadDTO> {
+  return sendJSON<CharacterReloadDTO>("/api/v1/characters/reload", "POST", {}, "", signal);
+}
+
+export function previewCharacterSetup(request: CharacterSetupPreviewRequest, signal?: AbortSignal): Promise<CharacterSetupPreviewDTO> {
+  return sendJSON<CharacterSetupPreviewDTO>("/api/v1/characters/setup/preview", "POST", request, "", signal);
+}
+
+export function confirmCharacterSetup(request: CharacterSetupConfirmRequest, token: string, signal?: AbortSignal): Promise<CharacterSetupPreviewDTO> {
+  return sendJSON<CharacterSetupPreviewDTO>("/api/v1/characters/setup/confirm", "POST", request, token, signal);
+}
+
+export function captureCharacterSelection(request: CharacterSelectionCaptureRequest, token: string, signal?: AbortSignal): Promise<CharacterSetupPreviewDTO> {
+  return sendJSON<CharacterSetupPreviewDTO>("/api/v1/characters/selection/capture", "POST", request, token, signal);
 }
 
 export function getOperatorSettings(signal?: AbortSignal): Promise<OperatorSettingsDTO> {

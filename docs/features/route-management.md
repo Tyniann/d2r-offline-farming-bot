@@ -39,6 +39,10 @@ Der isolierte Test von `candidate-5af9deda83bfdd91` führte ohne Operatorinput �
 
 Der anschließende einzige Replace-Dialog zeigte die neue Route und `black-marsh-cellar5-nightmare-mrbones` als unverändert zu archivierenden Vorgänger. Nach genau einer Bestätigung weist Assignment-Revision 2 `countess` für `mrbones` der neuen Route `countess-mrbones-fd1756c208` zu. Der Vorgänger bleibt mit unverändertem SHA-256 `8d3dbd…e0d1f` und `management_status: archived` wiederherstellbar.
 
+## Erneute Live-Abnahme Phase 16
+
+Der während Phase 16 neu aufgezeichnete Countess-Kandidat bestätigte eine wichtige Act-1-Grenze: Die Playback-Vorbereitung muss den Run-Ursprung über den gemeinsamen Resolver direkt auf Rogue Encampment abbilden. `TownAreaForAct` ist ausschließlich die Registry für fremde Acts 2–5 und darf für `act1` nicht aufgerufen werden. Nach dieser Korrektur bestand der neue Kandidat den isolierten Test, wurde als `countess-mrbones-b801e63e3c` veröffentlicht und `MrBones/countess` zugewiesen. Die unveränderliche Kandidatendatei musste nicht manuell editiert oder neu aufgenommen werden.
+
 ## Verwandte Features
 
 - [Geführte Farming-Routenaufnahme](guided-route-recording.md)
@@ -46,4 +50,4 @@ Der anschließende einzige Replace-Dialog zeigte die neue Route und `black-marsh
 - [Farming-RouteCatalog und Lifecycle](route-lifecycle.md)
 
 ---
-*Zuletzt aktualisiert: 26. Juli 2026*
+*Zuletzt aktualisiert: 28. Juli 2026*

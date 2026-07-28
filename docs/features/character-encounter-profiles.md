@@ -38,6 +38,10 @@ Nur ein tatsächlich modelliertes Belt-Item mit passendem Typ und konfigurierter
 combat_profiles:
   necro_bone_spear:
     character_class: necromancer
+    display_name: Knochen-Speer
+    setup:
+      enabled: true
+      default: true
     hooks:
       town_ready:
         - skill: bone_armor
@@ -60,6 +64,10 @@ combat_profiles:
 ```
 
 Profile referenzieren Skill-Namen. Die tatsächlichen Tasten und Mausbuttons kommen ausschließlich aus `input.bindings.skills`.
+
+Abschnitt 16.2 ergänzt ausschließlich Setup-Metadaten am bestehenden Profil. `setup.enabled` ist die ausdrückliche Produktfreigabe; `setup.default` markiert den Entwickler-Default der Klasse. Ein freigegebenes Profil benötigt einen getrimmten, steuerzeichenfreien Anzeigenamen mit höchstens 64 Zeichen. Jede Klasse mit mindestens einem freigegebenen Profil besitzt exakt einen freigegebenen Default; Klassen ohne Freigabe bleiben valide und im Charakter-Setup nicht unterstützt. `necro_bone_spear` ist als „Knochen-Speer“ freigegeben und der einzige Necromancer-Default. Experimentelle, nicht freigegebene Profile bleiben außerhalb der Setup-Projektion.
+
+Beim Hinzufügen des ersten tatsächlich lauffähigen Profils einer neuen Klasse setzt der Entwickler daher direkt `setup.enabled: true` und `setup.default: true`. Weitere Profile derselben Klasse dürfen freigegeben werden, aber genau eines bleibt der feste Default. Diese Entscheidung spart eine separate Defaultkonfiguration und eine nutzerseitige Settings-Auswahl. Vor Selection, Queue-Start und jedem Run wird erneut geprüft, dass das gespeicherte Profil weiterhin freigegeben, klassenkompatibel und identisch mit dem vom Run verlangten `combat_profile` ist.
 
 ## Operator und Sicherheit
 
@@ -97,4 +105,4 @@ Der erste E2E-Abnahmeversuch am 12.07.2026 bestätigte Potion-Cooldowns, Loot, S
 Der abschließende E2E-Lauf bestätigte Bone Armor sichtbar nach fünf Sekunden Town-Stabilisierung und 1,67 Sekunden Abstand bis Town-Walk. Bone Prison wurde sichtbar auf Countess Unit 225 ausgeführt; Bone Spear folgte nach 1,81 Sekunden. Der vollständige autonome Run einschließlich Potion-Policy, Loot, Stash und Save & Exit endete erfolgreich. Beim installierten Hell-Gate am 26.07.2026 benötigte die Boss-Erkennung nach Ende der Route nur 72 ms; der historische 750-ms-Vorlauf dominierte den verbleibenden Leerlauf. Er ist deshalb auf 250 ms reduziert. Der kurze Puffer schützt weiterhin den Übergang aus dem letzten Teleport. Die sichtbare Nachruhe vor Bone Spear wurde anschließend kontrolliert von 1,5 auf 1,0 Sekunden reduziert.
 
 ---
-*Zuletzt aktualisiert: 2026-07-26 (Hell-Vorlauf optimiert)*
+*Zuletzt aktualisiert: 2026-07-28 (Charakter-Setup und Runtime-Gate)*

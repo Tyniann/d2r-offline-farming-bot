@@ -19,6 +19,21 @@ import { characterAvailabilityText } from "./characterReasons";
 
 const editableStates = new Set(["idle", "idle_in_game", "stopped_error"]);
 const emergencyStates = new Set(["starting_game", "starting_run", "running_run", "paused_between_runs", "exiting_game"]);
+const runAvailabilityText = (status: string, reasons: string[] = []) => {
+  if (status === "available") {
+    return { title: "Bereit", detail: "Route und Konfiguration sind bereit." };
+  }
+  if (status === "runtime_validation_required") {
+    return { title: "Bereit", detail: "Der Core gleicht die getestete Route beim Start sicher mit dem aktuellen Spiel ab." };
+  }
+  if (reasons.includes("route_assignment_missing")) {
+    return { title: "Noch nicht eingerichtet", detail: "Für diesen Run wurde noch keine Route eingerichtet." };
+  }
+  if (reasons.includes("character_profile_run_incompatible") || reasons.includes("profile_class_mismatch")) {
+    return { title: "Nicht verfügbar", detail: "Das Kampfprofil dieses Charakters unterstützt diesen Run nicht." };
+  }
+  return { title: "Noch nicht bereit", detail: "Öffne die Routen, um die fehlende Einrichtung zu prüfen." };
+};
 const navigation = [
   { target: "dashboard", label: "Dashboard", icon: LayoutDashboard },
   { target: "routes", label: "Routen", icon: Map },
@@ -152,6 +167,9 @@ function CoreApp() {
           setEvents((current) => [data as LiveEvent, ...current].slice(0, 40));
           if ((data as LiveEvent).event.startsWith("route_")) {
             setRouteRefreshKey((value) => value + 1);
+            void getCatalog(controller.signal).then(setCatalog).catch(reportError);
+          }
+          if ((data as LiveEvent).event === "catalog_changed") {
             void getCatalog(controller.signal).then(setCatalog).catch(reportError);
           }
           if ((data as LiveEvent).event.startsWith("pickit_")) setPickitRefreshKey((value) => value + 1);
@@ -305,7 +323,10 @@ function CoreApp() {
             <div className="section-heading"><div><p className="eyebrow">Farming</p><h2>Run-Reihenfolge pro Spiel</h2></div></div>
             <p>Die Reihenfolge wird persistent pro Charakter gespeichert. Änderungen erfolgen zentral unter <a href="#settings">Einstellungen</a>.</p>
             {queueError && <p role="alert">{queueError}</p>}
-            <div className="run-grid">{catalog?.runs.map((run) => <article key={run.run_id}><strong>{run.display_name}</strong><span>{run.status}</span>{run.reasons?.map((reason) => <small key={reason}>{reason}</small>)}</article>) ?? <StateMessage kind="loading" title="Katalog wird geladen" />}</div>
+            <div className="run-grid">{catalog?.runs.map((run) => {
+              const availability = runAvailabilityText(run.status, run.reasons);
+              return <article key={run.run_id}><strong>{run.display_name}</strong><span>{availability.title}</span><small>{availability.detail}</small></article>;
+            }) ?? <StateMessage kind="loading" title="Katalog wird geladen" />}</div>
             <h3>Konfigurierte Queue</h3>
             {configuredQueue.length === 0 ? <StateMessage kind="empty" title="Keine Queue konfiguriert">Lege die Run-Reihenfolge in den Einstellungen für den ausgewählten Charakter fest.</StateMessage> : <ol className="queue-list">{configuredQueue.map((runID, index) => <li key={`${runID}-${index}`}><span>{index + 1}</span><strong>{runID}</strong></li>)}</ol>}
             <div className="queue-toolbar"><a className="button secondary" href="#settings">Queue in Einstellungen ändern</a><button type="button" disabled={queueStartLocked || configuredQueue.length === 0 || !status?.selection.character} onClick={() => void submitQueue()}>{commandPending ? "Core bestätigt …" : "Queue prüfen und starten"}</button></div>

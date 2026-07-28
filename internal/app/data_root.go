@@ -289,13 +289,18 @@ func BuildDefaultBundle(sourceConfigsRoot, bundleRoot string) error {
 		{"config.example.yaml", "config.yaml"},
 		{"offsets.example.yaml", "offsets.example.yaml"},
 		{"pickit-assignments.example.yaml", "pickit-assignments.local.yaml"},
+		{filepath.Join("ui", "character-play.png"), filepath.Join("ui", "character-play.png")},
+		{filepath.Join("ui", "difficulty-dialog.png"), filepath.Join("ui", "difficulty-dialog.png")},
 	}
 	for _, mapping := range files {
 		if err := copyRegularFile(filepath.Join(sourceConfigsRoot, mapping[0]), filepath.Join(bundleRoot, "configs", mapping[1])); err != nil {
 			return err
 		}
 	}
-	for _, directory := range []string{filepath.Join("pickit", "profiles"), filepath.Join("routes", "town"), "ui"} {
+	// Namensgebundene Charakterbilder sind benutzerbestätigte Laufzeitbelege.
+	// Ein frischer Root darf ausschließlich die beiden globalen UI-Belege
+	// erhalten, damit die Charaktereinrichtung nicht still übersprungen wird.
+	for _, directory := range []string{filepath.Join("pickit", "profiles"), filepath.Join("routes", "town")} {
 		if err := copyRegularTree(filepath.Join(sourceConfigsRoot, directory), filepath.Join(bundleRoot, "configs", directory), isReparsePoint); err != nil {
 			return err
 		}
@@ -351,6 +356,9 @@ func ValidateInstalledDataRoot(root string) ([]telemetry.HistoryFileDiagnostic, 
 	profiles, err := NewPickitProfileService(cfg.ResolvePath("pickit/profiles"))
 	if err != nil {
 		return nil, err
+	}
+	if setupErr := ValidateCharacterSetupConfig(cfg, profiles); setupErr != nil {
+		return nil, fmt.Errorf("validate character setup config: %w", setupErr)
 	}
 	profileList, err := profiles.List()
 	if err != nil || len(profileList) == 0 {

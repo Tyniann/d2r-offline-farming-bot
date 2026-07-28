@@ -95,6 +95,8 @@ Der isolierte `stash-personal`-Lauf wurde bei 1280×720 mit einer Dol-Rune (`r14
 
 Phase-13-Gate B bestätigte dieselbe Korrelation für UnitID `225` (`Arrows`/`aqv`): `pickit_match`, `stash_attempt` und `stash_success` tragen übereinstimmend `phase13-live-acceptance`, `arrows-live-gate`, `keep`, Profilrevision `2` und Assignment-Revision `2`; dazwischen liegen genau ein `pickup_attempt` und ein `pickup_success`. Der isolierte Run endete mit `outcome=success`.
 
+Phase-16-Gate D bestätigte einen vollständigen produktiven Countess-Stream mit 97 syntaktisch gültigen Runereignissen und den sechs korrelierten Sessionereignissen. Run-ID `countess-20260728t101744999999999z-ad553927`, Session-ID `session-20260728t101744999999999z-5d7c12e7` und Game-ID `game-001` blieben über Route, Bosskill, Loot, Stash und Abschluss konsistent. Route `countess-mrbones-b801e63e3c`, Layout-Fingerprint, Pickit-Assignment-Revision 1 und die drei Profile `gems`, `keys`, `countess-standard` drifteten nicht. Ein `pickup_failed` mit `hover_not_found` wurde sichtbar protokolliert und vor dem erfolgreichen Thul-Runen-Pickup begrenzt erholt. `run_completed`, gefolgt von `game_exited` und `session_completed` mit `run_budget_exhausted`, bildete den erfolgreichen Ein-Run-Abschluss ohne terminalen Fehler ab.
+
 ## Grenzen
 
 - Noch keine Rotation, Kompression oder automatische Bereinigung.
@@ -109,4 +111,4 @@ Phase-13-Gate B bestätigte dieselbe Korrelation für UnitID `225` (`Arrows`/`aq
 - [Personal-Stash MVP](personal-stash-mvp.md)
 
 ---
-*Zuletzt aktualisiert: 2026-07-22*
+*Zuletzt aktualisiert: 2026-07-28*

@@ -138,8 +138,8 @@ func (d *runtimeCandidatePlaybackDriver) TravelToStart(ctx context.Context, act 
 	if !ok {
 		return fmt.Errorf("candidate waypoint target %q unsupported", target)
 	}
-	expectedTown, ok := town.TownAreaForAct(act)
-	if !ok {
+	expectedTown := recordingOriginTownArea(act)
+	if expectedTown == world.None {
 		return fmt.Errorf("candidate origin act %q unsupported", act)
 	}
 

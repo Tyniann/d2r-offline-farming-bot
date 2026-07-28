@@ -86,7 +86,7 @@ func FromSnapshot(snap memory.Snapshot) State {
 }
 
 func mapGameIdentity(identity memory.IdentityProbe) GameIdentity {
-	if !identity.Valid || !identity.Confirmed || identity.ClassID > uint32(CharacterClassAssassin) {
+	if !identity.Valid || !identity.Confirmed || identity.ClassID > uint32(CharacterClassWarlock) {
 		return GameIdentity{}
 	}
 	return GameIdentity{

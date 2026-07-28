@@ -155,6 +155,12 @@ button:focus-visible, select:focus-visible, input:focus-visible, textarea:focus-
 .onboarding-panel > ul:not(.character-availability):not(.readiness-list) > li { display: list-item; padding: 6px 0; border: 0; color: var(--muted); }
 .character-availability { margin-top: var(--space-4); }
 .character-availability li { grid-template-columns: minmax(140px, .5fr) minmax(0, 1.5fr); }
+.character-setup { margin-top: var(--space-5); padding: var(--space-4); border: 1px solid #294360; border-radius: 12px; background: #0b1422; }
+.character-setup h3, .character-setup h4 { margin-bottom: var(--space-2); }
+.character-setup ol { padding-left: 24px; color: var(--muted); }
+.character-setup li { display: list-item; padding: 4px 0; border: 0; }
+.capture-confirmation { display: flex; align-items: center; gap: 10px; margin: var(--space-4) 0; }
+.capture-confirmation input { width: auto; }
 .onboarding-actions { display: flex; flex-wrap: wrap; justify-content: space-between; gap: var(--space-3); padding: 0; }
 .readiness-list { padding: 0; list-style: none; }
 .readiness-list li { display: flex; justify-content: space-between; gap: var(--space-4); border-bottom: 1px solid var(--border); }

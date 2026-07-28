@@ -7,10 +7,25 @@ Versionierung nach [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-07-28
+
+### Added
+- Add the Phase 16 core contract with a locally characterized bounded D2R v105 save prefix, canonical Warlock class, character-setup ownership, stable reason codes, Pickit defaults, and explicit non-goals
+- Add a reparse-safe read-only D2R v105 character-save prefix reader and revisioned catalog with isolated failures, canonical class projection, and no run-profile fallback
+- Add developer-approved combat-profile setup metadata, exact validated Pickit defaults, OperatorSettings schema 2 with protected character profile pairs, and idempotent missing-assignment creation
+- Add the Core-owned character-setup preview/confirm/capture API, atomic selection-image capture, generated React contracts, inline onboarding flow, and exact catalog invalidation
+
 ### Changed
+- Require freshly matched save class, persisted compatible combat profile, requested-run profile, and run-scoped Pickit assignment before desktop selection, queue start, or run input
 - Raise the default run `step_timeout_ms` from 30s to 45s so longer Hell boss engages like Mephisto are less likely to abort at kill confirmation
 
 ### Fixed
+- Refresh the Dashboard immediately after saved operator settings, project the new idle queue and budgets consistently, and replace raw run-availability codes with clear German guidance.
+- Resolve Act 1 to Rogue Encampment when preparing isolated Countess candidate playback instead of passing it through the foreign-act-only egress registry.
+- Capture the visibly selected D2R roster row instead of always storing the first row as character-specific selection evidence.
+- Exclude character-specific selection evidence from fresh installed defaults so first-run setup always requires the explicit user-confirmed capture.
+- Follow the currently navigated D2R roster row and require both its stable character name and selected gold border so level changes cannot stale the evidence and another character cannot be started.
+- Keep an unchanged ready character catalog revision-stable so Core selection preview can proceed, and explain the next confirmation action inline
 - Keep operator-settings fields disabled together with a clear lock notice whenever the Core is not fully inactive
 - Retry one distance-ignoring item teleport after `hover_not_found` or `pickup_failed` so Bone-Prison and similar blockers cannot skip reachable loot
 - Keep Act-1 town waypoint handoff reuse as a cold-start skip only, so mid-walk Force Move cannot open or select the waypoint while still sliding past it

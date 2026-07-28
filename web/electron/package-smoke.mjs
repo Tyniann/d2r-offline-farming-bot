@@ -1,5 +1,6 @@
 import { _electron as electron } from "@playwright/test";
 import { access } from "node:fs/promises";
+import { join } from "node:path";
 import process from "node:process";
 
 const [executablePath, dataRoot, expectedVersion, localAppData] = process.argv.slice(2);
@@ -26,6 +27,14 @@ try {
     await page.getByRole("button", { name: "Neuen Datenroot anlegen" }).click();
     await page.waitForSelector(".sidebar-meta", { timeout: 20_000 });
     await access(dataRoot);
+    await access(join(dataRoot, "configs", "ui", "character-play.png"));
+    await access(join(dataRoot, "configs", "ui", "difficulty-dialog.png"));
+    await access(join(dataRoot, "configs", "ui", "characters", "mrbones-selected.png")).then(
+      () => { throw new Error("fresh packaged defaults contain character-specific selection evidence"); },
+      (error) => {
+        if (error?.code !== "ENOENT") throw error;
+      },
+    );
   } catch (error) {
     const summary = await page.locator("body").innerText().catch(() => "");
     throw new Error(`packaged window did not reach the React shell: ${page.url()} :: ${summary.slice(0, 500)}`, { cause: error });

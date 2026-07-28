@@ -25,6 +25,8 @@ Schreiben erfolgt im Zielverzeichnis über temporäre Datei, Flush, Close, atomi
 
 `PickitAssignmentStore` persistiert eine globale positive Revision und pro `(character, run)` eine nicht leere, geordnete, duplikatfreie Profilliste. Charaktere sind case-insensitiv eindeutig; Run-IDs stammen aus der Run Registry und jede Profilreferenz muss beim Laden und Schreiben existieren. Replace ist revisionsgebunden, atomisch und bei bereits erreichtem Zielzustand idempotent.
 
+Abschnitt 16.2 ergänzt `EnsureMissingDefaults`. Die Operation lädt und validiert das Manifest genau einmal unter dem Storelock, verwendet einen vorhandenen Charakterschlüssel case-insensitiv oder legt die bestätigte Header-Schreibweise neu an und kopiert ausschließlich vollständig fehlende Run-Ketten. Jede vorhandene nicht leere Benutzerkette bleibt strukturell und in ihrer Reihenfolge unverändert. Mehrere Ergänzungen erhöhen die globale Revision zusammen exakt einmal; ohne Ergänzung bleibt auch bei einem idempotenten Retry die Revision unverändert. Ein bereits ungültiges Manifest mit leerer Kette wird nicht repariert.
+
 `Resolve` kompiliert die Profil- und YAML-Regelreihenfolge zu genau einer gemeinsamen Action Policy. Pickup, Stash und Cain/Akara werten denselben First-Match-Gewinner und dessen `keep`- oder `sell`-Aktion aus; eine zweite Sell-Teilpolicy existiert nicht.
 
 ### Einmalige Migration
@@ -74,6 +76,7 @@ Die lokale Core-API besitzt CRUD, Validierung, Vorschau, Assignment sowie Import
 - [Pickit-API und sichere Run-Grenze](pickit-api.md)
 - [Loot Decision Pipeline](loot-decision-pipeline.md)
 - [Session-Lifecycle](session-lifecycle.md)
+- [Charaktereinrichtung](character-setup.md)
 
 ---
-*Zuletzt aktualisiert: 2026-07-21*
+*Zuletzt aktualisiert: 2026-07-28*

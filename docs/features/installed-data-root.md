@@ -19,7 +19,7 @@ Abschnitt 15.1 trennt installierte Benutzerdaten vom Repository und vom Installa
 
 ### Defaultbundle und Veröffentlichung
 
-`BuildDefaultBundle` erzeugt ein read-only Bundle aus den versionierten Beispieldateien. `bundle.json` listet jeden relativen Pfad mit SHA-256 auf; unbekannte Manifestfelder, ungebundene Dateien, Hashdrift, Traversal, Symlinks und Windows-Reparse-Points werden abgelehnt. Farming-Routen werden absichtlich nicht als Defaults verteilt, weil die erste Route später über denselben produktiven Recording-Workflow entsteht.
+`BuildDefaultBundle` erzeugt ein read-only Bundle aus den versionierten Beispieldateien. `bundle.json` listet jeden relativen Pfad mit SHA-256 auf; unbekannte Manifestfelder, ungebundene Dateien, Hashdrift, Traversal, Symlinks und Windows-Reparse-Points werden abgelehnt. Farming-Routen werden absichtlich nicht als Defaults verteilt, weil die erste Route später über denselben produktiven Recording-Workflow entsteht. Von den UI-Bildern enthält das Bundle ausschließlich die beiden globalen Belege für Charakterbildschirm und Schwierigkeitsdialog. Namensgebundene Dateien unter `configs/ui/characters/` sind benutzerbestätigte Laufzeitbelege und werden niemals als frische Defaults ausgeliefert.
 
 Der Manager legt Staging im Elternverzeichnis des Zielroots an. Config, Offsets, Pickit, Route-Assignments, Route-Lifecycle, Kandidaten, Town-Routen und History werden durch ihre produktiven Loader geprüft. Erst dann wird das gesamte Verzeichnis mit einem Rename veröffentlicht und erneut gelesen. Jeder Fehler entfernt nur das eindeutig eigene Staging beziehungsweise den gerade veröffentlichten ungültigen Stand; ein bereits vorhandener Zielroot wird weder gemergt noch überschrieben.
 

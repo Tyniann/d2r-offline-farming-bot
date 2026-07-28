@@ -16,6 +16,7 @@ import (
 type RunAvailabilityContext struct {
 	Character         string  `json:"character"`
 	CharacterClass    string  `json:"character_class,omitempty"`
+	CombatProfile     string  `json:"combat_profile,omitempty"`
 	Difficulty        string  `json:"difficulty"`
 	GameVersion       string  `json:"game_version"`
 	MapSeed           *uint32 `json:"map_seed,omitempty"`
@@ -106,6 +107,9 @@ func resolveRunAvailabilities(cfg *config.Config, context RunAvailabilityContext
 			availability.Reasons = append(availability.Reasons, tasks.RunReasonCapabilityMissing)
 		} else if context.CharacterClass != "" && !strings.EqualFold(profileCfg.CharacterClass, context.CharacterClass) {
 			availability.Reasons = append(availability.Reasons, tasks.RunReasonProfileClassMismatch)
+		}
+		if context.CombatProfile != "" && runCfg.Combat.Profile != context.CombatProfile {
+			availability.Reasons = append(availability.Reasons, tasks.RunReasonCharacterProfileRunIncompatible)
 		}
 
 		var route pathing.Route

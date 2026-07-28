@@ -28,6 +28,7 @@ type PickitAssignmentStore struct {
 	mu       *sync.Mutex
 	path     string
 	profiles *PickitProfileService
+	read     func(string) ([]byte, error)
 	write    func(string, []byte, string) error
 }
 
@@ -58,7 +59,7 @@ func NewPickitAssignmentStore(path string, profiles *PickitProfileService) (*Pic
 	}
 	clean := filepath.Clean(path)
 	lock, _ := pickitStoreLocks.LoadOrStore("assignments\x00"+clean, &sync.Mutex{})
-	return &PickitAssignmentStore{mu: lock.(*sync.Mutex), path: clean, profiles: profiles, write: writeAtomicYAML}, nil
+	return &PickitAssignmentStore{mu: lock.(*sync.Mutex), path: clean, profiles: profiles, read: os.ReadFile, write: writeAtomicYAML}, nil
 }
 
 // List lädt alle Profile in stabiler ID-Reihenfolge.
@@ -229,6 +230,66 @@ func (s *PickitAssignmentStore) Replace(character string, runID tasks.RunID, pro
 	return s.writeManifestLocked(manifest)
 }
 
+// EnsureMissingDefaults ergänzt mehrere vollständig fehlende Run-Ketten in genau einer Revision und bewahrt jede vorhandene nicht leere Benutzerkette.
+func (s *PickitAssignmentStore) EnsureMissingDefaults(character string, defaults map[tasks.RunID][]string, expectedRevision uint64) (PickitAssignmentManifest, error) {
+	character = strings.TrimSpace(character)
+	if character == "" || !offlineCharacterNamePattern.MatchString(character) {
+		return PickitAssignmentManifest{}, fmt.Errorf("pickit assignment character %q is invalid", character)
+	}
+	for runID, profileIDs := range defaults {
+		if _, ok := tasks.DefaultRunRegistry().Definition(runID); !ok {
+			return PickitAssignmentManifest{}, fmt.Errorf("pickit default uses unknown run %q", runID)
+		}
+		if len(profileIDs) == 0 {
+			return PickitAssignmentManifest{}, fmt.Errorf("pickit default %s requires at least one profile", runID)
+		}
+		seen := make(map[string]struct{}, len(profileIDs))
+		for _, profileID := range profileIDs {
+			if _, duplicate := seen[profileID]; duplicate {
+				return PickitAssignmentManifest{}, fmt.Errorf("pickit default %s profile %q is duplicated", runID, profileID)
+			}
+			seen[profileID] = struct{}{}
+			if _, err := s.profiles.Get(profileID); err != nil {
+				return PickitAssignmentManifest{}, fmt.Errorf("pickit default %s profile %q is unavailable: %w", runID, profileID, err)
+			}
+		}
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	manifest, err := s.loadLocked()
+	if err != nil {
+		return PickitAssignmentManifest{}, err
+	}
+	storedCharacter := character
+	for candidate := range manifest.Assignments {
+		if strings.EqualFold(candidate, character) {
+			storedCharacter = candidate
+			break
+		}
+	}
+	missing := make(map[tasks.RunID][]string)
+	for runID, profileIDs := range defaults {
+		if len(manifest.Assignments[storedCharacter][runID]) == 0 {
+			missing[runID] = append([]string(nil), profileIDs...)
+		}
+	}
+	if len(missing) == 0 {
+		return clonePickitAssignments(manifest), nil
+	}
+	if manifest.Revision != expectedRevision {
+		return PickitAssignmentManifest{}, fmt.Errorf("pickit_assignment_revision_conflict")
+	}
+	if manifest.Assignments[storedCharacter] == nil {
+		manifest.Assignments[storedCharacter] = make(map[tasks.RunID][]string, len(missing))
+	}
+	for runID, profileIDs := range missing {
+		manifest.Assignments[storedCharacter][runID] = profileIDs
+	}
+	manifest.Revision++
+	return s.writeManifestLocked(manifest)
+}
+
 // References meldet, ob irgendeine Zuordnung die Profil-ID verwendet.
 func (s *PickitAssignmentStore) References(profileID string) (bool, error) {
 	manifest, err := s.Snapshot()
@@ -314,7 +375,7 @@ func (s *PickitProfileService) writeProfileLocked(profile PickitProfileDocument)
 }
 
 func (s *PickitAssignmentStore) loadLocked() (PickitAssignmentManifest, error) {
-	data, err := os.ReadFile(s.path)
+	data, err := s.read(s.path)
 	if err != nil {
 		return PickitAssignmentManifest{}, fmt.Errorf("read pickit assignments: %w", err)
 	}

@@ -1,6 +1,6 @@
 package world
 
-// CharacterClass identifies one of D2R's seven playable classes.
+// CharacterClass identifies one of D2R's eight playable classes.
 type CharacterClass uint8
 
 // CharacterClass values follow D2UnitStrc.dwClassId.
@@ -12,6 +12,8 @@ const (
 	CharacterClassBarbarian
 	CharacterClassDruid
 	CharacterClassAssassin
+	// CharacterClassWarlock bezeichnet die mit D2R Save-Version 105 eingeführte achte Klasse.
+	CharacterClassWarlock
 )
 
 // String returns a stable lowercase class label.
@@ -31,6 +33,8 @@ func (c CharacterClass) String() string {
 		return "druid"
 	case CharacterClassAssassin:
 		return "assassin"
+	case CharacterClassWarlock:
+		return "warlock"
 	default:
 		return "unknown"
 	}

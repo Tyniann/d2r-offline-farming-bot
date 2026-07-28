@@ -12,6 +12,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -33,6 +34,8 @@ var commandPaths = map[string]string{
 	"/api/v1/session/stop-after-run":  "stop_after_run",
 	"/api/v1/session/emergency-stop":  "emergency_stop",
 }
+
+var characterRequestNamePattern = regexp.MustCompile(`^[A-Za-z0-9_-]{1,15}$`)
 
 // Config contains transport dependencies for one loopback server.
 type Config struct {
@@ -61,6 +64,13 @@ type operatorSettingsBackend interface {
 	PreviewResetOperatorSettings(OperatorSettingsResetRequest) (OperatorSettingsChangeDTO, error)
 	UpdateOperatorSettings(OperatorSettingsMutationRequest) (OperatorSettingsChangeDTO, error)
 	ResetOperatorSettings(OperatorSettingsResetRequest) (OperatorSettingsChangeDTO, error)
+}
+
+type characterSetupBackend interface {
+	ReloadCharacters() (CharacterReloadDTO, error)
+	PreviewCharacterSetup(CharacterSetupPreviewRequest) (CharacterSetupPreviewDTO, error)
+	ConfirmCharacterSetup(CharacterSetupConfirmRequest) (CharacterSetupPreviewDTO, error)
+	CaptureCharacterSelection(context.Context, CharacterSelectionCaptureRequest) (CharacterSetupPreviewDTO, error)
 }
 
 type historyMaintenanceBackend interface {
@@ -179,6 +189,10 @@ func (s *Server) routes() http.Handler {
 	mux.HandleFunc("/api/v1/settings/operator/preview", s.handleOperatorSettingsPreview)
 	mux.HandleFunc("/api/v1/settings/operator/reset", s.handleOperatorSettingsReset)
 	mux.HandleFunc("/api/v1/settings/operator/reset/preview", s.handleOperatorSettingsResetPreview)
+	mux.HandleFunc("/api/v1/characters/reload", s.handleCharactersReload)
+	mux.HandleFunc("/api/v1/characters/setup/preview", s.handleCharacterSetupPreview)
+	mux.HandleFunc("/api/v1/characters/setup/confirm", s.handleCharacterSetupConfirm)
+	mux.HandleFunc("/api/v1/characters/selection/capture", s.handleCharacterSelectionCapture)
 	mux.HandleFunc("/api/v1/control/bootstrap", s.handleControlBootstrap)
 	for path, command := range commandPaths {
 		commandName := command
@@ -205,6 +219,120 @@ func (s *Server) routes() http.Handler {
 	mux.HandleFunc("/api/", s.handleUnsupportedAPI)
 	mux.Handle("/", spaHandler(s.assets))
 	return s.security(mux)
+}
+
+func (s *Server) characterSetupBackend(w http.ResponseWriter, r *http.Request) (characterSetupBackend, bool) {
+	backend, ok := s.backend.(characterSetupBackend)
+	if !ok {
+		s.writeError(w, http.StatusNotImplemented, "feature_unavailable", "Charakter-Setup ist nicht verfügbar.", requestIDFrom(r), nil)
+	}
+	return backend, ok
+}
+
+func (s *Server) handleCharactersReload(w http.ResponseWriter, r *http.Request) {
+	if !requireJSONPost(w, r, s, false) {
+		return
+	}
+	var request struct{}
+	if !s.decodeBody(w, r, &request) {
+		return
+	}
+	backend, ok := s.characterSetupBackend(w, r)
+	if !ok {
+		return
+	}
+	value, err := backend.ReloadCharacters()
+	if err != nil {
+		s.writeCharacterSetupError(w, r, err)
+		return
+	}
+	s.writeJSON(w, http.StatusOK, value)
+}
+
+func (s *Server) handleCharacterSetupPreview(w http.ResponseWriter, r *http.Request) {
+	if !requireJSONPost(w, r, s, false) {
+		return
+	}
+	backend, ok := s.characterSetupBackend(w, r)
+	if !ok {
+		return
+	}
+	var request CharacterSetupPreviewRequest
+	if !s.decodeBody(w, r, &request) {
+		return
+	}
+	if !s.requireCharacterName(w, r, request.Character) {
+		return
+	}
+	value, err := backend.PreviewCharacterSetup(request)
+	if err != nil {
+		s.writeCharacterSetupError(w, r, err)
+		return
+	}
+	s.writeJSON(w, http.StatusOK, value)
+}
+
+func (s *Server) handleCharacterSetupConfirm(w http.ResponseWriter, r *http.Request) {
+	if !requireJSONMutation(w, r, s, http.MethodPost) {
+		return
+	}
+	backend, ok := s.characterSetupBackend(w, r)
+	if !ok {
+		return
+	}
+	var request CharacterSetupConfirmRequest
+	if !s.decodeBody(w, r, &request) {
+		return
+	}
+	if !s.requireCharacterName(w, r, request.Character) {
+		return
+	}
+	value, err := backend.ConfirmCharacterSetup(request)
+	if err != nil {
+		s.writeCharacterSetupError(w, r, err)
+		return
+	}
+	s.writeJSON(w, http.StatusOK, value)
+}
+
+func (s *Server) handleCharacterSelectionCapture(w http.ResponseWriter, r *http.Request) {
+	if !requireJSONMutation(w, r, s, http.MethodPost) {
+		return
+	}
+	backend, ok := s.characterSetupBackend(w, r)
+	if !ok {
+		return
+	}
+	var request CharacterSelectionCaptureRequest
+	if !s.decodeBody(w, r, &request) {
+		return
+	}
+	if !s.requireCharacterName(w, r, request.Character) {
+		return
+	}
+	value, err := backend.CaptureCharacterSelection(r.Context(), request)
+	if err != nil {
+		s.writeCharacterSetupError(w, r, err)
+		return
+	}
+	s.writeJSON(w, http.StatusOK, value)
+}
+
+func (s *Server) requireCharacterName(w http.ResponseWriter, r *http.Request, character string) bool {
+	if character == strings.TrimSpace(character) && characterRequestNamePattern.MatchString(character) {
+		return true
+	}
+	s.writeError(w, http.StatusBadRequest, "request_invalid", "Der Charaktername ist ungültig.", requestIDFrom(r), nil)
+	return false
+}
+
+func (s *Server) writeCharacterSetupError(w http.ResponseWriter, r *http.Request, err error) {
+	var commandErr *commandError
+	if errors.As(err, &commandErr) {
+		s.writeError(w, http.StatusConflict, commandErr.code, commandErr.message, requestIDFrom(r), commandErr.details)
+		return
+	}
+	s.writeError(w, http.StatusServiceUnavailable, "character_setup_unavailable", "Der Charakter-Setup-Stand konnte nicht geladen werden.", requestIDFrom(r), nil)
 }
 
 func (s *Server) operatorSettingsBackend(w http.ResponseWriter, r *http.Request) (operatorSettingsBackend, bool) {

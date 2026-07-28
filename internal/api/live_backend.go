@@ -14,41 +14,45 @@ import (
 
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/app"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/config"
-	"github.com/Tyniann/d2r-offline-farming-bot/internal/tasks"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/telemetry"
 )
 
 // LiveBackend projects read-only runtime changes and publishes bounded events.
 type LiveBackend struct {
-	mu                  sync.RWMutex
-	commandMu           sync.Mutex
-	bootstrap           *BootstrapBackend
-	cfg                 *config.Config
-	lifecycle           *app.RouteLifecycleStore
-	publisher           *telemetry.LivePublisher
-	status              StatusDTO
-	catalog             CatalogDTO
-	selection           func(app.CharacterSelectionRequest) error
-	supervisor          *app.SessionSupervisor
-	beforeWorker        func() error
-	beginQueue          func(bool)
-	supervisorObserved  uint64
-	commands            map[string]apiCommandRecord
-	previews            map[string]selectionPreviewRecord
-	routeCandidates     *app.CandidateStore
-	routeAssignments    *app.RouteAssignmentStore
-	routeManagement     *app.RouteManagementService
-	routeWorkflow       RouteWorkflowDTO
-	routeWorkflowRun    func(RouteWorkflowRequest, <-chan struct{}, app.RouteWorkflowReporter) error
-	routeWorkflowFinish chan struct{}
-	pickitProfiles      *app.PickitProfileService
-	pickitAssignments   *app.PickitAssignmentStore
-	operatorSettings    *app.OperatorSettingsStore
-	historyMu           sync.Mutex
-	history             *telemetry.HistoryIndex
-	historyMaintenance  *telemetry.HistoryMaintenanceService
-	diagnostics         *app.DiagnosticBundleCollector
-	historyTerminalHash [sha256.Size]byte
+	mu                     sync.RWMutex
+	commandMu              sync.Mutex
+	bootstrap              *BootstrapBackend
+	cfg                    *config.Config
+	lifecycle              *app.RouteLifecycleStore
+	publisher              *telemetry.LivePublisher
+	status                 StatusDTO
+	catalog                CatalogDTO
+	selection              func(app.CharacterSelectionRequest) error
+	supervisor             *app.SessionSupervisor
+	beforeWorker           func() error
+	beginQueue             func(bool)
+	supervisorObserved     uint64
+	commands               map[string]apiCommandRecord
+	characterCommands      map[string]characterSetupCommandRecord
+	previews               map[string]selectionPreviewRecord
+	routeCandidates        *app.CandidateStore
+	routeAssignments       *app.RouteAssignmentStore
+	routeManagement        *app.RouteManagementService
+	routeWorkflow          RouteWorkflowDTO
+	routeWorkflowRun       func(RouteWorkflowRequest, <-chan struct{}, app.RouteWorkflowReporter) error
+	routeWorkflowFinish    chan struct{}
+	pickitProfiles         *app.PickitProfileService
+	pickitAssignments      *app.PickitAssignmentStore
+	operatorSettings       *app.OperatorSettingsStore
+	characterCatalog       *app.CharacterCatalogStore
+	characterCatalogReload func() (app.CharacterCatalog, error)
+	characterSetup         *app.CharacterSetupService
+	characterCapture       app.CharacterSetupCaptureFunc
+	historyMu              sync.Mutex
+	history                *telemetry.HistoryIndex
+	historyMaintenance     *telemetry.HistoryMaintenanceService
+	diagnostics            *app.DiagnosticBundleCollector
+	historyTerminalHash    [sha256.Size]byte
 }
 
 // SetSessionSupervisor binds the single Core-owned queue state machine. The
@@ -57,7 +61,14 @@ func (b *LiveBackend) SetSessionSupervisor(supervisor *app.SessionSupervisor, be
 	if supervisor == nil {
 		return fmt.Errorf("session supervisor is required")
 	}
-	if err := supervisor.SetQueueGuard(func(plan app.FarmQueuePlan, _ int) error {
+	if err := supervisor.SetQueueGuard(func(plan app.FarmQueuePlan, index int) error {
+		runIDs := plan.RunIDs
+		if index >= 0 && index < len(plan.RunIDs) {
+			runIDs = []string{plan.RunIDs[index]}
+		}
+		if _, _, err := b.validateDesktopCharacterContract(plan.Character, runIDs); err != nil {
+			return err
+		}
 		b.mu.RLock()
 		selection := b.status.Selection
 		revision := b.catalog.Revision
@@ -107,6 +118,10 @@ func NewLiveBackend(cfg *config.Config, publisher *telemetry.LivePublisher) (*Li
 	if err != nil {
 		return nil, err
 	}
+	characterCatalog, err := app.NewCharacterCatalogStore(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("character catalog: %w", err)
+	}
 	candidates, err := app.NewCandidateStore(cfg)
 	if err != nil {
 		return nil, err
@@ -122,6 +137,9 @@ func NewLiveBackend(cfg *config.Config, publisher *telemetry.LivePublisher) (*Li
 	pickitProfiles, err := app.NewPickitProfileService(cfg.ResolvePath("pickit/profiles"))
 	if err != nil {
 		return nil, fmt.Errorf("pickit profiles: %w", err)
+	}
+	if setupErr := app.ValidateCharacterSetupConfig(cfg, pickitProfiles); setupErr != nil {
+		return nil, fmt.Errorf("character setup config: %w", setupErr)
 	}
 	pickitAssignments, err := app.NewPickitAssignmentStore(cfg.ResolvePath("pickit-assignments.local.yaml"), pickitProfiles)
 	if err != nil {
@@ -164,7 +182,7 @@ func NewLiveBackend(cfg *config.Config, publisher *telemetry.LivePublisher) (*Li
 		status.Selection = SelectionStatusDTO{Character: cfg.Session.Character, Difficulty: character.LastConfirmedDifficulty}
 	}
 	historySnapshot := history.Snapshot("")
-	return &LiveBackend{bootstrap: bootstrap, cfg: cfg, lifecycle: lifecycle, publisher: publisher, status: status, catalog: bootstrap.Catalog(), commands: make(map[string]apiCommandRecord), previews: make(map[string]selectionPreviewRecord), routeCandidates: candidates, routeAssignments: assignments, routeManagement: management, routeWorkflow: RouteWorkflowDTO{Generation: 1, State: string(app.RouteWorkflowIdle)}, pickitProfiles: pickitProfiles, pickitAssignments: pickitAssignments, history: history, historyMaintenance: maintenance, diagnostics: diagnostics, historyTerminalHash: terminalHistoryHash(historySnapshot.Runs)}, nil
+	return &LiveBackend{bootstrap: bootstrap, cfg: cfg, lifecycle: lifecycle, publisher: publisher, status: status, catalog: bootstrap.Catalog(), commands: make(map[string]apiCommandRecord), characterCommands: make(map[string]characterSetupCommandRecord), previews: make(map[string]selectionPreviewRecord), routeCandidates: candidates, routeAssignments: assignments, routeManagement: management, routeWorkflow: RouteWorkflowDTO{Generation: 1, State: string(app.RouteWorkflowIdle)}, pickitProfiles: pickitProfiles, pickitAssignments: pickitAssignments, characterCatalog: characterCatalog, characterCatalogReload: characterCatalog.Reload, history: history, historyMaintenance: maintenance, diagnostics: diagnostics, historyTerminalHash: terminalHistoryHash(historySnapshot.Runs)}, nil
 }
 
 // SetRouteWorkflowHandler binds UI workflow starts to the existing Runtime recorder/test adapters.
@@ -380,9 +398,12 @@ func terminalHistoryHash(runs []telemetry.HistoryRun) [sha256.Size]byte {
 
 // ValidateQueue performs a side-effect-free full preflight against the confirmed selection.
 func (b *LiveBackend) ValidateQueue(request QueueValidationRequest) (QueueValidationDTO, error) {
+	_, freshRevision, contractErr := b.validateDesktopCharacterContract(request.Character, request.Entries)
+	if contractErr != nil {
+		return QueueValidationDTO{}, contractErr
+	}
 	b.mu.RLock()
 	selection := b.status.Selection
-	catalogRevision := b.catalog.Revision
 	workflowState := b.routeWorkflow.State
 	b.mu.RUnlock()
 	if routeWorkflowBusy(workflowState) {
@@ -392,7 +413,7 @@ func (b *LiveBackend) ValidateQueue(request QueueValidationRequest) (QueueValida
 		RunIDs: append([]string(nil), request.Entries...), Character: request.Character,
 		Difficulty: request.Difficulty, CatalogRevision: request.CatalogRevision,
 	}, app.FarmQueueValidationContext{
-		Character: selection.Character, Difficulty: selection.Difficulty, CatalogRevision: catalogRevision,
+		Character: selection.Character, Difficulty: selection.Difficulty, CatalogRevision: freshRevision,
 	})
 	if err != nil {
 		var queueErr *app.QueueValidationError
@@ -404,11 +425,6 @@ func (b *LiveBackend) ValidateQueue(request QueueValidationRequest) (QueueValida
 			return QueueValidationDTO{}, &commandError{code: string(supervisorErr.Code), message: "Der Katalog hat sich seit der Queue-Prüfung geändert."}
 		}
 		return QueueValidationDTO{}, err
-	}
-	for _, runID := range plan.RunIDs {
-		if _, resolveErr := b.pickitAssignments.Resolve(plan.Character, tasks.RunID(runID)); resolveErr != nil {
-			return QueueValidationDTO{}, &commandError{code: "pickit_assignment_invalid", message: "Die Pickit-Zuordnung ist unvollständig oder ungültig.", details: map[string]any{"run_id": runID}}
-		}
 	}
 	return QueueValidationDTO{
 		Entries: append([]string(nil), plan.RunIDs...), Character: plan.Character, Difficulty: plan.Difficulty,
@@ -443,6 +459,9 @@ func (b *LiveBackend) Catalog() CatalogDTO {
 
 // PreviewSelection computes and stores only an in-memory revision-bound confirmation capability.
 func (b *LiveBackend) PreviewSelection(request SelectionPreviewRequest) (SelectionPreviewDTO, error) {
+	if _, err := b.reloadCharacterCatalog(); err != nil {
+		return SelectionPreviewDTO{}, err
+	}
 	b.mu.RLock()
 	catalogRevision := b.catalog.Revision
 	state := b.status.State
@@ -459,8 +478,8 @@ func (b *LiveBackend) PreviewSelection(request SelectionPreviewRequest) (Selecti
 		return SelectionPreviewDTO{}, &commandError{code: "command_conflict", message: "Die Auswahl ist während einer aktiven Aktion gesperrt."}
 	}
 	entry, ok := b.bootstrap.character(request.Character)
-	if !ok || !entry.Selectable {
-		return SelectionPreviewDTO{}, &commandError{code: "character_unconfigured", message: "Der Charakter ist nicht auswählbar."}
+	if !ok || !entry.Selectable || entry.CombatProfile == "" {
+		return SelectionPreviewDTO{}, &commandError{code: app.CharacterReasonProfileMissing, message: "Der Charakter ist noch nicht vollständig eingerichtet."}
 	}
 	if !knownDifficulty(difficulties, request.Difficulty) {
 		return SelectionPreviewDTO{}, &commandError{code: "request_invalid", message: "Die Schwierigkeit ist ungültig."}
@@ -501,6 +520,9 @@ func (b *LiveBackend) Command(name string, request CommandRequest) (CommandRespo
 }
 
 func (b *LiveBackend) applySelectionCommand(request CommandRequest) (CommandResponse, error) {
+	if _, err := b.reloadCharacterCatalog(); err != nil {
+		return CommandResponse{}, err
+	}
 	b.mu.Lock()
 	if err := b.requireCompatibleLocked(); err != nil {
 		b.mu.Unlock()
@@ -532,7 +554,7 @@ func (b *LiveBackend) applySelectionCommand(request CommandRequest) (CommandResp
 	}
 	entry, ok := b.bootstrap.character(payload.Character)
 	previewRecord, previewOK := b.previews[payload.ConfirmationToken]
-	if !ok || !entry.Selectable || payload.Difficulty == "" || !previewOK ||
+	if !ok || !entry.Selectable || entry.CombatProfile == "" || payload.Difficulty == "" || !previewOK ||
 		previewRecord.dto.Character != entry.Name || previewRecord.dto.NewDifficulty != payload.Difficulty ||
 		previewRecord.dto.CatalogRevision != payload.CatalogRevision || payload.CatalogRevision != b.catalog.Revision {
 		b.mu.Unlock()
@@ -555,13 +577,14 @@ func (b *LiveBackend) applySelectionCommand(request CommandRequest) (CommandResp
 		b.mu.Unlock()
 		return CommandResponse{}, &commandError{code: "request_invalid", message: "Die Charakterauswahl ist nicht verfügbar."}
 	}
+	characterCount := len(b.catalog.Characters)
 	b.status.State = string(app.SupervisorStateActivatingSelection)
 	b.status.Generation++
 	generation := b.status.Generation
 	b.mu.Unlock()
 	b.publisher.Publish(telemetry.LiveEvent{Event: "supervisor_state_changed", Details: map[string]any{"state": app.SupervisorStateActivatingSelection, "generation": generation}})
 
-	err := handler(app.CharacterSelectionRequest{Character: entry.Name, Difficulty: payload.Difficulty, CatalogRevision: payload.CatalogRevision, CharacterCount: len(b.bootstrap.catalog.Characters), AnchorPath: entry.AnchorPath, ExpectedClass: entry.ExpectedClass})
+	err := handler(app.CharacterSelectionRequest{Character: entry.Name, Difficulty: payload.Difficulty, CatalogRevision: payload.CatalogRevision, CharacterCount: characterCount, AnchorPath: entry.AnchorPath, ExpectedClass: entry.ExpectedClass})
 	var commitErr error
 	var settingsErr error
 	var settingsChange app.OperatorSettingsChange
@@ -574,7 +597,10 @@ func (b *LiveBackend) applySelectionCommand(request CommandRequest) (CommandResp
 				settingsChange, settingsErr = b.operatorSettings.ConfirmSelection(entry.Name, payload.Difficulty)
 			}
 			var report app.RunsInspectReport
-			report, refreshErr = app.ResolveRunAvailabilities(b.cfg, app.RunAvailabilityContext{Character: entry.Name, Difficulty: payload.Difficulty, GameVersion: b.cfg.Memory.GameVersion})
+			report, refreshErr = app.ResolveRunAvailabilities(b.cfg, app.RunAvailabilityContext{
+				Character: entry.Name, CharacterClass: entry.ExpectedClass, CombatProfile: entry.CombatProfile,
+				Difficulty: payload.Difficulty, GameVersion: b.cfg.Memory.GameVersion,
+			})
 			if refreshErr == nil {
 				refreshedRuns = runCatalogEntries(report)
 			}
@@ -605,7 +631,6 @@ func (b *LiveBackend) applySelectionCommand(request CommandRequest) (CommandResp
 			b.status.Queue.DefaultEntries = append([]string(nil), value.Queue...)
 		}
 		b.previews = make(map[string]selectionPreviewRecord)
-		b.catalog.Revision++
 		if refreshErr == nil {
 			b.catalog.Runs = refreshedRuns
 		} else {
@@ -657,7 +682,6 @@ func (b *LiveBackend) sessionCommand(name string, request CommandRequest) (Comma
 		AreaID:       b.status.World.AreaID,
 	}
 	selection := b.status.Selection
-	catalogRevision := b.catalog.Revision
 	supervisor := b.supervisor
 	beforeWorker := b.beforeWorker
 	beginQueue := b.beginQueue
@@ -686,9 +710,13 @@ func (b *LiveBackend) sessionCommand(name string, request CommandRequest) (Comma
 		if decodeErr := decodeCommandPayload(request.Payload, &payload); decodeErr != nil {
 			return CommandResponse{}, &commandError{code: "request_invalid", message: "Die Queue-Startdaten sind ungültig."}
 		}
+		_, freshRevision, contractErr := b.validateDesktopCharacterContract(payload.Character, payload.Entries)
+		if contractErr != nil {
+			return CommandResponse{}, contractErr
+		}
 		plan, validateErr := app.ValidateFarmQueue(b.cfg, app.FarmQueueValidationRequest{
 			RunIDs: payload.Entries, Character: payload.Character, Difficulty: payload.Difficulty, CatalogRevision: payload.CatalogRevision,
-		}, app.FarmQueueValidationContext{Character: selection.Character, Difficulty: selection.Difficulty, CatalogRevision: catalogRevision})
+		}, app.FarmQueueValidationContext{Character: selection.Character, Difficulty: selection.Difficulty, CatalogRevision: freshRevision})
 		if validateErr != nil {
 			return CommandResponse{}, mapQueueCommandError(validateErr)
 		}

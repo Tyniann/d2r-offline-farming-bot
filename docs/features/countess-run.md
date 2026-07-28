@@ -203,13 +203,19 @@ go run ./cmd/d2rbot --pathing-test record-town-edge:stash-waypoint --probe --ver
 
 Der Recorder bindet die Aufnahme an den read-only aus Stash und Waypoint ermittelten `TownLayoutFingerprint`. Der Graphplayer und der produktive Run akzeptieren ausschließlich eine exakt passende Variante; Difficulty und Charakter sind keine Town-Routenschlüssel.
 
+## Produktabnahme Phase 16
+
+Der installierte produktive Lauf vom 28. Juli 2026 korreliert Run `countess-20260728t101744999999999z-ad553927` mit Session `session-20260728t101744999999999z-5d7c12e7`, MrBones auf Alptraum, Profil `necro_bone_spear`, Route `countess-mrbones-b801e63e3c` und Pickit-Kette `[gems, keys, countess-standard]`. Alle sieben Routensegmente sowie die 20 Run-Schritte endeten erfolgreich. Memory bestätigte den Countess-Kill; Amn- und Thul-Rune wurden über `countess-standard/runes` als `keep` ausgewählt, aufgenommen und im Personal Stash gesichert. Ein einmaliges `hover_not_found` bei der Thul-Rune wurde durch den vorgesehenen begrenzten Retry erholt.
+
+Town-Portal, bestätigte Rückkehr ins Rogue Encampment, Stash, Versorgung und nächster Run-Handoff waren erfolgreich. Nach `run_completed` beendete der Supervisor das Spiel und die Session geordnet mit `run_budget_exhausted`, weil das Produktbudget exakt einen Run erlaubte. Die Runzeit zwischen `run_context` und `run_completed` betrug 81,425 Sekunden.
+
 ## Grenzen
 
 - Town-Walk ist nur für Rogue Encampment / Act 1 vorgesehen.
 - Keine OCR-/Bild-Erkennung des Waypoint-Menüs.
 - Keine Shared-Stash-, Sell- oder Identify-Automation. Phase 5.8 automatisiert ausschließlich den Personal Stash für aktuelle Pickit-MVP-Typen.
-- `boss` nutzt keine Curses, Summons, Bone Prison, Potion-Logik oder Good-Chest-Interaktion.
-- Kein robuster Tower-Solver: zufällige Tower-Layouts bleiben die größte Unsicherheit des Phase-5-Stands. Phase 6 zieht Run Recording und Playback deshalb als direkte Nachfolgephase vor und ersetzt die globale Explorer-Traversierung im produktiven Countess-Run.
+- `boss` nutzt keine Curses, Summons oder Good-Chest-Interaktion. Profilgebundene Lifecycle-Hooks wie Bone Prison sowie die zentrale Ressourcenregel bleiben Teil des freigegebenen Kampfprofils.
+- Der produktive Run verwendet die charakter-, schwierigkeits- und layoutgebundene veröffentlichte Route. Die frühere globale Explorer-Traversierung des Phase-5-Stands ist kein produktiver Fallback.
 
 ---
-*Zuletzt aktualisiert: 2026-07-27*
+*Zuletzt aktualisiert: 2026-07-28*

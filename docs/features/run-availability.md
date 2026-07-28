@@ -27,7 +27,7 @@ Der read-only Availability-Resolver bewertet alle registrierten Farmziele determ
 
 ### Prüfkontext
 
-`RunAvailabilityContext` kann Character, Character-Class, Difficulty, Game-Version, Map-Seed und Layout-Fingerprint enthalten. Leere Live-Felder werden nie geraten. Die CLI übernimmt Character und Difficulty aus `session` sowie die Game-Version aus `memory`; deshalb meldet eine passende lokale Countess-Route ohne Live-Fingerprint korrekt `runtime_validation_required`.
+`RunAvailabilityContext` kann Character, Character-Class, das charakterbezogen gespeicherte Combat-Profil, Difficulty, Game-Version, Map-Seed und Layout-Fingerprint enthalten. Leere Live-Felder werden nie geraten. Im Desktoppfad muss das Profil mit dem von der Run-Definition verlangten Profil übereinstimmen; andernfalls liefert der Resolver `character_profile_run_incompatible`. Die CLI übernimmt Character und Difficulty aus `session` sowie die Game-Version aus `memory` und behält ohne OperatorSettings bewusst den bisherigen configgebundenen Profilpfad.
 
 Ein passender expliziter Map-Seed und Fingerprint machen Countess `available`. Abweichende statische Route-Metadaten liefern `route_binding_mismatch`, ein abweichender Live-Fingerprint `route_layout_mismatch`.
 
@@ -70,4 +70,4 @@ Für die aktuellen lokalen Countess- und Mephisto-Bindungen wird ohne Attach jew
 - [Route Recording und Playback](route-recording-playback.md)
 
 ---
-*Zuletzt aktualisiert: 18. Juli 2026*
+*Zuletzt aktualisiert: 28. Juli 2026*

@@ -157,12 +157,12 @@ describe("App", () => {
   });
 
   it("zeigt gesperrte Charaktere und sendet nur eine freigegebene Auswahl", async () => {
-    mocks.getCatalog.mockResolvedValue({ schema_version: 1, revision: 3, default_difficulty: "nightmare", profiles: [{ id: "necro_bone_spear", character_class: "necromancer" }], runs: [], difficulties: [{ id: "nightmare", display_name: "Alptraum" }], characters: [{ name: "MrBones", slug: "mrbones", selectable: true }, { name: "MrHammer", slug: "mrhammer", selectable: false, reasons: ["character_unconfigured", "character_anchor_missing"] }] });
+    mocks.getCatalog.mockResolvedValue({ schema_version: 1, revision: 3, default_difficulty: "nightmare", profiles: [{ id: "necro_bone_spear", character_class: "necromancer" }], runs: [], difficulties: [{ id: "nightmare", display_name: "Alptraum" }], characters: [{ name: "MrBones", slug: "mrbones", selectable: true }, { name: "MrHammer", slug: "mrhammer", selectable: false, reasons: ["character_class_unsupported", "character_anchor_missing"] }] });
     mocks.applySelection.mockResolvedValue(undefined);
     mocks.previewSelection.mockResolvedValue({ schema_version: 1, character: "MrBones", new_difficulty: "nightmare", affected_routes: [], requires_confirmation: false, confirmation_token: "safe-preview", catalog_revision: 3, lifecycle_revision: 1 });
     mocks.getStatus.mockResolvedValue(detached);
     render(<App />);
-    expect(await screen.findByText(/Kein unterstütztes Kampfprofil zugeordnet.*Totenbeschwörer.*Automatische Auswahl/)).toBeInTheDocument();
+    expect(await screen.findByText(/Für diese Klasse gibt es noch kein freigegebenes Kampfprofil.*Totenbeschwörer.*Auswahlbild/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Auswahl in D2R anwenden" }));
     await waitFor(() => expect(mocks.applySelection).toHaveBeenCalledWith("MrBones", "nightmare", 3, 0, "safe-preview"));
   });

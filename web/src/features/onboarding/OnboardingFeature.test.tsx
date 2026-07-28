@@ -5,18 +5,21 @@ import { OnboardingFeature } from "./OnboardingFeature";
 
 const mocks = vi.hoisted(() => ({
   getSettings: vi.fn(), getOptions: vi.fn(), getHotkeys: vi.fn(), getWorkflow: vi.fn(),
+  previewSetup: vi.fn(), reloadCharacters: vi.fn(), confirmSetup: vi.fn(), captureSelection: vi.fn(),
   previewSelection: vi.fn(), applySelection: vi.fn(), saveSettings: vi.fn(),
 }));
 vi.mock("../../api/generated", () => ({
   getOperatorSettings: mocks.getSettings, getRecordingOptions: mocks.getOptions, getHotkeyHelp: mocks.getHotkeys, getRouteWorkflow: mocks.getWorkflow,
+  previewCharacterSetup: mocks.previewSetup, reloadCharacters: mocks.reloadCharacters,
 }));
 vi.mock("../../api/client", () => ({
   previewSelection: mocks.previewSelection, applySelection: mocks.applySelection, saveOperatorSettings: mocks.saveSettings,
+  confirmCharacterSetup: mocks.confirmSetup, captureCharacterSelection: mocks.captureSelection,
 }));
 
 const operator: OperatorSettingsDTO = {
-  schema_version: 1, revision: 2,
-  characters: { mrbones: { last_difficulty: "nightmare", queue: ["countess"] } },
+  schema_version: 2, revision: 2,
+  characters: { mrbones: { character_class: "necromancer", combat_profile: "necro_bone_spear", last_difficulty: "nightmare", queue: ["countess"] } },
   budgets: { max_runs: 10, max_duration_ms: 3_600_000, max_consecutive_failures: 3, max_total_restarts: 2 },
   input: { enabled: false, pause_hotkey: "pause", stop_after_run_hotkey: "f10", recording_finish_hotkey: "f9", emergency_stop_hotkey: "f11" },
   history: { retention_enabled: true, retention_days: 60 },
@@ -34,6 +37,19 @@ const status = {
   selection: { character: "MrBones", difficulty: "nightmare" },
   queue: { entries: ["countess"], default_entries: ["countess"], index: 0, cycle: 0, retry: 0, started_runs: 0, consecutive_failures: 0, total_restarts: 0, budgets: { max_runs: 10, max_duration_ms: 3_600_000, max_consecutive_failures: 3, max_total_restarts: 2 } },
 } as StatusDTO;
+
+const readySetup = {
+  schema_version: 1, catalog_revision: 3, operator_settings_revision: 2, pickit_assignment_revision: 2,
+  character: { name: "MrBones", slug: "mrbones", character_class: "necromancer", class_display_name: "Totenbeschwörer" },
+  supported: true,
+  profiles: [{ id: "necro_bone_spear", display_name: "Knochen-Speer", is_default: true, is_selected: true }],
+  selected_profile_id: "necro_bone_spear", default_profile_id: "necro_bone_spear",
+  pickit_defaults: [
+    { run_id: "countess", run_display_name: "Countess", profile_names: ["Runen"], state: "ready" },
+    { run_id: "mephisto", run_display_name: "Mephisto", profile_names: ["Ausrüstung"], state: "ready" },
+  ],
+  anchor_state: "ready", setup_state: "ready", reasons: [],
+} as const;
 
 function option(missing = ""): RecordingOptionDTO {
   return {
@@ -59,6 +75,10 @@ describe("OnboardingFeature", () => {
     mocks.getOptions.mockResolvedValue([option()]);
     mocks.getHotkeys.mockResolvedValue({ recording_finish: "f9", stop_after_run: "f10", emergency_stop: "f11", pause: "pause" });
     mocks.getWorkflow.mockResolvedValue({ workflow_id: "", generation: 1, state: "idle", run_id: "", character: "" });
+    mocks.previewSetup.mockResolvedValue(readySetup);
+    mocks.reloadCharacters.mockResolvedValue({ schema_version: 1, catalog });
+    mocks.confirmSetup.mockResolvedValue(readySetup);
+    mocks.captureSelection.mockResolvedValue(readySetup);
     window.d2rDesktop = {
       getDesktopSettings: vi.fn().mockResolvedValue({ schema_version: 1, autostart: false, onboarding_completed: false }),
       updateDesktopSettings: vi.fn().mockResolvedValue({ schema_version: 1, autostart: false, onboarding_completed: true }),
@@ -100,7 +120,7 @@ describe("OnboardingFeature", () => {
       ...catalog,
       characters: [
         { name: "MrBones", slug: "mrbones", expected_class: "necromancer", selectable: true },
-        { name: "MrHammer", slug: "mrhammer", selectable: false, reasons: ["character_unconfigured", "character_anchor_missing"] },
+        { name: "MrHammer", slug: "mrhammer", expected_class: "paladin", selectable: false, reasons: ["character_class_unsupported", "character_anchor_missing"] },
       ],
     } as CatalogDTO;
     const freshStatus = { ...status, selection: { character: "", difficulty: "nightmare" } } as StatusDTO;
@@ -110,10 +130,10 @@ describe("OnboardingFeature", () => {
 
     expect(screen.getByRole("combobox", { name: "Charakter" })).toHaveValue("MrBones");
     expect(screen.getByRole("option", { name: "MrBones" })).toBeEnabled();
-    expect(screen.getByRole("option", { name: "MrHammer – nicht verfügbar" })).toBeDisabled();
-    expect(screen.getByText(/Kein unterstütztes Kampfprofil zugeordnet/)).toBeInTheDocument();
-    expect(screen.getByText(/Automatische Auswahl dieses Charakters/)).toBeInTheDocument();
-    expect(screen.getByText("Totenbeschwörer", { selector: "strong" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "MrHammer – Einrichtung nötig" })).toBeEnabled();
+    expect(screen.getByText(/Für diese Klasse gibt es noch kein freigegebenes Kampfprofil/)).toBeInTheDocument();
+    expect(screen.getByText(/Das Auswahlbild für diesen Charakter fehlt noch/)).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "MrBones · Totenbeschwörer" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Weiter" })).toBeDisabled();
   });
 
@@ -134,12 +154,121 @@ describe("OnboardingFeature", () => {
     expect(mocks.applySelection).toHaveBeenCalledOnce();
   });
 
+  it("zeigt bei genau einem Profil nur den festen Standard und bestätigt die lesbaren Lootketten", async () => {
+    mocks.getSettings.mockResolvedValue({ ...operator, input: { ...operator.input, enabled: true } });
+    const needsSetup = {
+      ...readySetup,
+      selected_profile_id: undefined,
+      anchor_state: "missing",
+      setup_state: "needs_setup",
+      reasons: ["character_profile_missing"],
+      profiles: [{ id: "necro_bone_spear", display_name: "Knochen-Speer", is_default: true, is_selected: false }],
+      pickit_defaults: readySetup.pickit_defaults.map((entry) => ({ ...entry, state: "missing" })),
+    };
+    mocks.previewSetup.mockResolvedValueOnce(needsSetup).mockResolvedValue(readySetup);
+    render(<OnboardingFeature initialStep={5} status={{ ...status, selection: { character: "", difficulty: "nightmare" } }} catalog={{ ...catalog, characters: [{ ...catalog.characters[0], selectable: false, reasons: ["character_profile_missing", "character_anchor_missing"] }] }} onRefresh={onRefresh} onClose={onClose} onOpenRoutes={onOpenRoutes} />);
+
+    expect(await screen.findByText("Knochen-Speer", { selector: "strong" })).toBeInTheDocument();
+    expect(screen.queryByRole("combobox", { name: "Kampfprofil" })).not.toBeInTheDocument();
+    expect(screen.getByText((_, element) => element?.tagName === "LI" && element.textContent?.includes("Countess: Runen") === true)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Profil und Lootprofile bestätigen" }));
+
+    await waitFor(() => expect(mocks.confirmSetup).toHaveBeenCalledWith(expect.objectContaining({
+      character: "MrBones",
+      profile_id: "necro_bone_spear",
+      expected_catalog_revision: 3,
+      expected_operator_settings_revision: 2,
+      expected_pickit_assignment_revision: 2,
+      expected_generation: 4,
+    })));
+    expect(mocks.reloadCharacters).toHaveBeenCalledOnce();
+    expect(onRefresh).toHaveBeenCalledOnce();
+  });
+
+  it("zeigt bei mehreren Profilen die Core-Auswahl mit vorausgewähltem Standard", async () => {
+    mocks.getSettings.mockResolvedValue({ ...operator, input: { ...operator.input, enabled: true } });
+    mocks.previewSetup.mockResolvedValue({
+      ...readySetup,
+      selected_profile_id: undefined,
+      default_profile_id: "necro_bone_spear",
+      setup_state: "needs_setup",
+      anchor_state: "missing",
+      reasons: ["character_profile_missing"],
+      profiles: [
+        { id: "necro_bone_spear", display_name: "Knochen-Speer", is_default: true, is_selected: false },
+        { id: "necro_summoner", display_name: "Beschwörer", is_default: false, is_selected: false },
+      ],
+    });
+    render(<OnboardingFeature initialStep={5} status={status} catalog={catalog} onRefresh={onRefresh} onClose={onClose} onOpenRoutes={onOpenRoutes} />);
+
+    expect(await screen.findByRole("combobox", { name: "Kampfprofil" })).toHaveValue("necro_bone_spear");
+  });
+
+  it("bietet für eine nicht unterstützte Klasse weder Setup noch Bilderfassung an und zeigt keine Reason-ID", async () => {
+    mocks.getSettings.mockResolvedValue({ ...operator, input: { ...operator.input, enabled: true } });
+    const paladinCatalog = {
+      ...catalog,
+      characters: [{ name: "MrHammer", slug: "mrhammer", expected_class: "paladin", selectable: false, reasons: ["character_class_unsupported"] }],
+    } as CatalogDTO;
+    mocks.previewSetup.mockResolvedValue({
+      ...readySetup,
+      character: { name: "MrHammer", slug: "mrhammer", character_class: "paladin", class_display_name: "Paladin" },
+      supported: false,
+      profiles: [],
+      selected_profile_id: undefined,
+      default_profile_id: undefined,
+      setup_state: "blocked",
+      reasons: ["character_class_unsupported"],
+    });
+    render(<OnboardingFeature initialStep={5} status={{ ...status, selection: { character: "", difficulty: "nightmare" } }} catalog={paladinCatalog} onRefresh={onRefresh} onClose={onClose} onOpenRoutes={onOpenRoutes} />);
+
+    expect(await screen.findByRole("heading", { name: "MrHammer · Paladin" })).toBeInTheDocument();
+    expect(screen.getAllByText(/Für diese Klasse gibt es noch kein freigegebenes Kampfprofil/)).toHaveLength(2);
+    expect(screen.queryByText("character_class_unsupported")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Profil und Lootprofile bestätigen" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Auswahlbild jetzt speichern" })).not.toBeInTheDocument();
+  });
+
+  it("fordert vor der Bilderfassung eine klare Bestätigung und bleibt im Charakterschritt", async () => {
+    mocks.getSettings.mockResolvedValue({ ...operator, input: { ...operator.input, enabled: true } });
+    const needsAnchor = { ...readySetup, anchor_state: "missing", setup_state: "needs_anchor", reasons: ["character_anchor_missing"] };
+    mocks.previewSetup.mockResolvedValueOnce(needsAnchor).mockResolvedValue(readySetup);
+    render(<OnboardingFeature initialStep={5} status={status} catalog={{ ...catalog, characters: [{ ...catalog.characters[0], selectable: false, reasons: ["character_anchor_missing"] }] }} onRefresh={onRefresh} onClose={onClose} onOpenRoutes={onOpenRoutes} />);
+
+    expect(await screen.findByText("Die Charakterauswahl öffnen.")).toBeInTheDocument();
+    const capture = screen.getByRole("button", { name: "Auswahlbild jetzt speichern" });
+    expect(capture).toBeDisabled();
+    fireEvent.click(screen.getByRole("checkbox", { name: /MrBones ist in der Charakterauswahl markiert/ }));
+    fireEvent.click(capture);
+
+    await waitFor(() => expect(mocks.captureSelection).toHaveBeenCalledWith(expect.objectContaining({ character: "MrBones", expected_catalog_revision: 3, expected_generation: 4 })));
+    expect(screen.getByRole("heading", { name: "Charakter" })).toBeInTheDocument();
+  });
+
+  it("erklärt nach fertiger Einrichtung den nächsten Bestätigungsschritt", async () => {
+    render(<OnboardingFeature initialStep={5} status={status} catalog={catalog} onRefresh={onRefresh} onClose={onClose} onOpenRoutes={onOpenRoutes} />);
+    expect(await screen.findByText(/Wähle oben die gewünschte Schwierigkeit und klicke anschließend auf „Über Core bestätigen“/)).toBeInTheDocument();
+  });
+
   it("erklärt einen fehlenden Pickit-Default ohne rohen Reason-Code", async () => {
     mocks.getSettings.mockResolvedValue({ ...operator, input: { ...operator.input, enabled: true } });
     mocks.getOptions.mockResolvedValue([option("pickit")]);
     render(<OnboardingFeature initialStep={6} status={status} catalog={catalog} onRefresh={onRefresh} onClose={onClose} onOpenRoutes={onOpenRoutes} />);
     expect(await screen.findByText("Für diesen Charakter und Run ist noch kein Lootprofil zugeordnet.")).toBeInTheDocument();
     expect(screen.queryByText("pickit_assignment_missing")).not.toBeInTheDocument();
+  });
+
+  it("zeigt auch bei einer unbekannten Voraussetzung keine internen IDs", async () => {
+    mocks.getSettings.mockResolvedValue({ ...operator, input: { ...operator.input, enabled: true } });
+    mocks.getOptions.mockResolvedValue([{
+      ...option(),
+      prerequisites: [{ id: "future_gate_internal", ready: false, reason: "future_reason_internal" }],
+    } as unknown as RecordingOptionDTO]);
+    render(<OnboardingFeature initialStep={6} status={status} catalog={catalog} onRefresh={onRefresh} onClose={onClose} onOpenRoutes={onOpenRoutes} />);
+    expect(await screen.findByText("Weitere Voraussetzung")).toBeInTheDocument();
+    expect(screen.getByText("Diese Voraussetzung fehlt noch.")).toBeInTheDocument();
+    expect(screen.queryByText("future_gate_internal")).not.toBeInTheDocument();
+    expect(screen.queryByText("future_reason_internal")).not.toBeInTheDocument();
   });
 
   it("erklärt Schaltfläche und F9 beim Aufnahmebeginn", async () => {
@@ -188,7 +317,8 @@ describe("OnboardingFeature", () => {
     const view = render(<OnboardingFeature status={status} catalog={catalog} onRefresh={onRefresh} onClose={onClose} onOpenRoutes={onOpenRoutes} />);
     await waitFor(() => expect(mocks.getSettings).toHaveBeenCalledTimes(1));
     for (let index = 0; index < 7; index++) fireEvent.click(screen.getByRole("button", { name: "Weiter" }));
-    expect(await screen.findByText(/onboarding_teleport_missing/)).toBeInTheDocument();
+    expect(await screen.findByText(/Die Teleport-Tastenbelegung fehlt/)).toBeInTheDocument();
+    expect(screen.queryByText("onboarding_teleport_missing")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Routenbereich öffnen und Aufnahme starten/ })).toBeDisabled();
 
     mocks.getOptions.mockResolvedValue([option()]);

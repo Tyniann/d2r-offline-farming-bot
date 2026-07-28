@@ -70,7 +70,14 @@ func TestOperatorSettingsHTTPReadPreviewUpdateResetAndTokenGate(t *testing.T) {
 	if err != nil || response.StatusCode != http.StatusOK {
 		t.Fatalf("GET status=%v err=%v", response.StatusCode, err)
 	}
+	var read OperatorSettingsDTO
+	if err := json.NewDecoder(response.Body).Decode(&read); err != nil {
+		t.Fatal(err)
+	}
 	_ = response.Body.Close()
+	if got := read.Characters["mrbones"]; read.SchemaVersion != 2 || got.CharacterClass != "necromancer" || got.CombatProfile != "necro_bone_spear" {
+		t.Fatalf("read=%+v", read)
+	}
 
 	mutation := OperatorSettingsMutationRequest{ExpectedRevision: 1, ExpectedGeneration: 3, Settings: backend.settings}
 	body, _ := json.Marshal(mutation)
@@ -139,11 +146,14 @@ func (b *operatorSettingsTransportBackend) ResetOperatorSettings(request Operato
 
 func sampleOperatorSettingsDTO() OperatorSettingsDTO {
 	return OperatorSettingsDTO{
-		SchemaVersion: 1, Revision: 1,
-		Characters: map[string]OperatorCharacterSettingsDTO{"mrbones": {LastDifficulty: "nightmare", Queue: []string{"countess", "mephisto"}}},
-		Budgets:    OperatorBudgetSettingsDTO{MaxRuns: 3, MaxDurationMs: 7200000, MaxConsecutiveFailures: 2, MaxTotalRestarts: 3},
-		Input:      OperatorInputSettingsDTO{PauseHotkey: "pause", StopAfterRunHotkey: "f10", RecordingFinishHotkey: "f9", EmergencyStopHotkey: "f11"},
-		History:    OperatorHistorySettingsDTO{RetentionEnabled: true, RetentionDays: 60},
+		SchemaVersion: 2, Revision: 1,
+		Characters: map[string]OperatorCharacterSettingsDTO{"mrbones": {
+			CharacterClass: "necromancer", CombatProfile: "necro_bone_spear",
+			LastDifficulty: "nightmare", Queue: []string{"countess", "mephisto"},
+		}},
+		Budgets: OperatorBudgetSettingsDTO{MaxRuns: 3, MaxDurationMs: 7200000, MaxConsecutiveFailures: 2, MaxTotalRestarts: 3},
+		Input:   OperatorInputSettingsDTO{PauseHotkey: "pause", StopAfterRunHotkey: "f10", RecordingFinishHotkey: "f9", EmergencyStopHotkey: "f11"},
+		History: OperatorHistorySettingsDTO{RetentionEnabled: true, RetentionDays: 60},
 	}
 }
 

@@ -78,7 +78,7 @@ func (p *ProbeReader) readIdentityProbe(playerPtr uintptr, off OffsetSet) Identi
 	}
 
 	classID, err := p.reader.ReadUint32(playerPtr + identityPlayerClassOffset)
-	if err != nil || classID > 6 {
+	if err != nil || classID > 7 {
 		return IdentityProbe{CharacterName: name, Reason: "character_class_invalid"}
 	}
 

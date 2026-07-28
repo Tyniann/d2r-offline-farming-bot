@@ -256,6 +256,8 @@ const (
 	RunReasonRouteAssignmentMissing RunReason = "route_assignment_missing"
 	// RunReasonProfileClassMismatch reports a character/profile class mismatch.
 	RunReasonProfileClassMismatch RunReason = "profile_class_mismatch"
+	// RunReasonCharacterProfileRunIncompatible reports a run that selects a different profile than the confirmed character setup.
+	RunReasonCharacterProfileRunIncompatible RunReason = "character_profile_run_incompatible"
 	// RunReasonWaypointTargetUnsupported reports a target without registered UI action.
 	RunReasonWaypointTargetUnsupported RunReason = "waypoint_target_unsupported"
 	// RunReasonWaypointUIUnconfirmed reports a missing Memory-confirmed waypoint UI.

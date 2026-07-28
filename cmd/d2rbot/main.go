@@ -163,9 +163,6 @@ func runWithDataRoot(configPath, dataRoot string, opts app.Options) error {
 			return fmt.Errorf("load operator settings: %w", settingsErr)
 		}
 		app.ApplyOperatorSettingsToConfig(cfg, settings)
-		if settingsErr := app.RestoreUniqueConfirmedSelection(cfg); settingsErr != nil {
-			return fmt.Errorf("restore confirmed selection: %w", settingsErr)
-		}
 		operatorSettings = store
 	}
 	if opts.SessionMaxRuns < 0 {
@@ -381,6 +378,17 @@ func runDesktopAPI(cfg *config.Config, rt *app.Runtime, operatorSettings *app.Op
 			startMonitor()
 		}
 		return err
+	})
+	backend.SetCharacterCaptureHandler(func(captureCtx context.Context, targetPath string) error {
+		if err := stopMonitor(); err != nil {
+			return fmt.Errorf("stop passive monitor for character capture: %w", err)
+		}
+		defer func() {
+			if ctx.Err() == nil {
+				startMonitor()
+			}
+		}()
+		return rt.CaptureCharacterSelectionAnchor(captureCtx, targetPath)
 	})
 	backend.SetRouteWorkflowHandler(func(request api.RouteWorkflowRequest, finishRequests <-chan struct{}, reporter app.RouteWorkflowReporter) error {
 		if err := stopMonitor(); err != nil {
