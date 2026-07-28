@@ -2,9 +2,9 @@
 
 ## Überblick
 
-Phase 10.1 führt stabile, typisierte Run-Definitionen für `countess` und `mephisto` ein. Die Registry enthält ausschließlich unveränderliche Produktmetadaten und Capabilities; operatorabhängige Route, Combat-Tuning sowie Pickup-/Sell-Policies kommen für beide IDs aus demselben Config-Typ.
+Die Run-Registry hält stabile, typisierte Definitionen für `countess`, `mephisto`, `summoner` und `nihlathak`. Sie enthält ausschließlich unveränderliche Produktmetadaten und Capabilities; operatorabhängige Route, Combat-Tuning sowie Pickup-/Sell-Policies kommen für alle IDs aus demselben Config-Typ.
 
-Mephisto ist als zweite produktive Definition registriert. Die gemeinsame Pipeline instanziiert beide Runs ohne Run-ID-Switch; Durance-Level-2-Ziel, Farming-Route und Act-3-Egress sind über dieselben registrierten Verträge wie ihre Countess-Gegenstücke auflösbar. Ohne live verfügbaren Layout-Fingerprint meldet der Resolver für die gebundene Route `route_runtime_validation_required`.
+Alle Runs teilen die gemeinsame Pipeline ohne Run-ID-Switch. Fremdakt-Runs (Mephisto Act 3, Summoner Act 2, Nihlathak Act 5) verlangen `foreign_town_egress`. Ohne live verfügbaren Layout-Fingerprint meldet der Resolver für die gebundene Route `route_runtime_validation_required`.
 
 ## Ort im Code
 
@@ -20,9 +20,9 @@ Mephisto ist als zweite produktive Definition registriert. Die gemeinsame Pipeli
 
 `RunDefinition` beschreibt stabile ID, Anzeigename, Entry-/Terminal-Area, Waypoint-Ziel, Boss, geordnete Encounter-Aktionen, Rückkehrakt und erforderliche Capabilities. `RunRegistry` validiert Definitionen, verwirft ungültige oder doppelte IDs und liefert defensive Kopien in deterministischer ID-Reihenfolge.
 
-Seit Phase 12.0 enthält jede Definition zusätzlich einen typisierten `RecordingContract`. Er bindet deutsche Anleitung, Startwegpunkt und -gebiet, erlaubte Routengebiete, Terminalgebiet, denselben autoritativen `BossDescriptor` wie Combat, großzügige Maximaldistanz, Teleport-Bewegung, Town-Portal-Rückweg und Herkunftsakt. Countess akzeptiert Black Marsh bis Cellar 5 mit maximal 80 Tiles Bossdistanz; Mephisto Durance 2 bis 3 mit maximal 60 Tiles. Bossnähe beendet keine Aufnahme automatisch.
+Seit Phase 12.0 enthält jede Definition zusätzlich einen typisierten `RecordingContract`. Er bindet deutsche Anleitung, Startwegpunkt und -gebiet, erlaubte Routengebiete, Terminalgebiet, denselben autoritativen `BossDescriptor` wie Combat, großzügige Maximaldistanz, Teleport-Bewegung, Town-Portal-Rückweg und Herkunftsakt. Countess akzeptiert Black Marsh bis Cellar 5 mit maximal 80 Tiles Bossdistanz; Mephisto/Summoner/Nihlathak maximal 60 Tiles. Bossnähe beendet keine Aufnahme automatisch.
 
-Countess besitzt eine `boss_engage`-Aktion, verlangt wegen ihrer geteilten Dark-Stalker-Basis-ID das Super-Unique-Flag und kehrt direkt in Act 1 zurück. Mephisto besitzt zwei getrennte `boss_engage`-Aktionen, die eindeutige Aktboss-NPC-ID `242` ohne Super-Unique-Flag-Gate und verlangt wegen der Rückkehr nach Kurast-Docks zusätzlich `foreign_town_egress`.
+Countess besitzt eine `boss_engage`-Aktion, verlangt wegen ihrer geteilten Dark-Stalker-Basis-ID das Super-Unique-Flag und kehrt direkt in Act 1 zurück. Mephisto besitzt zwei getrennte `boss_engage`-Aktionen und die NPC-ID `242`. Summoner (`250`) und Nihlathak (`526`) haben eine **leere** Engage-Sequenz (direkt Bone Spear, kein Bone Prison) und verlangen Fremdakt-Egress.
 
 ### Gemeinsames Config-Schema
 
@@ -32,10 +32,12 @@ runs:
   step_timeout_ms: 45000
   definitions:
     countess:
-      route_id: "..."
       combat: { profile: necro_bone_spear, attack_skill: bone_spear }
     mephisto:
-      route_id: ""
+      combat: { profile: necro_bone_spear, attack_skill: bone_spear }
+    summoner:
+      combat: { profile: necro_bone_spear, attack_skill: bone_spear }
+    nihlathak:
       combat: { profile: necro_bone_spear, attack_skill: bone_spear }
 ```
 
@@ -54,7 +56,7 @@ Fehlende Config liefert `run_config_missing`, unbekannte ID `run_unknown`, ungü
 
 ## Operator / CLI
 
-`--run countess` verwendet die gemeinsame Pipeline. Die optionalen Werte für `--phase` sind definitionsneutral: `travel-entry`, `play-route`, `boss`, `loot-and-return`, `stash-personal` und `town-ready`. `--run mephisto` wird erkannt, endet aber vor Runtime-Input mit den stabilen Availability-Gründen, bis Route und Waypoint-Adapter verfügbar sind.
+`--run countess|mephisto|summoner|nihlathak` verwendet die gemeinsame Pipeline. Die optionalen Werte für `--phase` sind definitionsneutral: `travel-entry`, `play-route`, `boss`, `loot-and-return`, `stash-personal` und `town-ready`.
 
 ## Abhängigkeiten
 
@@ -69,6 +71,8 @@ Fehlende Config liefert `run_config_missing`, unbekannte ID `run_unknown`, ungü
 - [Session-Konfiguration und Inspect](session-configuration.md)
 - [Character- und Encounter-Profile](character-encounter-profiles.md)
 - [Route Recording und Playback](route-recording-playback.md)
+- [Summoner-Run](summoner-run.md)
+- [Nihlathak-Run](nihlathak-run.md)
 
 ---
-*Zuletzt aktualisiert: 21. Juli 2026*
+*Zuletzt aktualisiert: 2026-07-28*

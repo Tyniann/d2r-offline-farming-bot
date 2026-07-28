@@ -109,6 +109,25 @@ func TestValidatePathingTestModeConflicts(t *testing.T) {
 	}
 }
 
+func TestSessionExecutionRequestedExcludesSpecializedModes(t *testing.T) {
+	if !SessionExecutionRequested(Options{}) {
+		t.Fatal("empty options should allow configured session ownership")
+	}
+	specialized := []Options{
+		{PathingTest: "inspect:layout"},
+		{Route: "inspect-egress:act2"},
+		{Run: "summoner"},
+		{Probe: true},
+		{TownTest: "prepare:act2"},
+		{InputTest: "belt:1"},
+	}
+	for _, opts := range specialized {
+		if SessionExecutionRequested(opts) {
+			t.Fatalf("SessionExecutionRequested(%+v) = true, want false", opts)
+		}
+	}
+}
+
 func TestValidatePathingTestModeInputRequired(t *testing.T) {
 	disabled := &config.Config{Input: config.InputConfig{Enabled: false}}
 

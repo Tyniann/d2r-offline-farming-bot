@@ -15,6 +15,10 @@ const (
 	RunIDCountess RunID = "countess"
 	// RunIDMephisto identifies the Mephisto run definition.
 	RunIDMephisto RunID = "mephisto"
+	// RunIDSummoner identifies the Arcane Sanctuary Summoner key run.
+	RunIDSummoner RunID = "summoner"
+	// RunIDNihlathak identifies the Halls of Pain Nihlathak key run.
+	RunIDNihlathak RunID = "nihlathak"
 )
 
 // RunCapability identifies a runtime facility required by a run definition.
@@ -91,9 +95,12 @@ type RunDefinition struct {
 	WaypointTarget     pathing.WaypointTargetID
 	Boss               BossDescriptor
 	BossEngageSequence []EncounterAction
-	ReturnOrigin       town.OriginAct
-	RequiredCaps       []RunCapability
-	Recording          RecordingContract
+	// ClearNearbyAfterBoss enables the bounded standard-attack cleanup between
+	// confirmed boss death and loot handling.
+	ClearNearbyAfterBoss bool
+	ReturnOrigin         town.OriginAct
+	RequiredCaps         []RunCapability
+	Recording            RecordingContract
 }
 
 // RunStep identifies one state in the shared finite run lifecycle.
@@ -122,6 +129,9 @@ const (
 	RunStepEngageBoss RunStep = "engage_boss"
 	// RunStepConfirmKill confirms boss death over consistent snapshots.
 	RunStepConfirmKill RunStep = "confirm_kill"
+	// RunStepClearNearbyHostiles attacks nearby living encounter monsters within
+	// a bounded cast budget before moving to the retained boss position.
+	RunStepClearNearbyHostiles RunStep = "clear_nearby_hostiles"
 	// RunStepRepositionForLoot moves to the retained boss position before scanning drops.
 	RunStepRepositionForLoot RunStep = "reposition_for_loot"
 	// RunStepScanAndPickLoot executes the selected run's pickup policy.
@@ -156,10 +166,11 @@ var sharedRunStepContracts = []RunStepContract{
 	{Step: RunStepSelectRunWaypoint, AllowedNext: []RunStep{RunStepWaitEntryArea}},
 	{Step: RunStepWaitEntryArea, AllowedNext: []RunStep{RunStepPlayBoundRoute}},
 	{Step: RunStepPlayBoundRoute, AllowedNext: []RunStep{RunStepAcquireBoss}},
-	{Step: RunStepAcquireBoss, AllowedNext: []RunStep{RunStepBossEngageAction}},
+	{Step: RunStepAcquireBoss, AllowedNext: []RunStep{RunStepBossEngageAction, RunStepEngageBoss}},
 	{Step: RunStepBossEngageAction, AllowedNext: []RunStep{RunStepBossEngageAction, RunStepEngageBoss}},
 	{Step: RunStepEngageBoss, AllowedNext: []RunStep{RunStepConfirmKill}},
-	{Step: RunStepConfirmKill, AllowedNext: []RunStep{RunStepRepositionForLoot, RunStepScanAndPickLoot}},
+	{Step: RunStepConfirmKill, AllowedNext: []RunStep{RunStepClearNearbyHostiles, RunStepRepositionForLoot, RunStepScanAndPickLoot}},
+	{Step: RunStepClearNearbyHostiles, AllowedNext: []RunStep{RunStepRepositionForLoot}},
 	{Step: RunStepRepositionForLoot, AllowedNext: []RunStep{RunStepScanAndPickLoot}},
 	{Step: RunStepScanAndPickLoot, AllowedNext: []RunStep{RunStepCastAndEnterTownPortal}},
 	{Step: RunStepCastAndEnterTownPortal, AllowedNext: []RunStep{RunStepWaitOriginTown}},

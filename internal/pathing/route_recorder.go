@@ -133,10 +133,7 @@ func (r *RouteRecorder) completeArea(toArea world.AreaID) RouteSegment {
 	if len(r.points) == 0 || routePointPosition(r.points[len(r.points)-1]) != lastPosition {
 		r.points = append(r.points, RoutePoint{X: lastPosition.X, Y: lastPosition.Y})
 	}
-	transitionKind := "unknown"
-	if entrance, ok := nearestRecordingEntrance(r.previous); ok {
-		transitionKind = entrance.Kind.String()
-	}
+	transitionKind := recordingTransitionKind(r.currentArea, toArea, r.previous)
 	return RouteSegment{ID: r.currentID, FromAreaID: r.currentArea, ToAreaID: toArea, Movement: r.cfg.Movement, Points: append([]RoutePoint(nil), r.points...), Transition: RouteTransition{Type: "entrance", EntranceKind: transitionKind}}
 }
 
@@ -165,16 +162,57 @@ func (r *RouteRecorder) nextSegmentID(areaID world.AreaID) string {
 }
 
 func nearestRecordingEntrance(state world.State) (world.Entrance, bool) {
+	return nearestRecordingEntranceOfKind(state, world.EntranceKindUnknown)
+}
+
+func nearestRecordingEntranceOfKind(state world.State, expected world.EntranceKind) (world.Entrance, bool) {
 	var best world.Entrance
 	bestDistance := 0.0
 	found := false
 	for _, entrance := range state.Entrances {
+		if expected != world.EntranceKindUnknown && entrance.Kind != expected {
+			continue
+		}
 		distance := world.Distance(state.Player.Position, entrance.Position)
 		if !found || distance < bestDistance {
 			best, bestDistance, found = entrance, distance, true
 		}
 	}
 	return best, found
+}
+
+func recordingTransitionKind(fromArea, toArea world.AreaID, state world.State) string {
+	if expected, constrained := expectedHallsTransitionKind(fromArea, toArea); constrained {
+		// Halls levels expose both up/down entrances. Never substitute the
+		// nearest opposite direction because playback matches this kind strictly.
+		if entrance, ok := nearestRecordingEntranceOfKind(state, expected); ok {
+			return entrance.Kind.String()
+		}
+		return world.EntranceKindUnknown.String()
+	}
+	if entrance, ok := nearestRecordingEntrance(state); ok {
+		return entrance.Kind.String()
+	}
+	return world.EntranceKindUnknown.String()
+}
+
+func expectedHallsTransitionKind(fromArea, toArea world.AreaID) (world.EntranceKind, bool) {
+	switch {
+	case fromArea == world.NihlathaksTemple && toArea == world.HallsOfAnguish:
+		return world.EntranceKindHallsEntrance, true
+	case fromArea == world.HallsOfAnguish && toArea == world.NihlathaksTemple:
+		return world.EntranceKindHallsUp, true
+	case fromArea == world.HallsOfAnguish && toArea == world.HallsOfPain:
+		return world.EntranceKindHallsDown, true
+	case fromArea == world.HallsOfPain && toArea == world.HallsOfAnguish:
+		return world.EntranceKindHallsUp, true
+	case fromArea == world.HallsOfPain && toArea == world.HallsOfVaught:
+		return world.EntranceKindHallsDown, true
+	case fromArea == world.HallsOfVaught && toArea == world.HallsOfPain:
+		return world.EntranceKindHallsUp, true
+	default:
+		return world.EntranceKindUnknown, false
+	}
 }
 
 func routePointPosition(point RoutePoint) world.Position {

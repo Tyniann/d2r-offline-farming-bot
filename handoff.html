@@ -247,7 +247,7 @@
           <span class="pill">Memory Bot Core</span>
           <span class="pill">Go 1.26</span>
           <span class="pill">Countess MVP</span>
-          <span class="pill good">Stand: Phase 16 abgeschlossen · Live- und Produktgate bestanden</span>
+          <span class="pill good">Stand: v0.13.0 · Summoner/Nihlathak Live-Gates bestanden</span>
         </div>
       </div>
 
@@ -779,6 +779,16 @@
         <p><strong>Finaler Laufnachweis:</strong> Die Schema-3-Streams korrelieren Session <code>session-20260728t101744999999999z-5d7c12e7</code> und Run <code>countess-20260728t101744999999999z-ad553927</code> vollständig mit MrBones auf Alptraum, <code>necro_bone_spear</code>, der veröffentlichten Route und <code>[gems, keys, countess-standard]</code>. Alle sieben Routensegmente, Bosskill, Loot, Town-Rückkehr, Stash und Handoff waren erfolgreich. Amn- und Thul-Rune wurden aufgenommen und eingelagert; ein einmaliges <code>hover_not_found</code> wurde begrenzt erholt. <code>run_completed</code>, <code>game_exited</code> und <code>session_completed</code> mit <code>run_budget_exhausted</code> belegen das geordnete Ein-Run-Ende. Das finale statisch geprüfte NSIS-Artefakt <code>0.12.0</code> besitzt SHA-256 <code>C7849EC7C755B6E78376BFE42B7716700C51F49F43C2C902DB80BF3C83380F0C</code>.</p>
         <p><strong>Bewusste Nicht-Ziele:</strong> Kein weiterer Wizard, kein vollständiger D2S-Parser, keine Savegame-Manipulation, kein OCR, kein automatisches Erraten des markierten Bildschirmnamens, keine Profile für noch nicht implementierte Klassen, keine Duplikation globaler Lootprofile, kein Combat-Profil-Parametereditor auf Vorrat, keine vorsorgliche Verschiebung der Run-Kampfparameter und keine neue Persistenz- oder Transaktionsarchitektur.</p>
         <p>Detailplan: <a href="phase-16-implementation-plan.html">Phase-16-Umsetzungsplan</a>.</p>
+      </div>
+    </div>
+
+    <div class="phase">
+      <strong>Key-Runs Summoner &amp; Nihlathak · v0.13.0</strong>
+      <div>
+        <p><strong>Ziel:</strong> Zwei weitere Farming-Runs nach dem Mephisto-Muster in der bestehenden Pipeline — Summoner (Act 2, Arcane Sanctuary, Key of Hate) und Nihlathak (Act 5, Halls of Pain→Vaught, Key of Destruction). Necro-only, leere Boss-Engage-Sequenz (direkt Bone Spear), Pickit-Defaults genau <code>[gems, keys]</code>, Session-Queue unangetastet.</p>
+        <p><strong>Live-Gates 28. Juli 2026:</strong> Summoner Hell-Lauf <code>summoner-20260728t210020999999999z-e529a68f</code> und Nihlathak Hell-Lauf <code>nihlathak-20260728t213428999999999z-32fbc15b</code> bestätigten Waypoint, gebundene Route, Bosskill, Rückkehr über System-Egress und Town-Handoff.</p>
+        <p><strong>Begleitfixes:</strong> Act-2-Egress-Layout mit Anker-Toleranz, Town-Graph-Start über Memory-Objektnähe, Post-Boss-Cleanup vor Loot-Repositionierung (Countess/Summoner), Priority-Boss-Enumeration sowie Hover-bestätigtes Cleanup-Targeting.</p>
+        <p><strong>Nächster Hardeningschnitt:</strong> <a href="phase-17-implementation-plan.html">Phase-17-Umsetzungsplan</a> für bedrohungsbewusstes Arcane-Routing und Mana-Burn-Recovery. Phase 17 ist geplant, nicht Teil von v0.13.0.</p>
       </div>
     </div>
 

@@ -22,6 +22,9 @@ func IsRuntimeMonsterCandidate(id uint32, monsterTypeFlag uint8) bool {
 	if IsCountessMonsterCandidate(id, monsterTypeFlag) {
 		return true
 	}
+	if IsPostBossCleanupNPCID(id) {
+		return true
+	}
 	if _, ok := runtimeBossNPCIDs[id]; ok {
 		return true
 	}
@@ -30,6 +33,35 @@ func IsRuntimeMonsterCandidate(id uint32, monsterTypeFlag uint8) bool {
 		return true
 	}
 	return false
+}
+
+func isRuntimePriorityMonsterCandidate(id uint32, monsterTypeFlag uint8) bool {
+	if IsCountessMonsterCandidate(id, monsterTypeFlag) {
+		return true
+	}
+	if _, ok := runtimeBossNPCIDs[id]; ok {
+		return true
+	}
+	switch id {
+	case 148, 154, 265:
+		return true
+	default:
+		return false
+	}
+}
+
+// IsPostBossCleanupNPCID reports whether id is a hostile base type that can
+// accompany Countess or Summoner in their terminal encounter area. The
+// allowlist intentionally excludes player summons and unrelated monster units.
+func IsPostBossCleanupNPCID(id uint32) bool {
+	switch id {
+	case 21, 38, 43, 44, 45, 46, 47, 55, 162: // Tower Cellar Level 5.
+		return true
+	case 40, 56, 131: // Arcane Sanctuary.
+		return true
+	default:
+		return false
+	}
 }
 
 // IsCountessTowerNPCID reports tower-area trash monster NPC ids (Forgotten Tower cellars).

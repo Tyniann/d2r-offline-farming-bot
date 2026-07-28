@@ -1,8 +1,14 @@
 schema_version: 1
-revision: 1
+revision: 2
 id: keys
 name: Schlüssel
 rules:
   - id: key-of-terror
     action: keep
     expression: '[name] == pk1'
+  - id: key-of-hate
+    action: keep
+    expression: '[name] == pk2'
+  - id: key-of-destruction
+    action: keep
+    expression: '[name] == pk3'

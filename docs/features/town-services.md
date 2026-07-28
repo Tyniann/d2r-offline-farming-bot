@@ -36,7 +36,9 @@ Abschnitt 9.4 definiert den zentralen, kantenbasierten `ServiceGraph` unter `con
 
 Die gemeinsame Run-Pipeline normalisiert `OriginAct2` bis `OriginAct5` nach der bestätigten Portalankunft über dieselben vier Schritte: globaler Egress bis zum lokalen Waypoint, hover-bestätigtes Öffnen, registrierte Auswahl von Rogue Encampment und Memory-bestätigte Act-1-Ankunft. Erst danach dürfen Personal Stash und zentrale Act-1-Dienste beginnen.
 
-`town.egress.act2` bis `act5` benennen nur Area, Anker und Verzeichnis. Der Adapter lädt die feste Datei `portal-waypoint.yaml` und prüft Akt, Town-Area, Game-Version, Layout-Fingerprint sowie Startnähe. Character, Klasse, Difficulty und Map Seed sind weder persistiert noch Gates. Playback verwendet ausschließlich Force Move; fehlende Aufnahmen melden `town_egress_missing`.
+`town.egress.act2` bis `act5` benennen nur Area, Anker und Verzeichnis. Der Adapter lädt die feste Datei `portal-waypoint.yaml` und prüft Akt, Town-Area, Game-Version, Layout-Bindung sowie Memory-bestätigte Portalnähe. Character, Klasse, Difficulty und Map Seed sind weder persistiert noch Gates. Playback verwendet ausschließlich Force Move; fehlende Aufnahmen melden `town_egress_missing`.
+
+Der Act-1-Graph bestätigt den externen Startanker (`portal_arrival`, `stash`, `waypoint`) über sichtbare Memory-Objekte in Klickreichweite. Der erste aufgezeichnete Walk-Punkt allein ist kein Abbruchgrund, wenn der Charakter nach Portal- oder Stash-Interaktion nur wenige Tiles daneben steht.
 
 > **Korrigierte Live-Erkenntnis:** Der Act-1-Ausgang wird beim Charakter-/Difficulty-Wechsel neu auf Nord, Ost, Süd oder West gewürfelt; die Waypoint-Position hängt vom Preset ab. Difficulty und Charakter sind keine autoritativen Town-Route-Bindings. Die abgeschlossene Migration bindet alle produktiven Town-Aufnahmen an einen read-only `TownLayoutFingerprint`; ungebundene Aufnahmen werden nicht abgespielt.
 

@@ -13,12 +13,14 @@ Spätere Ideen (noch nicht umgesetzt): [`docs/backlog.md`](../backlog.md).
 | [Character- und Encounter-Profile](character-encounter-profiles.md) | Klassenbegrenzte Lifecycle-Hooks, Resource Policy und entwicklerverwaltete Phase-16-Setup-Freigabe samt Default |
 | [Town Services](town-services.md) | Phase 9: fail-closed Bedarfsermittlung, zentraler Act-1-Hub und minimales Fremdakt-Egress-Format |
 | [Globaler System-Egress](system-egress.md) | Abschnitt 12.2: aktgenerische globale Portal-zum-Wegpunkt-Routen für Akt 2–5 ohne Character-/Difficulty-Bindung |
-| [Run Registry und gemeinsames Run-Schema](run-registry.md) | Phase 10.1: typisierte Countess-/Mephisto-Definitionen, gemeinsames Config-Schema und fail-closed Definition Resolver |
+| [Run Registry und gemeinsames Run-Schema](run-registry.md) | Typisierte Run-Definitionen (Countess, Mephisto, Summoner, Nihlathak), gemeinsames Config-Schema und fail-closed Definition Resolver |
 | [Run-Verfügbarkeit und Inspect](run-availability.md) | Deterministischer read-only Availability-Resolver, Reason-Codes und `--runs-inspect`-JSON |
 | [Task Runner](task-runner.md) | Gemeinsame Run-Pipeline, Lazy Run-Start und Registry-Auflösung; `--run <id>` / `runs.active` |
 | [Pathing](pathing.md) | Teleport-Navigation (Phase 4.3): Relative-Projektion + Hover-Feedback-Loop, Bearing-Explore, Stuck-Detection; `--pathing-test` |
 | [Countess-Run](countess-run.md) | Phase 5.6: vollständiger Countess-Run mit Travel, Kill, Loot-Pickup, Safety-Potion und Town-Portal-Abschluss; isolierte Testphasen bleiben verfügbar |
 | [Mephisto-Run](mephisto-run.md) | Phase 10.10: gemeinsame Run-Pipeline mit Durance-Route, zwei gepinnten Boss-Aktionen, run-spezifischem Loot und Act-3-Normalisierung |
+| [Summoner-Run](summoner-run.md) | Key of Hate: Arcane Sanctuary, leere Engage-Sequenz, Post-Boss-Cleanup, Act-2-Egress, Pickit `[gems, keys]`; Live-Gate bestanden |
+| [Nihlathak-Run](nihlathak-run.md) | Key of Destruction: Halls of Pain → Vaught, Halls-Warps 76–78, Act-5-Egress, Pickit `[gems, keys]`; Live-Gate bestanden |
 | [Loot- und Recovery-Loop](loot-recovery-loop.md) | Phase 5.6: Ground-Loot, Pickit, Inventory-Lock, hover-bestätigter Pickup und Countess-Loot-Integration; spätere Recovery-Slices bleiben geplant |
 | [Item Enumeration Read-Only](item-enumeration.md) | Phase 5.1: positionierte Ground-Drops read-only aus Memory ins World Model und Probe-Log |
 | [Inventory Model und Lock Grid](inventory-lock-grid.md) | Phase 5.2: persönliche Inventar-Items, 4x10 Lock-Grid und fail-closed Pickup-Kapazität |

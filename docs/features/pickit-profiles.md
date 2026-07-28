@@ -34,12 +34,12 @@ Abschnitt 16.2 ergänzt `EnsureMissingDefaults`. Die Operation lädt und validie
 Die versionierten Startprofile sind:
 
 - `gems`: makellose/perfekte Gems und Schädel, `keep`
-- `keys`: Key of Terror, `keep`
+- `keys`: Key of Terror (`pk1`), Key of Hate (`pk2`) und Key of Destruction (`pk3`), jeweils `keep`
 - `countess-standard`: Runen und Rejuvenation Potions, `keep`
 - `mephisto-standard`: Exceptional-/Elite-Set/Unique, `sell`
 - Das optionale Abnahmeprofil `tal-rasha` ist nach Phase 13 nicht Teil der versionierten Produktprofile. Es kann bei Bedarf über den Editor neu angelegt werden.
 
-Die lokale Baseline-Zuordnung für `MrBones` lautet Countess `[gems, keys, countess-standard]` und Mephisto `[gems, mephisto-standard]`. Damit bleibt die charakterisierte Pickup-/Keep-/Sell-Matrix exakt erhalten. Das versionierte Beispiel referenziert ausschließlich vorhandene Produktprofile.
+Die Entwickler-Defaults für `MrBones` lauten Countess `[gems, keys, countess-standard]`, Mephisto `[gems, mephisto-standard]` sowie Summoner und Nihlathak jeweils `[gems, keys]`. Damit bleibt die charakterisierte Pickup-/Keep-/Sell-Matrix der bestehenden Runs erhalten und beide Key-Runs verwenden dasselbe Profil für `pk1`/`pk2`/`pk3`. Das versionierte Beispiel referenziert ausschließlich vorhandene Produktprofile.
 
 `runs.definitions.*.loot.pickup_file`, `sell_file` und die drei alten NIP-Policy-Dateien sind entfernt. Ein altes `loot`-Run-Schema wird mit einem konkreten Migrationshinweis abgelehnt und niemals still als Fallback gelesen.
 

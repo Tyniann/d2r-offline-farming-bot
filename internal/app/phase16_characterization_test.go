@@ -84,6 +84,12 @@ func TestPhase16CharacterizationPickitAssignmentsRemainRunSpecific(t *testing.T)
 	if got := findPickitAssignment(manifest, "MRBONES", tasks.RunIDMephisto); !reflect.DeepEqual(got, []string{"gems", "mephisto-standard"}) {
 		t.Fatalf("Mephisto assignment=%v", got)
 	}
+	if got := findPickitAssignment(manifest, "MrBones", tasks.RunIDSummoner); !reflect.DeepEqual(got, []string{"gems", "keys"}) {
+		t.Fatalf("Summoner assignment=%v", got)
+	}
+	if got := findPickitAssignment(manifest, "MrBones", tasks.RunIDNihlathak); !reflect.DeepEqual(got, []string{"gems", "keys"}) {
+		t.Fatalf("Nihlathak assignment=%v", got)
+	}
 }
 
 func TestPhase16CharacterizationExplicitRunsRetainDirectProfileClass(t *testing.T) {
@@ -91,7 +97,7 @@ func TestPhase16CharacterizationExplicitRunsRetainDirectProfileClass(t *testing.
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, runID := range []string{"countess", "mephisto"} {
+	for _, runID := range []string{"countess", "mephisto", "summoner", "nihlathak"} {
 		cfg.Session.Run = runID
 		run, ok := cfg.Runs.Run(runID)
 		if !ok || run.Combat.Profile != "necro_bone_spear" {

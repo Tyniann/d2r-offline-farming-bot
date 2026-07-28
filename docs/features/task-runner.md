@@ -18,7 +18,7 @@ Der Task Runner führt registrierte Run-Definitionen über eine gemeinsame Pipel
 
 - CLI `--run` überschreibt YAML `runs.active`
 - Leerer Name = passiver Modus (nur Monitor, wie bisher)
-- Bekannte Definitionen: `countess` und `mephisto` aus der typisierten `RunRegistry`. Die Pipeline übergibt das Waypoint-Ziel der Definition an den gemeinsamen registrierten Executor; vorhandene Routen bleiben bis zur Live-Abnahme mit `route_runtime_validation_required` gesperrt.
+- Bekannte Definitionen: `countess`, `mephisto`, `summoner` und `nihlathak` aus der typisierten `RunRegistry`. Die Pipeline übergibt das Waypoint-Ziel der Definition an den gemeinsamen registrierten Executor; vorhandene Routen bleiben bis zur Live-Abnahme mit `route_runtime_validation_required` gesperrt.
 
 ### Lazy Run-Start
 
@@ -42,13 +42,15 @@ Zwei Abschluss-Mechanismen (nicht vermischen):
 | **Tick-Zähler** (`ticksInStep`) | Deterministische kurze Steps, wenn ein Run sie explizit markiert |
 | **Sofort-Fail** | Bedingung klar verletzt -> sofort `task step failed` |
 
-**Gemeinsame Full-Run-Pipeline (10.2, produktiv für Countess und Mephisto):**
+**Gemeinsame Full-Run-Pipeline:**
 
-`precheck -> acquire_town_waypoint -> open_waypoint -> select_run_waypoint -> wait_entry_area -> play_bound_route -> acquire_boss -> engage_boss -> wait_for_drops -> scan_loot -> pick_loot -> cast_town_portal -> enter_town_portal -> wait_origin_town -> open_personal_stash -> stash_items -> close_personal_stash -> prepare_town_handoff -> complete`
+`precheck -> acquire_town_waypoint -> open_waypoint -> select_run_waypoint -> wait_entry_area -> play_bound_route -> acquire_boss -> engage_boss -> [clear_nearby_hostiles] -> reposition_for_loot -> wait_for_drops -> scan_loot -> pick_loot -> cast_town_portal -> enter_town_portal -> wait_origin_town -> open_personal_stash -> stash_items -> close_personal_stash -> prepare_town_handoff -> complete`
 
 Entry-Area, Route-Terminal, Waypoint-Ziel, Boss, Suchanker, geordnete Encounter-Aktionen und Rückkehrakt stammen aus `RunDefinition`; Route, Combat und Loot-Policies aus dem ausgewählten `RunConfig`. `wait_entry_area`, Route-, Boss-, Loot- und Portal-Areagates vergleichen ausschließlich gegen diese Definition.
 
 Der Encounter-Aktionsindex beginnt pro Boss-Pin bei `0`. Jede Aktion erhält getrennte Start-/Abschluss-Telemetrie; erst danach darf regulärer Combat laufen. Pro Poll-Tick wird höchstens eine Action-Input-Gelegenheit konsumiert.
+
+`clear_nearby_hostiles` ist ein Registry-Opt-in und derzeit nur für Countess und Summoner aktiv. Er läuft unmittelbar nach der Kill-Bestätigung und ausdrücklich vor `reposition_for_loot`, damit der Charakter nicht zuerst zur Bossleiche in ein verbliebenes Pack teleportiert. Der Step nutzt den Standardangriff aus `CombatConfig`, ermittelt pro Snapshot neu den nächsten run-spezifisch erlaubten lebenden Gegner innerhalb von 18 Tiles und klickt erst nach Hover-Bestätigung genau dieser `UnitID`. Ein verschwundenes oder nicht mehr nächstes Ziel wird vor dem nächsten Angriff verworfen. Der Step endet nach drei gegnerfreien Snapshots oder 20 tatsächlich gesendeten Angriffen. Das Cast-Budget ist best-effort: Bei Erschöpfung setzt die Pipeline mit der Loot-Repositionierung fort. Step-Start und -Ende erscheinen in der bestehenden Combat-Telemetrie; Mephisto und Nihlathak überspringen den Step.
 
 ### Safety-Potion-Guard
 
@@ -112,4 +114,4 @@ JSONL-Transitionen `run_step_started`, `run_step_completed` und `run_step_failed
 - [World Model](world-model.md) — `world.State` / Area-Katalog
 
 ---
-*Zuletzt aktualisiert: 2026-07-22*
+*Zuletzt aktualisiert: 2026-07-28*

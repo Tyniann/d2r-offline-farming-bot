@@ -471,5 +471,7 @@ func runDesktopAPI(cfg *config.Config, rt *app.Runtime, operatorSettings *app.Op
 }
 
 func shouldRunSession(cfg *config.Config, opts app.Options) bool {
-	return cfg.Session.Enabled && !opts.Desktop && opts.Run == "" && opts.RunPhase == "" && !opts.Probe && opts.Route == ""
+	// Specialized CLI modes must never be swallowed by session.enabled.
+	// Keep this aligned with app.SessionExecutionRequested.
+	return cfg.Session.Enabled && app.SessionExecutionRequested(opts)
 }

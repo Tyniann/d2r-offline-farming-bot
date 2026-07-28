@@ -114,7 +114,12 @@ type PersonalStashActions interface {
 // CombatActions is the narrow combat-action surface used by task runs.
 type CombatActions interface {
 	// CastAttackAtWorld verifies the configured mouse-side selection before attacking targetPos.
-	CastAttackAtWorld(now time.Time, skillID uint16, player world.Player, targetPos world.Position) error
+	// The boolean reports whether this call actually sent the attack click;
+	// selection and throttled calls return false.
+	CastAttackAtWorld(now time.Time, skillID uint16, player world.Player, targetPos world.Position) (bool, error)
+	// CastAttackAtMonster aims at the current nearest living monster and sends
+	// the attack only after Memory confirms that exact UnitID under the cursor.
+	CastAttackAtMonster(now time.Time, skillID uint16, player world.Player, target world.Monster) (bool, error)
 	// StopAttack releases any stateful attack input before combat stops or repositions.
 	StopAttack() error
 	// TeleportToward moves toward targetPos while trying to preserve desiredDistanceTiles.

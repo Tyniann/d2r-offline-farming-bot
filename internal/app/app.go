@@ -72,7 +72,7 @@ type Runtime struct {
 
 // New builds a Runtime from config and CLI/runtime options.
 func New(cfg *config.Config, opts Options) (rt *Runtime, err error) {
-	if cfg.Session.Enabled && sessionExecutionRequested(opts) {
+	if cfg.Session.Enabled && SessionExecutionRequested(opts) {
 		if _, planErr := ResolveSessionPlan(cfg, Options{SessionInspect: true}); planErr != nil {
 			return nil, planErr
 		}
@@ -143,7 +143,7 @@ func New(cfg *config.Config, opts Options) (rt *Runtime, err error) {
 		return nil, validationErr
 	}
 	runtimeRunID := runSelection.Run
-	if cfg.Session.Enabled && sessionExecutionRequested(opts) {
+	if cfg.Session.Enabled && SessionExecutionRequested(opts) {
 		runtimeRunID = cfg.Session.Run
 	}
 	if runtimeRunID == "" {
@@ -316,7 +316,10 @@ func New(cfg *config.Config, opts Options) (rt *Runtime, err error) {
 	return rt, nil
 }
 
-func sessionExecutionRequested(opts Options) bool {
+// SessionExecutionRequested reports whether the configured farm queue may own
+// the process. Specialized CLI modes such as --pathing-test and --route must
+// return false even when session.enabled is true.
+func SessionExecutionRequested(opts Options) bool {
 	return !opts.Desktop && !opts.SessionInspect && !opts.RunsInspect && !opts.WaypointTargetsInspect && !opts.Probe && opts.InputTest == "" && opts.Run == "" && opts.RunPhase == "" && opts.PathingTest == "" && opts.OfflineDifficulty == "" && opts.OfflineCharacter == "" && !opts.OfflineExitTest && opts.UIStateProbe == "" && opts.ScreenAnchorCapture == "" && opts.Route == "" && !opts.TownInspect && opts.TownTest == ""
 }
 

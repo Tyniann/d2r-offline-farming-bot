@@ -3,7 +3,7 @@ package world
 // EntranceKind classifies registered dungeon and wilderness transitions.
 type EntranceKind int
 
-// EntranceKind values for tower and cellar transitions.
+// EntranceKind values for tower, cellar, durance, and Act-5 halls transitions.
 const (
 	EntranceKindUnknown EntranceKind = iota
 	EntranceKindTowerCellarUp
@@ -14,6 +14,9 @@ const (
 	EntranceKindCatacombsDown
 	EntranceKindDuranceUp
 	EntranceKindDuranceDown
+	EntranceKindHallsEntrance
+	EntranceKindHallsUp
+	EntranceKindHallsDown
 )
 
 // String returns a stable label for logging.
@@ -35,6 +38,12 @@ func (k EntranceKind) String() string {
 		return "durance_up"
 	case EntranceKindDuranceDown:
 		return "durance_down"
+	case EntranceKindHallsEntrance:
+		return "halls_entrance"
+	case EntranceKindHallsUp:
+		return "halls_up"
+	case EntranceKindHallsDown:
+		return "halls_down"
 	default:
 		return "unknown"
 	}
@@ -42,7 +51,7 @@ func (k EntranceKind) String() string {
 
 // ParseEntranceKind resolves a stable route-contract label to its registered kind.
 func ParseEntranceKind(value string) (EntranceKind, bool) {
-	for kind := EntranceKindUnknown; kind <= EntranceKindDuranceDown; kind++ {
+	for kind := EntranceKindUnknown; kind <= EntranceKindHallsDown; kind++ {
 		if kind.String() == value {
 			return kind, true
 		}
@@ -60,7 +69,8 @@ type Entrance struct {
 	IsHovered bool // True when the hover buffer confirms this unit under the cursor.
 }
 
-// Entrance IDs from d2go entrance catalog @ 16d248a53591.
+// Entrance IDs: Act-1/3 from the historical catalog; Act-5 halls warps from
+// `.tmp/d2r-excel/levels.txt` Warp0/Warp1 on areas 121–124 (76, 77, 78).
 const (
 	EntranceTowerCellarUp     uint32 = 8
 	EntranceTowerCellarDown   uint32 = 9
@@ -72,6 +82,9 @@ const (
 	EntranceDuranceUpRight    uint32 = 66
 	EntranceDuranceDownLeft   uint32 = 67
 	EntranceDuranceDownRight  uint32 = 68
+	EntranceHallsTemple       uint32 = 76
+	EntranceHallsUp           uint32 = 78
+	EntranceHallsDown         uint32 = 77
 )
 
 var entranceIDs = []uint32{
@@ -85,6 +98,9 @@ var entranceIDs = []uint32{
 	EntranceDuranceUpRight,
 	EntranceDuranceDownLeft,
 	EntranceDuranceDownRight,
+	EntranceHallsTemple,
+	EntranceHallsUp,
+	EntranceHallsDown,
 }
 
 var entranceNames = map[uint32]string{
@@ -98,6 +114,9 @@ var entranceNames = map[uint32]string{
 	EntranceDuranceUpRight:    "Act 3 Durance Up Right",
 	EntranceDuranceDownLeft:   "Act 3 Durance Down Left",
 	EntranceDuranceDownRight:  "Act 3 Durance Down Right",
+	EntranceHallsTemple:       "Act 5 Halls Temple Entrance",
+	EntranceHallsUp:           "Act 5 Halls Up",
+	EntranceHallsDown:         "Act 5 Halls Down",
 }
 
 // LookupEntranceKind resolves an entrance ID to its semantic kind.
@@ -119,6 +138,12 @@ func LookupEntranceKind(id uint32) EntranceKind {
 		return EntranceKindDuranceUp
 	case EntranceDuranceDownLeft, EntranceDuranceDownRight:
 		return EntranceKindDuranceDown
+	case EntranceHallsTemple:
+		return EntranceKindHallsEntrance
+	case EntranceHallsUp:
+		return EntranceKindHallsUp
+	case EntranceHallsDown:
+		return EntranceKindHallsDown
 	default:
 		return EntranceKindUnknown
 	}

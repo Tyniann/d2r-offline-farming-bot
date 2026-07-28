@@ -25,7 +25,7 @@ UnitIDs, Pointer, Zeitstempel, Monster, Items und Spielerposition werden nicht g
 
 ## Operator / CLI
 
-`--pathing-test inspect:layout` ist read-only. Der Modus loggt den Hash nur bei Änderung sowie Area, Spielerposition und Ankerzahl. Für vergleichbare Messungen positioniert der Operator den Charakter an demselben stabilen Startanker.
+`--pathing-test inspect:layout` ist read-only. Der Modus loggt den Hash nur bei Änderung sowie Area, Spielerposition, Ankerzahl und die kanonischen Ankerzeilen (`o:<txtFileNo>:<x>,<y>` bzw. `e:<txtFileNo>:<kind>:<x>,<y>`). Für vergleichbare Messungen positioniert der Operator den Charakter an demselben stabilen Startanker.
 
 ## Live-Abnahme
 

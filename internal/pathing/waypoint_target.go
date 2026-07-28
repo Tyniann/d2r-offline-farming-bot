@@ -18,6 +18,10 @@ const (
 	WaypointTargetBlackMarsh WaypointTargetID = "black_marsh"
 	// WaypointTargetDuranceOfHateLevel2 selects the Act-3 Durance Level 2 destination.
 	WaypointTargetDuranceOfHateLevel2 WaypointTargetID = "durance_of_hate_level_2"
+	// WaypointTargetArcaneSanctuary selects the Act-2 Arcane Sanctuary destination.
+	WaypointTargetArcaneSanctuary WaypointTargetID = "arcane_sanctuary"
+	// WaypointTargetHallsOfPain selects the Act-5 Halls of Pain destination.
+	WaypointTargetHallsOfPain WaypointTargetID = "halls_of_pain"
 	// WaypointTargetRogueEncampment selects the Act-1 hub destination.
 	WaypointTargetRogueEncampment WaypointTargetID = "rogue_encampment"
 )
@@ -27,9 +31,14 @@ const (
 	waypointClientHeight = 720
 	waypointTabY         = 148
 	waypointAct1TabX     = 159
-	waypointAct3TabX     = 273
-	waypointRowX         = 200
-	waypointTabSettle    = 200 * time.Millisecond
+	// Act-tab X candidates use the measured Act-1→Act-3 spacing of 57 px.
+	// Live 1280×720 calibration must confirm ExpectedAreaID before shipping new targets.
+	waypointAct2TabX  = 216
+	waypointAct3TabX  = 273
+	waypointAct4TabX  = 330
+	waypointAct5TabX  = 387
+	waypointRowX      = 200
+	waypointTabSettle = 200 * time.Millisecond
 )
 
 // WaypointTargetAction is one immutable, resolution-bound waypoint menu action.
@@ -75,11 +84,16 @@ func NewWaypointTargetRegistry(actions ...WaypointTargetAction) (*WaypointTarget
 	return r, nil
 }
 
-// DefaultWaypointTargetRegistry returns the calibrated 1280×720 Phase-10 targets.
+// DefaultWaypointTargetRegistry returns the resolution-bound 1280×720 waypoint targets.
+// Act-2/5 TabX remains a linear candidate from the measured Act-1→Act-3 spacing
+// until live Memory confirmation; row indices follow the `levels.txt` waypoint
+// order within each act tab (Arcane=8, Halls of Pain=6).
 func DefaultWaypointTargetRegistry() *WaypointTargetRegistry {
 	registry, err := NewWaypointTargetRegistry(
 		waypointTargetAction(WaypointTargetBlackMarsh, "Black Marsh", 1, 5, world.BlackMarsh),
 		waypointTargetAction(WaypointTargetDuranceOfHateLevel2, "Durance of Hate Level 2", 3, 9, world.DuranceOfHateLevel2),
+		waypointTargetAction(WaypointTargetArcaneSanctuary, "Arcane Sanctuary", 2, 8, world.ArcaneSanctuary),
+		waypointTargetAction(WaypointTargetHallsOfPain, "Halls of Pain", 5, 6, world.HallsOfPain),
 		waypointTargetAction(WaypointTargetRogueEncampment, "Rogue Encampment", 1, 1, world.RogueEncampment),
 	)
 	if err != nil {
@@ -89,15 +103,27 @@ func DefaultWaypointTargetRegistry() *WaypointTargetRegistry {
 }
 
 func waypointTargetAction(id WaypointTargetID, name string, act, row int, area world.AreaID) WaypointTargetAction {
-	tabX := waypointAct1TabX
-	if act == 3 {
-		tabX = waypointAct3TabX
-	}
+	tabX := waypointActTabX(act)
 	return WaypointTargetAction{
 		ID: id, Name: name, Act: act, TabX: tabX, TabY: waypointTabY,
 		RowX: waypointRowX, RowY: 158 + (row-1)*41 + 20,
 		ClientWidth: waypointClientWidth, ClientHeight: waypointClientHeight,
 		SettleMs: waypointTabSettle.Milliseconds(), ExpectedAreaID: area,
+	}
+}
+
+func waypointActTabX(act int) int {
+	switch act {
+	case 2:
+		return waypointAct2TabX
+	case 3:
+		return waypointAct3TabX
+	case 4:
+		return waypointAct4TabX
+	case 5:
+		return waypointAct5TabX
+	default:
+		return waypointAct1TabX
 	}
 }
 

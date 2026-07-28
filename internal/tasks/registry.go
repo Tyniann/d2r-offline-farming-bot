@@ -63,7 +63,7 @@ func NewRunRegistry(definitions ...RunDefinition) (*RunRegistry, error) {
 	return registry, nil
 }
 
-// DefaultRunRegistry returns the Phase-10 Countess and Mephisto product definitions.
+// DefaultRunRegistry returns the built-in product run definitions.
 func DefaultRunRegistry() *RunRegistry {
 	registry, err := NewRunRegistry(defaultRunDefinitions()...)
 	if err != nil {
@@ -134,7 +134,7 @@ func defaultRunDefinitions() []RunDefinition {
 				NPCID: world.DarkStalker, Name: "Countess", RequireSuperUnique: true, AllowAnySuperUniqueFallback: true,
 				SearchAnchorObject: world.ObjectKindGoodChest, SearchAnchorEntrance: world.EntranceKindTowerCellarDown,
 			},
-			BossEngageSequence: []EncounterAction{{Hook: profile.HookBossEngage}}, ReturnOrigin: town.OriginAct1,
+			BossEngageSequence: []EncounterAction{{Hook: profile.HookBossEngage}}, ClearNearbyAfterBoss: true, ReturnOrigin: town.OriginAct1,
 			RequiredCaps: append([]RunCapability(nil), shared...),
 			Recording: RecordingContract{
 				InstructionsDE: "Reise zum Wegpunkt Schwarzmarsch, starte dort die Aufnahme und bewege dich bis zu deiner gewünschten Kampfposition bei der Gräfin. Beende die Aufnahme mit F9.",
@@ -147,15 +147,43 @@ func defaultRunDefinitions() []RunDefinition {
 		{
 			ID: RunIDMephisto, DisplayName: "Mephisto", EntryArea: world.DuranceOfHateLevel2,
 			RouteTerminalArea: world.DuranceOfHateLevel3, WaypointTarget: pathing.WaypointTargetDuranceOfHateLevel2,
-			Boss:               BossDescriptor{NPCID: 242, Name: "Mephisto"},
+			Boss:               BossDescriptor{NPCID: world.Mephisto, Name: "Mephisto"},
 			BossEngageSequence: []EncounterAction{{Hook: profile.HookBossEngage}, {Hook: profile.HookBossEngage}}, ReturnOrigin: town.OriginAct3,
 			RequiredCaps: append(append([]RunCapability(nil), shared...), RunCapabilityForeignTownEgress),
 			Recording: RecordingContract{
 				InstructionsDE: "Reise zum Wegpunkt Kerker des Hasses – Ebene 2, starte dort die Aufnahme und bewege dich bis zu deiner gewünschten Kampfposition bei Mephisto. Beende die Aufnahme mit F9.",
 				StartWaypoint:  pathing.WaypointTargetDuranceOfHateLevel2, AllowedStartArea: world.DuranceOfHateLevel2,
 				AllowedRouteAreas: []world.AreaID{world.DuranceOfHateLevel2, world.DuranceOfHateLevel3},
-				TerminalArea:      world.DuranceOfHateLevel3, Boss: BossDescriptor{NPCID: 242, Name: "Mephisto"},
+				TerminalArea:      world.DuranceOfHateLevel3, Boss: BossDescriptor{NPCID: world.Mephisto, Name: "Mephisto"},
 				TerminalMaxDistanceTiles: 60, Movement: pathing.RouteMovementTeleport, SafetyReturn: RecordingSafetyReturnTownPortal, EgressOriginAct: town.OriginAct3,
+			},
+		},
+		{
+			ID: RunIDSummoner, DisplayName: "Summoner", EntryArea: world.ArcaneSanctuary,
+			RouteTerminalArea: world.ArcaneSanctuary, WaypointTarget: pathing.WaypointTargetArcaneSanctuary,
+			Boss:               BossDescriptor{NPCID: world.Summoner, Name: "Summoner"},
+			BossEngageSequence: nil, ClearNearbyAfterBoss: true, ReturnOrigin: town.OriginAct2,
+			RequiredCaps: append(append([]RunCapability(nil), shared...), RunCapabilityForeignTownEgress),
+			Recording: RecordingContract{
+				InstructionsDE: "Reise zum Wegpunkt Arcane Sanctuary, starte dort die Aufnahme und bewege dich bis zu deiner gewünschten Kampfposition beim Summoner. Beende die Aufnahme mit F9.",
+				StartWaypoint:  pathing.WaypointTargetArcaneSanctuary, AllowedStartArea: world.ArcaneSanctuary,
+				AllowedRouteAreas: []world.AreaID{world.ArcaneSanctuary},
+				TerminalArea:      world.ArcaneSanctuary, Boss: BossDescriptor{NPCID: world.Summoner, Name: "Summoner"},
+				TerminalMaxDistanceTiles: 60, Movement: pathing.RouteMovementTeleport, SafetyReturn: RecordingSafetyReturnTownPortal, EgressOriginAct: town.OriginAct2,
+			},
+		},
+		{
+			ID: RunIDNihlathak, DisplayName: "Nihlathak", EntryArea: world.HallsOfPain,
+			RouteTerminalArea: world.HallsOfVaught, WaypointTarget: pathing.WaypointTargetHallsOfPain,
+			Boss:               BossDescriptor{NPCID: world.Nihlathak, Name: "Nihlathak"},
+			BossEngageSequence: nil, ReturnOrigin: town.OriginAct5,
+			RequiredCaps: append(append([]RunCapability(nil), shared...), RunCapabilityForeignTownEgress),
+			Recording: RecordingContract{
+				InstructionsDE: "Reise zum Wegpunkt Halls of Pain (Halls of Death's Calling), starte dort die Aufnahme und bewege dich bis zu deiner gewünschten Kampfposition bei Nihlathak in den Halls of Vaught. Beende die Aufnahme mit F9.",
+				StartWaypoint:  pathing.WaypointTargetHallsOfPain, AllowedStartArea: world.HallsOfPain,
+				AllowedRouteAreas: []world.AreaID{world.HallsOfPain, world.HallsOfVaught},
+				TerminalArea:      world.HallsOfVaught, Boss: BossDescriptor{NPCID: world.Nihlathak, Name: "Nihlathak"},
+				TerminalMaxDistanceTiles: 60, Movement: pathing.RouteMovementTeleport, SafetyReturn: RecordingSafetyReturnTownPortal, EgressOriginAct: town.OriginAct5,
 			},
 		},
 	}
@@ -171,9 +199,8 @@ func validateRunDefinition(definition RunDefinition) error {
 	if definition.WaypointTarget == "" || definition.Boss.NPCID == 0 || strings.TrimSpace(definition.Boss.Name) == "" {
 		return fmt.Errorf("waypoint target and boss descriptor are required")
 	}
-	if len(definition.BossEngageSequence) == 0 {
-		return fmt.Errorf("boss engage sequence is required")
-	}
+	// An empty BossEngageSequence is valid: combat starts with the regular
+	// attack skill and skips pre-combat profile hooks such as Bone Prison.
 	for i, action := range definition.BossEngageSequence {
 		if action.Hook != profile.HookBossEngage {
 			return fmt.Errorf("boss engage sequence[%d] must use %q", i, profile.HookBossEngage)

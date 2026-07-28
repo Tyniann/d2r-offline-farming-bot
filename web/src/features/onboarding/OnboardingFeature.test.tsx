@@ -279,6 +279,22 @@ describe("OnboardingFeature", () => {
     expect(screen.getByRole("button", { name: /Routenbereich öffnen und Aufnahme starten/ })).toBeDisabled();
   });
 
+  it("zeigt alle Recording-Optionen des Core und öffnet den gewählten Key-Run", async () => {
+    mocks.getSettings.mockResolvedValue({ ...operator, input: { ...operator.input, enabled: true } });
+    mocks.getOptions.mockResolvedValue([
+      option(),
+      { ...option(), run_id: "summoner", display_name: "Summoner", start_waypoint: "arcane_sanctuary", allowed_start_area_id: 74, allowed_route_area_ids: [74], terminal_area_id: 74 },
+      { ...option(), run_id: "nihlathak", display_name: "Nihlathak", start_waypoint: "halls_of_pain", allowed_start_area_id: 123, allowed_route_area_ids: [123, 124], terminal_area_id: 124 },
+    ]);
+    render(<OnboardingFeature initialStep={7} status={status} catalog={catalog} onRefresh={onRefresh} onClose={onClose} onOpenRoutes={onOpenRoutes} />);
+
+    await screen.findByRole("radio", { name: "Nihlathak" });
+    expect(screen.getByRole("radio", { name: "Summoner" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("radio", { name: "Summoner" }));
+    fireEvent.click(screen.getByRole("button", { name: /Routenbereich öffnen und Aufnahme starten/ }));
+    expect(onOpenRoutes).toHaveBeenCalledWith("summoner");
+  });
+
   it("blockiert trotz gespeicherter Freigabe bis der laufende Core Input bestätigt", async () => {
     mocks.getSettings.mockResolvedValue({ ...operator, input: { ...operator.input, enabled: true } });
     render(<OnboardingFeature status={{ ...status, input: { enabled: false, paused: false, stopped: false } }} catalog={catalog} onRefresh={onRefresh} onClose={onClose} onOpenRoutes={onOpenRoutes} />);

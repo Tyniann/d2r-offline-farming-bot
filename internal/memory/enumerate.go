@@ -144,10 +144,6 @@ func (p *ProbeReader) enumerateMonsters(moduleBase uintptr, off OffsetSet, visit
 		segmentLimit = 1
 	}
 	return p.walkUnitSegment(moduleBase, off, unitSegmentMonster, visited, segmentLimit, func(unitAddr uintptr) (unitWalkAction, error) {
-		if len(snap.Monsters) >= maxEntitiesPerCategory {
-			return unitWalkContinue, nil
-		}
-
 		corpse, err := p.reader.ReadUint8(unitAddr + unitOffsetCorpse)
 		if err != nil || corpse != 0 {
 			return unitWalkContinue, nil
@@ -190,7 +186,7 @@ func (p *ProbeReader) enumerateMonsters(moduleBase uintptr, off OffsetSet, visit
 			return unitWalkContinue, nil
 		}
 
-		snap.Monsters = append(snap.Monsters, MonsterUnit{
+		appendRuntimeMonster(snap, MonsterUnit{
 			NPCID:           txtFileNo,
 			UnitID:          unitID,
 			PosX:            uint32(posX),
@@ -199,6 +195,43 @@ func (p *ProbeReader) enumerateMonsters(moduleBase uintptr, off OffsetSet, visit
 		})
 		return unitWalkContinue, nil
 	})
+}
+
+func appendRuntimeMonster(snap *Snapshot, candidate MonsterUnit) {
+	if isRuntimePriorityMonsterCandidate(candidate.NPCID, candidate.MonsterTypeFlag) {
+		snap.Monsters = append(snap.Monsters, candidate)
+		return
+	}
+	if len(snap.Monsters) < maxEntitiesPerCategory {
+		snap.Monsters = append(snap.Monsters, candidate)
+		return
+	}
+
+	// Cleanup candidates use a bounded nearest-to-player reservoir. Priority
+	// entities (bosses, super-uniques and Town NPCs) are never replaced, so a
+	// crowded area cannot starve boss acquisition while nearby trash remains
+	// available for post-kill cleanup.
+	farthestIndex := -1
+	var farthestDistance uint64
+	for i, monster := range snap.Monsters {
+		if isRuntimePriorityMonsterCandidate(monster.NPCID, monster.MonsterTypeFlag) {
+			continue
+		}
+		distance := squaredTileDistance(snap.PosX, snap.PosY, monster.PosX, monster.PosY)
+		if farthestIndex < 0 || distance > farthestDistance {
+			farthestIndex = i
+			farthestDistance = distance
+		}
+	}
+	if farthestIndex >= 0 && squaredTileDistance(snap.PosX, snap.PosY, candidate.PosX, candidate.PosY) < farthestDistance {
+		snap.Monsters[farthestIndex] = candidate
+	}
+}
+
+func squaredTileDistance(ax, ay, bx, by uint32) uint64 {
+	dx := int64(ax) - int64(bx)
+	dy := int64(ay) - int64(by)
+	return uint64(dx*dx + dy*dy)
 }
 
 // emptyEntitySlices returns a snapshot with non-nil empty entity slices for stable fingerprints.

@@ -12,10 +12,10 @@ func TestResolveWaypointTargetsInspectReportIsStableAndReadOnly(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if report.SchemaVersion != 1 || len(report.Targets) != 3 {
+	if report.SchemaVersion != 1 || len(report.Targets) != 5 {
 		t.Fatalf("report = %+v", report)
 	}
-	if report.Targets[0].ID != pathing.WaypointTargetBlackMarsh || report.Targets[1].ID != pathing.WaypointTargetDuranceOfHateLevel2 || report.Targets[2].ID != pathing.WaypointTargetRogueEncampment {
+	if report.Targets[0].ID != pathing.WaypointTargetArcaneSanctuary || report.Targets[1].ID != pathing.WaypointTargetBlackMarsh || report.Targets[2].ID != pathing.WaypointTargetDuranceOfHateLevel2 || report.Targets[3].ID != pathing.WaypointTargetHallsOfPain || report.Targets[4].ID != pathing.WaypointTargetRogueEncampment {
 		t.Fatalf("target order = %+v", report.Targets)
 	}
 	first, err := json.Marshal(report)

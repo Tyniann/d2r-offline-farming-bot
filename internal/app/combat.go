@@ -13,13 +13,14 @@ import (
 )
 
 type combatAdapter struct {
-	log          *slog.Logger
-	input        inputController
-	bindings     configBindingSource
-	projector    pathing.RelativeProjector
-	interval     time.Duration
-	lastAction   time.Time
-	pendingSkill uint16
+	log                 *slog.Logger
+	input               inputController
+	bindings            configBindingSource
+	projector           pathing.RelativeProjector
+	interval            time.Duration
+	lastAction          time.Time
+	pendingSkill        uint16
+	pendingTargetUnitID uint32
 }
 
 type verifiedCombatInput interface {
@@ -37,49 +38,49 @@ func newCombatAdapter(log *slog.Logger, in inputController, bindings configBindi
 	}
 }
 
-func (c *combatAdapter) CastAttackAtWorld(now time.Time, skillID uint16, player world.Player, targetPos world.Position) error {
+func (c *combatAdapter) CastAttackAtWorld(now time.Time, skillID uint16, player world.Player, targetPos world.Position) (bool, error) {
 	combatInput, ok := c.input.(verifiedCombatInput)
 	if !ok {
-		return fmt.Errorf("combat verified input not wired")
+		return false, fmt.Errorf("combat verified input not wired")
 	}
 	cast, err := c.bindings.Resolve(skillID)
 	if err != nil {
-		return fmt.Errorf("combat resolve %s(%d): %w", memory.SkillName(skillID), skillID, err)
+		return false, fmt.Errorf("combat resolve %s(%d): %w", memory.SkillName(skillID), skillID, err)
 	}
 	if cast.CastButton != input.MouseRight {
-		return fmt.Errorf("combat attack %s(%d) must use right mouse, configured=%s", memory.SkillName(skillID), skillID, cast.CastButton)
+		return false, fmt.Errorf("combat attack %s(%d) must use right mouse, configured=%s", memory.SkillName(skillID), skillID, cast.CastButton)
 	}
 	if player.RightSkillID != skillID {
 		if c.pendingSkill == skillID {
 			if !c.ready(now) {
-				return nil
+				return false, nil
 			}
-			return fmt.Errorf("combat select %s(%d): right mouse selection not confirmed, current=%s(%d)", memory.SkillName(skillID), skillID, memory.SkillName(player.RightSkillID), player.RightSkillID)
+			return false, fmt.Errorf("combat select %s(%d): right mouse selection not confirmed, current=%s(%d)", memory.SkillName(skillID), skillID, memory.SkillName(player.RightSkillID), player.RightSkillID)
 		}
 		if !c.ready(now) {
-			return nil
+			return false, nil
 		}
 		if selectErr := combatInput.SelectSkill(c.bindings, skillID); selectErr != nil {
-			return fmt.Errorf("combat select %s(%d): %w", memory.SkillName(skillID), skillID, selectErr)
+			return false, fmt.Errorf("combat select %s(%d): %w", memory.SkillName(skillID), skillID, selectErr)
 		}
 		c.pendingSkill = skillID
 		c.lastAction = now
 		c.log.Info("combat right-mouse skill selection requested", "skill", memory.SkillName(skillID), "skill_id", skillID, "current_right_skill_id", player.RightSkillID)
-		return nil
+		return false, nil
 	}
 	c.pendingSkill = 0
 	if !c.ready(now) {
-		return nil
+		return false, nil
 	}
 	clientX, clientY, err := c.project(player.Position, targetPos)
 	if err != nil {
-		return err
+		return false, err
 	}
 	if err := c.input.MoveTo(clientX, clientY); err != nil {
-		return fmt.Errorf("combat aim %s(%d): %w", memory.SkillName(skillID), skillID, err)
+		return false, fmt.Errorf("combat aim %s(%d): %w", memory.SkillName(skillID), skillID, err)
 	}
 	if err := combatInput.Click(input.MouseRight); err != nil {
-		return fmt.Errorf("combat right-click %s(%d): %w", memory.SkillName(skillID), skillID, err)
+		return false, fmt.Errorf("combat right-click %s(%d): %w", memory.SkillName(skillID), skillID, err)
 	}
 	c.lastAction = now
 	c.log.Debug("combat skill cast",
@@ -90,11 +91,81 @@ func (c *combatAdapter) CastAttackAtWorld(now time.Time, skillID uint16, player 
 		"client_x", clientX,
 		"client_y", clientY,
 	)
-	return nil
+	return true, nil
+}
+
+func (c *combatAdapter) CastAttackAtMonster(now time.Time, skillID uint16, player world.Player, target world.Monster) (bool, error) {
+	combatInput, ok := c.input.(verifiedCombatInput)
+	if !ok {
+		return false, fmt.Errorf("combat verified input not wired")
+	}
+	cast, err := c.bindings.Resolve(skillID)
+	if err != nil {
+		return false, fmt.Errorf("combat resolve %s(%d): %w", memory.SkillName(skillID), skillID, err)
+	}
+	if cast.CastButton != input.MouseRight {
+		return false, fmt.Errorf("combat attack %s(%d) must use right mouse, configured=%s", memory.SkillName(skillID), skillID, cast.CastButton)
+	}
+	if player.RightSkillID != skillID {
+		c.pendingTargetUnitID = 0
+		if c.pendingSkill == skillID {
+			if !c.ready(now) {
+				return false, nil
+			}
+			return false, fmt.Errorf("combat select %s(%d): right mouse selection not confirmed, current=%s(%d)", memory.SkillName(skillID), skillID, memory.SkillName(player.RightSkillID), player.RightSkillID)
+		}
+		if !c.ready(now) {
+			return false, nil
+		}
+		if selectErr := combatInput.SelectSkill(c.bindings, skillID); selectErr != nil {
+			return false, fmt.Errorf("combat select %s(%d): %w", memory.SkillName(skillID), skillID, selectErr)
+		}
+		c.pendingSkill = skillID
+		c.lastAction = now
+		c.log.Info("combat right-mouse skill selection requested", "skill", memory.SkillName(skillID), "skill_id", skillID, "current_right_skill_id", player.RightSkillID)
+		return false, nil
+	}
+	c.pendingSkill = 0
+	if c.pendingTargetUnitID != target.UnitID || !target.IsHovered {
+		clientX, clientY, projectErr := c.project(player.Position, target.Position)
+		if projectErr != nil {
+			return false, projectErr
+		}
+		if moveErr := c.input.MoveTo(clientX, clientY); moveErr != nil {
+			return false, fmt.Errorf("combat aim monster %d: %w", target.UnitID, moveErr)
+		}
+		c.pendingTargetUnitID = target.UnitID
+		c.log.Debug("combat monster aim requested",
+			"unit_id", target.UnitID,
+			"npc_id", target.NPCID,
+			"target_x", target.Position.X,
+			"target_y", target.Position.Y,
+			"client_x", clientX,
+			"client_y", clientY,
+		)
+		return false, nil
+	}
+	if !c.ready(now) {
+		return false, nil
+	}
+	if err := combatInput.Click(input.MouseRight); err != nil {
+		return false, fmt.Errorf("combat right-click %s(%d) at monster %d: %w", memory.SkillName(skillID), skillID, target.UnitID, err)
+	}
+	c.lastAction = now
+	c.log.Debug("combat skill cast at confirmed living monster",
+		"skill", memory.SkillName(skillID),
+		"skill_id", skillID,
+		"unit_id", target.UnitID,
+		"npc_id", target.NPCID,
+		"target_x", target.Position.X,
+		"target_y", target.Position.Y,
+	)
+	return true, nil
 }
 
 func (c *combatAdapter) StopAttack() error {
 	c.pendingSkill = 0
+	c.pendingTargetUnitID = 0
 	return nil
 }
 
@@ -130,6 +201,7 @@ func (c *combatAdapter) Reset() {
 	}
 	c.lastAction = time.Time{}
 	c.pendingSkill = 0
+	c.pendingTargetUnitID = 0
 }
 
 func (c *combatAdapter) ready(now time.Time) bool {

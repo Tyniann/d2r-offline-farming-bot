@@ -52,7 +52,7 @@ Seit Phase 12.1 stammt die Route-ID ausschließlich aus dem atomischen Assignmen
 go run ./cmd/d2rbot --config configs/config.yaml --runs-inspect
 ```
 
-Für die aktuellen lokalen Countess- und Mephisto-Bindungen wird ohne Attach jeweils `runtime_validation_required` mit Route-ID ausgegeben. Das registrierte Mephisto-Waypoint-Ziel, die Durance-Aufnahme und der globale Act-3-System-Egress sind vorhanden; Missing-Gründe werden nur noch für tatsächlich fehlende konfigurierte Assets ausgegeben. Egress-Availability prüft ausschließlich Akt, Town-Area, Game-Version und optional den Live-Layout-Fingerprint, niemals Character, Difficulty oder Map Seed.
+Für vorhandene lokale Countess- und Mephisto-Bindungen wird ohne Attach jeweils `runtime_validation_required` mit Route-ID ausgegeben. Summoner und Nihlathak erscheinen ebenfalls aus der Run-Registry; bis zu ihrer Live-Abnahme melden sie die tatsächlich fehlenden Route-/Assignment-Voraussetzungen. Egress-Availability prüft ausschließlich Akt, Town-Area, Game-Version und optional den Live-Layout-Fingerprint, niemals Character, Difficulty oder Map Seed.
 
 `--runs-inspect` ist mit Session-, Run-, Probe-, Route-, Town- und Testmodi gegenseitig ausgeschlossen. `input.enabled` darf `false` sein.
 

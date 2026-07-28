@@ -8,6 +8,8 @@ contract:
         area_id: 40
         anchor_count: 1
         hash: 0cbfeef80cc27eaaf5e8d936f38e5180007128fdfd0f53be577f3afda8375f83
+        anchors:
+            - o:267:5121,5076
     from: portal_arrival
     to: waypoint
     movement: walk

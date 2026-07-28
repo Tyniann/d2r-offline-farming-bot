@@ -20,7 +20,7 @@ describe("PickitFeature", () => {
     vi.clearAllMocks();
     mocks.catalog.mockResolvedValue({ schema_version: 1, catalog_version: "3.2", bases: [{ txt_file_no: 255, code: "7s8", name: "Thresher", type: "pole", base_tier: "elite" }], identities: talItems, actions: ["keep", "sell", "ignore"], qualities: [], speed_categories: [] });
     mocks.profiles.mockResolvedValue({ profiles: [baseProfile], assignment_revision: 1 });
-    mocks.assignments.mockResolvedValue({ schema_version: 1, revision: 1, assignments: { MrBones: { countess: ["base"] } } });
+    mocks.assignments.mockResolvedValue({ schema_version: 1, revision: 1, assignments: { MrBones: { countess: ["base"], summoner: ["base"], nihlathak: ["base"] } } });
     mocks.validate.mockImplementation(async ({ profile }) => ({ valid: true, profile }));
     mocks.update.mockImplementation(async (_id, request) => ({ ...request.profile, revision: request.profile.revision + 1 }));
     mocks.duplicate.mockResolvedValue({ ...baseProfile, id: "base-kopie", name: "Basis Kopie" });
@@ -73,6 +73,13 @@ describe("PickitFeature", () => {
     fireEvent.click(screen.getByRole("button", { name: "Zuordnung speichern" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Mindestens ein Profil");
   });
+
+  it("bietet Pickit-Zuordnungen für alle Katalog-Runs an", async () => {
+    renderFeature();
+    const runSelect = await screen.findByRole("combobox", { name: "Run" });
+    expect(runSelect).toHaveTextContent("summoner");
+    expect(runSelect).toHaveTextContent("nihlathak");
+  });
 });
 
-function renderFeature() { return render(<PickitFeature characters={["MrBones"]} selectedCharacter="MrBones" runs={["countess", "mephisto"]} locked={false} refreshKey={0} />); }
+function renderFeature() { return render(<PickitFeature characters={["MrBones"]} selectedCharacter="MrBones" runs={["countess", "mephisto", "nihlathak", "summoner"]} locked={false} refreshKey={0} />); }

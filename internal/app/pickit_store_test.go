@@ -138,12 +138,18 @@ func TestMigratedPickitProfilesReproduceCountessAndMephistoPolicies(t *testing.T
 		t.Fatal(err)
 	}
 	if _, initErr := assignments.Initialize(map[string]map[tasks.RunID][]string{"MrBones": {
-		tasks.RunIDCountess: {"gems", "keys", "countess-standard"},
-		tasks.RunIDMephisto: {"gems", "mephisto-standard"},
+		tasks.RunIDCountess:  {"gems", "keys", "countess-standard"},
+		tasks.RunIDMephisto:  {"gems", "mephisto-standard"},
+		tasks.RunIDSummoner:  {"gems", "keys"},
+		tasks.RunIDNihlathak: {"gems", "keys"},
 	}}); initErr != nil {
 		t.Fatal(initErr)
 	}
 	countess, err := assignments.Resolve("mrbones", tasks.RunIDCountess)
+	if err != nil {
+		t.Fatal(err)
+	}
+	summoner, err := assignments.Resolve("MrBones", tasks.RunIDSummoner)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -181,6 +187,11 @@ func TestMigratedPickitProfilesReproduceCountessAndMephistoPolicies(t *testing.T
 		})
 	}
 
+	for _, code := range []string{"pk1", "pk2", "pk3"} {
+		if got := summoner.All.Evaluate(world.Item{Code: code}); !got.Matched || got.Action != loot.ActionKeep {
+			t.Fatalf("keys profile did not keep %s: %+v", code, got)
+		}
+	}
 }
 
 func TestRepositoryPickitAssignmentExampleReferencesValidProfiles(t *testing.T) {
@@ -224,7 +235,9 @@ func TestEnsureMissingPickitDefaultsPreservesUserChainsAndIsIdempotent(t *testin
 		}
 		if got.Revision != 2 || len(got.Assignments) != 1 ||
 			!equalStrings(findPickitAssignment(got, "MrBones", tasks.RunIDCountess), defaults[tasks.RunIDCountess]) ||
-			!equalStrings(findPickitAssignment(got, "MrBones", tasks.RunIDMephisto), defaults[tasks.RunIDMephisto]) {
+			!equalStrings(findPickitAssignment(got, "MrBones", tasks.RunIDMephisto), defaults[tasks.RunIDMephisto]) ||
+			!equalStrings(findPickitAssignment(got, "MrBones", tasks.RunIDSummoner), defaults[tasks.RunIDSummoner]) ||
+			!equalStrings(findPickitAssignment(got, "MrBones", tasks.RunIDNihlathak), defaults[tasks.RunIDNihlathak]) {
 			t.Fatalf("manifest=%+v", got)
 		}
 		retry, err := assignments.EnsureMissingDefaults("MRBONES", defaults, 1)
@@ -259,8 +272,10 @@ func TestEnsureMissingPickitDefaultsPreservesUserChainsAndIsIdempotent(t *testin
 			t.Fatal(err)
 		}
 		existing := map[tasks.RunID][]string{
-			tasks.RunIDCountess: {"keys"},
-			tasks.RunIDMephisto: {"mephisto-standard", "gems"},
+			tasks.RunIDCountess:  {"keys"},
+			tasks.RunIDMephisto:  {"mephisto-standard", "gems"},
+			tasks.RunIDSummoner:  {"gems", "keys"},
+			tasks.RunIDNihlathak: {"gems", "keys"},
 		}
 		if _, err = assignments.Initialize(map[string]map[tasks.RunID][]string{"MrBones": existing}); err != nil {
 			t.Fatal(err)

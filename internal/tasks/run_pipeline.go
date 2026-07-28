@@ -36,6 +36,7 @@ const (
 	pipelineStepPlayRoute           = "play_bound_route"
 	pipelineStepAcquireBoss         = "acquire_boss"
 	pipelineStepEngageBoss          = "engage_boss"
+	pipelineStepClearNearbyHostiles = "clear_nearby_hostiles"
 	pipelineStepRepositionForLoot   = "reposition_for_loot"
 	pipelineStepWaitForDrops        = "wait_for_drops"
 	pipelineStepScanLoot            = "scan_loot"
@@ -53,13 +54,16 @@ const (
 	pipelineStepPrepareTown         = "prepare_town_handoff"
 	pipelineStepComplete            = "complete"
 
-	waypointSelectSettleDelay = 500 * time.Millisecond
-	dropStableTicks           = 3
-	lootNoTargetStableTicks   = 3
-	postKillLootDistanceTiles = 4
-	defaultLootPickupDistance = 8
-	lootRepositionRetryDelay  = 500 * time.Millisecond
-	lootRepositionMaxAttempts = 3
+	waypointSelectSettleDelay          = 500 * time.Millisecond
+	dropStableTicks                    = 3
+	lootNoTargetStableTicks            = 3
+	postKillLootDistanceTiles          = 4
+	defaultLootPickupDistance          = 8
+	lootRepositionRetryDelay           = 500 * time.Millisecond
+	lootRepositionMaxAttempts          = 3
+	postBossCleanupRadiusTiles float64 = 18
+	postBossCleanupMaxCasts            = 20
+	postBossCleanupStableTicks         = 3
 )
 
 // runPipeline executes one immutable run definition or a thin isolated-phase alias.
@@ -88,6 +92,9 @@ type runPipeline struct {
 	encounterActionIndex     int
 	encounterActionStarted   bool
 	bossKillEmitted          bool
+	cleanupTargetUnitID      uint32
+	cleanupCastCount         int
+	cleanupNoTargetTicks     int
 	lootPickupDistanceTiles  float64
 	postKillTeleportAttempts int
 	postKillTeleportAt       time.Time
@@ -105,13 +112,13 @@ type runPipeline struct {
 	lootRecoveryAt           time.Time
 	lootRecoverySnapshot     time.Time
 	// portalRecovered bounds post-fail portal teleports to one attempt per portal UnitID.
-	portalRecovered              map[uint32]bool
-	portalRecoveryPending        bool
-	portalRecoveryUnitID         uint32
-	portalRecoveryPos            world.Position
-	portalRecoveryTeleportSent   bool
-	portalRecoveryAt             time.Time
-	portalRecoverySnapshot       time.Time
+	portalRecovered            map[uint32]bool
+	portalRecoveryPending      bool
+	portalRecoveryUnitID       uint32
+	portalRecoveryPos          world.Position
+	portalRecoveryTeleportSent bool
+	portalRecoveryAt           time.Time
+	portalRecoverySnapshot     time.Time
 }
 
 func (c *runPipeline) effectiveDefinition() RunDefinition {
@@ -137,6 +144,7 @@ func (c *runPipeline) resetGeneration() {
 	c.encounterActionIndex = 0
 	c.encounterActionStarted = false
 	c.bossKillEmitted = false
+	c.resetPostBossCleanup()
 	c.resetPostKillReposition()
 	c.resetLootApproach()
 	c.resetLootPickupRecovery()
@@ -270,12 +278,17 @@ func (c *runPipeline) nextStep(current string) string {
 	case pipelineStepAcquireBoss:
 		return pipelineStepEngageBoss
 	case pipelineStepEngageBoss:
+		if c.effectiveDefinition().ClearNearbyAfterBoss {
+			return pipelineStepClearNearbyHostiles
+		}
 		// Every registered farming run owns a Memory-pinned boss. Reaching its
 		// last confirmed position before scanning is therefore a shared loot
 		// invariant, not run-specific metadata.
 		return pipelineStepRepositionForLoot
 	case pipelineStepRepositionForLoot:
 		return pipelineStepWaitForDrops
+	case pipelineStepClearNearbyHostiles:
+		return pipelineStepRepositionForLoot
 	case pipelineStepWaitForDrops:
 		return pipelineStepScanLoot
 	case pipelineStepScanLoot:
@@ -339,6 +352,9 @@ func (c *runPipeline) onStepEnter(step string) {
 	c.navStarted = false
 	c.routeStarted = false
 	c.egressStarted = false
+	if step == pipelineStepClearNearbyHostiles {
+		c.resetPostBossCleanup()
+	}
 	if step == pipelineStepRepositionForLoot {
 		c.resetPostKillReposition()
 	}
@@ -520,7 +536,7 @@ func (c *runPipeline) onRunTick(ctx context.Context, deps Deps, step string, w w
 	case pipelineStepAcquireTownWaypoint, pipelineStepOpenWaypoint, pipelineStepSelectRunWaypoint,
 		pipelineStepWaitEntryArea, pipelineStepPlayRoute:
 		return c.onTravelTick(ctx, deps, step, w, now, stepStartedAt)
-	case pipelineStepAcquireBoss, pipelineStepEngageBoss, pipelineStepRepositionForLoot:
+	case pipelineStepAcquireBoss, pipelineStepEngageBoss, pipelineStepClearNearbyHostiles, pipelineStepRepositionForLoot:
 		return c.onBossTick(ctx, deps, step, w, now)
 	case pipelineStepWaitForDrops, pipelineStepScanLoot, pipelineStepPickLoot:
 		return c.onLootTick(ctx, deps, step, w, now, stepStartedAt)
@@ -563,7 +579,7 @@ func (c *runPipeline) onLootTick(ctx context.Context, deps Deps, step string, w 
 			return stepResult{failed: true, reason: "not_in_game"}
 		}
 		if w.Area.ID != c.effectiveDefinition().RouteTerminalArea {
-			return stepResult{failed: true, reason: "not_cellar_5"}
+			return stepResult{failed: true, reason: string(RunReasonUnexpectedArea)}
 		}
 		if deps.Loot == nil {
 			return stepResult{failed: true, reason: "loot_actions_not_wired"}
@@ -920,7 +936,7 @@ func (c *runPipeline) onBossTick(ctx context.Context, deps Deps, step string, w 
 			return stepResult{failed: true, reason: "not_in_game"}
 		}
 		if w.Area.ID != c.effectiveDefinition().RouteTerminalArea {
-			return stepResult{failed: true, reason: "not_cellar_5"}
+			return stepResult{failed: true, reason: string(RunReasonUnexpectedArea)}
 		}
 		if deps.Combat == nil {
 			return stepResult{failed: true, reason: "combat_not_wired"}
@@ -1023,6 +1039,40 @@ func (c *runPipeline) onBossTick(ctx context.Context, deps Deps, step string, w 
 			c.encounterActionIndex = len(actions)
 		}
 		return c.tickEngageTarget(deps, w, target, now)
+	case pipelineStepClearNearbyHostiles:
+		if res := c.killAreaGuard(w); res.failed {
+			return c.stopCleanup(deps, res)
+		}
+		if !w.Valid || w.Phase != world.GamePhaseInGame {
+			return c.stopCleanup(deps, stepResult{})
+		}
+		if deps.Combat == nil {
+			return stepResult{failed: true, reason: "combat_not_wired"}
+		}
+		if c.cleanupCastCount >= postBossCleanupMaxCasts {
+			// Cleanup is deliberately best-effort. The configured budget must
+			// never trap the run in combat instead of advancing to loot.
+			return c.stopCleanup(deps, stepResult{complete: true})
+		}
+		target, visible := c.findCleanupTarget(w)
+		if !visible {
+			c.cleanupTargetUnitID = 0
+			c.cleanupNoTargetTicks++
+			if c.cleanupNoTargetTicks >= postBossCleanupStableTicks {
+				return c.stopCleanup(deps, stepResult{complete: true})
+			}
+			return c.stopCleanup(deps, stepResult{})
+		}
+		c.cleanupTargetUnitID = target.UnitID
+		c.cleanupNoTargetTicks = 0
+		sent, err := deps.Combat.CastAttackAtMonster(now, c.combat.AttackSkillID, w.Player, target)
+		if err != nil {
+			return stepResult{failed: true, reason: "combat_action_failed"}
+		}
+		if sent {
+			c.cleanupCastCount++
+		}
+		return stepResult{}
 	case pipelineStepRepositionForLoot:
 		if res := c.killAreaGuard(w); res.failed {
 			return res
@@ -1198,12 +1248,61 @@ func (c *runPipeline) tickEngageTarget(deps Deps, w world.State, target world.Mo
 	if distance > c.combat.RepositionDistanceTiles {
 		_, err = deps.Combat.TeleportToward(now, w.Player.Position, target.Position, c.combat.EngageDistanceTiles)
 	} else {
-		err = deps.Combat.CastAttackAtWorld(now, c.combat.AttackSkillID, w.Player, target.Position)
+		_, err = deps.Combat.CastAttackAtWorld(now, c.combat.AttackSkillID, w.Player, target.Position)
 	}
 	if err != nil {
 		return stepResult{failed: true, reason: "combat_action_failed"}
 	}
 	return stepResult{}
+}
+
+func (c *runPipeline) findCleanupTarget(w world.State) (world.Monster, bool) {
+	var nearest world.Monster
+	nearestDistance := postBossCleanupRadiusTiles
+	found := false
+	for _, monster := range w.Monsters {
+		if monster.UnitID == c.targetUnitID || !c.isCleanupHostile(monster) {
+			continue
+		}
+		distance := world.Distance(w.Player.Position, monster.Position)
+		if distance <= nearestDistance {
+			nearest = monster
+			nearestDistance = distance
+			found = true
+		}
+	}
+	return nearest, found
+}
+
+func (c *runPipeline) isCleanupHostile(monster world.Monster) bool {
+	switch c.effectiveDefinition().ID {
+	case RunIDCountess:
+		switch monster.NPCID {
+		case 21, 38, 43, 44, 45, 46, 47, 55, 162:
+			return true
+		}
+	case RunIDSummoner:
+		switch monster.NPCID {
+		case 40, 56, 131:
+			return true
+		}
+	}
+	return false
+}
+
+func (c *runPipeline) stopCleanup(deps Deps, result stepResult) stepResult {
+	if deps.Combat != nil {
+		if err := deps.Combat.StopAttack(); err != nil {
+			return stepResult{failed: true, reason: "combat_action_failed"}
+		}
+	}
+	return result
+}
+
+func (c *runPipeline) resetPostBossCleanup() {
+	c.cleanupTargetUnitID = 0
+	c.cleanupCastCount = 0
+	c.cleanupNoTargetTicks = 0
 }
 
 func (c *runPipeline) effectiveLootPickupDistance() float64 {

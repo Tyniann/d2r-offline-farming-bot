@@ -18,7 +18,7 @@ Jede Datei bindet Schema-Version, Akt, Town-Area, Game-Version, Layout-Fingerpri
 
 Die Aufnahme startet ausschließlich in der erwarteten Town-Area und innerhalb von `pathing.town_portal.max_click_distance` eines aus Memory sichtbaren Town Portals. Diese bereits für die sichere Portalinteraktion konfigurierte Distanz wird als Ankunftstoleranz im globalen Vertrag gespeichert. Finish veröffentlicht nur innerhalb von `pathing.waypoint.max_click_distance` zum Memory-bestätigten Waypoint, bei genau einem same-town Segment und Walk-only-Bewegung; nach 30 Minuten endet die Aufnahme fail-closed. Ein valider, als bereit gemeldeter Egress kann über das Dashboard nicht überschrieben werden. Ein vorhandener malformed Draft wird über einen synchronisierten temporären Write atomisch ersetzt.
 
-Vor dem ersten Playback-Input prüft der Adapter Akt, Town-Area, Game-Version, vollständigen Layout-Fingerprint und Startnähe. Die Wiedergabe erfolgt ausschließlich über den area-gebundenen Force-Move-Walker. Fehlende oder falsche Dateien blockieren fail-closed. Die Readiness-Projektion prüft zusätzlich, dass Datei-Akt, Town-Area und Game-Version zum angefragten Setup-Akt passen.
+Vor dem ersten Playback-Input prüft der Adapter Akt, Town-Area, Game-Version, Layout-Bindung und Memory-bestätigte Portalnähe (`portal_arrival`). Die Figur wird nicht gegen den ersten Walk-Punkt gemessen — D2R setzt sie nur in der Nähe des Portals ab; der Walker schließt die Restlücke. Die Layout-Bindung vergleicht bei vorhandenen `anchors` dieselben Objekt-/Entrance-Identitäten mit einer Koordinatentoleranz von vier Tiles (beobachteter Personal-Stash-Jitter in Lut Gholein); der SHA-256-Hash bleibt diagnostisch und für Legacy-Dateien ohne `anchors` weiterhin exakt. Die Wiedergabe erfolgt ausschließlich über den area-gebundenen Force-Move-Walker. Fehlende oder falsche Dateien blockieren fail-closed. Die Readiness-Projektion prüft zusätzlich, dass Datei-Akt, Town-Area und Game-Version zum angefragten Setup-Akt passen.
 
 ## Operator / CLI
 
@@ -48,4 +48,4 @@ Die globalen Egresses für Akt 2, 4 und 5 wurden über das Dashboard vom jeweili
 - [Farming-RouteCatalog und Lifecycle](route-lifecycle.md)
 
 ---
-*Zuletzt aktualisiert: 18. Juli 2026*
+*Zuletzt aktualisiert: 28. Juli 2026*

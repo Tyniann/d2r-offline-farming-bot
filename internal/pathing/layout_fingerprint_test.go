@@ -38,6 +38,9 @@ func TestBuildLayoutFingerprintStableAcrossOrderAndUnitIDs(t *testing.T) {
 	if fa.Hash != fb.Hash || fa.AnchorCount != 2 {
 		t.Fatalf("fingerprints differ: %+v vs %+v", fa, fb)
 	}
+	if len(fa.Anchors) != 2 || fa.Anchors[0] != "e:10:4:300,400" || fa.Anchors[1] != "o:119:101,202" {
+		t.Fatalf("anchors = %#v", fa.Anchors)
+	}
 }
 
 func TestBuildLayoutFingerprintIgnoresPlayerPosition(t *testing.T) {

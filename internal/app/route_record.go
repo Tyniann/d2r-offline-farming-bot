@@ -167,7 +167,7 @@ func (rt *Runtime) finishSystemEgressRecording(recorder *pathing.RouteRecorder, 
 	if portalTolerance <= 0 {
 		return fmt.Errorf("system egress not published: portal arrival tolerance is invalid")
 	}
-	route := town.SystemEgressRoute{SchemaVersion: town.SystemEgressSchemaVersion, Contract: town.SystemEgressContract{Act: act, TownArea: expectedArea, GameVersion: rt.Config.Memory.GameVersion, LayoutFingerprint: town.SystemEgressLayoutFingerprint{Version: fingerprint.Version, AreaID: fingerprint.AreaID, AnchorCount: fingerprint.AnchorCount, Hash: fingerprint.Hash}, From: town.AnchorPortalArrival, To: town.AnchorWaypoint, Movement: town.SystemEgressMovementWalk, ArrivalToleranceTiles: portalTolerance}, SampleDistanceTiles: routeRecordSampleDistance, Points: make([]town.SystemEgressPoint, 0, len(segments[0].Points))}
+	route := town.SystemEgressRoute{SchemaVersion: town.SystemEgressSchemaVersion, Contract: town.SystemEgressContract{Act: act, TownArea: expectedArea, GameVersion: rt.Config.Memory.GameVersion, LayoutFingerprint: town.SystemEgressLayoutFingerprint{Version: fingerprint.Version, AreaID: fingerprint.AreaID, AnchorCount: fingerprint.AnchorCount, Hash: fingerprint.Hash, Anchors: append([]string(nil), fingerprint.Anchors...)}, From: town.AnchorPortalArrival, To: town.AnchorWaypoint, Movement: town.SystemEgressMovementWalk, ArrivalToleranceTiles: portalTolerance}, SampleDistanceTiles: routeRecordSampleDistance, Points: make([]town.SystemEgressPoint, 0, len(segments[0].Points))}
 	for _, point := range segments[0].Points {
 		route.Points = append(route.Points, town.SystemEgressPoint{X: point.X, Y: point.Y})
 	}

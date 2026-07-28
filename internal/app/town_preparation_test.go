@@ -96,6 +96,21 @@ func TestTownPreparationPortalStartUsesNearbyPortalProof(t *testing.T) {
 	}
 }
 
+func TestTownPreparationStashStartUsesNearbyStashProof(t *testing.T) {
+	cfg := pathing.DefaultConfig()
+	adapter := &townPreparationAdapter{pathCfg: cfg, startAnchor: town.AnchorStash}
+	// Player is within stash click range (15) but farther than TownWalk.ArrivalDistance (8)
+	// from the recorded first walk sample — the live post-stash failure mode.
+	state := preparationState(world.Position{X: 112, Y: 100}, time.Now(), true)
+	if !adapter.externalStartConfirmed(state, world.Position{X: 100, Y: 100}) {
+		t.Fatal("nearby Memory-confirmed stash origin was rejected")
+	}
+	state.Player.Position = world.Position{X: 140, Y: 100}
+	if adapter.externalStartConfirmed(state, world.Position{X: 100, Y: 100}) {
+		t.Fatal("distant stash must not confirm stash origin")
+	}
+}
+
 func TestTownPreparationFailsBeforeInputWhenPotionGoldUnavailable(t *testing.T) {
 	in := &preparationInputMock{}
 	a := &townPreparationAdapter{

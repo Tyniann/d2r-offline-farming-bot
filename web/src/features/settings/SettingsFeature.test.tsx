@@ -136,10 +136,22 @@ describe("SettingsFeature", () => {
     expect(mocks.revealDiagnostic).toHaveBeenCalledWith("diagnose-20260726T120000Z-aabbccdd.zip");
     expect(await screen.findByText(/Diagnosepaket diagnose-/)).toBeInTheDocument();
   });
+
+  it("bietet neue Katalog-Runs zum manuellen Ergänzen der Queue an", async () => {
+    renderFeature();
+    const runSelect = await screen.findByRole("combobox", { name: "Run hinzufügen" });
+    expect(runSelect).toHaveTextContent("Summoner");
+    expect(runSelect).toHaveTextContent("Nihlathak");
+  });
 });
 
 function renderFeature() {
-  return render(<SettingsFeature generation={12} coreState="idle" characters={["mrbones"]} runs={[{ id: "countess", label: "Countess" }, { id: "mephisto", label: "Mephisto" }]} events={[]} />);
+  return render(<SettingsFeature generation={12} coreState="idle" characters={["mrbones"]} runs={[
+    { id: "countess", label: "Countess" },
+    { id: "mephisto", label: "Mephisto" },
+    { id: "nihlathak", label: "Nihlathak" },
+    { id: "summoner", label: "Summoner" },
+  ]} events={[]} />);
 }
 
 function change(settings: OperatorSettingsDTO, fields: string[], restart: boolean): OperatorSettingsChangeDTO {

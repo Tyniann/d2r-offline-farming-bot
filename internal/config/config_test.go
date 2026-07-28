@@ -42,12 +42,14 @@ func TestLoadExampleConfig(t *testing.T) {
 	if !ok {
 		t.Fatal("Countess run config missing")
 	}
-	mephisto, ok := cfg.Runs.Run("mephisto")
-	if !ok {
-		t.Fatal("Mephisto run config missing")
-	}
-	if countess.Combat != mephisto.Combat {
-		t.Fatalf("shared combat defaults differ: Countess=%+v Mephisto=%+v", countess.Combat, mephisto.Combat)
+	for _, runID := range []string{"mephisto", "summoner", "nihlathak"} {
+		run, configured := cfg.Runs.Run(runID)
+		if !configured {
+			t.Fatalf("%s run config missing", runID)
+		}
+		if countess.Combat != run.Combat {
+			t.Fatalf("shared combat defaults differ: Countess=%+v %s=%+v", countess.Combat, runID, run.Combat)
+		}
 	}
 	if cfg.Loot.Pickup.MaxRetries != 3 ||
 		cfg.Loot.Pickup.MaxDistanceTiles != 8 ||

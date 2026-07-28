@@ -60,7 +60,9 @@ Unbekannte IDs: `Name = "Unknown Area <id>"`, `Kind = AreaKindUnknown`, `Act` au
 
 ### Entities (Phase 4.2)
 
-Countess-minimale Enumeration in `memory.Snapshot`; Mapping nach `world.Object`, `world.Entrance`, `world.Monster` mit Kind und Name aus `*_ids.go`.
+Run-begrenzte Enumeration in `memory.Snapshot`; Mapping nach `world.Object`, `world.Entrance`, `world.Monster` mit Kind und Name aus `*_ids.go`. Zusätzlich zu Bossen und Town-NPCs enthält die Monster-Allowlist die regulären Terminal-Area-Gegnertypen von Countess und Summoner für das begrenzte Post-Boss-Aufräumen. Sie bleibt absichtlich eng, damit Player-Summons und unrelated Monster nicht als Angriffsziele erscheinen.
+
+Das allgemeine Monsterlimit ist für Cleanup-Gegner ein nearest-to-player Reservoir. Boss-NPCs, Super-Uniques und Town-NPCs sind Prioritätseinträge außerhalb dieses Reservoirs und werden auch nach 32 bereits gefundenen Cleanup-Gegnern weiter aus der Unit-Tabelle aufgenommen. Dadurch kann ein voller Arcane-Sanctuary-Snapshot den Summoner nicht aus `acquire_boss` verdrängen.
 
 | Kategorie | Query-Helfer |
 |-----------|--------------|

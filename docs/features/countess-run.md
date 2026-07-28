@@ -13,7 +13,7 @@ go run ./cmd/d2rbot --run countess --phase loot-and-return --probe --verbose
 go run ./cmd/d2rbot --run countess --phase stash-personal --verbose
 ```
 
-`--run countess` ohne `--phase` ist ab Phase 5.8 der vollständige Countess-Run: Act-1-Town-Waypoint -> Black Marsh -> Forgotten Tower -> Tower Cellar Level 5 -> Countess-Kill -> Loot-Pickup -> Town Portal -> Portal-Eintritt -> Rogue Encampment -> Personal Stash -> `complete`.
+`--run countess` ohne `--phase` ist ab Phase 5.8 der vollständige Countess-Run: Act-1-Town-Waypoint -> Black Marsh -> Forgotten Tower -> Tower Cellar Level 5 -> Countess-Kill -> begrenztes Aufräumen naher Gegner -> Loot-Pickup -> Town Portal -> Portal-Eintritt -> Rogue Encampment -> Personal Stash -> `complete`.
 
 `travel-entry` führt vom Rogue Encampment über den Act-1-Waypoint nach `Black Marsh`.
 `play-route` nutzt diesen Prefix weiter und delegiert anschließend bis `Tower Cellar Level 5` an die über das Character-/Run-Assignment ausgewählte Aufnahme.
@@ -37,7 +37,7 @@ Der Full Run verwendet die gemeinsame Pipeline direkt:
 
 ```text
 precheck -> acquire_town_waypoint -> open_waypoint -> select_run_waypoint -> wait_entry_area
--> play_bound_route -> acquire_boss -> engage_boss -> reposition_for_loot -> wait_for_drops -> scan_loot
+-> play_bound_route -> acquire_boss -> engage_boss -> clear_nearby_hostiles -> reposition_for_loot -> wait_for_drops -> scan_loot
 -> pick_loot -> cast_town_portal -> enter_town_portal -> wait_origin_town
 -> open_personal_stash -> stash_items -> close_personal_stash -> complete
 ```
@@ -45,6 +45,8 @@ precheck -> acquire_town_waypoint -> open_waypoint -> select_run_waypoint -> wai
 `cast_town_portal` nutzt den konfigurierten `town_portal`-Skill und castet client-relativ auf die Fenstermitte (`ClientWidth/2`, `ClientHeight/2`). Ab Phase 5.7 wartet `enter_town_portal` auf das aus lokalem D2R-`objects.txt` generierte Portal-Objekt und klickt es ausschließlich nach Hover-Bestätigung. Endet der Einstieg mit `too_far` oder `hover_not_found` (z. B. Portal hinter Bone Prison), folgt in der produktiven Pipeline einmalig pro Portal-`UnitID` ein distanzignorierender Teleport zur Portalposition, danach genau ein erneuter Hover-Click; Guided Recording bleibt davon unberührt. `wait_origin_town` bestätigt die Ankunft im Rogue Encampment. Ab Phase 5.8 folgen Personal-Stash-Navigation, geschützte Transfers und bestätigtes Schließen; erst danach loggt der Full Run `completion=personal_stash_complete`.
 
 Die isolierten Phasen bleiben bewusst als Testoberflächen erhalten: Travel-Phasen enden am jeweiligen Zielgebiet, `boss` endet nach defensiver Kill-Bestätigung ohne Portal, `loot-and-return` prüft nur Loot und Portal nach einem manuellen oder vorherigen Kill.
+
+`clear_nearby_hostiles` ist nur im Full Run aktiv. Nach dem bestätigten Kill und vor dem Teleport zur gespeicherten Bossposition wählt der Step in jedem aktuellen Snapshot neu den nächsten lebenden Cellar-5-Gegnertyp innerhalb von 18 Tiles. Er zielt auf dessen aktuelle Memory-Position und sendet den normalen `attack_skill` des Combat-Profils erst, wenn der Hover-Buffer exakt dieselbe Monster-`UnitID` bestätigt. Tote beziehungsweise aus dem Living-Snapshot verschwundene Units und ein inzwischen näheres Ziel können deshalb keinen weiteren Cast auf die alte Position auslösen. Drei aufeinanderfolgende Snapshots ohne Ziel beenden den Step. Nach höchstens 20 tatsächlich gesendeten Angriffen wird best-effort mit der Loot-Repositionierung fortgefahren, auch wenn noch ein zulässiges Ziel sichtbar ist. Die Registry-Definition aktiviert dieses Verhalten ausdrücklich für Countess; andere Runs erben es nicht automatisch.
 
 ## Countess-Loot (Phase 5.6)
 

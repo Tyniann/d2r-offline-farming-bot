@@ -159,6 +159,7 @@ type mockCombatActions struct {
 	stopCalls          int
 	resetCalls         int
 	lastSkillID        uint16
+	lastMonsterUnitID  uint32
 	lastDesired        float64
 	lastTeleportTarget world.Position
 	teleportSent       []bool
@@ -319,11 +320,19 @@ func (m *mockNavigator) Active() bool { return len(m.tickResults) > 0 }
 
 func (m *mockNavigator) Reset() { m.resetCalls++ }
 
-func (m *mockCombatActions) CastAttackAtWorld(_ time.Time, skillID uint16, _ world.Player, _ world.Position) error {
+func (m *mockCombatActions) CastAttackAtWorld(_ time.Time, skillID uint16, _ world.Player, _ world.Position) (bool, error) {
 	m.castCalls++
 	m.castSkills = append(m.castSkills, skillID)
 	m.lastSkillID = skillID
-	return nil
+	return true, nil
+}
+
+func (m *mockCombatActions) CastAttackAtMonster(_ time.Time, skillID uint16, _ world.Player, target world.Monster) (bool, error) {
+	m.castCalls++
+	m.castSkills = append(m.castSkills, skillID)
+	m.lastSkillID = skillID
+	m.lastMonsterUnitID = target.UnitID
+	return true, nil
 }
 
 func (m *mockCombatActions) CastSkillAtWorld(_ time.Time, skillID uint16, _, _ world.Position) error {
@@ -651,7 +660,7 @@ func TestIsKnownRun(t *testing.T) {
 
 func TestKnownRunsStable(t *testing.T) {
 	runs := KnownRuns()
-	if !reflect.DeepEqual(runs, []string{"countess", "mephisto"}) {
+	if !reflect.DeepEqual(runs, []string{"countess", "mephisto", "nihlathak", "summoner"}) {
 		t.Fatalf("KnownRuns() = %v", runs)
 	}
 }
@@ -694,6 +703,9 @@ func TestCountessFullRunSuccessCastsTownPortal(t *testing.T) {
 		healthy(areaState(world.TowerCellarLevel4)),
 		healthy(cellar5State(target)),
 		healthy(cellar5State(target)),
+		healthy(cellar5State()),
+		healthy(cellar5State()),
+		healthy(cellar5State()),
 		healthy(cellar5State()),
 		healthy(cellar5State()),
 		healthy(cellar5State()),
@@ -1143,8 +1155,8 @@ func TestCountessTravelCellar5ResumeAlreadyAtCellar5Completes(t *testing.T) {
 func TestCountessKillPrecheckRequiresCellar5AndCombat(t *testing.T) {
 	r := NewRunner(config.NewLogger("error"), RunSelection{Run: "countess", Phase: RunPhaseBoss}, killRunConfig(), Deps{Combat: &mockCombatActions{}})
 	res := r.Tick(context.Background(), areaState(world.TowerCellarLevel4), time.Now())
-	if res.Outcome != RunOutcomeFailed || res.Reason != "not_cellar_5" {
-		t.Fatalf("wrong area tick = %+v, want not_cellar_5", res)
+	if res.Outcome != RunOutcomeFailed || res.Reason != string(RunReasonUnexpectedArea) {
+		t.Fatalf("wrong area tick = %+v, want unexpected_area", res)
 	}
 
 	r = NewRunner(config.NewLogger("error"), RunSelection{Run: "countess", Phase: RunPhaseBoss}, killRunConfig(), Deps{})
@@ -1529,11 +1541,21 @@ func TestLootPickupRecoveryIsBoundedToOneTeleportPerUnit(t *testing.T) {
 	}
 }
 
-func TestAllRegisteredRunsRepositionBeforeLoot(t *testing.T) {
+func TestCleanupRunsClearBeforeRepositioningToBossCorpse(t *testing.T) {
 	countess, _ := DefaultRunRegistry().Definition(RunIDCountess)
+	summoner, _ := DefaultRunRegistry().Definition(RunIDSummoner)
 	mephisto, _ := DefaultRunRegistry().Definition(RunIDMephisto)
-	if got := (&runPipeline{definition: countess}).nextStep(pipelineStepEngageBoss); got != pipelineStepRepositionForLoot {
-		t.Fatalf("countess successor = %q, want %q", got, pipelineStepRepositionForLoot)
+	for _, definition := range []RunDefinition{countess, summoner} {
+		pipeline := &runPipeline{definition: definition}
+		if got := pipeline.nextStep(pipelineStepEngageBoss); got != pipelineStepClearNearbyHostiles {
+			t.Fatalf("%s engage successor = %q, want %q", definition.ID, got, pipelineStepClearNearbyHostiles)
+		}
+		if got := pipeline.nextStep(pipelineStepClearNearbyHostiles); got != pipelineStepRepositionForLoot {
+			t.Fatalf("%s cleanup successor = %q, want %q", definition.ID, got, pipelineStepRepositionForLoot)
+		}
+		if got := pipeline.nextStep(pipelineStepRepositionForLoot); got != pipelineStepWaitForDrops {
+			t.Fatalf("%s reposition successor = %q, want %q", definition.ID, got, pipelineStepWaitForDrops)
+		}
 	}
 	if got := (&runPipeline{definition: mephisto}).nextStep(pipelineStepEngageBoss); got != pipelineStepRepositionForLoot {
 		t.Fatalf("mephisto successor = %q, want %q", got, pipelineStepRepositionForLoot)
@@ -1820,8 +1842,8 @@ func TestEnterTownPortalStillFailsNotFoundAndHardErrorsWithoutRecovery(t *testin
 			pipeline := &runPipeline{definition: definition}
 			state := portalCellarState(77, world.Position{X: 140, Y: 100})
 			res := pipeline.tickEnterTownPortal(context.Background(), Deps{
-				Portal:  &mockTownPortalActions{results: []pathing.TownPortalActionResult{{Status: tc.status, Done: true}}},
-				Combat:  combat,
+				Portal: &mockTownPortalActions{results: []pathing.TownPortalActionResult{{Status: tc.status, Done: true}}},
+				Combat: combat,
 			}, state, time.Now())
 			if !res.failed || res.reason != tc.reason || combat.teleportCalls != 0 {
 				t.Fatalf("result=%+v teleports=%d want reason %s", res, combat.teleportCalls, tc.reason)

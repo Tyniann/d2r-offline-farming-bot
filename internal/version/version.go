@@ -2,7 +2,7 @@
 package version
 
 // Version is the semantic release version (overridden via -ldflags on release builds).
-var Version = "0.12.0"
+var Version = "0.13.0"
 
 // Commit is the git short SHA at build time (overridden via -ldflags on release builds).
 var Commit = "dev"

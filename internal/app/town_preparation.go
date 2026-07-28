@@ -189,18 +189,30 @@ func (a *townPreparationAdapter) Tick(ctx context.Context, state world.State) ta
 }
 
 func (a *townPreparationAdapter) externalStartConfirmed(state world.State, firstPoint world.Position) bool {
-	if a.startAnchor == town.AnchorPortalArrival {
-		return townPortalArrivalReady(state, a.pathCfg.TownPortal.MaxClickDistance)
+	switch a.startAnchor {
+	case town.AnchorPortalArrival:
+		return townObjectArrivalReady(state, world.ObjectKindTownPortal, a.pathCfg.TownPortal.MaxClickDistance)
+	case town.AnchorStash:
+		// Post-run personal-stash transfer leaves the character within stash click
+		// range, not necessarily on the recorded first walk sample of stash→*.
+		return townObjectArrivalReady(state, world.ObjectKindPersonalStash, a.pathCfg.Waypoint.MaxClickDistance)
+	case town.AnchorWaypoint:
+		return townObjectArrivalReady(state, world.ObjectKindWaypoint, a.pathCfg.Waypoint.MaxClickDistance)
+	default:
+		return world.Distance(state.Player.Position, firstPoint) <= a.pathCfg.TownWalk.ArrivalDistance
 	}
-	return world.Distance(state.Player.Position, firstPoint) <= a.pathCfg.TownWalk.ArrivalDistance
 }
 
-func townPortalArrivalReady(state world.State, tolerance float64) bool {
+func townObjectArrivalReady(state world.State, kind world.ObjectKind, tolerance float64) bool {
 	if !state.Valid || state.Phase != world.GamePhaseInGame || !state.Area.ID.IsTown() || tolerance <= 0 {
 		return false
 	}
-	portal, visible := state.NearestObject(world.ObjectKindTownPortal)
-	return visible && world.Distance(state.Player.Position, portal.Position) <= tolerance
+	object, visible := state.NearestObject(kind)
+	return visible && world.Distance(state.Player.Position, object.Position) <= tolerance
+}
+
+func townPortalArrivalReady(state world.State, tolerance float64) bool {
+	return townObjectArrivalReady(state, world.ObjectKindTownPortal, tolerance)
 }
 
 func (a *townPreparationAdapter) Reset() {

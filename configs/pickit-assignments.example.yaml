@@ -4,3 +4,5 @@ assignments:
   MrBones:
     countess: [gems, keys, countess-standard]
     mephisto: [gems, mephisto-standard]
+    summoner: [gems, keys]
+    nihlathak: [gems, keys]

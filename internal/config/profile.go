@@ -90,9 +90,17 @@ func (c *CharacterSetupConfig) applyDefaults() {
 	if c.PickitDefaults != nil {
 		return
 	}
-	c.PickitDefaults = map[string][]string{
-		"countess": {"gems", "keys", "countess-standard"},
-		"mephisto": {"gems", "mephisto-standard"},
+	c.PickitDefaults = DefaultCharacterSetupPickitChains()
+}
+
+// DefaultCharacterSetupPickitChains returns independent copies of the
+// developer-owned Pickit defaults for every product run.
+func DefaultCharacterSetupPickitChains() map[string][]string {
+	return map[string][]string{
+		"countess":  {"gems", "keys", "countess-standard"},
+		"mephisto":  {"gems", "mephisto-standard"},
+		"summoner":  {"gems", "keys"},
+		"nihlathak": {"gems", "keys"},
 	}
 }
 

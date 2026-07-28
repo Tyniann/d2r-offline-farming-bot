@@ -12,20 +12,36 @@ import (
 
 func TestDefaultRunRegistryMetadataAndOrder(t *testing.T) {
 	definitions := DefaultRunRegistry().Definitions()
-	if len(definitions) != 2 || definitions[0].ID != RunIDCountess || definitions[1].ID != RunIDMephisto {
+	if len(definitions) != 4 || definitions[0].ID != RunIDCountess || definitions[1].ID != RunIDMephisto || definitions[2].ID != RunIDNihlathak || definitions[3].ID != RunIDSummoner {
 		t.Fatalf("definitions = %+v", definitions)
 	}
 	if len(definitions[0].BossEngageSequence) != 1 || !definitions[0].Boss.RequireSuperUnique || definitions[0].ReturnOrigin != town.OriginAct1 {
 		t.Fatalf("Countess definition = %+v", definitions[0])
 	}
-	if len(definitions[1].BossEngageSequence) != 2 || definitions[1].Boss.NPCID != 242 || definitions[1].Boss.RequireSuperUnique || definitions[1].ReturnOrigin != town.OriginAct3 {
+	if len(definitions[1].BossEngageSequence) != 2 || definitions[1].Boss.NPCID != world.Mephisto || definitions[1].Boss.RequireSuperUnique || definitions[1].ReturnOrigin != town.OriginAct3 {
 		t.Fatalf("Mephisto definition = %+v", definitions[1])
+	}
+	if len(definitions[2].BossEngageSequence) != 0 || definitions[2].Boss.NPCID != world.Nihlathak ||
+		definitions[2].Boss.SearchAnchorObject != world.ObjectKindUnknown || definitions[2].Boss.SearchAnchorEntrance != world.EntranceKindUnknown ||
+		definitions[2].ReturnOrigin != town.OriginAct5 {
+		t.Fatalf("Nihlathak definition = %+v", definitions[2])
+	}
+	if len(definitions[3].BossEngageSequence) != 0 || definitions[3].Boss.NPCID != world.Summoner ||
+		definitions[3].Boss.SearchAnchorObject != world.ObjectKindUnknown || definitions[3].Boss.SearchAnchorEntrance != world.EntranceKindUnknown ||
+		definitions[3].ReturnOrigin != town.OriginAct2 {
+		t.Fatalf("Summoner definition = %+v", definitions[3])
 	}
 	if definitions[0].Recording.StartWaypoint != pathing.WaypointTargetBlackMarsh || definitions[0].Recording.TerminalArea != world.TowerCellarLevel5 || definitions[0].Recording.Boss.NPCID != definitions[0].Boss.NPCID || definitions[0].Recording.TerminalMaxDistanceTiles != 80 {
 		t.Fatalf("Countess recording contract = %+v", definitions[0].Recording)
 	}
 	if definitions[1].Recording.StartWaypoint != pathing.WaypointTargetDuranceOfHateLevel2 || definitions[1].Recording.TerminalArea != world.DuranceOfHateLevel3 || definitions[1].Recording.Boss.NPCID != definitions[1].Boss.NPCID || definitions[1].Recording.TerminalMaxDistanceTiles != 60 {
 		t.Fatalf("Mephisto recording contract = %+v", definitions[1].Recording)
+	}
+	if definitions[3].Recording.StartWaypoint != pathing.WaypointTargetArcaneSanctuary || definitions[3].Recording.TerminalArea != world.ArcaneSanctuary || definitions[3].Recording.EgressOriginAct != town.OriginAct2 {
+		t.Fatalf("Summoner recording contract = %+v", definitions[3].Recording)
+	}
+	if definitions[2].Recording.StartWaypoint != pathing.WaypointTargetHallsOfPain || definitions[2].Recording.TerminalArea != world.HallsOfVaught || definitions[2].Recording.EgressOriginAct != town.OriginAct5 {
+		t.Fatalf("Nihlathak recording contract = %+v", definitions[2].Recording)
 	}
 }
 
@@ -57,6 +73,14 @@ func TestRunRegistryRejectsInvalidCapabilityCombinations(t *testing.T) {
 	countess.BossEngageSequence = []EncounterAction{{Hook: profile.HookTownReady}}
 	if _, err := NewRunRegistry(countess); err == nil || !strings.Contains(err.Error(), "boss_engage") {
 		t.Fatalf("invalid encounter action error = %v", err)
+	}
+
+	summoner, _ := DefaultRunRegistry().Definition(RunIDSummoner)
+	if len(summoner.BossEngageSequence) != 0 {
+		t.Fatalf("Summoner engage sequence should be empty, got %+v", summoner.BossEngageSequence)
+	}
+	if _, err := NewRunRegistry(summoner); err != nil {
+		t.Fatalf("empty engage sequence should be valid: %v", err)
 	}
 
 	countess, _ = DefaultRunRegistry().Definition(RunIDCountess)

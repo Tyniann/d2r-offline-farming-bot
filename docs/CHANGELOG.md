@@ -7,7 +7,30 @@ Versionierung nach [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-07-28
+
+### Added
+- Add Summoner and Nihlathak key runs to the shared pipeline (Arcane Sanctuary / Halls of Pain→Vaught, empty boss engage, Act-2/Act-5 egress, pickit defaults `[gems, keys]`)
+- Extend the shared `keys` pickit profile to keep Key of Hate (`pk2`) and Key of Destruction (`pk3`) alongside Key of Terror
+- Register Act-2/Act-5 waypoint tab geometry and Arcane Sanctuary / Halls of Pain targets; classify Act-5 halls warps `76`/`77`/`78` from `levels.txt`
+- Generalize the monstats boss catalog generator for Mephisto, Summoner (`250`), and Nihlathak (`526`)
+- Add bounded post-boss hostile cleanup for Countess and Summoner using each run's standard combat attack before loot repositioning
+- Add the Phase 17 implementation plan for Arcane Sanctuary route-threat combat and mana-burn recovery
+
+### Changed
+- Allow an empty `BossEngageSequence` so key bosses can skip Bone Prison and open with Bone Spear
+- Drive onboarding first-route choices from the Core recording/catalog options instead of hard-coded Countess/Mephisto radios
+- Resolve Act-5 Halls recording transitions from the confirmed area pair and fail closed instead of selecting a nearer opposite-direction entrance
+- Confirm Act-1 town-graph starts at stash/portal/waypoint via Memory object proximity instead of the first recorded walk sample
+- Confirm system-egress playback start by Memory-visible Town Portal proximity instead of distance to the first walk sample
+- Match system-egress layouts by persisted anchors with a 4-tile coordinate tolerance so Personal Stash Memory jitter cannot block Act-2 playback
+- Log canonical layout anchor lines from `--pathing-test inspect:layout` for mismatch diagnosis
+
 ### Fixed
+- Prevent crowded cleanup-monster snapshots from exhausting the entity cap before Summoner or another priority boss is enumerated
+- Retarget post-boss cleanup from each current living snapshot and require exact monster hover confirmation before firing Bone Spear
+- Run post-boss hostile cleanup before teleporting to the retained boss position for loot
+- Prevent `session.enabled` from swallowing `--pathing-test` and other specialized CLI modes before they run
 - Recover town-portal entry once via TeleportToward after `too_far` or `hover_not_found` so Bone-Prison blockers cannot abort the return
 - Close an open telemetry step on emergency cancel, map `emergency_stop_requested` to `run_aborted`, and isolate corrupt history runs in AnalyzeHistory so one bad file cannot blank the whole Historie
 - Serialize cleared queue `entries` as an empty JSON array and null-guard the Dashboard Core-Queue render so F11 no longer crashes the UI

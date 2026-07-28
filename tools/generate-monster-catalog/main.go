@@ -9,6 +9,7 @@ import (
 	"go/format"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 )
@@ -18,6 +19,19 @@ type monsterRow struct {
 	HCIdx   uint32
 	Name    string
 	Enabled bool
+}
+
+// bossTarget is one run boss selected by monstats *hcIdx from .tmp/d2r-excel.
+type bossTarget struct {
+	HCIdx     uint32
+	ID        string
+	ConstName string
+}
+
+var defaultBossTargets = []bossTarget{
+	{HCIdx: 242, ID: "mephisto", ConstName: "Mephisto"},
+	{HCIdx: 250, ID: "summoner", ConstName: "Summoner"},
+	{HCIdx: 526, ID: "nihlathakboss", ConstName: "Nihlathak"},
 }
 
 func main() {
@@ -33,14 +47,14 @@ func main() {
 	if err != nil {
 		fatalf("read monstats: %v", err)
 	}
-	mephisto, err := selectMephisto(rows)
+	selected, err := selectBosses(rows, defaultBossTargets)
 	if err != nil {
-		fatalf("select Mephisto: %v", err)
+		fatalf("select bosses: %v", err)
 	}
 	for _, output := range []struct {
 		path string
 		data []byte
-	}{{*memoryOut, renderMemory(*version, mephisto)}, {*worldOut, renderWorld(*version, mephisto)}} {
+	}{{*memoryOut, renderMemory(*version, selected)}, {*worldOut, renderWorld(*version, selected)}} {
 		formatted, err := format.Source(output.data)
 		if err != nil {
 			fatalf("format %s: %v", output.path, err)
@@ -98,35 +112,57 @@ func readMonsterRows(path string) ([]monsterRow, error) {
 	return rows, nil
 }
 
-func selectMephisto(rows []monsterRow) (monsterRow, error) {
-	for _, row := range rows {
-		if row.HCIdx != 242 {
-			continue
-		}
-		if !strings.EqualFold(row.ID, "mephisto") || !strings.EqualFold(row.Name, "Mephisto") || !row.Enabled {
-			return monsterRow{}, fmt.Errorf("*hcIdx 242 has unexpected row %+v", row)
-		}
-		return row, nil
-	}
-	return monsterRow{}, fmt.Errorf("*hcIdx 242 missing")
+type selectedBoss struct {
+	Target bossTarget
+	Row    monsterRow
 }
 
-func renderMemory(version string, row monsterRow) []byte {
+func selectBosses(rows []monsterRow, targets []bossTarget) ([]selectedBoss, error) {
+	byHCIdx := make(map[uint32]monsterRow, len(rows))
+	for _, row := range rows {
+		byHCIdx[row.HCIdx] = row
+	}
+	out := make([]selectedBoss, 0, len(targets))
+	for _, target := range targets {
+		row, ok := byHCIdx[target.HCIdx]
+		if !ok {
+			return nil, fmt.Errorf("*hcIdx %d missing", target.HCIdx)
+		}
+		if !strings.EqualFold(row.ID, target.ID) || !row.Enabled {
+			return nil, fmt.Errorf("*hcIdx %d has unexpected row %+v (want id %q enabled)", target.HCIdx, row, target.ID)
+		}
+		out = append(out, selectedBoss{Target: target, Row: row})
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Row.HCIdx < out[j].Row.HCIdx })
+	return out, nil
+}
+
+func renderMemory(version string, bosses []selectedBoss) []byte {
 	var b bytes.Buffer
 	fmt.Fprintf(&b, "// Code generated from D2R %s local data/global/excel/monstats.txt; DO NOT EDIT.\n", version)
 	b.WriteString("package memory\n\n")
-	fmt.Fprintf(&b, "var runtimeBossNPCIDs = map[uint32]struct{}{\n\t%d: {}, // %s\n}\n", row.HCIdx, row.Name)
+	b.WriteString("var runtimeBossNPCIDs = map[uint32]struct{}{\n")
+	for _, boss := range bosses {
+		fmt.Fprintf(&b, "\t%d: {}, // %s\n", boss.Row.HCIdx, boss.Row.Name)
+	}
+	b.WriteString("}\n")
 	return b.Bytes()
 }
 
-func renderWorld(version string, row monsterRow) []byte {
+func renderWorld(version string, bosses []selectedBoss) []byte {
 	var b bytes.Buffer
 	fmt.Fprintf(&b, "// Code generated from D2R %s local data/global/excel/monstats.txt; DO NOT EDIT.\n", version)
 	b.WriteString("package world\n\n")
 	b.WriteString("const (\n")
-	fmt.Fprintf(&b, "\t// Mephisto is the generated monstats *hcIdx for this D2R version.\n\tMephisto uint32 = %d\n", row.HCIdx)
+	for _, boss := range bosses {
+		fmt.Fprintf(&b, "\t// %s is the generated monstats *hcIdx for this D2R version.\n\t%s uint32 = %d\n", boss.Target.ConstName, boss.Target.ConstName, boss.Row.HCIdx)
+	}
 	b.WriteString(")\n\n")
-	fmt.Fprintf(&b, "var generatedNPCNames = map[uint32]string{\n\tMephisto: %q,\n}\n", row.Name)
+	b.WriteString("var generatedNPCNames = map[uint32]string{\n")
+	for _, boss := range bosses {
+		fmt.Fprintf(&b, "\t%s: %q,\n", boss.Target.ConstName, boss.Row.Name)
+	}
+	b.WriteString("}\n")
 	return b.Bytes()
 }
 

@@ -69,7 +69,7 @@ func TestResolveRunAvailabilitiesGoldenOrderAndReasons(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := `{"context":{"character":"MrBones","character_class":"necromancer","difficulty":"nightmare","game_version":"3.2.92777"},"runs":[{"run_id":"countess","display_name":"Countess","status":"runtime_validation_required","reasons":["route_runtime_validation_required"],"route":{"route_id":"black-marsh-cellar5-nightmare-mrbones","reason":"route_runtime_validation_required"}},{"run_id":"mephisto","display_name":"Mephisto","status":"unavailable","reasons":["town_egress_missing"],"route":{"route_id":"durance-2-mephisto-nightmare-mrbones"}}]}`
+	want := `{"context":{"character":"MrBones","character_class":"necromancer","difficulty":"nightmare","game_version":"3.2.92777"},"runs":[{"run_id":"countess","display_name":"Countess","status":"runtime_validation_required","reasons":["route_runtime_validation_required"],"route":{"route_id":"black-marsh-cellar5-nightmare-mrbones","reason":"route_runtime_validation_required"}},{"run_id":"mephisto","display_name":"Mephisto","status":"unavailable","reasons":["town_egress_missing"],"route":{"route_id":"durance-2-mephisto-nightmare-mrbones"}},{"run_id":"nihlathak","display_name":"Nihlathak","status":"unavailable","reasons":["route_assignment_missing"],"route":{"reason":"route_missing"}},{"run_id":"summoner","display_name":"Summoner","status":"unavailable","reasons":["route_assignment_missing"],"route":{"reason":"route_missing"}}]}`
 	if string(encoded) != want {
 		t.Fatalf("availability JSON:\n%s\nwant:\n%s", encoded, want)
 	}

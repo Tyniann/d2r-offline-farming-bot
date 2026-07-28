@@ -27,6 +27,9 @@ type LayoutFingerprint struct {
 	PlayerY     uint32
 	AnchorCount int
 	Hash        string
+	// Anchors lists the sorted canonical strings that produced Hash.
+	// They are diagnostic only and are not persisted on system-egress contracts.
+	Anchors []string
 }
 
 // BuildLayoutFingerprint canonicalizes stable objects and entrances around the player.
@@ -52,6 +55,7 @@ func BuildLayoutFingerprint(state world.State) (LayoutFingerprint, error) {
 		PlayerY:     state.Player.Position.Y,
 		AnchorCount: len(anchors),
 		Hash:        hex.EncodeToString(digest[:]),
+		Anchors:     anchors,
 	}, nil
 }
 

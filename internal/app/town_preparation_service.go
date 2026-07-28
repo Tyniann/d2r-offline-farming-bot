@@ -601,7 +601,9 @@ func (h *townPreparationStepHandler) tickWalk(ctx context.Context, state world.S
 		}
 		// Strictly verify only the external start. Composed edges share semantic
 		// NPC boundaries whose separately recorded first points may differ slightly.
-		if h.traversal == 0 && world.Distance(state.Player.Position, points[0]) > h.adapter.pathCfg.TownWalk.ArrivalDistance {
+		// Stash/portal/waypoint origins use Memory object proximity; Points[0] alone
+		// rejects valid post-stash stands inside click range but off the sample.
+		if h.traversal == 0 && !h.adapter.externalStartConfirmed(state, points[0]) {
 			return town.InteractionResult{Status: town.InteractionFailed, Reason: "town_edge_start_unconfirmed", Done: true}
 		}
 		h.walker = pathing.NewTownRouteWalker(h.adapter.log, h.adapter.driver, h.adapter.pathCfg, points)

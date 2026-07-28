@@ -128,17 +128,17 @@ func TestBossHookPinsTargetAndCastsOncePerIndexedEncounterAction(t *testing.T) {
 	if got := e.TickHook(context.Background(), HookBossEngage, state, target, now); got.Status != StatusAction || got.SkillID != 88 {
 		t.Fatalf("first=%+v", got)
 	}
-	if got := e.TickHook(context.Background(), HookBossEngage, state, target, now.Add(time.Millisecond)); got.Status != StatusComplete {
+	if got := e.TickHook(context.Background(), HookBossEngage, state, target, now.Add(time.Second)); got.Status != StatusComplete {
 		t.Fatalf("repeat=%+v", got)
 	}
 	if len(actions.skills) != 1 {
 		t.Fatalf("skills=%v", actions.skills)
 	}
 	target.ActionIndex = 1
-	if got := e.TickHook(context.Background(), HookBossEngage, state, target, now.Add(2*time.Millisecond)); got.Status != StatusAction || got.SkillID != 88 {
+	if got := e.TickHook(context.Background(), HookBossEngage, state, target, now.Add(2*time.Second)); got.Status != StatusAction || got.SkillID != 88 {
 		t.Fatalf("second indexed action=%+v", got)
 	}
-	if got := e.TickHook(context.Background(), HookBossEngage, state, target, now.Add(3*time.Millisecond)); got.Status != StatusComplete {
+	if got := e.TickHook(context.Background(), HookBossEngage, state, target, now.Add(3*time.Second)); got.Status != StatusComplete {
 		t.Fatalf("second indexed completion=%+v", got)
 	}
 	if len(actions.skills) != 2 {

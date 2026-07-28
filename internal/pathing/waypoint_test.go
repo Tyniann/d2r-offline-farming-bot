@@ -120,11 +120,13 @@ func waypointMenuState() world.State {
 	return world.State{Valid: true, Phase: world.GamePhaseInGame, Area: world.LookupArea(world.RogueEncampment), UI: world.UIState{WaypointOpen: true}}
 }
 
-func TestDefaultWaypointTargetRegistryCalibration(t *testing.T) {
+func TestDefaultWaypointTargetRegistryGeometryCandidates(t *testing.T) {
 	registry := DefaultWaypointTargetRegistry()
 	want := map[WaypointTargetID]WaypointTargetAction{
 		WaypointTargetBlackMarsh:          {Act: 1, TabX: 159, TabY: 148, RowX: 200, RowY: 342, ExpectedAreaID: world.BlackMarsh},
 		WaypointTargetDuranceOfHateLevel2: {Act: 3, TabX: 273, TabY: 148, RowX: 200, RowY: 506, ExpectedAreaID: world.DuranceOfHateLevel2},
+		WaypointTargetArcaneSanctuary:     {Act: 2, TabX: 216, TabY: 148, RowX: 200, RowY: 465, ExpectedAreaID: world.ArcaneSanctuary},
+		WaypointTargetHallsOfPain:         {Act: 5, TabX: 387, TabY: 148, RowX: 200, RowY: 383, ExpectedAreaID: world.HallsOfPain},
 		WaypointTargetRogueEncampment:     {Act: 1, TabX: 159, TabY: 148, RowX: 200, RowY: 178, ExpectedAreaID: world.RogueEncampment},
 	}
 	if len(registry.Actions()) != len(want) {
@@ -133,7 +135,7 @@ func TestDefaultWaypointTargetRegistryCalibration(t *testing.T) {
 	for id, expected := range want {
 		action, ok := registry.Action(id)
 		if !ok || action.Act != expected.Act || action.TabX != expected.TabX || action.TabY != expected.TabY || action.RowX != expected.RowX || action.RowY != expected.RowY || action.ExpectedAreaID != expected.ExpectedAreaID || action.ClientWidth != 1280 || action.ClientHeight != 720 || action.SettleMs != 200 {
-			t.Fatalf("Action(%s) = %+v, want calibrated %+v", id, action, expected)
+			t.Fatalf("Action(%s) = %+v, want geometry candidate %+v", id, action, expected)
 		}
 	}
 }

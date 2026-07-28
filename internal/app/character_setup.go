@@ -294,7 +294,7 @@ func (s *CharacterSetupService) buildPreview(catalog CharacterCatalog, settings 
 		}
 	}
 	defaults := phase16ConfiguredDefaults(s.cfg)
-	for _, runID := range []tasks.RunID{tasks.RunIDCountess, tasks.RunIDMephisto} {
+	for _, runID := range Phase16DefaultPickitRunIDs() {
 		definition, _ := tasks.DefaultRunRegistry().Definition(runID)
 		item := CharacterSetupPickitDefault{RunID: runID, RunDisplayName: definition.DisplayName, State: "missing"}
 		for _, profileID := range defaults[runID] {

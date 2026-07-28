@@ -283,6 +283,7 @@ func (rt *Runtime) runPathingInspect(
 					"player_x", fp.PlayerX,
 					"player_y", fp.PlayerY,
 					"anchor_count", fp.AnchorCount,
+					"anchors", fp.Anchors,
 				)
 				last = fp.Hash
 			}

@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"sort"
 
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/config"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/tasks"
@@ -126,11 +127,26 @@ func Phase16CharacterReasonCodes() []Phase16CharacterReasonCode {
 }
 
 // Phase16DefaultPickitChains liefert unabhängige Kopien der Entwickler-Defaults je Run.
+// Die String-Keys stammen aus [config.DefaultCharacterSetupPickitChains], damit
+// Config-Default, Validierung, Setup-Preview und Assignment-Erzeugung nicht driften.
 func Phase16DefaultPickitChains() map[tasks.RunID][]string {
-	return map[tasks.RunID][]string{
-		tasks.RunIDCountess: {"gems", "keys", "countess-standard"},
-		tasks.RunIDMephisto: {"gems", "mephisto-standard"},
+	configured := config.DefaultCharacterSetupPickitChains()
+	chains := make(map[tasks.RunID][]string, len(configured))
+	for rawRunID, profiles := range configured {
+		chains[tasks.RunID(rawRunID)] = append([]string(nil), profiles...)
 	}
+	return chains
+}
+
+// Phase16DefaultPickitRunIDs returns the default pickit run keys in stable ID order.
+func Phase16DefaultPickitRunIDs() []tasks.RunID {
+	chains := Phase16DefaultPickitChains()
+	ids := make([]tasks.RunID, 0, len(chains))
+	for runID := range chains {
+		ids = append(ids, runID)
+	}
+	sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
+	return ids
 }
 
 // ValidateCharacterSetupConfig prüft die vollständige Entwicklerkonfiguration gegen Run-Registry und Pickit-Profile.
@@ -140,7 +156,7 @@ func ValidateCharacterSetupConfig(cfg *config.Config, profiles *PickitProfileSer
 	}
 	expected := Phase16DefaultPickitChains()
 	if len(cfg.CharacterSetup.PickitDefaults) != len(expected) {
-		return fmt.Errorf("character_setup.pickit_defaults must contain exactly countess and mephisto")
+		return fmt.Errorf("character_setup.pickit_defaults must contain exactly the configured default runs %v", Phase16DefaultPickitRunIDs())
 	}
 	registry := tasks.DefaultRunRegistry()
 	for runID, expectedProfiles := range expected {

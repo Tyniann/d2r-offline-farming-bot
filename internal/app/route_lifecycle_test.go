@@ -12,7 +12,40 @@ import (
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/config"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/pathing"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/tasks"
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/world"
 )
+
+func TestRunIDForRouteRecognizesKeyRunAreaContracts(t *testing.T) {
+	tests := []struct {
+		name     string
+		segments []pathing.RouteSegment
+		want     tasks.RunID
+	}{
+		{
+			name: "summoner same area",
+			segments: []pathing.RouteSegment{{
+				FromAreaID: world.ArcaneSanctuary,
+				ToAreaID:   world.ArcaneSanctuary,
+			}},
+			want: tasks.RunIDSummoner,
+		},
+		{
+			name: "nihlathak area transition",
+			segments: []pathing.RouteSegment{{
+				FromAreaID: world.HallsOfPain,
+				ToAreaID:   world.HallsOfVaught,
+			}},
+			want: tasks.RunIDNihlathak,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if got := runIDForRoute(pathing.Route{Segments: test.segments}); got != test.want {
+				t.Fatalf("run ID = %q, want %q", got, test.want)
+			}
+		})
+	}
+}
 
 func TestRouteLifecycleBootstrapExactContextDoesNotInvalidate(t *testing.T) {
 	cfg, root := lifecycleTestConfig(t, "MrBones", "nightmare")

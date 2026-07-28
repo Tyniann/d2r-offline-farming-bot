@@ -47,6 +47,55 @@ func TestRouteRecorderSamplesAndCompletesTransitions(t *testing.T) {
 	}
 }
 
+func TestRouteRecorderFinishesSummonerAsSameAreaTerminalSegment(t *testing.T) {
+	recorder, err := NewRouteRecorder(RouteRecorderConfig{SampleDistanceTiles: 4, Movement: RouteMovementTeleport})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, _ = recorder.Observe(recorderState(world.ArcaneSanctuary, 100, 100))
+	_, _ = recorder.Observe(recorderState(world.ArcaneSanctuary, 110, 100))
+
+	segments, err := recorder.Finish()
+	if err != nil || len(segments) != 1 {
+		t.Fatalf("Finish() = %+v, %v", segments, err)
+	}
+	segment := segments[0]
+	if segment.FromAreaID != world.ArcaneSanctuary || segment.ToAreaID != world.ArcaneSanctuary || segment.Transition.Type != "terminal" {
+		t.Fatalf("Summoner terminal segment = %+v", segment)
+	}
+}
+
+func TestRouteRecorderPinsPainToVaughtTransitionToHallsDown(t *testing.T) {
+	recorder, err := NewRouteRecorder(RouteRecorderConfig{SampleDistanceTiles: 4, Movement: RouteMovementTeleport})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, _ = recorder.Observe(recorderState(world.HallsOfPain, 100, 100))
+	atEntrance := recorderState(world.HallsOfPain, 110, 100)
+	atEntrance.Entrances = []world.Entrance{
+		{Kind: world.EntranceKindHallsUp, Position: world.Position{X: 110, Y: 100}},
+		{Kind: world.EntranceKindHallsDown, Position: world.Position{X: 114, Y: 100}},
+	}
+	_, _ = recorder.Observe(atEntrance)
+	event, err := recorder.Observe(recorderState(world.HallsOfVaught, 200, 200))
+	if err != nil || !event.SegmentComplete || event.Segment.Transition.EntranceKind != "halls_down" {
+		t.Fatalf("Pain→Vaught transition = %+v, %v", event, err)
+	}
+	_, _ = recorder.Observe(recorderState(world.HallsOfVaught, 210, 200))
+	segments, err := recorder.Finish()
+	if err != nil || len(segments) != 2 || segments[1].Transition.Type != "terminal" || segments[1].ToAreaID != world.HallsOfVaught {
+		t.Fatalf("Finish() = %+v, %v", segments, err)
+	}
+}
+
+func TestRecordingTransitionKindFailsClosedWithoutExpectedHallsEntrance(t *testing.T) {
+	state := recorderState(world.HallsOfPain, 100, 100)
+	state.Entrances = []world.Entrance{{Kind: world.EntranceKindHallsUp, Position: world.Position{X: 101, Y: 100}}}
+	if got := recordingTransitionKind(world.HallsOfPain, world.HallsOfVaught, state); got != "unknown" {
+		t.Fatalf("transition kind = %q, want unknown", got)
+	}
+}
+
 func TestRouteRecorderIgnoresInvalidAndLoading(t *testing.T) {
 	recorder, _ := NewRouteRecorder(RouteRecorderConfig{SampleDistanceTiles: 4, Movement: RouteMovementWalk})
 	if _, err := recorder.Observe(world.State{Phase: world.GamePhaseLoading}); err != nil {

@@ -267,6 +267,32 @@ func TestProbeSnapshotSkipsCorpseMonster(t *testing.T) {
 	}
 }
 
+func TestAppendRuntimeMonsterNeverStarvesBossAndKeepsNearestCleanupTargets(t *testing.T) {
+	snap := Snapshot{PosX: 100, PosY: 100, Monsters: make([]MonsterUnit, 0)}
+	for i := 0; i < maxEntitiesPerCategory; i++ {
+		appendRuntimeMonster(&snap, MonsterUnit{
+			NPCID: 131, UnitID: uint32(i + 1), PosX: uint32(200 + i), PosY: 100,
+		})
+	}
+
+	boss := MonsterUnit{NPCID: 250, UnitID: 500, PosX: 110, PosY: 100}
+	appendRuntimeMonster(&snap, boss)
+	nearby := MonsterUnit{NPCID: 56, UnitID: 501, PosX: 101, PosY: 100}
+	appendRuntimeMonster(&snap, nearby)
+
+	if len(snap.Monsters) != maxEntitiesPerCategory+1 {
+		t.Fatalf("monster count=%d, want bounded cleanup reservoir plus priority boss", len(snap.Monsters))
+	}
+	var bossFound, nearbyFound bool
+	for _, monster := range snap.Monsters {
+		bossFound = bossFound || monster.UnitID == boss.UnitID
+		nearbyFound = nearbyFound || monster.UnitID == nearby.UnitID
+	}
+	if !bossFound || !nearbyFound {
+		t.Fatalf("boss_found=%t nearby_found=%t monsters=%+v", bossFound, nearbyFound, snap.Monsters)
+	}
+}
+
 func TestReadEntranceSegmentHeadAfterSetup(t *testing.T) {
 	access, probe, moduleBase := setupProbeMock(t)
 	off := testOffsetSet()

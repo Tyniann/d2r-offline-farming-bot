@@ -19,7 +19,10 @@ func egressTestStateForAct(t *testing.T, act town.OriginAct) (world.State, pathi
 	if !ok {
 		t.Fatalf("unsupported act %s", act)
 	}
-	state := world.State{At: time.Now(), Valid: true, Phase: world.GamePhaseInGame, Area: world.LookupArea(area), Player: world.Player{Position: world.Position{X: 5100, Y: 5100}}, Identity: world.GameIdentity{Valid: true, CharacterName: "MrBones", Class: world.CharacterClassNecromancer, MapSeed: 42}, Objects: []world.Object{{ID: 237, UnitID: 7, Kind: world.ObjectKindWaypoint, Position: world.Position{X: 5120, Y: 5080}}}}
+	state := world.State{At: time.Now(), Valid: true, Phase: world.GamePhaseInGame, Area: world.LookupArea(area), Player: world.Player{Position: world.Position{X: 5100, Y: 5100}}, Identity: world.GameIdentity{Valid: true, CharacterName: "MrBones", Class: world.CharacterClassNecromancer, MapSeed: 42}, Objects: []world.Object{
+		{ID: 59, UnitID: 6, Kind: world.ObjectKindTownPortal, Position: world.Position{X: 5102, Y: 5100}},
+		{ID: 237, UnitID: 7, Kind: world.ObjectKindWaypoint, Position: world.Position{X: 5120, Y: 5080}},
+	}}
 	fingerprint, err := pathing.BuildLayoutFingerprint(state)
 	if err != nil {
 		t.Fatal(err)
@@ -71,6 +74,55 @@ func TestTownEgressAdapterSupportsGlobalRoutesForAllForeignActs(t *testing.T) {
 	}
 }
 
+func TestTownEgressAdapterAcceptsSmallAnchorCoordinateJitter(t *testing.T) {
+	cfg, err := config.Load(filepath.Join("..", "..", "configs", "config.example.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	directory := t.TempDir()
+	egress := cfg.Town.Egress[town.OriginAct2]
+	egress.RoutesDirectory = directory
+	cfg.Town.Egress[town.OriginAct2] = egress
+
+	state := world.State{
+		At: time.Now(), Valid: true, Phase: world.GamePhaseInGame,
+		Area: world.LookupArea(world.LutGholein),
+		Player: world.Player{Position: world.Position{X: 5100, Y: 5100}},
+		Identity: world.GameIdentity{Valid: true, CharacterName: "MrBones", Class: world.CharacterClassNecromancer, MapSeed: 42},
+		Objects: []world.Object{
+			{ID: 59, UnitID: 6, Kind: world.ObjectKindTownPortal, Position: world.Position{X: 5105, Y: 5100}},
+			{ID: 267, UnitID: 7, Kind: world.ObjectKindPersonalStash, Position: world.Position{X: 5121, Y: 5073}},
+		},
+	}
+	fingerprint, err := pathing.BuildLayoutFingerprint(state)
+	if err != nil {
+		t.Fatal(err)
+	}
+	bound := fingerprint
+	bound.Hash = "different-exact-hash"
+	route := town.SystemEgressRoute{
+		SchemaVersion: town.SystemEgressSchemaVersion,
+		Contract: town.SystemEgressContract{
+			Act: town.OriginAct2, TownArea: world.LutGholein, GameVersion: "3.2.92777",
+			LayoutFingerprint: town.SystemEgressLayoutFingerprint{
+				Version: bound.Version, AreaID: bound.AreaID, AnchorCount: 1, Hash: bound.Hash,
+				Anchors: []string{"o:267:5121,5076"},
+			},
+			From: town.AnchorPortalArrival, To: town.AnchorWaypoint,
+			Movement: town.SystemEgressMovementWalk, ArrivalToleranceTiles: 15,
+		},
+		SampleDistanceTiles: 4,
+		Points:              []town.SystemEgressPoint{{X: 5100, Y: 5100}, {X: 5090, Y: 5090}},
+	}
+	if err := town.SaveSystemEgressRoute(filepath.Join(directory, town.SystemEgressFilename), route); err != nil {
+		t.Fatal(err)
+	}
+	adapter := newTownEgressAdapter(config.NewLogger("error"), cfg, "3.2.92777", &preparationInputMock{}, pathing.DefaultConfig(), nil)
+	if err := adapter.Start(town.OriginAct2, state); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+}
+
 func TestTownEgressAdapterRejectsMissingVersionLayoutAndFarStart(t *testing.T) {
 	cfg, err := config.Load(filepath.Join("..", "..", "configs", "config.example.yaml"))
 	if err != nil {
@@ -92,7 +144,11 @@ func TestTownEgressAdapterRejectsMissingVersionLayoutAndFarStart(t *testing.T) {
 	adapter.gameVersion = "3.2.92777"
 	layout := state
 	layout.Objects = append([]world.Object(nil), state.Objects...)
-	layout.Objects[0].Position.X++
+	for i := range layout.Objects {
+		if layout.Objects[i].Kind == world.ObjectKindWaypoint {
+			layout.Objects[i].Position.X++
+		}
+	}
 	if err := adapter.Start(town.OriginAct3, layout); !errors.Is(err, pathing.ErrRouteLayoutMismatch) {
 		t.Fatalf("layout error = %v", err)
 	}
@@ -100,6 +156,55 @@ func TestTownEgressAdapterRejectsMissingVersionLayoutAndFarStart(t *testing.T) {
 	far.Player.Position = world.Position{X: 5200, Y: 5200}
 	if err := adapter.Start(town.OriginAct3, far); !errors.Is(err, pathing.ErrRouteStartMismatch) {
 		t.Fatalf("start error = %v", err)
+	}
+}
+
+func TestTownEgressAdapterAcceptsPortalArrivalAwayFromFirstWalkPoint(t *testing.T) {
+	cfg, err := config.Load(filepath.Join("..", "..", "configs", "config.example.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	directory := t.TempDir()
+	egress := cfg.Town.Egress[town.OriginAct2]
+	egress.RoutesDirectory = directory
+	cfg.Town.Egress[town.OriginAct2] = egress
+
+	state := world.State{
+		At: time.Now(), Valid: true, Phase: world.GamePhaseInGame,
+		Area:     world.LookupArea(world.LutGholein),
+		Player:   world.Player{Position: world.Position{X: 5168, Y: 5066}},
+		Identity: world.GameIdentity{Valid: true, CharacterName: "MrBones", Class: world.CharacterClassNecromancer, MapSeed: 42},
+		Objects: []world.Object{
+			{ID: 59, UnitID: 6, Kind: world.ObjectKindTownPortal, Position: world.Position{X: 5170, Y: 5066}},
+			{ID: 267, UnitID: 7, Kind: world.ObjectKindPersonalStash, Position: world.Position{X: 5121, Y: 5073}},
+		},
+	}
+	fingerprint, err := pathing.BuildLayoutFingerprint(state)
+	if err != nil {
+		t.Fatal(err)
+	}
+	route := town.SystemEgressRoute{
+		SchemaVersion: town.SystemEgressSchemaVersion,
+		Contract: town.SystemEgressContract{
+			Act: town.OriginAct2, TownArea: world.LutGholein, GameVersion: "3.2.92777",
+			LayoutFingerprint: town.SystemEgressLayoutFingerprint{
+				Version: fingerprint.Version, AreaID: fingerprint.AreaID, AnchorCount: fingerprint.AnchorCount,
+				Hash: fingerprint.Hash, Anchors: append([]string(nil), fingerprint.Anchors...),
+			},
+			From: town.AnchorPortalArrival, To: town.AnchorWaypoint,
+			Movement: town.SystemEgressMovementWalk, ArrivalToleranceTiles: 15,
+		},
+		SampleDistanceTiles: 4,
+		// First walk sample is farther than ArrivalToleranceTiles from the player,
+		// matching the live Lut Gholein portal-vs-sample gap (~17 tiles).
+		Points: []town.SystemEgressPoint{{X: 5183, Y: 5058}, {X: 5170, Y: 5059}},
+	}
+	if err := town.SaveSystemEgressRoute(filepath.Join(directory, town.SystemEgressFilename), route); err != nil {
+		t.Fatal(err)
+	}
+	adapter := newTownEgressAdapter(config.NewLogger("error"), cfg, "3.2.92777", &preparationInputMock{}, pathing.DefaultConfig(), nil)
+	if err := adapter.Start(town.OriginAct2, state); err != nil {
+		t.Fatalf("portal-confirmed start away from Points[0] rejected: %v", err)
 	}
 }
 

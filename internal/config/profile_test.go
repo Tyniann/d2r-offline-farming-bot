@@ -111,12 +111,25 @@ func TestCharacterSetupDefaultsAndStructuralValidation(t *testing.T) {
 	if got := setup.PickitDefaults["mephisto"]; strings.Join(got, ",") != "gems,mephisto-standard" {
 		t.Fatalf("mephisto=%v", got)
 	}
+	for _, runID := range []string{"summoner", "nihlathak"} {
+		if got := setup.PickitDefaults[runID]; strings.Join(got, ",") != "gems,keys" {
+			t.Fatalf("%s=%v", runID, got)
+		}
+	}
 	if err := setup.validate(); err != nil {
 		t.Fatal(err)
 	}
 	setup.PickitDefaults["countess"] = []string{"gems", "gems"}
 	if err := setup.validate(); err == nil {
 		t.Fatal("duplicate default profile was accepted")
+	}
+}
+
+func TestDefaultCharacterSetupPickitChainsReturnsIndependentCopies(t *testing.T) {
+	first := DefaultCharacterSetupPickitChains()
+	first["summoner"][0] = "mutated"
+	if got := DefaultCharacterSetupPickitChains()["summoner"][0]; got != "gems" {
+		t.Fatalf("default chain leaked caller mutation: %q", got)
 	}
 }
 

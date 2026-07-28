@@ -31,6 +31,9 @@ type SystemEgressLayoutFingerprint struct {
 	AreaID      world.AreaID `yaml:"area_id"`
 	AnchorCount int          `yaml:"anchor_count"`
 	Hash        string       `yaml:"hash"`
+	// Anchors are the canonical layout lines captured at recording time.
+	// When present, playback matches them with coordinate tolerance instead of Hash.
+	Anchors []string `yaml:"anchors,omitempty"`
 }
 
 // SystemEgressContract defines one global portal-arrival-to-waypoint route.
@@ -72,6 +75,9 @@ func (c SystemEgressContract) Validate() error {
 	}
 	if c.LayoutFingerprint.Version == 0 || c.LayoutFingerprint.AreaID != c.TownArea || c.LayoutFingerprint.AnchorCount <= 0 || strings.TrimSpace(c.LayoutFingerprint.Hash) == "" {
 		return fmt.Errorf("system egress layout fingerprint must bind the town area")
+	}
+	if len(c.LayoutFingerprint.Anchors) > 0 && len(c.LayoutFingerprint.Anchors) != c.LayoutFingerprint.AnchorCount {
+		return fmt.Errorf("system egress layout fingerprint anchors must match anchor_count")
 	}
 	if c.From != AnchorPortalArrival || c.To != AnchorWaypoint || c.Movement != SystemEgressMovementWalk || c.ArrivalToleranceTiles <= 0 {
 		return fmt.Errorf("system egress requires portal_arrival to waypoint walk movement and positive tolerance")

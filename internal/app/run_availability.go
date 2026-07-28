@@ -187,8 +187,12 @@ func validateTownEgressAvailability(cfg *config.Config, egress town.EgressConfig
 	if context.GameVersion != "" && route.Contract.GameVersion != context.GameVersion {
 		return tasks.RunReasonTownEgressBindingMismatch
 	}
-	if context.LayoutFingerprint != "" && route.Contract.LayoutFingerprint.Hash != context.LayoutFingerprint {
-		return tasks.RunReasonTownEgressBindingMismatch
+	if context.LayoutFingerprint != "" {
+		// Anchored system egresses absorb small coordinate jitter; exact Hash
+		// equality would false-negative. Runtime Start remains the authority.
+		if len(route.Contract.LayoutFingerprint.Anchors) == 0 && route.Contract.LayoutFingerprint.Hash != context.LayoutFingerprint {
+			return tasks.RunReasonTownEgressBindingMismatch
+		}
 	}
 	return ""
 }

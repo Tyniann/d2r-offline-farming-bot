@@ -3,4 +3,6 @@ package memory
 
 var runtimeBossNPCIDs = map[uint32]struct{}{
 	242: {}, // Mephisto
+	250: {}, // Summoner
+	526: {}, // Nihlathak
 }

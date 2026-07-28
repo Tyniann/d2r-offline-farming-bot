@@ -59,10 +59,17 @@ func (a *townEgressAdapter) Start(act town.OriginAct, state world.State) error {
 		return fmt.Errorf("%w: got %s want %s", pathing.ErrRouteGameVersionMismatch, a.gameVersion, route.Contract.GameVersion)
 	}
 	bound := route.Contract.LayoutFingerprint
-	if fingerprint.Version != bound.Version || fingerprint.AreaID != bound.AreaID || fingerprint.AnchorCount != bound.AnchorCount || fingerprint.Hash != bound.Hash {
-		return fmt.Errorf("%w: system egress layout differs", pathing.ErrRouteLayoutMismatch)
+	if err := pathing.MatchSystemEgressLayout(fingerprint, bound.Version, bound.AreaID, bound.AnchorCount, bound.Hash, bound.Anchors); err != nil {
+		return fmt.Errorf("system egress layout differs: %w", err)
 	}
-	if world.Distance(state.Player.Position, world.Position{X: route.Points[0].X, Y: route.Points[0].Y}) > route.Contract.ArrivalToleranceTiles {
+	// D2R does not place the character on the first recorded walk sample. The
+	// Memory-visible Town Portal is the authoritative portal_arrival proof; the
+	// walker closes the remaining gap to Points[0], matching Act-1 preparation.
+	tolerance := route.Contract.ArrivalToleranceTiles
+	if tolerance <= 0 {
+		tolerance = a.pathCfg.TownPortal.MaxClickDistance
+	}
+	if !systemEgressRecordingStartReady(state, expectedArea, tolerance) {
 		return fmt.Errorf("%w: portal arrival is outside route start tolerance", pathing.ErrRouteStartMismatch)
 	}
 	points := make([]world.Position, 0, len(route.Points))
