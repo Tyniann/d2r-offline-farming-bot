@@ -376,6 +376,29 @@ func (r *Runner) finishStepComplete(now time.Time) TickResult {
 	}
 }
 
+// AbortOpenStep closes an in-flight pipeline step without emitting a run terminal.
+// The queue/session owner remains responsible for the single run_aborted/run_failed event.
+func (r *Runner) AbortOpenStep(reason string) error {
+	if r == nil || !r.started || r.terminal || r.reset || r.tracker.name == "" {
+		return nil
+	}
+	step := r.tracker.name
+	if err := r.emitStep(telemetry.RunStepFailed, step, RunOutcomeFailed, reason); err != nil {
+		return err
+	}
+	r.log.Info("task step aborted",
+		"run", r.selection.Run,
+		"phase", r.selection.Phase,
+		"step", step,
+		"reason", reason,
+	)
+	r.terminal = true
+	r.outcome = RunOutcomeFailed
+	r.terminalReason = reason
+	r.resetGeneration()
+	return nil
+}
+
 func (r *Runner) finishStepFailed(now time.Time, reason string) TickResult {
 	step := r.tracker.name
 	if err := r.emitStep(telemetry.RunStepFailed, step, RunOutcomeFailed, reason); err != nil {

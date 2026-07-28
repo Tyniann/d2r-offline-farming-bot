@@ -30,7 +30,7 @@ Passive Probe-, Input-Test- und Pathing-Test-Läufe ohne aktiven Run erzeugen ke
 
 Der isolierte `--run countess --phase loot-and-return` erzeugt dagegen bewusst eine Run-Datei. Dadurch kann Phase-13-Gate B denselben Pickit-Gewinner über Vorschau, Core-Log, `pickit_match`, `stash_attempt` und `stash_success` korrelieren.
 
-Bei produktiven Queue-Runs schreibt der Runtime-Owner vor dem Schließen des Run-Recorders genau das zum Supervisor-Ergebnis passende Terminal: `run_completed` für Advance, `run_aborted` für einen kontrollierten Retry und `run_failed` für Stop. Erst danach schreibt der Queue-Owner dasselbe Terminal in den Session-Stream. So kann der strikt korrelierende HistoryReader einen vollständig abgeschlossenen Run aufnehmen; ein Emit- oder Close-Fehler bleibt `telemetry_failed` und wird nicht als Erfolg kaschiert.
+Bei produktiven Queue-Runs schreibt der Runtime-Owner vor dem Schließen des Run-Recorders genau das zum Supervisor-Ergebnis passende Terminal: `run_completed` für Advance, `run_aborted` für einen kontrollierten Retry oder `emergency_stop_requested` (F11), und `run_failed` für sonstige Stops. Vor dem Cancel-Terminal schließt der Runner einen noch offenen Step mit `run_step_failed`; er emittiert selbst kein Run-Terminal. Erst danach schreibt der Queue-Owner dasselbe Terminal in den Session-Stream. So kann der strikt korrelierende HistoryReader einen vollständig abgeschlossenen Run aufnehmen; ein Emit- oder Close-Fehler bleibt `telemetry_failed` und wird nicht als Erfolg kaschiert.
 
 ## Events
 

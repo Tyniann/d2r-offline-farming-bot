@@ -190,6 +190,8 @@ type HistoryAnalysis struct {
 	Comparisons  []HistoryComparison
 	Items        []HistoryItemAggregate
 	Runs         []HistoryRunAnalysis
+	// Diagnostics lists per-run analysis defects that were isolated instead of failing the whole snapshot.
+	Diagnostics []HistoryFileDiagnostic
 }
 
 // AnalyzeHistory filtert immutable Runs und berechnet alle Phase-14-Aggregate rein im Core.
@@ -210,7 +212,17 @@ func AnalyzeHistory(snapshot HistorySnapshot, filter HistoryFilter) (HistoryAnal
 		}
 		row, err := analyzeHistoryRun(run)
 		if err != nil {
-			return HistoryAnalysis{}, err
+			file := run.RunFile
+			if file == "" {
+				file = run.RunID + ".jsonl"
+			}
+			code := HistoryErrorCode(err)
+			message, _ := HistoryReasonMessage(code)
+			if message == "" {
+				message = err.Error()
+			}
+			analysis.Diagnostics = append(analysis.Diagnostics, HistoryFileDiagnostic{File: file, Code: code, Message: message})
+			continue
 		}
 		analysis.Runs = append(analysis.Runs, row)
 	}

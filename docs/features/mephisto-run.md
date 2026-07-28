@@ -32,7 +32,7 @@ Nach bestätigtem Kill teleportiert die gemeinsame Run-Pipeline zunächst bis au
 
 Die Zuordnung `[gems, mephisto-standard]` nimmt geschützte makellose/perfekte Gems sowie Exceptional-/Elite-Set/Unique auf. Ausschließlich die `sell`-Regel aus `mephisto-standard` autorisiert letztere Gruppe für den späteren UnitID-gepinnten Cain→Akara-Service. No-Drop wechselt nach stabiler Leerscan-Bestätigung direkt zum Portal. `inventory_full` beendet weitere Pickups ebenfalls und kehrt ohne erneuten Bodenloot-Versuch zurück.
 
-Nach Eintritt in das eigene, hover-bestätigte Town Portal wird Kurast-Docks erwartet. Die gebundene Act-3-Egress-Walkroute führt zum lokalen Waypoint; der gemeinsame Waypoint-Executor wählt Rogue Encampment genau einmal. Erst nach bestätigter Act-1-Ankunft beginnen Stash und optionale Item-Services.
+Nach Eintritt in das eigene, hover-bestätigte Town Portal wird Kurast-Docks erwartet. Endet `enter_town_portal` mit `too_far` oder `hover_not_found` (häufig hinter Mephistos Bone Prison), teleportiert die produktive Pipeline einmalig pro Portal-`UnitID` auf die Portalposition und wiederholt den Hover-Click; Guided Recording bleibt unverändert fail-closed. Die gebundene Act-3-Egress-Walkroute führt zum lokalen Waypoint; der gemeinsame Waypoint-Executor wählt Rogue Encampment genau einmal. Erst nach bestätigter Act-1-Ankunft beginnen Stash und optionale Item-Services.
 
 ## Datenmodell
 
@@ -67,4 +67,4 @@ Der vollständige produktive Lauf wurde am manuellen Session-Gate 10.11 erfolgre
 - [Town Services](town-services.md)
 
 ---
-*Zuletzt aktualisiert: 2026-07-21*
+*Zuletzt aktualisiert: 2026-07-28*

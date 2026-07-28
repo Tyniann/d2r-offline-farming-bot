@@ -1696,8 +1696,8 @@ func TestCountessTownPortalFailuresHaveStableReasons(t *testing.T) {
 		reason string
 	}{
 		{"not found", pathing.TownPortalActionNotFound, "town_portal_not_found"},
-		{"hover failed", pathing.TownPortalActionHoverNotFound, "town_portal_enter_failed"},
-		{"too far", pathing.TownPortalActionTooFar, "town_portal_enter_failed"},
+		{"projection failed", pathing.TownPortalActionProjectionFailed, "town_portal_enter_failed"},
+		{"input error", pathing.TownPortalActionInputError, "town_portal_enter_failed"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -1715,6 +1715,116 @@ func TestCountessTownPortalFailuresHaveStableReasons(t *testing.T) {
 			res := r.Tick(context.Background(), cellar5State(), time.Now())
 			if res.Outcome != RunOutcomeFailed || res.Reason != tc.reason {
 				t.Fatalf("tick = %+v, want reason %s", res, tc.reason)
+			}
+		})
+	}
+}
+
+func portalCellarState(unitID uint32, pos world.Position) world.State {
+	st := cellar5State()
+	st.Objects = []world.Object{{
+		Kind:     world.ObjectKindTownPortal,
+		ID:       world.TownPortalID,
+		UnitID:   unitID,
+		Position: pos,
+		Name:     "Town Portal",
+	}}
+	return st
+}
+
+func TestEnterTownPortalRecoversOnceOnTooFarViaTeleportToward(t *testing.T) {
+	testEnterTownPortalRecoversOnce(t, pathing.TownPortalActionTooFar)
+}
+
+func TestEnterTownPortalRecoversOnceOnHoverNotFoundViaTeleportToward(t *testing.T) {
+	testEnterTownPortalRecoversOnce(t, pathing.TownPortalActionHoverNotFound)
+}
+
+func testEnterTownPortalRecoversOnce(t *testing.T, failStatus pathing.TownPortalActionStatus) {
+	t.Helper()
+	combat := &mockCombatActions{}
+	portals := &mockTownPortalActions{results: []pathing.TownPortalActionResult{
+		{Status: failStatus, Done: true},
+		{Status: pathing.TownPortalActionClicked, Done: true},
+	}}
+	definition, _ := DefaultRunRegistry().Definition(RunIDCountess)
+	pipeline := &runPipeline{definition: definition}
+	now := time.Now()
+	state := portalCellarState(77, world.Position{X: 140, Y: 100})
+	state.At = now
+	deps := Deps{Portal: portals, Combat: combat}
+
+	res := pipeline.tickEnterTownPortal(context.Background(), deps, state, now)
+	if res.failed || res.complete || !pipeline.portalRecoveryPending || combat.teleportCalls != 0 || portals.calls != 1 {
+		t.Fatalf("arm recovery result=%+v pending=%v teleports=%d portalCalls=%d", res, pipeline.portalRecoveryPending, combat.teleportCalls, portals.calls)
+	}
+
+	res = pipeline.tickEnterTownPortal(context.Background(), deps, state, now.Add(time.Millisecond))
+	if res.failed || res.complete || combat.teleportCalls != 1 || combat.lastTeleportTarget != state.Objects[0].Position || !pipeline.portalRecoveryTeleportSent {
+		t.Fatalf("recovery teleport result=%+v teleports=%d target=%+v sent=%v", res, combat.teleportCalls, combat.lastTeleportTarget, pipeline.portalRecoveryTeleportSent)
+	}
+
+	settled := state
+	settled.At = now.Add(lootRepositionRetryDelay + time.Millisecond)
+	settled.Player.Position = state.Objects[0].Position
+	res = pipeline.tickEnterTownPortal(context.Background(), deps, settled, settled.At)
+	if res.failed || res.complete || pipeline.portalRecoveryPending || portals.resets != 1 {
+		t.Fatalf("settle result=%+v pending=%v resets=%d", res, pipeline.portalRecoveryPending, portals.resets)
+	}
+
+	res = pipeline.tickEnterTownPortal(context.Background(), deps, settled, settled.At.Add(time.Millisecond))
+	if !res.complete || res.failed || portals.calls != 2 || combat.teleportCalls != 1 {
+		t.Fatalf("retry click result=%+v portalCalls=%d teleports=%d", res, portals.calls, combat.teleportCalls)
+	}
+}
+
+func TestEnterTownPortalRecoveryBoundedToOneTeleportPerPortalUnitID(t *testing.T) {
+	combat := &mockCombatActions{}
+	portals := &mockTownPortalActions{results: []pathing.TownPortalActionResult{
+		{Status: pathing.TownPortalActionTooFar, Done: true},
+		{Status: pathing.TownPortalActionTooFar, Done: true},
+	}}
+	definition, _ := DefaultRunRegistry().Definition(RunIDCountess)
+	pipeline := &runPipeline{definition: definition}
+	now := time.Now()
+	state := portalCellarState(77, world.Position{X: 140, Y: 100})
+	state.At = now
+	deps := Deps{Portal: portals, Combat: combat}
+
+	_ = pipeline.tickEnterTownPortal(context.Background(), deps, state, now)
+	_ = pipeline.tickEnterTownPortal(context.Background(), deps, state, now.Add(time.Millisecond))
+	settled := state
+	settled.At = now.Add(lootRepositionRetryDelay + time.Millisecond)
+	settled.Player.Position = state.Objects[0].Position
+	_ = pipeline.tickEnterTownPortal(context.Background(), deps, settled, settled.At)
+
+	res := pipeline.tickEnterTownPortal(context.Background(), deps, settled, settled.At.Add(time.Millisecond))
+	if !res.failed || res.reason != "town_portal_enter_failed" || combat.teleportCalls != 1 {
+		t.Fatalf("bounded recovery result=%+v teleports=%d", res, combat.teleportCalls)
+	}
+}
+
+func TestEnterTownPortalStillFailsNotFoundAndHardErrorsWithoutRecovery(t *testing.T) {
+	cases := []struct {
+		status pathing.TownPortalActionStatus
+		reason string
+	}{
+		{pathing.TownPortalActionNotFound, "town_portal_not_found"},
+		{pathing.TownPortalActionProjectionFailed, "town_portal_enter_failed"},
+		{pathing.TownPortalActionInputError, "town_portal_enter_failed"},
+	}
+	for _, tc := range cases {
+		t.Run(string(tc.status), func(t *testing.T) {
+			combat := &mockCombatActions{}
+			definition, _ := DefaultRunRegistry().Definition(RunIDCountess)
+			pipeline := &runPipeline{definition: definition}
+			state := portalCellarState(77, world.Position{X: 140, Y: 100})
+			res := pipeline.tickEnterTownPortal(context.Background(), Deps{
+				Portal:  &mockTownPortalActions{results: []pathing.TownPortalActionResult{{Status: tc.status, Done: true}}},
+				Combat:  combat,
+			}, state, time.Now())
+			if !res.failed || res.reason != tc.reason || combat.teleportCalls != 0 {
+				t.Fatalf("result=%+v teleports=%d want reason %s", res, combat.teleportCalls, tc.reason)
 			}
 		})
 	}

@@ -217,8 +217,8 @@ func (b *LiveBackend) UpdateRuntime(runtime app.UIStatusSnapshot) {
 		b.status.LastError = nil
 	}
 	status := b.status
-	status.Queue.Entries = append([]string(nil), b.status.Queue.Entries...)
-	status.Queue.DefaultEntries = append([]string(nil), b.status.Queue.DefaultEntries...)
+	status.Queue.Entries = append(make([]string, 0, len(b.status.Queue.Entries)), b.status.Queue.Entries...)
+	status.Queue.DefaultEntries = append(make([]string, 0, len(b.status.Queue.DefaultEntries)), b.status.Queue.DefaultEntries...)
 	b.mu.Unlock()
 	b.publishStatusDeltas(previous, status)
 }
@@ -242,7 +242,7 @@ func (b *LiveBackend) UpdateSupervisor(supervisor app.SupervisorSnapshot) {
 		b.status.Step = ""
 	}
 	queue := queueStatusDTO(supervisor)
-	queue.DefaultEntries = append([]string(nil), b.status.Queue.DefaultEntries...)
+	queue.DefaultEntries = append(make([]string, 0, len(b.status.Queue.DefaultEntries)), b.status.Queue.DefaultEntries...)
 	b.status.Queue = queue
 	if supervisor.LastResult.Disposition == "" && supervisor.LastResult.Reason == "" {
 		b.status.LastResult = nil
@@ -276,7 +276,7 @@ func (b *LiveBackend) Update(runtime app.UIStatusSnapshot, supervisor app.Superv
 	}
 	if supervisor.QueueKnown {
 		status.Queue = queueStatusDTO(supervisor)
-		status.Queue.DefaultEntries = append([]string(nil), previous.Queue.DefaultEntries...)
+		status.Queue.DefaultEntries = append(make([]string, 0, len(previous.Queue.DefaultEntries)), previous.Queue.DefaultEntries...)
 	}
 	if runtime.LastError != "" {
 		status.LastError = &ErrorDTO{Code: "runtime_read_failed", Message: runtime.LastError}
@@ -437,8 +437,8 @@ func (b *LiveBackend) Status() StatusDTO {
 	b.mu.RLock()
 	defer b.mu.RUnlock()
 	status := b.status
-	status.Queue.Entries = append([]string(nil), b.status.Queue.Entries...)
-	status.Queue.DefaultEntries = append([]string(nil), b.status.Queue.DefaultEntries...)
+	status.Queue.Entries = append(make([]string, 0, len(b.status.Queue.Entries)), b.status.Queue.Entries...)
+	status.Queue.DefaultEntries = append(make([]string, 0, len(b.status.Queue.DefaultEntries)), b.status.Queue.DefaultEntries...)
 	if b.status.LastError != nil {
 		copyOfError := *b.status.LastError
 		status.LastError = &copyOfError
@@ -915,7 +915,7 @@ func cloneCatalogDTO(source CatalogDTO) CatalogDTO {
 
 func queueStatusDTO(snapshot app.SupervisorSnapshot) QueueStatusDTO {
 	return QueueStatusDTO{
-		Entries: append([]string(nil), snapshot.Queue...), Index: snapshot.QueueIndex, Cycle: snapshot.Cycle,
+		Entries: append(make([]string, 0, len(snapshot.Queue)), snapshot.Queue...), Index: snapshot.QueueIndex, Cycle: snapshot.Cycle,
 		Retry: snapshot.Retry, StartedRuns: snapshot.StartedRuns, ConsecutiveFailures: snapshot.ConsecutiveFailures,
 		TotalRestarts: snapshot.TotalRestarts, Budgets: queueBudgetsDTO(snapshot.Budgets),
 	}

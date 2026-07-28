@@ -58,6 +58,19 @@ describe("App", () => {
     expect(screen.getByRole("heading", { level: 1, name: "Historie" })).toBeInTheDocument();
   });
 
+  it("rendert nach Emergency-Stop mit null Queue-Entries ohne Absturz", async () => {
+    mocks.getStatus.mockReset();
+    mocks.getStatus.mockResolvedValue({
+      ...detached,
+      queue: { ...queue, entries: null as unknown as string[], default_entries: ["countess"] },
+      last_result: { disposition: "stop", reason: "emergency_stop_requested" },
+    });
+    render(<App />);
+    expect(await screen.findByText("keine aktive Queue")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Lokales Dashboard" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Emergency Stop" })).toBeInTheDocument();
+  });
+
   it("ordnet die offene Einrichtung zuerst an und führt aus dem Routenbereich zurück", async () => {
     mocks.getCatalog.mockResolvedValue({
       schema_version: 1, revision: 1, default_difficulty: "nightmare", characters: [], difficulties: [], profiles: [],

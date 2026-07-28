@@ -128,17 +128,22 @@ func TestRuntimeQueueRunnerSeparatesRunFromExit(t *testing.T) {
 
 func TestQueueRunTerminalEventMatchesDisposition(t *testing.T) {
 	tests := []struct {
+		name        string
 		disposition QueueRunDisposition
+		reason      string
 		want        telemetry.EventName
 	}{
-		{disposition: QueueRunAdvance, want: telemetry.RunCompleted},
-		{disposition: QueueRunRetryCurrent, want: telemetry.RunAborted},
-		{disposition: QueueRunStop, want: telemetry.RunFailed},
+		{name: "advance", disposition: QueueRunAdvance, want: telemetry.RunCompleted},
+		{name: "retry", disposition: QueueRunRetryCurrent, want: telemetry.RunAborted},
+		{name: "stop failed", disposition: QueueRunStop, reason: "town_portal_enter_failed", want: telemetry.RunFailed},
+		{name: "emergency stop", disposition: QueueRunStop, reason: string(SupervisorReasonEmergencyStopRequested), want: telemetry.RunAborted},
 	}
 	for _, test := range tests {
-		if got := queueRunTerminalEvent(SupervisorRunResult{Disposition: test.disposition}); got != test.want {
-			t.Fatalf("terminal for %q = %q, want %q", test.disposition, got, test.want)
-		}
+		t.Run(test.name, func(t *testing.T) {
+			if got := queueRunTerminalEvent(SupervisorRunResult{Disposition: test.disposition, Reason: test.reason}); got != test.want {
+				t.Fatalf("terminal = %q, want %q", got, test.want)
+			}
+		})
 	}
 }
 

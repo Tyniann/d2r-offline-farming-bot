@@ -58,6 +58,54 @@ func TestPrepareSessionRunBindsSharedPipelineTelemetry(t *testing.T) {
 	}
 }
 
+func TestRunTaskCancelClosesOpenStepBeforeTerminal(t *testing.T) {
+	rt := &Runtime{
+		Config: &config.Config{
+			Telemetry: config.TelemetryConfig{Directory: t.TempDir()},
+			Session:   config.SessionConfig{Run: string(tasks.RunIDCountess), Character: "MrBones", Difficulty: "nightmare"},
+			Memory:    config.MemoryConfig{GameVersion: "3.2.92777"},
+		},
+		Log:              config.NewLogger("error"),
+		sessionSelection: tasks.RunSelection{Run: string(tasks.RunIDCountess)},
+		routePlayback:    &routePlaybackAdapter{},
+		lootActions:      &lootActionsAdapter{},
+		runConfig:        tasks.RunConfig{RouteID: "countess-route"},
+	}
+	if _, err := rt.prepareSessionRun(SupervisorRunRequest{ExecutionID: "countess-abort-run", SessionID: "session-abort", GameID: "game-abort", QueueIndex: 0, Cycle: 0}); err != nil {
+		t.Fatal(err)
+	}
+	telemetryPath := rt.Telemetry.Path()
+	result := rt.Tasks.Tick(context.Background(), world.State{}, time.Now())
+	if result.Reason == "telemetry_failed" {
+		t.Fatalf("open step tick failed: %+v", result)
+	}
+	if err := rt.Tasks.AbortOpenStep(string(SupervisorReasonEmergencyStopRequested)); err != nil {
+		t.Fatal(err)
+	}
+	if err := rt.finishSessionRunTelemetry(SupervisorRunResult{
+		Disposition: QueueRunStop,
+		Reason:      string(SupervisorReasonEmergencyStopRequested),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(telemetryPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	content := string(data)
+	stepFailed := strings.Index(content, `"event":"run_step_failed"`)
+	aborted := strings.Index(content, `"event":"run_aborted"`)
+	if stepFailed < 0 || aborted < 0 || stepFailed > aborted {
+		t.Fatalf("want run_step_failed before single run_aborted, got: %s", content)
+	}
+	if strings.Count(content, `"event":"run_aborted"`) != 1 || strings.Contains(content, `"event":"run_failed"`) {
+		t.Fatalf("unexpected terminals in abort telemetry: %s", content)
+	}
+	if strings.Count(content, `"event":"run_step_started"`) != strings.Count(content, `"event":"run_step_failed"`)+strings.Count(content, `"event":"run_step_completed"`) {
+		t.Fatalf("open step remained unterminated: %s", content)
+	}
+}
+
 func TestPickitReloadFailureKeepsActiveRunSnapshotImmutable(t *testing.T) {
 	root := t.TempDir()
 	if err := os.MkdirAll(root+"/profiles", 0o755); err != nil {

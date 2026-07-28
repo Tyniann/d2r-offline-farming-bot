@@ -490,6 +490,9 @@ func queueRunTerminalEvent(result SupervisorRunResult) telemetry.EventName {
 	case QueueRunRetryCurrent:
 		return telemetry.RunAborted
 	default:
+		if result.Reason == string(SupervisorReasonEmergencyStopRequested) {
+			return telemetry.RunAborted
+		}
 		return telemetry.RunFailed
 	}
 }

@@ -33,6 +33,32 @@ func (r *liveBackendQueueRunner) Run(ctx context.Context, request app.Supervisor
 	}
 }
 
+func TestQueueStatusDTOEntriesNeverJSONNull(t *testing.T) {
+	dto := queueStatusDTO(app.SupervisorSnapshot{QueueKnown: true, Queue: nil})
+	encoded, err := json.Marshal(dto)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(encoded), `"entries":[]`) {
+		t.Fatalf("encoded=%s, want entries empty array", encoded)
+	}
+	if strings.Contains(string(encoded), `"entries":null`) {
+		t.Fatalf("encoded=%s still contains null entries", encoded)
+	}
+	backend := &LiveBackend{status: StatusDTO{State: "idle", LifecyclePhase: "idle"}}
+	backend.UpdateSupervisor(app.SupervisorSnapshot{
+		Generation: 1, State: app.SupervisorStateIdle, QueueKnown: true, Queue: nil,
+		LastResult: app.SupervisorRunResult{Disposition: app.QueueRunStop, Reason: string(app.SupervisorReasonEmergencyStopRequested)},
+	})
+	statusEncoded, err := json.Marshal(backend.Status())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(statusEncoded), `"entries":[]`) || strings.Contains(string(statusEncoded), `"entries":null`) {
+		t.Fatalf("status after cleared queue = %s", statusEncoded)
+	}
+}
+
 func TestLiveBackendProjectsStatusAndMeaningfulEvents(t *testing.T) {
 	cfg, err := config.Load("../../configs/config.example.yaml")
 	if err != nil {

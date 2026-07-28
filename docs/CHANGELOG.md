@@ -7,6 +7,11 @@ Versionierung nach [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+- Recover town-portal entry once via TeleportToward after `too_far` or `hover_not_found` so Bone-Prison blockers cannot abort the return
+- Close an open telemetry step on emergency cancel, map `emergency_stop_requested` to `run_aborted`, and isolate corrupt history runs in AnalyzeHistory so one bad file cannot blank the whole Historie
+- Serialize cleared queue `entries` as an empty JSON array and null-guard the Dashboard Core-Queue render so F11 no longer crashes the UI
+
 ## [0.12.0] - 2026-07-28
 
 ### Added

@@ -42,7 +42,7 @@ precheck -> acquire_town_waypoint -> open_waypoint -> select_run_waypoint -> wai
 -> open_personal_stash -> stash_items -> close_personal_stash -> complete
 ```
 
-`cast_town_portal` nutzt den konfigurierten `town_portal`-Skill und castet client-relativ auf die Fenstermitte (`ClientWidth/2`, `ClientHeight/2`). Ab Phase 5.7 wartet `enter_town_portal` auf das aus lokalem D2R-`objects.txt` generierte Portal-Objekt und klickt es ausschließlich nach Hover-Bestätigung. `wait_origin_town` bestätigt die Ankunft im Rogue Encampment. Ab Phase 5.8 folgen Personal-Stash-Navigation, geschützte Transfers und bestätigtes Schließen; erst danach loggt der Full Run `completion=personal_stash_complete`.
+`cast_town_portal` nutzt den konfigurierten `town_portal`-Skill und castet client-relativ auf die Fenstermitte (`ClientWidth/2`, `ClientHeight/2`). Ab Phase 5.7 wartet `enter_town_portal` auf das aus lokalem D2R-`objects.txt` generierte Portal-Objekt und klickt es ausschließlich nach Hover-Bestätigung. Endet der Einstieg mit `too_far` oder `hover_not_found` (z. B. Portal hinter Bone Prison), folgt in der produktiven Pipeline einmalig pro Portal-`UnitID` ein distanzignorierender Teleport zur Portalposition, danach genau ein erneuter Hover-Click; Guided Recording bleibt davon unberührt. `wait_origin_town` bestätigt die Ankunft im Rogue Encampment. Ab Phase 5.8 folgen Personal-Stash-Navigation, geschützte Transfers und bestätigtes Schließen; erst danach loggt der Full Run `completion=personal_stash_complete`.
 
 Die isolierten Phasen bleiben bewusst als Testoberflächen erhalten: Travel-Phasen enden am jeweiligen Zielgebiet, `boss` endet nach defensiver Kill-Bestätigung ohne Portal, `loot-and-return` prüft nur Loot und Portal nach einem manuellen oder vorherigen Kill.
 

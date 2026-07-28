@@ -174,6 +174,9 @@ func (rt *Runtime) runTaskToTerminal(parent context.Context) (tasks.TickResult, 
 	for {
 		select {
 		case <-ctx.Done():
+			if abortErr := rt.Tasks.AbortOpenStep(string(SupervisorReasonEmergencyStopRequested)); abortErr != nil {
+				rt.Log.Warn("abort open run step failed", "error", abortErr)
+			}
 			return tasks.TickResult{}, ctx.Err()
 		case event := <-hotkeys:
 			rt.handleHotkeyEvent(event, cancel)

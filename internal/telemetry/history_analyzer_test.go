@@ -233,6 +233,65 @@ func TestHistoryTimezoneValidationAndHalfOpenUTCFilter(t *testing.T) {
 	}
 }
 
+func TestAnalyzeHistoryIsolatesTerminalRunWithOpenStep(t *testing.T) {
+	start := time.Date(2026, 7, 20, 10, 0, 0, 0, time.UTC)
+	good := analyzerRun("good", start, 30, HistoryOutcomeSuccess, "countess", "route-a", true, [4]int64{10, 5, 5, 5}, "", "", nil)
+	poison := analyzerRun("poison", start.Add(time.Hour), 30, HistoryOutcomeAborted, "countess", "route-a", false, [4]int64{}, "", "emergency_stop_requested", nil)
+	poison.RunFile = "poison.jsonl"
+	poison.Events = append(poison.Events, Event{
+		Timestamp: start.Add(time.Hour + 5*time.Second),
+		Event:     RunStepStarted,
+		Step:      "enter_town_portal",
+		Stage:     HistoryStageReturnTown,
+	})
+	analysis, err := AnalyzeHistory(HistorySnapshot{Runs: []HistoryRun{good, poison}}, HistoryFilter{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(analysis.Runs) != 1 || analysis.Runs[0].RunID != "good" {
+		t.Fatalf("runs=%+v", analysis.Runs)
+	}
+	if len(analysis.Diagnostics) != 1 || analysis.Diagnostics[0].File != "poison.jsonl" || analysis.Diagnostics[0].Code != HistoryReasonStageInvalid {
+		t.Fatalf("diagnostics=%+v", analysis.Diagnostics)
+	}
+	if analysis.Summary.Successful != 1 || analysis.Summary.TerminalRuns != 1 {
+		t.Fatalf("summary=%+v", analysis.Summary)
+	}
+}
+
+func TestAnalyzeHistoryStillAcceptsIncompleteWithoutEndedAt(t *testing.T) {
+	start := time.Date(2026, 7, 20, 10, 0, 0, 0, time.UTC)
+	incomplete := analyzerRun("incomplete-open", start, 40, HistoryOutcomeIncomplete, "countess", "route-a", false, [4]int64{10, 0, 0, 0}, "", "", nil)
+	// Leave an open step by appending a started step without terminal after closed stages.
+	incomplete.Events = append(incomplete.Events, Event{
+		Timestamp: start.Add(15 * time.Second),
+		Event:     RunStepStarted,
+		Step:      "engage_boss",
+		Stage:     HistoryStageCombat,
+	})
+	analysis, err := AnalyzeHistory(HistorySnapshot{Runs: []HistoryRun{incomplete}}, HistoryFilter{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(analysis.Runs) != 1 || analysis.Runs[0].RunID != "incomplete-open" || analysis.Summary.Incomplete != 1 {
+		t.Fatalf("analysis=%+v", analysis)
+	}
+	if len(analysis.Diagnostics) != 0 {
+		t.Fatalf("diagnostics=%+v, want none", analysis.Diagnostics)
+	}
+}
+
+func TestAnalyzeHistoryStillRejectsInvalidFilter(t *testing.T) {
+	start := time.Date(2026, 7, 20, 10, 0, 0, 0, time.UTC)
+	to := start
+	if _, err := AnalyzeHistory(HistorySnapshot{}, HistoryFilter{FromUTC: &start, ToUTC: &to}); historyErrorCode(err) != HistoryReasonFilterInvalid {
+		t.Fatalf("filter err=%v", err)
+	}
+	if _, err := AnalyzeHistory(HistorySnapshot{}, HistoryFilter{Timezone: "Europe/Does-Not-Exist"}); historyErrorCode(err) != HistoryReasonTimezoneInvalid {
+		t.Fatalf("timezone err=%v", err)
+	}
+}
+
 func analyzerRun(id string, start time.Time, durationSeconds int64, outcome HistoryOutcome, runName, route string, boss bool, stageSeconds [4]int64, failedStep, reason string, items []analyzerItemFixture) HistoryRun {
 	end := start.Add(time.Duration(durationSeconds) * time.Second)
 	run := HistoryRun{

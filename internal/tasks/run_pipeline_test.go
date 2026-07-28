@@ -25,6 +25,35 @@ func (p *pipelineTelemetry) Emit(event telemetry.Event) error {
 	return nil
 }
 
+func TestAbortOpenStepEmitsFailedAndIsIdempotent(t *testing.T) {
+	trace := &pipelineTelemetry{}
+	runner := NewRunner(config.NewLogger("error"), RunSelection{Run: string(RunIDCountess), Phase: RunPhaseLootAndReturn}, killRunConfig(), Deps{Telemetry: trace})
+	runner.started = true
+	runner.outcome = RunOutcomeRunning
+	runner.tracker.begin(pipelineStepEnterTownPortal, time.Now(), time.Second)
+
+	if err := runner.AbortOpenStep("emergency_stop_requested"); err != nil {
+		t.Fatal(err)
+	}
+	if !runner.Terminal() || runner.Result().Reason != "emergency_stop_requested" {
+		t.Fatalf("runner after abort = %+v", runner.Result())
+	}
+	if len(trace.events) != 1 || trace.events[0].Event != telemetry.RunStepFailed || trace.events[0].Step != pipelineStepEnterTownPortal {
+		t.Fatalf("abort events = %+v", trace.events)
+	}
+	if err := runner.AbortOpenStep("emergency_stop_requested"); err != nil {
+		t.Fatal(err)
+	}
+	if len(trace.events) != 1 {
+		t.Fatalf("idempotent abort emitted extra events: %+v", trace.events)
+	}
+	for _, event := range trace.events {
+		if event.Event == telemetry.RunAborted || event.Event == telemetry.RunFailed || event.Event == telemetry.RunCompleted {
+			t.Fatalf("AbortOpenStep must not emit run terminals: %+v", event)
+		}
+	}
+}
+
 func TestRunPipelineTelemetryCarriesDefinitionStepOutcomeAndActionIndex(t *testing.T) {
 	trace := &pipelineTelemetry{}
 	definition, _ := DefaultRunRegistry().Definition(RunIDCountess)
@@ -95,6 +124,8 @@ func TestRunPipelineCentralResetBarrierClearsGenerationOnce(t *testing.T) {
 		lootApproachTarget: LootTarget{UnitID: 99}, lootApproachAttempts: 2,
 		lootPickupRecovered: map[uint32]bool{7: true}, lootRecoveryPending: true,
 		lootRecoveryTarget: LootTarget{UnitID: 7}, lootRecoveryTeleportSent: true,
+		portalRecovered: map[uint32]bool{59: true}, portalRecoveryPending: true,
+		portalRecoveryUnitID: 59, portalRecoveryTeleportSent: true,
 	}
 	profileActions := &mockProfileActions{}
 	lootActions := &mockLootActions{}
@@ -105,7 +136,8 @@ func TestRunPipelineCentralResetBarrierClearsGenerationOnce(t *testing.T) {
 	runner.Reset("duplicate")
 	if pipeline.targetSeen || pipeline.targetUnitID != 0 || pipeline.routeStarted || pipeline.lootPickupActive || pipeline.encounterActionIndex != 0 ||
 		pipeline.postKillTeleportAttempts != 0 || pipeline.lootApproachTargetSet || pipeline.lootApproachTarget.UnitID != 0 || pipeline.lootApproachAttempts != 0 ||
-		pipeline.lootPickupRecovered != nil || pipeline.lootRecoveryPending || pipeline.lootRecoveryTarget.UnitID != 0 || pipeline.lootRecoveryTeleportSent {
+		pipeline.lootPickupRecovered != nil || pipeline.lootRecoveryPending || pipeline.lootRecoveryTarget.UnitID != 0 || pipeline.lootRecoveryTeleportSent ||
+		pipeline.portalRecovered != nil || pipeline.portalRecoveryPending || pipeline.portalRecoveryUnitID != 0 || pipeline.portalRecoveryTeleportSent {
 		t.Fatalf("pipeline state crossed reset barrier: %+v", pipeline)
 	}
 	if profileActions.resetCalls != 1 || lootActions.resetCalls != 1 {

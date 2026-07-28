@@ -23,7 +23,7 @@ Der Request benennt eine validierte IANA-Zeitzone; leer bedeutet `UTC`, unbekann
 
 ### Zeit und Fehler
 
-Die aktive Run-Zeit reicht vom korrelierten `run_started` bis zum eindeutigen Session-Terminal. Durchschnitt, Median, Minimum und Maximum verwenden ausschließlich terminale Runs. Step-Start/-Ende bilden disjunkte `travel`-, `combat`-, `loot`- und `return_town`-Intervalle; die nicht zugeteilte Differenz bleibt als `other` sichtbar. Überlappung, offene Steps in terminalen Runs, negative Dauer oder Events außerhalb der Run-Grenzen enden fail-closed.
+Die aktive Run-Zeit reicht vom korrelierten `run_started` bis zum eindeutigen Session-Terminal. Durchschnitt, Median, Minimum und Maximum verwenden ausschließlich terminale Runs. Step-Start/-Ende bilden disjunkte `travel`-, `combat`-, `loot`- und `return_town`-Intervalle; die nicht zugeteilte Differenz bleibt als `other` sichtbar. Überlappung, offene Steps in terminalen Runs, negative Dauer oder Events außerhalb der Run-Grenzen werden pro Run isoliert: der betroffene Run erscheint in den Meta-Diagnostics und fließt nicht in Summary, Vergleiche oder Itemaggregate ein; die übrigen Runs bleiben auswertbar. Unvollständige oder laufende Runs ohne `EndedAt` dürfen weiterhin einen offenen Step tragen. Ungültige Filter oder Zeitzonen bleiben fail-closed für die gesamte Anfrage.
 
 Fehler werden nach letztem Step plus terminalem Reason-Code gezählt. Die zugehörige verlorene aktive Zeit summiert die vollständige Dauer dieser fehlgeschlagenen oder abgebrochenen Versuche.
 
@@ -60,4 +60,4 @@ Vergleiche trennen mindestens `(character, difficulty, definition_id, route_id)`
 - [Run-Telemetrie](run-telemetry.md)
 
 ---
-*Zuletzt aktualisiert: 2026-07-26*
+*Zuletzt aktualisiert: 2026-07-28*

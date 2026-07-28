@@ -17,9 +17,12 @@ type historyBackend interface {
 }
 
 func historyMeta(data historyData, generatedAt time.Time) HistoryMetaDTO {
-	diagnostics := make([]HistoryDiagnosticDTO, len(data.snapshot.Diagnostics))
-	for index, diagnostic := range data.snapshot.Diagnostics {
-		diagnostics[index] = HistoryDiagnosticDTO{File: diagnostic.File, Code: string(diagnostic.Code), Message: diagnostic.Message}
+	diagnostics := make([]HistoryDiagnosticDTO, 0, len(data.snapshot.Diagnostics)+len(data.analysis.Diagnostics))
+	for _, diagnostic := range data.snapshot.Diagnostics {
+		diagnostics = append(diagnostics, HistoryDiagnosticDTO{File: diagnostic.File, Code: string(diagnostic.Code), Message: diagnostic.Message})
+	}
+	for _, diagnostic := range data.analysis.Diagnostics {
+		diagnostics = append(diagnostics, HistoryDiagnosticDTO{File: diagnostic.File, Code: string(diagnostic.Code), Message: diagnostic.Message})
 	}
 	return HistoryMetaDTO{
 		SchemaVersion: schemaVersion, GeneratedAt: generatedAt.UTC(), Timezone: data.analysis.Filter.Timezone,

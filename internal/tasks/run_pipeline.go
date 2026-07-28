@@ -104,6 +104,14 @@ type runPipeline struct {
 	lootRecoveryTeleportSent bool
 	lootRecoveryAt           time.Time
 	lootRecoverySnapshot     time.Time
+	// portalRecovered bounds post-fail portal teleports to one attempt per portal UnitID.
+	portalRecovered              map[uint32]bool
+	portalRecoveryPending        bool
+	portalRecoveryUnitID         uint32
+	portalRecoveryPos            world.Position
+	portalRecoveryTeleportSent   bool
+	portalRecoveryAt             time.Time
+	portalRecoverySnapshot       time.Time
 }
 
 func (c *runPipeline) effectiveDefinition() RunDefinition {
@@ -132,6 +140,7 @@ func (c *runPipeline) resetGeneration() {
 	c.resetPostKillReposition()
 	c.resetLootApproach()
 	c.resetLootPickupRecovery()
+	c.resetPortalEntryRecovery()
 }
 
 func (c *runPipeline) firstStep() string {
@@ -764,6 +773,9 @@ func (c *runPipeline) tickEnterTownPortal(ctx context.Context, deps Deps, w worl
 	if deps.Portal == nil {
 		return stepResult{failed: true, reason: "town_portal_actions_not_wired"}
 	}
+	if c.portalRecoveryPending {
+		return c.tickPortalEntryRecovery(deps, w, now)
+	}
 	res := deps.Portal.Tick(ctx, w, now)
 	switch res.Status {
 	case pathing.TownPortalActionPending:
@@ -772,6 +784,12 @@ func (c *runPipeline) tickEnterTownPortal(ctx context.Context, deps Deps, w worl
 		return stepResult{complete: true}
 	case pathing.TownPortalActionNotFound:
 		return stepResult{failed: true, reason: "town_portal_not_found"}
+	case pathing.TownPortalActionTooFar, pathing.TownPortalActionHoverNotFound:
+		portal, ok := w.NearestObject(world.ObjectKindTownPortal)
+		if ok && c.beginPortalEntryRecovery(portal.UnitID, portal.Position) {
+			return stepResult{}
+		}
+		return stepResult{failed: true, reason: "town_portal_enter_failed"}
 	default:
 		return stepResult{failed: true, reason: "town_portal_enter_failed"}
 	}
@@ -1220,6 +1238,93 @@ func (c *runPipeline) clearLootRecoveryPending() {
 	c.lootRecoveryTeleportSent = false
 	c.lootRecoveryAt = time.Time{}
 	c.lootRecoverySnapshot = time.Time{}
+}
+
+func (c *runPipeline) resetPortalEntryRecovery() {
+	c.portalRecovered = nil
+	c.clearPortalRecoveryPending()
+}
+
+func (c *runPipeline) clearPortalRecoveryPending() {
+	c.portalRecoveryPending = false
+	c.portalRecoveryUnitID = 0
+	c.portalRecoveryPos = world.Position{}
+	c.portalRecoveryTeleportSent = false
+	c.portalRecoveryAt = time.Time{}
+	c.portalRecoverySnapshot = time.Time{}
+}
+
+// beginPortalEntryRecovery arms one distance-ignoring portal teleport after too_far
+// or hover_not_found, so Bone-Prison and similar blockers can be escaped once per UnitID.
+func (c *runPipeline) beginPortalEntryRecovery(unitID uint32, pos world.Position) bool {
+	if unitID == 0 || c.portalRecovered[unitID] {
+		return false
+	}
+	if c.portalRecovered == nil {
+		c.portalRecovered = make(map[uint32]bool)
+	}
+	c.portalRecovered[unitID] = true
+	c.portalRecoveryPending = true
+	c.portalRecoveryUnitID = unitID
+	c.portalRecoveryPos = pos
+	c.portalRecoveryTeleportSent = false
+	c.portalRecoveryAt = time.Time{}
+	c.portalRecoverySnapshot = time.Time{}
+	return true
+}
+
+// tickPortalEntryRecovery teleports onto the failed portal once, settles, then retries entry.
+func (c *runPipeline) tickPortalEntryRecovery(deps Deps, w world.State, now time.Time) stepResult {
+	portal, found := w.NearestObject(world.ObjectKindTownPortal)
+	if !found {
+		c.clearPortalRecoveryPending()
+		return stepResult{}
+	}
+	if c.portalRecoveryUnitID != 0 && portal.UnitID != c.portalRecoveryUnitID {
+		// Prefer the armed UnitID when still present; otherwise follow the nearest portal.
+		if match, ok := findTownPortalByUnitID(w, c.portalRecoveryUnitID); ok {
+			portal = match
+		}
+	}
+	c.portalRecoveryUnitID = portal.UnitID
+	c.portalRecoveryPos = portal.Position
+	if deps.Combat == nil {
+		c.clearPortalRecoveryPending()
+		return stepResult{failed: true, reason: "combat_not_wired"}
+	}
+	if !c.portalRecoveryTeleportSent {
+		if !lootRepositionReady(now, w.At, c.portalRecoveryAt, c.portalRecoverySnapshot) {
+			return stepResult{}
+		}
+		sent, err := deps.Combat.TeleportToward(now, w.Player.Position, portal.Position, 0)
+		if err != nil {
+			c.clearPortalRecoveryPending()
+			return stepResult{failed: true, reason: "portal_recovery_teleport_failed"}
+		}
+		if sent {
+			c.portalRecoveryTeleportSent = true
+			c.portalRecoveryAt = now
+			c.portalRecoverySnapshot = w.At
+		}
+		return stepResult{}
+	}
+	if !lootRepositionReady(now, w.At, c.portalRecoveryAt, c.portalRecoverySnapshot) {
+		return stepResult{}
+	}
+	if deps.Portal != nil {
+		deps.Portal.Reset()
+	}
+	c.clearPortalRecoveryPending()
+	return stepResult{}
+}
+
+func findTownPortalByUnitID(state world.State, unitID uint32) (world.Object, bool) {
+	for _, object := range state.Objects {
+		if object.Kind == world.ObjectKindTownPortal && object.UnitID == unitID {
+			return object, true
+		}
+	}
+	return world.Object{}, false
 }
 
 // beginLootPickupRecovery arms one distance-ignoring item teleport after hover_not_found
