@@ -56,3 +56,4 @@ desktop.ini
 /configs/routes/candidates/
 *.log
 /tmp/
+/.tmp/

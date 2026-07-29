@@ -17,32 +17,36 @@
 <body><main>
   <section class="hero">
     <div class="chip">D2R Offline Farming Bot · Phase 17</div>
-    <h1>Kampfgesicherte Route durch das Arcane Sanctuary</h1>
-    <p class="lead">Phase 17 macht den Summoner-Weg bedrohungsbewusst: Der Bot prüft vor jedem Routenteleport den aktuellen Korridor und den nächsten Landepunkt, hält die Route bei lebenden Gegnern sicher an, räumt ausschließlich bestätigte Arcane-Gegner mit dem Standardangriff des aktiven Kampfprofils auf und setzt exakt denselben Routenfortschritt danach fort. Mana-Burn, Trankverifikation und Drift-Recovery erhalten eigene, endliche Safety-Verträge. Das Ergebnis ist kein allgemeiner Combat-Navigator und keine vollständige Kartenräumung, sondern eine eng begrenzte, testbare Erweiterung der bestehenden Route- und Task-Autoritäten.</p>
-    <div class="chips"><span class="chip">Summoner opt-in</span><span class="chip">Route halten statt verlieren</span><span class="chip">Living + Hover UnitID</span><span class="chip">Korridor statt ganze Area</span><span class="chip">Mana-Reserve</span><span class="chip">Rejuvenation bei Mana-Burn</span><span class="chip">Keine blinde Drift-Korrektur</span><span class="chip">Endliche Budgets</span><span class="chip">Fail-closed</span></div>
+    <h1>Profilgesteuertes Freikämpfen entlang einer Route</h1>
+    <p class="lead">Phase 17 macht den Summoner-Weg bedrohungsbewusst und schafft dafür einen kleinen wiederverwendbaren Clear-Orchestrator: Vor jedem Routenteleport prüft der Bot das unmittelbare Spielerumfeld, den Korridor zur tatsächlich nächsten Zielposition und deren Landebereich. Relevante Gegner werden aus der aktuellen sicheren Position mit der Strategie des aktiven Kampfprofils beseitigt; die Route bewegt den Charakter niemals erst in ein Pack. Phase 17 liefert genau eine Strategie, <code>single_target</code> für <code>necro_bone_spear</code>. Mana-Notfall, Trankverifikation und Drift-Recovery erhalten endliche Safety-Verträge. Das ist bewusst weder eine universelle Combat-AI noch eine Skillrotationssprache.</p>
+    <div class="chips"><span class="chip">Summoner produktiv</span><span class="chip">Später für Sweep-Routen nutzbar</span><span class="chip">Fernkampf vor Teleport</span><span class="chip">Profil statt Klassen-Switch</span><span class="chip">Living + Hover UnitID</span><span class="chip">Korridor statt ganze Area</span><span class="chip">Mana-Hysterese</span><span class="chip">Keine Annäherungsteleports</span><span class="chip">Fail-closed</span></div>
   </section>
 
   <section class="grid" aria-label="Kernziele">
     <article class="card"><h3>Vor Gefahr anhalten</h3><p>Spielerumfeld, aktive Routenkante und nächster Landepunkt werden vor Bewegungsinput gegen den aktuellen Living-Monster-Snapshot geprüft.</p></article>
-    <article class="card"><h3>Gezielt freikämpfen</h3><p>Der jeweils nächste relevante Gegner wird pro Snapshot neu bestimmt. Ein Angriff erfolgt nur nach Hover-Bestätigung exakt derselben lebenden Monster-UnitID.</p></article>
-    <article class="card"><h3>Mana handlungsfähig halten</h3><p>Teleport startet nur oberhalb einer Reserve. Reine Trankverifikation friert die Route nicht ein; akuter Mana-Burn darf kontrolliert Rejuvenation priorisieren.</p></article>
+    <article class="card"><h3>Rollierend freikämpfen</h3><p>Jeder ohnehin vorhandene 100-ms-World-Snapshot wird genau einmal allokationsfrei bewertet. Das Profil kämpft stationär auf Distanz; nach jedem Aim, Settle und Cast gilt nur der frische Living-/Hover-Zustand.</p></article>
+    <article class="card"><h3>Mana handlungsfähig halten</h3><p>Eine klare 20/35-Hysterese schützt vor Flattern. Passive Trankverifikation friert den Route-Clear nicht ein; Immediate-Threat plus kritisches Mana darf kontrolliert Rejuvenation priorisieren.</p></article>
     <article class="card"><h3>Todesloops verhindern</h3><p>Recovery darf weder denselben wirkungslosen Teleport unbegrenzt wiederholen noch blind zu einem von Gegnern belegten vorherigen Punkt zurückspringen.</p></article>
   </section>
 
   <h2>1. Verbindliche Produktentscheidungen</h2>
   <table><thead><tr><th>Thema</th><th>Entscheidung für Phase 17</th></tr></thead><tbody>
-    <tr><td>Primärer Scope</td><td>Produktiv ausschließlich der Summoner-Full-Run im <code>Arcane Sanctuary</code>. Countess, Mephisto, Nihlathak, isoliertes Route-Playback, Guided Recording und Town-Egress bleiben zunächst unverändert.</td></tr>
-    <tr><td>Aktivierung</td><td>Die Run-Definition erklärt die fachliche Fähigkeit und die erlaubten Arcane-Gegnertypen. <code>runs.definitions.summoner.route_combat</code> enthält Operator-Tuning. Fehlt der neue Configblock in einem vorhandenen installierten Datenroot, ist Summoner standardmäßig aktiviert; andere Runs bleiben standardmäßig aus.</td></tr>
+    <tr><td>Primärer Scope</td><td>Produktiv ausschließlich der Summoner-Full-Run und <code>--run summoner --phase play-route</code> im <code>Arcane Sanctuary</code>. Rohes <code>--route play</code>, Candidate-Playback, Recording/Guided Validation, Countess, Mephisto, Nihlathak und Town-Egress bleiben unverändert.</td></tr>
+    <tr><td>Aktivierung</td><td>Die immutable Run-Definition erklärt die Capability <code>route_clear</code> und den erlaubten Hostile-Katalog. <code>runs.definitions.summoner.route_combat</code> enthält ausschließlich Operator-Tuning. Das Flag gehört ausdrücklich nicht in Route-YAML. Fehlt der Block, ist Summoner standardmäßig aktiviert; andere Runs bleiben aus. <code>enabled: false</code> ist der Rollback.</td></tr>
+    <tr><td>Wiederverwendung</td><td>Route-Playback fordert nur „diese Bewegungskante freiräumen“ an. <code>RouteThreatController</code> entscheidet <em>ob und welches</em> Monster blockiert; ein Profil-Clear-Executor entscheidet <em>wie</em> das aktive Build räumt. Route- und Pathing-Code enthalten keine Klassen-, Skill- oder Rotations-Sonderfälle.</td></tr>
+    <tr><td>Profilstrategie</td><td>Phase 17 implementiert nur die codegestützte Strategie <code>single_target</code> für <code>necro_bone_spear</code>. Keine universelle YAML-Rotation. Amplify Damage + Corpse Explosion wird erst ergänzt, wenn lebende Gegner und Leichen zuverlässig im World Model ausgewählt und per Hover bestätigt werden können.</td></tr>
     <tr><td>Räumumfang</td><td>Nicht die gesamte Area wird geleert. Relevant sind Gegner im unmittelbaren Spielerumfeld, im vorausliegenden Korridor zur nächsten Routeposition und am nächsten Landepunkt.</td></tr>
-    <tr><td>Zielautorität</td><td>Nur lebende Monster aus dem aktuellen konsistenten World-Snapshot. NPC-ID muss zur run-spezifischen Registry-Allowlist gehören. Vor jedem Angriff wird das nächste Ziel neu bestimmt; alte Pins sind keine Angriffsautorität.</td></tr>
-    <tr><td>Angriffsbestätigung</td><td>Der normale <code>attack_skill</code> des aktiven Combat-Profils wird verwendet. Der Rechtsklick erfolgt erst, wenn der Memory-Hover-Buffer dieselbe Monster-<code>UnitID</code> bestätigt.</td></tr>
+    <tr><td>Zielautorität</td><td>Nur lebende Monster aus dem aktuellen konsistenten World-Snapshot. NPC-ID muss zur run-spezifischen Registry-Allowlist gehören. Pro <code>world.State.At</code> wird genau ein <code>ThreatAssessment</code> berechnet und im Tick weitergereicht; alte Pins oder ein Cache über mehrere Snapshots sind keine Angriffsautorität.</td></tr>
+    <tr><td>Snapshot-Kapazität</td><td>Nicht-priorisierte Monster erhalten ein eigenes compile-nahes Reservoir <code>maxRuntimeMonsters = 512</code>; Priority-Bosse bleiben wie heute außerhalb des Reservoirlimits und das 32er Limit anderer Entity-Kategorien bleibt unverändert. <code>EligibleMonsterCount</code>, <code>MonstersTruncated</code> und <code>MonsterCoverageRadiusTiles</code> werden bis ins World Model projiziert. Truncation ist Diagnose, niemals allein ein Abbruch- oder Hold-Grund.</td></tr>
+    <tr><td>Hohe Gegnerdichte</td><td>Ein abgeschnittener Snapshot darf Movement erlauben, wenn sein nearest-to-player Coverage-Radius den gesamten Immediate-/Corridor-/Landing-Abfragebereich strikt überdeckt. Nur bei unvollständiger lokaler Coverage wird weitergekämpft: zuerst bekannte Route-Threats, sonst der nächste sicher projizierbare erlaubte Hostile innerhalb der Angriffsdistanz. Dieses <code>density_relief</code> erweitert die lokale Sicht rollierend und ist kein Area-Clear.</td></tr>
+    <tr><td>Fernkampf-Invariante</td><td>Bei Threat bleibt die aktuelle Spielerposition unverändert. Der Clear-Executor darf zielen, Skill wählen und angreifen, aber weder Route- noch Annäherungsteleports senden. Der Rechtsklick erfolgt erst, wenn der Memory-Hover-Buffer dieselbe Monster-<code>UnitID</code> bestätigt.</td></tr>
     <tr><td>Route während Combat</td><td>Die bestehende <code>RoutePlayer</code>-Instanz bleibt erhalten, wird aber explizit gehalten. Während Hold läuft kein Navigator-Tick und kein Routenteleport; Segment- und Transition-Deadline verbrauchen keine Combat-Hold-Zeit.</td></tr>
     <tr><td>Landepunktsicherheit</td><td>Ein bekannter Gegner im konfigurierten Landing-Radius blockiert den Teleport. Der Bot schießt ihn aus sicherer Position, sofern er innerhalb der maximalen Angriffsdistanz liegt. Er teleportiert nicht erst in das Pack, um danach aufzuräumen.</td></tr>
-    <tr><td>Mana-Reserve</td><td>Routenteleport ist unterhalb der konfigurierten Resume-Schwelle verboten. Der Bot hält die Route und wartet begrenzt auf bestätigte Ressourcenerholung.</td></tr>
-    <tr><td>Mana-Burn-Notfall</td><td>Bei unmittelbarer Bedrohung und kritischem Mana darf das Profil Rejuvenation vor Mana-Potion priorisieren, auch wenn HP oberhalb der normalen Rejuvenation-Schwelle liegt. Ohne passenden Trank oder bestätigte Erholung endet der Run schnell fail-closed.</td></tr>
-    <tr><td>Trankverifikation</td><td>Der Tick mit tatsächlichem Belt-Input verbraucht den Task-Tick. Folgeticks, die nur auf das Verschwinden der Belt-Unit warten, dürfen sichere Combat-/Hold-Logik weiter ausführen und blockieren nicht pauschal die gesamte Route.</td></tr>
-    <tr><td>Drift-Recovery</td><td>Vorheriger Punkt oder Korrekturziel werden vor Input durch denselben Threat-Check geschützt. Derselbe effektive Teleport darf ohne bestätigten Positionsfortschritt nicht wiederholt werden.</td></tr>
-    <tr><td>Erschöpfte Budgets</td><td>Anders als Post-Boss-Cleanup wird Route-Combat nicht best-effort übersprungen. Bleibt eine Gefahr nach Cast-/Zeitbudget bestehen, folgt <code>route_threat_clear_exhausted</code>; der Bot teleportiert nicht trotzdem hinein.</td></tr>
+    <tr><td>Mana-Hysterese</td><td>Unter 20 % beginnt Route-Hold; 20–34 % dürfen ohne Immediate-Threat noch Movement erlauben, solange kein Hold begonnen hat und das Profil normal trinken darf; ein begonnener Hold endet erst ab 35 %. Bei Immediate-Threat und höchstens 10 % gilt der Mana-Notfall.</td></tr>
+    <tr><td>Mana-Notfall</td><td>Es wird kein Memory-Merkmal „Mana Burn“ behauptet. Der Notfall ist ausschließlich <em>Immediate-Threat + kritisches Mana</em>. Dann priorisiert das Profil Rejuvenation, danach Mana-Potion. Ohne passenden Trank wird sofort abgebrochen; ohne bestätigte Erholung spätestens nach 5 Sekunden.</td></tr>
+    <tr><td>Trankverifikation</td><td>Die vorhandenen <code>profile.Result</code>-Statuswerte <code>action</code> und <code>pending</code> bleiben die Autorität; neue redundante Booleans entstehen nicht. Ein Ressourceninput verbraucht den Tick. Passive Verifikation darf nur im opt-in Route-Step sichere Hold-/Threat-/Combat-Entscheidungen fortsetzen, wenn Mana dies erlaubt. Andere Steps bleiben unverändert. Nie zwei Inputs pro Tick.</td></tr>
+    <tr><td>Drift-Recovery</td><td>Das tatsächlich nächste Recovery-Ziel wird vor Input durch denselben Threat-Check geschützt. Dieselbe effektive Zielkoordinate darf ohne bestätigten Fortschritt nur einmal gecastet werden; danach folgt <code>route_recovery_unsafe</code>. Es gibt keine alternative oder zufällige Korrektur.</td></tr>
+    <tr><td>Fortschritts-Watchdog</td><td>Monsteranzahl und Gesamtdauer besitzen kein hartes Clear-Limit. Solange objektiver Fortschritt entsteht, räumt der Bot weiter. Nur 12 Sekunden ohne Ziel-/Threat-/Coverage-Fortschritt führen zu <code>route_clear_no_progress</code>. Aim, Skillwahl, Casts und bloßer Zielwechsel setzen den Watchdog nicht zurück; Mana-Recovery behält separat maximal 5 Sekunden.</td></tr>
     <tr><td>Offline-Safety</td><td>Nur Offline/Singleplayer. Keine D2R-Dateien oder Saves werden verändert. Stop/Pause und Context-Cancellation bleiben an jedem Subzustand wirksam.</td></tr>
   </tbody></table>
 
@@ -53,25 +57,33 @@
     <tr><td><code>Runner.Tick</code> beendet bei <code>Profile.TickResources == Pending</code> den Tick vor der Run-State-Machine.</td><td>Bis zu <code>verify_timeout_ms: 1500</code> steht der Charakter nach einem Trank untätig, obwohl der Folgetick keinen neuen Input sendet.</td><td>Ressourcenergebnis unterscheidet tatsächlichen Input von passiver Verifikation.</td></tr>
     <tr><td>Mana-Potion greift unter 35 %, Cooldown 4000 ms; Rejuvenation greift regulär über HP.</td><td>Ghost-Mana-Burn kann Mana schneller auf null halten, als normale Mana-Potions Mobilität wiederherstellen. Teleport und Bone Spear fallen gleichzeitig aus.</td><td>Threat-Kontext, Teleportreserve, Rejuvenation-Notfall und endlicher Recovery-Timeout.</td></tr>
     <tr><td>Post-Boss-<code>clear_nearby_hostiles</code> startet nach Bosskill und vor der Loot-Repositionierung.</td><td>Es verhindert den unmittelbaren Teleport zur Bossleiche in ein verbliebenes Pack, schützt aber weder die lange Arcane-Route noch deren Landepunkte oder Drift-Recovery.</td><td>Wiederverwendbare Living-/Hover-Zielauswahl, aber eigener Route-Threat-Controller mit anderer Fehlersemantik.</td></tr>
-    <tr><td>Arcane-Gegnertypen werden inzwischen read-only enumeriert; Priority-Bosse können nicht mehr durch das 32er Cleanup-Reservoir verdrängt werden.</td><td>Die benötigten Daten sind vorhanden, aber die Route nutzt sie noch nicht.</td><td>Vorhandenes World Model verwenden; keine Pixel- oder zweite Memory-Pipeline.</td></tr>
+    <tr><td>Arcane-Gegnertypen werden read-only mit UnitID und Tileposition enumeriert; Leichen werden verworfen. Das bestehende 32er nearest-to-player Reservoir wurde für Post-Boss-Cleanup gebaut.</td><td>Radius- und Korridorberechnung sind mit <code>world.Distance</code> bereits möglich. Für dichte Sweep-Routen ist 32 jedoch kein belastbarer Vollständigkeitsvertrag.</td><td>Eigenen 512er Monster-Guard plus Count/Truncation-Metadaten ergänzen; vorhandenen 100-ms-Snapshot verwenden, keine Query-Reads oder zweite Memory-Pipeline.</td></tr>
   </tbody></table>
   <div class="callout danger"><strong>Wichtig:</strong> Phase 17 darf das Problem nicht durch größere Drift-Toleranzen, mehr Wiederholungen oder aggressiveres Trankspammen verdecken. Jede dieser Maßnahmen erhöht die Zeit im gefährlichen Zustand, ohne die Bewegungsentscheidung bedrohungsbewusst zu machen.</div>
 
   <h2>3. Scope und bewusste Nicht-Ziele</h2>
   <table><thead><tr><th>Enthalten</th><th>Bewusst nicht in Phase 17</th></tr></thead><tbody>
-    <tr><td>Summoner-spezifisches Route-Combat-Opt-in und validierte YAML-Tuningwerte.</td><td>Automatische Aktivierung für Countess, Mephisto, Nihlathak oder zukünftige Runs.</td></tr>
+    <tr><td>Wiederverwendbarer Clear-Orchestrator mit Summoner-Capability und validierten YAML-Tuningwerten.</td><td>Automatische Aktivierung für Countess, Mephisto, Nihlathak oder zukünftige Runs.</td></tr>
     <tr><td>Threat-Scan für Spieler, vorausliegenden Korridor und nächsten Landepunkt.</td><td>Vollständiges Leeren des Arcane Sanctuary oder Verfolgen fliehender Gegner außerhalb des Korridors.</td></tr>
-    <tr><td>Wiederverwendung des Standardangriffs und der Hover-bestätigten Monsteraktion.</td><td>Neue Skillrotation, Flächenzauber, Summon-Steuerung, Immunitätslogik oder universelle Combat-AI.</td></tr>
+    <tr><td>Separater 512er Monster-Guard, Completeness-Metadaten und rollierendes <code>density_relief</code> bei Sättigung.</td><td>Räumlicher Index, Quadtree, zusätzlicher Memory-Query-Read oder benutzerkonfigurierbare Entity-Caps.</td></tr>
+    <tr><td>Profilvertrag plus genau eine stationäre <code>single_target</code>-Strategie für Bone Spear.</td><td>Konfigurierbare Rotations-DSL, AD/CE, Leichenmodell, Flächenzauber, Summon-Steuerung, Immunitätslogik oder universelle Combat-AI.</td></tr>
     <tr><td>Read-only Route-Progress, explizites Hold und pausierte Route-Deadlines.</td><td>Neues Pathfinding, Tile-Map-Parser, alternative Routensuche oder dynamische Komplettnavigation.</td></tr>
     <tr><td>Mana-Reserve, threat-aware Rejuvenation und nichtblockierende Verifikation.</td><td>Automatisches Belt-Refill außerhalb der bestehenden Town-Services oder beliebige Inventartränke.</td></tr>
     <tr><td>Threat-geschützte und wiederholungsbegrenzte Drift-/Stuck-Korrektur.</td><td>Blindes Random-Teleportieren, dauerhaftes Offset-Jitter oder unendliche lokale Recovery.</td></tr>
-    <tr><td>Neue Telemetrie und reproduzierbare synthetische Tests.</td><td>Video-/Pixelanalyse, OCR oder Live-D2R als automatischer Testbestandteil.</td></tr>
+    <tr><td>Neue Telemetrie, reproduzierbare synthetische Dichtetests und Microbenchmark des Threat-Scans.</td><td>Erzwungener riskanter Live-Stuck, Video-/Pixelanalyse, OCR oder Live-D2R als automatischer Testbestandteil.</td></tr>
     <tr><td>Installierter Windows-Build und manuelle Hell-Abnahme.</td><td>Battle.net, Online-Modus, Savegame-Schreiben oder D2R-Installationsmutation.</td></tr>
+  </tbody></table>
+  <h3>Aufwand-/Nutzenentscheidung</h3>
+  <table><thead><tr><th>Variante</th><th>Relativer Aufwand</th><th>Nutzen</th><th>Entscheidung</th></tr></thead><tbody>
+    <tr><td>Summoner-Sonderfall direkt in Route-Playback</td><td>1,0×</td><td>Schnell, aber kaum für Cows oder weitere Profile nutzbar; Klassenlogik landet am falschen Ort.</td><td>Verworfen.</td></tr>
+    <tr><td>Kleiner profilgesteuerter Clear-Orchestrator</td><td>ca. 1,25–1,5×</td><td>Trennt Threat/Route von Build-Ausführung und ist für spätere Sweep-Routen wiederverwendbar, ohne ein Framework zu bauen.</td><td class="good">Phase-17-Schnitt.</td></tr>
+    <tr><td>AD + Corpse Explosion sofort</td><td>ca. 2,5–3,5×</td><td>Stark für MrBones, benötigt aber erst Leichenmodell, Corpse-Auswahl, Hover-Verifikation und situationsabhängige Rotation.</td><td>Gezielt verschoben.</td></tr>
+    <tr><td>Universelle YAML-Rotations-DSL</td><td>4× oder mehr</td><td>Hohe theoretische Flexibilität, aber keine zweite belegte Strategie und große Validierungs-/Safety-Fläche.</td><td>YAGNI; ausgeschlossen.</td></tr>
   </tbody></table>
 
   <h2>4. Zielarchitektur und Ownership</h2>
   <pre><code>memory.ProbeReader
-  └─ priorisierte Living-Monster + nächstes Cleanup-Reservoir
+  └─ 512er Monster-Reservoir + Priority + EligibleCount/Truncated
           │
           ▼
 world.State
@@ -81,15 +93,16 @@ world.State
 tasks.runPipeline · play_bound_route
   ├─ RouteProgress lesen
   ├─ RouteThreatController
-  │    ├─ Spieler-/Korridor-/Landing-Threats
-  │    ├─ clear / mana_recovery / stable_clear
-  │    └─ endliche Budgets + Reason
+  │    ├─ genau ein ThreatAssessment je world.State.At
+  │    ├─ Immediate/Corridor/Landing oder density_relief
+  │    └─ clear / mana_recovery / stable_clear / no_progress
   ├─ Profile resource context
-  ├─ Combat.CastAttackAtMonster
+  ├─ profile.RouteClearExecutor
+  │    └─ aktive Strategie: single_target
   └─ Route.Tick ODER Route.Hold — niemals beides im selben Tick
           │
           ├──────────────► app.combatAdapter
-          │                 Aim → Memory-Hover UnitID → Right Click
+          │                 Skill → Aim → Memory-Hover UnitID → Right Click
           │
           └──────────────► app.routePlaybackAdapter
                             Progress → Hold/Deadline-Freeze → RoutePlayer
@@ -99,45 +112,59 @@ tasks.runPipeline · play_bound_route
                                       normal | recovery | transition</code></pre>
   <table><thead><tr><th>Verantwortung</th><th>Einziger Owner</th><th>Verbotene zweite Autorität</th></tr></thead><tbody>
     <tr><td>Living-/Hover-Daten</td><td><code>memory → world</code></td><td>Pixelprüfung, Task-eigener Process-Read oder gecachte „vermutlich lebende“ Unit</td></tr>
+    <tr><td>Monster-Kapazität und Vollständigkeit</td><td><code>memory</code> zählt erlaubte Kandidaten, hält 512 nicht-priorisierte plus Priority-Einheiten und projiziert Truncation über <code>world</code></td><td>Globales Hochsetzen aller Entity-Caps oder Truncation als unmittelbarer Run-Abbruch</td></tr>
     <tr><td>Run-spezifisch erlaubte Hostiles</td><td><code>tasks.RunDefinition</code> beziehungsweise kleiner typisierter Run-Katalog</td><td>freie NPC-ID-Liste aus Benutzer-YAML oder UI</td></tr>
-    <tr><td>Threat-Geometrie und Route-Combat-Zustand</td><td><code>internal/tasks</code></td><td><code>internal/pathing</code> mit Kenntnis von Combat-Profilen</td></tr>
+    <tr><td>Threat-Geometrie, Zielpriorität, Dichteentlastung und Route-Clear-Zustand</td><td><code>internal/tasks</code>; eine single-pass Bewertung pro Snapshot</td><td><code>internal/pathing</code> mit Kenntnis von Combat-Profilen oder mehrfacher Scan desselben Snapshots</td></tr>
+    <tr><td>Build-spezifische Räumstrategie</td><td><code>internal/profile</code>; Phase 17: <code>single_target</code></td><td>Klassen-/Skill-Switches in Route, Tasks oder Pathing</td></tr>
     <tr><td>Aktueller Routenfortschritt und Recovery-Ziel</td><td><code>pathing.RoutePlayer</code>, read-only durch App-Adapter projiziert</td><td>Task-seitige Rekonstruktion aus YAML oder Telemetrie</td></tr>
     <tr><td>Segment-/Transition-Deadline</td><td><code>app.routePlaybackAdapter</code></td><td>Task-eigener zweiter Timeout</td></tr>
-    <tr><td>Skill, Aim, Hover und Klick</td><td>bestehender <code>CombatActions</code>-Adapter</td><td>RoutePlayer oder ThreatController mit direktem Input</td></tr>
+    <tr><td>Skillauflösung, Aim, Hover und Klick</td><td>bestehender <code>CombatActions</code>-Adapter</td><td>RoutePlayer, ThreatController oder Profil mit direktem Input</td></tr>
     <tr><td>Trankauswahl und Belt-Verifikation</td><td><code>profile.Executor</code></td><td>ThreatController mit eigener Belt-Suche</td></tr>
     <tr><td>Reihenfolge pro Tick</td><td><code>tasks.Runner</code> und <code>runPipeline</code></td><td>parallele Goroutine oder zweiter Poll-Loop</td></tr>
   </tbody></table>
 
   <h2>5. Exakter Route-Threat-Zustandsautomat</h2>
   <pre><code>route_moving
-  ├─ invalid/loading                      → warten, kein Input
-  ├─ low mana                             → route_mana_recovery
-  ├─ immediate/corridor/landing threat    → route_clearing
-  ├─ safe                                 → genau ein Route.Tick
-  └─ route done                           → acquire_boss
+  ├─ invalid/loading                       → warten, kein Input
+  ├─ RouteProgress mit effektivem Ziel     → Threat-Geometrie berechnen
+  ├─ immediate/corridor/landing threat     → route_clearing, kein Movement
+  ├─ begonnener Mana-Hold                  → route_mana_recovery
+  ├─ safe                                  → genau ein Route.Tick
+  └─ route done                            → acquire_boss
 
 route_clearing
   ├─ jeden Tick Route.Hold
-  ├─ neues nächstes Living-Ziel           → aim/hover/cast
-  ├─ kein Threat für 3 frische Snapshots  → route_moving
-  ├─ Mana unter Reserve                   → route_mana_recovery
-  ├─ Cast-/Zeitbudget erschöpft           → fail route_threat_clear_exhausted
-  └─ Area/Identity/Cancellation falsch     → fail/reset
+  ├─ Spielerposition bleibt unverändert
+  ├─ ThreatAssessment genau einmal bilden
+  ├─ bekannter Route-Threat                 → Profile.Clear(single_target)
+  ├─ lokale Coverage unvollständig          → density_relief
+  ├─ 3× threat-free + coverage_complete     → route_moving
+  ├─ objektiver Fortschritt                 → no-progress Uhr neu setzen
+  ├─ kritisches Mana                        → route_mana_recovery
+  ├─ 12 s kein Fortschritt                  → fail route_clear_no_progress
+  ├─ alle Blocker nicht sicher angreifbar   → fail route_threat_out_of_range
+  └─ Area/Identity/Cancellation falsch      → fail/reset
+
+density_relief
+  ├─ nächsten projizierbaren Allowlist-Hostile innerhalb 30 Tiles wählen
+  ├─ stationär aim/hover/cast               → frischer Snapshot
+  ├─ Coverage-Radius wächst/ist ausreichend → normale Threat-Auswahl
+  └─ keine sichere Aktion + 12 s Stillstand → fail route_clear_no_progress
 
 route_mana_recovery
   ├─ jeden Tick Route.Hold
-  ├─ unmittelbarer Threat + kritisches Mana → Rejuvenation-Demand
+  ├─ Immediate-Threat + Mana ≤ 10 %        → Rejuvenation, dann Mana-Potion
   ├─ sonst                                 → normale Mana-Demand
-  ├─ Mana ≥ Resume-Schwelle                → clearing oder moving neu bewerten
-  ├─ kein geeigneter Trank / Timeout        → fail route_mana_recovery_failed
-  └─ kein Movement unter Reserve
+  ├─ Mana ≥ 35 % nach begonnenem Hold      → clearing oder moving neu bewerten
+  ├─ kein geeigneter Trank                 → sofort route_mana_recovery_failed
+  ├─ keine Erholung nach 5 Sekunden        → route_mana_recovery_failed
+  └─ kein Movement während aktivem Hold
 
 route_recovery_guard
   ├─ RouteProgress meldet Recovery-Ziel
   ├─ Ziel/Korridor threatened              → clearing
-  ├─ identischer Cast ohne Fortschritt     → kein zweiter Blindcast
-  ├─ eine sichere Alternative erlaubt      → bounded alternate correction
-  └─ weiter kein Fortschritt                → fail route_recovery_unsafe</code></pre>
+  ├─ erster Cast auf effektives Ziel       → Fortschritt prüfen
+  └─ derselbe Zielcast ohne Fortschritt    → fail route_recovery_unsafe</code></pre>
   <p>Die Zustände sind run-generation-scoped und werden bei <code>process_lost</code>, Stop, Run-Ende, Route-Neustart und Step-Wechsel vollständig geleert. Sie werden nicht in Route-YAML oder Telemetrie als Resume-Checkpoint persistiert.</p>
 
   <h2>6. Threat-Geometrie und Zielreihenfolge</h2>
@@ -153,9 +180,38 @@ route_recovery_guard
     <li>Boss-NPC <code>250</code> bleibt unabhängig priorisiert und ist vor <code>acquire_boss</code> kein Route-Cleanup-Ziel.</li>
     <li>Zone priorisieren; innerhalb derselben Zone kleinste aktuelle Spielerdistanz, danach stabile <code>UnitID</code> als deterministischer Tie-Breaker.</li>
     <li>Vor jedem Aim und jedem Klick neu aus dem aktuellen Snapshot wählen. Ein inzwischen toter, verschwundener, außerhalb der Zone liegender oder nicht mehr nächster Gegner wird verworfen.</li>
-    <li>Das 32er Cleanup-Reservoir bleibt nearest-to-player. Priority-Bosse liegen außerhalb dieses Limits. Phase 17 erhöht keine globalen Entitylimits.</li>
+    <li><code>EligibleMonsterCount</code> zählt jeden vollständig gelesenen, lebenden <code>IsRuntimeMonsterCandidate</code> vor der Reservoirentscheidung. <code>MonstersTruncated</code> wird gesetzt, sobald mehr als 512 nicht-priorisierte Kandidaten konkurrieren – unabhängig davon, ob der neue Kandidat einen weiter entfernten ersetzt.</li>
+    <li><code>MonsterCoverageRadiusTiles</code> ist bei Truncation die Entfernung des am weitesten entfernten retained Non-Priority-Monsters zum Spieler. Weil das Reservoir die 512 nächsten Kandidaten hält, sind alle Kandidaten mit strikt kleinerer Distanz vollständig enthalten. Ohne Truncation gilt die Coverage als vollständig und der Radiuswert wird nicht als Gate benötigt.</li>
+    <li>Das nearest-to-player-Verhalten bleibt erhalten, aber nur das Monster-Reservoir wächst compile-nah von 32 auf 512. Priority-Bosse bleiben außerhalb dieses Limits; Objekte, Entrances und Items behalten ihre bestehenden Caps.</li>
   </ol>
   <div class="callout"><strong>Korridor, nicht Area-Clear:</strong> Ein Ghost auf einem parallelen oder entfernten Arcane-Arm darf den Run nicht blockieren, nur weil seine euklidische Distanz zufällig klein ist. Die aktive Routenkante und der nächste Landepunkt sind Teil der fachlichen Auswahl.</div>
+  <h3>Einmalige Snapshot-Auswertung</h3>
+  <pre><code>bestehender 100-ms-World-Snapshot
+  → assessThreats(state, progress) genau einmal
+      → ein O(n)-Durchlauf über state.Monsters
+      → Route-Threat, Density-Ziel, Counts, Truncation und lokale Coverage bestimmen
+  → immutable ThreatAssessment an Controller/Profil weiterreichen
+  → höchstens eine Inputaktion
+  → nächster Tick verwendet den nächsten frischen Snapshot</code></pre>
+  <pre><code>type ThreatAssessment struct {
+    SnapshotAt            time.Time
+    RouteTarget           world.Monster
+    RouteTargetFound      bool
+    RouteZone             ThreatZone
+    DensityTarget         world.Monster
+    DensityTargetFound    bool
+    RelevantThreatCount   int
+    RequiredCoverageTiles float64
+    CoverageComplete      bool
+}</code></pre>
+  <ul>
+    <li><code>assessThreats</code> sendet keinen Input und liest keinen Prozessspeicher. Es arbeitet ausschließlich auf dem bereits von <code>runTick</code> gelieferten <code>world.State</code>.</li>
+    <li>Immediate-, Landing-, Corridor- und Attack-Range werden im selben Durchlauf ausgewertet. Keine Sortierung, kein temporärer Monster-Slice, keine Map und keine Heap-Allokation im normalen Pfad.</li>
+    <li>Per-Monster-Radien verwenden quadrierte Distanzen; die Corridor-Projektion verwendet Skalarprodukt und geklemmten Parameter. Die einmalige Spieler→MovementTarget-Distanz darf den bestehenden <code>world.Distance</code>-Helper verwenden.</li>
+    <li>Der benötigte lokale Coverage-Radius ist <code>max(immediate_radius, distance(player, movement_target) + landing_radius)</code>; der Corridor liegt vollständig innerhalb dieser Hülle. <code>coverage_complete</code> gilt bei <code>!MonstersTruncated</code> oder wenn der retained Coverage-Radius strikt größer ist. Ein global abgeschnittener Snapshot mit vollständiger lokaler Hülle darf daher normal weiterfahren.</li>
+    <li>Der 350-ms-Angriffsabstand bleibt Input-Gate. Die dazwischenliegenden Snapshots sind gewollt: Sie bestätigen Hover, Tod, Bewegung, Mana und neue Immediate-Threats, erzeugen aber keinen zusätzlichen Cast.</li>
+    <li>Ein UnitID-Merker darf das Wieder-Aimen optimieren, wird jedoch in jedem frischen Assessment gegen Living-, Zonen- und Hover-Daten validiert. Es gibt keinen Cache über mehrere Snapshots als Autorität.</li>
+  </ul>
 
   <h2>7. RouteProgress- und Hold-Vertrag</h2>
   <pre><code>type RouteProgress struct {
@@ -187,55 +243,70 @@ type RoutePlayback interface {
     <li>Isoliertes <code>--route play</code> und Guided Validation behalten die bisherige Signatur oder verwenden einen kleinen Adapterpfad, der immer Movement erlaubt. Sie erhalten Phase-17-Combat nicht implizit.</li>
   </ul>
 
-  <h2>8. Combat-Vertrag während Route-Playback</h2>
-  <ol>
-    <li>Bei erkanntem Threat zuerst <code>Route.Hold</code>, danach höchstens eine Combat-Input-Gelegenheit im Tick.</li>
-    <li><code>Combat.CastAttackAtMonster</code> bleibt die einzige Angriffsoberfläche: Skillauflösung, Right-Mouse-Gate, Aim, Hover-UnitID und Klick liegen im App-Adapter.</li>
-    <li>Ein Aim ohne Klick zählt nicht gegen das Cast-Budget. Nur der vom Adapter bestätigte tatsächlich gesendete Rechtsklick erhöht <code>casts_sent</code>.</li>
-    <li>Nach jedem Klick wird erneut der nächste Living-Threat gewählt. Es gibt keinen mehrsekündigen Route-Pin.</li>
-    <li>Drei frische, gültige Snapshots ohne relevanten Threat bestätigen <code>stable_clear</code>. Loading/invalid/Area 0 setzen den Clear-Zähler zurück.</li>
-    <li>Defaultbudget pro Blockade: maximal 20 tatsächliche Angriffe und 12 Sekunden Hold. Beide Grenzen sind konfigurierbar und streng positiv.</li>
-    <li>Ein Threat außerhalb <code>attack_distance_tiles</code>, der den Landepunkt blockiert, führt nach einem kurzen bestätigten Stabilitätsfenster zu <code>route_threat_out_of_range</code>. Phase 17 erfindet dafür keinen blinden Annäherungsteleport.</li>
-    <li>Nach Erfolg wird Combat gestoppt, Aim-/Pending-Target zurückgesetzt, RouteProgress frisch gelesen und die Threat-Prüfung erneut durchgeführt. Erst ein weiterhin sicherer Tick darf Route-Movement senden.</li>
-  </ol>
-  <p>Der Post-Boss-Step darf dieselbe kleine pure Auswahlfunktion für „nächstes erlaubtes Living-Monster“ verwenden. Budgets und Abschlussverhalten bleiben getrennt: Post-Boss ist best-effort, Route-Clear ist fail-closed.</p>
+  <h2>8. Profilgesteuerter Clear-Vertrag während Route-Playback</h2>
+  <pre><code>type RouteClearRequest struct {
+    RunID, DefinitionID string
+    Player              world.Player
+    Target              world.Monster
+    Mode                RouteClearMode // route_threat | density_relief
+    AssessmentAt        time.Time
+}
 
-  <h2>9. Mana-Burn- und Ressourcenvertrag</h2>
+type RouteClearExecutor interface {
+    TickRouteClear(context.Context, RouteClearRequest, time.Time) profile.Result
+    ResetRouteClear()
+}</code></pre>
+  <ol>
+    <li>Bei erkanntem Threat oder Snapshot-Sättigung beauftragt die Task-Schicht zuerst <code>Route.Hold</code> und übergibt danach genau das bereits priorisierte Ziel aus dem einmaligen <code>ThreatAssessment</code> an das aktive Profil. Sie kennt weder Bone Spear noch zukünftige AD/CE-Schritte.</li>
+    <li>Phase 17 registriert genau <code>single_target</code> für <code>necro_bone_spear</code>. Die Strategie verwendet den bestehenden <code>attack_skill</code>; unbekannte Strategie/Profile-Kombinationen scheitern bei Config-/Registry-Validierung, nicht erst live.</li>
+    <li>Der Executor darf nur Skillwahl, Aim und Angriff beauftragen. Teleport-, Lauf- oder Navigator-Eingaben sind im Clear-Vertrag nicht verfügbar. Damit bleibt „aus aktueller Position räumen, dann teleportieren“ strukturell erzwungen.</li>
+    <li><code>CombatActions</code> bleibt die einzige konkrete Angriffsoberfläche: Skillauflösung, Right-Mouse-Gate, Aim, Hover-UnitID und Klick liegen im App-Adapter. Keine zweite Input- oder Memory-Pipeline.</li>
+    <li>Ein Aim oder eine Skillwahl verbraucht den Tick, wenn Input gesendet wurde. Nur ein tatsächlich gesendeter Skillcast erhöht den Telemetriezähler <code>combat_actions_sent</code>; er ist kein Gesamtbudget. Ein späterer AD/CE-Executor würde Curse und jede CE jeweils als eine Aktion zählen.</li>
+    <li>Der 100-ms-Poll liefert nach Aim, Hover-Warten und Cast jeweils frische Zustände; der 350-ms-Angriffsabstand bleibt unverändert. Jeder Snapshot wird genau einmal bewertet, aber Input entsteht weiterhin höchstens einmal pro Tick und nur bei erfülltem Combat-Gate.</li>
+    <li>Drei frische gültige Snapshots ohne Route-Threat und mit <code>coverage_complete</code> bestätigen <code>stable_clear</code>. Invalid/loading oder unvollständige lokale Coverage setzen den Zähler zurück; globale Truncation bei ausreichendem Coverage-Radius tut dies nicht.</li>
+    <li>Nur bei unvollständiger lokaler Coverage wird ohne bekannten Route-Threat der nächste sicher projizierbare Allowlist-Hostile innerhalb <code>attack_distance_tiles</code> als <code>density_relief</code> gewählt. Der Bot steht nicht wegen hoher Anzahl untätig und räumt keine fernen Monster allein wegen globaler Truncation.</li>
+    <li>Objektiver Fortschritt ist mindestens eines: das zuletzt beauftragte Living-Ziel ist verschwunden oder nicht mehr relevant, <code>EligibleMonsterCount</code> sinkt, die Zahl relevanter Threats sinkt, der Coverage-Radius wächst oder lokale Coverage wird vollständig. Aim, Skillwahl, Cast, bloßer Zielwechsel und Mana-Potion gelten nicht als Fortschritt.</li>
+    <li>Der No-Progress-Watchdog startet mit der Blockade und wird nur durch objektiven Fortschritt neu gesetzt. Nach 12 Sekunden ohne Fortschritt folgt <code>route_clear_no_progress</code>; Anzahl der Monster, Aktionen und gesamte Clear-Dauer sind nicht begrenzt.</li>
+    <li><code>route_threat_out_of_range</code> ist erst zulässig, wenn derselbe Blocker in drei frischen Snapshots fortbesteht und weder er noch irgendein Density-Relief-Kandidat sicher projizierbar ist. Es gibt keinen Annäherungsteleport.</li>
+    <li>Nach Erfolg werden Executor/Aim zurückgesetzt, RouteProgress frisch gelesen und dieselbe Threat-Prüfung wiederholt. Erst ein weiterhin sicherer Folgetick darf Movement senden.</li>
+  </ol>
+  <p>Der Post-Boss-Step darf kleine pure Living-Zielhelper und die Profilstrategie wiederverwenden. Sein best-effort Abschluss bleibt jedoch getrennt vom fail-closed Route-Clear. Eine Cow-Sweep-Route kann später denselben Controller opt-in verwenden; Portalerzeugung, Cow-spezifischer Hostile-Katalog, Loot-/Inventarfluss und Completion-Regel gehören nicht zu Phase 17.</p>
+
+  <h2>9. Mana-Notfall- und Ressourcenvertrag</h2>
   <table><thead><tr><th>Zustand</th><th>Pflichtaktion</th><th>Movement</th></tr></thead><tbody>
-    <tr><td>Mana ≥ <code>resume_mana_percent</code>, kein Threat</td><td>Keine erzwungene Ressource.</td><td>Erlaubt.</td></tr>
-    <tr><td>Mana &lt; <code>teleport_mana_reserve_percent</code>, kein unmittelbarer Threat</td><td>Normale Mana-Potion nach Profilpolicy; Route halten.</td><td>Verboten.</td></tr>
+    <tr><td>Mana ≥ 35 %</td><td>Keine erzwungene Route-Ressource; ein begonnener Hold ist beendet.</td><td>Erlaubt, wenn threat-free.</td></tr>
+    <tr><td>Mana 20–34 %, noch kein Hold, kein Immediate-Threat</td><td>Normale Profilpolicy darf trinken.</td><td>Erlaubt, wenn threat-free.</td></tr>
+    <tr><td>Mana &lt; 20 % oder bereits begonnener Hold</td><td>Normale Mana-Potion nach Profilpolicy; Hold bis mindestens 35 %.</td><td>Verboten.</td></tr>
     <tr><td>Unmittelbarer Threat und Mana ≤ <code>emergency_mana_percent</code></td><td>Rejuvenation-Demand vor Mana-Potion; danach Living-Threat neu prüfen.</td><td>Verboten bis Resume-Schwelle.</td></tr>
     <tr><td>Threat, Mana ausreichend</td><td>Combat-Clear; normale HP-Safety bleibt vorrangig.</td><td>Verboten bis stable clear.</td></tr>
     <tr><td>Kein passender Trank oder keine Erholung bis Timeout</td><td><code>route_mana_recovery_failed</code>.</td><td>Kein „letzter Versuch“ in das Pack.</td></tr>
   </tbody></table>
-  <p>Der Profilvertrag wird um einen kleinen <code>ResourceContext</code> erweitert, beispielsweise <code>MobilityCritical</code>, <code>Threatened</code> und <code>EmergencyMana</code>. Die normale Auswahlreihenfolge bleibt außerhalb dieses Kontexts unverändert. Der Resulttyp muss explizit unterscheiden:</p>
-  <pre><code>profile.Result
-├─ Status       complete | pending | action | failed
-├─ InputSent    bool
-├─ Verifying    bool
-├─ Resource
-├─ BeltSlot
-└─ Reason</code></pre>
+  <p>Der Profilvertrag erhält genau die drei booleschen Kontextwerte <code>MobilityCritical</code>, <code>Threatened</code> und <code>EmergencyMana</code>. Die vorhandenen <code>profile.Result</code>-Statuswerte bleiben ausreichend:</p>
+  <pre><code>profile.Result.Status
+├─ action   → dieser Tick hat Ressourceninput gesendet
+├─ pending  → passive Belt-Verifikation läuft
+├─ complete → derzeit kein Ressourceninput nötig
+└─ failed   → stabiler Fehlergrund</code></pre>
   <ul>
-    <li><code>Runner</code> beendet den aktuellen Tick nur bei <code>InputSent</code> oder Fehler.</li>
-    <li><code>Verifying</code> ohne neuen Input erlaubt Route-Hold, Threat-Neubewertung und – sofern Mana vorhanden – Combat. Es erlaubt keinen zweiten Belt-Cast.</li>
+    <li><code>Runner</code> beendet den aktuellen Tick bei <code>StatusAction</code> oder Fehler.</li>
+    <li><code>StatusPending</code> darf ausschließlich für den opt-in Route-Step Hold, Threat-Neubewertung und – sofern Mana sicher ist – Combat fortsetzen. Alle anderen Steps behalten das bisherige frühe Return.</li>
     <li>Ein bestätigtes Verschwinden der Belt-Unit bleibt die einzige positive Verbrauchsbestätigung.</li>
     <li>Die bestehenden Cooldowns bleiben wirksam. Emergency-Kontext darf die Ressourcenart priorisieren, aber keinen Cooldown oder fehlenden Belt-Inhalt vortäuschen.</li>
-    <li>HP-kritische Full-Rejuvenation behält höchste Priorität. Mana-Burn-Rejuvenation ist nur im Summoner-Route-Threat-Kontext aktiv.</li>
+    <li>HP-kritische Full-Rejuvenation behält höchste Priorität. Route-Notfall-Rejuvenation ist nur bei Immediate-Threat und höchstens 10 % Mana aktiv; ein Monster-Modifier wird nicht gelesen oder behauptet.</li>
   </ul>
 
   <h2>10. Drift-, Stuck- und Recovery-Sicherheit</h2>
   <ol>
     <li><code>RouteSegmentPlayer</code> exponiert den Modus <code>recovery</code> und dessen tatsächliches Ziel, ändert aber nicht selbst die Combat-Policy.</li>
     <li>Vor jedem Recovery-Tick prüft der ThreatController Immediate-, Corridor- und Landing-Zone gegen das Recovery-Ziel.</li>
-    <li>Ein tatsächlicher Teleport wird durch Zielkoordinate, Startposition, Sendezeit und folgenden Snapshot identifiziert. Ein frischer Snapshot muss mindestens <code>stuck_progress_tiles</code> Fortschritt oder Punktabschluss zeigen.</li>
-    <li>Ohne Fortschritt darf derselbe effektive Zielpunkt nicht erneut blind gecastet werden. Navigator und RoutePlayer erhalten genau einen klaren „no progress“-Befund.</li>
-    <li>Optional ist genau eine sichere alternative Korrektur auf der aktiven Routenkante zulässig. Sie muss innerhalb <code>max_drift_tiles</code>, frei von Landing-Threats und näher an der Kante als die aktuelle Position sein.</li>
-    <li>Ist keine sichere Alternative vorhanden oder bringt sie keinen Fortschritt, endet der Run mit <code>route_recovery_unsafe</code>. Session-Lifecycle kann danach das Spiel kontrolliert verlassen und nach bestehender Retry-Policy neu starten.</li>
+    <li>Ein tatsächlicher Teleport wird durch effektive Zielkoordinate, Startposition, Sendezeit und folgenden Snapshot identifiziert. Ein frischer Snapshot muss mindestens das vorhandene <code>stuck_progress_tiles</code> erfüllen oder Punktabschluss zeigen.</li>
+    <li>Ohne Fortschritt endet der zweite Auftrag derselben effektiven Zielkoordinate vor Input mit <code>route_recovery_unsafe</code>. Navigator und RoutePlayer erhalten einen klaren „no progress“-Befund.</li>
+    <li>Phase 17 berechnet weder Alternativpunkt noch Jitter. Das vermeidet einen zweiten, schlecht belegten Mini-Navigator und hält Recovery deterministisch.</li>
+    <li>Session-Lifecycle darf nach <code>route_recovery_unsafe</code> das Spiel kontrolliert verlassen und gemäß Retry-Klasse neu starten.</li>
     <li><code>max_local_corrections</code> bleibt eine absolute Obergrenze. Route-Combat erhöht sie nie und setzt sie nicht durch Monsterkills zurück.</li>
     <li>Ein Threat-Hold zählt nicht als Stuck, weil kein Movement beauftragt ist. Ein gesendeter Combat-Cast zählt umgekehrt nicht als Routefortschritt.</li>
   </ol>
-  <div class="callout danger"><strong>Verbotene Recovery:</strong> Kein zufälliger Bildschirmoffset, kein alternierendes „links/rechts“, kein größerer <code>max_drift_tiles</code>-Default und kein dritter Versuch auf denselben gefährlichen Punkt. Sichere Alternative oder klarer Abbruch.</div>
+  <div class="callout danger"><strong>Verbotene Recovery:</strong> Kein zufälliger Bildschirmoffset, kein alternierendes „links/rechts“, keine berechnete Alternative, kein größerer <code>max_drift_tiles</code>-Default und kein zweiter wirkungsloser Cast auf dieselbe effektive Zielkoordinate. Danach klarer Abbruch.</div>
 
   <h2>11. Config- und Defaultvertrag</h2>
   <pre><code>runs:
@@ -251,47 +322,49 @@ type RoutePlayback interface {
         corridor_width_tiles: 7
         landing_radius_tiles: 10
         attack_distance_tiles: 30
-        clear_confirm_ticks: 3
-        max_casts_per_blocker: 20
-        max_clear_duration_ms: 12000
+        no_progress_timeout_ms: 12000
         teleport_mana_reserve_percent: 20
         resume_mana_percent: 35
         emergency_mana_percent: 10
-        mana_recovery_timeout_ms: 5000
-        max_alternate_corrections: 1</code></pre>
+        mana_recovery_timeout_ms: 5000</code></pre>
   <ul>
     <li><code>enabled</code> muss Presence unterscheiden können. Fehlend bedeutet für Summoner <code>true</code>, für alle anderen Runs <code>false</code>; ein explizites <code>false</code> bleibt möglich.</li>
     <li>Radien und Angriffsdistanz müssen endlich und positiv sein. <code>corridor_width &lt; immediate_radius &lt; attack_distance</code> und <code>landing_radius &lt; attack_distance</code>.</li>
     <li>Prozentwerte liegen in <code>1…100</code>; <code>emergency &lt; reserve ≤ resume</code>.</li>
-    <li>Budgets sind streng positiv und nach oben begrenzt. Empfohlene Maxima: 60 Casts, 30 Sekunden Clear, 15 Sekunden Mana-Recovery, zwei Alternativkorrekturen.</li>
+    <li><code>no_progress_timeout_ms</code> liegt in <code>3000…30000</code>, <code>mana_recovery_timeout_ms</code> in <code>1000…15000</code>. Der Mana-Timeout ist eigenständig und muss kleiner oder gleich dem No-Progress-Timeout sein.</li>
     <li><code>enabled: true</code> ist nur bei einer Registry-Definition mit Route-Threat-Capability zulässig. Phase 17 registriert ausschließlich Summoner.</li>
-    <li>NPC-IDs, Skill-ID und Belt-Slots stehen nicht im Route-Combat-Block. Gegner stammen aus der Run-Definition, Skill aus CombatConfig, Ressourcen aus dem Combat-Profil.</li>
+    <li><code>maxRuntimeMonsters = 512</code> und drei Clear-Snapshots sind compile-nahe Verträge. <code>runtime.poll_interval_ms</code> (Default 100) und <code>attack_interval_ms</code> (MrBones 350) bleiben ihre bestehenden Autoritäten; Route-Combat dupliziert diese Werte nicht. NPC-IDs, Strategie, Skill-ID und Belt-Slots stehen ebenfalls nicht im Route-Combat-Block.</li>
+    <li>Die codegestützte Registry ordnet <code>necro_bone_spear</code> strikt <code>single_target</code> zu. Es entsteht kein <code>strategy</code>-YAML-Key. Die bestehende Profil-/Run-Gleichheit bleibt bis zu einem zweiten produktiven Profil unverändert.</li>
     <li>Keine neue Config-Schema-Version nur für additive Felder. KnownFields bleibt streng; Defaults werden vor Validierung run-ID-bewusst angewendet.</li>
   </ul>
 
   <h2>12. Stabile Reasons und Telemetrie</h2>
   <table><thead><tr><th>Reason/Event</th><th>Bedeutung</th><th>Retry</th></tr></thead><tbody>
-    <tr><td><code>route_threat_clear_exhausted</code></td><td>Threat nach Cast- oder Zeitbudget weiterhin living/relevant.</td><td>Bestehende Session darf nach Spielneustart erneut versuchen.</td></tr>
-    <tr><td><code>route_threat_out_of_range</code></td><td>Landepunkt blockiert, Gegner aus aktueller Position nicht sicher angreifbar.</td><td>Retry nur über neuen Spielzyklus; kein Blindteleport.</td></tr>
-    <tr><td><code>route_mana_recovery_failed</code></td><td>Reserve nicht innerhalb des Budgets wiederhergestellt oder benötigte Ressource fehlt.</td><td>Ja, mit bestehendem Lifecycle-Budget.</td></tr>
-    <tr><td><code>route_recovery_unsafe</code></td><td>Recovery-Ziel bedroht oder wiederholter Teleport ohne Fortschritt, keine sichere Alternative.</td><td>Ja; ersetzt Todesloop.</td></tr>
-    <tr><td><code>route_threat_state_invalid</code></td><td>Interne Invariante zwischen RouteProgress und Threat-State verletzt.</td><td>Nein ohne Diagnose; Implementierungsfehler.</td></tr>
+    <tr><td><code>route_clear_no_progress</code></td><td>Seit 12 Sekunden kein objektiver Ziel-, Threat- oder Coverage-Fortschritt, obwohl Clear/Hold aktiv ist.</td><td>Default-retryable über bestehenden Lifecycle.</td></tr>
+    <tr><td><code>route_threat_out_of_range</code></td><td>Dreifach bestätigter Blocker aus aktueller Position nicht sicher angreifbar/projizierbar.</td><td>Default-retryable; kein Annäherungsteleport.</td></tr>
+    <tr><td><code>route_mana_recovery_failed</code></td><td>Reserve nicht innerhalb von 5 Sekunden wiederhergestellt oder benötigte Ressource fehlt.</td><td>Default-retryable.</td></tr>
+    <tr><td><code>route_recovery_unsafe</code></td><td>Recovery-Ziel bedroht oder derselbe Teleport ohne Fortschritt erneut angefordert.</td><td>Default-retryable; ersetzt Todesloop.</td></tr>
+    <tr><td><code>route_threat_state_invalid</code></td><td>Interne Invariante zwischen RouteProgress, Profil und Threat-State verletzt.</td><td>Terminal; Implementierungs-/Configfehler.</td></tr>
   </tbody></table>
   <table><thead><tr><th>Event</th><th>Pflichtfelder</th><th>Noise-Regel</th></tr></thead><tbody>
     <tr><td><code>route_threat_detected</code></td><td>run, route, segment/point, zone, NPC-/UnitID, Player-/Targetposition, Distanz</td><td>Einmal pro neuem aktiven Ziel oder Zonewechsel.</td></tr>
-    <tr><td><code>route_clear_started</code></td><td>RouteProgress, Mana/HP-Prozent, Budgets</td><td>Einmal pro Blockade.</td></tr>
-    <tr><td><code>route_clear_attack</code></td><td>UnitID, NPC-ID, cast_index, hover_confirmed=true</td><td>Nur tatsächlich gesendete Angriffe.</td></tr>
-    <tr><td><code>route_clear_completed</code></td><td>Dauer, casts_sent, targets_seen, hold_ms</td><td>Einmal aggregiert.</td></tr>
+    <tr><td><code>route_clear_started</code></td><td>RouteProgress, Profil, Strategie, Mana/HP-Prozent, no_progress_timeout_ms</td><td>Einmal pro Blockade.</td></tr>
+    <tr><td><code>route_monster_snapshot_saturated</code></td><td>eligible_count, retained_count, truncated, coverage_radius, required_radius, coverage_complete</td><td>Nur Eintritt, Coverage-Statuswechsel und Ende der Sättigung, nie pro Tick.</td></tr>
+    <tr><td><code>route_clear_action</code></td><td>mode route_threat|density_relief, Profil, Strategie, Skill, Action-Kind, UnitID, NPC-ID, action_index, hover_confirmed</td><td>Nur tatsächlich gesendete Combat-Aktionen.</td></tr>
+    <tr><td><code>route_clear_progress</code></td><td>progress_kind, target UnitID, eligible/relevant count vorher/nachher, truncated</td><td>Nur bei akzeptiertem Watchdog-Reset.</td></tr>
+    <tr><td><code>route_clear_completed</code></td><td>Dauer, combat_actions_sent, targets_seen, density_relief_actions, hold_ms</td><td>Einmal aggregiert.</td></tr>
     <tr><td><code>route_mana_hold</code></td><td>Mana %, demand, threatened, selected resource</td><td>Start/Änderung/Ende, nicht pro Tick.</td></tr>
     <tr><td><code>route_recovery_suppressed</code></td><td>Ziel, Grund, vorherige Versuche, Fortschritt</td><td>Einmal pro unterdrücktem Movement.</td></tr>
   </tbody></table>
-  <p>Bestehende <code>run_step_started/completed/failed</code>-Events behalten <code>play_bound_route</code>. Route-Combat wird kein neuer äußerer Pipeline-Step, weil RoutePlayer und Segmenttimeout während des Haltens fachlich dieselbe Route besitzen. Die neuen Events erklären die internen Holds, ohne Run-Historie künstlich zu fragmentieren.</p>
+  <p>Bestehende <code>run_step_started/completed/failed</code>-Events behalten <code>play_bound_route</code>. Route-Combat wird kein neuer äußerer Pipeline-Step, weil RoutePlayer und Segmenttimeout während des Haltens fachlich dieselbe Route besitzen. Die Events sind additive Schema-3-Felder; keine neue History-Ansicht oder Chart gehört zu Phase 17. Sichtbare deutsche Reasons und die effektive Configprojektion reichen als Operatoroberfläche.</p>
+  <p>Beim Upgrade erhalten frische Installationen und unveränderte bekannte Default-Hashes die vier neuen retryable Reasons <code>route_clear_no_progress</code>, <code>route_threat_out_of_range</code>, <code>route_mana_recovery_failed</code> und <code>route_recovery_unsafe</code>. Eine bereits angepasste <code>retry_classes</code>-Liste bleibt unverändert; Migration überschreibt keine Operatorentscheidung. <code>route_threat_state_invalid</code> wird nie automatisch ergänzt.</p>
 
   <h2>13. Timeout-, Pause-, Stop- und Resetvertrag</h2>
   <ul>
-    <li>Jeder Threat-/Mana-Zustand besitzt eigene Startzeit und Zähler. Kein Budget wird aus globalem <code>step_timeout_ms</code> abgeleitet.</li>
-    <li>Route.Hold friert nur die interne Segment-/Transition-Deadline; Threat-/Mana-Budgets laufen weiter.</li>
-    <li>Benutzer-Pause friert wie bisher Task-Ticks und damit alle Phase-17-Budgets. Nach Resume wird zuerst World/RouteProgress neu bewertet, nie sofort der alte Input wiederholt.</li>
+    <li>Eine Blockade besitzt <code>lastObjectiveProgressAt</code>, aber weder Gesamtaktions- noch Gesamtdauerlimit. Kein Watchdog wird aus globalem <code>step_timeout_ms</code> abgeleitet; <code>play_bound_route</code> erhält keinen zusätzlichen äußeren 45-Sekunden-Step-Timeout.</li>
+    <li><code>Route.Hold</code> friert nur die interne Segment-/Transition-Deadline. Der 12-Sekunden-No-Progress-Watchdog läuft weiter und wird ausschließlich durch die in Abschnitt 8 benannten objektiven Belege neu gesetzt.</li>
+    <li>Mana-Recovery besitzt unabhängig davon maximal 5 Sekunden. Eine erfolgreiche Potion oder ein Cast setzt den Clear-Watchdog nicht zurück; eine tatsächlich verbesserte Mana-/Handlungsfähigkeit beendet nur den Mana-Hold.</li>
+    <li>Benutzer-Pause friert wie bisher Task-Ticks und damit beide Watchdogs. Nach Resume wird zuerst World/RouteProgress neu bewertet, nie sofort der alte Input wiederholt.</li>
     <li>F11, Context-Cancellation und <code>process_lost</code> rufen Combat.StopAttack, Route.Reset, Profile.Reset und ThreatController.Reset genau einmal über die zentrale Generation-Barriere auf.</li>
     <li>Areawechsel während Route-Clear oder Mana-Hold ist nur zulässig, wenn RouteProgress bereits in einer erwarteten Transition steht. Arcane-Summoner hat ein terminales Same-Area-Segment; jeder unerwartete Wechsel bleibt fail-closed.</li>
     <li>Ein invalid/loading Snapshot sendet keinen Input, bestätigt keinen Kill, erhöht keinen stable-clear-Zähler und wiederholt keinen Teleport.</li>
@@ -302,29 +375,32 @@ type RoutePlayback interface {
   <table><thead><tr><th>Bereich</th><th>Erwartete Dateien</th><th>Änderung</th></tr></thead><tbody>
     <tr><td>Config</td><td><code>internal/config/config.go</code>, Configtests, <code>configs/config.example.yaml</code></td><td><code>RouteCombatConfig</code>, run-ID-bewusste Defaults, Bounds und Cross-Field-Validierung.</td></tr>
     <tr><td>Run Registry</td><td><code>internal/tasks/run_contract.go</code>, <code>registry.go</code></td><td>Summoner-Capability und compile-nahe Arcane-Hostile-IDs; keine Benutzer-ID-Liste.</td></tr>
-    <tr><td>Task-Orchestrierung</td><td><code>internal/tasks/route_threat.go</code> neu, <code>run_pipeline.go</code>, <code>runner.go</code>, <code>deps.go</code></td><td>Threat-State, Hold/Movement-Exklusivität, ResourceContext, Reset und Reasons.</td></tr>
+    <tr><td>Task-Orchestrierung</td><td><code>internal/tasks/route_threat.go</code> neu, <code>route_threat_test.go</code>, <code>run_pipeline.go</code>, <code>runner.go</code>, <code>deps.go</code></td><td>Single-pass <code>ThreatAssessment</code>, Density-Relief, Progress-Watchdog, priorisierte Clear-Anfrage, Hold/Movement-Exklusivität, Reset und Reasons; keine Klassenlogik.</td></tr>
     <tr><td>Pathing</td><td><code>internal/pathing/route_player.go</code>, <code>route_segment_player.go</code></td><td>Read-only Progress einschließlich tatsächlichem Recovery-Ziel; keine Combat-Abhängigkeit.</td></tr>
-    <tr><td>App Adapter</td><td><code>internal/app/route_adapter.go</code>, <code>combat.go</code>, Wiring</td><td>Progress/Hold mit Deadline-Freeze; bestehendes hover-bestätigtes Monster-Aim wiederverwenden.</td></tr>
-    <tr><td>Profile</td><td><code>internal/profile/types.go</code>, <code>executor.go</code></td><td>ResourceContext, InputSent/Verifying und threat-aware Rejuvenation-Priorität.</td></tr>
-    <tr><td>Memory/World</td><td>primär Tests; produktiv nur bei belegter Lücke</td><td>Priority-Boss- und nearest-reservoir-Vertrag charakterisieren; keine zweite Enumeration.</td></tr>
-    <tr><td>Telemetry</td><td><code>internal/telemetry</code> Eventnamen/DTOs und Recorder-Tests</td><td>Gebündelte Threat-, Hold-, Mana- und Recovery-Ereignisse.</td></tr>
+    <tr><td>App Adapter</td><td><code>internal/app/route_adapter.go</code>, <code>combat.go</code>, Wiring</td><td>Progress/Hold mit Deadline-Freeze; vorhandenes hover-bestätigtes Monster-Aim wiederverwenden; Clear erhält keine Movement-Methode.</td></tr>
+    <tr><td>Profile</td><td><code>internal/profile/route_clear.go</code> neu, <code>types.go</code>, <code>executor.go</code></td><td>Kleiner RouteClearExecutor, codegestütztes <code>single_target</code>, ResourceContext und Route-Notfall-Rejuvenation; bestehende Resultstatus wiederverwenden.</td></tr>
+    <tr><td>Memory/World</td><td><code>internal/memory/entities.go</code>, <code>memory.go</code>, <code>enumerate.go</code>, Tests; <code>internal/world/state.go</code>, <code>world.go</code>, <code>mapper.go</code>, Tests</td><td>Eigenes 512er Monster-Reservoir, <code>EligibleMonsterCount</code>, <code>MonstersTruncated</code>, <code>MonsterCoverageRadiusTiles</code>, Clone/Mapping und Priority-Nichtverdrängung; keine zweite Enumeration.</td></tr>
+    <tr><td>Telemetry</td><td><code>internal/telemetry</code> Eventnamen/DTOs und Recorder-Tests</td><td>Gebündelte Threat-, Density-, Progress-, Hold-, Mana- und Recovery-Ereignisse.</td></tr>
     <tr><td>Dokumentation</td><td>neue Feature-Doc plus Summoner, Route Playback, Task Runner, Profiles, World Model, README, Changelog, Handoff</td><td>Verhalten, Config, Grenzen, Operator-Gates und Failure-Semantik.</td></tr>
   </tbody></table>
-  <p>Erwarteter produktiver Umfang: ungefähr 5–8 bestehende Kernbereiche, eine kleine neue Task-Datei und etwa 400–700 Zeilen Produktcode plus fokussierte Tests und Dokumentation. Ein deutlich größerer Diff ist ein Signal für unerwünschte Generalisierung.</p>
+  <p>Der Diff soll auf diesen schmalen Schnitt begrenzt bleiben. Neue generische Planner-/Plugin-Abstraktionen, eine Rotations-DSL, ein Leichenmodell oder area-spezifische Klassen-Switches sind ein Abbruchsignal für Scope Creep, nicht „Vorbereitung“.</p>
 
   <h2>15. Vollständiger Testvertrag</h2>
   <table><thead><tr><th>Bereich</th><th>Pflichtfälle</th></tr></thead><tbody>
-    <tr><td>Config</td><td>Summoner ohne Block → enabled; Summoner explizit false; andere Runs ohne Block → disabled; unsupported run enabled; NaN/Inf/0; Radiusordnung; Prozentordnung; Budgetobergrenzen; YAML KnownFields.</td></tr>
-    <tr><td>Threat-Geometrie</td><td>Immediate; Landing; Corridor; hinter Spieler; paralleler Arm außerhalb Korridor; exakt Grenze; Zonenpriorität; Distanz-Tie via UnitID; Boss ausgeschlossen; Player-Summon ausgeschlossen.</td></tr>
-    <tr><td>Living-Ziel</td><td>Nächstes Ziel wechselt; altes Ziel stirbt; UnitID verschwindet; gleiche NPC-ID/neue UnitID; außerhalb Range; Hover falscher UnitType; Hover falsche UnitID; Aim ohne Klick zählt nicht; bestätigter Klick zählt einmal.</td></tr>
+    <tr><td>Config</td><td>Summoner ohne Block → enabled; Summoner explizit false; andere Runs ohne Block → disabled; raw Route-Playback aus; unsupported run enabled; NaN/Inf/0; Radiusordnung; Prozentordnung; No-Progress-/Mana-Timeoutgrenzen und -reihenfolge; YAML KnownFields; angepasste retry_classes unverändert.</td></tr>
+    <tr><td>Memory/World</td><td>32/33/512/513 nicht-priorisierte Kandidaten; nearest-to-player Ersetzung; Priority zusätzlich und unverdrängt; exakter EligibleCount; Truncated nur bei Verlust; Coverage-Radius entspricht dem farthest retained Non-Priority-Monster; Snapshot-/World-Clone und Mapping; Corpse weiterhin ausgeschlossen.</td></tr>
+    <tr><td>Threat-Geometrie</td><td>Immediate; Landing; Corridor; hinter Spieler; paralleler Arm außerhalb Korridor; exakt Grenze; Zonenpriorität; Distanz-Tie via UnitID; Boss ausgeschlossen; Player-Summon ausgeschlossen; ein Assessment je <code>State.At</code>.</td></tr>
+    <tr><td>Living-Ziel</td><td>Nächstes Ziel wechselt; altes Ziel stirbt; UnitID verschwindet; gleiche NPC-ID/neue UnitID; dreifach außerhalb Range/unprojectable; Hover falscher UnitType/UnitID; Aim ohne Cast zählt nicht; bestätigter Cast zählt einmal.</td></tr>
     <tr><td>Route Hold</td><td>Kein Navigator-Tick; Deadline exakt verschoben; gleicher Snapshot nicht doppelt; Identity/Area falsch; Reset; Hold → Resume setzt gleichen Segment-/PointIndex fort.</td></tr>
-    <tr><td>Clear-State</td><td>Threat startet Hold; drei freie Snapshots; invalid setzt zurück; Castbudget; Zeitbudget; Clear-Abschluss und Movement getrennte Ticks; StopAttack beim Ausgang; fail-closed statt Teleport.</td></tr>
-    <tr><td>Mana</td><td>Unter Reserve ohne Threat; kritisches Mana mit Threat; HP-kritische Rejuvenation gewinnt; Mana-Burn-Rejuvenation; kein Rejuv; Mana-Potion-Fallback; Cooldown; Belt-Unit bestätigt; VerifyTimeout; RecoveryTimeout; Resume-Hysterese.</td></tr>
-    <tr><td>Runner</td><td>Resource InputSent blockiert Tick; reine Verifikation blockiert Hold/Combat nicht; niemals zwei echte Inputs pro Tick; Profilefehler terminal; Pause friert Budgets.</td></tr>
-    <tr><td>Recovery</td><td>Previous/Target-Projektion; threatened recovery target; identischer No-Progress-Cast unterdrückt; eine sichere Alternative; Alternative threatened; Fortschritt setzt Guard zurück; Obergrenze; klarer Reason.</td></tr>
-    <tr><td>Integration</td><td>Summoner Route ohne Monster unverändert; Ghost im Korridor; Ghost am Landepunkt; mehrere Typen; Pack wird vollständig clear; Mana fällt während Clear; Route setzt exakt am selben Punkt fort; Boss-Acquire danach unverändert.</td></tr>
+    <tr><td>Clear-State</td><td>Threat startet vor jedem Movement Hold; drei freie lokal vollständige Snapshots; globale Truncation mit ausreichender Coverage erlaubt Movement; unvollständige Coverage startet Density-Relief statt Abbruch; kein Gesamtaktions-/Zeitlimit; objektiver Fortschritt setzt Watchdog; Aim/Cast/Zielwechsel/Mana nicht; 12 Sekunden Stillstand.</td></tr>
+    <tr><td>Profilstrategie</td><td><code>necro_bone_spear → single_target</code>; unbekannte Kombination validierungsfehlerhaft; Skillwahl/Aim/Cast höchstens ein Input pro Tick; kein Movementzugriff; Reset; keine Klassenabfrage in Tasks/Route.</td></tr>
+    <tr><td>Mana</td><td>20/35-Hysterese; kritisches Mana mit Immediate-Threat; HP-kritische Rejuvenation gewinnt; Route-Notfall-Rejuvenation; kein Rejuv; Mana-Potion-Fallback; Cooldown; Belt-Unit bestätigt; VerifyTimeout; RecoveryTimeout.</td></tr>
+    <tr><td>Runner</td><td><code>StatusAction</code> blockiert Tick; <code>StatusPending</code> wird nur im Route-Step speziell behandelt; niemals zwei Inputs pro Tick; alle anderen Steps unverändert; Profilefehler terminal; Pause friert Watchdogs.</td></tr>
+    <tr><td>Recovery</td><td>Previous/Target-Projektion; threatened recovery target; identischer No-Progress-Cast vor zweitem Input abgebrochen; keine Alternative/Jitter; Fortschritt setzt Guard zurück; bestehende Obergrenze; klarer Reason.</td></tr>
+    <tr><td>Integration</td><td>Summoner Route ohne Monster unverändert; Ghost im Korridor; Pack am Landepunkt wird aus der aktuellen Position beschossen; mehr als 32 bekannte Monster; 513 nahe Kandidaten rollen per Density-Relief nach; 513 ferne Kandidaten mit vollständiger lokaler Coverage blockieren nicht; große fortschreitende Packs überschreiten 20 Aktionen/12 Sekunden ohne Abbruch.</td></tr>
     <tr><td>Regression</td><td>Countess, Mephisto, Nihlathak; Post-Boss-Cleanup; isolierte Bossphase; isoliertes Route-Playback; Guided Recording/Validation; Town-Egress; process_lost; F11.</td></tr>
-    <tr><td>Telemetry</td><td>Keine Per-Tick-Flut; nur gesendete Casts; korrekte Aggregate; Failure-Reason; Emit-Fehler blockiert folgenden Input wie bestehender Vertrag.</td></tr>
+    <tr><td>Performance</td><td><code>BenchmarkThreatAssessment512</code> verwendet einen wiederverwendeten World-State, meldet 0 allocs/op und liegt im Referenzlauf klar unter 1 ms/op. Kein flakiger Timing-Assert im Unit-Test; Benchmarkwert im Gate protokollieren.</td></tr>
+    <tr><td>Telemetry</td><td>Keine Per-Tick-Flut; Sättigung nur bei Eintritt/Ende; Progress nur bei Watchdog-Reset; nur gesendete Combat-Aktionen; Profil/Strategie/Skill/Mode; korrekte Aggregate; Failure-Reason.</td></tr>
   </tbody></table>
 
   <h2>16. Sequenzieller Umsetzungsplan</h2>
@@ -332,10 +408,10 @@ type RoutePlayback interface {
     <div class="phase-id">17.0</div><div><h3>Baseline, Live-Belege und compile-naher Vertrag</h3>
       <ul>
         <li>Aktuellen Stand einschließlich Phase-17-Vorarbeiten nicht verändern, bevor vollständige Go-/Web-/Installer-Baseline und relevante Summoner-/Route-/Profile-Tests grün sind.</li>
-        <li>Die vorhandenen Telemetriebelege für Mana-Burn, <code>play_bound_route</code>, <code>acquire_boss</code>, F11-Abbruch und Route-Drift zeitlich korrelieren. Keine Behauptung „Stuck“ ohne Positions-/Point-/Recovery-Beleg.</li>
-        <li>Die produktive Summoner-Route read-only charakterisieren: Punktabstände, Toleranzen, maximale Abweichungen, Wiederholungen und bekannte gefährliche Abschnitte. Route nicht neu aufnehmen oder still editieren.</li>
-        <li><code>docs/features/phase-17-core-contract.md</code> mit Entscheidungen, States, Config, Reasons, Budgets, Safety und Non-Goals anlegen.</li>
-        <li>Pure Vertragstypen für RouteProgress, RouteCombatConfig, ThreatZone, RouteThreatState, ResourceContext und Reasons compile-nah definieren.</li>
+        <li>Die belegten Fehler als Baseline festhalten: zwei <code>route_segment_timeout</code> exakt bei 30 Sekunden, ein <code>potion_verify_timeout</code> nach Rejuvenation und ein erfolgreicher Playback-Durchlauf von 22,3 Sekunden. Keine weitergehende „Stuck“-Behauptung ohne Positions-/Point-/Recovery-Beleg.</li>
+        <li>Die produktive Summoner-Hell-Route read-only charakterisieren und nicht still editieren: 32 Punkte, Punktabstände min. 6,32 / Ø 18,5 / max. 23,02 Tiles, Toleranz 3, Drift 8, zwei lokale Korrekturen und ein Same-Area-Terminalsegment.</li>
+        <li><code>docs/features/phase-17-core-contract.md</code> mit Entscheidungen, States, Config, Reasons, Watchdogs, Safety und Non-Goals anlegen.</li>
+        <li>Pure Vertragstypen für RouteProgress, RouteCombatConfig, ThreatZone, ThreatAssessment, RouteThreatState, Monster-Coverage-Metadaten, ResourceContext und Reasons compile-nah definieren.</li>
       </ul>
       <div class="callout gate"><strong>Gate 17.0:</strong> Baseline grün; konkrete Logs belegen die drei getrennten Ursachen Bewegung ohne Threat-Check, blockierende Ressourcenverifikation und gefährliche Recovery; Vertrag und Non-Goals sind vollständig, bevor produktiver Inputcode geändert wird.</div>
     </div>
@@ -355,41 +431,44 @@ type RoutePlayback interface {
   </section>
 
   <section class="phase">
-    <div class="phase-id">17.2</div><div><h3>Pure Threat-Auswahl und Summoner-Config</h3>
+    <div class="phase-id">17.2</div><div><h3>Monster-Coverage, pure Threat-Auswahl und Summoner-Config</h3>
       <ul>
         <li>Run-ID-bewussten Configblock samt Presence-Default und strenger Validierung implementieren.</li>
         <li>Summoner-Registry um Capability und Arcane-Hostile-Katalog ergänzen; rohe IDs nicht in YAML spiegeln.</li>
-        <li>Pure Geometriefunktionen für Immediate, Landing und vorausliegenden Corridor implementieren; bestehende Distanz-/Segmentmath wiederverwenden oder klein im Task-Paket halten.</li>
-        <li>Deterministische Zielordnung und vollständige Grenzmatrix testen.</li>
+        <li>Monster-Reservoir vom gemeinsamen 32er Cap trennen und auf 512 setzen. EligibleCount, Truncated und CoverageRadius durch Memory-Snapshot, World-Mapping und Clone-Pfade führen; Priority-Vertrag unverändert erhalten.</li>
+        <li><code>assessThreats</code> als einen allokationsfreien O(n)-Durchlauf für Immediate, Landing, Corridor, Route-Ziel, Density-Ziel und lokale Coverage implementieren. Nur vorhandenen <code>world.State</code> lesen; keine zusätzliche Probe-Abfrage.</li>
+        <li>Deterministische Zielordnung, 32/512/513-Coverage, strikte Radiusgrenze, global-truncated/lokal-complete und vollständige Geometrie-Grenzmatrix testen.</li>
+        <li><code>BenchmarkThreatAssessment512</code> mit <code>ReportAllocs</code> ergänzen und Referenzwert dokumentieren.</li>
         <li>No-Threat-Summoner-Route durch Characterization-Test byte-/verhaltensgleich halten.</li>
       </ul>
-      <div class="callout gate"><strong>Gate 17.2:</strong> Threat-Auswahl ist ohne Input vollständig testbar; entfernter paralleler Arm blockiert nicht; fehlende installierte Config aktiviert nur Summoner; andere Runs verändern sich nicht.</div>
+      <div class="callout gate"><strong>Gate 17.2:</strong> 512 nicht-priorisierte Monster plus Priority-Einheiten sind korrekt abbildbar; 513 setzt Truncation und einen korrekten Coverage-Radius. Ein global abgeschnittener, lokal vollständiger Snapshot darf Movement erlauben. Threat-Auswahl benötigt keine zusätzlichen Memory-Reads, erzeugt im Benchmark 0 allocs/op und bleibt klar unter 1 ms/op.</div>
     </div>
   </section>
 
   <section class="phase">
-    <div class="phase-id">17.3</div><div><h3>Route-Clear-State und hover-bestätigter Standardangriff</h3>
+    <div class="phase-id">17.3</div><div><h3>Profilgesteuerter, stationärer Route-Clear</h3>
       <ul>
         <li>Kleinen generation-scoped <code>RouteThreatController</code> in <code>internal/tasks</code> implementieren.</li>
-        <li><code>play_bound_route</code> ordnet pro Tick genau eine Aktion an: Hold/Combat oder Route.Tick.</li>
-        <li>Vorhandene Monster-Aim-/Hover-Oberfläche verwenden und Ziel pro Snapshot neu berechnen.</li>
-        <li>Stable-clear, Cast-/Zeitbudget, Range-Gate, StopAttack und Reset implementieren.</li>
-        <li>Post-Boss-Zielauswahl gegebenenfalls in pure gemeinsame Helper extrahieren, ohne dessen best-effort Semantik zu ändern.</li>
+        <li><code>play_bound_route</code> liest vor jedem Movement das effektive Ziel und ordnet pro Tick genau einen Pfad an: Hold/Clear oder Route.Tick.</li>
+        <li>Schmalen <code>RouteClearExecutor</code> im Profilpaket und genau <code>single_target</code> für <code>necro_bone_spear</code> implementieren; keine Rotation-DSL und kein Klassen-Switch in Tasks.</li>
+        <li>Dem Clear-Executor ausschließlich CombatActions geben. Vorhandene Skill-/Aim-/Hover-Oberfläche verwenden, Ziel pro Snapshot neu berechnen und jede Movement-/Teleportmöglichkeit strukturell ausschließen.</li>
+        <li>Stable-clear nur auf drei lokal vollständigen Snapshots, Density-Relief ausschließlich bei Coverage-Lücke, objektive Fortschrittsbelege, 12-Sekunden-No-Progress-Watchdog, dreifaches Range-/Projection-Gate und Stop/Reset implementieren.</li>
+        <li>Nur die pure Living-Zielordnung mit Post-Boss-Cleanup teilen; dessen State, Budgets und best-effort Semantik bleiben unverändert.</li>
       </ul>
-      <div class="callout gate"><strong>Gate 17.3:</strong> Ghost am Spieler, im Korridor oder am Landepunkt verhindert jeden Routenteleport; nur exakte Living-/Hover-UnitID wird angegriffen; nach drei freien Snapshots setzt dieselbe Route frühestens im Folgetick fort.</div>
+      <div class="callout gate"><strong>Gate 17.3:</strong> Ghost am Spieler, im Korridor oder am Landepunkt verhindert jeden Routenteleport. Bone Spear wird aus der unveränderten Spielerposition nur auf exakte Living-/Hover-UnitID gewirkt. Ein großes Pack darf beliebig viele Aktionen und mehr als 12 Sekunden benötigen, solange objektiver Fortschritt entsteht; 12 Sekunden echter Stillstand enden eindeutig. Nur unvollständige lokale Coverage löst Density-Relief aus; ferne Überfüllung hält die Route nicht.</div>
     </div>
   </section>
 
   <section class="phase">
     <div class="phase-id">17.4</div><div><h3>Mana-Reserve und nichtblockierende Ressourcenverifikation</h3>
       <ul>
-        <li>ResourceContext und explizite Resultfelder <code>InputSent</code>/<code>Verifying</code> ergänzen.</li>
-        <li>Runner nur bei tatsächlichem Ressourceninput oder Fehler früh zurückkehren lassen; reine Verifikation erlaubt Threat-/Hold-Fortschritt.</li>
-        <li>Summoner-Route meldet Mobility-/Threat-/Emergency-Kontext. Profil priorisiert HP-kritische Rejuvenation, danach Mana-Burn-Rejuvenation, danach normale Regeln.</li>
-        <li>Route-Mana-Hold mit Reserve, Resume-Hysterese und endlichem Timeout implementieren.</li>
-        <li>Alle Profil-/Runner-/Belt-Tests einschließlich „höchstens ein echter Input pro Tick“ erweitern.</li>
+        <li><code>ResourceContext</code> ergänzen und vorhandene <code>StatusAction</code>/<code>StatusPending</code> wiederverwenden; keine parallelen Wahrheits-Booleans einführen.</li>
+        <li>Nur der opt-in Route-Step darf bei passiver Verifikation Threat-/Hold-/Clear-Fortschritt ausführen. <code>StatusAction</code>, Fehler oder bereits anderweitig verbrauchter Tick kehren früh zurück.</li>
+        <li>Summoner-Route meldet Mobility-/Threat-/Emergency-Kontext. Profil priorisiert HP-kritische Rejuvenation, danach Route-Notfall-Rejuvenation, danach Mana-Potion und normale Regeln.</li>
+        <li>Hysterese exakt implementieren: Hold-Eintritt unter 20 %, Emergency bei höchstens 10 % plus Immediate-Threat, Resume eines begonnenen Holds erst ab 35 %, separater Mana-Timeout 5 Sekunden. Ressourcenaktionen setzen den Clear-No-Progress-Watchdog nicht zurück.</li>
+        <li>Alle Profil-/Runner-/Belt-Tests einschließlich „höchstens ein Input pro Tick“ und Regression aller Nicht-Route-Steps erweitern.</li>
       </ul>
-      <div class="callout gate"><strong>Gate 17.4:</strong> Unter Reserve wird kein Teleport gesendet; akuter Mana-Burn kann Rejuvenation nutzen; passives Verify friert die Route nicht 1,5 Sekunden vollständig ein; fehlende Erholung endet schnell und eindeutig statt im Todesstillstand.</div>
+      <div class="callout gate"><strong>Gate 17.4:</strong> Ein begonnener Mana-Hold sendet unter 35 % keinen Teleport; Immediate-Threat plus höchstens 10 % Mana kann Rejuvenation nutzen; passives Verify friert den Route-Clear nicht 1,5 Sekunden vollständig ein; fehlende Ressource scheitert sofort, fehlende Erholung spätestens nach 5 Sekunden.</div>
     </div>
   </section>
 
@@ -398,7 +477,7 @@ type RoutePlayback interface {
       <ul>
         <li>Recovery-Ziel aus RouteProgress durch denselben Threat-Controller führen.</li>
         <li>Gesendeten Movement-Cast und folgenden Positionsfortschritt generation-/point-scoped verfolgen.</li>
-        <li>Identischen Teleport ohne Fortschritt unterdrücken; höchstens eine geometrisch sichere Alternative auf der aktiven Kante zulassen.</li>
+        <li>Identischen Teleport ohne Fortschritt vor dem zweiten Input mit <code>route_recovery_unsafe</code> beenden. Keine alternative Zielberechnung und kein Jitter.</li>
         <li>Kein Reset von Route-Correction-Budgets durch Combat. Saubere Reasons und Telemetrie ergänzen.</li>
         <li>Navigator-/Route-/Task-Integration mit Pack am PreviousPoint und abweichender Landung testen.</li>
       </ul>
@@ -410,10 +489,10 @@ type RoutePlayback interface {
     <div class="phase-id">17.6</div><div><h3>Telemetry, vollständige Regression und Dokumentation</h3>
       <ul>
         <li>Events und stabile Reasons aus Abschnitt 12 ergänzen; Aggregate statt Tick-Flut.</li>
-        <li>Vollständige Go-Matrix, <code>go vet</code>, Lint, Windows-Build und – nur bei tatsächlich neuer Nebenläufigkeit – UCRT64-Race ausführen.</li>
+        <li>Vollständige Go-Matrix, Threat-Benchmark, <code>go vet</code>, Lint, Windows-Build und – nur bei tatsächlich neuer Nebenläufigkeit – UCRT64-Race ausführen.</li>
         <li>Feature-Doc <code>route-threat-combat.md</code> anlegen; Summoner, Route Playback, Task Runner, Encounter Profiles, World Model, README, Changelog und Handoff aktualisieren.</li>
         <li>Dead-Code-/Invarianten-Audit: keine zweite Hostile-Liste, kein Route-YAML-Reparse in Tasks, kein direkter Input im ThreatController, keine unbegrenzte Recovery.</li>
-        <li>Installer mit neuer Patchversion vollständig bauen und Produkt-Smoke ausführen.</li>
+        <li>Installer als <code>v0.14.0</code> vollständig bauen und Produkt-Smoke ausführen; Phase 17 ist ein neues wiederverwendbares Feature, kein Patchrelease.</li>
       </ul>
       <div class="callout gate"><strong>Gate 17.6:</strong> Automatische Matrix und Installer-Smoke grün; Dokumentation nennt echte Defaults, Events und Grenzen; Nicht-Summoner-Runs und Diagnoseoberflächen sind unverändert.</div>
     </div>
@@ -424,11 +503,11 @@ type RoutePlayback interface {
       <ul>
         <li>Frisch installierten Core und vorhandenen MrBones-Datenroot verwenden; effektive Phase-17-Config vor Start diagnostisch projizieren.</li>
         <li>Gezielt Runs mit Specter/Ghost, Hell Clan und Ghoul Lord auf der aktiven Route beobachten.</li>
-        <li>Mana-Burn-, Landing-Pack- und Drift-Recovery-Fälle anhand sichtbaren Verhaltens und JSONL-Events abgleichen.</li>
+        <li>Mindestens einen Mana-Notfall, ein Landing-Pack und eine Drift-Recovery anhand sichtbaren Verhaltens und JSONL-Events abgleichen. Keine riskante Stuck-Situation künstlich erzwingen; der No-Progress-Vertrag wird synthetisch verbindlich getestet.</li>
         <li>Mindestens 20 vollständige Summoner-Hell-Runs oder bis zum ersten Phase-17-Defekt ausführen. Jeder manuelle Eingriff, Tod, Timeout und Restart wird als Nichtbestehen gewertet und mit Run-ID dokumentiert.</li>
         <li>Erst nach bestandenem Gate Handoff und Phase-Status auf abgeschlossen setzen.</li>
       </ul>
-      <div class="callout gate"><strong>Gate 17.7:</strong> 20 aufeinanderfolgende Summoner-Hell-Runs ohne manuellen Abbruch, Route-Todesloop, Teleport in bekannten Landing-Threat, dauerhaften Mana-0-Stillstand oder verlorenen Routefortschritt. Bosskill, Loot, Portal, Act-2-Egress und Act-1-Handoff bleiben erfolgreich.</div>
+      <div class="callout gate"><strong>Gate 17.7:</strong> Targeted Gates und anschließend 20 neue aufeinanderfolgende Summoner-Hell-Full-Runs ohne manuellen Eingriff, Tod, Phase-17-Abbruch, Restart, Route-Todesloop, Teleport in bekannten Landing-Threat, dauerhaften Mana-0-Stillstand oder verlorenen Routefortschritt. Die Gesamtbelege enthalten alle drei Hostile-Typen und mindestens einen Mana-Notfall. Bosskill, Loot, Portal, Act-2-Egress und Act-1-Handoff bleiben erfolgreich.</div>
     </div>
   </section>
 
@@ -437,9 +516,9 @@ type RoutePlayback interface {
     <tr><td>A · Route ohne Threat</td><td>Arcane-Route ohne relevante Gegner im Korridor.</td><td>Keine Threat-Events, Punktfolge und Timing im normalen Toleranzbereich.</td><td>Zusätzlicher Aim, Hold oder veränderter Punktfortschritt.</td></tr>
     <tr><td>B · Immediate Ghost</td><td>Ghost innerhalb 18 Tiles während Route.</td><td>Route hält vor nächstem Teleport, hover-bestätigte Bone Spears, stable clear, Resume.</td><td>Teleport trotz Living-Threat, Schüsse ins Leere oder alter Unit-Pin.</td></tr>
     <tr><td>C · Landing Pack</td><td>Pack um nächsten Routepunkt, Spieler noch außerhalb.</td><td>Kein Sprung in das Pack; Gegner werden aus aktueller Position geklärt oder Run bricht sicher mit Range-Reason ab.</td><td>Erst landen, dann reagieren.</td></tr>
-    <tr><td>D · Mana-Burn</td><td>Ghost drainiert Mana unter Emergency-Schwelle.</td><td>Route hält, Rejuvenation/Mana-Recovery wird bestätigt, anschließend Clear oder schneller fail-closed.</td><td>Mehrsekündiger untätiger Stillstand bei 0 Mana bis Tod.</td></tr>
+    <tr><td>D · Mana-Notfall</td><td>Immediate-Threat bei höchstens 10 % Mana.</td><td>Route hält, Rejuvenation/Mana-Recovery wird bestätigt, anschließend Clear oder spätestens nach 5 Sekunden fail-closed.</td><td>Unbelegte Modifier-Erkennung oder untätiger Stillstand bei 0 Mana bis Tod.</td></tr>
     <tr><td>E · Drift ins Pack</td><td>Teleport landet versetzt; Previous-/Recovery-Punkt bedroht.</td><td>Threat-Clear vor Recovery oder <code>route_recovery_unsafe</code>.</td><td>Wiederholter Cast in dieselbe Gegnergruppe.</td></tr>
-    <tr><td>F · No Progress</td><td>Teleportinput gesendet, Position bleibt praktisch gleich.</td><td>Kein identischer zweiter Blindcast; maximal eine sichere Alternative, dann klarer Abbruch.</td><td>Jitter-/Endlosschleife.</td></tr>
+    <tr><td>F · No Progress</td><td>Synthetisch: Teleportinput gesendet, Position bleibt unter <code>stuck_progress_tiles</code>.</td><td>Kein identischer zweiter Input; sofort <code>route_recovery_unsafe</code>, keine Alternative.</td><td>Zweiter Cast, Jitter oder Endlosschleife.</td></tr>
     <tr><td>G · Pause/Stop</td><td>Pause und F11 jeweils während Aim, Verify, Clear und Recovery.</td><td>Kein weiterer Input, sauberer Reset, keine stale Aktion nach Resume/Neustart.</td><td>Nachlaufender Klick oder Teleport.</td></tr>
     <tr><td>H · Full Run</td><td>20 Summoner-Hell-Runs.</td><td>Kompletter Lifecycle ohne Phase-17-bedingten Eingriff.</td><td>Ein einzelner manueller Abbruch, Tod oder Route-/Mana-Loop.</td></tr>
     <tr><td>I · Regression</td><td>Je ein Countess-, Mephisto- und Nihlathak-Preflight/Run nach vorhandenen Gates.</td><td>Kein Route-Combat, bisherige Pipeline.</td><td>Neue Holds, Resource-Priorität oder Reasons außerhalb Summoner.</td></tr>
@@ -447,14 +526,19 @@ type RoutePlayback interface {
 
   <h2>18. Definition of Done</h2>
   <ul>
-    <li>Summoner besitzt als einziger Run ein standardmäßig aktives, explizit deaktivierbares Route-Combat.</li>
+    <li>Summoner besitzt als einziger produktiver Run ein standardmäßig aktives, explizit deaktivierbares <code>route_clear</code>; raw Playback/Recording bleiben Navigation.</li>
+    <li>Memory hält bis zu 512 nicht-priorisierte Living-Monster plus Priority-Einheiten und projiziert EligibleCount, Truncation sowie nearest-to-player Coverage-Radius konsistent bis <code>world.State</code>.</li>
     <li>Vor jedem Routenteleport sind Immediate-, Corridor- und Landing-Threats aus dem aktuellen Living-Snapshot geprüft.</li>
+    <li>Pro <code>world.State.At</code> entsteht genau ein allokationsfreies <code>ThreatAssessment</code> ohne zusätzlichen Memory-Read; der 512er Benchmark bleibt klar unter 1 ms/op.</li>
+    <li>Bei einem Blocker bleibt die Spielerposition unverändert: Das aktive Profil räumt per Fernkampf; nur tatsächliche Handlungsunfähigkeit oder ausbleibender Fortschritt dürfen den Run abbrechen. Kein Annäherungs- oder Pack-Teleport ist über den Clear-Vertrag möglich.</li>
+    <li>Truncation allein bricht nie ab und hält bei vollständiger lokaler Coverage nicht einmal die Route. Nur eine Coverage-Lücke verhindert <code>stable_clear</code> und aktiviert rollierendes <code>density_relief</code>.</li>
+    <li>Route/Tasks kennen keine Klasse oder Skillrotation. <code>necro_bone_spear</code> verwendet die einzige Phase-17-Strategie <code>single_target</code>; unbekannte Kombinationen werden vor Runstart abgelehnt.</li>
     <li>Kein Angriff erfolgt ohne exakte Hover-Bestätigung derselben aktuell ausgewählten Monster-UnitID.</li>
     <li>Route-Hold bewahrt Segment, Point, Recovery und Deadline korrekt und endlich.</li>
-    <li>Unter Mana-Reserve wird kein Teleport gesendet; akuter Mana-Burn besitzt bestätigte Recovery oder schnellen fail-closed Ausgang.</li>
+    <li>Mana-Hysterese 20/35 und Emergency 10 sind eindeutig; Immediate-Threat plus kritisches Mana besitzt bestätigte Recovery oder schnellen fail-closed Ausgang.</li>
     <li>Passive Belt-Verifikation blockiert keine inputfreie Threat-/Hold-Verarbeitung.</li>
     <li>Kein identischer wirkungsloser Recovery-Teleport kann wiederholt in dasselbe Pack gesendet werden.</li>
-    <li>Cast-, Clear-, Mana- und Recovery-Budgets sind endlich, validiert, telemetriert und reset-sicher.</li>
+    <li>Große Packs besitzen kein Gesamtaktions- oder Gesamtdauerlimit. Der 12-Sekunden-Clear-No-Progress-Watchdog und der 5-Sekunden-Mana-Watchdog sind objektiv, validiert, telemetriert und reset-sicher.</li>
     <li>Countess, Mephisto, Nihlathak, Post-Boss-Cleanup, Recorder, isoliertes Playback und Town-Egress regressieren nicht.</li>
     <li>Godoc, Designkommentare, Feature-Dokumentation, README, Changelog und Handoff stimmen mit dem produktiven Verhalten überein.</li>
     <li>Go-/Web-/Lint-/Windows-/Installer-Gates sind grün.</li>
@@ -464,23 +548,28 @@ type RoutePlayback interface {
   <h2>19. Risiken, Abbruchkriterien und Rollback</h2>
   <table><thead><tr><th>Risiko</th><th>Gegenmaßnahme</th><th>Abbruchkriterium</th></tr></thead><tbody>
     <tr><td>Threat-Scan blockiert entfernte parallele Arcane-Arme.</td><td>Vorausliegende Segmentprojektion und Zone-Priorität vollständig synthetisch testen.</td><td>Ein Gegner außerhalb Korridor/Landing hält die Route.</td></tr>
-    <tr><td>Hold kaschiert Segmenttimeout.</td><td>Deadline nur um deduplizierte Hold-Zeit verschieben; eigenes Clear-/Mana-Budget.</td><td>Ein Zustand kann ohne eigenen Timeout dauerhaft laufen.</td></tr>
-    <tr><td>Hover auf bewegtem Monster wird nie bestätigt.</td><td>Pro Snapshot neu zielen, endliches Budget, klare Range-/Clear-Reasons.</td><td>Blindclick als „Fallback“ vorgeschlagen oder implementiert.</td></tr>
+    <tr><td>Hold kaschiert Segmenttimeout.</td><td>Deadline nur um deduplizierte Hold-Zeit verschieben; objektiver Clear-No-Progress- und separater Mana-Watchdog.</td><td>Ein Zustand kann ohne Kills/Threat-Reduktion dauerhaft laufen.</td></tr>
+    <tr><td>Hover auf bewegtem Monster wird nie bestätigt.</td><td>Pro Snapshot neu validieren; tatsächlicher Stillstand endet über No-Progress-/Range-Reason.</td><td>Blindclick als „Fallback“ vorgeschlagen oder implementiert.</td></tr>
+    <tr><td>Hohe Gegnerzahl führt zum „Sitting Duck“.</td><td>512er Monster-Reservoir, lokale Coverage-Berechnung und aktives Density-Relief nur bei Coverage-Lücke.</td><td>Ein Test bricht allein wegen 513 Kandidaten ab, räumt unnötig ferne Dichte oder bleibt trotz sicherem Ziel untätig.</td></tr>
+    <tr><td>Threat-Prüfung belastet den 100-ms-Poll.</td><td>Ein O(n)-Durchlauf, quadrierte Distanzen, keine Sortierung/Allokation und verbindlicher 512er Benchmark.</td><td>Zusätzlicher Probe-Read, mehrfacher Scan pro Snapshot, Allokationen oder Referenzwert ≥ 1 ms/op.</td></tr>
     <tr><td>Rejuvenation wird zu aggressiv verbraucht.</td><td>Nur Summoner Route + unmittelbarer Threat + Emergency-Mana; Telemetrie.</td><td>Andere Runs oder threatfreie Route priorisieren Rejuvenation neu.</td></tr>
-    <tr><td>Resource-Verify und Combat senden zwei Inputs.</td><td><code>InputSent</code> als einzige Tick-Verbrauchsautorität und Integrationstest.</td><td>Ein Testtick enthält Belt plus Angriff/Teleport.</td></tr>
-    <tr><td>Änderung wächst zum Universal-Combat-Pathfinder.</td><td>Summoner-only Capability, keine Map-/Tile- oder Skillrotationsarchitektur.</td><td>Neue generische Planner-, Plugin- oder Area-Clear-Schicht nötig.</td></tr>
+    <tr><td>Resource-Verify und Combat senden zwei Inputs.</td><td>Vorhandene Resultstatus als Tick-Autorität, spezielle Pending-Fortsetzung nur im Route-Step und Integrationstest.</td><td>Ein Testtick enthält Belt plus Angriff/Teleport.</td></tr>
+    <tr><td>Clear-Executor bewegt in ein Pack.</td><td>Profil erhält ausschließlich CombatActions; Route.Tick bleibt im Clear-State unerreichbar.</td><td>Ein Clear-Test kann Lauf- oder Teleportinput erzeugen.</td></tr>
+    <tr><td>Änderung wächst zur Universal-Combat-AI.</td><td>Kleiner Profilvertrag, genau eine codegestützte Strategie, keine Rotations-DSL und kein Leichen-Sonderfall.</td><td>Neue Planner-/Plugin-Schicht, frei konfigurierbare Aktionsliste oder Klassen-Switch in Route/Tasks nötig.</td></tr>
   </tbody></table>
   <p>Rollback erfolgt über <code>route_combat.enabled: false</code> für Summoner, ohne Route-, Assignment- oder Pickit-Dateien zu verändern. Ein Rollback darf nur das neue Interleave deaktivieren; Boss-Priority, bestehendes Post-Boss-Cleanup und frühere Bugfixes bleiben erhalten. Vor Release muss dieser Schalter im installierten Produkt verifiziert werden.</p>
 
   <h2>20. Bewusste Übergaben nach Phase 17</h2>
   <ul>
-    <li>Übertragung des Route-Threat-Combat auf Countess oder andere Runs erst nach eigener Live-Charakterisierung und Registry-Freigabe.</li>
-    <li>Klassen- oder profilspezifische Flächenangriffe, Immunitäten und Skillrotationen bleiben spätere Combat-Profilevolution.</li>
+    <li>Eine Cow-Sweep-Route darf später denselben Clear-Orchestrator per Run-Capability nutzen. Dafür bleiben Portal-/Cube-Setup, Cow-Hostile-Katalog, große Loot-/Inventar- und Town-Recovery sowie eine Completion-Regel separat zu planen.</li>
+    <li>Übertragung auf Countess, Mephisto, Nihlathak oder andere Runs erfolgt erst nach eigener Live-Charakterisierung und Registry-Freigabe.</li>
+    <li>Amplify Damage + Corpse Explosion wird als spätere codegestützte Profilstrategie geplant, nachdem Leichen im World Model enumeriert und exakt hover-bestätigt werden können. Keine blinden Corpse-Clicks und keine fest verdrahtete „zweimal CE“-Annahme.</li>
+    <li>Die strikte Profil-/Run-Zuordnung bleibt bis zu einem zweiten tatsächlich lauffähigen Profil bestehen. Erst dann wird eine Capability-Matrix oder breitere Strategieregistry anhand realer Anforderungen bewertet.</li>
     <li>Vollständiges Tile-Map-Pathfinding oder dynamische Routenplanung bleibt außerhalb des aufgezeichneten Route-Modells.</li>
     <li>Automatische Belt-Befüllung aus Inventar sowie wirtschaftliche Trankplanung bleiben Town-/Inventory-Scope.</li>
     <li>Eine UI für Route-Combat-Tuning wird erst bewertet, wenn mehr als ein produktiver Run oder mehr als ein Profil dieselben Parameter tatsächlich benötigt.</li>
   </ul>
 
-  <footer>Phase 17 · Implementierungsplan · Stand 28. Juli 2026 · Offline/Singleplayer-only</footer>
+  <footer>Phase 17 · gehärteter Implementierungsplan · Stand 29. Juli 2026 · Offline/Singleplayer-only</footer>
 </main></body>
 </html>
