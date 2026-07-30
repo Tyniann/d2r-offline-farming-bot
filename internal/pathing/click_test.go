@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"testing"
 
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/input"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/world"
 )
 
@@ -195,5 +196,31 @@ func TestAnchoredPosition(t *testing.T) {
 	got = anchoredPosition(world.Position{X: 1, Y: 0}, 2)
 	if got != (world.Position{X: 1, Y: 0}) {
 		t.Fatalf("anchoredPosition() low coords = %+v, want unchanged", got)
+	}
+}
+
+func TestProjectHoverProbeStartsAboveGroundAndSearchesDistinctPoints(t *testing.T) {
+	projector := DefaultRelativeProjector()
+	cfg := DefaultConfig().Click
+	win := input.WindowInfo{ClientWidth: 1280, ClientHeight: 720}
+	player := world.Position{X: 100, Y: 100}
+	target := world.Position{X: 105, Y: 100}
+	_, groundY, ok := projector.Project(player, target, win)
+	if !ok {
+		t.Fatal("ground projection failed")
+	}
+	firstX, firstY, ok := ProjectHoverProbe(projector, player, target, win, cfg, 0)
+	if !ok {
+		t.Fatal("first hover probe failed")
+	}
+	secondX, secondY, ok := ProjectHoverProbe(projector, player, target, win, cfg, 1)
+	if !ok {
+		t.Fatal("second hover probe failed")
+	}
+	if firstY >= groundY-30 {
+		t.Fatalf("first hover probe y=%d, ground y=%d; want visible-body anchor above ground", firstY, groundY)
+	}
+	if firstX == secondX && firstY == secondY {
+		t.Fatalf("hover probes repeated (%d,%d)", firstX, firstY)
 	}
 }

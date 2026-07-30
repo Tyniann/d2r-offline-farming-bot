@@ -85,7 +85,11 @@ func New(cfg *config.Config, opts Options) (rt *Runtime, err error) {
 	if opts.Verbose {
 		logLevel = "debug"
 	}
-	log, logFile, logFilePath, err := config.NewFileLogger(logLevel, "logs", cfg.App.Name, time.Now())
+	logDirectory := "logs"
+	if cfg.DataRoot != "" {
+		logDirectory = filepath.Join(cfg.DataRoot, "logs")
+	}
+	log, logFile, logFilePath, err := config.NewFileLogger(logLevel, logDirectory, cfg.App.Name, time.Now())
 	if err != nil {
 		return nil, fmt.Errorf("logger: %w", err)
 	}
@@ -192,7 +196,7 @@ func New(cfg *config.Config, opts Options) (rt *Runtime, err error) {
 	combat := newCombatAdapter(log, inputCtrl, bindings, pathingCfg, runCfg.Combat.AttackInterval)
 	runActions := newRunActionsAdapter(log, inputCtrl, bindings)
 	profileTrace := &profileTelemetryAdapter{}
-	profileExecutor, err := newProfileExecutor(log, cfg.Profiles, selectedRunCfg, inputCtrl, bindings, pathingCfg, profileTrace)
+	profileExecutor, err := newProfileExecutor(log, cfg.Profiles, selectedRunCfg, inputCtrl, bindings, pathingCfg, combat, profileTrace)
 	if err != nil {
 		return nil, fmt.Errorf("profile config: %w", err)
 	}
@@ -239,7 +243,7 @@ func New(cfg *config.Config, opts Options) (rt *Runtime, err error) {
 	townEgress := newTownEgressAdapter(log, cfg, expectedVersion, inputCtrl, pathingCfg, runTelemetry)
 	taskDeps := tasks.Deps{
 		Input: inputCtrl, Pathing: nav, Waypoint: runWaypoints, Portal: townPortals, TownWalk: layoutTownWalker,
-		Stash: personalStash, Combat: combat, Actions: runActions, Loot: lootActions, Route: routePlayback, TownEgress: townEgress, Profile: profileExecutor, Town: townPreparation,
+		Stash: personalStash, Combat: combat, Actions: runActions, Loot: lootActions, Route: routePlayback, RouteClear: profileExecutor, TownEgress: townEgress, Profile: profileExecutor, Town: townPreparation,
 	}
 	// Do not assign a nil *telemetry.Recorder to the interface: that would make
 	// the interface non-nil and turn the first fail-closed pipeline event into a

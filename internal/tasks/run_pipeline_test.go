@@ -3,12 +3,14 @@ package tasks
 import (
 	"context"
 	"errors"
+	"reflect"
 	"testing"
 	"time"
 
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/config"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/profile"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/telemetry"
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/town"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/world"
 )
 
@@ -294,5 +296,89 @@ func TestRunPipelineWaitEntryAreaIgnoresTransientAreaZero(t *testing.T) {
 	result = pipeline.onTravelTick(context.Background(), Deps{}, pipelineStepWaitEntryArea, wrong, time.Now(), time.Now())
 	if !result.failed || result.reason != string(RunReasonUnexpectedArea) {
 		t.Fatalf("confirmed wrong area result = %+v", result)
+	}
+}
+
+func TestRetryReturnPhaseUsesOnlyPortalAndTownNormalization(t *testing.T) {
+	t.Parallel()
+
+	pipeline := &runPipeline{
+		definition: RunDefinition{
+			RouteTerminalArea: world.ArcaneSanctuary,
+			ReturnOrigin:      town.OriginAct2,
+		},
+		phase: RunPhaseRetryReturn,
+	}
+	want := []string{
+		pipelineStepPrecheck,
+		pipelineStepCastTownPortal,
+		pipelineStepEnterTownPortal,
+		pipelineStepWaitOriginTown,
+		pipelineStepPlayTownEgress,
+		pipelineStepOpenOriginWaypoint,
+		pipelineStepSelectHubWaypoint,
+		pipelineStepWaitHubArea,
+		pipelineStepComplete,
+	}
+	var got []string
+	for step := pipelineStepPrecheck; step != ""; step = pipeline.nextStep(step) {
+		got = append(got, step)
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("retry-return steps = %v, want %v", got, want)
+	}
+}
+
+func TestRetryReturnPhaseCompletesDirectlyFromActOneTown(t *testing.T) {
+	t.Parallel()
+
+	pipeline := &runPipeline{
+		definition: RunDefinition{ReturnOrigin: town.OriginAct1},
+		phase:      RunPhaseRetryReturn,
+	}
+	if got := pipeline.nextStep(pipelineStepWaitOriginTown); got != pipelineStepComplete {
+		t.Fatalf("next step = %q, want %q", got, pipelineStepComplete)
+	}
+}
+
+func TestRetryReturnPrecheckRequiresRouteTerminalArea(t *testing.T) {
+	t.Parallel()
+
+	pipeline := &runPipeline{
+		definition: RunDefinition{
+			RouteTerminalArea: world.TowerCellarLevel5,
+			Recording: RecordingContract{AllowedRouteAreas: []world.AreaID{
+				world.BlackMarsh,
+				world.ForgottenTower,
+				world.TowerCellarLevel5,
+			}},
+		},
+		phase: RunPhaseRetryReturn,
+	}
+	now := time.Now()
+	valid := pipeline.onRetryReturnTick(context.Background(), Deps{}, pipelineStepPrecheck, world.State{
+		Valid: true,
+		Phase: world.GamePhaseInGame,
+		Area:  world.LookupArea(world.ForgottenTower),
+	}, now, now)
+	if !valid.complete || valid.failed {
+		t.Fatalf("valid retry precheck = %+v", valid)
+	}
+	enter := pipeline.tickEnterTownPortal(context.Background(), Deps{Portal: &mockTownPortalActions{}}, world.State{
+		Valid: true,
+		Phase: world.GamePhaseInGame,
+		Area:  world.LookupArea(world.ForgottenTower),
+	}, now)
+	if !enter.complete || enter.failed {
+		t.Fatalf("route-area portal entry = %+v", enter)
+	}
+
+	wrongArea := pipeline.onRetryReturnTick(context.Background(), Deps{}, pipelineStepPrecheck, world.State{
+		Valid: true,
+		Phase: world.GamePhaseInGame,
+		Area:  world.LookupArea(world.ArcaneSanctuary),
+	}, now, now)
+	if !wrongArea.failed || wrongArea.reason != string(RunReasonUnexpectedArea) {
+		t.Fatalf("wrong-area retry precheck = %+v", wrongArea)
 	}
 }

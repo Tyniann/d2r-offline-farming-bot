@@ -1,6 +1,7 @@
 package memory
 
 import "time"
+import "math"
 
 const (
 	unitOffsetTxtFileNo = 0x04
@@ -33,6 +34,7 @@ func (p *ProbeReader) enumerateEntities(moduleBase uintptr, off OffsetSet, snap 
 	if err := p.enumerateMonsters(moduleBase, off, &visited, snap); err != nil {
 		return err
 	}
+	finalizeMonsterCoverage(snap)
 	if err := p.enumerateObjects(moduleBase, off, &visited, snap); err != nil {
 		return err
 	}
@@ -198,16 +200,19 @@ func (p *ProbeReader) enumerateMonsters(moduleBase uintptr, off OffsetSet, visit
 }
 
 func appendRuntimeMonster(snap *Snapshot, candidate MonsterUnit) {
+	snap.MonsterCoverage.EligibleMonsterCount++
 	if isRuntimePriorityMonsterCandidate(candidate.NPCID, candidate.MonsterTypeFlag) {
 		snap.Monsters = append(snap.Monsters, candidate)
 		return
 	}
-	if len(snap.Monsters) < maxEntitiesPerCategory {
+	snap.runtimeNonPriorityMonsterCount++
+	if snap.runtimeNonPriorityMonsterCount <= maxRuntimeMonsters {
 		snap.Monsters = append(snap.Monsters, candidate)
 		return
 	}
+	snap.MonsterCoverage.MonstersTruncated = true
 
-	// Cleanup candidates use a bounded nearest-to-player reservoir. Priority
+	// Runtime candidates use a bounded nearest-to-player reservoir. Priority
 	// entities (bosses, super-uniques and Town NPCs) are never replaced, so a
 	// crowded area cannot starve boss acquisition while nearby trash remains
 	// available for post-kill cleanup.
@@ -226,6 +231,24 @@ func appendRuntimeMonster(snap *Snapshot, candidate MonsterUnit) {
 	if farthestIndex >= 0 && squaredTileDistance(snap.PosX, snap.PosY, candidate.PosX, candidate.PosY) < farthestDistance {
 		snap.Monsters[farthestIndex] = candidate
 	}
+}
+
+func finalizeMonsterCoverage(snap *Snapshot) {
+	if !snap.MonsterCoverage.MonstersTruncated {
+		snap.MonsterCoverage.MonsterCoverageRadiusTiles = 0
+		return
+	}
+	var farthest uint64
+	for _, monster := range snap.Monsters {
+		if isRuntimePriorityMonsterCandidate(monster.NPCID, monster.MonsterTypeFlag) {
+			continue
+		}
+		distance := squaredTileDistance(snap.PosX, snap.PosY, monster.PosX, monster.PosY)
+		if distance > farthest {
+			farthest = distance
+		}
+	}
+	snap.MonsterCoverage.MonsterCoverageRadiusTiles = math.Sqrt(float64(farthest))
 }
 
 func squaredTileDistance(ax, ay, bx, by uint32) uint64 {

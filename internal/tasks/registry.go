@@ -163,7 +163,8 @@ func defaultRunDefinitions() []RunDefinition {
 			RouteTerminalArea: world.ArcaneSanctuary, WaypointTarget: pathing.WaypointTargetArcaneSanctuary,
 			Boss:               BossDescriptor{NPCID: world.Summoner, Name: "Summoner"},
 			BossEngageSequence: nil, ClearNearbyAfterBoss: true, ReturnOrigin: town.OriginAct2,
-			RequiredCaps: append(append([]RunCapability(nil), shared...), RunCapabilityForeignTownEgress),
+			RouteHostileNPCIDs: []uint32{world.ArcaneSpecter, world.ArcaneHellClan, world.ArcaneGhoulLord},
+			RequiredCaps:       append(append([]RunCapability(nil), shared...), RunCapabilityForeignTownEgress, RunCapabilityRouteClear),
 			Recording: RecordingContract{
 				InstructionsDE: "Reise zum Wegpunkt Arcane Sanctuary, starte dort die Aufnahme und bewege dich bis zu deiner gewünschten Kampfposition beim Summoner. Beende die Aufnahme mit F9.",
 				StartWaypoint:  pathing.WaypointTargetArcaneSanctuary, AllowedStartArea: world.ArcaneSanctuary,
@@ -176,7 +177,7 @@ func defaultRunDefinitions() []RunDefinition {
 			ID: RunIDNihlathak, DisplayName: "Nihlathak", EntryArea: world.HallsOfPain,
 			RouteTerminalArea: world.HallsOfVaught, WaypointTarget: pathing.WaypointTargetHallsOfPain,
 			Boss:               BossDescriptor{NPCID: world.Nihlathak, Name: "Nihlathak"},
-			BossEngageSequence: nil, ReturnOrigin: town.OriginAct5,
+			BossEngageSequence: nil, ClearNearbyAfterBoss: true, ReturnOrigin: town.OriginAct5,
 			RequiredCaps: append(append([]RunCapability(nil), shared...), RunCapabilityForeignTownEgress),
 			Recording: RecordingContract{
 				InstructionsDE: "Reise zum Wegpunkt Halls of Pain (Halls of Death's Calling), starte dort die Aufnahme und bewege dich bis zu deiner gewünschten Kampfposition bei Nihlathak in den Halls of Vaught. Beende die Aufnahme mit F9.",
@@ -235,6 +236,23 @@ func validateRunDefinition(definition RunDefinition) error {
 	if definition.ReturnOrigin != town.OriginAct1 && !seen[RunCapabilityForeignTownEgress] {
 		return fmt.Errorf("%s: %s", RunReasonCapabilityMissing, RunCapabilityForeignTownEgress)
 	}
+	if seen[RunCapabilityRouteClear] {
+		if len(definition.RouteHostileNPCIDs) == 0 {
+			return fmt.Errorf("%s requires a route hostile allowlist", RunCapabilityRouteClear)
+		}
+		hostiles := make(map[uint32]struct{}, len(definition.RouteHostileNPCIDs))
+		for _, npcID := range definition.RouteHostileNPCIDs {
+			if npcID == 0 {
+				return fmt.Errorf("route hostile allowlist contains zero")
+			}
+			if _, duplicate := hostiles[npcID]; duplicate {
+				return fmt.Errorf("route hostile allowlist contains duplicate %d", npcID)
+			}
+			hostiles[npcID] = struct{}{}
+		}
+	} else if len(definition.RouteHostileNPCIDs) != 0 {
+		return fmt.Errorf("route hostile allowlist requires %s", RunCapabilityRouteClear)
+	}
 	if err := validateRecordingContract(definition); err != nil {
 		return err
 	}
@@ -271,6 +289,7 @@ func validateRecordingContract(definition RunDefinition) error {
 func cloneRunDefinition(definition RunDefinition) RunDefinition {
 	definition.BossEngageSequence = append([]EncounterAction(nil), definition.BossEngageSequence...)
 	definition.RequiredCaps = append([]RunCapability(nil), definition.RequiredCaps...)
+	definition.RouteHostileNPCIDs = append([]uint32(nil), definition.RouteHostileNPCIDs...)
 	definition.Recording.AllowedRouteAreas = append([]world.AreaID(nil), definition.Recording.AllowedRouteAreas...)
 	return definition
 }
@@ -291,9 +310,10 @@ func newRunMachine(sel RunSelection, cfg RunConfig) (runMachine, error) {
 		return nil, fmt.Errorf("%s: %q", RunReasonUnknown, sel.Run)
 	}
 	switch sel.Phase {
-	case "", RunPhaseTravelEntry, RunPhasePlayRoute, RunPhaseBoss, RunPhaseLootAndReturn, RunPhaseStashPersonal, RunPhaseTownReady:
+	case "", RunPhaseTravelEntry, RunPhasePlayRoute, RunPhaseBoss, RunPhaseLootAndReturn, RunPhaseRetryReturn, RunPhaseStashPersonal, RunPhaseTownReady:
 		return &runPipeline{
 			definition: definition, phase: sel.Phase, combat: cfg.Combat, routeID: cfg.RouteID,
+			routeCombat:             cfg.RouteCombat,
 			lootPickupDistanceTiles: cfg.LootPickupDistanceTiles,
 		}, nil
 	default:

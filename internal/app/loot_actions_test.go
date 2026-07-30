@@ -64,6 +64,40 @@ func TestLootScanEmitsDropAndPickitTelemetry(t *testing.T) {
 	}
 }
 
+func TestRouteKeepScanUsesActivePickitAndIgnoresSellAndDistantKeep(t *testing.T) {
+	pickit, err := loot.CompilePickitRules("test", []loot.PickitRuleSpec{
+		{ProfileID: "player-choice", RuleID: "sell-ring", Action: loot.ActionSell, Expression: `[type] == "ring"`, ProfileRevision: 6, AssignmentRevision: 13},
+		{ProfileID: "player-choice", RuleID: "keep-rune", Action: loot.ActionKeep, Expression: `[type] == "rune"`, ProfileRevision: 6, AssignmentRevision: 13},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	lock, err := loot.NewInventoryLock([][]int{{0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, {0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, {0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, {0, 0, 0, 0, 0, 0, 0, 0, 0, 0}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	adapter := &lootActionsAdapter{
+		log: config.NewLogger("error"), filter: loot.NewFilter(config.NewLogger("error"), lock, pickit),
+		skipped: map[uint32]bool{},
+	}
+	state := world.State{
+		At: time.Now(), Valid: true, Phase: world.GamePhaseInGame,
+		Area: world.LookupArea(world.ArcaneSanctuary), Player: world.Player{Position: world.Position{X: 100, Y: 100}},
+		Items: []world.Item{
+			{UnitID: 1, Code: "rin", Type: "ring", Location: world.ItemLocationGround, Width: 1, Height: 1, Position: world.Position{X: 101, Y: 100}},
+			{UnitID: 2, Code: "r01", Type: "rune", Location: world.ItemLocationGround, Width: 1, Height: 1, Position: world.Position{X: 106, Y: 100}},
+			{UnitID: 3, Code: "r02", Type: "rune", Location: world.ItemLocationGround, Width: 1, Height: 1, Position: world.Position{X: 140, Y: 100}},
+		},
+	}
+	result := adapter.ScanRouteKeep(state, 30)
+	if !result.HasTarget || result.CandidateCount != 1 || result.NextTarget.UnitID != 2 ||
+		result.NextTarget.PickitProfileID != "player-choice" || result.NextTarget.PickitRuleID != "keep-rune" ||
+		result.NextTarget.PickitAction != "keep" || result.NextTarget.PickitProfileRevision != 6 ||
+		result.NextTarget.PickitAssignmentRevision != 13 {
+		t.Fatalf("route scan = %+v", result)
+	}
+}
+
 func TestPhase14LootTargetPreservesExactIdentityAndPickitContext(t *testing.T) {
 	target := loot.PickupTarget{
 		UnitID: 91, Code: "uap", Name: "Harlequin Crest", Quality: world.ItemQualityUnique,

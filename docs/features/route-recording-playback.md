@@ -388,6 +388,16 @@ Zusätzlich muss eine CLI-Listenansicht dieselben Verwaltungsmetadaten liefern, 
 
 Jede Playback-Aktion loggt Ziel, Grund, erwarteten Zustand und Ergebnis. Eine Aufnahme wird zunächst in eine temporäre Datei geschrieben und erst nach erfolgreicher Strukturvalidierung veröffentlicht.
 
+## Phase 17: Progress, Hold und Recovery-Input
+
+Der gebundene Run-Adapter kann `RouteProgress` read-only abfragen und die laufende Route deadline-neutral halten. Die Projektion enthält das tatsächlich effektive Movement-, Recovery- oder Transition-Ziel; Tasks rekonstruieren keine Route-YAML.
+
+Ein Combat-Hold sendet weiterhin keinen Navigator- oder Transition-Input. Er übernimmt jedoch vor dem Stillstand alle Routenpunkte, die der aktuelle Memory-Snapshot bereits innerhalb der konfigurierten Toleranz bestätigt. Damit bleibt die read-only Progress-Projektion mit dem autoritativen Player-Zustand synchron, auch wenn ein anschließendes Force Move den Spieler über den alten Punkt hinaus bewegt; nach dem Clear kann keine Recovery zu diesem überholten Punkt zurückspringen.
+
+Für einen lokalen Recovery-Cast meldet der Navigator zusätzlich, ob der aktuelle Tick wirklich Movement-Input gesendet hat. Der `RouteSegmentPlayer` bindet diesen Beleg an Segment, Punkt und unveränderte effektive Zielkoordinate und projiziert Cast-Zeit, Ursprungsposition, frühesten throttle-seitig möglichen Folgecast, den autoritativen Teleport-Settle-Zeitpunkt sowie `stuck_progress_tiles`. Inputfreie Poll-Ticks gelten damit nicht als Cast. Vor Ablauf des Settle-Zeitpunkts darf eine noch unveränderte Position nicht als Fehlschlag gelten. Erst wenn danach weiterhin der Mindestfortschritt fehlt, endet der Ablauf vor einem zweiten identischen Input mit `route_recovery_unsafe`. Bestätigter Fortschritt erlaubt die bestehende Route-Correction weiterzuführen. Combat- und Loot-Holds resetten weder den `RoutePlayer` noch dessen Korrekturbudget.
+
+Rohes Playback, Candidate-Playback, Recording und Guided Validation verwenden diesen Summoner-spezifischen Guard nicht und behalten ihre Navigationssemantik.
+
 ## Herausforderungen und Sicherheitsgrenzen
 
 - Offline-Layouts bleiben nur unter den vereinbarten Bedingungen stabil; Charakter- oder Schwierigkeitswechsel dürfen keine fremde Route auswählen.
@@ -424,4 +434,4 @@ Phase 6 ist abgeschlossen, wenn:
 - [Run-Telemetrie](run-telemetry.md)
 
 ---
-*Zuletzt aktualisiert: 2026-07-10*
+*Zuletzt aktualisiert: 2026-07-29*

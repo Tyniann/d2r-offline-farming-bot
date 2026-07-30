@@ -25,6 +25,8 @@ type RunConfig struct {
 	RouteID string
 	// Combat tunes regular boss combat after encounter actions.
 	Combat CombatConfig
+	// RouteCombat tunes threat assessment for route-clear capable runs.
+	RouteCombat RouteCombatConfig
 	// LootPickupDistanceTiles is the maximum distance before candidate-specific repositioning.
 	LootPickupDistanceTiles float64
 }
@@ -201,8 +203,12 @@ func (r *Runner) Tick(ctx context.Context, w world.State, now time.Time) TickRes
 	}
 
 	r.tracker.incrementTick()
-	if r.deps.Profile != nil {
-		resource := r.deps.Profile.TickResources(w, now)
+	routeOwnsResources := false
+	if owner, ok := r.run.(interface{ handlesResources(string) bool }); ok {
+		routeOwnsResources = owner.handlesResources(r.tracker.name)
+	}
+	if r.deps.Profile != nil && !routeOwnsResources {
+		resource := r.deps.Profile.TickResources(w, profile.ResourceContext{}, now)
 		switch resource.Status {
 		case profile.StatusFailed:
 			return r.finishStepFailed(now, resource.Reason)

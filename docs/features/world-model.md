@@ -62,7 +62,7 @@ Unbekannte IDs: `Name = "Unknown Area <id>"`, `Kind = AreaKindUnknown`, `Act` au
 
 Run-begrenzte Enumeration in `memory.Snapshot`; Mapping nach `world.Object`, `world.Entrance`, `world.Monster` mit Kind und Name aus `*_ids.go`. Zusätzlich zu Bossen und Town-NPCs enthält die Monster-Allowlist die regulären Terminal-Area-Gegnertypen von Countess und Summoner für das begrenzte Post-Boss-Aufräumen. Sie bleibt absichtlich eng, damit Player-Summons und unrelated Monster nicht als Angriffsziele erscheinen.
 
-Das allgemeine Monsterlimit ist für Cleanup-Gegner ein nearest-to-player Reservoir. Boss-NPCs, Super-Uniques und Town-NPCs sind Prioritätseinträge außerhalb dieses Reservoirs und werden auch nach 32 bereits gefundenen Cleanup-Gegnern weiter aus der Unit-Tabelle aufgenommen. Dadurch kann ein voller Arcane-Sanctuary-Snapshot den Summoner nicht aus `acquire_boss` verdrängen.
+Das Monsterreservoir hält seit Phase 17.2 die 512 nächsten nicht priorisierten Runtime-Kandidaten. Boss-NPCs, Super-Uniques und Town-NPCs sind Prioritätseinträge außerhalb dieses Reservoirs und werden auch danach weiter aus der Unit-Tabelle aufgenommen. `MonsterCoverage` projiziert Eligible-Anzahl, Truncation ab dem 513. konkurrierenden Nicht-Priority-Kandidaten und bei Truncation den weitesten behaltenen Radius. Dadurch bleibt der lokale Immediate-/Corridor-/Landing-Bereich beweisbar vollständig und ein voller Arcane-Sanctuary-Snapshot kann den Summoner nicht aus `acquire_boss` verdrängen.
 
 | Kategorie | Query-Helfer |
 |-----------|--------------|
@@ -102,7 +102,7 @@ reset := model.Reset(at, "process_lost")
 | `Position` | Rohe Tile-Koordinaten |
 | `Player` | Position + HP/Mana |
 | `GamePhase` | `Unknown`, `Menu`, `Loading`, `InGame` — aus `memory.Snapshot.Phase` |
-| `State` | Tick-Snapshot mit `At`, `Phase`, `Valid`, `Reason`, `Area`, `Player`, Entity- und Item-Slices sowie read-only UI-Flags inklusive `QuitMenuOpen` ab Phase 7.1 |
+| `State` | Tick-Snapshot mit `At`, `Phase`, `Valid`, `Reason`, `Area`, `Player`, Entity- und Item-Slices, `MonsterCoverage` sowie read-only UI-Flags inklusive `QuitMenuOpen` |
 | `Object`/`Entrance`/`Monster` | Countess-relevante Entities mit Kind, ID, UnitID, Position, Name |
 | `Item` | Read-only Item mit UnitID, Code/Name, Qualität, Location, Position, Flags, Raw-Stats sowie optionaler, gegen Qualität und Basiscode validierter Set-/Unique-Identität |
 

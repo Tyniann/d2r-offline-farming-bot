@@ -1,6 +1,8 @@
 package pathing
 
 import (
+	"time"
+
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/world"
 )
 
@@ -81,4 +83,13 @@ type NavTickResult struct {
 	Status NavStatus
 	Reason string
 	Done   bool
+	// MovementInputSent reports a teleport cast sent by this exact tick.
+	MovementInputSent bool
+	// NextMovementInputAt is the earliest time the movement throttle permits another cast.
+	NextMovementInputAt time.Time
+	// MovementOutcomeAt is the earliest time a still unchanged position proves
+	// that the sent teleport did not produce movement.
+	MovementOutcomeAt time.Time
+	// MovementProgressTiles is the minimum position delta that confirms cast progress.
+	MovementProgressTiles float64
 }

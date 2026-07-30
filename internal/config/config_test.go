@@ -72,6 +72,9 @@ func TestLoadExampleConfig(t *testing.T) {
 	if cfg.Input.ComboHoldMs != 200 {
 		t.Errorf("Input.ComboHoldMs = %d, want 200", cfg.Input.ComboHoldMs)
 	}
+	if got := cfg.Input.Bindings.Skills["amplify_damage"]; got.Key != "f1" || got.Button != "right" {
+		t.Errorf("amplify_damage binding = %+v, want f1/right", got)
+	}
 	if cfg.Input.Enabled {
 		t.Errorf("Input.Enabled = true, want false")
 	}
@@ -105,6 +108,55 @@ func TestLoadExampleConfig(t *testing.T) {
 	}
 	if cfg.LoadedFrom == "" {
 		t.Error("LoadedFrom should be set after Load")
+	}
+}
+
+func TestInputDefaultsAddAmplifyDamageWithoutOverwritingOperatorBinding(t *testing.T) {
+	for _, name := range []string{"amplify_damage", "ad"} {
+		t.Run(name, func(t *testing.T) {
+			cfg := InputConfig{
+				sectionPresent: true,
+				Bindings: InputBindingsConfig{Skills: map[string]SkillBindingConfig{
+					name: {Key: "f2", Button: "right"},
+				}},
+			}
+
+			cfg.applyDefaults()
+
+			if got := cfg.Bindings.Skills[name]; got.Key != "f2" || got.Button != "right" {
+				t.Fatalf("%s binding = %+v, want preserved f2/right", name, got)
+			}
+			if name != "amplify_damage" {
+				if _, added := cfg.Bindings.Skills["amplify_damage"]; added {
+					t.Fatal("canonical default added beside operator alias")
+				}
+			}
+		})
+	}
+}
+
+func TestLoadMigratesMissingAmplifyDamageBindingInMemory(t *testing.T) {
+	data, err := os.ReadFile(filepath.Join("..", "..", "configs", "config.example.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	const binding = "      amplify_damage:\n        key: f1\n        button: right\n"
+	normalized := strings.ReplaceAll(string(data), "\r\n", "\n")
+	legacy := strings.Replace(normalized, binding, "", 1)
+	if legacy == normalized {
+		t.Fatal("example Amplify Damage binding not found")
+	}
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	if writeErr := os.WriteFile(path, []byte(legacy), 0o600); writeErr != nil {
+		t.Fatal(writeErr)
+	}
+
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := cfg.Input.Bindings.Skills["amplify_damage"]; got.Key != "f1" || got.Button != "right" {
+		t.Fatalf("migrated Amplify Damage binding = %+v", got)
 	}
 }
 

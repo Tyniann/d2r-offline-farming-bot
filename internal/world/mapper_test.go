@@ -80,6 +80,17 @@ func TestFromSnapshotValid(t *testing.T) {
 	}
 }
 
+func TestFromSnapshotProjectsMonsterCoverage(t *testing.T) {
+	snap := validSnapshot()
+	snap.MonsterCoverage = memory.MonsterCoverage{
+		EligibleMonsterCount: 513, MonstersTruncated: true, MonsterCoverageRadiusTiles: 42.5,
+	}
+	state := FromSnapshot(snap)
+	if state.MonsterCoverage != (MonsterCoverage{EligibleMonsterCount: 513, MonstersTruncated: true, MonsterCoverageRadiusTiles: 42.5}) {
+		t.Fatalf("coverage = %+v", state.MonsterCoverage)
+	}
+}
+
 func TestFromSnapshotMapsOnlyConfirmedIdentity(t *testing.T) {
 	snap := validSnapshot()
 	snap.Identity = memory.IdentityProbe{Valid: true, Confirmed: true, CharacterName: "MrBones", ClassID: 2, MapSeed: 123}

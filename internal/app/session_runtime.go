@@ -8,6 +8,7 @@ import (
 
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/tasks"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/telemetry"
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/world"
 )
 
 // PickitPolicySnapshot bindet die exakten Assignment- und Profilrevisionen einer Run-Generation.
@@ -189,4 +190,23 @@ func (rt *Runtime) runTaskToTerminal(parent context.Context) (tasks.TickResult, 
 			}
 		}
 	}
+}
+
+func (rt *Runtime) runRetryReturnToTown(parent context.Context) error {
+	rt.Tasks = tasks.NewRunner(rt.Log, tasks.RunSelection{
+		Run:   rt.Config.Session.Run,
+		Phase: tasks.RunPhaseRetryReturn,
+	}, rt.runConfig, rt.taskDeps)
+	result, err := rt.runTaskToTerminal(parent)
+	if err != nil {
+		return fmt.Errorf("retry return execution: %w", err)
+	}
+	if result.Outcome != tasks.RunOutcomeSuccess {
+		return fmt.Errorf("retry return failed: %s", result.Reason)
+	}
+	state := rt.World.Current()
+	if !state.Valid || state.Phase != world.GamePhaseInGame || state.Area.ID != world.RogueEncampment {
+		return fmt.Errorf("retry return Act-1 handoff unconfirmed")
+	}
+	return nil
 }

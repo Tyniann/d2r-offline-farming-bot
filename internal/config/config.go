@@ -199,6 +199,8 @@ type RunsConfig struct {
 type RunConfig struct {
 	// Combat selects the profile and regular attack tuning.
 	Combat CombatConfig `yaml:"combat"`
+	// RouteCombat tunes opt-in threat handling for a capable run's recorded route.
+	RouteCombat RouteCombatConfig `yaml:"route_combat"`
 }
 
 // UnmarshalYAML lehnt die entfernte NIP-Policy-Autorität mit Migrationshinweis ab.
@@ -283,6 +285,7 @@ func (c *RunsConfig) applyDefaults() {
 	}
 	for id, run := range c.Definitions {
 		run.Combat.applyDefaults()
+		run.RouteCombat.applyDefaults(id)
 		c.Definitions[id] = run
 	}
 }
@@ -438,6 +441,9 @@ func (c *Config) validate() error {
 		if err := c.Profiles.validate(run.Combat.Profile, "runs.definitions."+id+".combat.profile"); err != nil {
 			return err
 		}
+		if run.RouteCombat.EnabledValue() && run.Combat.Profile != "necro_bone_spear" {
+			return fmt.Errorf("runs.definitions.%s.route_combat.enabled requires profile necro_bone_spear", id)
+		}
 	}
 	if err := c.Profiles.validateSetupMetadata(); err != nil {
 		return err
@@ -485,7 +491,12 @@ func (c RunConfig) validate(id string) error {
 	if strings.TrimSpace(id) == "" {
 		return fmt.Errorf("runs.definitions contains an empty run id")
 	}
-	return c.Combat.validate("runs.definitions." + id + ".combat")
+	if err := c.Combat.validate("runs.definitions." + id + ".combat"); err != nil {
+		return err
+	}
+	routeCombat := c.RouteCombat
+	routeCombat.applyDefaults(id)
+	return routeCombat.validate(id, "runs.definitions."+id+".route_combat")
 }
 
 func (c CombatConfig) validate(path string) error {
@@ -633,6 +644,22 @@ func (c *InputConfig) applyDefaults() {
 	}
 	if c.ComboHoldMs == 0 {
 		c.ComboHoldMs = def.ComboHoldMs
+	}
+	if c.Bindings.Skills == nil {
+		c.Bindings.Skills = make(map[string]SkillBindingConfig)
+	}
+	hasAmplifyDamage := false
+	for name := range c.Bindings.Skills {
+		switch strings.ToLower(strings.TrimSpace(name)) {
+		case "amplify_damage", "amplifydamage", "amplify damage", "ad":
+			hasAmplifyDamage = true
+		}
+	}
+	if !hasAmplifyDamage {
+		// Existing installations predate the route-combat curse opener. Add
+		// the documented D2R default in memory without overwriting an
+		// operator-provided binding or rewriting the local config file.
+		c.Bindings.Skills["amplify_damage"] = SkillBindingConfig{Key: "f1", Button: "right"}
 	}
 }
 

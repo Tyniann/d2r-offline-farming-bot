@@ -60,7 +60,7 @@ func (b *LiveBackend) SetOperatorSettingsStore(store *app.OperatorSettingsStore)
 			return fmt.Errorf("resolve configured character runs: %w", resolveErr)
 		}
 		b.mu.Lock()
-		b.catalog.Runs = runCatalogEntries(report)
+		b.catalog.Runs = runCatalogEntries(report, b.cfg)
 		b.mu.Unlock()
 	}
 	return nil

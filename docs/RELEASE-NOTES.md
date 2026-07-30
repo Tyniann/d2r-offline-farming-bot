@@ -19,6 +19,16 @@ Ein vorbereiteter lokaler Charakter kann auch dann im Onboarding gewählt werden
 
 Safety und explizites Input-Opt-in stehen vor der kontrollierten D2R-Charakterbestätigung. Gespeicherte Freigabe und effektiver Core-Zustand werden getrennt angezeigt; erst die Bestätigung des laufenden Controllers schaltet die Auswahl frei. Der Schritt-Fortschritt und einfache Hinweistexte verwenden ein eigenes kompaktes Layout ohne horizontalen Seitenüberlauf.
 
+## Route-Threat-Combat
+
+Der Summoner-Run hält seine gebundene Route vor bekannten Specter-/Ghost-, Hell-Clan- und Ghoul-Lord-Gegnern im unmittelbaren Umfeld, Korridor oder am nächsten Landepunkt. Der Charakter wirkt auf den ersten hover-bestätigten Blocker einmal Amplify Damage (`F1` im Default) und räumt danach stationär mit Bone Spear. Ist derselbe Blocker drei frische Snapshots lang nicht projizierbar, nähert er sich begrenzt per Force Move zum bereits validierten nächsten Routenpunkt. Nach 500 ms muss Memory mindestens ein Tile Distanzgewinn bestätigen; erst drei wirkungslose Versuche dürfen den Run mit `route_threat_out_of_range` abbrechen. Es gibt dabei keinen Blind-Teleport.
+
+Mana-Hysterese und Recovery-Guard enden bei ausbleibender Erholung oder wirkungslosem identischem Teleport fail-closed. Ein reiner Mana-Notfall verwendet zuerst die in Town nachkaufbaren Mana-Tränke; Rejuvenation bleibt der Fallback und behält bei kritischen HP Vorrang. Nach einer kontrollierten Rückkehr nach Akt 1 verwendet der Retry exakt denselben Save-&-Exit-Pfad wie das normale Queue-Ende. Dieser wartet vor Escape mindestens drei Sekunden auf eine unveränderte Spielerposition bei geschlossenem Town-UI und wiederholt ein von D2R ignoriertes Escape nach 1,5 Sekunden genau einmal, solange Memory das Quit-Menü weiterhin als geschlossen bestätigt. Unter **Einstellungen → Effektive Route-Combat-Werte** zeigt die App die vom Core nach Defaults und Validierung verwendeten Werte read-only. `runs.definitions.summoner.route_combat.enabled: false` deaktiviert das neue Interleave, ohne Routen- oder Save-Dateien zu verändern.
+
+Nihlathaks Bosskampf verwendet die aufgezeichnete Routenendposition als bevorzugten Kampfanker. Nur wenn sein sichtbarer Körper von dort nicht projizierbar ist, darf genau ein minimaler Annäherungsteleport folgen. Bone Spear wird anschließend kompromisslos durch jedes Memory-bestätigte lebende Monster unter dem Cursor gewirkt; die Kill-Bestätigung bleibt weiterhin ausschließlich an Nihlathaks gepinnte UnitID gebunden.
+
+Nach bestätigtem Bosskill wirkt der begrenzte Post-Clear einmal Amplify Damage und räumt anschließend alle erfassten lebenden Halls-of-Vaught-Gegner innerhalb von 30 Tiles mit hover-bestätigtem Bone Spear. Ein nicht mehr projizierbarer Restgegner wird für diesen Cleanup übersprungen, damit der nächste Gegner gewählt werden kann. Drei Sekunden ohne tatsächlich gesendeten Kampfinput beenden den best-effort Cleanup, bevor Loot und Town Portal fortgesetzt werden.
+
 ## Release-Artefakte
 
-Das lokale Release besteht aus einem per-user NSIS-Installer für x64 und seiner SHA-256-Datei. GitHub stellt zu einem veröffentlichten Tag automatisch die Sourcearchive bereit; sie werden nicht nochmals als eigene Binärassets erzeugt.
+Das lokale Release besteht aus einem per-user NSIS-Installer für x64 und seiner SHA-256-Datei. Für GitHub werden beide Dateien gemeinsam als `D2R-Offline-Farming-Bot-<Version>-Windows-x64.zip` veröffentlicht. GitHub stellt zum Tag zusätzlich seine normalen Sourcearchive bereit.

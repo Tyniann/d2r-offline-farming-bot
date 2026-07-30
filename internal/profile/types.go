@@ -1,10 +1,15 @@
 package profile
 
 import (
+	"errors"
 	"time"
 
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/world"
 )
+
+// ErrRouteClearTargetUnprojectable reports that the selected living target has
+// no playable client point in the currently bound window.
+var ErrRouteClearTargetUnprojectable = errors.New("route clear target unprojectable")
 
 // Hook identifies a semantic lifecycle event emitted by a run.
 type Hook string
@@ -80,6 +85,50 @@ type EncounterTarget struct {
 	ActionIndex int
 }
 
+// RouteClearMode identifies why stationary route combat is requested.
+type RouteClearMode string
+
+const (
+	// RouteClearThreat attacks a known Immediate, Landing, or Corridor blocker.
+	RouteClearThreat RouteClearMode = "route_threat"
+	// RouteClearDensityRelief attacks a safe local candidate to improve incomplete coverage.
+	RouteClearDensityRelief RouteClearMode = "density_relief"
+)
+
+// RouteClearStrategy identifies a code-backed build strategy.
+type RouteClearStrategy string
+
+const (
+	// RouteClearSingleTarget attacks one current Memory-confirmed route blocker per cast.
+	RouteClearSingleTarget RouteClearStrategy = "single_target"
+)
+
+// RouteClearActionKind identifies the purpose of one confirmed route-combat input.
+type RouteClearActionKind string
+
+const (
+	// RouteClearActionCurse is the one-time opener applied to the first blocker.
+	RouteClearActionCurse RouteClearActionKind = "curse"
+	// RouteClearActionAttack is a regular damage cast after the opener.
+	RouteClearActionAttack RouteClearActionKind = "attack"
+)
+
+// RouteClearRequest is the immutable stationary-combat request for one snapshot.
+type RouteClearRequest struct {
+	RunID        string
+	DefinitionID string
+	Player       world.Player
+	Target       world.Monster
+	Mode         RouteClearMode
+	AssessmentAt time.Time
+}
+
+// RouteCombatActions is the movement-free action surface available to route clear.
+type RouteCombatActions interface {
+	CastAttackAtMonster(time.Time, uint16, world.Player, world.Monster) (bool, error)
+	StopAttack() error
+}
+
 // Status is a stable hook or resource executor outcome.
 type Status string
 
@@ -94,14 +143,21 @@ const (
 	StatusFailed Status = "failed"
 )
 
+const (
+	// RouteClearReasonTargetUnprojectable preserves a safe projection miss for
+	// the controller's existing three-snapshot out-of-range gate.
+	RouteClearReasonTargetUnprojectable = "route_clear_target_unprojectable"
+)
+
 // Result reports one executor decision without exposing input internals.
 type Result struct {
-	Status   Status
-	Reason   string
-	Hook     Hook
-	Resource ResourceKind
-	SkillID  uint16
-	BeltSlot int
+	Status     Status
+	Reason     string
+	Hook       Hook
+	Resource   ResourceKind
+	SkillID    uint16
+	BeltSlot   int
+	ActionKind RouteClearActionKind
 }
 
 // EventName identifies a stable profile telemetry transition.

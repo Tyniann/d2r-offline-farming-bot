@@ -39,11 +39,14 @@ type Snapshot struct {
 	Objects               []ObjectUnit
 	Entrances             []EntranceUnit
 	Monsters              []MonsterUnit
+	MonsterCoverage       MonsterCoverage
 	Items                 []ItemUnit
 	PlayerSkills          PlayerSkills
 	Hover                 HoverState
 	UI                    UIState
 	Identity              IdentityProbe
+
+	runtimeNonPriorityMonsterCount int
 }
 
 // ProbeReader resolves the main player via the unit table and reads vital stats.

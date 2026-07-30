@@ -170,12 +170,14 @@ session:
 4. Jede UI-Aktion folgt `stabiler Zustandsnachweis → genau eine geloggte Aktion → bestätigtes Ergebnis oder Timeout`.
 5. Zwischen Aktion und Ergebnisbestätigung wird keine zweite Lifecycle-Aktion ausgelöst.
 6. Feste Koordinaten sind client-relativ, versioniert und im MVP ausschließlich für exakt 1280×720 zugelassen.
-7. Save & Exit benötigt ein stabiles Quit-Menü-Gate; es gibt keinen optimistischen Blindklick.
+7. Save & Exit startet nach dem ersten validen Rogue-Encampment-Snapshot mit stabiler Character Identity genau ein nicht zurückgesetztes Drei-Sekunden-Settle-Fenster. Spielerbewegung oder ein nach dem Wegpunktwechsel stale gemeldetes Town-UI verlängern es nicht. Danach öffnet Escape das Quit-Menü; erst dessen stabile Memory-Bestätigung autorisiert den Save-&-Exit-Klick. Normaler Queue-Abschluss und kontrollierter Retry-Rückweg verwenden exakt diese gemeinsame Routine.
 8. Difficulty-Auswahl benötigt einen bestätigten Difficulty-Dialog; die konfigurierte Difficulty ist kein Layoutnachweis.
 9. Character Identity, Game-Version, Rogue Encampment und Layout-Fingerprint werden nach jedem neuen Spiel erneut geprüft.
 10. Stop sperrt unmittelbar neue Inputs und cancelt aktive Goals; Cleanup darf selbst keinen Gameplay-Input erzeugen.
 11. Jeder Input wird mit Session-, Game-, Run-, Zustand-, Aktion- und Begründungskontext strukturiert geloggt.
 12. Kein Lifecycle-Code schreibt D2R-Installations- oder Savegame-Dateien.
+
+Der installierte Core schreibt seine strukturierten Laufzeitlogs nach `%LOCALAPPDATA%\D2ROfflineFarmingBot\logs`. Während Save & Exit wird einmal pro Sekunde der aktuelle Automatenschritt samt Phase, Area, Position, UI-Flags, Escape-Zähler und Laufzeiten geloggt; ein Timeout enthält denselben Diagnosezustand.
 
 ## Telemetrievertrag
 

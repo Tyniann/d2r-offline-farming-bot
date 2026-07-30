@@ -31,7 +31,7 @@ func NewBootstrapBackend(cfg *config.Config) (*BootstrapBackend, error) {
 	if err != nil {
 		return nil, fmt.Errorf("resolve bootstrap run catalog: %w", err)
 	}
-	runs := runCatalogEntries(report)
+	runs := runCatalogEntries(report, cfg)
 	characterCatalog, err := app.ResolveCharacterCatalog(cfg)
 	if err != nil {
 		return nil, fmt.Errorf("resolve character catalog: %w", err)
@@ -61,14 +61,24 @@ func (b *BootstrapBackend) character(name string) (app.CharacterCatalogEntry, bo
 	return entry, ok
 }
 
-func runCatalogEntries(report app.RunsInspectReport) []RunCatalogEntry {
+func runCatalogEntries(report app.RunsInspectReport, cfg *config.Config) []RunCatalogEntry {
 	runs := make([]RunCatalogEntry, 0, len(report.Runs))
 	for _, run := range report.Runs {
 		reasons := make([]string, len(run.Reasons))
 		for i, reason := range run.Reasons {
 			reasons[i] = string(reason)
 		}
-		runs = append(runs, RunCatalogEntry{RunID: string(run.RunID), DisplayName: run.DisplayName, Status: string(run.Status), Reasons: reasons})
+		routeCombat := cfg.Runs.Definitions[string(run.RunID)].RouteCombat
+		runs = append(runs, RunCatalogEntry{
+			RunID: string(run.RunID), DisplayName: run.DisplayName, Status: string(run.Status), Reasons: reasons,
+			RouteCombat: RouteCombatConfigDTO{
+				Enabled: routeCombat.EnabledValue(), ImmediateRadiusTiles: routeCombat.ImmediateRadiusTiles,
+				CorridorWidthTiles: routeCombat.CorridorWidthTiles, LandingRadiusTiles: routeCombat.LandingRadiusTiles,
+				AttackDistanceTiles: routeCombat.AttackDistanceTiles, NoProgressTimeoutMs: routeCombat.NoProgressTimeoutMs,
+				TeleportManaReservePercent: routeCombat.TeleportManaReservePercent, ResumeManaPercent: routeCombat.ResumeManaPercent,
+				EmergencyManaPercent: routeCombat.EmergencyManaPercent, ManaRecoveryTimeoutMs: routeCombat.ManaRecoveryTimeoutMs,
+			},
+		})
 	}
 	return runs
 }

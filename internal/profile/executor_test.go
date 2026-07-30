@@ -3,6 +3,7 @@ package profile
 import (
 	"context"
 	"errors"
+	"reflect"
 	"testing"
 	"time"
 
@@ -15,6 +16,22 @@ type actionMock struct {
 	belts     []int
 	castDelay time.Duration
 }
+
+type routeCombatActionMock struct {
+	targets []world.Monster
+	skills  []uint16
+	sent    bool
+	err     error
+	stops   int
+}
+
+func (m *routeCombatActionMock) CastAttackAtMonster(_ time.Time, skillID uint16, _ world.Player, target world.Monster) (bool, error) {
+	m.targets = append(m.targets, target)
+	m.skills = append(m.skills, skillID)
+	return m.sent, m.err
+}
+
+func (m *routeCombatActionMock) StopAttack() error { m.stops++; return nil }
 
 type telemetryMock struct {
 	events []Event
@@ -153,14 +170,14 @@ func TestResourcePriorityAndVerification(t *testing.T) {
 	state.Player.HP = 20
 	state.Player.Mana = 10
 	state.Items = []world.Item{{UnitID: 44, Type: "rpot", Location: world.ItemLocationBelt, PlayerOwned: true, GridX: 3}}
-	if got := e.TickResources(state, now); got.Status != StatusAction || got.Resource != ResourceRejuvenation || got.BeltSlot != 4 {
+	if got := e.TickResources(state, ResourceContext{}, now); got.Status != StatusAction || got.Resource != ResourceRejuvenation || got.BeltSlot != 4 {
 		t.Fatalf("action=%+v", got)
 	}
-	if got := e.TickResources(state, now.Add(100*time.Millisecond)); got.Status != StatusPending {
+	if got := e.TickResources(state, ResourceContext{}, now.Add(100*time.Millisecond)); got.Status != StatusPending {
 		t.Fatalf("pending=%+v", got)
 	}
 	state.Items = nil
-	if got := e.TickResources(state, now.Add(200*time.Millisecond)); got.Status != StatusComplete {
+	if got := e.TickResources(state, ResourceContext{}, now.Add(200*time.Millisecond)); got.Status != StatusComplete {
 		t.Fatalf("verified=%+v", got)
 	}
 	if len(actions.belts) != 1 || actions.belts[0] != 4 {
@@ -174,7 +191,7 @@ func TestResourceDoesNotPressEmptyOrWrongSlot(t *testing.T) {
 	state := profileState()
 	state.Player.Mana = 20
 	state.Items = []world.Item{{UnitID: 1, Type: "hpot", Location: world.ItemLocationBelt, PlayerOwned: true, GridX: 1}}
-	got := e.TickResources(state, time.Now())
+	got := e.TickResources(state, ResourceContext{}, time.Now())
 	if got.Status != StatusComplete || got.Reason != "mana_potion_unavailable" || len(actions.belts) != 0 {
 		t.Fatalf("got=%+v belts=%v", got, actions.belts)
 	}
@@ -186,22 +203,97 @@ func TestResourceCooldownAccountsForGradualPotionEffect(t *testing.T) {
 	state, now := profileState(), time.Now()
 	state.Player.Mana = 20
 	state.Items = []world.Item{{UnitID: 10, Type: "mpot", Location: world.ItemLocationBelt, PlayerOwned: true, GridX: 1}}
-	if got := e.TickResources(state, now); got.Status != StatusAction {
+	if got := e.TickResources(state, ResourceContext{}, now); got.Status != StatusAction {
 		t.Fatalf("first=%+v", got)
 	}
 	state.Items = []world.Item{{UnitID: 11, Type: "mpot", Location: world.ItemLocationBelt, PlayerOwned: true, GridX: 1}}
-	if got := e.TickResources(state, now.Add(100*time.Millisecond)); got.Status != StatusComplete {
+	if got := e.TickResources(state, ResourceContext{}, now.Add(100*time.Millisecond)); got.Status != StatusComplete {
 		t.Fatalf("verified=%+v", got)
 	}
-	if got := e.TickResources(state, now.Add(2*time.Second)); got.Reason != "mana_potion_cooldown" {
+	if got := e.TickResources(state, ResourceContext{}, now.Add(2*time.Second)); got.Reason != "mana_potion_cooldown" {
 		t.Fatalf("cooldown=%+v", got)
 	}
-	if got := e.TickResources(state, now.Add(4*time.Second)); got.Status != StatusAction {
+	if got := e.TickResources(state, ResourceContext{}, now.Add(4*time.Second)); got.Status != StatusAction {
 		t.Fatalf("after cooldown=%+v", got)
 	}
 	if len(actions.belts) != 2 {
 		t.Fatalf("belts=%v", actions.belts)
 	}
+}
+
+func TestRouteResourcePriorityUsesCriticalHPThenEmergencyManaThenRejuvenation(t *testing.T) {
+	t.Run("critical hp wins", func(t *testing.T) {
+		actions := &actionMock{}
+		e, _ := NewExecutor(config.NewLogger("error"), testDefinition(), actions)
+		state, now := profileState(), time.Now()
+		state.Player.HP = 20
+		state.Player.Mana = 5
+		state.Items = []world.Item{
+			{UnitID: 40, Type: "rpot", Location: world.ItemLocationBelt, PlayerOwned: true, GridX: 3},
+			{UnitID: 20, Type: "mpot", Location: world.ItemLocationBelt, PlayerOwned: true, GridX: 1},
+		}
+		got := e.TickResources(state, ResourceContext{MobilityCritical: true, Threatened: true, EmergencyMana: true}, now)
+		if got.Status != StatusAction || got.Resource != ResourceRejuvenation || got.BeltSlot != 4 {
+			t.Fatalf("critical HP result = %+v", got)
+		}
+	})
+
+	t.Run("emergency mana", func(t *testing.T) {
+		actions := &actionMock{}
+		e, _ := NewExecutor(config.NewLogger("error"), testDefinition(), actions)
+		state, now := profileState(), time.Now()
+		state.Player.HP = 100
+		state.Player.Mana = 5
+		state.Items = []world.Item{
+			{UnitID: 40, Type: "rpot", Location: world.ItemLocationBelt, PlayerOwned: true, GridX: 3},
+			{UnitID: 20, Type: "mpot", Location: world.ItemLocationBelt, PlayerOwned: true, GridX: 1},
+		}
+		got := e.TickResources(state, ResourceContext{MobilityCritical: true, Threatened: true, EmergencyMana: true}, now)
+		if got.Status != StatusAction || got.Resource != ResourceMana || got.BeltSlot != 2 {
+			t.Fatalf("emergency result = %+v", got)
+		}
+	})
+
+	t.Run("rejuvenation fallback", func(t *testing.T) {
+		actions := &actionMock{}
+		e, _ := NewExecutor(config.NewLogger("error"), testDefinition(), actions)
+		state, now := profileState(), time.Now()
+		state.Player.HP = 100
+		state.Player.Mana = 5
+		state.Items = []world.Item{{UnitID: 40, Type: "rpot", Location: world.ItemLocationBelt, PlayerOwned: true, GridX: 3}}
+		got := e.TickResources(state, ResourceContext{MobilityCritical: true, Threatened: true, EmergencyMana: true}, now)
+		if got.Status != StatusAction || got.Resource != ResourceRejuvenation || got.BeltSlot != 4 {
+			t.Fatalf("fallback result = %+v", got)
+		}
+	})
+
+	t.Run("mobility mana before normal healing", func(t *testing.T) {
+		actions := &actionMock{}
+		e, _ := NewExecutor(config.NewLogger("error"), testDefinition(), actions)
+		state, now := profileState(), time.Now()
+		state.Player.HP = 50
+		state.Player.Mana = 19
+		state.Items = []world.Item{
+			{UnitID: 10, Type: "hpot", Location: world.ItemLocationBelt, PlayerOwned: true, GridX: 0},
+			{UnitID: 20, Type: "mpot", Location: world.ItemLocationBelt, PlayerOwned: true, GridX: 1},
+		}
+		got := e.TickResources(state, ResourceContext{MobilityCritical: true}, now)
+		if got.Status != StatusAction || got.Resource != ResourceMana || got.BeltSlot != 2 {
+			t.Fatalf("mobility result = %+v", got)
+		}
+	})
+
+	t.Run("missing emergency potion", func(t *testing.T) {
+		actions := &actionMock{}
+		e, _ := NewExecutor(config.NewLogger("error"), testDefinition(), actions)
+		state, now := profileState(), time.Now()
+		state.Player.HP = 100
+		state.Player.Mana = 5
+		got := e.TickResources(state, ResourceContext{MobilityCritical: true, Threatened: true, EmergencyMana: true}, now)
+		if got.Status != StatusComplete || got.Reason != "rejuvenation_potion_unavailable" || len(actions.belts) != 0 {
+			t.Fatalf("missing result = %+v belts=%v", got, actions.belts)
+		}
+	})
 }
 
 func TestProfileTelemetryContainsHookAndConfirmedPotionContext(t *testing.T) {
@@ -217,11 +309,11 @@ func TestProfileTelemetryContainsHookAndConfirmedPotionContext(t *testing.T) {
 	}
 	state.Player.Mana = 20
 	state.Items = []world.Item{{UnitID: 44, Type: "mpot", Location: world.ItemLocationBelt, PlayerOwned: true, GridX: 1}}
-	if got := e.TickResources(state, now.Add(2*time.Second)); got.Status != StatusAction {
+	if got := e.TickResources(state, ResourceContext{}, now.Add(2*time.Second)); got.Status != StatusAction {
 		t.Fatalf("potion=%+v", got)
 	}
 	state.Items = nil
-	if got := e.TickResources(state, now.Add(2100*time.Millisecond)); got.Status != StatusComplete {
+	if got := e.TickResources(state, ResourceContext{}, now.Add(2100*time.Millisecond)); got.Status != StatusComplete {
 		t.Fatalf("confirmation=%+v", got)
 	}
 	if len(trace.events) != 3 {
@@ -245,16 +337,118 @@ func TestProfileTelemetryFailureStopsProgressAndResetClearsPendingInput(t *testi
 	state, now := profileState(), time.Now()
 	state.Player.Mana = 20
 	state.Items = []world.Item{{UnitID: 44, Type: "mpot", Location: world.ItemLocationBelt, PlayerOwned: true, GridX: 1}}
-	if got := e.TickResources(state, now); got.Status != StatusFailed || got.Reason != "profile_telemetry_failed" {
+	if got := e.TickResources(state, ResourceContext{}, now); got.Status != StatusFailed || got.Reason != "profile_telemetry_failed" {
 		t.Fatalf("failure=%+v", got)
 	}
 	e.Reset()
 	e.SetTelemetry(nil)
 	state.Player.Mana = 100
-	if got := e.TickResources(state, now.Add(time.Second)); got.Status != StatusComplete {
+	if got := e.TickResources(state, ResourceContext{}, now.Add(time.Second)); got.Status != StatusComplete {
 		t.Fatalf("after reset=%+v", got)
 	}
 	if len(actions.belts) != 1 {
 		t.Fatalf("unexpected trailing input: %v", actions.belts)
+	}
+}
+
+func TestRouteClearSingleTargetUsesOnlyConfirmedMonsterCombatSurface(t *testing.T) {
+	definition := testDefinition()
+	definition.ID = "necro_bone_spear"
+	executor, _ := NewExecutor(config.NewLogger("error"), definition, &actionMock{})
+	actions := &routeCombatActionMock{}
+	if err := executor.ConfigureRouteClear(RouteClearSingleTarget, 66, 84, actions); err != nil {
+		t.Fatal(err)
+	}
+	request := RouteClearRequest{
+		RunID: "summoner", DefinitionID: "necro_bone_spear",
+		Player: world.Player{Position: world.Position{X: 100, Y: 100}},
+		Target: world.Monster{NPCID: world.ArcaneSpecter, UnitID: 77, Position: world.Position{X: 110, Y: 100}},
+		Mode:   RouteClearThreat, AssessmentAt: time.Now(),
+	}
+	if got := executor.TickRouteClear(context.Background(), request, request.AssessmentAt); got.Status != StatusPending ||
+		got.SkillID != 66 || got.ActionKind != RouteClearActionCurse {
+		t.Fatalf("opener aim result = %+v", got)
+	}
+	actions.sent = true
+	if got := executor.TickRouteClear(context.Background(), request, request.AssessmentAt.Add(time.Second)); got.Status != StatusAction ||
+		got.SkillID != 66 || got.ActionKind != RouteClearActionCurse {
+		t.Fatalf("opener cast result = %+v", got)
+	}
+	if got := executor.TickRouteClear(context.Background(), request, request.AssessmentAt.Add(2*time.Second)); got.Status != StatusAction ||
+		got.SkillID != 84 || got.ActionKind != RouteClearActionAttack {
+		t.Fatalf("attack cast result = %+v", got)
+	}
+	if len(actions.targets) != 3 || actions.targets[0].UnitID != 77 ||
+		!reflect.DeepEqual(actions.skills, []uint16{66, 66, 84}) {
+		t.Fatalf("targets=%+v skills=%v", actions.targets, actions.skills)
+	}
+	executor.ResetRouteClear()
+	if actions.stops != 1 {
+		t.Fatalf("stops = %d", actions.stops)
+	}
+	if got := executor.TickRouteClear(context.Background(), request, request.AssessmentAt.Add(3*time.Second)); got.SkillID != 66 ||
+		got.ActionKind != RouteClearActionCurse {
+		t.Fatalf("opener after reset = %+v", got)
+	}
+}
+
+func TestRouteClearRejectsUnknownStrategyAndMissingTarget(t *testing.T) {
+	definition := testDefinition()
+	definition.ID = "necro_bone_spear"
+	executor, _ := NewExecutor(config.NewLogger("error"), definition, &actionMock{})
+	if err := executor.ConfigureRouteClear("rotation", 66, 84, &routeCombatActionMock{}); err == nil {
+		t.Fatal("unknown strategy was accepted")
+	}
+	if got := executor.TickRouteClear(context.Background(), RouteClearRequest{}, time.Now()); got.Status != StatusFailed {
+		t.Fatalf("unconfigured result = %+v", got)
+	}
+}
+
+func TestRouteClearDensityReliefSkipsThreatCurseOpener(t *testing.T) {
+	definition := testDefinition()
+	definition.ID = "necro_bone_spear"
+	executor, _ := NewExecutor(config.NewLogger("error"), definition, &actionMock{})
+	actions := &routeCombatActionMock{sent: true}
+	if err := executor.ConfigureRouteClear(RouteClearSingleTarget, 66, 84, actions); err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now()
+	result := executor.TickRouteClear(context.Background(), RouteClearRequest{
+		RunID: "summoner", DefinitionID: "necro_bone_spear",
+		Player:       world.Player{Position: world.Position{X: 100, Y: 100}},
+		Target:       world.Monster{NPCID: world.ArcaneSpecter, UnitID: 91, Position: world.Position{X: 110, Y: 100}},
+		Mode:         RouteClearDensityRelief,
+		AssessmentAt: now,
+	}, now)
+	if result.Status != StatusAction || result.SkillID != 84 || result.ActionKind != RouteClearActionAttack {
+		t.Fatalf("density relief result = %+v", result)
+	}
+}
+
+func TestRouteClearPreservesUnprojectableTargetAsPending(t *testing.T) {
+	definition := testDefinition()
+	definition.ID = "necro_bone_spear"
+	executor, _ := NewExecutor(config.NewLogger("error"), definition, &actionMock{})
+	actions := &routeCombatActionMock{err: ErrRouteClearTargetUnprojectable}
+	if err := executor.ConfigureRouteClear(RouteClearSingleTarget, 66, 84, actions); err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now()
+	result := executor.TickRouteClear(context.Background(), RouteClearRequest{
+		RunID: "summoner", DefinitionID: "necro_bone_spear",
+		Player:       world.Player{Position: world.Position{X: 100, Y: 100}},
+		Target:       world.Monster{NPCID: world.ArcaneGhoulLord, UnitID: 83, Position: world.Position{X: 130, Y: 100}},
+		Mode:         RouteClearThreat,
+		AssessmentAt: now,
+	}, now)
+	if result.Status != StatusPending || result.Reason != RouteClearReasonTargetUnprojectable {
+		t.Fatalf("unprojectable result = %+v", result)
+	}
+}
+
+func TestRouteClearRejectsUnsupportedProfile(t *testing.T) {
+	executor, _ := NewExecutor(config.NewLogger("error"), testDefinition(), &actionMock{})
+	if err := executor.ConfigureRouteClear(RouteClearSingleTarget, 66, 84, &routeCombatActionMock{}); err == nil {
+		t.Fatal("unsupported profile was accepted")
 	}
 }

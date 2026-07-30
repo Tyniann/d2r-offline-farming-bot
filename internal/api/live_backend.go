@@ -602,7 +602,7 @@ func (b *LiveBackend) applySelectionCommand(request CommandRequest) (CommandResp
 				Difficulty: payload.Difficulty, GameVersion: b.cfg.Memory.GameVersion,
 			})
 			if refreshErr == nil {
-				refreshedRuns = runCatalogEntries(report)
+				refreshedRuns = runCatalogEntries(report, b.cfg)
 			}
 		}
 	}

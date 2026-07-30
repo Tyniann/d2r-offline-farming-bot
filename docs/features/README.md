@@ -50,6 +50,8 @@ Spätere Ideen (noch nicht umgesetzt): [`docs/backlog.md`](../backlog.md).
 | [Phase-14-Core-Vertrag](phase-14-core-contract.md) | Abschnitt 14.0: Historienpopulation, Metriken, Denominatoren, Funnel, Stages, Filter, Pagination, Export und Reason-Codes |
 | [Phase-15-Core-Vertrag](phase-15-core-contract.md) | Abschnitt 15.0: Desktop-/Core-Ownership, Datenroot, Lifecycle, Version-Gate, Operatorwerte, Retention, Reason-Codes und 10.000-Run-Performancebaseline |
 | [Phase-16-Core-Vertrag](phase-16-core-contract.md) | Abschnitt 16.0: D2S-v105-Präfix, Klassenmapping einschließlich Warlock, Charakter-Setup-Ownership, Reason-Codes, Defaults und Nicht-Ziele |
+| [Phase-17-Core-Vertrag](phase-17-core-contract.md) | Abschnitt 17.0: Summoner-Baseline, RouteProgress, Threat-/Coverage-Zustände, Ressourcenkontext, Watchdogs, Reasons, Ownership und Nicht-Ziele |
+| [Route-Threat-Combat](route-threat-combat.md) | Phase 17: Summoner-spezifisches Route-Hold, stationärer Profil-Clear, Coverage, Mana-Hysterese, Recovery-Guard und gebündelte Telemetrie |
 | [Charaktereinrichtung](character-setup.md) | Phase 16: Core-validierte Profil- und Pickit-Einrichtung, sichere Auswahlbilderfassung und erneute Selection-/Queue-/Run-Gates |
 | [Installierter Datenroot und Desktop-Einstellungen](installed-data-root.md) | Abschnitt 15.1: expliziter Core-Root, hashgebundene Defaults, stagingbasierter Import und getrennter atomarer Desktop-Settings-Store |
 | [Persistente Operator-Einstellungen](operator-settings.md) | Schema 2 mit geschütztem Charakterprofil-Paar, Queues, Budgets, Input, Hotkeys, Retention, Preview/Reset und zehn Backups |

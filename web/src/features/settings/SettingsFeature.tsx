@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { FolderOpen, RefreshCw, RotateCcw, Save } from "lucide-react";
 import { confirmHistoryDeleteAll, createDiagnosticBundle, previewHistoryDeleteAll, restoreOperatorSettings, saveOperatorSettings } from "../../api/client";
-import { getOperatorSettings, previewOperatorSettings, previewResetOperatorSettings, type HistoryDeletePreviewDTO, type LiveEvent, type OperatorSettingsChangeDTO, type OperatorSettingsDTO } from "../../api/generated";
+import { getOperatorSettings, previewOperatorSettings, previewResetOperatorSettings, type HistoryDeletePreviewDTO, type LiveEvent, type OperatorSettingsChangeDTO, type OperatorSettingsDTO, type RouteCombatConfigDTO } from "../../api/generated";
 import { Button, Dialog, StateMessage, StatusBadge } from "../../app/ui";
 
-export function SettingsFeature({ generation, coreState, characters, runs, events, onOpenOnboarding }: { generation: number; coreState: string; characters: string[]; runs: Array<{ id: string; label: string }>; events: LiveEvent[]; onOpenOnboarding?: () => void }) {
+export function SettingsFeature({ generation, coreState, characters, runs, events, onOpenOnboarding }: { generation: number; coreState: string; characters: string[]; runs: Array<{ id: string; label: string; routeCombat?: RouteCombatConfigDTO }>; events: LiveEvent[]; onOpenOnboarding?: () => void }) {
   const [settings, setSettings] = useState<OperatorSettingsDTO | null>(null);
   const [draft, setDraft] = useState<OperatorSettingsDTO | null>(null);
   const [desktop, setDesktop] = useState<DesktopSettingsView | null>(null);
@@ -224,6 +224,7 @@ export function SettingsFeature({ generation, coreState, characters, runs, event
       <p>Jede Mutation verwendet die erwartete Store-Revision {settings.revision} und Coregeneration {generation}. Der Core validiert den Gesamtstand und bleibt die einzige Autorität.</p>
       <div className="inline-actions"><Button onClick={() => void previewSave()} disabled={!mutable || busy}><Save aria-hidden="true" size={16} /> Änderungen prüfen</Button><Button variant="danger" onClick={() => void previewReset()} disabled={!mutable || busy}><RotateCcw aria-hidden="true" size={16} /> Sichere Defaults vorschauen</Button></div>
       <details className="effective-settings"><summary>Effektive erweiterte Werte (read-only)</summary><p>Datei: <code>configs/operator-settings.local.yaml</code></p><pre>{JSON.stringify(settings, null, 2)}</pre></details>
+      <details className="effective-settings"><summary>Effektive Route-Combat-Werte (read-only)</summary><p>Vom Core nach Defaults und Validierung projiziert; <code>enabled: false</code> deaktiviert das Interleave ohne Änderung der Route.</p><pre>{JSON.stringify(Object.fromEntries(runs.map((run) => [run.id, run.routeCombat ?? null])), null, 2)}</pre></details>
     </section>
 
     <section>

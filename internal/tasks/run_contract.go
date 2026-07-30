@@ -40,6 +40,8 @@ const (
 	RunCapabilityAct1TownServices RunCapability = "act1_town_services"
 	// RunCapabilityForeignTownEgress requires normalization from another act.
 	RunCapabilityForeignTownEgress RunCapability = "foreign_town_egress"
+	// RunCapabilityRouteClear permits threat-aware combat during bound route playback.
+	RunCapabilityRouteClear RunCapability = "route_clear"
 )
 
 // BossDescriptor identifies the Memory-confirmed boss selected by a run.
@@ -95,12 +97,34 @@ type RunDefinition struct {
 	WaypointTarget     pathing.WaypointTargetID
 	Boss               BossDescriptor
 	BossEngageSequence []EncounterAction
-	// ClearNearbyAfterBoss enables the bounded standard-attack cleanup between
+	// ClearNearbyAfterBoss enables bounded profile-aware cleanup between
 	// confirmed boss death and loot handling.
 	ClearNearbyAfterBoss bool
-	ReturnOrigin         town.OriginAct
-	RequiredCaps         []RunCapability
-	Recording            RecordingContract
+	// RouteHostileNPCIDs is the immutable living-hostile allowlist for route clear.
+	RouteHostileNPCIDs []uint32
+	ReturnOrigin       town.OriginAct
+	RequiredCaps       []RunCapability
+	Recording          RecordingContract
+}
+
+// HasCapability reports whether the immutable run definition declares capability.
+func (d RunDefinition) HasCapability(capability RunCapability) bool {
+	for _, candidate := range d.RequiredCaps {
+		if candidate == capability {
+			return true
+		}
+	}
+	return false
+}
+
+// AllowsRouteHostile reports whether npcID belongs to the immutable route-clear catalog.
+func (d RunDefinition) AllowsRouteHostile(npcID uint32) bool {
+	for _, candidate := range d.RouteHostileNPCIDs {
+		if candidate == npcID {
+			return true
+		}
+	}
+	return false
 }
 
 // RunStep identifies one state in the shared finite run lifecycle.

@@ -9,6 +9,7 @@ import (
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/input"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/memory"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/pathing"
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/profile"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/world"
 )
 
@@ -17,10 +18,13 @@ type combatAdapter struct {
 	input               inputController
 	bindings            configBindingSource
 	projector           pathing.RelativeProjector
+	hoverProbe          pathing.ClickConfig
+	forceMoveKey        string
 	interval            time.Duration
 	lastAction          time.Time
 	pendingSkill        uint16
 	pendingTargetUnitID uint32
+	hoverProbeAttempt   int
 }
 
 type verifiedCombatInput interface {
@@ -30,11 +34,13 @@ type verifiedCombatInput interface {
 
 func newCombatAdapter(log *slog.Logger, in inputController, bindings configBindingSource, cfg pathing.Config, interval time.Duration) *combatAdapter {
 	return &combatAdapter{
-		log:       log.With("component", "combat"),
-		input:     in,
-		bindings:  bindings,
-		projector: cfg.Projector(),
-		interval:  interval,
+		log:          log.With("component", "combat"),
+		input:        in,
+		bindings:     bindings,
+		projector:    cfg.Projector(),
+		hoverProbe:   cfg.Click,
+		forceMoveKey: cfg.TownWalk.ForceMoveKey,
+		interval:     interval,
 	}
 }
 
@@ -126,24 +132,49 @@ func (c *combatAdapter) CastAttackAtMonster(now time.Time, skillID uint16, playe
 		return false, nil
 	}
 	c.pendingSkill = 0
-	if c.pendingTargetUnitID != target.UnitID || !target.IsHovered {
-		clientX, clientY, projectErr := c.project(player.Position, target.Position)
-		if projectErr != nil {
-			return false, projectErr
+	if !target.IsHovered {
+		if c.pendingTargetUnitID != target.UnitID {
+			c.hoverProbeAttempt = 0
+		}
+		win, windowOK := c.input.Window()
+		if !windowOK {
+			return false, fmt.Errorf("combat projection: window not bound")
+		}
+		attempt := c.hoverProbeAttempt
+		if c.hoverProbe.MaxHoverAttempts > 0 {
+			attempt %= c.hoverProbe.MaxHoverAttempts
+		}
+		clientX, clientY, projected := pathing.ProjectHoverProbe(c.projector, player.Position, target.Position, win, c.hoverProbe, attempt)
+		if !projected {
+			return false, fmt.Errorf("%w: unit %d", profile.ErrRouteClearTargetUnprojectable, target.UnitID)
 		}
 		if moveErr := c.input.MoveTo(clientX, clientY); moveErr != nil {
 			return false, fmt.Errorf("combat aim monster %d: %w", target.UnitID, moveErr)
 		}
 		c.pendingTargetUnitID = target.UnitID
+		c.hoverProbeAttempt++
 		c.log.Debug("combat monster aim requested",
 			"unit_id", target.UnitID,
 			"npc_id", target.NPCID,
+			"hover_probe_attempt", attempt+1,
 			"target_x", target.Position.X,
 			"target_y", target.Position.Y,
 			"client_x", clientX,
 			"client_y", clientY,
 		)
 		return false, nil
+	}
+	if c.pendingTargetUnitID != target.UnitID {
+		// Memory already proved that this fresh target is the living monster
+		// under the cursor. Attack it immediately instead of restarting aim for
+		// the originally selected blocker hidden behind the same sprite.
+		c.log.Debug("combat accepted hovered living monster",
+			"previous_unit_id", c.pendingTargetUnitID,
+			"unit_id", target.UnitID,
+			"npc_id", target.NPCID,
+		)
+		c.pendingTargetUnitID = target.UnitID
+		c.hoverProbeAttempt = 0
 	}
 	if !c.ready(now) {
 		return false, nil
@@ -152,6 +183,7 @@ func (c *combatAdapter) CastAttackAtMonster(now time.Time, skillID uint16, playe
 		return false, fmt.Errorf("combat right-click %s(%d) at monster %d: %w", memory.SkillName(skillID), skillID, target.UnitID, err)
 	}
 	c.lastAction = now
+	c.hoverProbeAttempt = 0
 	c.log.Debug("combat skill cast at confirmed living monster",
 		"skill", memory.SkillName(skillID),
 		"skill_id", skillID,
@@ -166,7 +198,34 @@ func (c *combatAdapter) CastAttackAtMonster(now time.Time, skillID uint16, playe
 func (c *combatAdapter) StopAttack() error {
 	c.pendingSkill = 0
 	c.pendingTargetUnitID = 0
+	c.hoverProbeAttempt = 0
 	return nil
+}
+
+// MonsterAimProjectable reports whether the same visible-body anchor used by
+// [combatAdapter.CastAttackAtMonster] can begin its hover search from playerPos.
+func (c *combatAdapter) MonsterAimProjectable(playerPos, targetPos world.Position) bool {
+	win, ok := c.input.Window()
+	if !ok {
+		return false
+	}
+	_, _, ok = pathing.ProjectHoverProbe(c.projector, playerPos, targetPos, win, c.hoverProbe, 0)
+	return ok
+}
+
+// FarthestProjectableMonsterDistance finds the smallest necessary approach
+// along the existing player-to-target line. It deliberately does not search
+// arbitrary landing points or infer safety from geometry.
+func (c *combatAdapter) FarthestProjectableMonsterDistance(playerPos, targetPos world.Position) (float64, bool) {
+	distance := world.Distance(playerPos, targetPos)
+	for desiredDistance := math.Floor(distance) - 1; desiredDistance > 0; desiredDistance-- {
+		candidate := combatStepTowardTarget(playerPos, targetPos, desiredDistance)
+		if candidate == playerPos || !c.MonsterAimProjectable(candidate, targetPos) {
+			continue
+		}
+		return world.Distance(candidate, targetPos), true
+	}
+	return 0, false
 }
 
 func (c *combatAdapter) TeleportToward(now time.Time, playerPos, targetPos world.Position, desiredDistanceTiles float64) (bool, error) {
@@ -191,6 +250,36 @@ func (c *combatAdapter) TeleportToward(now time.Time, playerPos, targetPos world
 		"teleport_x", teleportTarget.X,
 		"teleport_y", teleportTarget.Y,
 		"desired_distance_tiles", desiredDistanceTiles,
+	)
+	return true, nil
+}
+
+// ForceMoveToward reuses the configured Town-Walk Force-Move binding while
+// leaving route-point ownership with the task pipeline.
+func (c *combatAdapter) ForceMoveToward(now time.Time, playerPos, targetPos world.Position) (bool, error) {
+	if err := c.StopAttack(); err != nil {
+		return false, err
+	}
+	if !c.ready(now) {
+		return false, nil
+	}
+	clientX, clientY, err := c.project(playerPos, targetPos)
+	if err != nil {
+		return false, err
+	}
+	if err := c.input.MoveTo(clientX, clientY); err != nil {
+		return false, fmt.Errorf("combat force move aim: %w", err)
+	}
+	if err := c.input.PressKey(c.forceMoveKey); err != nil {
+		return false, fmt.Errorf("combat force move: %w", err)
+	}
+	c.lastAction = now
+	c.log.Info("combat force move toward route point",
+		"target_x", targetPos.X,
+		"target_y", targetPos.Y,
+		"client_x", clientX,
+		"client_y", clientY,
+		"key", c.forceMoveKey,
 	)
 	return true, nil
 }

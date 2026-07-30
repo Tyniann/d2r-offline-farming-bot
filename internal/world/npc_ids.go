@@ -14,6 +14,12 @@ type Monster struct {
 const DarkStalker uint32 = 45
 
 const (
+	// ArcaneSpecter is the hostile Specter/Ghost family used by Summoner route clear.
+	ArcaneSpecter uint32 = 40
+	// ArcaneHellClan is the hostile Hell Clan family used by Summoner route clear.
+	ArcaneHellClan uint32 = 56
+	// ArcaneGhoulLord is the hostile Ghoul Lord family used by Summoner route clear.
+	ArcaneGhoulLord uint32 = 131
 	// DeckardCain is the live-validated Rogue Encampment `cain5` NPC ID.
 	DeckardCain uint32 = 265
 	// Akara is the Act-1 potion, scroll, and sell vendor NPC ID.
@@ -31,6 +37,12 @@ func LookupNPCName(id uint32) string {
 		return name
 	}
 	switch id {
+	case ArcaneSpecter:
+		return "Specter"
+	case ArcaneHellClan:
+		return "Hell Clan"
+	case ArcaneGhoulLord:
+		return "Ghoul Lord"
 	case DarkStalker:
 		return "Dark Stalker"
 	case DeckardCain:

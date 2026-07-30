@@ -22,6 +22,9 @@ const (
 	RunPhaseBoss = "boss"
 	// RunPhaseLootAndReturn selects loot, portal return, and stash recovery.
 	RunPhaseLootAndReturn = "loot-and-return"
+	// RunPhaseRetryReturn selects the input-minimal portal and foreign-town
+	// normalization path used before retrying a failed run in a fresh game.
+	RunPhaseRetryReturn = "retry-return"
 	// RunPhaseStashPersonal selects transfer-free Act-1 personal-stash navigation and opening.
 	RunPhaseStashPersonal = "stash-personal"
 	// RunPhaseTownReady selects the isolated class-profile Town-ready hook.
@@ -54,47 +57,65 @@ const (
 	pipelineStepPrepareTown         = "prepare_town_handoff"
 	pipelineStepComplete            = "complete"
 
-	waypointSelectSettleDelay          = 500 * time.Millisecond
-	dropStableTicks                    = 3
-	lootNoTargetStableTicks            = 3
-	postKillLootDistanceTiles          = 4
-	defaultLootPickupDistance          = 8
-	lootRepositionRetryDelay           = 500 * time.Millisecond
-	lootRepositionMaxAttempts          = 3
-	postBossCleanupRadiusTiles float64 = 18
-	postBossCleanupMaxCasts            = 20
-	postBossCleanupStableTicks         = 3
+	waypointSelectSettleDelay                 = 500 * time.Millisecond
+	dropStableTicks                           = 3
+	lootNoTargetStableTicks                   = 3
+	postKillLootDistanceTiles                 = 4
+	defaultLootPickupDistance                 = 8
+	lootRepositionRetryDelay                  = 500 * time.Millisecond
+	lootRepositionMaxAttempts                 = 3
+	routeLootRadiusTiles              float64 = 30
+	routeThreatApproachSettle                 = 500 * time.Millisecond
+	routeThreatApproachProgressTiles          = 1
+	routeThreatApproachMaxFailures            = 3
+	bossApproachSettle                        = 700 * time.Millisecond
+	postBossCleanupRadiusTiles        float64 = 18
+	nihlathakCleanupRadiusTiles       float64 = 30
+	postBossCleanupMaxCasts                   = 20
+	nihlathakCleanupMaxCasts                  = 40
+	postBossCleanupStableTicks                = 3
+	nihlathakCleanupNoProgressTimeout         = 3 * time.Second
 )
 
 // runPipeline executes one immutable run definition or a thin isolated-phase alias.
 // Persistent executor state belongs to this generation and is cleared at the
 // runner's central reset barrier before another generation may start.
 type runPipeline struct {
-	definition               RunDefinition
-	phase                    string
-	routeID                  string
-	combat                   CombatConfig
-	navStarted               bool
-	resumeAfterPrecheckSet   bool
-	resumeAfterPrecheck      string
-	chestFallbackStarted     bool
-	targetSeen               bool
-	targetUnitID             uint32
-	targetPosition           world.Position
-	targetPositionSet        bool
-	targetAbsentTicks        int
-	dropStableTicks          int
-	lootScanHasTarget        bool
-	lootPickupActive         bool
-	lootNoTargetTicks        int
-	routeStarted             bool
-	egressStarted            bool
-	encounterActionIndex     int
-	encounterActionStarted   bool
-	bossKillEmitted          bool
-	cleanupTargetUnitID      uint32
-	cleanupCastCount         int
-	cleanupNoTargetTicks     int
+	definition             RunDefinition
+	phase                  string
+	routeID                string
+	combat                 CombatConfig
+	routeCombat            RouteCombatConfig
+	routeThreat            RouteThreatController
+	navStarted             bool
+	resumeAfterPrecheckSet bool
+	resumeAfterPrecheck    string
+	chestFallbackStarted   bool
+	targetSeen             bool
+	targetUnitID           uint32
+	targetPosition         world.Position
+	targetPositionSet      bool
+	targetAbsentTicks      int
+	dropStableTicks        int
+	lootScanHasTarget      bool
+	lootPickupActive       bool
+	lootNoTargetTicks      int
+	routeStarted           bool
+	egressStarted          bool
+	encounterActionIndex   int
+	encounterActionStarted bool
+	bossKillEmitted        bool
+	bossApproachPending    bool
+	bossApproachAttempted  bool
+	bossApproachAt         time.Time
+	bossApproachSnapshot   time.Time
+	cleanupTargetUnitID    uint32
+	cleanupCastCount       int
+	cleanupNoTargetTicks   int
+	cleanupLastProgressAt  time.Time
+	// cleanupSkippedUnitIDs prevents an unprojectable hostile from pinning the
+	// best-effort Nihlathak cleanup while another nearby target remains usable.
+	cleanupSkippedUnitIDs    map[uint32]bool
 	lootPickupDistanceTiles  float64
 	postKillTeleportAttempts int
 	postKillTeleportAt       time.Time
@@ -105,12 +126,23 @@ type runPipeline struct {
 	lootApproachAt           time.Time
 	lootApproachSnapshot     time.Time
 	// lootPickupRecovered bounds post-fail item teleports to one attempt per UnitID.
-	lootPickupRecovered      map[uint32]bool
-	lootRecoveryPending      bool
-	lootRecoveryTarget       LootTarget
-	lootRecoveryTeleportSent bool
-	lootRecoveryAt           time.Time
-	lootRecoverySnapshot     time.Time
+	lootPickupRecovered       map[uint32]bool
+	lootRecoveryPending       bool
+	lootRecoveryTarget        LootTarget
+	lootRecoveryTeleportSent  bool
+	lootRecoveryAt            time.Time
+	lootRecoverySnapshot      time.Time
+	routeLootPointSet         bool
+	routeLootSegmentIndex     int
+	routeLootPointIndex       int
+	routeLootScanned          bool
+	routeApproachTargetUnitID uint32
+	routeApproachTargetPos    world.Position
+	routeApproachDistance     float64
+	routeApproachSentAt       time.Time
+	routeApproachSnapshotAt   time.Time
+	routeApproachPending      bool
+	routeApproachFailures     int
 	// portalRecovered bounds post-fail portal teleports to one attempt per portal UnitID.
 	portalRecovered            map[uint32]bool
 	portalRecoveryPending      bool
@@ -123,6 +155,12 @@ type runPipeline struct {
 
 func (c *runPipeline) effectiveDefinition() RunDefinition {
 	return c.definition
+}
+
+func (c *runPipeline) handlesResources(step string) bool {
+	return step == pipelineStepPlayRoute &&
+		c.routeCombat.Enabled &&
+		c.definition.HasCapability(RunCapabilityRouteClear)
 }
 
 func (c *runPipeline) resetGeneration() {
@@ -140,14 +178,18 @@ func (c *runPipeline) resetGeneration() {
 	c.lootPickupActive = false
 	c.lootNoTargetTicks = 0
 	c.routeStarted = false
+	c.routeThreat.Reset(nil)
 	c.egressStarted = false
 	c.encounterActionIndex = 0
 	c.encounterActionStarted = false
 	c.bossKillEmitted = false
+	c.resetBossApproach()
 	c.resetPostBossCleanup()
 	c.resetPostKillReposition()
 	c.resetLootApproach()
 	c.resetLootPickupRecovery()
+	c.resetRouteLoot()
+	c.resetRouteThreatApproach()
 	c.resetPortalEntryRecovery()
 }
 
@@ -238,6 +280,33 @@ func (c *runPipeline) nextStep(current string) string {
 			return ""
 		}
 	}
+	if c.phase == RunPhaseRetryReturn {
+		switch current {
+		case pipelineStepPrecheck:
+			return pipelineStepCastTownPortal
+		case pipelineStepCastTownPortal:
+			return pipelineStepEnterTownPortal
+		case pipelineStepEnterTownPortal:
+			return pipelineStepWaitOriginTown
+		case pipelineStepWaitOriginTown:
+			if foreignTownOrigin(c.effectiveDefinition().ReturnOrigin) {
+				return pipelineStepPlayTownEgress
+			}
+			return pipelineStepComplete
+		case pipelineStepPlayTownEgress:
+			return pipelineStepOpenOriginWaypoint
+		case pipelineStepOpenOriginWaypoint:
+			return pipelineStepSelectHubWaypoint
+		case pipelineStepSelectHubWaypoint:
+			return pipelineStepWaitHubArea
+		case pipelineStepWaitHubArea:
+			return pipelineStepComplete
+		case pipelineStepComplete:
+			return ""
+		default:
+			return ""
+		}
+	}
 	if c.isTravelPhase() {
 		switch current {
 		case pipelineStepPrecheck:
@@ -276,6 +345,12 @@ func (c *runPipeline) nextStep(current string) string {
 	case pipelineStepPlayRoute:
 		return pipelineStepAcquireBoss
 	case pipelineStepAcquireBoss:
+		if c.bossKillEmitted {
+			if c.effectiveDefinition().ClearNearbyAfterBoss {
+				return pipelineStepClearNearbyHostiles
+			}
+			return pipelineStepRepositionForLoot
+		}
 		return pipelineStepEngageBoss
 	case pipelineStepEngageBoss:
 		if c.effectiveDefinition().ClearNearbyAfterBoss {
@@ -342,7 +417,7 @@ func (c *runPipeline) timeoutReason(step string) string {
 }
 
 func (c *runPipeline) allowsNonInputTick(step string) bool {
-	if step == pipelineStepWaitOriginTown && (c.phase == "" || c.phase == RunPhaseLootAndReturn) {
+	if step == pipelineStepWaitOriginTown && (c.phase == "" || c.phase == RunPhaseLootAndReturn || c.phase == RunPhaseRetryReturn) {
 		return true
 	}
 	return (c.isTravelPhase() || c.phase == "") && (step == pipelineStepWaitEntryArea || step == pipelineStepPlayRoute)
@@ -371,6 +446,8 @@ func (c *runPipeline) onStepEnter(step string) {
 		c.resetLootApproach()
 	}
 	if step == pipelineStepAcquireBoss {
+		c.resetRouteLoot()
+		c.resetBossApproach()
 		c.chestFallbackStarted = false
 		c.targetSeen = false
 		c.targetUnitID = 0
@@ -395,6 +472,9 @@ func (c *runPipeline) onTick(ctx context.Context, deps Deps, step string, w worl
 	if c.phase == RunPhaseLootAndReturn {
 		return c.onLootTick(ctx, deps, step, w, now, stepStartedAt)
 	}
+	if c.phase == RunPhaseRetryReturn {
+		return c.onRetryReturnTick(ctx, deps, step, w, now, stepStartedAt)
+	}
 	if c.isTravelPhase() {
 		return c.onTravelTick(ctx, deps, step, w, now, stepStartedAt)
 	}
@@ -402,6 +482,22 @@ func (c *runPipeline) onTick(ctx context.Context, deps Deps, step string, w worl
 		return c.onRunTick(ctx, deps, step, w, now, stepStartedAt)
 	}
 	return stepResult{failed: true, reason: "unknown_step"}
+}
+
+func (c *runPipeline) onRetryReturnTick(ctx context.Context, deps Deps, step string, w world.State, now, stepStartedAt time.Time) stepResult {
+	if step == pipelineStepPrecheck {
+		if !w.Valid {
+			return stepResult{failed: true, reason: "invalid_world"}
+		}
+		if w.Phase != world.GamePhaseInGame {
+			return stepResult{failed: true, reason: "not_in_game"}
+		}
+		if !c.allowsRetryReturnArea(w.Area.ID) {
+			return stepResult{failed: true, reason: string(RunReasonUnexpectedArea)}
+		}
+		return stepResult{complete: true}
+	}
+	return c.onLootTick(ctx, deps, step, w, now, stepStartedAt)
 }
 
 func (c *runPipeline) onTownReadyTick(ctx context.Context, deps Deps, step string, w world.State, now time.Time) stepResult {
@@ -760,6 +856,15 @@ func (c *runPipeline) lootAreaGuard(w world.State) stepResult {
 	return stepResult{}
 }
 
+func (c *runPipeline) allowsRetryReturnArea(area world.AreaID) bool {
+	for _, allowed := range c.effectiveDefinition().Recording.AllowedRouteAreas {
+		if area == allowed {
+			return true
+		}
+	}
+	return false
+}
+
 func tickRunTownPortal(deps Deps, w world.State) stepResult {
 	if !w.Valid {
 		return stepResult{failed: true, reason: "invalid_world"}
@@ -783,7 +888,8 @@ func (c *runPipeline) tickEnterTownPortal(ctx context.Context, deps Deps, w worl
 	if w.Area.ID == c.originTownArea() {
 		return stepResult{complete: true}
 	}
-	if w.Area.ID != c.effectiveDefinition().RouteTerminalArea {
+	if w.Area.ID != c.effectiveDefinition().RouteTerminalArea &&
+		(c.phase != RunPhaseRetryReturn || !c.allowsRetryReturnArea(w.Area.ID)) {
 		return stepResult{failed: true, reason: "unexpected_area"}
 	}
 	if deps.Portal == nil {
@@ -953,6 +1059,20 @@ func (c *runPipeline) onBossTick(ctx context.Context, deps Deps, step string, w 
 			c.storeBossTarget(target)
 			return stepResult{complete: true}
 		}
+		if c.phase == "" && c.effectiveDefinition().ID == RunIDSummoner {
+			// The Summoner can die to the mercenary or a piercing route-clear
+			// attack before the dedicated boss step starts. Priority enumeration
+			// makes his absence authoritative once the recorded route completed.
+			// Continue from the player's terminal position instead of waiting for
+			// an already dead boss; stronger bosses retain normal acquisition.
+			c.targetPosition = w.Player.Position
+			c.targetPositionSet = true
+			if err := c.emitBossKill(deps); err != nil {
+				return stepResult{failed: true, reason: "telemetry_failed"}
+			}
+			c.bossKillEmitted = true
+			return stepResult{complete: true}
+		}
 		return c.tickBossSearchFallback(ctx, deps, w)
 	case pipelineStepEngageBoss:
 		if res := c.killAreaGuard(w); res.failed {
@@ -1049,10 +1169,19 @@ func (c *runPipeline) onBossTick(ctx context.Context, deps Deps, step string, w 
 		if deps.Combat == nil {
 			return stepResult{failed: true, reason: "combat_not_wired"}
 		}
-		if c.cleanupCastCount >= postBossCleanupMaxCasts {
+		if c.cleanupCastCount >= c.postBossCleanupMaxCasts() {
 			// Cleanup is deliberately best-effort. The configured budget must
 			// never trap the run in combat instead of advancing to loot.
 			return c.stopCleanup(deps, stepResult{complete: true})
+		}
+		if c.effectiveDefinition().ID == RunIDNihlathak {
+			if c.cleanupLastProgressAt.IsZero() {
+				c.cleanupLastProgressAt = now
+			} else if now.Sub(c.cleanupLastProgressAt) >= nihlathakCleanupNoProgressTimeout {
+				// Cleanup must not park the whole run when Memory still exposes
+				// a living hostile that cannot produce another combat input.
+				return c.stopCleanup(deps, stepResult{complete: true})
+			}
 		}
 		target, visible := c.findCleanupTarget(w)
 		if !visible {
@@ -1065,6 +1194,35 @@ func (c *runPipeline) onBossTick(ctx context.Context, deps Deps, step string, w 
 		}
 		c.cleanupTargetUnitID = target.UnitID
 		c.cleanupNoTargetTicks = 0
+		if c.effectiveDefinition().ID == RunIDNihlathak {
+			if deps.RouteClear == nil {
+				return stepResult{failed: true, reason: "combat_not_wired"}
+			}
+			result := deps.RouteClear.TickRouteClear(ctx, profile.RouteClearRequest{
+				RunID:        string(c.effectiveDefinition().ID),
+				DefinitionID: c.combat.Profile,
+				Player:       w.Player,
+				Target:       target,
+				Mode:         profile.RouteClearThreat,
+				AssessmentAt: w.At,
+			}, now)
+			switch result.Status {
+			case profile.StatusFailed:
+				return stepResult{failed: true, reason: "combat_action_failed"}
+			case profile.StatusAction:
+				c.cleanupCastCount++
+				c.cleanupLastProgressAt = now
+			case profile.StatusPending:
+				if result.Reason == profile.RouteClearReasonTargetUnprojectable {
+					if c.cleanupSkippedUnitIDs == nil {
+						c.cleanupSkippedUnitIDs = make(map[uint32]bool)
+					}
+					c.cleanupSkippedUnitIDs[target.UnitID] = true
+					c.cleanupTargetUnitID = 0
+				}
+			}
+			return stepResult{}
+		}
 		sent, err := deps.Combat.CastAttackAtMonster(now, c.combat.AttackSkillID, w.Player, target)
 		if err != nil {
 			return stepResult{failed: true, reason: "combat_action_failed"}
@@ -1243,6 +1401,9 @@ func (c *runPipeline) tickEngageTarget(deps Deps, w world.State, target world.Mo
 	if deps.Combat == nil {
 		return stepResult{failed: true, reason: "combat_not_wired"}
 	}
+	if c.effectiveDefinition().ID == RunIDNihlathak {
+		return c.tickNihlathakEngageTarget(deps, w, target, now)
+	}
 	distance := world.Distance(w.Player.Position, target.Position)
 	var err error
 	if distance > c.combat.RepositionDistanceTiles {
@@ -1256,18 +1417,83 @@ func (c *runPipeline) tickEngageTarget(deps Deps, w world.State, target world.Mo
 	return stepResult{}
 }
 
+func (c *runPipeline) tickNihlathakEngageTarget(deps Deps, w world.State, target world.Monster, now time.Time) stepResult {
+	if c.bossApproachPending {
+		if now.Sub(c.bossApproachAt) < bossApproachSettle || !w.At.After(c.bossApproachSnapshot) {
+			return stepResult{}
+		}
+		c.bossApproachPending = false
+	}
+
+	// Bone Spear pierces the pack around Nihlathak. Any living monster already
+	// under the cursor is an immediate attack surface; the pinned boss UnitID
+	// remains authoritative only for presence and kill confirmation.
+	attackTarget := target
+	for _, monster := range w.Monsters {
+		if monster.IsHovered {
+			attackTarget = monster
+			break
+		}
+	}
+	if attackTarget.IsHovered || deps.Combat.MonsterAimProjectable(w.Player.Position, target.Position) {
+		_, err := deps.Combat.CastAttackAtMonster(now, c.combat.AttackSkillID, w.Player, attackTarget)
+		if err != nil {
+			return stepResult{failed: true, reason: "combat_action_failed"}
+		}
+		return stepResult{}
+	}
+
+	if c.bossApproachAttempted {
+		// The recorded route endpoint is the preferred combat anchor. One
+		// projection-driven approach is the entire fallback; never chain a
+		// second teleport from a stale or unexpectedly blocked landing.
+		return stepResult{failed: true, reason: "combat_action_failed"}
+	}
+	desiredDistance, ok := deps.Combat.FarthestProjectableMonsterDistance(w.Player.Position, target.Position)
+	if !ok {
+		return stepResult{failed: true, reason: "combat_action_failed"}
+	}
+	sent, err := deps.Combat.TeleportToward(now, w.Player.Position, target.Position, desiredDistance)
+	if err != nil {
+		return stepResult{failed: true, reason: "combat_action_failed"}
+	}
+	if sent {
+		c.bossApproachPending = true
+		c.bossApproachAttempted = true
+		c.bossApproachAt = now
+		c.bossApproachSnapshot = w.At
+	}
+	return stepResult{}
+}
+
+func (c *runPipeline) resetBossApproach() {
+	c.bossApproachPending = false
+	c.bossApproachAttempted = false
+	c.bossApproachAt = time.Time{}
+	c.bossApproachSnapshot = time.Time{}
+}
+
 func (c *runPipeline) findCleanupTarget(w world.State) (world.Monster, bool) {
 	var nearest world.Monster
-	nearestDistance := postBossCleanupRadiusTiles
+	var nearestDistanceSquared float64
 	found := false
+	radius := c.postBossCleanupRadiusTiles()
 	for _, monster := range w.Monsters {
-		if monster.UnitID == c.targetUnitID || !c.isCleanupHostile(monster) {
+		if monster.UnitID == c.targetUnitID || c.cleanupSkippedUnitIDs[monster.UnitID] || !c.isCleanupHostile(monster) {
 			continue
 		}
-		distance := world.Distance(w.Player.Position, monster.Position)
-		if distance <= nearestDistance {
+		distanceSquared := positionDistanceSquared(w.Player.Position, monster.Position)
+		if c.effectiveDefinition().ID == RunIDNihlathak && monster.IsHovered &&
+			distanceSquared <= radius*radius {
+			// Nihlathak is already confirmed dead. Accept any living monster
+			// currently under the cursor so overlapping sprites cannot restart
+			// an aim loop during the post-boss clear.
+			return monster, true
+		}
+		if distanceSquared <= radius*radius &&
+			preferLivingTarget(monster, distanceSquared, nearest, nearestDistanceSquared, found) {
 			nearest = monster
-			nearestDistance = distance
+			nearestDistanceSquared = distanceSquared
 			found = true
 		}
 	}
@@ -1282,15 +1508,36 @@ func (c *runPipeline) isCleanupHostile(monster world.Monster) bool {
 			return true
 		}
 	case RunIDSummoner:
-		switch monster.NPCID {
-		case 40, 56, 131:
-			return true
-		}
+		return c.effectiveDefinition().AllowsRouteHostile(monster.NPCID)
+	case RunIDNihlathak:
+		// Once Nihlathak is confirmed dead, every remaining living monster near
+		// the player blocks safe loot and portal handling.
+		return true
 	}
 	return false
 }
 
+func (c *runPipeline) postBossCleanupRadiusTiles() float64 {
+	if c.effectiveDefinition().ID == RunIDNihlathak {
+		// Halls of Vaught combines dense melee packs with ranged attackers. Keep
+		// Countess and Summoner behavior unchanged, but clear the full nearby
+		// encounter instead of declaring the portal safe at their 18-tile radius.
+		return nihlathakCleanupRadiusTiles
+	}
+	return postBossCleanupRadiusTiles
+}
+
+func (c *runPipeline) postBossCleanupMaxCasts() int {
+	if c.effectiveDefinition().ID == RunIDNihlathak {
+		return nihlathakCleanupMaxCasts
+	}
+	return postBossCleanupMaxCasts
+}
+
 func (c *runPipeline) stopCleanup(deps Deps, result stepResult) stepResult {
+	if c.effectiveDefinition().ID == RunIDNihlathak && deps.RouteClear != nil {
+		deps.RouteClear.ResetRouteClear()
+	}
 	if deps.Combat != nil {
 		if err := deps.Combat.StopAttack(); err != nil {
 			return stepResult{failed: true, reason: "combat_action_failed"}
@@ -1303,6 +1550,8 @@ func (c *runPipeline) resetPostBossCleanup() {
 	c.cleanupTargetUnitID = 0
 	c.cleanupCastCount = 0
 	c.cleanupNoTargetTicks = 0
+	c.cleanupLastProgressAt = time.Time{}
+	c.cleanupSkippedUnitIDs = nil
 }
 
 func (c *runPipeline) effectiveLootPickupDistance() float64 {
@@ -1329,6 +1578,13 @@ func (c *runPipeline) resetLootApproach() {
 func (c *runPipeline) resetLootPickupRecovery() {
 	c.lootPickupRecovered = nil
 	c.clearLootRecoveryPending()
+}
+
+func (c *runPipeline) resetRouteLoot() {
+	c.routeLootPointSet = false
+	c.routeLootSegmentIndex = 0
+	c.routeLootPointIndex = 0
+	c.routeLootScanned = false
 }
 
 func (c *runPipeline) clearLootRecoveryPending() {
@@ -1609,16 +1865,241 @@ func (c *runPipeline) onTravelTick(ctx context.Context, deps Deps, step string, 
 			}
 			c.routeStarted = true
 		}
+		if c.routeCombat.Enabled && c.definition.HasCapability(RunCapabilityRouteClear) {
+			if !w.Valid || w.Phase != world.GamePhaseInGame {
+				return stepResult{}
+			}
+			progress, ok := deps.Route.Progress(w)
+			if !ok {
+				return stepResult{failed: true, reason: string(RouteThreatReasonStateInvalid)}
+			}
+			assessment := assessThreats(w, progress, c.definition.RouteHostileNPCIDs, c.routeCombat)
+			c.routeThreat.SetTelemetry(deps.Telemetry)
+			resourceContext := c.routeThreat.ObserveResources(w, assessment, c.routeCombat, now)
+			if deps.Profile == nil {
+				if resourceContext.MobilityCritical {
+					return stepResult{failed: true, reason: string(RouteThreatReasonManaRecoveryFailed)}
+				}
+			} else {
+				resource := deps.Profile.TickResources(w, resourceContext, now)
+				switch resource.Status {
+				case profile.StatusFailed:
+					if resourceContext.MobilityCritical {
+						return stepResult{failed: true, reason: string(RouteThreatReasonManaRecoveryFailed)}
+					}
+					return stepResult{failed: true, reason: resource.Reason}
+				case profile.StatusAction:
+					if err := c.routeThreat.ObserveResourceResult(w, progress, resourceContext, resource, now); err != nil {
+						return stepResult{failed: true, reason: "telemetry_failed"}
+					}
+					return stepResult{}
+				}
+				if err := c.routeThreat.ObserveResourceResult(w, progress, resourceContext, resource, now); err != nil {
+					return stepResult{failed: true, reason: "telemetry_failed"}
+				}
+				if resourceContext.MobilityCritical && strings.HasSuffix(resource.Reason, "_potion_unavailable") {
+					return stepResult{failed: true, reason: string(RouteThreatReasonManaRecoveryFailed)}
+				}
+			}
+			threat := c.routeThreat.Tick(ctx, deps.Route, deps.RouteClear, w, progress, assessment, c.definition, c.routeCombat, c.combat.Profile, now)
+			if threat.Failed {
+				if threat.Reason == RouteThreatReasonOutOfRange &&
+					progress.Mode == RouteProgressMovement &&
+					progress.TargetAvailable &&
+					assessment.RouteTargetFound {
+					return c.tickRouteThreatApproach(deps, w, progress, assessment.RouteTarget, now)
+				}
+				return stepResult{failed: true, reason: string(threat.Reason)}
+			}
+			c.resetRouteThreatApproach()
+			if !threat.AllowMovement {
+				// A combat hold may create fresh drops at the current point.
+				// Re-evaluate them only after the threat controller releases movement.
+				c.routeLootScanned = false
+				return stepResult{}
+			}
+			if handled, result := c.tickRouteLoot(deps, w, progress, now); handled {
+				return result
+			}
+		}
 		done, err := deps.Route.Tick(ctx, w)
 		if err != nil {
 			return stepResult{failed: true, reason: routePlaybackFailureReason(err)}
 		}
 		if done {
+			c.routeThreat.Reset(deps.RouteClear)
 			return stepResult{complete: true}
 		}
 		return stepResult{}
 	default:
 		return stepResult{failed: true, reason: "unknown_step"}
+	}
+}
+
+func (c *runPipeline) resetRouteThreatApproach() {
+	c.routeApproachTargetUnitID = 0
+	c.routeApproachTargetPos = world.Position{}
+	c.routeApproachDistance = 0
+	c.routeApproachSentAt = time.Time{}
+	c.routeApproachSnapshotAt = time.Time{}
+	c.routeApproachPending = false
+	c.routeApproachFailures = 0
+}
+
+// tickRouteThreatApproach uses the already validated next route point as one
+// Force-Move target. It never advances RoutePlayer and only accepts a fresh
+// Memory sample that moved the player at least one tile toward the blocked
+// monster's position at input time.
+func (c *runPipeline) tickRouteThreatApproach(deps Deps, w world.State, progress RouteProgress, target world.Monster, now time.Time) stepResult {
+	if deps.Combat == nil {
+		return stepResult{failed: true, reason: "combat_not_wired"}
+	}
+	if c.routeApproachTargetUnitID != target.UnitID {
+		c.resetRouteThreatApproach()
+		c.routeApproachTargetUnitID = target.UnitID
+	}
+	if c.routeApproachPending {
+		if !w.At.After(c.routeApproachSnapshotAt) || now.Sub(c.routeApproachSentAt) < routeThreatApproachSettle {
+			return stepResult{}
+		}
+		distanceToOriginalTarget := world.Distance(w.Player.Position, c.routeApproachTargetPos)
+		positionProgress := c.routeApproachDistance - distanceToOriginalTarget
+		if positionProgress >= routeThreatApproachProgressTiles {
+			c.routeApproachFailures = 0
+			if err := c.routeThreat.ObserveApproachProgress(w, progress, target, positionProgress, now); err != nil {
+				return stepResult{failed: true, reason: "telemetry_failed"}
+			}
+			c.routeApproachPending = false
+			return stepResult{}
+		}
+		c.routeApproachFailures++
+		c.routeApproachPending = false
+		if c.routeApproachFailures >= routeThreatApproachMaxFailures {
+			return stepResult{failed: true, reason: string(RouteThreatReasonOutOfRange)}
+		}
+	}
+	sent, err := deps.Combat.ForceMoveToward(now, w.Player.Position, progress.MovementTarget)
+	if err != nil {
+		return stepResult{failed: true, reason: string(RouteThreatReasonStateInvalid)}
+	}
+	if sent {
+		c.routeApproachTargetPos = target.Position
+		c.routeApproachDistance = world.Distance(w.Player.Position, target.Position)
+		c.routeApproachSentAt = now
+		c.routeApproachSnapshotAt = w.At
+		c.routeApproachPending = true
+		if err := c.routeThreat.ObserveApproachInput(w, progress, target, c.routeApproachFailures+1, now); err != nil {
+			return stepResult{failed: true, reason: "telemetry_failed"}
+		}
+	}
+	return stepResult{}
+}
+
+// tickRouteLoot opportunistically consumes every nearby `keep` match before
+// the next route input. The caller has already proved a fresh, threat-free
+// route snapshot; every input path holds route ownership for the whole tick.
+func (c *runPipeline) tickRouteLoot(deps Deps, w world.State, progress RouteProgress, now time.Time) (bool, stepResult) {
+	if deps.Loot == nil || progress.Mode == RouteProgressTransition {
+		return false, stepResult{}
+	}
+	if !c.routeLootPointSet ||
+		c.routeLootSegmentIndex != progress.SegmentIndex ||
+		c.routeLootPointIndex != progress.PointIndex {
+		c.routeLootPointSet = true
+		c.routeLootSegmentIndex = progress.SegmentIndex
+		c.routeLootPointIndex = progress.PointIndex
+		c.routeLootScanned = false
+		c.lootPickupActive = false
+		c.resetLootApproach()
+		c.clearLootRecoveryPending()
+	}
+
+	if c.lootPickupActive {
+		if err := deps.Route.Hold(w); err != nil {
+			return true, stepResult{failed: true, reason: string(RouteThreatReasonStateInvalid)}
+		}
+		return true, c.tickRouteLootPickup(deps, w, now)
+	}
+	if c.lootRecoveryPending {
+		if err := deps.Route.Hold(w); err != nil {
+			return true, stepResult{failed: true, reason: string(RouteThreatReasonStateInvalid)}
+		}
+		result := c.tickLootPickupRecovery(deps, w, now)
+		return true, result
+	}
+	if c.routeLootScanned {
+		return false, stepResult{}
+	}
+
+	scan := deps.Loot.ScanRouteKeep(w, routeLootRadiusTiles)
+	if scan.TelemetryFailed {
+		return true, stepResult{failed: true, reason: "telemetry_failed"}
+	}
+	// A large keep item may not fit while another nearby keep candidate still
+	// does. Exhaust every actionable target before treating the point as done.
+	if !scan.HasTarget {
+		c.routeLootScanned = true
+		return false, stepResult{}
+	}
+	c.lootApproachTarget = scan.NextTarget
+	c.lootApproachTargetSet = true
+
+	if err := deps.Route.Hold(w); err != nil {
+		return true, stepResult{failed: true, reason: string(RouteThreatReasonStateInvalid)}
+	}
+	target := c.lootApproachTarget
+	if world.Distance(w.Player.Position, target.Position) > c.effectiveLootPickupDistance() {
+		if deps.Combat == nil {
+			return true, stepResult{failed: true, reason: "combat_not_wired"}
+		}
+		if c.lootApproachAttempts < lootRepositionMaxAttempts {
+			if !lootRepositionReady(now, w.At, c.lootApproachAt, c.lootApproachSnapshot) {
+				return true, stepResult{}
+			}
+			sent, err := deps.Combat.TeleportToward(now, w.Player.Position, target.Position, 0)
+			if err != nil {
+				return true, stepResult{failed: true, reason: "loot_reposition_failed"}
+			}
+			if sent {
+				c.lootApproachAttempts++
+				c.lootApproachAt = now
+				c.lootApproachSnapshot = w.At
+			}
+			return true, stepResult{}
+		}
+		if !lootRepositionReady(now, w.At, c.lootApproachAt, c.lootApproachSnapshot) {
+			return true, stepResult{}
+		}
+	}
+	if err := deps.Loot.StartPickup(target); err != nil {
+		return true, stepResult{failed: true, reason: "loot_pickup_start_failed"}
+	}
+	c.lootPickupActive = true
+	c.resetLootApproach()
+	return true, c.tickRouteLootPickup(deps, w, now)
+}
+
+func (c *runPipeline) tickRouteLootPickup(deps Deps, w world.State, now time.Time) stepResult {
+	result := deps.Loot.TickPickup(w, now)
+	if !result.Done {
+		return stepResult{}
+	}
+	c.lootPickupActive = false
+	c.resetLootApproach()
+	c.routeLootScanned = false
+	switch result.Status {
+	case LootPickupHoverNotFound, LootPickupFailed:
+		if c.beginLootPickupRecovery(deps, result.Target) {
+			return stepResult{}
+		}
+		return stepResult{}
+	case LootPickupPickedUp, LootPickupMonsterNearby,
+		LootPickupTargetLost, LootPickupTargetUnstable, LootPickupTooFar:
+		return stepResult{}
+	case LootPickupInputBlocked, LootPickupProjectionFailed, LootPickupInvalidWorld, LootPickupTelemetryFailed:
+		return stepResult{failed: true, reason: string(result.Status)}
+	default:
+		return stepResult{failed: true, reason: "loot_pickup_failed"}
 	}
 }
 

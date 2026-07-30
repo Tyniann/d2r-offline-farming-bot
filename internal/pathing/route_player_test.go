@@ -61,3 +61,17 @@ func TestRoutePlayerSupportsSecondSyntheticRoute(t *testing.T) {
 		t.Fatalf("second route start = %t, %v", done, err)
 	}
 }
+
+func TestRoutePlayerProgressDelegatesAndResetInvalidatesProjection(t *testing.T) {
+	nav := &segmentNavigatorMock{}
+	player, _ := NewRoutePlayer(nav, validRoute())
+	state := segmentPlaybackState(world.BlackMarsh, 14858, 5068)
+	progress, ok := player.Progress(state)
+	if !ok || progress.RouteID != "test-navigation-route" || progress.SegmentIndex != 0 || progress.PointIndex != 1 {
+		t.Fatalf("progress = %+v, %t", progress, ok)
+	}
+	player.Reset()
+	if _, ok := player.Progress(state); ok {
+		t.Fatal("Progress remained available after Reset")
+	}
+}

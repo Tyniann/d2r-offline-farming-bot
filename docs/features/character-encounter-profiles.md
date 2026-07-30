@@ -20,6 +20,8 @@ Phase 8 führt generische, klassenbegrenzte Lifecycle-Hooks und eine profilabhä
 
 Der Executor führt pro Tick höchstens eine Skill-Aktion aus. `once_per_game` und `once_per_encounter` sind explizite Marker; Settle-Zeiten blockieren nachfolgende Hook-Aktionen ohne weitere Inputs. Bone Armor ist bewusst kein `once_per_game`-Hook, sondern wird zu Beginn jedes Runs aufgefrischt. Bei einem Queue-Folgerun im bereits bestätigten Spiel entfällt nur das New-Game-Delay, nicht der Cast oder dessen Settle-Verifikation. Wiederholt eine Run-Definition denselben Encounter-Hook, wird der stabile Aktionsindex bis zum Executor geführt: Retries desselben Index bleiben idempotent, ein höherer Index startet dagegen eine eigene Delay-/Cast-/Settle-Ausführung auf derselben gepinnten UnitID. `Reset` löscht Game-, Encounter-, Index-, Settle-, Potion- und Throttle-Zustand.
 
+Phase 17.3 ergänzt genau die codegestützte Route-Clear-Strategie `single_target` für `necro_bone_spear`. `TickRouteClear` erhält pro Snapshot genau ein bereits autorisiertes lebendes Monster und besitzt ausschließlich `CastAttackAtMonster`/`StopAttack`; eine Movement-, Teleport- oder Navigator-Oberfläche existiert dort nicht. Normalerweise ist dies das priorisierte Route-Ziel. Liegt während eines aktiven Route-Holds stattdessen irgendein anderes Memory-bestätigtes lebendes Monster unter dem Cursor, wird diese Unit ohne weitere Allowlist-, Geometrie-, Distanz- oder Pin-Prüfung unmittelbar angegriffen. Bei einem echten Route-Threat wirkt die Strategie einmal Amplify Damage auf den ersten hover-bestätigten Blocker und verwendet anschließend Bone Spear; `density_relief` beginnt direkt mit Bone Spear. Unbekannte Strategien oder Profile werden vor Runtime abgelehnt.
+
 Self-Targets werden an der neutralen geometrischen Client-Mitte gecastet. Der projizierte Spieleranker wird bewusst nicht angeklickt, da D2R diesen Rechtsklick als Bewegung interpretieren kann. Boss-Targets verwenden weiterhin die World-zu-Client-Projektion der gepinnten Unit-Position.
 
 ## Resource Policy
@@ -31,6 +33,8 @@ Die Resource Policy läuft bei gültigen In-Game-Ticks vor Hooks und Run-Aktione
 3. niedriges Mana → Mana Potion.
 
 Nur ein tatsächlich modelliertes Belt-Item mit passendem Typ und konfigurierter Spalte autorisiert den Tastendruck. Nach dem Input bleibt die Run-Aktion bis zur bestätigten Abwesenheit der ursprünglichen Item-UnitID gesperrt. Zusätzlich besitzt jeder Tranktyp eine eigene Wirkungs-Sperrzeit: Healing und Mana warten standardmäßig vier Sekunden auf den graduellen Effekt, Rejuvenation nur 1,5 Sekunden wegen der sofortigen Wirkung. Ein leerer oder falsch belegter Slot erzeugt keinen Blindinput und kein Retry-Spamming.
+
+Phase 17.4 ergänzt `ResourceContext` ausschließlich für den opt-in Summoner-Route-Step. Dort gilt die engere Priorität: HP-kritische Rejuvenation, bei Immediate-Threat und höchstens 10 % Mana eine vorhandene Mana-Potion, danach Rejuvenation als Fallback und erst anschließend die normalen Regeln. Dadurch verbraucht reiner Mana-Drain den nur über Pickit ersetzbaren Rejuvenation-Vorrat nicht vor den in Town nachkaufbaren Mana-Tränken. `StatusAction` bleibt ein vollständig verbrauchter Input-Tick; `StatusPending` bedeutet weiterhin nur passive Memory-Verifikation und autorisiert selbst keinen zweiten Input.
 
 ## Konfiguration
 
@@ -105,4 +109,4 @@ Der erste E2E-Abnahmeversuch am 12.07.2026 bestätigte Potion-Cooldowns, Loot, S
 Der abschließende E2E-Lauf bestätigte Bone Armor sichtbar nach fünf Sekunden Town-Stabilisierung und 1,67 Sekunden Abstand bis Town-Walk. Bone Prison wurde sichtbar auf Countess Unit 225 ausgeführt; Bone Spear folgte nach 1,81 Sekunden. Der vollständige autonome Run einschließlich Potion-Policy, Loot, Stash und Save & Exit endete erfolgreich. Beim installierten Hell-Gate am 26.07.2026 benötigte die Boss-Erkennung nach Ende der Route nur 72 ms; der historische 750-ms-Vorlauf dominierte den verbleibenden Leerlauf. Er ist deshalb auf 250 ms reduziert. Der kurze Puffer schützt weiterhin den Übergang aus dem letzten Teleport. Die sichtbare Nachruhe vor Bone Spear wurde anschließend kontrolliert von 1,5 auf 1,0 Sekunden reduziert.
 
 ---
-*Zuletzt aktualisiert: 2026-07-28 (Charakter-Setup und Runtime-Gate)*
+*Zuletzt aktualisiert: 2026-07-30 (Route-Clear und Mana-Notfallpriorität)*

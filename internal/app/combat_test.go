@@ -1,6 +1,7 @@
 package app
 
 import (
+	"errors"
 	"testing"
 	"time"
 
@@ -8,6 +9,7 @@ import (
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/input"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/memory"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/pathing"
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/profile"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/world"
 )
 
@@ -15,7 +17,9 @@ type recordingCombatInput struct {
 	mockInput
 	castCalls   int
 	selectCalls int
+	moveCalls   int
 	clickCalls  []input.MouseButton
+	pressedKeys []string
 	lastSkill   uint16
 }
 
@@ -33,6 +37,16 @@ func (r *recordingCombatInput) SelectSkill(_ input.BindingSource, skillID uint16
 
 func (r *recordingCombatInput) Click(button input.MouseButton) error {
 	r.clickCalls = append(r.clickCalls, button)
+	return nil
+}
+
+func (r *recordingCombatInput) MoveTo(clientX, clientY int) error {
+	r.moveCalls++
+	return r.mockInput.MoveTo(clientX, clientY)
+}
+
+func (r *recordingCombatInput) PressKey(key string) error {
+	r.pressedKeys = append(r.pressedKeys, key)
 	return nil
 }
 
@@ -118,6 +132,57 @@ func TestCombatAdapterClicksOnlyHoverConfirmedLivingMonster(t *testing.T) {
 	}
 }
 
+func TestCombatAdapterSearchesVisibleBodyWithoutBlindClick(t *testing.T) {
+	in := &recordingCombatInput{}
+	bindings := configBindingSource{skills: map[uint16]input.SkillCast{
+		memory.SkillBoneSpear: {SkillID: memory.SkillBoneSpear, SelectKey: "f8", CastButton: input.MouseRight},
+	}}
+	cfg := pathing.DefaultConfig()
+	adapter := newCombatAdapter(config.NewLogger("error"), in, bindings, cfg, 350*time.Millisecond)
+	player := world.Player{Position: world.Position{X: 100, Y: 100}, RightSkillID: memory.SkillBoneSpear}
+	target := world.Monster{NPCID: world.ArcaneSpecter, UnitID: 46, Position: world.Position{X: 105, Y: 100}}
+	now := time.Now()
+
+	if sent, err := adapter.CastAttackAtMonster(now, memory.SkillBoneSpear, player, target); err != nil || sent {
+		t.Fatalf("first probe sent=%t err=%v", sent, err)
+	}
+	firstX, firstY := in.lastClientX, in.lastClientY
+	if sent, err := adapter.CastAttackAtMonster(now.Add(100*time.Millisecond), memory.SkillBoneSpear, player, target); err != nil || sent {
+		t.Fatalf("second probe sent=%t err=%v", sent, err)
+	}
+	if in.lastClientX == firstX && in.lastClientY == firstY {
+		t.Fatalf("monster hover search repeated (%d,%d)", firstX, firstY)
+	}
+	if len(in.clickCalls) != 0 {
+		t.Fatalf("unconfirmed hover search clicked: %v", in.clickCalls)
+	}
+	target.IsHovered = true
+	if sent, err := adapter.CastAttackAtMonster(now.Add(400*time.Millisecond), memory.SkillBoneSpear, player, target); err != nil || !sent {
+		t.Fatalf("confirmed hover sent=%t err=%v", sent, err)
+	}
+	if len(in.clickCalls) != 1 || in.clickCalls[0] != input.MouseRight {
+		t.Fatalf("confirmed hover clicks=%v", in.clickCalls)
+	}
+}
+
+func TestCombatAdapterReportsOffscreenMonsterWithoutMovingOrClicking(t *testing.T) {
+	in := &recordingCombatInput{}
+	bindings := configBindingSource{skills: map[uint16]input.SkillCast{
+		memory.SkillBoneSpear: {SkillID: memory.SkillBoneSpear, SelectKey: "f8", CastButton: input.MouseRight},
+	}}
+	adapter := newCombatAdapter(config.NewLogger("error"), in, bindings, pathing.DefaultConfig(), 350*time.Millisecond)
+	player := world.Player{Position: world.Position{X: 100, Y: 100}, RightSkillID: memory.SkillBoneSpear}
+	target := world.Monster{NPCID: world.ArcaneGhoulLord, UnitID: 83, Position: world.Position{X: 140, Y: 100}}
+
+	sent, err := adapter.CastAttackAtMonster(time.Now(), memory.SkillBoneSpear, player, target)
+	if sent || !errors.Is(err, profile.ErrRouteClearTargetUnprojectable) {
+		t.Fatalf("offscreen target sent=%t err=%v", sent, err)
+	}
+	if in.moveCalls != 0 || len(in.clickCalls) != 0 {
+		t.Fatalf("offscreen target moves=%d clicks=%v", in.moveCalls, in.clickCalls)
+	}
+}
+
 func TestCombatAdapterTeleportTowardKeepsDesiredDistance(t *testing.T) {
 	in := &recordingCombatInput{}
 	bindings := configBindingSource{skills: map[uint16]input.SkillCast{
@@ -147,6 +212,21 @@ func TestCombatAdapterReportsThrottledTeleportWithoutInput(t *testing.T) {
 	sent, err = adapter.TeleportToward(now.Add(100*time.Millisecond), world.Position{X: 100, Y: 100}, world.Position{X: 120, Y: 100}, 0)
 	if err != nil || sent || in.castCalls != 1 {
 		t.Fatalf("throttled teleport sent=%t err=%v casts=%d, want no second input", sent, err, in.castCalls)
+	}
+}
+
+func TestCombatAdapterForceMovesWithConfiguredTownBinding(t *testing.T) {
+	in := &recordingCombatInput{}
+	cfg := pathing.DefaultConfig()
+	cfg.TownWalk.ForceMoveKey = "e"
+	adapter := newCombatAdapter(config.NewLogger("error"), in, configBindingSource{}, cfg, time.Millisecond)
+	target := world.Position{X: 112, Y: 100}
+	sent, err := adapter.ForceMoveToward(time.Now(), world.Position{X: 100, Y: 100}, target)
+	if err != nil || !sent {
+		t.Fatalf("force move sent=%t err=%v", sent, err)
+	}
+	if in.moveCalls != 1 || len(in.pressedKeys) != 1 || in.pressedKeys[0] != "e" {
+		t.Fatalf("moves=%d keys=%v", in.moveCalls, in.pressedKeys)
 	}
 }
 

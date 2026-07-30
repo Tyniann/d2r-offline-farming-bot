@@ -109,12 +109,14 @@ type mockTownWalker struct {
 }
 
 type mockProfileActions struct {
-	hookResults     []profile.Result
-	hookCalls       int
-	hooks           []profile.Hook
-	targets         []profile.EncounterTarget
-	resourceResults []profile.Result
-	resetCalls      int
+	hookResults      []profile.Result
+	hookCalls        int
+	hooks            []profile.Hook
+	targets          []profile.EncounterTarget
+	resourceResults  []profile.Result
+	resourceContexts []profile.ResourceContext
+	resourceCalls    int
+	resetCalls       int
 }
 
 type mockTownPortalActions struct {
@@ -140,7 +142,11 @@ type mockRoutePlayback struct {
 	startedID  string
 	startErr   error
 	tickErr    error
+	tickCalls  int
+	holdCalls  int
 	resetCalls int
+	progress   RouteProgress
+	progressOK bool
 }
 
 func (m *mockRoutePlayback) Start(routeID string, _ world.State) error {
@@ -148,21 +154,29 @@ func (m *mockRoutePlayback) Start(routeID string, _ world.State) error {
 	return m.startErr
 }
 func (m *mockRoutePlayback) Tick(_ context.Context, state world.State) (bool, error) {
+	m.tickCalls++
 	return state.Area.ID == world.TowerCellarLevel5, m.tickErr
 }
-func (m *mockRoutePlayback) Reset() { m.resetCalls++ }
+func (m *mockRoutePlayback) Progress(world.State) (RouteProgress, bool) {
+	return m.progress, m.progressOK
+}
+func (m *mockRoutePlayback) Hold(world.State) error { m.holdCalls++; return nil }
+func (m *mockRoutePlayback) Reset()                 { m.resetCalls++ }
 
 type mockCombatActions struct {
-	castCalls          int
-	castSkills         []uint16
-	teleportCalls      int
-	stopCalls          int
-	resetCalls         int
-	lastSkillID        uint16
-	lastMonsterUnitID  uint32
-	lastDesired        float64
-	lastTeleportTarget world.Position
-	teleportSent       []bool
+	castCalls           int
+	castSkills          []uint16
+	teleportCalls       int
+	stopCalls           int
+	resetCalls          int
+	lastSkillID         uint16
+	lastMonsterUnitID   uint32
+	lastDesired         float64
+	lastTeleportTarget  world.Position
+	teleportSent        []bool
+	forceMoveCalls      int
+	lastForceMoveTarget world.Position
+	forceMoveSent       []bool
 }
 
 type mockRunActions struct {
@@ -241,7 +255,9 @@ func (m *mockProfileActions) TickHook(_ context.Context, hook profile.Hook, _ wo
 	return res
 }
 
-func (m *mockProfileActions) TickResources(world.State, time.Time) profile.Result {
+func (m *mockProfileActions) TickResources(_ world.State, resourceContext profile.ResourceContext, _ time.Time) profile.Result {
+	m.resourceCalls++
+	m.resourceContexts = append(m.resourceContexts, resourceContext)
 	if len(m.resourceResults) == 0 {
 		return profile.Result{Status: profile.StatusComplete}
 	}
@@ -361,6 +377,17 @@ func (m *mockCombatActions) TeleportToward(_ time.Time, _ world.Position, target
 	return sent, nil
 }
 
+func (m *mockCombatActions) ForceMoveToward(_ time.Time, _ world.Position, target world.Position) (bool, error) {
+	m.forceMoveCalls++
+	m.lastForceMoveTarget = target
+	if len(m.forceMoveSent) == 0 {
+		return true, nil
+	}
+	sent := m.forceMoveSent[0]
+	m.forceMoveSent = m.forceMoveSent[1:]
+	return sent, nil
+}
+
 func (m *mockCombatActions) Reset() { m.resetCalls++ }
 
 func (m *mockRunActions) CastBelt(slot int) error {
@@ -381,6 +408,10 @@ func (m *mockLootActions) Scan(world.State) LootScanResult {
 	res := m.scans[0]
 	m.scans = m.scans[1:]
 	return res
+}
+
+func (m *mockLootActions) ScanRouteKeep(world.State, float64) LootScanResult {
+	return m.Scan(world.State{})
 }
 
 func (m *mockLootActions) StartPickup(target LootTarget) error {
@@ -1090,6 +1121,20 @@ func TestCountessTravelCellar5SuccessStartsExpectedGoals(t *testing.T) {
 	}
 }
 
+func TestPhase17NoThreatSummonerRouteRemainsDirectPlaybackBeforeControllerWiring(t *testing.T) {
+	definition, _ := DefaultRunRegistry().Definition(RunIDSummoner)
+	route := &mockRoutePlayback{}
+	pipeline := &runPipeline{definition: definition, phase: RunPhasePlayRoute, routeID: "summoner-route"}
+	state := areaState(world.ArcaneSanctuary)
+	result := pipeline.onTravelTick(context.Background(), Deps{Route: route}, pipelineStepPlayRoute, state, time.Now(), time.Now())
+	if result.failed || result.complete {
+		t.Fatalf("result = %+v", result)
+	}
+	if route.startedID != "summoner-route" || route.tickCalls != 1 || route.holdCalls != 0 {
+		t.Fatalf("route started=%q ticks=%d holds=%d", route.startedID, route.tickCalls, route.holdCalls)
+	}
+}
+
 func TestCountessTravelCellar5AllowsBlackMarshLoadingWait(t *testing.T) {
 	r := NewRunner(config.NewLogger("error"), RunSelection{Run: "countess", Phase: RunPhasePlayRoute}, RunConfig{StepTimeout: 5 * time.Second}, Deps{Waypoint: &mockWaypointActions{}, TownWalk: &mockTownWalker{}, Pathing: &mockNavigator{}})
 	now := time.Now()
@@ -1289,6 +1334,11 @@ func TestCountessBossHookCompletesBeforeFirstAttack(t *testing.T) {
 	}
 	if profileActions.targets[0].UnitID != 77 || profileActions.targets[0].Position != target.Position {
 		t.Fatalf("target=%+v", profileActions.targets[0])
+	}
+	for i, resourceContext := range profileActions.resourceContexts {
+		if resourceContext != (profile.ResourceContext{}) {
+			t.Fatalf("non-route resource context %d = %+v", i, resourceContext)
+		}
 	}
 }
 
@@ -1544,8 +1594,9 @@ func TestLootPickupRecoveryIsBoundedToOneTeleportPerUnit(t *testing.T) {
 func TestCleanupRunsClearBeforeRepositioningToBossCorpse(t *testing.T) {
 	countess, _ := DefaultRunRegistry().Definition(RunIDCountess)
 	summoner, _ := DefaultRunRegistry().Definition(RunIDSummoner)
+	nihlathak, _ := DefaultRunRegistry().Definition(RunIDNihlathak)
 	mephisto, _ := DefaultRunRegistry().Definition(RunIDMephisto)
-	for _, definition := range []RunDefinition{countess, summoner} {
+	for _, definition := range []RunDefinition{countess, summoner, nihlathak} {
 		pipeline := &runPipeline{definition: definition}
 		if got := pipeline.nextStep(pipelineStepEngageBoss); got != pipelineStepClearNearbyHostiles {
 			t.Fatalf("%s engage successor = %q, want %q", definition.ID, got, pipelineStepClearNearbyHostiles)

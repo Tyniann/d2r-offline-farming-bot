@@ -147,6 +147,32 @@ func TestQueueRunTerminalEventMatchesDisposition(t *testing.T) {
 	}
 }
 
+func TestControlledRetryResultRequiresVerifiedTownReturn(t *testing.T) {
+	t.Parallel()
+
+	success, err := controlledRetryResult(context.Background(), "route_threat_out_of_range", func(context.Context) error {
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if success.Disposition != QueueRunRetryCurrent || success.Reason != "route_threat_out_of_range" || !success.SafeToExit {
+		t.Fatalf("successful controlled retry = %+v", success)
+	}
+
+	failed, err := controlledRetryResult(context.Background(), "route_threat_out_of_range", func(context.Context) error {
+		return errors.New("portal unavailable")
+	})
+	if err == nil || failed.Disposition != QueueRunStop || failed.Reason != queueReasonRetryReturnFailed || failed.SafeToExit {
+		t.Fatalf("failed controlled retry = %+v, err=%v", failed, err)
+	}
+
+	missing, err := controlledRetryResult(context.Background(), "route_threat_out_of_range", nil)
+	if err == nil || missing.Disposition != QueueRunStop || missing.Reason != queueReasonRetryReturnFailed || missing.SafeToExit {
+		t.Fatalf("missing controlled retry = %+v, err=%v", missing, err)
+	}
+}
+
 func TestRuntimeQueueRunnerKeepsGameAcrossFreshRunUnits(t *testing.T) {
 	var events []string
 	var continuations []bool

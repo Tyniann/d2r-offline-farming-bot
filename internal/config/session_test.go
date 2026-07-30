@@ -19,8 +19,52 @@ func TestSessionDefaultsAreFiniteAndDisabled(t *testing.T) {
 	if cfg.MaxRuns != 3 || cfg.MaxDurationMs != 7200000 || cfg.StateTimeoutMs <= 0 || cfg.ExitTimeoutMs <= 0 || cfg.StartTimeoutMs <= 0 {
 		t.Fatalf("budget defaults = %+v", cfg)
 	}
+	wantRetry := []string{
+		"hard_stuck", "route_drift_exceeded", "route_segment_timeout", "route_transition_failed",
+		"route_clear_no_progress", "route_threat_out_of_range", "route_mana_recovery_failed", "route_recovery_unsafe",
+	}
+	if !reflect.DeepEqual(cfg.RetryClasses, wantRetry) {
+		t.Fatalf("retry defaults = %v, want %v", cfg.RetryClasses, wantRetry)
+	}
 	if err := cfg.validate(); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestSessionCustomizedRetryClassesRemainUnchanged(t *testing.T) {
+	var cfg SessionConfig
+	if err := yaml.Unmarshal([]byte("retry_classes:\n  - hard_stuck\n"), &cfg); err != nil {
+		t.Fatal(err)
+	}
+	cfg.applyDefaults()
+	if !reflect.DeepEqual(cfg.RetryClasses, []string{"hard_stuck"}) {
+		t.Fatalf("custom retry classes changed: %v", cfg.RetryClasses)
+	}
+}
+
+func TestSessionLegacyDefaultRetryClassesGainPhase17Reasons(t *testing.T) {
+	var cfg SessionConfig
+	if err := yaml.Unmarshal([]byte(`retry_classes:
+  - hard_stuck
+  - route_drift_exceeded
+  - route_segment_timeout
+  - route_transition_failed
+`), &cfg); err != nil {
+		t.Fatal(err)
+	}
+	cfg.applyDefaults()
+	if !reflect.DeepEqual(cfg.RetryClasses, defaultSessionRetryClasses) {
+		t.Fatalf("migrated retry classes = %v, want %v", cfg.RetryClasses, defaultSessionRetryClasses)
+	}
+}
+
+func TestSessionReorderedLegacyRetryClassesRemainUnchanged(t *testing.T) {
+	var cfg SessionConfig
+	want := []string{"route_drift_exceeded", "hard_stuck", "route_segment_timeout", "route_transition_failed"}
+	cfg.RetryClasses = append([]string(nil), want...)
+	cfg.applyDefaults()
+	if !reflect.DeepEqual(cfg.RetryClasses, want) {
+		t.Fatalf("customized retry order changed: %v", cfg.RetryClasses)
 	}
 }
 

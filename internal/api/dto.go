@@ -131,10 +131,25 @@ type ProfileCatalogEntry struct {
 
 // RunCatalogEntry describes one stable run and its current availability.
 type RunCatalogEntry struct {
-	RunID       string   `json:"run_id"`
-	DisplayName string   `json:"display_name"`
-	Status      string   `json:"status"`
-	Reasons     []string `json:"reasons,omitempty"`
+	RunID       string               `json:"run_id"`
+	DisplayName string               `json:"display_name"`
+	Status      string               `json:"status"`
+	Reasons     []string             `json:"reasons,omitempty"`
+	RouteCombat RouteCombatConfigDTO `json:"route_combat"`
+}
+
+// RouteCombatConfigDTO projects the effective, Core-validated route threat settings read-only.
+type RouteCombatConfigDTO struct {
+	Enabled                    bool    `json:"enabled"`
+	ImmediateRadiusTiles       float64 `json:"immediate_radius_tiles"`
+	CorridorWidthTiles         float64 `json:"corridor_width_tiles"`
+	LandingRadiusTiles         float64 `json:"landing_radius_tiles"`
+	AttackDistanceTiles        float64 `json:"attack_distance_tiles"`
+	NoProgressTimeoutMs        int     `json:"no_progress_timeout_ms"`
+	TeleportManaReservePercent int     `json:"teleport_mana_reserve_percent"`
+	ResumeManaPercent          int     `json:"resume_mana_percent"`
+	EmergencyManaPercent       int     `json:"emergency_mana_percent"`
+	ManaRecoveryTimeoutMs      int     `json:"mana_recovery_timeout_ms"`
 }
 
 // CommandRequest carries idempotency and optimistic concurrency metadata.

@@ -23,7 +23,7 @@ func TestDefaultRunRegistryMetadataAndOrder(t *testing.T) {
 	}
 	if len(definitions[2].BossEngageSequence) != 0 || definitions[2].Boss.NPCID != world.Nihlathak ||
 		definitions[2].Boss.SearchAnchorObject != world.ObjectKindUnknown || definitions[2].Boss.SearchAnchorEntrance != world.EntranceKindUnknown ||
-		definitions[2].ReturnOrigin != town.OriginAct5 {
+		!definitions[2].ClearNearbyAfterBoss || definitions[2].ReturnOrigin != town.OriginAct5 {
 		t.Fatalf("Nihlathak definition = %+v", definitions[2])
 	}
 	if len(definitions[3].BossEngageSequence) != 0 || definitions[3].Boss.NPCID != world.Summoner ||
@@ -39,6 +39,18 @@ func TestDefaultRunRegistryMetadataAndOrder(t *testing.T) {
 	}
 	if definitions[3].Recording.StartWaypoint != pathing.WaypointTargetArcaneSanctuary || definitions[3].Recording.TerminalArea != world.ArcaneSanctuary || definitions[3].Recording.EgressOriginAct != town.OriginAct2 {
 		t.Fatalf("Summoner recording contract = %+v", definitions[3].Recording)
+	}
+	if !definitions[3].HasCapability(RunCapabilityRouteClear) ||
+		!definitions[3].AllowsRouteHostile(world.ArcaneSpecter) ||
+		!definitions[3].AllowsRouteHostile(world.ArcaneHellClan) ||
+		!definitions[3].AllowsRouteHostile(world.ArcaneGhoulLord) ||
+		len(definitions[3].RouteHostileNPCIDs) != 3 {
+		t.Fatalf("Summoner route-clear contract = %+v", definitions[3])
+	}
+	for _, definition := range definitions[:3] {
+		if definition.HasCapability(RunCapabilityRouteClear) || len(definition.RouteHostileNPCIDs) != 0 {
+			t.Fatalf("%s unexpectedly enables route clear: %+v", definition.ID, definition)
+		}
 	}
 	if definitions[2].Recording.StartWaypoint != pathing.WaypointTargetHallsOfPain || definitions[2].Recording.TerminalArea != world.HallsOfVaught || definitions[2].Recording.EgressOriginAct != town.OriginAct5 {
 		t.Fatalf("Nihlathak recording contract = %+v", definitions[2].Recording)
@@ -88,6 +100,18 @@ func TestRunRegistryRejectsInvalidCapabilityCombinations(t *testing.T) {
 	if _, err := NewRunRegistry(countess); err == nil || !strings.Contains(err.Error(), "fallback requires") {
 		t.Fatalf("invalid boss identity error = %v", err)
 	}
+
+	countess, _ = DefaultRunRegistry().Definition(RunIDCountess)
+	countess.RouteHostileNPCIDs = []uint32{world.ArcaneSpecter}
+	if _, err := NewRunRegistry(countess); err == nil || !strings.Contains(err.Error(), string(RunCapabilityRouteClear)) {
+		t.Fatalf("allowlist without capability error = %v", err)
+	}
+
+	summoner, _ = DefaultRunRegistry().Definition(RunIDSummoner)
+	summoner.RouteHostileNPCIDs = nil
+	if _, err := NewRunRegistry(summoner); err == nil || !strings.Contains(err.Error(), "allowlist") {
+		t.Fatalf("capability without allowlist error = %v", err)
+	}
 }
 
 func TestRunRegistryResolveRejectsUnknownAndMissingConfig(t *testing.T) {
@@ -115,8 +139,12 @@ func TestRunRegistryReturnsDefensiveDefinitionCopies(t *testing.T) {
 	definition.BossEngageSequence[0].Hook = profile.HookTownReady
 	definition.RequiredCaps[0] = "mutated"
 	definition.Recording.AllowedRouteAreas[0] = world.None
+	summoner, _ := registry.Definition(RunIDSummoner)
+	summoner.RouteHostileNPCIDs[0] = 999
 	again, _ := registry.Definition(RunIDMephisto)
-	if again.BossEngageSequence[0].Hook != profile.HookBossEngage || again.RequiredCaps[0] == "mutated" || again.Recording.AllowedRouteAreas[0] == world.None {
+	summonerAgain, _ := registry.Definition(RunIDSummoner)
+	if again.BossEngageSequence[0].Hook != profile.HookBossEngage || again.RequiredCaps[0] == "mutated" || again.Recording.AllowedRouteAreas[0] == world.None ||
+		summonerAgain.RouteHostileNPCIDs[0] == 999 {
 		t.Fatalf("registry definition mutated through returned slices: %+v", again)
 	}
 }

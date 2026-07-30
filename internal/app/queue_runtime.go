@@ -369,6 +369,8 @@ type runtimeQueueUnit struct {
 	runtime *Runtime
 }
 
+const queueReasonRetryReturnFailed = "retry_return_failed"
+
 func (u *runtimeQueueUnit) StartOrVerifyGame(ctx context.Context, alreadyActive bool) error {
 	u.runtime.Log.Info("queue game lifecycle start", "adopt_existing_game", alreadyActive)
 	if !alreadyActive {
@@ -403,7 +405,11 @@ func (u *runtimeQueueUnit) RunToTown(ctx context.Context, request SupervisorRunR
 	} else if taskResult.Outcome == tasks.RunOutcomeSuccess {
 		result = SupervisorRunResult{Disposition: QueueRunAdvance, SafeToExit: true}
 	} else if isRestartableSessionFailure(taskResult.Reason, u.runtime.Config.Session.RetryClasses) {
-		result = SupervisorRunResult{Disposition: QueueRunRetryCurrent, Reason: taskResult.Reason}
+		var recoveryErr error
+		result, recoveryErr = controlledRetryResult(ctx, taskResult.Reason, u.runtime.runRetryReturnToTown)
+		if recoveryErr != nil {
+			u.runtime.Log.Error("controlled retry return failed", "run", request.DefinitionID, "reason", taskResult.Reason, "error", recoveryErr)
+		}
 	} else {
 		result = SupervisorRunResult{Disposition: QueueRunStop, Reason: taskResult.Reason}
 	}
@@ -411,6 +417,16 @@ func (u *runtimeQueueUnit) RunToTown(ctx context.Context, request SupervisorRunR
 		return SupervisorRunResult{Disposition: QueueRunStop, Reason: "telemetry_failed", SafeToExit: result.SafeToExit}
 	}
 	return result
+}
+
+func controlledRetryResult(ctx context.Context, reason string, recoverToTown func(context.Context) error) (SupervisorRunResult, error) {
+	if recoverToTown == nil {
+		return SupervisorRunResult{Disposition: QueueRunStop, Reason: queueReasonRetryReturnFailed}, errors.New("controlled retry return is not wired")
+	}
+	if err := recoverToTown(ctx); err != nil {
+		return SupervisorRunResult{Disposition: QueueRunStop, Reason: queueReasonRetryReturnFailed}, fmt.Errorf("controlled retry return: %w", err)
+	}
+	return SupervisorRunResult{Disposition: QueueRunRetryCurrent, Reason: reason, SafeToExit: true}, nil
 }
 
 func (u *runtimeQueueUnit) ExitGame(ctx context.Context) error {

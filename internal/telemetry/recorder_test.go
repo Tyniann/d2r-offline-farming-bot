@@ -98,6 +98,40 @@ func TestRecorderPersistsResolvedRunContext(t *testing.T) {
 	}
 }
 
+func TestRecorderPersistsRouteThreatFieldsIncludingFalseTransitions(t *testing.T) {
+	r, err := New(t.TempDir(), "summoner", "full")
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := r.Path()
+	falseValue := false
+	if emitErr := r.Emit(Event{
+		Event: RouteMonsterSnapshotSaturated, RouteID: "arcane", SegmentID: "arm",
+		Zone: "landing", NPCID: 40, PlayerX: 10, PlayerY: 11, TargetX: 20, TargetY: 21,
+		MonstersTruncated: &falseValue, CoverageComplete: &falseValue,
+		EligibleMonsterCount: 513, RetainedMonsterCount: 512,
+		RequiredRadiusTiles: 42, CoverageRadiusTiles: 40,
+	}); emitErr != nil {
+		t.Fatal(emitErr)
+	}
+	if closeErr := r.Close(); closeErr != nil {
+		t.Fatal(closeErr)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var raw map[string]any
+	if err := json.Unmarshal(data, &raw); err != nil {
+		t.Fatal(err)
+	}
+	for _, field := range []string{"monsters_truncated", "coverage_complete", "eligible_monster_count", "retained_monster_count", "required_radius_tiles", "coverage_radius_tiles"} {
+		if _, ok := raw[field]; !ok {
+			t.Fatalf("route telemetry field %q missing in %s", field, data)
+		}
+	}
+}
+
 func TestRecorderFailsWhenDirectoryCannotBeCreated(t *testing.T) {
 	path := t.TempDir() + string(os.PathSeparator) + "file"
 	if err := os.WriteFile(path, []byte("not a directory"), 0o644); err != nil {

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/pathing"
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/tasks"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/telemetry"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/world"
 )
@@ -24,11 +25,14 @@ type routePlaybackAdapter struct {
 	player      *pathing.RoutePlayer
 	deadline    time.Time
 	lastTickAt  time.Time
+	lastCallAt  time.Time
+	identity    world.GameIdentity
 	transition  bool
+	clock       func() time.Time
 }
 
 func newRoutePlaybackAdapter(log *slog.Logger, directory, gameVersion string, navigator pathing.SegmentNavigator, trace *telemetry.Recorder, lifecycle ...*RouteLifecycleStore) *routePlaybackAdapter {
-	adapter := &routePlaybackAdapter{log: log.With("component", "route_adapter"), directory: directory, gameVersion: gameVersion, navigator: navigator, telemetry: trace}
+	adapter := &routePlaybackAdapter{log: log.With("component", "route_adapter"), directory: directory, gameVersion: gameVersion, navigator: navigator, telemetry: trace, clock: time.Now}
 	if len(lifecycle) > 0 {
 		adapter.lifecycle = lifecycle[0]
 	}
@@ -91,13 +95,75 @@ func (a *routePlaybackAdapter) Start(routeID string, state world.State) error {
 		return err
 	}
 	a.route, a.player = route, player
-	a.deadline = time.Now().Add(time.Duration(route.Playback.SegmentTimeoutMs) * time.Millisecond)
+	now := a.now()
+	a.deadline = now.Add(time.Duration(route.Playback.SegmentTimeoutMs) * time.Millisecond)
 	a.lastTickAt = state.At
+	a.lastCallAt = now
+	a.identity = state.Identity
 	if err := a.emit(telemetry.Event{Event: telemetry.RoutePlaybackStarted, RouteID: route.ID, SegmentID: player.Segment().ID, AreaID: uint32(state.Area.ID)}); err != nil {
 		a.Reset()
 		return err
 	}
 	a.log.Info("run route playback started", "route_id", route.ID, "character", state.Identity.CharacterName, "layout_fingerprint", fingerprint.Hash)
+	return nil
+}
+
+// Progress returns the task-facing projection of the player's effective next target.
+func (a *routePlaybackAdapter) Progress(state world.State) (tasks.RouteProgress, bool) {
+	if a.player == nil {
+		return tasks.RouteProgress{}, false
+	}
+	progress, ok := a.player.Progress(state)
+	if !ok {
+		return tasks.RouteProgress{}, false
+	}
+	mode := tasks.RouteProgressMode(progress.Mode)
+	return tasks.RouteProgress{
+		RouteID:               progress.RouteID,
+		SegmentID:             progress.SegmentID,
+		SegmentIndex:          progress.SegmentIndex,
+		PointIndex:            progress.PointIndex,
+		PreviousConfirmed:     progress.PreviousConfirmed,
+		MovementTarget:        progress.MovementTarget,
+		TargetAvailable:       progress.TargetAvailable,
+		Mode:                  mode,
+		DriftTiles:            progress.DriftTiles,
+		LocalRecoveryAttempts: progress.LocalRecoveryAttempts,
+		RecoveryInputSent:     progress.RecoveryInputSent,
+		RecoveryInputAt:       progress.RecoveryInputAt,
+		RecoveryInputOrigin:   progress.RecoveryInputOrigin,
+		RecoveryNextInputAt:   progress.RecoveryNextInputAt,
+		RecoveryOutcomeAt:     progress.RecoveryOutcomeAt,
+		RecoveryProgressTiles: progress.RecoveryProgressTiles,
+	}, true
+}
+
+// Hold freezes route playback for one validated snapshot and extends only the
+// adapter-owned deadline by the real elapsed hold duration. It commits points
+// already reached in Memory so external combat movement cannot revive a passed
+// point, but it sends no route input and ticks no navigator or transition.
+func (a *routePlaybackAdapter) Hold(state world.State) error {
+	if a.player == nil {
+		return fmt.Errorf("run route playback not started")
+	}
+	if err := a.validateHoldState(state); err != nil {
+		return err
+	}
+	if err := a.player.SyncReached(state); err != nil {
+		return fmt.Errorf("run route hold sync reached points: %w", err)
+	}
+	// An unchanged snapshot is not a new hold observation. Keeping lastCallAt
+	// unchanged ensures repeated polling cannot credit the same interval twice.
+	if state.At.Equal(a.lastTickAt) {
+		return nil
+	}
+	now := a.now()
+	if now.Before(a.lastCallAt) {
+		return fmt.Errorf("run route hold clock moved backwards")
+	}
+	a.deadline = a.deadline.Add(now.Sub(a.lastCallAt))
+	a.lastCallAt = now
+	a.lastTickAt = state.At
 	return nil
 }
 
@@ -111,7 +177,9 @@ func (a *routePlaybackAdapter) Tick(ctx context.Context, state world.State) (boo
 	if !state.At.IsZero() {
 		a.lastTickAt = state.At
 	}
-	if time.Now().After(a.deadline) {
+	now := a.now()
+	a.lastCallAt = now
+	if now.After(a.deadline) {
 		if a.transition {
 			return false, fmt.Errorf("%w: timeout", pathing.ErrRouteTransitionFailed)
 		}
@@ -130,7 +198,7 @@ func (a *routePlaybackAdapter) Tick(ctx context.Context, state world.State) (boo
 			return false, err
 		}
 		a.transition = false
-		a.deadline = time.Now().Add(time.Duration(a.route.Playback.SegmentTimeoutMs) * time.Millisecond)
+		a.deadline = now.Add(time.Duration(a.route.Playback.SegmentTimeoutMs) * time.Millisecond)
 		a.log.Info("run route segment completed", "route_id", a.route.ID, "segment_id", completed.ID, "area_id", state.Area.ID)
 	}
 	if done {
@@ -146,7 +214,7 @@ func (a *routePlaybackAdapter) Tick(ctx context.Context, state world.State) (boo
 	}
 	if a.player.Transitioning() && !a.transition {
 		a.transition = true
-		a.deadline = time.Now().Add(time.Duration(a.route.Playback.TransitionTimeoutMs) * time.Millisecond)
+		a.deadline = now.Add(time.Duration(a.route.Playback.TransitionTimeoutMs) * time.Millisecond)
 		idx := a.player.SegmentIndex()
 		if err := a.emit(telemetry.Event{Event: telemetry.RouteTransitionStarted, RouteID: a.route.ID, SegmentID: a.player.Segment().ID, SegmentIndex: &idx, TargetAreaID: uint32(a.player.Segment().ToAreaID)}); err != nil {
 			return false, err
@@ -165,7 +233,36 @@ func (a *routePlaybackAdapter) Reset() {
 	a.player = nil
 	a.deadline = time.Time{}
 	a.lastTickAt = time.Time{}
+	a.lastCallAt = time.Time{}
+	a.identity = world.GameIdentity{}
 	a.transition = false
+}
+
+func (a *routePlaybackAdapter) validateHoldState(state world.State) error {
+	if !state.Valid || state.Phase != world.GamePhaseInGame {
+		return fmt.Errorf("run route hold requires valid in-game state")
+	}
+	if !state.Identity.Valid || state.Identity != a.identity {
+		return fmt.Errorf("run route hold identity changed")
+	}
+	if state.At.IsZero() || (!a.lastTickAt.IsZero() && state.At.Before(a.lastTickAt)) {
+		return fmt.Errorf("run route hold snapshot is not monotonic")
+	}
+	segment := a.player.Segment()
+	if state.Area.ID != segment.FromAreaID && (!a.player.Transitioning() || state.Area.ID != segment.ToAreaID) {
+		return fmt.Errorf("%w: got %d want %d", pathing.ErrRouteUnexpectedArea, state.Area.ID, segment.FromAreaID)
+	}
+	if _, ok := a.player.Progress(state); !ok {
+		return fmt.Errorf("run route hold has no active progress")
+	}
+	return nil
+}
+
+func (a *routePlaybackAdapter) now() time.Time {
+	if a.clock != nil {
+		return a.clock()
+	}
+	return time.Now()
 }
 
 func (a *routePlaybackAdapter) emit(event telemetry.Event) error {

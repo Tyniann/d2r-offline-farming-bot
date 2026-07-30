@@ -50,6 +50,18 @@ func mapRunConfig(cfg *config.Config, runID string, requireFarmingRoute bool) (t
 	mapped := tasks.RunConfig{
 		StepTimeout:             time.Duration(cfg.Runs.StepTimeoutMs) * time.Millisecond,
 		LootPickupDistanceTiles: cfg.Loot.Pickup.MaxDistanceTiles,
+		RouteCombat: tasks.RouteCombatConfig{
+			Enabled:                    run.RouteCombat.EnabledValue(),
+			ImmediateRadiusTiles:       run.RouteCombat.ImmediateRadiusTiles,
+			CorridorWidthTiles:         run.RouteCombat.CorridorWidthTiles,
+			LandingRadiusTiles:         run.RouteCombat.LandingRadiusTiles,
+			AttackDistanceTiles:        run.RouteCombat.AttackDistanceTiles,
+			NoProgressTimeout:          time.Duration(run.RouteCombat.NoProgressTimeoutMs) * time.Millisecond,
+			TeleportManaReservePercent: run.RouteCombat.TeleportManaReservePercent,
+			ResumeManaPercent:          run.RouteCombat.ResumeManaPercent,
+			EmergencyManaPercent:       run.RouteCombat.EmergencyManaPercent,
+			ManaRecoveryTimeout:        time.Duration(run.RouteCombat.ManaRecoveryTimeoutMs) * time.Millisecond,
+		},
 		Combat: tasks.CombatConfig{
 			Profile:                 run.Combat.Profile,
 			AttackSkillID:           attackSkillID,
@@ -58,6 +70,10 @@ func mapRunConfig(cfg *config.Config, runID string, requireFarmingRoute bool) (t
 			RepositionDistanceTiles: run.Combat.RepositionDistanceTiles,
 			KillConfirmTicks:        run.Combat.KillConfirmTicks,
 		},
+	}
+	definition, definitionOK := tasks.DefaultRunRegistry().Definition(tasks.RunID(runID))
+	if mapped.RouteCombat.Enabled && (!definitionOK || !definition.HasCapability(tasks.RunCapabilityRouteClear)) {
+		return tasks.RunConfig{}, fmt.Errorf("runs.definitions.%s.route_combat.enabled requires %s", runID, tasks.RunCapabilityRouteClear)
 	}
 	if requireFarmingRoute {
 		assignmentStore, assignmentErr := NewRouteAssignmentStore(cfg)
@@ -283,6 +299,15 @@ func validateFullRunBindings(cfg *config.Config, runID string) error {
 	}
 	if attackCast.CastButton != input.MouseRight {
 		return fmt.Errorf("%s attack skill %s must use right mouse, configured=%s", runID, runCfg.Combat.AttackSkill, attackCast.CastButton)
+	}
+	if runCfg.RouteCombat.EnabledValue() {
+		openerCast, resolveErr := bindings.Resolve(memory.SkillAmplifyDamage)
+		if resolveErr != nil {
+			return fmt.Errorf("%s route combat requires input.bindings.skills.amplify_damage: %w", runID, resolveErr)
+		}
+		if openerCast.CastButton != input.MouseRight {
+			return fmt.Errorf("%s route combat opener amplify_damage must use right mouse, configured=%s", runID, openerCast.CastButton)
+		}
 	}
 	if _, err := bindings.Resolve(memory.SkillTownPortal); err != nil {
 		return fmt.Errorf("%s requires input.bindings.skills.town_portal: %w", runID, err)

@@ -237,7 +237,7 @@ func (b *LiveBackend) ConfirmRouteMutation(request RouteMutationConfirmRequest) 
 	b.mu.Lock()
 	b.catalog.Revision++
 	if refreshErr == nil {
-		b.catalog.Runs = runCatalogEntries(report)
+		b.catalog.Runs = runCatalogEntries(report, b.cfg)
 	} else {
 		// Die Mutation ist zu diesem Zeitpunkt bereits atomar veröffentlicht.
 		// Ein fehlgeschlagener Re-Read darf keinen alten, scheinbar verfügbaren

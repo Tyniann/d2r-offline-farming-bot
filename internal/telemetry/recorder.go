@@ -94,6 +94,22 @@ const (
 	RunEncounterActionStarted EventName = "run_encounter_action_started"
 	// RunEncounterActionCompleted records verified completion of one indexed pre-combat action.
 	RunEncounterActionCompleted EventName = "run_encounter_action_completed"
+	// RouteThreatDetected records a newly selected route blocker or zone.
+	RouteThreatDetected EventName = "route_threat_detected"
+	// RouteClearStarted records entry into one route blockade.
+	RouteClearStarted EventName = "route_clear_started"
+	// RouteMonsterSnapshotSaturated records saturation entry, coverage changes, and exit.
+	RouteMonsterSnapshotSaturated EventName = "route_monster_snapshot_saturated"
+	// RouteClearAction records one actually sent route-clear combat or approach input.
+	RouteClearAction EventName = "route_clear_action"
+	// RouteClearProgress records one accepted objective watchdog reset.
+	RouteClearProgress EventName = "route_clear_progress"
+	// RouteClearCompleted records one aggregate stable-clear completion.
+	RouteClearCompleted EventName = "route_clear_completed"
+	// RouteManaHold records mana-hold start, material change, or end.
+	RouteManaHold EventName = "route_mana_hold"
+	// RouteRecoverySuppressed records a prevented unsafe recovery input.
+	RouteRecoverySuppressed EventName = "route_recovery_suppressed"
 )
 
 // Event is one JSONL record. Zero-valued optional fields are omitted.
@@ -189,6 +205,35 @@ type Event struct {
 	PickitProfileRevision    uint64                 `json:"pickit_profile_revision,omitempty"`
 	PickitAssignmentRevision uint64                 `json:"pickit_assignment_revision,omitempty"`
 	PickitProfiles           []PickitProfileContext `json:"pickit_profiles,omitempty"`
+	Zone                     string                 `json:"zone,omitempty"`
+	ModeName                 string                 `json:"mode_name,omitempty"`
+	Strategy                 string                 `json:"strategy,omitempty"`
+	ActionKind               string                 `json:"action_kind,omitempty"`
+	ProgressKind             string                 `json:"progress_kind,omitempty"`
+	NPCID                    uint32                 `json:"npc_id,omitempty"`
+	PlayerX                  uint32                 `json:"player_x,omitempty"`
+	PlayerY                  uint32                 `json:"player_y,omitempty"`
+	DistanceTiles            float64                `json:"distance_tiles,omitempty"`
+	RequiredRadiusTiles      float64                `json:"required_radius_tiles,omitempty"`
+	CoverageRadiusTiles      float64                `json:"coverage_radius_tiles,omitempty"`
+	CoverageComplete         *bool                  `json:"coverage_complete,omitempty"`
+	MonstersTruncated        *bool                  `json:"monsters_truncated,omitempty"`
+	EligibleMonsterCount     int                    `json:"eligible_monster_count,omitempty"`
+	RetainedMonsterCount     int                    `json:"retained_monster_count,omitempty"`
+	RelevantThreatCount      int                    `json:"relevant_threat_count,omitempty"`
+	PreviousEligibleCount    int                    `json:"previous_eligible_count,omitempty"`
+	PreviousRelevantCount    int                    `json:"previous_relevant_count,omitempty"`
+	HPPercent                uint8                  `json:"hp_percent,omitempty"`
+	ManaPercent              uint8                  `json:"mana_percent,omitempty"`
+	NoProgressTimeoutMs      int64                  `json:"no_progress_timeout_ms,omitempty"`
+	CombatActionsSent        int                    `json:"combat_actions_sent,omitempty"`
+	TargetsSeen              int                    `json:"targets_seen,omitempty"`
+	DensityReliefActions     int                    `json:"density_relief_actions,omitempty"`
+	HoldMs                   int64                  `json:"hold_ms,omitempty"`
+	HoverConfirmed           *bool                  `json:"hover_confirmed,omitempty"`
+	ManaDemand               string                 `json:"mana_demand,omitempty"`
+	Threatened               *bool                  `json:"threatened,omitempty"`
+	PositionProgressTiles    float64                `json:"position_progress_tiles,omitempty"`
 }
 
 // PickitProfileContext bindet ein Profil und seine Revision an eine Run-Generation.

@@ -123,17 +123,8 @@ func (c *EntityClicker) Tick(state world.State, target ClickTarget, maxDistance 
 		return ClickTickResult{Status: ClickProjectionFailed, Done: true}, nil
 	}
 
-	anchor := anchoredPosition(target.Position, c.cfg.AnchorOffsetTiles)
-	baseX, baseY, ok := c.projector.Project(state.Player.Position, anchor, win)
+	clientX, clientY, ok := ProjectHoverProbe(c.projector, state.Player.Position, target.Position, win, c.cfg, c.attempt)
 	if !ok {
-		c.Reset()
-		return ClickTickResult{Status: ClickProjectionFailed, Done: true}, nil
-	}
-
-	dx, dy := spiralOffset(c.attempt, c.cfg.SpiralStepDegrees)
-	clientX := baseX + dx
-	clientY := baseY + dy
-	if !isPlayableClientPoint(clientX, clientY, win) {
 		c.Reset()
 		return ClickTickResult{Status: ClickProjectionFailed, Done: true}, nil
 	}
@@ -153,6 +144,23 @@ func (c *EntityClicker) Tick(state world.State, target ClickTarget, maxDistance 
 		"client_y", clientY,
 	)
 	return ClickTickResult{Status: ClickPending, Attempt: c.attempt}, nil
+}
+
+// ProjectHoverProbe projects an entity's visible-body anchor and applies one
+// deterministic spiral probe. It is shared by click and combat hover loops so
+// callers never need a blind per-monster pixel offset.
+func ProjectHoverProbe(projector Projector, player, target world.Position, win input.WindowInfo, cfg ClickConfig, attempt int) (clientX, clientY int, ok bool) {
+	if projector == nil || attempt < 0 {
+		return 0, 0, false
+	}
+	anchor := anchoredPosition(target, cfg.AnchorOffsetTiles)
+	baseX, baseY, ok := projector.Project(player, anchor, win)
+	if !ok {
+		return 0, 0, false
+	}
+	dx, dy := spiralOffset(attempt, cfg.SpiralStepDegrees)
+	clientX, clientY = baseX+dx, baseY+dy
+	return clientX, clientY, isPlayableClientPoint(clientX, clientY, win)
 }
 
 // anchoredPosition shifts the ground tile toward the visible entity body.

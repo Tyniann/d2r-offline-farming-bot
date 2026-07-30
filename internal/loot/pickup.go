@@ -409,6 +409,17 @@ func SelectPickupCandidate(state world.State, report DecisionReport) (PickupTarg
 // SelectPickupCandidateExcluding chooses the nearest pickup-capable ground item
 // while ignoring unit IDs already skipped in the current pickup phase.
 func SelectPickupCandidateExcluding(state world.State, report DecisionReport, skipped map[uint32]bool) (PickupTarget, bool) {
+	return selectPickupCandidate(state, report, skipped, false, 0)
+}
+
+// SelectKeepPickupCandidateExcludingWithin chooses the nearest non-skipped
+// `keep` candidate within maxDistanceTiles. Sell candidates remain available
+// to the normal town workflow but never interrupt combat-route movement.
+func SelectKeepPickupCandidateExcludingWithin(state world.State, report DecisionReport, skipped map[uint32]bool, maxDistanceTiles float64) (PickupTarget, bool) {
+	return selectPickupCandidate(state, report, skipped, true, maxDistanceTiles)
+}
+
+func selectPickupCandidate(state world.State, report DecisionReport, skipped map[uint32]bool, keepOnly bool, maxDistanceTiles float64) (PickupTarget, bool) {
 	if !isValidInGame(state) {
 		return PickupTarget{}, false
 	}
@@ -421,6 +432,9 @@ func SelectPickupCandidateExcluding(state world.State, report DecisionReport, sk
 			!decision.CanFit {
 			continue
 		}
+		if keepOnly && decision.Pickit.Action != ActionKeep {
+			continue
+		}
 		if skipped[decision.UnitID] {
 			continue
 		}
@@ -429,6 +443,9 @@ func SelectPickupCandidateExcluding(state world.State, report DecisionReport, sk
 			continue
 		}
 		dist := world.Distance(state.Player.Position, item.Position)
+		if maxDistanceTiles > 0 && dist > maxDistanceTiles {
+			continue
+		}
 		if !found || dist < bestDist || (dist == bestDist && item.UnitID < best.UnitID) {
 			found = true
 			bestDist = dist

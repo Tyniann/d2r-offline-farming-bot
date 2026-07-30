@@ -2,6 +2,7 @@ package profile
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"time"
@@ -39,6 +40,15 @@ type Executor struct {
 	lastByKind  map[ResourceKind]time.Time
 	unavailable map[ResourceKind]bool
 	skipDelay   map[Hook]bool
+	routeClear  routeClearExecutor
+}
+
+type routeClearExecutor struct {
+	strategy      RouteClearStrategy
+	openerSkillID uint16
+	attackSkillID uint16
+	openerDone    bool
+	actions       RouteCombatActions
 }
 
 // NewExecutor creates a resettable executor for one validated definition.
@@ -58,11 +68,24 @@ func (e *Executor) SetTelemetry(sink Telemetry) {
 	}
 }
 
+// ConfigureRouteClear binds one validated code-backed strategy, its one-time
+// opener, and its regular attack to the movement-free combat surface.
+func (e *Executor) ConfigureRouteClear(strategy RouteClearStrategy, openerSkillID, attackSkillID uint16, actions RouteCombatActions) error {
+	if e == nil || e.definition.ID != "necro_bone_spear" || strategy != RouteClearSingleTarget || openerSkillID == 0 || attackSkillID == 0 || actions == nil {
+		return fmt.Errorf("profile route clear requires single_target, opener skill, attack skill, and combat actions")
+	}
+	e.routeClear = routeClearExecutor{
+		strategy: strategy, openerSkillID: openerSkillID, attackSkillID: attackSkillID, actions: actions,
+	}
+	return nil
+}
+
 // Ready reports whether the executor has a definition and authorized action surface.
 func (e *Executor) Ready() bool { return e != nil && e.definition.ID != "" && e.actions != nil }
 
 // Reset clears game-, encounter-, throttle-, and verification-scoped state.
 func (e *Executor) Reset() {
+	e.ResetRouteClear()
 	e.hookIndex = map[Hook]int{}
 	e.hookReadyAt = map[Hook]time.Time{}
 	e.hookAction = map[Hook]int{}
@@ -174,8 +197,9 @@ func (e *Executor) TickHook(ctx context.Context, hook Hook, state world.State, t
 	return Result{Status: StatusComplete, Hook: hook}
 }
 
-// TickResources evaluates prioritized potion policy and sends at most one belt input.
-func (e *Executor) TickResources(state world.State, now time.Time) Result {
+// TickResources evaluates prioritized potion policy with an optional route
+// context and sends at most one belt input.
+func (e *Executor) TickResources(state world.State, resourceContext ResourceContext, now time.Time) Result {
 	if !resourceWorldReady(state) {
 		return Result{Status: StatusComplete}
 	}
@@ -207,7 +231,7 @@ func (e *Executor) TickResources(state world.State, now time.Time) Result {
 	if !e.lastPotion.IsZero() && now.Sub(e.lastPotion) < e.definition.Resources.Throttle {
 		return Result{Status: StatusComplete}
 	}
-	kind, rule, needed := e.selectResource(state)
+	kind, rule, needed := e.selectResource(state, resourceContext)
 	if !needed {
 		return Result{Status: StatusComplete}
 	}
@@ -235,6 +259,51 @@ func (e *Executor) TickResources(state world.State, now time.Time) Result {
 	e.pending = &pendingResource{kind: kind, slot: slot, unitID: unitID, startedAt: now}
 	e.log.Info("resource potion requested", "resource", kind, "belt_slot", slot, "unit_id", unitID)
 	return Result{Status: StatusAction, Resource: kind, BeltSlot: slot}
+}
+
+// TickRouteClear advances stationary route combat by at most one aim, skill
+// selection, or confirmed attack input.
+func (e *Executor) TickRouteClear(ctx context.Context, request RouteClearRequest, now time.Time) Result {
+	if ctx.Err() != nil {
+		return Result{Status: StatusFailed, Reason: "profile_cancelled"}
+	}
+	if e.routeClear.strategy != RouteClearSingleTarget || e.routeClear.actions == nil ||
+		e.routeClear.openerSkillID == 0 || e.routeClear.attackSkillID == 0 {
+		return Result{Status: StatusFailed, Reason: "route_clear_strategy_unavailable"}
+	}
+	if request.Target.UnitID == 0 || request.Target.Position.X == 0 || request.Target.Position.Y == 0 || request.AssessmentAt.IsZero() {
+		return Result{Status: StatusFailed, Reason: "profile_target_missing"}
+	}
+	skillID := e.routeClear.attackSkillID
+	actionKind := RouteClearActionAttack
+	if request.Mode == RouteClearThreat && !e.routeClear.openerDone {
+		skillID = e.routeClear.openerSkillID
+		actionKind = RouteClearActionCurse
+	}
+	sent, err := e.routeClear.actions.CastAttackAtMonster(now, skillID, request.Player, request.Target)
+	if err != nil {
+		if errors.Is(err, ErrRouteClearTargetUnprojectable) {
+			return Result{Status: StatusPending, SkillID: skillID, ActionKind: actionKind, Reason: RouteClearReasonTargetUnprojectable}
+		}
+		return Result{Status: StatusFailed, SkillID: skillID, ActionKind: actionKind, Reason: "route_clear_attack_failed"}
+	}
+	if sent {
+		if actionKind == RouteClearActionCurse {
+			e.routeClear.openerDone = true
+		}
+		return Result{Status: StatusAction, SkillID: skillID, ActionKind: actionKind}
+	}
+	return Result{Status: StatusPending, SkillID: skillID, ActionKind: actionKind}
+}
+
+// ResetRouteClear releases pending aim/attack state without touching hook or resource state.
+func (e *Executor) ResetRouteClear() {
+	if e != nil {
+		e.routeClear.openerDone = false
+		if e.routeClear.actions != nil {
+			_ = e.routeClear.actions.StopAttack()
+		}
+	}
 }
 
 func (e *Executor) resourceRule(kind ResourceKind) ResourceRule {
@@ -266,10 +335,19 @@ func (e *Executor) emitFailure(event Event, reason string) {
 	}
 }
 
-func (e *Executor) selectResource(state world.State) (ResourceKind, ResourceRule, bool) {
+func (e *Executor) selectResource(state world.State, resourceContext ResourceContext) (ResourceKind, ResourceRule, bool) {
 	policy := e.definition.Resources
 	if state.Player.MaxHP > 0 && state.Player.HPPercent() <= policy.Rejuvenation.UseBelowPercent {
 		return ResourceRejuvenation, policy.Rejuvenation, true
+	}
+	if resourceContext.EmergencyMana {
+		if _, _, ok := selectBeltItem(state, ResourceMana, policy.Mana.BeltSlots); ok {
+			return ResourceMana, policy.Mana, true
+		}
+		return ResourceRejuvenation, policy.Rejuvenation, true
+	}
+	if resourceContext.MobilityCritical && state.Player.MaxMana > 0 {
+		return ResourceMana, policy.Mana, true
 	}
 	if state.Player.MaxHP > 0 && state.Player.HPPercent() <= policy.Healing.UseBelowPercent {
 		return ResourceHealing, policy.Healing, true

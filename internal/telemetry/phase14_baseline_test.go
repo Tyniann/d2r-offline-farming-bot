@@ -179,6 +179,18 @@ func TestPhase14CoreContractIsStable(t *testing.T) {
 			t.Fatalf("missing German message for %q", code)
 		}
 	}
+	for _, code := range []HistoryReasonCode{
+		"route_clear_no_progress",
+		"route_threat_out_of_range",
+		"retry_return_failed",
+		"route_mana_recovery_failed",
+		"route_recovery_unsafe",
+		"route_threat_state_invalid",
+	} {
+		if message, ok := HistoryReasonMessage(code); !ok || message == "" {
+			t.Fatalf("missing German route-threat message for %q", code)
+		}
+	}
 }
 
 func readPhase14Fixture(t *testing.T, name string) []phase14FixtureEvent {

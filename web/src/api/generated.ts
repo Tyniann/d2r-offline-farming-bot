@@ -255,6 +255,20 @@ export interface RunCatalogEntry {
   display_name: string;
   status: string;
   reasons?: Array<string>;
+  route_combat?: RouteCombatConfigDTO;
+}
+
+export interface RouteCombatConfigDTO {
+  enabled: boolean;
+  immediate_radius_tiles: number;
+  corridor_width_tiles: number;
+  landing_radius_tiles: number;
+  attack_distance_tiles: number;
+  no_progress_timeout_ms: number;
+  teleport_mana_reserve_percent: number;
+  resume_mana_percent: number;
+  emergency_mana_percent: number;
+  mana_recovery_timeout_ms: number;
 }
 
 export interface CommandRequest {

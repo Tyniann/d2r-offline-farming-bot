@@ -24,7 +24,7 @@ const runAvailabilityText = (status: string, reasons: string[] = []) => {
     return { title: "Bereit", detail: "Route und Konfiguration sind bereit." };
   }
   if (status === "runtime_validation_required") {
-    return { title: "Bereit", detail: "Der Core gleicht die getestete Route beim Start sicher mit dem aktuellen Spiel ab." };
+    return { title: "Bereit", detail: "Tipp für Fernkämpfer: Beende die Routenaufnahme mit etwas Abstand zum Boss – an dieser Position beginnt später der Kampf." };
   }
   if (reasons.includes("route_assignment_missing")) {
     return { title: "Noch nicht eingerichtet", detail: "Für diesen Run wurde noch keine Route eingerichtet." };
@@ -339,7 +339,7 @@ function CoreApp() {
         {target === "routes" && <><PageHeader eyebrow="Bibliothek" title="Routen" description="Geführte Aufnahme, isolierter Test und revisionsgebundene Veröffentlichung über den bestehenden Core." />{liveLocked && <StateMessage kind="error" title="Live-Routenaktionen sind gesperrt">Die Routenbibliothek bleibt read-only, bis D2R kompatibel bestätigt ist.</StateMessage>}<RouteFeature characters={catalog?.characters.map((entry) => entry.name) ?? []} selectedCharacter={status?.selection.character ?? character} refreshKey={routeRefreshKey} liveLocked={liveLocked} preferredRecordingRun={preferredRecordingRun} onReturnToOnboarding={routeOpenedFromOnboarding ? returnToOnboarding : undefined} /></>}
         {target === "pickit" && <><PageHeader eyebrow="Loot-Policy" title="Pickit" description="Profile, Regeln und Zuordnungen bleiben Core-validiert und gelten erst an einer sicheren Run-Grenze." /><PickitFeature characters={catalog?.characters.map((entry) => entry.name) ?? []} selectedCharacter={status?.selection.character ?? character} runs={catalog?.runs.map((entry) => entry.run_id) ?? []} locked={!!status && !editableStates.has(status.state)} refreshKey={pickitRefreshKey} /></>}
         {target === "history" && <><PageHeader eyebrow="Auswertung" title="Historie" description="Core-berechnete Runs, Itemertrag, Vergleiche und Exporte ohne UI-eigene Aggregation." /><HistoryFeature characters={catalog?.characters.map((entry) => entry.name) ?? []} runs={catalog?.runs.map((entry) => entry.run_id) ?? []} refreshKey={historyRefreshKey} /></>}
-        {target === "settings" && <><PageHeader eyebrow="System" title="Einstellungen" description="Core-revisionierte Operatorwerte, atomare Desktopwerte und lokale Diagnose ohne zweiten Konfigurationsowner." /><SettingsFeature generation={status?.generation ?? 0} coreState={status?.state ?? ""} characters={catalog?.characters.map((entry) => entry.name) ?? []} runs={catalog?.runs.map((entry) => ({ id: entry.run_id, label: entry.display_name })) ?? []} events={events} onOpenOnboarding={() => { setOnboardingStep(0); setOnboardingOpen(true); }} /></>}
+        {target === "settings" && <><PageHeader eyebrow="System" title="Einstellungen" description="Core-revisionierte Operatorwerte, atomare Desktopwerte und lokale Diagnose ohne zweiten Konfigurationsowner." /><SettingsFeature generation={status?.generation ?? 0} coreState={status?.state ?? ""} characters={catalog?.characters.map((entry) => entry.name) ?? []} runs={catalog?.runs.map((entry) => ({ id: entry.run_id, label: entry.display_name, routeCombat: entry.route_combat })) ?? []} events={events} onOpenOnboarding={() => { setOnboardingStep(0); setOnboardingOpen(true); }} /></>}
         </>}
       </main>
 

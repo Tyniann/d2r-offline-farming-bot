@@ -51,13 +51,16 @@ func isRuntimePriorityMonsterCandidate(id uint32, monsterTypeFlag uint8) bool {
 }
 
 // IsPostBossCleanupNPCID reports whether id is a hostile base type that can
-// accompany Countess or Summoner in their terminal encounter area. The
-// allowlist intentionally excludes player summons and unrelated monster units.
+// accompany Countess, Summoner or Nihlathak in their terminal encounter area.
+// The allowlist intentionally excludes player summons and unrelated monster
+// units.
 func IsPostBossCleanupNPCID(id uint32) bool {
 	switch id {
 	case 21, 38, 43, 44, 45, 46, 47, 55, 162: // Tower Cellar Level 5.
 		return true
 	case 40, 56, 131: // Arcane Sanctuary.
+		return true
+	case 295, 438, 458, 472, 546, 547, 551, 552, 553, 554, 555, 578, 597, 631, 656, 659, 662, 682, 685: // Halls of Vaught and spawned minions.
 		return true
 	default:
 		return false

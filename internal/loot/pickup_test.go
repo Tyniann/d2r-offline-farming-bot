@@ -197,6 +197,26 @@ func TestSelectPickupCandidateExcludingSkipsFailedUnitIDs(t *testing.T) {
 	}
 }
 
+func TestSelectKeepPickupCandidateExcludingWithinFiltersActionAndRadius(t *testing.T) {
+	st := testPickupState(
+		world.Item{UnitID: 10, TxtFileNo: 1, Code: "rin", Location: world.ItemLocationGround, Position: world.Position{X: 101, Y: 100}},
+		world.Item{UnitID: 11, TxtFileNo: 2, Code: "r01", Location: world.ItemLocationGround, Position: world.Position{X: 106, Y: 100}},
+		world.Item{UnitID: 12, TxtFileNo: 3, Code: "r02", Location: world.ItemLocationGround, Position: world.Position{X: 140, Y: 100}},
+	)
+	report := DecisionReport{Decisions: []ItemDecision{
+		{UnitID: 10, Stage: DecisionStagePickCandidate, Kind: DecisionKindPickCandidate, CanFit: true, Pickit: PickitResult{Action: ActionSell}},
+		{UnitID: 11, Stage: DecisionStagePickCandidate, Kind: DecisionKindPickCandidate, CanFit: true, Pickit: PickitResult{Action: ActionKeep}},
+		{UnitID: 12, Stage: DecisionStagePickCandidate, Kind: DecisionKindPickCandidate, CanFit: true, Pickit: PickitResult{Action: ActionKeep}},
+	}}
+	target, ok := SelectKeepPickupCandidateExcludingWithin(st, report, nil, 30)
+	if !ok || target.UnitID != 11 || target.Pickit.Action != ActionKeep {
+		t.Fatalf("target = %+v ok=%t, want nearby keep unit 11", target, ok)
+	}
+	if _, ok := SelectKeepPickupCandidateExcludingWithin(st, report, map[uint32]bool{11: true}, 30); ok {
+		t.Fatal("sell, distant keep, and skipped keep must not produce a route candidate")
+	}
+}
+
 func testPickupConfig() PickupConfig {
 	return PickupConfig{
 		MaxRetries:                1,

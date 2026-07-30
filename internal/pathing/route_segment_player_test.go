@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/world"
 )
@@ -122,5 +123,88 @@ func TestRouteSegmentPlayerStopResetsWithoutFurtherGoals(t *testing.T) {
 	}
 	if len(nav.goals) != 0 || nav.resets != 1 {
 		t.Fatalf("goals=%d resets=%d", len(nav.goals), nav.resets)
+	}
+}
+
+func TestRouteSegmentPlayerProgressIsReadOnlyAndTracksEffectiveTarget(t *testing.T) {
+	route := validRoute()
+	nav := &segmentNavigatorMock{next: NavTickResult{Status: NavMoving}}
+	player, _ := NewRouteSegmentPlayer(nav, route, 0)
+	state := segmentPlaybackState(world.BlackMarsh, 14858, 5068)
+
+	first, ok := player.Progress(state)
+	if !ok || first.Mode != RouteProgressMovement || first.PointIndex != 1 ||
+		first.PreviousConfirmed != (world.Position{X: 14858, Y: 5068}) ||
+		first.MovementTarget != (world.Position{X: 14820, Y: 5065}) {
+		t.Fatalf("first progress = %+v, %t", first, ok)
+	}
+	second, ok := player.Progress(state)
+	if !ok || second != first || len(nav.goals) != 0 || nav.resets != 0 {
+		t.Fatalf("repeated progress = %+v, %t goals=%d resets=%d", second, ok, len(nav.goals), nav.resets)
+	}
+
+	if _, err := player.Tick(context.Background(), state); err != nil {
+		t.Fatal(err)
+	}
+	nav.active = false
+	state.Player.Position = world.Position{X: 14900, Y: 5100}
+	recovery, ok := player.Progress(state)
+	if !ok || recovery.Mode != RouteProgressRecovery ||
+		recovery.MovementTarget != recovery.PreviousConfirmed ||
+		recovery.PointIndex != first.PointIndex {
+		t.Fatalf("recovery progress = %+v, %t", recovery, ok)
+	}
+	if len(nav.goals) != 1 {
+		t.Fatalf("Progress sent navigation input: goals=%d", len(nav.goals))
+	}
+}
+
+func TestRouteSegmentPlayerProgressProjectsTransitionWithoutTickingIt(t *testing.T) {
+	route := validRoute()
+	nav := &segmentNavigatorMock{next: NavTickResult{Status: NavMoving}}
+	player, _ := NewRouteSegmentPlayer(nav, route, 0)
+	state := segmentPlaybackState(world.BlackMarsh, 14858, 5068)
+	_, _ = player.Tick(context.Background(), state)
+	state.Player.Position = world.Position{X: 14820, Y: 5065}
+	nav.active = false
+	_, _ = player.Tick(context.Background(), state)
+
+	beforeGoals, beforeResets := len(nav.goals), nav.resets
+	progress, ok := player.Progress(state)
+	if !ok || progress.Mode != RouteProgressTransition || progress.TargetAvailable ||
+		progress.PointIndex != len(route.Segments[0].Points) {
+		t.Fatalf("transition progress = %+v, %t", progress, ok)
+	}
+	if len(nav.goals) != beforeGoals || nav.resets != beforeResets {
+		t.Fatalf("transition Progress mutated navigator: goals=%d resets=%d", len(nav.goals), nav.resets)
+	}
+}
+
+func TestRouteSegmentPlayerProjectsConfirmedRecoveryInput(t *testing.T) {
+	route := validRoute()
+	base := time.Date(2026, 7, 29, 12, 0, 0, 0, time.UTC)
+	nav := &segmentNavigatorMock{next: NavTickResult{Status: NavMoving}}
+	player, _ := NewRouteSegmentPlayer(nav, route, 0)
+	state := segmentPlaybackState(world.BlackMarsh, 14858, 5068)
+	state.At = base
+	_, _ = player.Tick(context.Background(), state)
+
+	nav.active = false
+	state.At = base.Add(time.Second)
+	state.Player.Position = world.Position{X: 14900, Y: 5100}
+	nav.next = NavTickResult{
+		Status: NavMoving, MovementInputSent: true,
+		NextMovementInputAt: state.At.Add(250 * time.Millisecond), MovementProgressTiles: 3,
+	}
+	if _, err := player.Tick(context.Background(), state); err != nil {
+		t.Fatal(err)
+	}
+	progress, ok := player.Progress(state)
+	if !ok || progress.Mode != RouteProgressRecovery || !progress.RecoveryInputSent ||
+		progress.RecoveryInputAt != state.At ||
+		progress.RecoveryInputOrigin != state.Player.Position ||
+		progress.RecoveryNextInputAt != state.At.Add(250*time.Millisecond) ||
+		progress.RecoveryProgressTiles != 3 {
+		t.Fatalf("recovery input progress = %+v, %t", progress, ok)
 	}
 }

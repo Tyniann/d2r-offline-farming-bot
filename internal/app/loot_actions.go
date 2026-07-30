@@ -95,6 +95,16 @@ func (a *lootActionsAdapter) TickCloseStash(state world.State, now time.Time) ta
 }
 
 func (a *lootActionsAdapter) Scan(state world.State) tasks.LootScanResult {
+	return a.scan(state, false, 0)
+}
+
+// ScanRouteKeep applies the run's immutable user-selected Pickit chain and
+// exposes only nearby `keep` targets to combat-route orchestration.
+func (a *lootActionsAdapter) ScanRouteKeep(state world.State, maxDistanceTiles float64) tasks.LootScanResult {
+	return a.scan(state, true, maxDistanceTiles)
+}
+
+func (a *lootActionsAdapter) scan(state world.State, routeKeepOnly bool, maxDistanceTiles float64) tasks.LootScanResult {
 	if a == nil || a.filter == nil {
 		return tasks.LootScanResult{}
 	}
@@ -128,11 +138,17 @@ func (a *lootActionsAdapter) Scan(state world.State) tasks.LootScanResult {
 			return tasks.LootScanResult{TelemetryFailed: true}
 		}
 	}
-	target, found := loot.SelectPickupCandidateExcluding(state, report, a.skipped)
+	var target loot.PickupTarget
+	var found bool
+	if routeKeepOnly {
+		target, found = loot.SelectKeepPickupCandidateExcludingWithin(state, report, a.skipped, maxDistanceTiles)
+	} else {
+		target, found = loot.SelectPickupCandidateExcluding(state, report, a.skipped)
+	}
 	result := tasks.LootScanResult{
 		GroundItemCount:             report.GroundItemCount,
-		CandidateCount:              countPickupCandidates(report, a.skipped),
-		InventoryFullCandidateCount: countInventoryFullCandidates(report),
+		CandidateCount:              countPickupCandidatesForMode(state, report, a.skipped, routeKeepOnly, maxDistanceTiles),
+		InventoryFullCandidateCount: countInventoryFullCandidatesForMode(state, report, routeKeepOnly, maxDistanceTiles),
 		HasTarget:                   found,
 	}
 	result.InventoryFull = result.InventoryFullCandidateCount > 0
@@ -140,6 +156,8 @@ func (a *lootActionsAdapter) Scan(state world.State) tasks.LootScanResult {
 		result.NextTarget = mapTaskLootTarget(target)
 	}
 	a.log.Info("run loot scan",
+		"route_keep_only", routeKeepOnly,
+		"maximum_distance_tiles", maxDistanceTiles,
 		"ground_item_count", result.GroundItemCount,
 		"candidate_count", result.CandidateCount,
 		"blocked_candidate_count", countBlockedPickupCandidates(report),
@@ -312,13 +330,16 @@ func mapTaskLootStashResult(res loot.StashResult) tasks.LootStashResult {
 	return tasks.LootStashResult{Status: tasks.LootStashStatus(res.Status), Done: res.Done, Attempted: res.Attempted, Transferred: res.Transferred, UnitID: res.UnitID, Code: res.Code, Name: res.Name, Attempt: res.Attempt}
 }
 
-func countPickupCandidates(report loot.DecisionReport, skipped map[uint32]bool) int {
+func countPickupCandidatesForMode(state world.State, report loot.DecisionReport, skipped map[uint32]bool, keepOnly bool, maxDistanceTiles float64) int {
 	count := 0
 	for _, decision := range report.Decisions {
 		if decision.Stage != loot.DecisionStagePickCandidate ||
 			decision.Kind != loot.DecisionKindPickCandidate ||
 			!decision.CanFit ||
 			skipped[decision.UnitID] {
+			continue
+		}
+		if keepOnly && (decision.Pickit.Action != loot.ActionKeep || !lootDecisionWithin(state, decision.UnitID, maxDistanceTiles)) {
 			continue
 		}
 		count++
@@ -337,15 +358,34 @@ func countBlockedPickupCandidates(report loot.DecisionReport) int {
 }
 
 func countInventoryFullCandidates(report loot.DecisionReport) int {
+	return countInventoryFullCandidatesForMode(world.State{}, report, false, 0)
+}
+
+func countInventoryFullCandidatesForMode(state world.State, report loot.DecisionReport, keepOnly bool, maxDistanceTiles float64) int {
 	count := 0
 	for _, decision := range report.Decisions {
 		if decision.Stage == loot.DecisionStageFail &&
 			decision.Kind == loot.DecisionKindFail &&
 			decision.Reason == loot.DecisionReasonInventoryFull {
+			if keepOnly && (decision.Pickit.Action != loot.ActionKeep || !lootDecisionWithin(state, decision.UnitID, maxDistanceTiles)) {
+				continue
+			}
 			count++
 		}
 	}
 	return count
+}
+
+func lootDecisionWithin(state world.State, unitID uint32, maxDistanceTiles float64) bool {
+	if maxDistanceTiles <= 0 {
+		return true
+	}
+	for _, item := range state.GroundItems() {
+		if item.UnitID == unitID {
+			return world.Distance(state.Player.Position, item.Position) <= maxDistanceTiles
+		}
+	}
+	return false
 }
 
 func mapTaskLootTarget(target loot.PickupTarget) tasks.LootTarget {

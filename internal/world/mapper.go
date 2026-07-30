@@ -44,16 +44,17 @@ func FromSnapshot(snap memory.Snapshot) State {
 
 	if !snap.Valid {
 		return State{
-			At:        snap.At,
-			Valid:     false,
-			Reason:    snap.Reason,
-			Phase:     phase,
-			Objects:   objects,
-			Entrances: entrances,
-			Monsters:  monsters,
-			Items:     items,
-			Hover:     hover,
-			UI:        mapUIState(snap.UI),
+			At:              snap.At,
+			Valid:           false,
+			Reason:          snap.Reason,
+			Phase:           phase,
+			Objects:         objects,
+			Entrances:       entrances,
+			Monsters:        monsters,
+			MonsterCoverage: mapMonsterCoverage(snap.MonsterCoverage),
+			Items:           items,
+			Hover:           hover,
+			UI:              mapUIState(snap.UI),
 		}
 	}
 
@@ -75,13 +76,22 @@ func FromSnapshot(snap memory.Snapshot) State {
 			LeftSkillID:           snap.PlayerSkills.LeftSkill,
 			RightSkillID:          snap.PlayerSkills.RightSkill,
 		},
-		Identity:  mapGameIdentity(snap.Identity),
-		Objects:   objects,
-		Entrances: entrances,
-		Monsters:  monsters,
-		Items:     items,
-		Hover:     hover,
-		UI:        mapUIState(snap.UI),
+		Identity:        mapGameIdentity(snap.Identity),
+		Objects:         objects,
+		Entrances:       entrances,
+		Monsters:        monsters,
+		MonsterCoverage: mapMonsterCoverage(snap.MonsterCoverage),
+		Items:           items,
+		Hover:           hover,
+		UI:              mapUIState(snap.UI),
+	}
+}
+
+func mapMonsterCoverage(coverage memory.MonsterCoverage) MonsterCoverage {
+	return MonsterCoverage{
+		EligibleMonsterCount:       coverage.EligibleMonsterCount,
+		MonstersTruncated:          coverage.MonstersTruncated,
+		MonsterCoverageRadiusTiles: coverage.MonsterCoverageRadiusTiles,
 	}
 }
 

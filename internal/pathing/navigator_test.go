@@ -141,6 +141,9 @@ func TestNavigatorMoveToPositionArrives(t *testing.T) {
 	if res.Done || res.Status != NavMoving {
 		t.Fatalf("Tick() = %+v, want moving", res)
 	}
+	if !res.MovementInputSent || res.NextMovementInputAt != base || res.MovementProgressTiles != 3 {
+		t.Fatalf("movement input result = %+v", res)
+	}
 	if len(in.casts) != 1 {
 		t.Fatalf("casts=%d, want 1 teleport", len(in.casts))
 	}

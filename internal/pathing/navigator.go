@@ -293,7 +293,12 @@ func (n *Navigator) tickMoveToArea(now time.Time, state world.State) NavTickResu
 		n.lastCast.approachUnitID = plan.Entrance.UnitID
 	}
 	n.logNavTick(state, string(plan.Mode), 0)
-	return NavTickResult{Status: n.status}
+	return NavTickResult{
+		Status: n.status, MovementInputSent: true,
+		NextMovementInputAt:   now.Add(n.deps.Config.MoveInterval),
+		MovementOutcomeAt:     now.Add(teleportSettleTimeout),
+		MovementProgressTiles: n.deps.Config.StuckProgressTiles,
+	}
 }
 
 func (n *Navigator) tickMoveToPosition(now time.Time, state world.State) NavTickResult {
@@ -307,7 +312,12 @@ func (n *Navigator) tickMoveToPosition(now time.Time, state world.State) NavTick
 		return NavTickResult{Status: n.status}
 	}
 	n.logNavTick(state, "direct", 0)
-	return NavTickResult{Status: n.status}
+	return NavTickResult{
+		Status: n.status, MovementInputSent: true,
+		NextMovementInputAt:   now.Add(n.deps.Config.MoveInterval),
+		MovementOutcomeAt:     now.Add(teleportSettleTimeout),
+		MovementProgressTiles: n.deps.Config.StuckProgressTiles,
+	}
 }
 
 // evaluatePendingCast resolves the outcome of the previous teleport cast.

@@ -6,9 +6,26 @@ import (
 	"testing"
 
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/config"
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/input"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/memory"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/process"
 )
+
+func TestConfigBindingsMapAmplifyDamageF1(t *testing.T) {
+	bindings, err := newConfigBindingSource(config.InputBindingsConfig{Skills: map[string]config.SkillBindingConfig{
+		"amplify_damage": {Key: "f1", Button: "right"},
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	cast, err := bindings.Resolve(memory.SkillAmplifyDamage)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cast.SelectKey != "f1" || cast.CastButton != input.MouseRight {
+		t.Fatalf("amplify damage cast = %+v", cast)
+	}
+}
 
 func TestBindingsPrecheckAllowsConfiguredTeleport(t *testing.T) {
 	snap := validSnapshot(100)

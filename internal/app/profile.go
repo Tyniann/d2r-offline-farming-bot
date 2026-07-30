@@ -78,7 +78,7 @@ func (a *profileActionsAdapter) CastBelt(slot int) error {
 	return nil
 }
 
-func newProfileExecutor(log *slog.Logger, profiles config.ProfilesConfig, run config.RunConfig, in inputController, bindings configBindingSource, pathCfg pathing.Config, trace *profileTelemetryAdapter) (*profile.Executor, error) {
+func newProfileExecutor(log *slog.Logger, profiles config.ProfilesConfig, run config.RunConfig, in inputController, bindings configBindingSource, pathCfg pathing.Config, combat *combatAdapter, trace *profileTelemetryAdapter) (*profile.Executor, error) {
 	id := run.Combat.Profile
 	definition, err := mapProfileDefinition(id, profiles[id])
 	if err != nil {
@@ -86,10 +86,25 @@ func newProfileExecutor(log *slog.Logger, profiles config.ProfilesConfig, run co
 	}
 	actions := &profileActionsAdapter{input: in, bindings: bindings, projector: pathCfg.Projector()}
 	executor, err := profile.NewExecutor(log, definition, actions)
-	if err == nil {
-		executor.SetTelemetry(trace)
+	if err != nil {
+		return nil, err
 	}
-	return executor, err
+	executor.SetTelemetry(trace)
+	if run.RouteCombat.EnabledValue() || id == "necro_bone_spear" {
+		attackSkillID, parseErr := memory.ParseSkillTestName(run.Combat.AttackSkill)
+		if parseErr != nil {
+			return nil, fmt.Errorf("profile route clear attack skill: %w", parseErr)
+		}
+		if configureErr := executor.ConfigureRouteClear(
+			profile.RouteClearSingleTarget,
+			memory.SkillAmplifyDamage,
+			attackSkillID,
+			combat,
+		); configureErr != nil {
+			return nil, configureErr
+		}
+	}
+	return executor, nil
 }
 
 func mapProfileDefinition(id string, cfg config.ProfileConfig) (profile.Definition, error) {

@@ -120,7 +120,8 @@ Der Hover-Offset wird — wie UnitTable/UI — per d2go-Signature-Scan in `ScanP
 | `Gold`/`PrivateStashGold` | Unskalierte Stats `gold=14` und `goldbank=15`; separate Known-Flags verhindern erfundene Nullwerte |
 | `AreaID` | Rohe Area-ID aus Level-Struct |
 | `PosX`/`PosY` | `uint32` in `memory.Snapshot` (aus uint16 Path-Reads erweitert; `world.Position` gleicher Typ) |
-| `Objects`/`Entrances`/`Monsters` | Countess-gefilterte Entity-Slices; leer (nicht nil) außerhalb `in_game` |
+| `Objects`/`Entrances`/`Monsters` | Runtime-gefilterte Entity-Slices; Monster halten 512 nächste Nicht-Priority-Kandidaten plus Priority-Einheiten; leer (nicht nil) außerhalb `in_game` |
+| `MonsterCoverage` | Eligible-Anzahl vor Reservoirentscheidung, Truncation ab 513 Nicht-Priority-Kandidaten und weitester behaltener Radius bei Truncation |
 | `Items` | Ground- und persönliche Inventory-Items aus UnitTable-Segment `4`; ab Phase 13.2 mit optionaler roher Set-/Unique-Referenz, leer (nicht nil) außerhalb `in_game` |
 | `PlayerSkills` | `LeftSkill`, `RightSkill`, `SkillsKnown` vom Main-Player (Skill-Liste `unit+0x100`) |
 | `Hover` | `HoverState` (`IsHovered`, `UnitType`, `UnitID`) aus dem 12-Byte-Buffer bei `moduleBase+Hover`; nur bei `Valid && Phase=in_game` gelesen |

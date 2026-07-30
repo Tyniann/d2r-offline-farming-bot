@@ -143,6 +143,19 @@ describe("SettingsFeature", () => {
     expect(runSelect).toHaveTextContent("Summoner");
     expect(runSelect).toHaveTextContent("Nihlathak");
   });
+  it("zeigt die vom Core aufgelösten Route-Combat-Werte read-only", async () => {
+    render(<SettingsFeature generation={12} coreState="idle" characters={["mrbones"]} runs={[{
+      id: "summoner", label: "Summoner", routeCombat: {
+        enabled: true, immediate_radius_tiles: 18, corridor_width_tiles: 7, landing_radius_tiles: 10,
+        attack_distance_tiles: 30, no_progress_timeout_ms: 12000, teleport_mana_reserve_percent: 20,
+        resume_mana_percent: 35, emergency_mana_percent: 10, mana_recovery_timeout_ms: 5000,
+      },
+    }]} events={[]} />);
+    const summary = await screen.findByText("Effektive Route-Combat-Werte (read-only)");
+    fireEvent.click(summary);
+    expect(summary.parentElement).toHaveTextContent('"no_progress_timeout_ms": 12000');
+    expect(summary.parentElement).toHaveTextContent('"enabled": true');
+  });
 });
 
 function renderFeature() {

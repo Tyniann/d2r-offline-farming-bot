@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"time"
 
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/world"
 )
@@ -31,12 +32,46 @@ type SegmentNavigator interface {
 	Reset()
 }
 
+// RouteProgressMode identifies the source of the effective next route target.
+type RouteProgressMode string
+
+const (
+	// RouteProgressMovement identifies the next regular recorded point.
+	RouteProgressMovement RouteProgressMode = "movement"
+	// RouteProgressRecovery identifies the previous point used for local recovery.
+	RouteProgressRecovery RouteProgressMode = "recovery"
+	// RouteProgressTransition identifies an area transition without a positional target.
+	RouteProgressTransition RouteProgressMode = "transition"
+)
+
+// RouteProgress is an immutable projection of the effective next route action.
+// Progress inspection never starts or ticks navigation.
+type RouteProgress struct {
+	RouteID               string
+	SegmentID             string
+	SegmentIndex          int
+	PointIndex            int
+	PreviousConfirmed     world.Position
+	MovementTarget        world.Position
+	TargetAvailable       bool
+	Mode                  RouteProgressMode
+	DriftTiles            float64
+	LocalRecoveryAttempts int
+	RecoveryInputSent     bool
+	RecoveryInputAt       time.Time
+	RecoveryInputOrigin   world.Position
+	RecoveryNextInputAt   time.Time
+	RecoveryOutcomeAt     time.Time
+	RecoveryProgressTiles float64
+}
+
 // RouteSegmentPlayer replays exactly one validated route segment.
 // States: points → transition → complete; any invalid state terminates fail-closed.
 type RouteSegmentPlayer struct {
 	navigator         SegmentNavigator
 	route             Route
 	segment           RouteSegment
+	segmentIndex      int
 	point             int
 	previous          world.Position
 	started           bool
@@ -44,7 +79,18 @@ type RouteSegmentPlayer struct {
 	done              bool
 	corrections       int
 	recovering        bool
+	recoveryInput     routeRecoveryInput
 	transitionHandler *RouteTransitionHandler
+}
+
+type routeRecoveryInput struct {
+	point         int
+	target        world.Position
+	origin        world.Position
+	at            time.Time
+	nextInputAt   time.Time
+	outcomeAt     time.Time
+	progressTiles float64
 }
 
 // NewRouteSegmentPlayer builds an isolated player for one segment index.
@@ -58,7 +104,7 @@ func NewRouteSegmentPlayer(navigator SegmentNavigator, route Route, segmentIndex
 	if segmentIndex < 0 || segmentIndex >= len(route.Segments) {
 		return nil, fmt.Errorf("segment index %d out of range", segmentIndex)
 	}
-	return &RouteSegmentPlayer{navigator: navigator, route: route, segment: route.Segments[segmentIndex]}, nil
+	return &RouteSegmentPlayer{navigator: navigator, route: route, segment: route.Segments[segmentIndex], segmentIndex: segmentIndex}, nil
 }
 
 // Tick advances point movement or the strict entrance transition.
@@ -89,16 +135,7 @@ func (p *RouteSegmentPlayer) Tick(ctx context.Context, state world.State) (bool,
 		p.navigator.Reset()
 		return false, fmt.Errorf("%w: got %d want %d", ErrRouteUnexpectedArea, state.Area.ID, p.segment.FromAreaID)
 	}
-	if !p.started {
-		p.previous = routePointPosition(p.segment.Points[0])
-		p.started = true
-	}
-	for p.point < len(p.segment.Points) && world.Distance(state.Player.Position, routePointPosition(p.segment.Points[p.point])) <= p.route.Playback.WaypointToleranceTiles {
-		p.previous = routePointPosition(p.segment.Points[p.point])
-		p.point++
-		p.corrections = 0
-		p.navigator.Reset()
-	}
+	p.syncReachedPoints(state)
 	if p.point >= len(p.segment.Points) {
 		if p.segment.Transition.Type == "terminal" {
 			p.done = true
@@ -112,6 +149,7 @@ func (p *RouteSegmentPlayer) Tick(ctx context.Context, state world.State) (bool,
 	if p.recovering {
 		if world.Distance(state.Player.Position, p.previous) <= p.route.Playback.WaypointToleranceTiles {
 			p.recovering = false
+			p.recoveryInput = routeRecoveryInput{}
 			p.navigator.Reset()
 		} else {
 			if !p.navigator.Active() {
@@ -140,6 +178,119 @@ func (p *RouteSegmentPlayer) Tick(ctx context.Context, state world.State) (bool,
 		}
 	}
 	return p.tickNavigator(ctx, state)
+}
+
+// Progress returns the effective next movement, recovery, or transition target
+// for state without mutating player or navigator state.
+func (p *RouteSegmentPlayer) Progress(state world.State) (RouteProgress, bool) {
+	if p.done || !state.Valid || state.Phase != world.GamePhaseInGame {
+		return RouteProgress{}, false
+	}
+	expectedClass, _ := parseCharacterClass(p.route.Binding.CharacterClass)
+	if !state.Identity.Valid || state.Identity.CharacterName != p.route.Binding.CharacterName || state.Identity.Class != expectedClass {
+		return RouteProgress{}, false
+	}
+	if p.transition {
+		if state.Area.ID != p.segment.FromAreaID && state.Area.ID != p.segment.ToAreaID {
+			return RouteProgress{}, false
+		}
+		return p.projectProgress(p.point, p.previous, RouteProgressTransition, world.Position{}, false, 0), true
+	}
+	if state.Area.ID != p.segment.FromAreaID {
+		return RouteProgress{}, false
+	}
+
+	point := p.point
+	previous := p.previous
+	if !p.started {
+		previous = routePointPosition(p.segment.Points[0])
+	}
+	for point < len(p.segment.Points) && world.Distance(state.Player.Position, routePointPosition(p.segment.Points[point])) <= p.route.Playback.WaypointToleranceTiles {
+		previous = routePointPosition(p.segment.Points[point])
+		point++
+	}
+	if point >= len(p.segment.Points) {
+		return p.projectProgress(point, previous, RouteProgressTransition, world.Position{}, false, 0), true
+	}
+
+	target := routePointPosition(p.segment.Points[point])
+	drift := distanceToEdge(state.Player.Position, previous, target)
+	if (p.recovering && world.Distance(state.Player.Position, previous) > p.route.Playback.WaypointToleranceTiles) ||
+		drift > p.route.Playback.MaxDriftTiles {
+		return p.projectProgress(point, previous, RouteProgressRecovery, previous, true, drift), true
+	}
+	return p.projectProgress(point, previous, RouteProgressMovement, target, true, drift), true
+}
+
+// SyncReached commits only recorded points already confirmed inside the
+// configured waypoint tolerance. It sends no movement input and does not enter
+// a terminal or transition state; the next [RouteSegmentPlayer.Tick] owns that
+// state change.
+func (p *RouteSegmentPlayer) SyncReached(state world.State) error {
+	if p.done {
+		return nil
+	}
+	if !state.Valid || state.Phase != world.GamePhaseInGame {
+		return fmt.Errorf("route point sync requires valid in-game state")
+	}
+	expectedClass, _ := parseCharacterClass(p.route.Binding.CharacterClass)
+	if !state.Identity.Valid || state.Identity.CharacterName != p.route.Binding.CharacterName || state.Identity.Class != expectedClass {
+		return ErrGameIdentityUnavailable
+	}
+	if p.transition {
+		return nil
+	}
+	if state.Area.ID != p.segment.FromAreaID {
+		return fmt.Errorf("%w: got %d want %d", ErrRouteUnexpectedArea, state.Area.ID, p.segment.FromAreaID)
+	}
+	p.syncReachedPoints(state)
+	return nil
+}
+
+func (p *RouteSegmentPlayer) syncReachedPoints(state world.State) {
+	if !p.started {
+		p.previous = routePointPosition(p.segment.Points[0])
+		p.started = true
+	}
+	advanced := false
+	for p.point < len(p.segment.Points) && world.Distance(state.Player.Position, routePointPosition(p.segment.Points[p.point])) <= p.route.Playback.WaypointToleranceTiles {
+		p.previous = routePointPosition(p.segment.Points[p.point])
+		p.point++
+		p.corrections = 0
+		p.recovering = false
+		p.recoveryInput = routeRecoveryInput{}
+		advanced = true
+	}
+	if advanced {
+		p.navigator.Reset()
+	}
+}
+
+func (p *RouteSegmentPlayer) projectProgress(point int, previous world.Position, mode RouteProgressMode, target world.Position, available bool, drift float64) RouteProgress {
+	progress := RouteProgress{
+		RouteID:               p.route.ID,
+		SegmentID:             p.segment.ID,
+		SegmentIndex:          p.segmentIndex,
+		PointIndex:            point,
+		PreviousConfirmed:     previous,
+		MovementTarget:        target,
+		TargetAvailable:       available,
+		Mode:                  mode,
+		DriftTiles:            drift,
+		LocalRecoveryAttempts: p.corrections,
+	}
+	if mode == RouteProgressRecovery &&
+		p.recoveryInput.at != (time.Time{}) &&
+		p.recoveryInput.point == point &&
+		p.recoveryInput.target == target {
+		progress.RecoveryInputSent = true
+		progress.RecoveryInputAt = p.recoveryInput.at
+		progress.RecoveryInputOrigin = p.recoveryInput.origin
+		progress.RecoveryNextInputAt = p.recoveryInput.nextInputAt
+		progress.RecoveryOutcomeAt = p.recoveryInput.outcomeAt
+		progress.RecoveryProgressTiles = p.recoveryInput.progressTiles
+	}
+	return progress
 }
 
 // Segment returns the immutable segment selected for playback.
@@ -176,6 +327,13 @@ func (p *RouteSegmentPlayer) DriftTiles(position world.Position) float64 {
 
 func (p *RouteSegmentPlayer) tickNavigator(ctx context.Context, state world.State) (bool, error) {
 	result := p.navigator.Tick(ctx, state)
+	if p.recovering && result.MovementInputSent {
+		p.recoveryInput = routeRecoveryInput{
+			point: p.point, target: p.previous, origin: state.Player.Position, at: state.At,
+			nextInputAt: result.NextMovementInputAt, outcomeAt: result.MovementOutcomeAt,
+			progressTiles: result.MovementProgressTiles,
+		}
+	}
 	if result.Done && result.Status != NavArrived {
 		if p.corrections < p.route.Playback.MaxLocalCorrections {
 			p.corrections++

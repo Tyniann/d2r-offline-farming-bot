@@ -33,8 +33,9 @@ Spätere Navigation kann diese Regeln als Priorisierung nutzen: z. B. Tower Cell
 
 ## Route-Cache & Route-Recycling
 
-**Status:** `planned`
-**Ziel-Phase:** Phase 6, gemeinsam mit Run Recorder und Playback
+**Status:** `done`
+**Abgeschlossen:** Phase 6
+**Umsetzung:** [`docs/features/route-recording-playback.md`](features/route-recording-playback.md)
 **Verwandt:** Countess-Run, Pathing
 
 ### Kontext
@@ -76,9 +77,10 @@ Nur **erfolgreiche** Runs persistieren — fehlgeschlagene Exploration nicht cac
 
 ## Run Recorder (manuelle Route aufzeichnen)
 
-**Status:** `planned`
-**Ziel-Phase:** Phase 6; CLI zuerst, eine UI ist keine Voraussetzung
-**Verwandt:** Route-Cache (#1), Input Controller, Run-Definitionen, später Dashboard/UI
+**Status:** `done`
+**Abgeschlossen:** Phase 6; Dashboard und Guided Validation in Phase 12
+**Umsetzung:** [`docs/features/route-recording-playback.md`](features/route-recording-playback.md), [`docs/features/guided-route-recording.md`](features/guided-route-recording.md), [`docs/features/route-dashboard.md`](features/route-dashboard.md)
+**Verwandt:** Route-Cache (#1), Input Controller, Run-Definitionen, Dashboard/UI
 
 ### Kontext
 
@@ -168,5 +170,38 @@ Weltkoordinaten bevorzugen; Screen-Pixel nur wenn Transform noch unsauber ( dann
 ---
 
 ## Weitere Ideen
+
+### Gebietsabhängige Monster-Interest-Kataloge
+
+**Status:** `idea`
+
+**Ziel-Phase:** Beim nächsten neuen Combat-/Sweep-Run, spätestens mit dem Cow Level
+
+**Verwandt:** Memory Reader, World Model, Run Registry, Route-Threat-Combat, Nihlathak-Run
+
+#### Kontext
+
+Die Runtime-Monstererfassung verwendet derzeit einen globalen NPC-ID-Filter für alle unterstützten Runs. Das ist für die vorhandenen Countess-, Summoner- und Nihlathak-Kataloge noch überschaubar, würde mit weiteren Farmzielen jedoch stetig wachsen. Monster eines Gebiets könnten dadurch auch in anderen Runs unnötig in das begrenzte Memory-/World-Reservoir gelangen.
+
+Ein Filter direkt pro Route oder Run würde dieses Problem zwar begrenzen, aber `internal/memory` unerwünscht an fachliche Task- und Run-Definitionen koppeln.
+
+#### Idee
+
+Die Auswahl in zwei Verantwortungen aufteilen:
+
+1. `internal/memory` enumeriert anhand der aktuellen `AreaID` nur den gebietseigenen Monster-Interest-Katalog. Die Kataloge enthalten reguläre Hostiles und notwendige erzeugte Minions, schließen Spieler-Summons aber weiterhin aus.
+2. `internal/tasks` entscheidet unverändert anhand der Run-Capability und des aktuellen Zustands, welche der im World Model sichtbaren Monster tatsächlich Route-Threat, Bossziel oder Post-Boss-Cleanup-Ziel sind.
+
+Die Gebietskataloge sollten nach Möglichkeit aus den patchgenauen Spieldaten erzeugt oder zentral gepflegt werden. Ein neuer Combat-Run ergänzt damit einen Area-Katalog und eine Task-Policy, ohne den Memory-Layer mit Run-IDs oder Routentypen zu versehen.
+
+#### Auslöser für die Umsetzung
+
+- Ein weiterer größerer Combat-/Sweep-Run kommt hinzu.
+- Der globale Filter belastet das Monsterreservoir außerhalb seines Zielgebiets.
+- Dieselben NPC-IDs benötigen in unterschiedlichen Gebieten verschiedene Erfassungsregeln.
+
+Bis einer dieser Fälle eintritt, bleibt der bestehende globale Filter als bewusste KISS-/YAGNI-Lösung erhalten.
+
+---
 
 *(Neue Einträge unten anfügen — kurzer Titel, Status `idea`, Kontext, Ziel-Phase.)*

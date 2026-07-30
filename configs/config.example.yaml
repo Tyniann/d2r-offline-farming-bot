@@ -83,6 +83,9 @@ input:
       town_portal:
         key: f6
         button: right
+      amplify_damage:
+        key: f1
+        button: right
       bone_spear:
         key: f8
         button: right
@@ -131,6 +134,17 @@ runs:
         engage_distance_tiles: 22
         reposition_distance_tiles: 32
         kill_confirm_ticks: 3
+      route_combat:
+        enabled: true
+        immediate_radius_tiles: 18
+        corridor_width_tiles: 7
+        landing_radius_tiles: 10
+        attack_distance_tiles: 30
+        no_progress_timeout_ms: 12000
+        teleport_mana_reserve_percent: 20
+        resume_mana_percent: 35
+        emergency_mana_percent: 10
+        mana_recovery_timeout_ms: 5000
     nihlathak:
       combat:
         profile: necro_bone_spear
@@ -240,6 +254,10 @@ session:
     - route_drift_exceeded
     - route_segment_timeout
     - route_transition_failed
+    - route_clear_no_progress
+    - route_threat_out_of_range
+    - route_mana_recovery_failed
+    - route_recovery_unsafe
 
 pathing:
   # Abbruch, wenn weder Position (>= stuck_progress_tiles) noch Area sich ändern

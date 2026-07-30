@@ -56,6 +56,23 @@ func (p *RoutePlayer) Tick(ctx context.Context, state world.State) (bool, error)
 	return false, nil
 }
 
+// Progress delegates the read-only effective-target projection to the active segment.
+func (p *RoutePlayer) Progress(state world.State) (RouteProgress, bool) {
+	if p.done {
+		return RouteProgress{}, false
+	}
+	return p.segment.Progress(state)
+}
+
+// SyncReached commits Memory-confirmed reached points on the active segment
+// without sending route movement input.
+func (p *RoutePlayer) SyncReached(state world.State) error {
+	if p.done {
+		return nil
+	}
+	return p.segment.SyncReached(state)
+}
+
 // SegmentIndex returns the active zero-based segment index.
 func (p *RoutePlayer) SegmentIndex() int { return p.index }
 

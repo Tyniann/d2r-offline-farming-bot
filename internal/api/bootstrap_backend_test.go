@@ -30,6 +30,15 @@ func TestBootstrapBackendIsReadOnlyAndDeterministic(t *testing.T) {
 	if len(first.Profiles) != 1 || first.Profiles[0].ID != "necro_bone_spear" {
 		t.Fatalf("bootstrap setup profiles = %+v", first.Profiles)
 	}
+	for _, run := range first.Runs {
+		if run.RunID == "summoner" {
+			if !run.RouteCombat.Enabled || run.RouteCombat.NoProgressTimeoutMs != 12000 || run.RouteCombat.ManaRecoveryTimeoutMs != 5000 {
+				t.Fatalf("effective summoner route combat = %+v", run.RouteCombat)
+			}
+		} else if run.RouteCombat.Enabled {
+			t.Fatalf("route combat unexpectedly enabled for %s", run.RunID)
+		}
+	}
 	first.Runs[0].RunID = "mutated"
 	if second := backend.Catalog(); second.Runs[0].RunID == "mutated" {
 		t.Fatal("catalog caller mutation changed backend state")

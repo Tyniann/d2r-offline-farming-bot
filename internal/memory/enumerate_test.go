@@ -2,6 +2,7 @@ package memory
 
 import (
 	"encoding/binary"
+	"fmt"
 	"testing"
 )
 
@@ -269,7 +270,7 @@ func TestProbeSnapshotSkipsCorpseMonster(t *testing.T) {
 
 func TestAppendRuntimeMonsterNeverStarvesBossAndKeepsNearestCleanupTargets(t *testing.T) {
 	snap := Snapshot{PosX: 100, PosY: 100, Monsters: make([]MonsterUnit, 0)}
-	for i := 0; i < maxEntitiesPerCategory; i++ {
+	for i := 0; i < Phase17MaxRuntimeMonsters; i++ {
 		appendRuntimeMonster(&snap, MonsterUnit{
 			NPCID: 131, UnitID: uint32(i + 1), PosX: uint32(200 + i), PosY: 100,
 		})
@@ -280,7 +281,8 @@ func TestAppendRuntimeMonsterNeverStarvesBossAndKeepsNearestCleanupTargets(t *te
 	nearby := MonsterUnit{NPCID: 56, UnitID: 501, PosX: 101, PosY: 100}
 	appendRuntimeMonster(&snap, nearby)
 
-	if len(snap.Monsters) != maxEntitiesPerCategory+1 {
+	finalizeMonsterCoverage(&snap)
+	if len(snap.Monsters) != Phase17MaxRuntimeMonsters+1 {
 		t.Fatalf("monster count=%d, want bounded cleanup reservoir plus priority boss", len(snap.Monsters))
 	}
 	var bossFound, nearbyFound bool
@@ -290,6 +292,33 @@ func TestAppendRuntimeMonsterNeverStarvesBossAndKeepsNearestCleanupTargets(t *te
 	}
 	if !bossFound || !nearbyFound {
 		t.Fatalf("boss_found=%t nearby_found=%t monsters=%+v", bossFound, nearbyFound, snap.Monsters)
+	}
+	if snap.MonsterCoverage.EligibleMonsterCount != Phase17MaxRuntimeMonsters+2 ||
+		!snap.MonsterCoverage.MonstersTruncated ||
+		snap.MonsterCoverage.MonsterCoverageRadiusTiles != 610 {
+		t.Fatalf("coverage = %+v", snap.MonsterCoverage)
+	}
+}
+
+func TestRuntimeMonsterCoverageBoundaries(t *testing.T) {
+	for _, count := range []int{32, 33, Phase17MaxRuntimeMonsters, Phase17MaxRuntimeMonsters + 1} {
+		t.Run(fmt.Sprintf("%d", count), func(t *testing.T) {
+			snap := Snapshot{PosX: 100, PosY: 100, Monsters: make([]MonsterUnit, 0)}
+			for i := 0; i < count; i++ {
+				appendRuntimeMonster(&snap, MonsterUnit{NPCID: 40, UnitID: uint32(i + 1), PosX: uint32(101 + i), PosY: 100})
+			}
+			finalizeMonsterCoverage(&snap)
+			wantRetained := count
+			if wantRetained > Phase17MaxRuntimeMonsters {
+				wantRetained = Phase17MaxRuntimeMonsters
+			}
+			if len(snap.Monsters) != wantRetained || snap.MonsterCoverage.EligibleMonsterCount != count {
+				t.Fatalf("count=%d retained=%d coverage=%+v", count, len(snap.Monsters), snap.MonsterCoverage)
+			}
+			if got, want := snap.MonsterCoverage.MonstersTruncated, count > Phase17MaxRuntimeMonsters; got != want {
+				t.Fatalf("count=%d truncated=%t want=%t", count, got, want)
+			}
+		})
 	}
 }
 

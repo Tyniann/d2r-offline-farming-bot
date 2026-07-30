@@ -20,7 +20,11 @@ Waypoint-Ziel ist Halls of Pain (UI-Name „Halls of Death's Calling“). Die ge
 
 ### Boss und Combat
 
-NPC-ID `526` (`world.Nihlathak`), kein Super-Unique-Gate, leere `BossEngageSequence` → direkt Bone Spear. Kampfverhalten kann nach manuellem Live-Test nachgezogen werden (Corpse Explosion).
+NPC-ID `526` (`world.Nihlathak`), kein Super-Unique-Gate, leere `BossEngageSequence` → direkt Bone Spear. Die aufgezeichnete terminale Spielerposition ist der bevorzugte Kampfanker: Ist Nihlathaks sichtbarer Körper von dort in den spielbaren Clientbereich projizierbar, erfolgt kein Annäherungsteleport – auch dann nicht, wenn der allgemeine Boss-Distanzschwellwert überschritten ist. Nur bei tatsächlich unspielbarer Projektion wird entlang der bestehenden Linie zum Boss die entfernteste noch projizierbare Distanz bestimmt und genau ein Teleport gesendet. Danach sperren 700 ms Settle und ein frischer Snapshot jeden Folgeinput; ein zweiter Annäherungsteleport ist ausgeschlossen.
+
+Die körperversetzte Hover-Spirale verwendet Nihlathaks aktuelle Position nur als Ausgangspunkt. Sobald Memory irgendein lebendes Monster unter dem Cursor bestätigt, wird Bone Spear sofort durch dieses Ziel gecastet; es gibt keine zusätzliche Allowlist-, Distanz- oder Pin-Prüfung. Das ist für diesen Build beabsichtigt, weil Bone Spear Gegner durchdringt und so auch einen von seinem Rudel verdeckten Nihlathak trifft. Boss-Anwesenheit und Kill-Bestätigung bleiben davon getrennt und ausschließlich an die ursprünglich gepinnte Nihlathak-UnitID gebunden. Countess, Mephisto und das Summoner-Route-Interleave bleiben unverändert.
+
+Nach Memory-bestätigtem Bosskill ist diese CE-Gefahr beendet. Nihlathak verwendet deshalb anschließend den vorhandenen begrenzten `clear_nearby_hostiles`-Schritt innerhalb von 30 Tiles: Das Profil wirkt einmal Amplify Damage auf das erste hover-bestätigte lebende Ziel und räumt danach mit Bone Spear. Die Memory-Erfassung enthält dafür den vollständigen gebietseigenen Halls-of-Vaught-Hostile-Katalog, lässt Spieler-Summons jedoch weiterhin aus. Während dieses Post-Boss-Clears darf jedes bereits Memory-bestätigt gehovte lebende Monster sofort angegriffen werden, damit ein überlagerndes Rudel keine neue Aim-Schleife erzeugt. Wird ein Ziel nach der Hover-Suche nicht mehr in den spielbaren Clientbereich projiziert, merkt sich der Cleanup dessen UnitID als unbrauchbar und wählt im nächsten Tick den nächsten Gegner. Drei gegnerfreie beziehungsweise nur noch übersprungene Snapshots, drei Sekunden ohne gesendeten Combat-Input oder das Nihlathak-spezifische Budget von 40 tatsächlich gesendeten Aktionen geben Loot und Town Portal frei.
 
 ### Loot und Rückkehr
 
@@ -41,13 +45,15 @@ go run ./cmd/d2rbot --config configs/config.yaml --run nihlathak --phase boss --
 
 ## Live-Gate
 
-**Status:** Phase F ist am 28. Juli 2026 abgeschlossen.
+**Status:** Das ursprüngliche Phase-F-Gate wurde am 28. Juli 2026 abgeschlossen. Boss-Targeting und AD-/Bone-Spear-Post-Clear benötigen nach der Memory-Allowlist-Korrektur erneut eine fokussierte Sichtprüfung.
 
 Der produktive Hell-Lauf `nihlathak-20260728t213428999999999z-32fbc15b` in Session `session-20260728t213428999999999z-b6a82ca8` belegt das vollständige Live-Gate mit MrBones, Profil `necro_bone_spear`, Route `nihlathak-mrbones-8e0752f325` und Pickit-Kette `[gems, keys]`. Der Act-5-Waypoint führte memory-bestätigt in Area 123; die gebundene Multi-Segment-Route wechselte nach Halls of Vaught (Area 124) und endete mit sichtbarem Boss. Nihlathak wurde als UnitID 130 erworben und sein Kill bestätigt.
 
 Anschließend liefen Drop-Scan, Town Portal, Rückkehr nach Harrogath, Act-5-System-Egress, Wechsel ins Rogue Encampment, Personal Stash und `prepare_town_handoff` erfolgreich bis `run_completed`. Der Lauf dauerte zwischen `run_context` und `run_completed` rund 53,0 Sekunden. Ein Key of Destruction war für das Bestehen nicht erforderlich und fiel in diesem Lauf nicht.
 
 Damit sind Waypoint-Kalibrierung, Multi-Segment-Route, Assignment und ein produktiver Full Run nachgewiesen. Der unmittelbar folgende Queue-Zyklus derselben Session wurde per F11 (`emergency_stop_requested`) abgebrochen und zählt nicht gegen dieses Gate.
+
+Der spätere Run `nihlathak-20260730t013139999999999z-9c9cea99` erwarb den Boss innerhalb von 55 ms korrekt, schoss danach aber 70-mal im 400-ms-Abstand auf dieselbe projizierte Bodenkachel `(779,285)`. Drei Rejuvenations und zwei Heiltränke wurden verbraucht, bevor der Charakter starb. Das war kein Phase-17-Route-Combat-Eingriff: Nihlathak besitzt keine `route_clear`-Capability. Ursache war der ältere gemeinsame Boss-Pfad ohne Hover-Bestätigung; der oben dokumentierte Nihlathak-spezifische Wechsel behebt genau diese Zieloberfläche.
 
 ## Abhängigkeiten
 
@@ -63,4 +69,4 @@ Damit sind Waypoint-Kalibrierung, Multi-Segment-Route, Assignment und ein produk
 - [System-Egress](system-egress.md)
 
 ---
-*Zuletzt aktualisiert: 2026-07-28*
+*Zuletzt aktualisiert: 2026-07-30*

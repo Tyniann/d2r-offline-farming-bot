@@ -7,6 +7,40 @@ Versionierung nach [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.14.1] - 2026-07-30
+
+### Added
+- Add a bounded Nihlathak post-boss clear that opens with Amplify Damage and removes nearby living monsters with hover-confirmed Bone Spear before loot and Town Portal
+- Add read-only effective route progress and deadline-safe route holds without advancing navigation or transitions
+- Add Summoner-only route-clear configuration, a 512-monster coverage reservoir, and allocation-free Immediate/Landing/Corridor threat assessment
+- Add stationary profile-driven Summoner route clear with stable-clear, density-relief, out-of-range, and objective no-progress gates
+- Add Summoner route mana hysteresis, threat-aware emergency potions, non-blocking passive verification, and finite mana recovery
+- Add threat-guarded route recovery with confirmed movement-input projection and prevention of repeated ineffective teleports
+- Add transition-bounded route-threat telemetry, German failure messages, and a read-only projection of effective route-combat settings
+- Add threat-prioritized route Pickit that uses the player's active policy to collect every nearby `keep` match with bounded teleport-to-loot reuse before route movement
+- Add one hover-confirmed Amplify Damage opener on the first route blocker before the Bone Spear clear sequence
+
+### Changed
+- Replace the generic runtime-route validation message with a recording tip that asks ranged characters to finish at a suitable distance from the boss
+
+### Fixed
+- Prevent Nihlathak post-boss cleanup from parking indefinitely on an unprojectable hostile by skipping that UnitID and completing after three seconds without a combat input
+- Preserve Nihlathak's recorded route endpoint as the preferred combat anchor and allow only one projection-driven approach teleport followed by a fresh 700 ms settle
+- Enumerate the complete Halls of Vaught hostile roster for Nihlathak post-boss cleanup instead of falsely declaring the area clear before loot and Town Portal
+- Fire Nihlathak Bone Spear immediately through any Memory-confirmed living monster under the cursor while retaining boss-kill confirmation on Nihlathak's pinned UnitID
+- Prefer refillable mana potions over Rejuvenation potions during route-only mana emergencies while preserving Rejuvenation as the fallback and for critical HP
+- Attack any Memory-confirmed living monster already under the cursor during an active Summoner route clear instead of restarting an endless aim loop for the originally selected blocker
+- Treat an absent Summoner immediately after completed route playback as already killed, allowing cleanup and loot when the mercenary or a piercing route-clear attack killed the boss
+- Aim route-clear attacks at a visible-body anchor and probe deterministic nearby hover points instead of repeatedly targeting a monster's ground tile
+- Approach a repeatedly unprojectable route blocker with up to three measured Force-Move steps toward the validated next route point before reporting `route_threat_out_of_range`
+- Return through a town portal, normalize to Act 1, and verify the handoff before Save & Exit retries a recoverable route failure instead of stopping the farming queue
+- Retry an ignored quit-menu Escape once after Memory still confirms the menu closed, allowing the existing Save & Exit lifecycle to finish after controlled Act-1 return
+- Start one non-resetting three-second Save & Exit settle window after the first confirmed Rogue Encampment snapshot instead of waiting indefinitely for a stationary player and closed town UI
+- Commit Memory-confirmed route points during combat holds so post-clear playback cannot recover backward to a stale point
+- Persist installed-Core runtime logs under the product data root and report the complete offline-exit state once per second
+- Accept an overlapping hovered monster immediately when the fresh threat assessment proves it is living, allowlisted, in attack range, and blocking the active route geometry
+- Wait for the navigator's teleport-settle deadline before classifying post-loot route recovery as ineffective
+
 ## [0.13.0] - 2026-07-28
 
 ### Added

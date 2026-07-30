@@ -7,10 +7,23 @@ import (
 )
 
 var supportedSessionRetryClasses = map[string]struct{}{
-	"hard_stuck":              {},
-	"route_drift_exceeded":    {},
-	"route_segment_timeout":   {},
-	"route_transition_failed": {},
+	"hard_stuck":                 {},
+	"route_drift_exceeded":       {},
+	"route_segment_timeout":      {},
+	"route_transition_failed":    {},
+	"route_clear_no_progress":    {},
+	"route_threat_out_of_range":  {},
+	"route_mana_recovery_failed": {},
+	"route_recovery_unsafe":      {},
+}
+
+var legacySessionRetryClasses = []string{
+	"hard_stuck", "route_drift_exceeded", "route_segment_timeout", "route_transition_failed",
+}
+
+var defaultSessionRetryClasses = []string{
+	"hard_stuck", "route_drift_exceeded", "route_segment_timeout", "route_transition_failed",
+	"route_clear_no_progress", "route_threat_out_of_range", "route_mana_recovery_failed", "route_recovery_unsafe",
 }
 
 // SessionConfig defines finite budgets and static selection for an autonomous
@@ -85,8 +98,24 @@ func (c *SessionConfig) applyDefaults() {
 		c.StartTimeoutMs = 45000
 	}
 	if c.RetryClasses == nil {
-		c.RetryClasses = []string{"hard_stuck", "route_drift_exceeded", "route_segment_timeout", "route_transition_failed"}
+		c.RetryClasses = append([]string(nil), defaultSessionRetryClasses...)
+	} else if equalStrings(c.RetryClasses, legacySessionRetryClasses) {
+		// The exact pre-Phase-17 default is safe to migrate. Any reordered,
+		// reduced, or extended list is an operator decision and stays untouched.
+		c.RetryClasses = append([]string(nil), defaultSessionRetryClasses...)
 	}
+}
+
+func equalStrings(left, right []string) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for index := range left {
+		if left[index] != right[index] {
+			return false
+		}
+	}
+	return true
 }
 
 func (c SessionConfig) validate() error {

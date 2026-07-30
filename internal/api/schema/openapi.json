@@ -2386,7 +2386,37 @@
             "items": {
               "type": "string"
             }
+          },
+          "route_combat": {
+            "$ref": "#/components/schemas/RouteCombatConfigDTO"
           }
+        }
+      },
+      "RouteCombatConfigDTO": {
+        "type": "object",
+        "required": [
+          "enabled",
+          "immediate_radius_tiles",
+          "corridor_width_tiles",
+          "landing_radius_tiles",
+          "attack_distance_tiles",
+          "no_progress_timeout_ms",
+          "teleport_mana_reserve_percent",
+          "resume_mana_percent",
+          "emergency_mana_percent",
+          "mana_recovery_timeout_ms"
+        ],
+        "properties": {
+          "enabled": {"type": "boolean"},
+          "immediate_radius_tiles": {"type": "number"},
+          "corridor_width_tiles": {"type": "number"},
+          "landing_radius_tiles": {"type": "number"},
+          "attack_distance_tiles": {"type": "number"},
+          "no_progress_timeout_ms": {"type": "integer"},
+          "teleport_mana_reserve_percent": {"type": "integer"},
+          "resume_mana_percent": {"type": "integer"},
+          "emergency_mana_percent": {"type": "integer"},
+          "mana_recovery_timeout_ms": {"type": "integer"}
         }
       },
       "CommandRequest": {

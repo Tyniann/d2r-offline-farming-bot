@@ -22,7 +22,7 @@ SSE verwendet die bestehende monotone Eventfolge. `route_workflow_changed` enth�
 
 ## Bedienung
 
-Die Farming-Bibliothek zeigt niemals Town- oder Egress-Routen. Fehlende globale Egresses werden ausschließlich im Setup-Bereich pro Akt angezeigt. Der betroffene Akt zeigt dort dauerhaft den Core-Zustand: `preflight` bedeutet, dass der Memory-bestätigte Portal-Ankunftspunkt noch fehlt und die Aufnahme noch nicht läuft; erst `recording` fordert zum Loslaufen auf. Farming-Aufnahmen verwenden davon getrennte Anweisungen: am Startwegpunkt warten, erst bei `recording` der Teleport-Route folgen, den Boss nicht angreifen und an der gewählten Kampfposition F9 drücken. Freeze, Prüfung, beide TP-Rückwege und Kandidaten-Playback weisen ausdrücklich darauf hin, dass keine Benutzereingabe erfolgen darf. Bereits vorhandene Egresses können isoliert abgespielt werden.
+Die Farming-Bibliothek zeigt niemals Town- oder Egress-Routen. Fehlende globale Egresses werden ausschließlich im Setup-Bereich pro Akt angezeigt. Der betroffene Akt zeigt dort dauerhaft den Core-Zustand: `preflight` bedeutet, dass der Memory-bestätigte Portal-Ankunftspunkt noch fehlt und die Aufnahme noch nicht läuft; erst `recording` fordert zum Loslaufen auf. Farming-Aufnahmen verwenden davon getrennte Anweisungen: am Startwegpunkt warten, erst bei `recording` der Teleport-Route folgen, den Boss nicht angreifen und an der gewählten Kampfposition F9 drücken. Die Run-Bereitschaft ersetzt den früheren abstrakten Validierungstext durch einen konkreten Hinweis: Fernkämpfer sollen die Aufnahme mit etwas Abstand zum Boss beenden, weil diese Position später als Kampfanker dient. Freeze, Prüfung, beide TP-Rückwege und Kandidaten-Playback weisen ausdrücklich darauf hin, dass keine Benutzereingabe erfolgen darf. Bereits vorhandene Egresses können isoliert abgespielt werden.
 
 Kandidaten werden auf den ausgewählten Charakter gefiltert. Da das Routenfeature bereits vor der asynchronen Core-Bestätigung gemountet wird, übernimmt es einen später bestätigten Charakter in seinen anfangs leeren Filterzustand; eine bewusst manuell gewählte andere Bibliotheksansicht wird nicht überschrieben. Kandidaten können erst aus `validated` getestet und erst nach `test_passed` zur revisionsgebundenen Veröffentlichung vorgeschlagen werden. Während eines aktiven Workflows sind weitere Aufnahme-, Test- und Managementaktionen gesperrt. Archive, Restore und endgültiges Delete verwenden zugängliche Preview-/Confirm-Dialoge; Escape schließt, der passende Bestätigungsbereich erhält Fokus. Bei Delete muss der Benutzer die angezeigte Route-ID exakt selbst eingeben. Beim Replace nennt der eine Freigabedialog den unverändert zu archivierenden Vorgänger.
 
@@ -44,4 +44,4 @@ Der vollständige Countess-Zyklus wurde im Dashboard erfolgreich abgenommen: gef
 - [Lokale Core-API](local-core-api.md)
 
 ---
-*Zuletzt aktualisiert: 18. Juli 2026*
+*Zuletzt aktualisiert: 30. Juli 2026*
