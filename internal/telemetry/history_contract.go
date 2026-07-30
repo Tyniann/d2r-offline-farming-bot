@@ -172,6 +172,7 @@ var historyReasonMessages = map[HistoryReasonCode]string{
 	"town_service_verify_timeout":       "Der Stadtdienst wurde nicht rechtzeitig bestätigt.",
 	"route_clear_no_progress":           "Beim Freikämpfen der Route wurde zwölf Sekunden lang kein sicherer Fortschritt bestätigt.",
 	"route_threat_out_of_range":         "Ein Gegner blieb auch nach drei wirkungslosen Annäherungsversuchen nicht sicher angreifbar.",
+	"boss_combat_unprojectable":         "Der Boss blieb nach der einmaligen Annäherung nicht sicher anzielbar; der Run kehrt kontrolliert nach Akt 1 zurück und startet neu.",
 	"retry_return_failed":               "Die kontrollierte Rückkehr nach Akt 1 vor dem Run-Neustart ist fehlgeschlagen.",
 	"route_mana_recovery_failed":        "Die Manareserve für die Route konnte nicht rechtzeitig wiederhergestellt werden.",
 	"route_recovery_unsafe":             "Eine wirkungslose oder bedrohte Routenkorrektur wurde sicher abgebrochen.",

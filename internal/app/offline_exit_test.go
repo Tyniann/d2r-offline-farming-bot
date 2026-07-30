@@ -66,7 +66,6 @@ func TestOfflineExitMachineRejectsUnsafeInitialStates(t *testing.T) {
 		want  string
 	}{
 		{name: "wrong area", state: func() world.State { s := safeOfflineExitState(); s.Area = world.LookupArea(world.BlackMarsh); return s }(), want: "Rogue Encampment"},
-		{name: "quit already open", state: func() world.State { s := safeOfflineExitState(); s.UI.QuitMenuOpen = true; return s }(), want: "initially closed"},
 		{name: "menu", state: world.State{Phase: world.GamePhaseMenu}, want: "requires in_game"},
 	}
 	for _, tc := range tests {
@@ -78,6 +77,15 @@ func TestOfflineExitMachineRejectsUnsafeInitialStates(t *testing.T) {
 			}
 		})
 	}
+	t.Run("quit already open advances without settle", func(t *testing.T) {
+		machine := &offlineExitMachine{}
+		state := safeOfflineExitState()
+		state.UI.QuitMenuOpen = true
+		action, done, err := machine.tick(time.Unix(100, 0), state)
+		if err != nil || done || action != offlineExitNoAction || machine.stage != offlineExitAwaitQuitMenu {
+			t.Fatalf("action=%d done=%v stage=%s err=%v", action, done, machine.stage, err)
+		}
+	})
 }
 
 func TestOfflineExitMachineWaitsForTownUIToCloseBeforeSettle(t *testing.T) {
@@ -152,13 +160,8 @@ func TestOfflineExitMachineRestartsSettleWhenPlayerMoves(t *testing.T) {
 	_, _, _ = machine.tick(now, state)
 	state.Player.Position.X++
 	action, done, err := machine.tick(now.Add(offlineExitTownSettle), state)
-	if err != nil || done || action != offlineExitNoAction {
-		t.Fatalf("moving settle tick = action %d done %v err %v", action, done, err)
-	}
-	_, _, _ = machine.tick(now.Add(offlineExitTownSettle+time.Millisecond), state)
-	action, done, err = machine.tick(now.Add(2*offlineExitTownSettle), state)
 	if err != nil || done || action != offlineExitPressEscape {
-		t.Fatalf("settled tick = action %d done %v err %v", action, done, err)
+		t.Fatalf("moving settle tick = action %d done %v err %v", action, done, err)
 	}
 }
 

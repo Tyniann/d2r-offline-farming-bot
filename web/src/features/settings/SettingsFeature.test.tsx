@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { OperatorSettingsChangeDTO, OperatorSettingsDTO } from "../../api/generated";
 import { SettingsFeature } from "./SettingsFeature";
@@ -49,40 +49,48 @@ describe("SettingsFeature", () => {
   });
   afterEach(() => { cleanup(); delete window.d2rDesktop; });
 
-  it("bindet Operator- und Desktopwerte, Vorschau und kontrollierten Restart", async () => {
+  it("speichert Farming-Änderungen über Speichern und meldet Dirty-State", async () => {
     const changed = change({ ...operator, revision: 5, input: { ...operator.input, pause_hotkey: "f8" } }, ["input.pause_hotkey"], true);
+    const onSettingsApplied = vi.fn();
+    const onDirtyChange = vi.fn();
     mocks.preview.mockResolvedValue(changed);
     mocks.save.mockResolvedValue(changed);
-    renderFeature();
+    render(<SettingsFeature generation={12} coreState="idle" characters={["mrbones"]} runs={defaultRuns()} events={[]} onSettingsApplied={onSettingsApplied} onDirtyChange={onDirtyChange} />);
 
     fireEvent.change(await screen.findByLabelText("Pause"), { target: { value: "f8" } });
-    fireEvent.click(screen.getByRole("button", { name: "Änderungen prüfen" }));
-    expect(await screen.findByRole("dialog", { name: "Änderungen speichern?" })).toHaveTextContent("input.pause_hotkey");
+    await waitFor(() => expect(onDirtyChange).toHaveBeenCalledWith(true));
+    expect(screen.getByRole("button", { name: "Speichern" })).toBeEnabled();
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+    expect(await screen.findByRole("dialog", { name: "Änderungen speichern?" })).toHaveTextContent("Pause-Hotkey");
     expect(mocks.preview).toHaveBeenCalledWith(expect.objectContaining({ expected_revision: 4, expected_generation: 12, settings: expect.objectContaining({ revision: 4 }) }));
     expect(mocks.preview.mock.calls[0][0].settings.characters.mrbones).toMatchObject({
       character_class: "necromancer",
       combat_profile: "necro_bone_spear",
     });
-    const save = screen.getByRole("button", { name: "Revisionsgebunden speichern" });
-    await waitFor(() => expect(save).toBeEnabled());
-    fireEvent.click(save);
+    fireEvent.click(screen.getByRole("button", { name: "Jetzt speichern" }));
     await waitFor(() => expect(mocks.save).toHaveBeenCalledWith(expect.objectContaining({ expected_revision: 4, expected_generation: 12 })));
+    expect(onSettingsApplied).toHaveBeenCalledOnce();
     expect(await screen.findByText("Core-Neustart erforderlich", {}, { timeout: 3000 })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Core kontrolliert neu starten" }));
     await waitFor(() => expect(mocks.restartCore).toHaveBeenCalledOnce());
+  });
 
+  it("speichert Autostart im App-Tab sofort ohne eigenen Speichern-Button", async () => {
+    renderFeature();
+    fireEvent.click(await screen.findByRole("tab", { name: "App" }));
+    expect(screen.queryByRole("button", { name: "Desktop-Einstellungen speichern" })).not.toBeInTheDocument();
     fireEvent.click(screen.getByLabelText("App mit Windows starten"));
-    fireEvent.click(screen.getByRole("button", { name: "Desktop-Einstellungen speichern" }));
     await waitFor(() => expect(mocks.updateDesktop).toHaveBeenCalledWith({ autostart: true, onboarding_completed: false }));
+    expect(await screen.findByText("Gespeichert ✓")).toBeInTheDocument();
   });
 
   it("zeigt Resetvorschau und einen stale Revision-Konflikt persistent", async () => {
     mocks.previewReset.mockResolvedValue(change({ ...operator, revision: 5 }, ["budgets.max_runs"], false));
     mocks.restore.mockRejectedValue(new Error("Die Einstellungen wurden zwischenzeitlich geändert."));
     renderFeature();
-    fireEvent.click(await screen.findByRole("button", { name: "Sichere Defaults vorschauen" }));
-    expect(await screen.findByRole("dialog", { name: "Sichere Defaults anwenden?" })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Defaults anwenden" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Auf sichere Standardwerte zurücksetzen" }));
+    expect(await screen.findByRole("dialog", { name: "Sichere Standardwerte anwenden?" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Standardwerte anwenden" }));
     expect(await screen.findByText("Revision ist veraltet")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Aktuellen Stand laden" })).toBeInTheDocument();
   });
@@ -90,10 +98,12 @@ describe("SettingsFeature", () => {
   it("zeigt Sperrhinweis und gesperrte Felder außerhalb des inaktiven Corezustands", async () => {
     render(<SettingsFeature generation={12} coreState="idle_in_game" characters={["mrbones"]} runs={[{ id: "countess", label: "Countess" }]} events={[]} />);
     expect(await screen.findByText("Diese Einstellungen sind gesperrt")).toBeInTheDocument();
-    expect(screen.getByText(/Die Felder und Speicheraktionen sind derzeit nicht änderbar/)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Änderungen prüfen" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Sichere Defaults vorschauen" })).toBeDisabled();
+    expect(screen.getAllByText(/Gesperrt, solange eine Session läuft/).length).toBeGreaterThan(0);
+    expect(screen.getByRole("button", { name: "Speichern" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Auf sichere Standardwerte zurücksetzen" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("tab", { name: "Wartung" }));
     expect(screen.getByRole("button", { name: "Löschvorschau erstellen" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("tab", { name: "Farming" }));
     expect(screen.getByLabelText("Maximale Runs")).toBeDisabled();
   });
 
@@ -101,14 +111,15 @@ describe("SettingsFeature", () => {
     renderFeature();
     expect(await screen.findByLabelText("Maximale Runs")).toBeEnabled();
     expect(screen.queryByText("Diese Einstellungen sind gesperrt")).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Änderungen prüfen" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Speichern" })).toBeDisabled();
   });
 
   it("löscht Historie nur über metadatengebundene zweite Bestätigung", async () => {
     mocks.previewDelete.mockResolvedValue({ confirmation_token: "one-use", index_generation: 7, candidate_files: 4, candidate_bytes: 1234, protected_files: 1, categories: { schema3_run: 2, legacy: 2 } });
     mocks.confirmDelete.mockResolvedValue({ deleted_files: 4, deleted_bytes: 1234, protected_files: 1, diagnostics: [] });
     renderFeature();
-    fireEvent.click(await screen.findByRole("button", { name: "Löschvorschau erstellen" }));
+    fireEvent.click(await screen.findByRole("tab", { name: "Wartung" }));
+    fireEvent.click(screen.getByRole("button", { name: "Löschvorschau erstellen" }));
     const dialog = await screen.findByRole("dialog", { name: "Gesamte Historie dauerhaft löschen?" });
     expect(dialog).toHaveTextContent("4 direkte Datei(en)");
     expect(dialog).toHaveTextContent("schema3_run: 2");
@@ -121,6 +132,7 @@ describe("SettingsFeature", () => {
 
   it("zeigt Versionsstatus, manuellen Retry und ausschließlich die feste Release-Aktion", async () => {
     renderFeature();
+    fireEvent.click(await screen.findByRole("tab", { name: "App" }));
     expect(await screen.findByText("Installiert: 1.2.3. Kein neueres stabiles Release gefunden.")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Erneut prüfen" }));
     expect(await screen.findByText("Installiert: 1.2.3. Veröffentlicht: 1.3.0.")).toBeInTheDocument();
@@ -131,19 +143,36 @@ describe("SettingsFeature", () => {
   it("erstellt Diagnose standardmäßig ohne sensitive Opt-ins und zeigt nur den lokalen Dateinamen", async () => {
     mocks.createDiagnostic.mockResolvedValue({ filename: "diagnose-20260726T120000Z-aabbccdd.zip", bytes: 2048, included_telemetry: false, included_routes: false });
     renderFeature();
-    fireEvent.click(await screen.findByRole("button", { name: "Redigiertes ZIP lokal erstellen" }));
+    fireEvent.click(await screen.findByRole("tab", { name: "Wartung" }));
+    fireEvent.click(screen.getByRole("button", { name: "Redigiertes ZIP lokal erstellen" }));
     await waitFor(() => expect(mocks.createDiagnostic).toHaveBeenCalledWith({ include_telemetry: false, include_routes: false }));
     expect(mocks.revealDiagnostic).toHaveBeenCalledWith("diagnose-20260726T120000Z-aabbccdd.zip");
     expect(await screen.findByText(/Diagnosepaket diagnose-/)).toBeInTheDocument();
   });
 
-  it("bietet neue Katalog-Runs zum manuellen Ergänzen der Queue an", async () => {
+  it("ergänzt Queue-Runs per Klick und per Drag aus dem Katalog", async () => {
     renderFeature();
-    const runSelect = await screen.findByRole("combobox", { name: "Run hinzufügen" });
-    expect(runSelect).toHaveTextContent("Summoner");
-    expect(runSelect).toHaveTextContent("Nihlathak");
+    const catalog = await screen.findByRole("heading", { name: "Verfügbare Runs" });
+    const pane = catalog.closest(".settings-queue-pane");
+    expect(pane).toBeTruthy();
+    expect(within(pane as HTMLElement).getByRole("button", { name: "+ Summoner" })).toBeInTheDocument();
+    expect(within(pane as HTMLElement).getByRole("button", { name: "+ Nihlathak" })).toBeInTheDocument();
+    fireEvent.click(within(pane as HTMLElement).getByRole("button", { name: "+ Summoner" }));
+    expect(screen.getByText("Summoner")).toBeInTheDocument();
+
+    const nihlathakRow = within(pane as HTMLElement).getByRole("button", { name: "+ Nihlathak" }).closest("li");
+    const dropPane = screen.getByTestId("queue-drop-pane");
+    expect(nihlathakRow).toBeTruthy();
+    fireEvent.dragStart(nihlathakRow as HTMLElement, { dataTransfer: { setData: vi.fn(), effectAllowed: "copy" } });
+    // jsdom dataTransfer is limited; exercise drop path via a synthetic transfer.
+    const transfer = { getData: (type: string) => type === "text/plain" ? "add:nihlathak" : "", dropEffect: "copy", types: ["text/plain"] };
+    fireEvent.dragOver(dropPane, { dataTransfer: transfer });
+    fireEvent.drop(dropPane, { dataTransfer: transfer });
+    expect(screen.getByText("Nihlathak")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Speichern" })).toBeEnabled();
   });
-  it("zeigt die vom Core aufgelösten Route-Combat-Werte read-only", async () => {
+
+  it("zeigt die vom Core aufgelösten Route-Combat-Werte read-only unter Wartung", async () => {
     render(<SettingsFeature generation={12} coreState="idle" characters={["mrbones"]} runs={[{
       id: "summoner", label: "Summoner", routeCombat: {
         enabled: true, immediate_radius_tiles: 18, corridor_width_tiles: 7, landing_radius_tiles: 10,
@@ -151,20 +180,35 @@ describe("SettingsFeature", () => {
         resume_mana_percent: 35, emergency_mana_percent: 10, mana_recovery_timeout_ms: 5000,
       },
     }]} events={[]} />);
+    fireEvent.click(await screen.findByRole("tab", { name: "Wartung" }));
     const summary = await screen.findByText("Effektive Route-Combat-Werte (read-only)");
     fireEvent.click(summary);
     expect(summary.parentElement).toHaveTextContent('"no_progress_timeout_ms": 12000');
     expect(summary.parentElement).toHaveTextContent('"enabled": true');
   });
+
+  it("verwirft lokale Farming-Änderungen ohne Core-Aufruf", async () => {
+    renderFeature();
+    fireEvent.change(await screen.findByLabelText("Pause"), { target: { value: "f8" } });
+    expect(screen.getByRole("button", { name: "Speichern" })).toBeEnabled();
+    fireEvent.click(screen.getByRole("button", { name: "Verwerfen" }));
+    expect(screen.getByLabelText("Pause")).toHaveValue("pause");
+    expect(screen.getByRole("button", { name: "Speichern" })).toBeDisabled();
+    expect(mocks.preview).not.toHaveBeenCalled();
+  });
 });
 
+function defaultRuns() {
+  return [
+    { id: "countess", label: "Countess", status: "available" },
+    { id: "mephisto", label: "Mephisto", status: "available" },
+    { id: "nihlathak", label: "Nihlathak", status: "runtime_validation_required" },
+    { id: "summoner", label: "Summoner", status: "available" },
+  ];
+}
+
 function renderFeature() {
-  return render(<SettingsFeature generation={12} coreState="idle" characters={["mrbones"]} runs={[
-    { id: "countess", label: "Countess" },
-    { id: "mephisto", label: "Mephisto" },
-    { id: "nihlathak", label: "Nihlathak" },
-    { id: "summoner", label: "Summoner" },
-  ]} events={[]} />);
+  return render(<SettingsFeature generation={12} coreState="idle" characters={["mrbones"]} runs={defaultRuns()} events={[]} />);
 }
 
 function change(settings: OperatorSettingsDTO, fields: string[], restart: boolean): OperatorSettingsChangeDTO {

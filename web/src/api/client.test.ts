@@ -66,10 +66,14 @@ describe("live events", () => {
     vi.stubGlobal("EventSource", FakeEventSource);
     const states: string[] = [];
     const snapshots: unknown[] = [];
-    const disconnect = connectLiveEvents(snapshots.push.bind(snapshots), vi.fn(), states.push.bind(states));
+    const events: unknown[] = [];
+    const disconnect = connectLiveEvents(snapshots.push.bind(snapshots), events.push.bind(events), states.push.bind(states));
     listeners.get("snapshot")?.({ data: '{"state":"idle"}' } as unknown as Event);
     expect(states).toEqual(["wird verbunden"]);
     expect(snapshots).toEqual([{ state: "idle" }]);
+    expect(listeners.has("operator_settings_changed")).toBe(true);
+    listeners.get("operator_settings_changed")?.({ data: '{"event":"operator_settings_changed","details":{"revision":5}}' } as unknown as Event);
+    expect(events).toEqual([{ event: "operator_settings_changed", details: { revision: 5 } }]);
     disconnect();
     expect(close).toHaveBeenCalledOnce();
   });

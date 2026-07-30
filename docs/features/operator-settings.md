@@ -13,6 +13,9 @@ Abschnitt 15.2 macht den Go-Core zur einzigen Autorität für alle über die GUI
 - **Generierter Client:** `web/src/api/generated.ts`
 - **Persistenz:** `<Datenroot>/configs/operator-settings.local.yaml`
 - **Backups:** `<Datenroot>/backups/operator-settings-*.yaml`
+- **UI:** `web/src/features/settings/` (`SettingsFeature.tsx`, Tabs, `QueueEditor`, `SettingsActionBar`, `settingsDiff.ts`)
+- **Shell-Guard:** `web/src/app/App.tsx` (`onDirtyChange`, Navigationsdialog)
+- **Styles:** `web/src/app/app.css` (`.settings-tabs`, `.settings-actionbar`, `.settings-queue-editor`)
 
 ## Funktionalität
 
@@ -53,7 +56,7 @@ Die allgemeine Settings-Preview-/Update-API projiziert Klasse und Profil nur les
 
 Nur der dedizierte Charakter-Setup-Command darf `character_class` und `combat_profile` gemeinsam setzen. Der `CharacterCatalogStore` projiziert dieses Paar gegen einen frisch gelesenen Saveheader und die aktuelle Profilfreigabe; ein leeres, klassenfremdes oder nicht mehr freigegebenes Paar macht den Charakter nicht auswählbar. Ein bereits bestätigter Auswahlkontext wird beim Core-Start verworfen, falls diese Prüfung nicht mehr besteht.
 
-Nach einer erfolgreichen allgemeinen Mutation übernimmt der Core Queue und Budgets bei inaktiver Session gemeinsam in die nächste Runtime-Konfiguration und die Statusprojektion. Danach veröffentlicht er `operator_settings_changed`; der Renderer lädt den autoritativen Status neu und kann keine vor dem Speichern gecachte Queue zurück an den Startpfad senden. Input- und Hotkeyänderungen bleiben hiervon ausgenommen und werden weiterhin erst durch den ausdrücklich angezeigten kontrollierten Core-Neustart wirksam.
+Nach einer erfolgreichen allgemeinen Mutation übernimmt der Core Queue und Budgets bei inaktiver Session gemeinsam in die nächste Runtime-Konfiguration und die Statusprojektion. Danach veröffentlicht er `operator_settings_changed`; der Renderer abonniert dieses SSE-Ereignis in `connectLiveEvents` und lädt den autoritativen Status neu. Zusätzlich ruft die Settings-Seite nach erfolgreichem Speichern oder Reset `onSettingsApplied` auf, damit das Dashboard die Queue ohne App-Neustart übernimmt und keine vor dem Speichern gecachte Queue an den Startpfad senden kann. Input- und Hotkeyänderungen bleiben hiervon ausgenommen und werden weiterhin erst durch den ausdrücklich angezeigten kontrollierten Core-Neustart wirksam.
 
 ## Datenmodell
 
@@ -66,7 +69,7 @@ Nach einer erfolgreichen allgemeinen Mutation übernimmt der Core Queue und Budg
 
 Die Datei ist Core-eigene Persistenz und nicht für paralleles manuelles Editieren während des Betriebs gedacht. Konflikte werden nicht gemergt. Der Repositorybetrieb ohne expliziten Datenroot bleibt weiterhin allein durch `config.yaml` bestimmt.
 
-Seit Abschnitt 15.6 bildet die Settings-Seite Read, Preview, Update, Resetvorschau und Reset direkt ab. Sie hält Revisionkonflikte bis zum expliziten Neuladen sichtbar, sperrt Mutationen während aktiver Sessions und bietet bei `restart_required` ausschließlich den kontrollierten Electron-Core-Neustart an. Effektive Werte und Speicherort werden nur lesbar projiziert.
+Seit Abschnitt 15.6 bildet die Settings-Seite Read, Preview, Update, Resetvorschau und Reset direkt ab. Die Bedienoberfläche trennt die Speicherziele in die Tabs **Farming** (revisioniertes Core-Dokument), **App** (Desktop-Store) und **Wartung** (Sofortaktionen). Farming speichert über eine sticky Action-Bar: `Speichern` führt intern Preview und Bestätigungsdialog aus; `Verwerfen` setzt nur den lokalen Draft zurück. Ungespeicherte Farming-Änderungen blockieren die Hash-Navigation und `beforeunload`. Autostart im App-Tab speichert sofort beim Umschalten. Die Run-Reihenfolge ist ein Zwei-Spalten-Editor mit Katalogbereitschaft, ↑↓ sowie Drag & Drop zum Umsortieren und zum Ziehen von Katalog-Runs in die aktive Queue. Die Seite hält Revisionkonflikte bis zum expliziten Neuladen sichtbar, sperrt Mutationen während aktiver Sessions und bietet bei `restart_required` ausschließlich den kontrollierten Electron-Core-Neustart an. Effektive Werte und Speicherort werden unter Wartung nur lesbar projiziert.
 
 ## Abhängigkeiten
 
@@ -85,4 +88,4 @@ Seit Abschnitt 15.6 bildet die Settings-Seite Read, Preview, Update, Resetvorsch
 - [Charaktereinrichtung](character-setup.md)
 
 ---
-*Zuletzt aktualisiert: 28. Juli 2026*
+*Zuletzt aktualisiert: 30. Juli 2026*

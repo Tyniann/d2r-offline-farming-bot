@@ -48,15 +48,38 @@ describe("PickitFeature", () => {
     expect(rules[0]).toHaveTextContent("rare");
   });
 
-  it("dupliziert Profile und zeigt den Delete-Block des Core", async () => {
-    const prompt = vi.spyOn(window, "prompt").mockReturnValueOnce("base-kopie").mockReturnValueOnce("Basis Kopie");
-    vi.spyOn(window, "confirm").mockReturnValue(true); mocks.remove.mockRejectedValueOnce(new Error("Profil ist noch zugeordnet."));
+  it("legt Profile über In-App-Dialoge an und dupliziert sie", async () => {
+    mocks.create.mockResolvedValueOnce({ schema_version: 1, revision: 1, id: "mein-profil", name: "Mein Profil", rules: [{ id: "regel-1", action: "keep", expression: `[type] == "rune"` }] });
+    mocks.remove.mockRejectedValueOnce(new Error("Profil ist noch zugeordnet."));
     renderFeature(); await screen.findByRole("heading", { name: "Basis" });
+    fireEvent.click(screen.getByRole("button", { name: "Neu" }));
+    expect(screen.getByRole("dialog", { name: "Neues Pickit-Profil" })).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Profil-ID"), { target: { value: "mein-profil" } });
+    fireEvent.change(screen.getByLabelText("Anzeigename"), { target: { value: "Mein Profil" } });
+    fireEvent.click(screen.getByRole("button", { name: "Profil anlegen" }));
+    await waitFor(() => expect(mocks.create).toHaveBeenCalledWith({ profile: { schema_version: 1, revision: 1, id: "mein-profil", name: "Mein Profil", rules: [{ id: "regel-1", action: "keep", expression: `[type] == "rune"` }] } }));
+    expect(await screen.findByRole("heading", { name: "Mein Profil" })).toBeInTheDocument();
+
     fireEvent.click(screen.getByRole("button", { name: "Duplizieren" }));
-    await waitFor(() => expect(mocks.duplicate).toHaveBeenCalledWith("base", { target_id: "base-kopie", target_name: "Basis Kopie" }));
-    expect(prompt).toHaveBeenCalledTimes(2);
+    expect(screen.getByRole("dialog", { name: "Profil duplizieren" })).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Profil-ID"), { target: { value: "base-kopie" } });
+    fireEvent.change(screen.getByLabelText("Anzeigename"), { target: { value: "Basis Kopie" } });
+    fireEvent.click(screen.getByRole("button", { name: "Kopie anlegen" }));
+    await waitFor(() => expect(mocks.duplicate).toHaveBeenCalledWith("mein-profil", { target_id: "base-kopie", target_name: "Basis Kopie" }));
+
     fireEvent.click(screen.getByRole("button", { name: "Löschen" }));
+    expect(screen.getByRole("dialog", { name: "Profil löschen?" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Endgültig löschen" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("zugeordnet");
+  });
+
+  it("lehnt ungültige Profil-IDs im Dialog ab", async () => {
+    renderFeature(); await screen.findByRole("heading", { name: "Basis" });
+    fireEvent.click(screen.getByRole("button", { name: "Neu" }));
+    fireEvent.change(screen.getByLabelText("Profil-ID"), { target: { value: "Mein Profil" } });
+    fireEvent.click(screen.getByRole("button", { name: "Profil anlegen" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Kleinbuchstaben-Slug");
+    expect(mocks.create).not.toHaveBeenCalled();
   });
 
   it("zeigt Importfehler, stale Save und leere Assignment-Validierung verständlich", async () => {

@@ -182,6 +182,7 @@ func TestPhase14CoreContractIsStable(t *testing.T) {
 	for _, code := range []HistoryReasonCode{
 		"route_clear_no_progress",
 		"route_threat_out_of_range",
+		"boss_combat_unprojectable",
 		"retry_return_failed",
 		"route_mana_recovery_failed",
 		"route_recovery_unsafe",

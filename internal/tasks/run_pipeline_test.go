@@ -382,3 +382,57 @@ func TestRetryReturnPrecheckRequiresRouteTerminalArea(t *testing.T) {
 		t.Fatalf("wrong-area retry precheck = %+v", wrongArea)
 	}
 }
+
+func nihlathakBossState(player world.Position, boss world.Monster) world.State {
+	state := healthy(areaState(world.HallsOfVaught))
+	state.At = time.Unix(1, 0).UTC()
+	state.Player.Position = player
+	state.Monsters = []world.Monster{boss}
+	return state
+}
+
+func TestNihlathakEngageUsesOneApproachThenRetryableProjectionLoss(t *testing.T) {
+	definition, _ := DefaultRunRegistry().Definition(RunIDNihlathak)
+	boss := world.Monster{NPCID: world.Nihlathak, UnitID: 42, Position: world.Position{X: 200, Y: 200}}
+	aimFalse := false
+	combat := &mockCombatActions{aimProjectable: &aimFalse, farthestDistance: 18, farthestOK: boolPtr(true)}
+	pipeline := &runPipeline{
+		definition:   definition,
+		combat:       killRunConfig().Combat,
+		targetSeen:   true,
+		targetUnitID: boss.UnitID,
+	}
+	now := time.Unix(10, 0).UTC()
+	state := nihlathakBossState(world.Position{X: 100, Y: 100}, boss)
+
+	first := pipeline.onBossTick(context.Background(), Deps{Combat: combat}, pipelineStepEngageBoss, state, now)
+	if first.failed || first.complete || combat.teleportCalls != 1 || !pipeline.bossApproachAttempted {
+		t.Fatalf("first approach = %+v teleports=%d attempted=%t", first, combat.teleportCalls, pipeline.bossApproachAttempted)
+	}
+
+	settled := state
+	settled.At = state.At.Add(time.Second)
+	lost := pipeline.onBossTick(context.Background(), Deps{Combat: combat}, pipelineStepEngageBoss, settled, now.Add(bossApproachSettle+time.Millisecond))
+	if !lost.failed || lost.reason != "boss_combat_unprojectable" || combat.teleportCalls != 1 || pipeline.bossApproachPending {
+		t.Fatalf("projection loss = %+v teleports=%d pending=%t, want boss_combat_unprojectable without second approach", lost, combat.teleportCalls, pipeline.bossApproachPending)
+	}
+}
+
+func TestNihlathakEngageUnprojectableCastAfterApproachIsRetryable(t *testing.T) {
+	definition, _ := DefaultRunRegistry().Definition(RunIDNihlathak)
+	boss := world.Monster{NPCID: world.Nihlathak, UnitID: 42, Position: world.Position{X: 120, Y: 100}, IsHovered: true}
+	combat := &mockCombatActions{castMonsterErr: profile.ErrRouteClearTargetUnprojectable}
+	pipeline := &runPipeline{
+		definition:           definition,
+		combat:               killRunConfig().Combat,
+		targetSeen:           true,
+		targetUnitID:         boss.UnitID,
+		bossApproachAttempted: true,
+	}
+	result := pipeline.onBossTick(context.Background(), Deps{Combat: combat}, pipelineStepEngageBoss, nihlathakBossState(world.Position{X: 100, Y: 100}, boss), time.Unix(10, 0).UTC())
+	if !result.failed || result.reason != "boss_combat_unprojectable" {
+		t.Fatalf("result=%+v, want boss_combat_unprojectable", result)
+	}
+}
+
+func boolPtr(value bool) *bool { return &value }

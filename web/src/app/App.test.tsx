@@ -34,6 +34,7 @@ describe("App", () => {
   afterEach(() => { cleanup(); delete window.d2rDesktop; });
   beforeEach(() => {
     vi.clearAllMocks();
+    delete window.d2rDesktop;
     mocks.getCatalog.mockReset();
     mocks.getStatus.mockReset();
     mocks.connect.mockReset();

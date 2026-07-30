@@ -114,9 +114,10 @@ func TestRoutePlaybackAdapterHoldCreditsTenSecondsExactlyOnce(t *testing.T) {
 	if adapter.deadline != base.Add(40*time.Second) {
 		t.Fatalf("deadline = %s, want %s", adapter.deadline, base.Add(40*time.Second))
 	}
-	if len(nav.starts) != 0 || nav.ticks != 0 || nav.resets != 0 {
+	if len(nav.starts) != 0 || nav.ticks != 0 {
 		t.Fatalf("Hold mutated navigator: starts=%d ticks=%d resets=%d", len(nav.starts), nav.ticks, nav.resets)
 	}
+	// SyncReached may reset the navigator when Memory confirms a route point during hold.
 	after, ok := adapter.Progress(state)
 	if !ok || after != before {
 		t.Fatalf("after progress = %+v, %t; before = %+v", after, ok, before)

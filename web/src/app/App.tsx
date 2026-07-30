@@ -16,24 +16,10 @@ import { clearOnboardingResume, readOnboardingResumeStep } from "../features/onb
 import { targetFromHash, type AppTarget } from "./navigation";
 import { Button, Dialog, PageHeader, StateMessage, StatusBadge } from "./ui";
 import { characterAvailabilityText } from "./characterReasons";
+import { runAvailabilityText } from "./runReasons";
 
 const editableStates = new Set(["idle", "idle_in_game", "stopped_error"]);
 const emergencyStates = new Set(["starting_game", "starting_run", "running_run", "paused_between_runs", "exiting_game"]);
-const runAvailabilityText = (status: string, reasons: string[] = []) => {
-  if (status === "available") {
-    return { title: "Bereit", detail: "Route und Konfiguration sind bereit." };
-  }
-  if (status === "runtime_validation_required") {
-    return { title: "Bereit", detail: "Tipp für Fernkämpfer: Beende die Routenaufnahme mit etwas Abstand zum Boss – an dieser Position beginnt später der Kampf." };
-  }
-  if (reasons.includes("route_assignment_missing")) {
-    return { title: "Noch nicht eingerichtet", detail: "Für diesen Run wurde noch keine Route eingerichtet." };
-  }
-  if (reasons.includes("character_profile_run_incompatible") || reasons.includes("profile_class_mismatch")) {
-    return { title: "Nicht verfügbar", detail: "Das Kampfprofil dieses Charakters unterstützt diesen Run nicht." };
-  }
-  return { title: "Noch nicht bereit", detail: "Öffne die Routen, um die fehlende Einrichtung zu prüfen." };
-};
 const navigation = [
   { target: "dashboard", label: "Dashboard", icon: LayoutDashboard },
   { target: "routes", label: "Routen", icon: Map },
@@ -84,8 +70,14 @@ function CoreApp() {
   const [routeOpenedFromOnboarding, setRouteOpenedFromOnboarding] = useState(false);
   const [preferredRecordingRun, setPreferredRecordingRun] = useState("countess");
   const [updateAvailable, setUpdateAvailable] = useState(false);
+  const [settingsDirty, setSettingsDirty] = useState(false);
+  const [pendingNav, setPendingNav] = useState<AppTarget | null>(null);
   const emergencyConfirmRef = useRef<HTMLButtonElement>(null);
   const contentRef = useRef<HTMLElement>(null);
+  const settingsDirtyRef = useRef(false);
+  const targetRef = useRef(target);
+  targetRef.current = target;
+  settingsDirtyRef.current = settingsDirty;
 
   useEffect(() => {
     clearOnboardingResume();
@@ -95,6 +87,11 @@ function CoreApp() {
     if (!window.location.hash) window.history.replaceState(null, "", "#dashboard");
     const syncTarget = () => {
       const next = targetFromHash(window.location.hash);
+      if (settingsDirtyRef.current && targetRef.current === "settings" && next !== "settings") {
+        window.history.replaceState(null, "", "#settings");
+        setPendingNav(next);
+        return;
+      }
       setTarget(next);
       document.title = `${navigation.find((entry) => entry.target === next)?.label ?? "Dashboard"} · D2R Offline Farming Bot`;
     };
@@ -113,9 +110,23 @@ function CoreApp() {
 
   useEffect(() => window.d2rDesktop?.onNavigate((next) => {
     const resolved = targetFromHash(`#${next}`);
+    if (settingsDirtyRef.current && targetRef.current === "settings" && resolved !== "settings") {
+      setPendingNav(resolved);
+      return;
+    }
     if (window.location.hash !== `#${resolved}`) window.location.hash = resolved;
     else setTarget(resolved);
   }), []);
+
+  const discardSettingsAndNavigate = () => {
+    if (!pendingNav) return;
+    const next = pendingNav;
+    setPendingNav(null);
+    setSettingsDirty(false);
+    settingsDirtyRef.current = false;
+    if (window.location.hash !== `#${next}`) window.location.hash = next;
+    else setTarget(next);
+  };
 
   useEffect(() => {
     void window.d2rDesktop?.getUpdateStatus?.().then((value) => setUpdateAvailable(value.status === "available"));
@@ -339,12 +350,13 @@ function CoreApp() {
         {target === "routes" && <><PageHeader eyebrow="Bibliothek" title="Routen" description="Geführte Aufnahme, isolierter Test und revisionsgebundene Veröffentlichung über den bestehenden Core." />{liveLocked && <StateMessage kind="error" title="Live-Routenaktionen sind gesperrt">Die Routenbibliothek bleibt read-only, bis D2R kompatibel bestätigt ist.</StateMessage>}<RouteFeature characters={catalog?.characters.map((entry) => entry.name) ?? []} selectedCharacter={status?.selection.character ?? character} refreshKey={routeRefreshKey} liveLocked={liveLocked} preferredRecordingRun={preferredRecordingRun} onReturnToOnboarding={routeOpenedFromOnboarding ? returnToOnboarding : undefined} /></>}
         {target === "pickit" && <><PageHeader eyebrow="Loot-Policy" title="Pickit" description="Profile, Regeln und Zuordnungen bleiben Core-validiert und gelten erst an einer sicheren Run-Grenze." /><PickitFeature characters={catalog?.characters.map((entry) => entry.name) ?? []} selectedCharacter={status?.selection.character ?? character} runs={catalog?.runs.map((entry) => entry.run_id) ?? []} locked={!!status && !editableStates.has(status.state)} refreshKey={pickitRefreshKey} /></>}
         {target === "history" && <><PageHeader eyebrow="Auswertung" title="Historie" description="Core-berechnete Runs, Itemertrag, Vergleiche und Exporte ohne UI-eigene Aggregation." /><HistoryFeature characters={catalog?.characters.map((entry) => entry.name) ?? []} runs={catalog?.runs.map((entry) => entry.run_id) ?? []} refreshKey={historyRefreshKey} /></>}
-        {target === "settings" && <><PageHeader eyebrow="System" title="Einstellungen" description="Core-revisionierte Operatorwerte, atomare Desktopwerte und lokale Diagnose ohne zweiten Konfigurationsowner." /><SettingsFeature generation={status?.generation ?? 0} coreState={status?.state ?? ""} characters={catalog?.characters.map((entry) => entry.name) ?? []} runs={catalog?.runs.map((entry) => ({ id: entry.run_id, label: entry.display_name, routeCombat: entry.route_combat })) ?? []} events={events} onOpenOnboarding={() => { setOnboardingStep(0); setOnboardingOpen(true); }} /></>}
+        {target === "settings" && <><PageHeader eyebrow="System" title="Einstellungen" description="Bot-Verhalten, App-Verhalten und Wartung – getrennt nach Speicherziel." /><SettingsFeature generation={status?.generation ?? 0} coreState={status?.state ?? ""} characters={catalog?.characters.map((entry) => entry.name) ?? []} runs={catalog?.runs.map((entry) => ({ id: entry.run_id, label: entry.display_name, status: entry.status, reasons: entry.reasons, routeCombat: entry.route_combat })) ?? []} events={events} onOpenOnboarding={() => { setOnboardingStep(0); setOnboardingOpen(true); }} onSettingsApplied={() => { void refreshAfterCommand(); }} onDirtyChange={setSettingsDirty} /></>}
         </>}
       </main>
 
       {preview && <Dialog title="Routen werden unbrauchbar" onClose={() => !applying && setPreview(null)}><p>Der Wechsel von <strong>{preview.old_difficulty || "unbestätigt"}</strong> auf <strong>{preview.new_difficulty}</strong> markiert folgende Farming-Routen als <code>stale</code>:</p><ul>{preview.affected_routes.map((route) => <li key={route}>{route}</li>)}</ul><p>Die Dateien werden nicht gelöscht oder verändert. Neue Aufnahmen sind vor Farming erforderlich.</p><div className="modal-actions"><Button variant="secondary" onClick={() => setPreview(null)} disabled={applying}>Abbrechen</Button><Button onClick={() => void applyPreview(preview)} disabled={applying}>{applying ? "Wird angewendet …" : "Auswirkungen bestätigen und anwenden"}</Button></div></Dialog>}
       {confirmEmergency && <Dialog title="Session sofort abbrechen?" onClose={() => setConfirmEmergency(false)} initialFocusRef={emergencyConfirmRef}><p>Der aktuelle Input wird sofort gesperrt. Save &amp; Exit ist nicht garantiert. Dies entspricht F11 im Spiel.</p><div className="modal-actions"><Button variant="secondary" onClick={() => setConfirmEmergency(false)}>Abbrechen</Button><Button ref={emergencyConfirmRef} variant="danger" onClick={() => { setConfirmEmergency(false); if (status) void runCommand(() => emergencyStop(status.generation)); }}>Emergency Stop bestätigen</Button></div></Dialog>}
+      {pendingNav && <Dialog title="Ungespeicherte Änderungen" onClose={() => setPendingNav(null)}><p>Deine Änderungen an der Run-Reihenfolge sind noch nicht gespeichert. Ohne Speichern startet der Bot mit der alten Reihenfolge.</p><div className="modal-actions"><Button variant="secondary" onClick={() => setPendingNav(null)}>Zurück zu den Einstellungen</Button><Button variant="danger" onClick={discardSettingsAndNavigate}>Änderungen verwerfen</Button></div></Dialog>}
     </div>
   );
 }

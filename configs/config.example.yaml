@@ -258,6 +258,7 @@ session:
     - route_threat_out_of_range
     - route_mana_recovery_failed
     - route_recovery_unsafe
+    - boss_combat_unprojectable
 
 pathing:
   # Abbruch, wenn weder Position (>= stuck_progress_tiles) noch Area sich ändern

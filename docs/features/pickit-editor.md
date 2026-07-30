@@ -13,7 +13,7 @@ Das eingebettete React-Feature verwaltet globale Pickit-Profile und ihre geordne
 
 ## Funktionalität
 
-Die Profilbibliothek zeigt ID und Revision, unterstützt Neu, Duplizieren und das Core-geschützte Löschen. Ein Entwurf markiert ungespeicherte Änderungen und schützt vor versehentlichem Seitenwechsel.
+Die Profilbibliothek zeigt ID und Revision, unterstützt Neu, Duplizieren und das Core-geschützte Löschen über In-App-Dialoge (kein `window.prompt`/`confirm`, damit Electron denselben Pfad nutzt). Ein Entwurf markiert ungespeicherte Änderungen und schützt vor versehentlichem Profilwechsel sowie Seitenwechsel.
 
 Die Katalogsuche findet vollständige Sets, einzelne Set-/Unique-Items und Basisitems. Ein vollständiges Set wird sichtbar in einzelne Identitätsregeln expandiert. Basisitems zeigen ihren englischen Namen, speichern aber den stabilen Excel-Code; „Ätherischer Thresher“ wird daher als `[name] == "7s8" && [ethereal] == true` erzeugt. Die Aktionen `Behalten` und `Identifizieren / verkaufen`, First-Match-Reihenfolge, Entfernen und Umordnen sind direkt bedienbar.
 
@@ -43,4 +43,4 @@ Gate B wurde am 21. Juli 2026 bestanden: UnitID `225` wurde als `Arrows`/`aqv` v
 - [Pickit-Profile und Assignments](pickit-profiles.md)
 
 ---
-*Zuletzt aktualisiert: 21. Juli 2026*
+*Zuletzt aktualisiert: 30. Juli 2026*

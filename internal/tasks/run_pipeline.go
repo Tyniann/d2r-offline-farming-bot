@@ -1435,23 +1435,28 @@ func (c *runPipeline) tickNihlathakEngageTarget(deps Deps, w world.State, target
 			break
 		}
 	}
-	if attackTarget.IsHovered || deps.Combat.MonsterAimProjectable(w.Player.Position, target.Position) {
+	canAim := attackTarget.IsHovered || deps.Combat.MonsterAimProjectable(w.Player.Position, target.Position)
+	if canAim {
 		_, err := deps.Combat.CastAttackAtMonster(now, c.combat.AttackSkillID, w.Player, attackTarget)
-		if err != nil {
+		if err == nil {
+			return stepResult{}
+		}
+		if !errors.Is(err, profile.ErrRouteClearTargetUnprojectable) {
 			return stepResult{failed: true, reason: "combat_action_failed"}
 		}
-		return stepResult{}
+		// A shove or blocked landing can invalidate aim between ticks. Fall
+		// through to the one-shot approach gate or controlled retry-return.
 	}
 
 	if c.bossApproachAttempted {
 		// The recorded route endpoint is the preferred combat anchor. One
-		// projection-driven approach is the entire fallback; never chain a
-		// second teleport from a stale or unexpectedly blocked landing.
-		return stepResult{failed: true, reason: "combat_action_failed"}
+		// projection-driven approach is the entire in-fight fallback; further
+		// displacement exits via retry-return instead of a cold queue abort.
+		return stepResult{failed: true, reason: "boss_combat_unprojectable"}
 	}
 	desiredDistance, ok := deps.Combat.FarthestProjectableMonsterDistance(w.Player.Position, target.Position)
 	if !ok {
-		return stepResult{failed: true, reason: "combat_action_failed"}
+		return stepResult{failed: true, reason: "boss_combat_unprojectable"}
 	}
 	sent, err := deps.Combat.TeleportToward(now, w.Player.Position, target.Position, desiredDistance)
 	if err != nil {

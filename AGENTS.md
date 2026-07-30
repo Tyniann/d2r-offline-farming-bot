@@ -6,11 +6,11 @@ alwaysApply: true
 ---
 
 ## Project spec
-**D2R Offline Farming Bot** — externe Windows-Software für **Offline/Singleplayer** D2R. Ziel: wiederholbare Farming-Runs (MVP: **Countess**), später optional Mephisto, Cows, Baal. Koolo, d2go und Botty dienen nur als Recherche und Lern Referenzen - KEINE dependency!
+**D2R Offline Farming Bot** — externe Windows-Software für **Offline/Singleplayer** D2R. Ziel: wiederholbare Farming-Runs. Koolo, d2go und Botty dienen nur als Recherche und Lern Referenzen - KEINE dependency!
 
 - **Ansatz:** Memory Bot (Prozess lesen → World Model → Tasks → Input). Kein Pixelbot, kein Savegame-Hack, keine Spielstands-Manipulation.
 - **Scope:** Nur privater Offline-Einsatz. Kein Battle.net / Online-Modus.
-- **Status:** Greenfield / Phase 0–1. Backward compatibility und Legacy-Verhalten sind **keine** Ziele, außer explizit gewünscht.
+- **Status:** Backward compatibility und Legacy-Verhalten sind **keine** Ziele, außer explizit gewünscht.
 - **Referenz:** Produkt- und Architekturdetails in `handoff.html`; Feature-Docs unter `docs/features/`; Changelog in `docs/CHANGELOG.md`.
 
 ## Tech stack
@@ -18,7 +18,7 @@ alwaysApply: true
 - **Module:** `github.com/Tyniann/d2r-offline-farming-bot`
 - **Repo:** `Tyniann/d2r-offline-farming-bot` (privat). Git-Remote per SSH: `git@github.com-tyniann:Tyniann/...` — **nicht** auf DHMG-Account oder Standard-`github.com`-Host wechseln.
 - **Config:** YAML unter `configs/` (`config.example.yaml` versionieren; `config.yaml` lokal, gitignored).
-- **Logging:** `log/slog` (strukturiert). Später optional JSONL für Run-Telemetrie.
+- **Logging:** `log/slog` (strukturiert). JSONL für Run-Telemetrie.
 - **Lint / format:** `golangci-lint`, `goimports`, `gofmt` (siehe `.golangci.yml`, `Makefile`).
 - **Race Detector / MSYS2:** Nur bei tatsächlich neuer Nebenläufigkeit: Unter Windows die native **UCRT64**-Toolchain (`/ucrt64/bin/gcc`, Target `x86_64-w64-mingw32`) verwenden, nicht die MSYS-Toolchain unter `/usr/bin`. Aus PowerShell Race-Tests über eine initialisierte UCRT64-Shell starten: `$env:MSYSTEM='UCRT64'; $env:CHERE_INVOKING='1'; C:\msys64\usr\bin\bash.exe -lc 'export PATH=/ucrt64/bin:/c/Program\ Files/Go/bin:/usr/bin; cd /d/CSharpProjekte/D2R-Offline-Farming-Bot; go test -race -p 1 ./...'`. Nur `C:\msys64\ucrt64\bin` an `PATH` anzuhängen reicht auf diesem Host nicht zuverlässig.
 
@@ -40,8 +40,6 @@ Feature-first unter `internal/`. Paket-Grenzen strikt einhalten:
 
 **Datenfluss:** `process` → `memory` (Snapshot) → `world` (Model) → `tasks` (Entscheidung) → `input` (Aktion). `pathing` und `loot` hängen am World Model, nicht direkt an Raw Memory.
 
-**MVP-Phasen** (nicht vorauslaufen): Phase 1 = read-only probe → Phase 2 = world model → Phase 3 = input → Phase 4 = Countess ohne Pickit → Phase 5 = loot/recovery loop.
-
 ## In-code-Dokumentation
 
 1. **Godoc-Pflicht:** Neue oder geänderte exportierte Go-Symbole sofort dokumentieren. Der Kommentar beginnt mit dem Symbolnamen und endet mit einem Punkt.
@@ -62,9 +60,10 @@ Dokumentation und UI-facing Strings müssen ordentliches Deutsch und Umlaute ver
 ## Common guidelines
 1. **Minimale Diffs** — nur angeforderte Änderungen; keine Drive-by-Refactors.
 2. **Fehler:** mit Kontext wrappen (`fmt.Errorf("…: %w", err)`), auf oberster Ebene loggen; nicht still schlucken.
-3. **Tests:** für Config-Parsing, World-Mapping und Task-Übergänge; Windows-API-Code über Interfaces mockbar halten.
+3. **Tests:** für Config-Parsing, World-Mapping und Task-Übergänge; Windows-API-Code über Interfaces mockbar halten. Minimale Testanzahl.
 4. **Commits:** nur auf ausdrückliche Anfrage; nie `git config` ändern; kein Force-Push auf `master`.
 5. **Agent:** `go test ./...` und `go build ./cmd/d2rbot` nach relevanten Änderungen ausführen. Keine Spielsteuerung implementieren, solange die aktuelle Phase read-only ist — außer explizit beauftragt.
+6. **UI facing strings:** Nur für Bot Benutzer relevante und nützliche Informationen anzeigen. Simple, klare Formulierungen - KEIN Technobabble.
 
 # .cursor/rules/01-dokumentation.mdc
 

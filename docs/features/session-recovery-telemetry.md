@@ -15,7 +15,7 @@ Der Phase-11-Supervisor klassifiziert terminale Run-Ergebnisse über exakte Reas
 
 ## Stabile Fehlerklassifikation
 
-Nur die validierten Codes `hard_stuck`, `route_drift_exceeded`, `route_segment_timeout` und `route_transition_failed` können einen Retry auslösen. Zusätzlich muss der konkrete Code in `session.retry_classes` erlaubt sein. Texte wie `hard_stuck_extra` oder ein Fehlerstring, der zufällig „hard_stuck“ enthält, bleiben terminal.
+Nur die validierten Codes `hard_stuck`, `route_drift_exceeded`, `route_segment_timeout`, `route_transition_failed`, `route_clear_no_progress`, `route_threat_out_of_range`, `route_mana_recovery_failed`, `route_recovery_unsafe` und `boss_combat_unprojectable` können einen Retry auslösen. Zusätzlich muss der konkrete Code in `session.retry_classes` erlaubt sein. Texte wie `hard_stuck_extra` oder ein Fehlerstring, der zufällig „hard_stuck“ enthält, bleiben terminal.
 
 ## Budget- und Lifecycle-Semantik
 

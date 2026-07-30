@@ -1,12 +1,19 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPickitProfile, deletePickitProfile, duplicatePickitProfile, updatePickitAssignment, updatePickitProfile } from "../../api/client";
 import {
   getPickitAssignments, getPickitCatalog, getPickitProfiles, importPickit, validatePickitProfile,
   type PickitAssignmentsDTO, type PickitCatalogDTO, type PickitProfileDTO, type PickitRuleDTO,
 } from "../../api/generated";
+import { Button, Dialog } from "../../app/ui";
 
 interface Props { characters: string[]; selectedCharacter: string; runs: string[]; locked: boolean; refreshKey: number }
 const actionLabels: Record<string, string> = { keep: "Behalten", sell: "Identifizieren / verkaufen" };
+const pickitSlugPattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+type PickitDialog =
+  | { kind: "create"; id: string; name: string }
+  | { kind: "duplicate"; id: string; name: string }
+  | { kind: "delete" }
+  | { kind: "discard"; nextID: string };
 
 export function PickitFeature({ characters, selectedCharacter, runs, locked, refreshKey }: Props) {
   const [catalog, setCatalog] = useState<PickitCatalogDTO | null>(null);
@@ -28,6 +35,9 @@ export function PickitFeature({ characters, selectedCharacter, runs, locked, ref
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [dialog, setDialog] = useState<PickitDialog | null>(null);
+  const [dialogError, setDialogError] = useState("");
+  const dialogInputRef = useRef<HTMLInputElement>(null);
 
   const dirty = draft ? JSON.stringify(draft) !== saved : false;
   const load = async (signal?: AbortSignal) => {
@@ -57,7 +67,22 @@ export function PickitFeature({ characters, selectedCharacter, runs, locked, ref
   }, [catalog, normalizedQuery]);
 
   function selectProfile(source: PickitProfileDTO[], id: string) { const profile = source.find((entry) => entry.id === id); setSelectedID(id); setDraft(profile ? clone(profile) : null); setSaved(profile ? JSON.stringify(profile) : ""); setNotice(""); }
-  function chooseProfile(id: string) { if (dirty && !window.confirm("Ungespeicherte Änderungen verwerfen?")) return; selectProfile(profiles, id); }
+  function chooseProfile(id: string) {
+    if (dirty) {
+      setDialogError("");
+      setDialog({ kind: "discard", nextID: id });
+      return;
+    }
+    selectProfile(profiles, id);
+  }
+  function openCreateDialog() { setDialogError(""); setDialog({ kind: "create", id: "mein-profil", name: "Mein Profil" }); }
+  function openDuplicateDialog() {
+    if (!draft) return;
+    setDialogError("");
+    setDialog({ kind: "duplicate", id: `${draft.id}-kopie`, name: `${draft.name} – Kopie` });
+  }
+  function openDeleteDialog() { if (!draft) return; setDialogError(""); setDialog({ kind: "delete" }); }
+  function closeDialog() { if (busy) return; setDialog(null); setDialogError(""); }
   function addRules(rules: Array<Omit<PickitRuleDTO, "id">>) { if (!draft) return; const existing = new Set(draft.rules.map((rule) => rule.id)); const next = rules.map((rule, index) => ({ ...rule, id: uniqueRuleID(existing, `regel-${draft.rules.length + index + 1}`) })); setDraft({ ...draft, rules: [...draft.rules, ...next] }); }
   function addSet(name: string, entries: PickitCatalogDTO["identities"]) { addRules(entries.map((entry) => ({ action: newAction, expression: `[setitem] == ${JSON.stringify(entry.key)}` }))); setNotice(`${name} wurde sichtbar in ${entries.length} Einzelregeln expandiert.`); }
   function addIdentity(entry: PickitCatalogDTO["identities"][number]) { addRules([{ action: newAction, expression: `[${entry.kind}item] == ${JSON.stringify(entry.key)}` }]); }
@@ -67,9 +92,81 @@ export function PickitFeature({ characters, selectedCharacter, runs, locked, ref
 
   async function validateDraft() { if (!draft) return; setBusy(true); setError(""); try { const result = await validatePickitProfile({ profile: draft }); setDraft(result.profile); setNotice("Entwurf ist gültig und wurde kanonisiert."); } catch (reason) { setError(message(reason)); } finally { setBusy(false); } }
   async function saveDraft() { if (!draft) return; setBusy(true); setError(""); try { const result = await updatePickitProfile(draft.id, { expected_revision: draft.revision, profile: draft }); setProfiles((current) => current.map((profile) => profile.id === result.id ? result : profile)); setDraft(clone(result)); setSaved(JSON.stringify(result)); setNotice("Profil gespeichert. Die Änderung gilt ab der nächsten validierten Run-Grenze."); } catch (reason) { setError(message(reason)); } finally { setBusy(false); } }
-  async function createProfile() { const id = window.prompt("Neue Profil-ID (Slug):", "mein-profil"); if (!id) return; const name = window.prompt("Anzeigename:", "Mein Profil") ?? ""; setBusy(true); try { const result = await createPickitProfile({ profile: { schema_version: 1, revision: 1, id, name, rules: [{ id: "regel-1", action: "keep", expression: `[type] == "rune"` }] } }); const next = [...profiles, result]; setProfiles(next); selectProfile(next, result.id); } catch (reason) { setError(message(reason)); } finally { setBusy(false); } }
-  async function duplicateProfile() { if (!draft) return; const target_id = window.prompt("ID der Kopie:", `${draft.id}-kopie`); if (!target_id) return; const target_name = window.prompt("Name der Kopie:", `${draft.name} – Kopie`) ?? ""; setBusy(true); try { const result = await duplicatePickitProfile(draft.id, { target_id, target_name }); const next = [...profiles, result]; setProfiles(next); selectProfile(next, result.id); } catch (reason) { setError(message(reason)); } finally { setBusy(false); } }
-  async function removeProfile() { if (!draft || !window.confirm(`Profil ${draft.id} wirklich löschen?`)) return; setBusy(true); try { await deletePickitProfile(draft.id, { expected_revision: draft.revision }); const next = profiles.filter((profile) => profile.id !== draft.id); setProfiles(next); selectProfile(next, next[0]?.id ?? ""); } catch (reason) { setError(message(reason)); } finally { setBusy(false); } }
+  async function submitCreateProfile() {
+    if (!dialog || dialog.kind !== "create") return;
+    const id = dialog.id.trim();
+    const name = dialog.name.trim();
+    if (!pickitSlugPattern.test(id)) {
+      setDialogError("Die Profil-ID muss ein Kleinbuchstaben-Slug sein, z. B. mein-profil.");
+      return;
+    }
+    if (!name) {
+      setDialogError("Der Anzeigename darf nicht leer sein.");
+      return;
+    }
+    setBusy(true); setError(""); setDialogError("");
+    try {
+      const result = await createPickitProfile({ profile: { schema_version: 1, revision: 1, id, name, rules: [{ id: "regel-1", action: "keep", expression: `[type] == "rune"` }] } });
+      const next = [...profiles, result];
+      setProfiles(next);
+      selectProfile(next, result.id);
+      setDialog(null);
+      setNotice(`Profil ${result.name} angelegt.`);
+    } catch (reason) {
+      setDialogError(message(reason));
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function submitDuplicateProfile() {
+    if (!draft || !dialog || dialog.kind !== "duplicate") return;
+    const target_id = dialog.id.trim();
+    const target_name = dialog.name.trim();
+    if (!pickitSlugPattern.test(target_id)) {
+      setDialogError("Die Profil-ID muss ein Kleinbuchstaben-Slug sein, z. B. basis-kopie.");
+      return;
+    }
+    if (!target_name) {
+      setDialogError("Der Anzeigename darf nicht leer sein.");
+      return;
+    }
+    setBusy(true); setError(""); setDialogError("");
+    try {
+      const result = await duplicatePickitProfile(draft.id, { target_id, target_name });
+      const next = [...profiles, result];
+      setProfiles(next);
+      selectProfile(next, result.id);
+      setDialog(null);
+      setNotice(`Profil ${result.name} angelegt.`);
+    } catch (reason) {
+      setDialogError(message(reason));
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function submitDeleteProfile() {
+    if (!draft) return;
+    setBusy(true); setError(""); setDialogError("");
+    try {
+      await deletePickitProfile(draft.id, { expected_revision: draft.revision });
+      const next = profiles.filter((profile) => profile.id !== draft.id);
+      setProfiles(next);
+      selectProfile(next, next[0]?.id ?? "");
+      setDialog(null);
+      setNotice("Profil gelöscht.");
+    } catch (reason) {
+      setDialog(null);
+      setError(message(reason));
+    } finally {
+      setBusy(false);
+    }
+  }
+  function confirmDiscard() {
+    if (!dialog || dialog.kind !== "discard") return;
+    const nextID = dialog.nextID;
+    setDialog(null);
+    selectProfile(profiles, nextID);
+  }
   async function pasteImport() { if (!importText.trim()) { setError("Für den Import ist NIP-Text erforderlich."); return; } setBusy(true); try { const result = await importPickit({ text: importText, action: newAction }); addRules(result.rules.map((rule) => ({ action: rule.action, expression: rule.expression }))); setNotice(result.warnings.join(" ")); } catch (reason) { setError(message(reason)); } finally { setBusy(false); } }
   async function saveAssignment() { if (!assignments || !assignmentCharacter || !assignmentRun) return; if (!assignmentProfiles.length) { setError("Mindestens ein Profil muss zugeordnet sein."); return; } setBusy(true); try { const result = await updatePickitAssignment({ character: assignmentCharacter, run_id: assignmentRun, profile_ids: assignmentProfiles, expected_revision: assignments.revision }); setAssignments(result); setNotice("Zuordnung gespeichert; sie wird vor dem nächsten Run neu validiert."); } catch (reason) { setError(message(reason)); } finally { setBusy(false); } }
 
@@ -80,12 +177,12 @@ export function PickitFeature({ characters, selectedCharacter, runs, locked, ref
     {notice && <p role="status">{notice}</p>}
     {!catalog && !error && <p>Pickit-Katalog wird geladen …</p>}
     {catalog && <div className="pickit-layout">
-      <aside className="pickit-library"><div className="section-heading"><h3>Profilbibliothek</h3><button type="button" onClick={() => void createProfile()} disabled={locked || busy}>Neu</button></div>
+      <aside className="pickit-library"><div className="section-heading"><h3>Profilbibliothek</h3><button type="button" onClick={openCreateDialog} disabled={locked || busy}>Neu</button></div>
         {profiles.length === 0 ? <p>Noch keine Profile vorhanden.</p> : <ul>{profiles.map((profile) => <li key={profile.id}><button type="button" className={profile.id === selectedID ? "active" : "secondary"} onClick={() => chooseProfile(profile.id)}>{profile.name}<small>{profile.id} · Revision {profile.revision}</small></button></li>)}</ul>}
       </aside>
       <div className="pickit-editor">
         {!draft ? <p>Profil auswählen oder neu anlegen.</p> : <>
-          <div className="section-heading"><div><h3>{draft.name}</h3><p>{dirty ? "Ungespeicherte Änderungen" : `Gespeichert · Revision ${draft.revision}`}</p></div><div className="inline-actions"><button type="button" className="secondary" disabled={busy} onClick={() => void duplicateProfile()}>Duplizieren</button><button type="button" className="danger" disabled={locked || busy} onClick={() => void removeProfile()}>Löschen</button></div></div>
+          <div className="section-heading"><div><h3>{draft.name}</h3><p>{dirty ? "Ungespeicherte Änderungen" : `Gespeichert · Revision ${draft.revision}`}</p></div><div className="inline-actions"><button type="button" className="secondary" disabled={busy} onClick={openDuplicateDialog}>Duplizieren</button><button type="button" className="danger" disabled={locked || busy} onClick={openDeleteDialog}>Löschen</button></div></div>
           <label>Profilname<input value={draft.name} disabled={locked} onChange={(event) => setDraft({ ...draft, name: event.target.value })} /></label>
           <fieldset><legend>Neue Regel</legend><div className="guided-rule"><label>Suche nach Set, Item oder Basis<input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="z. B. Tal Rasha oder Thresher" /></label><label>Aktion<select value={newAction} onChange={(event) => setNewAction(event.target.value)}><option value="keep">Behalten</option><option value="sell">Identifizieren / verkaufen</option></select></label><label className="check"><input type="checkbox" checked={ethereal} onChange={(event) => setEthereal(event.target.checked)} /> Nur ätherisch</label></div>
             <div className="quick-rules"><button type="button" className="secondary" onClick={() => addRules([{ action: newAction, expression: `[type] == "rune"` }])}>Alle Runen</button><button type="button" className="secondary" onClick={() => addRules([{ action: newAction, expression: `[name] == "pk1"` }])}>Schlüssel des Terrors</button><button type="button" className="secondary" onClick={() => addRules([["gzv", "gpv"], ["gly", "gpy"], ["glb", "gpb"], ["glg", "gpg"], ["glr", "gpr"], ["glw", "gpw"], ["skl", "skz"]].map((codes) => ({ action: newAction, expression: `[name] == "${codes[0]}" || [name] == "${codes[1]}"` })))}>Makellose/perfekte Gems (7 Regeln)</button><label>Qualität<select value={quality} onChange={(event) => setQuality(event.target.value)}>{catalog.qualities.map((entry) => <option key={entry}>{entry}</option>)}</select></label><button type="button" className="secondary" onClick={() => addRules([{ action: newAction, expression: `[quality] == "${quality}"` }])}>Qualität hinzufügen</button><label>Tier<select value={tier} onChange={(event) => setTier(event.target.value)}><option value="normal">normal</option><option value="exceptional">exceptional</option><option value="elite">elite</option></select></label><button type="button" className="secondary" onClick={() => addRules([{ action: newAction, expression: `[tier] == "${tier}"` }])}>Tier hinzufügen</button></div>
@@ -99,6 +196,31 @@ export function PickitFeature({ characters, selectedCharacter, runs, locked, ref
       </div>
     </div>}
     {assignments && <div className="assignment-editor"><h3>Zuordnung</h3><div className="selection-grid"><label>Charakter<select value={assignmentCharacter} onChange={(event) => setAssignmentCharacter(event.target.value)}>{characters.map((character) => <option key={character}>{character}</option>)}</select></label><label>Run<select value={assignmentRun} onChange={(event) => setAssignmentRun(event.target.value)}>{runs.map((run) => <option key={run}>{run}</option>)}</select></label></div><p>Reihenfolge durch Auswahl; das erste passende Profil gewinnt.</p><ol>{assignmentProfiles.map((id, index) => <li key={id}>{index + 1}. {profiles.find((profile) => profile.id === id)?.name ?? id}<button type="button" className="secondary" onClick={() => setAssignmentProfiles((current) => current.filter((entry) => entry !== id))}>Entfernen</button></li>)}</ol><label>Profil hinzufügen<select value="" onChange={(event) => { const id = event.target.value; if (id && !assignmentProfiles.includes(id)) setAssignmentProfiles((current) => [...current, id]); }}><option value="">Bitte wählen</option>{profiles.filter((profile) => !assignmentProfiles.includes(profile.id)).map((profile) => <option key={profile.id} value={profile.id}>{profile.name}</option>)}</select></label><button type="button" onClick={() => void saveAssignment()} disabled={locked || busy}>Zuordnung speichern</button></div>}
+    {(dialog?.kind === "create" || dialog?.kind === "duplicate") && <Dialog title={dialog.kind === "create" ? "Neues Pickit-Profil" : "Profil duplizieren"} onClose={closeDialog} initialFocusRef={dialogInputRef}>
+      <p>{dialog.kind === "create" ? "Die Profil-ID ist unveränderlich und muss ein Kleinbuchstaben-Slug sein." : `Kopie von ${draft?.name ?? ""} anlegen. Die neue Profil-ID ist unveränderlich.`}</p>
+      <label>Profil-ID<input ref={dialogInputRef} value={dialog.id} disabled={busy} onChange={(event) => { setDialogError(""); setDialog({ ...dialog, id: event.target.value }); }} placeholder="mein-profil" /></label>
+      <label>Anzeigename<input value={dialog.name} disabled={busy} onChange={(event) => { setDialogError(""); setDialog({ ...dialog, name: event.target.value }); }} placeholder="Mein Profil" /></label>
+      {dialogError && <p role="alert">{dialogError}</p>}
+      <div className="modal-actions">
+        <Button variant="secondary" onClick={closeDialog} disabled={busy}>Abbrechen</Button>
+        <Button onClick={() => void (dialog.kind === "create" ? submitCreateProfile() : submitDuplicateProfile())} disabled={busy}>{busy ? "Core prüft …" : dialog.kind === "create" ? "Profil anlegen" : "Kopie anlegen"}</Button>
+      </div>
+    </Dialog>}
+    {dialog?.kind === "delete" && draft && <Dialog title="Profil löschen?" onClose={closeDialog}>
+      <p>Profil <strong>{draft.name}</strong> (<code>{draft.id}</code>) wird dauerhaft entfernt. Zugeordnete Profile lehnt der Core ab.</p>
+      {dialogError && <p role="alert">{dialogError}</p>}
+      <div className="modal-actions">
+        <Button variant="secondary" onClick={closeDialog} disabled={busy}>Abbrechen</Button>
+        <Button variant="danger" onClick={() => void submitDeleteProfile()} disabled={busy}>{busy ? "Löschen …" : "Endgültig löschen"}</Button>
+      </div>
+    </Dialog>}
+    {dialog?.kind === "discard" && <Dialog title="Ungespeicherte Änderungen verwerfen?" onClose={closeDialog}>
+      <p>Der aktuelle Entwurf geht verloren, wenn du das Profil wechselst.</p>
+      <div className="modal-actions">
+        <Button variant="secondary" onClick={closeDialog}>Abbrechen</Button>
+        <Button variant="danger" onClick={confirmDiscard}>Verwerfen</Button>
+      </div>
+    </Dialog>}
   </section>;
 }
 

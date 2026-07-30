@@ -7,6 +7,20 @@ Versionierung nach [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.14.4] - 2026-07-30
+
+### Added
+- Add retryable `boss_combat_unprojectable` so Nihlathak engage projection loss after the one approach teleport triggers controlled Town Portal return, Save & Exit, and same-entry retry instead of a cold queue abort
+
+### Changed
+- Redesign the Settings page into Farming / App / Wartung scope tabs with a sticky Core save bar, German change summaries, two-pane queue editor with drag-and-drop, and desktop autostart auto-save
+- Space Settings form fields so adjacent inputs no longer visually fuse, and allow dragging catalog runs into the active queue
+
+### Fixed
+- Fix Pickit Neu, Duplizieren, Löschen and unsaved-discard flows in Electron by replacing unsupported `window.prompt`/`confirm` with in-app dialogs
+- Fix Dashboard queue staying stale after operator-settings save by listening for `operator_settings_changed` and refreshing status immediately
+- Fix leaving Settings with an unsaved queue by guarding hash navigation and requiring Speichern or explicit discard
+
 ## [0.14.1] - 2026-07-30
 
 ### Added

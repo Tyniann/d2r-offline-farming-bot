@@ -164,19 +164,23 @@ func (m *mockRoutePlayback) Hold(world.State) error { m.holdCalls++; return nil 
 func (m *mockRoutePlayback) Reset()                 { m.resetCalls++ }
 
 type mockCombatActions struct {
-	castCalls           int
-	castSkills          []uint16
-	teleportCalls       int
-	stopCalls           int
-	resetCalls          int
-	lastSkillID         uint16
-	lastMonsterUnitID   uint32
-	lastDesired         float64
-	lastTeleportTarget  world.Position
-	teleportSent        []bool
-	forceMoveCalls      int
-	lastForceMoveTarget world.Position
-	forceMoveSent       []bool
+	castCalls              int
+	castSkills             []uint16
+	teleportCalls          int
+	stopCalls              int
+	resetCalls             int
+	lastSkillID            uint16
+	lastMonsterUnitID      uint32
+	lastDesired            float64
+	lastTeleportTarget     world.Position
+	teleportSent           []bool
+	forceMoveCalls         int
+	lastForceMoveTarget    world.Position
+	forceMoveSent          []bool
+	aimProjectable         *bool
+	farthestDistance       float64
+	farthestOK             *bool
+	castMonsterErr         error
 }
 
 type mockRunActions struct {
@@ -348,6 +352,9 @@ func (m *mockCombatActions) CastAttackAtMonster(_ time.Time, skillID uint16, _ w
 	m.castSkills = append(m.castSkills, skillID)
 	m.lastSkillID = skillID
 	m.lastMonsterUnitID = target.UnitID
+	if m.castMonsterErr != nil {
+		return false, m.castMonsterErr
+	}
 	return true, nil
 }
 
@@ -386,6 +393,20 @@ func (m *mockCombatActions) ForceMoveToward(_ time.Time, _ world.Position, targe
 	sent := m.forceMoveSent[0]
 	m.forceMoveSent = m.forceMoveSent[1:]
 	return sent, nil
+}
+
+func (m *mockCombatActions) MonsterAimProjectable(_, _ world.Position) bool {
+	if m.aimProjectable != nil {
+		return *m.aimProjectable
+	}
+	return true
+}
+
+func (m *mockCombatActions) FarthestProjectableMonsterDistance(playerPos, targetPos world.Position) (float64, bool) {
+	if m.farthestOK != nil {
+		return m.farthestDistance, *m.farthestOK
+	}
+	return world.Distance(playerPos, targetPos), true
 }
 
 func (m *mockCombatActions) Reset() { m.resetCalls++ }

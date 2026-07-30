@@ -34,11 +34,16 @@ session:
     - route_drift_exceeded
     - route_segment_timeout
     - route_transition_failed
+    - route_clear_no_progress
+    - route_threat_out_of_range
+    - route_mana_recovery_failed
+    - route_recovery_unsafe
+    - boss_combat_unprojectable
 ```
 
 `max_runs`, `max_duration_ms` und alle State-Timeouts müssen positiv sein. Es gibt keinen Wert für unbegrenzten Betrieb. `cooldown_ms`, `max_consecutive_failures` und `max_total_restarts` dürfen explizit `0` sein; diese restriktiven Nullwerte werden nicht durch Defaults ersetzt.
 
-Retry-Klassen werden exakt validiert. Unbekannte oder doppelte Einträge sind ungültig; Präfix- und Substring-Matching sind ausgeschlossen.
+Retry-Klassen werden exakt validiert. Unbekannte oder doppelte Einträge sind ungültig; Präfix- und Substring-Matching sind ausgeschlossen. Frische und unveränderte Default-Listen übernehmen neue Retry-Gründe per Migration; umgestellte Listen bleiben unverändert.
 
 ## Inspect-Preflight
 
