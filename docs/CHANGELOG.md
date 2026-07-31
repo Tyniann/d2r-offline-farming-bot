@@ -8,6 +8,7 @@ Versionierung nach [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- Add the Phase 19 implementation plan for fail-closed socket Pickit predicates and the combined equipment-type rule builder
 - Add `docs/reviews/` with the 2026-07-31 repo effort evaluation and archived Cursor canvas snapshot
 
 ### Fixed

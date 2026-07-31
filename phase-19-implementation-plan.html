@@ -1,0 +1,394 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Phase 19 – Detaillierter Umsetzungsplan</title>
+  <style>
+    :root{--bg:#0b0d12;--panel:#151820;--panel2:#1d222c;--text:#f1f2f5;--muted:#b7bdc8;--line:#343a46;--accent:#df6a3f;--gold:#d6ad5c;--good:#69d59f;--warn:#f0c96a;--bad:#f0525f;--code:#090b0f}
+    *{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at 85% 0,#351711 0,transparent 26%),linear-gradient(145deg,#08090d,#11141a 55%,#0a0c10);color:var(--text);font:16px/1.58 system-ui,-apple-system,"Segoe UI",sans-serif}
+    main{max-width:1200px;margin:auto;padding:42px 24px 80px}.hero{padding:34px;border:1px solid var(--line);border-radius:20px;background:linear-gradient(135deg,#211713,#171a21 52%,#12151b);box-shadow:0 20px 60px #0008}
+    h1{font-size:clamp(2rem,5vw,3.7rem);line-height:1.08;margin:.25rem 0 1rem}h2{margin-top:44px;border-bottom:1px solid var(--line);padding-bottom:10px}h3{margin:.2rem 0 .5rem;color:#fff}.lead{font-size:1.17rem;color:var(--muted);max-width:1000px}
+    .chips{display:flex;flex-wrap:wrap;gap:9px}.chip{border:1px solid #684334;border-radius:999px;padding:5px 11px;color:#ffd8c8;background:#251510}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:15px;margin:18px 0}
+    .card,.phase,.callout{border:1px solid var(--line);border-radius:14px;background:var(--panel);padding:18px}.card p,.phase p{margin:.35rem 0;color:var(--muted)}table{width:100%;border-collapse:collapse;background:var(--panel);border:1px solid var(--line)}th,td{padding:12px 14px;text-align:left;vertical-align:top;border-bottom:1px solid var(--line)}th{background:var(--panel2);color:#fff}
+    code,pre{font-family:"Cascadia Code",Consolas,monospace}code{color:#f6bd88}pre{background:var(--code);border:1px solid var(--line);border-radius:12px;padding:16px;overflow:auto;color:#e5e8ed}.phase{display:grid;grid-template-columns:92px 1fr;gap:16px;margin:13px 0}.phase-id{font-weight:800;color:var(--accent);font-size:1.25rem}.warn{color:var(--warn)}.good{color:var(--good)}.bad{color:var(--bad)}.gold{color:var(--gold)}.gate{border-left:4px solid var(--warn);padding-left:12px!important}.callout{border-left:4px solid var(--accent);margin:16px 0}.danger{border-left-color:var(--bad)}.success{border-left-color:var(--good)}li{margin:.35rem 0}footer{margin-top:48px;color:var(--muted);text-align:center}@media(max-width:650px){.phase{grid-template-columns:1fr}.hero{padding:22px}main{padding-inline:14px}}
+  </style>
+</head>
+<body><main>
+  <section class="hero">
+    <div class="chip">D2R Offline Farming Bot · Phase 19 · geplant</div>
+    <h1>Sockel-Support für das bestehende Pickit</h1>
+    <p class="lead">Phase 19 ergänzt das vorhandene First-Match-Pickit um die live gelesene Sockelanzahl und das Flag <code>socketed</code>. Der geführte Editor erstellt daraus genau eine kombinierte Regel aus explizit gewählten Ausrüstungstypen, optionalem Tier, Sockelvergleich und Ätherisch. Memory, World Model, Core-Parser und Runtime bleiben die Autoritäten; die React-Oberfläche setzt nur den dokumentierten Ausdruck zusammen. Leere Sockel, Socket-Inhalte, Larzuk-Potenzial, Typvererbung und Änderungen an ausgelieferten Profilen bleiben bewusst außerhalb dieses Schnitts.</p>
+    <div class="chips"><span class="chip">Stat 194</span><span class="chip">Flag nur nach Live-Gate</span><span class="chip">Vor Identify sichtbar</span><span class="chip">Fail-closed</span><span class="chip">Typ-Multiselect</span><span class="chip">Ein Ausdruck</span><span class="chip">Keine Typvererbung</span><span class="chip">Keine Profiländerung</span></div>
+  </section>
+
+  <section class="grid" aria-label="Kernziele">
+    <article class="card"><h3>Sockel belastbar lesen</h3><p><code>item_numsockets</code> und ein am aktuellen Build belegtes Item-Flag müssen widerspruchsfrei sein. Fehlende oder widersprüchliche Evidenz bleibt unavailable.</p></article>
+    <article class="card"><h3>Regeln verständlich bauen</h3><p>Der Benutzer wählt konkrete Ausrüstungstypen, Tier, Vergleich und Sockelzahl; der Editor erzeugt einen geklammerten, kanonisch validierten Ausdruck.</p></article>
+    <article class="card"><h3>Bestehendes Pickit nutzen</h3><p>Parser, First-Match, Profilrevisionen, Run-Snapshot, Pickup, Identify, Stash und Vendor bleiben dieselbe Pipeline.</p></article>
+    <article class="card"><h3>KISS/YAGNI bewahren</h3><p>Keine Socket-Child-Joins, keine Max-Sockel-Tabelle, kein <code>itemtypes.txt</code>, kein neues Profilformat und keine neue UI-Bibliothek.</p></article>
+  </section>
+
+  <h2>1. Verbindliche Produktentscheidungen</h2>
+  <table><thead><tr><th>Thema</th><th>Entscheidung für Phase 19</th></tr></thead><tbody>
+    <tr><td>Funktionsumfang</td><td>Neu sind <code>[sockets]</code> mit ganzzahligen Vergleichsoperatoren sowie <code>[flag] == socketed</code> und <code>[flag] != socketed</code>. Beide verwenden denselben fail-closed Socket-Zustand.</td></tr>
+    <tr><td>Bedeutung von <code>sockets</code></td><td>Die Zahl bezeichnet alle Sockelplätze des Live-Items. Ein Item mit vier belegten Sockeln bleibt ein 4-Sockel-Item. Phase 19 unterscheidet nicht zwischen leeren und belegten Sockeln.</td></tr>
+    <tr><td>Datenquelle</td><td>Die benannte Stat-ID <code>StatNumSockets = 194</code> stammt ausschließlich aus der lokal extrahierten <code>.tmp/d2r-excel/itemstatcost.txt</code>, Zeile <code>item_numsockets</code>. Runtime liest keine Excel-Datei.</td></tr>
+    <tr><td>Socket-Flag</td><td>Ein dediziertes Bit aus <code>ItemData.Flags</code> wird erst nach Gate 19.0 als Konstante übernommen. Es darf weder aus Koolo/d2go noch aus Trainingswissen geraten werden.</td></tr>
+    <tr><td>Konsistenz</td><td>Stat fehlt oder ist unlesbar → unavailable. Flag gesetzt verlangt eine positive Sockelzahl; Sockelzahl null verlangt ein nicht gesetztes Flag. Flag und Stat mit widersprüchlicher Aussage → unavailable. Nur konsistente Evidenz darf matchen.</td></tr>
+    <tr><td>Identify</td><td><code>[sockets]</code> und <code>socketed</code> sind nicht an <code>Identified=true</code> gebunden. Weiße/graue Bases müssen am Boden matchen können. Das bestehende Identify-Gate für <code>[stat:&lt;id&gt;]</code> bleibt unverändert.</td></tr>
+    <tr><td>Fail-closed</td><td>Bei <code>SocketsAvailable=false</code> liefern sämtliche Socket-Prädikate <code>false</code>, ausdrücklich auch <code>!=</code>. Unbekannt ist nicht „ungesockelt“.</td></tr>
+    <tr><td>Typsemantik</td><td><code>[type]</code> bleibt ein exakter Vergleich gegen den bestehenden Katalogcode. Keine Typvererbung, keine stillen Obertypen und keine Änderung vorhandener Regeln.</td></tr>
+    <tr><td>Geführter Builder</td><td>Ein Builder kombiniert Typ-Multiselect, optionales Tier, Sockeloperator/-anzahl, Ätherisch und die vorhandene Aktion zu genau einer neuen Regel. Mehrere Typen werden sichtbar in einer geklammerten OR-Gruppe serialisiert.</td></tr>
+    <tr><td>Typauswahl</td><td>Die durchsuchbare Auswahl enthält alle für Sockelregeln spielerisch relevanten Ausrüstungstypen. Gleiche Slots tragen denselben Präfix und einen eindeutigen Suffix, etwa „Schilde“, „Schilde – Nekromant“, „Schilde – Paladin“.</td></tr>
+    <tr><td>UI-Technik</td><td>Aufklappbare native React-Auswahl mit Suchfeld und Checkboxen; keine zusätzliche Combobox-/Select-Dependency. Suche und Tastaturbedienung verwenden normale Inputs und Buttons.</td></tr>
+    <tr><td>Profile</td><td>Schema und ausgelieferte Profile bleiben unverändert. Phase 19 fügt keine Regel und keine Assignment-Änderung automatisch hinzu.</td></tr>
+    <tr><td>API</td><td>Der bestehende kontrollierte Preview-Vertrag erhält Tier, Sockelzahl, Availability und Socketed. Es entsteht keine neue Preview-Seite; Validierung und kanonische Auswertung bleiben Core-Aufgaben.</td></tr>
+    <tr><td>Releaseziel</td><td>Neues Pickit-Feature, daher reguläres Minor-Ziel <code>v0.17.0</code> nach bestandener manueller Abnahme.</td></tr>
+  </tbody></table>
+
+  <h2>2. Belegte Ausgangslage</h2>
+  <table><thead><tr><th>Bereich</th><th>Heutiger Vertrag</th><th>Phase-19-Konsequenz</th></tr></thead><tbody>
+    <tr><td>Item-Read</td><td><code>internal/memory/items.go</code> liest Flags und bevorzugt die Active-Statliste; nur ein Parsefehler fällt auf Base zurück. Ein erfolgreicher, aber Socket-freier Active-Read beweist daher noch nicht, dass Stat 194 auch in Base fehlt.</td><td>Gate 19.0 muss Active und Base getrennt beobachten und die minimale produktive Quellenstrategie festlegen. Kein zweiter Item-Segment-Walk und kein zusätzlicher Poll.</td></tr>
+    <tr><td>Excel</td><td><code>itemstatcost.txt</code> enthält <code>item_numsockets</code> mit <code>*ID 194</code>. Der Generator und Runtime-Code nutzen diese Datei für Sockel bisher nicht.</td><td>Die ID wird als benannte compile-time Konstante dokumentiert; keine Generatorerweiterung und kein Runtime-Dateizugriff.</td></tr>
+    <tr><td>Flags</td><td>Identified und Ethereal besitzen belegte Masken; für Socketed existiert noch keine Konstante.</td><td>Gate 19.0 muss die Maske am aktuellen D2R-Build eindeutig isolieren. Ohne eindeutigen Beleg stoppt die Phase.</td></tr>
+    <tr><td>World</td><td><code>world.Item</code> enthält Flags, Identified, Ethereal und rohe Stats, aber keine semantische Sockelprojektion.</td><td><code>Sockets</code>, <code>SocketsAvailable</code> und <code>Socketed</code> werden einmal gemappt und überall defensiv kopiert.</td></tr>
+    <tr><td>Pickit</td><td><code>[sockets]</code> und <code>socketed</code> sind explizite Parser-Non-Goals. <code>[type]</code> vergleicht exakt, Stats erfordern Identify.</td><td>Nur die zwei beschlossenen Socket-Prädikate werden freigeschaltet. Bestehende Feldsemantik bleibt byte- beziehungsweise verhaltensgleich.</td></tr>
+    <tr><td>Katalog</td><td>Der API-Katalog liefert jede Base mit direktem Typcode und Tier. Reife sind <code>circ</code>, normale Helme <code>helm</code>; Paladin-Schilde <code>ashd</code>, normale Schilde <code>shie</code>.</td><td>Der Editor arbeitet mit diesen direkten Codes und einer kleinen deutschen Anzeigeprojektion. Kein <code>itemtypes.txt</code> nötig.</td></tr>
+    <tr><td>Editor</td><td>Eine geführte Katalogsuche und separate Schnellregeln existieren; React enthält keine Parserlogik. Der bisherige Ethereal-Basispfad erzeugt noch die nicht zum dokumentierten Parser passende Form <code>[ethereal] == true</code>.</td><td>Der neue kombinierte Builder erzeugt ausschließlich <code>[flag] == ethereal</code>; der bestehende Basispfad wird dabei auf dieselbe kanonische Form korrigiert und charakterisiert.</td></tr>
+    <tr><td>Runtime</td><td>Profile werden vor Runstart kompiliert und immutable aktiviert. Ground-Entscheidung und spätere Inventory-/Stash-/Vendor-Prüfungen verwenden dieselbe First-Match-Policy.</td><td>Keine neue Loot-Pipeline. Socket-Evidenz darf bei Re-Reads eine Aktion fail-closed widerrufen, aber niemals eigenständig Input autorisieren.</td></tr>
+  </tbody></table>
+  <div class="callout danger"><strong>Erstes hartes Gate:</strong> Kein ausführender Agent darf <code>[sockets]</code> oder <code>socketed</code> im Parser freischalten, bevor Gate 19.0 Stat 194 und genau ein Socket-Flag-Bit an echten Ground-Items reproduzierbar belegt. Ist das Bit nicht eindeutig oder widersprechen Flag und Stat, endet Phase 19 an diesem Gate. Die abgeleitete Nur-Stat-Variante ist ausdrücklich nicht erlaubt.</div>
+
+  <h2>3. Scope und bewusste Nicht-Ziele</h2>
+  <table><thead><tr><th>Enthalten</th><th>Bewusst nicht enthalten</th></tr></thead><tbody>
+    <tr><td>Live-Sockelzahl und dediziertes Socketed-Flag im bestehenden Item-Snapshot.</td><td><code>[emptysockets]</code>, freie Sockel oder belegte Sockel zählen.</td></tr>
+    <tr><td>Gesamte Sockelplätze bei leeren, teilweise belegten und vollständig belegten Items.</td><td>Runen, Gems oder Jewels innerhalb eines Host-Items auswerten.</td></tr>
+    <tr><td><code>[sockets]</code> und <code>[flag] socketed</code> im bestehenden Parser.</td><td>Vollständige NIP-Kompatibilität, Aliase, Affixe, Runeword-Erkennung oder <code>maxquantity</code>.</td></tr>
+    <tr><td>Explizite direkte Ausrüstungstypen im Editor.</td><td>Typvererbung, englische Obertypen oder versteckte Expansion über <code>itemtypes.txt</code>.</td></tr>
+    <tr><td>Optionales Tier und Ethereal im selben Builder.</td><td>Level-, Quality-, Identity- oder Affix-Builder in denselben Dialog ziehen.</td></tr>
+    <tr><td>Kontrollierte API-Preview-Fixtures mit Socket-Zustand.</td><td>Neue synthetische Preview-Oberfläche oder Live-Memory aus dem Browser.</td></tr>
+    <tr><td>Bestehende Keep-/Sell-Aktionen und sichere Run-Grenze.</td><td>Neue Aktion, Pickupstrategie, Inventarlogik oder Stashpolicy.</td></tr>
+    <tr><td>Dokumentationsanker für spätere Typvererbung.</td><td><code>itemtypes.txt</code> jetzt beschaffen, generieren oder zur Runtime-Abhängigkeit machen.</td></tr>
+  </tbody></table>
+
+  <h2>4. Zielarchitektur und Ownership</h2>
+  <pre><code>.tmp/d2r-excel/itemstatcost.txt
+  └─ item_numsockets / *ID 194 ── compile-time dokumentierte Konstante
+
+memory.ProbeReader · vorhandener Item-Walk
+  ├─ ItemData.Flags ────────────── live bestätigtes socketed-Bit
+  └─ vorhandene Active/Base-Stats ─ Stat 194
+          │
+          └─ Konsistenzdecoder
+               ├─ Sockets
+               ├─ SocketsAvailable
+               └─ Socketed
+                      │
+                      ▼
+world.Item ──► loot.Pickit
+                ├─ [sockets] &lt;op&gt; N
+                └─ [flag] ==|!= socketed
+                      │
+                      ├─ bestehende First-Match-Runtime
+                      └─ bestehende kontrollierte API-Preview
+
+React-Regelbuilder
+  └─ direkte Typcodes + Tier + Sockets + Ethereal
+       └─ Ausdruck ──► Core-Validierung ──► Profilentwurf</code></pre>
+  <table><thead><tr><th>Verantwortung</th><th>Einziger Owner</th><th>Verbotene zweite Autorität</th></tr></thead><tbody>
+    <tr><td>Stat-ID und Flag-Maske</td><td><code>internal/memory</code>, mit Excel- beziehungsweise Live-Beleg</td><td>React, YAML-Profil, fremdes Bot-Repository oder Magic Number ohne Quellkommentar</td></tr>
+    <tr><td>Socket-Konsistenz</td><td>Ein kleiner Decoder in <code>internal/memory</code></td><td>World Mapper und Pickit mit jeweils eigener Interpretation</td></tr>
+    <tr><td>Semantischer Item-Zustand</td><td><code>internal/world</code> als direkte Projektion des Memory-Ergebnisses</td><td>Pickit, das rohe Stats oder Flagbits selbst liest</td></tr>
+    <tr><td>Regelsyntax und Evaluation</td><td><code>internal/loot</code></td><td>TypeScript-Parser oder UI-seitige Matchsimulation</td></tr>
+    <tr><td>Direkte Typcodes</td><td>bestehender generierter <code>world</code>-Basiskatalog</td><td>manuell duplizierter Itemkatalog in React</td></tr>
+    <tr><td>Deutsche Typanzeigen</td><td>kleine explizite Editorprojektion, gegen vorhandene Katalogcodes getestet</td><td>heuristische Übersetzung aus englischen Basisnamen</td></tr>
+    <tr><td>Ausdrucksaufbau</td><td>eine pure TypeScript-Funktion; Core kanonisiert und validiert anschließend</td><td>mehrere Buttonpfade mit abweichender Operatorreihenfolge</td></tr>
+    <tr><td>Loot-Aktion</td><td>bestehende immutable First-Match-Policy</td><td>Socket-Sonderpfad direkt in Pickup, Stash oder Vendor</td></tr>
+  </tbody></table>
+
+  <h2>5. Read-only Evidenz- und Konsistenzvertrag</h2>
+  <p>Gate 19.0 erweitert ausschließlich die vorhandenen verbose Ground-/Inventory-Hints. Pro relevantem Item müssen mindestens Unit-ID, Basiscode, Qualität, Raw-Flags hexadezimal, Stat-194-Vorhandensein und Raw-Wert getrennt für Active/Base sowie die gefundene Kandidatenmaske sichtbar sein. Diese Diagnose sendet keinen Spielinput und schreibt keine D2R-Datei. Der Gate-Nachweis friert ein, ob Runtime Active, Base oder beide Listen in definierter Reihenfolge prüfen muss; ein erfolgreicher Active-Parse darf einen nur in Base vorhandenen Socket-Stat nicht verdecken.</p>
+  <table><thead><tr><th>Beobachtung</th><th>Erwartete Evidenz</th><th>Ergebnis</th></tr></thead><tbody>
+    <tr><td>Sichtbar ungesockelte Kontrollbase</td><td>Socket-Flag aus; Active und Base zeigen, ob Stat 194 fehlt oder einen expliziten Nullfall liefert.</td><td>Kein positiver Socket-Match. Das Gate friert ausdrücklich ein, ob „bekannt ungesockelt“ überhaupt verfügbar ist; ein fehlender Stat bleibt unavailable.</td></tr>
+    <tr><td>Leere sichtbar gesockelte Base</td><td>Genau das Kandidatenbit ist gesetzt; Stat 194 entspricht der sichtbaren Sockelzahl.</td><td>Available, <code>Socketed=true</code>, Zahl stimmt.</td></tr>
+    <tr><td>Teilweise oder vollständig belegtes Item</td><td>Dasselbe Flag bleibt gesetzt; Stat 194 bleibt die Gesamtzahl der Plätze, nicht die Zahl freier Plätze.</td><td>Semantik „Gesamtsockel“ bestätigt.</td></tr>
+    <tr><td>Unidentifizierter/weißer-grauer Ground-Fall</td><td>Socket-Evidenz ist unabhängig vom Identified-Flag verfügbar.</td><td>Kein Identify-Gate für Socket-Prädikate.</td></tr>
+    <tr><td>Area-/Inventory-/Ground-Wechsel</td><td>Dasselbe Item liefert über frische Snapshots dieselbe Maske und Zahl.</td><td>Keine locationabhängige Interpretation.</td></tr>
+  </tbody></table>
+  <p>Die produktive Wahrheitstabelle nach bestandenem Live-Gate:</p>
+  <table><thead><tr><th>Stat 194</th><th>Flag</th><th><code>SocketsAvailable</code></th><th><code>Sockets</code></th><th><code>Socketed</code></th></tr></thead><tbody>
+    <tr><td>fehlt / Read fehlgeschlagen</td><td>beliebig</td><td>false</td><td>0</td><td>false</td></tr>
+    <tr><td>0</td><td>aus</td><td>true, nur falls dieser Nullfall live tatsächlich vorkommt</td><td>0</td><td>false</td></tr>
+    <tr><td>1..6</td><td>an</td><td>true</td><td>Statwert</td><td>true</td></tr>
+    <tr><td>0</td><td>an</td><td>false</td><td>0</td><td>false</td></tr>
+    <tr><td>1..6</td><td>aus</td><td>false</td><td>0</td><td>false</td></tr>
+    <tr><td>negativ oder außerhalb 0..6</td><td>beliebig</td><td>false</td><td>0</td><td>false</td></tr>
+  </tbody></table>
+  <div class="callout gate"><strong>Gate 19.0 – manuell, read-only:</strong> Mindestens eine ungesockelte Kontrollbase, eine leere gesockelte Base und ein belegtes Socket-Item werden am Boden mit <code>--probe --verbose</code> erfasst. Active/Base-Quelle, Stat-0-/Stat-fehlt-Semantik, sichtbare Sockelzahl und genau eine stabile Flagmaske stimmen über mehrere frische Snapshots überein. Quelle und Maske werden erst danach in Code und Feature-Dokumentation eingetragen. Kein eindeutiges Bit, keine Phase 19.1.</div>
+
+  <h2>6. Memory- und World-Vertrag</h2>
+  <pre><code>type ItemUnit struct {
+    // bestehende Felder
+    Sockets          int
+    SocketsAvailable bool
+    Socketed         bool
+}
+
+type Item struct {
+    // bestehende Felder
+    Sockets          int
+    SocketsAvailable bool
+    Socketed         bool
+}</code></pre>
+  <ul>
+    <li>Die Stat-ID wird benannt und direkt mit <code>item_numsockets</code> sowie <code>itemstatcost.txt</code> kommentiert. Die live bestätigte Flag-Konstante nennt Datum/Build beziehungsweise verweist auf die Feature-Dokumentation.</li>
+    <li>Der Decoder verwendet exakt die in Gate 19.0 belegte minimale Active-/Base-Strategie und scannt jede benötigte Liste höchstens einmal. Er führt keinen unabhängigen zweiten Item-Read ein.</li>
+    <li><code>Socketed</code> ist das konsistente Ergebnis aus Flag und Stat, keine unabhängig fortschreibbare zweite Wahrheit.</li>
+    <li>Ein fehlgeschlagener optionaler Socket-Decode verwirft nicht das gesamte Item. Es bleibt mit <code>SocketsAvailable=false</code> sichtbar.</li>
+    <li>Mapping, Clone, Snapshot-Wechsel und Reset dürfen keine Sockelwerte einer früheren Unit oder eines früheren Ticks behalten.</li>
+    <li>Normale Logs werden nicht pro Poll erweitert. Nur verbose Hints zeigen Socket-Diagnose; Runtime-Telemetrie erhält keine neue Ereignisfamilie.</li>
+  </ul>
+
+  <h2>7. Pickit-Syntax und fail-closed Evaluation</h2>
+  <table><thead><tr><th>Ausdruck</th><th>Erlaubt</th><th>Semantik</th></tr></thead><tbody>
+    <tr><td><code>[sockets] == 4</code></td><td><code>== != &gt; &gt;= &lt; &lt;=</code>, Integerliteral</td><td>Nur bei <code>SocketsAvailable=true</code>, danach bestehender Integervergleich.</td></tr>
+    <tr><td><code>[flag] == socketed</code></td><td><code>==</code>, <code>!=</code></td><td>Nur bei <code>SocketsAvailable=true</code>; vergleicht den konsistenten <code>Socketed</code>-Wert.</td></tr>
+    <tr><td><code>[flag] == ethereal</code></td><td>bestehend</td><td>Unverändert; kanonische Form für den kombinierten Builder.</td></tr>
+    <tr><td><code>[stat:194]</code></td><td>bestehend</td><td>Bleibt ein gewöhnlicher Raw-Stat mit Identify-Gate und ist kein dokumentierter Ersatz für <code>[sockets]</code>.</td></tr>
+  </tbody></table>
+  <ul>
+    <li><code>[sockets]</code> wird ein eigenes Parserfeld und kein Alias auf <code>[stat:194]</code>.</li>
+    <li>Parser, AST, kanonischer Serializer, Import und Compile-Fehler verwenden dieselbe neue Felddefinition. Kein Text-Rewrite vor dem Parser.</li>
+    <li>Socket-Literale außerhalb des technisch unterstützten Integerbereichs werden wie andere ungültige Literale abgelehnt; der geführte Builder begrenzt auf 1..6.</li>
+    <li>Bei unavailable gilt für <code>==</code>, <code>!=</code> und alle Größenvergleiche immer <code>false</code>.</li>
+    <li>First-Match, Regeltrace, Profil-/Assignment-Revisionen und Aktionen ändern sich nicht.</li>
+  </ul>
+
+  <h2>8. Geführter Regelbuilder</h2>
+  <p>Der bestehende Bereich „Neue Regel“ erhält einen kompakten kombinierten Builder. Er ersetzt weder die Katalogsuche noch das erweiterte Ausdrucksfeld.</p>
+  <table><thead><tr><th>Feld</th><th>Vertrag</th></tr></thead><tbody>
+    <tr><td>Itemtypen</td><td>Pflicht-Multiselect in einem aufklappbaren Bereich. Suchfeld filtert case-insensitiv über den vollständigen deutschen Namen; Checkboxen erlauben mehrere Typen. Auswahl und Trefferzahl bleiben sichtbar.</td></tr>
+    <tr><td>Sortierung</td><td>Deutsch alphabetisch nach Anzeigename. Gleiche Slots gruppieren sich durch identischen Präfix natürlich nebeneinander.</td></tr>
+    <tr><td>Tier</td><td>Optional: „Beliebig“ erzeugt keine Bedingung; „Normal“ → <code>"normal"</code>, „Außergewöhnlich“ → <code>"exceptional"</code>, „Elite“ → <code>"elite"</code>.</td></tr>
+    <tr><td>Sockel</td><td>Operator <code>== != &gt; &gt;= &lt; &lt;=</code> plus Ganzzahl 1..6. Beide Felder sind für den Socket-Builder erforderlich.</td></tr>
+    <tr><td>Ätherisch</td><td>Optionale Checkbox; erzeugt <code>[flag] == ethereal</code>.</td></tr>
+    <tr><td>Aktion</td><td>Bestehende Auswahl „Behalten“ oder „Identifizieren / verkaufen“.</td></tr>
+    <tr><td>Hinzufügen</td><td>Erzeugt genau eine Regel. Leere Typauswahl, fehlender Operator oder ungültige Zahl zeigt einen kurzen deutschen Feldfehler und verändert den Entwurf nicht.</td></tr>
+  </tbody></table>
+  <pre><code>Auswahl:
+  Schilde
+  Schilde – Paladin
+  Tier: Elite
+  Sockel: == 4
+  Ätherisch: nein
+
+Erzeugter Ausdruck:
+  ([type] == "shie" || [type] == "ashd")
+  &amp;&amp; [tier] == "elite"
+  &amp;&amp; [sockets] == 4</code></pre>
+  <ul>
+    <li>Eine pure Funktion baut Bedingungen in fester Reihenfolge: Typgruppe → Tier → Sockets → Ethereal.</li>
+    <li>Ein einzelner Typ benötigt keine überflüssige Klammer; mehrere Typen erhalten zwingend eine OR-Klammer.</li>
+    <li>Der Ausdruck wird als Entwurf hinzugefügt und wie bisher erst durch den Go-Core kanonisiert/validiert. React entscheidet niemals, ob ein Item matcht.</li>
+    <li>Keine neue UI-Dependency: Button/Disclosure, Textinput und Checkboxen reichen aus. Fokusreihenfolge, Escape/Schließen, sichtbares Label und kleine Viewports werden getestet.</li>
+  </ul>
+
+  <h2>9. Verbindliche Typoptionen</h2>
+  <p>Die Liste enthält direkte socketfähige Waffen- und Rüstungstypen des bestehenden Katalogs. Nicht socketfähige Verbrauchsgegenstände, Schmuck, Charms, Munition und Wurfwaffen gehören nicht in diesen Socket-Builder. Jede Auswahl zeigt den semantischen Umfang; nur „Klauen – Assassine“ expandiert bewusst in die beiden bestehenden technischen Claw-Codes und serialisiert beide sichtbar.</p>
+  <table><thead><tr><th>Anzeige im Editor</th><th>Katalogcode(s)</th><th>Erzeugte Typbedingung</th></tr></thead><tbody>
+    <tr><td>Armbrüste</td><td><code>xbow</code></td><td><code>[type] == "xbow"</code></td></tr>
+    <tr><td>Äxte</td><td><code>axe</code></td><td><code>[type] == "axe"</code></td></tr>
+    <tr><td>Bögen</td><td><code>bow</code></td><td><code>[type] == "bow"</code></td></tr>
+    <tr><td>Bögen – Amazone</td><td><code>abow</code></td><td><code>[type] == "abow"</code></td></tr>
+    <tr><td>Dolche</td><td><code>knif</code></td><td><code>[type] == "knif"</code></td></tr>
+    <tr><td>Hämmer</td><td><code>hamm</code></td><td><code>[type] == "hamm"</code></td></tr>
+    <tr><td>Helme</td><td><code>helm</code></td><td><code>[type] == "helm"</code></td></tr>
+    <tr><td>Helme – Barbar</td><td><code>phlm</code></td><td><code>[type] == "phlm"</code></td></tr>
+    <tr><td>Helme – Druide</td><td><code>pelt</code></td><td><code>[type] == "pelt"</code></td></tr>
+    <tr><td>Helme – Reife</td><td><code>circ</code></td><td><code>[type] == "circ"</code></td></tr>
+    <tr><td>Keulen</td><td><code>club</code></td><td><code>[type] == "club"</code></td></tr>
+    <tr><td>Klauen – Assassine</td><td><code>h2h</code>, <code>h2h2</code></td><td><code>([type] == "h2h" || [type] == "h2h2")</code></td></tr>
+    <tr><td>Körperrüstungen</td><td><code>tors</code></td><td><code>[type] == "tors"</code></td></tr>
+    <tr><td>Orbs – Zauberin</td><td><code>orb</code></td><td><code>[type] == "orb"</code></td></tr>
+    <tr><td>Schilde – Nekromant (Grimoires)</td><td><code>grim</code></td><td><code>[type] == "grim"</code></td></tr>
+    <tr><td>Schilde</td><td><code>shie</code></td><td><code>[type] == "shie"</code></td></tr>
+    <tr><td>Schilde – Nekromant (Köpfe)</td><td><code>head</code></td><td><code>[type] == "head"</code></td></tr>
+    <tr><td>Schilde – Paladin</td><td><code>ashd</code></td><td><code>[type] == "ashd"</code></td></tr>
+    <tr><td>Schwerter</td><td><code>swor</code></td><td><code>[type] == "swor"</code></td></tr>
+    <tr><td>Speere</td><td><code>spea</code></td><td><code>[type] == "spea"</code></td></tr>
+    <tr><td>Speere – Amazone</td><td><code>aspe</code></td><td><code>[type] == "aspe"</code></td></tr>
+    <tr><td>Stäbe</td><td><code>staf</code></td><td><code>[type] == "staf"</code></td></tr>
+    <tr><td>Stangenwaffen</td><td><code>pole</code></td><td><code>[type] == "pole"</code></td></tr>
+    <tr><td>Streitkolben</td><td><code>mace</code></td><td><code>[type] == "mace"</code></td></tr>
+    <tr><td>Szepter</td><td><code>scep</code></td><td><code>[type] == "scep"</code></td></tr>
+    <tr><td>Zauberstäbe</td><td><code>wand</code></td><td><code>[type] == "wand"</code></td></tr>
+  </tbody></table>
+  <div class="callout"><strong>Katalogschutz:</strong> Die UI-Liste enthält Anzeigenamen und direkte Codes, aber keine Base-IDs. Ein Test gleicht jeden Code gegen die vom Core gelieferten <code>catalog.bases</code> ab. Ein unbekannter oder nach einem Patch verschwundener Code darf nicht still als auswählbare, nie matchende Option erscheinen.</div>
+
+  <h2>10. API-, Preview- und Persistenzvertrag</h2>
+  <ul>
+    <li><code>PickitPreviewItemDTO</code> erhält <code>base_tier</code>, <code>sockets</code>, <code>sockets_available</code> und <code>socketed</code>. OpenAPI und generierter TypeScript-Client werden gemeinsam aktualisiert, damit kombinierte Tier-/Socket-Regeln end-to-end testbar sind.</li>
+    <li>Preview-Mapping übernimmt dieselbe World-Semantik. Ein Request mit <code>sockets_available=false</code> darf selbst bei positivem Zahlenwert nicht matchen.</li>
+    <li>Bei <code>sockets_available=true</code> akzeptiert die kontrollierte Preview nur konsistente Paare: <code>socketed=true</code> mit 1..6 oder <code>socketed=false</code> mit 0. Widersprüchliche Testdaten werden als ungültiger Request abgelehnt, nicht zu einer positiven Vorschau umgedeutet.</li>
+    <li>Der Katalogendpunkt bleibt strukturell ausreichend: direkte Typcodes kommen bereits über <code>bases[].type</code>. Keine zweite Typkatalog-API und keine deutschen Labels im Core.</li>
+    <li>Profil-<code>schema_version: 1</code> bleibt unverändert. Ausdrücke sind bereits die persistierte Erweiterungsgrenze.</li>
+    <li>Assignments, Revisionskonflikte, Workflow-Lock, Payload-Limit und Aktivierung an der nächsten Run-Grenze bleiben unverändert.</li>
+    <li>Default-Profile, Default-Assignments und Beispielprofile erhalten keine produktive Socket-Regel.</li>
+  </ul>
+
+  <h2>11. Spätere optionale Typvererbung</h2>
+  <div class="callout"><strong>Dokumentationsanker, nicht Teil von Phase 19:</strong> Falls später Obertypen wie „alle Schilde“, „alle Waffen“ oder standardnahe NIP-Typaliase gewünscht werden, muss zuerst die zum unterstützten D2R-Build passende <code>data/global/excel/itemtypes.txt</code> lokal extrahiert werden. Deren Code-/Equiv-Beziehungen werden dann build-time in den bestehenden World-Katalog generiert; Runtime darf die TXT weiterhin nicht lesen.</div>
+  <ul>
+    <li>Vor einer Umsetzung ist separat zu entscheiden, ob vorhandenes <code>[type]</code> weiterhin exakt bleibt und ein neues explizites Gruppenfeld entsteht, oder ob Obertypen die bestehende Semantik kompatibel erweitern können.</li>
+    <li>Englische Komfortnamen wie <code>polearm</code> folgen nicht automatisch aus <code>itemtypes.txt</code>; Aliase benötigen einen eigenen dokumentierten Vertrag.</li>
+    <li>Bestehende direkte Regeln wie <code>[type] == "shie"</code> dürfen durch eine spätere Erweiterung niemals breiter werden.</li>
+    <li>Keine Hardcode-Hierarchie in Phase 19. Die explizite Mehrfachauswahl bleibt verständlich und reproduzierbar.</li>
+  </ul>
+
+  <h2>12. Erwartete Dateien und minimale Diffs</h2>
+  <table><thead><tr><th>Bereich</th><th>Erwartete Dateien</th><th>Änderung</th></tr></thead><tbody>
+    <tr><td>Memory</td><td><code>internal/memory/stats.go</code>, <code>entities.go</code>, <code>items.go</code>, fokussierte Item-/Enumeration-Tests</td><td><code>StatNumSockets</code>, live bestätigte Flagmaske, belegte Active-/Base-Strategie, Konsistenzdecoder und Felder.</td></tr>
+    <tr><td>World</td><td><code>internal/world/item.go</code>, Mapper-/Clone-/World-Tests</td><td>Socket-Felder direkt projizieren; keine Raw-Decodierung.</td></tr>
+    <tr><td>Diagnose</td><td><code>internal/app/world_log.go</code> und Tests</td><td>Verbose Socket-Evidenz für Gate 19.0/19.1, normale Logs unverändert.</td></tr>
+    <tr><td>Pickit</td><td><code>internal/loot/pickit.go</code>, <code>pickit_test.go</code>, <code>phase13_parser_test.go</code> und Runtime-Policy-Tests</td><td>Feld, Literal/Operatoren, Serializer und fail-closed Evaluation.</td></tr>
+    <tr><td>API</td><td><code>internal/api/pickit_dto.go</code>, <code>pickit_backend.go</code>, OpenAPI-Schema, API-Tests, generierter Webclient</td><td>Kontrolliertes Preview-Item um <code>base_tier</code> und konsistenten Socket-Zustand ergänzen.</td></tr>
+    <tr><td>React</td><td><code>web/src/features/pickit/PickitFeature.tsx</code>, kleine Typ-/Builder-Hilfsdatei falls sie die Hauptdatei klar verkürzt, Tests, <code>web/src/app/app.css</code></td><td>Searchable Multiselect, kombinierter Ausdruck, Feldfehler und Responsive/Keyboard-Vertrag; keine Dependency.</td></tr>
+    <tr><td>Docs</td><td>neue <code>docs/features/socket-pickit.md</code>; Updates an <code>pickit-engine.md</code>, <code>pickit-editor.md</code>, <code>pickit-api.md</code>, <code>item-enumeration.md</code>, <code>phase-13-core-contract.md</code>, Feature-Index, Changelog und Handoff</td><td>Quelle, Syntax, UI, Preview, Live-Evidenz, Grenzen und späterer <code>itemtypes.txt</code>-Anker.</td></tr>
+  </tbody></table>
+  <div class="callout"><strong>Kein Drive-by-Refactor:</strong> Keine Paketverschiebung, kein allgemeines Form-Framework, kein generischer Query-Builder, kein neuer Itemkatalog, keine Runtime-Excel-Abhängigkeit und keine Neugestaltung der Pickit-Seite. Eine kleine pure Ausdrucksfunktion und bei Bedarf eine kleine Typoptionsdatei sind ausreichend.</div>
+
+  <h2>13. Vollständiger Testvertrag</h2>
+  <table><thead><tr><th>Ebene</th><th>Pflichtfälle</th></tr></thead><tbody>
+    <tr><td>Memory</td><td>Stat 194 Werte 1/4/6; Flag an; konsistenter Nullfall nur falls live belegt; Stat fehlt; negative/zu große Zahl; Flag an + 0; Flag aus + positiv; Stat nur Active, nur Base und in beiden; unlesbare benötigte Quelle behält Item unavailable; keine doppelte Listensuche und kein zweiter Item-Walk.</td></tr>
+    <tr><td>World</td><td>Available/Socketed/Zahl werden exakt gemappt; unavailable setzt sichere Nullwerte; Ground, Inventory und Stash; Clone und frischer Snapshot behalten beziehungsweise widerrufen die skalaren Socket-Felder korrekt. Keine nebenläufige Änderung der bestehenden Stats-Clone-Semantik.</td></tr>
+    <tr><td>Parser</td><td>Alle sechs Integeroperatoren; Quotes/Klammern/AND/OR; <code>socketed ==</code>/<code>!=</code>; ungültige Flags, Literale und Operatoren; kanonischer Roundtrip; bisherige Non-Goal-Tests gezielt umdrehen.</td></tr>
+    <tr><td>Evaluation</td><td>Unidentified + available matcht; echte Stats bleiben Identify-gegatet; unavailable ist für jeden Operator false, auch <code>!=</code>; 3/4/5 Sockel; socketed true/false; First-Match und Trace unverändert.</td></tr>
+    <tr><td>API</td><td>Preview positiv/negativ/unavailable/widersprüchlicher Request; striktes JSON; OpenAPI und generierter Client aktuell; bestehende Katalog-/Profilverträge unverändert.</td></tr>
+    <tr><td>Builder</td><td>Ein Typ ohne Klammer; mehrere Typen mit OR-Klammer; Schilde normal/Paladin einzeln und gemeinsam; Suche „Paladin“, „Nekromant“, „Reife“; deutsche Sortierung; Tier beliebig/elite; alle Operatoren; 1/6 gültig, leer/0/7 ungültig; Ethereal kanonisch; genau eine Regel.</td></tr>
+    <tr><td>Accessibility</td><td>Labels, Checkboxen und Disclosure per Tastatur; Fokus bleibt nachvollziehbar; Auswahlstatus wird sichtbar angekündigt; kein horizontaler Überlauf bei 390 × 844.</td></tr>
+    <tr><td>Regression</td><td>Default-Profile und Assignments bytegleich; bestehende Countess-/Mephisto-/Summoner-/Nihlathak-Matchmatrix; Set-/Unique-, Tier-, Ethereal- und Statregeln; Pickup/Identify/Stash/Vendor unverändert.</td></tr>
+    <tr><td>Gesamtmatrix</td><td><code>go test ./...</code>, <code>go test ./tools/generate-item-catalog</code>, <code>go build ./cmd/d2rbot</code>, <code>go vet ./...</code>, <code>golangci-lint run</code>, <code>node web/scripts/generate-api.mjs</code>, danach <code>node web/scripts/generate-api.mjs --check</code>, Webtests, TypeScript-Typecheck und Web-/Electron-Build. Race nur bei tatsächlich neuer Nebenläufigkeit.</td></tr>
+  </tbody></table>
+
+  <h2>14. Umsetzungsreihenfolge mit harten Gates</h2>
+  <div class="phase">
+    <div class="phase-id">19.0</div>
+    <div><h3>Baseline und read-only Socket-Evidenz</h3>
+      <ol>
+        <li>Dirty Worktree dokumentieren; Nutzerdateien und <code>node_modules</code> nicht anfassen. Bestehende Parser-, Item-, API- und Webtests als Baseline ausführen.</li>
+        <li>Stat-ID 194 aus der vorhandenen lokalen Excel-Datei erneut maschinenlesbar bestätigen und Quellversion festhalten.</li>
+        <li>Nur die verbose Diagnose um Raw-Flags und getrennte Active-/Base-Stat-194-Evidenz erweitern; noch keine World-Felder, Parserfreigabe oder Regel-UI.</li>
+        <li>Die fünf Beobachtungen aus Abschnitt 5 mit echten Items erfassen und die exakte Flagmaske isolieren.</li>
+        <li>Ergebnis, D2R-Build, Fälle und Maske in <code>docs/features/socket-pickit.md</code> einfrieren.</li>
+      </ol>
+      <div class="callout gate"><strong>Gate 19.0 – manuell:</strong> Active-/Base-Quelle, Null-/Missing-Semantik, Stat und genau ein Flagbit belegen ungesockelt, leer gesockelt und belegt gesockelt reproduzierbar. Gesamtzahl bleibt bei belegten Sockeln erhalten und ist ohne Identify lesbar. Bei Unklarheit stoppen; keine Nur-Stat-Ableitung.</div>
+    </div>
+  </div>
+
+  <div class="phase">
+    <div class="phase-id">19.1</div>
+    <div><h3>Memory- und World-Modell</h3>
+      <ol>
+        <li>Bestätigte Maske und Statkonstante samt Designkommentar übernehmen.</li>
+        <li>Konsistenzdecoder und ItemUnit-Felder implementieren; jede nach Gate 19.0 benötigte Active-/Base-Liste höchstens einmal durchsuchen.</li>
+        <li>World-Felder, Mapping, Clone/Reset und verbose semantische Ausgabe ergänzen.</li>
+        <li>Truth-Table-Tests und optionalen Read-Fehler vollständig abdecken.</li>
+        <li>Den Gate-19.0-Livefall erneut gegen die produktiven World-Felder laufen lassen.</li>
+      </ol>
+      <div class="callout gate"><strong>Gate 19.1 – automatisiert plus read-only live:</strong> Unit- und Mappermatrix ist grün; derselbe echte Ground-Fall zeigt korrekte <code>Sockets</code>, <code>SocketsAvailable</code> und <code>Socketed</code>; Itemanzahl und Poll-/Walk-Verhalten bleiben unverändert.</div>
+    </div>
+  </div>
+
+  <div class="phase">
+    <div class="phase-id">19.2</div>
+    <div><h3>Parser, Evaluation und API</h3>
+      <ol>
+        <li><code>[sockets]</code> als eigenes Feld und <code>socketed</code> als Flagliteral ergänzen.</li>
+        <li>Fail-closed Availability vor jedem Operator prüfen; Identify-Gate nur für bestehende Raw-Stats belassen.</li>
+        <li>Serializer, Import und bisherige Unsupported-Tests auf den neuen Vertrag umstellen.</li>
+        <li>Preview-DTO, OpenAPI, Backend-Mapping und generierten Client aktualisieren.</li>
+        <li>Bestehende First-Match- und Runtime-Characterization vollständig ausführen.</li>
+      </ol>
+      <div class="callout gate"><strong>Gate 19.2 – automatisiert:</strong> Positive, negative und unavailable Matrix besteht für Parser, Serializer, Preview und Runtime. Unidentifizierte Socket-Bases matchen; unavailable <code>!= socketed</code> matcht ausdrücklich nicht; alle bisherigen Profile kompilieren unverändert.</div>
+    </div>
+  </div>
+
+  <div class="phase">
+    <div class="phase-id">19.3</div>
+    <div><h3>Geführter kombinierter Editor</h3>
+      <ol>
+        <li>Explizite Typoptionsliste aus Abschnitt 9 gegen die vorhandenen API-Bases absichern.</li>
+        <li>Native durchsuchbare Mehrfachauswahl, Tier, Sockeloperator/-zahl und Ethereal in den bestehenden Regelbereich integrieren.</li>
+        <li>Eine pure Ausdrucksfunktion mit fester Bedingungsreihenfolge verwenden; bestehenden Ethereal-Basispfad auf <code>[flag] == ethereal</code> korrigieren.</li>
+        <li>Deutsche Feldfehler, Keyboard-, Fokus- und Small-Viewport-Fälle testen.</li>
+        <li>Browser-QA: „Paladin“ findet ausschließlich passende Optionen; Schilde normal und Paladin erzeugen zusammen genau eine Regel.</li>
+      </ol>
+      <div class="callout gate"><strong>Gate 19.3 – Browser automatisiert plus manuell:</strong> Der Benutzer erzeugt ohne Raw-Code-Kenntnis genau <code>([type] == "shie" || [type] == "ashd") &amp;&amp; [tier] == "elite" &amp;&amp; [sockets] == 4</code>; Core-Validierung akzeptiert den Entwurf; Suche, Mehrfachauswahl und 390-px-Viewport sind bedienbar.</div>
+    </div>
+  </div>
+
+  <div class="phase">
+    <div class="phase-id">19.4</div>
+    <div><h3>Dokumentation und automatische Gesamtmatrix</h3>
+      <ol>
+        <li><code>socket-pickit.md</code> finalisieren und Pickit Engine, Editor, Item Enumeration sowie den Phase-13-Nachtrag aktualisieren.</li>
+        <li>Feature-Index, Changelog und Handoff auf „in Arbeit“ beziehungsweise den tatsächlich erreichten Gate-Stand synchronisieren.</li>
+        <li>Typvererbung mit benötigter <code>itemtypes.txt</code> als spätere optionale Erweiterung dokumentieren, nicht implementieren.</li>
+        <li>Default-Profile und Assignments auf unveränderten Inhalt prüfen.</li>
+        <li>Gesamtmatrix aus Abschnitt 13 ausführen; Race nur bei neuer Nebenläufigkeit.</li>
+      </ol>
+      <div class="callout gate"><strong>Gate 19.4 – automatisiert:</strong> Go-, API-, Web-, Electron-, Lint- und Buildmatrix ist grün; Dokumentation entspricht exakt Flagmaske, Truth Table, UI-Liste und Syntax; keine ausgelieferte Pickit-Policy änderte sich.</div>
+    </div>
+  </div>
+
+  <div class="phase">
+    <div class="phase-id">19.5</div>
+    <div><h3>Manuelle Produktabnahme und Freigabe</h3>
+      <ol>
+        <li>Im installierten Produkt ein separates Abnahmeprofil mit einem tatsächlich verfügbaren gesockelten Ground-Item erstellen. Die konkrete Base darf nach Verfügbarkeit gewählt werden; ein seltener 4os-Elite-Schild ist keine Pflicht.</li>
+        <li>Über den geführten Builder Typ, passendes Tier, exakte Sockelzahl und optional Ethereal wählen, Entwurf validieren, speichern und einem isolierten Loot-Test zuordnen.</li>
+        <li>Ein positiver Ground-Fall muss dieselbe Profil-/Regelrevision matchen und über den bestehenden hover-bestätigten Pfad aufgenommen werden.</li>
+        <li>Ein negativer Kontrollfall mit falscher Sockelzahl oder anderem Typ bleibt liegen. Ein künstlich unavailable Fixture bleibt in Core-Preview und Tests No-Match.</li>
+        <li>Bei einem belegten Socket-Item read-only bestätigen, dass weiterhin die Gesamtzahl gilt. Es muss nicht aufgenommen oder gestasht werden.</li>
+        <li>Erst nach protokollierter Abnahme Phase/Handoff auf abgeschlossen setzen und Release <code>v0.17.0</code> vorbereiten.</li>
+      </ol>
+      <div class="callout gate"><strong>Gate 19.5 – manuell:</strong> UI-Auswahl, gespeicherter Ausdruck, Core-Trace und Live-Lootentscheidung stimmen überein; positiver Fall wird einmal aufgenommen, negativer Fall nicht. Kein vollständiger Boss-Run und kein seltener Ziel-Drop sind als zweite Pflichtabnahme erforderlich.</div>
+    </div>
+  </div>
+
+  <h2>15. Definition of Done</h2>
+  <ol>
+    <li>Stat 194 und das dedizierte Socket-Flag sind am aktuellen Build read-only belegt und dokumentiert.</li>
+    <li>Memory und World liefern einen konsistenten, fail-closed Socket-Zustand ohne zusätzlichen Read oder Poll.</li>
+    <li><code>[sockets]</code> unterstützt sechs Integeroperatoren; <code>socketed</code> unterstützt <code>==</code>/<code>!=</code>; unavailable matcht niemals.</li>
+    <li>Socket-Prädikate funktionieren vor Identify, während gewöhnliche Raw-Stats weiterhin Identify verlangen.</li>
+    <li>Der Editor bietet die Typen aus Abschnitt 9 alphabetisch, durchsuchbar und mehrfach auswählbar an.</li>
+    <li>Normale, klassenspezifische und Reif-/Claw-Sondertypen sind semantisch eindeutig; keine versteckte Typvererbung findet statt.</li>
+    <li>Typ, optionales Tier, Socketvergleich und Ethereal erzeugen genau eine Core-validierte Regel.</li>
+    <li>Preview, Runtime und Re-Evaluation verwenden dieselbe Go-Auswertung; React besitzt keine Matchengine.</li>
+    <li>Profil-/Assignment-Schema, Default-Profile, Run-Grenze und Loot-Pipeline bleiben unverändert.</li>
+    <li>Leere Sockel, Socket-Inhalte, Max-Sockel/Larzuk und Typvererbung sind klar als spätere Features dokumentiert.</li>
+    <li>Alle Gates 19.0 bis 19.5 sind mit ihren automatischen beziehungsweise manuellen Ergebnissen protokolliert.</li>
+    <li>Godoc, Designkommentare, Feature-Dokumentation, Changelog und Handoff entsprechen dem finalen Stand.</li>
+  </ol>
+
+  <h2>16. Agenten-Checkliste</h2>
+  <ol>
+    <li>Vor jeder Stufe den vorherigen Gate-Nachweis lesen; keine spätere Stufe vorziehen.</li>
+    <li>Keinen Socket-Parsercode vor bestandenem Gate 19.0 produktiv freischalten.</li>
+    <li>Flagmaske und Stat-ID niemals raten; Herkunft direkt am Code dokumentieren.</li>
+    <li>Unavailable niemals in „ungesockelt“ umdeuten, auch nicht für <code>!=</code>.</li>
+    <li>Keine Raw-Stat- oder Flaginterpretation außerhalb von <code>internal/memory</code> duplizieren.</li>
+    <li>Keine Parser- oder Matchevaluation in React nachbauen.</li>
+    <li>Keine Typvererbung, keine <code>itemtypes.txt</code>-Integration und keine stillen Typaliase vorziehen.</li>
+    <li>Keine Default-Profile oder Assignments verändern.</li>
+    <li>Neue oder geänderte exportierte Go-Symbole sofort mit vollständigem Godoc dokumentieren.</li>
+    <li>Nur Phase-19-Dateien ändern; vorhandene Nutzerdateien, <code>node_modules</code> und fremde Worktree-Änderungen nicht anfassen.</li>
+    <li>Keine Commits, Releases oder Pushes ohne ausdrückliche Operatoranweisung.</li>
+    <li>Nach jeder Stufe fokussierte Tests, am Ende die vollständige Matrix ausführen und echte Gate-Ergebnisse in Plan und Feature-Doc nachtragen.</li>
+  </ol>
+
+  <footer>Phase 19 · geplant · Planstand 31. Juli 2026 · Ziel v0.17.0</footer>
+</main></body>
+</html>
