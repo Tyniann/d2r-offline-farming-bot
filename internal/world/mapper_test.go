@@ -80,6 +80,83 @@ func TestFromSnapshotValid(t *testing.T) {
 	}
 }
 
+func TestFromSnapshotMapsMercenary(t *testing.T) {
+	tests := []struct {
+		name string
+		raw  memory.MercenarySnapshot
+		want Mercenary
+	}{
+		{name: "unknown"},
+		{
+			name: "not hired",
+			raw:  memory.MercenarySnapshot{HiredKnown: true},
+			want: Mercenary{HiredKnown: true},
+		},
+		{
+			name: "alive with vitals",
+			raw: memory.MercenarySnapshot{
+				HiredKnown: true, Hired: true, Alive: true, VitalsKnown: true,
+				UnitID: 1, NPCID: memory.HirelingClassRogueScout, HP: 11, MaxHP: 90,
+			},
+			want: Mercenary{
+				HiredKnown: true, Hired: true, Alive: true, VitalsKnown: true,
+				UnitID: 1, NPCID: memory.HirelingClassRogueScout, HP: 11, MaxHP: 90,
+			},
+		},
+		{
+			name: "alive without vitals",
+			raw: memory.MercenarySnapshot{
+				HiredKnown: true, Hired: true, Alive: true,
+				UnitID: 1, NPCID: memory.HirelingClassRogueScout,
+			},
+			want: Mercenary{
+				HiredKnown: true, Hired: true, Alive: true,
+				UnitID: 1, NPCID: memory.HirelingClassRogueScout,
+			},
+		},
+		{
+			name: "dead strips vitals",
+			raw: memory.MercenarySnapshot{
+				HiredKnown: true, Hired: true, Dead: true, VitalsKnown: true,
+				UnitID: 1, NPCID: memory.HirelingClassRogueScout, HP: 50, MaxHP: 90,
+			},
+			want: Mercenary{
+				HiredKnown: true, Hired: true, Dead: true,
+				UnitID: 1, NPCID: memory.HirelingClassRogueScout,
+			},
+		},
+		{
+			name: "contradictory alive dead becomes unknown",
+			raw: memory.MercenarySnapshot{
+				HiredKnown: true, Hired: true, Alive: true, Dead: true,
+				UnitID: 1, NPCID: memory.HirelingClassRogueScout,
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			snap := validSnapshot()
+			snap.Mercenary = tt.raw
+			if got := FromSnapshot(snap).Mercenary; got != tt.want {
+				t.Fatalf("Mercenary = %+v, want %+v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestFromSnapshotInvalidClearsMercenary(t *testing.T) {
+	snap := validSnapshot()
+	snap.Valid = false
+	snap.Reason = "loading"
+	snap.Mercenary = memory.MercenarySnapshot{
+		HiredKnown: true, Hired: true, Alive: true, VitalsKnown: true,
+		UnitID: 1, NPCID: memory.HirelingClassRogueScout, HP: 90, MaxHP: 90,
+	}
+	if got := FromSnapshot(snap).Mercenary; got != (Mercenary{}) {
+		t.Fatalf("invalid snapshot retained Mercenary = %+v", got)
+	}
+}
+
 func TestFromSnapshotProjectsMonsterCoverage(t *testing.T) {
 	snap := validSnapshot()
 	snap.MonsterCoverage = memory.MonsterCoverage{
@@ -542,7 +619,12 @@ func TestModelUpdateReturnMutationDoesNotAffectStoredState(t *testing.T) {
 
 func TestModelReset(t *testing.T) {
 	m := testModel(t)
-	m.Update(validSnapshot())
+	snap := validSnapshot()
+	snap.Mercenary = memory.MercenarySnapshot{
+		HiredKnown: true, Hired: true, Alive: true, VitalsKnown: true,
+		UnitID: 1, NPCID: memory.HirelingClassRogueScout, HP: 90, MaxHP: 90,
+	}
+	m.Update(snap)
 
 	at := time.Now()
 	got := m.Reset(at, "process_lost")
@@ -562,6 +644,9 @@ func TestModelReset(t *testing.T) {
 	}
 	if cur.Area != (Area{}) || cur.Player != (Player{}) {
 		t.Fatalf("Current after Reset should zero Area/Player, got Area=%+v Player=%+v", cur.Area, cur.Player)
+	}
+	if got.Mercenary != (Mercenary{}) || cur.Mercenary != (Mercenary{}) {
+		t.Fatalf("Reset retained Mercenary: got=%+v current=%+v", got.Mercenary, cur.Mercenary)
 	}
 	if !got.At.Equal(at) {
 		t.Fatal("Reset should preserve At timestamp")

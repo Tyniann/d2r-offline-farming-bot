@@ -62,6 +62,10 @@ const (
 	lootNoTargetStableTicks                   = 3
 	postKillLootDistanceTiles                 = 4
 	defaultLootPickupDistance                 = 8
+	// lootApproachMaxDistanceTiles caps post-kill / route loot chase teleports.
+	// Beyond this, the candidate is handed to pickup as too_far without yanking
+	// the character multiple screens away before town portal.
+	lootApproachMaxDistanceTiles      float64 = 20
 	lootRepositionRetryDelay                  = 500 * time.Millisecond
 	lootRepositionMaxAttempts                 = 3
 	routeLootRadiusTiles              float64 = 30
@@ -779,7 +783,10 @@ func (c *runPipeline) onLootTick(ctx context.Context, deps Deps, step string, w 
 					if deps.Combat == nil {
 						return stepResult{failed: true, reason: "combat_not_wired"}
 					}
-					if c.lootApproachAttempts < lootRepositionMaxAttempts {
+					// Far drops are abandoned without chase teleports so the
+					// character stays near the boss pile for town portal.
+					if world.Distance(w.Player.Position, target.Position) <= lootApproachMaxDistanceTiles &&
+						c.lootApproachAttempts < lootRepositionMaxAttempts {
 						if !lootRepositionReady(now, w.At, c.lootApproachAt, c.lootApproachSnapshot) {
 							return stepResult{}
 						}
@@ -794,7 +801,7 @@ func (c *runPipeline) onLootTick(ctx context.Context, deps Deps, step string, w 
 						}
 						return stepResult{}
 					}
-					if !lootRepositionReady(now, w.At, c.lootApproachAt, c.lootApproachSnapshot) {
+					if c.lootApproachAttempts > 0 && !lootRepositionReady(now, w.At, c.lootApproachAt, c.lootApproachSnapshot) {
 						return stepResult{}
 					}
 					// Let the existing pickup executor record `too_far` and skip
@@ -1507,26 +1514,22 @@ func (c *runPipeline) findCleanupTarget(w world.State) (world.Monster, bool) {
 
 func (c *runPipeline) isCleanupHostile(monster world.Monster) bool {
 	switch c.effectiveDefinition().ID {
-	case RunIDCountess:
-		switch monster.NPCID {
-		case 21, 38, 43, 44, 45, 46, 47, 55, 162:
-			return true
-		}
 	case RunIDSummoner:
 		return c.effectiveDefinition().AllowsRouteHostile(monster.NPCID)
 	case RunIDNihlathak:
 		// Once Nihlathak is confirmed dead, every remaining living monster near
 		// the player blocks safe loot and portal handling.
 		return true
+	default:
+		return false
 	}
-	return false
 }
 
 func (c *runPipeline) postBossCleanupRadiusTiles() float64 {
 	if c.effectiveDefinition().ID == RunIDNihlathak {
 		// Halls of Vaught combines dense melee packs with ranged attackers. Keep
-		// Countess and Summoner behavior unchanged, but clear the full nearby
-		// encounter instead of declaring the portal safe at their 18-tile radius.
+		// Summoner's 18-tile radius unchanged, but clear the full nearby
+		// encounter instead of declaring the portal safe too early.
 		return nihlathakCleanupRadiusTiles
 	}
 	return postBossCleanupRadiusTiles
@@ -1721,6 +1724,11 @@ func (c *runPipeline) tickLootPickupRecovery(deps Deps, w world.State, now time.
 		return stepResult{failed: true, reason: "combat_not_wired"}
 	}
 	if !c.lootRecoveryTeleportSent {
+		if world.Distance(w.Player.Position, target.Position) > lootApproachMaxDistanceTiles {
+			// Recovery is for nearby blockers (e.g. Bone Prison), not multi-screen yanks.
+			c.clearLootRecoveryPending()
+			return stepResult{}
+		}
 		if !lootRepositionReady(now, w.At, c.lootRecoveryAt, c.lootRecoverySnapshot) {
 			return stepResult{}
 		}
@@ -2057,7 +2065,8 @@ func (c *runPipeline) tickRouteLoot(deps Deps, w world.State, progress RouteProg
 		if deps.Combat == nil {
 			return true, stepResult{failed: true, reason: "combat_not_wired"}
 		}
-		if c.lootApproachAttempts < lootRepositionMaxAttempts {
+		if world.Distance(w.Player.Position, target.Position) <= lootApproachMaxDistanceTiles &&
+			c.lootApproachAttempts < lootRepositionMaxAttempts {
 			if !lootRepositionReady(now, w.At, c.lootApproachAt, c.lootApproachSnapshot) {
 				return true, stepResult{}
 			}
@@ -2072,7 +2081,7 @@ func (c *runPipeline) tickRouteLoot(deps Deps, w world.State, progress RouteProg
 			}
 			return true, stepResult{}
 		}
-		if !lootRepositionReady(now, w.At, c.lootApproachAt, c.lootApproachSnapshot) {
+		if c.lootApproachAttempts > 0 && !lootRepositionReady(now, w.At, c.lootApproachAt, c.lootApproachSnapshot) {
 			return true, stepResult{}
 		}
 	}

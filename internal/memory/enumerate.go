@@ -145,14 +145,30 @@ func (p *ProbeReader) enumerateMonsters(moduleBase uintptr, off OffsetSet, visit
 	if segmentLimit < 1 {
 		segmentLimit = 1
 	}
-	return p.walkUnitSegment(moduleBase, off, unitSegmentMonster, visited, segmentLimit, func(unitAddr uintptr) (unitWalkAction, error) {
-		corpse, err := p.reader.ReadUint8(unitAddr + unitOffsetCorpse)
-		if err != nil || corpse != 0 {
+	hirelingCount := 0
+	hirelingInvalid := false
+	err := p.walkUnitSegment(moduleBase, off, unitSegmentMonster, visited, segmentLimit, func(unitAddr uintptr) (unitWalkAction, error) {
+		txtFileNo, err := p.reader.ReadUint32(unitAddr + unitOffsetTxtFileNo)
+		if err != nil {
+			return unitWalkContinue, nil
+		}
+		if IsHirelingClassID(txtFileNo) {
+			hirelingCount++
+			if hirelingCount > 1 {
+				hirelingInvalid = true
+				return unitWalkContinue, nil
+			}
+			mercenary, readErr := p.readMercenarySnapshot(unitAddr, txtFileNo, off)
+			if readErr != nil {
+				hirelingInvalid = true
+				return unitWalkContinue, nil
+			}
+			snap.Mercenary = mercenary
 			return unitWalkContinue, nil
 		}
 
-		txtFileNo, err := p.reader.ReadUint32(unitAddr + unitOffsetTxtFileNo)
-		if err != nil {
+		corpse, err := p.reader.ReadUint8(unitAddr + unitOffsetCorpse)
+		if err != nil || corpse != 0 {
 			return unitWalkContinue, nil
 		}
 
@@ -197,6 +213,22 @@ func (p *ProbeReader) enumerateMonsters(moduleBase uintptr, off OffsetSet, visit
 		})
 		return unitWalkContinue, nil
 	})
+	if err != nil {
+		p.resetMercenaryStability()
+		snap.Mercenary = MercenarySnapshot{}
+		return err
+	}
+	if hirelingInvalid {
+		p.resetMercenaryStability()
+		snap.Mercenary = MercenarySnapshot{}
+		return nil
+	}
+	if hirelingCount == 0 {
+		p.observeNoHireling(snap)
+		return nil
+	}
+	p.resetMercenaryStability()
+	return nil
 }
 
 func appendRuntimeMonster(snap *Snapshot, candidate MonsterUnit) {
@@ -262,6 +294,7 @@ func emptyEntitySlices(snap Snapshot) Snapshot {
 	snap.Objects = make([]ObjectUnit, 0)
 	snap.Entrances = make([]EntranceUnit, 0)
 	snap.Monsters = make([]MonsterUnit, 0)
+	snap.Mercenary = MercenarySnapshot{}
 	snap.Items = make([]ItemUnit, 0)
 	return snap
 }

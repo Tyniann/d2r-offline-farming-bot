@@ -145,7 +145,7 @@ func validateSessionInspectExclusivity(opts Options) error {
 	if !opts.SessionInspect {
 		return fmt.Errorf("session inspect mode is not selected")
 	}
-	if opts.RunsInspect || opts.Probe || opts.InputTest != "" || opts.Run != "" || opts.RunPhase != "" || opts.PathingTest != "" || opts.OfflineDifficulty != "" || opts.OfflineCharacter != "" || opts.OfflineExitTest || opts.UIStateProbe != "" || opts.ScreenAnchorCapture != "" || opts.Route != "" || opts.RouteName != "" || opts.RouteDifficulty != "" {
+	if opts.RunsInspect || opts.Probe || opts.InputTest != "" || opts.Run != "" || opts.RunPhase != "" || opts.PathingTest != "" || opts.OfflineDifficulty != "" || opts.OfflineCharacter != "" || opts.OfflineExitTest || opts.UIStateProbe != "" || opts.ScreenAnchorCapture != "" || opts.MercenaryProbe != "" || opts.Route != "" || opts.RouteName != "" || opts.RouteDifficulty != "" {
 		return fmt.Errorf("--session-inspect is mutually exclusive with run, probe, route, and test modes")
 	}
 	return nil

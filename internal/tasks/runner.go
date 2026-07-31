@@ -208,7 +208,9 @@ func (r *Runner) Tick(ctx context.Context, w world.State, now time.Time) TickRes
 		routeOwnsResources = owner.handlesResources(r.tracker.name)
 	}
 	if r.deps.Profile != nil && !routeOwnsResources {
-		resource := r.deps.Profile.TickResources(w, profile.ResourceContext{}, now)
+		resource := r.deps.Profile.TickResources(w, profile.ResourceContext{
+			AllowMercenary: allowsMercenaryResource(r.tracker.name),
+		}, now)
 		switch resource.Status {
 		case profile.StatusFailed:
 			return r.finishStepFailed(now, resource.Reason)
@@ -300,13 +302,24 @@ func (r *Runner) inactiveResult() TickResult {
 	}
 }
 
+func allowsMercenaryResource(step string) bool {
+	switch step {
+	case "engage_boss", "clear_nearby_hostiles":
+		return true
+	default:
+		return false
+	}
+}
+
 func (r *Runner) beginStep(name string, now time.Time) error {
 	timeout := time.Duration(0)
 	if r.run != nil && !r.run.usesTickTimeout(name) {
 		timeout = r.runConfig.StepTimeout
 	}
 	r.tracker.begin(name, now, timeout)
-	if r.deps.Waypoint != nil {
+	// Preserve menuRequestedAt across open_waypoint → select_* so post-open
+	// settle still keys off our object click. Other steps reset as usual.
+	if r.deps.Waypoint != nil && name != pipelineStepSelectRunWaypoint && name != pipelineStepSelectHubWaypoint {
 		r.deps.Waypoint.Reset()
 	}
 	if r.deps.Portal != nil {

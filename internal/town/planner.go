@@ -30,7 +30,9 @@ func (p *Planner) Plan(origin Origin, snapshot DemandSnapshot, target NextRunTar
 	}
 	// Identification must precede every Akara action so an unid sell candidate
 	// keeps the same UnitID across the ordered Cain -> Akara transaction.
-	for _, service := range []Service{ServiceIdentify, ServicePotions, ServiceScrolls, ServiceSell, ServiceRepair} {
+	// Merc revive/heal sit between Cain and Akara shop work so a revived full
+	// Merc never shares an Akara click with potions, and heal reuses dialog.
+	for _, service := range []Service{ServiceIdentify, ServiceMercenaryRevive, ServiceMercenaryHeal, ServicePotions, ServiceScrolls, ServiceSell, ServiceRepair} {
 		if demandNeeds(snapshot.Demand, service) {
 			steps = append(steps, PlanStep{Phase: PlanPhaseServices, Kind: StepService, Service: service, Act: OriginAct1})
 		}
@@ -62,6 +64,10 @@ func demandNeeds(d Demand, service Service) bool {
 		return d.Sell
 	case ServiceRepair:
 		return d.Repair
+	case ServiceMercenaryHeal:
+		return d.MercenaryHeal
+	case ServiceMercenaryRevive:
+		return d.MercenaryRevive
 	}
 	return false
 }

@@ -13,7 +13,7 @@ go run ./cmd/d2rbot --run countess --phase loot-and-return --probe --verbose
 go run ./cmd/d2rbot --run countess --phase stash-personal --verbose
 ```
 
-`--run countess` ohne `--phase` ist ab Phase 5.8 der vollständige Countess-Run: Act-1-Town-Waypoint -> Black Marsh -> Forgotten Tower -> Tower Cellar Level 5 -> Countess-Kill -> begrenztes Aufräumen naher Gegner -> Loot-Pickup -> Town Portal -> Portal-Eintritt -> Rogue Encampment -> Personal Stash -> `complete`.
+`--run countess` ohne `--phase` ist ab Phase 5.8 der vollständige Countess-Run: Act-1-Town-Waypoint -> Black Marsh -> Forgotten Tower -> Tower Cellar Level 5 -> Countess-Kill -> Loot-Pickup -> Town Portal -> Portal-Eintritt -> Rogue Encampment -> Personal Stash -> `complete`.
 
 `travel-entry` führt vom Rogue Encampment über den Act-1-Waypoint nach `Black Marsh`.
 `play-route` nutzt diesen Prefix weiter und delegiert anschließend bis `Tower Cellar Level 5` an die über das Character-/Run-Assignment ausgewählte Aufnahme.
@@ -37,7 +37,7 @@ Der Full Run verwendet die gemeinsame Pipeline direkt:
 
 ```text
 precheck -> acquire_town_waypoint -> open_waypoint -> select_run_waypoint -> wait_entry_area
--> play_bound_route -> acquire_boss -> engage_boss -> clear_nearby_hostiles -> reposition_for_loot -> wait_for_drops -> scan_loot
+-> play_bound_route -> acquire_boss -> engage_boss -> reposition_for_loot -> wait_for_drops -> scan_loot
 -> pick_loot -> cast_town_portal -> enter_town_portal -> wait_origin_town
 -> open_personal_stash -> stash_items -> close_personal_stash -> complete
 ```
@@ -46,7 +46,7 @@ precheck -> acquire_town_waypoint -> open_waypoint -> select_run_waypoint -> wai
 
 Die isolierten Phasen bleiben bewusst als Testoberflächen erhalten: Travel-Phasen enden am jeweiligen Zielgebiet, `boss` endet nach defensiver Kill-Bestätigung ohne Portal, `loot-and-return` prüft nur Loot und Portal nach einem manuellen oder vorherigen Kill.
 
-`clear_nearby_hostiles` ist nur im Full Run aktiv. Nach dem bestätigten Kill und vor dem Teleport zur gespeicherten Bossposition wählt der Step in jedem aktuellen Snapshot neu den nächsten lebenden Cellar-5-Gegnertyp innerhalb von 18 Tiles. Er zielt auf dessen aktuelle Memory-Position und sendet den normalen `attack_skill` des Combat-Profils erst, wenn der Hover-Buffer exakt dieselbe Monster-`UnitID` bestätigt. Tote beziehungsweise aus dem Living-Snapshot verschwundene Units und ein inzwischen näheres Ziel können deshalb keinen weiteren Cast auf die alte Position auslösen. Drei aufeinanderfolgende Snapshots ohne Ziel beenden den Step. Nach höchstens 20 tatsächlich gesendeten Angriffen wird best-effort mit der Loot-Repositionierung fortgefahren, auch wenn noch ein zulässiges Ziel sichtbar ist. Die Registry-Definition aktiviert dieses Verhalten ausdrücklich für Countess; andere Runs erben es nicht automatisch.
+Countess führt bewusst **keinen** `clear_nearby_hostiles`-Step aus: Viele Tower-Cellar-Gegner stehen hinter Wänden und sind ohne Pathing nicht zuverlässig erreichbar; der Cleanup-Budget würde dort verschwendet. Nach Kill-Confirm folgt direkt `reposition_for_loot`.
 
 ## Countess-Loot (Phase 5.6)
 
@@ -68,7 +68,7 @@ Pickup-Ergebnisse mit Item-/World-Ursache (`monster_nearby`, `hover_not_found`, 
 
 Nach bestätigtem Countess-Kill bewahrt die State Machine ihre letzte Memory-bestätigte Weltposition auf. `reposition_for_loot` versucht höchstens dreimal, sich dieser Position zu nähern. Nur ein tatsächlich gesendeter Teleport verbraucht einen Versuch; ein durch das Input-Throttling unterdrückter Aufruf zählt nicht. Zwischen zwei Versuchen müssen mindestens 500 ms und ein neuerer Memory-Snapshot liegen. Bleibt die bestätigte Ankunft innerhalb von vier Tiles auch nach dem letzten Versuch aus, beginnt die Drop-Stabilisierung trotzdem: Die aktuellen Item-Positionen sind für den anschließenden Pickup genauer als die historische Bossposition.
 
-Für jeden ausgewählten Pickit-Kandidaten wird dessen `UnitID` vor Input erneut im aktuellen World-State aufgelöst. Liegt das Item außerhalb von `loot.pickup.max_distance_tiles`, folgen nach denselben Snapshot-/Zeitgrenzen höchstens drei Teleports direkt zu seiner aktuellen Memory-Position. Erst danach übernimmt der vorhandene hover-bestätigte Pickup-Executor. Ist das Item weiterhin zu weit entfernt, wird es mit `too_far` für diese Loot-Phase übersprungen; Input-, Projektions- und ungültige World-Fehler bleiben terminal. Dadurch kann ein ungünstig liegender Drop gezielt erreicht werden, ohne blinde Teleport- oder Klickschleifen zu erzeugen. Andere Run-Definitionen erhalten die Post-Kill-Repositionierung nur nach ausdrücklichem Opt-in.
+Für jeden ausgewählten Pickit-Kandidaten wird dessen `UnitID` vor Input erneut im aktuellen World-State aufgelöst. Liegt das Item außerhalb von `loot.pickup.max_distance_tiles`, aber innerhalb von 20 Tiles, folgen nach denselben Snapshot-/Zeitgrenzen höchstens drei Teleports direkt zu seiner aktuellen Memory-Position. Drops weiter als 20 Tiles werden ohne Chase-Teleport sofort als `too_far` übersprungen, damit der Charakter nicht mehrere Bildschirme vom Boss weggezogen wird, bevor das Town Portal entsteht. Erst danach übernimmt der vorhandene hover-bestätigte Pickup-Executor. Input-, Projektions- und ungültige World-Fehler bleiben terminal. Andere Run-Definitionen erhalten die Post-Kill-Repositionierung nur nach ausdrücklichem Opt-in.
 
 Endet der Pickup mit `hover_not_found` oder `pickup_failed`, folgt einmalig pro `UnitID` ein distanzignorierender Teleport auf die aktuelle Item-Position (z. B. aus Bone Prison), danach genau ein erneuter Pickup-Versuch. Scheitert auch der, bleibt das bisherige Skip-Verhalten.
 
@@ -97,7 +97,7 @@ Es wird kein D2R-Waypoint-Hotkey vorausgesetzt. Der Ablauf folgt dem Koolo-Model
 
 1. `acquire_town_waypoint`: Wenn der Waypoint noch nicht enumeriert ist, läuft `pathing.TownWalker` per Force Move (`e`) entlang der für den konfigurierten Schwierigkeitsgrad aufgezeichneten Act-1-Route Richtung Waypoint.
 2. `open_waypoint`: `pathing.WaypointActions.TickTownWaypoint` klickt den nächsten `ObjectKindWaypoint` erst nach Hover-Bestätigung.
-3. `select_run_waypoint`: nach bestätigtem `WaypointOpen` wählt der gemeinsame Executor den registrierten Act-1-Tab und nach 200 ms die Black-Marsh-Zeile. Jeder Tick erzeugt höchstens einen Klick.
+3. `select_run_waypoint`: erst nach post-open Settle (500 ms ab unserem Objektklick plus Positions-Settle) und Memory-`WaypointOpen` wählt der Executor den registrierten Act-1-Tab und nach 200 ms die Black-Marsh-Zeile. Sticky `WaypointOpen` ohne unseren Open-Klick reicht nicht. Jeder Tick erzeugt höchstens einen Klick.
 4. `wait_entry_area`: Erfolg bei `world.BlackMarsh`; eine andere bestätigte Area oder `runs.step_timeout_ms` beendet ohne weiteren Klick.
 
 Die Default-UI-Koordinate ist für 1280x720 windowed kalibriert:
@@ -220,4 +220,4 @@ Town-Portal, bestätigte Rückkehr ins Rogue Encampment, Stash, Versorgung und n
 - Der produktive Run verwendet die charakter-, schwierigkeits- und layoutgebundene veröffentlichte Route. Die frühere globale Explorer-Traversierung des Phase-5-Stands ist kein produktiver Fallback.
 
 ---
-*Zuletzt aktualisiert: 2026-07-28*
+*Zuletzt aktualisiert: 2026-07-31*

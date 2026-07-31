@@ -39,6 +39,7 @@ type State struct {
 	Reason          string       // Short invalid reason when Valid is false; may be empty.
 	Area            Area         // Resolved area when Valid is true.
 	Player          Player       // Main-player vitals when Valid is true.
+	Mercenary       Mercenary    // Fail-closed hired-hireling state for this tick.
 	Identity        GameIdentity // Confirmed active character; zero while unavailable or unstable.
 	Objects         []Object
 	Entrances       []Entrance

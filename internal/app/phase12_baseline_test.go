@@ -58,7 +58,7 @@ func TestPhase12BaselineProductiveRouteFiles(t *testing.T) {
 
 func TestPhase12BaselineTownAssets(t *testing.T) {
 	tests := map[string]string{
-		filepath.Join("..", "..", "configs", "routes", "town", "act1", "graph", "graph.yaml"):            "806d48adabd46c29493228fe44adbbf34e70ed844674545e8a01f21d35ae079f",
+		filepath.Join("..", "..", "configs", "routes", "town", "act1", "graph", "graph.yaml"):            "278f253cc00c0fa06cc779fc638024250365f57232617defac56d2f5e78d3520",
 		filepath.Join("..", "..", "configs", "routes", "town", "act3", "egress", "portal-waypoint.yaml"): "715e012f8fd77a9ea5ba2c405d422c15b85a3caf151df6cb3c1c348778652a02",
 	}
 	for path, want := range tests {

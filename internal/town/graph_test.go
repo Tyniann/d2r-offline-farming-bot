@@ -126,6 +126,39 @@ func TestGraphRejectsUnsafeRouteAndNonReversibleReverse(t *testing.T) {
 	}
 }
 
+func TestGraphKashyaRouteUsesActivatedLayoutVariants(t *testing.T) {
+	graph := loadCommittedGraph(t)
+	const layout = "76876927307330686a85da717370ee70ec4e0c2a47dcb7fa4bdba91cc9017381"
+	route, err := graph.RouteForLayout(layout, AnchorStash, []Anchor{AnchorKashya}, AnchorWaypoint)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []struct {
+		id      string
+		reverse bool
+	}{{"stash-waypoint", false}, {"waypoint-kashya", false}, {"waypoint-kashya", true}}
+	if len(route) != len(want) {
+		t.Fatalf("route = %+v", route)
+	}
+	for i := range want {
+		if route[i].Edge.ID != want[i].id || route[i].Reverse != want[i].reverse {
+			t.Fatalf("route[%d] = %+v, want %+v", i, route[i], want[i])
+		}
+	}
+	ordered, err := graph.RouteOrderedForLayout(layout, AnchorWaypoint, []Anchor{AnchorKashya}, AnchorWaypoint)
+	if err != nil || len(ordered) != 2 || ordered[0].Edge.ID != "waypoint-kashya" || ordered[0].Reverse || !ordered[1].Reverse {
+		t.Fatalf("ordered waypoint-kashya roundtrip = %+v err=%v", ordered, err)
+	}
+}
+
+func TestGraphKashyaMissingOnUnknownLayout(t *testing.T) {
+	graph := loadCommittedGraph(t)
+	const unknown = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	if _, err := graph.RouteForLayout(unknown, AnchorStash, []Anchor{AnchorKashya}, AnchorWaypoint); err == nil || err.Error() != string(ReasonTownLayoutRouteMissing) {
+		t.Fatalf("unknown layout must fail closed: %v", err)
+	}
+}
+
 func TestEgressFormatRejectsServiceFields(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "egress.yaml")
 	body := "act: act3\narea: kurast_docks\nroute_id: act3-egress\nanchors: [portal_arrival, waypoint]\nservices: [akara]\n"

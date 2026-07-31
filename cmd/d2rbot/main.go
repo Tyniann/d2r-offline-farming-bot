@@ -42,6 +42,8 @@ func main() {
 	offlineExitTest := flag.Bool("offline-exit-test", false, "run one isolated Memory-gated Save & Exit test from Rogue Encampment")
 	uiStateProbe := flag.String("ui-state-probe", "", "read-only UI-buffer capture label (e.g. gameplay, quit-menu, character-screen, difficulty-dialog)")
 	uiStateProbeTimeoutMs := flag.Int("ui-state-probe-timeout-ms", 30000, "timeout in ms for a read-only UI-state capture")
+	mercenaryProbe := flag.String("mercenary-probe", "", "read-only hireling evidence label (e.g. not-hired, alive-healthy, alive-injured, dead, area-transition)")
+	mercenaryProbeTimeoutMs := flag.Int("mercenary-probe-timeout-ms", 45000, "timeout in ms for a read-only mercenary probe capture")
 	screenAnchorCapture := flag.String("screen-anchor-capture", "", "capture a named 1280x720 frontend screenshot for Phase 7.3 calibration")
 	sessionInspect := flag.Bool("session-inspect", false, "validate and print the resolved autonomous-session plan without attaching or sending input")
 	runsInspect := flag.Bool("runs-inspect", false, "print read-only run metadata and availability as stable JSON")
@@ -90,11 +92,13 @@ func main() {
 		PathingTestTimeoutMs:   *pathingTestTimeoutMs,
 		OfflineDifficulty:      *offlineDifficulty,
 		OfflineCharacter:       *offlineCharacter,
-		OfflineExitTest:        *offlineExitTest,
-		UIStateProbe:           *uiStateProbe,
-		UIStateProbeTimeoutMs:  *uiStateProbeTimeoutMs,
-		ScreenAnchorCapture:    *screenAnchorCapture,
-		SessionInspect:         *sessionInspect,
+		OfflineExitTest:         *offlineExitTest,
+		UIStateProbe:            *uiStateProbe,
+		UIStateProbeTimeoutMs:   *uiStateProbeTimeoutMs,
+		MercenaryProbe:          *mercenaryProbe,
+		MercenaryProbeTimeoutMs: *mercenaryProbeTimeoutMs,
+		ScreenAnchorCapture:     *screenAnchorCapture,
+		SessionInspect:          *sessionInspect,
 		RunsInspect:            *runsInspect,
 		WaypointTargetsInspect: *waypointTargetsInspect,
 		SessionMaxRuns:         *sessionMaxRuns,
@@ -249,6 +253,9 @@ func runWithDataRoot(configPath, dataRoot string, opts app.Options) error {
 	if opts.UIStateProbe != "" {
 		return rt.RunUIStateProbe(opts.UIStateProbe)
 	}
+	if opts.MercenaryProbe != "" {
+		return rt.RunMercenaryProbe(opts.MercenaryProbe)
+	}
 	if opts.ScreenAnchorCapture != "" {
 		return rt.RunScreenAnchorCapture(opts.ScreenAnchorCapture)
 	}
@@ -272,7 +279,7 @@ func validateDesktopMode(opts app.Options) error {
 	if !opts.Desktop {
 		return nil
 	}
-	if opts.Probe || opts.InputTest != "" || opts.Run != "" || opts.RunPhase != "" || opts.PathingTest != "" || opts.OfflineDifficulty != "" || opts.OfflineCharacter != "" || opts.OfflineExitTest || opts.UIStateProbe != "" || opts.ScreenAnchorCapture != "" || opts.SessionInspect || opts.RunsInspect || opts.WaypointTargetsInspect || opts.SessionMaxRuns != 0 || opts.Route != "" || opts.RouteName != "" || opts.RouteDifficulty != "" || opts.TownInspect || opts.TownTest != "" {
+	if opts.Probe || opts.InputTest != "" || opts.Run != "" || opts.RunPhase != "" || opts.PathingTest != "" || opts.OfflineDifficulty != "" || opts.OfflineCharacter != "" || opts.OfflineExitTest || opts.UIStateProbe != "" || opts.ScreenAnchorCapture != "" || opts.MercenaryProbe != "" || opts.SessionInspect || opts.RunsInspect || opts.WaypointTargetsInspect || opts.SessionMaxRuns != 0 || opts.Route != "" || opts.RouteName != "" || opts.RouteDifficulty != "" || opts.TownInspect || opts.TownTest != "" {
 		return fmt.Errorf("desktop mode is mutually exclusive with session, run, inspect, probe, route, town, and test modes")
 	}
 	return nil

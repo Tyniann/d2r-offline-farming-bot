@@ -26,6 +26,8 @@ const (
 	Akara uint32 = 148
 	// Charsi is the Act-1 repair vendor NPC ID.
 	Charsi uint32 = 154
+	// Kashya is the Act-1 hireling revive NPC ID from monstats (`kashya` / 150).
+	Kashya uint32 = 150
 )
 
 // SuperUniqueMonsterFlag is the unitData flag for super-unique monsters in d2go.
@@ -51,6 +53,8 @@ func LookupNPCName(id uint32) string {
 		return "Akara"
 	case Charsi:
 		return "Charsi"
+	case Kashya:
+		return "Kashya"
 	}
 	return ""
 }

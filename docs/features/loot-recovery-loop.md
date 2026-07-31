@@ -56,7 +56,7 @@ Item-Pickup folgt dem bestehenden Hover-Feedback-Prinzip:
 
 1. Kandidat per `UnitID` aus `world.State.GroundItems` auswählen.
 2. Den Kandidaten vor Input anhand seiner `UnitID` im aktuellen Snapshot erneut auflösen.
-3. Liegt er außerhalb von `loot.pickup.max_distance_tiles`, höchstens drei durch frische Snapshots und 500 ms getrennte Teleports zu seiner aktuellen Memory-Position senden. Nur tatsächlich gesendete Inputs zählen als Versuch.
+3. Liegt er außerhalb von `loot.pickup.max_distance_tiles` und höchstens 20 Tiles entfernt, höchstens drei durch frische Snapshots und 500 ms getrennte Teleports zu seiner aktuellen Memory-Position senden. Nur tatsächlich gesendete Inputs zählen als Versuch. Weiter entfernte Kandidaten werden ohne Chase-Teleport als `too_far` übersprungen.
 4. Maus per spielerrelativer Projektion und Spiral-Suche bewegen.
 5. Nur klicken, wenn `Hover.UnitType` und `Hover.UnitID` das Ziel-Item bestätigen.
 6. Erfolg nur akzeptieren, wenn das Item vom Boden verschwindet oder nach `inventory` wechselt.

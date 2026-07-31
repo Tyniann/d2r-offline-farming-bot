@@ -26,14 +26,14 @@ func TestRuntimeMonsterCandidateIncludesAct1TownNPCs(t *testing.T) {
 }
 
 func TestPostBossCleanupNPCIDs(t *testing.T) {
-	for _, id := range []uint32{21, 38, 43, 44, 45, 46, 47, 55, 162, 40, 56, 131} {
+	for _, id := range []uint32{40, 56, 131} {
 		if !IsPostBossCleanupNPCID(id) || !IsRuntimeMonsterCandidate(id, 0) {
 			t.Fatalf("cleanup hostile %d should be enumerated", id)
 		}
 	}
-	for _, id := range []uint32{148, 265, 291} {
+	for _, id := range []uint32{21, 38, 43, 55, 162, 148, 265, 291} {
 		if IsPostBossCleanupNPCID(id) {
-			t.Fatalf("non-hostile or summon %d must not be a cleanup candidate", id)
+			t.Fatalf("non-cleanup or summon %d must not be a cleanup candidate", id)
 		}
 	}
 }

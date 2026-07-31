@@ -34,6 +34,9 @@ type ExecutorEvent struct {
 	PickitAction       string
 	ProfileRevision    uint64
 	AssignmentRevision uint64
+	MercUnitID         uint32
+	HPBefore           int
+	HPAfter            int
 }
 
 // ExecutorTelemetry synchronously persists Town events before progression.

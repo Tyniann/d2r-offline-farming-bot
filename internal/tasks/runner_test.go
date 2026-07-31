@@ -366,6 +366,7 @@ func (m *mockCombatActions) CastSkillAtWorld(_ time.Time, skillID uint16, _, _ w
 }
 
 func (m *mockCombatActions) CastBelt(int) error { return nil }
+func (m *mockCombatActions) CastBeltForMercenary(int) error { return nil }
 
 func (m *mockCombatActions) StopAttack() error {
 	m.stopCalls++
@@ -963,9 +964,13 @@ func TestCountessTravelMarshSuccessThroughLoading(t *testing.T) {
 	if res.Step != pipelineStepSelectRunWaypoint {
 		t.Fatalf("open clicked = %+v, want select_run_waypoint", res)
 	}
+	resetsAfterOpen := wp.resetCalls
 	res = r.Tick(context.Background(), townStateWithWaypoint(), now.Add(300*time.Millisecond))
 	if wp.selectCalls != 0 || res.Step != pipelineStepSelectRunWaypoint {
 		t.Fatalf("settle tick = %+v selectCalls=%d, want no click", res, wp.selectCalls)
+	}
+	if wp.resetCalls != resetsAfterOpen {
+		t.Fatalf("waypoint Reset calls = %d after select enter, want %d (preserve open evidence)", wp.resetCalls, resetsAfterOpen)
 	}
 	res = r.Tick(context.Background(), townStateWithWaypoint(), now.Add(800*time.Millisecond))
 	if wp.selectCalls != 1 || res.Step != pipelineStepWaitEntryArea {
@@ -1356,10 +1361,17 @@ func TestCountessBossHookCompletesBeforeFirstAttack(t *testing.T) {
 	if profileActions.targets[0].UnitID != 77 || profileActions.targets[0].Position != target.Position {
 		t.Fatalf("target=%+v", profileActions.targets[0])
 	}
+	allowMercSeen := false
 	for i, resourceContext := range profileActions.resourceContexts {
-		if resourceContext != (profile.ResourceContext{}) {
-			t.Fatalf("non-route resource context %d = %+v", i, resourceContext)
+		if resourceContext.MobilityCritical || resourceContext.Threatened || resourceContext.EmergencyMana {
+			t.Fatalf("non-route resource context %d leaked route flags: %+v", i, resourceContext)
 		}
+		if resourceContext.AllowMercenary {
+			allowMercSeen = true
+		}
+	}
+	if !allowMercSeen {
+		t.Fatal("engage_boss resource ticks must allow mercenary potions")
 	}
 }
 
@@ -1487,7 +1499,7 @@ func TestLootCandidateRepositionsToCurrentItemBeforePickup(t *testing.T) {
 	definition, _ := DefaultRunRegistry().Definition(RunIDCountess)
 	target := LootTarget{
 		UnitID: 10, TxtFileNo: 1, Code: "r01", Name: "El Rune",
-		Position: world.Position{X: 130, Y: 100}, AreaID: world.TowerCellarLevel5,
+		Position: world.Position{X: 115, Y: 100}, AreaID: world.TowerCellarLevel5,
 	}
 	lootActions := &mockLootActions{
 		scans: []LootScanResult{{GroundItemCount: 1, CandidateCount: 1, HasTarget: true, NextTarget: target}},
@@ -1512,6 +1524,33 @@ func TestLootCandidateRepositionsToCurrentItemBeforePickup(t *testing.T) {
 	res = pipeline.onLootTick(context.Background(), Deps{Loot: lootActions, Combat: combat}, pipelineStepPickLoot, arrived, arrived.At, now)
 	if res.complete || res.failed || combat.teleportCalls != 1 || len(lootActions.startCalls) != 1 || lootActions.startCalls[0].UnitID != target.UnitID {
 		t.Fatalf("arrival result=%+v teleports=%d starts=%+v", res, combat.teleportCalls, lootActions.startCalls)
+	}
+}
+
+func TestLootCandidateSkipsFarChaseWithoutTeleport(t *testing.T) {
+	combat := &mockCombatActions{}
+	definition, _ := DefaultRunRegistry().Definition(RunIDCountess)
+	target := LootTarget{
+		UnitID: 11, TxtFileNo: 1, Code: "uap", Name: "Shako",
+		Position: world.Position{X: 160, Y: 100}, AreaID: world.TowerCellarLevel5,
+	}
+	lootActions := &mockLootActions{
+		scans: []LootScanResult{{GroundItemCount: 1, CandidateCount: 1, HasTarget: true, NextTarget: target}},
+		ticks: []LootPickupResult{{Status: LootPickupTooFar, Done: true, Target: target}},
+	}
+	pipeline := &runPipeline{definition: definition, lootPickupDistanceTiles: 8}
+	now := time.Now()
+	state := cellar5State()
+	state.At = now
+	state.Player.Position = world.Position{X: 100, Y: 100}
+	state.Items = []world.Item{{
+		UnitID: target.UnitID, TxtFileNo: target.TxtFileNo, Code: target.Code, Name: target.Name,
+		Location: world.ItemLocationGround, Position: target.Position,
+	}}
+
+	res := pipeline.onLootTick(context.Background(), Deps{Loot: lootActions, Combat: combat}, pipelineStepPickLoot, state, now, now)
+	if res.failed || res.complete || combat.teleportCalls != 0 || len(lootActions.startCalls) != 1 {
+		t.Fatalf("far skip result=%+v teleports=%d starts=%d", res, combat.teleportCalls, len(lootActions.startCalls))
 	}
 }
 
@@ -1617,7 +1656,7 @@ func TestCleanupRunsClearBeforeRepositioningToBossCorpse(t *testing.T) {
 	summoner, _ := DefaultRunRegistry().Definition(RunIDSummoner)
 	nihlathak, _ := DefaultRunRegistry().Definition(RunIDNihlathak)
 	mephisto, _ := DefaultRunRegistry().Definition(RunIDMephisto)
-	for _, definition := range []RunDefinition{countess, summoner, nihlathak} {
+	for _, definition := range []RunDefinition{summoner, nihlathak} {
 		pipeline := &runPipeline{definition: definition}
 		if got := pipeline.nextStep(pipelineStepEngageBoss); got != pipelineStepClearNearbyHostiles {
 			t.Fatalf("%s engage successor = %q, want %q", definition.ID, got, pipelineStepClearNearbyHostiles)
@@ -1629,8 +1668,10 @@ func TestCleanupRunsClearBeforeRepositioningToBossCorpse(t *testing.T) {
 			t.Fatalf("%s reposition successor = %q, want %q", definition.ID, got, pipelineStepWaitForDrops)
 		}
 	}
-	if got := (&runPipeline{definition: mephisto}).nextStep(pipelineStepEngageBoss); got != pipelineStepRepositionForLoot {
-		t.Fatalf("mephisto successor = %q, want %q", got, pipelineStepRepositionForLoot)
+	for _, definition := range []RunDefinition{countess, mephisto} {
+		if got := (&runPipeline{definition: definition}).nextStep(pipelineStepEngageBoss); got != pipelineStepRepositionForLoot {
+			t.Fatalf("%s successor = %q, want %q", definition.ID, got, pipelineStepRepositionForLoot)
+		}
 	}
 }
 

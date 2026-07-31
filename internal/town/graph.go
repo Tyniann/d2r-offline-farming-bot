@@ -338,7 +338,7 @@ func rebuildRoute(prev map[routeKey]previous, current, start routeKey) []Travers
 
 func knownGraphAnchor(anchor Anchor) bool {
 	switch anchor {
-	case AnchorSpawn, AnchorPortalArrival, AnchorStash, AnchorWaypoint, AnchorAkara, AnchorCharsi, AnchorCain:
+	case AnchorSpawn, AnchorPortalArrival, AnchorStash, AnchorWaypoint, AnchorAkara, AnchorCharsi, AnchorCain, AnchorKashya:
 		return true
 	}
 	return false

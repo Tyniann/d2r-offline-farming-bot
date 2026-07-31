@@ -19,6 +19,8 @@ type SupplySnapshot struct {
 	VendorCandidates   bool
 	RepairRequired     bool
 	BeltLayoutComplete bool
+	MercenaryHeal      bool
+	MercenaryRevive    bool
 }
 
 // DemandSnapshot preserves observed quantities and Boolean plan inputs together.
@@ -31,11 +33,13 @@ type DemandSnapshot struct {
 // InspectDemand derives immutable Boolean service needs from a coherent source snapshot.
 func InspectDemand(supply SupplySnapshot, thresholds Thresholds) DemandSnapshot {
 	return DemandSnapshot{Supply: supply, Thresholds: thresholds, Demand: Demand{
-		Stash:    supply.StashRequired,
-		Potions:  supply.Healing < thresholds.Healing || supply.Mana < thresholds.Mana,
-		Scrolls:  supply.TownPortalScrolls < thresholds.TownPortalScrolls || supply.IdentifyScrolls < thresholds.IdentifyScrolls,
-		Identify: supply.IdentifyRequired,
-		Sell:     supply.VendorCandidates,
-		Repair:   supply.RepairRequired,
+		Stash:           supply.StashRequired,
+		Potions:         supply.Healing < thresholds.Healing || supply.Mana < thresholds.Mana,
+		Scrolls:         supply.TownPortalScrolls < thresholds.TownPortalScrolls || supply.IdentifyScrolls < thresholds.IdentifyScrolls,
+		Identify:        supply.IdentifyRequired,
+		Sell:            supply.VendorCandidates,
+		Repair:          supply.RepairRequired,
+		MercenaryHeal:   supply.MercenaryHeal,
+		MercenaryRevive: supply.MercenaryRevive,
 	}}
 }

@@ -7,6 +7,37 @@ Versionierung nach [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.16.0] - 2026-07-31
+
+### Added
+- Add `mercenary_died` run telemetry on Alive→Dead hireling edges with last known HP percent
+- Add the Phase 18 implementation plan for fail-closed mercenary vitals, combat healing, Akara recovery, and Kashya revival
+- Add Phase 18.0 read-only hireling evidence probe with local `hireling.txt` class IDs and Gate-18.0 capture labels
+- Add Phase 18.1 fail-closed mercenary state to memory snapshots, world mapping, transition logs, and diagnostic artifacts
+- Add Phase 18.2 presence-default mercenary resource policy, atomic Shift+Belt input, and post-player combat healing in engage/route-clear/cleanup
+- Add Phase 18.3 town mercenary heal/revive demand, Akara dialog reuse, Kashya Home/Down/Enter revive, session preflight, and non-retryable queue stops
+- Add Phase 18.4 recording prep for draft `waypoint-kashya` (Kashya endpoint, fail-closed missing variants, no overwrite of layout-bound town routes)
+- Add four layout-bound `waypoint-kashya` Act-1 town routes and activate their graph variants
+- Add `docs/features/mercenary-support.md` for Phase 18 combat/town mercenary contracts
+- Add German history mapping for `town_layout_route_missing` when Kashya/layout town routes are absent
+
+### Changed
+- Raise default mercenary combat heal threshold from 50% to 75% (`use_below_percent`)
+- Cap post-kill and route loot chase teleports at 20 tiles so far drops are skipped as `too_far` instead of yanking the character before town portal
+- Record Gate 18.6 product acceptance: controlled merc cases, town heal/revive/gold-stop, one full run each of Countess/Mephisto/Summoner/Nihlathak, and 10 consecutive Summoner Hell runs (`session-20260731t012648…`, 10/10 completed)
+- Raise the Phase-12 town-graph baseline hash after activating the four `waypoint-kashya` variants
+- Raise the App selection-error vitest timeout so the Live-Refresh assertion can finish under load
+- Disable Countess post-boss `clear_nearby_hostiles`; kill confirm goes straight to loot reposition because cellar hostiles are often behind walls
+
+### Fixed
+- Fix route mana-hold (`MobilityCritical`) so it no longer blocks mercenary Shift+Belt healing
+- Fix mercenary session preflight so it does not abort offline game start while character select or loading still shares the poll loop
+- Fix isolated `--town-test` / merc diagnostics so they no longer require a published farming route assignment
+- Fix town mercenary heal/revive so the dialog opened by our own click is not rejected as `npc_ui_preopened`
+- Fix premature waypoint Act-tab clicks that trusted sticky `WaypointOpen` and shoved the character past the waypoint before the menu was really open
+- Fix Settings queue reorder drag-and-drop so it uses `move` instead of the catalog `copy` drop effect
+- Fix Akara potion shopping rejecting the dialog opened by our own NPC click as `npc_ui_preopened`
+
 ## [0.14.4] - 2026-07-30
 
 ### Added

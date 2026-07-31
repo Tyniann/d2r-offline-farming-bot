@@ -359,6 +359,7 @@ func (r *RuntimeQueueRunner) newRuntimeUnit(runID string) (queueRunUnit, error) 
 	if err != nil {
 		return nil, err
 	}
+	runtime.mercPreflightPending = true
 	runtime.SetUIStatusPublisher(r.publish)
 	runtime.setPauseHotkeyHandler(r.requestPauseAfterRun)
 	runtime.setStopAfterRunHotkeyHandler(r.requestStopAfterRun)
@@ -404,6 +405,8 @@ func (u *runtimeQueueUnit) RunToTown(ctx context.Context, request SupervisorRunR
 		result = queueRuntimeTerminal(fmt.Errorf("execute queue run: %w", runErr))
 	} else if taskResult.Outcome == tasks.RunOutcomeSuccess {
 		result = SupervisorRunResult{Disposition: QueueRunAdvance, SafeToExit: true}
+	} else if isTerminalMercenaryFailure(taskResult.Reason) {
+		result = SupervisorRunResult{Disposition: QueueRunStop, Reason: taskResult.Reason}
 	} else if isRestartableSessionFailure(taskResult.Reason, u.runtime.Config.Session.RetryClasses) {
 		var recoveryErr error
 		result, recoveryErr = controlledRetryResult(ctx, taskResult.Reason, u.runtime.runRetryReturnToTown)

@@ -168,6 +168,11 @@ func (m *mockInput) CastBelt(_ input.BeltBindingSource, slot int) error {
 	return nil
 }
 
+func (m *mockInput) CastBeltWithModifier(_ input.BeltBindingSource, _ string, slot int) error {
+	m.castBeltCalls = append(m.castBeltCalls, slot)
+	return nil
+}
+
 func (m *mockInput) SelectSkill(_ input.BindingSource, skillID uint16) error {
 	m.castSkillCalls = append(m.castSkillCalls, skillID)
 	return nil
@@ -259,6 +264,9 @@ func (i *orderInput) Status() input.Status {
 	return input.Status{}
 }
 func (i *orderInput) CastBelt(input.BeltBindingSource, int) error { return nil }
+func (i *orderInput) CastBeltWithModifier(input.BeltBindingSource, string, int) error {
+	return nil
+}
 func (i *orderInput) CastSkillAt(input.BindingSource, uint16, int, int) error {
 	return nil
 }

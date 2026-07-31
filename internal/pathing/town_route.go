@@ -84,13 +84,19 @@ func SaveNamedTownRoute(path, id string, sampleDistance float64, points []world.
 
 // SaveLayoutBoundTownRoute writes a graph edge bound to one exact Town layout.
 // The Stash origin is stored with the fingerprint so later playback can
-// translate the same preset without weakening layout identity.
+// translate the same preset without weakening layout identity. Existing files
+// are never overwritten; Phase-18 Kashya and other layout edges must be new.
 func SaveLayoutBoundTownRoute(path, id, layout string, origin world.Position, sampleDistance float64, points []world.Position) error {
 	if len(layout) != 64 {
 		return fmt.Errorf("town layout fingerprint must be a SHA-256 hex string")
 	}
 	if origin.X == 0 || origin.Y == 0 {
 		return fmt.Errorf("town layout Stash origin is required")
+	}
+	if _, err := os.Stat(path); err == nil {
+		return fmt.Errorf("publish layout-bound town route %q: file already exists", path)
+	} else if !os.IsNotExist(err) {
+		return fmt.Errorf("inspect layout-bound town route %q: %w", path, err)
 	}
 	return saveNamedTownRoute(path, id, layout, origin, sampleDistance, points)
 }

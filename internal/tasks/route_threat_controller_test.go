@@ -632,17 +632,19 @@ func TestRouteRecoveryGuardStopsSecondIneffectiveInput(t *testing.T) {
 	progress.RecoveryInputAt = base
 	progress.RecoveryInputOrigin = world.Position{X: 140, Y: 100}
 	progress.RecoveryNextInputAt = base.Add(250 * time.Millisecond)
+	progress.RecoveryOutcomeAt = base.Add(700 * time.Millisecond)
 	progress.RecoveryProgressTiles = 3
 	route, clear := controllerRoute(progress), &routeClearMock{}
 	var controller RouteThreatController
 
-	waiting := controllerState(base.Add(100 * time.Millisecond))
+	// Vor dem Teleport-Settle bleibt Movement erlaubt; wirkungslos ist der Cast erst danach.
+	waiting := controllerState(base.Add(250 * time.Millisecond))
 	waiting.Player.Position = progress.RecoveryInputOrigin
 	if result := controllerTick(t, &controller, route, clear, waiting, progress, cfg); result.Failed || !result.AllowMovement || result.State != RouteThreatRecoveryGuard {
-		t.Fatalf("throttle wait = %+v", result)
+		t.Fatalf("settle wait = %+v", result)
 	}
 
-	stuck := controllerState(base.Add(250 * time.Millisecond))
+	stuck := controllerState(base.Add(700 * time.Millisecond))
 	stuck.Player.Position = progress.RecoveryInputOrigin
 	result := controllerTick(t, &controller, route, clear, stuck, progress, cfg)
 	if !result.Failed || result.Reason != RouteThreatReasonRecoveryUnsafe || result.AllowMovement {
@@ -661,6 +663,7 @@ func TestRouteRecoveryGuardAcceptsConfirmedPositionProgress(t *testing.T) {
 	progress.RecoveryInputAt = base
 	progress.RecoveryInputOrigin = world.Position{X: 140, Y: 100}
 	progress.RecoveryNextInputAt = base.Add(250 * time.Millisecond)
+	progress.RecoveryOutcomeAt = base.Add(700 * time.Millisecond)
 	progress.RecoveryProgressTiles = 3
 	route, clear := controllerRoute(progress), &routeClearMock{}
 	var controller RouteThreatController
@@ -724,8 +727,9 @@ func TestSummonerPipelineNeverTicksSecondIneffectiveRecoveryInput(t *testing.T) 
 	route.progress.RecoveryInputAt = base
 	route.progress.RecoveryInputOrigin = state.Player.Position
 	route.progress.RecoveryNextInputAt = base.Add(250 * time.Millisecond)
+	route.progress.RecoveryOutcomeAt = base.Add(700 * time.Millisecond)
 	route.progress.RecoveryProgressTiles = 3
-	state.At = base.Add(250 * time.Millisecond)
+	state.At = base.Add(700 * time.Millisecond)
 	result := pipeline.onTravelTick(context.Background(), Deps{Route: route, RouteClear: clear}, pipelineStepPlayRoute, state, state.At, base)
 	if !result.failed || result.reason != string(RouteThreatReasonRecoveryUnsafe) || route.tickCalls != 1 {
 		t.Fatalf("second recovery=%+v route ticks=%d", result, route.tickCalls)

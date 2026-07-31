@@ -110,6 +110,16 @@ const (
 	RouteManaHold EventName = "route_mana_hold"
 	// RouteRecoverySuppressed records a prevented unsafe recovery input.
 	RouteRecoverySuppressed EventName = "route_recovery_suppressed"
+	// TownMercenaryHealRequested records the hover-confirmed Akara click for Merc heal.
+	TownMercenaryHealRequested EventName = "town_mercenary_heal_requested"
+	// TownMercenaryHealConfirmed records a fresh Full-HP Merc snapshot after Akara.
+	TownMercenaryHealConfirmed EventName = "town_mercenary_heal_confirmed"
+	// TownMercenaryReviveRequested records the single Kashya Enter submit.
+	TownMercenaryReviveRequested EventName = "town_mercenary_revive_requested"
+	// TownMercenaryReviveConfirmed records a fresh Alive Merc after Kashya revive.
+	TownMercenaryReviveConfirmed EventName = "town_mercenary_revive_confirmed"
+	// MercenaryDied records Alive→Dead hireling transition with last known HP%.
+	MercenaryDied EventName = "mercenary_died"
 )
 
 // Event is one JSONL record. Zero-valued optional fields are omitted.
@@ -186,9 +196,13 @@ type Event struct {
 	SkillID                  uint16                 `json:"skill_id,omitempty"`
 	Target                   string                 `json:"target,omitempty"`
 	Resource                 string                 `json:"resource,omitempty"`
+	Recipient                string                 `json:"recipient,omitempty"`
 	ThresholdPercent         uint8                  `json:"threshold_percent,omitempty"`
 	BeltSlot                 int                    `json:"belt_slot,omitempty"`
 	Confirmed                bool                   `json:"confirmed,omitempty"`
+	MercUnitID               uint32                 `json:"merc_unit_id,omitempty"`
+	HPBefore                 int                    `json:"hp_before,omitempty"`
+	HPAfter                  int                    `json:"hp_after,omitempty"`
 	TownStep                 *int                   `json:"town_step,omitempty"`
 	TownKind                 string                 `json:"town_kind,omitempty"`
 	TownService              string                 `json:"town_service,omitempty"`

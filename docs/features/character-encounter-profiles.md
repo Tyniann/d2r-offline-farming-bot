@@ -29,10 +29,14 @@ Self-Targets werden an der neutralen geometrischen Client-Mitte gecastet. Der pr
 Die Resource Policy läuft bei gültigen In-Game-Ticks vor Hooks und Run-Aktionen. Priorität:
 
 1. kritische HP → Rejuvenation;
-2. niedrige HP → Healing;
-3. niedriges Mana → Mana Potion.
+2. Route-Emergency-Mana bzw. Mobility-Mana (nur mit `ResourceContext`);
+3. niedrige HP → Healing;
+4. niedriges Mana → Mana Potion;
+5. nur wenn kein Player-Demand und `AllowMercenary=true`: lebender Merc mit bekannten Vitals und `HPPercent < use_below_percent` → Healing-Potion per Shift+Belt.
 
-Nur ein tatsächlich modelliertes Belt-Item mit passendem Typ und konfigurierter Spalte autorisiert den Tastendruck. Nach dem Input bleibt die Run-Aktion bis zur bestätigten Abwesenheit der ursprünglichen Item-UnitID gesperrt. Zusätzlich besitzt jeder Tranktyp eine eigene Wirkungs-Sperrzeit: Healing und Mana warten standardmäßig vier Sekunden auf den graduellen Effekt, Rejuvenation nur 1,5 Sekunden wegen der sofortigen Wirkung. Ein leerer oder falsch belegter Slot erzeugt keinen Blindinput und kein Retry-Spamming.
+Nur ein tatsächlich modelliertes Belt-Item mit passendem Typ und konfigurierter Spalte autorisiert den Tastendruck. Nach dem Input bleibt die Run-Aktion bis zur bestätigten Abwesenheit der ursprünglichen Item-UnitID gesperrt. Zusätzlich besitzt jeder Tranktyp eine eigene Wirkungs-Sperrzeit: Healing und Mana warten standardmäßig vier Sekunden auf den graduellen Effekt, Rejuvenation nur 1,5 Sekunden wegen der sofortigen Wirkung. Merc-Heilung führt einen eigenen 4-Sekunden-Cooldown und teilt den globalen Potion-Throttle. Ein leerer oder falsch belegter Slot erzeugt keinen Blindinput und kein Retry-Spamming. Merc verwendet niemals Rejuvenation und trinkt nicht bei exakt 50&nbsp;% (strict `<`).
+
+`AllowMercenary` setzen nur `engage_boss`, `clear_nearby_hostiles` und der aktive Summoner-Route-Clear. Dead/Unknown/NotHired senden keinen Merc-Input.
 
 Phase 17.4 ergänzt `ResourceContext` ausschließlich für den opt-in Summoner-Route-Step. Dort gilt die engere Priorität: HP-kritische Rejuvenation, bei Immediate-Threat und höchstens 10 % Mana eine vorhandene Mana-Potion, danach Rejuvenation als Fallback und erst anschließend die normalen Regeln. Dadurch verbraucht reiner Mana-Drain den nur über Pickit ersetzbaren Rejuvenation-Vorrat nicht vor den in Town nachkaufbaren Mana-Tränken. `StatusAction` bleibt ein vollständig verbrauchter Input-Tick; `StatusPending` bedeutet weiterhin nur passive Memory-Verifikation und autorisiert selbst keinen zweiten Input.
 
@@ -63,10 +67,12 @@ combat_profiles:
       healing: { use_below_percent: 65, belt_slots: [1], cooldown_ms: 4000 }
       mana: { use_below_percent: 35, belt_slots: [2, 3], cooldown_ms: 4000 }
       rejuvenation: { use_below_percent: 35, belt_slots: [4], cooldown_ms: 1500 }
+      mercenary: { enabled: true, use_below_percent: 75, belt_slots: [1], cooldown_ms: 4000 }
       throttle_ms: 1500
       verify_timeout_ms: 1500
 ```
 
+Fehlt `resources.mercenary`, gilt presence-sensitiv `enabled=true` mit Defaults 75/`[1]`/4000. Explizites `enabled:false` deaktiviert Combat- und spätere Town-Merc-Aktionen. Merc-Slots müssen eine Teilmenge von `healing.belt_slots` sein. `shift` ist feste D2R-Semantik und kein Config-Wert.
 Profile referenzieren Skill-Namen. Die tatsächlichen Tasten und Mausbuttons kommen ausschließlich aus `input.bindings.skills`.
 
 Abschnitt 16.2 ergänzt ausschließlich Setup-Metadaten am bestehenden Profil. `setup.enabled` ist die ausdrückliche Produktfreigabe; `setup.default` markiert den Entwickler-Default der Klasse. Ein freigegebenes Profil benötigt einen getrimmten, steuerzeichenfreien Anzeigenamen mit höchstens 64 Zeichen. Jede Klasse mit mindestens einem freigegebenen Profil besitzt exakt einen freigegebenen Default; Klassen ohne Freigabe bleiben valide und im Charakter-Setup nicht unterstützt. `necro_bone_spear` ist als „Knochen-Speer“ freigegeben und der einzige Necromancer-Default. Experimentelle, nicht freigegebene Profile bleiben außerhalb der Setup-Projektion.
@@ -101,6 +107,7 @@ Jeder frische Session-Run bindet seinen eigenen Run-Recorder an den Profil-Execu
 - [Input Controller](input-controller.md)
 - [Session Lifecycle](session-lifecycle.md)
 - [Countess Run](countess-run.md)
+- [Phase-18-Core-Vertrag](phase-18-core-contract.md)
 
 Der isolierte Live-Lauf am 12.07.2026 bestätigte genau einen F5-/Bone-Armor-Cast (Skill 68), Settle und `outcome=success` ohne Town-Navigation. Ein dabei sichtbares CLI-Fallthrough in die aktivierte Session wurde behoben; explizite Runs und Probes besitzen nun Vorrang. Die zweite Live-Abnahme bestätigte Bone Prison (Skill 88) auf Countess Unit 273 und den ersten Bone-Spear-Cast erst 702 ms später; der vollständige Run endete erfolgreich.
 
@@ -109,4 +116,4 @@ Der erste E2E-Abnahmeversuch am 12.07.2026 bestätigte Potion-Cooldowns, Loot, S
 Der abschließende E2E-Lauf bestätigte Bone Armor sichtbar nach fünf Sekunden Town-Stabilisierung und 1,67 Sekunden Abstand bis Town-Walk. Bone Prison wurde sichtbar auf Countess Unit 225 ausgeführt; Bone Spear folgte nach 1,81 Sekunden. Der vollständige autonome Run einschließlich Potion-Policy, Loot, Stash und Save & Exit endete erfolgreich. Beim installierten Hell-Gate am 26.07.2026 benötigte die Boss-Erkennung nach Ende der Route nur 72 ms; der historische 750-ms-Vorlauf dominierte den verbleibenden Leerlauf. Er ist deshalb auf 250 ms reduziert. Der kurze Puffer schützt weiterhin den Übergang aus dem letzten Teleport. Die sichtbare Nachruhe vor Bone Spear wurde anschließend kontrolliert von 1,5 auf 1,0 Sekunden reduziert.
 
 ---
-*Zuletzt aktualisiert: 2026-07-30 (Route-Clear und Mana-Notfallpriorität)*
+*Zuletzt aktualisiert: 2026-07-30 (Mercenary Combat-Heal, Route-Clear und Mana-Notfallpriorität)*

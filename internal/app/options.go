@@ -33,6 +33,10 @@ type Options struct {
 	UIStateProbe string
 	// UIStateProbeTimeoutMs bounds the read-only UI-state capture.
 	UIStateProbeTimeoutMs int
+	// MercenaryProbe labels one read-only Phase-18.0 hireling evidence capture.
+	MercenaryProbe string
+	// MercenaryProbeTimeoutMs bounds the read-only mercenary probe capture.
+	MercenaryProbeTimeoutMs int
 	// ScreenAnchorCapture labels one Phase-7.3 frontend screenshot capture.
 	ScreenAnchorCapture string
 	// SessionInspect resolves and prints the Phase-7.5 session plan without runtime initialization.

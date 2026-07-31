@@ -24,7 +24,7 @@ Die Item-Enumeration belegt Belt-Items samt Typ und Position sowie den `Identifi
 
 `Plan` besteht aus explizit phasierten Normalisierungs-, Service- und Handoff-Schritten. `Demand` bleibt bis zum Inspector aus 9.3 ein reiner, unveränderlicher Vertragswert.
 
-Abschnitt 9.2 ergänzt `town` in der YAML-Datei. Rogue Encampment muss alle Anker sowie die festen Anbieter Akara (Potions/Scrolls/Sell), Cain (Identify) und Charsi (Repair) enthalten. Ein Egress darf nur `portal_arrival → waypoint` und sein Routenverzeichnis beschreiben; Dienste darin werden verworfen. `EgressFor` liefert bei fehlender Definition `town_egress_missing`.
+Abschnitt 9.2 ergänzt `town` in der YAML-Datei. Rogue Encampment muss alle Anker sowie die festen Anbieter Akara (Potions/Scrolls/Sell/Merc-Heal), Cain (Identify), Charsi (Repair) und Kashya (Merc-Revive) enthalten. Fehlende Kashya-/Merc-Service-Einträge werden beim Laden presence-sensitiv ergänzt. Ein Egress darf nur `portal_arrival → waypoint` und sein Routenverzeichnis beschreiben; Dienste darin werden verworfen. `EgressFor` liefert bei fehlender Definition `town_egress_missing`.
 
 Abschnitt 9.3 führt `SupplySnapshot`, `Thresholds` und `DemandSnapshot` ein. Die Mindestmengen sind ausschließlich Auslöseschwellen: Gleichstand löst keinen Service aus. Der Planner erzeugt bei Bedarf genau `egress → hub_transfer → stash → services → act1_waypoint → next_run_handoff`; fehlende Bedarfe verschwinden aus dem Plan. Ein unvollständiges Belt-Layout bleibt planbar, entscheidet aber noch keinen Kaufmodus.
 
@@ -72,7 +72,7 @@ Die West-Abnahme am 13. Juli 2026 bestätigte für `4ad7f3…33f30` zunächst de
 
 ## NPC-, Dialog- und Shop-Gates (9.5)
 
-Die Monster-Enumeration führt Akara (`148`), Charsi (`154`) und Deckard Cain (`265`, `cain5`) explizit. Cain wurde über den read-only Hover-Buffer live im Rogue Encampment bestätigt; die übrigen Cain-Zeilen der lokal extrahierten `monstats.txt` werden nicht produktiv enumeriert. Eine Interaktion pinnt NPC-ID und Runtime-UnitID, verlangt höchstens 15 Tiles Distanz, bestätigt den Monster-Hover und klickt genau einmal. Ein verlorener Pin, ungeeignete Distanz, fehlender Hover oder ein bereits offenes fremdes UI stoppt ohne Ersatzklick.
+Die Monster-Enumeration führt Akara (`148`), Kashya (`150`), Charsi (`154`) und Deckard Cain (`265`, `cain5`) explizit. Cain wurde über den read-only Hover-Buffer live im Rogue Encampment bestätigt; die übrigen Cain-Zeilen der lokal extrahierten `monstats.txt` werden nicht produktiv enumeriert. Eine Interaktion pinnt NPC-ID und Runtime-UnitID, verlangt höchstens 15 Tiles Distanz, bestätigt den Monster-Hover und klickt genau einmal. Ein verlorener Pin, ungeeignete Distanz, fehlender Hover oder ein bereits offenes fremdes UI stoppt ohne Ersatzklick.
 
 Der UI-Buffer liefert getrennte Flags für `NPCInteractOpen` und `NPCShopOpen`. Erst der bestätigte Dialog erlaubt die begrenzte Akara-Sequenz Home, Down, Enter; pro Tick wird höchstens eine Taste gesendet. Erst der bestätigte Shop erlaubt Vendor-Aktionen. Vendor-Items werden nur bei `ItemLocationVendor`, passendem Typ beziehungsweise Code und gepinnter UnitID verwendet. Nach der Mausbewegung müssen dieselbe UnitID und dieselbe Shop-Rasterposition erneut im Memory-Snapshot vorhanden sein. Der globale Entity-Hover wird nicht als Vendor-Gate verwendet, weil D2R Shop-UI-Items dort nicht zuverlässig meldet. Die feste Vendor-Geometrie `109,147` mit 33-Pixel-Zellen gilt ausschließlich nach bestätigtem Shop und exakt 1280×720.
 
@@ -129,7 +129,11 @@ Der zentrale `Executor` konsumiert ausschließlich einen validierten `Plan`. Glo
 
 ## Zentraler Post-Run-Flow (9.10)
 
-Der gemeinsame Full-Run wechselt nach `close_personal_stash` in `prepare_town_handoff`. Der App-Adapter bewertet den belastbaren Belt-Bestand. Ohne Bedarf bleibt der direkte layoutgebundene Stash→Waypoint-Pfad erhalten. Bei Potion-Bedarf erstellt der produktive Planner ausschließlich den benötigten Akara-Service, prüft den konservativen Maximalpreis gegen Carried Gold und führt `stash → akara → waypoint → run_handoff` über den zentralen Executor aus. NPC, Dialog, Shop, konkreter Vendor-Code, genau begrenzter Kauf, 500-ms-Settle und erneut gelesener Belt-Zielbestand bleiben getrennte Gates. Tome-Zähler bleiben als `unavailable_skip` sichtbar und erzeugen keinen erfundenen Scrollbedarf.
+Der gemeinsame Full-Run wechselt nach `close_personal_stash` in `prepare_town_handoff`. Der App-Adapter bewertet den belastbaren Belt-Bestand und den Merc-State des gebundenen Combat-Profils. Ohne Bedarf bleibt der direkte layoutgebundene Stash→Waypoint-Pfad erhalten. Bei Bedarf erstellt der produktive Planner die geordneten Services `identify → mercenary_revive → mercenary_heal → potions/scrolls/sell → repair`, prüft Potion-Gold nur für Restock und führt den Plan über den zentralen Executor aus. NPC, Dialog, Shop, konkreter Vendor-Code, genau begrenzter Kauf, 500-ms-Settle und erneut gelesener Belt-Zielbestand bleiben getrennte Gates. Tome-Zähler bleiben als `unavailable_skip` sichtbar und erzeugen keinen erfundenen Scrollbedarf.
+
+### Mercenary Town-Heal und Revive (Phase 18.3)
+
+`mercenary_heal` und `mercenary_revive` sind gegenseitig exklusiv aus einem Snapshot; Dead hat Vorrang. Heal: einmal Akara klicken, Full-HP bestätigen; Dialog wird nicht geschlossen und verschwindet beim nächsten Walk. Revive: Kashya klicken, Home/Down/Enter je Tick genau einmal; weiterhin eindeutig Dead nach Enter → `mercenary_revive_insufficient_gold` (Queue stoppt nicht-retrybar). Session-Preflight blockiert NotHired, Dead-at-start und Invalid. Gate 18.3 live bestanden. Gate 18.4: vier `waypoint-kashya`-Varianten aktiviert und je Layout Playback WP-Roundtrip + Stash→Kashya→WP grün.
 
 Ohne sicher belegten Servicebedarf spielt der Adapter ausgehend vom Stash nur vorhandene Kanten des zentralen Graphen bis zum Waypoint. Nicht aufgezeichnete Platzhalterkanten wurden aus `graph.yaml` entfernt. Abschluss verlangt einen per Memory gefundenen Waypoint innerhalb der konfigurierten Klickdistanz und protokolliert `central town preparation completed`, `anchor=waypoint` und die ausgewählte Run-ID als `next_run`. Session- und Run-Reset verwerfen die aktive Kante und den Handoff.
 
@@ -148,6 +152,7 @@ Die Live-Abnahme am 13. Juli 2026 erfüllte das Gate vollständig. Der autonome 
 - [Route Recording & Playback](route-recording-playback.md)
 - [Personal Stash MVP](personal-stash-mvp.md)
 - [Character & Encounter Profiles](character-encounter-profiles.md)
+- [Phase-18-Core-Vertrag](phase-18-core-contract.md)
 
 ---
-*Zuletzt aktualisiert: 22. Juli 2026*
+*Zuletzt aktualisiert: 2026-07-31*

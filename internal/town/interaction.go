@@ -211,6 +211,58 @@ func (o *ShopOpener) Tick(state world.State) InteractionResult {
 	return InteractionResult{Status: InteractionAction, Action: "dialog_key"}
 }
 
+// MenuSelector sends a fixed Home/Down/Enter dialog sequence one key per tick.
+// Unlike [ShopOpener], completion is the final Enter itself; callers verify
+// Memory outcomes separately so revive never waits on NPCShopOpen.
+type MenuSelector struct {
+	input   ShopInput
+	keys    []string
+	index   int
+	started time.Time
+	timeout time.Duration
+}
+
+// NewMenuSelector creates a bounded dialog selector for Kashya revive.
+func NewMenuSelector(in ShopInput, timeout time.Duration) *MenuSelector {
+	return &MenuSelector{input: in, keys: []string{"home", "down", "enter"}, timeout: timeout}
+}
+
+// Tick sends at most one dialog key and completes after the final Enter is sent.
+func (o *MenuSelector) Tick(state world.State) InteractionResult {
+	if o == nil || o.input == nil || !state.Valid {
+		return InteractionResult{Status: InteractionFailed, Reason: "menu_state_invalid", Done: true}
+	}
+	now := state.At
+	if now.IsZero() {
+		now = time.Now()
+	}
+	if o.started.IsZero() {
+		o.started = now
+	}
+	if o.timeout > 0 && now.Sub(o.started) >= o.timeout {
+		return InteractionResult{Status: InteractionFailed, Reason: "menu_select_timeout", Done: true}
+	}
+	if o.index >= len(o.keys) {
+		return InteractionResult{Status: InteractionComplete, Done: true}
+	}
+	if !state.UI.NPCInteractOpen {
+		return InteractionResult{Status: InteractionFailed, Reason: "npc_dialog_not_open", Done: true}
+	}
+	if state.UI.NPCShopOpen {
+		return InteractionResult{Status: InteractionFailed, Reason: "npc_shop_unexpected", Done: true}
+	}
+	key := o.keys[o.index]
+	if err := o.input.PressKey(key); err != nil {
+		return InteractionResult{Status: InteractionFailed, Reason: fmt.Sprintf("menu_dialog_input_failed: %v", err), Done: true}
+	}
+	o.index++
+	action := "dialog_key"
+	if key == "enter" {
+		action = "dialog_enter"
+	}
+	return InteractionResult{Status: InteractionAction, Action: action}
+}
+
 // BuyMode selects one atomic bulk action or a bounded single-buy action.
 type BuyMode string
 

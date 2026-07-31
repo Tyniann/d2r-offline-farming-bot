@@ -187,8 +187,11 @@ describe("App", () => {
     mocks.previewSelection.mockResolvedValue({ schema_version: 1, character: "MrBones", old_difficulty: "nightmare", new_difficulty: "hell", affected_routes: ["countess.yaml", "mephisto.yaml"], invalidation_reason: "difficulty_changed", requires_confirmation: true, confirmation_token: "impact-preview", catalog_revision: 4, lifecycle_revision: 7 });
     mocks.applySelection.mockResolvedValue(undefined);
     render(<App />);
-    fireEvent.change(await screen.findByLabelText("Schwierigkeit"), { target: { value: "hell" } });
-    fireEvent.click(screen.getByRole("button", { name: "Auswahl in D2R anwenden" }));
+    const apply = await screen.findByRole("button", { name: "Auswahl in D2R anwenden" });
+    await waitFor(() => expect(apply).toBeEnabled());
+    fireEvent.change(screen.getByLabelText("Schwierigkeit"), { target: { value: "hell" } });
+    await waitFor(() => expect(screen.getByLabelText("Schwierigkeit")).toHaveValue("hell"));
+    fireEvent.click(apply);
     expect(await screen.findByRole("dialog", { name: "Routen werden unbrauchbar" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Abbrechen" }));
     expect(mocks.applySelection).not.toHaveBeenCalled();
@@ -205,7 +208,7 @@ describe("App", () => {
     const onEvent = mocks.connect.mock.calls[0][1] as (event: unknown) => void;
     await act(async () => onEvent({ sequence: 2, timestamp: new Date().toISOString(), event: "selection_failed" }));
     expect(screen.getByText("Character-Screen nicht bestätigt")).toBeInTheDocument();
-  });
+  }, 15_000);
 
   it("startet die persistente Charakter-Queue nach vollständigem Preflight genau einmal", async () => {
     const ready = { ...detached, state: "idle_in_game", generation: 5, selection: { character: "MrBones", difficulty: "nightmare" } };
@@ -241,7 +244,9 @@ describe("App", () => {
     mocks.emergencyStop.mockResolvedValue({ state: "cancelling", generation: 13 });
     render(<App />);
     expect(await screen.findByRole("button", { name: "Queue prüfen und starten" })).toBeDisabled();
-    fireEvent.click(screen.getByRole("button", { name: "Emergency Stop" }));
+    const emergency = await screen.findByRole("button", { name: "Emergency Stop" });
+    await waitFor(() => expect(emergency).toBeEnabled());
+    fireEvent.click(emergency);
     const confirm = await screen.findByRole("button", { name: "Emergency Stop bestätigen" });
     await waitFor(() => expect(confirm).toHaveFocus());
     fireEvent.keyDown(window, { key: "Escape" });

@@ -40,6 +40,10 @@ func (rt *Runtime) RunTownTest(spec string) error {
 		return rt.runAkaraShopTownTest()
 	case "item-services:mephisto":
 		return rt.runItemServicesTownTest()
+	case "mercenary-heal":
+		return rt.runMercenaryHealTownTest()
+	case "mercenary-revive":
+		return rt.runMercenaryReviveTownTest()
 	default:
 		return fmt.Errorf("town test: unsupported spec %q", spec)
 	}
@@ -332,4 +336,86 @@ func validateAkaraBulkProfile(cfg *config.Config) error {
 		return fmt.Errorf("town test: slot 4 must remain rejuvenation-protected")
 	}
 	return nil
+}
+
+func (rt *Runtime) runMercenaryHealTownTest() error {
+	return rt.runMercenaryTownServiceTest(town.ServiceMercenaryHeal, town.AnchorAkara, world.Akara, "mercenary-heal")
+}
+
+func (rt *Runtime) runMercenaryReviveTownTest() error {
+	return rt.runMercenaryTownServiceTest(town.ServiceMercenaryRevive, town.AnchorKashya, world.Kashya, "mercenary-revive")
+}
+
+func (rt *Runtime) runMercenaryTownServiceTest(service town.Service, anchor town.Anchor, npcID uint32, label string) error {
+	if !rt.Input.Status().Enabled {
+		return fmt.Errorf("town %s test requires input.enabled=true", label)
+	}
+	ctrl, ok := rt.Input.(townTestController)
+	if !ok {
+		return fmt.Errorf("town %s test: controller lacks click support", label)
+	}
+	runCfg, configured := rt.Config.Runs.Run(string(tasks.RunIDCountess))
+	if !configured {
+		return fmt.Errorf("town %s test: Countess run config unavailable", label)
+	}
+	trace, err := telemetry.New(rt.Config.Telemetry.Directory, "town-"+label, string(tasks.RunIDCountess))
+	if err != nil {
+		return fmt.Errorf("town %s test telemetry: %w", label, err)
+	}
+	defer trace.Close()
+	adapter, err := newTownPreparationAdapter(rt.Log, ctrl, mapPathingConfig(rt.Config.Pathing), rt.Config, string(tasks.RunIDCountess), runCfg, &townLayoutPin{}, townTelemetryAdapter{emitter: trace}, true)
+	if err != nil {
+		return err
+	}
+	handler := newTownPreparationStepHandler(adapter, nil, nil, nil)
+	handler.anchor = anchor
+	handler.stage = "interact"
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	rt.startShutdownSignals(ctx, cancel)
+	defer func() {
+		if detachErr := rt.Process.Detach(); detachErr != nil {
+			rt.Log.Warn("process detach failed", "error", detachErr)
+		}
+	}()
+	defer rt.Input.Unbind()
+	hotkeys, err := rt.startHotkeys(ctx)
+	if err != nil {
+		return err
+	}
+	defer rt.stopHotkeys(cancel)
+	ticker := time.NewTicker(time.Duration(rt.Config.Runtime.PollIntervalMs) * time.Millisecond)
+	defer ticker.Stop()
+	state := &runState{}
+	if err := rt.waitPathingTestReady(ctx, state, hotkeys, ticker, time.Now().Add(rt.attachTimeoutOrDefault(60*time.Second)), cancel, true); err != nil {
+		return err
+	}
+	deadline := time.Now().Add(townTestTimeout)
+	rt.Log.Info("town mercenary acceptance started", "spec", label, "npc_id", npcID, "anchor", anchor)
+	step := town.PlanStep{Phase: town.PlanPhaseServices, Kind: town.StepService, Service: service, Act: town.OriginAct1}
+	for time.Now().Before(deadline) {
+		current, stop, tickErr := rt.pathingTestTick(ctx, state, hotkeys, ticker, cancel)
+		if tickErr != nil {
+			return tickErr
+		}
+		if stop {
+			return nil
+		}
+		if !current.Valid || current.Area.ID != world.RogueEncampment {
+			continue
+		}
+		if _, found := current.FindNPC(npcID); !found {
+			return fmt.Errorf("town %s test: stand within range of %s before starting", label, anchor)
+		}
+		result := handler.Tick(ctx, step, current)
+		if err := logTownInteraction(rt, label, result); err != nil {
+			return err
+		}
+		if result.Status == town.InteractionComplete && result.Done {
+			rt.Log.Info("town mercenary acceptance completed", "spec", label, "outcome", "success")
+			return nil
+		}
+	}
+	return fmt.Errorf("town %s test timeout after %s", label, townTestTimeout)
 }

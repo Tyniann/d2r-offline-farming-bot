@@ -14,6 +14,10 @@ const (
 	AnchorAkara         Anchor = "akara"
 	AnchorCharsi        Anchor = "charsi"
 	AnchorCain          Anchor = "cain"
+	// AnchorKashya is the Act-1 hireling revive NPC. Layout-bound routes are
+	// recorded and activated in Phase 18.4; the anchor is recognized earlier so
+	// planning and recording drafts stay fail-closed without schema bumps.
+	AnchorKashya Anchor = "kashya"
 )
 
 // OriginAct identifies the act in which the post-run preparation begins.
@@ -33,12 +37,14 @@ const (
 type Service string
 
 const (
-	ServiceStash    Service = "stash"
-	ServicePotions  Service = "potions"
-	ServiceScrolls  Service = "scrolls"
-	ServiceIdentify Service = "identify"
-	ServiceSell     Service = "sell"
-	ServiceRepair   Service = "repair"
+	ServiceStash           Service = "stash"
+	ServicePotions         Service = "potions"
+	ServiceScrolls         Service = "scrolls"
+	ServiceIdentify        Service = "identify"
+	ServiceSell            Service = "sell"
+	ServiceRepair          Service = "repair"
+	ServiceMercenaryHeal   Service = "mercenary_heal"
+	ServiceMercenaryRevive Service = "mercenary_revive"
 )
 
 // Reason is a stable terminal planning reason.
@@ -66,6 +72,14 @@ const (
 	ReasonTownLayoutUnavailable     Reason = "town_layout_unavailable"
 	ReasonTownLayoutRouteMissing    Reason = "town_layout_route_missing"
 	ReasonTownLayoutMismatch        Reason = "town_layout_mismatch"
+	ReasonMercenaryNotHired         Reason = "mercenary_not_hired"
+	ReasonMercenaryDeadAtStart      Reason = "mercenary_dead_at_start"
+	ReasonMercenaryStateInvalid     Reason = "mercenary_state_invalid"
+	ReasonMercenaryHealStateInvalid Reason = "mercenary_heal_state_invalid"
+	ReasonMercenaryHealVerifyTimeout Reason = "mercenary_heal_verify_timeout"
+	ReasonMercenaryReviveStateInvalid Reason = "mercenary_revive_state_invalid"
+	ReasonMercenaryReviveInsufficientGold Reason = "mercenary_revive_insufficient_gold"
+	ReasonMercenaryReviveVerifyTimeout Reason = "mercenary_revive_verify_timeout"
 )
 
 // Origin identifies the confirmed act and anchor at which preparation starts.
@@ -89,17 +103,19 @@ type HubTransfer struct {
 
 // Demand is the immutable result of a read-only preparation inspection.
 type Demand struct {
-	Stash    bool
-	Potions  bool
-	Scrolls  bool
-	Identify bool
-	Sell     bool
-	Repair   bool
+	Stash            bool
+	Potions          bool
+	Scrolls          bool
+	Identify         bool
+	Sell             bool
+	Repair           bool
+	MercenaryHeal    bool
+	MercenaryRevive  bool
 }
 
 // Empty reports whether no service is required.
 func (d Demand) Empty() bool {
-	return !d.Stash && !d.Potions && !d.Scrolls && !d.Identify && !d.Sell && !d.Repair
+	return !d.Stash && !d.Potions && !d.Scrolls && !d.Identify && !d.Sell && !d.Repair && !d.MercenaryHeal && !d.MercenaryRevive
 }
 
 // NextRunTarget is the validated destination handed to the next run at the hub waypoint.

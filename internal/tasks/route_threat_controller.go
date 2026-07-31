@@ -104,6 +104,8 @@ func (c *RouteThreatController) ObserveResources(state world.State, assessment T
 		MobilityCritical: c.manaRecovery,
 		Threatened:       assessment.RouteTargetFound,
 		EmergencyMana:    immediateThreat && manaPercent <= cfg.EmergencyManaPercent,
+		// AllowMercenary only while route clear would attack a threat or density target.
+		AllowMercenary: assessment.RouteTargetFound || (assessment.DensityTargetFound && !assessment.CoverageComplete),
 	}
 }
 

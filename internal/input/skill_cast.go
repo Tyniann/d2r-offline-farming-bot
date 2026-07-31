@@ -117,3 +117,76 @@ func (c *Controller) CastBelt(src BeltBindingSource, slot int) error {
 	}
 	return c.pressKey(k, "belt_slot")
 }
+
+// CastBeltWithModifier presses modifier then the configured belt hotkey under one
+// action guard. Release order is always belt before modifier. Cleanup releases
+// already-held keys in reverse order when any step fails.
+func (c *Controller) CastBeltWithModifier(src BeltBindingSource, modifier string, slot int) error {
+	if slot < 1 || slot > 4 {
+		return fmt.Errorf("cast belt with modifier slot %d: %w", slot, ErrInvalidSlot)
+	}
+	if modifier == "" {
+		return fmt.Errorf("cast belt with modifier: modifier is required")
+	}
+	mod, err := NormalizeKey(modifier)
+	if err != nil {
+		return fmt.Errorf("cast belt with modifier: %w", err)
+	}
+	key, err := src.BeltKeyName(slot)
+	if err != nil {
+		return err
+	}
+	if key == "" {
+		return fmt.Errorf("cast belt with modifier slot %d: %w", slot, ErrUnconfiguredSlot)
+	}
+	belt, err := NormalizeKey(key)
+	if err != nil {
+		return err
+	}
+	if err := c.actionGuard("keyboard", "belt_modifier", "belt_slot_shift",
+		"modifier", mod, "belt_key", belt, "belt_slot", slot,
+	); err != nil {
+		return err
+	}
+
+	c.keyMu.Lock()
+	defer c.keyMu.Unlock()
+
+	delay := c.timings.delay(c.keyboard.KeyDelayMsMin, c.keyboard.KeyDelayMsMax)
+	pressed := make([]Key, 0, 2)
+
+	c.log.Debug("input key down", "key", mod)
+	if err := c.keys.KeyDown(mod); err != nil {
+		return err
+	}
+	pressed = append(pressed, mod)
+
+	c.log.Debug("input key down", "key", belt)
+	if err := c.keys.KeyDown(belt); err != nil {
+		c.releasePressedKeys(pressed)
+		return err
+	}
+	pressed = append(pressed, belt)
+
+	c.timings.sleep(delay)
+
+	c.log.Debug("input key up", "key", belt)
+	if err := c.keys.KeyUp(belt); err != nil {
+		c.releasePressedKeys(pressed[:1])
+		return err
+	}
+
+	c.log.Debug("input key up", "key", mod)
+	if err := c.keys.KeyUp(mod); err != nil {
+		c.releasePressedKeys([]Key{mod})
+		return err
+	}
+
+	c.logAllowedAction("keyboard", "belt_modifier", "belt_slot_shift",
+		"modifier", mod,
+		"belt_key", belt,
+		"belt_slot", slot,
+		"delay_ms", delay.Milliseconds(),
+	)
+	return nil
+}

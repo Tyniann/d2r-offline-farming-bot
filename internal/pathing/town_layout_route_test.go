@@ -32,3 +32,15 @@ func TestLayoutBoundTownRouteRequiresExactFingerprint(t *testing.T) {
 		t.Fatal("unbound legacy route accepted")
 	}
 }
+
+func TestLayoutBoundTownRouteRefusesOverwrite(t *testing.T) {
+	const layout = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	path := filepath.Join(t.TempDir(), "edge.yaml")
+	points := []world.Position{{X: 100, Y: 100}, {X: 110, Y: 90}}
+	if err := SaveLayoutBoundTownRoute(path, "edge", layout, world.Position{X: 100, Y: 100}, 8, points); err != nil {
+		t.Fatal(err)
+	}
+	if err := SaveLayoutBoundTownRoute(path, "edge", layout, world.Position{X: 100, Y: 100}, 8, points); err == nil {
+		t.Fatal("overwrite of existing layout-bound town route accepted")
+	}
+}

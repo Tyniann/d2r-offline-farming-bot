@@ -134,7 +134,7 @@ func defaultRunDefinitions() []RunDefinition {
 				NPCID: world.DarkStalker, Name: "Countess", RequireSuperUnique: true, AllowAnySuperUniqueFallback: true,
 				SearchAnchorObject: world.ObjectKindGoodChest, SearchAnchorEntrance: world.EntranceKindTowerCellarDown,
 			},
-			BossEngageSequence: []EncounterAction{{Hook: profile.HookBossEngage}}, ClearNearbyAfterBoss: true, ReturnOrigin: town.OriginAct1,
+			BossEngageSequence: []EncounterAction{{Hook: profile.HookBossEngage}}, ReturnOrigin: town.OriginAct1,
 			RequiredCaps: append([]RunCapability(nil), shared...),
 			Recording: RecordingContract{
 				InstructionsDE: "Reise zum Wegpunkt Schwarzmarsch, starte dort die Aufnahme und bewege dich bis zu deiner gewünschten Kampfposition bei der Gräfin. Beende die Aufnahme mit F9.",

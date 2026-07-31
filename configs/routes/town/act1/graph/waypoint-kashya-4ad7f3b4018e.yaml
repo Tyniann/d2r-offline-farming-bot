@@ -1,0 +1,18 @@
+id: waypoint-kashya
+area_id: 1
+created_at: 2026-07-30T22:12:41.1749681Z
+sample_distance_tiles: 8
+layout_fingerprint: 4ad7f3b4018ecb39ef311d808dcf0b0b9b5991d8b548b8d3ac1688a657c33f30
+layout_origin_x: 5656
+layout_origin_y: 5814
+points:
+    - x: 5684
+      "y": 5792
+    - x: 5687
+      "y": 5801
+    - x: 5687
+      "y": 5809
+    - x: 5685
+      "y": 5817
+    - x: 5676
+      "y": 5816

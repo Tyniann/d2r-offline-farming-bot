@@ -14,6 +14,7 @@ import (
 type actionMock struct {
 	skills    []uint16
 	belts     []int
+	mercBelts []int
 	castDelay time.Duration
 }
 
@@ -84,12 +85,18 @@ func TestHookDelayWaitsForStableLifecycleWindowBeforeInput(t *testing.T) {
 }
 func (m *actionMock) CastBelt(slot int) error { m.belts = append(m.belts, slot); return nil }
 
+func (m *actionMock) CastBeltForMercenary(slot int) error {
+	m.mercBelts = append(m.mercBelts, slot)
+	return nil
+}
+
 func testDefinition() Definition {
 	return Definition{ID: "necro", CharacterClass: world.CharacterClassNecromancer,
 		Hooks: map[Hook][]Action{HookTownReady: {{SkillID: 68, Target: TargetSelf, OncePerGame: true, Settle: 100 * time.Millisecond}}},
 		Resources: ResourcePolicy{
 			Healing: ResourceRule{UseBelowPercent: 65, BeltSlots: []int{1}, Cooldown: 4 * time.Second}, Mana: ResourceRule{UseBelowPercent: 35, BeltSlots: []int{2, 3}, Cooldown: 4 * time.Second}, Rejuvenation: ResourceRule{UseBelowPercent: 35, BeltSlots: []int{4}, Cooldown: time.Second},
-			Throttle: time.Second, VerifyTimeout: time.Second,
+			Mercenary: MercenaryResourcePolicy{Enabled: true, ResourceRule: ResourceRule{UseBelowPercent: 50, BeltSlots: []int{1}, Cooldown: 4 * time.Second}},
+			Throttle:  time.Second, VerifyTimeout: time.Second,
 		}}
 }
 
@@ -283,6 +290,29 @@ func TestRouteResourcePriorityUsesCriticalHPThenEmergencyManaThenRejuvenation(t 
 		}
 	})
 
+	t.Run("mobility mana yields to merc heal", func(t *testing.T) {
+		actions := &actionMock{}
+		e, _ := NewExecutor(config.NewLogger("error"), testDefinition(), actions)
+		state, now := profileState(), time.Now()
+		state.Player.HP = 100
+		state.Player.Mana = 19
+		state.Mercenary = world.Mercenary{
+			HiredKnown: true, Hired: true, Alive: true, VitalsKnown: true,
+			UnitID: 7, HP: 44, MaxHP: 90,
+		}
+		state.Items = []world.Item{
+			{UnitID: 10, Type: "hpot", Location: world.ItemLocationBelt, PlayerOwned: true, GridX: 0},
+			{UnitID: 20, Type: "mpot", Location: world.ItemLocationBelt, PlayerOwned: true, GridX: 1},
+		}
+		got := e.TickResources(state, ResourceContext{MobilityCritical: true, AllowMercenary: true}, now)
+		if got.Status != StatusAction || got.Resource != ResourceHealing || got.BeltSlot != 1 {
+			t.Fatalf("merc during mobility = %+v", got)
+		}
+		if len(actions.mercBelts) != 1 || len(actions.belts) != 0 {
+			t.Fatalf("belts=%v mercBelts=%v", actions.belts, actions.mercBelts)
+		}
+	})
+
 	t.Run("missing emergency potion", func(t *testing.T) {
 		actions := &actionMock{}
 		e, _ := NewExecutor(config.NewLogger("error"), testDefinition(), actions)
@@ -450,5 +480,87 @@ func TestRouteClearRejectsUnsupportedProfile(t *testing.T) {
 	executor, _ := NewExecutor(config.NewLogger("error"), testDefinition(), &actionMock{})
 	if err := executor.ConfigureRouteClear(RouteClearSingleTarget, 66, 84, &routeCombatActionMock{}); err == nil {
 		t.Fatal("unsupported profile was accepted")
+	}
+}
+
+func TestMercenaryResourceHealsAfterPlayerPriority(t *testing.T) {
+	actions := &actionMock{}
+	e, _ := NewExecutor(config.NewLogger("error"), testDefinition(), actions)
+	state, now := profileState(), time.Now()
+	state.Mercenary = world.Mercenary{
+		HiredKnown: true, Hired: true, Alive: true, VitalsKnown: true,
+		UnitID: 7, NPCID: 271, HP: 44, MaxHP: 90,
+	}
+	state.Items = []world.Item{{UnitID: 91, Type: "hpot", Location: world.ItemLocationBelt, PlayerOwned: true, GridX: 0}}
+
+	if got := e.TickResources(state, ResourceContext{AllowMercenary: true}, now); got.Status != StatusAction || got.BeltSlot != 1 {
+		t.Fatalf("merc heal=%+v", got)
+	}
+	if len(actions.belts) != 0 || len(actions.mercBelts) != 1 || actions.mercBelts[0] != 1 {
+		t.Fatalf("belts=%v mercBelts=%v", actions.belts, actions.mercBelts)
+	}
+	state.Items = nil
+	if got := e.TickResources(state, ResourceContext{AllowMercenary: true}, now.Add(100*time.Millisecond)); got.Status != StatusComplete {
+		t.Fatalf("confirmed=%+v", got)
+	}
+}
+
+func TestMercenaryResourceSkipsExactThresholdAndDeadUnknown(t *testing.T) {
+	actions := &actionMock{}
+	e, _ := NewExecutor(config.NewLogger("error"), testDefinition(), actions)
+	state := profileState()
+	state.Items = []world.Item{{UnitID: 91, Type: "hpot", Location: world.ItemLocationBelt, PlayerOwned: true, GridX: 0}}
+
+	state.Mercenary = world.Mercenary{HiredKnown: true, Hired: true, Alive: true, VitalsKnown: true, UnitID: 7, HP: 45, MaxHP: 90}
+	if got := e.TickResources(state, ResourceContext{AllowMercenary: true}, time.Now()); got.Status != StatusComplete || len(actions.mercBelts) != 0 {
+		t.Fatalf("exact 50%% drank: %+v mercBelts=%v", got, actions.mercBelts)
+	}
+
+	state.Mercenary = world.Mercenary{HiredKnown: true, Hired: true, Dead: true, UnitID: 7}
+	if got := e.TickResources(state, ResourceContext{AllowMercenary: true}, time.Now()); len(actions.mercBelts) != 0 {
+		t.Fatalf("dead drank: %+v", got)
+	}
+
+	state.Mercenary = world.Mercenary{}
+	if got := e.TickResources(state, ResourceContext{AllowMercenary: true}, time.Now()); len(actions.mercBelts) != 0 {
+		t.Fatalf("unknown drank: %+v", got)
+	}
+
+	state.Mercenary = world.Mercenary{HiredKnown: true, Hired: true, Alive: true, VitalsKnown: true, UnitID: 7, HP: 44, MaxHP: 90}
+	if got := e.TickResources(state, ResourceContext{}, time.Now()); len(actions.mercBelts) != 0 {
+		t.Fatalf("disallowed context drank: %+v", got)
+	}
+}
+
+func TestMercenaryResourceYieldsToPlayerHealing(t *testing.T) {
+	actions := &actionMock{}
+	e, _ := NewExecutor(config.NewLogger("error"), testDefinition(), actions)
+	state, now := profileState(), time.Now()
+	state.Player.HP = 50
+	state.Mercenary = world.Mercenary{
+		HiredKnown: true, Hired: true, Alive: true, VitalsKnown: true,
+		UnitID: 7, HP: 10, MaxHP: 90,
+	}
+	state.Items = []world.Item{{UnitID: 91, Type: "hpot", Location: world.ItemLocationBelt, PlayerOwned: true, GridX: 0}}
+	if got := e.TickResources(state, ResourceContext{AllowMercenary: true}, now); got.Status != StatusAction || got.Resource != ResourceHealing {
+		t.Fatalf("player priority=%+v", got)
+	}
+	if len(actions.belts) != 1 || len(actions.mercBelts) != 0 {
+		t.Fatalf("belts=%v mercBelts=%v", actions.belts, actions.mercBelts)
+	}
+}
+
+func TestMercenaryResourceRejectsRejuvenationFallback(t *testing.T) {
+	actions := &actionMock{}
+	e, _ := NewExecutor(config.NewLogger("error"), testDefinition(), actions)
+	state := profileState()
+	state.Mercenary = world.Mercenary{
+		HiredKnown: true, Hired: true, Alive: true, VitalsKnown: true,
+		UnitID: 7, HP: 10, MaxHP: 90,
+	}
+	state.Items = []world.Item{{UnitID: 99, Type: "rpot", Location: world.ItemLocationBelt, PlayerOwned: true, GridX: 0}}
+	got := e.TickResources(state, ResourceContext{AllowMercenary: true}, time.Now())
+	if got.Reason != "mercenary_potion_unavailable" || len(actions.mercBelts) != 0 {
+		t.Fatalf("rejuv fallback=%+v mercBelts=%v", got, actions.mercBelts)
 	}
 }

@@ -16,6 +16,10 @@ func TestTownRecordingEdgeAllowsOnlyApprovedUnregisteredDraft(t *testing.T) {
 	if !ok || !draft || edge.From != town.AnchorStash || edge.To != town.AnchorWaypoint || edge.Route != "stash-waypoint.yaml" || !edge.Reversible {
 		t.Fatalf("draft edge = %+v draft=%v ok=%v", edge, draft, ok)
 	}
+	edge, draft, ok = townRecordingEdge(graph, "waypoint-kashya")
+	if !ok || !draft || edge.From != town.AnchorWaypoint || edge.To != town.AnchorKashya || edge.Route != "waypoint-kashya.yaml" || !edge.Reversible {
+		t.Fatalf("Kashya draft edge = %+v draft=%v ok=%v", edge, draft, ok)
+	}
 	if _, _, ok := townRecordingEdge(graph, "unknown-edge"); ok {
 		t.Fatal("unknown recording draft accepted")
 	}
@@ -25,7 +29,7 @@ func TestTownRecordingEndpointDistanceUsesDeclaredMemoryAnchor(t *testing.T) {
 	state := world.State{
 		Valid:    true,
 		Player:   world.Player{Position: world.Position{X: 100, Y: 100}},
-		Monsters: []world.Monster{{UnitID: 1, NPCID: world.Akara, Position: world.Position{X: 109, Y: 112}}},
+		Monsters: []world.Monster{{UnitID: 1, NPCID: world.Akara, Position: world.Position{X: 109, Y: 112}}, {UnitID: 3, NPCID: world.Kashya, Position: world.Position{X: 112, Y: 100}}},
 		Objects:  []world.Object{{UnitID: 2, Kind: world.ObjectKindWaypoint, Position: world.Position{X: 110, Y: 100}}},
 	}
 	if distance, ok := townRecordingEndpointDistance(town.AnchorAkara, state); !ok || distance != 15 {
@@ -33,6 +37,9 @@ func TestTownRecordingEndpointDistanceUsesDeclaredMemoryAnchor(t *testing.T) {
 	}
 	if distance, ok := townRecordingEndpointDistance(town.AnchorWaypoint, state); !ok || distance != 10 {
 		t.Fatalf("Waypoint distance = %.1f ok=%t, want 10", distance, ok)
+	}
+	if distance, ok := townRecordingEndpointDistance(town.AnchorKashya, state); !ok || distance != 12 {
+		t.Fatalf("Kashya distance = %.1f ok=%t, want 12", distance, ok)
 	}
 	if _, ok := townRecordingEndpointDistance(town.AnchorCain, state); ok {
 		t.Fatal("missing Cain accepted")

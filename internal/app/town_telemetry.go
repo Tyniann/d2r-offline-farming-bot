@@ -40,7 +40,11 @@ func (a townTelemetryAdapter) EmitTown(event town.ExecutorEvent) error {
 	// Reject arbitrary event names so executor progress cannot be disguised as
 	// another telemetry category by a malformed handler result.
 	name := telemetry.EventName(event.Event)
-	if name != telemetry.TownAction && name != telemetry.TownStepCompleted && name != telemetry.SellSuccess {
+	switch name {
+	case telemetry.TownAction, telemetry.TownStepCompleted, telemetry.SellSuccess,
+		telemetry.TownMercenaryHealRequested, telemetry.TownMercenaryHealConfirmed,
+		telemetry.TownMercenaryReviveRequested, telemetry.TownMercenaryReviveConfirmed:
+	default:
 		return fmt.Errorf("unsupported town telemetry event %q", event.Event)
 	}
 	step, current, threshold, cost, verified := event.Step, event.Current, event.Threshold, event.Cost, event.VerifiedFinal
@@ -60,6 +64,7 @@ func (a townTelemetryAdapter) EmitTown(event town.ExecutorEvent) error {
 			}
 			return ""
 		}(),
-		ItemKey: itemTelemetryKey(event.Code, event.Quality, event.IdentityKind, event.IdentityKey, event.IdentityValid),
+		ItemKey:    itemTelemetryKey(event.Code, event.Quality, event.IdentityKind, event.IdentityKey, event.IdentityValid),
+		MercUnitID: event.MercUnitID, HPBefore: event.HPBefore, HPAfter: event.HPAfter,
 	})
 }

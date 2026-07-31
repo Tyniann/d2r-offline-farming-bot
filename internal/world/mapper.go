@@ -76,6 +76,7 @@ func FromSnapshot(snap memory.Snapshot) State {
 			LeftSkillID:           snap.PlayerSkills.LeftSkill,
 			RightSkillID:          snap.PlayerSkills.RightSkill,
 		},
+		Mercenary:       mapMercenary(snap.Mercenary),
 		Identity:        mapGameIdentity(snap.Identity),
 		Objects:         objects,
 		Entrances:       entrances,
@@ -85,6 +86,33 @@ func FromSnapshot(snap memory.Snapshot) State {
 		Hover:           hover,
 		UI:              mapUIState(snap.UI),
 	}
+}
+
+func mapMercenary(mercenary memory.MercenarySnapshot) Mercenary {
+	if !mercenary.HiredKnown {
+		return Mercenary{}
+	}
+	if !mercenary.Hired {
+		return Mercenary{HiredKnown: true}
+	}
+	if mercenary.Alive == mercenary.Dead {
+		return Mercenary{}
+	}
+	result := Mercenary{
+		HiredKnown: true,
+		Hired:      true,
+		Alive:      mercenary.Alive,
+		Dead:       mercenary.Dead,
+		UnitID:     mercenary.UnitID,
+		NPCID:      mercenary.NPCID,
+	}
+	if !result.Alive || !mercenary.VitalsKnown || mercenary.MaxHP == 0 {
+		return result
+	}
+	result.VitalsKnown = true
+	result.HP = mercenary.HP
+	result.MaxHP = mercenary.MaxHP
+	return result
 }
 
 func mapMonsterCoverage(coverage memory.MonsterCoverage) MonsterCoverage {

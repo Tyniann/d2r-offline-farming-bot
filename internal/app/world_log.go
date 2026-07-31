@@ -37,6 +37,7 @@ func isPositionOnlyWorldChange(prev, cur world.State) bool {
 		prev.Player.MaxHP == cur.Player.MaxHP &&
 		prev.Player.Mana == cur.Player.Mana &&
 		prev.Player.MaxMana == cur.Player.MaxMana &&
+		prev.Mercenary == cur.Mercenary &&
 		prev.UI == cur.UI &&
 		entityFingerprint(prev) == entityFingerprint(cur) &&
 		(prev.Player.Position.X != cur.Player.Position.X || prev.Player.Position.Y != cur.Player.Position.Y)
@@ -105,7 +106,8 @@ func worldShouldLog(prev, cur world.State, lastLog time.Time, heartbeat time.Dur
 		prev.Player.HP != cur.Player.HP ||
 		prev.Player.MaxHP != cur.Player.MaxHP ||
 		prev.Player.Mana != cur.Player.Mana ||
-		prev.Player.MaxMana != cur.Player.MaxMana {
+		prev.Player.MaxMana != cur.Player.MaxMana ||
+		prev.Mercenary != cur.Mercenary {
 		return true
 	}
 	if prev.UI != cur.UI {
@@ -155,6 +157,16 @@ func worldLogAttrs(cur world.State, verbose bool) []slog.Attr {
 		slog.Uint64("mana", uint64(cur.Player.Mana)),
 		slog.Uint64("max_mana", uint64(cur.Player.MaxMana)),
 		slog.Uint64("mana_pct", uint64(cur.Player.ManaPercent())),
+		slog.Bool("mercenary_hired_known", cur.Mercenary.HiredKnown),
+		slog.Bool("mercenary_hired", cur.Mercenary.Hired),
+		slog.Bool("mercenary_alive", cur.Mercenary.Alive),
+		slog.Bool("mercenary_dead", cur.Mercenary.Dead),
+		slog.Bool("mercenary_vitals_known", cur.Mercenary.VitalsKnown),
+		slog.Uint64("mercenary_unit_id", uint64(cur.Mercenary.UnitID)),
+		slog.Uint64("mercenary_npc_id", uint64(cur.Mercenary.NPCID)),
+		slog.Uint64("mercenary_hp", uint64(cur.Mercenary.HP)),
+		slog.Uint64("mercenary_max_hp", uint64(cur.Mercenary.MaxHP)),
+		slog.Uint64("mercenary_hp_pct", uint64(cur.Mercenary.HPPercent())),
 		slog.Uint64("left_skill_id", uint64(cur.Player.LeftSkillID)),
 		slog.String("left_skill", memory.SkillName(cur.Player.LeftSkillID)),
 		slog.Uint64("right_skill_id", uint64(cur.Player.RightSkillID)),

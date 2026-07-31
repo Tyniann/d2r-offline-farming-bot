@@ -60,11 +60,20 @@ type ResourceRule struct {
 	Cooldown        time.Duration
 }
 
+// MercenaryResourcePolicy is the fail-closed combat potion policy for a living
+// hireling. Healing uses strict HPPercent < UseBelowPercent and only hpot
+// items from BeltSlots.
+type MercenaryResourcePolicy struct {
+	Enabled bool
+	ResourceRule
+}
+
 // ResourcePolicy is evaluated before hook and run actions on valid gameplay ticks.
 type ResourcePolicy struct {
 	Healing       ResourceRule
 	Mana          ResourceRule
 	Rejuvenation  ResourceRule
+	Mercenary     MercenaryResourcePolicy
 	Throttle      time.Duration
 	VerifyTimeout time.Duration
 }
@@ -180,11 +189,14 @@ type Event struct {
 	Profile          string
 	Hook             Hook
 	Resource         ResourceKind
+	Recipient        string
 	SkillID          uint16
 	Target           TargetKind
 	TargetUnitID     uint32
 	PotionUnitID     uint32
+	MercUnitID       uint32
 	ThresholdPercent uint8
+	HPPercent        uint8
 	BeltSlot         int
 	Confirmed        bool
 	Reason           string

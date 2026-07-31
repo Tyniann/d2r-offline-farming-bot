@@ -18,10 +18,16 @@ import (
 const (
 	// Budgets are global executor ceilings, not timing knobs. Lower-level gates
 	// retain their own finite limits and the executor remains the final backstop.
-	townExecutorInputBudget  = 256
-	townExecutorVerifyBudget = 6000
-	townRestockVerifyTicks   = 200
+	townExecutorInputBudget    = 256
+	townExecutorVerifyBudget   = 6000
+	townRestockVerifyTicks     = 200
+	townMercenaryVerifyTimeout = 8 * time.Second
 )
+
+func (a *townPreparationAdapter) mercenaryPolicy() town.MercenaryPolicy {
+	enabled, rule := a.profile.Mercenary.Resolve()
+	return town.MercenaryPolicy{Enabled: enabled, ThresholdPercent: rule.UseBelowPercent}
+}
 
 func (a *townPreparationAdapter) start(state world.State) string {
 	// Planning consumes one coherent snapshot. It must not mix belt or carried-
@@ -37,7 +43,15 @@ func (a *townPreparationAdapter) start(state world.State) string {
 		return string(itemReason)
 	}
 	needsIdentify, needsSell := itemServiceDemand(itemOrders)
-	if !a.services || (!needsPotions && len(itemOrders) == 0) {
+	mercHeal, mercRevive := false, false
+	if a.services {
+		var mercFail town.Reason
+		mercHeal, mercRevive, mercFail = town.EvaluateMercenaryTownDemand(a.mercenaryPolicy(), state.Mercenary)
+		if mercFail != "" {
+			return string(mercFail)
+		}
+	}
+	if !a.services || (!needsPotions && len(itemOrders) == 0 && !mercHeal && !mercRevive) {
 		// No demand means no NPC detour. Initial run setup also enters here even
 		// with a low belt because its only responsibility is reaching Waypoint.
 		startAnchor := a.startAnchor
@@ -87,6 +101,7 @@ func (a *townPreparationAdapter) start(state world.State) string {
 		Healing: healing, Mana: mana, BeltLayoutComplete: beltComplete,
 		TownPortalScrolls: a.thresholds.TownPortalScrolls, IdentifyScrolls: a.thresholds.IdentifyScrolls,
 		IdentifyRequired: needsIdentify, VendorCandidates: needsSell,
+		MercenaryHeal: mercHeal, MercenaryRevive: mercRevive,
 	}, a.thresholds)
 	plan, reason := planner.Plan(town.Origin{Act: town.OriginAct1, Anchor: town.AnchorStash}, snapshot, town.NextRunTarget{ID: a.nextRunID, Act: town.OriginAct1})
 	if reason != "" {
@@ -109,7 +124,7 @@ func (a *townPreparationAdapter) start(state world.State) string {
 	a.handler = handler
 	a.executor = executor
 	a.started = true
-	a.log.Info("central town preparation started", "origin", "stash", "potions", needsPotions, "identify", needsIdentify, "sell", needsSell, "item_orders", len(itemOrders), "handoff", a.nextRunID, "edge_count", len(traversals), "healing", healing, "mana", mana, "gold", state.Player.Gold, "required_maximum_gold", maximumCost, "town_layout", a.layout)
+	a.log.Info("central town preparation started", "origin", "stash", "potions", needsPotions, "identify", needsIdentify, "sell", needsSell, "mercenary_heal", mercHeal, "mercenary_revive", mercRevive, "item_orders", len(itemOrders), "handoff", a.nextRunID, "edge_count", len(traversals), "healing", healing, "mana", mana, "gold", state.Player.Gold, "required_maximum_gold", maximumCost, "town_layout", a.layout)
 	return ""
 }
 
@@ -171,28 +186,39 @@ func completeBeltProfile(profile config.ProfileResourcesConfig) (bool, string) {
 // service sub-state. ResetStep clears only the latter; Reset clears both.
 // Potion stages are `walk → npc → shop → orders → close → done`.
 type townPreparationStepHandler struct {
-	adapter       *townPreparationAdapter
-	traversals    []town.Traversal
-	traversal     int
-	anchor        town.Anchor
-	walker        *pathing.TownWalker
-	orders        []town.RestockOrder
-	order         int
-	itemOrders    []town.ItemServiceOrder
-	itemOrder     int
-	itemExecutor  *town.ItemServiceExecutor
-	itemPolicy    loot.PickitResult
-	itemInput     *townItemServiceInput
-	stage         string
-	npc           *town.NPCInteractor
-	shop          *town.ShopOpener
-	verifier      *town.RestockVerifier
-	buyer         *town.VendorBuyer
-	buyerActed    bool
-	buyerCode     string
-	buyerCost     int
-	settleUntil   time.Time
-	shopCloseSent bool
+	adapter               *townPreparationAdapter
+	traversals            []town.Traversal
+	traversal             int
+	anchor                town.Anchor
+	walker                *pathing.TownWalker
+	orders                []town.RestockOrder
+	order                 int
+	itemOrders            []town.ItemServiceOrder
+	itemOrder             int
+	itemExecutor          *town.ItemServiceExecutor
+	itemPolicy            loot.PickitResult
+	itemInput             *townItemServiceInput
+	stage                 string
+	npc                   *town.NPCInteractor
+	shop                  *town.ShopOpener
+	menu                  *town.MenuSelector
+	verifier              *town.RestockVerifier
+	buyer                 *town.VendorBuyer
+	buyerActed            bool
+	buyerCode             string
+	buyerCost             int
+	settleUntil           time.Time
+	shopCloseSent         bool
+	authorizedAkaraDialog bool
+	authorizedAkaraUnitID uint32
+	mercHPBefore          uint32
+	mercUnitBefore        uint32
+	mercClickAt           time.Time
+	mercVerifyStarted     time.Time
+	mercHealRequested     bool
+	mercReviveRequested   bool
+	mercReviveEntered     bool
+	mercVerifyTicks       int
 }
 
 func newTownPreparationStepHandler(adapter *townPreparationAdapter, traversals []town.Traversal, orders []town.RestockOrder, itemOrders []town.ItemServiceOrder) *townPreparationStepHandler {
@@ -215,6 +241,10 @@ func (h *townPreparationStepHandler) Tick(ctx context.Context, step town.PlanSte
 			return h.tickItems(ctx, state, town.ServiceIdentify)
 		case town.ServiceSell:
 			return h.tickItems(ctx, state, town.ServiceSell)
+		case town.ServiceMercenaryHeal:
+			return h.tickMercenaryHeal(ctx, state)
+		case town.ServiceMercenaryRevive:
+			return h.tickMercenaryRevive(ctx, state)
 		default:
 			return town.InteractionResult{Status: town.InteractionFailed, Reason: "town_service_unsupported", Done: true}
 		}
@@ -241,9 +271,30 @@ func (h *townPreparationStepHandler) tickPotions(ctx context.Context, state worl
 		h.stage = "npc"
 		return town.InteractionResult{Status: town.InteractionPending}
 	case "npc":
+		if h.authorizedAkaraDialog && (state.UI.NPCInteractOpen || state.UI.NPCShopOpen) {
+			if state.UI.NPCShopOpen {
+				h.stage = "orders"
+			} else {
+				h.stage = "shop"
+			}
+			return town.InteractionResult{Status: town.InteractionPending}
+		}
+		if state.UI.NPCInteractOpen || state.UI.NPCShopOpen {
+			return town.InteractionResult{Status: town.InteractionFailed, Reason: "npc_ui_preopened", Done: true}
+		}
 		h.ensureNPC(world.Akara)
 		result := h.npc.Tick(state)
+		// Mark the dialog as ours on the click itself. The next Memory tick can
+		// already show NPCInteractOpen before InteractionComplete, and the
+		// preopened gate must not reject that as a foreign UI.
+		if result.Status == town.InteractionAction && result.Action == "npc_click" {
+			h.authorizedAkaraDialog = true
+			h.authorizedAkaraUnitID = result.UnitID
+			return result
+		}
 		if result.Status == town.InteractionComplete {
+			h.authorizedAkaraDialog = true
+			h.authorizedAkaraUnitID = result.UnitID
 			h.stage = "shop"
 			return town.InteractionResult{Status: town.InteractionPending}
 		}
@@ -271,6 +322,7 @@ func (h *townPreparationStepHandler) tickPotions(ctx context.Context, state worl
 		if result := h.tickCloseUI(state, town.AnchorAkara); result.Status != town.InteractionComplete {
 			return result
 		}
+		h.authorizedAkaraDialog, h.authorizedAkaraUnitID = false, 0
 		h.stage = "done"
 		healing, mana := countPotionSupplies(state)
 		return town.InteractionResult{Status: town.InteractionComplete, Current: healing + mana, VerifiedFinal: healing + mana, Done: true}
@@ -421,6 +473,217 @@ func (h *townPreparationStepHandler) tickCloseUI(state world.State, anchor town.
 	return town.InteractionResult{Status: town.InteractionPending, Vendor: anchor}
 }
 
+func (h *townPreparationStepHandler) tickMercenaryHeal(ctx context.Context, state world.State) town.InteractionResult {
+	policy := h.adapter.mercenaryPolicy()
+	switch h.stage {
+	case "walk":
+		result := h.tickWalk(ctx, state, town.AnchorAkara)
+		if result.Status != town.InteractionComplete {
+			return result
+		}
+		h.stage = "interact"
+		return town.InteractionResult{Status: town.InteractionPending}
+	case "interact":
+		merc := state.Mercenary
+		if !merc.Alive || !merc.VitalsKnown {
+			return town.InteractionResult{Status: town.InteractionFailed, Reason: string(town.ReasonMercenaryHealStateInvalid), Done: true}
+		}
+		if int(merc.HPPercent()) >= policy.ThresholdPercent {
+			h.stage = "done"
+			return town.InteractionResult{Status: town.InteractionComplete, Done: true}
+		}
+		if h.authorizedAkaraDialog && (state.UI.NPCInteractOpen || state.UI.NPCShopOpen) {
+			h.mercHPBefore, h.mercUnitBefore = merc.HP, merc.UnitID
+			h.mercClickAt = state.At
+			if h.mercClickAt.IsZero() {
+				h.mercClickAt = time.Now()
+			}
+			h.stage = "verify"
+			h.mercVerifyTicks = 0
+			return town.InteractionResult{Status: town.InteractionPending}
+		}
+		if state.UI.NPCInteractOpen || state.UI.NPCShopOpen {
+			return town.InteractionResult{Status: town.InteractionFailed, Reason: "npc_ui_preopened", Done: true}
+		}
+		h.ensureNPC(world.Akara)
+		result := h.npc.Tick(state)
+		if result.Status == town.InteractionAction && result.Action == "npc_click" {
+			h.mercHPBefore, h.mercUnitBefore = merc.HP, merc.UnitID
+			h.mercClickAt = state.At
+			if h.mercClickAt.IsZero() {
+				h.mercClickAt = time.Now()
+			}
+			if !h.mercHealRequested {
+				if err := h.emitMercTownEvent(string(telemetry.TownMercenaryHealRequested), town.AnchorAkara, h.mercUnitBefore, int(h.mercHPBefore), 0); err != nil {
+					return town.InteractionResult{Status: town.InteractionFailed, Reason: string(town.ReasonTelemetryFailed), Done: true}
+				}
+				h.mercHealRequested = true
+			}
+			// Akara heals on the confirmed NPC click. Her dialog is irrelevant
+			// for healing and may close naturally when the next walk starts.
+			h.authorizedAkaraDialog = true
+			h.authorizedAkaraUnitID = result.UnitID
+			h.stage = "verify"
+			h.mercVerifyTicks = 0
+		}
+		return result
+	case "verify":
+		now := state.At
+		if now.IsZero() {
+			now = time.Now()
+		}
+		if h.mercVerifyStarted.IsZero() {
+			h.mercVerifyStarted = now
+		}
+		h.mercVerifyTicks++
+		if h.mercVerifyTicks < 2 {
+			return town.InteractionResult{Status: town.InteractionPending}
+		}
+		if now.Sub(h.mercVerifyStarted) >= townMercenaryVerifyTimeout {
+			return town.InteractionResult{Status: town.InteractionFailed, Reason: string(town.ReasonMercenaryHealVerifyTimeout), Done: true}
+		}
+		merc := state.Mercenary
+		if merc.Dead || !merc.HiredKnown || !merc.Hired {
+			return town.InteractionResult{Status: town.InteractionFailed, Reason: string(town.ReasonMercenaryHealStateInvalid), Done: true}
+		}
+		if !merc.Alive || !merc.VitalsKnown {
+			return town.InteractionResult{Status: town.InteractionFailed, Reason: string(town.ReasonMercenaryHealStateInvalid), Done: true}
+		}
+		if merc.HPPercent() != 100 {
+			return town.InteractionResult{Status: town.InteractionPending}
+		}
+		if err := h.emitMercTownEvent(string(telemetry.TownMercenaryHealConfirmed), town.AnchorAkara, merc.UnitID, int(h.mercHPBefore), int(merc.HP)); err != nil {
+			return town.InteractionResult{Status: town.InteractionFailed, Reason: string(town.ReasonTelemetryFailed), Done: true}
+		}
+		h.stage = "done"
+		return town.InteractionResult{Status: town.InteractionComplete, Done: true}
+	case "done":
+		return town.InteractionResult{Status: town.InteractionComplete, Done: true}
+	default:
+		return town.InteractionResult{Status: town.InteractionFailed, Reason: "town_mercenary_heal_state_invalid", Done: true}
+	}
+}
+
+func (h *townPreparationStepHandler) tickMercenaryRevive(ctx context.Context, state world.State) town.InteractionResult {
+	switch h.stage {
+	case "walk":
+		result := h.tickWalk(ctx, state, town.AnchorKashya)
+		if result.Status != town.InteractionComplete {
+			return result
+		}
+		h.stage = "interact"
+		return town.InteractionResult{Status: town.InteractionPending}
+	case "interact":
+		merc := state.Mercenary
+		if !merc.HiredKnown || !merc.Hired || !merc.Dead || merc.Alive {
+			return town.InteractionResult{Status: town.InteractionFailed, Reason: string(town.ReasonMercenaryReviveStateInvalid), Done: true}
+		}
+		// Preopened only rejects unknown dialogs before our NPC gate starts.
+		// After ensureNPC, an open dialog is the expected click outcome.
+		if h.npc == nil && (state.UI.NPCInteractOpen || state.UI.NPCShopOpen) {
+			return town.InteractionResult{Status: town.InteractionFailed, Reason: "npc_ui_preopened", Done: true}
+		}
+		h.ensureNPC(world.Kashya)
+		result := h.npc.Tick(state)
+		if result.Status == town.InteractionComplete {
+			h.mercUnitBefore = merc.UnitID
+			h.stage = "select"
+			return town.InteractionResult{Status: town.InteractionPending, UnitID: result.UnitID}
+		}
+		return result
+	case "select":
+		if !state.UI.NPCInteractOpen {
+			return town.InteractionResult{Status: town.InteractionFailed, Reason: "npc_dialog_not_open", Done: true}
+		}
+		h.ensureMenu()
+		result := h.menu.Tick(state)
+		if result.Status == town.InteractionFailed {
+			return result
+		}
+		if result.Action == "dialog_enter" {
+			h.mercReviveEntered = true
+			h.mercClickAt = state.At
+			if h.mercClickAt.IsZero() {
+				h.mercClickAt = time.Now()
+			}
+			if !h.mercReviveRequested {
+				if err := h.emitMercTownEvent(string(telemetry.TownMercenaryReviveRequested), town.AnchorKashya, h.mercUnitBefore, 0, 0); err != nil {
+					return town.InteractionResult{Status: town.InteractionFailed, Reason: string(town.ReasonTelemetryFailed), Done: true}
+				}
+				h.mercReviveRequested = true
+			}
+		}
+		if result.Status == town.InteractionComplete {
+			h.stage = "verify"
+			h.mercVerifyStarted = time.Time{}
+			h.mercVerifyTicks = 0
+			return town.InteractionResult{Status: town.InteractionPending}
+		}
+		return result
+	case "verify":
+		if !h.mercReviveEntered {
+			return town.InteractionResult{Status: town.InteractionFailed, Reason: string(town.ReasonMercenaryReviveStateInvalid), Done: true}
+		}
+		now := state.At
+		if now.IsZero() {
+			now = time.Now()
+		}
+		if h.mercVerifyStarted.IsZero() {
+			h.mercVerifyStarted = now
+		}
+		h.mercVerifyTicks++
+		timedOut := now.Sub(h.mercVerifyStarted) >= townMercenaryVerifyTimeout
+		if h.mercVerifyTicks < 2 && !timedOut {
+			return town.InteractionResult{Status: town.InteractionPending}
+		}
+		merc := state.Mercenary
+		if merc.Alive && merc.VitalsKnown && merc.HP > 0 && merc.MaxHP > 0 && !merc.Dead {
+			if err := h.emitMercTownEvent(string(telemetry.TownMercenaryReviveConfirmed), town.AnchorKashya, merc.UnitID, 0, int(merc.HP)); err != nil {
+				return town.InteractionResult{Status: town.InteractionFailed, Reason: string(town.ReasonTelemetryFailed), Done: true}
+			}
+			// A revived Merc that is not full HP is an invalid revive contract, not
+			// a dynamically appended Akara heal step.
+			if merc.HPPercent() != 100 {
+				return town.InteractionResult{Status: town.InteractionFailed, Reason: string(town.ReasonMercenaryReviveStateInvalid), Done: true}
+			}
+			h.stage = "close"
+			return town.InteractionResult{Status: town.InteractionPending, UnitID: merc.UnitID}
+		}
+		if timedOut {
+			if merc.HiredKnown && merc.Hired && merc.Dead && !merc.Alive {
+				return town.InteractionResult{Status: town.InteractionFailed, Reason: string(town.ReasonMercenaryReviveInsufficientGold), Done: true}
+			}
+			return town.InteractionResult{Status: town.InteractionFailed, Reason: string(town.ReasonMercenaryReviveVerifyTimeout), Done: true}
+		}
+		return town.InteractionResult{Status: town.InteractionPending}
+	case "close":
+		if result := h.tickCloseUI(state, town.AnchorKashya); result.Status != town.InteractionComplete {
+			return result
+		}
+		h.stage = "done"
+		return town.InteractionResult{Status: town.InteractionComplete, Done: true}
+	case "done":
+		return town.InteractionResult{Status: town.InteractionComplete, Done: true}
+	default:
+		return town.InteractionResult{Status: town.InteractionFailed, Reason: "town_mercenary_revive_state_invalid", Done: true}
+	}
+}
+
+func (h *townPreparationStepHandler) emitMercTownEvent(name string, vendor town.Anchor, mercUnitID uint32, hpBefore, hpAfter int) error {
+	if h.adapter == nil || h.adapter.telemetry == nil {
+		return fmt.Errorf("town telemetry unavailable")
+	}
+	return h.adapter.telemetry.EmitTown(town.ExecutorEvent{
+		Event: name, Kind: town.StepService, Vendor: vendor, MercUnitID: mercUnitID, HPBefore: hpBefore, HPAfter: hpAfter,
+		Service: func() town.Service {
+			if vendor == town.AnchorKashya {
+				return town.ServiceMercenaryRevive
+			}
+			return town.ServiceMercenaryHeal
+		}(),
+	})
+}
+
 func (h *townPreparationStepHandler) ensureNPC(id uint32) {
 	if h.npc != nil {
 		return
@@ -434,6 +697,12 @@ func (h *townPreparationStepHandler) ensureNPC(id uint32) {
 func (h *townPreparationStepHandler) ensureShop() {
 	if h.shop == nil {
 		h.shop = town.NewShopOpener(h.adapter.controller, 8*time.Second)
+	}
+}
+
+func (h *townPreparationStepHandler) ensureMenu() {
+	if h.menu == nil {
+		h.menu = town.NewMenuSelector(h.adapter.controller, 8*time.Second)
 	}
 }
 
@@ -633,13 +902,17 @@ func (h *townPreparationStepHandler) ResetStep() {
 	if h.npc != nil {
 		h.npc.Reset()
 	}
-	// Keep traversal, anchor, and completed order index: those belong to the
-	// whole plan. Drop every pin or action state owned by the finished step.
-	h.npc, h.shop, h.itemExecutor = nil, nil, nil
+	// Keep traversal, anchor, completed order index, and an Akara dialog that a
+	// prior Merc-heal step explicitly authorized for the following shop step.
+	h.npc, h.shop, h.menu, h.itemExecutor = nil, nil, nil, nil
 	h.itemPolicy = loot.PickitResult{}
 	h.verifier, h.buyer = nil, nil
 	h.buyerActed, h.buyerCode, h.buyerCost = false, "", 0
 	h.settleUntil, h.shopCloseSent = time.Time{}, false
+	h.mercHPBefore, h.mercUnitBefore = 0, 0
+	h.mercClickAt, h.mercVerifyStarted = time.Time{}, time.Time{}
+	h.mercHealRequested, h.mercReviveRequested, h.mercReviveEntered = false, false, false
+	h.mercVerifyTicks = 0
 	h.stage = "walk"
 }
 
@@ -650,6 +923,7 @@ func (h *townPreparationStepHandler) Reset() {
 	if h.walker != nil {
 		h.walker.Reset()
 	}
+	h.authorizedAkaraDialog, h.authorizedAkaraUnitID = false, 0
 	h.ResetStep()
 	// A session/run reset invalidates graph continuity and all completed orders.
 	h.traversal, h.order, h.itemOrder, h.anchor = 0, 0, 0, town.AnchorStash

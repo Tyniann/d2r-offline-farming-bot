@@ -1,0 +1,543 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Phase 18 – Detaillierter Umsetzungsplan</title>
+  <style>
+    :root{--bg:#0b0d12;--panel:#151820;--panel2:#1d222c;--text:#f1f2f5;--muted:#b7bdc8;--line:#343a46;--accent:#df6a3f;--gold:#d6ad5c;--good:#69d59f;--warn:#f0c96a;--bad:#f0525f;--code:#090b0f}
+    *{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at 85% 0,#351711 0,transparent 26%),linear-gradient(145deg,#08090d,#11141a 55%,#0a0c10);color:var(--text);font:16px/1.58 system-ui,-apple-system,"Segoe UI",sans-serif}
+    main{max-width:1200px;margin:auto;padding:42px 24px 80px}.hero{padding:34px;border:1px solid var(--line);border-radius:20px;background:linear-gradient(135deg,#211713,#171a21 52%,#12151b);box-shadow:0 20px 60px #0008}
+    h1{font-size:clamp(2rem,5vw,3.7rem);line-height:1.08;margin:.25rem 0 1rem}h2{margin-top:44px;border-bottom:1px solid var(--line);padding-bottom:10px}h3{margin:.2rem 0 .5rem;color:#fff}.lead{font-size:1.17rem;color:var(--muted);max-width:1000px}
+    .chips{display:flex;flex-wrap:wrap;gap:9px}.chip{border:1px solid #684334;border-radius:999px;padding:5px 11px;color:#ffd8c8;background:#251510}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:15px;margin:18px 0}
+    .card,.phase,.callout{border:1px solid var(--line);border-radius:14px;background:var(--panel);padding:18px}.card p,.phase p{margin:.35rem 0;color:var(--muted)}table{width:100%;border-collapse:collapse;background:var(--panel);border:1px solid var(--line)}th,td{padding:12px 14px;text-align:left;vertical-align:top;border-bottom:1px solid var(--line)}th{background:var(--panel2);color:#fff}
+    code,pre{font-family:"Cascadia Code",Consolas,monospace}code{color:#f6bd88}pre{background:var(--code);border:1px solid var(--line);border-radius:12px;padding:16px;overflow:auto;color:#e5e8ed}.phase{display:grid;grid-template-columns:92px 1fr;gap:16px;margin:13px 0}.phase-id{font-weight:800;color:var(--accent);font-size:1.25rem}.warn{color:var(--warn)}.good{color:var(--good)}.bad{color:var(--bad)}.gold{color:var(--gold)}.gate{border-left:4px solid var(--warn);padding-left:12px!important}.callout{border-left:4px solid var(--accent);margin:16px 0}.danger{border-left-color:var(--bad)}.success{border-left-color:var(--good)}li{margin:.35rem 0}footer{margin-top:48px;color:var(--muted);text-align:center}@media(max-width:650px){.phase{grid-template-columns:1fr}.hero{padding:22px}main{padding-inline:14px}}
+  </style>
+</head>
+<body><main>
+  <section class="hero">
+    <div class="chip">D2R Offline Farming Bot · Phase 18 · abgeschlossen · Gate 18.0–18.6 bestanden</div>
+    <h1>Söldner-Support in Combat und Town</h1>
+    <p class="lead">Phase 18 liest den angeheuerten Söldner als eigenen, fail-closed World-Zustand, gibt ihm in klar begrenzten Kampfkontexten konfigurierte Heiltränke und stellt ihn nach einem Run in Rogue Encampment wieder her. Ein lebender Söldner unter der konfigurierten Schwelle (Default 75&nbsp;%) wird durch ein einmaliges Gespräch mit Akara vollständig geheilt; ein nachgewiesen toter Söldner wird einmalig bei Kashya wiederbelebt. Bestehende Spielerressourcen, Run-State-Machines und Town-Services bleiben die Autoritäten. Phase 18 baut weder eine Pet-AI noch Merc-Ausrüstung, automatisches Anheuern oder eine neue Combat-Engine.</p>
+    <div class="chips"><span class="chip">Default enabled</span><span class="chip">Memory vor Input</span><span class="chip">Shift + Belt</span><span class="chip">Spieler bleibt Priorität</span><span class="chip">Akara heilt</span><span class="chip">Kashya belebt wieder</span><span class="chip">MrHammer zeichnet auf</span><span class="chip">Kein Gold-Precheck</span><span class="chip">Queue fail-closed</span></div>
+  </section>
+
+  <section class="grid" aria-label="Kernziele">
+    <article class="card"><h3>Merc belastbar lesen</h3><p>Alive, Dead, Hired und VitalsKnown entstehen aus derselben konsistenten Unit-Enumeration wie der World-Snapshot. Abwesenheit allein beweist weder Tod noch „nicht angeheuert“.</p></article>
+    <article class="card"><h3>Im Kampf schützen</h3><p>Nach allen bestehenden Spielerressourcen darf genau ein konfigurierte Heiltrank per atomarem Shift+Belt-Input an den lebenden Merc gehen.</p></article>
+    <article class="card"><h3>Town zentral halten</h3><p>Der bestehende Town-Planner entscheidet Heal oder Revive, der Graph führt zum Anbieter und ein frischer Merc-State bestätigt den Erfolg.</p></article>
+    <article class="card"><h3>KISS/YAGNI bewahren</h3><p>Keine Goldberechnung, kein Stash-Gold-Read, kein Merc-Inventar, keine Aura, kein Hiring, kein Emergency-Portal und keine neue UI-Seite.</p></article>
+  </section>
+
+  <h2>1. Verbindliche Produktentscheidungen</h2>
+  <table><thead><tr><th>Thema</th><th>Entscheidung für Phase 18</th></tr></thead><tbody>
+    <tr><td>Funktionsumfang</td><td>Ein angeheuerter Merc wird im World Model sichtbar, in autorisierten Kampfkontexten unter der konfigurierten Schwelle mit Healing Potions versorgt und am post-run Town-Handoff entweder geheilt oder wiederbelebt.</td></tr>
+    <tr><td>Aktivierung</td><td><code>combat_profiles.&lt;id&gt;.resources.mercenary.enabled</code> ist presence-sensitiv und standardmäßig <code>true</code>. Nur explizites <code>false</code> deaktiviert Preflight, Combat und Town für dieses Profil.</td></tr>
+    <tr><td>Kein Merc angeheuert</td><td>Bei aktiviertem Support ist ein nachweislich nicht angeheuerter Merc ein Setupfehler. Der Bot heuert keinen beliebigen Ersatz an. Vor dem ersten Run endet der Preflight mit <code>mercenary_not_hired</code>.</td></tr>
+    <tr><td>Erster Run</td><td>Phase 18 fügt keine zweite vollständige Town-Preparation vor dem ersten Run ein. Der Merc muss beim Sessionstart leben und valide Vitals besitzen; tot oder unbekannt stoppt der Preflight. Post-run entstandene Schäden werden später im normalen <code>prepare_town_handoff</code> behandelt.</td></tr>
+    <tr><td>Unterstützte Hirelings</td><td>Die Memory-Schicht erkennt die regulären Akt-1-, Akt-2-, Akt-3- und Akt-5-Hireling-Klassen compile-nah. Produktiv abgenommen wird der tatsächlich von MrBones verwendete Akt-2-Merc. Keine klassenspezifische Merc-Logik.</td></tr>
+    <tr><td>Schwelle</td><td>Merc-Heal greift strikt bei <code>HPPercent &lt; use_below_percent</code>. Der Default ist 75; exakt 75&nbsp;% erzeugt weder Combat- noch Town-Bedarf.</td></tr>
+    <tr><td>Potion</td><td>Nur ein echtes Belt-Item des Typs <code>hpot</code> aus <code>resources.mercenary.belt_slots</code>. Kein Rejuvenation-Fallback und kein Inventartrank. Die Merc-Slots müssen eine Teilmenge der normalen Healing-Slots des Profils sein.</td></tr>
+    <tr><td>Priorität</td><td>Die vollständige bestehende Spielerpolicy einschließlich Pending-Verifikation bleibt unverändert zuerst. Merc wird nur geprüft, wenn sie in diesem Tick keinen Input und keine passive Verifikation besitzt. Höchstens eine Inputaktion pro Tick.</td></tr>
+    <tr><td>Combat-Kontexte</td><td>Merc-Potions sind nur in <code>engage_boss</code>, im opt-in Summoner Route-Clear und in <code>clear_nearby_hostiles</code> erlaubt. Normale Route, Waypoint, Town, Loot, Stash und Handoff senden keinen Merc-Belt-Input.</td></tr>
+    <tr><td>Merc stirbt im Kampf</td><td>Der laufende Run wird ohne Merc fortgesetzt. Kein Emergency-Portal, kein Boss-Abbruch und kein neuer Recovery-Flow. Die Wiederbelebung erfolgt erst im normalen post-run Town-Handoff.</td></tr>
+    <tr><td>Town-Heal</td><td>Ein lebender Merc unter der Schwelle wird einmal bei Akara angesprochen. Das Gespräch selbst heilt; es wird kein Shop benötigt. Ist Akara ohnehin für Potions nötig, wird derselbe NPC-Dialog weiterverwendet und kein zweites Gespräch erzeugt.</td></tr>
+    <tr><td>Town-Revive</td><td>Ein nachweislich toter Merc wird einmal bei Kashya wiederbelebt. Akara ist kein Revive-Anbieter. Ein erfolgreich wiederbelebter Merc benötigt keinen zusätzlichen Akara-Abstecher, sofern seine frischen Vitals vollständig sind.</td></tr>
+    <tr><td>Gold</td><td>Es gibt bewusst keinen Gold-Read, keine Kostenberechnung und keinen Precheck. D2R verwendet seine eigene Inventar-/Stash-Goldmechanik. Nach der einmaligen Revive-Auswahl entscheidet ausschließlich der frische Merc-State: lebend bedeutet Erfolg; weiterhin tot bis zum Verify-Timeout bedeutet <code>mercenary_revive_insufficient_gold</code> und bricht die Queue nicht-retrybar ab.</td></tr>
+    <tr><td>Town-Routen</td><td>Kashya wird neuer Act-1-Anker. KISS: genau eine reversible Kante <code>waypoint-kashya</code> je unterstütztem Layout. Alle Aufnahmen erfolgen ausschließlich mit MrHammer und erzeugen neue Dateien; bestehende MrBones-Routen werden weder geöffnet noch überschrieben.</td></tr>
+    <tr><td>Unknown-State</td><td>Im Kampf bedeutet unbekannt: kein Merc-Input, Run fortsetzen. Im Preflight und Town-Handoff bedeutet unbekannt: nicht freigeben und endlich mit eigenem Reason abbrechen. Unknown wird niemals in Dead umgedeutet.</td></tr>
+    <tr><td>Operator-Oberfläche</td><td>YAML, effektive Config, strukturierte Logs und JSONL-Telemetrie. Keine neue Desktop-Seite, kein Settings-Editor und keine History-Charts.</td></tr>
+    <tr><td>Releaseziel</td><td>Neues Feature, daher regulär <code>v0.15.0</code>. Phase 18 bleibt bis zur manuellen Abnahme als geplant beziehungsweise in Arbeit markiert.</td></tr>
+    <tr><td>Offline-Safety</td><td>Nur Offline/Singleplayer. Keine D2R-Installations- oder Savegame-Datei wird geschrieben. Stop, Pause und Cancellation bleiben in jedem Input-, Dialog- und Verify-Zustand wirksam.</td></tr>
+  </tbody></table>
+
+  <h2>2. Belegte Ausgangslage</h2>
+  <table><thead><tr><th>Bereich</th><th>Heutiger Vertrag</th><th>Phase-18-Konsequenz</th></tr></thead><tbody>
+    <tr><td>Memory</td><td>Die Monster-UnitTable wird einmal pro Snapshot gelesen. Corpses werden vor NPC-ID und Stats verworfen; Runtime-Filter behalten Boss-/Cleanup-/Town-NPCs, aber keine Hirelings.</td><td>Hireling-Evidenz muss im selben Segment-Walk vor dem Hostile-Filter abgezweigt werden. Kein zweiter UnitTable-Walk und kein zusätzlicher Poll.</td></tr>
+    <tr><td>Stats</td><td>Player-Vitals werden aus Base/Active-Statlisten gelesen und normalisiert. Monster tragen bisher keine Vitals.</td><td>Merc-Life besitzt einen eigenen, read-only zu validierenden Decoder. Der Player-Normalizer darf nicht blind wiederverwendet werden.</td></tr>
+    <tr><td>World</td><td><code>world.State</code> besitzt Player, Monsters, Items, Hover und UI, aber keinen Merc.</td><td>Ein eigener <code>world.Mercenary</code>-Wert wird gemappt und geklont. Er gelangt nicht in <code>Monsters</code>, Threat-Coverage oder hostile Auswahl.</td></tr>
+    <tr><td>Input</td><td><code>CastBelt(slot)</code> drückt nur die konfigurierte Gürteltaste. Modifier-Handling existiert für Combos und Vendor-Mausklicks, nicht als Belt-API.</td><td>Eine kleine atomare <code>CastBeltWithModifier</code>-Oberfläche hält Shift, drückt den konfigurierten Slot und räumt beide Keys bei jedem Teilfehler auf.</td></tr>
+    <tr><td>Profile</td><td><code>TickResources</code> priorisiert Player-Rejuvenation, Route-Mana, Player-Healing und Player-Mana, pinnt die konkrete Belt-UnitID und verifiziert deren Verschwinden.</td><td>Die bestehende Reihenfolge bleibt unverändert. Merc-Healing wird danach als zusätzlicher Empfänger derselben endlichen Resource-Machine ergänzt.</td></tr>
+    <tr><td>Runner</td><td>Normale Steps tickern Ressourcen zentral; der Phase-17-Route-Step besitzt seinen eigenen <code>ResourceContext</code>.</td><td>Der genaue Step setzt <code>AllowMercenary</code>. Route-Clear erweitert seinen vorhandenen Kontext, statt Ressourcen ein zweites Mal zu tickern.</td></tr>
+    <tr><td>Town</td><td><code>prepare_town_handoff</code> plant aus einem kohärenten Snapshot, führt geordnete Services über den layoutgebundenen Graph aus und bestätigt jeden Input separat.</td><td>Merc-Heal und Merc-Revive werden neue Demand-/Servicearten in genau diesem Planner und Executor. Kein Merc-Code in einzelnen Run-State-Machines.</td></tr>
+    <tr><td>Akara</td><td>NPC-Interaktion und Shop-Öffnung sind getrennt. Potion-Restock kann den offenen Akara-Dialog weiterverwenden.</td><td>Heal endet bereits nach frischem Full-HP-Nachweis. Bei zusätzlichem Potion-Bedarf geht derselbe Dialog ohne zweiten NPC-Klick in den bestehenden Shop-Pfad über.</td></tr>
+    <tr><td>Town-Graph</td><td>Vier freigegebene Rogue-Encampment-Layouts verbinden Stash, Waypoint, Akara, Cain und Charsi.</td><td>Ein neuer Kashya-Anker wird über genau eine reversible <code>waypoint-kashya</code>-Kante angeschlossen. Bestehende Kanten bleiben bytegleich.</td></tr>
+  </tbody></table>
+  <div class="callout danger"><strong>Erstes hartes Gate:</strong> Kein ausführender Agent darf Shift+Belt, Akara-Heal oder Kashya-Revive produktiv verdrahten, bevor der aktuelle D2R-Build die vier Zustände „nicht angeheuert“, „lebend gesund“, „lebend verletzt“ und „tot“ read-only unterscheidbar belegt. Kann Dead nicht von Unknown oder NotHired unterschieden werden, endet Phase 18 an Gate 18.0 ohne Merc-Input.</div>
+
+  <h2>3. Scope und bewusste Nicht-Ziele</h2>
+  <table><thead><tr><th>Enthalten</th><th>Bewusst nicht enthalten</th></tr></thead><tbody>
+    <tr><td>Read-only Hireling-Erkennung und Vitals im bestehenden Snapshot.</td><td>Savegame-/D2S-Parser, File-Reads als Gameplay-Autorität oder Schreiben an D2R-Dateien.</td></tr>
+    <tr><td>Healing Potion per Shift und konfigurierter Gürteltaste.</td><td>Rejuvenation-Fallback, Inventartränke, Antidote-/Thawing-Buffs oder Füttern per Portrait-Drag.</td></tr>
+    <tr><td>Akara-Heal und Kashya-Revive im zentralen Act-1-Town-Flow.</td><td>Merc-Anheuern, Austauschen, Benennen, Ausrüsten, Reparieren, Aura-/Skillprüfung oder Equipment-Pickit.</td></tr>
+    <tr><td>Alle regulären Hireling-Klassen im Memory-Modell.</td><td>Summons, Golems, Revives, Valkyrie, Shadow Master oder andere Pets.</td></tr>
+    <tr><td>Konkrete Combat-Kontexte und unveränderte Spielerpriorität.</td><td>Merc-Chicken, Run-Abbruch bei Merc-Tod, Emergency-Portal oder neues Combat-Pathing.</td></tr>
+    <tr><td>Einmaliger Revive-Versuch und Memory-Verifikation.</td><td>Goldbetrag lesen, Kosten schätzen, Stash-Gold transferieren, Fehlermeldung per OCR erkennen oder mehrfach probieren.</td></tr>
+    <tr><td>Eine reversible Kashya-Kante pro bestehendem Layout.</td><td>Optimiertes vollständiges Kashya-Netz zu Stash, Akara, Cain und Charsi.</td></tr>
+    <tr><td>YAML, Logs, Telemetrie und Feature-Dokumentation.</td><td>Neue Settings-UI, Dashboard-Karte oder History-Auswertung.</td></tr>
+  </tbody></table>
+
+  <h2>4. Zielarchitektur und Ownership</h2>
+  <pre><code>memory.ProbeReader · ein Snapshot / ein Monster-Segment-Walk
+  ├─ Player, Items, Hostiles wie bisher
+  └─ MercenaryEvidence
+       ├─ hired/dead evidence
+       ├─ erkannte Hireling-NPC-ID
+       └─ dedizierte Vitals-Decodierung
+              │
+              ▼
+world.State.Mercenary
+  └─ HiredKnown, Hired, Alive, Dead, VitalsKnown, UnitID, NPCID, HP, MaxHP
+              │
+              ├──────────────────────────────┐
+              ▼                              ▼
+profile.Executor                       app.townPreparationAdapter
+  ├─ Playerressourcen unverändert        ├─ Demand: heal | revive | none
+  ├─ AllowMercenary-Kontext              ├─ Planner/Graph
+  ├─ hpot + Slotpin                       └─ Town StepHandler
+  └─ modifier belt action                    ├─ Akara heal
+              │                              └─ Kashya revive
+              ▼                                      │
+input.Controller                                    ▼
+  └─ Shift down → Belt down/up → Shift up      frischer world.State.Mercenary
+                                                     └─ confirm | fail queue</code></pre>
+  <table><thead><tr><th>Verantwortung</th><th>Einziger Owner</th><th>Verbotene zweite Autorität</th></tr></thead><tbody>
+    <tr><td>Raw Hireling-/Corpse-/Stat-Evidenz</td><td><code>internal/memory</code> im bestehenden Monster-Segment-Walk</td><td>Task-eigener Process-Read, Pixel-Farbe des Portraits oder Savegame</td></tr>
+    <tr><td>Semantischer Merc-State</td><td><code>internal/world</code></td><td>Profil- oder Town-Code, der Abwesenheit selbst als Tod interpretiert</td></tr>
+    <tr><td>Resource-Schwelle, Slots, Cooldown und Enabled</td><td>aktives <code>internal/profile</code>-Definition-Objekt aus validierter Config</td><td>run-spezifische Schwellen oder separater Town-Default</td></tr>
+    <tr><td>Resource-Reihenfolge</td><td><code>profile.Executor</code></td><td>Boss-State-Machine mit eigener Trankauswahl</td></tr>
+    <tr><td>Zulässiger Combat-Kontext</td><td><code>tasks.Runner</code> beziehungsweise der bestehende Route-Resource-Owner</td><td>Input-Controller, der den aktuellen Run-Step kennt</td></tr>
+    <tr><td>Atomarer Modifier-/Belt-Input</td><td><code>internal/input</code></td><td>Profil mit manuellen KeyDown-/KeyUp-Sequenzen</td></tr>
+    <tr><td>Town-Demand und Service-Reihenfolge</td><td><code>internal/town</code>, durch <code>internal/app</code> aus einem kohärenten Snapshot gespeist</td><td>HookTownReady oder einzelne Countess-/Mephisto-/Summoner-/Nihlathak-Flows</td></tr>
+    <tr><td>NPC-Aim, Hover und Klick</td><td>bestehender Town-NPC-Interactor und App-Click-Adapter</td><td>feste Weltkoordinate oder ungeprüfter Screen-Klick</td></tr>
+    <tr><td>Revive-Erfolg</td><td>frischer World-Merc-State nach genau einem Dialog-Submit</td><td>Goldwert, Dialogtext, Klickannahme oder Timeout allein</td></tr>
+    <tr><td>Queue-Abbruch</td><td><code>internal/app</code>-Reason-Klassifikation</td><td>Town-Paket mit Supervisor-/Retry-Policy</td></tr>
+  </tbody></table>
+
+  <h2>5. Read-only Memory- und World-Vertrag</h2>
+  <pre><code>type Mercenary struct {
+    HiredKnown bool
+    Hired      bool
+    Alive      bool
+    Dead       bool
+    VitalsKnown bool
+    UnitID     uint32
+    NPCID      uint32
+    HP         uint32
+    MaxHP      uint32
+}
+
+func (m Mercenary) HPPercent() uint8</code></pre>
+  <ul>
+    <li><code>Alive</code> und <code>Dead</code> schließen einander aus. <code>VitalsKnown</code> ist nur bei <code>Alive</code>, <code>MaxHP &gt; 0</code> und konsistent decodierten Stats erlaubt.</li>
+    <li><code>HiredKnown=false</code> ist Unknown. In diesem Zustand müssen <code>Hired</code>, <code>Alive</code>, <code>Dead</code>, UnitIDs und Vitals auf sichere Nullwerte fallen.</li>
+    <li><code>Hired=false</code> ist erst zulässig, wenn Gate 18.0 eine belastbare NotHired-Evidenz für den aktuellen UI-/UnitTable-Vertrag bestätigt. Eine leere Living-Liste reicht nicht.</li>
+    <li><code>Dead=true</code> benötigt entweder eine erkannte Hireling-Unit mit bestätigtem Corpse-/Death-Merkmal oder eine live validierte Hired-Evidenz, die bei Tod erhalten bleibt, plus die im Core-Vertrag festgelegte Anzahl frischer konsistenter Snapshots ohne lebende Hireling-Unit. Der Plan erfindet diese Evidenz nicht vor der Messung.</li>
+    <li>Area-Transition, Loading, ungültige Snapshotzeit, unlesbare Statliste, mehrere widersprüchliche Hirelings oder wechselnde UnitID innerhalb derselben Auswertung ergeben Unknown, nicht Dead.</li>
+    <li>Reguläre Hireling-NPC-IDs werden compile-nah aus der lokalen <code>.tmp/d2r-excel/hireling.txt</code> übernommen und mit Tests benannt. Keine IDs aus Koolo-/d2go-Katalogen und keine freie ID-Liste in Benutzer-YAML.</li>
+    <li>Hirelings werden vor <code>IsRuntimeMonsterCandidate</code> erkannt und separat verarbeitet. Sie werden nie an <code>snap.Monsters</code> angehängt, erhöhen keinen <code>EligibleMonsterCount</code> und können weder Boss- noch Cleanup-Ziel werden.</li>
+    <li>Stats werden nur für den erkannten Hireling gelesen. Keine Vitals für jedes Monster und kein zweiter Segment-Walk.</li>
+    <li>Der d2go-Referenzstand behandelt kleine rohe Merc-Life-Werte als Anteil von 32768 und MaxLife separat skaliert. Gate 18.0 muss beide Life-Darstellungen am aktuellen Build belegen, bevor ein eigener kleiner Decoder eingefroren wird. Der Player-Stat-Normalizer bleibt unverändert.</li>
+    <li><code>world.Model.Update</code>, <code>Current</code> und <code>Reset</code> mappen beziehungsweise nullen den Merc-Wert zusammen mit dem übrigen Snapshot. Keine generation-übergreifende Merc-Autorität.</li>
+  </ul>
+  <div class="callout"><strong>Konsistenz vor Komfort:</strong> Ein kurz nicht enumerierter Merc direkt nach Teleport oder Areawechsel darf weder einen Revive-Detour noch einen Preflight-Fehler auslösen. Die read-only Charakterisierung muss deshalb Alive→Loading→Alive sowie Alive→Dead getrennt erfassen.</div>
+
+  <h2>6. Config-Vertrag</h2>
+  <pre><code>combat_profiles:
+  necro_bone_spear:
+    resources:
+      healing:
+        use_below_percent: 65
+        belt_slots: [1]
+        cooldown_ms: 4000
+      mercenary:
+        enabled: true
+        use_below_percent: 75
+        belt_slots: [1]
+        cooldown_ms: 4000
+
+town:
+  hub:
+    anchors: [spawn, portal_arrival, stash, waypoint, akara, charsi, cain, kashya]
+    services:
+      mercenary_heal: akara
+      mercenary_revive: kashya</code></pre>
+  <ol>
+    <li>Fehlt <code>resources.mercenary</code> vollständig, wird intern <code>enabled=true</code>, Schwelle 75, Slots <code>[1]</code> und Cooldown 4000&nbsp;ms aufgelöst. Explizites <code>enabled:false</code> bleibt möglich.</li>
+    <li>Die Default-true-Semantik wird presence-sensitiv mit der kleinsten lokalen Lösung implementiert, zum Beispiel einem optional decodierten Bool, der beim Auflösen in ein normales immutable Bool überführt wird. Kein generisches Optional-Config-Framework.</li>
+    <li>Bei effektivem <code>enabled=true</code> gilt: Schwelle 1..100, mindestens ein eindeutiger Slot 1..4, Cooldown &gt;0 und jeder Merc-Slot muss auch in <code>resources.healing.belt_slots</code> liegen.</li>
+    <li>Bei <code>enabled=false</code> lösen Merc-Felder keine Runtime-Anforderung aus. Unnötige Zero-Value-Fehler werden vermieden; explizit angegebene ungültige Werte dürfen dennoch fail-fast abgelehnt werden.</li>
+    <li><code>shift</code> ist feste D2R-Semantik und kein Benutzerwert. Nur die Gürteltaste selbst stammt wie bisher aus <code>input.bindings.belt_slots</code>.</li>
+    <li>Town verwendet dieselbe effektive Merc-Schwelle des gebundenen Profils. Es entsteht kein zweiter <code>town.thresholds.mercenary</code>-Wert.</li>
+    <li>Die effektive Config-/Inspect-Projektion zeigt <code>enabled</code>, Schwelle, Slots und Cooldown. Geheimnisse oder Raw-Memory-Daten werden nicht projiziert.</li>
+  </ol>
+
+  <h2>7. Atomarer Shift+Belt-Input</h2>
+  <pre><code>CastBeltWithModifier(bindings, "shift", slot)
+  1. Slot 1..4 und konfigurierte Belt-Taste auflösen
+  2. modifier und belt key normalisieren
+  3. Action-Guard genau einmal vor der Sequenz
+  4. unter keyMu:
+       Shift KeyDown
+       Belt KeyDown
+       normale KeyDelay
+       Belt KeyUp
+       Shift KeyUp
+  5. bei jedem Fehler alle bereits gedrückten Keys rückwärts freigeben
+  6. eine strukturierte erlaubte Inputaktion loggen</code></pre>
+  <ul>
+    <li>Die Methode ist eine Belt-spezifische kleine API. Sie verwendet nicht <code>PressCombo</code>, wenn dessen pauschales <code>combo_hold_ms</code> eine abweichende Belt-Sequenz oder unklare Logsemantik erzeugt.</li>
+    <li>Der Modifier wird niemals nach dem Belt-Key gedrückt. Der Release erfolgt immer Belt vor Shift.</li>
+    <li>Ein Fehler bei <code>KeyUp</code> führt zu best-effort Cleanup und wird nicht verschluckt. Das Profil erhält den Fehler und beendet den Ressourcentick fail-closed.</li>
+    <li><code>CastBelt</code> für den Spieler bleibt unverändert. Der App-Adapter erhält genau eine zusätzliche Merc-Methode; kein boolescher <code>merc=true</code>-Parameter auf allen bestehenden Call-Sites.</li>
+    <li>Jeder Test muss die exakte Low-Level-Reihenfolge und Cleanup-Reihenfolge prüfen, nicht nur die Anzahl der Calls.</li>
+  </ul>
+
+  <h2>8. Combat-Ressourcenvertrag</h2>
+  <pre><code>TickResources(state, context, now)
+  ├─ bestehende pending Player-/Merc-Verifikation
+  ├─ globaler bestehender Potion-Throttle
+  ├─ bestehende Player-Priorität unverändert
+  │    1. kritische Player-HP → Rejuvenation
+  │    2. Route-Emergency-Mana
+  │    3. Mobility-Mana
+  │    4. Player-Healing
+  │    5. Player-Mana
+  └─ nur wenn keine Player-Demand:
+       AllowMercenary
+       && policy.Enabled
+       && Merc.Alive
+       && Merc.VitalsKnown
+       && Merc.HPPercent() &lt; threshold
+         → hpot aus konfigurierten Slots
+         → Shift+Belt
+         → konkrete Belt-UnitID pending verifizieren</code></pre>
+  <table><thead><tr><th>Zustand</th><th>Aktion</th><th>Run-Folge</th></tr></thead><tbody>
+    <tr><td>Player-Ressource action/pending</td><td>Nur bestehender Player-Pfad.</td><td>Merc wartet mindestens bis zum nächsten freien Tick.</td></tr>
+    <tr><td>Merc alive, vitals known, unter Schwelle, Kontext erlaubt</td><td>Erstes passendes <code>hpot</code> aus der Slotreihenfolge per Shift+Belt.</td><td>Tick verbraucht; konkrete Belt-UnitID wird verifiziert.</td></tr>
+    <tr><td>Merc exakt an/über Schwelle</td><td>Keine Merc-Aktion.</td><td>Run normal fortsetzen.</td></tr>
+    <tr><td>Merc dead</td><td>Keine Potion.</td><td>Run normal fortsetzen; Town entscheidet Revive.</td></tr>
+    <tr><td>Merc unknown oder vitals invalid</td><td>Keine Potion, höchstens rate-limitiertes Diagnoselog.</td><td>Combat normal fortsetzen.</td></tr>
+    <tr><td>Kein passender Healing-Trank</td><td>Keine Rejuvenation und kein falscher Slot.</td><td>Run normal fortsetzen; einmaliger unavailable-Übergang loggen.</td></tr>
+    <tr><td>Belt-UnitID verschwindet</td><td>Verbrauch bestätigt.</td><td>Pending löschen; Merc-HP-Anstieg nur telemetrisch beobachten.</td></tr>
+    <tr><td>Belt-UnitID bleibt bis Verify-Timeout</td><td><code>mercenary_potion_verify_timeout</code>.</td><td>Run wie bestehender fehlerhafter Ressourceninput fail-closed beenden.</td></tr>
+  </tbody></table>
+  <ul>
+    <li>Der Default-Merc-Cooldown beträgt 4 Sekunden und wird getrennt von Player-Healing geführt. Der bestehende globale Throttle verhindert trotzdem zwei unmittelbar aufeinanderfolgende Potion-Inputs.</li>
+    <li>Steigende Merc-HP ist kein zwingendes Consumption-Gate: gleichzeitiger Schaden kann den Effekt überdecken. Das Verschwinden der gepinnten Belt-UnitID bleibt der robuste Input-/Consumption-Nachweis.</li>
+    <li>Der Pending-State speichert zusätzlich den Empfänger <code>player|mercenary</code>. Eine zweite parallele Pending-Machine ist nicht erlaubt.</li>
+    <li>Für den normalen Runner setzt nur <code>engage_boss</code> und <code>clear_nearby_hostiles</code> <code>AllowMercenary=true</code>. Der Phase-17-Route-Owner setzt denselben Wert ausschließlich während des aktiven Route-Clears.</li>
+    <li>Der Resource-Executor kennt keine Step-Namen. Er erhält nur den booleschen fachlichen Kontext.</li>
+  </ul>
+
+  <h2>9. Town-Demand und Service-Reihenfolge</h2>
+  <pre><code>prepare_town_handoff · kohärenter Snapshot nach close_personal_stash
+  ├─ Merc disabled                         → kein Merc-Service
+  ├─ HiredKnown=false / State widersprüchlich → fail mercenary_state_invalid
+  ├─ HiredKnown=true, Hired=false          → fail mercenary_not_hired
+  ├─ Dead=true                             → demand mercenary_revive @ kashya
+  ├─ Alive + !VitalsKnown                  → fail mercenary_state_invalid
+  ├─ Alive + HPPercent &lt; 50               → demand mercenary_heal @ akara
+  └─ Alive + HPPercent ≥ 50                → kein Merc-Service
+
+Service-Reihenfolge:
+  identify @ cain
+  mercenary_revive @ kashya
+  mercenary_heal @ akara
+  potions/scrolls/sell @ akara
+  repair @ charsi
+  waypoint handoff</code></pre>
+  <ul>
+    <li>Heal und Revive sind gegenseitig exklusiv aus genau einem Snapshot. Dead hat Vorrang; der Planner erzeugt nie beide Merc-Services gleichzeitig.</li>
+    <li>Nach erfolgreichem Revive wird der frische Merc-State geprüft. Ist der Merc lebend, besitzt valide Vitals und ist vollständig geheilt, entsteht kein nachträglicher Heal-Step.</li>
+    <li>Die initiale Planreihenfolge bleibt immutable. Falls der Revive einen unerwartet lebenden, aber nicht vollen Merc liefert, ist das ein ungültiger Revive-Vertrag und kein dynamisch angehängter Akara-Step.</li>
+    <li>Service-Anker dürfen im geordneten Graph mehrfach vorkommen, werden aber bei direkt aufeinanderfolgenden gleichen Ankern nicht unnötig verlassen.</li>
+    <li>Akara-Heal wird vor Potion/Scroll/Sell ausgeführt. Ein bereits offener, durch denselben Service autorisierter Akara-Dialog darf vom unmittelbar folgenden Potion-Step übernommen werden.</li>
+    <li>Ein preopened NPC-Dialog unbekannter Herkunft bleibt fail-closed. Wiederverwendung ist nur innerhalb desselben generation-scoped Town-Handlers und derselben gepinnten Akara-UnitID erlaubt.</li>
+  </ul>
+
+  <h2>10. Akara-Heal-Zustandsautomat</h2>
+  <pre><code>walk_to_akara
+  └─ Graph erreicht Akara                   → interact
+
+interact
+  ├─ Merc nicht mehr alive/vitals known     → fail mercenary_heal_state_invalid
+  ├─ Merc inzwischen ≥ threshold            → complete ohne NPC-Input
+  ├─ vorhandener autorisierter Akara-Dialog → verify
+  └─ NPCInteractor: pin → hover → click      → verify
+
+verify
+  ├─ frischer Merc alive + HPPercent == 100 → heal confirmed
+  ├─ Merc dead/unknown                       → fail
+  ├─ Timeout                                → fail mercenary_heal_verify_timeout
+  └─ sonst                                  → pending, kein zweiter NPC-Klick
+
+handoff_ui
+  ├─ nachfolgend Akara-Shop nötig            → Dialog offen lassen
+  └─ kein weiterer Akara-Service             → einmal Escape, geschlossen bestätigen</code></pre>
+  <ul>
+    <li>Der vor dem Akara-Klick beobachtete UnitID-/HP-Wert wird für Telemetrie eingefroren, nicht als spätere Autorität.</li>
+    <li>Der erfolgreiche Nachweis benötigt einen neueren Snapshot als der NPC-Klick. Derselbe Snapshot kann den Input nicht bestätigen.</li>
+    <li>Akara heilt den Player nebenbei; daraus entsteht keine zusätzliche Player-Resource- oder Hook-Logik.</li>
+    <li>Erreicht der Merc während des Walks durch Regeneration bereits die Schwelle, darf der Service ohne Dialog entfallen. Ein einmal gesendeter NPC-Klick wird dagegen nur durch Full-HP oder Timeout abgeschlossen.</li>
+  </ul>
+
+  <h2>11. Kashya-Revive-Zustandsautomat</h2>
+  <pre><code>walk_to_kashya
+  └─ Graph erreicht Kashya                  → interact
+
+interact
+  ├─ State nicht mehr eindeutig dead        → fail mercenary_revive_state_invalid
+  └─ NPCInteractor: pin → hover → click      → select_revive
+
+select_revive
+  ├─ NPCInteractOpen nicht bestätigt         → fail
+  ├─ Home                                    → nächster Tick
+  ├─ Down                                    → nächster Tick
+  ├─ Enter                                   → verify
+  └─ technische Inputfehler                  → eigener technischer Reason
+
+verify
+  ├─ frischer Merc alive + vitals known
+  │    + HP &gt; 0 + MaxHP &gt; 0                 → revive confirmed
+  ├─ Timeout und weiterhin eindeutig dead    → mercenary_revive_insufficient_gold
+  ├─ Unknown/widersprüchlich bis Timeout      → mercenary_revive_verify_timeout
+  └─ kein zweiter Enter, kein zweiter Klick
+
+close
+  └─ Escape höchstens einmal; UI-closed bestätigen</code></pre>
+  <ul>
+    <li>Es gibt vor <code>Enter</code> keinen Zugriff auf Player-, Private-Stash- oder Shared-Stash-Gold und keine 50.000-Gold-Konstante.</li>
+    <li><code>mercenary_revive_insufficient_gold</code> ist die ausdrücklich gewünschte Produktsemantik, wenn ein vollständig gesendeter Revive-Submit nach endlicher Verifikation einen weiterhin eindeutig toten Merc hinterlässt.</li>
+    <li>Fehlt bereits NPC-/Dialog-/Key-Input-Evidenz, darf nicht fälschlich „zu wenig Gold“ gemeldet werden. Diese Pfade behalten technische Reasons.</li>
+    <li>Der Insufficient-Gold-Reason ist queue-terminal und wird weder als normaler Run-Retry noch als Save-&amp;-Exit-Recovery behandelt. Die Session endet mit einer klaren deutschen Meldung.</li>
+    <li>Ein lebender Merc bestätigt den Erfolg unabhängig davon, ob D2R das Gold aus Inventar, privatem oder anderem Stash-Bestand genommen hat.</li>
+  </ul>
+
+  <h2>12. MrHammer-Routenvertrag</h2>
+  <div class="callout success"><strong>Operatorentscheidung:</strong> Sämtliche neuen Kashya-Aufnahmen werden mit MrHammer durchgeführt. Das schützt die produktiven MrBones-Run-Routen. Der Recorder schreibt ausschließlich neue layoutgebundene Town-Dateien; vorhandene Dateien dürfen in keinem Arbeitspaket ersetzt, umbenannt oder neu aufgezeichnet werden.</div>
+  <ol>
+    <li><code>AnchorKashya</code>, NPC-ID, Endpoint-Erkennung und die Kante <code>waypoint-kashya</code> zunächst code-/manifestseitig als noch nicht aktivierte Aufnahme vorbereiten.</li>
+    <li>MrHammer in dem jeweiligen Rogue-Encampment-Layout manuell direkt am Waypoint positionieren.</li>
+    <li>Pro Layout ausführen: <code>d2rbot.exe --config configs/config.yaml --pathing-test record-town-edge:waypoint-kashya</code>.</li>
+    <li>Von Waypoint manuell zu Kashya laufen und am bestätigten Kashya-Rand Stop drücken. Der Recorder muss Kashya per Memory als Endpoint innerhalb 15 Tiles nachweisen.</li>
+    <li>Erwartete neue Dateien sind ausschließlich:
+      <ul>
+        <li><code>waypoint-kashya-768769273073.yaml</code></li>
+        <li><code>waypoint-kashya-911703945495.yaml</code></li>
+        <li><code>waypoint-kashya-5f635488a4db.yaml</code></li>
+        <li><code>waypoint-kashya-4ad7f3b4018e.yaml</code></li>
+      </ul>
+      Der Recorder bestimmt den tatsächlichen zwölfstelligen Layoutpräfix; stimmt er nicht mit einem freigegebenen Layout überein, wird die Variante nicht in <code>graph.yaml</code> aktiviert.
+    </li>
+    <li>Jede neue Datei zuerst isoliert prüfen, dann ihre Variante explizit in <code>graph.yaml</code> eintragen. Keine automatische Aktivierung nach dem Recording.</li>
+    <li>Je Layout <code>play-town-graph:waypoint,kashya,waypoint</code> ausführen. Erwartet werden dieselbe Kante vorwärts und rückwärts, genau einmal je Richtung.</li>
+    <li>Danach <code>play-town-graph:stash,kashya,waypoint</code> prüfen. Der KISS-Pfad darf über <code>stash-waypoint</code>, die neue Kante rückwärts und anschließend vorwärts führen. Zusätzlicher Weg ist akzeptiert; fehlende oder falsche Kante nicht.</li>
+    <li>Ein abschließender Diff-Audit muss beweisen, dass keine vorhandene <code>stash-*</code>, <code>akara-*</code>, <code>cain-*</code>, <code>charsi-*</code>, Run-Route oder MrBones-Datei verändert wurde.</li>
+  </ol>
+
+  <h2>13. Reasons, Queue-Semantik und deutsche Meldungen</h2>
+  <table><thead><tr><th>Reason</th><th>Bedeutung</th><th>Folge</th><th>UI-Text</th></tr></thead><tbody>
+    <tr><td><code>mercenary_not_hired</code></td><td>Support aktiv, aber belastbar kein Merc angeheuert.</td><td>Preflight/Town terminal; keine automatische Auswahl.</td><td>„Für dieses Profil ist kein Söldner angeheuert.“</td></tr>
+    <tr><td><code>mercenary_dead_at_start</code></td><td>Merc ist vor dem ersten Run bereits tot.</td><td>Preflight terminal; keine initiale Town-Erweiterung.</td><td>„Der Söldner muss vor dem ersten Run wiederbelebt werden.“</td></tr>
+    <tr><td><code>mercenary_state_invalid</code></td><td>Hired/Alive/Dead/Vitals sind unbekannt oder widersprüchlich.</td><td>Preflight/Town terminal; Combat nur skip.</td><td>„Der Söldnerzustand konnte nicht sicher gelesen werden.“</td></tr>
+    <tr><td><code>mercenary_potion_input_failed</code></td><td>Shift-/Belt-Sequenz technisch fehlgeschlagen.</td><td>Run fail-closed.</td><td>„Der Heiltrank für den Söldner konnte nicht verwendet werden.“</td></tr>
+    <tr><td><code>mercenary_potion_verify_timeout</code></td><td>Gepinnter Belt-Trank blieb vorhanden.</td><td>Run fail-closed.</td><td>„Der Heiltrank für den Söldner wurde nicht bestätigt.“</td></tr>
+    <tr><td><code>mercenary_heal_verify_timeout</code></td><td>Akara wurde angesprochen, Full-HP blieb aus.</td><td>Town/Run fail-closed; Queue stop.</td><td>„Akara hat den Söldner nicht vollständig geheilt.“</td></tr>
+    <tr><td><code>mercenary_revive_insufficient_gold</code></td><td>Revive wurde vollständig ausgewählt, Merc blieb eindeutig tot.</td><td>Nicht retrybar; Queue sofort beenden.</td><td>„Zu wenig Gold, um den Söldner wiederzubeleben.“</td></tr>
+    <tr><td><code>mercenary_revive_verify_timeout</code></td><td>Nach Submit entstand kein eindeutiger Alive-/Dead-Nachweis.</td><td>Nicht blind wiederholen; Queue stop.</td><td>„Die Wiederbelebung des Söldners konnte nicht bestätigt werden.“</td></tr>
+    <tr><td><code>town_layout_route_missing</code></td><td>Kashya-Variante für das gepinnte Layout fehlt.</td><td>Vor Town-Movement abbrechen.</td><td>Bestehender klarer Town-Routenhinweis plus Kashya-Kontext im Log.</td></tr>
+  </tbody></table>
+  <ul>
+    <li>Nur der vollständig gesendete Revive-Submit plus weiterhin eindeutiges Dead darf den Insufficient-Gold-Reason erzeugen.</li>
+    <li>Supervisor-/Failure-Klassifikation erhält einen expliziten nicht-retrybaren Queue-Abbruch für <code>mercenary_revive_insufficient_gold</code>, <code>mercenary_not_hired</code> und initialen Dead-/Invalid-State.</li>
+    <li>Stop bleibt <code>aborted</code>, kein Fehlerbudget-Verbrauch und niemals „zu wenig Gold“.</li>
+  </ul>
+
+  <h2>14. Telemetrie und Logging</h2>
+  <table><thead><tr><th>Ereignis</th><th>Pflichtfelder</th><th>Regel</th></tr></thead><tbody>
+    <tr><td><code>resource_potion_requested</code></td><td>profile, resource=healing, recipient=mercenary, threshold, belt_slot, potion_unit_id, merc_unit_id, hp_percent</td><td>Erst nach erfolgreich gesendeter Shift+Belt-Sequenz.</td></tr>
+    <tr><td><code>resource_consumption_confirmed</code></td><td>recipient=mercenary, belt_slot, potion_unit_id, confirmed=true</td><td>Erst wenn ein neuer Snapshot die Belt-UnitID nicht mehr enthält.</td></tr>
+    <tr><td><code>town_mercenary_heal_requested</code></td><td>vendor=akara, merc_unit_id, hp_before</td><td>Nach hover-bestätigtem NPC-Klick.</td></tr>
+    <tr><td><code>town_mercenary_heal_confirmed</code></td><td>merc_unit_id, hp_before, hp_after</td><td>Nur auf frischem Full-HP-Snapshot.</td></tr>
+    <tr><td><code>town_mercenary_revive_requested</code></td><td>vendor=kashya, previous evidence, kein Goldfeld</td><td>Nach dem einmaligen Enter.</td></tr>
+    <tr><td><code>town_mercenary_revive_confirmed</code></td><td>new merc_unit_id, npc_id, hp, max_hp</td><td>Nur auf frischem Alive-/Vitals-Nachweis.</td></tr>
+    <tr><td><code>profile_action_failed</code> / Town-Failure</td><td>recipient/service, stable reason, run/session context</td><td>Vor terminaler Progression synchron persistieren.</td></tr>
+  </tbody></table>
+  <ul>
+    <li>Bestehende Player-Potion-Events erhalten explizit oder effektiv <code>recipient=player</code>. Keine neue parallele Telemetriepipeline.</li>
+    <li>Kein per-Poll JSONL-Event für unveränderte Merc-HP. State-Transitions und Inputs genügen; read-only Probe-Logs dürfen kontrolliert ausführlicher sein.</li>
+    <li>Jede Inputaktion loggt was, warum und Ergebnis. Das Revive-Log enthält ausdrücklich keinen geschätzten Goldbetrag.</li>
+    <li>UI-facing Texte sind kurz, deutsch und ohne Memory-/UnitTable-Technobabble.</li>
+  </ul>
+
+  <h2>15. Erwartete Dateien und minimale Diffs</h2>
+  <table><thead><tr><th>Bereich</th><th>Erwartete Dateien</th><th>Änderung</th></tr></thead><tbody>
+    <tr><td>Memory</td><td><code>internal/memory/entities.go</code>, <code>enumerate.go</code>, <code>probe.go</code>, kleiner Merc-Decoder plus Tests</td><td>Hireling-Evidenz und Vitals im vorhandenen Segment-Walk; Hostile-Reservoir unverändert.</td></tr>
+    <tr><td>World</td><td><code>internal/world/state.go</code>, neue kleine <code>mercenary.go</code>, <code>mapper.go</code>, <code>world.go</code>, Tests</td><td>Semantischer Merc-State, Prozenthelper, Mapping/Reset.</td></tr>
+    <tr><td>Config/Profile</td><td><code>internal/config/profile.go</code>, Configtests, <code>internal/profile/types.go</code>, <code>executor.go</code>, Tests</td><td>Presence-sensitive Default-true-Config, immutable Policy, Recipient und Merc-Resource-Auswahl.</td></tr>
+    <tr><td>Input/App Adapter</td><td><code>internal/input/skill_cast.go</code>, Keyboardtests, <code>internal/app/run_actions.go</code>, Adaptertests</td><td>Atomarer Modifier-Belt-Input und schmale autorisierte Oberfläche.</td></tr>
+    <tr><td>Tasks</td><td><code>internal/tasks/runner.go</code>, Route-Resource-Context/Controller, Runner-/Pipeline-Tests</td><td>AllowMercenary nur in drei Combat-Kontexten; Run-spezifische State-Machines bleiben merc-frei.</td></tr>
+    <tr><td>Town</td><td><code>internal/town/types.go</code>, <code>demand.go</code>, <code>planner.go</code>, <code>config.go</code>, neue kleine Merc-Service-State-Machines plus Tests</td><td>Heal-/Revive-Demand, Provider, finite Verifikation und Reasons.</td></tr>
+    <tr><td>Town App</td><td><code>internal/app/town_preparation_service.go</code>, Preflight-/Failure-Klassifikation, Town-Testmode und Tests</td><td>Profilpolicy in Demand, Akara-Reuse, Kashya-Handler und Queue-Abbruch.</td></tr>
+    <tr><td>World-Katalog</td><td><code>internal/world/npc_ids.go</code> und Test</td><td>Kashya plus reguläre Hireling-IDs mit ordentlichem Godoc.</td></tr>
+    <tr><td>Graph/Pathing</td><td><code>internal/town/graph.go</code>, <code>internal/app/town_graph_mode.go</code>, Graph-/Recorder-Tests, <code>configs/routes/town/act1/graph/graph.yaml</code></td><td>Kashya als bekannter Endpoint und genau eine neue reversible Kante.</td></tr>
+    <tr><td>Neue Routeassets</td><td>vier <code>waypoint-kashya-&lt;layout-prefix&gt;.yaml</code></td><td>Ausschließlich mit MrHammer aufgezeichnet; keine bestehende Route ändern.</td></tr>
+    <tr><td>Config</td><td><code>configs/config.example.yaml</code> und lokale <code>configs/config.yaml</code> nur soweit für Abnahme nötig</td><td>Merc-Policy, Kashya-Anker und Serviceprovider. Lokale Config bleibt gitignored.</td></tr>
+    <tr><td>Telemetry/API</td><td>bestehende Profile-/Town-Events, effektive Configprojektion, Reason-Mapping und Tests</td><td>Recipient, Merc-Aktionen und klare deutsche Fehler.</td></tr>
+    <tr><td>Docs</td><td>neue <code>docs/features/phase-18-core-contract.md</code> und <code>docs/features/mercenary-support.md</code>, Updates an Memory, World, Profiles, Task Runner, Town Services, Input Controller, README, Changelog und Handoff</td><td>Read-only-Evidenzvertrag, Feature-Verträge, Config, Grenzen, Test-/Live-Evidenz und Nicht-Ziele.</td></tr>
+  </tbody></table>
+  <div class="callout"><strong>Kein Drive-by-Refactor:</strong> Keine Paketverschiebung, keine universelle Entity-Hierarchie, kein generischer Dialog-DSL, keine zweite Resource-Machine und kein Town-Graph-Schema-Bump, solange die vorhandenen Typen Kashya als zusätzlichen Anchor ausdrücken können.</div>
+
+  <h2>16. Vollständiger Testvertrag</h2>
+  <table><thead><tr><th>Ebene</th><th>Pflichtfälle</th></tr></thead><tbody>
+    <tr><td>Memory</td><td>Je regulärer Hireling-Klasse lebende Unit; Hireling bleibt aus Hostiles/Coverage entfernt; Corpse-Evidenz; NotHired; UI-/Hired-Evidenz unbekannt; unlesbare Unit/Stats; MaxHP null; beide live bestätigten Life-Encodings; mehrere widersprüchliche Hirelings; Loading/Area-Transition erzeugt Unknown statt Dead; kein zweiter Segment-Walk.</td></tr>
+    <tr><td>World</td><td>Alive/Dead gegenseitig exklusiv; Vitals nur bei Alive; HPPercent 0/unter/gleich/über 50 und Clamp; Mapping für valid/invalid Snapshot; Clone/Current/Reset ohne stale Merc.</td></tr>
+    <tr><td>Config</td><td>Block fehlt → enabled true/50/[1]/4000; explizit false; invalid threshold; leere/duplizierte/out-of-range Slots; Merc-Slot nicht in Healing-Slots; unknown YAML field; effektive Projektion.</td></tr>
+    <tr><td>Input</td><td>ShiftDown→BeltDown→BeltUp→ShiftUp exakt; konfigurierte Belt-Taste; invalid/unconfigured Slot; Fehler bei jedem der vier Low-Level-Schritte; Cleanup rückwärts; Action-Guard; Loggrund; normales CastBelt unverändert.</td></tr>
+    <tr><td>Profile</td><td>Alle Player-Demands schlagen Merc; Player pending schlägt Merc; unter 50 trinkt, exakt 50 nicht; hpot-only; Slotreihenfolge; unavailable kein Rejuv; 4-s-Cooldown; global throttle; Alive ohne Vitals/Dead/Unknown kein Input; Belt-Unit verschwunden bestätigt; Verify-Timeout; höchstens ein Input je Tick.</td></tr>
+    <tr><td>Tasks</td><td>Merc erlaubt in Engage, Route-Clear und Cleanup; verboten in Travel, Loot, Town, Stash; Route-Owner tickt Ressourcen genau einmal; Merc-Tod setzt Boss-/Route-/Cleanup-Run fort; alle vier Runs ohne Merc-Sondercode.</td></tr>
+    <tr><td>Preflight</td><td>Enabled false ignoriert Merc; NotHired, Dead und Unknown stoppen vor erstem Run mit getrennten Reasons; Alive+Vitals erlaubt; verletzter aber lebender Merc erhält keinen neuen initialen Town-Flow.</td></tr>
+    <tr><td>Demand/Planner</td><td>Disabled/healthy none; alive 49 heal; alive 50 none; dead revive; Dead schlägt Heal; NotHired/Unknown invalid; Provider Akara/Kashya; Service-Reihenfolge; gleiche Akara-Anker werden kontrolliert wiederverwendet.</td></tr>
+    <tr><td>Akara</td><td>Walk, NPC-Pin, Hover-Klick, frischer Full-HP-Nachweis; bereits während Walk geheilt; Tod/Unknown nach Klick; Timeout; kein zweiter Klick; Dialog für folgenden Potion-Shop übernehmen; ohne Folge-Service genau einmal schließen.</td></tr>
+    <tr><td>Kashya</td><td>Walk, NPC-Pin, Home/Down/Enter je eigener Inputtick, frischer Alive-Nachweis; UnitID darf nach Revive neu sein; weiterhin Dead → insufficient gold; Unknown → verify timeout; technische Key-/Dialogfehler nie als Goldfehler; kein zweiter Submit; Queue nicht retrybar.</td></tr>
+    <tr><td>Graph</td><td>Kashya als bekannter Anchor/Endpoint; vier Layoutvarianten; vorwärts/rückwärts; Stash→Kashya→Waypoint; fehlende Variante fail-closed; bestehende Graph-Pfade unverändert; keine alte Route geändert.</td></tr>
+    <tr><td>Telemetry</td><td>Recipient player/mercenary; kein Event vor Input; Consumption erst nach Unit-Verschwinden; Heal/Revive erst nach frischem State; keine Goldschätzung; Telemetriefehler terminal wie bestehender Vertrag.</td></tr>
+    <tr><td>Regression</td><td><code>go test ./...</code>, <code>go build ./cmd/d2rbot</code>, <code>go vet</code>, Lint, Windows-amd64-Build; relevante Web-/Electron-Matrix nur soweit effektive Config/Reasons betroffen sind; kein Race-Test, sofern keine neue Nebenläufigkeit entsteht.</td></tr>
+  </tbody></table>
+
+  <h2>17. Umsetzungsreihenfolge mit harten Gates</h2>
+
+  <div class="phase">
+    <div class="phase-id">18.0</div>
+    <div><h3>Baseline und read-only Merc-Vertrag <span class="good">— abgeschlossen · Gate bestanden</span></h3>
+      <ol>
+        <li>Dirty Worktree dokumentieren und ausschließlich Phase-18-Dateien ändern. Bestehende Änderungen an <code>AGENTS.md</code> und Cursor-Regeln gehören dem Nutzer.</li>
+        <li>Go-Test/Build sowie relevante aktuelle Town-, Profile-, Task- und Inputtests als unveränderte Baseline ausführen.</li>
+        <li>Eine read-only Probe-/Diagnoseausgabe für Raw Hireling-ID, Corpse/Mode, relevante UI-Evidenz und rohe Life-/MaxLife-Stats ergänzen. Noch kein Merc-Input.</li>
+        <li>Mit dem aktuellen D2R-Build kontrolliert vier Zustände erfassen: kein Merc angeheuert, alive gesund, alive unter 50, dead. Zusätzlich Alive→Areawechsel→Alive beobachten.</li>
+        <li>Die exakte Evidenztabelle, erlaubte Hireling-IDs, Life-Decodierung, Snapshot-Stabilität und Abbruchkriterien in <code>docs/features/phase-18-core-contract.md</code> einfrieren.</li>
+      </ol>
+      <div class="callout"><strong>Ergebnis 30. Juli 2026:</strong> Gate 18.0 ist bestanden. Live-Artefakte belegen MrBook ohne Hireling sowie MrHammers Rogue Scout gesund, verletzt, tot und über Area 32→5. Lebend: Corpse 0, Mode 1/2; tot: Corpse 1, Mode 12. Decoder: <code>MaxHP = rawMaxLife &gt;&gt; 8</code> und <code>HP = MaxHP * clamp(rawLife, 0, 32768) / 32768</code>; 32768/23040 ergibt 90/90, 4096/23040 ergibt 11/90. NotHired benötigt drei identitätsbestätigte vollständige In-Game-Walks ohne irgendeine reguläre Hireling-Class. Details und Artefaktpfade sind im Core-Vertrag eingefroren.</div>
+      <div class="callout gate"><strong>Gate 18.0:</strong> Dead, NotHired, Alive und Unknown sind am aktuellen Build reproduzierbar getrennt; HPPercent stimmt in gesundem und verletztem Zustand; Area-Transition erzeugt keinen falschen Tod. Andernfalls endet die Phase hier ohne produktiven Input.</div>
+    </div>
+  </div>
+
+  <div class="phase">
+    <div class="phase-id">18.1</div>
+    <div><h3>Memory- und World-Modell <span class="good">— abgeschlossen · Gate bestanden</span></h3>
+      <ol>
+        <li>Den bestätigten Hireling-Read in den vorhandenen Monster-Segment-Walk integrieren und vor Hostile-Filter/Corpse-Verwurf abzweigen.</li>
+        <li>Dedizierten kleinen Merc-Vitals-Decoder implementieren; Player-Stats und Monster-Reservoir unverändert lassen.</li>
+        <li><code>memory.Snapshot</code> und <code>world.State.Mercenary</code> mit allen Invarianten, Godoc, Mapping und Reset ergänzen.</li>
+        <li>Read-only Logs auf Transitionen begrenzen und den Diagnosemodus behalten, bis die Live-Abnahme abgeschlossen ist.</li>
+      </ol>
+      <div class="callout"><strong>Ergebnis 30. Juli 2026:</strong> Gate 18.1 bestanden. Repräsentativer Live-Abgleich <code>alive-injured</code>: Raw Life/MaxLife <code>15237/23040</code> mappt produktiv auf <code>41/90</code> (<code>45%</code>), <code>hostile_hireling_count=0</code>, Hireling bleibt außerhalb von Monster/Threat. Artefakt <code>20260730T204306.442909100Z-alive-injured.json</code>.</div>
+      <div class="callout gate"><strong>Gate 18.1:</strong> Synthetische Tests und ein erneuter Live-Probe-Lauf zeigen denselben Merc-State; Hireling erscheint nie als Monster/Threat; Snapshotfrequenz und UnitTable-Walkzahl bleiben unverändert.</div>
+    </div>
+  </div>
+
+  <div class="phase">
+    <div class="phase-id">18.2</div>
+    <div><h3>Config, atomarer Input und Profilressource <span class="ok">— bestanden</span></h3>
+      <ol>
+        <li>Presence-sensitive Default-true-Merc-Config auflösen und vollständig validieren.</li>
+        <li>Atomaren Shift+Belt-Input samt Cleanup und App-Adapter implementieren.</li>
+        <li>Den vorhandenen Resource-Executor um Recipient und Merc-Healing nach allen Playerregeln ergänzen.</li>
+        <li>Runner-/Route-Kontexte exakt auf Engage, Route-Clear und Cleanup begrenzen.</li>
+        <li>Kontrollierten Inputtest mit verletztem Merc ausführen: genau ein konfigurierter Healing-Slot, korrekte Key-Reihenfolge, Belt-Unit verschwindet, kein Rejuvenation-Fallback.</li>
+      </ol>
+      <div class="callout"><strong>Stand 30. Juli 2026:</strong> <code>resources.mercenary</code> ist presence-sensitiv (Default enabled, 75/<code>[1]</code>/4000; Slots ⊆ Healing). <code>CastBeltWithModifier</code> sendet Shift→Belt→KeyDelay→Belt↑→Shift↑ mit Reverse-Cleanup. Der Resource-Executor heilt Merc erst nach allen Player-Regeln (außer reinem Route-Mana-Hold), nur bei <code>AllowMercenary</code>, Alive+Vitals und <code>HPPercent &lt; Schwelle</code>. Runner setzt das Flag in <code>engage_boss</code>/<code>clear_nearby_hostiles</code>; Route-Clear während Threat/Density.</div>
+      <div class="callout"><strong>Ergebnis 30. Juli 2026:</strong> Gate 18.2 bestanden. Abgebrochener Nihlathak-Hell-Lauf <code>nihlathak-20260730t210425999999999z-42aaf829</code> (MrBones): bei Merc <code>hp_percent=42</code> einmal <code>belt_modifier</code>/<code>shift</code> Slot&nbsp;1, Telemetrie <code>recipient=mercenary</code> mit bestätigtem Verbrauch; ~1,6&nbsp;s später Player-Heal ohne Merc-Empfänger. Run-Abbruch wegen Player-Schaden ändert den Nachweis nicht.</div>
+      <div class="callout gate"><strong>Gate 18.2:</strong> Player-Safety bleibt priorisiert; exakt Schwelle trinkt nicht, darunter höchstens einmal je Cooldown; Dead/Unknown senden nichts; ein echter Shift-Heal verbraucht den erwarteten Trank und adressiert sichtbar den Merc.</div>
+    </div>
+  </div>
+
+  <div class="phase">
+    <div class="phase-id">18.3</div>
+    <div><h3>Town-Demand, Akara-Heal und Kashya-Revive <span class="good">— Gate bestanden</span></h3>
+      <ol>
+        <li>Heal-/Revive-Service, Provider, Demand und geordnete Planner-Schritte ergänzen.</li>
+        <li>Akara-Heal mit Dialog-Reuse und frischem Full-HP-Gate implementieren.</li>
+        <li>Kashya-Revive mit genau einem Home/Down/Enter-Submit, Alive-Verifikation und Goldfehlervertrag implementieren.</li>
+        <li>Preflight- und Queue-Klassifikation für NotHired, Dead-at-start, Invalid und Insufficient-Gold ergänzen.</li>
+        <li>Isolierte Town-Testmodi für Heal und Revive bereitstellen; sie verwenden dieselben produktiven Handler, keine zweite Testimplementierung.</li>
+      </ol>
+      <div class="callout"><strong>Stand 31. Juli 2026:</strong> Demand/Planner ordnen <code>identify → mercenary_revive → mercenary_heal → potions/sell → repair</code>. Akara-Heal: Klick reicht, Full-HP bestätigt; Dialog wird nicht geschlossen. Kashya-Revive: Home/Down/Enter je Tick; weiterhin Dead nach Enter → <code>mercenary_revive_insufficient_gold</code>. Preflight blockiert NotHired/Dead-at-start/Invalid. Town-Tests: <code>--town-test mercenary-heal|mercenary-revive</code>. <code>waypoint-kashya</code> bleibt Draft bis 18.4.</div>
+      <div class="callout success"><strong>Ergebnis 31. Juli 2026:</strong> Gate 18.3 bestanden. <code>mercenary-heal</code> (Akara) und <code>mercenary-revive</code> (Kashya, MrHammer) live grün; Revive-Log: Kashya-Klick → Home/Down/Enter → Esc → <code>outcome=success</code>.</div>
+      <div class="callout gate"><strong>Gate 18.3:</strong> Akara heilt einen verletzten Merc ohne Shopzwang; Kashya belebt einen toten Merc genau einmal wieder; ein kontrolliert nicht erfolgreicher Submit stoppt die Queue mit „Zu wenig Gold“, während technische Fehler korrekt getrennt bleiben.</div>
+    </div>
+  </div>
+
+  <div class="phase">
+    <div class="phase-id">18.4</div>
+    <div><h3>Kashya-Graph und MrHammer-Aufnahmen <span class="good">— Gate bestanden</span></h3>
+      <ol>
+        <li>Kashya-Endpoint im Recorder und <code>waypoint-kashya</code> im Graph vorbereiten.</li>
+        <li>Alle vier Varianten ausschließlich mit MrHammer nach Abschnitt 12 aufnehmen.</li>
+        <li>Jede Variante isoliert vorwärts/rückwärts prüfen und erst danach aktivieren.</li>
+        <li>Kombinierten Stash→Kashya→Waypoint-Pfad je Layout prüfen.</li>
+        <li>Git-Diff gegen sämtliche vorhandenen Routeassets auditieren.</li>
+      </ol>
+      <div class="callout success"><strong>Ergebnis 31. Juli 2026:</strong> Gate 18.4 bestanden. Vier Varianten aktiv; Playback je Layout <code>waypoint,kashya,waypoint</code> (edge_count=2) und <code>stash,kashya,waypoint</code> (edge_count=3) grün — Nord <code>768769…</code>, Süd <code>5f6354…</code>, West <code>4ad7f3…</code>, Ost <code>911703…</code>. Diff-Audit: nur neue Yamls + <code>graph.yaml</code>.</div>
+      <div class="callout gate"><strong>Gate 18.4:</strong> Vier neue layoutgebundene Dateien, vier bestätigte Varianten, keine Änderung an einer bestehenden MrBones- oder Town-Route und kein Playback außerhalb des gepinnten Layouts.</div>
+    </div>
+  </div>
+
+  <div class="phase">
+    <div class="phase-id">18.5</div>
+    <div><h3>Telemetry, Dokumentation und automatische Gesamtmatrix <span class="good">— Gate bestanden</span></h3>
+      <ol>
+        <li>Recipient-, Heal-, Revive- und Failure-Ereignisse samt synchroner Persistenz ergänzen.</li>
+        <li>Effektive Config, deutsche Reasons und operatorrelevante Logs aktualisieren.</li>
+        <li><code>docs/features/mercenary-support.md</code> erstellen und Memory Reader, World Model, Profiles, Task Runner, Town Services, Input Controller, Feature-Index, Changelog und Handoff aktualisieren.</li>
+        <li>Vollständige automatische Matrix aus Abschnitt 16 ausführen. Race nur bei tatsächlich neuer Nebenläufigkeit über die vorgeschriebene UCRT64-Shell.</li>
+        <li>Windows-Installer bauen und den vorhandenen Install-/Start-/Upgrade-/Uninstall-Smoke ausführen, sofern das Release-Gate unverändert verfügbar ist.</li>
+      </ol>
+      <div class="callout success"><strong>Ergebnis 31. Juli 2026:</strong> Gate 18.5 bestanden. <code>go test ./...</code>, <code>go build</code>, <code>go vet</code>, <code>golangci-lint</code>, Web-/Electron-Matrix und <code>scripts/build-release.ps1 -Version 0.15.0</code> grün. Feature-Doc <code>mercenary-support.md</code>, Reasons und Handoff aktualisiert. Installer: <code>dist/release/D2R-Offline-Farming-Bot-0.15.0-Setup.exe</code>.</div>
+      <div class="callout gate"><strong>Gate 18.5:</strong> Automatische Matrix und Produkt-Smoke grün; keine unerwarteten Player-, Run-, Route-, Loot- oder Town-Regressionen; Dokumentation nennt exakt die implementierten Defaults und Failure-Reasons.</div>
+    </div>
+  </div>
+
+  <div class="phase">
+    <div class="phase-id">18.6</div>
+    <div><h3>Manuelle Produktabnahme und Freigabe <span class="good">— Gate bestanden · Phase 18 abgeschlossen</span></h3>
+      <ol>
+        <li>Kontrollierte Einzelfälle: Healthy-Noop, 49-%-Combat-Heal, exakt-50-%-Noop, Akara-Heal, Kashya-Revive und Insufficient-Gold-Queue-Abbruch.</li>
+        <li>Je einen vollständigen Countess-, Mephisto-, Summoner- und Nihlathak-Run mit aktiviertem Merc-Support ausführen.</li>
+        <li>Anschließend zehn aufeinanderfolgende Summoner-Hell-Full-Runs ohne manuellen Eingriff, falschen Potion-Empfänger, Queue-Retry oder verlorenen Routefortschritt.</li>
+        <li>Einen gezielten Nihlathak-Hell-Run als gefährlichen Boss-/Cleanup-Fall belegen.</li>
+        <li>Die Zehnerserie enthält keine absichtlich herbeigeführte Merc-Tötung; Revive und Goldfehler bleiben kontrollierte separate Gates.</li>
+        <li>Erst danach Handoff und Phase-Status auf abgeschlossen setzen und die Release-Freigabe vorbereiten.</li>
+      </ol>
+      <div class="callout success"><strong>Ergebnis 31. Juli 2026:</strong> Gate 18.6 bestanden.
+        <ul>
+          <li>Healthy-Noop, 49-%-Combat-Heal, exakt-50-%-Noop — grün</li>
+          <li>Akara-Heal, Kashya-Revive, Insufficient-Gold-Queue-Stop — grün</li>
+          <li>Je 1 Full-Run Countess / Mephisto / Summoner / Nihlathak (Merc an) — grün</li>
+          <li>1 gezielter Nihlathak Hell (Boss/Cleanup) — durch die 4 Full-Runs belegt — grün</li>
+          <li>10× Summoner Hell hintereinander — Session <code>session-20260731t012648…</code>, Log <code>d2rbot-20260731-032648.log</code>: 10/10 <code>run_completed</code>, Ende <code>run_budget_exhausted</code>. Zwei natürliche Merc-Tode (Runs 5/7) mit bestätigtem Combat-Heal und Kashya-Revive; kein falscher Potion-Empfänger, kein Queue-Retry, kein verlorener Routefortschritt.</li>
+        </ul>
+        Nach der Serie: Mana-Hold blockiert Merc-Heals nicht mehr; Loot-Chase auf 20 Tiles begrenzt; <code>mercenary_died</code>-Telemetrie; Default-Schwelle 75&nbsp;%.
+      </div>
+      <div class="callout gate"><strong>Gate 18.6:</strong> Alle kontrollierten Fälle und die vollständige Runserie bestanden; keine Player-Potion ging wegen verlorenem Shift an den falschen Empfänger; jeder Town-Input besitzt einen frischen Memory-Nachweis.</div>
+      <div class="callout"><strong>Nächster Schritt außerhalb Phase 18:</strong> Release <code>v0.16.0</code> mit den Gate-18.6-Nachbesserungen. Phase 18 selbst definiert kein Phase-19-Backlog.</div>
+    </div>
+  </div>
+
+  <h2>18. Agenten-Checkliste</h2>
+  <ol>
+    <li>Vor jeder Stufe den vorherigen Gate-Nachweis lesen; keine spätere Stufe vorziehen.</li>
+    <li>Keine produktive Eingabe vor bestandenem read-only Gate 18.0.</li>
+    <li>Neue oder geänderte exportierte Go-Symbole sofort mit vollständigem Godoc dokumentieren.</li>
+    <li>State-Machine-Invarianten, einmalige Inputs, Timeoutstart und Resetgrenzen direkt am relevanten Code erklären.</li>
+    <li>Keine Merc-Entscheidung in einzelnen Run-Definitionen oder Boss-SMs duplizieren.</li>
+    <li>Keine Abwesenheit als Tod und keinen technischen Revive-Fehler als Goldmangel etikettieren.</li>
+    <li>Keine bestehende Route anfassen; neue Kashya-Routen ausschließlich mit MrHammer aufnehmen.</li>
+    <li>Keine Commits, Releases oder Pushes ohne ausdrückliche Operatoranweisung.</li>
+    <li>Nach jeder Stufe minimal relevante Tests, am Ende die vollständige Matrix ausführen und echte Ergebnisse im Plan/Feature-Doc festhalten.</li>
+  </ol>
+
+  <footer>Phase 18 · abgeschlossen · Gate 18.0–18.6 bestanden · Planstand 31. Juli 2026 · Ziel v0.16.0</footer>
+</main></body>
+</html>

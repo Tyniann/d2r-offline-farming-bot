@@ -23,22 +23,29 @@ alwaysApply: true
 - **Race Detector / MSYS2:** Nur bei tatsächlich neuer Nebenläufigkeit: Unter Windows die native **UCRT64**-Toolchain (`/ucrt64/bin/gcc`, Target `x86_64-w64-mingw32`) verwenden, nicht die MSYS-Toolchain unter `/usr/bin`. Aus PowerShell Race-Tests über eine initialisierte UCRT64-Shell starten: `$env:MSYSTEM='UCRT64'; $env:CHERE_INVOKING='1'; C:\msys64\usr\bin\bash.exe -lc 'export PATH=/ucrt64/bin:/c/Program\ Files/Go/bin:/usr/bin; cd /d/CSharpProjekte/D2R-Offline-Farming-Bot; go test -race -p 1 ./...'`. Nur `C:\msys64\ucrt64\bin` an `PATH` anzuhängen reicht auf diesem Host nicht zuverlässig.
 
 ## Layout & architecture
-Feature-first unter `internal/`. Paket-Grenzen strikt einhalten:
+Feature-first unter `internal/` und `web/src/features/`. Paket-Grenzen strikt einhalten:
 
 | Paket | Verantwortung |
 |-------|----------------|
 | `cmd/d2rbot` | `main`, CLI-Flags, Wiring — keine Business-Logik |
-| `internal/app` | Orchestrierung, Lifecycle, Komponenten zusammenführen |
-| `internal/process` | D2R-Prozess finden, Handles, Polling-Takt |
+| `internal/app` | Orchestrierung, Supervisor/Queue-Lifecycle, Adapter zwischen Fachpaketen |
+| `internal/process` | D2R-Prozess finden, Handles, Polling-Takt, Versionsgate |
 | `internal/memory` | Rohdaten lesen, Snapshots, binäre Strukturen |
 | `internal/world` | Interpretierter Spielzustand (Area, Entities, Items) |
-| `internal/pathing` | Navigation / Teleport |
-| `internal/input` | Tastatur & Maus |
-| `internal/tasks` | Run-State-Machines (Countess, …) |
+| `internal/pathing` | Navigation, Teleport, Routenaufnahme/-wiedergabe |
+| `internal/input` | Tastatur & Maus, Fensterbindung, Safety-Hotkeys |
+| `internal/tasks` | Run-State-Machines (Countess, Mephisto, Summoner, Nihlathak) |
+| `internal/profile` | Klassen-/Combat-Profile, Encounter-Hooks, Route-Clear |
+| `internal/town` | Town-Graph, Vendor/Stash-Dienste, System-Egress |
 | `internal/loot` | Pickit, Inventar, Stash |
+| `internal/telemetry` | JSONL Run-/Session-Telemetrie und History |
+| `internal/api` | Loopback-HTTP/SSE Core-API für die Desktop-UI |
+| `internal/api/ui` | Eingebetteter React-Produktionsbuild |
 | `internal/config` | Config-Laden, Logger-Setup |
+| `internal/version` | Eingebettete Build-Version und Commit |
+| `web/` | Electron-Desktop-App und React-Quellen (`web/src/features/…`) |
 
-**Datenfluss:** `process` → `memory` (Snapshot) → `world` (Model) → `tasks` (Entscheidung) → `input` (Aktion). `pathing` und `loot` hängen am World Model, nicht direkt an Raw Memory.
+**Datenfluss:** `process` → `memory` (Snapshot) → `world` (Model) → `tasks`/`profile` (Entscheidung) → `input` (Aktion). `pathing`, `loot` und `town` hängen am World Model, nicht direkt an Raw Memory. Operator-UI: `web` ↔ `internal/api` ↔ `internal/app`. `telemetry` beobachtet Runs/Sessions, steuert sie nicht.
 
 ## In-code-Dokumentation
 

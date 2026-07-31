@@ -145,20 +145,26 @@ func TestWaypointActionsSelectTargetTabSettleAndRow(t *testing.T) {
 	actions := NewWaypointActions(config.NewLogger("error"), in, DefaultConfig())
 	now := time.Now()
 	state := waypointMenuState()
+	actions.noteMenuRequested(now, world.Position{})
 
 	res := actions.SelectWaypointTarget(context.Background(), state, WaypointTargetDuranceOfHateLevel2, now)
+	if res.Status != WaypointActionPending || len(in.clicks) != 0 {
+		t.Fatalf("pre-settle tick = %+v clicks=%v, want pending with no input", res, in.clicks)
+	}
+	readyAt := now.Add(waypointMenuOpenSettle)
+	res = actions.SelectWaypointTarget(context.Background(), state, WaypointTargetDuranceOfHateLevel2, readyAt)
 	if res.Status != WaypointActionPending || len(in.moves) != 1 || in.moves[0] != [2]int{273, 148} || len(in.clicks) != 1 {
 		t.Fatalf("tab tick = %+v moves=%v clicks=%v", res, in.moves, in.clicks)
 	}
-	res = actions.SelectWaypointTarget(context.Background(), state, WaypointTargetDuranceOfHateLevel2, now.Add(199*time.Millisecond))
+	res = actions.SelectWaypointTarget(context.Background(), state, WaypointTargetDuranceOfHateLevel2, readyAt.Add(199*time.Millisecond))
 	if res.Status != WaypointActionPending || len(in.clicks) != 1 {
 		t.Fatalf("settle tick = %+v clicks=%v, want no input", res, in.clicks)
 	}
-	res = actions.SelectWaypointTarget(context.Background(), state, WaypointTargetDuranceOfHateLevel2, now.Add(200*time.Millisecond))
+	res = actions.SelectWaypointTarget(context.Background(), state, WaypointTargetDuranceOfHateLevel2, readyAt.Add(200*time.Millisecond))
 	if res.Status != WaypointActionClicked || !res.Done || len(in.moves) != 2 || in.moves[1] != [2]int{200, 506} || len(in.clicks) != 2 {
 		t.Fatalf("row tick = %+v moves=%v clicks=%v", res, in.moves, in.clicks)
 	}
-	res = actions.SelectWaypointTarget(context.Background(), state, WaypointTargetDuranceOfHateLevel2, now.Add(time.Second))
+	res = actions.SelectWaypointTarget(context.Background(), state, WaypointTargetDuranceOfHateLevel2, readyAt.Add(time.Second))
 	if res.Status != WaypointActionClicked || len(in.clicks) != 2 {
 		t.Fatalf("completed tick = %+v clicks=%v, want no repeated click", res, in.clicks)
 	}
@@ -173,11 +179,21 @@ func TestWaypointActionsSelectTargetFailsClosed(t *testing.T) {
 			t.Fatalf("res=%+v clicks=%v", res, in.clicks)
 		}
 	})
+	t.Run("sticky open without object click", func(t *testing.T) {
+		in := newMockInput()
+		actions := NewWaypointActions(config.NewLogger("error"), in, DefaultConfig())
+		res := actions.SelectWaypointTarget(context.Background(), waypointMenuState(), WaypointTargetBlackMarsh, time.Now())
+		if res.Status != WaypointActionUIUnconfirmed || len(in.clicks) != 0 {
+			t.Fatalf("res=%+v clicks=%v, want ui_unconfirmed without our open click", res, in.clicks)
+		}
+	})
 	t.Run("unsupported resolution", func(t *testing.T) {
 		in := newMockInput()
 		in.window.ClientWidth = 1920
 		actions := NewWaypointActions(config.NewLogger("error"), in, DefaultConfig())
-		res := actions.SelectWaypointTarget(context.Background(), waypointMenuState(), WaypointTargetBlackMarsh, time.Now())
+		now := time.Now()
+		actions.noteMenuRequested(now, world.Position{})
+		res := actions.SelectWaypointTarget(context.Background(), waypointMenuState(), WaypointTargetBlackMarsh, now)
 		if res.Status != WaypointActionUnsupportedResolution || len(in.clicks) != 0 {
 			t.Fatalf("res=%+v clicks=%v", res, in.clicks)
 		}
@@ -196,10 +212,63 @@ func TestWaypointActionsSelectionResetRestartsAtActTab(t *testing.T) {
 	in := newMockInput()
 	actions := NewWaypointActions(config.NewLogger("error"), in, DefaultConfig())
 	now := time.Now()
-	_ = actions.SelectWaypointTarget(context.Background(), waypointMenuState(), WaypointTargetBlackMarsh, now)
+	actions.noteMenuRequested(now, world.Position{})
+	readyAt := now.Add(waypointMenuOpenSettle)
+	_ = actions.SelectWaypointTarget(context.Background(), waypointMenuState(), WaypointTargetBlackMarsh, readyAt)
 	actions.Reset()
-	res := actions.SelectWaypointTarget(context.Background(), waypointMenuState(), WaypointTargetBlackMarsh, now.Add(time.Second))
+	actions.noteMenuRequested(readyAt, world.Position{})
+	res := actions.SelectWaypointTarget(context.Background(), waypointMenuState(), WaypointTargetBlackMarsh, readyAt.Add(waypointMenuOpenSettle))
 	if res.Status != WaypointActionPending || len(in.moves) != 2 || in.moves[1] != [2]int{159, 148} || len(in.clicks) != 2 {
 		t.Fatalf("res=%+v moves=%v clicks=%v", res, in.moves, in.clicks)
+	}
+}
+
+func TestWaypointActionsSelectWaitsPostOpenSettleAndPosition(t *testing.T) {
+	in := newMockInput()
+	cfg := DefaultConfig()
+	cfg.TownWalk.SettleTimeout = 200 * time.Millisecond
+	actions := NewWaypointActions(config.NewLogger("error"), in, cfg)
+	now := time.Now()
+	state := waypointMenuState()
+	state.Player.Position = world.Position{X: 10, Y: 10}
+	actions.noteMenuRequested(now, state.Player.Position)
+
+	res := actions.SelectWaypointTarget(context.Background(), state, WaypointTargetBlackMarsh, now.Add(499*time.Millisecond))
+	if res.Status != WaypointActionPending || len(in.clicks) != 0 {
+		t.Fatalf("early tick = %+v clicks=%v", res, in.clicks)
+	}
+
+	// Still sliding after open-settle window: restart position settle.
+	moved := state
+	moved.Player.Position = world.Position{X: 12, Y: 10}
+	at := now.Add(waypointMenuOpenSettle)
+	res = actions.SelectWaypointTarget(context.Background(), moved, WaypointTargetBlackMarsh, at)
+	if res.Status != WaypointActionPending || len(in.clicks) != 0 {
+		t.Fatalf("sliding tick = %+v clicks=%v", res, in.clicks)
+	}
+	res = actions.SelectWaypointTarget(context.Background(), moved, WaypointTargetBlackMarsh, at.Add(199*time.Millisecond))
+	if res.Status != WaypointActionPending || len(in.clicks) != 0 {
+		t.Fatalf("pre-position-settle = %+v clicks=%v", res, in.clicks)
+	}
+	res = actions.SelectWaypointTarget(context.Background(), moved, WaypointTargetBlackMarsh, at.Add(200*time.Millisecond))
+	if res.Status != WaypointActionPending || len(in.clicks) != 1 || in.moves[0] != [2]int{159, 148} {
+		t.Fatalf("tab after settle = %+v moves=%v clicks=%v", res, in.moves, in.clicks)
+	}
+}
+
+func TestWaypointActionsObjectClickArmsMenuSettle(t *testing.T) {
+	in := newMockInput()
+	actions := NewWaypointActions(config.NewLogger("error"), in, DefaultConfig())
+	st := waypointState()
+	st.At = time.Unix(100, 0)
+
+	res := actions.TickTownWaypoint(context.Background(), st)
+	if res.Status != WaypointActionPending {
+		t.Fatalf("aim tick = %+v", res)
+	}
+	st.Hover = world.HoverInfo{IsHovered: true, UnitType: world.HoverUnitTypeObject, UnitID: 7}
+	res = actions.TickTownWaypoint(context.Background(), st)
+	if res.Status != WaypointActionClicked || actions.menuRequestedAt != st.At {
+		t.Fatalf("click tick = %+v menuRequestedAt=%v want %v", res, actions.menuRequestedAt, st.At)
 	}
 }

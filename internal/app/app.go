@@ -39,6 +39,7 @@ type Runtime struct {
 	Memory             *memory.Reader
 	Probe              snapshotReader
 	UIProbe            uiBufferCaptureReader
+	HirelingProbe      hirelingEvidenceReader
 	World              *world.Model
 	Input              inputController
 	Bindings           configBindingSource
@@ -68,6 +69,7 @@ type Runtime struct {
 	uiStatusPublisher         func(UIStatusSnapshot)
 	pauseHotkeyHandler        func() error
 	stopAfterRunHotkeyHandler func() error
+	mercPreflightPending      bool
 }
 
 // New builds a Runtime from config and CLI/runtime options.
@@ -160,9 +162,10 @@ func New(cfg *config.Config, opts Options) (rt *Runtime, err error) {
 		return nil, fmt.Errorf("%s: %q", tasks.RunReasonConfigMissing, runtimeRunID)
 	}
 	// Der passive Desktop-UI-Start muss einen frisch provisionierten Root ohne
-	// Farming-Zuweisung erklären können. Erst konkrete Run-/Sessionpfade
-	// verlangen weiterhin fail-closed eine veröffentlichte Assignment-Route.
-	requireFarmingRoute := (!opts.Desktop || runSelection.Run != "") && !runPhaseAllowsUnavailableFarmingRoute(runSelection.Phase)
+	// Farming-Zuweisung erklären können. Isolierte Town-/Merc-Diagnosen nutzen
+	// Countess nur als Profil-/Policy-Träger und verlangen ebenfalls keine Route.
+	// Erst konkrete Run-/Sessionpfade verlangen fail-closed eine Assignment-Route.
+	requireFarmingRoute := farmingRouteRequired(opts, runSelection)
 	runCfg, err := mapRunConfig(cfg, runtimeRunID, requireFarmingRoute)
 	if err != nil {
 		return nil, err
@@ -265,6 +268,7 @@ func New(cfg *config.Config, opts Options) (rt *Runtime, err error) {
 		Memory:            mem,
 		Probe:             probe,
 		UIProbe:           probe,
+		HirelingProbe:     probe,
 		World:             world.NewModel(log),
 		Input:             inputCtrl,
 		Bindings:          bindings,
@@ -324,7 +328,7 @@ func New(cfg *config.Config, opts Options) (rt *Runtime, err error) {
 // the process. Specialized CLI modes such as --pathing-test and --route must
 // return false even when session.enabled is true.
 func SessionExecutionRequested(opts Options) bool {
-	return !opts.Desktop && !opts.SessionInspect && !opts.RunsInspect && !opts.WaypointTargetsInspect && !opts.Probe && opts.InputTest == "" && opts.Run == "" && opts.RunPhase == "" && opts.PathingTest == "" && opts.OfflineDifficulty == "" && opts.OfflineCharacter == "" && !opts.OfflineExitTest && opts.UIStateProbe == "" && opts.ScreenAnchorCapture == "" && opts.Route == "" && !opts.TownInspect && opts.TownTest == ""
+	return !opts.Desktop && !opts.SessionInspect && !opts.RunsInspect && !opts.WaypointTargetsInspect && !opts.Probe && opts.InputTest == "" && opts.Run == "" && opts.RunPhase == "" && opts.PathingTest == "" && opts.OfflineDifficulty == "" && opts.OfflineCharacter == "" && !opts.OfflineExitTest && opts.UIStateProbe == "" && opts.ScreenAnchorCapture == "" && opts.MercenaryProbe == "" && opts.Route == "" && !opts.TownInspect && opts.TownTest == ""
 }
 
 func loadEffectivePickitPolicy(assignments *PickitAssignmentStore, character string, runID tasks.RunID) (*loot.Pickit, error) {

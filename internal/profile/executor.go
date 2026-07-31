@@ -14,10 +14,20 @@ import (
 type Actions interface {
 	CastSkillAtWorld(time.Time, uint16, world.Position, world.Position) error
 	CastBelt(int) error
+	// CastBeltForMercenary sends the atomic Shift+Belt sequence for a living hireling.
+	CastBeltForMercenary(int) error
 }
+
+type resourceRecipient string
+
+const (
+	recipientPlayer    resourceRecipient = "player"
+	recipientMercenary resourceRecipient = "mercenary"
+)
 
 type pendingResource struct {
 	kind      ResourceKind
+	recipient resourceRecipient
 	slot      int
 	unitID    uint32
 	startedAt time.Time
@@ -38,7 +48,9 @@ type Executor struct {
 	pending     *pendingResource
 	lastPotion  time.Time
 	lastByKind  map[ResourceKind]time.Time
+	lastMerc    time.Time
 	unavailable map[ResourceKind]bool
+	mercUnavail bool
 	skipDelay   map[Hook]bool
 	routeClear  routeClearExecutor
 }
@@ -95,7 +107,9 @@ func (e *Executor) Reset() {
 	e.pending = nil
 	e.lastPotion = time.Time{}
 	e.lastByKind = map[ResourceKind]time.Time{}
+	e.lastMerc = time.Time{}
 	e.unavailable = map[ResourceKind]bool{}
+	e.mercUnavail = false
 	e.skipDelay = map[Hook]bool{}
 }
 
@@ -198,7 +212,11 @@ func (e *Executor) TickHook(ctx context.Context, hook Hook, state world.State, t
 }
 
 // TickResources evaluates prioritized potion policy with an optional route
-// context and sends at most one belt input.
+// context and sends at most one belt input. Merc healing runs only after every
+// player resource rule declines and only when AllowMercenary is set.
+// MobilityCritical mana recovery must not starve mercenary healing: when the
+// selected player demand is only route mana-hold (not EmergencyMana / rejuv /
+// player HP), merc heal is evaluated first.
 func (e *Executor) TickResources(state world.State, resourceContext ResourceContext, now time.Time) Result {
 	if !resourceWorldReady(state) {
 		return Result{Status: StatusComplete}
@@ -212,19 +230,34 @@ func (e *Executor) TickResources(state world.State, resourceContext ResourceCont
 	if e.pending != nil {
 		if !beltUnitPresent(state, e.pending.unitID) {
 			confirmed := e.pending
-			if err := e.emit(Event{Name: EventPotionConfirmed, Resource: confirmed.kind, ThresholdPercent: e.resourceRule(confirmed.kind).UseBelowPercent, BeltSlot: confirmed.slot, PotionUnitID: confirmed.unitID, Confirmed: true}); err != nil {
+			event := Event{
+				Name: EventPotionConfirmed, Resource: confirmed.kind, Recipient: string(confirmed.recipient),
+				ThresholdPercent: e.pendingThreshold(confirmed), BeltSlot: confirmed.slot, PotionUnitID: confirmed.unitID, Confirmed: true,
+			}
+			if confirmed.recipient == recipientMercenary {
+				event.MercUnitID = state.Mercenary.UnitID
+				event.HPPercent = state.Mercenary.HPPercent()
+			}
+			if err := e.emit(event); err != nil {
 				e.pending = nil
 				return Result{Status: StatusFailed, Resource: confirmed.kind, BeltSlot: confirmed.slot, Reason: "profile_telemetry_failed"}
 			}
-			e.log.Info("resource consumption confirmed", "resource", confirmed.kind, "belt_slot", confirmed.slot, "unit_id", confirmed.unitID)
+			e.log.Info("resource consumption confirmed", "resource", confirmed.kind, "recipient", confirmed.recipient, "belt_slot", confirmed.slot, "unit_id", confirmed.unitID)
 			e.pending = nil
 			return Result{Status: StatusComplete, Resource: confirmed.kind, BeltSlot: confirmed.slot}
 		}
 		if now.Sub(e.pending.startedAt) >= e.definition.Resources.VerifyTimeout {
 			failed := e.pending
 			e.pending = nil
-			e.emitFailure(Event{Resource: failed.kind, ThresholdPercent: e.resourceRule(failed.kind).UseBelowPercent, BeltSlot: failed.slot}, "potion_verify_timeout")
-			return Result{Status: StatusFailed, Resource: failed.kind, BeltSlot: failed.slot, Reason: "potion_verify_timeout"}
+			reason := "potion_verify_timeout"
+			if failed.recipient == recipientMercenary {
+				reason = "mercenary_potion_verify_timeout"
+			}
+			e.emitFailure(Event{
+				Resource: failed.kind, Recipient: string(failed.recipient),
+				ThresholdPercent: e.pendingThreshold(failed), BeltSlot: failed.slot,
+			}, reason)
+			return Result{Status: StatusFailed, Resource: failed.kind, BeltSlot: failed.slot, Reason: reason}
 		}
 		return Result{Status: StatusPending, Resource: e.pending.kind, BeltSlot: e.pending.slot}
 	}
@@ -232,33 +265,104 @@ func (e *Executor) TickResources(state world.State, resourceContext ResourceCont
 		return Result{Status: StatusComplete}
 	}
 	kind, rule, needed := e.selectResource(state, resourceContext)
-	if !needed {
+	if needed {
+		// Route mana-hold alone must not block Shift+Belt merc heals. Emergency
+		// mana and player HP/rejuv keep absolute priority over the hireling.
+		if resourceContext.MobilityCritical && !resourceContext.EmergencyMana && kind == ResourceMana {
+			if merc := e.tickMercenaryResource(state, resourceContext, now); merc.Status == StatusAction ||
+				merc.Status == StatusPending || merc.Status == StatusFailed {
+				return merc
+			}
+		}
+		if last := e.lastByKind[kind]; !last.IsZero() && now.Sub(last) < rule.Cooldown {
+			return Result{Status: StatusComplete, Resource: kind, Reason: string(kind) + "_potion_cooldown"}
+		}
+		slot, unitID, ok := selectBeltItem(state, kind, rule.BeltSlots)
+		if !ok {
+			if !e.unavailable[kind] {
+				e.unavailable[kind] = true
+				e.log.Warn("resource unavailable", "resource", kind, "reason", string(kind)+"_potion_unavailable")
+			}
+			return Result{Status: StatusComplete, Resource: kind, Reason: string(kind) + "_potion_unavailable"}
+		}
+		if err := e.actions.CastBelt(slot); err != nil {
+			e.emitFailure(Event{Resource: kind, Recipient: string(recipientPlayer), ThresholdPercent: rule.UseBelowPercent, BeltSlot: slot}, "potion_input_failed")
+			return Result{Status: StatusFailed, Resource: kind, BeltSlot: slot, Reason: "potion_input_failed"}
+		}
+		if err := e.emit(Event{Name: EventPotionRequested, Resource: kind, Recipient: string(recipientPlayer), ThresholdPercent: rule.UseBelowPercent, BeltSlot: slot, PotionUnitID: unitID}); err != nil {
+			return Result{Status: StatusFailed, Resource: kind, BeltSlot: slot, Reason: "profile_telemetry_failed"}
+		}
+		e.unavailable[kind] = false
+		e.lastPotion = now
+		e.lastByKind[kind] = now
+		e.pending = &pendingResource{kind: kind, recipient: recipientPlayer, slot: slot, unitID: unitID, startedAt: now}
+		e.log.Info("resource potion requested", "resource", kind, "recipient", recipientPlayer, "belt_slot", slot, "unit_id", unitID)
+		return Result{Status: StatusAction, Resource: kind, BeltSlot: slot}
+	}
+	return e.tickMercenaryResource(state, resourceContext, now)
+}
+
+func (e *Executor) tickMercenaryResource(state world.State, resourceContext ResourceContext, now time.Time) Result {
+	policy := e.definition.Resources.Mercenary
+	if !resourceContext.AllowMercenary || !policy.Enabled {
 		return Result{Status: StatusComplete}
 	}
-	if last := e.lastByKind[kind]; !last.IsZero() && now.Sub(last) < rule.Cooldown {
-		return Result{Status: StatusComplete, Resource: kind, Reason: string(kind) + "_potion_cooldown"}
+	if !state.Mercenary.HiredKnown || !state.Mercenary.Hired || state.Mercenary.Dead {
+		return Result{Status: StatusComplete}
 	}
-	slot, unitID, ok := selectBeltItem(state, kind, rule.BeltSlots)
+	if !state.Mercenary.Alive || !state.Mercenary.VitalsKnown || state.Mercenary.MaxHP == 0 {
+		e.log.Debug("mercenary resource skipped", "reason", "mercenary_state_unknown")
+		return Result{Status: StatusComplete}
+	}
+	hpPct := state.Mercenary.HPPercent()
+	if hpPct >= policy.UseBelowPercent {
+		return Result{Status: StatusComplete}
+	}
+	if !e.lastMerc.IsZero() && now.Sub(e.lastMerc) < policy.Cooldown {
+		return Result{Status: StatusComplete, Resource: ResourceHealing, Reason: "mercenary_potion_cooldown"}
+	}
+	slot, unitID, ok := selectBeltItem(state, ResourceHealing, policy.BeltSlots)
 	if !ok {
-		if !e.unavailable[kind] {
-			e.unavailable[kind] = true
-			e.log.Warn("resource unavailable", "resource", kind, "reason", string(kind)+"_potion_unavailable")
+		if !e.mercUnavail {
+			e.mercUnavail = true
+			e.log.Warn("resource unavailable", "resource", ResourceHealing, "recipient", recipientMercenary, "reason", "mercenary_potion_unavailable")
 		}
-		return Result{Status: StatusComplete, Resource: kind, Reason: string(kind) + "_potion_unavailable"}
+		return Result{Status: StatusComplete, Resource: ResourceHealing, Reason: "mercenary_potion_unavailable"}
 	}
-	if err := e.actions.CastBelt(slot); err != nil {
-		e.emitFailure(Event{Resource: kind, ThresholdPercent: rule.UseBelowPercent, BeltSlot: slot}, "potion_input_failed")
-		return Result{Status: StatusFailed, Resource: kind, BeltSlot: slot, Reason: "potion_input_failed"}
+	if err := e.actions.CastBeltForMercenary(slot); err != nil {
+		e.emitFailure(Event{
+			Resource: ResourceHealing, Recipient: string(recipientMercenary),
+			ThresholdPercent: policy.UseBelowPercent, BeltSlot: slot,
+			MercUnitID: state.Mercenary.UnitID, HPPercent: hpPct,
+		}, "mercenary_potion_input_failed")
+		return Result{Status: StatusFailed, Resource: ResourceHealing, BeltSlot: slot, Reason: "mercenary_potion_input_failed"}
 	}
-	if err := e.emit(Event{Name: EventPotionRequested, Resource: kind, ThresholdPercent: rule.UseBelowPercent, BeltSlot: slot, PotionUnitID: unitID}); err != nil {
-		return Result{Status: StatusFailed, Resource: kind, BeltSlot: slot, Reason: "profile_telemetry_failed"}
+	if err := e.emit(Event{
+		Name: EventPotionRequested, Resource: ResourceHealing, Recipient: string(recipientMercenary),
+		ThresholdPercent: policy.UseBelowPercent, BeltSlot: slot, PotionUnitID: unitID,
+		MercUnitID: state.Mercenary.UnitID, HPPercent: hpPct,
+	}); err != nil {
+		return Result{Status: StatusFailed, Resource: ResourceHealing, BeltSlot: slot, Reason: "profile_telemetry_failed"}
 	}
-	e.unavailable[kind] = false
+	e.mercUnavail = false
 	e.lastPotion = now
-	e.lastByKind[kind] = now
-	e.pending = &pendingResource{kind: kind, slot: slot, unitID: unitID, startedAt: now}
-	e.log.Info("resource potion requested", "resource", kind, "belt_slot", slot, "unit_id", unitID)
-	return Result{Status: StatusAction, Resource: kind, BeltSlot: slot}
+	e.lastMerc = now
+	e.pending = &pendingResource{kind: ResourceHealing, recipient: recipientMercenary, slot: slot, unitID: unitID, startedAt: now}
+	e.log.Info("resource potion requested",
+		"resource", ResourceHealing, "recipient", recipientMercenary,
+		"belt_slot", slot, "unit_id", unitID, "merc_unit_id", state.Mercenary.UnitID, "hp_percent", hpPct,
+	)
+	return Result{Status: StatusAction, Resource: ResourceHealing, BeltSlot: slot}
+}
+
+func (e *Executor) pendingThreshold(pending *pendingResource) uint8 {
+	if pending == nil {
+		return 0
+	}
+	if pending.recipient == recipientMercenary {
+		return e.definition.Resources.Mercenary.UseBelowPercent
+	}
+	return e.resourceRule(pending.kind).UseBelowPercent
 }
 
 // TickRouteClear advances stationary route combat by at most one aim, skill

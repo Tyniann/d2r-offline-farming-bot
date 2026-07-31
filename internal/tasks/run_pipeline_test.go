@@ -218,51 +218,39 @@ func TestRunPipelineEmptyEngageSequenceStartsRegularCombatWithoutProfileHook(t *
 	}
 }
 
-func TestPostBossCleanupUsesStandardAttackForCountessAndSummoner(t *testing.T) {
-	tests := []struct {
-		runID     RunID
-		area      world.AreaID
-		hostileID uint32
-	}{
-		{runID: RunIDCountess, area: world.TowerCellarLevel5, hostileID: 55},
-		{runID: RunIDSummoner, area: world.ArcaneSanctuary, hostileID: 131},
+func TestPostBossCleanupUsesStandardAttackForSummoner(t *testing.T) {
+	definition, _ := DefaultRunRegistry().Definition(RunIDSummoner)
+	pipeline := &runPipeline{definition: definition, combat: killRunConfig().Combat, targetUnitID: 99}
+	state := healthy(areaState(world.ArcaneSanctuary))
+	state.Player.Position = world.Position{X: 100, Y: 100}
+	state.Monsters = []world.Monster{
+		{NPCID: 131, UnitID: 10, Position: world.Position{X: 110, Y: 100}},
+		{NPCID: 131, UnitID: 11, Position: world.Position{X: 105, Y: 100}},
 	}
-	for _, test := range tests {
-		t.Run(string(test.runID), func(t *testing.T) {
-			definition, _ := DefaultRunRegistry().Definition(test.runID)
-			pipeline := &runPipeline{definition: definition, combat: killRunConfig().Combat, targetUnitID: 99}
-			state := healthy(areaState(test.area))
-			state.Player.Position = world.Position{X: 100, Y: 100}
-			state.Monsters = []world.Monster{
-				{NPCID: test.hostileID, UnitID: 10, Position: world.Position{X: 110, Y: 100}},
-				{NPCID: test.hostileID, UnitID: 11, Position: world.Position{X: 105, Y: 100}},
-			}
-			combat := &mockCombatActions{}
+	combat := &mockCombatActions{}
 
-			result := pipeline.onBossTick(context.Background(), Deps{Combat: combat}, pipelineStepClearNearbyHostiles, state, time.Now())
-			if result.failed || result.complete || combat.castCalls != 1 || pipeline.cleanupCastCount != 1 || pipeline.cleanupTargetUnitID != 11 {
-				t.Fatalf("result=%+v casts=%d cleanup=%+v", result, combat.castCalls, pipeline)
-			}
-			if combat.lastSkillID != killRunConfig().Combat.AttackSkillID {
-				t.Fatalf("cleanup skill=%d, want standard attack %d", combat.lastSkillID, killRunConfig().Combat.AttackSkillID)
-			}
+	result := pipeline.onBossTick(context.Background(), Deps{Combat: combat}, pipelineStepClearNearbyHostiles, state, time.Now())
+	if result.failed || result.complete || combat.castCalls != 1 || pipeline.cleanupCastCount != 1 || pipeline.cleanupTargetUnitID != 11 {
+		t.Fatalf("result=%+v casts=%d cleanup=%+v", result, combat.castCalls, pipeline)
+	}
+	if combat.lastSkillID != killRunConfig().Combat.AttackSkillID {
+		t.Fatalf("cleanup skill=%d, want standard attack %d", combat.lastSkillID, killRunConfig().Combat.AttackSkillID)
+	}
 
-			// Selection is recomputed from the current living snapshot. A
-			// previously selected unit must not remain pinned when another
-			// living hostile becomes nearer.
-			state.Monsters[0].Position = world.Position{X: 101, Y: 100}
-			state.Monsters[1].Position = world.Position{X: 115, Y: 100}
-			result = pipeline.onBossTick(context.Background(), Deps{Combat: combat}, pipelineStepClearNearbyHostiles, state, time.Now())
-			if result.failed || combat.lastMonsterUnitID != 10 || pipeline.cleanupTargetUnitID != 10 {
-				t.Fatalf("nearest target was not refreshed: result=%+v combat_target=%d cleanup_target=%d", result, combat.lastMonsterUnitID, pipeline.cleanupTargetUnitID)
-			}
-		})
+	// Selection is recomputed from the current living snapshot. A
+	// previously selected unit must not remain pinned when another
+	// living hostile becomes nearer.
+	state.Monsters[0].Position = world.Position{X: 101, Y: 100}
+	state.Monsters[1].Position = world.Position{X: 115, Y: 100}
+	result = pipeline.onBossTick(context.Background(), Deps{Combat: combat}, pipelineStepClearNearbyHostiles, state, time.Now())
+	if result.failed || combat.lastMonsterUnitID != 10 || pipeline.cleanupTargetUnitID != 10 {
+		t.Fatalf("nearest target was not refreshed: result=%+v combat_target=%d cleanup_target=%d", result, combat.lastMonsterUnitID, pipeline.cleanupTargetUnitID)
 	}
 }
 
 func TestPostBossCleanupCompletesWhenStableClearOrBudgetExhausted(t *testing.T) {
-	definition, _ := DefaultRunRegistry().Definition(RunIDCountess)
-	state := healthy(areaState(world.TowerCellarLevel5))
+	definition, _ := DefaultRunRegistry().Definition(RunIDSummoner)
+	state := healthy(areaState(world.ArcaneSanctuary))
 	state.Player.Position = world.Position{X: 100, Y: 100}
 	combat := &mockCombatActions{}
 	pipeline := &runPipeline{definition: definition, combat: killRunConfig().Combat}
@@ -275,7 +263,7 @@ func TestPostBossCleanupCompletesWhenStableClearOrBudgetExhausted(t *testing.T) 
 	}
 
 	pipeline.cleanupCastCount = postBossCleanupMaxCasts
-	state.Monsters = []world.Monster{{NPCID: 55, UnitID: 10, Position: world.Position{X: 101, Y: 100}}}
+	state.Monsters = []world.Monster{{NPCID: 131, UnitID: 10, Position: world.Position{X: 101, Y: 100}}}
 	result := pipeline.onBossTick(context.Background(), Deps{Combat: combat}, pipelineStepClearNearbyHostiles, state, time.Now())
 	if result.failed || !result.complete || combat.castCalls != 0 {
 		t.Fatalf("budget result=%+v casts=%d, want best-effort completion", result, combat.castCalls)

@@ -43,7 +43,16 @@ type WaypointActions struct {
 	selectionTarget WaypointTargetID
 	tabClickedAt    time.Time
 	rowClicked      bool
+	// menuRequestedAt is set by our hover-confirmed waypoint object click.
+	// SelectWaypointTarget must not trust sticky WaypointOpen alone: on this
+	// build the bit can stay true while the panel is still closed, and UI
+	// clicks then land in the world and shove the character past the waypoint.
+	menuRequestedAt time.Time
+	menuSettlePos   world.Position
+	menuSettleSince time.Time
 }
+
+const waypointMenuOpenSettle = 500 * time.Millisecond
 
 // NewWaypointActions wires waypoint actions to input and pathing config.
 func NewWaypointActions(log *slog.Logger, in InputDriver, cfg Config) *WaypointActions {
@@ -57,7 +66,7 @@ func NewWaypointActions(log *slog.Logger, in InputDriver, cfg Config) *WaypointA
 	}
 }
 
-// Reset clears in-flight hover-click state.
+// Reset clears in-flight hover-click and menu-selection state.
 func (w *WaypointActions) Reset() {
 	if w == nil {
 		return
@@ -68,6 +77,9 @@ func (w *WaypointActions) Reset() {
 	w.selectionTarget = ""
 	w.tabClickedAt = time.Time{}
 	w.rowClicked = false
+	w.menuRequestedAt = time.Time{}
+	w.menuSettlePos = world.Position{}
+	w.menuSettleSince = time.Time{}
 }
 
 // TickTownWaypoint advances the hover-confirmed click on the nearest town waypoint.
@@ -97,6 +109,11 @@ func (w *WaypointActions) TickTownWaypoint(ctx context.Context, state world.Stat
 	case ClickPending:
 		return WaypointActionResult{Status: WaypointActionPending}
 	case ClickHit:
+		now := state.At
+		if now.IsZero() {
+			now = time.Now()
+		}
+		w.noteMenuRequested(now, state.Player.Position)
 		return WaypointActionResult{Status: WaypointActionClicked, Done: true}
 	case ClickTooFar:
 		return WaypointActionResult{Status: WaypointActionTooFar, Reason: string(WaypointActionTooFar), Done: true}
@@ -110,8 +127,8 @@ func (w *WaypointActions) TickTownWaypoint(ctx context.Context, state world.Stat
 }
 
 // SelectWaypointTarget advances a registered waypoint selection. It sends at
-// most one click per tick, requires the Memory-confirmed waypoint menu before
-// every click, and never repeats the destination click.
+// most one click per tick, requires a post-open settle after our object click
+// plus Memory WaypointOpen, and never repeats the destination click.
 func (w *WaypointActions) SelectWaypointTarget(ctx context.Context, state world.State, target WaypointTargetID, now time.Time) WaypointActionResult {
 	if ctx.Err() != nil {
 		return WaypointActionResult{Status: WaypointActionInputError, Reason: ctx.Err().Error(), Done: true}
@@ -123,12 +140,22 @@ func (w *WaypointActions) SelectWaypointTarget(ctx context.Context, state world.
 	if !ok {
 		return WaypointActionResult{Status: WaypointActionTargetUnsupported, Reason: string(WaypointActionTargetUnsupported), Done: true}
 	}
-	if !state.Valid || state.Phase != world.GamePhaseInGame || !state.UI.WaypointOpen {
+	if !state.Valid || state.Phase != world.GamePhaseInGame {
+		return WaypointActionResult{Status: WaypointActionUIUnconfirmed, Reason: string(WaypointActionUIUnconfirmed), Done: true}
+	}
+	// Sticky WaypointOpen alone is not enough; require our object-click evidence.
+	if w.menuRequestedAt.IsZero() {
 		return WaypointActionResult{Status: WaypointActionUIUnconfirmed, Reason: string(WaypointActionUIUnconfirmed), Done: true}
 	}
 	window, bound := w.input.Window()
 	if !bound || window.ClientWidth != action.ClientWidth || window.ClientHeight != action.ClientHeight {
 		return WaypointActionResult{Status: WaypointActionUnsupportedResolution, Reason: string(WaypointActionUnsupportedResolution), Done: true}
+	}
+	if !w.menuOpenReady(state, now) {
+		return WaypointActionResult{Status: WaypointActionPending}
+	}
+	if !state.UI.WaypointOpen {
+		return WaypointActionResult{Status: WaypointActionUIUnconfirmed, Reason: string(WaypointActionUIUnconfirmed), Done: true}
 	}
 	if w.selectionTarget != "" && w.selectionTarget != target {
 		return WaypointActionResult{Status: WaypointActionTargetUnsupported, Reason: "waypoint_target_changed", Done: true}
@@ -160,6 +187,39 @@ func (w *WaypointActions) SelectWaypointTarget(ctx context.Context, state world.
 		"client_y", action.RowY,
 	)
 	return WaypointActionResult{Status: WaypointActionClicked, Done: true}
+}
+
+func (w *WaypointActions) noteMenuRequested(now time.Time, pos world.Position) {
+	w.menuRequestedAt = now
+	w.menuSettlePos = pos
+	w.menuSettleSince = now
+}
+
+// menuOpenReady reports whether enough time has passed since our object click
+// and the player has stopped sliding before UI coordinates may be clicked.
+func (w *WaypointActions) menuOpenReady(state world.State, now time.Time) bool {
+	if w == nil || w.menuRequestedAt.IsZero() {
+		return false
+	}
+	if now.Sub(w.menuRequestedAt) < waypointMenuOpenSettle {
+		return false
+	}
+	pos := state.Player.Position
+	if w.menuSettleSince.IsZero() {
+		w.menuSettleSince = now
+		w.menuSettlePos = pos
+		return false
+	}
+	if world.Distance(w.menuSettlePos, pos) >= 1 {
+		w.menuSettleSince = now
+		w.menuSettlePos = pos
+		return false
+	}
+	settle := w.cfg.TownWalk.SettleTimeout
+	if settle <= 0 {
+		settle = 350 * time.Millisecond
+	}
+	return now.Sub(w.menuSettleSince) >= settle
 }
 
 func (w *WaypointActions) clickAt(x, y int) error {

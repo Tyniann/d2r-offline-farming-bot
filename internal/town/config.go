@@ -42,10 +42,11 @@ func (c *Config) UnmarshalYAML(unmarshal func(any) error) error {
 }
 
 // Validate rejects incomplete hubs, ambiguous anchors, unsupported providers, and invalid egresses.
-func (c Config) Validate() error {
-	if !c.present {
+func (c *Config) Validate() error {
+	if c == nil || !c.present {
 		return nil
 	}
+	c.normalizeMercenaryProviders()
 	for name, value := range map[string]int{"healing": c.Thresholds.Healing, "mana": c.Thresholds.Mana, "town_portal_scrolls": c.Thresholds.TownPortalScrolls, "identify_scrolls": c.Thresholds.IdentifyScrolls} {
 		if value < 0 {
 			return fmt.Errorf("town.thresholds.%s must be >= 0", name)
@@ -67,12 +68,20 @@ func (c Config) Validate() error {
 		}
 		seen[anchor] = true
 	}
-	for _, required := range []Anchor{AnchorSpawn, AnchorPortalArrival, AnchorStash, AnchorWaypoint, AnchorAkara, AnchorCharsi, AnchorCain} {
+	for _, required := range []Anchor{AnchorSpawn, AnchorPortalArrival, AnchorStash, AnchorWaypoint, AnchorAkara, AnchorCharsi, AnchorCain, AnchorKashya} {
 		if !seen[required] {
 			return fmt.Errorf("town.hub.anchors missing %q", required)
 		}
 	}
-	for service, vendor := range map[Service]Anchor{ServicePotions: AnchorAkara, ServiceScrolls: AnchorAkara, ServiceIdentify: AnchorCain, ServiceSell: AnchorAkara, ServiceRepair: AnchorCharsi} {
+	for service, vendor := range map[Service]Anchor{
+		ServicePotions:         AnchorAkara,
+		ServiceScrolls:         AnchorAkara,
+		ServiceIdentify:        AnchorCain,
+		ServiceSell:            AnchorAkara,
+		ServiceRepair:          AnchorCharsi,
+		ServiceMercenaryHeal:   AnchorAkara,
+		ServiceMercenaryRevive: AnchorKashya,
+	} {
 		if c.Hub.Services[service] != vendor {
 			return fmt.Errorf("town.hub.services.%s must be %s", service, vendor)
 		}
@@ -96,6 +105,33 @@ func (c Config) Validate() error {
 		}
 	}
 	return nil
+}
+
+// normalizeMercenaryProviders migrates hubs that predate Phase 18.3 by appending
+// Kashya and the fixed Merc service providers before validation.
+func (c *Config) normalizeMercenaryProviders() {
+	if c == nil {
+		return
+	}
+	hasKashya := false
+	for _, anchor := range c.Hub.Anchors {
+		if anchor == AnchorKashya {
+			hasKashya = true
+			break
+		}
+	}
+	if !hasKashya {
+		c.Hub.Anchors = append(append([]Anchor(nil), c.Hub.Anchors...), AnchorKashya)
+	}
+	if c.Hub.Services == nil {
+		c.Hub.Services = map[Service]Anchor{}
+	}
+	if _, ok := c.Hub.Services[ServiceMercenaryHeal]; !ok {
+		c.Hub.Services[ServiceMercenaryHeal] = AnchorAkara
+	}
+	if _, ok := c.Hub.Services[ServiceMercenaryRevive]; !ok {
+		c.Hub.Services[ServiceMercenaryRevive] = AnchorKashya
+	}
 }
 
 func systemEgressAreaName(act OriginAct) string {
@@ -124,7 +160,7 @@ func (c Config) EgressFor(act OriginAct) (EgressConfig, Reason) {
 
 func hubAnchor(anchor Anchor) bool {
 	switch anchor {
-	case AnchorSpawn, AnchorPortalArrival, AnchorStash, AnchorWaypoint, AnchorAkara, AnchorCharsi, AnchorCain:
+	case AnchorSpawn, AnchorPortalArrival, AnchorStash, AnchorWaypoint, AnchorAkara, AnchorCharsi, AnchorCain, AnchorKashya:
 		return true
 	}
 	return false

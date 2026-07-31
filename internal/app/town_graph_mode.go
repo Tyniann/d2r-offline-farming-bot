@@ -73,6 +73,12 @@ func (rt *Runtime) runPathingRecordTownEdge(ctx context.Context, state *runState
 					rt.Log.Info("town edge Cain variant observed", "edge", edge.ID, "npc_id", npc.NPCID, "unit_id", npc.UnitID)
 				}
 			}
+			if edge.To == town.AnchorKashya {
+				if npc, ok := current.FindNPC(world.Kashya); ok && endpointNPCID != npc.NPCID {
+					endpointNPCID = npc.NPCID
+					rt.Log.Info("town edge Kashya observed", "edge", edge.ID, "npc_id", npc.NPCID, "unit_id", npc.UnitID)
+				}
+			}
 			if position, ok := townRecordingEndpointPosition(edge.To, current); ok {
 				// NPCs and objects can unload near regional boundaries. Retain the
 				// last endpoint from this recording, never from an earlier run.
@@ -160,10 +166,15 @@ func townRecordingEndpointDistance(anchor town.Anchor, state world.State) (float
 func townRecordingEndpointPosition(anchor town.Anchor, state world.State) (world.Position, bool) {
 	var position world.Position
 	switch anchor {
-	case town.AnchorAkara, town.AnchorCain, town.AnchorCharsi:
+	case town.AnchorAkara, town.AnchorCain, town.AnchorCharsi, town.AnchorKashya:
 		var npc world.Monster
 		var ok bool
-		npcID := map[town.Anchor]uint32{town.AnchorAkara: world.Akara, town.AnchorCain: world.DeckardCain, town.AnchorCharsi: world.Charsi}[anchor]
+		npcID := map[town.Anchor]uint32{
+			town.AnchorAkara:  world.Akara,
+			town.AnchorCain:   world.DeckardCain,
+			town.AnchorCharsi: world.Charsi,
+			town.AnchorKashya: world.Kashya,
+		}[anchor]
 		npc, ok = state.FindNPC(npcID)
 		if !ok {
 			return world.Position{}, false
@@ -193,6 +204,11 @@ func townRecordingEdge(graph town.ServiceGraph, id string) (town.GraphEdge, bool
 	}
 	if id == "stash-waypoint" {
 		return town.GraphEdge{ID: id, From: town.AnchorStash, To: town.AnchorWaypoint, Route: "stash-waypoint.yaml", Cost: 1, Reversible: true}, true, true
+	}
+	if id == "waypoint-kashya" {
+		// Phase 18.4 activates layout variants in graph.yaml after MrHammer
+		// recordings. The draft lets operators record without a premature edge.
+		return town.GraphEdge{ID: id, From: town.AnchorWaypoint, To: town.AnchorKashya, Route: "waypoint-kashya.yaml", Cost: 1, Reversible: true}, true, true
 	}
 	return town.GraphEdge{}, false, false
 }

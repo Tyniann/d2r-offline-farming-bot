@@ -25,7 +25,7 @@ var (
 
 // resolveActiveRun returns the configured run name; CLI overrides YAML.
 func resolveActiveRun(opts Options, cfg *config.Config) string {
-	if opts.Desktop || opts.UIStateProbe != "" || opts.ScreenAnchorCapture != "" || opts.OfflineExitTest || opts.OfflineDifficulty != "" {
+	if opts.Desktop || opts.UIStateProbe != "" || opts.ScreenAnchorCapture != "" || opts.OfflineExitTest || opts.OfflineDifficulty != "" || opts.TownTest != "" || opts.TownInspect || opts.MercenaryProbe != "" {
 		return ""
 	}
 	if opts.Run != "" {
@@ -95,7 +95,7 @@ func mapRunConfig(cfg *config.Config, runID string, requireFarmingRoute bool) (t
 // validateRunMode checks run prerequisites after resolving CLI vs config.
 func validateRunMode(sel tasks.RunSelection, cfg *config.Config, opts Options, log *slog.Logger) error {
 	if opts.UIStateProbe != "" {
-		if opts.InputTest != "" || opts.PathingTest != "" || opts.OfflineDifficulty != "" || opts.OfflineCharacter != "" || opts.OfflineExitTest || opts.ScreenAnchorCapture != "" || opts.Route != "" || opts.Run != "" || opts.RunPhase != "" {
+		if opts.InputTest != "" || opts.PathingTest != "" || opts.OfflineDifficulty != "" || opts.OfflineCharacter != "" || opts.OfflineExitTest || opts.ScreenAnchorCapture != "" || opts.MercenaryProbe != "" || opts.Route != "" || opts.Run != "" || opts.RunPhase != "" {
 			return fmt.Errorf("--ui-state-probe is mutually exclusive with run and other test modes")
 		}
 		if err := validateUIStateProbeLabel(opts.UIStateProbe); err != nil {
@@ -105,8 +105,19 @@ func validateRunMode(sel tasks.RunSelection, cfg *config.Config, opts Options, l
 			return fmt.Errorf("--ui-state-probe-timeout-ms must not be negative")
 		}
 	}
+	if opts.MercenaryProbe != "" {
+		if opts.InputTest != "" || opts.PathingTest != "" || opts.OfflineDifficulty != "" || opts.OfflineCharacter != "" || opts.OfflineExitTest || opts.UIStateProbe != "" || opts.ScreenAnchorCapture != "" || opts.Route != "" || opts.Run != "" || opts.RunPhase != "" || opts.TownInspect || opts.TownTest != "" {
+			return fmt.Errorf("--mercenary-probe is mutually exclusive with run and other test modes")
+		}
+		if err := validateMercenaryProbeLabel(opts.MercenaryProbe); err != nil {
+			return err
+		}
+		if opts.MercenaryProbeTimeoutMs < 0 {
+			return fmt.Errorf("--mercenary-probe-timeout-ms must not be negative")
+		}
+	}
 	if opts.ScreenAnchorCapture != "" {
-		if opts.InputTest != "" || opts.PathingTest != "" || opts.OfflineDifficulty != "" || opts.OfflineCharacter != "" || opts.OfflineExitTest || opts.UIStateProbe != "" || opts.Route != "" || opts.Run != "" || opts.RunPhase != "" {
+		if opts.InputTest != "" || opts.PathingTest != "" || opts.OfflineDifficulty != "" || opts.OfflineCharacter != "" || opts.OfflineExitTest || opts.UIStateProbe != "" || opts.MercenaryProbe != "" || opts.Route != "" || opts.Run != "" || opts.RunPhase != "" {
 			return fmt.Errorf("--screen-anchor-capture is mutually exclusive with run and other test modes")
 		}
 		if err := validateUIStateProbeLabel(opts.ScreenAnchorCapture); err != nil {
@@ -247,6 +258,22 @@ func validateRunMode(sel tasks.RunSelection, cfg *config.Config, opts Options, l
 
 func runPhaseAllowsUnavailableFarmingRoute(phase string) bool {
 	return phase == tasks.RunPhaseLootAndReturn
+}
+
+// farmingRouteRequired reports whether Runtime construction must resolve a published
+// character/run farming assignment. Desktop without an explicit run and isolated
+// Town/Merc diagnostics keep Countess only as a profile carrier.
+func farmingRouteRequired(opts Options, sel tasks.RunSelection) bool {
+	if runPhaseAllowsUnavailableFarmingRoute(sel.Phase) {
+		return false
+	}
+	if opts.Desktop && sel.Run == "" {
+		return false
+	}
+	if sel.Run == "" && (opts.TownTest != "" || opts.TownInspect || opts.MercenaryProbe != "" || opts.InputTest != "" || opts.Probe || opts.UIStateProbe != "" || opts.ScreenAnchorCapture != "" || opts.PathingTest != "" || opts.OfflineDifficulty != "" || opts.OfflineExitTest || opts.Route != "") {
+		return false
+	}
+	return !opts.Desktop || sel.Run != ""
 }
 
 func withoutFarmingRouteReasons(reasons []tasks.RunReason) []tasks.RunReason {

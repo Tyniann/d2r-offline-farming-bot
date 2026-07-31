@@ -48,11 +48,12 @@ type ProfileActionConfig struct {
 
 // ProfileResourcesConfig configures prioritized potion consumption.
 type ProfileResourcesConfig struct {
-	Healing      ResourceRuleConfig `yaml:"healing"`
-	Mana         ResourceRuleConfig `yaml:"mana"`
-	Rejuvenation ResourceRuleConfig `yaml:"rejuvenation"`
-	ThrottleMs   int                `yaml:"throttle_ms"`
-	VerifyMs     int                `yaml:"verify_timeout_ms"`
+	Healing      ResourceRuleConfig      `yaml:"healing"`
+	Mana         ResourceRuleConfig      `yaml:"mana"`
+	Rejuvenation ResourceRuleConfig      `yaml:"rejuvenation"`
+	Mercenary    MercenaryResourceConfig `yaml:"mercenary"`
+	ThrottleMs   int                     `yaml:"throttle_ms"`
+	VerifyMs     int                     `yaml:"verify_timeout_ms"`
 }
 
 // ResourceRuleConfig selects a percentage threshold and eligible belt columns.
@@ -60,6 +61,41 @@ type ResourceRuleConfig struct {
 	UseBelowPercent int   `yaml:"use_below_percent"`
 	BeltSlots       []int `yaml:"belt_slots"`
 	CooldownMs      int   `yaml:"cooldown_ms"`
+}
+
+// MercenaryResourceConfig is the presence-sensitive combat-profile Merc potion
+// policy. A missing block resolves to enabled=true with defaults; only an
+// explicit `enabled: false` disables Preflight, Combat and Town Merc actions.
+type MercenaryResourceConfig struct {
+	Enabled         *bool `yaml:"enabled,omitempty"`
+	UseBelowPercent int   `yaml:"use_below_percent"`
+	BeltSlots       []int `yaml:"belt_slots"`
+	CooldownMs      int   `yaml:"cooldown_ms"`
+}
+
+// Resolve returns the effective Merc resource switch and rule after defaults.
+// Missing Enabled resolves to true. Zero thresholds, slots and cooldown fill
+// with 75, `[1]` and `4000` respectively.
+func (m MercenaryResourceConfig) Resolve() (enabled bool, rule ResourceRuleConfig) {
+	enabled = true
+	if m.Enabled != nil {
+		enabled = *m.Enabled
+	}
+	rule = ResourceRuleConfig{
+		UseBelowPercent: m.UseBelowPercent,
+		BeltSlots:       append([]int(nil), m.BeltSlots...),
+		CooldownMs:      m.CooldownMs,
+	}
+	if rule.UseBelowPercent == 0 {
+		rule.UseBelowPercent = 75
+	}
+	if len(rule.BeltSlots) == 0 {
+		rule.BeltSlots = []int{1}
+	}
+	if rule.CooldownMs == 0 {
+		rule.CooldownMs = 4000
+	}
+	return enabled, rule
 }
 
 func (c *ProfilesConfig) applyDefaults() {
@@ -81,6 +117,7 @@ func (c *ProfilesConfig) applyDefaults() {
 			Healing:      ResourceRuleConfig{UseBelowPercent: 65, BeltSlots: []int{1}, CooldownMs: 4000},
 			Mana:         ResourceRuleConfig{UseBelowPercent: 35, BeltSlots: []int{2, 3}, CooldownMs: 4000},
 			Rejuvenation: ResourceRuleConfig{UseBelowPercent: 35, BeltSlots: []int{4}, CooldownMs: 1500},
+			Mercenary:    MercenaryResourceConfig{UseBelowPercent: 75, BeltSlots: []int{1}, CooldownMs: 4000},
 			ThrottleMs:   1500, VerifyMs: 1500,
 		},
 	}
@@ -198,25 +235,70 @@ func (c ProfilesConfig) validate(selected, source string) error {
 		}
 	}
 	for name, rule := range map[string]ResourceRuleConfig{"healing": profileCfg.Resources.Healing, "mana": profileCfg.Resources.Mana, "rejuvenation": profileCfg.Resources.Rejuvenation} {
-		if rule.UseBelowPercent <= 0 || rule.UseBelowPercent > 100 {
-			return fmt.Errorf("combat_profiles.%s.resources.%s.use_below_percent must be within 1..100", selected, name)
+		if err := validateResourceRule(selected, name, rule); err != nil {
+			return err
 		}
-		if len(rule.BeltSlots) == 0 {
-			return fmt.Errorf("combat_profiles.%s.resources.%s.belt_slots is required", selected, name)
-		}
-		if rule.CooldownMs <= 0 {
-			return fmt.Errorf("combat_profiles.%s.resources.%s.cooldown_ms must be > 0", selected, name)
-		}
-		seen := map[int]bool{}
-		for _, slot := range rule.BeltSlots {
-			if slot < 1 || slot > 4 || seen[slot] {
-				return fmt.Errorf("combat_profiles.%s.resources.%s.belt_slots must contain unique slots 1..4", selected, name)
-			}
-			seen[slot] = true
-		}
+	}
+	if err := validateMercenaryResource(selected, profileCfg.Resources); err != nil {
+		return err
 	}
 	if profileCfg.Resources.ThrottleMs <= 0 || profileCfg.Resources.VerifyMs <= 0 {
 		return fmt.Errorf("combat_profiles.%s.resources throttle and verify timeouts must be > 0", selected)
+	}
+	return nil
+}
+
+func validateResourceRule(selected, name string, rule ResourceRuleConfig) error {
+	if rule.UseBelowPercent <= 0 || rule.UseBelowPercent > 100 {
+		return fmt.Errorf("combat_profiles.%s.resources.%s.use_below_percent must be within 1..100", selected, name)
+	}
+	if len(rule.BeltSlots) == 0 {
+		return fmt.Errorf("combat_profiles.%s.resources.%s.belt_slots is required", selected, name)
+	}
+	if rule.CooldownMs <= 0 {
+		return fmt.Errorf("combat_profiles.%s.resources.%s.cooldown_ms must be > 0", selected, name)
+	}
+	seen := map[int]bool{}
+	for _, slot := range rule.BeltSlots {
+		if slot < 1 || slot > 4 || seen[slot] {
+			return fmt.Errorf("combat_profiles.%s.resources.%s.belt_slots must contain unique slots 1..4", selected, name)
+		}
+		seen[slot] = true
+	}
+	return nil
+}
+
+func validateMercenaryResource(selected string, resources ProfileResourcesConfig) error {
+	raw := resources.Mercenary
+	enabled, rule := raw.Resolve()
+	if raw.Enabled != nil && !*raw.Enabled {
+		if raw.UseBelowPercent != 0 && (raw.UseBelowPercent <= 0 || raw.UseBelowPercent > 100) {
+			return fmt.Errorf("combat_profiles.%s.resources.mercenary.use_below_percent must be within 1..100", selected)
+		}
+		if raw.CooldownMs < 0 {
+			return fmt.Errorf("combat_profiles.%s.resources.mercenary.cooldown_ms must be > 0", selected)
+		}
+		for _, slot := range raw.BeltSlots {
+			if slot < 1 || slot > 4 {
+				return fmt.Errorf("combat_profiles.%s.resources.mercenary.belt_slots must contain unique slots 1..4", selected)
+			}
+		}
+		return nil
+	}
+	if !enabled {
+		return nil
+	}
+	if err := validateResourceRule(selected, "mercenary", rule); err != nil {
+		return err
+	}
+	healingSlots := map[int]bool{}
+	for _, slot := range resources.Healing.BeltSlots {
+		healingSlots[slot] = true
+	}
+	for _, slot := range rule.BeltSlots {
+		if !healingSlots[slot] {
+			return fmt.Errorf("combat_profiles.%s.resources.mercenary.belt_slots must be a subset of healing.belt_slots", selected)
+		}
 	}
 	return nil
 }

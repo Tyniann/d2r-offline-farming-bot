@@ -9,7 +9,7 @@ func TestDarkStalkerID(t *testing.T) {
 }
 
 func TestAct1TownNPCIDs(t *testing.T) {
-	if DeckardCain != 265 || Akara != 148 || Charsi != 154 {
-		t.Fatalf("town NPC IDs = %d/%d/%d", DeckardCain, Akara, Charsi)
+	if DeckardCain != 265 || Akara != 148 || Charsi != 154 || Kashya != 150 {
+		t.Fatalf("town NPC IDs = %d/%d/%d/%d", DeckardCain, Akara, Charsi, Kashya)
 	}
 }

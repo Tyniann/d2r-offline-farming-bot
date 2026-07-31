@@ -12,6 +12,7 @@ Low-Level Read-only Memory Reader für Phase 1 Schritt 2: rohe Bytes aus dem ang
 - **Wichtige Dateien:**
   - `memory.go` — `Reader`, `ProcessAccess`, Primitive, Pointer-Ketten
   - `process.go` / `process_windows.go` — `ReadAt` und `ReadProcessMemory`
+  - `hireling.go` — Phase-18-Hireling-Katalog, Raw-Diagnose und Merc-Vitals-Decoder
 - **Config:** `memory.game_version`, `memory.offsets_file` (siehe [State Probe](state-probe.md)); keine eigenen Keys für Primitive-Reads
 
 ## Funktionalität
@@ -55,6 +56,19 @@ Kein exportiertes `windows.Handle` — `memory` bleibt plattformneutral testbar.
 - Retry nur bei `process.IsReadRetryable(err)` → aktuell nur `ErrReadFailed`
 - Kein Retry bei: `ErrNotBound`, `ErrNotAttached`, `ErrInvalidAddress`, `ErrInvalidPointer`, `ErrPartialRead`, `ErrInvalidRead`
 
+### Mercenary-Snapshot (Phase 18.1)
+
+Der vorhandene Monster-Segment-Walk erkennt die regulären Hireling-Classes `271`, `338`, `359`, `560` und `561` vor Corpse- und Hostile-Filtern. Die IDs stammen aus der lokalen `hireling.txt`, nicht aus Koolo-/d2go-Katalogen.
+
+- Lebend: Corpse `0`, Mode ungleich `12`.
+- Tot: Corpse ungleich `0` oder Mode `12`.
+- Vitals: `MaxHP = rawMaxLife >> 8`; `HP = MaxHP * clamp(rawLife, 0, 32768) / 32768`.
+- NotHired: drei frische identitätsbestätigte In-Game-Snapshots ohne irgendeine reguläre Hireling-Class.
+- Loading, invalid, widersprüchliche Mehrfach-Hirelings oder unlesbare Identität ergeben Unknown.
+- Hirelings werden nie `Snapshot.Monsters` oder Monster-Coverage zugerechnet.
+
+Der produktive Snapshot liest das Monster-Segment weiterhin genau einmal. Nur `--mercenary-probe` führt bewusst einen zusätzlichen Raw-Diagnosewalk aus.
+
 ## Datenmodell
 
 ### Memory-Fehler (`internal/memory`)
@@ -83,6 +97,7 @@ Schritt 2 liefert Primitive; Spiel-Semantik, Snapshot-Modell und Probe-Loop: [St
 ```powershell
 go run ./cmd/d2rbot
 go run ./cmd/d2rbot --probe
+go run ./cmd/d2rbot --mercenary-probe alive-healthy
 ```
 
 Erwartung ohne `--probe`: Wait-/Attach-/Lost-Verhalten wie in [Process Detection](process-detection.md); Memory-Snapshots werden im attached-Zustand gelesen und in `world.State` gemappt, aber nicht geloggt.
@@ -103,6 +118,7 @@ Erwartung ohne `--probe`: Wait-/Attach-/Lost-Verhalten wie in [Process Detection
 
 - [Process Detection](process-detection.md) — Phase 1 Schritt 1, liefert Handle und Modulbasis
 - [State Probe](state-probe.md) — Phase 1 Schritt 3, Main-Player-Minimalsnapshot
+- [Phase-18-Core-Vertrag](phase-18-core-contract.md) — Live-Evidenz, Decoder und Unknown-Grenzen
 
 ---
-*Zuletzt aktualisiert: 2026-06-25*
+*Zuletzt aktualisiert: 2026-07-30*

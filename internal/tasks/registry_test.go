@@ -15,7 +15,7 @@ func TestDefaultRunRegistryMetadataAndOrder(t *testing.T) {
 	if len(definitions) != 4 || definitions[0].ID != RunIDCountess || definitions[1].ID != RunIDMephisto || definitions[2].ID != RunIDNihlathak || definitions[3].ID != RunIDSummoner {
 		t.Fatalf("definitions = %+v", definitions)
 	}
-	if len(definitions[0].BossEngageSequence) != 1 || !definitions[0].Boss.RequireSuperUnique || definitions[0].ReturnOrigin != town.OriginAct1 {
+	if len(definitions[0].BossEngageSequence) != 1 || !definitions[0].Boss.RequireSuperUnique || definitions[0].ReturnOrigin != town.OriginAct1 || definitions[0].ClearNearbyAfterBoss {
 		t.Fatalf("Countess definition = %+v", definitions[0])
 	}
 	if len(definitions[1].BossEngageSequence) != 2 || definitions[1].Boss.NPCID != world.Mephisto || definitions[1].Boss.RequireSuperUnique || definitions[1].ReturnOrigin != town.OriginAct3 {

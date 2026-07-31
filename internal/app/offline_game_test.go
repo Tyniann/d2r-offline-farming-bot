@@ -19,12 +19,15 @@ type offlineSelectionMock struct {
 	clicks int
 }
 
-func (m *offlineSelectionMock) Bind(uint32) error                                       { return nil }
-func (m *offlineSelectionMock) Unbind()                                                 {}
-func (m *offlineSelectionMock) Bound() bool                                             { return true }
-func (m *offlineSelectionMock) Ready() bool                                             { return true }
-func (m *offlineSelectionMock) Status() input.Status                                    { return input.Status{Enabled: true} }
-func (m *offlineSelectionMock) CastBelt(input.BeltBindingSource, int) error             { return nil }
+func (m *offlineSelectionMock) Bind(uint32) error                           { return nil }
+func (m *offlineSelectionMock) Unbind()                                     {}
+func (m *offlineSelectionMock) Bound() bool                                 { return true }
+func (m *offlineSelectionMock) Ready() bool                                 { return true }
+func (m *offlineSelectionMock) Status() input.Status                        { return input.Status{Enabled: true} }
+func (m *offlineSelectionMock) CastBelt(input.BeltBindingSource, int) error { return nil }
+func (m *offlineSelectionMock) CastBeltWithModifier(input.BeltBindingSource, string, int) error {
+	return nil
+}
 func (m *offlineSelectionMock) CastSkillAt(input.BindingSource, uint16, int, int) error { return nil }
 func (m *offlineSelectionMock) MoveTo(x, y int) error                                   { m.movedX, m.movedY = x, y; return nil }
 func (m *offlineSelectionMock) ClickWithModifier(string, input.MouseButton) error       { return nil }

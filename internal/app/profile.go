@@ -48,8 +48,9 @@ func (a *profileTelemetryAdapter) EmitProfile(event profile.Event) error {
 	}
 	return a.recorder.Emit(telemetry.Event{Event: eventName, UnitID: unitID, Reason: event.Reason,
 		Profile: event.Profile, Hook: string(event.Hook), Skill: skill, SkillID: event.SkillID,
-		Target: string(event.Target), Resource: string(event.Resource), ThresholdPercent: event.ThresholdPercent,
-		BeltSlot: event.BeltSlot, Confirmed: event.Confirmed})
+		Target: string(event.Target), Resource: string(event.Resource), Recipient: event.Recipient,
+		ThresholdPercent: event.ThresholdPercent, HPPercent: event.HPPercent, BeltSlot: event.BeltSlot,
+		Confirmed: event.Confirmed, MercUnitID: event.MercUnitID})
 }
 
 func (a *profileActionsAdapter) CastSkillAtWorld(_ time.Time, skillID uint16, playerPos, targetPos world.Position) error {
@@ -74,6 +75,13 @@ func (a *profileActionsAdapter) CastSkillAtWorld(_ time.Time, skillID uint16, pl
 func (a *profileActionsAdapter) CastBelt(slot int) error {
 	if err := a.input.CastBelt(a.bindings, slot); err != nil {
 		return fmt.Errorf("profile belt slot %d: %w", slot, err)
+	}
+	return nil
+}
+
+func (a *profileActionsAdapter) CastBeltForMercenary(slot int) error {
+	if err := a.input.CastBeltWithModifier(a.bindings, "shift", slot); err != nil {
+		return fmt.Errorf("profile mercenary belt slot %d: %w", slot, err)
 	}
 	return nil
 }
@@ -123,9 +131,11 @@ func mapProfileDefinition(id string, cfg config.ProfileConfig) (profile.Definiti
 		}
 	}
 	resources := cfg.Resources
+	mercEnabled, mercRule := resources.Mercenary.Resolve()
 	return profile.Definition{ID: id, CharacterClass: class, Hooks: hooks, Resources: profile.ResourcePolicy{
 		Healing: mapResourceRule(resources.Healing), Mana: mapResourceRule(resources.Mana), Rejuvenation: mapResourceRule(resources.Rejuvenation),
-		Throttle: time.Duration(resources.ThrottleMs) * time.Millisecond, VerifyTimeout: time.Duration(resources.VerifyMs) * time.Millisecond,
+		Mercenary: profile.MercenaryResourcePolicy{Enabled: mercEnabled, ResourceRule: mapResourceRule(mercRule)},
+		Throttle:  time.Duration(resources.ThrottleMs) * time.Millisecond, VerifyTimeout: time.Duration(resources.VerifyMs) * time.Millisecond,
 	}}, nil
 }
 

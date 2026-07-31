@@ -40,7 +40,10 @@ export function QueueEditor({
   const allowDrop = (event: DragEvent) => {
     if (!mutable) return;
     event.preventDefault();
-    event.dataTransfer.dropEffect = "copy";
+    // Catalog advertises copy; queue reorder advertises move. Chromium cancels
+    // the drop when dropEffect is incompatible with effectAllowed — do not
+    // hard-code copy for both (that broke in-list reorder after catalog DnD).
+    event.dataTransfer.dropEffect = event.dataTransfer.effectAllowed === "copy" ? "copy" : "move";
     setDropHighlight(true);
   };
 

@@ -245,9 +245,19 @@ func TestMapRunConfigSkipsAssignmentOnlyForLootAndReturn(t *testing.T) {
 func TestPassiveDesktopUIAllowsMissingInitialFarmingAssignment(t *testing.T) {
 	opts := Options{Desktop: true}
 	selection := resolveRunSelection(opts, &config.Config{})
-	requireFarmingRoute := (!opts.Desktop || selection.Run != "") && !runPhaseAllowsUnavailableFarmingRoute(selection.Phase)
-	if requireFarmingRoute {
+	if farmingRouteRequired(opts, selection) {
 		t.Fatal("passive desktop UI must start before the first route assignment exists")
+	}
+}
+
+func TestTownTestAllowsMissingFarmingAssignment(t *testing.T) {
+	opts := Options{TownTest: "mercenary-heal"}
+	selection := resolveRunSelection(opts, &config.Config{})
+	if selection.Run != "" {
+		t.Fatalf("TownTest must not select a farming run, got %q", selection.Run)
+	}
+	if farmingRouteRequired(opts, selection) {
+		t.Fatal("isolated town-test must not require a published farming route")
 	}
 }
 

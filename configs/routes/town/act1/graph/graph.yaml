@@ -75,3 +75,13 @@ edges:
       - {layout: 911703945495707c9e6578c2db467e76ed70cf0548f119ac1b397368a8af5a53, route: charsi-waypoint-911703945495.yaml}
       - {layout: 5f635488a4db0cfc55a500d3ca392f7d63c9a256581cf292c352efd0e7a60f17, route: charsi-waypoint-5f635488a4db.yaml}
       - {layout: 4ad7f3b4018ecb39ef311d808dcf0b0b9b5991d8b548b8d3ac1688a657c33f30, route: charsi-waypoint-4ad7f3b4018e.yaml}
+  - id: waypoint-kashya
+    from: waypoint
+    to: kashya
+    cost: 1
+    reversible: true
+    variants:
+      - {layout: 76876927307330686a85da717370ee70ec4e0c2a47dcb7fa4bdba91cc9017381, route: waypoint-kashya-768769273073.yaml}
+      - {layout: 911703945495707c9e6578c2db467e76ed70cf0548f119ac1b397368a8af5a53, route: waypoint-kashya-911703945495.yaml}
+      - {layout: 5f635488a4db0cfc55a500d3ca392f7d63c9a256581cf292c352efd0e7a60f17, route: waypoint-kashya-5f635488a4db.yaml}
+      - {layout: 4ad7f3b4018ecb39ef311d808dcf0b0b9b5991d8b548b8d3ac1688a657c33f30, route: waypoint-kashya-4ad7f3b4018e.yaml}

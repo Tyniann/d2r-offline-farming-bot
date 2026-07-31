@@ -187,6 +187,13 @@ combat_profiles:
         use_below_percent: 35
         belt_slots: [4]
         cooldown_ms: 1500
+      mercenary:
+        # Presence-sensitiv: fehlender Block = enabled true mit Defaults 75/[1]/4000.
+        # Explizites enabled:false deaktiviert Combat- und Town-Merc-Aktionen.
+        enabled: true
+        use_below_percent: 75
+        belt_slots: [1]
+        cooldown_ms: 4000
       throttle_ms: 1500
       verify_timeout_ms: 1500
 
@@ -205,13 +212,15 @@ town:
     identify_scrolls: 3
   hub:
     area: rogue_encampment
-    anchors: [spawn, portal_arrival, stash, waypoint, akara, charsi, cain]
+    anchors: [spawn, portal_arrival, stash, waypoint, akara, charsi, cain, kashya]
     services:
       potions: akara
       scrolls: akara
       identify: cain
       sell: akara
       repair: charsi
+      mercenary_heal: akara
+      mercenary_revive: kashya
     routes_directory: routes/town/act1/graph
   egress:
     act2:

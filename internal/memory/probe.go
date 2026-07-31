@@ -40,6 +40,7 @@ type Snapshot struct {
 	Entrances             []EntranceUnit
 	Monsters              []MonsterUnit
 	MonsterCoverage       MonsterCoverage
+	Mercenary             MercenarySnapshot
 	Items                 []ItemUnit
 	PlayerSkills          PlayerSkills
 	Hover                 HoverState
@@ -51,23 +52,24 @@ type Snapshot struct {
 
 // ProbeReader resolves the main player via the unit table and reads vital stats.
 type ProbeReader struct {
-	reader              *Reader
-	offsets             OffsetSet
-	activeOffsets       OffsetSet
-	offsetsResolved     bool
-	lastModuleBase      uintptr
-	scannedCachePath    string
-	lastScanAttempt     time.Time
-	scanFailCount       int
-	lastPlayerPtr       uintptr
-	observedMaxHP       uint32
-	observedMaxMana     uint32
-	lastGateValue       uint8
-	lastGateLog         time.Time
-	hasGateValue        bool
-	lastIdentityProbe   IdentityProbe
-	identityCandidate   IdentityProbe
-	identityStableTicks uint8
+	reader                *Reader
+	offsets               OffsetSet
+	activeOffsets         OffsetSet
+	offsetsResolved       bool
+	lastModuleBase        uintptr
+	scannedCachePath      string
+	lastScanAttempt       time.Time
+	scanFailCount         int
+	lastPlayerPtr         uintptr
+	observedMaxHP         uint32
+	observedMaxMana       uint32
+	lastGateValue         uint8
+	lastGateLog           time.Time
+	hasGateValue          bool
+	lastIdentityProbe     IdentityProbe
+	identityCandidate     IdentityProbe
+	identityStableTicks   uint8
+	noHirelingStableTicks uint8
 }
 
 const (
@@ -92,6 +94,7 @@ func (p *ProbeReader) SetScannedCachePath(path string) {
 func (p *ProbeReader) ensureOffsets(moduleBase uintptr) OffsetSet {
 	if p.lastModuleBase != 0 && p.lastModuleBase != moduleBase {
 		p.offsetsResolved = false
+		p.resetMercenaryStability()
 	}
 	p.lastModuleBase = moduleBase
 
@@ -211,11 +214,13 @@ func (p *ProbeReader) Snapshot() Snapshot {
 	now := time.Now()
 
 	if p.reader == nil || p.reader.access == nil {
+		p.resetMercenaryStability()
 		return invalidSnapshot(now, GamePhaseUnknown, ReasonNotAttached)
 	}
 
 	moduleBase := p.reader.access.ModuleBase()
 	if moduleBase == 0 {
+		p.resetMercenaryStability()
 		return invalidSnapshot(now, GamePhaseUnknown, ReasonReadFailed)
 	}
 
@@ -233,21 +238,25 @@ func (p *ProbeReader) Snapshot() Snapshot {
 
 	if !playerFound {
 		p.resetIdentityStability()
+		p.resetMercenaryStability()
 		reason := p.playerNotFoundReason(playerErr, gateValue, gateDisabled, loading)
 		return invalidSnapshotWithUI(now, phase, reason, ui)
 	}
 
 	areaID, posX, posY, err := p.readAreaAndPosition(playerPtr, off)
 	if err != nil {
+		p.resetMercenaryStability()
 		return invalidSnapshotWithUI(now, phase, ReasonReadFailed, ui)
 	}
 	playerUnitID, err := p.reader.ReadUint32(playerPtr + off.Unit.UnitID)
 	if err != nil {
+		p.resetMercenaryStability()
 		return invalidSnapshotWithUI(now, phase, ReasonReadFailed, ui)
 	}
 
 	statsListEx, err := p.reader.ReadUint64(playerPtr + off.Unit.StatsListEx)
 	if err != nil || statsListEx == 0 {
+		p.resetMercenaryStability()
 		return invalidSnapshotWithUI(now, phase, ReasonStatsUnavailable, ui)
 	}
 
@@ -258,6 +267,7 @@ func (p *ProbeReader) Snapshot() Snapshot {
 			"stats_list_ex", fmt.Sprintf("0x%X", statsListEx),
 			"error", err,
 		)
+		p.resetMercenaryStability()
 		return invalidSnapshotWithUI(now, phase, ReasonStatsUnavailable, ui)
 	}
 	vitals = p.normalizeVitalStats(playerPtr, vitals)
@@ -299,6 +309,8 @@ func (p *ProbeReader) Snapshot() Snapshot {
 		snap.Hover = p.readHover(moduleBase, off)
 		if err := p.enumerateEntities(moduleBase, off, &snap); err != nil {
 			p.reader.log.Debug("entity enumeration failed", "error", err)
+			p.resetMercenaryStability()
+			snap.Mercenary = MercenarySnapshot{}
 			snap.Objects = make([]ObjectUnit, 0)
 			snap.Entrances = make([]EntranceUnit, 0)
 			snap.Monsters = make([]MonsterUnit, 0)
@@ -313,6 +325,7 @@ func (p *ProbeReader) Snapshot() Snapshot {
 		return snap
 	}
 	p.resetIdentityStability()
+	p.resetMercenaryStability()
 
 	return emptyEntitySlices(snap)
 }

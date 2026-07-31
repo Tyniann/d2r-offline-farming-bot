@@ -37,7 +37,13 @@ func (*preparationInputMock) Status() input.Status { return input.Status{Enabled
 
 func preparationState(pos world.Position, at time.Time, fullBelt bool) world.State {
 	stash := world.Position{X: 100, Y: 100}
-	state := world.State{At: at, Valid: true, Phase: world.GamePhaseInGame, Area: world.LookupArea(world.RogueEncampment), Player: world.Player{Position: pos}, Objects: []world.Object{{UnitID: 1, Kind: world.ObjectKindPersonalStash, Position: stash}, {UnitID: 2, Kind: world.ObjectKindWaypoint, Position: world.Position{X: 80, Y: 70}}}, Monsters: []world.Monster{{NPCID: world.Akara, UnitID: 3, Position: world.Position{X: 110, Y: 90}}, {NPCID: world.DeckardCain, UnitID: 4, Position: world.Position{X: 120, Y: 80}}, {NPCID: world.Charsi, UnitID: 5, Position: world.Position{X: 130, Y: 70}}}}
+	state := world.State{
+		At: at, Valid: true, Phase: world.GamePhaseInGame, Area: world.LookupArea(world.RogueEncampment),
+		Player:    world.Player{Position: pos},
+		Mercenary: world.Mercenary{HiredKnown: true, Hired: true, Alive: true, VitalsKnown: true, UnitID: 9, NPCID: 271, HP: 90, MaxHP: 90},
+		Objects:   []world.Object{{UnitID: 1, Kind: world.ObjectKindPersonalStash, Position: stash}, {UnitID: 2, Kind: world.ObjectKindWaypoint, Position: world.Position{X: 80, Y: 70}}},
+		Monsters:  []world.Monster{{NPCID: world.Akara, UnitID: 3, Position: world.Position{X: 110, Y: 90}}, {NPCID: world.DeckardCain, UnitID: 4, Position: world.Position{X: 120, Y: 80}}, {NPCID: world.Charsi, UnitID: 5, Position: world.Position{X: 130, Y: 70}}, {NPCID: world.Kashya, UnitID: 6, Position: world.Position{X: 90, Y: 80}}},
+	}
 	if fullBelt {
 		for i := 0; i < 4; i++ {
 			state.Items = append(state.Items, world.Item{UnitID: uint32(i + 1), Type: "hpot", Location: world.ItemLocationBelt})
@@ -295,5 +301,87 @@ func TestTownPotionHandlerBuysOnceAndVerifiesTarget(t *testing.T) {
 	state.UI.NPCShopOpen = false
 	if got := h.Tick(context.Background(), step, state); got.Status != town.InteractionComplete || in.modified != 1 {
 		t.Fatalf("complete=%+v modified=%d", got, in.modified)
+	}
+}
+
+type npcClickerStub struct {
+	results []town.NPCClickResult
+}
+
+func (s *npcClickerStub) TickNPC(world.State, town.NPCClickTarget, float64) (town.NPCClickResult, error) {
+	if len(s.results) == 0 {
+		return town.NPCClickResult{}, nil
+	}
+	r := s.results[0]
+	s.results = s.results[1:]
+	return r, nil
+}
+func (*npcClickerStub) Reset() {}
+
+func TestMercenaryHealCompletesWithoutClosingAkaraDialog(t *testing.T) {
+	trace := &preparationTelemetryMock{}
+	adapter := &townPreparationAdapter{
+		log:     config.NewLogger("error"),
+		pathCfg: pathing.DefaultConfig(),
+		profile: config.ProfileResourcesConfig{
+			Mercenary: config.MercenaryResourceConfig{UseBelowPercent: 50, BeltSlots: []int{1}, CooldownMs: 4000},
+		},
+		telemetry: trace,
+	}
+	h := newTownPreparationStepHandler(adapter, nil, nil, nil)
+	h.stage = "interact"
+	h.npc = town.NewNPCInteractor(&npcClickerStub{results: []town.NPCClickResult{{Clicked: true, Done: true}}}, world.Akara, 15, time.Second)
+
+	state := preparationState(world.Position{X: 110, Y: 90}, time.Now(), true)
+	state.Mercenary = world.Mercenary{HiredKnown: true, Hired: true, Alive: true, VitalsKnown: true, UnitID: 9, NPCID: 271, HP: 40, MaxHP: 100}
+	step := town.PlanStep{Phase: town.PlanPhaseServices, Kind: town.StepService, Service: town.ServiceMercenaryHeal}
+
+	if got := h.Tick(context.Background(), step, state); got.Status != town.InteractionAction || got.Action != "npc_click" {
+		t.Fatalf("click=%+v", got)
+	}
+	state.UI.NPCInteractOpen = true
+	if got := h.Tick(context.Background(), step, state); got.Reason == "npc_ui_preopened" {
+		t.Fatalf("own Akara dialog rejected as preopened: %+v", got)
+	}
+	if h.stage != "verify" {
+		t.Fatalf("stage=%q after dialog open, want verify", h.stage)
+	}
+	if len(trace.events) == 0 || trace.events[0].Event != "town_mercenary_heal_requested" {
+		t.Fatalf("heal requested telemetry=%+v", trace.events)
+	}
+	state.Mercenary.HP = state.Mercenary.MaxHP
+	if got := h.Tick(context.Background(), step, state); got.Status != town.InteractionComplete || !got.Done {
+		t.Fatalf("confirmed heal=%+v", got)
+	}
+	if !state.UI.NPCInteractOpen {
+		t.Fatal("test setup unexpectedly closed Akara dialog")
+	}
+}
+
+func TestPotionNPCClickDoesNotRejectOwnAkaraDialog(t *testing.T) {
+	adapter := &townPreparationAdapter{
+		log:     config.NewLogger("error"),
+		pathCfg: pathing.DefaultConfig(),
+		profile: config.ProfileResourcesConfig{Healing: config.ResourceRuleConfig{BeltSlots: []int{1}}},
+	}
+	h := newTownPreparationStepHandler(adapter, nil, nil, nil)
+	h.stage = "npc"
+	h.npc = town.NewNPCInteractor(&npcClickerStub{results: []town.NPCClickResult{{Clicked: true, Done: true}}}, world.Akara, 15, time.Second)
+	state := preparationState(world.Position{X: 110, Y: 90}, time.Now(), true)
+	state.Monsters = []world.Monster{{NPCID: world.Akara, UnitID: 14, Position: world.Position{X: 110, Y: 90}}}
+	step := town.PlanStep{Kind: town.StepService, Service: town.ServicePotions}
+
+	if got := h.Tick(context.Background(), step, state); got.Status != town.InteractionAction || got.Action != "npc_click" {
+		t.Fatalf("click=%+v", got)
+	}
+	if !h.authorizedAkaraDialog {
+		t.Fatal("own Akara click must authorize the following dialog tick")
+	}
+	state.UI.NPCInteractOpen = true
+	if got := h.Tick(context.Background(), step, state); got.Reason == "npc_ui_preopened" {
+		t.Fatalf("own Akara dialog rejected as preopened: %+v", got)
+	}
+	if h.stage != "shop" {
+		t.Fatalf("stage=%q after dialog open, want shop", h.stage)
 	}
 }

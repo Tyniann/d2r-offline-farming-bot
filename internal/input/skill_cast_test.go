@@ -107,3 +107,42 @@ func TestCastBeltInvalidSlot(t *testing.T) {
 		}
 	}
 }
+
+func TestCastBeltWithModifierShiftThenBeltOrderAndCleanup(t *testing.T) {
+	mock := &mockKeySender{}
+	c := testKeyboardController(mock, DefaultKeyboardConfig())
+	src := mockBindingSource{beltKeys: [4]string{"1", "2", "3", "4"}}
+
+	if err := c.CastBeltWithModifier(src, "shift", 1); err != nil {
+		t.Fatal(err)
+	}
+	wantDown := []Key{"shift", "1"}
+	wantUp := []Key{"1", "shift"}
+	if len(mock.downCalls) != len(wantDown) {
+		t.Fatalf("down = %v, want %v", mock.downCalls, wantDown)
+	}
+	for i := range wantDown {
+		if mock.downCalls[i] != wantDown[i] {
+			t.Fatalf("down[%d] = %q, want %q", i, mock.downCalls[i], wantDown[i])
+		}
+		if mock.upCalls[i] != wantUp[i] {
+			t.Fatalf("up[%d] = %q, want %q", i, mock.upCalls[i], wantUp[i])
+		}
+	}
+}
+
+func TestCastBeltWithModifierCleansUpOnBeltDownFailure(t *testing.T) {
+	sendErr := errors.New("belt down failed")
+	mock := &mockKeySender{downErr: map[Key]error{"1": sendErr}}
+	c := testKeyboardController(mock, DefaultKeyboardConfig())
+	src := mockBindingSource{beltKeys: [4]string{"1", "2", "3", "4"}}
+	if err := c.CastBeltWithModifier(src, "shift", 1); !errors.Is(err, sendErr) {
+		t.Fatalf("err = %v, want belt down failed", err)
+	}
+	if len(mock.downCalls) != 2 {
+		t.Fatalf("down = %v, want shift then belt", mock.downCalls)
+	}
+	if len(mock.upCalls) != 1 || mock.upCalls[0] != "shift" {
+		t.Fatalf("cleanup up = %v, want [shift]", mock.upCalls)
+	}
+}

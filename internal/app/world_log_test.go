@@ -44,6 +44,28 @@ func TestWorldShouldLogUIStateChange(t *testing.T) {
 	}
 }
 
+func TestWorldShouldLogMercenaryTransition(t *testing.T) {
+	prev := validWorldState(100)
+	cur := validWorldState(100)
+	cur.Mercenary = world.Mercenary{
+		HiredKnown: true, Hired: true, Alive: true, VitalsKnown: true,
+		UnitID: 1, NPCID: memory.HirelingClassRogueScout, HP: 11, MaxHP: 90,
+	}
+	if !worldShouldLog(prev, cur, time.Now(), worldHeartbeat, false, false) {
+		t.Fatal("expected log on mercenary transition")
+	}
+	attrs := worldLogAttrs(cur, false)
+	found := map[string]bool{}
+	for _, attr := range attrs {
+		found[attr.Key] = true
+	}
+	for _, key := range []string{"mercenary_hired_known", "mercenary_alive", "mercenary_hp", "mercenary_max_hp", "mercenary_hp_pct"} {
+		if !found[key] {
+			t.Fatalf("missing %s in Mercenary attrs: %v", key, found)
+		}
+	}
+}
+
 func TestWorldShouldLogGroundItemFingerprintChange(t *testing.T) {
 	prev := validWorldState(100)
 	cur := validWorldState(100)

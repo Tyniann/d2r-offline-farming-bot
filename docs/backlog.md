@@ -204,4 +204,52 @@ Bis einer dieser Fälle eintritt, bleibt der bestehende globale Filter als bewus
 
 ---
 
+### Konfigurierbare Offline-Players-Anzahl (`/players 1–8`)
+
+**Status:** `idea`
+
+**Ziel-Phase:** nach stabiler Session-/Town-Orchestrierung; Session-Config zuerst, Desktop-UI optional danach
+
+**Verwandt:** Session-Config, Input Controller (Chat), Game-Join / neues Spiel, Telemetrie
+
+#### Kontext
+
+Im Solo-Offline-Modus steuert der Chat-Befehl `/players 1`–`/players 8` Monster-Schwierigkeit und Erfahrung so, als wären entsprechend viele Spieler im Spiel. Typischer Use Case: Powerleveling oder härtere Farm-Runs (z. B. `/players 8` Richtung Level 99). Ohne Befehl bleibt das Spiel unverändert (effektiv players 1).
+
+#### Idee
+
+Der Bot-Benutzer kann optional eine Players-Anzahl `1`–`8` konfigurieren. Der Bot setzt den Wert per Chat-Befehl **einmal pro neuem Game** (nach Town-/Game-Join), nicht dauerhaft im Chat. Bei jedem Game-Reset erneut.
+
+**Default / Opt-in:**
+
+- Config weggelassen oder `0` = Bot fasst Players **nicht** an (unverändertes Spiel).
+- `1`–`8` = aktiv; Bot erzwingt diesen Wunschwert nach Join.
+- `0`/unset ist bewusst besser als stillschweigendes `1`, damit „Bot hat nichts angefasst“ explizit bleibt.
+
+**Ort:**
+
+- Primär Session-/Run-Config (YAML).
+- Später optional Desktop-UI: einfache Zahl `1`–`8` plus Hinweis „nur Offline“.
+
+**Telemetrie (v1):**
+
+- gewünschter Wert
+- ob der Befehl in diesem Game gesendet wurde  
+Memory-Verify des aktiven Players-Werts ist nice-to-have, kein Muss für v1.
+
+**Verhalten / Grenzen:**
+
+- Chat öffnen, Befehl tippen, Chat schließen — über den bestehenden Input-Pfad, geloggt wie andere Eingaben.
+- Wenn der Nutzer Players schon manuell gesetzt hat und Config aktiv ist: Bot erzwingt den konfigurierten Wunschwert einmalig nach Join (klar dokumentieren).
+- Höhere Players machen Runs härter → mehr Timeouts/Deaths sind erwartetes Verhalten, kein Bug.
+- Priorität hinter Town-/Run-Stabilität; kein Core-Contract-Thema.
+
+#### Offene Punkte
+
+- Exakter Config-Key (z. B. `session.players`) und Validierung `0|1–8`
+- Timing relativ zu Town-Prep / erstem Waypoint
+- UI-Darstellung und Warnhinweis bei hohen Werten
+
+---
+
 *(Neue Einträge unten anfügen — kurzer Titel, Status `idea`, Kontext, Ziel-Phase.)*

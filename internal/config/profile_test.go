@@ -16,6 +16,50 @@ func TestDefaultNecroProfileContract(t *testing.T) {
 	if got.Resources.Mana.UseBelowPercent != 35 || len(got.Resources.Mana.BeltSlots) != 2 || got.Resources.Mana.CooldownMs != 4000 {
 		t.Fatalf("default mana policy = %+v", got.Resources.Mana)
 	}
+	enabled, merc := got.Resources.Mercenary.Resolve()
+	if !enabled || merc.UseBelowPercent != 75 || len(merc.BeltSlots) != 1 || merc.BeltSlots[0] != 1 || merc.CooldownMs != 4000 {
+		t.Fatalf("default mercenary policy = enabled=%v rule=%+v", enabled, merc)
+	}
+}
+
+func TestMercenaryResourceConfigPresenceDefaultsAndValidation(t *testing.T) {
+	base := func() ProfilesConfig {
+		var profiles ProfilesConfig
+		profiles.applyDefaults()
+		return profiles
+	}
+	t.Run("missing block resolves enabled", func(t *testing.T) {
+		profiles := base()
+		value := profiles["necro_bone_spear"]
+		value.Resources.Mercenary = MercenaryResourceConfig{}
+		profiles["necro_bone_spear"] = value
+		if err := profiles.validate("necro_bone_spear", "run.combat.profile"); err != nil {
+			t.Fatal(err)
+		}
+		enabled, rule := value.Resources.Mercenary.Resolve()
+		if !enabled || rule.UseBelowPercent != 75 || len(rule.BeltSlots) != 1 || rule.BeltSlots[0] != 1 {
+			t.Fatalf("resolve = %v %+v", enabled, rule)
+		}
+	})
+	t.Run("explicit false skips runtime requirements", func(t *testing.T) {
+		profiles := base()
+		value := profiles["necro_bone_spear"]
+		disabled := false
+		value.Resources.Mercenary = MercenaryResourceConfig{Enabled: &disabled}
+		profiles["necro_bone_spear"] = value
+		if err := profiles.validate("necro_bone_spear", "run.combat.profile"); err != nil {
+			t.Fatal(err)
+		}
+	})
+	t.Run("slot outside healing rejected", func(t *testing.T) {
+		profiles := base()
+		value := profiles["necro_bone_spear"]
+		value.Resources.Mercenary.BeltSlots = []int{2}
+		profiles["necro_bone_spear"] = value
+		if err := profiles.validate("necro_bone_spear", "run.combat.profile"); err == nil {
+			t.Fatal("expected subset validation error")
+		}
+	})
 }
 
 func TestProfileSetupMetadataMatrix(t *testing.T) {

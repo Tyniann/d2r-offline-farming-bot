@@ -10,4 +10,7 @@ type ResourceContext struct {
 	Threatened bool
 	// EmergencyMana ist ausschließlich bei Immediate-Threat und kritischem Mana wahr.
 	EmergencyMana bool
+	// AllowMercenary freigibt Shift+Belt-Heilung für den angeheuerten Söldner.
+	// Der Resource-Executor kennt keine Step-Namen und bewertet nur dieses Flag.
+	AllowMercenary bool
 }

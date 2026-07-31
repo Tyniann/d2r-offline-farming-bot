@@ -422,6 +422,8 @@ var historyEventNames = func() map[EventName]struct{} {
 		RunStepStarted, RunStepCompleted, RunStepFailed, RunEncounterActionStarted, RunEncounterActionCompleted,
 		RouteThreatDetected, RouteClearStarted, RouteMonsterSnapshotSaturated, RouteClearAction,
 		RouteClearProgress, RouteClearCompleted, RouteManaHold, RouteRecoverySuppressed,
+		TownMercenaryHealRequested, TownMercenaryHealConfirmed, TownMercenaryReviveRequested, TownMercenaryReviveConfirmed,
+		MercenaryDied,
 	}
 	out := make(map[EventName]struct{}, len(names))
 	for _, name := range names {

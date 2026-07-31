@@ -144,7 +144,7 @@ Der Act-1-Town-Walker erhält ausschließlich bereits validierte Punkte einer Gr
 
 ### Generische Waypoint-Ziele (Phase 10.7)
 
-`WaypointTargetRegistry` registriert ausschließlich drei auf 1280×720 gebundene Ziele: Black Marsh, Durance of Hate Level 2 und Rogue Encampment. Jede Aktion enthält Akt-Tab, Zielzeile, 200-ms-Settle und erwartete Ziel-Area. Vor jedem Tab- oder Zeilenklick muss `world.UIState.WaypointOpen` aus dem Memory-UI-Buffer bestätigt sein. Ein Tick führt höchstens einen Klick aus; nach dem Zielklick wird niemals erneut geklickt. Falsche Auflösung, unbekanntes Ziel, fehlendes UI-Gate, falsche Ziel-Area und Timeout enden fail-closed.
+`WaypointTargetRegistry` registriert die auf 1280×720 gebundenen Ziele (Black Marsh, Durance of Hate Level 2, Arcane Sanctuary, Halls of Pain, Rogue Encampment). Jede Aktion enthält Akt-Tab, Zielzeile, 200-ms-Settle und erwartete Ziel-Area. Tab- und Zeilenklicks erfordern zusätzlich zu `world.UIState.WaypointOpen` eine post-open-Evidenz aus unserem eigenen hover-bestätigten Waypoint-Objektklick: mindestens 500 ms sowie ein Positions-Settle (`pathing.town_walk.settle_timeout_ms`). Sticky `WaypointOpen` allein reicht nicht — auf dem aktuellen Build bleibt das Bit nach Reisen oft gesetzt, obwohl das Panel geschlossen ist; UI-Koordinaten würden sonst in die Welt fallen und die Figur am Waypoint vorbeischieben. `beginStep` setzt Waypoint-State beim Eintritt in `select_run_waypoint` / `select_hub_waypoint` deshalb nicht zurück. Ein Tick führt höchstens einen Klick aus; nach dem Zielklick wird niemals erneut geklickt. Falsche Auflösung, unbekanntes Ziel, fehlendes UI-Gate, falsche Ziel-Area und Timeout enden fail-closed.
 
 Die frühere konfigurierbare Black-Marsh-Sonderaktion wurde vollständig entfernt. Die autoritative read-only Kalibrierung ist abrufbar mit:
 
@@ -195,4 +195,4 @@ Sie liefert für 1280×720: Act-1-Tab `(159,148)`, Act-3-Tab `(273,148)`, Black 
 - [Input Controller](input-controller.md) — führt alle Maus-/Tastatur-Aktionen aus
 
 ---
-*Zuletzt aktualisiert: 2026-07-15*
+*Zuletzt aktualisiert: 2026-07-31*

@@ -17,7 +17,7 @@ Echte OS-Eingaben sind standardmäßig deaktiviert (`input.enabled: false`). Glo
   - `safety.go` — `SafetyConfig`, `Status`, Pause/Stop-State, Action-Guards und Logging
   - `hotkey.go`, `hotkey_windows.go`, `hotkey_stub.go` — globale Hotkey-Typen und Windows-`RegisterHotKey`-Listener
   - `keyboard.go` — `KeyboardConfig`, `KeySender`, `PressKey`, `PressCombo`
-  - `skill_cast.go` — `BindingSource`, `SelectSkill`, `CastSkillAt`, `CastBelt`
+  - `skill_cast.go` — `BindingSource`, `SelectSkill`, `CastSkillAt`, `CastBelt`, `CastBeltWithModifier`
   - `keyboard_windows.go` — Windows `SendInput`-Backend und Virtual-Key-Mapping
   - `keyboard_stub.go` — Nicht-Windows-Stub mit `ErrUnsupportedPlatform`
   - `mouse.go` — `MouseButton`, `MouseSender`, `MoveTo`, `Click`, Clamping
@@ -43,9 +43,10 @@ Echte OS-Eingaben sind standardmäßig deaktiviert (`input.enabled: false`). Glo
 ### Keyboard Primitives (Phase 3.2)
 
 - **Low-Level:** `KeyDown`, `KeyUp`, `PressKey`, `PressCombo` — serialisiert über `keyMu`.
-- **Skill-Cast:** `SelectSkill`, `CastSkillAt`, `CastBelt` — Hotkeys aus YAML-Config über `BindingSource`.
+- **Skill-Cast:** `SelectSkill`, `CastSkillAt`, `CastBelt`, `CastBeltWithModifier` — Hotkeys aus YAML-Config über `BindingSource`.
 - `PressKey`: Down → zufälliger Delay (`key_delay_ms_min`–`key_delay_ms_max`, Default 10–40 ms) → Up.
 - `PressCombo`: Down in Reihenfolge → Hold (`combo_hold_ms`, Default 200 ms) → Up in umgekehrter Reihenfolge.
+- `CastBeltWithModifier("shift", slot)`: Shift↓ → Belt↓ → Key-Delay → Belt↑ → Shift↑ (kein `PressCombo`); bei Fehler Reverse-Cleanup.
 - Erfolgreiche Aktionen: strukturiertes Log `input action` mit `kind`, `action`, `reason`, `allowed=true`.
 - Windows-Backend: `SendInput` über User32/LazyDLL, ohne CGO.
 
@@ -271,4 +272,4 @@ Erwartung: Fenster gebunden, Aktionen in `input action`-Logs sichtbar, `input te
 - [State Probe](state-probe.md) — läuft parallel weiter, auch ohne erfolgreiches Bind
 
 ---
-*Zuletzt aktualisiert: 2026-06-26*
+*Zuletzt aktualisiert: 2026-07-30*

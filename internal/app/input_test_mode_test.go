@@ -45,6 +45,10 @@ func (m *mockInputTest) CastBelt(_ input.BeltBindingSource, slot int) error {
 	return nil
 }
 
+func (m *mockInputTest) CastBeltWithModifier(_ input.BeltBindingSource, _ string, slot int) error {
+	return m.CastBelt(nil, slot)
+}
+
 func (m *mockInputTest) SelectSkill(_ input.BindingSource, skillID uint16) error {
 	if m.actionErr != nil {
 		return m.actionErr

@@ -819,6 +819,15 @@
       </div>
     </div>
 
+    <div class="phase">
+      <strong>Phase 18</strong>
+      <div>
+        <h3>Söldner-Support in Combat und Town <span class="good">— abgeschlossen · Gate 18.0–18.6 bestanden</span></h3>
+        <p><strong>Ziel:</strong> Der Bot liest den angeheuerten Söldner fail-closed als eigenen World-Zustand, gibt einem lebenden Merc unter der konfigurierten Schwelle (Default 75&nbsp;%) in Bosskampf, Route-Clear und Post-Boss-Cleanup nach allen Spielerressourcen genau einen konfigurierten Healing Potion per Shift+Gürteltaste und stellt ihn beim post-run Town-Handoff wieder her. Akara heilt, Kashya belebt ohne Gold-Precheck einmalig wieder; ein weiterhin toter Merc beendet die Queue mit „Zu wenig Gold“. Kashya wird über eine reversible Waypoint-Kante je bestehendem Town-Layout angebunden. Automatisches Anheuern, Merc-Ausrüstung, Aura-/Pet-AI, Emergency-Portal und neue UI-Flächen bleiben ausgeschlossen. Detailplan: <a href="phase-18-implementation-plan.html">Phase-18-Umsetzungsplan</a>. Feature-Doc: <a href="docs/features/mercenary-support.md">mercenary-support.md</a>.</p>
+        <p><strong>Abschluss 31. Juli 2026:</strong> Gate 18.6 bestanden. 10× Summoner Hell (<code>session-20260731t012648…</code>, 10/10 <code>run_completed</code>) inklusive zweier natürlicher Merc-Tode mit bestätigtem Combat-Heal und Kashya-Revive. Nachbesserungen: Mana-Hold blockiert Merc-Heals nicht; Loot-Chase max. 20 Tiles; <code>mercenary_died</code>-Telemetrie; Default-Schwelle 75&nbsp;%. Freigabe als <code>v0.16.0</code>.</p>
+      </div>
+    </div>
+
     <h2>5b. Koordinaten und Klick-Präzision — die Koolo-Methode</h2>
     <p>
       Für Bewegung und Entity-Klicks braucht der Bot eine Abbildung von Weltkoordinaten (Tiles) auf

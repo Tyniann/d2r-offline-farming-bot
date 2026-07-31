@@ -13,6 +13,7 @@ Phase 2 legt die semantische Spielzustands-Schicht im Paket `internal/world` an:
   - `areas_data.go` — eingebetteter Area-Katalog (Namen 1..136, Konstanten bis 141), manuell aus d2go kopiert
   - `position.go` — `Position` (X/Y als `uint32`)
   - `player.go` — `Player` mit Vitalwerten und Prozent-Hilfen
+  - `mercenary.go` — fail-closed `Mercenary` und `HPPercent`
   - `state.go` — `GamePhase`, immutable `State` inkl. Entity- und Item-Slices
   - `item.go` — `Item`, `ItemQuality`, `ItemLocation`, Code-/Name-Lookup und Item-Queries
   - `object_ids.go`, `entrance_ids.go`, `npc_ids.go` — semantische Run-Kataloge; Mephisto stammt versionsgebunden aus `monstats.txt`
@@ -58,6 +59,16 @@ Unbekannte IDs: `Name = "Unknown Area <id>"`, `Kind = AreaKindUnknown`, `Act` au
 
 **Phase:** `memory.GamePhase` wird ausschließlich über `mapPhase()` konvertiert. `Valid` und `Phase` sind orthogonal (Loading kann bei lesbarem Player auftreten).
 
+### Mercenary (Phase 18.1)
+
+`State.Mercenary` mappt den gleichzeitig mit dem Snapshot gelesenen Hireling-State. Der Zero-Value ist Unknown. `HiredKnown`, `Hired`, `Alive`, `Dead` und `VitalsKnown` werden nicht aus Abwesenheit nachkonstruiert.
+
+- Alive und Dead schließen einander aus; widersprüchliche Memory-Werte werden Unknown.
+- Vitals werden nur für Alive mit `MaxHP > 0` übernommen.
+- Dead behält Class-/Unit-ID, aber keine Vitals.
+- Invalid/Loading und `Model.Reset` nullen Merc vollständig.
+- `HPPercent()` liefert 0 bei unbekannten Vitals und clamp’t auf 100.
+
 ### Entities (Phase 4.2)
 
 Run-begrenzte Enumeration in `memory.Snapshot`; Mapping nach `world.Object`, `world.Entrance`, `world.Monster` mit Kind und Name aus `*_ids.go`. Zusätzlich zu Bossen und Town-NPCs enthält die Monster-Allowlist die regulären Terminal-Area-Gegnertypen von Countess und Summoner für das begrenzte Post-Boss-Aufräumen. Sie bleibt absichtlich eng, damit Player-Summons und unrelated Monster nicht als Angriffsziele erscheinen.
@@ -89,6 +100,7 @@ reset := model.Reset(at, "process_lost")
 ### Player & State
 
 - `Player.HPPercent()` / `ManaPercent()`: Integer-Math, `0` bei `Max == 0`, Clamp auf `100`.
+- `Mercenary.HPPercent()`: gleiche Prozentgrenzen, aber nur bei `VitalsKnown`.
 - `State`: Value-Type; bei `Valid == false` ist `Reason` gesetzt (oder leer), `Area`/`Player` sind Zero-Values und nicht zu lesen.
 
 ## Datenmodell
@@ -101,6 +113,7 @@ reset := model.Reset(at, "process_lost")
 | `AreaKind` | `Unknown`, `Outdoor`, `Dungeon`, `Special` |
 | `Position` | Rohe Tile-Koordinaten |
 | `Player` | Position + HP/Mana |
+| `Mercenary` | Hired-/Alive-/Dead-/Vitals-Evidenz, Class-/Unit-ID und HP |
 | `GamePhase` | `Unknown`, `Menu`, `Loading`, `InGame` — aus `memory.Snapshot.Phase` |
 | `State` | Tick-Snapshot mit `At`, `Phase`, `Valid`, `Reason`, `Area`, `Player`, Entity- und Item-Slices, `MonsterCoverage` sowie read-only UI-Flags inklusive `QuitMenuOpen` |
 | `Object`/`Entrance`/`Monster` | Countess-relevante Entities mit Kind, ID, UnitID, Position, Name |
@@ -223,6 +236,7 @@ Low-Level Memory/Offset-Validierung: [State Probe](state-probe.md) (Phase 1, D2R
 - [State Probe](state-probe.md) — liefert `memory.Snapshot` inkl. Phase und Entities
 - [Memory Reader](memory-reader.md) — Low-Level-Reads unter der Probe
 - [Task Runner](task-runner.md) — Task-Ticks blockiert bei `Phase != InGame`
+- [Phase-18-Core-Vertrag](phase-18-core-contract.md) — Merc-Evidenz und Unknown-Grenzen
 
 ---
-*Zuletzt aktualisiert: 2026-07-21*
+*Zuletzt aktualisiert: 2026-07-30*

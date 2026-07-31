@@ -11,6 +11,7 @@ Spätere Ideen (noch nicht umgesetzt): [`docs/backlog.md`](../backlog.md).
 | [World Model](world-model.md) | Domain-Typen (Area, Player, State), eingebetteter Area-Katalog; kontinuierliches Update im App-Loop (2.3); Validierung Phase 2.4 |
 | [Input Controller](input-controller.md) | D2R-Fensterbindung per PID, Client-Geometrie (3.1); Tastatur-/Maus-Primitives; YAML-Bindings für Skills, Portal und Belt; Safety-Opt-in, globale Pause/Stop-Hotkeys; manueller CLI-Input-Testmodus |
 | [Character- und Encounter-Profile](character-encounter-profiles.md) | Klassenbegrenzte Lifecycle-Hooks, Resource Policy und entwicklerverwaltete Phase-16-Setup-Freigabe samt Default |
+| [Mercenary Support](mercenary-support.md) | Phase 18: fail-closed Merc-State, Combat-Heal, Akara-Heal, Kashya-Revive und `waypoint-kashya` |
 | [Town Services](town-services.md) | Phase 9: fail-closed Bedarfsermittlung, zentraler Act-1-Hub und minimales Fremdakt-Egress-Format |
 | [Globaler System-Egress](system-egress.md) | Abschnitt 12.2: aktgenerische globale Portal-zum-Wegpunkt-Routen für Akt 2–5 ohne Character-/Difficulty-Bindung |
 | [Run Registry und gemeinsames Run-Schema](run-registry.md) | Typisierte Run-Definitionen (Countess, Mephisto, Summoner, Nihlathak), gemeinsames Config-Schema und fail-closed Definition Resolver |
@@ -51,6 +52,7 @@ Spätere Ideen (noch nicht umgesetzt): [`docs/backlog.md`](../backlog.md).
 | [Phase-15-Core-Vertrag](phase-15-core-contract.md) | Abschnitt 15.0: Desktop-/Core-Ownership, Datenroot, Lifecycle, Version-Gate, Operatorwerte, Retention, Reason-Codes und 10.000-Run-Performancebaseline |
 | [Phase-16-Core-Vertrag](phase-16-core-contract.md) | Abschnitt 16.0: D2S-v105-Präfix, Klassenmapping einschließlich Warlock, Charakter-Setup-Ownership, Reason-Codes, Defaults und Nicht-Ziele |
 | [Phase-17-Core-Vertrag](phase-17-core-contract.md) | Abschnitt 17.0: Summoner-Baseline, RouteProgress, Threat-/Coverage-Zustände, Ressourcenkontext, Watchdogs, Reasons, Ownership und Nicht-Ziele |
+| [Phase-18-Core-Vertrag](phase-18-core-contract.md) | Abschnitt 18.0: Hireling-IDs aus lokaler `hireling.txt`, read-only Merc-Diagnose, Evidenzregeln und manuelles Gate vor jedem Merc-Input |
 | [Route-Threat-Combat](route-threat-combat.md) | Phase 17: Summoner-spezifisches Route-Hold, stationärer Profil-Clear, Coverage, Mana-Hysterese, Recovery-Guard und gebündelte Telemetrie |
 | [Charaktereinrichtung](character-setup.md) | Phase 16: Core-validierte Profil- und Pickit-Einrichtung, sichere Auswahlbilderfassung und erneute Selection-/Queue-/Run-Gates |
 | [Installierter Datenroot und Desktop-Einstellungen](installed-data-root.md) | Abschnitt 15.1: expliziter Core-Root, hashgebundene Defaults, stagingbasierter Import und getrennter atomarer Desktop-Settings-Store |

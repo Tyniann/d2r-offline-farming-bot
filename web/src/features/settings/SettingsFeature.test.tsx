@@ -165,10 +165,37 @@ describe("SettingsFeature", () => {
     expect(nihlathakRow).toBeTruthy();
     fireEvent.dragStart(nihlathakRow as HTMLElement, { dataTransfer: { setData: vi.fn(), effectAllowed: "copy" } });
     // jsdom dataTransfer is limited; exercise drop path via a synthetic transfer.
-    const transfer = { getData: (type: string) => type === "text/plain" ? "add:nihlathak" : "", dropEffect: "copy", types: ["text/plain"] };
+    const transfer = { getData: (type: string) => type === "text/plain" ? "add:nihlathak" : "", dropEffect: "copy", effectAllowed: "copy", types: ["text/plain"] };
     fireEvent.dragOver(dropPane, { dataTransfer: transfer });
+    expect(transfer.dropEffect).toBe("copy");
     fireEvent.drop(dropPane, { dataTransfer: transfer });
     expect(screen.getByText("Nihlathak")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Speichern" })).toBeEnabled();
+  });
+
+  it("sortiert die aktive Run-Reihenfolge per Drag mit move-dropEffect", async () => {
+    renderFeature();
+    const dropPane = await screen.findByTestId("queue-drop-pane");
+    const rows = within(dropPane).getAllByRole("listitem");
+    expect(rows).toHaveLength(2);
+    expect(within(rows[0]).getByText("Countess")).toBeInTheDocument();
+    expect(within(rows[1]).getByText("Mephisto")).toBeInTheDocument();
+
+    const transfer = {
+      getData: (type: string) => type === "text/plain" ? "reorder:0" : "",
+      setData: vi.fn(),
+      dropEffect: "none",
+      effectAllowed: "move",
+      types: ["text/plain"],
+    };
+    fireEvent.dragStart(rows[0], { dataTransfer: transfer });
+    fireEvent.dragOver(rows[1], { dataTransfer: transfer });
+    expect(transfer.dropEffect).toBe("move");
+    fireEvent.drop(rows[1], { dataTransfer: transfer });
+
+    const reordered = within(dropPane).getAllByRole("listitem");
+    expect(within(reordered[0]).getByText("Mephisto")).toBeInTheDocument();
+    expect(within(reordered[1]).getByText("Countess")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Speichern" })).toBeEnabled();
   });
 

@@ -39,6 +39,7 @@ type inputController interface {
 	Ready() bool
 	Status() input.Status
 	CastBelt(src input.BeltBindingSource, slot int) error
+	CastBeltWithModifier(src input.BeltBindingSource, modifier string, slot int) error
 	CastSkillAt(src input.BindingSource, skillID uint16, clientX, clientY int) error
 	MoveTo(clientX, clientY int) error
 	ClickWithModifier(modifier string, button input.MouseButton) error
@@ -172,12 +173,17 @@ func (rt *Runtime) runTick(ctx context.Context, state *runState) (err error) {
 	}
 
 	snap := rt.Probe.Snapshot()
+	prevWorld := rt.World.Current()
 	cur := rt.World.Update(snap)
-	if rt.Config.Input.Enabled && rt.Options.InputTest == "" && rt.Options.OfflineDifficulty == "" && !rt.Options.OfflineExitTest && rt.Options.UIStateProbe == "" && rt.Options.ScreenAnchorCapture == "" && !rt.Options.TownInspect && rt.Options.TownTest == "" && !rt.pathingTestIsReadOnly() && !rt.routeCommandIsReadOnly() && snap.Valid && snap.Phase == memory.GamePhaseInGame && !state.bindingsPrecheckDone {
+	rt.observeMercenaryDeath(prevWorld, cur)
+	if rt.Config.Input.Enabled && rt.Options.InputTest == "" && rt.Options.OfflineDifficulty == "" && !rt.Options.OfflineExitTest && rt.Options.UIStateProbe == "" && rt.Options.ScreenAnchorCapture == "" && rt.Options.MercenaryProbe == "" && !rt.Options.TownInspect && rt.Options.TownTest == "" && !rt.pathingTestIsReadOnly() && !rt.routeCommandIsReadOnly() && snap.Valid && snap.Phase == memory.GamePhaseInGame && !state.bindingsPrecheckDone {
 		state.bindingsPrecheckDone = true
 		if err := BindingsPrecheck(rt.Log, rt.Bindings, snap, true); err != nil {
 			return fmt.Errorf("bindings precheck: %w", err)
 		}
+	}
+	if err := rt.consumeMercenaryPreflight(cur); err != nil {
+		return err
 	}
 	if rt.shouldTickTasks(cur) {
 		rt.Tasks.Tick(ctx, cur, time.Now())

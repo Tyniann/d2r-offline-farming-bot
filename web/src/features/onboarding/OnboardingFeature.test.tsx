@@ -148,7 +148,9 @@ describe("OnboardingFeature", () => {
 
     render(<OnboardingFeature initialStep={5} status={{ ...status, selection: { character: "", difficulty: "nightmare" } }} catalog={catalog} onRefresh={onRefresh} onClose={onClose} onOpenRoutes={onOpenRoutes} />);
     await waitFor(() => expect(mocks.getOptions).toHaveBeenCalledOnce());
-    fireEvent.click(screen.getByRole("button", { name: "Über Core bestätigen" }));
+    const confirm = screen.getByRole("button", { name: "Über Core bestätigen" });
+    await waitFor(() => expect(confirm).toBeEnabled());
+    fireEvent.click(confirm);
 
     await waitFor(() => expect(mocks.getOptions).toHaveBeenCalledTimes(2));
     expect(mocks.applySelection).toHaveBeenCalledOnce();

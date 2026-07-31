@@ -50,7 +50,7 @@ Entry-Area, Route-Terminal, Waypoint-Ziel, Boss, Suchanker, geordnete Encounter-
 
 Der Encounter-Aktionsindex beginnt pro Boss-Pin bei `0`. Jede Aktion erhält getrennte Start-/Abschluss-Telemetrie; erst danach darf regulärer Combat laufen. Pro Poll-Tick wird höchstens eine Action-Input-Gelegenheit konsumiert.
 
-`clear_nearby_hostiles` ist ein Registry-Opt-in für Countess, Summoner und Nihlathak. Er läuft unmittelbar nach der Kill-Bestätigung und ausdrücklich vor `reposition_for_loot`, damit der Charakter nicht zuerst zur Bossleiche in ein verbliebenes Pack teleportiert. Countess und Summoner nutzen den Standardangriff aus `CombatConfig` gegen ihre run-spezifisch erlaubten lebenden Gegner innerhalb von 18 Tiles und höchstens 20 tatsächlich gesendete Aktionen. Nihlathak wirkt nach seinem bestätigten Tod einmal Amplify Damage und räumt anschließend die vollständige gebietseigene Halls-of-Vaught-Hostile-Allowlist innerhalb von 30 Tiles mit Bone Spear; ein bereits gehovtes lebendes Monster wird dort sofort akzeptiert, weil Nihlathak keine Corpse Explosion mehr auslösen kann. Seine dichtere Begegnung besitzt ein eigenes Budget von 40 gesendeten Aktionen. Der Step endet erst nach drei gegnerfreien Snapshots oder dem jeweiligen Aktionsbudget. Mephisto überspringt den Step.
+`clear_nearby_hostiles` ist ein Registry-Opt-in für Summoner und Nihlathak. Er läuft unmittelbar nach der Kill-Bestätigung und ausdrücklich vor `reposition_for_loot`, damit der Charakter nicht zuerst zur Bossleiche in ein verbliebenes Pack teleportiert. Summoner nutzt den Standardangriff aus `CombatConfig` gegen seine run-spezifisch erlaubten lebenden Gegner innerhalb von 18 Tiles und höchstens 20 tatsächlich gesendete Aktionen. Nihlathak wirkt nach seinem bestätigten Tod einmal Amplify Damage und räumt anschließend die vollständige gebietseigene Halls-of-Vaught-Hostile-Allowlist innerhalb von 30 Tiles mit Bone Spear; ein bereits gehovtes lebendes Monster wird dort sofort akzeptiert, weil Nihlathak keine Corpse Explosion mehr auslösen kann. Seine dichtere Begegnung besitzt ein eigenes Budget von 40 gesendeten Aktionen. Der Step endet erst nach drei gegnerfreien Snapshots oder dem jeweiligen Aktionsbudget. Countess und Mephisto überspringen den Step: im Tower Cellar stehen zu viele Gegner hinter Wänden.
 
 Seit Phase 17.3 besitzt ausschließlich der Summoner-Route-Step ein Threat-Interleave. Vor jedem möglichen `Route.Tick` werden effektives Movement-/Recovery-Ziel und der aktuelle World-Snapshot einmal bewertet. Ein Immediate-, Corridor- oder Landing-Blocker beziehungsweise eine lokale Coverage-Lücke führt exklusiv zu `Route.Hold` und stationärem Profil-Clear; im selben Tick ist Route-Movement unerreichbar. Drei frische lokal vollständige freie Snapshots bestätigen den Clear, der nächste frische Tick setzt exakt denselben Routefortschritt fort. Zwölf Sekunden ohne objektiven Ziel-/Threat-/Coverage-Fortschritt scheitern fail-closed; Aktionen allein verlängern den Watchdog nicht.
 
@@ -113,6 +113,10 @@ JSONL-Transitionen `run_step_started`, `run_step_completed` und `run_step_failed
 
 `--run` und `--input-test` schließen sich gegenseitig aus. Run erfordert `input.enabled: true`.
 
+### Mercenary-Ressourcen (Phase 18)
+
+`AllowMercenary` ist nur in `engage_boss`, aktivem Route-Clear und `clear_nearby_hostiles` gesetzt. Travel, Loot, Town und Stash erlauben keinen Merc-Trank. Die Run-State-Machines bleiben merc-frei; der Resource-Executor entscheidet zentral. Details: [Mercenary Support](mercenary-support.md).
+
 ## Abhängigkeiten
 
 - `internal/world` — Area/Town-Check für Precheck
@@ -124,6 +128,7 @@ JSONL-Transitionen `run_step_started`, `run_step_completed` und `run_step_failed
 - [State Probe](state-probe.md) — World-Update vor Task-Tick
 - [Input Controller](input-controller.md) — Safety-Guards für Task-Ticks
 - [World Model](world-model.md) — `world.State` / Area-Katalog
+- [Mercenary Support](mercenary-support.md) — Combat-/Town-Söldner
 
 ---
-*Zuletzt aktualisiert: 2026-07-29*
+*Zuletzt aktualisiert: 2026-07-31*
