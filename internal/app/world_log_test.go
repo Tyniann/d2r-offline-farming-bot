@@ -342,13 +342,19 @@ func TestVerboseGroundItemsHintIncludesIdentityDiagnosis(t *testing.T) {
 	st := validWorldState(100)
 	st.Items = []world.Item{{
 		TxtFileNo: 535, UnitID: 4001, Code: "amu", Name: "Amulet",
-		Quality: world.ItemQualitySet, Ethereal: true, Location: world.ItemLocationGround,
+		Quality: world.ItemQualitySet, Identified: true, Ethereal: true, Flags: 0x400010,
+		Location:     world.ItemLocationGround,
 		IdentityKind: world.ItemIdentitySet, IdentityRawID: 77, IdentityAvailable: true,
 		IdentityName: "Tal Rasha's Adjudication", IdentityValid: true,
+		SocketStatActive: world.SocketStatEvidence{ListReadable: true, Present: true, Value: 0},
+		SocketStatBase:   world.SocketStatEvidence{ListReadable: true},
+		Sockets:          4,
+		SocketsAvailable: true,
+		Socketed:         true,
 	}}
 
 	hint := verboseGroundItemsHint(st)
-	for _, want := range []string{`code="amu"`, "quality=set", "ethereal=true", `identity_kind="set"`, "identity_raw_id=77", "identity_available=true", `identity_name="Tal Rasha's Adjudication"`, "identity_consistent=true"} {
+	for _, want := range []string{`code="amu"`, "quality=set", "identified=true", "ethereal=true", "flags=0x400010", "active_stat194=value:0", "base_stat194=absent", "sockets=4", "sockets_available=true", "socketed=true", `identity_kind="set"`, "identity_raw_id=77", "identity_available=true", `identity_name="Tal Rasha's Adjudication"`, "identity_consistent=true"} {
 		if !strings.Contains(hint, want) {
 			t.Fatalf("ground hint %q missing %q", hint, want)
 		}
@@ -440,12 +446,18 @@ func TestVerboseInventoryItemsHintIncludesIdentityDiagnosis(t *testing.T) {
 	items := []world.Item{{
 		TxtFileNo: 535, UnitID: 4001, Code: "amu", Name: "Amulet",
 		Quality: world.ItemQualitySet, Location: world.ItemLocationInventory,
+		Flags: 0x10, Identified: true,
 		IdentityKind: world.ItemIdentitySet, IdentityRawID: 77, IdentityAvailable: true,
-		IdentityReason: world.ItemIdentityReasonBaseMismatch,
+		IdentityReason:   world.ItemIdentityReasonBaseMismatch,
+		SocketStatActive: world.SocketStatEvidence{},
+		SocketStatBase:   world.SocketStatEvidence{ListReadable: true, Present: true, Value: 2},
+		Sockets:          0,
+		SocketsAvailable: false,
+		Socketed:         false,
 	}}
 
 	hint := verboseInventoryItemsHint(items)
-	for _, want := range []string{`code="amu"`, "quality=set", "ethereal=false", `identity_kind="set"`, "identity_raw_id=77", "identity_available=true", "identity_consistent=false", `identity_reason="item_identity_base_mismatch"`} {
+	for _, want := range []string{`code="amu"`, "quality=set", "identified=true", "ethereal=false", "flags=0x10", "active_stat194=unreadable", "base_stat194=value:2", "sockets=0", "sockets_available=false", "socketed=false", `identity_kind="set"`, "identity_raw_id=77", "identity_available=true", "identity_consistent=false", `identity_reason="item_identity_base_mismatch"`} {
 		if !strings.Contains(hint, want) {
 			t.Fatalf("inventory hint %q missing %q", hint, want)
 		}

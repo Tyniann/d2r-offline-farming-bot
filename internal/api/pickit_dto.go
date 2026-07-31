@@ -73,12 +73,16 @@ type PickitPreviewItemDTO struct {
 	Name              string `json:"name"`
 	Type              string `json:"type"`
 	Quality           string `json:"quality"`
+	BaseTier          string `json:"base_tier"`
 	IdentityKind      string `json:"identity_kind"`
 	IdentityKey       string `json:"identity_key"`
 	IdentityAvailable bool   `json:"identity_available"`
 	IdentityValid     bool   `json:"identity_valid"`
 	Identified        bool   `json:"identified"`
 	Ethereal          bool   `json:"ethereal"`
+	Sockets           int    `json:"sockets"`
+	SocketsAvailable  bool   `json:"sockets_available"`
+	Socketed          bool   `json:"socketed"`
 }
 
 // PickitPreviewRequest wertet einen Entwurf gegen ein kontrolliertes Test-Item aus.

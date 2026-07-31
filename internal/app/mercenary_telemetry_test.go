@@ -31,7 +31,7 @@ func TestObserveMercenaryDeathEmitsOnceOnAliveToDead(t *testing.T) {
 	rt.observeMercenaryDeath(prev, cur)
 	rt.observeMercenaryDeath(cur, cur)
 
-	if err := recorder.Close(); err != nil {
+	if err = recorder.Close(); err != nil {
 		t.Fatal(err)
 	}
 	file, err := os.Open(path)

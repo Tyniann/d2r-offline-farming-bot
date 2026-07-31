@@ -4,7 +4,7 @@
 
 Abschnitt 13.0 friert die bestehende Loot-, Config-, Session-, API- und React-Baseline ein und legt die persistenten Pickit-Verträge fest. Dieser Abschnitt erzeugt noch keinen Item-Identitätskatalog, liest keine neue Memory-Quelle und verändert keine produktive Loot-Entscheidung.
 
-KISS und YAGNI sind verbindlich: Phase 13 ergänzt ausschließlich wiederverwendbare Profile, die Aktionen `keep` und `sell`, exakte Set-/Unique-Identitäten sowie `ethereal + base item`. `maxquantity`, Prefix/Suffix, Affixdaten, vollständige NIP-Kompatibilität und Sockelregeln bleiben ausgeschlossen. „Elite Polearm mit vier Sockeln“ wird erst umgesetzt, nachdem Datenquelle, Sichtbarkeit, Typvererbung und Syntax gemeinsam spezifiziert wurden.
+KISS und YAGNI sind verbindlich: Phase 13 ergänzt ausschließlich wiederverwendbare Profile, die Aktionen `keep` und `sell`, exakte Set-/Unique-Identitäten sowie `ethereal + base item`. `maxquantity`, Prefix/Suffix, Affixdaten und vollständige NIP-Kompatibilität bleiben ausgeschlossen. **Sockelregeln waren in Phase 13 bewusst nicht enthalten**; sie wurden in **Phase 19** nach Live-Gate spezifiziert und implementiert — siehe [Sockel-Support für Pickit](socket-pickit.md).
 
 ## Ort im Code
 
@@ -121,7 +121,7 @@ Die festgeschriebene Matrix umfasst:
 - Countess: Runen, Key of Terror, Rejuvenation Potions sowie Flawless/Perfect Gems und Skulls werden aufgenommen; Chipped Gems und Exceptional-/Elite-Set-/Unique-Basen nicht.
 - Mephisto: Flawless/Perfect Gems und Skulls werden aufgenommen und nie verkauft. Exceptional-/Elite-Set-/Unique-Basen werden unabhängig vom Identifikationsstatus aufgenommen und als Sell-Kandidaten markiert. Normale Basen und andere Qualitäten matchen nicht.
 - Bei mehreren Treffern bleibt ausschließlich der erste Regelmatch autoritativ.
-- `maxquantity`, `[sockets]`, `socketed`, Prefix, Suffix und unbekannte NIP-Sektionen schlagen mit Datei- und Zeilenkontext fehl.
+- `maxquantity`, Prefix, Suffix und unbekannte NIP-Sektionen schlagen mit Datei- und Zeilenkontext fehl. `[sockets]` und `socketed` waren in der Phase-13-Baseline Parser-Fehler; Phase 19 hebt das für Gesamtsockel auf ([Sockel-Support für Pickit](socket-pickit.md)).
 - Config- und Session-Tests sichern die bestehenden Run-Policy-Pfade und den read-only Preflight. API-Tests sichern Host, Origin, Token, Methode, Content-Type, Body-Limit und strikte JSON-Dekodierung. React-Tests sichern die bestehende App-/Routenstruktur und Core-autoritative Mutationen.
 
 ## Grenzen
@@ -129,7 +129,7 @@ Die festgeschriebene Matrix umfasst:
 - Kein neuer Memory-Read und keine Live-Identitätsprobe in 13.0.
 - Kein Kataloggenerator, kein `setitem`-/`uniqueitem`-Parser und keine neue Loot-Runtime.
 - Keine Profilpersistenz, API oder Pickit-UI vor den dafür vorgesehenen Abschnitten.
-- Keine Sockel-, Mengen-, Prefix-/Suffix- oder Affixlogik.
+- Keine Mengen-, Prefix-/Suffix- oder Affixlogik. Gesamtsockel-Prädikate: Phase 19 ([Sockel-Support für Pickit](socket-pickit.md)).
 
 ## Verwandte Features
 
@@ -138,6 +138,7 @@ Die festgeschriebene Matrix umfasst:
 - [Session-Lifecycle](session-lifecycle.md)
 - [Lokale Core-API](local-core-api.md)
 - [Phase-12-Core-Vertrag](phase-12-core-contract.md)
+- [Sockel-Support für Pickit](socket-pickit.md) — Phase-19-Nachtrag zu Socket-Non-Goals
 
 ---
-*Zuletzt aktualisiert: 21. Juli 2026*
+*Zuletzt aktualisiert: 2026-07-31*

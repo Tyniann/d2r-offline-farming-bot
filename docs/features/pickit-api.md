@@ -29,6 +29,19 @@ Vor jeder Session-Run-Generation löst der Core Character, Run, geordnete Profil
 
 Import wandelt NIP-Zeilen in kanonische Entwurfsregeln um und persistiert nichts. Weil NIP keine Phase-13-Aktion transportiert, muss eine Aktion explizit gewählt werden. Export liefert kanonische Ausdrücke und weist darauf hin, dass `keep`, `sell` und `ignore` nicht im NIP-Text enthalten sind.
 
+### Kontrollierte Item-Vorschau (Socket-Felder, Phase 19)
+
+Der Preview-Request und die Antwort tragen zusätzlich zu den bestehenden Item-Feldern:
+
+| Feld | Bedeutung |
+|------|-----------|
+| `base_tier` | Generiertes Tier des Basisitems |
+| `sockets` | Gesamtsockelzahl (0 wenn unavailable) |
+| `sockets_available` | Ob konsistente Socket-Evidenz vorliegt |
+| `socketed` | Konsistentes Ergebnis aus Flag und Stat |
+
+Widersprüchliche Fixtures mit `sockets_available=true` werden abgelehnt. Die Auswertung nutzt dieselbe fail-closed Semantik wie die Runtime; Details: [Sockel-Support für Pickit](socket-pickit.md).
+
 ## Grenzen
 
 Die Vorschau arbeitet ausschließlich mit einem vom Request gelieferten Test-Item und liest weder Live-Memory noch sendet sie Input. Die React-Oberfläche ist nicht Teil dieses Abschnitts.
@@ -38,6 +51,7 @@ Die Vorschau arbeitet ausschließlich mit einem vom Request gelieferten Test-Ite
 - [Pickit-Profile und Assignments](pickit-profiles.md)
 - [Lokale Core-API](local-core-api.md)
 - [Session-Lifecycle](session-lifecycle.md)
+- [Sockel-Support für Pickit](socket-pickit.md)
 
 ---
-*Zuletzt aktualisiert: 21. Juli 2026*
+*Zuletzt aktualisiert: 2026-07-31*

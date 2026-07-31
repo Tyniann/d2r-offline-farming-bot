@@ -54,15 +54,15 @@ Diese Vorgehensweise ist absichtlich datengetrieben: Wenn zukünftige D2R-Versio
 
 ### Probe-Logging
 
-Normale `world state`-Logs enthalten `item_count` und `ground_item_count`. Der Fingerprint berücksichtigt nur stabile Ground-Item-Identität (`UnitID`, `TxtFileNo`, `Location`), damit Inventory-/Unknown-Churn keine Operator-Logs spammt. Mit `--probe --verbose` erscheinen gekappte Ground- und persönliche Inventory-Hints mit UnitID, Item-ID, Basiscode/-name, Qualität, Ethereal, Identitätsart, Raw-ID, Available-Flag, kanonischem Namen, Konsistenzstatus und Validitätsgrund. Offensichtliche Dummy-Types wie `body` werden aus dem Ground-Hint ausgeblendet. Diese Diagnose ist read-only und löst keine Input-Aktion aus.
+Normale `world state`-Logs enthalten `item_count` und `ground_item_count`. Der Fingerprint berücksichtigt nur stabile Ground-Item-Identität (`UnitID`, `TxtFileNo`, `Location`), damit Inventory-/Unknown-Churn keine Operator-Logs spammt. Mit `--probe --verbose` erscheinen gekappte Ground- und persönliche Inventory-Hints mit UnitID, Item-ID, Basiscode/-name, Qualität, Identified, Ethereal, rohen Flags hexadezimal, getrennter Active-/Base-Stat-194-Evidenz (`unreadable` / `absent` / `value:N`), produktiven Sockelfeldern (`sockets`, `sockets_available`, `socketed`), Identitätsart, Raw-ID, Available-Flag, kanonischem Namen, Konsistenzstatus und Validitätsgrund. Offensichtliche Dummy-Types wie `body` werden aus dem Ground-Hint ausgeblendet. Diese Diagnose ist read-only und löst keine Input-Aktion aus. Produktive Sockelfelder und Pickit-Syntax: [Sockel-Support für Pickit](socket-pickit.md).
 
 ## Datenmodell
 
 | Typ | Rolle |
 |-----|-------|
-| `memory.ItemUnit` | Rohe Item-Daten aus dem Item-Segment: `TxtFileNo`, `UnitID`, `Quality`, optionale `UniqueSetID`, `RawLocation`, Position, Flags, Identified/Ethereal, rohe Stats |
+| `memory.ItemUnit` | Rohe Item-Daten aus dem Item-Segment: `TxtFileNo`, `UnitID`, `Quality`, optionale `UniqueSetID`, `RawLocation`, Position, Flags, Identified/Ethereal, `Sockets`/`SocketsAvailable`/`Socketed`, rohe Stats, Gate-19.0 Active-/Base-Stat-194-Evidenz |
 | `memory.RawStat` | Bounded Raw-Stat-Eintrag ohne Life/Mana-Skalierung |
-| `world.Item` | Semantisches Item mit streng validierter Set-/Unique-Identität und explizitem Validitätsgrund im World State |
+| `world.Item` | Semantisches Item mit streng validierter Set-/Unique-Identität, `Sockets`/`SocketsAvailable`/`Socketed` und explizitem Validitätsgrund im World State |
 | `world.ItemQuality` | Qualität: normal, magic, rare, unique, set usw. |
 | `world.ItemLocation` | Locations: `ground`, `inventory`, `equipped`, `belt`, `cursor`, `cube`, `stash`, `shared_stash_1..3`, `socket`, `unknown` |
 | `world.ItemIdentityCatalogEntry` | Eingebettete Set-/Unique-Identität mit Art, Raw-ID, stabilem Schlüssel, englischem Namen, Basiscode und Spawnability |
@@ -99,6 +99,7 @@ Nach einem Countess-Kill sollen Ground-Drops im `world state` erscheinen, z. B. 
 - [Countess-Run](countess-run.md)
 - [Inventory Model und Lock Grid](inventory-lock-grid.md)
 - [Loot- und Recovery-Loop](loot-recovery-loop.md)
+- [Sockel-Support für Pickit](socket-pickit.md)
 
 ---
-*Zuletzt aktualisiert: 2026-07-21*
+*Zuletzt aktualisiert: 2026-07-31*

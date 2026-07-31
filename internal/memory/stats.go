@@ -12,6 +12,10 @@ const (
 	StatMaxMana  uint16 = 9
 	StatGold     uint16 = 14
 	StatGoldBank uint16 = 15
+	// StatNumSockets is item_numsockets (*ID 194) from the local extract
+	// `.tmp/d2r-excel/itemstatcost.txt` (dated 2026-07-13, catalog build D2R `3.2.92777`).
+	// Runtime never reads the Excel file; Gate 19.0 still has to confirm live Active/Base presence.
+	StatNumSockets uint16 = 194
 
 	maxRawStatEntries = 512
 )

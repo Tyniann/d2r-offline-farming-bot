@@ -503,12 +503,16 @@ export interface PickitPreviewItemDTO {
   name?: string;
   type?: string;
   quality: string;
+  base_tier?: string;
   identity_kind?: string;
   identity_key?: string;
   identity_available?: boolean;
   identity_valid?: boolean;
   identified?: boolean;
   ethereal?: boolean;
+  sockets?: number;
+  sockets_available?: boolean;
+  socketed?: boolean;
 }
 
 export interface PickitPreviewRequest {

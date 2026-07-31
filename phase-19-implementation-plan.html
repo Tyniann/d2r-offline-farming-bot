@@ -16,7 +16,7 @@
 </head>
 <body><main>
   <section class="hero">
-    <div class="chip">D2R Offline Farming Bot · Phase 19 · geplant</div>
+    <div class="chip">D2R Offline Farming Bot · Phase 19 · abgeschlossen · Ziel v0.17.0</div>
     <h1>Sockel-Support für das bestehende Pickit</h1>
     <p class="lead">Phase 19 ergänzt das vorhandene First-Match-Pickit um die live gelesene Sockelanzahl und das Flag <code>socketed</code>. Der geführte Editor erstellt daraus genau eine kombinierte Regel aus explizit gewählten Ausrüstungstypen, optionalem Tier, Sockelvergleich und Ätherisch. Memory, World Model, Core-Parser und Runtime bleiben die Autoritäten; die React-Oberfläche setzt nur den dokumentierten Ausdruck zusammen. Leere Sockel, Socket-Inhalte, Larzuk-Potenzial, Typvererbung und Änderungen an ausgelieferten Profilen bleiben bewusst außerhalb dieses Schnitts.</p>
     <div class="chips"><span class="chip">Stat 194</span><span class="chip">Flag nur nach Live-Gate</span><span class="chip">Vor Identify sichtbar</span><span class="chip">Fail-closed</span><span class="chip">Typ-Multiselect</span><span class="chip">Ein Ausdruck</span><span class="chip">Keine Typvererbung</span><span class="chip">Keine Profiländerung</span></div>
@@ -40,7 +40,7 @@
     <tr><td>Fail-closed</td><td>Bei <code>SocketsAvailable=false</code> liefern sämtliche Socket-Prädikate <code>false</code>, ausdrücklich auch <code>!=</code>. Unbekannt ist nicht „ungesockelt“.</td></tr>
     <tr><td>Typsemantik</td><td><code>[type]</code> bleibt ein exakter Vergleich gegen den bestehenden Katalogcode. Keine Typvererbung, keine stillen Obertypen und keine Änderung vorhandener Regeln.</td></tr>
     <tr><td>Geführter Builder</td><td>Ein Builder kombiniert Typ-Multiselect, optionales Tier, Sockeloperator/-anzahl, Ätherisch und die vorhandene Aktion zu genau einer neuen Regel. Mehrere Typen werden sichtbar in einer geklammerten OR-Gruppe serialisiert.</td></tr>
-    <tr><td>Typauswahl</td><td>Die durchsuchbare Auswahl enthält alle für Sockelregeln spielerisch relevanten Ausrüstungstypen. Gleiche Slots tragen denselben Präfix und einen eindeutigen Suffix, etwa „Schilde“, „Schilde – Nekromant“, „Schilde – Paladin“.</td></tr>
+    <tr><td>Typauswahl</td><td>Die durchsuchbare Auswahl enthält alle für Sockelregeln spielerisch relevanten Ausrüstungstypen. Gleiche Slots tragen denselben Präfix und einen eindeutigen Suffix, etwa „Schilde“, „Schilde – Nekromant“, „Schilde – Hexenmeister“, „Schilde – Paladin“. Der Hexenmeister hat im Katalog keinen eigenen Waffentyp; klassegebunden ist nur Offhand <code>grim</code>.</td></tr>
     <tr><td>UI-Technik</td><td>Aufklappbare native React-Auswahl mit Suchfeld und Checkboxen; keine zusätzliche Combobox-/Select-Dependency. Suche und Tastaturbedienung verwenden normale Inputs und Buttons.</td></tr>
     <tr><td>Profile</td><td>Schema und ausgelieferte Profile bleiben unverändert. Phase 19 fügt keine Regel und keine Assignment-Änderung automatisch hinzu.</td></tr>
     <tr><td>API</td><td>Der bestehende kontrollierte Preview-Vertrag erhält Tier, Sockelzahl, Availability und Socketed. Es entsteht keine neue Preview-Seite; Validierung und kanonische Auswertung bleiben Core-Aufgaben.</td></tr>
@@ -211,8 +211,8 @@ Erzeugter Ausdruck:
     <tr><td>Klauen – Assassine</td><td><code>h2h</code>, <code>h2h2</code></td><td><code>([type] == "h2h" || [type] == "h2h2")</code></td></tr>
     <tr><td>Körperrüstungen</td><td><code>tors</code></td><td><code>[type] == "tors"</code></td></tr>
     <tr><td>Orbs – Zauberin</td><td><code>orb</code></td><td><code>[type] == "orb"</code></td></tr>
-    <tr><td>Schilde – Nekromant (Grimoires)</td><td><code>grim</code></td><td><code>[type] == "grim"</code></td></tr>
     <tr><td>Schilde</td><td><code>shie</code></td><td><code>[type] == "shie"</code></td></tr>
+    <tr><td>Schilde – Hexenmeister (Grimoires)</td><td><code>grim</code></td><td><code>[type] == "grim"</code></td></tr>
     <tr><td>Schilde – Nekromant (Köpfe)</td><td><code>head</code></td><td><code>[type] == "head"</code></td></tr>
     <tr><td>Schilde – Paladin</td><td><code>ashd</code></td><td><code>[type] == "ashd"</code></td></tr>
     <tr><td>Schwerter</td><td><code>swor</code></td><td><code>[type] == "swor"</code></td></tr>
@@ -265,7 +265,7 @@ Erzeugter Ausdruck:
     <tr><td>Parser</td><td>Alle sechs Integeroperatoren; Quotes/Klammern/AND/OR; <code>socketed ==</code>/<code>!=</code>; ungültige Flags, Literale und Operatoren; kanonischer Roundtrip; bisherige Non-Goal-Tests gezielt umdrehen.</td></tr>
     <tr><td>Evaluation</td><td>Unidentified + available matcht; echte Stats bleiben Identify-gegatet; unavailable ist für jeden Operator false, auch <code>!=</code>; 3/4/5 Sockel; socketed true/false; First-Match und Trace unverändert.</td></tr>
     <tr><td>API</td><td>Preview positiv/negativ/unavailable/widersprüchlicher Request; striktes JSON; OpenAPI und generierter Client aktuell; bestehende Katalog-/Profilverträge unverändert.</td></tr>
-    <tr><td>Builder</td><td>Ein Typ ohne Klammer; mehrere Typen mit OR-Klammer; Schilde normal/Paladin einzeln und gemeinsam; Suche „Paladin“, „Nekromant“, „Reife“; deutsche Sortierung; Tier beliebig/elite; alle Operatoren; 1/6 gültig, leer/0/7 ungültig; Ethereal kanonisch; genau eine Regel.</td></tr>
+    <tr><td>Builder</td><td>Ein Typ ohne Klammer; mehrere Typen mit OR-Klammer; Schilde normal/Paladin einzeln und gemeinsam; Suche „Paladin“, „Nekromant“, „Hexenmeister“, „Reife“; deutsche Sortierung; Tier beliebig/elite; alle Operatoren; 1/6 gültig, leer/0/7 ungültig; Ethereal kanonisch; genau eine Regel.</td></tr>
     <tr><td>Accessibility</td><td>Labels, Checkboxen und Disclosure per Tastatur; Fokus bleibt nachvollziehbar; Auswahlstatus wird sichtbar angekündigt; kein horizontaler Überlauf bei 390 × 844.</td></tr>
     <tr><td>Regression</td><td>Default-Profile und Assignments bytegleich; bestehende Countess-/Mephisto-/Summoner-/Nihlathak-Matchmatrix; Set-/Unique-, Tier-, Ethereal- und Statregeln; Pickup/Identify/Stash/Vendor unverändert.</td></tr>
     <tr><td>Gesamtmatrix</td><td><code>go test ./...</code>, <code>go test ./tools/generate-item-catalog</code>, <code>go build ./cmd/d2rbot</code>, <code>go vet ./...</code>, <code>golangci-lint run</code>, <code>node web/scripts/generate-api.mjs</code>, danach <code>node web/scripts/generate-api.mjs --check</code>, Webtests, TypeScript-Typecheck und Web-/Electron-Build. Race nur bei tatsächlich neuer Nebenläufigkeit.</td></tr>
@@ -274,86 +274,86 @@ Erzeugter Ausdruck:
   <h2>14. Umsetzungsreihenfolge mit harten Gates</h2>
   <div class="phase">
     <div class="phase-id">19.0</div>
-    <div><h3>Baseline und read-only Socket-Evidenz</h3>
+    <div><h3>Baseline und read-only Socket-Evidenz <span class="good">— bestanden 31.07.2026</span></h3>
       <ol>
-        <li>Dirty Worktree dokumentieren; Nutzerdateien und <code>node_modules</code> nicht anfassen. Bestehende Parser-, Item-, API- und Webtests als Baseline ausführen.</li>
-        <li>Stat-ID 194 aus der vorhandenen lokalen Excel-Datei erneut maschinenlesbar bestätigen und Quellversion festhalten.</li>
-        <li>Nur die verbose Diagnose um Raw-Flags und getrennte Active-/Base-Stat-194-Evidenz erweitern; noch keine World-Felder, Parserfreigabe oder Regel-UI.</li>
-        <li>Die fünf Beobachtungen aus Abschnitt 5 mit echten Items erfassen und die exakte Flagmaske isolieren.</li>
-        <li>Ergebnis, D2R-Build, Fälle und Maske in <code>docs/features/socket-pickit.md</code> einfrieren.</li>
+        <li><span class="good">Erledigt:</span> Dirty Worktree sauber; Baseline-Tests und Build grün.</li>
+        <li><span class="good">Erledigt:</span> <code>item_numsockets</code> → <code>*ID 194</code>; Konstante <code>memory.StatNumSockets</code>.</li>
+        <li><span class="good">Erledigt:</span> Verbose Hints mit <code>flags</code>, <code>active_stat194</code>, <code>base_stat194</code>.</li>
+        <li><span class="good">Erledigt live:</span> A Skullder's ungesockelt; B Thresher 4os leer; C Bone Wand White (belegt, weiterhin value:2); D Elegant Blade 1os weiß/grau; E Thresher Ground→Inventory identisch. Magic Identify-Bit: Gauntlets <code>identified=true</code> vs. Tome <code>identified=false</code>.</li>
+        <li><span class="good">Eingefroren:</span> Flagmaske <code>0x800</code>; Stat nur in Base beobachtet; kein live <code>value:0</code>; siehe <code>docs/features/socket-pickit.md</code>.</li>
       </ol>
-      <div class="callout gate"><strong>Gate 19.0 – manuell:</strong> Active-/Base-Quelle, Null-/Missing-Semantik, Stat und genau ein Flagbit belegen ungesockelt, leer gesockelt und belegt gesockelt reproduzierbar. Gesamtzahl bleibt bei belegten Sockeln erhalten und ist ohne Identify lesbar. Bei Unklarheit stoppen; keine Nur-Stat-Ableitung.</div>
+      <div class="callout"><strong>Erkenntnisse:</strong> Active war in allen Socket-Fällen <code>absent</code>, Base trug Stat 194 — produktiver Decoder muss Base lesen und darf Active-Erfolg ohne 194 Base nicht verdecken. Weiße/graue Bases haben typischerweise <code>identified=true</code>; das ist kein Reader-Bug. Fall-D-Verwechslung im Agent war Auswertefehler, nicht fehlende Probe-Evidenz.</div>
+      <div class="callout gate success"><strong>Gate 19.0 – bestanden:</strong> Maske <code>0x800</code>, Stat 194 Base-first, Gesamtsockel bei Runewort erhalten, weiß/grau lesbar, Location-Wechsel stabil. 19.1 darf Decoder bauen; Parser bleibt gesperrt.</div>
     </div>
   </div>
 
   <div class="phase">
     <div class="phase-id">19.1</div>
-    <div><h3>Memory- und World-Modell</h3>
+    <div><h3>Memory- und World-Modell <span class="good">— bestanden 31.07.2026</span></h3>
       <ol>
-        <li>Bestätigte Maske und Statkonstante samt Designkommentar übernehmen.</li>
-        <li>Konsistenzdecoder und ItemUnit-Felder implementieren; jede nach Gate 19.0 benötigte Active-/Base-Liste höchstens einmal durchsuchen.</li>
-        <li>World-Felder, Mapping, Clone/Reset und verbose semantische Ausgabe ergänzen.</li>
-        <li>Truth-Table-Tests und optionalen Read-Fehler vollständig abdecken.</li>
-        <li>Den Gate-19.0-Livefall erneut gegen die produktiven World-Felder laufen lassen.</li>
+        <li><span class="good">Erledigt:</span> <code>itemFlagSocketed = 0x800</code>; <code>StatNumSockets = 194</code>.</li>
+        <li><span class="good">Erledigt:</span> <code>decodeItemSockets</code> + Felder; Base-only Stat 194 sichtbar.</li>
+        <li><span class="good">Erledigt:</span> World-Projektion und verbose semantische Felder.</li>
+        <li><span class="good">Erledigt:</span> Truth-Table-/Mapper-Tests und Build grün.</li>
+        <li><span class="good">Live:</span> Lore-Helm 2os, Thresher 4os, Skullder's unavailable — produktive Felder korrekt (<code>d2rbot-20260731-203653.log</code>).</li>
       </ol>
-      <div class="callout gate"><strong>Gate 19.1 – automatisiert plus read-only live:</strong> Unit- und Mappermatrix ist grün; derselbe echte Ground-Fall zeigt korrekte <code>Sockets</code>, <code>SocketsAvailable</code> und <code>Socketed</code>; Itemanzahl und Poll-/Walk-Verhalten bleiben unverändert.</div>
+      <div class="callout gate success"><strong>Gate 19.1 – bestanden:</strong> Decoder und Live-Hints stimmen; Itemanzahl unverändert. 19.2 freigegeben.</div>
     </div>
   </div>
 
   <div class="phase">
     <div class="phase-id">19.2</div>
-    <div><h3>Parser, Evaluation und API</h3>
+    <div><h3>Parser, Evaluation und API <span class="good">— bestanden (automatisiert) 31.07.2026</span></h3>
       <ol>
-        <li><code>[sockets]</code> als eigenes Feld und <code>socketed</code> als Flagliteral ergänzen.</li>
-        <li>Fail-closed Availability vor jedem Operator prüfen; Identify-Gate nur für bestehende Raw-Stats belassen.</li>
-        <li>Serializer, Import und bisherige Unsupported-Tests auf den neuen Vertrag umstellen.</li>
-        <li>Preview-DTO, OpenAPI, Backend-Mapping und generierten Client aktualisieren.</li>
-        <li>Bestehende First-Match- und Runtime-Characterization vollständig ausführen.</li>
+        <li><span class="good">Erledigt:</span> <code>[sockets]</code> und <code>socketed</code> freigeschaltet.</li>
+        <li><span class="good">Erledigt:</span> Fail-closed Availability inkl. <code>!=</code>; Identify-Gate nur für Raw-Stats.</li>
+        <li><span class="good">Erledigt:</span> Serializer/Unsupported-Tests umgestellt.</li>
+        <li><span class="good">Erledigt:</span> Preview-DTO inkl. <code>base_tier</code>/Socket-Zustand, OpenAPI und Client.</li>
+        <li><span class="good">Erledigt:</span> Parser-/Preview-Matrix und bestehende First-Match-Charakterisierung grün.</li>
       </ol>
-      <div class="callout gate"><strong>Gate 19.2 – automatisiert:</strong> Positive, negative und unavailable Matrix besteht für Parser, Serializer, Preview und Runtime. Unidentifizierte Socket-Bases matchen; unavailable <code>!= socketed</code> matcht ausdrücklich nicht; alle bisherigen Profile kompilieren unverändert.</div>
+      <div class="callout gate success"><strong>Gate 19.2 – bestanden:</strong> Positive/negative/unavailable Matrix ok; unavailable <code>!= socketed</code> matcht nicht.</div>
     </div>
   </div>
 
   <div class="phase">
     <div class="phase-id">19.3</div>
-    <div><h3>Geführter kombinierter Editor</h3>
+    <div><h3>Geführter kombinierter Editor <span class="good">— bestanden 31.07.2026</span></h3>
       <ol>
-        <li>Explizite Typoptionsliste aus Abschnitt 9 gegen die vorhandenen API-Bases absichern.</li>
-        <li>Native durchsuchbare Mehrfachauswahl, Tier, Sockeloperator/-zahl und Ethereal in den bestehenden Regelbereich integrieren.</li>
-        <li>Eine pure Ausdrucksfunktion mit fester Bedingungsreihenfolge verwenden; bestehenden Ethereal-Basispfad auf <code>[flag] == ethereal</code> korrigieren.</li>
-        <li>Deutsche Feldfehler, Keyboard-, Fokus- und Small-Viewport-Fälle testen.</li>
-        <li>Browser-QA: „Paladin“ findet ausschließlich passende Optionen; Schilde normal und Paladin erzeugen zusammen genau eine Regel.</li>
+        <li><span class="good">Erledigt:</span> Explizite Typoptionsliste aus Abschnitt 9 gegen die vorhandenen API-Bases abgesichert.</li>
+        <li><span class="good">Erledigt:</span> Native durchsuchbare Mehrfachauswahl, Tier, Sockeloperator/-zahl und Ethereal integriert.</li>
+        <li><span class="good">Erledigt:</span> Pure Ausdrucksfunktion; Ethereal-Basispfad kanonisch <code>[flag] == ethereal</code>.</li>
+        <li><span class="good">Korrigiert:</span> <code>grim</code> heißt „Schilde – Hexenmeister (Grimoires)“; Nekromant behält nur <code>head</code>. Kein Hexenmeister-Waffentyp im Katalog.</li>
+        <li><span class="good">Live:</span> Profil <code>gate</code> enthält exakt <code>([type] == "shie" || [type] == "ashd") &amp;&amp; [tier] == "elite" &amp;&amp; [sockets] == 4</code>.</li>
       </ol>
-      <div class="callout gate"><strong>Gate 19.3 – Browser automatisiert plus manuell:</strong> Der Benutzer erzeugt ohne Raw-Code-Kenntnis genau <code>([type] == "shie" || [type] == "ashd") &amp;&amp; [tier] == "elite" &amp;&amp; [sockets] == 4</code>; Core-Validierung akzeptiert den Entwurf; Suche, Mehrfachauswahl und 390-px-Viewport sind bedienbar.</div>
+      <div class="callout gate success"><strong>Gate 19.3 – bestanden:</strong> Operator-Beleg <code>%LOCALAPPDATA%\D2ROfflineFarmingBot\configs\pickit\profiles\gate.yaml</code>. 19.4 freigegeben.</div>
     </div>
   </div>
 
   <div class="phase">
     <div class="phase-id">19.4</div>
-    <div><h3>Dokumentation und automatische Gesamtmatrix</h3>
+    <div><h3>Dokumentation und automatische Gesamtmatrix <span class="good">— bestanden 31.07.2026</span></h3>
       <ol>
-        <li><code>socket-pickit.md</code> finalisieren und Pickit Engine, Editor, Item Enumeration sowie den Phase-13-Nachtrag aktualisieren.</li>
-        <li>Feature-Index, Changelog und Handoff auf „in Arbeit“ beziehungsweise den tatsächlich erreichten Gate-Stand synchronisieren.</li>
-        <li>Typvererbung mit benötigter <code>itemtypes.txt</code> als spätere optionale Erweiterung dokumentieren, nicht implementieren.</li>
-        <li>Default-Profile und Assignments auf unveränderten Inhalt prüfen.</li>
-        <li>Gesamtmatrix aus Abschnitt 13 ausführen; Race nur bei neuer Nebenläufigkeit.</li>
+        <li><span class="good">Erledigt:</span> <code>socket-pickit.md</code> finalisiert; Pickit Engine/Editor/API, Item Enumeration und Phase-13-Nachtrag aktualisiert.</li>
+        <li><span class="good">Erledigt:</span> Feature-Index, Changelog und Handoff auf Gate-Stand 19.0–19.4 synchron.</li>
+        <li><span class="good">Erledigt:</span> Spätere Typvererbung mit benötigter <code>itemtypes.txt</code> als Dokumentationsanker, nicht implementiert.</li>
+        <li><span class="good">Erledigt:</span> Ausgelieferte Default-Profile/Assignments ohne Socket-Regeln (unverändert).</li>
+        <li><span class="good">Erledigt:</span> Gesamtmatrix Abschnitt 13 grün; vorbestehender <code>govet</code>-Shadow in Merc-Telemetrie-Test behoben.</li>
       </ol>
-      <div class="callout gate"><strong>Gate 19.4 – automatisiert:</strong> Go-, API-, Web-, Electron-, Lint- und Buildmatrix ist grün; Dokumentation entspricht exakt Flagmaske, Truth Table, UI-Liste und Syntax; keine ausgelieferte Pickit-Policy änderte sich.</div>
+      <div class="callout gate success"><strong>Gate 19.4 – bestanden:</strong> Go-/API-/Web-/Lint-/Buildmatrix grün; Doku entspricht Flagmaske, Truth Table, UI-Liste und Syntax. 19.5 freigegeben.</div>
     </div>
   </div>
 
   <div class="phase">
     <div class="phase-id">19.5</div>
-    <div><h3>Manuelle Produktabnahme und Freigabe</h3>
+    <div><h3>Manuelle Produktabnahme und Freigabe <span class="good">— bestanden 31.07.2026</span></h3>
       <ol>
-        <li>Im installierten Produkt ein separates Abnahmeprofil mit einem tatsächlich verfügbaren gesockelten Ground-Item erstellen. Die konkrete Base darf nach Verfügbarkeit gewählt werden; ein seltener 4os-Elite-Schild ist keine Pflicht.</li>
-        <li>Über den geführten Builder Typ, passendes Tier, exakte Sockelzahl und optional Ethereal wählen, Entwurf validieren, speichern und einem isolierten Loot-Test zuordnen.</li>
-        <li>Ein positiver Ground-Fall muss dieselbe Profil-/Regelrevision matchen und über den bestehenden hover-bestätigten Pfad aufgenommen werden.</li>
-        <li>Ein negativer Kontrollfall mit falscher Sockelzahl oder anderem Typ bleibt liegen. Ein künstlich unavailable Fixture bleibt in Core-Preview und Tests No-Match.</li>
-        <li>Bei einem belegten Socket-Item read-only bestätigen, dass weiterhin die Gesamtzahl gilt. Es muss nicht aufgenommen oder gestasht werden.</li>
-        <li>Erst nach protokollierter Abnahme Phase/Handoff auf abgeschlossen setzen und Release <code>v0.17.0</code> vorbereiten.</li>
+        <li><span class="good">Erledigt:</span> Abnahmeprofil <code>test</code>/<code>tester</code> mit Stangenwaffen Elite und Sockelvergleich; MrBones/Countess zugeordnet.</li>
+        <li><span class="good">Positiv:</span> Thresher 4os am Boden → <code>--pathing-test pickup:item</code> mit <code>[sockets] == 4</code> → <code>status=picked_up</code> (<code>d2rbot-20260731-213037.log</code>).</li>
+        <li><span class="good">Negativ:</span> Regel auf <code>[sockets] == 3</code> → Thresher bleibt liegen, <code>no candidate</code> (<code>d2rbot-20260731-213159.log</code>).</li>
+        <li><span class="good">Sockelzahl:</span> Verbose zeigte durchgehend <code>sockets=4</code> / Base Stat 194 <code>value:4</code> (Gesamtzahl).</li>
+        <li><span class="good">Freigabe:</span> Phase 19 abgeschlossen; Release <code>v0.17.0</code> vorbereitet.</li>
       </ol>
-      <div class="callout gate"><strong>Gate 19.5 – manuell:</strong> UI-Auswahl, gespeicherter Ausdruck, Core-Trace und Live-Lootentscheidung stimmen überein; positiver Fall wird einmal aufgenommen, negativer Fall nicht. Kein vollständiger Boss-Run und kein seltener Ziel-Drop sind als zweite Pflichtabnahme erforderlich.</div>
+      <div class="callout gate success"><strong>Gate 19.5 – bestanden:</strong> Positiv aufgenommen, Negativ liegen gelassen; Socket-Pickit produktiv bestätigt.</div>
     </div>
   </div>
 
@@ -389,6 +389,6 @@ Erzeugter Ausdruck:
     <li>Nach jeder Stufe fokussierte Tests, am Ende die vollständige Matrix ausführen und echte Gate-Ergebnisse in Plan und Feature-Doc nachtragen.</li>
   </ol>
 
-  <footer>Phase 19 · geplant · Planstand 31. Juli 2026 · Ziel v0.17.0</footer>
+  <footer>Phase 19 · abgeschlossen · Gates 19.0–19.5 bestanden · Planstand 31. Juli 2026 · Freigabe v0.17.0</footer>
 </main></body>
 </html>

@@ -7,12 +7,20 @@ Versionierung nach [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.17.0] - 2026-07-31
+
 ### Added
-- Add the Phase 19 implementation plan for fail-closed socket Pickit predicates and the combined equipment-type rule builder
+- Add fail-closed socket Pickit (`[sockets]`, `[flag] socketed`) with memory/world decode from Stat 194 and flag `0x800`
+- Add Phase 19 guided Pickit editor for searchable equipment-type groups, optional tiers, socket comparisons, and ethereal flags
+- Add controlled Pickit preview fixtures for `base_tier` and socket availability
+- Add `docs/features/socket-pickit.md` and the Phase 19 implementation plan with live gate evidence through 19.5
+- Finalize Phase 19.4 cross-feature documentation for engine, editor, API, and item enumeration
 - Add `docs/reviews/` with the 2026-07-31 repo effort evaluation and archived Cursor canvas snapshot
 
 ### Fixed
-- Align embedded, README, handoff, packaging, and Git tag release metadata with version `0.16.0`
+- Fix Phase 19.3 type label for catalog `grim` to Hexenmeister Grimoires (not Necromancer); Warlock has no separate weapon type in the base catalog
+- Fix shadowed `err` in mercenary telemetry unit test so `golangci-lint` passes
+- Align embedded, README, handoff, packaging, and Git tag release metadata with version `0.17.0`
 
 ## [0.16.0] - 2026-07-31
 

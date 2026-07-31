@@ -146,6 +146,59 @@ func TestPickitStatRulesRequireIdentification(t *testing.T) {
 	}
 }
 
+func TestPickitSocketsAndSocketedFailClosed(t *testing.T) {
+	socketed4 := world.Item{
+		Type: "pole", BaseTier: world.BaseTierElite, Identified: false,
+		Sockets: 4, SocketsAvailable: true, Socketed: true,
+	}
+	first := loadPickitFromTestFile(t, `
+[sockets] == 4
+[sockets] >= 3
+[flag] == socketed
+[type] == "pole" && [tier] == "elite" && [sockets] == 4
+`)
+	if got := first.Evaluate(socketed4); !got.Matched || got.Line != 2 {
+		t.Fatalf("4os elite pole first-match = %+v, want line 2", got)
+	}
+
+	for _, expr := range []string{
+		"[sockets] > 3", "[sockets] >= 4", "[sockets] < 5",
+		"[sockets] <= 4", "[sockets] == 4", "[sockets] != 3",
+		`[type] == "pole" && [tier] == "elite" && [sockets] == 4`,
+		"[flag] == socketed",
+	} {
+		if !loadPickitFromTestFile(t, expr).Evaluate(socketed4).Matched {
+			t.Fatalf("%s did not match 4os item", expr)
+		}
+	}
+
+	unavailable := world.Item{Sockets: 4, SocketsAvailable: false, Socketed: true}
+	for _, expr := range []string{
+		"[sockets] == 4", "[sockets] != 0", "[sockets] > 0",
+		"[flag] == socketed", "[flag] != socketed",
+	} {
+		if loadPickitFromTestFile(t, expr).Evaluate(unavailable).Matched {
+			t.Fatalf("unavailable matched %s", expr)
+		}
+	}
+
+	unsocketedKnown := world.Item{Sockets: 0, SocketsAvailable: true, Socketed: false}
+	if !loadPickitFromTestFile(t, `[flag] != socketed`).Evaluate(unsocketedKnown).Matched {
+		t.Fatal("known unsocketed should match != socketed")
+	}
+	if loadPickitFromTestFile(t, `[flag] == socketed`).Evaluate(unsocketedKnown).Matched {
+		t.Fatal("known unsocketed matched == socketed")
+	}
+
+	canonical, err := CanonicalPickitExpression(`[type] == "pole" && [sockets] == 4 && [flag] == socketed`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if canonical != `[type] == "pole" && [sockets] == 4 && [flag] == "socketed"` {
+		t.Fatalf("canonical = %q", canonical)
+	}
+}
+
 func TestPickitQualityCanSelectUnidentifiedPickup(t *testing.T) {
 	p := loadPickitFromTestFile(t, "[quality] == unique")
 	item := world.Item{Quality: world.ItemQualityUnique, Identified: false}
@@ -190,13 +243,13 @@ func TestPickitRejectsUnsupportedSyntax(t *testing.T) {
 		want    string
 	}{
 		{name: "unsupported keyword", content: "[maxquantity] == 1", want: "unsupported keyword"},
-		{name: "socket alias", content: "[sockets] == 4", want: "unsupported keyword"},
-		{name: "socket flag", content: "[flag] == socketed", want: "unsupported flag"},
 		{name: "prefix", content: "[prefix] == fools", want: "unsupported keyword"},
 		{name: "suffix", content: "[suffix] == whale", want: "unsupported keyword"},
 		{name: "unknown NIP section", content: "[name] == r01 # [unknown] == value", want: "unsupported keyword"},
 		{name: "invalid string operator", content: "[name] > r01", want: "supports only == and !="},
+		{name: "invalid flag", content: "[flag] == enchanted", want: "unsupported flag"},
 		{name: "invalid stat literal", content: "[stat:12] >= rune", want: "requires an integer literal"},
+		{name: "invalid sockets literal", content: "[sockets] == four", want: "requires an integer literal"},
 		{name: "invalid syntax", content: "[type] == rune &&", want: "expected field"},
 	}
 	for _, tc := range tests {

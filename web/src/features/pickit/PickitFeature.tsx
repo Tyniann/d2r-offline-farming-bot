@@ -5,6 +5,10 @@ import {
   type PickitAssignmentsDTO, type PickitCatalogDTO, type PickitProfileDTO, type PickitRuleDTO,
 } from "../../api/generated";
 import { Button, Dialog } from "../../app/ui";
+import {
+  buildCombinedRuleExpression, equipmentTypeOptions, socketOperators,
+  type SocketOperator,
+} from "./pickitRuleBuilder";
 
 interface Props { characters: string[]; selectedCharacter: string; runs: string[]; locked: boolean; refreshKey: number }
 const actionLabels: Record<string, string> = { keep: "Behalten", sell: "Identifizieren / verkaufen" };
@@ -27,6 +31,14 @@ export function PickitFeature({ characters, selectedCharacter, runs, locked, ref
   const [ethereal, setEthereal] = useState(false);
   const [quality, setQuality] = useState("unique");
   const [tier, setTier] = useState("elite");
+  const [typePickerOpen, setTypePickerOpen] = useState(false);
+  const [typeQuery, setTypeQuery] = useState("");
+  const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
+  const [socketTier, setSocketTier] = useState<"" | "normal" | "exceptional" | "elite">("");
+  const [socketOperator, setSocketOperator] = useState<SocketOperator | "">("");
+  const [socketCount, setSocketCount] = useState("");
+  const [socketEthereal, setSocketEthereal] = useState(false);
+  const [builderErrors, setBuilderErrors] = useState<ReturnType<typeof buildCombinedRuleExpression>["errors"]>({});
   const [advanced, setAdvanced] = useState(false);
   const [importText, setImportText] = useState("");
   const [assignmentCharacter, setAssignmentCharacter] = useState(selectedCharacter);
@@ -38,6 +50,7 @@ export function PickitFeature({ characters, selectedCharacter, runs, locked, ref
   const [dialog, setDialog] = useState<PickitDialog | null>(null);
   const [dialogError, setDialogError] = useState("");
   const dialogInputRef = useRef<HTMLInputElement>(null);
+  const typePickerButtonRef = useRef<HTMLButtonElement>(null);
 
   const dirty = draft ? JSON.stringify(draft) !== saved : false;
   const load = async (signal?: AbortSignal) => {
@@ -65,6 +78,15 @@ export function PickitFeature({ characters, selectedCharacter, runs, locked, ref
     for (const entry of catalog?.identities ?? []) if (entry.kind === "set" && entry.set_name && entry.set_name.toLowerCase().includes(normalizedQuery)) groups.set(entry.set_name, [...(groups.get(entry.set_name) ?? []), entry]);
     return [...groups.entries()].filter(([, entries]) => entries.length > 1).slice(0, 5);
   }, [catalog, normalizedQuery]);
+  const normalizedTypeQuery = typeQuery.trim().toLocaleLowerCase("de");
+  const matchingTypeOptions = useMemo(
+    () => equipmentTypeOptions.filter((option) => option.label.toLocaleLowerCase("de").includes(normalizedTypeQuery)),
+    [normalizedTypeQuery],
+  );
+  const selectedTypeOptions = useMemo(
+    () => equipmentTypeOptions.filter((option) => selectedTypes.includes(option.label)),
+    [selectedTypes],
+  );
 
   function selectProfile(source: PickitProfileDTO[], id: string) { const profile = source.find((entry) => entry.id === id); setSelectedID(id); setDraft(profile ? clone(profile) : null); setSaved(profile ? JSON.stringify(profile) : ""); setNotice(""); }
   function chooseProfile(id: string) {
@@ -86,7 +108,28 @@ export function PickitFeature({ characters, selectedCharacter, runs, locked, ref
   function addRules(rules: Array<Omit<PickitRuleDTO, "id">>) { if (!draft) return; const existing = new Set(draft.rules.map((rule) => rule.id)); const next = rules.map((rule, index) => ({ ...rule, id: uniqueRuleID(existing, `regel-${draft.rules.length + index + 1}`) })); setDraft({ ...draft, rules: [...draft.rules, ...next] }); }
   function addSet(name: string, entries: PickitCatalogDTO["identities"]) { addRules(entries.map((entry) => ({ action: newAction, expression: `[setitem] == ${JSON.stringify(entry.key)}` }))); setNotice(`${name} wurde sichtbar in ${entries.length} Einzelregeln expandiert.`); }
   function addIdentity(entry: PickitCatalogDTO["identities"][number]) { addRules([{ action: newAction, expression: `[${entry.kind}item] == ${JSON.stringify(entry.key)}` }]); }
-  function addBase(code: string) { addRules([{ action: newAction, expression: `[name] == ${JSON.stringify(code)}${ethereal ? " && [ethereal] == true" : ""}` }]); }
+  function addBase(code: string) { addRules([{ action: newAction, expression: `[name] == ${JSON.stringify(code)}${ethereal ? " && [flag] == ethereal" : ""}` }]); }
+  function toggleEquipmentType(label: string) {
+    setSelectedTypes((current) => current.includes(label) ? current.filter((entry) => entry !== label) : [...current, label]);
+    setBuilderErrors((current) => ({ ...current, types: undefined }));
+  }
+  function closeTypePicker() {
+    setTypePickerOpen(false);
+    typePickerButtonRef.current?.focus();
+  }
+  function addCombinedRule() {
+    const result = buildCombinedRuleExpression({
+      types: selectedTypeOptions,
+      tier: socketTier,
+      socketsOperator: socketOperator,
+      sockets: socketCount,
+      ethereal: socketEthereal,
+    });
+    setBuilderErrors(result.errors);
+    if (!result.expression) return;
+    addRules([{ action: newAction, expression: result.expression }]);
+    setNotice("Kombinierte Sockelregel wurde als Entwurf hinzugefügt.");
+  }
   function updateRule(index: number, replacement: PickitRuleDTO) { if (!draft) return; const rules = [...draft.rules]; rules[index] = replacement; setDraft({ ...draft, rules }); }
   function moveRule(index: number, delta: number) { if (!draft) return; const target = index + delta; if (target < 0 || target >= draft.rules.length) return; const rules = [...draft.rules]; [rules[index], rules[target]] = [rules[target], rules[index]]; setDraft({ ...draft, rules }); }
 
@@ -187,6 +230,39 @@ export function PickitFeature({ characters, selectedCharacter, runs, locked, ref
           <fieldset><legend>Neue Regel</legend><div className="guided-rule"><label>Suche nach Set, Item oder Basis<input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="z. B. Tal Rasha oder Thresher" /></label><label>Aktion<select value={newAction} onChange={(event) => setNewAction(event.target.value)}><option value="keep">Behalten</option><option value="sell">Identifizieren / verkaufen</option></select></label><label className="check"><input type="checkbox" checked={ethereal} onChange={(event) => setEthereal(event.target.checked)} /> Nur ätherisch</label></div>
             <div className="quick-rules"><button type="button" className="secondary" onClick={() => addRules([{ action: newAction, expression: `[type] == "rune"` }])}>Alle Runen</button><button type="button" className="secondary" onClick={() => addRules([{ action: newAction, expression: `[name] == "pk1"` }])}>Schlüssel des Terrors</button><button type="button" className="secondary" onClick={() => addRules([["gzv", "gpv"], ["gly", "gpy"], ["glb", "gpb"], ["glg", "gpg"], ["glr", "gpr"], ["glw", "gpw"], ["skl", "skz"]].map((codes) => ({ action: newAction, expression: `[name] == "${codes[0]}" || [name] == "${codes[1]}"` })))}>Makellose/perfekte Gems (7 Regeln)</button><label>Qualität<select value={quality} onChange={(event) => setQuality(event.target.value)}>{catalog.qualities.map((entry) => <option key={entry}>{entry}</option>)}</select></label><button type="button" className="secondary" onClick={() => addRules([{ action: newAction, expression: `[quality] == "${quality}"` }])}>Qualität hinzufügen</button><label>Tier<select value={tier} onChange={(event) => setTier(event.target.value)}><option value="normal">normal</option><option value="exceptional">exceptional</option><option value="elite">elite</option></select></label><button type="button" className="secondary" onClick={() => addRules([{ action: newAction, expression: `[tier] == "${tier}"` }])}>Tier hinzufügen</button></div>
             {normalizedQuery && <div className="search-results" aria-label="Katalogtreffer">{matchingSets.map(([name, entries]) => <button type="button" key={name} onClick={() => addSet(name, entries)}>Ganzes Set {name} hinzufügen ({entries.length})</button>)}{matchingIdentities.map((entry) => <button type="button" className="secondary" key={`${entry.kind}-${entry.raw_id}`} onClick={() => addIdentity(entry)}>{entry.display_name} <small>{entry.kind}</small></button>)}{matchingBases.map((entry) => <button type="button" className="secondary" key={entry.txt_file_no} onClick={() => addBase(entry.code)}>{entry.name} <small>{entry.code} · {entry.base_tier}</small></button>)}</div>}
+            <fieldset className="combined-rule-builder">
+              <legend>Kombinierte Sockelregel</legend>
+              <div className="combined-rule-grid">
+                <div className="type-picker">
+                  <span id="equipment-types-label">Itemtypen</span>
+                  <button
+                    ref={typePickerButtonRef}
+                    type="button"
+                    className="secondary"
+                    aria-labelledby="equipment-types-label equipment-types-selection"
+                    aria-expanded={typePickerOpen}
+                    aria-controls="equipment-type-options"
+                    onClick={() => setTypePickerOpen((value) => !value)}
+                  >
+                    <span id="equipment-types-selection">{selectedTypes.length === 0 ? "Typen auswählen" : `${selectedTypes.length} ausgewählt`}</span>
+                  </button>
+                  {builderErrors.types && <small role="alert">{builderErrors.types}</small>}
+                  {typePickerOpen && <div id="equipment-type-options" className="type-picker-panel" onKeyDown={(event) => { if (event.key === "Escape") closeTypePicker(); }}>
+                    <label>Typen durchsuchen<input value={typeQuery} onChange={(event) => setTypeQuery(event.target.value)} autoFocus /></label>
+                    <p role="status">{matchingTypeOptions.length} Treffer · {selectedTypes.length} ausgewählt</p>
+                    <div className="type-option-list">
+                      {matchingTypeOptions.map((option) => <label className="check" key={option.label}><input type="checkbox" checked={selectedTypes.includes(option.label)} onChange={() => toggleEquipmentType(option.label)} /> {option.label}</label>)}
+                    </div>
+                    <button type="button" className="secondary" onClick={closeTypePicker}>Auswahl schließen</button>
+                  </div>}
+                </div>
+                <label>Tier<select value={socketTier} onChange={(event) => setSocketTier(event.target.value as typeof socketTier)}><option value="">Beliebig</option><option value="normal">Normal</option><option value="exceptional">Außergewöhnlich</option><option value="elite">Elite</option></select></label>
+                <label>Sockeloperator<select value={socketOperator} aria-invalid={Boolean(builderErrors.socketsOperator)} onChange={(event) => { setSocketOperator(event.target.value as SocketOperator | ""); setBuilderErrors((current) => ({ ...current, socketsOperator: undefined })); }}><option value="">Bitte wählen</option>{socketOperators.map((operator) => <option key={operator} value={operator}>{operator}</option>)}</select>{builderErrors.socketsOperator && <small role="alert">{builderErrors.socketsOperator}</small>}</label>
+                <label>Sockelzahl<input type="number" min="1" max="6" step="1" value={socketCount} aria-invalid={Boolean(builderErrors.sockets)} onChange={(event) => { setSocketCount(event.target.value); setBuilderErrors((current) => ({ ...current, sockets: undefined })); }} />{builderErrors.sockets && <small role="alert">{builderErrors.sockets}</small>}</label>
+                <label className="check"><input type="checkbox" checked={socketEthereal} onChange={(event) => setSocketEthereal(event.target.checked)} /> Ätherisch</label>
+                <button type="button" onClick={addCombinedRule} disabled={locked}>Kombinierte Regel hinzufügen</button>
+              </div>
+            </fieldset>
           </fieldset>
           <h4>Regelreihenfolge</h4><ol className="rule-list">{draft.rules.map((rule, index) => <li key={rule.id}><div><strong>{index + 1}. {actionLabels[rule.action] ?? rule.action}</strong><code>{rule.expression}</code></div><div className="inline-actions"><button type="button" className="secondary" aria-label={`Regel ${index + 1} nach oben`} disabled={locked || index === 0} onClick={() => moveRule(index, -1)}>↑</button><button type="button" className="secondary" aria-label={`Regel ${index + 1} nach unten`} disabled={locked || index === draft.rules.length - 1} onClick={() => moveRule(index, 1)}>↓</button><button type="button" className="secondary" disabled={locked} onClick={() => setDraft({ ...draft, rules: draft.rules.filter((_, item) => item !== index) })}>Entfernen</button></div>{advanced && <label>Ausdruck<input value={rule.expression} onChange={(event) => updateRule(index, { ...rule, expression: event.target.value })} /></label>}</li>)}</ol>
           <button type="button" className="secondary" onClick={() => setAdvanced((value) => !value)}>{advanced ? "Erweitertes Ausdrucksfeld schließen" : "Erweitertes Ausdrucksfeld"}</button>

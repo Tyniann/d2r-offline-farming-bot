@@ -268,6 +268,13 @@ func (e compareExpr) eval(item world.Item) bool {
 			has = item.Identified
 		case "ethereal":
 			has = item.Ethereal
+		case "socketed":
+			// Socket predicates stay fail-closed when evidence is unavailable,
+			// including != socketed — unknown is never treated as unsocketed.
+			if !item.SocketsAvailable {
+				return false
+			}
+			has = item.Socketed
 		default:
 			return false
 		}
@@ -275,6 +282,11 @@ func (e compareExpr) eval(item world.Item) bool {
 			return has
 		}
 		return !has
+	case fieldSockets:
+		if !item.SocketsAvailable {
+			return false
+		}
+		return compareInt(item.Sockets, e.op, e.lit.num)
 	case fieldStat:
 		if !item.Identified {
 			return false
@@ -381,6 +393,7 @@ const (
 	fieldUniqueItem
 	fieldFlag
 	fieldStat
+	fieldSockets
 )
 
 type pickitField struct {
@@ -517,6 +530,10 @@ func parsePickitField(raw string) (pickitField, error) {
 		return pickitField{kind: fieldUniqueItem, label: label}, nil
 	case "flag":
 		return pickitField{kind: fieldFlag, label: label}, nil
+	case "sockets":
+		// [sockets] is a dedicated field (Gate 19.0), not an alias for [stat:194],
+		// so white/gray bases can match without the Identify gate used by raw stats.
+		return pickitField{kind: fieldSockets, label: label}, nil
 	default:
 		if strings.HasPrefix(label, "stat:") {
 			id, err := strconv.ParseUint(strings.TrimPrefix(label, "stat:"), 10, 16)
@@ -559,14 +576,14 @@ func parsePickitLiteral(field pickitField, op tokenKind, tok pickitToken) (picki
 			return pickitLiteral{}, fmt.Errorf("[flag] supports only == and !=")
 		}
 		if tok.kind == tokenInteger {
-			return pickitLiteral{}, fmt.Errorf("[flag] requires identified or ethereal")
+			return pickitLiteral{}, fmt.Errorf("[flag] requires identified, ethereal, or socketed")
 		}
 		value := strings.ToLower(tok.value)
-		if value != "identified" && value != "ethereal" {
+		if value != "identified" && value != "ethereal" && value != "socketed" {
 			return pickitLiteral{}, fmt.Errorf("unsupported flag %q", tok.value)
 		}
 		return pickitLiteral{kind: literalString, text: value}, nil
-	case fieldStat:
+	case fieldSockets, fieldStat:
 		if tok.kind != tokenInteger {
 			return pickitLiteral{}, fmt.Errorf("[%s] requires an integer literal", field.label)
 		}

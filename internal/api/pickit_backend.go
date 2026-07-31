@@ -76,19 +76,60 @@ func (b *LiveBackend) PreviewPickit(request PickitPreviewRequest) (PickitPreview
 	if err != nil {
 		return PickitPreviewDTO{}, err
 	}
+	if err := validatePickitPreviewSockets(request.Item); err != nil {
+		return PickitPreviewDTO{}, &commandError{code: "request_invalid", message: err.Error()}
+	}
 	document := pickitDocument(validated.Profile)
 	specs := make([]loot.PickitRuleSpec, len(document.Rules))
 	for i, rule := range document.Rules {
 		specs[i] = loot.PickitRuleSpec{ProfileID: document.ID, RuleID: rule.ID, Action: rule.Action, Expression: rule.Expression, ProfileRevision: document.Revision}
 	}
 	compiled, _ := loot.CompilePickitRules("pickit API preview", specs)
-	item := world.Item{Code: request.Item.Code, Name: request.Item.Name, Type: request.Item.Type, Quality: previewQuality(request.Item.Quality), IdentityKind: world.ItemIdentityKind(request.Item.IdentityKind), IdentityKey: request.Item.IdentityKey, IdentityAvailable: request.Item.IdentityAvailable, IdentityValid: request.Item.IdentityValid, Identified: request.Item.Identified, Ethereal: request.Item.Ethereal}
+	item := world.Item{
+		Code: request.Item.Code, Name: request.Item.Name, Type: request.Item.Type,
+		Quality: previewQuality(request.Item.Quality), BaseTier: previewBaseTier(request.Item.BaseTier),
+		IdentityKind: world.ItemIdentityKind(request.Item.IdentityKind), IdentityKey: request.Item.IdentityKey,
+		IdentityAvailable: request.Item.IdentityAvailable, IdentityValid: request.Item.IdentityValid,
+		Identified: request.Item.Identified, Ethereal: request.Item.Ethereal,
+		Sockets: request.Item.Sockets, SocketsAvailable: request.Item.SocketsAvailable, Socketed: request.Item.Socketed,
+	}
 	result := compiled.Evaluate(item)
 	trace := make([]PickitTraceDTO, len(result.Trace))
 	for i, entry := range result.Trace {
 		trace[i] = PickitTraceDTO{RuleIndex: entry.RuleIndex, ProfileID: entry.ProfileID, RuleID: entry.RuleID, Action: string(entry.Action), Expression: entry.Expression, Matched: entry.Matched, ProfileRevision: entry.ProfileRevision, AssignmentRevision: entry.AssignmentRevision}
 	}
 	return PickitPreviewDTO{Matched: result.Matched, RuleIndex: result.RuleIndex, ProfileID: result.ProfileID, RuleID: result.RuleID, Action: string(result.Action), ProfileRevision: result.ProfileRevision, AssignmentRevision: result.AssignmentRevision, Trace: trace}, nil
+}
+
+// validatePickitPreviewSockets rejects contradictory controlled fixtures.
+// Unavailable fixtures may carry any numbers but never match socket predicates.
+func validatePickitPreviewSockets(item PickitPreviewItemDTO) error {
+	if !item.SocketsAvailable {
+		return nil
+	}
+	if item.Socketed {
+		if item.Sockets < 1 || item.Sockets > 6 {
+			return fmt.Errorf("sockets_available=true with socketed=true requires sockets in 1..6")
+		}
+		return nil
+	}
+	if item.Sockets != 0 {
+		return fmt.Errorf("sockets_available=true with socketed=false requires sockets=0")
+	}
+	return nil
+}
+
+func previewBaseTier(value string) world.BaseTier {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case string(world.BaseTierNormal):
+		return world.BaseTierNormal
+	case string(world.BaseTierExceptional):
+		return world.BaseTierExceptional
+	case string(world.BaseTierElite):
+		return world.BaseTierElite
+	default:
+		return world.BaseTierUnknown
+	}
 }
 
 func previewQuality(value string) world.ItemQuality {

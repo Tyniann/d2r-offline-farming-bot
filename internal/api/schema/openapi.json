@@ -3237,6 +3237,9 @@
           "quality": {
             "type": "string"
           },
+          "base_tier": {
+            "type": "string"
+          },
           "identity_kind": {
             "type": "string"
           },
@@ -3253,6 +3256,15 @@
             "type": "boolean"
           },
           "ethereal": {
+            "type": "boolean"
+          },
+          "sockets": {
+            "type": "integer"
+          },
+          "sockets_available": {
+            "type": "boolean"
+          },
+          "socketed": {
             "type": "boolean"
           }
         }

@@ -35,10 +35,11 @@ Unterstützte Felder:
 - `[tier]` gegen die generierte `world.BaseTier` (`unknown`, `normal`, `exceptional`, `elite`)
 - `[setitem]` gegen den stabilen Schlüssel einer konsistent aufgelösten Set-Identität
 - `[uniqueitem]` gegen den stabilen Schlüssel einer konsistent aufgelösten Unique-Identität
-- `[flag]` mit `identified` und `ethereal`
+- `[flag]` mit `identified`, `ethereal` und `socketed`
+- `[sockets]` mit `==`, `!=`, `>`, `>=`, `<`, `<=` gegen `world.Item.Sockets` (ab Phase 19)
 - `[stat:<id>]` gegen `world.Item.Stats`, ab Phase 5.9 ausschließlich bei `Identified=true`
 
-Quality-Regeln dürfen unidentifizierte Items weiterhin für einen späteren Pickup auswählen. Stat-Regeln matchen bis zur Identifikation nie; Keep/Stash wird zusätzlich über die [Identification-Strategie](identification-strategy.md) gegatet.
+Quality-Regeln dürfen unidentifizierte Items weiterhin für einen späteren Pickup auswählen. Stat-Regeln matchen bis zur Identifikation nie; Keep/Stash wird zusätzlich über die [Identification-Strategie](identification-strategy.md) gegatet. `[sockets]` und `[flag] socketed` haben **kein** Identify-Gate; bei `SocketsAvailable=false` liefern alle Socket-Prädikate fail-closed `false`, ausdrücklich auch `!=`.
 
 Unterstützte Literale:
 
@@ -59,7 +60,7 @@ String-Vergleiche sind case-insensitive. Die originale Regel bleibt im `PickitRe
 
 Der kanonische Serializer verwendet doppelte Anführungszeichen. Apostrophe bleiben literal; doppelte Anführungszeichen und Backslashes werden eindeutig als `\"` beziehungsweise `\\` geschrieben. Nur Quote und Backslash besitzen Escape-Bedeutung, andere bestehende Backslash-Folgen bleiben literal. `#` wird kanonisch als `&&` ausgegeben.
 
-Nicht unterstützt sind unter anderem `[maxquantity]`, Socket-/Sockelbedingungen, Prefix/Suffix, Charged Skills, Advanced Aliases und mehrteilige NIP-Sektionen. Solche Konstrukte schlagen beim Parsen mit Datei- und Zeilenkontext fehl. „Elite Polearm mit vier Sockeln“ bleibt eine spätere Erweiterung, bis Socket-Datenquelle, Sichtbarkeit vor Identifikation, Typvererbung und UI-Semantik gemeinsam spezifiziert sind.
+Nicht unterstützt sind unter anderem `[maxquantity]`, `[emptysockets]`, Socket-Inhalte, Prefix/Suffix, Charged Skills, Advanced Aliases und mehrteilige NIP-Sektionen. Solche Konstrukte schlagen beim Parsen mit Datei- und Zeilenkontext fehl. Gesamtsockel über `[sockets]` und `[flag] socketed`: [Sockel-Support für Pickit](socket-pickit.md).
 
 ### Ergebnis
 
@@ -103,6 +104,7 @@ Es gibt in 13.4 noch keine neue CLI-Oberfläche. Profile und Zuordnung werden be
 - [Inventory Model und Lock Grid](inventory-lock-grid.md) - liefert spätere Kapazitätsgrenzen
 - [Loot- und Recovery-Loop](loot-recovery-loop.md) - ordnet Pickit in die Phase-5-Slices ein
 - [Pickit-Profile und Assignments](pickit-profiles.md) - persistente Source of Truth und effektive Policy
+- [Sockel-Support für Pickit](socket-pickit.md) - Phase-19-Socket-Decoder, Parser und fail-closed Semantik
 
 ## Verwandte Features
 
@@ -110,4 +112,4 @@ Es gibt in 13.4 noch keine neue CLI-Oberfläche. Profile und Zuordnung werden be
 - [Countess-Run](countess-run.md)
 
 ---
-*Zuletzt aktualisiert: 2026-07-21*
+*Zuletzt aktualisiert: 2026-07-31*

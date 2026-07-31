@@ -335,16 +335,21 @@ func TestFromSnapshotMapsItems(t *testing.T) {
 	snap := validSnapshot()
 	snap.Hover = memory.HoverState{IsHovered: true, UnitType: memory.HoverUnitTypeItem, UnitID: 4001}
 	snap.Items = []memory.ItemUnit{{
-		TxtFileNo:   625,
-		UnitID:      4001,
-		Quality:     2,
-		RawLocation: 3,
-		PlayerOwned: false,
-		PosX:        700,
-		PosY:        800,
-		Flags:       0x10,
-		Identified:  true,
-		Stats:       []memory.RawStat{{ID: 123, Layer: 2, Value: 456}},
+		TxtFileNo:        625,
+		UnitID:           4001,
+		Quality:          2,
+		RawLocation:      3,
+		PlayerOwned:      false,
+		PosX:             700,
+		PosY:             800,
+		Flags:            0x10,
+		Identified:       true,
+		Stats:            []memory.RawStat{{ID: 123, Layer: 2, Value: 456}},
+		SocketStatActive: memory.SocketStatEvidence{ListReadable: true, Present: true, Value: 3},
+		SocketStatBase:   memory.SocketStatEvidence{ListReadable: true},
+		Sockets:          3,
+		SocketsAvailable: true,
+		Socketed:         true,
 	}}
 
 	state := FromSnapshot(snap)
@@ -372,6 +377,32 @@ func TestFromSnapshotMapsItems(t *testing.T) {
 	}
 	if len(got.Stats) != 1 || got.Stats[0].ID != 123 || got.Stats[0].Layer != 2 || got.Stats[0].Value != 456 {
 		t.Fatalf("Stats = %+v, want raw stat 123/2/456", got.Stats)
+	}
+	if !got.SocketStatActive.ListReadable || !got.SocketStatActive.Present || got.SocketStatActive.Value != 3 {
+		t.Fatalf("SocketStatActive = %+v, want readable value 3", got.SocketStatActive)
+	}
+	if !got.SocketStatBase.ListReadable || got.SocketStatBase.Present {
+		t.Fatalf("SocketStatBase = %+v, want readable absent", got.SocketStatBase)
+	}
+	if FormatSocketStatEvidence(got.SocketStatActive) != "value:3" || FormatSocketStatEvidence(got.SocketStatBase) != "absent" {
+		t.Fatalf("socket evidence format active=%q base=%q", FormatSocketStatEvidence(got.SocketStatActive), FormatSocketStatEvidence(got.SocketStatBase))
+	}
+	if !got.SocketsAvailable || !got.Socketed || got.Sockets != 3 {
+		t.Fatalf("socket fields = %+v, want available socketed 3", got)
+	}
+}
+
+func TestFromSnapshotMapsUnavailableSocketsSafely(t *testing.T) {
+	snap := validSnapshot()
+	snap.Items = []memory.ItemUnit{{
+		TxtFileNo: 625, UnitID: 4001, Quality: 2, RawLocation: 3,
+		Flags: 0x10, Identified: true,
+		SocketStatActive: memory.SocketStatEvidence{ListReadable: true},
+		SocketStatBase:   memory.SocketStatEvidence{ListReadable: true},
+	}}
+	got := FromSnapshot(snap).Items[0]
+	if got.SocketsAvailable || got.Socketed || got.Sockets != 0 {
+		t.Fatalf("unavailable sockets = %+v, want safe zeros", got)
 	}
 }
 

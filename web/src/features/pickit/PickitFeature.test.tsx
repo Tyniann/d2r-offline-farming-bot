@@ -41,7 +41,7 @@ describe("PickitFeature", () => {
     renderFeature(); await screen.findByRole("heading", { name: "Basis" });
     fireEvent.change(screen.getByPlaceholderText("z. B. Tal Rasha oder Thresher"), { target: { value: "Thresher" } });
     fireEvent.click(screen.getByLabelText("Nur ätherisch")); fireEvent.click(screen.getByRole("button", { name: /Thresher.*7s8/ }));
-    expect(screen.getByText(`[name] == "7s8" && [ethereal] == true`)).toBeInTheDocument();
+    expect(screen.getByText(`[name] == "7s8" && [flag] == ethereal`)).toBeInTheDocument();
     expect(screen.queryByRole("group", { name: "Entscheidungsvorschau" })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Regel 2 nach oben" }));
     const rules = screen.getAllByRole("listitem").filter((entry) => entry.closest(".rule-list"));
@@ -102,6 +102,45 @@ describe("PickitFeature", () => {
     const runSelect = await screen.findByRole("combobox", { name: "Run" });
     expect(runSelect).toHaveTextContent("summoner");
     expect(runSelect).toHaveTextContent("nihlathak");
+  });
+
+  it("erstellt eine kombinierte Elite-Schildregel über die durchsuchbare Mehrfachauswahl", async () => {
+    renderFeature(); await screen.findByRole("heading", { name: "Basis" });
+    const picker = screen.getByRole("button", { name: "Itemtypen Typen auswählen" });
+    fireEvent.click(picker);
+    const typeSearch = screen.getByRole("textbox", { name: "Typen durchsuchen" });
+    fireEvent.change(typeSearch, { target: { value: "Paladin" } });
+    expect(screen.getByText("1 Treffer · 0 ausgewählt")).toBeInTheDocument();
+    expect(screen.getByLabelText("Schilde – Paladin")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Schilde – Nekromant (Köpfe)")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByLabelText("Schilde – Paladin"));
+    fireEvent.change(typeSearch, { target: { value: "" } });
+    fireEvent.click(screen.getByLabelText("Schilde", { exact: true }));
+    fireEvent.click(screen.getByRole("button", { name: "Auswahl schließen" }));
+    expect(picker).toHaveFocus();
+
+    fireEvent.change(screen.getAllByRole("combobox", { name: "Tier" })[1], { target: { value: "elite" } });
+    fireEvent.change(screen.getByRole("combobox", { name: "Sockeloperator" }), { target: { value: "==" } });
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Sockelzahl" }), { target: { value: "4" } });
+    fireEvent.click(screen.getByRole("button", { name: "Kombinierte Regel hinzufügen" }));
+
+    expect(screen.getByText(`([type] == "shie" || [type] == "ashd") && [tier] == "elite" && [sockets] == 4`)).toBeInTheDocument();
+  });
+
+  it("zeigt Builderfehler, ohne den Regelentwurf zu verändern, und schließt per Escape", async () => {
+    renderFeature(); await screen.findByRole("heading", { name: "Basis" });
+    const rulesBefore = screen.getAllByText(/\[(?:type|quality)\]/).length;
+    fireEvent.click(screen.getByRole("button", { name: "Kombinierte Regel hinzufügen" }));
+    expect(screen.getByText("Mindestens einen Itemtyp auswählen.")).toBeInTheDocument();
+    expect(screen.getByText("Sockeloperator auswählen.")).toBeInTheDocument();
+    expect(screen.getByText("Sockelzahl muss eine ganze Zahl von 1 bis 6 sein.")).toBeInTheDocument();
+    expect(screen.getAllByText(/\[(?:type|quality)\]/)).toHaveLength(rulesBefore);
+
+    const picker = screen.getByRole("button", { name: "Itemtypen Typen auswählen" });
+    fireEvent.click(picker);
+    fireEvent.keyDown(screen.getByRole("textbox", { name: "Typen durchsuchen" }), { key: "Escape" });
+    expect(screen.queryByRole("textbox", { name: "Typen durchsuchen" })).not.toBeInTheDocument();
+    expect(picker).toHaveFocus();
   });
 });
 

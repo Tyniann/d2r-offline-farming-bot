@@ -247,7 +247,7 @@
           <span class="pill">Memory Bot Core</span>
           <span class="pill">Go 1.26</span>
           <span class="pill">Countess MVP</span>
-          <span class="pill good">Stand: v0.16.0 · Phase 18 vollständig abgenommen</span>
+          <span class="pill good">Stand: v0.17.0 · Phase 19 Socket-Pickit abgenommen</span>
           <span class="pill good">Mercenary-Support abgenommen</span>
         </div>
       </div>
@@ -831,8 +831,9 @@
     <div class="phase">
       <strong>Phase 19</strong>
       <div>
-        <h3>Sockel-Support für das bestehende Pickit <span class="warn">— geplant</span></h3>
-        <p><strong>Ziel:</strong> Das bestehende First-Match-Pickit erhält fail-closed gelesene Gesamtsockel über <code>[sockets]</code> und <code>[flag] == socketed</code>. Ein kombinierter Editor-Builder erzeugt aus einer durchsuchbaren Mehrfachauswahl expliziter Ausrüstungstypen, optionalem Tier, Sockelvergleich und Ätherisch genau eine Core-validierte Regel; normale, klassenspezifische und Reif-Typen bleiben bewusst getrennt wählbar. Ein read-only Live-Gate muss Stat 194 und das dedizierte Flagbit vor jeder Parserfreigabe belegen. Leere Sockel, Socket-Inhalte, Larzuk-Potenzial, Typvererbung über eine spätere <code>itemtypes.txt</code> und Änderungen an Default-Profilen bleiben ausgeschlossen. Detailplan: <a href="phase-19-implementation-plan.html">Phase-19-Umsetzungsplan</a>.</p>
+        <h3>Sockel-Support für das bestehende Pickit <span class="good">— abgeschlossen 31.07.2026 · Freigabe v0.17.0</span></h3>
+        <p><strong>Ziel:</strong> Das bestehende First-Match-Pickit erhält fail-closed gelesene Gesamtsockel über <code>[sockets]</code> und <code>[flag] == socketed</code>. Ein kombinierter Editor-Builder erzeugt aus einer durchsuchbaren Mehrfachauswahl expliziter Ausrüstungstypen, optionalem Tier, Sockelvergleich und Ätherisch genau eine Core-validierte Regel; normale, klassenspezifische und Reif-Typen bleiben bewusst getrennt wählbar. Ein read-only Live-Gate muss Stat 194 und das dedizierte Flagbit vor jeder Parserfreigabe belegen. Leere Sockel, Socket-Inhalte, Larzuk-Potenzial, Typvererbung über eine spätere <code>itemtypes.txt</code> und Änderungen an Default-Profilen bleiben ausgeschlossen. Detailplan: <a href="phase-19-implementation-plan.html">Phase-19-Umsetzungsplan</a>. Feature-Doc: <a href="docs/features/socket-pickit.md">socket-pickit.md</a>.</p>
+        <p><strong>Abschluss 31. Juli 2026:</strong> Gates 19.0–19.5 bestanden. Live-Abnahme mit Thresher 4os: Positiv (<code>picked_up</code>, Log <code>d2rbot-20260731-213037.log</code>) und Negativ (<code>no candidate</code> bei <code>[sockets] == 3</code>, Log <code>d2rbot-20260731-213159.log</code>). Katalogtyp <code>grim</code> = „Schilde – Hexenmeister (Grimoires)“; <code>head</code> = „Schilde – Nekromant (Köpfe)“. Freigabe als <code>v0.17.0</code>.</p>
       </div>
     </div>
 

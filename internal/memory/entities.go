@@ -32,6 +32,15 @@ type RawStat struct {
 	Value int32
 }
 
+// SocketStatEvidence captures StatNumSockets from one item stat list for Gate 19.0.
+// ListReadable means parseRawStats succeeded; Present means layer-0 Stat 194 was found.
+// A readable list without Present is "stat missing", not an assumed zero sockets value.
+type SocketStatEvidence struct {
+	ListReadable bool
+	Present      bool
+	Value        int32
+}
+
 // ItemUnit is a primitive item entity from the unit table item segment.
 type ItemUnit struct {
 	TxtFileNo            uint32
@@ -51,4 +60,11 @@ type ItemUnit struct {
 	Identified           bool
 	Ethereal             bool
 	Stats                []RawStat
+	// SocketStatActive and SocketStatBase remain Gate diagnosis; productive
+	// Sockets/SocketsAvailable/Socketed come only from decodeItemSockets.
+	SocketStatActive SocketStatEvidence
+	SocketStatBase   SocketStatEvidence
+	Sockets          int
+	SocketsAvailable bool
+	Socketed         bool
 }

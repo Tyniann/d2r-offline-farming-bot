@@ -1,6 +1,7 @@
 package world
 
 import (
+	"fmt"
 	"sort"
 
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/memory"
@@ -151,6 +152,20 @@ type Item struct {
 	Ethereal          bool
 	IsHovered         bool
 	Stats             []ItemStat
+	// SocketStatActive and SocketStatBase remain verbose diagnosis from memory.
+	SocketStatActive SocketStatEvidence
+	SocketStatBase   SocketStatEvidence
+	// Sockets, SocketsAvailable and Socketed are the fail-closed Gate-19.0 projection.
+	Sockets          int
+	SocketsAvailable bool
+	Socketed         bool
+}
+
+// SocketStatEvidence mirrors memory Active/Base Stat-194 diagnosis for verbose logs.
+type SocketStatEvidence struct {
+	ListReadable bool
+	Present      bool
+	Value        int32
 }
 
 type itemCatalogEntry struct {
@@ -223,34 +238,55 @@ func mapItem(i memory.ItemUnit, hover HoverInfo) Item {
 	}
 	entry := lookupItemCatalog(i.TxtFileNo)
 	item := Item{
-		TxtFileNo:   i.TxtFileNo,
-		UnitID:      i.UnitID,
-		Code:        entry.Code,
-		Name:        entry.Name,
-		Type:        entry.Type,
-		NormalCode:  entry.NormalCode,
-		UberCode:    entry.UberCode,
-		UltraCode:   entry.UltraCode,
-		BaseTier:    entry.BaseTier,
-		Quality:     ItemQuality(i.Quality),
-		Location:    mapItemLocation(i),
-		RawLocation: i.RawLocation,
-		OwnerID:     i.OwnerID,
-		PlayerOwned: i.PlayerOwned,
-		Page:        int(i.Page),
-		GridX:       int(i.GridX),
-		GridY:       int(i.GridY),
-		Width:       entry.Width,
-		Height:      entry.Height,
-		Position:    Position{X: i.PosX, Y: i.PosY},
-		Flags:       i.Flags,
-		Identified:  i.Identified,
-		Ethereal:    i.Ethereal,
-		IsHovered:   hover.Matches(HoverUnitTypeItem, i.UnitID),
-		Stats:       stats,
+		TxtFileNo:        i.TxtFileNo,
+		UnitID:           i.UnitID,
+		Code:             entry.Code,
+		Name:             entry.Name,
+		Type:             entry.Type,
+		NormalCode:       entry.NormalCode,
+		UberCode:         entry.UberCode,
+		UltraCode:        entry.UltraCode,
+		BaseTier:         entry.BaseTier,
+		Quality:          ItemQuality(i.Quality),
+		Location:         mapItemLocation(i),
+		RawLocation:      i.RawLocation,
+		OwnerID:          i.OwnerID,
+		PlayerOwned:      i.PlayerOwned,
+		Page:             int(i.Page),
+		GridX:            int(i.GridX),
+		GridY:            int(i.GridY),
+		Width:            entry.Width,
+		Height:           entry.Height,
+		Position:         Position{X: i.PosX, Y: i.PosY},
+		Flags:            i.Flags,
+		Identified:       i.Identified,
+		Ethereal:         i.Ethereal,
+		IsHovered:        hover.Matches(HoverUnitTypeItem, i.UnitID),
+		Stats:            stats,
+		SocketStatActive: mapSocketStatEvidence(i.SocketStatActive),
+		SocketStatBase:   mapSocketStatEvidence(i.SocketStatBase),
+		Sockets:          i.Sockets,
+		SocketsAvailable: i.SocketsAvailable,
+		Socketed:         i.Socketed,
 	}
 	applyItemIdentity(&item, i.UniqueSetID, i.UniqueSetIDAvailable, LookupItemIdentity)
 	return item
+}
+
+func mapSocketStatEvidence(ev memory.SocketStatEvidence) SocketStatEvidence {
+	return SocketStatEvidence{ListReadable: ev.ListReadable, Present: ev.Present, Value: ev.Value}
+}
+
+// FormatSocketStatEvidence returns a stable Gate-19.0 log token for one list.
+func FormatSocketStatEvidence(ev SocketStatEvidence) string {
+	switch {
+	case !ev.ListReadable:
+		return "unreadable"
+	case !ev.Present:
+		return "absent"
+	default:
+		return fmt.Sprintf("value:%d", ev.Value)
+	}
 }
 
 type itemIdentityLookup func(ItemIdentityKind, uint32) (ItemIdentityCatalogEntry, bool)

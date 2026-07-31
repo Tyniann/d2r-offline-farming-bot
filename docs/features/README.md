@@ -61,6 +61,7 @@ Spätere Ideen (noch nicht umgesetzt): [`docs/backlog.md`](../backlog.md).
 | [Pickit-Profile und Assignments](pickit-profiles.md) | Atomare revisionierte YAML-Profile, geordnete Charakter-/Run-Zuordnung und idempotente Ergänzung vollständig fehlender Setup-Defaults |
 | [Pickit-API und sichere Run-Grenze](pickit-api.md) | Abschnitt 13.5: vollständiger HTTP-Vertrag, sichere revisionierte Mutationen und unveränderlicher Policy-Snapshot pro Run |
 | [Pickit-Profilbibliothek und Editor](pickit-editor.md) | Abschnitte 13.6–13.7: geführte Katalogregeln, Profil-CRUD, Assignments und Core-basierte Testitem-Vorschau mit vollständigem Trace |
+| [Sockel-Support für Pickit](socket-pickit.md) | Phase 19 abgeschlossen (Gates 19.0–19.5): fail-closed `[sockets]`/`socketed`, kombinierter Builder; Freigabe `v0.17.0` |
 
 ## Session, Queue und Game-Lifecycle
 

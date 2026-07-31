@@ -7,7 +7,8 @@ Das eingebettete React-Feature verwaltet globale Pickit-Profile und ihre geordne
 ## Ort im Code
 
 - **Feature:** `web/src/features/pickit/PickitFeature.tsx`
-- **Tests:** `web/src/features/pickit/PickitFeature.test.tsx`
+- **Regelbuilder:** `web/src/features/pickit/pickitRuleBuilder.ts`
+- **Tests:** `web/src/features/pickit/PickitFeature.test.tsx`, `web/src/features/pickit/pickitRuleBuilder.test.ts`
 - **API:** `web/src/api/generated.ts`, `web/src/api/client.ts`
 - **Styles:** `web/src/app/app.css`
 
@@ -15,11 +16,13 @@ Das eingebettete React-Feature verwaltet globale Pickit-Profile und ihre geordne
 
 Die Profilbibliothek zeigt ID und Revision, unterstützt Neu, Duplizieren und das Core-geschützte Löschen über In-App-Dialoge (kein `window.prompt`/`confirm`, damit Electron denselben Pfad nutzt). Ein Entwurf markiert ungespeicherte Änderungen und schützt vor versehentlichem Profilwechsel sowie Seitenwechsel.
 
-Die Katalogsuche findet vollständige Sets, einzelne Set-/Unique-Items und Basisitems. Ein vollständiges Set wird sichtbar in einzelne Identitätsregeln expandiert. Basisitems zeigen ihren englischen Namen, speichern aber den stabilen Excel-Code; „Ätherischer Thresher“ wird daher als `[name] == "7s8" && [ethereal] == true` erzeugt. Die Aktionen `Behalten` und `Identifizieren / verkaufen`, First-Match-Reihenfolge, Entfernen und Umordnen sind direkt bedienbar.
+Die Katalogsuche findet vollständige Sets, einzelne Set-/Unique-Items und Basisitems. Ein vollständiges Set wird sichtbar in einzelne Identitätsregeln expandiert. Basisitems zeigen ihren englischen Namen, speichern aber den stabilen Excel-Code; „Ätherischer Thresher“ wird als `[name] == "7s8" && [flag] == ethereal` erzeugt. Die Aktionen `Behalten` und `Identifizieren / verkaufen`, First-Match-Reihenfolge, Entfernen und Umordnen sind direkt bedienbar.
+
+Der kombinierte Socket-Builder (Phase 19.3) ergänzt eine durchsuchbare Mehrfachauswahl expliziter Ausrüstungstypen, optionales Tier, verpflichtenden Sockelvergleich und optionales Ätherisch zu genau einer Core-validierten Regel. Mehrere Typen werden als geklammerte OR-Gruppe serialisiert; Assassinenklauen expandieren sichtbar zu `h2h || h2h2`. In der Typliste bedeutet `grim` „Schilde – Hexenmeister (Grimoires)“ und `head` „Schilde – Nekromant (Köpfe)“; der Hexenmeister hat keinen separaten Waffentyp im Katalog. Details: [Sockel-Support für Pickit](socket-pickit.md).
 
 Das erweiterte Ausdrucksfeld und NIP-Paste/-Dateiimport senden Entwürfe zur Core-Validierung; React enthält keinen zweiten Parser. Profil- und Assignment-Saves sind revisionsgebunden. Stale Writes bieten das Laden des aktuellen Stands an, zugeordnete Profile bleiben durch den Core vor Löschung geschützt und eine leere Zuordnung wird bereits im UI verworfen.
 
-Der vollständige unterstützte Ausdrucksvertrag steht in der [Pickit Engine](pickit-engine.md). Import ist all-or-nothing und verlangt eine explizite Aktion. Nicht unterstützte Felder, unbekannte Katalogreferenzen, doppelte Regel-IDs, leere Assignments, stale Revisionen und Mutationen während eines aktiven Workflows werden sichtbar abgelehnt. Sockelbedingungen sind bewusst noch nicht spezifiziert; insbesondere entsteht in Phase 13 keine halbfertige Regel für „Elite Polearm mit vier Sockeln“.
+Der vollständige unterstützte Ausdrucksvertrag steht in der [Pickit Engine](pickit-engine.md). Import ist all-or-nothing und verlangt eine explizite Aktion. Nicht unterstützte Felder, unbekannte Katalogreferenzen, doppelte Regel-IDs, leere Assignments, stale Revisionen und Mutationen während eines aktiven Workflows werden sichtbar abgelehnt.
 
 ## Bedienung und Accessibility
 
@@ -41,6 +44,7 @@ Gate B wurde am 21. Juli 2026 bestanden: UnitID `225` wurde als `Arrows`/`aqv` v
 
 - [Pickit-API und sichere Run-Grenze](pickit-api.md)
 - [Pickit-Profile und Assignments](pickit-profiles.md)
+- [Sockel-Support für Pickit](socket-pickit.md)
 
 ---
-*Zuletzt aktualisiert: 30. Juli 2026*
+*Zuletzt aktualisiert: 2026-07-31*

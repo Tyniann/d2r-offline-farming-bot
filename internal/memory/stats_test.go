@@ -1,11 +1,43 @@
 package memory
 
-import "testing"
+import (
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+)
 
 func TestStatIDConstantsMatchD2go(t *testing.T) {
 	// d2go pkg/data/stat: Strength=0 … Life=6, MaxLife=7, Mana=8, MaxMana=9.
 	if StatLife != 6 || StatMaxLife != 7 || StatMana != 8 || StatMaxMana != 9 {
 		t.Fatalf("stat IDs changed: life=%d max=%d mana=%d max_mana=%d", StatLife, StatMaxLife, StatMana, StatMaxMana)
+	}
+}
+
+func TestStatNumSocketsMatchesLocalItemStatCost(t *testing.T) {
+	if StatNumSockets != 194 {
+		t.Fatalf("StatNumSockets = %d, want 194 from item_numsockets", StatNumSockets)
+	}
+
+	path := filepath.Join("..", "..", ".tmp", "d2r-excel", "itemstatcost.txt")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Skipf("local excel extract unavailable: %v", err)
+	}
+	found := false
+	for _, line := range strings.Split(string(data), "\n") {
+		fields := strings.Split(line, "\t")
+		if len(fields) < 2 || fields[0] != "item_numsockets" {
+			continue
+		}
+		found = true
+		if fields[1] != "194" {
+			t.Fatalf("item_numsockets *ID = %q, want 194", fields[1])
+		}
+		break
+	}
+	if !found {
+		t.Fatal("item_numsockets row missing from itemstatcost.txt")
 	}
 }
 

@@ -81,6 +81,15 @@ button:focus-visible, select:focus-visible, a:focus-visible { outline: 3px solid
 .search-results { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); margin-top: 12px; }
 .quick-rules { display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin-top: 12px; }
 .search-results button { text-align: left; }
+.combined-rule-builder { margin-top: 16px; }
+.combined-rule-grid { display: grid; grid-template-columns: minmax(210px, 1.4fr) repeat(3, minmax(120px, .7fr)); gap: 10px; align-items: end; }
+.type-picker { position: relative; display: grid; gap: 7px; color: var(--muted); }
+.type-picker > button { width: 100%; text-align: left; }
+.type-picker-panel { position: absolute; z-index: 4; top: calc(100% + 6px); width: min(420px, 90vw); max-height: 420px; overflow: auto; padding: 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-2); box-shadow: 0 16px 38px #000a; }
+.type-picker-panel p { margin: 8px 0; }
+.type-option-list { display: grid; gap: 2px; margin-bottom: 10px; }
+.type-option-list .check { min-height: 34px; color: var(--text); }
+.combined-rule-builder small[role="alert"] { color: var(--danger); }
 .rule-list { margin: 12px 0; }
 .rule-list li { flex-wrap: wrap; border: 1px solid #263b55; border-radius: 9px; padding: 12px; }
 .rule-list li > div:first-child { display: grid; gap: 6px; min-width: 0; }
@@ -248,7 +257,7 @@ section.settings-field-changed { border-color: #6b4a35; box-shadow: inset 3px 0 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
 }
-@media (max-width: 700px) { main { padding: 24px 0; } header, section { padding: 20px; } dl div, li, .selection-grid, .queue-list li, .pickit-layout, .guided-rule, .history-filters { grid-template-columns: minmax(0, 1fr); gap: 8px; } .selection-grid > *, select, input, textarea { min-width: 0; max-width: 100%; width: 100%; } .queue-actions { justify-content: flex-start; } .inline-actions button, .editor-actions button { flex: 1; } .main-navigation { position: static; } .history-feature .table-scroll { overflow: visible; } .history-feature table, .history-feature tbody, .history-feature tr { display: block; min-width: 0; } .history-feature thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); } .history-feature tr { margin: 12px 0; padding: 8px; border: 1px solid #294360; border-radius: 10px; background: #0b1422; } .history-feature td, .history-feature th[scope="row"] { display: grid; grid-template-columns: minmax(110px, .7fr) minmax(0, 1.3fr); gap: 8px; border: 0; padding: 7px; } .history-feature td::before, .history-feature th[scope="row"]::before { content: attr(data-label); color: #8fa7c5; font-weight: 400; } }
+@media (max-width: 700px) { main { padding: 24px 0; } header, section { padding: 20px; } dl div, li, .selection-grid, .queue-list li, .pickit-layout, .guided-rule, .combined-rule-grid, .history-filters { grid-template-columns: minmax(0, 1fr); gap: 8px; } .selection-grid > *, select, input, textarea { min-width: 0; max-width: 100%; width: 100%; } .type-picker-panel { position: static; width: 100%; } .queue-actions { justify-content: flex-start; } .inline-actions button, .editor-actions button { flex: 1; } .main-navigation { position: static; } .history-feature .table-scroll { overflow: visible; } .history-feature table, .history-feature tbody, .history-feature tr { display: block; min-width: 0; } .history-feature thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); } .history-feature tr { margin: 12px 0; padding: 8px; border: 1px solid #294360; border-radius: 10px; background: #0b1422; } .history-feature td, .history-feature th[scope="row"] { display: grid; grid-template-columns: minmax(110px, .7fr) minmax(0, 1.3fr); gap: 8px; border: 0; padding: 7px; } .history-feature td::before, .history-feature th[scope="row"]::before { content: attr(data-label); color: #8fa7c5; font-weight: 400; } }
 @media (max-width: 900px) { .settings-grid.four-columns { grid-template-columns: repeat(2, minmax(0, 1fr)); } .settings-queue-panes { grid-template-columns: minmax(0, 1fr); } }
 @media (max-width: 700px) { .settings-grid.two-columns, .settings-grid.four-columns { grid-template-columns: minmax(0, 1fr); } .restart-required, .settings-actionbar { align-items: flex-start; flex-direction: column; } }
 @media (max-width: 800px) { .provisioning-options { grid-template-columns: 1fr; } }

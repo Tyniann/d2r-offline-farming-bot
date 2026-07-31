@@ -442,6 +442,62 @@ func TestProbeSnapshotEnumeratesGroundItems(t *testing.T) {
 	}
 }
 
+func TestProbeSnapshotReadsSocketStatEvidenceFromActiveAndBase(t *testing.T) {
+	access, probe, moduleBase := setupProbeMock(t)
+	off := testOffsetSet()
+
+	const (
+		itemUnit    = uintptr(0x69000)
+		itemData    = uintptr(0x6A000)
+		itemPath    = uintptr(0x6B000)
+		statsListEx = uintptr(0x6C000)
+		activeArray = uintptr(0x6D000)
+		baseArray   = uintptr(0x6E000)
+	)
+
+	writeSegmentHead(access, moduleBase, off.UnitTable, unitSegmentItem, itemUnit)
+	setupGroundItemUnit(access, itemUnit, itemData, itemPath, statsListEx, 0, 610, 4001, 2, 0x8010)
+
+	activeHeader := statsListEx + off.Unit.StatsListActive
+	baseHeader := statsListEx + off.Unit.StatsListBase
+	writeU64(access, activeHeader+off.Stats.ListPtr, uint64(activeArray))
+	writeU64(access, activeHeader+off.Stats.Count, 1)
+	writeStatEntry(access, activeArray, 0, 17, 10) // successful Active without sockets
+	writeU64(access, baseHeader+off.Stats.ListPtr, uint64(baseArray))
+	writeU64(access, baseHeader+off.Stats.Count, 1)
+	writeStatEntry(access, baseArray, 0, StatNumSockets, 4)
+
+	snap := probe.Snapshot()
+	if len(snap.Items) != 1 {
+		t.Fatalf("Items = %+v, want one ground item", snap.Items)
+	}
+	got := snap.Items[0]
+	if !got.SocketStatActive.ListReadable || got.SocketStatActive.Present {
+		t.Fatalf("SocketStatActive = %+v, want readable absent", got.SocketStatActive)
+	}
+	if !got.SocketStatBase.ListReadable || !got.SocketStatBase.Present || got.SocketStatBase.Value != 4 {
+		t.Fatalf("SocketStatBase = %+v, want readable value 4", got.SocketStatBase)
+	}
+	if len(got.Stats) != 1 || got.Stats[0].ID != 17 {
+		t.Fatalf("Stats = %+v, want Active-preferred non-socket stat", got.Stats)
+	}
+	if got.Flags != 0x8010 {
+		t.Fatalf("Flags = 0x%X, want 0x8010", got.Flags)
+	}
+}
+
+func TestFormatSocketStatEvidence(t *testing.T) {
+	if got := FormatSocketStatEvidence(SocketStatEvidence{}); got != "unreadable" {
+		t.Fatalf("empty = %q, want unreadable", got)
+	}
+	if got := FormatSocketStatEvidence(SocketStatEvidence{ListReadable: true}); got != "absent" {
+		t.Fatalf("absent = %q, want absent", got)
+	}
+	if got := FormatSocketStatEvidence(SocketStatEvidence{ListReadable: true, Present: true, Value: 6}); got != "value:6" {
+		t.Fatalf("present = %q, want value:6", got)
+	}
+}
+
 func TestItemIdentityReadFailureKeepsItem(t *testing.T) {
 	access, probe, moduleBase := setupProbeMock(t)
 	off := testOffsetSet()
