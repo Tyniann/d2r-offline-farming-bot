@@ -7,6 +7,12 @@ Versionierung nach [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- Add `docs/reviews/` with the 2026-07-31 repo effort evaluation and archived Cursor canvas snapshot
+
+### Fixed
+- Align embedded, README, handoff, packaging, and Git tag release metadata with version `0.16.0`
+
 ## [0.16.0] - 2026-07-31
 
 ### Added

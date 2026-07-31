@@ -1,6 +1,6 @@
 # D2R Offline Farming Bot
 
-Go-basierter Bot für Diablo II: Resurrected (Offline/Singleplayer). **v0.6.0** umfasst den gemeinsamen, typisierten Farming-Lifecycle für Countess und Mephisto einschließlich Run Registry/Availability, gebundener Routen, Combat, Loot, Town-Diensten und autonomem Session-Abschluss.
+Go-basierter Bot für Diablo II: Resurrected (Offline/Singleplayer). **v0.16.0** unterstützt autonome Farming-Runs für Countess, Mephisto, Summoner und Nihlathak einschließlich Combat, Loot, Town-Diensten, Mercenary-Support und Desktop-App.
 
 ## Voraussetzungen
 
@@ -11,14 +11,14 @@ Go-basierter Bot für Diablo II: Resurrected (Offline/Singleplayer). **v0.6.0** 
 ## Release (Windows EXE)
 
 ```powershell
-# Release-ZIP bauen (dist/d2rbot-v0.10.0-windows-amd64.zip)
-powershell -ExecutionPolicy Bypass -File scripts/build-release.ps1
+# Windows-Installer bauen (dist/release/D2R-Offline-Farming-Bot-0.16.0-Setup.exe)
+powershell -ExecutionPolicy Bypass -File scripts/build-release.ps1 -Version 0.16.0
 
 # Oder über Make
 make release
 ```
 
-Das ZIP enthält `d2rbot.exe`, Config-Beispiele und `INSTALL.txt`. Entpacken, `configs\config.example.yaml` nach `configs\config.yaml` kopieren, `d2rbot.exe` starten.
+Der Installer enthält die Desktop-App, den Go-Core und die produktiven Standardkonfigurationen.
 
 Version prüfen:
 
@@ -78,18 +78,18 @@ Details: [`docs/features/input-controller.md`](docs/features/input-controller.md
 
 ## Release bauen
 
-Release-ZIP lokal erzeugen und bei Bedarf manuell verteilen:
+Windows-Installer lokal erzeugen und bei Bedarf manuell verteilen:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts/build-release.ps1
-# Ergebnis: dist\d2rbot-v0.6.0-windows-amd64.zip
+powershell -ExecutionPolicy Bypass -File scripts/build-release.ps1 -Version 0.16.0
+# Ergebnis: dist\release\D2R-Offline-Farming-Bot-0.16.0-Setup.exe
 ```
 
 Optional Version taggen (nur für Git-Historie):
 
 ```powershell
-git tag v0.10.0
-git push origin v0.10.0
+git tag -a v0.16.0 -m "Release v0.16.0: Phase 18 mercenary support"
+git push origin v0.16.0
 ```
 
 ## Projektstruktur

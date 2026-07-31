@@ -22,7 +22,7 @@ Abschnitt 15.11 liefert die bestehende Electron-App und den Go-Core als per-user
 Der Aufruf
 
 ```powershell
-.\scripts\build-release.ps1 -Version 0.10.0
+.\scripts\build-release.ps1 -Version 0.16.0
 ```
 
 verlangt ein stabiles SemVer und einen lesbaren Git-Commit. Der Core wird mit `-trimpath` sowie `version.Version` und `version.Commit` gebaut. Electron Builder erhält dieselbe Version als `extraMetadata`; Produktdateiversion, `app.asar/package.json`, Core-`--version`, Core-Sidebarprojektion und Installername werden gegeneinander geprüft. Ein `dev`-Commit bricht den Build ab.
@@ -71,4 +71,4 @@ Für eine ausdrücklich angeordnete manuelle Gate-Iteration darf derselbe Builde
 - [Lokales Diagnosepaket und Versionshinweis](diagnostics-and-update-check.md)
 
 ---
-*Zuletzt aktualisiert: 26. Juli 2026*
+*Zuletzt aktualisiert: 31. Juli 2026*
