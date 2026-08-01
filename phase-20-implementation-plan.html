@@ -1,0 +1,633 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Phase 20 – Detaillierter Umsetzungsplan</title>
+  <style>
+    :root{--bg:#090d0b;--panel:#141b17;--panel2:#1c2720;--text:#f1f5f2;--muted:#b7c3bb;--line:#34443a;--accent:#57a868;--gold:#d6ad5c;--good:#69d59f;--warn:#f0c96a;--bad:#f0525f;--code:#080b09}
+    *{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at 85% 0,#15351d 0,transparent 28%),linear-gradient(145deg,#070a08,#101713 55%,#080c09);color:var(--text);font:16px/1.58 system-ui,-apple-system,"Segoe UI",sans-serif}
+    main{max-width:1220px;margin:auto;padding:42px 24px 80px}.hero{padding:34px;border:1px solid var(--line);border-radius:20px;background:linear-gradient(135deg,#16251a,#171e19 52%,#111713);box-shadow:0 20px 60px #0008}
+    h1{font-size:clamp(2rem,5vw,3.7rem);line-height:1.08;margin:.25rem 0 1rem}h2{margin-top:44px;border-bottom:1px solid var(--line);padding-bottom:10px}h3{margin:.2rem 0 .5rem;color:#fff}.lead{font-size:1.17rem;color:var(--muted);max-width:1050px}
+    .chips{display:flex;flex-wrap:wrap;gap:9px}.chip{border:1px solid #3c6746;border-radius:999px;padding:5px 11px;color:#d9ffe1;background:#102516}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:15px;margin:18px 0}
+    .card,.phase,.callout{border:1px solid var(--line);border-radius:14px;background:var(--panel);padding:18px}.card p,.phase p{margin:.35rem 0;color:var(--muted)}table{width:100%;border-collapse:collapse;background:var(--panel);border:1px solid var(--line)}th,td{padding:12px 14px;text-align:left;vertical-align:top;border-bottom:1px solid var(--line)}th{background:var(--panel2);color:#fff}
+    code,pre{font-family:"Cascadia Code",Consolas,monospace}code{color:#bde9b8}pre{background:var(--code);border:1px solid var(--line);border-radius:12px;padding:16px;overflow:auto;color:#e5eee7}.phase{display:grid;grid-template-columns:92px 1fr;gap:16px;margin:13px 0}.phase-id{font-weight:800;color:var(--accent);font-size:1.25rem}.warn{color:var(--warn)}.good{color:var(--good)}.bad{color:var(--bad)}.gold{color:var(--gold)}.gate{border-left:4px solid var(--warn);padding-left:12px!important}.callout{border-left:4px solid var(--accent);margin:16px 0}.danger{border-left-color:var(--bad)}.success{border-left-color:var(--good)}li{margin:.35rem 0}footer{margin-top:48px;color:var(--muted);text-align:center}@media(max-width:650px){.phase{grid-template-columns:1fr}.hero{padding:22px}main{padding-inline:14px}}
+  </style>
+</head>
+<body><main>
+  <section class="hero">
+    <div class="chip">D2R Offline Farming Bot · Phase 20 · Plan · Ziel v0.18.0</div>
+    <h1>Cow Level / Moo Moo Farm</h1>
+    <p class="lead">Phase 20 ergänzt genau einen neuen Queue-Run <code>cows</code>: zwei fest gekoppelte, benutzerspezifische Routen führen vom Stony-Field-Wegpunkt zu Wirts Körper und anschließend durch die Moo Moo Farm. Dazwischen beschafft der Bot in demselben Spiel ein frisches Wirt’s Leg, kauft ein separates Stadtportalbuch, transmutiert beide im leeren geschützten Horadrimwürfel und betritt das Memory-bestätigte rote Portal. Im Cow Level räumt MrBones auf Hell lokale Kuhgruppen mit Amplify Damage, Bone Spear und einer Memory-autorisierten Corpse-Explosion-Schleife. Ein Cow-Run bleibt ein Run, ein Budgetverbrauch und ein Telemetrie-Lebenszyklus.</p>
+    <div class="chips"><span class="chip">zwei Route-Rollen</span><span class="chip">ein Run-Budget</span><span class="chip">frisches Wirt’s Leg</span><span class="chip">leerer Cube</span><span class="chip">CASC-only IDs</span><span class="chip">CE mit Leichenevidenz</span><span class="chip">kein Herding</span><span class="chip">KISS/YAGNI</span></div>
+  </section>
+
+  <section class="grid" aria-label="Kernziele">
+    <article class="card"><h3>Zwei Aufnahmen, ein Lauf</h3><p><code>leg_acquisition</code> und <code>cow_sweep</code> werden getrennt aufgenommen und geprüft, aber nur gemeinsam freigegeben und immer in einer Cow-State-Machine abgespielt.</p></article>
+    <article class="card"><h3>Portal sicher herstellen</h3><p>Cube, Inventar, frisches Bein, neues TP-Buch, konkrete UnitIDs, Cube-Inhalt und Portalobjekt werden vor jedem irreversiblen Schritt erneut bestätigt.</p></article>
+    <article class="card"><h3>Kuhgruppen über Leichen räumen</h3><p>Corpse Explosion wird nur auf eine aktuelle Memory-Leiche projiziert. Fehlende Leichen führen zurück zu Bone Spear; objektiver Fortschritt hält den lokalen Clear am Leben.</p></article>
+    <article class="card"><h3>Bestehende Grenzen bewahren</h3><p>Kein Umbau des Standard-Boss-Runs, kein globaler Tristram-Pfad, kein Herding, keine Mid-Run-Inventarräumung und keine allgemeine Crafting-Engine.</p></article>
+  </section>
+
+  <h2>1. Verbindliche Produktentscheidungen</h2>
+  <table><thead><tr><th>Thema</th><th>Entscheidung für Phase 20</th></tr></thead><tbody>
+    <tr><td>Run-Identität</td><td>Der neue stabile Run heißt <code>cows</code> und wird als ein Queue-Eintrag ausgeführt. Beide Routen, Wirt, Town-Rückkehr, Einkauf, Rezept, Cow-Sweep und abschließender Town-Handoff gehören zu genau einem <code>ExecutionID</code>.</td></tr>
+    <tr><td>Budget</td><td>Ein begonnener Cow-Versuch verbraucht genau eine Einheit des normalen Run-Budgets. Route-Rollen sind keine Queue-Einträge, Unter-Runs oder verschachtelten Runner. Nur ein wirklicher Neustart des gesamten Versuchs verbraucht gemäß bestehender Retry-Semantik eine weitere Einheit.</td></tr>
+    <tr><td>Route-Rollen</td><td><code>leg_acquisition</code>: Stony-Field-Wegpunkt → permanentes rotes Portal → Tristram → Ende in Interaktionsnähe von Wirts Körper. <code>cow_sweep</code>: Ankunft am roten Cow-Portal in Area 39 → vollständige aufgezeichnete Farming-Schleife → benutzerdefiniertes Ende.</td></tr>
+    <tr><td>Kopplung</td><td>Beide Rollen besitzen getrennte Kandidaten, Tests, Veröffentlichungen und UI-Buttons. <code>cows</code> ist nur verfügbar, wenn beide Rollen für denselben Charakter, dieselbe Klasse, Schwierigkeit, D2R-Version und dasselbe Combat-Profil kompatibel und lifecycle-valid sind. Jede Rolle muss ihren bestehenden Runtime-Binding-Vertrag zum aktuellen Spiel separat erfüllen; gebietsspezifische Layout-Fingerprints werden ausdrücklich nicht miteinander verglichen und der Map Seed wird nicht zu einem neuen Identitätsschlüssel erhoben.</td></tr>
+    <tr><td>Tristram-Zugang</td><td>Kein globaler Tristram-Pfad und keine Cairn-Stone-/Cain-Quest-Automation. Der Benutzer zeichnet den gesamten Weg ab dem Stony-Field-Wegpunkt selbst auf. Das permanente Portal muss im Spiel bereits geöffnet sein.</td></tr>
+    <tr><td>Aufnahmebereinigung</td><td>Für <code>leg_acquisition</code> wird kein vorheriger Gebiets-Clear verlangt; normale Akt-1-Gegner sind Chaff und werden im Replay durch bestehenden Route-Hold-Combat behandelt. Nur für <code>cow_sweep</code> muss der Benutzer das Cow Level vor der Aufnahme vollständig räumen, damit Kampfteleports und Rückbewegungen die Route nicht verfälschen.</td></tr>
+    <tr><td>Wirt-Aufnahme</td><td>Die erste Aufnahme endet nahe dem Memory-bestätigten Objekt „Wirt’s Body“. Der Benutzer klickt Wirt während der Aufnahme nicht an. Der isolierte Test klickt ihn ebenfalls nicht an.</td></tr>
+    <tr><td>Wirt’s Leg</td><td>Der produktive Run beschafft in jedem neuen Spiel ein frisches Bein. Ein bereits vorhandenes Bein wird nicht wiederverwendet, um Schwierigkeits- und Lagerungsprobleme zu vermeiden. Sichtbare alte Beine blockieren den Preflight; der Bot verschiebt oder droppt sie nicht.</td></tr>
+    <tr><td>Cube</td><td>Der Horadrimwürfel muss leer im geschützten persönlichen Inventar liegen. Seine 2×2-Zellen müssen durch das bestehende Lock-Grid geschützt sein. Phase 20 beschafft keinen Cube und räumt keinen Cube-Inhalt um.</td></tr>
+    <tr><td>Inventarplatz</td><td>Vor Runstart muss gleichzeitig freier, nicht gesperrter Platz für Wirt’s Leg (1×3) und ein zusätzliches TP-Buch (1×2) nachweisbar sein. Das operative TP-Buch bleibt erhalten.</td></tr>
+    <tr><td>TP-Bücher</td><td>Ein verwendbares operatives TP-Buch ist Voraussetzung für Rückkehr und Recovery. Nach der Rückkehr mit dem Bein kauft der Bot genau ein separates frisches TP-Buch und bindet dessen neue UnitID als Rezeptzutat. Tome-Quantitäten werden nicht neu decodiert.</td></tr>
+    <tr><td>Schwierigkeitsfortschritt</td><td>Der Benutzer muss die gewählte Schwierigkeit abgeschlossen haben. Phase 20 automatisiert weder Baal noch den Questfortschritt. Ein wegen fehlender Voraussetzung nicht entstehendes Cow-Portal ist terminal und wird nicht endlos wiederholt.</td></tr>
+    <tr><td>Rezept</td><td>Nur das frisch aufgenommene Bein und das frisch gekaufte TP-Buch dürfen in den zuvor bestätigten leeren Cube transferiert werden. Vor Transmute werden beide konkreten UnitIDs in <code>ItemLocationCube</code> und keine dritte Zutat bestätigt.</td></tr>
+    <tr><td>Portalbestätigung</td><td>Erfolg des Rezepts verlangt verbrauchte Zutaten und ein neues, stabiles Permanent-Portal-Objekt im Rogue Encampment. Nur dieses Memory-bestätigte Objekt darf hover-bestätigt betreten werden.</td></tr>
+    <tr><td>Tristram-Portal blockiert</td><td>Rakanishu oder andere unmittelbare Blocker werden mit Route-Hold-Combat beseitigt; danach wird der Hover begrenzt wiederholt. Bleibt das Portal unbestätigt, kehrt der Bot per TP sicher zurück und beendet die Queue terminal.</td></tr>
+    <tr><td>Wirt-/Beinfehler</td><td>Wirts Körper und das frische Bein erhalten begrenzte Wiederholungen. Bleiben Objekt, Interaktion, Spawn oder Pickup unbestätigt, folgt der sichere Rückweg und ein terminaler Queue-Fehler; kein zweiter Wirt-Versuch im selben Spiel.</td></tr>
+    <tr><td>Rückkehrfehler</td><td>Scheitert das Town Portal nach der Beinaufnahme endgültig, führt der Bot kontrolliertes Save &amp; Exit aus und stoppt die Queue terminal. Ein eventuell behaltenes Bein muss der Benutzer vor einem späteren Start manuell entfernen.</td></tr>
+    <tr><td>Charakter-Scope</td><td>Produktive Abnahme: MrBones, Necromancer, Hell, 1280×720. Datenmodelle dürfen klassenneutral benannt sein; weitere Klassen, Schwierigkeiten und Layouts sind ohne eigene Abnahme nicht freigegeben.</td></tr>
+    <tr><td>Cow-Kampf</td><td>Pro Route-Hold einmal Amplify Damage, Bone Spear bis zur ersten bestätigten Kuh-Leiche, dann Corpse Explosion auf bestätigte Leichen. Neue Leichen dürfen CE-Ketten fortsetzen. Fehlen Leichen bei lebenden Kühen, geht es zurück zu Bone Spear.</td></tr>
+    <tr><td>CE-Autorität</td><td>Direkte Leichenevidenz aus demselben Monster-Walk ist die einzige Cast-Autorität. Das Verschwinden einer Unit zwischen Snapshots ist nur Diagnose und darf niemals allein CE autorisieren. Hover auf Leichen ist nicht erforderlich.</td></tr>
+    <tr><td>CE-Fortschritt</td><td>Eine gesendete CE ist noch kein Fortschritt. Objektiv sind nur weniger lokale lebende Kühe, eine neu bestätigte Kuh-Leiche, bestätigter Verbrauch des gewählten Leichenziels oder erreichte Safe-Coverage. Höchstens zwei erfolglose CE-Versuche pro Leiche; danach wird sie für den aktuellen Hold übersprungen.</td></tr>
+    <tr><td>CE-Timing</td><td>CE wird nie back-to-back gesendet. Ein live belegtes Mindest-Settle und der erste danach frische, vollständige Snapshot sperren die nächste Aktion. Der Wert ist zunächst eine konservative interne Konstante, kein Benutzer-Tuning.</td></tr>
+    <tr><td>Herding</td><td>Kein Herding, keine Rudeldichte-Optimierung und keine globale Leichen-Rangliste. Gewählt wird eine sichtbare, unversuchte Kuh-Leiche nahe dem aktiven lebenden Ziel.</td></tr>
+    <tr><td>Cow King</td><td>Der Cow King ist erlaubt und wird unter sichtbaren lokalen Zielen priorisiert, wenn er begegnet wird. Sein Tod ist weder erforderlich noch eigene Abschlussbedingung.</td></tr>
+    <tr><td>Abschluss</td><td>„Route fertig“ bedeutet: letzter aufgezeichneter Punkt erreicht und danach drei frische, lokal vollständige Snapshots ohne Hell Bovine oder Cow King im bestehenden terminalen Sicherheitsradius. Gegner außerhalb dieses Radius verhindern Erfolg nicht.</td></tr>
+    <tr><td>Inventar voll</td><td>Kann gewünschter Loot während des Cow-Sweeps mangels Platz nicht aufgenommen werden, wird er geloggt und übersprungen; Kampf und Route laufen weiter. Kein Town-/Resume-Zyklus in Phase 20.</td></tr>
+    <tr><td>Retry</td><td>Objektiv festgefahrener Cow-Kampf und bestehende retryfähige Route-/Ressourcenfehler verwenden den kontrollierten TP-/Save-&amp;-Exit-/Restart-Weg und die vorhandenen endlichen Budgets. Fehlendes Tristram- oder Cow-Portal sowie Rezept-/Preflightfehler bleiben terminal.</td></tr>
+    <tr><td>Telemetrie</td><td><code>route_id</code> bezeichnet für bestehende History-Vergleiche die primäre <code>cow_sweep</code>-Route. Additiv kommt <code>setup_route_id</code> für <code>leg_acquisition</code> hinzu; segmentbezogene Events tragen <code>route_role</code>. Es gibt genau ein <code>run_started</code> und ein <code>run_completed</code>.</td></tr>
+  </tbody></table>
+
+  <h2>2. Verbindliche CASC-Quellen und Identitäten</h2>
+  <p>Alle IDs dieser Phase stammen ausschließlich aus den lokalen Extrakten unter <code>.tmp/d2r-excel</code>. Koolo und d2go dürfen weder als Quelle noch als Fallback dienen. Ein ausführender Agent stoppt das betroffene Gate und fordert die fehlende CASC-Datei an, statt einen Wert zu raten.</p>
+  <table><thead><tr><th>Semantik</th><th>CASC-Datei / Schlüssel</th><th>Compile-time-Wert</th><th>Zusatzgate</th></tr></thead><tbody>
+    <tr><td>Stony Field</td><td><code>levels.txt</code></td><td>Area-ID <code>4</code></td><td>bestehender World-Katalog</td></tr>
+    <tr><td>Tristram</td><td><code>levels.txt</code></td><td>Area-ID <code>38</code></td><td>Area-Wechsel beim Portaltest</td></tr>
+    <tr><td>Moo Moo Farm</td><td><code>levels.txt</code></td><td>Area-ID <code>39</code></td><td>Area-Wechsel beim Cow-Portaltest</td></tr>
+    <tr><td>Permanent Portal</td><td><code>objects.txt</code>, „Permanent Portal“</td><td>Objekt-ID <code>60</code></td><td>durch aktuelle Area und erwartete Ziel-Area disambiguieren</td></tr>
+    <tr><td>Wirt’s Body</td><td><code>objects.txt</code></td><td>Objekt-ID <code>268</code></td><td>Interaktions- und Spawnprobe</td></tr>
+    <tr><td>Wirt’s Leg</td><td><code>weapons.txt</code>, Code <code>leg</code></td><td>bestehende generierte Item-ID; Größe <code>1×3</code></td><td>UnitID-/Location-Wechsel live</td></tr>
+    <tr><td>Horadrim Cube</td><td>lokaler Item-Katalog, Code <code>box</code></td><td>bestehende generierte Item-ID; Größe <code>2×2</code></td><td>Cube-UI und ItemLocationCube live</td></tr>
+    <tr><td>TP-Buch</td><td>lokaler Item-Katalog, Code <code>tbk</code></td><td>Item-ID <code>533</code>; Größe <code>1×2</code></td><td>genau eine neue Vendor-UnitID</td></tr>
+    <tr><td>Rakanishu-Basisklasse</td><td><code>superuniques.txt</code> Class <code>fallen2</code> → <code>monstats.txt</code></td><td>NPC-ID <code>20</code></td><td>Superunique-Projektion live charakterisieren</td></tr>
+    <tr><td>Hell Bovine</td><td><code>levels.txt</code> → <code>monstats.txt</code>, <code>hellbovine</code></td><td>NPC-ID <code>391</code></td><td>lebend/tot im selben Walk</td></tr>
+    <tr><td>Cow King</td><td><code>superuniques.txt</code> Class <code>cowking</code> → <code>monstats.txt</code></td><td>NPC-ID <code>735</code></td><td>Superunique-Flag live; <code>superuniques.hcIdx=39</code> ist keine NPC-ID</td></tr>
+    <tr><td>Teleport</td><td><code>skills.txt</code></td><td>Skill-ID <code>54</code></td><td>bestehender Binding-Vertrag</td></tr>
+    <tr><td>Amplify Damage</td><td><code>skills.txt</code></td><td>Skill-ID <code>66</code></td><td>MrBones-Profil</td></tr>
+    <tr><td>Corpse Explosion</td><td><code>skills.txt</code>, <code>TargetCorpse=1</code></td><td>Skill-ID <code>74</code></td><td>Leichenverbrauch und Settle live</td></tr>
+    <tr><td>Bone Spear</td><td><code>skills.txt</code></td><td>Skill-ID <code>84</code></td><td>bestehender MrBones-Cast</td></tr>
+    <tr><td>Town Portal</td><td><code>skills.txt</code>, <code>TownPortal</code></td><td>Skill-ID <code>359</code></td><td>nicht mit Scroll <code>219</code>, Book <code>220</code> oder OSkill <code>411</code> verwechseln</td></tr>
+  </tbody></table>
+  <div class="callout danger"><strong>Harter Quellenvertrag:</strong> Der derzeitige Kommentar in <code>internal/memory/skill_ids.go</code>, der d2go als Quelle nennt, ist für alle von Phase 20 berührten Skills zu entfernen. Werte werden gegen <code>.tmp/d2r-excel/skills.txt</code> generiert oder mit direktem CASC-Quellkommentar neu verankert. Gleiche Zahlen machen eine veraltete Quelle nicht zulässig.</div>
+
+  <h2>3. Belegte Ausgangslage und Konsequenzen</h2>
+  <table><thead><tr><th>Bereich</th><th>Heutiger Vertrag</th><th>Phase-20-Konsequenz</th></tr></thead><tbody>
+    <tr><td>Run-Registry</td><td>Definition, Verfügbarkeit und Pipeline erwarten einen Wegpunkt, eine gebundene Route, einen Boss und Loot/Town-Abschluss.</td><td>Kein Cow-Sonderfall in jede Standardstufe. Eine eigene <code>cowPipeline</code> implementiert den bestehenden internen Runner-Vertrag und verwendet gemeinsame Executor-Bausteine.</td></tr>
+    <tr><td>Queue/Supervisor</td><td>Ein Queue-Eintrag erzeugt einen <code>SupervisorRunRequest</code>, eine ExecutionID, ein Run-Telemetrieobjekt und einen Budgetverbrauch.</td><td>Unverändert wiederverwenden. Die Pipeline darf niemals für ihre zweite Route rekursiv Runner oder Supervisor starten.</td></tr>
+    <tr><td>Assignments</td><td><code>(character, run) → routeID</code> ist die einzige Authority.</td><td>Dasselbe Manifest erhält additiv einen rollenbasierten Route-Satz nur für Runs, die ihn deklarieren. Bestehende Einzelzuweisungen bleiben unverändert.</td></tr>
+    <tr><td>Route-Modell</td><td>Transitionen kennen Eingang oder Terminal; rote Objektportale sind kein semantischer Routeneingang.</td><td>Ein kleiner <code>object_portal</code>-Transitionstyp bindet konkrete Objektart, Ausgangs-Area und erwartete Ziel-Area. Keine allgemeine Quest-/Portal-Engine.</td></tr>
+    <tr><td>Guided Recording</td><td>Start am Wegpunkt, ein Recording-Contract, Bossnähe als Terminalevidenz, TP-Sicherheitsrückkehr.</td><td>Startanker und Terminalevidenz werden als kleine diskriminierte Varianten erweitert. Bestehende Runs behalten exakt ihren bisherigen Vertrag.</td></tr>
+    <tr><td>Route-Hold</td><td>Phase 17 pausiert Navigation bei lokalen Threats, räumt, prüft Coverage, sammelt opportunistisch und fährt fort.</td><td>Setup verwendet den bestehenden Bone-Spear-Pfad. Cow-Sweep injiziert nur eine cow-spezifische Hold-Strategie; Navigator, Coverage, Budgets und Recovery bleiben gemeinsam.</td></tr>
+    <tr><td>Monster-Walk</td><td>Corpse-Units werden anhand des vorhandenen Corpse-Offsets erkannt, aber vor der World-Projektion verworfen.</td><td>Im selben Walk werden relevante Kuh-Leichen separat projiziert. Kein zweiter Memory-Walk, kein Snapshot-Vergleich als Cast-Autorität und keine Vermischung mit lebenden Hostiles.</td></tr>
+    <tr><td>UI-State</td><td>Inventar-/Stash-/Vendor-Zustände sind Memory-gated; ein belastbarer <code>CubeOpen</code>-Vertrag fehlt.</td><td>Gate 20.0 muss das aktuelle UI-Bit live isolieren. Ohne eindeutigen Cube-Open-Beleg keine Rezeptautomatisierung.</td></tr>
+    <tr><td>Inventory</td><td>Item-Code, UnitID, Größe, Gridposition, Location und Lock-Grid existieren; Personal-Stash-Transfer ist verfügbar.</td><td>Eine enge Cube-Transferfunktion kann die bestehenden Projektionen verwenden. Keine generische Drag-and-drop-/Crafting-Abstraktion.</td></tr>
+    <tr><td>Vendor</td><td>Akara-Navigation und Einzel-/Bulk-Kauf existieren; Tome-Zähler sind bewusst unavailable.</td><td>Genau ein <code>tbk</code>-Einzelkauf mit neuer UnitID wird ergänzt. Kein Quantity-Decoder und kein allgemeiner Einkaufslisten-Umbau.</td></tr>
+    <tr><td>Portal</td><td>Spieler-Town-Portale werden über Objekt, stabile UnitID, Position, Hover und Area-Ankunft bestätigt.</td><td>Dieselbe fail-closed Interaktion wird für Permanent Portals wiederverwendet, aber mit Objektart und erwarteter Ziel-Area statt Spielerportal-Ownership.</td></tr>
+    <tr><td>Pickit</td><td>Route-Hold kann nach Safe-Coverage opportunistisch Pickit ausführen; Inventory-full-Recovery existiert für andere Flows.</td><td>Cow setzt eine explizite Continue-Policy: <code>inventory_full</code> loggen/skippen, nicht mitten im Sweep Town/Resume starten.</td></tr>
+    <tr><td>Telemetrie</td><td>History vergleicht Runs über ein singuläres <code>route_id</code>.</td><td><code>cow_sweep</code> bleibt Primärroute; Setup-ID und Rollen sind additive Felder. Keine Aufspaltung der History in zwei Runs.</td></tr>
+  </tbody></table>
+
+  <h2>4. Scope und bewusste Nicht-Ziele</h2>
+  <table><thead><tr><th>Enthalten</th><th>Bewusst nicht enthalten</th></tr></thead><tbody>
+    <tr><td>Run <code>cows</code> für MrBones/Hell/1280×720.</td><td>Andere Klassen, Normal/Nightmare oder andere Auflösungen produktiv freigeben.</td></tr>
+    <tr><td>Zwei feste Route-Rollen und rollenbasierte Availability.</td><td>Beliebig viele verkettete Routen, visueller Workflow-Editor oder allgemeiner Questgraph.</td></tr>
+    <tr><td>Benutzeraufzeichnung vom Stony-Field-Wegpunkt bis Wirt.</td><td>Cairn Stones suchen/aktivieren, Cain retten oder globale Tristram-Navigation.</td></tr>
+    <tr><td>Bestehender Route-Hold gegen Akt-1-Chaff.</td><td>Clear als Voraussetzung für die erste Aufnahme.</td></tr>
+    <tr><td>Vollständig geleertes Cow Level als Aufnahmevoraussetzung.</td><td>Kampfbewegungen aus Aufnahmen filtern oder Routen automatisch glätten.</td></tr>
+    <tr><td>Leerer Cube im geschützten Inventar und exaktes Cow-Rezept.</td><td>Cube beschaffen, Cube-Inhalt umräumen, allgemeine Rezepte oder Crafting-Konfiguration.</td></tr>
+    <tr><td>Frisches Bein und frisch gekauftes separates TP-Buch.</td><td>Bein aus früherem Spiel/anderer Schwierigkeit wiederverwenden oder gelagerte Beine verwalten.</td></tr>
+    <tr><td>Direkte Kuh-Leichenprojektion und CE für Cow-Holds.</td><td>Globales Necromancer-CE-Framework für alle Encounters, Leichenhover oder Dichteoptimierung.</td></tr>
+    <tr><td>Cow King als optional priorisiertes Ziel.</td><td>Cow-King-Kill als Erfolgskriterium oder separater Boss-Loot-Flow.</td></tr>
+    <tr><td>Lokales Ende nach Route und Safe-Coverage.</td><td>Gesamte Map beweisen, alle Kühe suchen, Map-Exploration oder Herding.</td></tr>
+    <tr><td>Loot entlang der Route mit Continue-on-full.</td><td>Route pausieren, Town-Inventar leeren und an derselben Stelle fortsetzen. Dies wird als spätere Pickit-Erweiterung dokumentiert.</td></tr>
+    <tr><td>CASC-compile-time-Kataloge.</td><td>Runtime-Zugriff auf TXT-Dateien, d2go/Koolo als ID-Quelle oder geratenes Mapping.</td></tr>
+  </tbody></table>
+
+  <h2>5. Zielarchitektur und Ownership</h2>
+  <pre><code>Queue/Supervisor: ein Eintrag "cows", eine ExecutionID, ein Budget
+        │
+        ▼
+tasks.cowPipeline ──────────────────────────────────────────────────┐
+  preflight                                                        │
+  town_ready → waypoint → leg_acquisition                          │
+  Wirt öffnen → frisches Bein aufnehmen                            │
+  Spieler-TP → Rogue Encampment                                    │
+  Akara: genau ein neues tbk                                       │
+  loot.CowPortalRecipe: Cube öffnen → 2 Zutaten → Transmute         │
+  Permanent Portal bestätigen/eintreten                            │
+  cow_sweep + CowRouteHoldCombat                                   │
+  terminale 3-Snapshot-Coverage → Spieler-TP                       │
+  Stash/Town-Handoff → complete                                    │
+        │                                                           │
+        ├── pathing: beide Rollen, Objektportal-Transition          │
+        ├── world: Objekte, Items, lebende Kühe, Kuh-Leichen        │
+        ├── profile/input: AD, Bone Spear, CE-Projektion             │
+        ├── town: Akara + Einzelkauf                                │
+        ├── loot: Inventarplanung, Cube-Transfer, Pickit             │
+        └── telemetry: ein Run, Primär-/Setup-Route, Rollen          │
+                                                                    │
+Standard-runPipeline für Countess/Mephisto/Summoner/Nihlathak ─────┘
+bleibt verhaltensgleich; nur tatsächlich gemeinsame Interfaces wachsen.</code></pre>
+  <table><thead><tr><th>Verantwortung</th><th>Einziger Owner</th><th>Verbotene Abkürzung</th></tr></thead><tbody>
+    <tr><td>Cow-Ablauf und Zustandsübergänge</td><td><code>internal/tasks/cow_pipeline.go</code></td><td>Cow-Sonderbedingungen in Supervisor, React oder Standard-<code>runPipeline</code> verteilen</td></tr>
+    <tr><td>Run-/Route-Rollen-Metadaten</td><td><code>internal/tasks</code> Registry-Vertrag</td><td>Stringvergleiche auf <code>cows</code> in mehreren App-Adaptern</td></tr>
+    <tr><td>Route-Speicherung und Transition</td><td><code>internal/pathing</code></td><td>Area-Wechsel über Zeitverzögerung oder blindes Klicken erraten</td></tr>
+    <tr><td>Runtime-Auswahl beider RouteIDs</td><td><code>internal/app</code> Assignment/Availability</td><td>zweite Route aus Config, Dateinamen oder UI-State ableiten</td></tr>
+    <tr><td>CASC-Identitäten</td><td>generierte <code>internal/world</code>/<code>internal/memory</code>-Kataloge</td><td>Magic Numbers in Cow-Pipeline oder Profil</td></tr>
+    <tr><td>Leichenzustand</td><td><code>internal/memory</code> erkennt; <code>internal/world</code> projiziert</td><td>verschwundene lebende Unit als Leiche erfinden</td></tr>
+    <tr><td>Cow-Hold-Entscheidung</td><td><code>internal/tasks</code>, basierend auf World und Profil</td><td>Memory-Rohfelder im Combat-Executor auswerten</td></tr>
+    <tr><td>Skill-Input</td><td><code>internal/profile</code> + <code>internal/input</code></td><td>direkter Maus-/Tastaturcode in Task-State-Machine</td></tr>
+    <tr><td>Cube-Rezept</td><td>enger Executor in <code>internal/loot</code></td><td>allgemeine Recipe-DSL, freie Drag-Engine oder unbestätigtes Transmute</td></tr>
+    <tr><td>Vendor-Kauf</td><td><code>internal/town</code></td><td>Item-Klicks aus Cow-Pipeline oder hartcodierte NPC-Reise</td></tr>
+    <tr><td>Queue-/Budgetautorität</td><td>bestehender Supervisor/Scheduler</td><td>Budget in Route- oder Cow-Code erneut zählen</td></tr>
+    <tr><td>UI</td><td>React zeigt Core-Verträge und startet Commands</td><td>Availability, Cube-Platz oder Route-Kompatibilität im Browser nachbauen</td></tr>
+  </tbody></table>
+
+  <h2>6. Route-Rollen, Manifest und Availability</h2>
+  <p>Das bestehende Assignment-Manifest bleibt die einzige persistierte Route-Autorität. Phase 20 erweitert es additiv und migriert schema-v1-Dateien deterministisch auf schema v2, ohne bestehende Einzelzuweisungen umzuschreiben:</p>
+  <pre><code>schema_version: 2
+revision: 17
+assignments:                 # unverändert für normale Runs
+  mrbones:
+    countess: candidate-...
+    nihlathak: candidate-...
+route_sets:                  # nur für deklarierte Multi-Route-Runs
+  mrbones:
+    cows:
+      leg_acquisition: candidate-...
+      cow_sweep: candidate-...</code></pre>
+  <ul>
+    <li><code>RouteRoleLegAcquisition</code> und <code>RouteRoleCowSweep</code> sind typisierte Konstanten. Freie Rollenstrings aus API/YAML werden abgewiesen.</li>
+    <li>Die Cow-Definition deklariert exakt diese zwei Rollen und markiert <code>cow_sweep</code> als Primärroute für Telemetrie. Es entsteht kein allgemeiner DAG.</li>
+    <li>Ein Cow-Kandidat trägt seine Rolle in der Route-Bindung. Fehlende Rolle bedeutet nur bei bestehenden Single-Route-Runs weiterhin deren normale Primärroute; für <code>cows</code> ist fehlende/falsche Rolle invalid.</li>
+    <li>Der Store bietet eine atomare <code>ResolveRouteSet(character, cows)</code>-Operation. Teilmengen dürfen im Dashboard sichtbar sein, aber nie als verfügbar gelten.</li>
+    <li>Publishing ersetzt nur die Zuweisung der getesteten Rolle. Die andere veröffentlichte Rolle bleibt erhalten, sofern die gemeinsamen Identitätsfelder weiterhin kompatibel sind. Rollenbezogene Area- und Layout-Fingerprints dürfen und müssen verschieden sein.</li>
+    <li>Availability liefert pro Rolle RouteID, Lifecycle, Managementstatus und Grund. Ein fehlender oder stale Teil macht den gesamten Run unavailable; der UI-Text benennt genau die betroffene Aufnahme.</li>
+    <li>Beide Route-Dateien werden vor Runstart SHA-256-geprüft und immutable in denselben Supervisor-Request gebunden. Ein Austausch während des Runs wird nicht sichtbar.</li>
+    <li><code>route_id=cow_sweep</code> und <code>setup_route_id=leg_acquisition</code> werden aus diesem eingefrorenen Set abgeleitet, nie aus später erneut gelesener Persistenz.</li>
+  </ul>
+  <div class="callout"><strong>KISS-Grenze:</strong> Bestehende Runs werden nicht auf Route-Sets migriert. Das optionale <code>route_sets</code>-Feld und zwei neue Store-Operationen reichen aus. Kein generischer Workflow-Graph, keine Reihenfolgeliste im YAML und keine N-stufige UI.</div>
+
+  <h2>7. Aufnahme- und Playback-Verträge</h2>
+  <table><thead><tr><th>Vertrag</th><th><code>leg_acquisition</code></th><th><code>cow_sweep</code></th></tr></thead><tbody>
+    <tr><td>Start</td><td>Memory-bestätigter Stony-Field-Wegpunkt/Area 4 nach bestehender Waypoint-Reise.</td><td>Area 39 in Nähe des stabilen Cow-Portal-Ankunftsankers.</td></tr>
+    <tr><td>Bewegung</td><td>bestehende Teleport-Aufzeichnung; Akt-1-Chaff darf während Replay Route-Holds auslösen.</td><td>bestehende Teleport-Aufzeichnung; Aufnahme nur im zuvor vollständig geräumten Cow Level.</td></tr>
+    <tr><td>Area-Folge</td><td>Area 4 → Objektportal 60 → Area 38. Genau dieser Übergang ist Pflicht.</td><td>nur Area 39; kein Area-Wechsel im Kandidaten.</td></tr>
+    <tr><td>Terminal</td><td>Area 38, Wirt’s Body 268 sichtbar und innerhalb der bestehenden Objekt-Interaktionsdistanz.</td><td>F9 am gewünschten Endpunkt; Route muss wenigstens einen validen Bewegungsabschnitt besitzen.</td></tr>
+    <tr><td>Nach Freeze</td><td>TP-Rückkehr nach Rogue Encampment.</td><td>TP-Rückkehr nach Rogue Encampment; vorhandenes Cow-Portal bleibt für den Test bestehen.</td></tr>
+    <tr><td>Isolierter Test</td><td>Core reist zum Wegpunkt, spielt bis Wirt, klickt Wirt nicht und kehrt per TP zurück.</td><td>Core betritt das im selben Spiel bestehende Memory-Portal, spielt ohne Kampf, verlangt terminale Position und kehrt per TP zurück.</td></tr>
+    <tr><td>Publikation</td><td>nur nach erfolgreichem isoliertem Test; Rolle wird atomar zugewiesen.</td><td>nur nach erfolgreichem isoliertem Test; Rolle wird atomar zugewiesen.</td></tr>
+  </tbody></table>
+  <p>Die Route-Transition für das rote Portal ist klein und explizit:</p>
+  <pre><code>type RouteTransitionKind string
+const RouteTransitionObjectPortal RouteTransitionKind = "object_portal"
+
+type ObjectPortalTransition struct {
+    ObjectKind     world.ObjectKind  // PermanentPortal
+    ExpectedToArea world.AreaID      // Tristram bzw. MooMooFarm
+}
+
+// Aktivierung nur wenn:
+// - aktueller Snapshot frisch/vollständig
+// - erwartete FromArea aktiv
+// - konkrete stabile Object-UnitID sichtbar
+// - Objekt innerhalb Interaktionsdistanz und per Hover bestätigt
+// - danach ExpectedToArea innerhalb Timeout bestätigt</code></pre>
+  <ul>
+    <li>Die gleiche Objekt-ID 60 wird niemals ohne aktuelle Area und erwartete Ziel-Area verwendet.</li>
+    <li>Portal-Hover darf nach einem Route-Hold erneut versucht werden, muss aber dieselbe frisch aufgelöste UnitID verwenden. Ein Monster-Sprite darf den Klick nicht autorisieren.</li>
+    <li>Der Recorder erzeugt die Transition aus beobachteter Objektinteraktion plus bestätigtem Area-Wechsel; er nimmt keine Mauskoordinate als dauerhafte Autorität auf.</li>
+    <li>Der Cow-Sweep-Ankunftsanker speichert keine Town-Koordinate. Er beweist lediglich den Start in Area 39 nahe der beim Eintritt beobachteten Portal-Ankunft.</li>
+    <li>Bestehende Entrance-/Terminal-Routen bleiben byte- und verhaltensgleich.</li>
+  </ul>
+
+  <h2>8. Cow-Preflight und Inventarvertrag</h2>
+  <p>Der Preflight läuft vor dem ersten Input des Cow-Runs auf frischen, konsistenten Snapshots. Er prüft nur belegbare Voraussetzungen und benennt den ersten stabilen Grund; UI-Hinweise decken nicht direkt beweisbaren Quest-/Stashzustand ab.</p>
+  <table><thead><tr><th>Prüfung</th><th>Autoritative Evidenz</th><th>Fehler</th></tr></thead><tbody>
+    <tr><td>Run-Scope</td><td>MrBones/Necromancer, Hell, 1280×720, Offline, kompatibles Profil</td><td><code>cow_scope_unsupported</code></td></tr>
+    <tr><td>Route-Satz</td><td>beide immutable Kandidaten samt Hash, kompatiblen gemeinsamen Identitätsfeldern und jeweils eigenem gültigem Area-/Layout-Vertrag</td><td>rollenbezogener bestehender Route-Grund</td></tr>
+    <tr><td>Cube vorhanden</td><td>genau ein Item <code>box</code> in persönlichem Inventar</td><td><code>cow_cube_missing</code> / <code>cow_cube_ambiguous</code></td></tr>
+    <tr><td>Cube geschützt</td><td>alle belegten 2×2-Inventarzellen liegen im bestehenden Lock-Grid</td><td><code>cow_cube_unprotected</code></td></tr>
+    <tr><td>Cube leer</td><td>kein sichtbares Item mit <code>ItemLocationCube</code> über drei frische Snapshots</td><td><code>cow_cube_not_empty</code></td></tr>
+    <tr><td>Kein altes Bein</td><td>kein sichtbares Item mit Code <code>leg</code> in Inventory/Cube/Stash-Locations</td><td><code>cow_existing_leg</code></td></tr>
+    <tr><td>Platz</td><td>bestehender Inventory-Planner findet gleichzeitig disjunkte, ungesperrte Rechtecke 1×3 und 1×2</td><td><code>cow_inventory_space_missing</code></td></tr>
+    <tr><td>Rückkehr</td><td>operatives TP-Buch im persönlichen Inventar und verfügbare Runtime-Town-Portal-Fähigkeit/Binding</td><td><code>cow_return_portal_unavailable</code></td></tr>
+    <tr><td>Skills</td><td>Teleport 54, AD 66, CE 74, Bone Spear 84 im gebundenen MrBones-Profil</td><td><code>cow_combat_skill_missing</code></td></tr>
+    <tr><td>Town-Fähigkeiten</td><td>Akara-Graph, Vendor-Einzelkauf, Inventory/Cube-Projektion, Portalinteraktion verfügbar</td><td><code>run_capability_missing</code></td></tr>
+  </tbody></table>
+  <ul>
+    <li>Der Platztest reserviert hypothetisch beide Formen gleichzeitig, obwohl das neue Buch erst später gekauft wird. Er verschiebt keine Items.</li>
+    <li>Geschlossene Shared-Stash-Tabs werden nicht durch neue UI-Automation durchsucht. Die UI verlangt zusätzlich ausdrücklich, alte gelagerte Beine manuell zu entfernen. Sichtbare Beine blockieren immer.</li>
+    <li>Tome-Zähler bleiben unavailable. „Verwendbar“ wird über die vorhandene Runtime-Fähigkeit und den tatsächlichen, Memory-bestätigten Portal-Cast abgesichert.</li>
+    <li>Jeder Preflightfehler ist terminal, erzeugt keinen Spielinput und startet keinen Retry.</li>
+  </ul>
+
+  <h2>9. Wirt-, Rückkehr- und Einkauf-State-Machine</h2>
+  <pre><code>play leg_acquisition
+  → Wirt’s Body 268 frisch auflösen
+  → begrenzt hover-bestätigt interagieren
+  → auf neues Ground-Item code=leg warten
+  → konkrete Leg-UnitID binden
+  → mit bestehendem Pickup-Executor aufnehmen
+  → dieselbe UnitID in Personal Inventory bestätigen
+  → Spieler-Town-Portal casten und Rogue Encampment bestätigen
+  → Akara über bestehenden Town-Graph öffnen
+  → vor Kauf vorhandene tbk-UnitIDs erfassen
+  → genau einen Einzelkauf tbk senden
+  → genau eine neue tbk-UnitID im Personal Inventory bestätigen
+  → Shop schließen
+  → CowPortalRecipe(legUnitID, newTomeUnitID, cubeUnitID)</code></pre>
+  <ul>
+    <li>Wirt wird höchstens mit einem kleinen, fest getesteten Interaktionsbudget erneut angeklickt; ein neuer Snapshot löst das Objekt vor jedem Klick erneut auf.</li>
+    <li>Ein Ground-Leg wird nicht über Namen oder Position allein gebunden. Code, UnitID, Location und erwartete Spawnnähe sind Pflicht.</li>
+    <li>Das Bein ist Pflichtzutat, kein normaler Pickit-Kandidat. Der enge Questitem-Pickup verwendet die bestehenden Hover-/Location-Gates, aber keine benutzerdefinierte Pickit-Regel.</li>
+    <li>Nach bestätigtem Bein gibt es keinen zweiten Wirt-Klick. Pickupfehler führen nach begrenzten Versuchen zum sicheren Rückweg und terminalen Stopp.</li>
+    <li>Das Rückkehrportal wird vor dem Kauf verwendet. Dadurch kann der neue Tome weder versehentlich den Rückkehr-Cast versorgen noch mit dem operativen Tome verwechselt werden.</li>
+    <li>Der Vendor-Executor kauft exakt ein sichtbares <code>tbk</code>. Mehr als eine neue UnitID, keine neue UnitID oder falsche Item-Location ist terminal.</li>
+    <li>Goldprüfung und Vendor-/Shop-Gates verwenden die bestehenden Town-Verträge. Kein alternativer NPC und kein automatischer Goldtransfer aus Shared Stash.</li>
+  </ul>
+
+  <h2>10. Enger Cube- und Portal-Rezeptvertrag</h2>
+  <p><code>loot.CowPortalRecipe</code> ist kein allgemeines Crafting-System. Der Executor akzeptiert genau drei bereits gebundene UnitIDs und besitzt eine lineare, abortierbare Zustandsfolge:</p>
+  <pre><code>verify_personal_items
+  → open_inventory
+  → right_click_bound_cube
+  → wait_cube_open_memory_gate
+  → transfer_bound_leg
+  → verify_leg_in_cube
+  → transfer_bound_new_tome
+  → verify_exact_cube_contents
+  → click_transmute_1280x720
+  → wait_fresh_recipe_result
+  → verify_both_ingredients_consumed
+  → verify_new_stable_permanent_portal_in_rogue_encampment
+  → close_cube_inventory
+  → enter_bound_portal
+  → verify_area_39</code></pre>
+  <table><thead><tr><th>Gate</th><th>Pflicht</th><th>Fail-closed-Verhalten</th></tr></thead><tbody>
+    <tr><td>Cube UI</td><td>Ein in Gate 20.0 live belegtes <code>CubeOpen</code>-Bit nach Rechtsklick auf die gebundene Cube-UnitID.</td><td>Kein Transfer/Transmute ohne UI-Bestätigung.</td></tr>
+    <tr><td>Transfer</td><td>Gate 20.3 belegt Ctrl+Klick für Inventory→Cube bei 1280×720. Jeder Transfer wartet auf den Location-Wechsel derselben UnitID.</td><td>Ist Ctrl+Klick nicht reproduzierbar, stoppt das Gate zur Plananpassung; Agent erfindet keinen Drag-Fallback.</td></tr>
+    <tr><td>Inhalt</td><td>Genau zwei Items im Cube: gebundenes <code>leg</code> und neu gekauftes <code>tbk</code>.</td><td>Drittes/falsches/fehlendes Item → Cube schließen, terminal in Town; nichts transmutieren.</td></tr>
+    <tr><td>Transmute</td><td>Layout-validierte Schaltflächenkoordinate, Fensterfokus, UI weiterhin offen, danach genau ein Klick.</td><td>Kein Blind-Retry des Transmute-Klicks.</td></tr>
+    <tr><td>Verbrauch</td><td>Beide Zutaten-UnitIDs sind in frischen Snapshots nicht mehr in Inventory/Cube vorhanden.</td><td>Inkonsistenz oder nur eine verbrauchte Zutat → terminal.</td></tr>
+    <tr><td>Portal</td><td>Nach dem Klick erscheint eine neue/stabile Object-UnitID für Permanent Portal 60 in Area Rogue Encampment.</td><td>Fehlendes Portal nach Timeout ist terminal, insbesondere bei nicht erfülltem Baal-Fortschritt.</td></tr>
+    <tr><td>Eintritt</td><td>Neu aufgelöste Portal-UnitID, Hover-Match, begrenzte Klicks, danach Area 39.</td><td>Terminaler Stopp in Town; kein neues Rezept und kein Retry.</td></tr>
+  </tbody></table>
+  <div class="callout danger"><strong>Irreversibilitätsgrenze:</strong> Direkt vor Transmute wird ein frischer vollständiger Snapshot verlangt. Nach dem einen Klick darf niemals durch bloßen Timeout ein zweiter Klick gesendet werden. Zutatenverbrauch und Portalobjekt entscheiden; uneindeutiger Zustand ist terminal.</div>
+
+  <h2>11. Leichenmodell und Corpse-Explosion-Vertrag</h2>
+  <p>Der vorhandene Monster-Walk liest den Corpse-Zustand bereits. Phase 20 darf diesen Walk nur erweitern, nicht duplizieren:</p>
+  <pre><code>Memory MonsterUnit
+  ├─ corpse == 0 + erlaubte NPC-ID → world.Monsters (lebend)
+  └─ corpse != 0 + NPC-ID 391/735 → world.MonsterCorpses
+         UnitID · NPCID · Position · observedAt · snapshot generation
+
+Keine Ableitung:
+living[t-1] - living[t] ≠ autorisierte Leiche</code></pre>
+  <ul>
+    <li>Nur Hell Bovine 391 und Cow King 735 werden für Phase 20 als CE-Ziele projiziert. Andere Leichen bleiben außerhalb dieses Schnitts.</li>
+    <li>Lebende und tote Projektionen sind disjunkt. Eine UnitID darf in einem Snapshot nicht in beiden Listen stehen; Inkonsistenz macht den Kampf-Snapshot unbrauchbar.</li>
+    <li>Leichen tragen keine dauerhafte globale Registry. Der Cow-Hold hält lediglich pro Hold eine Menge versuchter/verbrauchter UnitIDs.</li>
+    <li>Ein CE-Ziel muss im aktuellen frischen Snapshot existieren, innerhalb des kampffähigen Radius liegen und in den spielbaren Clientbereich projizierbar sein.</li>
+    <li>Der Cast benötigt keinen Hover-Match. Die Task-Schicht autorisiert die konkrete Leichen-UnitID; Profile/Input projizieren deren aktuelle World-Position und senden genau einen positionsgebundenen CE-Cast.</li>
+    <li>Nach dem Cast sperrt ein live bestimmtes Mindest-Settle plus Snapshot-Frische alle weiteren Eingaben. Der Cast gilt als erfolgreich verbraucht, wenn der live belegte Corpse-Indikator/Unit-Zustand verschwindet oder sich in die in Gate 20.0 belegte konsumierte Form ändert.</li>
+    <li>Bleibt die Leiche nach zwei objektiv wirkungslosen Versuchen bestehen, wird ihre UnitID für diesen Hold übersprungen. Ein späterer Hold darf sie nur verwenden, wenn sie noch frisch projiziert wird.</li>
+  </ul>
+  <div class="callout gate"><strong>Gate 20.0 – zwingend live:</strong> Vor produktivem CE-Code müssen mindestens eine normale Kuh und, sofern praktikabel, der Cow King über lebend → tot beobachtet werden. UnitID, NPCID, Corpse-Feld, Position und Lebensliste müssen stabil sein. Danach wird CE manuell/isoliert einmal auf eine bestätigte Leiche gewirkt und der tatsächliche Verbrauchszustand sowie das Animations-/Snapshot-Settle gemessen. Ohne eindeutige Leichenevidenz oder Verbrauchsbestätigung stoppt Phase 20; Snapshot-Differenz ist kein Fallback.</div>
+
+  <h2>12. Cow-Route-Hold-Algorithmus</h2>
+  <pre><code>bei blockiertem cow_sweep-Routenpunkt:
+  Hold initialisieren
+  Amplify Damage einmal auf erstes hover-bestätigtes lebendes Ziel
+
+  solange weniger als 3 frische lokal vollständige Safe-Snapshots:
+    Snapshot invalid/inkonsistent? → warten, kein Input
+    Ressourcen unsicher?          → bestehende Ressourcen-/Recovery-Policy
+
+    wenn aktuelle unversuchte, projizierbare Kuh-Leiche vorhanden:
+      Leiche nahe aktivem lebenden Ziel wählen
+      CE auf aktuelle Position senden
+      Mindest-Settle + frischen Snapshot abwarten
+      objektiven Fortschritt auswerten
+      ggf. nächste Leiche wählen
+    sonst wenn lebende lokale Kuh vorhanden:
+      Cow King priorisieren, sonst bestehende Threat-Auswahl
+      Bone Spear hover-bestätigt wirken
+      Settle + frischen Snapshot abwarten
+      neu erschienene direkte Leiche ermöglicht CE-Zweig
+    sonst:
+      Safe-Zähler erhöhen
+
+    kein objektiver Fortschritt innerhalb Watchdog/Budget?
+      retryable cow_combat_no_progress
+
+  Hold zurücksetzen → Route fortsetzen</code></pre>
+  <table><thead><tr><th>Aspekt</th><th>Vertrag</th></tr></thead><tbody>
+    <tr><td>Äußerer Abschluss</td><td>Drei frische, lokal vollständige Snapshots ohne erlaubte lebende Cow-Hostiles. Genau dieselbe Coverage-Idee gilt am letzten Routenpunkt.</td></tr>
+    <tr><td>AD</td><td>Genau einmal pro neuem Hold. Keine Curse-Dauerverfolgung und kein Recast innerhalb desselben Holds.</td></tr>
+    <tr><td>Bone Spear</td><td>Bestehender hover-bestätigter MrBones-Cast. Er erzeugt Leichen, wenn keine direkt verwendbare vorhanden ist.</td></tr>
+    <tr><td>CE-Auswahl</td><td>Eine sichtbare, nicht übersprungene Leiche nahe dem aktiven lebenden Ziel. Keine optimale Dichteberechnung.</td></tr>
+    <tr><td>CE-Kette</td><td>Jeder bestätigte neue Snapshot kann weitere Leichen liefern. Solange objektiver Fortschritt besteht, darf die innere Schleife weitere CE-Casts senden.</td></tr>
+    <tr><td>Fortschritt</td><td>Weniger lokale Lebende, neue direkte Leiche, bestätigter Leichenverbrauch oder Safe-Coverage. Castanzahl, Tastendruck oder Zeitablauf allein zählen nicht.</td></tr>
+    <tr><td>Grenzen</td><td>Zwei Versuche pro Leiche, Settle, bestehender Step-/Session-Budgetrahmen, No-Progress-Watchdog und Ressourcensicherheit. Es gibt kein künstliches Gesamtlimit, solange belegter Fortschritt anhält.</td></tr>
+    <tr><td>Cow King</td><td>Lebend priorisiert, aber nach seinem Tod läuft der normale lokale Clear weiter. Sein Abwesenheits-/Todesevent beendet weder Hold noch Route.</td></tr>
+    <tr><td>Loot</td><td>Erst nach Safe-Coverage am Routenpunkt. <code>inventory_full</code> führt bei <code>cows</code> zu geloggtem Skip; danach nächster Punkt.</td></tr>
+  </tbody></table>
+
+  <h2>13. Vollständige Cow-State-Machine</h2>
+  <pre><code>resolve_definition
+ → precheck_cow
+ → town_ready_profile
+ → acquire_act1_waypoint
+ → select_stony_field
+ → wait_stony_field
+ → play_leg_acquisition
+ → acquire_wirt_body
+ → interact_wirt_body
+ → acquire_fresh_leg
+ → pick_fresh_leg
+ → confirm_leg_inventory
+ → cast_return_portal
+ → enter_return_portal
+ → wait_rogue_encampment
+ → buy_recipe_tome
+ → transmute_cow_portal
+ → enter_cow_portal
+ → wait_moo_moo_farm
+ → play_cow_sweep
+ → confirm_terminal_safe
+ → cast_final_portal
+ → enter_final_portal
+ → wait_rogue_encampment
+ → stash_and_services
+ → reach_act1_waypoint
+ → complete</code></pre>
+  <ul>
+    <li>Jeder Zustand benennt erlaubte Nachfolger, persistierenden Zustand, Input-Autorität, Timeout sowie terminale/retryfähige Fehler. Übergänge außerhalb der Tabelle sind Defekte.</li>
+    <li>Persistiert über Ticks: beide RouteIDs/Hashes, Wirt-/Leg-/Cube-/neue-Tome-/Cow-Portal-UnitIDs, aktiver Route-Hold, CE-Versuchsmenge, Settle-Zeit, Fortschrittszeit und terminaler Safe-Zähler.</li>
+    <li>Die zentrale Runner-Resetbarriere löscht sämtliche Cow-UnitIDs, Route-Player, Hold-/CE-Zustand, Recipe-Executor, Pickup-/Town-Zustand und Telemetriebindung vor einer neuen Generation.</li>
+    <li>Ein Retry beginnt immer in einem neuen Spiel beim normalen Cow-Preflight. Ein im alten Spiel erzeugtes Bein oder Portal wird nie in den neuen Versuch übernommen.</li>
+    <li>Normaler Erfolg wird erst nach bestätigtem Rogue Encampment, Stash/Town-Services und bestehendem Town-Handoff gemeldet.</li>
+  </ul>
+  <div class="callout"><strong>Implementierungsform:</strong> <code>cowPipeline</code> implementiert dasselbe kleine interne Run-Interface wie <code>runPipeline</code>. Der Registry-Factory-Zweig wählt sie nur für eine Definition mit Cow-Flow. Der Standardpfad bleibt charakterisiert und erhält keine leeren Boss-/Loot-Sonderzustände.</div>
+
+  <h2>14. Fehler-, Recovery- und Queue-Vertrag</h2>
+  <table><thead><tr><th>Klasse</th><th>Beispiele</th><th>Verhalten</th></tr></thead><tbody>
+    <tr><td>Preflight terminal</td><td>Cube fehlt/dirty/ungeschützt, altes Bein sichtbar, Platz fehlt, Skill/TP-Buch fehlt, Route-Rolle fehlt</td><td>Kein Input, Queue sicher stoppen, klare deutsche Meldung.</td></tr>
+    <tr><td>Setup terminal mit Rückweg</td><td>Tristram-Portal nach begrenztem Blocker-Clear nicht hoverbar, Wirt/Bein endgültig nicht bestätigt</td><td>Spieler-TP → Rogue Encampment → Queue terminal. Kein Save &amp; Exit nötig, sofern Town erreicht.</td></tr>
+    <tr><td>Rückweg terminal</td><td>TP-Cast oder Eintritt nach Wirt scheitert endgültig</td><td>Kontrolliertes Save &amp; Exit, Queue terminal; vorhandenes Bein wird beim nächsten Preflight gemeldet.</td></tr>
+    <tr><td>Town/Rezept terminal</td><td>Tome-Kauf uneindeutig, Cube-UI fehlt, Transfer inkonsistent, falscher Inhalt, Zutatenverbrauch uneindeutig, Cow-Portal fehlt</td><td>Keine Wiederholung irreversibler Aktion. In Town bleiben, Queue terminal; bei offenem UI kontrolliert schließen, soweit belegbar.</td></tr>
+    <tr><td>Cow-Portal terminal</td><td>Portal vorhanden, aber Eintritt/Area 39 nicht bestätigt</td><td>In Rogue Encampment sicher stoppen; kein zweites Rezept.</td></tr>
+    <tr><td>Retryfähig</td><td><code>cow_combat_no_progress</code> sowie bestehende retryfähige Route-/Combat-/Ressourcenstörungen während <code>leg_acquisition</code> oder <code>cow_sweep</code></td><td>Bestehende sichere TP-Rückkehr, Save &amp; Exit, neuer Gesamtversuch innerhalb der Supervisor-Budgets. Ein nach Blocker-Clear weiterhin fehlendes Tristram-Portal bleibt davon getrennt terminal.</td></tr>
+    <tr><td>Finaler TP-Recoveryfehler</td><td>nach Sweep kein sicherer TP-Rückweg</td><td>bestehende kontrollierte Save-&amp;-Exit-Fallbacklogik; Erfolg darf nicht gemeldet werden.</td></tr>
+    <tr><td>Loot voll</td><td>gewünschtes Item ohne freien Platz</td><td>Item mit Grund loggen/skippen, Route fortsetzen; weder terminal noch retryfähig.</td></tr>
+  </tbody></table>
+  <p>Neue stabile Gründe werden zentral in Go, API, UI und Telemetrie gemappt. UI-Texte nennen Benutzeraktion statt Interna, etwa „Der Horadrimwürfel ist nicht leer“ oder „Das rote Portal nach Tristram wurde nicht gefunden“. Kein Reason-String wird nur in React erfunden.</p>
+
+  <h2>15. Telemetrie- und History-Vertrag</h2>
+  <ul>
+    <li><code>run_started</code>, <code>run_context</code>, Retry-/Recovery-Events und <code>run_completed</code>/<code>run_failed</code> bleiben genau einmal pro Cow-Versuch.</li>
+    <li>Run-Kontext: <code>route_id=&lt;cow_sweep&gt;</code>, additiv <code>setup_route_id=&lt;leg_acquisition&gt;</code>. Beide Hashes werden im eingefrorenen Kontext protokolliert.</li>
+    <li>Route-/Transition-/Hold-Events tragen <code>route_role=leg_acquisition|cow_sweep</code>. Bestehende Events anderer Runs lassen das Feld leer.</li>
+    <li>Rezept-Telemetrie loggt semantische Zustände und anonymisierte UnitIDs: Bein aufgenommen, Rezeptbuch gekauft, Zutaten bestätigt, Transmute gesendet, Portal bestätigt. Keine Mauskoordinaten als Produkterfolg.</li>
+    <li>Jeder tatsächliche Input bleibt gemäß Projektvertrag geloggt: Aktion, Grund, gebundene UnitID soweit vorhanden und Ergebnis.</li>
+    <li>Cow-Hold-Ende enthält aggregiert Bone-Spear-Casts, CE-Casts, bestätigte/übersprungene Leichen, lebende Start-/Endanzahl, Dauer und Abschlussgrund. Einzelinputs bleiben im Inputlog; History wird nicht mit Snapshot-Events geflutet.</li>
+    <li>Cow-King-Begegnung/-Tod darf als Zusatzfeld/Event erscheinen, verändert aber Outcome nicht.</li>
+    <li>History-Analyzer gruppiert weiterhin nach primärer Route. Ältere Records ohne <code>setup_route_id</code>/<code>route_role</code> bleiben lesbar; keine Reparse-Migration nur für Phase 20.</li>
+  </ul>
+
+  <h2>16. Dashboard- und Operator-Vertrag</h2>
+  <p>Die Cow-Karte erscheint im vorhandenen Route-/Run-Dashboard und verwendet dieselben Workflow-Locks. Sie zeigt zwei klar getrennte Rollenstatus und genau einen Queue-Run.</p>
+  <table><thead><tr><th>UI-Bereich</th><th>Verbindlicher Inhalt</th></tr></thead><tbody>
+    <tr><td>Voraussetzungen</td><td>„Für Cow-Runs muss sich ein leerer Horadrimwürfel im geschützten Inventar befinden. Außerdem werden Platz für Wirt’s Bein und ein zusätzliches Stadtportalbuch sowie ein verwendbares Stadtportalbuch für die Rückkehr benötigt.“</td></tr>
+    <tr><td>Quest-Hinweis</td><td>Die gewählte Schwierigkeit muss abgeschlossen und das Tristram-Portal bereits geöffnet sein. Der Bot beschafft weder den Cube noch automatisiert er die Cain-Quest.</td></tr>
+    <tr><td>Altes Bein</td><td>Vor Start alle alten Wirt’s Legs aus Inventar, Cube und Lager manuell entfernen.</td></tr>
+    <tr><td>Aufnahme 1</td><td>Button „Wirt-Route aufnehmen“, Status/Kandidat/Test separat. Anleitung: am normalen Workflow starten; vom Stony-Field-Wegpunkt durch das offene rote Portal bis nahe Wirts Körper; Wirt nicht anklicken. Kein Clear-Hinweis.</td></tr>
+    <tr><td>Aufnahme 2</td><td>Button „Cow-Route aufnehmen“, Status/Kandidat/Test separat. Deutlicher Hinweis: Cow Level zuerst vollständig leeren, dann direkt am Portal-Ankunftspunkt aufnehmen; Kampf- und Rückteleports verfälschen die Route.</td></tr>
+    <tr><td>Availability</td><td>„Bereit“ nur bei zwei veröffentlichten kompatiblen Rollen. Sonst gezielt „Wirt-Route fehlt/veraltet“ oder „Cow-Route fehlt/veraltet“.</td></tr>
+    <tr><td>Queue</td><td>Ein Eintrag „Cow Level“, ein Gewicht/Budget und ein Verlauf. Keine zwei Queue-Karten.</td></tr>
+    <tr><td>Fehler</td><td>Kurze deutsche Operatorhilfe für Cube, Platz, altes Bein, Tristram-Portal, Wirt, Rezeptbuch, Cow-Portal und Combat-No-Progress.</td></tr>
+  </tbody></table>
+  <ul>
+    <li>Keine neue UI-Bibliothek und kein Workflow-Diagramm-Editor. Zwei bestehend gestylte Karten/Buttons mit gemeinsamen Statuskomponenten reichen.</li>
+    <li>React berechnet weder Inventarplatz noch gemeinsame Route-Kompatibilität. Es rendert Core-DTOs und sendet rollenbezogene Commands.</li>
+    <li>Alle mutierenden Buttons bleiben während Session/Queue/Recording/Test global gesperrt wie bisher.</li>
+    <li>Responsive Abnahme mindestens 390×844 und 1280×720; deutsche Texte dürfen nicht abgeschnitten sein.</li>
+  </ul>
+
+  <h2>17. Erwartete Dateien und minimale Diffs</h2>
+  <table><thead><tr><th>Bereich</th><th>Erwartete Dateien</th><th>Änderung</th></tr></thead><tbody>
+    <tr><td>CASC/Katalog</td><td><code>internal/memory/skill_ids.go</code>, <code>internal/world/*_ids*.go</code>, vorhandene Generatoren/Tests</td><td>Phase-20-Identitäten ausschließlich aus lokalen Extrakten; Source-Kommentare/Generator-Fixtures aktualisieren.</td></tr>
+    <tr><td>Memory/World</td><td><code>internal/memory</code> Monster-/UI-Reader, <code>internal/world/entity.go</code>, <code>ui.go</code>, Mapper-/Clone-Tests</td><td>Kuh-Leichen im selben Walk und live belegter CubeOpen-State; Objekte/Items nur projizieren.</td></tr>
+    <tr><td>Pathing</td><td><code>route_model.go</code>, <code>route_transition.go</code>, Recorder/Player/Compatibility/Storage und Tests</td><td>RouteRole, Start-/Terminalvarianten und enges Object-Portal; bestehende Routen charakterisieren.</td></tr>
+    <tr><td>Assignments/App</td><td><code>route_assignment.go</code>, <code>run_availability.go</code>, Recording-/Playback-Koordinatoren, Route DTO/API und Tests</td><td>optionales Route-Set, Schema-v2-Migration, rollenbezogene Commands/Status, beide Routen immutable binden.</td></tr>
+    <tr><td>Tasks</td><td>neue <code>cow_pipeline.go</code>, kleine Cow-Contract-/Combat-Dateien, Registry, Runner-Factory, fokussierte Tests</td><td>eigene lineare State-Machine, Cow-Hold, Reasons/Reset; Standardpipeline nicht umbauen.</td></tr>
+    <tr><td>Input/Profile</td><td>bestehende Skill-/Cast-Abstraktionen und Tests</td><td>positionsgebundener, task-autorisierter CE-Cast mit Settle; keine generische Hover-Abschaltung.</td></tr>
+    <tr><td>Loot</td><td>neue enge <code>cow_portal_recipe.go</code>, Inventory-Planner/Pickup-Policy und Tests</td><td>Simultanplatz, Pflicht-Leg-Pickup, UnitID-Transfers, exakter Cube-Inhalt, Cow Continue-on-full.</td></tr>
+    <tr><td>Town</td><td>VendorBuyer/Planner/Executor und Tests</td><td>genau ein <code>tbk</code> per Item-Code kaufen und neue UnitID bestätigen; bestehender Akara-Graph.</td></tr>
+    <tr><td>Telemetry</td><td>Recorder/History DTO/Analyzer und Tests</td><td><code>setup_route_id</code>, <code>route_role</code>, Cow-Hold-Zusammenfassung; alte Daten lesbar.</td></tr>
+    <tr><td>API/Web</td><td>OpenAPI, generierter Client, <code>RouteFeature.tsx</code>, Queue-/Reason-Anzeigen und Tests</td><td>zwei Aufnahme-Workflows, Voraussetzungen, rollenbezogene Availability, ein Cow-Queue-Eintrag.</td></tr>
+    <tr><td>Config</td><td><code>configs/config.example.yaml</code> und Config-Tests</td><td>Cow-Run/Profilzuordnung und nur bereits etablierte Route-Combat-/Retry-Defaults; keine CE-Tuning-Sektion.</td></tr>
+    <tr><td>Docs</td><td>neue <code>docs/features/cow-level-run.md</code>; Route-/Recording-/Threat-/Town-/World-/Telemetry-Docs, Index, Changelog, Handoff</td><td>Ablauf, Gates, IDs, UI, Fehler, Grenzen, Live-Abnahme und geplante Pickit-Fortsetzung dokumentieren.</td></tr>
+  </tbody></table>
+  <div class="callout"><strong>Kein Drive-by-Refactor:</strong> Keine neue Event-Bus-Schicht, kein allgemeiner Multi-Route-Graph, keine Crafting-Engine, keine Leichen-Datenbank, kein Herding-/Clusteralgorithmus, keine Tome-Quantity-Forschung, keine Shared-Stash-Suche und keine Neugestaltung des Dashboards. Neue Hilfstypen bleiben so eng wie der Cow-Vertrag.</div>
+
+  <h2>18. Vollständiger Testvertrag</h2>
+  <table><thead><tr><th>Ebene</th><th>Pflichtfälle</th></tr></thead><tbody>
+    <tr><td>CASC</td><td>Jeder genannte Skill/Object/Area/Monster/Item-Wert gegen lokale TXT-Fixture; <code>superuniques.hcIdx</code> nie als NPC-ID; Test/Kommentar enthält Dateiname und Schlüssel; keine d2go-/Koolo-Provenienz in Phase-20-Symbolen.</td></tr>
+    <tr><td>Memory</td><td>lebende Kuh, tote Kuh, Cow King, nicht relevante Leiche, disjunkte Listen, inkonsistenter Read, frischer Snapshot, Positionsstabilität, kein zweiter Monster-Walk; CubeOpen true/false/unavailable.</td></tr>
+    <tr><td>World</td><td>Objekt 60 nach Area disambiguierbar, Wirt 268, Item-Codes/Größen/Locations, Corpse-Clone, stale Snapshot widerruft Autorität, lebend/tot nie doppelt.</td></tr>
+    <tr><td>Assignments</td><td>v1→v2 erhält alle alten Assignments; partielles Cow-Set; vollständiges Set; unbekannte Rolle; Revisionskonflikt; atomarer Rollenwechsel; defensive Clones; Character-Normalisierung.</td></tr>
+    <tr><td>Availability</td><td>beide Rollen okay; jede Rolle einzeln fehlt/stale/archived/hashfehler/layout-/difficulty-/profile-/version-/mapinkompatibel; UI-Grund benennt Rolle; bestehende Runs unverändert.</td></tr>
+    <tr><td>Recording</td><td>Setup korrekte Area-Folge/Portal/Wirt; fehlendes Portal; falsches Objekt; falsche Ziel-Area; Wirt zu weit; Cow-Startanker; Cow-Areawechsel abgewiesen; F9; beide Sicherheitsrückwege; keine Interaktion/Loot im isolierten Test.</td></tr>
+    <tr><td>Preflight</td><td>Cube fehlt/doppelt/ungeschützt/dirty; altes Bein in jeder sichtbaren Location; disjunkte 1×3+1×2-Platzierung positiv/negativ; TP-Fähigkeit fehlt; Skill fehlt; unsupported Scope; null Inputs bei Fehler.</td></tr>
+    <tr><td>Wirt/Pickup</td><td>Objektauflösung, Hover-Blocker→Clear→Retry, Spawn-Timeout, neue Leg-UnitID, falsches altes Leg, Pickup-Location-Wechsel, begrenzte Wiederholung, sicherer Rückweg und Save-&amp;-Exit-Fallback.</td></tr>
+    <tr><td>Vendor</td><td>genau ein neues <code>tbk</code>; vorhandenes operatives Tome bleibt; null/mehrere neue IDs fail-closed; Gold-/Shop-/Close-Fehler; kein Bulk-Kauf.</td></tr>
+    <tr><td>Recipe</td><td>Cube-UI-Gate; Leg/Tome je gleicher UnitID-Location-Wechsel; falscher/dritter Inhalt; Transmute genau einmal; beide verbraucht; Portal erscheint/stabil; Zutaten weg aber Portal fehlt; Hover/Area-39-Eintritt; Reset löscht Bindings.</td></tr>
+    <tr><td>Cow Combat</td><td>AD einmal/Hold; keine Leiche→Bone Spear; neue Leiche→CE; mehrere CE-Ketten; CE ohne Kill aber Verbrauch; CE ohne objektiven Effekt zwei Versuche→skip; nicht projizierbare Leiche; kein back-to-back; Cow King Priorität; Fortschritt verlängert; No-Progress retryfähig.</td></tr>
+    <tr><td>Terminal</td><td>letzter Punkt allein reicht nicht; drei frische vollständige Safe-Snapshots; Kuh im Radius reset; Kuh außerhalb Radius blockiert nicht; Cow King nicht erforderlich; finaler Town-Handoff vor Erfolg.</td></tr>
+    <tr><td>Loot</td><td>Pickup nach Safe-Coverage; Inventory full loggt/skippt und fährt fort; kein Town/Resume; andere Runs behalten bestehende Inventory-full-Policy.</td></tr>
+    <tr><td>Budget</td><td>zwei Route-Starts erzeugen nur einen Supervisor-Request und einen Budgetverbrauch; ein echter Retry erzeugt den nächsten Versuch; terminale Setup-/Recipefehler starten keinen Retry.</td></tr>
+    <tr><td>Telemetry</td><td>ein Start/Ende; Primär-/Setup-ID; RouteRole pro Segment; Recipe-/Hold-Zusammenfassung; jeder Input geloggt; alte History ohne Zusatzfelder; keine Doppelzählung als zwei Runs.</td></tr>
+    <tr><td>Regression</td><td>Countess, Mephisto, Summoner und Nihlathak Registry/Availability/Recording/Playback/Pipeline/History unverändert; Single-Route-Assignments und vorhandene Kandidaten bleiben nutzbar.</td></tr>
+    <tr><td>UI</td><td>zwei Buttons/Status, genaue Hilfetexte, kein Clear-Hinweis für Wirt-Route, zwingender Clear-Hinweis für Cow-Route, ein Queue-Eintrag, Rollenfehler, Workflow-Locks, 390×844 und 1280×720.</td></tr>
+    <tr><td>Gesamtmatrix</td><td><code>go test ./...</code>, relevante Generator-Tests, <code>go build ./cmd/d2rbot</code>, <code>go vet ./...</code>, <code>golangci-lint run</code>, API-Generate + <code>--check</code>, Webtests, TypeScript-Typecheck, Web-/Electron-Build. Race nur bei tatsächlich neuer Nebenläufigkeit über die dokumentierte UCRT64-Toolchain.</td></tr>
+  </tbody></table>
+
+  <h2>19. Umsetzungsreihenfolge mit harten Gates</h2>
+  <div class="phase">
+    <div class="phase-id">20.0</div>
+    <div><h3>Baseline, CASC-Provenienz und Live-Evidenz</h3>
+      <ol>
+        <li>Dirty Worktree erfassen; bestehende Änderungen nicht überschreiben. Vollständige Baseline-Tests und Build protokollieren.</li>
+        <li>Alle IDs aus Abschnitt 2 durch lokale TXT-Fixtures absichern; d2go-Quellkommentar für berührte Skills ersetzen.</li>
+        <li>Read-only Diagnose für Wirt 268, Portal 60, lebende/tote Kühe, Cow King und Cube-UI-Kandidaten ergänzen. Keine Spielsteuerung aus dem Probe-Pfad.</li>
+        <li>Manueller Operator-Probe: Stony→Tristram-Portal, Wirt-Objekt, Rogue→MooMoo-Portal und deren Area-Wechsel aufnehmen. Die noch nicht implementierte Cow-Pipeline erzeugt diese Portale in Gate 20.0 nicht.</li>
+        <li>Manueller Operator-Probe: Kuh lebend→tot und CE-Verbrauch derselben direkt bestätigten Leiche beobachten; Settle messen.</li>
+        <li>Manueller Operator-Probe: Cube öffnen/schließen und genau ein stabiles Memory-UI-Bit isolieren; ItemLocationCube mit kontrolliertem Gegenstand bestätigen.</li>
+      </ol>
+      <div class="callout gate"><strong>Gate 20.0:</strong> Kein produktiver Portal-, Cube- oder CE-Input, bevor Objektidentität, Ziel-Area, CubeOpen, Kuh-Leiche, CE-Verbrauch und Mindest-Settle am aktuellen Build eindeutig belegt und in <code>cow-level-run.md</code> protokolliert sind. Fehlt ein nötiger CASC-Extrakt, beim Benutzer anfordern. Uneindeutige Runtime-Evidenz stoppt die Phase.</div>
+    </div>
+  </div>
+
+  <div class="phase">
+    <div class="phase-id">20.1</div>
+    <div><h3>Memory-, World- und Input-Grundlagen</h3>
+      <ol>
+        <li>CASC-basierte benannte Konstanten/Katalogeinträge und Tests finalisieren.</li>
+        <li>Kuh-Leichen im vorhandenen Monster-Walk separat erfassen und defensiv ins World Model projizieren.</li>
+        <li>Live belegten CubeOpen-State durch Memory→World mappen; unavailable bleibt fail-closed.</li>
+        <li>Engen positionsgebundenen CE-Cast ergänzen: nur nach konkreter Task-Autorisierung, Fokus-/Projektionsgate und Settle.</li>
+        <li>Fokussierte Truth-Table-, Clone-, Freshness-, Projection- und Inputlog-Tests ausführen.</li>
+      </ol>
+      <div class="callout gate"><strong>Gate 20.1:</strong> Gleicher Snapshot enthält disjunkte lebende Kühe und direkte Kuh-Leichen; CE kann nicht ohne aktuelle Leichen-UnitID gesendet werden; CubeOpen widerruft bei unavailable. Kein zweiter Monster-Walk. Danach erst Route-/Recipe-Code.</div>
+    </div>
+  </div>
+
+  <div class="phase">
+    <div class="phase-id">20.2</div>
+    <div><h3>Route-Rollen, Aufzeichnung und isolierte Tests</h3>
+      <ol>
+        <li>Optionale Cow-Route-Sets und schema-v2-Migration des Assignment-Manifests implementieren.</li>
+        <li>RouteRole sowie enge Start-/Terminalvarianten und <code>object_portal</code> ergänzen.</li>
+        <li>Recorder/Validator/Player für beide festen Cow-Verträge erweitern; bestehende Runs charakterisieren.</li>
+        <li>API und Dashboard mit zwei rollenbezogenen Workflows und den verbindlichen Hinweisen ergänzen.</li>
+        <li>Live zuerst <code>leg_acquisition</code> aufnehmen. Für <code>cow_sweep</code> erzeugt der Operator das Portal in diesem Gate noch manuell, räumt das Cow Level vollständig und nimmt danach die Route auf; anschließend beide Kandidaten isoliert testen und veröffentlichen.</li>
+      </ol>
+      <div class="callout gate"><strong>Gate 20.2:</strong> Beide Kandidaten bestehen ihren getrennten inputbegrenzten Test, tragen korrekte Rollen/Hashes und werden atomar demselben Charakter zugeordnet. Kein Wirt-Klick, kein Rezept und kein Combat im Kandidatentest. Cow Availability verlangt beide Rollen.</div>
+    </div>
+  </div>
+
+  <div class="phase">
+    <div class="phase-id">20.3</div>
+    <div><h3>Preflight, Wirt, Rückkehr und Tome-Kauf</h3>
+      <ol>
+        <li>Preflight-Matrix für Cube, Lock-Grid, Leerzustand, altes Bein, simultanen Platz, TP und Skills implementieren.</li>
+        <li>Produktives Setup-Playback mit Route-Hold gegen Akt-1-Chaff verbinden.</li>
+        <li>Wirt-Interaktion und Pflicht-Leg-Pickup anhand gebundener UnitIDs implementieren.</li>
+        <li>Sichere TP-Rückkehr sowie kontrolliertes Save-&amp;-Exit-Fallback bei endgültigem Rückkehrfehler implementieren.</li>
+        <li>Akara-Einzelkauf eines neuen <code>tbk</code> und UnitID-Differenzierung ergänzen.</li>
+        <li>Live isoliert bis „Bein + neues Tome im Inventar, operatives Tome erhalten“ prüfen; noch nicht transmutieren.</li>
+      </ol>
+      <div class="callout gate"><strong>Gate 20.3:</strong> Kein Preflightfehler sendet Input; Wirt/Leg sind Memory-bestätigt; Rückkehr endet sicher; genau eine neue Tome-UnitID ist gebunden. Inventory→Cube per Ctrl+Klick wird separat live belegt. Scheitert diese Transferform, Plan anhalten statt Drag-Fallback erfinden.</div>
+    </div>
+  </div>
+
+  <div class="phase">
+    <div class="phase-id">20.4</div>
+    <div><h3>Cube-Rezept und Cow-Portal</h3>
+      <ol>
+        <li>Linearen <code>CowPortalRecipe</code>-Executor mit CubeOpen-, UnitID-, Location- und Inhalt-Gates bauen.</li>
+        <li>1280×720-Transmute-Koordinate über bestehenden Layoutvertrag anbinden; exakt einen Klick erlauben.</li>
+        <li>Zutatenverbrauch plus stabiles neues Permanent Portal in Rogue Encampment bestätigen.</li>
+        <li>Portal hover-bestätigt betreten und Area 39 abwarten.</li>
+        <li>Alle terminalen Recipe-Branches und Resetbarriere testen.</li>
+        <li>Live-Rezept mit frischem Hell-Bein und frischem Tome einmal vollständig ausführen.</li>
+      </ol>
+      <div class="callout gate"><strong>Gate 20.4:</strong> Exakt zwei gebundene Zutaten, genau ein Transmute-Input, bestätigter Verbrauch, stabiles Portalobjekt und bestätigte Area 39. Zutaten weg ohne Portal ist terminal; kein automatischer zweiter Versuch.</div>
+    </div>
+  </div>
+
+  <div class="phase">
+    <div class="phase-id">20.5</div>
+    <div><h3>Cow-Hold-Combat und Sweep-Abschluss</h3>
+      <ol>
+        <li>Cow-spezifische Hold-Strategie hinter dem bestehenden Route-Hold-Controller anbinden.</li>
+        <li>AD-einmal-, Bone-Spear-bis-Leiche- und verschachtelte CE-Schleife exakt nach Abschnitt 12 implementieren.</li>
+        <li>Fortschritt, Zwei-Versuche-pro-Leiche, Settle, Cow-King-Priorität, Ressourcengates und Retry-Grund testen.</li>
+        <li>Cow-spezifische Continue-on-inventory-full-Policy ergänzen.</li>
+        <li>Terminale drei Safe-Snapshots am letzten Routenpunkt implementieren.</li>
+        <li>Live zunächst einen einzelnen Hold, danach mehrere Routepunkte beobachten; kein vollständiger Queue-Run nötig.</li>
+      </ol>
+      <div class="callout gate"><strong>Gate 20.5:</strong> Live-Nachweis zeigt Bone Spear → direkte Leiche → CE mit Settle → weitere CE oder Bone Spear → drei Safe-Snapshots → nächste Route. Kein CE ohne Leiche, kein Back-to-back-Cast, kein falscher Erfolg durch bloßen Tastendruck.</div>
+    </div>
+  </div>
+
+  <div class="phase">
+    <div class="phase-id">20.6</div>
+    <div><h3>Gesamtpipeline, Budget, Telemetrie, UI und Dokumentation</h3>
+      <ol>
+        <li><code>cowPipeline</code> vollständig an Runner-Factory, Supervisor, Queue, Recovery, Town-Handoff und Reset anbinden.</li>
+        <li>Ein-Budget-/Ein-Telemetrie-Lifecycle mit beiden RouteIDs und Rollen absichern.</li>
+        <li>Dashboard, Reason-Texte, OpenAPI und generierten Client finalisieren.</li>
+        <li><code>cow-level-run.md</code>, verwandte Feature-Docs, Index, Changelog und Handoff synchronisieren; spätere Pickit-Pause/Inventarräumung explizit als Non-Goal dokumentieren.</li>
+        <li>Vollständige automatische Matrix aus Abschnitt 18 ausführen.</li>
+      </ol>
+      <div class="callout gate"><strong>Gate 20.6:</strong> Automatische Gesamtmatrix grün; bestehende Runs unverändert; Cow hat zwei Rollen, aber einen Queue-/Budget-/History-Lebenszyklus. Dokumentation entspricht den live eingefrorenen Gate-Werten.</div>
+    </div>
+  </div>
+
+  <div class="phase">
+    <div class="phase-id">20.7</div>
+    <div><h3>Manuelle End-to-End-Abnahme</h3>
+      <ol>
+        <li>MrBones, Hell, 1280×720; leerer geschützter Cube, Platz 1×3+1×2, operatives TP-Tome, kein altes Bein, beide Routen veröffentlicht.</li>
+        <li>Queue mit genau einem Cow-Budget starten und ohne Operatorinput beobachten.</li>
+        <li>Setup-Route, Rakanishu-/Chaff-Holds, Wirt, Leg-Pickup, TP-Rückkehr, Akara-Kauf und Rezept anhand Memory-/Inputlogs prüfen.</li>
+        <li>Cow-Portal, Sweep, mindestens eine Bone-Spear→CE-Kette, CE-Settle, optional Cow King und Route-Ende prüfen.</li>
+        <li>Ein bewusst volles Inventarszenario separat bestätigt Skip+Continue; ein Combat-No-Progress-Szenario bestätigt begrenzten Gesamt-Retry.</li>
+        <li>Finale Town-Rückkehr, Stash/Services, ein <code>run_completed</code> und genau ein Budgetverbrauch bestätigen.</li>
+        <li>Gate-Ergebnisse, reale Dauer, Logs und bekannte Grenzen in Feature-Doc, Handoff und diesem Plan nachtragen.</li>
+      </ol>
+      <div class="callout gate"><strong>Gate 20.7:</strong> Ein vollständiger produktiver Cow-Run endet nach terminaler lokaler Sicherheit und Town-Handoff erfolgreich; kein Operatorinput, kein zweiter Run für Setup, kein unbestätigter Cube-/Portal-/CE-Input. Erst dann Phase 20 als abgeschlossen und v0.18.0 als freigabefähig markieren.</div>
+    </div>
+  </div>
+
+  <h2>20. Definition of Done</h2>
+  <ol>
+    <li>Alle Phase-20-IDs sind ausschließlich durch lokale CASC-Extrakte belegt; kein d2go-/Koolo-Ursprung bleibt an berührten Symbolen.</li>
+    <li>Wirt- und Cow-Route sind getrennt aufnehmbar/testbar, fest gekoppelt und gemeinsam availability-geprüft.</li>
+    <li>Die Wirt-Route verlangt keinen vorherigen Clear; die Cow-Route zeigt den zwingenden Clear-Aufnahmehinweis.</li>
+    <li>Ein Cow-Versuch besitzt genau eine Queue-, Budget-, Execution- und Telemetrie-Identität.</li>
+    <li>Preflight beweist leeren geschützten Cube, simultanen Platz, kein sichtbares altes Bein, TP- und Skill-Fähigkeiten ohne Input.</li>
+    <li>Der Bot nimmt ein frisches Bein auf, kehrt sicher zurück und kauft genau ein neues, vom operativen Tome unterschiedenes TP-Buch.</li>
+    <li>Cube-UI, beide Zutaten-UnitIDs, exakter Inhalt, einmaliges Transmute, Zutatenverbrauch und Cow-Portal sind Memory-bestätigt.</li>
+    <li>Tristram-/Wirt-/Rückkehr-/Rezeptfehler folgen den festgelegten terminalen sicheren Pfaden; fehlende Portale werden nie retryt.</li>
+    <li>Kuh-Leichen stammen direkt aus demselben Monster-Walk; Snapshot-Verschwinden autorisiert keinen CE-Cast.</li>
+    <li>Der Cow-Hold führt AD einmal, Bone Spear bis Leiche und CE-Ketten mit live belegtem Settle und objektivem Fortschritt aus.</li>
+    <li>Höchstens zwei wirkungslose CE-Versuche pro Leiche; Fortschritt darf lange Kämpfe fortsetzen; echter Stillstand wird retryfähig beendet.</li>
+    <li>Kein Herding; Cow King ist optional priorisiert und nicht erfolgsentscheidend.</li>
+    <li>Route-Ende plus drei frische lokale Safe-Snapshots ist der einzige Cow-Abschluss; Gegner außerhalb des Radius blockieren nicht.</li>
+    <li>Inventory full überspringt Cow-Loot und setzt den Sweep fort; Mid-Run-Town-/Resume bleibt dokumentiertes Folgefeature.</li>
+    <li>Normaler Erfolg erfolgt erst nach finaler Rogue-Encampment-Rückkehr und bestehendem Town-Handoff.</li>
+    <li>Standard-Runs, Single-Route-Assignments, bestehende Pickit-/Town-/History-Verträge bleiben regressionsfrei.</li>
+    <li>Godoc, Designkommentare, Feature-Dokumentation, Index, Changelog, Handoff, API und UI entsprechen dem finalen Live-Gate-Stand.</li>
+  </ol>
+
+  <h2>21. Agenten-Checkliste</h2>
+  <ol>
+    <li>Vor jeder Stufe den vorherigen Gate-Nachweis lesen; spätere Stufen nicht vorziehen.</li>
+    <li>IDs nur aus <code>.tmp/d2r-excel</code> übernehmen. Fehlende Datei melden; niemals d2go, Koolo oder Erinnerung verwenden.</li>
+    <li>Keine produktive Cube-/Portal-/CE-Aktion vor bestandenem Gate 20.0.</li>
+    <li>Keine Snapshot-Differenz als Leiche behandeln und keinen CE ohne aktuelle konkrete Corpse-UnitID senden.</li>
+    <li>Keine zweite Monster-Enumeration, keinen extra Poll und keine globale Leichen-Registry hinzufügen.</li>
+    <li>Standard-<code>runPipeline</code> nicht mit Cow-Sonderfällen überladen; gemeinsame Bausteine nur bei echter gemeinsamer Semantik erweitern.</li>
+    <li>Route-Rollen niemals als Queue-Einträge, Runner oder Budgeteinheiten modellieren.</li>
+    <li>Keine globalen Cairn-/Tristram-, Quest-, Herding-, Crafting- oder Multi-Route-Frameworks bauen.</li>
+    <li>Wirt-Route nicht mit einem Clear-Prerequisite versehen. Cow-Clear-Hinweis in UI und Doku nicht abschwächen.</li>
+    <li>Vor jedem Item-/Objektinput konkrete UnitID in einem frischen vollständigen Snapshot erneut auflösen.</li>
+    <li>Transmute genau einmal senden; Uneindeutigkeit danach terminal behandeln.</li>
+    <li>CE-Settle nicht raten oder konfigurierbar machen; live messen, konservativ einfrieren und dokumentieren.</li>
+    <li>Inventory-full-Verhalten nur für Cow-Route auf Skip+Continue setzen; andere Runs nicht verändern.</li>
+    <li>Neue oder geänderte exportierte Go-Symbole sofort mit Godoc dokumentieren; nicht offensichtliche Invarianten am kleinsten hilfreichen Scope kommentieren.</li>
+    <li>Nur Phase-20-Dateien ändern, vorhandene Nutzeränderungen bewahren und keine D2R-/Savegame-Datei schreiben.</li>
+    <li>Keine Commits, Releases oder Pushes ohne ausdrückliche Operatoranweisung.</li>
+    <li>Nach jeder Stufe fokussierte Tests, am Ende die vollständige Matrix ausführen und echte Live-Ergebnisse in Plan und Feature-Doc nachtragen.</li>
+  </ol>
+
+  <footer>Phase 20 · gehärteter Umsetzungsplan · Planstand 1. August 2026 · Ziel v0.18.0</footer>
+</main></body>
+</html>
