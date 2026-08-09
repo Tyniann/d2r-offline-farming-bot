@@ -31,7 +31,7 @@ Der First-Run-Assistent umfasst Willkommen, System, D2R, Safety, Input, Charakte
 
 Im Charakterschritt ist `session.character` nur eine optionale Startvorauswahl. „Spielstände neu laden“ stößt einen neuen begrenzten Scan an. Jeder sichtbare Charakter zeigt seine read-only erkannte Klasse, Unterstützung, Profil, Lootprofile und den Status der automatischen D2R-Auswahl. Nicht vorbereitete Saves bleiben sichtbar und erben weder Klasse noch Profil vom aktuellen Run. Stabile technische Gründe werden zentral in klare deutsche Handlungsanweisungen übersetzt; rohe IDs und interne Pfade erscheinen nicht.
 
-Für eine unterstützte Klasse liefert der Core ausschließlich freigegebene kompatible Profile. Bei genau einem Profil zeigt React festen Text, bei mehreren ein Dropdown mit dem Entwickler-Default. „Profil und Lootprofile bestätigen“ speichert Klasse und Profil gemeinsam und ergänzt ausschließlich vollständig fehlende Standard-Pickit-Ketten. Die normale Settings-Seite enthält keine Profil- oder Defaultauswahl.
+Für eine unterstützte Klasse liefert der Core ausschließlich freigegebene kompatible Profile. Bei genau einem Profil zeigt React festen Text, bei mehreren ein Dropdown mit dem Entwickler-Default. Derselbe `CharacterSetupWizard` deckt Onboarding, Dashboard-CTA und den Charaktere-Tab ab. „Profil und Lootprofile bestätigen“ speichert Klasse und Profil gemeinsam und ergänzt ausschließlich vollständig fehlende Standard-Pickit-Ketten. Bindings und Inventarschutz folgen im Charaktere-Tab bzw. dürfen im Onboarding mit „Später“ aufgeschoben werden; dann bleibt die Queue fail-closed.
 
 Fehlt der Auswahlbeleg, erklärt derselbe Schritt: D2R starten, Offline-Charakterauswahl öffnen, den genannten Charakter markieren, markiert lassen und zur App zurückkehren. Erst nach einer ausdrücklichen Checkbox-Bestätigung wird „Auswahlbild jetzt speichern“ aktiv. Der Core erfasst nur den bestehenden Auswahlbereich und sendet außer dem protokollierten Fokus kein Input. Setup und Capture laden Katalog, Vorschau, OperatorSettings und Recording-Voraussetzungen neu, ohne den aktuellen Schritt zu verlassen.
 
@@ -41,7 +41,7 @@ Ein durch die Input-Freigabe ausgelöster kontrollierter Core-Neustart wechselt 
 
 ### Erste Route
 
-Countess ist empfohlen und vorausgewählt; Mephisto bleibt wählbar. Der Core projiziert Wegpunkt-, Teleport-, Town-Portal- und Pickit-Voraussetzungen mit stabilen Gründen. Die Übergabe öffnet denselben `RecordingCoordinator` der Routenbibliothek und erzeugt weder eine zweite Aufnahmeengine noch einen synthetischen Lauf.
+Countess ist empfohlen und vorausgewählt; Mephisto bleibt wählbar. Der Core projiziert Wegpunkt-, Teleport-, Town-Portal- und Pickit-Voraussetzungen mit stabilen Gründen. Teleport- und Town-Portal-Readiness stammen aus den Schema-3-`profile_bindings` des bestätigten Charakters, nicht aus `config.yaml`. Die Übergabe öffnet denselben `RecordingCoordinator` der Routenbibliothek und erzeugt weder eine zweite Aufnahmeengine noch einen synthetischen Lauf.
 
 Die Aufnahme startet nicht per F9. Der Benutzer öffnet aus dem Onboarding den Routenbereich und klickt dort beim gewünschten Run auf „Aufnahme starten“. Er bleibt am Startwegpunkt, bis der Core den Zustand `recording` beziehungsweise „Aufnahme läuft“ meldet, bewegt den Charakter anschließend manuell entlang der gewünschten Route und drückt erst an der gewählten Kampfposition F9. F9 beendet und friert ausschließlich eine bereits laufende Aufnahme ein.
 

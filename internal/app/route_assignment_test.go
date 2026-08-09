@@ -18,7 +18,7 @@ func TestRouteAssignmentMigrationIsIdempotentAndRemovesLegacyFields(t *testing.T
 		t.Fatal(err)
 	}
 	body := strings.ReplaceAll(string(source), "\r\n", "\n")
-	body = strings.Replace(body, "    countess:\n      combat:", "    countess:\n      route_id: black-marsh-cellar5-nightmare-mrbones\n      combat:", 1)
+	body = strings.Replace(body, "    countess:\n", "    countess:\n      route_id: black-marsh-cellar5-nightmare-mrbones\n", 1)
 	body = strings.Replace(body, "    mephisto:\n      #", "    mephisto:\n      route_id: durance-2-mephisto-nightmare-mrbones\n      #", 1)
 	directory := t.TempDir()
 	configPath := filepath.Join(directory, "config.yaml")

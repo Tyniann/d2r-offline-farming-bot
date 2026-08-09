@@ -361,7 +361,10 @@ const (
 	RunReasonRouteSetBindingMismatch RunReason = "route_set_binding_mismatch"
 	// RunReasonProfileClassMismatch reports a character/profile class mismatch.
 	RunReasonProfileClassMismatch RunReason = "profile_class_mismatch"
-	// RunReasonCharacterProfileRunIncompatible reports a run that selects a different profile than the confirmed character setup.
+	// RunReasonProfileRunStrategyUnavailable reports that the active combat profile has no registered strategy for the run.
+	RunReasonProfileRunStrategyUnavailable RunReason = "profile_run_strategy_unavailable"
+	// RunReasonCharacterProfileRunIncompatible is retained for older telemetry/history only.
+	// Phase 21.1 replaces live availability checks with profile_run_strategy_unavailable.
 	RunReasonCharacterProfileRunIncompatible RunReason = "character_profile_run_incompatible"
 	// RunReasonWaypointTargetUnsupported reports a target without registered UI action.
 	RunReasonWaypointTargetUnsupported RunReason = "waypoint_target_unsupported"

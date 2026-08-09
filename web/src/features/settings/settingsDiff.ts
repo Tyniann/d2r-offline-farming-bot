@@ -3,6 +3,8 @@ import type { OperatorSettingsDTO } from "../../api/generated";
 const fieldLabels: Array<{ pattern: RegExp; label: (match: RegExpMatchArray) => string }> = [
   { pattern: /^characters\.([^.]+)\.queue$/, label: (m) => `Run-Reihenfolge (${m[1]})` },
   { pattern: /^characters\.([^.]+)\.last_difficulty$/, label: (m) => `Letzte Schwierigkeit (${m[1]})` },
+  { pattern: /^characters\.([^.]+)\.profile_bindings$/, label: (m) => `Tastenbelegung (${m[1]})` },
+  { pattern: /^characters\.([^.]+)\.inventory_lock$/, label: (m) => `Inventarschutz (${m[1]})` },
   { pattern: /^budgets\.max_runs$/, label: () => "Maximale Runs" },
   { pattern: /^budgets\.max_duration_ms$/, label: () => "Maximale Dauer" },
   { pattern: /^budgets\.max_consecutive_failures$/, label: () => "Fehler in Folge" },
@@ -53,7 +55,12 @@ export function collectLocalDiffPaths(saved: OperatorSettingsDTO, draft: Operato
     }
     if (character.last_difficulty !== baseline.last_difficulty) paths.push(`characters.${name}.last_difficulty`);
     if (JSON.stringify(character.queue) !== JSON.stringify(baseline.queue)) paths.push(`characters.${name}.queue`);
-  }
+    if (JSON.stringify(character.profile_bindings ?? {}) !== JSON.stringify(baseline.profile_bindings ?? {})) {
+      paths.push(`characters.${name}.profile_bindings`);
+    }
+    if (JSON.stringify(character.inventory_lock ?? null) !== JSON.stringify(baseline.inventory_lock ?? null)) {
+      paths.push(`characters.${name}.inventory_lock`);
+    }  }
   if (draft.budgets.max_runs !== saved.budgets.max_runs) paths.push("budgets.max_runs");
   if (draft.budgets.max_duration_ms !== saved.budgets.max_duration_ms) paths.push("budgets.max_duration_ms");
   if (draft.budgets.max_consecutive_failures !== saved.budgets.max_consecutive_failures) paths.push("budgets.max_consecutive_failures");

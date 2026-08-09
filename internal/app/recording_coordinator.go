@@ -94,7 +94,7 @@ func (c *RecordingCoordinator) Start(request RecordingPreflight, state world.Sta
 	if !ok || !contractOK || request.Character == "" || request.ExpectedClass == "" || request.Difficulty == "" || request.GameVersion == "" || request.SourceCatalogRevision == 0 || request.SourceAssignmentRevision == 0 || !request.WaypointContextConfirmed || !request.BlockingUIClosed || !request.D2RFocused || !request.InputOwnerAvailable {
 		return c.failLocked(RouteReasonRecordingPreflightFailed)
 	}
-	if definition.RouteSet != nil && strings.TrimSpace(request.ProfileID) == "" {
+	if definition.RouteSet != nil && strings.TrimSpace(request.Character) == "" {
 		return c.failLocked(RouteReasonRecordingPreflightFailed)
 	}
 	if !state.Valid || state.Phase != world.GamePhaseInGame || !state.Identity.Valid || state.Identity.CharacterName != request.Character || !strings.EqualFold(state.Identity.Class.String(), request.ExpectedClass) || state.Area.ID != contract.AllowedStartArea {
@@ -175,7 +175,7 @@ func (c *RecordingCoordinator) Finish(evidence RecordingTerminalEvidence) (Route
 		name += " " + string(c.request.RouteRole)
 	}
 	route := pathing.Route{Version: pathing.RouteVersion, ID: candidateID, Name: name, Kind: pathing.RouteKindNavigation,
-		Binding:   pathing.RouteBinding{RouteRole: c.request.RouteRole, CharacterName: c.request.Character, CharacterClass: evidence.World.Identity.Class.String(), ProfileID: c.request.ProfileID, Difficulty: c.request.Difficulty, MapSeed: &seed, GameVersion: c.request.GameVersion, LayoutFingerprint: pathing.RouteLayoutFingerprint{Version: c.fingerprint.Version, AreaID: c.fingerprint.AreaID, AnchorCount: c.fingerprint.AnchorCount, Hash: c.fingerprint.Hash}},
+		Binding:   pathing.RouteBinding{RouteRole: c.request.RouteRole, CharacterName: c.request.Character, CharacterClass: evidence.World.Identity.Class.String(), Difficulty: c.request.Difficulty, MapSeed: &seed, GameVersion: c.request.GameVersion, LayoutFingerprint: pathing.RouteLayoutFingerprint{Version: c.fingerprint.Version, AreaID: c.fingerprint.AreaID, AnchorCount: c.fingerprint.AnchorCount, Hash: c.fingerprint.Hash}},
 		Recording: pathing.RouteRecording{RecordedAt: c.recordedAt, SampleDistanceTiles: guidedRecordingSampleDistance}, Playback: pathing.RoutePlayback{WaypointToleranceTiles: 3, MaxDriftTiles: 8, MaxLocalCorrections: 2, SegmentTimeoutMs: 30000, TransitionTimeoutMs: 10000}, Segments: segments}
 	distance := terminalBossDistance(evidence)
 	metadata := RouteCandidate{CandidateID: candidateID, RunID: c.request.RunID, RouteRole: c.request.RouteRole, Character: c.request.Character, Difficulty: string(c.request.Difficulty), GameVersion: c.request.GameVersion, State: RouteCandidateRecorded, MeasuredBossDistance: distance, SourceCatalogRevision: c.request.SourceCatalogRevision, SourceAssignmentRevision: c.request.SourceAssignmentRevision, SourceAssignedRouteID: c.request.SourceAssignedRouteID, CreatedAt: time.Now().UTC()}

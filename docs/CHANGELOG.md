@@ -7,6 +7,51 @@ Versionierung nach [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.19.0] - 2026-08-10
+
+### Added
+- Add CASC-generated skill catalog from local `skills.txt` with canonical keys and product aliases
+- Add profile `combat` metadata and ordered `required_skills` with catalog-backed validation for Teleport, Town Portal, and dependency skills
+- Add `docs/features/character-loadouts.md` and `docs/features/phase-21-core-contract.md` for Gate 21.0
+- Add Bone-Spear Strategy Registry covering Countess, Mephisto, Summoner, Nihlathak, and Cows
+- Add `profile_run_strategy_unavailable` for missing `(profile, run)` strategies in availability and desktop setup
+- Add complete PlayerSkills linked-list evidence with World clone projection
+- Add once-per-queue-session SkillsKnown gate with Save & Exit on missing skills
+- Add shared RightSkillSelector for confirmed RMB casts across combat, profile, teleport, and town portal
+- Add read-only Setup/API projection of profile `standard_attack`, ordered `required_skills`, and registry `supported_runs`
+- Add OperatorSettings Schema 3 with per-character `profile_bindings` and presence-sensitive `inventory_lock`
+- Add `CharacterLoadoutResolver` queue freeze and static `profile_bindings_incomplete` gate
+- Add Settings Charaktere tab with shared BindingEditor, catalog `farm_ready`, and Onboarding “Später” for deferred bindings
+- Add per-character inventory lock gate, InventoryLockEditor, and static cow-layout warning without blocking Countess
+- Add reusable CharacterSetupWizard for Onboarding, Dashboard, and Charaktere profile setup/switch
+- Add Future backlog entries for multi-profile growth, binding copy, and live key verification
+
+### Changed
+- Complete Phase 21 after Gates 21.0–21.6, including manual Responsive Visual acceptance and an installed Countess success cycle with MrBones
+- Resolve Bone-Spear skill IDs exclusively through the generated catalog adapter instead of a hand-maintained switch list
+- Resolve combat profile and standard attack from the character combat profile instead of per-run YAML combat keys
+- Ignore legacy route `profile_id` for compatibility and omit it from new recordings
+- Use a snapshot-only queue poller for game verification and skill gating so bindings, readiness, and tasks cannot run first
+- Confirm Teleport and combat skill switches with F-key then fresh RightSkillID before RMB; skip redundant F-keys when already selected
+- Require a RightSkillClicker for pathing Teleports; reject unconfirmed `CastSkillAt` as a productive fallback
+- Surface missing required skills with a German operator Detail on the terminal queue result
+- Build Runtime BindingSource and inventory lock from frozen character loadouts instead of global config fields
+- Project recording Teleport/Town Portal readiness from OperatorSettings Schema 3 profile bindings
+- Align embedded, README, handoff, packaging, and Git tag release metadata with version `0.19.0`
+
+### Fixed
+- Fix the SkillsKnown gate and RightSkillSelector treating tome- or Sling-granted Town Portal evidence (skills 220 and 411) as missing or unconfirmed for the configured Town Portal action (skill 359)
+- Fix productive Runtime strategy, resource policy, availability, and SkillsKnown gates to use the frozen loadout profile instead of the config default
+- Reject productive queue start when its character loadout resolver is unavailable
+- Fix queue StartQueue freeze failures being misreported as `profile_bindings_incomplete`
+- Fix Settings restart banner being cleared when a late initial settings load finishes after save
+- Fix web Vitest races with explicit readiness awaits while retaining four parallel isolated workers
+
+### Removed
+- Remove productive run-definition combat profile and attack-skill authority from `runs.definitions.*.combat`
+- Remove global `loot.inventory_lock` from the config schema and example/default bundles
+- Remove global `input.bindings` from the config schema and example; recording prerequisites use Schema 3 loadouts
+
 ## [0.18.0] - 2026-08-09
 
 ### Added

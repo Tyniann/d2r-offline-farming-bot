@@ -101,8 +101,23 @@ func TestResolveActiveRunCLIPriority(t *testing.T) {
 func TestValidateRunModeKnownRunOK(t *testing.T) {
 	cfg := fullCountessConfig(t)
 	log := config.NewLogger("error")
-	if err := validateRunMode(tasksSelection("countess", ""), cfg, Options{Run: "countess"}, log); err != nil {
+	opts := Options{Run: "countess", Loadout: loadoutFromConfigBindingsForTest(cfg)}
+	if err := validateRunMode(tasksSelection("countess", ""), cfg, opts, log); err != nil {
 		t.Fatalf("countess err = %v", err)
+	}
+}
+
+func TestValidateRunModeUsesFrozenProfileForAvailability(t *testing.T) {
+	cfg := fullCountessConfig(t)
+	alternate := cfg.Profiles["necro_bone_spear"]
+	alternate.Setup.Default = false
+	cfg.Profiles["necro_bone_spirit"] = alternate
+	loadout := loadoutFromConfigBindingsForTest(cfg)
+	loadout.ProfileID = "necro_bone_spirit"
+
+	err := validateRunMode(tasksSelection("countess", ""), cfg, Options{Run: "countess", Loadout: loadout}, config.NewLogger("error"))
+	if err == nil || !strings.Contains(err.Error(), string(tasks.RunReasonProfileRunStrategyUnavailable)) {
+		t.Fatalf("alternate frozen profile error=%v", err)
 	}
 }
 
@@ -114,20 +129,23 @@ func TestValidateRunModeFullCountessRequiresBindings(t *testing.T) {
 	}
 
 	cfg = fullCountessConfig(t)
-	cfg.Input.Bindings.Belt.Slot4 = ""
-	if err := validateRunMode(tasksSelection("countess", ""), cfg, Options{Run: "countess"}, log); err == nil {
+	bindings := fullCountessBindings()
+	bindings.Belt.Slot4 = ""
+	if err := validateRunMode(tasksSelection("countess", ""), cfg, Options{Run: "countess", Loadout: loadoutFromBindingsForTest(cfg.Session.Character, bindings)}, log); err == nil {
 		t.Fatal("expected missing belt slot 4 error")
 	}
 
 	cfg = fullCountessConfig(t)
-	delete(cfg.Input.Bindings.Skills, "bone_armor")
-	if err := validateRunMode(tasksSelection("countess", ""), cfg, Options{Run: "countess"}, log); err == nil {
+	bindings = fullCountessBindings()
+	delete(bindings.Skills, "bone_armor")
+	if err := validateRunMode(tasksSelection("countess", ""), cfg, Options{Run: "countess", Loadout: loadoutFromBindingsForTest(cfg.Session.Character, bindings)}, log); err == nil {
 		t.Fatal("expected missing Bone Armor profile binding error")
 	}
 
 	cfg = fullCountessConfig(t)
-	cfg.Input.Bindings.Skills["bone_spear"] = config.SkillBindingConfig{Key: "f8", Button: "left"}
-	if err := validateRunMode(tasksSelection("countess", ""), cfg, Options{Run: "countess"}, log); err == nil {
+	bindings = fullCountessBindings()
+	bindings.Skills["bone_spear"] = config.SkillBindingConfig{Key: "f8", Button: "left"}
+	if err := validateRunMode(tasksSelection("countess", ""), cfg, Options{Run: "countess", Loadout: loadoutFromBindingsForTest(cfg.Session.Character, bindings)}, log); err == nil {
 		t.Fatal("expected unsafe left-mouse attack binding error")
 	}
 }
@@ -144,7 +162,8 @@ func TestValidateRunModePhaseRequiresRun(t *testing.T) {
 func TestValidateRunModeTravelMarshOK(t *testing.T) {
 	cfg := fullCountessConfig(t)
 	log := config.NewLogger("error")
-	err := validateRunMode(tasksSelection("countess", "travel-entry"), cfg, Options{Run: "countess", RunPhase: "travel-entry"}, log)
+	opts := Options{Run: "countess", RunPhase: "travel-entry", Loadout: loadoutFromConfigBindingsForTest(cfg)}
+	err := validateRunMode(tasksSelection("countess", "travel-entry"), cfg, opts, log)
 	if err != nil {
 		t.Fatalf("travel-entry err = %v", err)
 	}
@@ -153,7 +172,8 @@ func TestValidateRunModeTravelMarshOK(t *testing.T) {
 func TestValidateRunModeTravelCellar5OK(t *testing.T) {
 	cfg := fullCountessConfig(t)
 	log := config.NewLogger("error")
-	err := validateRunMode(tasksSelection("countess", tasks.RunPhasePlayRoute), cfg, Options{Run: "countess", RunPhase: tasks.RunPhasePlayRoute}, log)
+	opts := Options{Run: "countess", RunPhase: tasks.RunPhasePlayRoute, Loadout: loadoutFromConfigBindingsForTest(cfg)}
+	err := validateRunMode(tasksSelection("countess", tasks.RunPhasePlayRoute), cfg, opts, log)
 	if err != nil {
 		t.Fatalf("play-route err = %v", err)
 	}
@@ -168,11 +188,12 @@ func TestValidateRunModeKillCountessRequiresPhaseBindings(t *testing.T) {
 	}
 
 	cfg = fullCountessConfig(t)
-	cfg.Input.Bindings.Skills = map[string]config.SkillBindingConfig{
+	bindings := fullCountessBindings()
+	bindings.Skills = map[string]config.SkillBindingConfig{
 		"teleport":   {Key: "f7", Button: "right"},
 		"bone_spear": {Key: "f8", Button: "right"},
 	}
-	err = validateRunMode(tasksSelection("countess", tasks.RunPhaseBoss), cfg, Options{Run: "countess", RunPhase: tasks.RunPhaseBoss}, log)
+	err = validateRunMode(tasksSelection("countess", tasks.RunPhaseBoss), cfg, Options{Run: "countess", RunPhase: tasks.RunPhaseBoss, Loadout: loadoutFromBindingsForTest(cfg.Session.Character, bindings)}, log)
 	if err != nil {
 		t.Fatalf("boss err = %v", err)
 	}
@@ -187,14 +208,15 @@ func TestValidateRunModeLootCountessRequiresTeleportPortalAndBelt(t *testing.T) 
 	}
 
 	cfg = fullCountessConfig(t)
-	delete(cfg.Input.Bindings.Skills, "bone_spear")
-	err = validateRunMode(tasksSelection("countess", tasks.RunPhaseLootAndReturn), cfg, Options{Run: "countess", RunPhase: tasks.RunPhaseLootAndReturn}, log)
+	bindings := fullCountessBindings()
+	delete(bindings.Skills, "bone_spear")
+	err = validateRunMode(tasksSelection("countess", tasks.RunPhaseLootAndReturn), cfg, Options{Run: "countess", RunPhase: tasks.RunPhaseLootAndReturn, Loadout: loadoutFromBindingsForTest(cfg.Session.Character, bindings)}, log)
 	if err != nil {
 		t.Fatalf("loot-and-return err = %v, want no bone spear requirement", err)
 	}
 
-	cfg.Input.Bindings.Skills["teleport"] = config.SkillBindingConfig{}
-	err = validateRunMode(tasksSelection("countess", tasks.RunPhaseLootAndReturn), cfg, Options{Run: "countess", RunPhase: tasks.RunPhaseLootAndReturn}, log)
+	bindings.Skills["teleport"] = config.SkillBindingConfig{}
+	err = validateRunMode(tasksSelection("countess", tasks.RunPhaseLootAndReturn), cfg, Options{Run: "countess", RunPhase: tasks.RunPhaseLootAndReturn, Loadout: loadoutFromBindingsForTest(cfg.Session.Character, bindings)}, log)
 	if err == nil {
 		t.Fatal("expected missing teleport error")
 	}
@@ -204,11 +226,12 @@ func TestValidateRunModeLootAndReturnDoesNotRequireFarmingRouteLifecycle(t *test
 	cfg := fullCountessConfig(t)
 	writeTestRouteAssignments(t, cfg, map[tasks.RunID]string{tasks.RunIDCountess: "missing-or-archived-route"})
 	log := config.NewLogger("error")
+	loadout := loadoutFromConfigBindingsForTest(cfg)
 
 	err := validateRunMode(
 		tasksSelection("countess", tasks.RunPhaseLootAndReturn),
 		cfg,
-		Options{Run: "countess", RunPhase: tasks.RunPhaseLootAndReturn},
+		Options{Run: "countess", RunPhase: tasks.RunPhaseLootAndReturn, Loadout: loadout},
 		log,
 	)
 	if err != nil {
@@ -219,7 +242,7 @@ func TestValidateRunModeLootAndReturnDoesNotRequireFarmingRouteLifecycle(t *test
 			err := validateRunMode(
 				tasksSelection("countess", phase),
 				cfg,
-				Options{Run: "countess", RunPhase: phase},
+				Options{Run: "countess", RunPhase: phase, Loadout: loadout},
 				log,
 			)
 			if err == nil || !strings.Contains(err.Error(), string(tasks.RunReasonRouteMissing)) {
@@ -264,15 +287,9 @@ func TestTownTestAllowsMissingFarmingAssignment(t *testing.T) {
 func TestMapRunConfigResolvesCountessCombatSkill(t *testing.T) {
 	cfg := &config.Config{Session: config.SessionConfig{Character: "MrBones"}, Routes: config.RoutesConfig{AssignmentsFile: filepath.Join(t.TempDir(), "assignments.yaml")}, Loot: config.LootConfig{Pickup: config.LootPickupConfig{MaxDistanceTiles: 6}}, Runs: config.RunsConfig{
 		StepTimeoutMs: 30000,
-		Definitions: map[string]config.RunConfig{"countess": {Combat: config.CombatConfig{
-			Profile:                 "necro_bone_spear",
-			AttackSkill:             "bone_spear",
-			AttackIntervalMs:        350,
-			EngageDistanceTiles:     22,
-			RepositionDistanceTiles: 32,
-			KillConfirmTicks:        3,
-		}}},
+		Definitions:   map[string]config.RunConfig{"countess": {}},
 	}}
+	cfg.Profiles.ApplyDefaults()
 	writeTestRouteAssignments(t, cfg, map[tasks.RunID]string{tasks.RunIDCountess: "test-route"})
 	got, err := mapRunConfig(cfg, "countess", true)
 	if err != nil {
@@ -304,7 +321,7 @@ func tasksSelection(run, phase string) tasks.RunSelection {
 
 func fullCountessConfig(t *testing.T) *config.Config {
 	t.Helper()
-	cfg := &config.Config{Memory: config.MemoryConfig{GameVersion: "3.2.92777"}, Routes: config.RoutesConfig{FarmingRoot: "../../configs/routes/farming", LifecycleFile: filepath.Join(t.TempDir(), "route-lifecycle.local.yaml"), AssignmentsFile: filepath.Join(t.TempDir(), "route-assignments.local.yaml")}, Session: config.SessionConfig{Character: "MrBones", Difficulty: "nightmare"}, Runs: config.RunsConfig{Definitions: map[string]config.RunConfig{"countess": {Combat: config.CombatConfig{Profile: "necro_bone_spear", AttackSkill: "bone_spear", AttackIntervalMs: 350, EngageDistanceTiles: 22, RepositionDistanceTiles: 32, KillConfirmTicks: 3}}}}, Profiles: config.ProfilesConfig{
+	cfg := &config.Config{Memory: config.MemoryConfig{GameVersion: "3.2.92777"}, Routes: config.RoutesConfig{FarmingRoot: "../../configs/routes/farming", LifecycleFile: filepath.Join(t.TempDir(), "route-lifecycle.local.yaml"), AssignmentsFile: filepath.Join(t.TempDir(), "route-assignments.local.yaml")}, Session: config.SessionConfig{Character: "MrBones", Difficulty: "nightmare"}, Runs: config.RunsConfig{Definitions: map[string]config.RunConfig{"countess": {Combat: config.CombatConfig{}}}}, Profiles: config.ProfilesConfig{
 		"necro_bone_spear": {CharacterClass: "necromancer", Hooks: config.ProfileHooksConfig{
 			TownReady:  []config.ProfileActionConfig{{Skill: "bone_armor", Target: "self", OncePerGame: true}},
 			BossEngage: []config.ProfileActionConfig{{Skill: "bone_prison", Target: "boss", OncePerEncounter: true}},
@@ -316,22 +333,44 @@ func fullCountessConfig(t *testing.T) *config.Config {
 		}},
 	}, Input: config.InputConfig{
 		Enabled: true,
-		Bindings: config.InputBindingsConfig{
-			Skills: map[string]config.SkillBindingConfig{
-				"teleport":    {Key: "f7", Button: "right"},
-				"bone_spear":  {Key: "f8", Button: "right"},
-				"town_portal": {Key: "f6", Button: "right"},
-				"bone_armor":  {Key: "f5", Button: "right"},
-				"bone_prison": {Key: "f3", Button: "right"},
-			},
-			Belt: config.BeltBindingsConfig{
-				Slot1: "1",
-				Slot2: "2",
-				Slot3: "3",
-				Slot4: "4",
-			},
-		},
 	}}
+	cfg.Profiles.ApplyDefaults()
 	writeTestRouteAssignments(t, cfg, map[tasks.RunID]string{tasks.RunIDCountess: "black-marsh-cellar5-nightmare-mrbones"})
 	return cfg
+}
+
+func fullCountessBindings() config.InputBindingsConfig {
+	return config.InputBindingsConfig{
+		Skills: map[string]config.SkillBindingConfig{
+			"teleport":    {Key: "f7", Button: "right"},
+			"bone_spear":  {Key: "f8", Button: "right"},
+			"town_portal": {Key: "f6", Button: "right"},
+			"bone_armor":  {Key: "f5", Button: "right"},
+			"bone_prison": {Key: "f3", Button: "right"},
+		},
+		Belt: config.BeltBindingsConfig{
+			Slot1: "1",
+			Slot2: "2",
+			Slot3: "3",
+			Slot4: "4",
+		},
+	}
+}
+
+// loadoutFromBindingsForTest builds a CharacterLoadoutSnapshot from in-memory bindings for tests only.
+func loadoutFromBindingsForTest(character string, bindings config.InputBindingsConfig) *CharacterLoadoutSnapshot {
+	source, err := newConfigBindingSource(bindings)
+	if err != nil {
+		panic(err)
+	}
+	return &CharacterLoadoutSnapshot{
+		Character: character,
+		ProfileID: "necro_bone_spear",
+		Bindings:  source,
+	}
+}
+
+// loadoutFromConfigBindingsForTest builds a CharacterLoadoutSnapshot with the full Countess fixture bindings.
+func loadoutFromConfigBindingsForTest(cfg *config.Config) *CharacterLoadoutSnapshot {
+	return loadoutFromBindingsForTest(cfg.Session.Character, fullCountessBindings())
 }

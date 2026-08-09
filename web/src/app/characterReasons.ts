@@ -40,6 +40,8 @@ export function characterReasonText(reason: string, catalog: CatalogDTO): string
       return "Das gespeicherte Kampfprofil passt nicht zur Charakterklasse.";
     case "character_anchor_missing":
       return "Das Auswahlbild für diesen Charakter fehlt noch.";
+    case "profile_bindings_incomplete":
+      return "Für dieses Kampfprofil fehlen Tastenbelegungen.";
     default:
       return "Dieser Charakter ist derzeit nicht verfügbar.";
   }

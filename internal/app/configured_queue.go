@@ -12,7 +12,7 @@ import (
 // same supervisor, game lifecycle, run executor, and exit owner as the UI.
 // CLI startup begins at the prepared offline character screen and therefore
 // never adopts an already active game implicitly.
-func RunConfiguredQueue(cfg *config.Config) error {
+func RunConfiguredQueue(cfg *config.Config, resolver *CharacterLoadoutResolver) error {
 	plan, err := configuredFarmQueuePlan(cfg)
 	if err != nil {
 		return err
@@ -21,7 +21,10 @@ func RunConfiguredQueue(cfg *config.Config) error {
 	if err != nil {
 		return err
 	}
-	runner.BeginQueue(false)
+	runner.SetLoadoutResolver(resolver)
+	if err := runner.BeginQueue(false); err != nil {
+		return err
+	}
 	defer runner.CloseQueue()
 	return runConfiguredQueue(context.Background(), plan, runner)
 }

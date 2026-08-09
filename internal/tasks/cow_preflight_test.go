@@ -155,7 +155,7 @@ func (c *cowInputCounter) Window() (input.WindowInfo, bool) {
 	return input.WindowInfo{ClientWidth: 1280, ClientHeight: 720}, true
 }
 func (c *cowInputCounter) CastBelt(int) error    { c.calls++; return nil }
-func (c *cowInputCounter) CastTownPortal() error { c.calls++; return nil }
+func (c *cowInputCounter) CastTownPortal(time.Time, world.Player) error { c.calls++; return nil }
 
 type cowProfileCounter struct {
 	calls  int

@@ -23,7 +23,7 @@ func BindingsPrecheck(log *slog.Logger, bindings configBindingSource, snap memor
 			"left_skill_id", snap.PlayerSkills.LeftSkill,
 			"right_skill_id", snap.PlayerSkills.RightSkill,
 		)
-		return fmt.Errorf("teleport not configured: set input.bindings.skills.teleport.key/button in YAML")
+		return fmt.Errorf("teleport not configured: set the character loadout Teleport F-key in Charaktere")
 	}
 	if teleportCast.CastButton != "right" {
 		log.Warn("teleport resolved to unsafe mouse button",
@@ -37,7 +37,7 @@ func BindingsPrecheck(log *slog.Logger, bindings configBindingSource, snap memor
 		"cast_button", teleportCast.CastButton,
 	)
 	if _, ok := bindings.TownPortalSkillID(); !ok {
-		log.Warn("town portal binding not configured; portal actions will fail until input.bindings.skills.town_portal is set")
+		log.Warn("town portal binding not configured; portal actions will fail until the character loadout sets Town Portal")
 	}
 	if !memory.IsBasicLeftSkill(snap.PlayerSkills.LeftSkill) {
 		log.Warn("left mouse skill is not attack or throw",

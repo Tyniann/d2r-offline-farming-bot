@@ -2,11 +2,23 @@ package memory
 
 import "fmt"
 
+const (
+	// MaxPlayerSkillListNodes is the hard walk budget for the learned-skill linked list.
+	MaxPlayerSkillListNodes = 128
+	// SkillListIncompleteRead marks a mid-walk memory read failure.
+	SkillListIncompleteRead = "skill_list_read_failed"
+	// SkillListLimitExceeded marks a list that continues past MaxPlayerSkillListNodes.
+	SkillListLimitExceeded = "skill_list_limit_exceeded"
+)
+
 // PlayerSkills holds learned skills and current mouse skill selection.
+// SkillsKnown is authoritative for Missing-Skill decisions only when Complete is true.
 type PlayerSkills struct {
-	LeftSkill   uint16
-	RightSkill  uint16
-	SkillsKnown map[uint16]bool
+	LeftSkill        uint16
+	RightSkill       uint16
+	SkillsKnown      map[uint16]bool
+	Complete         bool
+	IncompleteReason string
 }
 
 // readPlayerSkills reads skill list and LMB/RMB selection from the main player unit.
@@ -28,11 +40,10 @@ func (p *ProbeReader) readPlayerSkills(playerPtr uintptr, off OffsetSet) (Player
 	out.LeftSkill = leftID
 	out.RightSkill = rightID
 
-	known, err := p.collectKnownSkills(uintptr(skillListPtr))
-	if err != nil {
-		return out, err
-	}
+	known, complete, reason := p.collectKnownSkills(uintptr(skillListPtr))
 	out.SkillsKnown = known
+	out.Complete = complete
+	out.IncompleteReason = reason
 	return out, nil
 }
 
@@ -65,39 +76,51 @@ func (p *ProbeReader) readMouseSkills(skillListPtr uintptr) (left, right uint16,
 	return leftVal, rightVal, nil
 }
 
-func (p *ProbeReader) collectKnownSkills(skillListPtr uintptr) (map[uint16]bool, error) {
+// collectKnownSkills walks the learned-skill linked list until a nil next pointer.
+// Any mid-walk read failure or an unterminated 128-node list yields Complete=false
+// so callers must not treat SkillsKnown as a Missing-Skill verdict.
+func (p *ProbeReader) collectKnownSkills(skillListPtr uintptr) (map[uint16]bool, bool, string) {
 	known := make(map[uint16]bool)
 	skillPtr, err := p.reader.ReadUint64(skillListPtr)
-	if err != nil || skillPtr == 0 {
-		return known, nil
+	if err != nil {
+		return known, false, SkillListIncompleteRead
+	}
+	if skillPtr == 0 {
+		return known, true, ""
 	}
 
-	const maxSkills = 128
 	ptr := uintptr(skillPtr)
-	for i := 0; i < maxSkills && ptr != 0; i++ {
+	for i := 0; i < MaxPlayerSkillListNodes; i++ {
 		skillTxt, err := p.reader.ReadUint64(ptr)
-		if err != nil || skillTxt == 0 {
-			break
+		if err != nil {
+			return known, false, SkillListIncompleteRead
+		}
+		if skillTxt == 0 {
+			return known, false, SkillListIncompleteRead
 		}
 		skillID, err := p.reader.ReadUint16(uintptr(skillTxt))
 		if err != nil {
-			break
+			return known, false, SkillListIncompleteRead
 		}
 		if skillID != 0 {
 			known[skillID] = true
 		}
 		next, err := p.reader.ReadUint64(ptr + 0x08)
 		if err != nil {
-			break
+			return known, false, SkillListIncompleteRead
+		}
+		if next == 0 {
+			return known, true, ""
 		}
 		ptr = uintptr(next)
 	}
-	return known, nil
+	return known, false, SkillListLimitExceeded
 }
 
-// HasSkill reports whether the player has learned the given skill.
+// HasSkill reports whether a complete skill list contains the given skill ID.
+// Incomplete lists always return false so callers cannot invent Missing results.
 func (ps PlayerSkills) HasSkill(skillID uint16) bool {
-	if ps.SkillsKnown == nil {
+	if !ps.Complete || ps.SkillsKnown == nil {
 		return false
 	}
 	return ps.SkillsKnown[skillID]

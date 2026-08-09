@@ -828,7 +828,7 @@ func (c *runPipeline) onLootTick(ctx context.Context, deps Deps, step string, w 
 						if !lootRepositionReady(now, w.At, c.lootApproachAt, c.lootApproachSnapshot) {
 							return stepResult{}
 						}
-						sent, err := deps.Combat.TeleportToward(now, w.Player.Position, target.Position, 0)
+						sent, err := deps.Combat.TeleportToward(now, w.Player, target.Position, 0)
 						if err != nil {
 							return stepResult{failed: true, reason: "loot_reposition_failed"}
 						}
@@ -929,7 +929,10 @@ func tickRunTownPortal(deps Deps, w world.State) stepResult {
 	if deps.Actions == nil {
 		return stepResult{failed: true, reason: "run_actions_not_wired"}
 	}
-	if err := deps.Actions.CastTownPortal(); err != nil {
+	if err := deps.Actions.CastTownPortal(time.Now(), w.Player); err != nil {
+		if errors.Is(err, profile.ErrSkillSelectionPending) {
+			return stepResult{}
+		}
 		return stepResult{failed: true, reason: "town_portal_failed"}
 	}
 	return stepResult{complete: true}
@@ -1312,7 +1315,7 @@ func (c *runPipeline) onBossTick(ctx context.Context, deps Deps, step string, w 
 		if !lootRepositionReady(now, w.At, c.postKillTeleportAt, c.postKillTeleportSnapshot) {
 			return stepResult{}
 		}
-		sent, err := deps.Combat.TeleportToward(now, w.Player.Position, c.targetPosition, 0)
+		sent, err := deps.Combat.TeleportToward(now, w.Player, c.targetPosition, 0)
 		if err != nil {
 			return stepResult{failed: true, reason: "post_kill_reposition_failed"}
 		}
@@ -1461,7 +1464,7 @@ func (c *runPipeline) tickEngageTarget(deps Deps, w world.State, target world.Mo
 	distance := world.Distance(w.Player.Position, target.Position)
 	var err error
 	if distance > c.combat.RepositionDistanceTiles {
-		_, err = deps.Combat.TeleportToward(now, w.Player.Position, target.Position, c.combat.EngageDistanceTiles)
+		_, err = deps.Combat.TeleportToward(now, w.Player, target.Position, c.combat.EngageDistanceTiles)
 	} else {
 		_, err = deps.Combat.CastAttackAtWorld(now, c.combat.AttackSkillID, w.Player, target.Position)
 	}
@@ -1512,7 +1515,7 @@ func (c *runPipeline) tickNihlathakEngageTarget(deps Deps, w world.State, target
 	if !ok {
 		return stepResult{failed: true, reason: "boss_combat_unprojectable"}
 	}
-	sent, err := deps.Combat.TeleportToward(now, w.Player.Position, target.Position, desiredDistance)
+	sent, err := deps.Combat.TeleportToward(now, w.Player, target.Position, desiredDistance)
 	if err != nil {
 		return stepResult{failed: true, reason: "combat_action_failed"}
 	}
@@ -1707,7 +1710,7 @@ func (c *runPipeline) tickPortalEntryRecovery(deps Deps, w world.State, now time
 		if !lootRepositionReady(now, w.At, c.portalRecoveryAt, c.portalRecoverySnapshot) {
 			return stepResult{}
 		}
-		sent, err := deps.Combat.TeleportToward(now, w.Player.Position, portal.Position, 0)
+		sent, err := deps.Combat.TeleportToward(now, w.Player, portal.Position, 0)
 		if err != nil {
 			c.clearPortalRecoveryPending()
 			return stepResult{failed: true, reason: "portal_recovery_teleport_failed"}
@@ -1787,7 +1790,7 @@ func (c *runPipeline) tickLootPickupRecovery(deps Deps, w world.State, now time.
 		if !lootRepositionReady(now, w.At, c.lootRecoveryAt, c.lootRecoverySnapshot) {
 			return stepResult{}
 		}
-		sent, err := deps.Combat.TeleportToward(now, w.Player.Position, target.Position, 0)
+		sent, err := deps.Combat.TeleportToward(now, w.Player, target.Position, 0)
 		if err != nil {
 			c.clearLootRecoveryPending()
 			return stepResult{failed: true, reason: "loot_recovery_teleport_failed"}
@@ -2181,7 +2184,7 @@ func (c *runPipeline) tickRouteThreatApproach(deps Deps, w world.State, progress
 		}
 		goal = target.Position
 		actionKind = "teleport"
-		sent, err = deps.Combat.TeleportToward(now, w.Player.Position, target.Position, desiredDistance)
+		sent, err = deps.Combat.TeleportToward(now, w.Player, target.Position, desiredDistance)
 	} else {
 		sent, err = deps.Combat.ForceMoveToward(now, w.Player.Position, progress.MovementTarget)
 	}
@@ -2292,7 +2295,7 @@ func (c *runPipeline) tickRouteLoot(deps Deps, w world.State, progress RouteProg
 			if !lootRepositionReady(now, w.At, c.lootApproachAt, c.lootApproachSnapshot) {
 				return true, stepResult{}
 			}
-			sent, err := deps.Combat.TeleportToward(now, w.Player.Position, target.Position, 0)
+			sent, err := deps.Combat.TeleportToward(now, w.Player, target.Position, 0)
 			if err != nil {
 				return true, stepResult{failed: true, reason: "loot_reposition_failed"}
 			}

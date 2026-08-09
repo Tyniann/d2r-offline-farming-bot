@@ -9,6 +9,8 @@ const schema = JSON.parse(await readFile(schemaPath, "utf8"));
 
 function typeOf(value) {
   if (value.$ref) return value.$ref.split("/").at(-1);
+  if (value.anyOf) return value.anyOf.map((entry) => typeOf(entry)).join(" | ");
+  if (value.type === "null") return "null";
   if (value.enum) return value.enum.map((entry) => JSON.stringify(entry)).join(" | ");
   if (value.type === "array") return `Array<${typeOf(value.items)}>`;
   if (value.type === "integer" || value.type === "number") return "number";

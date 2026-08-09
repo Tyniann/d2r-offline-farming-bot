@@ -362,7 +362,7 @@ func catalogTestConfig(loadedFrom string) *config.Config {
 		LoadedFrom: loadedFrom,
 		Session:    config.SessionConfig{Run: "countess", Character: "MrBones"},
 		Runs: config.RunsConfig{Definitions: map[string]config.RunConfig{
-			"countess": {Combat: config.CombatConfig{Profile: "necro"}},
+			"countess": {Combat: config.CombatConfig{}},
 		}},
 		Profiles: config.ProfilesConfig{"necro": {
 			CharacterClass: "necromancer", DisplayName: "Testprofil",

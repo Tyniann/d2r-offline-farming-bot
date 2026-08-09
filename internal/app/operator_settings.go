@@ -16,15 +16,18 @@ import (
 
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/config"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/input"
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/memory"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/tasks"
 	"gopkg.in/yaml.v3"
 )
 
 const (
 	// OperatorSettingsSchemaVersion ist die einzige unterstützte persistente Operatorversion.
-	OperatorSettingsSchemaVersion = 2
+	OperatorSettingsSchemaVersion = 3
 	operatorSettingsBackupLimit   = 10
 	operatorSettingsFilename      = "operator-settings.local.yaml"
+	operatorInventoryRows         = 4
+	operatorInventoryCols         = 10
 )
 
 // OperatorSettings enthält ausschließlich Core-eigene persistente GUI-Fachwerte.
@@ -40,10 +43,31 @@ type OperatorSettings struct {
 
 // OperatorCharacterSettings bindet Setup-Paar, Queue und letzte Difficulty an genau einen Charakter.
 type OperatorCharacterSettings struct {
-	CharacterClass string   `yaml:"character_class,omitempty" json:"character_class,omitempty"`
-	CombatProfile  string   `yaml:"combat_profile,omitempty" json:"combat_profile,omitempty"`
-	LastDifficulty string   `yaml:"last_difficulty" json:"last_difficulty"`
-	Queue          []string `yaml:"queue" json:"queue"`
+	CharacterClass   string                             `yaml:"character_class,omitempty" json:"character_class,omitempty"`
+	CombatProfile    string                             `yaml:"combat_profile,omitempty" json:"combat_profile,omitempty"`
+	LastDifficulty   string                             `yaml:"last_difficulty" json:"last_difficulty"`
+	Queue            []string                           `yaml:"queue" json:"queue"`
+	ProfileBindings  map[string]OperatorProfileBindings `yaml:"profile_bindings,omitempty" json:"profile_bindings,omitempty"`
+	InventoryLock    *OperatorInventoryLock             `yaml:"inventory_lock,omitempty" json:"inventory_lock,omitempty"`
+}
+
+// OperatorProfileBindings stores skill F-keys and belt keys for one combat profile.
+type OperatorProfileBindings struct {
+	Skills map[string]string    `yaml:"skills,omitempty" json:"skills,omitempty"` // canonical skill key -> f1..f8
+	Belt   OperatorBeltBindings `yaml:"belt,omitempty" json:"belt,omitempty"`
+}
+
+// OperatorBeltBindings stores optional belt slot keys for one combat profile.
+type OperatorBeltBindings struct {
+	Slot1 string `yaml:"slot_1,omitempty" json:"slot_1,omitempty"`
+	Slot2 string `yaml:"slot_2,omitempty" json:"slot_2,omitempty"`
+	Slot3 string `yaml:"slot_3,omitempty" json:"slot_3,omitempty"`
+	Slot4 string `yaml:"slot_4,omitempty" json:"slot_4,omitempty"`
+}
+
+// OperatorInventoryLock is presence-sensitive; nil pointer = unconfigured.
+type OperatorInventoryLock struct {
+	Grid [][]int `yaml:"grid" json:"grid"` // exactly 4x10 of 0/1 when present
 }
 
 // OperatorBudgetSettings enthält die endlichen globalen Queue-Hardlimits.
@@ -114,7 +138,7 @@ type OperatorSettingsStore struct {
 
 var operatorSettingsLocks sync.Map
 
-// OpenOperatorSettings öffnet oder initialisiert den installierten Schema-2-Store und liefert seinen validierten Snapshot.
+// OpenOperatorSettings öffnet oder initialisiert den installierten Schema-3-Store und liefert seinen validierten Snapshot.
 func OpenOperatorSettings(cfg *config.Config) (*OperatorSettingsStore, OperatorSettings, error) {
 	if cfg == nil || cfg.DataRoot == "" {
 		return nil, OperatorSettings{}, fmt.Errorf("installed operator settings require an explicit data root")
@@ -500,6 +524,12 @@ func validateOperatorSettings(settings OperatorSettings, profiles config.Profile
 				return fmt.Errorf("operator settings character %q queue contains unknown run %q", rawCharacter, runID)
 			}
 		}
+		if err := validateOperatorProfileBindings(rawCharacter, value.ProfileBindings, profiles, settings.Input); err != nil {
+			return err
+		}
+		if err := validateOperatorInventoryLock(rawCharacter, value.InventoryLock); err != nil {
+			return err
+		}
 	}
 	if settings.Budgets.MaxRuns <= 0 || settings.Budgets.MaxRuns > 10000 || settings.Budgets.MaxDurationMs <= 0 || settings.Budgets.MaxDurationMs > int((24*time.Hour)/time.Millisecond) {
 		return fmt.Errorf("operator settings run and duration budgets are outside finite limits")
@@ -539,6 +569,8 @@ func (s *OperatorSettingsStore) resetReplacement(current OperatorSettings, expec
 		}
 		value.CharacterClass = currentValue.CharacterClass
 		value.CombatProfile = currentValue.CombatProfile
+		value.ProfileBindings = cloneOperatorProfileBindings(currentValue.ProfileBindings)
+		value.InventoryLock = cloneOperatorInventoryLock(currentValue.InventoryLock)
 		replacement.Characters[character] = value
 	}
 	return replacement
@@ -622,9 +654,161 @@ func cloneOperatorSettings(settings OperatorSettings) OperatorSettings {
 	clone.Characters = make(map[string]OperatorCharacterSettings, len(settings.Characters))
 	for character, value := range settings.Characters {
 		value.Queue = append([]string(nil), value.Queue...)
+		value.ProfileBindings = cloneOperatorProfileBindings(value.ProfileBindings)
+		value.InventoryLock = cloneOperatorInventoryLock(value.InventoryLock)
 		clone.Characters[character] = value
 	}
 	return clone
+}
+
+func cloneOperatorProfileBindings(bindings map[string]OperatorProfileBindings) map[string]OperatorProfileBindings {
+	if bindings == nil {
+		return nil
+	}
+	clone := make(map[string]OperatorProfileBindings, len(bindings))
+	for profileID, value := range bindings {
+		cloned := OperatorProfileBindings{Belt: value.Belt}
+		if value.Skills != nil {
+			cloned.Skills = make(map[string]string, len(value.Skills))
+			for skill, key := range value.Skills {
+				cloned.Skills[skill] = key
+			}
+		}
+		clone[profileID] = cloned
+	}
+	return clone
+}
+
+func cloneOperatorInventoryLock(lock *OperatorInventoryLock) *OperatorInventoryLock {
+	if lock == nil {
+		return nil
+	}
+	clone := &OperatorInventoryLock{Grid: make([][]int, len(lock.Grid))}
+	for row, values := range lock.Grid {
+		clone.Grid[row] = append([]int(nil), values...)
+	}
+	return clone
+}
+
+func validateOperatorProfileBindings(character string, bindings map[string]OperatorProfileBindings, profiles config.ProfilesConfig, inputSettings OperatorInputSettings) error {
+	if bindings == nil {
+		return nil
+	}
+	botHotkeys := operatorBotHotkeySet(inputSettings)
+	for rawProfileID, value := range bindings {
+		profileID := strings.TrimSpace(rawProfileID)
+		if profileID == "" || profileID != rawProfileID {
+			return fmt.Errorf("operator settings character %q has invalid profile_bindings key", character)
+		}
+		if _, ok := profiles[profileID]; !ok {
+			return fmt.Errorf("operator settings character %q profile_bindings references unknown combat profile %q", character, profileID)
+		}
+		usedKeys := make(map[string]string, len(value.Skills)+4)
+		for skillKey, rawKey := range value.Skills {
+			canonicalSkill := strings.ToLower(strings.TrimSpace(skillKey))
+			if canonicalSkill == "" || canonicalSkill != skillKey {
+				return fmt.Errorf("operator settings character %q profile %q skill keys must be canonical lowercase", character, profileID)
+			}
+			if _, err := memory.ParseSkillTestName(canonicalSkill); err != nil {
+				return fmt.Errorf("operator settings character %q profile %q skill %q: %w", character, profileID, skillKey, err)
+			}
+			key := strings.ToLower(strings.TrimSpace(rawKey))
+			if key == "" || key != rawKey {
+				return fmt.Errorf("operator settings character %q profile %q skill %q key must be canonical lowercase", character, profileID, skillKey)
+			}
+			if !isOperatorSkillFKey(key) {
+				return fmt.Errorf("operator settings character %q profile %q skill %q must use f1-f8", character, profileID, skillKey)
+			}
+			if _, reserved := botHotkeys[key]; reserved {
+				return fmt.Errorf("operator settings character %q profile %q skill %q collides with a bot hotkey", character, profileID, skillKey)
+			}
+			if prior, duplicate := usedKeys[key]; duplicate {
+				return fmt.Errorf("operator settings character %q profile %q reuses key %q for %s and %s", character, profileID, key, prior, skillKey)
+			}
+			usedKeys[key] = "skill:" + skillKey
+		}
+		for _, slot := range []struct {
+			name string
+			key  string
+		}{
+			{name: "slot_1", key: value.Belt.Slot1},
+			{name: "slot_2", key: value.Belt.Slot2},
+			{name: "slot_3", key: value.Belt.Slot3},
+			{name: "slot_4", key: value.Belt.Slot4},
+		} {
+			if strings.TrimSpace(slot.key) == "" {
+				continue
+			}
+			key := strings.ToLower(strings.TrimSpace(slot.key))
+			if key != slot.key {
+				return fmt.Errorf("operator settings character %q profile %q belt %s must be canonical lowercase", character, profileID, slot.name)
+			}
+			if !isOperatorBeltKey(key) {
+				return fmt.Errorf("operator settings character %q profile %q belt %s uses an unsafe key", character, profileID, slot.name)
+			}
+			if _, reserved := botHotkeys[key]; reserved {
+				return fmt.Errorf("operator settings character %q profile %q belt %s collides with a bot hotkey", character, profileID, slot.name)
+			}
+			if prior, duplicate := usedKeys[key]; duplicate {
+				return fmt.Errorf("operator settings character %q profile %q reuses key %q for %s and belt %s", character, profileID, key, prior, slot.name)
+			}
+			usedKeys[key] = "belt:" + slot.name
+		}
+	}
+	return nil
+}
+
+func validateOperatorInventoryLock(character string, lock *OperatorInventoryLock) error {
+	if lock == nil {
+		return nil
+	}
+	if len(lock.Grid) != operatorInventoryRows {
+		return fmt.Errorf("operator settings character %q inventory_lock.grid must be %dx%d", character, operatorInventoryRows, operatorInventoryCols)
+	}
+	for row, values := range lock.Grid {
+		if len(values) != operatorInventoryCols {
+			return fmt.Errorf("operator settings character %q inventory_lock.grid must be %dx%d", character, operatorInventoryRows, operatorInventoryCols)
+		}
+		for col, cell := range values {
+			if cell != 0 && cell != 1 {
+				return fmt.Errorf("operator settings character %q inventory_lock.grid[%d][%d] must be 0 or 1", character, row, col)
+			}
+		}
+	}
+	return nil
+}
+
+func operatorBotHotkeySet(settings OperatorInputSettings) map[string]struct{} {
+	return map[string]struct{}{
+		strings.ToLower(strings.TrimSpace(settings.PauseHotkey)):           {},
+		strings.ToLower(strings.TrimSpace(settings.StopAfterRunHotkey)):    {},
+		strings.ToLower(strings.TrimSpace(settings.RecordingFinishHotkey)): {},
+		strings.ToLower(strings.TrimSpace(settings.EmergencyStopHotkey)):   {},
+	}
+}
+
+func isOperatorSkillFKey(key string) bool {
+	switch key {
+	case "f1", "f2", "f3", "f4", "f5", "f6", "f7", "f8":
+		return true
+	default:
+		return false
+	}
+}
+
+func isOperatorBeltKey(key string) bool {
+	if len(key) != 1 {
+		return false
+	}
+	switch key[0] {
+	case '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
+		'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm',
+		'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z',
+		'`', '.', '-', ']':
+		return true
+	default:
+		return false
+	}
 }
 
 func pointerToOperatorSettings(settings OperatorSettings) *OperatorSettings {

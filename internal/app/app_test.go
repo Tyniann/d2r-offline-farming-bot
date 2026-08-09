@@ -506,7 +506,7 @@ func TestRunTickLostResetsWorldState(t *testing.T) {
 	if cur.Reason != worldResetReasonProcessLost {
 		t.Fatalf("Reason = %q, want %q", cur.Reason, worldResetReasonProcessLost)
 	}
-	if cur.Area != (world.Area{}) || cur.Player != (world.Player{}) {
+	if cur.Area != (world.Area{}) || cur.Player.HP != 0 || cur.Player.LeftSkillID != 0 || len(cur.Player.SkillsKnown) != 0 {
 		t.Fatalf("expected zero Area/Player after reset, got Area=%+v Player=%+v", cur.Area, cur.Player)
 	}
 	if probe.calls != 0 {

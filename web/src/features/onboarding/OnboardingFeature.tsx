@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
 import { Check, CircleAlert, ExternalLink, ShieldCheck } from "lucide-react";
-import { applySelection, captureCharacterSelection, confirmCharacterSetup, previewSelection, saveOperatorSettings } from "../../api/client";
+import { applySelection, previewSelection, saveOperatorSettings } from "../../api/client";
 import {
-  getHotkeyHelp, getOperatorSettings, getRecordingOptions, getRouteWorkflow, previewCharacterSetup, reloadCharacters,
-  type CatalogDTO, type CharacterSetupPreviewDTO, type OperatorSettingsDTO, type RecordingOptionDTO, type SelectionPreviewDTO, type StatusDTO,
+  getHotkeyHelp, getOperatorSettings, getRecordingOptions, getRouteWorkflow,
+  type CatalogDTO, type OperatorSettingsDTO, type RecordingOptionDTO, type SelectionPreviewDTO, type StatusDTO,
 } from "../../api/generated";
 import { Button, Dialog, StateMessage, StatusBadge } from "../../app/ui";
-import { characterAvailabilityText, characterReasonText, supportedCharacterClasses } from "../../app/characterReasons";
+import { characterAvailabilityText, supportedCharacterClasses } from "../../app/characterReasons";
+import { farmReadyReasonText } from "../characters/characterReasonText";
+import { CharacterSetupWizard } from "../characters/CharacterSetupWizard";
 import { prepareOnboardingResume } from "./onboardingResume";
 
 interface Props {
@@ -44,9 +46,6 @@ export function OnboardingFeature({ status, catalog, onRefresh, onClose, onOpenR
   const [character, setCharacter] = useState(status.selection.character || catalog.characters.find((entry) => entry.selectable)?.name || catalog.characters[0]?.name || "");
   const [difficulty, setDifficulty] = useState(status.selection.difficulty || catalog.default_difficulty);
   const [selectionPreview, setSelectionPreview] = useState<SelectionPreviewDTO | null>(null);
-  const [setupPreview, setSetupPreview] = useState<CharacterSetupPreviewDTO | null>(null);
-  const [profileID, setProfileID] = useState("");
-  const [captureConfirmed, setCaptureConfirmed] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const selectedOption = useMemo(() => options.find((option) => option.run_id === routeID), [options, routeID]);
@@ -70,19 +69,6 @@ export function OnboardingFeature({ status, catalog, onRefresh, onClose, onOpenR
     if (catalog.characters.some((entry) => entry.name === character)) return;
     setCharacter(status.selection.character || catalog.characters.find((entry) => entry.selectable)?.name || catalog.characters[0]?.name || "");
   }, [catalog.revision, character, status.selection.character]);
-  useEffect(() => {
-    setCaptureConfirmed(false);
-    if (!character) {
-      setSetupPreview(null);
-      return;
-    }
-    void previewCharacterSetup({ character })
-      .then((preview) => {
-        setSetupPreview(preview);
-        setProfileID(preview.selected_profile_id || preview.default_profile_id || preview.profiles[0]?.id || "");
-      })
-      .catch((reason) => setError(message(reason, "Der Charakterstatus konnte nicht geladen werden.")));
-  }, [character, catalog.revision]);
 
   async function run(action: () => Promise<void>) {
     if (busy) return;
@@ -101,54 +87,6 @@ export function OnboardingFeature({ status, catalog, onRefresh, onClose, onOpenR
       await applySelection(preview.character, preview.new_difficulty, catalog.revision, status.generation, preview.confirmation_token);
       await onRefresh();
       await load();
-    });
-  }
-
-  async function refreshCharacterData() {
-    await reloadCharacters();
-    await onRefresh();
-    const [preview, operator, recording] = await Promise.all([
-      previewCharacterSetup({ character }),
-      getOperatorSettings(),
-      getRecordingOptions(),
-    ]);
-    setSetupPreview(preview);
-    setProfileID(preview.selected_profile_id || preview.default_profile_id || preview.profiles[0]?.id || "");
-    setSettings(operator);
-    setOptions(recording);
-  }
-
-  async function reloadCharacterData() {
-    await run(refreshCharacterData);
-  }
-
-  async function confirmSetup() {
-    if (!setupPreview) return;
-    await run(async () => {
-      await confirmCharacterSetup({
-        command_id: crypto.randomUUID(),
-        character,
-        profile_id: profileID || undefined,
-        expected_catalog_revision: setupPreview.catalog_revision,
-        expected_operator_settings_revision: setupPreview.operator_settings_revision,
-        expected_pickit_assignment_revision: setupPreview.pickit_assignment_revision,
-        expected_generation: status.generation,
-      });
-      await refreshCharacterData();
-    });
-  }
-
-  async function captureSelectionAnchor() {
-    if (!setupPreview || !captureConfirmed) return;
-    await run(async () => {
-      await captureCharacterSelection({
-        command_id: crypto.randomUUID(),
-        character,
-        expected_catalog_revision: setupPreview.catalog_revision,
-        expected_generation: status.generation,
-      });
-      setCaptureConfirmed(false);
-      await refreshCharacterData();
     });
   }
 
@@ -198,6 +136,7 @@ export function OnboardingFeature({ status, catalog, onRefresh, onClose, onOpenR
   const effectiveInputReady = settings?.input.enabled === true && status.input.enabled && !status.input.paused && !status.input.stopped;
   const selectedCatalogEntry = catalog.characters.find((entry) => entry.name === character);
   const selectedCharacterReady = selectedCatalogEntry?.selectable === true;
+  const farmReady = selectedCatalogEntry?.farm_ready === true;
   const canAdvance = (step !== 2 || compatibility === "compatible")
     && (step !== 4 || effectiveInputReady)
     && (step !== 5 || !!status.selection.character);
@@ -232,52 +171,24 @@ export function OnboardingFeature({ status, catalog, onRefresh, onClose, onOpenR
         </label>
         <Button disabled={busy || !character || !effectiveInputReady || !selectedCharacterReady} onClick={() => void submitSelection()}>Über Core bestätigen</Button>
       </div>
-      <div className="character-setup">
-        <div className="section-heading">
-          <div>
-            <p className="eyebrow">Gefundener Spielstand</p>
-            <h3>{setupPreview ? `${setupPreview.character.name} · ${setupPreview.character.class_display_name}` : character || "Kein Charakter gefunden"}</h3>
-          </div>
-          <Button variant="secondary" disabled={busy || !character} onClick={() => void reloadCharacterData()}>Spielstände neu laden</Button>
-        </div>
-        {setupPreview?.supported && setupPreview.setup_state === "needs_setup" && <>
-          <h4>Kampfprofil festlegen</h4>
-          {setupPreview.profiles.length === 1
-            ? <p>Profil: <strong>{setupPreview.profiles[0].display_name}</strong></p>
-            : <label>Kampfprofil
-              <select value={profileID} onChange={(event) => setProfileID(event.target.value)}>
-                {setupPreview.profiles.map((profile) => <option key={profile.id} value={profile.id}>{profile.display_name}{profile.is_default ? " – Standard" : ""}</option>)}
-              </select>
-            </label>}
-          <h4>Lootprofile</h4>
-          <ul>{setupPreview.pickit_defaults.map((entry) => <li key={entry.run_id}><strong>{entry.run_display_name}</strong>: {entry.profile_names.join(" → ")}{entry.state === "ready" ? " · bereits eingerichtet" : " · wird ergänzt"}</li>)}</ul>
-          <Button disabled={busy || !profileID} onClick={() => void confirmSetup()}>Profil und Lootprofile bestätigen</Button>
-        </>}
-        {setupPreview?.supported && setupPreview.setup_state === "needs_anchor" && <>
-          <h4>Auswahlbild speichern</h4>
-          <ol>
-            <li>D2R öffnen.</li>
-            <li>Die Charakterauswahl öffnen.</li>
-            <li><strong>{setupPreview.character.name}</strong> einmal anklicken, aber das Spiel nicht starten.</li>
-            <li>Hier bestätigen und das Auswahlbild speichern.</li>
-          </ol>
-          <label className="capture-confirmation"><input type="checkbox" checked={captureConfirmed} onChange={(event) => setCaptureConfirmed(event.target.checked)} /> {setupPreview.character.name} ist in der Charakterauswahl markiert.</label>
-          <Button disabled={busy || !captureConfirmed} onClick={() => void captureSelectionAnchor()}>Auswahlbild jetzt speichern</Button>
-        </>}
-        {setupPreview?.setup_state === "ready" && <StateMessage kind="empty" title="Charakter ist eingerichtet">Kampfprofil, Lootprofile und Auswahlbild sind bereit. Wähle oben die gewünschte Schwierigkeit und klicke anschließend auf „Über Core bestätigen“.</StateMessage>}
-        {setupPreview?.setup_state === "blocked" && <StateMessage kind="error" title="Einrichtung nicht möglich">{setupPreview.reasons.map((reason) => characterReasonText(reason, catalog)).join(" ")}</StateMessage>}
-      </div>
+      <CharacterSetupWizard
+        character={character}
+        catalog={catalog}
+        status={status}
+        mode="onboarding"
+        onChanged={async () => { await onRefresh(); await load(); }}
+      />
       <p>Aktiv: {status.selection.character ? `${status.selection.character} / ${status.selection.difficulty}` : "noch nicht bestätigt"}</p>
       {catalog.characters.some((entry) => !entry.selectable) && <>
         <h3>Warum sind Charaktere nicht verfügbar?</h3>
         <ul className="character-availability">{catalog.characters.filter((entry) => !entry.selectable).map((entry) => <li key={entry.slug}><strong>{entry.name}</strong><span>{characterAvailabilityText(entry, catalog)}</span></li>)}</ul>
       </>}
     </div>}
-    {step === 6 && <div className="onboarding-panel"><h2>Core-Readiness</h2><p>Die Liste stammt aus Status-, Katalog- und Recording-API.</p><ul className="readiness-list"><li><span>Versionsgate</span><strong>{compatibility === "compatible" ? "bereit" : "fehlt"}</strong></li><li><span>Charakter/Difficulty</span><strong>{status.selection.character ? "bereit" : "fehlt"}</strong></li><li><span>Input</span><strong>{effectiveInputReady ? "bereit" : "abgelehnt/deaktiviert"}</strong></li>{(selectedOption?.prerequisites ?? []).map((entry) => <li key={entry.id}><span>{prerequisiteLabels[entry.id] ?? "Weitere Voraussetzung"}</span><strong>{prerequisiteStatus(entry)}</strong></li>)}</ul><Button variant="secondary" onClick={() => void load()}>Readiness neu laden</Button></div>}
+    {step === 6 && <div className="onboarding-panel"><h2>Core-Readiness</h2><p>Die Liste stammt aus Status-, Katalog- und Recording-API.</p><ul className="readiness-list"><li><span>Versionsgate</span><strong>{compatibility === "compatible" ? "bereit" : "fehlt"}</strong></li><li><span>Charakter/Difficulty</span><strong>{status.selection.character ? "bereit" : "fehlt"}</strong></li><li><span>Input</span><strong>{effectiveInputReady ? "bereit" : "abgelehnt/deaktiviert"}</strong></li><li><span>Tastenbelegung</span><strong>{farmReady ? "bereit" : "fehlt"}</strong></li>{(selectedOption?.prerequisites ?? []).map((entry) => <li key={entry.id}><span>{prerequisiteLabels[entry.id] ?? "Weitere Voraussetzung"}</span><strong>{prerequisiteStatus(entry)}</strong></li>)}</ul>{!farmReady && <StateMessage kind="error" title="Noch nicht farmbereit">{(selectedCatalogEntry?.farm_ready_reasons ?? ["profile_bindings_incomplete"]).map((reason) => farmReadyReasonText(reason)).join(" ")}</StateMessage>}<Button variant="secondary" onClick={() => void load()}>Readiness neu laden</Button></div>}
     {step === 7 && <div className="onboarding-panel"><h2>Erste echte Route</h2><p><strong>So startest du:</strong> Öffne unten den Routenbereich und klicke dort beim gewünschten Run auf „Aufnahme starten“. Bleibe am Startwegpunkt stehen, bis der Core „Aufnahme läuft“ meldet. <strong>{hotkeys?.recording_finish ?? "F9"} startet keine Aufnahme</strong>, sondern beendet ausschließlich eine bereits laufende Aufnahme an der gewünschten Kampfposition.</p><div className="route-choice">{(onboardingOptions.length > 0 ? onboardingOptions : catalog.runs.map((run) => ({ run_id: run.run_id, display_name: run.display_name, instructions_de: "", prerequisites: [] as RecordingOptionDTO["prerequisites"] }))).map((option, index) => (
       <label key={option.run_id}><input type="radio" name="first-route" checked={routeID === option.run_id} onChange={() => setRouteID(option.run_id)} /> {option.display_name || option.run_id}{index === 0 ? <> <strong>empfohlen</strong></> : null}</label>
     ))}</div>{selectedOption && <><p>{selectedOption.instructions_de}</p><ul>{(selectedOption.prerequisites ?? []).map((entry) => <li key={entry.id}>{prerequisiteLabels[entry.id] ?? "Weitere Voraussetzung"}: {prerequisiteStatus(entry)}</li>)}</ul></>} {["failed_safe", "emergency_cancelled"].includes(workflowState) && <StateMessage kind="error" title="Vorherige Aufnahme wurde verworfen">Es gibt kein Resume. Starte die Aufnahme sauber neu.</StateMessage>}<Button disabled={!allPrerequisitesReady || !settings?.input.enabled || compatibility !== "compatible"} onClick={() => onOpenRoutes(routeID)}>Routenbereich öffnen und Aufnahme starten <ExternalLink aria-hidden="true" size={17} /></Button></div>}
-    {step === 8 && <div className="onboarding-panel"><h2>Bereit für das Dashboard</h2><p>Du kannst den Assistenten ohne fertige Route abschließen. Das Dashboard zeigt dann weiterhin den konkreten Einstieg „Erste Route aufnehmen“. Es startet kein Testlauf und keine Farming-Session.</p><div className="inline-actions"><Button onClick={() => void finish(false)}>Assistent abschließen</Button><Button variant="secondary" onClick={() => onOpenRoutes(routeID)}>Jetzt zur Routenaufnahme</Button></div></div>}
+    {step === 8 && <div className="onboarding-panel"><h2>Bereit für das Dashboard</h2><p>Du kannst den Assistenten ohne fertige Route abschließen. Das Dashboard zeigt dann weiterhin den konkreten Einstieg „Erste Route aufnehmen“. Es startet kein Testlauf und keine Farming-Session.</p>{!farmReady && <StateMessage kind="error" title="Einrichtung fehlt noch">Abschluss ist erlaubt. Die Queue bleibt gesperrt, bis Tasten und Inventarschutz unter Einstellungen → Charaktere gespeichert sind.</StateMessage>}<div className="inline-actions"><Button onClick={() => void finish(false)}>Assistent abschließen</Button><Button variant="secondary" onClick={() => onOpenRoutes(routeID)}>Jetzt zur Routenaufnahme</Button>{!farmReady && <Button variant="secondary" onClick={() => setStep(5)}>Jetzt konfigurieren</Button>}</div></div>}
 
     <footer className="onboarding-actions"><Button variant="secondary" disabled={step === 0 || busy} onClick={() => setStep((value) => value - 1)}>Zurück</Button><Button variant="secondary" disabled={busy} onClick={() => void finish(true)}>Überspringen – Input bleibt aus</Button>{step < steps.length - 1 && <Button disabled={!canAdvance || busy} onClick={() => setStep((value) => value + 1)}>Weiter</Button>}</footer>
     {selectionPreview && <Dialog title="Routenwirkung bestätigen" onClose={() => setSelectionPreview(null)}><p>Der Difficulty-Wechsel betrifft {selectionPreview.affected_routes.length} Route(n). Die vorhandene Core-Vorschau bleibt autoritativ.</p><div className="modal-actions"><Button variant="secondary" onClick={() => setSelectionPreview(null)}>Abbrechen</Button><Button onClick={() => void confirmSelection()}>Auswahl bestätigen</Button></div></Dialog>}

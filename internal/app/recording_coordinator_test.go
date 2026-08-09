@@ -123,7 +123,7 @@ func TestCowRecordingContractsFreezeRoleBoundCandidates(t *testing.T) {
 				t.Fatal(err)
 			}
 			_, route, err := store.Load(candidate.CandidateID)
-			if err != nil || route.Binding.RouteRole != role || route.Binding.ProfileID != "necro_bone_spear" {
+			if err != nil || route.Binding.RouteRole != role || route.Binding.ProfileID != "" {
 				t.Fatalf("route = %+v, err=%v", route.Binding, err)
 			}
 		})

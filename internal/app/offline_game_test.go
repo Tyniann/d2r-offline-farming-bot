@@ -29,7 +29,9 @@ func (m *offlineSelectionMock) CastBeltWithModifier(input.BeltBindingSource, str
 	return nil
 }
 func (m *offlineSelectionMock) CastSkillAt(input.BindingSource, uint16, int, int) error { return nil }
+func (m *offlineSelectionMock) SelectSkill(input.BindingSource, uint16) error           { return nil }
 func (m *offlineSelectionMock) MoveTo(x, y int) error                                   { m.movedX, m.movedY = x, y; return nil }
+func (m *offlineSelectionMock) Click(input.MouseButton) error                           { m.clicks++; return nil }
 func (m *offlineSelectionMock) ClickWithModifier(string, input.MouseButton) error       { return nil }
 func (m *offlineSelectionMock) PressKey(string) error                                   { return nil }
 func (m *offlineSelectionMock) Focus() error                                            { return nil }
@@ -38,7 +40,6 @@ func (m *offlineSelectionMock) TogglePause(string) bool                         
 func (m *offlineSelectionMock) Stop(string)                                             {}
 func (m *offlineSelectionMock) ListenHotkeys(context.Context, chan<- input.HotkeyEvent, chan<- error) {
 }
-func (m *offlineSelectionMock) Click(input.MouseButton) error { m.clicks++; return nil }
 func (m *offlineSelectionMock) CaptureClient() (*image.RGBA, error) {
 	return image.NewRGBA(image.Rect(0, 0, 1280, 720)), nil
 }

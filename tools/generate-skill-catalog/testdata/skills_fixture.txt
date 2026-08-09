@@ -1,0 +1,11 @@
+skill	*Id	charclass	skilldesc	leftskill	rightskill	InTown	scroll	passive
+Attack	0		attack	1	1			
+Throw	2		throw	1	1			
+Teleport	54	sor	teleport	0	1			
+Amplify Damage	66	nec	amplify damage	0	1			
+Bone Armor	68	nec	bone armor	0	1	1		
+Corpse Explosion	74	nec	corpse explosion	0	1			
+Bone Wall	78	nec	bone wall	0	1			
+Bone Spear	84	nec	bone spear	1	1			
+Bone Prison	88	nec	bone prison	0	1			
+TownPortal	359		townportal	0	0			

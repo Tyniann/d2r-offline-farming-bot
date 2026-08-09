@@ -66,6 +66,8 @@ describe("PickitFeature", () => {
     fireEvent.change(screen.getByLabelText("Anzeigename"), { target: { value: "Basis Kopie" } });
     fireEvent.click(screen.getByRole("button", { name: "Kopie anlegen" }));
     await waitFor(() => expect(mocks.duplicate).toHaveBeenCalledWith("mein-profil", { target_id: "base-kopie", target_name: "Basis Kopie" }));
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Profil duplizieren" })).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole("button", { name: "Löschen" })).toBeEnabled());
 
     fireEvent.click(screen.getByRole("button", { name: "Löschen" }));
     expect(screen.getByRole("dialog", { name: "Profil löschen?" })).toBeInTheDocument();

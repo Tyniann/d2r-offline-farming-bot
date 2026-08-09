@@ -10,6 +10,7 @@ import (
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/config"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/input"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/pathing"
+	charprofile "github.com/Tyniann/d2r-offline-farming-bot/internal/profile"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/tasks"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/town"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/world"
@@ -52,11 +53,14 @@ func (rt *Runtime) runGuidedRouteRecord(runID tasks.RunID, routeRole pathing.Rou
 	if err != nil {
 		return fmt.Errorf("recording assignment snapshot: %w", err)
 	}
-	// Der bestehende Recordingpfad arbeitet bis zur charakterbezogenen
-	// Runtime-Umstellung in 16.5 weiterhin ausdrücklich mit der Run-Config.
-	// Diese Ableitung darf nicht in den Charakterkatalog zurückfließen.
-	runConfig, runConfigured := rt.Config.Runs.Run(string(runID))
-	profile, profileConfigured := rt.Config.Profiles[runConfig.Combat.Profile]
+	// Recording uses the character-owned combat profile. Route files no longer
+	// pin that profile; compatibility ignores legacy profile_id values.
+	_, runConfigured := rt.Config.Runs.Run(string(runID))
+	profileID, profileErr := rt.resolvedCombatProfileID()
+	if profileErr != nil {
+		return profileErr
+	}
+	profile, profileConfigured := rt.Config.Profiles[profileID]
 	expectedClass := profile.CharacterClass
 	if !runConfigured || !profileConfigured || expectedClass == "" {
 		return fmt.Errorf("guided recording requires configured character class")
@@ -154,7 +158,7 @@ func (rt *Runtime) runGuidedRouteRecord(runID tasks.RunID, routeRole pathing.Rou
 				if routeRole != "" {
 					sourceAssignedRouteID = assignment.RouteSets[strings.ToLower(expectedCharacter)][runID][routeRole]
 				}
-				request := RecordingPreflight{RunID: runID, RouteRole: routeRole, Character: expectedCharacter, ExpectedClass: expectedClass, ProfileID: runConfig.Combat.Profile, Difficulty: pathing.RouteDifficulty(difficulty), GameVersion: rt.Config.Memory.GameVersion, SourceCatalogRevision: catalog.Revision, SourceAssignmentRevision: assignment.Revision, SourceAssignedRouteID: sourceAssignedRouteID, WaypointContextConfirmed: true, BlockingUIClosed: !blockingRecordingUI(current.UI), D2RFocused: true, InputOwnerAvailable: rt.Input.Status().Enabled && rt.Input.Bound()}
+				request := RecordingPreflight{RunID: runID, RouteRole: routeRole, Character: expectedCharacter, ExpectedClass: expectedClass, Difficulty: pathing.RouteDifficulty(difficulty), GameVersion: rt.Config.Memory.GameVersion, SourceCatalogRevision: catalog.Revision, SourceAssignmentRevision: assignment.Revision, SourceAssignedRouteID: sourceAssignedRouteID, WaypointContextConfirmed: true, BlockingUIClosed: !blockingRecordingUI(current.UI), D2RFocused: true, InputOwnerAvailable: rt.Input.Status().Enabled && rt.Input.Bound()}
 				if err := coordinator.Start(request, current); err != nil {
 					return err
 				}
@@ -180,7 +184,10 @@ func (rt *Runtime) runGuidedRouteRecord(runID tasks.RunID, routeRole pathing.Rou
 					return rt.completeRecordingReturnFailure(coordinator, fmt.Errorf("town portal actions not wired"))
 				}
 				rt.taskDeps.Portal.Reset()
-				if err := rt.taskDeps.Actions.CastTownPortal(); err != nil {
+				if err := rt.taskDeps.Actions.CastTownPortal(time.Now(), current.Player); err != nil {
+					if errors.Is(err, charprofile.ErrSkillSelectionPending) {
+						continue
+					}
 					return rt.completeRecordingReturnFailure(coordinator, err)
 				}
 				returnStage = 2

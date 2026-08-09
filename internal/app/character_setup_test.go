@@ -21,6 +21,10 @@ func TestCharacterSetupPreviewConfirmAndIdempotentRetry(t *testing.T) {
 		len(preview.Profiles) != 1 || preview.Profiles[0].DisplayName != "Knochen-Speer" {
 		t.Fatalf("preview=%+v", preview)
 	}
+	if preview.Profiles[0].StandardAttack != "bone_spear" || len(preview.Profiles[0].RequiredSkills) != 7 ||
+		preview.Profiles[0].RequiredSkills[0].DisplayName != "Teleport" || len(preview.Profiles[0].SupportedRuns) != 5 {
+		t.Fatalf("required skills projection=%+v", preview.Profiles[0])
+	}
 	confirmed, err := service.Confirm(CharacterSetupConfirmRequest{
 		Character: "MrBones", ExpectedCatalogRevision: preview.CatalogRevision,
 		ExpectedSettingsRevision: preview.OperatorSettingsRevision, ExpectedPickitRevision: preview.PickitAssignmentRevision,

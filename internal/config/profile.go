@@ -5,6 +5,8 @@ import (
 	"strings"
 	"unicode"
 	"unicode/utf8"
+
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/memory"
 )
 
 // ProfilesConfig maps stable profile IDs to character and encounter behavior.
@@ -15,9 +17,31 @@ type ProfileConfig struct {
 	CharacterClass   string                        `yaml:"character_class"`
 	DisplayName      string                        `yaml:"display_name,omitempty"`
 	Setup            ProfileSetupConfig            `yaml:"setup,omitempty"`
+	Combat           ProfileCombatConfig           `yaml:"combat,omitempty"`
+	RequiredSkills   []RequiredSkillConfig         `yaml:"required_skills,omitempty"`
 	Hooks            ProfileHooksConfig            `yaml:"hooks"`
 	Resources        ProfileResourcesConfig        `yaml:"resources"`
 	RouteMaintenance ProfileRouteMaintenanceConfig `yaml:"route_maintenance,omitempty"`
+}
+
+// ProfileCombatConfig holds build-owned combat metadata that no longer belongs on a run.
+type ProfileCombatConfig struct {
+	// StandardAttack is the canonical catalog key for the profile's primary attack skill.
+	StandardAttack string `yaml:"standard_attack"`
+	// AttackIntervalMs throttles real attack inputs.
+	AttackIntervalMs int `yaml:"attack_interval_ms"`
+	// EngageDistanceTiles is the desired distance after combat repositioning.
+	EngageDistanceTiles float64 `yaml:"engage_distance_tiles"`
+	// RepositionDistanceTiles triggers teleport repositioning when exceeded.
+	RepositionDistanceTiles float64 `yaml:"reposition_distance_tiles"`
+	// KillConfirmTicks confirms death after consecutive valid absence ticks.
+	KillConfirmTicks int `yaml:"kill_confirm_ticks"`
+}
+
+// RequiredSkillConfig declares one ordered duty skill for bindings and live skill checks.
+type RequiredSkillConfig struct {
+	Skill       string `yaml:"skill"`
+	DisplayName string `yaml:"display_name"`
 }
 
 // ProfileRouteMaintenanceConfig contains the deliberately narrow maintenance
@@ -116,11 +140,26 @@ func (m MercenaryResourceConfig) Resolve() (enabled bool, rule ResourceRuleConfi
 	return enabled, rule
 }
 
+// ApplyDefaults materialisiert produktive Necro-Defaults für Tests und Loader.
+func (c *ProfilesConfig) ApplyDefaults() {
+	c.applyDefaults()
+}
+
 func (c *ProfilesConfig) applyDefaults() {
 	if *c == nil {
 		*c = ProfilesConfig{}
 	}
 	if existing, ok := (*c)["necro_bone_spear"]; ok {
+		if existing.DisplayName == "" {
+			existing.DisplayName = "Knochen-Speer"
+		}
+		if !existing.Setup.Enabled && !existing.Setup.Default {
+			existing.Setup = ProfileSetupConfig{Enabled: true, Default: true}
+		}
+		existing.Combat.applyDefaults()
+		if len(existing.RequiredSkills) == 0 {
+			existing.RequiredSkills = defaultNecroBoneSpearRequiredSkills()
+		}
 		existing.RouteMaintenance.BoneArmor.applyDefaults()
 		(*c)["necro_bone_spear"] = existing
 		return
@@ -130,6 +169,14 @@ func (c *ProfilesConfig) applyDefaults() {
 		CharacterClass: "necromancer",
 		DisplayName:    "Knochen-Speer",
 		Setup:          ProfileSetupConfig{Enabled: true, Default: true},
+		Combat: ProfileCombatConfig{
+			StandardAttack:          "bone_spear",
+			AttackIntervalMs:        350,
+			EngageDistanceTiles:     22,
+			RepositionDistanceTiles: 32,
+			KillConfirmTicks:        3,
+		},
+		RequiredSkills: defaultNecroBoneSpearRequiredSkills(),
 		Hooks: ProfileHooksConfig{
 			TownReady:  []ProfileActionConfig{{Skill: "bone_armor", Target: "self", OncePerGame: true, DelayMs: 5000, SettleMs: 1500}},
 			BossEngage: []ProfileActionConfig{{Skill: "bone_prison", Target: "boss", OncePerEncounter: true, DelayMs: 750, SettleMs: 1500}},
@@ -145,6 +192,36 @@ func (c *ProfilesConfig) applyDefaults() {
 			Enabled: &enabled, Skill: "bone_armor", RefreshIntervalMs: 60000,
 			RefreshAfterDamageBelowPct: 65, MinimumRecastIntervalMs: 10000, SettleMs: 750,
 		}},
+	}
+}
+
+func defaultNecroBoneSpearRequiredSkills() []RequiredSkillConfig {
+	return []RequiredSkillConfig{
+		{Skill: "teleport", DisplayName: "Teleport"},
+		{Skill: "town_portal", DisplayName: "Stadtportal"},
+		{Skill: "bone_spear", DisplayName: "Knochen-Speer"},
+		{Skill: "amplify_damage", DisplayName: "Verstärkter Schaden"},
+		{Skill: "corpse_explosion", DisplayName: "Kadaverexplosion"},
+		{Skill: "bone_armor", DisplayName: "Knochenrüstung"},
+		{Skill: "bone_prison", DisplayName: "Knochengefängnis"},
+	}
+}
+
+func (c *ProfileCombatConfig) applyDefaults() {
+	if c.StandardAttack == "" {
+		c.StandardAttack = "bone_spear"
+	}
+	if c.AttackIntervalMs == 0 {
+		c.AttackIntervalMs = 350
+	}
+	if c.EngageDistanceTiles == 0 {
+		c.EngageDistanceTiles = 22
+	}
+	if c.RepositionDistanceTiles == 0 {
+		c.RepositionDistanceTiles = 32
+	}
+	if c.KillConfirmTicks == 0 {
+		c.KillConfirmTicks = 3
 	}
 }
 
@@ -250,6 +327,9 @@ func (c ProfilesConfig) validateSetupMetadata() error {
 		if profileCfg.DisplayName == "" {
 			return fmt.Errorf("combat_profiles.%s.display_name is required for setup.enabled", id)
 		}
+		if err := validateProfileCombatAndRequiredSkills(id, profileCfg); err != nil {
+			return err
+		}
 		enabledByClass[profileCfg.CharacterClass]++
 		if profileCfg.Setup.Default {
 			defaultsByClass[profileCfg.CharacterClass]++
@@ -270,6 +350,9 @@ func (c ProfilesConfig) validate(selected, source string) error {
 	}
 	if !supportedProfileClass(profileCfg.CharacterClass) {
 		return fmt.Errorf("combat_profiles.%s.character_class is unsupported", selected)
+	}
+	if err := validateProfileCombatAndRequiredSkills(selected, profileCfg); err != nil {
+		return err
 	}
 	for hook, actions := range map[string][]ProfileActionConfig{"town_ready": profileCfg.Hooks.TownReady, "boss_engage": profileCfg.Hooks.BossEngage} {
 		for i, action := range actions {
@@ -305,6 +388,100 @@ func (c ProfilesConfig) validate(selected, source string) error {
 		}
 		if maintenance.RefreshAfterDamageBelowPct <= 0 || maintenance.RefreshAfterDamageBelowPct > 100 {
 			return fmt.Errorf("combat_profiles.%s.route_maintenance.bone_armor.refresh_after_damage_below_percent must be within 1..100", selected)
+		}
+	}
+	return nil
+}
+
+func validateProfileCombatAndRequiredSkills(profileID string, profileCfg ProfileConfig) error {
+	if strings.TrimSpace(profileCfg.Combat.StandardAttack) == "" {
+		return fmt.Errorf("combat_profiles.%s.combat.standard_attack is required", profileID)
+	}
+	if profileCfg.Combat.StandardAttack != strings.TrimSpace(profileCfg.Combat.StandardAttack) {
+		return fmt.Errorf("combat_profiles.%s.combat.standard_attack must be trimmed", profileID)
+	}
+	if _, ok := memory.LookupSkillByKey(profileCfg.Combat.StandardAttack); !ok {
+		return fmt.Errorf("combat_profiles.%s.combat.standard_attack %q is not in the skill catalog", profileID, profileCfg.Combat.StandardAttack)
+	}
+	if profileCfg.Combat.AttackIntervalMs <= 0 {
+		return fmt.Errorf("combat_profiles.%s.combat.attack_interval_ms must be > 0", profileID)
+	}
+	if profileCfg.Combat.EngageDistanceTiles <= 0 || profileCfg.Combat.RepositionDistanceTiles <= 0 {
+		return fmt.Errorf("combat_profiles.%s.combat engage/reposition distances must be > 0", profileID)
+	}
+	if profileCfg.Combat.EngageDistanceTiles >= profileCfg.Combat.RepositionDistanceTiles {
+		return fmt.Errorf("combat_profiles.%s.combat.engage_distance_tiles must be < reposition_distance_tiles", profileID)
+	}
+	if profileCfg.Combat.KillConfirmTicks <= 0 {
+		return fmt.Errorf("combat_profiles.%s.combat.kill_confirm_ticks must be > 0", profileID)
+	}
+	if len(profileCfg.RequiredSkills) == 0 {
+		return fmt.Errorf("combat_profiles.%s.required_skills is required", profileID)
+	}
+	if len(profileCfg.RequiredSkills) > 8 {
+		return fmt.Errorf("combat_profiles.%s.required_skills must contain at most 8 entries", profileID)
+	}
+	required := make(map[string]struct{}, len(profileCfg.RequiredSkills))
+	for i, entry := range profileCfg.RequiredSkills {
+		skill := strings.TrimSpace(entry.Skill)
+		if skill == "" || skill != entry.Skill {
+			return fmt.Errorf("combat_profiles.%s.required_skills[%d].skill must be a canonical catalog key", profileID, i)
+		}
+		if _, duplicate := required[skill]; duplicate {
+			return fmt.Errorf("combat_profiles.%s.required_skills contains duplicate skill %q", profileID, skill)
+		}
+		if _, ok := memory.LookupSkillByKey(skill); !ok {
+			return fmt.Errorf("combat_profiles.%s.required_skills[%d].skill %q is not in the skill catalog", profileID, i, skill)
+		}
+		if err := validateRequiredSkillDisplayName(profileID, i, entry.DisplayName); err != nil {
+			return err
+		}
+		required[skill] = struct{}{}
+	}
+	for _, skill := range []string{"teleport", "town_portal"} {
+		if _, ok := required[skill]; !ok {
+			return fmt.Errorf("combat_profiles.%s.required_skills must include %s", profileID, skill)
+		}
+	}
+	if _, ok := required[profileCfg.Combat.StandardAttack]; !ok {
+		return fmt.Errorf("combat_profiles.%s.combat.standard_attack %q must be listed in required_skills", profileID, profileCfg.Combat.StandardAttack)
+	}
+	for hook, actions := range map[string][]ProfileActionConfig{"town_ready": profileCfg.Hooks.TownReady, "boss_engage": profileCfg.Hooks.BossEngage} {
+		for i, action := range actions {
+			skill := strings.TrimSpace(action.Skill)
+			if skill == "" {
+				continue
+			}
+			if _, ok := required[skill]; !ok {
+				return fmt.Errorf("combat_profiles.%s.hooks.%s[%d].skill %q must be listed in required_skills", profileID, hook, i, skill)
+			}
+		}
+	}
+	maintenance := profileCfg.RouteMaintenance.BoneArmor
+	if maintenance.Enabled != nil && *maintenance.Enabled {
+		skill := strings.TrimSpace(maintenance.Skill)
+		if skill != "" {
+			if _, ok := required[skill]; !ok {
+				return fmt.Errorf("combat_profiles.%s.route_maintenance.bone_armor.skill %q must be listed in required_skills", profileID, skill)
+			}
+		}
+	}
+	return nil
+}
+
+func validateRequiredSkillDisplayName(profileID string, index int, displayName string) error {
+	if displayName == "" {
+		return fmt.Errorf("combat_profiles.%s.required_skills[%d].display_name is required", profileID, index)
+	}
+	if displayName != strings.TrimSpace(displayName) {
+		return fmt.Errorf("combat_profiles.%s.required_skills[%d].display_name must be trimmed", profileID, index)
+	}
+	if utf8.RuneCountInString(displayName) > 64 {
+		return fmt.Errorf("combat_profiles.%s.required_skills[%d].display_name must contain at most 64 characters", profileID, index)
+	}
+	for _, value := range displayName {
+		if unicode.IsControl(value) {
+			return fmt.Errorf("combat_profiles.%s.required_skills[%d].display_name must not contain control characters", profileID, index)
 		}
 	}
 	return nil

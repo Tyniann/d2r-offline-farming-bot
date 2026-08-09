@@ -14,9 +14,9 @@ Ein Kampfprofil ist nur dann auswählbar, wenn es direkt `setup.enabled: true` t
 - **Persistenz:** `internal/app/operator_settings.go`, `internal/app/pickit_store.go`
 - **API:** `internal/api/character_setup_backend.go`, `internal/api/character_setup_dto.go`, `internal/api/server.go`
 - **Maschinenvertrag:** `internal/api/schema/openapi.json`
-- **Oberfläche:** `web/src/features/onboarding/OnboardingFeature.tsx`
+- **Oberfläche:** `web/src/features/onboarding/OnboardingFeature.tsx`, `web/src/features/characters/CharacterSetupWizard.tsx`, Settings-Tab „Charaktere“
 - **Benutzertexte:** `web/src/app/characterReasons.ts`
-- **Config:** `configs/config.example.yaml`
+- **Config:** `configs/config.example.yaml` (Profilfreigabe); Bindings/Inventar in OperatorSettings Schema 3
 
 ## Funktionalität
 

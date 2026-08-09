@@ -562,9 +562,10 @@ func TestLiveBackendQueueAdoptsPassiveConfirmedOpenGameFromIdle(t *testing.T) {
 	})
 	beginCalled := false
 	adopted := false
-	if err := backend.SetSessionSupervisor(supervisor, nil, func(initialInGame bool) {
+	if err := backend.SetSessionSupervisor(supervisor, nil, func(initialInGame bool) error {
 		beginCalled = true
 		adopted = initialInGame
+		return nil
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -863,15 +864,26 @@ func TestDesktopCharacterContractRejectsRunProfileMismatchBeforeQueueValidation(
 	if err != nil {
 		t.Fatal(err)
 	}
+	different := cfg.Profiles["necro_bone_spear"]
+	different.Setup.Default = false
+	cfg.Profiles["different_profile"] = different
 	configureDesktopCharacterContract(t, backend, cfg, "countess")
-	run := cfg.Runs.Definitions["countess"]
-	run.Combat.Profile = "different_profile"
-	cfg.Runs.Definitions["countess"] = run
+	settings, err := backend.operatorSettings.Snapshot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, assignErr := backend.operatorSettings.AssignCharacterProfile("MrBones", "necromancer", "different_profile", settings.Revision); assignErr != nil {
+		t.Fatal(assignErr)
+	}
+	setBackendCharacterCatalogProjection(backend, app.CharacterCatalogEntry{
+		Name: "MrBones", Slug: "mrbones", ExpectedClass: "necromancer", CombatProfile: "different_profile",
+		Selectable: true, AnchorPath: "anchor.png",
+	})
 
 	_, _, err = backend.validateDesktopCharacterContract("MrBones", []string{"countess"})
 	var commandErr *commandError
-	if !errors.As(err, &commandErr) || commandErr.code != string(tasks.RunReasonCharacterProfileRunIncompatible) {
-		t.Fatalf("profile mismatch error = %v", err)
+	if !errors.As(err, &commandErr) || commandErr.code != string(tasks.RunReasonProfileRunStrategyUnavailable) {
+		t.Fatalf("strategy mismatch error = %v", err)
 	}
 }
 
@@ -935,12 +947,30 @@ func configureDesktopCharacterContract(t *testing.T, backend *LiveBackend, cfg *
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = settings.AssignCharacterProfile("MrBones", "necromancer", "necro_bone_spear", snapshot.Revision); err != nil {
+	assigned, err := settings.AssignCharacterProfile("MrBones", "necromancer", "necro_bone_spear", snapshot.Revision)
+	if err != nil {
+		t.Fatal(err)
+	}
+	replacement := assigned.Settings
+	value := replacement.Characters["mrbones"]
+	value.ProfileBindings = map[string]app.OperatorProfileBindings{
+		"necro_bone_spear": {
+			Skills: map[string]string{
+				"teleport": "f7", "town_portal": "f6", "amplify_damage": "f1", "corpse_explosion": "f2",
+				"bone_prison": "f3", "bone_armor": "f5", "bone_spear": "f8",
+			},
+			Belt: app.OperatorBeltBindings{Slot1: "1", Slot2: "2", Slot3: "3", Slot4: "4"},
+		},
+	}
+	value.InventoryLock = &app.OperatorInventoryLock{Grid: sampleAPIInventoryGrid()}
+	replacement.Characters["mrbones"] = value
+	if _, err = settings.Update(assigned.Settings.Revision, replacement); err != nil {
 		t.Fatal(err)
 	}
 	if err = backend.SetOperatorSettingsStore(settings); err != nil {
 		t.Fatal(err)
 	}
+	backend.SetLoadoutResolver(app.NewCharacterLoadoutResolver(settings, cfg.Profiles, replacement.Input))
 	assignments, err := app.NewPickitAssignmentStore(filepath.Join(t.TempDir(), "pickit-assignments.local.yaml"), backend.pickitProfiles)
 	if err != nil {
 		t.Fatal(err)
@@ -962,6 +992,326 @@ func configureDesktopCharacterContract(t *testing.T, backend *LiveBackend, cfg *
 		Name: "MrBones", Slug: "mrbones", ExpectedClass: "necromancer", CombatProfile: "necro_bone_spear",
 		Selectable: true, AnchorPath: "anchor.png",
 	})
+}
+
+func TestCatalogFarmReadyDependsOnProfileBindings(t *testing.T) {
+	cfg, err := config.Load("../../configs/config.example.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.Routes.LifecycleFile = filepath.Join(t.TempDir(), "route-lifecycle.local.yaml")
+	backend, err := NewLiveBackend(cfg, telemetry.NewLivePublisher(16, 4))
+	if err != nil {
+		t.Fatal(err)
+	}
+	settings, err := app.NewOperatorSettingsStore(t.TempDir(), cfg, []string{"MrBones"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	snapshot, err := settings.Snapshot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	assigned, err := settings.AssignCharacterProfile("MrBones", "necromancer", "necro_bone_spear", snapshot.Revision)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = backend.SetOperatorSettingsStore(settings); err != nil {
+		t.Fatal(err)
+	}
+	setBackendCharacterCatalogProjection(backend, app.CharacterCatalogEntry{
+		Name: "MrBones", Slug: "mrbones", ExpectedClass: "necromancer", CombatProfile: "necro_bone_spear",
+		Selectable: true, AnchorPath: "anchor.png",
+	})
+	incomplete := backend.Catalog().Characters[0]
+	if incomplete.FarmReady || len(incomplete.FarmReadyReasons) != 1 || incomplete.FarmReadyReasons[0] != string(app.QueueReasonProfileBindingsIncomplete) {
+		t.Fatalf("incomplete farm ready=%+v", incomplete)
+	}
+
+	replacement := assigned.Settings
+	value := replacement.Characters["mrbones"]
+	value.ProfileBindings = map[string]app.OperatorProfileBindings{
+		"necro_bone_spear": {
+			Skills: map[string]string{
+				"teleport": "f7", "town_portal": "f6", "amplify_damage": "f1", "corpse_explosion": "f2",
+				"bone_prison": "f3", "bone_armor": "f5", "bone_spear": "f8",
+			},
+			Belt: app.OperatorBeltBindings{Slot1: "1", Slot2: "2", Slot3: "3", Slot4: "4"},
+		},
+	}
+	replacement.Characters["mrbones"] = value
+	updated, err := settings.Update(assigned.Settings.Revision, replacement)
+	if err != nil {
+		t.Fatal(err)
+	}
+	bindingsOnly := backend.Catalog().Characters[0]
+	if bindingsOnly.FarmReady || len(bindingsOnly.FarmReadyReasons) != 1 || bindingsOnly.FarmReadyReasons[0] != string(app.QueueReasonCharacterInventoryUnconfigured) {
+		t.Fatalf("inventory-unconfigured farm ready=%+v", bindingsOnly)
+	}
+
+	replacement = updated.Settings
+	value = replacement.Characters["mrbones"]
+	value.InventoryLock = &app.OperatorInventoryLock{Grid: sampleAPIInventoryGrid()}
+	replacement.Characters["mrbones"] = value
+	if _, err = settings.Update(updated.Settings.Revision, replacement); err != nil {
+		t.Fatal(err)
+	}
+	ready := backend.Catalog().Characters[0]
+	if !ready.FarmReady || len(ready.FarmReadyReasons) != 0 {
+		t.Fatalf("ready farm ready=%+v", ready)
+	}
+}
+
+func TestRecordingPrerequisitesUseSchema3ProfileBindings(t *testing.T) {
+	cfg, err := config.Load("../../configs/config.example.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	root := t.TempDir()
+	cfg.Routes.FarmingRoot = filepath.Join(root, "farming")
+	cfg.Routes.CandidateRoot = filepath.Join(root, "candidates")
+	cfg.Routes.LifecycleFile = filepath.Join(root, "lifecycle.yaml")
+	cfg.Routes.AssignmentsFile = filepath.Join(root, "assignments.yaml")
+	cfg.Routes.RecoveryFile = filepath.Join(root, "recovery.yaml")
+	backend, err := NewLiveBackend(cfg, telemetry.NewLivePublisher(16, 4))
+	if err != nil {
+		t.Fatal(err)
+	}
+	backend.mu.Lock()
+	backend.status.Selection = SelectionStatusDTO{Character: "MrBones", Difficulty: "nightmare"}
+	backend.mu.Unlock()
+
+	if recordingPrerequisiteReady(backend.RecordingOptions(), "countess", "teleport") || recordingPrerequisiteReady(backend.RecordingOptions(), "countess", "town_portal") {
+		t.Fatal("recording skill prerequisites must stay unready without Schema 3 profile bindings")
+	}
+
+	configureDesktopCharacterContract(t, backend, cfg, "countess")
+	if !recordingPrerequisiteReady(backend.RecordingOptions(), "countess", "teleport") || !recordingPrerequisiteReady(backend.RecordingOptions(), "countess", "town_portal") {
+		t.Fatal("recording skill prerequisites must become ready from Schema 3 profile bindings")
+	}
+
+	settings := backend.operatorSettings
+	snapshot, err := settings.Snapshot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	replacement := snapshot
+	value := replacement.Characters["mrbones"]
+	bindings := value.ProfileBindings["necro_bone_spear"]
+	delete(bindings.Skills, "teleport")
+	value.ProfileBindings["necro_bone_spear"] = bindings
+	replacement.Characters["mrbones"] = value
+	if _, err = settings.Update(snapshot.Revision, replacement); err != nil {
+		t.Fatal(err)
+	}
+	if recordingPrerequisiteReady(backend.RecordingOptions(), "countess", "teleport") {
+		t.Fatal("teleport prerequisite must reflect removed Schema 3 binding")
+	}
+	if !recordingPrerequisiteReady(backend.RecordingOptions(), "countess", "town_portal") {
+		t.Fatal("town portal prerequisite must remain ready when only teleport is missing")
+	}
+}
+
+func TestValidateQueueRejectsIncompleteAndUnconfiguredLoadout(t *testing.T) {
+	cfg, err := config.Load("../../configs/config.example.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.Routes.LifecycleFile = filepath.Join(t.TempDir(), "route-lifecycle.local.yaml")
+	writeAPITestAssignments(t, cfg)
+	backend, err := NewLiveBackend(cfg, telemetry.NewLivePublisher(16, 4))
+	if err != nil {
+		t.Fatal(err)
+	}
+	configureDesktopCharacterContract(t, backend, cfg, "countess")
+	backend.mu.Lock()
+	backend.status.Selection = SelectionStatusDTO{Character: "MrBones", Difficulty: "nightmare"}
+	revision := backend.catalog.Revision
+	backend.mu.Unlock()
+
+	settings := backend.operatorSettings
+	snapshot, err := settings.Snapshot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	replacement := snapshot
+	value := replacement.Characters["mrbones"]
+	value.InventoryLock = nil
+	replacement.Characters["mrbones"] = value
+	updated, err := settings.Update(snapshot.Revision, replacement)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = backend.ValidateQueue(QueueValidationRequest{
+		Entries: []string{"countess"}, Character: "MrBones", Difficulty: "nightmare", CatalogRevision: revision,
+	})
+	var commandErr *commandError
+	if !errors.As(err, &commandErr) || commandErr.code != string(app.QueueReasonCharacterInventoryUnconfigured) {
+		t.Fatalf("inventory gate error=%v", err)
+	}
+
+	replacement = updated.Settings
+	value = replacement.Characters["mrbones"]
+	value.ProfileBindings = map[string]app.OperatorProfileBindings{
+		"necro_bone_spear": {Skills: map[string]string{"teleport": "f7"}, Belt: app.OperatorBeltBindings{Slot1: "1", Slot2: "2", Slot3: "3", Slot4: "4"}},
+	}
+	value.InventoryLock = &app.OperatorInventoryLock{Grid: sampleAPIInventoryGrid()}
+	replacement.Characters["mrbones"] = value
+	if _, err = settings.Update(updated.Settings.Revision, replacement); err != nil {
+		t.Fatal(err)
+	}
+	_, err = backend.ValidateQueue(QueueValidationRequest{
+		Entries: []string{"countess"}, Character: "MrBones", Difficulty: "nightmare", CatalogRevision: revision,
+	})
+	if !errors.As(err, &commandErr) || commandErr.code != string(app.QueueReasonProfileBindingsIncomplete) {
+		t.Fatalf("bindings gate error=%v", err)
+	}
+}
+
+func TestValidateQueueAllowsSavedAllLockedInventoryForCountess(t *testing.T) {
+	cfg, err := config.Load("../../configs/config.example.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.Routes.LifecycleFile = filepath.Join(t.TempDir(), "route-lifecycle.local.yaml")
+	writeAPITestAssignments(t, cfg)
+	backend, err := NewLiveBackend(cfg, telemetry.NewLivePublisher(16, 4))
+	if err != nil {
+		t.Fatal(err)
+	}
+	configureDesktopCharacterContract(t, backend, cfg, "countess")
+	backend.mu.Lock()
+	backend.status.Selection = SelectionStatusDTO{Character: "MrBones", Difficulty: "nightmare"}
+	revision := backend.catalog.Revision
+	backend.mu.Unlock()
+
+	settings := backend.operatorSettings
+	snapshot, err := settings.Snapshot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	replacement := snapshot
+	value := replacement.Characters["mrbones"]
+	value.InventoryLock = &app.OperatorInventoryLock{Grid: sampleAPIInventoryGridAllLocked()}
+	replacement.Characters["mrbones"] = value
+	if _, err = settings.Update(snapshot.Revision, replacement); err != nil {
+		t.Fatal(err)
+	}
+
+	validation, err := backend.ValidateQueue(QueueValidationRequest{
+		Entries: []string{"countess"}, Character: "MrBones", Difficulty: "nightmare", CatalogRevision: revision,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(validation.Warnings) != 0 {
+		t.Fatalf("Countess-only all-locked warnings=%v", validation.Warnings)
+	}
+}
+
+func TestStartQueueDoesNotPaperOverBeginQueueFreezeFailure(t *testing.T) {
+	cfg, err := config.Load("../../configs/config.example.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.Routes.LifecycleFile = filepath.Join(t.TempDir(), "route-lifecycle.local.yaml")
+	writeAPITestAssignments(t, cfg)
+	backend, err := NewLiveBackend(cfg, telemetry.NewLivePublisher(16, 4))
+	if err != nil {
+		t.Fatal(err)
+	}
+	configureDesktopCharacterContract(t, backend, cfg, "countess")
+	markBackendCompatible(backend)
+	backend.mu.Lock()
+	backend.status.Selection = SelectionStatusDTO{Character: "MrBones", Difficulty: "nightmare"}
+	revision := backend.catalog.Revision
+	backend.mu.Unlock()
+	runner := &liveBackendQueueRunner{started: make(chan app.SupervisorRunRequest, 1), release: make(chan app.SupervisorRunResult, 1)}
+	supervisor, err := app.NewSessionSupervisor(runner)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if setupErr := backend.SetSessionSupervisor(supervisor, nil, func(bool) error {
+		return errors.New("freeze exploded")
+	}); setupErr != nil {
+		t.Fatal(setupErr)
+	}
+	payload, _ := json.Marshal(SessionStartPayload{Entries: []string{"countess"}, Character: "MrBones", Difficulty: "nightmare", CatalogRevision: revision})
+	_, err = backend.Command("start_queue", CommandRequest{CommandID: "freeze-fail", ExpectedGeneration: backend.Status().Generation, Payload: payload})
+	var commandErr *commandError
+	if err == nil || !errors.As(err, &commandErr) {
+		t.Fatalf("expected freeze failure, got %v", err)
+	}
+	if commandErr.code == string(app.QueueReasonProfileBindingsIncomplete) {
+		t.Fatalf("freeze failure papered over as bindings incomplete: %+v", commandErr)
+	}
+	if commandErr.code != "command_conflict" || !strings.Contains(commandErr.message, "Loadout") {
+		t.Fatalf("freeze failure error=%+v", commandErr)
+	}
+}
+
+func recordingPrerequisiteReady(options []RecordingOptionDTO, runID, prerequisiteID string) bool {
+	for _, option := range options {
+		if option.RunID != runID {
+			continue
+		}
+		for _, prerequisite := range option.Prerequisites {
+			if prerequisite.ID == prerequisiteID {
+				return prerequisite.Ready
+			}
+		}
+	}
+	return false
+}
+
+func TestQueueLoadoutWarningsForUnsuitableCowInventory(t *testing.T) {
+	cfg, err := config.Load("../../configs/config.example.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.Routes.LifecycleFile = filepath.Join(t.TempDir(), "route-lifecycle.local.yaml")
+	backend, err := NewLiveBackend(cfg, telemetry.NewLivePublisher(16, 4))
+	if err != nil {
+		t.Fatal(err)
+	}
+	configureDesktopCharacterContract(t, backend, cfg, "countess")
+	settings := backend.operatorSettings
+	snapshot, err := settings.Snapshot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	replacement := snapshot
+	value := replacement.Characters["mrbones"]
+	value.InventoryLock = &app.OperatorInventoryLock{Grid: sampleAPIInventoryGridAllLocked()}
+	replacement.Characters["mrbones"] = value
+	if _, err = settings.Update(snapshot.Revision, replacement); err != nil {
+		t.Fatal(err)
+	}
+	if warnings := backend.queueLoadoutWarnings("MrBones", []string{"cows"}); len(warnings) != 1 || warnings[0] != "inventory_layout_unsuitable_for_cows" {
+		t.Fatalf("cow warnings=%v", warnings)
+	}
+	if warnings := backend.queueLoadoutWarnings("MrBones", []string{"countess"}); len(warnings) != 0 {
+		t.Fatalf("countess warnings=%v", warnings)
+	}
+}
+
+func sampleAPIInventoryGrid() [][]int {
+	grid := make([][]int, 4)
+	for row := range grid {
+		grid[row] = make([]int, 10)
+		for col := 0; col < 4; col++ {
+			grid[row][col] = 1
+		}
+	}
+	return grid
+}
+
+func sampleAPIInventoryGridAllLocked() [][]int {
+	grid := make([][]int, 4)
+	for row := range grid {
+		grid[row] = []int{1, 1, 1, 1, 1, 1, 1, 1, 1, 1}
+	}
+	return grid
 }
 
 func setBackendCharacterCatalogProjection(backend *LiveBackend, entry app.CharacterCatalogEntry) {

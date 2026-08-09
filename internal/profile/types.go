@@ -15,6 +15,10 @@ var ErrRouteClearTargetUnprojectable = errors.New("route clear target unprojecta
 // no playable client point in the currently bound window.
 var ErrCorpseExplosionTargetUnprojectable = errors.New("corpse explosion target unprojectable")
 
+// ErrSkillSelectionPending reports that the right-mouse skill was selected and
+// the next tick must wait for Memory confirmation before any click.
+var ErrSkillSelectionPending = errors.New("skill_selection_pending")
+
 // Hook identifies a semantic lifecycle event emitted by a run.
 type Hook string
 

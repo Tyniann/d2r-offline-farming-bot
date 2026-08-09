@@ -332,4 +332,23 @@ Memory-Verify des aktiven Players-Werts ist nice-to-have, kein Muss für v1.
 
 ---
 
+## Multi-Profil-Erweiterungen
+
+**Status:** `idea`
+**Ziel-Phase:** nach Phase 21
+**Verwandt:** [Character Loadouts](features/character-loadouts.md), [Character- und Encounter-Profile](features/character-encounter-profiles.md)
+
+### Kontext
+
+Phase 21 liefert den Loadout-Vertrag und genau ein produktives Kampfprofil (`necro_bone_spear`). Weitere Profile sollen denselben Katalog-, Binding-, Inventory- und Registry-Vertrag nutzen, ohne eine zweite Architektur.
+
+### Idee
+
+- Neue Profile (z. B. Summoner-Necro, Poison-Nova-Necro, Blizzard-Sorc) starten mit ProfileConfig + Modul + einem Registry-Eintrag.
+- Weitere Runs werden einzeln als `(profileID, runID)`-Factories ergänzt und brauchen Strategy-, Required-Skill- und Availability-Tests.
+- BindingEditor erhält „Aus anderem Profil kopieren“ mit Preview und ohne automatisches Überschreiben.
+- Isolierter „Tasten prüfen“-Flow: Taste senden, frisches `RightSkillID` lesen, Ergebnis anzeigen — ohne Binding-Mutation und ohne Memory-Write.
+
+---
+
 *(Neue Einträge unten anfügen — kurzer Titel, Status `idea`, Kontext, Ziel-Phase.)*

@@ -103,7 +103,7 @@ Fehlende Keys erhalten die obigen Defaults (`applyDefaults`); ungültige Werte b
 
 ### Skill-Bindings (Abhängigkeit Phase 3.6)
 
-Teleport wird über `input.bindings.skills.teleport` (`key` + `button`) gecastet — keine Kalibrierung, keine Sorc-Hardcodierung. `BindingsPrecheck` erzwingt beim Start: Teleport konfiguriert und `button: right` (Hard-Stop), Town Portal nur Warnung. Für `hover:watch` (read-only) entfällt der Precheck.
+Teleport wird über den Charakter-Loadout (`profile_bindings` → Teleport-F-Key) gecastet — keine Kalibrierung, keine Sorc-Hardcodierung. `BindingsPrecheck` erzwingt beim Start: Teleport im Loadout und Cast auf RMB (Hard-Stop), Town Portal nur Warnung. Für `hover:watch` (read-only) entfällt der Precheck.
 
 ## Operator / CLI
 

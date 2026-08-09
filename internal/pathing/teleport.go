@@ -15,9 +15,13 @@ const maxTeleportClientYFraction = 0.74
 // ErrProjectionFailed indicates the target could not be mapped to client pixels.
 var ErrProjectionFailed = fmt.Errorf("projection failed")
 
-// TeleportMover casts Teleport at projected world coordinates using the YAML
-// skill binding (`input.bindings.skills.teleport`). Casts are throttled by the
-// configured move interval so the game can process each teleport.
+// ErrTeleportSelectionPending indicates the teleport F-key was pressed and the
+// next tick must wait for RightSkillID confirmation before RMB.
+var ErrTeleportSelectionPending = fmt.Errorf("teleport_selection_pending")
+
+// TeleportMover casts Teleport at projected world coordinates using the active
+// character loadout Teleport binding. Casts are throttled by the configured
+// move interval so the game can process each teleport.
 type TeleportMover struct {
 	log       *slog.Logger
 	input     InputDriver
@@ -25,6 +29,7 @@ type TeleportMover struct {
 	projector Projector
 	interval  time.Duration
 	lastCast  time.Time
+	clicker   RightSkillClicker
 }
 
 // NewTeleportMover wires teleport casting to input, bindings, and projection.
@@ -49,36 +54,57 @@ func (m *TeleportMover) Reset() {
 }
 
 // TeleportTo projects target relative to player and casts Teleport there.
-// Returns the client coordinates used for the cast. ErrProjectionFailed is
-// returned when the window is unbound or projection is invalid.
-func (m *TeleportMover) TeleportTo(now time.Time, player, target world.Position) (clientX, clientY int, err error) {
+// When RightSkillID is already Teleport, only Move+Click are sent. Otherwise the
+// optional RightSkillClicker selects first and returns without clicking.
+func (m *TeleportMover) TeleportTo(now time.Time, player world.Player, target world.Position) (clientX, clientY int, err error) {
 	win, ok := m.input.Window()
 	if !ok {
 		return 0, 0, fmt.Errorf("teleport: window not bound: %w", ErrProjectionFailed)
 	}
-	clientX, clientY, ok = m.projector.Project(player, target, win)
+	clientX, clientY, ok = m.projector.Project(player.Position, target, win)
 	if !ok {
 		return 0, 0, fmt.Errorf("teleport to %d,%d: %w", target.X, target.Y, ErrProjectionFailed)
 	}
 	rawClientX, rawClientY := clientX, clientY
 	clientX, clientY = clampTeleportClientPoint(clientX, clientY, win)
 
-	if err := m.input.CastSkillAt(m.bindings, memory.SkillTeleport, clientX, clientY); err != nil {
-		return clientX, clientY, fmt.Errorf("teleport cast: %w", err)
+	if m.clicker == nil {
+		return clientX, clientY, fmt.Errorf("teleport cast: right skill clicker is required")
+	}
+	sent, castErr := m.clicker.CastRightSkillAt(memory.SkillTeleport, player.RightSkillID, now, clientX, clientY)
+	if castErr != nil {
+		return clientX, clientY, fmt.Errorf("teleport cast: %w", castErr)
+	}
+	if !sent {
+		return clientX, clientY, ErrTeleportSelectionPending
 	}
 	m.lastCast = now
 
 	m.log.Debug("teleport cast",
-		"player_x", player.X,
-		"player_y", player.Y,
+		"player_x", player.Position.X,
+		"player_y", player.Position.Y,
 		"target_x", target.X,
 		"target_y", target.Y,
 		"client_x", clientX,
 		"client_y", clientY,
 		"raw_client_x", rawClientX,
 		"raw_client_y", rawClientY,
+		"right_skill_id", player.RightSkillID,
 	)
 	return clientX, clientY, nil
+}
+
+// RightSkillClicker confirms RMB skill selection before a teleport click.
+type RightSkillClicker interface {
+	CastRightSkillAt(skillID uint16, rightSkillID uint16, now time.Time, clientX, clientY int) (sent bool, err error)
+}
+
+// SetRightSkillClicker installs the shared select-confirm caster used by productive teleports.
+func (m *TeleportMover) SetRightSkillClicker(clicker RightSkillClicker) {
+	if m == nil {
+		return
+	}
+	m.clicker = clicker
 }
 
 func clampTeleportClientPoint(clientX, clientY int, win input.WindowInfo) (int, int) {

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/config"
@@ -40,13 +41,28 @@ func resolveRunSelection(opts Options, cfg *config.Config) tasks.RunSelection {
 }
 
 func mapRunConfig(cfg *config.Config, runID string, requireFarmingRoute bool) (tasks.RunConfig, error) {
+	return mapRunConfigWithProfile(cfg, runID, "", requireFarmingRoute)
+}
+
+func mapRunConfigWithProfile(cfg *config.Config, runID, profileID string, requireFarmingRoute bool) (tasks.RunConfig, error) {
 	run, ok := cfg.Runs.Run(runID)
 	if !ok {
 		return tasks.RunConfig{}, fmt.Errorf("%s: %q", tasks.RunReasonConfigMissing, runID)
 	}
-	attackSkillID, err := memory.ParseSkillTestName(run.Combat.AttackSkill)
+	if strings.TrimSpace(profileID) == "" {
+		resolved, err := resolveActiveCombatProfileID(cfg, nil, cfg.Session.Character)
+		if err != nil {
+			return tasks.RunConfig{}, err
+		}
+		profileID = resolved
+	}
+	profileCfg, profileOK := cfg.Profiles[profileID]
+	if !profileOK {
+		return tasks.RunConfig{}, fmt.Errorf("combat_profiles.%s is required", profileID)
+	}
+	combat, err := mapCombatConfigFromProfile(profileID, profileCfg)
 	if err != nil {
-		return tasks.RunConfig{}, fmt.Errorf("runs.definitions.%s.combat.attack_skill: %w", runID, err)
+		return tasks.RunConfig{}, err
 	}
 	mapped := tasks.RunConfig{
 		StepTimeout:             time.Duration(cfg.Runs.StepTimeoutMs) * time.Millisecond,
@@ -63,14 +79,7 @@ func mapRunConfig(cfg *config.Config, runID string, requireFarmingRoute bool) (t
 			EmergencyManaPercent:       run.RouteCombat.EmergencyManaPercent,
 			ManaRecoveryTimeout:        time.Duration(run.RouteCombat.ManaRecoveryTimeoutMs) * time.Millisecond,
 		},
-		Combat: tasks.CombatConfig{
-			Profile:                 run.Combat.Profile,
-			AttackSkillID:           attackSkillID,
-			AttackInterval:          time.Duration(run.Combat.AttackIntervalMs) * time.Millisecond,
-			EngageDistanceTiles:     run.Combat.EngageDistanceTiles,
-			RepositionDistanceTiles: run.Combat.RepositionDistanceTiles,
-			KillConfirmTicks:        run.Combat.KillConfirmTicks,
-		},
+		Combat: combat,
 	}
 	definition, definitionOK := tasks.DefaultRunRegistry().Definition(tasks.RunID(runID))
 	if mapped.RouteCombat.Enabled && (!definitionOK || !definition.HasCapability(tasks.RunCapabilityRouteClear)) {
@@ -104,14 +113,14 @@ func mapRunConfig(cfg *config.Config, runID string, requireFarmingRoute bool) (t
 	return resolved.Config, nil
 }
 
-func mapCowConfig(cfg *config.Config, bindings configBindingSource) tasks.CowConfig {
+func mapCowConfig(cfg *config.Config, bindings configBindingSource, inventoryGrid [][]int) tasks.CowConfig {
 	mapped := tasks.CowConfig{
 		Character: cfg.Session.Character, Difficulty: cfg.Session.Difficulty,
 		ClientWidth: offlineDifficultyClientWidth, ClientHeight: offlineDifficultyClientHeight,
 	}
-	for row := 0; row < len(cfg.Loot.InventoryLock) && row < len(mapped.InventoryLocked); row++ {
-		for col := 0; col < len(cfg.Loot.InventoryLock[row]) && col < len(mapped.InventoryLocked[row]); col++ {
-			mapped.InventoryLocked[row][col] = cfg.Loot.InventoryLock[row][col] == 1
+	for row := 0; row < len(inventoryGrid) && row < len(mapped.InventoryLocked); row++ {
+		for col := 0; col < len(inventoryGrid[row]) && col < len(mapped.InventoryLocked[row]); col++ {
+			mapped.InventoryLocked[row][col] = inventoryGrid[row][col] == 1
 		}
 	}
 	mapped.HasTownPortal = cowBindingAvailable(bindings, memory.SkillTownPortal)
@@ -251,8 +260,14 @@ func validateRunMode(sel tasks.RunSelection, cfg *config.Config, opts Options, l
 	if sel.Phase != "" && !isSupportedRunPhase(sel.Phase) {
 		return fmt.Errorf("%w: run=%q phase=%q", errUnsupportedRunPhase, sel.Run, sel.Phase)
 	}
+	profileID, err := resolveRuntimeCombatProfileID(cfg, opts.Loadout)
+	if err != nil {
+		return err
+	}
+	profileCfg := cfg.Profiles[profileID]
 	availability, err := ResolveRunAvailabilities(cfg, RunAvailabilityContext{
-		Character: cfg.Session.Character, Difficulty: cfg.Session.Difficulty, GameVersion: cfg.Memory.GameVersion,
+		Character: cfg.Session.Character, CharacterClass: profileCfg.CharacterClass, CombatProfile: profileID,
+		Difficulty: cfg.Session.Difficulty, GameVersion: cfg.Memory.GameVersion,
 	})
 	if err != nil {
 		return err
@@ -269,27 +284,27 @@ func validateRunMode(sel tasks.RunSelection, cfg *config.Config, opts Options, l
 		return fmt.Errorf("run %q unavailable: %s", sel.Run, joinRunReasons(blockingReasons))
 	}
 	if sel.Phase == "" {
-		if err := validateFullRunBindings(cfg, sel.Run); err != nil {
+		if err := validateFullRunBindingsWithProfile(cfg, sel.Run, opts.LoadoutBindings(), profileID); err != nil {
 			return err
 		}
 	}
 	if sel.Phase == tasks.RunPhaseTravelEntry {
-		if err := validateProfileBindings(cfg, sel.Run); err != nil {
+		if err := validateProfileBindingsWithSource(cfg, opts.LoadoutBindings(), profileID, "profile"); err != nil {
 			return err
 		}
 	}
 	if sel.Phase == tasks.RunPhaseTownReady {
-		if err := validateProfileBindings(cfg, sel.Run); err != nil {
+		if err := validateProfileBindingsWithSource(cfg, opts.LoadoutBindings(), profileID, "profile"); err != nil {
 			return err
 		}
 	}
 	if sel.Phase == tasks.RunPhaseBoss {
-		if err := validateBossBindings(cfg, sel.Run); err != nil {
+		if err := validateBossBindingsWithProfile(cfg, sel.Run, opts.LoadoutBindings(), profileID); err != nil {
 			return err
 		}
 	}
 	if sel.Phase == tasks.RunPhaseLootAndReturn {
-		if err := validateLootBindings(cfg); err != nil {
+		if err := validateLootBindings(opts.LoadoutBindings()); err != nil {
 			return err
 		}
 	}
@@ -350,40 +365,40 @@ func isSupportedRunPhase(phase string) bool {
 	}
 }
 
-func validateFullRunBindings(cfg *config.Config, runID string) error {
-	bindings, err := newConfigBindingSource(cfg.Input.Bindings)
-	if err != nil {
-		return err
-	}
+func validateFullRunBindingsWithProfile(cfg *config.Config, runID string, bindings configBindingSource, profileID string) error {
 	if _, resolveErr := bindings.Resolve(memory.SkillTeleport); resolveErr != nil {
-		return fmt.Errorf("%s requires input.bindings.skills.teleport: %w", runID, resolveErr)
+		return fmt.Errorf("%s requires teleport binding: %w", runID, resolveErr)
 	}
-	runCfg, ok := cfg.Runs.Run(runID)
-	if !ok {
+	if _, ok := cfg.Runs.Run(runID); !ok {
 		return fmt.Errorf("%s: %q", tasks.RunReasonConfigMissing, runID)
 	}
-	attackSkill, err := memory.ParseSkillTestName(runCfg.Combat.AttackSkill)
+	profileCfg, ok := cfg.Profiles[profileID]
+	if !ok {
+		return fmt.Errorf("%s requires combat_profiles.%s", runID, profileID)
+	}
+	attackSkill, err := memory.ParseSkillTestName(profileCfg.Combat.StandardAttack)
 	if err != nil {
-		return fmt.Errorf("%s attack skill %q: %w", runID, runCfg.Combat.AttackSkill, err)
+		return fmt.Errorf("%s attack skill %q: %w", runID, profileCfg.Combat.StandardAttack, err)
 	}
 	attackCast, err := bindings.Resolve(attackSkill)
 	if err != nil {
-		return fmt.Errorf("%s requires input.bindings.skills.%s: %w", runID, runCfg.Combat.AttackSkill, err)
+		return fmt.Errorf("%s requires %s binding: %w", runID, profileCfg.Combat.StandardAttack, err)
 	}
 	if attackCast.CastButton != input.MouseRight {
-		return fmt.Errorf("%s attack skill %s must use right mouse, configured=%s", runID, runCfg.Combat.AttackSkill, attackCast.CastButton)
+		return fmt.Errorf("%s attack skill %s must use right mouse, configured=%s", runID, profileCfg.Combat.StandardAttack, attackCast.CastButton)
 	}
+	runCfg, _ := cfg.Runs.Run(runID)
 	if runCfg.RouteCombat.EnabledValue() {
 		openerCast, resolveErr := bindings.Resolve(memory.SkillAmplifyDamage)
 		if resolveErr != nil {
-			return fmt.Errorf("%s route combat requires input.bindings.skills.amplify_damage: %w", runID, resolveErr)
+			return fmt.Errorf("%s route combat requires amplify_damage binding: %w", runID, resolveErr)
 		}
 		if openerCast.CastButton != input.MouseRight {
 			return fmt.Errorf("%s route combat opener amplify_damage must use right mouse, configured=%s", runID, openerCast.CastButton)
 		}
 	}
 	if _, err := bindings.Resolve(memory.SkillTownPortal); err != nil {
-		return fmt.Errorf("%s requires input.bindings.skills.town_portal: %w", runID, err)
+		return fmt.Errorf("%s requires town_portal binding: %w", runID, err)
 	}
 	if err := validateBeltSlotConfigured(bindings, 1, runID); err != nil {
 		return err
@@ -391,28 +406,16 @@ func validateFullRunBindings(cfg *config.Config, runID string) error {
 	if err := validateBeltSlotConfigured(bindings, 4, runID); err != nil {
 		return err
 	}
-	if err := validateProfileBindingsWithSource(cfg, bindings, runID, runID); err != nil {
+	if err := validateProfileBindingsWithSource(cfg, bindings, profileID, runID); err != nil {
 		return err
 	}
 	return nil
 }
 
-func validateProfileBindings(cfg *config.Config, runID string) error {
-	bindings, err := newConfigBindingSource(cfg.Input.Bindings)
-	if err != nil {
-		return err
-	}
-	return validateProfileBindingsWithSource(cfg, bindings, runID, "profile")
-}
-
-func validateProfileBindingsWithSource(cfg *config.Config, bindings configBindingSource, runID, scope string) error {
-	runCfg, configured := cfg.Runs.Run(runID)
-	if !configured {
-		return fmt.Errorf("%s: %q", tasks.RunReasonConfigMissing, runID)
-	}
-	profileCfg, ok := cfg.Profiles[runCfg.Combat.Profile]
+func validateProfileBindingsWithSource(cfg *config.Config, bindings configBindingSource, profileID, scope string) error {
+	profileCfg, ok := cfg.Profiles[profileID]
 	if !ok {
-		return fmt.Errorf("%s requires combat_profiles.%s", scope, runCfg.Combat.Profile)
+		return fmt.Errorf("%s requires combat_profiles.%s", scope, profileID)
 	}
 	for _, actions := range [][]config.ProfileActionConfig{profileCfg.Hooks.TownReady, profileCfg.Hooks.BossEngage} {
 		for _, action := range actions {
@@ -421,7 +424,7 @@ func validateProfileBindingsWithSource(cfg *config.Config, bindings configBindin
 				return fmt.Errorf("%s profile skill %q: %w", scope, action.Skill, err)
 			}
 			if _, err := bindings.Resolve(skillID); err != nil {
-				return fmt.Errorf("%s requires input.bindings.skills.%s: %w", scope, action.Skill, err)
+				return fmt.Errorf("%s requires %s binding: %w", scope, action.Skill, err)
 			}
 		}
 	}
@@ -431,7 +434,7 @@ func validateProfileBindingsWithSource(cfg *config.Config, bindings configBindin
 			return fmt.Errorf("%s profile maintenance skill %q: %w", scope, maintenance.Skill, err)
 		}
 		if _, err := bindings.Resolve(skillID); err != nil {
-			return fmt.Errorf("%s requires input.bindings.skills.%s: %w", scope, maintenance.Skill, err)
+			return fmt.Errorf("%s requires %s binding: %w", scope, maintenance.Skill, err)
 		}
 	}
 	for _, resource := range []config.ResourceRuleConfig{profileCfg.Resources.Healing, profileCfg.Resources.Mana, profileCfg.Resources.Rejuvenation} {
@@ -444,42 +447,37 @@ func validateProfileBindingsWithSource(cfg *config.Config, bindings configBindin
 	return nil
 }
 
-func validateBossBindings(cfg *config.Config, runID string) error {
-	bindings, err := newConfigBindingSource(cfg.Input.Bindings)
-	if err != nil {
-		return err
-	}
+func validateBossBindingsWithProfile(cfg *config.Config, runID string, bindings configBindingSource, profileID string) error {
 	if _, resolveErr := bindings.Resolve(memory.SkillTeleport); resolveErr != nil {
-		return fmt.Errorf("boss requires input.bindings.skills.teleport: %w", resolveErr)
+		return fmt.Errorf("boss requires teleport binding: %w", resolveErr)
 	}
-	runCfg, ok := cfg.Runs.Run(runID)
-	if !ok {
+	if _, ok := cfg.Runs.Run(runID); !ok {
 		return fmt.Errorf("%s: %q", tasks.RunReasonConfigMissing, runID)
 	}
-	attackSkill, err := memory.ParseSkillTestName(runCfg.Combat.AttackSkill)
+	profileCfg, ok := cfg.Profiles[profileID]
+	if !ok {
+		return fmt.Errorf("boss requires combat_profiles.%s", profileID)
+	}
+	attackSkill, err := memory.ParseSkillTestName(profileCfg.Combat.StandardAttack)
 	if err != nil {
-		return fmt.Errorf("boss attack skill %q: %w", runCfg.Combat.AttackSkill, err)
+		return fmt.Errorf("boss attack skill %q: %w", profileCfg.Combat.StandardAttack, err)
 	}
 	attackCast, err := bindings.Resolve(attackSkill)
 	if err != nil {
-		return fmt.Errorf("boss requires input.bindings.skills.%s: %w", runCfg.Combat.AttackSkill, err)
+		return fmt.Errorf("boss requires %s binding: %w", profileCfg.Combat.StandardAttack, err)
 	}
 	if attackCast.CastButton != input.MouseRight {
-		return fmt.Errorf("boss attack skill %s must use right mouse, configured=%s", runCfg.Combat.AttackSkill, attackCast.CastButton)
+		return fmt.Errorf("boss attack skill %s must use right mouse, configured=%s", profileCfg.Combat.StandardAttack, attackCast.CastButton)
 	}
 	return nil
 }
 
-func validateLootBindings(cfg *config.Config) error {
-	bindings, err := newConfigBindingSource(cfg.Input.Bindings)
-	if err != nil {
-		return err
-	}
+func validateLootBindings(bindings configBindingSource) error {
 	if _, err := bindings.Resolve(memory.SkillTeleport); err != nil {
-		return fmt.Errorf("loot-and-return requires input.bindings.skills.teleport: %w", err)
+		return fmt.Errorf("loot-and-return requires teleport binding: %w", err)
 	}
 	if _, err := bindings.Resolve(memory.SkillTownPortal); err != nil {
-		return fmt.Errorf("loot-and-return requires input.bindings.skills.town_portal: %w", err)
+		return fmt.Errorf("loot-and-return requires town_portal binding: %w", err)
 	}
 	if err := validateBeltSlotConfigured(bindings, 1, "loot-and-return"); err != nil {
 		return err
@@ -493,12 +491,20 @@ func validateLootBindings(cfg *config.Config) error {
 func validateBeltSlotConfigured(bindings configBindingSource, slot int, scope string) error {
 	key, err := bindings.BeltKeyName(slot)
 	if err != nil {
-		return fmt.Errorf("%s requires input.bindings.belt.slot_%d: %w", scope, slot, err)
+		return fmt.Errorf("%s requires belt slot_%d: %w", scope, slot, err)
 	}
 	if key == "" {
-		return fmt.Errorf("%s requires input.bindings.belt.slot_%d: %w", scope, slot, input.ErrUnconfiguredSlot)
+		return fmt.Errorf("%s requires belt slot_%d: %w", scope, slot, input.ErrUnconfiguredSlot)
 	}
 	return nil
+}
+
+// LoadoutBindings returns the frozen loadout bindings or an empty source when unset.
+func (opts Options) LoadoutBindings() configBindingSource {
+	if opts.Loadout == nil {
+		return configBindingSource{skills: make(map[uint16]input.SkillCast)}
+	}
+	return opts.Loadout.Bindings
 }
 
 func (rt *Runtime) shouldTickTasks(cur world.State) bool {

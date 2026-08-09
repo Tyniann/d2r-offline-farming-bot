@@ -109,7 +109,7 @@ Expliziter CLI-Testmodus (`--input-test`) zur Validierung der Phase-3-Primitives
 
 Komma trennt kurze Sequenzen. Bei `click:X,Y` in Sequenzen wird die Koordinate intern zusammengehalten (`belt:1,click:10,20,portal`).
 
-**Skill-Actions und Bindings:** Normale Runs, Pathing und `--input-test` nutzen ausschließlich `input.bindings` aus YAML. Es gibt keinen Memory-Fallback und keine Hotkey-Kalibrierung.
+**Skill-Actions und Bindings:** Produktive Runs und Pathing nutzen den eingefrorenen Charakter-Loadout aus OperatorSettings Schema 3. Es gibt keinen Config-YAML-Fallback und keine Hotkey-Kalibrierung. Isolierte `--input-test`-Specs erwarten denselben Loadout-Vertrag, sobald Input aktiv ist.
 
 **Ablauf:**
 
@@ -184,7 +184,7 @@ type MouseButton string // "left" | "right"
 
 - `Ready()` = Controller initialisiert; `Bound()` = Fenster gebunden — getrennte Zustände. `Ready()` bedeutet **nicht**, dass echte Eingaben erlaubt sind (`enabled` separat prüfen).
 - `Window()` liefert eine Kopie, analog zu `process.Status()` und `world.Current()`.
-- `SelectSkill` / `CastSkillAt` / `CastBelt` nutzen `input.bindings` aus YAML.
+- `SelectSkill` / `CastSkillAt` / `CastBelt` nutzen den aktiven Charakter-Loadout (Schema 3).
 - `MoveTo`/`Click` verlangen `Bound()`; Mausfehler als `ErrWindowNotBound`, `ErrInvalidMouseButton`, `ErrMouseSendFailed`.
 
 ### YAML-Config (`input`)
@@ -199,25 +199,9 @@ input:
   key_delay_ms_min: 10
   key_delay_ms_max: 40
   combo_hold_ms: 200
-  bindings:
-    skills:
-      teleport:
-        key: f7
-        button: right
-      town_portal:
-        key: f6
-        button: right
-      bone_spear:
-        key: f8
-        button: right
-    belt:
-      slot_1: ","
-      slot_2: "."
-      slot_3: "-"
-      slot_4: "]"
 ```
 
-Skill- und Belt-Hotkeys müssen zu den D2R-Optionen passen. `button` ist `left` oder `right` und bestimmt, welchen Mausbutton ein folgender `click` für diese Skill-Auswahl verwendet.
+Skill- und Belt-Hotkeys liegen in OperatorSettings Schema 3 (`characters.*.profile_bindings`) und müssen zu den D2R-Optionen passen. Casts nutzen immer RMB nach bestätigtem `RightSkillID`. Ein globaler `input.bindings`-Block in `config.yaml` wird abgelehnt.
 
 Fehlt die gesamte `input`-Sektion, werden sichere Defaults angewendet (`enabled=false`, Hotkeys `pause`/`f9`/`f10`/`f11`, Timing-Defaults).
 

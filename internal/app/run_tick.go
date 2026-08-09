@@ -41,6 +41,7 @@ type inputController interface {
 	CastBelt(src input.BeltBindingSource, slot int) error
 	CastBeltWithModifier(src input.BeltBindingSource, modifier string, slot int) error
 	CastSkillAt(src input.BindingSource, skillID uint16, clientX, clientY int) error
+	SelectSkill(src input.BindingSource, skillID uint16) error
 	MoveTo(clientX, clientY int) error
 	Click(button input.MouseButton) error
 	ClickWithModifier(modifier string, button input.MouseButton) error
@@ -79,6 +80,24 @@ type worldLoopState struct {
 
 // runTick executes one poll-loop iteration: attach, poll, snapshot read, and world update.
 func (rt *Runtime) runTick(ctx context.Context, state *runState) (runErr error) {
+	return rt.runTickWithMode(ctx, state, runTickModeFull)
+}
+
+type runTickMode int
+
+const (
+	runTickModeFull runTickMode = iota
+	runTickModeSnapshotOnly
+)
+
+// pollQueueSnapshot updates process/input/world state without bindings precheck,
+// run readiness, or task execution. Queue game verification and the session
+// skill gate use this path so Missing-Skill stops never race with productive input.
+func (rt *Runtime) pollQueueSnapshot(ctx context.Context, state *runState) error {
+	return rt.runTickWithMode(ctx, state, runTickModeSnapshotOnly)
+}
+
+func (rt *Runtime) runTickWithMode(ctx context.Context, state *runState, mode runTickMode) (runErr error) {
 	defer func() {
 		if rt.uiStatusPublisher != nil {
 			lastError := ""
@@ -150,7 +169,9 @@ func (rt *Runtime) runTick(ctx context.Context, state *runState) (runErr error) 
 	st := rt.Process.Poll()
 	if st.State == process.StateLost {
 		rt.Input.Unbind()
-		rt.Tasks.Reset("process_lost")
+		if mode == runTickModeFull {
+			rt.Tasks.Reset("process_lost")
+		}
 		state.input = inputLoopState{}
 		state.bindingsPrecheckDone = false
 		prev := rt.World.Current()
@@ -177,22 +198,24 @@ func (rt *Runtime) runTick(ctx context.Context, state *runState) (runErr error) 
 	rt.lastSnapshot = snap
 	prevWorld := rt.World.Current()
 	cur := rt.World.Update(snap)
-	rt.observeMercenaryDeath(prevWorld, cur)
-	if err := rt.abortRunOnMercenaryDeath(prevWorld, cur); err != nil {
-		return err
-	}
-	if rt.Config.Input.Enabled && rt.Options.InputTest == "" && rt.Options.OfflineDifficulty == "" && !rt.Options.OfflineExitTest && rt.Options.UIStateProbe == "" && rt.Options.ScreenAnchorCapture == "" && rt.Options.MercenaryProbe == "" && rt.Options.CowProbe == "" && !rt.Options.TownInspect && rt.Options.TownTest == "" && !rt.pathingTestIsReadOnly() && !rt.routeCommandIsReadOnly() && snap.Valid && snap.Phase == memory.GamePhaseInGame && !state.bindingsPrecheckDone {
-		state.bindingsPrecheckDone = true
-		if err := BindingsPrecheck(rt.Log, rt.Bindings, snap, true); err != nil {
-			return fmt.Errorf("bindings precheck: %w", err)
+	if mode == runTickModeFull {
+		rt.observeMercenaryDeath(prevWorld, cur)
+		if err := rt.abortRunOnMercenaryDeath(prevWorld, cur); err != nil {
+			return err
 		}
-	}
-	ready, err := rt.consumeRunReadiness(ctx, cur)
-	if err != nil {
-		return err
-	}
-	if ready && rt.shouldTickTasks(cur) {
-		rt.Tasks.Tick(ctx, cur, time.Now())
+		if rt.Config.Input.Enabled && rt.Options.InputTest == "" && rt.Options.OfflineDifficulty == "" && !rt.Options.OfflineExitTest && rt.Options.UIStateProbe == "" && rt.Options.ScreenAnchorCapture == "" && rt.Options.MercenaryProbe == "" && rt.Options.CowProbe == "" && !rt.Options.TownInspect && rt.Options.TownTest == "" && !rt.pathingTestIsReadOnly() && !rt.routeCommandIsReadOnly() && snap.Valid && snap.Phase == memory.GamePhaseInGame && !state.bindingsPrecheckDone {
+			state.bindingsPrecheckDone = true
+			if err := BindingsPrecheck(rt.Log, rt.Bindings, snap, true); err != nil {
+				return fmt.Errorf("bindings precheck: %w", err)
+			}
+		}
+		ready, err := rt.consumeRunReadiness(ctx, cur)
+		if err != nil {
+			return err
+		}
+		if ready && rt.shouldTickTasks(cur) {
+			rt.Tasks.Tick(ctx, cur, time.Now())
+		}
 	}
 	prev := state.world.lastLogged
 	if rt.Options.Probe && worldShouldLog(prev, cur, state.world.lastLog, worldHeartbeat, state.world.forceLog, rt.Options.Verbose) {

@@ -218,11 +218,17 @@ func (b *LiveBackend) validateDesktopCharacterContract(character string, runIDs 
 		return app.CharacterCatalogEntry{}, catalog.Revision, &commandError{code: app.CharacterReasonProfileIncompatible, message: "Das gespeicherte Kampfprofil passt nicht zur Charakterklasse."}
 	}
 	for _, runID := range runIDs {
-		runCfg, ok := b.cfg.Runs.Run(strings.TrimSpace(runID))
-		if !ok || runCfg.Combat.Profile != entry.CombatProfile {
+		if _, ok := b.cfg.Runs.Run(strings.TrimSpace(runID)); !ok {
 			return app.CharacterCatalogEntry{}, catalog.Revision, &commandError{
-				code:    string(tasks.RunReasonCharacterProfileRunIncompatible),
-				message: "Der Run verwendet nicht das bestätigte Kampfprofil dieses Charakters.",
+				code:    string(tasks.RunReasonConfigMissing),
+				message: "Dieser Run ist in der Konfiguration nicht vorhanden.",
+				details: map[string]any{"run_id": runID},
+			}
+		}
+		if _, ok := app.DefaultCombatStrategyRegistry().Resolve(entry.CombatProfile, strings.TrimSpace(runID)); !ok {
+			return app.CharacterCatalogEntry{}, catalog.Revision, &commandError{
+				code:    string(tasks.RunReasonProfileRunStrategyUnavailable),
+				message: "Das Kampfprofil unterstützt diesen Run noch nicht.",
 				details: map[string]any{"run_id": runID},
 			}
 		}

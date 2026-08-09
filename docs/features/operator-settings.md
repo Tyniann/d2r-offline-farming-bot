@@ -26,11 +26,12 @@ Der Store enthält eine positive Revision und:
 - `last_character` als zuletzt erfolgreich vom Core bestätigten Bedienkontext;
 - pro kanonischem Charakternamen eine nicht leere, geordnete und duplikatfreie Queue sowie `normal`, `nightmare` oder `hell` als letzte Difficulty;
 - `character_class` und `combat_profile` als gemeinsam leeres oder gemeinsam gesetztes Setup-Paar; ein gesetztes Profil muss bekannt, für Setup freigegeben und mit der Klasse kompatibel sein;
+- Schema 3: `profile_bindings` (F1–F8 und Gürtel) sowie presence-sensitives `inventory_lock` (4×10) pro Charakter;
 - globale Grenzen für maximale Runs, Dauer, aufeinanderfolgende Fehler und Restarts;
 - explizite Input-Freigabe sowie paarweise verschiedene, vom Input-Core unterstützte Pause-, Stop-after-run-, Recording-Finish- und Emergency-Hotkeys;
 - History-Retention mit sicheren Defaults `retention_enabled: true` und `retention_days: 60`.
 
-Unbekannte YAML-Felder, weitere YAML-Dokumente, Schemaabweichungen einschließlich Schema 1, Revision `0`, halbe oder ungültige Setup-Paare, leere oder duplizierte Queues, unbekannte Run-IDs, unendliche beziehungsweise außerhalb der Grenzen liegende Budgets und ungültige Hotkeys werden vollständig abgelehnt.
+Unbekannte YAML-Felder, weitere YAML-Dokumente, Schemaabweichungen einschließlich Schema 1 und Schema 2, Revision `0`, halbe oder ungültige Setup-Paare, leere oder duplizierte Queues, unbekannte Run-IDs, unendliche beziehungsweise außerhalb der Grenzen liegende Budgets und ungültige Hotkeys werden vollständig abgelehnt. Globales `input.bindings` und `loot.inventory_lock` in `config.yaml` sind entfernt; produktive Bindings und Inventarschutz kommen ausschließlich aus diesem Store.
 
 ### Initialisierung, Schreiben und Backups
 

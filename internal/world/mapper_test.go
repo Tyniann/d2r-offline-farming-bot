@@ -26,7 +26,11 @@ func validSnapshot() memory.Snapshot {
 		PrivateStashGold:      2401390,
 		GoldKnown:             true,
 		PrivateStashGoldKnown: true,
-		PlayerSkills:          memory.PlayerSkills{LeftSkill: memory.SkillBoneSpear, RightSkill: memory.SkillTeleport},
+		PlayerSkills: memory.PlayerSkills{
+			LeftSkill: memory.SkillBoneSpear, RightSkill: memory.SkillTeleport,
+			SkillsKnown: map[uint16]bool{memory.SkillTeleport: true, memory.SkillBoneSpear: true},
+			Complete:    true,
+		},
 	}
 }
 
@@ -75,8 +79,27 @@ func TestFromSnapshotValid(t *testing.T) {
 	if state.Player.LeftSkillID != memory.SkillBoneSpear || state.Player.RightSkillID != memory.SkillTeleport {
 		t.Fatalf("selected skills = %d/%d", state.Player.LeftSkillID, state.Player.RightSkillID)
 	}
+	if !state.Player.SkillsComplete || !state.Player.SkillsKnown[memory.SkillTeleport] || !state.Player.SkillsKnown[memory.SkillBoneSpear] {
+		t.Fatalf("skills known = %+v complete=%v", state.Player.SkillsKnown, state.Player.SkillsComplete)
+	}
 	if !state.UI.InventoryOpen || !state.UI.NPCInteractOpen || !state.UI.NPCShopOpen || !state.UI.WaypointOpen || !state.UI.StashOpen || !state.UI.QuitMenuOpen {
 		t.Fatalf("UI = %+v, want inventory, NPC interaction, shop, stash, and quit menu open", state.UI)
+	}
+}
+
+func TestFromSnapshotClonesSkillsKnown(t *testing.T) {
+	snap := validSnapshot()
+	state := FromSnapshot(snap)
+	state.Player.SkillsKnown[memory.SkillTownPortal] = true
+	if snap.PlayerSkills.SkillsKnown[memory.SkillTownPortal] {
+		t.Fatal("FromSnapshot aliased SkillsKnown map")
+	}
+	model := NewModel(slog.Default())
+	first := model.Update(snap)
+	second := model.Current()
+	first.Player.SkillsKnown[memory.SkillBoneArmor] = true
+	if second.Player.SkillsKnown[memory.SkillBoneArmor] {
+		t.Fatal("Model Current aliased SkillsKnown map")
 	}
 }
 
@@ -309,7 +332,7 @@ func TestFromSnapshotInvalid(t *testing.T) {
 	if state.Area != (Area{}) {
 		t.Fatalf("Area = %+v, want zero value", state.Area)
 	}
-	if state.Player != (Player{}) {
+	if !playerIsZero(state.Player) {
 		t.Fatalf("Player = %+v, want zero value", state.Player)
 	}
 }
@@ -670,10 +693,10 @@ func TestModelReset(t *testing.T) {
 	if got.Phase != GamePhaseUnknown || cur.Phase != GamePhaseUnknown {
 		t.Fatal("Reset should set GamePhaseUnknown")
 	}
-	if got.Area != (Area{}) || got.Player != (Player{}) {
+	if got.Area != (Area{}) || !playerIsZero(got.Player) {
 		t.Fatalf("Reset return should zero Area/Player, got Area=%+v Player=%+v", got.Area, got.Player)
 	}
-	if cur.Area != (Area{}) || cur.Player != (Player{}) {
+	if cur.Area != (Area{}) || !playerIsZero(cur.Player) {
 		t.Fatalf("Current after Reset should zero Area/Player, got Area=%+v Player=%+v", cur.Area, cur.Player)
 	}
 	if got.Mercenary != (Mercenary{}) || cur.Mercenary != (Mercenary{}) {
@@ -711,7 +734,15 @@ func TestFromSnapshotLoadingInvalid(t *testing.T) {
 	if state.Phase != GamePhaseLoading {
 		t.Fatalf("Phase = %v, want loading", state.Phase)
 	}
-	if state.Area != (Area{}) || state.Player != (Player{}) {
+	if state.Area != (Area{}) || !playerIsZero(state.Player) {
 		t.Fatal("invalid loading state should zero Area/Player")
 	}
+}
+
+func playerIsZero(p Player) bool {
+	return p.Position == (Position{}) &&
+		p.HP == 0 && p.MaxHP == 0 && p.Mana == 0 && p.MaxMana == 0 &&
+		p.Gold == 0 && p.PrivateStashGold == 0 && !p.GoldKnown && !p.PrivateStashGoldKnown &&
+		p.LeftSkillID == 0 && p.RightSkillID == 0 &&
+		len(p.SkillsKnown) == 0 && !p.SkillsComplete && p.SkillsIncompleteReason == ""
 }

@@ -1,6 +1,6 @@
 # D2R Offline Farming Bot
 
-Go-basierter Bot für Diablo II: Resurrected (Offline/Singleplayer). **v0.18.0** unterstützt autonome Farming-Runs für Countess, Mephisto, Summoner, Nihlathak und das Cow Level einschließlich Combat, Loot, Sockel-Pickit, Town-Diensten, Mercenary-Support und Desktop-App.
+Go-basierter Bot für Diablo II: Resurrected (Offline/Singleplayer). **v0.19.0** unterstützt autonome Farming-Runs für Countess, Mephisto, Summoner, Nihlathak und das Cow Level einschließlich Charakter-Loadouts, Combat, Loot, Sockel-Pickit, Town-Diensten, Mercenary-Support und Desktop-App.
 
 ## Voraussetzungen
 
@@ -11,8 +11,8 @@ Go-basierter Bot für Diablo II: Resurrected (Offline/Singleplayer). **v0.18.0**
 ## Release (Windows EXE)
 
 ```powershell
-# Windows-Installer bauen (dist/release/D2R-Offline-Farming-Bot-0.18.0-Setup.exe)
-powershell -ExecutionPolicy Bypass -File scripts/build-release.ps1 -Version 0.18.0
+# Windows-Installer bauen (dist/release/D2R-Offline-Farming-Bot-0.19.0-Setup.exe)
+powershell -ExecutionPolicy Bypass -File scripts/build-release.ps1 -Version 0.19.0
 
 # Oder über Make
 make release
@@ -81,15 +81,15 @@ Details: [`docs/features/input-controller.md`](docs/features/input-controller.md
 Windows-Installer lokal erzeugen und bei Bedarf manuell verteilen:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts/build-release.ps1 -Version 0.18.0
-# Ergebnis: dist\release\D2R-Offline-Farming-Bot-0.18.0-Setup.exe
+powershell -ExecutionPolicy Bypass -File scripts/build-release.ps1 -Version 0.19.0
+# Ergebnis: dist\release\D2R-Offline-Farming-Bot-0.19.0-Setup.exe
 ```
 
 Optional Version taggen (nur für Git-Historie):
 
 ```powershell
-git tag -a v0.18.0 -m "Release v0.18.0: Phase 20 Cow Level"
-git push origin v0.18.0
+git tag -a v0.19.0 -m "Release v0.19.0: Phase 21 Character Loadouts"
+git push origin v0.19.0
 ```
 
 ## Projektstruktur

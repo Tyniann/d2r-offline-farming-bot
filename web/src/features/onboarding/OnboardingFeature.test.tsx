@@ -26,7 +26,7 @@ const operator: OperatorSettingsDTO = {
 };
 const catalog = {
   schema_version: 1, revision: 3, default_difficulty: "nightmare", profiles: [{ id: "necro_bone_spear", character_class: "necromancer" }],
-  characters: [{ name: "MrBones", slug: "mrbones", selectable: true }],
+  characters: [{ name: "MrBones", slug: "mrbones", selectable: true, farm_ready: true }],
   difficulties: [{ id: "nightmare", display_name: "Alptraum" }],
   runs: [{ run_id: "countess", display_name: "Countess", status: "unavailable", reasons: ["route_assignment_missing"] }],
 } as CatalogDTO;
@@ -119,7 +119,7 @@ describe("OnboardingFeature", () => {
     const freshCatalog = {
       ...catalog,
       characters: [
-        { name: "MrBones", slug: "mrbones", expected_class: "necromancer", selectable: true },
+        { name: "MrBones", slug: "mrbones", expected_class: "necromancer", selectable: true, farm_ready: true },
         { name: "MrHammer", slug: "mrhammer", expected_class: "paladin", selectable: false, reasons: ["character_class_unsupported", "character_anchor_missing"] },
       ],
     } as CatalogDTO;
@@ -133,7 +133,7 @@ describe("OnboardingFeature", () => {
     expect(screen.getByRole("option", { name: "MrHammer – Einrichtung nötig" })).toBeEnabled();
     expect(screen.getByText(/Für diese Klasse gibt es noch kein freigegebenes Kampfprofil/)).toBeInTheDocument();
     expect(screen.getByText(/Das Auswahlbild für diesen Charakter fehlt noch/)).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "MrBones · Totenbeschwörer" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "MrBones · Totenbeschwörer" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Weiter" })).toBeDisabled();
   });
 
@@ -324,7 +324,18 @@ describe("OnboardingFeature", () => {
     mocks.saveSettings.mockResolvedValue({ schema_version: 1, generation: 5, settings: operator, changed_fields: ["input.enabled"], restart_required: true });
     render(<OnboardingFeature status={status} catalog={catalog} onRefresh={onRefresh} onClose={onClose} onOpenRoutes={onOpenRoutes} />);
     await waitFor(() => expect(mocks.getSettings).toHaveBeenCalled());
-    fireEvent.click(screen.getByRole("button", { name: "Überspringen – Input bleibt aus" }));
+    await waitFor(() => expect(mocks.getOptions).toHaveBeenCalled());
+    await waitFor(() => expect(mocks.getHotkeys).toHaveBeenCalled());
+    await waitFor(() => expect(mocks.getWorkflow).toHaveBeenCalled());
+    await Promise.all([
+      ...mocks.getSettings.mock.results.map((result) => result.value),
+      ...mocks.getOptions.mock.results.map((result) => result.value),
+      ...mocks.getHotkeys.mock.results.map((result) => result.value),
+      ...mocks.getWorkflow.mock.results.map((result) => result.value),
+    ]);
+    const skip = await screen.findByRole("button", { name: "Überspringen – Input bleibt aus" });
+    await waitFor(() => expect(skip).toBeEnabled());
+    fireEvent.click(skip);
     await waitFor(() => expect(mocks.saveSettings).toHaveBeenCalledWith(expect.objectContaining({ settings: expect.objectContaining({ input: expect.objectContaining({ enabled: false }) }) })));
     expect(window.d2rDesktop?.updateDesktopSettings).toHaveBeenCalledWith({ autostart: false, onboarding_completed: true });
   });
@@ -332,19 +343,21 @@ describe("OnboardingFeature", () => {
   it("zeigt fehlende Wegpunkt-/Teleport-/TP-Voraussetzungen und übergibt bei Readiness an denselben Routenbereich", async () => {
     mocks.getSettings.mockResolvedValue({ ...operator, input: { ...operator.input, enabled: true } });
     mocks.getOptions.mockResolvedValue([option("teleport")]);
-    const view = render(<OnboardingFeature status={status} catalog={catalog} onRefresh={onRefresh} onClose={onClose} onOpenRoutes={onOpenRoutes} />);
-    await waitFor(() => expect(mocks.getSettings).toHaveBeenCalledTimes(1));
-    for (let index = 0; index < 7; index++) fireEvent.click(screen.getByRole("button", { name: "Weiter" }));
+    const view = render(<OnboardingFeature initialStep={7} status={status} catalog={catalog} onRefresh={onRefresh} onClose={onClose} onOpenRoutes={onOpenRoutes} />);
     expect(await screen.findByText(/Die Teleport-Tastenbelegung fehlt/)).toBeInTheDocument();
     expect(screen.queryByText("onboarding_teleport_missing")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Routenbereich öffnen und Aufnahme starten/ })).toBeDisabled();
 
     mocks.getOptions.mockResolvedValue([option()]);
     view.unmount();
-    render(<OnboardingFeature status={status} catalog={catalog} onRefresh={onRefresh} onClose={onClose} onOpenRoutes={onOpenRoutes} />);
-    await waitFor(() => expect(mocks.getSettings).toHaveBeenCalledTimes(2));
-    for (let index = 0; index < 7; index++) fireEvent.click(screen.getByRole("button", { name: "Weiter" }));
-    fireEvent.click(await screen.findByRole("button", { name: /Routenbereich öffnen und Aufnahme starten/ }));
+    render(<OnboardingFeature initialStep={7} status={status} catalog={catalog} onRefresh={onRefresh} onClose={onClose} onOpenRoutes={onOpenRoutes} />);
+    await waitFor(() => expect(mocks.getSettings).toHaveBeenCalled());
+    await mocks.getSettings.mock.results.at(-1)?.value;
+    await waitFor(() => expect(mocks.getOptions).toHaveBeenCalled());
+    await mocks.getOptions.mock.results.at(-1)?.value;
+    const openRoutes = await screen.findByRole("button", { name: /Routenbereich öffnen und Aufnahme starten/ });
+    await waitFor(() => expect(openRoutes).toBeEnabled());
+    fireEvent.click(openRoutes);
     expect(onOpenRoutes).toHaveBeenCalledWith("countess");
   });
 

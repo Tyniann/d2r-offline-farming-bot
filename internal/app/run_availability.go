@@ -97,23 +97,31 @@ func resolveRunAvailabilities(cfg *config.Config, context RunAvailabilityContext
 		availability := tasks.RunAvailability{
 			RunID: definition.ID, DisplayName: definition.DisplayName, Status: tasks.RunAvailabilityUnavailable,
 		}
-		runCfg, configured := cfg.Runs.Run(string(definition.ID))
+		_, configured := cfg.Runs.Run(string(definition.ID))
 		if !configured {
 			availability.Reasons = append(availability.Reasons, tasks.RunReasonConfigMissing)
 			result.report.Runs = append(result.report.Runs, availability)
 			continue
 		}
-		profileCfg, profileConfigured := cfg.Profiles[runCfg.Combat.Profile]
+		profileCfg, profileConfigured := cfg.Profiles[context.CombatProfile]
+		if context.CombatProfile == "" {
+			if defaultID, err := defaultEnabledCombatProfileID(cfg.Profiles); err == nil {
+				context.CombatProfile = defaultID
+				profileCfg, profileConfigured = cfg.Profiles[defaultID]
+			}
+		}
 		if !profileConfigured {
 			availability.Reasons = append(availability.Reasons, tasks.RunReasonCapabilityMissing)
 		} else if context.CharacterClass != "" && !strings.EqualFold(profileCfg.CharacterClass, context.CharacterClass) {
 			availability.Reasons = append(availability.Reasons, tasks.RunReasonProfileClassMismatch)
 		}
-		if context.CombatProfile != "" && runCfg.Combat.Profile != context.CombatProfile {
-			availability.Reasons = append(availability.Reasons, tasks.RunReasonCharacterProfileRunIncompatible)
+		if context.CombatProfile != "" {
+			if _, ok := DefaultCombatStrategyRegistry().Resolve(context.CombatProfile, string(definition.ID)); !ok {
+				availability.Reasons = append(availability.Reasons, tasks.RunReasonProfileRunStrategyUnavailable)
+			}
 		}
 		if definition.RouteSet != nil {
-			resolveRouteSetAvailability(&availability, result, definition, runCfg.Combat.Profile, context, assignments, candidates, profileCfg, profileConfigured)
+			resolveRouteSetAvailability(&availability, result, definition, context.CombatProfile, context, assignments, candidates, profileCfg, profileConfigured)
 			if _, supported := pathing.DefaultWaypointTargetRegistry().Action(definition.WaypointTarget); !supported {
 				availability.Reasons = append(availability.Reasons, tasks.RunReasonWaypointTargetUnsupported)
 			}
@@ -150,7 +158,7 @@ func resolveRunAvailabilities(cfg *config.Config, context RunAvailabilityContext
 				route = candidate.Route
 				result.routes[definition.ID] = candidate.Route
 				result.routePaths[candidate.ID] = candidate.Path
-				if !routeMatchesDefinitionAndContext(candidate.Route, definition, runCfg.Combat.Profile, context) {
+				if !routeMatchesDefinitionAndContext(candidate.Route, definition, context.CombatProfile, context) {
 					availability.Route.Reason = tasks.RunReasonRouteBindingMismatch
 					availability.Reasons = append(availability.Reasons, tasks.RunReasonRouteBindingMismatch)
 				}
@@ -262,11 +270,11 @@ func routeMatchesRoleAndContext(route pathing.Route, definition tasks.RunDefinit
 	if context.Character != "" && !strings.EqualFold(route.Binding.CharacterName, context.Character) || context.Difficulty != "" && string(route.Binding.Difficulty) != context.Difficulty || context.GameVersion != "" && route.Binding.GameVersion != context.GameVersion {
 		return false
 	}
-	return route.Binding.ProfileID == profileID
+	return true
 }
 
 func sharedRouteSetIdentity(left, right pathing.RouteBinding) bool {
-	return strings.EqualFold(left.CharacterName, right.CharacterName) && strings.EqualFold(left.CharacterClass, right.CharacterClass) && left.Difficulty == right.Difficulty && left.GameVersion == right.GameVersion && left.ProfileID == right.ProfileID
+	return strings.EqualFold(left.CharacterName, right.CharacterName) && strings.EqualFold(left.CharacterClass, right.CharacterClass) && left.Difficulty == right.Difficulty && left.GameVersion == right.GameVersion
 }
 
 func validateTownEgressAvailability(cfg *config.Config, egress town.EgressConfig, origin town.OriginAct, context RunAvailabilityContext) tasks.RunReason {
@@ -307,7 +315,9 @@ func routeMatchesDefinitionAndContext(route pathing.Route, definition tasks.RunD
 	if context.MapSeed != nil && (route.Binding.MapSeed == nil || *route.Binding.MapSeed != *context.MapSeed) {
 		return false
 	}
-	return route.Binding.ProfileID == "" || route.Binding.ProfileID == profileID
+	// Legacy profile_id values are tolerated on published routes but ignored for
+	// availability. New recordings omit the field entirely.
+	return true
 }
 
 func uniqueSortedRunReasons(reasons []tasks.RunReason) []tasks.RunReason {

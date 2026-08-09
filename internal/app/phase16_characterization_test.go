@@ -42,13 +42,13 @@ func TestPhase16CharacterizationCatalogUsesSaveClassWithoutRunFallback(t *testin
 	}
 }
 
-func TestPhase16CharacterizationOperatorSettingsStartAsSchema2WithEmptySetupFields(t *testing.T) {
+func TestPhase16CharacterizationOperatorSettingsStartAsSchema3WithEmptySetupFields(t *testing.T) {
 	store, _ := newOperatorSettingsTestStore(t)
 	settings, err := store.Snapshot()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if settings.SchemaVersion != 2 || OperatorSettingsSchemaVersion != 2 {
+	if settings.SchemaVersion != 3 || OperatorSettingsSchemaVersion != 3 {
 		t.Fatalf("operator schema=%d constant=%d", settings.SchemaVersion, OperatorSettingsSchemaVersion)
 	}
 	data, err := yaml.Marshal(settings)
@@ -57,7 +57,7 @@ func TestPhase16CharacterizationOperatorSettingsStartAsSchema2WithEmptySetupFiel
 	}
 	for _, forbidden := range [][]byte{[]byte("character_class:"), []byte("combat_profile:")} {
 		if bytes.Contains(data, forbidden) {
-			t.Fatalf("empty schema-2 setup unexpectedly contains %q:\n%s", forbidden, data)
+			t.Fatalf("empty schema-3 setup unexpectedly contains %q:\n%s", forbidden, data)
 		}
 	}
 }
@@ -99,11 +99,13 @@ func TestPhase16CharacterizationExplicitRunsRetainDirectProfileClass(t *testing.
 	}
 	for _, runID := range []string{"countess", "mephisto", "summoner", "nihlathak"} {
 		cfg.Session.Run = runID
-		run, ok := cfg.Runs.Run(runID)
-		if !ok || run.Combat.Profile != "necro_bone_spear" {
-			t.Fatalf("%s run=%+v found=%t", runID, run, ok)
+		if _, ok := cfg.Runs.Run(runID); !ok {
+			t.Fatalf("%s missing", runID)
 		}
-		if got := cfg.Profiles[run.Combat.Profile].CharacterClass; got != "necromancer" {
+		if _, ok := DefaultCombatStrategyRegistry().Resolve("necro_bone_spear", runID); !ok {
+			t.Fatalf("%s strategy missing", runID)
+		}
+		if got := cfg.Profiles["necro_bone_spear"].CharacterClass; got != "necromancer" {
 			t.Fatalf("%s direct profile class=%q", runID, got)
 		}
 	}

@@ -97,9 +97,6 @@ type LootConfig struct {
 	Pickup          LootPickupConfig          `yaml:"pickup"`
 	Stash           LootStashConfig           `yaml:"stash"`
 	CowPortalRecipe LootCowPortalRecipeConfig `yaml:"cow_portal_recipe"`
-	InventoryLock   [][]int                   `yaml:"inventory_lock"`
-
-	inventoryLockPresent bool `yaml:"-"`
 }
 
 // LootPickupConfig holds safety limits for hover-confirmed item pickup.
@@ -135,39 +132,22 @@ type LootCowPortalRecipeConfig struct {
 	TransmuteY        int `yaml:"transmute_y"`
 }
 
-// UnmarshalYAML records whether inventory_lock was present.
-func (c *LootConfig) UnmarshalYAML(value *yaml.Node) error {
-	type lootConfigAlias LootConfig
-	var alias lootConfigAlias
-	if err := value.Decode(&alias); err != nil {
-		return err
-	}
-	*c = LootConfig(alias)
-	for i := 0; i < len(value.Content)-1; i += 2 {
-		if value.Content[i].Value == "inventory_lock" {
-			c.inventoryLockPresent = true
-			break
-		}
-	}
-	return nil
-}
-
-// InputConfig holds keyboard timing, safety settings, and explicit in-game bindings.
+// InputConfig holds keyboard timing and safety settings.
+// Productive skill and belt bindings live in OperatorSettings Schema 3, not in config.yaml.
 type InputConfig struct {
-	Enabled               bool                `yaml:"enabled"`
-	PauseHotkey           string              `yaml:"pause_hotkey"`
-	StopAfterRunHotkey    string              `yaml:"stop_after_run_hotkey"`
-	RecordingFinishHotkey string              `yaml:"recording_finish_hotkey"`
-	StopHotkey            string              `yaml:"stop_hotkey"`
-	KeyDelayMsMin         int                 `yaml:"key_delay_ms_min"`
-	KeyDelayMsMax         int                 `yaml:"key_delay_ms_max"`
-	ComboHoldMs           int                 `yaml:"combo_hold_ms"`
-	Bindings              InputBindingsConfig `yaml:"bindings"`
+	Enabled               bool   `yaml:"enabled"`
+	PauseHotkey           string `yaml:"pause_hotkey"`
+	StopAfterRunHotkey    string `yaml:"stop_after_run_hotkey"`
+	RecordingFinishHotkey string `yaml:"recording_finish_hotkey"`
+	StopHotkey            string `yaml:"stop_hotkey"`
+	KeyDelayMsMin         int    `yaml:"key_delay_ms_min"`
+	KeyDelayMsMax         int    `yaml:"key_delay_ms_max"`
+	ComboHoldMs           int    `yaml:"combo_hold_ms"`
 
 	sectionPresent bool `yaml:"-"`
 }
 
-// InputBindingsConfig maps bot actions to the operator's D2R hotkeys.
+// InputBindingsConfig maps bot actions to D2R hotkeys for in-memory test fixtures and adapters.
 type InputBindingsConfig struct {
 	Skills map[string]SkillBindingConfig `yaml:"skills"`
 	Belt   BeltBindingsConfig            `yaml:"belt"`
@@ -187,8 +167,13 @@ type BeltBindingsConfig struct {
 	Slot4 string `yaml:"slot_4"`
 }
 
-// UnmarshalYAML records whether the input section was present.
+// UnmarshalYAML records whether the input section was present and rejects removed binding authority.
 func (c *InputConfig) UnmarshalYAML(value *yaml.Node) error {
+	for i := 0; i+1 < len(value.Content); i += 2 {
+		if value.Content[i].Value == "bindings" {
+			return fmt.Errorf("input.bindings is unsupported; migrate skill and belt keys to OperatorSettings Schema 3 profile_bindings")
+		}
+	}
 	type inputConfigAlias InputConfig
 	var alias inputConfigAlias
 	if err := value.Decode(&alias); err != nil {
@@ -233,20 +218,32 @@ func (c *RunConfig) UnmarshalYAML(value *yaml.Node) error {
 	return nil
 }
 
-// CombatConfig holds shared boss-combat tuning.
-type CombatConfig struct {
-	// Profile selects the fixed MVP combat profile.
-	Profile string `yaml:"profile"`
-	// AttackSkill names the configured attack skill.
-	AttackSkill string `yaml:"attack_skill"`
-	// AttackIntervalMs throttles real attack inputs.
-	AttackIntervalMs int `yaml:"attack_interval_ms"`
-	// EngageDistanceTiles is the desired distance after combat repositioning.
-	EngageDistanceTiles float64 `yaml:"engage_distance_tiles"`
-	// RepositionDistanceTiles triggers teleport repositioning when exceeded.
-	RepositionDistanceTiles float64 `yaml:"reposition_distance_tiles"`
-	// KillConfirmTicks confirms death after consecutive valid absence ticks.
-	KillConfirmTicks int `yaml:"kill_confirm_ticks"`
+// CombatConfig is retained only as an empty YAML anchor during Phase 21.1.
+// Build-owned combat metadata lives on combat_profiles.*.combat; character
+// profile selection comes from OperatorSettings / setup, not from the run.
+type CombatConfig struct{}
+
+// UnmarshalYAML accepts and ignores legacy run-combat keys so KnownFields can
+// stay strict while operators still open temporarily unmigrated local YAML.
+// Productive example/default configs must omit the removed keys.
+func (c *CombatConfig) UnmarshalYAML(value *yaml.Node) error {
+	if value == nil {
+		return nil
+	}
+	var raw map[string]any
+	if err := value.Decode(&raw); err != nil {
+		return err
+	}
+	for key := range raw {
+		switch key {
+		case "profile", "attack_skill", "attack_interval_ms", "engage_distance_tiles", "reposition_distance_tiles", "kill_confirm_ticks":
+			return fmt.Errorf("runs.definitions.*.combat.%s is unsupported; combat profile and standard attack come from the character combat profile", key)
+		default:
+			return fmt.Errorf("runs.definitions.*.combat.%s is unsupported", key)
+		}
+	}
+	*c = CombatConfig{}
+	return nil
 }
 
 // UnmarshalYAML records whether the runs section was present in the YAML document.
@@ -298,30 +295,8 @@ func (c *RunsConfig) applyDefaults() {
 		c.Definitions = map[string]RunConfig{}
 	}
 	for id, run := range c.Definitions {
-		run.Combat.applyDefaults()
 		run.RouteCombat.applyDefaults(id)
 		c.Definitions[id] = run
-	}
-}
-
-func (c *CombatConfig) applyDefaults() {
-	if c.Profile == "" {
-		c.Profile = "necro_bone_spear"
-	}
-	if c.AttackSkill == "" {
-		c.AttackSkill = "bone_spear"
-	}
-	if c.AttackIntervalMs == 0 {
-		c.AttackIntervalMs = 350
-	}
-	if c.EngageDistanceTiles == 0 {
-		c.EngageDistanceTiles = 22
-	}
-	if c.RepositionDistanceTiles == 0 {
-		c.RepositionDistanceTiles = 32
-	}
-	if c.KillConfirmTicks == 0 {
-		c.KillConfirmTicks = 3
 	}
 }
 
@@ -452,11 +427,13 @@ func (c *Config) validate() error {
 		if err := run.validate(id); err != nil {
 			return err
 		}
-		if err := c.Profiles.validate(run.Combat.Profile, "runs.definitions."+id+".combat.profile"); err != nil {
-			return err
+	}
+	for id, profileCfg := range c.Profiles {
+		if !profileCfg.Setup.Enabled {
+			continue
 		}
-		if run.RouteCombat.EnabledValue() && run.Combat.Profile != "necro_bone_spear" {
-			return fmt.Errorf("runs.definitions.%s.route_combat.enabled requires profile necro_bone_spear", id)
+		if err := c.Profiles.validate(id, "combat_profiles."+id); err != nil {
+			return err
 		}
 	}
 	if err := c.Profiles.validateSetupMetadata(); err != nil {
@@ -505,50 +482,15 @@ func (c RunConfig) validate(id string) error {
 	if strings.TrimSpace(id) == "" {
 		return fmt.Errorf("runs.definitions contains an empty run id")
 	}
-	if err := c.Combat.validate("runs.definitions." + id + ".combat"); err != nil {
-		return err
-	}
 	routeCombat := c.RouteCombat
 	routeCombat.applyDefaults(id)
 	return routeCombat.validate(id, "runs.definitions."+id+".route_combat")
-}
-
-func (c CombatConfig) validate(path string) error {
-	if strings.TrimSpace(c.Profile) == "" {
-		return fmt.Errorf("%s.profile is required", path)
-	}
-	if c.AttackSkill != "bone_spear" {
-		return fmt.Errorf("%s.attack_skill must be bone_spear", path)
-	}
-	if c.AttackIntervalMs <= 0 {
-		return fmt.Errorf("%s.attack_interval_ms must be > 0", path)
-	}
-	if c.EngageDistanceTiles <= 0 {
-		return fmt.Errorf("%s.engage_distance_tiles must be > 0", path)
-	}
-	if c.RepositionDistanceTiles <= 0 {
-		return fmt.Errorf("%s.reposition_distance_tiles must be > 0", path)
-	}
-	if c.EngageDistanceTiles >= c.RepositionDistanceTiles {
-		return fmt.Errorf("%s.engage_distance_tiles must be < reposition_distance_tiles", path)
-	}
-	if c.KillConfirmTicks <= 0 {
-		return fmt.Errorf("%s.kill_confirm_ticks must be > 0", path)
-	}
-	return nil
 }
 
 func (c *LootConfig) applyDefaults() {
 	c.Pickup.applyDefaults()
 	c.Stash.applyDefaults()
 	c.CowPortalRecipe.applyDefaults()
-	if c.inventoryLockPresent {
-		return
-	}
-	c.InventoryLock = make([][]int, 4)
-	for row := range c.InventoryLock {
-		c.InventoryLock[row] = []int{1, 1, 1, 1, 1, 1, 1, 1, 1, 1}
-	}
 }
 
 func (c *LootCowPortalRecipeConfig) applyDefaults() {
@@ -649,19 +591,6 @@ func (c LootConfig) validate() error {
 	if recipe.TransmuteX < 0 || recipe.TransmuteX >= 1280 || recipe.TransmuteY < 0 || recipe.TransmuteY >= 720 {
 		return fmt.Errorf("loot.cow_portal_recipe transmute coordinate must be inside 1280x720")
 	}
-	if len(c.InventoryLock) != 4 {
-		return fmt.Errorf("loot.inventory_lock must have 4 rows")
-	}
-	for row, cells := range c.InventoryLock {
-		if len(cells) != 10 {
-			return fmt.Errorf("loot.inventory_lock row %d must have 10 columns", row)
-		}
-		for col, cell := range cells {
-			if cell != 0 && cell != 1 {
-				return fmt.Errorf("loot.inventory_lock row %d column %d must be 0 or 1", row, col)
-			}
-		}
-	}
 	return nil
 }
 
@@ -693,30 +622,6 @@ func (c *InputConfig) applyDefaults() {
 	}
 	if c.ComboHoldMs == 0 {
 		c.ComboHoldMs = def.ComboHoldMs
-	}
-	if c.Bindings.Skills == nil {
-		c.Bindings.Skills = make(map[string]SkillBindingConfig)
-	}
-	hasAmplifyDamage := false
-	hasCorpseExplosion := false
-	for name := range c.Bindings.Skills {
-		switch strings.ToLower(strings.TrimSpace(name)) {
-		case "amplify_damage", "amplifydamage", "amplify damage", "ad":
-			hasAmplifyDamage = true
-		case "corpse_explosion", "corpseexplosion", "corpse explosion", "ce":
-			hasCorpseExplosion = true
-		}
-	}
-	if !hasAmplifyDamage {
-		// Existing installations predate the route-combat curse opener. Add
-		// the documented D2R default in memory without overwriting an
-		// operator-provided binding or rewriting the local config file.
-		c.Bindings.Skills["amplify_damage"] = SkillBindingConfig{Key: "f1", Button: "right"}
-	}
-	if !hasCorpseExplosion {
-		// Cow combat is the first productive CE consumer. F2 complements the
-		// established F1 curse default for installations created before Phase 20.
-		c.Bindings.Skills["corpse_explosion"] = SkillBindingConfig{Key: "f2", Button: "right"}
 	}
 }
 
@@ -761,39 +666,5 @@ func (c *InputConfig) validate() error {
 	if err := input.ValidateKeyStrings(c.StopHotkey); err != nil {
 		return fmt.Errorf("input.stop_hotkey: %w", err)
 	}
-	if err := c.Bindings.validate(); err != nil {
-		return err
-	}
 	return nil
-}
-
-func (c InputBindingsConfig) validate() error {
-	for name, binding := range c.Skills {
-		if binding.Key == "" {
-			return fmt.Errorf("input.bindings.skills.%s.key is required", name)
-		}
-		if err := input.ValidateKeyStrings(binding.Key); err != nil {
-			return fmt.Errorf("input.bindings.skills.%s.key: %w", name, err)
-		}
-		switch binding.Button {
-		case string(input.MouseLeft), string(input.MouseRight):
-		default:
-			return fmt.Errorf("input.bindings.skills.%s.button must be left or right", name)
-		}
-	}
-	for slot, key := range c.Belt.keys() {
-		if err := input.ValidateKeyStrings(key); err != nil {
-			return fmt.Errorf("input.bindings.belt.slot_%d: %w", slot, err)
-		}
-	}
-	return nil
-}
-
-func (c BeltBindingsConfig) keys() map[int]string {
-	return map[int]string{
-		1: c.Slot1,
-		2: c.Slot2,
-		3: c.Slot3,
-		4: c.Slot4,
-	}
 }

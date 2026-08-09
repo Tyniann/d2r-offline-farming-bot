@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/config"
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/memory"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/telemetry"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/world"
 )
@@ -22,6 +23,7 @@ type fakeQueueRunUnit struct {
 	events        *[]string
 	continuations *[]bool
 	result        SupervisorRunResult
+	skills        SupervisorRunResult
 }
 
 func (u *fakeQueueRunUnit) StartOrVerifyGame(_ context.Context, active bool) error {
@@ -32,6 +34,14 @@ func (u *fakeQueueRunUnit) StartOrVerifyGame(_ context.Context, active bool) err
 func (u *fakeQueueRunUnit) VerifySameGame(context.Context) error {
 	*u.events = append(*u.events, "verify:"+u.runID)
 	return nil
+}
+
+func (u *fakeQueueRunUnit) VerifyProfileSkills(context.Context) SupervisorRunResult {
+	*u.events = append(*u.events, "skills:"+u.runID)
+	if u.skills.Disposition != "" || u.skills.Reason != "" {
+		return u.skills
+	}
+	return SupervisorRunResult{}
 }
 
 func (u *fakeQueueRunUnit) RunToTown(_ context.Context, _ SupervisorRunRequest, sameGameContinuation bool) SupervisorRunResult {
@@ -132,7 +142,9 @@ func TestFocusVerifiedQueueGameReusesGuardedInputFocus(t *testing.T) {
 func TestRuntimeQueueRunnerSeparatesRunFromExit(t *testing.T) {
 	var events []string
 	runner := newFakeRuntimeQueueRunner(&events)
-	runner.BeginQueue(true)
+	if err := runner.BeginQueue(true); err != nil {
+		t.Fatal(err)
+	}
 	request := SupervisorRunRequest{DefinitionID: "countess"}
 	if err := runner.StartGame(context.Background(), request); err != nil {
 		t.Fatal(err)
@@ -149,7 +161,7 @@ func TestRuntimeQueueRunnerSeparatesRunFromExit(t *testing.T) {
 	if err := runner.ExitGame(context.Background(), request, "duplicate"); err != nil {
 		t.Fatal(err)
 	}
-	want := []string{"start:countess:true", "verify:countess", "run:countess", "exit:countess"}
+	want := []string{"start:countess:true", "verify:countess", "skills:countess", "run:countess", "exit:countess"}
 	if !reflect.DeepEqual(events, want) {
 		t.Fatalf("events = %v, want %v", events, want)
 	}
@@ -202,6 +214,160 @@ func TestControlledRetryResultRequiresVerifiedTownReturn(t *testing.T) {
 	}
 }
 
+func TestRuntimeQueueRunnerStopsBeforeRunWhenSkillsMissing(t *testing.T) {
+	var events []string
+	runner := &RuntimeQueueRunner{newUnit: func(runID string) (queueRunUnit, error) {
+		return &fakeQueueRunUnit{
+			runID:  runID,
+			events: &events,
+			result: SupervisorRunResult{Disposition: QueueRunAdvance, SafeToExit: true},
+			skills: SupervisorRunResult{
+				Disposition:  QueueRunStop,
+				Reason:       reasonProfileRequiredSkillsMissing,
+				Detail:       "MrBones fehlen für Knochen-Speer: Teleport. Die Queue wurde beendet.",
+				ExitRequired: true,
+			},
+		}, nil
+	}}
+	if err := runner.BeginQueue(false); err != nil {
+		t.Fatal(err)
+	}
+	req := SupervisorRunRequest{DefinitionID: "countess", QueueIndex: 0}
+	if err := runner.StartGame(context.Background(), req); err != nil {
+		t.Fatal(err)
+	}
+	got := runner.Run(context.Background(), req)
+	if got.Disposition != QueueRunStop || got.Reason != reasonProfileRequiredSkillsMissing || !got.ExitRequired {
+		t.Fatalf("gate result = %+v", got)
+	}
+	if !strings.Contains(got.Detail, "Teleport") {
+		t.Fatalf("detail = %q", got.Detail)
+	}
+	want := []string{"start:countess:false", "verify:countess", "skills:countess"}
+	if !reflect.DeepEqual(events, want) {
+		t.Fatalf("events = %v, want %v (RunToTown must not run)", events, want)
+	}
+	if runner.skillsVerified {
+		t.Fatal("failed gate must not mark skillsVerified")
+	}
+}
+
+func TestBeginQueueFreezesLoadoutAcrossStoreMutation(t *testing.T) {
+	store, _ := newOperatorSettingsTestStore(t)
+	initial, err := store.Snapshot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	assigned, err := store.AssignCharacterProfile("MrBones", "necromancer", "necro_bone_spear", initial.Revision)
+	if err != nil {
+		t.Fatal(err)
+	}
+	replacement := cloneOperatorSettings(assigned.Settings)
+	value := replacement.Characters["mrbones"]
+	value.ProfileBindings = map[string]OperatorProfileBindings{"necro_bone_spear": necroBoneSpearBindingsFixture()}
+	value.InventoryLock = &OperatorInventoryLock{Grid: sampleInventoryGrid(false)}
+	replacement.Characters["mrbones"] = value
+	updated, err := store.Update(assigned.Settings.Revision, replacement)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	cfg := &config.Config{}
+	cfg.Session.Character = "MrBones"
+	resolver := NewCharacterLoadoutResolver(store, store.profiles, updated.Settings.Input)
+	runner := &RuntimeQueueRunner{config: cfg}
+	runner.SetLoadoutResolver(resolver)
+	if err = runner.BeginQueue(false); err != nil {
+		t.Fatal(err)
+	}
+	if runner.frozenLoadout == nil || runner.frozenLoadout.Revision != updated.Settings.Revision || runner.frozenLoadout.ProfileID != "necro_bone_spear" {
+		t.Fatalf("frozen=%+v", runner.frozenLoadout)
+	}
+	frozenRevision := runner.frozenLoadout.Revision
+	boneCast, err := runner.frozenLoadout.Bindings.Resolve(memory.SkillBoneSpear)
+	if err != nil || boneCast.SelectKey != "f8" {
+		t.Fatalf("frozen bone spear=%+v err=%v", boneCast, err)
+	}
+
+	mutated := cloneOperatorSettings(updated.Settings)
+	mutatedValue := mutated.Characters["mrbones"]
+	mutatedBindings := mutatedValue.ProfileBindings["necro_bone_spear"]
+	mutatedBindings.Skills["bone_spear"] = "f4"
+	mutatedValue.ProfileBindings["necro_bone_spear"] = mutatedBindings
+	mutatedValue.InventoryLock.Grid[0][0] = 0
+	mutated.Characters["mrbones"] = mutatedValue
+	after, err := store.Update(updated.Settings.Revision, mutated)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if after.Settings.Revision == frozenRevision {
+		t.Fatal("store revision did not advance")
+	}
+	stillFrozen, err := runner.frozenLoadout.Bindings.Resolve(memory.SkillBoneSpear)
+	if err != nil || stillFrozen.SelectKey != "f8" {
+		t.Fatalf("frozen loadout mutated in place=%+v err=%v", stillFrozen, err)
+	}
+	if runner.frozenLoadout.InventoryGrid[0][0] != 1 {
+		t.Fatalf("frozen inventory mutated in place=%v", runner.frozenLoadout.InventoryGrid[0][0])
+	}
+
+	runner.frozenLoadout.InventoryGrid[0][0] = 99
+	fresh, err := resolver.Resolve("MrBones")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fresh.InventoryGrid[0][0] == 99 {
+		t.Fatal("frozen inventory aliased into resolver snapshot")
+	}
+	if fresh.Revision != after.Settings.Revision {
+		t.Fatalf("fresh revision=%d want %d", fresh.Revision, after.Settings.Revision)
+	}
+
+	if err = runner.BeginQueue(false); err != nil {
+		t.Fatal(err)
+	}
+	if runner.frozenLoadout.Revision != after.Settings.Revision {
+		t.Fatalf("next BeginQueue revision=%d want %d", runner.frozenLoadout.Revision, after.Settings.Revision)
+	}
+	nextCast, err := runner.frozenLoadout.Bindings.Resolve(memory.SkillBoneSpear)
+	if err != nil || nextCast.SelectKey != "f4" {
+		t.Fatalf("next freeze cast=%+v err=%v", nextCast, err)
+	}
+}
+
+func TestBeginQueueRejectsMissingLoadoutResolver(t *testing.T) {
+	runner := &RuntimeQueueRunner{config: &config.Config{Session: config.SessionConfig{Character: "MrBones"}}}
+	err := runner.BeginQueue(false)
+	if err == nil || !strings.Contains(err.Error(), "loadout resolver is unavailable") {
+		t.Fatalf("BeginQueue error=%v", err)
+	}
+	if runner.frozenLoadout != nil {
+		t.Fatal("missing resolver must not leave a frozen loadout")
+	}
+}
+
+func TestRuntimeQueueRunnerClearsSkillsVerifiedOnBeginQueue(t *testing.T) {
+	var events []string
+	runner := newFakeRuntimeQueueRunner(&events)
+	if err := runner.BeginQueue(false); err != nil {
+		t.Fatal(err)
+	}
+	req := SupervisorRunRequest{DefinitionID: "countess"}
+	if err := runner.StartGame(context.Background(), req); err != nil {
+		t.Fatal(err)
+	}
+	runner.Run(context.Background(), req)
+	if !runner.skillsVerified {
+		t.Fatal("expected skillsVerified after successful gate")
+	}
+	if err := runner.BeginQueue(false); err != nil {
+		t.Fatal(err)
+	}
+	if runner.skillsVerified {
+		t.Fatal("BeginQueue must clear skillsVerified for a new queue session")
+	}
+}
+
 func TestRuntimeQueueRunnerKeepsGameAcrossFreshRunUnits(t *testing.T) {
 	var events []string
 	var continuations []bool
@@ -209,7 +375,9 @@ func TestRuntimeQueueRunnerKeepsGameAcrossFreshRunUnits(t *testing.T) {
 	runner.newUnit = func(runID string) (queueRunUnit, error) {
 		return &fakeQueueRunUnit{runID: runID, events: &events, continuations: &continuations, result: SupervisorRunResult{Disposition: QueueRunAdvance, SafeToExit: true}}, nil
 	}
-	runner.BeginQueue(false)
+	if err := runner.BeginQueue(false); err != nil {
+		t.Fatal(err)
+	}
 	countess := SupervisorRunRequest{DefinitionID: "countess", QueueIndex: 0}
 	mephisto := SupervisorRunRequest{DefinitionID: "mephisto", QueueIndex: 1}
 	if err := runner.StartGame(context.Background(), countess); err != nil {
@@ -217,7 +385,7 @@ func TestRuntimeQueueRunnerKeepsGameAcrossFreshRunUnits(t *testing.T) {
 	}
 	runner.Run(context.Background(), countess)
 	runner.Run(context.Background(), mephisto)
-	want := []string{"start:countess:false", "verify:countess", "run:countess", "close:countess", "verify:mephisto", "run:mephisto"}
+	want := []string{"start:countess:false", "verify:countess", "skills:countess", "run:countess", "close:countess", "verify:mephisto", "run:mephisto"}
 	if !reflect.DeepEqual(events, want) {
 		t.Fatalf("events = %v, want %v", events, want)
 	}
@@ -243,7 +411,9 @@ func TestRuntimeQueueUnitRearmsReadinessOnlyForNewGame(t *testing.T) {
 func TestRuntimeQueueRunnerRevalidatesPausedGame(t *testing.T) {
 	var events []string
 	runner := newFakeRuntimeQueueRunner(&events)
-	runner.BeginQueue(true)
+	if err := runner.BeginQueue(true); err != nil {
+		t.Fatal(err)
+	}
 	countess := SupervisorRunRequest{DefinitionID: "countess"}
 	mephisto := SupervisorRunRequest{DefinitionID: "mephisto"}
 	if err := runner.StartGame(context.Background(), countess); err != nil {
@@ -291,21 +461,34 @@ func TestRuntimeQueueRunnerRoutesStopAfterRun(t *testing.T) {
 func TestRuntimeQueueRunnerPersistsGameAndRunBoundaries(t *testing.T) {
 	var events []string
 	cfg := &config.Config{Telemetry: config.TelemetryConfig{Directory: t.TempDir()}, Session: config.SessionConfig{Character: "MrBones", Difficulty: "nightmare", MaxRuns: 4, MaxDurationMs: 60000}, Memory: config.MemoryConfig{GameVersion: "3.2.92777"}}
+	store, _ := newOperatorSettingsTestStore(t)
+	initial, err := store.Snapshot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	assigned, err := store.AssignCharacterProfile("MrBones", "necromancer", "necro_bone_spear", initial.Revision)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.Profiles = store.profiles
 	runner := newFakeRuntimeQueueRunner(&events)
 	runner.config = cfg
+	runner.SetLoadoutResolver(NewCharacterLoadoutResolver(store, cfg.Profiles, assigned.Settings.Input))
+	if err = runner.BeginQueue(true); err != nil {
+		t.Fatal(err)
+	}
 	runner.persistEvents = true
-	runner.BeginQueue(true)
 	countess := SupervisorRunRequest{DefinitionID: "countess", ExecutionID: "run-001", GameID: "game-001"}
 	mephisto := SupervisorRunRequest{DefinitionID: "mephisto", ExecutionID: "run-002", GameID: "game-001"}
-	if err := runner.StartGame(context.Background(), countess); err != nil {
+	if err = runner.StartGame(context.Background(), countess); err != nil {
 		t.Fatal(err)
 	}
 	runner.Run(context.Background(), countess)
 	runner.Run(context.Background(), mephisto)
-	if err := runner.ExitGame(context.Background(), mephisto, "queue_wrap"); err != nil {
+	if err = runner.ExitGame(context.Background(), mephisto, "queue_wrap"); err != nil {
 		t.Fatal(err)
 	}
-	if err := runner.FinishQueue(SupervisorRunResult{Disposition: QueueRunStop, Reason: string(QueueReasonRunBudgetExhausted)}, SupervisorStateIdle); err != nil {
+	if err = runner.FinishQueue(SupervisorRunResult{Disposition: QueueRunStop, Reason: string(QueueReasonRunBudgetExhausted)}, SupervisorStateIdle); err != nil {
 		t.Fatal(err)
 	}
 	runner.CloseQueue()

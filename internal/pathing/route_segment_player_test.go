@@ -223,8 +223,8 @@ func TestRouteSegmentPlayerReconcilesAuthorizedForwardMovement(t *testing.T) {
 		t.Fatal(err)
 	}
 	state := segmentPlaybackState(world.BlackMarsh, 100, 100)
-	if err := player.SyncReached(state); err != nil {
-		t.Fatal(err)
+	if syncErr := player.SyncReached(state); syncErr != nil {
+		t.Fatal(syncErr)
 	}
 
 	state.Player.Position = world.Position{X: 155, Y: 103}

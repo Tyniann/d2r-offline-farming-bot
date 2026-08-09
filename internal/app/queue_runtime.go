@@ -18,6 +18,7 @@ import (
 type queueRunUnit interface {
 	StartOrVerifyGame(context.Context, bool) error
 	VerifySameGame(context.Context) error
+	VerifyProfileSkills(context.Context) SupervisorRunResult
 	RunToTown(context.Context, SupervisorRunRequest, bool) SupervisorRunResult
 	ExitGame(context.Context) error
 	Close()
@@ -59,20 +60,23 @@ type farmQueueLifecycleFinisher interface {
 // run-specific state for every queue entry. Closing one Go runtime never ends
 // the D2R game; only [RuntimeQueueRunner.ExitGame] may send Save & Exit.
 type RuntimeQueueRunner struct {
-	mu            sync.Mutex
-	controlMu     sync.RWMutex
-	config        *config.Config
-	publish       func(UIStatusSnapshot)
-	initialInGame bool
-	gameOpen      bool
-	unitRunID     string
-	unit          queueRunUnit
-	newUnit       queueRunUnitFactory
-	sessionTrace  *telemetry.SessionRecorder
-	persistEvents bool
-	pauseAfterRun func() error
-	stopAfterRun  func() error
-	runsInGame    int
+	mu              sync.Mutex
+	controlMu       sync.RWMutex
+	config          *config.Config
+	publish         func(UIStatusSnapshot)
+	initialInGame   bool
+	gameOpen        bool
+	unitRunID       string
+	unit            queueRunUnit
+	newUnit         queueRunUnitFactory
+	sessionTrace    *telemetry.SessionRecorder
+	persistEvents   bool
+	pauseAfterRun   func() error
+	stopAfterRun    func() error
+	runsInGame      int
+	skillsVerified  bool
+	loadoutResolver *CharacterLoadoutResolver
+	frozenLoadout   *CharacterLoadoutSnapshot
 }
 
 // SetStopAfterRunHandler routes the configured orderly-stop hotkey to the
@@ -129,11 +133,39 @@ func NewRuntimeQueueRunner(cfg *config.Config, publish func(UIStatusSnapshot)) (
 	return runner, nil
 }
 
-// BeginQueue resets the per-queue game boundary. Only a Memory-confirmed
-// `idle_in_game` start may consume an already open game.
-func (r *RuntimeQueueRunner) BeginQueue(initialInGame bool) {
+// SetLoadoutResolver binds the character loadout authority used when a queue session starts.
+func (r *RuntimeQueueRunner) SetLoadoutResolver(resolver *CharacterLoadoutResolver) {
 	if r == nil {
 		return
+	}
+	r.controlMu.Lock()
+	r.loadoutResolver = resolver
+	r.controlMu.Unlock()
+}
+
+// BeginQueue resets the per-queue game boundary and freezes the character loadout for the session.
+// Only a Memory-confirmed `idle_in_game` start may consume an already open game.
+func (r *RuntimeQueueRunner) BeginQueue(initialInGame bool) error {
+	if r == nil {
+		return fmt.Errorf("queue runtime missing")
+	}
+	r.controlMu.RLock()
+	resolver := r.loadoutResolver
+	r.controlMu.RUnlock()
+	if r.config != nil && strings.TrimSpace(r.config.Session.Character) != "" && resolver == nil {
+		return fmt.Errorf("freeze queue loadout: character loadout resolver is unavailable")
+	}
+	var frozen *CharacterLoadoutSnapshot
+	if resolver != nil {
+		if r.config == nil {
+			return fmt.Errorf("freeze queue loadout: runtime config is unavailable")
+		}
+		snapshot, err := resolver.Resolve(r.config.Session.Character)
+		if err != nil {
+			return fmt.Errorf("freeze queue loadout: %w", err)
+		}
+		clone := CloneCharacterLoadoutSnapshot(snapshot)
+		frozen = &clone
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -141,6 +173,9 @@ func (r *RuntimeQueueRunner) BeginQueue(initialInGame bool) {
 	r.initialInGame = initialInGame
 	r.gameOpen = false
 	r.runsInGame = 0
+	r.skillsVerified = false
+	r.frozenLoadout = frozen
+	return nil
 }
 
 // StartGame starts and verifies one game, or consumes exactly the confirmed
@@ -220,6 +255,13 @@ func (r *RuntimeQueueRunner) Run(ctx context.Context, request SupervisorRunReque
 	if err := unit.VerifySameGame(ctx); err != nil {
 		return queueRuntimeTerminal(fmt.Errorf("verify queue game: %w", err))
 	}
+	if !r.skillsVerified {
+		gate := unit.VerifyProfileSkills(ctx)
+		if gate.Disposition != "" {
+			return gate
+		}
+		r.skillsVerified = true
+	}
 	if r.persistEvents && r.sessionTrace == nil {
 		return SupervisorRunResult{Disposition: QueueRunStop, Reason: "telemetry_failed"}
 	}
@@ -234,6 +276,9 @@ func (r *RuntimeQueueRunner) Run(ctx context.Context, request SupervisorRunReque
 	if r.sessionTrace != nil {
 		terminal := queueTelemetryEvent(queueRunTerminalEvent(result), request)
 		terminal.Reason = result.Reason
+		if result.Detail != "" {
+			terminal.Name = result.Detail
+		}
 		if err := r.sessionTrace.Emit(terminal); err != nil {
 			return SupervisorRunResult{Disposition: QueueRunStop, Reason: "telemetry_failed", SafeToExit: result.SafeToExit}
 		}
@@ -285,6 +330,8 @@ func (r *RuntimeQueueRunner) CloseQueue() {
 	}
 	r.gameOpen = false
 	r.runsInGame = 0
+	r.skillsVerified = false
+	r.frozenLoadout = nil
 }
 
 // FinishQueue schreibt genau ein terminales Schema-3-Sessionereignis vor dem Close.
@@ -356,7 +403,12 @@ func (r *RuntimeQueueRunner) newRuntimeUnit(runID string) (queueRunUnit, error) 
 	cfg.Session = r.config.Session
 	cfg.Session.Enabled = true
 	cfg.Session.Run = runID
-	runtime, err := New(&cfg, Options{})
+	opts := Options{}
+	if r.frozenLoadout != nil {
+		clone := CloneCharacterLoadoutSnapshot(*r.frozenLoadout)
+		opts.Loadout = &clone
+	}
+	runtime, err := New(&cfg, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -429,6 +481,20 @@ func configuredQueueCharacterSelection(cfg *config.Config, catalog CharacterCata
 
 func (u *runtimeQueueUnit) VerifySameGame(ctx context.Context) error {
 	return u.runtime.verifyActiveQueueGame(ctx)
+}
+
+func (u *runtimeQueueUnit) VerifyProfileSkills(ctx context.Context) SupervisorRunResult {
+	profileID, err := u.runtime.resolvedCombatProfileID()
+	if err != nil {
+		u.runtime.Log.Error("profile skills gate resolve failed", "error", err)
+		return SupervisorRunResult{Disposition: QueueRunStop, Reason: reasonProfileSkillsReadUnavailable, ExitRequired: true}
+	}
+	profileCfg, ok := u.runtime.Config.Profiles[profileID]
+	if !ok {
+		u.runtime.Log.Error("profile skills gate missing profile", "profile", profileID)
+		return SupervisorRunResult{Disposition: QueueRunStop, Reason: reasonProfileSkillsReadUnavailable, ExitRequired: true}
+	}
+	return u.runtime.verifyProfileSkillsOnce(ctx, profileID, profileCfg.RequiredSkills)
 }
 
 func (u *runtimeQueueUnit) RunToTown(ctx context.Context, request SupervisorRunRequest, sameGameContinuation bool) SupervisorRunResult {
@@ -530,7 +596,7 @@ func (rt *Runtime) verifyActiveQueueGame(parent context.Context) error {
 		case event := <-hotkeys:
 			rt.handleHotkeyEvent(event, cancel)
 		case <-ticker.C:
-			if err := rt.runTick(ctx, state); err != nil && !errors.Is(err, context.Canceled) {
+			if err := rt.pollQueueSnapshot(ctx, state); err != nil && !errors.Is(err, context.Canceled) {
 				return err
 			}
 			if _, confirmed, err := verifier.Observe(rt.World.Current(), rt.Config.Memory.GameVersion); err != nil {

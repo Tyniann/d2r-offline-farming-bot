@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   get: vi.fn(), preview: vi.fn(), previewReset: vi.fn(), save: vi.fn(), restore: vi.fn(),
   previewDelete: vi.fn(), confirmDelete: vi.fn(),
   createDiagnostic: vi.fn(),
+  previewCharacterSetup: vi.fn(),
   getDesktop: vi.fn(), updateDesktop: vi.fn(), restartCore: vi.fn(),
   getUpdate: vi.fn(), checkUpdate: vi.fn(), openRelease: vi.fn(), revealDiagnostic: vi.fn(),
 }));
@@ -15,15 +16,18 @@ vi.mock("../../api/generated", () => ({
   getOperatorSettings: mocks.get,
   previewOperatorSettings: mocks.preview,
   previewResetOperatorSettings: mocks.previewReset,
+  previewCharacterSetup: mocks.previewCharacterSetup,
+  reloadCharacters: vi.fn(),
 }));
 vi.mock("../../api/client", () => ({
   saveOperatorSettings: mocks.save, restoreOperatorSettings: mocks.restore,
   previewHistoryDeleteAll: mocks.previewDelete, confirmHistoryDeleteAll: mocks.confirmDelete,
   createDiagnosticBundle: mocks.createDiagnostic,
+  confirmCharacterSetup: vi.fn(), captureCharacterSelection: vi.fn(),
 }));
 
 const operator: OperatorSettingsDTO = {
-  schema_version: 2,
+  schema_version: 3,
   revision: 4,
   characters: { mrbones: { character_class: "necromancer", combat_profile: "necro_bone_spear", last_difficulty: "nightmare", queue: ["countess", "mephisto"] } },
   budgets: { max_runs: 20, max_duration_ms: 7_200_000, max_consecutive_failures: 3, max_total_restarts: 4 },
@@ -35,6 +39,21 @@ describe("SettingsFeature", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.get.mockResolvedValue(operator);
+    mocks.previewCharacterSetup.mockResolvedValue({
+      schema_version: 1,
+      catalog_revision: 1,
+      operator_settings_revision: 4,
+      pickit_assignment_revision: 1,
+      character: { name: "MrBones", slug: "mrbones", character_class: "necromancer", class_display_name: "Totenbeschwörer" },
+      supported: true,
+      profiles: [{ id: "necro_bone_spear", display_name: "Knochen-Speer", is_default: true, is_selected: true, required_skills: [], supported_runs: [] }],
+      selected_profile_id: "necro_bone_spear",
+      default_profile_id: "necro_bone_spear",
+      pickit_defaults: [],
+      anchor_state: "ready",
+      setup_state: "ready",
+      reasons: [],
+    });
     mocks.getDesktop.mockResolvedValue({ schema_version: 1, autostart: false, onboarding_completed: false });
     mocks.updateDesktop.mockImplementation(async (value) => ({ schema_version: 1, ...value }));
     mocks.getUpdate.mockResolvedValue({ status: "up_to_date", current_version: "1.2.3", latest_version: "1.2.3" });
@@ -54,7 +73,14 @@ describe("SettingsFeature", () => {
     const onSettingsApplied = vi.fn();
     const onDirtyChange = vi.fn();
     mocks.preview.mockResolvedValue(changed);
-    mocks.save.mockResolvedValue(changed);
+    mocks.save.mockImplementation(async () => ({
+      schema_version: 1,
+      generation: 12,
+      settings: { ...operator, revision: 5, input: { ...operator.input, pause_hotkey: "f8" } },
+      changed_fields: ["input.pause_hotkey"],
+      restart_required: true,
+      reason_code: "config_restart_required",
+    }));
     render(<SettingsFeature generation={12} coreState="idle" characters={["mrbones"]} runs={defaultRuns()} events={[]} onSettingsApplied={onSettingsApplied} onDirtyChange={onDirtyChange} />);
 
     fireEvent.change(await screen.findByLabelText("Pause"), { target: { value: "f8" } });
@@ -70,7 +96,9 @@ describe("SettingsFeature", () => {
     fireEvent.click(screen.getByRole("button", { name: "Jetzt speichern" }));
     await waitFor(() => expect(mocks.save).toHaveBeenCalledWith(expect.objectContaining({ expected_revision: 4, expected_generation: 12 })));
     expect(onSettingsApplied).toHaveBeenCalledOnce();
-    expect(await screen.findByText("Core-Neustart erforderlich", {}, { timeout: 3000 })).toBeInTheDocument();
+    const saved = await mocks.save.mock.results.at(-1)?.value;
+    expect(saved?.restart_required).toBe(true);
+    await waitFor(() => expect(screen.getByText("Core-Neustart erforderlich")).toBeInTheDocument());
     fireEvent.click(screen.getByRole("button", { name: "Core kontrolliert neu starten" }));
     await waitFor(() => expect(mocks.restartCore).toHaveBeenCalledOnce());
   });
@@ -112,6 +140,13 @@ describe("SettingsFeature", () => {
     expect(await screen.findByLabelText("Maximale Runs")).toBeEnabled();
     expect(screen.queryByText("Diese Einstellungen sind gesperrt")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Speichern" })).toBeDisabled();
+  });
+
+  it("zeigt den Charaktere-Tab", async () => {
+    renderFeature();
+    expect(await screen.findByRole("tab", { name: "Charaktere" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("tab", { name: "Charaktere" }));
+    expect(screen.getByText(/Tastenbelegung und Inventarschutz gehören zum Charakter/)).toBeInTheDocument();
   });
 
   it("löscht Historie nur über metadatengebundene zweite Bestätigung", async () => {

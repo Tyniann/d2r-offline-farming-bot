@@ -8,7 +8,6 @@ import (
 
 func TestRouteCombatDefaultsAreRunIDAwareAndPreserveExplicitFalse(t *testing.T) {
 	summoner := RunConfig{}
-	summoner.Combat.applyDefaults()
 	summoner.RouteCombat.applyDefaults("summoner")
 	if !summoner.RouteCombat.EnabledValue() {
 		t.Fatal("missing Summoner route_combat did not default enabled")
@@ -26,7 +25,6 @@ func TestRouteCombatDefaultsAreRunIDAwareAndPreserveExplicitFalse(t *testing.T) 
 	}
 
 	countess := RunConfig{}
-	countess.Combat.applyDefaults()
 	countess.RouteCombat.applyDefaults("countess")
 	if countess.RouteCombat.EnabledValue() {
 		t.Fatal("non-Summoner route_combat defaulted enabled")
@@ -85,18 +83,12 @@ func TestConfigExampleEnablesOnlyRouteClearRuns(t *testing.T) {
 	}
 }
 
-func TestRouteCombatRejectsUnsupportedProfileBeforeRuntime(t *testing.T) {
+func TestRouteCombatDoesNotDependOnRunCombatProfile(t *testing.T) {
 	cfg, err := Load("../../configs/config.example.yaml")
 	if err != nil {
 		t.Fatal(err)
 	}
-	alternate := cfg.Profiles["necro_bone_spear"]
-	alternate.Setup.Default = false
-	cfg.Profiles["alternate_necro"] = alternate
-	run := cfg.Runs.Definitions["summoner"]
-	run.Combat.Profile = "alternate_necro"
-	cfg.Runs.Definitions["summoner"] = run
-	if err := cfg.validate(); err == nil || !strings.Contains(err.Error(), "requires profile necro_bone_spear") {
-		t.Fatalf("error = %v", err)
+	if err := cfg.validate(); err != nil {
+		t.Fatal(err)
 	}
 }

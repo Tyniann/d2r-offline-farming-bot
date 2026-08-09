@@ -218,7 +218,7 @@ func TestInvalidStateZeroFields(t *testing.T) {
 	if s.Reason != "not_in_game" {
 		t.Fatalf("reason = %q, want not_in_game", s.Reason)
 	}
-	if s.Area != (Area{}) || s.Player != (Player{}) {
+	if s.Area != (Area{}) || !playerIsZero(s.Player) {
 		t.Fatal("invalid state should have zero area and player")
 	}
 }
@@ -245,6 +245,10 @@ func assertWorldValueFields(t *testing.T, typ reflect.Type) {
 		field := typ.Field(i)
 		switch field.Type.Kind() {
 		case reflect.Pointer, reflect.Map, reflect.Slice:
+			// SkillsKnown is intentionally a map; cloneState/FromSnapshot must copy it.
+			if typ.Name() == "Player" && field.Name == "SkillsKnown" && field.Type.Kind() == reflect.Map {
+				continue
+			}
 			t.Fatalf("%s.%s must not be pointer, map, or slice", typ.Name(), field.Name)
 		case reflect.Struct:
 			if field.Type.PkgPath() == worldPkg {

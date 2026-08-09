@@ -61,4 +61,6 @@ type Options struct {
 	TownInspect bool
 	// TownTest starts one isolated, fail-closed Town interaction acceptance flow.
 	TownTest string
+	// Loadout freezes character bindings for one Runtime; when set, app.New uses a defensive copy.
+	Loadout *CharacterLoadoutSnapshot
 }

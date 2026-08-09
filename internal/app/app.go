@@ -58,6 +58,7 @@ type Runtime struct {
 	sessionReset              sessionResetBarrier
 	taskDeps                  tasks.Deps
 	runConfig                 tasks.RunConfig
+	combatProfileID           string
 	sessionSelection          tasks.RunSelection
 	routePlayback             *routePlaybackAdapter
 	townEgress                *townEgressAdapter
@@ -76,11 +77,19 @@ type Runtime struct {
 
 // New builds a Runtime from config and CLI/runtime options.
 func New(cfg *config.Config, opts Options) (rt *Runtime, err error) {
+	bindings, err := resolveRuntimeBindings(opts)
+	if err != nil {
+		return nil, err
+	}
+	combatProfileID, err := resolveRuntimeCombatProfileID(cfg, opts.Loadout)
+	if err != nil {
+		return nil, err
+	}
 	if cfg.Session.Enabled && SessionExecutionRequested(opts) {
 		if _, planErr := ResolveSessionPlan(cfg, Options{SessionInspect: true}); planErr != nil {
 			return nil, planErr
 		}
-		if bindingErr := validateFullRunBindings(cfg, cfg.Session.Run); bindingErr != nil {
+		if bindingErr := validateFullRunBindingsWithProfile(cfg, cfg.Session.Run, bindings, combatProfileID); bindingErr != nil {
 			return nil, fmt.Errorf("session bindings: %w", bindingErr)
 		}
 	}
@@ -142,10 +151,6 @@ func New(cfg *config.Config, opts Options) (rt *Runtime, err error) {
 	if err != nil {
 		return nil, fmt.Errorf("input controller: %w", err)
 	}
-	bindings, err := newConfigBindingSource(cfg.Input.Bindings)
-	if err != nil {
-		return nil, fmt.Errorf("input bindings: %w", err)
-	}
 	runSelection := resolveRunSelection(opts, cfg)
 	if validationErr := validateRunMode(runSelection, cfg, opts, log); validationErr != nil {
 		return nil, validationErr
@@ -168,12 +173,22 @@ func New(cfg *config.Config, opts Options) (rt *Runtime, err error) {
 	// Countess nur als Profil-/Policy-Träger und verlangen ebenfalls keine Route.
 	// Erst konkrete Run-/Sessionpfade verlangen fail-closed eine Assignment-Route.
 	requireFarmingRoute := farmingRouteRequired(opts, runSelection)
-	runCfg, err := mapRunConfig(cfg, runtimeRunID, requireFarmingRoute)
+	strategyRegistry := NewCombatStrategyRegistry()
+	if registryErr := strategyRegistry.ValidateAgainstProfiles(cfg.Profiles); registryErr != nil {
+		return nil, fmt.Errorf("combat strategy registry: %w", registryErr)
+	}
+	runCfg, err := mapRunConfigWithProfile(cfg, runtimeRunID, combatProfileID, requireFarmingRoute)
 	if err != nil {
 		return nil, err
 	}
+	inventoryCells := allLockedInventoryGrid()
+	if opts.Loadout != nil {
+		inventoryCells = EffectiveInventoryGrid(*opts.Loadout)
+	} else if CharacterLoadoutRequired(opts) {
+		return nil, fmt.Errorf("character loadout required for inventory lock")
+	}
 	if runtimeRunID == string(tasks.RunIDCows) {
-		runCfg.Cow = mapCowConfig(cfg, bindings)
+		runCfg.Cow = mapCowConfig(cfg, bindings, inventoryCells)
 	}
 
 	pathingCfg := mapPathingConfig(cfg.Pathing)
@@ -191,7 +206,7 @@ func New(cfg *config.Config, opts Options) (rt *Runtime, err error) {
 	personalStash := pathing.NewPersonalStashActions(log, inputCtrl, pathingCfg)
 	townLayout := &townLayoutPin{}
 	townTrace := &townTelemetryRelay{}
-	townPreparation, err := newTownPreparationAdapter(log, inputCtrl, pathingCfg, cfg, runtimeRunID, selectedRunCfg, townLayout, townTrace, true)
+	townPreparation, err := newTownPreparationAdapterWithProfile(log, inputCtrl, pathingCfg, cfg, runtimeRunID, selectedRunCfg, combatProfileID, townLayout, townTrace, true)
 	if err != nil {
 		return nil, err
 	}
@@ -199,20 +214,21 @@ func New(cfg *config.Config, opts Options) (rt *Runtime, err error) {
 		townPreparation.requireFullBuyableBelt = true
 		townPreparation.minimumRejuvenation = 1
 	}
-	townStartAdapter, err := newTownPreparationAdapter(log, inputCtrl, pathingCfg, cfg, runtimeRunID, selectedRunCfg, townLayout, townTrace, false)
+	townStartAdapter, err := newTownPreparationAdapterWithProfile(log, inputCtrl, pathingCfg, cfg, runtimeRunID, selectedRunCfg, combatProfileID, townLayout, townTrace, false)
 	if err != nil {
 		return nil, err
 	}
 	townStartAdapter.thresholds = town.Thresholds{}
 	layoutTownWalker := &layoutTownWaypointWalker{adapter: townStartAdapter}
 	combat := newCombatAdapter(log, inputCtrl, bindings, pathingCfg, runCfg.Combat.AttackInterval)
-	runActions := newRunActionsAdapter(log, inputCtrl, bindings)
+	wireNavigatorRightSkill(nav, combat, inputCtrl)
+	runActions := newRunActionsAdapter(log, inputCtrl, bindings, combat)
 	profileTrace := &profileTelemetryAdapter{}
-	profileExecutor, err := newProfileExecutor(log, cfg.Profiles, selectedRunCfg, inputCtrl, bindings, pathingCfg, combat, profileTrace)
+	profileExecutor, err := newProfileExecutor(log, cfg.Profiles, combatProfileID, runtimeRunID, strategyRegistry, inputCtrl, bindings, pathingCfg, combat, profileTrace)
 	if err != nil {
 		return nil, fmt.Errorf("profile config: %w", err)
 	}
-	inventoryLock, err := loot.NewInventoryLock(cfg.Loot.InventoryLock)
+	inventoryLock, err := loot.NewInventoryLock(inventoryCells)
 	if err != nil {
 		return nil, fmt.Errorf("loot inventory lock: %w", err)
 	}
@@ -246,7 +262,7 @@ func New(cfg *config.Config, opts Options) (rt *Runtime, err error) {
 	if err != nil {
 		return nil, fmt.Errorf("loot stash config: %w", err)
 	}
-	profileCfg := cfg.Profiles[selectedRunCfg.Combat.Profile]
+	profileCfg := cfg.Profiles[combatProfileID]
 	lootActions := newLootActionsAdapter(log, lootFilter, profileCfg.Resources, cfg.Loot.Pickup, inputCtrl, pathingCfg, stashExecutor, runTelemetry)
 	routeLifecycle, err := NewRouteLifecycleStore(cfg)
 	if err != nil {
@@ -257,7 +273,7 @@ func New(cfg *config.Config, opts Options) (rt *Runtime, err error) {
 	var cowSetup *cowSetupAdapter
 	var cowRecipe *cowPortalRecipeAdapter
 	if runtimeRunID == string(tasks.RunIDCows) {
-		cowSetup, err = newCowSetupAdapter(log, inputCtrl, nav, pathingCfg, cfg, runtimeRunID, selectedRunCfg, townLayout, townTrace)
+		cowSetup, err = newCowSetupAdapterWithProfile(log, inputCtrl, nav, pathingCfg, cfg, runtimeRunID, selectedRunCfg, combatProfileID, townLayout, townTrace)
 		if err != nil {
 			return nil, fmt.Errorf("cow setup: %w", err)
 		}
@@ -305,6 +321,7 @@ func New(cfg *config.Config, opts Options) (rt *Runtime, err error) {
 		profileTelemetry:  profileTrace,
 		taskDeps:          taskDeps,
 		runConfig:         runCfg,
+		combatProfileID:   combatProfileID,
 		compatibility: d2rCompatibilityContract{
 			supportedVersion: memory.DefaultOffsetSet().D2RVersion,
 			expectedVersion:  expectedVersion,
@@ -352,6 +369,27 @@ func New(cfg *config.Config, opts Options) (rt *Runtime, err error) {
 // return false even when session.enabled is true.
 func SessionExecutionRequested(opts Options) bool {
 	return !opts.Desktop && !opts.SessionInspect && !opts.RunsInspect && !opts.WaypointTargetsInspect && !opts.Probe && opts.InputTest == "" && opts.Run == "" && opts.RunPhase == "" && opts.PathingTest == "" && opts.OfflineDifficulty == "" && opts.OfflineCharacter == "" && !opts.OfflineExitTest && opts.UIStateProbe == "" && opts.ScreenAnchorCapture == "" && opts.MercenaryProbe == "" && opts.CowProbe == "" && opts.Route == "" && !opts.TownInspect && opts.TownTest == ""
+}
+
+// CharacterLoadoutRequired reports whether Runtime construction needs a frozen character loadout.
+func CharacterLoadoutRequired(opts Options) bool {
+	if opts.Desktop || opts.SessionInspect || opts.RunsInspect || opts.WaypointTargetsInspect || opts.Probe || opts.UIStateProbe != "" || opts.ScreenAnchorCapture != "" || opts.MercenaryProbe != "" || opts.CowProbe != "" || opts.TownInspect {
+		return false
+	}
+	if SessionExecutionRequested(opts) {
+		return true
+	}
+	return opts.Run != "" || opts.RunPhase != "" || opts.InputTest != "" || opts.PathingTest != "" || opts.TownTest != "" || opts.OfflineDifficulty != "" || opts.OfflineCharacter != "" || opts.OfflineExitTest || opts.Route != ""
+}
+
+func resolveRuntimeBindings(opts Options) (configBindingSource, error) {
+	if opts.Loadout != nil {
+		return cloneConfigBindingSource(opts.Loadout.Bindings), nil
+	}
+	if CharacterLoadoutRequired(opts) {
+		return configBindingSource{}, fmt.Errorf("character loadout required")
+	}
+	return configBindingSource{skills: make(map[uint16]input.SkillCast)}, nil
 }
 
 func loadEffectivePickitPolicy(assignments *PickitAssignmentStore, character string, runID tasks.RunID) (*loot.Pickit, error) {

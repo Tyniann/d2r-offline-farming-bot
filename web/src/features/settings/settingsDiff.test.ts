@@ -3,7 +3,7 @@ import { collectLocalDiffPaths, labelChangedField, minutesToMs, msToMinutes, sum
 import type { OperatorSettingsDTO } from "../../api/generated";
 
 const base: OperatorSettingsDTO = {
-  schema_version: 2,
+  schema_version: 3,
   revision: 1,
   characters: { mrbones: { character_class: "necromancer", combat_profile: "necro_bone_spear", last_difficulty: "nightmare", queue: ["countess"] } },
   budgets: { max_runs: 10, max_duration_ms: 3_600_000, max_consecutive_failures: 2, max_total_restarts: 3 },
@@ -18,11 +18,12 @@ describe("settingsDiff", () => {
     expect(summarizeChangedFields(["input.pause_hotkey", "budgets.max_runs"])).toBe("Pause-Hotkey, Maximale Runs");
   });
 
-  it("erkennt lokale Diffs und wandelt Minuten um", () => {
+  it("erkennt Binding-Diffs", () => {
     const draft = structuredClone(base);
-    draft.characters.mrbones.queue = ["countess", "mephisto"];
-    draft.budgets.max_duration_ms = minutesToMs(90);
-    expect(collectLocalDiffPaths(base, draft)).toEqual(["characters.mrbones.queue", "budgets.max_duration_ms"]);
-    expect(msToMinutes(7_200_000)).toBe(120);
+    draft.characters.mrbones.profile_bindings = {
+      necro_bone_spear: { skills: { teleport: "f7" }, belt: { slot_1: "1" } },
+    };
+    expect(collectLocalDiffPaths(base, draft)).toEqual(["characters.mrbones.profile_bindings"]);
+    expect(labelChangedField("characters.mrbones.profile_bindings")).toBe("Tastenbelegung (mrbones)");
   });
 });

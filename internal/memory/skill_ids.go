@@ -5,47 +5,12 @@ import (
 	"strings"
 )
 
-// Skill IDs from D2R 3.2.92777 local data/global/excel/skills.txt
-// (subset used by bot prechecks, diagnostics, and casting).
-const (
-	SkillAttack          uint16 = 0
-	SkillThrow           uint16 = 2
-	SkillTeleport        uint16 = 54
-	SkillAmplifyDamage   uint16 = 66
-	SkillBoneArmor       uint16 = 68
-	SkillCorpseExplosion uint16 = 74
-	SkillBoneWall        uint16 = 78
-	SkillBoneSpear       uint16 = 84
-	SkillBonePrison      uint16 = 88
-	SkillTownPortal      uint16 = 359
-)
-
-// SkillName returns a stable label for known skill IDs used in logs.
+// SkillName returns the canonical catalog key for known skill IDs used in logs.
 func SkillName(id uint16) string {
-	switch id {
-	case SkillAttack:
-		return "attack"
-	case SkillThrow:
-		return "throw"
-	case SkillTeleport:
-		return "teleport"
-	case SkillAmplifyDamage:
-		return "amplify_damage"
-	case SkillBoneArmor:
-		return "bone_armor"
-	case SkillCorpseExplosion:
-		return "corpse_explosion"
-	case SkillBoneWall:
-		return "bone_wall"
-	case SkillBoneSpear:
-		return "bone_spear"
-	case SkillBonePrison:
-		return "bone_prison"
-	case SkillTownPortal:
-		return "town_portal"
-	default:
-		return "unknown"
+	if entry, ok := LookupSkillByID(id); ok {
+		return entry.Key
 	}
+	return "unknown"
 }
 
 // IsBasicLeftSkill reports whether id is the default attack or throw skill.
@@ -53,26 +18,47 @@ func IsBasicLeftSkill(id uint16) bool {
 	return id == SkillAttack || id == SkillThrow
 }
 
-// ParseSkillTestName maps CLI skill names used by --input-test to skill IDs.
+// ParseSkillTestName maps CLI and config skill names onto catalog IDs.
+// Explicit product aliases such as `ce` and `tp` remain first-class aliases;
+// all other values resolve through the generated CASC catalog.
 func ParseSkillTestName(name string) (uint16, error) {
-	switch strings.ToLower(strings.TrimSpace(name)) {
-	case "teleport":
-		return SkillTeleport, nil
-	case "amplify_damage", "amplifydamage", "amplify damage", "ad":
-		return SkillAmplifyDamage, nil
-	case "bone_armor", "bonearmor", "bone armor":
-		return SkillBoneArmor, nil
-	case "corpse_explosion", "corpseexplosion", "corpse explosion", "ce":
-		return SkillCorpseExplosion, nil
-	case "bone_wall", "bonewall", "bone wall":
-		return SkillBoneWall, nil
-	case "bone_spear", "bonespear", "bone spear":
-		return SkillBoneSpear, nil
-	case "bone_prison", "boneprison", "bone prison":
-		return SkillBonePrison, nil
-	case "town_portal", "townportal", "tp":
-		return SkillTownPortal, nil
-	default:
+	key, ok := resolveSkillAlias(name)
+	if !ok {
 		return 0, fmt.Errorf("unknown skill %q (use teleport, amplify_damage, bone_armor, corpse_explosion, bone_wall, bone_prison, bone_spear, or town_portal)", name)
+	}
+	entry, found := LookupSkillByKey(key)
+	if !found {
+		return 0, fmt.Errorf("skill catalog missing key %q", key)
+	}
+	return entry.ID, nil
+}
+
+func resolveSkillAlias(name string) (string, bool) {
+	normalized := strings.ToLower(strings.TrimSpace(name))
+	normalized = strings.ReplaceAll(normalized, "-", "_")
+	normalized = strings.Join(strings.Fields(normalized), " ")
+	switch normalized {
+	case "teleport":
+		return "teleport", true
+	case "amplify_damage", "amplifydamage", "amplify damage", "ad":
+		return "amplify_damage", true
+	case "bone_armor", "bonearmor", "bone armor":
+		return "bone_armor", true
+	case "corpse_explosion", "corpseexplosion", "corpse explosion", "ce":
+		return "corpse_explosion", true
+	case "bone_wall", "bonewall", "bone wall":
+		return "bone_wall", true
+	case "bone_spear", "bonespear", "bone spear":
+		return "bone_spear", true
+	case "bone_prison", "boneprison", "bone prison":
+		return "bone_prison", true
+	case "town_portal", "townportal", "tp":
+		return "town_portal", true
+	default:
+		compact := strings.ReplaceAll(normalized, " ", "_")
+		if _, ok := LookupSkillByKey(compact); ok {
+			return compact, true
+		}
+		return "", false
 	}
 }

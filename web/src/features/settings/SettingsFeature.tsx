@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { confirmHistoryDeleteAll, createDiagnosticBundle, previewHistoryDeleteAll, restoreOperatorSettings, saveOperatorSettings } from "../../api/client";
-import { getOperatorSettings, previewOperatorSettings, previewResetOperatorSettings, type HistoryDeletePreviewDTO, type LiveEvent, type OperatorSettingsChangeDTO, type OperatorSettingsDTO } from "../../api/generated";
+import { getOperatorSettings, previewOperatorSettings, previewResetOperatorSettings, type CatalogDTO, type HistoryDeletePreviewDTO, type LiveEvent, type OperatorSettingsChangeDTO, type OperatorSettingsDTO, type StatusDTO } from "../../api/generated";
 import { Button, Dialog, StateMessage, StatusBadge } from "../../app/ui";
+import { CharactersTab } from "../characters/CharactersTab";
 import { AppTab } from "./AppTab";
 import { FarmingTab } from "./FarmingTab";
 import { MaintenanceTab } from "./MaintenanceTab";
@@ -9,15 +10,17 @@ import { SettingsActionBar } from "./SettingsActionBar";
 import { cloneSettings, collectLocalDiffPaths, settingsEqual, summarizeChangedFields } from "./settingsDiff";
 import type { SettingsRun, SettingsTab } from "./settingsTypes";
 
-/** SettingsFeature orchestriert Farming-, App- und Wartung-Scopes mit sticky Core-Commit. */
+/** SettingsFeature orchestriert Farming-, Charaktere-, App- und Wartung-Scopes mit sticky Core-Commit. */
 export function SettingsFeature({
-  generation, coreState, characters, runs, events, onOpenOnboarding, onSettingsApplied, onDirtyChange,
+  generation, coreState, characters, runs, events, catalog, status, onOpenOnboarding, onSettingsApplied, onDirtyChange,
 }: {
   generation: number;
   coreState: string;
   characters: string[];
   runs: SettingsRun[];
   events: LiveEvent[];
+  catalog?: CatalogDTO | null;
+  status?: StatusDTO | null;
   onOpenOnboarding?: () => void;
   onSettingsApplied?: () => void;
   onDirtyChange?: (dirty: boolean) => void;
@@ -39,6 +42,7 @@ export function SettingsFeature({
   const [includeRoutes, setIncludeRoutes] = useState(false);
   const dirtyRef = useRef(false);
   const mutable = coreState === "idle" || coreState === "stopped_error";
+  const editableTab = tab === "farming" || tab === "characters";
 
   const load = async () => {
     setBusy(true);
@@ -56,7 +60,6 @@ export function SettingsFeature({
       const names = Object.keys(operator.characters).sort((left, right) => left.localeCompare(right, "de"));
       setSelectedCharacter((current) => current && operator.characters[current] ? current : names[0] ?? "");
       setPreview(null);
-      setRestartRequired(false);
       setStale(false);
       setMessage("");
     } catch (reason) {
@@ -89,7 +92,7 @@ export function SettingsFeature({
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (!(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== "s") return;
-      if (tab !== "farming" || !dirty || !mutable || busy) return;
+      if (!editableTab || !dirty || !mutable || busy) return;
       event.preventDefault();
       void requestSave();
     };
@@ -98,7 +101,10 @@ export function SettingsFeature({
   });
 
   const characterNames = useMemo(() => {
-    const names = new Set([...characters, ...Object.keys(draft?.characters ?? {})]);
+    const names = new Set([
+      ...characters.map((name) => name.trim().toLowerCase()).filter(Boolean),
+      ...Object.keys(draft?.characters ?? {}),
+    ]);
     return [...names].sort((left, right) => left.localeCompare(right, "de"));
   }, [characters, draft]);
 
@@ -133,7 +139,7 @@ export function SettingsFeature({
         : await saveOperatorSettings({ expected_revision: settings.revision, expected_generation: generation, settings: draft });
       setSettings(result.settings);
       setDraft(cloneSettings(result.settings));
-      setRestartRequired(result.restart_required);
+      setRestartRequired(Boolean(result.restart_required));
       setPreview(null);
       setMessage(result.changed_fields.length ? "Gespeichert. Der Bot verwendet ab dem nächsten Start diese Werte." : "Es waren keine Änderungen zu speichern.");
       onSettingsApplied?.();
@@ -225,6 +231,7 @@ export function SettingsFeature({
     <div className="settings-tabs" role="tablist" aria-label="Einstellungsbereiche">
       {([
         { id: "farming" as const, label: "Farming" },
+        { id: "characters" as const, label: "Charaktere" },
         { id: "app" as const, label: "App" },
         { id: "maintenance" as const, label: "Wartung" },
       ]).map((entry) => (
@@ -233,10 +240,10 @@ export function SettingsFeature({
           type="button"
           role="tab"
           aria-selected={tab === entry.id}
-          className={`settings-tab${tab === entry.id ? " active" : ""}${entry.id === "farming" && dirty ? " dirty" : ""}`}
+          className={`settings-tab${tab === entry.id ? " active" : ""}${(entry.id === "farming" || entry.id === "characters") && dirty ? " dirty" : ""}`}
           onClick={() => setTab(entry.id)}
         >
-          {entry.label}{entry.id === "farming" && dirty ? <span className="settings-tab-dot" aria-label="ungespeicherte Änderungen" /> : null}
+          {entry.label}{(entry.id === "farming" || entry.id === "characters") && dirty ? <span className="settings-tab-dot" aria-label="ungespeicherte Änderungen" /> : null}
         </button>
       ))}
     </div>
@@ -253,6 +260,18 @@ export function SettingsFeature({
       onSelectCharacter={setSelectedCharacter}
       onChangeDraft={changeDraft}
       onReset={() => void requestReset()}
+    />}
+    {tab === "characters" && <CharactersTab
+      draft={draft}
+      catalog={catalog ?? null}
+      selectedCharacter={selectedCharacter}
+      characterNames={characterNames}
+      mutable={mutable}
+      diffPaths={diffPaths}
+      status={status ?? null}
+      onSelectCharacter={setSelectedCharacter}
+      onChangeDraft={changeDraft}
+      onSetupChanged={onSettingsApplied}
     />}
     {tab === "app" && <AppTab
       desktop={desktop}
@@ -283,7 +302,7 @@ export function SettingsFeature({
       revision={settings.revision}
       summary={dirtySummary}
       busy={busy}
-      collapsed={tab !== "farming" && dirty}
+      collapsed={!editableTab && dirty}
       onDiscard={discardDraft}
       onSave={() => void requestSave()}
       onShowFarming={() => setTab("farming")}

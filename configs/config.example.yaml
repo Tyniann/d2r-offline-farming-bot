@@ -61,13 +61,6 @@ loot:
     entry_timeout_ms: 15000
     transmute_x: 270
     transmute_y: 411
-  inventory_lock:
-    # 4x10 Grid; 1 = geschützt/nicht benutzen, 0 = für Loot verfügbar.
-    # Beispiel: linke 4 Spalten für Cube, Tomes, Torch/Anni und Charms schützen.
-    - [1, 1, 1, 1, 0, 0, 0, 0, 0, 0]
-    - [1, 1, 1, 1, 0, 0, 0, 0, 0, 0]
-    - [1, 1, 1, 1, 0, 0, 0, 0, 0, 0]
-    - [1, 1, 1, 1, 0, 0, 0, 0, 0, 0]
 
 paths:
   config_dir: configs
@@ -83,39 +76,8 @@ input:
   key_delay_ms_min: 10
   key_delay_ms_max: 40
   combo_hold_ms: 200
-
-  # Diese Werte müssen zu den Hotkeys im D2R-Optionsmenü passen.
-  bindings:
-    skills:
-      teleport:
-        key: f7
-        button: right
-      town_portal:
-        key: f6
-        button: right
-      amplify_damage:
-        key: f1
-        button: right
-      corpse_explosion:
-        key: f2
-        button: right
-      bone_spear:
-        key: f8
-        button: right
-      bone_armor:
-        key: f5
-        button: right
-      bone_prison:
-        key: f3
-        button: right
-    belt:
-      # MVP-Belegung für 4.7: Slot 1 = Heiltränke, Slot 2/3 = Manatränke,
-      # Slot 4 = Full Rejuvenation Potions. Später soll diese Belegung
-      # benutzerkonfigurierbar werden.
-      slot_1: "1"
-      slot_2: "2"
-      slot_3: "3"
-      slot_4: "4"
+  # Skill- und Gürtelbelegungen liegen in OperatorSettings Schema 3
+  # (characters.*.profile_bindings), nicht in config.yaml.
 
 runs:
   # countess | mephisto | summoner | nihlathak | leer — stabile IDs aus der Run Registry.
@@ -123,21 +85,7 @@ runs:
   step_timeout_ms: 45000
   definitions:
     countess:
-      combat:
-        profile: necro_bone_spear
-        attack_skill: bone_spear
-        attack_interval_ms: 350
-        engage_distance_tiles: 22
-        reposition_distance_tiles: 32
-        kill_confirm_ticks: 3
     cows:
-      combat:
-        profile: necro_bone_spear
-        attack_skill: bone_spear
-        attack_interval_ms: 350
-        engage_distance_tiles: 22
-        reposition_distance_tiles: 32
-        kill_confirm_ticks: 3
       route_combat:
         enabled: true
         immediate_radius_tiles: 18
@@ -151,21 +99,7 @@ runs:
         mana_recovery_timeout_ms: 5000
     mephisto:
       # MrBones/Nightmare-Aufnahme aus Gate 10.9; andere Bindungen benötigen eine eigene Route.
-      combat:
-        profile: necro_bone_spear
-        attack_skill: bone_spear
-        attack_interval_ms: 350
-        engage_distance_tiles: 22
-        reposition_distance_tiles: 32
-        kill_confirm_ticks: 3
     summoner:
-      combat:
-        profile: necro_bone_spear
-        attack_skill: bone_spear
-        attack_interval_ms: 350
-        engage_distance_tiles: 22
-        reposition_distance_tiles: 32
-        kill_confirm_ticks: 3
       route_combat:
         enabled: true
         immediate_radius_tiles: 18
@@ -178,13 +112,6 @@ runs:
         emergency_mana_percent: 10
         mana_recovery_timeout_ms: 5000
     nihlathak:
-      combat:
-        profile: necro_bone_spear
-        attack_skill: bone_spear
-        attack_interval_ms: 350
-        engage_distance_tiles: 22
-        reposition_distance_tiles: 32
-        kill_confirm_ticks: 3
 
 combat_profiles:
   necro_bone_spear:
@@ -193,6 +120,20 @@ combat_profiles:
     setup:
       enabled: true
       default: true
+    combat:
+      standard_attack: bone_spear
+      attack_interval_ms: 350
+      engage_distance_tiles: 22
+      reposition_distance_tiles: 32
+      kill_confirm_ticks: 3
+    required_skills:
+      - {skill: teleport, display_name: Teleport}
+      - {skill: town_portal, display_name: Stadtportal}
+      - {skill: bone_spear, display_name: Knochen-Speer}
+      - {skill: amplify_damage, display_name: Verstärkter Schaden}
+      - {skill: corpse_explosion, display_name: Kadaverexplosion}
+      - {skill: bone_armor, display_name: Knochenrüstung}
+      - {skill: bone_prison, display_name: Knochengefängnis}
     hooks:
       town_ready:
         - skill: bone_armor

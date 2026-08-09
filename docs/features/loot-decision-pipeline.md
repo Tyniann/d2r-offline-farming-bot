@@ -11,7 +11,7 @@ Die Pipeline selbst führt keine Eingaben aus. Produktive Pickup-, Stash- und To
 - **Paket:** `internal/loot/`
 - **Einstieg:** `(*loot.Filter).Decide`
 - **Wichtige Dateien:** `internal/loot/decision.go`, `internal/loot/pickit.go`, `internal/loot/inventory.go`
-- **Config:** nutzt die effektive Pickit-Assignment-Policy und das gemeinsame `loot.inventory_lock`
+- **Config:** nutzt die effektive Pickit-Assignment-Policy und den Charakter-Loadout-Inventarschutz (`OperatorSettings` Schema 3)
 
 ## Funktionalität
 
@@ -58,7 +58,7 @@ Ein `keep`-gematchtes Inventory-Item erzeugt `keep/pickit_match`, sofern keine I
 - es ein persönliches Inventory-Item ist (`Location=inventory`, `PlayerOwned`, `Page=0`),
 - sein Footprint gültig ist,
 - die Inventory-Kapazität nicht unsafe ist,
-- keine Zelle des Item-Footprints durch `loot.inventory_lock` geschützt ist.
+- keine Zelle des Item-Footprints durch den Charakter-Inventarschutz geschützt ist.
 
 Ein teilweise gelocktes mehrzelliges Item wird nie als `stash` markiert. Bei unsafe Capacity wird ein gematchtes Inventory-Item weiter als `keep` markiert, aber nicht als `stash`.
 

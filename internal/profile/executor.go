@@ -207,6 +207,9 @@ func (e *Executor) TickHook(ctx context.Context, hook Hook, state world.State, t
 			targetPos = target.Position
 		}
 		if err := e.actions.CastSkillAtWorld(now, action.SkillID, state.Player, targetPos); err != nil {
+			if errors.Is(err, ErrSkillSelectionPending) {
+				return Result{Status: StatusPending, Hook: hook, SkillID: action.SkillID}
+			}
 			e.emitFailure(Event{Hook: hook, SkillID: action.SkillID, Target: action.Target, TargetUnitID: target.UnitID}, "profile_skill_failed")
 			return Result{Status: StatusFailed, Hook: hook, SkillID: action.SkillID, Reason: "profile_skill_failed"}
 		}
@@ -282,6 +285,9 @@ func (e *Executor) TickRouteMaintenance(state world.State, now time.Time) Result
 		return Result{Status: StatusPending, Hook: HookRouteMaintenance, Reason: "bone_armor_attack_stopped"}
 	}
 	if err := e.actions.CastSkillAtWorld(now, policy.SkillID, state.Player, state.Player.Position); err != nil {
+		if errors.Is(err, ErrSkillSelectionPending) {
+			return Result{Status: StatusPending, Hook: HookRouteMaintenance, SkillID: policy.SkillID}
+		}
 		e.boneArmorAttackStopped = false
 		e.emitFailure(Event{Hook: HookRouteMaintenance, SkillID: policy.SkillID, Target: TargetSelf}, "bone_armor_cast_failed")
 		return Result{Status: StatusFailed, Hook: HookRouteMaintenance, SkillID: policy.SkillID, Reason: "bone_armor_cast_failed"}

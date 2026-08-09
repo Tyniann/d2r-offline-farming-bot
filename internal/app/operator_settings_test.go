@@ -39,13 +39,13 @@ func TestOperatorSettingsInitializesDefaultsAndPersistsTwoCharacterQueues(t *tes
 	}
 }
 
-func TestOperatorSettingsSchema2SetupAssignmentProtectionResetAndNewCharacter(t *testing.T) {
+func TestOperatorSettingsSchema3SetupAssignmentProtectionResetAndNewCharacter(t *testing.T) {
 	store, _ := newOperatorSettingsTestStore(t)
 	initial, err := store.Snapshot()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if initial.SchemaVersion != 2 || initial.Characters["mrbones"].CharacterClass != "" || initial.Characters["mrbones"].CombatProfile != "" {
+	if initial.SchemaVersion != 3 || initial.Characters["mrbones"].CharacterClass != "" || initial.Characters["mrbones"].CombatProfile != "" {
 		t.Fatalf("initial=%+v", initial)
 	}
 
@@ -93,7 +93,7 @@ func TestOperatorSettingsSchema2SetupAssignmentProtectionResetAndNewCharacter(t 
 	}
 	reloaded, err := store.Snapshot()
 	if err != nil || !reflect.DeepEqual(reloaded, added.Settings) {
-		t.Fatalf("schema-2 round-trip=%+v err=%v", reloaded, err)
+		t.Fatalf("schema-3 round-trip=%+v err=%v", reloaded, err)
 	}
 	idempotent, err := store.AssignCharacterProfile("FreshHero", "necromancer", "necro_bone_spear", reloaded.Revision)
 	if err != nil || idempotent.Settings.Revision != reloaded.Revision || len(idempotent.ChangedFields) != 0 {

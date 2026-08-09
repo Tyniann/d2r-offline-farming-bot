@@ -476,14 +476,43 @@ func (rt *Runtime) runPathingTeleport(
 	}
 	pathingCfg := mapPathingConfig(rt.Config.Pathing)
 	mover := pathing.NewTeleportMover(rt.Log, driver, rt.Bindings, pathingCfg.Projector(), pathingCfg.MoveInterval)
+	if rt.taskDeps.Combat != nil {
+		if adapter, ok := rt.taskDeps.Combat.(*combatAdapter); ok {
+			wireTeleportMover(mover, adapter, rt.Input)
+		}
+	}
 
 	cur := rt.World.Current()
 	before := cur.Player.Position
 	target := world.Position{X: spec.targetX, Y: spec.targetY}
 
-	clientX, clientY, err := mover.TeleportTo(time.Now(), before, target)
-	if err != nil {
-		return fmt.Errorf("pathing test teleport: %w", err)
+	var clientX, clientY int
+	castDeadline := time.Now().Add(3 * time.Second)
+	if castDeadline.After(deadline) {
+		castDeadline = deadline
+	}
+	for {
+		cur = rt.World.Current()
+		before = cur.Player.Position
+		var castErr error
+		clientX, clientY, castErr = mover.TeleportTo(time.Now(), cur.Player, target)
+		if castErr == nil {
+			break
+		}
+		if !errors.Is(castErr, pathing.ErrTeleportSelectionPending) {
+			return fmt.Errorf("pathing test teleport: %w", castErr)
+		}
+		rt.Log.Info("pathing test teleport skill selection pending",
+			"right_skill_id", cur.Player.RightSkillID,
+			"target_x", target.X,
+			"target_y", target.Y,
+		)
+		if time.Now().After(castDeadline) {
+			return fmt.Errorf("pathing test teleport: right skill selection not confirmed")
+		}
+		if _, stop, tickErr := rt.pathingTestTick(ctx, state, hotkeyEvents, ticker, cancel); tickErr != nil || stop {
+			return tickErr
+		}
 	}
 	rt.Log.Info("pathing test teleport cast",
 		"player_x", before.X,

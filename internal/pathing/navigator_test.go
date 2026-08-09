@@ -5,17 +5,35 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/input"
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/memory"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/world"
 )
 
 func testNavigator(in *mockInput) *Navigator {
 	cfg := DefaultConfig()
 	cfg.MoveInterval = 0
-	return NewNavigator(testLogger(), Deps{
+	n := NewNavigator(testLogger(), Deps{
 		Input:    in,
 		Bindings: mockBindings{},
 		Config:   cfg,
 	})
+	// Navigator unit tests assert movement geometry, not RMB selection.
+	n.SetRightSkillClicker(&immediateTeleportClicker{in: in, bindings: mockBindings{}})
+	return n
+}
+
+// immediateTeleportClicker casts Teleport without select-confirm for geometry tests.
+type immediateTeleportClicker struct {
+	in       InputDriver
+	bindings input.BindingSource
+}
+
+func (c *immediateTeleportClicker) CastRightSkillAt(_ uint16, _ uint16, _ time.Time, clientX, clientY int) (bool, error) {
+	if err := c.in.CastSkillAt(c.bindings, memory.SkillTeleport, clientX, clientY); err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 func navState(at time.Time, area world.AreaID, x, y uint32) world.State {

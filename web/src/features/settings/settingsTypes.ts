@@ -9,5 +9,5 @@ export type SettingsRun = {
   routeCombat?: RouteCombatConfigDTO;
 };
 
-/** SettingsTab benennt die drei Scope-Bereiche der Einstellungen. */
-export type SettingsTab = "farming" | "app" | "maintenance";
+/** SettingsTab benennt die Scope-Bereiche der Einstellungen. */
+export type SettingsTab = "farming" | "characters" | "app" | "maintenance";

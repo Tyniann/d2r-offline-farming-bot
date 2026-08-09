@@ -389,7 +389,7 @@ func (m *mockCombatActions) StopAttack() error {
 	return nil
 }
 
-func (m *mockCombatActions) TeleportToward(_ time.Time, _ world.Position, target world.Position, desiredDistanceTiles float64) (bool, error) {
+func (m *mockCombatActions) TeleportToward(_ time.Time, _ world.Player, target world.Position, desiredDistanceTiles float64) (bool, error) {
 	m.teleportCalls++
 	m.lastDesired = desiredDistanceTiles
 	m.lastTeleportTarget = target
@@ -433,7 +433,7 @@ func (m *mockRunActions) CastBelt(slot int) error {
 	return m.beltErr
 }
 
-func (m *mockRunActions) CastTownPortal() error {
+func (m *mockRunActions) CastTownPortal(time.Time, world.Player) error {
 	m.portalCalls++
 	return m.portalErr
 }

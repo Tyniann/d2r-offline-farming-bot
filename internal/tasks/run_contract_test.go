@@ -66,7 +66,7 @@ func TestPhase10ReasonCodesAreUnique(t *testing.T) {
 	reasons := []RunReason{
 		RunReasonUnknown, RunReasonConfigMissing, RunReasonDefinitionInvalid, RunReasonCapabilityMissing,
 		RunReasonRouteMissing, RunReasonRouteBindingMismatch, RunReasonRouteLayoutMismatch, RunReasonRouteRuntimeValidation,
-		RunReasonProfileClassMismatch, RunReasonCharacterProfileRunIncompatible, RunReasonWaypointTargetUnsupported, RunReasonWaypointUIUnconfirmed,
+		RunReasonProfileClassMismatch, RunReasonProfileRunStrategyUnavailable, RunReasonCharacterProfileRunIncompatible, RunReasonWaypointTargetUnsupported, RunReasonWaypointUIUnconfirmed,
 		RunReasonWaypointDestinationTimeout, RunReasonUnexpectedArea, RunReasonBossNotFound, RunReasonBossPinLost,
 		RunReasonEncounterActionFailed, RunReasonBossKillUnconfirmed, RunReasonLootPolicyInvalid, RunReasonItemTierUnknown,
 		RunReasonItemClassificationConflict, RunReasonItemIdentifyFailed, RunReasonItemSellFailed, RunReasonTownEgressMissing,

@@ -110,11 +110,13 @@ type CatalogDTO struct {
 
 // CharacterCatalogEntry exposes a save filename identity and its fail-closed availability.
 type CharacterCatalogEntry struct {
-	Name          string   `json:"name"`
-	Slug          string   `json:"slug"`
-	ExpectedClass string   `json:"expected_class,omitempty"`
-	Selectable    bool     `json:"selectable"`
-	Reasons       []string `json:"reasons,omitempty"`
+	Name             string   `json:"name"`
+	Slug             string   `json:"slug"`
+	ExpectedClass    string   `json:"expected_class,omitempty"`
+	Selectable       bool     `json:"selectable"`
+	Reasons          []string `json:"reasons,omitempty"`
+	FarmReady        bool     `json:"farm_ready"`
+	FarmReadyReasons []string `json:"farm_ready_reasons,omitempty"`
 }
 
 // DifficultyCatalogEntry describes one supported offline difficulty.
@@ -204,6 +206,7 @@ type QueueValidationDTO struct {
 	Difficulty      string          `json:"difficulty"`
 	CatalogRevision uint64          `json:"catalog_revision"`
 	Budgets         QueueBudgetsDTO `json:"budgets"`
+	Warnings        []string        `json:"warnings,omitempty"`
 }
 
 // SessionStartPayload binds start to the exact queue preflight context.

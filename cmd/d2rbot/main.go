@@ -158,6 +158,7 @@ func runWithDataRoot(configPath, dataRoot string, opts app.Options) error {
 		return err
 	}
 	var operatorSettings *app.OperatorSettingsStore
+	var loadoutResolver *app.CharacterLoadoutResolver
 	var dataRootLock *app.DataRootLock
 	if dataRoot != "" {
 		if opts.DesktopHandshakePipe != "" {
@@ -173,6 +174,18 @@ func runWithDataRoot(configPath, dataRoot string, opts app.Options) error {
 		}
 		app.ApplyOperatorSettingsToConfig(cfg, settings)
 		operatorSettings = store
+		loadoutResolver = app.NewCharacterLoadoutResolver(store, cfg.Profiles, settings.Input)
+	}
+	if app.CharacterLoadoutRequired(opts) {
+		if loadoutResolver == nil {
+			return fmt.Errorf("character loadout required: pass --data-root with installed operator settings")
+		}
+		snapshot, resolveErr := loadoutResolver.Resolve(cfg.Session.Character)
+		if resolveErr != nil {
+			return fmt.Errorf("resolve character loadout: %w", resolveErr)
+		}
+		clone := app.CloneCharacterLoadoutSnapshot(snapshot)
+		opts.Loadout = &clone
 	}
 	if opts.SessionMaxRuns < 0 {
 		return fmt.Errorf("--session-max-runs must be >= 0")
@@ -221,7 +234,7 @@ func runWithDataRoot(configPath, dataRoot string, opts app.Options) error {
 	}
 
 	if shouldRunSession(cfg, opts) {
-		return app.RunConfiguredQueue(cfg)
+		return app.RunConfiguredQueue(cfg, loadoutResolver)
 	}
 
 	rt, err := app.New(cfg, opts)
@@ -234,7 +247,7 @@ func runWithDataRoot(configPath, dataRoot string, opts app.Options) error {
 		}
 	}()
 	if opts.Desktop {
-		return runDesktopAPI(cfg, rt, operatorSettings, opts.DesktopHandshakePipe)
+		return runDesktopAPI(cfg, rt, operatorSettings, loadoutResolver, opts.DesktopHandshakePipe)
 	}
 
 	if opts.InputTest != "" {
@@ -293,7 +306,7 @@ func validateDesktopMode(opts app.Options) error {
 	return nil
 }
 
-func runDesktopAPI(cfg *config.Config, rt *app.Runtime, operatorSettings *app.OperatorSettingsStore, desktopHandshakePipe string) error {
+func runDesktopAPI(cfg *config.Config, rt *app.Runtime, operatorSettings *app.OperatorSettingsStore, loadoutResolver *app.CharacterLoadoutResolver, desktopHandshakePipe string) error {
 	if desktopHandshakePipe == "" {
 		return fmt.Errorf("desktop mode requires a private handshake pipe")
 	}
@@ -310,6 +323,7 @@ func runDesktopAPI(cfg *config.Config, rt *app.Runtime, operatorSettings *app.Op
 	if settingsBindErr := backend.SetOperatorSettingsStore(operatorSettings); settingsBindErr != nil {
 		return settingsBindErr
 	}
+	backend.SetLoadoutResolver(loadoutResolver)
 	backend.Update(rt.CurrentUIStatus(""), app.SupervisorSnapshot{State: app.SupervisorStateIdle})
 	server, err := api.New(api.Config{Backend: backend, Assets: assets, Logger: rt.Log, Events: publisher})
 	if err != nil {
@@ -350,6 +364,7 @@ func runDesktopAPI(cfg *config.Config, rt *app.Runtime, operatorSettings *app.Op
 	if err != nil {
 		return err
 	}
+	queueRunner.SetLoadoutResolver(loadoutResolver)
 	supervisor, err := app.NewSessionSupervisor(queueRunner)
 	if err != nil {
 		return err

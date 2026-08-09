@@ -75,7 +75,7 @@ func TestOperatorSettingsHTTPReadPreviewUpdateResetAndTokenGate(t *testing.T) {
 		t.Fatal(err)
 	}
 	_ = response.Body.Close()
-	if got := read.Characters["mrbones"]; read.SchemaVersion != 2 || got.CharacterClass != "necromancer" || got.CombatProfile != "necro_bone_spear" {
+	if got := read.Characters["mrbones"]; read.SchemaVersion != 3 || got.CharacterClass != "necromancer" || got.CombatProfile != "necro_bone_spear" {
 		t.Fatalf("read=%+v", read)
 	}
 
@@ -146,7 +146,7 @@ func (b *operatorSettingsTransportBackend) ResetOperatorSettings(request Operato
 
 func sampleOperatorSettingsDTO() OperatorSettingsDTO {
 	return OperatorSettingsDTO{
-		SchemaVersion: 2, Revision: 1,
+		SchemaVersion: 3, Revision: 1,
 		Characters: map[string]OperatorCharacterSettingsDTO{"mrbones": {
 			CharacterClass: "necromancer", CombatProfile: "necro_bone_spear",
 			LastDifficulty: "nightmare", Queue: []string{"countess", "mephisto"},

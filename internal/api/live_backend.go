@@ -14,6 +14,7 @@ import (
 
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/app"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/config"
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/tasks"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/telemetry"
 )
 
@@ -30,7 +31,8 @@ type LiveBackend struct {
 	selection              func(app.CharacterSelectionRequest) error
 	supervisor             *app.SessionSupervisor
 	beforeWorker           func() error
-	beginQueue             func(bool)
+	beginQueue             func(bool) error
+	loadoutResolver        *app.CharacterLoadoutResolver
 	supervisorObserved     uint64
 	commands               map[string]apiCommandRecord
 	characterCommands      map[string]characterSetupCommandRecord
@@ -57,7 +59,7 @@ type LiveBackend struct {
 
 // SetSessionSupervisor binds the single Core-owned queue state machine. The
 // preparation hook stops the passive monitor before a worker can attach/input.
-func (b *LiveBackend) SetSessionSupervisor(supervisor *app.SessionSupervisor, beforeWorker func() error, beginQueue func(bool)) error {
+func (b *LiveBackend) SetSessionSupervisor(supervisor *app.SessionSupervisor, beforeWorker func() error, beginQueue func(bool) error) error {
 	if supervisor == nil {
 		return fmt.Errorf("session supervisor is required")
 	}
@@ -87,6 +89,71 @@ func (b *LiveBackend) SetSessionSupervisor(supervisor *app.SessionSupervisor, be
 	b.beginQueue = beginQueue
 	b.supervisorObserved = supervisor.Snapshot().Generation
 	return nil
+}
+
+// SetLoadoutResolver binds the Schema-3 character loadout authority for queue preflight and freeze.
+func (b *LiveBackend) SetLoadoutResolver(resolver *app.CharacterLoadoutResolver) {
+	b.mu.Lock()
+	b.loadoutResolver = resolver
+	b.mu.Unlock()
+}
+
+func (b *LiveBackend) evaluateQueueLoadout(character string) error {
+	b.mu.RLock()
+	store := b.operatorSettings
+	profiles := b.cfg.Profiles
+	b.mu.RUnlock()
+	if store == nil {
+		return &commandError{code: string(app.QueueReasonProfileBindingsIncomplete), message: "Für dieses Kampfprofil fehlen Tastenbelegungen."}
+	}
+	settings, err := store.Snapshot()
+	if err != nil {
+		return err
+	}
+	if reasons := app.EvaluateLoadoutReadiness(settings, character, profiles); len(reasons) > 0 {
+		return &commandError{code: reasons[0], message: loadoutReasonMessage(reasons[0])}
+	}
+	return nil
+}
+
+func loadoutReasonMessage(code string) string {
+	switch code {
+	case string(app.QueueReasonCharacterInventoryUnconfigured):
+		return "Der Inventarschutz wurde noch nicht bestätigt."
+	default:
+		return "Für dieses Kampfprofil fehlen Tastenbelegungen."
+	}
+}
+
+func (b *LiveBackend) queueLoadoutWarnings(character string, runIDs []string) []string {
+	includesCow := false
+	for _, runID := range runIDs {
+		if runID == string(tasks.RunIDCows) {
+			includesCow = true
+			break
+		}
+	}
+	if !includesCow {
+		return nil
+	}
+	b.mu.RLock()
+	store := b.operatorSettings
+	b.mu.RUnlock()
+	if store == nil {
+		return nil
+	}
+	settings, err := store.Snapshot()
+	if err != nil {
+		return nil
+	}
+	value, ok := settings.Characters[strings.ToLower(strings.TrimSpace(character))]
+	if !ok || value.InventoryLock == nil {
+		return nil
+	}
+	if app.InventoryCowSuitable(value.InventoryLock.Grid) {
+		return nil
+	}
+	return []string{"inventory_layout_unsuitable_for_cows"}
 }
 
 type selectionPreviewRecord struct {
@@ -250,7 +317,11 @@ func (b *LiveBackend) UpdateSupervisor(supervisor app.SupervisorSnapshot) {
 		b.status.LastResult = &SessionResultDTO{Disposition: string(supervisor.LastResult.Disposition), Reason: supervisor.LastResult.Reason}
 	}
 	if supervisor.LastResult.Reason != "" && supervisor.State == app.SupervisorStateStoppedError {
-		b.status.LastError = &ErrorDTO{Code: "session_stopped", Message: supervisor.LastResult.Reason}
+		message := supervisor.LastResult.Reason
+		if detail := strings.TrimSpace(supervisor.LastResult.Detail); detail != "" {
+			message = detail
+		}
+		b.status.LastError = &ErrorDTO{Code: supervisor.LastResult.Reason, Message: message}
 	} else if b.status.LastError != nil && b.status.LastError.Code == "session_stopped" {
 		b.status.LastError = nil
 	}
@@ -426,9 +497,13 @@ func (b *LiveBackend) ValidateQueue(request QueueValidationRequest) (QueueValida
 		}
 		return QueueValidationDTO{}, err
 	}
+	if loadoutErr := b.evaluateQueueLoadout(plan.Character); loadoutErr != nil {
+		return QueueValidationDTO{}, loadoutErr
+	}
 	return QueueValidationDTO{
 		Entries: append([]string(nil), plan.RunIDs...), Character: plan.Character, Difficulty: plan.Difficulty,
 		CatalogRevision: plan.CatalogRevision, Budgets: queueBudgetsDTO(plan.Budgets),
+		Warnings: append([]string(nil), b.queueLoadoutWarnings(plan.Character, plan.RunIDs)...),
 	}, nil
 }
 
@@ -450,11 +525,42 @@ func (b *LiveBackend) Status() StatusDTO {
 	return status
 }
 
-// Catalog delegates to the immutable bootstrap catalog.
+// Catalog delegates to the bootstrap catalog and enriches farm-ready loadout readiness.
 func (b *LiveBackend) Catalog() CatalogDTO {
 	b.mu.RLock()
-	defer b.mu.RUnlock()
-	return cloneCatalogDTO(b.catalog)
+	catalog := cloneCatalogDTO(b.catalog)
+	store := b.operatorSettings
+	profiles := b.cfg.Profiles
+	b.mu.RUnlock()
+	return enrichCatalogFarmReady(catalog, store, profiles)
+}
+
+func enrichCatalogFarmReady(catalog CatalogDTO, store *app.OperatorSettingsStore, profiles config.ProfilesConfig) CatalogDTO {
+	var settings app.OperatorSettings
+	if store != nil {
+		if snapshot, err := store.Snapshot(); err == nil {
+			settings = snapshot
+		}
+	}
+	for i := range catalog.Characters {
+		catalog.Characters[i] = withFarmReady(catalog.Characters[i], settings, profiles)
+	}
+	return catalog
+}
+
+func withFarmReady(entry CharacterCatalogEntry, settings app.OperatorSettings, profiles config.ProfilesConfig) CharacterCatalogEntry {
+	entry.FarmReadyReasons = nil
+	entry.FarmReady = false
+	if !entry.Selectable {
+		return entry
+	}
+	reasons := app.EvaluateLoadoutReadiness(settings, entry.Name, profiles)
+	if len(reasons) > 0 {
+		entry.FarmReadyReasons = append([]string(nil), reasons...)
+		return entry
+	}
+	entry.FarmReady = true
+	return entry
 }
 
 // PreviewSelection computes and stores only an in-memory revision-bound confirmation capability.
@@ -720,13 +826,24 @@ func (b *LiveBackend) sessionCommand(name string, request CommandRequest) (Comma
 		if validateErr != nil {
 			return CommandResponse{}, mapQueueCommandError(validateErr)
 		}
+		if loadoutErr := b.evaluateQueueLoadout(plan.Character); loadoutErr != nil {
+			return CommandResponse{}, loadoutErr
+		}
 		if beforeWorker != nil {
 			if monitorErr := beforeWorker(); monitorErr != nil {
 				return CommandResponse{}, &commandError{code: "command_conflict", message: "Der passive Monitor konnte vor dem Queue-Start nicht beendet werden: " + monitorErr.Error()}
 			}
 		}
 		if beginQueue != nil {
-			beginQueue(app.CanAdoptQueueGame(app.SupervisorState(statusState), startRuntime))
+			if beginErr := beginQueue(app.CanAdoptQueueGame(app.SupervisorState(statusState), startRuntime)); beginErr != nil {
+				// Loadout readiness already passed; freeze/resolve failures must not be
+				// papered over as profile_bindings_incomplete.
+				return CommandResponse{}, &commandError{
+					code:    "command_conflict",
+					message: "Der Charakter-Loadout für die Queue konnte nicht eingefroren werden.",
+					details: map[string]any{"error": beginErr.Error()},
+				}
+			}
 		}
 		snapshot, err = supervisor.StartQueue(meta, plan)
 	case "pause_after_run":
@@ -864,7 +981,14 @@ func queueCommandError(queueErr *app.QueueValidationError) *commandError {
 	if queueErr.Code == app.QueueReasonDuplicateRun {
 		details["first_index"] = queueErr.FirstIndex
 	}
-	return &commandError{code: string(queueErr.Code), message: "Die Farm-Queue ist nicht verfügbar: " + queueErr.Error(), details: details}
+	message := "Die Farm-Queue ist nicht verfügbar: " + queueErr.Error()
+	if queueErr.Code == app.QueueReasonProfileBindingsIncomplete {
+		message = "Für dieses Kampfprofil fehlen Tastenbelegungen."
+	}
+	if queueErr.Code == app.QueueReasonCharacterInventoryUnconfigured {
+		message = "Der Inventarschutz wurde noch nicht bestätigt."
+	}
+	return &commandError{code: string(queueErr.Code), message: message, details: details}
 }
 
 func mapSupervisorCommandError(err error) error {
@@ -903,6 +1027,7 @@ func cloneCatalogDTO(source CatalogDTO) CatalogDTO {
 	catalog.Characters = append([]CharacterCatalogEntry(nil), source.Characters...)
 	for i := range catalog.Characters {
 		catalog.Characters[i].Reasons = append([]string(nil), catalog.Characters[i].Reasons...)
+		catalog.Characters[i].FarmReadyReasons = append([]string(nil), catalog.Characters[i].FarmReadyReasons...)
 	}
 	catalog.Difficulties = append([]DifficultyCatalogEntry(nil), source.Difficulties...)
 	catalog.Profiles = append([]ProfileCatalogEntry(nil), source.Profiles...)

@@ -26,7 +26,7 @@ func TestConsumeMercenaryPreflightSkipsOfflineGameStart(t *testing.T) {
 	rt := &Runtime{
 		Config: &config.Config{
 			Session:  config.SessionConfig{Run: "nihlathak"},
-			Runs:     config.RunsConfig{Definitions: map[string]config.RunConfig{"nihlathak": {Combat: config.CombatConfig{Profile: "necro_bone_spear"}}}},
+			Runs:     config.RunsConfig{Definitions: map[string]config.RunConfig{"nihlathak": {}}},
 			Profiles: config.ProfilesConfig{"necro_bone_spear": {Resources: config.ProfileResourcesConfig{}}},
 		},
 		Options:             Options{OfflineDifficulty: "hell"},
@@ -49,7 +49,7 @@ func TestConsumeMercenaryPreflightRequiresConfirmedTownIdentity(t *testing.T) {
 	rt := &Runtime{
 		Config: &config.Config{
 			Session:  config.SessionConfig{Run: "nihlathak"},
-			Runs:     config.RunsConfig{Definitions: map[string]config.RunConfig{"nihlathak": {Combat: config.CombatConfig{Profile: "necro_bone_spear"}}}},
+			Runs:     config.RunsConfig{Definitions: map[string]config.RunConfig{"nihlathak": {}}},
 			Profiles: config.ProfilesConfig{"necro_bone_spear": {Resources: config.ProfileResourcesConfig{}}},
 		},
 		runReadinessPending: true,
@@ -73,7 +73,7 @@ func TestConsumeMercenaryPreflightRecoversDeadHiredMercenary(t *testing.T) {
 	rt := &Runtime{
 		Config: &config.Config{
 			Session:  config.SessionConfig{Run: "nihlathak"},
-			Runs:     config.RunsConfig{Definitions: map[string]config.RunConfig{"nihlathak": {Combat: config.CombatConfig{Profile: "necro_bone_spear"}}}},
+			Runs:     config.RunsConfig{Definitions: map[string]config.RunConfig{"nihlathak": {}}},
 			Profiles: config.ProfilesConfig{"necro_bone_spear": {Resources: config.ProfileResourcesConfig{}}},
 		},
 		taskDeps: tasks.Deps{Town: townActions}, runReadinessPending: true, productiveRunActive: true,
@@ -97,7 +97,7 @@ func TestConsumeRunReadinessLeavesStandardRunWithLivingMercInputFree(t *testing.
 	rt := &Runtime{
 		Config: &config.Config{
 			Session:  config.SessionConfig{Run: "summoner"},
-			Runs:     config.RunsConfig{Definitions: map[string]config.RunConfig{"summoner": {Combat: config.CombatConfig{Profile: "necro_bone_spear"}}}},
+			Runs:     config.RunsConfig{Definitions: map[string]config.RunConfig{"summoner": {}}},
 			Profiles: config.ProfilesConfig{"necro_bone_spear": {Resources: config.ProfileResourcesConfig{}}},
 		},
 		runReadinessPending: true,

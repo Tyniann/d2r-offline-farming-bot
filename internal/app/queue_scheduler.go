@@ -27,8 +27,11 @@ const (
 	QueueReasonRunBudgetExhausted QueueReason = "run_budget_exhausted"
 	// QueueReasonDurationBudgetExhausted completes before another run would exceed `max_duration_ms`.
 	QueueReasonDurationBudgetExhausted QueueReason = "duration_budget_exhausted"
+	// QueueReasonProfileBindingsIncomplete rejects a queue when the active profile bindings are incomplete.
+	QueueReasonProfileBindingsIncomplete QueueReason = "profile_bindings_incomplete"
+	// QueueReasonCharacterInventoryUnconfigured rejects a queue when the character has no saved inventory lock.
+	QueueReasonCharacterInventoryUnconfigured QueueReason = "character_inventory_unconfigured"
 )
-
 // FarmQueueBudgets are immutable hard limits copied from YAML for one runtime queue.
 type FarmQueueBudgets struct {
 	MaxRuns                int

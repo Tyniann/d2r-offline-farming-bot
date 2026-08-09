@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/config"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/memory"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/pathing"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/profile"
@@ -16,66 +17,76 @@ import (
 )
 
 func TestProfileSelfCastUsesNeutralClientCenter(t *testing.T) {
-	in := &mockInput{bound: true}
-	adapter := &profileActionsAdapter{input: in, bindings: testBindings()}
-	player := world.Player{Position: world.Position{X: 100, Y: 200}}
+	in := &recordingCombatInput{}
+	bindings := testBindings()
+	combat := newCombatAdapter(config.NewLogger("error"), in, bindings, pathing.DefaultConfig(), time.Millisecond)
+	adapter := &profileActionsAdapter{input: in, bindings: bindings, combat: combat}
+	player := world.Player{Position: world.Position{X: 100, Y: 200}, RightSkillID: memory.SkillBoneArmor}
 	if err := adapter.CastSkillAtWorld(time.Now(), memory.SkillBoneArmor, player, player.Position); err != nil {
 		t.Fatal(err)
 	}
-	if in.lastClientX != 640 || in.lastClientY != 360 {
-		t.Fatalf("self cast coordinates=%d,%d", in.lastClientX, in.lastClientY)
+	if in.lastClientX != 640 || in.lastClientY != 360 || len(in.clickCalls) != 1 {
+		t.Fatalf("self cast coords=%d,%d clicks=%v", in.lastClientX, in.lastClientY, in.clickCalls)
 	}
 }
 
 func TestProfileCorpseCastRequiresFocusAndPlayableProjection(t *testing.T) {
-	player := world.Player{Position: world.Position{X: 100, Y: 100}}
+	player := world.Player{Position: world.Position{X: 100, Y: 100}, RightSkillID: memory.SkillCorpseExplosion}
 	target := world.Position{X: 101, Y: 101}
-	in := &mockInput{bound: true, focusErr: os.ErrPermission}
-	adapter := &profileActionsAdapter{input: in, bindings: testBindings(), projector: pathing.DefaultRelativeProjector()}
-	if err := adapter.CastSkillAtWorld(time.Now(), memory.SkillCorpseExplosion, player, target); err == nil || len(in.castSkillCalls) != 0 {
-		t.Fatalf("focus gate err=%v inputs=%v", err, in.castSkillCalls)
+	in := &recordingCombatInput{}
+	in.focusErr = os.ErrPermission
+	bindings := testBindings()
+	combat := newCombatAdapter(config.NewLogger("error"), in, bindings, pathing.DefaultConfig(), time.Millisecond)
+	adapter := &profileActionsAdapter{input: in, bindings: bindings, projector: pathing.DefaultRelativeProjector(), combat: combat}
+	if err := adapter.CastSkillAtWorld(time.Now(), memory.SkillCorpseExplosion, player, target); err == nil || len(in.clickCalls) != 0 {
+		t.Fatalf("focus gate err=%v clicks=%v", err, in.clickCalls)
 	}
 
 	in.focusErr = nil
 	farTarget := world.Position{X: 1000, Y: 1000}
-	if err := adapter.CastSkillAtWorld(time.Now(), memory.SkillCorpseExplosion, player, farTarget); !errors.Is(err, profile.ErrCorpseExplosionTargetUnprojectable) || len(in.castSkillCalls) != 0 {
-		t.Fatalf("projection gate err=%v inputs=%v", err, in.castSkillCalls)
+	if err := adapter.CastSkillAtWorld(time.Now(), memory.SkillCorpseExplosion, player, farTarget); !errors.Is(err, profile.ErrCorpseExplosionTargetUnprojectable) || len(in.clickCalls) != 0 {
+		t.Fatalf("projection gate err=%v clicks=%v", err, in.clickCalls)
 	}
 
 	if err := adapter.CastSkillAtWorld(time.Now(), memory.SkillCorpseExplosion, player, target); err != nil {
 		t.Fatal(err)
 	}
-	if len(in.castSkillCalls) != 1 || in.castSkillCalls[0] != memory.SkillCorpseExplosion || in.focusCalls != 3 {
-		t.Fatalf("inputs=%v focus_calls=%d", in.castSkillCalls, in.focusCalls)
+	if len(in.clickCalls) != 1 || in.focusCalls != 3 {
+		t.Fatalf("clicks=%v focus_calls=%d", in.clickCalls, in.focusCalls)
 	}
 }
 
 func TestProfileCastSkipsSelectionWhenRightSkillIsAlreadyActive(t *testing.T) {
-	in := &mockInput{bound: true}
-	adapter := &profileActionsAdapter{input: in, bindings: testBindings(), projector: pathing.DefaultRelativeProjector()}
+	in := &recordingCombatInput{}
+	bindings := testBindings()
+	combat := newCombatAdapter(config.NewLogger("error"), in, bindings, pathing.DefaultConfig(), time.Millisecond)
+	adapter := &profileActionsAdapter{input: in, bindings: bindings, projector: pathing.DefaultRelativeProjector(), combat: combat}
 	player := world.Player{Position: world.Position{X: 100, Y: 100}, RightSkillID: memory.SkillCorpseExplosion}
 	target := world.Position{X: 101, Y: 101}
 	if err := adapter.CastSkillAtWorld(time.Now(), memory.SkillCorpseExplosion, player, target); err != nil {
 		t.Fatal(err)
 	}
-	if len(in.castSkillCalls) != 0 || in.clickCalls != 1 {
-		t.Fatalf("skill selections=%v clicks=%d", in.castSkillCalls, in.clickCalls)
+	if in.selectCalls != 0 || len(in.clickCalls) != 1 {
+		t.Fatalf("selects=%d clicks=%v", in.selectCalls, in.clickCalls)
 	}
 }
 
 func TestProfileCastClearsStaleCombatSelection(t *testing.T) {
-	in := &mockInput{bound: true}
-	combat := &combatAdapter{pendingSkill: memory.SkillBoneSpear, pendingTargetUnitID: 77, hoverProbeAttempt: 3}
+	in := &recordingCombatInput{}
+	bindings := testBindings()
+	combat := newCombatAdapter(config.NewLogger("error"), in, bindings, pathing.DefaultConfig(), time.Millisecond)
+	_, _ = combat.selector.EnsureAndCast(memory.SkillBoneSpear, memory.SkillTeleport, time.Now(), func() error { return nil })
+	combat.pendingTargetUnitID = 77
+	combat.hoverProbeAttempt = 3
 	adapter := &profileActionsAdapter{
-		input: in, bindings: testBindings(), projector: pathing.DefaultRelativeProjector(), combat: combat,
+		input: in, bindings: bindings, projector: pathing.DefaultRelativeProjector(), combat: combat,
 	}
-	player := world.Player{Position: world.Position{X: 100, Y: 100}, RightSkillID: memory.SkillBoneSpear}
+	player := world.Player{Position: world.Position{X: 100, Y: 100}, RightSkillID: memory.SkillCorpseExplosion}
 	if err := adapter.CastSkillAtWorld(time.Now(), memory.SkillCorpseExplosion, player, world.Position{X: 101, Y: 101}); err != nil {
 		t.Fatal(err)
 	}
-	if len(in.castSkillCalls) != 1 || in.castSkillCalls[0] != memory.SkillCorpseExplosion ||
-		combat.pendingSkill != 0 || combat.pendingTargetUnitID != 0 || combat.hoverProbeAttempt != 0 {
-		t.Fatalf("profile casts=%v stale combat selection=%+v", in.castSkillCalls, combat)
+	if len(in.clickCalls) != 1 || combat.selector.pending != 0 || combat.pendingTargetUnitID != 0 || combat.hoverProbeAttempt != 0 {
+		t.Fatalf("clicks=%v pending=%d target=%d hover=%d", in.clickCalls, combat.selector.pending, combat.pendingTargetUnitID, combat.hoverProbeAttempt)
 	}
 }
 

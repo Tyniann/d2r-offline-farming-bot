@@ -11,21 +11,23 @@ Die Implementierung bleibt konservativ. Unklare Items bleiben im World Model sic
 - **Pakete:** `internal/config/`, `internal/memory/`, `internal/world/`, `internal/loot/`, `internal/app/`
 - **Einstieg:** `internal/app/run_tick.go` aktualisiert den World State; `Runtime.logWorldState` ergänzt verbose Inventory-Diagnostik
 - **Wichtige Dateien:** `internal/memory/items.go`, `internal/world/item.go`, `internal/loot/inventory.go`
-- **Config:** `configs/config.example.yaml` unter `loot.inventory_lock`
+- **Config:** OperatorSettings Schema 3 `characters.*.inventory_lock` (presence-sensitiv). Globales `loot.inventory_lock` ist entfernt.
 
 ## Funktionalität
 
 ### Inventory-Lock
 
-`loot.inventory_lock` ist optional. Fehlt der Key, materialisiert `config.Config` ein vollständig gelocktes Grid. Wenn der Key vorhanden ist, muss er exakt 4 Zeilen x 10 Spalten enthalten; erlaubt sind nur `0` und `1`.
+Ab Phase 21.4 ist das 4×10-Schutzraster charakterbezogen in OperatorSettings gespeichert. Fehlt der Block, ist der Charakter nicht farmbereit und die Runtime behandelt das Inventar effektiv als vollständig geschützt (null Lootkapazität). Ein explizit gespeichertes Raster mit vierzig Einsen ist valide und hebt nur den Readiness-Block auf.
 
 ```yaml
-loot:
-  inventory_lock:
-    - [1, 1, 1, 1, 0, 0, 0, 0, 0, 0]
-    - [1, 1, 1, 1, 0, 0, 0, 0, 0, 0]
-    - [1, 1, 1, 1, 0, 0, 0, 0, 0, 0]
-    - [1, 1, 1, 1, 0, 0, 0, 0, 0, 0]
+characters:
+  mrbones:
+    inventory_lock:
+      grid:
+        - [1, 1, 1, 1, 0, 0, 0, 0, 0, 0]
+        - [1, 1, 1, 1, 0, 0, 0, 0, 0, 0]
+        - [1, 1, 1, 1, 0, 0, 0, 0, 0, 0]
+        - [1, 1, 1, 1, 0, 0, 0, 0, 0, 0]
 ```
 
 Semantik:
@@ -33,6 +35,7 @@ Semantik:
 - `1` = geschützt, nicht benutzen
 - `0` = grundsätzlich für Loot verfügbar
 - `reserved` ist noch nicht implementiert
+- Statische Cow-Warnung prüft geschütztes 2×2 plus freien Platz für 1×3 und 1×2; sie blockiert Countess nicht.
 
 ### Memory- und World-Modell
 

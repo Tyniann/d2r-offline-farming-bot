@@ -15,6 +15,12 @@ type Player struct {
 	PrivateStashGoldKnown bool   // True only when the private-stash-gold stat was present.
 	LeftSkillID           uint16 // Currently selected left-mouse skill.
 	RightSkillID          uint16 // Currently selected right-mouse skill.
+	// SkillsKnown is a defensive copy of learned skill IDs from memory.
+	SkillsKnown map[uint16]bool
+	// SkillsComplete is true only when the skill linked list was fully walked.
+	SkillsComplete bool
+	// SkillsIncompleteReason explains why SkillsComplete is false.
+	SkillsIncompleteReason string
 }
 
 // HPPercent returns current HP as an integer percentage of MaxHP.

@@ -27,7 +27,7 @@ func newConfigBindingSource(cfg config.InputBindingsConfig) (configBindingSource
 	for rawName, binding := range cfg.Skills {
 		skillID, err := memory.ParseSkillTestName(rawName)
 		if err != nil {
-			return configBindingSource{}, fmt.Errorf("input.bindings.skills.%s: %w", rawName, err)
+			return configBindingSource{}, fmt.Errorf("bindings.skills.%s: %w", rawName, err)
 		}
 		out.skills[skillID] = input.SkillCast{
 			SkillID:    skillID,

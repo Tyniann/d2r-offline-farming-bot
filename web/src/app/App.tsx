@@ -16,6 +16,8 @@ import { clearOnboardingResume, readOnboardingResumeStep } from "../features/onb
 import { targetFromHash, type AppTarget } from "./navigation";
 import { Button, Dialog, PageHeader, StateMessage, StatusBadge } from "./ui";
 import { characterAvailabilityText } from "./characterReasons";
+import { CharacterSetupWizard } from "../features/characters/CharacterSetupWizard";
+import { farmReadyReasonText } from "../features/characters/characterReasonText";
 import { runAvailabilityText } from "./runReasons";
 import { runResultReasonText } from "./runResultReasons";
 
@@ -62,6 +64,7 @@ function CoreApp() {
   const [error, setError] = useState("");
   const [selectionError, setSelectionError] = useState("");
   const [queueError, setQueueError] = useState("");
+  const [queueWarning, setQueueWarning] = useState("");
   const [preview, setPreview] = useState<SelectionPreviewDTO | null>(null);
   const [confirmEmergency, setConfirmEmergency] = useState(false);
   const [routeRefreshKey, setRouteRefreshKey] = useState(0);
@@ -73,6 +76,7 @@ function CoreApp() {
   const [updateAvailable, setUpdateAvailable] = useState(false);
   const [settingsDirty, setSettingsDirty] = useState(false);
   const [pendingNav, setPendingNav] = useState<AppTarget | null>(null);
+  const [setupCharacter, setSetupCharacter] = useState("");
   const emergencyConfirmRef = useRef<HTMLButtonElement>(null);
   const contentRef = useRef<HTMLElement>(null);
   const settingsDirtyRef = useRef(false);
@@ -254,7 +258,11 @@ function CoreApp() {
     if (!status || !catalog || !status.selection.character || !status.selection.difficulty) return;
     const entries = status.queue.default_entries ?? [];
     await runCommand(async () => {
-      await validateQueue(entries, status.selection.character!, status.selection.difficulty!, catalog.revision);
+      setQueueWarning("");
+      const validation = await validateQueue(entries, status.selection.character!, status.selection.difficulty!, catalog.revision);
+      if ((validation.warnings ?? []).includes("inventory_layout_unsuitable_for_cows")) {
+        setQueueWarning("Inventarlayout für Cow-Runs ungeeignet. Countess und andere Runs bleiben möglich.");
+      }
       await startQueue(entries, status.selection.character!, status.selection.difficulty!, catalog.revision, status.generation);
     });
   };
@@ -264,7 +272,9 @@ function CoreApp() {
   const hasPendingIntent = !!status?.pending_intent && status.pending_intent !== "none";
   const compatibilityState = status?.compatibility?.state ?? "not_detected";
   const liveLocked = compatibilityState !== "compatible";
-  const queueStartLocked = !status || !editableStates.has(status.state) || commandPending || liveLocked;
+  const selectedCatalogEntry = catalog?.characters.find((entry) => entry.name === status?.selection.character);
+  const farmReadyBlocked = !!selectedCatalogEntry && selectedCatalogEntry.selectable && !selectedCatalogEntry.farm_ready;
+  const queueStartLocked = !status || !catalog || !editableStates.has(status.state) || commandPending || liveLocked || farmReadyBlocked;
   const effectiveSelectionLocked = selectionLocked || liveLocked || !status?.input.enabled || status.input.paused || status.input.stopped;
   const needsFirstRoute = !!catalog && catalog.runs.length > 0
     && !catalog.runs.some((run) => run.status === "available" || run.status === "runtime_validation_required");
@@ -328,13 +338,29 @@ function CoreApp() {
               <label>Schwierigkeit<select value={difficulty} onChange={(event) => setDifficulty(event.target.value)} disabled={effectiveSelectionLocked}>{catalog?.difficulties.map((entry) => <option key={entry.id} value={entry.id}>{entry.display_name}</option>)}</select></label>
               <button type="button" disabled={effectiveSelectionLocked || !character || (status?.state !== "idle" && status?.state !== "idle_in_game" && status?.state !== "stopped_error")} onClick={() => void submitSelection()}>{applying ? "Auswahl wird geprüft …" : "Auswahl in D2R anwenden"}</button>
             </div>
-            <ul className="character-list">{catalog?.characters.filter((entry) => !entry.selectable).map((entry) => <li key={entry.slug}><strong>{entry.name}</strong><span>{characterAvailabilityText(entry, catalog)}</span></li>)}</ul>
+            <ul className="character-list">{catalog?.characters.filter((entry) => !entry.selectable || !entry.farm_ready).map((entry) => {
+              const setupable = !(entry.reasons ?? []).includes("character_class_unsupported");
+              return <li key={entry.slug}>
+                <strong>{entry.name}</strong>
+                <span>{entry.selectable ? ((entry.farm_ready_reasons ?? []).map((reason) => farmReadyReasonText(reason)).join(" ") || "Noch nicht farmbereit") : characterAvailabilityText(entry, catalog)}</span>
+                {setupable && status && <Button variant="secondary" onClick={() => setSetupCharacter(entry.name)}>Charakter einrichten</Button>}
+              </li>;
+            })}</ul>
+            {setupCharacter && status && catalog && <CharacterSetupWizard
+              character={setupCharacter}
+              catalog={catalog}
+              status={status}
+              mode="dashboard"
+              onChanged={async () => { await refreshAfterCommand(); }}
+            />}
+            {farmReadyBlocked && <StateMessage kind="error" title="Charakter nicht farmbereit">{(selectedCatalogEntry?.farm_ready_reasons ?? []).map((reason) => farmReadyReasonText(reason)).join(" ") || "Öffne Einstellungen → Charaktere und speichere Tasten sowie Inventarschutz."}</StateMessage>}
           </section>
 
           <section>
             <div className="section-heading"><div><p className="eyebrow">Farming</p><h2>Run-Reihenfolge pro Spiel</h2></div></div>
             <p>Die Reihenfolge wird persistent pro Charakter gespeichert. Änderungen erfolgen zentral unter <a href="#settings">Einstellungen</a>.</p>
             {queueError && <p role="alert">{queueError}</p>}
+            {queueWarning && <StateMessage kind="error" title="Queue-Hinweis">{queueWarning}</StateMessage>}
             <div className="run-grid">{catalog?.runs.map((run) => {
               const availability = runAvailabilityText(run.status, run.reasons);
               return <article key={run.run_id}><strong>{run.display_name}</strong><span>{availability.title}</span><small>{availability.detail}</small></article>;
@@ -351,7 +377,7 @@ function CoreApp() {
         {target === "routes" && <><PageHeader eyebrow="Bibliothek" title="Routen" description="Geführte Aufnahme, isolierter Test und revisionsgebundene Veröffentlichung über den bestehenden Core." />{liveLocked && <StateMessage kind="error" title="Live-Routenaktionen sind gesperrt">Die Routenbibliothek bleibt read-only, bis D2R kompatibel bestätigt ist.</StateMessage>}<RouteFeature characters={catalog?.characters.map((entry) => entry.name) ?? []} selectedCharacter={status?.selection.character ?? character} refreshKey={routeRefreshKey} liveLocked={liveLocked} preferredRecordingRun={preferredRecordingRun} onReturnToOnboarding={routeOpenedFromOnboarding ? returnToOnboarding : undefined} /></>}
         {target === "pickit" && <><PageHeader eyebrow="Loot-Policy" title="Pickit" description="Profile, Regeln und Zuordnungen bleiben Core-validiert und gelten erst an einer sicheren Run-Grenze." /><PickitFeature characters={catalog?.characters.map((entry) => entry.name) ?? []} selectedCharacter={status?.selection.character ?? character} runs={catalog?.runs.map((entry) => entry.run_id) ?? []} locked={!!status && !editableStates.has(status.state)} refreshKey={pickitRefreshKey} /></>}
         {target === "history" && <><PageHeader eyebrow="Auswertung" title="Historie" description="Core-berechnete Runs, Itemertrag, Vergleiche und Exporte ohne UI-eigene Aggregation." /><HistoryFeature characters={catalog?.characters.map((entry) => entry.name) ?? []} runs={catalog?.runs.map((entry) => entry.run_id) ?? []} refreshKey={historyRefreshKey} /></>}
-        {target === "settings" && <><PageHeader eyebrow="System" title="Einstellungen" description="Bot-Verhalten, App-Verhalten und Wartung – getrennt nach Speicherziel." /><SettingsFeature generation={status?.generation ?? 0} coreState={status?.state ?? ""} characters={catalog?.characters.map((entry) => entry.name) ?? []} runs={catalog?.runs.map((entry) => ({ id: entry.run_id, label: entry.display_name, status: entry.status, reasons: entry.reasons, routeCombat: entry.route_combat })) ?? []} events={events} onOpenOnboarding={() => { setOnboardingStep(0); setOnboardingOpen(true); }} onSettingsApplied={() => { void refreshAfterCommand(); }} onDirtyChange={setSettingsDirty} /></>}
+        {target === "settings" && <><PageHeader eyebrow="System" title="Einstellungen" description="Bot-Verhalten, Charaktere, App und Wartung – getrennt nach Speicherziel." /><SettingsFeature generation={status?.generation ?? 0} coreState={status?.state ?? ""} status={status} characters={catalog?.characters.map((entry) => entry.slug) ?? []} catalog={catalog} runs={catalog?.runs.map((entry) => ({ id: entry.run_id, label: entry.display_name, status: entry.status, reasons: entry.reasons, routeCombat: entry.route_combat })) ?? []} events={events} onOpenOnboarding={() => { setOnboardingStep(0); setOnboardingOpen(true); }} onSettingsApplied={() => { void refreshAfterCommand(); }} onDirtyChange={setSettingsDirty} /></>}
         </>}
       </main>
 

@@ -195,7 +195,7 @@ Items read-only aus dem Speicher lesen und im Probe-/World-Log sichtbar machen. 
 
 ### 5.2 Inventory-Modell und Lock-Grid
 
-Umgesetzt als [Inventory Model und Lock Grid](inventory-lock-grid.md): persönliche Inventar-Items werden read-only modelliert, `loot.inventory_lock` schützt ein 4x10 Grid, und Pickup-Kapazität fällt bei unbekannten Größen, Out-of-bounds oder Überschneidung fail-closed auf `0`.
+Umgesetzt als [Inventory Model und Lock Grid](inventory-lock-grid.md): persönliche Inventar-Items werden read-only modelliert, der Charakter-Loadout schützt ein 4×10-Grid in OperatorSettings Schema 3, und Pickup-Kapazität fällt bei unbekannten Größen, Out-of-bounds oder Überschneidung fail-closed auf `0`.
 
 ### 5.3 Pickit-MVP
 

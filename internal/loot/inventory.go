@@ -75,6 +75,20 @@ func (l InventoryLock) LockedSlots() int {
 	return count
 }
 
+// Grid returns a defensive 4×10 int copy of the lock for adapters that still need cell values.
+func (l InventoryLock) Grid() [][]int {
+	grid := make([][]int, inventoryRows)
+	for row := 0; row < inventoryRows; row++ {
+		grid[row] = make([]int, inventoryCols)
+		for col := 0; col < inventoryCols; col++ {
+			if l.locked[row][col] {
+				grid[row][col] = 1
+			}
+		}
+	}
+	return grid
+}
+
 // InventoryGrid projects personal inventory items onto the lock grid.
 type InventoryGrid struct {
 	lock     InventoryLock

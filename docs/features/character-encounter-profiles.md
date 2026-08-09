@@ -91,12 +91,19 @@ combat_profiles:
 ```
 
 Fehlt `resources.mercenary`, gilt presence-sensitiv `enabled=true` mit Defaults 50/`[1]`/4000. Explizites `enabled:false` deaktiviert Combat- und spätere Town-Merc-Aktionen. Merc-Slots müssen eine Teilmenge von `healing.belt_slots` sein. `shift` ist feste D2R-Semantik und kein Config-Wert.
-Profile referenzieren Skill-Namen. Die tatsächlichen Tasten und Mausbuttons kommen ausschließlich aus `input.bindings.skills`.
+Profile referenzieren Skill-Namen. Produktive Tasten kommen aus OperatorSettings Schema 3 (`characters.*.profile_bindings` für das aktive Kampfprofil); `config.yaml` besitzt keinen Binding-Fallback. Phase 21 liefert den CASC-Skillkatalog, geordnete `required_skills`, die Strategy Registry und den Charaktere-Loadout-Vertrag.
+
 Fehlt `route_maintenance.bone_armor` bei einem bestehenden `necro_bone_spear`-Profil, ergänzt der Loader den dokumentierten aktiven Standard nur im Speicher. Ein ausdrücklich gespeichertes `enabled: false` bleibt deaktiviert; die lokale YAML wird nicht automatisch umgeschrieben.
 
 Abschnitt 16.2 ergänzt ausschließlich Setup-Metadaten am bestehenden Profil. `setup.enabled` ist die ausdrückliche Produktfreigabe; `setup.default` markiert den Entwickler-Default der Klasse. Ein freigegebenes Profil benötigt einen getrimmten, steuerzeichenfreien Anzeigenamen mit höchstens 64 Zeichen. Jede Klasse mit mindestens einem freigegebenen Profil besitzt exakt einen freigegebenen Default; Klassen ohne Freigabe bleiben valide und im Charakter-Setup nicht unterstützt. `necro_bone_spear` ist als „Knochen-Speer“ freigegeben und der einzige Necromancer-Default. Experimentelle, nicht freigegebene Profile bleiben außerhalb der Setup-Projektion.
 
-Beim Hinzufügen des ersten tatsächlich lauffähigen Profils einer neuen Klasse setzt der Entwickler daher direkt `setup.enabled: true` und `setup.default: true`. Weitere Profile derselben Klasse dürfen freigegeben werden, aber genau eines bleibt der feste Default. Diese Entscheidung spart eine separate Defaultkonfiguration und eine nutzerseitige Settings-Auswahl. Vor Selection, Queue-Start und jedem Run wird erneut geprüft, dass das gespeicherte Profil weiterhin freigegeben, klassenkompatibel und identisch mit dem vom Run verlangten `combat_profile` ist.
+Phase 21 ergänzt am freigegebenen Profil `combat.standard_attack`, Combat-Tuningwerte und eine geordnete `required_skills`-Liste. Teleport und Stadtportal sind Pflicht. Hook- und Maintenance-Skills müssen in derselben Liste stehen; jeder Eintrag wird gegen den generierten Skillkatalog geprüft. Die ausführbare Combat-Autorität pro Run ist die Code-`CombatStrategyRegistry` für `(profileID, runID)`; Run-YAML pinnen kein Profil mehr.
+
+### Modulregel für neue Profile
+
+Ein neues Kampfprofil darf runweise wachsen: ProfileConfig + Profilmodul + genau ein Registry-Eintrag reichen für den ersten Run. Jeder weitere Registry-Eintrag braucht Strategy-, Required-Skill- und Availability-Tests. Fehlende Factories bleiben fail-closed (`profile_run_strategy_unavailable`). Siehe auch [Character Loadouts](character-loadouts.md) und den Backlog-Eintrag „Multi-Profil-Erweiterungen“.
+
+Beim Hinzufügen des ersten tatsächlich lauffähigen Profils einer neuen Klasse setzt der Entwickler daher direkt `setup.enabled: true` und `setup.default: true`. Weitere Profile derselben Klasse dürfen freigegeben werden, aber genau eines bleibt der feste Default. Vor Selection, Queue-Start und jedem Run wird erneut geprüft, dass das gespeicherte Profil weiterhin freigegeben und klassenkompatibel ist.
 
 ## Operator und Sicherheit
 
@@ -135,4 +142,4 @@ Der erste E2E-Abnahmeversuch am 12.07.2026 bestätigte Potion-Cooldowns, Loot, S
 Der abschließende E2E-Lauf bestätigte Bone Armor sichtbar nach fünf Sekunden Town-Stabilisierung und 1,67 Sekunden Abstand bis Town-Walk. Bone Prison wurde sichtbar auf Countess Unit 225 ausgeführt; Bone Spear folgte nach 1,81 Sekunden. Der vollständige autonome Run einschließlich Potion-Policy, Loot, Stash und Save & Exit endete erfolgreich. Beim installierten Hell-Gate am 26.07.2026 benötigte die Boss-Erkennung nach Ende der Route nur 72 ms; der historische 750-ms-Vorlauf dominierte den verbleibenden Leerlauf. Er ist deshalb auf 250 ms reduziert. Der kurze Puffer schützt weiterhin den Übergang aus dem letzten Teleport. Die sichtbare Nachruhe vor Bone Spear wurde anschließend kontrolliert von 1,5 auf 1,0 Sekunden reduziert.
 
 ---
-*Zuletzt aktualisiert: 2026-08-09 (endliche Hover-Suche und kontrollierte Merc-Ressourcenerschöpfung)*
+*Zuletzt aktualisiert: 2026-08-09 (Phase 21.0: Skillkatalog und required_skills)*

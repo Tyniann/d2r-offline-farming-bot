@@ -15,10 +15,20 @@ type CharacterSetupPreviewRequest struct {
 
 // CharacterSetupProfileDTO beschreibt ein freigegebenes Profil.
 type CharacterSetupProfileDTO struct {
-	ID          string `json:"id"`
+	ID             string                            `json:"id"`
+	DisplayName    string                            `json:"display_name"`
+	IsDefault      bool                              `json:"is_default"`
+	IsSelected     bool                              `json:"is_selected"`
+	StandardAttack string                            `json:"standard_attack,omitempty"`
+	RequiredSkills []CharacterSetupRequiredSkillDTO  `json:"required_skills,omitempty"`
+	SupportedRuns  []string                          `json:"supported_runs,omitempty"`
+}
+
+// CharacterSetupRequiredSkillDTO is one ordered required skill for read-only Setup UI.
+type CharacterSetupRequiredSkillDTO struct {
+	Skill       string `json:"skill"`
+	SkillID     uint16 `json:"skill_id"`
 	DisplayName string `json:"display_name"`
-	IsDefault   bool   `json:"is_default"`
-	IsSelected  bool   `json:"is_selected"`
 }
 
 // CharacterSetupPickitDefaultDTO beschreibt eine feste lesbare Run-Kette.
@@ -76,7 +86,16 @@ type CharacterSelectionCaptureRequest struct {
 func characterSetupPreviewDTO(value app.CharacterSetupPreview) CharacterSetupPreviewDTO {
 	profiles := make([]CharacterSetupProfileDTO, len(value.Profiles))
 	for index, profile := range value.Profiles {
-		profiles[index] = CharacterSetupProfileDTO(profile)
+		skills := make([]CharacterSetupRequiredSkillDTO, len(profile.RequiredSkills))
+		for skillIndex, skill := range profile.RequiredSkills {
+			skills[skillIndex] = CharacterSetupRequiredSkillDTO{
+				Skill: skill.Skill, SkillID: skill.SkillID, DisplayName: skill.DisplayName,
+			}
+		}
+		profiles[index] = CharacterSetupProfileDTO{
+			ID: profile.ID, DisplayName: profile.DisplayName, IsDefault: profile.IsDefault, IsSelected: profile.IsSelected,
+			StandardAttack: profile.StandardAttack, RequiredSkills: skills, SupportedRuns: append([]string(nil), profile.SupportedRuns...),
+		}
 	}
 	defaults := make([]CharacterSetupPickitDefaultDTO, len(value.PickitDefaults))
 	for index, item := range value.PickitDefaults {

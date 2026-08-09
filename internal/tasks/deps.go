@@ -175,8 +175,8 @@ type CombatActions interface {
 	// StopAttack releases any stateful attack input before combat stops or repositions.
 	StopAttack() error
 	// TeleportToward moves toward targetPos while trying to preserve desiredDistanceTiles.
-	// The boolean reports whether this call actually sent input; throttled calls return false.
-	TeleportToward(now time.Time, playerPos, targetPos world.Position, desiredDistanceTiles float64) (bool, error)
+	// The boolean reports whether this call actually sent input; throttled or skill-select calls return false.
+	TeleportToward(now time.Time, player world.Player, targetPos world.Position, desiredDistanceTiles float64) (bool, error)
 	// ForceMoveToward uses the configured Force-Move key at targetPos and lets
 	// D2R pathfind one bounded approach step without consuming Route.Tick.
 	ForceMoveToward(now time.Time, playerPos, targetPos world.Position) (bool, error)
@@ -189,7 +189,8 @@ type RunActions interface {
 	// CastBelt uses the configured belt hotkey for slot.
 	CastBelt(slot int) error
 	// CastTownPortal casts Town Portal at the player-centered window position.
-	CastTownPortal() error
+	// Selection waits for RightSkillID confirmation before the RMB click.
+	CastTownPortal(now time.Time, player world.Player) error
 }
 
 // LootActions exposes the stateful loot pickup loop used by run pipelines.

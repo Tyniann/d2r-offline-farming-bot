@@ -60,5 +60,17 @@ func cloneState(s State) State {
 	s.Monsters = slices.Clone(s.Monsters)
 	s.CowCorpses = slices.Clone(s.CowCorpses)
 	s.Items = slices.Clone(s.Items)
+	s.Player.SkillsKnown = cloneSkillKnown(s.Player.SkillsKnown)
 	return s
+}
+
+func cloneSkillKnown(known map[uint16]bool) map[uint16]bool {
+	if known == nil {
+		return nil
+	}
+	out := make(map[uint16]bool, len(known))
+	for id, ok := range known {
+		out[id] = ok
+	}
+	return out
 }

@@ -2,7 +2,7 @@ package api
 
 import "github.com/Tyniann/d2r-offline-farming-bot/internal/app"
 
-// OperatorSettingsDTO projiziert den vollständigen Core-eigenen Schema-2-Stand.
+// OperatorSettingsDTO projiziert den vollständigen Core-eigenen Schema-3-Stand.
 type OperatorSettingsDTO struct {
 	SchemaVersion int                                     `json:"schema_version"`
 	Revision      uint64                                  `json:"revision"`
@@ -13,12 +13,33 @@ type OperatorSettingsDTO struct {
 	History       OperatorHistorySettingsDTO              `json:"history"`
 }
 
-// OperatorCharacterSettingsDTO enthält read-only Setupwerte sowie charakterbezogene Queue und Difficulty.
+// OperatorCharacterSettingsDTO enthält Setupwerte, Queue, Difficulty sowie optionale Bindings und Inventar.
 type OperatorCharacterSettingsDTO struct {
-	CharacterClass string   `json:"character_class,omitempty"`
-	CombatProfile  string   `json:"combat_profile,omitempty"`
-	LastDifficulty string   `json:"last_difficulty"`
-	Queue          []string `json:"queue"`
+	CharacterClass  string                                     `json:"character_class,omitempty"`
+	CombatProfile   string                                     `json:"combat_profile,omitempty"`
+	LastDifficulty  string                                     `json:"last_difficulty"`
+	Queue           []string                                   `json:"queue"`
+	ProfileBindings map[string]OperatorProfileBindingsDTO      `json:"profile_bindings,omitempty"`
+	InventoryLock   *OperatorInventoryLockDTO                  `json:"inventory_lock"`
+}
+
+// OperatorProfileBindingsDTO speichert Skill-F-Tasten und Gürtelbelegung eines Kampfprofils.
+type OperatorProfileBindingsDTO struct {
+	Skills map[string]string       `json:"skills,omitempty"`
+	Belt   OperatorBeltBindingsDTO `json:"belt,omitempty"`
+}
+
+// OperatorBeltBindingsDTO speichert optionale Gürteltasten.
+type OperatorBeltBindingsDTO struct {
+	Slot1 string `json:"slot_1,omitempty"`
+	Slot2 string `json:"slot_2,omitempty"`
+	Slot3 string `json:"slot_3,omitempty"`
+	Slot4 string `json:"slot_4,omitempty"`
+}
+
+// OperatorInventoryLockDTO ist presence-sensitiv; null = unkonfiguriert.
+type OperatorInventoryLockDTO struct {
+	Grid [][]int `json:"grid"`
 }
 
 // OperatorBudgetSettingsDTO enthält globale endliche Queuebudgets.
@@ -70,10 +91,7 @@ type OperatorSettingsChangeDTO struct {
 func operatorSettingsDTO(settings app.OperatorSettings) OperatorSettingsDTO {
 	characters := make(map[string]OperatorCharacterSettingsDTO, len(settings.Characters))
 	for character, value := range settings.Characters {
-		characters[character] = OperatorCharacterSettingsDTO{
-			CharacterClass: value.CharacterClass, CombatProfile: value.CombatProfile,
-			LastDifficulty: value.LastDifficulty, Queue: append([]string(nil), value.Queue...),
-		}
+		characters[character] = operatorCharacterSettingsDTO(value)
 	}
 	return OperatorSettingsDTO{
 		SchemaVersion: settings.SchemaVersion, Revision: settings.Revision, LastCharacter: settings.LastCharacter, Characters: characters,
@@ -81,18 +99,74 @@ func operatorSettingsDTO(settings app.OperatorSettings) OperatorSettingsDTO {
 	}
 }
 
+func operatorCharacterSettingsDTO(value app.OperatorCharacterSettings) OperatorCharacterSettingsDTO {
+	dto := OperatorCharacterSettingsDTO{
+		CharacterClass: value.CharacterClass, CombatProfile: value.CombatProfile,
+		LastDifficulty: value.LastDifficulty, Queue: append([]string(nil), value.Queue...),
+	}
+	if value.ProfileBindings != nil {
+		dto.ProfileBindings = make(map[string]OperatorProfileBindingsDTO, len(value.ProfileBindings))
+		for profileID, bindings := range value.ProfileBindings {
+			cloned := OperatorProfileBindingsDTO{Belt: OperatorBeltBindingsDTO(bindings.Belt)}
+			if bindings.Skills != nil {
+				cloned.Skills = make(map[string]string, len(bindings.Skills))
+				for skill, key := range bindings.Skills {
+					cloned.Skills[skill] = key
+				}
+			}
+			dto.ProfileBindings[profileID] = cloned
+		}
+	}
+	if value.InventoryLock != nil {
+		dto.InventoryLock = &OperatorInventoryLockDTO{Grid: cloneIntGrid(value.InventoryLock.Grid)}
+	}
+	return dto
+}
+
 func operatorSettingsFromDTO(settings OperatorSettingsDTO) app.OperatorSettings {
 	characters := make(map[string]app.OperatorCharacterSettings, len(settings.Characters))
 	for character, value := range settings.Characters {
-		characters[character] = app.OperatorCharacterSettings{
-			CharacterClass: value.CharacterClass, CombatProfile: value.CombatProfile,
-			LastDifficulty: value.LastDifficulty, Queue: append([]string(nil), value.Queue...),
-		}
+		characters[character] = operatorCharacterSettingsFromDTO(value)
 	}
 	return app.OperatorSettings{
 		SchemaVersion: settings.SchemaVersion, Revision: settings.Revision, LastCharacter: settings.LastCharacter, Characters: characters,
 		Budgets: app.OperatorBudgetSettings(settings.Budgets), Input: app.OperatorInputSettings(settings.Input), History: app.OperatorHistorySettings(settings.History),
 	}
+}
+
+func operatorCharacterSettingsFromDTO(value OperatorCharacterSettingsDTO) app.OperatorCharacterSettings {
+	settings := app.OperatorCharacterSettings{
+		CharacterClass: value.CharacterClass, CombatProfile: value.CombatProfile,
+		LastDifficulty: value.LastDifficulty, Queue: append([]string(nil), value.Queue...),
+	}
+	if value.ProfileBindings != nil {
+		settings.ProfileBindings = make(map[string]app.OperatorProfileBindings, len(value.ProfileBindings))
+		for profileID, bindings := range value.ProfileBindings {
+			cloned := app.OperatorProfileBindings{Belt: app.OperatorBeltBindings(bindings.Belt)}
+			if bindings.Skills != nil {
+				cloned.Skills = make(map[string]string, len(bindings.Skills))
+				for skill, key := range bindings.Skills {
+					cloned.Skills[skill] = key
+				}
+			}
+			settings.ProfileBindings[profileID] = cloned
+		}
+	}
+	if value.InventoryLock != nil {
+		settings.InventoryLock = &app.OperatorInventoryLock{Grid: cloneIntGrid(value.InventoryLock.Grid)}
+	}
+	return settings
+}
+
+func cloneIntGrid(grid [][]int) [][]int {
+	if grid == nil {
+		return nil
+	}
+	clone := make([][]int, len(grid))
+	for row, values := range grid {
+		clone[row] = append([]int(nil), values...)
+	}
+	return clone
 }
 
 func operatorSettingsChangeDTO(change app.OperatorSettingsChange, generation uint64) OperatorSettingsChangeDTO {

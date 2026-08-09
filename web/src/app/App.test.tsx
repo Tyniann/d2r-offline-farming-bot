@@ -20,6 +20,7 @@ vi.mock("../features/onboarding/OnboardingFeature", () => ({ OnboardingFeature: 
 vi.mock("../features/pickit/PickitFeature", () => ({ PickitFeature: () => <section><h2>Pickit-Funktion</h2></section> }));
 vi.mock("../features/history/HistoryFeature", () => ({ HistoryFeature: () => <section><h2>Historie</h2></section> }));
 vi.mock("../features/settings/SettingsFeature", () => ({ SettingsFeature: () => <section><h2>Settings-Funktion</h2></section> }));
+vi.mock("../features/characters/CharacterSetupWizard", () => ({ CharacterSetupWizard: () => <section><h2>Charakter-Setup</h2></section> }));
 
 const queue = { entries: ["countess", "mephisto"], default_entries: ["countess", "mephisto"], index: 0, cycle: 0, retry: 0, started_runs: 0, consecutive_failures: 0, total_restarts: 0, budgets: { max_runs: 4, max_duration_ms: 60000, max_consecutive_failures: 2, max_total_restarts: 2 } };
 const compatible = { state: "compatible", supported_version: "3.2.92777", expected_version: "3.2.92777", offset_version: "3.2.92777", actual_version: "3.2.92777", privilege_mismatch: false };
@@ -171,7 +172,7 @@ describe("App", () => {
   });
 
   it("zeigt gesperrte Charaktere und sendet nur eine freigegebene Auswahl", async () => {
-    mocks.getCatalog.mockResolvedValue({ schema_version: 1, revision: 3, default_difficulty: "nightmare", profiles: [{ id: "necro_bone_spear", character_class: "necromancer" }], runs: [], difficulties: [{ id: "nightmare", display_name: "Alptraum" }], characters: [{ name: "MrBones", slug: "mrbones", selectable: true }, { name: "MrHammer", slug: "mrhammer", selectable: false, reasons: ["character_class_unsupported", "character_anchor_missing"] }] });
+    mocks.getCatalog.mockResolvedValue({ schema_version: 1, revision: 3, default_difficulty: "nightmare", profiles: [{ id: "necro_bone_spear", character_class: "necromancer" }], runs: [], difficulties: [{ id: "nightmare", display_name: "Alptraum" }], characters: [{ name: "MrBones", slug: "mrbones", selectable: true, farm_ready: true }, { name: "MrHammer", slug: "mrhammer", selectable: false, reasons: ["character_class_unsupported", "character_anchor_missing"] }] });
     mocks.applySelection.mockResolvedValue(undefined);
     mocks.previewSelection.mockResolvedValue({ schema_version: 1, character: "MrBones", new_difficulty: "nightmare", affected_routes: [], requires_confirmation: false, confirmation_token: "safe-preview", catalog_revision: 3, lifecycle_revision: 1 });
     mocks.getStatus.mockResolvedValue(detached);
@@ -182,7 +183,7 @@ describe("App", () => {
   });
 
   it("fordert vor einer Routen-Invalidierung eine explizite Bestätigung", async () => {
-    mocks.getCatalog.mockResolvedValue({ schema_version: 1, revision: 4, default_difficulty: "nightmare", profiles: [], runs: [], difficulties: [{ id: "nightmare", display_name: "Alptraum" }, { id: "hell", display_name: "Hölle" }], characters: [{ name: "MrBones", slug: "mrbones", selectable: true }] });
+    mocks.getCatalog.mockResolvedValue({ schema_version: 1, revision: 4, default_difficulty: "nightmare", profiles: [], runs: [], difficulties: [{ id: "nightmare", display_name: "Alptraum" }, { id: "hell", display_name: "Hölle" }], characters: [{ name: "MrBones", slug: "mrbones", selectable: true, farm_ready: true }] });
     mocks.getStatus.mockResolvedValue({ ...detached, selection: { character: "MrBones", difficulty: "nightmare" } });
     mocks.previewSelection.mockResolvedValue({ schema_version: 1, character: "MrBones", old_difficulty: "nightmare", new_difficulty: "hell", affected_routes: ["countess.yaml", "mephisto.yaml"], invalidation_reason: "difficulty_changed", requires_confirmation: true, confirmation_token: "impact-preview", catalog_revision: 4, lifecycle_revision: 7 });
     mocks.applySelection.mockResolvedValue(undefined);
@@ -198,11 +199,13 @@ describe("App", () => {
   });
 
   it("behält einen Selection-Fehler trotz folgendem Live-Refresh sichtbar", async () => {
-    mocks.getCatalog.mockResolvedValue({ schema_version: 1, revision: 1, default_difficulty: "nightmare", profiles: [], runs: [], difficulties: [{ id: "nightmare", display_name: "Alptraum" }], characters: [{ name: "MrBones", slug: "mrbones", selectable: true }] });
+    mocks.getCatalog.mockResolvedValue({ schema_version: 1, revision: 1, default_difficulty: "nightmare", profiles: [], runs: [], difficulties: [{ id: "nightmare", display_name: "Alptraum" }], characters: [{ name: "MrBones", slug: "mrbones", selectable: true, farm_ready: true }] });
     mocks.previewSelection.mockRejectedValue(new Error("Character-Screen nicht bestätigt"));
     mocks.getStatus.mockResolvedValue(detached);
     render(<App />);
-    fireEvent.click(await screen.findByRole("button", { name: "Auswahl in D2R anwenden" }));
+    const apply = await screen.findByRole("button", { name: "Auswahl in D2R anwenden" });
+    await waitFor(() => expect(apply).toBeEnabled());
+    fireEvent.click(apply);
     await waitFor(() => expect(mocks.previewSelection).toHaveBeenCalledOnce());
     expect(await screen.findByText("Character-Screen nicht bestätigt", {}, { timeout: 10_000 })).toBeInTheDocument();
     const onEvent = mocks.connect.mock.calls[0][1] as (event: unknown) => void;
@@ -212,19 +215,48 @@ describe("App", () => {
 
   it("startet die persistente Charakter-Queue nach vollständigem Preflight genau einmal", async () => {
     const ready = { ...detached, state: "idle_in_game", generation: 5, selection: { character: "MrBones", difficulty: "nightmare" } };
-    mocks.getCatalog.mockResolvedValue({ schema_version: 1, revision: 9, default_difficulty: "nightmare", profiles: [], characters: [], difficulties: [], runs: [{ run_id: "countess", display_name: "Countess", status: "runtime_validation_required" }, { run_id: "mephisto", display_name: "Mephisto", status: "runtime_validation_required" }] });
+    mocks.getCatalog.mockResolvedValue({ schema_version: 1, revision: 9, default_difficulty: "nightmare", profiles: [], characters: [{ name: "MrBones", slug: "mrbones", selectable: true, farm_ready: true }], difficulties: [], runs: [{ run_id: "countess", display_name: "Countess", status: "runtime_validation_required" }, { run_id: "mephisto", display_name: "Mephisto", status: "runtime_validation_required" }] });
     mocks.getStatus.mockReset().mockResolvedValue(ready);
     mocks.validateQueue.mockResolvedValue({ entries: [], budgets: {} });
     mocks.startQueue.mockResolvedValue({ state: "starting_run", generation: 6 });
     render(<App />);
     expect(await screen.findByRole("heading", { name: "Konfigurierte Queue" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Queue in Einstellungen ändern" })).toHaveAttribute("href", "#settings");
-    const start = screen.getByRole("button", { name: "Queue prüfen und starten" });
+    const start = await screen.findByRole("button", { name: "Queue prüfen und starten" });
+    await waitFor(() => expect(start).toBeEnabled());
     fireEvent.click(start);
     fireEvent.click(start);
     await waitFor(() => expect(mocks.validateQueue).toHaveBeenCalledOnce());
     expect(mocks.validateQueue).toHaveBeenCalledWith(["countess", "mephisto"], "MrBones", "nightmare", 9);
     await waitFor(() => expect(mocks.startQueue).toHaveBeenCalledOnce());
+  });
+
+  it("sperrt den Queue-Start bei fehlender Loadout-Farm-Readiness", async () => {
+    mocks.getCatalog.mockResolvedValue({
+      schema_version: 1,
+      revision: 9,
+      default_difficulty: "nightmare",
+      profiles: [],
+      characters: [{
+        name: "MrBones",
+        slug: "mrbones",
+        selectable: true,
+        farm_ready: false,
+        farm_ready_reasons: ["profile_bindings_incomplete"],
+      }],
+      difficulties: [],
+      runs: [{ run_id: "countess", display_name: "Countess", status: "runtime_validation_required" }],
+    });
+    mocks.getStatus.mockReset().mockResolvedValue({
+      ...detached,
+      selection: { character: "MrBones", difficulty: "nightmare" },
+    });
+
+    render(<App />);
+    const start = await screen.findByRole("button", { name: "Queue prüfen und starten" });
+    await waitFor(() => expect(start).toBeDisabled());
+    expect(screen.getByText("Charakter nicht farmbereit")).toBeInTheDocument();
+    expect(mocks.validateQueue).not.toHaveBeenCalled();
   });
 
   it("zeigt die persistente Queue read-only in ihrer gespeicherten Reihenfolge", async () => {

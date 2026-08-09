@@ -8,6 +8,7 @@ import (
 
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/input"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/pathing"
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/profile"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/tasks"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/town"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/world"
@@ -112,7 +113,10 @@ func (d *runtimeCandidatePlaybackDriver) EnsureTown(ctx context.Context, act tow
 				return fmt.Errorf("town portal actions not wired")
 			}
 			d.rt.taskDeps.Portal.Reset()
-			if err := d.rt.taskDeps.Actions.CastTownPortal(); err != nil {
+			if err := d.rt.taskDeps.Actions.CastTownPortal(time.Now(), current.Player); err != nil {
+				if errors.Is(err, profile.ErrSkillSelectionPending) {
+					continue
+				}
 				return err
 			}
 			cast = true

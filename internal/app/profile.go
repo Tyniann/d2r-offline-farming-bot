@@ -3,6 +3,7 @@ package app
 import (
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/config"
@@ -55,7 +56,7 @@ func (a *profileTelemetryAdapter) EmitProfile(event profile.Event) error {
 		Confirmed: event.Confirmed, MercUnitID: event.MercUnitID})
 }
 
-func (a *profileActionsAdapter) CastSkillAtWorld(_ time.Time, skillID uint16, player world.Player, targetPos world.Position) error {
+func (a *profileActionsAdapter) CastSkillAtWorld(now time.Time, skillID uint16, player world.Player, targetPos world.Position) error {
 	if err := a.input.Focus(); err != nil {
 		return fmt.Errorf("profile skill focus: %w", err)
 	}
@@ -74,19 +75,37 @@ func (a *profileActionsAdapter) CastSkillAtWorld(_ time.Time, skillID uint16, pl
 			return fmt.Errorf("profile skill projection failed")
 		}
 	}
-	if player.RightSkillID == skillID {
-		if err := a.input.MoveTo(x, y); err != nil {
-			return fmt.Errorf("profile aim selected skill %s(%d): %w", memory.SkillName(skillID), skillID, err)
-		}
-		if err := a.input.Click(input.MouseRight); err != nil {
-			return fmt.Errorf("profile cast selected skill %s(%d): %w", memory.SkillName(skillID), skillID, err)
-		}
-		return a.clearCombatSelection()
+	selector := a.combatSelector()
+	if selector == nil {
+		return fmt.Errorf("profile skill selector not wired")
 	}
-	if err := a.input.CastSkillAt(a.bindings, skillID, x, y); err != nil {
-		return fmt.Errorf("profile cast %s(%d): %w", memory.SkillName(skillID), skillID, err)
+	combatInput, ok := a.input.(verifiedCombatInput)
+	if !ok {
+		return fmt.Errorf("profile verified input not wired")
+	}
+	sent, err := selector.EnsureAndCast(skillID, player.RightSkillID, now, func() error {
+		if moveErr := a.input.MoveTo(x, y); moveErr != nil {
+			return fmt.Errorf("profile aim selected skill %s(%d): %w", memory.SkillName(skillID), skillID, moveErr)
+		}
+		if clickErr := combatInput.Click(input.MouseRight); clickErr != nil {
+			return fmt.Errorf("profile cast selected skill %s(%d): %w", memory.SkillName(skillID), skillID, clickErr)
+		}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	if !sent {
+		return profile.ErrSkillSelectionPending
 	}
 	return a.clearCombatSelection()
+}
+
+func (a *profileActionsAdapter) combatSelector() *RightSkillSelector {
+	if a == nil || a.combat == nil {
+		return nil
+	}
+	return a.combat.selector
 }
 
 // clearCombatSelection invalidates pending monster aim/skill confirmation
@@ -115,9 +134,15 @@ func (a *profileActionsAdapter) CastBeltForMercenary(slot int) error {
 	return nil
 }
 
-func newProfileExecutor(log *slog.Logger, profiles config.ProfilesConfig, run config.RunConfig, in inputController, bindings configBindingSource, pathCfg pathing.Config, combat *combatAdapter, trace *profileTelemetryAdapter) (*profile.Executor, error) {
-	id := run.Combat.Profile
-	definition, err := mapProfileDefinition(id, profiles[id])
+func newProfileExecutor(log *slog.Logger, profiles config.ProfilesConfig, profileID string, runID string, registry *CombatStrategyRegistry, in inputController, bindings configBindingSource, pathCfg pathing.Config, combat *combatAdapter, trace *profileTelemetryAdapter) (*profile.Executor, error) {
+	if strings.TrimSpace(profileID) == "" {
+		return nil, fmt.Errorf("combat profile id is required")
+	}
+	profileCfg, ok := profiles[profileID]
+	if !ok {
+		return nil, fmt.Errorf("combat_profiles.%s is required", profileID)
+	}
+	definition, err := mapProfileDefinition(profileID, profileCfg)
 	if err != nil {
 		return nil, err
 	}
@@ -127,24 +152,24 @@ func newProfileExecutor(log *slog.Logger, profiles config.ProfilesConfig, run co
 		return nil, err
 	}
 	executor.SetTelemetry(trace)
-	if id == "necro_bone_spear" {
-		if configureErr := executor.ConfigureCorpseExplosion(memory.SkillCorpseExplosion); configureErr != nil {
-			return nil, configureErr
-		}
+	if registry == nil {
+		return executor, nil
 	}
-	if run.RouteCombat.EnabledValue() || id == "necro_bone_spear" {
-		attackSkillID, parseErr := memory.ParseSkillTestName(run.Combat.AttackSkill)
-		if parseErr != nil {
-			return nil, fmt.Errorf("profile route clear attack skill: %w", parseErr)
-		}
-		if configureErr := executor.ConfigureRouteClear(
-			profile.RouteClearSingleTarget,
-			memory.SkillAmplifyDamage,
-			attackSkillID,
-			combat,
-		); configureErr != nil {
-			return nil, configureErr
-		}
+	factory, ok := registry.Resolve(profileID, runID)
+	if !ok {
+		return nil, fmt.Errorf("%s: profile %q run %q", ReasonProfileRunStrategyUnavailable, profileID, runID)
+	}
+	strategy := factory()
+	standardAttackID, parseErr := memory.ParseSkillTestName(profileCfg.Combat.StandardAttack)
+	if parseErr != nil {
+		return nil, fmt.Errorf("profile %q standard attack: %w", profileID, parseErr)
+	}
+	var routeClear profile.RouteCombatActions
+	if _, needsClear := strategy.(profile.SupportsRouteClear); needsClear {
+		routeClear = combat
+	}
+	if configureErr := strategy.Configure(executor, standardAttackID, routeClear); configureErr != nil {
+		return nil, configureErr
 	}
 	return executor, nil
 }

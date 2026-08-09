@@ -17,7 +17,7 @@ export function SettingsActionBar({
 }) {
   if (collapsed) {
     return <div className={`settings-actionbar${dirty ? " dirty" : ""}`} role="status">
-      <div><strong>Ungespeicherte Farming-Änderungen</strong><p>{summary}</p></div>
+      <div><strong>Ungespeicherte Einstellungsänderungen</strong><p>{summary}</p></div>
       {onShowFarming && <Button variant="secondary" onClick={onShowFarming}>Ansehen</Button>}
     </div>;
   }

@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/app"
-	"github.com/Tyniann/d2r-offline-farming-bot/internal/config"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/pathing"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/tasks"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/telemetry"
@@ -93,8 +92,7 @@ func (b *LiveBackend) recordingPrerequisites(definition tasks.RunDefinition, con
 	b.mu.RLock()
 	character := b.status.Selection.Character
 	b.mu.RUnlock()
-	teleport := configuredSkillBinding(b.cfg.Input.Bindings, "teleport", true)
-	townPortal := configuredSkillBinding(b.cfg.Input.Bindings, "town_portal", true)
+	teleport, townPortal := b.characterSkillBindingsReady(character)
 	pickitReady := false
 	if character != "" {
 		_, pickitErr := b.pickitAssignments.Resolve(character, definition.ID)
@@ -112,6 +110,41 @@ func (b *LiveBackend) recordingPrerequisites(definition tasks.RunDefinition, con
 	return result
 }
 
+// characterSkillBindingsReady reports whether Teleport and Town Portal F-keys exist
+// on the selected character's active combat profile in OperatorSettings Schema 3.
+func (b *LiveBackend) characterSkillBindingsReady(character string) (teleport, townPortal bool) {
+	character = strings.TrimSpace(character)
+	if character == "" || b.operatorSettings == nil {
+		return false, false
+	}
+	settings, err := b.operatorSettings.Snapshot()
+	if err != nil {
+		return false, false
+	}
+	entry, ok := settings.Characters[strings.ToLower(character)]
+	if !ok {
+		return false, false
+	}
+	profileID := strings.TrimSpace(entry.CombatProfile)
+	if profileID == "" {
+		return false, false
+	}
+	bindings, ok := entry.ProfileBindings[profileID]
+	if !ok {
+		return false, false
+	}
+	return operatorSkillKeyBound(bindings, "teleport"), operatorSkillKeyBound(bindings, "town_portal")
+}
+
+func operatorSkillKeyBound(bindings app.OperatorProfileBindings, name string) bool {
+	for candidate, key := range bindings.Skills {
+		if strings.EqualFold(strings.TrimSpace(candidate), name) {
+			return strings.TrimSpace(key) != ""
+		}
+	}
+	return false
+}
+
 func recordingOperatorHints(role pathing.RouteRole) []string {
 	switch role {
 	case pathing.RouteRoleLegAcquisition:
@@ -121,15 +154,6 @@ func recordingOperatorHints(role pathing.RouteRole) []string {
 	default:
 		return nil
 	}
-}
-
-func configuredSkillBinding(bindings config.InputBindingsConfig, name string, requireRight bool) bool {
-	for candidate, binding := range bindings.Skills {
-		if strings.EqualFold(strings.TrimSpace(candidate), name) {
-			return strings.TrimSpace(binding.Key) != "" && (!requireRight || strings.EqualFold(strings.TrimSpace(binding.Button), "right"))
-		}
-	}
-	return false
 }
 
 func prerequisiteReason(ready bool, reason string) string {

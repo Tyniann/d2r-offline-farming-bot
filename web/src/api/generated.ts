@@ -77,11 +77,20 @@ export interface CharacterSetupCharacterDTO {
   class_display_name: string;
 }
 
+export interface CharacterSetupRequiredSkillDTO {
+  skill: string;
+  skill_id: number;
+  display_name: string;
+}
+
 export interface CharacterSetupProfileDTO {
   id: string;
   display_name: string;
   is_default: boolean;
   is_selected: boolean;
+  standard_attack?: string;
+  required_skills?: Array<CharacterSetupRequiredSkillDTO>;
+  supported_runs?: Array<string>;
 }
 
 export interface CharacterSetupPickitDefaultDTO {
@@ -129,6 +138,24 @@ export interface OperatorCharacterSettingsDTO {
   combat_profile?: string;
   last_difficulty: "normal" | "nightmare" | "hell";
   queue: Array<string>;
+  profile_bindings?: Record<string, OperatorProfileBindingsDTO>;
+  inventory_lock?: OperatorInventoryLockDTO | null;
+}
+
+export interface OperatorProfileBindingsDTO {
+  skills?: Record<string, string>;
+  belt?: OperatorBeltBindingsDTO;
+}
+
+export interface OperatorBeltBindingsDTO {
+  slot_1?: string;
+  slot_2?: string;
+  slot_3?: string;
+  slot_4?: string;
+}
+
+export interface OperatorInventoryLockDTO {
+  grid: Array<Array<0 | 1>>;
 }
 
 export interface OperatorBudgetSettingsDTO {
@@ -238,6 +265,8 @@ export interface CharacterCatalogEntry {
   expected_class?: string;
   selectable: boolean;
   reasons?: Array<string>;
+  farm_ready: boolean;
+  farm_ready_reasons?: Array<string>;
 }
 
 export interface DifficultyCatalogEntry {
@@ -317,6 +346,7 @@ export interface QueueValidationDTO {
   difficulty: string;
   catalog_revision: number;
   budgets: QueueBudgetsDTO;
+  warnings?: Array<string>;
 }
 
 export interface SessionStartPayload {

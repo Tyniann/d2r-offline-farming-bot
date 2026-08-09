@@ -10,6 +10,8 @@ describe("runResultReasonText", () => {
     expect(runResultReasonText("cow_belt_layout_unseeded")).toContain("Gürtelspalten");
     expect(runResultReasonText("mercenary_died_during_run")).toContain("Angriff wurde gestoppt");
     expect(runResultReasonText("combat_resource_exhausted")).toContain("Trank ist aufgebraucht");
+    expect(runResultReasonText("profile_required_skills_missing")).toContain("Pflichtskills");
+    expect(runResultReasonText("profile_skills_read_unavailable")).toContain("nicht sicher geprüft");
   });
 
   it("lässt unbekannte Gründe unverändert", () => {

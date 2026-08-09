@@ -169,10 +169,10 @@ runs:
 - D2R windowed 1280×720
 - Charakter steht in `Rogue Encampment`, entweder nahe Waypoint oder am Spawn-/Stash-Bereich
 - Force Move ist in D2R auf `pathing.town_walk.force_move_key` gebunden (Default `e`)
-- Teleport ist in `input.bindings.skills.teleport` konfiguriert; das bleibt in 5.6 ein globaler Runtime-Precheck für aktive Input-Runs, auch wenn eine isolierte Phase fachlich keinen Teleport nutzt
-- Für `--run countess`: `input.bindings.skills.bone_spear`, `input.bindings.skills.town_portal`, `input.bindings.belt.slot_1` und `input.bindings.belt.slot_4` sind konfiguriert
-- Für `boss`: `input.bindings.skills.bone_spear` ist konfiguriert; die Phase castet kein Portal
-- Für `loot-and-return`: `input.bindings.skills.teleport`, `input.bindings.skills.town_portal`, `input.bindings.belt.slot_1` und `input.bindings.belt.slot_4` sind konfiguriert; Bone Spear ist nicht erforderlich
+- Teleport ist im Charakter-Loadout gebunden; das bleibt ein globaler Runtime-Precheck für aktive Input-Runs, auch wenn eine isolierte Phase fachlich keinen Teleport nutzt
+- Für `--run countess`: Loadout enthält Bone Spear, Town Portal sowie Belt-Slots 1 und 4
+- Für `boss`: Loadout enthält Bone Spear; die Phase castet kein Portal
+- Für `loot-and-return`: Loadout enthält Teleport, Town Portal sowie Belt-Slots 1 und 4; Bone Spear ist nicht erforderlich
 - Black-Marsh-Waypoint ist für Charakter und Schwierigkeit freigeschaltet
 
 ## Manuelle Validierung

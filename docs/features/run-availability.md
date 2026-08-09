@@ -27,9 +27,9 @@ Der read-only Availability-Resolver bewertet alle registrierten Farmziele determ
 
 ### Prüfkontext
 
-`RunAvailabilityContext` kann Character, Character-Class, das charakterbezogen gespeicherte Combat-Profil, Difficulty, Game-Version, Map-Seed und Layout-Fingerprint enthalten. Leere Live-Felder werden nie geraten. Im Desktoppfad muss das Profil mit dem von der Run-Definition verlangten Profil übereinstimmen; andernfalls liefert der Resolver `character_profile_run_incompatible`. Die CLI übernimmt Character und Difficulty aus `session` sowie die Game-Version aus `memory` und behält ohne OperatorSettings bewusst den bisherigen configgebundenen Profilpfad.
+`RunAvailabilityContext` kann Character, Character-Class, das charakterbezogen gespeicherte Combat-Profil, Difficulty, Game-Version, Map-Seed und Layout-Fingerprint enthalten. Leere Live-Felder werden nie geraten. Fehlt für das aktive Profil eine Strategy zum Run, liefert der Resolver `profile_run_strategy_unavailable`. Klassenmismatch bleibt `profile_class_mismatch`. Die CLI übernimmt Character und Difficulty aus `session` sowie die Game-Version aus `memory`; ohne OperatorSettings fällt das Combat-Profil auf den einzelnen freigegebenen Klassendefault zurück.
 
-Ein passender expliziter Map-Seed und Fingerprint machen Countess `available`. Abweichende statische Route-Metadaten liefern `route_binding_mismatch`, ein abweichender Live-Fingerprint `route_layout_mismatch`.
+Ein passender expliziter Map-Seed und Fingerprint machen Countess `available`. Abweichende statische Route-Metadaten liefern `route_binding_mismatch`, ein abweichender Live-Fingerprint `route_layout_mismatch`. Legacy-Route-`profile_id` wird für Availability ignoriert.
 
 ### Session-Preflight
 

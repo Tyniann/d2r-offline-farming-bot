@@ -65,6 +65,9 @@ type SupervisorRunRequest struct {
 type SupervisorRunResult struct {
 	Disposition QueueRunDisposition
 	Reason      string
+	// Detail carries an optional operator-facing German explanation for terminal
+	// reasons such as missing required skills. Reason stays the stable machine code.
+	Detail string
 	// SafeToExit confirms that the run reached the verified Town boundary where
 	// the supervisor may execute an orderly Save & Exit.
 	SafeToExit bool

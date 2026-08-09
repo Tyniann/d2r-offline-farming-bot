@@ -12,7 +12,7 @@ afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
 it("verwendet für Settings nur bei Update und Reset den Control-Token", async () => {
   const settings: OperatorSettingsDTO = {
-    schema_version: 2,
+    schema_version: 3,
     revision: 1,
     characters: { mrbones: { character_class: "necromancer", combat_profile: "necro_bone_spear", last_difficulty: "nightmare", queue: ["countess", "mephisto"] } },
     budgets: { max_runs: 3, max_duration_ms: 7_200_000, max_consecutive_failures: 2, max_total_restarts: 3 },

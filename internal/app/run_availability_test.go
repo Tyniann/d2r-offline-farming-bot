@@ -94,8 +94,9 @@ func TestResolveRunAvailabilitiesCountessAvailableWithLiveFingerprint(t *testing
 
 func TestCowAvailabilityRequiresBothCompatiblePublishedRoles(t *testing.T) {
 	cfg := managementTestConfig(t)
-	cfg.Runs.Definitions = map[string]config.RunConfig{"cows": {Combat: config.CombatConfig{Profile: "necro_bone_spear"}}}
+	cfg.Runs.Definitions = map[string]config.RunConfig{"cows": {}}
 	cfg.Profiles = config.ProfilesConfig{"necro_bone_spear": {CharacterClass: "necromancer"}}
+	cfg.Profiles.ApplyDefaults()
 	leg := freezeCowManagementCandidate(t, cfg, pathing.RouteRoleLegAcquisition)
 	sweep := freezeCowManagementCandidate(t, cfg, pathing.RouteRoleCowSweep)
 	service, serviceErr := NewRouteManagementService(cfg, RouteManagementHooks{})
@@ -146,7 +147,7 @@ func TestResolveRunAvailabilitiesUsesStableMismatchReasons(t *testing.T) {
 	}
 }
 
-func TestResolveRunAvailabilitiesRejectsRunProfileDifferentFromConfirmedCharacterProfile(t *testing.T) {
+func TestResolveRunAvailabilitiesRejectsUnsupportedCharacterProfileStrategy(t *testing.T) {
 	cfg := availabilityConfig(t)
 	report, err := ResolveRunAvailabilities(cfg, RunAvailabilityContext{
 		Character: "MrBones", CharacterClass: "necromancer", CombatProfile: "another_necro_profile",
@@ -156,7 +157,7 @@ func TestResolveRunAvailabilitiesRejectsRunProfileDifferentFromConfirmedCharacte
 		t.Fatal(err)
 	}
 	countess, _ := findRunAvailability(report.Runs, tasks.RunIDCountess)
-	if !containsRunReason(countess.Reasons, tasks.RunReasonCharacterProfileRunIncompatible) {
+	if !containsRunReason(countess.Reasons, tasks.RunReasonProfileRunStrategyUnavailable) {
 		t.Fatalf("Countess reasons = %v", countess.Reasons)
 	}
 }

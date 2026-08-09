@@ -42,6 +42,8 @@ func (r *recordingCombatInput) Click(button input.MouseButton) error {
 
 func (r *recordingCombatInput) MoveTo(clientX, clientY int) error {
 	r.moveCalls++
+	r.lastClientX = clientX
+	r.lastClientY = clientY
 	return r.mockInput.MoveTo(clientX, clientY)
 }
 
@@ -85,6 +87,7 @@ func TestCombatAdapterFailsWhenRightSkillSelectionIsNotConfirmed(t *testing.T) {
 		memory.SkillBoneSpear: {SkillID: memory.SkillBoneSpear, SelectKey: "f8", CastButton: input.MouseRight},
 	}}
 	adapter := newCombatAdapter(config.NewLogger("error"), in, bindings, pathing.DefaultConfig(), 350*time.Millisecond)
+	adapter.selector.timeout = 300 * time.Millisecond
 	player := world.Player{Position: world.Position{X: 100, Y: 100}, LeftSkillID: memory.SkillBoneSpear, RightSkillID: memory.SkillBonePrison}
 	now := time.Now()
 	if sent, err := adapter.CastAttackAtWorld(now, memory.SkillBoneSpear, player, world.Position{X: 105, Y: 100}); err != nil || sent {
@@ -240,12 +243,12 @@ func TestCombatAdapterTeleportTowardKeepsDesiredDistance(t *testing.T) {
 		memory.SkillTeleport: {SkillID: memory.SkillTeleport, SelectKey: "f7", CastButton: input.MouseRight},
 	}}
 	adapter := newCombatAdapter(config.NewLogger("error"), in, bindings, pathing.DefaultConfig(), time.Millisecond)
-	sent, err := adapter.TeleportToward(time.Now(), world.Position{X: 100, Y: 100}, world.Position{X: 200, Y: 100}, 22)
+	sent, err := adapter.TeleportToward(time.Now(), world.Player{Position: world.Position{X: 100, Y: 100}, RightSkillID: memory.SkillTeleport}, world.Position{X: 200, Y: 100}, 22)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !sent || in.castCalls != 1 || in.lastSkill != memory.SkillTeleport {
-		t.Fatalf("sent=%t castCalls=%d lastSkill=%d, want teleport cast", sent, in.castCalls, in.lastSkill)
+	if !sent || in.moveCalls != 1 || len(in.clickCalls) != 1 || in.selectCalls != 0 {
+		t.Fatalf("sent=%t moves=%d clicks=%v selects=%d, want confirmed teleport click without F-key", sent, in.moveCalls, in.clickCalls, in.selectCalls)
 	}
 }
 
@@ -256,13 +259,33 @@ func TestCombatAdapterReportsThrottledTeleportWithoutInput(t *testing.T) {
 	}}
 	adapter := newCombatAdapter(config.NewLogger("error"), in, bindings, pathing.DefaultConfig(), time.Second)
 	now := time.Now()
-	sent, err := adapter.TeleportToward(now, world.Position{X: 100, Y: 100}, world.Position{X: 120, Y: 100}, 0)
+	player := world.Player{Position: world.Position{X: 100, Y: 100}, RightSkillID: memory.SkillTeleport}
+	sent, err := adapter.TeleportToward(now, player, world.Position{X: 120, Y: 100}, 0)
 	if err != nil || !sent {
 		t.Fatalf("first teleport sent=%t err=%v", sent, err)
 	}
-	sent, err = adapter.TeleportToward(now.Add(100*time.Millisecond), world.Position{X: 100, Y: 100}, world.Position{X: 120, Y: 100}, 0)
-	if err != nil || sent || in.castCalls != 1 {
-		t.Fatalf("throttled teleport sent=%t err=%v casts=%d, want no second input", sent, err, in.castCalls)
+	sent, err = adapter.TeleportToward(now.Add(100*time.Millisecond), player, world.Position{X: 120, Y: 100}, 0)
+	if err != nil || sent || in.moveCalls != 1 || len(in.clickCalls) != 1 {
+		t.Fatalf("throttled teleport sent=%t err=%v moves=%d clicks=%v, want no second input", sent, err, in.moveCalls, in.clickCalls)
+	}
+}
+
+func TestCombatAdapterTeleportSelectsBeforeClick(t *testing.T) {
+	in := &recordingCombatInput{}
+	bindings := configBindingSource{skills: map[uint16]input.SkillCast{
+		memory.SkillTeleport: {SkillID: memory.SkillTeleport, SelectKey: "f7", CastButton: input.MouseRight},
+	}}
+	adapter := newCombatAdapter(config.NewLogger("error"), in, bindings, pathing.DefaultConfig(), time.Millisecond)
+	now := time.Now()
+	player := world.Player{Position: world.Position{X: 100, Y: 100}, RightSkillID: memory.SkillBoneSpear}
+	sent, err := adapter.TeleportToward(now, player, world.Position{X: 140, Y: 100}, 0)
+	if err != nil || sent || in.selectCalls != 1 || len(in.clickCalls) != 0 {
+		t.Fatalf("select phase sent=%t err=%v selects=%d clicks=%v", sent, err, in.selectCalls, in.clickCalls)
+	}
+	player.RightSkillID = memory.SkillTeleport
+	sent, err = adapter.TeleportToward(now.Add(time.Millisecond), player, world.Position{X: 140, Y: 100}, 0)
+	if err != nil || !sent || len(in.clickCalls) != 1 || in.selectCalls != 1 {
+		t.Fatalf("confirm phase sent=%t err=%v selects=%d clicks=%v", sent, err, in.selectCalls, in.clickCalls)
 	}
 }
 
@@ -283,10 +306,16 @@ func TestCombatAdapterForceMovesWithConfiguredTownBinding(t *testing.T) {
 
 func TestCombatAdapterResetClearsPendingSelection(t *testing.T) {
 	in := &recordingCombatInput{}
-	adapter := newCombatAdapter(config.NewLogger("error"), in, configBindingSource{}, pathing.DefaultConfig(), time.Millisecond)
-	adapter.pendingSkill = memory.SkillBoneSpear
+	bindings := configBindingSource{skills: map[uint16]input.SkillCast{
+		memory.SkillBoneSpear: {SkillID: memory.SkillBoneSpear, SelectKey: "f8", CastButton: input.MouseRight},
+	}}
+	adapter := newCombatAdapter(config.NewLogger("error"), in, bindings, pathing.DefaultConfig(), time.Millisecond)
+	_, _ = adapter.selector.EnsureAndCast(memory.SkillBoneSpear, memory.SkillTeleport, time.Now(), func() error { return nil })
+	if adapter.selector.pending == 0 {
+		t.Fatal("expected pending selection before reset")
+	}
 	adapter.Reset()
-	if adapter.pendingSkill != 0 {
-		t.Fatalf("pendingSkill=%d, want reset", adapter.pendingSkill)
+	if adapter.selector.pending != 0 {
+		t.Fatalf("pending=%d, want reset", adapter.selector.pending)
 	}
 }

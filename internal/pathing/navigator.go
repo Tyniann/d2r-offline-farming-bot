@@ -82,6 +82,14 @@ func NewNavigator(log *slog.Logger, deps Deps) *Navigator {
 	return n
 }
 
+// SetRightSkillClicker installs confirmed RMB casting for productive teleports.
+func (n *Navigator) SetRightSkillClicker(clicker RightSkillClicker) {
+	if n == nil || n.mover == nil {
+		return
+	}
+	n.mover.SetRightSkillClicker(clicker)
+}
+
 // Ready reports whether input and bindings are wired for movement.
 func (n *Navigator) Ready() bool {
 	return n.wired
@@ -309,8 +317,10 @@ func (n *Navigator) tickMoveToArea(now time.Time, state world.State) NavTickResu
 	if !n.mover.Ready(now) {
 		return NavTickResult{Status: n.status}
 	}
-	if _, _, err := n.mover.TeleportTo(now, state.Player.Position, plan.Target); err != nil {
-		n.log.Debug("pathing nav teleport blocked", "error", err)
+	if _, _, err := n.mover.TeleportTo(now, state.Player, plan.Target); err != nil {
+		if !errors.Is(err, ErrTeleportSelectionPending) {
+			n.log.Debug("pathing nav teleport blocked", "error", err)
+		}
 		return NavTickResult{Status: n.status}
 	}
 	n.lastCast.pos = state.Player.Position
@@ -344,8 +354,10 @@ func (n *Navigator) tickMoveToPosition(now time.Time, state world.State) NavTick
 		return NavTickResult{Status: n.status}
 	}
 	target := stepToward(state.Player.Position, n.goal.TargetPos, n.deps.Config.Explore.StepDistanceTiles)
-	if _, _, err := n.mover.TeleportTo(now, state.Player.Position, target); err != nil {
-		n.log.Debug("pathing nav teleport blocked", "error", err)
+	if _, _, err := n.mover.TeleportTo(now, state.Player, target); err != nil {
+		if !errors.Is(err, ErrTeleportSelectionPending) {
+			n.log.Debug("pathing nav teleport blocked", "error", err)
+		}
 		return NavTickResult{Status: n.status}
 	}
 	n.logNavTick(state, "direct", 0)

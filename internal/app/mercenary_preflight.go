@@ -41,13 +41,16 @@ func (rt *Runtime) consumeRunReadiness(ctx context.Context, state world.State) (
 		rt.runReadinessPending = false
 		return true, nil
 	}
-	runCfg, ok := rt.Config.Runs.Run(runID)
-	if !ok {
+	if _, ok := rt.Config.Runs.Run(runID); !ok {
 		return false, fmt.Errorf("mercenary preflight: run %q unavailable", runID)
 	}
-	profileCfg, ok := rt.Config.Profiles[runCfg.Combat.Profile]
+	profileID, err := rt.resolvedCombatProfileID()
+	if err != nil {
+		return false, fmt.Errorf("mercenary preflight: %w", err)
+	}
+	profileCfg, ok := rt.Config.Profiles[profileID]
 	if !ok {
-		return false, fmt.Errorf("mercenary preflight: profile %q unavailable", runCfg.Combat.Profile)
+		return false, fmt.Errorf("mercenary preflight: profile %q unavailable", profileID)
 	}
 	enabled, rule := profileCfg.Resources.Mercenary.Resolve()
 	reason := town.EvaluateMercenaryPreflight(town.MercenaryPolicy{

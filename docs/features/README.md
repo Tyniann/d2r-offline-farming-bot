@@ -28,6 +28,7 @@ Spätere Ideen (noch nicht umgesetzt): [`docs/backlog.md`](../backlog.md).
 | [Summoner-Run](summoner-run.md) | Key of Hate: Arcane Sanctuary, leere Engage-Sequenz, Post-Boss-Cleanup, Act-2-Egress, Pickit `[gems, keys]`; Live-Gate bestanden |
 | [Nihlathak-Run](nihlathak-run.md) | Key of Destruction: Halls of Pain → Vaught, Halls-Warps 76–78, Act-5-Egress, Pickit `[gems, keys]`; Live-Gate bestanden |
 | [Character- und Encounter-Profile](character-encounter-profiles.md) | Klassenbegrenzte Lifecycle-Hooks, Resource Policy und entwicklerverwaltete Phase-16-Setup-Freigabe samt Default |
+| [Character Loadouts](character-loadouts.md) | Phase 21: Skillkatalog, Strategy Registry, SkillsKnown, Schema-3-Bindings, Inventarschutz, Setup-Wizard |
 | [Mercenary Support](mercenary-support.md) | Phase 18: fail-closed Merc-State, Combat-Heal, Akara-Heal, Kashya-Revive und `waypoint-kashya` |
 | [Route-Threat-Combat](route-threat-combat.md) | Gemeinsames Summoner-/Cow-Route-Hold mit stationärem Profil-Clear, Coverage, Ressourcen, Recovery-Guard und Cow-CE-Strategie |
 | [Cow Level / Moo Moo Farm](cow-level-run.md) | Phase 20.0–20.6: CASC-/Leichen-Grundlagen, zwei Routenrollen, Setup, Cow-Portal-Rezept, Cow-Hold-Sweep und gemeinsamer Town-Handoff |
@@ -116,3 +117,4 @@ Spätere Ideen (noch nicht umgesetzt): [`docs/backlog.md`](../backlog.md).
 | [Phase-16-Core-Vertrag](phase-16-core-contract.md) | Abschnitt 16.0: D2S-v105-Präfix, Klassenmapping einschließlich Warlock, Charakter-Setup-Ownership, Reason-Codes, Defaults und Nicht-Ziele |
 | [Phase-17-Core-Vertrag](phase-17-core-contract.md) | Abschnitt 17.0: Summoner-Baseline, RouteProgress, Threat-/Coverage-Zustände, Ressourcenkontext, Watchdogs, Reasons, Ownership und Nicht-Ziele |
 | [Phase-18-Core-Vertrag](phase-18-core-contract.md) | Abschnitt 18.0: Hireling-IDs aus lokaler `hireling.txt`, read-only Merc-Diagnose, Evidenzregeln und manuelles Gate vor jedem Merc-Input |
+| [Phase-21-Core-Vertrag](phase-21-core-contract.md) | Abschnitte 21.0–21.6: Skillkatalog, Strategy Registry, SkillsKnown, Schema-3-Loadouts, Wizard und Config-Abschluss |

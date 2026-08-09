@@ -72,6 +72,8 @@ const messages: Record<string, string> = {
   cow_belt_layout_unseeded: "Für den Cow-Run fehlen korrekt belegte Heil- oder Manatrank-Gürtelspalten.",
   mercenary_died_during_run: "Der Söldner ist gestorben. Der Angriff wurde gestoppt und der Versuch wird nach sicherer Rückkehr neu gestartet.",
   combat_resource_exhausted: "Ein benötigter Trank ist aufgebraucht. Der Angriff wurde gestoppt und der Versuch wird kontrolliert beendet.",
+  profile_required_skills_missing: "Dem Charakter fehlen Pflichtskills für das Kampfprofil. Die Queue wurde beendet.",
+  profile_skills_read_unavailable: "Die Fähigkeiten des Charakters konnten nicht sicher geprüft werden. Die Queue wurde beendet.",
 };
 
 /** runResultReasonText translates stable Core reasons into concise operator help. */

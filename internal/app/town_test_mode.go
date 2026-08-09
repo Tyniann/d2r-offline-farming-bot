@@ -82,8 +82,8 @@ func (rt *Runtime) runAkaraShopTownTest() error {
 	ticker := time.NewTicker(time.Duration(rt.Config.Runtime.PollIntervalMs) * time.Millisecond)
 	defer ticker.Stop()
 	state := &runState{}
-	if err := rt.waitPathingTestReady(ctx, state, hotkeys, ticker, time.Now().Add(rt.attachTimeoutOrDefault(60*time.Second)), cancel, true); err != nil {
-		return err
+	if readyErr := rt.waitPathingTestReady(ctx, state, hotkeys, ticker, time.Now().Add(rt.attachTimeoutOrDefault(60*time.Second)), cancel, true); readyErr != nil {
+		return readyErr
 	}
 	if ctx.Err() != nil || rt.Input.Status().Stopped {
 		return nil
@@ -113,8 +113,11 @@ func (rt *Runtime) runAkaraShopTownTest() error {
 	purchaseSettleUntil := time.Time{}
 	escapeSent := false
 	deadline := time.Now().Add(townTestTimeout)
-	runCfg, _ := rt.Config.Runs.Run(string(tasks.RunIDCountess))
-	rt.Log.Info("town Akara acceptance started", "profile", runCfg.Combat.Profile, "bulk_items", labels)
+	profileID, err := rt.resolvedCombatProfileID()
+	if err != nil {
+		return err
+	}
+	rt.Log.Info("town Akara acceptance started", "profile", profileID, "bulk_items", labels)
 	for time.Now().Before(deadline) {
 		current, stop, tickErr := rt.pathingTestTick(ctx, state, hotkeys, ticker, cancel)
 		if tickErr != nil {
@@ -203,7 +206,7 @@ func (rt *Runtime) runItemServicesTownTest() error {
 		return fmt.Errorf("town item-service test: Mephisto pickit assignment unavailable: %w", err)
 	}
 	pickup := effective.All
-	lock, err := loot.NewInventoryLock(rt.Config.Loot.InventoryLock)
+	lock, err := loot.NewInventoryLock(rt.Loot.InventoryLock().Grid())
 	if err != nil {
 		return fmt.Errorf("town item-service test inventory lock: %w", err)
 	}
@@ -236,8 +239,8 @@ func (rt *Runtime) runItemServicesTownTest() error {
 	ticker := time.NewTicker(time.Duration(rt.Config.Runtime.PollIntervalMs) * time.Millisecond)
 	defer ticker.Stop()
 	state := &runState{}
-	if err := rt.waitPathingTestReady(ctx, state, hotkeys, ticker, time.Now().Add(rt.attachTimeoutOrDefault(60*time.Second)), cancel, true); err != nil {
-		return err
+	if readyErr := rt.waitPathingTestReady(ctx, state, hotkeys, ticker, time.Now().Add(rt.attachTimeoutOrDefault(60*time.Second)), cancel, true); readyErr != nil {
+		return readyErr
 	}
 	initial := rt.World.Current()
 	orders, reason := adapter.planItemServiceOrders(initial)
@@ -310,11 +313,14 @@ func validateAkaraBulkProfile(cfg *config.Config) error {
 	if cfg == nil {
 		return fmt.Errorf("town test: config unavailable")
 	}
-	runCfg, configured := cfg.Runs.Run(string(tasks.RunIDCountess))
-	if !configured {
+	if _, configured := cfg.Runs.Run(string(tasks.RunIDCountess)); !configured {
 		return fmt.Errorf("town test: Countess run config unavailable")
 	}
-	profileCfg, ok := cfg.Profiles[runCfg.Combat.Profile]
+	profileID, err := resolveActiveCombatProfileID(cfg, nil, cfg.Session.Character)
+	if err != nil {
+		return fmt.Errorf("town test: %w", err)
+	}
+	profileCfg, ok := cfg.Profiles[profileID]
 	if !ok {
 		return fmt.Errorf("town test: active combat profile unavailable")
 	}
@@ -388,8 +394,8 @@ func (rt *Runtime) runMercenaryTownServiceTest(service town.Service, anchor town
 	ticker := time.NewTicker(time.Duration(rt.Config.Runtime.PollIntervalMs) * time.Millisecond)
 	defer ticker.Stop()
 	state := &runState{}
-	if err := rt.waitPathingTestReady(ctx, state, hotkeys, ticker, time.Now().Add(rt.attachTimeoutOrDefault(60*time.Second)), cancel, true); err != nil {
-		return err
+	if readyErr := rt.waitPathingTestReady(ctx, state, hotkeys, ticker, time.Now().Add(rt.attachTimeoutOrDefault(60*time.Second)), cancel, true); readyErr != nil {
+		return readyErr
 	}
 	deadline := time.Now().Add(townTestTimeout)
 	rt.Log.Info("town mercenary acceptance started", "spec", label, "npc_id", npcID, "anchor", anchor)

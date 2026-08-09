@@ -1,87 +1,536 @@
 <!doctype html>
 <html lang="de">
+
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Phase 21 – Detaillierter Umsetzungsplan</title>
   <style>
-    :root{--bg:#090b0d;--panel:#15191d;--panel2:#1d242a;--text:#f2f4f5;--muted:#b9c1c7;--line:#39434b;--accent:#d49a47;--accent2:#8bb9d6;--good:#69d59f;--warn:#f0c96a;--bad:#f06d78;--code:#080a0c}
-    *{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at 88% 0,#3b2913 0,transparent 28%),linear-gradient(145deg,#07090b,#11161a 55%,#090b0d);color:var(--text);font:16px/1.58 system-ui,-apple-system,"Segoe UI",sans-serif}
-    main{max-width:1240px;margin:auto;padding:42px 24px 80px}.hero{padding:34px;border:1px solid var(--line);border-radius:20px;background:linear-gradient(135deg,#261d12,#1b2024 52%,#111519);box-shadow:0 20px 60px #0008}
-    h1{font-size:clamp(2rem,5vw,3.7rem);line-height:1.08;margin:.25rem 0 1rem}h2{margin-top:44px;border-bottom:1px solid var(--line);padding-bottom:10px}h3{margin:.2rem 0 .5rem;color:#fff}.lead{font-size:1.17rem;color:var(--muted);max-width:1080px}
-    .chips{display:flex;flex-wrap:wrap;gap:9px}.chip{border:1px solid #76552b;border-radius:999px;padding:5px 11px;color:#ffe3b5;background:#251a0d}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:15px;margin:18px 0}
-    .card,.phase,.callout{border:1px solid var(--line);border-radius:14px;background:var(--panel);padding:18px}.card p,.phase p{margin:.35rem 0;color:var(--muted)}table{width:100%;border-collapse:collapse;background:var(--panel);border:1px solid var(--line)}th,td{padding:12px 14px;text-align:left;vertical-align:top;border-bottom:1px solid var(--line)}th{background:var(--panel2);color:#fff}
-    code,pre{font-family:"Cascadia Code",Consolas,monospace}code{color:#c8e7fa}pre{background:var(--code);border:1px solid var(--line);border-radius:12px;padding:16px;overflow:auto;color:#e8edf0}.phase{display:grid;grid-template-columns:92px 1fr;gap:16px;margin:13px 0}.phase-id{font-weight:800;color:var(--accent);font-size:1.25rem}.warn{color:var(--warn)}.good{color:var(--good)}.bad{color:var(--bad)}.gold{color:var(--accent)}.gate{border-left:4px solid var(--warn);padding-left:12px!important}.callout{border-left:4px solid var(--accent2);margin:16px 0}.danger{border-left-color:var(--bad)}.success{border-left-color:var(--good)}li{margin:.35rem 0}footer{margin-top:48px;color:var(--muted);text-align:center}@media(max-width:650px){.phase{grid-template-columns:1fr}.hero{padding:22px}main{padding-inline:14px}th,td{padding:9px}}
+    :root {
+      --bg: #090b0d;
+      --panel: #15191d;
+      --panel2: #1d242a;
+      --text: #f2f4f5;
+      --muted: #b9c1c7;
+      --line: #39434b;
+      --accent: #d49a47;
+      --accent2: #8bb9d6;
+      --good: #69d59f;
+      --warn: #f0c96a;
+      --bad: #f06d78;
+      --code: #080a0c
+    }
+
+    * {
+      box-sizing: border-box
+    }
+
+    body {
+      margin: 0;
+      background: radial-gradient(circle at 88% 0, #3b2913 0, transparent 28%), linear-gradient(145deg, #07090b, #11161a 55%, #090b0d);
+      color: var(--text);
+      font: 16px/1.58 system-ui, -apple-system, "Segoe UI", sans-serif
+    }
+
+    main {
+      max-width: 1240px;
+      margin: auto;
+      padding: 42px 24px 80px
+    }
+
+    .hero {
+      padding: 34px;
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      background: linear-gradient(135deg, #261d12, #1b2024 52%, #111519);
+      box-shadow: 0 20px 60px #0008
+    }
+
+    h1 {
+      font-size: clamp(2rem, 5vw, 3.7rem);
+      line-height: 1.08;
+      margin: .25rem 0 1rem
+    }
+
+    h2 {
+      margin-top: 44px;
+      border-bottom: 1px solid var(--line);
+      padding-bottom: 10px
+    }
+
+    h3 {
+      margin: .2rem 0 .5rem;
+      color: #fff
+    }
+
+    .lead {
+      font-size: 1.17rem;
+      color: var(--muted);
+      max-width: 1080px
+    }
+
+    .chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 9px
+    }
+
+    .chip {
+      border: 1px solid #76552b;
+      border-radius: 999px;
+      padding: 5px 11px;
+      color: #ffe3b5;
+      background: #251a0d
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 15px;
+      margin: 18px 0
+    }
+
+    .card,
+    .phase,
+    .callout {
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: var(--panel);
+      padding: 18px
+    }
+
+    .card p,
+    .phase p {
+      margin: .35rem 0;
+      color: var(--muted)
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: var(--panel);
+      border: 1px solid var(--line)
+    }
+
+    th,
+    td {
+      padding: 12px 14px;
+      text-align: left;
+      vertical-align: top;
+      border-bottom: 1px solid var(--line)
+    }
+
+    th {
+      background: var(--panel2);
+      color: #fff
+    }
+
+    code,
+    pre {
+      font-family: "Cascadia Code", Consolas, monospace
+    }
+
+    code {
+      color: #c8e7fa
+    }
+
+    pre {
+      background: var(--code);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 16px;
+      overflow: auto;
+      color: #e8edf0
+    }
+
+    .phase {
+      display: grid;
+      grid-template-columns: 92px 1fr;
+      gap: 16px;
+      margin: 13px 0
+    }
+
+    .phase-id {
+      font-weight: 800;
+      color: var(--accent);
+      font-size: 1.25rem
+    }
+
+    .warn {
+      color: var(--warn)
+    }
+
+    .good {
+      color: var(--good)
+    }
+
+    .bad {
+      color: var(--bad)
+    }
+
+    .gold {
+      color: var(--accent)
+    }
+
+    .gate {
+      border-left: 4px solid var(--warn);
+      padding-left: 12px !important
+    }
+
+    .callout {
+      border-left: 4px solid var(--accent2);
+      margin: 16px 0
+    }
+
+    .danger {
+      border-left-color: var(--bad)
+    }
+
+    .success {
+      border-left-color: var(--good)
+    }
+
+    li {
+      margin: .35rem 0
+    }
+
+    footer {
+      margin-top: 48px;
+      color: var(--muted);
+      text-align: center
+    }
+
+    @media(max-width:650px) {
+      .phase {
+        grid-template-columns: 1fr
+      }
+
+      .hero {
+        padding: 22px
+      }
+
+      main {
+        padding-inline: 14px
+      }
+
+      th,
+      td {
+        padding: 9px
+      }
+    }
   </style>
 </head>
-<body><main>
-  <section class="hero">
-    <div class="chip">D2R Offline Farming Bot · Phase 21 · Plan · Ziel v0.19.0</div>
-    <h1>Charakterprofile, Skill-Bindings und Inventarschutz</h1>
-    <p class="lead">Phase 21 macht das am Charakter ausgewählte Kampfprofil zur einzigen Combat-Autorität. Ein CASC-generierter Skillkatalog, explizite Pflichtskills, pro Profil und Run registrierte Strategien, per Charakter und Profil gespeicherte Tastenbelegungen sowie ein per Charakter gespeichertes Inventar-Schutzraster bilden einen gemeinsamen, fail-closed Loadout-Vertrag. Onboarding, Dashboard und Einstellungen verwenden dieselben Core-DTOs und dieselben React-Komponenten. Fehlende Pflichtskills werden genau einmal beim ersten vollständig bestätigten In-Game-Zustand einer Queue-Session geprüft; bei Abweichung führt der Supervisor Save &amp; Exit aus und beendet die Queue terminal.</p>
-    <div class="chips">
-      <span class="chip">Phase 21 geplant</span><span class="chip">CASC-Skillkatalog</span><span class="chip">Strategy Registry</span><span class="chip">SkillsKnown-Gate</span><span class="chip">RMB-only</span><span class="chip">F1–F8</span><span class="chip">Charaktere-Tab</span><span class="chip">4×10 Inventar</span><span class="chip">kein Config-Fallback</span><span class="chip">keine Memory-Writes</span>
-    </div>
-  </section>
 
-  <section class="grid" aria-label="Kernziele">
-    <article class="card"><h3>Profil ist Combat-Autorität</h3><p>Runs und Routen pinnen kein Kampfprofil mehr. Das ausgewählte Charakterprofil liefert Standardangriff und Verhalten; der Code-Registry-Eintrag entscheidet, ob für einen Run tatsächlich eine Strategie existiert.</p></article>
-    <article class="card"><h3>Vor Input beweisen</h3><p>Bindings und Inventar blockieren statisch. Pflichtskills werden aus einer vollständigen Memory-Skillliste geprüft. Jede Skillumschaltung wird rechtsseitig bestätigt, bevor ein Mausklick erlaubt ist.</p></article>
-    <article class="card"><h3>Eine Loadout-Oberfläche</h3><p>Ein gemeinsamer Binding-Editor und ein gemeinsamer Setup-Wizard werden in Onboarding, Dashboard und Charaktere-Einstellungen wiederverwendet. Es gibt keine zweite UI-Fachlogik.</p></article>
-    <article class="card"><h3>Inventar zuerst schützen</h3><p>Ein fehlendes Raster bedeutet vollständig geschützt und blockiert Queue-Start. Auch ein bewusst vollständig geschütztes Raster ist nach explizitem Speichern valide.</p></article>
-  </section>
+<body>
+  <main>
+    <section class="hero">
+      <div class="chip">D2R Offline Farming Bot · Phase 21 · Plan · v0.19.0 freigegeben</div>
+      <h1>Charakterprofile, Skill-Bindings und Inventarschutz</h1>
+      <p class="lead">Phase 21 macht das am Charakter ausgewählte Kampfprofil zur einzigen Combat-Autorität. Ein
+        CASC-generierter Skillkatalog, explizite Pflichtskills, pro Profil und Run registrierte Strategien, per
+        Charakter und Profil gespeicherte Tastenbelegungen sowie ein per Charakter gespeichertes Inventar-Schutzraster
+        bilden einen gemeinsamen, fail-closed Loadout-Vertrag. Onboarding, Dashboard und Einstellungen verwenden
+        dieselben Core-DTOs und dieselben React-Komponenten. Fehlende Pflichtskills werden genau einmal beim ersten
+        vollständig bestätigten In-Game-Zustand einer Queue-Session geprüft; bei Abweichung führt der Supervisor Save
+        &amp; Exit aus und beendet die Queue terminal.</p>
+      <div class="chips">
+        <span class="chip">Phase 21 · Gate 21.3 bestanden</span><span class="chip">CASC-Skillkatalog</span><span
+          class="chip">Strategy Registry</span><span class="chip">SkillsKnown-Gate</span><span
+          class="chip">RMB-only</span><span class="chip">F1–F8</span><span class="chip">Charaktere-Tab</span><span
+          class="chip">4×10 Inventar</span><span class="chip">kein Config-Fallback</span><span class="chip">keine
+          Memory-Writes</span>
+      </div>
+    </section>
 
-  <h2>1. Verbindliche Produktentscheidungen</h2>
-  <table><thead><tr><th>Thema</th><th>Entscheidung für Phase 21</th></tr></thead><tbody>
-    <tr><td>Skillaktivierung</td><td>Der Bot schreibt niemals D2R-Memory. Skill-IDs identifizieren und bestätigen Skills; reale Auswahl erfolgt weiterhin ausschließlich per <code>SendInput</code> über konfigurierte Tasten.</td></tr>
-    <tr><td>CASC</td><td><code>.tmp/d2r-excel/skills.txt</code> ist die einzige Quelle für Skill-IDs und statische Eigenschaften. Runtime liest keine TXT-Datei; ein Generator erzeugt eingecheckte Go-Daten.</td></tr>
-    <tr><td>Pflichtskills</td><td>Jedes freigegebene Kampfprofil deklariert eine explizite, geordnete Liste <code>required_skills</code>. Sie lebt getrennt von Hooks und Strategien, wird aber gegen alle tatsächlich verwendeten Strategy-, Hook-, Maintenance- und Standardangriff-Skills validiert.</td></tr>
-    <tr><td>Teleport / Stadtportal</td><td>Jedes Kampfprofil muss Teleport und Stadtportal als Pflichtskills enthalten. Config-Validierung lehnt ein freigegebenes Profil ohne diese Einträge ab.</td></tr>
-    <tr><td>Standardangriff</td><td>Das Profil benennt genau einen <code>standard_attack</code>. Der UI-Text markiert diesen Skill als „Standardangriff“. Bone Spear ist der Standardangriff von <code>necro_bone_spear</code>.</td></tr>
-    <tr><td>Profilstrategien</td><td>Ausführbarer Code ist die einzige Run-Unterstützungs-Autorität: <code>(profileID, runID) → Strategy Factory</code>. Es gibt kein YAML-<code>supported_runs</code> und keine Combat-Rotation-DSL.</td></tr>
-    <tr><td>Inkrementelle Entwicklung</td><td><code>setup.enabled: true</code> macht ein Profil auswählbar, verlangt aber nicht alle Runs. Jeder registrierte Strategy-Eintrag schaltet genau diesen Run frei. Fehlende Einträge machen nur den betroffenen Run unverfügbar.</td></tr>
-    <tr><td>Run-Kopplung</td><td>Der Run bestimmt kein Profil. Das aktive Charakterprofil bestimmt Combat. Bestehende Queue-Einträge bleiben bei Profilwechsel erhalten; nicht unterstützte Einträge werden markiert und blockieren Queue-Start, aber niemals automatisch gelöscht.</td></tr>
-    <tr><td>Route-Kopplung</td><td>Routen bleiben bei Profilwechsel gültig. Kompatibilität bindet weiter Charakter, Klasse, Schwierigkeit, D2R-Version, Layout, Run und RouteRole, aber nicht das Kampfprofil.</td></tr>
-    <tr><td>Bindings-Scope</td><td>Skill- und Gürtelbelegungen werden unter <code>character → combat_profile</code> gespeichert. Teleport, Stadtportal, Combat-Skills und Gürtel stehen in einem Formular; es gibt keinen getrennten Mobility-Dialog.</td></tr>
-    <tr><td>Skilltasten</td><td>Skillbelegungen erlauben ausschließlich <code>F1</code> bis <code>F8</code>. Teleport und Stadtportal belegen zwei Slots; damit bleiben sechs Combat-Slots. Doppelte Tasten sind ungültig.</td></tr>
-    <tr><td>Bot-Hotkeys</td><td><code>F9</code> Aufnahme beenden, <code>F10</code> Stop-after-run und <code>F11</code> Emergency Stop bleiben getrennte globale Bot-Hotkeys und können nie Skill- oder Gürtelbindung sein.</td></tr>
-    <tr><td>Gürteltasten</td><td>Vier eindeutige Tasten aus der vollständigen Allowlist <code>0–9</code>, <code>a–z</code>, <code>,</code>, <code>.</code>, <code>-</code>, <code>]</code>. Defaults bleiben <code>1</code> bis <code>4</code>. Modifier, Navigation, Control-Keys, sämtliche F-Tasten und Kollisionen mit den vier konfigurierten Bot-Hotkeys oder Skilltasten sind verboten.</td></tr>
-    <tr><td>Mausseite</td><td>Alle Skills werden immer für RMB konfiguriert und ausgeführt. Die UI speichert keinen Button-Wert, sondern erklärt, dass jede F-Taste in D2R dem rechten Skill-Slot zugeordnet werden muss.</td></tr>
-    <tr><td>Auswahlbestätigung</td><td>Ist der gewünschte <code>RightSkillID</code> bereits bestätigt, erfolgt der RMB-Cast sofort. Andernfalls wird nur die F-Taste gedrückt; erst ein neuerer Snapshot mit passendem <code>RightSkillID</code> autorisiert den Klick.</td></tr>
-    <tr><td>Teleport-Tempo</td><td>Fortlaufende Teleports drücken die Skilltaste nicht erneut und erhalten keinen zusätzlichen Snapshot-Wait. Nur der erste Teleport nach einem anderen Skill bezahlt einen Bestätigungstick. Der heutige wiederholte F-Key-/<code>combo_hold_ms</code>-Overhead entfällt.</td></tr>
-    <tr><td>SkillsKnown-Zeitpunkt</td><td>Genau einmal beim ersten vollständigen In-Game-Beleg einer Queue-Session, vor jeglichem produktivem Profil-, Town-, Route- oder Combat-Input. Retry-Spiele derselben Session wiederholen den Check nicht.</td></tr>
-    <tr><td>Fehlender Pflichtskill</td><td>Alle fehlenden Skills werden gemeinsam gemeldet. Der Supervisor führt kontrolliertes Save &amp; Exit aus, beendet die Queue ohne Retry und zeigt Charakter, Profil und fehlende Skillnamen verständlich an.</td></tr>
-    <tr><td>Unvollständiger Memory-Read</td><td>Eine partielle Skillliste darf niemals „Skill fehlt“ ergeben. Der Gate wartet inputfrei auf eine vollständige Liste; Timeout führt mit eigenem technischen Grund zu Save &amp; Exit, nicht zu einer falschen Missing-Liste.</td></tr>
-    <tr><td>Onboarding</td><td>Pflichtskills werden beim Profil angezeigt. Bindings dürfen bis zum Abschluss auf „Später“ verschoben werden; Dashboard und Queue bleiben danach sichtbar gesperrt, bis die Belegung gespeichert ist.</td></tr>
-    <tr><td>Zusätzlicher Charakter</td><td>Im Dashboard-Bereich „Charakter und Schwierigkeit“ erhält jeder einrichtbare, noch nicht freigegebene Charakter einen kontextgebundenen Button „Charakter einrichten“. Derselbe Wizard wird vom Onboarding und vom Charaktere-Tab geöffnet.</td></tr>
-    <tr><td>Profilwechsel</td><td>Bereits eingerichtete Charaktere dürfen das Kampfprofil wechseln. Auswahlbild, Routen, Queue, Inventarraster und inaktive Profilbindings bleiben erhalten. Das neue Profil wird erst farm-ready, wenn seine Belegung vollständig ist und der Live-Skillcheck besteht.</td></tr>
-    <tr><td>Profilselector</td><td>Bei einem freigegebenen Profil ist der Wert read-only. Bei mehreren Profilen erscheint ein Selector, der <code>setup.default</code> vorauswählt und den Default sichtbar markiert.</td></tr>
-    <tr><td>Inventar-Scope</td><td>Das 4×10-Schutzraster gehört genau einem Charakter, nicht einem Profil. Es wird in OperatorSettings gespeichert.</td></tr>
-    <tr><td>Inventar fehlt</td><td>Fehlender Persistenzblock materialisiert inputseitig ein vollständig geschütztes Raster und blockiert Queue-Start. Erst explizites Speichern – auch „alles geschützt“ – macht die Inventarkonfiguration vollständig.</td></tr>
-    <tr><td>Inventar-Editor</td><td>Originales D2-inspiriertes Panel ohne Blizzard-Screenshot. Zellen sind per Klick, Tastatur und kontrolliertem Drag umschaltbar. Einzige Bulk-Aktion: „Alle schützen“. Kein „Alles freigeben“ und keine riskanten Presets.</td></tr>
-    <tr><td>Cow-Hinweis</td><td>Ein statisch ungeeignetes Raster zeigt „Inventarlayout für Cow-Runs ungeeignet“, blockiert aber Countess und andere Runs nicht. Der bestehende Live-Cow-Preflight bleibt die finale Autorität und stoppt einen Cow-Run gegebenenfalls vor Input.</td></tr>
-    <tr><td>Persistenz</td><td>OperatorSettings Schema 3 ist die einzige produktive Autorität für Profilbindings und Inventarraster. <code>config.yaml</code> besitzt danach weder globalen Binding- noch Inventory-Fallback.</td></tr>
-    <tr><td>Migration</td><td>Keine permanente Legacy-Migration. Der einzige produktive Datenroot wird offline gesichert und während der Gates manuell von Schema 2 auf Schema 3 umgeschrieben. Alte Schema-Versionen werden danach hart abgelehnt.</td></tr>
-    <tr><td>Spätere UX</td><td>„Belegung aus anderem Profil kopieren“ und ein isolierter Live-Key-Verifikationstest werden dokumentiert, aber nicht in Phase 21 implementiert.</td></tr>
-  </tbody></table>
+    <section class="grid" aria-label="Kernziele">
+      <article class="card">
+        <h3>Profil ist Combat-Autorität</h3>
+        <p>Runs und Routen pinnen kein Kampfprofil mehr. Das ausgewählte Charakterprofil liefert Standardangriff und
+          Verhalten; der Code-Registry-Eintrag entscheidet, ob für einen Run tatsächlich eine Strategie existiert.</p>
+      </article>
+      <article class="card">
+        <h3>Vor Input beweisen</h3>
+        <p>Bindings und Inventar blockieren statisch. Pflichtskills werden aus einer vollständigen Memory-Skillliste
+          geprüft. Jede Skillumschaltung wird rechtsseitig bestätigt, bevor ein Mausklick erlaubt ist.</p>
+      </article>
+      <article class="card">
+        <h3>Eine Loadout-Oberfläche</h3>
+        <p>Ein gemeinsamer Binding-Editor und ein gemeinsamer Setup-Wizard werden in Onboarding, Dashboard und
+          Charaktere-Einstellungen wiederverwendet. Es gibt keine zweite UI-Fachlogik.</p>
+      </article>
+      <article class="card">
+        <h3>Inventar zuerst schützen</h3>
+        <p>Ein fehlendes Raster bedeutet vollständig geschützt und blockiert Queue-Start. Auch ein bewusst vollständig
+          geschütztes Raster ist nach explizitem Speichern valide.</p>
+      </article>
+    </section>
 
-  <h2>2. Belegte Ausgangslage</h2>
-  <table><thead><tr><th>Bereich</th><th>Heutiger Vertrag</th><th>Phase-21-Konsequenz</th></tr></thead><tbody>
-    <tr><td>OperatorSettings</td><td>Schema 2 speichert Klasse/Profil, Queue, Difficulty, Budgets, globale Safety-Hotkeys und History. Bindings und Inventar fehlen.</td><td>Schema 3 ergänzt profilbezogene Bindings und charakterbezogenes Inventar mit Presence-Semantik.</td></tr>
-    <tr><td>Globale Config</td><td><code>input.bindings</code> und <code>loot.inventory_lock</code> liegen in <code>config.yaml</code> und werden in <code>app.New</code> global verdrahtet.</td><td>Beide Runtime-Autoritäten entfallen. Queue-/Workflow-Start friert einen charakterbezogenen Loadout-Snapshot ein.</td></tr>
-    <tr><td>CombatConfig</td><td>Jeder Run wiederholt <code>combat.profile</code>, <code>attack_skill</code> und identische Tuningwerte. Validierung erzwingt Bone Spear.</td><td>Build-eigene Werte wandern ins Profil. Run-Config behält nur run-/routebezogene Geometrie und Ablaufwerte.</td></tr>
-    <tr><td>Strategien</td><td><code>necro_bone_spear</code>, <code>single_target</code>, AD und CE sind an mehreren Stellen hart geprüft.</td><td>Ein Registry-Aufruf ersetzt Profile-ID-Sonderbedingungen. Das bestehende Verhalten wird als erstes echtes Profilmodul charakterisiert.</td></tr>
-    <tr><td>Routen</td><td>Besonders Cow-Routen tragen <code>binding.profile_id</code> und Availability verlangt Gleichheit.</td><td>Das Feld wird beim Lesen ignoriert und bei neuen Aufnahmen nicht geschrieben. Bestehende Dateien und Hashes werden nicht verändert.</td></tr>
-    <tr><td>Skillkatalog</td><td><code>skill_ids.go</code> enthält eine kleine manuelle Switch-/Konstantenliste.</td><td>Generator und eingecheckter Katalog erlauben weitere Klassen/Profile ohne neue handgeschriebene ID-Switches.</td></tr>
-    <tr><td>SkillsKnown</td><td>Memory liest eine Map, bricht bei Zwischenfehlern aber still mit einer partiellen Liste ab. World verwirft die Map.</td><td>Completeness wird explizit. World erhält einen defensiven Snapshot der bekannten IDs; nur vollständige Evidenz darf fehlen feststellen.</td></tr>
-    <tr><td>Skillcasts</td><td>Combat bestätigt RMB; Profil- und Teleportpfade verwenden teilweise Select+Click im selben Tick.</td><td>Ein gemeinsamer Right-Skill-Selector besitzt den einzigen produktiven Umschaltvertrag.</td></tr>
-    <tr><td>Charaktersetup</td><td>Setup ist inline im einmaligen Onboarding. „Auswahl in D2R anwenden“ richtet keinen Charakter ein.</td><td>Setup-UI wird in einen wiederverwendbaren Wizard extrahiert und vom Dashboard kontextbezogen erreichbar.</td></tr>
-    <tr><td>Einstellungen</td><td>Tabs: Farming, App, Wartung. Profil ist absichtlich nicht editierbar.</td><td>Neuer Tab „Charaktere“ bündelt Profil, Pflichtskills, Bindings und Inventarschutz.</td></tr>
-    <tr><td>Produktiver Datenroot</td><td><code>%LOCALAPPDATA%\D2ROfflineFarmingBot\configs</code>; aktueller Store Schema 2, MrBones/<code>necro_bone_spear</code>, globale F1/F2/F3/F5/F6/F7/F8-Effektiva und linke vier Inventarspalten geschützt.</td><td>Offline-Sicherung und exakte Schema-3-Umschreibung sind ein verpflichtendes Implementierungsgate.</td></tr>
-  </tbody></table>
+    <h2>1. Verbindliche Produktentscheidungen</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Thema</th>
+          <th>Entscheidung für Phase 21</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Skillaktivierung</td>
+          <td>Der Bot schreibt niemals D2R-Memory. Skill-IDs identifizieren und bestätigen Skills; reale Auswahl erfolgt
+            weiterhin ausschließlich per <code>SendInput</code> über konfigurierte Tasten.</td>
+        </tr>
+        <tr>
+          <td>CASC</td>
+          <td><code>.tmp/d2r-excel/skills.txt</code> ist die einzige Quelle für Skill-IDs und statische Eigenschaften.
+            Runtime liest keine TXT-Datei; ein Generator erzeugt eingecheckte Go-Daten.</td>
+        </tr>
+        <tr>
+          <td>Pflichtskills</td>
+          <td>Jedes freigegebene Kampfprofil deklariert eine explizite, geordnete Liste <code>required_skills</code>.
+            Sie lebt getrennt von Hooks und Strategien, wird aber gegen alle tatsächlich verwendeten Strategy-, Hook-,
+            Maintenance- und Standardangriff-Skills validiert.</td>
+        </tr>
+        <tr>
+          <td>Teleport / Stadtportal</td>
+          <td>Jedes Kampfprofil muss Teleport und Stadtportal als Pflichtskills enthalten. Config-Validierung lehnt ein
+            freigegebenes Profil ohne diese Einträge ab.</td>
+        </tr>
+        <tr>
+          <td>Standardangriff</td>
+          <td>Das Profil benennt genau einen <code>standard_attack</code>. Der UI-Text markiert diesen Skill als
+            „Standardangriff“. Bone Spear ist der Standardangriff von <code>necro_bone_spear</code>.</td>
+        </tr>
+        <tr>
+          <td>Profilstrategien</td>
+          <td>Ausführbarer Code ist die einzige Run-Unterstützungs-Autorität:
+            <code>(profileID, runID) → Strategy Factory</code>. Es gibt kein YAML-<code>supported_runs</code> und keine
+            Combat-Rotation-DSL.
+          </td>
+        </tr>
+        <tr>
+          <td>Inkrementelle Entwicklung</td>
+          <td><code>setup.enabled: true</code> macht ein Profil auswählbar, verlangt aber nicht alle Runs. Jeder
+            registrierte Strategy-Eintrag schaltet genau diesen Run frei. Fehlende Einträge machen nur den betroffenen
+            Run unverfügbar.</td>
+        </tr>
+        <tr>
+          <td>Run-Kopplung</td>
+          <td>Der Run bestimmt kein Profil. Das aktive Charakterprofil bestimmt Combat. Bestehende Queue-Einträge
+            bleiben bei Profilwechsel erhalten; nicht unterstützte Einträge werden markiert und blockieren Queue-Start,
+            aber niemals automatisch gelöscht.</td>
+        </tr>
+        <tr>
+          <td>Route-Kopplung</td>
+          <td>Routen bleiben bei Profilwechsel gültig. Kompatibilität bindet weiter Charakter, Klasse, Schwierigkeit,
+            D2R-Version, Layout, Run und RouteRole, aber nicht das Kampfprofil.</td>
+        </tr>
+        <tr>
+          <td>Bindings-Scope</td>
+          <td>Skill- und Gürtelbelegungen werden unter <code>character → combat_profile</code> gespeichert. Teleport,
+            Stadtportal, Combat-Skills und Gürtel stehen in einem Formular; es gibt keinen getrennten Mobility-Dialog.
+          </td>
+        </tr>
+        <tr>
+          <td>Skilltasten</td>
+          <td>Skillbelegungen erlauben ausschließlich <code>F1</code> bis <code>F8</code>. Teleport und Stadtportal
+            belegen zwei Slots; damit bleiben sechs Combat-Slots. Doppelte Tasten sind ungültig.</td>
+        </tr>
+        <tr>
+          <td>Bot-Hotkeys</td>
+          <td><code>F9</code> Aufnahme beenden, <code>F10</code> Stop-after-run und <code>F11</code> Emergency Stop
+            bleiben getrennte globale Bot-Hotkeys und können nie Skill- oder Gürtelbindung sein.</td>
+        </tr>
+        <tr>
+          <td>Gürteltasten</td>
+          <td>Vier eindeutige Tasten aus der vollständigen Allowlist <code>0–9</code>, <code>a–z</code>, <code>,</code>,
+            <code>.</code>, <code>-</code>, <code>]</code>. Defaults bleiben <code>1</code> bis <code>4</code>.
+            Modifier, Navigation, Control-Keys, sämtliche F-Tasten und Kollisionen mit den vier konfigurierten
+            Bot-Hotkeys oder Skilltasten sind verboten.
+          </td>
+        </tr>
+        <tr>
+          <td>Mausseite</td>
+          <td>Alle Skills werden immer für RMB konfiguriert und ausgeführt. Die UI speichert keinen Button-Wert, sondern
+            erklärt, dass jede F-Taste in D2R dem rechten Skill-Slot zugeordnet werden muss.</td>
+        </tr>
+        <tr>
+          <td>Auswahlbestätigung</td>
+          <td>Ist der gewünschte <code>RightSkillID</code> bereits bestätigt, erfolgt der RMB-Cast sofort. Andernfalls
+            wird nur die F-Taste gedrückt; erst ein neuerer Snapshot mit passendem <code>RightSkillID</code> autorisiert
+            den Klick.</td>
+        </tr>
+        <tr>
+          <td>Teleport-Tempo</td>
+          <td>Fortlaufende Teleports drücken die Skilltaste nicht erneut und erhalten keinen zusätzlichen Snapshot-Wait.
+            Nur der erste Teleport nach einem anderen Skill bezahlt einen Bestätigungstick. Der heutige wiederholte
+            F-Key-/<code>combo_hold_ms</code>-Overhead entfällt.</td>
+        </tr>
+        <tr>
+          <td>SkillsKnown-Zeitpunkt</td>
+          <td>Genau einmal beim ersten vollständigen In-Game-Beleg einer Queue-Session, vor jeglichem produktivem
+            Profil-, Town-, Route- oder Combat-Input. Retry-Spiele derselben Session wiederholen den Check nicht.</td>
+        </tr>
+        <tr>
+          <td>Fehlender Pflichtskill</td>
+          <td>Alle fehlenden Skills werden gemeinsam gemeldet. Der Supervisor führt kontrolliertes Save &amp; Exit aus,
+            beendet die Queue ohne Retry und zeigt Charakter, Profil und fehlende Skillnamen verständlich an.</td>
+        </tr>
+        <tr>
+          <td>Unvollständiger Memory-Read</td>
+          <td>Eine partielle Skillliste darf niemals „Skill fehlt“ ergeben. Der Gate wartet inputfrei auf eine
+            vollständige Liste; Timeout führt mit eigenem technischen Grund zu Save &amp; Exit, nicht zu einer falschen
+            Missing-Liste.</td>
+        </tr>
+        <tr>
+          <td>Onboarding</td>
+          <td>Pflichtskills werden beim Profil angezeigt. Bindings dürfen bis zum Abschluss auf „Später“ verschoben
+            werden; Dashboard und Queue bleiben danach sichtbar gesperrt, bis die Belegung gespeichert ist.</td>
+        </tr>
+        <tr>
+          <td>Zusätzlicher Charakter</td>
+          <td>Im Dashboard-Bereich „Charakter und Schwierigkeit“ erhält jeder einrichtbare, noch nicht freigegebene
+            Charakter einen kontextgebundenen Button „Charakter einrichten“. Derselbe Wizard wird vom Onboarding und vom
+            Charaktere-Tab geöffnet.</td>
+        </tr>
+        <tr>
+          <td>Profilwechsel</td>
+          <td>Bereits eingerichtete Charaktere dürfen das Kampfprofil wechseln. Auswahlbild, Routen, Queue,
+            Inventarraster und inaktive Profilbindings bleiben erhalten. Das neue Profil wird erst farm-ready, wenn
+            seine Belegung vollständig ist und der Live-Skillcheck besteht.</td>
+        </tr>
+        <tr>
+          <td>Profilselector</td>
+          <td>Bei einem freigegebenen Profil ist der Wert read-only. Bei mehreren Profilen erscheint ein Selector, der
+            <code>setup.default</code> vorauswählt und den Default sichtbar markiert.
+          </td>
+        </tr>
+        <tr>
+          <td>Inventar-Scope</td>
+          <td>Das 4×10-Schutzraster gehört genau einem Charakter, nicht einem Profil. Es wird in OperatorSettings
+            gespeichert.</td>
+        </tr>
+        <tr>
+          <td>Inventar fehlt</td>
+          <td>Fehlender Persistenzblock materialisiert inputseitig ein vollständig geschütztes Raster und blockiert
+            Queue-Start. Erst explizites Speichern – auch „alles geschützt“ – macht die Inventarkonfiguration
+            vollständig.</td>
+        </tr>
+        <tr>
+          <td>Inventar-Editor</td>
+          <td>Originales D2-inspiriertes Panel ohne Blizzard-Screenshot. Zellen sind per Klick, Tastatur und
+            kontrolliertem Drag umschaltbar. Einzige Bulk-Aktion: „Alle schützen“. Kein „Alles freigeben“ und keine
+            riskanten Presets.</td>
+        </tr>
+        <tr>
+          <td>Cow-Hinweis</td>
+          <td>Ein statisch ungeeignetes Raster zeigt „Inventarlayout für Cow-Runs ungeeignet“, blockiert aber Countess
+            und andere Runs nicht. Der bestehende Live-Cow-Preflight bleibt die finale Autorität und stoppt einen
+            Cow-Run gegebenenfalls vor Input.</td>
+        </tr>
+        <tr>
+          <td>Persistenz</td>
+          <td>OperatorSettings Schema 3 ist die einzige produktive Autorität für Profilbindings und Inventarraster.
+            <code>config.yaml</code> besitzt danach weder globalen Binding- noch Inventory-Fallback.
+          </td>
+        </tr>
+        <tr>
+          <td>Migration</td>
+          <td>Keine permanente Legacy-Migration. Der einzige produktive Datenroot wird offline gesichert und während der
+            Gates manuell von Schema 2 auf Schema 3 umgeschrieben. Alte Schema-Versionen werden danach hart abgelehnt.
+          </td>
+        </tr>
+        <tr>
+          <td>Spätere UX</td>
+          <td>„Belegung aus anderem Profil kopieren“ und ein isolierter Live-Key-Verifikationstest werden dokumentiert,
+            aber nicht in Phase 21 implementiert.</td>
+        </tr>
+      </tbody>
+    </table>
 
-  <h2>3. Zielarchitektur und Datenfluss</h2>
-  <pre><code>CharacterCatalog + OperatorSettings Schema 3
+    <h2>2. Belegte Ausgangslage</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Bereich</th>
+          <th>Heutiger Vertrag</th>
+          <th>Phase-21-Konsequenz</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>OperatorSettings</td>
+          <td>Schema 2 speichert Klasse/Profil, Queue, Difficulty, Budgets, globale Safety-Hotkeys und History. Bindings
+            und Inventar fehlen.</td>
+          <td>Schema 3 ergänzt profilbezogene Bindings und charakterbezogenes Inventar mit Presence-Semantik.</td>
+        </tr>
+        <tr>
+          <td>Globale Config</td>
+          <td><code>input.bindings</code> und <code>loot.inventory_lock</code> liegen in <code>config.yaml</code> und
+            werden in <code>app.New</code> global verdrahtet.</td>
+          <td>Beide Runtime-Autoritäten entfallen. Queue-/Workflow-Start friert einen charakterbezogenen
+            Loadout-Snapshot ein.</td>
+        </tr>
+        <tr>
+          <td>CombatConfig</td>
+          <td>Jeder Run wiederholt <code>combat.profile</code>, <code>attack_skill</code> und identische Tuningwerte.
+            Validierung erzwingt Bone Spear.</td>
+          <td>Build-eigene Werte wandern ins Profil. Run-Config behält nur run-/routebezogene Geometrie und Ablaufwerte.
+          </td>
+        </tr>
+        <tr>
+          <td>Strategien</td>
+          <td><code>necro_bone_spear</code>, <code>single_target</code>, AD und CE sind an mehreren Stellen hart
+            geprüft.</td>
+          <td>Ein Registry-Aufruf ersetzt Profile-ID-Sonderbedingungen. Das bestehende Verhalten wird als erstes echtes
+            Profilmodul charakterisiert.</td>
+        </tr>
+        <tr>
+          <td>Routen</td>
+          <td>Besonders Cow-Routen tragen <code>binding.profile_id</code> und Availability verlangt Gleichheit.</td>
+          <td>Das Feld wird beim Lesen ignoriert und bei neuen Aufnahmen nicht geschrieben. Bestehende Dateien und
+            Hashes werden nicht verändert.</td>
+        </tr>
+        <tr>
+          <td>Skillkatalog</td>
+          <td><code>skill_ids.go</code> enthält eine kleine manuelle Switch-/Konstantenliste.</td>
+          <td>Generator und eingecheckter Katalog erlauben weitere Klassen/Profile ohne neue handgeschriebene
+            ID-Switches.</td>
+        </tr>
+        <tr>
+          <td>SkillsKnown</td>
+          <td>Memory liest eine Map, bricht bei Zwischenfehlern aber still mit einer partiellen Liste ab. World verwirft
+            die Map.</td>
+          <td>Completeness wird explizit. World erhält einen defensiven Snapshot der bekannten IDs; nur vollständige
+            Evidenz darf fehlen feststellen.</td>
+        </tr>
+        <tr>
+          <td>Skillcasts</td>
+          <td>Combat bestätigt RMB; Profil- und Teleportpfade verwenden teilweise Select+Click im selben Tick.</td>
+          <td>Ein gemeinsamer Right-Skill-Selector besitzt den einzigen produktiven Umschaltvertrag.</td>
+        </tr>
+        <tr>
+          <td>Charaktersetup</td>
+          <td>Setup ist inline im einmaligen Onboarding. „Auswahl in D2R anwenden“ richtet keinen Charakter ein.</td>
+          <td>Setup-UI wird in einen wiederverwendbaren Wizard extrahiert und vom Dashboard kontextbezogen erreichbar.
+          </td>
+        </tr>
+        <tr>
+          <td>Einstellungen</td>
+          <td>Tabs: Farming, App, Wartung. Profil ist absichtlich nicht editierbar.</td>
+          <td>Neuer Tab „Charaktere“ bündelt Profil, Pflichtskills, Bindings und Inventarschutz.</td>
+        </tr>
+        <tr>
+          <td>Produktiver Datenroot</td>
+          <td><code>%LOCALAPPDATA%\D2ROfflineFarmingBot\configs</code>; aktueller Store Schema 2,
+            MrBones/<code>necro_bone_spear</code>, globale F1/F2/F3/F5/F6/F7/F8-Effektiva und linke vier Inventarspalten
+            geschützt.</td>
+          <td>Offline-Sicherung und exakte Schema-3-Umschreibung sind ein verpflichtendes Implementierungsgate.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2>3. Zielarchitektur und Datenfluss</h2>
+    <pre><code>CharacterCatalog + OperatorSettings Schema 3
         │
         ├─ character.combat_profile
         ├─ character.profile_bindings[profile]
@@ -113,36 +562,130 @@ Task/Profile entscheidet SkillID → RightSkillSelector
         │
         ▼
 Input (SendInput); niemals D2R-Memory schreiben</code></pre>
-  <table><thead><tr><th>Verantwortung</th><th>Einziger Owner</th><th>Verbotene Abkürzung</th></tr></thead><tbody>
-    <tr><td>Skill-ID und statische Eigenschaften</td><td>generierter <code>internal/memory</code>-Katalog</td><td>ID aus d2go/Koolo oder neue Magic Number übernehmen</td></tr>
-    <tr><td>Profilmetadaten</td><td><code>internal/config.ProfileConfig</code></td><td>Pflichtskills aus React oder aus Hook-Namen erraten</td></tr>
-    <tr><td>Run-Unterstützung</td><td><code>internal/app</code>-Strategy-Registry über neutrale <code>internal/profile</code>-Interfaces</td><td>YAML-Allowlist ohne ausführbare Factory oder Import von <code>internal/tasks</code> aus <code>internal/profile</code></td></tr>
-    <tr><td>Strategieverhalten</td><td>Profilmodul + bestehende Task-Verträge</td><td>Combat-Rotation in Run-YAML oder Dashboard</td></tr>
-    <tr><td>Charakterloadout</td><td>OperatorSettings Schema 3</td><td>globaler Config-Fallback oder zwei schreibende Stores</td></tr>
-    <tr><td>Loadout-Frische</td><td>Core friert Revision bei Command-/Sessionstart ein</td><td>Bindings während aktiver Queue live austauschen</td></tr>
-    <tr><td>Skillbesitz</td><td>vollständiger Memory-Snapshot</td><td>Binding vorhanden = Skill gelernt annehmen</td></tr>
-    <tr><td>Skillumschaltung</td><td>gemeinsamer <code>RightSkillSelector</code></td><td>Select+Click ohne RightSkillID-Bestätigung</td></tr>
-    <tr><td>Queue-Readiness</td><td>Core-API</td><td>Blocking State ausschließlich in React nachbauen</td></tr>
-    <tr><td>Cow-Inventar</td><td>Core-Hinweis + bestehender Live-Preflight</td><td>React als finale Cube-/Item-Autorität</td></tr>
-  </tbody></table>
+    <table>
+      <thead>
+        <tr>
+          <th>Verantwortung</th>
+          <th>Einziger Owner</th>
+          <th>Verbotene Abkürzung</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Skill-ID und statische Eigenschaften</td>
+          <td>generierter <code>internal/memory</code>-Katalog</td>
+          <td>ID aus d2go/Koolo oder neue Magic Number übernehmen</td>
+        </tr>
+        <tr>
+          <td>Profilmetadaten</td>
+          <td><code>internal/config.ProfileConfig</code></td>
+          <td>Pflichtskills aus React oder aus Hook-Namen erraten</td>
+        </tr>
+        <tr>
+          <td>Run-Unterstützung</td>
+          <td><code>internal/app</code>-Strategy-Registry über neutrale <code>internal/profile</code>-Interfaces</td>
+          <td>YAML-Allowlist ohne ausführbare Factory oder Import von <code>internal/tasks</code> aus
+            <code>internal/profile</code>
+          </td>
+        </tr>
+        <tr>
+          <td>Strategieverhalten</td>
+          <td>Profilmodul + bestehende Task-Verträge</td>
+          <td>Combat-Rotation in Run-YAML oder Dashboard</td>
+        </tr>
+        <tr>
+          <td>Charakterloadout</td>
+          <td>OperatorSettings Schema 3</td>
+          <td>globaler Config-Fallback oder zwei schreibende Stores</td>
+        </tr>
+        <tr>
+          <td>Loadout-Frische</td>
+          <td>Core friert Revision bei Command-/Sessionstart ein</td>
+          <td>Bindings während aktiver Queue live austauschen</td>
+        </tr>
+        <tr>
+          <td>Skillbesitz</td>
+          <td>vollständiger Memory-Snapshot</td>
+          <td>Binding vorhanden = Skill gelernt annehmen</td>
+        </tr>
+        <tr>
+          <td>Skillumschaltung</td>
+          <td>gemeinsamer <code>RightSkillSelector</code></td>
+          <td>Select+Click ohne RightSkillID-Bestätigung</td>
+        </tr>
+        <tr>
+          <td>Queue-Readiness</td>
+          <td>Core-API</td>
+          <td>Blocking State ausschließlich in React nachbauen</td>
+        </tr>
+        <tr>
+          <td>Cow-Inventar</td>
+          <td>Core-Hinweis + bestehender Live-Preflight</td>
+          <td>React als finale Cube-/Item-Autorität</td>
+        </tr>
+      </tbody>
+    </table>
 
-  <h2>4. Scope und bewusste Nicht-Ziele</h2>
-  <table><thead><tr><th>Enthalten</th><th>Bewusst nicht enthalten</th></tr></thead><tbody>
-    <tr><td>Architektur und produktive Migration des bestehenden Bone-Spear-Profils.</td><td>Ein zweites produktives Kampfprofil oder eine zweite spielbare Klasse implementieren.</td></tr>
-    <tr><td>Registry-Einträge für alle bestehenden Runs des Bone-Spear-Profils.</td><td>Generische Rotation-DSL, Behavior Tree oder Benutzer-Scripting.</td></tr>
-    <tr><td>CASC-generierter vollständiger Skillkatalog und explizite deutsche Produktlabels für verwendete Skills.</td><td>Runtime-Zugriff auf CASC-Dateien oder automatische Übersetzung aller D2R-Skills.</td></tr>
-    <tr><td>Statischer Loadout-Preflight und einmaliger Live-Skillcheck.</td><td>Skills automatisch lernen, umskillen, ausrüsten oder Memory manipulieren.</td></tr>
-    <tr><td>F1–F8 und RMB-only.</td><td>Quick Cast, LMB-Combat, Shift-Cast oder beliebige freie Combat-Keymap.</td></tr>
-    <tr><td>Per-Charakter/Profile-Bindings und per-Charakter-Inventar.</td><td>Globale Defaults als produktiver Fallback.</td></tr>
-    <tr><td>Reusable Wizard und Charaktere-Tab.</td><td>Neues UI-Framework oder vollständige Dashboard-Neugestaltung.</td></tr>
-    <tr><td>Statische Cow-Rasterwarnung plus vorhandener Live-Preflight.</td><td>Live-Inventaritems im Editor verschieben oder automatisch Slots reservieren.</td></tr>
-    <tr><td>Manuelle einmalige Datenroot-Umschreibung.</td><td>Schema-2→3-Migrationscode, Legacy-Decoder oder langfristige Doppelkompatibilität.</td></tr>
-    <tr><td>Dokumentierter späterer Copy-/Verify-Flow.</td><td>„Aus anderem Profil kopieren“ und Live-F-Key-Wizard in Phase 21.</td></tr>
-  </tbody></table>
+    <h2>4. Scope und bewusste Nicht-Ziele</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Enthalten</th>
+          <th>Bewusst nicht enthalten</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Architektur und produktive Migration des bestehenden Bone-Spear-Profils.</td>
+          <td>Ein zweites produktives Kampfprofil oder eine zweite spielbare Klasse implementieren.</td>
+        </tr>
+        <tr>
+          <td>Registry-Einträge für alle bestehenden Runs des Bone-Spear-Profils.</td>
+          <td>Generische Rotation-DSL, Behavior Tree oder Benutzer-Scripting.</td>
+        </tr>
+        <tr>
+          <td>CASC-generierter vollständiger Skillkatalog und explizite deutsche Produktlabels für verwendete Skills.
+          </td>
+          <td>Runtime-Zugriff auf CASC-Dateien oder automatische Übersetzung aller D2R-Skills.</td>
+        </tr>
+        <tr>
+          <td>Statischer Loadout-Preflight und einmaliger Live-Skillcheck.</td>
+          <td>Skills automatisch lernen, umskillen, ausrüsten oder Memory manipulieren.</td>
+        </tr>
+        <tr>
+          <td>F1–F8 und RMB-only.</td>
+          <td>Quick Cast, LMB-Combat, Shift-Cast oder beliebige freie Combat-Keymap.</td>
+        </tr>
+        <tr>
+          <td>Per-Charakter/Profile-Bindings und per-Charakter-Inventar.</td>
+          <td>Globale Defaults als produktiver Fallback.</td>
+        </tr>
+        <tr>
+          <td>Reusable Wizard und Charaktere-Tab.</td>
+          <td>Neues UI-Framework oder vollständige Dashboard-Neugestaltung.</td>
+        </tr>
+        <tr>
+          <td>Statische Cow-Rasterwarnung plus vorhandener Live-Preflight.</td>
+          <td>Live-Inventaritems im Editor verschieben oder automatisch Slots reservieren.</td>
+        </tr>
+        <tr>
+          <td>Manuelle einmalige Datenroot-Umschreibung.</td>
+          <td>Schema-2→3-Migrationscode, Legacy-Decoder oder langfristige Doppelkompatibilität.</td>
+        </tr>
+        <tr>
+          <td>Dokumentierter späterer Copy-/Verify-Flow.</td>
+          <td>„Aus anderem Profil kopieren“ und Live-F-Key-Wizard in Phase 21.</td>
+        </tr>
+      </tbody>
+    </table>
 
-  <h2>5. CASC-Skillkatalog und Profilvertrag</h2>
-  <p>Ein neuer Generator folgt den vorhandenen Item-/Monster-/Objektgeneratoren. Er liest <code>skill</code>, <code>*Id</code>, <code>charclass</code>, <code>leftskill</code>, <code>rightskill</code> und weitere für Validierung benötigte statische Felder. Canonical Keys werden deterministisch normalisiert; doppelte IDs, doppelte Keys oder unlesbare Zeilen stoppen die Generierung.</p>
-  <pre><code>combat_profiles:
+    <h2>5. CASC-Skillkatalog und Profilvertrag</h2>
+    <p>Ein neuer Generator folgt den vorhandenen Item-/Monster-/Objektgeneratoren. Er liest <code>skill</code>,
+      <code>*Id</code>, <code>charclass</code>, <code>leftskill</code>, <code>rightskill</code> und weitere für
+      Validierung benötigte statische Felder. Canonical Keys werden deterministisch normalisiert; doppelte IDs, doppelte
+      Keys oder unlesbare Zeilen stoppen die Generierung.
+    </p>
+    <pre><code>combat_profiles:
   necro_bone_spear:
     character_class: necromancer
     display_name: Knochen-Speer
@@ -166,17 +709,27 @@ Input (SendInput); niemals D2R-Memory schreiben</code></pre>
     hooks: ...
     resources: ...
     route_maintenance: ...</code></pre>
-  <ul>
-    <li><code>required_skills</code> ist geordnet, eindeutig und auf höchstens acht Einträge begrenzt.</li>
-    <li><code>standard_attack</code>, jeder Hook-Skill, jeder aktive Maintenance-Skill und jede von einer registrierten Strategie deklarierte Abhängigkeit müssen in derselben Liste stehen.</li>
-    <li>Jeder Eintrag muss im generierten Katalog existieren. Freigegebene Profile müssen für alle verwendeten Einträge einen getrimmten deutschen Anzeigenamen besitzen.</li>
-    <li>Bestehende Go-Aufrufer dürfen ihre benannten Konstanten vorübergehend als generierte Aliase behalten; neue Profile lösen Skills über Canonical Keys auf und ergänzen keine handgeschriebenen ID-Switches.</li>
-    <li><code>ParseSkillTestName</code> wird zu einem dünnen Alias-/Katalogadapter. Bestehende CLI-Aliase wie <code>ce</code> und <code>tp</code> bleiben explizite Produktaliase, nicht zweite ID-Quelle.</li>
-  </ul>
+    <ul>
+      <li><code>required_skills</code> ist geordnet, eindeutig und auf höchstens acht Einträge begrenzt.</li>
+      <li><code>standard_attack</code>, jeder Hook-Skill, jeder aktive Maintenance-Skill und jede von einer
+        registrierten Strategie deklarierte Abhängigkeit müssen in derselben Liste stehen.</li>
+      <li>Jeder Eintrag muss im generierten Katalog existieren. Freigegebene Profile müssen für alle verwendeten
+        Einträge einen getrimmten deutschen Anzeigenamen besitzen.</li>
+      <li>Bestehende Go-Aufrufer dürfen ihre benannten Konstanten vorübergehend als generierte Aliase behalten; neue
+        Profile lösen Skills über Canonical Keys auf und ergänzen keine handgeschriebenen ID-Switches.</li>
+      <li><code>ParseSkillTestName</code> wird zu einem dünnen Alias-/Katalogadapter. Bestehende CLI-Aliase wie
+        <code>ce</code> und <code>tp</code> bleiben explizite Produktaliase, nicht zweite ID-Quelle.
+      </li>
+    </ul>
 
-  <h2>6. Profilmodule und Strategy Registry</h2>
-  <p>Das bestehende Bone-Spear-Verhalten wird als erstes Profilmodul hinter einen kleinen Registry-Vertrag gestellt. Die Task-Schicht behält Run-State, Zielauswahl, Cow-Dichte, Route-Hold, Recovery und Budgets; das Profilmodul liefert ausschließlich profilabhängige Kampfentscheidungen und die dafür erlaubten Profileingaben. Um den bestehenden Import <code>internal/tasks → internal/profile</code> nicht umzudrehen, liegt der Registry-Owner in <code>internal/app</code>.</p>
-  <pre><code>StrategyRegistry.Resolve(profileID, runID)
+    <h2>6. Profilmodule und Strategy Registry</h2>
+    <p>Das bestehende Bone-Spear-Verhalten wird als erstes Profilmodul hinter einen kleinen Registry-Vertrag gestellt.
+      Die Task-Schicht behält Run-State, Zielauswahl, Cow-Dichte, Route-Hold, Recovery und Budgets; das Profilmodul
+      liefert ausschließlich profilabhängige Kampfentscheidungen und die dafür erlaubten Profileingaben. Um den
+      bestehenden Import <code>internal/tasks → internal/profile</code> nicht umzudrehen, liegt der Registry-Owner in
+      <code>internal/app</code>.
+    </p>
+    <pre><code>StrategyRegistry.Resolve(profileID, runID)
   → StrategyFactory
   → RunStrategy
       ProfileID()
@@ -190,31 +743,76 @@ Initiale Matrix:
   necro_bone_spear × summoner  → AD/Bone-Spear-Route-Clear + Boss
   necro_bone_spear × nihlathak → Bone-Spear-Bossstrategie
   necro_bone_spear × cows      → AD/Bone-Spear/CE-Cow-Hold</code></pre>
-  <ul>
-    <li><code>internal/profile</code> definiert ausschließlich task-neutrale Strategy-/Dependency-Interfaces und importiert weder <code>internal/tasks</code> noch das konkrete Profilmodul.</li>
-    <li><code>internal/profile/necrobonespear</code> importiert nur den neutralen Profilvertrag und liefert Factories/Definitionen.</li>
-    <li><code>internal/app/combat_strategy_registry.go</code> darf <code>internal/tasks.RunID</code>, <code>internal/profile</code> und das konkrete Profilmodul zusammenführen. Dadurch entsteht kein Importzyklus.</li>
-    <li>Registry-Präsenz ist Availability. Ein Profil darf mit nur einem Eintrag entwickelt und getestet werden.</li>
-    <li>Die Registry validiert beim Start: Profil existiert, Run existiert, Factory ist nicht nil, deklarierte Skills sind im Profilvertrag, und die Factory liefert die vom Run benötigte Strategieoberfläche.</li>
-    <li>Countess/Mephisto/Nihlathak dürfen einen gemeinsamen internen Boss-Baustein verwenden; getrennte Registry-Einträge bleiben trotzdem sichtbar und testbar.</li>
-    <li>Cow-Geometrie und CE-Dichte bleiben in <code>internal/tasks</code>. Das Profilmodul liefert die konkrete AD/Bone-Spear/CE-Ausführung, nicht eine zweite Cow-State-Machine.</li>
-    <li>Availability erhält den stabilen Grund <code>profile_run_strategy_unavailable</code>. UI: „Das gewählte Kampfprofil unterstützt diesen Run noch nicht.“</li>
-    <li>Ein Profilwechsel speichert die neue Auswahl auch bei einer inkompatiblen bestehenden Queue. Die Queue bleibt unverändert; Core markiert betroffene Einträge und verweigert Start.</li>
-  </ul>
+    <ul>
+      <li><code>internal/profile</code> definiert ausschließlich task-neutrale Strategy-/Dependency-Interfaces und
+        importiert weder <code>internal/tasks</code> noch das konkrete Profilmodul.</li>
+      <li><code>internal/profile/necrobonespear</code> importiert nur den neutralen Profilvertrag und liefert
+        Factories/Definitionen.</li>
+      <li><code>internal/app/combat_strategy_registry.go</code> darf <code>internal/tasks.RunID</code>,
+        <code>internal/profile</code> und das konkrete Profilmodul zusammenführen. Dadurch entsteht kein Importzyklus.
+      </li>
+      <li>Registry-Präsenz ist Availability. Ein Profil darf mit nur einem Eintrag entwickelt und getestet werden.</li>
+      <li>Die Registry validiert beim Start: Profil existiert, Run existiert, Factory ist nicht nil, deklarierte Skills
+        sind im Profilvertrag, und die Factory liefert die vom Run benötigte Strategieoberfläche.</li>
+      <li>Countess/Mephisto/Nihlathak dürfen einen gemeinsamen internen Boss-Baustein verwenden; getrennte
+        Registry-Einträge bleiben trotzdem sichtbar und testbar.</li>
+      <li>Cow-Geometrie und CE-Dichte bleiben in <code>internal/tasks</code>. Das Profilmodul liefert die konkrete
+        AD/Bone-Spear/CE-Ausführung, nicht eine zweite Cow-State-Machine.</li>
+      <li>Availability erhält den stabilen Grund <code>profile_run_strategy_unavailable</code>. UI: „Das gewählte
+        Kampfprofil unterstützt diesen Run noch nicht.“</li>
+      <li>Ein Profilwechsel speichert die neue Auswahl auch bei einer inkompatiblen bestehenden Queue. Die Queue bleibt
+        unverändert; Core markiert betroffene Einträge und verweigert Start.</li>
+    </ul>
 
-  <h2>7. Run- und Route-Entkopplung</h2>
-  <table><thead><tr><th>Heute</th><th>Ziel</th><th>Migrationsregel</th></tr></thead><tbody>
-    <tr><td><code>runs.definitions.*.combat.profile</code></td><td>entfällt; Profil kommt aus OperatorSettings.</td><td>Aus Repo-Default und produktiver <code>config.yaml</code> entfernen; kein Loader-Fallback.</td></tr>
-    <tr><td><code>attack_skill</code> und gemeinsame Combat-Tuningwerte pro Run</td><td>wandern nach <code>combat_profiles.*.combat</code>.</td><td>Alle aktuellen Werte einmal ins Bone-Spear-Profil übertragen.</td></tr>
-    <tr><td><code>route_combat</code> und runbezogene Geometrie</td><td>bleiben am Run, weil Corridor/Landing/Timeout Routensemantik sind.</td><td>Keine Verhaltensänderung.</td></tr>
-    <tr><td>Availability verlangt Run-Profil = Charakterprofil.</td><td>Availability fragt Strategy Registry für Charakterprofil + Run.</td><td>Grund <code>character_profile_run_incompatible</code> entfällt zugunsten Strategy-Grund.</td></tr>
-    <tr><td>Route <code>binding.profile_id</code></td><td>semantisch ignoriert; neue Route schreibt es nicht.</td><td>Parserfeld vorerst lesen, damit veröffentlichte Routen und Candidate-Hashes unverändert bleiben.</td></tr>
-    <tr><td>Cow-Route-Set verlangt identische Profile.</td><td>verlangt weiter gleiche Character/Class/Difficulty/Version/Role-Verträge, aber kein Profil.</td><td>Bestehende Cow-Routen bleiben ohne Re-Recording gültig.</td></tr>
-  </tbody></table>
-  <div class="callout danger"><strong>Keine Hash-Migration:</strong> Die produktiven Cow-Routen und mehrere Kandidaten enthalten heute <code>profile_id</code>. Das Feld wird nicht manuell aus bestehenden Route-Dateien entfernt, weil dies deren Hash-/Lifecycle-Vertrag verändern würde. Es wird ausschließlich aus der Kompatibilitätsentscheidung entfernt und bei neuen Writes ausgelassen.</div>
+    <h2>7. Run- und Route-Entkopplung</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Heute</th>
+          <th>Ziel</th>
+          <th>Migrationsregel</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>runs.definitions.*.combat.profile</code></td>
+          <td>entfällt; Profil kommt aus OperatorSettings.</td>
+          <td>Aus Repo-Default und produktiver <code>config.yaml</code> entfernen; kein Loader-Fallback.</td>
+        </tr>
+        <tr>
+          <td><code>attack_skill</code> und gemeinsame Combat-Tuningwerte pro Run</td>
+          <td>wandern nach <code>combat_profiles.*.combat</code>.</td>
+          <td>Alle aktuellen Werte einmal ins Bone-Spear-Profil übertragen.</td>
+        </tr>
+        <tr>
+          <td><code>route_combat</code> und runbezogene Geometrie</td>
+          <td>bleiben am Run, weil Corridor/Landing/Timeout Routensemantik sind.</td>
+          <td>Keine Verhaltensänderung.</td>
+        </tr>
+        <tr>
+          <td>Availability verlangt Run-Profil = Charakterprofil.</td>
+          <td>Availability fragt Strategy Registry für Charakterprofil + Run.</td>
+          <td>Grund <code>character_profile_run_incompatible</code> entfällt zugunsten Strategy-Grund.</td>
+        </tr>
+        <tr>
+          <td>Route <code>binding.profile_id</code></td>
+          <td>semantisch ignoriert; neue Route schreibt es nicht.</td>
+          <td>Parserfeld vorerst lesen, damit veröffentlichte Routen und Candidate-Hashes unverändert bleiben.</td>
+        </tr>
+        <tr>
+          <td>Cow-Route-Set verlangt identische Profile.</td>
+          <td>verlangt weiter gleiche Character/Class/Difficulty/Version/Role-Verträge, aber kein Profil.</td>
+          <td>Bestehende Cow-Routen bleiben ohne Re-Recording gültig.</td>
+        </tr>
+      </tbody>
+    </table>
+    <div class="callout danger"><strong>Keine Hash-Migration:</strong> Die produktiven Cow-Routen und mehrere Kandidaten
+      enthalten heute <code>profile_id</code>. Das Feld wird nicht manuell aus bestehenden Route-Dateien entfernt, weil
+      dies deren Hash-/Lifecycle-Vertrag verändern würde. Es wird ausschließlich aus der Kompatibilitätsentscheidung
+      entfernt und bei neuen Writes ausgelassen.</div>
 
-  <h2>8. OperatorSettings Schema 3 und Loadout-Freeze</h2>
-  <pre><code>schema_version: 3
+    <h2>8. OperatorSettings Schema 3 und Loadout-Freeze</h2>
+    <pre><code>schema_version: 3
 revision: N
 last_character: MrBones
 characters:
@@ -244,24 +842,47 @@ characters:
         - [1,1,1,1,0,0,0,0,0,0]
         - [1,1,1,1,0,0,0,0,0,0]
         - [1,1,1,1,0,0,0,0,0,0]</code></pre>
-  <ul>
-    <li><code>profile_bindings</code> darf für inaktive vorhandene Profile erhalten bleiben. Das aktive Profil muss für Farm-Readiness exakt alle Pflichtskills und vier Gürtelspalten vollständig belegen.</li>
-    <li>Partielle/fehlende Bindingblöcke sind speicherbar, damit Onboarding „Später“ unterstützen kann; sie sind jedoch niemals queue-ready.</li>
-    <li>Skillwerte sind nur F1–F8. Der Button wird nicht persistiert; der Runtime-Adapter liefert immer <code>MouseRight</code>.</li>
-    <li><code>inventory_lock</code> ist presence-sensitiv. Abwesend = unkonfiguriert + effektiv alles geschützt. Vorhanden = exakt 4×10 und nur 0/1; auch 40 Einsen sind valide konfiguriert.</li>
-    <li>Allgemeine Settings-Mutation darf Profile nicht still ändern. Profilwechsel läuft weiterhin revisioniert über Character-Setup-Preview/Confirm; Binding/Inventory laufen über den bestehenden OperatorSettings Preview/PUT-Vertrag.</li>
-    <li>Mutationen bleiben nur in <code>idle</code>/<code>stopped_error</code> und ohne aktiven Route-Workflow zulässig.</li>
-    <li><code>cmd/d2rbot/main.go</code> öffnet OperatorSettings und verdrahtet einen <code>CharacterLoadoutResolver</code>; <code>app.New</code> konstruiert keinen globalen BindingSource/InventoryLock mehr aus <code>config.Config</code>.</li>
-    <li><code>LiveBackend.ValidateQueue</code>/<code>StartQueue</code> lösen den aktiven Loadout auf. <code>RuntimeQueueRunner.BeginQueue</code> friert Character, Profile, Operator-Revision, BindingSource und InventoryLock für die gesamte Queue-Session ein; pro Spiel/Run erzeugte Runtime-Units erhalten defensive Kopien dieses Snapshots.</li>
-    <li>Recording, Candidate Playback, Route-Test, Town-/Pathing-Test und inputfähige Diagnosehandler rufen denselben Resolver beim Commandstart auf und halten den Snapshot bis zum Commandende. Read-only-Probes benötigen keinen Loadout.</li>
-    <li><code>internal/api/live_backend.go</code>, <code>internal/app/app.go</code>, <code>internal/app/queue_runtime.go</code> und die betroffenen Workflow-Handler werden deshalb explizit auf Resolver-/Factory-Injection statt <code>cfg.Input.Bindings</code>/<code>cfg.Loot.InventoryLock</code> umgestellt.</li>
-    <li>Änderungen während eines Workflows sind durch die bestehenden Idle-/Workflow-Gates verboten.</li>
-    <li>Binding-/Inventaränderungen benötigen keinen Core-Neustart: Der nächste Workflow löst den neuen Snapshot auf. Globale Safety-Hotkey-Änderungen behalten den bestehenden Restart-Vertrag.</li>
-    <li>CLI-Modi mit Input benötigen einen installierten DataRoot und einen eindeutig gewählten Character/Profile-Loadout. Read-only-Probes bleiben davon unabhängig.</li>
-  </ul>
+    <ul>
+      <li><code>profile_bindings</code> darf für inaktive vorhandene Profile erhalten bleiben. Das aktive Profil muss
+        für Farm-Readiness exakt alle Pflichtskills und vier Gürtelspalten vollständig belegen.</li>
+      <li>Partielle/fehlende Bindingblöcke sind speicherbar, damit Onboarding „Später“ unterstützen kann; sie sind
+        jedoch niemals queue-ready.</li>
+      <li>Skillwerte sind nur F1–F8. Der Button wird nicht persistiert; der Runtime-Adapter liefert immer
+        <code>MouseRight</code>.
+      </li>
+      <li><code>inventory_lock</code> ist presence-sensitiv. Abwesend = unkonfiguriert + effektiv alles geschützt.
+        Vorhanden = exakt 4×10 und nur 0/1; auch 40 Einsen sind valide konfiguriert.</li>
+      <li>Allgemeine Settings-Mutation darf Profile nicht still ändern. Profilwechsel läuft weiterhin revisioniert über
+        Character-Setup-Preview/Confirm; Binding/Inventory laufen über den bestehenden OperatorSettings
+        Preview/PUT-Vertrag.</li>
+      <li>Mutationen bleiben nur in <code>idle</code>/<code>stopped_error</code> und ohne aktiven Route-Workflow
+        zulässig.</li>
+      <li><code>cmd/d2rbot/main.go</code> öffnet OperatorSettings und verdrahtet einen
+        <code>CharacterLoadoutResolver</code>; <code>app.New</code> konstruiert keinen globalen
+        BindingSource/InventoryLock mehr aus <code>config.Config</code>.
+      </li>
+      <li><code>LiveBackend.ValidateQueue</code>/<code>StartQueue</code> lösen den aktiven Loadout auf.
+        <code>RuntimeQueueRunner.BeginQueue</code> friert Character, Profile, Operator-Revision, BindingSource und
+        InventoryLock für die gesamte Queue-Session ein; pro Spiel/Run erzeugte Runtime-Units erhalten defensive Kopien
+        dieses Snapshots.
+      </li>
+      <li>Recording, Candidate Playback, Route-Test, Town-/Pathing-Test und inputfähige Diagnosehandler rufen denselben
+        Resolver beim Commandstart auf und halten den Snapshot bis zum Commandende. Read-only-Probes benötigen keinen
+        Loadout.</li>
+      <li><code>internal/api/live_backend.go</code>, <code>internal/app/app.go</code>,
+        <code>internal/app/queue_runtime.go</code> und die betroffenen Workflow-Handler werden deshalb explizit auf
+        Resolver-/Factory-Injection statt <code>cfg.Input.Bindings</code>/<code>cfg.Loot.InventoryLock</code>
+        umgestellt.
+      </li>
+      <li>Änderungen während eines Workflows sind durch die bestehenden Idle-/Workflow-Gates verboten.</li>
+      <li>Binding-/Inventaränderungen benötigen keinen Core-Neustart: Der nächste Workflow löst den neuen Snapshot auf.
+        Globale Safety-Hotkey-Änderungen behalten den bestehenden Restart-Vertrag.</li>
+      <li>CLI-Modi mit Input benötigen einen installierten DataRoot und einen eindeutig gewählten
+        Character/Profile-Loadout. Read-only-Probes bleiben davon unabhängig.</li>
+    </ul>
 
-  <h2>9. SkillsKnown-Evidenz und terminaler Session-Gate</h2>
-  <pre><code>collectKnownSkills:
+    <h2>9. SkillsKnown-Evidenz und terminaler Session-Gate</h2>
+    <pre><code>collectKnownSkills:
   Liste bis nil traversieren
   jeder Pointer-/ID-/Next-Read muss gelingen
   nil-Ende                  → complete=true
@@ -282,27 +903,72 @@ Queue-Session:
         nicht leer: SupervisorRunResult{QueueRunStop, ExitRequired:true, retry:false}
   → completeLifecycleRun ruft Supervisor ExitGame
   → Save &amp; Exit → stopped_error mit Nutzergrund</code></pre>
-  <ul>
-    <li><code>PlayerSkills</code> erhält eindeutige Completeness-Felder. Ein Enrichment-Fehler darf Snapshot/World nicht mit einer leeren „vollständigen“ Map versehen.</li>
-    <li><code>world.Player</code> übernimmt eine defensive Kopie der bekannten IDs und Completeness. Clone-/Mapper-Tests verhindern Map-Aliasing.</li>
-    <li><code>verifyActiveQueueGame</code>/<code>VerifySameGame</code> dürfen dafür nicht mehr den vollständigen <code>runTick</code> verwenden. <code>internal/app/run_tick.go</code> erhält einen klar getrennten snapshot-only Queue-Poller: Process/Compatibility/Input-Bind/Probe/World-Update ja; <code>BindingsPrecheck</code>, <code>consumeRunReadiness</code> und <code>Tasks.Tick</code> ausdrücklich nein.</li>
-    <li>Der Skillgate folgt in <code>RuntimeQueueRunner.Run</code> direkt auf das snapshot-only <code>unit.VerifySameGame</code>. Er läuft vor <code>BindingsPrecheck</code>, Run-Readiness, Run-Telemetrie mit Gameplay-Bedeutung, Town-Hooks, Merc-Revive, Restock oder Taskinput.</li>
-    <li><code>FarmQueueLifecycleRunner.StartGame(context.Context, request) error</code> bleibt unverändert. Ein Missing-Skill ist kein <code>game_start_failed</code>; nur der Run-Result-Pfad kann <code>ExitRequired</code> an <code>completeLifecycleRun</code> liefern.</li>
-    <li>Die erfolgreiche Prüfung wird nur im Queue-Session-Lifecycle gehalten, nicht dauerhaft gespeichert. Eine neue Queue-Session nach Respec prüft erneut.</li>
-    <li>Missing-Result enthält alle fehlenden IDs und deutsche Labels. Der technische Detailfehler bleibt im Log; UI erhält klare Handlung: Skill lernen/ausrüsten und Queue neu starten.</li>
-    <li>Town Portal darf als durch ein Tome bereitgestellter Skill gelten; Teleport darf durch Ausrüstung bereitgestellt sein. Autorität ist die vollständige Live-Skillliste, nicht die Skilltree-Herkunft.</li>
-  </ul>
-  <table><thead><tr><th>Reason</th><th>Disposition</th><th>UI-Text</th></tr></thead><tbody>
-    <tr><td><code>profile_required_skills_missing</code></td><td>Save &amp; Exit, Queue terminal, kein Retry</td><td>„MrBones fehlen für Knochen-Speer: … Die Queue wurde beendet.“</td></tr>
-    <tr><td><code>profile_skills_read_unavailable</code></td><td>nach Timeout Save &amp; Exit, Queue terminal</td><td>„Die Fähigkeiten des Charakters konnten nicht sicher geprüft werden.“</td></tr>
-    <tr><td><code>profile_bindings_incomplete</code></td><td>statischer Queue-Block vor Spielstart</td><td>„Für dieses Kampfprofil fehlen Tastenbelegungen.“</td></tr>
-    <tr><td><code>character_inventory_unconfigured</code></td><td>statischer Queue-Block vor Spielstart</td><td>„Der Inventarschutz wurde noch nicht bestätigt.“</td></tr>
-    <tr><td><code>profile_run_strategy_unavailable</code></td><td>Run unavailable; Queue-Start blockiert</td><td>„Das Kampfprofil unterstützt diesen Run noch nicht.“</td></tr>
-  </tbody></table>
+    <ul>
+      <li><code>PlayerSkills</code> erhält eindeutige Completeness-Felder. Ein Enrichment-Fehler darf Snapshot/World
+        nicht mit einer leeren „vollständigen“ Map versehen.</li>
+      <li><code>world.Player</code> übernimmt eine defensive Kopie der bekannten IDs und Completeness.
+        Clone-/Mapper-Tests verhindern Map-Aliasing.</li>
+      <li><code>verifyActiveQueueGame</code>/<code>VerifySameGame</code> dürfen dafür nicht mehr den vollständigen
+        <code>runTick</code> verwenden. <code>internal/app/run_tick.go</code> erhält einen klar getrennten snapshot-only
+        Queue-Poller: Process/Compatibility/Input-Bind/Probe/World-Update ja; <code>BindingsPrecheck</code>,
+        <code>consumeRunReadiness</code> und <code>Tasks.Tick</code> ausdrücklich nein.
+      </li>
+      <li>Der Skillgate folgt in <code>RuntimeQueueRunner.Run</code> direkt auf das snapshot-only
+        <code>unit.VerifySameGame</code>. Er läuft vor <code>BindingsPrecheck</code>, Run-Readiness, Run-Telemetrie mit
+        Gameplay-Bedeutung, Town-Hooks, Merc-Revive, Restock oder Taskinput.
+      </li>
+      <li><code>FarmQueueLifecycleRunner.StartGame(context.Context, request) error</code> bleibt unverändert. Ein
+        Missing-Skill ist kein <code>game_start_failed</code>; nur der Run-Result-Pfad kann <code>ExitRequired</code> an
+        <code>completeLifecycleRun</code> liefern.
+      </li>
+      <li>Die erfolgreiche Prüfung wird nur im Queue-Session-Lifecycle gehalten, nicht dauerhaft gespeichert. Eine neue
+        Queue-Session nach Respec prüft erneut.</li>
+      <li>Missing-Result enthält alle fehlenden IDs und deutsche Labels. Der technische Detailfehler bleibt im Log; UI
+        erhält klare Handlung: Skill lernen/ausrüsten und Queue neu starten.</li>
+      <li>Town Portal darf als durch ein Tome bereitgestellter Skill gelten; Teleport darf durch Ausrüstung
+        bereitgestellt sein. Autorität ist die vollständige Live-Skillliste, nicht die Skilltree-Herkunft.</li>
+    </ul>
+    <table>
+      <thead>
+        <tr>
+          <th>Reason</th>
+          <th>Disposition</th>
+          <th>UI-Text</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>profile_required_skills_missing</code></td>
+          <td>Save &amp; Exit, Queue terminal, kein Retry</td>
+          <td>„MrBones fehlen für Knochen-Speer: … Die Queue wurde beendet.“</td>
+        </tr>
+        <tr>
+          <td><code>profile_skills_read_unavailable</code></td>
+          <td>nach Timeout Save &amp; Exit, Queue terminal</td>
+          <td>„Die Fähigkeiten des Charakters konnten nicht sicher geprüft werden.“</td>
+        </tr>
+        <tr>
+          <td><code>profile_bindings_incomplete</code></td>
+          <td>statischer Queue-Block vor Spielstart</td>
+          <td>„Für dieses Kampfprofil fehlen Tastenbelegungen.“</td>
+        </tr>
+        <tr>
+          <td><code>character_inventory_unconfigured</code></td>
+          <td>statischer Queue-Block vor Spielstart</td>
+          <td>„Der Inventarschutz wurde noch nicht bestätigt.“</td>
+        </tr>
+        <tr>
+          <td><code>profile_run_strategy_unavailable</code></td>
+          <td>Run unavailable; Queue-Start blockiert</td>
+          <td>„Das Kampfprofil unterstützt diesen Run noch nicht.“</td>
+        </tr>
+      </tbody>
+    </table>
 
-  <h2>10. Einheitlicher RMB-Skillselector</h2>
-  <p>Ein kleiner App-Adapter ersetzt parallele Umschaltlogik. Er besitzt ausschließlich den noch offenen Skillwechsel; Zielauswahl, Projektion, Hover, Settle und Run-Takt bleiben bei ihren heutigen Ownern.</p>
-  <pre><code>EnsureAndCast(skillID, player.RightSkillID, snapshotAt, cast):
+    <h2>10. Einheitlicher RMB-Skillselector</h2>
+    <p>Ein kleiner App-Adapter ersetzt parallele Umschaltlogik. Er besitzt ausschließlich den noch offenen Skillwechsel;
+      Zielauswahl, Projektion, Hover, Settle und Run-Takt bleiben bei ihren heutigen Ownern.</p>
+    <pre><code>EnsureAndCast(skillID, player.RightSkillID, snapshotAt, cast):
   wenn RightSkillID == skillID:
     pending löschen
     cast()                         // kein Select-Key, kein Zusatz-Wait
@@ -319,41 +985,133 @@ Queue-Session:
 
 jeder Reset / Gamewechsel / Profilcast:
   gemeinsamer Selector-State wird zentral zurückgesetzt</code></pre>
-  <ul>
-    <li>Combat, Profilhooks, Route Maintenance, CE, Teleport und Town Portal verwenden diesen Pfad.</li>
-    <li>Eine D2R-Belegung auf LMB ändert höchstens <code>LeftSkillID</code>; weil <code>RightSkillID</code> nicht passt, entsteht niemals der folgende RMB-Klick.</li>
-    <li>Produktiver Code verwendet <code>CastSkillAt</code> nicht mehr als unbestätigte Select+Click-Abkürzung. Der Primitive darf für klar markierte Diagnostik bestehen oder wird auf den neuen Adapter reduziert.</li>
-    <li>Teleport erhält <code>world.Player</code> beziehungsweise den aktuellen RightSkill-Beleg im Movement-Aufruf. Fortlaufende Teleports klicken direkt und vermeiden die bisherige wiederholte F7-/200-ms-Pause.</li>
-    <li>Selection-Timeout und Mismatch liefern einen stabilen Fehler, löschen Pending State und senden keinen Ersatzklick.</li>
-  </ul>
+    <ul>
+      <li>Combat, Profilhooks, Route Maintenance, CE, Teleport und Town Portal verwenden diesen Pfad.</li>
+      <li>Eine D2R-Belegung auf LMB ändert höchstens <code>LeftSkillID</code>; weil <code>RightSkillID</code> nicht
+        passt, entsteht niemals der folgende RMB-Klick.</li>
+      <li>Produktiver Code verwendet <code>CastSkillAt</code> nicht mehr als unbestätigte Select+Click-Abkürzung. Der
+        Primitive darf für klar markierte Diagnostik bestehen oder wird auf den neuen Adapter reduziert.</li>
+      <li>Teleport erhält <code>world.Player</code> beziehungsweise den aktuellen RightSkill-Beleg im Movement-Aufruf.
+        Fortlaufende Teleports klicken direkt und vermeiden die bisherige wiederholte F7-/200-ms-Pause.</li>
+      <li>Selection-Timeout und Mismatch liefern einen stabilen Fehler, löschen Pending State und senden keinen
+        Ersatzklick.</li>
+    </ul>
 
-  <h2>11. API-, Readiness- und Persistenzvertrag</h2>
-  <table><thead><tr><th>DTO / Endpoint</th><th>Erweiterung</th></tr></thead><tbody>
-    <tr><td><code>OperatorSettingsDTO</code></td><td>Schema 3, <code>profile_bindings</code>, presence-sensitives <code>inventory_lock</code>; vollständiger Roundtrip über Preview/PUT.</td></tr>
-    <tr><td><code>CharacterSetupProfileDTO</code></td><td><code>standard_attack</code>, geordnete <code>required_skills</code> mit ID/Key/deutschem Label, <code>supported_runs</code> ausschließlich aus Registry-Projektion.</td></tr>
-    <tr><td><code>CharacterSetupPreviewDTO</code></td><td>Profilwechsel auch für bereits eingerichtete Charaktere; Binding-/Inventory-Readiness; bestehende Revisionen bleiben Optimistic-Concurrency-Gate.</td></tr>
-    <tr><td><code>CharacterCatalogEntryDTO</code></td><td><code>selectable</code> behält „D2R-Auswahl sicher möglich“. Additiv: <code>farm_ready</code> und Core-berechnete Readiness-Reasons.</td></tr>
-    <tr><td><code>QueueValidationDTO</code></td><td>Blocking Reasons für Binding/Inventory/Strategy sowie per-Run Availability. Cow-Rasterwarnung bleibt Warning, nicht globaler Block.</td></tr>
-    <tr><td><code>GET/PUT/preview settings</code></td><td>Bestehende Endpoints bleiben. Kein zweiter Loadout-Store und kein paralleler Character-Settings-Endpoint.</td></tr>
-    <tr><td><code>setup/preview|confirm</code></td><td>Wiederverwendbar für Erstsetup und Profilwechsel. Queue bleibt beim Wechsel unverändert; Pickit-Defaults ergänzen weiterhin nur vollständig Fehlendes.</td></tr>
-  </tbody></table>
-  <div class="callout"><strong>Core bleibt Autorität:</strong> React darf Required Skills, Binding-Vollständigkeit, Strategy-Support und Cow-Rastereignung darstellen, aber nicht unabhängig berechnen. OpenAPI wird zuerst geändert, <code>web/src/api/generated.ts</code> danach generiert und mit <code>--check</code> eingefroren.</div>
+    <h2>11. API-, Readiness- und Persistenzvertrag</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>DTO / Endpoint</th>
+          <th>Erweiterung</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>OperatorSettingsDTO</code></td>
+          <td>Schema 3, <code>profile_bindings</code>, presence-sensitives <code>inventory_lock</code>; vollständiger
+            Roundtrip über Preview/PUT.</td>
+        </tr>
+        <tr>
+          <td><code>CharacterSetupProfileDTO</code></td>
+          <td><code>standard_attack</code>, geordnete <code>required_skills</code> mit ID/Key/deutschem Label,
+            <code>supported_runs</code> ausschließlich aus Registry-Projektion.
+          </td>
+        </tr>
+        <tr>
+          <td><code>CharacterSetupPreviewDTO</code></td>
+          <td>Profilwechsel auch für bereits eingerichtete Charaktere; Binding-/Inventory-Readiness; bestehende
+            Revisionen bleiben Optimistic-Concurrency-Gate.</td>
+        </tr>
+        <tr>
+          <td><code>CharacterCatalogEntryDTO</code></td>
+          <td><code>selectable</code> behält „D2R-Auswahl sicher möglich“. Additiv: <code>farm_ready</code> und
+            Core-berechnete Readiness-Reasons.</td>
+        </tr>
+        <tr>
+          <td><code>QueueValidationDTO</code></td>
+          <td>Blocking Reasons für Binding/Inventory/Strategy sowie per-Run Availability. Cow-Rasterwarnung bleibt
+            Warning, nicht globaler Block.</td>
+        </tr>
+        <tr>
+          <td><code>GET/PUT/preview settings</code></td>
+          <td>Bestehende Endpoints bleiben. Kein zweiter Loadout-Store und kein paralleler Character-Settings-Endpoint.
+          </td>
+        </tr>
+        <tr>
+          <td><code>setup/preview|confirm</code></td>
+          <td>Wiederverwendbar für Erstsetup und Profilwechsel. Queue bleibt beim Wechsel unverändert; Pickit-Defaults
+            ergänzen weiterhin nur vollständig Fehlendes.</td>
+        </tr>
+      </tbody>
+    </table>
+    <div class="callout"><strong>Core bleibt Autorität:</strong> React darf Required Skills, Binding-Vollständigkeit,
+      Strategy-Support und Cow-Rastereignung darstellen, aber nicht unabhängig berechnen. OpenAPI wird zuerst geändert,
+      <code>web/src/api/generated.ts</code> danach generiert und mit <code>--check</code> eingefroren.
+    </div>
 
-  <h2>12. Charaktere-Tab, Setup-Wizard und Onboarding</h2>
-  <table><thead><tr><th>Oberfläche</th><th>Verbindliches Verhalten</th></tr></thead><tbody>
-    <tr><td>Settings-Navigation</td><td>Vier Scopes: Farming, <strong>Charaktere</strong>, App, Wartung. Keine dynamischen Top-Level-Tabs je Charakter.</td></tr>
-    <tr><td>Charakterliste</td><td>Alle erkannten Saves mit Status „Nicht unterstützt“, „Einrichtung fehlt“, „Tasten fehlen“, „Inventar fehlt“, „Run-Unterstützung fehlt“ oder „Farmbereit“.</td></tr>
-    <tr><td>Charakterdetail</td><td>Klasse, aktives Profil, Pflichtskills, Profilbindings, Gürtel, Inventarschutz und Queue-Auswirkungen. Ein Selector/List-Detail-Layout statt überladener Farming-Seite.</td></tr>
-    <tr><td>Profilwechsel</td><td>Ein Profil read-only; mehrere Profile als Selector mit Default-Badge. Confirm zeigt betroffene unsupported Queue-Einträge, löscht sie aber nicht.</td></tr>
-    <tr><td>BindingEditor</td><td>Eine wiederverwendete Komponente. Skillrows aus Core-Required-Skills, Standardangriff-Badge, F1–F8-Dropdowns, feste RMB-Erklärung, vier sichere Belt-Dropdowns, Inline-Kollisionen.</td></tr>
-    <tr><td>Onboarding Schritt Charakter</td><td>Zeigt Profil und Pflichtskills über dieselben Komponenten. Der BindingEditor öffnet als Panel/Dialog; „Später“ bleibt zulässig.</td></tr>
-    <tr><td>Onboarding Abschluss</td><td>Bei fehlenden Bindings klarer Blocking-Hinweis mit „Jetzt konfigurieren“ und „Später“. Abschluss ist erlaubt; Queue bleibt danach gesperrt.</td></tr>
-    <tr><td>Dashboard</td><td>Nicht eingerichtete, aber unterstützte Saves erhalten direkt neben ihrem Eintrag „Charakter einrichten“. „Auswahl in D2R anwenden“ bleibt semantisch getrennt.</td></tr>
-    <tr><td>Reusable Wizard</td><td>Dieselben Schritte/Komponenten für Onboarding, Dashboard und Settings: Profil/Pflichtskills → Confirm → Auswahlbild bei fehlendem Anchor → überspringbarer Binding-Schritt → Readiness-Zusammenfassung.</td></tr>
-    <tr><td>Dirty State</td><td>Binding/Inventory nutzen den bestehenden OperatorSettings Draft/Preview/Commit und dieselbe Navigation-Warnung. Setup-Confirm bleibt eigener revisionierter Command.</td></tr>
-  </tbody></table>
-  <p>Vorgesehene React-Struktur:</p>
-  <pre><code>web/src/features/characters/
+    <h2>12. Charaktere-Tab, Setup-Wizard und Onboarding</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Oberfläche</th>
+          <th>Verbindliches Verhalten</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Settings-Navigation</td>
+          <td>Vier Scopes: Farming, <strong>Charaktere</strong>, App, Wartung. Keine dynamischen Top-Level-Tabs je
+            Charakter.</td>
+        </tr>
+        <tr>
+          <td>Charakterliste</td>
+          <td>Alle erkannten Saves mit Status „Nicht unterstützt“, „Einrichtung fehlt“, „Tasten fehlen“, „Inventar
+            fehlt“, „Run-Unterstützung fehlt“ oder „Farmbereit“.</td>
+        </tr>
+        <tr>
+          <td>Charakterdetail</td>
+          <td>Klasse, aktives Profil, Pflichtskills, Profilbindings, Gürtel, Inventarschutz und Queue-Auswirkungen. Ein
+            Selector/List-Detail-Layout statt überladener Farming-Seite.</td>
+        </tr>
+        <tr>
+          <td>Profilwechsel</td>
+          <td>Ein Profil read-only; mehrere Profile als Selector mit Default-Badge. Confirm zeigt betroffene unsupported
+            Queue-Einträge, löscht sie aber nicht.</td>
+        </tr>
+        <tr>
+          <td>BindingEditor</td>
+          <td>Eine wiederverwendete Komponente. Skillrows aus Core-Required-Skills, Standardangriff-Badge,
+            F1–F8-Dropdowns, feste RMB-Erklärung, vier sichere Belt-Dropdowns, Inline-Kollisionen.</td>
+        </tr>
+        <tr>
+          <td>Onboarding Schritt Charakter</td>
+          <td>Zeigt Profil und Pflichtskills über dieselben Komponenten. Der BindingEditor öffnet als Panel/Dialog;
+            „Später“ bleibt zulässig.</td>
+        </tr>
+        <tr>
+          <td>Onboarding Abschluss</td>
+          <td>Bei fehlenden Bindings klarer Blocking-Hinweis mit „Jetzt konfigurieren“ und „Später“. Abschluss ist
+            erlaubt; Queue bleibt danach gesperrt.</td>
+        </tr>
+        <tr>
+          <td>Dashboard</td>
+          <td>Nicht eingerichtete, aber unterstützte Saves erhalten direkt neben ihrem Eintrag „Charakter einrichten“.
+            „Auswahl in D2R anwenden“ bleibt semantisch getrennt.</td>
+        </tr>
+        <tr>
+          <td>Reusable Wizard</td>
+          <td>Dieselben Schritte/Komponenten für Onboarding, Dashboard und Settings: Profil/Pflichtskills → Confirm →
+            Auswahlbild bei fehlendem Anchor → überspringbarer Binding-Schritt → Readiness-Zusammenfassung.</td>
+        </tr>
+        <tr>
+          <td>Dirty State</td>
+          <td>Binding/Inventory nutzen den bestehenden OperatorSettings Draft/Preview/Commit und dieselbe
+            Navigation-Warnung. Setup-Confirm bleibt eigener revisionierter Command.</td>
+        </tr>
+      </tbody>
+    </table>
+    <p>Vorgesehene React-Struktur:</p>
+    <pre><code>web/src/features/characters/
   CharactersTab.tsx
   CharacterSetupWizard.tsx
   ProfileSelector.tsx
@@ -364,233 +1122,620 @@ jeder Reset / Gamewechsel / Profilcast:
   characterReasonText.ts
   *.test.tsx</code></pre>
 
-  <h2>13. Inventar-Schutzraster</h2>
-  <ul>
-    <li>Exakt vier Zeilen und zehn Spalten. UI sagt ausdrücklich „4 Zeilen × 10 Spalten“.</li>
-    <li>Originale dunkle D2-inspirierte Fassung mit goldenen Rasterlinien; kein Screenshot oder extrahiertes Blizzard-Asset.</li>
-    <li>Geschützt: farbige/hatch Overlayfläche plus Lock-Symbol und <code>aria-pressed=true</code>. Frei: klarer Rahmen und Legende „Für Beute verfügbar“.</li>
-    <li>Tastatur: Grid-Fokus, Pfeiltasten navigieren, Space/Enter toggeln. Pointer-Drag darf nur eine bewusst begonnene Zieloperation fortsetzen; Pointer-Cancel beendet ohne weitere Zellen.</li>
-    <li>Einzige Bulk-Aktion „Alle schützen“. Sie ist direkt sicher. Es gibt weder „Alles freigeben“ noch Row-/Column-Free noch Layoutpreset.</li>
-    <li>Fehlt die Persistenz, rendert der Editor 40 geschützte Zellen, zeigt aber „Noch nicht bestätigt“. Speichern schreibt den Block und hebt nur den Readiness-Block auf; es schaltet keine Zelle automatisch frei.</li>
-    <li>Core analysiert statisch: existiert irgendein geschütztes 2×2-Rechteck sowie disjunkt grundsätzlich freier Platz für 1×3 und 1×2? Negativ ergibt Cow-Warnung. Positiv heißt nur „grundsätzlich geeignet“.</li>
-    <li>Der produktive Cow-Preflight prüft weiterhin den tatsächlichen Cube-Footprint, Leerzustand, aktuelle Items und disjunkten realen Platz. Er kann trotz positiver statischer UI-Prüfung terminal stoppen.</li>
-    <li>Ein ungeeignetes Cow-Raster verhindert Countess, Mephisto, Summoner oder Nihlathak nicht. Ein <em>fehlendes</em> Raster blockiert jede Queue.</li>
-  </ul>
+    <h2>13. Inventar-Schutzraster</h2>
+    <ul>
+      <li>Exakt vier Zeilen und zehn Spalten. UI sagt ausdrücklich „4 Zeilen × 10 Spalten“.</li>
+      <li>Originale dunkle D2-inspirierte Fassung mit goldenen Rasterlinien; kein Screenshot oder extrahiertes
+        Blizzard-Asset.</li>
+      <li>Geschützt: farbige/hatch Overlayfläche plus Lock-Symbol und <code>aria-pressed=true</code>. Frei: klarer
+        Rahmen und Legende „Für Beute verfügbar“.</li>
+      <li>Tastatur: Grid-Fokus, Pfeiltasten navigieren, Space/Enter toggeln. Pointer-Drag darf nur eine bewusst
+        begonnene Zieloperation fortsetzen; Pointer-Cancel beendet ohne weitere Zellen.</li>
+      <li>Einzige Bulk-Aktion „Alle schützen“. Sie ist direkt sicher. Es gibt weder „Alles freigeben“ noch
+        Row-/Column-Free noch Layoutpreset.</li>
+      <li>Fehlt die Persistenz, rendert der Editor 40 geschützte Zellen, zeigt aber „Noch nicht bestätigt“. Speichern
+        schreibt den Block und hebt nur den Readiness-Block auf; es schaltet keine Zelle automatisch frei.</li>
+      <li>Core analysiert statisch: existiert irgendein geschütztes 2×2-Rechteck sowie disjunkt grundsätzlich freier
+        Platz für 1×3 und 1×2? Negativ ergibt Cow-Warnung. Positiv heißt nur „grundsätzlich geeignet“.</li>
+      <li>Der produktive Cow-Preflight prüft weiterhin den tatsächlichen Cube-Footprint, Leerzustand, aktuelle Items und
+        disjunkten realen Platz. Er kann trotz positiver statischer UI-Prüfung terminal stoppen.</li>
+      <li>Ein ungeeignetes Cow-Raster verhindert Countess, Mephisto, Summoner oder Nihlathak nicht. Ein
+        <em>fehlendes</em> Raster blockiert jede Queue.
+      </li>
+    </ul>
 
-  <h2>14. Produktive Datenroot-Umschreibung</h2>
-  <div class="callout danger"><strong>Kein Migrationscode:</strong> Schema 3 wird erst im produktiven Datenroot aktiviert, nachdem der neue Parser und alle automatischen Storetests grün sind. Während der Umschreibung sind Desktop und Core beendet.</div>
-  <ol>
-    <li>Aktuellen Root <code>%LOCALAPPDATA%\D2ROfflineFarmingBot</code> und aktuelle Revision erfassen. Planbaseline: <code>operator-settings.local.yaml</code> Schema 2, Revision 15.</li>
-    <li>Mindestens <code>config.yaml</code> und <code>operator-settings.local.yaml</code> mit timestamped <code>.phase21-before-YYYYMMDD-HHMMSS.bak</code> im bestehenden Backup-/Configs-Kontext sichern. Hashes vor Änderung protokollieren.</li>
-    <li><code>operator-settings.local.yaml</code> auf Schema 3 setzen, Revision exakt um eins erhöhen und nur MrBones/<code>necro_bone_spear</code> mit den effektiven sieben Skillbindings F1/F2/F3/F5/F6/F7/F8, Belt 1–4 und dem bisherigen 4×10-Raster ergänzen. MrBook/MrHammer bleiben ohne erfundene Profile/Loadouts.</li>
-    <li>Die effektiven Loaderdefaults für Amplify Damage F1 und Corpse Explosion F2 ausdrücklich persistieren; nicht nur die fünf roh vorhandenen YAML-Skills kopieren.</li>
-    <li><code>config.yaml</code>: globale <code>input.bindings</code> und <code>loot.inventory_lock</code> entfernen; Combatmetadaten und Pflichtskills ins Bone-Spear-Profil verschieben; per-Run <code>combat.profile</code>/<code>attack_skill</code>/gemeinsame Tuningwerte entfernen.</li>
-    <li>Bestehende Route-Dateien, Kandidaten, Lifecycle-Hashes und Assignments nicht ändern. Deren <code>profile_id</code> wird semantisch ignoriert.</li>
-    <li>Neuen Core zuerst read-only starten: OperatorSettings lesen, Schema/Revision/Bindings/Inventar projizieren, Runs-Inspect und Queue-Validate ohne Input prüfen.</li>
-    <li>Erst nach erfolgreicher Projektion Desktop starten. Charaktere-Tab muss MrBones mit korrekten Tasten und Raster anzeigen; MrBook/MrHammer bleiben unkonfiguriert.</li>
-    <li>Bei irgendeiner Abweichung Core stoppen, beide Originaldateien aus Backup atomar zurückstellen und Gate anhalten. Kein teilweises Weiterarbeiten mit zwei Authorities.</li>
-  </ol>
+    <h2>14. Produktive Datenroot-Umschreibung</h2>
+    <div class="callout danger"><strong>Kein Migrationscode:</strong> Schema 3 wird erst im produktiven Datenroot
+      aktiviert, nachdem der neue Parser und alle automatischen Storetests grün sind. Während der Umschreibung sind
+      Desktop und Core beendet.</div>
+    <ol>
+      <li>Aktuellen Root <code>%LOCALAPPDATA%\D2ROfflineFarmingBot</code> und aktuelle Revision erfassen. Planbaseline:
+        <code>operator-settings.local.yaml</code> Schema 2, Revision 15.
+      </li>
+      <li>Mindestens <code>config.yaml</code> und <code>operator-settings.local.yaml</code> mit timestamped
+        <code>.phase21-before-YYYYMMDD-HHMMSS.bak</code> im bestehenden Backup-/Configs-Kontext sichern. Hashes vor
+        Änderung protokollieren.
+      </li>
+      <li><code>operator-settings.local.yaml</code> auf Schema 3 setzen, Revision exakt um eins erhöhen und nur
+        MrBones/<code>necro_bone_spear</code> mit den effektiven sieben Skillbindings F1/F2/F3/F5/F6/F7/F8, Belt 1–4 und
+        dem bisherigen 4×10-Raster ergänzen. MrBook/MrHammer bleiben ohne erfundene Profile/Loadouts.</li>
+      <li>Die effektiven Loaderdefaults für Amplify Damage F1 und Corpse Explosion F2 ausdrücklich persistieren; nicht
+        nur die fünf roh vorhandenen YAML-Skills kopieren.</li>
+      <li><code>config.yaml</code>: globale <code>input.bindings</code> und <code>loot.inventory_lock</code> entfernen;
+        Combatmetadaten und Pflichtskills ins Bone-Spear-Profil verschieben; per-Run
+        <code>combat.profile</code>/<code>attack_skill</code>/gemeinsame Tuningwerte entfernen.
+      </li>
+      <li>Bestehende Route-Dateien, Kandidaten, Lifecycle-Hashes und Assignments nicht ändern. Deren
+        <code>profile_id</code> wird semantisch ignoriert.
+      </li>
+      <li>Neuen Core zuerst read-only starten: OperatorSettings lesen, Schema/Revision/Bindings/Inventar projizieren,
+        Runs-Inspect und Queue-Validate ohne Input prüfen.</li>
+      <li>Erst nach erfolgreicher Projektion Desktop starten. Charaktere-Tab muss MrBones mit korrekten Tasten und
+        Raster anzeigen; MrBook/MrHammer bleiben unkonfiguriert.</li>
+      <li>Bei irgendeiner Abweichung Core stoppen, beide Originaldateien aus Backup atomar zurückstellen und Gate
+        anhalten. Kein teilweises Weiterarbeiten mit zwei Authorities.</li>
+    </ol>
 
-  <h2>15. Erwartete Dateien und Änderungen</h2>
-  <table><thead><tr><th>Bereich</th><th>Erwartete Dateien</th><th>Änderung</th></tr></thead><tbody>
-    <tr><td>CASC</td><td><code>tools/generate-skill-catalog/</code>, neues <code>internal/memory/generate.go</code>, generierte Skilldaten und Fixtures</td><td>Deterministischer Katalog, Canonical Keys, IDs/Eigenschaften, Generatorfehler und Source-Kommentar.</td></tr>
-    <tr><td>Memory/World</td><td><code>internal/memory/player_skills.go</code>, <code>probe.go</code>, <code>internal/world/player.go</code>, <code>mapper.go</code></td><td>Completeness, defensive Known-Skill-Projektion, strikte Traversalfehler.</td></tr>
-    <tr><td>Config</td><td><code>internal/config/profile.go</code>, <code>config.go</code>, <code>configs/config.example.yaml</code></td><td>ProfileCombat/RequiredSkills; globale Binding-/Inventory- und Run-Profilautorität entfernen.</td></tr>
-    <tr><td>Profilstrategien</td><td>neutrale Verträge in <code>internal/profile</code>, neues <code>internal/profile/necrobonespear</code>-Modul, Registry in <code>internal/app/combat_strategy_registry.go</code> und Tests</td><td>Importzyklusfreie Registry-Factories für fünf Runs; bestehende Boss-/Route-/Cow-Ausführung anbinden.</td></tr>
-    <tr><td>App Combat</td><td><code>internal/app/profile.go</code>, <code>combat.go</code>, <code>run_mode.go</code>, <code>app.go</code>, neuer Right-Skill-Selector</td><td>Charakterprofilauflösung, gemeinsamer RMB-Select-Confirm-Cast, kein Run-Profil, kein globaler Config-BindingSource.</td></tr>
-    <tr><td>Pathing/Input</td><td><code>internal/pathing/teleport.go</code>, <code>internal/input/skill_cast.go</code></td><td>Teleport mit aktuellem Player-Skillstate; unbestätigte produktive Select+Click-Abkürzung entfernen.</td></tr>
-    <tr><td>Availability/Routes</td><td><code>internal/app/run_availability.go</code>, <code>recording_coordinator.go</code>, <code>guided_route_record.go</code>, Route-Management, <code>internal/pathing/route_model.go</code></td><td>Strategy-Präsenz statt Profilgleichheit; Route-Profilfeld ignorieren, Recording-Precheck nicht mehr darauf stützen und neue Writes auslassen.</td></tr>
-    <tr><td>OperatorSettings</td><td><code>internal/app/operator_settings.go</code>, <code>cmd/d2rbot/main.go</code>, <code>internal/api/live_backend.go</code>, Backend/DTO/Storetests</td><td>Schema 3, profile_bindings, inventory_lock, LoadoutResolver, Queue-/Workflow-Freeze.</td></tr>
-    <tr><td>Queue/Supervisor</td><td><code>queue_scheduler.go</code>, <code>queue_runtime.go</code>, <code>session_verification.go</code>, <code>run_tick.go</code>, <code>supervisor.go</code></td><td>snapshot-only Spiel-/Skillverifikation vor Bindings/Readiness/Tasks, statische Readiness, einmaliger Skillgate, ExitRequired terminal ohne Retry.</td></tr>
-    <tr><td>API</td><td><code>operator_settings_dto.go</code>, <code>character_setup_dto.go</code>, <code>dto.go</code>, OpenAPI</td><td>Profilmetadaten, Farm-Readiness, Warning/Blocking Reasons, Schema-3-Roundtrip.</td></tr>
-    <tr><td>Web</td><td><code>web/src/features/characters/</code>, Settings, Onboarding, Dashboard, Reasons, CSS</td><td>Charaktere-Tab, Wizard, BindingEditor, InventoryLockEditor, responsive/a11y Tests.</td></tr>
-    <tr><td>Telemetry</td><td>Session-/Run-Recorder und History-Reason-Mapping</td><td>einmaliges Skillcheck-Ergebnis, Profil/Revision, vollständige Missing-Liste, verständliche Historie.</td></tr>
-    <tr><td>Docs</td><td>neue <code>docs/features/character-loadouts.md</code>; bestehende Profile/Input/Inventory/Setup/Availability/Route/OperatorSettings-Docs, Index, Changelog, Handoff, Backlog</td><td>aktueller Vertrag plus expliziter Multi-Profil- und Future-Verify-Abschnitt.</td></tr>
-  </tbody></table>
+    <h2>15. Erwartete Dateien und Änderungen</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Bereich</th>
+          <th>Erwartete Dateien</th>
+          <th>Änderung</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>CASC</td>
+          <td><code>tools/generate-skill-catalog/</code>, neues <code>internal/memory/generate.go</code>, generierte
+            Skilldaten und Fixtures</td>
+          <td>Deterministischer Katalog, Canonical Keys, IDs/Eigenschaften, Generatorfehler und Source-Kommentar.</td>
+        </tr>
+        <tr>
+          <td>Memory/World</td>
+          <td><code>internal/memory/player_skills.go</code>, <code>probe.go</code>,
+            <code>internal/world/player.go</code>, <code>mapper.go</code>
+          </td>
+          <td>Completeness, defensive Known-Skill-Projektion, strikte Traversalfehler.</td>
+        </tr>
+        <tr>
+          <td>Config</td>
+          <td><code>internal/config/profile.go</code>, <code>config.go</code>, <code>configs/config.example.yaml</code>
+          </td>
+          <td>ProfileCombat/RequiredSkills; globale Binding-/Inventory- und Run-Profilautorität entfernen.</td>
+        </tr>
+        <tr>
+          <td>Profilstrategien</td>
+          <td>neutrale Verträge in <code>internal/profile</code>, neues
+            <code>internal/profile/necrobonespear</code>-Modul, Registry in
+            <code>internal/app/combat_strategy_registry.go</code> und Tests
+          </td>
+          <td>Importzyklusfreie Registry-Factories für fünf Runs; bestehende Boss-/Route-/Cow-Ausführung anbinden.</td>
+        </tr>
+        <tr>
+          <td>App Combat</td>
+          <td><code>internal/app/profile.go</code>, <code>combat.go</code>, <code>run_mode.go</code>,
+            <code>app.go</code>, neuer Right-Skill-Selector
+          </td>
+          <td>Charakterprofilauflösung, gemeinsamer RMB-Select-Confirm-Cast, kein Run-Profil, kein globaler
+            Config-BindingSource.</td>
+        </tr>
+        <tr>
+          <td>Pathing/Input</td>
+          <td><code>internal/pathing/teleport.go</code>, <code>internal/input/skill_cast.go</code></td>
+          <td>Teleport mit aktuellem Player-Skillstate; unbestätigte produktive Select+Click-Abkürzung entfernen.</td>
+        </tr>
+        <tr>
+          <td>Availability/Routes</td>
+          <td><code>internal/app/run_availability.go</code>, <code>recording_coordinator.go</code>,
+            <code>guided_route_record.go</code>, Route-Management, <code>internal/pathing/route_model.go</code>
+          </td>
+          <td>Strategy-Präsenz statt Profilgleichheit; Route-Profilfeld ignorieren, Recording-Precheck nicht mehr darauf
+            stützen und neue Writes auslassen.</td>
+        </tr>
+        <tr>
+          <td>OperatorSettings</td>
+          <td><code>internal/app/operator_settings.go</code>, <code>cmd/d2rbot/main.go</code>,
+            <code>internal/api/live_backend.go</code>, Backend/DTO/Storetests
+          </td>
+          <td>Schema 3, profile_bindings, inventory_lock, LoadoutResolver, Queue-/Workflow-Freeze.</td>
+        </tr>
+        <tr>
+          <td>Queue/Supervisor</td>
+          <td><code>queue_scheduler.go</code>, <code>queue_runtime.go</code>, <code>session_verification.go</code>,
+            <code>run_tick.go</code>, <code>supervisor.go</code>
+          </td>
+          <td>snapshot-only Spiel-/Skillverifikation vor Bindings/Readiness/Tasks, statische Readiness, einmaliger
+            Skillgate, ExitRequired terminal ohne Retry.</td>
+        </tr>
+        <tr>
+          <td>API</td>
+          <td><code>operator_settings_dto.go</code>, <code>character_setup_dto.go</code>, <code>dto.go</code>, OpenAPI
+          </td>
+          <td>Profilmetadaten, Farm-Readiness, Warning/Blocking Reasons, Schema-3-Roundtrip.</td>
+        </tr>
+        <tr>
+          <td>Web</td>
+          <td><code>web/src/features/characters/</code>, Settings, Onboarding, Dashboard, Reasons, CSS</td>
+          <td>Charaktere-Tab, Wizard, BindingEditor, InventoryLockEditor, responsive/a11y Tests.</td>
+        </tr>
+        <tr>
+          <td>Telemetry</td>
+          <td>Session-/Run-Recorder und History-Reason-Mapping</td>
+          <td>einmaliges Skillcheck-Ergebnis, Profil/Revision, vollständige Missing-Liste, verständliche Historie.</td>
+        </tr>
+        <tr>
+          <td>Docs</td>
+          <td>neue <code>docs/features/character-loadouts.md</code>; bestehende
+            Profile/Input/Inventory/Setup/Availability/Route/OperatorSettings-Docs, Index, Changelog, Handoff, Backlog
+          </td>
+          <td>aktueller Vertrag plus expliziter Multi-Profil- und Future-Verify-Abschnitt.</td>
+        </tr>
+      </tbody>
+    </table>
 
-  <h2>16. Vollständiger automatischer Testvertrag</h2>
-  <table><thead><tr><th>Ebene</th><th>Pflichtfälle</th></tr></thead><tbody>
-    <tr><td>Generator</td><td>skills.txt-Header; deterministische Ausgabe; IDs/Keys; TownPortal-Normalisierung; Duplicate ID/Key; invalid row; vorhandene 54/66/68/74/84/88/359 gegen Fixture; kein Runtime-TXT-Zugriff.</td></tr>
-    <tr><td>Profilconfig</td><td>Standardangriff fehlt/nicht im Katalog/nicht required; Teleport/TP fehlen; duplicate required; mehr als acht; Hook/Maintenance/Strategy-Skill fehlt; deutsches Label ungültig; mehrere Profile/default.</td></tr>
-    <tr><td>Registry</td><td>alle fünf Bone-Spear-Paare; unbekanntes Profil/Run; nil Factory; fehlende Strategy-Oberfläche; inkonsistente Dependencies; inkrementelles Profil mit Teilmenge; Availability-Grund.</td></tr>
-    <tr><td>Run/Route</td><td>Charakterprofil treibt Run; Profilwechsel; Queue bleibt; unsupported markiert; bestehende Single-/Cow-Routen mit altem <code>profile_id</code> valide; neue Aufnahme ohne Profilfeld; Hash unverändert.</td></tr>
-    <tr><td>OperatorSettings</td><td>Schema 3 Roundtrip; Schema 2 abgewiesen; inactive profile bindings erhalten; partial bindings speicherbar aber nicht ready; F1–F8; duplicate; Bot-/Belt-Kollision; safe belt allowlist; inventory absent/all-locked/malformed.</td></tr>
-    <tr><td>Loadout-Freeze</td><td>Character/Profile/Revision gebunden; Mutations während Workflow abgewiesen; nächster Workflow sieht neue Revision; andere Charaktere teilen weder Bindingmap noch Inventory; defensive Kopien.</td></tr>
-    <tr><td>SkillsKnown</td><td>vollständiges nil-Ende; jeder Readfehler; 128-Limit; keine partielle Missing-Aussage; Map-Clone; vollständige positive Liste; ein/mehrere Missing; Gate nur einmal/Session; neue Session prüft erneut.</td></tr>
-    <tr><td>Skillfailure/Exit</td><td>StartGame/VerifySameGame snapshot-only; kein BindingsPrecheck, Readiness- oder Task-Tick vor Gate; Missing liefert alle Skills; QueueRunStop + ExitRequired; Save &amp; Exit genau einmal; kein Retry; Exitfehler wird <code>game_exit_failed</code>; Telemetrie-/UI-Grund.</td></tr>
-    <tr><td>RightSkillSelector</td><td>bereits aktiv = direkter Klick ohne Key; Wechsel = Key ohne Klick; gleicher Snapshot wartet; neuer Match klickt; Left-only/mismatch fail-closed; Timeout; Reset; Profilcast und Combat teilen keinen stale Pending State.</td></tr>
-    <tr><td>Teleport</td><td>erster Wechsel wartet; folgende Teleports ohne F-Key; kein <code>combo_hold_ms</code> je Teleport; Projektion/Throttle/Stuck unverändert.</td></tr>
-    <tr><td>Queue</td><td>Bindings fehlen; Belt fehlt; Inventory fehlt; all-locked gespeichert erlaubt; Strategy fehlt; Cow-Warnung blockiert andere Runs nicht; Core-Reason Reihenfolge deterministisch.</td></tr>
-    <tr><td>Inventory Core</td><td>4×10; Presence; 0/1; statisch geschütztes 2×2; disjunkte 1×3/1×2 positiv/negativ; bestehender Live-Cow-Preflight bleibt strenger.</td></tr>
-    <tr><td>API</td><td>OpenAPI Schema 3; DTO-Roundtrip; required skill order/labels; default selector; supported runs aus Registry; selectable vs farm_ready; setup profile change preserves queue.</td></tr>
-    <tr><td>Web</td><td>vier Settings-Tabs; single/multi profile; required list; F1–F8; Standardangriff; verständliche Kollisionstexte; deferred onboarding; Dashboard unlock CTA; profile switch warning; queue block; 4×10 keyboard/drag/all-protect/Cow warning.</td></tr>
-    <tr><td>Regression</td><td>Countess, Mephisto, Summoner, Nihlathak und Cow Strategy-/Pipeline-/Availability-Charakterisierung; Recording/Playback/Assignments; Town/Resource/Pickit unverändert.</td></tr>
-    <tr><td>Gesamtmatrix</td><td>Repo-Root: <code>go generate ./internal/memory</code>, <code>git diff --check</code>, <code>go test ./...</code>, <code>go build ./cmd/d2rbot</code>, <code>go vet ./...</code>, <code>golangci-lint run ./...</code>. Arbeitsverzeichnis <code>web/</code>: <code>pnpm generate</code>, <code>node scripts/generate-api.mjs --check</code>, <code>pnpm test</code>, <code>pnpm typecheck</code>, <code>pnpm build</code>. Race nur bei tatsächlich neuer Nebenläufigkeit über UCRT64.</td></tr>
-  </tbody></table>
+    <h2>16. Vollständiger automatischer Testvertrag</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Ebene</th>
+          <th>Pflichtfälle</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Generator</td>
+          <td>skills.txt-Header; deterministische Ausgabe; IDs/Keys; TownPortal-Normalisierung; Duplicate ID/Key;
+            invalid row; vorhandene 54/66/68/74/84/88/359 gegen Fixture; kein Runtime-TXT-Zugriff.</td>
+        </tr>
+        <tr>
+          <td>Profilconfig</td>
+          <td>Standardangriff fehlt/nicht im Katalog/nicht required; Teleport/TP fehlen; duplicate required; mehr als
+            acht; Hook/Maintenance/Strategy-Skill fehlt; deutsches Label ungültig; mehrere Profile/default.</td>
+        </tr>
+        <tr>
+          <td>Registry</td>
+          <td>alle fünf Bone-Spear-Paare; unbekanntes Profil/Run; nil Factory; fehlende Strategy-Oberfläche;
+            inkonsistente Dependencies; inkrementelles Profil mit Teilmenge; Availability-Grund.</td>
+        </tr>
+        <tr>
+          <td>Run/Route</td>
+          <td>Charakterprofil treibt Run; Profilwechsel; Queue bleibt; unsupported markiert; bestehende
+            Single-/Cow-Routen mit altem <code>profile_id</code> valide; neue Aufnahme ohne Profilfeld; Hash
+            unverändert.</td>
+        </tr>
+        <tr>
+          <td>OperatorSettings</td>
+          <td>Schema 3 Roundtrip; Schema 2 abgewiesen; inactive profile bindings erhalten; partial bindings speicherbar
+            aber nicht ready; F1–F8; duplicate; Bot-/Belt-Kollision; safe belt allowlist; inventory
+            absent/all-locked/malformed.</td>
+        </tr>
+        <tr>
+          <td>Loadout-Freeze</td>
+          <td>Character/Profile/Revision gebunden; Mutations während Workflow abgewiesen; nächster Workflow sieht neue
+            Revision; andere Charaktere teilen weder Bindingmap noch Inventory; defensive Kopien.</td>
+        </tr>
+        <tr>
+          <td>SkillsKnown</td>
+          <td>vollständiges nil-Ende; jeder Readfehler; 128-Limit; keine partielle Missing-Aussage; Map-Clone;
+            vollständige positive Liste; ein/mehrere Missing; Gate nur einmal/Session; neue Session prüft erneut.</td>
+        </tr>
+        <tr>
+          <td>Skillfailure/Exit</td>
+          <td>StartGame/VerifySameGame snapshot-only; kein BindingsPrecheck, Readiness- oder Task-Tick vor Gate; Missing
+            liefert alle Skills; QueueRunStop + ExitRequired; Save &amp; Exit genau einmal; kein Retry; Exitfehler wird
+            <code>game_exit_failed</code>; Telemetrie-/UI-Grund.
+          </td>
+        </tr>
+        <tr>
+          <td>RightSkillSelector</td>
+          <td>bereits aktiv = direkter Klick ohne Key; Wechsel = Key ohne Klick; gleicher Snapshot wartet; neuer Match
+            klickt; Left-only/mismatch fail-closed; Timeout; Reset; Profilcast und Combat teilen keinen stale Pending
+            State.</td>
+        </tr>
+        <tr>
+          <td>Teleport</td>
+          <td>erster Wechsel wartet; folgende Teleports ohne F-Key; kein <code>combo_hold_ms</code> je Teleport;
+            Projektion/Throttle/Stuck unverändert.</td>
+        </tr>
+        <tr>
+          <td>Queue</td>
+          <td>Bindings fehlen; Belt fehlt; Inventory fehlt; all-locked gespeichert erlaubt; Strategy fehlt; Cow-Warnung
+            blockiert andere Runs nicht; Core-Reason Reihenfolge deterministisch.</td>
+        </tr>
+        <tr>
+          <td>Inventory Core</td>
+          <td>4×10; Presence; 0/1; statisch geschütztes 2×2; disjunkte 1×3/1×2 positiv/negativ; bestehender
+            Live-Cow-Preflight bleibt strenger.</td>
+        </tr>
+        <tr>
+          <td>API</td>
+          <td>OpenAPI Schema 3; DTO-Roundtrip; required skill order/labels; default selector; supported runs aus
+            Registry; selectable vs farm_ready; setup profile change preserves queue.</td>
+        </tr>
+        <tr>
+          <td>Web</td>
+          <td>vier Settings-Tabs; single/multi profile; required list; F1–F8; Standardangriff; verständliche
+            Kollisionstexte; deferred onboarding; Dashboard unlock CTA; profile switch warning; queue block; 4×10
+            keyboard/drag/all-protect/Cow warning.</td>
+        </tr>
+        <tr>
+          <td>Regression</td>
+          <td>Countess, Mephisto, Summoner, Nihlathak und Cow Strategy-/Pipeline-/Availability-Charakterisierung;
+            Recording/Playback/Assignments; Town/Resource/Pickit unverändert.</td>
+        </tr>
+        <tr>
+          <td>Gesamtmatrix</td>
+          <td>Repo-Root: <code>go generate ./internal/memory</code>, <code>git diff --check</code>,
+            <code>go test ./...</code>, <code>go build ./cmd/d2rbot</code>, <code>go vet ./...</code>,
+            <code>golangci-lint run ./...</code>. Arbeitsverzeichnis <code>web/</code>: <code>pnpm generate</code>,
+            <code>node scripts/generate-api.mjs --check</code>, <code>pnpm test</code>, <code>pnpm typecheck</code>,
+            <code>pnpm build</code>. Race nur bei tatsächlich neuer Nebenläufigkeit über UCRT64.
+          </td>
+        </tr>
+      </tbody>
+    </table>
 
-  <h2>17. Umsetzungsreihenfolge mit harten Gates</h2>
-  <div class="phase">
-    <div class="phase-id">21.0</div>
-    <div><h3>Baseline, Verträge und CASC-Skillkatalog</h3>
-      <ol>
-        <li>Worktree/Branch/ungecommitete Dateien erfassen; vorhandene <code>.vscode/extensions.json</code> nicht verändern.</li>
-        <li>Vollständige Go-/API-/Web-Baseline einmal ausführen und Befunde protokollieren.</li>
-        <li>Skillgenerator, Fixturetests, generierte Daten und dünne Parse-/Alias-Schicht implementieren.</li>
-        <li>ProfileConfig um Combatmetadaten und Required-Skill-Einträge erweitern; Bone-Spear-Profil vollständig migrieren.</li>
-        <li>Feature-Doc-Skelett und Core-Vertrag anlegen; keine Runtime-Auswahl ändern.</li>
-      </ol>
-      <div class="callout gate"><strong>Gate 21.0:</strong> Jeder vom Bone-Spear-Profil verwendete Skill wird ausschließlich aus dem generierten CASC-Katalog aufgelöst; Configvalidierung friert Teleport/TP, Standardangriff und Dependency-Subset ein. Bestehende Tests/Build bleiben grün. Kein manueller D2R-Test erforderlich.</div>
+    <h2>17. Umsetzungsreihenfolge mit harten Gates</h2>
+    <div class="phase">
+      <div class="phase-id">21.0</div>
+      <div>
+        <h3>Baseline, Verträge und CASC-Skillkatalog <span class="good">— bestanden 9. August 2026</span></h3>
+        <ol>
+          <li>Worktree/Branch/ungecommitete Dateien erfassen; vorhandene <code>.vscode/extensions.json</code> nicht
+            verändern. <span class="good">Erledigt:</span> sauberer <code>master</code> bei <code>c272039</code>;
+            Extensions-Datei unangetastet.</li>
+          <li>Vollständige Go-/API-/Web-Baseline einmal ausführen und Befunde protokollieren. <span
+              class="good">Erledigt:</span> <code>go test ./...</code>, <code>go build ./cmd/d2rbot</code>, Web
+            <code>generate/--check/test/typecheck</code> grün (171 Tests).
+          </li>
+          <li>Skillgenerator, Fixturetests, generierte Daten und dünne Parse-/Alias-Schicht implementieren. <span
+              class="good">Erledigt:</span> 429 Skills, Canonical Keys, TownPortal→<code>town_portal</code>, Produkt-IDs
+            54/66/68/74/78/84/88/359.</li>
+          <li>ProfileConfig um Combatmetadaten und Required-Skill-Einträge erweitern; Bone-Spear-Profil vollständig
+            migrieren. <span class="good">Erledigt:</span> Validierung friert Teleport/TP, Standardangriff und
+            Hook-/Maintenance-Subset ein; Run-Combat bleibt Runtime-Autorität bis 21.1.</li>
+          <li>Feature-Doc-Skelett und Core-Vertrag anlegen; keine Runtime-Auswahl ändern. <span
+              class="good">Erledigt:</span> <code>character-loadouts.md</code>, <code>phase-21-core-contract.md</code>.
+          </li>
+        </ol>
+        <div class="callout success"><strong>Gate 21.0 bestanden:</strong> Bone-Spear-Skills lösen ausschließlich über
+          den generierten CASC-Katalog auf. Configvalidierung deckt Teleport/TP, Standardangriff und Dependency-Subset
+          ab. Bestehende Tests/Build bleiben grün. Kein manueller D2R-Test erforderlich.</div>
+        <div class="callout"><strong>Erkenntnisse:</strong> <code>skills.txt</code> enthält 429 Zeilen ohne leere Namen
+          oder ID-/Key-Kollisionen. CamelCase-Normalisierung macht <code>TownPortal</code> deterministisch zu
+          <code>town_portal</code>. <code>config → memory</code> ist der schmale Validierungspfad für Katalogtreffer;
+          Runtime-Skillauswahl und OperatorSettings bleiben unverändert.
+        </div>
+      </div>
     </div>
-  </div>
 
-  <div class="phase">
-    <div class="phase-id">21.1</div>
-    <div><h3>Profilmodule, Strategy Registry und Run-/Route-Entkopplung</h3>
-      <ol>
-        <li>Registry-Vertrag und Bone-Spear-Modul mit fünf Run-Factories implementieren.</li>
-        <li>Executor-/Task-Wiring von harten Profile-ID-Prüfungen auf Registry-Resolution umstellen.</li>
-        <li>Aktives Charakterprofil als Runtime-Autorität durch Session-/Run-Auflösung führen; per-Run Profil/Attack-Keys entfernen.</li>
-        <li>Availability und Setup-Queueprüfung auf Strategy-Präsenz umstellen; Queue bei Profilwechsel bewahren.</li>
-        <li>Route-Profilgleichheit entfernen, bestehendes Feld nur noch tolerant lesen und neue Writes auslassen.</li>
-        <li>Alle fünf bestehenden Runs durch Charakterisierungstests gegen vorheriges Bone-Spear-Verhalten absichern.</li>
-      </ol>
-      <div class="callout gate"><strong>Gate 21.1:</strong> Kein produktiver Pfad bezieht Combat-Profil oder Standardangriff aus dem Run. Registry besitzt alle fünf Bone-Spear-Paare. Bestehende veröffentlichte Routen – einschließlich Cow mit altem <code>profile_id</code> – bleiben verfügbar, ohne Hashänderung. Kein manueller Run nötig, weil Verhalten durch bestehende Pipeline-/Strategy-Tests vollständig charakterisiert wird.</div>
+    <div class="phase">
+      <div class="phase-id">21.1</div>
+      <div>
+        <h3>Profilmodule, Strategy Registry und Run-/Route-Entkopplung <span class="good">— bestanden 9. August
+            2026</span></h3>
+        <ol>
+          <li>Registry-Vertrag und Bone-Spear-Modul mit fünf Run-Factories implementieren. <span
+              class="good">Erledigt:</span> <code>internal/profile/strategy.go</code>, <code>necrobonespear</code>,
+            <code>CombatStrategyRegistry</code> mit Countess/Mephisto/Summoner/Nihlathak/Cows.
+          </li>
+          <li>Executor-/Task-Wiring von harten Profile-ID-Prüfungen auf Registry-Resolution umstellen. <span
+              class="good">Erledigt:</span> <code>newProfileExecutor</code> und App-Wiring lösen nur noch über Registry.
+          </li>
+          <li>Aktives Charakterprofil als Runtime-Autorität durch Session-/Run-Auflösung führen; per-Run
+            Profil/Attack-Keys entfernen. <span class="good">Erledigt:</span> <code>resolveActiveCombatProfileID</code>
+            + Profil-<code>combat</code>; Run-<code>combat.*</code> wird abgelehnt.</li>
+          <li>Availability und Setup-Queueprüfung auf Strategy-Präsenz umstellen; Queue bei Profilwechsel bewahren.
+            <span class="good">Erledigt:</span> Reason <code>profile_run_strategy_unavailable</code> in Availability und
+            Desktop-Contract.
+          </li>
+          <li>Route-Profilgleichheit entfernen, bestehendes Feld nur noch tolerant lesen und neue Writes auslassen.
+            <span class="good">Erledigt:</span> Availability ignoriert Legacy-<code>profile_id</code>; Recording
+            schreibt leeres Feld.
+          </li>
+          <li>Alle fünf bestehenden Runs durch Charakterisierungstests gegen vorheriges Bone-Spear-Verhalten absichern.
+            <span class="good">Erledigt:</span> Registry-Matrix, Availability-, Recording-, Config- und Pipeline-Tests
+            grün.
+          </li>
+        </ol>
+        <div class="callout success"><strong>Gate 21.1 bestanden:</strong> Kein produktiver Pfad bezieht Combat-Profil
+          oder Standardangriff aus dem Run. Registry besitzt alle fünf Bone-Spear-Paare. Bestehende veröffentlichte
+          Routen – einschließlich Cow mit altem <code>profile_id</code> – bleiben verfügbar, ohne Hashänderung. Kein
+          manueller Run nötig.</div>
+        <div class="callout"><strong>Erkenntnisse:</strong> Registry-Owner bleibt <code>internal/app</code>, damit
+          Factories <code>tasks.RunID</code> nicht in <code>internal/profile</code> ziehen müssen. Leere
+          Run-<code>CombatConfig</code> ist nur noch YAML-Anker; produktive Tuningwerte leben ausschließlich unter
+          <code>combat_profiles.*.combat</code>. Legacy-Reason <code>character_profile_run_incompatible</code> bleibt
+          für Historie, neue Sperren nutzen Strategy-Präsenz.
+        </div>
+      </div>
     </div>
-  </div>
 
-  <div class="phase">
-    <div class="phase-id">21.2</div>
-    <div><h3>Vollständige Skill-Evidenz, Session-Gate und RMB-Selector</h3>
-      <ol>
-        <li>PlayerSkills-Completeness und strikten Linked-List-Walk implementieren; World-Projektion/Clone ergänzen.</li>
-        <li><code>verifyActiveQueueGame</code>/<code>VerifySameGame</code> auf einen snapshot-only Poller ohne Binding-/Readiness-/Taskausführung umstellen; danach den einmaligen Session-Skillgate vor jedem produktiven Input einfügen.</li>
-        <li>Den Skillgate als erste Operation des Run-Result-Pfads nach erfolgreichem StartGame implementieren; typed terminal result mit Save &amp; Exit, Null-Retry, Telemetrie und allen Missing Skills liefern.</li>
-        <li>Gemeinsamen RightSkillSelector bauen und Combat/Profile/Teleport/TP/CE darauf umstellen.</li>
-        <li>Redundante Teleport-Auswahl entfernen; Timing-/Snapshot-/Resettests ausführen.</li>
-        <li>Required-Skills read-only über Setup/API/Web anzeigen.</li>
-      </ol>
-      <div class="callout gate"><strong>Gate 21.2 automatisch:</strong> Partielle Skilllisten können keinen Missing-Result erzeugen. Missing Skills führen ohne vorherigen Input genau einmal zu supervisor-eigenem Exit und terminalem Stop. Jeder produktive Skillclick besitzt RightSkillID-Autorität. Vollständige Go-/Webmatrix grün.</div>
-      <div class="callout gate"><strong>Einziger manueller Inputnachweis 21.2:</strong> Auf dem aktuellen Build isoliert Teleport auswählen, zwei Ziele nacheinander teleportieren und anschließend zwischen einem Combat-Skill und Teleport wechseln. Log/Memory müssen zeigen: erster Wechsel Key→neuer Snapshot→RMB, zweiter Teleport ohne erneuten F-Key, falscher/fehlender Klick kommt nicht vor. Kein vollständiger Farming-Run erforderlich.</div>
+    <div class="phase">
+      <div class="phase-id">21.2</div>
+      <div>
+        <h3>Vollständige Skill-Evidenz, Session-Gate und RMB-Selector <span class="good">— bestanden 9. August 2026
+            (inkl. manueller Teleportnachweis)</span></h3>
+        <ol>
+          <li>PlayerSkills-Completeness und strikten Linked-List-Walk implementieren; World-Projektion/Clone ergänzen.
+            <span class="good">Erledigt:</span> <code>Complete</code>/<code>IncompleteReason</code>,
+            World-<code>SkillsKnown</code>-Clone.
+          </li>
+          <li><code>verifyActiveQueueGame</code>/<code>VerifySameGame</code> auf einen snapshot-only Poller ohne
+            Binding-/Readiness-/Taskausführung umstellen; danach den einmaligen Session-Skillgate vor jedem produktiven
+            Input einfügen. <span class="good">Erledigt:</span> <code>pollQueueSnapshot</code> +
+            <code>VerifyProfileSkills</code> einmal pro Queue-Session; <code>BeginQueue</code> setzt
+            <code>skillsVerified</code> zurück.
+          </li>
+          <li>Den Skillgate als erste Operation des Run-Result-Pfads nach erfolgreichem StartGame implementieren; typed
+            terminal result mit Save &amp; Exit, Null-Retry, Telemetrie und allen Missing Skills liefern. <span
+              class="good">Erledigt:</span> <code>profile_required_skills_missing</code> /
+            <code>profile_skills_read_unavailable</code> mit <code>ExitRequired</code> und deutschem
+            <code>Detail</code>.
+          </li>
+          <li>Gemeinsamen RightSkillSelector bauen und Combat/Profile/Teleport/TP/CE darauf umstellen. <span
+              class="good">Erledigt:</span> Shared Selector; Pathing-<code>RightSkillClicker</code> verpflichtend.</li>
+          <li>Redundante Teleport-Auswahl entfernen; Timing-/Snapshot-/Resettests ausführen. <span
+              class="good">Erledigt:</span> Auto-Tests inkl. Timeout/Mismatch/Reset/Snapshot-only; manueller
+            Teleportnachweis bestanden.</li>
+          <li>Required-Skills read-only über Setup/API/Web anzeigen. <span class="good">Erledigt (API):</span>
+            Setup-Preview liefert <code>standard_attack</code>, geordnete <code>required_skills</code> und
+            Registry-<code>supported_runs</code>. Charaktere-UI bleibt 21.3+.</li>
+        </ol>
+        <div class="callout success"><strong>Gate 21.2 bestanden:</strong> Partielle Skilllisten können keinen
+          Missing-Result erzeugen. Missing Skills führen ohne vorherigen Input genau einmal zu supervisor-eigenem Exit
+          und terminalem Stop. Jeder produktive Skillclick besitzt RightSkillID-Autorität. Vollständige Go-/Webmatrix
+          grün. Manueller Nachweis: A bone_armor→Teleport (F7→Confirm→Cast), B Folge-Teleport ohne F-Key, C
+          bone_spear→Teleport erneut mit F7→Confirm→Cast.</div>
+        <div class="callout"><strong>Erkenntnisse:</strong> Snapshot-only Poller muss Bindings/Readiness/Tasks hart
+          auslassen, sonst armieren Verify-Ticks produktiven Input vor dem Skillgate. Selector-Throttle darf
+          Pending-Warte-Ticks nicht neu starten, sonst verhungert der bestätigende RMB. Pathing-Teleports melden
+          Selection-Pending explizit und verlangen einen RightSkillClicker — unbestätigtes <code>CastSkillAt</code> ist
+          kein produktiver Fallback mehr.</div>
+        <div class="callout"><strong>Verify 9. August 2026:</strong> Papier-Lücken geschlossen — echte
+          Gate-Failure-Tests (kein RunToTown bei Missing), Snapshot-only-Beweis, Selector Timeout/Mismatch/Left/Reset,
+          Teleport-Clicker-Pflicht, Setup-API Required-Skills-Projektion, Missing-<code>Detail</code> für
+          Operator/Telemetrie.</div>
+        <div class="callout"><strong>Manueller Nachweis 9. August 2026:</strong> Logs
+          <code>d2rbot-20260809-225605</code> / <code>225621</code> / <code>225950</code>. Live-Landungen bestätigt;
+          kein RMB vor RightSkillID 54; kein redundanter F7 bei bereits aktivem Teleport.
+        </div>
+      </div>
     </div>
-  </div>
 
-  <div class="phase">
-    <div class="phase-id">21.3</div>
-    <div><h3>OperatorSettings Schema 3 und Binding-Readiness</h3>
-      <ol>
-        <li>Vollständige Schema-3-Typen/Validation/DTO/OpenAPI/Generated Client für <code>profile_bindings</code> und den zunächst noch UI-inaktiven presence-sensitiven <code>inventory_lock</code> implementieren.</li>
-        <li>LoadoutResolver und immutable Workflow-/Session-Snapshots einführen; globalen BindingSource entfernen.</li>
-        <li>Statische Queue-Gates für vollständige aktive Profilbindings und Gürtel ergänzen.</li>
-        <li>Charaktere-Settings-Tab und gemeinsamen BindingEditor implementieren.</li>
-        <li>Dashboard-/Onboarding-Readiness anzeigen; Onboarding darf „Später“, Queue nicht.</li>
-        <li>Schema-3-Fixtures und temporäre Testroots mit vollständigem Binding-/Inventory-Schema verwenden; den produktiven Schema-2-Datenroot in diesem Gate noch nicht verändern.</li>
-      </ol>
-      <div class="callout gate"><strong>Gate 21.3:</strong> Testroot/Fixtures zeigen für MrBones exakt F1/F2/F3/F5/F6/F7/F8 und Belt 1–4 im Charaktere-Tab; unbekannte Charaktere erben nichts. Fehlende/duplizierte/unsafe Bindings blockieren Queue vor Spielinput. <code>config.yaml</code> ist keine Binding-Autorität mehr. Der produktive Schema-2-Root bleibt bis Gate 21.4 unangetastet. Kein manueller D2R-Run; API-, Store- und UI-Tests reichen.</div>
+    <div class="phase">
+      <div class="phase-id">21.3</div>
+      <div>
+        <h3>OperatorSettings Schema 3 und Binding-Readiness <span class="good">— bestanden 9. August 2026</span></h3>
+        <ol>
+          <li>Vollständige Schema-3-Typen/Validation/DTO/OpenAPI/Generated Client für <code>profile_bindings</code> und
+            den zunächst noch UI-inaktiven presence-sensitiven <code>inventory_lock</code> implementieren. <span
+              class="good">Erledigt:</span> Store, DTO, OpenAPI, Generated Client, Presence-Semantik und Ablehnung von
+            Schema 2.</li>
+          <li>LoadoutResolver und immutable Workflow-/Session-Snapshots einführen; globalen BindingSource entfernen.
+            <span class="good">Erledigt:</span> <code>CharacterLoadoutResolver</code>, Queue-/CLI-Freeze,
+            <code>app.New</code> ohne Config-Binding-Autorität.
+          </li>
+          <li>Statische Queue-Gates für vollständige aktive Profilbindings und Gürtel ergänzen. <span
+              class="good">Erledigt:</span> <code>profile_bindings_incomplete</code> in Validate/StartQueue und
+            Katalog-<code>farm_ready</code>.</li>
+          <li>Charaktere-Settings-Tab und gemeinsamen BindingEditor implementieren. <span class="good">Erledigt:</span>
+            <code>web/src/features/characters/</code> mit BindingEditor, RequiredSkillsList und CharactersTab.
+          </li>
+          <li>Dashboard-/Onboarding-Readiness anzeigen; Onboarding darf „Später“, Queue nicht. <span
+              class="good">Erledigt:</span> Dashboard sperrt Queue bei fehlenden Tasten; Onboarding speichert oder
+            verschiebt Bindings mit klarem Blocking-Hinweis.</li>
+          <li>Schema-3-Fixtures und temporäre Testroots mit vollständigem Binding-/Inventory-Schema verwenden; den
+            produktiven Schema-2-Datenroot in diesem Gate noch nicht verändern. <span class="good">Erledigt:</span>
+            Store-/API-/UI-Tests gegen Temp-Roots; produktiver Root unangetastet.</li>
+        </ol>
+        <div class="callout success"><strong>Gate 21.3 bestanden:</strong> Testfixtures zeigen für MrBones exakt
+          F1/F2/F3/F5/F6/F7/F8 und Belt 1–4 im Charaktere-Tab; unbekannte Charaktere erben nichts.
+          Fehlende/duplizierte/unsafe Bindings blockieren Queue vor Spielinput. <code>config.yaml</code> ist keine
+          Binding-Autorität mehr. Der produktive Schema-2-Root bleibt bis Gate 21.4 unangetastet. Automatische Go-/Webmatrix
+          grün; kein manueller D2R-Run nötig.</div>
+        <div class="callout"><strong>Erkenntnisse:</strong> Vorherige Teilstände hatten Schema-3-Core bereits weitgehend,
+          aber keinen Charaktere-Tab und kein <code>farm_ready</code>. Katalog-Readiness muss bei jedem
+          <code>Catalog()</code>-Read aus dem aktuellen OperatorSettings-Stand angereichert werden, sonst bleibt die UI
+          nach Binding-Saves stale. Inventar bleibt in 21.3 transportiert, aber UI-/Queue-inaktiv; die
+          Inventar-Aktivierung gehört strikt zu 21.4.</div>
+      </div>
     </div>
-  </div>
 
-  <div class="phase">
-    <div class="phase-id">21.4</div>
-    <div><h3>Per-Charakter-Inventar und fail-closed Queue-Gate</h3>
-      <ol>
-        <li>Das in Schema 3 bereits transportierte presence-sensitive InventoryLock im LoadoutResolver sowie Loot-/Cow-Wiring aktivieren.</li>
-        <li>Fehlendes Raster effektiv vollständig schützen und statisch als Queue-Block projizieren.</li>
-        <li>Originalen zugänglichen 4×10-Editor mit „Alle schützen“ und ohne Free-Preset implementieren.</li>
-        <li>Core-seitige statische Cow-Eignung und UI-Warnung ergänzen; Live-Cow-Preflight unverändert lassen.</li>
-        <li>Nach vollständig grünen Schema-/Binding-/Inventory-Tests genau eine produktive Umschreibung nach Abschnitt 14 durchführen: Bindings und bestehendes 4×10-Raster gemeinsam nach Schema 3 übertragen und im Charaktere-Tab prüfen.</li>
-        <li>Globales <code>loot.inventory_lock</code> aus Configschema, Defaultbundle und produktiver Config entfernen.</li>
-      </ol>
-      <div class="callout gate"><strong>Gate 21.4:</strong> Abwesendes Raster blockiert jede Queue und ergibt null Lootkapazität. Explizit alles geschützt ist valide. Cow-ungeeignetes Raster warnt, blockiert aber einen Countess-Only-Plan nicht. Unit-/Integration-/A11y-/Responsive-Tests sind grün; kein Live-Cow-Run erforderlich.</div>
+    <div class="phase">
+      <div class="phase-id">21.4</div>
+      <div>
+        <h3>Per-Charakter-Inventar und fail-closed Queue-Gate <span class="good">— bestanden 9. August 2026</span></h3>
+        <ol>
+          <li>Das in Schema 3 bereits transportierte presence-sensitive InventoryLock im LoadoutResolver sowie
+            Loot-/Cow-Wiring aktivieren. <span class="good">Erledigt:</span> Runtime-Lock aus Loadout,
+            <code>character_inventory_unconfigured</code>, effektiv alles geschützt bei Abwesenheit.</li>
+          <li>Fehlendes Raster effektiv vollständig schützen und statisch als Queue-Block projizieren. <span
+              class="good">Erledigt:</span> Farm-Ready und Queue-Validate blockieren ohne Persistenz.</li>
+          <li>Originalen zugänglichen 4×10-Editor mit „Alle schützen“ und ohne Free-Preset implementieren. <span
+              class="good">Erledigt:</span> <code>InventoryLockEditor</code> inkl. A11y-/Pointer-/Keyboard-Tests.</li>
+          <li>Core-seitige statische Cow-Eignung und UI-Warnung ergänzen; Live-Cow-Preflight unverändert lassen. <span
+              class="good">Erledigt:</span> <code>InventoryCowSuitable</code> und
+            <code>inventory_layout_unsuitable_for_cows</code>.</li>
+          <li>Nach vollständig grünen Schema-/Binding-/Inventory-Tests genau eine produktive Umschreibung nach Abschnitt
+            14 durchführen: Bindings und bestehendes 4×10-Raster gemeinsam nach Schema 3 übertragen und im
+            Charaktere-Tab prüfen. <span class="good">Erledigt:</span> Backup
+            <code>phase21-before-20260809-234357</code>, Schema 3 Revision 16, MrBones F1–F8 + Belt + Raster;
+            MrBook/MrHammer ohne Loadout.</li>
+          <li>Globales <code>loot.inventory_lock</code> aus Configschema, Defaultbundle und produktiver Config
+            entfernen. <span class="good">Erledigt:</span> KnownFields lehnt Legacy-Key ab; produktive Config ohne
+            Bindings-/Inventory-Autorität.</li>
+        </ol>
+        <div class="callout success"><strong>Gate 21.4 bestanden:</strong> Abwesendes Raster blockiert jede Queue und
+          ergibt null Lootkapazität. Explizit alles geschützt ist valide. Cow-ungeeignetes Raster warnt, blockiert aber
+          einen Countess-Only-Plan nicht. Unit-/Integration-/A11y-/Responsive-DOM-Tests sind grün; kein Live-Cow-Run
+          erforderlich. Produktiver DataRoot ist Schema 3.</div>
+      </div>
     </div>
-  </div>
 
-  <div class="phase">
-    <div class="phase-id">21.5</div>
-    <div><h3>Reusable Setup-Wizard, zusätzliche Charaktere und Profilwechsel</h3>
-      <ol>
-        <li>Inline-Onboarding-Setup in gemeinsame Character-Komponenten extrahieren, ohne Core-Fachlogik in React zu duplizieren.</li>
-        <li>Dashboard-CTA neben einrichtbaren Charakteren ergänzen; Selection-Apply sprachlich getrennt lassen.</li>
-        <li>Wizard in Onboarding, Dashboard und Charaktere-Tab verbinden.</li>
-        <li>Single-/Multi-Profilselector, Default, Required-Skills, überspringbaren Binding-Schritt und Readiness-Summary implementieren.</li>
-        <li>Profilwechsel für bereits freigegebene Charaktere erlauben; Queue/Routes/Anchor/Inventory/inaktive Bindings bewahren.</li>
-        <li>Unsupported Queue-Einträge nach Wechsel sichtbar blockieren; niemals automatisch löschen.</li>
-      </ol>
-      <div class="callout gate"><strong>Gate 21.5:</strong> Derselbe Wizard-/Formcode deckt Onboarding und zusätzliche Charaktere ab. Ein Profil ist read-only, mehrere verwenden Default. „Später“ beendet Onboarding mit sichtbarem Queue-Block. Automatische Renderer-/API-Tests verwenden einen zweiten unterstützten Fixture-Charakter; der Operator muss keinen neuen Live-Charakter anlegen.</div>
+    <div class="phase">
+      <div class="phase-id">21.5</div>
+      <div>
+        <h3>Reusable Setup-Wizard, zusätzliche Charaktere und Profilwechsel <span class="good">— bestanden 9. August
+            2026</span></h3>
+        <ol>
+          <li>Inline-Onboarding-Setup in gemeinsame Character-Komponenten extrahieren, ohne Core-Fachlogik in React zu
+            duplizieren. <span class="good">Erledigt:</span> <code>CharacterSetupWizard</code>.</li>
+          <li>Dashboard-CTA neben einrichtbaren Charakteren ergänzen; Selection-Apply sprachlich getrennt lassen. <span
+              class="good">Erledigt:</span> „Charakter einrichten“ neben Setup-/Farm-Readiness-Lücken.</li>
+          <li>Wizard in Onboarding, Dashboard und Charaktere-Tab verbinden. <span class="good">Erledigt.</span></li>
+          <li>Single-/Multi-Profilselector, Default, Required-Skills, überspringbaren Binding-Schritt und
+            Readiness-Summary implementieren. <span class="good">Erledigt:</span> Ein Profil read-only, mehrere mit
+            Default; „Später“ im Onboarding.</li>
+          <li>Profilwechsel für bereits freigegebene Charaktere erlauben; Queue/Routes/Anchor/Inventory/inaktive
+            Bindings bewahren. <span class="good">Erledigt:</span> Store-Test + Settings-Wizard-Hinweis.</li>
+          <li>Unsupported Queue-Einträge nach Wechsel sichtbar blockieren; niemals automatisch löschen. <span
+              class="good">Erledigt:</span> Queue bleibt erhalten; Availability blockiert sichtbar.</li>
+        </ol>
+        <div class="callout success"><strong>Gate 21.5 bestanden:</strong> Derselbe Wizard-/Formcode deckt Onboarding
+          und zusätzliche Charaktere ab. Ein Profil ist read-only, mehrere verwenden Default. „Später“ beendet Onboarding
+          mit sichtbarem Queue-Block. Automatische Renderer-/API-Tests verwenden einen zweiten unterstützten
+          Fixture-Charakter; der Operator muss keinen neuen Live-Charakter anlegen.</div>
+      </div>
     </div>
-  </div>
 
-  <div class="phase">
-    <div class="phase-id">21.6</div>
-    <div><h3>Dokumentation, Gesamtmatrix und installierte Produktabnahme</h3>
-      <ol>
-        <li><code>character-loadouts.md</code>, verwandte Feature-Docs, Index, Changelog, Handoff und Backlog vollständig synchronisieren.</li>
-        <li>Future-Abschnitt für neue Profilmodule, per-Run Strategy-Einträge, „Bindings kopieren“ und Live-Key-Verifikation schreiben.</li>
-        <li>Produktive Schema-3-Dateien finalisieren; alte Configfelder nach erfolgreicher Abnahme endgültig entfernen.</li>
-        <li>Vollständige automatische Matrix aus Abschnitt 16 genau nach Repo-Standard ausführen.</li>
-        <li>Installierten Desktop gegen echten DataRoot öffnen und UI bei 1280×720 sowie 390×844 visuell prüfen.</li>
-        <li>Genau einen kurzen produktiven Queue-Zyklus mit MrBones ausführen, um positiven SkillsKnown-Gate, Loadout-Freeze, Strategy-Dispatch, Teleportumschaltung und reguläres Save &amp; Exit zusammen zu belegen. Countess ist der begrenzte Referenzrun; kein Cow-E2E wird wiederholt.</li>
-      </ol>
-      <div class="callout gate"><strong>Gate 21.6:</strong> Automatische Matrix vollständig grün; installierter Charaktere-Tab zeigt produktive Daten korrekt; ein Countess-Run startet erst nach positivem Skillgate, verwendet den registrierten Bone-Spear-Strategy-Pfad, teleportiert ohne redundanten F-Key und endet regulär. Kein manueller Negativtest, kein absichtlich falsches Binding und kein erneuter Cow-End-to-End-Lauf.</div>
+    <div class="phase">
+      <div class="phase-id">21.6</div>
+      <div>
+        <h3>Dokumentation, Gesamtmatrix und installierte Produktabnahme</h3>
+        <ol>
+          <li><span class="good">Erledigt:</span> <code>character-loadouts.md</code>, verwandte Feature-Docs, Index,
+            Changelog, Handoff und Backlog synchronisiert; Future-Abschnitt für neue Profile, per-Run Strategies,
+            „Bindings kopieren“ und Live-Key-Verifikation geschrieben.</li>
+          <li><span class="good">Erledigt:</span> Produktiver Schema-3-DataRoot final; globales
+            <code>input.bindings</code> und <code>loot.inventory_lock</code> aus dem Configschema entfernt;
+            Recording-Prerequisites lesen Schema-3-Loadouts.</li>
+          <li><span class="good">Erledigt:</span> Vollständige automatische Matrix aus Abschnitt 16 nach Repo-Standard
+            ausgeführt.</li>
+          <li><span class="good">Erledigt:</span> Installierter Desktop gegen echten DataRoot; Charaktere-Tab bei
+            1280×720 und 390×844 funktional lesbar und bedienbar (Design-Polish bewusst nachgelagert).</li>
+          <li><span class="good">Erledigt:</span> Installierter Countess-Zyklus mit MrBones
+            (<code>countess-20260809t232224…-10b08038</code>): SkillsKnown-Gate bestanden (7 Pflichtskills),
+            <code>necro_bone_spear</code>-Strategy inkl. Boss-Hooks, Town-Portal-Cast mit Sling-Äquivalenz,
+            Stash und reguläres Save &amp; Exit nach <code>outcome=success</code>. Bewusster Not-Aus (F11) erst
+            beim zweiten Game-Start nach erfolgreichem Wrap.</li>
+        </ol>
+        <div class="callout success"><strong>Gate 21.6 bestanden:</strong> Automatischer Teil (Docs/Future/Config/Matrix)
+          und beide manuellen Nachweise sind grün. Responsive Visual ist funktional ausreichend; Design-Verbesserung
+          ist Backlog. Der installierte Countess-Referenzzyklus belegt SkillsKnown, Loadout-Freeze, Strategy-Dispatch,
+          Teleport/Stadtportal-Umschaltung und reguläres Save &amp; Exit. Kein Cow-E2E wiederholt.</div>
+      </div>
     </div>
-  </div>
 
-  <h2>18. Manuelle Gates – nur wo Automation nicht genügt</h2>
-  <table><thead><tr><th>Gate</th><th>Warum manuell</th><th>Minimaler Nachweis</th></tr></thead><tbody>
-    <tr><td>21.2 Skillumschaltung</td><td><code>SendInput</code>, D2R-Keybinding-Seite und tatsächlicher RightSkill-Wechsel sind außerhalb des Prozesses nicht vollständig mockbar.</td><td>Isolierter Teleport/Skillwechsel; keine Farmingroute.</td></tr>
-    <tr><td>21.6 Responsive Visual</td><td>CSS-Kontrast, Grid-Erkennbarkeit und deutsche Textumbrüche sind durch DOM-Tests allein nicht hinreichend.</td><td>Charaktere-Tab/Wizard 1280×720 und 390×844; keine pixelgenaue Screenshot-Baseline.</td></tr>
-    <tr><td>21.6 installierter Queue-Zyklus</td><td>Zusammenspiel aus produktivem DataRoot, Live-SkillsKnown, Windows-Input, Strategy Registry und Supervisor-Exit existiert nur im echten D2R-Prozess.</td><td>Ein Countess-Zyklus; keine künstlichen Fehler und kein Cow-Replay.</td></tr>
-  </tbody></table>
-  <div class="callout success"><strong>Alles andere automatisch:</strong> Missing-Skill-Save-&amp;-Exit wird über Supervisor-/Queue-Fakes getestet; zweiter Charakter über Fixtures; Cow-Raster über Planner-Tests; Strategy-Matrix über Registry-/Pipeline-Tests. Der Operator muss weder seinen Build respecen noch falsche Hotkeys setzen noch seltene Gegenstände riskieren.</div>
+    <h2>18. Manuelle Gates – nur wo Automation nicht genügt</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Gate</th>
+          <th>Warum manuell</th>
+          <th>Minimaler Nachweis</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>21.2 Skillumschaltung</td>
+          <td><code>SendInput</code>, D2R-Keybinding-Seite und tatsächlicher RightSkill-Wechsel sind außerhalb des
+            Prozesses nicht vollständig mockbar.</td>
+          <td>Isolierter Teleport/Skillwechsel; keine Farmingroute.</td>
+        </tr>
+        <tr>
+          <td>21.6 Responsive Visual</td>
+          <td>CSS-Kontrast, Grid-Erkennbarkeit und deutsche Textumbrüche sind durch DOM-Tests allein nicht hinreichend.
+          </td>
+          <td><span class="good">Bestanden:</span> Charaktere-Tab/Wizard 1280×720 und 390×844 funktional lesbar;
+            Design-Polish nachgelagert.</td>
+        </tr>
+        <tr>
+          <td>21.6 installierter Queue-Zyklus</td>
+          <td>Zusammenspiel aus produktivem DataRoot, Live-SkillsKnown, Windows-Input, Strategy Registry und
+            Supervisor-Exit existiert nur im echten D2R-Prozess.</td>
+          <td><span class="good">Bestanden:</span> Countess
+            <code>countess-20260809t232224…-10b08038</code> mit
+            <code>outcome=success</code> und Save &amp; Exit; F11 erst danach.</td>
+        </tr>
+      </tbody>
+    </table>
+    <div class="callout success"><strong>Alles andere automatisch:</strong> Missing-Skill-Save-&amp;-Exit wird über
+      Supervisor-/Queue-Fakes getestet; zweiter Charakter über Fixtures; Cow-Raster über Planner-Tests; Strategy-Matrix
+      über Registry-/Pipeline-Tests. Der Operator muss weder seinen Build respecen noch falsche Hotkeys setzen noch
+      seltene Gegenstände riskieren.</div>
 
-  <h2>19. Dokumentations- und Zukunftsvertrag</h2>
-  <ul>
-    <li>Neue Feature-Doc <code>docs/features/character-loadouts.md</code> beschreibt Datenmodell, UI, Queue-Gates, SkillsKnown, RMB-Verifikation, Fehler und Grenzen.</li>
-    <li><code>docs/features/character-encounter-profiles.md</code> beschreibt Registry und Modulregel: Ein neues Profil darf runweise wachsen; jeder neue Registry-Eintrag benötigt Strategie-, Required-Skill- und Availability-Tests.</li>
-    <li><code>docs/backlog.md</code> erhält einen kurzen verlinkten Eintrag „Multi-Profil-Erweiterungen“ statt duplizierter Architektur.</li>
-    <li>Backlog: BindingEditor-Aktion „Aus anderem Profil kopieren“, mit expliziter Preview und ohne automatisches Überschreiben.</li>
-    <li>Backlog: isolierter „Tasten prüfen“-Flow: Taste senden, frischen <code>RightSkillID</code> lesen, Ergebnis anzeigen. Er ändert keine Bindings und ist kein Memory-Write.</li>
-    <li>Backlog: weitere Profile wie Summoner-Necro, Poison-Nova-Necro oder Blizzard-Sorc beginnen mit ProfileConfig + Modul + einem Registry-Eintrag. Weitere Runs werden einzeln ergänzt.</li>
-    <li>Bestehende Docs für Input Controller, Inventory Lock, Character Setup, First-run Onboarding, OperatorSettings, Run Availability, Route Recording und Session Lifecycle werden nicht durch widersprüchliche Paralleltexte ersetzt, sondern auf den neuen Owner aktualisiert.</li>
-    <li><code>docs/CHANGELOG.md</code> erhält unter Unreleased mindestens Added/Changed/Removed: CASC-Skillkatalog, Charakterloadouts/UI, SkillsKnown-Gate, Strategy Registry, Entfernung globaler Bindings/Inventory und Run-/Route-Profilkopplung.</li>
-  </ul>
+    <h2>19. Dokumentations- und Zukunftsvertrag</h2>
+    <ul>
+      <li>Neue Feature-Doc <code>docs/features/character-loadouts.md</code> beschreibt Datenmodell, UI, Queue-Gates,
+        SkillsKnown, RMB-Verifikation, Fehler und Grenzen.</li>
+      <li><code>docs/features/character-encounter-profiles.md</code> beschreibt Registry und Modulregel: Ein neues
+        Profil darf runweise wachsen; jeder neue Registry-Eintrag benötigt Strategie-, Required-Skill- und
+        Availability-Tests.</li>
+      <li><code>docs/backlog.md</code> erhält einen kurzen verlinkten Eintrag „Multi-Profil-Erweiterungen“ statt
+        duplizierter Architektur.</li>
+      <li>Backlog: BindingEditor-Aktion „Aus anderem Profil kopieren“, mit expliziter Preview und ohne automatisches
+        Überschreiben.</li>
+      <li>Backlog: isolierter „Tasten prüfen“-Flow: Taste senden, frischen <code>RightSkillID</code> lesen, Ergebnis
+        anzeigen. Er ändert keine Bindings und ist kein Memory-Write.</li>
+      <li>Backlog: weitere Profile wie Summoner-Necro, Poison-Nova-Necro oder Blizzard-Sorc beginnen mit ProfileConfig +
+        Modul + einem Registry-Eintrag. Weitere Runs werden einzeln ergänzt.</li>
+      <li>Bestehende Docs für Input Controller, Inventory Lock, Character Setup, First-run Onboarding, OperatorSettings,
+        Run Availability, Route Recording und Session Lifecycle werden nicht durch widersprüchliche Paralleltexte
+        ersetzt, sondern auf den neuen Owner aktualisiert.</li>
+      <li><code>docs/CHANGELOG.md</code> erhält unter Unreleased mindestens Added/Changed/Removed: CASC-Skillkatalog,
+        Charakterloadouts/UI, SkillsKnown-Gate, Strategy Registry, Entfernung globaler Bindings/Inventory und
+        Run-/Route-Profilkopplung.</li>
+    </ul>
 
-  <h2>20. Definition of Done</h2>
-  <ul>
-    <li>Es gibt genau eine Skill-ID-Quelle: generierte CASC-Daten.</li>
-    <li>Es gibt genau eine Combat-Profilautorität: OperatorSettings des aktiven Charakters.</li>
-    <li>Es gibt genau eine Run-Support-Autorität: registrierte ausführbare Strategy Factory.</li>
-    <li>Es gibt genau eine produktive Binding-/Inventarautorität: OperatorSettings Schema 3.</li>
-    <li>Kein Run und keine Route muss ein Profil pinnen; Profilwechsel erfordert keine Routenaufnahme.</li>
-    <li>Alle sieben Bone-Spear-Pflichtskills werden angezeigt, gebunden und einmal pro Session vollständig aus Memory bestätigt.</li>
-    <li>Kein Skillclick nach einer Umschaltung erfolgt ohne neuere RightSkillID-Bestätigung.</li>
-    <li>Fortlaufende Teleports drücken F7 nicht erneut.</li>
-    <li>Missing Skills führen zu kontrolliertem Save &amp; Exit und terminalem Queueende ohne Retry.</li>
-    <li>Fehlende Bindings oder fehlendes Inventarraster blockieren vor Spielstart.</li>
-    <li>Ein fehlendes Raster schützt effektiv alle Zellen; ein explizit all-locked Raster ist valide.</li>
-    <li>Onboarding darf mit „Später“ enden und zeigt danach keine falsche Farmbereitschaft.</li>
-    <li>Zusätzliche unterstützte Charaktere können vom Dashboard über denselben Wizard eingerichtet werden.</li>
-    <li>Charaktere-Tab, Wizard, BindingEditor und InventoryEditor sind keyboardzugänglich und responsive.</li>
-    <li>Produktiver DataRoot ist gesichert, manuell auf Schema 3 umgeschrieben und ohne Legacy-Fallback verifiziert.</li>
-    <li>Automatische Gesamtmatrix, drei begrenzte manuelle Nachweise und Dokumentation sind abgeschlossen.</li>
-  </ul>
+    <h2>20. Definition of Done</h2>
+    <ul>
+      <li>Es gibt genau eine Skill-ID-Quelle: generierte CASC-Daten.</li>
+      <li>Es gibt genau eine Combat-Profilautorität: OperatorSettings des aktiven Charakters.</li>
+      <li>Es gibt genau eine Run-Support-Autorität: registrierte ausführbare Strategy Factory.</li>
+      <li>Es gibt genau eine produktive Binding-/Inventarautorität: OperatorSettings Schema 3.</li>
+      <li>Kein Run und keine Route muss ein Profil pinnen; Profilwechsel erfordert keine Routenaufnahme.</li>
+      <li>Alle sieben Bone-Spear-Pflichtskills werden angezeigt, gebunden und einmal pro Session vollständig aus Memory
+        bestätigt.</li>
+      <li>Kein Skillclick nach einer Umschaltung erfolgt ohne neuere RightSkillID-Bestätigung.</li>
+      <li>Fortlaufende Teleports drücken F7 nicht erneut.</li>
+      <li>Missing Skills führen zu kontrolliertem Save &amp; Exit und terminalem Queueende ohne Retry.</li>
+      <li>Fehlende Bindings oder fehlendes Inventarraster blockieren vor Spielstart.</li>
+      <li>Ein fehlendes Raster schützt effektiv alle Zellen; ein explizit all-locked Raster ist valide.</li>
+      <li>Onboarding darf mit „Später“ enden und zeigt danach keine falsche Farmbereitschaft.</li>
+      <li>Zusätzliche unterstützte Charaktere können vom Dashboard über denselben Wizard eingerichtet werden.</li>
+      <li>Charaktere-Tab, Wizard, BindingEditor und InventoryEditor sind keyboardzugänglich und responsive.</li>
+      <li>Produktiver DataRoot ist gesichert, manuell auf Schema 3 umgeschrieben und ohne Legacy-Fallback verifiziert.
+      </li>
+      <li>Automatische Gesamtmatrix, drei begrenzte manuelle Nachweise und Dokumentation sind abgeschlossen.</li>
+    </ul>
 
-  <h2>21. Ausführungscheckliste für Agenten</h2>
-  <ol>
-    <li>Vor jedem Gate Git-Status prüfen; keine fremden Änderungen, lokalen Routen oder DataRoot-Dateien außerhalb des ausdrücklich genannten Gates anfassen.</li>
-    <li>Keine Commits, Releases oder Installer ohne ausdrückliche Nutzeranweisung.</li>
-    <li>Neue/exportierte Go-Symbole sofort mit Godoc dokumentieren; State-/Gate-Invarianten am kleinsten hilfreichen Scope erklären.</li>
-    <li>Neue UI-Texte einfach, deutsch und handlungsorientiert formulieren. Keine Rohreasoncodes im Renderer.</li>
-    <li>CASC-Extrakt fehlt oder Generator findet Ambiguität: Gate stoppen und Nutzer informieren; keine ID raten.</li>
-    <li>Strategy-Refactor darf keine Task-Geometrie oder Recoverylogik in Profilmodule ziehen.</li>
-    <li>Kein globaler Config-Fallback „nur vorübergehend“ einbauen. Tests müssen Abwesenheit beweisen.</li>
-    <li>Kein SkillsKnown-Missing aus unvollständiger Liste. Im Zweifel inputfrei warten und timeouten.</li>
-    <li>Kein Select+Click im selben Tick, wenn RightSkillID nicht bereits bestätigt war.</li>
-    <li>Kein Raster automatisch freigeben, kein riskantes Defaultlayout auf neue Charaktere kopieren.</li>
-    <li>DataRoot vor manueller Änderung sichern und Hash/Revision protokollieren; bei Fehler vollständig zurückrollen.</li>
-    <li>Nach substantiellen Edits Lints der geänderten Dateien prüfen; pro Gate die fokussierten Tests und am Ende die Gesamtmatrix ausführen.</li>
-    <li>Race-Tests nur bei neuer Nebenläufigkeit und dann ausschließlich über die dokumentierte UCRT64-Toolchain.</li>
-  </ol>
+    <h2>21. Ausführungscheckliste für Agenten</h2>
+    <ol>
+      <li>Vor jedem Gate Git-Status prüfen; keine fremden Änderungen, lokalen Routen oder DataRoot-Dateien außerhalb des
+        ausdrücklich genannten Gates anfassen.</li>
+      <li>Keine Commits, Releases oder Installer ohne ausdrückliche Nutzeranweisung.</li>
+      <li>Neue/exportierte Go-Symbole sofort mit Godoc dokumentieren; State-/Gate-Invarianten am kleinsten hilfreichen
+        Scope erklären.</li>
+      <li>Neue UI-Texte einfach, deutsch und handlungsorientiert formulieren. Keine Rohreasoncodes im Renderer.</li>
+      <li>CASC-Extrakt fehlt oder Generator findet Ambiguität: Gate stoppen und Nutzer informieren; keine ID raten.</li>
+      <li>Strategy-Refactor darf keine Task-Geometrie oder Recoverylogik in Profilmodule ziehen.</li>
+      <li>Kein globaler Config-Fallback „nur vorübergehend“ einbauen. Tests müssen Abwesenheit beweisen.</li>
+      <li>Kein SkillsKnown-Missing aus unvollständiger Liste. Im Zweifel inputfrei warten und timeouten.</li>
+      <li>Kein Select+Click im selben Tick, wenn RightSkillID nicht bereits bestätigt war.</li>
+      <li>Kein Raster automatisch freigeben, kein riskantes Defaultlayout auf neue Charaktere kopieren.</li>
+      <li>DataRoot vor manueller Änderung sichern und Hash/Revision protokollieren; bei Fehler vollständig zurückrollen.
+      </li>
+      <li>Nach substantiellen Edits Lints der geänderten Dateien prüfen; pro Gate die fokussierten Tests und am Ende die
+        Gesamtmatrix ausführen.</li>
+      <li>Race-Tests nur bei neuer Nebenläufigkeit und dann ausschließlich über die dokumentierte UCRT64-Toolchain.</li>
+    </ol>
 
-  <footer>Phase 21 · Charakterprofile, Skill-Bindings und Inventarschutz · Planstand 9. August 2026</footer>
-</main></body>
+    <footer>Phase 21 · Charakterprofile, Skill-Bindings und Inventarschutz · Planstand 10. August 2026 · Gate 21.6
+      vollständig bestanden · v0.19.0 freigegeben</footer>
+  </main>
+</body>
+
 </html>

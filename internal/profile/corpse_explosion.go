@@ -73,6 +73,9 @@ func (e *Executor) TickAuthorizedCorpseExplosion(ctx context.Context, state worl
 		return Result{Status: StatusComplete, Reason: CorpseExplosionReasonTargetUnavailable, SkillID: e.corpseExplosionSkillID}
 	}
 	if err := e.actions.CastSkillAtWorld(now, e.corpseExplosionSkillID, state.Player, corpse.Position); err != nil {
+		if errors.Is(err, ErrSkillSelectionPending) {
+			return Result{Status: StatusPending, SkillID: e.corpseExplosionSkillID, ActionKind: RouteClearActionCorpseExplosion, TargetUnitID: corpse.UnitID, TargetNPCID: corpse.NPCID}
+		}
 		if errors.Is(err, ErrCorpseExplosionTargetUnprojectable) {
 			return Result{Status: StatusComplete, Reason: CorpseExplosionReasonTargetUnprojectable, SkillID: e.corpseExplosionSkillID, TargetUnitID: corpse.UnitID, TargetNPCID: corpse.NPCID}
 		}

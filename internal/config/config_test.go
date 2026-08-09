@@ -32,12 +32,6 @@ func TestLoadExampleConfig(t *testing.T) {
 	if filepath.Clean(cfg.Telemetry.Directory) != filepath.Join("logs", "telemetry") {
 		t.Fatalf("Telemetry.Directory = %q, want logs/telemetry", cfg.Telemetry.Directory)
 	}
-	if len(cfg.Loot.InventoryLock) != 4 || len(cfg.Loot.InventoryLock[0]) != 10 {
-		t.Fatalf("Loot.InventoryLock shape = %dx%d, want 4x10", len(cfg.Loot.InventoryLock), len(cfg.Loot.InventoryLock[0]))
-	}
-	if cfg.Loot.InventoryLock[0][0] != 1 || cfg.Loot.InventoryLock[0][4] != 0 {
-		t.Fatalf("Loot.InventoryLock first row = %+v, want locked columns then free columns", cfg.Loot.InventoryLock[0])
-	}
 	countess, ok := cfg.Runs.Run("countess")
 	if !ok {
 		t.Fatal("Countess run config missing")
@@ -72,9 +66,6 @@ func TestLoadExampleConfig(t *testing.T) {
 	if cfg.Input.ComboHoldMs != 200 {
 		t.Errorf("Input.ComboHoldMs = %d, want 200", cfg.Input.ComboHoldMs)
 	}
-	if got := cfg.Input.Bindings.Skills["amplify_damage"]; got.Key != "f1" || got.Button != "right" {
-		t.Errorf("amplify_damage binding = %+v, want f1/right", got)
-	}
 	if cfg.Input.Enabled {
 		t.Errorf("Input.Enabled = true, want false")
 	}
@@ -90,15 +81,13 @@ func TestLoadExampleConfig(t *testing.T) {
 	if cfg.Runs.StepTimeoutMs != 45000 {
 		t.Errorf("Runs.StepTimeoutMs = %d, want 45000", cfg.Runs.StepTimeoutMs)
 	}
-	if countess.Combat.Profile != "necro_bone_spear" {
-		t.Errorf("Countess combat profile = %q, want necro_bone_spear", countess.Combat.Profile)
-	}
-	if countess.Combat.AttackSkill != "bone_spear" {
-		t.Errorf("Countess attack skill = %q, want bone_spear", countess.Combat.AttackSkill)
-	}
-	profileCfg := cfg.Profiles[countess.Combat.Profile]
-	if profileCfg.CharacterClass != "necromancer" || profileCfg.Hooks.TownReady[0].Skill != "bone_armor" || profileCfg.Resources.Mana.UseBelowPercent != 35 {
+	profileCfg := cfg.Profiles["necro_bone_spear"]
+	if profileCfg.CharacterClass != "necromancer" || profileCfg.Combat.StandardAttack != "bone_spear" ||
+		profileCfg.Hooks.TownReady[0].Skill != "bone_armor" || profileCfg.Resources.Mana.UseBelowPercent != 35 {
 		t.Fatalf("combat profile = %+v", profileCfg)
+	}
+	if len(profileCfg.RequiredSkills) != 7 || profileCfg.RequiredSkills[0].Skill != "teleport" {
+		t.Fatalf("required skills = %+v", profileCfg.RequiredSkills)
 	}
 	if filepath.Clean(cfg.Routes.FarmingRoot) != filepath.Join("routes", "farming") {
 		t.Fatalf("Routes.FarmingRoot = %q", cfg.Routes.FarmingRoot)
@@ -108,55 +97,6 @@ func TestLoadExampleConfig(t *testing.T) {
 	}
 	if cfg.LoadedFrom == "" {
 		t.Error("LoadedFrom should be set after Load")
-	}
-}
-
-func TestInputDefaultsAddAmplifyDamageWithoutOverwritingOperatorBinding(t *testing.T) {
-	for _, name := range []string{"amplify_damage", "ad"} {
-		t.Run(name, func(t *testing.T) {
-			cfg := InputConfig{
-				sectionPresent: true,
-				Bindings: InputBindingsConfig{Skills: map[string]SkillBindingConfig{
-					name: {Key: "f2", Button: "right"},
-				}},
-			}
-
-			cfg.applyDefaults()
-
-			if got := cfg.Bindings.Skills[name]; got.Key != "f2" || got.Button != "right" {
-				t.Fatalf("%s binding = %+v, want preserved f2/right", name, got)
-			}
-			if name != "amplify_damage" {
-				if _, added := cfg.Bindings.Skills["amplify_damage"]; added {
-					t.Fatal("canonical default added beside operator alias")
-				}
-			}
-		})
-	}
-}
-
-func TestLoadMigratesMissingAmplifyDamageBindingInMemory(t *testing.T) {
-	data, err := os.ReadFile(filepath.Join("..", "..", "configs", "config.example.yaml"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	const binding = "      amplify_damage:\n        key: f1\n        button: right\n"
-	normalized := strings.ReplaceAll(string(data), "\r\n", "\n")
-	legacy := strings.Replace(normalized, binding, "", 1)
-	if legacy == normalized {
-		t.Fatal("example Amplify Damage binding not found")
-	}
-	path := filepath.Join(t.TempDir(), "config.yaml")
-	if writeErr := os.WriteFile(path, []byte(legacy), 0o600); writeErr != nil {
-		t.Fatal(writeErr)
-	}
-
-	cfg, err := Load(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got := cfg.Input.Bindings.Skills["amplify_damage"]; got.Key != "f1" || got.Button != "right" {
-		t.Fatalf("migrated Amplify Damage binding = %+v", got)
 	}
 }
 
@@ -242,123 +182,29 @@ process:
 	}
 }
 
-func TestLootInventoryLockDefaultsAllLockedWhenMissing(t *testing.T) {
+func TestLootRejectsLegacyInventoryLockKey(t *testing.T) {
 	dir := t.TempDir()
-	path := filepath.Join(dir, "minimal.yaml")
+	path := filepath.Join(dir, "legacy-lock.yaml")
 	content := `app:
   name: d2rbot
 runtime:
   poll_interval_ms: 100
 process:
   process_name: D2R.exe
-`
-	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
-		t.Fatal(err)
-	}
-
-	cfg, err := Load(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(cfg.Loot.InventoryLock) != 4 {
-		t.Fatalf("rows = %d, want 4", len(cfg.Loot.InventoryLock))
-	}
-	for row, cells := range cfg.Loot.InventoryLock {
-		if len(cells) != 10 {
-			t.Fatalf("row %d columns = %d, want 10", row, len(cells))
-		}
-		for col, cell := range cells {
-			if cell != 1 {
-				t.Fatalf("cell %d,%d = %d, want all locked", row, col, cell)
-			}
-		}
-	}
-}
-
-func TestLegacyRunLootPolicyIsRejectedWithMigrationMessage(t *testing.T) {
-	dir := t.TempDir()
-	path := filepath.Join(dir, "pickit-only.yaml")
-	content := `app:
-  name: d2rbot
-runtime:
-  poll_interval_ms: 100
-process:
-  process_name: D2R.exe
-runs:
-  definitions:
-    countess:
-      loot:
-        pickup_file: pickit/custom.nip
+loot:
+  inventory_lock:
+    - [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+    - [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+    - [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+    - [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
 `
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
 	_, err := Load(path)
-	if err == nil || !strings.Contains(err.Error(), "pickup_file/sell_file is unsupported") || !strings.Contains(err.Error(), "pickit-assignments.local.yaml") {
-		t.Fatalf("legacy loot error = %v", err)
-	}
-}
-
-func TestLootConfigWithOnlyInventoryLockKeepsPickupDefaults(t *testing.T) {
-	dir := t.TempDir()
-	path := filepath.Join(dir, "lock-only.yaml")
-	content := `app:
-  name: d2rbot
-runtime:
-  poll_interval_ms: 100
-process:
-  process_name: D2R.exe
-loot:
-  inventory_lock:
-    - [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
-    - [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
-    - [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
-    - [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
-`
-	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
-		t.Fatal(err)
-	}
-
-	cfg, err := Load(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if cfg.Loot.Pickup.MaxRetries != 3 || cfg.Loot.Pickup.VerifyTimeoutMs != 1500 {
-		t.Fatalf("Pickup defaults = %+v, want populated defaults", cfg.Loot.Pickup)
-	}
-}
-
-func TestLootPickupDefaultsWithExplicitInventoryLock(t *testing.T) {
-	dir := t.TempDir()
-	path := filepath.Join(dir, "lock-only.yaml")
-	content := `app:
-  name: d2rbot
-runtime:
-  poll_interval_ms: 100
-process:
-  process_name: D2R.exe
-loot:
-  inventory_lock:
-    - [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
-    - [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
-    - [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
-    - [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
-`
-	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
-		t.Fatal(err)
-	}
-
-	cfg, err := Load(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if cfg.Loot.Pickup.MaxRetries != 3 ||
-		cfg.Loot.Pickup.MaxDistanceTiles != 8 ||
-		cfg.Loot.Pickup.VerifyTicks != 3 ||
-		cfg.Loot.Pickup.VerifyTimeoutMs != 1500 ||
-		cfg.Loot.Pickup.MonsterAbortDistanceTiles != 12 {
-		t.Fatalf("Pickup defaults = %+v, want populated defaults with explicit inventory_lock", cfg.Loot.Pickup)
+	if err == nil || !strings.Contains(err.Error(), "inventory_lock") {
+		t.Fatalf("legacy inventory_lock error = %v", err)
 	}
 }
 
@@ -418,56 +264,28 @@ func TestLootStashValidation(t *testing.T) {
 	}
 }
 
-func TestLootInventoryLockValidation(t *testing.T) {
-	tests := []struct {
-		name    string
-		content string
-	}{
-		{
-			name: "wrong rows",
-			content: `loot:
-  inventory_lock:
-    - [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
-`,
-		},
-		{
-			name: "wrong columns",
-			content: `loot:
-  inventory_lock:
-    - [1, 1, 1, 1, 1, 1, 1, 1, 1]
-    - [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
-    - [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
-    - [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
-`,
-		},
-		{
-			name: "invalid value",
-			content: `loot:
-  inventory_lock:
-    - [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
-    - [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
-    - [1, 1, 2, 1, 1, 1, 1, 1, 1, 1]
-    - [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
-`,
-		},
+func TestLegacyRunLootPolicyIsRejectedWithMigrationMessage(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "pickit-only.yaml")
+	content := `app:
+  name: d2rbot
+runtime:
+  poll_interval_ms: 100
+process:
+  process_name: D2R.exe
+runs:
+  definitions:
+    countess:
+      loot:
+        pickup_file: pickit/custom.nip
+`
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
 	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			cfg := &Config{
-				App:     AppConfig{Name: "d2rbot"},
-				Process: ProcessConfig{ProcessName: "D2R.exe"},
-				Runtime: RuntimeConfig{PollIntervalMs: 100},
-			}
-			if err := yaml.Unmarshal([]byte(tc.content), cfg); err != nil {
-				t.Fatal(err)
-			}
-			cfg.Input.applyDefaults()
-			cfg.Runs.applyDefaults()
-			cfg.Pathing.applyDefaults()
-			if err := cfg.validate(); err == nil {
-				t.Fatal("expected invalid inventory_lock")
-			}
-		})
+
+	_, err := Load(path)
+	if err == nil || !strings.Contains(err.Error(), "pickup_file/sell_file is unsupported") || !strings.Contains(err.Error(), "pickit-assignments.local.yaml") {
+		t.Fatalf("legacy loot error = %v", err)
 	}
 }
 
@@ -524,7 +342,7 @@ func TestInputValidateMaxLessThanMin(t *testing.T) {
 	}
 }
 
-func TestInputBindingsLoaded(t *testing.T) {
+func TestInputRejectsLegacyBindingsBlock(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "bindings.yaml")
 	content := `app:
@@ -555,18 +373,9 @@ input:
 		t.Fatal(err)
 	}
 
-	cfg, err := Load(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got := cfg.Input.Bindings.Skills["teleport"]; got.Key != "f7" || got.Button != "right" {
-		t.Fatalf("teleport binding = %+v, want f7/right", got)
-	}
-	if got := cfg.Input.Bindings.Skills["bone_spear"]; got.Key != "f8" || got.Button != "left" {
-		t.Fatalf("bone_spear binding = %+v, want f8/left", got)
-	}
-	if got := cfg.Input.Bindings.Belt; got.Slot1 != "," || got.Slot2 != "." || got.Slot3 != "-" || got.Slot4 != "]" {
-		t.Fatalf("belt bindings = %+v", got)
+	_, err := Load(path)
+	if err == nil || !strings.Contains(err.Error(), "bindings") {
+		t.Fatalf("legacy input.bindings error = %v", err)
 	}
 }
 
@@ -744,9 +553,10 @@ func TestRunDefinitionNoLongerRequiresLegacyPickupPolicy(t *testing.T) {
 		App: AppConfig{Name: "d2rbot"}, Runtime: RuntimeConfig{PollIntervalMs: 100},
 		Process: ProcessConfig{ProcessName: "D2R.exe"},
 		Runs: RunsConfig{StepTimeoutMs: 30000, Definitions: map[string]RunConfig{
-			"countess": {Combat: CombatConfig{Profile: "necro_bone_spear", AttackSkill: "bone_spear", AttackIntervalMs: 350, EngageDistanceTiles: 22, RepositionDistanceTiles: 32, KillConfirmTicks: 3}},
+			"countess": {},
 		}},
 	}
+	cfg.Profiles.ApplyDefaults()
 	cfg.Input.applyDefaults()
 	cfg.Pathing.applyDefaults()
 	if err := cfg.validate(); err != nil {
@@ -754,7 +564,7 @@ func TestRunDefinitionNoLongerRequiresLegacyPickupPolicy(t *testing.T) {
 	}
 }
 
-func TestRunsCountessCombatParsingFromYAML(t *testing.T) {
+func TestRunsRejectLegacyCombatKeysFromYAML(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "runs.yaml")
 	content := `app:
@@ -771,50 +581,46 @@ runs:
       combat:
         profile: necro_bone_spear
         attack_skill: bone_spear
-        attack_interval_ms: 400
-        engage_distance_tiles: 20
-        reposition_distance_tiles: 35
-        kill_confirm_ticks: 4
 `
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 		t.Fatal(err)
 	}
-
-	cfg, err := Load(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	run, ok := cfg.Runs.Run("countess")
-	if !ok {
-		t.Fatal("Countess run config missing")
-	}
-	got := run.Combat
-	if got.AttackIntervalMs != 400 || got.EngageDistanceTiles != 20 || got.RepositionDistanceTiles != 35 || got.KillConfirmTicks != 4 {
-		t.Fatalf("combat = %+v", got)
+	if _, err := Load(path); err == nil || !strings.Contains(err.Error(), "unsupported") {
+		t.Fatalf("legacy combat key error = %v", err)
 	}
 }
 
-func TestRunsCountessCombatValidation(t *testing.T) {
-	cfg := &Config{
-		App:     AppConfig{Name: "d2rbot"},
-		Process: ProcessConfig{ProcessName: "D2R.exe"},
-		Runtime: RuntimeConfig{PollIntervalMs: 100},
-		Runs: RunsConfig{
-			StepTimeoutMs: 30000,
-			Definitions: map[string]RunConfig{"countess": {Combat: CombatConfig{
-				Profile:                 "necro_bone_spear",
-				AttackSkill:             "bone_spear",
-				AttackIntervalMs:        350,
-				EngageDistanceTiles:     32,
-				RepositionDistanceTiles: 32,
-				KillConfirmTicks:        3,
-			}}},
-		},
+func TestRunsRejectLegacyCombatKeys(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.yaml")
+	data := `
+app: {name: d2rbot}
+process: {process_name: D2R.exe}
+runtime: {poll_interval_ms: 100}
+runs:
+  step_timeout_ms: 30000
+  definitions:
+    countess:
+      combat:
+        profile: necro_bone_spear
+`
+	if err := os.WriteFile(path, []byte(data), 0o644); err != nil {
+		t.Fatal(err)
 	}
-	cfg.Input.applyDefaults()
-	cfg.Pathing.applyDefaults()
-	if err := cfg.validate(); err == nil {
-		t.Fatal("expected error when engage distance is not below reposition distance")
+	if _, err := Load(path); err == nil || !strings.Contains(err.Error(), "unsupported") {
+		t.Fatalf("legacy combat key error = %v", err)
+	}
+}
+
+func TestProfileCombatRejectsInvalidEngageDistance(t *testing.T) {
+	var profiles ProfilesConfig
+	profiles.applyDefaults()
+	value := profiles["necro_bone_spear"]
+	value.Combat.EngageDistanceTiles = 40
+	value.Combat.RepositionDistanceTiles = 32
+	profiles["necro_bone_spear"] = value
+	if err := profiles.validate("necro_bone_spear", "test"); err == nil {
+		t.Fatal("expected engage/reposition ordering error")
 	}
 }
 

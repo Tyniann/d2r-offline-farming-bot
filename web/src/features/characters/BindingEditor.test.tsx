@@ -1,0 +1,44 @@
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { BindingEditor, bindingsFromDTO, bindingsToDTO, emptyBindings } from "./BindingEditor";
+
+describe("BindingEditor", () => {
+  afterEach(() => cleanup());
+
+  it("zeigt Pflichtskills, Standardangriff und erkennt doppelte Tasten", () => {
+    const onChange = vi.fn();
+    const value = bindingsFromDTO({
+      skills: { teleport: "f7", town_portal: "f7" },
+      belt: { slot_1: "1", slot_2: "2", slot_3: "3", slot_4: "4" },
+    });
+    render(<BindingEditor
+      requiredSkills={[
+        { skill: "teleport", skill_id: 54, display_name: "Teleport" },
+        { skill: "town_portal", skill_id: 359, display_name: "Stadtportal" },
+        { skill: "bone_spear", skill_id: 84, display_name: "Knochen-Speer" },
+      ]}
+      standardAttack="bone_spear"
+      value={value}
+      mutable
+      onChange={onChange}
+    />);
+    expect(screen.getByText("Standardangriff")).toBeInTheDocument();
+    expect(screen.getAllByText(/Taste F7 ist doppelt belegt/).length).toBeGreaterThan(0);
+    fireEvent.change(screen.getByLabelText("Knochen-Speer Taste"), { target: { value: "f8" } });
+    expect(onChange).toHaveBeenCalledWith({
+      skills: { teleport: "f7", town_portal: "f7", bone_spear: "f8" },
+      belt: { slot_1: "1", slot_2: "2", slot_3: "3", slot_4: "4" },
+    });
+  });
+
+  it("serialisiert nur gesetzte Bindings", () => {
+    expect(bindingsToDTO({
+      skills: { teleport: "f7", bone_spear: "" },
+      belt: { slot_1: "1", slot_2: "", slot_3: "3", slot_4: "4" },
+    })).toEqual({
+      skills: { teleport: "f7" },
+      belt: { slot_1: "1", slot_3: "3", slot_4: "4" },
+    });
+    expect(emptyBindings()).toEqual({ skills: {}, belt: {} });
+  });
+});

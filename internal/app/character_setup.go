@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/config"
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/memory"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/tasks"
 )
 
@@ -33,10 +34,20 @@ const (
 
 // CharacterSetupProfile ist ein freigegebenes Kampfprofil ohne interne Verhaltensparameter.
 type CharacterSetupProfile struct {
-	ID          string
+	ID              string
+	DisplayName     string
+	IsDefault       bool
+	IsSelected      bool
+	StandardAttack  string
+	RequiredSkills  []CharacterSetupRequiredSkill
+	SupportedRuns   []string
+}
+
+// CharacterSetupRequiredSkill is one ordered, labeled profile skill for read-only Setup/API.
+type CharacterSetupRequiredSkill struct {
+	Skill       string
+	SkillID     uint16
 	DisplayName string
-	IsDefault   bool
-	IsSelected  bool
 }
 
 // CharacterSetupPickitDefault projiziert eine feste Run-Kette mit lesbaren Profilnamen.
@@ -274,7 +285,23 @@ func (s *CharacterSetupService) buildPreview(catalog CharacterCatalog, settings 
 	}
 	for id, profile := range s.cfg.Profiles {
 		if profile.Setup.Enabled && profile.CharacterClass == entry.ExpectedClass {
-			result.Profiles = append(result.Profiles, CharacterSetupProfile{ID: id, DisplayName: profile.DisplayName, IsDefault: profile.Setup.Default})
+			setupProfile := CharacterSetupProfile{
+				ID:             id,
+				DisplayName:    profile.DisplayName,
+				IsDefault:      profile.Setup.Default,
+				StandardAttack: strings.TrimSpace(profile.Combat.StandardAttack),
+				SupportedRuns:  DefaultCombatStrategyRegistry().SupportedRuns(id),
+			}
+			for _, skill := range profile.RequiredSkills {
+				skillID, skillErr := memory.ParseSkillTestName(skill.Skill)
+				if skillErr != nil {
+					return CharacterSetupPreview{}, fmt.Errorf("character setup profile %q required skill %q: %w", id, skill.Skill, skillErr)
+				}
+				setupProfile.RequiredSkills = append(setupProfile.RequiredSkills, CharacterSetupRequiredSkill{
+					Skill: skill.Skill, SkillID: skillID, DisplayName: strings.TrimSpace(skill.DisplayName),
+				})
+			}
+			result.Profiles = append(result.Profiles, setupProfile)
 			if profile.Setup.Default {
 				result.DefaultProfileID = id
 			}

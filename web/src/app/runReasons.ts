@@ -9,7 +9,11 @@ export function runAvailabilityText(status: string, reasons: string[] = []) {
   if (reasons.includes("route_assignment_missing")) {
     return { title: "Noch nicht eingerichtet", detail: "Für diesen Run wurde noch keine Route eingerichtet." };
   }
-  if (reasons.includes("character_profile_run_incompatible") || reasons.includes("profile_class_mismatch")) {
+  if (
+    reasons.includes("profile_run_strategy_unavailable") ||
+    reasons.includes("character_profile_run_incompatible") ||
+    reasons.includes("profile_class_mismatch")
+  ) {
     return { title: "Nicht verfügbar", detail: "Das Kampfprofil dieses Charakters unterstützt diesen Run nicht." };
   }
   return { title: "Noch nicht bereit", detail: "Öffne die Routen, um die fehlende Einrichtung zu prüfen." };
