@@ -248,6 +248,7 @@
           <span class="pill">Go 1.26</span>
           <span class="pill">Countess MVP</span>
           <span class="pill good">Stand: v0.18.0 · Phase 20 Cow Level abgenommen</span>
+          <span class="pill warn">Phase 21 geplant · Ziel v0.19.0</span>
           <span class="pill good">Mercenary-Support abgenommen</span>
         </div>
       </div>
@@ -842,6 +843,16 @@
       <div>
         <h3>Cow Level / Moo Moo Farm <span class="good">— Gates 20.0–20.8 bestanden · Phase 20 abgeschlossen · v0.18.0 freigabefähig</span></h3>
         <p><strong>Stand:</strong> Der Queue-Run <code>cows</code> koppelt zwei benutzerspezifische Aufzeichnungen zu genau einem Run und Budgetverbrauch: <code>leg_acquisition</code> führt vom Stony-Field-Wegpunkt durch das bereits geöffnete Tristram-Portal bis zu Wirts Körper, <code>cow_sweep</code> bildet die eigentliche Farming-Route in der zuvor vollständig geräumten Moo Moo Farm ab. Der Bot beschafft pro Spiel ein frisches Wirt’s Leg, kehrt sicher ins Rogue Encampment zurück, kauft ein separates TP-Buch und transmutiert beide anhand konkreter Item-UnitIDs im nachweislich leeren, geschützten Horadrimwürfel. Im Cow Level räumt MrBones auf Hell lokale Kuhgruppen mit einem dreiphasigen AD-/Bone-Spear-/Corpse-Explosion-Vertrag; Cow King ist optional priorisiert, aber kein Abschlusskriterium. Nach letztem Routenpunkt und drei lokal vollständigen gegnerfreien Snapshots verwendet Cow denselben Town-Portal-, persönlichen Stash- und Town-Handoff-Pfad wie die Standard-Runs. Primäre Cow-Sweep-Route, additive Bein-Setup-Route, Queue-Budget und History bleiben dabei ein Lifecycle. Der bestandene Stabilitätsblock stoppt Combat bei Merc-Tod und nutzt kontrollierten Retry samt bestehendem Kashya-Revive; Combat-Routen aktualisieren Bone Armor nach Zeit-/Schadensvertrag; Cow verlangt vollständige kaufbare Belt-Spalten plus einen verwendbaren Rejuvenation-Trank, ergänzt den Gürtel opportunistisch aus sicheren Super-/Rejuvenation-Drops und beendet spätere Ressourcenerschöpfung kontrolliert. Ein laufwegbasierter Sonderabbruch bleibt ausgeschlossen. Der E2E-Run <code>cows-20260809t113419999999999z-17c0df42</code> schloss alle 26 Schritte, beide Routenrollen, Rezept, 29 Combat-Holds, terminale Cow-Sicherheit, Town-Rückkehr, Stash und zentralen Handoff in 7:42 Minuten mit genau einem <code>run_completed</code> ab. Cairn-Stone-/Cain-Automation, globaler Tristram-Pfad, Herding, allgemeine Crafting-Engine und Mid-Run-Inventarräumung bleiben ausgeschlossen. Sämtliche D2R-IDs stammen ausschließlich aus den lokalen CASC-Extrakten unter <code>.tmp/d2r-excel</code>. Detailplan: <a href="phase-20-implementation-plan.html">Phase-20-Umsetzungsplan</a>.</p>
+      </div>
+    </div>
+
+    <div class="phase">
+      <strong>Phase 21</strong>
+      <div>
+        <h3>Charakterprofile, Skill-Bindings und Inventarschutz <span class="warn">— geplant · Ziel v0.19.0</span></h3>
+        <p><strong>Ziel:</strong> Das am Charakter ausgewählte Kampfprofil wird zur einzigen Combat-Autorität. Ein CASC-generierter Skillkatalog, explizite Pflichtskills, eine Code-Strategy-Registry pro <code>(profileID, runID)</code>, per Charakter und Profil gespeicherte F1–F8-/Gürtelbelegungen sowie ein per Charakter gespeichertes 4×10-Inventarschutzraster bilden einen gemeinsamen fail-closed Loadout-Vertrag. Onboarding, Dashboard und der neue Settings-Tab „Charaktere“ verwenden dieselben Core-DTOs und React-Komponenten.</p>
+        <p><strong>Kernentscheidungen:</strong> OperatorSettings Schema 3 ist die einzige produktive Autorität für Bindings und Inventar; <code>config.yaml</code> behält danach keinen globalen Fallback. Runs und Routen pinnen kein Kampfprofil mehr. Skills werden weiterhin per <code>SendInput</code> ausgewählt und vor dem RMB-Klick über <code>RightSkillID</code> bestätigt. Pflichtskills prüft der Bot einmalig beim ersten vollständigen In-Game-Beleg einer Queue-Session; fehlen Fähigkeiten, folgt Save &amp; Exit und terminales Queueende ohne Retry. Onboarding darf Bindings mit „Später“ aufschieben, blockiert dann aber Queue und Dashboard-Farmbereitschaft. Fehlendes Inventarraster bedeutet effektiv alles geschützt und blockiert Queue-Start; ein ausdrücklich vollständig geschütztes Raster ist valide. Cow-Rasterwarnungen blockieren andere Runs nicht. Keine Memory-Writes, kein zweites produktives Kampfprofil und keine permanente Schema-2→3-Migration.</p>
+        <p><strong>Gates:</strong> 21.0 CASC-Skillkatalog und Profilvertrag → 21.1 Strategy Registry und Run-/Route-Entkopplung → 21.2 SkillsKnown-Gate und RMB-Selector → 21.3 Schema-3-Bindings und Charaktere-Tab → 21.4 Inventarschutz und produktive Datenroot-Umschreibung → 21.5 wiederverwendbarer Setup-Wizard → 21.6 Dokumentation und begrenzte Produktabnahme. Detailplan: <a href="phase-21-implementation-plan.html">Phase-21-Umsetzungsplan</a>.</p>
       </div>
     </div>
 
