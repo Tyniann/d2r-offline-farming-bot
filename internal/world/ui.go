@@ -8,4 +8,6 @@ type UIState struct {
 	WaypointOpen    bool
 	StashOpen       bool
 	QuitMenuOpen    bool
+	CubeOpen        bool
+	CubeOpenKnown   bool
 }

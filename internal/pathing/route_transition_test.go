@@ -63,6 +63,20 @@ func TestRouteTransitionHandlerRejectsWrongEntrance(t *testing.T) {
 	}
 }
 
+func TestRouteTransitionHandlerPinsPermanentPortalUnit(t *testing.T) {
+	nav := &segmentNavigatorMock{next: NavTickResult{Status: NavClicking}}
+	segment := RouteSegment{FromAreaID: world.StonyField, ToAreaID: world.Tristram, Transition: RouteTransition{Type: "object_portal", ObjectKind: world.ObjectKindPermanentPortal, ExpectedToArea: world.Tristram}}
+	handler := NewRouteTransitionHandler(nav, segment, 2)
+	state := segmentPlaybackState(world.StonyField, 100, 100)
+	state.Objects = []world.Object{{Kind: world.ObjectKindPermanentPortal, UnitID: 81, Position: world.Position{X: 102, Y: 100}}}
+	if done, err := handler.Tick(context.Background(), state); err != nil || done {
+		t.Fatalf("Tick() = %t, %v", done, err)
+	}
+	if len(nav.goals) != 1 || nav.goals[0].ViaObject != world.ObjectKindPermanentPortal || nav.goals[0].ViaObjectUnitID != 81 || !nav.goals[0].StrictObject || nav.goals[0].TargetArea != world.Tristram {
+		t.Fatalf("portal goal = %+v", nav.goals)
+	}
+}
+
 func TestRouteTransitionHandlerBoundsNavigatorRecovery(t *testing.T) {
 	nav := &segmentNavigatorMock{next: NavTickResult{Done: true, Status: NavFailed, Reason: ReasonHoverNotFound}}
 	segment := validRoute().Segments[0]

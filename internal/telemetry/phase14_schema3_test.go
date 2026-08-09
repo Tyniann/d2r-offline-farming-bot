@@ -124,6 +124,52 @@ func TestPhase14Schema3RejectsContextDriftAndDuplicateTerminal(t *testing.T) {
 	}
 }
 
+func TestPhase20RunContextKeepsPrimaryAndSetupRoutesImmutable(t *testing.T) {
+	context := RunRecorderContext{
+		RunID: "cows-route-set", SessionID: "session-cows", GameID: "game-cows", Mode: HistoryModeProductiveFarming,
+		Character: "MrBones", Difficulty: "hell", GameVersion: "3.2.92777", Run: "cows", DefinitionID: "cows",
+		RouteID: "cow-sweep", RouteLayoutFingerprint: "cow-layout",
+		SetupRouteID: "leg-acquisition", SetupRouteLayoutFingerprint: "leg-layout", StartedAt: time.Now().UTC(),
+	}
+	run, err := NewRunRecorder(t.TempDir(), context)
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := run.Path()
+	if emitErr := run.Emit(Event{Event: RunContext}); emitErr != nil {
+		t.Fatal(emitErr)
+	}
+	if emitErr := run.Emit(Event{Event: RoutePlaybackStarted, RouteRole: "leg_acquisition", SegmentID: "stony-field"}); emitErr != nil {
+		t.Fatal(emitErr)
+	}
+	if emitErr := run.Emit(Event{Event: RoutePlaybackStarted, SetupRouteID: "other"}); emitErr == nil {
+		t.Fatal("setup-route drift was accepted")
+	}
+	if closeErr := run.Close(); closeErr != nil {
+		t.Fatal(closeErr)
+	}
+
+	events := readSchema3Events(t, path)
+	if len(events) != 2 {
+		t.Fatalf("event count=%d, want 2", len(events))
+	}
+	for _, event := range events {
+		if event.RouteID != "cow-sweep" || event.RouteLayoutFingerprint != "cow-layout" || event.SetupRouteID != "leg-acquisition" || event.SetupRouteLayoutFingerprint != "leg-layout" {
+			t.Fatalf("route-set context = %+v", event)
+		}
+	}
+	if events[1].RouteRole != "leg_acquisition" {
+		t.Fatalf("setup playback role=%q", events[1].RouteRole)
+	}
+	reader, err := NewHistoryReader(filepath.Dir(path))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := reader.Read(filepath.Base(path)); err != nil {
+		t.Fatalf("read route-set history: %v", err)
+	}
+}
+
 func readSingleSchema3Event(t *testing.T, path string) Event {
 	t.Helper()
 	events := readSchema3Events(t, path)

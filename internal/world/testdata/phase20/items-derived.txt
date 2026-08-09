@@ -1,0 +1,4 @@
+Source	Code	TxtFileNo	Name	InvWidth	InvHeight
+weapons.txt	leg	88	Wirt's Leg	1	3
+misc.txt	tbk	533	Tome of Town Portal	1	2
+misc.txt	box	564	Horadric Cube	2	2

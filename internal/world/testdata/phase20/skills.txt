@@ -1,0 +1,6 @@
+skill	*Id	TargetCorpse
+Teleport	54	
+Amplify Damage	66	
+Corpse Explosion	74	1
+Bone Spear	84	
+TownPortal	359	

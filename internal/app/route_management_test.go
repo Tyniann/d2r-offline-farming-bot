@@ -65,6 +65,73 @@ func freezeTestPassedCandidate(t *testing.T, cfg *config.Config) RouteCandidate 
 	return passed
 }
 
+func freezeCowManagementCandidate(t *testing.T, cfg *config.Config, role pathing.RouteRole) RouteCandidate {
+	t.Helper()
+	lifecycle, _ := NewRouteLifecycleStore(cfg)
+	_, catalog, err := lifecycle.Snapshot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	assignments, _ := NewRouteAssignmentStore(cfg)
+	assignment, err := assignments.Snapshot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	seed := uint32(42)
+	startArea, hash := world.StonyField, strings.Repeat("c", 64)
+	segments := []pathing.RouteSegment{
+		{ID: "stony-field", FromAreaID: world.StonyField, ToAreaID: world.Tristram, Movement: pathing.RouteMovementTeleport, Points: []pathing.RoutePoint{{X: 100, Y: 100}, {X: 110, Y: 100}}, Transition: pathing.RouteTransition{Type: "object_portal", ObjectKind: world.ObjectKindPermanentPortal, ExpectedToArea: world.Tristram}},
+		{ID: "tristram", FromAreaID: world.Tristram, ToAreaID: world.Tristram, Movement: pathing.RouteMovementTeleport, Points: []pathing.RoutePoint{{X: 200, Y: 200}, {X: 210, Y: 200}}, Transition: pathing.RouteTransition{Type: "terminal"}},
+	}
+	if role == pathing.RouteRoleCowSweep {
+		startArea, hash = world.MooMooFarm, strings.Repeat("d", 64)
+		segments = []pathing.RouteSegment{{ID: "moo-moo-farm", FromAreaID: world.MooMooFarm, ToAreaID: world.MooMooFarm, Movement: pathing.RouteMovementTeleport, Points: []pathing.RoutePoint{{X: 300, Y: 300}, {X: 310, Y: 300}}, Transition: pathing.RouteTransition{Type: "terminal"}}}
+	}
+	routeID := "cow-candidate-" + strings.ReplaceAll(string(role), "_", "-")
+	route := pathing.Route{Version: pathing.RouteVersion, ID: routeID, Name: "Cow Kandidat", Kind: pathing.RouteKindNavigation, Binding: pathing.RouteBinding{RouteRole: role, CharacterName: "MrBones", CharacterClass: "necromancer", ProfileID: "necro_bone_spear", Difficulty: pathing.RouteDifficultyNightmare, MapSeed: &seed, GameVersion: "3.2.92777", LayoutFingerprint: pathing.RouteLayoutFingerprint{Version: 1, AreaID: startArea, AnchorCount: 1, Hash: hash}}, Recording: pathing.RouteRecording{RecordedAt: time.Now().UTC(), SampleDistanceTiles: 4}, Playback: pathing.RoutePlayback{WaypointToleranceTiles: 3, MaxDriftTiles: 8, MaxLocalCorrections: 2, SegmentTimeoutMs: 30000, TransitionTimeoutMs: 10000}, Segments: segments}
+	store, _ := NewCandidateStore(cfg)
+	candidate, err := store.Freeze(route, RouteCandidate{RunID: tasks.RunIDCows, RouteRole: role, Character: "MrBones", Difficulty: "nightmare", GameVersion: "3.2.92777", State: RouteCandidateRecorded, SourceCatalogRevision: catalog.Revision, SourceAssignmentRevision: assignment.Revision, SourceAssignedRouteID: assignment.RouteSets["mrbones"][tasks.RunIDCows][role], CreatedAt: time.Now().UTC()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().UTC()
+	candidate, err = store.UpdateState(candidate.CandidateID, RouteCandidateTestPassed, "", &now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return candidate
+}
+
+func TestCowCandidatesPublishBothRolesWithoutInvalidatingSiblingCandidate(t *testing.T) {
+	cfg := managementTestConfig(t)
+	leg := freezeCowManagementCandidate(t, cfg, pathing.RouteRoleLegAcquisition)
+	sweep := freezeCowManagementCandidate(t, cfg, pathing.RouteRoleCowSweep)
+	service, serviceErr := NewRouteManagementService(cfg, RouteManagementHooks{})
+	if serviceErr != nil {
+		t.Fatal(serviceErr)
+	}
+	for _, candidate := range []RouteCandidate{leg, sweep} {
+		preview, previewErr := service.PreviewCandidate(candidate.CandidateID)
+		if previewErr != nil {
+			t.Fatalf("preview %s: %v", candidate.RouteRole, previewErr)
+		}
+		if preview.RouteRole != candidate.RouteRole || preview.Operation != RouteMutationPublish {
+			t.Fatalf("preview = %+v", preview)
+		}
+		if err := service.Confirm(RouteMutationConfirm{Token: preview.Token}); err != nil {
+			t.Fatalf("publish %s: %v", candidate.RouteRole, err)
+		}
+	}
+	manifest, err := service.assignments.Snapshot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	roles := manifest.RouteSets["mrbones"][tasks.RunIDCows]
+	if roles[pathing.RouteRoleLegAcquisition] == "" || roles[pathing.RouteRoleCowSweep] == "" || roles[pathing.RouteRoleLegAcquisition] == roles[pathing.RouteRoleCowSweep] {
+		t.Fatalf("cow role assignments = %+v", roles)
+	}
+}
+
 func freezeMephistoManagementCandidate(t *testing.T, cfg *config.Config) RouteCandidate {
 	t.Helper()
 	lifecycle, err := NewRouteLifecycleStore(cfg)
@@ -120,11 +187,13 @@ func freezeMephistoManagementCandidate(t *testing.T, cfg *config.Config) RouteCa
 }
 
 type candidatePlaybackMock struct {
-	calls    []string
-	evidence RecordingTerminalEvidence
-	failAt   string
-	startAct town.OriginAct
-	target   pathing.WaypointTargetID
+	calls        []string
+	evidence     RecordingTerminalEvidence
+	failAt       string
+	startAct     town.OriginAct
+	target       pathing.WaypointTargetID
+	startRole    pathing.RouteRole
+	terminalRole pathing.RouteRole
 }
 
 func (m *candidatePlaybackMock) call(name string) error {
@@ -137,19 +206,51 @@ func (m *candidatePlaybackMock) call(name string) error {
 func (m *candidatePlaybackMock) EnsureTown(context.Context, town.OriginAct) error {
 	return m.call("ensure_town")
 }
-func (m *candidatePlaybackMock) TravelToStart(_ context.Context, act town.OriginAct, target pathing.WaypointTargetID) error {
-	m.startAct = act
-	m.target = target
+func (m *candidatePlaybackMock) TravelToStart(_ context.Context, contract tasks.RecordingContract) error {
+	m.startAct = contract.EgressOriginAct
+	m.target = contract.StartWaypoint
+	m.startRole = contract.RouteRole
 	return m.call("waypoint")
 }
 func (m *candidatePlaybackMock) PlayCandidate(context.Context, pathing.Route) error {
 	return m.call("play_candidate")
 }
-func (m *candidatePlaybackMock) TerminalEvidence(context.Context) (RecordingTerminalEvidence, error) {
+func (m *candidatePlaybackMock) TerminalEvidence(_ context.Context, contract tasks.RecordingContract) (RecordingTerminalEvidence, error) {
+	m.terminalRole = contract.RouteRole
 	if err := m.call("terminal"); err != nil {
 		return RecordingTerminalEvidence{}, err
 	}
 	return m.evidence, nil
+}
+
+func TestCowCandidatePlaybackUsesRoleContractAndNavigationOnly(t *testing.T) {
+	for _, role := range []pathing.RouteRole{pathing.RouteRoleLegAcquisition, pathing.RouteRoleCowSweep} {
+		t.Run(string(role), func(t *testing.T) {
+			cfg := managementTestConfig(t)
+			candidate := freezeCowManagementCandidate(t, cfg, role)
+			store, _ := NewCandidateStore(cfg)
+			candidate, err := store.UpdateState(candidate.CandidateID, RouteCandidateValidated, "", nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			state := recordingState(world.MooMooFarm, 310, 300)
+			evidence := RecordingTerminalEvidence{World: state}
+			if role == pathing.RouteRoleLegAcquisition {
+				state = recordingState(world.Tristram, 210, 200)
+				wirt := world.Object{Kind: world.ObjectKindWirtsBody, UnitID: 268, Position: world.Position{X: 212, Y: 200}}
+				evidence = RecordingTerminalEvidence{World: state, Object: &wirt}
+			}
+			driver := &candidatePlaybackMock{evidence: evidence}
+			orchestrator, _ := NewCandidateTestOrchestrator(store, tasks.DefaultRunRegistry())
+			passed, err := orchestrator.Test(context.Background(), candidate.CandidateID, driver)
+			if err != nil || passed.State != RouteCandidateTestPassed {
+				t.Fatalf("test result = %+v, %v", passed, err)
+			}
+			if driver.startRole != role || driver.terminalRole != role || !reflect.DeepEqual(driver.calls, []string{"ensure_town", "waypoint", "play_candidate", "terminal", "return"}) {
+				t.Fatalf("driver = roles %s/%s calls=%v", driver.startRole, driver.terminalRole, driver.calls)
+			}
+		})
+	}
 }
 func (m *candidatePlaybackMock) ReturnAfterTest(context.Context, town.OriginAct) error {
 	return m.call("return")

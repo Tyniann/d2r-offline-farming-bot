@@ -142,11 +142,11 @@ export async function confirmRouteMutation(preview: RouteMutationPreviewDTO, con
   if (!response.ok) throw await errorMessage(response, "Routenänderung fehlgeschlagen");
 }
 
-export async function startRouteWorkflow(operation: string, expectedGeneration: number, options: { runId?: string; candidateId?: string; act?: string }): Promise<RouteWorkflowDTO> {
+export async function startRouteWorkflow(operation: string, expectedGeneration: number, options: { runId?: string; routeRole?: string; candidateId?: string; act?: string }): Promise<RouteWorkflowDTO> {
   await ensureControlToken();
   let path = "/api/v1/routes/workflow/start";
-  let body: Record<string, unknown> = { expected_generation: expectedGeneration, operation, run_id: options.runId, candidate_id: options.candidateId, act: options.act };
-  if (operation === "record") { path = "/api/v1/route-recordings"; body = { expected_generation: expectedGeneration, run_id: options.runId }; }
+  let body: Record<string, unknown> = { expected_generation: expectedGeneration, operation, run_id: options.runId, route_role: options.routeRole, candidate_id: options.candidateId, act: options.act };
+  if (operation === "record") { path = "/api/v1/route-recordings"; body = { expected_generation: expectedGeneration, run_id: options.runId, route_role: options.routeRole }; }
   if (operation === "test" && options.candidateId) { path = `/api/v1/route-candidates/${encodeURIComponent(options.candidateId)}/test`; body = { expected_generation: expectedGeneration }; }
   const response = await fetch(path, { method: "POST", headers: controlHeaders(), body: JSON.stringify(body) });
   if (!response.ok) throw await errorMessage(response, "Routen-Workflow konnte nicht gestartet werden");

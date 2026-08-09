@@ -40,16 +40,93 @@ func TestGuidedRecordingStartRequiresConfiguredWaypointProximity(t *testing.T) {
 		t.Fatal("countess definition missing")
 	}
 	state := recordingState(world.BlackMarsh, 100, 100)
+	contract := definition.Recording
 	state.UI.WaypointOpen = true
-	if !guidedRecordingStartReady(state, definition, 15) {
+	if !guidedRecordingStartReady(state, contract, 15) {
 		t.Fatal("waypoint inside configured proximity was rejected because of stale post-transfer UI flag")
 	}
-	if guidedRecordingStartReady(state, definition, 5) {
+	if guidedRecordingStartReady(state, contract, 5) {
 		t.Fatal("waypoint outside configured proximity was accepted")
 	}
 	state.UI.InventoryOpen = true
-	if guidedRecordingStartReady(state, definition, 15) {
+	if guidedRecordingStartReady(state, contract, 15) {
 		t.Fatal("actually blocking inventory UI was accepted")
+	}
+}
+
+func TestRecordingStartToleranceUsesPortalConfigForCowSweep(t *testing.T) {
+	definition, ok := tasks.DefaultRunRegistry().Definition(tasks.RunIDCows)
+	if !ok {
+		t.Fatal("cow definition missing")
+	}
+	contract, ok := definition.RecordingForRole(pathing.RouteRoleCowSweep)
+	if !ok {
+		t.Fatal("cow sweep recording contract missing")
+	}
+	cfg := &config.Config{Pathing: config.PathingConfig{
+		Waypoint:   config.PathingWaypointConfig{MaxClickDistance: 5},
+		TownPortal: config.PathingTownPortalConfig{MaxClickDistance: 17},
+	}}
+	if got := recordingStartTolerance(cfg, contract); got != 17 {
+		t.Fatalf("cow sweep start tolerance = %v, want portal tolerance 17", got)
+	}
+}
+
+func TestCowRecordingContractsFreezeRoleBoundCandidates(t *testing.T) {
+	for _, role := range []pathing.RouteRole{pathing.RouteRoleLegAcquisition, pathing.RouteRoleCowSweep} {
+		t.Run(string(role), func(t *testing.T) {
+			store, _ := newRecordingTestStore(t)
+			coordinator, coordinatorErr := NewRecordingCoordinator(store, tasks.DefaultRunRegistry())
+			if coordinatorErr != nil {
+				t.Fatal(coordinatorErr)
+			}
+			request := RecordingPreflight{RunID: tasks.RunIDCows, RouteRole: role, Character: "MrBones", ExpectedClass: "necromancer", ProfileID: "necro_bone_spear", Difficulty: pathing.RouteDifficultyHell, GameVersion: "3.2.92777", SourceCatalogRevision: 1, SourceAssignmentRevision: 1, WaypointContextConfirmed: true, BlockingUIClosed: true, D2RFocused: true, InputOwnerAvailable: true}
+			var start world.State
+			if role == pathing.RouteRoleLegAcquisition {
+				start = recordingState(world.StonyField, 100, 100)
+			} else {
+				start = recordingState(world.MooMooFarm, 100, 100)
+				start.Objects = []world.Object{{Kind: world.ObjectKindPermanentPortal, UnitID: 60, Position: world.Position{X: 101, Y: 100}}}
+			}
+			if err := coordinator.Start(request, start); err != nil {
+				t.Fatal(err)
+			}
+			var evidence RecordingTerminalEvidence
+			if role == pathing.RouteRoleLegAcquisition {
+				atPortal := recordingState(world.StonyField, 110, 100)
+				atPortal.Objects = []world.Object{{Kind: world.ObjectKindPermanentPortal, UnitID: 61, Position: world.Position{X: 111, Y: 100}}}
+				if err := coordinator.Tick(context.Background(), atPortal); err != nil {
+					t.Fatal(err)
+				}
+				if err := coordinator.Tick(context.Background(), recordingState(world.Tristram, 200, 200)); err != nil {
+					t.Fatal(err)
+				}
+				terminal := recordingState(world.Tristram, 210, 200)
+				wirt := world.Object{Kind: world.ObjectKindWirtsBody, UnitID: 268, Position: world.Position{X: 212, Y: 200}}
+				terminal.Objects = []world.Object{wirt}
+				if err := coordinator.Tick(context.Background(), terminal); err != nil {
+					t.Fatal(err)
+				}
+				evidence = RecordingTerminalEvidence{World: terminal, Object: &wirt}
+			} else {
+				terminal := recordingState(world.MooMooFarm, 112, 100)
+				if err := coordinator.Tick(context.Background(), terminal); err != nil {
+					t.Fatal(err)
+				}
+				evidence = RecordingTerminalEvidence{World: terminal}
+			}
+			candidate, candidateErr := coordinator.Finish(evidence)
+			if candidateErr != nil || candidate.State != RouteCandidateValidated || candidate.RouteRole != role || len(candidate.ImmutableRouteSHA256) != 64 {
+				t.Fatalf("candidate = %+v, err=%v", candidate, candidateErr)
+			}
+			if err := coordinator.CompleteSafetyReturn(nil); err != nil {
+				t.Fatal(err)
+			}
+			_, route, err := store.Load(candidate.CandidateID)
+			if err != nil || route.Binding.RouteRole != role || route.Binding.ProfileID != "necro_bone_spear" {
+				t.Fatalf("route = %+v, err=%v", route.Binding, err)
+			}
+		})
 	}
 }
 

@@ -33,6 +33,7 @@ type runAvailabilityResolution struct {
 	report     RunsInspectReport
 	routes     map[tasks.RunID]pathing.Route
 	routePaths map[string]string
+	routeSets  map[tasks.RunID]map[pathing.RouteRole]pathing.Route
 }
 
 // ResolveRunAvailabilities evaluates every registered run without process
@@ -54,7 +55,7 @@ func ResolveRunsInspectReport(cfg *config.Config, opts Options) (RunsInspectRepo
 	if !opts.RunsInspect {
 		return RunsInspectReport{}, fmt.Errorf("runs inspect mode is not selected")
 	}
-	if opts.SessionInspect || opts.Probe || opts.InputTest != "" || opts.Run != "" || opts.RunPhase != "" || opts.PathingTest != "" || opts.OfflineDifficulty != "" || opts.OfflineCharacter != "" || opts.OfflineExitTest || opts.UIStateProbe != "" || opts.ScreenAnchorCapture != "" || opts.MercenaryProbe != "" || opts.Route != "" || opts.RouteName != "" || opts.RouteDifficulty != "" || opts.TownInspect || opts.TownTest != "" {
+	if opts.SessionInspect || opts.Probe || opts.InputTest != "" || opts.Run != "" || opts.RunPhase != "" || opts.PathingTest != "" || opts.OfflineDifficulty != "" || opts.OfflineCharacter != "" || opts.OfflineExitTest || opts.UIStateProbe != "" || opts.ScreenAnchorCapture != "" || opts.MercenaryProbe != "" || opts.CowProbe != "" || opts.Route != "" || opts.RouteName != "" || opts.RouteDifficulty != "" || opts.TownInspect || opts.TownTest != "" {
 		return RunsInspectReport{}, fmt.Errorf("--runs-inspect is mutually exclusive with session, run, probe, route, town, and test modes")
 	}
 	context := RunAvailabilityContext{
@@ -84,7 +85,7 @@ func resolveRunAvailabilities(cfg *config.Config, context RunAvailabilityContext
 		return runAvailabilityResolution{}, fmt.Errorf("load route assignments: %w", err)
 	}
 	result := runAvailabilityResolution{
-		report: RunsInspectReport{Context: context}, routes: make(map[tasks.RunID]pathing.Route), routePaths: make(map[string]string),
+		report: RunsInspectReport{Context: context}, routes: make(map[tasks.RunID]pathing.Route), routePaths: make(map[string]string), routeSets: make(map[tasks.RunID]map[pathing.RouteRole]pathing.Route),
 	}
 	candidates := make(map[string]FarmingRouteCatalogEntry)
 	for _, entry := range catalog.Entries {
@@ -110,6 +111,19 @@ func resolveRunAvailabilities(cfg *config.Config, context RunAvailabilityContext
 		}
 		if context.CombatProfile != "" && runCfg.Combat.Profile != context.CombatProfile {
 			availability.Reasons = append(availability.Reasons, tasks.RunReasonCharacterProfileRunIncompatible)
+		}
+		if definition.RouteSet != nil {
+			resolveRouteSetAvailability(&availability, result, definition, runCfg.Combat.Profile, context, assignments, candidates, profileCfg, profileConfigured)
+			if _, supported := pathing.DefaultWaypointTargetRegistry().Action(definition.WaypointTarget); !supported {
+				availability.Reasons = append(availability.Reasons, tasks.RunReasonWaypointTargetUnsupported)
+			}
+			availability.Reasons = uniqueSortedRunReasons(availability.Reasons)
+			if len(availability.Reasons) == 0 {
+				availability.Status = tasks.RunAvailabilityRuntimeValidationRequired
+				availability.Reasons = []tasks.RunReason{tasks.RunReasonRouteRuntimeValidation}
+			}
+			result.report.Runs = append(result.report.Runs, availability)
+			continue
 		}
 
 		var route pathing.Route
@@ -173,6 +187,86 @@ func resolveRunAvailabilities(cfg *config.Config, context RunAvailabilityContext
 		result.report.Runs = append(result.report.Runs, availability)
 	}
 	return result, nil
+}
+
+func resolveRouteSetAvailability(availability *tasks.RunAvailability, result runAvailabilityResolution, definition tasks.RunDefinition, profileID string, context RunAvailabilityContext, assignments RouteAssignmentManifest, candidates map[string]FarmingRouteCatalogEntry, profileCfg config.ProfileConfig, profileConfigured bool) {
+	availability.RouteRoles = make(map[pathing.RouteRole]tasks.RouteAvailability, len(definition.RouteSet.Roles))
+	resolvedRoutes := make(map[pathing.RouteRole]pathing.Route, len(definition.RouteSet.Roles))
+	character := strings.ToLower(strings.TrimSpace(context.Character))
+	bound := assignments.RouteSets[character][definition.ID]
+	var identity *pathing.RouteBinding
+	for _, role := range definition.RouteSet.Roles {
+		roleAvailability := tasks.RouteAvailability{}
+		routeID := bound[role]
+		missingReason, staleReason := roleAvailabilityReasons(role)
+		if strings.TrimSpace(routeID) == "" {
+			roleAvailability.Reason = tasks.RunReasonRouteMissing
+			availability.Reasons = append(availability.Reasons, missingReason)
+			availability.RouteRoles[role] = roleAvailability
+			continue
+		}
+		roleAvailability.RouteID = routeID
+		candidate, found := candidates[routeID]
+		if !found {
+			roleAvailability.Reason = tasks.RunReasonRouteMissing
+			availability.Reasons = append(availability.Reasons, missingReason)
+		} else if candidate.Status != RouteLifecycleValid && candidate.Status != RouteLifecycleRuntimeValidationRequired || candidate.ManagementStatus == RouteManagementArchived {
+			roleAvailability.Reason = tasks.RunReasonRouteStale
+			availability.Reasons = append(availability.Reasons, staleReason)
+		} else if !routeMatchesRoleAndContext(candidate.Route, definition, role, profileID, context) {
+			roleAvailability.Reason = tasks.RunReasonRouteBindingMismatch
+			availability.Reasons = append(availability.Reasons, tasks.RunReasonRouteSetBindingMismatch)
+		} else {
+			binding := candidate.Route.Binding
+			if identity != nil && !sharedRouteSetIdentity(*identity, binding) {
+				roleAvailability.Reason = tasks.RunReasonRouteBindingMismatch
+				availability.Reasons = append(availability.Reasons, tasks.RunReasonRouteSetBindingMismatch)
+			} else if identity == nil {
+				identity = &binding
+			}
+			if profileConfigured && !strings.EqualFold(binding.CharacterClass, profileCfg.CharacterClass) {
+				availability.Reasons = append(availability.Reasons, tasks.RunReasonProfileClassMismatch)
+			}
+			resolvedRoutes[role] = candidate.Route
+			result.routePaths[candidate.ID] = candidate.Path
+		}
+		availability.RouteRoles[role] = roleAvailability
+	}
+	primary := availability.RouteRoles[definition.RouteSet.PrimaryRole]
+	availability.Route = primary
+	if len(resolvedRoutes) == len(definition.RouteSet.Roles) {
+		result.routeSets[definition.ID] = resolvedRoutes
+		if route, ok := resolvedRoutes[definition.RouteSet.PrimaryRole]; ok {
+			// Existing session surfaces remain keyed by the primary route. The
+			// dedicated Cow pipeline receives both immutable role IDs separately.
+			result.routes[definition.ID] = route
+		}
+	}
+}
+
+func roleAvailabilityReasons(role pathing.RouteRole) (tasks.RunReason, tasks.RunReason) {
+	if role == pathing.RouteRoleLegAcquisition {
+		return tasks.RunReasonLegAcquisitionRouteMissing, tasks.RunReasonLegAcquisitionRouteStale
+	}
+	return tasks.RunReasonCowSweepRouteMissing, tasks.RunReasonCowSweepRouteStale
+}
+
+func routeMatchesRoleAndContext(route pathing.Route, definition tasks.RunDefinition, role pathing.RouteRole, profileID string, context RunAvailabilityContext) bool {
+	contract, ok := definition.RecordingForRole(role)
+	if !ok || route.Binding.RouteRole != role || len(route.Segments) == 0 || route.Segments[0].FromAreaID != contract.AllowedStartArea || route.Segments[len(route.Segments)-1].ToAreaID != contract.TerminalArea {
+		return false
+	}
+	if role == pathing.RouteRoleLegAcquisition && !validLegAcquisitionSegments(route.Segments) || role == pathing.RouteRoleCowSweep && !validCowSweepSegments(route.Segments) {
+		return false
+	}
+	if context.Character != "" && !strings.EqualFold(route.Binding.CharacterName, context.Character) || context.Difficulty != "" && string(route.Binding.Difficulty) != context.Difficulty || context.GameVersion != "" && route.Binding.GameVersion != context.GameVersion {
+		return false
+	}
+	return route.Binding.ProfileID == profileID
+}
+
+func sharedRouteSetIdentity(left, right pathing.RouteBinding) bool {
+	return strings.EqualFold(left.CharacterName, right.CharacterName) && strings.EqualFold(left.CharacterClass, right.CharacterClass) && left.Difficulty == right.Difficulty && left.GameVersion == right.GameVersion && left.ProfileID == right.ProfileID
 }
 
 func validateTownEgressAvailability(cfg *config.Config, egress town.EgressConfig, origin town.OriginAct, context RunAvailabilityContext) tasks.RunReason {

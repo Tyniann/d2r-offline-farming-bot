@@ -39,3 +39,28 @@ func TestCaptureUIBufferRequiresAttachedReader(t *testing.T) {
 		t.Fatal("expected unattached capture error")
 	}
 }
+
+func TestCaptureUIResearchBufferCopiesWideDiagnosticWindow(t *testing.T) {
+	access, probe, moduleBase := setupProbeMock(t)
+	off := testOffsetSet()
+	off.UI = uiResearchBufferBefore + 0x5000
+	probe.offsets = off
+	probe.activeOffsets = off
+
+	uiBase := moduleBase + off.UI - uiResearchBufferBefore
+	want := make([]byte, uiResearchBufferSize)
+	want[0] = 0x12
+	want[len(want)-1] = 0x34
+	access.setBytes(uiBase, want)
+
+	capture, err := probe.CaptureUIResearchBuffer()
+	if err != nil {
+		t.Fatalf("CaptureUIResearchBuffer() error = %v", err)
+	}
+	if capture.Anchor != uiResearchBufferBefore || len(capture.Bytes) != uiResearchBufferSize {
+		t.Fatalf("capture shape = anchor %d len %d", capture.Anchor, len(capture.Bytes))
+	}
+	if capture.Bytes[0] != 0x12 || capture.Bytes[len(capture.Bytes)-1] != 0x34 {
+		t.Fatal("wide capture did not preserve its bounds")
+	}
+}

@@ -247,7 +247,7 @@ Erwartung: Fenster gebunden, Aktionen in `input action`-Logs sichtbar, `input te
 ## Grenzen (Phase 3.5)
 
 - **Automatische Nutzung nur in aktiven Runs:** Der passive Modus sendet keine Eingaben; konfigurierte Run-Phasen verwenden die Primitives hinter World-, Safety- und UI-Guards.
-- **Fokus nur für Lifecycle-Flows:** Phase-7-Menüaktionen aktivieren und bestätigen D2R explizit; ältere allgemeine Run-/Test-Primitives besitzen nicht automatisch denselben semantischen Fokus-Guard.
+- **Fokus an semantischen Aufrufern:** Phase-7-Menüaktionen und positionsgebundene Profilcasts aktivieren und bestätigen D2R explizit; Low-Level-Run-/Test-Primitives besitzen nicht automatisch denselben semantischen Fokus-Guard.
 - **Input-Test sendet echte Eingaben:** nur mit explizitem `--input-test` und `input.enabled: true`.
 - **Keine Pathing-/UI-Klicks:** nur Low-Level-Primitives, kein semantisches D2R-UI-Modell.
 - **Globale Hotkeys:** können von anderer Software belegt sein; Start schlägt dann fehl statt ohne Safety zu laufen.

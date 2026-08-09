@@ -48,6 +48,45 @@ func TestNPCInteractorPinsClicksOnceAndWaitsForDialog(t *testing.T) {
 	}
 }
 
+func TestNPCInteractorReacquiresMovingNPCOnceWhenDialogStaysClosed(t *testing.T) {
+	clicker := &clickerMock{results: []NPCClickResult{{Clicked: true, Done: true}, {Clicked: true, Done: true}}}
+	exec := NewNPCInteractor(clicker, world.Akara, 15, 3*time.Second)
+	state := interactionState()
+
+	if result := exec.Tick(state); result.Action != "npc_click" {
+		t.Fatalf("first click = %+v", result)
+	}
+	state.At = state.At.Add(npcDialogConfirmationWindow)
+	state.Monsters[0].Position = world.Position{X: 106, Y: 105}
+	if result := exec.Tick(state); result.Action != "npc_click" {
+		t.Fatalf("second click = %+v", result)
+	}
+	state.At = state.At.Add(npcDialogConfirmationWindow)
+	if result := exec.Tick(state); result.Status != InteractionPending {
+		t.Fatalf("bounded wait = %+v", result)
+	}
+	if clicker.calls != 2 {
+		t.Fatalf("clicker calls = %d, want 2", clicker.calls)
+	}
+}
+
+func TestNPCInteractorAcceptsDialogOpeningDuringReacquire(t *testing.T) {
+	clicker := &clickerMock{results: []NPCClickResult{{Clicked: true, Done: true}, {}}}
+	exec := NewNPCInteractor(clicker, world.Akara, 15, 3*time.Second)
+	state := interactionState()
+
+	_ = exec.Tick(state)
+	state.At = state.At.Add(npcDialogConfirmationWindow)
+	_ = exec.Tick(state)
+	state.UI.NPCInteractOpen = true
+	if result := exec.Tick(state); result.Status != InteractionComplete || !result.Done {
+		t.Fatalf("delayed dialog = %+v", result)
+	}
+	if clicker.calls != 2 {
+		t.Fatalf("clicker calls = %d, want 2", clicker.calls)
+	}
+}
+
 func TestNPCInteractorFailsWhenPinnedNPCDisappears(t *testing.T) {
 	exec := NewNPCInteractor(&clickerMock{results: []NPCClickResult{{}}}, world.Akara, 15, time.Second)
 	state := interactionState()

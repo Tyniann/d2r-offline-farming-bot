@@ -26,6 +26,8 @@ F9 beziehungsweise `Finish` ist ausschließlich in `recording` autoritativ und i
 
 Erst nach diesem Freeze prüft der Coordinator Terminalgebiet, erlaubte Segmente und Bewegung, exakte Boss-ID, gegebenenfalls Super-Unique-Flag, Alive-Evidenz und die frei gewählte Endposition gegen die run-spezifische Maximaldistanz. Abgelehnte Kandidaten bleiben mit stabilem Diagnosegrund erhalten.
 
+Phase 20.2 erweitert Start und Terminal als enge Varianten. Bestehende Runs sind explizit `waypoint → boss` und behalten ihr Verhalten. Die Wirt-Route ist `waypoint → object`: Ihr einziger Gebietswechsel muss ein `object_portal` über Permanent Portal nach Tristram sein; F9 verlangt Wirts Körper innerhalb der festgelegten Distanz, sendet aber keinen Klick. Die Cow-Route ist `object_portal_arrival → endpoint`: Der Start verlangt das destination-seitige Permanent Portal in Area 39, und F9 bestätigt den benutzergewählten Endpunkt innerhalb derselben Area. Kandidat, Route-Binding und Recording-Contract müssen dieselbe feste Rolle tragen.
+
 ## Safety Return und F11
 
 Nach Freeze wird genau ein TP-Sicherheitsrückweg angefordert. Erfolg führt bei validem Kandidaten zu `candidate_ready`; ein TP-Fehler endet `failed_safe`, ohne den Kandidaten zu löschen, markiert ihn jedoch persistent als `failed` und verhindert dadurch Test oder Publish ohne erfolgreichen Safety Return. Weil der Boss und sein Pack während der Prüfung absichtlich leben, verwendet der gemeinsame Town-Portal-Clicker für Portale einen dreifach erweiterten, weiterhin strikt begrenzten Hover-Suchraum. Auch dort erfolgt niemals ein Blindklick: Nur die exakte Memory-bestätigte Portal-UnitID erlaubt den Klick. F11 vor Freeze beendet sofort als `emergency_cancelled`, erzeugt keinen Kandidaten und verspricht keinen Portalrückweg. F11 nach Freeze erhält den bereits unveränderlichen Kandidaten, veröffentlicht ihn aber nie.
@@ -47,4 +49,4 @@ Die Countess-Aufnahme für `MrBones` auf Nightmare wurde vollständig über das 
 - [Farming-Route-Assignment](route-assignment.md)
 
 ---
-*Zuletzt aktualisiert: 18. Juli 2026*
+*Zuletzt aktualisiert: 1. August 2026*

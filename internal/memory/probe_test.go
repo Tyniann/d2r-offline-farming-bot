@@ -512,3 +512,14 @@ func TestProbePlayerBucketsLayout(t *testing.T) {
 		t.Fatalf("unitTableBuckets = %d, want 128 (d2go GetRawPlayerUnits)", unitTableBuckets)
 	}
 }
+
+func TestProbeSnapshotGenerationAdvancesAcrossFreshReads(t *testing.T) {
+	_, probe, _ := setupProbeMock(t)
+	first := probe.Snapshot()
+	second := probe.Snapshot()
+	// Windows may return the same wall-clock value for two immediate reads;
+	// Generation is the authoritative freshness signal.
+	if first.Generation == 0 || second.Generation != first.Generation+1 || first.At.IsZero() || second.At.IsZero() {
+		t.Fatalf("first generation/time=%d/%v second=%d/%v", first.Generation, first.At, second.Generation, second.At)
+	}
+}

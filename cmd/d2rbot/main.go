@@ -17,6 +17,7 @@ import (
 	apiui "github.com/Tyniann/d2r-offline-farming-bot/internal/api/ui"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/app"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/config"
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/pathing"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/telemetry"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/town"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/version"
@@ -44,6 +45,8 @@ func main() {
 	uiStateProbeTimeoutMs := flag.Int("ui-state-probe-timeout-ms", 30000, "timeout in ms for a read-only UI-state capture")
 	mercenaryProbe := flag.String("mercenary-probe", "", "read-only hireling evidence label (e.g. not-hired, alive-healthy, alive-injured, dead, area-transition)")
 	mercenaryProbeTimeoutMs := flag.Int("mercenary-probe-timeout-ms", 45000, "timeout in ms for a read-only mercenary probe capture")
+	cowProbe := flag.String("cow-probe", "", "read-only Phase-20.0 evidence label (e.g. stony-tristram, wirts-body, cow-life-death-ce, cube-open)")
+	cowProbeTimeoutMs := flag.Int("cow-probe-timeout-ms", 20000, "timeout in ms for a read-only Cow evidence capture")
 	screenAnchorCapture := flag.String("screen-anchor-capture", "", "capture a named 1280x720 frontend screenshot for Phase 7.3 calibration")
 	sessionInspect := flag.Bool("session-inspect", false, "validate and print the resolved autonomous-session plan without attaching or sending input")
 	runsInspect := flag.Bool("runs-inspect", false, "print read-only run metadata and availability as stable JSON")
@@ -80,33 +83,35 @@ func main() {
 	}
 
 	opts := app.Options{
-		Desktop:                *desktopHandshakePipe != "",
-		DesktopHandshakePipe:   *desktopHandshakePipe,
-		Probe:                  *probe,
-		Verbose:                *verbose,
-		InputTest:              *inputTest,
-		InputTestObserveMs:     *inputTestObserveMs,
-		Run:                    *runFlag,
-		RunPhase:               *phaseFlag,
-		PathingTest:            *pathingTest,
-		PathingTestTimeoutMs:   *pathingTestTimeoutMs,
-		OfflineDifficulty:      *offlineDifficulty,
-		OfflineCharacter:       *offlineCharacter,
+		Desktop:                 *desktopHandshakePipe != "",
+		DesktopHandshakePipe:    *desktopHandshakePipe,
+		Probe:                   *probe,
+		Verbose:                 *verbose,
+		InputTest:               *inputTest,
+		InputTestObserveMs:      *inputTestObserveMs,
+		Run:                     *runFlag,
+		RunPhase:                *phaseFlag,
+		PathingTest:             *pathingTest,
+		PathingTestTimeoutMs:    *pathingTestTimeoutMs,
+		OfflineDifficulty:       *offlineDifficulty,
+		OfflineCharacter:        *offlineCharacter,
 		OfflineExitTest:         *offlineExitTest,
 		UIStateProbe:            *uiStateProbe,
 		UIStateProbeTimeoutMs:   *uiStateProbeTimeoutMs,
 		MercenaryProbe:          *mercenaryProbe,
 		MercenaryProbeTimeoutMs: *mercenaryProbeTimeoutMs,
+		CowProbe:                *cowProbe,
+		CowProbeTimeoutMs:       *cowProbeTimeoutMs,
 		ScreenAnchorCapture:     *screenAnchorCapture,
 		SessionInspect:          *sessionInspect,
-		RunsInspect:            *runsInspect,
-		WaypointTargetsInspect: *waypointTargetsInspect,
-		SessionMaxRuns:         *sessionMaxRuns,
-		Route:                  *routeCommand,
-		RouteName:              *routeName,
-		RouteDifficulty:        *routeDifficulty,
-		TownInspect:            *townInspect,
-		TownTest:               *townTest,
+		RunsInspect:             *runsInspect,
+		WaypointTargetsInspect:  *waypointTargetsInspect,
+		SessionMaxRuns:          *sessionMaxRuns,
+		Route:                   *routeCommand,
+		RouteName:               *routeName,
+		RouteDifficulty:         *routeDifficulty,
+		TownInspect:             *townInspect,
+		TownTest:                *townTest,
 	}
 	if err := runWithDataRoot(*configPath, *dataRoot, opts); err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
@@ -256,6 +261,9 @@ func runWithDataRoot(configPath, dataRoot string, opts app.Options) error {
 	if opts.MercenaryProbe != "" {
 		return rt.RunMercenaryProbe(opts.MercenaryProbe)
 	}
+	if opts.CowProbe != "" {
+		return rt.RunCowProbe(opts.CowProbe)
+	}
 	if opts.ScreenAnchorCapture != "" {
 		return rt.RunScreenAnchorCapture(opts.ScreenAnchorCapture)
 	}
@@ -279,7 +287,7 @@ func validateDesktopMode(opts app.Options) error {
 	if !opts.Desktop {
 		return nil
 	}
-	if opts.Probe || opts.InputTest != "" || opts.Run != "" || opts.RunPhase != "" || opts.PathingTest != "" || opts.OfflineDifficulty != "" || opts.OfflineCharacter != "" || opts.OfflineExitTest || opts.UIStateProbe != "" || opts.ScreenAnchorCapture != "" || opts.MercenaryProbe != "" || opts.SessionInspect || opts.RunsInspect || opts.WaypointTargetsInspect || opts.SessionMaxRuns != 0 || opts.Route != "" || opts.RouteName != "" || opts.RouteDifficulty != "" || opts.TownInspect || opts.TownTest != "" {
+	if opts.Probe || opts.InputTest != "" || opts.Run != "" || opts.RunPhase != "" || opts.PathingTest != "" || opts.OfflineDifficulty != "" || opts.OfflineCharacter != "" || opts.OfflineExitTest || opts.UIStateProbe != "" || opts.ScreenAnchorCapture != "" || opts.MercenaryProbe != "" || opts.CowProbe != "" || opts.SessionInspect || opts.RunsInspect || opts.WaypointTargetsInspect || opts.SessionMaxRuns != 0 || opts.Route != "" || opts.RouteName != "" || opts.RouteDifficulty != "" || opts.TownInspect || opts.TownTest != "" {
 		return fmt.Errorf("desktop mode is mutually exclusive with session, run, inspect, probe, route, town, and test modes")
 	}
 	return nil
@@ -412,7 +420,7 @@ func runDesktopAPI(cfg *config.Config, rt *app.Runtime, operatorSettings *app.Op
 			if status.Selection.Difficulty == "" {
 				return fmt.Errorf("vor der Aufnahme muss Charakter und Schwierigkeit bestätigt sein")
 			}
-			return rt.RunRouteRecordWithFinish(request.RunID, status.Selection.Difficulty, status.Selection.Character, finishRequests, reporter)
+			return rt.RunRouteRecordWithRoleFinish(request.RunID, pathing.RouteRole(request.RouteRole), status.Selection.Difficulty, status.Selection.Character, finishRequests, reporter)
 		case "system_record":
 			return rt.RunSystemEgressRecordWithFinish(town.OriginAct(request.Act), finishRequests, reporter)
 		case "system_test":

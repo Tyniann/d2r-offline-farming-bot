@@ -6,6 +6,8 @@ Phase 7.1 ergänzt eine strikt read-only Diagnoseoberfläche für den D2R-UI-Buf
 
 Die Probe löst niemals Tastatur- oder Mausaktionen aus. Einzelne Buffer-Bytes erhalten erst nach wiederholter Live-Validierung eine semantische Bedeutung. Insbesondere autorisiert ein Capture noch keinen späteren Menü-Klick.
 
+Phase 20.0 verwendet denselben vollständigen Buffer zusätzlich im strikt read-only `--cow-probe`. Die erste Live-Matrix am 1. August 2026 verwarf Capture-Index 288/Bit 3 als Bit eines laufenden Zählers. Die kontrollierte Schema-2-Matrix bestätigte anschließend `UI+0x5`, also Capture-Index `0x18`: zwei Inventory-only-/Cube-closed-Captures, Gameplay und Stash ergaben jeweils 0; zwei Cube-open-Captures jeweils 1. Das gedrosselte 64-KiB-Forschungsfenster bleibt reine Diagnose. Phase 20.1 mappt produktiv ausschließlich `UI+0x5`: Nur Byte 0/1 gilt als bekannt; Lesefehler oder andere Werte setzen `CubeOpenKnown=false` und widerrufen gleichzeitig `CubeOpen`.
+
 ## Ort im Code
 
 - **Memory-Capture:** `internal/memory/ui.go` → `(*ProbeReader).CaptureUIBuffer`
@@ -136,4 +138,4 @@ Phase 7.1 ist abgeschlossen. Capture- und Artefaktpfad sind implementiert, die L
 - [Input Controller](input-controller.md)
 
 ---
-*Zuletzt aktualisiert: 2026-07-11*
+*Zuletzt aktualisiert: 2026-08-01*

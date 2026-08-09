@@ -72,13 +72,13 @@ func TestRouteCombatValidationMatrix(t *testing.T) {
 	}
 }
 
-func TestConfigExampleResolvesOnlySummonerRouteCombatEnabled(t *testing.T) {
+func TestConfigExampleEnablesOnlyRouteClearRuns(t *testing.T) {
 	cfg, err := Load("../../configs/config.example.yaml")
 	if err != nil {
 		t.Fatal(err)
 	}
 	for id, run := range cfg.Runs.Definitions {
-		want := id == "summoner"
+		want := id == "summoner" || id == "cows"
 		if run.RouteCombat.EnabledValue() != want {
 			t.Fatalf("%s enabled=%t want=%t", id, run.RouteCombat.EnabledValue(), want)
 		}

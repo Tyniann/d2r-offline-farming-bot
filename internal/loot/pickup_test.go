@@ -112,6 +112,25 @@ func TestPickupVerifyInventoryTransitionRequiresExactTarget(t *testing.T) {
 	}
 }
 
+func TestPickupVerifyBeltTransitionRequiresExactTarget(t *testing.T) {
+	cfg := testPickupConfig()
+	cfg.VerifyTicks = 1
+	clicker := &fakePickupClicker{results: []PickupClickResult{{Status: PickupClickHit, Done: true}}}
+	exec := NewPickupExecutor(testLootLogger(), cfg, clicker, testPickupTarget())
+	now := time.Unix(1, 0)
+
+	exec.Tick(testPickupState(testGroundItem()), now)
+	exec.Tick(testPickupState(testGroundItem()), now.Add(100*time.Millisecond))
+
+	belt := testGroundItem()
+	belt.Location = world.ItemLocationBelt
+	belt.PlayerOwned = true
+	res := exec.Tick(testPickupState(belt), now.Add(200*time.Millisecond))
+	if !res.Done || res.Status != PickupPickedUp {
+		t.Fatalf("exact belt = %+v, want picked_up", res)
+	}
+}
+
 func TestPickupVerifyTimeoutFails(t *testing.T) {
 	cfg := testPickupConfig()
 	cfg.VerifyTimeout = 200 * time.Millisecond
@@ -146,6 +165,27 @@ func TestPickupDistanceAndMonsterAbort(t *testing.T) {
 	res = exec.Tick(st, now)
 	if !res.Done || res.Status != PickupMonsterNearby {
 		t.Fatalf("monster nearby = %+v, want monster_nearby", res)
+	}
+}
+
+func TestWirtsLegPickupAllowsNearbyMonsterButKeepsHoverGate(t *testing.T) {
+	item := testGroundItem()
+	item.Code, item.Name = "leg", "Wirt's Leg"
+	target := testPickupTarget()
+	target.Code, target.Name = item.Code, item.Name
+	clicker := &fakePickupClicker{results: []PickupClickResult{{Status: PickupClickHit, Attempt: 1, Done: true}}}
+	executor, err := NewWirtsLegPickupExecutor(testLootLogger(), testPickupConfig(), clicker, target)
+	if err != nil {
+		t.Fatal(err)
+	}
+	state := testPickupState(item)
+	state.Monsters = []world.Monster{{UnitID: 7, Position: world.Position{X: 102, Y: 100}}}
+	now := time.Unix(1, 0)
+	if result := executor.Tick(state, now); result.Done || clicker.calls != 0 {
+		t.Fatalf("stability tick=%+v calls=%d", result, clicker.calls)
+	}
+	if result := executor.Tick(state, now.Add(100*time.Millisecond)); result.Done || !result.Attempted || clicker.calls != 1 {
+		t.Fatalf("hover-click tick=%+v calls=%d", result, clicker.calls)
 	}
 }
 

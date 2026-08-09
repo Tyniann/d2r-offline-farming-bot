@@ -8,6 +8,7 @@ import (
 	"sync"
 
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/config"
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/pathing"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/tasks"
 	"gopkg.in/yaml.v3"
 )
@@ -44,7 +45,7 @@ func (s *RouteAssignmentStore) Snapshot() (RouteAssignmentManifest, error) {
 	if !os.IsNotExist(err) {
 		return RouteAssignmentManifest{}, err
 	}
-	manifest = RouteAssignmentManifest{SchemaVersion: RouteAssignmentSchemaVersion, Revision: 1, Assignments: map[string]map[tasks.RunID]string{}}
+	manifest = RouteAssignmentManifest{SchemaVersion: RouteAssignmentSchemaVersion, Revision: 1, Assignments: map[string]map[tasks.RunID]string{}, RouteSets: map[string]map[tasks.RunID]map[pathing.RouteRole]string{}}
 	if s.character != "" {
 		for rawRunID, routeID := range s.legacy {
 			runID := tasks.RunID(rawRunID)
@@ -82,6 +83,66 @@ func (s *RouteAssignmentStore) Resolve(character string, runID tasks.RunID) (str
 	return routeID, manifest.Revision, nil
 }
 
+// ResolveRouteSet returns a defensive copy of every currently assigned role.
+// Partial sets are preserved for dashboard diagnosis and are not considered an error.
+func (s *RouteAssignmentStore) ResolveRouteSet(character string, runID tasks.RunID) (map[pathing.RouteRole]string, uint64, error) {
+	manifest, err := s.Snapshot()
+	if err != nil {
+		return nil, 0, err
+	}
+	roles := manifest.RouteSets[strings.ToLower(strings.TrimSpace(character))][runID]
+	result := make(map[pathing.RouteRole]string, len(roles))
+	for role, routeID := range roles {
+		result[role] = routeID
+	}
+	return result, manifest.Revision, nil
+}
+
+// CommitRouteSetRole atomically replaces or removes exactly one declared role
+// while retaining all other assignments and route-set roles. An empty routeID
+// removes the role and is used only by archive/recovery management.
+func (s *RouteAssignmentStore) CommitRouteSetRole(expected uint64, character string, runID tasks.RunID, role pathing.RouteRole, routeID string) (RouteAssignmentManifest, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	manifest, err := s.loadLocked()
+	if err != nil {
+		return RouteAssignmentManifest{}, err
+	}
+	if manifest.Revision != expected {
+		return RouteAssignmentManifest{}, fmt.Errorf("%s", RouteReasonAssignmentConflict)
+	}
+	character = strings.ToLower(strings.TrimSpace(character))
+	definition, ok := tasks.DefaultRunRegistry().Definition(runID)
+	if character == "" || !ok || definition.RouteSet == nil {
+		return RouteAssignmentManifest{}, fmt.Errorf("route set role requires character and declared run")
+	}
+	if _, declared := definition.RouteSet.Recordings[role]; !declared {
+		return RouteAssignmentManifest{}, fmt.Errorf("route set role %q is not declared for %s", role, runID)
+	}
+	if manifest.RouteSets[character] == nil {
+		manifest.RouteSets[character] = map[tasks.RunID]map[pathing.RouteRole]string{}
+	}
+	if manifest.RouteSets[character][runID] == nil {
+		manifest.RouteSets[character][runID] = map[pathing.RouteRole]string{}
+	}
+	if strings.TrimSpace(routeID) == "" {
+		delete(manifest.RouteSets[character][runID], role)
+		if len(manifest.RouteSets[character][runID]) == 0 {
+			delete(manifest.RouteSets[character], runID)
+		}
+		if len(manifest.RouteSets[character]) == 0 {
+			delete(manifest.RouteSets, character)
+		}
+	} else {
+		manifest.RouteSets[character][runID][role] = routeID
+	}
+	manifest.Revision++
+	if err := s.writeLocked(manifest); err != nil {
+		return RouteAssignmentManifest{}, err
+	}
+	return cloneRouteAssignmentManifest(manifest), nil
+}
+
 // Commit replaces assignments only when the optimistic revision still matches.
 func (s *RouteAssignmentStore) Commit(expected uint64, assignments map[string]map[tasks.RunID]string) (RouteAssignmentManifest, error) {
 	s.mu.Lock()
@@ -109,6 +170,20 @@ func (s *RouteAssignmentStore) loadLocked() (RouteAssignmentManifest, error) {
 	var manifest RouteAssignmentManifest
 	if err := yaml.Unmarshal(data, &manifest); err != nil {
 		return RouteAssignmentManifest{}, fmt.Errorf("decode route assignments: %w", err)
+	}
+	if manifest.SchemaVersion == 1 {
+		manifest.SchemaVersion = RouteAssignmentSchemaVersion
+		if manifest.Assignments == nil {
+			manifest.Assignments = map[string]map[tasks.RunID]string{}
+		}
+		manifest.RouteSets = map[string]map[tasks.RunID]map[pathing.RouteRole]string{}
+		if err := manifest.Validate(); err != nil {
+			return RouteAssignmentManifest{}, err
+		}
+		if err := s.writeLocked(manifest); err != nil {
+			return RouteAssignmentManifest{}, fmt.Errorf("migrate route assignments v1 to v2: %w", err)
+		}
+		return manifest, nil
 	}
 	if err := manifest.Validate(); err != nil {
 		return RouteAssignmentManifest{}, err
@@ -197,6 +272,16 @@ func cloneRouteAssignmentManifest(manifest RouteAssignmentManifest) RouteAssignm
 		clone.Assignments[character] = make(map[tasks.RunID]string, len(runs))
 		for runID, routeID := range runs {
 			clone.Assignments[character][runID] = routeID
+		}
+	}
+	clone.RouteSets = make(map[string]map[tasks.RunID]map[pathing.RouteRole]string, len(manifest.RouteSets))
+	for character, runs := range manifest.RouteSets {
+		clone.RouteSets[character] = make(map[tasks.RunID]map[pathing.RouteRole]string, len(runs))
+		for runID, roles := range runs {
+			clone.RouteSets[character][runID] = make(map[pathing.RouteRole]string, len(roles))
+			for role, routeID := range roles {
+				clone.RouteSets[character][runID][role] = routeID
+			}
 		}
 	}
 	return clone

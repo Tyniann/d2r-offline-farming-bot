@@ -1,0 +1,4 @@
+Name	*StringName	Id
+Act 1 - Wilderness 3	Stony Field	4
+Act 1 - Tristram	Tristram	38
+Act 1 - Moo Moo Farm	Moo Moo Farm	39

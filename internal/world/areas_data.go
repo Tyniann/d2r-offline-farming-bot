@@ -1,9 +1,10 @@
-// Area IDs and display names are copied from d2go pkg/data/area at commit 16d248a53591
-// (github.com/hectorgimenez/d2go v0.0.0-20251023061335-16d248a53591).
-// Names cover IDs 0..136; constants extend through 141. Data is maintained manually — no d2go dependency.
+// Area IDs and display names predate the local catalog generators. Phase-20
+// identities StonyField, Tristram, and MooMooFarm are authoritatively verified
+// against D2R 3.2.92777 local data/global/excel/levels.txt. The remaining legacy
+// names cover IDs 0..136; constants extend through 141.
 package world
 
-// Area ID constants (d2go area.go).
+// Area ID constants; Phase-20 entries use the local levels.txt contract above.
 const (
 	Abaddon                  AreaID = 125
 	AncientTunnels           AreaID = 65

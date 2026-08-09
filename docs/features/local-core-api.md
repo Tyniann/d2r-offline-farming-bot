@@ -53,6 +53,8 @@ Der Server wählt über `net.Listen("tcp4", "127.0.0.1:0")` einen freien Loopbac
 | `POST /api/v1/session/stop-after-run` | Merkt nach Town genau einen supervisor-eigenen Save-&-Exit vor. |
 | `POST /api/v1/session/emergency-stop` | Bricht sofort mit demselben Grund wie F11 ab; Save & Exit ist nicht garantiert. |
 
+Die Routenoberfläche projiziert für den Cow-Run seit Phase 20.2 zwei getrennte Aufnahmeverträge: `leg_acquisition` als Wirt-Route ab Stony-Field-Wegpunkt und `cow_sweep` als Cow-Route ab bestätigter Ankunft am permanenten Cow-Portal. Kandidat, Workflow, Bibliothek und Mutationsvorschau tragen die Rolle explizit. Veröffentlichung ersetzt atomisch nur dieselbe Rolle und erhält die kompatible Schwesterroute.
+
 Unbekannte `/api/`-Versionen oder Endpunkte liefern `api_version_unsupported` und niemals die SPA-Fallbackseite.
 
 ### Security Envelope
@@ -115,4 +117,4 @@ Die API wird nicht direkt vom Operator gestartet. Electron übergibt absoluten D
 - [Historien-API und Export](history-api-export.md)
 
 ---
-*Zuletzt aktualisiert: 28. Juli 2026*
+*Zuletzt aktualisiert: 1. August 2026*

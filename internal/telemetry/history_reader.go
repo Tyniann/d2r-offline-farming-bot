@@ -254,7 +254,7 @@ func validateHistoryFile(file *HistoryFile) error {
 			if index == 0 {
 				file.RunID = event.RunID
 			}
-			if event.RunID == "" || event.RunID != file.RunID || event.GameID != first.GameID || event.Run != first.Run || event.DefinitionID != first.DefinitionID || event.RouteID != first.RouteID || event.RouteLayoutFingerprint != first.RouteLayoutFingerprint {
+			if event.RunID == "" || event.RunID != file.RunID || event.GameID != first.GameID || event.Run != first.Run || event.DefinitionID != first.DefinitionID || event.RouteID != first.RouteID || event.RouteLayoutFingerprint != first.RouteLayoutFingerprint || event.SetupRouteID != first.SetupRouteID || event.SetupRouteLayoutFingerprint != first.SetupRouteLayoutFingerprint {
 				return historyReadError(HistoryReasonRunIDMismatch, "immutable run context changed")
 			}
 			if !equalOptionalInt(event.QueueIndex, first.QueueIndex) || !equalOptionalInt(event.QueueCycle, first.QueueCycle) || !equalOptionalTime(event.RunStartedAt, first.RunStartedAt) || event.PickitAssignmentRevision != first.PickitAssignmentRevision || !slices.Equal(event.PickitProfiles, first.PickitProfiles) {
@@ -423,7 +423,7 @@ var historyEventNames = func() map[EventName]struct{} {
 		RouteThreatDetected, RouteClearStarted, RouteMonsterSnapshotSaturated, RouteClearAction,
 		RouteClearProgress, RouteClearCompleted, RouteManaHold, RouteRecoverySuppressed,
 		TownMercenaryHealRequested, TownMercenaryHealConfirmed, TownMercenaryReviveRequested, TownMercenaryReviveConfirmed,
-		MercenaryDied,
+		MercenaryDied, CowRecipeProgress,
 	}
 	out := make(map[EventName]struct{}, len(names))
 	for _, name := range names {

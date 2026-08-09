@@ -51,6 +51,10 @@ func (p *ProbeReader) readPhaseInputs(moduleBase uintptr, off OffsetSet) (gateVa
 	ui.WaypointOpen = buf[uiWaypointIndex] != 0
 	ui.StashOpen = buf[uiStashIndex] != 0
 	ui.QuitMenuOpen = buf[uiQuitMenuIndex] != 0
+	// Gate 20.0 observed an exact byte truth table (closed=0, open=1).
+	// Any other value revokes authority instead of being treated as truthy.
+	ui.CubeOpenKnown = buf[uiCubeIndex] == 0 || buf[uiCubeIndex] == 1
+	ui.CubeOpen = ui.CubeOpenKnown && buf[uiCubeIndex] == 1
 	return gateValue, gateDisabled, loading, ui
 }
 

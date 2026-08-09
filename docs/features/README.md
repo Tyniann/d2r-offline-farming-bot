@@ -29,7 +29,8 @@ Spätere Ideen (noch nicht umgesetzt): [`docs/backlog.md`](../backlog.md).
 | [Nihlathak-Run](nihlathak-run.md) | Key of Destruction: Halls of Pain → Vaught, Halls-Warps 76–78, Act-5-Egress, Pickit `[gems, keys]`; Live-Gate bestanden |
 | [Character- und Encounter-Profile](character-encounter-profiles.md) | Klassenbegrenzte Lifecycle-Hooks, Resource Policy und entwicklerverwaltete Phase-16-Setup-Freigabe samt Default |
 | [Mercenary Support](mercenary-support.md) | Phase 18: fail-closed Merc-State, Combat-Heal, Akara-Heal, Kashya-Revive und `waypoint-kashya` |
-| [Route-Threat-Combat](route-threat-combat.md) | Phase 17: Summoner-spezifisches Route-Hold, stationärer Profil-Clear, Coverage, Mana-Hysterese, Recovery-Guard und gebündelte Telemetrie |
+| [Route-Threat-Combat](route-threat-combat.md) | Gemeinsames Summoner-/Cow-Route-Hold mit stationärem Profil-Clear, Coverage, Ressourcen, Recovery-Guard und Cow-CE-Strategie |
+| [Cow Level / Moo Moo Farm](cow-level-run.md) | Phase 20.0–20.6: CASC-/Leichen-Grundlagen, zwei Routenrollen, Setup, Cow-Portal-Rezept, Cow-Hold-Sweep und gemeinsamer Town-Handoff |
 
 ## Pathing, Routen und Town
 
@@ -38,8 +39,8 @@ Spätere Ideen (noch nicht umgesetzt): [`docs/backlog.md`](../backlog.md).
 | [Pathing](pathing.md) | Teleport-Navigation (Phase 4.3): Relative-Projektion + Hover-Feedback-Loop, Bearing-Explore, Stuck-Detection; `--pathing-test` |
 | [Route Recording und Playback](route-recording-playback.md) | Phase 6.7: generisches Playback und live validierter Countess-Adapter über stabile Route-ID |
 | [Farming-RouteCatalog und Lifecycle](route-lifecycle.md) | Abschnitt 11.5: rekursiver Farming-Katalog, atomisches Manifest, Bootstrap und präzise Difficulty-/Layout-Invalidation |
-| [Farming-Route-Assignment](route-assignment.md) | Abschnitt 12.1: atomische Zuordnung pro Character und Run, Legacy-Migration, Revisionen und orthogonaler Managementstatus |
-| [Geführte Farming-Routenaufnahme](guided-route-recording.md) | Abschnitt 12.3: exklusiver Recorder-Core, F9-Freeze, immutable Kandidaten, Boss-/Distanzprüfung und TP-Sicherheitsrückweg |
+| [Farming-Route-Assignment](route-assignment.md) | Schema 2: atomische Einzelzuordnung plus feste Cow-Rollenslots, Migration, Revisionen und orthogonaler Managementstatus |
+| [Geführte Farming-Routenaufnahme](guided-route-recording.md) | Exklusiver Recorder-Core mit Wegpunkt-/Portalstart, Boss-/Objekt-/Endpunktprüfung, immutable Kandidaten und TP-Sicherheitsrückweg |
 | [Kandidaten-Playback und Routenverwaltung](route-management.md) | Abschnitt 12.4: isolierter Navigationstest sowie revisions- und Recovery-gesicherte Publish/Replace/Archive/Restore/Delete-Transaktionen |
 | [Routenbibliothek und Setup-Assistent](route-dashboard.md) | Abschnitt 12.5: pfadfreie Core-API, React-Routenfeature, System-Egress-Setup und Core-geladene Hotkey-Hilfe |
 | [Town Services](town-services.md) | Phase 9: fail-closed Bedarfsermittlung, zentraler Act-1-Hub und minimales Fremdakt-Egress-Format |

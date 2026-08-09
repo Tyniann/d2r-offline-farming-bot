@@ -46,6 +46,8 @@ Dropdown-Änderung, Preview, Abbruch, Game-Start-Fehler und falsche Identität s
 
 Das Lifecycle-Manifest enthält zusätzlich `management_status: active|archived` und die registrierte `run_id`. Diese Metadaten sind orthogonal zur automatischen Invalidation: Eine Route kann gleichzeitig `archived + stale` sein. Bestehende Phase-11-Manifeste werden deterministisch anhand ihrer typisierten Start-/Terminal-Areas erweitert; die Route-Datei bleibt unverändert.
 
+Cow-Routen werden über ihre typisierte `RouteRole` und den zugehörigen Recording-Contract dem Run `cows` zugeordnet, da die einzelnen Rollen bewusst nicht dieselben Gesamt-Endpunkte besitzen. Lifecycle und Management bleiben pro Route getrennt. Cow-Availability verlangt beide aktiven Rollen; eine archivierte, stale oder unavailable Rolle sperrt den gemeinsamen Run mit einem gezielten Rollenreason.
+
 ```yaml
 routes:
   farming_root: routes/farming
@@ -68,4 +70,4 @@ Das Manifest ist lokale Runtime-Metadaten. Es soll nicht manuell als Ersatz für
 - [Session-Lifecycle](session-lifecycle.md)
 
 ---
-*Zuletzt aktualisiert: 18. Juli 2026*
+*Zuletzt aktualisiert: 1. August 2026*

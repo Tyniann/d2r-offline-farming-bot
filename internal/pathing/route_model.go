@@ -42,6 +42,22 @@ const (
 	RouteKindNavigation RouteKind = "navigation"
 )
 
+// RouteRole identifies one fixed navigation role within a declared multi-route
+// run. The empty value preserves existing single-route contracts.
+type RouteRole string
+
+const (
+	// RouteRoleLegAcquisition leads from Stony Field to Wirt's body.
+	RouteRoleLegAcquisition RouteRole = "leg_acquisition"
+	// RouteRoleCowSweep is the primary farming loop inside the Moo Moo Farm.
+	RouteRoleCowSweep RouteRole = "cow_sweep"
+)
+
+// Valid reports whether role is one of the two Phase-20 route-set roles.
+func (r RouteRole) Valid() bool {
+	return r == RouteRoleLegAcquisition || r == RouteRoleCowSweep
+}
+
 // RouteDifficulty is the operator-facing offline difficulty label.
 type RouteDifficulty string
 
@@ -62,6 +78,7 @@ type RouteBinding struct {
 	MapSeed           *uint32                `yaml:"map_seed,omitempty"`
 	GameVersion       string                 `yaml:"game_version"`
 	ProfileID         string                 `yaml:"profile_id,omitempty"`
+	RouteRole         RouteRole              `yaml:"route_role,omitempty"`
 	LayoutFingerprint RouteLayoutFingerprint `yaml:"layout_fingerprint"`
 }
 
@@ -116,8 +133,10 @@ type RoutePoint struct {
 
 // RouteTransition defines the Memory-confirmed transition after a segment.
 type RouteTransition struct {
-	Type         string `yaml:"type"`
-	EntranceKind string `yaml:"entrance_kind"`
+	Type           string           `yaml:"type"`
+	EntranceKind   string           `yaml:"entrance_kind,omitempty"`
+	ObjectKind     world.ObjectKind `yaml:"object_kind,omitempty"`
+	ExpectedToArea world.AreaID     `yaml:"expected_to_area,omitempty"`
 }
 
 // Validate checks all Route Contract v1 fields and cross-segment invariants.
@@ -215,6 +234,9 @@ func (b RouteBinding) validate() error {
 	if strings.TrimSpace(b.GameVersion) == "" {
 		return fmt.Errorf("game_version: required")
 	}
+	if b.RouteRole != "" && !b.RouteRole.Valid() {
+		return fmt.Errorf("route_role: unsupported value %q", b.RouteRole)
+	}
 	if b.LayoutFingerprint.Version != layoutFingerprintVersion || b.LayoutFingerprint.AreaID == 0 || b.LayoutFingerprint.AnchorCount < 1 || !isSHA256(b.LayoutFingerprint.Hash) {
 		return fmt.Errorf("layout_fingerprint: invalid version, area, anchors, or hash")
 	}
@@ -266,6 +288,11 @@ func (s RouteSegment) validate() error {
 	case "terminal":
 		if s.FromAreaID != s.ToAreaID || strings.TrimSpace(s.Transition.EntranceKind) != "" {
 			return fmt.Errorf("transition: terminal requires identical areas and no entrance_kind")
+		}
+	case "object_portal":
+		if s.FromAreaID == s.ToAreaID || strings.TrimSpace(s.Transition.EntranceKind) != "" ||
+			s.Transition.ObjectKind != world.ObjectKindPermanentPortal || s.Transition.ExpectedToArea != s.ToAreaID {
+			return fmt.Errorf("transition: object_portal requires permanent portal and exact target area")
 		}
 	default:
 		return fmt.Errorf("transition: unsupported type %q", s.Transition.Type)

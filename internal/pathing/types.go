@@ -43,6 +43,11 @@ type Goal struct {
 	ViaEntranceUnitID uint32
 	// StrictEntrance blocks bearing exploration when the expected entrance is unavailable.
 	StrictEntrance bool
+	ViaObject      world.ObjectKind // Optional object portal that leads to TargetArea.
+	// ViaObjectUnitID pins a strict object transition to one runtime object unit.
+	ViaObjectUnitID uint32
+	// StrictObject blocks exploration and accepts only the pinned object.
+	StrictObject bool
 }
 
 // NavStatus describes the current navigator state-machine phase.
@@ -67,6 +72,7 @@ const (
 	ReasonInvalidGoal         = "invalid_goal"
 	ReasonProjectionFailed    = "projection_failed"
 	ReasonEntranceUnavailable = "entrance_unavailable"
+	ReasonObjectUnavailable   = "object_unavailable"
 )
 
 // NavResult is the final outcome of a navigation goal.

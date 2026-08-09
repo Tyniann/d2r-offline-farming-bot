@@ -42,6 +42,7 @@ Der `town_ready`-Profilhook bleibt bewusst run-spezifisch: Bone Armor wird zu Be
 - Erfolg schaltet zum nächsten Index im selben Spiel.
 - Der letzte erfolgreiche Eintrag führt genau einen Exit aus. Bei freien Budgets beginnt Index 0 mit neuer Game-ID und erhöhtem Spielzyklus.
 - Retry bleibt am Index. Nur ein als sicher bestätigtes Ergebnis darf über den verifizierten Exit-Vertrag ein Recovery-Spiel beginnen; andernfalls stoppt die Queue fail-closed.
+- `mercenary_died_during_run`, `combat_resource_exhausted` und `route_mana_recovery_failed` erzwingen unabhängig von der konfigurierbaren Retry-Liste genau diesen kontrollierten Rückweg. Jeder anschließend tatsächlich neu gestartete und verifizierte Spiel-Lifecycle aktiviert die Run-Readiness erneut, auch wenn derselbe Run seine Runtime-Einheit wiederverwendet. Nach Merc-Tod stellt sie den angeheuerten Merc per bestehendem Kashya-Plan wieder her; der Versuch wird nicht an einem alten Routenpunkt fortgesetzt. Same-Game-Handoffs und Pause/Resume aktivieren sie nicht erneut.
 - Terminale Ergebnisse starten keinen anderen Eintrag.
 - Start aus `idle_in_game` konsumiert das bereits bestätigte Spiel ohne Menüinput. Nach einem Core-Neustart darf auch der Supervisor-Zustand `idle` dieses Spiel übernehmen, wenn der passive Monitor Prozess, Fenster, gültiges `in_game` und Rogue Encampment bestätigt; der Queue-Runner bestätigt Charakter und Startgebiet anschließend erneut über Memory, bevor Run-Input möglich ist.
 - `max_runs` zählt gestartete Run-Einträge. `max_duration_ms` wird vor jedem Folgestart ausgewertet. Budgetende führt an der sicheren Run-Grenze zu einem Exit.
@@ -91,4 +92,4 @@ Die vollständige Phase-11-Abnahme wurde am 17. Juli 2026 abgeschlossen. Pause u
 - [Phase-11-Core-Vertrag](phase-11-core-contract.md)
 
 ---
-*Zuletzt aktualisiert: 28. Juli 2026*
+*Zuletzt aktualisiert: 9. August 2026*

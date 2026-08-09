@@ -3,11 +3,13 @@ package app
 import (
 	"bufio"
 	"encoding/json"
+	"errors"
 	"os"
 	"testing"
 	"time"
 
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/memory"
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/pathing"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/profile"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/telemetry"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/world"
@@ -16,12 +18,64 @@ import (
 func TestProfileSelfCastUsesNeutralClientCenter(t *testing.T) {
 	in := &mockInput{bound: true}
 	adapter := &profileActionsAdapter{input: in, bindings: testBindings()}
-	player := world.Position{X: 100, Y: 200}
-	if err := adapter.CastSkillAtWorld(time.Now(), memory.SkillBoneArmor, player, player); err != nil {
+	player := world.Player{Position: world.Position{X: 100, Y: 200}}
+	if err := adapter.CastSkillAtWorld(time.Now(), memory.SkillBoneArmor, player, player.Position); err != nil {
 		t.Fatal(err)
 	}
 	if in.lastClientX != 640 || in.lastClientY != 360 {
 		t.Fatalf("self cast coordinates=%d,%d", in.lastClientX, in.lastClientY)
+	}
+}
+
+func TestProfileCorpseCastRequiresFocusAndPlayableProjection(t *testing.T) {
+	player := world.Player{Position: world.Position{X: 100, Y: 100}}
+	target := world.Position{X: 101, Y: 101}
+	in := &mockInput{bound: true, focusErr: os.ErrPermission}
+	adapter := &profileActionsAdapter{input: in, bindings: testBindings(), projector: pathing.DefaultRelativeProjector()}
+	if err := adapter.CastSkillAtWorld(time.Now(), memory.SkillCorpseExplosion, player, target); err == nil || len(in.castSkillCalls) != 0 {
+		t.Fatalf("focus gate err=%v inputs=%v", err, in.castSkillCalls)
+	}
+
+	in.focusErr = nil
+	farTarget := world.Position{X: 1000, Y: 1000}
+	if err := adapter.CastSkillAtWorld(time.Now(), memory.SkillCorpseExplosion, player, farTarget); !errors.Is(err, profile.ErrCorpseExplosionTargetUnprojectable) || len(in.castSkillCalls) != 0 {
+		t.Fatalf("projection gate err=%v inputs=%v", err, in.castSkillCalls)
+	}
+
+	if err := adapter.CastSkillAtWorld(time.Now(), memory.SkillCorpseExplosion, player, target); err != nil {
+		t.Fatal(err)
+	}
+	if len(in.castSkillCalls) != 1 || in.castSkillCalls[0] != memory.SkillCorpseExplosion || in.focusCalls != 3 {
+		t.Fatalf("inputs=%v focus_calls=%d", in.castSkillCalls, in.focusCalls)
+	}
+}
+
+func TestProfileCastSkipsSelectionWhenRightSkillIsAlreadyActive(t *testing.T) {
+	in := &mockInput{bound: true}
+	adapter := &profileActionsAdapter{input: in, bindings: testBindings(), projector: pathing.DefaultRelativeProjector()}
+	player := world.Player{Position: world.Position{X: 100, Y: 100}, RightSkillID: memory.SkillCorpseExplosion}
+	target := world.Position{X: 101, Y: 101}
+	if err := adapter.CastSkillAtWorld(time.Now(), memory.SkillCorpseExplosion, player, target); err != nil {
+		t.Fatal(err)
+	}
+	if len(in.castSkillCalls) != 0 || in.clickCalls != 1 {
+		t.Fatalf("skill selections=%v clicks=%d", in.castSkillCalls, in.clickCalls)
+	}
+}
+
+func TestProfileCastClearsStaleCombatSelection(t *testing.T) {
+	in := &mockInput{bound: true}
+	combat := &combatAdapter{pendingSkill: memory.SkillBoneSpear, pendingTargetUnitID: 77, hoverProbeAttempt: 3}
+	adapter := &profileActionsAdapter{
+		input: in, bindings: testBindings(), projector: pathing.DefaultRelativeProjector(), combat: combat,
+	}
+	player := world.Player{Position: world.Position{X: 100, Y: 100}, RightSkillID: memory.SkillBoneSpear}
+	if err := adapter.CastSkillAtWorld(time.Now(), memory.SkillCorpseExplosion, player, world.Position{X: 101, Y: 101}); err != nil {
+		t.Fatal(err)
+	}
+	if len(in.castSkillCalls) != 1 || in.castSkillCalls[0] != memory.SkillCorpseExplosion ||
+		combat.pendingSkill != 0 || combat.pendingTargetUnitID != 0 || combat.hoverProbeAttempt != 0 {
+		t.Fatalf("profile casts=%v stale combat selection=%+v", in.castSkillCalls, combat)
 	}
 }
 

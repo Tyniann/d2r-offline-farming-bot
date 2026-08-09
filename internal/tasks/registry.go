@@ -138,9 +138,9 @@ func defaultRunDefinitions() []RunDefinition {
 			RequiredCaps: append([]RunCapability(nil), shared...),
 			Recording: RecordingContract{
 				InstructionsDE: "Reise zum Wegpunkt Schwarzmarsch, starte dort die Aufnahme und bewege dich bis zu deiner gewünschten Kampfposition bei der Gräfin. Beende die Aufnahme mit F9.",
-				StartWaypoint:  pathing.WaypointTargetBlackMarsh, AllowedStartArea: world.BlackMarsh,
+				StartKind:      RecordingStartWaypoint, StartWaypoint: pathing.WaypointTargetBlackMarsh, AllowedStartArea: world.BlackMarsh,
 				AllowedRouteAreas: []world.AreaID{world.BlackMarsh, world.ForgottenTower, world.TowerCellarLevel1, world.TowerCellarLevel2, world.TowerCellarLevel3, world.TowerCellarLevel4, world.TowerCellarLevel5},
-				TerminalArea:      world.TowerCellarLevel5, Boss: BossDescriptor{NPCID: world.DarkStalker, Name: "Countess", RequireSuperUnique: true, AllowAnySuperUniqueFallback: true, SearchAnchorObject: world.ObjectKindGoodChest, SearchAnchorEntrance: world.EntranceKindTowerCellarDown},
+				TerminalKind:      RecordingTerminalBoss, TerminalArea: world.TowerCellarLevel5, Boss: BossDescriptor{NPCID: world.DarkStalker, Name: "Countess", RequireSuperUnique: true, AllowAnySuperUniqueFallback: true, SearchAnchorObject: world.ObjectKindGoodChest, SearchAnchorEntrance: world.EntranceKindTowerCellarDown},
 				TerminalMaxDistanceTiles: 80, Movement: pathing.RouteMovementTeleport, SafetyReturn: RecordingSafetyReturnTownPortal, EgressOriginAct: town.OriginAct1,
 			},
 		},
@@ -152,9 +152,9 @@ func defaultRunDefinitions() []RunDefinition {
 			RequiredCaps: append(append([]RunCapability(nil), shared...), RunCapabilityForeignTownEgress),
 			Recording: RecordingContract{
 				InstructionsDE: "Reise zum Wegpunkt Kerker des Hasses – Ebene 2, starte dort die Aufnahme und bewege dich bis zu deiner gewünschten Kampfposition bei Mephisto. Beende die Aufnahme mit F9.",
-				StartWaypoint:  pathing.WaypointTargetDuranceOfHateLevel2, AllowedStartArea: world.DuranceOfHateLevel2,
+				StartKind:      RecordingStartWaypoint, StartWaypoint: pathing.WaypointTargetDuranceOfHateLevel2, AllowedStartArea: world.DuranceOfHateLevel2,
 				AllowedRouteAreas: []world.AreaID{world.DuranceOfHateLevel2, world.DuranceOfHateLevel3},
-				TerminalArea:      world.DuranceOfHateLevel3, Boss: BossDescriptor{NPCID: world.Mephisto, Name: "Mephisto"},
+				TerminalKind:      RecordingTerminalBoss, TerminalArea: world.DuranceOfHateLevel3, Boss: BossDescriptor{NPCID: world.Mephisto, Name: "Mephisto"},
 				TerminalMaxDistanceTiles: 60, Movement: pathing.RouteMovementTeleport, SafetyReturn: RecordingSafetyReturnTownPortal, EgressOriginAct: town.OriginAct3,
 			},
 		},
@@ -167,9 +167,9 @@ func defaultRunDefinitions() []RunDefinition {
 			RequiredCaps:       append(append([]RunCapability(nil), shared...), RunCapabilityForeignTownEgress, RunCapabilityRouteClear),
 			Recording: RecordingContract{
 				InstructionsDE: "Reise zum Wegpunkt Arcane Sanctuary, starte dort die Aufnahme und bewege dich bis zu deiner gewünschten Kampfposition beim Summoner. Beende die Aufnahme mit F9.",
-				StartWaypoint:  pathing.WaypointTargetArcaneSanctuary, AllowedStartArea: world.ArcaneSanctuary,
+				StartKind:      RecordingStartWaypoint, StartWaypoint: pathing.WaypointTargetArcaneSanctuary, AllowedStartArea: world.ArcaneSanctuary,
 				AllowedRouteAreas: []world.AreaID{world.ArcaneSanctuary},
-				TerminalArea:      world.ArcaneSanctuary, Boss: BossDescriptor{NPCID: world.Summoner, Name: "Summoner"},
+				TerminalKind:      RecordingTerminalBoss, TerminalArea: world.ArcaneSanctuary, Boss: BossDescriptor{NPCID: world.Summoner, Name: "Summoner"},
 				TerminalMaxDistanceTiles: 60, Movement: pathing.RouteMovementTeleport, SafetyReturn: RecordingSafetyReturnTownPortal, EgressOriginAct: town.OriginAct2,
 			},
 		},
@@ -181,10 +181,39 @@ func defaultRunDefinitions() []RunDefinition {
 			RequiredCaps: append(append([]RunCapability(nil), shared...), RunCapabilityForeignTownEgress),
 			Recording: RecordingContract{
 				InstructionsDE: "Reise zum Wegpunkt Halls of Pain (Halls of Death's Calling), starte dort die Aufnahme und bewege dich bis zu deiner gewünschten Kampfposition bei Nihlathak in den Halls of Vaught. Beende die Aufnahme mit F9.",
-				StartWaypoint:  pathing.WaypointTargetHallsOfPain, AllowedStartArea: world.HallsOfPain,
+				StartKind:      RecordingStartWaypoint, StartWaypoint: pathing.WaypointTargetHallsOfPain, AllowedStartArea: world.HallsOfPain,
 				AllowedRouteAreas: []world.AreaID{world.HallsOfPain, world.HallsOfVaught},
-				TerminalArea:      world.HallsOfVaught, Boss: BossDescriptor{NPCID: world.Nihlathak, Name: "Nihlathak"},
+				TerminalKind:      RecordingTerminalBoss, TerminalArea: world.HallsOfVaught, Boss: BossDescriptor{NPCID: world.Nihlathak, Name: "Nihlathak"},
 				TerminalMaxDistanceTiles: 60, Movement: pathing.RouteMovementTeleport, SafetyReturn: RecordingSafetyReturnTownPortal, EgressOriginAct: town.OriginAct5,
+			},
+		},
+		{
+			ID: RunIDCows, DisplayName: "Kuh-Level", EntryArea: world.StonyField,
+			RouteTerminalArea: world.MooMooFarm, WaypointTarget: pathing.WaypointTargetStonyField,
+			ReturnOrigin:       town.OriginAct1,
+			RequiredCaps:       append(append([]RunCapability(nil), shared...), RunCapabilityRouteClear),
+			RouteHostileNPCIDs: []uint32{world.HellBovine, world.CowKing},
+			RouteSet: &RouteSetDefinition{
+				Roles:       []pathing.RouteRole{pathing.RouteRoleLegAcquisition, pathing.RouteRoleCowSweep},
+				PrimaryRole: pathing.RouteRoleCowSweep,
+				Recordings: map[pathing.RouteRole]RecordingContract{
+					pathing.RouteRoleLegAcquisition: {
+						RouteRole:      pathing.RouteRoleLegAcquisition,
+						InstructionsDE: "Reise zum Wegpunkt Stony Field. Ein vorheriger Clear ist nicht nötig. Starte dort die Aufnahme, betrete das bereits geöffnete rote Portal nach Tristram und bewege dich bis in die Nähe von Wirts Körper. Klicke Wirt nicht an. Beende die Aufnahme mit F9.",
+						StartKind:      RecordingStartWaypoint, StartWaypoint: pathing.WaypointTargetStonyField,
+						AllowedStartArea: world.StonyField, AllowedRouteAreas: []world.AreaID{world.StonyField, world.Tristram},
+						TerminalKind: RecordingTerminalObject, TerminalArea: world.Tristram, TerminalObjectKind: world.ObjectKindWirtsBody,
+						TerminalMaxDistanceTiles: 20, Movement: pathing.RouteMovementTeleport, SafetyReturn: RecordingSafetyReturnTownPortal, EgressOriginAct: town.OriginAct1,
+					},
+					pathing.RouteRoleCowSweep: {
+						RouteRole:      pathing.RouteRoleCowSweep,
+						InstructionsDE: "Öffne das Kuh-Level manuell und räume es vor der Aufnahme vollständig. Starte die Aufnahme in der Moo Moo Farm nahe dem roten Ankunftsportal, folge deiner vollständigen Farming-Schleife und beende sie am gewünschten Endpunkt mit F9.",
+						StartKind:      RecordingStartObjectPortalArrival, StartObjectKind: world.ObjectKindPermanentPortal, StartPortalFromArea: world.RogueEncampment,
+						AllowedStartArea: world.MooMooFarm, AllowedRouteAreas: []world.AreaID{world.MooMooFarm},
+						TerminalKind: RecordingTerminalEndpoint, TerminalArea: world.MooMooFarm,
+						TerminalMaxDistanceTiles: 20, Movement: pathing.RouteMovementTeleport, SafetyReturn: RecordingSafetyReturnTownPortal, EgressOriginAct: town.OriginAct1,
+					},
+				},
 			},
 		},
 	}
@@ -197,8 +226,11 @@ func validateRunDefinition(definition RunDefinition) error {
 	if strings.TrimSpace(definition.DisplayName) == "" || definition.EntryArea == world.None || definition.RouteTerminalArea == world.None {
 		return fmt.Errorf("display name, entry area, and terminal area are required")
 	}
-	if definition.WaypointTarget == "" || definition.Boss.NPCID == 0 || strings.TrimSpace(definition.Boss.Name) == "" {
-		return fmt.Errorf("waypoint target and boss descriptor are required")
+	if definition.WaypointTarget == "" {
+		return fmt.Errorf("waypoint target is required")
+	}
+	if definition.RouteSet == nil && (definition.Boss.NPCID == 0 || strings.TrimSpace(definition.Boss.Name) == "") {
+		return fmt.Errorf("boss descriptor is required for a single-route run")
 	}
 	// An empty BossEngageSequence is valid: combat starts with the regular
 	// attack skill and skips pre-combat profile hooks such as Bone Prison.
@@ -253,22 +285,55 @@ func validateRunDefinition(definition RunDefinition) error {
 	} else if len(definition.RouteHostileNPCIDs) != 0 {
 		return fmt.Errorf("route hostile allowlist requires %s", RunCapabilityRouteClear)
 	}
-	if err := validateRecordingContract(definition); err != nil {
+	if definition.RouteSet == nil {
+		if err := validateRecordingContract(definition, definition.Recording, true); err != nil {
+			return err
+		}
+	} else if err := validateRouteSetDefinition(definition); err != nil {
 		return err
 	}
 	return nil
 }
 
-func validateRecordingContract(definition RunDefinition) error {
-	contract := definition.Recording
-	if strings.TrimSpace(contract.InstructionsDE) == "" || contract.StartWaypoint == "" || contract.AllowedStartArea == world.None || contract.TerminalArea == world.None {
-		return fmt.Errorf("recording instructions, start waypoint, start area, and terminal area are required")
+func validateRecordingContract(definition RunDefinition, contract RecordingContract, singleRoute bool) error {
+	if strings.TrimSpace(contract.InstructionsDE) == "" || contract.AllowedStartArea == world.None || contract.TerminalArea == world.None {
+		return fmt.Errorf("recording instructions, start area, and terminal area are required")
 	}
-	if contract.StartWaypoint != definition.WaypointTarget || contract.TerminalArea != definition.RouteTerminalArea {
-		return fmt.Errorf("recording start waypoint and terminal area must match the run definition")
+	switch contract.StartKind {
+	case RecordingStartWaypoint:
+		if contract.StartWaypoint == "" {
+			return fmt.Errorf("recording waypoint start requires a waypoint target")
+		}
+	case RecordingStartObjectPortalArrival:
+		if contract.StartObjectKind != world.ObjectKindPermanentPortal || contract.StartPortalFromArea == world.None || contract.StartWaypoint != "" {
+			return fmt.Errorf("recording portal-arrival start requires permanent portal origin and no waypoint")
+		}
+	default:
+		return fmt.Errorf("recording start kind %q unsupported", contract.StartKind)
 	}
-	if contract.Boss.NPCID != definition.Boss.NPCID || contract.Boss.RequireSuperUnique != definition.Boss.RequireSuperUnique {
-		return fmt.Errorf("recording boss selector must match the run boss descriptor")
+	switch contract.TerminalKind {
+	case RecordingTerminalBoss:
+		if contract.Boss.NPCID == 0 || strings.TrimSpace(contract.Boss.Name) == "" {
+			return fmt.Errorf("recording boss terminal requires boss evidence")
+		}
+	case RecordingTerminalObject:
+		if contract.TerminalObjectKind == world.ObjectKindUnknown || contract.Boss.NPCID != 0 {
+			return fmt.Errorf("recording object terminal requires one object and no boss")
+		}
+	case RecordingTerminalEndpoint:
+		if contract.Boss.NPCID != 0 || contract.TerminalObjectKind != world.ObjectKindUnknown {
+			return fmt.Errorf("recording endpoint terminal must not require boss or object")
+		}
+	default:
+		return fmt.Errorf("recording terminal kind %q unsupported", contract.TerminalKind)
+	}
+	if singleRoute {
+		if contract.StartKind != RecordingStartWaypoint || contract.StartWaypoint != definition.WaypointTarget || contract.TerminalArea != definition.RouteTerminalArea {
+			return fmt.Errorf("recording start waypoint and terminal area must match the run definition")
+		}
+		if contract.Boss.NPCID != definition.Boss.NPCID || contract.Boss.RequireSuperUnique != definition.Boss.RequireSuperUnique {
+			return fmt.Errorf("recording boss selector must match the run boss descriptor")
+		}
 	}
 	if len(contract.AllowedRouteAreas) == 0 || contract.AllowedRouteAreas[0] != contract.AllowedStartArea || contract.AllowedRouteAreas[len(contract.AllowedRouteAreas)-1] != contract.TerminalArea {
 		return fmt.Errorf("recording allowed areas must start and end at the declared anchors")
@@ -286,11 +351,50 @@ func validateRecordingContract(definition RunDefinition) error {
 	return nil
 }
 
+func validateRouteSetDefinition(definition RunDefinition) error {
+	set := definition.RouteSet
+	if definition.ID != RunIDCows || set == nil || len(set.Roles) != 2 || set.PrimaryRole != pathing.RouteRoleCowSweep || len(set.Recordings) != 2 || definition.Recording.InstructionsDE != "" {
+		return fmt.Errorf("cows route set must declare exactly leg_acquisition and primary cow_sweep")
+	}
+	want := []pathing.RouteRole{pathing.RouteRoleLegAcquisition, pathing.RouteRoleCowSweep}
+	for index, role := range want {
+		if set.Roles[index] != role {
+			return fmt.Errorf("cows route role[%d] got %q, want %q", index, set.Roles[index], role)
+		}
+		contract, ok := set.Recordings[role]
+		if !ok || contract.RouteRole != role {
+			return fmt.Errorf("cows route role %q has no matching recording contract", role)
+		}
+		if err := validateRecordingContract(definition, contract, false); err != nil {
+			return fmt.Errorf("cows route role %q: %w", role, err)
+		}
+	}
+	leg := set.Recordings[pathing.RouteRoleLegAcquisition]
+	if leg.StartKind != RecordingStartWaypoint || leg.AllowedStartArea != world.StonyField || leg.TerminalKind != RecordingTerminalObject || leg.TerminalArea != world.Tristram || leg.TerminalObjectKind != world.ObjectKindWirtsBody {
+		return fmt.Errorf("leg_acquisition recording anchors are invalid")
+	}
+	sweep := set.Recordings[pathing.RouteRoleCowSweep]
+	if sweep.StartKind != RecordingStartObjectPortalArrival || sweep.AllowedStartArea != world.MooMooFarm || sweep.TerminalKind != RecordingTerminalEndpoint || sweep.TerminalArea != world.MooMooFarm {
+		return fmt.Errorf("cow_sweep recording anchors are invalid")
+	}
+	return nil
+}
+
 func cloneRunDefinition(definition RunDefinition) RunDefinition {
 	definition.BossEngageSequence = append([]EncounterAction(nil), definition.BossEngageSequence...)
 	definition.RequiredCaps = append([]RunCapability(nil), definition.RequiredCaps...)
 	definition.RouteHostileNPCIDs = append([]uint32(nil), definition.RouteHostileNPCIDs...)
 	definition.Recording.AllowedRouteAreas = append([]world.AreaID(nil), definition.Recording.AllowedRouteAreas...)
+	if definition.RouteSet != nil {
+		set := *definition.RouteSet
+		set.Roles = append([]pathing.RouteRole(nil), definition.RouteSet.Roles...)
+		set.Recordings = make(map[pathing.RouteRole]RecordingContract, len(definition.RouteSet.Recordings))
+		for role, contract := range definition.RouteSet.Recordings {
+			contract.AllowedRouteAreas = append([]world.AreaID(nil), contract.AllowedRouteAreas...)
+			set.Recordings[role] = contract
+		}
+		definition.RouteSet = &set
+	}
 	return definition
 }
 
@@ -308,6 +412,15 @@ func newRunMachine(sel RunSelection, cfg RunConfig) (runMachine, error) {
 	definition, ok := DefaultRunRegistry().Definition(RunID(sel.Run))
 	if !ok {
 		return nil, fmt.Errorf("%s: %q", RunReasonUnknown, sel.Run)
+	}
+	// Cow owns a dedicated productive pipeline, but controlled recovery is the
+	// same portal-to-Town flow used by every other run. Keep that narrow phase
+	// on runPipeline so Cow failures cannot strand the character in Area 39.
+	if definition.ID == RunIDCows && sel.Phase != RunPhaseRetryReturn {
+		if sel.Phase != "" {
+			return nil, fmt.Errorf("unknown run phase %q", sel.Phase)
+		}
+		return newCowPipeline(definition, cfg), nil
 	}
 	switch sel.Phase {
 	case "", RunPhaseTravelEntry, RunPhasePlayRoute, RunPhaseBoss, RunPhaseLootAndReturn, RunPhaseRetryReturn, RunPhaseStashPersonal, RunPhaseTownReady:

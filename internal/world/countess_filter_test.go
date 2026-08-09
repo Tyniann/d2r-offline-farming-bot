@@ -21,6 +21,9 @@ func TestCountessFilterMatchesWorldIDs(t *testing.T) {
 	if !memory.IsRuntimeObjectID(PersonalStashID) {
 		t.Fatal("personal stash missing from runtime filter")
 	}
+	if !memory.IsRuntimeObjectID(PermanentPortalID) || !memory.IsRuntimeObjectID(WirtsBodyID) {
+		t.Fatal("Phase-20 portal or Wirt object missing from runtime filter")
+	}
 	for _, id := range AllEntranceIDs() {
 		if !memory.IsCountessEntranceID(id) {
 			t.Fatalf("entrance %d missing from countess filter", id)

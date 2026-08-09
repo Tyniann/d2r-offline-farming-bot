@@ -20,6 +20,7 @@ go.work.sum
 # Dependencies (vendoring optional)
 /vendor/
 /web/node_modules/
+/.pnpm-store/
 /web/.tmp-gocache/
 /web/dist-electron/
 /web/test-results/

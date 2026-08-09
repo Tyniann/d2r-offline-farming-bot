@@ -2,6 +2,7 @@ package input
 
 import (
 	"errors"
+	"log/slog"
 	"testing"
 )
 
@@ -82,6 +83,36 @@ func TestCastSkillAtSelectMoveClickOrder(t *testing.T) {
 	}
 	if len(mouseMock.downCalls) != 1 || mouseMock.downCalls[0] != MouseRight {
 		t.Fatalf("click = %v, want right", mouseMock.downCalls)
+	}
+}
+
+func TestCastSkillAtLogsAuthorizedSkillAndCoordinates(t *testing.T) {
+	handler := &captureLogHandler{}
+	api := &mockWindowAPI{findHWND: 0x1, area: testWindowFixture}
+	c, err := newWithBackends(slog.New(handler), api, &mockKeySender{}, &mockMouseSender{}, DefaultKeyboardConfig(), testSafetyEnabled(), testKeyTimings(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := c.Bind(42); err != nil {
+		t.Fatal(err)
+	}
+	src := mockBindingSource{resolveOK: true, cast: SkillCast{SkillID: 74, SelectKey: "f4", CastButton: MouseRight}}
+	if err := c.CastSkillAt(src, 74, 612, 344); err != nil {
+		t.Fatal(err)
+	}
+	var matched bool
+	for _, record := range handler.records {
+		if record.Message != "input action" {
+			continue
+		}
+		attrs := map[string]any{}
+		record.Attrs(func(attr slog.Attr) bool { attrs[attr.Key] = attr.Value.Any(); return true })
+		if attrs["action"] == "cast" && attrs["reason"] == "skill_cast" && attrs["skill_id"] == uint64(74) && attrs["client_x"] == int64(612) && attrs["client_y"] == int64(344) && attrs["allowed"] == true {
+			matched = true
+		}
+	}
+	if !matched {
+		t.Fatalf("missing CE input action log: %+v", handler.records)
 	}
 }
 

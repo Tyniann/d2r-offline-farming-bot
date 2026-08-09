@@ -13,23 +13,26 @@ import (
 
 type actionMock struct {
 	skills    []uint16
+	targets   []world.Position
 	belts     []int
 	mercBelts []int
 	castDelay time.Duration
+	castErr   error
 }
 
 type routeCombatActionMock struct {
-	targets []world.Monster
-	skills  []uint16
-	sent    bool
-	err     error
-	stops   int
+	targets       []world.Monster
+	skills        []uint16
+	sent          bool
+	targetingMode MonsterTargetingMode
+	err           error
+	stops         int
 }
 
-func (m *routeCombatActionMock) CastAttackAtMonster(_ time.Time, skillID uint16, _ world.Player, target world.Monster) (bool, error) {
+func (m *routeCombatActionMock) CastAttackAtMonster(_ time.Time, skillID uint16, _ world.Player, target world.Monster) (MonsterCastResult, error) {
 	m.targets = append(m.targets, target)
 	m.skills = append(m.skills, skillID)
-	return m.sent, m.err
+	return MonsterCastResult{Sent: m.sent, TargetingMode: m.targetingMode}, m.err
 }
 
 func (m *routeCombatActionMock) StopAttack() error { m.stops++; return nil }
@@ -44,12 +47,13 @@ func (m *telemetryMock) EmitProfile(event Event) error {
 	return m.err
 }
 
-func (m *actionMock) CastSkillAtWorld(_ time.Time, id uint16, _, _ world.Position) error {
+func (m *actionMock) CastSkillAtWorld(_ time.Time, id uint16, _ world.Player, target world.Position) error {
 	if m.castDelay > 0 {
 		time.Sleep(m.castDelay)
 	}
 	m.skills = append(m.skills, id)
-	return nil
+	m.targets = append(m.targets, target)
+	return m.castErr
 }
 
 func TestHookSettleStartsAfterBlockingCastCompletes(t *testing.T) {
@@ -142,6 +146,42 @@ func TestSkipInitialDelayRetainsHookAction(t *testing.T) {
 	}
 }
 
+func TestBoneArmorRouteMaintenanceStopsThenCastsAfterDamage(t *testing.T) {
+	definition := testDefinition()
+	definition.ID = "necro_bone_spear"
+	definition.RouteMaintenance.BoneArmor = BoneArmorMaintenancePolicy{
+		Enabled: true, SkillID: 68, RefreshInterval: time.Minute,
+		RefreshAfterDamageBelowPct: 65, MinimumRecastInterval: 10 * time.Second, Settle: 750 * time.Millisecond,
+	}
+	actions := &actionMock{}
+	combat := &routeCombatActionMock{}
+	executor, _ := NewExecutor(config.NewLogger("error"), definition, actions)
+	if err := executor.ConfigureRouteClear(RouteClearSingleTarget, 66, 84, combat); err != nil {
+		t.Fatal(err)
+	}
+	state, now := profileState(), time.Now()
+	if got := executor.TickHook(context.Background(), HookTownReady, state, EncounterTarget{}, now); got.Status != StatusAction {
+		t.Fatalf("town cast=%+v", got)
+	}
+	state.Player.HP = 60
+	if got := executor.TickRouteMaintenance(state, now.Add(11*time.Second)); got.Status != StatusComplete {
+		t.Fatalf("first route observation=%+v", got)
+	}
+	state.Player.HP = 55
+	if got := executor.TickRouteMaintenance(state, now.Add(12*time.Second)); got.Status != StatusPending || combat.stops != 1 {
+		t.Fatalf("stop tick=%+v stops=%d", got, combat.stops)
+	}
+	if len(actions.skills) != 1 {
+		t.Fatalf("maintenance cast occurred in stop tick: %v", actions.skills)
+	}
+	if got := executor.TickRouteMaintenance(state, now.Add(13*time.Second)); got.Status != StatusAction || got.SkillID != 68 {
+		t.Fatalf("cast tick=%+v", got)
+	}
+	if len(actions.skills) != 2 {
+		t.Fatalf("skills=%v", actions.skills)
+	}
+}
+
 func TestBossHookPinsTargetAndCastsOncePerIndexedEncounterAction(t *testing.T) {
 	definition := testDefinition()
 	definition.Hooks[HookBossEngage] = []Action{{SkillID: 88, Target: TargetBoss, OncePerEncounter: true}}
@@ -201,6 +241,22 @@ func TestResourceDoesNotPressEmptyOrWrongSlot(t *testing.T) {
 	got := e.TickResources(state, ResourceContext{}, time.Now())
 	if got.Status != StatusComplete || got.Reason != "mana_potion_unavailable" || len(actions.belts) != 0 {
 		t.Fatalf("got=%+v belts=%v", got, actions.belts)
+	}
+}
+
+func TestRouteResourceExhaustionStopsCombat(t *testing.T) {
+	definition := testDefinition()
+	definition.ID = "necro_bone_spear"
+	combat := &routeCombatActionMock{}
+	executor, _ := NewExecutor(config.NewLogger("error"), definition, &actionMock{})
+	if err := executor.ConfigureRouteClear(RouteClearSingleTarget, 66, 84, combat); err != nil {
+		t.Fatal(err)
+	}
+	state := profileState()
+	state.Player.Mana = 20
+	got := executor.TickResources(state, ResourceContext{FailOnUnavailable: true}, time.Now())
+	if got.Status != StatusFailed || got.Reason != "combat_resource_exhausted" || combat.stops != 1 {
+		t.Fatalf("got=%+v stops=%d", got, combat.stops)
 	}
 }
 
@@ -438,7 +494,7 @@ func TestRouteClearDensityReliefSkipsThreatCurseOpener(t *testing.T) {
 	definition := testDefinition()
 	definition.ID = "necro_bone_spear"
 	executor, _ := NewExecutor(config.NewLogger("error"), definition, &actionMock{})
-	actions := &routeCombatActionMock{sent: true}
+	actions := &routeCombatActionMock{sent: true, targetingMode: MonsterTargetingWorldProjected}
 	if err := executor.ConfigureRouteClear(RouteClearSingleTarget, 66, 84, actions); err != nil {
 		t.Fatal(err)
 	}
@@ -450,7 +506,8 @@ func TestRouteClearDensityReliefSkipsThreatCurseOpener(t *testing.T) {
 		Mode:         RouteClearDensityRelief,
 		AssessmentAt: now,
 	}, now)
-	if result.Status != StatusAction || result.SkillID != 84 || result.ActionKind != RouteClearActionAttack {
+	if result.Status != StatusAction || result.SkillID != 84 || result.ActionKind != RouteClearActionAttack ||
+		result.TargetingMode != MonsterTargetingWorldProjected {
 		t.Fatalf("density relief result = %+v", result)
 	}
 }
@@ -562,5 +619,24 @@ func TestMercenaryResourceRejectsRejuvenationFallback(t *testing.T) {
 	got := e.TickResources(state, ResourceContext{AllowMercenary: true}, time.Now())
 	if got.Reason != "mercenary_potion_unavailable" || len(actions.mercBelts) != 0 {
 		t.Fatalf("rejuv fallback=%+v mercBelts=%v", got, actions.mercBelts)
+	}
+}
+
+func TestRouteMercenaryResourceExhaustionStopsCombat(t *testing.T) {
+	definition := testDefinition()
+	definition.ID = "necro_bone_spear"
+	combat := &routeCombatActionMock{}
+	executor, _ := NewExecutor(config.NewLogger("error"), definition, &actionMock{})
+	if err := executor.ConfigureRouteClear(RouteClearSingleTarget, 66, 84, combat); err != nil {
+		t.Fatal(err)
+	}
+	state := profileState()
+	state.Mercenary = world.Mercenary{
+		HiredKnown: true, Hired: true, Alive: true, VitalsKnown: true,
+		UnitID: 7, HP: 10, MaxHP: 90,
+	}
+	got := executor.TickResources(state, ResourceContext{AllowMercenary: true, FailOnUnavailable: true}, time.Now())
+	if got.Status != StatusFailed || got.Reason != "combat_resource_exhausted" || combat.stops != 1 {
+		t.Fatalf("got=%+v stops=%d", got, combat.stops)
 	}
 }

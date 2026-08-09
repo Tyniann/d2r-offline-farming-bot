@@ -22,13 +22,19 @@ const (
 
 // RunRouteRecord starts the candidate-first guided recorder for a registered run.
 func (rt *Runtime) RunRouteRecord(runID, _ string, difficultyLabel string) error {
-	return rt.runGuidedRouteRecord(tasks.RunID(runID), difficultyLabel, rt.Config.Session.Character, nil, nil)
+	return rt.runGuidedRouteRecord(tasks.RunID(runID), "", difficultyLabel, rt.Config.Session.Character, nil, nil)
 }
 
 // RunRouteRecordWithFinish starts guided recording and accepts the same
 // idempotent finish intent from an API workflow as the global F9 hotkey.
 func (rt *Runtime) RunRouteRecordWithFinish(runID, difficultyLabel, expectedCharacter string, finishRequests <-chan struct{}, reporter RouteWorkflowReporter) error {
-	return rt.runGuidedRouteRecord(tasks.RunID(runID), difficultyLabel, expectedCharacter, finishRequests, reporter)
+	return rt.runGuidedRouteRecord(tasks.RunID(runID), "", difficultyLabel, expectedCharacter, finishRequests, reporter)
+}
+
+// RunRouteRecordWithRoleFinish starts one fixed-role guided recording and
+// accepts the same idempotent finish intent as the global F9 hotkey.
+func (rt *Runtime) RunRouteRecordWithRoleFinish(runID string, role pathing.RouteRole, difficultyLabel, expectedCharacter string, finishRequests <-chan struct{}, reporter RouteWorkflowReporter) error {
+	return rt.runGuidedRouteRecord(tasks.RunID(runID), role, difficultyLabel, expectedCharacter, finishRequests, reporter)
 }
 
 // RunSystemEgressRecord reuses the CLI recorder for one configured global Act Egress.

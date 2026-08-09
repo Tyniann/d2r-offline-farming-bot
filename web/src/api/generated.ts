@@ -337,6 +337,7 @@ export interface RouteEntryDTO {
   route_id: string;
   display_name: string;
   run_id: string;
+  route_role?: string;
   character: string;
   difficulty: string;
   lifecycle_status: string;
@@ -353,8 +354,11 @@ export interface RecordingPrerequisiteDTO {
 
 export interface RecordingOptionDTO {
   run_id: string;
+  route_role?: string;
   display_name: string;
   instructions_de: string;
+  operator_hints_de?: Array<string>;
+  start_kind?: string;
   start_waypoint: string;
   allowed_start_area_id: number;
   allowed_route_area_ids: Array<number>;
@@ -368,6 +372,7 @@ export interface RecordingOptionDTO {
 export interface RouteCandidateDTO {
   candidate_id: string;
   run_id: string;
+  route_role?: string;
   character: string;
   difficulty: string;
   state: string;
@@ -394,6 +399,7 @@ export interface RouteWorkflowDTO {
   generation: number;
   state: string;
   run_id: string;
+  route_role?: string;
   character: string;
   act?: string;
   area_id?: number;
@@ -417,6 +423,7 @@ export interface RouteWorkflowRequest {
   expected_generation: number;
   operation: string;
   run_id?: string;
+  route_role?: string;
   candidate_id?: string;
   act?: string;
 }
@@ -424,6 +431,7 @@ export interface RouteWorkflowRequest {
 export interface RouteRecordingStartRequest {
   expected_generation: number;
   run_id: string;
+  route_role?: string;
 }
 
 export interface RouteWorkflowFinishRequest {

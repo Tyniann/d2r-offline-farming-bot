@@ -4,6 +4,10 @@ package world
 const (
 	// TownPortalID is the player-cast portal object for this generated D2R version.
 	TownPortalID uint32 = 59
+	// PermanentPortalID is the area-bound red portal object from objects.txt Class=PortalPermanent.
+	PermanentPortalID uint32 = 60
+	// WirtsBodyID is the Tristram quest object from objects.txt Class=Wirt.
+	WirtsBodyID uint32 = 268
 	// GoodChestID is the unique chest placement object for this generated D2R version.
 	GoodChestID uint32 = 584
 	// PersonalStashID is the character stash object for this generated D2R version.
@@ -43,23 +47,25 @@ func IsWaypointID(id uint32) bool {
 func AllWaypointIDs() []uint32 { return append([]uint32(nil), waypointIDs...) }
 
 var objectNames = map[uint32]string{
-	TownPortalID:    "Town Portal",
-	GoodChestID:     "Good Chest",
-	PersonalStashID: "Personal Stash",
-	119:             "Waypoint",
-	145:             "Waypoint",
-	156:             "Waypoint",
-	157:             "Waypoint",
-	237:             "Waypoint",
-	238:             "Waypoint",
-	288:             "Waypoint",
-	323:             "Waypoint",
-	324:             "Waypoint",
-	398:             "Waypoint",
-	402:             "Waypoint",
-	429:             "Waypoint",
-	494:             "Waypoint",
-	496:             "Waypoint",
-	511:             "Waypoint",
-	539:             "Waypoint",
+	TownPortalID:      "Town Portal",
+	PermanentPortalID: "Permanent Portal",
+	WirtsBodyID:       "Wirt's Body",
+	GoodChestID:       "Good Chest",
+	PersonalStashID:   "Personal Stash",
+	119:               "Waypoint",
+	145:               "Waypoint",
+	156:               "Waypoint",
+	157:               "Waypoint",
+	237:               "Waypoint",
+	238:               "Waypoint",
+	288:               "Waypoint",
+	323:               "Waypoint",
+	324:               "Waypoint",
+	398:               "Waypoint",
+	402:               "Waypoint",
+	429:               "Waypoint",
+	494:               "Waypoint",
+	496:               "Waypoint",
+	511:               "Waypoint",
+	539:               "Waypoint",
 }

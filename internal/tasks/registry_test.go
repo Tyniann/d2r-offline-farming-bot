@@ -12,9 +12,11 @@ import (
 
 func TestDefaultRunRegistryMetadataAndOrder(t *testing.T) {
 	definitions := DefaultRunRegistry().Definitions()
-	if len(definitions) != 4 || definitions[0].ID != RunIDCountess || definitions[1].ID != RunIDMephisto || definitions[2].ID != RunIDNihlathak || definitions[3].ID != RunIDSummoner {
+	if len(definitions) != 5 || definitions[0].ID != RunIDCountess || definitions[1].ID != RunIDCows || definitions[2].ID != RunIDMephisto || definitions[3].ID != RunIDNihlathak || definitions[4].ID != RunIDSummoner {
 		t.Fatalf("definitions = %+v", definitions)
 	}
+	// Keep the legacy assertions below indexed Countess/Mephisto/Nihlathak/Summoner.
+	definitions = []RunDefinition{definitions[0], definitions[2], definitions[3], definitions[4], definitions[1]}
 	if len(definitions[0].BossEngageSequence) != 1 || !definitions[0].Boss.RequireSuperUnique || definitions[0].ReturnOrigin != town.OriginAct1 || definitions[0].ClearNearbyAfterBoss {
 		t.Fatalf("Countess definition = %+v", definitions[0])
 	}
@@ -55,6 +57,15 @@ func TestDefaultRunRegistryMetadataAndOrder(t *testing.T) {
 	if definitions[2].Recording.StartWaypoint != pathing.WaypointTargetHallsOfPain || definitions[2].Recording.TerminalArea != world.HallsOfVaught || definitions[2].Recording.EgressOriginAct != town.OriginAct5 {
 		t.Fatalf("Nihlathak recording contract = %+v", definitions[2].Recording)
 	}
+	cows := definitions[4]
+	if cows.RouteSet == nil || cows.RouteSet.PrimaryRole != pathing.RouteRoleCowSweep || len(cows.RouteRoles()) != 2 {
+		t.Fatalf("Cow route set = %+v", cows.RouteSet)
+	}
+	leg, legOK := cows.RecordingForRole(pathing.RouteRoleLegAcquisition)
+	sweep, sweepOK := cows.RecordingForRole(pathing.RouteRoleCowSweep)
+	if !legOK || !sweepOK || leg.StartWaypoint != pathing.WaypointTargetStonyField || leg.TerminalObjectKind != world.ObjectKindWirtsBody || sweep.StartKind != RecordingStartObjectPortalArrival || sweep.TerminalKind != RecordingTerminalEndpoint {
+		t.Fatalf("Cow recording contracts leg=%+v sweep=%+v", leg, sweep)
+	}
 }
 
 func TestRunRegistryRejectsDuplicateAndInvalidIDs(t *testing.T) {
@@ -65,6 +76,20 @@ func TestRunRegistryRejectsDuplicateAndInvalidIDs(t *testing.T) {
 	countess.ID = "Bad ID"
 	if _, err := NewRunRegistry(countess); err == nil || !strings.Contains(err.Error(), string(RunReasonDefinitionInvalid)) {
 		t.Fatalf("invalid id error = %v", err)
+	}
+}
+
+func TestRunRegistryRequiresExplicitRecordingKinds(t *testing.T) {
+	countess, _ := DefaultRunRegistry().Definition(RunIDCountess)
+	countess.Recording.StartKind = ""
+	if _, err := NewRunRegistry(countess); err == nil || !strings.Contains(err.Error(), "start kind") {
+		t.Fatalf("empty recording start kind error = %v", err)
+	}
+
+	countess, _ = DefaultRunRegistry().Definition(RunIDCountess)
+	countess.Recording.TerminalKind = ""
+	if _, err := NewRunRegistry(countess); err == nil || !strings.Contains(err.Error(), "terminal kind") {
+		t.Fatalf("empty recording terminal kind error = %v", err)
 	}
 }
 

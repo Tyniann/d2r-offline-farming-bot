@@ -1,6 +1,6 @@
 package world
 
-// ObjectKind classifies Countess-relevant objects.
+// ObjectKind classifies runtime-relevant objects.
 type ObjectKind int
 
 // ObjectKind values for waypoints and the Countess good chest.
@@ -10,6 +10,8 @@ const (
 	ObjectKindGoodChest
 	ObjectKindTownPortal
 	ObjectKindPersonalStash
+	ObjectKindPermanentPortal
+	ObjectKindWirtsBody
 )
 
 // String returns a stable label for logging.
@@ -23,6 +25,10 @@ func (k ObjectKind) String() string {
 		return "town_portal"
 	case ObjectKindPersonalStash:
 		return "personal_stash"
+	case ObjectKindPermanentPortal:
+		return "permanent_portal"
+	case ObjectKindWirtsBody:
+		return "wirts_body"
 	default:
 		return "unknown"
 	}
@@ -51,6 +57,12 @@ func LookupObjectKind(id uint32) ObjectKind {
 	}
 	if id == PersonalStashID {
 		return ObjectKindPersonalStash
+	}
+	if id == PermanentPortalID {
+		return ObjectKindPermanentPortal
+	}
+	if id == WirtsBodyID {
+		return ObjectKindWirtsBody
 	}
 	return ObjectKindUnknown
 }

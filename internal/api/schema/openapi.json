@@ -2665,6 +2665,9 @@
           "run_id": {
             "type": "string"
           },
+          "route_role": {
+            "type": "string"
+          },
           "character": {
             "type": "string"
           },
@@ -2728,10 +2731,22 @@
           "run_id": {
             "type": "string"
           },
+          "route_role": {
+            "type": "string"
+          },
           "display_name": {
             "type": "string"
           },
           "instructions_de": {
+            "type": "string"
+          },
+          "operator_hints_de": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "start_kind": {
             "type": "string"
           },
           "start_waypoint": {
@@ -2782,6 +2797,9 @@
             "type": "string"
           },
           "run_id": {
+            "type": "string"
+          },
+          "route_role": {
             "type": "string"
           },
           "character": {
@@ -2867,6 +2885,9 @@
           "run_id": {
             "type": "string"
           },
+          "route_role": {
+            "type": "string"
+          },
           "character": {
             "type": "string"
           },
@@ -2941,6 +2962,9 @@
           "run_id": {
             "type": "string"
           },
+          "route_role": {
+            "type": "string"
+          },
           "candidate_id": {
             "type": "string"
           },
@@ -2961,6 +2985,9 @@
             "type": "integer"
           },
           "run_id": {
+            "type": "string"
+          },
+          "route_role": {
             "type": "string"
           }
         }

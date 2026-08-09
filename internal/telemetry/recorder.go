@@ -120,134 +120,144 @@ const (
 	TownMercenaryReviveConfirmed EventName = "town_mercenary_revive_confirmed"
 	// MercenaryDied records Alive→Dead hireling transition with last known HP%.
 	MercenaryDied EventName = "mercenary_died"
+	// CowRecipeProgress records one Memory-confirmed semantic Cow setup or recipe boundary.
+	CowRecipeProgress EventName = "cow_recipe_progress"
 )
 
 // Event is one JSONL record. Zero-valued optional fields are omitted.
 type Event struct {
-	SchemaVersion            int                    `json:"schema_version"`
-	Stream                   HistoryStream          `json:"stream"`
-	Timestamp                time.Time              `json:"timestamp"`
-	Event                    EventName              `json:"event"`
-	RunID                    string                 `json:"run_id"`
-	SessionID                string                 `json:"session_id,omitempty"`
-	GameID                   string                 `json:"game_id,omitempty"`
-	Mode                     HistoryMode            `json:"mode"`
-	Character                string                 `json:"character,omitempty"`
-	Difficulty               string                 `json:"difficulty,omitempty"`
-	GameVersion              string                 `json:"game_version,omitempty"`
-	Run                      string                 `json:"run"`
-	DefinitionID             string                 `json:"definition_id,omitempty"`
-	Phase                    string                 `json:"phase,omitempty"`
-	Step                     string                 `json:"step,omitempty"`
-	Stage                    HistoryStage           `json:"stage,omitempty"`
-	ActionIndex              *int                   `json:"action_index,omitempty"`
-	AreaID                   uint32                 `json:"area_id,omitempty"`
-	UnitID                   uint32                 `json:"unit_id,omitempty"`
-	TxtFileNo                uint32                 `json:"txt_file_no,omitempty"`
-	Code                     string                 `json:"code,omitempty"`
-	Name                     string                 `json:"name,omitempty"`
-	BossID                   string                 `json:"boss_id,omitempty"`
-	BossName                 string                 `json:"boss_name,omitempty"`
-	ItemKey                  string                 `json:"item_key,omitempty"`
-	ItemName                 string                 `json:"item_name,omitempty"`
-	BaseCode                 string                 `json:"base_code,omitempty"`
-	Quality                  string                 `json:"quality,omitempty"`
-	ItemIdentityKind         string                 `json:"item_identity_kind,omitempty"`
-	ItemIdentityKey          string                 `json:"item_identity_key,omitempty"`
-	Reason                   string                 `json:"reason,omitempty"`
-	Attempt                  int                    `json:"attempt,omitempty"`
-	HoverAttempt             int                    `json:"hover_attempt,omitempty"`
-	GridX                    *int                   `json:"grid_x,omitempty"`
-	GridY                    *int                   `json:"grid_y,omitempty"`
-	CandidateCount           int                    `json:"candidate_count,omitempty"`
-	RouteID                  string                 `json:"route_id,omitempty"`
-	RouteLayoutFingerprint   string                 `json:"route_layout_fingerprint,omitempty"`
-	WaypointTarget           string                 `json:"waypoint_target,omitempty"`
-	TownOrigin               string                 `json:"town_origin,omitempty"`
-	SegmentID                string                 `json:"segment_id,omitempty"`
-	SegmentIndex             *int                   `json:"segment_index,omitempty"`
-	PointIndex               *int                   `json:"point_index,omitempty"`
-	TargetX                  uint32                 `json:"target_x,omitempty"`
-	TargetY                  uint32                 `json:"target_y,omitempty"`
-	TargetAreaID             uint32                 `json:"target_area_id,omitempty"`
-	RunOrdinal               int                    `json:"run_ordinal,omitempty"`
-	QueueIndex               *int                   `json:"queue_index,omitempty"`
-	QueueCycle               *int                   `json:"queue_cycle,omitempty"`
-	RunStartedAt             *time.Time             `json:"run_started_at,omitempty"`
-	Outcome                  string                 `json:"outcome,omitempty"`
-	Decision                 string                 `json:"decision,omitempty"`
-	LastStep                 string                 `json:"last_step,omitempty"`
-	ElapsedMs                int64                  `json:"elapsed_ms,omitempty"`
-	ConsecutiveFailures      int                    `json:"consecutive_failures,omitempty"`
-	TotalRestarts            int                    `json:"total_restarts,omitempty"`
-	RemainingRestarts        int                    `json:"remaining_restarts,omitempty"`
-	LastConfirmedPoint       *int                   `json:"last_confirmed_point,omitempty"`
-	DriftTiles               float64                `json:"drift_tiles,omitempty"`
-	LocalRecoveryAttempts    int                    `json:"local_recovery_attempts,omitempty"`
-	RunsStarted              int                    `json:"runs_started,omitempty"`
-	RunsSuccessful           int                    `json:"runs_successful,omitempty"`
-	RunsAborted              int                    `json:"runs_aborted,omitempty"`
-	RunsFailed               int                    `json:"runs_failed,omitempty"`
-	MaxRuns                  int                    `json:"max_runs,omitempty"`
-	MaxDurationMs            int64                  `json:"max_duration_ms,omitempty"`
-	Profile                  string                 `json:"profile,omitempty"`
-	Hook                     string                 `json:"hook,omitempty"`
-	Skill                    string                 `json:"skill,omitempty"`
-	SkillID                  uint16                 `json:"skill_id,omitempty"`
-	Target                   string                 `json:"target,omitempty"`
-	Resource                 string                 `json:"resource,omitempty"`
-	Recipient                string                 `json:"recipient,omitempty"`
-	ThresholdPercent         uint8                  `json:"threshold_percent,omitempty"`
-	BeltSlot                 int                    `json:"belt_slot,omitempty"`
-	Confirmed                bool                   `json:"confirmed,omitempty"`
-	MercUnitID               uint32                 `json:"merc_unit_id,omitempty"`
-	HPBefore                 int                    `json:"hp_before,omitempty"`
-	HPAfter                  int                    `json:"hp_after,omitempty"`
-	TownStep                 *int                   `json:"town_step,omitempty"`
-	TownKind                 string                 `json:"town_kind,omitempty"`
-	TownService              string                 `json:"town_service,omitempty"`
-	CurrentCount             *int                   `json:"current_count,omitempty"`
-	TriggerThreshold         *int                   `json:"trigger_threshold,omitempty"`
-	BeltSlots                []int                  `json:"belt_slots,omitempty"`
-	PurchaseMode             string                 `json:"purchase_mode,omitempty"`
-	Vendor                   string                 `json:"vendor,omitempty"`
-	Cost                     *int                   `json:"cost,omitempty"`
-	VerifiedFinalCount       *int                   `json:"verified_final_count,omitempty"`
-	PickitProfileID          string                 `json:"pickit_profile_id,omitempty"`
-	PickitRuleID             string                 `json:"pickit_rule_id,omitempty"`
-	PickitAction             string                 `json:"pickit_action,omitempty"`
-	PickitProfileRevision    uint64                 `json:"pickit_profile_revision,omitempty"`
-	PickitAssignmentRevision uint64                 `json:"pickit_assignment_revision,omitempty"`
-	PickitProfiles           []PickitProfileContext `json:"pickit_profiles,omitempty"`
-	Zone                     string                 `json:"zone,omitempty"`
-	ModeName                 string                 `json:"mode_name,omitempty"`
-	Strategy                 string                 `json:"strategy,omitempty"`
-	ActionKind               string                 `json:"action_kind,omitempty"`
-	ProgressKind             string                 `json:"progress_kind,omitempty"`
-	NPCID                    uint32                 `json:"npc_id,omitempty"`
-	PlayerX                  uint32                 `json:"player_x,omitempty"`
-	PlayerY                  uint32                 `json:"player_y,omitempty"`
-	DistanceTiles            float64                `json:"distance_tiles,omitempty"`
-	RequiredRadiusTiles      float64                `json:"required_radius_tiles,omitempty"`
-	CoverageRadiusTiles      float64                `json:"coverage_radius_tiles,omitempty"`
-	CoverageComplete         *bool                  `json:"coverage_complete,omitempty"`
-	MonstersTruncated        *bool                  `json:"monsters_truncated,omitempty"`
-	EligibleMonsterCount     int                    `json:"eligible_monster_count,omitempty"`
-	RetainedMonsterCount     int                    `json:"retained_monster_count,omitempty"`
-	RelevantThreatCount      int                    `json:"relevant_threat_count,omitempty"`
-	PreviousEligibleCount    int                    `json:"previous_eligible_count,omitempty"`
-	PreviousRelevantCount    int                    `json:"previous_relevant_count,omitempty"`
-	HPPercent                uint8                  `json:"hp_percent,omitempty"`
-	ManaPercent              uint8                  `json:"mana_percent,omitempty"`
-	NoProgressTimeoutMs      int64                  `json:"no_progress_timeout_ms,omitempty"`
-	CombatActionsSent        int                    `json:"combat_actions_sent,omitempty"`
-	TargetsSeen              int                    `json:"targets_seen,omitempty"`
-	DensityReliefActions     int                    `json:"density_relief_actions,omitempty"`
-	HoldMs                   int64                  `json:"hold_ms,omitempty"`
-	HoverConfirmed           *bool                  `json:"hover_confirmed,omitempty"`
-	ManaDemand               string                 `json:"mana_demand,omitempty"`
-	Threatened               *bool                  `json:"threatened,omitempty"`
-	PositionProgressTiles    float64                `json:"position_progress_tiles,omitempty"`
+	SchemaVersion                int                    `json:"schema_version"`
+	Stream                       HistoryStream          `json:"stream"`
+	Timestamp                    time.Time              `json:"timestamp"`
+	Event                        EventName              `json:"event"`
+	RunID                        string                 `json:"run_id"`
+	SessionID                    string                 `json:"session_id,omitempty"`
+	GameID                       string                 `json:"game_id,omitempty"`
+	Mode                         HistoryMode            `json:"mode"`
+	Character                    string                 `json:"character,omitempty"`
+	Difficulty                   string                 `json:"difficulty,omitempty"`
+	GameVersion                  string                 `json:"game_version,omitempty"`
+	Run                          string                 `json:"run"`
+	DefinitionID                 string                 `json:"definition_id,omitempty"`
+	Phase                        string                 `json:"phase,omitempty"`
+	Step                         string                 `json:"step,omitempty"`
+	Stage                        HistoryStage           `json:"stage,omitempty"`
+	ActionIndex                  *int                   `json:"action_index,omitempty"`
+	AreaID                       uint32                 `json:"area_id,omitempty"`
+	UnitID                       uint32                 `json:"unit_id,omitempty"`
+	TxtFileNo                    uint32                 `json:"txt_file_no,omitempty"`
+	Code                         string                 `json:"code,omitempty"`
+	Name                         string                 `json:"name,omitempty"`
+	BossID                       string                 `json:"boss_id,omitempty"`
+	BossName                     string                 `json:"boss_name,omitempty"`
+	ItemKey                      string                 `json:"item_key,omitempty"`
+	ItemName                     string                 `json:"item_name,omitempty"`
+	BaseCode                     string                 `json:"base_code,omitempty"`
+	Quality                      string                 `json:"quality,omitempty"`
+	ItemIdentityKind             string                 `json:"item_identity_kind,omitempty"`
+	ItemIdentityKey              string                 `json:"item_identity_key,omitempty"`
+	Reason                       string                 `json:"reason,omitempty"`
+	Attempt                      int                    `json:"attempt,omitempty"`
+	HoverAttempt                 int                    `json:"hover_attempt,omitempty"`
+	GridX                        *int                   `json:"grid_x,omitempty"`
+	GridY                        *int                   `json:"grid_y,omitempty"`
+	CandidateCount               int                    `json:"candidate_count,omitempty"`
+	RouteID                      string                 `json:"route_id,omitempty"`
+	RouteLayoutFingerprint       string                 `json:"route_layout_fingerprint,omitempty"`
+	SetupRouteID                 string                 `json:"setup_route_id,omitempty"`
+	SetupRouteLayoutFingerprint  string                 `json:"setup_route_layout_fingerprint,omitempty"`
+	RouteRole                    string                 `json:"route_role,omitempty"`
+	WaypointTarget               string                 `json:"waypoint_target,omitempty"`
+	TownOrigin                   string                 `json:"town_origin,omitempty"`
+	SegmentID                    string                 `json:"segment_id,omitempty"`
+	SegmentIndex                 *int                   `json:"segment_index,omitempty"`
+	PointIndex                   *int                   `json:"point_index,omitempty"`
+	TargetX                      uint32                 `json:"target_x,omitempty"`
+	TargetY                      uint32                 `json:"target_y,omitempty"`
+	TargetAreaID                 uint32                 `json:"target_area_id,omitempty"`
+	RunOrdinal                   int                    `json:"run_ordinal,omitempty"`
+	QueueIndex                   *int                   `json:"queue_index,omitempty"`
+	QueueCycle                   *int                   `json:"queue_cycle,omitempty"`
+	RunStartedAt                 *time.Time             `json:"run_started_at,omitempty"`
+	Outcome                      string                 `json:"outcome,omitempty"`
+	Decision                     string                 `json:"decision,omitempty"`
+	LastStep                     string                 `json:"last_step,omitempty"`
+	ElapsedMs                    int64                  `json:"elapsed_ms,omitempty"`
+	ConsecutiveFailures          int                    `json:"consecutive_failures,omitempty"`
+	TotalRestarts                int                    `json:"total_restarts,omitempty"`
+	RemainingRestarts            int                    `json:"remaining_restarts,omitempty"`
+	LastConfirmedPoint           *int                   `json:"last_confirmed_point,omitempty"`
+	DriftTiles                   float64                `json:"drift_tiles,omitempty"`
+	LocalRecoveryAttempts        int                    `json:"local_recovery_attempts,omitempty"`
+	RunsStarted                  int                    `json:"runs_started,omitempty"`
+	RunsSuccessful               int                    `json:"runs_successful,omitempty"`
+	RunsAborted                  int                    `json:"runs_aborted,omitempty"`
+	RunsFailed                   int                    `json:"runs_failed,omitempty"`
+	MaxRuns                      int                    `json:"max_runs,omitempty"`
+	MaxDurationMs                int64                  `json:"max_duration_ms,omitempty"`
+	Profile                      string                 `json:"profile,omitempty"`
+	Hook                         string                 `json:"hook,omitempty"`
+	Skill                        string                 `json:"skill,omitempty"`
+	SkillID                      uint16                 `json:"skill_id,omitempty"`
+	Target                       string                 `json:"target,omitempty"`
+	Resource                     string                 `json:"resource,omitempty"`
+	Recipient                    string                 `json:"recipient,omitempty"`
+	ThresholdPercent             uint8                  `json:"threshold_percent,omitempty"`
+	BeltSlot                     int                    `json:"belt_slot,omitempty"`
+	Confirmed                    bool                   `json:"confirmed,omitempty"`
+	MercUnitID                   uint32                 `json:"merc_unit_id,omitempty"`
+	HPBefore                     int                    `json:"hp_before,omitempty"`
+	HPAfter                      int                    `json:"hp_after,omitempty"`
+	TownStep                     *int                   `json:"town_step,omitempty"`
+	TownKind                     string                 `json:"town_kind,omitempty"`
+	TownService                  string                 `json:"town_service,omitempty"`
+	CurrentCount                 *int                   `json:"current_count,omitempty"`
+	TriggerThreshold             *int                   `json:"trigger_threshold,omitempty"`
+	BeltSlots                    []int                  `json:"belt_slots,omitempty"`
+	PurchaseMode                 string                 `json:"purchase_mode,omitempty"`
+	Vendor                       string                 `json:"vendor,omitempty"`
+	Cost                         *int                   `json:"cost,omitempty"`
+	VerifiedFinalCount           *int                   `json:"verified_final_count,omitempty"`
+	PickitProfileID              string                 `json:"pickit_profile_id,omitempty"`
+	PickitRuleID                 string                 `json:"pickit_rule_id,omitempty"`
+	PickitAction                 string                 `json:"pickit_action,omitempty"`
+	PickitProfileRevision        uint64                 `json:"pickit_profile_revision,omitempty"`
+	PickitAssignmentRevision     uint64                 `json:"pickit_assignment_revision,omitempty"`
+	PickitProfiles               []PickitProfileContext `json:"pickit_profiles,omitempty"`
+	Zone                         string                 `json:"zone,omitempty"`
+	ModeName                     string                 `json:"mode_name,omitempty"`
+	Strategy                     string                 `json:"strategy,omitempty"`
+	ActionKind                   string                 `json:"action_kind,omitempty"`
+	TargetingMode                string                 `json:"targeting_mode,omitempty"`
+	ProgressKind                 string                 `json:"progress_kind,omitempty"`
+	NPCID                        uint32                 `json:"npc_id,omitempty"`
+	PlayerX                      uint32                 `json:"player_x,omitempty"`
+	PlayerY                      uint32                 `json:"player_y,omitempty"`
+	DistanceTiles                float64                `json:"distance_tiles,omitempty"`
+	RequiredRadiusTiles          float64                `json:"required_radius_tiles,omitempty"`
+	CoverageRadiusTiles          float64                `json:"coverage_radius_tiles,omitempty"`
+	CoverageComplete             *bool                  `json:"coverage_complete,omitempty"`
+	MonstersTruncated            *bool                  `json:"monsters_truncated,omitempty"`
+	EligibleMonsterCount         int                    `json:"eligible_monster_count,omitempty"`
+	RetainedMonsterCount         int                    `json:"retained_monster_count,omitempty"`
+	RelevantThreatCount          int                    `json:"relevant_threat_count,omitempty"`
+	CowGroupAnchorUnitID         uint32                 `json:"cow_group_anchor_unit_id,omitempty"`
+	CowGroupLivingCount          int                    `json:"cow_group_living_count,omitempty"`
+	CowCorpseAnchorDistanceTiles float64                `json:"cow_corpse_anchor_distance_tiles,omitempty"`
+	CowCorpseCoverageCount       int                    `json:"cow_corpse_coverage_count,omitempty"`
+	PreviousEligibleCount        int                    `json:"previous_eligible_count,omitempty"`
+	PreviousRelevantCount        int                    `json:"previous_relevant_count,omitempty"`
+	HPPercent                    uint8                  `json:"hp_percent,omitempty"`
+	ManaPercent                  uint8                  `json:"mana_percent,omitempty"`
+	NoProgressTimeoutMs          int64                  `json:"no_progress_timeout_ms,omitempty"`
+	CombatActionsSent            int                    `json:"combat_actions_sent,omitempty"`
+	TargetsSeen                  int                    `json:"targets_seen,omitempty"`
+	DensityReliefActions         int                    `json:"density_relief_actions,omitempty"`
+	HoldMs                       int64                  `json:"hold_ms,omitempty"`
+	HoverConfirmed               *bool                  `json:"hover_confirmed,omitempty"`
+	ManaDemand                   string                 `json:"mana_demand,omitempty"`
+	Threatened                   *bool                  `json:"threatened,omitempty"`
+	PositionProgressTiles        float64                `json:"position_progress_tiles,omitempty"`
 }
 
 // PickitProfileContext bindet ein Profil und seine Revision an eine Run-Generation.
@@ -258,23 +268,25 @@ type PickitProfileContext struct {
 
 // RunRecorderContext ist der unveränderliche Kontext einer Schema-3-Run-Datei.
 type RunRecorderContext struct {
-	RunID                    string
-	SessionID                string
-	GameID                   string
-	Mode                     HistoryMode
-	Character                string
-	Difficulty               string
-	GameVersion              string
-	Run                      string
-	DefinitionID             string
-	Phase                    string
-	RouteID                  string
-	RouteLayoutFingerprint   string
-	QueueIndex               int
-	QueueCycle               int
-	StartedAt                time.Time
-	PickitProfiles           []PickitProfileContext
-	PickitAssignmentRevision uint64
+	RunID                       string
+	SessionID                   string
+	GameID                      string
+	Mode                        HistoryMode
+	Character                   string
+	Difficulty                  string
+	GameVersion                 string
+	Run                         string
+	DefinitionID                string
+	Phase                       string
+	RouteID                     string
+	RouteLayoutFingerprint      string
+	SetupRouteID                string
+	SetupRouteLayoutFingerprint string
+	QueueIndex                  int
+	QueueCycle                  int
+	StartedAt                   time.Time
+	PickitProfiles              []PickitProfileContext
+	PickitAssignmentRevision    uint64
 }
 
 type flushWriter interface {
@@ -404,6 +416,12 @@ func (r *Recorder) applyContext(event *Event) error {
 	if err := applyImmutableString("route_layout_fingerprint", &event.RouteLayoutFingerprint, r.context.RouteLayoutFingerprint); err != nil {
 		return err
 	}
+	if err := applyImmutableString("setup_route_id", &event.SetupRouteID, r.context.SetupRouteID); err != nil {
+		return err
+	}
+	if err := applyImmutableString("setup_route_layout_fingerprint", &event.SetupRouteLayoutFingerprint, r.context.SetupRouteLayoutFingerprint); err != nil {
+		return err
+	}
 	if r.context.Mode == HistoryModeProductiveFarming {
 		queueIndex, queueCycle, startedAt := r.context.QueueIndex, r.context.QueueCycle, r.context.StartedAt.UTC()
 		event.QueueIndex, event.QueueCycle, event.RunStartedAt = &queueIndex, &queueCycle, &startedAt
@@ -436,6 +454,9 @@ func validateRunRecorderContext(context RunRecorderContext) error {
 	}
 	if context.Mode == HistoryModeProductiveFarming && (context.SessionID == "" || context.GameID == "" || context.Character == "" || context.Difficulty == "" || context.GameVersion == "" || context.DefinitionID == "" || context.RouteID == "") {
 		return fmt.Errorf("%s: productive farming context is incomplete", HistoryReasonContextMissing)
+	}
+	if (context.SetupRouteID == "") != (context.SetupRouteLayoutFingerprint == "") {
+		return fmt.Errorf("%s: setup route context is incomplete", HistoryReasonContextMissing)
 	}
 	return nil
 }

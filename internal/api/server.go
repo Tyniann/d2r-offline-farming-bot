@@ -683,7 +683,7 @@ func (s *Server) handleRouteRecordingStart(w http.ResponseWriter, r *http.Reques
 	if !s.decodeBody(w, r, &request) {
 		return
 	}
-	workflowRequest := RouteWorkflowRequest{ExpectedGeneration: request.ExpectedGeneration, Operation: "record", RunID: request.RunID}
+	workflowRequest := RouteWorkflowRequest{ExpectedGeneration: request.ExpectedGeneration, Operation: "record", RunID: request.RunID, RouteRole: request.RouteRole}
 	value, err := backend.StartRouteWorkflow(workflowRequest)
 	if err != nil {
 		s.writeCommandOrConflict(w, r, "route_workflow_conflict", err)

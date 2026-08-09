@@ -88,8 +88,8 @@ func (c *RouteThreatController) emitClearAction(
 	target world.Monster,
 	mode profile.RouteClearMode,
 	profileID string,
-	skillID uint16,
-	actionKind profile.RouteClearActionKind,
+	result profile.Result,
+	hoverConfirmed bool,
 	now time.Time,
 ) error {
 	c.telemetryActions++
@@ -104,13 +104,16 @@ func (c *RouteThreatController) emitClearAction(
 		return nil
 	}
 	actionIndex := c.telemetryActions
+	actionKind := result.ActionKind
 	if actionKind == "" {
 		actionKind = profile.RouteClearActionAttack
 	}
 	return c.telemetry.Emit(routeTelemetryEvent(telemetry.RouteClearAction, state, progress, now, telemetry.Event{
 		ModeName: string(mode), Profile: profileID, Strategy: string(profile.RouteClearSingleTarget),
-		SkillID: skillID, ActionKind: string(actionKind), UnitID: target.UnitID, NPCID: target.NPCID,
-		ActionIndex: &actionIndex, HoverConfirmed: routeTelemetryBool(true),
+		SkillID: result.SkillID, ActionKind: string(actionKind), TargetingMode: string(result.TargetingMode), UnitID: target.UnitID, NPCID: target.NPCID,
+		CowGroupAnchorUnitID: result.CowGroupAnchorUnitID, CowGroupLivingCount: result.CowGroupLivingCount,
+		CowCorpseAnchorDistanceTiles: result.CowCorpseAnchorDistanceTiles, CowCorpseCoverageCount: result.CowCorpseCoverageCount,
+		ActionIndex: &actionIndex, HoverConfirmed: routeTelemetryBool(hoverConfirmed),
 	}))
 }
 
@@ -119,13 +122,14 @@ func (c *RouteThreatController) emitApproachInput(
 	progress RouteProgress,
 	target world.Monster,
 	attempt int,
+	actionKind string,
 	now time.Time,
 ) error {
 	if c.telemetry == nil {
 		return nil
 	}
 	return c.telemetry.Emit(routeTelemetryEvent(telemetry.RouteClearAction, state, progress, now, telemetry.Event{
-		ModeName: "approach", Strategy: "force_move", ActionKind: "force_move",
+		ModeName: "approach", Strategy: actionKind, ActionKind: actionKind,
 		UnitID: target.UnitID, NPCID: target.NPCID, Attempt: attempt,
 		PlayerX: state.Player.Position.X, PlayerY: state.Player.Position.Y,
 		DistanceTiles:  world.Distance(state.Player.Position, target.Position),
@@ -138,13 +142,14 @@ func (c *RouteThreatController) emitApproachProgress(
 	progress RouteProgress,
 	target world.Monster,
 	positionProgress float64,
+	progressKind string,
 	now time.Time,
 ) error {
 	if c.telemetry == nil {
 		return nil
 	}
 	return c.telemetry.Emit(routeTelemetryEvent(telemetry.RouteClearProgress, state, progress, now, telemetry.Event{
-		ProgressKind: "approach", UnitID: target.UnitID, NPCID: target.NPCID,
+		ProgressKind: progressKind, UnitID: target.UnitID, NPCID: target.NPCID,
 		PlayerX: state.Player.Position.X, PlayerY: state.Player.Position.Y,
 		DistanceTiles:         world.Distance(state.Player.Position, target.Position),
 		PositionProgressTiles: positionProgress,
@@ -242,7 +247,15 @@ func routeTelemetryEvent(name telemetry.EventName, state world.State, progress R
 	event.Event = name
 	event.Timestamp = now
 	event.AreaID = uint32(state.Area.ID)
-	event.RouteID = progress.RouteID
+	if progress.RouteRole == "" {
+		event.RouteID = progress.RouteID
+	} else {
+		// One multi-route run keeps its primary route immutable in history. The
+		// recorder supplies that route ID while this event identifies the active
+		// setup member by its fixed role.
+		event.RouteID = ""
+		event.RouteRole = string(progress.RouteRole)
+	}
 	event.SegmentID = progress.SegmentID
 	event.SegmentIndex = &segmentIndex
 	event.PointIndex = &pointIndex

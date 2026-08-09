@@ -43,9 +43,9 @@ func EvaluateMercenaryTownDemand(policy MercenaryPolicy, merc world.Mercenary) (
 	return false, false, ""
 }
 
-// EvaluateMercenaryPreflight rejects session start when Merc support is enabled
-// but the hireling is missing, already dead, or unreadable. Injured living Mercs
-// are allowed; Town heal runs only after a farming run.
+// EvaluateMercenaryPreflight classifies the Merc state before a productive run.
+// Missing and unreadable states are terminal; DeadAtStart authorizes the app
+// layer to run the existing Town revive plan before reevaluating readiness.
 func EvaluateMercenaryPreflight(policy MercenaryPolicy, merc world.Mercenary) Reason {
 	if !policy.Enabled {
 		return ""

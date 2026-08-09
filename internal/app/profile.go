@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/config"
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/input"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/memory"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/pathing"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/profile"
@@ -17,6 +18,7 @@ type profileActionsAdapter struct {
 	input     inputController
 	bindings  configBindingSource
 	projector pathing.RelativeProjector
+	combat    *combatAdapter
 }
 
 type profileTelemetryAdapter struct {
@@ -53,21 +55,48 @@ func (a *profileTelemetryAdapter) EmitProfile(event profile.Event) error {
 		Confirmed: event.Confirmed, MercUnitID: event.MercUnitID})
 }
 
-func (a *profileActionsAdapter) CastSkillAtWorld(_ time.Time, skillID uint16, playerPos, targetPos world.Position) error {
+func (a *profileActionsAdapter) CastSkillAtWorld(_ time.Time, skillID uint16, player world.Player, targetPos world.Position) error {
+	if err := a.input.Focus(); err != nil {
+		return fmt.Errorf("profile skill focus: %w", err)
+	}
 	win, ok := a.input.Window()
 	if !ok {
 		return fmt.Errorf("profile skill: window not bound")
 	}
 	x, y := win.ClientWidth/2, win.ClientHeight/2
-	if targetPos != playerPos {
+	if targetPos != player.Position {
 		var projected bool
-		x, y, projected = a.projector.Project(playerPos, targetPos, win)
-		if !projected {
+		x, y, projected = a.projector.Project(player.Position, targetPos, win)
+		if !projected || x < 0 || x >= win.ClientWidth || y < 0 || y >= win.ClientHeight {
+			if skillID == memory.SkillCorpseExplosion {
+				return profile.ErrCorpseExplosionTargetUnprojectable
+			}
 			return fmt.Errorf("profile skill projection failed")
 		}
 	}
+	if player.RightSkillID == skillID {
+		if err := a.input.MoveTo(x, y); err != nil {
+			return fmt.Errorf("profile aim selected skill %s(%d): %w", memory.SkillName(skillID), skillID, err)
+		}
+		if err := a.input.Click(input.MouseRight); err != nil {
+			return fmt.Errorf("profile cast selected skill %s(%d): %w", memory.SkillName(skillID), skillID, err)
+		}
+		return a.clearCombatSelection()
+	}
 	if err := a.input.CastSkillAt(a.bindings, skillID, x, y); err != nil {
 		return fmt.Errorf("profile cast %s(%d): %w", memory.SkillName(skillID), skillID, err)
+	}
+	return a.clearCombatSelection()
+}
+
+// clearCombatSelection invalidates pending monster aim/skill confirmation
+// after an independently authorized profile cast changed the right skill.
+func (a *profileActionsAdapter) clearCombatSelection() error {
+	if a.combat == nil {
+		return nil
+	}
+	if err := a.combat.StopAttack(); err != nil {
+		return fmt.Errorf("profile clear combat selection: %w", err)
 	}
 	return nil
 }
@@ -92,12 +121,17 @@ func newProfileExecutor(log *slog.Logger, profiles config.ProfilesConfig, run co
 	if err != nil {
 		return nil, err
 	}
-	actions := &profileActionsAdapter{input: in, bindings: bindings, projector: pathCfg.Projector()}
+	actions := &profileActionsAdapter{input: in, bindings: bindings, projector: pathCfg.Projector(), combat: combat}
 	executor, err := profile.NewExecutor(log, definition, actions)
 	if err != nil {
 		return nil, err
 	}
 	executor.SetTelemetry(trace)
+	if id == "necro_bone_spear" {
+		if configureErr := executor.ConfigureCorpseExplosion(memory.SkillCorpseExplosion); configureErr != nil {
+			return nil, configureErr
+		}
+	}
 	if run.RouteCombat.EnabledValue() || id == "necro_bone_spear" {
 		attackSkillID, parseErr := memory.ParseSkillTestName(run.Combat.AttackSkill)
 		if parseErr != nil {
@@ -132,11 +166,27 @@ func mapProfileDefinition(id string, cfg config.ProfileConfig) (profile.Definiti
 	}
 	resources := cfg.Resources
 	mercEnabled, mercRule := resources.Mercenary.Resolve()
+	maintenanceCfg := cfg.RouteMaintenance.BoneArmor
+	maintenanceSkillID := uint16(0)
+	maintenanceEnabled := maintenanceCfg.Enabled != nil && *maintenanceCfg.Enabled
+	if maintenanceEnabled {
+		var err error
+		maintenanceSkillID, err = memory.ParseSkillTestName(maintenanceCfg.Skill)
+		if err != nil {
+			return profile.Definition{}, fmt.Errorf("profile %q route maintenance: %w", id, err)
+		}
+	}
 	return profile.Definition{ID: id, CharacterClass: class, Hooks: hooks, Resources: profile.ResourcePolicy{
 		Healing: mapResourceRule(resources.Healing), Mana: mapResourceRule(resources.Mana), Rejuvenation: mapResourceRule(resources.Rejuvenation),
 		Mercenary: profile.MercenaryResourcePolicy{Enabled: mercEnabled, ResourceRule: mapResourceRule(mercRule)},
 		Throttle:  time.Duration(resources.ThrottleMs) * time.Millisecond, VerifyTimeout: time.Duration(resources.VerifyMs) * time.Millisecond,
-	}}, nil
+	}, RouteMaintenance: profile.RouteMaintenancePolicy{BoneArmor: profile.BoneArmorMaintenancePolicy{
+		Enabled: maintenanceEnabled, SkillID: maintenanceSkillID,
+		RefreshInterval:            time.Duration(maintenanceCfg.RefreshIntervalMs) * time.Millisecond,
+		RefreshAfterDamageBelowPct: uint8(maintenanceCfg.RefreshAfterDamageBelowPct),
+		MinimumRecastInterval:      time.Duration(maintenanceCfg.MinimumRecastIntervalMs) * time.Millisecond,
+		Settle:                     time.Duration(maintenanceCfg.SettleMs) * time.Millisecond,
+	}}}, nil
 }
 
 func mapResourceRule(cfg config.ResourceRuleConfig) profile.ResourceRule {

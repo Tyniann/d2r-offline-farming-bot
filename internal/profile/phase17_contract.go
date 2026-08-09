@@ -13,4 +13,7 @@ type ResourceContext struct {
 	// AllowMercenary freigibt Shift+Belt-Heilung für den angeheuerten Söldner.
 	// Der Resource-Executor kennt keine Step-Namen und bewertet nur dieses Flag.
 	AllowMercenary bool
+	// FailOnUnavailable beendet eine aktive Combat-Route kontrolliert, wenn eine
+	// bereits fällige Spieler- oder Söldnerressource nicht mehr im Gürtel vorhanden ist.
+	FailOnUnavailable bool
 }

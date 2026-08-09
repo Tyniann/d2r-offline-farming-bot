@@ -26,6 +26,7 @@ type RouteMutationPreview struct {
 	PreviousRouteID    string
 	Character          string
 	RunID              tasks.RunID
+	RouteRole          pathing.RouteRole
 	CatalogRevision    uint64
 	LifecycleRevision  uint64
 	AssignmentRevision uint64
@@ -77,7 +78,7 @@ func NewRouteManagementService(cfg *config.Config, hooks RouteManagementHooks) (
 func (s *RouteManagementService) PreviewCandidate(candidateID string) (RouteMutationPreview, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	candidate, _, err := s.candidates.Load(candidateID)
+	candidate, route, err := s.candidates.Load(candidateID)
 	if err != nil {
 		return RouteMutationPreview{}, err
 	}
@@ -92,20 +93,24 @@ func (s *RouteManagementService) PreviewCandidate(candidateID string) (RouteMuta
 	if err != nil {
 		return RouteMutationPreview{}, err
 	}
-	if candidate.SourceCatalogRevision != catalog.Revision || candidate.SourceAssignmentRevision != assignments.Revision {
+	character := strings.ToLower(candidate.Character)
+	previous := assignedRoute(assignments, character, candidate.RunID, candidate.RouteRole)
+	if candidate.RouteRole == "" {
+		if candidate.SourceCatalogRevision != catalog.Revision || candidate.SourceAssignmentRevision != assignments.Revision {
+			return RouteMutationPreview{}, fmt.Errorf("%s", RouteReasonCandidateChanged)
+		}
+	} else if previous != candidate.SourceAssignedRouteID || route.Binding.RouteRole != candidate.RouteRole || !routeSetCompatibleWithCatalog(route, candidate.RunID, candidate.RouteRole, character, assignments, catalog) {
 		return RouteMutationPreview{}, fmt.Errorf("%s", RouteReasonCandidateChanged)
 	}
-	character := strings.ToLower(candidate.Character)
-	previous := assignments.Assignments[character][candidate.RunID]
 	operation := RouteMutationPublish
 	if previous != "" {
 		operation = RouteMutationReplace
 	}
-	routeID, err := generatedRouteID(candidate.RunID, character)
+	routeID, err := generatedRoleRouteID(candidate.RunID, candidate.RouteRole, character)
 	if err != nil {
 		return RouteMutationPreview{}, err
 	}
-	preview, err := s.newPreview(RouteMutationPreview{Operation: operation, CandidateID: candidateID, CandidateSHA256: candidate.ImmutableRouteSHA256, RouteID: routeID, PreviousRouteID: previous, Character: character, RunID: candidate.RunID, CatalogRevision: catalog.Revision, LifecycleRevision: manifest.Revision, AssignmentRevision: assignments.Revision})
+	preview, err := s.newPreview(RouteMutationPreview{Operation: operation, CandidateID: candidateID, CandidateSHA256: candidate.ImmutableRouteSHA256, RouteID: routeID, PreviousRouteID: previous, Character: character, RunID: candidate.RunID, RouteRole: candidate.RouteRole, CatalogRevision: catalog.Revision, LifecycleRevision: manifest.Revision, AssignmentRevision: assignments.Revision})
 	return preview, err
 }
 
@@ -129,7 +134,8 @@ func (s *RouteManagementService) PreviewRoute(operation RouteMutationOperation, 
 		return RouteMutationPreview{}, fmt.Errorf("route %q not found", routeID)
 	}
 	character := strings.ToLower(entry.Character)
-	assigned := assignments.Assignments[character][entry.RunID]
+	role := entry.Route.Binding.RouteRole
+	assigned := assignedRoute(assignments, character, entry.RunID, role)
 	if operation == RouteMutationArchive && entry.ManagementStatus != RouteManagementActive {
 		return RouteMutationPreview{}, fmt.Errorf("%s", RouteReasonArchived)
 	}
@@ -142,7 +148,7 @@ func (s *RouteManagementService) PreviewRoute(operation RouteMutationOperation, 
 	if operation == RouteMutationDelete && (entry.ManagementStatus != RouteManagementArchived || routeAssignedAnywhere(assignments, routeID)) {
 		return RouteMutationPreview{}, fmt.Errorf("%s", RouteReasonDeleteAssigned)
 	}
-	preview, err := s.newPreview(RouteMutationPreview{Operation: operation, RouteID: routeID, PreviousRouteID: assigned, Character: character, RunID: entry.RunID, CatalogRevision: catalog.Revision, LifecycleRevision: manifest.Revision, AssignmentRevision: assignments.Revision})
+	preview, err := s.newPreview(RouteMutationPreview{Operation: operation, RouteID: routeID, PreviousRouteID: assigned, Character: character, RunID: entry.RunID, RouteRole: role, CatalogRevision: catalog.Revision, LifecycleRevision: manifest.Revision, AssignmentRevision: assignments.Revision})
 	return preview, err
 }
 
@@ -194,7 +200,7 @@ func (s *RouteManagementService) PreviewForToken(token string) (RouteMutationPre
 
 func (s *RouteManagementService) confirmCandidate(preview RouteMutationPreview, assignments RouteAssignmentManifest) (retErr error) {
 	candidate, route, err := s.candidates.Load(preview.CandidateID)
-	if err != nil || candidate.ImmutableRouteSHA256 != preview.CandidateSHA256 {
+	if err != nil || candidate.ImmutableRouteSHA256 != preview.CandidateSHA256 || candidate.RouteRole != preview.RouteRole || route.Binding.RouteRole != preview.RouteRole {
 		return fmt.Errorf("%s", RouteReasonCandidateChanged)
 	}
 	route.ID, route.Name = preview.RouteID, managedRouteDisplayName(preview.RouteID)
@@ -203,7 +209,7 @@ func (s *RouteManagementService) confirmCandidate(preview RouteMutationPreview, 
 		return err
 	}
 	target := filepath.Join(targetDir, preview.RouteID+".yaml")
-	journal := RouteRecoveryJournal{SchemaVersion: RouteRecoveryJournalSchemaVersion, Operation: preview.Operation, RouteID: preview.RouteID, CandidateID: preview.CandidateID, PreviousRouteID: preview.PreviousRouteID, Character: preview.Character, RunID: preview.RunID, Checkpoint: "before_route_publish", StartedAt: time.Now().UTC()}
+	journal := RouteRecoveryJournal{SchemaVersion: RouteRecoveryJournalSchemaVersion, Operation: preview.Operation, RouteID: preview.RouteID, CandidateID: preview.CandidateID, PreviousRouteID: preview.PreviousRouteID, Character: preview.Character, RunID: preview.RunID, RouteRole: preview.RouteRole, Checkpoint: "before_route_publish", StartedAt: time.Now().UTC()}
 	if journalErr := s.writeJournal(journal); journalErr != nil {
 		return journalErr
 	}
@@ -237,12 +243,7 @@ func (s *RouteManagementService) confirmCandidate(preview RouteMutationPreview, 
 			return err
 		}
 	}
-	next := cloneRouteAssignmentManifest(assignments).Assignments
-	if next[preview.Character] == nil {
-		next[preview.Character] = map[tasks.RunID]string{}
-	}
-	next[preview.Character][preview.RunID] = preview.RouteID
-	if _, err := s.assignments.Commit(assignments.Revision, next); err != nil {
+	if _, err := commitAssignedRoute(s.assignments, assignments, preview.Character, preview.RunID, preview.RouteRole, preview.RouteID); err != nil {
 		return err
 	}
 	journal.Checkpoint = "after_assignment_commit"
@@ -253,7 +254,7 @@ func (s *RouteManagementService) confirmCandidate(preview RouteMutationPreview, 
 }
 
 func (s *RouteManagementService) confirmArchive(preview RouteMutationPreview, assignments RouteAssignmentManifest) (retErr error) {
-	journal := RouteRecoveryJournal{SchemaVersion: 1, Operation: RouteMutationArchive, RouteID: preview.RouteID, PreviousRouteID: preview.PreviousRouteID, Character: preview.Character, RunID: preview.RunID, Checkpoint: "before_assignment_remove", StartedAt: time.Now().UTC()}
+	journal := RouteRecoveryJournal{SchemaVersion: 1, Operation: RouteMutationArchive, RouteID: preview.RouteID, PreviousRouteID: preview.PreviousRouteID, Character: preview.Character, RunID: preview.RunID, RouteRole: preview.RouteRole, Checkpoint: "before_assignment_remove", StartedAt: time.Now().UTC()}
 	if err := s.writeJournal(journal); err != nil {
 		return err
 	}
@@ -266,13 +267,8 @@ func (s *RouteManagementService) confirmArchive(preview RouteMutationPreview, as
 			_ = s.restoreManagement(preview.RouteID, preview.RunID, RouteManagementActive)
 			if preview.PreviousRouteID == preview.RouteID {
 				current, snapshotErr := s.assignments.Snapshot()
-				if snapshotErr == nil && current.Assignments[preview.Character][preview.RunID] == "" {
-					next := cloneRouteAssignmentManifest(current).Assignments
-					if next[preview.Character] == nil {
-						next[preview.Character] = map[tasks.RunID]string{}
-					}
-					next[preview.Character][preview.RunID] = preview.RouteID
-					_, _ = s.assignments.Commit(current.Revision, next)
+				if snapshotErr == nil && assignedRoute(current, preview.Character, preview.RunID, preview.RouteRole) == "" {
+					_, _ = commitAssignedRoute(s.assignments, current, preview.Character, preview.RunID, preview.RouteRole, preview.RouteID)
 				}
 			}
 		}
@@ -281,9 +277,7 @@ func (s *RouteManagementService) confirmArchive(preview RouteMutationPreview, as
 		return err
 	}
 	if preview.PreviousRouteID == preview.RouteID {
-		next := cloneRouteAssignmentManifest(assignments).Assignments
-		delete(next[preview.Character], preview.RunID)
-		if _, err := s.assignments.Commit(assignments.Revision, next); err != nil {
+		if _, err := commitAssignedRoute(s.assignments, assignments, preview.Character, preview.RunID, preview.RouteRole, ""); err != nil {
 			return err
 		}
 	}
@@ -295,7 +289,7 @@ func (s *RouteManagementService) confirmArchive(preview RouteMutationPreview, as
 }
 
 func (s *RouteManagementService) confirmRestore(preview RouteMutationPreview, assignments RouteAssignmentManifest) (retErr error) {
-	journal := RouteRecoveryJournal{SchemaVersion: 1, Operation: RouteMutationRestore, RouteID: preview.RouteID, PreviousRouteID: preview.PreviousRouteID, Character: preview.Character, RunID: preview.RunID, Checkpoint: "after_current_archive_prepare", StartedAt: time.Now().UTC()}
+	journal := RouteRecoveryJournal{SchemaVersion: 1, Operation: RouteMutationRestore, RouteID: preview.RouteID, PreviousRouteID: preview.PreviousRouteID, Character: preview.Character, RunID: preview.RunID, RouteRole: preview.RouteRole, Checkpoint: "after_current_archive_prepare", StartedAt: time.Now().UTC()}
 	if err := s.writeJournal(journal); err != nil {
 		return err
 	}
@@ -311,13 +305,8 @@ func (s *RouteManagementService) confirmRestore(preview RouteMutationPreview, as
 			}
 			_ = s.restoreManagement(preview.PreviousRouteID, preview.RunID, RouteManagementActive)
 			current, snapshotErr := s.assignments.Snapshot()
-			if snapshotErr == nil && current.Assignments[preview.Character][preview.RunID] != preview.PreviousRouteID {
-				next := cloneRouteAssignmentManifest(current).Assignments
-				if next[preview.Character] == nil {
-					next[preview.Character] = map[tasks.RunID]string{}
-				}
-				next[preview.Character][preview.RunID] = preview.PreviousRouteID
-				_, _ = s.assignments.Commit(current.Revision, next)
+			if snapshotErr == nil && assignedRoute(current, preview.Character, preview.RunID, preview.RouteRole) != preview.PreviousRouteID {
+				_, _ = commitAssignedRoute(s.assignments, current, preview.Character, preview.RunID, preview.RouteRole, preview.PreviousRouteID)
 			}
 		}
 	}()
@@ -333,12 +322,7 @@ func (s *RouteManagementService) confirmRestore(preview RouteMutationPreview, as
 	if _, err = s.lifecycle.SetManagement(preview.RouteID, RouteManagementActive, preview.RunID, lifecycleRevision); err != nil {
 		return err
 	}
-	next := cloneRouteAssignmentManifest(assignments).Assignments
-	if next[preview.Character] == nil {
-		next[preview.Character] = map[tasks.RunID]string{}
-	}
-	next[preview.Character][preview.RunID] = preview.RouteID
-	if _, err := s.assignments.Commit(assignments.Revision, next); err != nil {
+	if _, err := commitAssignedRoute(s.assignments, assignments, preview.Character, preview.RunID, preview.RouteRole, preview.RouteID); err != nil {
 		return err
 	}
 	journal.Checkpoint = "after_assignment_commit"
@@ -392,14 +376,8 @@ func (s *RouteManagementService) confirmDelete(preview RouteMutationPreview) (re
 
 func (s *RouteManagementService) rollbackCandidate(preview RouteMutationPreview, target string) error {
 	assignments, assignmentErr := s.assignments.Snapshot()
-	if assignmentErr == nil && assignments.Assignments[preview.Character][preview.RunID] == preview.RouteID {
-		next := cloneRouteAssignmentManifest(assignments).Assignments
-		if preview.PreviousRouteID == "" {
-			delete(next[preview.Character], preview.RunID)
-		} else {
-			next[preview.Character][preview.RunID] = preview.PreviousRouteID
-		}
-		_, _ = s.assignments.Commit(assignments.Revision, next)
+	if assignmentErr == nil && assignedRoute(assignments, preview.Character, preview.RunID, preview.RouteRole) == preview.RouteID {
+		_, _ = commitAssignedRoute(s.assignments, assignments, preview.Character, preview.RunID, preview.RouteRole, preview.PreviousRouteID)
 	}
 	_ = os.Remove(target)
 	manifest, _, err := s.lifecycle.Snapshot()
@@ -490,19 +468,14 @@ func (s *RouteManagementService) recover() error {
 		return s.clearJournal()
 	}
 	if journal.Operation == RouteMutationArchive {
-		if assignments.Assignments[journal.Character][journal.RunID] == "" {
-			next := cloneRouteAssignmentManifest(assignments).Assignments
-			if next[journal.Character] == nil {
-				next[journal.Character] = map[tasks.RunID]string{}
-			}
-			next[journal.Character][journal.RunID] = journal.RouteID
-			_, _ = s.assignments.Commit(assignments.Revision, next)
+		if assignedRoute(assignments, journal.Character, journal.RunID, journal.RouteRole) == "" {
+			_, _ = commitAssignedRoute(s.assignments, assignments, journal.Character, journal.RunID, journal.RouteRole, journal.RouteID)
 		}
 		_ = s.restoreManagement(journal.RouteID, journal.RunID, RouteManagementActive)
 		return s.clearJournal()
 	}
 	if journal.Operation == RouteMutationRestore {
-		if assignments.Assignments[journal.Character][journal.RunID] == journal.RouteID && journal.Checkpoint == "after_assignment_commit" {
+		if assignedRoute(assignments, journal.Character, journal.RunID, journal.RouteRole) == journal.RouteID && journal.Checkpoint == "after_assignment_commit" {
 			return s.clearJournal()
 		}
 		if journal.PreviousRouteID != "" {
@@ -511,7 +484,7 @@ func (s *RouteManagementService) recover() error {
 		_ = s.restoreManagement(journal.RouteID, journal.RunID, RouteManagementArchived)
 		return s.clearJournal()
 	}
-	if assignments.Assignments[journal.Character][journal.RunID] == journal.RouteID && journal.Checkpoint == "after_assignment_commit" {
+	if assignedRoute(assignments, journal.Character, journal.RunID, journal.RouteRole) == journal.RouteID && journal.Checkpoint == "after_assignment_commit" {
 		return s.clearJournal()
 	}
 	if journal.RouteID != "" {
@@ -550,7 +523,59 @@ func routeAssignedAnywhere(manifest RouteAssignmentManifest, routeID string) boo
 			}
 		}
 	}
+	for _, runs := range manifest.RouteSets {
+		for _, roles := range runs {
+			for _, assigned := range roles {
+				if assigned == routeID {
+					return true
+				}
+			}
+		}
+	}
 	return false
+}
+
+func assignedRoute(manifest RouteAssignmentManifest, character string, runID tasks.RunID, role pathing.RouteRole) string {
+	if role != "" {
+		return manifest.RouteSets[character][runID][role]
+	}
+	return manifest.Assignments[character][runID]
+}
+
+func commitAssignedRoute(store *RouteAssignmentStore, manifest RouteAssignmentManifest, character string, runID tasks.RunID, role pathing.RouteRole, routeID string) (RouteAssignmentManifest, error) {
+	if role != "" {
+		return store.CommitRouteSetRole(manifest.Revision, character, runID, role, routeID)
+	}
+	next := cloneRouteAssignmentManifest(manifest).Assignments
+	if next[character] == nil {
+		next[character] = map[tasks.RunID]string{}
+	}
+	if routeID == "" {
+		delete(next[character], runID)
+	} else {
+		next[character][runID] = routeID
+	}
+	return store.Commit(manifest.Revision, next)
+}
+
+func routeSetCompatibleWithCatalog(route pathing.Route, runID tasks.RunID, role pathing.RouteRole, character string, assignments RouteAssignmentManifest, catalog FarmingRouteCatalog) bool {
+	for siblingRole, routeID := range assignments.RouteSets[character][runID] {
+		if siblingRole == role || routeID == "" {
+			continue
+		}
+		entry, ok := catalogEntryByID(catalog, routeID)
+		if !ok || entry.ManagementStatus != RouteManagementActive || !sharedRouteSetIdentity(route.Binding, entry.Route.Binding) {
+			return false
+		}
+	}
+	return true
+}
+
+func generatedRoleRouteID(runID tasks.RunID, role pathing.RouteRole, character string) (string, error) {
+	if role == "" {
+		return generatedRouteID(runID, character)
+	}
+	return generatedRouteID(tasks.RunID(string(runID)+"-"+string(role)), character)
 }
 
 func knownRecoveryCheckpoint(operation RouteMutationOperation, checkpoint string) bool {

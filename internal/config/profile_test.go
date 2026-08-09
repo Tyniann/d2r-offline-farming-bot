@@ -17,7 +17,7 @@ func TestDefaultNecroProfileContract(t *testing.T) {
 		t.Fatalf("default mana policy = %+v", got.Resources.Mana)
 	}
 	enabled, merc := got.Resources.Mercenary.Resolve()
-	if !enabled || merc.UseBelowPercent != 75 || len(merc.BeltSlots) != 1 || merc.BeltSlots[0] != 1 || merc.CooldownMs != 4000 {
+	if !enabled || merc.UseBelowPercent != 50 || len(merc.BeltSlots) != 1 || merc.BeltSlots[0] != 1 || merc.CooldownMs != 4000 {
 		t.Fatalf("default mercenary policy = enabled=%v rule=%+v", enabled, merc)
 	}
 }
@@ -37,7 +37,7 @@ func TestMercenaryResourceConfigPresenceDefaultsAndValidation(t *testing.T) {
 			t.Fatal(err)
 		}
 		enabled, rule := value.Resources.Mercenary.Resolve()
-		if !enabled || rule.UseBelowPercent != 75 || len(rule.BeltSlots) != 1 || rule.BeltSlots[0] != 1 {
+		if !enabled || rule.UseBelowPercent != 50 || len(rule.BeltSlots) != 1 || rule.BeltSlots[0] != 1 {
 			t.Fatalf("resolve = %v %+v", enabled, rule)
 		}
 	})

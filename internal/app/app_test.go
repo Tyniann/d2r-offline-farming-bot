@@ -136,6 +136,7 @@ type mockInput struct {
 	castSkillCalls   []uint16
 	lastClientX      int
 	lastClientY      int
+	clickCalls       int
 	focusCalls       int
 	focusErr         error
 }
@@ -191,7 +192,7 @@ func (m *mockInput) MoveTo(clientX, clientY int) error {
 	return nil
 }
 
-func (m *mockInput) Click(input.MouseButton) error { return nil }
+func (m *mockInput) Click(input.MouseButton) error { m.clickCalls++; return nil }
 
 func (m *mockInput) ClickWithModifier(string, input.MouseButton) error { return nil }
 

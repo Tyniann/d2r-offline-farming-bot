@@ -103,4 +103,41 @@ func TestReadPhaseInputsInventoryDoesNotImplyStash(t *testing.T) {
 	}
 }
 
+func TestReadPhaseInputsCubeOpenTruthTable(t *testing.T) {
+	for _, tt := range []struct {
+		name  string
+		value byte
+		open  bool
+		known bool
+	}{
+		{name: "closed", value: 0, known: true},
+		{name: "open", value: 1, open: true, known: true},
+		{name: "unexpected byte", value: 2},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			access, probe, moduleBase := setupProbeMock(t)
+			off := testOffsetSet()
+			buf := make([]byte, uiBufferSize)
+			buf[uiCubeIndex] = tt.value
+			access.setBytes(moduleBase+off.UI-uiBufferBefore, buf)
+			_, _, _, ui := probe.readPhaseInputs(moduleBase, off)
+			if ui.CubeOpen != tt.open || ui.CubeOpenKnown != tt.known {
+				t.Fatalf("UI=%+v", ui)
+			}
+		})
+	}
+}
+
+func TestReadPhaseInputsCubeOpenUnavailableOnReadFailure(t *testing.T) {
+	access := newMockAccess()
+	access.moduleBase = 0x10000000
+	off := testOffsetSet()
+	reader := newTestReader(access)
+	reader.Bind(access)
+	_, _, _, ui := NewProbeReader(reader, off).readPhaseInputs(access.moduleBase, off)
+	if ui.CubeOpen || ui.CubeOpenKnown {
+		t.Fatalf("UI=%+v, want unavailable Cube state", ui)
+	}
+}
+
 // TestProbeSnapshotLoadingBlocksEntities is covered by TestProbeSnapshotEntitiesOnlyWhenInGame in probe_test.go.

@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/pathing"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/tasks"
 	"gopkg.in/yaml.v3"
 )
@@ -71,7 +72,7 @@ func TestPhase12WorkflowAndLockContractsAreComplete(t *testing.T) {
 }
 
 func TestPhase12SchemaContractsRejectUnsafeValues(t *testing.T) {
-	if err := (RouteAssignmentManifest{SchemaVersion: 1, Revision: 1, Assignments: map[string]map[tasks.RunID]string{"MrBones": {tasks.RunIDCountess: "route"}}}).Validate(); err == nil {
+	if err := (RouteAssignmentManifest{SchemaVersion: RouteAssignmentSchemaVersion, Revision: 1, Assignments: map[string]map[tasks.RunID]string{"MrBones": {tasks.RunIDCountess: "route"}}, RouteSets: map[string]map[tasks.RunID]map[pathing.RouteRole]string{}}).Validate(); err == nil {
 		t.Fatal("mixed-case character slug accepted")
 	}
 	if err := (RouteCandidate{SchemaVersion: 1}).Validate(); err == nil {

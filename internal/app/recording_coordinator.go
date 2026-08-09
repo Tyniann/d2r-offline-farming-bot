@@ -22,12 +22,15 @@ var recordingWorkflowOwner sync.Mutex
 // RecordingPreflight binds one guided recording to immutable operator and catalog context.
 type RecordingPreflight struct {
 	RunID                    tasks.RunID
+	RouteRole                pathing.RouteRole
 	Character                string
 	ExpectedClass            string
+	ProfileID                string
 	Difficulty               pathing.RouteDifficulty
 	GameVersion              string
 	SourceCatalogRevision    uint64
 	SourceAssignmentRevision uint64
+	SourceAssignedRouteID    string
 	WaypointContextConfirmed bool
 	BlockingUIClosed         bool
 	D2RFocused               bool
@@ -38,6 +41,7 @@ type RecordingPreflight struct {
 type RecordingTerminalEvidence struct {
 	World    world.State
 	Boss     *world.Monster
+	Object   *world.Object
 	BossDead bool
 }
 
@@ -59,6 +63,7 @@ type RecordingCoordinator struct {
 	reason        RouteReason
 	request       RecordingPreflight
 	definition    tasks.RunDefinition
+	contract      tasks.RecordingContract
 	recorder      *pathing.RouteRecorder
 	fingerprint   pathing.LayoutFingerprint
 	recordedAt    time.Time
@@ -85,22 +90,27 @@ func (c *RecordingCoordinator) Start(request RecordingPreflight, state world.Sta
 	c.workflowOwned = true
 	c.state = RouteWorkflowPreflight
 	definition, ok := c.registry.Definition(request.RunID)
-	if !ok || request.Character == "" || request.ExpectedClass == "" || request.Difficulty == "" || request.GameVersion == "" || request.SourceCatalogRevision == 0 || request.SourceAssignmentRevision == 0 || !request.WaypointContextConfirmed || !request.BlockingUIClosed || !request.D2RFocused || !request.InputOwnerAvailable {
+	contract, contractOK := definition.RecordingForRole(request.RouteRole)
+	if !ok || !contractOK || request.Character == "" || request.ExpectedClass == "" || request.Difficulty == "" || request.GameVersion == "" || request.SourceCatalogRevision == 0 || request.SourceAssignmentRevision == 0 || !request.WaypointContextConfirmed || !request.BlockingUIClosed || !request.D2RFocused || !request.InputOwnerAvailable {
 		return c.failLocked(RouteReasonRecordingPreflightFailed)
 	}
-	if !state.Valid || state.Phase != world.GamePhaseInGame || !state.Identity.Valid || state.Identity.CharacterName != request.Character || !strings.EqualFold(state.Identity.Class.String(), request.ExpectedClass) || state.Area.ID != definition.Recording.AllowedStartArea {
+	if definition.RouteSet != nil && strings.TrimSpace(request.ProfileID) == "" {
+		return c.failLocked(RouteReasonRecordingPreflightFailed)
+	}
+	if !state.Valid || state.Phase != world.GamePhaseInGame || !state.Identity.Valid || state.Identity.CharacterName != request.Character || !strings.EqualFold(state.Identity.Class.String(), request.ExpectedClass) || state.Area.ID != contract.AllowedStartArea {
 		return c.failLocked(RouteReasonRecordingStartAreaMismatch)
 	}
 	fingerprint, err := pathing.BuildLayoutFingerprint(state)
 	if err != nil {
 		return c.failLocked(RouteReasonRecordingPreflightFailed)
 	}
-	recorder, err := pathing.NewRouteRecorder(pathing.RouteRecorderConfig{SampleDistanceTiles: guidedRecordingSampleDistance, Movement: definition.Recording.Movement})
+	recorder, err := pathing.NewRouteRecorder(pathing.RouteRecorderConfig{SampleDistanceTiles: guidedRecordingSampleDistance, Movement: contract.Movement})
 	if err != nil {
 		return c.failLocked(RouteReasonRecordingPreflightFailed)
 	}
 	c.request = request
 	c.definition = definition
+	c.contract = contract
 	c.fingerprint = fingerprint
 	c.recorder = recorder
 	c.recordedAt = time.Now().UTC()
@@ -128,7 +138,7 @@ func (c *RecordingCoordinator) Tick(ctx context.Context, state world.State) erro
 	if !state.At.IsZero() && state.At.After(c.deadline) {
 		return c.failLocked(RouteReasonRecordingTimeout)
 	}
-	if state.Valid && state.Phase == world.GamePhaseInGame && !areaAllowed(state.Area.ID, c.definition.Recording.AllowedRouteAreas) {
+	if state.Valid && state.Phase == world.GamePhaseInGame && !areaAllowed(state.Area.ID, c.contract.AllowedRouteAreas) {
 		return c.failLocked(RouteReasonRecordingTerminalAreaMismatch)
 	}
 	_, err := c.recorder.Observe(state)
@@ -160,18 +170,22 @@ func (c *RecordingCoordinator) Finish(evidence RecordingTerminalEvidence) (Route
 		return RouteCandidate{}, c.failLocked(RouteReasonCandidateInvalid)
 	}
 	seed := evidence.World.Identity.MapSeed
-	route := pathing.Route{Version: pathing.RouteVersion, ID: candidateID, Name: c.definition.DisplayName + " Kandidat", Kind: pathing.RouteKindNavigation,
-		Binding:   pathing.RouteBinding{CharacterName: c.request.Character, CharacterClass: evidence.World.Identity.Class.String(), Difficulty: c.request.Difficulty, MapSeed: &seed, GameVersion: c.request.GameVersion, LayoutFingerprint: pathing.RouteLayoutFingerprint{Version: c.fingerprint.Version, AreaID: c.fingerprint.AreaID, AnchorCount: c.fingerprint.AnchorCount, Hash: c.fingerprint.Hash}},
+	name := c.definition.DisplayName + " Kandidat"
+	if c.request.RouteRole != "" {
+		name += " " + string(c.request.RouteRole)
+	}
+	route := pathing.Route{Version: pathing.RouteVersion, ID: candidateID, Name: name, Kind: pathing.RouteKindNavigation,
+		Binding:   pathing.RouteBinding{RouteRole: c.request.RouteRole, CharacterName: c.request.Character, CharacterClass: evidence.World.Identity.Class.String(), ProfileID: c.request.ProfileID, Difficulty: c.request.Difficulty, MapSeed: &seed, GameVersion: c.request.GameVersion, LayoutFingerprint: pathing.RouteLayoutFingerprint{Version: c.fingerprint.Version, AreaID: c.fingerprint.AreaID, AnchorCount: c.fingerprint.AnchorCount, Hash: c.fingerprint.Hash}},
 		Recording: pathing.RouteRecording{RecordedAt: c.recordedAt, SampleDistanceTiles: guidedRecordingSampleDistance}, Playback: pathing.RoutePlayback{WaypointToleranceTiles: 3, MaxDriftTiles: 8, MaxLocalCorrections: 2, SegmentTimeoutMs: 30000, TransitionTimeoutMs: 10000}, Segments: segments}
 	distance := terminalBossDistance(evidence)
-	metadata := RouteCandidate{CandidateID: candidateID, RunID: c.request.RunID, Character: c.request.Character, Difficulty: string(c.request.Difficulty), GameVersion: c.request.GameVersion, State: RouteCandidateRecorded, MeasuredBossDistance: distance, SourceCatalogRevision: c.request.SourceCatalogRevision, SourceAssignmentRevision: c.request.SourceAssignmentRevision, CreatedAt: time.Now().UTC()}
+	metadata := RouteCandidate{CandidateID: candidateID, RunID: c.request.RunID, RouteRole: c.request.RouteRole, Character: c.request.Character, Difficulty: string(c.request.Difficulty), GameVersion: c.request.GameVersion, State: RouteCandidateRecorded, MeasuredBossDistance: distance, SourceCatalogRevision: c.request.SourceCatalogRevision, SourceAssignmentRevision: c.request.SourceAssignmentRevision, SourceAssignedRouteID: c.request.SourceAssignedRouteID, CreatedAt: time.Now().UTC()}
 	candidate, err := c.store.Freeze(route, metadata)
 	if err != nil {
 		return RouteCandidate{}, c.failLocked(RouteReasonCandidateInvalid)
 	}
 	c.candidate = candidate
 	c.state = RouteWorkflowValidating
-	reason := c.validateTerminalLocked(route, evidence)
+	reason := validateRecordingTerminal(c.contract, route, evidence)
 	if reason == "" {
 		candidate, err = c.store.UpdateState(candidate.CandidateID, RouteCandidateValidated, "", nil)
 	} else {
@@ -229,26 +243,59 @@ func (c *RecordingCoordinator) Snapshot() RecordingSnapshot {
 	return RecordingSnapshot{State: c.state, Reason: c.reason, CandidateID: c.candidate.CandidateID, RunID: c.request.RunID}
 }
 
-func (c *RecordingCoordinator) validateTerminalLocked(route pathing.Route, evidence RecordingTerminalEvidence) RouteReason {
-	contract := c.definition.Recording
+func validateRecordingTerminal(contract tasks.RecordingContract, route pathing.Route, evidence RecordingTerminalEvidence) RouteReason {
 	if evidence.World.Area.ID != contract.TerminalArea || len(route.Segments) == 0 || route.Segments[len(route.Segments)-1].ToAreaID != contract.TerminalArea {
 		return RouteReasonRecordingTerminalAreaMismatch
 	}
-	if evidence.BossDead {
-		return RouteReasonRecordingBossDead
-	}
-	if evidence.Boss == nil || evidence.Boss.NPCID != contract.Boss.NPCID || contract.Boss.RequireSuperUnique && evidence.Boss.MonsterTypeFlag != world.SuperUniqueMonsterFlag {
-		return RouteReasonRecordingBossMissing
-	}
-	if world.Distance(evidence.World.Player.Position, evidence.Boss.Position) > contract.TerminalMaxDistanceTiles {
-		return RouteReasonRecordingEndpointTooFar
+	switch contract.TerminalKind {
+	case tasks.RecordingTerminalBoss:
+		if evidence.BossDead {
+			return RouteReasonRecordingBossDead
+		}
+		if evidence.Boss == nil || evidence.Boss.NPCID != contract.Boss.NPCID || contract.Boss.RequireSuperUnique && evidence.Boss.MonsterTypeFlag != world.SuperUniqueMonsterFlag {
+			return RouteReasonRecordingBossMissing
+		}
+		if world.Distance(evidence.World.Player.Position, evidence.Boss.Position) > contract.TerminalMaxDistanceTiles {
+			return RouteReasonRecordingEndpointTooFar
+		}
+	case tasks.RecordingTerminalObject:
+		if evidence.Object == nil || evidence.Object.Kind != contract.TerminalObjectKind {
+			return RouteReasonRecordingObjectMissing
+		}
+		if world.Distance(evidence.World.Player.Position, evidence.Object.Position) > contract.TerminalMaxDistanceTiles {
+			return RouteReasonRecordingEndpointTooFar
+		}
+	case tasks.RecordingTerminalEndpoint:
+		// F9 is the explicit endpoint authority after the in-area route checks.
+	default:
+		return RouteReasonCandidateInvalid
 	}
 	for _, segment := range route.Segments {
 		if segment.Movement != contract.Movement || !areaAllowed(segment.FromAreaID, contract.AllowedRouteAreas) || !areaAllowed(segment.ToAreaID, contract.AllowedRouteAreas) {
 			return RouteReasonCandidateInvalid
 		}
 	}
+	if contract.RouteRole == pathing.RouteRoleLegAcquisition && !validLegAcquisitionSegments(route.Segments) {
+		return RouteReasonCandidateInvalid
+	}
+	if contract.RouteRole == pathing.RouteRoleCowSweep && !validCowSweepSegments(route.Segments) {
+		return RouteReasonCandidateInvalid
+	}
 	return ""
+}
+
+func validLegAcquisitionSegments(segments []pathing.RouteSegment) bool {
+	if len(segments) != 2 {
+		return false
+	}
+	transition := segments[0].Transition
+	return segments[0].FromAreaID == world.StonyField && segments[0].ToAreaID == world.Tristram &&
+		transition.Type == "object_portal" && transition.ObjectKind == world.ObjectKindPermanentPortal && transition.ExpectedToArea == world.Tristram &&
+		segments[1].FromAreaID == world.Tristram && segments[1].ToAreaID == world.Tristram && segments[1].Transition.Type == "terminal"
+}
+
+func validCowSweepSegments(segments []pathing.RouteSegment) bool {
+	return len(segments) == 1 && segments[0].FromAreaID == world.MooMooFarm && segments[0].ToAreaID == world.MooMooFarm && segments[0].Transition.Type == "terminal"
 }
 
 func (c *RecordingCoordinator) emergencyCancelLocked() {

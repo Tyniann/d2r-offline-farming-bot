@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"image"
 	"image/color"
 	"image/png"
@@ -57,6 +58,11 @@ func TestCharacterScreenFixtureClassifiesCompetingAnchors(t *testing.T) {
 	ambiguousScreen := solidCapture(1280, 720, color.RGBA{A: 255})
 	if err := verifyCharacterScreenCapture(ambiguousScreen, play, dialog); err == nil {
 		t.Fatal("ambiguous screen anchors were accepted as character screen")
+	} else {
+		var ambiguous *characterScreenAmbiguousError
+		if !errors.As(err, &ambiguous) {
+			t.Fatalf("ambiguous screen error = %T, want retryable classification", err)
+		}
 	}
 }
 

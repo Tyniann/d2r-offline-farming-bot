@@ -133,7 +133,11 @@ func candidatePortalArrivalReady(state world.State, tolerance float64) bool {
 	return townPortalArrivalReady(state, tolerance)
 }
 
-func (d *runtimeCandidatePlaybackDriver) TravelToStart(ctx context.Context, act town.OriginAct, target pathing.WaypointTargetID) error {
+func (d *runtimeCandidatePlaybackDriver) TravelToStart(ctx context.Context, contract tasks.RecordingContract) error {
+	if contract.StartKind == tasks.RecordingStartObjectPortalArrival {
+		return d.travelThroughRecordingPortal(ctx, contract)
+	}
+	act, target := contract.EgressOriginAct, contract.StartWaypoint
 	action, ok := pathing.DefaultWaypointTargetRegistry().Action(target)
 	if !ok {
 		return fmt.Errorf("candidate waypoint target %q unsupported", target)
@@ -229,6 +233,75 @@ func (d *runtimeCandidatePlaybackDriver) TravelToStart(ctx context.Context, act 
 	return fmt.Errorf("candidate start waypoint timeout")
 }
 
+func (d *runtimeCandidatePlaybackDriver) travelThroughRecordingPortal(ctx context.Context, contract tasks.RecordingContract) error {
+	expectedTown := recordingOriginTownArea(contract.EgressOriginAct)
+	if contract.StartObjectKind != world.ObjectKindPermanentPortal || contract.StartPortalFromArea != expectedTown {
+		return fmt.Errorf("candidate object-portal start contract is invalid")
+	}
+	walker, ok := d.rt.taskDeps.TownWalk.(*layoutTownWaypointWalker)
+	if expectedTown != world.RogueEncampment || !ok || walker.adapter == nil {
+		return fmt.Errorf("candidate portal Town walker not wired")
+	}
+	walker.Reset()
+	walker.adapter.startAnchor = town.AnchorPortalArrival
+	walker.adapter.targetAnchor = town.AnchorAkara
+	defer func() {
+		walker.adapter.startAnchor = town.AnchorStash
+		walker.adapter.targetAnchor = ""
+		walker.Reset()
+	}()
+
+	const (
+		candidatePortalApproachTown = iota
+		candidatePortalAcquire
+		candidatePortalEnter
+	)
+	stage := candidatePortalApproachTown
+	deadline := time.Now().Add(2 * time.Minute)
+	defer d.rt.Pathing.Reset()
+	for time.Now().Before(deadline) {
+		current, err := d.tick(ctx)
+		if err != nil {
+			return err
+		}
+		if current.Valid && current.Area.ID == contract.AllowedStartArea {
+			return nil
+		}
+		if !current.Valid || current.Phase != world.GamePhaseInGame {
+			continue
+		}
+		switch stage {
+		case candidatePortalApproachTown:
+			if current.Area.ID != expectedTown {
+				return fmt.Errorf("candidate portal start requires %s", expectedTown)
+			}
+			result := walker.adapter.Tick(ctx, current)
+			if !result.Done {
+				continue
+			}
+			if result.Status != "complete" {
+				return fmt.Errorf("candidate portal approach failed: %s", result.Reason)
+			}
+			stage = candidatePortalAcquire
+		case candidatePortalAcquire:
+			portal, ok := current.NearestObject(contract.StartObjectKind)
+			if !ok || portal.UnitID == 0 {
+				return fmt.Errorf("candidate portal start object is not visible")
+			}
+			if err := d.rt.Pathing.Start(pathing.Goal{Kind: pathing.GoalKindMoveToArea, TargetArea: contract.AllowedStartArea, ViaObject: portal.Kind, ViaObjectUnitID: portal.UnitID, StrictObject: true}); err != nil {
+				return err
+			}
+			stage = candidatePortalEnter
+		case candidatePortalEnter:
+			result := d.rt.Pathing.Tick(ctx, current)
+			if result.Done && result.Status != pathing.NavArrived {
+				return fmt.Errorf("candidate portal entry failed: status=%s reason=%s", result.Status, result.Reason)
+			}
+		}
+	}
+	return fmt.Errorf("candidate object-portal start timeout")
+}
+
 func (d *runtimeCandidatePlaybackDriver) PlayCandidate(ctx context.Context, route pathing.Route) error {
 	current := d.rt.World.Current()
 	fingerprint, err := pathing.BuildLayoutFingerprint(current)
@@ -260,18 +333,12 @@ func (d *runtimeCandidatePlaybackDriver) PlayCandidate(ctx context.Context, rout
 	return fmt.Errorf("candidate route playback timeout")
 }
 
-func (d *runtimeCandidatePlaybackDriver) TerminalEvidence(context.Context) (RecordingTerminalEvidence, error) {
+func (d *runtimeCandidatePlaybackDriver) TerminalEvidence(_ context.Context, contract tasks.RecordingContract) (RecordingTerminalEvidence, error) {
 	current := d.rt.World.Current()
 	if !current.Valid {
 		return RecordingTerminalEvidence{}, errors.New("candidate terminal world is invalid")
 	}
-	for _, definition := range tasks.DefaultRunRegistry().Definitions() {
-		if definition.Recording.TerminalArea == current.Area.ID {
-			boss := recordingBossEvidence(current, definition.Recording.Boss)
-			return RecordingTerminalEvidence{World: current, Boss: boss}, nil
-		}
-	}
-	return RecordingTerminalEvidence{World: current}, nil
+	return recordingTerminalEvidence(current, contract), nil
 }
 
 func (d *runtimeCandidatePlaybackDriver) ReturnAfterTest(ctx context.Context, act town.OriginAct) error {

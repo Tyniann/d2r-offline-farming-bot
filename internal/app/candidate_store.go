@@ -49,6 +49,9 @@ func (s *CandidateStore) Freeze(route pathing.Route, candidate RouteCandidate) (
 		}
 		candidate.CandidateID = id
 	}
+	if route.Binding.RouteRole != candidate.RouteRole {
+		return RouteCandidate{}, fmt.Errorf("candidate route role mismatch")
+	}
 	directory := filepath.Join(s.root, candidate.CandidateID)
 	if !pathWithin(directory, s.root) {
 		return RouteCandidate{}, fmt.Errorf("candidate path escapes candidate root")
@@ -166,6 +169,9 @@ func (s *CandidateStore) loadLocked(candidateID string) (RouteCandidate, pathing
 	route, err := pathing.LoadRoute(routePath)
 	if err != nil {
 		return RouteCandidate{}, pathing.Route{}, err
+	}
+	if route.Binding.RouteRole != candidate.RouteRole {
+		return RouteCandidate{}, pathing.Route{}, fmt.Errorf("candidate route role mismatch")
 	}
 	return candidate, route, nil
 }

@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/config"
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/pathing"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/tasks"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/town"
 )
@@ -14,28 +15,31 @@ import (
 // SessionPlan is the fully resolved, read-only operator view of Phase-7 session
 // selection and finite budgets. It does not authorize process attach or input.
 type SessionPlan struct {
-	Status                 string   `json:"status"`
-	Enabled                bool     `json:"enabled"`
-	Run                    string   `json:"run"`
-	Queue                  []string `json:"queue"`
-	Character              string   `json:"character"`
-	Difficulty             string   `json:"difficulty"`
-	RouteID                string   `json:"route_id"`
-	RoutePath              string   `json:"route_path,omitempty"`
-	RouteLayoutFingerprint string   `json:"route_layout_fingerprint,omitempty"`
-	GameVersion            string   `json:"game_version"`
-	MaxRuns                int      `json:"max_runs"`
-	MaxDurationMs          int      `json:"max_duration_ms"`
-	CooldownMs             int      `json:"cooldown_ms"`
-	MaxConsecutiveFailures int      `json:"max_consecutive_failures"`
-	MaxTotalRestarts       int      `json:"max_total_restarts"`
-	StateTimeoutMs         int      `json:"state_timeout_ms"`
-	ExitTimeoutMs          int      `json:"exit_timeout_ms"`
-	StartTimeoutMs         int      `json:"start_timeout_ms"`
-	RetryClasses           []string `json:"retry_classes"`
-	TelemetryDirectory     string   `json:"telemetry_directory"`
-	ClientWidth            int      `json:"client_width"`
-	ClientHeight           int      `json:"client_height"`
+	Status                      string   `json:"status"`
+	Enabled                     bool     `json:"enabled"`
+	Run                         string   `json:"run"`
+	Queue                       []string `json:"queue"`
+	Character                   string   `json:"character"`
+	Difficulty                  string   `json:"difficulty"`
+	RouteID                     string   `json:"route_id"`
+	RoutePath                   string   `json:"route_path,omitempty"`
+	RouteLayoutFingerprint      string   `json:"route_layout_fingerprint,omitempty"`
+	SetupRouteID                string   `json:"setup_route_id,omitempty"`
+	SetupRoutePath              string   `json:"setup_route_path,omitempty"`
+	SetupRouteLayoutFingerprint string   `json:"setup_route_layout_fingerprint,omitempty"`
+	GameVersion                 string   `json:"game_version"`
+	MaxRuns                     int      `json:"max_runs"`
+	MaxDurationMs               int      `json:"max_duration_ms"`
+	CooldownMs                  int      `json:"cooldown_ms"`
+	MaxConsecutiveFailures      int      `json:"max_consecutive_failures"`
+	MaxTotalRestarts            int      `json:"max_total_restarts"`
+	StateTimeoutMs              int      `json:"state_timeout_ms"`
+	ExitTimeoutMs               int      `json:"exit_timeout_ms"`
+	StartTimeoutMs              int      `json:"start_timeout_ms"`
+	RetryClasses                []string `json:"retry_classes"`
+	TelemetryDirectory          string   `json:"telemetry_directory"`
+	ClientWidth                 int      `json:"client_width"`
+	ClientHeight                int      `json:"client_height"`
 }
 
 // ResolveSessionPlan validates an autonomous-session selection without
@@ -121,7 +125,25 @@ func ResolveSessionPlan(cfg *config.Config, opts Options) (SessionPlan, error) {
 	plan.Status = "ready"
 	plan.RoutePath = availability.routePaths[route.ID]
 	plan.RouteLayoutFingerprint = route.Binding.LayoutFingerprint.Hash
+	if err := bindSessionSetupRoute(&plan, availability, tasks.RunID(session.Run)); err != nil {
+		return SessionPlan{}, err
+	}
 	return plan, nil
+}
+
+func bindSessionSetupRoute(plan *SessionPlan, availability runAvailabilityResolution, runID tasks.RunID) error {
+	roles := availability.routeSets[runID]
+	if roles == nil {
+		return nil
+	}
+	setup, ok := roles[pathing.RouteRoleLegAcquisition]
+	if !ok {
+		return fmt.Errorf("session.run %q unavailable: %s", runID, tasks.RunReasonLegAcquisitionRouteMissing)
+	}
+	plan.SetupRouteID = setup.ID
+	plan.SetupRoutePath = availability.routePaths[setup.ID]
+	plan.SetupRouteLayoutFingerprint = setup.Binding.LayoutFingerprint.Hash
+	return nil
 }
 
 func findRunAvailability(availabilities []tasks.RunAvailability, id tasks.RunID) (tasks.RunAvailability, bool) {
@@ -145,7 +167,7 @@ func validateSessionInspectExclusivity(opts Options) error {
 	if !opts.SessionInspect {
 		return fmt.Errorf("session inspect mode is not selected")
 	}
-	if opts.RunsInspect || opts.Probe || opts.InputTest != "" || opts.Run != "" || opts.RunPhase != "" || opts.PathingTest != "" || opts.OfflineDifficulty != "" || opts.OfflineCharacter != "" || opts.OfflineExitTest || opts.UIStateProbe != "" || opts.ScreenAnchorCapture != "" || opts.MercenaryProbe != "" || opts.Route != "" || opts.RouteName != "" || opts.RouteDifficulty != "" {
+	if opts.RunsInspect || opts.Probe || opts.InputTest != "" || opts.Run != "" || opts.RunPhase != "" || opts.PathingTest != "" || opts.OfflineDifficulty != "" || opts.OfflineCharacter != "" || opts.OfflineExitTest || opts.UIStateProbe != "" || opts.ScreenAnchorCapture != "" || opts.MercenaryProbe != "" || opts.CowProbe != "" || opts.Route != "" || opts.RouteName != "" || opts.RouteDifficulty != "" {
 		return fmt.Errorf("--session-inspect is mutually exclusive with run, probe, route, and test modes")
 	}
 	return nil

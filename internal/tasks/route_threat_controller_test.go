@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/config"
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/pathing"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/profile"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/telemetry"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/world"
@@ -261,7 +262,18 @@ func TestSummonerRouteOutOfRangeForceMovesAndAcceptsMeasuredProgress(t *testing.
 	}
 }
 
-func TestSummonerRouteApproachFailsOnlyAfterThreeIneffectiveMoves(t *testing.T) {
+func TestRouteApproachDirectionalProgressAcceptsRoundedForwardStep(t *testing.T) {
+	progress := routeApproachDirectionalProgress(
+		world.Position{X: 100, Y: 100},
+		world.Position{X: 108, Y: 101},
+		world.Position{X: 100, Y: 101},
+	)
+	if progress <= routeThreatApproachProgressEpsilonTiles || progress >= 1 {
+		t.Fatalf("rounded diagonal progress = %.3f, want positive accepted sub-tile projection", progress)
+	}
+}
+
+func TestSummonerRouteApproachExhaustionDefersToNoProgressWatchdog(t *testing.T) {
 	base := time.Date(2026, 7, 29, 12, 0, 0, 0, time.UTC)
 	progress, cfg := phase17ThreatProgress(), phase17ThreatConfig()
 	cfg.NoProgressTimeout = 12 * time.Second
@@ -284,18 +296,22 @@ func TestSummonerRouteApproachFailsOnlyAfterThreeIneffectiveMoves(t *testing.T) 
 	for failure := 1; failure <= routeThreatApproachMaxFailures; failure++ {
 		state := controllerState(base.Add(200*time.Millisecond+time.Duration(failure)*routeThreatApproachSettle), target)
 		result := pipeline.onTravelTick(context.Background(), deps, pipelineStepPlayRoute, state, state.At, base)
-		if failure < routeThreatApproachMaxFailures && result.failed {
-			t.Fatalf("premature approach failure %d: %+v", failure, result)
-		}
-		if failure == routeThreatApproachMaxFailures &&
-			(!result.failed || result.reason != string(RouteThreatReasonOutOfRange)) {
-			t.Fatalf("terminal approach result = %+v", result)
+		if result.failed {
+			t.Fatalf("approach failure %d bypassed shared watchdog: %+v", failure, result)
 		}
 	}
-	if combat.forceMoveCalls != routeThreatApproachMaxFailures || route.tickCalls != 0 {
-		t.Fatalf("force moves=%d route ticks=%d", combat.forceMoveCalls, route.tickCalls)
+	if combat.forceMoveCalls != routeThreatApproachMaxFailures || route.tickCalls != 0 ||
+		pipeline.routeApproachExhaustedUnitID != target.UnitID {
+		t.Fatalf("force moves=%d route ticks=%d exhausted=%d", combat.forceMoveCalls, route.tickCalls, pipeline.routeApproachExhaustedUnitID)
+	}
+
+	timedOut := controllerState(base.Add(cfg.NoProgressTimeout+time.Second), target)
+	result := pipeline.onTravelTick(context.Background(), deps, pipelineStepPlayRoute, timedOut, timedOut.At, base)
+	if !result.failed || result.reason != string(RouteThreatReasonClearNoProgress) {
+		t.Fatalf("watchdog result = %+v, want %s", result, RouteThreatReasonClearNoProgress)
 	}
 	var attempts []int
+	noProgressEvents := 0
 	for _, event := range trace.events {
 		if event.Event == telemetry.RouteClearAction && event.ActionKind == "force_move" {
 			attempts = append(attempts, event.Attempt)
@@ -303,9 +319,15 @@ func TestSummonerRouteApproachFailsOnlyAfterThreeIneffectiveMoves(t *testing.T) 
 		if event.Event == telemetry.RouteClearProgress && event.ProgressKind == "approach" {
 			t.Fatalf("ineffective approach emitted progress: %+v", event)
 		}
+		if event.Event == telemetry.RouteClearProgress && event.ProgressKind == "approach_no_progress" {
+			noProgressEvents++
+		}
 	}
 	if !reflect.DeepEqual(attempts, []int{1, 2, 3}) {
 		t.Fatalf("approach attempts = %v", attempts)
+	}
+	if noProgressEvents != routeThreatApproachMaxFailures {
+		t.Fatalf("no-progress telemetry events = %d, want %d", noProgressEvents, routeThreatApproachMaxFailures)
 	}
 }
 
@@ -783,7 +805,19 @@ func TestRouteThreatTelemetryIsTransitionAndActionBound(t *testing.T) {
 	}
 }
 
-func TestRouteThreatTelemetryPreservesCurseOpenerKind(t *testing.T) {
+func TestRouteThreatTelemetryIdentifiesSetupRouteByRole(t *testing.T) {
+	base := time.Date(2026, 8, 1, 18, 26, 34, 0, time.UTC)
+	progress := phase17ThreatProgress()
+	progress.RouteID = "cows-leg-acquisition"
+	progress.RouteRole = pathing.RouteRoleLegAcquisition
+
+	event := routeTelemetryEvent(telemetry.RouteThreatDetected, controllerState(base), progress, base, telemetry.Event{RouteID: "wrong-setup-id"})
+	if event.RouteID != "" || event.RouteRole != string(pathing.RouteRoleLegAcquisition) {
+		t.Fatalf("setup-route threat telemetry = %+v", event)
+	}
+}
+
+func TestRouteThreatTelemetryPreservesExecutorActionContext(t *testing.T) {
 	base := time.Date(2026, 7, 29, 12, 0, 0, 0, time.UTC)
 	progress, cfg := phase17ThreatProgress(), phase17ThreatConfig()
 	cfg.NoProgressTimeout = 12 * time.Second
@@ -792,6 +826,9 @@ func TestRouteThreatTelemetryPreservesCurseOpenerKind(t *testing.T) {
 	route := controllerRoute(progress)
 	clear := &routeClearMock{result: profile.Result{
 		Status: profile.StatusAction, SkillID: 66, ActionKind: profile.RouteClearActionCurse,
+		TargetingMode:        profile.MonsterTargetingWorldProjected,
+		CowGroupAnchorUnitID: 7, CowGroupLivingCount: 5,
+		CowCorpseAnchorDistanceTiles: 3, CowCorpseCoverageCount: 4,
 	}}
 	trace := &pipelineTelemetry{}
 	var controller RouteThreatController
@@ -805,7 +842,11 @@ func TestRouteThreatTelemetryPreservesCurseOpenerKind(t *testing.T) {
 	}
 	for _, event := range trace.events {
 		if event.Event == telemetry.RouteClearAction {
-			if event.ActionKind != "curse" || event.SkillID != 66 || event.UnitID != monster.UnitID {
+			if event.ActionKind != "curse" || event.SkillID != 66 || event.UnitID != monster.UnitID ||
+				event.TargetingMode != string(profile.MonsterTargetingWorldProjected) ||
+				event.HoverConfirmed == nil || *event.HoverConfirmed ||
+				event.CowGroupAnchorUnitID != 7 || event.CowGroupLivingCount != 5 ||
+				event.CowCorpseAnchorDistanceTiles != 3 || event.CowCorpseCoverageCount != 4 {
 				t.Fatalf("curse action = %+v", event)
 			}
 			return

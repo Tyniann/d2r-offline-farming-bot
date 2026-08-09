@@ -19,6 +19,8 @@ const (
 	RunIDSummoner RunID = "summoner"
 	// RunIDNihlathak identifies the Halls of Pain Nihlathak key run.
 	RunIDNihlathak RunID = "nihlathak"
+	// RunIDCows identifies the two-route Moo Moo Farm run.
+	RunIDCows RunID = "cows"
 )
 
 // RunCapability identifies a runtime facility required by a run definition.
@@ -70,20 +72,56 @@ const (
 	RecordingSafetyReturnTownPortal RecordingSafetyReturn = "town_portal"
 )
 
+// RecordingStartKind identifies the Memory-confirmed recording start anchor.
+type RecordingStartKind string
+
+const (
+	// RecordingStartWaypoint starts near the declared waypoint after travel.
+	RecordingStartWaypoint RecordingStartKind = "waypoint"
+	// RecordingStartObjectPortalArrival starts near the destination-side object portal.
+	RecordingStartObjectPortalArrival RecordingStartKind = "object_portal_arrival"
+)
+
+// RecordingTerminalKind identifies the semantic evidence required at F9.
+type RecordingTerminalKind string
+
+const (
+	// RecordingTerminalBoss requires the existing living-boss distance proof.
+	RecordingTerminalBoss RecordingTerminalKind = "boss"
+	// RecordingTerminalObject requires one declared object within terminal distance.
+	RecordingTerminalObject RecordingTerminalKind = "object"
+	// RecordingTerminalEndpoint accepts the operator's final in-area route point.
+	RecordingTerminalEndpoint RecordingTerminalKind = "endpoint"
+)
+
 // RecordingContract defines the immutable start, route and terminal semantics
 // used by a guided recording. It deliberately reuses the run's authoritative
 // boss descriptor instead of maintaining a second NPC identity table.
 type RecordingContract struct {
+	RouteRole                pathing.RouteRole
 	InstructionsDE           string
+	StartKind                RecordingStartKind
 	StartWaypoint            pathing.WaypointTargetID
+	StartObjectKind          world.ObjectKind
+	StartPortalFromArea      world.AreaID
 	AllowedStartArea         world.AreaID
 	AllowedRouteAreas        []world.AreaID
+	TerminalKind             RecordingTerminalKind
 	TerminalArea             world.AreaID
 	Boss                     BossDescriptor
+	TerminalObjectKind       world.ObjectKind
 	TerminalMaxDistanceTiles float64
 	Movement                 pathing.RouteMovement
 	SafetyReturn             RecordingSafetyReturn
 	EgressOriginAct          town.OriginAct
+}
+
+// RouteSetDefinition declares the only supported fixed-role route set for a
+// run. It is metadata, not an execution graph or additional queue identity.
+type RouteSetDefinition struct {
+	Roles       []pathing.RouteRole
+	PrimaryRole pathing.RouteRole
+	Recordings  map[pathing.RouteRole]RecordingContract
 }
 
 // RunDefinition contains immutable product metadata and required capabilities.
@@ -105,6 +143,28 @@ type RunDefinition struct {
 	ReturnOrigin       town.OriginAct
 	RequiredCaps       []RunCapability
 	Recording          RecordingContract
+	RouteSet           *RouteSetDefinition
+}
+
+// RecordingForRole resolves the one recording contract declared for role.
+// Existing single-route runs use the empty role.
+func (d RunDefinition) RecordingForRole(role pathing.RouteRole) (RecordingContract, bool) {
+	if d.RouteSet == nil {
+		if role != "" {
+			return RecordingContract{}, false
+		}
+		return d.Recording, true
+	}
+	contract, ok := d.RouteSet.Recordings[role]
+	return contract, ok
+}
+
+// RouteRoles returns the declared roles in stable execution order.
+func (d RunDefinition) RouteRoles() []pathing.RouteRole {
+	if d.RouteSet == nil {
+		return nil
+	}
+	return append([]pathing.RouteRole(nil), d.RouteSet.Roles...)
 }
 
 // HasCapability reports whether the immutable run definition declares capability.
@@ -289,6 +349,16 @@ const (
 	RunReasonRouteLifecycleUnavailable RunReason = "route_lifecycle_unavailable"
 	// RunReasonRouteAssignmentMissing reports an absent character/run assignment.
 	RunReasonRouteAssignmentMissing RunReason = "route_assignment_missing"
+	// RunReasonLegAcquisitionRouteMissing reports a missing Wirt route role.
+	RunReasonLegAcquisitionRouteMissing RunReason = "leg_acquisition_route_missing"
+	// RunReasonLegAcquisitionRouteStale reports an unusable Wirt route role.
+	RunReasonLegAcquisitionRouteStale RunReason = "leg_acquisition_route_stale"
+	// RunReasonCowSweepRouteMissing reports a missing Cow sweep route role.
+	RunReasonCowSweepRouteMissing RunReason = "cow_sweep_route_missing"
+	// RunReasonCowSweepRouteStale reports an unusable Cow sweep route role.
+	RunReasonCowSweepRouteStale RunReason = "cow_sweep_route_stale"
+	// RunReasonRouteSetBindingMismatch reports incompatible fixed-role identities.
+	RunReasonRouteSetBindingMismatch RunReason = "route_set_binding_mismatch"
 	// RunReasonProfileClassMismatch reports a character/profile class mismatch.
 	RunReasonProfileClassMismatch RunReason = "profile_class_mismatch"
 	// RunReasonCharacterProfileRunIncompatible reports a run that selects a different profile than the confirmed character setup.
@@ -337,9 +407,10 @@ type RouteAvailability struct {
 
 // RunAvailability is the deterministic read-only view consumed by CLI and later GUI code.
 type RunAvailability struct {
-	RunID       RunID                 `json:"run_id"`
-	DisplayName string                `json:"display_name"`
-	Status      RunAvailabilityStatus `json:"status"`
-	Reasons     []RunReason           `json:"reasons,omitempty"`
-	Route       RouteAvailability     `json:"route"`
+	RunID       RunID                                   `json:"run_id"`
+	DisplayName string                                  `json:"display_name"`
+	Status      RunAvailabilityStatus                   `json:"status"`
+	Reasons     []RunReason                             `json:"reasons,omitempty"`
+	Route       RouteAvailability                       `json:"route"`
+	RouteRoles  map[pathing.RouteRole]RouteAvailability `json:"route_roles,omitempty"`
 }

@@ -207,6 +207,42 @@ func TestRouteWorkflowRejectsStaleGenerationAndActiveSession(t *testing.T) {
 	}
 }
 
+func TestCowRecordingOptionsExposeTwoFixedRoleWorkflows(t *testing.T) {
+	cfg, err := config.Load("../../configs/config.example.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	root := t.TempDir()
+	cfg.Routes.FarmingRoot = filepath.Join(root, "farming")
+	cfg.Routes.CandidateRoot = filepath.Join(root, "candidates")
+	cfg.Routes.LifecycleFile = filepath.Join(root, "lifecycle.yaml")
+	cfg.Routes.AssignmentsFile = filepath.Join(root, "assignments.yaml")
+	cfg.Routes.RecoveryFile = filepath.Join(root, "recovery.yaml")
+	backend, err := NewLiveBackend(cfg, telemetry.NewLivePublisher(16, 4))
+	if err != nil {
+		t.Fatal(err)
+	}
+	roles := map[string]RecordingOptionDTO{}
+	for _, option := range backend.RecordingOptions() {
+		if option.RunID == "cows" {
+			roles[option.RouteRole] = option
+		}
+	}
+	leg, legOK := roles[string(pathing.RouteRoleLegAcquisition)]
+	sweep, sweepOK := roles[string(pathing.RouteRoleCowSweep)]
+	if !legOK || !sweepOK || leg.StartKind != string(tasks.RecordingStartWaypoint) || sweep.StartKind != string(tasks.RecordingStartObjectPortalArrival) {
+		t.Fatalf("cow recording options = %+v", roles)
+	}
+	for _, prerequisite := range sweep.Prerequisites {
+		if prerequisite.ID == "waypoint" {
+			t.Fatalf("cow sweep must not claim a waypoint prerequisite: %+v", sweep.Prerequisites)
+		}
+	}
+	if !strings.Contains(strings.Join(leg.OperatorHintsDE, " "), "Wirt") || !strings.Contains(strings.Join(sweep.OperatorHintsDE, " "), "vollständig leeren") {
+		t.Fatalf("cow operator hints = %+v / %+v", leg.OperatorHintsDE, sweep.OperatorHintsDE)
+	}
+}
+
 func TestRouteWorkflowFinishIsOneShotIdempotentAndPublishesWorkflowFields(t *testing.T) {
 	cfg, err := config.Load("../../configs/config.example.yaml")
 	if err != nil {

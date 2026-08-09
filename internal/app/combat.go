@@ -13,6 +13,8 @@ import (
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/world"
 )
 
+const combatMonsterMaxHoverAttempts = 5
+
 type combatAdapter struct {
 	log                 *slog.Logger
 	input               inputController
@@ -33,12 +35,19 @@ type verifiedCombatInput interface {
 }
 
 func newCombatAdapter(log *slog.Logger, in inputController, bindings configBindingSource, cfg pathing.Config, interval time.Duration) *combatAdapter {
+	hoverProbe := cfg.Click
+	if hoverProbe.MaxHoverAttempts > combatMonsterMaxHoverAttempts {
+		// Moving monsters invalidate projected sprite positions much faster than
+		// static UI entities. Keep the shared click configuration as an upper
+		// bound, but never spend the full UI search budget on one combat target.
+		hoverProbe.MaxHoverAttempts = combatMonsterMaxHoverAttempts
+	}
 	return &combatAdapter{
 		log:          log.With("component", "combat"),
 		input:        in,
 		bindings:     bindings,
 		projector:    cfg.Projector(),
-		hoverProbe:   cfg.Click,
+		hoverProbe:   hoverProbe,
 		forceMoveKey: cfg.TownWalk.ForceMoveKey,
 		interval:     interval,
 	}
@@ -100,56 +109,90 @@ func (c *combatAdapter) CastAttackAtWorld(now time.Time, skillID uint16, player 
 	return true, nil
 }
 
-func (c *combatAdapter) CastAttackAtMonster(now time.Time, skillID uint16, player world.Player, target world.Monster) (bool, error) {
+func (c *combatAdapter) CastAttackAtMonster(now time.Time, skillID uint16, player world.Player, target world.Monster) (profile.MonsterCastResult, error) {
 	combatInput, ok := c.input.(verifiedCombatInput)
 	if !ok {
-		return false, fmt.Errorf("combat verified input not wired")
+		return profile.MonsterCastResult{}, fmt.Errorf("combat verified input not wired")
 	}
 	cast, err := c.bindings.Resolve(skillID)
 	if err != nil {
-		return false, fmt.Errorf("combat resolve %s(%d): %w", memory.SkillName(skillID), skillID, err)
+		return profile.MonsterCastResult{}, fmt.Errorf("combat resolve %s(%d): %w", memory.SkillName(skillID), skillID, err)
 	}
 	if cast.CastButton != input.MouseRight {
-		return false, fmt.Errorf("combat attack %s(%d) must use right mouse, configured=%s", memory.SkillName(skillID), skillID, cast.CastButton)
+		return profile.MonsterCastResult{}, fmt.Errorf("combat attack %s(%d) must use right mouse, configured=%s", memory.SkillName(skillID), skillID, cast.CastButton)
 	}
 	if player.RightSkillID != skillID {
 		c.pendingTargetUnitID = 0
 		if c.pendingSkill == skillID {
 			if !c.ready(now) {
-				return false, nil
+				return profile.MonsterCastResult{}, nil
 			}
-			return false, fmt.Errorf("combat select %s(%d): right mouse selection not confirmed, current=%s(%d)", memory.SkillName(skillID), skillID, memory.SkillName(player.RightSkillID), player.RightSkillID)
+			return profile.MonsterCastResult{}, fmt.Errorf("combat select %s(%d): right mouse selection not confirmed, current=%s(%d)", memory.SkillName(skillID), skillID, memory.SkillName(player.RightSkillID), player.RightSkillID)
 		}
 		if !c.ready(now) {
-			return false, nil
+			return profile.MonsterCastResult{}, nil
 		}
 		if selectErr := combatInput.SelectSkill(c.bindings, skillID); selectErr != nil {
-			return false, fmt.Errorf("combat select %s(%d): %w", memory.SkillName(skillID), skillID, selectErr)
+			return profile.MonsterCastResult{}, fmt.Errorf("combat select %s(%d): %w", memory.SkillName(skillID), skillID, selectErr)
 		}
 		c.pendingSkill = skillID
 		c.lastAction = now
 		c.log.Info("combat right-mouse skill selection requested", "skill", memory.SkillName(skillID), "skill_id", skillID, "current_right_skill_id", player.RightSkillID)
-		return false, nil
+		return profile.MonsterCastResult{}, nil
 	}
 	c.pendingSkill = 0
 	if !target.IsHovered {
 		if c.pendingTargetUnitID != target.UnitID {
 			c.hoverProbeAttempt = 0
 		}
+		if c.hoverProbe.MaxHoverAttempts > 0 && c.hoverProbeAttempt >= c.hoverProbe.MaxHoverAttempts {
+			attempts := c.hoverProbeAttempt
+			win, windowOK := c.input.Window()
+			if !windowOK {
+				return profile.MonsterCastResult{}, fmt.Errorf("combat projection: window not bound")
+			}
+			clientX, clientY, projected := pathing.ProjectHoverProbe(c.projector, player.Position, target.Position, win, c.hoverProbe, 0)
+			if !projected {
+				c.pendingTargetUnitID = 0
+				c.hoverProbeAttempt = 0
+				return profile.MonsterCastResult{}, fmt.Errorf("%w: unit %d", profile.ErrRouteClearTargetUnprojectable, target.UnitID)
+			}
+			if !c.ready(now) {
+				return profile.MonsterCastResult{}, nil
+			}
+			if moveErr := c.input.MoveTo(clientX, clientY); moveErr != nil {
+				return profile.MonsterCastResult{}, fmt.Errorf("combat project monster %d: %w", target.UnitID, moveErr)
+			}
+			if clickErr := combatInput.Click(input.MouseRight); clickErr != nil {
+				return profile.MonsterCastResult{}, fmt.Errorf("combat projected right-click %s(%d) at monster %d: %w", memory.SkillName(skillID), skillID, target.UnitID, clickErr)
+			}
+			c.lastAction = now
+			c.pendingTargetUnitID = 0
+			c.hoverProbeAttempt = 0
+			c.log.Info("combat skill cast at projected living monster",
+				"unit_id", target.UnitID,
+				"npc_id", target.NPCID,
+				"skill", memory.SkillName(skillID),
+				"skill_id", skillID,
+				"hover_attempts", attempts,
+				"target_x", target.Position.X,
+				"target_y", target.Position.Y,
+				"client_x", clientX,
+				"client_y", clientY,
+			)
+			return profile.MonsterCastResult{Sent: true, TargetingMode: profile.MonsterTargetingWorldProjected}, nil
+		}
 		win, windowOK := c.input.Window()
 		if !windowOK {
-			return false, fmt.Errorf("combat projection: window not bound")
+			return profile.MonsterCastResult{}, fmt.Errorf("combat projection: window not bound")
 		}
 		attempt := c.hoverProbeAttempt
-		if c.hoverProbe.MaxHoverAttempts > 0 {
-			attempt %= c.hoverProbe.MaxHoverAttempts
-		}
 		clientX, clientY, projected := pathing.ProjectHoverProbe(c.projector, player.Position, target.Position, win, c.hoverProbe, attempt)
 		if !projected {
-			return false, fmt.Errorf("%w: unit %d", profile.ErrRouteClearTargetUnprojectable, target.UnitID)
+			return profile.MonsterCastResult{}, fmt.Errorf("%w: unit %d", profile.ErrRouteClearTargetUnprojectable, target.UnitID)
 		}
 		if moveErr := c.input.MoveTo(clientX, clientY); moveErr != nil {
-			return false, fmt.Errorf("combat aim monster %d: %w", target.UnitID, moveErr)
+			return profile.MonsterCastResult{}, fmt.Errorf("combat aim monster %d: %w", target.UnitID, moveErr)
 		}
 		c.pendingTargetUnitID = target.UnitID
 		c.hoverProbeAttempt++
@@ -162,7 +205,7 @@ func (c *combatAdapter) CastAttackAtMonster(now time.Time, skillID uint16, playe
 			"client_x", clientX,
 			"client_y", clientY,
 		)
-		return false, nil
+		return profile.MonsterCastResult{}, nil
 	}
 	if c.pendingTargetUnitID != target.UnitID {
 		// Memory already proved that this fresh target is the living monster
@@ -177,10 +220,10 @@ func (c *combatAdapter) CastAttackAtMonster(now time.Time, skillID uint16, playe
 		c.hoverProbeAttempt = 0
 	}
 	if !c.ready(now) {
-		return false, nil
+		return profile.MonsterCastResult{}, nil
 	}
 	if err := combatInput.Click(input.MouseRight); err != nil {
-		return false, fmt.Errorf("combat right-click %s(%d) at monster %d: %w", memory.SkillName(skillID), skillID, target.UnitID, err)
+		return profile.MonsterCastResult{}, fmt.Errorf("combat right-click %s(%d) at monster %d: %w", memory.SkillName(skillID), skillID, target.UnitID, err)
 	}
 	c.lastAction = now
 	c.hoverProbeAttempt = 0
@@ -192,7 +235,7 @@ func (c *combatAdapter) CastAttackAtMonster(now time.Time, skillID uint16, playe
 		"target_x", target.Position.X,
 		"target_y", target.Position.Y,
 	)
-	return true, nil
+	return profile.MonsterCastResult{Sent: true, TargetingMode: profile.MonsterTargetingHoverConfirmed}, nil
 }
 
 func (c *combatAdapter) StopAttack() error {
@@ -213,19 +256,19 @@ func (c *combatAdapter) MonsterAimProjectable(playerPos, targetPos world.Positio
 	return ok
 }
 
-// FarthestProjectableMonsterDistance finds the smallest necessary approach
+// FarthestProjectableMonsterApproach finds the smallest necessary approach
 // along the existing player-to-target line. It deliberately does not search
 // arbitrary landing points or infer safety from geometry.
-func (c *combatAdapter) FarthestProjectableMonsterDistance(playerPos, targetPos world.Position) (float64, bool) {
+func (c *combatAdapter) FarthestProjectableMonsterApproach(playerPos, targetPos world.Position) (world.Position, float64, bool) {
 	distance := world.Distance(playerPos, targetPos)
 	for desiredDistance := math.Floor(distance) - 1; desiredDistance > 0; desiredDistance-- {
 		candidate := combatStepTowardTarget(playerPos, targetPos, desiredDistance)
 		if candidate == playerPos || !c.MonsterAimProjectable(candidate, targetPos) {
 			continue
 		}
-		return world.Distance(candidate, targetPos), true
+		return candidate, world.Distance(candidate, targetPos), true
 	}
-	return 0, false
+	return world.Position{}, 0, false
 }
 
 func (c *combatAdapter) TeleportToward(now time.Time, playerPos, targetPos world.Position, desiredDistanceTiles float64) (bool, error) {

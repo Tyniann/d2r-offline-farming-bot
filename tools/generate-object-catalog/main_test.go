@@ -13,6 +13,8 @@ func TestReadAndSelectObjectsUsesExplicitExportIDs(t *testing.T) {
 		"Class\tName\t*Description\t*ID",
 		"Null\tDummy\ttest data\t0",
 		"TownPortal\tPortal\tTown portal\t701",
+		"PortalPermanent\tPortal\tPermanent town portal\t702",
+		"Wirt\twirt's body\twirt's body\t703",
 		"WaypointOutsideAct1\tWaypoint\twaypoint portal\t811",
 		"Expansion\t\t\t",
 		"Bank\tbank\tbank\t901",
@@ -30,7 +32,7 @@ func TestReadAndSelectObjectsUsesExplicitExportIDs(t *testing.T) {
 	if err != nil {
 		t.Fatalf("selectObjects() error = %v", err)
 	}
-	if selected.TownPortal.ID != 701 || selected.GoodChest.ID != 999 {
+	if selected.TownPortal.ID != 701 || selected.PermanentPortal.ID != 702 || selected.WirtsBody.ID != 703 || selected.GoodChest.ID != 999 {
 		t.Fatalf("selected IDs = portal %d chest %d, want 701/999", selected.TownPortal.ID, selected.GoodChest.ID)
 	}
 	if selected.Stash.ID != 901 {
@@ -43,14 +45,16 @@ func TestReadAndSelectObjectsUsesExplicitExportIDs(t *testing.T) {
 
 func TestRenderedCatalogsKeepMemoryAndWorldIDsInSync(t *testing.T) {
 	selected := selectedObjects{
-		TownPortal: objectRow{ID: 701, Class: "TownPortal"},
-		GoodChest:  objectRow{ID: 999, Class: "PlaceUniqueChest"},
-		Stash:      objectRow{ID: 901, Class: "Bank"},
-		Waypoints:  []objectRow{{ID: 811, Class: "WaypointOutsideAct1"}},
+		TownPortal:      objectRow{ID: 701, Class: "TownPortal"},
+		PermanentPortal: objectRow{ID: 702, Class: "PortalPermanent"},
+		WirtsBody:       objectRow{ID: 703, Class: "Wirt"},
+		GoodChest:       objectRow{ID: 999, Class: "PlaceUniqueChest"},
+		Stash:           objectRow{ID: 901, Class: "Bank"},
+		Waypoints:       []objectRow{{ID: 811, Class: "WaypointOutsideAct1"}},
 	}
 	memorySource := string(renderMemory("test-version", selected))
 	worldSource := string(renderWorld("test-version", selected))
-	for _, want := range []string{"701", "999", "901", "811", "test-version"} {
+	for _, want := range []string{"701", "702", "703", "999", "901", "811", "test-version"} {
 		if !strings.Contains(memorySource, want) || !strings.Contains(worldSource, want) {
 			t.Fatalf("generated sources do not both contain %q", want)
 		}

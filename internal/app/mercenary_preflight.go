@@ -1,54 +1,80 @@
 package app
 
 import (
+	"context"
 	"fmt"
 
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/tasks"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/town"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/world"
 )
 
-// consumeMercenaryPreflight runs once per queue runtime before the first productive
-// tick. Dead or missing Mercs fail closed here; injured living Mercs may start.
-func (rt *Runtime) consumeMercenaryPreflight(state world.State) error {
-	if rt == nil || !rt.mercPreflightPending {
-		return nil
+type runReadinessError struct{ reason string }
+
+func (e *runReadinessError) Error() string { return e.reason }
+
+func failRunReadiness(reason string) error { return &runReadinessError{reason: reason} }
+
+// consumeRunReadiness runs once per queue runtime before the first productive
+// task tick. It owns Merc recovery and the Cow-only Town reserve without
+// duplicating either Town service implementation.
+func (rt *Runtime) consumeRunReadiness(ctx context.Context, state world.State) (bool, error) {
+	if rt == nil || !rt.runReadinessPending || !rt.productiveRunActive {
+		return true, nil
 	}
 	// Offline character-select and loading share runTick with productive runs.
 	// Merc memory is not authoritative until a confirmed in-game identity exists.
 	if rt.Options.OfflineDifficulty != "" || rt.Options.OfflineExitTest {
-		return nil
+		return true, nil
 	}
 	if !state.Valid || state.Phase != world.GamePhaseInGame {
-		return nil
+		return false, nil
 	}
 	if !state.Identity.Valid {
-		return nil
+		return false, nil
 	}
 	if state.Area.ID != world.RogueEncampment {
-		return nil
+		return false, nil
 	}
 	runID := rt.Config.Session.Run
 	if runID == "" {
-		rt.mercPreflightPending = false
-		return nil
+		rt.runReadinessPending = false
+		return true, nil
 	}
 	runCfg, ok := rt.Config.Runs.Run(runID)
 	if !ok {
-		return fmt.Errorf("mercenary preflight: run %q unavailable", runID)
+		return false, fmt.Errorf("mercenary preflight: run %q unavailable", runID)
 	}
 	profileCfg, ok := rt.Config.Profiles[runCfg.Combat.Profile]
 	if !ok {
-		return fmt.Errorf("mercenary preflight: profile %q unavailable", runCfg.Combat.Profile)
+		return false, fmt.Errorf("mercenary preflight: profile %q unavailable", runCfg.Combat.Profile)
 	}
 	enabled, rule := profileCfg.Resources.Mercenary.Resolve()
 	reason := town.EvaluateMercenaryPreflight(town.MercenaryPolicy{
 		Enabled: enabled, ThresholdPercent: rule.UseBelowPercent,
 	}, state.Mercenary)
-	rt.mercPreflightPending = false
-	if reason != "" {
-		return fmt.Errorf("%s", reason)
+	needsTownPreparation := reason == town.ReasonMercenaryDeadAtStart || runID == string(tasks.RunIDCows)
+	if reason != "" && reason != town.ReasonMercenaryDeadAtStart {
+		rt.runReadinessPending = false
+		return false, failRunReadiness(string(reason))
 	}
-	return nil
+	if needsTownPreparation {
+		if rt.taskDeps.Town == nil {
+			return false, fmt.Errorf("run readiness: town preparation is not wired")
+		}
+		result := rt.taskDeps.Town.Tick(ctx, state)
+		if !result.Done {
+			return false, nil
+		}
+		rt.taskDeps.Town.Reset()
+		if result.Status != "complete" {
+			return false, failRunReadiness(result.Reason)
+		}
+		rt.runReadinessPending = false
+		return true, nil
+	}
+	rt.runReadinessPending = false
+	return true, nil
 }
 
 // isTerminalMercenaryFailure reports queue-terminal Merc reasons that must never
@@ -56,7 +82,6 @@ func (rt *Runtime) consumeMercenaryPreflight(state world.State) error {
 func isTerminalMercenaryFailure(reason string) bool {
 	switch town.Reason(reason) {
 	case town.ReasonMercenaryNotHired,
-		town.ReasonMercenaryDeadAtStart,
 		town.ReasonMercenaryStateInvalid,
 		town.ReasonMercenaryReviveInsufficientGold,
 		town.ReasonMercenaryReviveVerifyTimeout,

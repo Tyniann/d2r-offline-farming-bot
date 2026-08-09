@@ -12,11 +12,29 @@ type ProfilesConfig map[string]ProfileConfig
 
 // ProfileConfig defines class-gated hooks, setup metadata and in-run resource policies.
 type ProfileConfig struct {
-	CharacterClass string                 `yaml:"character_class"`
-	DisplayName    string                 `yaml:"display_name,omitempty"`
-	Setup          ProfileSetupConfig     `yaml:"setup,omitempty"`
-	Hooks          ProfileHooksConfig     `yaml:"hooks"`
-	Resources      ProfileResourcesConfig `yaml:"resources"`
+	CharacterClass   string                        `yaml:"character_class"`
+	DisplayName      string                        `yaml:"display_name,omitempty"`
+	Setup            ProfileSetupConfig            `yaml:"setup,omitempty"`
+	Hooks            ProfileHooksConfig            `yaml:"hooks"`
+	Resources        ProfileResourcesConfig        `yaml:"resources"`
+	RouteMaintenance ProfileRouteMaintenanceConfig `yaml:"route_maintenance,omitempty"`
+}
+
+// ProfileRouteMaintenanceConfig contains the deliberately narrow maintenance
+// policy evaluated only while a combat route owns the current tick.
+type ProfileRouteMaintenanceConfig struct {
+	BoneArmor BoneArmorMaintenanceConfig `yaml:"bone_armor,omitempty"`
+}
+
+// BoneArmorMaintenanceConfig refreshes Bone Armor on a finite timer or after
+// newly observed player damage below the configured HP threshold.
+type BoneArmorMaintenanceConfig struct {
+	Enabled                    *bool  `yaml:"enabled,omitempty"`
+	Skill                      string `yaml:"skill"`
+	RefreshIntervalMs          int    `yaml:"refresh_interval_ms"`
+	RefreshAfterDamageBelowPct int    `yaml:"refresh_after_damage_below_percent"`
+	MinimumRecastIntervalMs    int    `yaml:"minimum_recast_interval_ms"`
+	SettleMs                   int    `yaml:"settle_ms"`
 }
 
 // ProfileSetupConfig steuert die explizite Freigabe und den Entwickler-Default im Charakter-Setup.
@@ -75,7 +93,7 @@ type MercenaryResourceConfig struct {
 
 // Resolve returns the effective Merc resource switch and rule after defaults.
 // Missing Enabled resolves to true. Zero thresholds, slots and cooldown fill
-// with 75, `[1]` and `4000` respectively.
+// with 50, `[1]` and `4000` respectively.
 func (m MercenaryResourceConfig) Resolve() (enabled bool, rule ResourceRuleConfig) {
 	enabled = true
 	if m.Enabled != nil {
@@ -87,7 +105,7 @@ func (m MercenaryResourceConfig) Resolve() (enabled bool, rule ResourceRuleConfi
 		CooldownMs:      m.CooldownMs,
 	}
 	if rule.UseBelowPercent == 0 {
-		rule.UseBelowPercent = 75
+		rule.UseBelowPercent = 50
 	}
 	if len(rule.BeltSlots) == 0 {
 		rule.BeltSlots = []int{1}
@@ -102,9 +120,12 @@ func (c *ProfilesConfig) applyDefaults() {
 	if *c == nil {
 		*c = ProfilesConfig{}
 	}
-	if _, ok := (*c)["necro_bone_spear"]; ok {
+	if existing, ok := (*c)["necro_bone_spear"]; ok {
+		existing.RouteMaintenance.BoneArmor.applyDefaults()
+		(*c)["necro_bone_spear"] = existing
 		return
 	}
+	enabled := true
 	(*c)["necro_bone_spear"] = ProfileConfig{
 		CharacterClass: "necromancer",
 		DisplayName:    "Knochen-Speer",
@@ -117,9 +138,38 @@ func (c *ProfilesConfig) applyDefaults() {
 			Healing:      ResourceRuleConfig{UseBelowPercent: 65, BeltSlots: []int{1}, CooldownMs: 4000},
 			Mana:         ResourceRuleConfig{UseBelowPercent: 35, BeltSlots: []int{2, 3}, CooldownMs: 4000},
 			Rejuvenation: ResourceRuleConfig{UseBelowPercent: 35, BeltSlots: []int{4}, CooldownMs: 1500},
-			Mercenary:    MercenaryResourceConfig{UseBelowPercent: 75, BeltSlots: []int{1}, CooldownMs: 4000},
+			Mercenary:    MercenaryResourceConfig{UseBelowPercent: 50, BeltSlots: []int{1}, CooldownMs: 4000},
 			ThrottleMs:   1500, VerifyMs: 1500,
 		},
+		RouteMaintenance: ProfileRouteMaintenanceConfig{BoneArmor: BoneArmorMaintenanceConfig{
+			Enabled: &enabled, Skill: "bone_armor", RefreshIntervalMs: 60000,
+			RefreshAfterDamageBelowPct: 65, MinimumRecastIntervalMs: 10000, SettleMs: 750,
+		}},
+	}
+}
+
+func (c *BoneArmorMaintenanceConfig) applyDefaults() {
+	if c.Enabled == nil {
+		enabled := true
+		c.Enabled = &enabled
+	}
+	if !*c.Enabled {
+		return
+	}
+	if c.Skill == "" {
+		c.Skill = "bone_armor"
+	}
+	if c.RefreshIntervalMs == 0 {
+		c.RefreshIntervalMs = 60000
+	}
+	if c.RefreshAfterDamageBelowPct == 0 {
+		c.RefreshAfterDamageBelowPct = 65
+	}
+	if c.MinimumRecastIntervalMs == 0 {
+		c.MinimumRecastIntervalMs = 10000
+	}
+	if c.SettleMs == 0 {
+		c.SettleMs = 750
 	}
 }
 
@@ -244,6 +294,18 @@ func (c ProfilesConfig) validate(selected, source string) error {
 	}
 	if profileCfg.Resources.ThrottleMs <= 0 || profileCfg.Resources.VerifyMs <= 0 {
 		return fmt.Errorf("combat_profiles.%s.resources throttle and verify timeouts must be > 0", selected)
+	}
+	maintenance := profileCfg.RouteMaintenance.BoneArmor
+	if maintenance.Enabled != nil && *maintenance.Enabled {
+		if strings.TrimSpace(maintenance.Skill) == "" {
+			return fmt.Errorf("combat_profiles.%s.route_maintenance.bone_armor.skill is required", selected)
+		}
+		if maintenance.RefreshIntervalMs <= 0 || maintenance.MinimumRecastIntervalMs <= 0 || maintenance.SettleMs < 0 {
+			return fmt.Errorf("combat_profiles.%s.route_maintenance.bone_armor intervals must be > 0 and settle_ms >= 0", selected)
+		}
+		if maintenance.RefreshAfterDamageBelowPct <= 0 || maintenance.RefreshAfterDamageBelowPct > 100 {
+			return fmt.Errorf("combat_profiles.%s.route_maintenance.bone_armor.refresh_after_damage_below_percent must be within 1..100", selected)
+		}
 	}
 	return nil
 }

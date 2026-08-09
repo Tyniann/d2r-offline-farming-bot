@@ -127,6 +127,22 @@ func TestSameGameQueueRetryExitsAndRestartsSameIndex(t *testing.T) {
 	}
 }
 
+func TestSameGameQueueExecutesRequiredTerminalExitWithoutTownHandoff(t *testing.T) {
+	runner := newFakeLifecycleRunner(1)
+	supervisor, _ := NewSessionSupervisor(runner)
+	if _, err := supervisor.StartQueue(SupervisorCommandMeta{CommandID: "required-exit", ExpectedGeneration: 0}, queueSchedulerTestPlan([]string{"cows"}, 1)); err != nil {
+		t.Fatal(err)
+	}
+	<-runner.started
+	runner.release <- SupervisorRunResult{Disposition: QueueRunStop, Reason: "cow_return_portal_failed", ExitRequired: true}
+	waitSupervisorState(t, supervisor, SupervisorStateStoppedError)
+
+	events := runner.Events()
+	if len(events) < 4 || events[2].Name != "exit_game" || events[2].Reason != "cow_return_portal_failed" {
+		t.Fatalf("required exit events=%+v", events)
+	}
+}
+
 func TestSameGameQueueStartAndExitFailuresAreStable(t *testing.T) {
 	t.Run("start", func(t *testing.T) {
 		runner := newFakeLifecycleRunner(1)

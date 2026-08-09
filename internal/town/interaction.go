@@ -65,9 +65,9 @@ type EntityClicker interface {
 	Reset()
 }
 
-// NPCInteractor pins one NPC UnitID and permits exactly one hover-confirmed click.
-// The pin prevents regional enumeration changes from silently switching to a
-// different NPC instance after interaction has begun.
+// NPCInteractor pins one NPC UnitID and permits at most two hover-confirmed
+// clicks. The bounded second attempt handles moving NPCs whose first confirmed
+// click does not open a dialog without ever switching to another NPC instance.
 type NPCInteractor struct {
 	clicker     EntityClicker
 	npcID       uint32
@@ -75,8 +75,12 @@ type NPCInteractor struct {
 	timeout     time.Duration
 	pinned      uint32
 	clicked     bool
+	clickCount  int
+	clickedAt   time.Time
 	started     time.Time
 }
+
+const npcDialogConfirmationWindow = 750 * time.Millisecond
 
 // NewNPCInteractor creates a resettable fail-closed NPC interaction gate.
 func NewNPCInteractor(clicker EntityClicker, npcID uint32, maxDistance float64, timeout time.Duration) *NPCInteractor {
@@ -93,6 +97,8 @@ func (i *NPCInteractor) Reset() {
 	}
 	i.pinned = 0
 	i.clicked = false
+	i.clickCount = 0
+	i.clickedAt = time.Time{}
 	i.started = time.Time{}
 }
 
@@ -128,13 +134,20 @@ func (i *NPCInteractor) Tick(state world.State) InteractionResult {
 			return InteractionResult{Status: InteractionFailed, Reason: "npc_pin_lost", UnitID: i.pinned, Done: true}
 		}
 	}
+	// A dialog that appears while the second hover is being reacquired still
+	// belongs to the first authorized click and completes without another input.
+	if i.clickCount > 0 && (state.UI.NPCInteractOpen || state.UI.NPCShopOpen) {
+		return InteractionResult{Status: InteractionComplete, UnitID: i.pinned, Done: true}
+	}
 	if i.clicked {
-		// A sent click is never repeated. Only the separately observed dialog or
-		// shop flag can complete the interaction.
-		if state.UI.NPCInteractOpen || state.UI.NPCShopOpen {
-			return InteractionResult{Status: InteractionComplete, UnitID: i.pinned, Done: true}
+		// Hover confirmation proves the cursor target, not that D2R accepted the
+		// interaction. A moving NPC can ignore that click. Reacquire the same
+		// pinned UnitID once at its current position after a short dialog window.
+		if i.clickCount >= 2 || now.Sub(i.clickedAt) < npcDialogConfirmationWindow {
+			return InteractionResult{Status: InteractionPending, UnitID: i.pinned}
 		}
-		return InteractionResult{Status: InteractionPending, UnitID: i.pinned}
+		i.clicked = false
+		i.clicker.Reset()
 	}
 	if state.UI.NPCInteractOpen || state.UI.NPCShopOpen {
 		return InteractionResult{Status: InteractionFailed, Reason: "npc_ui_preopened", UnitID: i.pinned, Done: true}
@@ -145,6 +158,8 @@ func (i *NPCInteractor) Tick(state world.State) InteractionResult {
 	}
 	if result.Clicked {
 		i.clicked = true
+		i.clickCount++
+		i.clickedAt = now
 		return InteractionResult{Status: InteractionAction, Action: "npc_click", UnitID: i.pinned}
 	}
 	if result.Done {

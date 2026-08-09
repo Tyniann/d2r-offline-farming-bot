@@ -102,6 +102,44 @@ func TestTownPreparationPortalStartUsesNearbyPortalProof(t *testing.T) {
 	}
 }
 
+func TestTownPreparationPlansPortalArrivalToAkara(t *testing.T) {
+	directory := filepath.Join("..", "..", "configs", "routes", "town", "act1", "graph")
+	graph, err := town.LoadServiceGraph(filepath.Join(directory, "graph.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	const layout = "4ad7f3b4018ecb39ef311d808dcf0b0b9b5991d8b548b8d3ac1688a657c33f30"
+	a := &townPreparationAdapter{
+		log: config.NewLogger("error"), graph: graph, layout: layout,
+		startAnchor: town.AnchorPortalArrival, targetAnchor: town.AnchorAkara,
+	}
+	if reason := a.start(preparationState(world.Position{X: 1, Y: 1}, time.Now(), true)); reason != "" {
+		t.Fatal(reason)
+	}
+	if len(a.traversals) != 2 || a.traversals[0].Edge.ID != "portal-cain" ||
+		a.traversals[1].Edge.ID != "akara-cain" || !a.traversals[1].Reverse {
+		t.Fatalf("portal-to-Akara traversals = %+v", a.traversals)
+	}
+	if a.handoffAnchor() != town.AnchorAkara {
+		t.Fatalf("handoff anchor = %q", a.handoffAnchor())
+	}
+}
+
+func TestTownPreparationAkaraHandoffRequiresNearbyLiveNPC(t *testing.T) {
+	state := preparationState(world.Position{X: 110, Y: 90}, time.Now(), true)
+	if !townPreparationHandoffReady(state, town.AnchorAkara, 15) {
+		t.Fatal("nearby live Akara was rejected")
+	}
+	state.Player.Position = world.Position{X: 140, Y: 90}
+	if townPreparationHandoffReady(state, town.AnchorAkara, 15) {
+		t.Fatal("distant Akara must not confirm the handoff")
+	}
+	state.Monsters = nil
+	if townPreparationHandoffReady(state, town.AnchorAkara, 15) {
+		t.Fatal("missing Akara must revoke the handoff")
+	}
+}
+
 func TestTownPreparationStashStartUsesNearbyStashProof(t *testing.T) {
 	cfg := pathing.DefaultConfig()
 	adapter := &townPreparationAdapter{pathCfg: cfg, startAnchor: town.AnchorStash}
@@ -258,9 +296,65 @@ func TestTownPreparationBuildsProductivePotionPlanWithLiveGold(t *testing.T) {
 	}
 }
 
+func TestCowReadinessRequiresRejuvenationAndFillsAssignedColumns(t *testing.T) {
+	cfg, err := config.Load(filepath.Join("..", "..", "configs", "config.example.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	in := &preparationInputMock{}
+	runCfg, _ := cfg.Runs.Run("cows")
+	a, err := newTownPreparationAdapter(config.NewLogger("error"), in, pathing.DefaultConfig(), cfg, "cows", runCfg, &townLayoutPin{}, &preparationTelemetryMock{}, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	a.requireFullBuyableBelt, a.minimumRejuvenation = true, 1
+	a.layout = "911703945495707c9e6578c2db467e76ed70cf0548f119ac1b397368a8af5a53"
+	a.layoutOrigin = world.Position{X: 5466, Y: 4709}
+	state := preparationState(a.layoutOrigin, time.Now(), false)
+	state.Player.Gold, state.Player.GoldKnown = 50938, true
+	for i := 0; i < 3; i++ {
+		state.Items = append(state.Items, world.Item{UnitID: uint32(10 + i), Type: "hpot", Location: world.ItemLocationBelt, PlayerOwned: true, GridX: 0, GridY: i})
+	}
+	for i := 0; i < 7; i++ {
+		state.Items = append(state.Items, world.Item{UnitID: uint32(20 + i), Type: "mpot", Location: world.ItemLocationBelt, PlayerOwned: true, GridX: 1 + i%2, GridY: i / 2})
+	}
+	if reason := a.start(state); reason != "cow_rejuvenation_reserve_missing" {
+		t.Fatalf("missing rejuvenation reason=%q", reason)
+	}
+	state.Items = append(state.Items, world.Item{UnitID: 40, Type: "rpot", Location: world.ItemLocationBelt, PlayerOwned: true, GridX: 3})
+	if reason := a.start(state); reason != "" {
+		t.Fatal(reason)
+	}
+	if a.handler == nil || len(a.handler.orders) != 2 {
+		t.Fatalf("orders=%+v", a.handler)
+	}
+	if a.handler.orders[0].Target != 4 || a.handler.orders[1].Target != 8 {
+		t.Fatalf("orders=%+v", a.handler.orders)
+	}
+}
+
+func TestCountProfilePotionSuppliesDecodesFlattenedBeltRows(t *testing.T) {
+	profile := config.ProfileResourcesConfig{
+		Healing:      config.ResourceRuleConfig{BeltSlots: []int{1}},
+		Mana:         config.ResourceRuleConfig{BeltSlots: []int{2, 3}},
+		Rejuvenation: config.ResourceRuleConfig{BeltSlots: []int{4}},
+	}
+	state := world.State{Items: []world.Item{
+		{Type: "hpot", Location: world.ItemLocationBelt, GridX: 0}, {Type: "mpot", Location: world.ItemLocationBelt, GridX: 1}, {Type: "mpot", Location: world.ItemLocationBelt, GridX: 2}, {Type: "rpot", Location: world.ItemLocationBelt, GridX: 3},
+		{Type: "hpot", Location: world.ItemLocationBelt, GridX: 4}, {Type: "mpot", Location: world.ItemLocationBelt, GridX: 5}, {Type: "mpot", Location: world.ItemLocationBelt, GridX: 6},
+		{Type: "hpot", Location: world.ItemLocationBelt, GridX: 8}, {Type: "mpot", Location: world.ItemLocationBelt, GridX: 9}, {Type: "mpot", Location: world.ItemLocationBelt, GridX: 10},
+		{Type: "hpot", Location: world.ItemLocationBelt, GridX: 12}, {Type: "mpot", Location: world.ItemLocationBelt, GridX: 13}, {Type: "mpot", Location: world.ItemLocationBelt, GridX: 14},
+	}}
+	healing, mana, rejuvenation := countProfilePotionSupplies(state, profile)
+	if healing != 4 || mana != 8 || rejuvenation != 1 {
+		t.Fatalf("supplies=%d/%d/%d, want 4/8/1", healing, mana, rejuvenation)
+	}
+}
+
 func TestPurchaseCostUsesActualNightmareVendorOffer(t *testing.T) {
 	state := world.State{Items: []world.Item{{TxtFileNo: 1, Code: "hp4", Type: "hpot", Location: world.ItemLocationVendor}, {TxtFileNo: 2, Code: "mp4", Type: "mpot", Location: world.ItemLocationVendor}}}
-	code, cost, ok := purchaseCostForState(state, town.RestockOrder{Resource: town.RestockMana, Mode: town.BuyModeBulk, Target: 8})
+	profile := config.ProfileResourcesConfig{Mana: config.ResourceRuleConfig{BeltSlots: []int{2, 3}}}
+	code, cost, ok := purchaseCostForState(state, profile, town.RestockOrder{Resource: town.RestockMana, Mode: town.BuyModeBulk, Target: 8})
 	if !ok || code != "mp4" || cost != 4000 {
 		t.Fatalf("purchase=%q/%d/%v", code, cost, ok)
 	}

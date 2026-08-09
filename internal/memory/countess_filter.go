@@ -28,6 +28,9 @@ func IsRuntimeMonsterCandidate(id uint32, monsterTypeFlag uint8) bool {
 	if _, ok := runtimeBossNPCIDs[id]; ok {
 		return true
 	}
+	if _, ok := runtimePhase20MonsterNPCIDs[id]; ok {
+		return true
+	}
 	switch id {
 	case 148, 150, 154, 265:
 		return true
@@ -40,6 +43,9 @@ func isRuntimePriorityMonsterCandidate(id uint32, monsterTypeFlag uint8) bool {
 		return true
 	}
 	if _, ok := runtimeBossNPCIDs[id]; ok {
+		return true
+	}
+	if _, ok := runtimePhase20PriorityNPCIDs[id]; ok {
 		return true
 	}
 	switch id {

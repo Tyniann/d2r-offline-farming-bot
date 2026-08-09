@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -359,7 +360,7 @@ func (r *RuntimeQueueRunner) newRuntimeUnit(runID string) (queueRunUnit, error) 
 	if err != nil {
 		return nil, err
 	}
-	runtime.mercPreflightPending = true
+	runtime.runReadinessPending = true
 	runtime.SetUIStatusPublisher(r.publish)
 	runtime.setPauseHotkeyHandler(r.requestPauseAfterRun)
 	runtime.setStopAfterRunHotkeyHandler(r.requestStopAfterRun)
@@ -375,14 +376,55 @@ const queueReasonRetryReturnFailed = "retry_return_failed"
 func (u *runtimeQueueUnit) StartOrVerifyGame(ctx context.Context, alreadyActive bool) error {
 	u.runtime.Log.Info("queue game lifecycle start", "adopt_existing_game", alreadyActive)
 	if !alreadyActive {
-		u.runtime.Options.OfflineDifficulty = u.runtime.Config.Session.Difficulty
-		u.runtime.Options.OfflineCharacter = u.runtime.Config.Session.Character
-		if err := u.runtime.runOfflineDifficultyTest(ctx, u.runtime.Config.Session.Difficulty); err != nil {
+		catalog, err := ResolveCharacterCatalog(u.runtime.Config)
+		if err != nil {
+			return fmt.Errorf("resolve queue character selection: %w", err)
+		}
+		selection, err := configuredQueueCharacterSelection(u.runtime.Config, catalog)
+		if err != nil {
 			return err
 		}
-		u.runtime.Options.OfflineDifficulty, u.runtime.Options.OfflineCharacter = "", ""
+		// Queue starts must not depend on whichever offline save D2R happened to
+		// leave selected. Reuse the bounded Home/Down selector that onboarding
+		// already validated, then keep its visual and post-entry Memory gates.
+		if err := u.runtime.ApplyCharacterSelection(ctx, selection); err != nil {
+			u.runtime.Log.Error("queue game lifecycle start failed", "stage", "character_selection", "error", err)
+			return err
+		}
 	}
-	return u.runtime.verifyActiveQueueGame(ctx)
+	if err := u.runtime.verifyActiveQueueGame(ctx); err != nil {
+		u.runtime.Log.Error("queue game lifecycle start failed", "stage", "active_game_verification", "error", err)
+		return err
+	}
+	u.rearmRunReadinessForNewGame(alreadyActive)
+	return nil
+}
+
+func (u *runtimeQueueUnit) rearmRunReadinessForNewGame(alreadyActive bool) {
+	if u == nil || u.runtime == nil || alreadyActive {
+		return
+	}
+	// A retry may reuse the same runtime unit after Save & Exit. Rearm only
+	// at the verified new-game boundary so dead-Merc recovery and Cow start
+	// reserve run again without repeating preparation between same-game runs.
+	u.runtime.runReadinessPending = true
+}
+
+func configuredQueueCharacterSelection(cfg *config.Config, catalog CharacterCatalog) (CharacterSelectionRequest, error) {
+	if cfg == nil {
+		return CharacterSelectionRequest{}, fmt.Errorf("queue character selection requires config")
+	}
+	for _, entry := range catalog.Characters {
+		if !strings.EqualFold(entry.Name, cfg.Session.Character) {
+			continue
+		}
+		return CharacterSelectionRequest{
+			Character: entry.Name, Difficulty: cfg.Session.Difficulty,
+			CatalogRevision: catalog.Revision, CharacterCount: len(catalog.Characters),
+			AnchorPath: entry.AnchorPath, ExpectedClass: entry.ExpectedClass,
+		}, nil
+	}
+	return CharacterSelectionRequest{}, fmt.Errorf("queue character %q is missing from the offline save catalog", cfg.Session.Character)
 }
 
 func (u *runtimeQueueUnit) VerifySameGame(ctx context.Context) error {
@@ -399,15 +441,26 @@ func (u *runtimeQueueUnit) RunToTown(ctx context.Context, request SupervisorRunR
 	if _, err := u.runtime.prepareSessionRun(request); err != nil {
 		return queueRuntimeTerminal(fmt.Errorf("prepare queue run: %w", err))
 	}
+	u.runtime.productiveRunActive = true
 	taskResult, runErr := u.runtime.runTaskToTerminal(ctx)
+	u.runtime.productiveRunActive = false
 	var result SupervisorRunResult
 	if runErr != nil {
-		result = queueRuntimeTerminal(fmt.Errorf("execute queue run: %w", runErr))
+		var readinessErr *runReadinessError
+		if errors.As(runErr, &readinessErr) {
+			result = SupervisorRunResult{Disposition: QueueRunStop, Reason: readinessErr.reason}
+		} else {
+			result = queueRuntimeTerminal(fmt.Errorf("execute queue run: %w", runErr))
+		}
 	} else if taskResult.Outcome == tasks.RunOutcomeSuccess {
 		result = SupervisorRunResult{Disposition: QueueRunAdvance, SafeToExit: true}
 	} else if isTerminalMercenaryFailure(taskResult.Reason) {
 		result = SupervisorRunResult{Disposition: QueueRunStop, Reason: taskResult.Reason}
-	} else if isRestartableSessionFailure(taskResult.Reason, u.runtime.Config.Session.RetryClasses) {
+	} else if request.DefinitionID == string(tasks.RunIDCows) && taskResult.Reason == "cow_return_portal_failed" {
+		// The Cow setup already exhausted its bounded portal return. Bypass
+		// configurable retry classes and delegate one Save & Exit to the supervisor.
+		result = SupervisorRunResult{Disposition: QueueRunStop, Reason: taskResult.Reason, ExitRequired: true}
+	} else if isMandatoryControlledExit(taskResult.Reason) || isRestartableSessionFailure(taskResult.Reason, u.runtime.Config.Session.RetryClasses) {
 		var recoveryErr error
 		result, recoveryErr = controlledRetryResult(ctx, taskResult.Reason, u.runtime.runRetryReturnToTown)
 		if recoveryErr != nil {
@@ -417,9 +470,13 @@ func (u *runtimeQueueUnit) RunToTown(ctx context.Context, request SupervisorRunR
 		result = SupervisorRunResult{Disposition: QueueRunStop, Reason: taskResult.Reason}
 	}
 	if err := u.runtime.finishSessionRunTelemetry(result); err != nil {
-		return SupervisorRunResult{Disposition: QueueRunStop, Reason: "telemetry_failed", SafeToExit: result.SafeToExit}
+		return SupervisorRunResult{Disposition: QueueRunStop, Reason: "telemetry_failed", SafeToExit: result.SafeToExit, ExitRequired: result.ExitRequired}
 	}
 	return result
+}
+
+func isMandatoryControlledExit(reason string) bool {
+	return reason == reasonMercenaryDiedDuringRun || reason == "combat_resource_exhausted" || reason == string(tasks.RouteThreatReasonManaRecoveryFailed)
 }
 
 func controlledRetryResult(ctx context.Context, reason string, recoverToTown func(context.Context) error) (SupervisorRunResult, error) {

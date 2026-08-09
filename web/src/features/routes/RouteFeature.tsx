@@ -37,12 +37,18 @@ const reasonLabels: Record<string, string> = {
   recording_start_area_mismatch: "Startgebiet oder Startwegpunkt stimmen nicht.",
   recording_terminal_area_mismatch: "Das registrierte Zielgebiet wurde nicht bestätigt.",
   recording_boss_missing: "Der registrierte lebende Boss wurde nicht bestätigt.",
+  recording_object_missing: "Wirts Körper wurde am Endpunkt nicht bestätigt.",
   recording_boss_dead: "Der Boss muss beim Aufnahmeende noch leben.",
-  recording_endpoint_too_far: "Die gewählte Endposition ist zu weit vom Boss entfernt.",
+  recording_endpoint_too_far: "Die gewählte Endposition ist zu weit vom bestätigten Ziel entfernt.",
   pickit_assignment_missing: "Für diesen Charakter und Run ist noch kein Lootprofil zugeordnet.",
   route_test_playback_failed: "Die isolierte Wiedergabe ist fehlgeschlagen.",
   route_test_terminal_mismatch: "Die Zielprüfung nach der Wiedergabe ist fehlgeschlagen.",
   route_safety_return_failed: "Die sichere Rückkehr per Town Portal ist fehlgeschlagen.",
+  leg_acquisition_route_missing: "Die Wirt-Route fehlt.",
+  leg_acquisition_route_stale: "Die Wirt-Route ist veraltet oder archiviert.",
+  cow_sweep_route_missing: "Die Cow-Route fehlt.",
+  cow_sweep_route_stale: "Die Cow-Route ist veraltet oder archiviert.",
+  route_set_binding_mismatch: "Wirt-Route und Cow-Route passen nicht zum selben Charakterprofil.",
 };
 
 function reasonLabel(reason?: string): string {
@@ -53,23 +59,41 @@ function operationLabel(operation: string): string {
   return ({ publish: "Veröffentlichen", replace: "Ersetzen", archive: "Archivieren", restore: "Wiederherstellen", delete: "Endgültig löschen" } as Record<string, string>)[operation] ?? operation;
 }
 
+function routeRoleLabel(role?: string): string {
+  return role === "leg_acquisition" ? "Wirt-Route" : role === "cow_sweep" ? "Cow-Route" : "";
+}
+
 function workflowInstruction(workflow: RouteWorkflowDTO, hotkeys: HotkeyHelpDTO | null): string {
   const finish = hotkeys?.recording_finish ?? "F9";
   const emergency = hotkeys?.emergency_stop ?? "F11";
   switch (workflow.state) {
     case "preflight": return workflow.act
       ? `Am Portal-Ankunftspunkt stehen bleiben. Der Core startet die Aufnahme erst nach der Memory-Bestätigung.`
-      : `Am angezeigten Startwegpunkt stehen bleiben. Erst bei „recording“ loslegen.`;
+      : workflow.route_role === "cow_sweep"
+        ? `Das Cow Level muss vollständig leer sein. Bleibe direkt am roten Ankunftsportal stehen, bis „recording“ erscheint.`
+        : `Am angezeigten Startwegpunkt stehen bleiben. Erst bei „recording“ loslegen.`;
     case "recording": return workflow.act
       ? `Jetzt ohne Teleport zum lokalen Wegpunkt laufen und dort ${finish} drücken. ${emergency} bricht sofort ab.`
-      : `Jetzt die angezeigte Farming-Route bis zur selbst gewählten Kampfposition aufzeichnen. Den Boss nicht angreifen: Er muss für die Prüfung leben. Dort ${finish} drücken; ${emergency} bricht sofort ab.`;
+      : workflow.route_role === "leg_acquisition"
+        ? `Jetzt durch das offene rote Portal bis nahe Wirts Körper aufzeichnen. Wirt nicht anklicken. Dort ${finish} drücken; ${emergency} bricht sofort ab.`
+        : workflow.route_role === "cow_sweep"
+          ? `Jetzt die vollständig geleerte Cow-Farming-Schleife bis zum gewünschten Endpunkt aufzeichnen. Dort ${finish} drücken; ${emergency} bricht sofort ab.`
+          : `Jetzt die angezeigte Farming-Route bis zur selbst gewählten Kampfposition aufzeichnen. Den Boss nicht angreifen: Er muss für die Prüfung leben. Dort ${finish} drücken; ${emergency} bricht sofort ab.`;
     case "freezing": return "Keine Eingabe: Der Core friert den unveränderlichen Kandidaten ein.";
-    case "validating": return "Keine Eingabe: Terminalgebiet, lebender Boss und Enddistanz werden geprüft.";
+    case "validating": return workflow.route_role === "leg_acquisition"
+      ? "Keine Eingabe: Tristram, Wirts Körper und Enddistanz werden geprüft."
+      : workflow.route_role === "cow_sweep"
+        ? "Keine Eingabe: Cow Level und Routenendpunkt werden geprüft."
+        : "Keine Eingabe: Terminalgebiet, lebender Boss und Enddistanz werden geprüft.";
     case "returning_via_portal": return "Keine Eingabe: Der Core öffnet das Town Portal und kehrt sicher ins Dorf zurück.";
     case "candidate_ready": return "Der Kandidat ist gespeichert. Als Nächstes im Kandidatenreview „Isoliert testen“ wählen.";
-    case "preparing_playback": return "Keine Eingabe: Der Core normalisiert Town/Egress und reist zum registrierten Startwegpunkt.";
+    case "preparing_playback": return workflow.route_role === "cow_sweep" ? "Keine Eingabe: Der Core betritt das bereits vorhandene Cow-Portal." : "Keine Eingabe: Der Core normalisiert Town/Egress und reist zum registrierten Startwegpunkt.";
     case "playing_candidate": return "Keine Eingabe: Der Kandidat wird ohne Combat, Loot oder Town Services abgespielt.";
-    case "validating_terminal": return "Keine Eingabe: Zielgebiet, lebender Boss und Enddistanz werden erneut geprüft.";
+    case "validating_terminal": return workflow.route_role === "leg_acquisition"
+      ? "Keine Eingabe: Tristram, Wirts Körper und Enddistanz werden erneut geprüft."
+      : workflow.route_role === "cow_sweep"
+        ? "Keine Eingabe: Cow Level und Routenendpunkt werden erneut geprüft."
+        : "Keine Eingabe: Zielgebiet, lebender Boss und Enddistanz werden erneut geprüft.";
     case "returning_after_test": return "Keine Eingabe: Der Core kehrt nach dem Test per Town Portal ins Dorf zurück.";
     case "awaiting_publish_confirmation": return "Der Test ist bestanden. Die Veröffentlichung benötigt genau eine bewusste Bestätigung.";
     case "publishing": return "Die neue Route wird atomisch zugeordnet; der Vorgänger wird unverändert archiviert.";
@@ -115,7 +139,7 @@ export function RouteFeature({ characters, selectedCharacter, refreshKey, liveLo
 
   const prepare = async (operation: string, routeId = "", candidateId = "") => { setPending(true); setError(""); try { setPreview(await previewRouteMutation(operation, routeId, candidateId)); } catch (reason) { setError(reason instanceof Error ? reason.message : "Vorschau fehlgeschlagen"); } finally { setPending(false); } };
   const confirm = async () => { if (!preview) return; setPending(true); try { await confirmRouteMutation(preview, deleteConfirmation); setPreview(null); await refresh(); } catch (reason) { setError(reason instanceof Error ? reason.message : "Bestätigung ist veraltet"); } finally { setPending(false); } };
-  const start = async (operation: string, data: { runId?: string; candidateId?: string; act?: string }) => { if (!workflow) return; setPending(true); setError(""); try { setWorkflow(await startRouteWorkflow(operation, workflow.generation, data)); } catch (reason) { setError(reason instanceof Error ? reason.message : "Workflowstart fehlgeschlagen"); } finally { setPending(false); } };
+  const start = async (operation: string, data: { runId?: string; routeRole?: string; candidateId?: string; act?: string }) => { if (!workflow) return; setPending(true); setError(""); try { setWorkflow(await startRouteWorkflow(operation, workflow.generation, data)); } catch (reason) { setError(reason instanceof Error ? reason.message : "Workflowstart fehlgeschlagen"); } finally { setPending(false); } };
 
   return <section aria-labelledby="routes-title">
     <h2 id="routes-title">Farming-Routen</h2>
@@ -131,14 +155,15 @@ export function RouteFeature({ characters, selectedCharacter, refreshKey, liveLo
     {error && <p role="alert">{error}</p>}
     {routes === null && !error && <p>Routen werden geladen …</p>}
     {routes?.length === 0 && <p>{archive ? "Das Archiv ist leer." : "Für diesen Charakter gibt es noch keine Farming-Route."}</p>}
-    {!!routes?.length && <div className="run-grid">{routes.map((route) => <article key={route.route_id}><strong>{route.display_name}</strong><span>{route.run_id} · {route.difficulty}</span><small>{route.lifecycle_status} · {route.management_status}{route.assigned ? " · zugewiesen" : ""}</small><div className="route-actions">{archive ? <><button disabled={liveActionLocked} onClick={() => void prepare("restore", route.route_id)}>Wiederherstellen</button><button className="danger" disabled={liveActionLocked} onClick={() => void prepare("delete", route.route_id)}>Endgültig löschen</button></> : <button disabled={liveActionLocked} onClick={() => void prepare("archive", route.route_id)}>Archivieren</button>}</div></article>)}</div>}
+    {!!routes?.length && <div className="run-grid">{routes.map((route) => <article key={route.route_id}><strong>{route.display_name}</strong><span>{route.run_id}{route.route_role ? ` · ${routeRoleLabel(route.route_role)}` : ""} · {route.difficulty}</span><small>{route.lifecycle_status} · {route.management_status}{route.assigned ? " · zugewiesen" : ""}</small><div className="route-actions">{archive ? <><button disabled={liveActionLocked} onClick={() => void prepare("restore", route.route_id)}>Wiederherstellen</button><button className="danger" disabled={liveActionLocked} onClick={() => void prepare("delete", route.route_id)}>Endgültig löschen</button></> : <button disabled={liveActionLocked} onClick={() => void prepare("archive", route.route_id)}>Archivieren</button>}</div></article>)}</div>}
 
     <h3>Geführte Aufnahme</h3>
-    <div className="run-grid">{orderedOptions.map((option) => <article key={option.run_id} className={option.run_id === preferredRecordingRun ? "preferred-route" : undefined}><strong>{option.display_name}{option.run_id === preferredRecordingRun ? " · ausgewählt" : ""}</strong><p>{option.instructions_de}</p><small>Start: {option.start_waypoint} · Zielgebiet {option.terminal_area_id} · maximale Bossdistanz {option.terminal_max_distance_tiles.toFixed(0)} Tiles</small>{(option.prerequisites ?? []).map((entry) => <small key={entry.id}>{entry.id}: {entry.ready ? "bereit" : reasonLabel(entry.reason)}</small>)}{!option.available && option.reason && <small>{reasonLabel(option.reason)}</small>}<button disabled={liveActionLocked || !option.available || (option.prerequisites ?? []).some((entry) => !entry.ready)} onClick={() => void start("record", { runId: option.run_id })}>Aufnahme starten</button></article>)}</div>
-    {workflow && <div className="queue-status" aria-live="polite"><strong>Routen-Workflow: {workflow.state}</strong><span>{workflowLabels[workflow.state] ?? workflow.state} · Generation {workflow.generation}{workflow.run_id ? ` · ${workflow.run_id}` : ""}{workflow.act ? ` · ${workflow.act.toUpperCase()}` : ""}</span>{activeWorkflowInstruction && <span>{activeWorkflowInstruction}</span>}{workflow.state === "recording" && <button disabled={liveLocked || pending} onClick={() => void finishRouteRecording(workflow.workflow_id, workflow.generation).then(setWorkflow).catch((reason: unknown) => setError(reason instanceof Error ? reason.message : "Finish fehlgeschlagen"))}>Aufnahme beenden</button>}{workflow.reason && workflow.state !== "failed_safe" && workflow.state !== "emergency_cancelled" && <span>{reasonLabel(workflow.reason)}</span>}</div>}
+    {orderedOptions.some((option) => option.run_id === "cows") && <div className="onboarding-return"><div><strong>Voraussetzungen für Cow-Routen</strong><p>Die gewählte Schwierigkeit muss abgeschlossen sein. Für den späteren Cow-Run brauchst du einen leeren, geschützten Horadrimwürfel, Platz für Wirt’s Bein und ein zusätzliches Stadtportalbuch sowie ein verwendbares Stadtportalbuch. Entferne alte Wirt’s Legs vorher manuell. Der Bot beschafft weder den Cube noch automatisiert er die Cain-Quest.</p></div></div>}
+    <div className="run-grid">{orderedOptions.map((option) => <article key={`${option.run_id}:${option.route_role ?? "single"}`} className={option.run_id === preferredRecordingRun ? "preferred-route" : undefined}><strong>{option.display_name}{option.run_id === preferredRecordingRun ? " · ausgewählt" : ""}</strong><p>{option.instructions_de}</p>{(option.operator_hints_de ?? []).map((hint) => <small key={hint}>{hint}</small>)}<small>Start: {option.start_kind === "object_portal_arrival" ? "rotes Ankunftsportal" : option.start_waypoint} · Zielgebiet {option.terminal_area_id}{option.run_id === "cows" ? "" : ` · maximale Bossdistanz ${option.terminal_max_distance_tiles.toFixed(0)} Tiles`}</small>{(option.prerequisites ?? []).map((entry) => <small key={entry.id}>{entry.id}: {entry.ready ? "bereit" : reasonLabel(entry.reason)}</small>)}{!option.available && option.reason && <small>{reasonLabel(option.reason)}</small>}<button disabled={liveActionLocked || !option.available || (option.prerequisites ?? []).some((entry) => !entry.ready)} onClick={() => void start("record", { runId: option.run_id, routeRole: option.route_role })}>{option.route_role === "leg_acquisition" ? "Wirt-Route aufnehmen" : option.route_role === "cow_sweep" ? "Cow-Route aufnehmen" : "Aufnahme starten"}</button></article>)}</div>
+    {workflow && <div className="queue-status" aria-live="polite"><strong>Routen-Workflow: {workflow.state}</strong><span>{workflowLabels[workflow.state] ?? workflow.state} · Generation {workflow.generation}{workflow.run_id ? ` · ${workflow.run_id}` : ""}{workflow.route_role ? ` · ${routeRoleLabel(workflow.route_role)}` : ""}{workflow.act ? ` · ${workflow.act.toUpperCase()}` : ""}</span>{activeWorkflowInstruction && <span>{activeWorkflowInstruction}</span>}{workflow.state === "recording" && <button disabled={liveLocked || pending} onClick={() => void finishRouteRecording(workflow.workflow_id, workflow.generation).then(setWorkflow).catch((reason: unknown) => setError(reason instanceof Error ? reason.message : "Finish fehlgeschlagen"))}>Aufnahme beenden</button>}{workflow.reason && workflow.state !== "failed_safe" && workflow.state !== "emergency_cancelled" && <span>{reasonLabel(workflow.reason)}</span>}</div>}
 
     <h3>Kandidatenreview</h3>
-    {visibleCandidates.length === 0 ? <p>Für diesen Charakter gibt es noch keinen aufgenommenen Kandidaten.</p> : <div className="run-grid">{visibleCandidates.map((candidate) => <article key={candidate.candidate_id}><strong>{candidate.run_id}</strong><code>{candidate.candidate_id}</code><span>{candidate.character} · {candidate.difficulty}</span><small>{candidateLabels[candidate.state] ?? candidate.state} · Bossdistanz {candidate.measured_boss_distance.toFixed(1)} Tiles</small>{candidate.reason && <small>{reasonLabel(candidate.reason)}</small>}<div className="route-actions"><button disabled={liveActionLocked || candidate.state !== "validated"} onClick={() => void start("test", { candidateId: candidate.candidate_id })}>{candidate.state === "test_passed" ? "Test bestanden" : "Isoliert testen"}</button><button disabled={liveActionLocked || candidate.state !== "test_passed"} onClick={() => void prepare("publish", "", candidate.candidate_id)}>Veröffentlichen</button></div></article>)}</div>}
+    {visibleCandidates.length === 0 ? <p>Für diesen Charakter gibt es noch keinen aufgenommenen Kandidaten.</p> : <div className="run-grid">{visibleCandidates.map((candidate) => <article key={candidate.candidate_id}><strong>{routeRoleLabel(candidate.route_role) || candidate.run_id}</strong><code>{candidate.candidate_id}</code><span>{candidate.character} · {candidate.difficulty}</span><small>{candidateLabels[candidate.state] ?? candidate.state}{candidate.route_role ? ` · SHA-256 ${candidate.route_sha256.slice(0, 12)}…` : ` · Bossdistanz ${candidate.measured_boss_distance.toFixed(1)} Tiles`}</small>{candidate.reason && <small>{reasonLabel(candidate.reason)}</small>}<div className="route-actions"><button disabled={liveActionLocked || candidate.state !== "validated"} onClick={() => void start("test", { candidateId: candidate.candidate_id })}>{candidate.state === "test_passed" ? "Test bestanden" : "Isoliert testen"}</button><button disabled={liveActionLocked || candidate.state !== "test_passed"} onClick={() => void prepare("publish", "", candidate.candidate_id)}>Veröffentlichen</button></div></article>)}</div>}
 
     <h3>System-Egress-Setup</h3>
     <p>Nur fehlende globale Portal→Wegpunkt-Routen werden als Setup-Bedarf gezeigt; sie gehören nicht zur Farming-Bibliothek.</p>

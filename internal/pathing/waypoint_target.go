@@ -14,6 +14,8 @@ import (
 type WaypointTargetID string
 
 const (
+	// WaypointTargetStonyField selects the Act-1 Stony Field destination.
+	WaypointTargetStonyField WaypointTargetID = "stony_field"
 	// WaypointTargetBlackMarsh selects the Act-1 Black Marsh destination.
 	WaypointTargetBlackMarsh WaypointTargetID = "black_marsh"
 	// WaypointTargetDuranceOfHateLevel2 selects the Act-3 Durance Level 2 destination.
@@ -90,6 +92,7 @@ func NewWaypointTargetRegistry(actions ...WaypointTargetAction) (*WaypointTarget
 // order within each act tab (Arcane=8, Halls of Pain=6).
 func DefaultWaypointTargetRegistry() *WaypointTargetRegistry {
 	registry, err := NewWaypointTargetRegistry(
+		waypointTargetAction(WaypointTargetStonyField, "Stony Field", 1, 3, world.StonyField),
 		waypointTargetAction(WaypointTargetBlackMarsh, "Black Marsh", 1, 5, world.BlackMarsh),
 		waypointTargetAction(WaypointTargetDuranceOfHateLevel2, "Durance of Hate Level 2", 3, 9, world.DuranceOfHateLevel2),
 		waypointTargetAction(WaypointTargetArcaneSanctuary, "Arcane Sanctuary", 2, 8, world.ArcaneSanctuary),

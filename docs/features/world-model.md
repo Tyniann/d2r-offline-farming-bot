@@ -16,7 +16,7 @@ Phase 2 legt die semantische Spielzustands-Schicht im Paket `internal/world` an:
   - `mercenary.go` — fail-closed `Mercenary` und `HPPercent`
   - `state.go` — `GamePhase`, immutable `State` inkl. Entity- und Item-Slices
   - `item.go` — `Item`, `ItemQuality`, `ItemLocation`, Code-/Name-Lookup und Item-Queries
-  - `object_ids.go`, `entrance_ids.go`, `npc_ids.go` — semantische Run-Kataloge; Mephisto stammt versionsgebunden aus `monstats.txt`
+  - `object_ids.go`, `entrance_ids.go`, `npc_ids.go` — semantische Run-Kataloge; Phase-20-Objekte und -Monster stammen versionsgebunden aus lokalen `objects.txt`, `monstats.txt` und `superuniques.txt`
   - `entity.go` — Query-Helfer (`NearestObject`, `FindSuperUnique`, …)
   - `mapper.go` — `FromSnapshot`, `mapPhase`
   - `world.go` — `Model` mit `slices.Clone` in `Update`/`Current`
@@ -28,7 +28,7 @@ Phase 2 legt die semantische Spielzustands-Schicht im Paket `internal/world` an:
 
 | Aspekt | Verhalten |
 |--------|-----------|
-| Quelle | d2go `pkg/data/area` @ Commit `16d248a53591`, manuell eingebettet |
+| Quelle | Legacy-Katalog manuell eingebettet; Phase-20-Areas 4/38/39 zusätzlich autoritativ gegen lokales `levels.txt` für D2R `3.2.92777` geprüft |
 | Namen | IDs `1..136`; ID `0` und `137..141` ohne Katalog-Name → Unknown-Fallback |
 | `Act` | Immer via `AreaID.Act()` berechnet, nie in der Tabelle gespeichert |
 | ID `0` | `ActUnknown` (Verbesserung gegenüber d2go, das Act 1 liefert) |
@@ -84,17 +84,21 @@ Das Monsterreservoir hält seit Phase 17.2 die 512 nächsten nicht priorisierten
 
 Phase 10.5 ergänzt Mephisto über den eigenen `monstats.txt`-Generator als NPC-ID `242` in Memory-Allowlist und World-Namenskatalog. Durance of Hate Level 2/3 sind Act-3-Dungeons; die Entrance-IDs `65..68` werden als `durance_up` beziehungsweise `durance_down` klassifiziert. Der Item-Katalog trägt außerdem die aus den lokalen Waffen-/Rüstungstabellen generierte `BaseTier`-Klassifikation.
 
+Phase 20.0 ergänzt read-only die Objekte `PermanentPortalID=60` und `WirtsBodyID=268` sowie lebende Rakanishu-/Hell-Bovine-/Cow-King-Units aus lokalen CASC-Extrakten. Phase 20.1 projiziert direkte Kuh-Leichen aus demselben Monster-Walk separat als `CowCorpses`. Jede Leiche ist an `State.At` und `State.Generation` gebunden; `CowCorpsesComplete` widerruft bei Readfehlern, inkonsistenten CE-Verbrauchsbits, Duplikaten oder einer Überschneidung mit lebenden Monster-UnitIDs. `FindCurrentCowCorpse` liefert nur exakt eine Leiche aus dem aktuellen vollständigen State.
+
+`State.UI.CubeOpen` ist nur bei `CubeOpenKnown=true` autoritativ. Der Mapper übernimmt das live bestätigte Byte `UI+0x5` fail-closed und widerruft einen früheren Open-State sofort, sobald der nächste Snapshot den UI-Buffer nicht mehr eindeutig lesen kann.
+
 Allowlists in `internal/memory/countess_filter.go` (sync mit `world/*_ids.go` via `TestCountessFilterMatchesWorldIDs`).
 
 ### Model (`Update` / `Current` / `Reset`)
 
 ```go
 state := model.Update(snap) // speichert geklonten State und gibt unabhängige Kopie zurück
-copy := model.Current()     // slices.Clone auf Objects/Entrances/Monsters
+copy := model.Current()     // slices.Clone auch auf CowCorpses
 reset := model.Reset(at, "process_lost")
 ```
 
-- Entity-Slices werden in `Update`/`Current` per `slices.Clone` kopiert — Mutationen an Rückgabewerten ändern nicht den gespeicherten State.
+- Entity-Slices einschließlich `CowCorpses` werden in `Update`/`Current` per `slices.Clone` kopiert — Mutationen an Rückgabewerten ändern nicht den gespeicherten State.
 - World-Log nutzt **Entity-Fingerprint** (Counts + sortierte `(kind, unitID)`-Paare), nicht Positionsvergleich.
 
 ### Player & State
@@ -115,7 +119,8 @@ reset := model.Reset(at, "process_lost")
 | `Player` | Position + HP/Mana |
 | `Mercenary` | Hired-/Alive-/Dead-/Vitals-Evidenz, Class-/Unit-ID und HP |
 | `GamePhase` | `Unknown`, `Menu`, `Loading`, `InGame` — aus `memory.Snapshot.Phase` |
-| `State` | Tick-Snapshot mit `At`, `Phase`, `Valid`, `Reason`, `Area`, `Player`, Entity- und Item-Slices, `MonsterCoverage` sowie read-only UI-Flags inklusive `QuitMenuOpen` |
+| `State` | Tick-Snapshot mit `At`, `Generation`, `Phase`, `Valid`, `Reason`, `Area`, `Player`, Entity- und Item-Slices, direkter Cow-Corpse-Coverage, `MonsterCoverage` sowie read-only UI-Flags inklusive `QuitMenuOpen` und fail-closed `CubeOpen` |
+| `CowCorpse` | Direkte Kuh-Leiche mit UnitID, NPCID, Position, Verbrauchsevidenz sowie Snapshot-Zeit und -Generation |
 | `Object`/`Entrance`/`Monster` | Countess-relevante Entities mit Kind, ID, UnitID, Position, Name |
 | `Item` | Read-only Item mit UnitID, Code/Name, Qualität, Location, Position, Flags, Raw-Stats sowie optionaler, gegen Qualität und Basiscode validierter Set-/Unique-Identität |
 
@@ -239,4 +244,4 @@ Low-Level Memory/Offset-Validierung: [State Probe](state-probe.md) (Phase 1, D2R
 - [Phase-18-Core-Vertrag](phase-18-core-contract.md) — Merc-Evidenz und Unknown-Grenzen
 
 ---
-*Zuletzt aktualisiert: 2026-07-30*
+*Zuletzt aktualisiert: 2026-08-01*

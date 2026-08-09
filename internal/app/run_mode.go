@@ -9,6 +9,7 @@ import (
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/config"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/input"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/memory"
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/pathing"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/tasks"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/world"
 )
@@ -25,7 +26,7 @@ var (
 
 // resolveActiveRun returns the configured run name; CLI overrides YAML.
 func resolveActiveRun(opts Options, cfg *config.Config) string {
-	if opts.Desktop || opts.UIStateProbe != "" || opts.ScreenAnchorCapture != "" || opts.OfflineExitTest || opts.OfflineDifficulty != "" || opts.TownTest != "" || opts.TownInspect || opts.MercenaryProbe != "" {
+	if opts.Desktop || opts.UIStateProbe != "" || opts.ScreenAnchorCapture != "" || opts.OfflineExitTest || opts.OfflineDifficulty != "" || opts.TownTest != "" || opts.TownInspect || opts.MercenaryProbe != "" || opts.CowProbe != "" {
 		return ""
 	}
 	if opts.Run != "" {
@@ -80,7 +81,18 @@ func mapRunConfig(cfg *config.Config, runID string, requireFarmingRoute bool) (t
 		if assignmentErr != nil {
 			return tasks.RunConfig{}, assignmentErr
 		}
-		mapped.RouteID, _, assignmentErr = assignmentStore.Resolve(cfg.Session.Character, tasks.RunID(runID))
+		definition, definitionOK := tasks.DefaultRunRegistry().Definition(tasks.RunID(runID))
+		if definitionOK && definition.RouteSet != nil {
+			var roles map[pathing.RouteRole]string
+			roles, _, assignmentErr = assignmentStore.ResolveRouteSet(cfg.Session.Character, tasks.RunID(runID))
+			mapped.SetupRouteID = roles[pathing.RouteRoleLegAcquisition]
+			mapped.RouteID = roles[pathing.RouteRoleCowSweep]
+			if assignmentErr == nil && (mapped.SetupRouteID == "" || mapped.RouteID == "") {
+				assignmentErr = fmt.Errorf("%s", RouteReasonAssignmentMissing)
+			}
+		} else {
+			mapped.RouteID, _, assignmentErr = assignmentStore.Resolve(cfg.Session.Character, tasks.RunID(runID))
+		}
 		if assignmentErr != nil {
 			return tasks.RunConfig{}, assignmentErr
 		}
@@ -90,6 +102,29 @@ func mapRunConfig(cfg *config.Config, runID string, requireFarmingRoute bool) (t
 		return tasks.RunConfig{}, err
 	}
 	return resolved.Config, nil
+}
+
+func mapCowConfig(cfg *config.Config, bindings configBindingSource) tasks.CowConfig {
+	mapped := tasks.CowConfig{
+		Character: cfg.Session.Character, Difficulty: cfg.Session.Difficulty,
+		ClientWidth: offlineDifficultyClientWidth, ClientHeight: offlineDifficultyClientHeight,
+	}
+	for row := 0; row < len(cfg.Loot.InventoryLock) && row < len(mapped.InventoryLocked); row++ {
+		for col := 0; col < len(cfg.Loot.InventoryLock[row]) && col < len(mapped.InventoryLocked[row]); col++ {
+			mapped.InventoryLocked[row][col] = cfg.Loot.InventoryLock[row][col] == 1
+		}
+	}
+	mapped.HasTownPortal = cowBindingAvailable(bindings, memory.SkillTownPortal)
+	mapped.HasTeleport = cowBindingAvailable(bindings, memory.SkillTeleport)
+	mapped.HasAmplifyDamage = cowBindingAvailable(bindings, memory.SkillAmplifyDamage)
+	mapped.HasCorpseExplosion = cowBindingAvailable(bindings, memory.SkillCorpseExplosion)
+	mapped.HasBoneSpear = cowBindingAvailable(bindings, memory.SkillBoneSpear)
+	return mapped
+}
+
+func cowBindingAvailable(bindings configBindingSource, skillID uint16) bool {
+	_, err := bindings.Resolve(skillID)
+	return err == nil
 }
 
 // validateRunMode checks run prerequisites after resolving CLI vs config.
@@ -114,6 +149,17 @@ func validateRunMode(sel tasks.RunSelection, cfg *config.Config, opts Options, l
 		}
 		if opts.MercenaryProbeTimeoutMs < 0 {
 			return fmt.Errorf("--mercenary-probe-timeout-ms must not be negative")
+		}
+	}
+	if opts.CowProbe != "" {
+		if opts.InputTest != "" || opts.PathingTest != "" || opts.OfflineDifficulty != "" || opts.OfflineCharacter != "" || opts.OfflineExitTest || opts.UIStateProbe != "" || opts.ScreenAnchorCapture != "" || opts.MercenaryProbe != "" || opts.Route != "" || opts.Run != "" || opts.RunPhase != "" || opts.TownInspect || opts.TownTest != "" {
+			return fmt.Errorf("--cow-probe is mutually exclusive with run and other test modes")
+		}
+		if err := validateCowProbeLabel(opts.CowProbe); err != nil {
+			return err
+		}
+		if opts.CowProbeTimeoutMs < 0 {
+			return fmt.Errorf("--cow-probe-timeout-ms must not be negative")
 		}
 	}
 	if opts.ScreenAnchorCapture != "" {
@@ -270,7 +316,7 @@ func farmingRouteRequired(opts Options, sel tasks.RunSelection) bool {
 	if opts.Desktop && sel.Run == "" {
 		return false
 	}
-	if sel.Run == "" && (opts.TownTest != "" || opts.TownInspect || opts.MercenaryProbe != "" || opts.InputTest != "" || opts.Probe || opts.UIStateProbe != "" || opts.ScreenAnchorCapture != "" || opts.PathingTest != "" || opts.OfflineDifficulty != "" || opts.OfflineExitTest || opts.Route != "") {
+	if sel.Run == "" && (opts.TownTest != "" || opts.TownInspect || opts.MercenaryProbe != "" || opts.CowProbe != "" || opts.InputTest != "" || opts.Probe || opts.UIStateProbe != "" || opts.ScreenAnchorCapture != "" || opts.PathingTest != "" || opts.OfflineDifficulty != "" || opts.OfflineExitTest || opts.Route != "") {
 		return false
 	}
 	return !opts.Desktop || sel.Run != ""
@@ -377,6 +423,15 @@ func validateProfileBindingsWithSource(cfg *config.Config, bindings configBindin
 			if _, err := bindings.Resolve(skillID); err != nil {
 				return fmt.Errorf("%s requires input.bindings.skills.%s: %w", scope, action.Skill, err)
 			}
+		}
+	}
+	if maintenance := profileCfg.RouteMaintenance.BoneArmor; maintenance.Enabled != nil && *maintenance.Enabled {
+		skillID, err := memory.ParseSkillTestName(maintenance.Skill)
+		if err != nil {
+			return fmt.Errorf("%s profile maintenance skill %q: %w", scope, maintenance.Skill, err)
+		}
+		if _, err := bindings.Resolve(skillID); err != nil {
+			return fmt.Errorf("%s requires input.bindings.skills.%s: %w", scope, maintenance.Skill, err)
 		}
 	}
 	for _, resource := range []config.ResourceRuleConfig{profileCfg.Resources.Healing, profileCfg.Resources.Mana, profileCfg.Resources.Rejuvenation} {

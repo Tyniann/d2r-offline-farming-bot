@@ -5,12 +5,14 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/pathing"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/tasks"
 )
 
 const (
-	// RouteAssignmentSchemaVersion is the first character/run assignment schema.
-	RouteAssignmentSchemaVersion = 1
+	// RouteAssignmentSchemaVersion adds optional fixed-role route sets while
+	// preserving existing single-route assignments.
+	RouteAssignmentSchemaVersion = 2
 	// RouteCandidateSchemaVersion is the first immutable candidate metadata schema.
 	RouteCandidateSchemaVersion = 1
 	// RouteRecoveryJournalSchemaVersion is the first management recovery schema.
@@ -29,15 +31,16 @@ const (
 
 // RouteAssignmentManifest is the sole persistent character/run assignment authority.
 type RouteAssignmentManifest struct {
-	SchemaVersion int                               `yaml:"schema_version"`
-	Revision      uint64                            `yaml:"revision"`
-	Assignments   map[string]map[tasks.RunID]string `yaml:"assignments"`
+	SchemaVersion int                                                     `yaml:"schema_version"`
+	Revision      uint64                                                  `yaml:"revision"`
+	Assignments   map[string]map[tasks.RunID]string                       `yaml:"assignments"`
+	RouteSets     map[string]map[tasks.RunID]map[pathing.RouteRole]string `yaml:"route_sets"`
 }
 
 // Validate rejects ambiguous or incomplete assignment snapshots before use.
 func (m RouteAssignmentManifest) Validate() error {
-	if m.SchemaVersion != RouteAssignmentSchemaVersion || m.Revision == 0 || m.Assignments == nil {
-		return fmt.Errorf("route assignment schema_version, positive revision, and assignments are required")
+	if m.SchemaVersion != RouteAssignmentSchemaVersion || m.Revision == 0 || m.Assignments == nil || m.RouteSets == nil {
+		return fmt.Errorf("route assignment schema_version, positive revision, assignments, and route_sets are required")
 	}
 	for character, runs := range m.Assignments {
 		if strings.TrimSpace(character) == "" || character != strings.ToLower(character) || runs == nil {
@@ -46,6 +49,25 @@ func (m RouteAssignmentManifest) Validate() error {
 		for runID, routeID := range runs {
 			if _, ok := tasks.DefaultRunRegistry().Definition(runID); !ok || strings.TrimSpace(routeID) == "" {
 				return fmt.Errorf("route assignment %s/%s requires a registered run and route ID", character, runID)
+			}
+		}
+	}
+	for character, runs := range m.RouteSets {
+		if strings.TrimSpace(character) == "" || character != strings.ToLower(character) || runs == nil {
+			return fmt.Errorf("route set character key %q must be a non-empty lowercase slug", character)
+		}
+		for runID, roles := range runs {
+			definition, ok := tasks.DefaultRunRegistry().Definition(runID)
+			if !ok || definition.RouteSet == nil || roles == nil {
+				return fmt.Errorf("route set %s/%s requires a declared route-set run", character, runID)
+			}
+			for role, routeID := range roles {
+				if !role.Valid() || strings.TrimSpace(routeID) == "" {
+					return fmt.Errorf("route set %s/%s/%s requires a declared role and route ID", character, runID, role)
+				}
+				if _, declared := definition.RouteSet.Recordings[role]; !declared {
+					return fmt.Errorf("route set %s/%s contains undeclared role %q", character, runID, role)
+				}
 			}
 		}
 	}
@@ -75,6 +97,7 @@ type RouteCandidate struct {
 	ImmutableRouteFile       string              `yaml:"immutable_route_file"`
 	ImmutableRouteSHA256     string              `yaml:"immutable_route_sha256"`
 	RunID                    tasks.RunID         `yaml:"run_id"`
+	RouteRole                pathing.RouteRole   `yaml:"route_role,omitempty"`
 	Character                string              `yaml:"character"`
 	Difficulty               string              `yaml:"difficulty"`
 	GameVersion              string              `yaml:"game_version"`
@@ -82,6 +105,7 @@ type RouteCandidate struct {
 	MeasuredBossDistance     float64             `yaml:"measured_boss_distance"`
 	SourceCatalogRevision    uint64              `yaml:"source_catalog_revision"`
 	SourceAssignmentRevision uint64              `yaml:"source_assignment_revision"`
+	SourceAssignedRouteID    string              `yaml:"source_assigned_route_id,omitempty"`
 	CreatedAt                time.Time           `yaml:"created_at"`
 	TestedAt                 *time.Time          `yaml:"tested_at,omitempty"`
 	FailureReason            RouteReason         `yaml:"failure_reason,omitempty"`
@@ -92,8 +116,12 @@ func (c RouteCandidate) Validate() error {
 	if c.SchemaVersion != RouteCandidateSchemaVersion || strings.TrimSpace(c.CandidateID) == "" || strings.TrimSpace(c.ImmutableRouteFile) == "" || len(c.ImmutableRouteSHA256) != 64 {
 		return fmt.Errorf("route candidate schema, ID, immutable file, and SHA-256 are required")
 	}
-	if _, ok := tasks.DefaultRunRegistry().Definition(c.RunID); !ok || strings.TrimSpace(c.Character) == "" || strings.TrimSpace(c.Difficulty) == "" || strings.TrimSpace(c.GameVersion) == "" {
+	definition, ok := tasks.DefaultRunRegistry().Definition(c.RunID)
+	if !ok || strings.TrimSpace(c.Character) == "" || strings.TrimSpace(c.Difficulty) == "" || strings.TrimSpace(c.GameVersion) == "" {
 		return fmt.Errorf("route candidate requires a registered run and complete binding")
+	}
+	if _, declared := definition.RecordingForRole(c.RouteRole); !declared {
+		return fmt.Errorf("route candidate role %q is not declared for run %q", c.RouteRole, c.RunID)
 	}
 	if !validRouteCandidateState(c.State) || c.MeasuredBossDistance < 0 || c.SourceCatalogRevision == 0 || c.SourceAssignmentRevision == 0 || c.CreatedAt.IsZero() {
 		return fmt.Errorf("route candidate state, distance, revisions, and creation time are invalid")
@@ -253,9 +281,11 @@ const (
 	RouteReasonRecordingTerminalAreaMismatch RouteReason = "recording_terminal_area_mismatch"
 	// RouteReasonRecordingBossMissing rejects missing or mismatched boss evidence.
 	RouteReasonRecordingBossMissing RouteReason = "recording_boss_missing"
+	// RouteReasonRecordingObjectMissing rejects missing or mismatched object evidence.
+	RouteReasonRecordingObjectMissing RouteReason = "recording_object_missing"
 	// RouteReasonRecordingBossDead rejects explicitly dead boss evidence.
 	RouteReasonRecordingBossDead RouteReason = "recording_boss_dead"
-	// RouteReasonRecordingEndpointTooFar rejects endpoints outside boss tolerance.
+	// RouteReasonRecordingEndpointTooFar rejects endpoints outside target tolerance.
 	RouteReasonRecordingEndpointTooFar RouteReason = "recording_endpoint_too_far"
 	// RouteReasonCandidateInvalid rejects malformed candidate content or state.
 	RouteReasonCandidateInvalid RouteReason = "route_candidate_invalid"
@@ -333,6 +363,7 @@ type RouteRecoveryJournal struct {
 	PreviousRouteID string                 `yaml:"previous_route_id,omitempty"`
 	Character       string                 `yaml:"character,omitempty"`
 	RunID           tasks.RunID            `yaml:"run_id,omitempty"`
+	RouteRole       pathing.RouteRole      `yaml:"route_role,omitempty"`
 	RoutePath       string                 `yaml:"route_path,omitempty"`
 	StartedAt       time.Time              `yaml:"started_at"`
 }

@@ -54,6 +54,10 @@ Die persönliche Inventar-Kapazität folgt dieser zentralen Mapping-Tabelle:
 
 `GridX` ist die Spalte `0..9`, `GridY` die Zeile `0..3`. `Width` erweitert über Spalten, `Height` über Zeilen.
 
+Für den Cow-Preflight gilt zusätzlich ein enger Rezept-Sicherheitsvertrag: Genau ein leerer 2×2-Horadrimwürfel muss im persönlichen Inventar liegen, und jede seiner vier Zellen muss im Lock-Grid geschützt sein. Außerhalb der gesperrten oder bereits belegten Zellen müssen gleichzeitig zwei disjunkte Rechtecke für Wirt's Leg (1×3) und das neue Stadtportalbuch (1×2) platzierbar sein. Zwei Formen, die nur denselben freien Korridor verwenden könnten, bestehen den Test nicht. Der Preflight verschiebt keine Items und reserviert keine neuen allgemeinen Slot-Zustände.
+
+Phase 20.4 verwendet danach ausschließlich die drei eingefrorenen UnitIDs. Bein und neues Tome wechseln je einmal per Ctrl+Linksklick aus ihrem erneut bestätigten persönlichen Inventarslot nach `ItemLocationCube`. Der Cube-Inhalt muss in einem frischeren Snapshot exakt aus diesen beiden Items bestehen; ein drittes oder fremdes Item stoppt vor Transmute. Diese Sonderregel erweitert weder die allgemeine Lock-Grid-Kapazitätsrechnung noch den Stash-Executor.
+
 ### Kapazität
 
 `internal/loot` berechnet Kapazität aus `State.InventoryItems()` und dem Lock-Grid:

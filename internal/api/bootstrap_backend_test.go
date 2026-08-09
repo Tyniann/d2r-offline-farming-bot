@@ -24,14 +24,14 @@ func TestBootstrapBackendIsReadOnlyAndDeterministic(t *testing.T) {
 		t.Fatalf("bootstrap status = %+v", status)
 	}
 	first := backend.Catalog()
-	if len(first.Runs) != 4 {
+	if len(first.Runs) != 5 {
 		t.Fatalf("bootstrap runs = %+v", first.Runs)
 	}
 	if len(first.Profiles) != 1 || first.Profiles[0].ID != "necro_bone_spear" {
 		t.Fatalf("bootstrap setup profiles = %+v", first.Profiles)
 	}
 	for _, run := range first.Runs {
-		if run.RunID == "summoner" {
+		if run.RunID == "summoner" || run.RunID == "cows" {
 			if !run.RouteCombat.Enabled || run.RouteCombat.NoProgressTimeoutMs != 12000 || run.RouteCombat.ManaRecoveryTimeoutMs != 5000 {
 				t.Fatalf("effective summoner route combat = %+v", run.RouteCombat)
 			}

@@ -41,8 +41,13 @@ func newRoutePlaybackAdapter(log *slog.Logger, directory, gameVersion string, na
 
 func (a *routePlaybackAdapter) setTelemetry(trace *telemetry.Recorder) { a.telemetry = trace }
 
-func (a *routePlaybackAdapter) Start(routeID string, state world.State) error {
+func (a *routePlaybackAdapter) Start(routeID string, state world.State) (startErr error) {
 	a.Reset()
+	defer func() {
+		if startErr != nil && a.log != nil {
+			a.log.Warn("run route playback start failed", "route_id", routeID, "area_id", state.Area.ID, "player_x", state.Player.Position.X, "player_y", state.Player.Position.Y, "error", startErr)
+		}
+	}()
 	var route pathing.Route
 	if a.lifecycle != nil {
 		_, catalog, err := a.lifecycle.Snapshot()
@@ -120,6 +125,7 @@ func (a *routePlaybackAdapter) Progress(state world.State) (tasks.RouteProgress,
 	mode := tasks.RouteProgressMode(progress.Mode)
 	return tasks.RouteProgress{
 		RouteID:               progress.RouteID,
+		RouteRole:             a.route.Binding.RouteRole,
 		SegmentID:             progress.SegmentID,
 		SegmentIndex:          progress.SegmentIndex,
 		PointIndex:            progress.PointIndex,
@@ -140,8 +146,9 @@ func (a *routePlaybackAdapter) Progress(state world.State) (tasks.RouteProgress,
 
 // Hold freezes route playback for one validated snapshot and extends only the
 // adapter-owned deadline by the real elapsed hold duration. It commits points
-// already reached in Memory so external combat movement cannot revive a passed
-// point, but it sends no route input and ticks no navigator or transition.
+// already reached in Memory and rebases authorized external movement onto the
+// first matching forward route edge. It sends no route input and ticks no
+// navigator or transition.
 func (a *routePlaybackAdapter) Hold(state world.State) error {
 	if a.player == nil {
 		return fmt.Errorf("run route playback not started")
@@ -149,8 +156,23 @@ func (a *routePlaybackAdapter) Hold(state world.State) error {
 	if err := a.validateHoldState(state); err != nil {
 		return err
 	}
+	pointBefore := a.player.PointIndex()
 	if err := a.player.SyncReached(state); err != nil {
 		return fmt.Errorf("run route hold sync reached points: %w", err)
+	}
+	reconciled, err := a.player.ReconcileForward(state)
+	if err != nil {
+		return fmt.Errorf("run route hold reconcile forward: %w", err)
+	}
+	if reconciled && a.log != nil {
+		a.log.Info("run route hold reconciled forward movement",
+			"route_id", a.route.ID,
+			"segment_id", a.player.Segment().ID,
+			"point_before", pointBefore,
+			"point_after", a.player.PointIndex(),
+			"player_x", state.Player.Position.X,
+			"player_y", state.Player.Position.Y,
+		)
 	}
 	// An unchanged snapshot is not a new hold observation. Keeping lastCallAt
 	// unchanged ensures repeated polling cannot credit the same interval twice.
@@ -161,7 +183,11 @@ func (a *routePlaybackAdapter) Hold(state world.State) error {
 	if now.Before(a.lastCallAt) {
 		return fmt.Errorf("run route hold clock moved backwards")
 	}
-	a.deadline = a.deadline.Add(now.Sub(a.lastCallAt))
+	if a.player.PointIndex() > pointBefore {
+		a.resetSegmentDeadline(now)
+	} else {
+		a.deadline = a.deadline.Add(now.Sub(a.lastCallAt))
+	}
 	a.lastCallAt = now
 	a.lastTickAt = state.At
 	return nil
@@ -178,6 +204,16 @@ func (a *routePlaybackAdapter) Tick(ctx context.Context, state world.State) (boo
 		a.lastTickAt = state.At
 	}
 	now := a.now()
+	// A fresh snapshot may already prove arrival at one or more recorded
+	// points. Refresh before the timeout gate so a healthy long segment cannot
+	// fail on the same tick that proves objective route progress.
+	if !a.transition {
+		if progress, ok := a.player.Progress(state); ok &&
+			progress.SegmentIndex == a.player.SegmentIndex() &&
+			progress.PointIndex > a.player.PointIndex() {
+			a.resetSegmentDeadline(now)
+		}
+	}
 	a.lastCallAt = now
 	if now.After(a.deadline) {
 		if a.transition {
@@ -221,6 +257,10 @@ func (a *routePlaybackAdapter) Tick(ctx context.Context, state world.State) (boo
 		}
 	}
 	return false, nil
+}
+
+func (a *routePlaybackAdapter) resetSegmentDeadline(now time.Time) {
+	a.deadline = now.Add(time.Duration(a.route.Playback.SegmentTimeoutMs) * time.Millisecond)
 }
 
 func (a *routePlaybackAdapter) Reset() {
@@ -268,6 +308,13 @@ func (a *routePlaybackAdapter) now() time.Time {
 func (a *routePlaybackAdapter) emit(event telemetry.Event) error {
 	if a.telemetry == nil {
 		return nil
+	}
+	if a.route.Binding.RouteRole != "" {
+		// `route_id` remains the immutable primary route of the one Run history.
+		// Role-bound playback identifies the active member through `route_role`;
+		// the recorder supplies both frozen primary/setup IDs on every event.
+		event.RouteID = ""
+		event.RouteRole = string(a.route.Binding.RouteRole)
 	}
 	if err := a.telemetry.Emit(event); err != nil {
 		return fmt.Errorf("run route telemetry: %w", err)

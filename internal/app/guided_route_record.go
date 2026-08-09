@@ -4,8 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/config"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/input"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/pathing"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/tasks"
@@ -13,10 +15,14 @@ import (
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/world"
 )
 
-func (rt *Runtime) runGuidedRouteRecord(runID tasks.RunID, difficultyLabel, expectedCharacter string, finishRequests <-chan struct{}, reporter RouteWorkflowReporter) error {
+func (rt *Runtime) runGuidedRouteRecord(runID tasks.RunID, routeRole pathing.RouteRole, difficultyLabel, expectedCharacter string, finishRequests <-chan struct{}, reporter RouteWorkflowReporter) error {
 	definition, ok := tasks.DefaultRunRegistry().Definition(runID)
 	if !ok {
 		return fmt.Errorf("guided recording requires a registered run: %s", runID)
+	}
+	contract, ok := definition.RecordingForRole(routeRole)
+	if !ok {
+		return fmt.Errorf("guided recording requires declared route role %q for %s", routeRole, runID)
 	}
 	difficulty, err := parseOfflineDifficulty(difficultyLabel)
 	if err != nil {
@@ -85,9 +91,9 @@ func (rt *Runtime) runGuidedRouteRecord(runID tasks.RunID, difficultyLabel, expe
 		}
 		current := rt.World.Current()
 		reportRouteWorkflow(reporter, RouteWorkflowProgress{State: RouteWorkflowFreezing, AreaID: uint32(current.Area.ID), Progress: 0.75})
-		boss := recordingBossEvidence(current, definition.Recording.Boss)
+		evidence := recordingTerminalEvidence(current, contract)
 		reportRouteWorkflow(reporter, RouteWorkflowProgress{State: RouteWorkflowValidating, AreaID: uint32(current.Area.ID), Progress: 0.85})
-		candidate, finishErr := coordinator.Finish(RecordingTerminalEvidence{World: current, Boss: boss})
+		candidate, finishErr := coordinator.Finish(evidence)
 		if finishErr != nil {
 			return finishErr
 		}
@@ -99,7 +105,7 @@ func (rt *Runtime) runGuidedRouteRecord(runID tasks.RunID, difficultyLabel, expe
 		return nil
 	}
 
-	rt.Log.Info("guided route recording waiting for confirmed waypoint start", "run_id", runID, "instructions", definition.Recording.InstructionsDE, "finish_hotkey", rt.Config.Input.RecordingFinishHotkey, "emergency_stop_hotkey", rt.Config.Input.StopHotkey)
+	rt.Log.Info("guided route recording waiting for confirmed start", "run_id", runID, "route_role", routeRole, "instructions", contract.InstructionsDE, "finish_hotkey", rt.Config.Input.RecordingFinishHotkey, "emergency_stop_hotkey", rt.Config.Input.StopHotkey)
 	reportRouteWorkflow(reporter, RouteWorkflowProgress{State: RouteWorkflowPreflight})
 	lastReportedArea := world.AreaID(0)
 	for {
@@ -126,16 +132,17 @@ func (rt *Runtime) runGuidedRouteRecord(runID tasks.RunID, difficultyLabel, expe
 			}
 			current := rt.World.Current()
 			if !started {
-				waypointTolerance := rt.Config.Pathing.Waypoint.MaxClickDistance
-				if !guidedRecordingStartReady(current, definition, waypointTolerance) {
+				startTolerance := recordingStartTolerance(rt.Config, contract)
+				if !guidedRecordingStartReady(current, contract, startTolerance) {
 					if lastWaitingReport.IsZero() || time.Since(lastWaitingReport) >= 2*time.Second {
 						lastWaitingReport = time.Now()
-						waypoint, waypointVisible := current.NearestObject(world.ObjectKindWaypoint)
+						anchorKind := recordingStartObjectKind(contract)
+						waypoint, waypointVisible := current.NearestObject(anchorKind)
 						distance := -1.0
 						if waypointVisible {
 							distance = world.Distance(current.Player.Position, waypoint.Position)
 						}
-						rt.Log.Info("guided route recording preflight waiting", "run_id", runID, "world_valid", current.Valid, "phase", current.Phase, "identity_valid", current.Identity.Valid, "area_id", current.Area.ID, "expected_area_id", definition.Recording.AllowedStartArea, "waypoint_visible", waypointVisible, "waypoint_distance", distance, "maximum_distance", waypointTolerance, "inventory_open", current.UI.InventoryOpen, "npc_interact_open", current.UI.NPCInteractOpen, "npc_shop_open", current.UI.NPCShopOpen, "waypoint_flag", current.UI.WaypointOpen, "stash_open", current.UI.StashOpen, "quit_menu_open", current.UI.QuitMenuOpen)
+						rt.Log.Info("guided route recording preflight waiting", "run_id", runID, "route_role", routeRole, "world_valid", current.Valid, "phase", current.Phase, "identity_valid", current.Identity.Valid, "area_id", current.Area.ID, "expected_area_id", contract.AllowedStartArea, "anchor_kind", anchorKind, "anchor_visible", waypointVisible, "anchor_distance", distance, "maximum_distance", startTolerance, "inventory_open", current.UI.InventoryOpen, "npc_interact_open", current.UI.NPCInteractOpen, "npc_shop_open", current.UI.NPCShopOpen, "waypoint_flag", current.UI.WaypointOpen, "stash_open", current.UI.StashOpen, "quit_menu_open", current.UI.QuitMenuOpen)
 						reportRouteWorkflow(reporter, RouteWorkflowProgress{State: RouteWorkflowPreflight, AreaID: uint32(current.Area.ID), Progress: 0, Reason: string(RouteReasonRecordingPreflightFailed)})
 					}
 					continue
@@ -143,13 +150,17 @@ func (rt *Runtime) runGuidedRouteRecord(runID tasks.RunID, difficultyLabel, expe
 				if err := rt.Input.Focus(); err != nil {
 					return fmt.Errorf("guided recording focus: %w", err)
 				}
-				request := RecordingPreflight{RunID: runID, Character: expectedCharacter, ExpectedClass: expectedClass, Difficulty: pathing.RouteDifficulty(difficulty), GameVersion: rt.Config.Memory.GameVersion, SourceCatalogRevision: catalog.Revision, SourceAssignmentRevision: assignment.Revision, WaypointContextConfirmed: true, BlockingUIClosed: !blockingRecordingUI(current.UI), D2RFocused: true, InputOwnerAvailable: rt.Input.Status().Enabled && rt.Input.Bound()}
+				sourceAssignedRouteID := ""
+				if routeRole != "" {
+					sourceAssignedRouteID = assignment.RouteSets[strings.ToLower(expectedCharacter)][runID][routeRole]
+				}
+				request := RecordingPreflight{RunID: runID, RouteRole: routeRole, Character: expectedCharacter, ExpectedClass: expectedClass, ProfileID: runConfig.Combat.Profile, Difficulty: pathing.RouteDifficulty(difficulty), GameVersion: rt.Config.Memory.GameVersion, SourceCatalogRevision: catalog.Revision, SourceAssignmentRevision: assignment.Revision, SourceAssignedRouteID: sourceAssignedRouteID, WaypointContextConfirmed: true, BlockingUIClosed: !blockingRecordingUI(current.UI), D2RFocused: true, InputOwnerAvailable: rt.Input.Status().Enabled && rt.Input.Bound()}
 				if err := coordinator.Start(request, current); err != nil {
 					return err
 				}
 				started = true
 				lastReportedArea = current.Area.ID
-				reportRouteWorkflow(reporter, RouteWorkflowProgress{State: RouteWorkflowRecording, AreaID: uint32(current.Area.ID), Segment: recordingAreaIndex(definition, current.Area.ID), Progress: 0.05})
+				reportRouteWorkflow(reporter, RouteWorkflowProgress{State: RouteWorkflowRecording, AreaID: uint32(current.Area.ID), Segment: recordingAreaIndex(contract, current.Area.ID), Progress: 0.05})
 				continue
 			}
 			if returnStage == 0 {
@@ -158,8 +169,8 @@ func (rt *Runtime) runGuidedRouteRecord(runID tasks.RunID, difficultyLabel, expe
 				}
 				if current.Area.ID != lastReportedArea {
 					lastReportedArea = current.Area.ID
-					segment := recordingAreaIndex(definition, current.Area.ID)
-					progress := 0.05 + 0.65*float64(segment+1)/float64(len(definition.Recording.AllowedRouteAreas))
+					segment := recordingAreaIndex(contract, current.Area.ID)
+					progress := 0.05 + 0.65*float64(segment+1)/float64(len(contract.AllowedRouteAreas))
 					reportRouteWorkflow(reporter, RouteWorkflowProgress{State: RouteWorkflowRecording, AreaID: uint32(current.Area.ID), Segment: segment, Progress: progress})
 				}
 				continue
@@ -185,7 +196,7 @@ func (rt *Runtime) runGuidedRouteRecord(runID tasks.RunID, difficultyLabel, expe
 				}
 				continue
 			}
-			if portalClicked && current.Valid && current.Area.ID == recordingOriginTownArea(definition.Recording.EgressOriginAct) {
+			if portalClicked && current.Valid && current.Area.ID == recordingOriginTownArea(contract.EgressOriginAct) {
 				if err := coordinator.CompleteSafetyReturn(nil); err != nil {
 					return err
 				}
@@ -197,8 +208,8 @@ func (rt *Runtime) runGuidedRouteRecord(runID tasks.RunID, difficultyLabel, expe
 	}
 }
 
-func recordingAreaIndex(definition tasks.RunDefinition, area world.AreaID) int {
-	for index, allowed := range definition.Recording.AllowedRouteAreas {
+func recordingAreaIndex(contract tasks.RecordingContract, area world.AreaID) int {
+	for index, allowed := range contract.AllowedRouteAreas {
 		if allowed == area {
 			return index
 		}
@@ -212,12 +223,40 @@ func reportRouteWorkflow(reporter RouteWorkflowReporter, progress RouteWorkflowP
 	}
 }
 
-func guidedRecordingStartReady(state world.State, definition tasks.RunDefinition, waypointTolerance float64) bool {
-	if !state.Valid || state.Phase != world.GamePhaseInGame || !state.Identity.Valid || state.Area.ID != definition.Recording.AllowedStartArea || blockingRecordingUI(state.UI) || waypointTolerance <= 0 {
+func guidedRecordingStartReady(state world.State, contract tasks.RecordingContract, waypointTolerance float64) bool {
+	if !state.Valid || state.Phase != world.GamePhaseInGame || !state.Identity.Valid || state.Area.ID != contract.AllowedStartArea || blockingRecordingUI(state.UI) || waypointTolerance <= 0 {
 		return false
 	}
-	waypoint, waypointVisible := state.NearestObject(world.ObjectKindWaypoint)
+	waypoint, waypointVisible := state.NearestObject(recordingStartObjectKind(contract))
 	return waypointVisible && world.Distance(state.Player.Position, waypoint.Position) <= waypointTolerance
+}
+
+func recordingStartTolerance(cfg *config.Config, contract tasks.RecordingContract) float64 {
+	if contract.StartKind == tasks.RecordingStartObjectPortalArrival {
+		return cfg.Pathing.TownPortal.MaxClickDistance
+	}
+	return cfg.Pathing.Waypoint.MaxClickDistance
+}
+
+func recordingStartObjectKind(contract tasks.RecordingContract) world.ObjectKind {
+	if contract.StartKind == tasks.RecordingStartObjectPortalArrival {
+		return contract.StartObjectKind
+	}
+	return world.ObjectKindWaypoint
+}
+
+func recordingTerminalEvidence(state world.State, contract tasks.RecordingContract) RecordingTerminalEvidence {
+	evidence := RecordingTerminalEvidence{World: state}
+	switch contract.TerminalKind {
+	case tasks.RecordingTerminalBoss:
+		evidence.Boss = recordingBossEvidence(state, contract.Boss)
+	case tasks.RecordingTerminalObject:
+		object, ok := state.NearestObject(contract.TerminalObjectKind)
+		if ok {
+			evidence.Object = &object
+		}
+	}
+	return evidence
 }
 
 func blockingRecordingUI(state world.UIState) bool {

@@ -175,6 +175,70 @@ func TestRoutePlaybackAdapterHoldRejectsInvalidStateWithoutDeadlineCredit(t *tes
 	}
 }
 
+func TestRoutePlaybackAdapterConfirmedPointProgressRefreshesTimeout(t *testing.T) {
+	route := phase17AdapterRoute()
+	route.Segments[0].Points = append(route.Segments[0].Points, pathing.RoutePoint{X: 140, Y: 100})
+	nav := &holdNavigator{}
+	player, err := pathing.NewRoutePlayer(nav, route)
+	if err != nil {
+		t.Fatal(err)
+	}
+	base := time.Date(2026, 8, 9, 4, 0, 0, 0, time.UTC)
+	now := base
+	state := phase17AdapterState(base)
+	adapter := &routePlaybackAdapter{
+		log: slog.Default(), route: route, player: player, navigator: nav,
+		deadline: base.Add(30 * time.Second), lastTickAt: state.At, lastCallAt: base,
+		identity: state.Identity, clock: func() time.Time { return now },
+	}
+
+	if done, tickErr := adapter.Tick(context.Background(), state); tickErr != nil || done {
+		t.Fatalf("initial tick done=%t err=%v", done, tickErr)
+	}
+	now = base.Add(29 * time.Second)
+	state.At, state.Player.Position = now, world.Position{X: 120, Y: 100}
+	if done, tickErr := adapter.Tick(context.Background(), state); tickErr != nil || done {
+		t.Fatalf("progress tick done=%t err=%v", done, tickErr)
+	}
+	if want := base.Add(59 * time.Second); adapter.deadline != want {
+		t.Fatalf("progress deadline=%s, want %s", adapter.deadline, want)
+	}
+
+	now = base.Add(58 * time.Second)
+	state.At, state.Player.Position = now, world.Position{X: 140, Y: 100}
+	if done, tickErr := adapter.Tick(context.Background(), state); tickErr != nil || !done {
+		t.Fatalf("terminal progress done=%t err=%v", done, tickErr)
+	}
+}
+
+func TestRoutePlaybackAdapterWithoutPointProgressStillTimesOut(t *testing.T) {
+	route := phase17AdapterRoute()
+	nav := &holdNavigator{}
+	player, err := pathing.NewRoutePlayer(nav, route)
+	if err != nil {
+		t.Fatal(err)
+	}
+	base := time.Date(2026, 8, 9, 4, 0, 0, 0, time.UTC)
+	now := base
+	state := phase17AdapterState(base)
+	adapter := &routePlaybackAdapter{
+		log: slog.Default(), route: route, player: player, navigator: nav,
+		deadline: base.Add(30 * time.Second), lastTickAt: state.At, lastCallAt: base,
+		identity: state.Identity, clock: func() time.Time { return now },
+	}
+	if _, tickErr := adapter.Tick(context.Background(), state); tickErr != nil {
+		t.Fatal(tickErr)
+	}
+
+	now = base.Add(31 * time.Second)
+	// Keep the Memory generation fresh without simulating a load-screen-sized
+	// snapshot gap, which intentionally credits that gap to the deadline.
+	state.At = base.Add(time.Second)
+	if _, tickErr := adapter.Tick(context.Background(), state); !errors.Is(tickErr, pathing.ErrRouteSegmentTimeout) {
+		t.Fatalf("timeout error=%v, want route segment timeout", tickErr)
+	}
+}
+
 func TestRoutePlaybackAdapterMapsConfirmedRecoveryInput(t *testing.T) {
 	route := phase17AdapterRoute()
 	base := time.Date(2026, 7, 29, 12, 0, 0, 0, time.UTC)

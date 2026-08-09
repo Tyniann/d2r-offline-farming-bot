@@ -3,6 +3,7 @@ revision: 1
 assignments:
   MrBones:
     countess: [gems, keys, countess-standard]
+    cows: [gems, keys]
     mephisto: [gems, mephisto-standard]
     summoner: [gems, keys]
     nihlathak: [gems, keys]

@@ -615,6 +615,13 @@ func runIDForRoute(route pathing.Route) tasks.RunID {
 		return ""
 	}
 	for _, definition := range tasks.DefaultRunRegistry().Definitions() {
+		if route.Binding.RouteRole != "" {
+			contract, ok := definition.RecordingForRole(route.Binding.RouteRole)
+			if ok && route.Segments[0].FromAreaID == contract.AllowedStartArea && route.Segments[len(route.Segments)-1].ToAreaID == contract.TerminalArea {
+				return definition.ID
+			}
+			continue
+		}
 		if route.Segments[0].FromAreaID == definition.EntryArea && route.Segments[len(route.Segments)-1].ToAreaID == definition.RouteTerminalArea {
 			return definition.ID
 		}

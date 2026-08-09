@@ -51,6 +51,16 @@ loot:
     inventory_top: 369
     inventory_cell_width: 33
     inventory_cell_height: 33
+  cow_portal_recipe:
+    # Enger Ein-Klick-Vertrag für exakt 1280x720; kein Transmute-Retry.
+    cube_open_timeout_ms: 3000
+    transfer_timeout_ms: 2000
+    result_timeout_ms: 5000
+    portal_timeout_ms: 8000
+    close_timeout_ms: 3000
+    entry_timeout_ms: 15000
+    transmute_x: 270
+    transmute_y: 411
   inventory_lock:
     # 4x10 Grid; 1 = geschützt/nicht benutzen, 0 = für Loot verfügbar.
     # Beispiel: linke 4 Spalten für Cube, Tomes, Torch/Anni und Charms schützen.
@@ -86,6 +96,9 @@ input:
       amplify_damage:
         key: f1
         button: right
+      corpse_explosion:
+        key: f2
+        button: right
       bone_spear:
         key: f8
         button: right
@@ -117,6 +130,25 @@ runs:
         engage_distance_tiles: 22
         reposition_distance_tiles: 32
         kill_confirm_ticks: 3
+    cows:
+      combat:
+        profile: necro_bone_spear
+        attack_skill: bone_spear
+        attack_interval_ms: 350
+        engage_distance_tiles: 22
+        reposition_distance_tiles: 32
+        kill_confirm_ticks: 3
+      route_combat:
+        enabled: true
+        immediate_radius_tiles: 18
+        corridor_width_tiles: 7
+        landing_radius_tiles: 10
+        attack_distance_tiles: 30
+        no_progress_timeout_ms: 12000
+        teleport_mana_reserve_percent: 20
+        resume_mana_percent: 35
+        emergency_mana_percent: 10
+        mana_recovery_timeout_ms: 5000
     mephisto:
       # MrBones/Nightmare-Aufnahme aus Gate 10.9; andere Bindungen benötigen eine eigene Route.
       combat:
@@ -188,14 +220,22 @@ combat_profiles:
         belt_slots: [4]
         cooldown_ms: 1500
       mercenary:
-        # Presence-sensitiv: fehlender Block = enabled true mit Defaults 75/[1]/4000.
+        # Presence-sensitiv: fehlender Block = enabled true mit Defaults 50/[1]/4000.
         # Explizites enabled:false deaktiviert Combat- und Town-Merc-Aktionen.
         enabled: true
-        use_below_percent: 75
+        use_below_percent: 50
         belt_slots: [1]
         cooldown_ms: 4000
       throttle_ms: 1500
       verify_timeout_ms: 1500
+    route_maintenance:
+      bone_armor:
+        enabled: true
+        skill: bone_armor
+        refresh_interval_ms: 60000
+        refresh_after_damage_below_percent: 65
+        minimum_recast_interval_ms: 10000
+        settle_ms: 750
 
 character_setup:
   pickit_defaults:
@@ -268,6 +308,7 @@ session:
     - route_mana_recovery_failed
     - route_recovery_unsafe
     - boss_combat_unprojectable
+    - cow_combat_no_progress
 
 pathing:
   # Abbruch, wenn weder Position (>= stuck_progress_tiles) noch Area sich ändern

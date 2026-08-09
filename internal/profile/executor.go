@@ -12,7 +12,7 @@ import (
 
 // Actions is the narrow authorized-input surface consumed by [Executor].
 type Actions interface {
-	CastSkillAtWorld(time.Time, uint16, world.Position, world.Position) error
+	CastSkillAtWorld(time.Time, uint16, world.Player, world.Position) error
 	CastBelt(int) error
 	// CastBeltForMercenary sends the atomic Shift+Belt sequence for a living hireling.
 	CastBeltForMercenary(int) error
@@ -33,26 +33,41 @@ type pendingResource struct {
 	startedAt time.Time
 }
 
+type pendingCorpseExplosion struct {
+	unitID             uint32
+	snapshotGeneration uint64
+	observedAt         time.Time
+	readyAt            time.Time
+}
+
 // Executor evaluates one resolved profile with finite hook and resource state.
 type Executor struct {
-	log         *slog.Logger
-	definition  Definition
-	actions     Actions
-	telemetry   Telemetry
-	hookIndex   map[Hook]int
-	hookReadyAt map[Hook]time.Time
-	hookAction  map[Hook]int
-	onceGame    map[string]bool
-	onceBoss    map[string]bool
-	waitUntil   time.Time
-	pending     *pendingResource
-	lastPotion  time.Time
-	lastByKind  map[ResourceKind]time.Time
-	lastMerc    time.Time
-	unavailable map[ResourceKind]bool
-	mercUnavail bool
-	skipDelay   map[Hook]bool
-	routeClear  routeClearExecutor
+	log                    *slog.Logger
+	definition             Definition
+	actions                Actions
+	telemetry              Telemetry
+	hookIndex              map[Hook]int
+	hookReadyAt            map[Hook]time.Time
+	hookAction             map[Hook]int
+	onceGame               map[string]bool
+	onceBoss               map[string]bool
+	waitUntil              time.Time
+	pending                *pendingResource
+	lastPotion             time.Time
+	lastByKind             map[ResourceKind]time.Time
+	lastMerc               time.Time
+	unavailable            map[ResourceKind]bool
+	mercUnavail            bool
+	skipDelay              map[Hook]bool
+	routeClear             routeClearExecutor
+	corpseExplosionSkillID uint16
+	corpseExplosionPending *pendingCorpseExplosion
+	boneArmorLastCast      time.Time
+	boneArmorLastHP        uint32
+	boneArmorHPKnown       bool
+	boneArmorDue           bool
+	boneArmorAttackStopped bool
+	boneArmorSettleUntil   time.Time
 }
 
 type routeClearExecutor struct {
@@ -111,6 +126,12 @@ func (e *Executor) Reset() {
 	e.unavailable = map[ResourceKind]bool{}
 	e.mercUnavail = false
 	e.skipDelay = map[Hook]bool{}
+	e.boneArmorLastCast = time.Time{}
+	e.boneArmorLastHP = 0
+	e.boneArmorHPKnown = false
+	e.boneArmorDue = false
+	e.boneArmorAttackStopped = false
+	e.boneArmorSettleUntil = time.Time{}
 }
 
 // SkipInitialDelay skips the configured delay before the first action of hook
@@ -185,9 +206,13 @@ func (e *Executor) TickHook(ctx context.Context, hook Hook, state world.State, t
 			}
 			targetPos = target.Position
 		}
-		if err := e.actions.CastSkillAtWorld(now, action.SkillID, state.Player.Position, targetPos); err != nil {
+		if err := e.actions.CastSkillAtWorld(now, action.SkillID, state.Player, targetPos); err != nil {
 			e.emitFailure(Event{Hook: hook, SkillID: action.SkillID, Target: action.Target, TargetUnitID: target.UnitID}, "profile_skill_failed")
 			return Result{Status: StatusFailed, Hook: hook, SkillID: action.SkillID, Reason: "profile_skill_failed"}
+		}
+		if action.Target == TargetSelf && action.SkillID == e.definition.RouteMaintenance.BoneArmor.SkillID {
+			e.boneArmorLastCast = now
+			e.boneArmorDue = false
 		}
 		if err := e.emit(Event{Name: EventHookAction, Hook: hook, SkillID: action.SkillID, Target: action.Target, TargetUnitID: target.UnitID}); err != nil {
 			return Result{Status: StatusFailed, Hook: hook, SkillID: action.SkillID, Reason: "profile_telemetry_failed"}
@@ -209,6 +234,67 @@ func (e *Executor) TickHook(ctx context.Context, hook Hook, state world.State, t
 		return Result{Status: StatusAction, Hook: hook, SkillID: action.SkillID}
 	}
 	return Result{Status: StatusComplete, Hook: hook}
+}
+
+// TickRouteMaintenance evaluates Bone Armor only after the caller has given
+// resources priority. A due refresh first releases route-combat state and
+// performs the self-cast on the next fresh tick.
+func (e *Executor) TickRouteMaintenance(state world.State, now time.Time) Result {
+	policy := e.definition.RouteMaintenance.BoneArmor
+	if !policy.Enabled {
+		return Result{Status: StatusComplete, Hook: HookRouteMaintenance}
+	}
+	if !resourceWorldReady(state) || state.Identity.Class != e.definition.CharacterClass {
+		return Result{Status: StatusPending, Hook: HookRouteMaintenance}
+	}
+	if now.IsZero() {
+		now = state.At
+	}
+	if !e.boneArmorSettleUntil.IsZero() {
+		if now.Before(e.boneArmorSettleUntil) {
+			return Result{Status: StatusPending, Hook: HookRouteMaintenance}
+		}
+		e.boneArmorSettleUntil = time.Time{}
+	}
+	if e.boneArmorHPKnown && state.Player.HP < e.boneArmorLastHP &&
+		state.Player.MaxHP > 0 && state.Player.HPPercent() <= policy.RefreshAfterDamageBelowPct {
+		e.boneArmorDue = true
+	}
+	e.boneArmorLastHP = state.Player.HP
+	e.boneArmorHPKnown = true
+	if e.boneArmorLastCast.IsZero() || now.Sub(e.boneArmorLastCast) >= policy.RefreshInterval {
+		e.boneArmorDue = true
+	}
+	if !e.boneArmorDue {
+		return Result{Status: StatusComplete, Hook: HookRouteMaintenance}
+	}
+	if !e.boneArmorLastCast.IsZero() && now.Sub(e.boneArmorLastCast) < policy.MinimumRecastInterval {
+		return Result{Status: StatusComplete, Hook: HookRouteMaintenance, Reason: "bone_armor_recast_throttled"}
+	}
+	if !e.boneArmorAttackStopped {
+		if e.routeClear.actions == nil {
+			return Result{Status: StatusFailed, Hook: HookRouteMaintenance, Reason: "bone_armor_combat_stop_not_wired"}
+		}
+		if err := e.routeClear.actions.StopAttack(); err != nil {
+			return Result{Status: StatusFailed, Hook: HookRouteMaintenance, Reason: "bone_armor_combat_stop_failed"}
+		}
+		e.boneArmorAttackStopped = true
+		return Result{Status: StatusPending, Hook: HookRouteMaintenance, Reason: "bone_armor_attack_stopped"}
+	}
+	if err := e.actions.CastSkillAtWorld(now, policy.SkillID, state.Player, state.Player.Position); err != nil {
+		e.boneArmorAttackStopped = false
+		e.emitFailure(Event{Hook: HookRouteMaintenance, SkillID: policy.SkillID, Target: TargetSelf}, "bone_armor_cast_failed")
+		return Result{Status: StatusFailed, Hook: HookRouteMaintenance, SkillID: policy.SkillID, Reason: "bone_armor_cast_failed"}
+	}
+	if err := e.emit(Event{Name: EventHookAction, Hook: HookRouteMaintenance, SkillID: policy.SkillID, Target: TargetSelf}); err != nil {
+		return Result{Status: StatusFailed, Hook: HookRouteMaintenance, SkillID: policy.SkillID, Reason: "profile_telemetry_failed"}
+	}
+	e.boneArmorLastCast = now
+	e.boneArmorDue = false
+	e.boneArmorAttackStopped = false
+	e.boneArmorSettleUntil = now.Add(policy.Settle)
+	e.log.Info("route maintenance cast", "skill_id", policy.SkillID, "reason", "timer_or_damage")
+	return Result{Status: StatusAction, Hook: HookRouteMaintenance, SkillID: policy.SkillID}
 }
 
 // TickResources evaluates prioritized potion policy with an optional route
@@ -283,6 +369,16 @@ func (e *Executor) TickResources(state world.State, resourceContext ResourceCont
 				e.unavailable[kind] = true
 				e.log.Warn("resource unavailable", "resource", kind, "reason", string(kind)+"_potion_unavailable")
 			}
+			if resourceContext.FailOnUnavailable {
+				if e.routeClear.actions == nil {
+					return Result{Status: StatusFailed, Resource: kind, Reason: "combat_resource_stop_not_wired"}
+				}
+				if err := e.routeClear.actions.StopAttack(); err != nil {
+					return Result{Status: StatusFailed, Resource: kind, Reason: "combat_resource_stop_failed"}
+				}
+				e.emitFailure(Event{Resource: kind, Recipient: string(recipientPlayer), ThresholdPercent: rule.UseBelowPercent}, "combat_resource_exhausted")
+				return Result{Status: StatusFailed, Resource: kind, Reason: "combat_resource_exhausted"}
+			}
 			return Result{Status: StatusComplete, Resource: kind, Reason: string(kind) + "_potion_unavailable"}
 		}
 		if err := e.actions.CastBelt(slot); err != nil {
@@ -327,6 +423,19 @@ func (e *Executor) tickMercenaryResource(state world.State, resourceContext Reso
 			e.mercUnavail = true
 			e.log.Warn("resource unavailable", "resource", ResourceHealing, "recipient", recipientMercenary, "reason", "mercenary_potion_unavailable")
 		}
+		if resourceContext.FailOnUnavailable {
+			if e.routeClear.actions == nil {
+				return Result{Status: StatusFailed, Resource: ResourceHealing, Reason: "combat_resource_stop_not_wired"}
+			}
+			if err := e.routeClear.actions.StopAttack(); err != nil {
+				return Result{Status: StatusFailed, Resource: ResourceHealing, Reason: "combat_resource_stop_failed"}
+			}
+			e.emitFailure(Event{
+				Resource: ResourceHealing, Recipient: string(recipientMercenary),
+				ThresholdPercent: policy.UseBelowPercent, MercUnitID: state.Mercenary.UnitID, HPPercent: hpPct,
+			}, "combat_resource_exhausted")
+			return Result{Status: StatusFailed, Resource: ResourceHealing, Reason: "combat_resource_exhausted"}
+		}
 		return Result{Status: StatusComplete, Resource: ResourceHealing, Reason: "mercenary_potion_unavailable"}
 	}
 	if err := e.actions.CastBeltForMercenary(slot); err != nil {
@@ -366,7 +475,7 @@ func (e *Executor) pendingThreshold(pending *pendingResource) uint8 {
 }
 
 // TickRouteClear advances stationary route combat by at most one aim, skill
-// selection, or confirmed attack input.
+// selection, or hover-/projection-authorized attack input.
 func (e *Executor) TickRouteClear(ctx context.Context, request RouteClearRequest, now time.Time) Result {
 	if ctx.Err() != nil {
 		return Result{Status: StatusFailed, Reason: "profile_cancelled"}
@@ -384,26 +493,27 @@ func (e *Executor) TickRouteClear(ctx context.Context, request RouteClearRequest
 		skillID = e.routeClear.openerSkillID
 		actionKind = RouteClearActionCurse
 	}
-	sent, err := e.routeClear.actions.CastAttackAtMonster(now, skillID, request.Player, request.Target)
+	cast, err := e.routeClear.actions.CastAttackAtMonster(now, skillID, request.Player, request.Target)
 	if err != nil {
 		if errors.Is(err, ErrRouteClearTargetUnprojectable) {
-			return Result{Status: StatusPending, SkillID: skillID, ActionKind: actionKind, Reason: RouteClearReasonTargetUnprojectable}
+			return Result{Status: StatusPending, SkillID: skillID, ActionKind: actionKind, Reason: RouteClearReasonTargetUnprojectable, TargetUnitID: request.Target.UnitID, TargetNPCID: request.Target.NPCID}
 		}
-		return Result{Status: StatusFailed, SkillID: skillID, ActionKind: actionKind, Reason: "route_clear_attack_failed"}
+		return Result{Status: StatusFailed, SkillID: skillID, ActionKind: actionKind, Reason: "route_clear_attack_failed", TargetUnitID: request.Target.UnitID, TargetNPCID: request.Target.NPCID}
 	}
-	if sent {
+	if cast.Sent {
 		if actionKind == RouteClearActionCurse {
 			e.routeClear.openerDone = true
 		}
-		return Result{Status: StatusAction, SkillID: skillID, ActionKind: actionKind}
+		return Result{Status: StatusAction, SkillID: skillID, ActionKind: actionKind, TargetingMode: cast.TargetingMode, TargetUnitID: request.Target.UnitID, TargetNPCID: request.Target.NPCID}
 	}
-	return Result{Status: StatusPending, SkillID: skillID, ActionKind: actionKind}
+	return Result{Status: StatusPending, SkillID: skillID, ActionKind: actionKind, TargetUnitID: request.Target.UnitID, TargetNPCID: request.Target.NPCID}
 }
 
 // ResetRouteClear releases pending aim/attack state without touching hook or resource state.
 func (e *Executor) ResetRouteClear() {
 	if e != nil {
 		e.routeClear.openerDone = false
+		e.corpseExplosionPending = nil
 		if e.routeClear.actions != nil {
 			_ = e.routeClear.actions.StopAttack()
 		}

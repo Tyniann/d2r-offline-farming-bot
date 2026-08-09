@@ -19,6 +19,8 @@ Beim ersten Start ohne Manifest werden vorhandene `runs.definitions.*.route_id`-
 
 `Commit` verlangt die aktuelle Revision. Parallele Bestätigungen können daher höchstens einen Commit gewinnen. Schreiben erfolgt über Temp-Datei, Flush und atomisches Replace; Korruption und Write-Fehler enden fail-closed.
 
+Phase 20.2 migriert das Manifest atomisch auf Schema 2 und ergänzt `route_sets`. Bestehende Einzelzuweisungen bleiben unverändert. Der einzige feste Route-Satz gehört zu `cows` und enthält die typisierten Slots `leg_acquisition` und `cow_sweep`. `CommitRouteSetRole` ersetzt oder entfernt genau einen Slot und erhält den anderen; ein partieller Satz ist diagnostisch sichtbar, autorisiert aber keinen Cow-Run. Beide Rollen müssen dieselbe Charakter-, Klassen-, Difficulty-, Versions- und Profilidentität tragen. Map Seed und Layout-Fingerprint bleiben rollenlokale Runtime-Bindings.
+
 ## Lifecycle
 
 `RouteLifecycleRoute` enthält zusätzlich den registrierten `run_id` und den orthogonalen `management_status` `active|archived`. Bestehende Phase-11-Manifeste werden deterministisch anhand der Route-Endpunkte erweitert. Difficulty-/Layout-Invalidierung bleibt unabhängig; `archived + stale` ist zulässig.
@@ -32,4 +34,4 @@ Die Phase-12-Live-Abnahme endete mit Assignment-Revision 2: `mrbones/countess` v
 - [Phase-12-Core-Vertrag](phase-12-core-contract.md)
 
 ---
-*Zuletzt aktualisiert: 18. Juli 2026*
+*Zuletzt aktualisiert: 1. August 2026*

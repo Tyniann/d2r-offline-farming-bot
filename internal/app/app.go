@@ -69,7 +69,9 @@ type Runtime struct {
 	uiStatusPublisher         func(UIStatusSnapshot)
 	pauseHotkeyHandler        func() error
 	stopAfterRunHotkeyHandler func() error
-	mercPreflightPending      bool
+	runReadinessPending       bool
+	productiveRunActive       bool
+	lastSnapshot              memory.Snapshot
 }
 
 // New builds a Runtime from config and CLI/runtime options.
@@ -170,6 +172,9 @@ func New(cfg *config.Config, opts Options) (rt *Runtime, err error) {
 	if err != nil {
 		return nil, err
 	}
+	if runtimeRunID == string(tasks.RunIDCows) {
+		runCfg.Cow = mapCowConfig(cfg, bindings)
+	}
 
 	pathingCfg := mapPathingConfig(cfg.Pathing)
 	if validationErr := pathingCfg.Validate(); validationErr != nil {
@@ -189,6 +194,10 @@ func New(cfg *config.Config, opts Options) (rt *Runtime, err error) {
 	townPreparation, err := newTownPreparationAdapter(log, inputCtrl, pathingCfg, cfg, runtimeRunID, selectedRunCfg, townLayout, townTrace, true)
 	if err != nil {
 		return nil, err
+	}
+	if runtimeRunID == string(tasks.RunIDCows) {
+		townPreparation.requireFullBuyableBelt = true
+		townPreparation.minimumRejuvenation = 1
 	}
 	townStartAdapter, err := newTownPreparationAdapter(log, inputCtrl, pathingCfg, cfg, runtimeRunID, selectedRunCfg, townLayout, townTrace, false)
 	if err != nil {
@@ -237,16 +246,30 @@ func New(cfg *config.Config, opts Options) (rt *Runtime, err error) {
 	if err != nil {
 		return nil, fmt.Errorf("loot stash config: %w", err)
 	}
-	lootActions := newLootActionsAdapter(log, lootFilter, cfg.Loot.Pickup, inputCtrl, pathingCfg, stashExecutor, runTelemetry)
+	profileCfg := cfg.Profiles[selectedRunCfg.Combat.Profile]
+	lootActions := newLootActionsAdapter(log, lootFilter, profileCfg.Resources, cfg.Loot.Pickup, inputCtrl, pathingCfg, stashExecutor, runTelemetry)
 	routeLifecycle, err := NewRouteLifecycleStore(cfg)
 	if err != nil {
 		return nil, fmt.Errorf("route lifecycle: %w", err)
 	}
 	routePlayback := newRoutePlaybackAdapter(log, cfg.ResolvePath(cfg.Routes.FarmingRoot), expectedVersion, nav, runTelemetry, routeLifecycle)
 	townEgress := newTownEgressAdapter(log, cfg, expectedVersion, inputCtrl, pathingCfg, runTelemetry)
+	var cowSetup *cowSetupAdapter
+	var cowRecipe *cowPortalRecipeAdapter
+	if runtimeRunID == string(tasks.RunIDCows) {
+		cowSetup, err = newCowSetupAdapter(log, inputCtrl, nav, pathingCfg, cfg, runtimeRunID, selectedRunCfg, townLayout, townTrace)
+		if err != nil {
+			return nil, fmt.Errorf("cow setup: %w", err)
+		}
+		cowRecipe, err = newCowPortalRecipeAdapter(log, inputCtrl, pathingCfg, cfg.Loot)
+		if err != nil {
+			return nil, fmt.Errorf("cow portal recipe: %w", err)
+		}
+		runCfg.Cow.HasTownServices = true
+	}
 	taskDeps := tasks.Deps{
 		Input: inputCtrl, Pathing: nav, Waypoint: runWaypoints, Portal: townPortals, TownWalk: layoutTownWalker,
-		Stash: personalStash, Combat: combat, Actions: runActions, Loot: lootActions, Route: routePlayback, RouteClear: profileExecutor, TownEgress: townEgress, Profile: profileExecutor, Town: townPreparation,
+		Stash: personalStash, Combat: combat, Actions: runActions, Loot: lootActions, Route: routePlayback, RouteClear: profileExecutor, TownEgress: townEgress, Profile: profileExecutor, Town: townPreparation, Cow: cowSetup, CowRecipe: cowRecipe,
 	}
 	// Do not assign a nil *telemetry.Recorder to the interface: that would make
 	// the interface non-nil and turn the first fail-closed pipeline event into a
@@ -328,7 +351,7 @@ func New(cfg *config.Config, opts Options) (rt *Runtime, err error) {
 // the process. Specialized CLI modes such as --pathing-test and --route must
 // return false even when session.enabled is true.
 func SessionExecutionRequested(opts Options) bool {
-	return !opts.Desktop && !opts.SessionInspect && !opts.RunsInspect && !opts.WaypointTargetsInspect && !opts.Probe && opts.InputTest == "" && opts.Run == "" && opts.RunPhase == "" && opts.PathingTest == "" && opts.OfflineDifficulty == "" && opts.OfflineCharacter == "" && !opts.OfflineExitTest && opts.UIStateProbe == "" && opts.ScreenAnchorCapture == "" && opts.MercenaryProbe == "" && opts.Route == "" && !opts.TownInspect && opts.TownTest == ""
+	return !opts.Desktop && !opts.SessionInspect && !opts.RunsInspect && !opts.WaypointTargetsInspect && !opts.Probe && opts.InputTest == "" && opts.Run == "" && opts.RunPhase == "" && opts.PathingTest == "" && opts.OfflineDifficulty == "" && opts.OfflineCharacter == "" && !opts.OfflineExitTest && opts.UIStateProbe == "" && opts.ScreenAnchorCapture == "" && opts.MercenaryProbe == "" && opts.CowProbe == "" && opts.Route == "" && !opts.TownInspect && opts.TownTest == ""
 }
 
 func loadEffectivePickitPolicy(assignments *PickitAssignmentStore, character string, runID tasks.RunID) (*loot.Pickit, error) {

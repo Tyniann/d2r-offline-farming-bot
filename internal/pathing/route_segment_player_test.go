@@ -208,3 +208,35 @@ func TestRouteSegmentPlayerProjectsConfirmedRecoveryInput(t *testing.T) {
 		t.Fatalf("recovery input progress = %+v, %t", progress, ok)
 	}
 }
+
+func TestRouteSegmentPlayerReconcilesAuthorizedForwardMovement(t *testing.T) {
+	route := validRoute()
+	route.Segments[0].Points = []RoutePoint{
+		{X: 100, Y: 100},
+		{X: 120, Y: 100},
+		{X: 140, Y: 100},
+		{X: 160, Y: 100},
+	}
+	nav := &segmentNavigatorMock{next: NavTickResult{Status: NavMoving}}
+	player, err := NewRouteSegmentPlayer(nav, route, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	state := segmentPlaybackState(world.BlackMarsh, 100, 100)
+	if err := player.SyncReached(state); err != nil {
+		t.Fatal(err)
+	}
+
+	state.Player.Position = world.Position{X: 155, Y: 103}
+	reconciled, err := player.ReconcileForward(state)
+	if err != nil || !reconciled {
+		t.Fatalf("reconciled=%t err=%v", reconciled, err)
+	}
+	progress, ok := player.Progress(state)
+	if !ok || progress.Mode != RouteProgressMovement || progress.PointIndex != 3 ||
+		progress.PreviousConfirmed != (world.Position{X: 140, Y: 100}) ||
+		progress.MovementTarget != (world.Position{X: 160, Y: 100}) ||
+		progress.LocalRecoveryAttempts != 0 {
+		t.Fatalf("reconciled progress = %+v, %t", progress, ok)
+	}
+}

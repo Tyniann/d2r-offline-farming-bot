@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/config"
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/pathing"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/tasks"
 )
 
@@ -101,5 +102,67 @@ func TestRouteAssignmentCorruptionAndAtomicWriteFailureAreFailClosed(t *testing.
 	store, _ = NewRouteAssignmentStore(cfg)
 	if _, err := store.Snapshot(); err == nil {
 		t.Fatal("assignment write failure accepted")
+	}
+}
+
+func TestRouteAssignmentV1MigratesToV2WithoutChangingSingleAssignments(t *testing.T) {
+	directory := t.TempDir()
+	cfg := &config.Config{LoadedFrom: filepath.Join(directory, "config.yaml"), Routes: config.RoutesConfig{AssignmentsFile: "assignments.yaml"}, Session: config.SessionConfig{Character: "MrBones"}}
+	path := cfg.ResolvePath(cfg.Routes.AssignmentsFile)
+	body := "schema_version: 1\nrevision: 9\nassignments:\n  mrbones:\n    countess: countess-a\n"
+	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	store, _ := NewRouteAssignmentStore(cfg)
+	manifest, err := store.Snapshot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if manifest.SchemaVersion != 2 || manifest.Revision != 9 || manifest.Assignments["mrbones"][tasks.RunIDCountess] != "countess-a" || manifest.RouteSets == nil {
+		t.Fatalf("manifest=%+v", manifest)
+	}
+	persisted, err := os.ReadFile(path)
+	if err != nil || !strings.Contains(string(persisted), "schema_version: 2") || !strings.Contains(string(persisted), "route_sets: {}") {
+		t.Fatalf("persisted=%q err=%v", persisted, err)
+	}
+}
+
+func TestRouteAssignmentRouteSetSupportsPartialFullReplaceCloneAndNormalization(t *testing.T) {
+	cfg := &config.Config{LoadedFrom: filepath.Join(t.TempDir(), "config.yaml"), Routes: config.RoutesConfig{AssignmentsFile: "assignments.yaml"}, Session: config.SessionConfig{Character: "MrBones"}}
+	store, _ := NewRouteAssignmentStore(cfg)
+	initial, err := store.Snapshot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	partial, err := store.CommitRouteSetRole(initial.Revision, " MrBones ", tasks.RunIDCows, pathing.RouteRoleLegAcquisition, "leg-a")
+	if err != nil {
+		t.Fatal(err)
+	}
+	roles, revision, err := store.ResolveRouteSet("mRbOnEs", tasks.RunIDCows)
+	if err != nil || revision != partial.Revision || roles[pathing.RouteRoleLegAcquisition] != "leg-a" || roles[pathing.RouteRoleCowSweep] != "" {
+		t.Fatalf("partial roles=%v revision=%d err=%v", roles, revision, err)
+	}
+	roles[pathing.RouteRoleLegAcquisition] = "mutated"
+	roles, _, _ = store.ResolveRouteSet("mrbones", tasks.RunIDCows)
+	if roles[pathing.RouteRoleLegAcquisition] != "leg-a" {
+		t.Fatalf("resolved route set aliased: %v", roles)
+	}
+	full, err := store.CommitRouteSetRole(partial.Revision, "mrbones", tasks.RunIDCows, pathing.RouteRoleCowSweep, "sweep-a")
+	if err != nil {
+		t.Fatal(err)
+	}
+	replaced, err := store.CommitRouteSetRole(full.Revision, "mrbones", tasks.RunIDCows, pathing.RouteRoleLegAcquisition, "leg-b")
+	if err != nil {
+		t.Fatal(err)
+	}
+	roles = replaced.RouteSets["mrbones"][tasks.RunIDCows]
+	if roles[pathing.RouteRoleLegAcquisition] != "leg-b" || roles[pathing.RouteRoleCowSweep] != "sweep-a" {
+		t.Fatalf("replaced roles=%v", roles)
+	}
+	if _, err := store.CommitRouteSetRole(full.Revision, "mrbones", tasks.RunIDCows, pathing.RouteRoleCowSweep, "stale"); err == nil || !strings.Contains(err.Error(), string(RouteReasonAssignmentConflict)) {
+		t.Fatalf("stale revision err=%v", err)
+	}
+	if _, err := store.CommitRouteSetRole(replaced.Revision, "mrbones", tasks.RunIDCows, pathing.RouteRole("unknown"), "route"); err == nil {
+		t.Fatal("unknown route role accepted")
 	}
 }

@@ -1,6 +1,7 @@
 package loot
 
 import (
+	"fmt"
 	"log/slog"
 	"time"
 
@@ -109,6 +110,7 @@ const (
 	verifyFindingNone         verifyFinding = ""
 	verifyFindingGroundAbsent verifyFinding = "ground_absent"
 	verifyFindingInventory    verifyFinding = "inventory"
+	verifyFindingBelt         verifyFinding = "belt"
 )
 
 // PickupExecutor advances one frozen item pickup through stabilize, click, and verify phases.
@@ -125,6 +127,19 @@ type PickupExecutor struct {
 	verifyFinding  verifyFinding
 	verifyTicks    int
 	last           PickupResult
+	allowMonsters  bool
+}
+
+// NewWirtsLegPickupExecutor creates the only pickup variant that may act while
+// a monster is nearby. It remains UnitID-, distance-, hover-, area-, and
+// inventory-transition gated and rejects every non-`leg` target.
+func NewWirtsLegPickupExecutor(log *slog.Logger, cfg PickupConfig, clicker PickupClicker, target PickupTarget) (*PickupExecutor, error) {
+	if target.Code != "leg" || target.UnitID == 0 {
+		return nil, fmt.Errorf("wirt's leg pickup requires one bound leg target")
+	}
+	executor := NewPickupExecutor(log, cfg, clicker, target)
+	executor.allowMonsters = true
+	return executor, nil
 }
 
 // NewPickupExecutor creates a hover-confirmed pickup executor for one frozen target.
@@ -300,6 +315,11 @@ func (e *PickupExecutor) terminalFinding(state world.State) verifyFinding {
 			return verifyFindingInventory
 		}
 		if item.TxtFileNo == e.target.TxtFileNo &&
+			item.Location == world.ItemLocationBelt &&
+			item.PlayerOwned {
+			return verifyFindingBelt
+		}
+		if item.TxtFileNo == e.target.TxtFileNo &&
 			item.Code == e.target.Code &&
 			item.Location == world.ItemLocationGround &&
 			item.Position == e.target.Position {
@@ -316,7 +336,7 @@ func (e *PickupExecutor) preClickAbort(state world.State, item world.Item) (Pick
 	if world.Distance(state.Player.Position, item.Position) > e.cfg.MaxDistanceTiles {
 		return PickupTooFar, true
 	}
-	if monsterNearby(state, e.cfg.MonsterAbortDistanceTiles) {
+	if !e.allowMonsters && monsterNearby(state, e.cfg.MonsterAbortDistanceTiles) {
 		return PickupMonsterNearby, true
 	}
 	return PickupPending, false

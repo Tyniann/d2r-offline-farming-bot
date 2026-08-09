@@ -17,6 +17,7 @@ import (
 type lootActionsAdapter struct {
 	log          *slog.Logger
 	filter       *loot.Filter
+	profile      config.ProfileResourcesConfig
 	cfg          loot.PickupConfig
 	clicker      loot.PickupClicker
 	active       *loot.PickupExecutor
@@ -33,11 +34,12 @@ type telemetryEmitter interface {
 	Emit(telemetry.Event) error
 }
 
-func newLootActionsAdapter(log *slog.Logger, filter *loot.Filter, pickupCfg config.LootPickupConfig, driver pathing.InputDriver, pathingCfg pathing.Config, stash *loot.StashExecutor, runTelemetry telemetryEmitter) *lootActionsAdapter {
+func newLootActionsAdapter(log *slog.Logger, filter *loot.Filter, profile config.ProfileResourcesConfig, pickupCfg config.LootPickupConfig, driver pathing.InputDriver, pathingCfg pathing.Config, stash *loot.StashExecutor, runTelemetry telemetryEmitter) *lootActionsAdapter {
 	clicker := pathing.NewEntityClicker(log, driver, pathingCfg.Projector(), pathingCfg.Click)
 	return &lootActionsAdapter{
 		log:       log.With("component", "loot_actions"),
 		filter:    filter,
+		profile:   profile,
 		cfg:       mapLootPickupConfig(pickupCfg),
 		clicker:   &pickupClickerAdapter{input: driver, clicker: clicker},
 		skipped:   make(map[uint32]bool),
@@ -99,7 +101,8 @@ func (a *lootActionsAdapter) Scan(state world.State) tasks.LootScanResult {
 }
 
 // ScanRouteKeep applies the run's immutable user-selected Pickit chain and
-// exposes only nearby `keep` targets to combat-route orchestration.
+// exposes nearby `keep` targets to combat-route orchestration. Only when no
+// keep target exists does it offer an exact profile-belt supply potion.
 func (a *lootActionsAdapter) ScanRouteKeep(state world.State, maxDistanceTiles float64) tasks.LootScanResult {
 	return a.scan(state, true, maxDistanceTiles)
 }
@@ -140,14 +143,21 @@ func (a *lootActionsAdapter) scan(state world.State, routeKeepOnly bool, maxDist
 	}
 	var target loot.PickupTarget
 	var found bool
+	var supplyCandidateCount int
 	if routeKeepOnly {
 		target, found = loot.SelectKeepPickupCandidateExcludingWithin(state, report, a.skipped, maxDistanceTiles)
+		if !found {
+			target, found, supplyCandidateCount = selectRouteSupplyTarget(state, a.profile, a.skipped, maxDistanceTiles)
+			if found {
+				a.log.Info("route supply pickup selected", "unit_id", target.UnitID, "code", target.Code, "candidate_count", supplyCandidateCount)
+			}
+		}
 	} else {
 		target, found = loot.SelectPickupCandidateExcluding(state, report, a.skipped)
 	}
 	result := tasks.LootScanResult{
 		GroundItemCount:             report.GroundItemCount,
-		CandidateCount:              countPickupCandidatesForMode(state, report, a.skipped, routeKeepOnly, maxDistanceTiles),
+		CandidateCount:              countPickupCandidatesForMode(state, report, a.skipped, routeKeepOnly, maxDistanceTiles) + supplyCandidateCount,
 		InventoryFullCandidateCount: countInventoryFullCandidatesForMode(state, report, routeKeepOnly, maxDistanceTiles),
 		HasTarget:                   found,
 	}
@@ -160,6 +170,7 @@ func (a *lootActionsAdapter) scan(state world.State, routeKeepOnly bool, maxDist
 		"maximum_distance_tiles", maxDistanceTiles,
 		"ground_item_count", result.GroundItemCount,
 		"candidate_count", result.CandidateCount,
+		"route_supply_candidate_count", supplyCandidateCount,
 		"blocked_candidate_count", countBlockedPickupCandidates(report),
 		"inventory_full_candidate_count", result.InventoryFullCandidateCount,
 		"inventory_full", result.InventoryFull,
@@ -178,6 +189,52 @@ func (a *lootActionsAdapter) scan(state world.State, routeKeepOnly bool, maxDist
 	return result
 }
 
+func selectRouteSupplyTarget(state world.State, profile config.ProfileResourcesConfig, skipped map[uint32]bool, maxDistanceTiles float64) (loot.PickupTarget, bool, int) {
+	healing, mana, rejuvenation := countProfilePotionSupplies(state, profile)
+	needed := map[string]bool{
+		"hp5": healing < len(slotSet(profile.Healing.BeltSlots))*4,
+		"mp5": mana < len(slotSet(profile.Mana.BeltSlots))*4,
+		"rvl": rejuvenation < len(slotSet(profile.Rejuvenation.BeltSlots))*4,
+	}
+
+	var best loot.PickupTarget
+	bestDistance := 0.0
+	found, candidates := false, 0
+	for _, item := range state.GroundItems() {
+		if !needed[item.Code] || skipped[item.UnitID] || !isExactRouteSupplyPotion(item) {
+			continue
+		}
+		distance := world.Distance(state.Player.Position, item.Position)
+		if maxDistanceTiles > 0 && distance > maxDistanceTiles {
+			continue
+		}
+		candidates++
+		if found && (distance > bestDistance || distance == bestDistance && item.UnitID >= best.UnitID) {
+			continue
+		}
+		found, bestDistance = true, distance
+		best = loot.PickupTarget{
+			UnitID: item.UnitID, TxtFileNo: item.TxtFileNo, Code: item.Code, Name: item.Name,
+			Quality: item.Quality, IdentityKind: item.IdentityKind, IdentityKey: item.IdentityKey, IdentityValid: item.IdentityValid,
+			Position: item.Position, AreaID: state.Area.ID,
+		}
+	}
+	return best, found, candidates
+}
+
+func isExactRouteSupplyPotion(item world.Item) bool {
+	switch item.Code {
+	case "hp5":
+		return item.Type == "hpot"
+	case "mp5":
+		return item.Type == "mpot"
+	case "rvl":
+		return item.Type == "rpot"
+	default:
+		return false
+	}
+}
+
 func applyPickitTelemetry(event *telemetry.Event, result loot.PickitResult) {
 	if event == nil {
 		return
@@ -187,6 +244,16 @@ func applyPickitTelemetry(event *telemetry.Event, result loot.PickitResult) {
 }
 
 func (a *lootActionsAdapter) StartPickup(target tasks.LootTarget) error {
+	return a.startPickup(target, false)
+}
+
+// StartCowLegPickup starts only a bound Wirt's Leg target with the narrow
+// monster-tolerant quest pickup executor.
+func (a *lootActionsAdapter) StartCowLegPickup(target tasks.LootTarget) error {
+	return a.startPickup(target, true)
+}
+
+func (a *lootActionsAdapter) startPickup(target tasks.LootTarget, cowLeg bool) error {
 	if a == nil {
 		return fmt.Errorf("loot actions not wired")
 	}
@@ -206,7 +273,16 @@ func (a *lootActionsAdapter) StartPickup(target tasks.LootTarget) error {
 		return fmt.Errorf("loot target already skipped: unit_id=%d", target.UnitID)
 	}
 	a.lastStart = target
-	a.active = loot.NewPickupExecutor(a.log, a.cfg, a.clicker, mapLootPickupTarget(target))
+	mapped := mapLootPickupTarget(target)
+	if cowLeg {
+		executor, err := loot.NewWirtsLegPickupExecutor(a.log, a.cfg, a.clicker, mapped)
+		if err != nil {
+			return err
+		}
+		a.active = executor
+	} else {
+		a.active = loot.NewPickupExecutor(a.log, a.cfg, a.clicker, mapped)
+	}
 	return nil
 }
 

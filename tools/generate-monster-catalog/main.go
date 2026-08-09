@@ -23,15 +23,32 @@ type monsterRow struct {
 
 // bossTarget is one run boss selected by monstats *hcIdx from .tmp/d2r-excel.
 type bossTarget struct {
-	HCIdx     uint32
-	ID        string
-	ConstName string
+	HCIdx           uint32
+	ID              string
+	ConstName       string
+	Phase20         bool
+	Priority        bool
+	SuperUniqueName string
+	DisplayName     string
 }
 
 var defaultBossTargets = []bossTarget{
+	{HCIdx: 0, ID: "skeleton1", ConstName: "StonySkeleton", Phase20: true},
+	{HCIdx: 1, ID: "skeleton2", ConstName: "TristramReturned", Phase20: true},
+	{HCIdx: 6, ID: "zombie2", ConstName: "StonyHungryDead", Phase20: true},
+	{HCIdx: 15, ID: "foulcrow1", ConstName: "StonyFoulCrow", Phase20: true},
 	{HCIdx: 242, ID: "mephisto", ConstName: "Mephisto"},
 	{HCIdx: 250, ID: "summoner", ConstName: "Summoner"},
 	{HCIdx: 526, ID: "nihlathakboss", ConstName: "Nihlathak"},
+	{HCIdx: 20, ID: "fallen2", ConstName: "Rakanishu", Phase20: true, Priority: true, SuperUniqueName: "Rakanishu", DisplayName: "Rakanishu"},
+	{HCIdx: 53, ID: "goatman1", ConstName: "StonyMoonClan", Phase20: true},
+	{HCIdx: 54, ID: "goatman2", ConstName: "TristramNightClan", Phase20: true},
+	{HCIdx: 59, ID: "fallenshaman2", ConstName: "TristramCarverShaman", Phase20: true},
+	{HCIdx: 160, ID: "cr_archer1", ConstName: "StonyDarkRanger", Phase20: true},
+	{HCIdx: 170, ID: "sk_archer1", ConstName: "TristramSkeletonArcher", Phase20: true},
+	{HCIdx: 206, ID: "crownest1", ConstName: "StonyFoulCrowNest", Phase20: true},
+	{HCIdx: 391, ID: "hellbovine", ConstName: "HellBovine", Phase20: true},
+	{HCIdx: 735, ID: "cowking", ConstName: "CowKing", Phase20: true, Priority: true, SuperUniqueName: "The Cow King", DisplayName: "Cow King"},
 }
 
 func main() {
@@ -50,6 +67,9 @@ func main() {
 	selected, err := selectBosses(rows, defaultBossTargets)
 	if err != nil {
 		fatalf("select bosses: %v", err)
+	}
+	if err := verifySuperUniqueTargets(filepath.Join(*src, "superuniques.txt"), selected); err != nil {
+		fatalf("verify super uniques: %v", err)
 	}
 	for _, output := range []struct {
 		path string
@@ -137,13 +157,83 @@ func selectBosses(rows []monsterRow, targets []bossTarget) ([]selectedBoss, erro
 	return out, nil
 }
 
+func verifySuperUniqueTargets(path string, selected []selectedBoss) error {
+	f, err := os.Open(path)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	r := csv.NewReader(f)
+	r.Comma, r.FieldsPerRecord = '\t', -1
+	records, err := r.ReadAll()
+	if err != nil {
+		return fmt.Errorf("parse %q: %w", path, err)
+	}
+	if len(records) < 2 {
+		return fmt.Errorf("%q has no data rows", path)
+	}
+	header := headerIndex(records[0])
+	for _, required := range []string{"name", "class", "hcidx"} {
+		if _, ok := header[required]; !ok {
+			return fmt.Errorf("%q missing column %q", path, required)
+		}
+	}
+	byName := make(map[string][]string, len(records)-1)
+	for _, record := range records[1:] {
+		byName[value(record, header, "name")] = record
+	}
+	for _, monster := range selected {
+		name := monster.Target.SuperUniqueName
+		if name == "" {
+			continue
+		}
+		record, ok := byName[name]
+		if !ok {
+			return fmt.Errorf("superunique %q missing", name)
+		}
+		if class := value(record, header, "class"); !strings.EqualFold(class, monster.Row.ID) {
+			return fmt.Errorf("superunique %q Class=%q, want %q", name, class, monster.Row.ID)
+		}
+		// superuniques.hcIdx is a row identity (Cow King=39), never the
+		// monstats NPC ID (cowking=735) used by the runtime.
+		if _, err := strconv.ParseUint(value(record, header, "hcidx"), 10, 32); err != nil {
+			return fmt.Errorf("superunique %q invalid hcIdx: %w", name, err)
+		}
+	}
+	return nil
+}
+
 func renderMemory(version string, bosses []selectedBoss) []byte {
 	var b bytes.Buffer
-	fmt.Fprintf(&b, "// Code generated from D2R %s local data/global/excel/monstats.txt; DO NOT EDIT.\n", version)
+	fmt.Fprintf(&b, "// Code generated from D2R %s local data/global/excel/monstats.txt and superuniques.txt; DO NOT EDIT.\n", version)
 	b.WriteString("package memory\n\n")
+	b.WriteString("const (\n")
+	for _, boss := range bosses {
+		if boss.Target.Phase20 {
+			fmt.Fprintf(&b, "\tphase20NPCID%s uint32 = %d\n", boss.Target.ConstName, boss.Row.HCIdx)
+		}
+	}
+	b.WriteString(")\n\n")
 	b.WriteString("var runtimeBossNPCIDs = map[uint32]struct{}{\n")
 	for _, boss := range bosses {
+		if boss.Target.Phase20 {
+			continue
+		}
 		fmt.Fprintf(&b, "\t%d: {}, // %s\n", boss.Row.HCIdx, boss.Row.Name)
+	}
+	b.WriteString("}\n")
+	b.WriteString("\nvar runtimePhase20MonsterNPCIDs = map[uint32]struct{}{\n")
+	for _, boss := range bosses {
+		if boss.Target.Phase20 {
+			fmt.Fprintf(&b, "\t%d: {}, // %s (%s)\n", boss.Row.HCIdx, boss.Target.ConstName, boss.Row.ID)
+		}
+	}
+	b.WriteString("}\n")
+	b.WriteString("\nvar runtimePhase20PriorityNPCIDs = map[uint32]struct{}{\n")
+	for _, boss := range bosses {
+		if boss.Target.Phase20 && boss.Target.Priority {
+			fmt.Fprintf(&b, "\t%d: {}, // %s (%s)\n", boss.Row.HCIdx, boss.Target.ConstName, boss.Row.ID)
+		}
 	}
 	b.WriteString("}\n")
 	return b.Bytes()
@@ -151,7 +241,7 @@ func renderMemory(version string, bosses []selectedBoss) []byte {
 
 func renderWorld(version string, bosses []selectedBoss) []byte {
 	var b bytes.Buffer
-	fmt.Fprintf(&b, "// Code generated from D2R %s local data/global/excel/monstats.txt; DO NOT EDIT.\n", version)
+	fmt.Fprintf(&b, "// Code generated from D2R %s local data/global/excel/monstats.txt and superuniques.txt; DO NOT EDIT.\n", version)
 	b.WriteString("package world\n\n")
 	b.WriteString("const (\n")
 	for _, boss := range bosses {
@@ -160,7 +250,11 @@ func renderWorld(version string, bosses []selectedBoss) []byte {
 	b.WriteString(")\n\n")
 	b.WriteString("var generatedNPCNames = map[uint32]string{\n")
 	for _, boss := range bosses {
-		fmt.Fprintf(&b, "\t%s: %q,\n", boss.Target.ConstName, boss.Row.Name)
+		name := boss.Target.DisplayName
+		if name == "" {
+			name = boss.Row.Name
+		}
+		fmt.Fprintf(&b, "\t%s: %q,\n", boss.Target.ConstName, name)
 	}
 	b.WriteString("}\n")
 	return b.Bytes()

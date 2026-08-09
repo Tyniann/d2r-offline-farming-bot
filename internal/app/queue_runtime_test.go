@@ -86,6 +86,35 @@ func TestCanAdoptQueueGameUsesConfirmedPassiveRuntime(t *testing.T) {
 	}
 }
 
+func TestConfiguredQueueCharacterSelectionReusesCatalogBoundSelector(t *testing.T) {
+	cfg := &config.Config{}
+	cfg.Session.Character = "mrbones"
+	cfg.Session.Difficulty = "hell"
+	catalog := CharacterCatalog{Revision: 7, Characters: []CharacterCatalogEntry{
+		{Name: "MrBeek", AnchorPath: "beek.png", ExpectedClass: "warlock"},
+		{Name: "MrBones", AnchorPath: "bones.png", ExpectedClass: "necromancer"},
+		{Name: "MrHammer", AnchorPath: "hammer.png", ExpectedClass: "paladin"},
+	}}
+
+	selection, err := configuredQueueCharacterSelection(cfg, catalog)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if selection.Character != "MrBones" || selection.Difficulty != "hell" || selection.CatalogRevision != 7 ||
+		selection.CharacterCount != 3 || selection.AnchorPath != "bones.png" || selection.ExpectedClass != "necromancer" {
+		t.Fatalf("selection = %+v", selection)
+	}
+}
+
+func TestConfiguredQueueCharacterSelectionRejectsMissingSave(t *testing.T) {
+	cfg := &config.Config{}
+	cfg.Session.Character = "MrBones"
+	_, err := configuredQueueCharacterSelection(cfg, CharacterCatalog{Revision: 1, Characters: []CharacterCatalogEntry{{Name: "MrHammer"}}})
+	if err == nil || !strings.Contains(err.Error(), "missing from the offline save catalog") {
+		t.Fatalf("missing save error = %v", err)
+	}
+}
+
 func TestFocusVerifiedQueueGameReusesGuardedInputFocus(t *testing.T) {
 	controller := &mockInput{}
 	if err := focusVerifiedQueueGame(controller); err != nil {
@@ -194,6 +223,20 @@ func TestRuntimeQueueRunnerKeepsGameAcrossFreshRunUnits(t *testing.T) {
 	}
 	if !reflect.DeepEqual(continuations, []bool{false, true}) {
 		t.Fatalf("same-game continuations = %v, want [false true]", continuations)
+	}
+}
+
+func TestRuntimeQueueUnitRearmsReadinessOnlyForNewGame(t *testing.T) {
+	runtime := &Runtime{}
+	unit := &runtimeQueueUnit{runtime: runtime}
+
+	unit.rearmRunReadinessForNewGame(true)
+	if runtime.runReadinessPending {
+		t.Fatal("adopted game unexpectedly rearmed run readiness")
+	}
+	unit.rearmRunReadinessForNewGame(false)
+	if !runtime.runReadinessPending {
+		t.Fatal("verified new game did not rearm run readiness")
 	}
 }
 

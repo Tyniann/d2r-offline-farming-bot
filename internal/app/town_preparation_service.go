@@ -32,12 +32,23 @@ func (a *townPreparationAdapter) mercenaryPolicy() town.MercenaryPolicy {
 func (a *townPreparationAdapter) start(state world.State) string {
 	// Planning consumes one coherent snapshot. It must not mix belt or carried-
 	// gold values from later ticks before the immutable plan is constructed.
-	healing, mana := countPotionSupplies(state)
-	levels := []town.RestockLevel{
-		{Resource: town.RestockHealing, Current: healing, Threshold: a.thresholds.Healing, Target: len(a.profile.Healing.BeltSlots) * 4},
-		{Resource: town.RestockMana, Current: mana, Threshold: a.thresholds.Mana, Target: len(a.profile.Mana.BeltSlots) * 4},
+	healing, mana, rejuvenation := countProfilePotionSupplies(state, a.profile)
+	if a.minimumRejuvenation > 0 && rejuvenation < a.minimumRejuvenation {
+		return "cow_rejuvenation_reserve_missing"
 	}
-	needsPotions := healing < a.thresholds.Healing || mana < a.thresholds.Mana
+	if a.requireFullBuyableBelt && !hasPotionColumnSeeds(state, a.profile) {
+		return "cow_belt_layout_unseeded"
+	}
+	healingTarget, manaTarget := len(a.profile.Healing.BeltSlots)*4, len(a.profile.Mana.BeltSlots)*4
+	healingThreshold, manaThreshold := a.thresholds.Healing, a.thresholds.Mana
+	if a.requireFullBuyableBelt {
+		healingThreshold, manaThreshold = healingTarget, manaTarget
+	}
+	levels := []town.RestockLevel{
+		{Resource: town.RestockHealing, Current: healing, Threshold: healingThreshold, Target: healingTarget},
+		{Resource: town.RestockMana, Current: mana, Threshold: manaThreshold, Target: manaTarget},
+	}
+	needsPotions := healing < healingThreshold || mana < manaThreshold
 	itemOrders, itemReason := a.planItemServiceOrders(state)
 	if itemReason != "" {
 		return string(itemReason)
@@ -58,13 +69,14 @@ func (a *townPreparationAdapter) start(state world.State) string {
 		if startAnchor == "" {
 			startAnchor = town.AnchorStash
 		}
-		traversals, err := a.graph.RouteForLayout(a.layout, startAnchor, nil, town.AnchorWaypoint)
+		targetAnchor := a.handoffAnchor()
+		traversals, err := a.graph.RouteForLayout(a.layout, startAnchor, nil, targetAnchor)
 		if err != nil {
 			return err.Error()
 		}
 		a.traversals = traversals
 		a.started = true
-		a.log.Info("central town preparation started", "origin", startAnchor, "services", []string{}, "handoff", a.nextRunID, "edge_count", len(traversals), "scroll_demand", "unavailable_skip", "town_layout", a.layout)
+		a.log.Info("central town preparation started", "origin", startAnchor, "target", targetAnchor, "services", []string{}, "handoff", a.nextRunID, "edge_count", len(traversals), "scroll_demand", "unavailable_skip", "town_layout", a.layout)
 		return ""
 	}
 
@@ -97,12 +109,14 @@ func (a *townPreparationAdapter) start(state world.State) string {
 	if err != nil {
 		return err.Error()
 	}
+	effectiveThresholds := a.thresholds
+	effectiveThresholds.Healing, effectiveThresholds.Mana = healingThreshold, manaThreshold
 	snapshot := town.InspectDemand(town.SupplySnapshot{
 		Healing: healing, Mana: mana, BeltLayoutComplete: beltComplete,
 		TownPortalScrolls: a.thresholds.TownPortalScrolls, IdentifyScrolls: a.thresholds.IdentifyScrolls,
 		IdentifyRequired: needsIdentify, VendorCandidates: needsSell,
 		MercenaryHeal: mercHeal, MercenaryRevive: mercRevive,
-	}, a.thresholds)
+	}, effectiveThresholds)
 	plan, reason := planner.Plan(town.Origin{Act: town.OriginAct1, Anchor: town.AnchorStash}, snapshot, town.NextRunTarget{ID: a.nextRunID, Act: town.OriginAct1})
 	if reason != "" {
 		return string(reason)
@@ -157,16 +171,65 @@ func itemServiceDemand(orders []town.ItemServiceOrder) (identify, sell bool) {
 	return identify, sell
 }
 
-func countPotionSupplies(state world.State) (healing, mana int) {
+func countProfilePotionSupplies(state world.State, profile config.ProfileResourcesConfig) (healing, mana, rejuvenation int) {
+	slots := map[string]map[int]bool{
+		"hpot": slotSet(profile.Healing.BeltSlots), "mpot": slotSet(profile.Mana.BeltSlots), "rpot": slotSet(profile.Rejuvenation.BeltSlots),
+	}
 	for _, item := range state.ItemsByLocation(world.ItemLocationBelt) {
-		switch item.Type {
-		case "hpot":
-			healing++
-		case "mpot":
-			mana++
+		column, ok := beltColumn(item)
+		if ok && slots[item.Type][column] {
+			switch item.Type {
+			case "hpot":
+				healing++
+			case "mpot":
+				mana++
+			case "rpot":
+				rejuvenation++
+			}
 		}
 	}
-	return healing, mana
+	return healing, mana, rejuvenation
+}
+
+// beltColumn decodes D2R's flattened belt position. Belt rows occupy
+// `GridX` 0..15, where every four consecutive positions share a column.
+// Inventory-shaped test snapshots may still carry X 0..3 with a separate Y.
+func beltColumn(item world.Item) (int, bool) {
+	if item.GridX < 0 || item.GridX >= 16 {
+		return 0, false
+	}
+	return item.GridX%4 + 1, true
+}
+
+func slotSet(slots []int) map[int]bool {
+	set := make(map[int]bool, len(slots))
+	for _, slot := range slots {
+		set[slot] = true
+	}
+	return set
+}
+
+func hasPotionColumnSeeds(state world.State, profile config.ProfileResourcesConfig) bool {
+	seeds := map[string]map[int]bool{
+		"hpot": {}, "mpot": {},
+	}
+	expected := map[string]map[int]bool{
+		"hpot": slotSet(profile.Healing.BeltSlots), "mpot": slotSet(profile.Mana.BeltSlots),
+	}
+	for _, item := range state.ItemsByLocation(world.ItemLocationBelt) {
+		column, ok := beltColumn(item)
+		if ok && expected[item.Type][column] {
+			seeds[item.Type][column] = true
+		}
+	}
+	for kind, columns := range expected {
+		for column := range columns {
+			if !seeds[kind][column] {
+				return false
+			}
+		}
+	}
+	return true
 }
 
 func completeBeltProfile(profile config.ProfileResourcesConfig) (bool, string) {
@@ -324,7 +387,7 @@ func (h *townPreparationStepHandler) tickPotions(ctx context.Context, state worl
 		}
 		h.authorizedAkaraDialog, h.authorizedAkaraUnitID = false, 0
 		h.stage = "done"
-		healing, mana := countPotionSupplies(state)
+		healing, mana, _ := countProfilePotionSupplies(state, h.adapter.profile)
 		return town.InteractionResult{Status: town.InteractionComplete, Current: healing + mana, VerifiedFinal: healing + mana, Done: true}
 	case "done":
 		return town.InteractionResult{Status: town.InteractionComplete, Done: true}
@@ -782,7 +845,7 @@ func (h *townPreparationStepHandler) tickOrders(state world.State) town.Interact
 		return town.InteractionResult{Status: town.InteractionPending}
 	}
 	order := h.orders[h.order]
-	current := countRestockResource(state, order.Resource)
+	current := countRestockResource(state, h.adapter.profile, order.Resource)
 	metadata := town.InteractionResult{Current: current, Threshold: thresholdFor(h.adapter.thresholds, order.Resource), BeltSlots: slotsFor(h.adapter.profile, order.Resource), Mode: order.Mode, Vendor: town.AnchorAkara}
 	if time.Now().Before(h.settleUntil) {
 		metadata.Status = town.InteractionPending
@@ -805,7 +868,7 @@ func (h *townPreparationStepHandler) tickOrders(state world.State) town.Interact
 		}
 		// Reprice the concrete live vendor code immediately before the only
 		// purchase action; the earlier maximum is solely a pre-navigation gate.
-		code, cost, ok := purchaseCostForState(state, order)
+		code, cost, ok := purchaseCostForState(state, h.adapter.profile, order)
 		if !ok || !state.Player.GoldKnown || uint64(state.Player.Gold) < uint64(cost) {
 			metadata.Status, metadata.Reason, metadata.Done = town.InteractionFailed, string(town.ReasonGoldUnavailable), true
 			return metadata
@@ -845,6 +908,9 @@ func (h *townPreparationStepHandler) tickOrders(state world.State) town.Interact
 		return metadata
 	}
 	result.Current, result.Threshold, result.BeltSlots, result.Mode, result.Vendor = metadata.Current, metadata.Threshold, metadata.BeltSlots, metadata.Mode, metadata.Vendor
+	if result.Status == town.InteractionFailed {
+		h.adapter.log.Warn("town restock verification failed", "resource", order.Resource, "before", order.Before, "current", current, "target", order.Target, "mode", order.Mode, "reason", result.Reason)
+	}
 	return result
 }
 
@@ -930,8 +996,8 @@ func (h *townPreparationStepHandler) Reset() {
 	h.walker = nil
 }
 
-func countRestockResource(state world.State, resource town.RestockResource) int {
-	healing, mana := countPotionSupplies(state)
+func countRestockResource(state world.State, profile config.ProfileResourcesConfig, resource town.RestockResource) int {
+	healing, mana, _ := countProfilePotionSupplies(state, profile)
 	if resource == town.RestockHealing {
 		return healing
 	}
@@ -949,7 +1015,7 @@ func vendorRequest(order town.RestockOrder) town.VendorRequest {
 	return town.VendorRequest{Type: typeCode, Mode: order.Mode}
 }
 
-func purchaseCostForState(state world.State, order town.RestockOrder) (string, int, bool) {
+func purchaseCostForState(state world.State, profile config.ProfileResourcesConfig, order town.RestockOrder) (string, int, bool) {
 	request := vendorRequest(order)
 	var selected world.Item
 	found := false
@@ -969,7 +1035,7 @@ func purchaseCostForState(state world.State, order town.RestockOrder) (string, i
 	}
 	units := 1
 	if order.Mode == town.BuyModeBulk {
-		units = order.Target - countRestockResource(state, order.Resource)
+		units = order.Target - countRestockResource(state, profile, order.Resource)
 	}
 	if units <= 0 {
 		return "", 0, false

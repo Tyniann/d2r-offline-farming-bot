@@ -28,6 +28,8 @@ Kandidaten werden auf den ausgewählten Charakter gefiltert. Da das Routenfeatur
 
 Die dauerhaft auffindbare Hotkey-Hilfe liest die effektiven Werte aus dem Core: F9 friert eine Aufnahme ein, F10 stoppt nach dem aktuellen Run, F11 ist der sofortige Emergency Stop und Pause merkt Pause-after-run vor.
 
+Phase 20.2 projiziert für `cows` zwei Recording-Optionen mit `route_role`, Startart, rollenbezogenen Anweisungen und Operatorhinweisen. Das Dashboard zeigt getrennt „Wirt-Route aufnehmen“ und „Cow-Route aufnehmen“, übernimmt die Rolle in Workflow, Kandidatenreview und Routenbibliothek und zeigt den Kandidatenhash. Die Wirt-Karte weist auf das bereits offene Tristram-Portal und den verbotenen Wirt-Klick hin; die Cow-Karte verlangt das manuell geöffnete sowie vor der Aufnahme vollständig geleerte Cow Level. React berechnet keine gemeinsame Kompatibilität, sondern rendert ausschließlich Core-DTOs.
+
 ## Grenzen
 
 React sendet nur Intents. Sampling, Validierung, Kandidatenspeicherung, Test, Publish und System-Egress-Playback bleiben Core-Verantwortung. Der System-Setup-Flow schreibt ausschließlich den globalen `portal-waypoint.yaml`-Vertrag außerhalb des Farming-Katalogs.
@@ -44,4 +46,4 @@ Der vollständige Countess-Zyklus wurde im Dashboard erfolgreich abgenommen: gef
 - [Lokale Core-API](local-core-api.md)
 
 ---
-*Zuletzt aktualisiert: 30. Juli 2026*
+*Zuletzt aktualisiert: 1. August 2026*

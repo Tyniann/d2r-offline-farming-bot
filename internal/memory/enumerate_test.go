@@ -2,6 +2,7 @@ package memory
 
 import (
 	"encoding/binary"
+	"encoding/hex"
 	"fmt"
 	"testing"
 )
@@ -265,6 +266,99 @@ func TestProbeSnapshotSkipsCorpseMonster(t *testing.T) {
 	snap := probe.Snapshot()
 	if len(snap.Monsters) != 0 {
 		t.Fatalf("expected no corpse monsters, got %+v", snap.Monsters)
+	}
+}
+
+func TestProbeSnapshotCapturesLivingAndDeadCowEvidenceInExistingMonsterWalk(t *testing.T) {
+	access, probe, moduleBase := setupProbeMock(t)
+	off := testOffsetSet()
+	const (
+		livingUnit  = uintptr(0x66000)
+		livingData  = uintptr(0x67000)
+		livingPath  = uintptr(0x68000)
+		deadUnit    = uintptr(0x69000)
+		deadData    = uintptr(0x6A000)
+		deadPath    = uintptr(0x6B000)
+		livingStats = uintptr(0x6C000)
+		deadStats   = uintptr(0x6D000)
+	)
+	writeSegmentHead(access, moduleBase, off.UnitTable, unitSegmentMonster, livingUnit)
+	setupMonsterUnit(access, livingUnit, livingData, livingPath, phase20NPCIDHellBovine, 3001, false)
+	setupMonsterUnit(access, deadUnit, deadData, deadPath, phase20NPCIDCowKing, 3002, true)
+	binary.LittleEndian.PutUint64(access.memory[livingUnit][off.Unit.NextUnit:], uint64(deadUnit))
+	binary.LittleEndian.PutUint64(access.memory[livingUnit][off.Unit.StatsListEx:], uint64(livingStats))
+	binary.LittleEndian.PutUint64(access.memory[deadUnit][off.Unit.StatsListEx:], uint64(deadStats))
+	access.memory[deadUnit][unitOffsetCorpse] = 1
+	binary.LittleEndian.PutUint32(access.memory[deadUnit][unitOffsetMode:], 12)
+	livingStateWindow := make([]byte, cowStateWindowSize)
+	deadStateWindow := make([]byte, cowStateWindowSize)
+	livingStateWindow[0x48] = 0x11 // Preserved diagnostic byte.
+	deadStateWindow[cowConsumedOffsetA-cowStateWindowOffset] = cowConsumedMask
+	deadStateWindow[cowConsumedOffsetB-cowStateWindowOffset] = cowConsumedMask
+	access.setBytes(livingStats+cowStateWindowOffset, livingStateWindow)
+	access.setBytes(deadStats+cowStateWindowOffset, deadStateWindow)
+
+	snap := probe.Snapshot()
+	if !snap.CowEvidenceComplete || len(snap.CowEvidence) != 2 {
+		t.Fatalf("CowEvidence complete=%t values=%+v, want two direct units", snap.CowEvidenceComplete, snap.CowEvidence)
+	}
+	if snap.CowEvidence[0].NPCID != phase20NPCIDHellBovine || snap.CowEvidence[0].Corpse != 0 || snap.CowEvidence[0].UnitID != 3001 {
+		t.Fatalf("living evidence = %+v", snap.CowEvidence[0])
+	}
+	if snap.CowEvidence[1].NPCID != phase20NPCIDCowKing || snap.CowEvidence[1].Corpse != 1 || snap.CowEvidence[1].Mode != 12 || snap.CowEvidence[1].MonsterTypeFlag != SuperUniqueMonsterFlag {
+		t.Fatalf("dead evidence = %+v", snap.CowEvidence[1])
+	}
+	if !snap.CowEvidence[0].StateWindowComplete || snap.CowEvidence[0].StateWindowHex != hex.EncodeToString(livingStateWindow) {
+		t.Fatalf("living state window = %+v", snap.CowEvidence[0])
+	}
+	if !snap.CowEvidence[1].StateWindowComplete || snap.CowEvidence[1].StateWindowHex != hex.EncodeToString(deadStateWindow) {
+		t.Fatalf("dead state window = %+v", snap.CowEvidence[1])
+	}
+	if len(snap.Monsters) != 1 || snap.Monsters[0].UnitID != 3001 {
+		t.Fatalf("living Monsters = %+v, want only living cow", snap.Monsters)
+	}
+	if !snap.CowCorpsesComplete || len(snap.CowCorpses) != 1 || snap.CowCorpses[0].UnitID != 3002 || !snap.CowCorpses[0].Consumed || !snap.CowCorpses[0].ConsumptionKnown {
+		t.Fatalf("CowCorpses complete=%t values=%+v, want consumed direct Cow King corpse", snap.CowCorpsesComplete, snap.CowCorpses)
+	}
+	if snap.Monsters[0].UnitID == snap.CowCorpses[0].UnitID {
+		t.Fatal("living and corpse projections must be disjoint")
+	}
+}
+
+func TestCowCorpseConsumptionTruthTable(t *testing.T) {
+	for _, tt := range []struct {
+		name       string
+		bitA, bitB bool
+		known      bool
+		consumed   bool
+	}{
+		{name: "fresh corpse", known: true},
+		{name: "consumed", bitA: true, bitB: true, known: true, consumed: true},
+		{name: "first bit only", bitA: true},
+		{name: "second bit only", bitB: true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			access := newMockAccess()
+			off := testOffsetSet()
+			const unitAddr, unitData, path, stats = uintptr(0x66000), uintptr(0x67000), uintptr(0x68000), uintptr(0x69000)
+			setupMonsterUnit(access, unitAddr, unitData, path, phase20NPCIDHellBovine, 77, false)
+			access.memory[unitAddr][unitOffsetCorpse] = 1
+			binary.LittleEndian.PutUint64(access.memory[unitAddr][off.Unit.StatsListEx:], uint64(stats))
+			window := make([]byte, cowStateWindowSize)
+			if tt.bitA {
+				window[cowConsumedOffsetA-cowStateWindowOffset] = cowConsumedMask
+			}
+			if tt.bitB {
+				window[cowConsumedOffsetB-cowStateWindowOffset] = cowConsumedMask
+			}
+			access.setBytes(stats+cowStateWindowOffset, window)
+			reader := newTestReader(access)
+			reader.Bind(access)
+			evidence, ok := NewProbeReader(reader, off).readCowRawEvidence(unitAddr, phase20NPCIDHellBovine, off)
+			if !ok || evidence.ConsumptionKnown != tt.known || evidence.Consumed != tt.consumed {
+				t.Fatalf("evidence=%+v ok=%t", evidence, ok)
+			}
+		})
 	}
 }
 

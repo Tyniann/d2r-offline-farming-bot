@@ -23,6 +23,11 @@ type RunConfig struct {
 	StepTimeout time.Duration
 	// RouteID is the stable generic route selected for this run.
 	RouteID string
+	// SetupRouteID is the immutable `leg_acquisition` route selected for Cows.
+	// It remains empty for every standard single-route run.
+	SetupRouteID string
+	// Cow configures the deliberately narrow Phase-20 Cow setup pipeline.
+	Cow CowConfig
 	// Combat tunes regular boss combat after encounter actions.
 	Combat CombatConfig
 	// RouteCombat tunes threat assessment for route-clear capable runs.
@@ -168,6 +173,12 @@ func (r *Runner) resetGeneration() {
 	if r.deps.Town != nil {
 		r.deps.Town.Reset()
 	}
+	if r.deps.Cow != nil {
+		r.deps.Cow.Reset()
+	}
+	if r.deps.CowRecipe != nil {
+		r.deps.CowRecipe.Reset()
+	}
 	if r.deps.Profile != nil {
 		r.deps.Profile.Reset()
 	}
@@ -186,6 +197,10 @@ func (r *Runner) Tick(ctx context.Context, w world.State, now time.Time) TickRes
 		if reason == "" {
 			reason = string(RunReasonUnknown)
 		}
+		r.terminal = true
+		r.outcome = RunOutcomeFailed
+		r.terminalReason = reason
+		r.log.Error("task run initialization failed", "run", r.selection.Run, "phase", r.selection.Phase, "reason", reason)
 		return TickResult{
 			Active:  false,
 			Outcome: RunOutcomeFailed,
@@ -203,11 +218,15 @@ func (r *Runner) Tick(ctx context.Context, w world.State, now time.Time) TickRes
 	}
 
 	r.tracker.incrementTick()
+	blocksAutomaticInput := false
+	if blocker, ok := r.run.(interface{ blocksAutomaticInput(string) bool }); ok {
+		blocksAutomaticInput = blocker.blocksAutomaticInput(r.tracker.name)
+	}
 	routeOwnsResources := false
 	if owner, ok := r.run.(interface{ handlesResources(string) bool }); ok {
 		routeOwnsResources = owner.handlesResources(r.tracker.name)
 	}
-	if r.deps.Profile != nil && !routeOwnsResources {
+	if !blocksAutomaticInput && r.deps.Profile != nil && !routeOwnsResources {
 		resource := r.deps.Profile.TickResources(w, profile.ResourceContext{
 			AllowMercenary: allowsMercenaryResource(r.tracker.name),
 		}, now)
@@ -217,8 +236,10 @@ func (r *Runner) Tick(ctx context.Context, w world.State, now time.Time) TickRes
 		case profile.StatusAction, profile.StatusPending:
 			return TickResult{Active: true, Outcome: RunOutcomeRunning, Step: r.tracker.name}
 		}
-	} else if res, ok := r.tickSafetyPotion(now, w); ok {
-		return res
+	} else if !blocksAutomaticInput {
+		if res, ok := r.tickSafetyPotion(now, w); ok {
+			return res
+		}
 	}
 	result := r.run.onTick(ctx, r.deps, r.tracker.name, w, now, r.tracker.startedAt, r.tracker.ticksInStep)
 
@@ -318,8 +339,9 @@ func (r *Runner) beginStep(name string, now time.Time) error {
 	}
 	r.tracker.begin(name, now, timeout)
 	// Preserve menuRequestedAt across open_waypoint → select_* so post-open
-	// settle still keys off our object click. Other steps reset as usual.
-	if r.deps.Waypoint != nil && name != pipelineStepSelectRunWaypoint && name != pipelineStepSelectHubWaypoint {
+	// settle still keys off our object click. Cow setup has its own narrow
+	// selection step and must preserve the same evidence. Other steps reset.
+	if r.deps.Waypoint != nil && name != pipelineStepSelectRunWaypoint && name != pipelineStepSelectHubWaypoint && name != cowStepSelectStony {
 		r.deps.Waypoint.Reset()
 	}
 	if r.deps.Portal != nil {
@@ -336,6 +358,12 @@ func (r *Runner) beginStep(name string, now time.Time) error {
 	}
 	if r.deps.TownEgress != nil {
 		r.deps.TownEgress.Reset()
+	}
+	if r.deps.Cow != nil {
+		r.deps.Cow.Reset()
+	}
+	if r.deps.CowRecipe != nil {
+		r.deps.CowRecipe.Reset()
 	}
 	if r.deps.Combat != nil {
 		r.deps.Combat.Reset()

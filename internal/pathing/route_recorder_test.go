@@ -88,6 +88,22 @@ func TestRouteRecorderPinsPainToVaughtTransitionToHallsDown(t *testing.T) {
 	}
 }
 
+func TestRouteRecorderRecordsPermanentPortalTransition(t *testing.T) {
+	recorder, _ := NewRouteRecorder(RouteRecorderConfig{SampleDistanceTiles: 4, Movement: RouteMovementTeleport})
+	_, _ = recorder.Observe(recorderState(world.StonyField, 100, 100))
+	portal := recorderState(world.StonyField, 110, 100)
+	portal.Objects = []world.Object{{Kind: world.ObjectKindPermanentPortal, UnitID: 77, Position: world.Position{X: 112, Y: 100}}}
+	_, _ = recorder.Observe(portal)
+	event, err := recorder.Observe(recorderState(world.Tristram, 200, 200))
+	if err != nil || !event.SegmentComplete {
+		t.Fatalf("portal transition = %+v, %v", event, err)
+	}
+	transition := event.Segment.Transition
+	if transition.Type != "object_portal" || transition.ObjectKind != world.ObjectKindPermanentPortal || transition.ExpectedToArea != world.Tristram {
+		t.Fatalf("portal transition = %+v", transition)
+	}
+}
+
 func TestRecordingTransitionKindFailsClosedWithoutExpectedHallsEntrance(t *testing.T) {
 	state := recorderState(world.HallsOfPain, 100, 100)
 	state.Entrances = []world.Entrance{{Kind: world.EntranceKindHallsUp, Position: world.Position{X: 101, Y: 100}}}

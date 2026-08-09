@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/config"
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/pathing"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/tasks"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/telemetry"
 )
@@ -36,6 +37,24 @@ func TestResolveSessionPlanReadyForRecordedNightmareRoute(t *testing.T) {
 	}
 	if plan.Status != "ready" || plan.RouteLayoutFingerprint == "" || plan.RoutePath == "" {
 		t.Fatalf("plan = %+v", plan)
+	}
+}
+
+func TestBindSessionSetupRouteKeepsPrimaryAndAddsLegContext(t *testing.T) {
+	plan := SessionPlan{RouteID: "cow-sweep", RouteLayoutFingerprint: "cow-layout"}
+	availability := runAvailabilityResolution{
+		routeSets: map[tasks.RunID]map[pathing.RouteRole]pathing.Route{
+			tasks.RunIDCows: {
+				pathing.RouteRoleLegAcquisition: {ID: "leg-acquisition", Binding: pathing.RouteBinding{LayoutFingerprint: pathing.RouteLayoutFingerprint{Hash: "leg-layout"}}},
+			},
+		},
+		routePaths: map[string]string{"leg-acquisition": "routes/leg.yaml"},
+	}
+	if err := bindSessionSetupRoute(&plan, availability, tasks.RunIDCows); err != nil {
+		t.Fatal(err)
+	}
+	if plan.RouteID != "cow-sweep" || plan.RouteLayoutFingerprint != "cow-layout" || plan.SetupRouteID != "leg-acquisition" || plan.SetupRouteLayoutFingerprint != "leg-layout" || plan.SetupRoutePath != "routes/leg.yaml" {
+		t.Fatalf("route-set plan = %+v", plan)
 	}
 }
 
@@ -106,8 +125,13 @@ func TestResolveSessionPlanRejectsRouteDifficultyMismatch(t *testing.T) {
 
 func TestResolveSessionPlanRejectsModeConflict(t *testing.T) {
 	cfg := &config.Config{}
-	if _, err := ResolveSessionPlan(cfg, Options{SessionInspect: true, Run: "countess"}); err == nil {
-		t.Fatal("expected mode conflict")
+	for _, opts := range []Options{
+		{SessionInspect: true, Run: "countess"},
+		{SessionInspect: true, CowProbe: "gate-20-0"},
+	} {
+		if _, err := ResolveSessionPlan(cfg, opts); err == nil {
+			t.Fatalf("expected mode conflict for %+v", opts)
+		}
 	}
 }
 

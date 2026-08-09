@@ -19,6 +19,7 @@ const (
 // Snapshot is a read-only player and entity state sample for probing.
 type Snapshot struct {
 	At                    time.Time
+	Generation            uint64
 	Valid                 bool
 	Reason                string
 	Phase                 GamePhase
@@ -39,6 +40,10 @@ type Snapshot struct {
 	Objects               []ObjectUnit
 	Entrances             []EntranceUnit
 	Monsters              []MonsterUnit
+	CowEvidence           []CowRawEvidence
+	CowEvidenceComplete   bool
+	CowCorpses            []CowCorpseUnit
+	CowCorpsesComplete    bool
 	MonsterCoverage       MonsterCoverage
 	Mercenary             MercenarySnapshot
 	Items                 []ItemUnit
@@ -70,6 +75,7 @@ type ProbeReader struct {
 	identityCandidate     IdentityProbe
 	identityStableTicks   uint8
 	noHirelingStableTicks uint8
+	snapshotGeneration    uint64
 }
 
 const (
@@ -212,16 +218,18 @@ func (p *ProbeReader) offsetsReadable(moduleBase uintptr, off OffsetSet) bool {
 // Order: (1) gate + loading UI, (2) player + vitals + area, (3) finalizePhase, (4) entities when Valid && in_game.
 func (p *ProbeReader) Snapshot() Snapshot {
 	now := time.Now()
+	p.snapshotGeneration++
+	generation := p.snapshotGeneration
 
 	if p.reader == nil || p.reader.access == nil {
 		p.resetMercenaryStability()
-		return invalidSnapshot(now, GamePhaseUnknown, ReasonNotAttached)
+		return invalidSnapshot(now, generation, GamePhaseUnknown, ReasonNotAttached)
 	}
 
 	moduleBase := p.reader.access.ModuleBase()
 	if moduleBase == 0 {
 		p.resetMercenaryStability()
-		return invalidSnapshot(now, GamePhaseUnknown, ReasonReadFailed)
+		return invalidSnapshot(now, generation, GamePhaseUnknown, ReasonReadFailed)
 	}
 
 	off := p.ensureOffsets(moduleBase)
@@ -240,24 +248,24 @@ func (p *ProbeReader) Snapshot() Snapshot {
 		p.resetIdentityStability()
 		p.resetMercenaryStability()
 		reason := p.playerNotFoundReason(playerErr, gateValue, gateDisabled, loading)
-		return invalidSnapshotWithUI(now, phase, reason, ui)
+		return invalidSnapshotWithUI(now, generation, phase, reason, ui)
 	}
 
 	areaID, posX, posY, err := p.readAreaAndPosition(playerPtr, off)
 	if err != nil {
 		p.resetMercenaryStability()
-		return invalidSnapshotWithUI(now, phase, ReasonReadFailed, ui)
+		return invalidSnapshotWithUI(now, generation, phase, ReasonReadFailed, ui)
 	}
 	playerUnitID, err := p.reader.ReadUint32(playerPtr + off.Unit.UnitID)
 	if err != nil {
 		p.resetMercenaryStability()
-		return invalidSnapshotWithUI(now, phase, ReasonReadFailed, ui)
+		return invalidSnapshotWithUI(now, generation, phase, ReasonReadFailed, ui)
 	}
 
 	statsListEx, err := p.reader.ReadUint64(playerPtr + off.Unit.StatsListEx)
 	if err != nil || statsListEx == 0 {
 		p.resetMercenaryStability()
-		return invalidSnapshotWithUI(now, phase, ReasonStatsUnavailable, ui)
+		return invalidSnapshotWithUI(now, generation, phase, ReasonStatsUnavailable, ui)
 	}
 
 	vitals, statsSource, err := p.parseProbeVitalStats(uintptr(statsListEx), off)
@@ -268,7 +276,7 @@ func (p *ProbeReader) Snapshot() Snapshot {
 			"error", err,
 		)
 		p.resetMercenaryStability()
-		return invalidSnapshotWithUI(now, phase, ReasonStatsUnavailable, ui)
+		return invalidSnapshotWithUI(now, generation, phase, ReasonStatsUnavailable, ui)
 	}
 	vitals = p.normalizeVitalStats(playerPtr, vitals)
 	statsHeader := uintptr(statsListEx) + off.Unit.StatsListBase
@@ -282,6 +290,7 @@ func (p *ProbeReader) Snapshot() Snapshot {
 
 	snap := Snapshot{
 		At:                    now,
+		Generation:            generation,
 		Valid:                 true,
 		Phase:                 phase,
 		PlayerPtr:             playerPtr,

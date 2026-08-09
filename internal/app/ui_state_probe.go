@@ -26,6 +26,7 @@ var uiStateProbeLabelPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,63}$`)
 
 type uiBufferCaptureReader interface {
 	CaptureUIBuffer() (memory.UIBufferCapture, error)
+	CaptureUIResearchBuffer() (memory.UIBufferCapture, error)
 }
 
 type uiStateProbeArtifact struct {

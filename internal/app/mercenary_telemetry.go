@@ -1,9 +1,13 @@
 package app
 
 import (
+	"fmt"
+
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/telemetry"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/world"
 )
+
+const reasonMercenaryDiedDuringRun = "mercenary_died_during_run"
 
 // observeMercenaryDeath emits one `mercenary_died` event on Alive→Dead edges.
 // Last known HP% comes from the previous snapshot when vitals were known.
@@ -14,9 +18,7 @@ func (rt *Runtime) observeMercenaryDeath(prev, cur world.State) {
 	if !prev.Valid || !cur.Valid || cur.Phase != world.GamePhaseInGame {
 		return
 	}
-	wasAlive := prev.Mercenary.HiredKnown && prev.Mercenary.Hired && prev.Mercenary.Alive && !prev.Mercenary.Dead
-	nowDead := cur.Mercenary.HiredKnown && cur.Mercenary.Hired && cur.Mercenary.Dead
-	if !wasAlive || !nowDead {
+	if !mercenaryDiedEdge(prev, cur) {
 		return
 	}
 	event := telemetry.Event{
@@ -35,4 +37,32 @@ func (rt *Runtime) observeMercenaryDeath(prev, cur world.State) {
 		"last_hp_percent", event.HPPercent,
 		"area_id", cur.Area.ID,
 	)
+}
+
+// abortRunOnMercenaryDeath stops offensive state before terminalizing the open
+// productive step. Queue ownership then performs the normal controlled Town
+// return; same-point Cow continuation is deliberately not attempted.
+func (rt *Runtime) abortRunOnMercenaryDeath(prev, cur world.State) error {
+	if rt == nil || !rt.productiveRunActive || rt.Tasks == nil || rt.Tasks.Terminal() {
+		return nil
+	}
+	if !mercenaryDiedEdge(prev, cur) {
+		return nil
+	}
+	if rt.taskDeps.Combat == nil {
+		return fmt.Errorf("mercenary death: combat stop is not wired")
+	}
+	if err := rt.taskDeps.Combat.StopAttack(); err != nil {
+		return fmt.Errorf("mercenary death stop attack: %w", err)
+	}
+	if err := rt.Tasks.AbortOpenStep(reasonMercenaryDiedDuringRun); err != nil {
+		return fmt.Errorf("mercenary death abort run: %w", err)
+	}
+	return nil
+}
+
+func mercenaryDiedEdge(prev, cur world.State) bool {
+	return prev.Valid && cur.Valid && cur.Phase == world.GamePhaseInGame &&
+		prev.Mercenary.HiredKnown && prev.Mercenary.Hired && prev.Mercenary.Alive && !prev.Mercenary.Dead &&
+		cur.Mercenary.HiredKnown && cur.Mercenary.Hired && cur.Mercenary.Dead
 }

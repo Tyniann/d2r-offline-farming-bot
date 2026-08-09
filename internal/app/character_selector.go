@@ -27,6 +27,15 @@ const (
 // identity; Memory still confirms both name and class after game entry.
 var characterNameAnchorRegion = image.Rect(4, 17, 154, 36)
 
+type characterScreenAmbiguousError struct {
+	playScore   float64
+	dialogScore float64
+}
+
+func (e *characterScreenAmbiguousError) Error() string {
+	return fmt.Sprintf("character_screen_unconfirmed: screen anchors are ambiguous (play=%.4f dialog=%.4f)", e.playScore, e.dialogScore)
+}
+
 type characterNavigationAction uint8
 
 const (
@@ -161,7 +170,10 @@ func (rt *Runtime) navigateOfflineCharacter(ctx context.Context, character, anch
 					return image.Rectangle{}, fmt.Errorf("focus before character screen verification: %w", err)
 				}
 				focused = true
-				nextCapture = time.Now().Add(characterSelectionSettle)
+				// Save & Exit reaches Memory `menu` before the character screen is
+				// necessarily painted. The selector owns the first screenshot, so it
+				// must apply the same render settle as the later Play verification.
+				nextCapture = time.Now().Add(offlineCharacterSettleDelay)
 				continue
 			}
 			capture, err := ctrl.CaptureClient()
@@ -169,6 +181,15 @@ func (rt *Runtime) navigateOfflineCharacter(ctx context.Context, character, anch
 				return image.Rectangle{}, fmt.Errorf("character selection capture: %w", err)
 			}
 			if verifyErr := verifyCharacterScreenCapture(capture, play, dialog); verifyErr != nil {
+				var ambiguous *characterScreenAmbiguousError
+				if errors.As(verifyErr, &ambiguous) {
+					// Save & Exit may expose several intermediate frontend frames.
+					// Retry only the ambiguous classification within the existing
+					// selector timeout; a proven difficulty dialog still fails closed.
+					rt.Log.Debug("offline character screen not visually stable yet", "error", verifyErr)
+					nextCapture = time.Now().Add(characterSelectionSettle)
+					continue
+				}
 				return image.Rectangle{}, verifyErr
 			}
 			targetMatched := false
@@ -270,5 +291,5 @@ func verifyCharacterScreenCapture(capture image.Image, play, dialog screenAnchor
 	if dialogScore <= screenAnchorMaxMeanDifference && dialogScore+characterScreenAnchorMargin <= playScore {
 		return fmt.Errorf("character_screen_unconfirmed: difficulty dialog is open (play=%.4f dialog=%.4f)", playScore, dialogScore)
 	}
-	return fmt.Errorf("character_screen_unconfirmed: screen anchors are ambiguous (play=%.4f dialog=%.4f)", playScore, dialogScore)
+	return &characterScreenAmbiguousError{playScore: playScore, dialogScore: dialogScore}
 }

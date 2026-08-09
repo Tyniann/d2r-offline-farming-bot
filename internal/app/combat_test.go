@@ -108,24 +108,24 @@ func TestCombatAdapterClicksOnlyHoverConfirmedLivingMonster(t *testing.T) {
 	target := world.Monster{NPCID: 131, UnitID: 42, Position: world.Position{X: 105, Y: 100}}
 	now := time.Now()
 
-	if sent, err := adapter.CastAttackAtMonster(now, memory.SkillBoneSpear, player, target); err != nil || sent {
-		t.Fatalf("initial aim sent=%t err=%v, want no click before hover proof", sent, err)
+	if cast, err := adapter.CastAttackAtMonster(now, memory.SkillBoneSpear, player, target); err != nil || cast.Sent {
+		t.Fatalf("initial aim result=%+v err=%v, want no click before hover proof", cast, err)
 	}
 	if len(in.clickCalls) != 0 || adapter.pendingTargetUnitID != target.UnitID {
 		t.Fatalf("clicks=%v pending_target=%d, want aim only for %d", in.clickCalls, adapter.pendingTargetUnitID, target.UnitID)
 	}
 
 	target.IsHovered = true
-	if sent, err := adapter.CastAttackAtMonster(now.Add(100*time.Millisecond), memory.SkillBoneSpear, player, target); err != nil || !sent {
-		t.Fatalf("hover-confirmed cast sent=%t err=%v, want click", sent, err)
+	if cast, err := adapter.CastAttackAtMonster(now.Add(100*time.Millisecond), memory.SkillBoneSpear, player, target); err != nil || !cast.Sent || cast.TargetingMode != profile.MonsterTargetingHoverConfirmed {
+		t.Fatalf("hover-confirmed cast result=%+v err=%v, want click", cast, err)
 	}
 	if len(in.clickCalls) != 1 || in.clickCalls[0] != input.MouseRight {
 		t.Fatalf("clicks=%v, want one confirmed right-click", in.clickCalls)
 	}
 
 	nearer := world.Monster{NPCID: 56, UnitID: 43, Position: world.Position{X: 102, Y: 100}}
-	if sent, err := adapter.CastAttackAtMonster(now.Add(500*time.Millisecond), memory.SkillBoneSpear, player, nearer); err != nil || sent {
-		t.Fatalf("changed target sent=%t err=%v, want fresh aim before click", sent, err)
+	if cast, err := adapter.CastAttackAtMonster(now.Add(500*time.Millisecond), memory.SkillBoneSpear, player, nearer); err != nil || cast.Sent {
+		t.Fatalf("changed target result=%+v err=%v, want fresh aim before click", cast, err)
 	}
 	if len(in.clickCalls) != 1 || adapter.pendingTargetUnitID != nearer.UnitID {
 		t.Fatalf("clicks=%v pending_target=%d, want retarget without stale click", in.clickCalls, adapter.pendingTargetUnitID)
@@ -143,12 +143,12 @@ func TestCombatAdapterSearchesVisibleBodyWithoutBlindClick(t *testing.T) {
 	target := world.Monster{NPCID: world.ArcaneSpecter, UnitID: 46, Position: world.Position{X: 105, Y: 100}}
 	now := time.Now()
 
-	if sent, err := adapter.CastAttackAtMonster(now, memory.SkillBoneSpear, player, target); err != nil || sent {
-		t.Fatalf("first probe sent=%t err=%v", sent, err)
+	if cast, err := adapter.CastAttackAtMonster(now, memory.SkillBoneSpear, player, target); err != nil || cast.Sent {
+		t.Fatalf("first probe result=%+v err=%v", cast, err)
 	}
 	firstX, firstY := in.lastClientX, in.lastClientY
-	if sent, err := adapter.CastAttackAtMonster(now.Add(100*time.Millisecond), memory.SkillBoneSpear, player, target); err != nil || sent {
-		t.Fatalf("second probe sent=%t err=%v", sent, err)
+	if cast, err := adapter.CastAttackAtMonster(now.Add(100*time.Millisecond), memory.SkillBoneSpear, player, target); err != nil || cast.Sent {
+		t.Fatalf("second probe result=%+v err=%v", cast, err)
 	}
 	if in.lastClientX == firstX && in.lastClientY == firstY {
 		t.Fatalf("monster hover search repeated (%d,%d)", firstX, firstY)
@@ -157,11 +157,62 @@ func TestCombatAdapterSearchesVisibleBodyWithoutBlindClick(t *testing.T) {
 		t.Fatalf("unconfirmed hover search clicked: %v", in.clickCalls)
 	}
 	target.IsHovered = true
-	if sent, err := adapter.CastAttackAtMonster(now.Add(400*time.Millisecond), memory.SkillBoneSpear, player, target); err != nil || !sent {
-		t.Fatalf("confirmed hover sent=%t err=%v", sent, err)
+	if cast, err := adapter.CastAttackAtMonster(now.Add(400*time.Millisecond), memory.SkillBoneSpear, player, target); err != nil || !cast.Sent || cast.TargetingMode != profile.MonsterTargetingHoverConfirmed {
+		t.Fatalf("confirmed hover result=%+v err=%v", cast, err)
 	}
 	if len(in.clickCalls) != 1 || in.clickCalls[0] != input.MouseRight {
 		t.Fatalf("confirmed hover clicks=%v", in.clickCalls)
+	}
+}
+
+func TestCombatAdapterUsesPlayableProjectionAfterHoverAttemptLimit(t *testing.T) {
+	in := &recordingCombatInput{}
+	bindings := configBindingSource{skills: map[uint16]input.SkillCast{
+		memory.SkillBoneSpear: {SkillID: memory.SkillBoneSpear, SelectKey: "f8", CastButton: input.MouseRight},
+	}}
+	cfg := pathing.DefaultConfig()
+	cfg.Click.MaxHoverAttempts = 3
+	adapter := newCombatAdapter(config.NewLogger("error"), in, bindings, cfg, 350*time.Millisecond)
+	player := world.Player{Position: world.Position{X: 100, Y: 100}, RightSkillID: memory.SkillBoneSpear}
+	target := world.Monster{NPCID: world.HellBovine, UnitID: 46, Position: world.Position{X: 105, Y: 100}}
+	now := time.Now()
+
+	for attempt := 0; attempt < cfg.Click.MaxHoverAttempts; attempt++ {
+		if cast, err := adapter.CastAttackAtMonster(now.Add(time.Duration(attempt)*100*time.Millisecond), memory.SkillBoneSpear, player, target); err != nil || cast.Sent {
+			t.Fatalf("probe %d result=%+v err=%v", attempt+1, cast, err)
+		}
+	}
+	cast, err := adapter.CastAttackAtMonster(now.Add(400*time.Millisecond), memory.SkillBoneSpear, player, target)
+	if err != nil || !cast.Sent || cast.TargetingMode != profile.MonsterTargetingWorldProjected {
+		t.Fatalf("projected fallback result=%+v err=%v", cast, err)
+	}
+	if in.moveCalls != cfg.Click.MaxHoverAttempts+1 || len(in.clickCalls) != 1 {
+		t.Fatalf("moves=%d clicks=%v", in.moveCalls, in.clickCalls)
+	}
+}
+
+func TestCombatAdapterCapsMonsterHoverSearchBelowStaticEntityBudget(t *testing.T) {
+	in := &recordingCombatInput{}
+	bindings := configBindingSource{skills: map[uint16]input.SkillCast{
+		memory.SkillBoneSpear: {SkillID: memory.SkillBoneSpear, SelectKey: "f8", CastButton: input.MouseRight},
+	}}
+	cfg := pathing.DefaultConfig()
+	adapter := newCombatAdapter(config.NewLogger("error"), in, bindings, cfg, 350*time.Millisecond)
+	player := world.Player{Position: world.Position{X: 100, Y: 100}, RightSkillID: memory.SkillBoneSpear}
+	target := world.Monster{NPCID: world.HellBovine, UnitID: 47, Position: world.Position{X: 105, Y: 100}}
+	now := time.Now()
+
+	for attempt := 0; attempt < combatMonsterMaxHoverAttempts; attempt++ {
+		if cast, err := adapter.CastAttackAtMonster(now.Add(time.Duration(attempt)*100*time.Millisecond), memory.SkillBoneSpear, player, target); err != nil || cast.Sent {
+			t.Fatalf("probe %d result=%+v err=%v", attempt+1, cast, err)
+		}
+	}
+	cast, err := adapter.CastAttackAtMonster(now.Add(time.Second), memory.SkillBoneSpear, player, target)
+	if err != nil || !cast.Sent || cast.TargetingMode != profile.MonsterTargetingWorldProjected {
+		t.Fatalf("capped search result=%+v err=%v", cast, err)
+	}
+	if in.moveCalls != combatMonsterMaxHoverAttempts+1 || adapter.hoverProbe.MaxHoverAttempts != combatMonsterMaxHoverAttempts {
+		t.Fatalf("moves=%d adapter limit=%d", in.moveCalls, adapter.hoverProbe.MaxHoverAttempts)
 	}
 }
 
@@ -174,9 +225,9 @@ func TestCombatAdapterReportsOffscreenMonsterWithoutMovingOrClicking(t *testing.
 	player := world.Player{Position: world.Position{X: 100, Y: 100}, RightSkillID: memory.SkillBoneSpear}
 	target := world.Monster{NPCID: world.ArcaneGhoulLord, UnitID: 83, Position: world.Position{X: 140, Y: 100}}
 
-	sent, err := adapter.CastAttackAtMonster(time.Now(), memory.SkillBoneSpear, player, target)
-	if sent || !errors.Is(err, profile.ErrRouteClearTargetUnprojectable) {
-		t.Fatalf("offscreen target sent=%t err=%v", sent, err)
+	cast, err := adapter.CastAttackAtMonster(time.Now(), memory.SkillBoneSpear, player, target)
+	if cast.Sent || !errors.Is(err, profile.ErrRouteClearTargetUnprojectable) {
+		t.Fatalf("offscreen target result=%+v err=%v", cast, err)
 	}
 	if in.moveCalls != 0 || len(in.clickCalls) != 0 {
 		t.Fatalf("offscreen target moves=%d clicks=%v", in.moveCalls, in.clickCalls)

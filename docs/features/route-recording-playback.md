@@ -55,7 +55,7 @@ Die erste Ausbaustufe deckt ausschließlich diese Strecke ab:
 
 Der Player prüft vor dem ersten Input die Metadaten und den aktuellen Startzustand. Innerhalb eines Segments arbeitet er die aufgezeichneten World-Koordinaten ab. Übergänge werden nicht zeitgesteuert angenommen, sondern über erwartete Areas und hover-bestätigte Entrance-Interaktionen verifiziert.
 
-Abweichungen führen nur innerhalb enger Grenzen zu einer lokalen Korrektur durch den Navigator. Eine falsche Area, ein unbekannter Zustand, ein überschrittenes Drift-Limit oder ein Timeout beendet das Playback fail-closed.
+Abweichungen führen nur innerhalb enger Grenzen zu einer lokalen Korrektur durch den Navigator. Eine falsche Area, ein unbekannter Zustand, ein überschrittenes Drift-Limit oder ein Timeout beendet das Playback fail-closed. Das Segment-Timeout ist ein Fortschritts-Watchdog: Jeder Memory-bestätigte neue Routenpunkt erneuert das konfigurierte Budget; Combat-Holds und Pause frieren es ein. Ohne Punktfortschritt läuft unverändert derselbe fail-closed Timeout aus.
 
 ### Integration in den Countess-Run
 
@@ -209,7 +209,7 @@ Phase 6.1 führt vor Recorder und Playback eine read-only `GameIdentity` ein. Co
 | `route_start_mismatch` | Start-Area oder Startdistanz ist unplausibel. | Vor Input abbrechen. |
 | `route_unexpected_area` | Replay befindet sich außerhalb der erwarteten Segment-Area. | Sofort abbrechen. |
 | `route_drift_exceeded` | Position überschreitet die lokale Korrekturgrenze. | Abbrechen; kein Explorer-Fallback. |
-| `route_segment_timeout` | Segment erreicht sein Ende nicht rechtzeitig. | Abbrechen. |
+| `route_segment_timeout` | Kein neuer Routenpunkt wird innerhalb des Segmentbudgets bestätigt. | Abbrechen. |
 | `route_transition_failed` | Erwartete Entrance/Area-Transition wird nicht bestätigt. | Nach begrenzten lokalen Retries abbrechen. |
 | `route_recording_incomplete` | Aufnahme endet ohne vollständige, valide Segmentkette. | Temporäre Datei verwerfen. |
 | `route_storage_failed` | Lesen, temporäres Schreiben oder atomare Veröffentlichung schlägt fehl. | Fehler mit Dateikontext zurückgeben. |
@@ -392,11 +392,17 @@ Jede Playback-Aktion loggt Ziel, Grund, erwarteten Zustand und Ergebnis. Eine Au
 
 Der gebundene Run-Adapter kann `RouteProgress` read-only abfragen und die laufende Route deadline-neutral halten. Die Projektion enthält das tatsächlich effektive Movement-, Recovery- oder Transition-Ziel; Tasks rekonstruieren keine Route-YAML.
 
-Ein Combat-Hold sendet weiterhin keinen Navigator- oder Transition-Input. Er übernimmt jedoch vor dem Stillstand alle Routenpunkte, die der aktuelle Memory-Snapshot bereits innerhalb der konfigurierten Toleranz bestätigt. Damit bleibt die read-only Progress-Projektion mit dem autoritativen Player-Zustand synchron, auch wenn ein anschließendes Force Move den Spieler über den alten Punkt hinaus bewegt; nach dem Clear kann keine Recovery zu diesem überholten Punkt zurückspringen.
+Ein Combat- oder Loot-Hold sendet weiterhin keinen Navigator- oder Transition-Input. Er übernimmt zunächst alle Routenpunkte, die der aktuelle Memory-Snapshot bereits innerhalb der konfigurierten Toleranz bestätigt. Hat eine vom Hold autorisierte externe Bewegung den Spieler stattdessen über Zwischenpunkte hinweg auf einen späteren Routenkorridor versetzt, bindet der Hold das Playback monoton an die erste passende spätere Kante innerhalb des unveränderten `max_drift_tiles`-Korridors. Die früheste passende Kante verhindert Sprünge über Schleifen oder Selbstkreuzungen der Route. Gewöhnliches Playback bleibt strikt sequenziell; nur der ausdrücklich gehaltene externe Combat-/Loot-Pfad darf diese Vorwärtsabstimmung auslösen. Nach dem Hold kann deshalb keine Recovery zu einem durch den eigenen Combat- oder Loot-Teleport überholten Punkt zurückspringen.
 
 Für einen lokalen Recovery-Cast meldet der Navigator zusätzlich, ob der aktuelle Tick wirklich Movement-Input gesendet hat. Der `RouteSegmentPlayer` bindet diesen Beleg an Segment, Punkt und unveränderte effektive Zielkoordinate und projiziert Cast-Zeit, Ursprungsposition, frühesten throttle-seitig möglichen Folgecast, den autoritativen Teleport-Settle-Zeitpunkt sowie `stuck_progress_tiles`. Inputfreie Poll-Ticks gelten damit nicht als Cast. Vor Ablauf des Settle-Zeitpunkts darf eine noch unveränderte Position nicht als Fehlschlag gelten. Erst wenn danach weiterhin der Mindestfortschritt fehlt, endet der Ablauf vor einem zweiten identischen Input mit `route_recovery_unsafe`. Bestätigter Fortschritt erlaubt die bestehende Route-Correction weiterzuführen. Combat- und Loot-Holds resetten weder den `RoutePlayer` noch dessen Korrekturbudget.
 
 Rohes Playback, Candidate-Playback, Recording und Guided Validation verwenden diesen Summoner-spezifischen Guard nicht und behalten ihre Navigationssemantik.
+
+## Phase 20.2: Objektportal und feste Rollen
+
+`RouteBinding.route_role` ist optional für bestehende Einzelrouten und auf `leg_acquisition|cow_sweep` begrenzt. Der additive Transitiontyp `object_portal` enthält die Objektart `permanent_portal` und die exakt erwartete Ziel-Area. Recorder und Validator speichern ihn nur aus aktueller World-Evidenz. Beim Playback bindet der Transition-Handler die aktuelle konkrete Objekt-UnitID; der Navigator verlangt weiterhin Fokus, Clientprojektion und Hover-Match und bestätigt Erfolg ausschließlich über die Ziel-Area. Es gibt keinen Blindklick und keine allgemeine Questportal-Engine.
+
+Die beiden Cow-Verträge verwenden denselben Recorder und Player wie bestehende Runs. Der isolierte Kandidatentest stellt nur den passenden Start her: Stony-Field-Wegpunkt für die Wirt-Route oder Eintritt in ein bereits vorhandenes Cow-Portal für den Sweep. Combat, Wirt-Klick, Loot und Rezept sind in diesem Testpfad nicht verdrahtet.
 
 ## Herausforderungen und Sicherheitsgrenzen
 
@@ -434,4 +440,4 @@ Phase 6 ist abgeschlossen, wenn:
 - [Run-Telemetrie](run-telemetry.md)
 
 ---
-*Zuletzt aktualisiert: 2026-07-29*
+*Zuletzt aktualisiert: 2026-08-01*

@@ -39,6 +39,7 @@ Ab Phase 6.1 enthält `memory.Snapshot.Identity` zusätzlich Charaktername, Clas
 | `--verbose` | Global Debug-Logging (`app.log_level` wird überschrieben) |
 | `--probe --verbose` | World-Logging aktiv; Positionsänderungen zusätzlich auf Debug |
 | `--ui-state-probe <label>` | Isolierter Phase-7.1-Modus: zwölf read-only UI-Buffer-Samples als lokales JSON-Artefakt; kein Menüinput |
+| `--cow-probe <label>` | Isolierter Phase-20.0-Modus: read-only Zeitreihe für Portal-/Wirt-Objekte, direkte Kuh-Rohzustände einschließlich StatListEx-Forschungsfenster, Rezeptitems und UI-Buffer; Cube-Labels ergänzen gedrosselte 64-KiB-UI-Forschung; kein Spielinput |
 
 Startup-Log enthält `probe_enabled` (World-State-Logging-Schalter), `verbose` sowie `offset configuration` (`game_version`, `offset_set`, `offsets_file`, `attach_timeout_ms`).
 
@@ -126,6 +127,7 @@ Der Hover-Offset wird — wie UnitTable/UI — per d2go-Signature-Scan in `ScanP
 | `PlayerSkills` | `LeftSkill`, `RightSkill`, `SkillsKnown` vom Main-Player (Skill-Liste `unit+0x100`) |
 | `Hover` | `HoverState` (`IsHovered`, `UnitType`, `UnitID`) aus dem 12-Byte-Buffer bei `moduleBase+Hover`; nur bei `Valid && Phase=in_game` gelesen |
 | `UI` | Read-only `InventoryOpen`, `StashOpen`, `QuitMenuOpen` sowie ab Phase 9.5 getrennte `NPCInteractOpen`-/`NPCShopOpen`-Gates |
+| `CowEvidence` | Nur Gate-20.0-Diagnose: Hell Bovine/Cow King mit UnitID, Corpse, Mode, Position, Flag und optional vollständig gelesenem `StatsListEx+0xA80`-Forschungsfenster direkt aus demselben Monster-Walk; keine CE-Autorität |
 
 Details zu Casting und Precheck: [Input Controller](input-controller.md).
 
@@ -208,4 +210,4 @@ Semantische World-State-Validierung (Countess-Route, Area-Namen, `hp_pct`, Log-P
 - [World Model](world-model.md) — Domain-Typen und kontinuierliches Update im App-Loop
 
 ---
-*Zuletzt aktualisiert: 2026-07-21*
+*Zuletzt aktualisiert: 2026-08-01*

@@ -14,6 +14,8 @@ type RouteThreatTickResult struct {
 	AllowMovement bool
 	Failed        bool
 	Reason        RouteThreatReason
+	// ApproachTarget identifies the executor-selected living target that could not be projected.
+	ApproachTarget world.Monster
 }
 
 // RouteThreatController owns generation-scoped route-clear state and watchdogs.
@@ -105,7 +107,8 @@ func (c *RouteThreatController) ObserveResources(state world.State, assessment T
 		Threatened:       assessment.RouteTargetFound,
 		EmergencyMana:    immediateThreat && manaPercent <= cfg.EmergencyManaPercent,
 		// AllowMercenary only while route clear would attack a threat or density target.
-		AllowMercenary: assessment.RouteTargetFound || (assessment.DensityTargetFound && !assessment.CoverageComplete),
+		AllowMercenary:    assessment.RouteTargetFound || (assessment.DensityTargetFound && !assessment.CoverageComplete),
+		FailOnUnavailable: true,
 	}
 }
 
@@ -139,7 +142,8 @@ func (c *RouteThreatController) Tick(
 		return c.fail(RouteThreatReasonStateInvalid)
 	}
 
-	needsBlock := assessment.RouteTargetFound || !assessment.CoverageComplete || c.manaRecovery
+	needsBlock := assessment.RouteTargetFound || !assessment.CoverageComplete || c.manaRecovery ||
+		definition.ID == RunIDCows && assessment.DensityTargetFound
 	if !c.blocked && !needsBlock {
 		if !c.movementAfter.IsZero() && !state.At.After(c.movementAfter) {
 			if err := route.Hold(state); err != nil {
@@ -181,7 +185,7 @@ func (c *RouteThreatController) Tick(
 	}
 	previousEligible, previousRelevant := c.lastEligible, c.lastRelevant
 	progressTargetUnitID := c.lastTargetUnitID
-	if c.observeObjectiveProgress(state, progress, assessment, definition.RouteHostileNPCIDs, cfg, now) {
+	if c.observeObjectiveProgress(state, progress, assessment, definition.RouteHostileNPCIDs, cfg, definition.ID == RunIDCows, now) {
 		if err := c.emitClearProgress(state, progress, assessment, progressTargetUnitID, previousEligible, previousRelevant, now); err != nil {
 			return c.fail(RouteThreatReasonStateInvalid)
 		}
@@ -209,6 +213,17 @@ func (c *RouteThreatController) Tick(
 	}
 	c.stableClear = 0
 
+	// The encounter-wide objective watchdog is authoritative over every local
+	// targeting recovery. Otherwise a repeated out-of-range signal can return
+	// early forever after the movement budget is exhausted and prevent the
+	// intended emergency terminal from ever being reached.
+	if !c.lastProgressAt.IsZero() && now.Sub(c.lastProgressAt) >= cfg.NoProgressTimeout {
+		if definition.ID == RunIDCows {
+			return c.fail(RouteThreatReasonCowNoProgress)
+		}
+		return c.fail(RouteThreatReasonClearNoProgress)
+	}
+
 	target, mode, targetFound := selectRouteClearTarget(state, assessment, cfg)
 	if assessment.RouteTargetFound && !routeTargetWithinAttack(state, assessment.RouteTarget, cfg) && !assessment.DensityTargetFound {
 		if c.observeOutOfRange(assessment.RouteTarget.UnitID) {
@@ -218,9 +233,6 @@ func (c *RouteThreatController) Tick(
 		c.resetOutOfRange()
 	}
 
-	if !c.lastProgressAt.IsZero() && now.Sub(c.lastProgressAt) >= cfg.NoProgressTimeout {
-		return c.fail(RouteThreatReasonClearNoProgress)
-	}
 	if !targetFound {
 		if c.manaRecovery {
 			c.state = RouteThreatManaRecovery
@@ -248,11 +260,19 @@ func (c *RouteThreatController) Tick(
 		Target: target, Mode: mode, AssessmentAt: assessment.SnapshotAt,
 	}, now)
 	if result.Status == profile.StatusPending && result.Reason == profile.RouteClearReasonTargetUnprojectable {
+		approachTarget := target
+		if result.TargetUnitID != 0 {
+			if selected, found := state.FindMonsterByUnitID(result.TargetUnitID); found {
+				approachTarget = selected
+			}
+		}
 		// A valid target can be within the configured tile radius while still
 		// lying outside the directional client viewport. Keep holding without
 		// moving the cursor and require the same fresh-snapshot proof as range.
-		if c.observeOutOfRange(target.UnitID) {
-			return c.fail(RouteThreatReasonOutOfRange)
+		if c.observeOutOfRange(approachTarget.UnitID) {
+			failed := c.fail(RouteThreatReasonOutOfRange)
+			failed.ApproachTarget = approachTarget
+			return failed
 		}
 		c.recordBlockBaseline(state, assessment)
 		return RouteThreatTickResult{State: c.state}
@@ -261,15 +281,34 @@ func (c *RouteThreatController) Tick(
 		return c.fail(RouteThreatReasonStateInvalid)
 	}
 	c.resetOutOfRange()
+	trackingTarget := target
+	if result.TargetUnitID != 0 && result.ActionKind != profile.RouteClearActionCorpseExplosion {
+		trackingTarget.UnitID = result.TargetUnitID
+	}
 	if result.Status == profile.StatusAction {
-		if err := c.emitClearAction(state, progress, target, mode, profileID, result.SkillID, result.ActionKind, now); err != nil {
+		hoverConfirmed := result.TargetingMode != profile.MonsterTargetingWorldProjected
+		actionTarget := target
+		if result.TargetUnitID != 0 {
+			actionTarget.UnitID = result.TargetUnitID
+			actionTarget.NPCID = result.TargetNPCID
+		}
+		if result.ActionKind == profile.RouteClearActionCorpseExplosion {
+			hoverConfirmed = false
+		}
+		if err := c.emitClearAction(state, progress, actionTarget, mode, profileID, result, hoverConfirmed, now); err != nil {
 			return c.fail(RouteThreatReasonStateInvalid)
 		}
 	}
-	c.lastTargetUnitID = target.UnitID
+	c.lastTargetUnitID = trackingTarget.UnitID
 	c.lastTargetMode = mode
 	c.recordBlockBaseline(state, assessment)
 	return RouteThreatTickResult{State: c.state}
+}
+
+func (c *RouteThreatController) observeExternalProgress(now time.Time) {
+	if !now.IsZero() {
+		c.lastProgressAt = now
+	}
 }
 
 func (c *RouteThreatController) observeOutOfRange(unitID uint32) bool {
@@ -294,9 +333,10 @@ func (c *RouteThreatController) ObserveApproachInput(
 	progress RouteProgress,
 	target world.Monster,
 	attempt int,
+	actionKind string,
 	now time.Time,
 ) error {
-	return c.emitApproachInput(state, progress, target, attempt, now)
+	return c.emitApproachInput(state, progress, target, attempt, actionKind, now)
 }
 
 // ObserveApproachProgress accepts Memory-confirmed player movement toward the
@@ -309,12 +349,26 @@ func (c *RouteThreatController) ObserveApproachProgress(
 	positionProgress float64,
 	now time.Time,
 ) error {
-	if err := c.emitApproachProgress(state, progress, target, positionProgress, now); err != nil {
+	if err := c.emitApproachProgress(state, progress, target, positionProgress, "approach", now); err != nil {
 		return err
 	}
 	c.lastProgressAt = now
 	c.resetOutOfRange()
 	return nil
+}
+
+// ObserveApproachNoProgress records a settled approach whose measured player
+// movement did not advance along the held command vector. It deliberately
+// leaves controller progress and range proof untouched so the caller's bounded
+// retry remains authoritative.
+func (c *RouteThreatController) ObserveApproachNoProgress(
+	state world.State,
+	progress RouteProgress,
+	target world.Monster,
+	positionProgress float64,
+	now time.Time,
+) error {
+	return c.emitApproachProgress(state, progress, target, positionProgress, "approach_no_progress", now)
 }
 
 func guardRecoveryInput(state world.State, progress RouteProgress) RouteThreatReason {
@@ -350,9 +404,9 @@ func (c *RouteThreatController) beginBlock(state world.State, assessment ThreatA
 	c.recordBlockBaseline(state, assessment)
 }
 
-func (c *RouteThreatController) observeObjectiveProgress(state world.State, progress RouteProgress, assessment ThreatAssessment, allowed []uint32, cfg RouteCombatConfig, now time.Time) bool {
+func (c *RouteThreatController) observeObjectiveProgress(state world.State, progress RouteProgress, assessment ThreatAssessment, allowed []uint32, cfg RouteCombatConfig, cowHold bool, now time.Time) bool {
 	targetProgressed := c.lastTargetUnitID != 0 &&
-		!routeClearTargetStillRelevant(state, progress, c.lastTargetUnitID, c.lastTargetMode, allowed, cfg, assessment.CoverageComplete)
+		!routeClearTargetStillRelevant(state, progress, c.lastTargetUnitID, c.lastTargetMode, allowed, cfg, assessment.CoverageComplete, cowHold)
 	progressed := targetProgressed
 	if assessment.RelevantThreatCount < c.lastRelevant ||
 		state.MonsterCoverage.EligibleMonsterCount < c.lastEligible ||
@@ -415,10 +469,13 @@ func routeTargetWithinAttack(state world.State, target world.Monster, cfg RouteC
 	return positionDistanceSquared(state.Player.Position, target.Position) <= cfg.AttackDistanceTiles*cfg.AttackDistanceTiles
 }
 
-func routeClearTargetStillRelevant(state world.State, progress RouteProgress, unitID uint32, mode profile.RouteClearMode, allowed []uint32, cfg RouteCombatConfig, coverageComplete bool) bool {
+func routeClearTargetStillRelevant(state world.State, progress RouteProgress, unitID uint32, mode profile.RouteClearMode, allowed []uint32, cfg RouteCombatConfig, coverageComplete, cowHold bool) bool {
 	for _, monster := range state.Monsters {
 		if monster.UnitID != unitID || !routeHostileAllowed(monster.NPCID, allowed) {
 			continue
+		}
+		if cowHold {
+			return routeTargetWithinAttack(state, monster, cfg)
 		}
 		if mode == profile.RouteClearDensityRelief {
 			return !coverageComplete && routeTargetWithinAttack(state, monster, cfg)

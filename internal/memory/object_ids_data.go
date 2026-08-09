@@ -3,6 +3,8 @@ package memory
 
 var runtimeObjectIDs = map[uint32]struct{}{
 	59:  {}, // TownPortal
+	60:  {}, // PortalPermanent
+	268: {}, // Wirt
 	584: {}, // PlaceUniqueChest
 	267: {}, // Bank
 	119: {}, // WaypointOutsideAct1

@@ -34,8 +34,12 @@ func (b *LiveBackend) RouteLibrary(character string, includeArchived bool) (Rout
 		if isArchived && !includeArchived {
 			continue
 		}
+		role := entry.Route.Binding.RouteRole
 		assigned := assignments.Assignments[strings.ToLower(entry.Character)][entry.RunID] == entry.ID
-		result.Routes = append(result.Routes, RouteEntryDTO{RouteID: entry.ID, DisplayName: entry.Route.Name, RunID: string(entry.RunID), Character: entry.Character, Difficulty: entry.Difficulty, LifecycleStatus: string(entry.Status), ManagementStatus: string(entry.ManagementStatus), Assigned: assigned, Reason: entry.Reason})
+		if role != "" {
+			assigned = assignments.RouteSets[strings.ToLower(entry.Character)][entry.RunID][role] == entry.ID
+		}
+		result.Routes = append(result.Routes, RouteEntryDTO{RouteID: entry.ID, DisplayName: entry.Route.Name, RunID: string(entry.RunID), RouteRole: string(role), Character: entry.Character, Difficulty: entry.Difficulty, LifecycleStatus: string(entry.Status), ManagementStatus: string(entry.ManagementStatus), Assigned: assigned, Reason: entry.Reason})
 	}
 	sort.Slice(result.Routes, func(i, j int) bool { return result.Routes[i].RouteID < result.Routes[j].RouteID })
 	_ = manifest
@@ -52,30 +56,43 @@ func (b *LiveBackend) RecordingOptions() []RecordingOptionDTO {
 	definitions := tasks.DefaultRunRegistry().Definitions()
 	result := make([]RecordingOptionDTO, 0, len(definitions))
 	for _, definition := range definitions {
-		areas := make([]uint32, len(definition.Recording.AllowedRouteAreas))
-		for i, area := range definition.Recording.AllowedRouteAreas {
-			areas[i] = uint32(area)
+		roles := definition.RouteRoles()
+		if definition.RouteSet == nil {
+			roles = []pathing.RouteRole{""}
 		}
-		available, reason := true, ""
-		if !b.cfg.Input.Enabled {
-			available, reason = false, "input_disabled"
-		} else if selection.Character == "" || selection.Difficulty == "" {
-			available, reason = false, "selection_unconfirmed"
-		} else if routeWorkflowBusy(workflowState) {
-			available, reason = false, "route_workflow_active"
-		} else if supervisorState != string(app.SupervisorStateIdle) && supervisorState != string(app.SupervisorStateIdleInGame) {
-			available, reason = false, "session_active"
+		for _, role := range roles {
+			contract, _ := definition.RecordingForRole(role)
+			areas := make([]uint32, len(contract.AllowedRouteAreas))
+			for i, area := range contract.AllowedRouteAreas {
+				areas[i] = uint32(area)
+			}
+			available, reason := true, ""
+			if !b.cfg.Input.Enabled {
+				available, reason = false, "input_disabled"
+			} else if selection.Character == "" || selection.Difficulty == "" {
+				available, reason = false, "selection_unconfirmed"
+			} else if routeWorkflowBusy(workflowState) {
+				available, reason = false, "route_workflow_active"
+			} else if supervisorState != string(app.SupervisorStateIdle) && supervisorState != string(app.SupervisorStateIdleInGame) {
+				available, reason = false, "session_active"
+			}
+			displayName := definition.DisplayName
+			switch role {
+			case pathing.RouteRoleLegAcquisition:
+				displayName = "Wirt-Route"
+			case pathing.RouteRoleCowSweep:
+				displayName = "Cow-Route"
+			}
+			result = append(result, RecordingOptionDTO{RunID: string(definition.ID), RouteRole: string(role), DisplayName: displayName, InstructionsDE: contract.InstructionsDE, OperatorHintsDE: recordingOperatorHints(role), StartKind: string(contract.StartKind), StartWaypoint: string(contract.StartWaypoint), AllowedStartAreaID: uint32(contract.AllowedStartArea), AllowedRouteAreaIDs: areas, TerminalAreaID: uint32(contract.TerminalArea), TerminalMaxDistanceTiles: contract.TerminalMaxDistanceTiles, Available: available, Reason: reason, Prerequisites: b.recordingPrerequisites(definition, contract)})
 		}
-		result = append(result, RecordingOptionDTO{RunID: string(definition.ID), DisplayName: definition.DisplayName, InstructionsDE: definition.Recording.InstructionsDE, StartWaypoint: string(definition.Recording.StartWaypoint), AllowedStartAreaID: uint32(definition.Recording.AllowedStartArea), AllowedRouteAreaIDs: areas, TerminalAreaID: uint32(definition.Recording.TerminalArea), TerminalMaxDistanceTiles: definition.Recording.TerminalMaxDistanceTiles, Available: available, Reason: reason, Prerequisites: b.recordingPrerequisites(definition)})
 	}
 	return result
 }
 
-func (b *LiveBackend) recordingPrerequisites(definition tasks.RunDefinition) []RecordingPrerequisiteDTO {
+func (b *LiveBackend) recordingPrerequisites(definition tasks.RunDefinition, contract tasks.RecordingContract) []RecordingPrerequisiteDTO {
 	b.mu.RLock()
 	character := b.status.Selection.Character
 	b.mu.RUnlock()
-	_, waypointReady := pathing.DefaultWaypointTargetRegistry().Action(definition.WaypointTarget)
 	teleport := configuredSkillBinding(b.cfg.Input.Bindings, "teleport", true)
 	townPortal := configuredSkillBinding(b.cfg.Input.Bindings, "town_portal", true)
 	pickitReady := false
@@ -83,11 +100,26 @@ func (b *LiveBackend) recordingPrerequisites(definition tasks.RunDefinition) []R
 		_, pickitErr := b.pickitAssignments.Resolve(character, definition.ID)
 		pickitReady = pickitErr == nil
 	}
-	return []RecordingPrerequisiteDTO{
-		{ID: "waypoint", Ready: waypointReady, Reason: prerequisiteReason(waypointReady, "onboarding_waypoint_required")},
+	result := []RecordingPrerequisiteDTO{
 		{ID: "teleport", Ready: teleport, Reason: prerequisiteReason(teleport, "onboarding_teleport_binding_missing")},
 		{ID: "town_portal", Ready: townPortal, Reason: prerequisiteReason(townPortal, "onboarding_town_portal_binding_missing")},
 		{ID: "pickit", Ready: pickitReady, Reason: prerequisiteReason(pickitReady, "pickit_assignment_missing")},
+	}
+	if contract.StartKind != tasks.RecordingStartObjectPortalArrival {
+		_, waypointReady := pathing.DefaultWaypointTargetRegistry().Action(contract.StartWaypoint)
+		result = append([]RecordingPrerequisiteDTO{{ID: "waypoint", Ready: waypointReady, Reason: prerequisiteReason(waypointReady, "onboarding_waypoint_required")}}, result...)
+	}
+	return result
+}
+
+func recordingOperatorHints(role pathing.RouteRole) []string {
+	switch role {
+	case pathing.RouteRoleLegAcquisition:
+		return []string{"Das Tristram-Portal muss bereits geöffnet sein.", "Wirt während Aufnahme und Test nicht anklicken; ein vorheriger Clear ist nicht nötig."}
+	case pathing.RouteRoleCowSweep:
+		return []string{"Das Cow-Portal in diesem Spiel manuell öffnen.", "Das Cow Level vor der Aufnahme vollständig leeren; Kampf- und Rückteleports verfälschen die Route."}
+	default:
+		return nil
 	}
 }
 
@@ -115,7 +147,7 @@ func (b *LiveBackend) RouteCandidates() ([]RouteCandidateDTO, error) {
 	}
 	result := make([]RouteCandidateDTO, 0, len(entries))
 	for _, entry := range entries {
-		result = append(result, RouteCandidateDTO{CandidateID: entry.CandidateID, RunID: string(entry.RunID), Character: entry.Character, Difficulty: entry.Difficulty, State: string(entry.State), MeasuredBossDistance: entry.MeasuredBossDistance, RouteSHA256: entry.ImmutableRouteSHA256, Reason: string(entry.FailureReason)})
+		result = append(result, RouteCandidateDTO{CandidateID: entry.CandidateID, RunID: string(entry.RunID), RouteRole: string(entry.RouteRole), Character: entry.Character, Difficulty: entry.Difficulty, State: string(entry.State), MeasuredBossDistance: entry.MeasuredBossDistance, RouteSHA256: entry.ImmutableRouteSHA256, Reason: string(entry.FailureReason)})
 	}
 	return result, nil
 }
@@ -263,8 +295,12 @@ func (b *LiveBackend) StartRouteWorkflow(request RouteWorkflowRequest) (RouteWor
 	var testCandidate *app.RouteCandidate
 	switch request.Operation {
 	case "record":
-		if _, ok := tasks.DefaultRunRegistry().Definition(tasks.RunID(request.RunID)); !ok {
+		definition, ok := tasks.DefaultRunRegistry().Definition(tasks.RunID(request.RunID))
+		if !ok {
 			return RouteWorkflowDTO{}, fmt.Errorf("unknown recording run")
+		}
+		if _, ok := definition.RecordingForRole(pathing.RouteRole(request.RouteRole)); !ok {
+			return RouteWorkflowDTO{}, fmt.Errorf("unknown recording route role")
 		}
 	case "test":
 		if strings.TrimSpace(request.CandidateID) == "" {
@@ -336,12 +372,12 @@ func (b *LiveBackend) StartRouteWorkflow(request RouteWorkflowRequest) (RouteWor
 	}
 	runID, character := request.RunID, selection.Character
 	if testCandidate != nil {
-		runID, character = string(testCandidate.RunID), testCandidate.Character
+		runID, character, request.RouteRole = string(testCandidate.RunID), testCandidate.Character, string(testCandidate.RouteRole)
 	}
 	if request.Operation == "system_record" || request.Operation == "system_test" {
 		character = ""
 	}
-	b.routeWorkflow = RouteWorkflowDTO{WorkflowID: token, Generation: b.routeWorkflow.Generation + 1, State: string(state), RunID: runID, Character: character, Act: request.Act}
+	b.routeWorkflow = RouteWorkflowDTO{WorkflowID: token, Generation: b.routeWorkflow.Generation + 1, State: string(state), RunID: runID, RouteRole: request.RouteRole, Character: character, Act: request.Act}
 	finishRequests := make(chan struct{}, 1)
 	b.routeWorkflowFinish = finishRequests
 	snapshot := b.routeWorkflow

@@ -37,6 +37,8 @@ Ein passender expliziter Map-Seed und Fingerprint machen Countess `available`. A
 
 Seit Phase 11.5 bezieht der Resolver Kandidaten aus dem rekursiven Farming-RouteCatalog statt aus einem einzelnen aktiven Verzeichnis. `route_stale` blockiert bestätigte Lifecycle-Invalidationen, `route_lifecycle_unavailable` blockiert beschädigte, doppelte, geänderte oder nicht korrelierbare Einträge. Eine statisch valide Route bleibt `runtime_validation_required`, bis der aktuelle Live-Fingerprint passt; erst dann wird der Run `available`.
 
+Seit Phase 20.2 bewertet der Cow-Run ein festes Routenset aus `leg_acquisition` und `cow_sweep`. Fehlende oder veraltete Rollen werden einzeln mit `leg_acquisition_route_missing`, `leg_acquisition_route_stale`, `cow_sweep_route_missing` oder `cow_sweep_route_stale` ausgewiesen. Beide Routen müssen zu demselben Charakter, derselben Klasse, Difficulty, Game-Version und demselben Combat-Profil passen; ein Widerspruch liefert `route_set_binding_mismatch`. Map Seed und Layout-Fingerprint werden bewusst nicht zwischen Stony Field und Cow Level verglichen, sondern erst bei der jeweiligen Live-Ankunft gegen die eigene Route geprüft.
+
 ## Datenmodell
 
 Seit Phase 12.1 stammt die Route-ID ausschließlich aus dem atomischen Assignment für `(character, run)`. Fehlende Zuordnung liefert `route_assignment_missing`; ein archivierter Eintrag blockiert Playback. Config, SessionPlan und Queue besitzen keinen globalen Farming-`route_id`-Fallback mehr.
@@ -70,4 +72,4 @@ Für vorhandene lokale Countess- und Mephisto-Bindungen wird ohne Attach jeweils
 - [Route Recording und Playback](route-recording-playback.md)
 
 ---
-*Zuletzt aktualisiert: 28. Juli 2026*
+*Zuletzt aktualisiert: 1. August 2026*

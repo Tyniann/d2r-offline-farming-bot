@@ -123,6 +123,7 @@ func waypointMenuState() world.State {
 func TestDefaultWaypointTargetRegistryGeometryCandidates(t *testing.T) {
 	registry := DefaultWaypointTargetRegistry()
 	want := map[WaypointTargetID]WaypointTargetAction{
+		WaypointTargetStonyField:          {Act: 1, TabX: 159, TabY: 148, RowX: 200, RowY: 260, ExpectedAreaID: world.StonyField},
 		WaypointTargetBlackMarsh:          {Act: 1, TabX: 159, TabY: 148, RowX: 200, RowY: 342, ExpectedAreaID: world.BlackMarsh},
 		WaypointTargetDuranceOfHateLevel2: {Act: 3, TabX: 273, TabY: 148, RowX: 200, RowY: 506, ExpectedAreaID: world.DuranceOfHateLevel2},
 		WaypointTargetArcaneSanctuary:     {Act: 2, TabX: 216, TabY: 148, RowX: 200, RowY: 465, ExpectedAreaID: world.ArcaneSanctuary},

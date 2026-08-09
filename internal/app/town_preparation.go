@@ -27,31 +27,34 @@ type townPreparationController interface {
 // uses only the layout-bound Stash-to-Waypoint path; post-run preparation may
 // additionally create and execute a demand-driven service plan.
 type townPreparationAdapter struct {
-	log          *slog.Logger
-	driver       pathing.InputDriver
-	controller   townPreparationController
-	pathCfg      pathing.Config
-	graph        town.ServiceGraph
-	directory    string
-	thresholds   town.Thresholds
-	traversals   []town.Traversal
-	index        int
-	walker       *pathing.TownWalker
-	started      bool
-	done         bool
-	layout       string
-	layoutOrigin world.Position
-	layoutPin    *townLayoutPin
-	townCfg      town.Config
-	profile      config.ProfileResourcesConfig
-	telemetry    town.ExecutorTelemetry
-	services     bool
-	executor     *town.Executor
-	handler      *townPreparationStepHandler
-	lootFilter   *loot.Filter
-	stashConfig  config.LootStashConfig
-	nextRunID    string
-	startAnchor  town.Anchor
+	log                    *slog.Logger
+	driver                 pathing.InputDriver
+	controller             townPreparationController
+	pathCfg                pathing.Config
+	graph                  town.ServiceGraph
+	directory              string
+	thresholds             town.Thresholds
+	traversals             []town.Traversal
+	index                  int
+	walker                 *pathing.TownWalker
+	started                bool
+	done                   bool
+	layout                 string
+	layoutOrigin           world.Position
+	layoutPin              *townLayoutPin
+	townCfg                town.Config
+	profile                config.ProfileResourcesConfig
+	telemetry              town.ExecutorTelemetry
+	services               bool
+	executor               *town.Executor
+	handler                *townPreparationStepHandler
+	lootFilter             *loot.Filter
+	stashConfig            config.LootStashConfig
+	nextRunID              string
+	startAnchor            town.Anchor
+	targetAnchor           town.Anchor
+	requireFullBuyableBelt bool
+	minimumRejuvenation    int
 }
 
 func (a *townPreparationAdapter) setItemPolicies(filter *loot.Filter, stash config.LootStashConfig) {
@@ -147,13 +150,17 @@ func (a *townPreparationAdapter) Tick(ctx context.Context, state world.State) ta
 	}
 	if a.index >= len(a.traversals) {
 		// Finishing route samples is insufficient: the handoff requires the live
-		// Waypoint entity to be present and within interaction distance.
-		waypoint, ok := state.NearestObject(world.ObjectKindWaypoint)
-		if !ok || world.Distance(state.Player.Position, waypoint.Position) > a.pathCfg.Waypoint.MaxClickDistance {
-			return tasks.TownPreparationResult{Status: "failed", Reason: "waypoint_handoff_unconfirmed", Done: true}
+		// target anchor to remain visible and within interaction distance.
+		target := a.handoffAnchor()
+		if !townPreparationHandoffReady(state, target, a.handoffTolerance(target)) {
+			reason := "town_anchor_handoff_unconfirmed"
+			if target == town.AnchorWaypoint {
+				reason = "waypoint_handoff_unconfirmed"
+			}
+			return tasks.TownPreparationResult{Status: "failed", Reason: reason, Done: true}
 		}
 		a.done = true
-		a.log.Info("central town preparation completed", "anchor", "waypoint", "next_run", a.nextRunID)
+		a.log.Info("central town preparation completed", "anchor", target, "next_run", a.nextRunID)
 		return tasks.TownPreparationResult{Status: "complete", Done: true}
 	}
 	if a.walker == nil {
@@ -186,6 +193,28 @@ func (a *townPreparationAdapter) Tick(ctx context.Context, state world.State) ta
 	a.index++
 	a.walker = nil
 	return tasks.TownPreparationResult{Status: "pending"}
+}
+
+func (a *townPreparationAdapter) handoffTolerance(anchor town.Anchor) float64 {
+	if anchor == town.AnchorWaypoint {
+		return a.pathCfg.Waypoint.MaxClickDistance
+	}
+	return townRecordingAnchorDistance
+}
+
+func (a *townPreparationAdapter) handoffAnchor() town.Anchor {
+	if a.targetAnchor != "" {
+		return a.targetAnchor
+	}
+	return town.AnchorWaypoint
+}
+
+func townPreparationHandoffReady(state world.State, anchor town.Anchor, tolerance float64) bool {
+	if tolerance <= 0 {
+		return false
+	}
+	position, ok := townRecordingEndpointPosition(anchor, state)
+	return ok && world.Distance(state.Player.Position, position) <= tolerance
 }
 
 func (a *townPreparationAdapter) externalStartConfirmed(state world.State, firstPoint world.Position) bool {

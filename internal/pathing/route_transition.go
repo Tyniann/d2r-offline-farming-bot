@@ -11,11 +11,12 @@ import (
 var (
 	// ErrRouteTransitionFailed indicates exhausted local transition recovery.
 	ErrRouteTransitionFailed = errors.New("route transition failed")
-	// ErrRouteEntranceUnavailable indicates that no matching runtime entrance is visible.
-	ErrRouteEntranceUnavailable = errors.New("route entrance unavailable")
+	// ErrRouteEntranceUnavailable indicates that no matching runtime transition entity is visible.
+	ErrRouteEntranceUnavailable = errors.New("route transition entity unavailable")
 )
 
-// RouteTransitionHandler binds a semantic transition to one runtime entrance at a time.
+// RouteTransitionHandler binds a semantic transition to one runtime entrance or
+// object portal at a time.
 type RouteTransitionHandler struct {
 	navigator      SegmentNavigator
 	segment        RouteSegment
@@ -30,7 +31,7 @@ func NewRouteTransitionHandler(navigator SegmentNavigator, segment RouteSegment,
 	return &RouteTransitionHandler{navigator: navigator, segment: segment, maxCorrections: maxCorrections}
 }
 
-// Tick selects a matching entrance, drives hover-confirmed interaction, and verifies target Area.
+// Tick selects a matching entity, drives hover-confirmed interaction, and verifies target Area.
 func (h *RouteTransitionHandler) Tick(ctx context.Context, state world.State) (bool, error) {
 	if h.done {
 		return true, nil
@@ -51,7 +52,7 @@ func (h *RouteTransitionHandler) Tick(ctx context.Context, state world.State) (b
 		h.navigator.Reset()
 		return false, fmt.Errorf("%w: got area %d", ErrRouteUnexpectedArea, state.Area.ID)
 	}
-	if h.activeUnitID != 0 && !transitionEntranceVisible(state, h.activeUnitID) {
+	if h.activeUnitID != 0 && !h.transitionEntityVisible(state) {
 		h.navigator.Reset()
 		h.activeUnitID = 0
 		if err := h.consumeCorrection(ErrRouteEntranceUnavailable); err != nil {
@@ -59,14 +60,26 @@ func (h *RouteTransitionHandler) Tick(ctx context.Context, state world.State) (b
 		}
 	}
 	if !h.navigator.Active() {
-		entrance, ok := selectRouteEntrance(state, h.segment)
-		if !ok {
-			return false, nil
-		}
-		h.activeUnitID = entrance.UnitID
-		goal := Goal{Kind: GoalKindMoveToArea, TargetArea: h.segment.ToAreaID, ViaEntrance: entrance.Kind, ViaEntranceUnitID: entrance.UnitID, StrictEntrance: true}
-		if err := h.navigator.Start(goal); err != nil {
-			return false, fmt.Errorf("start strict route transition: %w", err)
+		if h.segment.Transition.Type == "object_portal" {
+			portal, ok := selectRouteObject(state, h.segment)
+			if !ok {
+				return false, nil
+			}
+			h.activeUnitID = portal.UnitID
+			goal := Goal{Kind: GoalKindMoveToArea, TargetArea: h.segment.ToAreaID, ViaObject: portal.Kind, ViaObjectUnitID: portal.UnitID, StrictObject: true}
+			if err := h.navigator.Start(goal); err != nil {
+				return false, fmt.Errorf("start strict object portal transition: %w", err)
+			}
+		} else {
+			entrance, ok := selectRouteEntrance(state, h.segment)
+			if !ok {
+				return false, nil
+			}
+			h.activeUnitID = entrance.UnitID
+			goal := Goal{Kind: GoalKindMoveToArea, TargetArea: h.segment.ToAreaID, ViaEntrance: entrance.Kind, ViaEntranceUnitID: entrance.UnitID, StrictEntrance: true}
+			if err := h.navigator.Start(goal); err != nil {
+				return false, fmt.Errorf("start strict route transition: %w", err)
+			}
 		}
 	}
 	result := h.navigator.Tick(ctx, state)
@@ -78,6 +91,34 @@ func (h *RouteTransitionHandler) Tick(ctx context.Context, state world.State) (b
 		}
 	}
 	return false, nil
+}
+
+func (h *RouteTransitionHandler) transitionEntityVisible(state world.State) bool {
+	if h.segment.Transition.Type == "object_portal" {
+		for _, object := range state.Objects {
+			if object.UnitID == h.activeUnitID && object.Kind == h.segment.Transition.ObjectKind {
+				return true
+			}
+		}
+		return false
+	}
+	return transitionEntranceVisible(state, h.activeUnitID)
+}
+
+func selectRouteObject(state world.State, segment RouteSegment) (world.Object, bool) {
+	var best world.Object
+	bestDistance := 0.0
+	found := false
+	for _, object := range state.Objects {
+		if object.Kind != segment.Transition.ObjectKind {
+			continue
+		}
+		distance := world.Distance(state.Player.Position, object.Position)
+		if !found || distance < bestDistance {
+			best, bestDistance, found = object, distance, true
+		}
+	}
+	return best, found
 }
 
 func (h *RouteTransitionHandler) consumeCorrection(cause error) error {

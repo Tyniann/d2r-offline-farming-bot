@@ -164,23 +164,24 @@ func (m *mockRoutePlayback) Hold(world.State) error { m.holdCalls++; return nil 
 func (m *mockRoutePlayback) Reset()                 { m.resetCalls++ }
 
 type mockCombatActions struct {
-	castCalls              int
-	castSkills             []uint16
-	teleportCalls          int
-	stopCalls              int
-	resetCalls             int
-	lastSkillID            uint16
-	lastMonsterUnitID      uint32
-	lastDesired            float64
-	lastTeleportTarget     world.Position
-	teleportSent           []bool
-	forceMoveCalls         int
-	lastForceMoveTarget    world.Position
-	forceMoveSent          []bool
-	aimProjectable         *bool
-	farthestDistance       float64
-	farthestOK             *bool
-	castMonsterErr         error
+	castCalls           int
+	castSkills          []uint16
+	teleportCalls       int
+	stopCalls           int
+	resetCalls          int
+	lastSkillID         uint16
+	lastMonsterUnitID   uint32
+	lastDesired         float64
+	lastTeleportTarget  world.Position
+	teleportSent        []bool
+	forceMoveCalls      int
+	lastForceMoveTarget world.Position
+	forceMoveSent       []bool
+	aimProjectable      *bool
+	farthestPosition    world.Position
+	farthestDistance    float64
+	farthestOK          *bool
+	castMonsterErr      error
 }
 
 type mockRunActions struct {
@@ -210,6 +211,17 @@ type countingRun struct {
 }
 
 type tickRun struct{}
+
+func TestRunnerInitializationFailureBecomesTerminal(t *testing.T) {
+	runner := NewRunner(config.NewLogger("error"), RunSelection{Run: string(RunIDCows), Phase: RunPhaseBoss}, RunConfig{}, Deps{})
+	result := runner.Tick(context.Background(), world.State{}, time.Now())
+	if !runner.Terminal() || result.Outcome != RunOutcomeFailed || result.Reason != "unknown run phase \"boss\"" {
+		t.Fatalf("terminal=%t result=%+v", runner.Terminal(), result)
+	}
+	if stored := runner.Result(); stored.Outcome != RunOutcomeFailed || stored.Reason != result.Reason {
+		t.Fatalf("stored result=%+v, want terminal initialization failure", stored)
+	}
+}
 
 func (m *mockTownWalker) Reset() { m.resets++ }
 
@@ -268,6 +280,10 @@ func (m *mockProfileActions) TickResources(_ world.State, resourceContext profil
 	res := m.resourceResults[0]
 	m.resourceResults = m.resourceResults[1:]
 	return res
+}
+
+func (m *mockProfileActions) TickRouteMaintenance(world.State, time.Time) profile.Result {
+	return profile.Result{Status: profile.StatusComplete}
 }
 
 func (m *mockProfileActions) Reset() { m.resetCalls++ }
@@ -347,25 +363,25 @@ func (m *mockCombatActions) CastAttackAtWorld(_ time.Time, skillID uint16, _ wor
 	return true, nil
 }
 
-func (m *mockCombatActions) CastAttackAtMonster(_ time.Time, skillID uint16, _ world.Player, target world.Monster) (bool, error) {
+func (m *mockCombatActions) CastAttackAtMonster(_ time.Time, skillID uint16, _ world.Player, target world.Monster) (profile.MonsterCastResult, error) {
 	m.castCalls++
 	m.castSkills = append(m.castSkills, skillID)
 	m.lastSkillID = skillID
 	m.lastMonsterUnitID = target.UnitID
 	if m.castMonsterErr != nil {
-		return false, m.castMonsterErr
+		return profile.MonsterCastResult{}, m.castMonsterErr
 	}
-	return true, nil
+	return profile.MonsterCastResult{Sent: true, TargetingMode: profile.MonsterTargetingHoverConfirmed}, nil
 }
 
-func (m *mockCombatActions) CastSkillAtWorld(_ time.Time, skillID uint16, _, _ world.Position) error {
+func (m *mockCombatActions) CastSkillAtWorld(_ time.Time, skillID uint16, _ world.Player, _ world.Position) error {
 	m.castCalls++
 	m.castSkills = append(m.castSkills, skillID)
 	m.lastSkillID = skillID
 	return nil
 }
 
-func (m *mockCombatActions) CastBelt(int) error { return nil }
+func (m *mockCombatActions) CastBelt(int) error             { return nil }
 func (m *mockCombatActions) CastBeltForMercenary(int) error { return nil }
 
 func (m *mockCombatActions) StopAttack() error {
@@ -403,11 +419,11 @@ func (m *mockCombatActions) MonsterAimProjectable(_, _ world.Position) bool {
 	return true
 }
 
-func (m *mockCombatActions) FarthestProjectableMonsterDistance(playerPos, targetPos world.Position) (float64, bool) {
+func (m *mockCombatActions) FarthestProjectableMonsterApproach(playerPos, targetPos world.Position) (world.Position, float64, bool) {
 	if m.farthestOK != nil {
-		return m.farthestDistance, *m.farthestOK
+		return m.farthestPosition, m.farthestDistance, *m.farthestOK
 	}
-	return world.Distance(playerPos, targetPos), true
+	return targetPos, world.Distance(playerPos, targetPos), true
 }
 
 func (m *mockCombatActions) Reset() { m.resetCalls++ }
@@ -439,6 +455,10 @@ func (m *mockLootActions) ScanRouteKeep(world.State, float64) LootScanResult {
 func (m *mockLootActions) StartPickup(target LootTarget) error {
 	m.startCalls = append(m.startCalls, target)
 	return m.startErr
+}
+
+func (m *mockLootActions) StartCowLegPickup(target LootTarget) error {
+	return m.StartPickup(target)
 }
 
 func (m *mockLootActions) ClearSkippedPickup(unitID uint32) {
@@ -713,7 +733,7 @@ func TestIsKnownRun(t *testing.T) {
 
 func TestKnownRunsStable(t *testing.T) {
 	runs := KnownRuns()
-	if !reflect.DeepEqual(runs, []string{"countess", "mephisto", "nihlathak", "summoner"}) {
+	if !reflect.DeepEqual(runs, []string{"countess", "cows", "mephisto", "nihlathak", "summoner"}) {
 		t.Fatalf("KnownRuns() = %v", runs)
 	}
 }
@@ -993,6 +1013,30 @@ func TestCountessTravelMarshSuccessThroughLoading(t *testing.T) {
 	}
 }
 
+func TestCowSelectStonyPreservesWaypointOpenEvidence(t *testing.T) {
+	wp := &mockWaypointActions{}
+	r := NewRunner(config.NewLogger("error"), RunSelection{Run: string(RunIDCows)}, RunConfig{}, Deps{Waypoint: wp})
+	now := time.Now()
+
+	if err := r.beginStep(cowStepOpenWaypoint, now); err != nil {
+		t.Fatalf("begin open waypoint: %v", err)
+	}
+	resetsAfterOpen := wp.resetCalls
+	if err := r.beginStep(cowStepSelectStony, now.Add(time.Millisecond)); err != nil {
+		t.Fatalf("begin Stony Field selection: %v", err)
+	}
+	if wp.resetCalls != resetsAfterOpen {
+		t.Fatalf("waypoint Reset calls = %d after Cow select enter, want %d (preserve open evidence)", wp.resetCalls, resetsAfterOpen)
+	}
+
+	if err := r.beginStep(cowStepWaitStony, now.Add(2*time.Millisecond)); err != nil {
+		t.Fatalf("begin Stony Field wait: %v", err)
+	}
+	if wp.resetCalls != resetsAfterOpen+1 {
+		t.Fatalf("waypoint Reset calls = %d after Cow wait enter, want %d", wp.resetCalls, resetsAfterOpen+1)
+	}
+}
+
 func TestRunWaypointWaitRejectsWrongAreaAndUsesStableTimeoutReason(t *testing.T) {
 	now := time.Now()
 	newWaitingRunner := func() *Runner {
@@ -1159,6 +1203,61 @@ func TestPhase17NoThreatSummonerRouteRemainsDirectPlaybackBeforeControllerWiring
 	if route.startedID != "summoner-route" || route.tickCalls != 1 || route.holdCalls != 0 {
 		t.Fatalf("route started=%q ticks=%d holds=%d", route.startedID, route.tickCalls, route.holdCalls)
 	}
+}
+
+func TestCowRouteProgressUnavailableRequiresFreshSustainedProof(t *testing.T) {
+	definition, _ := DefaultRunRegistry().Definition(RunIDCows)
+	base := time.Now()
+	state := areaState(world.MooMooFarm)
+	state.At = base
+
+	t.Run("transient projection loss recovers", func(t *testing.T) {
+		route := &mockRoutePlayback{progressOK: false}
+		pipeline := &runPipeline{
+			definition:  definition,
+			routeID:     "cow-route",
+			routeCombat: RouteCombatConfig{Enabled: true},
+		}
+
+		result := pipeline.onTravelTick(context.Background(), Deps{Route: route}, pipelineStepPlayRoute, state, base, base)
+		if result.failed || route.tickCalls != 0 {
+			t.Fatalf("first unavailable progress result=%+v ticks=%d, want input-free wait", result, route.tickCalls)
+		}
+
+		recovered := state
+		recovered.At = base.Add(100 * time.Millisecond)
+		route.progressOK = true
+		route.progress = RouteProgress{Mode: RouteProgressMovement}
+		result = pipeline.onTravelTick(context.Background(), Deps{Route: route}, pipelineStepPlayRoute, recovered, recovered.At, base)
+		if result.failed || route.tickCalls != 1 || !pipeline.routeProgressUnavailableSince.IsZero() {
+			t.Fatalf("recovered progress result=%+v ticks=%d unavailableSince=%v", result, route.tickCalls, pipeline.routeProgressUnavailableSince)
+		}
+	})
+
+	t.Run("same snapshot cannot consume grace", func(t *testing.T) {
+		route := &mockRoutePlayback{progressOK: false}
+		pipeline := &runPipeline{
+			definition:  definition,
+			routeID:     "cow-route",
+			routeCombat: RouteCombatConfig{Enabled: true},
+		}
+
+		result := pipeline.onTravelTick(context.Background(), Deps{Route: route}, pipelineStepPlayRoute, state, base, base)
+		if result.failed {
+			t.Fatalf("first unavailable progress failed: %+v", result)
+		}
+		result = pipeline.onTravelTick(context.Background(), Deps{Route: route}, pipelineStepPlayRoute, state, base.Add(3*time.Second), base)
+		if result.failed {
+			t.Fatalf("repeated snapshot consumed grace: %+v", result)
+		}
+
+		fresh := state
+		fresh.At = base.Add(3*time.Second + time.Millisecond)
+		result = pipeline.onTravelTick(context.Background(), Deps{Route: route}, pipelineStepPlayRoute, fresh, fresh.At, base)
+		if !result.failed || result.reason != string(RouteThreatReasonStateInvalid) {
+			t.Fatalf("sustained fresh projection loss result=%+v, want state-invalid terminal", result)
+		}
+	})
 }
 
 func TestCountessTravelCellar5AllowsBlackMarshLoadingWait(t *testing.T) {
@@ -1601,6 +1700,65 @@ func TestLootPickupRecoversOnceAfterHoverNotFound(t *testing.T) {
 		pipeline.lootRecoveryPending || combat.teleportCalls != 1 {
 		t.Fatalf("recovery pickup result=%+v starts=%d ticks=%d pending=%v teleports=%d",
 			res, len(lootActions.startCalls), lootActions.tickCalls, pipeline.lootRecoveryPending, combat.teleportCalls)
+	}
+}
+
+func TestRouteLootRecoversThreatFreeTooFarCandidateWithinScanRadius(t *testing.T) {
+	combat := &mockCombatActions{}
+	definition, _ := DefaultRunRegistry().Definition(RunIDCountess)
+	target := LootTarget{
+		UnitID: 12, TxtFileNo: 1, Code: "gpg", Name: "Flawless Emerald",
+		Position: world.Position{X: 125, Y: 100}, AreaID: world.TowerCellarLevel5,
+	}
+	lootActions := &mockLootActions{
+		scans: []LootScanResult{{GroundItemCount: 1, CandidateCount: 1, HasTarget: true, NextTarget: target}},
+		ticks: []LootPickupResult{
+			{Status: LootPickupTooFar, Done: true, Target: target},
+			{Status: LootPickupPickedUp, Done: true, Target: target},
+		},
+	}
+	route := &mockRoutePlayback{}
+	pipeline := &runPipeline{definition: definition, lootPickupDistanceTiles: 8}
+	progress := RouteProgress{Mode: RouteProgressMovement, SegmentIndex: 0, PointIndex: 7}
+	now := time.Now()
+	state := cellar5State()
+	state.At = now
+	state.Player.Position = world.Position{X: 100, Y: 100}
+	state.Items = []world.Item{{
+		UnitID: target.UnitID, TxtFileNo: target.TxtFileNo, Code: target.Code, Name: target.Name,
+		Location: world.ItemLocationGround, Position: target.Position,
+	}}
+	deps := Deps{Route: route, Loot: lootActions, Combat: combat}
+
+	handled, res := pipeline.tickRouteLoot(deps, state, progress, now)
+	if !handled || res.failed || len(lootActions.startCalls) != 1 || len(lootActions.clearSkipIDs) != 1 ||
+		!pipeline.lootRecoveryPending || combat.teleportCalls != 0 {
+		t.Fatalf("too-far result=%+v handled=%v starts=%d clears=%v pending=%v teleports=%d",
+			res, handled, len(lootActions.startCalls), lootActions.clearSkipIDs, pipeline.lootRecoveryPending, combat.teleportCalls)
+	}
+
+	handled, res = pipeline.tickRouteLoot(deps, state, progress, now.Add(time.Millisecond))
+	if !handled || res.failed || combat.teleportCalls != 1 || combat.lastTeleportTarget != target.Position ||
+		!pipeline.lootRecoveryTeleportSent {
+		t.Fatalf("recovery teleport result=%+v handled=%v teleports=%d target=%+v sent=%v",
+			res, handled, combat.teleportCalls, combat.lastTeleportTarget, pipeline.lootRecoveryTeleportSent)
+	}
+
+	settled := state
+	settled.At = now.Add(lootRepositionRetryDelay + time.Millisecond)
+	settled.Player.Position = target.Position
+	handled, res = pipeline.tickRouteLoot(deps, settled, progress, settled.At)
+	if !handled || res.failed || len(lootActions.startCalls) != 2 || pipeline.lootRecoveryPending || !pipeline.lootPickupActive {
+		t.Fatalf("recovery restart result=%+v handled=%v starts=%d pending=%v active=%v",
+			res, handled, len(lootActions.startCalls), pipeline.lootRecoveryPending, pipeline.lootPickupActive)
+	}
+
+	settled.At = settled.At.Add(time.Millisecond)
+	handled, res = pipeline.tickRouteLoot(deps, settled, progress, settled.At)
+	if !handled || res.failed || pipeline.lootPickupActive || pipeline.lootRecoveryPending || combat.teleportCalls != 1 ||
+		lootActions.tickCalls != 2 {
+		t.Fatalf("recovery pickup result=%+v handled=%v active=%v pending=%v teleports=%d ticks=%d",
+			res, handled, pipeline.lootPickupActive, pipeline.lootRecoveryPending, combat.teleportCalls, lootActions.tickCalls)
 	}
 }
 

@@ -91,7 +91,7 @@ func (c *RouteCombatConfig) applyDefaults(runID string) {
 }
 
 func (c RouteCombatConfig) validate(runID, path string) error {
-	if c.EnabledValue() && runID != "summoner" {
+	if c.EnabledValue() && runID != "summoner" && runID != "cows" {
 		return fmt.Errorf("%s.enabled requires a route-clear capable run", path)
 	}
 	for name, value := range map[string]float64{

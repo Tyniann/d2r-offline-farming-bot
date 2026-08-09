@@ -5,17 +5,19 @@ import (
 	"strings"
 )
 
-// Skill IDs from d2go pkg/data/skill @ 16d248a53591 (subset for bot precheck and casting).
+// Skill IDs from D2R 3.2.92777 local data/global/excel/skills.txt
+// (subset used by bot prechecks, diagnostics, and casting).
 const (
-	SkillAttack        uint16 = 0
-	SkillThrow         uint16 = 2
-	SkillTeleport      uint16 = 54
-	SkillAmplifyDamage uint16 = 66
-	SkillBoneArmor     uint16 = 68
-	SkillBoneWall      uint16 = 78
-	SkillBoneSpear     uint16 = 84
-	SkillBonePrison    uint16 = 88
-	SkillTownPortal    uint16 = 359
+	SkillAttack          uint16 = 0
+	SkillThrow           uint16 = 2
+	SkillTeleport        uint16 = 54
+	SkillAmplifyDamage   uint16 = 66
+	SkillBoneArmor       uint16 = 68
+	SkillCorpseExplosion uint16 = 74
+	SkillBoneWall        uint16 = 78
+	SkillBoneSpear       uint16 = 84
+	SkillBonePrison      uint16 = 88
+	SkillTownPortal      uint16 = 359
 )
 
 // SkillName returns a stable label for known skill IDs used in logs.
@@ -31,6 +33,8 @@ func SkillName(id uint16) string {
 		return "amplify_damage"
 	case SkillBoneArmor:
 		return "bone_armor"
+	case SkillCorpseExplosion:
+		return "corpse_explosion"
 	case SkillBoneWall:
 		return "bone_wall"
 	case SkillBoneSpear:
@@ -58,6 +62,8 @@ func ParseSkillTestName(name string) (uint16, error) {
 		return SkillAmplifyDamage, nil
 	case "bone_armor", "bonearmor", "bone armor":
 		return SkillBoneArmor, nil
+	case "corpse_explosion", "corpseexplosion", "corpse explosion", "ce":
+		return SkillCorpseExplosion, nil
 	case "bone_wall", "bonewall", "bone wall":
 		return SkillBoneWall, nil
 	case "bone_spear", "bonespear", "bone spear":
@@ -67,6 +73,6 @@ func ParseSkillTestName(name string) (uint16, error) {
 	case "town_portal", "townportal", "tp":
 		return SkillTownPortal, nil
 	default:
-		return 0, fmt.Errorf("unknown skill %q (use teleport, amplify_damage, bone_armor, bone_wall, bone_prison, bone_spear, or town_portal)", name)
+		return 0, fmt.Errorf("unknown skill %q (use teleport, amplify_damage, bone_armor, corpse_explosion, bone_wall, bone_prison, bone_spear, or town_portal)", name)
 	}
 }

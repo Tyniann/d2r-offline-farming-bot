@@ -1,0 +1,3 @@
+Name	Class	hcIdx
+Rakanishu	fallen2	3
+The Cow King	cowking	39

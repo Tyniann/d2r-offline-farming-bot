@@ -63,7 +63,7 @@ func stableLayoutAnchors(state world.State) []string {
 	anchors := make([]string, 0, len(state.Objects)+len(state.Entrances))
 	for _, object := range state.Objects {
 		switch object.Kind {
-		case world.ObjectKindWaypoint, world.ObjectKindGoodChest, world.ObjectKindPersonalStash:
+		case world.ObjectKindWaypoint, world.ObjectKindGoodChest, world.ObjectKindPersonalStash, world.ObjectKindPermanentPortal:
 			anchors = append(anchors, fmt.Sprintf("o:%d:%d,%d", object.ID, object.Position.X, object.Position.Y))
 		}
 	}

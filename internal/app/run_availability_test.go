@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/config"
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/pathing"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/tasks"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/town"
 	"gopkg.in/yaml.v3"
@@ -44,7 +45,7 @@ func writeTestRouteAssignments(t *testing.T, cfg *config.Config, routes map[task
 	if character == "" {
 		character = "mrbones"
 	}
-	manifest := RouteAssignmentManifest{SchemaVersion: 1, Revision: 1, Assignments: map[string]map[tasks.RunID]string{character: routes}}
+	manifest := RouteAssignmentManifest{SchemaVersion: RouteAssignmentSchemaVersion, Revision: 1, Assignments: map[string]map[tasks.RunID]string{character: routes}, RouteSets: map[string]map[tasks.RunID]map[pathing.RouteRole]string{}}
 	data, err := yaml.Marshal(manifest)
 	if err != nil {
 		t.Fatal(err)
@@ -69,7 +70,7 @@ func TestResolveRunAvailabilitiesGoldenOrderAndReasons(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := `{"context":{"character":"MrBones","character_class":"necromancer","difficulty":"nightmare","game_version":"3.2.92777"},"runs":[{"run_id":"countess","display_name":"Countess","status":"runtime_validation_required","reasons":["route_runtime_validation_required"],"route":{"route_id":"black-marsh-cellar5-nightmare-mrbones","reason":"route_runtime_validation_required"}},{"run_id":"mephisto","display_name":"Mephisto","status":"unavailable","reasons":["town_egress_missing"],"route":{"route_id":"durance-2-mephisto-nightmare-mrbones"}},{"run_id":"nihlathak","display_name":"Nihlathak","status":"unavailable","reasons":["route_assignment_missing"],"route":{"reason":"route_missing"}},{"run_id":"summoner","display_name":"Summoner","status":"unavailable","reasons":["route_assignment_missing"],"route":{"reason":"route_missing"}}]}`
+	want := `{"context":{"character":"MrBones","character_class":"necromancer","difficulty":"nightmare","game_version":"3.2.92777"},"runs":[{"run_id":"countess","display_name":"Countess","status":"runtime_validation_required","reasons":["route_runtime_validation_required"],"route":{"route_id":"black-marsh-cellar5-nightmare-mrbones","reason":"route_runtime_validation_required"}},{"run_id":"cows","display_name":"Kuh-Level","status":"unavailable","reasons":["cow_sweep_route_missing","leg_acquisition_route_missing"],"route":{"reason":"route_missing"},"route_roles":{"cow_sweep":{"reason":"route_missing"},"leg_acquisition":{"reason":"route_missing"}}},{"run_id":"mephisto","display_name":"Mephisto","status":"unavailable","reasons":["town_egress_missing"],"route":{"route_id":"durance-2-mephisto-nightmare-mrbones"}},{"run_id":"nihlathak","display_name":"Nihlathak","status":"unavailable","reasons":["route_assignment_missing"],"route":{"reason":"route_missing"}},{"run_id":"summoner","display_name":"Summoner","status":"unavailable","reasons":["route_assignment_missing"],"route":{"reason":"route_missing"}}]}`
 	if string(encoded) != want {
 		t.Fatalf("availability JSON:\n%s\nwant:\n%s", encoded, want)
 	}
@@ -88,6 +89,46 @@ func TestResolveRunAvailabilitiesCountessAvailableWithLiveFingerprint(t *testing
 	countess, ok := findRunAvailability(report.Runs, tasks.RunIDCountess)
 	if !ok || countess.Status != tasks.RunAvailabilityAvailable || len(countess.Reasons) != 0 {
 		t.Fatalf("Countess availability = %+v", countess)
+	}
+}
+
+func TestCowAvailabilityRequiresBothCompatiblePublishedRoles(t *testing.T) {
+	cfg := managementTestConfig(t)
+	cfg.Runs.Definitions = map[string]config.RunConfig{"cows": {Combat: config.CombatConfig{Profile: "necro_bone_spear"}}}
+	cfg.Profiles = config.ProfilesConfig{"necro_bone_spear": {CharacterClass: "necromancer"}}
+	leg := freezeCowManagementCandidate(t, cfg, pathing.RouteRoleLegAcquisition)
+	sweep := freezeCowManagementCandidate(t, cfg, pathing.RouteRoleCowSweep)
+	service, serviceErr := NewRouteManagementService(cfg, RouteManagementHooks{})
+	if serviceErr != nil {
+		t.Fatal(serviceErr)
+	}
+	publish := func(candidate RouteCandidate) {
+		t.Helper()
+		preview, previewErr := service.PreviewCandidate(candidate.CandidateID)
+		if previewErr != nil {
+			t.Fatal(previewErr)
+		}
+		if err := service.Confirm(RouteMutationConfirm{Token: preview.Token}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	publish(leg)
+	partial, err := ResolveRunAvailabilities(cfg, RunAvailabilityContext{Character: "MrBones", CharacterClass: "necromancer", Difficulty: "nightmare", GameVersion: "3.2.92777"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	cows, _ := findRunAvailability(partial.Runs, tasks.RunIDCows)
+	if cows.Status != tasks.RunAvailabilityUnavailable || !containsRunReason(cows.Reasons, tasks.RunReasonCowSweepRouteMissing) {
+		t.Fatalf("partial cow availability = %+v", cows)
+	}
+	publish(sweep)
+	complete, err := ResolveRunAvailabilities(cfg, RunAvailabilityContext{Character: "MrBones", CharacterClass: "necromancer", Difficulty: "nightmare", GameVersion: "3.2.92777"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	cows, _ = findRunAvailability(complete.Runs, tasks.RunIDCows)
+	if cows.Status != tasks.RunAvailabilityRuntimeValidationRequired || len(cows.RouteRoles) != 2 || cows.RouteRoles[pathing.RouteRoleLegAcquisition].RouteID == "" || cows.RouteRoles[pathing.RouteRoleCowSweep].RouteID == "" {
+		t.Fatalf("complete cow availability = %+v", cows)
 	}
 }
 
@@ -167,8 +208,13 @@ func TestResolveRunAvailabilitiesAcceptsBoundForeignTownEgress(t *testing.T) {
 
 func TestResolveRunsInspectReportRejectsRuntimeModeConflict(t *testing.T) {
 	cfg := availabilityConfig(t)
-	if _, err := ResolveRunsInspectReport(cfg, Options{RunsInspect: true, Run: "countess"}); err == nil {
-		t.Fatal("expected --runs-inspect conflict")
+	for _, opts := range []Options{
+		{RunsInspect: true, Run: "countess"},
+		{RunsInspect: true, CowProbe: "gate-20-0"},
+	} {
+		if _, err := ResolveRunsInspectReport(cfg, opts); err == nil {
+			t.Fatalf("expected --runs-inspect conflict for %+v", opts)
+		}
 	}
 }
 

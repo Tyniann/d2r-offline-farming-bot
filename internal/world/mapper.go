@@ -1,6 +1,10 @@
 package world
 
-import "github.com/Tyniann/d2r-offline-farming-bot/internal/memory"
+import (
+	"time"
+
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/memory"
+)
 
 // mapPhase converts memory.GamePhase to world.GamePhase. This is the only conversion site.
 func mapPhase(phase memory.GamePhase) GamePhase {
@@ -34,8 +38,24 @@ func FromSnapshot(snap memory.Snapshot) State {
 		entrances = append(entrances, mapEntrance(e, hover))
 	}
 	monsters := make([]Monster, 0, len(snap.Monsters))
+	livingMonsterIDs := make(map[uint32]struct{}, len(snap.Monsters))
 	for _, m := range snap.Monsters {
 		monsters = append(monsters, mapMonster(m, hover))
+		livingMonsterIDs[m.UnitID] = struct{}{}
+	}
+	cowCorpses := make([]CowCorpse, 0, len(snap.CowCorpses))
+	cowCorpsesComplete := snap.Valid && snap.Phase == memory.GamePhaseInGame && snap.CowCorpsesComplete
+	corpseIDs := make(map[uint32]struct{}, len(snap.CowCorpses))
+	for _, corpse := range snap.CowCorpses {
+		_, living := livingMonsterIDs[corpse.UnitID]
+		_, duplicate := corpseIDs[corpse.UnitID]
+		if corpse.UnitID == 0 || corpse.PosX == 0 || corpse.PosY == 0 || living || duplicate ||
+			(corpse.NPCID != HellBovine && corpse.NPCID != CowKing) {
+			cowCorpsesComplete = false
+			continue
+		}
+		corpseIDs[corpse.UnitID] = struct{}{}
+		cowCorpses = append(cowCorpses, mapCowCorpse(corpse, snap.At, snap.Generation))
 	}
 	items := make([]Item, 0, len(snap.Items))
 	for _, i := range snap.Items {
@@ -44,25 +64,29 @@ func FromSnapshot(snap memory.Snapshot) State {
 
 	if !snap.Valid {
 		return State{
-			At:              snap.At,
-			Valid:           false,
-			Reason:          snap.Reason,
-			Phase:           phase,
-			Objects:         objects,
-			Entrances:       entrances,
-			Monsters:        monsters,
-			MonsterCoverage: mapMonsterCoverage(snap.MonsterCoverage),
-			Items:           items,
-			Hover:           hover,
-			UI:              mapUIState(snap.UI),
+			At:                 snap.At,
+			Generation:         snap.Generation,
+			Valid:              false,
+			Reason:             snap.Reason,
+			Phase:              phase,
+			Objects:            objects,
+			Entrances:          entrances,
+			Monsters:           monsters,
+			CowCorpses:         cowCorpses,
+			CowCorpsesComplete: false,
+			MonsterCoverage:    mapMonsterCoverage(snap.MonsterCoverage),
+			Items:              items,
+			Hover:              hover,
+			UI:                 mapUIState(snap.UI),
 		}
 	}
 
 	return State{
-		At:    snap.At,
-		Valid: true,
-		Phase: phase,
-		Area:  LookupArea(AreaID(snap.AreaID)),
+		At:         snap.At,
+		Generation: snap.Generation,
+		Valid:      true,
+		Phase:      phase,
+		Area:       LookupArea(AreaID(snap.AreaID)),
 		Player: Player{
 			Position:              Position{X: snap.PosX, Y: snap.PosY},
 			HP:                    snap.HP,
@@ -76,15 +100,17 @@ func FromSnapshot(snap memory.Snapshot) State {
 			LeftSkillID:           snap.PlayerSkills.LeftSkill,
 			RightSkillID:          snap.PlayerSkills.RightSkill,
 		},
-		Mercenary:       mapMercenary(snap.Mercenary),
-		Identity:        mapGameIdentity(snap.Identity),
-		Objects:         objects,
-		Entrances:       entrances,
-		Monsters:        monsters,
-		MonsterCoverage: mapMonsterCoverage(snap.MonsterCoverage),
-		Items:           items,
-		Hover:           hover,
-		UI:              mapUIState(snap.UI),
+		Mercenary:          mapMercenary(snap.Mercenary),
+		Identity:           mapGameIdentity(snap.Identity),
+		Objects:            objects,
+		Entrances:          entrances,
+		Monsters:           monsters,
+		CowCorpses:         cowCorpses,
+		CowCorpsesComplete: cowCorpsesComplete,
+		MonsterCoverage:    mapMonsterCoverage(snap.MonsterCoverage),
+		Items:              items,
+		Hover:              hover,
+		UI:                 mapUIState(snap.UI),
 	}
 }
 
@@ -136,7 +162,17 @@ func mapGameIdentity(identity memory.IdentityProbe) GameIdentity {
 }
 
 func mapUIState(ui memory.UIState) UIState {
-	return UIState{InventoryOpen: ui.InventoryOpen, NPCInteractOpen: ui.NPCInteractOpen, NPCShopOpen: ui.NPCShopOpen, WaypointOpen: ui.WaypointOpen, StashOpen: ui.StashOpen, QuitMenuOpen: ui.QuitMenuOpen}
+	return UIState{InventoryOpen: ui.InventoryOpen, NPCInteractOpen: ui.NPCInteractOpen, NPCShopOpen: ui.NPCShopOpen, WaypointOpen: ui.WaypointOpen, StashOpen: ui.StashOpen, QuitMenuOpen: ui.QuitMenuOpen, CubeOpen: ui.CubeOpenKnown && ui.CubeOpen, CubeOpenKnown: ui.CubeOpenKnown}
+}
+
+func mapCowCorpse(corpse memory.CowCorpseUnit, observedAt time.Time, generation uint64) CowCorpse {
+	return CowCorpse{
+		NPCID: corpse.NPCID, UnitID: corpse.UnitID,
+		Position: Position{X: corpse.PosX, Y: corpse.PosY},
+		Name:     LookupNPCName(corpse.NPCID), MonsterTypeFlag: corpse.MonsterTypeFlag,
+		ObservedAt: observedAt, SnapshotGeneration: generation,
+		Consumed: corpse.Consumed, ConsumptionKnown: corpse.ConsumptionKnown,
+	}
 }
 
 // mapHover converts the raw memory hover buffer into the world hover type.

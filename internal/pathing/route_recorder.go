@@ -133,8 +133,31 @@ func (r *RouteRecorder) completeArea(toArea world.AreaID) RouteSegment {
 	if len(r.points) == 0 || routePointPosition(r.points[len(r.points)-1]) != lastPosition {
 		r.points = append(r.points, RoutePoint{X: lastPosition.X, Y: lastPosition.Y})
 	}
-	transitionKind := recordingTransitionKind(r.currentArea, toArea, r.previous)
-	return RouteSegment{ID: r.currentID, FromAreaID: r.currentArea, ToAreaID: toArea, Movement: r.cfg.Movement, Points: append([]RoutePoint(nil), r.points...), Transition: RouteTransition{Type: "entrance", EntranceKind: transitionKind}}
+	transition := recordingTransition(r.currentArea, toArea, r.previous)
+	return RouteSegment{ID: r.currentID, FromAreaID: r.currentArea, ToAreaID: toArea, Movement: r.cfg.Movement, Points: append([]RoutePoint(nil), r.points...), Transition: transition}
+}
+
+func recordingTransition(fromArea, toArea world.AreaID, state world.State) RouteTransition {
+	if portal, ok := nearestRecordingObjectOfKind(state, world.ObjectKindPermanentPortal); ok && portal.UnitID != 0 {
+		return RouteTransition{Type: "object_portal", ObjectKind: portal.Kind, ExpectedToArea: toArea}
+	}
+	return RouteTransition{Type: "entrance", EntranceKind: recordingTransitionKind(fromArea, toArea, state)}
+}
+
+func nearestRecordingObjectOfKind(state world.State, kind world.ObjectKind) (world.Object, bool) {
+	var best world.Object
+	bestDistance := 0.0
+	found := false
+	for _, object := range state.Objects {
+		if object.Kind != kind {
+			continue
+		}
+		distance := world.Distance(state.Player.Position, object.Position)
+		if !found || distance < bestDistance {
+			best, bestDistance, found = object, distance, true
+		}
+	}
+	return best, found
 }
 
 func (r *RouteRecorder) nextSegmentID(areaID world.AreaID) string {

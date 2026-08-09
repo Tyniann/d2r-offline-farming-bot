@@ -28,7 +28,33 @@ type Deps struct {
 	TownEgress TownEgressPlayback
 	Profile    ProfileActions
 	Town       TownPreparationActions
+	Cow        CowSetupActions
+	CowRecipe  CowPortalRecipeActions
 	Telemetry  RunTelemetry
+}
+
+// CowSetupActions owns only the Wirt interaction and the Akara single-tome
+// transaction. Route travel, pickup, and Town Portal actions keep using the
+// established shared dependencies.
+type CowSetupActions interface {
+	TickWirt(context.Context, world.State) CowSetupActionResult
+	TickTome(context.Context, world.State) CowSetupActionResult
+	Reset()
+}
+
+// CowPortalRecipeActions executes only the bound Wirt's Leg and fresh Tome
+// recipe, including hover-confirmed entry into the resulting permanent portal.
+type CowPortalRecipeActions interface {
+	Tick(state world.State, now time.Time, legUnitID, tomeUnitID, cubeUnitID uint32) CowSetupActionResult
+	Reset()
+}
+
+// CowSetupActionResult reports one bounded Cow setup action.
+type CowSetupActionResult struct {
+	Done         bool
+	Reason       string
+	UnitID       uint32
+	ProgressKind string
 }
 
 // RunTelemetry persists shared pipeline transitions before subsequent input.
@@ -53,6 +79,7 @@ type TownPreparationResult struct {
 type ProfileActions interface {
 	TickHook(context.Context, profile.Hook, world.State, profile.EncounterTarget, time.Time) profile.Result
 	TickResources(world.State, profile.ResourceContext, time.Time) profile.Result
+	TickRouteMaintenance(world.State, time.Time) profile.Result
 	Reset()
 }
 
@@ -60,6 +87,13 @@ type ProfileActions interface {
 type RouteClearExecutor interface {
 	TickRouteClear(context.Context, profile.RouteClearRequest, time.Time) profile.Result
 	ResetRouteClear()
+}
+
+// CowRouteClearExecutor extends the stationary route-clear surface only with
+// the already UnitID-authorized Corpse Explosion action.
+type CowRouteClearExecutor interface {
+	RouteClearExecutor
+	TickAuthorizedCorpseExplosion(context.Context, world.State, uint32, time.Time) profile.Result
 }
 
 // RoutePlayback is the generic full-route surface used by run adapters.
@@ -82,6 +116,7 @@ type TownEgressPlayback interface {
 type Input interface {
 	Status() input.Status
 	Bound() bool
+	Window() (input.WindowInfo, bool)
 }
 
 // Navigator is the subset of pathing.Navigator used by task runs.
@@ -127,15 +162,16 @@ type CombatActions interface {
 	// selection and throttled calls return false.
 	CastAttackAtWorld(now time.Time, skillID uint16, player world.Player, targetPos world.Position) (bool, error)
 	// CastAttackAtMonster aims at the supplied living monster and sends the
-	// attack only after Memory confirms that exact UnitID under the cursor.
-	CastAttackAtMonster(now time.Time, skillID uint16, player world.Player, target world.Monster) (bool, error)
+	// attack after either exact hover confirmation or an exhausted hover search
+	// with a fresh playable world projection. The result identifies the proof.
+	CastAttackAtMonster(now time.Time, skillID uint16, player world.Player, target world.Monster) (profile.MonsterCastResult, error)
 	// MonsterAimProjectable reports whether the first visible-body hover probe
 	// is inside the currently bound playable client area.
 	MonsterAimProjectable(playerPos, targetPos world.Position) bool
-	// FarthestProjectableMonsterDistance returns the greatest boss distance
-	// reachable along playerPos→targetPos from which the first hover probe is
-	// playable. It performs no input and does not claim that the tile is safe.
-	FarthestProjectableMonsterDistance(playerPos, targetPos world.Position) (float64, bool)
+	// FarthestProjectableMonsterApproach returns the first position along
+	// playerPos→targetPos from which the hover probe is playable, plus the
+	// remaining distance. It performs no input and does not claim safety.
+	FarthestProjectableMonsterApproach(playerPos, targetPos world.Position) (world.Position, float64, bool)
 	// StopAttack releases any stateful attack input before combat stops or repositions.
 	StopAttack() error
 	// TeleportToward moves toward targetPos while trying to preserve desiredDistanceTiles.
@@ -160,11 +196,14 @@ type RunActions interface {
 type LootActions interface {
 	// Scan evaluates current loot and returns the next non-skipped target.
 	Scan(state world.State) LootScanResult
-	// ScanRouteKeep evaluates only `keep` matches within maxDistanceTiles for
-	// opportunistic pickup while a combat route is held.
+	// ScanRouteKeep prioritizes `keep` matches within maxDistanceTiles and may
+	// then offer one missing profile-belt supply while a combat route is held.
 	ScanRouteKeep(state world.State, maxDistanceTiles float64) LootScanResult
 	// StartPickup starts pickup for target and fails if a pickup is already active.
 	StartPickup(target LootTarget) error
+	// StartCowLegPickup starts the bound Wirt's Leg pickup without the generic
+	// nearby-monster abort; all other distance, hover, and Memory gates remain.
+	StartCowLegPickup(target LootTarget) error
 	// TickPickup advances the active pickup executor.
 	TickPickup(state world.State, now time.Time) LootPickupResult
 	// ClearSkippedPickup removes unitID from the in-step skip set so one recovery retry may StartPickup again.

@@ -204,6 +204,86 @@ Bis einer dieser Fälle eintritt, bleibt der bestehende globale Filter als bewus
 
 ---
 
+### Periodisches Bone Armor während Route-Combat
+
+**Status:** `promoted` — verbindlicher Teil von Phase 20.7
+
+**Ziel-Phase:** Phase 20.7; vor der vollständigen Cow-End-to-End-Abnahme
+
+**Verwandt:** Character Encounter Profiles, Route-Threat-Combat, Cow-Hold-Combat, Input Controller, Run-Telemetrie
+
+#### Kontext
+
+Bone Armor wird derzeit durch den Profil-Hook `town_ready` einmal zu Beginn jedes Runs gewirkt. Auf langen Combat-Routen kann der Schutz danach auslaufen oder durch Treffer verbraucht sein. Der aktuelle World State liefert keinen verlässlichen Bone-Armor-Buff- beziehungsweise Absorptionswert; eine spätere Auffrischung darf deshalb keinen Memory-bestätigten Restschutz vortäuschen. Der vorhandene HP-Verlauf kann aber als zusätzlicher Sicherheitsauslöser dienen: Hat der Nekromant seit dem letzten erfolgreichen Cast HP verloren und liegt anschließend bei höchstens 65 Prozent, wird eine Auffrischung vorgemerkt. Der Zeitanker bleibt als obere Grenze bestehen, damit Bone Armor auch ohne klar beobachtete Schadenskante spätestens nach 60 Sekunden erneuert wird.
+
+#### Konkreter Implementierungsvorschlag
+
+Keine universelle Buff- oder Multi-Rule-Engine einführen. Das Profil `necro_bone_spear` erhält genau eine optionale, eng typisierte Route-Maintenance-Regel, zum Beispiel:
+
+```yaml
+combat_profiles:
+  necro_bone_spear:
+    route_maintenance:
+      bone_armor:
+        enabled: true
+        refresh_interval_ms: 60000
+        refresh_after_damage_below_percent: 65
+        minimum_recast_interval_ms: 10000
+        settle_ms: 750
+```
+
+Die Zuständigkeit liegt beim bestehenden Profil-Executor; der Route-Hold-Controller bleibt Eigentümer der Bewegungsfreigabe und ruft Maintenance nur während eines aktiven Combat-Holds auf. Der Executor speichert `last_successful_cast_at`, den zuletzt bewerteten HP-Wert und eine vorgemerkte Schadenskante generation-/game-scoped. Fällig ist der Cast entweder am 60-Sekunden-Termin oder nach neuem HP-Verlust bei höchstens 65 Prozent, frühestens jedoch zehn Sekunden nach dem letzten erfolgreichen Cast. Nur erfolgreich gesendeter Input setzt Zeitanker und Schadensvormerkung zurück; ein fehlgeschlagener, unterdrückter oder nur fälliger Cast tut dies nicht.
+
+Verbindliche Priorität pro frischem Snapshot:
+
+1. Stop/Pause und ungültiger, stale oder inkonsistenter World State senden keinen Input.
+2. Notfall-Ressourcen und bereits laufende Verifikations-/Settle-Zustände bleiben höher priorisiert.
+3. Ist Bone Armor fällig, beendet `StopAttack` einen gehaltenen Angriff; frühestens im folgenden Tick wird der Self-Cast gesendet.
+4. Während `settle_ms` bleiben Angriff und Bewegung gesperrt; danach setzt der normale AD-/Bone-Spear-/CE-Entscheidungspfad fort.
+5. Pro Snapshot/Tick ist weiterhin höchstens eine Input-Aktion erlaubt.
+
+Der Cast ist nur in `GamePhaseInGame`, bei fokussiertem D2R-Fenster, geschlossener blockierender UI und tatsächlichem Route-Combat-Hold erlaubt. Reines Town-Walking, Route-Movement, Loot, Rezeptausführung und Kandidatentests lösen die Regel nicht aus. Queue-Folgeruns im selben Spiel dürfen den Timer weiterverwenden; ein neuer Game-/Executor-Reset löscht ihn. Der bestehende `town_ready`-Cast bleibt unabhängig davon bestehen und setzt nach erfolgreichem Cast denselben Maintenance-Zeitanker, damit nicht kurz danach ein zweiter Cast folgt.
+
+#### Tests und Telemetrie
+
+- Config-Default `disabled`, Bereichsprüfung für Intervall und Settle sowie fehlendes Skill-Binding fail-closed.
+- Exakte 60-Sekunden-Grenze, HP-Verlustkante bei höchstens 65 Prozent, Zehn-Sekunden-Mindestabstand, kein Back-to-back-Cast, kein Timer-Advance ohne erfolgreichen Input und Reset-/Same-game-Semantik.
+- Aktionspriorität gegen Tränke, AD, Bone Spear und CE; `StopAttack` und Self-Cast bleiben zwei getrennte Ticks.
+- Kein Input bei Movement, Kandidatentest, blockierender UI, Fokusverlust, stale Snapshot oder laufendem Settle.
+- Strukturierte Events `route_maintenance_due`, `route_maintenance_cast` und `route_maintenance_suppressed` mit Run-/Profil-ID, Skill und Grund; kein behaupteter Buff-Erfolg, solange Memory ihn nicht belegen kann.
+
+#### Nicht-Ziele
+
+- Keine Erkennung oder Prognose verbleibender Absorptionspunkte.
+- Keine allgemeine Rotation beliebiger Buffs, Auren oder Beschwörungen.
+- Kein Cast allein aufgrund verstrichener Wandzeit außerhalb eines sicheren Combat-Holds.
+
+---
+
+### Mercenary-Tod während eines Runs und Wiederherstellung vor dem Folgerun
+
+**Status:** `promoted` — verbindlicher Teil von Phase 20.7
+
+**Ziel-Phase:** Phase 20.7; vor der vollständigen Cow-End-to-End-Abnahme
+
+**Verwandt:** Mercenary Support, Town Preparation, Queue Lifecycle, Route-Threat-Combat
+
+#### Verbindliche Entscheidung
+
+Eine beobachtete `Alive → Dead`-Kante des angeheuerten Söldners stoppt den laufenden Angriff sofort und beendet den aktuellen Run kontrolliert. Sie darf die Queue aber nicht dauerhaft terminal stoppen. Vor dem nächsten Run, der einen lebenden Söldner verlangt, muss der bestehende Town-Planer den Zustand `dead` zuerst über die vorhandene Kashya-Route und `mercenary_revive` beheben und den wieder lebenden Söldner anschließend erneut Memory-bestätigen.
+
+Der aktuelle Session-Preflight behandelt `mercenary_dead_at_start` noch vor dieser Wiederherstellung als terminal. Die spätere Änderung verschiebt deshalb nur diesen Zustand hinter die Town-Recovery: `dead` bei nachweislich angeheuertem Söldner ist wiederherstellbar; `not_hired`, ungültige oder mehrdeutige Memory-Evidenz, fehlende Kashya-Route und nicht ausreichendes Gold bleiben fail-closed. Nach erfolgreicher Wiederbelebung läuft die Queue mit ihrem normalen nächsten Versuch weiter.
+
+#### Erster enger Umfang
+
+- Angriff stoppen und aktuellen Run ohne weitere Offensivinputs verlassen.
+- Kein Checkpoint und keine Rückkehr zum gleichen Cow-Routenpunkt im selben Spiel.
+- Vor dem nächsten Merc-pflichtigen Run vorhandene Town-/Kashya-Wiederbelebung verwenden; keine zweite Revive-Implementierung.
+- Einen direkten Run-Abbruch allein aus Pfadlänge, Laufentscheidung oder Anzahl von Force-Move-Korrekturen ausdrücklich nicht einführen.
+- Telemetrie trennt `mercenary_died`, kontrolliertes Run-Ende, Revive-Versuch und bestätigte Wiederherstellung.
+
+---
+
 ### Konfigurierbare Offline-Players-Anzahl (`/players 1–8`)
 
 **Status:** `idea`

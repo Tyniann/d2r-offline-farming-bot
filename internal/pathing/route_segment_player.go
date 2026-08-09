@@ -247,6 +247,58 @@ func (p *RouteSegmentPlayer) SyncReached(state world.State) error {
 	return nil
 }
 
+// ReconcileForward rebases playback onto the first later recorded edge that
+// contains the player inside the configured drift corridor. It is reserved for
+// caller-authorized external movement such as a combat or loot Hold; ordinary
+// playback remains strictly sequential and never invokes this method.
+func (p *RouteSegmentPlayer) ReconcileForward(state world.State) (bool, error) {
+	if p.done {
+		return false, nil
+	}
+	if !state.Valid || state.Phase != world.GamePhaseInGame {
+		return false, fmt.Errorf("route forward reconciliation requires valid in-game state")
+	}
+	expectedClass, _ := parseCharacterClass(p.route.Binding.CharacterClass)
+	if !state.Identity.Valid || state.Identity.CharacterName != p.route.Binding.CharacterName || state.Identity.Class != expectedClass {
+		return false, ErrGameIdentityUnavailable
+	}
+	if p.transition {
+		return false, nil
+	}
+	if state.Area.ID != p.segment.FromAreaID {
+		return false, fmt.Errorf("%w: got %d want %d", ErrRouteUnexpectedArea, state.Area.ID, p.segment.FromAreaID)
+	}
+
+	p.syncReachedPoints(state)
+	if p.point >= len(p.segment.Points) {
+		return false, nil
+	}
+	currentTarget := routePointPosition(p.segment.Points[p.point])
+	if distanceToEdge(state.Player.Position, p.previous, currentTarget) <= p.route.Playback.MaxDriftTiles {
+		return false, nil
+	}
+
+	// Select the first forward edge that contains the externally moved player.
+	// Using the earliest match avoids skipping an entire loop when a later route
+	// section crosses the same world coordinates.
+	for point := p.point + 1; point < len(p.segment.Points); point++ {
+		previous := routePointPosition(p.segment.Points[point-1])
+		target := routePointPosition(p.segment.Points[point])
+		if distanceToEdge(state.Player.Position, previous, target) > p.route.Playback.MaxDriftTiles {
+			continue
+		}
+		p.previous = previous
+		p.point = point
+		p.corrections = 0
+		p.recovering = false
+		p.recoveryInput = routeRecoveryInput{}
+		p.navigator.Reset()
+		p.syncReachedPoints(state)
+		return true, nil
+	}
+	return false, nil
+}
+
 func (p *RouteSegmentPlayer) syncReachedPoints(state world.State) {
 	if !p.started {
 		p.previous = routePointPosition(p.segment.Points[0])

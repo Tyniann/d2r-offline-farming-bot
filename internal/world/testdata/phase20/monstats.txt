@@ -1,0 +1,4 @@
+Id	*hcIdx	NameStr	enabled
+fallen2	20	Carver	1
+hellbovine	391	Hell Bovine	1
+cowking	735	Hell Bovine	1

@@ -14,3 +14,14 @@ func TestRestartableSessionFailureRequiresConfiguredReason(t *testing.T) {
 		t.Fatal("unknown reason was accepted")
 	}
 }
+
+func TestMandatoryControlledExitReasonsIgnoreConfigurableRetryList(t *testing.T) {
+	for _, reason := range []string{reasonMercenaryDiedDuringRun, "combat_resource_exhausted", "route_mana_recovery_failed"} {
+		if !isMandatoryControlledExit(reason) {
+			t.Fatalf("mandatory controlled exit rejected %q", reason)
+		}
+	}
+	if isMandatoryControlledExit("route_segment_timeout") {
+		t.Fatal("ordinary configured retry became mandatory")
+	}
+}

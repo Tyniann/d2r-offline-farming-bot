@@ -41,14 +41,15 @@ func (m *Model) Current() State {
 // Area and Player are zero values; Reason is stored unchanged.
 func (m *Model) Reset(at time.Time, reason string) State {
 	m.current = State{
-		At:        at,
-		Valid:     false,
-		Reason:    reason,
-		Phase:     GamePhaseUnknown,
-		Objects:   make([]Object, 0),
-		Entrances: make([]Entrance, 0),
-		Monsters:  make([]Monster, 0),
-		Items:     make([]Item, 0),
+		At:         at,
+		Valid:      false,
+		Reason:     reason,
+		Phase:      GamePhaseUnknown,
+		Objects:    make([]Object, 0),
+		Entrances:  make([]Entrance, 0),
+		Monsters:   make([]Monster, 0),
+		CowCorpses: make([]CowCorpse, 0),
+		Items:      make([]Item, 0),
 	}
 	return cloneState(m.current)
 }
@@ -57,6 +58,7 @@ func cloneState(s State) State {
 	s.Objects = slices.Clone(s.Objects)
 	s.Entrances = slices.Clone(s.Entrances)
 	s.Monsters = slices.Clone(s.Monsters)
+	s.CowCorpses = slices.Clone(s.CowCorpses)
 	s.Items = slices.Clone(s.Items)
 	return s
 }

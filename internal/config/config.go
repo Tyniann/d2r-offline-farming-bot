@@ -94,9 +94,10 @@ func (c *RoutesConfig) UnmarshalYAML(value *yaml.Node) error {
 
 // LootConfig holds read-only loot model settings.
 type LootConfig struct {
-	Pickup        LootPickupConfig `yaml:"pickup"`
-	Stash         LootStashConfig  `yaml:"stash"`
-	InventoryLock [][]int          `yaml:"inventory_lock"`
+	Pickup          LootPickupConfig          `yaml:"pickup"`
+	Stash           LootStashConfig           `yaml:"stash"`
+	CowPortalRecipe LootCowPortalRecipeConfig `yaml:"cow_portal_recipe"`
+	InventoryLock   [][]int                   `yaml:"inventory_lock"`
 
 	inventoryLockPresent bool `yaml:"-"`
 }
@@ -119,6 +120,19 @@ type LootStashConfig struct {
 	InventoryTop    int `yaml:"inventory_top"`
 	InventoryCellW  int `yaml:"inventory_cell_width"`
 	InventoryCellH  int `yaml:"inventory_cell_height"`
+}
+
+// LootCowPortalRecipeConfig holds the finite waits and the single 1280x720
+// Transmute button coordinate for the deliberately narrow Cow recipe.
+type LootCowPortalRecipeConfig struct {
+	CubeOpenTimeoutMs int `yaml:"cube_open_timeout_ms"`
+	TransferTimeoutMs int `yaml:"transfer_timeout_ms"`
+	ResultTimeoutMs   int `yaml:"result_timeout_ms"`
+	PortalTimeoutMs   int `yaml:"portal_timeout_ms"`
+	CloseTimeoutMs    int `yaml:"close_timeout_ms"`
+	EntryTimeoutMs    int `yaml:"entry_timeout_ms"`
+	TransmuteX        int `yaml:"transmute_x"`
+	TransmuteY        int `yaml:"transmute_y"`
 }
 
 // UnmarshalYAML records whether inventory_lock was present.
@@ -527,12 +541,40 @@ func (c CombatConfig) validate(path string) error {
 func (c *LootConfig) applyDefaults() {
 	c.Pickup.applyDefaults()
 	c.Stash.applyDefaults()
+	c.CowPortalRecipe.applyDefaults()
 	if c.inventoryLockPresent {
 		return
 	}
 	c.InventoryLock = make([][]int, 4)
 	for row := range c.InventoryLock {
 		c.InventoryLock[row] = []int{1, 1, 1, 1, 1, 1, 1, 1, 1, 1}
+	}
+}
+
+func (c *LootCowPortalRecipeConfig) applyDefaults() {
+	if c.CubeOpenTimeoutMs == 0 {
+		c.CubeOpenTimeoutMs = 3000
+	}
+	if c.TransferTimeoutMs == 0 {
+		c.TransferTimeoutMs = 2000
+	}
+	if c.ResultTimeoutMs == 0 {
+		c.ResultTimeoutMs = 5000
+	}
+	if c.PortalTimeoutMs == 0 {
+		c.PortalTimeoutMs = 8000
+	}
+	if c.CloseTimeoutMs == 0 {
+		c.CloseTimeoutMs = 3000
+	}
+	if c.EntryTimeoutMs == 0 {
+		c.EntryTimeoutMs = 15000
+	}
+	if c.TransmuteX == 0 {
+		c.TransmuteX = 270
+	}
+	if c.TransmuteY == 0 {
+		c.TransmuteY = 411
 	}
 }
 
@@ -600,6 +642,13 @@ func (c LootConfig) validate() error {
 	if c.Stash.InventoryLeft < 0 || c.Stash.InventoryTop < 0 || c.Stash.InventoryCellW <= 0 || c.Stash.InventoryCellH <= 0 {
 		return fmt.Errorf("loot.stash inventory geometry is invalid")
 	}
+	recipe := c.CowPortalRecipe
+	if recipe.CubeOpenTimeoutMs <= 0 || recipe.TransferTimeoutMs <= 0 || recipe.ResultTimeoutMs <= 0 || recipe.PortalTimeoutMs <= 0 || recipe.CloseTimeoutMs <= 0 || recipe.EntryTimeoutMs <= 0 {
+		return fmt.Errorf("loot.cow_portal_recipe timeout values must be > 0")
+	}
+	if recipe.TransmuteX < 0 || recipe.TransmuteX >= 1280 || recipe.TransmuteY < 0 || recipe.TransmuteY >= 720 {
+		return fmt.Errorf("loot.cow_portal_recipe transmute coordinate must be inside 1280x720")
+	}
 	if len(c.InventoryLock) != 4 {
 		return fmt.Errorf("loot.inventory_lock must have 4 rows")
 	}
@@ -649,10 +698,13 @@ func (c *InputConfig) applyDefaults() {
 		c.Bindings.Skills = make(map[string]SkillBindingConfig)
 	}
 	hasAmplifyDamage := false
+	hasCorpseExplosion := false
 	for name := range c.Bindings.Skills {
 		switch strings.ToLower(strings.TrimSpace(name)) {
 		case "amplify_damage", "amplifydamage", "amplify damage", "ad":
 			hasAmplifyDamage = true
+		case "corpse_explosion", "corpseexplosion", "corpse explosion", "ce":
+			hasCorpseExplosion = true
 		}
 	}
 	if !hasAmplifyDamage {
@@ -660,6 +712,11 @@ func (c *InputConfig) applyDefaults() {
 		// the documented D2R default in memory without overwriting an
 		// operator-provided binding or rewriting the local config file.
 		c.Bindings.Skills["amplify_damage"] = SkillBindingConfig{Key: "f1", Button: "right"}
+	}
+	if !hasCorpseExplosion {
+		// Cow combat is the first productive CE consumer. F2 complements the
+		// established F1 curse default for installations created before Phase 20.
+		c.Bindings.Skills["corpse_explosion"] = SkillBindingConfig{Key: "f2", Button: "right"}
 	}
 }
 

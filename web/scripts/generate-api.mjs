@@ -178,9 +178,9 @@ export function getRouteWorkflow(signal?: AbortSignal): Promise<RouteWorkflowDTO
   return getJSON<RouteWorkflowDTO>("/api/v1/routes/workflow", signal);
 }`;
 const output = `// Code generated from internal/api/schema/openapi.json; DO NOT EDIT.\n\n${definitions.join("\n\n")}\n\n${client}\n`;
+const current = await readFile(outputPath, "utf8").catch(() => "");
 if (process.argv.includes("--check")) {
-  const current = await readFile(outputPath, "utf8").catch(() => "");
   if (current !== output) throw new Error("src/api/generated.ts is stale; run pnpm generate");
-} else {
+} else if (current !== output) {
   await writeFile(outputPath, output, "utf8");
 }

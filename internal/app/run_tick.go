@@ -42,6 +42,7 @@ type inputController interface {
 	CastBeltWithModifier(src input.BeltBindingSource, modifier string, slot int) error
 	CastSkillAt(src input.BindingSource, skillID uint16, clientX, clientY int) error
 	MoveTo(clientX, clientY int) error
+	Click(button input.MouseButton) error
 	ClickWithModifier(modifier string, button input.MouseButton) error
 	PressKey(key string) error
 	Focus() error
@@ -77,12 +78,12 @@ type worldLoopState struct {
 }
 
 // runTick executes one poll-loop iteration: attach, poll, snapshot read, and world update.
-func (rt *Runtime) runTick(ctx context.Context, state *runState) (err error) {
+func (rt *Runtime) runTick(ctx context.Context, state *runState) (runErr error) {
 	defer func() {
 		if rt.uiStatusPublisher != nil {
 			lastError := ""
-			if err != nil && !errors.Is(err, context.Canceled) {
-				lastError = err.Error()
+			if runErr != nil && !errors.Is(runErr, context.Canceled) {
+				lastError = runErr.Error()
 			}
 			rt.uiStatusPublisher(rt.CurrentUIStatus(lastError))
 		}
@@ -173,19 +174,24 @@ func (rt *Runtime) runTick(ctx context.Context, state *runState) (err error) {
 	}
 
 	snap := rt.Probe.Snapshot()
+	rt.lastSnapshot = snap
 	prevWorld := rt.World.Current()
 	cur := rt.World.Update(snap)
 	rt.observeMercenaryDeath(prevWorld, cur)
-	if rt.Config.Input.Enabled && rt.Options.InputTest == "" && rt.Options.OfflineDifficulty == "" && !rt.Options.OfflineExitTest && rt.Options.UIStateProbe == "" && rt.Options.ScreenAnchorCapture == "" && rt.Options.MercenaryProbe == "" && !rt.Options.TownInspect && rt.Options.TownTest == "" && !rt.pathingTestIsReadOnly() && !rt.routeCommandIsReadOnly() && snap.Valid && snap.Phase == memory.GamePhaseInGame && !state.bindingsPrecheckDone {
+	if err := rt.abortRunOnMercenaryDeath(prevWorld, cur); err != nil {
+		return err
+	}
+	if rt.Config.Input.Enabled && rt.Options.InputTest == "" && rt.Options.OfflineDifficulty == "" && !rt.Options.OfflineExitTest && rt.Options.UIStateProbe == "" && rt.Options.ScreenAnchorCapture == "" && rt.Options.MercenaryProbe == "" && rt.Options.CowProbe == "" && !rt.Options.TownInspect && rt.Options.TownTest == "" && !rt.pathingTestIsReadOnly() && !rt.routeCommandIsReadOnly() && snap.Valid && snap.Phase == memory.GamePhaseInGame && !state.bindingsPrecheckDone {
 		state.bindingsPrecheckDone = true
 		if err := BindingsPrecheck(rt.Log, rt.Bindings, snap, true); err != nil {
 			return fmt.Errorf("bindings precheck: %w", err)
 		}
 	}
-	if err := rt.consumeMercenaryPreflight(cur); err != nil {
+	ready, err := rt.consumeRunReadiness(ctx, cur)
+	if err != nil {
 		return err
 	}
-	if rt.shouldTickTasks(cur) {
+	if ready && rt.shouldTickTasks(cur) {
 		rt.Tasks.Tick(ctx, cur, time.Now())
 	}
 	prev := state.world.lastLogged

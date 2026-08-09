@@ -22,10 +22,12 @@ type objectRow struct {
 }
 
 type selectedObjects struct {
-	TownPortal objectRow
-	GoodChest  objectRow
-	Stash      objectRow
-	Waypoints  []objectRow
+	TownPortal      objectRow
+	PermanentPortal objectRow
+	WirtsBody       objectRow
+	GoodChest       objectRow
+	Stash           objectRow
+	Waypoints       []objectRow
 }
 
 func main() {
@@ -123,6 +125,8 @@ func readObjectRows(path string) ([]objectRow, error) {
 func selectObjects(rows []objectRow) (selectedObjects, error) {
 	var selected selectedObjects
 	portalCount := 0
+	permanentPortalCount := 0
+	wirtsBodyCount := 0
 	chestCount := 0
 	stashCount := 0
 	for _, row := range rows {
@@ -130,6 +134,12 @@ func selectObjects(rows []objectRow) (selectedObjects, error) {
 		case "TownPortal":
 			selected.TownPortal = row
 			portalCount++
+		case "PortalPermanent":
+			selected.PermanentPortal = row
+			permanentPortalCount++
+		case "Wirt":
+			selected.WirtsBody = row
+			wirtsBodyCount++
 		case "PlaceUniqueChest":
 			selected.GoodChest = row
 			chestCount++
@@ -143,6 +153,12 @@ func selectObjects(rows []objectRow) (selectedObjects, error) {
 	}
 	if portalCount != 1 {
 		return selectedObjects{}, fmt.Errorf("Class=TownPortal count = %d, want 1", portalCount)
+	}
+	if permanentPortalCount != 1 {
+		return selectedObjects{}, fmt.Errorf("Class=PortalPermanent count = %d, want 1", permanentPortalCount)
+	}
+	if wirtsBodyCount != 1 {
+		return selectedObjects{}, fmt.Errorf("Class=Wirt count = %d, want 1", wirtsBodyCount)
 	}
 	if chestCount != 1 {
 		return selectedObjects{}, fmt.Errorf("Class=PlaceUniqueChest count = %d, want 1", chestCount)
@@ -163,6 +179,8 @@ func renderMemory(version string, selected selectedObjects) []byte {
 	b.WriteString("package memory\n\n")
 	b.WriteString("var runtimeObjectIDs = map[uint32]struct{}{\n")
 	fmt.Fprintf(&b, "\t%d: {}, // %s\n", selected.TownPortal.ID, selected.TownPortal.Class)
+	fmt.Fprintf(&b, "\t%d: {}, // %s\n", selected.PermanentPortal.ID, selected.PermanentPortal.Class)
+	fmt.Fprintf(&b, "\t%d: {}, // %s\n", selected.WirtsBody.ID, selected.WirtsBody.Class)
 	fmt.Fprintf(&b, "\t%d: {}, // %s\n", selected.GoodChest.ID, selected.GoodChest.Class)
 	fmt.Fprintf(&b, "\t%d: {}, // %s\n", selected.Stash.ID, selected.Stash.Class)
 	for _, waypoint := range selected.Waypoints {
@@ -178,6 +196,8 @@ func renderWorld(version string, selected selectedObjects) []byte {
 	b.WriteString("package world\n\n")
 	b.WriteString("const (\n")
 	fmt.Fprintf(&b, "\t// TownPortalID is the player-cast portal object for this generated D2R version.\n\tTownPortalID uint32 = %d\n", selected.TownPortal.ID)
+	fmt.Fprintf(&b, "\t// PermanentPortalID is the area-bound red portal object from objects.txt Class=PortalPermanent.\n\tPermanentPortalID uint32 = %d\n", selected.PermanentPortal.ID)
+	fmt.Fprintf(&b, "\t// WirtsBodyID is the Tristram quest object from objects.txt Class=Wirt.\n\tWirtsBodyID uint32 = %d\n", selected.WirtsBody.ID)
 	fmt.Fprintf(&b, "\t// GoodChestID is the unique chest placement object for this generated D2R version.\n\tGoodChestID uint32 = %d\n", selected.GoodChest.ID)
 	fmt.Fprintf(&b, "\t// PersonalStashID is the character stash object for this generated D2R version.\n\tPersonalStashID uint32 = %d\n", selected.Stash.ID)
 	b.WriteString(")\n\n")
@@ -191,7 +211,7 @@ func renderWorld(version string, selected selectedObjects) []byte {
 	b.WriteString("// AllWaypointIDs returns a copy of generated waypoint object IDs.\n")
 	b.WriteString("func AllWaypointIDs() []uint32 { return append([]uint32(nil), waypointIDs...) }\n\n")
 	b.WriteString("var objectNames = map[uint32]string{\n")
-	fmt.Fprintf(&b, "\tTownPortalID: \"Town Portal\",\n\tGoodChestID: \"Good Chest\",\n\tPersonalStashID: \"Personal Stash\",\n")
+	fmt.Fprintf(&b, "\tTownPortalID: \"Town Portal\",\n\tPermanentPortalID: \"Permanent Portal\",\n\tWirtsBodyID: \"Wirt's Body\",\n\tGoodChestID: \"Good Chest\",\n\tPersonalStashID: \"Personal Stash\",\n")
 	for _, waypoint := range selected.Waypoints {
 		fmt.Fprintf(&b, "\t%d: \"Waypoint\",\n", waypoint.ID)
 	}

@@ -131,6 +131,12 @@ func (n *Navigator) Start(goal Goal) error {
 		if goal.TargetArea == 0 {
 			return fmt.Errorf("%s: target area required", ReasonInvalidGoal)
 		}
+		if goal.StrictEntrance && goal.StrictObject {
+			return fmt.Errorf("%s: entrance and object transitions are mutually exclusive", ReasonInvalidGoal)
+		}
+		if goal.StrictObject && (goal.ViaObject == world.ObjectKindUnknown || goal.ViaObjectUnitID == 0) {
+			return fmt.Errorf("%s: strict object transition requires kind and UnitID", ReasonInvalidGoal)
+		}
 	case GoalKindMoveToPosition:
 		if goal.TargetPos == (world.Position{}) {
 			return fmt.Errorf("%s: target position required", ReasonInvalidGoal)
@@ -157,6 +163,7 @@ func (n *Navigator) Start(goal Goal) error {
 		"target_x", goal.TargetPos.X,
 		"target_y", goal.TargetPos.Y,
 		"via_entrance", goal.ViaEntrance.String(),
+		"via_object", goal.ViaObject.String(),
 	)
 	return nil
 }
@@ -238,6 +245,27 @@ func (n *Navigator) tickMoveToArea(now time.Time, state world.State) NavTickResu
 	if !n.evaluatePendingCast(now, state) {
 		return NavTickResult{Status: n.status}
 	}
+	if n.goal.StrictObject {
+		object, ok := findTransitionObject(state, n.goal.ViaObject, n.goal.ViaObjectUnitID)
+		if !ok {
+			return n.finish(NavFailed, ReasonObjectUnavailable, state)
+		}
+		n.status = NavClicking
+		result, err := n.clicker.Tick(state, ClickTarget{UnitID: object.UnitID, UnitType: world.HoverUnitTypeObject, Position: object.Position, Name: object.Name}, n.deps.Config.Explore.MaxEntranceClickDistance)
+		if err != nil {
+			n.log.Debug("pathing object portal click blocked", "unit_id", object.UnitID, "error", err)
+			return NavTickResult{Status: n.status}
+		}
+		n.logNavTick(state, "object_portal", result.Attempt)
+		switch result.Status {
+		case ClickHit:
+			n.transitionClick.pending = true
+			n.transitionClick.at = now
+		case ClickTooFar, ClickHoverNotFound, ClickProjectionFailed:
+			return n.finish(NavFailed, string(result.Status), state)
+		}
+		return NavTickResult{Status: n.status}
+	}
 
 	plan := n.explorer.Plan(state, n.goal)
 	if n.goal.StrictEntrance && plan.Mode == ExploreBearing {
@@ -299,6 +327,15 @@ func (n *Navigator) tickMoveToArea(now time.Time, state world.State) NavTickResu
 		MovementOutcomeAt:     now.Add(teleportSettleTimeout),
 		MovementProgressTiles: n.deps.Config.StuckProgressTiles,
 	}
+}
+
+func findTransitionObject(state world.State, kind world.ObjectKind, unitID uint32) (world.Object, bool) {
+	for _, object := range state.Objects {
+		if object.Kind == kind && object.UnitID == unitID {
+			return object, true
+		}
+	}
+	return world.Object{}, false
 }
 
 func (n *Navigator) tickMoveToPosition(now time.Time, state world.State) NavTickResult {

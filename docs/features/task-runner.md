@@ -18,7 +18,7 @@ Der Task Runner führt registrierte Run-Definitionen über eine gemeinsame Pipel
 
 - CLI `--run` überschreibt YAML `runs.active`
 - Leerer Name = passiver Modus (nur Monitor, wie bisher)
-- Bekannte Definitionen: `countess`, `mephisto`, `summoner` und `nihlathak` aus der typisierten `RunRegistry`. Die Pipeline übergibt das Waypoint-Ziel der Definition an den gemeinsamen registrierten Executor; vorhandene Routen bleiben bis zur Live-Abnahme mit `route_runtime_validation_required` gesperrt.
+- Bekannte Definitionen: `countess`, `mephisto`, `summoner`, `nihlathak` und `cows` aus der typisierten `RunRegistry`. Die vier klassischen Runs verwenden die gemeinsame Standardpipeline. `cows` besitzt wegen seiner zwei festen Routenrollen und des linearen Setup-/Rezept-/Sweep-Vertrags eine eigene enge Pipeline; die Route-Hold-, Loot-, Portal-, Town- und Profil-Primitiven bleiben gemeinsam.
 
 ### Lazy Run-Start
 
@@ -46,13 +46,27 @@ Zwei Abschluss-Mechanismen (nicht vermischen):
 
 `precheck -> acquire_town_waypoint -> open_waypoint -> select_run_waypoint -> wait_entry_area -> play_bound_route -> acquire_boss -> engage_boss -> [clear_nearby_hostiles] -> reposition_for_loot -> wait_for_drops -> scan_loot -> pick_loot -> cast_town_portal -> enter_town_portal -> wait_origin_town -> open_personal_stash -> stash_items -> close_personal_stash -> prepare_town_handoff -> complete`
 
+**Vollständige Cow-Pipeline ab Gate 20.6:**
+
+`cow_preflight -> cow_town_ready_profile -> cow_acquire_town_waypoint -> cow_open_waypoint -> cow_select_stony_field -> cow_wait_stony_field -> cow_play_leg_acquisition -> cow_open_wirt -> cow_pickup_leg -> cow_cast_return_portal -> cow_enter_return_portal -> cow_wait_rogue_encampment -> cow_buy_recipe_tome -> cow_setup_gate_complete -> cow_portal_recipe -> cow_recipe_gate_complete -> cow_play_cow_sweep -> cow_sweep_gate_complete -> cast_town_portal -> enter_town_portal -> wait_origin_town -> open_personal_stash -> stash_items -> close_personal_stash -> prepare_town_handoff -> complete`
+
+Die Cow-Pipeline sperrt die automatische Runner-Profil- und Safety-Eingabe, weil jeder Setup-Schritt genau einen eigenen Input-Eigentümer besitzt. `cow_play_leg_acquisition` delegiert die reine Wiedergabe an den vorhandenen RoutePlayer, lässt Route-Combat wegen des fehlenden autoritativen LOS-Modells für Stony-/Tristram-Hausgeometrie aber deaktiviert. Route-, Drift-, Stuck-, Timeout- und Portal-Gates bleiben aktiv; Setup-Route-Loot ist ebenfalls ausgeschaltet. Wirt-/Leg-Fehler kehren vor dem terminalen Ergebnis nach Town zurück; ein endgültiger Portalrückkehrfehler fordert genau einen supervisor-eigenen Save-&-Exit-Fallback an.
+
+`cow_portal_recipe` besitzt eine interne lineare Unter-State-Machine, bleibt für den Runner aber genau ein Step und ein Input-Eigentümer. Die im Preflight gebundene Cube-UnitID sowie die später gebundenen Leg-/Tome-UnitIDs werden unverändert übergeben. Erfolg ist erst nach exakt einem Memory-gegateten Transmute, bestätigtem Verbrauch beider Zutaten, drei stabilen Snapshots der neuen Permanent-Portal-UnitID, hover-bestätigtem Eintritt und Area 39 möglich. Ein terminaler Zustand nach Transmute kann keinen zweiten Klick auslösen.
+
+`cow_play_cow_sweep` delegiert wieder an denselben RoutePlayer und Route-Hold-Controller, diesmal mit aktivem Route-Combat und Cow-spezifischer stationärer Aktionswahl. Der Wrapper bindet den vorhandenen `RouteClearExecutor` plus die bereits UnitID-autorisierte CE-Oberfläche; er besitzt keine Movement-Aktion. AD wird einmal pro Hold gesendet, danach wechseln Bone Spear und höchstens zwei CE-Versuche pro aktuelle Leiche anhand frischer World-Snapshots. Ein Input allein setzt den Watchdog nicht zurück. `cow_combat_no_progress` ist retryfähig, volles Inventar beendet den Sweep nicht, und der terminale Routenpunkt benötigt drei verschiedene lokal vollständige Safe-Snapshots.
+
+Der Cow-Runner startet beide Rollen innerhalb desselben Runs. Telemetrie behält `cow_sweep` als immutable Primär-`route_id`, bindet `leg_acquisition` additiv als `setup_route_id` und markiert die tatsächlich aktive Rolle auf Playback-, Threat- und Hold/Clear-Events. Ein Setup-Playback darf deshalb weder einen zweiten Recorder erzeugen noch die Primär-ID eines bestehenden Recorders ersetzen.
+
+Nach den drei terminalen Safe-Snapshots beendet `cow_sweep_gate_complete` nicht den Runner. Die Cow-Pipeline delegiert den abschließenden Act-1-Rückweg, persönlichen Stash und Town-Handoff an dieselben bestehenden Steps wie Standard-Runs. Dadurch entstehen weder eine zweite Runner-Generation noch ein zusätzlicher Queue-/Budget-/History-Verbrauch. Die Foreign-Town-Egress-Verzweigung bleibt für Cow unerreichbar, weil `ReturnOrigin=act1` registriert ist.
+
 Entry-Area, Route-Terminal, Waypoint-Ziel, Boss, Suchanker, geordnete Encounter-Aktionen und Rückkehrakt stammen aus `RunDefinition`; Route, Combat und Loot-Policies aus dem ausgewählten `RunConfig`. `wait_entry_area`, Route-, Boss-, Loot- und Portal-Areagates vergleichen ausschließlich gegen diese Definition.
 
 Der Encounter-Aktionsindex beginnt pro Boss-Pin bei `0`. Jede Aktion erhält getrennte Start-/Abschluss-Telemetrie; erst danach darf regulärer Combat laufen. Pro Poll-Tick wird höchstens eine Action-Input-Gelegenheit konsumiert.
 
 `clear_nearby_hostiles` ist ein Registry-Opt-in für Summoner und Nihlathak. Er läuft unmittelbar nach der Kill-Bestätigung und ausdrücklich vor `reposition_for_loot`, damit der Charakter nicht zuerst zur Bossleiche in ein verbliebenes Pack teleportiert. Summoner nutzt den Standardangriff aus `CombatConfig` gegen seine run-spezifisch erlaubten lebenden Gegner innerhalb von 18 Tiles und höchstens 20 tatsächlich gesendete Aktionen. Nihlathak wirkt nach seinem bestätigten Tod einmal Amplify Damage und räumt anschließend die vollständige gebietseigene Halls-of-Vaught-Hostile-Allowlist innerhalb von 30 Tiles mit Bone Spear; ein bereits gehovtes lebendes Monster wird dort sofort akzeptiert, weil Nihlathak keine Corpse Explosion mehr auslösen kann. Seine dichtere Begegnung besitzt ein eigenes Budget von 40 gesendeten Aktionen. Der Step endet erst nach drei gegnerfreien Snapshots oder dem jeweiligen Aktionsbudget. Countess und Mephisto überspringen den Step: im Tower Cellar stehen zu viele Gegner hinter Wänden.
 
-Seit Phase 17.3 besitzt ausschließlich der Summoner-Route-Step ein Threat-Interleave. Vor jedem möglichen `Route.Tick` werden effektives Movement-/Recovery-Ziel und der aktuelle World-Snapshot einmal bewertet. Ein Immediate-, Corridor- oder Landing-Blocker beziehungsweise eine lokale Coverage-Lücke führt exklusiv zu `Route.Hold` und stationärem Profil-Clear; im selben Tick ist Route-Movement unerreichbar. Drei frische lokal vollständige freie Snapshots bestätigen den Clear, der nächste frische Tick setzt exakt denselben Routefortschritt fort. Zwölf Sekunden ohne objektiven Ziel-/Threat-/Coverage-Fortschritt scheitern fail-closed; Aktionen allein verlängern den Watchdog nicht.
+Seit Phase 17.3 besitzt der Summoner-Route-Step ein Threat-Interleave; Phase 20.5 verwendet denselben Controller für `cow_sweep`. Vor jedem möglichen `Route.Tick` werden effektives Movement-/Recovery-Ziel und der aktuelle World-Snapshot einmal bewertet. Ein Immediate-, Corridor- oder Landing-Blocker beziehungsweise eine lokale Coverage-Lücke führt exklusiv zu `Route.Hold` und stationärem Profil-Clear; Cow hält zusätzlich für jede lebende lokale Kuh innerhalb der Angriffsdistanz. Im selben Tick ist Route-Movement unerreichbar. Drei frische lokal vollständige freie Snapshots bestätigen den Clear, der nächste frische Tick setzt exakt denselben Routefortschritt fort. Zwölf Sekunden ohne objektiven Ziel-/Threat-/Coverage-Fortschritt scheitern fail-closed; Aktionen allein verlängern den Watchdog nicht.
 
 Ist derselbe Blocker drei frische Snapshots lang nicht projizierbar, nähert die Pipeline kontrolliert über Force Move zum bereits validierten nächsten Routenpunkt an. Nach 500 ms und einem frischen Snapshot muss die Distanz zur eingefrorenen Zielposition mindestens ein Tile kleiner sein. Fortschritt fordert einen neuen Projektionsbeleg; ohne Fortschritt sind höchstens drei Versuche erlaubt. `Route.Tick` bleibt dabei gesperrt und `route_threat_out_of_range` entsteht erst nach dem dritten wirkungslosen Versuch.
 
@@ -83,7 +97,7 @@ Vor dem normalen `run.onTick` prüft der Runner globale Safety:
 - **`WasReset()`** (z. B. `process_lost`): blockiert Lazy-Re-Start nach Re-Attach
 - **Kein zweiter Run ohne App-Neustart** — weder nach terminal noch nach reset
 
-Bei `process_lost` feste Reihenfolge: `Input.Unbind()` → `Tasks.Reset("process_lost")` → `World.Reset()`. Die zentrale, idempotente Run-Barriere leert dabei Waypoint, Portal, Town-Walk, Stash, Navigator, Route-Player, Route-Threat-Controller, Combat, Loot, Town, Profil, Boss-Pin und Aktionsindex genau einmal.
+Bei `process_lost` feste Reihenfolge: `Input.Unbind()` → `Tasks.Reset("process_lost")` → `World.Reset()`. Die zentrale, idempotente Run-Barriere leert dabei Waypoint, Portal, Town-Walk, Stash, Navigator, Route-Player, Route-Threat-Controller, Combat, Loot, Cow-Setup, Cow-Rezept samt gebundener Item-/Portal-UnitIDs, Town, Profil, Boss-Pin und Aktionsindex genau einmal.
 
 Pause blockiert Ticks still; Step-Timer und Tick-Zähler frieren ein (kein Tick = kein Fortschritt).
 

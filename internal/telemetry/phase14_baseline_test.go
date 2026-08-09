@@ -187,6 +187,9 @@ func TestPhase14CoreContractIsStable(t *testing.T) {
 		"route_mana_recovery_failed",
 		"route_recovery_unsafe",
 		"route_threat_state_invalid",
+		"combat_resource_exhausted",
+		"mercenary_died_during_run",
+		"cow_rejuvenation_reserve_missing",
 	} {
 		if message, ok := HistoryReasonMessage(code); !ok || message == "" {
 			t.Fatalf("missing German route-threat message for %q", code)

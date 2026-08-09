@@ -93,7 +93,7 @@ Stop:            RunToTown -> ExitGame -> idle
 Emergency/F11:   aktiver Owner -> gemeinsamer Cancellation-Pfad
 ```
 
-Das Phase-11-Abschlussaudit hat die frühere Parallelkomposition entfernt: Dashboard und autonome CLI verwenden beide `RuntimeQueueRunner`, `SessionSupervisor.StartQueue` und denselben Game-Lifecycle. Die CLI erzeugt ihren duplikatfreien Plan aus `session.queue` und beginnt weiterhin fail-closed am vorbereiteten Offline-Charakterbildschirm. Es gibt weder `sessionCycleOrchestrator` noch ein `skip_exit`-Flag.
+Das Phase-11-Abschlussaudit hat die frühere Parallelkomposition entfernt: Dashboard und autonome CLI verwenden beide `RuntimeQueueRunner`, `SessionSupervisor.StartQueue` und denselben Game-Lifecycle. Die CLI erzeugt ihren duplikatfreien Plan aus `session.queue`. Ein frischer Game-Start beginnt weiterhin fail-closed am Offline-Charakterbildschirm, verwendet dort aber immer den bestehenden kataloggebundenen Home-/Down-Selector; die zufällig markierte D2R-Zeile ist keine Vorbedingung. Es gibt weder `sessionCycleOrchestrator` noch ein `skip_exit`-Flag.
 
 ## Route-Lifecycle-Vertrag
 

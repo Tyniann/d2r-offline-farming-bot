@@ -56,6 +56,8 @@ Diese Vorgehensweise ist absichtlich datengetrieben: Wenn zukünftige D2R-Versio
 
 Normale `world state`-Logs enthalten `item_count` und `ground_item_count`. Der Fingerprint berücksichtigt nur stabile Ground-Item-Identität (`UnitID`, `TxtFileNo`, `Location`), damit Inventory-/Unknown-Churn keine Operator-Logs spammt. Mit `--probe --verbose` erscheinen gekappte Ground- und persönliche Inventory-Hints mit UnitID, Item-ID, Basiscode/-name, Qualität, Identified, Ethereal, rohen Flags hexadezimal, getrennter Active-/Base-Stat-194-Evidenz (`unreadable` / `absent` / `value:N`), produktiven Sockelfeldern (`sockets`, `sockets_available`, `socketed`), Identitätsart, Raw-ID, Available-Flag, kanonischem Namen, Konsistenzstatus und Validitätsgrund. Offensichtliche Dummy-Types wie `body` werden aus dem Ground-Hint ausgeblendet. Diese Diagnose ist read-only und löst keine Input-Aktion aus. Produktive Sockelfelder und Pickit-Syntax: [Sockel-Support für Pickit](socket-pickit.md).
 
+Die Phase-20.0-Diagnose schreibt für alle sichtbaren Inventory-/Cube-Items eine kleine UnitID-/Location-Projektion und hebt `leg`, `tbk` und `box` unabhängig von ihrer Location hervor. Damit kann der Operator denselben kontrollierten Gegenstand über `inventory` → `cube` verfolgen, ohne bereits eine Transferaktion zu implementieren.
+
 ## Datenmodell
 
 | Typ | Rolle |
@@ -102,4 +104,4 @@ Nach einem Countess-Kill sollen Ground-Drops im `world state` erscheinen, z. B. 
 - [Sockel-Support für Pickit](socket-pickit.md)
 
 ---
-*Zuletzt aktualisiert: 2026-07-31*
+*Zuletzt aktualisiert: 2026-08-01*

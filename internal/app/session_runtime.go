@@ -38,6 +38,7 @@ func (rt *Runtime) prepareSessionRun(request SupervisorRunRequest) (string, erro
 		Difficulty: rt.Config.Session.Difficulty, GameVersion: rt.Config.Memory.GameVersion,
 		Run: rt.Config.Session.Run, DefinitionID: contextEvent.DefinitionID,
 		RouteID: contextEvent.RouteID, RouteLayoutFingerprint: contextEvent.RouteLayoutFingerprint,
+		SetupRouteID: contextEvent.SetupRouteID, SetupRouteLayoutFingerprint: contextEvent.SetupRouteLayoutFingerprint,
 		QueueIndex: request.QueueIndex, QueueCycle: request.Cycle, StartedAt: time.Now().UTC(),
 		PickitProfiles: profiles, PickitAssignmentRevision: rt.ActivePickit.AssignmentRevision,
 	})
@@ -108,12 +109,14 @@ func (rt *Runtime) sessionRunContextEvent() (telemetry.Event, error) {
 		routeID = rt.runConfig.RouteID
 	}
 	return telemetry.Event{
-		Event:                  telemetry.RunContext,
-		DefinitionID:           string(definition.ID),
-		RouteID:                routeID,
-		RouteLayoutFingerprint: plan.RouteLayoutFingerprint,
-		WaypointTarget:         string(definition.WaypointTarget),
-		TownOrigin:             string(definition.ReturnOrigin),
+		Event:                       telemetry.RunContext,
+		DefinitionID:                string(definition.ID),
+		RouteID:                     routeID,
+		RouteLayoutFingerprint:      plan.RouteLayoutFingerprint,
+		SetupRouteID:                plan.SetupRouteID,
+		SetupRouteLayoutFingerprint: plan.SetupRouteLayoutFingerprint,
+		WaypointTarget:              string(definition.WaypointTarget),
+		TownOrigin:                  string(definition.ReturnOrigin),
 	}, nil
 }
 

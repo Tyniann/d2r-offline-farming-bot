@@ -25,6 +25,44 @@ type MonsterUnit struct {
 	MonsterTypeFlag uint8
 }
 
+// CowCorpseUnit is one directly observed Hell Bovine or Cow King corpse from
+// the current monster walk. ConsumptionKnown is false when the two live-
+// validated Corpse Explosion state bits cannot be read consistently.
+type CowCorpseUnit struct {
+	NPCID            uint32
+	UnitID           uint32
+	PosX             uint32
+	PosY             uint32
+	MonsterTypeFlag  uint8
+	Consumed         bool
+	ConsumptionKnown bool
+}
+
+// CowRawEvidence is read-only Gate-20.0 evidence captured directly during the
+// existing monster-unit walk. It is diagnostic only and does not authorize a
+// Corpse Explosion cast.
+type CowRawEvidence struct {
+	NPCID           uint32
+	UnitID          uint32
+	Corpse          uint8
+	Mode            uint32
+	PosX            uint32
+	PosY            uint32
+	MonsterTypeFlag uint8
+	// StateWindowOffset is relative to the unit's StatsListEx pointer.
+	StateWindowOffset uint32
+	// StateWindowHex preserves raw state words around both locally researched
+	// StateFlags candidates. It is diagnostic and has no gameplay authority.
+	StateWindowHex string
+	// StateWindowComplete reports whether the complete raw window was readable.
+	StateWindowComplete bool
+	// Consumed is true only when both live-validated CE-consumption bits are set.
+	Consumed bool
+	// ConsumptionKnown reports that both consumption bits agreed in a complete
+	// state window. A mismatch is treated as inconsistent and fail-closed.
+	ConsumptionKnown bool
+}
+
 // RawStat is a raw D2R stat entry as read from a stat array.
 type RawStat struct {
 	ID    uint16

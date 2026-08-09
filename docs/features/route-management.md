@@ -19,11 +19,15 @@ Der Weg zum Kandidatenstart bleibt im Rückkehrakt des jeweiligen Runs: Countess
 
 Nach Playback werden Terminalgebiet, exakter lebender Boss, Super-Unique-Flag und Maximaldistanz erneut aus Memory-Evidenz geprüft. Nur der vollständige Erfolg inklusive zweitem Rückweg setzt `test_passed` und `tested_at`. Fehler bleiben diagnostisch am Kandidaten gespeichert. Der Runtime-Driver meldet `preparing_playback`, `playing_candidate`, `validating_terminal` und `returning_after_test` mit grobem Fortschritt an die SSE-Projektion.
 
+Phase 20.2 bindet den Test zusätzlich an die feste Kandidatenrolle. Für `leg_acquisition` reist der Driver zum Stony-Field-Wegpunkt, spielt ausschließlich die Route ab und bestätigt Wirts Körper in Endnähe, ohne Wirt anzuklicken. Für `cow_sweep` betritt er aus Rogue Encampment das bereits vorhandene Permanent Portal über eine konkrete aktuelle Objekt-UnitID, spielt ausschließlich die Area-39-Route und bestätigt den F9-Endpunkt. Combat, Loot, Wirt-Interaktion und Rezept bleiben auch für diese Rollen außerhalb des Driver-Interfaces.
+
 ## Preview und Confirm
 
 Jede Vorschau bindet Candidate-Hash, Catalog-, Lifecycle- und Assignment-Revision, Operation, Character, Run sowie aktuelle und neu generierte Route-ID an ein zufälliges Einmal-Token. Confirm verbraucht das Token; geänderte Revisionen oder Inhalte stoppen fail-closed.
 
 Publish erzeugt die Route-ID kollisionsfest im Core. Replace veröffentlicht zuerst die neue Datei, archiviert den bisherigen aktiven Eintrag und schaltet erst danach das Assignment um. Der einzelne Freigabedialog zeigt den bisherigen aktiven Eintrag ausdrücklich als unverändert zu archivierenden Vorgänger. Archive entfernt gegebenenfalls das Assignment. Restore archiviert den aktuellen Slot vor Aktivierung des kompatiblen Vorgängers. Delete ist nur für unzugewiesene archivierte Routen möglich und verlangt, dass der Benutzer die exakte Route-ID im Dialog selbst eingibt; die UI übernimmt sie nicht automatisch.
+
+Bei `cows` wirkt jede Mutation nur auf `leg_acquisition` oder `cow_sweep`; der andere Slot bleibt erhalten. Ein zweiter bereits eingefrorener Kandidat darf nach Veröffentlichung seines kompatiblen Geschwisters weiterhin vorgeschlagen werden, wenn sein eigener Quellslot unverändert blieb. Vor Preview werden Charakter, Klasse, Difficulty, D2R-Version und Combat-Profil gegen eine vorhandene Geschwisterrolle geprüft. Map Seed und rollenlokale Layout-Fingerprints werden bewusst nicht gleichgesetzt.
 
 ## Recovery
 
@@ -50,4 +54,4 @@ Der während Phase 16 neu aufgezeichnete Countess-Kandidat bestätigte eine wich
 - [Farming-RouteCatalog und Lifecycle](route-lifecycle.md)
 
 ---
-*Zuletzt aktualisiert: 28. Juli 2026*
+*Zuletzt aktualisiert: 1. August 2026*

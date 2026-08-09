@@ -102,6 +102,27 @@ func (s State) FindMonsterByUnitID(unitID uint32) (Monster, bool) {
 	return Monster{}, false
 }
 
+// FindCurrentCowCorpse returns the one corpse whose UnitID belongs to this
+// state's complete corpse projection. Duplicate IDs fail closed.
+func (s State) FindCurrentCowCorpse(unitID uint32) (CowCorpse, bool) {
+	if !s.Valid || s.Phase != GamePhaseInGame || !s.CowCorpsesComplete || unitID == 0 {
+		return CowCorpse{}, false
+	}
+	var found CowCorpse
+	matches := 0
+	for _, corpse := range s.CowCorpses {
+		if corpse.UnitID != unitID {
+			continue
+		}
+		found = corpse
+		matches++
+	}
+	if matches != 1 || found.ObservedAt != s.At || found.SnapshotGeneration != s.Generation {
+		return CowCorpse{}, false
+	}
+	return found, true
+}
+
 func distanceSquared(a, b Position) float64 {
 	dx := float64(a.X) - float64(b.X)
 	dy := float64(a.Y) - float64(b.Y)

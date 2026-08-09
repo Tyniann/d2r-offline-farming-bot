@@ -59,6 +59,28 @@ func TestRouteValidateRejectsContractViolations(t *testing.T) {
 	}
 }
 
+func TestRouteValidateAcceptsFixedRoleObjectPortalAndRejectsUnknownRole(t *testing.T) {
+	route := validRoute()
+	route.Binding.RouteRole = RouteRoleLegAcquisition
+	route.Binding.LayoutFingerprint.AreaID = world.StonyField
+	route.Segments = []RouteSegment{
+		{ID: "stony-field", FromAreaID: world.StonyField, ToAreaID: world.Tristram, Movement: RouteMovementTeleport, Points: []RoutePoint{{X: 100, Y: 100}, {X: 110, Y: 100}}, Transition: RouteTransition{Type: "object_portal", ObjectKind: world.ObjectKindPermanentPortal, ExpectedToArea: world.Tristram}},
+		{ID: "tristram", FromAreaID: world.Tristram, ToAreaID: world.Tristram, Movement: RouteMovementTeleport, Points: []RoutePoint{{X: 200, Y: 200}, {X: 210, Y: 200}}, Transition: RouteTransition{Type: "terminal"}},
+	}
+	if err := route.Validate(); err != nil {
+		t.Fatalf("fixed-role portal route rejected: %v", err)
+	}
+	route.Binding.RouteRole = "dynamic"
+	if err := route.Validate(); err == nil || !strings.Contains(err.Error(), "route_role") {
+		t.Fatalf("unknown role error = %v", err)
+	}
+	route.Binding.RouteRole = RouteRoleLegAcquisition
+	route.Segments[0].Transition.ExpectedToArea = world.MooMooFarm
+	if err := route.Validate(); err == nil || !strings.Contains(err.Error(), "exact target area") {
+		t.Fatalf("wrong portal target error = %v", err)
+	}
+}
+
 func TestSaveLoadRouteAllowsUnknownFields(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "route.yaml")
 	route := validRoute()

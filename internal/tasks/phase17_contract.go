@@ -3,6 +3,7 @@ package tasks
 import (
 	"time"
 
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/pathing"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/world"
 )
 
@@ -43,6 +44,9 @@ const (
 type RouteProgress struct {
 	// RouteID identifiziert die bereits gestartete Route.
 	RouteID string
+	// RouteRole identifies the fixed role of a route-set member. Single-route
+	// runs leave it empty and continue to use RouteID as their telemetry route.
+	RouteRole pathing.RouteRole
 	// SegmentID identifiziert das aktive Segment.
 	SegmentID string
 	// SegmentIndex ist der aktive nullbasierte Segmentindex.
@@ -142,6 +146,9 @@ type RouteThreatReason string
 const (
 	// RouteThreatReasonClearNoProgress bezeichnet zwölf Sekunden ohne objektiven Clear-Fortschritt.
 	RouteThreatReasonClearNoProgress RouteThreatReason = "route_clear_no_progress"
+	// RouteThreatReasonCowNoProgress bezeichnet einen Cow-Hold ohne objektiven
+	// Fortschritt durch weniger Lebende, neue/verbrauchte Leichen oder Coverage.
+	RouteThreatReasonCowNoProgress RouteThreatReason = "cow_combat_no_progress"
 	// RouteThreatReasonOutOfRange bezeichnet einen dreifach bestätigten, nicht sicher angreifbaren Blocker.
 	RouteThreatReasonOutOfRange RouteThreatReason = "route_threat_out_of_range"
 	// RouteThreatReasonManaRecoveryFailed bezeichnet fehlende oder nicht bestätigte Mana-Erholung.

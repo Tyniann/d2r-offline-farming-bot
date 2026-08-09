@@ -1,7 +1,10 @@
 package memory
 
-import "time"
-import "math"
+import (
+	"encoding/hex"
+	"math"
+	"time"
+)
 
 const (
 	unitOffsetTxtFileNo = 0x04
@@ -9,6 +12,14 @@ const (
 	unitOffsetCorpse    = 0x1AE
 	unitOffsetUnitData  = 0x10
 	unitDataMonsterFlag = 0x1A
+
+	// This window contains both live-validated CE-consumption bytes. Keeping the
+	// full window preserves diagnostic evidence alongside the productive bits.
+	cowStateWindowOffset = 0xA80
+	cowStateWindowSize   = 0x100
+	cowConsumedOffsetA   = 0xB3D
+	cowConsumedOffsetB   = 0xB5D
+	cowConsumedMask      = 0x01
 
 	pathOffsetMonsterX = 0x02
 	pathOffsetMonsterY = 0x06
@@ -24,6 +35,8 @@ func (p *ProbeReader) enumerateEntities(moduleBase uintptr, off OffsetSet, snap 
 	snap.Objects = make([]ObjectUnit, 0)
 	snap.Entrances = make([]EntranceUnit, 0)
 	snap.Monsters = make([]MonsterUnit, 0)
+	snap.CowEvidence = make([]CowRawEvidence, 0)
+	snap.CowCorpses = make([]CowCorpseUnit, 0)
 
 	// Entrances and monsters before objects: the object segment is large and would
 	// exhaust maxTotalUnitVisits before smaller segments are walked (d2go walks each
@@ -147,6 +160,8 @@ func (p *ProbeReader) enumerateMonsters(moduleBase uintptr, off OffsetSet, visit
 	}
 	hirelingCount := 0
 	hirelingInvalid := false
+	snap.CowEvidenceComplete = true
+	snap.CowCorpsesComplete = true
 	err := p.walkUnitSegment(moduleBase, off, unitSegmentMonster, visited, segmentLimit, func(unitAddr uintptr) (unitWalkAction, error) {
 		txtFileNo, err := p.reader.ReadUint32(unitAddr + unitOffsetTxtFileNo)
 		if err != nil {
@@ -165,6 +180,27 @@ func (p *ProbeReader) enumerateMonsters(moduleBase uintptr, off OffsetSet, visit
 			}
 			snap.Mercenary = mercenary
 			return unitWalkContinue, nil
+		}
+		if isPhase20CowNPCID(txtFileNo) {
+			evidence, complete := p.readCowRawEvidence(unitAddr, txtFileNo, off)
+			if !complete {
+				snap.CowEvidenceComplete = false
+				snap.CowCorpsesComplete = false
+				return unitWalkContinue, nil
+			}
+			snap.CowEvidence = append(snap.CowEvidence, evidence)
+			if evidence.Corpse != 0 {
+				if !evidence.ConsumptionKnown {
+					snap.CowCorpsesComplete = false
+				}
+				snap.CowCorpses = append(snap.CowCorpses, CowCorpseUnit{
+					NPCID: evidence.NPCID, UnitID: evidence.UnitID,
+					PosX: evidence.PosX, PosY: evidence.PosY,
+					MonsterTypeFlag: evidence.MonsterTypeFlag,
+					Consumed:        evidence.Consumed, ConsumptionKnown: evidence.ConsumptionKnown,
+				})
+				return unitWalkContinue, nil
+			}
 		}
 
 		corpse, err := p.reader.ReadUint8(unitAddr + unitOffsetCorpse)
@@ -214,6 +250,8 @@ func (p *ProbeReader) enumerateMonsters(moduleBase uintptr, off OffsetSet, visit
 		return unitWalkContinue, nil
 	})
 	if err != nil {
+		snap.CowEvidenceComplete = false
+		snap.CowCorpsesComplete = false
 		p.resetMercenaryStability()
 		snap.Mercenary = MercenarySnapshot{}
 		return err
@@ -229,6 +267,61 @@ func (p *ProbeReader) enumerateMonsters(moduleBase uintptr, off OffsetSet, visit
 	}
 	p.resetMercenaryStability()
 	return nil
+}
+
+func isPhase20CowNPCID(id uint32) bool {
+	return id == phase20NPCIDHellBovine || id == phase20NPCIDCowKing
+}
+
+func (p *ProbeReader) readCowRawEvidence(unitAddr uintptr, npcID uint32, off OffsetSet) (CowRawEvidence, bool) {
+	unitID, err := p.reader.ReadUint32(unitAddr + off.Unit.UnitID)
+	if err != nil {
+		return CowRawEvidence{}, false
+	}
+	corpse, err := p.reader.ReadUint8(unitAddr + unitOffsetCorpse)
+	if err != nil {
+		return CowRawEvidence{}, false
+	}
+	mode, err := p.reader.ReadUint32(unitAddr + unitOffsetMode)
+	if err != nil {
+		return CowRawEvidence{}, false
+	}
+	unitData, err := p.reader.ReadUint64(unitAddr + unitOffsetUnitData)
+	if err != nil || unitData == 0 {
+		return CowRawEvidence{}, false
+	}
+	flag, err := p.reader.ReadUint8(uintptr(unitData) + unitDataMonsterFlag)
+	if err != nil {
+		return CowRawEvidence{}, false
+	}
+	pathPtr, err := p.reader.ReadUint64(unitAddr + off.Unit.Path)
+	if err != nil || pathPtr == 0 {
+		return CowRawEvidence{}, false
+	}
+	posX, err := p.reader.ReadUint16(uintptr(pathPtr) + pathOffsetMonsterX)
+	if err != nil {
+		return CowRawEvidence{}, false
+	}
+	posY, err := p.reader.ReadUint16(uintptr(pathPtr) + pathOffsetMonsterY)
+	if err != nil {
+		return CowRawEvidence{}, false
+	}
+	evidence := CowRawEvidence{
+		NPCID: npcID, UnitID: unitID, Corpse: corpse, Mode: mode,
+		PosX: uint32(posX), PosY: uint32(posY), MonsterTypeFlag: flag,
+		StateWindowOffset: cowStateWindowOffset,
+	}
+	if statsListEx, statsErr := p.reader.ReadUint64(unitAddr + off.Unit.StatsListEx); statsErr == nil && statsListEx != 0 {
+		if stateWindow, stateErr := p.reader.ReadBytes(uintptr(statsListEx)+cowStateWindowOffset, cowStateWindowSize); stateErr == nil {
+			evidence.StateWindowHex = hex.EncodeToString(stateWindow)
+			evidence.StateWindowComplete = true
+			bitA := stateWindow[cowConsumedOffsetA-cowStateWindowOffset]&cowConsumedMask != 0
+			bitB := stateWindow[cowConsumedOffsetB-cowStateWindowOffset]&cowConsumedMask != 0
+			evidence.ConsumptionKnown = bitA == bitB
+			evidence.Consumed = evidence.ConsumptionKnown && bitA
+		}
+	}
+	return evidence, true
 }
 
 func appendRuntimeMonster(snap *Snapshot, candidate MonsterUnit) {
@@ -294,18 +387,22 @@ func emptyEntitySlices(snap Snapshot) Snapshot {
 	snap.Objects = make([]ObjectUnit, 0)
 	snap.Entrances = make([]EntranceUnit, 0)
 	snap.Monsters = make([]MonsterUnit, 0)
+	snap.CowEvidence = make([]CowRawEvidence, 0)
+	snap.CowEvidenceComplete = false
+	snap.CowCorpses = make([]CowCorpseUnit, 0)
+	snap.CowCorpsesComplete = false
 	snap.Mercenary = MercenarySnapshot{}
 	snap.Items = make([]ItemUnit, 0)
 	return snap
 }
 
-func invalidSnapshot(now time.Time, phase GamePhase, reason string) Snapshot {
-	snap := Snapshot{At: now, Valid: false, Reason: reason, Phase: phase}
+func invalidSnapshot(now time.Time, generation uint64, phase GamePhase, reason string) Snapshot {
+	snap := Snapshot{At: now, Generation: generation, Valid: false, Reason: reason, Phase: phase}
 	return emptyEntitySlices(snap)
 }
 
-func invalidSnapshotWithUI(now time.Time, phase GamePhase, reason string, ui UIState) Snapshot {
-	snap := invalidSnapshot(now, phase, reason)
+func invalidSnapshotWithUI(now time.Time, generation uint64, phase GamePhase, reason string, ui UIState) Snapshot {
+	snap := invalidSnapshot(now, generation, phase, reason)
 	snap.UI = ui
 	return snap
 }

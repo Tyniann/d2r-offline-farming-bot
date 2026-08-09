@@ -37,6 +37,10 @@ type Options struct {
 	MercenaryProbe string
 	// MercenaryProbeTimeoutMs bounds the read-only mercenary probe capture.
 	MercenaryProbeTimeoutMs int
+	// CowProbe labels one strictly read-only Phase-20.0 evidence capture.
+	CowProbe string
+	// CowProbeTimeoutMs bounds the read-only Cow evidence capture.
+	CowProbeTimeoutMs int
 	// ScreenAnchorCapture labels one Phase-7.3 frontend screenshot capture.
 	ScreenAnchorCapture string
 	// SessionInspect resolves and prints the Phase-7.5 session plan without runtime initialization.

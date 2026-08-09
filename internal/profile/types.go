@@ -11,6 +11,10 @@ import (
 // no playable client point in the currently bound window.
 var ErrRouteClearTargetUnprojectable = errors.New("route clear target unprojectable")
 
+// ErrCorpseExplosionTargetUnprojectable reports that the authorized corpse has
+// no playable client point in the currently bound window.
+var ErrCorpseExplosionTargetUnprojectable = errors.New("corpse explosion target unprojectable")
+
 // Hook identifies a semantic lifecycle event emitted by a run.
 type Hook string
 
@@ -19,6 +23,8 @@ const (
 	HookTownReady Hook = "town_ready"
 	// HookBossEngage runs after a boss UnitID is confirmed and before attacks.
 	HookBossEngage Hook = "boss_engage"
+	// HookRouteMaintenance identifies a route-owned maintenance cast.
+	HookRouteMaintenance Hook = "route_maintenance"
 )
 
 // TargetKind identifies how an action target is resolved from World state.
@@ -78,12 +84,29 @@ type ResourcePolicy struct {
 	VerifyTimeout time.Duration
 }
 
+// BoneArmorMaintenancePolicy is the one supported route-maintenance rule.
+type BoneArmorMaintenancePolicy struct {
+	Enabled                    bool
+	SkillID                    uint16
+	RefreshInterval            time.Duration
+	RefreshAfterDamageBelowPct uint8
+	MinimumRecastInterval      time.Duration
+	Settle                     time.Duration
+}
+
+// RouteMaintenancePolicy groups maintenance behavior without introducing a
+// generic condition/action engine.
+type RouteMaintenancePolicy struct {
+	BoneArmor BoneArmorMaintenancePolicy
+}
+
 // Definition is the resolved, immutable behavior selected for one character build.
 type Definition struct {
-	ID             string
-	CharacterClass world.CharacterClass
-	Hooks          map[Hook][]Action
-	Resources      ResourcePolicy
+	ID               string
+	CharacterClass   world.CharacterClass
+	Hooks            map[Hook][]Action
+	Resources        ResourcePolicy
+	RouteMaintenance RouteMaintenancePolicy
 }
 
 // EncounterTarget pins the boss identity used by encounter-scoped actions.
@@ -120,6 +143,8 @@ const (
 	RouteClearActionCurse RouteClearActionKind = "curse"
 	// RouteClearActionAttack is a regular damage cast after the opener.
 	RouteClearActionAttack RouteClearActionKind = "attack"
+	// RouteClearActionCorpseExplosion is a position-bound cast on one concrete corpse UnitID.
+	RouteClearActionCorpseExplosion RouteClearActionKind = "corpse_explosion"
 )
 
 // RouteClearRequest is the immutable stationary-combat request for one snapshot.
@@ -134,8 +159,28 @@ type RouteClearRequest struct {
 
 // RouteCombatActions is the movement-free action surface available to route clear.
 type RouteCombatActions interface {
-	CastAttackAtMonster(time.Time, uint16, world.Player, world.Monster) (bool, error)
+	CastAttackAtMonster(time.Time, uint16, world.Player, world.Monster) (MonsterCastResult, error)
 	StopAttack() error
+}
+
+// MonsterTargetingMode identifies the evidence used for one offensive cast at
+// a living Memory target.
+type MonsterTargetingMode string
+
+const (
+	// MonsterTargetingHoverConfirmed means Memory confirmed the living target
+	// under the cursor before the cast.
+	MonsterTargetingHoverConfirmed MonsterTargetingMode = "hover_confirmed"
+	// MonsterTargetingWorldProjected means the hover budget was exhausted and
+	// the cast used the target's fresh playable visible-body projection.
+	MonsterTargetingWorldProjected MonsterTargetingMode = "world_projected"
+)
+
+// MonsterCastResult reports whether offensive input was sent and which target
+// evidence authorized it. Pending aim or throttle ticks return the zero value.
+type MonsterCastResult struct {
+	Sent          bool
+	TargetingMode MonsterTargetingMode
 }
 
 // Status is a stable hook or resource executor outcome.
@@ -160,13 +205,24 @@ const (
 
 // Result reports one executor decision without exposing input internals.
 type Result struct {
-	Status     Status
-	Reason     string
-	Hook       Hook
-	Resource   ResourceKind
-	SkillID    uint16
-	BeltSlot   int
-	ActionKind RouteClearActionKind
+	Status        Status
+	Reason        string
+	Hook          Hook
+	Resource      ResourceKind
+	SkillID       uint16
+	BeltSlot      int
+	ActionKind    RouteClearActionKind
+	TargetingMode MonsterTargetingMode
+	TargetUnitID  uint32
+	TargetNPCID   uint32
+	// CowGroupAnchorUnitID identifies the nearest living Cow that anchors the current local group.
+	CowGroupAnchorUnitID uint32
+	// CowGroupLivingCount reports living Cows inside the anchored group.
+	CowGroupLivingCount int
+	// CowCorpseAnchorDistanceTiles reports the selected corpse distance from the group anchor.
+	CowCorpseAnchorDistanceTiles float64
+	// CowCorpseCoverageCount reports how many anchored living Cows the selected corpse covers.
+	CowCorpseCoverageCount int
 }
 
 // EventName identifies a stable profile telemetry transition.

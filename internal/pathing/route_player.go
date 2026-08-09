@@ -73,6 +73,15 @@ func (p *RoutePlayer) SyncReached(state world.State) error {
 	return p.segment.SyncReached(state)
 }
 
+// ReconcileForward rebases the active segment after caller-authorized external
+// movement reaches a later forward route edge without exact intermediate hits.
+func (p *RoutePlayer) ReconcileForward(state world.State) (bool, error) {
+	if p.done {
+		return false, nil
+	}
+	return p.segment.ReconcileForward(state)
+}
+
 // SegmentIndex returns the active zero-based segment index.
 func (p *RoutePlayer) SegmentIndex() int { return p.index }
 

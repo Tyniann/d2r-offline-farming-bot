@@ -3,6 +3,7 @@ package tasks
 import (
 	"context"
 	"errors"
+	"math"
 	"strings"
 	"time"
 
@@ -57,28 +58,36 @@ const (
 	pipelineStepPrepareTown         = "prepare_town_handoff"
 	pipelineStepComplete            = "complete"
 
-	waypointSelectSettleDelay                 = 500 * time.Millisecond
-	dropStableTicks                           = 3
-	lootNoTargetStableTicks                   = 3
-	postKillLootDistanceTiles                 = 4
-	defaultLootPickupDistance                 = 8
+	waypointSelectSettleDelay = 500 * time.Millisecond
+	dropStableTicks           = 3
+	lootNoTargetStableTicks   = 3
+	postKillLootDistanceTiles = 4
+	defaultLootPickupDistance = 8
 	// lootApproachMaxDistanceTiles caps post-kill / route loot chase teleports.
 	// Beyond this, the candidate is handed to pickup as too_far without yanking
 	// the character multiple screens away before town portal.
-	lootApproachMaxDistanceTiles      float64 = 20
-	lootRepositionRetryDelay                  = 500 * time.Millisecond
-	lootRepositionMaxAttempts                 = 3
-	routeLootRadiusTiles              float64 = 30
-	routeThreatApproachSettle                 = 500 * time.Millisecond
-	routeThreatApproachProgressTiles          = 1
-	routeThreatApproachMaxFailures            = 3
-	bossApproachSettle                        = 700 * time.Millisecond
-	postBossCleanupRadiusTiles        float64 = 18
-	nihlathakCleanupRadiusTiles       float64 = 30
-	postBossCleanupMaxCasts                   = 20
-	nihlathakCleanupMaxCasts                  = 40
-	postBossCleanupStableTicks                = 3
-	nihlathakCleanupNoProgressTimeout         = 3 * time.Second
+	lootApproachMaxDistanceTiles float64 = 20
+	lootRepositionRetryDelay             = 500 * time.Millisecond
+	lootRepositionMaxAttempts            = 3
+	routeLootRadiusTiles         float64 = 30
+	routeThreatApproachSettle            = 500 * time.Millisecond
+	// A single incomplete identity/route projection is a read-side flake, not
+	// an internal route contract violation. No input is allowed during this
+	// grace; sustained unavailability still fails closed.
+	routeProgressUnavailableGrace = 2 * time.Second
+	// Memory exposes integer world positions. A one-tile diagonal input can
+	// therefore resolve to a much smaller positive projection onto the sent
+	// command vector. Any unambiguous forward component is objective progress;
+	// zero, lateral, and backward movement still consume the bounded retry.
+	routeThreatApproachProgressEpsilonTiles         = 0.01
+	routeThreatApproachMaxFailures                  = 3
+	bossApproachSettle                              = 700 * time.Millisecond
+	postBossCleanupRadiusTiles              float64 = 18
+	nihlathakCleanupRadiusTiles             float64 = 30
+	postBossCleanupMaxCasts                         = 20
+	nihlathakCleanupMaxCasts                        = 40
+	postBossCleanupStableTicks                      = 3
+	nihlathakCleanupNoProgressTimeout               = 3 * time.Second
 )
 
 // runPipeline executes one immutable run definition or a thin isolated-phase alias.
@@ -105,18 +114,22 @@ type runPipeline struct {
 	lootPickupActive       bool
 	lootNoTargetTicks      int
 	routeStarted           bool
-	egressStarted          bool
-	encounterActionIndex   int
-	encounterActionStarted bool
-	bossKillEmitted        bool
-	bossApproachPending    bool
-	bossApproachAttempted  bool
-	bossApproachAt         time.Time
-	bossApproachSnapshot   time.Time
-	cleanupTargetUnitID    uint32
-	cleanupCastCount       int
-	cleanupNoTargetTicks   int
-	cleanupLastProgressAt  time.Time
+	// routeProgressUnavailableSince guards transient read-side projection loss
+	// without letting an unavailable RoutePlayer stall the run indefinitely.
+	routeProgressUnavailableSince    time.Time
+	routeProgressUnavailableSnapshot time.Time
+	egressStarted                    bool
+	encounterActionIndex             int
+	encounterActionStarted           bool
+	bossKillEmitted                  bool
+	bossApproachPending              bool
+	bossApproachAttempted            bool
+	bossApproachAt                   time.Time
+	bossApproachSnapshot             time.Time
+	cleanupTargetUnitID              uint32
+	cleanupCastCount                 int
+	cleanupNoTargetTicks             int
+	cleanupLastProgressAt            time.Time
 	// cleanupSkippedUnitIDs prevents an unprojectable hostile from pinning the
 	// best-effort Nihlathak cleanup while another nearby target remains usable.
 	cleanupSkippedUnitIDs    map[uint32]bool
@@ -136,17 +149,22 @@ type runPipeline struct {
 	lootRecoveryTeleportSent  bool
 	lootRecoveryAt            time.Time
 	lootRecoverySnapshot      time.Time
+	lootRecoveryMaxDistance   float64
 	routeLootPointSet         bool
 	routeLootSegmentIndex     int
 	routeLootPointIndex       int
 	routeLootScanned          bool
 	routeApproachTargetUnitID uint32
-	routeApproachTargetPos    world.Position
-	routeApproachDistance     float64
+	routeApproachOrigin       world.Position
+	routeApproachGoal         world.Position
 	routeApproachSentAt       time.Time
 	routeApproachSnapshotAt   time.Time
 	routeApproachPending      bool
 	routeApproachFailures     int
+	// routeApproachExhaustedUnitID suppresses further local movement for one
+	// blocker after the bounded attempts. The shared no-progress watchdog, not
+	// this low-level targeting inconvenience, owns any later run termination.
+	routeApproachExhaustedUnitID uint32
 	// portalRecovered bounds post-fail portal teleports to one attempt per portal UnitID.
 	portalRecovered            map[uint32]bool
 	portalRecoveryPending      bool
@@ -155,6 +173,20 @@ type runPipeline struct {
 	portalRecoveryTeleportSent bool
 	portalRecoveryAt           time.Time
 	portalRecoverySnapshot     time.Time
+	// suppressRouteLoot reserves setup inventory capacity while still reusing
+	// the established route Hold/Clear controller.
+	suppressRouteLoot      bool
+	requireTerminalSafe    bool
+	terminalSafeSnapshots  int
+	terminalSafeSnapshotAt time.Time
+}
+
+type routeClearObjectiveObserver interface {
+	ObserveObjectiveProgress(world.State) bool
+}
+
+type routeClearApproachObserver interface {
+	ObserveRouteClearApproachProgress()
 }
 
 func (c *runPipeline) effectiveDefinition() RunDefinition {
@@ -182,6 +214,7 @@ func (c *runPipeline) resetGeneration() {
 	c.lootPickupActive = false
 	c.lootNoTargetTicks = 0
 	c.routeStarted = false
+	c.resetRouteProgressUnavailable()
 	c.routeThreat.Reset(nil)
 	c.egressStarted = false
 	c.encounterActionIndex = 0
@@ -195,6 +228,7 @@ func (c *runPipeline) resetGeneration() {
 	c.resetRouteLoot()
 	c.resetRouteThreatApproach()
 	c.resetPortalEntryRecovery()
+	c.resetTerminalSafe()
 }
 
 func (c *runPipeline) firstStep() string {
@@ -430,6 +464,7 @@ func (c *runPipeline) allowsNonInputTick(step string) bool {
 func (c *runPipeline) onStepEnter(step string) {
 	c.navStarted = false
 	c.routeStarted = false
+	c.resetRouteProgressUnavailable()
 	c.egressStarted = false
 	if step == pipelineStepClearNearbyHostiles {
 		c.resetPostBossCleanup()
@@ -460,6 +495,9 @@ func (c *runPipeline) onStepEnter(step string) {
 		c.targetAbsentTicks = 0
 		c.encounterActionIndex = 0
 		c.encounterActionStarted = false
+	}
+	if step == pipelineStepPlayRoute {
+		c.resetTerminalSafe()
 	}
 }
 
@@ -822,7 +860,7 @@ func (c *runPipeline) onLootTick(ctx context.Context, deps Deps, step string, w 
 		case LootPickupHoverNotFound, LootPickupFailed:
 			c.lootPickupActive = false
 			c.resetLootApproach()
-			if c.beginLootPickupRecovery(deps, res.Target) {
+			if c.beginLootPickupRecovery(deps, res.Target, lootApproachMaxDistanceTiles) {
 				return stepResult{}
 			}
 			return stepResult{}
@@ -864,7 +902,16 @@ func (c *runPipeline) lootAreaGuard(w world.State) stepResult {
 }
 
 func (c *runPipeline) allowsRetryReturnArea(area world.AreaID) bool {
-	for _, allowed := range c.effectiveDefinition().Recording.AllowedRouteAreas {
+	definition := c.effectiveDefinition()
+	contract := definition.Recording
+	if definition.RouteSet != nil {
+		primary, found := definition.RecordingForRole(definition.RouteSet.PrimaryRole)
+		if !found {
+			return false
+		}
+		contract = primary
+	}
+	for _, allowed := range contract.AllowedRouteAreas {
 		if area == allowed {
 			return true
 		}
@@ -1230,11 +1277,11 @@ func (c *runPipeline) onBossTick(ctx context.Context, deps Deps, step string, w 
 			}
 			return stepResult{}
 		}
-		sent, err := deps.Combat.CastAttackAtMonster(now, c.combat.AttackSkillID, w.Player, target)
+		cast, err := deps.Combat.CastAttackAtMonster(now, c.combat.AttackSkillID, w.Player, target)
 		if err != nil {
 			return stepResult{failed: true, reason: "combat_action_failed"}
 		}
-		if sent {
+		if cast.Sent {
 			c.cleanupCastCount++
 		}
 		return stepResult{}
@@ -1461,7 +1508,7 @@ func (c *runPipeline) tickNihlathakEngageTarget(deps Deps, w world.State, target
 		// displacement exits via retry-return instead of a cold queue abort.
 		return stepResult{failed: true, reason: "boss_combat_unprojectable"}
 	}
-	desiredDistance, ok := deps.Combat.FarthestProjectableMonsterDistance(w.Player.Position, target.Position)
+	_, desiredDistance, ok := deps.Combat.FarthestProjectableMonsterApproach(w.Player.Position, target.Position)
 	if !ok {
 		return stepResult{failed: true, reason: "boss_combat_unprojectable"}
 	}
@@ -1601,6 +1648,7 @@ func (c *runPipeline) clearLootRecoveryPending() {
 	c.lootRecoveryTeleportSent = false
 	c.lootRecoveryAt = time.Time{}
 	c.lootRecoverySnapshot = time.Time{}
+	c.lootRecoveryMaxDistance = 0
 }
 
 func (c *runPipeline) resetPortalEntryRecovery() {
@@ -1690,9 +1738,10 @@ func findTownPortalByUnitID(state world.State, unitID uint32) (world.Object, boo
 	return world.Object{}, false
 }
 
-// beginLootPickupRecovery arms one distance-ignoring item teleport after hover_not_found
-// or pickup_failed, so Bone-Prison and similar blockers can be escaped once per UnitID.
-func (c *runPipeline) beginLootPickupRecovery(deps Deps, target LootTarget) bool {
+// beginLootPickupRecovery arms one distance-ignoring item teleport after a
+// recoverable pickup result. maxDistance keeps ordinary boss loot bounded while
+// a threat-free combat-route Hold may recover any item it deliberately scanned.
+func (c *runPipeline) beginLootPickupRecovery(deps Deps, target LootTarget, maxDistance float64) bool {
 	if target.UnitID == 0 || c.lootPickupRecovered[target.UnitID] {
 		return false
 	}
@@ -1708,6 +1757,7 @@ func (c *runPipeline) beginLootPickupRecovery(deps Deps, target LootTarget) bool
 	c.lootRecoveryTeleportSent = false
 	c.lootRecoveryAt = time.Time{}
 	c.lootRecoverySnapshot = time.Time{}
+	c.lootRecoveryMaxDistance = maxDistance
 	return true
 }
 
@@ -1724,8 +1774,13 @@ func (c *runPipeline) tickLootPickupRecovery(deps Deps, w world.State, now time.
 		return stepResult{failed: true, reason: "combat_not_wired"}
 	}
 	if !c.lootRecoveryTeleportSent {
-		if world.Distance(w.Player.Position, target.Position) > lootApproachMaxDistanceTiles {
-			// Recovery is for nearby blockers (e.g. Bone Prison), not multi-screen yanks.
+		maxDistance := c.lootRecoveryMaxDistance
+		if maxDistance <= 0 {
+			maxDistance = lootApproachMaxDistanceTiles
+		}
+		if world.Distance(w.Player.Position, target.Position) > maxDistance {
+			// The caller-owned scan radius remains authoritative; recovery never
+			// turns a rejected candidate into an unbounded multi-screen chase.
 			c.clearLootRecoveryPending()
 			return stepResult{}
 		}
@@ -1884,9 +1939,28 @@ func (c *runPipeline) onTravelTick(ctx context.Context, deps Deps, step string, 
 			}
 			progress, ok := deps.Route.Progress(w)
 			if !ok {
+				if c.routeProgressUnavailableSince.IsZero() {
+					c.routeProgressUnavailableSince = now
+					c.routeProgressUnavailableSnapshot = w.At
+					return stepResult{}
+				}
+				// Repeated processing of the same snapshot must never consume the
+				// grace. Only a newer authoritative read can prove persistence.
+				if !w.At.After(c.routeProgressUnavailableSnapshot) {
+					return stepResult{}
+				}
+				c.routeProgressUnavailableSnapshot = w.At
+				if now.Sub(c.routeProgressUnavailableSince) < routeProgressUnavailableGrace {
+					return stepResult{}
+				}
 				return stepResult{failed: true, reason: string(RouteThreatReasonStateInvalid)}
 			}
+			c.resetRouteProgressUnavailable()
 			assessment := assessThreats(w, progress, c.definition.RouteHostileNPCIDs, c.routeCombat)
+			if observer, ok := deps.RouteClear.(routeClearObjectiveObserver); ok && observer.ObserveObjectiveProgress(w) {
+				c.routeThreat.observeExternalProgress(now)
+			}
+			terminalSafe := c.observeTerminalSafe(w, progress, assessment)
 			c.routeThreat.SetTelemetry(deps.Telemetry)
 			resourceContext := c.routeThreat.ObserveResources(w, assessment, c.routeCombat, now)
 			if deps.Profile == nil {
@@ -1914,25 +1988,83 @@ func (c *runPipeline) onTravelTick(ctx context.Context, deps Deps, step string, 
 					return stepResult{failed: true, reason: string(RouteThreatReasonManaRecoveryFailed)}
 				}
 			}
+			if deps.Profile != nil {
+				maintenance := deps.Profile.TickRouteMaintenance(w, now)
+				switch maintenance.Status {
+				case profile.StatusFailed:
+					return stepResult{failed: true, reason: maintenance.Reason}
+				case profile.StatusAction, profile.StatusPending:
+					return stepResult{}
+				}
+			}
+			// A projection-driven approach remains authoritative until its fresh
+			// snapshot/settle proof runs. A newly projectable cow must not make us
+			// discard the pending movement first: the Cow executor uses that proof
+			// to release the hold-local projection exclusions accumulated before
+			// the teleport.
+			if c.routeApproachPending && w.At.After(c.routeApproachSnapshotAt) && now.Sub(c.routeApproachSentAt) >= routeThreatApproachSettle {
+				target, found := w.FindMonsterByUnitID(c.routeApproachTargetUnitID)
+				if !found {
+					target = world.Monster{UnitID: c.routeApproachTargetUnitID, Position: c.routeApproachGoal}
+				}
+				result := c.tickRouteThreatApproach(deps, w, progress, target, now)
+				if result.failed || c.routeApproachPending {
+					return result
+				}
+				// Keep movement and combat mutually exclusive for this snapshot. The
+				// next fresh snapshot may select from the restored local Cow group.
+				return stepResult{}
+			}
 			threat := c.routeThreat.Tick(ctx, deps.Route, deps.RouteClear, w, progress, assessment, c.definition, c.routeCombat, c.combat.Profile, now)
 			if threat.Failed {
-				if threat.Reason == RouteThreatReasonOutOfRange &&
-					progress.Mode == RouteProgressMovement &&
-					progress.TargetAvailable &&
-					assessment.RouteTargetFound {
-					return c.tickRouteThreatApproach(deps, w, progress, assessment.RouteTarget, now)
+				cowApproach := c.definition.ID == RunIDCows && threat.Reason == RouteThreatReasonOutOfRange
+				standardApproach := threat.Reason == RouteThreatReasonOutOfRange &&
+					progress.Mode == RouteProgressMovement && progress.TargetAvailable
+				if cowApproach || standardApproach {
+					if threat.ApproachTarget.UnitID != 0 {
+						return c.tickRouteThreatApproach(deps, w, progress, threat.ApproachTarget, now)
+					}
+					if assessment.RouteTargetFound {
+						return c.tickRouteThreatApproach(deps, w, progress, assessment.RouteTarget, now)
+					}
+					if cowApproach && assessment.DensityTargetFound {
+						return c.tickRouteThreatApproach(deps, w, progress, assessment.DensityTarget, now)
+					}
+				}
+				if threat.Reason == RouteThreatReasonOutOfRange {
+					// Out-of-range is a local recovery signal, not a run-level
+					// emergency. If no bounded approach is permitted or remains,
+					// hold without input until objective progress or the shared
+					// no-progress watchdog makes the terminal decision.
+					return stepResult{}
 				}
 				return stepResult{failed: true, reason: string(threat.Reason)}
 			}
-			c.resetRouteThreatApproach()
-			if !threat.AllowMovement {
+			if !c.routeApproachPending {
+				c.resetRouteThreatApproach()
+			}
+			terminalCompletionReady := terminalSafe &&
+				c.terminalSafeSnapshots >= Phase17StableClearSnapshots &&
+				c.routeThreat.State() == RouteThreatMoving
+			// Transition progress has no positional input. The third proven-safe
+			// snapshot may therefore let Route.Tick commit the terminal marker even
+			// when the controller deliberately withholds regular movement this tick.
+			if !threat.AllowMovement && !terminalCompletionReady {
 				// A combat hold may create fresh drops at the current point.
 				// Re-evaluate them only after the threat controller releases movement.
 				c.routeLootScanned = false
 				return stepResult{}
 			}
-			if handled, result := c.tickRouteLoot(deps, w, progress, now); handled {
-				return result
+			if terminalSafe && c.terminalSafeSnapshots < Phase17StableClearSnapshots {
+				if err := deps.Route.Hold(w); err != nil {
+					return stepResult{failed: true, reason: string(RouteThreatReasonStateInvalid)}
+				}
+				return stepResult{}
+			}
+			if !c.suppressRouteLoot {
+				if handled, result := c.tickRouteLoot(deps, w, progress, now); handled {
+					return result
+				}
 			}
 		}
 		done, err := deps.Route.Tick(ctx, w)
@@ -1941,6 +2073,7 @@ func (c *runPipeline) onTravelTick(ctx context.Context, deps Deps, step string, 
 		}
 		if done {
 			c.routeThreat.Reset(deps.RouteClear)
+			c.resetTerminalSafe()
 			return stepResult{complete: true}
 		}
 		return stepResult{}
@@ -1949,20 +2082,49 @@ func (c *runPipeline) onTravelTick(ctx context.Context, deps Deps, step string, 
 	}
 }
 
+func (c *runPipeline) observeTerminalSafe(state world.State, progress RouteProgress, assessment ThreatAssessment) bool {
+	if !c.requireTerminalSafe || progress.Mode != RouteProgressTransition {
+		c.resetTerminalSafe()
+		return false
+	}
+	safe := state.Valid && state.Phase == world.GamePhaseInGame && assessment.SnapshotAt.Equal(state.At) &&
+		assessment.CoverageComplete && !assessment.RouteTargetFound && !assessment.DensityTargetFound
+	if !safe {
+		c.resetTerminalSafe()
+		return true
+	}
+	if c.terminalSafeSnapshotAt.IsZero() || state.At.After(c.terminalSafeSnapshotAt) {
+		c.terminalSafeSnapshots++
+		c.terminalSafeSnapshotAt = state.At
+	}
+	return true
+}
+
+func (c *runPipeline) resetTerminalSafe() {
+	c.terminalSafeSnapshots = 0
+	c.terminalSafeSnapshotAt = time.Time{}
+}
+
 func (c *runPipeline) resetRouteThreatApproach() {
 	c.routeApproachTargetUnitID = 0
-	c.routeApproachTargetPos = world.Position{}
-	c.routeApproachDistance = 0
+	c.routeApproachOrigin = world.Position{}
+	c.routeApproachGoal = world.Position{}
 	c.routeApproachSentAt = time.Time{}
 	c.routeApproachSnapshotAt = time.Time{}
 	c.routeApproachPending = false
 	c.routeApproachFailures = 0
+	c.routeApproachExhaustedUnitID = 0
 }
 
-// tickRouteThreatApproach uses the already validated next route point as one
-// Force-Move target. It never advances RoutePlayer and only accepts a fresh
-// Memory sample that moved the player at least one tile toward the blocked
-// monster's position at input time.
+func (c *runPipeline) resetRouteProgressUnavailable() {
+	c.routeProgressUnavailableSince = time.Time{}
+	c.routeProgressUnavailableSnapshot = time.Time{}
+}
+
+// tickRouteThreatApproach keeps Summoner on the already validated next route
+// point. Cow instead reuses the bounded projection-driven combat teleport
+// toward the executor-pinned group member, so recovery cannot walk past the
+// blocked pack. Neither path calls Route.Tick.
 func (c *runPipeline) tickRouteThreatApproach(deps Deps, w world.State, progress RouteProgress, target world.Monster, now time.Time) stepResult {
 	if deps.Combat == nil {
 		return stepResult{failed: true, reason: "combat_not_wired"}
@@ -1975,37 +2137,97 @@ func (c *runPipeline) tickRouteThreatApproach(deps Deps, w world.State, progress
 		if !w.At.After(c.routeApproachSnapshotAt) || now.Sub(c.routeApproachSentAt) < routeThreatApproachSettle {
 			return stepResult{}
 		}
-		distanceToOriginalTarget := world.Distance(w.Player.Position, c.routeApproachTargetPos)
-		positionProgress := c.routeApproachDistance - distanceToOriginalTarget
-		if positionProgress >= routeThreatApproachProgressTiles {
+		positionProgress := routeApproachDirectionalProgress(c.routeApproachOrigin, c.routeApproachGoal, w.Player.Position)
+		if positionProgress > routeThreatApproachProgressEpsilonTiles {
 			c.routeApproachFailures = 0
+			c.routeApproachExhaustedUnitID = 0
 			if err := c.routeThreat.ObserveApproachProgress(w, progress, target, positionProgress, now); err != nil {
 				return stepResult{failed: true, reason: "telemetry_failed"}
+			}
+			if observer, ok := deps.RouteClear.(routeClearApproachObserver); ok {
+				observer.ObserveRouteClearApproachProgress()
 			}
 			c.routeApproachPending = false
 			return stepResult{}
 		}
+		if err := c.routeThreat.ObserveApproachNoProgress(w, progress, target, positionProgress, now); err != nil {
+			return stepResult{failed: true, reason: "telemetry_failed"}
+		}
 		c.routeApproachFailures++
 		c.routeApproachPending = false
 		if c.routeApproachFailures >= routeThreatApproachMaxFailures {
-			return stepResult{failed: true, reason: string(RouteThreatReasonOutOfRange)}
+			c.routeApproachExhaustedUnitID = target.UnitID
+			return stepResult{}
 		}
 	}
-	sent, err := deps.Combat.ForceMoveToward(now, w.Player.Position, progress.MovementTarget)
+	if c.routeApproachExhaustedUnitID == target.UnitID {
+		return stepResult{}
+	}
+	goal := progress.MovementTarget
+	sent := false
+	actionKind := "force_move"
+	var err error
+	if c.definition.ID == RunIDCows {
+		landing, desiredDistance, projectable := deps.Combat.FarthestProjectableMonsterApproach(w.Player.Position, target.Position)
+		if !projectable {
+			c.routeApproachExhaustedUnitID = target.UnitID
+			return stepResult{}
+		}
+		if !cowApproachLandingSafe(w, landing, c.definition.RouteHostileNPCIDs, c.routeCombat.LandingRadiusTiles) {
+			// Projection only proves that the selected monster can be aimed at. A
+			// ranged Cow approach additionally needs complete, pack-wide clearance.
+			c.routeApproachExhaustedUnitID = target.UnitID
+			return stepResult{}
+		}
+		goal = target.Position
+		actionKind = "teleport"
+		sent, err = deps.Combat.TeleportToward(now, w.Player.Position, target.Position, desiredDistance)
+	} else {
+		sent, err = deps.Combat.ForceMoveToward(now, w.Player.Position, progress.MovementTarget)
+	}
 	if err != nil {
 		return stepResult{failed: true, reason: string(RouteThreatReasonStateInvalid)}
 	}
 	if sent {
-		c.routeApproachTargetPos = target.Position
-		c.routeApproachDistance = world.Distance(w.Player.Position, target.Position)
+		c.routeApproachOrigin = w.Player.Position
+		c.routeApproachGoal = goal
 		c.routeApproachSentAt = now
 		c.routeApproachSnapshotAt = w.At
 		c.routeApproachPending = true
-		if err := c.routeThreat.ObserveApproachInput(w, progress, target, c.routeApproachFailures+1, now); err != nil {
+		if err := c.routeThreat.ObserveApproachInput(w, progress, target, c.routeApproachFailures+1, actionKind, now); err != nil {
 			return stepResult{failed: true, reason: "telemetry_failed"}
 		}
 	}
 	return stepResult{}
+}
+
+func cowApproachLandingSafe(state world.State, landing world.Position, allowedNPCIDs []uint32, clearanceTiles float64) bool {
+	requiredCoverage := world.Distance(state.Player.Position, landing) + clearanceTiles
+	if state.MonsterCoverage.MonstersTruncated && state.MonsterCoverage.MonsterCoverageRadiusTiles <= requiredCoverage {
+		return false
+	}
+	clearanceSquared := clearanceTiles * clearanceTiles
+	for _, monster := range state.Monsters {
+		if monster.UnitID == 0 || !routeHostileAllowed(monster.NPCID, allowedNPCIDs) {
+			continue
+		}
+		if positionDistanceSquared(landing, monster.Position) < clearanceSquared {
+			return false
+		}
+	}
+	return true
+}
+
+func routeApproachDirectionalProgress(origin, goal, current world.Position) float64 {
+	directionX := float64(goal.X) - float64(origin.X)
+	directionY := float64(goal.Y) - float64(origin.Y)
+	directionLength := math.Hypot(directionX, directionY)
+	if directionLength == 0 {
+		return 0
+	}
+	movementX := float64(current.X) - float64(origin.X)
+	movementY := float64(current.Y) - float64(origin.Y)
+	return (movementX*directionX + movementY*directionY) / directionLength
 }
 
 // tickRouteLoot opportunistically consumes every nearby `keep` match before
@@ -2102,13 +2324,16 @@ func (c *runPipeline) tickRouteLootPickup(deps Deps, w world.State, now time.Tim
 	c.resetLootApproach()
 	c.routeLootScanned = false
 	switch result.Status {
-	case LootPickupHoverNotFound, LootPickupFailed:
-		if c.beginLootPickupRecovery(deps, result.Target) {
+	case LootPickupHoverNotFound, LootPickupFailed, LootPickupTooFar:
+		// Route loot is selected only after a threat-free Hold and already lies
+		// inside routeLootRadiusTiles. Reuse the existing one-shot recovery for a
+		// stale distance verdict instead of permanently skipping a wanted drop.
+		if c.beginLootPickupRecovery(deps, result.Target, routeLootRadiusTiles) {
 			return stepResult{}
 		}
 		return stepResult{}
 	case LootPickupPickedUp, LootPickupMonsterNearby,
-		LootPickupTargetLost, LootPickupTargetUnstable, LootPickupTooFar:
+		LootPickupTargetLost, LootPickupTargetUnstable:
 		return stepResult{}
 	case LootPickupInputBlocked, LootPickupProjectionFailed, LootPickupInvalidWorld, LootPickupTelemetryFailed:
 		return stepResult{failed: true, reason: string(result.Status)}

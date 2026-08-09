@@ -1,5 +1,7 @@
 package world
 
+import "time"
+
 // Monster is an interpreted living monster entity.
 type Monster struct {
 	NPCID           uint32
@@ -8,6 +10,21 @@ type Monster struct {
 	Name            string
 	MonsterTypeFlag uint8
 	IsHovered       bool // True when the hover buffer confirms this unit under the cursor.
+}
+
+// CowCorpse is a directly observed, current-snapshot corpse that may be
+// considered by the cow task. It is not cast authority by itself: callers must
+// also bind its UnitID to the current State generation.
+type CowCorpse struct {
+	NPCID              uint32
+	UnitID             uint32
+	Position           Position
+	Name               string
+	MonsterTypeFlag    uint8
+	ObservedAt         time.Time
+	SnapshotGeneration uint64
+	Consumed           bool
+	ConsumptionKnown   bool
 }
 
 // DarkStalker is the Countess base NPC type (d2go npc.ID iota 45; file line ≠ iota value).

@@ -7,6 +7,83 @@ Versionierung nach [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.18.0] - 2026-08-09
+
+### Added
+- Add Phase 20.0 CASC-backed Cow, portal, Wirt, area, skill, and recipe-item identity contracts
+- Add a strictly read-only `--cow-probe` artifact for portal transitions, Cow life/corpse evidence, Cube UI research, and item-location confirmation
+- Add `docs/features/cow-level-run.md` with the open Gate-20.0 live evidence matrix
+- Add Phase 20.1 direct Cow-corpse snapshots, fail-closed `CubeOpen`, and task-authorized position-bound Corpse Explosion with live-validated settle/freshness gates
+- Add Phase 20.2 fixed `leg_acquisition` and `cow_sweep` route roles, object-portal playback, role-bound recording/testing, and schema-v2 route-set assignments
+- Add separate Cow route workflows and operator guidance to the local API and dashboard
+- Add Phase 20.3 strict Cow preflight, combat-free Act-1 setup playback, UnitID-bound Wirt/Leg pickup, safe return, and exactly-one-tome purchase
+- Add Phase 20.4 one-shot Cow portal recipe with bound-item, exact-content, ingredient-consumption, stable-portal, hover-entry, and Area-39 gates
+- Add Phase 20.5 Cow sweep playback with one AD opener, direct-corpse CE chains, Cow King priority, objective-progress watchdog, and three-snapshot terminal safety
+- Add Phase 20.6 Cow return, personal stash, and central Town handoff to the same queue, budget, and history lifecycle
+- Add Phase 20.7 Bone Armor route maintenance, Cow full-belt readiness, and controlled Merc/resource exhaustion recovery
+- Add Cow group-anchor, local density, corpse distance, and corpse coverage context to existing route-clear action telemetry
+- Add opportunistic combat-route belt refill for exact Super Healing, Super Mana, and Full Rejuvenation Potion drops after normal route Pickit
+
+### Changed
+- Complete Phase 20 after the live stability matrix and one full productive Cow run through terminal safety, stash, Town handoff, and `run_completed`
+- Expand Cow active-group membership, corpse eligibility, and Corpse Explosion coverage from 10 to 12 tiles
+- Separate offensive monster hover confirmation from playable world projection and reserve run termination for the shared no-progress watchdog
+- Replace d2go provenance for Phase-20 skill and area identities with local D2R `3.2.92777` TXT evidence
+- Require foreground confirmation and playable client projection for profile world-target casts
+- Require both compatible lifecycle-valid Cow route roles before Cow availability can proceed
+- Default the Necromancer Corpse Explosion binding to F2 and reserve setup inventory capacity by suppressing incidental route loot
+- Disable route combat during Cow leg acquisition because the setup route has no authoritative line-of-sight model
+- Continue Cow sweep route playback when route Pickit reports full inventory, and make `cow_combat_no_progress` retryable for exact prior default retry lists
+- Use the standard Amplify Damage and Bone Spear clear below five nearby Cows, and reserve Corpse Explosion for denser groups
+- Reduce the live-backed Corpse Explosion settle to 900 ms, continue the chain in the confirming tick, and skip redundant right-skill selection
+- Use explicit density, Corpse Explosion, and cleanup phases so the first worthwhile CE cannot be displaced while one to four scattered survivors return to Bone Spear
+- Anchor Cow density and Corpse Explosion targets to the nearest ten-tile living group and prefer the corpse covering the most group members
+- Pin each Cow group to its initial ten-tile origin and keep its current anchor through ordinary movement until death, projection exclusion, or emergency preemption
+- Allow an immediate Cow outside the pinned group to preempt a remote anchor with four-tile hysteresis
+- Translate stable Cow setup, recipe, portal, and combat failures into concise German dashboard guidance
+- Recover a dead hired mercenary through the existing Kashya Town plan before the next required run instead of stopping the queue at preflight
+- Require Cow readiness to fill the configured Healing/Mana columns and prove one usable Rejuvenation Potion before leaving Town
+- Default missing Necromancer Bone Armor maintenance in memory for existing installed profiles while preserving explicit disablement
+- Lower the default mercenary combat heal threshold from 75% to 50%
+
+### Fixed
+- Prevent Cow combat recovery from chasing a remote pinned group member past an immediate threat or teleporting to a projected landing point without complete ten-tile clearance from every living Cow
+- Clear stale combat skill confirmation after an authorized profile cast so post-Corpse-Explosion Bone Spear cleanup does not abort as `route_threat_state_invalid`
+- Reconcile authorized combat and loot movement with the first matching forward route edge instead of returning to stale checkpoints and aborting on self-induced drift
+- Retry a threat-free combat-route `too_far` pickup once within the existing 30-tile route scan instead of permanently skipping the selected drop
+- Prevent a single transient route-progress projection loss from immediately aborting combat routes with `route_threat_state_invalid`
+- Accept any measurable forward route-approach movement despite integer-grid rounding while retaining bounded retries for lateral or backward movement
+- Refresh the route-segment timeout after every Memory-confirmed route point so long healthy Cow sweeps do not exhaust one cumulative 30-second movement budget
+- Rearm Merc and Cow run readiness after every verified new game while leaving same-game handoffs unchanged
+- Cap living-monster Combat hover searches at five fresh probes while preserving the configured static entity-click budget
+- Allow Cow projection recovery to teleport toward its concrete blocker even while route playback reports a recovery target
+- Retry ambiguous post-exit character-screen render frames within the existing selector timeout instead of failing the next queue game immediately
+- Bound living-monster hover search to the configured attempt budget instead of repeating its probe pattern indefinitely
+- Stop active route combat and use controlled restock retry when a required mercenary heal has no permitted potion
+- Preserve a successful Cow projection-approach proof until its fresh settled movement snapshot restores the local target set
+- Wait for the character screen to render before the productive queue selector captures it after Save & Exit
+- Teleport toward the executor-selected Cow when projection recovery is required instead of force-moving past the blocked pack along later route points
+- Reject latched Corpse Explosion candidates covering fewer than four living group members and return shrunken packs to Bone Spear cleanup
+- Resolve Cow retry-return areas from the primary `cow_sweep` recording contract instead of the intentionally empty single-route contract
+- Reacquire a moving Town NPC once when a hover-confirmed click does not open its dialog
+- Route Cow controlled retries through the shared portal-to-Town pipeline and terminalize invalid runner initialization instead of waiting indefinitely
+- Complete the Cow leg step on the verified pickup executor's terminal `picked_up` result so neither an active nor an already-cleared executor can fail later setup
+- Decode D2R's flattened belt positions for Cow start reserve so full belts do not trigger vendor input and partial belts retain normal verification
+- Map the Cow portal-recipe and recipe-gate steps to the travel history stage so fail-closed telemetry can start the recipe before any Cube input
+- Allow only the UnitID-bound Wirt's Leg pickup to retain hover-confirmed input when nearby monsters would abort ordinary farming loot
+- Approach the dynamic Cow portal through the existing layout-bound Town graph before strict UnitID- and hover-confirmed isolated candidate entry
+- Preserve the hover-confirmed waypoint-open evidence across Cow target selection so the existing menu confirmation can reach the Stony Field input
+- Keep `cow_sweep` as the immutable history route while emitting `leg_acquisition` playback through additive setup-route and route-role telemetry
+- Keep role-bound route Hold/Clear telemetry on the immutable primary route while identifying the active member by route role
+- Prevent a new Cow pack from consuming corpses left behind by the previous route hold by latching a per-hold fresh-corpse boundary
+- Try alternate Cow targets after projection loss and reuse bounded route approach when every local density target is unprojectable
+- Confirm route approach along the commanded movement vector so overshooting a short point near moving Cow targets does not falsely exhaust recovery
+- Reuse the bounded catalog-backed Home/Down character selector for productive queue starts instead of requiring the configured character to be preselected in D2R
+- Capture the Cow pack-corpse boundary at the AD opener so early Bone Spear kills cannot be misclassified as stale corpses
+- Approach the pinned Wirt's Body within eight tiles before hover-clicking so a visible body beyond reliable interaction range cannot consume both spawn attempts
+- Stop offensive input immediately on a living-to-dead mercenary transition and route the failed attempt through controlled Town return
+- Stop route combat when an already-needed player potion is exhausted instead of continuing without the required resource
+
 ## [0.17.0] - 2026-07-31
 
 ### Added

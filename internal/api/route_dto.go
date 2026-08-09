@@ -13,6 +13,7 @@ type RouteEntryDTO struct {
 	RouteID          string `json:"route_id"`
 	DisplayName      string `json:"display_name"`
 	RunID            string `json:"run_id"`
+	RouteRole        string `json:"route_role,omitempty"`
 	Character        string `json:"character"`
 	Difficulty       string `json:"difficulty"`
 	LifecycleStatus  string `json:"lifecycle_status"`
@@ -24,8 +25,11 @@ type RouteEntryDTO struct {
 // RecordingOptionDTO describes one registered run's guided recording contract.
 type RecordingOptionDTO struct {
 	RunID                    string                     `json:"run_id"`
+	RouteRole                string                     `json:"route_role,omitempty"`
 	DisplayName              string                     `json:"display_name"`
 	InstructionsDE           string                     `json:"instructions_de"`
+	OperatorHintsDE          []string                   `json:"operator_hints_de,omitempty"`
+	StartKind                string                     `json:"start_kind"`
 	StartWaypoint            string                     `json:"start_waypoint"`
 	AllowedStartAreaID       uint32                     `json:"allowed_start_area_id"`
 	AllowedRouteAreaIDs      []uint32                   `json:"allowed_route_area_ids"`
@@ -49,6 +53,7 @@ type RouteWorkflowDTO struct {
 	Generation uint64  `json:"generation"`
 	State      string  `json:"state"`
 	RunID      string  `json:"run_id"`
+	RouteRole  string  `json:"route_role,omitempty"`
 	Character  string  `json:"character"`
 	Act        string  `json:"act,omitempty"`
 	AreaID     uint32  `json:"area_id,omitempty"`
@@ -61,6 +66,7 @@ type RouteWorkflowDTO struct {
 type RouteCandidateDTO struct {
 	CandidateID          string  `json:"candidate_id"`
 	RunID                string  `json:"run_id"`
+	RouteRole            string  `json:"route_role,omitempty"`
 	Character            string  `json:"character"`
 	Difficulty           string  `json:"difficulty"`
 	State                string  `json:"state"`
@@ -128,6 +134,7 @@ type RouteWorkflowRequest struct {
 	ExpectedGeneration uint64 `json:"expected_generation"`
 	Operation          string `json:"operation"`
 	RunID              string `json:"run_id,omitempty"`
+	RouteRole          string `json:"route_role,omitempty"`
 	CandidateID        string `json:"candidate_id,omitempty"`
 	Act                string `json:"act,omitempty"`
 }
@@ -136,6 +143,7 @@ type RouteWorkflowRequest struct {
 type RouteRecordingStartRequest struct {
 	ExpectedGeneration uint64 `json:"expected_generation"`
 	RunID              string `json:"run_id"`
+	RouteRole          string `json:"route_role,omitempty"`
 }
 
 // RouteWorkflowFinishRequest submits an idempotent finish intent for one recording.

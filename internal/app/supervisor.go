@@ -68,6 +68,9 @@ type SupervisorRunResult struct {
 	// SafeToExit confirms that the run reached the verified Town boundary where
 	// the supervisor may execute an orderly Save & Exit.
 	SafeToExit bool
+	// ExitRequired requests the supervisor-owned Save & Exit fallback when a
+	// terminal run failure cannot first establish the Town boundary.
+	ExitRequired bool
 }
 
 // SupervisorRunner executes one complete session unit and must return after
@@ -565,7 +568,7 @@ func (s *SessionSupervisor) completeLifecycleRun(ctx context.Context, lifecycle 
 		s.mu.Unlock()
 		s.exitLifecycleGame(ctx, lifecycle, request, "retry_current", lifecycleExitRetry)
 	case QueueRunStop:
-		if result.SafeToExit {
+		if result.SafeToExit || result.ExitRequired {
 			s.mu.Unlock()
 			s.exitLifecycleGame(ctx, lifecycle, request, result.Reason, lifecycleExitFinishError)
 			return
