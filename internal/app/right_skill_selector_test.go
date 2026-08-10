@@ -155,6 +155,42 @@ func TestRightSkillSelectorWaitsThenConfirms(t *testing.T) {
 	}
 }
 
+func TestRightSkillSelectorDoesNotPreemptPendingSelection(t *testing.T) {
+	in := &recordingCombatInput{}
+	bindings := configBindingSource{skills: map[uint16]input.SkillCast{
+		memory.SkillAmplifyDamage: {SkillID: memory.SkillAmplifyDamage, SelectKey: "f1", CastButton: input.MouseRight},
+		memory.SkillTeleport:      {SkillID: memory.SkillTeleport, SelectKey: "f7", CastButton: input.MouseRight},
+	}}
+	selector := NewRightSkillSelector(bindings, in)
+	now := time.Now()
+	sent, err := selector.EnsureAndCast(memory.SkillAmplifyDamage, memory.SkillTeleport, now, nil)
+	if err != nil || sent || in.selectCalls != 1 || selector.pending != memory.SkillAmplifyDamage {
+		t.Fatalf("AD select sent=%v err=%v selects=%d pending=%d", sent, err, in.selectCalls, selector.pending)
+	}
+
+	sent, err = selector.EnsureAndCast(memory.SkillTeleport, memory.SkillTeleport, now.Add(10*time.Millisecond), func() error {
+		t.Fatal("teleport must not cast while AD selection is pending")
+		return nil
+	})
+	if err != nil || sent || in.selectCalls != 1 || selector.pending != memory.SkillAmplifyDamage {
+		t.Fatalf("teleport preempt sent=%v err=%v selects=%d pending=%d", sent, err, in.selectCalls, selector.pending)
+	}
+
+	clicks := 0
+	sent, err = selector.EnsureAndCast(memory.SkillAmplifyDamage, memory.SkillAmplifyDamage, now.Add(20*time.Millisecond), func() error {
+		clicks++
+		return nil
+	})
+	if err != nil || !sent || clicks != 1 || selector.pending != 0 {
+		t.Fatalf("AD confirm sent=%v err=%v clicks=%d pending=%d", sent, err, clicks, selector.pending)
+	}
+
+	sent, err = selector.EnsureAndCast(memory.SkillTeleport, memory.SkillAmplifyDamage, now.Add(30*time.Millisecond), nil)
+	if err != nil || sent || in.selectCalls != 2 || selector.pending != memory.SkillTeleport {
+		t.Fatalf("teleport after AD sent=%v err=%v selects=%d pending=%d", sent, err, in.selectCalls, selector.pending)
+	}
+}
+
 func TestRightSkillSelectorTimesOutAndRejectsMismatch(t *testing.T) {
 	in := &recordingCombatInput{}
 	bindings := configBindingSource{skills: map[uint16]input.SkillCast{

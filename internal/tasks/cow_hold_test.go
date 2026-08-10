@@ -787,9 +787,88 @@ func TestCowUnprojectableTargetDefersRunFailureToCombatWatchdog(t *testing.T) {
 		t.Fatalf("exhausted=%d teleports=%d", pipeline.routeApproachExhaustedUnitID, combat.teleportCalls)
 	}
 
-	timedOut := cowHoldState(base.Add(config.NoProgressTimeout+time.Second), 4, []world.Monster{cow}, nil)
-	result := pipeline.onTravelTick(context.Background(), deps, pipelineStepPlayRoute, timedOut, timedOut.At, base)
+	// Staged soft-exit: retarget → approach → fail. Each stage refreshes the
+	// objective watchdog, so three timeouts are required before terminal exit.
+	for stage, wantStage := range []int{cowNoProgressStageRetargeted, cowNoProgressStageApproached} {
+		timedOut := cowHoldState(base.Add(config.NoProgressTimeout*time.Duration(stage+1)+time.Second), uint64(stage+10), []world.Monster{cow}, nil)
+		result := pipeline.onTravelTick(context.Background(), deps, pipelineStepPlayRoute, timedOut, timedOut.At, base)
+		if result.failed || pipeline.cowNoProgressRecoveryStage != wantStage {
+			t.Fatalf("stage %d result=%+v recoveryStage=%d want %d", stage, result, pipeline.cowNoProgressRecoveryStage, wantStage)
+		}
+	}
+	final := cowHoldState(base.Add(config.NoProgressTimeout*3+time.Second), 20, []world.Monster{cow}, nil)
+	result := pipeline.onTravelTick(context.Background(), deps, pipelineStepPlayRoute, final, final.At, base)
 	if !result.failed || result.reason != string(RouteThreatReasonCowNoProgress) {
 		t.Fatalf("watchdog result=%+v, want %s", result, RouteThreatReasonCowNoProgress)
+	}
+}
+
+func TestCowNoProgressRetargetsThenApproachesBeforeSoftExit(t *testing.T) {
+	definition, ok := DefaultRunRegistry().Definition(RunIDCows)
+	if !ok {
+		t.Fatal("Cow definition missing")
+	}
+	base := time.Date(2026, 8, 10, 2, 40, 0, 0, time.UTC)
+	config := phase17ThreatConfig()
+	config.NoProgressTimeout = time.Second
+	progress := RouteProgress{
+		RouteID: "cow", Mode: RouteProgressMovement, TargetAvailable: true,
+		MovementTarget: world.Position{X: 103, Y: 100},
+	}
+	first := world.Monster{NPCID: world.HellBovine, UnitID: 41, Position: world.Position{X: 100, Y: 125}}
+	second := world.Monster{NPCID: world.HellBovine, UnitID: 42, Position: world.Position{X: 102, Y: 125}}
+	route := controllerRoute(progress)
+	delegate := &cowClearMock{routeResults: []profile.Result{
+		{Status: profile.StatusAction, ActionKind: profile.RouteClearActionCurse, TargetUnitID: first.UnitID},
+		{Status: profile.StatusAction, ActionKind: profile.RouteClearActionAttack, TargetUnitID: first.UnitID},
+		{Status: profile.StatusAction, ActionKind: profile.RouteClearActionAttack, TargetUnitID: second.UnitID},
+		{Status: profile.StatusAction, ActionKind: profile.RouteClearActionAttack, TargetUnitID: second.UnitID},
+		{Status: profile.StatusAction, ActionKind: profile.RouteClearActionAttack, TargetUnitID: second.UnitID},
+		{Status: profile.StatusAction, ActionKind: profile.RouteClearActionAttack, TargetUnitID: second.UnitID},
+	}}
+	clear := newCowHoldExecutor(config)
+	clear.bind(delegate)
+	projectable := true
+	combat := &mockCombatActions{
+		farthestOK: &projectable, farthestPosition: world.Position{X: 100, Y: 105}, farthestDistance: 20,
+	}
+	pipeline := &runPipeline{
+		definition: definition, routeID: "cow", combat: CombatConfig{Profile: "necro_bone_spear"}, routeCombat: config,
+	}
+	deps := Deps{Route: route, RouteClear: &clear, Combat: combat}
+
+	seed := cowHoldState(base, 1, []world.Monster{first, second}, nil)
+	if result := pipeline.onTravelTick(context.Background(), deps, pipelineStepPlayRoute, seed, seed.At, base); result.failed {
+		t.Fatalf("seed tick failed: %+v", result)
+	}
+
+	retargetAt := cowHoldState(base.Add(config.NoProgressTimeout+time.Millisecond), 2, []world.Monster{first, second}, nil)
+	if result := pipeline.onTravelTick(context.Background(), deps, pipelineStepPlayRoute, retargetAt, retargetAt.At, base); result.failed {
+		t.Fatalf("retarget tick failed: %+v", result)
+	}
+	if pipeline.cowNoProgressRecoveryStage != cowNoProgressStageRetargeted || pipeline.cowNoProgressApproachUnitID != second.UnitID {
+		t.Fatalf("retarget stage=%d approachUnit=%d", pipeline.cowNoProgressRecoveryStage, pipeline.cowNoProgressApproachUnitID)
+	}
+
+	approachAt := cowHoldState(base.Add(2*config.NoProgressTimeout+time.Millisecond), 3, []world.Monster{first, second}, nil)
+	if result := pipeline.onTravelTick(context.Background(), deps, pipelineStepPlayRoute, approachAt, approachAt.At, base); result.failed {
+		t.Fatalf("approach tick failed: %+v", result)
+	}
+	if pipeline.cowNoProgressRecoveryStage != cowNoProgressStageApproached || combat.teleportCalls != 1 ||
+		combat.lastTeleportTarget != second.Position {
+		t.Fatalf("approach stage=%d teleports=%d target=%+v", pipeline.cowNoProgressRecoveryStage, combat.teleportCalls, combat.lastTeleportTarget)
+	}
+
+	settled := cowHoldState(approachAt.At.Add(routeThreatApproachSettle+time.Millisecond), 4, []world.Monster{first, second}, nil)
+	settled.Player.Position = world.Position{X: 100, Y: 105}
+	if result := pipeline.onTravelTick(context.Background(), deps, pipelineStepPlayRoute, settled, settled.At, base); result.failed {
+		t.Fatalf("approach settle failed: %+v", result)
+	}
+
+	softExit := cowHoldState(settled.At.Add(config.NoProgressTimeout+time.Millisecond), 5, []world.Monster{first, second}, nil)
+	softExit.Player.Position = settled.Player.Position
+	result := pipeline.onTravelTick(context.Background(), deps, pipelineStepPlayRoute, softExit, softExit.At, base)
+	if !result.failed || result.reason != string(RouteThreatReasonCowNoProgress) {
+		t.Fatalf("soft exit result=%+v stage=%d", result, pipeline.cowNoProgressRecoveryStage)
 	}
 }

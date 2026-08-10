@@ -70,7 +70,7 @@ Nach bestätigtem Countess-Kill bewahrt die State Machine ihre letzte Memory-bes
 
 Für jeden ausgewählten Pickit-Kandidaten wird dessen `UnitID` vor Input erneut im aktuellen World-State aufgelöst. Liegt das Item außerhalb von `loot.pickup.max_distance_tiles`, aber innerhalb von 20 Tiles, folgen nach denselben Snapshot-/Zeitgrenzen höchstens drei Teleports direkt zu seiner aktuellen Memory-Position. Drops weiter als 20 Tiles werden ohne Chase-Teleport sofort als `too_far` übersprungen, damit der Charakter nicht mehrere Bildschirme vom Boss weggezogen wird, bevor das Town Portal entsteht. Erst danach übernimmt der vorhandene hover-bestätigte Pickup-Executor. Input-, Projektions- und ungültige World-Fehler bleiben terminal. Andere Run-Definitionen erhalten die Post-Kill-Repositionierung nur nach ausdrücklichem Opt-in.
 
-Endet der Pickup mit `hover_not_found` oder `pickup_failed`, folgt einmalig pro `UnitID` ein distanzignorierender Teleport auf die aktuelle Item-Position (z. B. aus Bone Prison), danach genau ein erneuter Pickup-Versuch. Scheitert auch der, bleibt das bisherige Skip-Verhalten.
+Endet der Pickup mit `hover_not_found`, `pickup_failed` oder `too_far`, folgt einmalig pro `UnitID` ein distanzignorierender Teleport auf die aktuelle Item-Position (z. B. aus Bone Prison oder hinter dem Boss-Haufen), danach genau ein erneuter Pickup-Versuch. Scheitert auch der, bleibt das bisherige Skip-Verhalten.
 
 ## Safety-Potions (Phase 4.7)
 
@@ -220,4 +220,4 @@ Town-Portal, bestätigte Rückkehr ins Rogue Encampment, Stash, Versorgung und n
 - Der produktive Run verwendet die charakter-, schwierigkeits- und layoutgebundene veröffentlichte Route. Die frühere globale Explorer-Traversierung des Phase-5-Stands ist kein produktiver Fallback.
 
 ---
-*Zuletzt aktualisiert: 2026-07-31*
+*Zuletzt aktualisiert: 2026-08-10*

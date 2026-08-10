@@ -7,6 +7,13 @@ Versionierung nach [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+- Fix Nihlathak post-boss `clear_nearby_hostiles` failing immediately with `combat_action_failed` by wiring Amplify Damage / Bone Spear RouteClear on the Nihlathak strategy without enabling travel `route_clear`
+- Fix Act-1 town preparation (including Cow readiness with or without potion demand) to plan from a Memory-confirmed Waypoint, Stash, or portal start instead of forcing the Stash graph edge
+- Fix post-kill / boss-loot `too_far` to retry once via the existing item teleport recovery instead of permanently soft-skipping keep candidates after a single miss
+- Fix Cow combat stalls that only spam ineffective casts by staging retarget → approach before the soft `cow_combat_no_progress` exit that consumes the session retry budget
+- Fix shared RightSkillSelector preempting an in-flight Amplify Damage selection with Teleport, which left the character idle while the mercenary burned healing potions
+
 ## [0.19.0] - 2026-08-10
 
 ### Added

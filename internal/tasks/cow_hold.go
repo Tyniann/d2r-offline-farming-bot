@@ -478,6 +478,33 @@ func (e *cowHoldExecutor) ObserveRouteClearApproachProgress() {
 	e.livingSkipped = nil
 }
 
+// ObserveNoProgressRetarget marks the ineffective living cow skipped and pins
+// another active-group member when one remains. With only one candidate left it
+// clears projection skips so the later approach stage can still try that cow.
+func (e *cowHoldExecutor) ObserveNoProgressRetarget(currentUnitID uint32) (world.Monster, bool) {
+	if currentUnitID == 0 {
+		currentUnitID = e.anchorUnitID
+	}
+	if currentUnitID != 0 {
+		if e.livingSkipped == nil {
+			e.livingSkipped = make(map[uint32]bool)
+		}
+		e.livingSkipped[currentUnitID] = true
+	}
+	if selected, found := e.selectActiveGroupTarget(e.livingSkipped); found {
+		return selected, true
+	}
+	e.livingSkipped = nil
+	if currentUnitID != 0 {
+		if monster, found := e.state.FindMonsterByUnitID(currentUnitID); found &&
+			usableCowLiving(e.state, monster, e.config.AttackDistanceTiles) {
+			e.anchorUnitID = monster.UnitID
+			return monster, true
+		}
+	}
+	return e.selectActiveGroupTarget(nil)
+}
+
 // ResetRouteClear clears only the current Hold generation. A later Hold may
 // reconsider a still-current corpse, exactly as required by the Cow contract.
 func (e *cowHoldExecutor) ResetRouteClear() {

@@ -140,6 +140,64 @@ func TestTownPreparationAkaraHandoffRequiresNearbyLiveNPC(t *testing.T) {
 	}
 }
 
+func TestTownPreparationNoServiceFromWaypointCompletesWithoutStashEdge(t *testing.T) {
+	directory := filepath.Join("..", "..", "configs", "routes", "town", "act1", "graph")
+	graph, err := town.LoadServiceGraph(filepath.Join(directory, "graph.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg := pathing.DefaultConfig()
+	in := &preparationInputMock{}
+	a := &townPreparationAdapter{
+		log: config.NewLogger("error"), driver: in, pathCfg: cfg, graph: graph, directory: directory,
+		layoutPin: &townLayoutPin{}, startAnchor: town.AnchorStash, nextRunID: "cows",
+	}
+	state := preparationState(world.Position{X: 80, Y: 70}, time.Now(), true)
+	got := a.Tick(context.Background(), state)
+	if !got.Done || got.Status != "complete" || in.moves != 0 {
+		t.Fatalf("result=%+v moves=%d resolved=%q traversals=%d", got, in.moves, a.resolvedStart, len(a.traversals))
+	}
+	if a.resolvedStart != town.AnchorWaypoint {
+		t.Fatalf("resolved=%q", a.resolvedStart)
+	}
+}
+
+func TestTownPreparationPotionPlanFromWaypointUsesAkaraRoundtrip(t *testing.T) {
+	cfg, err := config.Load(filepath.Join("..", "..", "configs", "config.example.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	in := &preparationInputMock{}
+	runCfg, _ := cfg.Runs.Run("cows")
+	a, err := newTownPreparationAdapter(config.NewLogger("error"), in, pathing.DefaultConfig(), cfg, "cows", runCfg, &townLayoutPin{}, &preparationTelemetryMock{}, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	a.layout = "911703945495707c9e6578c2db467e76ed70cf0548f119ac1b397368a8af5a53"
+	a.layoutOrigin = world.Position{X: 5466, Y: 4709}
+	state := preparationState(world.Position{X: 80, Y: 70}, time.Now(), false)
+	state.Player.Gold, state.Player.GoldKnown = 50938, true
+	if reason := a.start(state); reason != "" {
+		t.Fatal(reason)
+	}
+	if a.resolvedStart != town.AnchorWaypoint || a.handler == nil || a.handler.anchor != town.AnchorWaypoint {
+		t.Fatalf("resolved=%q handler_anchor=%q", a.resolvedStart, a.handler.anchor)
+	}
+	if len(a.handler.traversals) != 2 {
+		t.Fatalf("traversals=%+v", a.handler.traversals)
+	}
+	first := a.handler.traversals[0]
+	if first.Edge.ID != "akara-waypoint" || !first.Reverse {
+		t.Fatalf("expected reverse akara-waypoint first, got %+v", first)
+	}
+	if a.handler.traversals[1].Edge.ID != "akara-waypoint" || a.handler.traversals[1].Reverse {
+		t.Fatalf("expected forward akara-waypoint second, got %+v", a.handler.traversals[1])
+	}
+	if !a.externalStartConfirmed(state, world.Position{}) {
+		t.Fatal("waypoint origin must confirm without stash proximity")
+	}
+}
+
 func TestTownPreparationStashStartUsesNearbyStashProof(t *testing.T) {
 	cfg := pathing.DefaultConfig()
 	adapter := &townPreparationAdapter{pathCfg: cfg, startAnchor: town.AnchorStash}
@@ -230,8 +288,12 @@ func TestTownPreparationPlaysMinimalGraphToWaypointAndResets(t *testing.T) {
 	cfg.TownWalk.MoveInterval = time.Millisecond
 	cfg.TownWalk.SettleTimeout = time.Millisecond
 	cfg.TownWalk.StuckTimeout = time.Second
-	a := &townPreparationAdapter{log: config.NewLogger("error"), driver: in, pathCfg: cfg, graph: graph, directory: boundDirectory, thresholds: town.Thresholds{Healing: 2, Mana: 4}}
+	a := &townPreparationAdapter{log: config.NewLogger("error"), driver: in, pathCfg: cfg, graph: graph, directory: boundDirectory, thresholds: town.Thresholds{Healing: 2, Mana: 4}, startAnchor: town.AnchorStash}
 	now := time.Now()
+	// Seed planning from the live Stash object before walking recorded samples.
+	if got := a.Tick(context.Background(), preparationState(world.Position{X: 100, Y: 100}, now, true)); got.Done && got.Status == "failed" {
+		t.Fatalf("stash seed result=%+v", got)
+	}
 	for _, traversal := range traversals {
 		points, loadErr := pathing.LoadLayoutBoundTownRoute(filepath.Join(boundDirectory, traversal.Edge.Route), traversal.Edge.ID, fingerprint.Hash, world.Position{X: fingerprint.StashX, Y: fingerprint.StashY})
 		if loadErr != nil {
@@ -249,11 +311,11 @@ func TestTownPreparationPlaysMinimalGraphToWaypointAndResets(t *testing.T) {
 	}
 	final := preparationState(world.Position{X: 80, Y: 70}, now.Add(time.Second), true)
 	got := a.Tick(context.Background(), final)
-	if !got.Done || got.Status != "complete" || in.keys != 0 {
-		t.Fatalf("result=%+v keys=%d edge=%d/%d", got, in.keys, a.index, len(traversals))
+	if !got.Done || got.Status != "complete" {
+		t.Fatalf("result=%+v keys=%d edge=%d/%d pressed=%v", got, in.keys, a.index, len(traversals), in.pressed)
 	}
 	a.Reset()
-	if a.started || a.done || a.index != 0 || a.walker != nil {
+	if a.started || a.done || a.index != 0 || a.walker != nil || a.resolvedStart != "" {
 		t.Fatalf("reset adapter=%+v", a)
 	}
 }

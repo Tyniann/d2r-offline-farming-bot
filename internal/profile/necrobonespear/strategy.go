@@ -17,6 +17,14 @@ func NewBossFactory(runID string) profile.StrategyFactory {
 	}
 }
 
+// NewNihlathakFactory returns the Bone-Spear boss strategy with post-boss AD/Bone-Spear clear.
+// Travel remains without route_clear capability; only clear_nearby_hostiles uses RouteClear.
+func NewNihlathakFactory() profile.StrategyFactory {
+	return func() profile.RunStrategy {
+		return &nihlathakStrategy{}
+	}
+}
+
 // NewSummonerFactory returns the AD/Bone-Spear route-clear + boss strategy.
 func NewSummonerFactory() profile.StrategyFactory {
 	return func() profile.RunStrategy {
@@ -45,6 +53,25 @@ func (s *bossStrategy) Configure(exec *profile.Executor, _ uint16, _ profile.Rou
 		return fmt.Errorf("necro bone spear boss strategy requires executor")
 	}
 	return nil
+}
+
+type nihlathakStrategy struct{}
+
+func (s *nihlathakStrategy) ProfileID() string { return profileID }
+func (s *nihlathakStrategy) RunID() string     { return "nihlathak" }
+func (s *nihlathakStrategy) RequiredSkills() []string {
+	return []string{"teleport", "town_portal", "bone_spear", "amplify_damage", "bone_armor", "bone_prison"}
+}
+
+// RequiresRouteClear reports false because Nihlathak has no travel route_clear
+// capability; Configure still binds RouteClear for post-boss cleanup only.
+func (s *nihlathakStrategy) RequiresRouteClear() bool { return false }
+
+func (s *nihlathakStrategy) Configure(exec *profile.Executor, standardAttackID uint16, routeClear profile.RouteCombatActions) error {
+	if exec == nil || routeClear == nil || standardAttackID == 0 {
+		return fmt.Errorf("necro bone spear nihlathak strategy requires executor, route clear and standard attack")
+	}
+	return exec.ConfigureRouteClear(profile.RouteClearSingleTarget, memory.SkillAmplifyDamage, standardAttackID, routeClear)
 }
 
 type summonerStrategy struct{}

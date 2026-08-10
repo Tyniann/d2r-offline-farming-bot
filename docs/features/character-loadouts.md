@@ -41,7 +41,7 @@ Phase 21 macht das am Charakter ausgewählte Kampfprofil zur einzigen Combat-Aut
 - Nach bestätigtem Spielstart prüft die Queue einmal pro Session die Profil-Pflichtskills; Missing → Save & Exit ohne produktiven Input.
 - Für Stadtportal gilt die Live-Entsprechung aus Aktionsskill `TownPortal` (359), buchgewährtem Listeneintrag `Book of Townportal` (220) und Slings itemgewährtem `Townportal O Skill` (411); alle drei belegen dieselbe Pflichtfähigkeit und dieselbe RMB-Auswahl vor dem Cast.
 - `verifyActiveQueueGame` pollt snapshot-only (kein Binding-/Readiness-/Task-Tick).
-- Combat, Profile-Casts, Teleport und Town Portal nutzen denselben RightSkillSelector: F-Key nur bei Bedarf, RMB erst nach frischem `RightSkillID` (Stadtportal akzeptiert 359/220/411).
+- Combat, Profile-Casts, Teleport und Town Portal nutzen denselben RightSkillSelector: F-Key nur bei Bedarf, RMB erst nach frischem `RightSkillID` (Stadtportal akzeptiert 359/220/411). Eine laufende Skill-Auswahl wird nicht von einem anderen RMB-Skill (z. B. Teleport während Amplify Damage) verdrängt; erst Timeout oder Bestätigung gibt den Selector frei.
 - Setup-Preview/API liefern `standard_attack`, geordnete `required_skills` (Key/ID/Label) und Registry-`supported_runs` read-only.
 
 ### OperatorSettings Schema 3 und Loadout-Freeze (Gate 21.3)
@@ -109,4 +109,4 @@ Lokaler CASC-Extrakt unter `.tmp/d2r-excel`, Go-Generator nach dem Muster der It
 - [Phase-21-Core-Vertrag](phase-21-core-contract.md)
 
 ---
-*Zuletzt aktualisiert: 2026-08-09*
+*Zuletzt aktualisiert: 2026-08-10*

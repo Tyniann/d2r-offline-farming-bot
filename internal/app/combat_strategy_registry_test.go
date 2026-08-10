@@ -21,6 +21,11 @@ func TestCombatStrategyRegistryResolvesBoneSpearMatrix(t *testing.T) {
 			t.Fatalf("strategy identity = %s/%s", strategy.ProfileID(), strategy.RunID())
 		}
 	}
+	nihlathak := registry.factories["necro_bone_spear"]["nihlathak"]()
+	clear, ok := nihlathak.(profile.SupportsRouteClear)
+	if !ok || clear.RequiresRouteClear() {
+		t.Fatal("nihlathak must wire post-boss route clear without travel capability")
+	}
 	if _, ok := registry.Resolve("unknown_profile", "countess"); ok {
 		t.Fatal("unknown profile resolved")
 	}

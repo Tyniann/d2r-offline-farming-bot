@@ -165,6 +165,10 @@ type runPipeline struct {
 	// blocker after the bounded attempts. The shared no-progress watchdog, not
 	// this low-level targeting inconvenience, owns any later run termination.
 	routeApproachExhaustedUnitID uint32
+	// cowNoProgressRecoveryStage stages Cow soft-exit: retarget → approach → fail.
+	// Real objective progress resets it so a later stall may recover again.
+	cowNoProgressRecoveryStage  int
+	cowNoProgressApproachUnitID uint32
 	// portalRecovered bounds post-fail portal teleports to one attempt per portal UnitID.
 	portalRecovered            map[uint32]bool
 	portalRecoveryPending      bool
@@ -188,6 +192,18 @@ type routeClearObjectiveObserver interface {
 type routeClearApproachObserver interface {
 	ObserveRouteClearApproachProgress()
 }
+
+// routeClearNoProgressRetargetObserver rotates a stuck Cow group target before the
+// shared no-progress soft exit consumes the session retry budget.
+type routeClearNoProgressRetargetObserver interface {
+	ObserveNoProgressRetarget(currentUnitID uint32) (world.Monster, bool)
+}
+
+const (
+	cowNoProgressStageNone       = 0
+	cowNoProgressStageRetargeted = 1
+	cowNoProgressStageApproached = 2
+)
 
 func (c *runPipeline) effectiveDefinition() RunDefinition {
 	return c.definition
@@ -227,6 +243,8 @@ func (c *runPipeline) resetGeneration() {
 	c.resetLootPickupRecovery()
 	c.resetRouteLoot()
 	c.resetRouteThreatApproach()
+	c.cowNoProgressRecoveryStage = cowNoProgressStageNone
+	c.cowNoProgressApproachUnitID = 0
 	c.resetPortalEntryRecovery()
 	c.resetTerminalSafe()
 }
@@ -857,7 +875,9 @@ func (c *runPipeline) onLootTick(ctx context.Context, deps Deps, step string, w 
 			return stepResult{}
 		}
 		switch res.Status {
-		case LootPickupHoverNotFound, LootPickupFailed:
+		case LootPickupHoverNotFound, LootPickupFailed, LootPickupTooFar:
+			// Post-kill keep/pick candidates get the same one-shot item teleport as
+			// route loot: a single too_far must not permanently soft-skip the UnitID.
 			c.lootPickupActive = false
 			c.resetLootApproach()
 			if c.beginLootPickupRecovery(deps, res.Target, lootApproachMaxDistanceTiles) {
@@ -865,7 +885,7 @@ func (c *runPipeline) onLootTick(ctx context.Context, deps Deps, step string, w 
 			}
 			return stepResult{}
 		case LootPickupPickedUp, LootPickupMonsterNearby,
-			LootPickupTargetLost, LootPickupTargetUnstable, LootPickupTooFar:
+			LootPickupTargetLost, LootPickupTargetUnstable:
 			c.lootPickupActive = false
 			c.resetLootApproach()
 			return stepResult{}
@@ -1962,6 +1982,8 @@ func (c *runPipeline) onTravelTick(ctx context.Context, deps Deps, step string, 
 			assessment := assessThreats(w, progress, c.definition.RouteHostileNPCIDs, c.routeCombat)
 			if observer, ok := deps.RouteClear.(routeClearObjectiveObserver); ok && observer.ObserveObjectiveProgress(w) {
 				c.routeThreat.observeExternalProgress(now)
+				c.cowNoProgressRecoveryStage = cowNoProgressStageNone
+				c.cowNoProgressApproachUnitID = 0
 			}
 			terminalSafe := c.observeTerminalSafe(w, progress, assessment)
 			c.routeThreat.SetTelemetry(deps.Telemetry)
@@ -2020,6 +2042,9 @@ func (c *runPipeline) onTravelTick(ctx context.Context, deps Deps, step string, 
 			}
 			threat := c.routeThreat.Tick(ctx, deps.Route, deps.RouteClear, w, progress, assessment, c.definition, c.routeCombat, c.combat.Profile, now)
 			if threat.Failed {
+				if c.definition.ID == RunIDCows && threat.Reason == RouteThreatReasonCowNoProgress {
+					return c.tickCowNoProgressRecovery(deps, w, progress, assessment, now)
+				}
 				cowApproach := c.definition.ID == RunIDCows && threat.Reason == RouteThreatReasonOutOfRange
 				standardApproach := threat.Reason == RouteThreatReasonOutOfRange &&
 					progress.Mode == RouteProgressMovement && progress.TargetAvailable
@@ -2045,6 +2070,10 @@ func (c *runPipeline) onTravelTick(ctx context.Context, deps Deps, step string, 
 			}
 			if !c.routeApproachPending {
 				c.resetRouteThreatApproach()
+			}
+			if c.routeThreat.State() == RouteThreatMoving {
+				c.cowNoProgressRecoveryStage = cowNoProgressStageNone
+				c.cowNoProgressApproachUnitID = 0
 			}
 			terminalCompletionReady := terminalSafe &&
 				c.terminalSafeSnapshots >= Phase17StableClearSnapshots &&
@@ -2122,6 +2151,63 @@ func (c *runPipeline) resetRouteThreatApproach() {
 func (c *runPipeline) resetRouteProgressUnavailable() {
 	c.routeProgressUnavailableSince = time.Time{}
 	c.routeProgressUnavailableSnapshot = time.Time{}
+}
+
+// tickCowNoProgressRecovery stages retarget → approach → soft exit when the Cow
+// objective watchdog expires without corpses, kills, or coverage progress.
+// Soft exit keeps reason `cow_combat_no_progress` so the queue consumes its
+// normal retry-return / restart budget.
+func (c *runPipeline) tickCowNoProgressRecovery(
+	deps Deps,
+	w world.State,
+	progress RouteProgress,
+	assessment ThreatAssessment,
+	now time.Time,
+) stepResult {
+	switch c.cowNoProgressRecoveryStage {
+	case cowNoProgressStageNone:
+		currentUnitID := uint32(0)
+		if assessment.RouteTargetFound {
+			currentUnitID = assessment.RouteTarget.UnitID
+		} else if assessment.DensityTargetFound {
+			currentUnitID = assessment.DensityTarget.UnitID
+		}
+		c.cowNoProgressApproachUnitID = currentUnitID
+		if observer, ok := deps.RouteClear.(routeClearNoProgressRetargetObserver); ok {
+			if selected, found := observer.ObserveNoProgressRetarget(currentUnitID); found {
+				c.cowNoProgressApproachUnitID = selected.UnitID
+			}
+		}
+		c.routeApproachExhaustedUnitID = 0
+		c.routeApproachFailures = 0
+		c.routeApproachPending = false
+		c.routeThreat.observeExternalProgress(now)
+		c.cowNoProgressRecoveryStage = cowNoProgressStageRetargeted
+		return stepResult{}
+	case cowNoProgressStageRetargeted:
+		target := world.Monster{}
+		if c.cowNoProgressApproachUnitID != 0 {
+			if selected, found := w.FindMonsterByUnitID(c.cowNoProgressApproachUnitID); found {
+				target = selected
+			}
+		}
+		if target.UnitID == 0 && assessment.RouteTargetFound {
+			target = assessment.RouteTarget
+		}
+		if target.UnitID == 0 && assessment.DensityTargetFound {
+			target = assessment.DensityTarget
+		}
+		c.routeApproachExhaustedUnitID = 0
+		c.routeApproachFailures = 0
+		c.routeThreat.observeExternalProgress(now)
+		c.cowNoProgressRecoveryStage = cowNoProgressStageApproached
+		if target.UnitID == 0 {
+			return stepResult{}
+		}
+		return c.tickRouteThreatApproach(deps, w, progress, target, now)
+	default:
+		return stepResult{failed: true, reason: string(RouteThreatReasonCowNoProgress)}
+	}
 }
 
 // tickRouteThreatApproach keeps Summoner on the already validated next route

@@ -141,7 +141,7 @@ Für `cows` werden die Triggerwerte der kaufbaren Healing-/Mana-Ressourcen im Re
 
 Die Live-Evidenz vom 8. August 2026 zeigte visuell drei Healing- und sechs Mana-Potions, während der profilgebundene World-Read `Healing=1` und `Mana=2` meldete. Ursache war keine reduzierte Item-Projektion: D2R kodiert die 16 Belt-Positionen flach in `GridX` 0–15, während der alte Zähler nur `GridX` 0–3 als Spalten behandelte. Der Cow-Zähler dekodiert deshalb die Spalte mit `GridX mod 4`, zählt jede Zeile und verwendet danach wieder den bestehenden Restock-Vertrag vollständig: Bei 4/8 entsteht kein Akara-Input; bei 3/6 wird genau der nachweisbare Fehlbestand geplant, gekauft und per erneutem Count bestätigt. Passende Healing-/Mana-Seeds bleiben fail-closed erforderlich. Mindestens eine Rejuvenation Potion muss weiterhin in einer Rejuvenation-Spalte belegt sein; es gibt keinen Kauf-Retry und keine automatische Stash-Entnahme.
 
-Ohne sicher belegten Servicebedarf spielt der Adapter ausgehend vom Stash nur vorhandene Kanten des zentralen Graphen bis zum Waypoint. Nicht aufgezeichnete Platzhalterkanten wurden aus `graph.yaml` entfernt. Abschluss verlangt einen per Memory gefundenen Waypoint innerhalb der konfigurierten Klickdistanz und protokolliert `central town preparation completed`, `anchor=waypoint` und die ausgewählte Run-ID als `next_run`. Session- und Run-Reset verwerfen die aktive Kante und den Handoff.
+Ohne sicher belegten Servicebedarf spielt der Adapter die vorhandenen Kanten des zentralen Graphen bis zum Waypoint. Steht der Charakter bereits Memory-bestätigt am Act-1-Waypoint (oder am Stash/Portal) in Klickdistanz, wird dieser Live-Anker als Plan-Origin verwendet statt den konfigurierten Stash-Default zu erzwingen — insbesondere für Cow-Readiness nach einem vorherigen Run-Handoff. Nicht aufgezeichnete Platzhalterkanten wurden aus `graph.yaml` entfernt. Abschluss verlangt einen per Memory gefundenen Waypoint innerhalb der konfigurierten Klickdistanz und protokolliert `central town preparation completed`, `anchor=waypoint` und die ausgewählte Run-ID als `next_run`. Session- und Run-Reset verwerfen die aktive Kante und den Handoff.
 
 ### Manuelles Gate 3 (abgeschlossen)
 
@@ -161,4 +161,4 @@ Die Live-Abnahme am 13. Juli 2026 erfüllte das Gate vollständig. Der autonome 
 - [Phase-18-Core-Vertrag](phase-18-core-contract.md)
 
 ---
-*Zuletzt aktualisiert: 2026-08-08*
+*Zuletzt aktualisiert: 2026-08-10*

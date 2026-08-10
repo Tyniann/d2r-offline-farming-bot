@@ -1703,6 +1703,56 @@ func TestLootPickupRecoversOnceAfterHoverNotFound(t *testing.T) {
 	}
 }
 
+func TestLootPickupRecoversOnceAfterTooFar(t *testing.T) {
+	combat := &mockCombatActions{}
+	definition, _ := DefaultRunRegistry().Definition(RunIDCountess)
+	target := LootTarget{
+		UnitID: 14, TxtFileNo: 600, Code: "glw", Name: "Flawless Diamond",
+		Position: world.Position{X: 105, Y: 100}, AreaID: world.TowerCellarLevel5,
+	}
+	lootActions := &mockLootActions{
+		scans: []LootScanResult{{GroundItemCount: 1, CandidateCount: 1, HasTarget: true, NextTarget: target}},
+		ticks: []LootPickupResult{
+			{Status: LootPickupTooFar, Done: true, Target: target},
+			{Status: LootPickupPickedUp, Done: true, Target: target},
+		},
+	}
+	pipeline := &runPipeline{definition: definition, lootPickupDistanceTiles: 8}
+	now := time.Now()
+	state := cellar5State()
+	state.At = now
+	state.Player.Position = world.Position{X: 100, Y: 100}
+	state.Items = []world.Item{{
+		UnitID: target.UnitID, TxtFileNo: target.TxtFileNo, Code: target.Code, Name: target.Name,
+		Location: world.ItemLocationGround, Position: target.Position,
+	}}
+	deps := Deps{Loot: lootActions, Combat: combat}
+
+	res := pipeline.onLootTick(context.Background(), deps, pipelineStepPickLoot, state, now, now)
+	if res.failed || res.complete || len(lootActions.startCalls) != 1 || len(lootActions.clearSkipIDs) != 1 ||
+		lootActions.clearSkipIDs[0] != target.UnitID || !pipeline.lootRecoveryPending || combat.teleportCalls != 0 {
+		t.Fatalf("too-far fail result=%+v starts=%d clears=%v pending=%v teleports=%d",
+			res, len(lootActions.startCalls), lootActions.clearSkipIDs, pipeline.lootRecoveryPending, combat.teleportCalls)
+	}
+
+	res = pipeline.onLootTick(context.Background(), deps, pipelineStepPickLoot, state, now.Add(time.Millisecond), now)
+	if res.failed || res.complete || combat.teleportCalls != 1 || combat.lastTeleportTarget != target.Position ||
+		!pipeline.lootRecoveryTeleportSent {
+		t.Fatalf("recovery teleport result=%+v teleports=%d target=%+v sent=%v",
+			res, combat.teleportCalls, combat.lastTeleportTarget, pipeline.lootRecoveryTeleportSent)
+	}
+
+	settled := state
+	settled.At = now.Add(lootRepositionRetryDelay + time.Millisecond)
+	settled.Player.Position = target.Position
+	res = pipeline.onLootTick(context.Background(), deps, pipelineStepPickLoot, settled, settled.At, now)
+	if res.failed || res.complete || len(lootActions.startCalls) != 2 || lootActions.tickCalls != 2 ||
+		pipeline.lootRecoveryPending || combat.teleportCalls != 1 {
+		t.Fatalf("recovery pickup result=%+v starts=%d ticks=%d pending=%v teleports=%d",
+			res, len(lootActions.startCalls), lootActions.tickCalls, pipeline.lootRecoveryPending, combat.teleportCalls)
+	}
+}
+
 func TestRouteLootRecoversThreatFreeTooFarCandidateWithinScanRadius(t *testing.T) {
 	combat := &mockCombatActions{}
 	definition, _ := DefaultRunRegistry().Definition(RunIDCountess)

@@ -61,9 +61,9 @@ Item-Pickup folgt dem bestehenden Hover-Feedback-Prinzip:
 5. Nur klicken, wenn `Hover.UnitType` und `Hover.UnitID` das Ziel-Item bestätigen.
 6. Erfolg nur akzeptieren, wenn das Item vom Boden verschwindet oder nach `inventory` wechselt.
 7. Nach Retry-/Timeout-Limit mit klarer Fehlerklasse abbrechen oder den unerreichbaren Kandidaten für die aktuelle Loot-Phase überspringen.
-8. Bei `hover_not_found` oder `pickup_failed` einmalig pro `UnitID` distanzignorierend auf die Item-Position teleportieren und den Pickup genau einmal erneut starten; danach gilt weiter das Skip-Verhalten.
+8. Bei `hover_not_found`, `pickup_failed` oder `too_far` einmalig pro `UnitID` distanzignorierend auf die Item-Position teleportieren und den Pickup genau einmal erneut starten; danach gilt weiter das Skip-Verhalten.
 
-Es gibt keine Blind-Klicks und keine unbeschränkten Teleport-Schleifen. Die historische Bossposition dient nur als erste Annäherung; für den Pickup ist die aktuelle Position des ausgewählten Items autoritativ. Wenn Hover nicht bestätigt wird oder das Item nach den Annäherungsversuchen weiterhin zu weit entfernt ist, bleibt der Bot passiv und überspringt nur dessen `UnitID` — außer der einmaligen Recovery in Schritt 8.
+Es gibt keine Blind-Klicks und keine unbeschränkten Teleport-Schleifen. Die historische Bossposition dient nur als erste Annäherung; für den Pickup ist die aktuelle Position des ausgewählten Items autoritativ. Wenn Hover nicht bestätigt wird oder das Item nach den Annäherungsversuchen weiterhin zu weit entfernt ist, bleibt der Bot passiv und überspringt nur dessen `UnitID` — außer der einmaligen Recovery in Schritt 8 (einschließlich `too_far`).
 
 ### Inventory-Lock
 
@@ -211,7 +211,7 @@ Umgesetzt als [Hover-Confirmed Item Pickup](hover-confirmed-item-pickup.md): Ein
 
 ### 5.6 Countess-Loot-Phase
 
-Umgesetzt im Countess-Run: Nach `engage_boss` wartet `wait_for_drops` auf drei gültige Cellar-5-Ticks, `scan_loot` bewertet Ground-Loot über Pickit und Inventory-Kapazität, und `pick_loot` hebt Kandidaten über den hover-bestätigten Pickup-Executor auf. Fehlgeschlagene Pickup-Kandidaten werden innerhalb des aktuellen `pick_loot`-Steps per `UnitID` übersprungen, damit derselbe Drop nicht endlos neu versucht wird. Nach `hover_not_found` oder `pickup_failed` folgt vorher einmalig ein distanzignorierender Item-Teleport und ein zweiter Pickup-Versuch.
+Umgesetzt im Countess-Run: Nach `engage_boss` wartet `wait_for_drops` auf drei gültige Cellar-5-Ticks, `scan_loot` bewertet Ground-Loot über Pickit und Inventory-Kapazität, und `pick_loot` hebt Kandidaten über den hover-bestätigten Pickup-Executor auf. Fehlgeschlagene Pickup-Kandidaten werden innerhalb des aktuellen `pick_loot`-Steps per `UnitID` übersprungen, damit derselbe Drop nicht endlos neu versucht wird. Nach `hover_not_found`, `pickup_failed` oder `too_far` folgt vorher einmalig ein distanzignorierender Item-Teleport und ein zweiter Pickup-Versuch.
 
 Der Full Run endet jetzt:
 
@@ -254,4 +254,4 @@ Umgesetzt als [Run-Telemetrie](run-telemetry.md): eine fail-closed JSONL-Datei p
 - Kein Identify-/Sell-/Repair-/Merc-Loop im ersten Ground-Loot-MVP.
 
 ---
-*Zuletzt aktualisiert: 2026-07-27*
+*Zuletzt aktualisiert: 2026-08-10*

@@ -40,6 +40,10 @@ func (s *RightSkillSelector) Reset() {
 // EnsureAndCast selects skillID onto RMB when needed and only then runs cast.
 // now is the authoritative tick/snapshot time used for confirmation freshness.
 // cast must perform Move/Click only; it must not press another skill key.
+//
+// A different in-flight selection is never preempted: Teleport and combat share
+// one selector, and stealing AD mid-confirm leaves the character idle while the
+// mercenary burns potions.
 func (s *RightSkillSelector) EnsureAndCast(skillID uint16, rightSkillID uint16, now time.Time, cast func() error) (sent bool, err error) {
 	if s == nil {
 		return false, fmt.Errorf("right skill selector not wired")
@@ -49,6 +53,13 @@ func (s *RightSkillSelector) EnsureAndCast(skillID uint16, rightSkillID uint16, 
 	}
 	if now.IsZero() {
 		now = time.Now()
+	}
+	if s.pending != 0 && s.pending != skillID {
+		timedOut := !s.requestedAt.IsZero() && now.Sub(s.requestedAt) >= s.timeout
+		if !timedOut {
+			return false, nil
+		}
+		s.Reset()
 	}
 	if rightSkillMatches(skillID, rightSkillID) {
 		s.Reset()

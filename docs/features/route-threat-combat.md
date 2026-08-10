@@ -45,7 +45,7 @@ CE wird positionsgebunden auf eine konkrete berechtigte Leichen-UnitID gesendet 
 
 Nur wenn die sichtbare Körperposition eines lebenden Kuh-Ziels tatsächlich außerhalb des spielbaren Clientbereichs liegt, überspringt der Wrapper diese UnitID und versucht ein anderes Mitglied derselben gebundenen Gruppe. Eine bloß fehlende Hover-Bestätigung ist dagegen kein Projektions- oder Reichweitenfehler und löst den offensiven `world_projected`-Cast aus. Erst wenn alle Gruppenmitglieder wirklich nicht projizierbar sind, darf der bestehende Drei-Snapshot-Range-Gate eine begrenzte Annäherung auslösen. Cow verwendet dafür die vorhandene projektionsgetriebene Combat-Teleportation zur tatsächlich gepinnten Kuh; Summoner behält seinen auf reguläres Movement begrenzten Routepunkt-Force-Move. Der nach dem Input offene Annäherungsnachweis bleibt bis zum frischen Settle-Snapshot autoritativ. Drei wirkungslose Versuche sperren weitere lokale Bewegung für diese UnitID; die übergeordnete No-Progress-Grenze entscheidet danach allein über einen kontrollierten Run-Abbruch.
 
-Der Cow-Watchdog akzeptiert nur weniger lokale Lebende, neue direkte Leichen, bestätigten Verbrauch oder bessere lokale Safe-Coverage. Ein bloßer CE- oder Bone-Spear-Input ist kein Fortschritt. Nach zwölf Sekunden ohne solchen Nachweis entsteht `cow_combat_no_progress`. Am terminalen Cow-Routenpunkt reichen drei frische Safe-Snapshots auch dann nicht aus derselben Poll-Wiederholung; erst drei verschiedene Zeitstempel erlauben dem RoutePlayer den Abschluss.
+Der Cow-Watchdog akzeptiert nur weniger lokale Lebende, neue direkte Leichen, bestätigten Verbrauch oder bessere lokale Safe-Coverage. Ein bloßer CE- oder Bone-Spear-Input ist kein Fortschritt. Nach zwölf Sekunden ohne solchen Nachweis folgt zuerst Retarget innerhalb der aktiven Gruppe, danach eine begrenzte Approach-Teleportation; erst ein weiterer Ablauf ohne Fortschritt erzeugt den Soft-Exit `cow_combat_no_progress` und verbraucht das Session-Retry-Budget. Am terminalen Cow-Routenpunkt reichen drei frische Safe-Snapshots auch dann nicht aus derselben Poll-Wiederholung; erst drei verschiedene Zeitstempel erlauben dem RoutePlayer den Abschluss.
 
 ### Pickit während der Kampfroute
 
@@ -118,4 +118,4 @@ Candidate-/Raw-Playback, Recording und Guided Validation bleiben reine Navigatio
 - [World Model](world-model.md)
 
 ---
-*Zuletzt aktualisiert: 2026-08-09*
+*Zuletzt aktualisiert: 2026-08-10*

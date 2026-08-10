@@ -62,14 +62,20 @@ func (a *townPreparationAdapter) start(state world.State) string {
 			return string(mercFail)
 		}
 	}
+	startAnchor := a.planningStartAnchor(state)
+	a.resolvedStart = startAnchor
 	if !a.services || (!needsPotions && len(itemOrders) == 0 && !mercHeal && !mercRevive) {
 		// No demand means no NPC detour. Initial run setup also enters here even
 		// with a low belt because its only responsibility is reaching Waypoint.
-		startAnchor := a.startAnchor
-		if startAnchor == "" {
-			startAnchor = town.AnchorStash
-		}
 		targetAnchor := a.handoffAnchor()
+		if startAnchor == targetAnchor {
+			// Already Memory-confirmed at the handoff anchor (typical Cow readiness
+			// after a prior run). Skip graph playback entirely.
+			a.traversals = nil
+			a.started = true
+			a.log.Info("central town preparation started", "origin", startAnchor, "target", targetAnchor, "services", []string{}, "handoff", a.nextRunID, "edge_count", 0, "scroll_demand", "unavailable_skip", "town_layout", a.layout)
+			return ""
+		}
 		traversals, err := a.graph.RouteForLayout(a.layout, startAnchor, nil, targetAnchor)
 		if err != nil {
 			return err.Error()
@@ -117,7 +123,7 @@ func (a *townPreparationAdapter) start(state world.State) string {
 		IdentifyRequired: needsIdentify, VendorCandidates: needsSell,
 		MercenaryHeal: mercHeal, MercenaryRevive: mercRevive,
 	}, effectiveThresholds)
-	plan, reason := planner.Plan(town.Origin{Act: town.OriginAct1, Anchor: town.AnchorStash}, snapshot, town.NextRunTarget{ID: a.nextRunID, Act: town.OriginAct1})
+	plan, reason := planner.Plan(town.Origin{Act: town.OriginAct1, Anchor: startAnchor}, snapshot, town.NextRunTarget{ID: a.nextRunID, Act: town.OriginAct1})
 	if reason != "" {
 		return string(reason)
 	}
@@ -138,7 +144,7 @@ func (a *townPreparationAdapter) start(state world.State) string {
 	a.handler = handler
 	a.executor = executor
 	a.started = true
-	a.log.Info("central town preparation started", "origin", "stash", "potions", needsPotions, "identify", needsIdentify, "sell", needsSell, "mercenary_heal", mercHeal, "mercenary_revive", mercRevive, "item_orders", len(itemOrders), "handoff", a.nextRunID, "edge_count", len(traversals), "healing", healing, "mana", mana, "gold", state.Player.Gold, "required_maximum_gold", maximumCost, "town_layout", a.layout)
+	a.log.Info("central town preparation started", "origin", startAnchor, "potions", needsPotions, "identify", needsIdentify, "sell", needsSell, "mercenary_heal", mercHeal, "mercenary_revive", mercRevive, "item_orders", len(itemOrders), "handoff", a.nextRunID, "edge_count", len(traversals), "healing", healing, "mana", mana, "gold", state.Player.Gold, "required_maximum_gold", maximumCost, "town_layout", a.layout)
 	return ""
 }
 
@@ -285,9 +291,13 @@ type townPreparationStepHandler struct {
 }
 
 func newTownPreparationStepHandler(adapter *townPreparationAdapter, traversals []town.Traversal, orders []town.RestockOrder, itemOrders []town.ItemServiceOrder) *townPreparationStepHandler {
+	start := town.AnchorStash
+	if adapter != nil {
+		start = adapter.effectiveStartAnchor()
+	}
 	return &townPreparationStepHandler{
 		adapter: adapter, traversals: append([]town.Traversal(nil), traversals...), orders: append([]town.RestockOrder(nil), orders...), itemOrders: orderedItemServiceOrders(itemOrders),
-		anchor: town.AnchorStash, stage: "walk", itemInput: &townItemServiceInput{controller: adapter.controller, cfg: adapter.stashConfig},
+		anchor: start, stage: "walk", itemInput: &townItemServiceInput{controller: adapter.controller, cfg: adapter.stashConfig},
 	}
 }
 
@@ -992,7 +1002,11 @@ func (h *townPreparationStepHandler) Reset() {
 	h.authorizedAkaraDialog, h.authorizedAkaraUnitID = false, 0
 	h.ResetStep()
 	// A session/run reset invalidates graph continuity and all completed orders.
-	h.traversal, h.order, h.itemOrder, h.anchor = 0, 0, 0, town.AnchorStash
+	start := town.AnchorStash
+	if h.adapter != nil {
+		start = h.adapter.effectiveStartAnchor()
+	}
+	h.traversal, h.order, h.itemOrder, h.anchor = 0, 0, 0, start
 	h.walker = nil
 }
 

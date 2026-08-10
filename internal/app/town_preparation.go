@@ -53,6 +53,7 @@ type townPreparationAdapter struct {
 	stashConfig            config.LootStashConfig
 	nextRunID              string
 	startAnchor            town.Anchor
+	resolvedStart          town.Anchor
 	targetAnchor           town.Anchor
 	requireFullBuyableBelt bool
 	minimumRejuvenation    int
@@ -230,8 +231,47 @@ func townPreparationHandoffReady(state world.State, anchor town.Anchor, toleranc
 	return ok && world.Distance(state.Player.Position, position) <= tolerance
 }
 
+func (a *townPreparationAdapter) planningStartAnchor(state world.State) town.Anchor {
+	if live := a.resolveLiveStartAnchor(state); live != "" {
+		return live
+	}
+	if a.startAnchor != "" {
+		return a.startAnchor
+	}
+	return town.AnchorStash
+}
+
+// resolveLiveStartAnchor prefers Memory-confirmed Act-1 anchors so queue
+// handoffs already standing at the Waypoint (or portal/stash) plan from there
+// instead of forcing the configured Stash default.
+func (a *townPreparationAdapter) resolveLiveStartAnchor(state world.State) town.Anchor {
+	if a == nil {
+		return ""
+	}
+	if townObjectArrivalReady(state, world.ObjectKindTownPortal, a.pathCfg.TownPortal.MaxClickDistance) {
+		return town.AnchorPortalArrival
+	}
+	if townObjectArrivalReady(state, world.ObjectKindPersonalStash, a.pathCfg.Waypoint.MaxClickDistance) {
+		return town.AnchorStash
+	}
+	if townObjectArrivalReady(state, world.ObjectKindWaypoint, a.pathCfg.Waypoint.MaxClickDistance) {
+		return town.AnchorWaypoint
+	}
+	return ""
+}
+
+func (a *townPreparationAdapter) effectiveStartAnchor() town.Anchor {
+	if a != nil && a.resolvedStart != "" {
+		return a.resolvedStart
+	}
+	if a != nil && a.startAnchor != "" {
+		return a.startAnchor
+	}
+	return town.AnchorStash
+}
+
 func (a *townPreparationAdapter) externalStartConfirmed(state world.State, firstPoint world.Position) bool {
-	switch a.startAnchor {
+	switch a.effectiveStartAnchor() {
 	case town.AnchorPortalArrival:
 		return townObjectArrivalReady(state, world.ObjectKindTownPortal, a.pathCfg.TownPortal.MaxClickDistance)
 	case town.AnchorStash:
@@ -266,6 +306,7 @@ func (a *townPreparationAdapter) Reset() {
 	}
 	a.traversals, a.walker = nil, nil
 	a.index, a.started, a.done, a.layout, a.layoutOrigin = 0, false, false, "", world.Position{}
+	a.resolvedStart = ""
 	if a.executor != nil {
 		a.executor.Reset()
 	}
