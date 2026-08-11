@@ -1,9 +1,4 @@
-# .cursor/rules/00-d2rbot-project.mdc
-
----
-description: Core project context and conventions for the D2R Offline Farming Bot
-alwaysApply: true
----
+#Project rules
 
 ## Project spec
 **D2R Offline Farming Bot** — externe Windows-Software für **Offline/Singleplayer** D2R. Ziel: wiederholbare Farming-Runs. Koolo, d2go und Botty dienen nur als Recherche und Lern Referenzen - KEINE dependency!
@@ -47,7 +42,7 @@ Feature-first unter `internal/` und `web/src/features/`. Paket-Grenzen strikt ei
 
 **Datenfluss:** `process` → `memory` (Snapshot) → `world` (Model) → `tasks`/`profile` (Entscheidung) → `input` (Aktion). `pathing`, `loot` und `town` hängen am World Model, nicht direkt an Raw Memory. Operator-UI: `web` ↔ `internal/api` ↔ `internal/app`. `telemetry` beobachtet Runs/Sessions, steuert sie nicht.
 
-## In-code-Dokumentation
+## In-code-Dokumentation 
 
 1. **Godoc-Pflicht:** Neue oder geänderte exportierte Go-Symbole sofort dokumentieren. Der Kommentar beginnt mit dem Symbolnamen und endet mit einem Punkt.
 2. **Design-Kommentare:** Nicht offensichtliche Invarianten, autoritative Datenquellen, Safety-Gates, Reihenfolgen sowie Retry-, Reset- und Fail-closed-Entscheidungen direkt am relevanten Code erklären.
@@ -72,16 +67,11 @@ Dokumentation und UI-facing Strings müssen ordentliches Deutsch und Umlaute ver
 5. **Agent:** `go test ./...` und `go build ./cmd/d2rbot` nach relevanten Änderungen ausführen. Keine Spielsteuerung implementieren, solange die aktuelle Phase read-only ist — außer explizit beauftragt.
 6. **UI facing strings:** Nur für Bot Benutzer relevante und nützliche Informationen anzeigen. Simple, klare Formulierungen - KEIN Technobabble.
 
-# .cursor/rules/01-dokumentation.mdc
-
----
-description: Wann und wie Feature-Dokumentation in docs/features/ erstellt wird
-alwaysApply: true
----
+#Documentation rules
 
 ## Feature-Dokumentation
 
-Diese Regel definiert, wann und wie **Feature-Dokumentation** (Architektur & Verhalten) erstellt wird — ergänzend zu **Godoc** in `00-d2rbot-project.mdc`.
+Diese Regel definiert, wann und wie **Feature-Dokumentation** (Architektur & Verhalten) erstellt wird — ergänzend zu **Godoc** in `Project rules`.
 
 | Ebene | Ort | Inhalt |
 |-------|-----|--------|
@@ -192,16 +182,7 @@ Bei neuem Feature, das Dokumentation braucht:
 5. Eintrag in `docs/CHANGELOG.md` unter **Added**
 6. Commits nur auf ausdrückliche Anfrage des Nutzers
 
-# .cursor/rules/02-changelog.mdc
-
----
-description: Pflege von docs/CHANGELOG.md für den D2R Offline Farming Bot
-globs:
-  - "internal/**"
-  - "cmd/**"
-  - "configs/**"
-  - "docs/CHANGELOG.md"
----
+#Changelog rules
 
 ## Changelog
 
