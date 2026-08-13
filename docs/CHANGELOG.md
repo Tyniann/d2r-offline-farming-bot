@@ -7,7 +7,13 @@ Versionierung nach [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- Add revision-bound deletion for unpublished route drafts with state and immutable-content revalidation
+
 ### Changed
+- Redesign the Electron routes UI around “Meine Routen”, “Route aufnehmen”, and “Entwürfe” with grouped Cow routes, contextual hotkeys, responsive master-detail recording, and user-facing German status labels
+- Remove system Egress, raw identifiers, hashes, workflow generations, and backend status codes from the routes product surface
+- Allow failed route drafts to be tested again from the routes UI
 - Store immutable run context once in Schema-4 JSONL telemetry and show raw history as shared context plus filterable compact events
 
 ### Fixed

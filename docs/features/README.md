@@ -43,7 +43,7 @@ Spätere Ideen (noch nicht umgesetzt): [`docs/backlog.md`](../backlog.md).
 | [Farming-Route-Assignment](route-assignment.md) | Schema 2: atomische Einzelzuordnung plus feste Cow-Rollenslots, Migration, Revisionen und orthogonaler Managementstatus |
 | [Geführte Farming-Routenaufnahme](guided-route-recording.md) | Exklusiver Recorder-Core mit Wegpunkt-/Portalstart, Boss-/Objekt-/Endpunktprüfung, immutable Kandidaten und TP-Sicherheitsrückweg |
 | [Kandidaten-Playback und Routenverwaltung](route-management.md) | Abschnitt 12.4: isolierter Navigationstest sowie revisions- und Recovery-gesicherte Publish/Replace/Archive/Restore/Delete-Transaktionen |
-| [Routenbibliothek und Setup-Assistent](route-dashboard.md) | Abschnitt 12.5: pfadfreie Core-API, React-Routenfeature, System-Egress-Setup und Core-geladene Hotkey-Hilfe |
+| [Routenoberfläche](route-dashboard.md) | Aufgabenorientierte Bibliothek, Einzelaufnahme, Kuhlevel-Zweischritt und sichere Entwurfsverwaltung ohne technische Identitäten |
 | [Town Services](town-services.md) | Phase 9: fail-closed Bedarfsermittlung, zentraler Act-1-Hub und minimales Fremdakt-Egress-Format |
 | [Globaler System-Egress](system-egress.md) | Abschnitt 12.2: aktgenerische globale Portal-zum-Wegpunkt-Routen für Akt 2–5 ohne Character-/Difficulty-Bindung |
 

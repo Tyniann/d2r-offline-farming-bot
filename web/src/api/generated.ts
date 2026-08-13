@@ -408,6 +408,7 @@ export interface RouteCandidateDTO {
   state: string;
   measured_boss_distance: number;
   route_sha256: string;
+  created_at: string;
   reason?: string;
 }
 

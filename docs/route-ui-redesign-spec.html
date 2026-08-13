@@ -1,0 +1,1133 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Routen-UI – Redesign-Spezifikation</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0d0b0f;
+      --surface: #151218;
+      --surface-2: #1d1820;
+      --surface-3: #261f29;
+      --line: #3d3241;
+      --line-strong: #59465f;
+      --text: #f5eef6;
+      --muted: #bcaec0;
+      --faint: #8b7c90;
+      --brand: #d55a2a;
+      --brand-strong: #ef7040;
+      --brand-soft: #3a1f19;
+      --gold: #d7a842;
+      --gold-soft: #302512;
+      --green: #71c992;
+      --green-soft: #14271c;
+      --red: #ef7c75;
+      --red-soft: #321819;
+      --blue: #8db6ec;
+      --blue-soft: #172538;
+      --radius: 14px;
+      --shadow: 0 16px 42px rgba(0, 0, 0, .26);
+      --content: 1180px;
+    }
+
+    * { box-sizing: border-box; }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      margin: 0;
+      background:
+        radial-gradient(circle at 80% -10%, rgba(166, 67, 38, .16), transparent 32rem),
+        radial-gradient(circle at -10% 28%, rgba(94, 55, 101, .12), transparent 28rem),
+        var(--bg);
+      color: var(--text);
+      font: 16px/1.58 Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    a { color: #f3b092; }
+    a:hover { color: #ffd0ba; }
+
+    code, kbd {
+      font-family: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
+      font-size: .92em;
+    }
+
+    code {
+      padding: .12rem .35rem;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: #100d12;
+      color: #f1c9b8;
+    }
+
+    kbd {
+      display: inline-flex;
+      align-items: center;
+      min-height: 28px;
+      padding: .1rem .5rem;
+      border: 1px solid #68536e;
+      border-bottom-width: 3px;
+      border-radius: 7px;
+      background: #251e28;
+      color: #fff;
+      font-weight: 750;
+    }
+
+    h1, h2, h3, h4 { line-height: 1.18; text-wrap: balance; }
+    h1 { margin: 0 0 1rem; font-size: clamp(2rem, 5vw, 4rem); letter-spacing: -.045em; }
+    h2 { margin: 0 0 1rem; font-size: clamp(1.55rem, 3vw, 2.25rem); letter-spacing: -.025em; }
+    h3 { margin: 0 0 .75rem; font-size: 1.25rem; }
+    h4 { margin: 0 0 .45rem; font-size: 1rem; }
+    p { margin: 0 0 1rem; }
+
+    .shell {
+      width: min(calc(100% - 32px), var(--content));
+      margin: 0 auto;
+    }
+
+    .hero {
+      padding: 76px 0 48px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      gap: .45rem;
+      align-items: center;
+      margin-bottom: 1rem;
+      color: #f2b291;
+      font-size: .78rem;
+      font-weight: 800;
+      letter-spacing: .11em;
+      text-transform: uppercase;
+    }
+
+    .lead {
+      max-width: 820px;
+      color: #d5c8d8;
+      font-size: 1.15rem;
+    }
+
+    .meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: .65rem;
+      margin-top: 1.5rem;
+    }
+
+    .pill, .tag, .status {
+      display: inline-flex;
+      align-items: center;
+      gap: .35rem;
+      width: fit-content;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: .3rem .65rem;
+      background: var(--surface-2);
+      color: #ddd1df;
+      font-size: .78rem;
+      font-weight: 720;
+    }
+
+    .status.good { border-color: #315b40; background: var(--green-soft); color: #a7e2bb; }
+    .status.warn { border-color: #6c5420; background: var(--gold-soft); color: #f1ca71; }
+    .status.bad { border-color: #693033; background: var(--red-soft); color: #ffaaa4; }
+    .status.info { border-color: #304968; background: var(--blue-soft); color: #b7d5fa; }
+
+    .layout {
+      display: grid;
+      grid-template-columns: 240px minmax(0, 1fr);
+      gap: 40px;
+      padding: 36px 0 96px;
+    }
+
+    .toc {
+      position: sticky;
+      top: 24px;
+      align-self: start;
+      padding: 18px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: rgba(21, 18, 24, .88);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(14px);
+    }
+
+    .toc strong { display: block; margin-bottom: .65rem; }
+    .toc a {
+      display: block;
+      padding: .42rem .55rem;
+      border-radius: 8px;
+      color: var(--muted);
+      text-decoration: none;
+      font-size: .9rem;
+    }
+    .toc a:hover { background: var(--surface-3); color: var(--text); }
+
+    main { min-width: 0; }
+    section { scroll-margin-top: 24px; margin-bottom: 64px; }
+
+    .summary {
+      padding: 24px;
+      border: 1px solid #6b452f;
+      border-radius: var(--radius);
+      background: linear-gradient(135deg, rgba(77, 34, 23, .72), rgba(26, 20, 28, .92));
+      box-shadow: var(--shadow);
+    }
+
+    .summary ol { margin-bottom: 0; }
+
+    .grid-2, .grid-3 {
+      display: grid;
+      gap: 16px;
+    }
+    .grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+
+    .card {
+      padding: 20px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--surface);
+    }
+
+    .card p:last-child, .card ul:last-child { margin-bottom: 0; }
+    .card.problem { border-top: 3px solid var(--red); }
+    .card.decision { border-top: 3px solid var(--green); }
+    .card h3 + p { color: var(--muted); }
+
+    .callout {
+      margin: 18px 0;
+      padding: 18px 20px;
+      border-left: 4px solid var(--gold);
+      border-radius: 0 12px 12px 0;
+      background: var(--gold-soft);
+      color: #eadcbf;
+    }
+
+    .callout.good { border-left-color: var(--green); background: var(--green-soft); }
+    .callout.bad { border-left-color: var(--red); background: var(--red-soft); }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      border: 1px solid var(--line);
+      background: var(--surface);
+      font-size: .92rem;
+    }
+
+    th, td {
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--line);
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th { background: var(--surface-2); color: #f5d8cb; }
+    tr:last-child td { border-bottom: 0; }
+
+    .decision-table td:first-child { width: 28%; font-weight: 760; color: #f7e5dc; }
+    .decision-table td:nth-child(2) { width: 20%; }
+
+    .screen {
+      overflow: hidden;
+      margin: 22px 0;
+      border: 1px solid #4c3c51;
+      border-radius: 18px;
+      background: #110e13;
+      box-shadow: 0 24px 55px rgba(0, 0, 0, .34);
+    }
+
+    .screen-bar {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      min-height: 40px;
+      padding: 0 14px;
+      border-bottom: 1px solid #352a39;
+      background: #19151b;
+    }
+
+    .screen-dot { width: 9px; height: 9px; border-radius: 50%; background: #4c3c51; }
+    .screen-dot:nth-child(1) { background: #93432f; }
+    .screen-dot:nth-child(2) { background: #a98135; }
+    .screen-dot:nth-child(3) { background: #427255; }
+
+    .screen-body { padding: 24px; }
+
+    .ui-header, .ui-toolbar, .ui-actions, .ui-tabs, .ui-hotkeys {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .ui-header { justify-content: space-between; margin-bottom: 18px; }
+    .ui-title { font-size: 1.45rem; font-weight: 850; letter-spacing: -.02em; }
+    .ui-subtitle { margin-top: .18rem; color: var(--faint); font-size: .84rem; }
+
+    .select-like, .button, .icon-button {
+      min-height: 42px;
+      border: 1px solid var(--line-strong);
+      border-radius: 10px;
+      padding: .6rem .85rem;
+      background: #211b24;
+      color: var(--text);
+      font: inherit;
+      font-size: .86rem;
+      font-weight: 740;
+    }
+
+    .button { display: inline-flex; align-items: center; justify-content: center; }
+    .button.primary { border-color: #c84d22; background: linear-gradient(#d65a2a, #a53b19); }
+    .button.ghost { background: transparent; }
+    .button.danger { border-color: #78373a; background: #35191b; color: #ffaaa4; }
+    .icon-button { width: 42px; padding: 0; }
+
+    .ui-tabs {
+      padding: 5px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: #171319;
+    }
+
+    .ui-tab {
+      min-height: 38px;
+      padding: .55rem .85rem;
+      border-radius: 8px;
+      color: var(--muted);
+      font-size: .83rem;
+      font-weight: 760;
+    }
+    .ui-tab.active { background: var(--surface-3); color: #fff; box-shadow: inset 0 0 0 1px #58445d; }
+
+    .route-list {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+      margin-top: 18px;
+    }
+
+    .route-row {
+      display: grid;
+      grid-template-columns: 44px 1fr auto;
+      gap: 12px;
+      align-items: center;
+      min-height: 92px;
+      padding: 15px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: var(--surface);
+    }
+
+    .route-icon {
+      display: grid;
+      place-items: center;
+      width: 44px;
+      height: 44px;
+      border-radius: 11px;
+      background: var(--brand-soft);
+      color: #f4a27f;
+      font-size: 1.15rem;
+      font-weight: 900;
+    }
+
+    .route-name { font-weight: 850; }
+    .route-meta { color: var(--faint); font-size: .8rem; }
+    .subroutes { grid-column: 2 / -1; display: grid; gap: 8px; margin-top: 2px; }
+    .subroute { display: flex; justify-content: space-between; gap: 12px; padding: 8px 10px; border-radius: 8px; background: #211a22; font-size: .8rem; }
+
+    .record-layout {
+      display: grid;
+      grid-template-columns: 245px minmax(0, 1fr);
+      gap: 16px;
+      margin-top: 18px;
+    }
+
+    .run-rail, .detail-panel {
+      border: 1px solid var(--line);
+      border-radius: 13px;
+      background: var(--surface);
+    }
+
+    .run-rail { padding: 8px; }
+    .run-choice {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 11px 12px;
+      border-radius: 9px;
+      color: var(--muted);
+      font-size: .84rem;
+      font-weight: 720;
+    }
+    .run-choice + .run-choice { margin-top: 3px; }
+    .run-choice.active { background: var(--brand-soft); color: #ffd9ca; }
+    .run-choice small { color: var(--green); }
+
+    .detail-panel { padding: 20px; }
+    .notice {
+      margin: 14px 0;
+      padding: 14px;
+      border: 1px solid #735c25;
+      border-radius: 10px;
+      background: var(--gold-soft);
+      color: #ecd9ae;
+      font-size: .86rem;
+    }
+
+    .steps { display: grid; gap: 10px; margin: 16px 0; padding: 0; list-style: none; }
+    .steps li { display: grid; grid-template-columns: 28px 1fr; gap: 10px; align-items: start; }
+    .step-number { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; background: #392831; color: #ffc1a6; font-size: .78rem; font-weight: 900; }
+    .checklist { display: flex; flex-wrap: wrap; gap: 8px; margin: 14px 0; }
+    .check { padding: .35rem .55rem; border-radius: 7px; background: var(--green-soft); color: #a9e3bd; font-size: .78rem; }
+    .action-footer { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--line); }
+    .ui-hotkeys { color: var(--muted); font-size: .78rem; }
+
+    .draft-list { display: grid; gap: 10px; margin-top: 18px; }
+    .draft-row {
+      display: grid;
+      grid-template-columns: minmax(150px, 1.1fr) minmax(170px, 1fr) auto;
+      gap: 18px;
+      align-items: center;
+      padding: 16px;
+      border: 1px solid var(--line);
+      border-radius: 11px;
+      background: var(--surface);
+    }
+    .draft-row.failed { border-color: #613337; background: linear-gradient(90deg, rgba(61, 25, 27, .6), var(--surface) 42%); }
+    .draft-detail { color: var(--muted); font-size: .82rem; }
+
+    .flow {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 8px;
+      margin: 18px 0;
+    }
+    .flow-step { position: relative; min-height: 78px; padding: 13px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); font-size: .8rem; }
+    .flow-step strong { display: block; margin-bottom: .3rem; color: #f6d6c8; }
+    .flow-step:not(:last-child)::after { content: "→"; position: absolute; right: -10px; top: 27px; z-index: 2; color: var(--gold); font-size: 1.1rem; }
+
+    .file-list { display: grid; gap: 8px; }
+    .file-row { padding: 11px 13px; border: 1px solid var(--line); border-radius: 9px; background: var(--surface); }
+    .file-row strong { display: block; margin-bottom: .2rem; }
+    .file-row span { color: var(--muted); font-size: .88rem; }
+
+    .checklist-text li { margin-bottom: .55rem; }
+    .must { color: #ffb391; font-weight: 850; }
+    .should { color: #f0ce77; font-weight: 850; }
+    .may { color: #9fc4ee; font-weight: 850; }
+
+    .do-not {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 10px;
+      align-items: start;
+      margin: 8px 0;
+      padding: 12px;
+      border-radius: 10px;
+      background: #251518;
+      color: #efc1bd;
+    }
+
+    .footer { padding: 28px 0 48px; border-top: 1px solid var(--line); color: var(--faint); font-size: .88rem; }
+
+    @media (max-width: 980px) {
+      .layout { grid-template-columns: 1fr; }
+      .toc { position: static; }
+      .toc a { display: inline-block; }
+      .grid-3 { grid-template-columns: 1fr; }
+      .flow { grid-template-columns: 1fr; }
+      .flow-step:not(:last-child)::after { content: "↓"; top: auto; right: 50%; bottom: -17px; }
+    }
+
+    @media (max-width: 760px) {
+      .hero { padding-top: 48px; }
+      .grid-2, .route-list, .record-layout { grid-template-columns: 1fr; }
+      .run-rail { display: grid; grid-template-columns: repeat(2, 1fr); }
+      .draft-row { grid-template-columns: 1fr; gap: 10px; }
+      .action-footer { align-items: stretch; flex-direction: column; }
+      .button.primary { width: 100%; }
+      th, td { padding: 10px; }
+    }
+
+    @media print {
+      :root { color-scheme: light; --bg: #fff; --surface: #fff; --surface-2: #f3f0f4; --surface-3: #ece7ee; --line: #c9c1cc; --text: #1c171e; --muted: #554c58; --faint: #6f6572; }
+      body { background: #fff; color: #171219; }
+      .toc { display: none; }
+      .layout { display: block; }
+      .screen, .card, .summary { box-shadow: none; break-inside: avoid; }
+      section { break-inside: auto; }
+    }
+  </style>
+</head>
+<body>
+  <header class="hero">
+    <div class="shell">
+      <div class="eyebrow">UX-Spezifikation · Routes Feature</div>
+      <h1>Routen verwalten, aufnehmen und prüfen – ohne internen Ballast</h1>
+      <p class="lead">
+        Verbindliche Redesign-Spezifikation für die Routenoberfläche des D2R Offline Farming Bot.
+        Sie ersetzt das organisch gewachsene Kartenraster durch einen aufgabenorientierten Ablauf,
+        blendet Implementierungsdetails konsequent aus und führt Aufnahme, Hotkeys und Kandidatenprüfung
+        dort zusammen, wo sie gebraucht werden.
+      </p>
+      <div class="meta">
+        <span class="pill">Stand: 13. August 2026</span>
+        <span class="pill">Status: umsetzungsbereit</span>
+        <span class="pill">Artefakt: Analyse + UI-Vertrag + Abnahmekriterien</span>
+      </div>
+    </div>
+  </header>
+
+  <div class="shell layout">
+    <nav class="toc" aria-label="Inhaltsverzeichnis">
+      <strong>Inhalt</strong>
+      <a href="#kurzfassung">1. Kurzfassung</a>
+      <a href="#analyse">2. Ist-Analyse</a>
+      <a href="#entscheidungen">3. Produktentscheidungen</a>
+      <a href="#struktur">4. Zielstruktur</a>
+      <a href="#routen">5. Meine Routen</a>
+      <a href="#aufnahme">6. Aufnahme</a>
+      <a href="#entwuerfe">7. Entwürfe</a>
+      <a href="#workflow">8. Workflowzustände</a>
+      <a href="#sprache">9. Sprache & Mapping</a>
+      <a href="#umsetzung">10. Umsetzung</a>
+      <a href="#responsive">11. Responsive & A11y</a>
+      <a href="#tests">12. Abnahme</a>
+    </nav>
+
+    <main>
+      <section id="kurzfassung">
+        <div class="summary">
+          <h2>Kurzfassung</h2>
+          <p>Die Seite wird in drei klar getrennte Arbeitsbereiche gegliedert:</p>
+          <ol>
+            <li><strong>Meine Routen</strong> zeigt nur veröffentlichte, nutzbare Routen in kompakter Form.</li>
+            <li><strong>Route aufnehmen</strong> zeigt genau eine ausgewählte Aufnahme samt Anleitung und Hotkeys; beim Kuhlevel werden die beiden zusammengehörigen Teilrouten als Schritte dargestellt.</li>
+            <li><strong>Entwürfe</strong> ersetzt „Kandidatenreview“ und bietet Testen, Veröffentlichen und Löschen ohne Kandidaten-ID oder Prüfsumme.</li>
+          </ol>
+          <p style="margin-top: 1rem; margin-bottom: 0;">
+            Der globale Workflow-Status im Leerlauf, System-Egress-Setup, Hashes, IDs, rohe Statuscodes,
+            Area-IDs und interne Voraussetzungsschlüssel verschwinden aus der Produktoberfläche vollständig.
+          </p>
+        </div>
+
+        <div class="callout good">
+          <strong>Leitentscheidung:</strong> Die Oberfläche erklärt die nächste sinnvolle Handlung. Sie erklärt nicht,
+          wie der Core seine Daten intern benennt, versioniert oder validiert.
+        </div>
+      </section>
+
+      <section id="analyse">
+        <h2>Ist-Analyse</h2>
+        <p>
+          Das heutige UI verwendet nahezu dieselbe visuelle Karte für sehr unterschiedliche Dinge: veröffentlichte
+          Routen, Aufnahmeoptionen, Kandidaten und Systemrouten. Dadurch fehlt eine erkennbare Informationshierarchie.
+          Die technische Datenstruktur wurde direkt in die Darstellung gespiegelt, statt in eine Bedienoberfläche
+          übersetzt zu werden.
+        </p>
+
+        <div class="grid-2">
+          <article class="card problem">
+            <h3>Farming-Routen</h3>
+            <p>Interne Identität wird wie Produktinformation behandelt.</p>
+            <ul>
+              <li>Anzeigenamen enthalten zufällige Hash-Suffixe.</li>
+              <li><code>runtime_validation_required</code>, interne Run-IDs und Rollen werden roh ausgegeben.</li>
+              <li>„Aktiv“, „zugewiesen“ und Lifecycle-Status konkurrieren ohne erkennbare Priorität.</li>
+              <li>Fünf gleich gewichtete Karten erschweren das schnelle Scannen.</li>
+            </ul>
+          </article>
+
+          <article class="card problem">
+            <h3>Geführte Aufnahme</h3>
+            <p>Alle möglichen Aufgaben werden gleichzeitig vollständig ausgebreitet.</p>
+            <ul>
+              <li>Sechs lange Anleitungen stehen parallel im Blickfeld, obwohl nur eine Aufnahme möglich ist.</li>
+              <li>Die Kuhlevel-Voraussetzungen erscheinen global statt nur im Kuhlevel-Kontext.</li>
+              <li>Area-IDs und Schlüssel wie <code>town_portal</code> sind Entwicklerdaten.</li>
+              <li>Der Aufnahme-Hotkey ist von der primären Aktion räumlich getrennt.</li>
+            </ul>
+          </article>
+
+          <article class="card problem">
+            <h3>Kandidatenreview</h3>
+            <p>Die interne Persistenz dominiert die eigentliche Entscheidung.</p>
+            <ul>
+              <li>Kandidaten-ID und SHA-256 sind für Testen oder Veröffentlichen bedeutungslos.</li>
+              <li>Fehler, Status und Aktionen haben keine konsistente Priorität.</li>
+              <li>Es fehlt eine Löschmöglichkeit; abgelehnte Aufnahmen sammeln sich dauerhaft.</li>
+              <li>Ein Kartenraster eignet sich schlecht für eine zeitlich sortierte Arbeitsliste.</li>
+            </ul>
+          </article>
+
+          <article class="card problem">
+            <h3>Workflow, Egress und Hotkeys</h3>
+            <p>Interne Betriebsdetails stehen am falschen Ort oder ohne Nutzwert im UI.</p>
+            <ul>
+              <li><code>idle</code> und „Generation 1“ beschreiben keinen Handlungsbedarf.</li>
+              <li>Fertige System-Egress-Routen werden als permanenter Verwaltungsbereich gezeigt.</li>
+              <li>Hotkey-Hilfe steht am Seitenende statt am Aufnahme-Button.</li>
+              <li>Globale technische Blöcke verlängern die Seite, obwohl alles bereit ist.</li>
+            </ul>
+          </article>
+        </div>
+
+        <div class="callout bad">
+          <strong>Grundursache:</strong> API-Felder und Backendzustände wurden direkt gerendert. Ein fehlendes
+          Presentation-Layer führt dazu, dass jeder neue Core-Zustand automatisch zu neuem Technobabble im UI wird.
+        </div>
+      </section>
+
+      <section id="entscheidungen">
+        <h2>Verbindliche Produktentscheidungen</h2>
+        <table class="decision-table">
+          <thead>
+            <tr><th>Thema</th><th>Entscheidung</th><th>Begründung und genaue Konsequenz</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Hauptnavigation</td>
+              <td><span class="status good">3 Bereiche</span></td>
+              <td>„Meine Routen“, „Route aufnehmen“ und „Entwürfe“ werden als Tabs unter einem gemeinsamen Charakterkontext geführt.</td>
+            </tr>
+            <tr>
+              <td>Interne IDs und Hashes</td>
+              <td><span class="status bad">Nie anzeigen</span></td>
+              <td>Route-ID, Kandidaten-ID, SHA-256, Workflow-ID und Generation bleiben technische Command-Keys, erscheinen aber weder als Text noch Tooltip oder Accessible Name.</td>
+            </tr>
+            <tr>
+              <td>Rohe Statuscodes</td>
+              <td><span class="status bad">Nie durchreichen</span></td>
+              <td>Jeder sichtbare Zustand besitzt eine deutsche, handlungsorientierte Übersetzung. Ein unbekannter Code erhält eine neutrale Meldung und wird nur intern geloggt.</td>
+            </tr>
+            <tr>
+              <td>Aufnahmeoptionen</td>
+              <td><span class="status good">Eine Auswahl</span></td>
+              <td>Links kompakte Auswahl, rechts genau eine Anleitung. Keine Sammlung vollständiger Anleitungen.</td>
+            </tr>
+            <tr>
+              <td>Kuhlevel</td>
+              <td><span class="status warn">Zweiteiliger Sonderfall</span></td>
+              <td>Wirt-Route und Cow-Route werden in einem gemeinsamen Kuhlevel-Ablauf als Schritt 1 und 2 dargestellt. Der Hinweisblock erscheint ausschließlich bei ausgewähltem Kuhlevel.</td>
+            </tr>
+            <tr>
+              <td>Workflow im Leerlauf</td>
+              <td><span class="status bad">Nicht rendern</span></td>
+              <td>Bei <code>idle</code> existiert kein Statusblock. Aktive Zustände ersetzen den relevanten Aufnahme- oder Testbereich durch eine fokussierte Fortschrittsansicht.</td>
+            </tr>
+            <tr>
+              <td>System-Egress</td>
+              <td><span class="status bad">Aus Produkt-UI entfernen</span></td>
+              <td>Kein Abschnitt, kein Tab und kein regulärer Fetch. Backend/CLI dürfen als internes Recovery-Werkzeug bestehen bleiben. Ein realer Blocker wird später nur kontextuell am betroffenen Vorgang gezeigt.</td>
+            </tr>
+            <tr>
+              <td>Hotkeys</td>
+              <td><span class="status good">Kontextuell</span></td>
+              <td><kbd>F9</kbd> und <kbd>F11</kbd> stehen direkt an der Aufnahmeaktion und während einer aktiven Aufnahme. Keine separate Hilfesektion am Seitenende.</td>
+            </tr>
+            <tr>
+              <td>Entwurf löschen</td>
+              <td><span class="status good">Ergänzen</span></td>
+              <td>Jeder unveröffentlichte Entwurf erhält eine Löschaktion mit verständlicher Bestätigung. Die Löschung wird serverseitig gegen laufende Workflows und veränderte Kandidatendaten abgesichert.</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="struktur">
+        <h2>Neue Informationsarchitektur</h2>
+        <p>Die gesamte Seite folgt einer einfachen Hierarchie. Kein Abschnitt wird unterhalb der drei Bereiche lose angehängt.</p>
+
+        <div class="flow" aria-label="Informationsarchitektur">
+          <div class="flow-step"><strong>Seitenkopf</strong>„Routen“ plus kurze Erklärung</div>
+          <div class="flow-step"><strong>Charakter</strong>ein zentraler Filter für alle Bereiche</div>
+          <div class="flow-step"><strong>Bereich</strong>Routen, Aufnahme oder Entwürfe</div>
+          <div class="flow-step"><strong>Kontext</strong>ausgewählter Run oder Entwurf</div>
+          <div class="flow-step"><strong>Aktion</strong>eine klare primäre Handlung</div>
+        </div>
+
+        <h3>Gemeinsamer Seitenkopf</h3>
+        <ul class="checklist-text">
+          <li><span class="must">MUSS:</span> Titel „Routen“; Unterzeile „Verwalte und erstelle die Laufwege für deine Farming-Runs.“</li>
+          <li><span class="must">MUSS:</span> Charakterauswahl rechts im Kopf auf Desktop, darunter auf kleinen Bildschirmen.</li>
+          <li><span class="must">MUSS:</span> Tab-Reihenfolge „Meine Routen“, „Route aufnehmen“, „Entwürfe“.</li>
+          <li><span class="should">SOLL:</span> „Entwürfe“ zeigt die Zahl offener, noch nicht veröffentlichter Aufnahmen als kleinen Badge.</li>
+          <li><span class="must">MUSS:</span> Bei Charakterwechsel bleiben Bereich und Run-Auswahl erhalten, sofern für den neuen Charakter gültig; sonst fällt die Auswahl auf den ersten verfügbaren Eintrag zurück.</li>
+        </ul>
+
+        <div class="do-not"><strong>✕</strong><span>Keine globale Zeile „Routen-Workflow“, keine „Generation“, keine System-Egress-Sektion und keine Hotkey-Sammelbox.</span></div>
+      </section>
+
+      <section id="routen">
+        <h2>Bereich 1: Meine Routen</h2>
+        <p>
+          Dieser Bereich beantwortet nur zwei Fragen: „Welche Runs sind für diesen Charakter eingerichtet?“ und
+          „Welche Route möchte ich verwalten?“ Die Darstellung ist eine kompakte, zweispaltige Liste statt eines
+          beliebig wachsenden Kartenrasters.
+        </p>
+
+        <div class="screen" aria-label="Wireframe Meine Routen">
+          <div class="screen-bar"><span class="screen-dot"></span><span class="screen-dot"></span><span class="screen-dot"></span></div>
+          <div class="screen-body">
+            <div class="ui-header">
+              <div>
+                <div class="ui-title">Routen</div>
+                <div class="ui-subtitle">Verwalte und erstelle die Laufwege für deine Farming-Runs.</div>
+              </div>
+              <div class="select-like">Charakter: MrBones ▾</div>
+            </div>
+            <div class="ui-toolbar" style="justify-content: space-between;">
+              <div class="ui-tabs">
+                <div class="ui-tab active">Meine Routen</div>
+                <div class="ui-tab">Route aufnehmen</div>
+                <div class="ui-tab">Entwürfe <span class="tag">2</span></div>
+              </div>
+              <div class="select-like">Aktive Routen ▾</div>
+            </div>
+            <div class="route-list">
+              <div class="route-row">
+                <div class="route-icon">G</div>
+                <div><div class="route-name">Gräfin</div><div class="route-meta">Hölle · Standardroute</div></div>
+                <span class="status good">Aktiv</span>
+              </div>
+              <div class="route-row">
+                <div class="route-icon">M</div>
+                <div><div class="route-name">Mephisto</div><div class="route-meta">Hölle · Standardroute</div></div>
+                <span class="status good">Aktiv</span>
+              </div>
+              <div class="route-row">
+                <div class="route-icon">B</div>
+                <div><div class="route-name">Beschwörer</div><div class="route-meta">Hölle · Standardroute</div></div>
+                <button class="icon-button" aria-label="Weitere Aktionen">•••</button>
+              </div>
+              <div class="route-row">
+                <div class="route-icon">N</div>
+                <div><div class="route-name">Nihlathak</div><div class="route-meta">Hölle · Standardroute</div></div>
+                <span class="status good">Aktiv</span>
+              </div>
+              <div class="route-row" style="grid-column: 1 / -1;">
+                <div class="route-icon">K</div>
+                <div><div class="route-name">Kuhlevel</div><div class="route-meta">Hölle · Zwei zusammengehörige Routen</div></div>
+                <span class="status good">Vollständig</span>
+                <div class="subroutes">
+                  <div class="subroute"><span>1 · Wirt-Route</span><span>Aktiv</span></div>
+                  <div class="subroute"><span>2 · Cow-Route</span><span>Aktiv</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <h3>Darstellungsregeln</h3>
+        <ul class="checklist-text">
+          <li><span class="must">MUSS:</span> Titel stammen aus dem Run-Katalog: „Gräfin“, „Mephisto“, „Beschwörer“, „Nihlathak“, „Kuhlevel“. Ein gespeicherter Routenname mit Hash-Suffix wird nie als Titel verwendet.</li>
+          <li><span class="must">MUSS:</span> Schwierigkeit wird übersetzt: „Normal“, „Alptraum“, „Hölle“.</li>
+          <li><span class="must">MUSS:</span> Primärstatus ist „Aktiv“, „Nicht verwendet“, „Unvollständig“ oder „Archiviert“. Interne Lifecycle- und Managementzustände werden nicht nebeneinander ausgegeben.</li>
+          <li><span class="must">MUSS:</span> Kuhlevel ist eine Run-Gruppe mit zwei Teilzeilen. Wirt- und Cow-Route dürfen nicht als zwei unabhängige Farming-Runs erscheinen.</li>
+          <li><span class="must">MUSS:</span> „Archivieren“ liegt im Dreipunktmenü der jeweiligen Route; es ist keine ständig dominante Primäraktion.</li>
+          <li><span class="must">MUSS:</span> Archivierte Routen werden über den Filter „Aktive Routen / Archiv“ eingeblendet. Löschen bleibt ausschließlich dort und nutzt die bestehende sichere Bestätigung.</li>
+          <li><span class="should">SOLL:</span> Fehlt eine Route, zeigt die Zeile „Noch nicht aufgenommen“ und die Aktion „Jetzt aufnehmen“, die direkt zum richtigen Aufnahme-Kontext führt.</li>
+        </ul>
+      </section>
+
+      <section id="aufnahme">
+        <h2>Bereich 2: Route aufnehmen</h2>
+        <p>
+          Der Bereich arbeitet nach dem Master-Detail-Prinzip: eine kurze Run-Auswahl links und die vollständige
+          Anleitung ausschließlich für den gewählten Run rechts. Damit bleibt der Text lesbar und die primäre Aktion
+          immer sichtbar.
+        </p>
+
+        <div class="screen" aria-label="Wireframe Route aufnehmen">
+          <div class="screen-bar"><span class="screen-dot"></span><span class="screen-dot"></span><span class="screen-dot"></span></div>
+          <div class="screen-body">
+            <div class="ui-header">
+              <div>
+                <div class="ui-title">Routen</div>
+                <div class="ui-subtitle">Verwalte und erstelle die Laufwege für deine Farming-Runs.</div>
+              </div>
+              <div class="select-like">Charakter: MrBones ▾</div>
+            </div>
+            <div class="ui-tabs">
+              <div class="ui-tab">Meine Routen</div>
+              <div class="ui-tab active">Route aufnehmen</div>
+              <div class="ui-tab">Entwürfe <span class="tag">2</span></div>
+            </div>
+            <div class="record-layout">
+              <div class="run-rail">
+                <div class="run-choice"><span>Gräfin</span><small>bereit</small></div>
+                <div class="run-choice"><span>Mephisto</span><small>bereit</small></div>
+                <div class="run-choice"><span>Beschwörer</span><small>bereit</small></div>
+                <div class="run-choice"><span>Nihlathak</span><small>bereit</small></div>
+                <div class="run-choice active"><span>Kuhlevel</span><span>›</span></div>
+              </div>
+              <div class="detail-panel">
+                <div class="ui-header" style="margin-bottom: 0;">
+                  <div>
+                    <h3>Kuhlevel aufnehmen</h3>
+                    <div class="ui-subtitle">Schritt 1 von 2 · Wirt-Route</div>
+                  </div>
+                  <span class="status info">Wirt-Route</span>
+                </div>
+                <div class="notice">
+                  <strong>Vorbereitung für das Kuhlevel</strong><br>
+                  Die gewählte Schwierigkeit muss abgeschlossen sein. Halte einen geschützten Horadrimwürfel,
+                  Wirts Bein und ein verwendbares Stadtportalbuch bereit.
+                </div>
+                <div class="checklist">
+                  <span class="check">✓ Wegpunkt verfügbar</span>
+                  <span class="check">✓ Teleport verfügbar</span>
+                  <span class="check">✓ Stadtportal verfügbar</span>
+                  <span class="check">✓ Pickit bereit</span>
+                </div>
+                <ol class="steps">
+                  <li><span class="step-number">1</span><span>Reise zum Wegpunkt <strong>Feld der Steine</strong>.</span></li>
+                  <li><span class="step-number">2</span><span>Betritt das bereits geöffnete rote Portal nach Tristram.</span></li>
+                  <li><span class="step-number">3</span><span>Starte die Aufnahme und bewege dich in die Nähe von Wirts Körper. Klicke Wirt nicht an.</span></li>
+                  <li><span class="step-number">4</span><span>Beende die Aufnahme am gewünschten Endpunkt.</span></li>
+                </ol>
+                <div class="action-footer">
+                  <div class="ui-hotkeys"><kbd>F9</kbd> Aufnahme beenden <kbd>F11</kbd> Notabbruch</div>
+                  <div class="button primary">Wirt-Route aufnehmen</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <h3>Auswahl und Inhalt</h3>
+        <ul class="checklist-text">
+          <li><span class="must">MUSS:</span> Es wird immer nur die Anleitung des ausgewählten Runs gerendert.</li>
+          <li><span class="must">MUSS:</span> Desktop nutzt eine kompakte Run-Liste links; unter 760 px wird daraus ein Select oberhalb des Detailbereichs.</li>
+          <li><span class="must">MUSS:</span> Die Kuhlevel-Voraussetzungen werden nur gerendert, wenn <code>run_id == cows</code>.</li>
+          <li><span class="must">MUSS:</span> Beim Kuhlevel zeigt ein kleiner Zweischritt-Umschalter „1 Wirt-Route“ und „2 Cow-Route“. Nach erfolgreicher Wirt-Aufnahme führt die Erfolgsaktion direkt zu Schritt 2.</li>
+          <li><span class="must">MUSS:</span> Start- und Zielorte erscheinen als Ortsnamen; Area-IDs und interne Startschlüssel entfallen.</li>
+          <li><span class="must">MUSS:</span> Voraussetzungen werden als kurze Checkliste mit übersetzten Namen gezeigt. Nur nicht erfüllte Punkte benötigen eine Erklärung.</li>
+          <li><span class="must">MUSS:</span> Ein deaktivierter Button besitzt direkt darüber genau einen verständlichen Grund, zum Beispiel „Beende zuerst die laufende Farming-Session.“</li>
+          <li><span class="must">MUSS:</span> <kbd>F9</kbd> „Aufnahme beenden“ und <kbd>F11</kbd> „Notabbruch“ stehen unmittelbar beim Startbutton und bleiben während der Aufnahme sichtbar.</li>
+        </ul>
+
+        <h3>Leerer und blockierter Zustand</h3>
+        <ul class="checklist-text">
+          <li>Kein Charakter: Inline-Empty-State „Wähle zuerst einen Charakter.“; die Auswahl erhält Fokus, keine leeren Karten.</li>
+          <li>Farming-Session aktiv: Anleitung bleibt lesbar, Startaktion ist deaktiviert, Grund wird in Alltagssprache gezeigt.</li>
+          <li>Voraussetzung fehlt: nur die fehlende Voraussetzung wird hervorgehoben; bereite Voraussetzungen bleiben kompakt.</li>
+          <li>Unbekannter Backendgrund: „Diese Aufnahme kann gerade nicht gestartet werden.“; der rohe Code wird ausschließlich strukturiert geloggt.</li>
+        </ul>
+      </section>
+
+      <section id="entwuerfe">
+        <h2>Bereich 3: Entwürfe</h2>
+        <p>
+          „Kandidatenreview“ wird durch das verständlichere „Entwürfe“ ersetzt. Entwürfe sind eine Arbeitsliste,
+          keine Galerie. Neueste Einträge stehen oben; relevante Metadaten und Aktionen sind zeilenweise ausgerichtet.
+        </p>
+
+        <div class="screen" aria-label="Wireframe Entwürfe">
+          <div class="screen-bar"><span class="screen-dot"></span><span class="screen-dot"></span><span class="screen-dot"></span></div>
+          <div class="screen-body">
+            <div class="ui-header">
+              <div>
+                <div class="ui-title">Entwürfe</div>
+                <div class="ui-subtitle">Teste Aufnahmen und veröffentliche die passende Route.</div>
+              </div>
+              <div class="select-like">Alle Runs ▾</div>
+            </div>
+            <div class="draft-list">
+              <div class="draft-row">
+                <div><div class="route-name">Gräfin</div><div class="route-meta">Heute, 09:42 · Hölle</div></div>
+                <div><span class="status good">Test bestanden</span><div class="draft-detail">25 Tiles bis zur Gräfin</div></div>
+                <div class="ui-actions"><div class="button primary">Veröffentlichen</div><div class="icon-button" style="display:grid;place-items:center;">•••</div></div>
+              </div>
+              <div class="draft-row">
+                <div><div class="route-name">Kuhlevel · Wirt-Route</div><div class="route-meta">Heute, 09:31 · Hölle</div></div>
+                <div><span class="status info">Bereit zum Test</span><div class="draft-detail">Noch nicht im Spiel geprüft</div></div>
+                <div class="ui-actions"><div class="button">Testen</div><div class="button danger">Löschen</div></div>
+              </div>
+              <div class="draft-row failed">
+                <div><div class="route-name">Beschwörer</div><div class="route-meta">Gestern, 23:18 · Hölle</div></div>
+                <div><span class="status bad">Test fehlgeschlagen</span><div class="draft-detail">Der Endpunkt liegt zu weit vom Beschwörer entfernt.</div></div>
+                <div class="ui-actions"><div class="button">Erneut testen</div><div class="button danger">Löschen</div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <h3>Inhalt und Aktionen</h3>
+        <ul class="checklist-text">
+          <li><span class="must">MUSS:</span> Sichtbare Identität besteht aus Run-Name, optionaler Teilroute, Aufnahmezeit und Schwierigkeit.</li>
+          <li><span class="must">MUSS:</span> Kandidaten-ID und SHA-256 werden nicht gerendert. Sie bleiben intern an Button-Commands gebunden.</li>
+          <li><span class="must">MUSS:</span> Zustände lauten „Bereit zum Test“, „Test läuft“, „Test bestanden“ und „Test fehlgeschlagen“.</li>
+          <li><span class="must">MUSS:</span> Primäraktion hängt vom Zustand ab: ungetestet → „Testen“, bestanden → „Veröffentlichen“, fehlgeschlagen → „Erneut testen“.</li>
+          <li><span class="must">MUSS:</span> Jeder unveröffentlichte Entwurf bietet „Löschen“. In engen Zeilen darf die Aktion im Dreipunktmenü liegen.</li>
+          <li><span class="must">MUSS:</span> Bereits veröffentlichte Kandidaten verschwinden aus der Entwurfsliste; die veröffentlichte Route steht unter „Meine Routen“.</li>
+          <li><span class="should">SOLL:</span> Messwerte werden nur gezeigt, wenn sie verständlich und entscheidungsrelevant sind, etwa „25 Tiles bis zur Gräfin“. Keine Prüfsummen.</li>
+        </ul>
+
+        <h3>Löschdialog</h3>
+        <div class="card">
+          <h3>Entwurf löschen?</h3>
+          <p><strong>Gräfin · aufgenommen heute um 09:42</strong></p>
+          <p class="draft-detail">Die Aufnahme wird dauerhaft entfernt. Eine bereits veröffentlichte Route ist davon nicht betroffen.</p>
+          <div class="ui-actions"><span class="button ghost">Abbrechen</span><span class="button danger">Entwurf löschen</span></div>
+        </div>
+        <p>
+          Der Dialog verlangt keine Eingabe einer Kandidaten-ID. Die Identität wird intern über den beim Öffnen gebundenen
+          Kandidaten-Key und einen serverseitigen Preview-Token gesichert.
+        </p>
+      </section>
+
+      <section id="workflow">
+        <h2>Workflowzustände: nur zeigen, wenn etwas passiert</h2>
+        <p>
+          Die bestehende Workflow-State-Machine bleibt fachlich bestehen. Geändert wird ihre Präsentation:
+          <code>idle</code> erzeugt keinerlei UI; aktive Zustände werden in verständliche Phasen zusammengefasst.
+        </p>
+
+        <table>
+          <thead><tr><th>Backendzustand</th><th>Sichtbare Phase</th><th>UI-Verhalten</th></tr></thead>
+          <tbody>
+            <tr><td><code>idle</code></td><td>Keine</td><td>Nichts rendern. Insbesondere keine Generation oder Bereitschaftszeile.</td></tr>
+            <tr><td><code>preflight</code>, <code>preparing_playback</code></td><td>Start wird vorbereitet</td><td>Spinner, kurze konkrete Anweisung; Primäraktionen gesperrt.</td></tr>
+            <tr><td><code>recording</code></td><td>Aufnahme läuft</td><td>Prominente Live-Karte im ausgewählten Aufnahmebereich; <kbd>F9</kbd> und <kbd>F11</kbd> sichtbar.</td></tr>
+            <tr><td><code>freezing</code>, <code>validating</code></td><td>Aufnahme wird geprüft</td><td>Keine technische Unterphase zeigen; keine weitere Eingabe verlangen.</td></tr>
+            <tr><td><code>playing</code>, <code>validating_terminal</code></td><td>Test läuft</td><td>Den betroffenen Entwurf hervorheben; andere Test-/Publish-Aktionen sperren.</td></tr>
+            <tr><td><code>returning</code>, <code>returning_after_test</code></td><td>Sichere Rückkehr</td><td>„Der Charakter kehrt sicher zurück.“ Keine Systemrouten oder Egress-Details.</td></tr>
+            <tr><td><code>candidate_ready</code></td><td>Aufnahme gespeichert</td><td>Erfolgskarte mit „Entwurf öffnen“; Kuhlevel-Schritt 1 bietet zusätzlich „Weiter zur Cow-Route“.</td></tr>
+            <tr><td><code>awaiting_publish_confirmation</code></td><td>Veröffentlichung bestätigen</td><td>Bestehenden Replace-/Publish-Dialog mit menschlichen Routennamen zeigen.</td></tr>
+            <tr><td><code>publishing</code></td><td>Route wird veröffentlicht</td><td>Modal/Panel beschäftigt; doppelte Bestätigung verhindern.</td></tr>
+            <tr><td><code>completed</code></td><td>Abgeschlossen</td><td>Kurze Erfolgsmeldung; danach lokal auf normale Ansicht zurückfallen.</td></tr>
+            <tr><td><code>failed_safe</code></td><td>Vorgang abgebrochen</td><td>Übersetzte Ursache und konkrete nächste Handlung; nie den Rohcode zeigen.</td></tr>
+            <tr><td><code>emergency_cancelled</code></td><td>Notabbruch ausgeführt</td><td>Bestätigung und Möglichkeit zum Neustart; keine technischen Details.</td></tr>
+          </tbody>
+        </table>
+
+        <div class="callout">
+          <strong>Keine erfundenen Fortschrittswerte:</strong> Solange der Core keine belastbare Prozentangabe liefert,
+          zeigt das UI Phasen und Aktivität, aber keinen Prozentbalken oder Zeitcountdown.
+        </div>
+      </section>
+
+      <section id="sprache">
+        <h2>Sprache, Status und Technobabble-Filter</h2>
+        <p>
+          Die Darstellung benötigt einen expliziten Presentation-Layer. Rohwerte dürfen niemals als Fallback in
+          JSX landen. Diese Tabelle ist der Mindestvertrag für die erste Umsetzung.
+        </p>
+
+        <table>
+          <thead><tr><th>Heute sichtbar</th><th>Neue Darstellung</th><th>Regel</th></tr></thead>
+          <tbody>
+            <tr><td><code>countess</code></td><td>Gräfin</td><td>Run-Katalog, nicht String-Formatierung.</td></tr>
+            <tr><td><code>summoner</code></td><td>Beschwörer</td><td>Run-Katalog.</td></tr>
+            <tr><td><code>mephisto</code></td><td>Mephisto</td><td>Run-Katalog.</td></tr>
+            <tr><td><code>nihlathak</code></td><td>Nihlathak</td><td>Run-Katalog.</td></tr>
+            <tr><td><code>cows</code></td><td>Kuhlevel</td><td>Beide Rollen unter einem Run gruppieren.</td></tr>
+            <tr><td><code>host</code> / <code>cow</code></td><td>Wirt-Route / Cow-Route</td><td>Nur im Kuhlevel-Kontext anzeigen.</td></tr>
+            <tr><td><code>hell</code></td><td>Hölle</td><td>Entsprechende Mappings für Normal und Alptraum.</td></tr>
+            <tr><td><code>runtime_validation_required</code></td><td>Aktiv</td><td>Die Laufzeitprüfung ist normales Core-Verhalten, kein Verwaltungsstatus. Nur ein tatsächlicher Fehler wird später kontextuell gemeldet.</td></tr>
+            <tr><td><code>active · assigned</code></td><td>Aktiv</td><td>Zu einem primären Status verdichten.</td></tr>
+            <tr><td><code>black_marsh</code> / <code>25</code></td><td>Schwarzmoor</td><td>Technischen Schlüssel und Area-ID durch einen Ortsnamen ersetzen.</td></tr>
+            <tr><td><code>durance_of_hate_level_2</code> / <code>102</code></td><td>Kerker des Hasses – Ebene 2</td><td>Keine ID anzeigen.</td></tr>
+            <tr><td><code>halls_of_pain</code> / <code>124</code></td><td>Hallen der Schmerzen</td><td>Keine ID anzeigen.</td></tr>
+            <tr><td><code>arcane_sanctuary</code> / <code>74</code></td><td>Geheime Zuflucht</td><td>Keine ID anzeigen.</td></tr>
+            <tr><td><code>waypoint</code></td><td>Wegpunkt verfügbar</td><td>Voraussetzungs-Mapping.</td></tr>
+            <tr><td><code>teleport</code></td><td>Teleport verfügbar</td><td>Voraussetzungs-Mapping.</td></tr>
+            <tr><td><code>town_portal</code></td><td>Stadtportal verfügbar</td><td>Voraussetzungs-Mapping.</td></tr>
+            <tr><td><code>pickit</code></td><td>Pickit bereit</td><td>Voraussetzungs-Mapping.</td></tr>
+            <tr><td><code>candidate-f07f…</code></td><td>nicht anzeigen</td><td>Nur interner Command-Key.</td></tr>
+            <tr><td><code>SHA-256 e051…</code></td><td>nicht anzeigen</td><td>Integritätsmerkmal ohne Benutzerentscheidung.</td></tr>
+            <tr><td><code>idle · Generation 1</code></td><td>nicht anzeigen</td><td>Kein laufender Vorgang, kein Nutzwert.</td></tr>
+          </tbody>
+        </table>
+
+        <h3>Unbekannte Werte</h3>
+        <p>
+          Die bestehende Praxis „bekannte Gründe übersetzen, sonst Rohwert ausgeben“ wird beendet. Eine zentrale
+          Funktion liefert für unbekannte Gründe den neutralen Text „Aktion derzeit nicht möglich.“ und schreibt den
+          tatsächlichen Code samt Kontext in das interne App-Log. Das UI darf den Rohwert auch nicht in einem
+          <code>title</code>-Attribut verstecken.
+        </p>
+      </section>
+
+      <section id="umsetzung">
+        <h2>Umsetzungsvertrag</h2>
+        <p>
+          Die folgenden Änderungen sind bewusst konkret auf die heutige Code-Struktur zugeschnitten. Sie beschreiben
+          die erwartete Aufteilung und Datenverträge; ausführende Agenten sollen davon nur abweichen, wenn ein im Code
+          nachweisbarer Konflikt besteht.
+        </p>
+
+        <h3>Frontend-Aufteilung</h3>
+        <div class="file-list">
+          <div class="file-row"><strong><code>web/src/features/routes/RouteFeature.tsx</code></strong><span>Bleibt Orchestrator für Laden, Charakterkontext, Bereichsauswahl und Mutation-Refresh. Keine langen Einzelkarten oder Rohwert-Mappings mehr im Haupt-Render.</span></div>
+          <div class="file-row"><strong><code>web/src/features/routes/components/RoutePageHeader.tsx</code></strong><span>Seitenkopf, Charakterauswahl und drei Tabs.</span></div>
+          <div class="file-row"><strong><code>web/src/features/routes/components/RouteLibraryPanel.tsx</code></strong><span>Aktive/archivierte Routen, Kuhlevel-Gruppierung, kontextuelles Aktionsmenü.</span></div>
+          <div class="file-row"><strong><code>web/src/features/routes/components/RouteRecordingPanel.tsx</code></strong><span>Run-Auswahl, Einzelanleitung, Voraussetzungen, Kuhlevel-Zweischritt und Hotkeys.</span></div>
+          <div class="file-row"><strong><code>web/src/features/routes/components/RouteDraftsPanel.tsx</code></strong><span>Zeitlich sortierte Entwurfsliste und zustandsabhängige Aktionen.</span></div>
+          <div class="file-row"><strong><code>web/src/features/routes/components/RouteWorkflowPanel.tsx</code></strong><span>Rendert ausschließlich aktive Zustände in nutzerorientierten Phasen; bei <code>idle</code> Rückgabe <code>null</code>.</span></div>
+          <div class="file-row"><strong><code>web/src/features/routes/components/DeleteDraftDialog.tsx</code></strong><span>Bestätigung mit Run, Teilroute und Aufnahmezeit; nie Kandidaten-ID.</span></div>
+          <div class="file-row"><strong><code>web/src/features/routes/routePresentation.ts</code></strong><span>Zentrale exhaustive Mappings für Runs, Rollen, Orte, Schwierigkeiten, Gründe und Workflowphasen. Unbekannte Werte haben einen sicheren deutschen Fallback.</span></div>
+          <div class="file-row"><strong><code>web/src/features/routes/RouteFeature.css</code></strong><span>Feature-spezifisches Layout. Generische <code>.run-grid</code>- und <code>article</code>-Regeln nicht weiter für alle Route-Entitäten missbrauchen.</span></div>
+        </div>
+
+        <h3>Datenvertrag</h3>
+        <table>
+          <thead><tr><th>DTO / Service</th><th>Änderung</th><th>Zweck</th></tr></thead>
+          <tbody>
+            <tr>
+              <td><code>RouteEntryDTO</code></td>
+              <td><code>run_display_name</code> oder äquivalenten kanonischen Run-Titel liefern; optional eine separate Teilroutenbezeichnung.</td>
+              <td>Nie versuchen, Hash-Suffixe aus gespeichertem <code>display_name</code> herauszuschneiden. Der Run-Katalog ist autoritativ.</td>
+            </tr>
+            <tr>
+              <td><code>RecordingOptionDTO</code></td>
+              <td>Bestehende Anleitungen behalten; Orts- und Voraussetzungsschlüssel entweder um deutsche Labels ergänzen oder im zentralen Frontend-Katalog vollständig mappen.</td>
+              <td>Area-IDs bleiben Validierungsdaten, nicht Darstellung.</td>
+            </tr>
+            <tr>
+              <td><code>RouteCandidateDTO</code></td>
+              <td>Aufnahmezeit <code>created_at</code> ergänzen; Run- und Rollenlabel aus dem Katalog bereitstellen oder zentral mappen.</td>
+              <td>Ermöglicht „Heute, 09:42“ statt technischer Identität.</td>
+            </tr>
+            <tr>
+              <td>Kandidatenmutation</td>
+              <td>Operation <code>delete_candidate</code> mit Preview-/Confirm-Vertrag ergänzen.</td>
+              <td>Entwürfe sicher aus UI löschen, ohne veröffentlichte Routen zu berühren.</td>
+            </tr>
+            <tr>
+              <td>System-Egress</td>
+              <td>Auf der Produktseite weder Status laden noch rendern.</td>
+              <td>Interne Route bleibt im Core verfügbar, erzeugt aber keine dauerhafte UI.</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div class="callout">
+          <strong>Wichtig:</strong> IDs dürfen im JSON und React-State bleiben, weil Aktionen eine stabile Identität
+          benötigen. Die Anforderung lautet „nicht als Benutzerinformation rendern“, nicht „technische Identität aus
+          dem System entfernen“.
+        </div>
+
+        <h3>Sichere Kandidatenlöschung</h3>
+        <ol class="checklist-text">
+          <li>Preview lädt den Kandidaten und prüft, dass er existiert, unveröffentlicht ist und kein aktiver Aufnahme-/Testworkflow auf ihn verweist.</li>
+          <li>Der Preview-Token bindet mindestens Kandidaten-ID, aktuellen Zustand und Route-SHA. Der Dialog erhält nur lesbare Anzeigeinformationen.</li>
+          <li>Confirm lädt den Kandidaten erneut und vergleicht die gebundenen Werte. Bei Änderung wird mit „Der Entwurf hat sich geändert. Bitte erneut versuchen.“ abgebrochen.</li>
+          <li>Die Store-Löschung läuft unter dem bestehenden Route-Command-Lock. Sie darf ausschließlich das validierte Kandidatenverzeichnis unter dem Candidate-Root betreffen.</li>
+          <li>Nach Erfolg werden Entwurfsliste und Badge neu geladen; bei Fehler bleibt die Zeile bestehen und erhält eine Inline-Fehlermeldung.</li>
+          <li>Eine veröffentlichte Route, Assignment-Daten und Route-History werden von dieser Operation nie verändert.</li>
+        </ol>
+
+        <h3>Lade- und Refresh-Verhalten</h3>
+        <ul class="checklist-text">
+          <li>Initial: Charaktere, Routenbibliothek, Aufnahmeoptionen, Hotkeys und Workflow parallel laden.</li>
+          <li>Kandidaten dürfen initial für den Badge mitgeladen oder beim ersten Öffnen von „Entwürfe“ lazy geladen und anschließend gecacht werden. Eine Variante konsistent testen.</li>
+          <li>System-Egress-Status wird von <code>RouteFeature</code> nicht mehr angefordert.</li>
+          <li>Nach Aufnahme/Test/Publish/Delete nur die betroffenen Daten und Workflowstatus aktualisieren; Tab und Auswahl nicht unnötig zurücksetzen.</li>
+          <li>Beginnt oder existiert bereits ein aktiver Workflow, öffnet das UI den passenden Bereich und Run automatisch.</li>
+        </ul>
+
+        <h3>Bewusste Nicht-Ziele</h3>
+        <div class="grid-2">
+          <div class="card decision"><h3>Core-Verhalten bleibt</h3><p>Keine Änderung an Aufnahme, Wiedergabe, Validierung, System-Egress-Routen oder Farming-Run-Logik.</p></div>
+          <div class="card decision"><h3>Keine Debug-UI</h3><p>Kein versteckter „Details“-Accordion mit IDs und Hashes. Entwicklerdiagnose gehört in strukturierte Logs.</p></div>
+          <div class="card decision"><h3>Kein neuer Design-System-Umbau</h3><p>Bestehende Farben und Grundkomponenten weiterverwenden; nur das Routes Feature erhält die nötige Struktur.</p></div>
+          <div class="card decision"><h3>Keine Archivsemantik ändern</h3><p>Bestehende sichere Archive-/Restore-/Delete-Regeln bleiben bestehen; nur Platzierung und Beschriftung ändern sich.</p></div>
+        </div>
+      </section>
+
+      <section id="responsive">
+        <h2>Responsive Verhalten und Barrierefreiheit</h2>
+
+        <h3>Breakpoints</h3>
+        <table>
+          <thead><tr><th>Breite</th><th>Layout</th></tr></thead>
+          <tbody>
+            <tr><td>ab 1000 px</td><td>Routen zweispaltig; Aufnahme mit 240–280 px Auswahlleiste links und flexiblem Detailpanel rechts.</td></tr>
+            <tr><td>760–999 px</td><td>Routen ein- oder zweispaltig nach Platz; Aufnahmeauswahl darf als horizontale, scrollbar markierte Leiste erscheinen.</td></tr>
+            <tr><td>unter 760 px</td><td>Alles einspaltig; Charakter und Run als volle Selects; Entwurfszeilen stapeln Inhalt und Aktionen; Primärbuttons volle Breite.</td></tr>
+          </tbody>
+        </table>
+
+        <h3>Verbindliche Accessibility-Regeln</h3>
+        <ul class="checklist-text">
+          <li>Tabs implementieren entweder das vollständige WAI-ARIA-Tab-Pattern inklusive Pfeiltasten oder bleiben semantisch normale Buttons/Links. Kein halbfertiges <code>role="tab"</code>.</li>
+          <li>Fokus ist mit mindestens 2 px kontrastreichem Ring sichtbar; kein Entfernen von Browser-Fokus ohne Ersatz.</li>
+          <li>Alle interaktiven Ziele sind mindestens 44 × 44 px groß.</li>
+          <li>Status wird nie ausschließlich über Farbe kommuniziert; jeder Chip enthält Text.</li>
+          <li>Aktive Workflowmeldungen nutzen <code>aria-live="polite"</code>; Notabbruch- und Löschfehler <code>role="alert"</code>.</li>
+          <li>Dreipunktmenüs besitzen einen Accessible Name wie „Aktionen für Gräfin öffnen“.</li>
+          <li>Dialogfokus wird beim Öffnen eingeschlossen und nach Schließen an den auslösenden Button zurückgegeben.</li>
+          <li>Animationen respektieren <code>prefers-reduced-motion</code>.</li>
+        </ul>
+      </section>
+
+      <section id="tests">
+        <h2>Umsetzungsreihenfolge und Abnahmekriterien</h2>
+
+        <h3>Empfohlene Reihenfolge</h3>
+        <ol class="checklist-text">
+          <li>Presentation-Mappings und neue DTO-Felder ergänzen; API-Tests für lesbare Labels und <code>created_at</code>.</li>
+          <li>Kandidatenlöschung in Store, Service und API mit Preview-/Confirm-Tests implementieren.</li>
+          <li><code>RouteFeature</code> in die drei Panels zerlegen und System-Egress-Fetch entfernen.</li>
+          <li>„Meine Routen“ samt Kuhlevel-Gruppierung und Archivfilter bauen.</li>
+          <li>Einzelauswahl für Aufnahme, bedingten Kuhlevel-Hinweis und kontextuelle Hotkeys bauen.</li>
+          <li>Entwurfsliste samt Löschdialog bauen.</li>
+          <li>Workflowzustände auf sichtbare Phasen abbilden; Idle-Ausgabe entfernen.</li>
+          <li>Responsive, Tastaturbedienung, Fehlerzustände und visuelle Regression prüfen.</li>
+        </ol>
+
+        <h3>Automatisierte Mindesttests</h3>
+        <ul class="checklist-text">
+          <li>Route-Titel enthält weder gespeicherte Hash-Suffixe noch Route-ID.</li>
+          <li><code>runtime_validation_required</code> und andere Rohcodes erscheinen nicht im gerenderten DOM.</li>
+          <li>Bei <code>workflow.state === "idle"</code> existiert kein Workflowstatus und keine Generation im DOM.</li>
+          <li>Nur die ausgewählte Aufnahmeoption rendert ihre vollständige Anleitung.</li>
+          <li>Kuhlevel-Hinweis fehlt bei Gräfin/Mephisto/Beschwörer/Nihlathak und erscheint bei Kuhlevel.</li>
+          <li>Kuhlevel gruppiert Wirt- und Cow-Route in Bibliothek und Aufnahmefluss.</li>
+          <li><kbd>F9</kbd> und <kbd>F11</kbd> stehen im Aufnahmepanel; keine separate Hotkey-Hilfe am Seitenende.</li>
+          <li>Kandidaten-ID und SHA-256 erscheinen nicht im DOM, Commands senden dennoch die korrekte interne ID.</li>
+          <li>Löschdialog zeigt Run/Datum, löscht nach Confirm den richtigen Entwurf und aktualisiert Liste/Badge.</li>
+          <li>Veränderter oder aktiver Kandidat wird serverseitig sicher abgelehnt.</li>
+          <li>System-Egress-Status wird beim Öffnen der Routes-Seite weder angefragt noch gerendert.</li>
+          <li>Bestehende Tests für aktive Workflows, Publish/Replace, Archivieren/Wiederherstellen/Löschen und Fehlerzustände bleiben fachlich erhalten und werden auf die neue Struktur angepasst.</li>
+        </ul>
+
+        <h3>Manuelle Abnahme – Definition of Done</h3>
+        <table>
+          <thead><tr><th>#</th><th>Prüfschritt</th><th>Erwartetes Ergebnis</th></tr></thead>
+          <tbody>
+            <tr><td>1</td><td>Routes-Seite mit sechs eingerichteten Routen öffnen.</td><td>Innerhalb weniger Sekunden sind Run-Namen und Aktivstatus erkennbar; keine IDs, Hashes oder Rohcodes.</td></tr>
+            <tr><td>2</td><td>Zwischen allen drei Bereichen wechseln.</td><td>Der Charakterkontext bleibt erhalten; es gibt keine lose Sektion unterhalb des aktiven Bereichs.</td></tr>
+            <tr><td>3</td><td>„Route aufnehmen“ → „Gräfin“ wählen.</td><td>Nur die Gräfin-Anleitung ist sichtbar; kein Kuhlevel-Hinweis.</td></tr>
+            <tr><td>4</td><td>„Kuhlevel“ wählen.</td><td>Voraussetzungshinweis und Zweischritt-Navigation erscheinen; kein zweiter unabhängiger Cow-Run-Block.</td></tr>
+            <tr><td>5</td><td>Aufnahme starten und beenden.</td><td>Idle-UI verschwindet zugunsten einer klaren Live-Phase; Hotkeys stehen direkt dabei; Erfolg führt zum Entwurf.</td></tr>
+            <tr><td>6</td><td>Bestandenen Entwurf veröffentlichen.</td><td>Lesbarer Confirm-Dialog; danach verschwindet der Entwurf und die Route erscheint unter „Meine Routen“.</td></tr>
+            <tr><td>7</td><td>Fehlgeschlagenen Entwurf löschen.</td><td>Dialog nennt Run und Aufnahmezeit, keine ID; nach Bestätigung ist nur dieser Entwurf entfernt.</td></tr>
+            <tr><td>8</td><td>Seite bei 1280, 900 und 600 px testen.</td><td>Keine horizontale Seitenscrollbar; primäre Aktion und Hinweise bleiben erreichbar und lesbar.</td></tr>
+            <tr><td>9</td><td>Komplette Bedienung nur per Tastatur.</td><td>Logische Fokusreihenfolge, sichtbarer Fokus, nutzbare Tabs/Menüs/Dialoge und kein Fokusverlust.</td></tr>
+          </tbody>
+        </table>
+
+        <div class="callout good">
+          <strong>Fertig bedeutet:</strong> Ein Benutzer kann veröffentlichte Routen prüfen, genau eine neue Route
+          aufnehmen und Entwürfe testen, veröffentlichen oder löschen, ohne mit einem internen Identifier,
+          Statuscode, einer Prüfsumme oder einer Systemroute konfrontiert zu werden.
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <footer class="footer">
+    <div class="shell">
+      D2R Offline Farming Bot · Routen-UI-Redesign · Diese Datei ist die ausführungsreife Produktspezifikation;
+      sie verändert selbst weder Bot-Logik noch Routen oder Konfiguration.
+    </div>
+  </footer>
+</body>
+</html>

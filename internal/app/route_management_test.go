@@ -544,6 +544,42 @@ func TestRouteManagementGeneratedIDsAreCollisionFreeAndImmutable(t *testing.T) {
 	}
 }
 
+func TestRouteManagementCandidateDeleteIsStateAndHashBound(t *testing.T) {
+	cfg := managementTestConfig(t)
+	candidate := freezeManagementCandidate(t, cfg)
+	service, err := NewRouteManagementService(cfg, RouteManagementHooks{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	stale, err := service.PreviewCandidateDelete(candidate.CandidateID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stale.Operation != RouteMutationDeleteCandidate || stale.CandidateSHA256 != candidate.ImmutableRouteSHA256 {
+		t.Fatalf("preview=%+v", stale)
+	}
+	if _, updateErr := service.candidates.UpdateState(candidate.CandidateID, RouteCandidateTestRunning, "", nil); updateErr != nil {
+		t.Fatal(updateErr)
+	}
+	if confirmErr := service.Confirm(RouteMutationConfirm{Token: stale.Token}); confirmErr == nil || !strings.Contains(confirmErr.Error(), string(RouteReasonCandidateChanged)) {
+		t.Fatalf("changed candidate delete err=%v", confirmErr)
+	}
+	current, _, err := service.candidates.Load(candidate.CandidateID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	preview, err := service.PreviewCandidateDelete(current.CandidateID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := service.Confirm(RouteMutationConfirm{Token: preview.Token}); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := service.candidates.Load(current.CandidateID); !os.IsNotExist(err) {
+		t.Fatalf("deleted candidate load err=%v", err)
+	}
+}
+
 func TestRouteManagementUnknownRecoveryCheckpointBlocksStartup(t *testing.T) {
 	cfg := managementTestConfig(t)
 	journal := RouteRecoveryJournal{SchemaVersion: 1, Operation: RouteMutationPublish, RouteID: "test-route", Checkpoint: "unknown", StartedAt: time.Now().UTC()}

@@ -333,6 +333,8 @@ const (
 	RouteMutationRestore RouteMutationOperation = "restore"
 	// RouteMutationDelete permanently removes an unassigned archived route.
 	RouteMutationDelete RouteMutationOperation = "delete"
+	// RouteMutationDeleteCandidate permanently removes one unpublished candidate.
+	RouteMutationDeleteCandidate RouteMutationOperation = "delete_candidate"
 )
 
 // RouteCrashContract fixes one durable checkpoint and its deterministic recovery.

@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/app"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/pathing"
@@ -171,7 +172,7 @@ func (b *LiveBackend) RouteCandidates() ([]RouteCandidateDTO, error) {
 	}
 	result := make([]RouteCandidateDTO, 0, len(entries))
 	for _, entry := range entries {
-		result = append(result, RouteCandidateDTO{CandidateID: entry.CandidateID, RunID: string(entry.RunID), RouteRole: string(entry.RouteRole), Character: entry.Character, Difficulty: entry.Difficulty, State: string(entry.State), MeasuredBossDistance: entry.MeasuredBossDistance, RouteSHA256: entry.ImmutableRouteSHA256, Reason: string(entry.FailureReason)})
+		result = append(result, RouteCandidateDTO{CandidateID: entry.CandidateID, RunID: string(entry.RunID), RouteRole: string(entry.RouteRole), Character: entry.Character, Difficulty: entry.Difficulty, State: string(entry.State), MeasuredBossDistance: entry.MeasuredBossDistance, RouteSHA256: entry.ImmutableRouteSHA256, CreatedAt: entry.CreatedAt.Format(time.RFC3339), Reason: string(entry.FailureReason)})
 	}
 	return result, nil
 }
@@ -248,7 +249,11 @@ func (b *LiveBackend) PreviewRouteMutation(request RouteMutationPreviewRequest) 
 		if !strings.EqualFold(selection.Character, candidate.Character) || !strings.EqualFold(selection.Difficulty, candidate.Difficulty) {
 			return RouteMutationPreviewDTO{}, fmt.Errorf("live candidate context changed")
 		}
-		preview, err = b.routeManagement.PreviewCandidate(request.CandidateID)
+		if request.Operation == string(app.RouteMutationDeleteCandidate) {
+			preview, err = b.routeManagement.PreviewCandidateDelete(request.CandidateID)
+		} else {
+			preview, err = b.routeManagement.PreviewCandidate(request.CandidateID)
+		}
 	} else {
 		preview, err = b.routeManagement.PreviewRoute(app.RouteMutationOperation(request.Operation), request.RouteID)
 	}

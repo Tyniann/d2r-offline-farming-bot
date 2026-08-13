@@ -116,6 +116,33 @@ func (s *CandidateStore) UpdateState(candidateID string, state RouteCandidateSta
 	return candidate, nil
 }
 
+// Delete removes exactly one integrity-checked candidate when its state and
+// immutable content still match the values bound by a management preview.
+func (s *CandidateStore) Delete(candidateID string, expectedState RouteCandidateState, expectedSHA256 string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	candidate, _, err := s.loadLocked(candidateID)
+	if err != nil {
+		return err
+	}
+	if candidate.State != expectedState || candidate.ImmutableRouteSHA256 != expectedSHA256 {
+		return fmt.Errorf("%s", RouteReasonCandidateChanged)
+	}
+	directory := filepath.Join(s.root, candidateID)
+	if !pathWithin(directory, s.root) {
+		return fmt.Errorf("candidate path escapes candidate root")
+	}
+	quarantine := directory + ".delete"
+	if err := os.Rename(directory, quarantine); err != nil {
+		return fmt.Errorf("quarantine candidate: %w", err)
+	}
+	if err := os.RemoveAll(quarantine); err != nil {
+		_ = os.Rename(quarantine, directory)
+		return fmt.Errorf("delete candidate: %w", err)
+	}
+	return nil
+}
+
 // List returns integrity-checked candidates in stable newest-first order.
 func (s *CandidateStore) List() ([]RouteCandidate, error) {
 	entries, err := os.ReadDir(s.root)

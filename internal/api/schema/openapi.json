@@ -1126,6 +1126,20 @@
         }
       }
     },
+    "/api/v1/route-candidates/{candidateID}/delete/{stage}": {
+      "post": {
+        "operationId": "deleteRouteCandidate",
+        "parameters": [
+          { "name": "candidateID", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "stage", "in": "path", "required": true, "schema": { "type": "string", "enum": ["preview", "confirm"] } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Preview or confirm candidate deletion"
+          }
+        }
+      }
+    },
     "/api/v1/routes/{routeID}/{operation}/{stage}": {
       "post": {
         "operationId": "mutateRoute",
@@ -2891,7 +2905,8 @@
           "difficulty",
           "state",
           "measured_boss_distance",
-          "route_sha256"
+          "route_sha256",
+          "created_at"
         ],
         "properties": {
           "candidate_id": {
@@ -2917,6 +2932,10 @@
           },
           "route_sha256": {
             "type": "string"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
           },
           "reason": {
             "type": "string"

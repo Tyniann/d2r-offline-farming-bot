@@ -49,7 +49,7 @@ func (o *CandidateTestOrchestrator) TestWithProgress(ctx context.Context, candid
 	if err != nil {
 		return RouteCandidate{}, err
 	}
-	if candidate.State != RouteCandidateValidated && candidate.State != RouteCandidateTestPassed {
+	if candidate.State != RouteCandidateValidated && candidate.State != RouteCandidateTestPassed && candidate.State != RouteCandidateFailed {
 		return RouteCandidate{}, fmt.Errorf("%s", RouteReasonCandidateInvalid)
 	}
 	definition, ok := o.registry.Definition(candidate.RunID)

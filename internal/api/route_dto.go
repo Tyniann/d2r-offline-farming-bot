@@ -72,6 +72,7 @@ type RouteCandidateDTO struct {
 	State                string  `json:"state"`
 	MeasuredBossDistance float64 `json:"measured_boss_distance"`
 	RouteSHA256          string  `json:"route_sha256"`
+	CreatedAt            string  `json:"created_at"`
 	Reason               string  `json:"reason,omitempty"`
 }
 

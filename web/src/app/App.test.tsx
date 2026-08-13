@@ -15,7 +15,7 @@ vi.mock("../api/client", () => ({
   confirmRouteMutation: mocks.confirmRouteMutation, previewRouteMutation: mocks.previewRouteMutation, startRouteWorkflow: mocks.startRouteWorkflow, finishRouteRecording: mocks.finishRouteRecording,
 }));
 vi.mock("../api/generated", () => ({ getCatalog: mocks.getCatalog, getStatus: mocks.getStatus, getRouteLibrary: mocks.getRouteLibrary, getRouteCandidates: mocks.getRouteCandidates, getRecordingOptions: mocks.getRecordingOptions, getSystemRouteStatus: mocks.getSystemRouteStatus, getHotkeyHelp: mocks.getHotkeyHelp, getRouteWorkflow: mocks.getRouteWorkflow }));
-vi.mock("../features/routes/RouteFeature", () => ({ RouteFeature: ({ onReturnToOnboarding }: { onReturnToOnboarding?: () => void }) => <section><h2>Routenfunktion</h2>{onReturnToOnboarding && <button onClick={onReturnToOnboarding}>Zurück zur Einrichtung</button>}</section> }));
+vi.mock("../features/routes/RouteFeature", () => ({ RouteFeature: ({ onReturnToOnboarding }: { onReturnToOnboarding?: () => void }) => <section><h1>Routen</h1>{onReturnToOnboarding && <button onClick={onReturnToOnboarding}>Zurück zur Einrichtung</button>}</section> }));
 vi.mock("../features/onboarding/OnboardingFeature", () => ({ OnboardingFeature: () => <section><h1>First-Run-Assistent</h1></section> }));
 vi.mock("../features/pickit/PickitFeature", () => ({ PickitFeature: () => <section><h2>Pickit-Funktion</h2></section> }));
 vi.mock("../features/history/HistoryFeature", () => ({ HistoryFeature: () => <section><h2>Historie</h2></section> }));

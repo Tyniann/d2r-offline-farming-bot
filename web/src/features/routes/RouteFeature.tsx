@@ -1,10 +1,17 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { confirmRouteMutation, finishRouteRecording, previewRouteMutation, startRouteWorkflow } from "../../api/client";
 import {
-  getHotkeyHelp, getRecordingOptions, getRouteCandidates, getRouteLibrary, getRouteWorkflow, getSystemRouteStatus,
+  getHotkeyHelp, getRecordingOptions, getRouteCandidates, getRouteLibrary, getRouteWorkflow,
   type HotkeyHelpDTO, type RecordingOptionDTO, type RouteCandidateDTO, type RouteEntryDTO,
-  type RouteMutationPreviewDTO, type RouteWorkflowDTO, type SystemRouteStatusDTO,
+  type RouteMutationPreviewDTO, type RouteWorkflowDTO,
 } from "../../api/generated";
+import { DeleteDraftDialog } from "./components/DeleteDraftDialog";
+import { RouteDraftsPanel } from "./components/RouteDraftsPanel";
+import { RouteLibraryPanel } from "./components/RouteLibraryPanel";
+import { RoutePageHeader, type RouteArea } from "./components/RoutePageHeader";
+import { RouteRecordingPanel } from "./components/RouteRecordingPanel";
+import { candidateTitle, roleLabel, runLabel } from "./routePresentation";
+import "./RouteFeature.css";
 
 interface Props {
   characters: string[];
@@ -14,163 +21,125 @@ interface Props {
   preferredRecordingRun?: string;
   onReturnToOnboarding?(): void;
 }
+
 const terminalWorkflowStates = new Set(["idle", "completed", "failed_safe", "emergency_cancelled"]);
-
-const workflowLabels: Record<string, string> = {
-  idle: "Bereit", preflight: "Start wird geprüft", recording: "Aufnahme läuft", freezing: "Aufnahme wird eingefroren",
-  validating: "Kandidat wird geprüft", returning_via_portal: "Rückkehr per Town Portal", candidate_ready: "Kandidat ist bereit",
-  preparing_playback: "Test wird vorbereitet", playing_candidate: "Kandidat wird abgespielt", validating_terminal: "Ziel wird geprüft",
-  returning_after_test: "Rückkehr nach dem Test", awaiting_publish_confirmation: "Freigabe steht aus", publishing: "Route wird veröffentlicht",
-  completed: "Abgeschlossen", failed_safe: "Sicher abgebrochen", emergency_cancelled: "Notabbruch",
-};
-
-const candidateLabels: Record<string, string> = {
-  recorded: "Aufgenommen", validated: "Bereit zum Test", test_running: "Test läuft", test_passed: "Test bestanden", failed: "Abgelehnt",
-};
-
-const reasonLabels: Record<string, string> = {
-  input_disabled: "Gameplay-Input ist in der Konfiguration deaktiviert.",
-  selection_unconfirmed: "Charakter und Schwierigkeit müssen zuerst im Core bestätigt sein.",
-  route_workflow_active: "Ein anderer Routen-Workflow ist aktiv.",
-  session_active: "Eine Farming-Session ist aktiv.",
-  recording_preflight_failed: "Der Core wartet auf den bestätigten Startwegpunkt.",
-  recording_start_area_mismatch: "Startgebiet oder Startwegpunkt stimmen nicht.",
-  recording_terminal_area_mismatch: "Das registrierte Zielgebiet wurde nicht bestätigt.",
-  recording_boss_missing: "Der registrierte lebende Boss wurde nicht bestätigt.",
-  recording_object_missing: "Wirts Körper wurde am Endpunkt nicht bestätigt.",
-  recording_boss_dead: "Der Boss muss beim Aufnahmeende noch leben.",
-  recording_endpoint_too_far: "Die gewählte Endposition ist zu weit vom bestätigten Ziel entfernt.",
-  pickit_assignment_missing: "Für diesen Charakter und Run ist noch kein Lootprofil zugeordnet.",
-  route_test_playback_failed: "Die isolierte Wiedergabe ist fehlgeschlagen.",
-  route_test_terminal_mismatch: "Die Zielprüfung nach der Wiedergabe ist fehlgeschlagen.",
-  route_safety_return_failed: "Die sichere Rückkehr per Town Portal ist fehlgeschlagen.",
-  leg_acquisition_route_missing: "Die Wirt-Route fehlt.",
-  leg_acquisition_route_stale: "Die Wirt-Route ist veraltet oder archiviert.",
-  cow_sweep_route_missing: "Die Cow-Route fehlt.",
-  cow_sweep_route_stale: "Die Cow-Route ist veraltet oder archiviert.",
-  route_set_binding_mismatch: "Wirt-Route und Cow-Route passen nicht zum selben Charakterprofil.",
-};
-
-function reasonLabel(reason?: string): string {
-  return reason ? (reasonLabels[reason] ?? reason) : "";
-}
-
-function operationLabel(operation: string): string {
-  return ({ publish: "Veröffentlichen", replace: "Ersetzen", archive: "Archivieren", restore: "Wiederherstellen", delete: "Endgültig löschen" } as Record<string, string>)[operation] ?? operation;
-}
-
-function routeRoleLabel(role?: string): string {
-  return role === "leg_acquisition" ? "Wirt-Route" : role === "cow_sweep" ? "Cow-Route" : "";
-}
-
-function workflowInstruction(workflow: RouteWorkflowDTO, hotkeys: HotkeyHelpDTO | null): string {
-  const finish = hotkeys?.recording_finish ?? "F9";
-  const emergency = hotkeys?.emergency_stop ?? "F11";
-  switch (workflow.state) {
-    case "preflight": return workflow.act
-      ? `Am Portal-Ankunftspunkt stehen bleiben. Der Core startet die Aufnahme erst nach der Memory-Bestätigung.`
-      : workflow.route_role === "cow_sweep"
-        ? `Das Cow Level muss vollständig leer sein. Bleibe direkt am roten Ankunftsportal stehen, bis „recording“ erscheint.`
-        : `Am angezeigten Startwegpunkt stehen bleiben. Erst bei „recording“ loslegen.`;
-    case "recording": return workflow.act
-      ? `Jetzt ohne Teleport zum lokalen Wegpunkt laufen und dort ${finish} drücken. ${emergency} bricht sofort ab.`
-      : workflow.route_role === "leg_acquisition"
-        ? `Jetzt durch das offene rote Portal bis nahe Wirts Körper aufzeichnen. Wirt nicht anklicken. Dort ${finish} drücken; ${emergency} bricht sofort ab.`
-        : workflow.route_role === "cow_sweep"
-          ? `Jetzt die vollständig geleerte Cow-Farming-Schleife bis zum gewünschten Endpunkt aufzeichnen. Dort ${finish} drücken; ${emergency} bricht sofort ab.`
-          : `Jetzt die angezeigte Farming-Route bis zur selbst gewählten Kampfposition aufzeichnen. Den Boss nicht angreifen: Er muss für die Prüfung leben. Dort ${finish} drücken; ${emergency} bricht sofort ab.`;
-    case "freezing": return "Keine Eingabe: Der Core friert den unveränderlichen Kandidaten ein.";
-    case "validating": return workflow.route_role === "leg_acquisition"
-      ? "Keine Eingabe: Tristram, Wirts Körper und Enddistanz werden geprüft."
-      : workflow.route_role === "cow_sweep"
-        ? "Keine Eingabe: Cow Level und Routenendpunkt werden geprüft."
-        : "Keine Eingabe: Terminalgebiet, lebender Boss und Enddistanz werden geprüft.";
-    case "returning_via_portal": return "Keine Eingabe: Der Core öffnet das Town Portal und kehrt sicher ins Dorf zurück.";
-    case "candidate_ready": return "Der Kandidat ist gespeichert. Als Nächstes im Kandidatenreview „Isoliert testen“ wählen.";
-    case "preparing_playback": return workflow.route_role === "cow_sweep" ? "Keine Eingabe: Der Core betritt das bereits vorhandene Cow-Portal." : "Keine Eingabe: Der Core normalisiert Town/Egress und reist zum registrierten Startwegpunkt.";
-    case "playing_candidate": return "Keine Eingabe: Der Kandidat wird ohne Combat, Loot oder Town Services abgespielt.";
-    case "validating_terminal": return workflow.route_role === "leg_acquisition"
-      ? "Keine Eingabe: Tristram, Wirts Körper und Enddistanz werden erneut geprüft."
-      : workflow.route_role === "cow_sweep"
-        ? "Keine Eingabe: Cow Level und Routenendpunkt werden erneut geprüft."
-        : "Keine Eingabe: Zielgebiet, lebender Boss und Enddistanz werden erneut geprüft.";
-    case "returning_after_test": return "Keine Eingabe: Der Core kehrt nach dem Test per Town Portal ins Dorf zurück.";
-    case "awaiting_publish_confirmation": return "Der Test ist bestanden. Die Veröffentlichung benötigt genau eine bewusste Bestätigung.";
-    case "publishing": return "Die neue Route wird atomisch zugeordnet; der Vorgänger wird unverändert archiviert.";
-    case "failed_safe": case "emergency_cancelled": return reasonLabel(workflow.reason) || "Der Workflow wurde ohne Veröffentlichung beendet.";
-    default: return "";
-  }
-}
+const testWorkflowStates = new Set(["preparing_playback", "playing_candidate", "validating_terminal", "returning_after_test", "awaiting_publish_confirmation", "publishing"]);
 
 export function RouteFeature({ characters, selectedCharacter, refreshKey, liveLocked = false, preferredRecordingRun = "", onReturnToOnboarding }: Props) {
   const [character, setCharacter] = useState(selectedCharacter);
+  const [area, setArea] = useState<RouteArea>(preferredRecordingRun ? "recording" : "library");
   const [archive, setArchive] = useState(false);
   const [routes, setRoutes] = useState<RouteEntryDTO[] | null>(null);
   const [candidates, setCandidates] = useState<RouteCandidateDTO[]>([]);
   const [options, setOptions] = useState<RecordingOptionDTO[]>([]);
-  const [system, setSystem] = useState<SystemRouteStatusDTO[]>([]);
   const [hotkeys, setHotkeys] = useState<HotkeyHelpDTO | null>(null);
   const [workflow, setWorkflow] = useState<RouteWorkflowDTO | null>(null);
+  const [selectedRun, setSelectedRun] = useState(preferredRecordingRun);
+  const [selectedRole, setSelectedRole] = useState("");
+  const [draftFilter, setDraftFilter] = useState("");
   const [error, setError] = useState("");
   const [preview, setPreview] = useState<RouteMutationPreviewDTO | null>(null);
-  const [deleteConfirmation, setDeleteConfirmation] = useState("");
+  const [deletingCandidate, setDeletingCandidate] = useState<RouteCandidateDTO | null>(null);
   const [pending, setPending] = useState(false);
   const confirmRef = useRef<HTMLButtonElement>(null);
-  const deleteRef = useRef<HTMLInputElement>(null);
+
+  const visibleCandidates = useMemo(() => candidates.filter((candidate) => candidate.character.localeCompare(character, undefined, { sensitivity: "accent" }) === 0), [candidates, character]);
   const workflowBusy = !!workflow && !terminalWorkflowStates.has(workflow.state);
-  const liveActionLocked = liveLocked || pending || workflowBusy;
-  const visibleCandidates = candidates.filter((candidate) => candidate.character.toLocaleLowerCase() === character.toLocaleLowerCase());
-  const activeWorkflowInstruction = workflow ? workflowInstruction(workflow, hotkeys) : "";
-  const orderedOptions = [...options].sort((left, right) => Number(right.run_id === preferredRecordingRun) - Number(left.run_id === preferredRecordingRun));
+  const actionsLocked = liveLocked || pending || workflowBusy;
 
   const refresh = async (signal?: AbortSignal) => {
     try {
-      const [library, nextCandidates, nextOptions, nextSystem, nextHotkeys, nextWorkflow] = await Promise.all([
-        getRouteLibrary(character, archive, signal), getRouteCandidates(signal), getRecordingOptions(signal),
-        getSystemRouteStatus(signal), getHotkeyHelp(signal), getRouteWorkflow(signal),
+      const [library, nextCandidates, nextOptions, nextHotkeys, nextWorkflow] = await Promise.all([
+        getRouteLibrary(character, archive, signal), getRouteCandidates(signal), getRecordingOptions(signal), getHotkeyHelp(signal), getRouteWorkflow(signal),
       ]);
-      setRoutes(library.routes.filter((entry) => archive ? entry.management_status === "archived" : entry.management_status !== "archived")); setCandidates(nextCandidates); setOptions(nextOptions); setSystem(nextSystem); setHotkeys(nextHotkeys); setWorkflow(nextWorkflow); setError("");
-    } catch (reason) { if (!signal?.aborted) setError(reason instanceof Error ? reason.message : "Routen konnten nicht geladen werden"); }
+      setRoutes(library.routes.filter((entry) => archive ? entry.management_status === "archived" : entry.management_status !== "archived"));
+      setCandidates(nextCandidates);
+      setOptions(nextOptions);
+      setHotkeys(nextHotkeys);
+      setWorkflow(nextWorkflow);
+      setSelectedRun((current) => {
+        const availableRuns = new Set(nextOptions.map((entry) => entry.run_id));
+        const wanted = nextWorkflow.run_id || current || preferredRecordingRun;
+        return availableRuns.has(wanted) ? wanted : nextOptions[0]?.run_id ?? "";
+      });
+      if (!terminalWorkflowStates.has(nextWorkflow.state)) setArea(testWorkflowStates.has(nextWorkflow.state) ? "drafts" : "recording");
+      setError("");
+    } catch {
+      if (!signal?.aborted) setError("Routen konnten nicht geladen werden.");
+    }
   };
 
   useEffect(() => { const controller = new AbortController(); setRoutes(null); void refresh(controller.signal); return () => controller.abort(); }, [character, archive, refreshKey]);
   useEffect(() => { if (!character && selectedCharacter) setCharacter(selectedCharacter); }, [character, selectedCharacter]);
-  useEffect(() => { if (!preview) return; setDeleteConfirmation(""); if (preview.operation === "delete") deleteRef.current?.focus(); else confirmRef.current?.focus(); const close = (event: KeyboardEvent) => { if (event.key === "Escape") setPreview(null); }; window.addEventListener("keydown", close); return () => window.removeEventListener("keydown", close); }, [preview]);
+  useEffect(() => {
+    if (!preview || preview.operation === "delete_candidate") return;
+    confirmRef.current?.focus();
+    const close = (event: KeyboardEvent) => { if (event.key === "Escape") setPreview(null); };
+    window.addEventListener("keydown", close); return () => window.removeEventListener("keydown", close);
+  }, [preview]);
+  useEffect(() => {
+    if (!deletingCandidate) return;
+    const close = (event: KeyboardEvent) => { if (event.key === "Escape") { setDeletingCandidate(null); setPreview(null); } };
+    window.addEventListener("keydown", close); return () => window.removeEventListener("keydown", close);
+  }, [deletingCandidate]);
 
-  const prepare = async (operation: string, routeId = "", candidateId = "") => { setPending(true); setError(""); try { setPreview(await previewRouteMutation(operation, routeId, candidateId)); } catch (reason) { setError(reason instanceof Error ? reason.message : "Vorschau fehlgeschlagen"); } finally { setPending(false); } };
-  const confirm = async () => { if (!preview) return; setPending(true); try { await confirmRouteMutation(preview, deleteConfirmation); setPreview(null); await refresh(); } catch (reason) { setError(reason instanceof Error ? reason.message : "Bestätigung ist veraltet"); } finally { setPending(false); } };
-  const start = async (operation: string, data: { runId?: string; routeRole?: string; candidateId?: string; act?: string }) => { if (!workflow) return; setPending(true); setError(""); try { setWorkflow(await startRouteWorkflow(operation, workflow.generation, data)); } catch (reason) { setError(reason instanceof Error ? reason.message : "Workflowstart fehlgeschlagen"); } finally { setPending(false); } };
+  const prepare = async (operation: string, routeID = "", candidateID = "") => {
+    setPending(true); setError("");
+    try { setPreview(await previewRouteMutation(operation, routeID, candidateID)); }
+    catch { setError("Die Aktion kann gerade nicht vorbereitet werden."); if (operation === "delete_candidate") setDeletingCandidate(null); }
+    finally { setPending(false); }
+  };
 
-  return <section aria-labelledby="routes-title">
-    <h2 id="routes-title">Farming-Routen</h2>
-    <p>Aufnahmen, Tests und Veröffentlichung verwenden denselben Core wie die CLI. Town- und Egress-Dateien erscheinen nie in dieser Bibliothek.</p>
-    {onReturnToOnboarding && <div className="onboarding-return">
-      <div><strong>Aus der Einrichtung geöffnet</strong><p>Du kannst Aufnahme, Test und Veröffentlichung hier abschließen und anschließend zum First-Run-Assistenten zurückkehren.</p></div>
-      <button type="button" className="secondary" onClick={onReturnToOnboarding}>Zurück zur Einrichtung</button>
-    </div>}
-    <div className="route-toolbar">
-      <label>Charakter<select value={character} onChange={(event) => setCharacter(event.target.value)}>{characters.map((name) => <option key={name}>{name}</option>)}</select></label>
-      <button type="button" className="secondary" aria-pressed={archive} onClick={() => setArchive((value) => !value)}>{archive ? "Aktive Routen" : "Archiv anzeigen"}</button>
-    </div>
-    {error && <p role="alert">{error}</p>}
-    {routes === null && !error && <p>Routen werden geladen …</p>}
-    {routes?.length === 0 && <p>{archive ? "Das Archiv ist leer." : "Für diesen Charakter gibt es noch keine Farming-Route."}</p>}
-    {!!routes?.length && <div className="run-grid">{routes.map((route) => <article key={route.route_id}><strong>{route.display_name}</strong><span>{route.run_id}{route.route_role ? ` · ${routeRoleLabel(route.route_role)}` : ""} · {route.difficulty}</span><small>{route.lifecycle_status} · {route.management_status}{route.assigned ? " · zugewiesen" : ""}</small><div className="route-actions">{archive ? <><button disabled={liveActionLocked} onClick={() => void prepare("restore", route.route_id)}>Wiederherstellen</button><button className="danger" disabled={liveActionLocked} onClick={() => void prepare("delete", route.route_id)}>Endgültig löschen</button></> : <button disabled={liveActionLocked} onClick={() => void prepare("archive", route.route_id)}>Archivieren</button>}</div></article>)}</div>}
+  const confirm = async () => {
+    if (!preview) return;
+    setPending(true); setError("");
+    try {
+      await confirmRouteMutation(preview, preview.operation === "delete" ? preview.route_id : "");
+      setPreview(null); setDeletingCandidate(null); await refresh();
+    } catch { setError("Der Stand hat sich geändert. Bitte erneut versuchen."); }
+    finally { setPending(false); }
+  };
 
-    <h3>Geführte Aufnahme</h3>
-    {orderedOptions.some((option) => option.run_id === "cows") && <div className="onboarding-return"><div><strong>Voraussetzungen für Cow-Routen</strong><p>Die gewählte Schwierigkeit muss abgeschlossen sein. Für den späteren Cow-Run brauchst du einen leeren, geschützten Horadrimwürfel, Platz für Wirt’s Bein und ein zusätzliches Stadtportalbuch sowie ein verwendbares Stadtportalbuch. Entferne alte Wirt’s Legs vorher manuell. Der Bot beschafft weder den Cube noch automatisiert er die Cain-Quest.</p></div></div>}
-    <div className="run-grid">{orderedOptions.map((option) => <article key={`${option.run_id}:${option.route_role ?? "single"}`} className={option.run_id === preferredRecordingRun ? "preferred-route" : undefined}><strong>{option.display_name}{option.run_id === preferredRecordingRun ? " · ausgewählt" : ""}</strong><p>{option.instructions_de}</p>{(option.operator_hints_de ?? []).map((hint) => <small key={hint}>{hint}</small>)}<small>Start: {option.start_kind === "object_portal_arrival" ? "rotes Ankunftsportal" : option.start_waypoint} · Zielgebiet {option.terminal_area_id}{option.run_id === "cows" ? "" : ` · maximale Bossdistanz ${option.terminal_max_distance_tiles.toFixed(0)} Tiles`}</small>{(option.prerequisites ?? []).map((entry) => <small key={entry.id}>{entry.id}: {entry.ready ? "bereit" : reasonLabel(entry.reason)}</small>)}{!option.available && option.reason && <small>{reasonLabel(option.reason)}</small>}<button disabled={liveActionLocked || !option.available || (option.prerequisites ?? []).some((entry) => !entry.ready)} onClick={() => void start("record", { runId: option.run_id, routeRole: option.route_role })}>{option.route_role === "leg_acquisition" ? "Wirt-Route aufnehmen" : option.route_role === "cow_sweep" ? "Cow-Route aufnehmen" : "Aufnahme starten"}</button></article>)}</div>
-    {workflow && <div className="queue-status" aria-live="polite"><strong>Routen-Workflow: {workflow.state}</strong><span>{workflowLabels[workflow.state] ?? workflow.state} · Generation {workflow.generation}{workflow.run_id ? ` · ${workflow.run_id}` : ""}{workflow.route_role ? ` · ${routeRoleLabel(workflow.route_role)}` : ""}{workflow.act ? ` · ${workflow.act.toUpperCase()}` : ""}</span>{activeWorkflowInstruction && <span>{activeWorkflowInstruction}</span>}{workflow.state === "recording" && <button disabled={liveLocked || pending} onClick={() => void finishRouteRecording(workflow.workflow_id, workflow.generation).then(setWorkflow).catch((reason: unknown) => setError(reason instanceof Error ? reason.message : "Finish fehlgeschlagen"))}>Aufnahme beenden</button>}{workflow.reason && workflow.state !== "failed_safe" && workflow.state !== "emergency_cancelled" && <span>{reasonLabel(workflow.reason)}</span>}</div>}
+  const start = async (operation: string, data: { runId?: string; routeRole?: string; candidateId?: string }) => {
+    if (!workflow) return;
+    setPending(true); setError("");
+    try { setWorkflow(await startRouteWorkflow(operation, workflow.generation, data)); }
+    catch { setError("Der Vorgang konnte nicht gestartet werden."); }
+    finally { setPending(false); }
+  };
 
-    <h3>Kandidatenreview</h3>
-    {visibleCandidates.length === 0 ? <p>Für diesen Charakter gibt es noch keinen aufgenommenen Kandidaten.</p> : <div className="run-grid">{visibleCandidates.map((candidate) => <article key={candidate.candidate_id}><strong>{routeRoleLabel(candidate.route_role) || candidate.run_id}</strong><code>{candidate.candidate_id}</code><span>{candidate.character} · {candidate.difficulty}</span><small>{candidateLabels[candidate.state] ?? candidate.state}{candidate.route_role ? ` · SHA-256 ${candidate.route_sha256.slice(0, 12)}…` : ` · Bossdistanz ${candidate.measured_boss_distance.toFixed(1)} Tiles`}</small>{candidate.reason && <small>{reasonLabel(candidate.reason)}</small>}<div className="route-actions"><button disabled={liveActionLocked || candidate.state !== "validated"} onClick={() => void start("test", { candidateId: candidate.candidate_id })}>{candidate.state === "test_passed" ? "Test bestanden" : "Isoliert testen"}</button><button disabled={liveActionLocked || candidate.state !== "test_passed"} onClick={() => void prepare("publish", "", candidate.candidate_id)}>Veröffentlichen</button></div></article>)}</div>}
+  const finish = async () => {
+    if (!workflow) return;
+    setPending(true); setError("");
+    try { setWorkflow(await finishRouteRecording(workflow.workflow_id, workflow.generation)); }
+    catch { setError("Die Aufnahme konnte nicht beendet werden."); }
+    finally { setPending(false); }
+  };
 
-    <h3>System-Egress-Setup</h3>
-    <p>Nur fehlende globale Portal→Wegpunkt-Routen werden als Setup-Bedarf gezeigt; sie gehören nicht zur Farming-Bibliothek.</p>
-    <div className="run-grid">{system.map((entry) => <article key={entry.act}><strong>{entry.act.toUpperCase()}</strong><span>{entry.ready ? "bereit" : "Setup erforderlich"}</span>{workflow?.act === entry.act && <p aria-live="polite"><strong>Core-Status: {workflow.state}</strong>{workflow.state === "preflight" ? " – am Portal stehen bleiben; Aufnahme noch nicht gestartet." : workflow.state === "recording" ? " – Aufnahme läuft; jetzt zum Wegpunkt gehen." : workflow.reason ? ` – ${workflow.reason}` : ""}</p>}{entry.ready ? <><p>Stelle dich für den isolierten Test wieder direkt an den Portal-Ankunftspunkt dieses Akts. Der Core prüft die Startnähe vor dem ersten Walk-Input.</p><button disabled={liveActionLocked} onClick={() => void start("system_test", { act: entry.act })}>Playback prüfen</button></> : <><p>Öffne in einem bestehenden Spiel in diesem Akt ein Town Portal, betrete es und starte direkt am Portal-Ankunftspunkt. Laufe ohne Teleport zum lokalen Wegpunkt und beende dort mit {hotkeys?.recording_finish ?? "F9"}.</p><small>{entry.reason}</small><button disabled={liveActionLocked} onClick={() => void start("system_record", { act: entry.act })}>Egress aufnehmen</button></>}</article>)}</div>
+  const openRecording = (runID: string, role = "") => { setSelectedRun(runID); setSelectedRole(role || (runID === "cows" ? "leg_acquisition" : "")); setArea("recording"); };
+  const selectRun = (runID: string) => { setSelectedRun(runID); setSelectedRole(runID === "cows" ? "leg_acquisition" : ""); };
+  const deleteDraft = (candidate: RouteCandidateDTO) => { setDeletingCandidate(candidate); void prepare("delete_candidate", "", candidate.candidate_id); };
 
-    <details className="hotkey-help"><summary>Hotkey-Hilfe</summary>{hotkeys ? <dl><div><dt>{hotkeys.recording_finish}</dt><dd>Aufnahme einfrieren und sicher abschließen</dd></div><div><dt>{hotkeys.stop_after_run}</dt><dd>Nach dem aktuellen Run stoppen</dd></div><div><dt>{hotkeys.emergency_stop}</dt><dd>Sofortiger Emergency Stop; kein Save &amp; Exit garantiert</dd></div><div><dt>{hotkeys.pause}</dt><dd>Nach dem aktuellen Run pausieren</dd></div></dl> : <p>Hotkeys werden geladen …</p>}</details>
+  const previewCandidate = preview?.candidate_id ? candidates.find((entry) => entry.candidate_id === preview.candidate_id) : undefined;
+  const previewRoute = preview?.route_id ? routes?.find((entry) => entry.route_id === preview.route_id) : undefined;
 
-    {preview && <div className="modal-backdrop"><div className="modal" role="dialog" aria-modal="true" aria-labelledby="route-confirm-title"><h3 id="route-confirm-title">Routenänderung bestätigen</h3><p><strong>{operationLabel(preview.operation)}</strong>: {preview.candidate_id ? "Neue Route" : "Route"} <code>{preview.route_id}</code>.</p>{preview.replaced_route_id && <p>Die bisher aktive Route <code>{preview.replaced_route_id}</code> wird unverändert archiviert und bleibt wiederherstellbar.</p>}<p>Die Bestätigung gilt nur für die angezeigten Katalog-, Lifecycle- und Assignment-Revisionen.</p>{preview.operation === "delete" && <label>Route-ID zur endgültigen Löschung eingeben<input ref={deleteRef} value={deleteConfirmation} onChange={(event) => setDeleteConfirmation(event.target.value)} autoComplete="off"/><small>Erforderlich: <code>{preview.route_id}</code></small></label>}<div className="modal-actions"><button className="secondary" onClick={() => setPreview(null)} disabled={pending}>Abbrechen</button><button ref={confirmRef} className={preview.operation === "delete" ? "danger" : ""} onClick={() => void confirm()} disabled={pending || (preview.operation === "delete" && deleteConfirmation !== preview.route_id)}>{pending ? "Core prüft …" : "Änderung bestätigen"}</button></div></div></div>}
+  return <section className="route-feature" aria-labelledby="routes-title">
+    <RoutePageHeader characters={characters} character={character} area={area} draftCount={visibleCandidates.length} onCharacterChange={setCharacter} onAreaChange={setArea} />
+    {onReturnToOnboarding && <div className="onboarding-return"><div><strong>Aus der Einrichtung geöffnet</strong><p>Schließe die Aufnahme hier ab und kehre danach zur Einrichtung zurück.</p></div><button type="button" className="secondary" onClick={onReturnToOnboarding}>Zurück zur Einrichtung</button></div>}
+    {error && <p className="route-error" role="alert">{error}</p>}
+    {!character ? <p className="route-empty">Wähle zuerst einen Charakter.</p> : <>
+      {area === "library" && <RouteLibraryPanel routes={routes} options={options} archive={archive} locked={actionsLocked} onArchiveChange={setArchive} onRecord={openRecording} onMutate={(operation, routeID) => void prepare(operation, routeID)} />}
+      {area === "recording" && <RouteRecordingPanel options={options} selectedRun={selectedRun} selectedRole={selectedRole} hotkeys={hotkeys} workflow={workflow} locked={liveLocked || workflowBusy} lockedReason={workflowBusy ? "Schließe zuerst den laufenden Routenvorgang ab." : liveLocked ? "Bestätige zuerst eine kompatible D2R-Version." : undefined} pending={pending} onSelectRun={selectRun} onSelectRole={setSelectedRole} onStart={(option) => void start("record", { runId: option.run_id, routeRole: option.route_role })} onFinish={() => void finish()} onOpenDrafts={() => setArea("drafts")} />}
+      {area === "drafts" && <RouteDraftsPanel candidates={visibleCandidates} workflow={workflow} locked={actionsLocked} runFilter={draftFilter} onRunFilterChange={setDraftFilter} onTest={(candidate) => void start("test", { candidateId: candidate.candidate_id })} onPublish={(candidate) => void prepare("publish", "", candidate.candidate_id)} onDelete={deleteDraft} />}
+    </>}
+
+    {deletingCandidate && preview?.operation === "delete_candidate" && <DeleteDraftDialog candidate={deletingCandidate} pending={pending} onClose={() => { setDeletingCandidate(null); setPreview(null); }} onConfirm={() => void confirm()} />}
+    {preview && preview.operation !== "delete_candidate" && <div className="modal-backdrop" onMouseDown={(event) => { if (event.currentTarget === event.target) setPreview(null); }}><div className="modal" role="dialog" aria-modal="true" aria-labelledby="route-confirm-title">
+      <h3 id="route-confirm-title">{preview.operation === "publish" || preview.operation === "replace" ? "Route veröffentlichen?" : preview.operation === "archive" ? "Route archivieren?" : preview.operation === "restore" ? "Route wiederherstellen?" : "Route endgültig löschen?"}</h3>
+      <p><strong>{previewCandidate ? candidateTitle(previewCandidate) : `${runLabel(previewRoute?.run_id ?? "")} ${roleLabel(previewRoute?.route_role)}`.trim()}</strong></p>
+      {preview.operation === "replace" && <p>Die bisher aktive Route wird unverändert archiviert und bleibt wiederherstellbar.</p>}
+      {preview.operation === "delete" && <p>Die archivierte Route wird dauerhaft entfernt. Diese Aktion kann nicht rückgängig gemacht werden.</p>}
+      <div className="modal-actions"><button type="button" className="secondary" onClick={() => setPreview(null)} disabled={pending}>Abbrechen</button><button ref={confirmRef} type="button" className={preview.operation === "delete" ? "danger" : ""} onClick={() => void confirm()} disabled={pending}>{pending ? "Änderung wird geprüft …" : preview.operation === "delete" ? "Route löschen" : "Änderung bestätigen"}</button></div>
+    </div></div>}
   </section>;
 }

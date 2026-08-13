@@ -207,6 +207,7 @@ func (s *Server) routes() http.Handler {
 	mux.HandleFunc("/api/v1/route-recordings/{workflowID}/finish", s.handleRouteRecordingFinish)
 	mux.HandleFunc("/api/v1/route-candidates/{candidateID}/test", s.handleRouteCandidateTest)
 	mux.HandleFunc("/api/v1/route-candidates/{candidateID}/publish/{stage}", s.handleCandidatePublish)
+	mux.HandleFunc("/api/v1/route-candidates/{candidateID}/delete/{stage}", s.handleCandidateDelete)
 	mux.HandleFunc("/api/v1/routes/{routeID}/{operation}/{stage}", s.handleNamedRouteMutation)
 	mux.HandleFunc("/api/v1/routes/candidates", s.handleRouteCandidates)
 	mux.HandleFunc("/api/v1/routes/system-status", s.handleSystemRouteStatus)
@@ -735,6 +736,18 @@ func (s *Server) handleRouteCandidateTest(w http.ResponseWriter, r *http.Request
 func (s *Server) handleCandidatePublish(w http.ResponseWriter, r *http.Request) {
 	if r.PathValue("stage") == "preview" {
 		s.handleRouteMutationPreviewValue(w, r, RouteMutationPreviewRequest{Operation: "publish", CandidateID: r.PathValue("candidateID")})
+		return
+	}
+	if r.PathValue("stage") == "confirm" {
+		s.handleRouteMutationConfirm(w, r)
+		return
+	}
+	s.handleUnsupportedAPI(w, r)
+}
+
+func (s *Server) handleCandidateDelete(w http.ResponseWriter, r *http.Request) {
+	if r.PathValue("stage") == "preview" {
+		s.handleRouteMutationPreviewValue(w, r, RouteMutationPreviewRequest{Operation: "delete_candidate", CandidateID: r.PathValue("candidateID")})
 		return
 	}
 	if r.PathValue("stage") == "confirm" {

@@ -129,7 +129,8 @@ export async function createDiagnosticBundle(request: DiagnosticBundleRequest): 
 }
 
 export async function previewRouteMutation(operation: string, routeId = "", candidateId = ""): Promise<RouteMutationPreviewDTO> {
-  const path = candidateId ? `/api/v1/route-candidates/${encodeURIComponent(candidateId)}/publish/preview` : `/api/v1/routes/${encodeURIComponent(routeId)}/${encodeURIComponent(operation)}/preview`;
+  const candidateOperation = operation === "delete_candidate" ? "delete" : "publish";
+  const path = candidateId ? `/api/v1/route-candidates/${encodeURIComponent(candidateId)}/${candidateOperation}/preview` : `/api/v1/routes/${encodeURIComponent(routeId)}/${encodeURIComponent(operation)}/preview`;
   const response = await fetch(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
   if (!response.ok) throw await errorMessage(response, "Routenvorschau fehlgeschlagen");
   return response.json() as Promise<RouteMutationPreviewDTO>;
@@ -137,7 +138,8 @@ export async function previewRouteMutation(operation: string, routeId = "", cand
 
 export async function confirmRouteMutation(preview: RouteMutationPreviewDTO, confirmRouteId = ""): Promise<void> {
   await ensureControlToken();
-  const path = preview.candidate_id ? `/api/v1/route-candidates/${encodeURIComponent(preview.candidate_id)}/publish/confirm` : `/api/v1/routes/${encodeURIComponent(preview.route_id)}/${encodeURIComponent(preview.operation)}/confirm`;
+  const candidateOperation = preview.operation === "delete_candidate" ? "delete" : "publish";
+  const path = preview.candidate_id ? `/api/v1/route-candidates/${encodeURIComponent(preview.candidate_id)}/${candidateOperation}/confirm` : `/api/v1/routes/${encodeURIComponent(preview.route_id)}/${encodeURIComponent(preview.operation)}/confirm`;
   const response = await fetch(path, { method: "POST", headers: controlHeaders(), body: JSON.stringify({ confirmation_token: preview.confirmation_token, confirm_route_id: preview.operation === "delete" ? confirmRouteId : undefined }) });
   if (!response.ok) throw await errorMessage(response, "Routenänderung fehlgeschlagen");
 }

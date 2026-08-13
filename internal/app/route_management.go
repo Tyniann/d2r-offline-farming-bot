@@ -22,6 +22,7 @@ type RouteMutationPreview struct {
 	Operation          RouteMutationOperation
 	CandidateID        string
 	CandidateSHA256    string
+	CandidateState     RouteCandidateState
 	RouteID            string
 	PreviousRouteID    string
 	Character          string
@@ -114,6 +115,31 @@ func (s *RouteManagementService) PreviewCandidate(candidateID string) (RouteMuta
 	return preview, err
 }
 
+// PreviewCandidateDelete prepares deletion of one unpublished candidate
+// without exposing or mutating its filesystem location.
+func (s *RouteManagementService) PreviewCandidateDelete(candidateID string) (RouteMutationPreview, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	candidate, _, err := s.candidates.Load(candidateID)
+	if err != nil {
+		return RouteMutationPreview{}, err
+	}
+	manifest, catalog, err := s.lifecycle.Snapshot()
+	if err != nil {
+		return RouteMutationPreview{}, err
+	}
+	assignments, err := s.assignments.Snapshot()
+	if err != nil {
+		return RouteMutationPreview{}, err
+	}
+	return s.newPreview(RouteMutationPreview{
+		Operation: RouteMutationDeleteCandidate, CandidateID: candidate.CandidateID,
+		CandidateSHA256: candidate.ImmutableRouteSHA256, CandidateState: candidate.State,
+		Character: strings.ToLower(candidate.Character), RunID: candidate.RunID, RouteRole: candidate.RouteRole,
+		CatalogRevision: catalog.Revision, LifecycleRevision: manifest.Revision, AssignmentRevision: assignments.Revision,
+	})
+}
+
 // PreviewRoute prepares archive, restore, or delete against current revisions.
 func (s *RouteManagementService) PreviewRoute(operation RouteMutationOperation, routeID string) (RouteMutationPreview, error) {
 	s.mu.Lock()
@@ -184,6 +210,8 @@ func (s *RouteManagementService) Confirm(confirm RouteMutationConfirm) error {
 		return s.confirmRestore(preview, assignments)
 	case RouteMutationDelete:
 		return s.confirmDelete(preview)
+	case RouteMutationDeleteCandidate:
+		return s.candidates.Delete(preview.CandidateID, preview.CandidateState, preview.CandidateSHA256)
 	default:
 		return fmt.Errorf("unsupported management operation")
 	}
@@ -250,7 +278,14 @@ func (s *RouteManagementService) confirmCandidate(preview RouteMutationPreview, 
 	if err := s.checkpoint(journal); err != nil {
 		return err
 	}
-	return s.clearJournal()
+	if err := s.clearJournal(); err != nil {
+		return err
+	}
+	// Erst nach dem vollständig abgeschlossenen Publish verschwindet der
+	// Entwurf. Die veröffentlichte Farming-Route ist ab hier autoritativ; ein
+	// fehlgeschlagenes Aufräumen darf diese Transaktion nicht zurückrollen.
+	_ = s.candidates.Delete(candidate.CandidateID, candidate.State, candidate.ImmutableRouteSHA256)
+	return nil
 }
 
 func (s *RouteManagementService) confirmArchive(preview RouteMutationPreview, assignments RouteAssignmentManifest) (retErr error) {
