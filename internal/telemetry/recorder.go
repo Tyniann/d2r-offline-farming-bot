@@ -128,18 +128,18 @@ const (
 
 // Event is one JSONL record. Zero-valued optional fields are omitted.
 type Event struct {
-	SchemaVersion                int                    `json:"schema_version"`
-	Stream                       HistoryStream          `json:"stream"`
+	SchemaVersion                int                    `json:"schema_version,omitempty"`
+	Stream                       HistoryStream          `json:"stream,omitempty"`
 	Timestamp                    time.Time              `json:"timestamp"`
 	Event                        EventName              `json:"event"`
-	RunID                        string                 `json:"run_id"`
+	RunID                        string                 `json:"run_id,omitempty"`
 	SessionID                    string                 `json:"session_id,omitempty"`
 	GameID                       string                 `json:"game_id,omitempty"`
-	Mode                         HistoryMode            `json:"mode"`
+	Mode                         HistoryMode            `json:"mode,omitempty"`
 	Character                    string                 `json:"character,omitempty"`
 	Difficulty                   string                 `json:"difficulty,omitempty"`
 	GameVersion                  string                 `json:"game_version,omitempty"`
-	Run                          string                 `json:"run"`
+	Run                          string                 `json:"run,omitempty"`
 	DefinitionID                 string                 `json:"definition_id,omitempty"`
 	Phase                        string                 `json:"phase,omitempty"`
 	Step                         string                 `json:"step,omitempty"`
@@ -268,7 +268,7 @@ type PickitProfileContext struct {
 	Revision uint64 `json:"revision"`
 }
 
-// RunRecorderContext ist der unveränderliche Kontext einer Schema-3-Run-Datei.
+// RunRecorderContext ist der unveränderliche Kontext einer Schema-4-Run-Datei.
 type RunRecorderContext struct {
 	RunID                       string
 	SessionID                   string
@@ -298,16 +298,17 @@ type flushWriter interface {
 
 // Recorder owns one JSONL file and flushes every event before returning.
 type Recorder struct {
-	mu      sync.Mutex
-	file    *os.File
-	writer  flushWriter
-	path    string
-	runID   string
-	run     string
-	phase   string
-	context RunRecorderContext
-	seen    map[string]struct{}
-	closed  bool
+	mu             sync.Mutex
+	file           *os.File
+	writer         flushWriter
+	path           string
+	runID          string
+	run            string
+	phase          string
+	context        RunRecorderContext
+	seen           map[string]struct{}
+	contextWritten bool
+	closed         bool
 }
 
 // New creates one telemetry file for the selected run.
@@ -321,7 +322,7 @@ func NewRunID(run string) string {
 	return fmt.Sprintf("%s-%s-%s", safePart(run), now.Format("20060102t150405999999999z"), randomSuffix())
 }
 
-// NewRunRecorder erstellt eine Schema-3-Datei mit unveränderlichem Run-Kontext.
+// NewRunRecorder erstellt eine kompakte Schema-4-Datei mit unveränderlichem Run-Kontext.
 func NewRunRecorder(directory string, context RunRecorderContext) (*Recorder, error) {
 	if err := validateRunRecorderContext(context); err != nil {
 		return nil, err
@@ -365,7 +366,11 @@ func (r *Recorder) Emit(event Event) error {
 	} else {
 		event.Timestamp = event.Timestamp.UTC()
 	}
-	line, err := json.Marshal(event)
+	diskEvent := event
+	if r.contextWritten {
+		diskEvent = CompactRunEvent(event)
+	}
+	line, err := json.Marshal(diskEvent)
 	if err != nil {
 		return fmt.Errorf("marshal telemetry event %q: %w", event.Event, err)
 	}
@@ -379,7 +384,35 @@ func (r *Recorder) Emit(event Event) error {
 	if key != "" {
 		r.seen[key] = struct{}{}
 	}
+	r.contextWritten = true
 	return nil
+}
+
+// CompactRunEvent removes immutable file context from one hydrated run event.
+// The first JSONL record remains the sole authoritative context source.
+func CompactRunEvent(event Event) Event {
+	event.SchemaVersion = 0
+	event.Stream = ""
+	event.RunID = ""
+	event.SessionID = ""
+	event.GameID = ""
+	event.Mode = ""
+	event.Character = ""
+	event.Difficulty = ""
+	event.GameVersion = ""
+	event.Run = ""
+	event.DefinitionID = ""
+	event.Phase = ""
+	event.RouteID = ""
+	event.RouteLayoutFingerprint = ""
+	event.SetupRouteID = ""
+	event.SetupRouteLayoutFingerprint = ""
+	event.QueueIndex = nil
+	event.QueueCycle = nil
+	event.RunStartedAt = nil
+	event.PickitProfiles = nil
+	event.PickitAssignmentRevision = 0
+	return event
 }
 
 func (r *Recorder) applyContext(event *Event) error {
@@ -477,7 +510,7 @@ func (r *Recorder) Path() string {
 	return r.path
 }
 
-// RunID returns the stable identifier embedded in every event.
+// RunID returns the stable identifier owned by this run recorder.
 func (r *Recorder) RunID() string {
 	if r == nil {
 		return ""

@@ -4325,6 +4325,9 @@
               "$ref": "#/components/schemas/HistoryRunItemDTO"
             }
           },
+          "raw_context": {
+            "type": "object"
+          },
           "raw_events": {
             "type": "array",
             "items": {

@@ -16,13 +16,13 @@ Die Telemetrie ist fail-closed: Kann die Datei beim Start nicht erstellt oder w�
 
 ## Datei und Run-ID
 
-Seit Abschnitt 14.1 schreiben neue Run-Dateien Schema 3 und tragen `stream=run`. Produktive Queue-Runs erhalten ihre global eindeutige Run-ID vor dem ersten Lifecycle-Ereignis vom Supervisor; exakt diese ID wird an Session-Recorder, Run-Recorder, Dateinamen, Status und Logs weitergereicht:
+Neue Run-Dateien schreiben Schema 4 und tragen `stream=run`. Produktive Queue-Runs erhalten ihre global eindeutige Run-ID vor dem ersten Lifecycle-Ereignis vom Supervisor; exakt diese ID wird an Session-Recorder, Run-Recorder, Dateinamen, Status und Logs weitergereicht:
 
 ```text
 logs/telemetry/countess-<UTC-Zeit>-<Zufallssuffix>.jsonl
 ```
 
-Der Dateiname ohne Erweiterung ist die `run_id`, die in jeder Zeile wiederholt wird. Jede Zeile ist ein vollständiges JSON-Objekt mit `schema_version=3`. Produktive Events tragen zusätzlich `mode=productive_farming`, `session_id`, `game_id`, Charakter, Difficulty, D2R-Version, Definition, Route/Fingerprint, Queue-Index/-Zyklus, Startzeit und den unveränderlichen Pickit-Snapshot. Eine abweichende Run-ID, Route oder ein Moduswechsel wird vor dem Write abgewiesen.
+Der Dateiname ohne Erweiterung ist die `run_id`. Die erste Zeile enthält den vollständigen unveränderlichen Run-Kontext mit `schema_version=4`, darunter Modus, Session-/Game-/Run-ID, Charakter, Difficulty, D2R-Version, Definition, Route/Fingerprint, Queue-Index/-Zyklus, Startzeit und Pickit-Snapshot. Alle weiteren Zeilen speichern nur Zeitstempel, Event und dessen veränderliche Nutzdaten. Der Writer prüft vor dem Kompaktieren weiterhin den vollständigen Kontext und weist Drift ab. Input-Aktionen und eindeutige `drop_seen`-Ereignisse werden nicht gefiltert oder zusammengefasst.
 
 Isolierte CLI-, Route- und Town-Telemetrie wird explizit mit `mode=diagnostic` geschrieben und kann deshalb niemals anhand von Dateiname oder Run-ID in die Produktpopulation geraten. Bereits vorhandene Schema-1-Dateien bleiben unverändert auf Platte und werden von der Phase-14-Historie ignoriert.
 
@@ -62,12 +62,13 @@ Bei produktiven Queue-Runs schreibt der Runtime-Owner vor dem Schließen des Run
 Beispiel:
 
 ```json
-{"schema_version":1,"timestamp":"2026-07-10T15:04:57.036Z","event":"stash_attempt","run_id":"countess-...","run":"countess","phase":"stash-personal","area_id":1,"unit_id":240,"code":"glr","name":"Flawless Ruby","attempt":1}
+{"schema_version":4,"stream":"run","run_id":"countess-...","session_id":"session-...","game_id":"game-001","mode":"productive_farming","character":"MrBones","difficulty":"hell","run":"countess","timestamp":"2026-08-13T10:00:00Z","event":"run_context"}
+{"timestamp":"2026-08-13T10:00:01Z","event":"stash_attempt","area_id":1,"unit_id":240,"code":"glr","name":"Flawless Ruby","attempt":1}
 ```
 
-Gemeinsame Felder:
+Felder des im Speicher vollständig ergänzten Ereignismodells:
 
-- `schema_version`, `timestamp`, `event`, `run_id`, `run`, optional `phase`
+- `schema_version`, `timestamp`, `event`, `run_id`, `run`, optional `phase`; auf Platte stehen die unveränderlichen Felder ab der zweiten Zeile nur noch im ersten Datensatz
 - Pipeline-Kontext: `definition_id`, `step`, `stage`, `outcome`, optional `action_index`; Encounter-Grenzen tragen zusätzlich die gepinnte Boss-`unit_id`. Jeder Step gehört Core-autoritativ genau zu `travel`, `combat`, `loot` oder `return_town`.
 - Run-Kontext: `route_id`, `route_layout_fingerprint`, `waypoint_target`, `loot_pickup_policy`, optionale `loot_sell_policy` und `town_origin`.
 - Item-Kontext: `area_id`, `unit_id`, `txt_file_no`, `code`, `name`, `item_key`, `item_name`, `base_code`, `quality`, `item_identity_kind` und bei belastbarer Set-/Unique-Auflösung `item_identity_key`. Exakte Set-/Unique-Items verwenden ihren stabilen Katalogschlüssel, andere Items Basiscode plus Qualität; unvollständige Identität wird nicht geraten.
@@ -99,10 +100,10 @@ Phase-16-Gate D bestätigte einen vollständigen produktiven Countess-Stream mit
 
 ## Grenzen
 
-- Noch keine Rotation, Kompression oder automatische Bereinigung.
+- Keine größenbasierte Rotation oder Kompression. Die bestehende zeitbasierte Retention bleibt unverändert.
 - Abschnitt 11.3 projiziert ausgewählte Zustandsänderungen zusätzlich über einen flüchtigen, begrenzten Live-Publisher ins lokale Dashboard. Dieser Pfad blockiert niemals den Bot und ersetzt keine JSONL-Ereignisse; JSONL bleibt die autoritative persistente Diagnosequelle.
 - Keine Upload-Integration.
-- Abschnitt 14.1 hebt beide weiterhin getrennten Streams für neue Daten auf Schema 3. Alte Schema-1-/Schema-2-Dateien bleiben reine Diagnoseartefakte und werden nicht migriert.
+- Neue Streams verwenden Schema 4. Ältere Schemata werden nicht migriert und von der aktuellen Historie ignoriert.
 
 ## Verwandte Features
 
@@ -111,4 +112,4 @@ Phase-16-Gate D bestätigte einen vollständigen produktiven Countess-Stream mit
 - [Personal-Stash MVP](personal-stash-mvp.md)
 
 ---
-*Zuletzt aktualisiert: 2026-07-28*
+*Zuletzt aktualisiert: 2026-08-13*

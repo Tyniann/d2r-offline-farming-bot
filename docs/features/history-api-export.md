@@ -23,10 +23,12 @@ Abschnitt 14.5 stellt die vom Core berechnete Run-Historie read-only für Dashbo
 | `GET /api/v1/history/comparisons` | Charakter-/Difficulty-/Definition-/Routenvergleich; Core-Sortierung nach Keep/Stunde, Erfolgsquote oder Durchschnittsdauer |
 | `GET /api/v1/history/items` | Stabil nach Itemname und Itemkey sortierte, cursor-paginierte Itemaggregate |
 | `GET /api/v1/history/runs` | Absteigend nach UTC-Start und Run-ID sortierte, cursor-paginierte Runliste |
-| `GET /api/v1/history/runs/{runID}` | Semantischer Drill-down; `include_raw=true` ergänzt eingeklappte Rohereignisse |
+| `GET /api/v1/history/runs/{runID}` | Semantischer Drill-down; `include_raw=true` ergänzt gemeinsamen Run-Kontext und kompakte Rohereignisse |
 | `GET /api/v1/history/export` | Vollständiger JSON-Report oder CSV-Tabelle `runs` beziehungsweise `items` |
 
 Die Auswertungs- und Exportendpunkte benötigen keinen Control-Token und bleiben read-only unter dem bestehenden Loopback-, Host- und Origin-Sicherheitsumschlag.
+
+Die Rohprojektion liefert den unveränderlichen Kontext einmal als `raw_context`. `raw_events` enthält weiterhin jedes gespeicherte Ereignis, jedoch ohne wiederholte gemeinsame Run-Felder. Die Desktop-App lädt beides erst beim Öffnen und kann die Ereignisliste nach Eventtyp filtern; diese Darstellung verändert weder Datei noch Historienindex.
 
 Abschnitt 15.9 ergänzt `POST /api/v1/history/delete-all/preview` und `POST /api/v1/history/delete-all/confirm`. Beide verlangen den Control-Token; die Bestätigung ist zusätzlich an Supervisorgeneration, zufälligen Einmaltoken, Indexgeneration, Anzahl und Bytes gebunden.
 
@@ -64,4 +66,4 @@ Beschädigte Dateien erscheinen einzeln mit Basisdateiname, stabilem Code und de
 - [Lokale Core-API](local-core-api.md)
 
 ---
-*Zuletzt aktualisiert: 26. Juli 2026*
+*Zuletzt aktualisiert: 13. August 2026*

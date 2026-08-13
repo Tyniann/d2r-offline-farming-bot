@@ -203,6 +203,7 @@ type HistoryRunDetailDTO struct {
 	RouteLayoutFingerprint string              `json:"route_layout_fingerprint,omitempty"`
 	Stages                 HistoryStagesDTO    `json:"stages"`
 	Items                  []HistoryRunItemDTO `json:"items"`
+	RawContext             map[string]any      `json:"raw_context,omitempty"`
 	RawEvents              []telemetry.Event   `json:"raw_events,omitempty"`
 }
 

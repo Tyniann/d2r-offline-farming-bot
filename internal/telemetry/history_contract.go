@@ -1,7 +1,8 @@
 package telemetry
 
-// HistorySchemaVersion beginnt die auswertbare Phase-14-Telemetrieepoche.
-const HistorySchemaVersion = 3
+// HistorySchemaVersion identifies compact run telemetry with one immutable
+// context record followed by event-specific JSONL records.
+const HistorySchemaVersion = 4
 
 const (
 	// HistoryDefaultPageLimit begrenzt Listen ohne explizites Limit.
@@ -22,7 +23,7 @@ const (
 	HistoryStreamRun HistoryStream = "run"
 )
 
-// HistoryMode klassifiziert den Ursprung eines Schema-3-Runs ohne Dateinamen-Heuristik.
+// HistoryMode klassifiziert den Ursprung eines Historien-Runs ohne Dateinamen-Heuristik.
 type HistoryMode string
 
 const (

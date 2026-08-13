@@ -146,13 +146,54 @@ func historyRunDetailDTO(value telemetry.HistoryRunAnalysis, includeRaw bool, sn
 	if includeRaw {
 		for _, run := range snapshot.Runs {
 			if run.RunID == value.RunID {
+				if len(run.Events) > 0 {
+					detail.RawContext = historyRawContextDTO(run.Events[0])
+				}
 				detail.RawEvents = make([]telemetry.Event, len(run.Events))
-				copy(detail.RawEvents, run.Events)
+				for index, event := range run.Events {
+					detail.RawEvents[index] = telemetry.CompactRunEvent(event)
+				}
 				break
 			}
 		}
 	}
 	return detail
+}
+
+func historyRawContextDTO(event telemetry.Event) map[string]any {
+	context := map[string]any{
+		"schema_version": event.SchemaVersion,
+		"stream":         event.Stream,
+		"run_id":         event.RunID,
+		"mode":           event.Mode,
+		"run":            event.Run,
+	}
+	for key, value := range map[string]string{
+		"session_id": event.SessionID, "game_id": event.GameID, "character": event.Character,
+		"difficulty": event.Difficulty, "game_version": event.GameVersion, "definition_id": event.DefinitionID,
+		"phase": event.Phase, "route_id": event.RouteID, "route_layout_fingerprint": event.RouteLayoutFingerprint,
+		"setup_route_id": event.SetupRouteID, "setup_route_layout_fingerprint": event.SetupRouteLayoutFingerprint,
+	} {
+		if value != "" {
+			context[key] = value
+		}
+	}
+	if event.QueueIndex != nil {
+		context["queue_index"] = *event.QueueIndex
+	}
+	if event.QueueCycle != nil {
+		context["queue_cycle"] = *event.QueueCycle
+	}
+	if event.RunStartedAt != nil {
+		context["run_started_at"] = event.RunStartedAt
+	}
+	if len(event.PickitProfiles) != 0 {
+		context["pickit_profiles"] = event.PickitProfiles
+	}
+	if event.PickitAssignmentRevision != 0 {
+		context["pickit_assignment_revision"] = event.PickitAssignmentRevision
+	}
+	return context
 }
 
 func historyReasonText(reason string) string {

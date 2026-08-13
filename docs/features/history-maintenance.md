@@ -18,7 +18,7 @@ Abschnitt 15.9 hält die lokale JSONL-Historie begrenzt, ohne eine zweite Datena
 
 Der Service wacht beim stabilen UI-Start und danach stündlich auf, führt selbst jedoch höchstens alle 24 Stunden einen Lauf aus. Retention ist standardmäßig mit 60 Tagen aktiv und nur bei inaktivem Supervisor sowie inaktivem Routenworkflow zulässig.
 
-Ein Kandidat ist ausschließlich ein vollständiges Schema-3-Bundle: eine valide terminale Sessiondatei, exakt alle von ihr gestarteten validen Run-Dateien und je genau ein Run-Terminal. Zusätzliche oder fehlende Gegenstreams, aktive Namen, Legacy, beschädigte, unvollständige und zeitlich gemischte Bundles bleiben vollständig erhalten. Sessionterminal und neuestes Run-Terminal müssen strikt älter als den Stichtag sein; exakt 60 Tage werden bei 60 Tagen Retention nicht gelöscht.
+Ein Kandidat ist ausschließlich ein vollständiges Schema-4-Bundle: eine valide terminale Sessiondatei, exakt alle von ihr gestarteten validen Run-Dateien und je genau ein Run-Terminal. Zusätzliche oder fehlende Gegenstreams, aktive Namen, Legacy, beschädigte, unvollständige und zeitlich gemischte Bundles bleiben vollständig erhalten. Sessionterminal und neuestes Run-Terminal müssen strikt älter als den Stichtag sein; exakt 60 Tage werden bei 60 Tagen Retention nicht gelöscht.
 
 ### Bestätigte Komplettlöschung
 
@@ -47,4 +47,4 @@ Die Temp-Root-Matrix deckt 59/60/61 Tage, mehrere Runs, gemischtes Alter, fehlen
 - [Persistente Operator-Einstellungen](operator-settings.md)
 
 ---
-*Zuletzt aktualisiert: 26. Juli 2026*
+*Zuletzt aktualisiert: 13. August 2026*

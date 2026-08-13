@@ -7,6 +7,9 @@ Versionierung nach [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+- Store immutable run context once in Schema-4 JSONL telemetry and show raw history as shared context plus filterable compact events
+
 ### Fixed
 - Skip one nearby non-progressing generic route point after two settled movement attempts while preserving the terminal endpoint and existing drift corridor
 - Fix Nihlathak post-boss `clear_nearby_hostiles` failing immediately with `combat_action_failed` by wiring Amplify Damage / Bone Spear RouteClear on the Nihlathak strategy without enabling travel `route_clear`

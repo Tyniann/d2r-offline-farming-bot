@@ -8,7 +8,7 @@ vi.mock("../../api/generated", () => ({
   getHistoryRuns: mocks.runs, getHistoryRun: mocks.detail, downloadHistoryExport: mocks.download,
 }));
 
-const meta = { schema_version: 3, generated_at: "2026-07-22T12:00:00Z", timezone: "UTC", index_generation: 4, filter: { timezone: "UTC", runs: [], characters: [], difficulties: [], outcomes: [], reasons: [], pickit_profiles: [] }, diagnostics: [{ file: "broken.jsonl", code: "history_file_invalid", message: "Die Datei ist beschädigt." }], ignored_files: 2 };
+const meta = { schema_version: 4, generated_at: "2026-07-22T12:00:00Z", timezone: "UTC", index_generation: 4, filter: { timezone: "UTC", runs: [], characters: [], difficulties: [], outcomes: [], reasons: [], pickit_profiles: [] }, diagnostics: [{ file: "broken.jsonl", code: "history_file_invalid", message: "Die Datei ist beschädigt." }], ignored_files: 2 };
 const durations = { count: 5, total_ms: 360000, average_ms: 72000, median_ms: 60000, minimum_ms: 30000, maximum_ms: 120000 };
 const stages = { travel_ms: 150000, combat_ms: 55000, loot_ms: 55000, return_town_ms: 40000, other_ms: 60000 };
 const funnel = { seen: 6, matched: 6, picked_up: 5, stashed: 3, sold: 1, keep_return: 3, pickup_lost: 1, post_pickup_lost: 1 };
@@ -32,7 +32,7 @@ describe("HistoryFeature", () => {
     mocks.comparisons.mockResolvedValue({ meta, comparisons: [routeA, routeB, routeMephisto] });
     mocks.items.mockResolvedValue({ meta, items: [item], next_cursor: "items-next" });
     mocks.runs.mockResolvedValue({ meta, runs: [run], next_cursor: "runs-next" });
-    mocks.detail.mockResolvedValue({ meta, run: { ...run, ended_at: "2026-07-22T10:02:00Z", stages, items: [{ unit_id: 7, item_key: item.item_key, item_name: item.item_name, pickit_profile_id: "runes", pickit_rule_id: "el-rune", pickit_action: "keep", pickit_profile_revision: 3, pickit_assignment_revision: 8, seen: true, matched: true, picked_up: true, stashed: false, sold: false, pickup_lost: false, post_pickup_lost: true }] } });
+    mocks.detail.mockImplementation((_runID: string, includeRaw = false) => Promise.resolve({ meta, run: { ...run, ended_at: "2026-07-22T10:02:00Z", stages, items: [{ unit_id: 7, item_key: item.item_key, item_name: item.item_name, pickit_profile_id: "runes", pickit_rule_id: "el-rune", pickit_action: "keep", pickit_profile_revision: 3, pickit_assignment_revision: 8, seen: true, matched: true, picked_up: true, stashed: false, sold: false, pickup_lost: false, post_pickup_lost: true }], ...(includeRaw ? { raw_context: { schema_version: 4, run_id: "run-1", route_id: "route-b" }, raw_events: [{ timestamp: "2026-07-22T10:00:00Z", event: "run_context" }, { timestamp: "2026-07-22T10:00:01Z", event: "route_clear_action", action_kind: "attack" }] } : {}) } }));
     mocks.download.mockResolvedValue({ blob: new Blob(["ok"]), filename: "d2r-history.json" });
     Object.defineProperty(URL, "createObjectURL", { configurable: true, value: vi.fn(() => "blob:test") });
     Object.defineProperty(URL, "revokeObjectURL", { configurable: true, value: vi.fn() });
@@ -90,6 +90,9 @@ describe("HistoryFeature", () => {
     Object.defineProperty(raw, "open", { configurable: true, value: true });
     fireEvent(raw, new Event("toggle"));
     await waitFor(() => expect(mocks.detail).toHaveBeenLastCalledWith("run-1", true));
+    expect(await screen.findByRole("heading", { name: "Gemeinsamer Run-Kontext" })).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Ereignistyp"), { target: { value: "route_clear_action" } });
+    expect(screen.getByText("1 von 2 Ereignissen. Gemeinsame Run-Daten werden nur oben angezeigt.")).toBeInTheDocument();
   });
 
   it("führt Exporte aus und zeigt Export-, Empty- und No-results-Zustände zugänglich an", async () => {

@@ -83,7 +83,7 @@ Spätere Ideen (noch nicht umgesetzt): [`docs/backlog.md`](../backlog.md).
 | Feature | Beschreibung |
 |---------|--------------|
 | [Run-Telemetrie](run-telemetry.md) | Phase 5.10: fail-closed JSONL pro Run für Drop-, Pickit-, Pickup-, Inventory- und Stash-Events |
-| [History-Reader und In-Memory-Index](history-reader-index.md) | Abschnitt 14.3: strikter Schema-3-Reader, Cross-Stream-Korrelation, Dateidiagnosen und vollständig rebuildbarer flüchtiger Index |
+| [History-Reader und In-Memory-Index](history-reader-index.md) | Strikter Schema-4-Reader mit kompaktem Run-Kontext, Cross-Stream-Korrelation, Dateidiagnosen und vollständig rebuildbarem flüchtigem Index |
 | [Historienanalyse und Boss-/Routenvergleich](history-analysis.md) | Abschnitte 14.4/15.8: kanonische Filter, IANA-lokale Tages-Buckets, DST, terminale Kennzahlen, Stages, Funnel und Vergleich |
 | [Historien-API und Export](history-api-export.md) | Abschnitt 14.5: read-only DTOs, kanonische Filter, stabile Cursor-Pagination, JSON-/CSV-Parität und begrenztes Änderungssignal |
 | [Run-Historie im Dashboard](run-history.md) | Abschnitte 14.6/15.8: Filter, Kennzahlen, vier tabellengestützte Charts, Core-sortierte Vergleiche, Drill-down und Exporte |

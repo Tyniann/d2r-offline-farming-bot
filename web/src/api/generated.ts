@@ -812,6 +812,7 @@ export interface HistoryRunDetailDTO {
   route_layout_fingerprint?: string;
   stages: HistoryStagesDTO;
   items: Array<HistoryRunItemDTO>;
+  raw_context?: Record<string, unknown>;
   raw_events?: Array<Record<string, unknown>>;
 }
 

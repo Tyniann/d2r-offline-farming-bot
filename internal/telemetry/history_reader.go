@@ -52,7 +52,7 @@ type HistoryReader struct {
 	directory string
 }
 
-// NewHistoryReader erstellt einen begrenzten, read-only Schema-3-Reader.
+// NewHistoryReader erstellt einen begrenzten, read-only Schema-4-Reader.
 func NewHistoryReader(directory string) (*HistoryReader, error) {
 	if strings.TrimSpace(directory) == "" {
 		return nil, fmt.Errorf("%s: telemetry directory is required", HistoryReasonUnavailable)
@@ -122,6 +122,7 @@ func parseHistorySource(name string, source historySource) (HistoryFile, error) 
 		return HistoryFile{}, historyReadError(HistoryReasonSchemaUnsupported, "unsupported schema %d", epoch.SchemaVersion)
 	}
 	result.Events = make([]Event, 0, len(lines))
+	var runContext Event
 	for index, line := range lines {
 		if len(line) == 0 || len(line) > HistoryMaximumLineBytes {
 			code := HistoryReasonFileInvalid
@@ -139,8 +140,16 @@ func parseHistorySource(name string, source historySource) (HistoryFile, error) 
 		if err := ensureJSONEOF(decoder); err != nil {
 			return HistoryFile{}, historyReadError(HistoryReasonFileInvalid, "decode history line %d: %v", index+1, err)
 		}
+		if index > 0 && runContext.Stream == HistoryStreamRun {
+			if err := hydrateCompactRunEvent(&event, runContext); err != nil {
+				return HistoryFile{}, fmt.Errorf("line %d: %w", index+1, err)
+			}
+		}
 		if err := validateHistoryEvent(event); err != nil {
 			return HistoryFile{}, fmt.Errorf("line %d: %w", index+1, err)
+		}
+		if index == 0 {
+			runContext = cloneHistoryEvent(event)
 		}
 		result.Events = append(result.Events, cloneHistoryEvent(event))
 	}
@@ -148,6 +157,69 @@ func parseHistorySource(name string, source historySource) (HistoryFile, error) 
 		return HistoryFile{}, err
 	}
 	return result, nil
+}
+
+func hydrateCompactRunEvent(event *Event, context Event) error {
+	if event.SchemaVersion != 0 && event.SchemaVersion != context.SchemaVersion {
+		return historyReadError(HistoryReasonSchemaUnsupported, "mixed schema %d", event.SchemaVersion)
+	}
+	if event.Stream != "" && event.Stream != context.Stream {
+		return historyReadError(HistoryReasonContextMissing, "compact run stream changed")
+	}
+	event.SchemaVersion = context.SchemaVersion
+	event.Stream = context.Stream
+	for _, field := range []struct {
+		name   string
+		target *string
+		value  string
+	}{
+		{name: "run_id", target: &event.RunID, value: context.RunID},
+		{name: "session_id", target: &event.SessionID, value: context.SessionID},
+		{name: "game_id", target: &event.GameID, value: context.GameID},
+		{name: "character", target: &event.Character, value: context.Character},
+		{name: "difficulty", target: &event.Difficulty, value: context.Difficulty},
+		{name: "game_version", target: &event.GameVersion, value: context.GameVersion},
+		{name: "run", target: &event.Run, value: context.Run},
+		{name: "definition_id", target: &event.DefinitionID, value: context.DefinitionID},
+		{name: "phase", target: &event.Phase, value: context.Phase},
+		{name: "route_id", target: &event.RouteID, value: context.RouteID},
+		{name: "route_layout_fingerprint", target: &event.RouteLayoutFingerprint, value: context.RouteLayoutFingerprint},
+		{name: "setup_route_id", target: &event.SetupRouteID, value: context.SetupRouteID},
+		{name: "setup_route_layout_fingerprint", target: &event.SetupRouteLayoutFingerprint, value: context.SetupRouteLayoutFingerprint},
+	} {
+		if err := applyImmutableString(field.name, field.target, field.value); err != nil {
+			return historyReadError(HistoryReasonContextMissing, "%v", err)
+		}
+	}
+	if event.Mode != "" && event.Mode != context.Mode {
+		return historyReadError(HistoryReasonContextMissing, "compact run mode changed")
+	}
+	event.Mode = context.Mode
+	if event.QueueIndex != nil || event.QueueCycle != nil || event.RunStartedAt != nil || event.PickitAssignmentRevision != 0 || len(event.PickitProfiles) != 0 {
+		return historyReadError(HistoryReasonContextMissing, "compact run repeats immutable snapshot")
+	}
+	event.QueueIndex = cloneOptionalInt(context.QueueIndex)
+	event.QueueCycle = cloneOptionalInt(context.QueueCycle)
+	event.RunStartedAt = cloneOptionalTime(context.RunStartedAt)
+	event.PickitAssignmentRevision = context.PickitAssignmentRevision
+	event.PickitProfiles = append([]PickitProfileContext(nil), context.PickitProfiles...)
+	return nil
+}
+
+func cloneOptionalInt(value *int) *int {
+	if value == nil {
+		return nil
+	}
+	clone := *value
+	return &clone
+}
+
+func cloneOptionalTime(value *time.Time) *time.Time {
+	if value == nil {
+		return nil
+	}
+	clone := *value
+	return &clone
 }
 
 // stat performs the direct-file and size gates before source bytes are loaded.

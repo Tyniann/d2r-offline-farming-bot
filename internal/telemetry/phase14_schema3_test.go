@@ -149,24 +149,26 @@ func TestPhase20RunContextKeepsPrimaryAndSetupRoutesImmutable(t *testing.T) {
 		t.Fatal(closeErr)
 	}
 
-	events := readSchema3Events(t, path)
-	if len(events) != 2 {
-		t.Fatalf("event count=%d, want 2", len(events))
+	diskEvents := readSchema3Events(t, path)
+	if len(diskEvents) != 2 {
+		t.Fatalf("event count=%d, want 2", len(diskEvents))
 	}
-	for _, event := range events {
-		if event.RouteID != "cow-sweep" || event.RouteLayoutFingerprint != "cow-layout" || event.SetupRouteID != "leg-acquisition" || event.SetupRouteLayoutFingerprint != "leg-layout" {
-			t.Fatalf("route-set context = %+v", event)
-		}
+	if diskEvents[0].RouteID != "cow-sweep" || diskEvents[0].RouteLayoutFingerprint != "cow-layout" || diskEvents[0].SetupRouteID != "leg-acquisition" || diskEvents[0].SetupRouteLayoutFingerprint != "leg-layout" {
+		t.Fatalf("route-set context = %+v", diskEvents[0])
 	}
-	if events[1].RouteRole != "leg_acquisition" {
-		t.Fatalf("setup playback role=%q", events[1].RouteRole)
+	if diskEvents[1].SchemaVersion != 0 || diskEvents[1].RouteID != "" || diskEvents[1].SetupRouteID != "" || diskEvents[1].RouteRole != "leg_acquisition" {
+		t.Fatalf("compact setup playback = %+v", diskEvents[1])
 	}
 	reader, err := NewHistoryReader(filepath.Dir(path))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := reader.Read(filepath.Base(path)); err != nil {
+	file, err := reader.Read(filepath.Base(path))
+	if err != nil {
 		t.Fatalf("read route-set history: %v", err)
+	}
+	if len(file.Events) != 2 || file.Events[1].RouteID != "cow-sweep" || file.Events[1].SetupRouteID != "leg-acquisition" {
+		t.Fatalf("hydrated route-set events = %+v", file.Events)
 	}
 }
 

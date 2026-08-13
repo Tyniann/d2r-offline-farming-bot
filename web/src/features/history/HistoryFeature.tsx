@@ -101,7 +101,7 @@ export function HistoryFeature({ characters, runs, refreshKey }: Props) {
   const noRuns = !loading && !error && summary?.summary.runs === 0;
 
   return <section id="history" aria-labelledby="history-title" className="history-feature">
-    <div className="section-heading"><div><p className="eyebrow">Schema-3-Auswertung</p><h2 id="history-title">Historie</h2></div><button type="button" className="secondary" onClick={() => void load(query)} disabled={loading}>Aktualisieren</button></div>
+    <div className="section-heading"><div><p className="eyebrow">Schema-4-Auswertung</p><h2 id="history-title">Historie</h2></div><button type="button" className="secondary" onClick={() => void load(query)} disabled={loading}>Aktualisieren</button></div>
     <p>Gesicherter Return, Zeitverlust und Routenleistung aus Core-korrelierten produktiven Runs. Verkauf bleibt getrennt von Keep.</p>
 
     <form className="history-filters" onSubmit={(event) => { event.preventDefault(); applyFilters(); }}>
@@ -120,7 +120,7 @@ export function HistoryFeature({ characters, runs, refreshKey }: Props) {
 
     {error && <p role="alert">{error}</p>}
     {loading && <p role="status">Historie wird geladen …</p>}
-    {noRuns && <div className="history-empty"><h3>{filtered ? "Keine passenden Runs" : "Noch keine Historie"}</h3><p>{filtered ? "Die gewählten Filter liefern keine produktiven Runs." : "Nach dem ersten Schema-3-Farming-Run erscheinen hier Kennzahlen und Details."}</p></div>}
+    {noRuns && <div className="history-empty"><h3>{filtered ? "Keine passenden Runs" : "Noch keine Historie"}</h3><p>{filtered ? "Die gewählten Filter liefern keine produktiven Runs." : "Nach dem ersten Farming-Run erscheinen hier Kennzahlen und Details."}</p></div>}
     {!loading && summary && summary.summary.runs > 0 && <>
       <div className="cards history-summary">
         <article><span>Terminale Runs</span><strong>{summary.summary.terminal_runs}</strong><small>{summary.summary.successful} erfolgreich · {summary.summary.failed} fehlgeschlagen · {summary.summary.aborted} abgebrochen</small></article>
@@ -147,11 +147,29 @@ export function HistoryFeature({ characters, runs, refreshKey }: Props) {
       <div className="table-scroll"><table className="run-table"><caption>Neueste Runs zuerst</caption><thead><tr><th>Start (lokal)</th><th>Run / Route</th><th>Ergebnis</th><th>Dauer</th><th>Keep</th><th>Sell</th><th>Verlust vor/nach Pickup</th><th>Aktion</th></tr></thead><tbody>{runList?.runs.map((row) => <tr key={row.run_id}><td data-label="Start">{new Date(row.started_at).toLocaleString("de-DE")}</td><th scope="row" data-label="Run / Route">{row.run}<small>{row.route_id}</small></th><td data-label="Ergebnis"><span className={`outcome outcome-${row.outcome}`}>{outcomeLabels[row.outcome] ?? row.outcome}</span>{row.reason_message && <small>{row.reason_message}</small>}</td><td data-label="Dauer">{duration(row.duration_ms)}</td><td data-label="Keep">{row.funnel.keep_return}</td><td data-label="Sell">{row.funnel.sold}</td><td data-label="Verlust">{row.funnel.pickup_lost} / {row.funnel.post_pickup_lost}</td><td data-label="Aktion"><button type="button" className="secondary" onClick={() => void openDetail(row.run_id)}>Run öffnen</button></td></tr>)}</tbody></table></div>
       {runList?.next_cursor && <button type="button" className="secondary" disabled={loadingMore} onClick={() => void loadMore("runs")}>Mehr Runs laden</button>}
 
-      {detail && <article className="history-detail" aria-labelledby="history-detail-title"><div className="section-heading"><h3 id="history-detail-title">Run {detail.run.run_id}</h3><button type="button" className="secondary" onClick={() => setDetail(null)}>Schließen</button></div><dl><div><dt>Kontext</dt><dd>{detail.run.character} · {detail.run.difficulty} · {detail.run.run}</dd></div><div><dt>Route</dt><dd>{detail.run.route_id}</dd></div><div><dt>Ergebnis</dt><dd>{outcomeLabels[detail.run.outcome] ?? detail.run.outcome}{detail.run.reason_message ? ` · ${detail.run.reason_message}` : ""}</dd></div>{detail.run.reason && <div><dt>Fehlerstelle</dt><dd><code>{detail.run.reason}</code>{detail.run.last_step ? ` · Step ${detail.run.last_step}` : ""}</dd></div>}<div><dt>Boss</dt><dd>{detail.run.boss_kills} Memory-bestätigte Kills</dd></div><div><dt>Funnel</dt><dd>{detail.run.funnel.seen} gesehen → {detail.run.funnel.matched} gematcht → {detail.run.funnel.picked_up} aufgehoben → {detail.run.funnel.keep_return} Keep / {detail.run.funnel.sold} Sell</dd></div><div><dt>Stages</dt><dd>Reise {duration(detail.run.stages.travel_ms)} · Kampf {duration(detail.run.stages.combat_ms)} · Loot {duration(detail.run.stages.loot_ms)} · Stadt {duration(detail.run.stages.return_town_ms)} · Sonstiges {duration(detail.run.stages.other_ms)}</dd></div></dl><h4>Itempfade</h4>{detail.run.items.length === 0 ? <p>Kein Loot erfunden: Für diesen Run liegen keine Itemereignisse vor.</p> : <ul>{detail.run.items.map((item) => <li key={item.unit_id}><strong>{item.item_name || item.item_key}</strong><span>{item.stashed ? "gesichert" : item.sold ? "bestätigt verkauft" : item.pickup_lost ? "vor Pickup verloren" : item.post_pickup_lost ? "nach Pickup verloren" : "beobachtet"}</span>{item.pickit_profile_id && <small>Pickit {item.pickit_profile_id} Revision {item.pickit_profile_revision} · Regel {item.pickit_rule_id || "–"} · Aktion {item.pickit_action || "–"} · Assignment-Revision {item.pickit_assignment_revision}</small>}</li>)}</ul>}<details onToggle={(event) => { if (event.currentTarget.open && !detail.run.raw_events) void openDetail(detail.run.run_id, true); }}><summary>Rohereignisse anzeigen</summary><pre>{detail.run.raw_events ? JSON.stringify(detail.run.raw_events, null, 2) : "Rohereignisse werden geladen …"}</pre></details></article>}
+      {detail && <article className="history-detail" aria-labelledby="history-detail-title"><div className="section-heading"><h3 id="history-detail-title">Run {detail.run.run_id}</h3><button type="button" className="secondary" onClick={() => setDetail(null)}>Schließen</button></div><dl><div><dt>Kontext</dt><dd>{detail.run.character} · {detail.run.difficulty} · {detail.run.run}</dd></div><div><dt>Route</dt><dd>{detail.run.route_id}</dd></div><div><dt>Ergebnis</dt><dd>{outcomeLabels[detail.run.outcome] ?? detail.run.outcome}{detail.run.reason_message ? ` · ${detail.run.reason_message}` : ""}</dd></div>{detail.run.reason && <div><dt>Fehlerstelle</dt><dd><code>{detail.run.reason}</code>{detail.run.last_step ? ` · Step ${detail.run.last_step}` : ""}</dd></div>}<div><dt>Boss</dt><dd>{detail.run.boss_kills} Memory-bestätigte Kills</dd></div><div><dt>Funnel</dt><dd>{detail.run.funnel.seen} gesehen → {detail.run.funnel.matched} gematcht → {detail.run.funnel.picked_up} aufgehoben → {detail.run.funnel.keep_return} Keep / {detail.run.funnel.sold} Sell</dd></div><div><dt>Stages</dt><dd>Reise {duration(detail.run.stages.travel_ms)} · Kampf {duration(detail.run.stages.combat_ms)} · Loot {duration(detail.run.stages.loot_ms)} · Stadt {duration(detail.run.stages.return_town_ms)} · Sonstiges {duration(detail.run.stages.other_ms)}</dd></div></dl><h4>Itempfade</h4>{detail.run.items.length === 0 ? <p>Kein Loot erfunden: Für diesen Run liegen keine Itemereignisse vor.</p> : <ul>{detail.run.items.map((item) => <li key={item.unit_id}><strong>{item.item_name || item.item_key}</strong><span>{item.stashed ? "gesichert" : item.sold ? "bestätigt verkauft" : item.pickup_lost ? "vor Pickup verloren" : item.post_pickup_lost ? "nach Pickup verloren" : "beobachtet"}</span>{item.pickit_profile_id && <small>Pickit {item.pickit_profile_id} Revision {item.pickit_profile_revision} · Regel {item.pickit_rule_id || "–"} · Aktion {item.pickit_action || "–"} · Assignment-Revision {item.pickit_assignment_revision}</small>}</li>)}</ul>}<RawEventDetails detail={detail} onLoad={() => void openDetail(detail.run.run_id, true)} /></article>}
 
       <div className="history-export" aria-labelledby="history-export-title"><h3 id="history-export-title">Export</h3><div className="inline-actions"><button type="button" disabled={exporting} onClick={() => void exportData("json")}>JSON-Report</button><button type="button" disabled={exporting} onClick={() => void exportData("csv", "runs")}>Run-CSV</button><button type="button" disabled={exporting} onClick={() => void exportData("csv", "items")}>Item-CSV</button></div>{exportError && <p role="alert">{exportError}</p>}</div>
     </>}
   </section>;
+}
+
+function RawEventDetails({ detail, onLoad }: { detail: HistoryRunDetailResponse; onLoad: () => void }) {
+  const [eventFilter, setEventFilter] = useState("");
+  const events = detail.run.raw_events ?? [];
+  const eventNames = [...new Set(events.map((event) => String(event.event ?? "")).filter(Boolean))].sort();
+  const visibleEvents = eventFilter ? events.filter((event) => event.event === eventFilter) : events;
+
+  return <details onToggle={(event) => { if (event.currentTarget.open && !detail.run.raw_events) onLoad(); }}>
+    <summary>Rohereignisse anzeigen</summary>
+    {!detail.run.raw_events ? <p>Rohereignisse werden geladen …</p> : <>
+      <h5>Gemeinsamer Run-Kontext</h5>
+      <pre>{JSON.stringify(detail.run.raw_context ?? {}, null, 2)}</pre>
+      <label>Ereignistyp<select value={eventFilter} onChange={(event) => setEventFilter(event.target.value)}><option value="">Alle ({events.length})</option>{eventNames.map((name) => <option key={name} value={name}>{name}</option>)}</select></label>
+      <p className="hint">{visibleEvents.length} von {events.length} Ereignissen. Gemeinsame Run-Daten werden nur oben angezeigt.</p>
+      <pre>{JSON.stringify(visibleEvents, null, 2)}</pre>
+    </>}
+  </details>;
 }
 
 function filterQuery(filter: FilterDraft): HistoryQuery {

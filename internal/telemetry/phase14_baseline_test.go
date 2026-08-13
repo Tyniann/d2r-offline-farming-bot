@@ -165,7 +165,7 @@ func TestPhase14FixtureNonGoals(t *testing.T) {
 }
 
 func TestPhase14CoreContractIsStable(t *testing.T) {
-	if HistorySchemaVersion != 3 || HistoryDefaultPageLimit != 50 || HistoryMaximumPageLimit != 200 || HistoryLowSampleBossKills != 10 {
+	if HistorySchemaVersion != 4 || HistoryDefaultPageLimit != 50 || HistoryMaximumPageLimit != 200 || HistoryLowSampleBossKills != 10 {
 		t.Fatal("Phase-14 numeric contract changed")
 	}
 	if HistorySortKeepPerHour != "keep_per_hour" {

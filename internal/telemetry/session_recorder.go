@@ -30,7 +30,7 @@ type sessionEventContext struct {
 	run    string
 }
 
-// SessionRecorderContext bindet den unveränderlichen Kontext einer Schema-3-Session.
+// SessionRecorderContext bindet den unveränderlichen Kontext einer Schema-4-Session.
 type SessionRecorderContext struct {
 	SessionID   string
 	Mode        HistoryMode
@@ -44,7 +44,7 @@ func NewSessionRecorder(directory string) (*SessionRecorder, error) {
 	return NewSessionRecorderWithContext(directory, SessionRecorderContext{Mode: HistoryModeDiagnostic})
 }
 
-// NewSessionRecorderWithContext erstellt den Schema-3-Lifecycle-Stream vor Session-Input.
+// NewSessionRecorderWithContext erstellt den Schema-4-Lifecycle-Stream vor Session-Input.
 func NewSessionRecorderWithContext(directory string, context SessionRecorderContext) (*SessionRecorder, error) {
 	if directory == "" {
 		return nil, fmt.Errorf("session telemetry directory is required")

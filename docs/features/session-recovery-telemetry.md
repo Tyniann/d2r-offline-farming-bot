@@ -27,9 +27,9 @@ Nur die validierten Codes `hard_stuck`, `route_drift_exceeded`, `route_segment_t
 
 ## Session-Recorder
 
-`telemetry.NewSessionRecorderWithContext` erzeugt vor Session-Input eine Datei `logs/telemetry/session-<UTC-Zeit>-<Zufallssuffix>.jsonl`. Neue Lifecycle-Events verwenden seit Abschnitt 14.1 `schema_version=3`, `stream=session`, `mode=productive_farming` und tragen dieselbe `session_id` sowie unveränderlich Charakter, Difficulty und D2R-Version. `game_started` und `game_exited` ergänzen ausschließlich die `game_id`; sie gehören zur Session-Grenze und übernehmen keinen zufällig aktuellen Run-Kontext. Nur `run_started` und das zugehörige Run-Terminal tragen die global eindeutige `run_id`, Run-Definition, Queue-Index und Zyklus. Zwischen zwei erfolgreichen Queue-Einträgen desselben Spiels gibt es kein `game_exited`. Doppelte Run- oder Session-Terminals sowie Kontextdrift werden vor dem Write abgewiesen.
+`telemetry.NewSessionRecorderWithContext` erzeugt vor Session-Input eine Datei `logs/telemetry/session-<UTC-Zeit>-<Zufallssuffix>.jsonl`. Neue Lifecycle-Events verwenden `schema_version=4`, `stream=session`, `mode=productive_farming` und tragen dieselbe `session_id` sowie unveränderlich Charakter, Difficulty und D2R-Version. `game_started` und `game_exited` ergänzen ausschließlich die `game_id`; sie gehören zur Session-Grenze und übernehmen keinen zufällig aktuellen Run-Kontext. Nur `run_started` und das zugehörige Run-Terminal tragen die global eindeutige `run_id`, Run-Definition, Queue-Index und Zyklus. Zwischen zwei erfolgreichen Queue-Einträgen desselben Spiels gibt es kein `game_exited`. Doppelte Run- oder Session-Terminals sowie Kontextdrift werden vor dem Write abgewiesen.
 
-Der getrennte Run-Recorder schreibt für neue Daten ebenfalls Schema 3 und verwendet exakt dieselbe Supervisor-Run-ID im Dateinamen und in jeder Zeile. Jede frische Run-Generation beginnt mit genau einem `run_context`, das Definition, Route/Fingerprint, Queue-Kontext und Pickit-Snapshot bindet. Alte Schema-1-/Schema-2-Dateien werden nicht verändert oder importiert.
+Der getrennte Run-Recorder schreibt ebenfalls Schema 4 und verwendet exakt dieselbe Supervisor-Run-ID im Dateinamen und im einmaligen gemeinsamen Kontext. Jede frische Run-Generation beginnt mit genau einem `run_context`, das Definition, Route/Fingerprint, Queue-Kontext und Pickit-Snapshot bindet; spätere Zeilen enthalten nur Ereignisdaten. Ältere Schemata werden nicht verändert oder importiert.
 
 ## Abnahme
 
@@ -43,4 +43,4 @@ Supervisor-, Queue-Lifecycle- und Telemetrietests decken exakte Retry-Freigabe, 
 - [Run-Telemetrie](run-telemetry.md)
 
 ---
-*Zuletzt aktualisiert: 2026-07-22*
+*Zuletzt aktualisiert: 2026-08-13*

@@ -34,12 +34,18 @@ func TestRecorderWritesOneJSONLObjectPerLineAndDeduplicatesObservedUnits(t *test
 	}
 	defer file.Close()
 	var events []Event
+	var records []map[string]json.RawMessage
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
+		var record map[string]json.RawMessage
+		if err := json.Unmarshal(scanner.Bytes(), &record); err != nil {
+			t.Fatal(err)
+		}
 		var event Event
 		if err := json.Unmarshal(scanner.Bytes(), &event); err != nil {
 			t.Fatal(err)
 		}
+		records = append(records, record)
 		events = append(events, event)
 	}
 	if err := scanner.Err(); err != nil {
@@ -48,9 +54,17 @@ func TestRecorderWritesOneJSONLObjectPerLineAndDeduplicatesObservedUnits(t *test
 	if len(events) != 4 {
 		t.Fatalf("event count=%d, want 4", len(events))
 	}
-	for _, event := range events {
-		if event.SchemaVersion != HistorySchemaVersion || event.Stream != HistoryStreamRun || event.Mode != HistoryModeDiagnostic || event.RunID != r.RunID() || event.Run != "countess" || event.Phase != "loot-and-return" || event.Timestamp.IsZero() {
-			t.Fatalf("incomplete event: %+v", event)
+	if first := events[0]; first.SchemaVersion != HistorySchemaVersion || first.Stream != HistoryStreamRun || first.Mode != HistoryModeDiagnostic || first.RunID != r.RunID() || first.Run != "countess" || first.Phase != "loot-and-return" || first.Timestamp.IsZero() {
+		t.Fatalf("incomplete context event: %+v", first)
+	}
+	for index, event := range events[1:] {
+		if event.SchemaVersion != 0 || event.Stream != "" || event.Mode != "" || event.RunID != "" || event.Run != "" || event.Phase != "" || event.Timestamp.IsZero() {
+			t.Fatalf("non-compact event: %+v", event)
+		}
+		for _, key := range []string{"schema_version", "stream", "mode", "run_id", "run", "phase"} {
+			if _, exists := records[index+1][key]; exists {
+				t.Fatalf("compact record %d repeats %q: %s", index+1, key, records[index+1][key])
+			}
 		}
 	}
 }

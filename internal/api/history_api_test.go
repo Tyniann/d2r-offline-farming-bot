@@ -107,8 +107,14 @@ func TestHistoryAPIDetailRawEventsAndNotFound(t *testing.T) {
 	backend.history = historyAPIFixture()
 	var detail HistoryRunDetailResponse
 	getHistoryJSON(t, server.URL()+"/api/v1/history/runs/countess-a?include_raw=true", &detail)
-	if detail.Run.RunID != "countess-a" || len(detail.Run.RawEvents) != 1 || detail.Run.Items == nil {
+	if detail.Run.RunID != "countess-a" || detail.Run.RawContext["run_id"] != "countess-a" || len(detail.Run.RawEvents) != 1 || detail.Run.Items == nil {
 		t.Fatalf("detail=%+v", detail)
+	}
+	if _, exists := detail.Run.RawContext["event"]; exists {
+		t.Fatalf("raw context contains event payload: %+v", detail.Run.RawContext)
+	}
+	if detail.Run.RawEvents[0].RunID != "" || detail.Run.RawEvents[0].SchemaVersion != 0 {
+		t.Fatalf("raw event repeats common context: %+v", detail.Run.RawEvents[0])
 	}
 	assertHistoryAPIError(t, server.URL()+"/api/v1/history/runs/missing", http.StatusNotFound, string(telemetry.HistoryReasonRunNotFound))
 }
@@ -209,7 +215,7 @@ func historyAPIFixture() historyData {
 			Items: []telemetry.HistoryItemAggregate{{ItemKey: "base:r01:normal", ItemName: `=HYPERLINK("bad")`, Seen: 2, Matched: 2, PickedUp: 1, Stashed: 1, Sold: 1, PickupLost: 1, PostPickupLost: 1, YieldPerHour: &mephistoKeepPerHour}},
 			Runs:  runs,
 		},
-		snapshot: telemetry.HistorySnapshot{Generation: 7, Diagnostics: []telemetry.HistoryFileDiagnostic{{File: "broken.jsonl", Code: telemetry.HistoryReasonFileInvalid, Message: "Beschädigt."}}, Runs: []telemetry.HistoryRun{{RunID: "countess-a", Events: []telemetry.Event{{Event: telemetry.RunContext}}}}},
+		snapshot: telemetry.HistorySnapshot{Generation: 7, Diagnostics: []telemetry.HistoryFileDiagnostic{{File: "broken.jsonl", Code: telemetry.HistoryReasonFileInvalid, Message: "Beschädigt."}}, Runs: []telemetry.HistoryRun{{RunID: "countess-a", Events: []telemetry.Event{{SchemaVersion: telemetry.HistorySchemaVersion, Stream: telemetry.HistoryStreamRun, Event: telemetry.RunContext, RunID: "countess-a", Mode: telemetry.HistoryModeProductiveFarming, Run: "countess"}}}}},
 	}
 }
 

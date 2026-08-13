@@ -2,7 +2,7 @@
 
 ## Überblick
 
-Der Phase-14-History-Reader liest neue Schema-3-Telemetrie strikt und read-only. Der In-Memory-Index korreliert getrennte Session- und Run-Dateien zu stabilen Farming-Runs. JSONL bleibt die einzige persistente Autorität; der Index kann jederzeit vollständig daraus rekonstruiert werden.
+Der History-Reader liest Schema-4-Telemetrie strikt und read-only. Der In-Memory-Index korreliert getrennte Session- und Run-Dateien zu stabilen Farming-Runs. JSONL bleibt die einzige persistente Autorität; der Index kann jederzeit vollständig daraus rekonstruiert werden.
 
 ## Ort im Code
 
@@ -14,11 +14,11 @@ Der Phase-14-History-Reader liest neue Schema-3-Telemetrie strikt und read-only.
 
 ## Funktionalität
 
-### Begrenzter Schema-3-Reader
+### Begrenzter Schema-4-Reader
 
-Der Reader betrachtet nur reguläre `*.jsonl`-Dateien direkt im konfigurierten Telemetrieverzeichnis. Eine Datei ist auf 32 MiB, eine Zeile auf 1 MiB und eine Datei auf 100.000 Ereignisse begrenzt. Jede Schema-3-Zeile muss genau ein bekanntes JSON-Objekt mit bekanntem Event, passendem Stream, UTC-Zeit und stabilem Kontext enthalten. Unbekannte Felder, Mischschemas, rückwärts laufende Zeit, doppelte Terminals oder Bosskills, unstabile Run-/Itemkontexte und ungültige Stage-Zuordnungen schließen die ganze Datei aus.
+Der Reader betrachtet nur reguläre `*.jsonl`-Dateien direkt im konfigurierten Telemetrieverzeichnis. Eine Datei ist auf 32 MiB, eine Zeile auf 1 MiB und eine Datei auf 100.000 Ereignisse begrenzt. Bei Run-Dateien bindet die erste Schema-4-Zeile den vollständigen unveränderlichen Kontext; spätere kompakte Zeilen werden ausschließlich im Speicher damit ergänzt und danach wie vollständige Events validiert. Unbekannte Felder, Mischschemas, widersprüchlich wiederholter Kontext, rückwärts laufende Zeit, doppelte Terminals oder Bosskills, unstabile Run-/Itemkontexte und ungültige Stage-Zuordnungen schließen die ganze Datei aus.
 
-Schema 1 und 2 gehören zur Vor-Epoche. Sie bleiben unverändert auf Platte, werden gezählt und ohne Migration oder Heuristik ignoriert. Eine gerade wachsende Datei ohne abschließenden Zeilenumbruch wird nicht als beschädigt gemeldet: Ein vorhandener letzter stabiler Indexstand bleibt erhalten und der nächste Refresh liest erneut.
+Ältere Schemata gehören zur Vor-Epoche. Sie bleiben unverändert auf Platte, werden gezählt und ohne Migration oder Heuristik ignoriert. Eine gerade wachsende Datei ohne abschließenden Zeilenumbruch wird nicht als beschädigt gemeldet: Ein vorhandener letzter stabiler Indexstand bleibt erhalten und der nächste Refresh liest erneut.
 
 ### Cross-Stream-Korrelation
 
@@ -53,4 +53,4 @@ Snapshots sind defensiv kopiert und stabil nach Startzeit plus Run-ID sortiert. 
 - [Session-/Recovery-Telemetrie](session-recovery-telemetry.md)
 
 ---
-*Zuletzt aktualisiert: 2026-07-26*
+*Zuletzt aktualisiert: 2026-08-13*

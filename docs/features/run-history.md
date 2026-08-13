@@ -34,7 +34,7 @@ Die Boss-/Routentabelle startet Core-seitig mit `keep_per_hour`. Der Operator ka
 
 Die Itemtabelle trennt gesehen, gematcht, aufgehoben, eingelagert, verkauft, Pickup-Verlust und Nach-Pickup-Verlust und zeigt Yield pro Run, Kill und Stunde. Die Runliste enthält Start, Route, Ergebnis, Dauer, Keep, Sell, beide Verlustpfade und den deutschen Fehlerkurztext. Items und Runs laden weitere serverseitige Cursor-Seiten additiv.
 
-Der Drill-down zeigt Kontext, Route, Ergebnis, Memory-bestätigte Bosskills, den semantischen Funnel, fünf Zeitanteile und jede konkrete Itemkette. Bei Fehlern stehen der stabile Reason-Code, der letzte Step und die deutsche Erklärung nebeneinander. Gematchte Items zeigen den damals eingefrorenen Pickit-Snapshot mit Profil-ID, Regel-ID, Aktion, Profilrevision und Assignment-Revision; aktuelle Profile werden nicht nachträglich ausgewertet. Fehlende Itemereignisse werden ausdrücklich als fehlender Loot dargestellt und nicht ergänzt. Rohereignisse bleiben in einem eingeklappten Diagnoseabschnitt und werden erst beim Öffnen nachgeladen.
+Der Drill-down zeigt Kontext, Route, Ergebnis, Memory-bestätigte Bosskills, den semantischen Funnel, fünf Zeitanteile und jede konkrete Itemkette. Bei Fehlern stehen der stabile Reason-Code, der letzte Step und die deutsche Erklärung nebeneinander. Gematchte Items zeigen den damals eingefrorenen Pickit-Snapshot mit Profil-ID, Regel-ID, Aktion, Profilrevision und Assignment-Revision; aktuelle Profile werden nicht nachträglich ausgewertet. Fehlende Itemereignisse werden ausdrücklich als fehlender Loot dargestellt und nicht ergänzt. Rohdaten bleiben in einem eingeklappten Diagnoseabschnitt und werden erst beim Öffnen nachgeladen. Der gemeinsame Run-Kontext erscheint einmal; die vollständige kompakte Ereignisliste lässt sich nach Eventtyp filtern.
 
 ### Zustände und Aktualisierung
 
@@ -67,4 +67,4 @@ Das automatisierte Produktgate verwendet in Analyzer, API/JSON/CSV und React die
 - [Live-Dashboard und Session-Steuerung](live-dashboard.md)
 
 ---
-*Zuletzt aktualisiert: 26. Juli 2026*
+*Zuletzt aktualisiert: 13. August 2026*
