@@ -180,11 +180,13 @@ const (
 	MonsterTargetingWorldProjected MonsterTargetingMode = "world_projected"
 )
 
-// MonsterCastResult reports whether offensive input was sent and which target
-// evidence authorized it. Pending aim or throttle ticks return the zero value.
+// MonsterCastResult reports whether offensive input was sent, which target
+// evidence authorized it, and whether this tick moved the cursor to begin a
+// hover probe for the supplied target. Throttle ticks return the zero value.
 type MonsterCastResult struct {
 	Sent          bool
 	TargetingMode MonsterTargetingMode
+	AimRequested  bool
 }
 
 // Status is a stable hook or resource executor outcome.

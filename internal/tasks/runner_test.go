@@ -182,6 +182,8 @@ type mockCombatActions struct {
 	farthestDistance    float64
 	farthestOK          *bool
 	castMonsterErr      error
+	castMonsterResults  []profile.MonsterCastResult
+	castMonsterUnitIDs  []uint32
 }
 
 type mockRunActions struct {
@@ -368,8 +370,14 @@ func (m *mockCombatActions) CastAttackAtMonster(_ time.Time, skillID uint16, _ w
 	m.castSkills = append(m.castSkills, skillID)
 	m.lastSkillID = skillID
 	m.lastMonsterUnitID = target.UnitID
+	m.castMonsterUnitIDs = append(m.castMonsterUnitIDs, target.UnitID)
 	if m.castMonsterErr != nil {
 		return profile.MonsterCastResult{}, m.castMonsterErr
+	}
+	if len(m.castMonsterResults) > 0 {
+		result := m.castMonsterResults[0]
+		m.castMonsterResults = m.castMonsterResults[1:]
+		return result, nil
 	}
 	return profile.MonsterCastResult{Sent: true, TargetingMode: profile.MonsterTargetingHoverConfirmed}, nil
 }

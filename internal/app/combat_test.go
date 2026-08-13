@@ -111,7 +111,7 @@ func TestCombatAdapterClicksOnlyHoverConfirmedLivingMonster(t *testing.T) {
 	target := world.Monster{NPCID: 131, UnitID: 42, Position: world.Position{X: 105, Y: 100}}
 	now := time.Now()
 
-	if cast, err := adapter.CastAttackAtMonster(now, memory.SkillBoneSpear, player, target); err != nil || cast.Sent {
+	if cast, err := adapter.CastAttackAtMonster(now, memory.SkillBoneSpear, player, target); err != nil || cast.Sent || !cast.AimRequested {
 		t.Fatalf("initial aim result=%+v err=%v, want no click before hover proof", cast, err)
 	}
 	if len(in.clickCalls) != 0 || adapter.pendingTargetUnitID != target.UnitID {
@@ -132,6 +132,21 @@ func TestCombatAdapterClicksOnlyHoverConfirmedLivingMonster(t *testing.T) {
 	}
 	if len(in.clickCalls) != 1 || adapter.pendingTargetUnitID != nearer.UnitID {
 		t.Fatalf("clicks=%v pending_target=%d, want retarget without stale click", in.clickCalls, adapter.pendingTargetUnitID)
+	}
+}
+
+func TestCombatAdapterSkillSelectionDoesNotAuthorizeTargetHover(t *testing.T) {
+	in := &recordingCombatInput{}
+	bindings := configBindingSource{skills: map[uint16]input.SkillCast{
+		memory.SkillBoneSpear: {SkillID: memory.SkillBoneSpear, SelectKey: "f8", CastButton: input.MouseRight},
+	}}
+	adapter := newCombatAdapter(config.NewLogger("error"), in, bindings, pathing.DefaultConfig(), 350*time.Millisecond)
+	player := world.Player{Position: world.Position{X: 100, Y: 100}, RightSkillID: memory.SkillTeleport}
+	target := world.Monster{NPCID: world.Nihlathak, UnitID: 42, Position: world.Position{X: 105, Y: 100}}
+
+	cast, err := adapter.CastAttackAtMonster(time.Now(), memory.SkillBoneSpear, player, target)
+	if err != nil || cast.Sent || cast.AimRequested {
+		t.Fatalf("skill selection result=%+v err=%v, want neither cast nor aim authorization", cast, err)
 	}
 }
 

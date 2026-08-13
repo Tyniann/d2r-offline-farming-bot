@@ -17,6 +17,7 @@ Versionierung nach [Semantic Versioning](https://semver.org/).
 - Store immutable run context once in Schema-4 JSONL telemetry and show raw history as shared context plus filterable compact events
 
 ### Fixed
+- Fix Nihlathak engaging a randomly hovered monster before first aiming at the pinned boss while preserving an occluding sprite as a Bone Spear attack surface after fresh boss-directed aim
 - Fix history deletion remaining blocked after a terminal route workflow and keep repeated zero-file deletion previews available
 - Fix desktop route recording and candidate testing to use the selected character's frozen Schema-3 loadout and surface actionable loadout errors
 - Skip one nearby non-progressing generic route point after two settled movement attempts while preserving the terminal endpoint and existing drift corridor

@@ -411,15 +411,59 @@ func TestNihlathakEngageUnprojectableCastAfterApproachIsRetryable(t *testing.T) 
 	boss := world.Monster{NPCID: world.Nihlathak, UnitID: 42, Position: world.Position{X: 120, Y: 100}, IsHovered: true}
 	combat := &mockCombatActions{castMonsterErr: profile.ErrRouteClearTargetUnprojectable}
 	pipeline := &runPipeline{
-		definition:           definition,
-		combat:               killRunConfig().Combat,
-		targetSeen:           true,
-		targetUnitID:         boss.UnitID,
+		definition:            definition,
+		combat:                killRunConfig().Combat,
+		targetSeen:            true,
+		targetUnitID:          boss.UnitID,
 		bossApproachAttempted: true,
 	}
 	result := pipeline.onBossTick(context.Background(), Deps{Combat: combat}, pipelineStepEngageBoss, nihlathakBossState(world.Position{X: 100, Y: 100}, boss), time.Unix(10, 0).UTC())
 	if !result.failed || result.reason != "boss_combat_unprojectable" {
 		t.Fatalf("result=%+v, want boss_combat_unprojectable", result)
+	}
+}
+
+func TestNihlathakEngageAcceptsOccludingMonsterOnlyAfterFreshBossAim(t *testing.T) {
+	definition, _ := DefaultRunRegistry().Definition(RunIDNihlathak)
+	boss := world.Monster{NPCID: world.Nihlathak, UnitID: 42, Position: world.Position{X: 120, Y: 100}}
+	occluder := world.Monster{NPCID: 999, UnitID: 99, Position: world.Position{X: 119, Y: 100}, IsHovered: true}
+	combat := &mockCombatActions{castMonsterResults: []profile.MonsterCastResult{
+		{AimRequested: true},
+		{AimRequested: true},
+		{Sent: true, TargetingMode: profile.MonsterTargetingHoverConfirmed},
+		{AimRequested: true},
+	}}
+	pipeline := &runPipeline{
+		definition:   definition,
+		combat:       killRunConfig().Combat,
+		targetSeen:   true,
+		targetUnitID: boss.UnitID,
+	}
+	state := nihlathakBossState(world.Position{X: 100, Y: 100}, boss)
+	state.Monsters = []world.Monster{occluder, boss}
+	now := time.Unix(10, 0).UTC()
+
+	for tick := 0; tick < 2; tick++ {
+		result := pipeline.onBossTick(context.Background(), Deps{Combat: combat}, pipelineStepEngageBoss, state, now.Add(time.Duration(tick)*time.Millisecond))
+		if result.failed || combat.lastMonsterUnitID != boss.UnitID {
+			t.Fatalf("pre-proof tick %d result=%+v target=%d, want pinned boss %d", tick, result, combat.lastMonsterUnitID, boss.UnitID)
+		}
+	}
+
+	state.At = state.At.Add(time.Millisecond)
+	result := pipeline.onBossTick(context.Background(), Deps{Combat: combat}, pipelineStepEngageBoss, state, now.Add(2*time.Millisecond))
+	if result.failed || combat.lastMonsterUnitID != occluder.UnitID {
+		t.Fatalf("fresh occlusion result=%+v target=%d, want occluder %d", result, combat.lastMonsterUnitID, occluder.UnitID)
+	}
+
+	state.Player.Position.X++
+	result = pipeline.onBossTick(context.Background(), Deps{Combat: combat}, pipelineStepEngageBoss, state, now.Add(3*time.Millisecond))
+	if result.failed || combat.lastMonsterUnitID != boss.UnitID {
+		t.Fatalf("moved-player result=%+v target=%d, want fresh pinned-boss aim %d", result, combat.lastMonsterUnitID, boss.UnitID)
+	}
+	want := []uint32{boss.UnitID, boss.UnitID, occluder.UnitID, boss.UnitID}
+	if !reflect.DeepEqual(combat.castMonsterUnitIDs, want) {
+		t.Fatalf("cast targets=%v, want %v", combat.castMonsterUnitIDs, want)
 	}
 }
 

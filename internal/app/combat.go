@@ -191,7 +191,7 @@ func (c *combatAdapter) CastAttackAtMonster(now time.Time, skillID uint16, playe
 			"client_x", clientX,
 			"client_y", clientY,
 		)
-		return profile.MonsterCastResult{}, nil
+		return profile.MonsterCastResult{AimRequested: true}, nil
 	}
 	if c.pendingTargetUnitID != target.UnitID {
 		// Memory already proved that this fresh target is the living monster

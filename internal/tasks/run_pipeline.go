@@ -126,6 +126,10 @@ type runPipeline struct {
 	bossApproachAttempted            bool
 	bossApproachAt                   time.Time
 	bossApproachSnapshot             time.Time
+	nihlathakAimUnitID               uint32
+	nihlathakAimPlayerPosition       world.Position
+	nihlathakAimTargetPosition       world.Position
+	nihlathakAimSnapshot             time.Time
 	cleanupTargetUnitID              uint32
 	cleanupCastCount                 int
 	cleanupNoTargetTicks             int
@@ -1502,20 +1506,26 @@ func (c *runPipeline) tickNihlathakEngageTarget(deps Deps, w world.State, target
 		c.bossApproachPending = false
 	}
 
-	// Bone Spear pierces the pack around Nihlathak. Any living monster already
-	// under the cursor is an immediate attack surface; the pinned boss UnitID
-	// remains authoritative only for presence and kill confirmation.
+	// Bone Spear pierces the pack around Nihlathak. A different hovered monster
+	// is an attack surface only after a newer snapshot confirms that hover at a
+	// cursor position deliberately projected from the pinned boss. This prevents
+	// stale route-end hover from creating a corpse before Nihlathak was aimed.
 	attackTarget := target
-	for _, monster := range w.Monsters {
-		if monster.IsHovered {
-			attackTarget = monster
-			break
+	if !target.IsHovered && c.nihlathakAimAuthorizesHover(w, target) {
+		for _, monster := range w.Monsters {
+			if monster.IsHovered {
+				attackTarget = monster
+				break
+			}
 		}
 	}
 	canAim := attackTarget.IsHovered || deps.Combat.MonsterAimProjectable(w.Player.Position, target.Position)
 	if canAim {
-		_, err := deps.Combat.CastAttackAtMonster(now, c.combat.AttackSkillID, w.Player, attackTarget)
+		cast, err := deps.Combat.CastAttackAtMonster(now, c.combat.AttackSkillID, w.Player, attackTarget)
 		if err == nil {
+			if cast.AimRequested {
+				c.storeNihlathakAim(w, target)
+			}
 			return stepResult{}
 		}
 		if !errors.Is(err, profile.ErrRouteClearTargetUnprojectable) {
@@ -1540,6 +1550,7 @@ func (c *runPipeline) tickNihlathakEngageTarget(deps Deps, w world.State, target
 		return stepResult{failed: true, reason: "combat_action_failed"}
 	}
 	if sent {
+		c.resetNihlathakAim()
 		c.bossApproachPending = true
 		c.bossApproachAttempted = true
 		c.bossApproachAt = now
@@ -1553,6 +1564,28 @@ func (c *runPipeline) resetBossApproach() {
 	c.bossApproachAttempted = false
 	c.bossApproachAt = time.Time{}
 	c.bossApproachSnapshot = time.Time{}
+	c.resetNihlathakAim()
+}
+
+func (c *runPipeline) storeNihlathakAim(w world.State, target world.Monster) {
+	c.nihlathakAimUnitID = target.UnitID
+	c.nihlathakAimPlayerPosition = w.Player.Position
+	c.nihlathakAimTargetPosition = target.Position
+	c.nihlathakAimSnapshot = w.At
+}
+
+func (c *runPipeline) nihlathakAimAuthorizesHover(w world.State, target world.Monster) bool {
+	return c.nihlathakAimUnitID == target.UnitID &&
+		c.nihlathakAimPlayerPosition == w.Player.Position &&
+		c.nihlathakAimTargetPosition == target.Position &&
+		w.At.After(c.nihlathakAimSnapshot)
+}
+
+func (c *runPipeline) resetNihlathakAim() {
+	c.nihlathakAimUnitID = 0
+	c.nihlathakAimPlayerPosition = world.Position{}
+	c.nihlathakAimTargetPosition = world.Position{}
+	c.nihlathakAimSnapshot = time.Time{}
 }
 
 func (c *runPipeline) findCleanupTarget(w world.State) (world.Monster, bool) {
