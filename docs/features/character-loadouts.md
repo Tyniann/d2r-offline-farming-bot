@@ -49,6 +49,7 @@ Phase 21 macht das am Charakter ausgewählte Kampfprofil zur einzigen Combat-Aut
 - Persistente `profile_bindings` (F1–F8, Gürtel) und presence-sensitives `inventory_lock` (4×10) pro Charakter.
 - Partielle Bindings speicherbar (Onboarding „Später“); Queue-Start verlangt vollständige Pflichtskills + vier Gürtelslots.
 - `CharacterLoadoutResolver` friert Bindings für Queue-Sessions; `app.New` nimmt keinen globalen BindingSource mehr aus `config.Input.Bindings`.
+- Dashboard-Aufnahmen und Kandidatentests frieren beim Start ebenfalls den Schema-3-Loadout des aktuell bestätigten Charakters ein; der passive Desktop-Monitor ist keine Binding-Autorität.
 - Settings-Tab „Charaktere“ und gemeinsamer BindingEditor; Katalog liefert `farm_ready` / `farm_ready_reasons`.
 
 ### Inventarschutz und produktive Autorität (Gate 21.4)

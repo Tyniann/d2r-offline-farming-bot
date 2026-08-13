@@ -165,6 +165,27 @@ describe("SettingsFeature", () => {
     expect(await screen.findByText(/4 Historiendatei/)).toHaveTextContent("1 aktive Datei(en) blieben geschützt");
   });
 
+  it("öffnet nach dem Löschen erneut eine Vorschau mit null Dateien", async () => {
+    const onHistoryDeleted = vi.fn();
+    mocks.previewDelete
+      .mockResolvedValueOnce({ confirmation_token: "first", index_generation: 7, candidate_files: 2, candidate_bytes: 800, protected_files: 0, categories: { schema3_run: 2 } })
+      .mockResolvedValueOnce({ confirmation_token: "empty", index_generation: 8, candidate_files: 0, candidate_bytes: 0, protected_files: 0, categories: {} });
+    mocks.confirmDelete.mockResolvedValue({ deleted_files: 2, deleted_bytes: 800, protected_files: 0, diagnostics: [] });
+    render(<SettingsFeature generation={12} coreState="idle" characters={["mrbones"]} runs={defaultRuns()} events={[]} onHistoryDeleted={onHistoryDeleted} />);
+
+    fireEvent.click(await screen.findByRole("tab", { name: "Wartung" }));
+    fireEvent.click(screen.getByRole("button", { name: "Löschvorschau erstellen" }));
+    expect(await screen.findByRole("dialog", { name: "Gesamte Historie dauerhaft löschen?" })).toHaveTextContent("2 direkte Datei(en)");
+    fireEvent.click(screen.getByRole("button", { name: "Alles endgültig löschen" }));
+    await waitFor(() => expect(onHistoryDeleted).toHaveBeenCalledOnce());
+
+    fireEvent.click(screen.getByRole("button", { name: "Löschvorschau erstellen" }));
+    const emptyDialog = await screen.findByRole("dialog", { name: "Gesamte Historie dauerhaft löschen?" });
+    expect(emptyDialog).toHaveTextContent("0 direkte Datei(en)");
+    expect(within(emptyDialog).getByRole("button", { name: "Alles endgültig löschen" })).toBeDisabled();
+    expect(mocks.previewDelete).toHaveBeenCalledTimes(2);
+  });
+
   it("zeigt Versionsstatus, manuellen Retry und ausschließlich die feste Release-Aktion", async () => {
     renderFeature();
     fireEvent.click(await screen.findByRole("tab", { name: "App" }));

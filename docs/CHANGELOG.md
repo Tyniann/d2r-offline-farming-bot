@@ -17,6 +17,8 @@ Versionierung nach [Semantic Versioning](https://semver.org/).
 - Store immutable run context once in Schema-4 JSONL telemetry and show raw history as shared context plus filterable compact events
 
 ### Fixed
+- Fix history deletion remaining blocked after a terminal route workflow and keep repeated zero-file deletion previews available
+- Fix desktop route recording and candidate testing to use the selected character's frozen Schema-3 loadout and surface actionable loadout errors
 - Skip one nearby non-progressing generic route point after two settled movement attempts while preserving the terminal endpoint and existing drift corridor
 - Fix Nihlathak post-boss `clear_nearby_hostiles` failing immediately with `combat_action_failed` by wiring Amplify Damage / Bone Spear RouteClear on the Nihlathak strategy without enabling travel `route_clear`
 - Fix Act-1 town preparation (including Cow readiness with or without potion demand) to plan from a Memory-confirmed Waypoint, Stash, or portal start instead of forcing the Stash graph edge

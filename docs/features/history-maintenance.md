@@ -24,7 +24,7 @@ Ein Kandidat ist ausschließlich ein vollständiges Schema-4-Bundle: eine valide
 
 Die Vorschau zählt alle regulären direkten `*.jsonl`-Dateien nach `schema3_session`, `schema3_run`, `legacy` und `corrupt`, weist aktive Dateien getrennt als geschützt aus und liefert nur Anzahl, Bytes, Kategorien, Indexgeneration und einen zufälligen Einmaltoken. Absolute Pfade verlassen den Core nicht.
 
-Die zweite Bestätigung muss Token, Indexgeneration, Anzahl und Bytes exakt wiederholen. Der Core refreshed den Index, bestimmt das Active-Set neu und revalidiert vor der ersten sowie vor jeder einzelnen Löschung Dateiname, regulären Direktdateistatus, Größe, Änderungszeit und Reparse-Status. Eine veraltete Vorschau wird ohne Mutation abgelehnt. Neu aktive Dateien bleiben selbst bei gültiger alter Vorschau geschützt.
+Die zweite Bestätigung muss Token, Indexgeneration, Anzahl und Bytes exakt wiederholen. Der Core refreshed den Index, bestimmt das Active-Set neu und revalidiert vor der ersten sowie vor jeder einzelnen Löschung Dateiname, regulären Direktdateistatus, Größe, Änderungszeit und Reparse-Status. Eine veraltete Vorschau wird ohne Mutation abgelehnt. Neu aktive Dateien bleiben selbst bei gültiger alter Vorschau geschützt. Terminale Routenworkflow-Zustände (`completed`, `failed_safe`, `emergency_cancelled`) gelten dabei wie im restlichen Backend als inaktiv und blockieren die Wartung nicht. Eine erneute Vorschau nach vollständiger Löschung bleibt zulässig und weist `0` Dateien aus.
 
 ## Fehlerverhalten
 

@@ -349,6 +349,13 @@ func decodeHistoryCursor(value string) (historyCursor, error) {
 
 func (s *Server) writeHistoryBackendError(w http.ResponseWriter, r *http.Request, err error) {
 	code := telemetry.HistoryErrorCode(err)
+	var commandErr *commandError
+	if errors.As(err, &commandErr) {
+		candidate := telemetry.HistoryReasonCode(commandErr.code)
+		if _, known := telemetry.HistoryReasonMessage(candidate); known {
+			code = candidate
+		}
+	}
 	if code == telemetry.HistoryReasonFileInvalid && !strings.Contains(err.Error(), string(code)) {
 		code = telemetry.HistoryReasonUnavailable
 	}

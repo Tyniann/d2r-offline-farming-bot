@@ -2,7 +2,6 @@ package api
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/app"
@@ -97,7 +96,7 @@ func (b *LiveBackend) historyMaintenanceContext(expectedGeneration uint64) ([]st
 	activeRunID := b.status.RunInstanceID
 	b.mu.RUnlock()
 	if expectedGeneration != generation || !historyMaintenanceIdle(state, workflow) {
-		return nil, fmt.Errorf("%s: history maintenance requires the current idle generation", telemetry.HistoryReasonRetentionBlocked)
+		return nil, &commandError{code: string(telemetry.HistoryReasonRetentionBlocked), message: "Die Historie kann nur ohne laufende Session oder laufenden Routenvorgang gelöscht werden."}
 	}
 	active := make([]string, 0, 2)
 	if activeRunID != "" {
@@ -117,7 +116,11 @@ func (b *LiveBackend) historyMaintenanceContext(expectedGeneration uint64) ([]st
 
 func historyMaintenanceIdle(state, workflow string) bool {
 	idle := state == string(app.SupervisorStateIdle) || state == string(app.SupervisorStateIdleInGame) || state == string(app.SupervisorStateStoppedError)
-	return idle && workflow == string(app.RouteWorkflowIdle)
+	// Terminale Routenworkflow-Zustände besitzen keinen aktiven Writer und werden
+	// im gesamten Backend bereits als nicht beschäftigt behandelt. Die Wartung
+	// muss denselben Vertrag verwenden, da die letzte Erfolgsmeldung sonst jede
+	// spätere Historienlöschung bis zum nächsten Core-Neustart blockiert.
+	return idle && !routeWorkflowBusy(workflow)
 }
 
 func historyMaintenanceDiagnosticsDTO(values []telemetry.HistoryMaintenanceDiagnostic) []HistoryMaintenanceDiagnosticDTO {

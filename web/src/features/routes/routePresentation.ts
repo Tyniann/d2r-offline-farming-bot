@@ -88,6 +88,13 @@ export function targetLabel(runID: string, role?: string): string {
 
 export function reasonLabel(reason?: string): string {
   if (!reason) return "Aktion derzeit nicht möglich.";
+  const normalized = reason.toLowerCase();
+  if (normalized.includes("teleport not configured")) {
+    return "Vervollständige für diesen Charakter unter „Charaktere“ die Tastenbelegung des Kampfprofils.";
+  }
+  if (normalized.includes("town portal not configured")) {
+    return "Hinterlege für diesen Charakter unter „Charaktere“ die Taste für das Stadtportal.";
+  }
   return reasonLabels[reason] ?? "Aktion derzeit nicht möglich.";
 }
 

@@ -435,13 +435,32 @@ func runDesktopAPI(cfg *config.Config, rt *app.Runtime, operatorSettings *app.Op
 			if status.Selection.Difficulty == "" {
 				return fmt.Errorf("vor der Aufnahme muss Charakter und Schwierigkeit bestätigt sein")
 			}
-			return rt.RunRouteRecordWithRoleFinish(request.RunID, pathing.RouteRole(request.RouteRole), status.Selection.Difficulty, status.Selection.Character, finishRequests, reporter)
+			workflowRuntime, err := app.NewCharacterWorkflowRuntime(cfg, loadoutResolver, status.Selection.Character)
+			if err != nil {
+				return err
+			}
+			defer func() {
+				if closeErr := workflowRuntime.CloseLog(); closeErr != nil {
+					rt.Log.Warn("route recording runtime log close failed", "error", closeErr)
+				}
+			}()
+			return workflowRuntime.RunRouteRecordWithRoleFinish(request.RunID, pathing.RouteRole(request.RouteRole), status.Selection.Difficulty, status.Selection.Character, finishRequests, reporter)
 		case "system_record":
 			return rt.RunSystemEgressRecordWithFinish(town.OriginAct(request.Act), finishRequests, reporter)
 		case "system_test":
 			return rt.RunTownEgressPlay(town.OriginAct(request.Act))
 		case "test":
-			return rt.RunCandidateTestWithProgress(request.CandidateID, reporter)
+			status := backend.Status()
+			workflowRuntime, err := app.NewCharacterWorkflowRuntime(cfg, loadoutResolver, status.Selection.Character)
+			if err != nil {
+				return err
+			}
+			defer func() {
+				if closeErr := workflowRuntime.CloseLog(); closeErr != nil {
+					rt.Log.Warn("route candidate runtime log close failed", "error", closeErr)
+				}
+			}()
+			return workflowRuntime.RunCandidateTestWithProgress(request.CandidateID, reporter)
 		default:
 			return fmt.Errorf("unbekannter Routen-Workflow %q", request.Operation)
 		}

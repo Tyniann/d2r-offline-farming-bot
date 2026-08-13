@@ -12,7 +12,7 @@ import type { SettingsRun, SettingsTab } from "./settingsTypes";
 
 /** SettingsFeature orchestriert Farming-, Charaktere-, App- und Wartung-Scopes mit sticky Core-Commit. */
 export function SettingsFeature({
-  generation, coreState, characters, runs, events, catalog, status, onOpenOnboarding, onSettingsApplied, onDirtyChange,
+  generation, coreState, characters, runs, events, catalog, status, onOpenOnboarding, onSettingsApplied, onHistoryDeleted, onDirtyChange,
 }: {
   generation: number;
   coreState: string;
@@ -23,6 +23,7 @@ export function SettingsFeature({
   status?: StatusDTO | null;
   onOpenOnboarding?: () => void;
   onSettingsApplied?: () => void;
+  onHistoryDeleted?: () => void;
   onDirtyChange?: (dirty: boolean) => void;
 }) {
   const [settings, setSettings] = useState<OperatorSettingsDTO | null>(null);
@@ -178,6 +179,7 @@ export function SettingsFeature({
       });
       setDeletePreview(null);
       setMessage(`${result.deleted_files} Historiendatei(en) wurden dauerhaft gelöscht; ${result.protected_files} aktive Datei(en) blieben geschützt.`);
+      onHistoryDeleted?.();
     });
   };
 
@@ -198,6 +200,7 @@ export function SettingsFeature({
     if (busy) return;
     setBusy(true);
     setError("");
+    setMessage("");
     setStale(false);
     try {
       await action();
