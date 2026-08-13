@@ -111,9 +111,32 @@ func (rt *Runtime) RunRoutePlay(routeID string) (retErr error) {
 				return fmt.Errorf("route segment timeout: %s", player.Segment().ID)
 			}
 			beforeSegment := player.SegmentIndex()
+			_, skippedBefore, hadSkippedBefore := player.LastSkippedPoint()
 			done, err := player.Tick(ctx, cur)
 			if err != nil {
 				return err
+			}
+			if skippedPoint, skippedIndex, ok := player.LastSkippedPoint(); ok && (!hadSkippedBefore || skippedIndex != skippedBefore) {
+				segmentIndex := player.SegmentIndex()
+				pointIndex := skippedIndex
+				if err := trace.Emit(telemetry.Event{
+					Event: telemetry.RoutePointSkipped, RouteID: routeID, SegmentID: player.Segment().ID,
+					SegmentIndex: &segmentIndex, PointIndex: &pointIndex, TargetX: skippedPoint.X, TargetY: skippedPoint.Y,
+					AreaID: uint32(cur.Area.ID), Reason: "blocked_point_no_progress",
+					DriftTiles: world.Distance(cur.Player.Position, world.Position{X: skippedPoint.X, Y: skippedPoint.Y}),
+				}); err != nil {
+					return err
+				}
+				deadline = time.Now().Add(time.Duration(route.Playback.SegmentTimeoutMs) * time.Millisecond)
+				rt.Log.Warn("route point skipped after no progress",
+					"route_id", routeID,
+					"segment_id", player.Segment().ID,
+					"point_index", skippedIndex,
+					"target_x", skippedPoint.X,
+					"target_y", skippedPoint.Y,
+					"player_x", cur.Player.Position.X,
+					"player_y", cur.Player.Position.Y,
+				)
 			}
 			if !done && player.SegmentIndex() != beforeSegment {
 				completed := route.Segments[beforeSegment]

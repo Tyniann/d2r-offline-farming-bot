@@ -36,6 +36,8 @@ const (
 	RoutePlaybackStarted EventName = "route_playback_started"
 	// RoutePointStarted identifies the next recorded World point.
 	RoutePointStarted EventName = "route_point_started"
+	// RoutePointSkipped records a nearby point skipped after repeated movement made no target progress.
+	RoutePointSkipped EventName = "route_point_skipped"
 	// RouteTransitionStarted begins a strict expected Area transition.
 	RouteTransitionStarted EventName = "route_transition_started"
 	// RouteSegmentCompleted confirms one segment's target Area.

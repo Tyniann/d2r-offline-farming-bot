@@ -416,7 +416,7 @@ func knownHistoryEvent(name EventName) bool {
 var historyEventNames = func() map[EventName]struct{} {
 	names := []EventName{
 		DropSeen, PickitMatch, PickupAttempt, PickupSuccess, PickupFailed, InventoryFull, StashAttempt, StashSuccess, StashFull, SellSuccess, BossKillConfirmed,
-		RoutePlaybackStarted, RoutePointStarted, RouteTransitionStarted, RouteSegmentCompleted, RoutePlaybackCompleted, RoutePlaybackFailed, RoutePlaybackStopped,
+		RoutePlaybackStarted, RoutePointStarted, RoutePointSkipped, RouteTransitionStarted, RouteSegmentCompleted, RoutePlaybackCompleted, RoutePlaybackFailed, RoutePlaybackStopped,
 		SessionStarted, GameStarted, GameExited, RunStarted, RunContext, StuckDetected, RunCompleted, RunAborted, RunFailed, GameRestartRequested, SessionCompleted, SessionStopped, SessionFailed,
 		ProfileHookAction, ResourcePotionRequested, ResourceConsumptionConfirmed, ProfileActionFailed, TownAction, TownStepCompleted,
 		RunStepStarted, RunStepCompleted, RunStepFailed, RunEncounterActionStarted, RunEncounterActionCompleted,

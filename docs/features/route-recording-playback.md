@@ -398,6 +398,14 @@ Für einen lokalen Recovery-Cast meldet der Navigator zusätzlich, ob der aktuel
 
 Rohes Playback, Candidate-Playback, Recording und Guided Validation verwenden diesen Summoner-spezifischen Guard nicht und behalten ihre Navigationssemantik.
 
+## Blockierte Routenpunkte
+
+Der generische `RouteSegmentPlayer` überwacht zusätzlich den Fortschritt zum konkret aktiven Routenpunkt. Eine beliebige Positionsänderung genügt dafür nicht: Erst eine Annäherung um mindestens ein Tile setzt den punktbezogenen Versuchszähler zurück. Dadurch können kleine Bewegungen durch Gegner oder wiederholte Teleports den Stillstand am unverändert unerreichbaren Ziel nicht dauerhaft verdecken.
+
+Nach zwei Movement-Inputs ohne solche Annäherung wartet der Player zunächst den vom Navigator gemeldeten Settle-Zeitpunkt des letzten Teleports ab. Bleibt der Spieler danach außerhalb von `waypoint_tolerance_tiles`, aber höchstens `max_drift_tiles` vom Ziel und weiterhin im bestehenden Routenkorridor, wird genau dieser eine Punkt monoton übersprungen. Die tatsächliche Spielerposition wird zum temporären Anfang der nächsten Kante, damit eine spätere Driftkorrektur nicht zum blockierten Punkt zurückführt. Der nächste aufgezeichnete Zielpunkt bleibt autoritativ; es gibt weder Jitter, Bearing-Explore noch einen Sprung über mehrere Punkte. Ein übersprungener Punkt gilt ausdrücklich nicht als Memory-bestätigt.
+
+Der letzte Punkt eines terminalen Segments darf niemals übersprungen werden. Liegt ein blockierter Punkt außerhalb des vorhandenen Driftkorridors, greift weiterhin die begrenzte lokale Recovery mit anschließendem fail-closed Abbruch. Jeder Skip erzeugt das strukturierte Ereignis `route_point_skipped` mit Segment, Punkt, Zielkoordinate, Abstand und dem stabilen Grund `blocked_point_no_progress`.
+
 ## Phase 20.2: Objektportal und feste Rollen
 
 `RouteBinding.route_role` ist optional für bestehende Einzelrouten und auf `leg_acquisition|cow_sweep` begrenzt. Der additive Transitiontyp `object_portal` enthält die Objektart `permanent_portal` und die exakt erwartete Ziel-Area. Recorder und Validator speichern ihn nur aus aktueller World-Evidenz. Beim Playback bindet der Transition-Handler die aktuelle konkrete Objekt-UnitID; der Navigator verlangt weiterhin Fokus, Clientprojektion und Hover-Match und bestätigt Erfolg ausschließlich über die Ziel-Area. Es gibt keinen Blindklick und keine allgemeine Questportal-Engine.
@@ -440,4 +448,4 @@ Phase 6 ist abgeschlossen, wenn:
 - [Run-Telemetrie](run-telemetry.md)
 
 ---
-*Zuletzt aktualisiert: 2026-08-01*
+*Zuletzt aktualisiert: 2026-08-13*

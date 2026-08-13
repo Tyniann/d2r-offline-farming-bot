@@ -10,6 +10,11 @@ import (
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/world"
 )
 
+const (
+	blockedPointMaxInputs        = 2
+	blockedPointMinProgressTiles = 1.0
+)
+
 var (
 	// ErrRouteUnexpectedArea indicates that playback left its segment area unexpectedly.
 	ErrRouteUnexpectedArea = errors.New("route unexpected area")
@@ -74,12 +79,16 @@ type RouteSegmentPlayer struct {
 	segmentIndex      int
 	point             int
 	previous          world.Position
+	edgeAnchor        world.Position
 	started           bool
 	transition        bool
 	done              bool
 	corrections       int
 	recovering        bool
 	recoveryInput     routeRecoveryInput
+	pointWatchdog     routePointWatchdog
+	lastConfirmed     int
+	lastSkipped       int
 	transitionHandler *RouteTransitionHandler
 }
 
@@ -93,6 +102,15 @@ type routeRecoveryInput struct {
 	progressTiles float64
 }
 
+type routePointWatchdog struct {
+	point              int
+	target             world.Position
+	bestDistance       float64
+	inputsWithoutGain  int
+	latestInputOutcome time.Time
+	active             bool
+}
+
 // NewRouteSegmentPlayer builds an isolated player for one segment index.
 func NewRouteSegmentPlayer(navigator SegmentNavigator, route Route, segmentIndex int) (*RouteSegmentPlayer, error) {
 	if navigator == nil {
@@ -104,7 +122,10 @@ func NewRouteSegmentPlayer(navigator SegmentNavigator, route Route, segmentIndex
 	if segmentIndex < 0 || segmentIndex >= len(route.Segments) {
 		return nil, fmt.Errorf("segment index %d out of range", segmentIndex)
 	}
-	return &RouteSegmentPlayer{navigator: navigator, route: route, segment: route.Segments[segmentIndex], segmentIndex: segmentIndex}, nil
+	return &RouteSegmentPlayer{
+		navigator: navigator, route: route, segment: route.Segments[segmentIndex], segmentIndex: segmentIndex,
+		lastConfirmed: -1, lastSkipped: -1,
+	}, nil
 }
 
 // Tick advances point movement or the strict entrance transition.
@@ -147,30 +168,34 @@ func (p *RouteSegmentPlayer) Tick(ctx context.Context, state world.State) (bool,
 	}
 	target := routePointPosition(p.segment.Points[p.point])
 	if p.recovering {
-		if world.Distance(state.Player.Position, p.previous) <= p.route.Playback.WaypointToleranceTiles {
+		if world.Distance(state.Player.Position, p.edgeAnchor) <= p.route.Playback.WaypointToleranceTiles {
 			p.recovering = false
 			p.recoveryInput = routeRecoveryInput{}
 			p.navigator.Reset()
 		} else {
 			if !p.navigator.Active() {
-				if err := p.navigator.Start(Goal{Kind: GoalKindMoveToPosition, TargetPos: p.previous, ArrivalDistance: p.route.Playback.WaypointToleranceTiles}); err != nil {
+				if err := p.navigator.Start(Goal{Kind: GoalKindMoveToPosition, TargetPos: p.edgeAnchor, ArrivalDistance: p.route.Playback.WaypointToleranceTiles}); err != nil {
 					return false, fmt.Errorf("start route recovery for point %d: %w", p.point, err)
 				}
 			}
 			return p.tickNavigator(ctx, state)
 		}
 	}
-	if distanceToEdge(state.Player.Position, p.previous, target) > p.route.Playback.MaxDriftTiles {
+	if distanceToEdge(state.Player.Position, p.edgeAnchor, target) > p.route.Playback.MaxDriftTiles {
+		p.resetPointWatchdog()
 		p.navigator.Reset()
 		if p.corrections >= p.route.Playback.MaxLocalCorrections {
 			return false, fmt.Errorf("%w at point %d after %d corrections", ErrRouteDriftExceeded, p.point, p.corrections)
 		}
 		p.corrections++
 		p.recovering = true
-		if err := p.navigator.Start(Goal{Kind: GoalKindMoveToPosition, TargetPos: p.previous, ArrivalDistance: p.route.Playback.WaypointToleranceTiles}); err != nil {
+		if err := p.navigator.Start(Goal{Kind: GoalKindMoveToPosition, TargetPos: p.edgeAnchor, ArrivalDistance: p.route.Playback.WaypointToleranceTiles}); err != nil {
 			return false, fmt.Errorf("start route recovery for point %d: %w", p.point, err)
 		}
 		return p.tickNavigator(ctx, state)
+	}
+	if p.tickPointWatchdog(state, target) {
+		return false, nil
 	}
 	if !p.navigator.Active() {
 		if err := p.navigator.Start(Goal{Kind: GoalKindMoveToPosition, TargetPos: target, ArrivalDistance: p.route.Playback.WaypointToleranceTiles}); err != nil {
@@ -214,10 +239,14 @@ func (p *RouteSegmentPlayer) Progress(state world.State) (RouteProgress, bool) {
 	}
 
 	target := routePointPosition(p.segment.Points[point])
-	drift := distanceToEdge(state.Player.Position, previous, target)
-	if (p.recovering && world.Distance(state.Player.Position, previous) > p.route.Playback.WaypointToleranceTiles) ||
+	edgeAnchor := p.edgeAnchor
+	if !p.started {
+		edgeAnchor = previous
+	}
+	drift := distanceToEdge(state.Player.Position, edgeAnchor, target)
+	if (p.recovering && world.Distance(state.Player.Position, edgeAnchor) > p.route.Playback.WaypointToleranceTiles) ||
 		drift > p.route.Playback.MaxDriftTiles {
-		return p.projectProgress(point, previous, RouteProgressRecovery, previous, true, drift), true
+		return p.projectProgress(point, previous, RouteProgressRecovery, edgeAnchor, true, drift), true
 	}
 	return p.projectProgress(point, previous, RouteProgressMovement, target, true, drift), true
 }
@@ -274,7 +303,7 @@ func (p *RouteSegmentPlayer) ReconcileForward(state world.State) (bool, error) {
 		return false, nil
 	}
 	currentTarget := routePointPosition(p.segment.Points[p.point])
-	if distanceToEdge(state.Player.Position, p.previous, currentTarget) <= p.route.Playback.MaxDriftTiles {
+	if distanceToEdge(state.Player.Position, p.edgeAnchor, currentTarget) <= p.route.Playback.MaxDriftTiles {
 		return false, nil
 	}
 
@@ -288,6 +317,7 @@ func (p *RouteSegmentPlayer) ReconcileForward(state world.State) (bool, error) {
 			continue
 		}
 		p.previous = previous
+		p.edgeAnchor = previous
 		p.point = point
 		p.corrections = 0
 		p.recovering = false
@@ -302,15 +332,19 @@ func (p *RouteSegmentPlayer) ReconcileForward(state world.State) (bool, error) {
 func (p *RouteSegmentPlayer) syncReachedPoints(state world.State) {
 	if !p.started {
 		p.previous = routePointPosition(p.segment.Points[0])
+		p.edgeAnchor = p.previous
 		p.started = true
 	}
 	advanced := false
 	for p.point < len(p.segment.Points) && world.Distance(state.Player.Position, routePointPosition(p.segment.Points[p.point])) <= p.route.Playback.WaypointToleranceTiles {
 		p.previous = routePointPosition(p.segment.Points[p.point])
+		p.edgeAnchor = p.previous
+		p.lastConfirmed = p.point
 		p.point++
 		p.corrections = 0
 		p.recovering = false
 		p.recoveryInput = routeRecoveryInput{}
+		p.resetPointWatchdog()
 		advanced = true
 	}
 	if advanced {
@@ -364,7 +398,16 @@ func (p *RouteSegmentPlayer) CurrentTarget() (RoutePoint, bool) {
 
 // LastConfirmedPointIndex returns the most recent confirmed point index, or -1
 // while playback is still approaching the first point.
-func (p *RouteSegmentPlayer) LastConfirmedPointIndex() int { return p.point - 1 }
+func (p *RouteSegmentPlayer) LastConfirmedPointIndex() int { return p.lastConfirmed }
+
+// LastSkippedPoint returns the most recent blocked point accepted by the
+// point-progress watchdog. A skipped point is never reported as Memory-confirmed.
+func (p *RouteSegmentPlayer) LastSkippedPoint() (RoutePoint, int, bool) {
+	if p.lastSkipped < 0 || p.lastSkipped >= len(p.segment.Points) {
+		return RoutePoint{}, -1, false
+	}
+	return p.segment.Points[p.lastSkipped], p.lastSkipped, true
+}
 
 // LocalRecoveryAttempts returns corrections consumed in the active segment.
 func (p *RouteSegmentPlayer) LocalRecoveryAttempts() int { return p.corrections }
@@ -374,11 +417,14 @@ func (p *RouteSegmentPlayer) DriftTiles(position world.Position) float64 {
 	if p.transition || p.point >= len(p.segment.Points) {
 		return 0
 	}
-	return distanceToEdge(position, p.previous, routePointPosition(p.segment.Points[p.point]))
+	return distanceToEdge(position, p.edgeAnchor, routePointPosition(p.segment.Points[p.point]))
 }
 
 func (p *RouteSegmentPlayer) tickNavigator(ctx context.Context, state world.State) (bool, error) {
 	result := p.navigator.Tick(ctx, state)
+	if !p.recovering && result.MovementInputSent {
+		p.notePointMovementInput(result)
+	}
 	if p.recovering && result.MovementInputSent {
 		p.recoveryInput = routeRecoveryInput{
 			point: p.point, target: p.previous, origin: state.Player.Position, at: state.At,
@@ -401,6 +447,67 @@ func (p *RouteSegmentPlayer) tickNavigator(ctx context.Context, state world.Stat
 		p.corrections = 0
 	}
 	return false, nil
+}
+
+// tickPointWatchdog recognizes repeated movement that makes no meaningful
+// progress toward one concrete point. It waits for the latest cast outcome and
+// only accepts a blocked point while the player remains inside the existing
+// route corridor. The final point of a terminal segment remains authoritative.
+func (p *RouteSegmentPlayer) tickPointWatchdog(state world.State, target world.Position) bool {
+	distance := world.Distance(state.Player.Position, target)
+	if !p.pointWatchdog.active || p.pointWatchdog.point != p.point || p.pointWatchdog.target != target {
+		p.pointWatchdog = routePointWatchdog{point: p.point, target: target, bestDistance: distance, active: true}
+		return false
+	}
+	if distance <= p.pointWatchdog.bestDistance-blockedPointMinProgressTiles {
+		p.pointWatchdog.bestDistance = distance
+		p.pointWatchdog.inputsWithoutGain = 0
+		p.pointWatchdog.latestInputOutcome = time.Time{}
+		return false
+	}
+	if p.pointWatchdog.inputsWithoutGain < blockedPointMaxInputs {
+		return false
+	}
+	now := state.At
+	if now.IsZero() {
+		now = time.Now()
+	}
+	if !p.pointWatchdog.latestInputOutcome.IsZero() && now.Before(p.pointWatchdog.latestInputOutcome) {
+		return true
+	}
+	if distance > p.route.Playback.MaxDriftTiles ||
+		distanceToEdge(state.Player.Position, p.edgeAnchor, target) > p.route.Playback.MaxDriftTiles ||
+		(p.point == len(p.segment.Points)-1 && p.segment.Transition.Type == "terminal") {
+		p.resetPointWatchdog()
+		return false
+	}
+
+	p.navigator.Reset()
+	// The live position becomes the next edge's temporary anchor. Returning to
+	// the unreachable recorded point during a later drift recovery would
+	// recreate the loop this watchdog is intended to break.
+	p.edgeAnchor = state.Player.Position
+	p.lastSkipped = p.point
+	p.point++
+	p.corrections = 0
+	p.recovering = false
+	p.recoveryInput = routeRecoveryInput{}
+	p.resetPointWatchdog()
+	return true
+}
+
+func (p *RouteSegmentPlayer) notePointMovementInput(result NavTickResult) {
+	if !p.pointWatchdog.active {
+		return
+	}
+	p.pointWatchdog.inputsWithoutGain++
+	if result.MovementOutcomeAt.After(p.pointWatchdog.latestInputOutcome) {
+		p.pointWatchdog.latestInputOutcome = result.MovementOutcomeAt
+	}
+}
+
+func (p *RouteSegmentPlayer) resetPointWatchdog() {
+	p.pointWatchdog = routePointWatchdog{}
 }
 
 func distanceToEdge(point, start, end world.Position) float64 {

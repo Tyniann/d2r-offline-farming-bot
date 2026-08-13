@@ -100,6 +100,12 @@ func (p *RoutePlayer) CurrentTarget() (RoutePoint, bool) { return p.segment.Curr
 // LastConfirmedPointIndex returns the active segment's last confirmed point.
 func (p *RoutePlayer) LastConfirmedPointIndex() int { return p.segment.LastConfirmedPointIndex() }
 
+// LastSkippedPoint returns the most recent point accepted by the active
+// segment's blocked-point watchdog.
+func (p *RoutePlayer) LastSkippedPoint() (RoutePoint, int, bool) {
+	return p.segment.LastSkippedPoint()
+}
+
 // LocalRecoveryAttempts returns corrections consumed by the active segment.
 func (p *RoutePlayer) LocalRecoveryAttempts() int { return p.segment.LocalRecoveryAttempts() }
 

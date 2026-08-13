@@ -14,6 +14,7 @@ type segmentNavigatorMock struct {
 	goals  []Goal
 	next   NavTickResult
 	resets int
+	ticks  int
 }
 
 func (m *segmentNavigatorMock) Start(goal Goal) error {
@@ -22,6 +23,7 @@ func (m *segmentNavigatorMock) Start(goal Goal) error {
 	return nil
 }
 func (m *segmentNavigatorMock) Tick(context.Context, world.State) NavTickResult {
+	m.ticks++
 	result := m.next
 	if result.Done {
 		m.active = false
@@ -238,5 +240,105 @@ func TestRouteSegmentPlayerReconcilesAuthorizedForwardMovement(t *testing.T) {
 		progress.MovementTarget != (world.Position{X: 160, Y: 100}) ||
 		progress.LocalRecoveryAttempts != 0 {
 		t.Fatalf("reconciled progress = %+v, %t", progress, ok)
+	}
+}
+
+func TestRouteSegmentPlayerSkipsNearbyBlockedPointAfterSettledInputs(t *testing.T) {
+	route := validRoute()
+	route.Segments[0].Points = append(route.Segments[0].Points, RoutePoint{X: 14790, Y: 5065})
+	nav := &segmentNavigatorMock{}
+	player, err := NewRouteSegmentPlayer(nav, route, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	base := time.Date(2026, 8, 13, 12, 0, 0, 0, time.UTC)
+	state := segmentPlaybackState(world.BlackMarsh, 14858, 5068)
+	state.At = base
+
+	// The first cast makes real target progress and must reset the watchdog.
+	nav.next = NavTickResult{Status: NavMoving, MovementInputSent: true, MovementOutcomeAt: base.Add(700 * time.Millisecond)}
+	if _, err := player.Tick(context.Background(), state); err != nil {
+		t.Fatal(err)
+	}
+	state.At = base.Add(700 * time.Millisecond)
+	state.Player.Position = world.Position{X: 14827, Y: 5065} // Seven tiles from point 1.
+	nav.next.MovementOutcomeAt = state.At.Add(700 * time.Millisecond)
+	if _, err := player.Tick(context.Background(), state); err != nil {
+		t.Fatal(err)
+	}
+
+	// Two further casts make no target progress. Playback must wait for the
+	// second outcome instead of sending a third identical input.
+	state.At = base.Add(950 * time.Millisecond)
+	nav.next.MovementOutcomeAt = state.At.Add(700 * time.Millisecond)
+	if _, err := player.Tick(context.Background(), state); err != nil {
+		t.Fatal(err)
+	}
+	ticksBeforeSettle := nav.ticks
+	state.At = base.Add(1200 * time.Millisecond)
+	if _, err := player.Tick(context.Background(), state); err != nil {
+		t.Fatal(err)
+	}
+	if nav.ticks != ticksBeforeSettle {
+		t.Fatalf("navigator ticks while latest cast unsettled = %d, want %d", nav.ticks, ticksBeforeSettle)
+	}
+
+	state.At = base.Add(1650 * time.Millisecond)
+	if _, err := player.Tick(context.Background(), state); err != nil {
+		t.Fatal(err)
+	}
+	if player.PointIndex() != 2 {
+		t.Fatalf("point index = %d, want blocked point 1 skipped", player.PointIndex())
+	}
+	skipped, skippedIndex, ok := player.LastSkippedPoint()
+	if !ok || skippedIndex != 1 || skipped != route.Segments[0].Points[1] {
+		t.Fatalf("skipped point = %+v index=%d ok=%t", skipped, skippedIndex, ok)
+	}
+	if player.LastConfirmedPointIndex() != 0 {
+		t.Fatalf("last confirmed = %d, skipped point must not count as Memory-confirmed", player.LastConfirmedPointIndex())
+	}
+
+	// A later drift recovery must return to the safe live skip position, not
+	// to the unreachable recorded coordinate.
+	state.At = base.Add(2 * time.Second)
+	state.Player.Position = world.Position{X: 14900, Y: 5100}
+	nav.next = NavTickResult{Status: NavMoving}
+	if _, err := player.Tick(context.Background(), state); err != nil {
+		t.Fatal(err)
+	}
+	if got := nav.goals[len(nav.goals)-1].TargetPos; got != (world.Position{X: 14827, Y: 5065}) {
+		t.Fatalf("post-skip recovery target = %+v, want live skip position", got)
+	}
+}
+
+func TestRouteSegmentPlayerNeverSkipsTerminalFinalPoint(t *testing.T) {
+	route := validRoute()
+	route.Segments = route.Segments[:1]
+	route.Segments[0].ToAreaID = route.Segments[0].FromAreaID
+	route.Segments[0].Transition = RouteTransition{Type: "terminal"}
+	nav := &segmentNavigatorMock{}
+	player, err := NewRouteSegmentPlayer(nav, route, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	base := time.Date(2026, 8, 13, 13, 0, 0, 0, time.UTC)
+	state := segmentPlaybackState(world.BlackMarsh, 14858, 5068)
+	state.At = base
+	nav.next = NavTickResult{Status: NavMoving, MovementInputSent: true, MovementOutcomeAt: base.Add(700 * time.Millisecond)}
+	_, _ = player.Tick(context.Background(), state)
+
+	state.Player.Position = world.Position{X: 14827, Y: 5065}
+	for _, offset := range []time.Duration{700, 950, 1650} {
+		state.At = base.Add(offset * time.Millisecond)
+		nav.next.MovementOutcomeAt = state.At.Add(700 * time.Millisecond)
+		if _, err := player.Tick(context.Background(), state); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if player.PointIndex() != 1 {
+		t.Fatalf("terminal point index = %d, want 1", player.PointIndex())
+	}
+	if _, _, ok := player.LastSkippedPoint(); ok {
+		t.Fatal("terminal final point was skipped")
 	}
 }
