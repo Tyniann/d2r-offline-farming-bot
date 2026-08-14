@@ -171,6 +171,38 @@ Weltkoordinaten bevorzugen; Screen-Pixel nur wenn Transform noch unsauber ( dann
 
 ## Weitere Ideen
 
+### Experimenteller HWND-Input und möglicher Hintergrundbetrieb
+
+**Status:** `idea`
+
+**Ziel-Phase:** frühestens nach der Input-Sicherheitsgrenze aus Phase 22; zunächst nur als isolierter Research-Spike
+
+**Verwandt:** Input Controller, Fensterbindung, Hover-Verifikation, Safety-Hotkeys
+
+#### Kontext
+
+Die produktive Eingabe verwendet derzeit `SendInput` und den realen Systemcursor. Windows kann Maus- und Tastaturnachrichten grundsätzlich auch an ein konkretes Fensterhandle (`HWND`) senden. Falls D2R diese Nachrichten vollständig und zuverlässig verarbeitet, könnte der Bot Eingaben gezielter an das gebundene Fenster richten und langfristig eventuell ohne dauerhaften Vordergrundfokus arbeiten.
+
+#### Chancen
+
+- Eingaben wären explizit an das bestätigte D2R-Fenster adressiert.
+- Der reale Mauszeiger müsste möglicherweise nicht für jede Aktion bewegt werden.
+- Hintergrundbetrieb könnte später als bewusstes Produktmerkmal untersucht werden.
+
+#### Risiken und offene Grenzen
+
+- D2R kann Raw Input, DirectInput oder globale Cursorpositionen verwenden und gesendete `WM_*`-Nachrichten deshalb ganz oder teilweise ignorieren.
+- Ein erfolgreicher `PostMessage`-/`SendMessage`-Aufruf beweist weder Verarbeitung noch eine ausgeführte Spielaktion.
+- Der bestehende Memory-bestätigte Hover-Feedback-Loop könnte ohne realen Cursor widersprüchliche oder unbrauchbare Evidenz liefern.
+- Hintergrundbetrieb würde heutige Fokus-, Sichtbarkeits- und Operator-Sicherheitsannahmen verändern und könnte unsichtbare Fehlbedienung begünstigen.
+- Automatischer Fallback zwischen HWND-Nachrichten und `SendInput` könnte Aktionen doppelt auslösen.
+
+#### Entscheidungsstand
+
+Produktive Runs bleiben vorerst strikt auf ein fokussiertes, frisch bestätigtes D2R-Fenster begrenzt. HWND-Input ist keine zugesagte Funktion und darf zunächst nur in einem isolierten Offline-Testmodus gegen Memory-bestätigte Ergebnisse erforscht werden. Erst belastbare Live-Nachweise zu Klicks, Skill-Auswahl, Hover, UI-Zuständen und Fokusverlust rechtfertigen eine erneute Produktentscheidung.
+
+---
+
 ### Gebietsabhängige Monster-Interest-Kataloge
 
 **Status:** `idea`

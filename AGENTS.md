@@ -1,7 +1,7 @@
-#Project rules
+# Project rules
 
 ## Project spec
-**D2R Offline Farming Bot** — externe Windows-Software für **Offline/Singleplayer** D2R. Ziel: wiederholbare Farming-Runs. Koolo, d2go und Botty dienen nur als Recherche und Lern Referenzen - KEINE dependency!
+**D2R Offline Farming Bot** — externe Windows-Software für **Offline/Singleplayer** D2R. Ziel: wiederholbare Farming-Runs.
 
 - **Ansatz:** Memory Bot (Prozess lesen → World Model → Tasks → Input). Kein Pixelbot, kein Savegame-Hack, keine Spielstands-Manipulation.
 - **Scope:** Nur privater Offline-Einsatz. Kein Battle.net / Online-Modus.
@@ -13,6 +13,7 @@
 - **Module:** `github.com/Tyniann/d2r-offline-farming-bot`
 - **Repo:** `Tyniann/d2r-offline-farming-bot` (privat). Git-Remote per SSH: `git@github.com-tyniann:Tyniann/...` — **nicht** auf DHMG-Account oder Standard-`github.com`-Host wechseln.
 - **Config:** YAML unter `configs/` (`config.example.yaml` versionieren; `config.yaml` lokal, gitignored).
+- **D2R-IDs:** Alle IDs und statischen Spieldaten stammen ausschließlich aus den lokalen CASC-Extrakten unter `.tmp/d2r-excel`. Eingecheckte Werte müssen über Generator oder Test-Fixture auf Datei und stabilen Zeilenschlüssel zurückführbar sein. Fehlt ein benötigter Extrakt, keine ID raten oder aus Fremdprojekten übernehmen: dem Entwickler die konkret benötigte CASC-Datei sowie nach Möglichkeit Zeilen/Spalten nennen und um Nachreichung bitten.
 - **Logging:** `log/slog` (strukturiert). JSONL für Run-Telemetrie.
 - **Lint / format:** `golangci-lint`, `goimports`, `gofmt` (siehe `.golangci.yml`, `Makefile`).
 - **Race Detector / MSYS2:** Nur bei tatsächlich neuer Nebenläufigkeit: Unter Windows die native **UCRT64**-Toolchain (`/ucrt64/bin/gcc`, Target `x86_64-w64-mingw32`) verwenden, nicht die MSYS-Toolchain unter `/usr/bin`. Aus PowerShell Race-Tests über eine initialisierte UCRT64-Shell starten: `$env:MSYSTEM='UCRT64'; $env:CHERE_INVOKING='1'; C:\msys64\usr\bin\bash.exe -lc 'export PATH=/ucrt64/bin:/c/Program\ Files/Go/bin:/usr/bin; cd /d/CSharpProjekte/D2R-Offline-Farming-Bot; go test -race -p 1 ./...'`. Nur `C:\msys64\ucrt64\bin` an `PATH` anzuhängen reicht auf diesem Host nicht zuverlässig.
@@ -64,10 +65,20 @@ Dokumentation und UI-facing Strings müssen ordentliches Deutsch und Umlaute ver
 2. **Fehler:** mit Kontext wrappen (`fmt.Errorf("…: %w", err)`), auf oberster Ebene loggen; nicht still schlucken.
 3. **Tests:** für Config-Parsing, World-Mapping und Task-Übergänge; Windows-API-Code über Interfaces mockbar halten. Minimale Testanzahl.
 4. **Commits:** nur auf ausdrückliche Anfrage; nie `git config` ändern; kein Force-Push auf `master`.
-5. **Agent:** `go test ./...` und `go build ./cmd/d2rbot` nach relevanten Änderungen ausführen. Keine Spielsteuerung implementieren, solange die aktuelle Phase read-only ist — außer explizit beauftragt.
+5. **Validierung:** Nach einer abgeschlossenen Änderung nur die kleinsten betroffenen Tests und Builds einmal ausführen. Keine automatische Gesamtsuite. Vollständige Go-/UI-Tests, Lint, Produktbuild und Installer-Smokes nur bei ausdrücklichem Gesamtvalidierungs- oder Release-Auftrag über `scripts/build-release.ps1`.
 6. **UI facing strings:** Nur für Bot Benutzer relevante und nützliche Informationen anzeigen. Simple, klare Formulierungen - KEIN Technobabble.
 
-#Documentation rules
+## Lokaler Release-Workflow
+
+Der Auftrag `Release [X.Y.Z|patch|minor|major]` autorisiert den vollständigen Releaseflow; fehlt die Version, nach SemVer aus `Unreleased` ableiten und nur bei echter Mehrdeutigkeit nachfragen. Keine GitHub Actions.
+
+1. Diff, Branch, `origin` und GitHub-Account prüfen; keine unerwarteten oder lokalen Dateien veröffentlichen.
+2. Version und Release-Datum in Code, Changelog, README, `handoff.html` und betroffenen Paketmetadaten konsistent aktualisieren; aus dem Changelog eine verständliche GitHub-Beschreibung erstellen.
+3. Alle vorgesehenen Release-Änderungen einschließlich Metadaten committen und `scripts/build-release.ps1 -Version X.Y.Z` genau einmal ohne Skip-Schalter auf diesem Commit ausführen.
+4. Nur bei grüner Pipeline Installer und SHA-256-Datei gemeinsam als `D2R-Offline-Farming-Bot-X.Y.Z-Windows-x64.zip` packen, Commit pushen, annotierten Tag `vX.Y.Z` pushen, mit `gh release create` samt ZIP veröffentlichen und als latest markieren.
+5. Tag, Releasebeschreibung, Assetname und Prüfsummen abschließend verifizieren. Bei Fehler vor Tag/Publish stoppen; nach teilweisem Publish Zustand prüfen und idempotent fortsetzen statt doppelt anzulegen.
+
+# Documentation rules
 
 ## Feature-Dokumentation
 
@@ -143,7 +154,7 @@ Falls zutreffend:
 
 ## Abhängigkeiten
 
-Windows-APIs, Go-Pakete, externe Referenzen (z. B. Koolo als Lernquelle).
+Windows-APIs, Go-Pakete und lokale CASC-Quellen.
 
 ## Verwandte Features
 

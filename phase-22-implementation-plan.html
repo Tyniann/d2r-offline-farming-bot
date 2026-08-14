@@ -1,0 +1,1478 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark light">
+  <title>Phase 22 – Detaillierter Umsetzungsplan</title>
+  <style>
+    :root {
+      --bg: #090b0d;
+      --bg-soft: #0f1317;
+      --panel: #151a1f;
+      --panel-2: #1b2229;
+      --text: #f2f4f5;
+      --muted: #b2bcc5;
+      --line: #35414b;
+      --gold: #d9a34f;
+      --gold-soft: #2b2011;
+      --blue: #8ec7e6;
+      --green: #72d7a2;
+      --yellow: #f1cf72;
+      --red: #f07d86;
+      --code: #090c0f;
+      --shadow: 0 20px 60px rgba(0, 0, 0, .34);
+    }
+
+    @media (prefers-color-scheme: light) {
+      :root {
+        --bg: #f4f1ea;
+        --bg-soft: #ebe6dc;
+        --panel: #fffefa;
+        --panel-2: #f2ede3;
+        --text: #1c2329;
+        --muted: #56636d;
+        --line: #d5cdbf;
+        --gold: #8b5d14;
+        --gold-soft: #f6ead4;
+        --blue: #236989;
+        --green: #15774a;
+        --yellow: #8b6600;
+        --red: #ae3540;
+        --code: #f2eee6;
+        --shadow: 0 18px 50px rgba(60, 47, 26, .12);
+      }
+    }
+
+    * { box-sizing: border-box; }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      margin: 0;
+      color: var(--text);
+      background:
+        radial-gradient(circle at 90% -5%, rgba(217, 163, 79, .22), transparent 30rem),
+        radial-gradient(circle at 5% 20%, rgba(71, 131, 161, .15), transparent 28rem),
+        var(--bg);
+      font: 16px/1.62 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    a { color: var(--blue); }
+    a:hover { text-decoration-thickness: 2px; }
+
+    code, pre {
+      font-family: "Cascadia Code", Consolas, "Liberation Mono", monospace;
+    }
+
+    code {
+      padding: .08rem .32rem;
+      color: var(--blue);
+      background: var(--code);
+      border: 1px solid var(--line);
+      border-radius: 5px;
+      font-size: .92em;
+    }
+
+    pre {
+      margin: 14px 0 0;
+      padding: 16px;
+      overflow: auto;
+      color: var(--text);
+      background: var(--code);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      line-height: 1.48;
+    }
+
+    main {
+      width: min(1240px, calc(100% - 32px));
+      margin: 0 auto;
+      padding: 34px 0 80px;
+    }
+
+    .hero {
+      position: relative;
+      padding: clamp(24px, 5vw, 48px);
+      overflow: hidden;
+      background: linear-gradient(135deg, rgba(49, 36, 18, .95), rgba(24, 31, 36, .96) 54%, rgba(14, 18, 21, .98));
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      box-shadow: var(--shadow);
+    }
+
+    .hero::after {
+      position: absolute;
+      right: -60px;
+      bottom: -110px;
+      width: 320px;
+      height: 320px;
+      content: "";
+      border: 1px solid rgba(217, 163, 79, .22);
+      border-radius: 50%;
+      box-shadow: 0 0 0 42px rgba(217, 163, 79, .04), 0 0 0 84px rgba(217, 163, 79, .025);
+      pointer-events: none;
+    }
+
+    .eyebrow {
+      margin: 0 0 8px;
+      color: var(--gold);
+      font-size: .82rem;
+      font-weight: 800;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+    }
+
+    h1, h2, h3, h4 { line-height: 1.2; }
+
+    h1 {
+      max-width: 980px;
+      margin: 0;
+      font-size: clamp(2.15rem, 6vw, 4.25rem);
+      letter-spacing: -.045em;
+    }
+
+    h2 {
+      margin: 52px 0 0;
+      padding: 18px 0 10px;
+      border-bottom: 1px solid var(--line);
+      font-size: clamp(1.45rem, 3vw, 2rem);
+      letter-spacing: -.02em;
+    }
+
+    h3 { margin: 28px 0 0; font-size: 1.15rem; }
+    h4 { margin: 18px 0 0; font-size: 1rem; }
+    p { margin: 10px 0 0; }
+
+    ul, ol {
+      margin: 12px 0 0;
+      padding-left: 1.35rem;
+    }
+
+    li + li { margin-top: 6px; }
+
+    .lead {
+      max-width: 980px;
+      margin-top: 18px;
+      color: var(--muted);
+      font-size: 1.13rem;
+    }
+
+    .chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 9px;
+      margin-top: 20px;
+    }
+
+    .chip {
+      padding: 5px 11px;
+      color: #ffe4b8;
+      background: rgba(78, 55, 22, .52);
+      border: 1px solid #755429;
+      border-radius: 999px;
+      font-size: .9rem;
+    }
+
+    .hero-meta {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+      margin-top: 28px;
+    }
+
+    .hero-meta div,
+    .card,
+    .callout,
+    .gate,
+    .decision {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+    }
+
+    .hero-meta div { padding: 14px; background: rgba(20, 25, 29, .76); }
+    .hero-meta strong { display: block; color: var(--gold); font-size: 1.12rem; }
+    .hero-meta span { display: block; margin-top: 2px; color: var(--muted); font-size: .86rem; }
+
+    .toc {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      display: flex;
+      gap: 6px;
+      margin-top: 18px;
+      padding: 10px;
+      overflow-x: auto;
+      background: color-mix(in srgb, var(--bg) 88%, transparent);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      backdrop-filter: blur(12px);
+    }
+
+    .toc a {
+      flex: 0 0 auto;
+      padding: 7px 10px;
+      color: var(--muted);
+      text-decoration: none;
+      border-radius: 8px;
+      font-size: .86rem;
+    }
+
+    .toc a:hover { color: var(--text); background: var(--panel-2); }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+      margin-top: 16px;
+    }
+
+    .grid.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .card { padding: 18px; }
+    section { min-width: 0; scroll-margin-top: 72px; }
+    .card, .node, .gate > div, .decision > * { min-width: 0; }
+    .card h3, .card h4 { margin-top: 0; }
+    .card p { color: var(--muted); }
+    .metric { color: var(--gold); font-size: 1.75rem; font-weight: 800; }
+    .metric-label { color: var(--muted); font-size: .88rem; }
+
+    .callout {
+      margin-top: 18px;
+      padding: 18px;
+      border-left: 4px solid var(--blue);
+    }
+
+    .callout.warn { border-left-color: var(--yellow); }
+    .callout.danger { border-left-color: var(--red); }
+    .callout.success { border-left-color: var(--green); }
+    .callout h3 { margin: 0; }
+
+    .good { color: var(--green); }
+    .warn-text { color: var(--yellow); }
+    .bad { color: var(--red); }
+    .muted { color: var(--muted); }
+
+    .table-wrap {
+      width: 100%;
+      max-width: 100%;
+      margin-top: 16px;
+      overflow-x: auto;
+      border: 1px solid var(--line);
+      border-radius: 13px;
+    }
+
+    table {
+      width: 100%;
+      min-width: 760px;
+      border-collapse: collapse;
+      background: var(--panel);
+    }
+
+    th, td {
+      padding: 11px 13px;
+      text-align: left;
+      vertical-align: top;
+      border-bottom: 1px solid var(--line);
+    }
+
+    th {
+      color: var(--text);
+      background: var(--panel-2);
+      font-size: .83rem;
+      letter-spacing: .04em;
+      text-transform: uppercase;
+    }
+
+    tr:last-child td { border-bottom: 0; }
+
+    .flow {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 10px;
+      margin-top: 18px;
+      align-items: stretch;
+    }
+
+    .flow .node {
+      position: relative;
+      min-height: 102px;
+      padding: 14px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+    }
+
+    .flow .node:not(:last-child)::after {
+      position: absolute;
+      top: 50%;
+      right: -10px;
+      z-index: 2;
+      content: "→";
+      color: var(--gold);
+      font-weight: 900;
+      transform: translate(50%, -50%);
+    }
+
+    .node strong { display: block; }
+    .node small { display: block; margin-top: 6px; color: var(--muted); }
+
+    .phase-list { display: grid; gap: 12px; margin-top: 16px; }
+
+    .gate {
+      display: grid;
+      grid-template-columns: 92px 1fr;
+      gap: 16px;
+      padding: 18px;
+    }
+
+    .gate-id {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 8px;
+      color: var(--gold);
+      font-size: 1.15rem;
+      font-weight: 850;
+    }
+
+    .gate h3 { margin: 0; }
+    .gate p { color: var(--muted); }
+    .gate.auto-gate { border-left: 4px solid var(--good); }
+    .gate.manual-gate { border-left: 4px solid var(--warn); }
+    .gate-mode {
+      display: inline-flex;
+      max-width: 100%;
+      padding: 4px 8px;
+      border: 1px solid currentColor;
+      border-radius: 999px;
+      font-size: .67rem;
+      font-weight: 800;
+      line-height: 1.25;
+      letter-spacing: .035em;
+      text-transform: uppercase;
+    }
+    .gate-mode.auto { color: var(--good); background: color-mix(in srgb, var(--good) 10%, transparent); }
+    .gate-mode.manual { color: var(--warn); background: color-mix(in srgb, var(--warn) 10%, transparent); }
+    .gate-legend { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; margin: 14px 0 4px; }
+    .gate-legend > span { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); }
+    .gate-proof { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--line); }
+
+    .decision-list { display: grid; gap: 10px; margin-top: 16px; }
+
+    .decision {
+      display: grid;
+      grid-template-columns: 180px 1fr;
+      gap: 14px;
+      padding: 15px;
+    }
+
+    .decision strong { color: var(--gold); }
+
+    .sequence {
+      margin-top: 18px;
+      padding: 0;
+      list-style: none;
+      counter-reset: sequence;
+    }
+
+    .sequence li {
+      position: relative;
+      margin: 0 0 10px 30px;
+      padding: 13px 15px 13px 20px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 11px;
+      counter-increment: sequence;
+    }
+
+    .sequence li::before {
+      position: absolute;
+      top: 50%;
+      left: -30px;
+      display: grid;
+      width: 38px;
+      height: 38px;
+      content: counter(sequence);
+      place-items: center;
+      color: #17120a;
+      background: var(--gold);
+      border-radius: 50%;
+      font-weight: 900;
+      transform: translateY(-50%);
+    }
+
+    .checks { padding-left: 0; list-style: none; }
+    .checks li { position: relative; padding-left: 26px; }
+    .checks li::before { position: absolute; left: 0; content: "✓"; color: var(--green); font-weight: 900; }
+
+    .risk { color: var(--red); font-weight: 750; }
+    .owner { color: var(--blue); font-weight: 750; }
+
+    footer {
+      margin-top: 54px;
+      padding-top: 20px;
+      color: var(--muted);
+      text-align: center;
+      border-top: 1px solid var(--line);
+    }
+
+    @media (max-width: 900px) {
+      .hero-meta, .grid, .grid.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .flow { grid-template-columns: 1fr; }
+      .flow .node:not(:last-child)::after { top: auto; right: 50%; bottom: -13px; transform: translate(50%, 50%) rotate(90deg); }
+    }
+
+    @media (max-width: 620px) {
+      main { width: min(100% - 20px, 1240px); padding-top: 10px; }
+      .hero { border-radius: 14px; }
+      .hero-meta, .grid, .grid.two { grid-template-columns: 1fr; }
+      .gate, .decision { grid-template-columns: 1fr; }
+      .toc { top: 4px; }
+      th, td { padding: 9px 10px; }
+    }
+
+    @media print {
+      body { background: #fff; }
+      main { width: 100%; padding: 0; }
+      .hero, .card, .callout, .gate, .decision, table, .node { box-shadow: none; break-inside: avoid; }
+      .toc { display: none; }
+      a { color: inherit; }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <header class="hero" id="top">
+    <p class="eyebrow">Research- und Implementierungsentwurf · Phase 22</p>
+    <h1>Reliability zuerst, dann Hammerdin</h1>
+    <p class="lead">
+      Dieser Entwurf verbindet vier priorisierte Verbesserungen: deterministisches Runtime Trace Replay, eine regressionsarme
+      Zerlegung der 2.547-zeiligen Standard-Run-Pipeline, eine engere Input-Sicherheitsgrenze und das erste produktive
+      Paladin-Profil <strong>Hammerdin</strong> für Mephisto. Er dokumentiert die getroffenen Produktentscheidungen,
+      ordnet Research-Gates vor Implementierung ein und definiert eine lokale Releasevalidierung ohne GitHub Actions.
+    </p>
+    <div class="chips" aria-label="Schwerpunkte">
+      <span class="chip">Offline / Singleplayer</span>
+      <span class="chip">Verhalten erhalten</span>
+      <span class="chip">Fail-closed Input</span>
+      <span class="chip">Paladin / Blessed Hammer</span>
+      <span class="chip">Lokale Releasepipeline</span>
+      <span class="chip">Zielrelease v0.20.0</span>
+    </div>
+    <div class="hero-meta">
+      <div><strong>Stand</strong><span>14. August 2026</span></div>
+      <div><strong>Status</strong><span>entscheidungsreif, noch nicht implementiert</span></div>
+      <div><strong>Erster Run</strong><span>Mephisto</span></div>
+      <div><strong>Stage D</strong><span>bewusst bedingt zurückgestellt</span></div>
+    </div>
+  </header>
+
+  <nav class="toc" aria-label="Inhaltsübersicht">
+    <a href="#entscheidung">Entscheidung</a>
+    <a href="#ist">Ist-Zustand</a>
+    <a href="#replay">Runtime Replay</a>
+    <a href="#pipeline">Pipeline A–D</a>
+    <a href="#input">Input</a>
+    <a href="#hammerdin">Hammerdin</a>
+    <a href="#cta">CTA</a>
+    <a href="#combat">Combat</a>
+    <a href="#ui">UI</a>
+    <a href="#validierung">Validierung</a>
+    <a href="#gates">Gates</a>
+    <a href="#risiken">Risiken</a>
+  </nav>
+
+  <section id="entscheidung">
+    <h2>1. Executive Decision</h2>
+    <div class="callout success">
+      <h3>Empfohlene Reihenfolge</h3>
+      <p>
+        Zuerst wird ein echter fehlgeschlagener D2R-Run als versionierter Runtime Trace reproduzierbar gemacht. Ergänzend
+        friert ein kleiner Pipeline-Characterization-Test ausgewählte Übergänge als Golden Traces ein. Danach folgen
+        ausschließlich die risikoarmen Pipeline-Stages A bis C. Auf dieser stabileren Basis werden slotbewusste
+        Skill-Auswahl, Weapon-Swap-Evidenz und das Hammerdin-Profil für Mephisto ergänzt. Stage D bleibt eine spätere,
+        optionale Vereinfachung und ist weder Phase-22-Abnahmekriterium noch Voraussetzung für Hammerdin.
+      </p>
+    </div>
+
+    <div class="decision-list">
+      <div class="decision"><strong>Pipeline</strong><span>Keine Big-Bang-Neuschreibung. Erst charakterisieren, dann mechanisch trennen, anschließend Zustandsbesitz verkleinern.</span></div>
+      <div class="decision"><strong>Input</strong><span>Produktiv weiterhin <code>SendInput</code> im bestätigten Vordergrund. HWND-/Hintergrundinput bleibt nur Backlog-Idee.</span></div>
+      <div class="decision"><strong>CTA</strong><span>Operatorvertrag statt Runenwort-Erkennung: CTA muss bei aktivierten Bindings in Waffenset II liegen. Der Bot bestätigt Slot und ausgewählten Skill.</span></div>
+      <div class="decision"><strong>Hammerdin</strong><span>Blessed Hammer auf LMB; Concentration und Teleport auf RMB; Hammer-Casts ausschließlich als bestätigtes <code>Shift + LMB</code>.</span></div>
+      <div class="decision"><strong>Mercenary</strong><span>Merc ist Voraussetzung. Insight, Ausrüstung und Buildqualität bleiben vollständig Verantwortung des Spielers.</span></div>
+      <div class="decision"><strong>Tests</strong><span>Pro abgeschlossener Änderung einmal die kleinste relevante Prüfung. Die vollständige Suite läuft einmal beim expliziten lokalen Release.</span></div>
+    </div>
+
+    <h3>Phase 22 umfasst</h3>
+    <ul>
+      <li>Deterministische Runtime-Trace-Aufzeichnung realer Runs und headless Replay ohne D2R, Prozess-Attach oder OS-Input.</li>
+      <li>Kleine Pipeline-Characterization-Fixtures mit Golden Traces für gezielte Refactor-Regressionen.</li>
+      <li>Pipeline-Zerlegung Stages A–C mit unveränderten Step-Namen, Reason-Codes, Reihenfolgen, Timings und Input-Gates.</li>
+      <li>Frische, fail-closed Weapon-Slot-Evidenz sowie ein gemeinsamer linker/rechter Skill-Selector.</li>
+      <li>Paladin-Profil <code>paladin_hammerdin</code>, Charakter-Setup und UI-Bindings.</li>
+      <li>Optionaler CTA-Prebuff, Holy Shield und ein zunächst enger Mephisto-Combat.</li>
+      <li>Dokumentation, Telemetrie, gezielte Tests und einmalige lokale Releaseabnahme.</li>
+    </ul>
+
+    <h3>Nicht Teil von Phase 22</h3>
+    <ul>
+      <li>Countess-, Cow- oder Nihlathak-Unterstützung für Hammerdin.</li>
+      <li>Cleansing gegen Nihlathak und weitere Aura-Automation.</li>
+      <li>Runenwort-, Insight- oder vollständige Equipment-Erkennung.</li>
+      <li>Hintergrundbetrieb, direkte <code>WM_*</code>-Nachrichten oder automatischer Input-Backend-Fallback.</li>
+      <li>Eine universelle Buff-DSL oder ein generisches Build-Scripting-System.</li>
+      <li>Stage D als verpflichtender Tabellen-/Graphumbau.</li>
+    </ul>
+  </section>
+
+  <section id="ist">
+    <h2>2. Technischer Ist-Zustand und Problemkern</h2>
+    <div class="grid">
+      <article class="card"><div class="metric">2.547</div><div class="metric-label">Zeilen in <code>internal/tasks/run_pipeline.go</code></div></article>
+      <article class="card"><div class="metric">27</div><div class="metric-label">stabile Pipeline-Step-Konstanten inklusive <code>complete</code></div></article>
+      <article class="card"><div class="metric">6</div><div class="metric-label">Ablaufvarianten: Full Run plus fünf isolierte Phasenpfade</div></article>
+      <article class="card"><div class="metric">15</div><div class="metric-label">Testdateien im Paket <code>internal/tasks</code></div></article>
+      <article class="card"><div class="metric">5.661</div><div class="metric-label">bestehende Testzeilen im Paket <code>internal/tasks</code></div></article>
+      <article class="card"><div class="metric">1</div><div class="metric-label">produktives Combat-Profil: <code>necro_bone_spear</code></div></article>
+    </div>
+
+    <p>
+      Die Dateigröße ist nicht allein das Problem. Kritisch ist, dass dieselbe Struktur gleichzeitig
+      Übergangstopologie, langlebigen Zustand, Travel, Route-Combat, Boss-Pinning, Nihlathak-Sonderfälle,
+      Post-Boss-Cleanup, Loot, Recovery, Portalrückkehr und Town-Normalisierung besitzt. Eine lokale Änderung kann
+      dadurch unbeabsichtigt andere Routen oder isolierte Phasen beeinflussen.
+    </p>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Verantwortung</th><th>Heute</th><th>Problem</th><th>Ziel</th></tr></thead>
+        <tbody>
+          <tr><td>Übergänge</td><td><code>nextStep</code> kennt alle Phasen und dynamische Abzweigungen.</td><td>Jede neue Variante erweitert einen zentralen Switch.</td><td>Unveränderte Topologie in eigenem Modul; Stage D nur bei erwiesenem Nutzen.</td></tr>
+          <tr><td>Zustand</td><td>Dutzende Felder direkt auf <code>runPipeline</code>.</td><td>Reset- und Ownership-Grenzen sind schwer sichtbar.</td><td>Benannte, fachliche State-Gruppen mit zentraler Generation-Barriere.</td></tr>
+          <tr><td>Tick-Dispatch</td><td>Ein zentraler Dispatcher plus große Domain-Handler.</td><td>Abhängigkeiten und Input-Eigentümer sind breit.</td><td>Travel, Boss, Loot, Return und Route als enge interne Komponenten.</td></tr>
+          <tr><td>Reale Fehler</td><td>Run-Telemetrie erklärt Ergebnisse, kann die Task-Entscheidungen aber nicht erneut ausführen.</td><td>Fehler lassen sich ohne laufendes D2R nicht exakt reproduzieren.</td><td>Versionierter Runtime Trace plus headless Replayer mit Fake Clock und Input-Intent-Recorder.</td></tr>
+          <tr><td>Refactor-Regressionen</td><td>Viele Unit-Tests, aber kein kompakter Übergangs- und Intent-Trace.</td><td>Mechanische Refactors können über mehrere Schritte driften.</td><td>Separater tabellengetriebener Characterization-Test mit stabilen Golden Traces.</td></tr>
+          <tr><td>Bindings</td><td>Operator speichert F-Tasten; Runtime löst Skills derzeit pauschal als RMB auf.</td><td>Blessed Hammer muss verbindlich LMB verwenden.</td><td>Profilautorisierte Slotrolle, ohne zusätzliche Mauswahl durch den Operator.</td></tr>
+          <tr><td>Weapon Swap</td><td>Kein autoritatives World-Feld.</td><td>CTA-Rückwechsel wäre unbestätigt.</td><td><code>ActiveWeaponSet</code> mit explizitem <code>Available</code>; niemals Fehler als Primärslot deuten.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="callout warn">
+      <h3>Warum Hammerdin nicht direkt in die heutige Pipeline gepresst werden sollte</h3>
+      <p>
+        Hammerdin benötigt keinen neuen Run-Graph, aber neue Profilfähigkeiten: linke Skill-Selektion, atomaren
+        Stand-still-Cast, Weapon-Swap-Bestätigung und eine mehrstufige Prebuff-Sequenz. Diese Verantwortungen gehören
+        in Profil-, App- und Input-Grenzen. Würden sie als weitere Sonderfälle in <code>run_pipeline.go</code> landen,
+        würde das genau die Kopplung verstärken, die Phase 22 reduzieren soll.
+      </p>
+    </div>
+  </section>
+
+  <section id="replay">
+    <h2>3. Phase 22: Deterministic Runtime Trace Replay</h2>
+    <div class="callout success">
+      <h3>Ziel</h3>
+      <p>
+        Ein kontrolliert ausgelöster terminaler Fehler in einem echten Offline-D2R-Run wird lokal aufgezeichnet und anschließend
+        ohne laufendes D2R bis zum identischen Step, Input-Intent und Reason-Code reproduziert. Der Replayer führt die vollständige produktive Entscheidungspipeline
+        aus, ersetzt aber Uhr, Prozess, Memory Reader, Windows-Fenster und sämtliche OS-Eingaben durch Daten aus dem Trace
+        beziehungsweise einen reinen Intent-Recorder.
+      </p>
+    </div>
+
+    <h3>Warum dies die wertvollste Engineering-Verbesserung der Phase 22 ist</h3>
+    <p>
+      Die vorhandenen Tests erreichen bereits gute Paketabdeckung. Zum Zeitpunkt der ursprünglichen Repo-Analyse lag
+      sie ungefähr bei <strong>79&nbsp;% für <code>tasks</code></strong>, <strong>77&nbsp;% für <code>pathing</code></strong>
+      und <strong>79&nbsp;% für <code>memory</code></strong>. Diese Zahlen sind eine damalige Bestandsaufnahme und kein
+      festgeschriebener aktueller Qualitätswert. Der Großteil der Tests konstruiert jedoch einzelne Zustände oder enge
+      Paketsituationen. Gute Line-Coverage beweist deshalb nicht, dass eine über viele Ticks laufende Interaktion korrekt
+      bleibt.
+    </p>
+    <p>
+      Die zuletzt aufgetretenen schwierigen Fehler waren überwiegend <strong>zeitliche Integrationsfehler</strong>:
+      Jeder einzelne Snapshot konnte plausibel sein, während ihre Reihenfolge, ein dazwischenliegender Input oder ein
+      verlorenes Gate den Gesamtfluss beschädigte. Genau diese Fehlerklasse ist mit Single-State-Unit-Tests schwer
+      dauerhaft abzudecken. Gleichzeitig bündelt die zentrale
+      <a href="internal/tasks/run_pipeline.go">Standardpipeline</a> ungefähr 2.500 Zeilen und zahlreiche über mehrere
+      Ticks persistierende Zustände. Ein reproduzierbarer realer Zeitverlauf besitzt deshalb mehr Hebel als weitere
+      isolierte Testfälle derselben Art.
+    </p>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Beobachtete Fehlerklasse</th><th>Warum ein Einzelzustand nicht genügt</th></tr></thead>
+        <tbody>
+          <tr><td>Right-Skill-Auswahl wird von Teleport verdrängt</td><td>Der Fehler entsteht aus zwei konkurrierenden Select-/Confirm-Sequenzen über mehrere Ticks.</td></tr>
+          <tr><td>Nihlathak-Targeting und Hover-Autorisierung</td><td>Boss-Pin, Position, überlagerndes Monster und Cursor-Evidenz verändern sich zeitlich.</td></tr>
+          <tr><td>Cow-Combat ohne objektiven Fortschritt</td><td>Retarget, Approach, Kill-/Corpse-Coverage und Watchdog müssen als Folge bewertet werden.</td></tr>
+          <tr><td>Loot-Pickup-Recovery nach <code>too_far</code></td><td>Itemidentität, Reposition, Snapshot-Frische und einmaliges Recovery-Budget greifen nacheinander.</td></tr>
+          <tr><td>Route-Points settle ohne Positionsfortschritt</td><td>Ein erfolgreicher Input ist nicht automatisch objektiver Fortschritt im folgenden Snapshot.</td></tr>
+          <tr><td>Town Preparation startet am falschen Anchor</td><td>Vorherige Area-/Portal-/Town-Übergänge bestimmen, welcher Startknoten autorisiert ist.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="callout">
+      <h3>Erwarteter Nutzen</h3>
+      <p>
+        Ein schwer reproduzierbarer Live-Fehler wird einmal mit seinem interpretierten Zeitverlauf aufgezeichnet,
+        headless reproduziert und nach dem Fix als minimiertes permanentes Regression-Fixture eingecheckt. Dadurch wird
+        die reale Fehlerhistorie des Bots schrittweise zu einem ausführbaren Schutznetz, ohne D2R für jeden Testlauf zu
+        starten.
+      </p>
+    </div>
+
+    <h3>Warum die bestehende JSONL-Telemetrie nicht genügt</h3>
+    <p>
+      Run-Telemetrie dokumentiert ausgewählte Übergänge und Ergebnisse, enthält aber nicht alle World-Zustände und
+      Dependency-Antworten, die zu einer Entscheidung geführt haben. Sie kann einen Fehler erklären, aber nicht die
+      Pipeline erneut ausführen. Runtime Trace ist deshalb ein eigener Diagnosevertrag und kein anderer Name für
+      Telemetrie.
+    </p>
+
+    <div class="flow" aria-label="Runtime-Trace-Datenfluss">
+      <div class="node"><strong>Echter D2R-Run</strong><small>produktive World-Frames, Config und Dependency-Ergebnisse</small></div>
+      <div class="node"><strong>Trace Recorder</strong><small>versioniert, normalisiert, lokal und größenbegrenzt</small></div>
+      <div class="node"><strong>Trace Bundle</strong><small>komprimierte Frames, Zeitachse, Intents und Ergebnis</small></div>
+      <div class="node"><strong>Headless Replay</strong><small>Fake Clock, Fake Deps, garantiert kein OS-Input</small></div>
+      <div class="node"><strong>Divergence Report</strong><small>erste abweichende Entscheidung mit Kontext</small></div>
+    </div>
+
+    <h3>Versioniertes Trace-Bundle</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Inhalt</th><th>Warum erforderlich</th><th>Bewusste Grenze</th></tr></thead>
+        <tbody>
+          <tr><td>Schemaversion, Bot-Version und Commit</td><td>Decoder- und Verhaltenskompatibilität eindeutig prüfen</td><td>Unbekannte Major-Schemaversion fail-closed ablehnen</td></tr>
+          <tr><td>RunDefinition, Phase und immutable Profil-/Loadout-Snapshots</td><td>Exakt dieselben Produktverträge wiederherstellen</td><td>Keine lokalen Secrets oder Control-Tokens</td></tr>
+          <tr><td>Route-/Policy-Identität und Revisionen</td><td>Entscheidungen an dieselbe Konfiguration binden</td><td>Nur benötigte Inhalte einbetten oder per Hash pinnen</td></tr>
+          <tr><td>Monotone Tickzeit und Snapshot-Generation</td><td>Timeouts, Settle und Cooldowns deterministisch ausführen</td><td>Keine echte Wall Clock im Replayer</td></tr>
+          <tr><td>Normalisierte entscheidungsrelevante World-Frames</td><td>Game-Phase, Area, Playerposition/-ressourcen, UI-/Fokus-/Input-Gates, relevante Entity-Identitäten/-positionen und Route Progress erneut einspeisen</td><td>Ausschließlich interpretierte Daten; keine Prozesspointer, Memory Dumps, Raw-Memory-Adressen oder Save-Daten</td></tr>
+          <tr><td>Ergebnisse nicht rein ableitbarer Deps-Aufrufe</td><td>Route-, Town-, Loot- und Input-Rückgaben reproduzieren</td><td>Jeder unerwartete zusätzliche Aufruf erzeugt Divergence</td></tr>
+          <tr><td>Step vor/nach dem Tick sowie angeforderte Aktion und Ergebnis</td><td>Identische State-Machine- und Input-Intent-Folge verifizieren</td><td>Keine echten Tastatur-/Mausereignisse aufzeichnen oder automatisch wiedergeben</td></tr>
+          <tr><td>Terminaler Outcome und Reason-Code</td><td>Reproduktion des realen Fehlers beweisen</td><td>Logtexte sind nicht Teil der Determinismusgarantie</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Initiale Runtime-Failure-Matrix</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Szenario</th><th>Zu reproduzierender Vertrag</th></tr></thead>
+        <tbody>
+          <tr><td>Stale/inkonsistenter Snapshot während laufender Skillauswahl</td><td>Pending Selection bleibt sicher oder endet kontrolliert; kein Cast mit unbestätigtem Skill.</td></tr>
+          <tr><td>Fokusverlust zwischen Cursorbewegung und Klick</td><td>Der Klick wird widerrufen; keine Aktion geht an ein anderes Fenster.</td></tr>
+          <tr><td>UI öffnet sich bei pending Route Movement</td><td>Movement-Intent wird vor dem Folgeinput blockiert und nicht blind fortgesetzt.</td></tr>
+          <tr><td>Boss verschwindet oder ändert Position</td><td>UnitID-Pin, frische Position und begrenzte Search-/Reposition-Regeln bleiben konsistent.</td></tr>
+          <tr><td>Item verschwindet während Pickup-Recovery</td><td>Die alte UnitID wird nicht weiter angeklickt; Recovery erzeugt keinen Doppelinput.</td></tr>
+          <tr><td>Mercenary <code>alive → dead</code></td><td>Resource- und Profilentscheidungen reagieren genau am bestätigten Zustandswechsel.</td></tr>
+          <tr><td>Process Detachment</td><td>Unbind → Task Reset → World Reset; danach kein verzögerter Gameplay-Input.</td></tr>
+          <tr><td>Route No-progress → Correction → Budget Exhaustion</td><td>Endliche Korrekturfolge und derselbe terminale Reason-Code.</td></tr>
+          <tr><td>Emergency Stop in jeder Multi-Tick-Interaktion</td><td>Pending Skill, Movement, Pickup, Portal, Town und Buff verwerfen Zustand ohne Folgeinput.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Opt-in-Aufzeichnung und Retention</h3>
+    <ul>
+      <li>Runtime-Trace-Aufzeichnung ist ein expliziter Diagnosemodus und standardmäßig deaktiviert.</li>
+      <li>Der Recorder beobachtet die bereits erzeugten World-Snapshots und semantischen Dependency-Aufrufe; er steuert den Run nicht.</li>
+      <li>Nur bei aktiviertem Diagnosemodus hält ein begrenzter Ringpuffer detaillierte Frames der jüngsten Laufphase.</li>
+      <li>Step-Wechsel und kompakte Checkpoints seit Runbeginn bleiben erhalten, damit langlaufende Fehler Kontext besitzen.</li>
+      <li>Bei terminalem Fehler wird der Puffer nur im aktivierten Diagnosemodus atomar unter <code>diagnostics/runtime-traces/</code> als komprimiertes Bundle persistiert.</li>
+      <li>Erfolgreiche Runs werden normalerweise verworfen; ein zusätzliches bewusstes Capture-Flag darf einen vollständigen Erfolgstrace speichern.</li>
+      <li>Anzahl und Gesamtgröße sind endlich; Retention löscht ausschließlich alte Trace-Bundles im eigenen Diagnoseverzeichnis.</li>
+      <li>Traces bleiben lokal und werden weder automatisch hochgeladen noch an die normale History-API angehängt.</li>
+    </ul>
+
+    <h3>Headless-Replayer</h3>
+    <pre><code>.\d2rbot.exe --replay-runtime-trace `
+  diagnostics\runtime-traces\mephisto-failed.trace.gz</code></pre>
+    <ul>
+      <li>Kein Prozess-Attach, kein Versionsscan, kein Window-Binding und keine globalen Hotkeys.</li>
+      <li><code>input.enabled</code> wird nicht ausgewertet, weil der Replay-Adapter grundsätzlich keine OS-Sender besitzt.</li>
+      <li>Die Uhr stammt ausschließlich aus den aufgezeichneten monotonen Tickabständen.</li>
+      <li>Dependency-Aufrufe müssen in Art, Reihenfolge und autorisierender UnitID zum Bundle passen.</li>
+      <li>Die erste Abweichung beendet den Replay mit Step, Tick, erwartetem und tatsächlichem Intent sowie relevantem State-Kontext.</li>
+      <li>Exakter Replay-Erfolg verlangt denselben terminalen Step, Outcome und Reason-Code wie der reale Lauf.</li>
+    </ul>
+
+    <h4>Beispiel für eine Abweichung</h4>
+    <pre><code>Replay divergence at tick 184, step engage_boss
+
+Recorded: intent=cast_bone_spear target_unit_id=431
+Current:  intent=reposition       target_unit_id=431
+Reason:   target_out_of_range</code></pre>
+
+    <div class="callout warn">
+      <h3>Wichtige Simulationsgrenze</h3>
+      <p>
+        Der Trace reproduziert Botentscheidungen, nicht eine alternative Reaktion von D2R. Entscheidet ein Fix an Tick
+        184 erstmals anders, stammen spätere Frames weiterhin aus dem ursprünglichen Lauf. Der Divergence Report zeigt,
+        dass der Fehlerpfad verlassen wurde; ob die neue Aktion im Spiel erfolgreich ist, bestätigt anschließend ein
+        gezielter Live-Lauf. Runtime Replay ersetzt keine finale Gameplay-Abnahme.
+      </p>
+    </div>
+
+    <h3>Verbindliches Phase-22-Integrationsgate</h3>
+    <p>
+      Die Phase wartet nicht auf einen zufällig auftretenden Produktfehler. Für die Abnahme löst der Operator in einem echten,
+      opt-in aufgezeichneten Offline-Run kontrolliert ein vorhandenes Fail-closed-Verhalten aus – bevorzugt Fokusverlust während
+      einer anstehenden Input-Transaktion, ersatzweise Process Detachment. Der daraus entstehende terminale Trace muss headless
+      identisch replayen und anschließend zu einem kleinen, bereinigten Integrations-Fixture minimiert werden. Dafür wird kein
+      künstlicher Produktionsfehler und kein spezieller Input-Bypass eingebaut.
+    </p>
+
+    <h3>Organischen Live-Fehler zum permanenten Regressionstest promoten</h3>
+    <p class="muted">
+      Dieser Prozess bleibt für den ersten später natürlich auftretenden Fehler verbindlich, blockiert aber das Zielrelease
+      <code>v0.20.0</code> nicht. Er beweist dann zusätzlich, dass Recorder und Replay bei einer zuvor unbekannten realen
+      Fehlerursache den beabsichtigten Engineering-Nutzen liefern.
+    </p>
+    <ol class="sequence">
+      <li>Operator aktiviert den Diagnosemodus für einen gezielten Offline-Lauf.</li>
+      <li>Der reale Fehler persistiert ein lokales, versioniertes Runtime-Trace-Bundle.</li>
+      <li>Der Headless-Replayer reproduziert denselben Step, Intent, Outcome und Reason-Code.</li>
+      <li>Die Codekorrektur wird gegen genau diesen Trace entwickelt; der erste Divergence Point zeigt den verlassenen Fehlerpfad.</li>
+      <li>Ein gezielter D2R-Live-Lauf bestätigt die neue Spielreaktion.</li>
+      <li>Der relevante Trace wird minimiert, von lokaler Identität bereinigt und als kleines Regression-Fixture eingecheckt.</li>
+    </ol>
+
+    <h3>Separates Werkzeug: Pipeline Characterization Replay</h3>
+    <p>
+      Zusätzlich zum echten Runtime Replay erhält die Pipeline einen kleinen tabellengetriebenen Charakterisierungstest.
+      Er verwendet handverlesene, reviewbare Fixtures und schützt gezielt mechanische Refactors. Er ist schneller und
+      kleiner, kann aber keinen unbekannten realen Fehler aufzeichnen oder reproduzieren.
+    </p>
+
+    <div class="flow" aria-label="Characterization-Replay-Datenfluss">
+      <div class="node"><strong>Scenario</strong><small>RunDefinition, Phase, Startzustand und feste Zeitachse</small></div>
+      <div class="node"><strong>World Frames</strong><small>kleine synthetische oder aus Traces minimierte Fixtures</small></div>
+      <div class="node"><strong>Pipeline</strong><small>derselbe produktive Step-/Tick-Vertrag</small></div>
+      <div class="node"><strong>Intent Recorder</strong><small>keine OS-Eingaben; nur semantische Aktionen</small></div>
+      <div class="node"><strong>Golden Trace</strong><small>Steps, Inputs, Resultat und Reason-Codes</small></div>
+    </div>
+
+    <h4>Minimale Characterization-Matrix</h4>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Szenario</th><th>Schützt</th><th>Erwarteter Trace-Schwerpunkt</th></tr></thead>
+        <tbody>
+          <tr><td>Countess Erfolg</td><td>Standardfluss und Act-1-Rückkehr</td><td>Travel → Route → Boss → Loot → Portal → Stash → Town-Handoff</td></tr>
+          <tr><td>Mephisto Erfolg</td><td>Fremdakt und Town-Normalisierung</td><td>Act 3 → Portal → Egress → Waypoint → Act 1</td></tr>
+          <tr><td>Summoner Route-Clear</td><td>Threat-Hold, Mana und Resume</td><td>Kein Movement während autorisiertem Combat-Hold</td></tr>
+          <tr><td>Nihlathak Cleanup</td><td>Boss-Pin und Sonderradius</td><td>Killbestätigung bleibt an ursprünglicher UnitID</td></tr>
+          <tr><td>Loot ohne Ziel</td><td>Dynamische Abzweigung</td><td><code>scan_loot</code> überspringt <code>pick_loot</code></td></tr>
+          <tr><td>Portal-Recovery</td><td>Einmaliges Recovery-Budget</td><td>Kein doppelter Eintritts- oder Teleport-Input</td></tr>
+          <tr><td>Retry Return</td><td>Input-minimaler Rückweg</td><td>Kein Stash-/Town-Preparation-Seiteneffekt</td></tr>
+          <tr><td>Fail-closed Snapshot</td><td>Inkonsistente Reads</td><td>Warten oder stabiler Fehler, niemals Produktivinput</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <pre><code>type PipelineTraceEntry struct {
+    Tick       int
+    Step       string
+    Event      string // entered | completed | failed | input_intent
+    Intent     string
+    UnitID     uint32
+    Outcome    RunOutcome
+    Reason     string
+}</code></pre>
+
+    <div class="callout">
+      <h3>Testökonomie</h3>
+      <p>
+        Runtime Replay ist ein gezieltes Diagnosewerkzeug für einen konkreten Trace. Characterization ist ein einzelner
+        tabellengetriebener Refactor-Test. Bei einer Pipeline-Stage laufen einmal der betroffene Golden-Trace-Test und
+        unmittelbar betroffene Pakettests – nicht automatisch die Gesamtsuite.
+      </p>
+    </div>
+  </section>
+
+  <section id="pipeline">
+    <h2>4. Die 2.547-Zeilen-Pipeline: Stages A bis D</h2>
+
+    <div class="phase-list">
+      <article class="gate">
+        <div class="gate-id">Stage A</div>
+        <div>
+          <h3>Verhalten inventarisieren und einfrieren</h3>
+          <p>Keine produktive Logik ändern. Nach funktionsfähigem Runtime Replay Zustandsfelder, Reset-Besitz, dynamische Übergänge, Input-Eigentümer und Reason-Codes katalogisieren; Characterization-Fixtures anlegen.</p>
+          <ul>
+            <li>Alle Step-Konstanten und Phasenvarianten als unveränderlichen Baseline-Vertrag dokumentieren.</li>
+            <li>Jedes persistente Feld genau einer Domäne zuordnen: core, travel, route, boss, loot oder return.</li>
+            <li>Pro Tick maximal einen produktiven Input-Intent als Invariante im Recorder prüfen.</li>
+            <li>Vorher/nachher denselben Golden Trace verlangen.</li>
+          </ul>
+          <p><strong>Abnahme:</strong> Baseline grün; kein Produktionsverhalten und kein UI-Vertrag geändert.</p>
+        </div>
+      </article>
+
+      <article class="gate">
+        <div class="gate-id">Stage B</div>
+        <div>
+          <h3>Mechanische Dateigrenzen ohne neue Abstraktion</h3>
+          <p>Zusammengehörige Methoden bleiben zunächst auf <code>*runPipeline</code>, ziehen aber in fachlich benannte Dateien um. Das minimiert semantisches Risiko und macht Reviews kleiner.</p>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Datei</th><th>Inhalt</th></tr></thead>
+              <tbody>
+                <tr><td><code>pipeline_flow.go</code></td><td>Step-Konstanten, <code>firstStep</code>, <code>nextStep</code>, Timeout-/Phase-Helfer</td></tr>
+                <tr><td><code>pipeline_state.go</code></td><td><code>runPipeline</code>-State, Generation-Reset und Step-Enter-Reset</td></tr>
+                <tr><td><code>pipeline_travel.go</code></td><td>Waypoint, Entry-Area, Route-Playback, Threat-Approach und Route-Loot</td></tr>
+                <tr><td><code>pipeline_boss.go</code></td><td>Boss-Suche, Pinning, Engage, Nihlathak-Aim und Cleanup</td></tr>
+                <tr><td><code>pipeline_loot.go</code></td><td>Drop-Settle, Scan, Pick, Reposition und Pickup-Recovery</td></tr>
+                <tr><td><code>pipeline_return.go</code></td><td>Town Portal, Portal-Recovery, Origin Town, Egress und Stash</td></tr>
+                <tr><td><code>run_pipeline.go</code></td><td>kleiner Dispatcher und Full-/Phase-Orchestrierung</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p><strong>Unverändert:</strong> Signaturen, Aufrufreihenfolge, Zeitkonstanten, Step-Namen, Error Mapping, Telemetrie und Reset-Zeitpunkte.</p>
+        </div>
+      </article>
+
+      <article class="gate">
+        <div class="gate-id">Stage C</div>
+        <div>
+          <h3>Zustandsbesitz und enge interne Komponenten</h3>
+          <p>Erst nach der mechanischen Trennung werden State-Gruppen schrittweise eingeführt. Pro Änderung zieht genau eine Domäne um; die alte Pipeline bleibt Orchestrator.</p>
+          <pre><code>type runPipeline struct {
+    definition RunDefinition
+    phase      string
+
+    core   pipelineCoreState
+    travel pipelineTravelState
+    boss   pipelineBossState
+    loot   pipelineLootState
+    ret    pipelineReturnState
+}
+
+// Komponenten erhalten nur die Dependency-Teilmenge, die ihre Inputs
+// und Reads tatsächlich benötigt. Keine Komponente wechselt selbst den Step.</code></pre>
+          <ul>
+            <li><strong>Orchestrator besitzt:</strong> aktuellen Step, Phase, Definition, Step-Wechsel und terminales Ergebnis.</li>
+            <li><strong>Domänenkomponente besitzt:</strong> nur ihren über mehrere Ticks persistierenden Zustand und Reset.</li>
+            <li><strong>Runner besitzt weiterhin:</strong> Polling, globale Timeouts, Cancellation und zentrale Reset-Barriere.</li>
+            <li><strong>Deps bleiben Interfaces:</strong> keine direkte Memory- oder Windows-Abhängigkeit im Task-Paket.</li>
+          </ul>
+          <p><strong>Stop-Regel:</strong> Sobald ein Umzug neue Reihenfolgen, neue Retries oder neue Fehlerklassifikation erfordern würde, wird er aus Stage C herausgelöst und separat entschieden.</p>
+        </div>
+      </article>
+
+      <article class="gate">
+        <div class="gate-id">Stage D</div>
+        <div>
+          <h3>Bedingte Topologie-Vereinfachung – nicht Phase-22-blockierend</h3>
+          <p>
+            Eine tabellen- oder graphgetriebene Transition-Definition wird nur begonnen, wenn A–C abgeschlossen sind und
+            <code>nextStep</code> danach noch nachweisbar die Wartung behindert. Dynamische Abzweigungen wie Loot-Ziel,
+            Boss-Kill, Return-Origin und isolierte Phasen machen eine vermeintlich elegante Tabelle sonst leicht weniger
+            verständlich als den heutigen expliziten Code.
+          </p>
+          <ul>
+            <li>Alte Übergangsfunktion bleibt während der Entwicklung als Test-Oracle verfügbar.</li>
+            <li>Alter und neuer Resolver werden für dieselben Zustandskombinationen verglichen.</li>
+            <li>Jeweils nur eine Phasenfamilie migrieren.</li>
+            <li>Alten Resolver erst nach vollständiger Parität entfernen.</li>
+          </ul>
+          <p><strong>Entscheidung:</strong> vertagt, nicht verworfen. Hammerdin wartet nicht auf Stage D.</p>
+        </div>
+      </article>
+    </div>
+
+    <h3>Explizite Nicht-Regressions-Invarianten</h3>
+    <div class="grid two">
+      <article class="card"><h4>Transitions</h4><p>Keine neuen oder entfernten Steps; dieselbe Reihenfolge für Full Run und isolierte Phasen.</p></article>
+      <article class="card"><h4>Input</h4><p>Kein zusätzlicher Input pro Tick; keine geänderten Fokus-, Hover-, Snapshot- oder UI-Gates.</p></article>
+      <article class="card"><h4>Recovery</h4><p>Budgets und „höchstens einmal“-Marker bleiben identisch und werden an denselben Grenzen zurückgesetzt.</p></article>
+      <article class="card"><h4>Telemetry</h4><p>Bestehende Eventnamen, Step-, Stage-, Outcome- und Reason-Felder bleiben stabil.</p></article>
+      <article class="card"><h4>Routes</h4><p>Countess, Mephisto, Summoner und Nihlathak verwenden weiterhin die gemeinsame Standardpipeline; Cow bleibt separat.</p></article>
+      <article class="card"><h4>Failures</h4><p>Ein bestehender fail-closed Zustand darf durch den Refactor niemals zu Retry oder Input werden.</p></article>
+    </div>
+  </section>
+
+  <section id="input">
+    <h2>5. Input-Sicherheitsgrenze der Phase 22</h2>
+    <p>
+      Der produktive Input bleibt Vordergrundinput über die vorhandenen Windows-Primitiven. Ziel ist nicht ein neues
+      Backend, sondern eine engere Autorisierung unmittelbar vor semantischen Aktionen.
+    </p>
+
+    <div class="flow" aria-label="Input-Autorisierung">
+      <div class="node"><strong>World Intent</strong><small>Profil oder Task fordert semantische Aktion an</small></div>
+      <div class="node"><strong>Fresh State</strong><small>Generation, Snapshot, UI und Ziel erneut bestätigen</small></div>
+      <div class="node"><strong>Window Permit</strong><small>PID, HWND, Geometrie und Foreground frisch prüfen</small></div>
+      <div class="node"><strong>Atomic Primitive</strong><small>genau eine Taste, Combo oder Mausaktion</small></div>
+      <div class="node"><strong>Memory Verify</strong><small>Wirkung bestätigen oder fail-closed enden</small></div>
+    </div>
+
+    <h3>Kleine gemeinsame Bausteine</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Baustein</th><th>Vertrag</th><th>Verbraucher</th></tr></thead>
+        <tbody>
+          <tr><td><code>SkillSelector</code></td><td>Slotbewusst auswählen; nie im selben Tick auswählen und produktiv casten; frische <code>LeftSkillID</code>/<code>RightSkillID</code>-Bestätigung.</td><td>Teleport, Necro-Combat, Hammerdin, Hooks</td></tr>
+          <tr><td><code>InputActionLease</code></td><td>Genau eine bot-eigene Gameplay-Transaktion über Tastatur und Maus; Safety-, Fenster- und Fokus-Gates nach Erwerb erneut prüfen; kein Modifier über Lease-, Funktions- oder Tickgrenzen.</td><td>Alle produktiven Input-Primitiven</td></tr>
+          <tr><td><code>ClickAtWithModifier</code></td><td>Cursorbewegung und Modifier down → Button down/up → Modifier up in derselben Lease; Cleanup auf jedem Fehlerpfad; kein Plain-Click-Fallback.</td><td>Blessed Hammer; bestehendes <code>ClickWithModifier</code> bleibt für bereits positionierte Transfers</td></tr>
+          <tr><td><code>WeaponSetSelector</code></td><td>Zielset lesen, höchstens einen <code>W</code>-Input senden, neuen Snapshot abwarten und Zielset bestätigen.</td><td>CTA-Prebuff</td></tr>
+          <tr><td><code>SelfCast</code></td><td>Bestätigten Skill an neutraler spielbarer Clientposition casten und Settle abwarten.</td><td>Bone Armor, Holy Shield, BC/BO</td></tr>
+          <tr><td><code>TimedCastAnchor</code></td><td>Zeitpunkt erst nach tatsächlich bestätigtem Cast setzen; bei Game-/Generation-Reset löschen.</td><td>CTA-Recast, bestehende Maintenance</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Aktives Waffenset</h3>
+    <pre><code>type WeaponSet uint8
+
+const (
+    WeaponSetPrimary WeaponSet = iota
+    WeaponSetSecondary
+)
+
+type WeaponSetState struct {
+    Set       WeaponSet
+    Available bool
+}
+
+// Available=false ist unbekannt. Es darf niemals als Primary interpretiert
+// und niemals durch einen optimistischen W-Input „repariert“ werden.</code></pre>
+    <ul>
+      <li>Der Wert wird in <code>memory</code> gelesen, in <code>world.Player</code> interpretiert und erst dort von Profilen verbraucht.</li>
+      <li>Mindestens ein read-only Live-Probe bestätigt Primär/Sekundär vor und nach manuellem <code>W</code>.</li>
+      <li>Ein Fehler oder unbekannter Widget-State bleibt <code>Available=false</code>; kein Default auf Primär.</li>
+      <li>CTA benötigt keine Item-, Body-Location- oder Runenwort-Erkennung.</li>
+    </ul>
+
+    <div class="callout warn">
+      <h3>HWND-/Hintergrundinput</h3>
+      <p>
+        Direkte Maus-/Tastaturnachrichten an ein <code>HWND</code> bleiben eine ehrliche Backlog-Idee mit dokumentierten
+        Chancen und Risiken. Sie sind kein Teil von Phase 22. Es gibt insbesondere keinen automatischen Fallback zwischen
+        <code>PostMessage</code>/<code>SendMessage</code> und <code>SendInput</code>, weil daraus doppelte Aktionen entstehen könnten.
+      </p>
+    </div>
+  </section>
+
+  <section id="hammerdin">
+    <h2>6. Produktvertrag: Paladin „Hammerdin“</h2>
+    <p>
+      Buildreferenz ist der vom Produktowner ausgewählte
+      <a href="https://maxroll.gg/d2/guides/blessed-hammer-paladin">Maxroll Blessed Hammer Paladin Guide</a>.
+      Statische Skill-IDs und Slot-Fähigkeiten stammen weiterhin ausschließlich aus dem lokalen CASC-generierten
+      <code>skills.txt</code>-Katalog. Die externe Seite ist Build- und Spielreferenz, keine Runtime-Abhängigkeit.
+    </p>
+
+    <h3>CASC-Provenienz der Skill-IDs</h3>
+    <p>
+      Verbindliche Quelle ist <code>.tmp/d2r-excel/skills.txt</code>. Agenten lösen Werte über die stabilen Spalten
+      <code>skill</code> und <code>*Id</code> auf, nicht über eine fragile Dateizeilennummer. Fehlt eine Zeile im lokalen
+      Extrakt, wird die Umsetzung gestoppt und der benötigte CASC-Extrakt angefordert; es gibt keinen Fremdprojekt-Fallback.
+    </p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Produkt-Key</th><th><code>skills.txt:skill</code></th><th><code>*Id</code></th><th>Rolle</th></tr></thead>
+        <tbody>
+          <tr><td><code>teleport</code></td><td><code>Teleport</code></td><td>54</td><td>RMB Mobility</td></tr>
+          <tr><td><code>blessed_hammer</code></td><td><code>Blessed Hammer</code></td><td>112</td><td>LMB Angriff</td></tr>
+          <tr><td><code>concentration</code></td><td><code>Concentration</code></td><td>113</td><td>RMB Combat-Aura</td></tr>
+          <tr><td><code>holy_shield</code></td><td><code>Holy Shield</code></td><td>117</td><td>RMB Defensivbuff</td></tr>
+          <tr><td><code>battle_orders</code></td><td><code>Battle Orders</code></td><td>149</td><td>optionaler CTA-Buff</td></tr>
+          <tr><td><code>battle_command</code></td><td><code>Battle Command</code></td><td>155</td><td>optionaler CTA-Buff</td></tr>
+          <tr><td><code>town_portal</code></td><td><code>TownPortal</code></td><td>359</td><td>bestehende Portalaktion</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Eigenschaft</th><th>Phase-22-Entscheidung</th><th>Begründung</th></tr></thead>
+        <tbody>
+          <tr><td>Profil-ID</td><td><code>paladin_hammerdin</code></td><td>Stabiler, klassenbezogener Schlüssel analog zu <code>necro_bone_spear</code>.</td></tr>
+          <tr><td>Erster Run</td><td>Mephisto</td><td>Bestehende Route und Boss-Pinning; weniger räumliche Sonderbedingungen als Countess/Cows.</td></tr>
+          <tr><td>Standardangriff</td><td>Blessed Hammer, Skill 112, LMB</td><td>Profil erzwingt den Slot; Operator wählt nur die F-Taste.</td></tr>
+          <tr><td>Combat-Aura</td><td>Concentration, Skill 113, RMB</td><td>Vor Hammer-Bursts bestätigt; Teleport darf RMB temporär übernehmen.</td></tr>
+          <tr><td>Mobility</td><td>Teleport, Skill 54, RMB</td><td>Bestehender Movement-/Selector-Vertrag wird wiederverwendet.</td></tr>
+          <tr><td>Defensivbuff</td><td>Holy Shield, Skill 117, RMB</td><td>Einmal pro neuem Spiel; mit CTA im zweiten Set nach BC/BO casten.</td></tr>
+          <tr><td>CTA</td><td>Optional über BC- und BO-F-Key-Paar</td><td>Kein Equipment-Scanner; Skill- und Slot-Bestätigung liefern ausreichende Runtime-Evidenz.</td></tr>
+          <tr><td>Merc</td><td>vorhanden und lebend erforderlich</td><td>Mana-Sustain ist Buildvoraussetzung; Insight-Ausrüstung wird nicht inspiziert.</td></tr>
+          <tr><td>Cleansing</td><td>vertagt</td><td>Späterer Nihlathak-spezifischer Encounter-Vertrag.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Required Skills und optionale Skills</h3>
+    <ul>
+      <li><strong>Pflicht:</strong> <code>teleport</code>, <code>town_portal</code>, <code>blessed_hammer</code>, <code>concentration</code>, <code>holy_shield</code>.</li>
+      <li><strong>Optional als Paar:</strong> <code>battle_command</code> und <code>battle_orders</code>.</li>
+      <li>BC/BO stehen bewusst nicht in der allgemeinen <code>required_skills</code>-Liste, weil sie nur im CTA-Set verfügbar sein können.</li>
+      <li>Der Session-Skill-Gate prüft Pflichtskills im normalen Set; CTA-Skills werden erst nach bestätigtem Wechsel auf Waffenset II geprüft.</li>
+    </ul>
+
+    <h3>Mercenary-Verantwortung</h3>
+    <div class="grid two">
+      <article class="card"><h4 class="owner">Bot</h4><ul><li>Merc vorhanden/lebend als Hammerdin-Preflight prüfen.</li><li>Bestehende Merc-Potion-Policy verwenden, falls aktiviert.</li><li>Klare Queue-Fehler bei fehlender Voraussetzung.</li></ul></article>
+      <article class="card"><h4 class="risk">Spieler</h4><ul><li>Insight oder anderes sinnvolles Equipment.</li><li>Merc-Level, Resistenzen, Aura und Überlebensfähigkeit.</li><li>Ausreichende Mana-/Belt-Konfiguration.</li></ul></article>
+    </div>
+  </section>
+
+  <section id="cta">
+    <h2>7. CTA- und Holy-Shield-Sequenz</h2>
+
+    <h3>UI-/Config-Vertrag</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Battle Command</th><th>Battle Orders</th><th>Bedeutung</th><th>Queue-Verhalten</th></tr></thead>
+        <tbody>
+          <tr><td>leer</td><td>leer</td><td>CTA deaktiviert</td><td>Holy Shield im primären Set casten</td></tr>
+          <tr><td>gültige F-Taste</td><td>gültige F-Taste</td><td>CTA aktiviert</td><td>vollständige bestätigte Sequenz ausführen</td></tr>
+          <tr><td>gesetzt</td><td>leer</td><td>unvollständig</td><td>Setup/Queue vor Input ablehnen</td></tr>
+          <tr><td>leer</td><td>gesetzt</td><td>unvollständig</td><td>Setup/Queue vor Input ablehnen</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="callout">
+      <h3>Operatorhinweis im Hammerdin-UI</h3>
+      <p>
+        „Call to Arms ist optional. Wenn du Battle Command und Battle Orders belegst, muss CTA im zweiten Waffenset
+        liegen. Ein Holy-Shield-Schild darf ebenfalls dort ausgerüstet sein. Der Bot prüft Waffenset und Skillauswahl,
+        aber nicht das Runenwort oder die Merc-Ausrüstung.“
+      </p>
+    </div>
+
+    <h3>Bestätigte Reihenfolge</h3>
+    <ol class="sequence">
+      <li>Frischen World-State verlangen und primäres Waffenset bestätigen.</li>
+      <li><code>W</code> genau einmal senden.</li>
+      <li>Auf einen neueren Snapshot warten und sekundäres Waffenset bestätigen.</li>
+      <li>Battle Command auswählen; <code>RightSkillID == 155</code> bestätigen; Self-Cast senden.</li>
+      <li>Battle Orders auswählen; <code>RightSkillID == 149</code> bestätigen; Self-Cast senden.</li>
+      <li>Battle Command erneut auswählen, bestätigen und casten.</li>
+      <li>Holy Shield auswählen; <code>RightSkillID == 117</code> bestätigen; noch im zweiten Waffenset casten.</li>
+      <li><code>W</code> genau einmal senden.</li>
+      <li>Auf einen neueren Snapshot warten und primäres Waffenset bestätigen.</li>
+      <li>Blessed Hammer auf LMB und die für den nächsten Zustand benötigte RMB-Fähigkeit herstellen.</li>
+    </ol>
+
+    <p>
+      Holy Shield wird absichtlich vor dem Rückwechsel gewirkt. Dadurch nutzt es Battle Command und ein mögliches
+      spezialisiertes Holy-Shield-Schild im zweiten Set. Battle Orders erhöht nicht den Skill-Level; sein Platz in der
+      Sequenz bleibt wegen des vollständigen CTA-Buffvertrags korrekt.
+    </p>
+
+    <h3>Recast</h3>
+    <ul>
+      <li>In jedem neuen Spiel zwingend einmal ausführen, sofern CTA aktiviert ist.</li>
+      <li>Zeitanker ist der letzte erfolgreich ausgeführte zweite Battle-Command-Cast.</li>
+      <li>Früheste Erneuerung nach <strong>150 Sekunden</strong>, nicht exakt am ungefähr 180-sekündigen Ablauf.</li>
+      <li>Nur an einer sicheren Grenze, bevorzugt <code>town_ready</code>; niemals während Movement oder aktivem Combat.</li>
+      <li>Bei der CTA-Erneuerung wird Holy Shield im zweiten Set ebenfalls erneuert.</li>
+      <li>Bei CTA-deaktiviertem Profil wird Holy Shield einmal pro neuem Spiel im primären Set gewirkt.</li>
+      <li>Game-/Generation-Reset löscht Timer, Pending Selection und Weapon-Swap-Zustand.</li>
+    </ul>
+
+    <h3>Fail-closed Fehler</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Reason</th><th>Auslöser</th><th>Operatorinformation</th></tr></thead>
+        <tbody>
+          <tr><td><code>hammerdin_cta_bindings_incomplete</code></td><td>Nur BC oder BO belegt</td><td>Beide F-Tasten setzen oder beide leeren</td></tr>
+          <tr><td><code>weapon_set_read_unavailable</code></td><td>Aktiver Slot nicht frisch lesbar</td><td>Queue beendet; kein Waffenset wird geraten</td></tr>
+          <tr><td><code>weapon_set_switch_unconfirmed</code></td><td>Neuer Snapshot bestätigt Zielset nicht</td><td>Weapon-Swap-Taste und D2R-Fokus prüfen</td></tr>
+          <tr><td><code>hammerdin_cta_skill_unconfirmed</code></td><td>BC/BO im zweiten Set nicht selektierbar</td><td>CTA in Waffenset II und F-Tasten prüfen</td></tr>
+          <tr><td><code>hammerdin_holy_shield_unconfirmed</code></td><td>Holy Shield nicht bestätigt</td><td>Skill und Binding prüfen</td></tr>
+          <tr><td><code>hammerdin_primary_set_restore_failed</code></td><td>Rückwechsel nicht bestätigt</td><td>Run stoppt vor Travel oder Combat</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="callout danger">
+      <h3>Keine automatische Reparaturschleife</h3>
+      <p>
+        Nach einem unbestätigten Wechsel sendet der Bot nicht wiederholt <code>W</code>. Ein Toggle ohne bekannten
+        Ausgangszustand kann zwischen beiden Sets oszillieren. Die Queue endet stattdessen mit einem stabilen Fehler.
+      </p>
+    </div>
+  </section>
+
+  <section id="combat">
+    <h2>8. Blessed Hammer auf LMB und Mephisto-Combat</h2>
+
+    <h3>Slotbewusster Selector</h3>
+    <p>
+      Der heutige <code>RightSkillSelector</code> wird zu einem gemeinsamen, slotbewussten Selector weiterentwickelt.
+      OperatorSettings bleiben einfach: Der Spieler wählt nur F-Tasten. Das Profil bestimmt, auf welcher Maustaste ein
+      Skill liegen muss.
+    </p>
+    <pre><code>type SkillSlot uint8
+
+const (
+    SkillSlotLeft SkillSlot = iota
+    SkillSlotRight
+)
+
+// Hammerdin-Profilrollen:
+// blessed_hammer  -> left
+// concentration   -> right
+// teleport        -> right
+// holy_shield     -> right
+// battle_command  -> right
+// battle_orders   -> right</code></pre>
+    <ul>
+      <li>Das bestehende RMB-Verhalten bleibt unverändert und verwendet intern denselben neuen Selector.</li>
+      <li>Ein Pending-Select auf einem Slot wird nicht von einem anderen Skill desselben Slots gestohlen.</li>
+      <li>LMB und RMB besitzen getrennte Pending-Zustände, damit Travel und Combat klar bleiben.</li>
+      <li>Auswahl und produktiver Cast finden nie im selben Tick statt.</li>
+    </ul>
+
+    <h3>Sicherer Hammer-Cast</h3>
+    <ol class="sequence">
+      <li>Blessed Hammer auswählen und einen neueren Snapshot abwarten.</li>
+      <li><code>LeftSkillID == 112</code> bestätigen.</li>
+      <li>Concentration auswählen und <code>RightSkillID == 113</code> bestätigen.</li>
+      <li>Eine gemeinsame Input-Lease erwerben und Safety-, Fenster- und Fokus-Gates danach erneut prüfen.</li>
+      <li>Cursor innerhalb derselben Lease auf einen profilautorisierten sicheren Punkt der spielbaren Clientfläche setzen, niemals über HUD/UI.</li>
+      <li>Atomar <code>Shift down → LMB down/up → Shift up</code> ausführen und erst danach die Lease freigeben.</li>
+      <li>Bei Modifier- oder Mausfehler Shift best-effort freigeben und ohne Plain-LMB-Fallback abbrechen; kann <code>Shift up</code> nicht abgeschlossen werden, stoppt weiterer Gameplay-Input fail-closed.</li>
+    </ol>
+
+    <p>
+      Ein lebendes Monster unter dem Cursor ist keine Voraussetzung. Blessed Hammer ist ein selbstzentrierter Cast;
+      Monster-Hover würde den Ablauf durch Bewegung, Überlagerung und wechselnde Sprites unnötig fragil machen. Die
+      Bewegungssicherheit entsteht durch die bestätigte LMB-Belegung und <code>Shift + LMB</code>.
+    </p>
+
+    <h3>Modifier- und Trank-Interleave</h3>
+    <p>
+      Die Resource Policy ist snapshot- und tickgetrieben, kein asynchroner Interrupt. Ist ein Spielertrank im aktuellen
+      Snapshot bereits fällig, erhält er vor Combat den Tick; der Hammer wird nicht zusätzlich gesendet. Fällt HP oder
+      Mana erst während eines begonnenen Hammer-Inputs, wird die kurze Transaktion einschließlich <code>Shift up</code>
+      beendet und der Trank frühestens anhand des nächsten frischen Snapshots angefordert.
+    </p>
+    <ul>
+      <li>Alle bot-eigenen Tastatur- und Mausaktionen warten auf dieselbe Gameplay-Lease; kein Input darf zwischen <code>Shift down</code> und <code>Shift up</code> eintreten.</li>
+      <li>Ein Spielertrank wird daher immer ohne Modifier gesendet. Das explizite <code>Shift + Belt</code> für einen Söldner bleibt eine eigene atomare Transaktion.</li>
+      <li>Jeder Hammer-Cast hält Shift nur für genau einen Klick. Ein Burst besteht aus getrennten Ticks und hält Shift niemals zwischen zwei Hämmern.</li>
+      <li>Stop/Pause verhindern nach Lease-Freigabe jeden weiteren Input; laufendes Modifier-Cleanup bleibt trotzdem erlaubt.</li>
+      <li>Physische Benutzereingaben können nicht serialisiert werden. Während eines produktiven Runs darf der Operator nicht parallel in D2R eingeben.</li>
+    </ul>
+
+    <h3>Mephisto-MVP</h3>
+    <div class="flow" aria-label="Mephisto Combat">
+      <div class="node"><strong>Boss pinnen</strong><small>bestehende Mephisto-UnitID und Kill-Autorität</small></div>
+      <div class="node"><strong>Anchor</strong><small>begrenzter Teleport auf live validierte Kampfposition</small></div>
+      <div class="node"><strong>Concentration</strong><small>RMB auswählen und bestätigen</small></div>
+      <div class="node"><strong>Hammer Burst</strong><small>getaktetes Shift+LMB, ein Input pro Tick</small></div>
+      <div class="node"><strong>Kill / Reposition</strong><small>Memory-Kill oder begrenzte neue Anchor-Wahl</small></div>
+    </div>
+
+    <h4>Bewusst enger erster Algorithmus</h4>
+    <ul>
+      <li>Bestehendes Mephisto-Pinning und bestehende Killbestätigung bleiben autoritativ.</li>
+      <li>Das Profil darf genau einen geprüften Kampfanker relativ zur Bossposition anfordern; konkrete Offsetwerte werden im Live-Gate bestimmt.</li>
+      <li>Nach bestätigter Position folgen begrenzte Hammer-Bursts mit Concentration.</li>
+      <li>Reposition nur nach frischem World-State, wenn Boss/Spieler-Geometrie den aktuellen Anchor ungültig macht oder ein endliches No-progress-Budget abläuft.</li>
+      <li>Kein generischer Monster-Hover-Angriff und kein „hinter dem Boss herlaufen“ per LMB.</li>
+      <li>Teleport nimmt RMB temporär ein; vor dem nächsten Hammer wird Concentration erneut bestätigt.</li>
+    </ul>
+
+    <h4>Research-Gate vor produktivem Combat</h4>
+    <ul>
+      <li>Manuell beobachten, welche relative Position zu Mephisto zuverlässig frühe Hammer-Treffer erzeugt.</li>
+      <li>Mindestens zwei praktikable Raum-/Anflugrichtungen prüfen; kein Pixel- oder Layout-Sonderfall in das Profil codieren.</li>
+      <li>Sicheren Client-Cursorpunkt für <code>Shift + LMB</code> bei 1280×720 verifizieren.</li>
+      <li>Cast-Intervall und Burst-Budget anhand sichtbarer Animation und Memory-Kill bestimmen.</li>
+      <li>Fehlgeschlagene Treffer führen nach endlichem Budget zu Reposition oder stabilem Fehler, nicht zu unbegrenztem Spam.</li>
+    </ul>
+  </section>
+
+  <section id="ui">
+    <h2>9. Charakter-Setup und Hammerdin-UI</h2>
+    <p>
+      Paladin wird erst als farmbereit angezeigt, wenn das Profil produktiv registriert und der Mephisto-Run verfügbar
+      ist. Die UI projiziert Core-Verträge und berechnet keine eigene CTA- oder Readiness-Logik.
+    </p>
+
+    <div class="grid two">
+      <article class="card">
+        <h3>Pflichtfelder</h3>
+        <ul>
+          <li>Blessed Hammer</li>
+          <li>Concentration</li>
+          <li>Teleport</li>
+          <li>Holy Shield</li>
+          <li>Town Portal</li>
+          <li>vier Belt-Spalten gemäß bestehendem Vertrag</li>
+          <li>Inventory Lock Grid</li>
+        </ul>
+      </article>
+      <article class="card">
+        <h3>Optionaler CTA-Block</h3>
+        <ul>
+          <li>Battle Command F-Taste</li>
+          <li>Battle Orders F-Taste</li>
+          <li>kurzer Hinweis „beide oder keine“</li>
+          <li>klarer Hinweis auf Waffenset II</li>
+          <li>kein Runenwort-/Item-Status und kein Insight-Status</li>
+        </ul>
+      </article>
+    </div>
+
+    <h3>Schemaentscheidung</h3>
+    <p>
+      Die bestehenden <code>profile_bindings.skills</code> können BC und BO bereits als optionale zusätzliche Keys
+      speichern. Es ist kein separates <code>cta.enabled</code> nötig. Der Core leitet den Zustand ausschließlich aus
+      dem vollständigen Paar ab. Die paarweise Validierung ist profilbezogen; die allgemeine Binding-Map bleibt
+      wiederverwendbar.
+    </p>
+
+    <h3>UI-facing Fehlertexte</h3>
+    <ul>
+      <li>„Für Call to Arms müssen Battle Command und Battle Orders beide belegt sein.“</li>
+      <li>„Battle Command konnte im zweiten Waffenset nicht bestätigt werden. Prüfe CTA und die F-Taste.“</li>
+      <li>„Das primäre Waffenset konnte nach den Buffs nicht bestätigt werden. Die Queue wurde beendet.“</li>
+      <li>„Für Hammerdin muss ein lebender Söldner verfügbar sein. Seine Ausrüstung wird nicht geprüft.“</li>
+      <li>„Blessed Hammer konnte nicht auf der linken Maustaste bestätigt werden.“</li>
+    </ul>
+  </section>
+
+  <section id="validierung">
+    <h2>10. Testing und lokale Releasepipeline</h2>
+
+    <div class="callout success">
+      <h3>Grundsatz</h3>
+      <p>
+        Tests unterstützen eine abgeschlossene Änderung; sie dominieren nicht jeden Bearbeitungsschritt. Während der
+        Entwicklung läuft einmal die kleinste relevante Prüfung. Eine vollständige Go-/UI-/Electron-/Lint-/Installer-
+        Kette läuft ausschließlich bei ausdrücklichem Gesamtvalidierungs- oder Releaseauftrag.
+      </p>
+    </div>
+
+    <h3>Entwicklungsvalidierung</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Änderung</th><th>Einmalige kleinste Prüfung</th><th>Nicht automatisch</th></tr></thead>
+        <tbody>
+          <tr><td>Runtime Trace / Replayer</td><td>ein echtes oder eingefrorenes Trace-Bundle bis zum identischen terminalen Ergebnis replayen</td><td>komplette Task-/UI-Suite</td></tr>
+          <tr><td>Pipeline Stage A–C</td><td>Characterization-/Golden-Test und unmittelbar betroffene <code>internal/tasks</code>-Tests</td><td><code>go test ./...</code>, UI, Installer</td></tr>
+          <tr><td>Weapon-Slot Memory</td><td>Memory-Mapping- und World-Projektionstest</td><td>komplette Task-/UI-Suite</td></tr>
+          <tr><td>SkillSelector / Shift+LMB</td><td>Selector-, Lease-, Input-Cleanup- und Trank-Interleave-Tests</td><td>alle anderen Go-Pakete</td></tr>
+          <tr><td>Hammerdin-Profil</td><td>Profil-, Prebuff- und Mephisto-Strategietests</td><td>unverwandte Routen</td></tr>
+          <tr><td>Hammerdin-UI</td><td>betroffene Component-/Schema-Tests und Typecheck</td><td>Installer-Smoke</td></tr>
+          <tr><td>Nur HTML/Docs</td><td>HTML-Parse, Links und visuelle Sichtprüfung</td><td>Go-/UI-Tests</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="muted">
+      Schlägt eine gezielte Prüfung fehl, wird nach dem Fix nur der fehlerhafte Scope erneut ausgeführt. Eine fehlgeschlagene
+      Prüfung rechtfertigt nicht automatisch einen Lauf der Gesamtsuite.
+    </p>
+
+    <h3>Verbindliche Diagnose- und Live-Gate-Befehle</h3>
+    <p>
+      Diese CLI-Verträge sind Teil der Implementierung. Sie geben ausführenden Agenten und dem Operator einen eindeutigen
+      Einstieg, ohne versteckte Debug-Builds, temporäre Codeänderungen oder produktive Sicherheits-Bypässe.
+    </p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Gate</th><th>Befehl</th><th>Vertrag und erwarteter Beleg</th></tr></thead>
+        <tbody>
+          <tr><td>22.0c Capture</td><td><code>.\d2rbot.exe --runtime-trace-capture focus-loss --run mephisto</code></td><td>Startet einen normalen konfigurierten Mephisto-Run mit opt-in Recorder. Der Operator entzieht während einer anstehenden Input-Transaktion bewusst den Fokus. Das Label beeinflusst das Verhalten nicht; der terminale Trace landet atomar unter <code>diagnostics/runtime-traces/</code>.</td></tr>
+          <tr><td>22.0c Replay</td><td><code>.\d2rbot.exe --replay-runtime-trace diagnostics\runtime-traces\&lt;bundle&gt;.trace.gz</code></td><td>Mutual-exclusiver Headless-Modus ohne Attach, Window-Binding, Hotkeys oder OS-Sender. Exit-Code <code>0</code> verlangt identischen terminalen Step, Intent, Outcome und Reason-Code; Divergence liefert einen stabilen ungleich-null Exit-Code und den ersten abweichenden Tick.</td></tr>
+          <tr><td>22.3</td><td><code>.\d2rbot.exe --weapon-set-probe primary-secondary</code></td><td>Read-only-Probe; der Operator sendet <code>W</code> selbst. Die Ausgabe zeigt Snapshot-Generation, Availability und stabil bestätigtes Primary/Secondary. Die Probe sendet keinerlei Gameplay-Input und schreibt einen begrenzten Diagnosebeleg.</td></tr>
+          <tr><td>22.6 CTA</td><td><code>.\d2rbot.exe --town-test hammerdin-prebuff:cta</code></td><td>Verwendet das konfigurierte Profil und führt nur den isolierten Town-Prebuff-Vertrag aus. Mit korrekten Bindings muss BC → BO → BC → Holy Shield → Primary erfolgreich sein; ein bewusst falsches F-Key-Binding muss mit <code>hammerdin_cta_skill_unconfirmed</code> abbrechen.</td></tr>
+          <tr><td>22.6 ohne CTA</td><td><code>.\d2rbot.exe --town-test hammerdin-prebuff:no-cta</code></td><td>Verifiziert den gültigen leer/leer-Vertrag: kein Weapon-Swap und kein BC-/BO-Input; Holy Shield wird über den normalen Primärset-Pfad behandelt.</td></tr>
+          <tr><td>22.7</td><td><code>.\d2rbot.exe --run mephisto</code></td><td>Normaler produktiver Run mit dem in den OperatorSettings ausgewählten Profil <code>paladin_hammerdin</code>; kein Combat-Test-Bypass. Run-Telemetrie und manuelle Beobachtung liefern den Live-Beleg.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="callout warn">
+      <h4>Manuelle Gates bleiben echte Stopppunkte</h4>
+      <p>
+        Sobald die automatischen Vorprüfungen eines manuellen Gates grün sind, stoppt der ausführende Agent, nennt exakt
+        Befehl, benötigtes D2R-Setup und erwartete Evidenz und wartet auf die Abnahme des Operators. Er erklärt ein Live-Gate
+        nicht anhand von Mocks, Screenshots ohne Diagnosebeleg oder eigener Annahme für bestanden.
+      </p>
+    </div>
+
+    <h3>Lokaler Releaseflow – keine GitHub Actions</h3>
+    <p>
+      <code>scripts/build-release.ps1</code> deckt bereits die teure lokale CI-, Build- und Smoke-Kette ab. Phase 22 braucht daher
+      keinen Remote-Runner. Der produktive Prüfeinstieg bleibt:
+    </p>
+    <pre><code>.\scripts\build-release.ps1 -Version 0.20.0</code></pre>
+
+    <div class="flow" aria-label="Lokaler Releaseflow">
+      <div class="node"><strong>Preflight</strong><small>Version, Commit, Tools und Workspace-Ziele</small></div>
+      <div class="node"><strong>Full Checks ×1</strong><small>Webtests, Typecheck, Electron, Go, Lint</small></div>
+      <div class="node"><strong>Build</strong><small>UI, Defaults, versionierter Core, NSIS</small></div>
+      <div class="node"><strong>Static Verify</strong><small>Inhalt, Version, Secrets und Artefakte</small></div>
+      <div class="node"><strong>Product Smoke</strong><small>Install, Start, Upgrade, Uninstall, SHA-256</small></div>
+    </div>
+
+    <h4>Kleine empfohlene Verbesserungen am vorhandenen Skript</h4>
+    <ul>
+      <li>Phasen klar benennen und am Ende eine kompakte Laufzeit-/Ergebnisübersicht ausgeben.</li>
+      <li>Den produktiven Releasepfad weiterhin ohne Skip-Schalter dokumentieren; Skip-Schalter nur für bewusste Diagnose.</li>
+      <li>Keine Tests in nachgelagerten Packaging-Schritten erneut ausführen.</li>
+      <li>Bei einem Fehler sofort stoppen und den fehlgeschlagenen Abschnitt nennen.</li>
+      <li>Releaseartefakte weiterhin ausschließlich lokal unter <code>dist/release</code> erzeugen.</li>
+    </ul>
+
+    <h4>Ein Auftrag für den vollständigen Release</h4>
+    <p>
+      Für diese Phase lautet der knappe Agent-Auftrag <code>Release 0.20.0</code>. Allgemein autorisiert
+      <code>Release [X.Y.Z|patch|minor|major]</code> Version-Bump, Changelog und
+      Beschreibung, Release-Commit, den genau einmaligen vollständigen Builder, ZIP-Erzeugung, Push, annotierten Tag und
+      GitHub-Release. Ohne Versionsangabe wird SemVer aus <code>Unreleased</code> abgeleitet und nur bei echter
+      Mehrdeutigkeit nachgefragt. Der mechanische Publish-Teil sollte später als dünner, wiederanlaufbarer Wrapper um den
+      bestehenden Builder umgesetzt werden; Tests und Installer-Smokes bleiben ausschließlich im vorhandenen Skript.
+      Der vorgesehene Releasetitel lautet <code>v0.20.0 – Reliability, Runtime Replay and Hammerdin</code>.
+    </p>
+  </section>
+
+  <section id="gates">
+    <h2>11. Umsetzungsplan und Abnahme-Gates</h2>
+    <div class="gate-legend" aria-label="Legende der Abnahmearten">
+      <span><span class="gate-mode auto">Automatisch abschließbar</span> Kein D2R-/Operator-Live-Gate nötig</span>
+      <span><span class="gate-mode manual">Manuelle Abnahme erforderlich</span> Automatische Tests allein schließen das Gate nicht</span>
+    </div>
+    <p class="muted">
+      Manuelle Gates behalten ihre automatischen Vorprüfungen; sie gelten jedoch erst nach dokumentierter Live-Evidenz als
+      bestanden. Automatische Gates dürfen ohne laufendes D2R abgeschlossen werden. Ein späteres manuelles Gate wiederholt
+      deren vollständige Testmatrix nicht.
+    </p>
+    <p>
+      Die Gate-Artikel selbst sind die einzige Fortschrittsautorität; eine zweite Status-Tabelle wird bewusst nicht gepflegt.
+      Nach Abschluss ergänzt der ausführende Agent im jeweiligen Artikel Datum und kurzen Evidenzverweis und setzt beim
+      nächsten noch nicht abgeschlossenen Gate fort. Verbindliche Reihenfolge:
+    </p>
+    <pre><code>22.0a → 22.0b → 22.0c → 22.1 → 22.2 → 22.3 → 22.4 → 22.5a → 22.5b → 22.5c → 22.6 → 22.7 → 22.8</code></pre>
+    <div class="phase-list">
+      <article class="gate auto-gate"><div class="gate-id"><span>22.0a</span><span class="gate-mode auto">Automatisch</span></div><div><h3>Runtime-Trace-Schema und Recorder</h3><p>Opt-in, versioniertes und komprimiertes Diagnosebundle für echte Runs einführen.</p><ul><li>Interpretierten World-State, monotone Zeit, immutable Verträge, Dependency-Ergebnisse und Intents vollständig genug erfassen.</li><li>Nur bei explizit aktiviertem Diagnosemodus einen Fehlertrace atomar und größenbegrenzt unter <code>diagnostics/runtime-traces/</code> speichern.</li><li>Recorder bleibt beobachtend, enthält keine Raw-Memory-/Save-Daten und kann keinen Run-Input autorisieren.</li></ul><p class="gate-proof"><strong>Automatische Abnahme:</strong> Schema-, Redaktions-, Opt-in-, Retention-, Atomic-Write- und No-Input-Tests erzeugen und validieren ein vollständiges Bundle aus eingefrorenen World-/Dependency-Fixtures.</p></div></article>
+
+      <article class="gate auto-gate"><div class="gate-id"><span>22.0b</span><span class="gate-mode auto">Automatisch</span></div><div><h3>Headless Runtime Replayer</h3><p>Einen realen Fehler ohne D2R, Prozess-Attach, Fenster oder OS-Input erneut ausführen.</p><ul><li>Fake Clock und aufgezeichnete Dependency-Antworten verwenden.</li><li>Unerwartete Aufrufe und erste Entscheidungsabweichung verständlich melden.</li><li>Abnahme: identischer Step, Input-Intent, Outcome und terminaler Reason-Code.</li></ul><p class="gate-proof"><strong>Automatische Abnahme:</strong> Eingefrorenes Trace-Bundle erreicht headless denselben Step, Intent, Outcome und Reason-Code; mutierte Zeit, Reihenfolge oder Dependency-Antwort erzeugen an der ersten Abweichung eine deterministische Divergence.</p></div></article>
+
+      <article class="gate manual-gate"><div class="gate-id"><span>22.0c</span><span class="gate-mode manual">Manuell erforderlich</span></div><div><h3>Pipeline Characterization und kontrolliertes Live-Replay</h3><p>Minimale reviewbare Fixtures, kanonische Golden Traces und einen echten Runtime-Integrationsbeleg für den Refactor ergänzen.</p><ul><li>Characterization-Szenarien für vier bestehende Standardrouten plus Recovery-Kanten.</li><li>Die initiale Runtime-Failure-Matrix ist headless ausführbar.</li><li>Ein kontrolliert ausgelöstes reales Fail-closed-Ereignis wird minimiert und als permanentes Integrations-Fixture eingecheckt.</li><li>Der erste später organisch auftretende Produktfehler folgt dem dokumentierten Regression-Promotion-Prozess, blockiert aber nicht <code>v0.20.0</code>.</li></ul><p class="gate-proof"><strong>Manuelle Abnahme:</strong> Mit <code>--runtime-trace-capture</code> Fokusverlust während einer echten Offline-D2R-Input-Transaktion kontrolliert auslösen, den terminalen Trace mit <code>--replay-runtime-trace</code> identisch replayen und zu einem kleinen bereinigten Fixture minimieren. Ersatzweise ist Process Detachment zulässig. Synthetische Traces allein schließen dieses Gate nicht; ein Produktcode-seitiger Fehler-Injektor ist nicht zulässig.</p></div></article>
+
+      <article class="gate auto-gate"><div class="gate-id"><span>22.1</span><span class="gate-mode auto">Automatisch</span></div><div><h3>Pipeline Stage A/B</h3><p>Verträge festschreiben und Datei nach Domain trennen, zunächst bei gleichem Receiver.</p><ul><li><code>run_pipeline.go</code> wird zum lesbaren Orchestrator.</li><li>Diff ist überwiegend Move, nicht Rewrite.</li><li>Golden Traces bytegleich.</li></ul><p class="gate-proof"><strong>Automatische Abnahme:</strong> Betroffene Pakettests und Characterization-Golden-Traces bleiben bytegleich; Diff-Review bestätigt einen überwiegend mechanischen Move ohne neue Reason-Codes, Timings oder Input-Reihenfolgen.</p></div></article>
+
+      <article class="gate auto-gate"><div class="gate-id"><span>22.2</span><span class="gate-mode auto">Automatisch</span></div><div><h3>Pipeline Stage C</h3><p>Zustand domainweise gruppieren und Dependency-Flächen verkleinern.</p><ul><li>Eine Domäne pro Änderung.</li><li>Zentrale Reset-Barriere bleibt autoritativ.</li><li>Keine geänderten Reason-Codes, Timings oder Input-Reihenfolgen.</li></ul><p class="gate-proof"><strong>Automatische Abnahme:</strong> Pro Domänenumzug bleiben Golden Traces unverändert; Reset-/Generation-Fixtures beweisen, dass kein Pending-State oder Intent die zentrale Barriere überlebt.</p></div></article>
+
+      <article class="gate manual-gate"><div class="gate-id"><span>22.3</span><span class="gate-mode manual">Manuell erforderlich</span></div><div><h3>Weapon-Slot Read-only Gate</h3><p>Aktives Waffenset lesen, World-State projizieren und manuell mit <code>W</code> bestätigen.</p><ul><li><code>Available=false</code> bei jedem Readfehler.</li><li>Primär/Sekundär in mehreren frischen Snapshots stabil.</li><li>Noch kein produktiver CTA-Input.</li></ul><p class="gate-proof"><strong>Manuelle Abnahme:</strong> Im read-only Probe auf dem aktuellen D2R-Build mehrfach manuell zwischen Primär- und Sekundärset wechseln; jeder Wechsel muss erst in frischen stabilen Snapshots erscheinen, während Readfehler zuverlässig <code>Available=false</code> liefern.</p></div></article>
+
+      <article class="gate auto-gate"><div class="gate-id"><span>22.4</span><span class="gate-mode auto">Automatisch</span></div><div><h3>Slotbewusster Skill- und Input-Vertrag</h3><p>Gemeinsamen Selector einführen und <code>Shift + LMB</code> fail-closed absichern.</p><ul><li>Bestehende RMB-Verbraucher verhalten sich unverändert.</li><li>Blessed Hammer wird ausschließlich nach <code>LeftSkillID</code>-Bestätigung gecastet.</li><li>Cursorbewegung und Modified Click besitzen eine gemeinsame Gameplay-Lease mit erneuter Guard-Prüfung.</li><li>Spielertrank kann weder zwischen <code>Shift down</code>/<code>Shift up</code> geraten noch als Söldnertrank verfälscht werden.</li><li>Modifier-Cleanup, Stop während der Transaktion und kein Plain-LMB-Fallback sind getestet.</li></ul><p class="gate-proof"><strong>Automatische Abnahme:</strong> Selector-, Lease-, Guard-Recheck-, Stop-, Cleanup- und Trank-Interleave-Tests beweisen die vollständige Input-Reihenfolge ohne echten OS-Sender. Der sichtbare D2R-Cast und sichere Cursorpunkt werden erst in 22.7 manuell freigegeben.</p></div></article>
+
+      <article class="gate auto-gate"><div class="gate-id"><span>22.5a</span><span class="gate-mode auto">Automatisch</span></div><div><h3>Hammerdin-Profil und Runtime-Registry</h3><p>Das neue Profil <code>paladin_hammerdin</code> mit Mephisto-Freigabe und klaren Runtime-Verträgen registrieren.</p><ul><li>Required Skills und Skill-Slots verwenden ausschließlich bestätigte CASC-IDs aus <code>.tmp/d2r-excel/skills.txt</code>.</li><li>Mercenary-Verfügbarkeit ist Pflicht; Equipment und Insight bleiben Operatorverantwortung.</li><li>CTA bleibt optional und wird semantisch nur als vollständiges BC-/BO-Paar beschrieben.</li><li>Andere Klassen, Profile und Runs erhalten keine neue Verfügbarkeit.</li></ul><p class="gate-proof"><strong>Automatische Abnahme:</strong> Profil-, Registry-, Availability- und Required-Skill-Tests beweisen die Mephisto-Freigabe, das Merc-Gate, die CASC-basierten IDs und unveränderte bestehende Profilregistrierungen.</p></div></article>
+
+      <article class="gate auto-gate"><div class="gate-id"><span>22.5b</span><span class="gate-mode auto">Automatisch</span></div><div><h3>OperatorSettings, Validierung und API</h3><p>Die Hammerdin-Bindings als autoritativen Core-Vertrag speichern, validieren und unverfälscht an die UI projizieren.</p><ul><li>Blessed Hammer, Concentration, Teleport, Holy Shield und Town Portal sind Pflichtbindungen.</li><li>Battle Command und Battle Orders sind gemeinsam leer oder gemeinsam gültig; teilweise Belegung ist ungültig.</li><li>Es gibt kein separates <code>cta.enabled</code> und keine Equipment-Erkennung.</li><li>API und generierte Webtypen transportieren Core-Readiness und verständliche Validierungsfehler, berechnen sie aber nicht neu.</li></ul><p class="gate-proof"><strong>Automatische Abnahme:</strong> Schema-, Config-, Validierungs-, API- und Generierungsprüfungen decken gültige Pflichtbindungen, CTA leer/leer, CTA vollständig und beide Teilbelegungen ab.</p></div></article>
+
+      <article class="gate auto-gate"><div class="gate-id"><span>22.5c</span><span class="gate-mode auto">Automatisch</span></div><div><h3>Charakter-Setup und Hammerdin-UI</h3><p>Paladin-Auswahl, Binding-Editor, CTA-Hinweise und Readiness verständlich in das bestehende Charaktersetup integrieren.</p><ul><li>Paladin wird erst bei vollständig gültigem Core-Vertrag als farmbereit angezeigt.</li><li>Die UI erklärt CTA als optional, aber nur im zweiten Waffenset und nur mit vollständigem BC-/BO-Paar.</li><li>UI-facing Fehler bleiben kurz, handlungsorientiert und ohne Item- oder Insight-Versprechen.</li><li>Desktop- und schmale Layouts bleiben ohne abgeschnittene Felder oder horizontalen Überlauf nutzbar.</li></ul><p class="gate-proof"><strong>Automatische Abnahme:</strong> Betroffene Component-Tests, Typecheck und Browser-Sichtprüfung bestätigen Auswahl, Pflicht-/Optionalzustände, Core-Fehlerprojektion, Tastaturbedienung und responsive Darstellung. Produktive Buffs bleiben bis 22.6 gesperrt.</p></div></article>
+
+      <article class="gate manual-gate"><div class="gate-id"><span>22.6</span><span class="gate-mode manual">Manuell erforderlich</span></div><div><h3>Prebuff Live-Gate</h3><p>CTA-Sequenz und Holy Shield isoliert in Town abnehmen.</p><ul><li>Weapon-Swap vor und zurück bestätigt.</li><li>BC → BO → BC → Holy Shield sichtbar und per Skill-ID bestätigt.</li><li>Fehlerfälle stoppen ohne Toggle-Schleife.</li></ul><p class="gate-proof"><strong>Manuelle Abnahme:</strong> Isolierter Town-Test mit korrekt eingerichtetem CTA bestätigt sekundäres Set, BC → BO → BC → Holy Shield, Rückwechsel und primäres Set anhand frischer Skill-/Weapon-Snapshots. Ein bewusst falsches Binding muss stabil abbrechen; leer/leer darf keinen CTA-Input erzeugen.</p></div></article>
+
+      <article class="gate manual-gate"><div class="gate-id"><span>22.7</span><span class="gate-mode manual">Manuell erforderlich</span></div><div><h3>Mephisto Combat</h3><p>Kampfanker erforschen, begrenzte Hammer-Bursts implementieren und Kill-/No-progress-Vertrag abnehmen.</p><ul><li>Kein LMB-Movement.</li><li>Teleport/Concentration-Wechsel jeweils bestätigt.</li><li>Mehrere vollständige Offline-Mephisto-Runs ohne unendlichen Combat.</li></ul><p class="gate-proof"><strong>Manuelle Abnahme:</strong> Kampfanker, sicherer Cursorpunkt und Cast-Intervall live bestimmen; mehrere vollständige Offline-Mephisto-Runs bestätigen Hammer-Treffer, keinen LMB-Move, korrekte Teleport-/Concentration-Wechsel, Player-Potion ohne Shift-Überlappung sowie endliche Reposition/No-progress-Abbrüche.</p></div></article>
+
+      <article class="gate auto-gate"><div class="gate-id"><span>22.8</span><span class="gate-mode auto">Automatisch</span></div><div><h3>Dokumentation und lokales Release v0.20.0</h3><p>Feature-Docs, Index, Changelog und einmalige vollständige Releasepipeline für <code>v0.20.0 – Reliability, Runtime Replay and Hammerdin</code>.</p><ul><li><code>docs/features/runtime-trace-replay.md</code> hält ausdrücklich Motivation, zeitliche Fehlerklassen, interpretierte Trace-Daten, Opt-in, Simulationsgrenze und Regression-Promotion fest.</li><li>Hammerdin- und geänderte bestehende Feature-Docs folgen derselben Repo-Regel; Index und Changelog werden aktualisiert.</li><li><code>scripts/build-release.ps1 -Version 0.20.0</code> genau einmal ohne Skip-Schalter; Installer, Smoke und SHA-256 erfolgreich.</li></ul><p class="gate-proof"><strong>Automatische Abnahme:</strong> Erst nach dokumentiert grünen manuellen Gates 22.0c, 22.3, 22.6 und 22.7 läuft die vollständige lokale Releasepipeline genau einmal. Erfolgreicher Installer-Smoke, konsistente Version <code>0.20.0</code>, ZIP und Prüfsummen schließen das Gate ohne weiteren D2R-Lauf.</p></div></article>
+    </div>
+
+    <h3>Voraussichtliche Dateifläche</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Bereich</th><th>Neue/geänderte Orte</th><th>Hinweis</th></tr></thead>
+        <tbody>
+          <tr><td>Runtime Replay</td><td><code>internal/replay/</code>, CLI-Wiring und lokale Trace-Bundles unter <code>diagnostics/runtime-traces/</code></td><td>eigener Vertrag; weder Telemetrie noch Task-Paket wird zum Offline-Treiber</td></tr>
+          <tr><td>Pipeline</td><td><code>internal/tasks/pipeline_*.go</code>, Characterization-Fixtures/Tests</td><td>bestehendes Paket; produktive Pipeline bleibt vom Replayer unabhängig</td></tr>
+          <tr><td>Memory / World</td><td><code>internal/memory</code>, <code>internal/world/player.go</code></td><td>Weapon-Set read-only und availability-sensitiv</td></tr>
+          <tr><td>Input / App</td><td><code>internal/input</code>, <code>internal/app/*skill_selector*</code>, Profiladapter</td><td>slotbewusste Auswahl und Modifier-Cast</td></tr>
+          <tr><td>Profil</td><td><code>internal/profile/hammerdin/</code>, Registry und Config-Defaults</td><td>Mephisto zuerst; weitere Runs später</td></tr>
+          <tr><td>OperatorSettings</td><td>Core-Schema/Validierung und React-Charaktersetup</td><td>optionales BC-/BO-Paar ohne separates Enabled</td></tr>
+          <tr><td>Docs</td><td><code>docs/features/runtime-trace-replay.md</code>, <code>docs/features/hammerdin.md</code>, bestehende Profil-/Input-/Task-Docs, Index, Changelog</td><td>die Runtime-Trace-Begründung wird im späteren Feature-Dokument dauerhaft festgehalten; dieses HTML bleibt Plan</td></tr>
+          <tr><td>Release</td><td><code>scripts/build-release.ps1</code> nur bei tatsächlich hilfreicher Ausgabeänderung</td><td>keine GitHub Actions</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="risiken">
+    <h2>12. Risiken, Gegenmaßnahmen und Stop-Kriterien</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Risiko</th><th>Auswirkung</th><th>Gegenmaßnahme</th><th>Stop-Kriterium</th></tr></thead>
+        <tbody>
+          <tr><td>Runtime Trace ist unvollständig</td><td>Fehler kann offline nicht deterministisch reproduziert werden</td><td>jeder konsumierte Input und nicht ableitbare Deps-Return wird versioniert erfasst</td><td>Replay fordert Daten an, die im Bundle fehlen</td></tr>
+          <tr><td>Trace-Schema driftet still</td><td>alte Fehlertraces werden falsch interpretiert</td><td>explizite Schemaversion und fail-closed Kompatibilitätsprüfung</td><td>unbekannte Major-Version oder unvollständige Migration</td></tr>
+          <tr><td>Replay wird als D2R-Simulation missverstanden</td><td>Fix gilt ohne Live-Beleg fälschlich als abgenommen</td><td>Divergence und Simulationgrenze im Report und Gate dokumentieren</td><td>neuer Aktionspfad besitzt noch keine Live-Abnahme</td></tr>
+          <tr><td>Pipeline-Refactor verändert Nebenreihenfolge</td><td>Regression in bestehenden Routen</td><td>Characterization-Golden-Trace, Moves vor Abstraktion, eine Domäne pro Änderung</td><td>Trace-Diff ohne bewusst genehmigte Verhaltensänderung</td></tr>
+          <tr><td>Reset-State geht verloren</td><td>später Input aus alter Generation</td><td>zentraler Reset bleibt; State-Gruppen erhalten explizites <code>Reset</code></td><td>Pending Marker nach Reset ungleich Null</td></tr>
+          <tr><td>Weapon-Slot-Read ist instabil</td><td>CTA- oder Main-Set nicht sicher</td><td>read-only Probe, availability-sensitiv, mehrere frische Snapshots</td><td>Primär/Sekundär nicht reproduzierbar unterscheidbar</td></tr>
+          <tr><td>BC-Auswahl beweist CTA nicht zuverlässig</td><td>falsches Setup wird akzeptiert</td><td>Skill-ID erst nach bestätigtem sekundären Set prüfen</td><td>BC lässt sich ohne CTA-Set als Paladin bestätigen</td></tr>
+          <tr><td>Rückwechsel geht verloren</td><td>Run kämpft mit CTA</td><td>primäres Set nach zweitem <code>W</code> zwingend bestätigen</td><td>kein frischer Primary-Nachweis</td></tr>
+          <tr><td>Shift bleibt hängen oder überlappt einen Trank</td><td>weitere Inputs werden verfälscht; Spielertrank kann als Söldnertrank enden</td><td>gemeinsame Gameplay-Lease, Guard-Recheck, Reverse-Cleanup, kein Fallback und kein Modifier über Tickgrenzen</td><td><code>KeyUp</code> kann nicht abgeschlossen werden oder ein fremder Input erscheint vor <code>Shift up</code>; Input stoppt</td></tr>
+          <tr><td>Hammer trifft Mephisto unzuverlässig</td><td>Combat hängt oder dauert zu lange</td><td>Live-Anchor-Gate, endliche Bursts, begrenzte Reposition</td><td>No-progress-Budget erschöpft</td></tr>
+          <tr><td>CTA-Recast während Gefahr</td><td>Schadens-/Defensivverlust</td><td>nur Town-/sichere Run-Grenze, niemals aktiver Combat</td><td>Buff fällig, aber keine sichere Grenze: aufschieben</td></tr>
+          <tr><td>Generische Buff-Engine wächst</td><td>mehr Code als Nutzen</td><td>Profile behalten Sequenz; nur kleine Primitiven teilen</td><td>Abstraktion benötigt profilfremde Flags oder DSL</td></tr>
+          <tr><td>Tests werden wieder mehrfach global ausgeführt</td><td>langsame Iteration</td><td>AGENTS-Regel, Scope-Matrix, Full Suite nur Release</td><td>automatischer <code>go test ./...</code>-Lauf außerhalb Auftrag</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Research statt Produktfrage</h3>
+    <p>Folgende Punkte sind noch live zu messen, benötigen aber keine weitere Produktentscheidung:</p>
+    <ul>
+      <li>exakter Memory-Vertrag und Stabilität des aktiven Weapon-Swap-Widget-State;</li>
+      <li>Mephisto-Kampfanker und Hammer-Cast-Intervall;</li>
+      <li>Settle-Zeiten zwischen <code>W</code>, F-Key, bestätigter Skill-ID und Self-Cast;</li>
+      <li>ob SkillsKnown für CTA-Skills nach dem Setwechsel schnell genug und vollständig aktualisiert wird;</li>
+      <li>geeigneter sicherer Clientpunkt für <code>Shift + LMB</code>.</li>
+    </ul>
+
+    <div class="callout success">
+      <h3>Definition of Done für Phase 22</h3>
+      <ul class="checks">
+        <li>Ein kontrolliert ausgelöstes terminales Fail-closed-Ereignis aus einem echten Offline-D2R-Run lässt sich ohne D2R bis zum identischen Step, Input-Intent und Reason-Code reproduzieren.</li>
+        <li>Der Replay-Pfad kann weder Prozess-Attach noch Window-Bind, Hotkeys oder OS-Input erreichen.</li>
+        <li>Runtime Capture ist opt-in und persistiert ausschließlich interpretierte, lokal begrenzte Diagnosedaten.</li>
+        <li>Der kontrollierte Live-Trace wurde zu einem minimierten permanenten Integrations-Fixture; der Promotion-Prozess für den ersten später organisch auftretenden Produktfehler ist dokumentiert und bewusst kein Releaseblocker.</li>
+        <li>Bestehende Standardrouten behalten ihre beobachtbaren Traces nach Pipeline A–C.</li>
+        <li>Stage D wurde nicht stillschweigend in Phase 22 hineingezogen.</li>
+        <li>Paladin/Hammerdin ist im Setup auswählbar und für Mephisto farmbereit.</li>
+        <li>CTA ist optional, paarweise konfiguriert und ohne Itemerkennung fail-closed bestätigt.</li>
+        <li>Holy Shield wird bei CTA im zweiten Set vor dem Rückwechsel gewirkt.</li>
+        <li>Blessed Hammer wird ausschließlich als bestätigtes <code>Shift + LMB</code> gesendet.</li>
+        <li>Merc-Verfügbarkeit wird geprüft; Insight bleibt Operatorverantwortung.</li>
+        <li>CTA-Recast erfolgt frühestens nach 150 Sekunden und nur an sicherer Grenze.</li>
+        <li>Das spätere Feature-Dokument <code>runtime-trace-replay.md</code> erklärt nicht nur das Wie, sondern auch Coverage-Lücke, zeitliche Fehlerhistorie und den erwarteten Engineering-Hebel.</li>
+        <li>Gezielte Gates sind dokumentiert; die vollständige lokale Releasepipeline für <code>v0.20.0</code> läuft einmal erfolgreich.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section id="quellen">
+    <h2>13. Referenzen</h2>
+    <ul>
+      <li><a href="handoff.html">Projekt-Handoff</a></li>
+      <li><a href="docs/features/task-runner.md">Task Runner</a></li>
+      <li><a href="docs/features/input-controller.md">Input Controller</a></li>
+      <li><a href="docs/features/character-encounter-profiles.md">Character- und Encounter-Profile</a></li>
+      <li><a href="docs/features/character-loadouts.md">Character Loadouts</a></li>
+      <li><a href="docs/features/mephisto-run.md">Mephisto Run</a></li>
+      <li><a href="docs/features/mercenary-support.md">Mercenary Support</a></li>
+      <li><a href="docs/features/windows-packaging.md">Windows-Packaging und lokale Releasepipeline</a></li>
+      <li><a href="docs/backlog.md">Backlog einschließlich HWND-Input-Idee</a></li>
+      <li><a href="https://maxroll.gg/d2/guides/blessed-hammer-paladin">Maxroll: Blessed Hammer Paladin</a></li>
+    </ul>
+  </section>
+
+  <footer>
+    <p>Phase 22 · Zielrelease v0.20.0 · Research- und Implementierungsentwurf · D2R Offline Farming Bot · Stand 14. August 2026</p>
+    <p><a href="#top">Zurück nach oben</a></p>
+  </footer>
+</main>
+</body>
+</html>
