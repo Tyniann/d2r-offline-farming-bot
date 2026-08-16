@@ -50,6 +50,7 @@ desktop.ini
 /configs/offsets.scanned.yaml
 .env
 .env.*
+/.cursor/
 
 # Logs & runtime artifacts
 /logs/
