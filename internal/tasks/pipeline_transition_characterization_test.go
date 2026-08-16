@@ -270,8 +270,10 @@ func compareTransitionGolden(t *testing.T, name, got string) {
 	if err != nil {
 		t.Fatalf("read %s: %v", name, err)
 	}
-	if got != string(want) {
-		t.Fatalf("%s changed:\n--- want\n%s--- got\n%s", name, want, got)
+	got = strings.ReplaceAll(got, "\r\n", "\n")
+	wantText := strings.ReplaceAll(string(want), "\r\n", "\n")
+	if got != wantText {
+		t.Fatalf("%s changed:\n--- want\n%s--- got\n%s", name, wantText, got)
 	}
 }
 
