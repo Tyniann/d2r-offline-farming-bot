@@ -36,10 +36,6 @@ type verifiedCombatInput interface {
 	Click(input.MouseButton) error
 }
 
-type modifiedClickInput interface {
-	ClickAtWithModifier(clientX, clientY int, modifier string, button input.MouseButton) error
-}
-
 type modifierHoldInput interface {
 	HoldAt(clientX, clientY int, button input.MouseButton) error
 	ReleaseModifierHold() error
@@ -221,7 +217,8 @@ func (c *combatAdapter) monsterHoldCursor(player world.Player, target world.Mons
 		return 0, 0, "", false, fmt.Errorf("combat projection: window not bound")
 	}
 	if target.IsHovered {
-		clientX, clientY, projected := pathing.ProjectHoverProbe(c.projector, player.Position, target.Position, win, c.hoverProbe, 0)
+		var projected bool
+		clientX, clientY, projected = pathing.ProjectHoverProbe(c.projector, player.Position, target.Position, win, c.hoverProbe, 0)
 		if !projected {
 			return 0, 0, "", false, fmt.Errorf("%w: unit %d", profile.ErrRouteClearTargetUnprojectable, target.UnitID)
 		}
@@ -233,7 +230,8 @@ func (c *combatAdapter) monsterHoldCursor(player world.Player, target world.Mons
 		c.hoverProbeAttempt = 0
 	}
 	if c.hoverProbe.MaxHoverAttempts > 0 && c.hoverProbeAttempt >= c.hoverProbe.MaxHoverAttempts {
-		clientX, clientY, projected := pathing.ProjectHoverProbe(c.projector, player.Position, target.Position, win, c.hoverProbe, 0)
+		var projected bool
+		clientX, clientY, projected = pathing.ProjectHoverProbe(c.projector, player.Position, target.Position, win, c.hoverProbe, 0)
 		if !projected {
 			c.pendingTargetUnitID = 0
 			c.hoverProbeAttempt = 0
@@ -244,7 +242,8 @@ func (c *combatAdapter) monsterHoldCursor(player world.Player, target world.Mons
 		return clientX, clientY, profile.MonsterTargetingWorldProjected, false, nil
 	}
 	attempt := c.hoverProbeAttempt
-	clientX, clientY, projected := pathing.ProjectHoverProbe(c.projector, player.Position, target.Position, win, c.hoverProbe, attempt)
+	var projected bool
+	clientX, clientY, projected = pathing.ProjectHoverProbe(c.projector, player.Position, target.Position, win, c.hoverProbe, attempt)
 	if !projected {
 		return 0, 0, "", false, fmt.Errorf("%w: unit %d", profile.ErrRouteClearTargetUnprojectable, target.UnitID)
 	}

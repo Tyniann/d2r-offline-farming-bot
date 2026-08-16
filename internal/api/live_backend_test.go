@@ -1272,7 +1272,7 @@ func TestCandidateTestUsesDraftContextWithoutConfirmedSelection(t *testing.T) {
 	backend.status.Selection = SelectionStatusDTO{}
 	backend.mu.Unlock()
 
-	if _, err := backend.PreviewRouteMutation(RouteMutationPreviewRequest{CandidateID: candidate.CandidateID, Operation: string(app.RouteMutationDeleteCandidate)}); err != nil {
+	if _, err = backend.PreviewRouteMutation(RouteMutationPreviewRequest{CandidateID: candidate.CandidateID, Operation: string(app.RouteMutationDeleteCandidate)}); err != nil {
 		t.Fatalf("preview without confirmed selection: %v", err)
 	}
 	snapshot, err := backend.StartRouteWorkflow(RouteWorkflowRequest{ExpectedGeneration: 1, Operation: "test", CandidateID: candidate.CandidateID})

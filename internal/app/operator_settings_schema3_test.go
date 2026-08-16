@@ -325,7 +325,7 @@ func TestHammerdinBindingsRequireDutySkillsAndAllOrNothingCTA(t *testing.T) {
 	explicitEmptyCTA := hammerdinBindingsFixture(false)
 	explicitEmptyCTA.Skills["battle_command"] = ""
 	explicitEmptyCTA.Skills["battle_orders"] = ""
-	if err := validateOperatorProfileBindings("mrhammer", map[string]OperatorProfileBindings{"paladin_hammerdin": explicitEmptyCTA}, store.profiles, assigned.Settings.Input); err != nil {
+	if err = validateOperatorProfileBindings("mrhammer", map[string]OperatorProfileBindings{"paladin_hammerdin": explicitEmptyCTA}, store.profiles, assigned.Settings.Input); err != nil {
 		t.Fatalf("explicit empty/empty CTA: %v", err)
 	}
 	if !ProfileBindingsComplete(withoutCTA.Settings.Characters["mrhammer"].ProfileBindings["paladin_hammerdin"], profile) {

@@ -301,7 +301,7 @@ func (r *Recorder) Finalize(terminal Terminal) (FinalizeResult, error) {
 	if int64(len(encoded)) > r.config.MaximumBundleBytes {
 		return FinalizeResult{}, fmt.Errorf("runtime trace bundle exceeds %d bytes", r.config.MaximumBundleBytes)
 	}
-	if err := ensureTraceDirectory(r.config.Directory); err != nil {
+	if err = ensureTraceDirectory(r.config.Directory); err != nil {
 		return FinalizeResult{}, err
 	}
 	filename, err := r.bundleFilename()
@@ -356,7 +356,7 @@ func encodeBundle(bundle Bundle) ([]byte, error) {
 func ensureTraceDirectory(directory string) error {
 	info, err := os.Lstat(directory)
 	if os.IsNotExist(err) {
-		if err := os.MkdirAll(directory, 0o700); err != nil {
+		if err = os.MkdirAll(directory, 0o700); err != nil {
 			return fmt.Errorf("create runtime trace directory: %w", err)
 		}
 		return nil

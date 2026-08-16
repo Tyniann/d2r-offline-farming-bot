@@ -65,7 +65,7 @@ func TestOperatorSettingsPreviewReturnsActionablePartialCTAError(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := backend.SetOperatorSettingsStore(store); err != nil {
+	if err = backend.SetOperatorSettingsStore(store); err != nil {
 		t.Fatal(err)
 	}
 	draft := operatorSettingsDTO(assigned.Settings)

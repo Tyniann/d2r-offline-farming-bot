@@ -42,10 +42,6 @@ func (c *runPipeline) tickReturn(ctx context.Context, deps pipelineReturnDeps, s
 	}
 }
 
-func (c *runPipeline) onStashPersonalTick(ctx context.Context, deps Deps, step string, w world.State) stepResult {
-	return c.tickStashPersonal(ctx, narrowReturnDeps(deps), step, w)
-}
-
 func (c *runPipeline) tickStashPersonal(ctx context.Context, deps pipelineReturnDeps, step string, w world.State) stepResult {
 	switch step {
 	case pipelineStepPrecheck:

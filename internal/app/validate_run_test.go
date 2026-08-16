@@ -209,10 +209,10 @@ func TestValidateMephistoHammerdinAcceptsLeftMouseBlessedHammer(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := validateBossBindingsWithProfile(cfg, "mephisto", source, "paladin_hammerdin"); err != nil {
+	if err = validateBossBindingsWithProfile(cfg, "mephisto", source, "paladin_hammerdin"); err != nil {
 		t.Fatalf("boss LMB Blessed Hammer rejected: %v", err)
 	}
-	if err := validateFullRunBindingsWithProfile(cfg, "mephisto", source, "paladin_hammerdin"); err != nil {
+	if err = validateFullRunBindingsWithProfile(cfg, "mephisto", source, "paladin_hammerdin"); err != nil {
 		t.Fatalf("full-run LMB Blessed Hammer rejected: %v", err)
 	}
 

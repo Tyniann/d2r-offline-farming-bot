@@ -143,7 +143,7 @@ func TestPreviewCandidateSurvivesUnrelatedCharacterConfirmation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := lifecycle.Confirm(preview, time.Now()); err != nil {
+	if _, err = lifecycle.Confirm(preview, time.Now()); err != nil {
 		t.Fatal(err)
 	}
 	service, err := NewRouteManagementService(cfg, RouteManagementHooks{})
