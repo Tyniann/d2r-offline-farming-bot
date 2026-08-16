@@ -1,0 +1,998 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark light">
+  <title>Stage D – Entscheidung und Umsetzungsbasis</title>
+  <style>
+    :root {
+      --bg: #090b0d;
+      --bg-soft: #0f1317;
+      --panel: #151a1f;
+      --panel-2: #1b2229;
+      --text: #f2f4f5;
+      --muted: #b2bcc5;
+      --line: #35414b;
+      --gold: #d9a34f;
+      --gold-soft: #2b2011;
+      --blue: #8ec7e6;
+      --green: #72d7a2;
+      --yellow: #f1cf72;
+      --red: #f07d86;
+      --code: #090c0f;
+      --shadow: 0 20px 60px rgba(0, 0, 0, .34);
+    }
+
+    @media (prefers-color-scheme: light) {
+      :root {
+        --bg: #f4f1ea;
+        --bg-soft: #ebe6dc;
+        --panel: #fffefa;
+        --panel-2: #f2ede3;
+        --text: #1c2329;
+        --muted: #56636d;
+        --line: #d5cdbf;
+        --gold: #8b5d14;
+        --gold-soft: #f6ead4;
+        --blue: #236989;
+        --green: #15774a;
+        --yellow: #8b6600;
+        --red: #ae3540;
+        --code: #f2eee6;
+        --shadow: 0 18px 50px rgba(60, 47, 26, .12);
+      }
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      color: var(--text);
+      background:
+        radial-gradient(circle at 90% -5%, rgba(217, 163, 79, .22), transparent 30rem),
+        radial-gradient(circle at 5% 20%, rgba(71, 131, 161, .15), transparent 28rem),
+        var(--bg);
+      font: 16px/1.62 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    a { color: var(--blue); }
+    a:hover { text-decoration-thickness: 2px; }
+    code, pre { font-family: "Cascadia Code", Consolas, "Liberation Mono", monospace; }
+    code {
+      padding: .08rem .32rem;
+      color: var(--blue);
+      background: var(--code);
+      border: 1px solid var(--line);
+      border-radius: 5px;
+      font-size: .92em;
+    }
+    pre {
+      margin: 14px 0 0;
+      padding: 16px;
+      overflow: auto;
+      color: var(--text);
+      background: var(--code);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      line-height: 1.48;
+    }
+    main {
+      width: min(1240px, calc(100% - 32px));
+      margin: 0 auto;
+      padding: 34px 0 80px;
+    }
+    .hero {
+      position: relative;
+      padding: clamp(24px, 5vw, 48px);
+      overflow: hidden;
+      background: linear-gradient(135deg, rgba(49, 36, 18, .95), rgba(24, 31, 36, .96) 54%, rgba(14, 18, 21, .98));
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      box-shadow: var(--shadow);
+    }
+    .eyebrow {
+      margin: 0 0 8px;
+      color: var(--gold);
+      font-size: .82rem;
+      font-weight: 800;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+    }
+    h1, h2, h3, h4 { line-height: 1.2; }
+    h1 {
+      max-width: 980px;
+      margin: 0;
+      font-size: clamp(2.15rem, 6vw, 3.4rem);
+      letter-spacing: -.045em;
+    }
+    h2 {
+      margin: 52px 0 0;
+      padding: 18px 0 10px;
+      border-bottom: 1px solid var(--line);
+      font-size: clamp(1.45rem, 3vw, 2rem);
+      letter-spacing: -.02em;
+    }
+    h3 { margin: 28px 0 0; font-size: 1.15rem; }
+    h4 { margin: 18px 0 0; font-size: 1rem; }
+    p { margin: 10px 0 0; }
+    ul, ol { margin: 12px 0 0; padding-left: 1.35rem; }
+    li + li { margin-top: 6px; }
+    .lead {
+      max-width: 980px;
+      margin-top: 18px;
+      color: var(--muted);
+      font-size: 1.13rem;
+    }
+    .chips { display: flex; flex-wrap: wrap; gap: 9px; margin-top: 20px; }
+    .chip {
+      padding: 5px 11px;
+      color: #ffe4b8;
+      background: rgba(78, 55, 22, .52);
+      border: 1px solid #755429;
+      border-radius: 999px;
+      font-size: .9rem;
+    }
+    .hero-meta {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+      margin-top: 28px;
+    }
+    .hero-meta div, .card, .callout, .gate, .decision {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+    }
+    .hero-meta div { padding: 14px; background: rgba(20, 25, 29, .76); }
+    .hero-meta strong { display: block; color: var(--gold); font-size: 1.12rem; }
+    .hero-meta span { display: block; margin-top: 2px; color: var(--muted); font-size: .86rem; }
+    .toc {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      display: flex;
+      gap: 6px;
+      margin-top: 18px;
+      padding: 10px;
+      overflow-x: auto;
+      background: color-mix(in srgb, var(--bg) 88%, transparent);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      backdrop-filter: blur(12px);
+    }
+    .toc a {
+      flex: 0 0 auto;
+      padding: 7px 10px;
+      color: var(--muted);
+      text-decoration: none;
+      border-radius: 8px;
+      font-size: .86rem;
+    }
+    .toc a:hover { color: var(--text); background: var(--panel-2); }
+    .grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin-top: 16px; }
+    .grid.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .card { padding: 18px; }
+    section { min-width: 0; scroll-margin-top: 72px; }
+    .card h3, .card h4 { margin-top: 0; }
+    .card p { color: var(--muted); }
+    .callout { margin-top: 18px; padding: 18px; border-left: 4px solid var(--blue); }
+    .callout.warn { border-left-color: var(--yellow); }
+    .callout.danger { border-left-color: var(--red); }
+    .callout.success { border-left-color: var(--green); }
+    .callout h3 { margin: 0; }
+    .muted { color: var(--muted); }
+    .table-wrap {
+      width: 100%;
+      max-width: 100%;
+      margin-top: 16px;
+      overflow-x: auto;
+      border: 1px solid var(--line);
+      border-radius: 13px;
+    }
+    table {
+      width: 100%;
+      min-width: 760px;
+      border-collapse: collapse;
+      background: var(--panel);
+    }
+    th, td {
+      padding: 11px 13px;
+      text-align: left;
+      vertical-align: top;
+      border-bottom: 1px solid var(--line);
+    }
+    th {
+      color: var(--text);
+      background: var(--panel-2);
+      font-size: .83rem;
+      letter-spacing: .04em;
+      text-transform: uppercase;
+    }
+    tr:last-child td { border-bottom: 0; }
+    .phase-list { display: grid; gap: 12px; margin-top: 16px; }
+    .gate { display: grid; grid-template-columns: 92px 1fr; gap: 16px; padding: 18px; }
+    .gate-id {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 8px;
+      color: var(--gold);
+      font-size: 1.15rem;
+      font-weight: 850;
+    }
+    .gate h3 { margin: 0; }
+    .gate p { color: var(--muted); }
+    .decision-list { display: grid; gap: 10px; margin-top: 16px; }
+    .decision {
+      display: grid;
+      grid-template-columns: 180px 1fr;
+      gap: 14px;
+      padding: 15px;
+    }
+    .decision strong { color: var(--gold); }
+    .checks { padding-left: 0; list-style: none; }
+    .checks li { position: relative; padding-left: 26px; }
+    .checks li::before { position: absolute; left: 0; content: "✓"; color: var(--green); font-weight: 900; }
+    .gate-mode {
+      display: inline-flex;
+      padding: 4px 8px;
+      border: 1px solid currentColor;
+      border-radius: 999px;
+      font-size: .67rem;
+      font-weight: 800;
+      letter-spacing: .035em;
+      text-transform: uppercase;
+    }
+    .gate-mode.wait { color: var(--yellow); }
+    .gate-mode.lock { color: var(--red); }
+    .gate-mode.ready { color: var(--green); }
+    footer {
+      margin-top: 54px;
+      padding-top: 20px;
+      color: var(--muted);
+      text-align: center;
+      border-top: 1px solid var(--line);
+    }
+    @media (max-width: 900px) {
+      .hero-meta, .grid, .grid.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+    @media (max-width: 620px) {
+      main { width: min(100% - 20px, 1240px); padding-top: 10px; }
+      .hero-meta, .grid, .grid.two { grid-template-columns: 1fr; }
+      .gate, .decision { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <header class="hero" id="top">
+    <p class="eyebrow">Entscheidungs- und Implementierungsbasis · nach Phase 22</p>
+    <h1>Stage D bleibt bedingt — zuerst die Matrix schließen</h1>
+    <p class="lead">
+      Diese Datei ist die autoritative Grundlage für jede spätere Stage-D-Arbeit.
+      Sie hält die Lage nach <code>v0.20.0</code> fest, begründet warum ein Oracle-Doppel
+      und ein Tabellenumbau heute nicht sinnvoll sind, und spezifiziert die Stufen 0–2
+      so, dass ein Agent sie ohne weitere Produktklärung umsetzen kann.
+    </p>
+    <div class="chips" aria-label="Status">
+      <span class="chip">Stufe 0 und 1 umgesetzt</span>
+      <span class="chip">Stufe 2 gesperrt</span>
+      <span class="chip">Kein Oracle-Doppel</span>
+      <span class="chip">Cow außerhalb</span>
+    </div>
+    <div class="hero-meta">
+      <div><strong>Stand</strong><span>16. August 2026</span></div>
+      <div><strong>Status</strong><span>Q1/Q2 entschieden · Stufe 0 und 1 umgesetzt</span></div>
+      <div><strong>Nächster sinnvoller Schritt</strong><span>Stufe 2 bleibt gesperrt</span></div>
+      <div><strong>Elternplan</strong><span><a href="phase-22-implementation-plan.html">Phase-22-Umsetzungsplan</a></span></div>
+    </div>
+  </header>
+
+  <nav class="toc" aria-label="Inhaltsübersicht">
+    <a href="#auftrag">Auftrag</a>
+    <a href="#fragen">Fragen</a>
+    <a href="#lage">Lage</a>
+    <a href="#entscheidung">Entscheidung</a>
+    <a href="#grenzen">Grenzen</a>
+    <a href="#stufe-0">Stufe 0</a>
+    <a href="#stufe-1">Stufe 1</a>
+    <a href="#stufe-2">Stufe 2</a>
+    <a href="#abnahme">Abnahme</a>
+    <a href="#stop">Stop</a>
+  </nav>
+
+  <section id="auftrag">
+    <h2>1. Wie Agenten diese Datei zu lesen haben</h2>
+    <div class="callout success">
+      <h3>Auftrag 16.08.2026</h3>
+      <p>
+        Der Operator hat Q1 und Q2 entschieden und Stufe 0 sowie Stufe 1 ausdrücklich
+        beauftragt. Ziel ist ein Fundament ohne parallele, weitgehend identische
+        Übergangspfade. Stufe 2 bleibt gesperrt. Ein allgemeines „mach Stage D“
+        autorisiert weiterhin keinen Tabellenresolver.
+      </p>
+    </div>
+    <ol>
+      <li>Zuerst diesen gesamten Text lesen, danach <a href="phase-22-implementation-plan.html">phase-22-implementation-plan.html</a> Abschnitt 4 und Gate 22.1/22.2.</li>
+      <li>Produktiven Einstieg nur in <code>internal/tasks/pipeline_flow.go</code> Funktion <code>nextStep</code> und <code>firstStep</code> ansehen. Handler, Cow und Input nicht umbauen.</li>
+      <li>Bei jedem Widerspruch zwischen diesem Dokument und dem lebenden <code>nextStep</code>: <strong>sofort stoppen und fragen</strong>. Weder Code „reparieren“ noch diese Datei still überschreiben.</li>
+      <li>Keine zweite produktive Übergangsfunktion anlegen. Kein <code>nextStepLegacy</code>. Das Golden ist die erwartete Topologie.</li>
+      <li>Commits nur auf ausdrückliche Nutzeranfrage. Kein Changelog-Eintrag für reine Test-Goldens.</li>
+    </ol>
+  </section>
+
+  <section id="fragen">
+    <h2>2. Operatorfragen</h2>
+    <p>Beide Fragen sind am 16.08.2026 entschieden.</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>ID</th><th>Frage</th><th>Entscheidung</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><code>Q1</code></td>
+            <td>Soll <code>phase-22-implementation-plan.html</code> und/oder <code>handoff.html</code> auf diese Datei verlinken?</td>
+            <td>Ja. Kurzer Verweis im Stage-D-Kasten und im Handoff-Absatz zu Phase 22. Diese Datei bleibt die Detailautorität.</td>
+          </tr>
+          <tr>
+            <td><code>Q2</code></td>
+            <td>Unbekannte Phase fällt in <code>nextStep</code> heute in den Full-Run-Switch. Später bewusst fail-closed auf <code>""</code> ändern?</td>
+            <td>Nicht in Stufe 0–1. Stufe 0 friert das heutige Fallthrough ein. Eine spätere fail-closed Änderung braucht einen eigenen Auftrag.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="lage">
+    <h2>3. Lage nach Phase 22</h2>
+    <p>
+      Phase 22 ist mit Gates 22.0a–22.8 und Release <code>v0.20.0</code> abgeschlossen.
+      Stage D wurde dort ausdrücklich <strong>nicht</strong> stillschweigend hineingezogen.
+      Der Phase-22-Plan erlaubt Stage D nur, wenn A–C fertig sind <em>und</em>
+      <code>nextStep</code> danach noch nachweisbar die Wartung behindert.
+    </p>
+
+    <h3>Was bereits erledigt ist</h3>
+    <div class="grid two">
+      <article class="card">
+        <h4>Stages A–C</h4>
+        <p>
+          Die 2.547-zeilige Datei ist mechanisch zerlegt. <code>run_pipeline.go</code>
+          dispatcht nur noch. Zustand liegt in Core-, Travel-, Boss-, Loot- und Return-Gruppen.
+          Characterization-Golden und Runtime Replay existieren.
+        </p>
+      </article>
+      <article class="card">
+        <h4>Hammerdin hängt nicht an Stage D</h4>
+        <p>
+          Paladin-Combat, CTA, Skill-Slots und LMB-Hold sitzen in Profil, App und Input.
+          Sie haben <code>nextStep</code> nicht erweitert. Weitere Hammerdin-Routen
+          brauchen dasselbe Muster, keinen neuen Run-Graphen.
+        </p>
+      </article>
+    </div>
+
+    <h3>Was <code>nextStep</code> heute wirklich ist</h3>
+    <p>
+      <code>internal/tasks/pipeline_flow.go</code> Funktion <code>(*runPipeline) nextStep</code>
+      ist eine reine Nachfolgerfunktion von etwa 200 Zeilen. Sie entscheidet nicht über
+      Combat, Loot-Auswahl, Timeouts oder Input. Sie beantwortet nur:
+      welcher Step-Name folgt auf den aktuellen, gegeben Phase und wenige Flags.
+    </p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Eingabe</th><th>Quelle</th><th>Werte, die Stage D kennen muss</th></tr></thead>
+        <tbody>
+          <tr><td>aktueller Step</td><td>Argument <code>current</code></td><td>27 Pipeline-Konstanten, plus Leerstring und fremde Namen</td></tr>
+          <tr><td>Phase</td><td><code>runPipeline.phase</code></td><td>Leerstring = Full Run; sonst die sieben <code>RunPhase*</code>-Konstanten</td></tr>
+          <tr><td>Loot-Ziel</td><td><code>loot.lootScanHasTarget</code></td><td><code>true</code> / <code>false</code></td></tr>
+          <tr><td>Boss bereits tot</td><td><code>boss.bossKillEmitted</code></td><td><code>true</code> / <code>false</code></td></tr>
+          <tr><td>Nach-Kill-Cleanup</td><td><code>definition.ClearNearbyAfterBoss</code></td><td><code>true</code> / <code>false</code></td></tr>
+          <tr><td>Fremdakt</td><td><code>foreignTownOrigin(definition.ReturnOrigin)</code></td><td>Act 2–5 = fremd; Act 1 und unbekannt = nicht fremd</td></tr>
+          <tr><td>Travel-Resume</td><td><code>travel.resumeAfterPrecheckSet</code> und <code>travel.resumeAfterPrecheck</code></td><td>Nur in Travel-Phasen auf <code>precheck</code> gelesen. Produktive Ziele: <code>play_bound_route</code> oder Leerstring.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>
+      <code>nextStep</code> liest keine Run-ID, keine Area, keine Welt und keine Zeit.
+      Matrix-Zellen dürfen deshalb synthetische <code>RunDefinition</code>-Werte mit genau
+      <code>ReturnOrigin</code> und <code>ClearNearbyAfterBoss</code> verwenden.
+    </p>
+
+    <h3>Die eigentliche Restlast</h3>
+    <p>
+      Nicht Unlesbarkeit, sondern Wiederholung. Derselbe Portal- und Egress-Pfad steht
+      im Full Run, in <code>loot-and-return</code> und verkürzt in <code>retry-return</code>.
+      Die isolierten Phasen <code>town-ready</code> und <code>stash-personal</code> sind kurze lineare Ketten.
+      Das ist unbequem, aber kein nachgewiesener Wartungsstau.
+    </p>
+
+    <h3>Lücken der bestehenden Characterization</h3>
+    <p>
+      <code>internal/tasks/testdata/phase22-standard-pipeline.golden</code> friert vier Full Runs
+      plus Loot-Ziel, Boss-schon-tot, zwei Retry-Returns und zwei Timeout-Reasons ein.
+      Das reicht für den damaligen A/B/C-Move. Es fehlt für einen späteren Topologieeingriff:
+    </p>
+    <ul>
+      <li>isolierte Phasen <code>town-ready</code>, <code>stash-personal</code>, <code>travel-entry</code>, <code>play-route</code>, <code>boss</code>, <code>loot-and-return</code>;</li>
+      <li>Travel-Resume nach <code>precheck</code> einschließlich leerem Resume-Ziel;</li>
+      <li>die volle Prädikatmatrix, nicht nur Default-Flags;</li>
+      <li>unbekannte Phase und fremde Step-Namen als Fail-closed-Zellen;</li>
+      <li><code>timeoutReason(wait_hub_area)</code>.</li>
+    </ul>
+    <p>
+      Genau diese Lücken wären das Regressionsrisiko eines Umbaus — nicht der Switch selbst.
+    </p>
+  </section>
+
+  <section id="entscheidung">
+    <h2>4. Getroffene Entscheidung</h2>
+    <div class="callout success">
+      <h3>Verbindliche Lage</h3>
+      <p>
+        Stage D bleibt <strong>bedingt und nicht verworfen</strong>. Ein Oracle-Doppel der alten
+        <code>nextStep</code>-Funktion ist <strong>derzeit nicht sinnvoll</strong>. Der nächste
+        sinnvolle Schritt ist die Characterization-Matrix (Stufe 0). Kettenextraktion
+        (Stufe 1) nur bei nachgewiesenem Bedarf. Ein Tabellen- oder Graphresolver
+        (Stufe 2) bleibt gesperrt, bis ein konkreter Topologieanlass und ein
+        ausdrücklicher Auftrag vorliegen.
+      </p>
+    </div>
+    <div class="decision-list">
+      <div class="decision"><strong>Warum kein Oracle jetzt</strong><span>Es gibt keine zweite Implementierung, die verglichen werden müsste. Ein eingefrorenes <code>nextStepLegacy</code> verdoppelt jede spätere legitime Topologieänderung und driftet. Die Goldens von Stufe 0 sind die erwartete Topologie.</span></div>
+      <div class="decision"><strong>Warum zuerst Stufe 0</strong><span>Sie ändert kein Produktionsverhalten, schließt die nachgewiesene Testlücke und ist Voraussetzung für Stufe 1 und 2. Ohne Matrix wäre jede Extraktion oder Tabelle blind.</span></div>
+      <div class="decision"><strong>Warum Stufe 1 nur bei Bedarf</strong><span>Vier identische Teilsequenzen lassen sich später als benannte Helfer ziehen. Das ist der größte Vereinfachungsgewinn bei kleinstem Semantikrisiko. Ohne aktuellen Anlass ist der Eingriff unnötig.</span></div>
+      <div class="decision"><strong>Warum Stufe 2 gesperrt</strong><span>Der Phase-22-Plan warnt selbst: dynamische Abzweigungen machen eine Tabelle leicht unlesbarer als den heutigen Switch. Die Startbedingung „<code>nextStep</code> behindert die Wartung“ ist nach A–C nicht erfüllt.</span></div>
+      <div class="decision"><strong>Hammerdin und Routen</strong><span>Countess, Mephisto, Summoner, Nihlathak und Cow bleiben produktive Verträge. Weitere Hammerdin-Fähigkeiten gehören in Profil/Combat, nicht in diese Datei.</span></div>
+    </div>
+  </section>
+
+  <section id="grenzen">
+    <h2>5. Harte Grenzen für alle Stufen</h2>
+    <div class="grid two">
+      <article class="card">
+        <h4>Gehört zu Stage D</h4>
+        <p><code>firstStep</code> und <code>nextStep</code> der Standardpipeline. Tests und Goldens, die genau diese Nachfolgerfunktion beschreiben. Optional später benannte Helfer, die identische Teilsequenzen aus <code>nextStep</code> ziehen.</p>
+      </article>
+      <article class="card">
+        <h4>Gehört nicht zu Stage D</h4>
+        <p>
+          Tick-Handler, Dispatcher in <code>run_pipeline.go</code>, Reset, Timeouts außer dem einen Hub-Reason in Stufe 0,
+          Input, Combat, Loot-Entscheidung, Town-Graph, Cow-Pipeline, Runtime Replay, UI, Config.
+        </p>
+      </article>
+    </div>
+    <div class="callout warn">
+      <h3>Drei Entscheidungsebenen nicht vermischen</h3>
+      <ol>
+        <li><code>nextStep</code> — welcher Step-Name folgt. Das ist Stage D.</li>
+        <li>Handler-Tick — complete, fail, warten, welcher Input. Das bleibt unangetastet.</li>
+        <li>Profil-Combat — Hammer, Teleport, Aura. Das bleibt unangetastet.</li>
+      </ol>
+    </div>
+    <ul>
+      <li>Cow bleibt eine eigene Pipeline. Kein Cow-Step darf in der Standardmatrix einen Nachfolger bekommen, außer dem expliziten Fail-closed-Sentinel <code>cow_preflight → -</code>.</li>
+      <li>Keine neuen Steps, keine entfernten Steps, keine geänderten Reason-Codes, Timings oder Input-Reihenfolgen.</li>
+      <li>Keine YAML-Topologie, keine Graph-Bibliothek, keine generische Buff- oder Run-DSL.</li>
+      <li>Unveränderte Dateien in Stufe 0: <code>pipeline_flow.go</code>, alle Handler, <code>phase22_characterization_test.go</code>, <code>phase22-standard-pipeline.golden</code>.</li>
+    </ul>
+  </section>
+
+  <section id="stufe-0">
+    <h2>6. Stufe 0 — Characterization-Matrix schließen</h2>
+    <article class="gate">
+      <div class="gate-id">Stufe 0<div class="gate-mode ready">Umgesetzt · 16.08.2026</div></div>
+      <div>
+        <h3>Ziel</h3>
+        <p>Die beobachtbare Standard-Topologie vollständig einfrieren, ohne Produktionscode zu ändern. Danach kann Stufe 1 oder 2 gegen bytegleiche Goldens arbeiten.</p>
+      </div>
+    </article>
+
+    <h3>6.1 Lieferumfang</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Pfad</th><th>Aktion</th><th>Regel</th></tr></thead>
+        <tbody>
+          <tr><td><code>internal/tasks/pipeline_transition_characterization_test.go</code></td><td>neu</td><td>Nur Tests. Keine Produktionssymbole.</td></tr>
+          <tr><td><code>internal/tasks/testdata/standard-pipeline-phase-paths.golden</code></td><td>neu</td><td>Isolierte Phasenpfade, die das Phase-22-Golden nicht enthält.</td></tr>
+          <tr><td><code>internal/tasks/testdata/standard-pipeline-transition-baseline.golden</code></td><td>neu</td><td>Eine Zeile je Phase × Step bei Null-Flags.</td></tr>
+          <tr><td><code>internal/tasks/testdata/standard-pipeline-transition-branches.golden</code></td><td>neu</td><td>Nur Zellen, deren Nachfolger vom Baseline-Wert derselben Phase/Step abweicht.</td></tr>
+          <tr><td><code>docs/features/task-runner.md</code></td><td>bestehend ergänzen</td><td>Kompakte Tabelle der isolierten Default-Pfade. Keine neuen Versprechen.</td></tr>
+          <tr><td><code>internal/tasks/testdata/phase22-standard-pipeline.golden</code></td><td>unverändert</td><td>Historische Phase-22-Baseline. Nicht erweitern, nicht umbenennen.</td></tr>
+          <tr><td><code>internal/tasks/phase22_characterization_test.go</code></td><td>unverändert</td><td>Nicht refactorn, auch nicht um einen gemeinsamen Walker.</td></tr>
+          <tr><td><code>docs/CHANGELOG.md</code></td><td>nicht anfassen</td><td>Reine Test- und interne Doku-Vervollständigung.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>6.2 Testnamen und erste Assertions</h3>
+    <ul>
+      <li><code>TestPipelineFirstStepIsPrecheck</code> — für jede Phase aus der Phasenliste einschließlich <code>full</code> und <code>not-a-phase</code> gilt <code>firstStep() == "precheck"</code>.</li>
+      <li><code>TestStandardPipelinePhasePathsGolden</code> — bytegleich gegen <code>standard-pipeline-phase-paths.golden</code>.</li>
+      <li><code>TestStandardPipelineTransitionMatrixGolden</code> — erzeugt Baseline- und Branch-Text mit dem Generator aus 6.5 und vergleicht beide Dateien bytegleich.</li>
+      <li>Der bestehende <code>TestPhase22StandardPipelineGolden</code> bleibt und muss weiter grün sein.</li>
+    </ul>
+
+    <h3>6.3 Kodierung</h3>
+    <ul>
+      <li>Leere Phase wird in Goldens als <code>full</code> geschrieben. Im Go-Struct bleibt <code>phase == ""</code>.</li>
+      <li>Leerer Step und leerer Nachfolger werden als <code>-</code> geschrieben. <code>-</code> ist kein echter Step-Name.</li>
+      <li>Zeilen enden mit <code>\n</code>. Keine Kommentare in den Golden-Dateien. Kein abschließendes Extra-Leerzeilenpaar; genau der Generatortext.</li>
+      <li>Windows- oder manuelle Editoränderungen an Goldens sind unzulässig. Nur der Testgenerator schreibt sie.</li>
+    </ul>
+
+    <h3>6.4 Feste Listen — Reihenfolge ist Teil des Vertrags</h3>
+    <p>Agenten dürfen diese Listen nicht sortieren, nicht aus einer Map ableiten und nicht um Cow- oder Handler-Schritte erweitern.</p>
+    <h4>Phasen</h4>
+    <pre><code>full
+travel-entry
+play-route
+boss
+loot-and-return
+retry-return
+stash-personal
+town-ready
+not-a-phase</code></pre>
+    <p>
+      <code>full</code> setzt <code>pipeline.phase = ""</code>.
+      <code>not-a-phase</code> setzt <code>pipeline.phase = "not-a-phase"</code>.
+      Das heutige Verhalten ist Fallthrough in den Full-Run-Switch; Stufe 0 friert das ein und ändert es nicht.
+      Die übrigen Namen sind die <code>RunPhase*</code>-Konstanten.
+    </p>
+    <h4>Currents</h4>
+    <pre><code>precheck
+town_ready_profile
+acquire_town_waypoint
+open_waypoint
+select_run_waypoint
+wait_entry_area
+play_bound_route
+acquire_boss
+engage_boss
+clear_nearby_hostiles
+reposition_for_loot
+wait_for_drops
+scan_loot
+pick_loot
+cast_town_portal
+enter_town_portal
+wait_origin_town
+play_town_egress
+open_origin_waypoint
+select_hub_waypoint
+wait_hub_area
+open_personal_stash
+stash_items
+close_personal_stash
+prepare_town_handoff
+complete
+-
+unknown_step
+cow_preflight</code></pre>
+    <p>
+      <code>-</code> übergibt <code>nextStep("")</code>.
+      <code>unknown_step</code> und <code>cow_preflight</code> sind fremde Namen und müssen in jeder Phase <code>-</code> liefern.
+    </p>
+    <h4>Flag-Kombinationen</h4>
+    <p>Fünf Achsen, verschachtelt genau in dieser Reihenfolge:</p>
+    <pre><code>loot   ∈ {0, 1}          → loot.lootScanHasTarget
+kill   ∈ {0, 1}          → boss.bossKillEmitted
+clear  ∈ {0, 1}          → definition.ClearNearbyAfterBoss
+foreign∈ {0, 1}          → ReturnOrigin Act3 wenn 1, sonst Act1
+resume ∈ {off, play_bound_route, empty}</code></pre>
+    <ul>
+      <li><code>resume=off</code> — <code>resumeAfterPrecheckSet=false</code>, String leer.</li>
+      <li><code>resume=play_bound_route</code> — Set wahr, String <code>play_bound_route</code>.</li>
+      <li><code>resume=empty</code> — Set wahr, String leer. Das ist das produktive Terminal-Resume aus <code>runRouteResumeStep</code>.</li>
+    </ul>
+    <p>
+      Null-Flags für die Baseline: <code>loot=0,kill=0,clear=0,foreign=0,resume=off</code>.
+      <code>ReturnOrigin</code> für <code>foreign=0</code> ist <code>town.OriginAct1</code>, für <code>foreign=1</code> <code>town.OriginAct3</code>.
+      Act 2/4/5 nicht als eigene Achsen aufnehmen; <code>foreignTownOrigin</code> behandelt sie wie Act 3.
+    </p>
+    <p>Flag-String genau so, immer alle fünf Schlüssel:</p>
+    <pre><code>loot=0,kill=0,clear=0,foreign=0,resume=off</code></pre>
+
+    <h3>6.5 Generator — einzige erlaubte Erzeugungsregel</h3>
+    <pre><code>// Pseudocode; Namen im Test dürfen abweichen, die Reihenfolge nicht.
+
+func pipelineFor(phaseLabel string, flags flags) *runPipeline {
+    phase := phaseLabel
+    if phaseLabel == "full" { phase = "" }
+    return &amp;runPipeline{
+        definition: RunDefinition{
+            ClearNearbyAfterBoss: flags.clear == 1,
+            ReturnOrigin:         originFor(flags.foreign),
+        },
+        phase: phase,
+        travel: pipelineTravelState{
+            resumeAfterPrecheckSet: flags.resume != "off",
+            resumeAfterPrecheck:    resumeString(flags.resume),
+        },
+        boss: pipelineBossState{bossKillEmitted: flags.kill == 1},
+        loot: pipelineLootState{lootScanHasTarget: flags.loot == 1},
+    }
+}
+
+func encodeStep(step string) string {
+    if step == "" { return "-" }
+    return step
+}
+
+// Baseline: Phasen × Currents mit Null-Flags.
+// Zeile: &lt;phase&gt;|&lt;current&gt;|&lt;next&gt;
+for phase in Phasen {
+    p := pipelineFor(phase, zeroFlags)
+    for current in Currents {
+        next := p.nextStep(decodeStep(current))
+        emit("%s|%s|%s\n", phase, current, encodeStep(next))
+    }
+}
+
+// Branches: jede Nicht-Null-Kombination, deren next ≠ Baseline derselben Phase/Current.
+// Zeile: &lt;phase&gt;|&lt;current&gt;|&lt;flag-string&gt;|&lt;next&gt;
+for phase in Phasen {
+    for current in Currents {
+        base := pipelineFor(phase, zeroFlags).nextStep(decodeStep(current))
+        for flags in alle 2×2×2×2×3 Kombinationen in der Reihenfolge aus 6.4 {
+            if flags == zeroFlags { continue }
+            next := pipelineFor(phase, flags).nextStep(decodeStep(current))
+            if next != base {
+                emit("%s|%s|%s|%s\n", phase, current, flags.String(), encodeStep(next))
+            }
+        }
+    }
+}</code></pre>
+    <p>
+      Kein zusätzliches Sortieren. Die Schleifenreihenfolge <em>ist</em> die Dateireihenfolge.
+      Walker für Pfad-Goldens: wie in <code>phase22_characterization_test.go</code>, lokal neu schreiben, Abbruch nach 64 Schritten.
+    </p>
+
+    <h3>6.6 Pfad-Golden — Schlüssel, Fixtures und erwartete Ketten</h3>
+    <p>
+      Diese Zeilen müssen mit dem lebenden <code>nextStep</code> übereinstimmen.
+      Weicht der Code ab: stoppen und fragen. Die Definitionen kommen aus
+      <code>DefaultRunRegistry()</code>, nicht synthetisch, damit produktive Run-Flags mitlaufen.
+    </p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Schlüssel</th><th>Definition</th><th>Phase</th><th>Zusatzzustand</th><th>Erwartete Kette</th></tr></thead>
+        <tbody>
+          <tr><td><code>town_ready</code></td><td>Countess</td><td><code>town-ready</code></td><td>—</td><td><code>precheck&gt;town_ready_profile&gt;complete</code></td></tr>
+          <tr><td><code>stash_personal</code></td><td>Countess</td><td><code>stash-personal</code></td><td>—</td><td><code>precheck&gt;open_personal_stash&gt;stash_items&gt;close_personal_stash&gt;complete</code></td></tr>
+          <tr><td><code>travel_entry</code></td><td>Countess</td><td><code>travel-entry</code></td><td>—</td><td><code>precheck&gt;acquire_town_waypoint&gt;open_waypoint&gt;select_run_waypoint&gt;wait_entry_area</code></td></tr>
+          <tr><td><code>play_route</code></td><td>Countess</td><td><code>play-route</code></td><td>—</td><td><code>precheck&gt;acquire_town_waypoint&gt;open_waypoint&gt;select_run_waypoint&gt;wait_entry_area&gt;play_bound_route</code></td></tr>
+          <tr><td><code>play_route_resume_entry</code></td><td>Countess</td><td><code>play-route</code></td><td>Resume <code>play_bound_route</code></td><td><code>precheck&gt;play_bound_route</code></td></tr>
+          <tr><td><code>play_route_resume_terminal</code></td><td>Countess</td><td><code>play-route</code></td><td>Resume gesetzt, Ziel leer</td><td><code>precheck</code></td></tr>
+          <tr><td><code>boss</code></td><td>Countess</td><td><code>boss</code></td><td>—</td><td><code>precheck&gt;acquire_boss&gt;engage_boss</code></td></tr>
+          <tr><td><code>loot_return_act1</code></td><td>Countess</td><td><code>loot-and-return</code></td><td>—</td><td><code>precheck&gt;wait_for_drops&gt;scan_loot&gt;cast_town_portal&gt;enter_town_portal&gt;wait_origin_town&gt;open_personal_stash&gt;stash_items&gt;close_personal_stash&gt;complete</code></td></tr>
+          <tr><td><code>loot_return_act1_target</code></td><td>Countess</td><td><code>loot-and-return</code></td><td><code>lootScanHasTarget=true</code></td><td>wie zuvor, aber <code>scan_loot&gt;pick_loot&gt;cast_town_portal</code></td></tr>
+          <tr><td><code>loot_return_foreign</code></td><td>Mephisto</td><td><code>loot-and-return</code></td><td>—</td><td>nach <code>wait_origin_town</code>: <code>play_town_egress&gt;open_origin_waypoint&gt;select_hub_waypoint&gt;wait_hub_area&gt;open_personal_stash&gt;stash_items&gt;close_personal_stash&gt;complete</code></td></tr>
+          <tr><td><code>loot_return_foreign_target</code></td><td>Mephisto</td><td><code>loot-and-return</code></td><td>Loot-Ziel</td><td>fremd plus <code>scan_loot&gt;pick_loot&gt;cast_town_portal</code></td></tr>
+          <tr><td><code>failure.hub_waypoint_timeout</code></td><td>beliebig</td><td>—</td><td><code>timeoutReason(wait_hub_area)</code></td><td><code>waypoint_destination_timeout</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>
+      Dateiformat analog zum Phase-22-Golden: <code>schlüssel=kette</code> je Zeile, Schlüssel in genau der Tabellenreihenfolge.
+      Full-Run- und Retry-Zeilen nicht wiederholen; die liegen weiter nur in
+      <code>phase22-standard-pipeline.golden</code>.
+    </p>
+    <p>
+      Hinweis für Reviews: <code>loot-and-return</code> geht nach <code>close_personal_stash</code> nach
+      <code>complete</code>, nicht nach <code>prepare_town_handoff</code>. Das ist kein Fehler.
+    </p>
+
+    <h3>6.7 Erwartete Branch-Zellen</h3>
+    <p>
+      Der Generator darf zusätzliche Zeilen nur erzeugen, wenn der lebende <code>nextStep</code>
+      sie wirklich liefert. Die folgende Liste ist die vollständige Menge, die diese Datei
+      am 16.08.2026 aus dem Code ableitet. Fehlt eine gelistete Zelle oder erscheint eine
+      ungelistete: stoppen und fragen.
+    </p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Phase</th><th>Current</th><th>Auslöser gegenüber Null-Flags</th><th>Erwarteter Next</th></tr></thead>
+        <tbody>
+          <tr><td><code>full</code>, <code>not-a-phase</code></td><td><code>scan_loot</code></td><td><code>loot=1</code></td><td><code>pick_loot</code></td></tr>
+          <tr><td><code>full</code>, <code>not-a-phase</code></td><td><code>wait_origin_town</code></td><td><code>foreign=1</code></td><td><code>play_town_egress</code></td></tr>
+          <tr><td><code>full</code>, <code>not-a-phase</code></td><td><code>acquire_boss</code></td><td><code>kill=1</code> und <code>clear=0</code></td><td><code>reposition_for_loot</code></td></tr>
+          <tr><td><code>full</code>, <code>not-a-phase</code></td><td><code>acquire_boss</code></td><td><code>kill=1</code> und <code>clear=1</code></td><td><code>clear_nearby_hostiles</code></td></tr>
+          <tr><td><code>full</code>, <code>not-a-phase</code></td><td><code>engage_boss</code></td><td><code>clear=1</code></td><td><code>clear_nearby_hostiles</code></td></tr>
+          <tr><td><code>loot-and-return</code></td><td><code>scan_loot</code></td><td><code>loot=1</code></td><td><code>pick_loot</code></td></tr>
+          <tr><td><code>loot-and-return</code></td><td><code>wait_origin_town</code></td><td><code>foreign=1</code></td><td><code>play_town_egress</code></td></tr>
+          <tr><td><code>retry-return</code></td><td><code>wait_origin_town</code></td><td><code>foreign=1</code></td><td><code>play_town_egress</code></td></tr>
+          <tr><td><code>travel-entry</code>, <code>play-route</code></td><td><code>precheck</code></td><td><code>resume=play_bound_route</code></td><td><code>play_bound_route</code></td></tr>
+          <tr><td><code>travel-entry</code>, <code>play-route</code></td><td><code>precheck</code></td><td><code>resume=empty</code></td><td><code>-</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>
+      Weil der Generator alle 48 Nicht-Null-Kombinationen prüft, erscheinen gültige Zeilen
+      mehrfach mit zusätzlichen unbeteiligten Flags (zum Beispiel <code>scan_loot</code> mit
+      <code>loot=1,kill=1,...</code>). Das ist gewollt. Die Zeilen müssen trotzdem erzeugt werden.
+      Unbeteiligte Flags dürfen den Nachfolger nicht ändern; tun sie es, ist das eine ungelistete Branch.
+    </p>
+    <p>Baseline-Beispiele, die Reviews häufig verwechseln:</p>
+    <ul>
+      <li><code>full|scan_loot|-</code> ist falsch. Baseline ist <code>full|scan_loot|cast_town_portal</code>.</li>
+      <li><code>retry-return|wait_origin_town|open_personal_stash</code> ist falsch. Baseline ist <code>complete</code>.</li>
+      <li><code>loot-and-return|close_personal_stash|prepare_town_handoff</code> ist falsch. Baseline ist <code>complete</code>.</li>
+      <li><code>travel-entry|wait_entry_area|play_bound_route</code> ist falsch. Baseline ist <code>-</code>.</li>
+      <li><code>play-route|wait_entry_area|play_bound_route</code> ist die Baseline dieser Phase.</li>
+      <li><code>full|precheck|...</code> ignoriert Resume-Flags; Resume ist keine Full-Run-Branch.</li>
+    </ul>
+
+    <h3>6.8 Golden aktualisieren</h3>
+    <p>
+      Der Test vergleicht. Er überschreibt Dateien nur, wenn
+      <code>UPDATE_PIPELINE_TRANSITION_GOLDEN=1</code> gesetzt ist.
+      Beim ersten Anlegen darf der Agent den Generator einmal mit dieser Variable laufen
+      lassen, die drei neuen Goldens commit-fähig schreiben und danach <strong>Zeile für Zeile
+      gegen 6.6 und 6.7 prüfen</strong>. Weicht das Ergebnis ab: Dateien nicht behalten, stoppen.
+      Ein stilles „Code gewinnt“ ist unzulässig.
+    </p>
+
+    <h3>6.9 Feature-Doc</h3>
+    <p>
+      In <code>docs/features/task-runner.md</code> unter dem bestehenden Full-Run-Pfad eine kurze Tabelle
+      der isolierten Default-Pfade aus 6.6 ergänzen, ohne Resume- und Loot-Varianten zu erzählen.
+      Datumzeile am Ende der Datei aktualisieren. Index und Changelog nicht anfassen.
+    </p>
+
+    <h3>6.10 Validierung Stufe 0</h3>
+    <pre><code>go test ./internal/tasks -count=1 -run "TestPhase22StandardPipelineGolden|TestPipelineFirstStepIsPrecheck|TestStandardPipelinePhasePathsGolden|TestStandardPipelineTransitionMatrixGolden"</code></pre>
+    <p>
+      Genau dieser eine Lauf. Kein <code>go test ./...</code>, kein UI, kein Installer, kein Race.
+      Schlägt nur der neue Test fehl, nach dem Fix nur ihn erneut ausführen.
+    </p>
+
+    <h3>6.11 Abnahme Stufe 0</h3>
+    <ul class="checks">
+      <li>Produktionsdateien unter <code>internal/tasks/*.go</code> außer der neuen Testdatei unverändert.</li>
+      <li>Phase-22-Golden bytegleich zum Stand vor der Änderung.</li>
+      <li>Pfad-Golden enthält genau die Schlüssel aus 6.6 in dieser Reihenfolge.</li>
+      <li>Baseline- und Branch-Golden stammen aus dem Generator und stimmen mit 6.7 überein.</li>
+      <li>Unbekannte Steps und <code>cow_preflight</code> ergeben <code>-</code>.</li>
+      <li><code>task-runner.md</code> nennt die isolierten Default-Pfade auf Deutsch.</li>
+    </ul>
+  </section>
+
+  <section id="stufe-1">
+    <h2>7. Stufe 1 — Ketten extrahieren</h2>
+    <article class="gate">
+      <div class="gate-id">Stufe 1<div class="gate-mode ready">Umgesetzt · 16.08.2026</div></div>
+      <div>
+        <h3>Ziel</h3>
+        <p>Identische Teilsequenzen aus <code>nextStep</code> als benannte Helfer ziehen. Keine Tabelle, kein neues Verhalten, kein Oracle-Doppel.</p>
+      </div>
+    </article>
+
+    <h3>7.1 Startbedingung — mindestens eine muss zutreffen</h3>
+    <ul>
+      <li>Der Nutzer beauftragt ausdrücklich <code>Stufe 1 umsetzen</code>.</li>
+      <li>Eine geplante Topologieänderung müsste dieselbe Teilsequenz in einen zweiten Switch kopieren.</li>
+    </ul>
+    <p>Stufe 0 muss grün und eingecheckt sein. Ohne Stufe 0 ist Stufe 1 verboten.</p>
+
+    <h3>7.2 Erlaubte Helfer — und nur diese</h3>
+    <p>
+      Unexportierte Funktionen im selben Paket, ohne Receiver, in <code>pipeline_flow.go</code>.
+      Jeder Helfer kennt nur <code>current string</code> und gibt den Nachfolger oder <code>""</code> zurück.
+      Keine Flags, keine Pipeline, keine Definition. Ein Helfer, der ein Flag bräuchte, ist die falsche Naht.
+    </p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Reihenfolge</th><th>Funktion</th><th>Abbildung</th><th>Aufrufer heute</th></tr></thead>
+        <tbody>
+          <tr>
+            <td>1</td>
+            <td><code>nextSharedPortalReturn</code></td>
+            <td><code>cast_town_portal → enter_town_portal → wait_origin_town</code></td>
+            <td>Full Run, <code>loot-and-return</code>, <code>retry-return</code></td>
+          </tr>
+          <tr>
+            <td>2</td>
+            <td><code>nextSharedForeignEgress</code></td>
+            <td><code>play_town_egress → open_origin_waypoint → select_hub_waypoint → wait_hub_area</code></td>
+            <td>dieselben drei Switches</td>
+          </tr>
+          <tr>
+            <td>3</td>
+            <td><code>nextSharedWaypointTravel</code></td>
+            <td><code>acquire_town_waypoint → open_waypoint → select_run_waypoint → wait_entry_area</code></td>
+            <td>Full Run und Travel-Phasen</td>
+          </tr>
+          <tr>
+            <td>4</td>
+            <td><code>nextSharedStash</code></td>
+            <td><code>open_personal_stash → stash_items → close_personal_stash</code></td>
+            <td>Full Run, <code>loot-and-return</code>, <code>stash-personal</code></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p>Beispielvertrag für Helfer 1:</p>
+    <pre><code>// nextSharedPortalReturn returns the successor inside the shared
+// town-portal subsequence. Unknown steps return "".
+func nextSharedPortalReturn(current string) string {
+    switch current {
+    case pipelineStepCastTownPortal:
+        return pipelineStepEnterTownPortal
+    case pipelineStepEnterTownPortal:
+        return pipelineStepWaitOriginTown
+    default:
+        return ""
+    }
+}</code></pre>
+    <p>
+      Kurzer Designkommentar am Helfer: warum die Sequenz geteilt wird und dass Branch-Punkte
+      absichtlich draußen bleiben. Kein zeilenweises Kommentieren.
+    </p>
+
+    <h3>7.3 Was nicht extrahiert werden darf</h3>
+    <ul>
+      <li><code>scan_loot</code>, <code>wait_origin_town</code>, <code>wait_hub_area</code>, <code>close_personal_stash</code>, <code>precheck</code>, <code>acquire_boss</code>, <code>engage_boss</code> — das sind Branch-Punkte oder phasenabhängig.</li>
+      <li>Kein Helfer, der nur an einer Stelle vorkommt.</li>
+      <li>Kein Helfer, dessen Nachfolger sich zwischen den Aufrufern in auch nur einem Step unterscheidet.</li>
+      <li>Kein Interface, kein Funktionsfeld, keine Tabelle von Kanten.</li>
+    </ul>
+
+    <h3>7.4 Änderungsdisziplin</h3>
+    <ol>
+      <li>Genau ein Helfer pro abgeschlossener Änderung, in der Reihenfolge 1→4.</li>
+      <li>Nach jedem Helfer die Stufe-0-Tests plus <code>TestPhase22StandardPipelineGolden</code> einmal ausführen.</li>
+      <li>Alle drei neuen Goldens und das Phase-22-Golden müssen bytegleich bleiben. Ändert sich eine Zeile: Änderung verwerfen.</li>
+      <li>Als Nächstes nur die unmittelbar betroffenen bestehenden <code>nextStep</code>-Tests in <code>internal/tasks</code>, nicht die Gesamtsuite.</li>
+      <li>Zwischen zwei Helfern stoppen, wenn der Nutzer nicht „weiter mit Helfer N“ gesagt hat. Ein Auftrag <code>Stufe 1 umsetzen</code> erlaubt alle vier Helfer nacheinander, solange jeder Schritt grün ist.</li>
+    </ol>
+
+    <h3>7.5 Einbau in <code>nextStep</code></h3>
+    <p>
+      In jedem betroffenen <code>switch</code> die identischen Arme durch den Helfer ersetzen.
+      Der Branch-Arm bleibt lokal. Typisches Muster:
+    </p>
+    <pre><code>case pipelineStepCastTownPortal, pipelineStepEnterTownPortal:
+    return nextSharedPortalReturn(current)
+case pipelineStepWaitOriginTown:
+    if foreignTownOrigin(c.effectiveDefinition().ReturnOrigin) {
+        return pipelineStepPlayTownEgress
+    }
+    return pipelineStepOpenStash</code></pre>
+    <p>
+      Wenn der Helfer <code>""</code> für einen Step liefert, den der Switch noch behandeln muss,
+      ist die Naht falsch — stoppen, nicht um einen Fallback ergänzen.
+    </p>
+
+    <h3>7.6 Validierung und Abnahme Stufe 1</h3>
+    <pre><code>go test ./internal/tasks -count=1 -run "TestPhase22StandardPipelineGolden|TestPipelineFirstStepIsPrecheck|TestStandardPipelinePhasePathsGolden|TestStandardPipelineTransitionMatrixGolden"</code></pre>
+    <ul class="checks">
+      <li>Keine neuen Steps, keine geänderten Nachfolger.</li>
+      <li>Goldens bytegleich zu Stufe 0.</li>
+      <li>Höchstens die vier genannten Helfer.</li>
+      <li>Cow und Handler unverändert.</li>
+    </ul>
+  </section>
+
+  <section id="stufe-2">
+    <h2>8. Stufe 2 — Tabellenresolver, gesperrt</h2>
+    <article class="gate">
+      <div class="gate-id">Stufe 2<div class="gate-mode lock">Gesperrt</div></div>
+      <div>
+        <h3>Ziel, falls sie jemals beauftragt wird</h3>
+        <p>
+          <code>nextStep</code> durch eine in Go deklarierte Kantenliste ersetzen, ohne YAML,
+          ohne Bibliothek und ohne Handler-Umbau. Nur zulässig, wenn Stufe 0 grün ist und
+          ein konkreter Topologieanlass den zentralen Switch nachweisbar aufbläht.
+        </p>
+      </div>
+    </article>
+
+    <h3>8.1 Anlass — einer muss schriftlich im Auftrag stehen</h3>
+    <ul>
+      <li>Eine neue isolierte Phase würde erneut 20–30 Switch-Zeilen kopieren.</li>
+      <li>Eine gemeinsame Teilsequenz muss in mehrere Phasen neu eingehängt werden und Stufe 1 reicht nicht.</li>
+      <li>Ein zweiter Run-Graph soll in der Standardpipeline leben, nicht nur ein neues Profil.</li>
+    </ul>
+    <p>„Sieht eleganter aus“ oder „Stage D nachholen“ ist kein Anlass.</p>
+
+    <h3>8.2 Erster Beweis, dann Rest</h3>
+    <ol>
+      <li>Nur <code>town-ready</code> und <code>stash-personal</code> auf die Kantenliste heben. Das sind lineare Ketten ohne Flags.</li>
+      <li><strong>Lesbarkeitsgate:</strong> Ist die Tabelle länger, indirekter oder schwerer zu reviewen als der heutige Switch, Stufe 2 abbrechen und den Switch behalten. Das ist ein Erfolgskriterium, kein Scheitern.</li>
+      <li>Erst nach bestandener Lesbarkeit: <code>retry-return</code>, dann <code>loot-and-return</code>, dann Full Run einschließlich <code>not-a-phase</code>-Fallthrough, dann Travel, dann Boss.</li>
+      <li>Eine Phasenfamilie pro Änderung. Nach jeder Familie die Stufe-0-Goldens bytegleich.</li>
+    </ol>
+
+    <h3>8.3 Maximale Abstraktion</h3>
+    <pre><code>type transitionEdge struct {
+    phase string // "" = Full Run; eine RunPhase*-Konstante; nicht "any"
+    from  string
+    to    string
+    when  func(*runPipeline) bool // nil = immer
+}</code></pre>
+    <ul>
+      <li>Eine feste Slice im Paket, keine Map als primäre Quelle (Maps sind ungeordnet und verdecken Reviews).</li>
+      <li><code>when</code> darf nur die in Abschnitt 3 genannten Felder lesen.</li>
+      <li>Kein Match: Rückgabe <code>""</code>, wie der heutige <code>default</code>.</li>
+      <li>Mehrere passende Kanten: fail-closed in Tests; in Produktion darf das nicht vorkommen. Die Testdatei muss Doppelkanten hart ablehnen.</li>
+    </ul>
+
+    <h3>8.4 Oracle in Stufe 2 — nur dann</h3>
+    <p>
+      Erst wenn Stufe 2 wirklich läuft, darf die <em>vorherige</em> <code>nextStep</code>-Funktion
+      als <code>nextStepFrozen</code> in der Testdatei liegen, nicht im Produktionspfad.
+      Produktion ruft nur den neuen Resolver. Tests vergleichen für jede Generatorzelle
+      aus Stufe 0: <code>new(next) == frozen(next) == golden</code>.
+      Die eingefrorene Funktion darf nach dem Einfrieren nicht mehr angefasst werden,
+      außer der Nutzer beauftragt eine bewusste Topologieänderung; dann müssen Frozen,
+      Resolver und Golden in derselben Änderung gemeinsam angepasst werden.
+    </p>
+    <p>
+      Löschen von <code>nextStepFrozen</code> erst in einer späteren, eigenen Änderung,
+      nachdem alle Familien migriert sind <em>und</em> mindestens eine echte spätere
+      Topologieänderung nur noch den neuen Resolver getroffen hat.
+    </p>
+
+    <h3>8.5 Weiterhin verboten</h3>
+    <ul>
+      <li>Cow, Handler, Dispatcher-Semantik, Timings, Input.</li>
+      <li>YAML, JSON oder UI als Topologiequelle.</li>
+      <li>Stufe 2 als Voraussetzung für Hammerdin-Routen.</li>
+    </ul>
+  </section>
+
+  <section id="abnahme">
+    <h2>9. Gemeinsame Abnahme- und Reviewregeln</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Stufe</th><th>Einmalige Prüfung</th><th>Nicht ausführen</th></tr></thead>
+        <tbody>
+          <tr><td>0</td><td>Der eine <code>go test ./internal/tasks -run …</code>-Befehl aus 6.10</td><td><code>./...</code>, UI, Lint-Gesamtlauf, Installer</td></tr>
+          <tr><td>1</td><td>Derselbe Befehl nach jedem Helfer</td><td>unverwandte Pakete</td></tr>
+          <tr><td>2</td><td>Derselbe Befehl plus die Frozen-Parität der betroffenen Familie</td><td>Live-D2R, Hammerdin-Combat</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>
+      Feature-Docs nur in Stufe 0 wie in 6.9, in Stufe 1/2 nur wenn sich die
+      <em>beschriebene</em> Topologie ändert — was sie nicht darf. Godoc nur für neue
+      exportierte Symbole; Stufe 0 und 1 exportieren nichts.
+    </p>
+  </section>
+
+  <section id="stop">
+    <h2>10. Stop-Kriterien</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Ereignis</th><th>Aktion</th></tr></thead>
+        <tbody>
+          <tr><td>Lebendes <code>nextStep</code> weicht von Abschnitt 6.6 oder 6.7 ab</td><td>Keine Datei behalten. Operator fragen, ob Spec oder Code gilt.</td></tr>
+          <tr><td>Generator erzeugt eine ungelistete Branch</td><td>Stoppen. Nicht als „interessantes neues Verhalten“ einchecken.</td></tr>
+          <tr><td>Eine Golden-Zeile ändert sich in Stufe 1 oder 2</td><td>Änderung verwerfen. Das ist eine Verhaltensregression.</td></tr>
+          <tr><td>Helfer oder Tabelle braucht ein neues Flag oder einen neuen Step</td><td>Stoppen. Das ist nicht mehr mechanisch.</td></tr>
+          <tr><td>Cow, Handler oder Input erscheinen im Diff</td><td>Stoppen. Scope verlassen.</td></tr>
+          <tr><td>Stufe 2-Tabelle ist schwerer lesbar als der Switch</td><td>Stufe 2 beenden, Switch behalten, das dokumentieren.</td></tr>
+          <tr><td>Auftrag unklar, welche Stufe gemeint ist</td><td>Nicht raten. Nachfragen.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="callout">
+      <h3>Kurzurteil zum Mitnehmen</h3>
+      <p>
+        Die 2.547-Zeilen-Pipeline ist bereits zerlegt. Was bleibt, ist eine lesbare
+        Nachfolgerfunktion mit wiederholten Teilketten und einer unvollständigen
+        Characterization. Zuerst die Matrix schließen. Ketten nur ziehen, wenn sie
+        jemand wirklich ein zweites Mal braucht. Den Tabellenresolver nicht aus
+        Aufräumtrieb beginnen. Hammerdin und die bestehenden Routen hängen daran nicht.
+      </p>
+    </div>
+  </section>
+
+  <footer>
+    <p>Stage D · Entscheidungsbasis nach v0.20.0 · D2R Offline Farming Bot · 16. August 2026</p>
+    <p><a href="#top">Zurück nach oben</a> · <a href="phase-22-implementation-plan.html">Phase-22-Plan</a></p>
+  </footer>
+</main>
+</body>
+</html>

@@ -62,6 +62,19 @@ Zwei Abschluss-Mechanismen (nicht vermischen):
 
 `precheck -> acquire_town_waypoint -> open_waypoint -> select_run_waypoint -> wait_entry_area -> play_bound_route -> acquire_boss -> engage_boss -> [clear_nearby_hostiles] -> reposition_for_loot -> wait_for_drops -> scan_loot -> pick_loot -> cast_town_portal -> enter_town_portal -> wait_origin_town -> open_personal_stash -> stash_items -> close_personal_stash -> prepare_town_handoff -> complete`
 
+**Isolierte Default-Pfade derselben Pipeline:**
+
+| Phase | Default-Pfad |
+|---|---|
+| `town-ready` | `precheck -> town_ready_profile -> complete` |
+| `stash-personal` | `precheck -> open_personal_stash -> stash_items -> close_personal_stash -> complete` |
+| `travel-entry` | `precheck -> acquire_town_waypoint -> open_waypoint -> select_run_waypoint -> wait_entry_area` |
+| `play-route` | `precheck -> acquire_town_waypoint -> open_waypoint -> select_run_waypoint -> wait_entry_area -> play_bound_route` |
+| `boss` | `precheck -> acquire_boss -> engage_boss` |
+| `loot-and-return` | `precheck -> wait_for_drops -> scan_loot -> cast_town_portal -> enter_town_portal -> wait_origin_town -> open_personal_stash -> stash_items -> close_personal_stash -> complete` |
+
+Loot-Ziel, Fremdakt-Rückweg und Travel-Resume bleiben dynamische Abzweigungen und stehen nicht in dieser Default-Tabelle. `loot-and-return` endet nach dem Stash bei `complete` und überspringt `prepare_town_handoff`.
+
 **Vollständige Cow-Pipeline ab Gate 20.6:**
 
 `cow_preflight -> cow_town_ready_profile -> cow_acquire_town_waypoint -> cow_open_waypoint -> cow_select_stony_field -> cow_wait_stony_field -> cow_play_leg_acquisition -> cow_open_wirt -> cow_pickup_leg -> cow_cast_return_portal -> cow_enter_return_portal -> cow_wait_rogue_encampment -> cow_buy_recipe_tome -> cow_setup_gate_complete -> cow_portal_recipe -> cow_recipe_gate_complete -> cow_play_cow_sweep -> cow_sweep_gate_complete -> cast_town_portal -> enter_town_portal -> wait_origin_town -> open_personal_stash -> stash_items -> close_personal_stash -> prepare_town_handoff -> complete`
@@ -161,4 +174,4 @@ JSONL-Transitionen `run_step_started`, `run_step_completed` und `run_step_failed
 - [Mercenary Support](mercenary-support.md) — Combat-/Town-Söldner
 
 ---
-*Zuletzt aktualisiert: 2026-08-14*
+*Zuletzt aktualisiert: 2026-08-16*

@@ -99,6 +99,62 @@ func (c *runPipeline) firstStep() string {
 	return pipelineStepPrecheck
 }
 
+// nextSharedPortalReturn returns the successor inside the shared town-portal
+// subsequence. Branch points after wait_origin_town stay in nextStep.
+func nextSharedPortalReturn(current string) string {
+	switch current {
+	case pipelineStepCastTownPortal:
+		return pipelineStepEnterTownPortal
+	case pipelineStepEnterTownPortal:
+		return pipelineStepWaitOriginTown
+	default:
+		return ""
+	}
+}
+
+// nextSharedForeignEgress returns the successor inside the shared foreign-town
+// egress subsequence. wait_hub_area stays a phase-specific branch.
+func nextSharedForeignEgress(current string) string {
+	switch current {
+	case pipelineStepPlayTownEgress:
+		return pipelineStepOpenOriginWaypoint
+	case pipelineStepOpenOriginWaypoint:
+		return pipelineStepSelectHubWaypoint
+	case pipelineStepSelectHubWaypoint:
+		return pipelineStepWaitHubArea
+	default:
+		return ""
+	}
+}
+
+// nextSharedWaypointTravel returns the successor inside the shared Act-1
+// waypoint subsequence. precheck and wait_entry_area stay phase-specific.
+func nextSharedWaypointTravel(current string) string {
+	switch current {
+	case pipelineStepAcquireTownWaypoint:
+		return pipelineStepOpenWaypoint
+	case pipelineStepOpenWaypoint:
+		return pipelineStepSelectRunWaypoint
+	case pipelineStepSelectRunWaypoint:
+		return pipelineStepWaitEntryArea
+	default:
+		return ""
+	}
+}
+
+// nextSharedStash returns the successor inside the shared personal-stash
+// subsequence. close_personal_stash stays a phase-specific branch.
+func nextSharedStash(current string) string {
+	switch current {
+	case pipelineStepOpenStash:
+		return pipelineStepStashItems
+	case pipelineStepStashItems:
+		return pipelineStepCloseStash
+	default:
+		return ""
+	}
+}
+
 func (c *runPipeline) nextStep(current string) string {
 	if c.phase == RunPhaseTownReady {
 		switch current {
@@ -116,10 +172,8 @@ func (c *runPipeline) nextStep(current string) string {
 		switch current {
 		case pipelineStepPrecheck:
 			return pipelineStepOpenStash
-		case pipelineStepOpenStash:
-			return pipelineStepStashItems
-		case pipelineStepStashItems:
-			return pipelineStepCloseStash
+		case pipelineStepOpenStash, pipelineStepStashItems:
+			return nextSharedStash(current)
 		case pipelineStepCloseStash:
 			return pipelineStepComplete
 		case pipelineStepComplete:
@@ -153,27 +207,19 @@ func (c *runPipeline) nextStep(current string) string {
 			return pipelineStepCastTownPortal
 		case pipelineStepPickLoot:
 			return pipelineStepCastTownPortal
-		case pipelineStepCastTownPortal:
-			return pipelineStepEnterTownPortal
-		case pipelineStepEnterTownPortal:
-			return pipelineStepWaitOriginTown
+		case pipelineStepCastTownPortal, pipelineStepEnterTownPortal:
+			return nextSharedPortalReturn(current)
 		case pipelineStepWaitOriginTown:
 			if foreignTownOrigin(c.effectiveDefinition().ReturnOrigin) {
 				return pipelineStepPlayTownEgress
 			}
 			return pipelineStepOpenStash
-		case pipelineStepPlayTownEgress:
-			return pipelineStepOpenOriginWaypoint
-		case pipelineStepOpenOriginWaypoint:
-			return pipelineStepSelectHubWaypoint
-		case pipelineStepSelectHubWaypoint:
-			return pipelineStepWaitHubArea
+		case pipelineStepPlayTownEgress, pipelineStepOpenOriginWaypoint, pipelineStepSelectHubWaypoint:
+			return nextSharedForeignEgress(current)
 		case pipelineStepWaitHubArea:
 			return pipelineStepOpenStash
-		case pipelineStepOpenStash:
-			return pipelineStepStashItems
-		case pipelineStepStashItems:
-			return pipelineStepCloseStash
+		case pipelineStepOpenStash, pipelineStepStashItems:
+			return nextSharedStash(current)
 		case pipelineStepCloseStash:
 			return pipelineStepComplete
 		case pipelineStepComplete:
@@ -186,21 +232,15 @@ func (c *runPipeline) nextStep(current string) string {
 		switch current {
 		case pipelineStepPrecheck:
 			return pipelineStepCastTownPortal
-		case pipelineStepCastTownPortal:
-			return pipelineStepEnterTownPortal
-		case pipelineStepEnterTownPortal:
-			return pipelineStepWaitOriginTown
+		case pipelineStepCastTownPortal, pipelineStepEnterTownPortal:
+			return nextSharedPortalReturn(current)
 		case pipelineStepWaitOriginTown:
 			if foreignTownOrigin(c.effectiveDefinition().ReturnOrigin) {
 				return pipelineStepPlayTownEgress
 			}
 			return pipelineStepComplete
-		case pipelineStepPlayTownEgress:
-			return pipelineStepOpenOriginWaypoint
-		case pipelineStepOpenOriginWaypoint:
-			return pipelineStepSelectHubWaypoint
-		case pipelineStepSelectHubWaypoint:
-			return pipelineStepWaitHubArea
+		case pipelineStepPlayTownEgress, pipelineStepOpenOriginWaypoint, pipelineStepSelectHubWaypoint:
+			return nextSharedForeignEgress(current)
 		case pipelineStepWaitHubArea:
 			return pipelineStepComplete
 		case pipelineStepComplete:
@@ -216,12 +256,8 @@ func (c *runPipeline) nextStep(current string) string {
 				return c.travel.resumeAfterPrecheck
 			}
 			return pipelineStepAcquireTownWaypoint
-		case pipelineStepAcquireTownWaypoint:
-			return pipelineStepOpenWaypoint
-		case pipelineStepOpenWaypoint:
-			return pipelineStepSelectRunWaypoint
-		case pipelineStepSelectRunWaypoint:
-			return pipelineStepWaitEntryArea
+		case pipelineStepAcquireTownWaypoint, pipelineStepOpenWaypoint, pipelineStepSelectRunWaypoint:
+			return nextSharedWaypointTravel(current)
 		case pipelineStepWaitEntryArea:
 			if c.phase == RunPhasePlayRoute {
 				return pipelineStepPlayRoute
@@ -236,12 +272,8 @@ func (c *runPipeline) nextStep(current string) string {
 	switch current {
 	case pipelineStepPrecheck:
 		return pipelineStepAcquireTownWaypoint
-	case pipelineStepAcquireTownWaypoint:
-		return pipelineStepOpenWaypoint
-	case pipelineStepOpenWaypoint:
-		return pipelineStepSelectRunWaypoint
-	case pipelineStepSelectRunWaypoint:
-		return pipelineStepWaitEntryArea
+	case pipelineStepAcquireTownWaypoint, pipelineStepOpenWaypoint, pipelineStepSelectRunWaypoint:
+		return nextSharedWaypointTravel(current)
 	case pipelineStepWaitEntryArea:
 		return pipelineStepPlayRoute
 	case pipelineStepPlayRoute:
@@ -273,27 +305,19 @@ func (c *runPipeline) nextStep(current string) string {
 		return pipelineStepCastTownPortal
 	case pipelineStepPickLoot:
 		return pipelineStepCastTownPortal
-	case pipelineStepCastTownPortal:
-		return pipelineStepEnterTownPortal
-	case pipelineStepEnterTownPortal:
-		return pipelineStepWaitOriginTown
+	case pipelineStepCastTownPortal, pipelineStepEnterTownPortal:
+		return nextSharedPortalReturn(current)
 	case pipelineStepWaitOriginTown:
 		if foreignTownOrigin(c.effectiveDefinition().ReturnOrigin) {
 			return pipelineStepPlayTownEgress
 		}
 		return pipelineStepOpenStash
-	case pipelineStepPlayTownEgress:
-		return pipelineStepOpenOriginWaypoint
-	case pipelineStepOpenOriginWaypoint:
-		return pipelineStepSelectHubWaypoint
-	case pipelineStepSelectHubWaypoint:
-		return pipelineStepWaitHubArea
+	case pipelineStepPlayTownEgress, pipelineStepOpenOriginWaypoint, pipelineStepSelectHubWaypoint:
+		return nextSharedForeignEgress(current)
 	case pipelineStepWaitHubArea:
 		return pipelineStepOpenStash
-	case pipelineStepOpenStash:
-		return pipelineStepStashItems
-	case pipelineStepStashItems:
-		return pipelineStepCloseStash
+	case pipelineStepOpenStash, pipelineStepStashItems:
+		return nextSharedStash(current)
 	case pipelineStepCloseStash:
 		return pipelineStepPrepareTown
 	case pipelineStepPrepareTown:
