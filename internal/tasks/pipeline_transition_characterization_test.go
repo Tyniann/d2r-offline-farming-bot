@@ -133,7 +133,7 @@ func TestStandardPipelinePhasePathsGolden(t *testing.T) {
 	var got strings.Builder
 	for _, path := range paths {
 		pipeline := path.build()
-		value := path.want
+		var value string
 		if path.key == "failure.hub_waypoint_timeout" {
 			value = pipeline.timeoutReason(pipelineStepWaitHubArea)
 		} else {
