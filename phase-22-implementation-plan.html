@@ -462,7 +462,7 @@
     </div>
     <div class="hero-meta">
       <div><strong>Stand</strong><span>16. August 2026</span></div>
-      <div><strong>Status</strong><span>22.0a–22.7 abgeschlossen; 22.8 folgt auf diesem Stand, Stage D bleibt zurückgestellt</span></div>
+      <div><strong>Status</strong><span>22.0a–22.8 abgeschlossen · v0.20.0 freigegeben; Stage D bleibt zurückgestellt</span></div>
       <div><strong>Erster Run</strong><span>Mephisto</span></div>
       <div><strong>Stage D</strong><span>bewusst bedingt zurückgestellt</span></div>
     </div>
@@ -1380,7 +1380,7 @@ const (
 
       <article class="gate manual-gate"><div class="gate-id"><span>22.7</span><span class="gate-mode manual">Abgeschlossen · 16.08.2026</span></div><div><h3>Mephisto Combat</h3><p>Kampfanker erforschen, begrenzte Hammer-Bursts implementieren und Kill-/No-progress-Vertrag abnehmen.</p><ul><li>Kein LMB-Movement.</li><li>Teleport/Concentration-Wechsel jeweils bestätigt.</li><li>Mehrere vollständige Offline-Mephisto-Runs ohne unendlichen Combat.</li></ul><p class="gate-proof"><strong>Code 16.08.2026:</strong> Nach Boss-Pin teleportiert der Hammerdin auf 1 Tile, sobald die Distanz 3 überschreitet. Konzentration wird auf RMB bestätigt, Blessed Hammer bleibt als LMB-Hold auf dem sichtbaren Boss-Sprite. Ein aktiver Hold wird erst nach drei Snapshots und mehr als 5 Tiles Distanz gelöst; der Teleport folgt erst im nächsten Snapshot. No-progress nach 25&nbsp;s ohne Hammer oder 12 Teleports. Shift wurde live verworfen, weil D2R den Modifier nicht als Stand-still verarbeitet.</p><p class="gate-proof"><strong>Live-Evidenz 16.08.2026:</strong> Charakter <code>MrHammer</code>, Profil <code>paladin_hammerdin</code>, CLI mit installiertem DataRoot, kein Combat-Test-Bypass. Erster Kill in <code>d2rbot-20260816-184632.log</code>: Aim auf Sprite <code>585,285</code>, <code>hover_confirmed</code>, Hold bis Kill, <code>engage_boss</code> 7,7&nbsp;s, <code>outcome=success</code>; derselbe Tick wie das Loslassen sendete noch einen Teleport an den Bildschirmrand. Bereinigter Vertrag in <code>d2rbot-20260816-185534.log</code>: LMB-Hold ohne Shift auf <code>624,305</code>, <code>unit_id=192</code>, Hold 2,7&nbsp;s, Konzentration F2 vor dem Hold und nach dem Teleport, <code>engage_boss</code> 5,0&nbsp;s, Loot-Reposition 100&nbsp;ms ohne weiteren Teleport, Town/Stash, <code>outcome=success</code>. Der Operator sah keine Kampf- oder Lauf Fehler. Kein LMB-Walkklick während <code>engage_boss</code>.</p><p class="muted"><strong>Erkenntnis:</strong> Blessed Hammer ist kein Attack/Throw; LMB in der Clientmitte läuft. Der belastbare Anker ist der Nihlathak-artige Sprite-Aim mit Overlay-Hover. Shift ändert das nicht. Nach dem Kill darf derselbe Tick keinen Teleport mehr senden, sonst läuft der Paladin vom Leichnam weg. No-Progress-Abbruch und Trank während des Holds bleiben codegedeckt, wurden live nicht benötigt. Gate 22.8 darf beginnen; Stage D bleibt zurückgestellt.</p></div></article>
 
-      <article class="gate auto-gate"><div class="gate-id"><span>22.8</span><span class="gate-mode auto">Automatisch</span></div><div><h3>Dokumentation und lokales Release v0.20.0</h3><p>Feature-Docs, Index, Changelog und einmalige vollständige Releasepipeline für <code>v0.20.0 – Reliability, Runtime Replay and Hammerdin</code>.</p><ul><li><code>docs/features/runtime-trace-replay.md</code> hält ausdrücklich Motivation, zeitliche Fehlerklassen, interpretierte Trace-Daten, Opt-in, Simulationsgrenze und Regression-Promotion fest.</li><li>Hammerdin- und geänderte bestehende Feature-Docs folgen derselben Repo-Regel; Index und Changelog werden aktualisiert.</li><li><code>scripts/build-release.ps1 -Version 0.20.0</code> genau einmal ohne Skip-Schalter; Installer, Smoke und SHA-256 erfolgreich.</li></ul><p class="gate-proof"><strong>Automatische Abnahme:</strong> Erst nach dokumentiert grünen manuellen Gates 22.0c, 22.3, 22.6 und 22.7 läuft die vollständige lokale Releasepipeline genau einmal. Erfolgreicher Installer-Smoke, konsistente Version <code>0.20.0</code>, ZIP und Prüfsummen schließen das Gate ohne weiteren D2R-Lauf.</p></div></article>
+      <article class="gate auto-gate"><div class="gate-id"><span>22.8</span><span class="gate-mode auto">Abgeschlossen · 16.08.2026</span></div><div><h3>Dokumentation und lokales Release v0.20.0</h3><p>Feature-Docs, Index, Changelog und einmalige vollständige Releasepipeline für <code>v0.20.0 – Reliability, Runtime Replay and Hammerdin</code>.</p><ul><li><code>docs/features/runtime-trace-replay.md</code> hält ausdrücklich Motivation, zeitliche Fehlerklassen, interpretierte Trace-Daten, Opt-in, Simulationsgrenze und Regression-Promotion fest.</li><li>Hammerdin- und geänderte bestehende Feature-Docs folgen derselben Repo-Regel; Index und Changelog werden aktualisiert.</li><li><code>scripts/build-release.ps1 -Version 0.20.0</code> genau einmal ohne Skip-Schalter; Installer, Smoke und SHA-256 erfolgreich.</li></ul><p class="gate-proof"><strong>Automatische Abnahme 16.08.2026:</strong> Nach dokumentiert grünen Gates 22.0c, 22.3, 22.6 und 22.7 lief <code>scripts/build-release.ps1 -Version 0.20.0</code> auf Commit <code>bcd2c0f</code> ohne Skip-Schalter grün. Installer-Smoke, Version <code>0.20.0</code>, ZIP <code>D2R-Offline-Farming-Bot-0.20.0-Windows-x64.zip</code> und SHA-256 sind veröffentlicht. GitHub-Release <code>v0.20.0</code> ist latest. Stage D wurde nicht begonnen.</p></div></article>
     </div>
 
     <h3>Voraussichtliche Dateifläche</h3>
@@ -1435,6 +1435,7 @@ const (
 
     <div class="callout success">
       <h3>Definition of Done für Phase 22</h3>
+      <p><strong>Erfüllt 16.08.2026.</strong> Alle folgenden Punkte sind durch Gates 22.0a–22.8 und das Release <code>v0.20.0</code> belegt.</p>
       <ul class="checks">
         <li>Ein kontrolliert ausgelöstes terminales Fail-closed-Ereignis aus einem echten Offline-D2R-Run lässt sich ohne D2R bis zum identischen Step, Input-Intent und Reason-Code reproduzieren.</li>
         <li>Der Replay-Pfad kann weder Prozess-Attach noch Window-Bind, Hotkeys oder OS-Input erreichen.</li>
@@ -1471,7 +1472,7 @@ const (
   </section>
 
   <footer>
-    <p>Phase 22 · Zielrelease v0.20.0 · Research- und Implementierungsentwurf · D2R Offline Farming Bot · Stand 16. August 2026</p>
+    <p>Phase 22 · v0.20.0 freigegeben · Research- und Implementierungsentwurf · D2R Offline Farming Bot · Stand 16. August 2026</p>
     <p><a href="#top">Zurück nach oben</a></p>
   </footer>
 </main>

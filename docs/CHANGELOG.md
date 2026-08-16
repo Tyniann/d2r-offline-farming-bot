@@ -7,6 +7,9 @@ Versionierung nach [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+- Mark Phase 22 Gates 22.8 and the Definition of Done complete after the `v0.20.0` release
+
 ## [0.20.0] - 2026-08-16
 
 ### Added
