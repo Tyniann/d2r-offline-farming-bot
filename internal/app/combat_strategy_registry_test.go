@@ -38,6 +38,29 @@ func TestCombatStrategyRegistryResolvesBoneSpearMatrix(t *testing.T) {
 	}
 }
 
+func TestCombatStrategyRegistryExposesOnlyHammerdinMephisto(t *testing.T) {
+	registry := NewCombatStrategyRegistry()
+	factory, ok := registry.Resolve("paladin_hammerdin", "mephisto")
+	if !ok || factory == nil {
+		t.Fatal("Hammerdin Mephisto strategy is missing")
+	}
+	strategy := factory()
+	if strategy.ProfileID() != "paladin_hammerdin" || strategy.RunID() != "mephisto" {
+		t.Fatalf("strategy identity = %s/%s", strategy.ProfileID(), strategy.RunID())
+	}
+	if got := registry.SupportedRuns("paladin_hammerdin"); len(got) != 1 || got[0] != "mephisto" {
+		t.Fatalf("Hammerdin supported runs = %v", got)
+	}
+	for _, runID := range []string{"countess", "summoner", "nihlathak", "cows"} {
+		if _, exists := registry.Resolve("paladin_hammerdin", runID); exists {
+			t.Fatalf("Hammerdin unexpectedly supports %s", runID)
+		}
+	}
+	if got := registry.SupportedRuns("necro_bone_spear"); len(got) != 5 {
+		t.Fatalf("existing Bone-Spear registry changed: %v", got)
+	}
+}
+
 func TestCombatStrategyRegistryValidateAgainstProfiles(t *testing.T) {
 	cfg, err := config.Load("../../configs/config.example.yaml")
 	if err != nil {

@@ -3,6 +3,8 @@ package config
 import (
 	"strings"
 	"testing"
+
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/memory"
 )
 
 func TestDefaultNecroProfileContract(t *testing.T) {
@@ -32,6 +34,87 @@ func TestDefaultNecroProfileContract(t *testing.T) {
 	}
 	if err := profiles.validateSetupMetadata(); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestDefaultPaladinHammerdinProfileContract(t *testing.T) {
+	var profiles ProfilesConfig
+	profiles.applyDefaults()
+	got := profiles["paladin_hammerdin"]
+	if got.CharacterClass != "paladin" || got.DisplayName != "Hammerdin" || !got.Setup.Enabled || !got.Setup.Default || !got.RequiresMercenary {
+		t.Fatalf("default Hammerdin profile = %+v", got)
+	}
+	wantSkills := []struct {
+		key  string
+		id   uint16
+		slot string
+	}{
+		{key: "teleport", id: 54, slot: "right"},
+		{key: "town_portal", id: 359, slot: "right"},
+		{key: "blessed_hammer", id: 112, slot: "left"},
+		{key: "concentration", id: 113, slot: "right"},
+		{key: "holy_shield", id: 117, slot: "right"},
+	}
+	if len(got.RequiredSkills) != len(wantSkills) {
+		t.Fatalf("required skills = %+v", got.RequiredSkills)
+	}
+	for index, want := range wantSkills {
+		entry := got.RequiredSkills[index]
+		catalog, ok := memory.LookupSkillByKey(entry.Skill)
+		if !ok || entry.Skill != want.key || catalog.ID != want.id || entry.Slot != want.slot {
+			t.Fatalf("required skill[%d] = %+v catalog=%+v", index, entry, catalog)
+		}
+	}
+	if len(got.OptionalSkillPairs) != 1 || len(got.OptionalSkillPairs[0].Skills) != 2 {
+		t.Fatalf("optional skill pairs = %+v", got.OptionalSkillPairs)
+	}
+	pair := got.OptionalSkillPairs[0].Skills
+	for index, want := range []struct {
+		key string
+		id  uint16
+	}{{"battle_command", 155}, {"battle_orders", 149}} {
+		catalog, ok := memory.LookupSkillByKey(pair[index].Skill)
+		if !ok || pair[index].Skill != want.key || catalog.ID != want.id || pair[index].Slot != "right" {
+			t.Fatalf("optional skill[%d] = %+v catalog=%+v", index, pair[index], catalog)
+		}
+	}
+	if err := profiles.validate("paladin_hammerdin", "test"); err != nil {
+		t.Fatal(err)
+	}
+	if got.Combat.StandardAttack != "blessed_hammer" || got.Combat.AttackIntervalMs != 300 ||
+		got.Combat.EngageDistanceTiles != 1 || got.Combat.RepositionDistanceTiles != 3 || got.Combat.KillConfirmTicks != 3 {
+		t.Fatalf("default Hammerdin combat = %+v", got.Combat)
+	}
+}
+
+func TestPaladinHammerdinProfileRejectsContractDrift(t *testing.T) {
+	tests := []struct {
+		name   string
+		mutate func(ProfileConfig) ProfileConfig
+	}{
+		{name: "Blessed Hammer on right", mutate: func(value ProfileConfig) ProfileConfig {
+			value.RequiredSkills[2].Slot = "right"
+			return value
+		}},
+		{name: "Mercenary optional", mutate: func(value ProfileConfig) ProfileConfig {
+			value.RequiresMercenary = false
+			return value
+		}},
+		{name: "partial CTA description", mutate: func(value ProfileConfig) ProfileConfig {
+			value.OptionalSkillPairs[0].Skills = value.OptionalSkillPairs[0].Skills[:1]
+			return value
+		}},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			var profiles ProfilesConfig
+			profiles.applyDefaults()
+			value := test.mutate(profiles["paladin_hammerdin"])
+			copyProfiles := ProfilesConfig{"paladin_hammerdin": value}
+			if err := copyProfiles.validate("paladin_hammerdin", "test"); err == nil {
+				t.Fatal("invalid Hammerdin contract accepted")
+			}
+		})
 	}
 }
 

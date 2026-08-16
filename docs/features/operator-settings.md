@@ -33,6 +33,8 @@ Der Store enthält eine positive Revision und:
 
 Unbekannte YAML-Felder, weitere YAML-Dokumente, Schemaabweichungen einschließlich Schema 1 und Schema 2, Revision `0`, halbe oder ungültige Setup-Paare, leere oder duplizierte Queues, unbekannte Run-IDs, unendliche beziehungsweise außerhalb der Grenzen liegende Budgets und ungültige Hotkeys werden vollständig abgelehnt. Globales `input.bindings` und `loot.inventory_lock` in `config.yaml` sind entfernt; produktive Bindings und Inventarschutz kommen ausschließlich aus diesem Store.
 
+Profilverträge können den Mausslot festlegen und gemeinsam optionale Skillpaare deklarieren. Für `paladin_hammerdin` sind Blessed Hammer, Concentration, Teleport, Holy Shield und Town Portal Pflichtbindungen. Battle Command und Battle Orders sind gemeinsam leer oder gemeinsam mit zwei gültigen F-Tasten belegt; eine Teilbelegung ist ungültig. Es gibt weder ein persistentes `cta.enabled` noch eine Equipment-Erkennung. Der eingefrorene Loadout setzt Blessed Hammer aus dem Profilvertrag auf LMB und alle übrigen Hammerdin-Skills auf RMB.
+
 ### Initialisierung, Schreiben und Backups
 
 Beim ersten Öffnen erzeugt der Store Revision 1 aus den bereits validierten `config.yaml`-Werten und den bekannten Charakteren. Jede echte Änderung erzeugt vor dem Replace ein vollständiges Backup des alten Standes. Backups sind nach Revision stabil sortierbar und werden auf exakt zehn Dateien begrenzt.
@@ -54,6 +56,8 @@ Die API stellt Read, Änderungsvorschau, Resetvorschau, Update und Reset bereit.
 Eine veraltete Revision liefert `config_revision_conflict`; eine veraltete Generation liefert den bestehenden `state_changed`-Vertrag. Während einer Session wird mit `command_conflict` abgelehnt. Änderungen an Input-Freigabe oder Hotkeys liefern `restart_required: true` und `config_restart_required`. Der bereits aufgebaute Input-Controller wird niemals halb live verändert. Beim nächsten kontrollierten Core-Start werden die persistenten Settings vor Konstruktion von Runtime, Hotkeys und Input auf die Core-Konfiguration angewendet.
 
 Die allgemeine Settings-Preview-/Update-API projiziert Klasse und Profil nur lesbar und verlangt beide Werte einschließlich der Charakterschlüssel unverändert zum aktuellen Stand. React führt sie beim Draft-Klonen und DTO-Round-trip mit, bietet dafür aber kein Settings-Feld an. PreviewReset und Reset übernehmen die Setup-Paare bytegleich aus dem aktuellen Stand und setzen nur die bisherigen allgemeinen Werte zurück.
+
+Die Charakter-Setup-Projektion transportiert Required-Skill-Slots, optionale Paare, Mercenary-Pflicht sowie die vom Core berechnete Binding-Readiness. API und generierte Webtypen berechnen diese Werte nicht neu. Eine CTA-Teilbelegung liefert `config_invalid` mit der Meldung „Für Call to Arms müssen Battle Command und Battle Orders beide belegt sein.“
 
 Nur der dedizierte Charakter-Setup-Command darf `character_class` und `combat_profile` gemeinsam setzen. Der `CharacterCatalogStore` projiziert dieses Paar gegen einen frisch gelesenen Saveheader und die aktuelle Profilfreigabe; ein leeres, klassenfremdes oder nicht mehr freigegebenes Paar macht den Charakter nicht auswählbar. Ein bereits bestätigter Auswahlkontext wird beim Core-Start verworfen, falls diese Prüfung nicht mehr besteht.
 
@@ -89,4 +93,4 @@ Seit Abschnitt 15.6 bildet die Settings-Seite Read, Preview, Update, Resetvorsch
 - [Charaktereinrichtung](character-setup.md)
 
 ---
-*Zuletzt aktualisiert: 30. Juli 2026*
+*Zuletzt aktualisiert: 15. August 2026*

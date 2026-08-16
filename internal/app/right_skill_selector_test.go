@@ -164,16 +164,16 @@ func TestRightSkillSelectorDoesNotPreemptPendingSelection(t *testing.T) {
 	selector := NewRightSkillSelector(bindings, in)
 	now := time.Now()
 	sent, err := selector.EnsureAndCast(memory.SkillAmplifyDamage, memory.SkillTeleport, now, nil)
-	if err != nil || sent || in.selectCalls != 1 || selector.pending != memory.SkillAmplifyDamage {
-		t.Fatalf("AD select sent=%v err=%v selects=%d pending=%d", sent, err, in.selectCalls, selector.pending)
+	if err != nil || sent || in.selectCalls != 1 || selector.selector.pending[SkillSlotRight] != memory.SkillAmplifyDamage {
+		t.Fatalf("AD select sent=%v err=%v selects=%d pending=%d", sent, err, in.selectCalls, selector.selector.pending[SkillSlotRight])
 	}
 
 	sent, err = selector.EnsureAndCast(memory.SkillTeleport, memory.SkillTeleport, now.Add(10*time.Millisecond), func() error {
 		t.Fatal("teleport must not cast while AD selection is pending")
 		return nil
 	})
-	if err != nil || sent || in.selectCalls != 1 || selector.pending != memory.SkillAmplifyDamage {
-		t.Fatalf("teleport preempt sent=%v err=%v selects=%d pending=%d", sent, err, in.selectCalls, selector.pending)
+	if err != nil || sent || in.selectCalls != 1 || selector.selector.pending[SkillSlotRight] != memory.SkillAmplifyDamage {
+		t.Fatalf("teleport preempt sent=%v err=%v selects=%d pending=%d", sent, err, in.selectCalls, selector.selector.pending[SkillSlotRight])
 	}
 
 	clicks := 0
@@ -181,13 +181,13 @@ func TestRightSkillSelectorDoesNotPreemptPendingSelection(t *testing.T) {
 		clicks++
 		return nil
 	})
-	if err != nil || !sent || clicks != 1 || selector.pending != 0 {
-		t.Fatalf("AD confirm sent=%v err=%v clicks=%d pending=%d", sent, err, clicks, selector.pending)
+	if err != nil || !sent || clicks != 1 || selector.selector.pending[SkillSlotRight] != 0 {
+		t.Fatalf("AD confirm sent=%v err=%v clicks=%d pending=%d", sent, err, clicks, selector.selector.pending[SkillSlotRight])
 	}
 
 	sent, err = selector.EnsureAndCast(memory.SkillTeleport, memory.SkillAmplifyDamage, now.Add(30*time.Millisecond), nil)
-	if err != nil || sent || in.selectCalls != 2 || selector.pending != memory.SkillTeleport {
-		t.Fatalf("teleport after AD sent=%v err=%v selects=%d pending=%d", sent, err, in.selectCalls, selector.pending)
+	if err != nil || sent || in.selectCalls != 2 || selector.selector.pending[SkillSlotRight] != memory.SkillTeleport {
+		t.Fatalf("teleport after AD sent=%v err=%v selects=%d pending=%d", sent, err, in.selectCalls, selector.selector.pending[SkillSlotRight])
 	}
 }
 
@@ -208,7 +208,7 @@ func TestRightSkillSelectorTimesOutAndRejectsMismatch(t *testing.T) {
 	if sent || err == nil || !strings.Contains(err.Error(), "right_skill_selection_unconfirmed") {
 		t.Fatalf("timeout sent=%t err=%v", sent, err)
 	}
-	if selector.pending != 0 {
+	if selector.selector.pending[SkillSlotRight] != 0 {
 		t.Fatal("pending must clear after timeout")
 	}
 
@@ -241,8 +241,55 @@ func TestRightSkillSelectorRejectsLeftButtonAndResetClearsPending(t *testing.T) 
 		t.Fatal(err)
 	}
 	selector.Reset()
-	if selector.pending != 0 {
+	if selector.selector.pending[SkillSlotRight] != 0 {
 		t.Fatal("reset must clear pending")
+	}
+}
+
+func TestSkillSelectorConfirmsLeftSkillOnlyOnNewerTick(t *testing.T) {
+	in := &recordingCombatInput{}
+	hammer := memory.MustSkillID("blessed_hammer")
+	bindings := configBindingSource{skills: map[uint16]input.SkillCast{
+		hammer: {SkillID: hammer, SelectKey: "f1", CastButton: input.MouseLeft},
+	}}
+	selector := NewSkillSelector(bindings, in)
+	now := time.Now()
+	if sent, err := selector.EnsureAndCast(SkillSlotLeft, hammer, 0, 0, now, nil); err != nil || sent || in.selectCalls != 1 {
+		t.Fatalf("select sent=%v err=%v calls=%d", sent, err, in.selectCalls)
+	}
+	if sent, err := selector.EnsureAndCast(SkillSlotLeft, hammer, hammer, 0, now, func() error {
+		t.Fatal("same tick must not cast")
+		return nil
+	}); err != nil || sent {
+		t.Fatalf("same-tick confirmation sent=%v err=%v", sent, err)
+	}
+	casts := 0
+	if sent, err := selector.EnsureAndCast(SkillSlotLeft, hammer, hammer, 0, now.Add(time.Millisecond), func() error {
+		casts++
+		return nil
+	}); err != nil || !sent || casts != 1 {
+		t.Fatalf("fresh confirmation sent=%v err=%v casts=%d", sent, err, casts)
+	}
+}
+
+func TestSkillSelectorKeepsLeftAndRightPendingIndependent(t *testing.T) {
+	in := &recordingCombatInput{}
+	hammer := memory.MustSkillID("blessed_hammer")
+	teleport := memory.SkillTeleport
+	bindings := configBindingSource{skills: map[uint16]input.SkillCast{
+		hammer:   {SkillID: hammer, SelectKey: "f1", CastButton: input.MouseLeft},
+		teleport: {SkillID: teleport, SelectKey: "f2", CastButton: input.MouseRight},
+	}}
+	selector := NewSkillSelector(bindings, in)
+	now := time.Now()
+	if _, err := selector.EnsureAndCast(SkillSlotLeft, hammer, 0, 0, now, nil); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := selector.EnsureAndCast(SkillSlotRight, teleport, 0, memory.SkillBoneSpear, now, nil); err != nil {
+		t.Fatal(err)
+	}
+	if selector.pending[SkillSlotLeft] != hammer || selector.pending[SkillSlotRight] != teleport || in.selectCalls != 2 {
+		t.Fatalf("pending=%v selectCalls=%d", selector.pending, in.selectCalls)
 	}
 }
 

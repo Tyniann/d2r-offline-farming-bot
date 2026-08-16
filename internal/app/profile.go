@@ -134,7 +134,7 @@ func (a *profileActionsAdapter) CastBeltForMercenary(slot int) error {
 	return nil
 }
 
-func newProfileExecutor(log *slog.Logger, profiles config.ProfilesConfig, profileID string, runID string, registry *CombatStrategyRegistry, in inputController, bindings configBindingSource, pathCfg pathing.Config, combat *combatAdapter, trace *profileTelemetryAdapter) (*profile.Executor, error) {
+func newProfileExecutor(log *slog.Logger, profiles config.ProfilesConfig, profileID string, runID string, registry *CombatStrategyRegistry, in inputController, bindings configBindingSource, pathCfg pathing.Config, combat *combatAdapter, trace *profileTelemetryAdapter, requireRegisteredStrategy bool) (*profile.Executor, error) {
 	if strings.TrimSpace(profileID) == "" {
 		return nil, fmt.Errorf("combat profile id is required")
 	}
@@ -152,7 +152,9 @@ func newProfileExecutor(log *slog.Logger, profiles config.ProfilesConfig, profil
 		return nil, err
 	}
 	executor.SetTelemetry(trace)
-	if registry == nil {
+	if registry == nil || !requireRegisteredStrategy {
+		// Idle desktop and route recording keep Countess only as a dummy
+		// carrier. Mephisto-only profiles such as Hammerdin must still construct.
 		return executor, nil
 	}
 	factory, ok := registry.Resolve(profileID, runID)

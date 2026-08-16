@@ -247,7 +247,7 @@
           <span class="pill">Memory Bot Core</span>
           <span class="pill">Go 1.26</span>
           <span class="pill">Countess MVP</span>
-          <span class="pill good">Stand: v0.19.0 · Phase 21 Character Loadouts abgenommen</span>
+          <span class="pill good">Stand: v0.20.0 · Phase 22 Runtime Replay und Hammerdin abgenommen</span>
           <span class="pill good">Phase 20 Cow Level abgenommen</span>
           <span class="pill good">Mercenary-Support abgenommen</span>
         </div>
@@ -859,9 +859,9 @@
     <div class="phase">
       <strong>Phase 22</strong>
       <div>
-        <h3>Reliability, Runtime Replay und Hammerdin <span class="warn">— geplant · Zielrelease v0.20.0</span></h3>
-        <p><strong>Ziel:</strong> Deterministische Runtime-Traces sollen zeitliche Live-Fehler ohne laufendes D2R reproduzierbar machen und die regressionsarme Zerlegung der rund 2.500-zeiligen Standard-Run-Pipeline durch Golden Traces absichern. Parallel erhält die Input-Schicht einen atomaren, fail-closed Vertrag für modifizierte Eingaben wie <code>Shift + LMB</code>.</p>
-        <p><strong>Produktumfang:</strong> Phase 22 führt Paladin/Hammerdin zunächst für Mephisto ein: Blessed Hammer auf bestätigter LMB-Auswahl, Concentration/Teleport auf RMB, lebender Söldner als Voraussetzung und optionales CTA im zweiten Waffenset mit bestätigter Sequenz Battle Command → Battle Orders → Battle Command → Holy Shield. Pipeline-Stage D bleibt bewusst bedingt zurückgestellt. Automatische und manuelle Gates sowie der vollständige Implementierungsvertrag stehen im <a href="phase-22-implementation-plan.html">Phase-22-Umsetzungsplan</a>.</p>
+        <h3>Reliability, Runtime Replay und Hammerdin <span class="ok">— Gates 22.0a–22.7 bestanden · Phase 22 abgeschlossen · v0.20.0</span></h3>
+        <p><strong>Stand:</strong> Opt-in Runtime-Traces und ein headless Replayer reproduzieren echte Offline-Fehler ohne D2R, Fenster oder OS-Input. Die Standard-Run-Pipeline ist in Flow-, State-, Travel-, Boss-, Loot- und Return-Dateien zerlegt; Stage D bleibt bewusst zurückgestellt. Paladin/Hammerdin farmt Mephisto: CTA- und Holy-Shield-Prebuff vor der Route, Blessed Hammer als LMB-Hold auf dem Boss-Sprite, Concentration und Teleport auf RMB, lebender Söldner als Voraussetzung. Shift wurde live verworfen. Detailplan: <a href="phase-22-implementation-plan.html">Phase-22-Umsetzungsplan</a>.</p>
+        <p><strong>Gates:</strong> 22.0a Recorder → 22.0b Replayer → 22.0c Live-Replay-Fixture → 22.1/22.2 Pipeline A–C → 22.3 Weapon-Set → 22.4 Skill-Selector → 22.5a–c Hammerdin-Profil/UI → 22.6 Prebuff → 22.7 Mephisto-Combat → 22.8 Dokumentation und lokales Release.</p>
       </div>
     </div>
 

@@ -4,9 +4,32 @@ import {
   confirmCharacterSetup,
   previewCharacterSetup,
   reloadCharacters,
+  type CharacterSetupProfileDTO,
 } from "./generated";
 
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); });
+
+it("transportiert den Core-Vertrag für Slots, CTA und Readiness", () => {
+  const profile: CharacterSetupProfileDTO = {
+    id: "paladin_hammerdin",
+    display_name: "Hammerdin",
+    is_default: true,
+    is_selected: true,
+    required_skills: [{ skill: "blessed_hammer", skill_id: 112, display_name: "Gesegneter Hammer", slot: "left" }],
+    optional_skill_pairs: [{ skills: [
+      { skill: "battle_command", skill_id: 155, display_name: "Battle Command", slot: "right" },
+      { skill: "battle_orders", skill_id: 149, display_name: "Battle Orders", slot: "right" },
+    ] }],
+    requires_mercenary: true,
+    bindings_ready: false,
+    binding_reasons: ["profile_bindings_incomplete"],
+    supported_runs: ["mephisto"],
+  };
+
+  expect(profile).toMatchObject({ requires_mercenary: true, bindings_ready: false, supported_runs: ["mephisto"] });
+  expect(profile.required_skills?.[0].slot).toBe("left");
+  expect(profile.optional_skill_pairs?.[0].skills.map((skill) => skill.skill_id)).toEqual([155, 149]);
+});
 
 it("schützt nur Confirm und Capture mit dem Control-Token", async () => {
   const response = new Response(JSON.stringify({ schema_version: 1 }), { status: 200, headers: { "Content-Type": "application/json" } });

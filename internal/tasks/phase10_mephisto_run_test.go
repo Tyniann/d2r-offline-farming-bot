@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/config"
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/memory"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/profile"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/telemetry"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/world"
@@ -38,20 +39,19 @@ func TestMephistoExecutesTwoIndexedBossActionsBeforeCombat(t *testing.T) {
 	}}
 	combat := &mockCombatActions{}
 	pipeline := &runPipeline{
-		definition:   definition,
-		combat:       killRunConfig().Combat,
-		targetSeen:   true,
-		targetUnitID: target.UnitID,
+		definition: definition,
+		boss: pipelineBossState{targetSeen: true,
+			targetUnitID: target.UnitID}, core: pipelineCoreState{combat: killRunConfig().Combat},
 	}
 	deps := Deps{Telemetry: trace, Profile: profiles, Combat: combat}
 
 	first := pipeline.onBossTick(context.Background(), deps, pipelineStepEngageBoss, mephistoState(target), time.Now())
-	if first.failed || combat.castCalls != 0 || pipeline.encounterActionIndex != 1 {
-		t.Fatalf("first action=%+v index=%d combat=%d", first, pipeline.encounterActionIndex, combat.castCalls)
+	if first.failed || combat.castCalls != 0 || pipeline.boss.encounterActionIndex != 1 {
+		t.Fatalf("first action=%+v index=%d combat=%d", first, pipeline.boss.encounterActionIndex, combat.castCalls)
 	}
 	second := pipeline.onBossTick(context.Background(), deps, pipelineStepEngageBoss, mephistoState(target), time.Now())
-	if second.failed || profiles.hookCalls != 2 || combat.castCalls != 1 || pipeline.encounterActionIndex != 2 {
-		t.Fatalf("second action=%+v hooks=%d index=%d combat=%d", second, profiles.hookCalls, pipeline.encounterActionIndex, combat.castCalls)
+	if second.failed || profiles.hookCalls != 2 || combat.castCalls != 1 || pipeline.boss.encounterActionIndex != 2 {
+		t.Fatalf("second action=%+v hooks=%d index=%d combat=%d", second, profiles.hookCalls, pipeline.boss.encounterActionIndex, combat.castCalls)
 	}
 	for i, pinned := range profiles.targets {
 		if pinned.UnitID != target.UnitID {
@@ -97,10 +97,9 @@ func TestMephistoPipelineAndRealProfileCastTwoPrisonsBeforeBoneSpear(t *testing.
 		t.Fatal(err)
 	}
 	pipeline := &runPipeline{
-		definition:   definition,
-		combat:       killRunConfig().Combat,
-		targetSeen:   true,
-		targetUnitID: target.UnitID,
+		definition: definition,
+		boss: pipelineBossState{targetSeen: true,
+			targetUnitID: target.UnitID}, core: pipelineCoreState{combat: killRunConfig().Combat},
 	}
 	state := mephistoState(target)
 	state.Identity = world.GameIdentity{Valid: true, CharacterName: "MrBones", Class: world.CharacterClassNecromancer}
@@ -121,10 +120,9 @@ func TestMephistoPipelineAndRealProfileCastTwoPrisonsBeforeBoneSpear(t *testing.
 func TestMephistoFailsWhenBossPinIsLostBeforeActionsComplete(t *testing.T) {
 	definition, _ := DefaultRunRegistry().Definition(RunIDMephisto)
 	pipeline := &runPipeline{
-		definition:   definition,
-		combat:       killRunConfig().Combat,
-		targetSeen:   true,
-		targetUnitID: 10,
+		definition: definition,
+		boss: pipelineBossState{targetSeen: true,
+			targetUnitID: 10}, core: pipelineCoreState{combat: killRunConfig().Combat},
 	}
 	result := pipeline.onBossTick(
 		context.Background(),
@@ -163,11 +161,10 @@ func TestCountessStillRequiresSuperUniqueFlagForConfiguredBaseNPC(t *testing.T) 
 func TestMephistoRejectsReplacementUnitAndConfirmsTrueAbsence(t *testing.T) {
 	definition, _ := DefaultRunRegistry().Definition(RunIDMephisto)
 	pipeline := &runPipeline{
-		definition:           definition,
-		combat:               killRunConfig().Combat,
-		targetSeen:           true,
-		targetUnitID:         10,
-		encounterActionIndex: len(definition.BossEngageSequence),
+		definition: definition,
+		boss: pipelineBossState{targetSeen: true,
+			targetUnitID:         10,
+			encounterActionIndex: len(definition.BossEngageSequence)}, core: pipelineCoreState{combat: killRunConfig().Combat},
 	}
 	combat := &mockCombatActions{}
 	trace := &pipelineTelemetry{}
@@ -179,17 +176,17 @@ func TestMephistoRejectsReplacementUnitAndConfirmsTrueAbsence(t *testing.T) {
 		t.Fatalf("StopAttack calls after pin replacement = %d, want 1", combat.stopCalls)
 	}
 
-	pipeline.targetAbsentTicks = 0
-	for tick := 1; tick <= pipeline.combat.KillConfirmTicks; tick++ {
+	pipeline.boss.targetAbsentTicks = 0
+	for tick := 1; tick <= pipeline.core.combat.KillConfirmTicks; tick++ {
 		result := pipeline.onBossTick(context.Background(), Deps{Combat: combat, Telemetry: trace}, pipelineStepEngageBoss, mephistoState(), time.Now())
-		if tick < pipeline.combat.KillConfirmTicks && (result.complete || result.failed) {
+		if tick < pipeline.core.combat.KillConfirmTicks && (result.complete || result.failed) {
 			t.Fatalf("absence tick %d=%+v, want pending", tick, result)
 		}
-		if tick == pipeline.combat.KillConfirmTicks && (!result.complete || result.failed) {
+		if tick == pipeline.core.combat.KillConfirmTicks && (!result.complete || result.failed) {
 			t.Fatalf("final absence tick=%+v, want complete", result)
 		}
 	}
-	if combat.stopCalls != 1+pipeline.combat.KillConfirmTicks {
+	if combat.stopCalls != 1+pipeline.core.combat.KillConfirmTicks {
 		t.Fatalf("StopAttack calls = %d, want release on every absent-target tick", combat.stopCalls)
 	}
 	if len(trace.events) != 1 || trace.events[0].Event != telemetry.BossKillConfirmed || trace.events[0].UnitID != 10 || trace.events[0].BossID != "mephisto" || trace.events[0].BossName != "Mephisto" || trace.events[0].Stage != telemetry.HistoryStageCombat {
@@ -204,13 +201,13 @@ func TestMephistoRejectsReplacementUnitAndConfirmsTrueAbsence(t *testing.T) {
 func TestBossKillTelemetryFailurePreventsKillCompletion(t *testing.T) {
 	definition, _ := DefaultRunRegistry().Definition(RunIDMephisto)
 	pipeline := &runPipeline{
-		definition: definition, combat: killRunConfig().Combat, targetSeen: true, targetUnitID: 10,
-		encounterActionIndex: len(definition.BossEngageSequence), targetAbsentTicks: killRunConfig().Combat.KillConfirmTicks - 1,
+		definition: definition, boss: pipelineBossState{targetSeen: true, targetUnitID: 10,
+			encounterActionIndex: len(definition.BossEngageSequence), targetAbsentTicks: killRunConfig().Combat.KillConfirmTicks - 1}, core: pipelineCoreState{combat: killRunConfig().Combat},
 	}
 	trace := &pipelineTelemetry{failAt: 1}
 	result := pipeline.onBossTick(context.Background(), Deps{Combat: &mockCombatActions{}, Telemetry: trace}, pipelineStepEngageBoss, mephistoState(), time.Now())
-	if !result.failed || result.complete || result.reason != "telemetry_failed" || pipeline.bossKillEmitted {
-		t.Fatalf("result=%+v emitted=%t", result, pipeline.bossKillEmitted)
+	if !result.failed || result.complete || result.reason != "telemetry_failed" || pipeline.boss.bossKillEmitted {
+		t.Fatalf("result=%+v emitted=%t", result, pipeline.boss.bossKillEmitted)
 	}
 }
 
@@ -220,14 +217,13 @@ func TestCountessRetainsExactlyOneBossAction(t *testing.T) {
 	profiles := &mockProfileActions{}
 	combat := &mockCombatActions{}
 	pipeline := &runPipeline{
-		definition:   definition,
-		combat:       killRunConfig().Combat,
-		targetSeen:   true,
-		targetUnitID: target.UnitID,
+		definition: definition,
+		boss: pipelineBossState{targetSeen: true,
+			targetUnitID: target.UnitID}, core: pipelineCoreState{combat: killRunConfig().Combat},
 	}
 	result := pipeline.onBossTick(context.Background(), Deps{Profile: profiles, Combat: combat}, pipelineStepEngageBoss, healthy(cellar5State(target)), time.Now())
-	if result.failed || profiles.hookCalls != 1 || pipeline.encounterActionIndex != 1 || combat.castCalls != 1 {
-		t.Fatalf("result=%+v hooks=%d index=%d combat=%d", result, profiles.hookCalls, pipeline.encounterActionIndex, combat.castCalls)
+	if result.failed || profiles.hookCalls != 1 || pipeline.boss.encounterActionIndex != 1 || combat.castCalls != 1 {
+		t.Fatalf("result=%+v hooks=%d index=%d combat=%d", result, profiles.hookCalls, pipeline.boss.encounterActionIndex, combat.castCalls)
 	}
 }
 
@@ -251,12 +247,225 @@ func TestMephistoLootBranchesToPortalAndAct3Normalization(t *testing.T) {
 		t.Fatalf("Act-3 successor=%q, want %q", next, pipelineStepPlayTownEgress)
 	}
 
-	pipeline.lootScanHasTarget = true
+	pipeline.loot.lootScanHasTarget = true
 	full := pipeline.onLootTick(context.Background(), Deps{Loot: &mockLootActions{scans: []LootScanResult{{InventoryFull: true, InventoryFullCandidateCount: 1}}}}, pipelineStepScanLoot, mephistoState(), time.Now(), time.Now())
-	if !full.complete || full.failed || pipeline.lootScanHasTarget {
-		t.Fatalf("inventory-full result=%+v hasTarget=%t", full, pipeline.lootScanHasTarget)
+	if !full.complete || full.failed || pipeline.loot.lootScanHasTarget {
+		t.Fatalf("inventory-full result=%+v hasTarget=%t", full, pipeline.loot.lootScanHasTarget)
 	}
 	if next := pipeline.nextStep(pipelineStepScanLoot); next != pipelineStepCastTownPortal {
 		t.Fatalf("inventory-full successor=%q, want portal", next)
+	}
+}
+
+func hammerdinMephistoCombat() CombatConfig {
+	return CombatConfig{
+		Profile:                 "paladin_hammerdin",
+		AttackSkillID:           memory.MustSkillID("blessed_hammer"),
+		AttackInterval:          350 * time.Millisecond,
+		EngageDistanceTiles:     1,
+		RepositionDistanceTiles: 3,
+		KillConfirmTicks:        3,
+	}
+}
+
+func farMephistoState(monsters ...world.Monster) world.State {
+	state := mephistoState(monsters...)
+	state.Player.Position = world.Position{X: 17620, Y: 8069}
+	return state
+}
+
+func closeMephistoState(monsters ...world.Monster) world.State {
+	state := mephistoState(monsters...)
+	state.Player.Position = world.Position{X: 17566, Y: 8066}
+	return state
+}
+
+func TestHammerdinMephistoStartsStandardAttackAfterEmptyEngage(t *testing.T) {
+	definition, _ := DefaultRunRegistry().Definition(RunIDMephisto)
+	target := mephistoMonster(4242)
+	profiles := &mockProfileActions{}
+	combat := &mockCombatActions{}
+	pipeline := &runPipeline{
+		definition: definition,
+		boss:       pipelineBossState{targetSeen: true, targetUnitID: target.UnitID},
+		core:       pipelineCoreState{combat: hammerdinMephistoCombat()},
+	}
+	deps := Deps{Profile: profiles, Combat: combat}
+	now := time.Now()
+
+	first := pipeline.onBossTick(context.Background(), deps, pipelineStepEngageBoss, closeMephistoState(target), now)
+	if first.failed || first.complete || combat.holdCalls != 0 || pipeline.boss.encounterActionIndex != 1 {
+		t.Fatalf("first empty engage=%+v index=%d holds=%d", first, pipeline.boss.encounterActionIndex, combat.holdCalls)
+	}
+	second := pipeline.onBossTick(context.Background(), deps, pipelineStepEngageBoss, closeMephistoState(target), now.Add(time.Millisecond))
+	if second.failed || combat.holdCalls != 1 || combat.teleportCalls != 0 || combat.lastSkillID != memory.MustSkillID("blessed_hammer") {
+		t.Fatalf("second empty engage=%+v holds=%d teleports=%d skill=%d", second, combat.holdCalls, combat.teleportCalls, combat.lastSkillID)
+	}
+}
+
+func TestHammerdinEngageTeleportsWhenBeyondTolerance(t *testing.T) {
+	definition, _ := DefaultRunRegistry().Definition(RunIDMephisto)
+	target := mephistoMonster(4242)
+	combat := &mockCombatActions{}
+	pipeline := &runPipeline{
+		definition: definition,
+		boss: pipelineBossState{
+			targetSeen:           true,
+			targetUnitID:         target.UnitID,
+			encounterActionIndex: len(definition.BossEngageSequence),
+		},
+		core: pipelineCoreState{combat: hammerdinMephistoCombat()},
+	}
+
+	result := pipeline.onBossTick(context.Background(), Deps{Combat: combat}, pipelineStepEngageBoss, farMephistoState(target), time.Now())
+	if result.failed || combat.teleportCalls != 1 || combat.holdCalls != 0 || combat.lastDesired != 1 {
+		t.Fatalf("result=%+v teleports=%d holds=%d desired=%.0f", result, combat.teleportCalls, combat.holdCalls, combat.lastDesired)
+	}
+}
+
+func TestHammerdinEngageAttacksWhenWithinTolerance(t *testing.T) {
+	definition, _ := DefaultRunRegistry().Definition(RunIDMephisto)
+	target := mephistoMonster(4242)
+	combat := &mockCombatActions{}
+	pipeline := &runPipeline{
+		definition: definition,
+		boss: pipelineBossState{
+			targetSeen:           true,
+			targetUnitID:         target.UnitID,
+			encounterActionIndex: len(definition.BossEngageSequence),
+		},
+		core: pipelineCoreState{combat: hammerdinMephistoCombat()},
+	}
+
+	result := pipeline.onBossTick(context.Background(), Deps{Combat: combat}, pipelineStepEngageBoss, closeMephistoState(target), time.Now())
+	if result.failed || combat.holdCalls != 1 || combat.teleportCalls != 0 || combat.lastSkillID != memory.MustSkillID("blessed_hammer") {
+		t.Fatalf("result=%+v holds=%d teleports=%d skill=%d", result, combat.holdCalls, combat.teleportCalls, combat.lastSkillID)
+	}
+	if !pipeline.boss.hammerdinAttackHeld {
+		t.Fatal("expected LMB hold after in-range engage")
+	}
+}
+
+func TestHammerdinEngageAcceptsOverlayHoverAfterAim(t *testing.T) {
+	definition, _ := DefaultRunRegistry().Definition(RunIDMephisto)
+	boss := mephistoMonster(4242)
+	overlay := mephistoMonster(99)
+	overlay.IsHovered = true
+	combat := &mockCombatActions{holdResults: []profile.MonsterCastResult{
+		{AimRequested: true},
+		{Sent: true, TargetingMode: profile.MonsterTargetingHoverConfirmed},
+	}}
+	pipeline := &runPipeline{
+		definition: definition,
+		boss: pipelineBossState{
+			targetSeen:           true,
+			targetUnitID:         boss.UnitID,
+			encounterActionIndex: len(definition.BossEngageSequence),
+		},
+		core: pipelineCoreState{combat: hammerdinMephistoCombat()},
+	}
+	now := time.Now()
+	aim := pipeline.onBossTick(context.Background(), Deps{Combat: combat}, pipelineStepEngageBoss, closeMephistoState(boss), now)
+	if aim.failed || combat.holdCalls != 1 || pipeline.boss.hammerdinAttackHeld {
+		t.Fatalf("aim=%+v holds=%d held=%t", aim, combat.holdCalls, pipeline.boss.hammerdinAttackHeld)
+	}
+
+	overlayState := closeMephistoState(boss, overlay)
+	overlayState.At = now.Add(time.Millisecond)
+	hold := pipeline.onBossTick(context.Background(), Deps{Combat: combat}, pipelineStepEngageBoss, overlayState, now.Add(time.Millisecond))
+	if hold.failed || combat.holdCalls != 2 || combat.lastMonsterUnitID != overlay.UnitID || !pipeline.boss.hammerdinAttackHeld {
+		t.Fatalf("overlay hold=%+v holds=%d unit=%d held=%t", hold, combat.holdCalls, combat.lastMonsterUnitID, pipeline.boss.hammerdinAttackHeld)
+	}
+}
+
+func TestHammerdinEngageKeepsHoldUntilRecheckThenTeleports(t *testing.T) {
+	definition, _ := DefaultRunRegistry().Definition(RunIDMephisto)
+	target := mephistoMonster(4242)
+	combat := &mockCombatActions{}
+	pipeline := &runPipeline{
+		definition: definition,
+		boss: pipelineBossState{
+			targetSeen:           true,
+			targetUnitID:         target.UnitID,
+			encounterActionIndex: len(definition.BossEngageSequence),
+		},
+		core: pipelineCoreState{combat: hammerdinMephistoCombat()},
+	}
+	now := time.Now()
+	closeTick := pipeline.onBossTick(context.Background(), Deps{Combat: combat}, pipelineStepEngageBoss, closeMephistoState(target), now)
+	if closeTick.failed || combat.holdCalls != 1 || combat.teleportCalls != 0 || combat.stopCalls != 0 {
+		t.Fatalf("hold start=%+v holds=%d teleports=%d stops=%d", closeTick, combat.holdCalls, combat.teleportCalls, combat.stopCalls)
+	}
+
+	for tick := 1; tick < hammerdinHoldRecheckSnapshots; tick++ {
+		held := pipeline.onBossTick(context.Background(), Deps{Combat: combat}, pipelineStepEngageBoss, closeMephistoState(target), now.Add(time.Duration(tick)*time.Millisecond))
+		if held.failed || combat.holdCalls != 1 || combat.teleportCalls != 0 || combat.stopCalls != 0 {
+			t.Fatalf("hold tick %d=%+v holds=%d teleports=%d stops=%d", tick, held, combat.holdCalls, combat.teleportCalls, combat.stopCalls)
+		}
+	}
+
+	far := farMephistoState(target)
+	recheck := pipeline.onBossTick(context.Background(), Deps{Combat: combat}, pipelineStepEngageBoss, far, now.Add(time.Second))
+	if recheck.failed || combat.holdCalls != 1 || combat.stopCalls != 1 || combat.teleportCalls != 0 {
+		t.Fatalf("distance recheck=%+v holds=%d stops=%d teleports=%d, want release without same-tick teleport", recheck, combat.holdCalls, combat.stopCalls, combat.teleportCalls)
+	}
+	if pipeline.boss.hammerdinAttackHeld {
+		t.Fatal("hold should be released after a failed distance recheck")
+	}
+	follow := pipeline.onBossTick(context.Background(), Deps{Combat: combat}, pipelineStepEngageBoss, far, now.Add(time.Second+time.Millisecond))
+	if follow.failed || combat.teleportCalls != 1 {
+		t.Fatalf("follow-up=%+v teleports=%d, want teleport after the release snapshot", follow, combat.teleportCalls)
+	}
+}
+
+func TestHammerdinEngageFailsAfterTeleportBudget(t *testing.T) {
+	definition, _ := DefaultRunRegistry().Definition(RunIDMephisto)
+	target := mephistoMonster(4242)
+	combat := &mockCombatActions{}
+	pipeline := &runPipeline{
+		definition: definition,
+		boss: pipelineBossState{
+			targetSeen:           true,
+			targetUnitID:         target.UnitID,
+			encounterActionIndex: len(definition.BossEngageSequence),
+		},
+		core: pipelineCoreState{combat: hammerdinMephistoCombat()},
+	}
+	now := time.Now()
+	for tick := 1; tick <= hammerdinEngageMaxTeleports; tick++ {
+		result := pipeline.onBossTick(context.Background(), Deps{Combat: combat}, pipelineStepEngageBoss, farMephistoState(target), now.Add(time.Duration(tick)*time.Millisecond))
+		if tick < hammerdinEngageMaxTeleports && (result.failed || result.complete) {
+			t.Fatalf("teleport tick %d=%+v, want pending", tick, result)
+		}
+		if tick == hammerdinEngageMaxTeleports && (!result.failed || result.reason != string(RunReasonBossCombatNoProgress)) {
+			t.Fatalf("final teleport tick=%+v, want boss_combat_no_progress", result)
+		}
+	}
+	if combat.teleportCalls != hammerdinEngageMaxTeleports || combat.holdCalls != 0 {
+		t.Fatalf("teleports=%d holds=%d", combat.teleportCalls, combat.holdCalls)
+	}
+}
+
+func TestHammerdinEngageFailsWhenNoHammerProgress(t *testing.T) {
+	definition, _ := DefaultRunRegistry().Definition(RunIDMephisto)
+	target := mephistoMonster(4242)
+	combat := &mockCombatActions{teleportSent: make([]bool, 4)}
+	pipeline := &runPipeline{
+		definition: definition,
+		boss: pipelineBossState{
+			targetSeen:           true,
+			targetUnitID:         target.UnitID,
+			encounterActionIndex: len(definition.BossEngageSequence),
+		},
+		core: pipelineCoreState{combat: hammerdinMephistoCombat()},
+	}
+	now := time.Now()
+	first := pipeline.onBossTick(context.Background(), Deps{Combat: combat}, pipelineStepEngageBoss, farMephistoState(target), now)
+	if first.failed || combat.teleportCalls != 1 {
+		t.Fatalf("first result=%+v teleports=%d", first, combat.teleportCalls)
+	}
+	later := pipeline.onBossTick(context.Background(), Deps{Combat: combat}, pipelineStepEngageBoss, farMephistoState(target), now.Add(hammerdinEngageNoProgressTimeout))
+	if !later.failed || later.reason != string(RunReasonBossCombatNoProgress) {
+		t.Fatalf("timeout result=%+v, want boss_combat_no_progress", later)
 	}
 }

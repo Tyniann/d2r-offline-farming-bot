@@ -160,8 +160,9 @@ export function getRouteLibrary(character = "", archived = false, signal?: Abort
   return getJSON<RouteLibraryDTO>("/api/v1/routes?" + query.toString(), signal);
 }
 
-export function getRecordingOptions(signal?: AbortSignal): Promise<Array<RecordingOptionDTO>> {
-  return getJSON<Array<RecordingOptionDTO>>("/api/v1/route-recording/options", signal);
+export function getRecordingOptions(character = "", signal?: AbortSignal): Promise<Array<RecordingOptionDTO>> {
+  const query = character ? "?" + new URLSearchParams({ character }).toString() : "";
+  return getJSON<Array<RecordingOptionDTO>>("/api/v1/route-recording/options" + query, signal);
 }
 
 export function getRouteCandidates(signal?: AbortSignal): Promise<Array<RouteCandidateDTO>> {

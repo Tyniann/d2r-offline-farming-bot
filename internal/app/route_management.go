@@ -96,11 +96,13 @@ func (s *RouteManagementService) PreviewCandidate(candidateID string) (RouteMuta
 	}
 	character := strings.ToLower(candidate.Character)
 	previous := assignedRoute(assignments, character, candidate.RunID, candidate.RouteRole)
-	if candidate.RouteRole == "" {
-		if candidate.SourceCatalogRevision != catalog.Revision || candidate.SourceAssignmentRevision != assignments.Revision {
-			return RouteMutationPreview{}, fmt.Errorf("%s", RouteReasonCandidateChanged)
-		}
-	} else if previous != candidate.SourceAssignedRouteID || route.Binding.RouteRole != candidate.RouteRole || !routeSetCompatibleWithCatalog(route, candidate.RunID, candidate.RouteRole, character, assignments, catalog) {
+	// Publish is bound to this character's assigned route, not the global
+	// catalog revision. Confirming another character or the same character
+	// for the first time must not invalidate an already tested draft.
+	if previous != candidate.SourceAssignedRouteID || route.Binding.RouteRole != candidate.RouteRole {
+		return RouteMutationPreview{}, fmt.Errorf("%s", RouteReasonCandidateChanged)
+	}
+	if candidate.RouteRole != "" && !routeSetCompatibleWithCatalog(route, candidate.RunID, candidate.RouteRole, character, assignments, catalog) {
 		return RouteMutationPreview{}, fmt.Errorf("%s", RouteReasonCandidateChanged)
 	}
 	operation := RouteMutationPublish

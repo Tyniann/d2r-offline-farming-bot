@@ -195,10 +195,16 @@ func (s *RouteLifecycleStore) Confirm(preview RouteLifecyclePreview, at time.Tim
 	character.LastConfirmedDifficulty = preview.NewDifficulty
 	character.ConfirmedAt = &stamp
 	manifest.Characters[slug] = character
-	if manifest.BootstrapExpected != nil && strings.EqualFold(manifest.BootstrapExpected.Character, preview.Character) {
+	clearingBootstrap := manifest.BootstrapExpected != nil && strings.EqualFold(manifest.BootstrapExpected.Character, preview.Character)
+	if clearingBootstrap {
 		manifest.BootstrapExpected = nil
 	}
-	manifest.Revision++
+	// Identity-only confirmation (first confirm or character switch without
+	// affected routes) must persist the character without bumping the catalog
+	// revision, so an already frozen draft remains publishable.
+	if preview.Reason != "" || clearingBootstrap {
+		manifest.Revision++
+	}
 	if err := s.writeLocked(manifest); err != nil {
 		return RouteLifecycleManifest{}, err
 	}

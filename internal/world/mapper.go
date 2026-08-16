@@ -88,15 +88,16 @@ func FromSnapshot(snap memory.Snapshot) State {
 		Phase:      phase,
 		Area:       LookupArea(AreaID(snap.AreaID)),
 		Player: Player{
-			Position:              Position{X: snap.PosX, Y: snap.PosY},
-			HP:                    snap.HP,
-			MaxHP:                 snap.MaxHP,
-			Mana:                  snap.Mana,
-			MaxMana:               snap.MaxMana,
-			Gold:                  snap.Gold,
-			PrivateStashGold:      snap.PrivateStashGold,
-			GoldKnown:             snap.GoldKnown,
-			PrivateStashGoldKnown: snap.PrivateStashGoldKnown,
+			ActiveWeaponSet:        mapWeaponSet(snap.ActiveWeaponSet),
+			Position:               Position{X: snap.PosX, Y: snap.PosY},
+			HP:                     snap.HP,
+			MaxHP:                  snap.MaxHP,
+			Mana:                   snap.Mana,
+			MaxMana:                snap.MaxMana,
+			Gold:                   snap.Gold,
+			PrivateStashGold:       snap.PrivateStashGold,
+			GoldKnown:              snap.GoldKnown,
+			PrivateStashGoldKnown:  snap.PrivateStashGoldKnown,
 			LeftSkillID:            snap.PlayerSkills.LeftSkill,
 			RightSkillID:           snap.PlayerSkills.RightSkill,
 			SkillsKnown:            cloneSkillKnown(snap.PlayerSkills.SkillsKnown),
@@ -115,6 +116,13 @@ func FromSnapshot(snap memory.Snapshot) State {
 		Hover:              hover,
 		UI:                 mapUIState(snap.UI),
 	}
+}
+
+func mapWeaponSet(active memory.WeaponSetSnapshot) WeaponSetState {
+	if !active.Available || active.Value > uint8(WeaponSetSecondary) {
+		return WeaponSetState{}
+	}
+	return WeaponSetState{Set: WeaponSet(active.Value), Available: true}
 }
 
 func mapMercenary(mercenary memory.MercenarySnapshot) Mercenary {

@@ -138,6 +138,8 @@ type RouteWorkflowRequest struct {
 	RouteRole          string `json:"route_role,omitempty"`
 	CandidateID        string `json:"candidate_id,omitempty"`
 	Act                string `json:"act,omitempty"`
+	Character          string `json:"character,omitempty"`
+	Difficulty         string `json:"difficulty,omitempty"`
 }
 
 // RouteRecordingStartRequest starts one registered guided recording.
@@ -145,6 +147,7 @@ type RouteRecordingStartRequest struct {
 	ExpectedGeneration uint64 `json:"expected_generation"`
 	RunID              string `json:"run_id"`
 	RouteRole          string `json:"route_role,omitempty"`
+	Character          string `json:"character,omitempty"`
 }
 
 // RouteWorkflowFinishRequest submits an idempotent finish intent for one recording.

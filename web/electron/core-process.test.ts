@@ -17,6 +17,16 @@ describe("private Core-Pipe", () => {
     connection.child.kill();
   });
 
+  it("reicht die Core-Ursache bei einem Start vor dem Handshake weiter", async () => {
+    await expect(launchCore({
+      executable: process.execPath,
+      executableArgs: [fixture, "--mode=start-fail"],
+      dataRoot: process.cwd(),
+      handshakeTimeoutMs: 2_000,
+      environment: process.env,
+    })).rejects.toThrow("pickit_assignment_missing");
+  });
+
   it.each([
     ["delayed", 100, "core_handshake_timeout"],
     ["wrong", 2_000, "core_handshake_invalid"],

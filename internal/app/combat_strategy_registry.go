@@ -7,6 +7,7 @@ import (
 
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/config"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/profile"
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/profile/hammerdin"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/profile/necrobonespear"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/tasks"
 )
@@ -23,7 +24,7 @@ type CombatStrategyRegistry struct {
 	factories map[string]map[string]profile.StrategyFactory
 }
 
-// NewCombatStrategyRegistry builds the product registry with all Bone-Spear run pairs.
+// NewCombatStrategyRegistry builds the product registry with all released profile/run pairs.
 func NewCombatStrategyRegistry() *CombatStrategyRegistry {
 	registry := &CombatStrategyRegistry{factories: map[string]map[string]profile.StrategyFactory{}}
 	registry.mustRegister(necrobonespear.NewBossFactory(string(tasks.RunIDCountess)))
@@ -31,6 +32,7 @@ func NewCombatStrategyRegistry() *CombatStrategyRegistry {
 	registry.mustRegister(necrobonespear.NewNihlathakFactory())
 	registry.mustRegister(necrobonespear.NewSummonerFactory())
 	registry.mustRegister(necrobonespear.NewCowsFactory())
+	registry.mustRegister(hammerdin.NewMephistoFactory())
 	return registry
 }
 

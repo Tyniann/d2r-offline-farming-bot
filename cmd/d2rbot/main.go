@@ -18,6 +18,7 @@ import (
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/app"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/config"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/pathing"
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/replay"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/telemetry"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/town"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/version"
@@ -36,6 +37,8 @@ func main() {
 	inputTestObserveMs := flag.Int("input-test-observe-ms", 3000, "observation window in ms after input-test actions")
 	runFlag := flag.String("run", "", "active farming run (e.g. countess); overrides runs.active in config")
 	phaseFlag := flag.String("phase", "", "optional run phase (e.g. travel-entry or play-route with --run countess)")
+	runtimeTraceCapture := flag.String("runtime-trace-capture", "", "capture one labeled runtime diagnosis bundle for an explicit full run")
+	replayRuntimeTrace := flag.String("replay-runtime-trace", "", "headlessly replay one runtime trace bundle")
 	pathingTest := flag.String("pathing-test", "", "manual pathing test spec (including record-town-edge:<id> or play-town-graph:<start,...,end>)")
 	pathingTestTimeoutMs := flag.Int("pathing-test-timeout-ms", 120000, "timeout in ms for the pathing test mode")
 	offlineDifficulty := flag.String("offline-difficulty-test", "", "start an offline game on normal, nightmare, or hell from the verified character screen")
@@ -47,6 +50,8 @@ func main() {
 	mercenaryProbeTimeoutMs := flag.Int("mercenary-probe-timeout-ms", 45000, "timeout in ms for a read-only mercenary probe capture")
 	cowProbe := flag.String("cow-probe", "", "read-only Phase-20.0 evidence label (e.g. stony-tristram, wirts-body, cow-life-death-ce, cube-open)")
 	cowProbeTimeoutMs := flag.Int("cow-probe-timeout-ms", 20000, "timeout in ms for a read-only Cow evidence capture")
+	weaponSetProbe := flag.String("weapon-set-probe", "", "read-only weapon-set evidence spec (primary-secondary)")
+	weaponSetProbeTimeoutMs := flag.Int("weapon-set-probe-timeout-ms", 120000, "timeout in ms for the read-only weapon-set probe")
 	screenAnchorCapture := flag.String("screen-anchor-capture", "", "capture a named 1280x720 frontend screenshot for Phase 7.3 calibration")
 	sessionInspect := flag.Bool("session-inspect", false, "validate and print the resolved autonomous-session plan without attaching or sending input")
 	runsInspect := flag.Bool("runs-inspect", false, "print read-only run metadata and availability as stable JSON")
@@ -56,7 +61,7 @@ func main() {
 	routeName := flag.String("route-name", "", "display name for a route recording; only valid with record")
 	routeDifficulty := flag.String("route-difficulty", "", "recording label: normal, nightmare, or hell; required with record")
 	townInspect := flag.Bool("town-inspect", false, "write one read-only Phase-9.1 Town data-availability report")
-	townTest := flag.String("town-test", "", "isolated Town interaction test (akara-shop | item-services:mephisto)")
+	townTest := flag.String("town-test", "", "isolated Town interaction test (including hammerdin-prebuff:cta|no-cta)")
 	showVersion := flag.Bool("version", false, "print version and exit")
 	desktopHandshakePipe := flag.String("desktop-handshake-pipe", "", "private one-shot Electron handshake pipe")
 	flag.Parse()
@@ -91,6 +96,8 @@ func main() {
 		InputTestObserveMs:      *inputTestObserveMs,
 		Run:                     *runFlag,
 		RunPhase:                *phaseFlag,
+		RuntimeTraceCapture:     *runtimeTraceCapture,
+		ReplayRuntimeTrace:      *replayRuntimeTrace,
 		PathingTest:             *pathingTest,
 		PathingTestTimeoutMs:    *pathingTestTimeoutMs,
 		OfflineDifficulty:       *offlineDifficulty,
@@ -102,6 +109,8 @@ func main() {
 		MercenaryProbeTimeoutMs: *mercenaryProbeTimeoutMs,
 		CowProbe:                *cowProbe,
 		CowProbeTimeoutMs:       *cowProbeTimeoutMs,
+		WeaponSetProbe:          *weaponSetProbe,
+		WeaponSetProbeTimeoutMs: *weaponSetProbeTimeoutMs,
 		ScreenAnchorCapture:     *screenAnchorCapture,
 		SessionInspect:          *sessionInspect,
 		RunsInspect:             *runsInspect,
@@ -150,6 +159,19 @@ func run(configPath string, opts app.Options) error {
 }
 
 func runWithDataRoot(configPath, dataRoot string, opts app.Options) error {
+	if opts.ReplayRuntimeTrace != "" {
+		if err := validateReplayMode(opts, dataRoot); err != nil {
+			return err
+		}
+		report, err := replay.ReplayFile(opts.ReplayRuntimeTrace)
+		if err != nil {
+			return err
+		}
+		if err := json.NewEncoder(os.Stdout).Encode(report); err != nil {
+			return fmt.Errorf("encode runtime replay result: %w", err)
+		}
+		return nil
+	}
 	if opts.DesktopHandshakePipe != "" && (dataRoot == "" || !opts.Desktop) {
 		return fmt.Errorf("--desktop-handshake-pipe requires desktop mode and --data-root")
 	}
@@ -277,6 +299,9 @@ func runWithDataRoot(configPath, dataRoot string, opts app.Options) error {
 	if opts.CowProbe != "" {
 		return rt.RunCowProbe(opts.CowProbe)
 	}
+	if opts.WeaponSetProbe != "" {
+		return rt.RunWeaponSetProbe(opts.WeaponSetProbe)
+	}
 	if opts.ScreenAnchorCapture != "" {
 		return rt.RunScreenAnchorCapture(opts.ScreenAnchorCapture)
 	}
@@ -300,8 +325,18 @@ func validateDesktopMode(opts app.Options) error {
 	if !opts.Desktop {
 		return nil
 	}
-	if opts.Probe || opts.InputTest != "" || opts.Run != "" || opts.RunPhase != "" || opts.PathingTest != "" || opts.OfflineDifficulty != "" || opts.OfflineCharacter != "" || opts.OfflineExitTest || opts.UIStateProbe != "" || opts.ScreenAnchorCapture != "" || opts.MercenaryProbe != "" || opts.CowProbe != "" || opts.SessionInspect || opts.RunsInspect || opts.WaypointTargetsInspect || opts.SessionMaxRuns != 0 || opts.Route != "" || opts.RouteName != "" || opts.RouteDifficulty != "" || opts.TownInspect || opts.TownTest != "" {
+	if opts.Probe || opts.InputTest != "" || opts.Run != "" || opts.RunPhase != "" || opts.RuntimeTraceCapture != "" || opts.ReplayRuntimeTrace != "" || opts.PathingTest != "" || opts.OfflineDifficulty != "" || opts.OfflineCharacter != "" || opts.OfflineExitTest || opts.UIStateProbe != "" || opts.ScreenAnchorCapture != "" || opts.MercenaryProbe != "" || opts.CowProbe != "" || opts.WeaponSetProbe != "" || opts.SessionInspect || opts.RunsInspect || opts.WaypointTargetsInspect || opts.SessionMaxRuns != 0 || opts.Route != "" || opts.RouteName != "" || opts.RouteDifficulty != "" || opts.TownInspect || opts.TownTest != "" {
 		return fmt.Errorf("desktop mode is mutually exclusive with session, run, inspect, probe, route, town, and test modes")
+	}
+	return nil
+}
+
+func validateReplayMode(opts app.Options, dataRoot string) error {
+	if opts.ReplayRuntimeTrace == "" {
+		return nil
+	}
+	if dataRoot != "" || opts.Desktop || opts.Probe || opts.InputTest != "" || opts.Run != "" || opts.RunPhase != "" || opts.RuntimeTraceCapture != "" || opts.PathingTest != "" || opts.OfflineDifficulty != "" || opts.OfflineCharacter != "" || opts.OfflineExitTest || opts.UIStateProbe != "" || opts.ScreenAnchorCapture != "" || opts.MercenaryProbe != "" || opts.CowProbe != "" || opts.WeaponSetProbe != "" || opts.SessionInspect || opts.RunsInspect || opts.WaypointTargetsInspect || opts.SessionMaxRuns != 0 || opts.Route != "" || opts.RouteName != "" || opts.RouteDifficulty != "" || opts.TownInspect || opts.TownTest != "" {
+		return fmt.Errorf("--replay-runtime-trace is mutually exclusive with data-root, desktop, session, run, inspect, probe, route, town, and test modes")
 	}
 	return nil
 }
@@ -431,11 +466,10 @@ func runDesktopAPI(cfg *config.Config, rt *app.Runtime, operatorSettings *app.Op
 		}()
 		switch request.Operation {
 		case "record":
-			status := backend.Status()
-			if status.Selection.Difficulty == "" {
+			if request.Character == "" || request.Difficulty == "" {
 				return fmt.Errorf("vor der Aufnahme muss Charakter und Schwierigkeit bestätigt sein")
 			}
-			workflowRuntime, err := app.NewCharacterWorkflowRuntime(cfg, loadoutResolver, status.Selection.Character)
+			workflowRuntime, err := app.NewCharacterWorkflowRuntime(cfg, loadoutResolver, request.Character)
 			if err != nil {
 				return err
 			}
@@ -444,14 +478,16 @@ func runDesktopAPI(cfg *config.Config, rt *app.Runtime, operatorSettings *app.Op
 					rt.Log.Warn("route recording runtime log close failed", "error", closeErr)
 				}
 			}()
-			return workflowRuntime.RunRouteRecordWithRoleFinish(request.RunID, pathing.RouteRole(request.RouteRole), status.Selection.Difficulty, status.Selection.Character, finishRequests, reporter)
+			return workflowRuntime.RunRouteRecordWithRoleFinish(request.RunID, pathing.RouteRole(request.RouteRole), request.Difficulty, request.Character, finishRequests, reporter)
 		case "system_record":
 			return rt.RunSystemEgressRecordWithFinish(town.OriginAct(request.Act), finishRequests, reporter)
 		case "system_test":
 			return rt.RunTownEgressPlay(town.OriginAct(request.Act))
 		case "test":
-			status := backend.Status()
-			workflowRuntime, err := app.NewCharacterWorkflowRuntime(cfg, loadoutResolver, status.Selection.Character)
+			if request.Character == "" {
+				return fmt.Errorf("für den Routentest fehlt der Charakter des Entwurfs")
+			}
+			workflowRuntime, err := app.NewCharacterWorkflowRuntime(cfg, loadoutResolver, request.Character)
 			if err != nil {
 				return err
 			}

@@ -33,6 +33,7 @@ Phase 21 macht das am Charakter ausgewählte Kampfprofil zur einzigen Combat-Aut
 - Bone-Spear besitzt Factories für Countess, Mephisto, Summoner, Nihlathak und Cows.
 - Combat-Tuning und Standardangriff kommen aus dem Charakterprofil, nicht aus `runs.definitions.*.combat`.
 - Availability und Desktop-Setup blockieren mit `profile_run_strategy_unavailable`, wenn keine Strategy existiert.
+- Passive Desktop-Starts und Routenaufnahmen konstruieren die Runtime ohne Countess-Pickit und ohne registrierte Countess-Strategy. Queue-Start, Town-Test und produktive Runs bleiben fail-closed.
 - Legacy-Route-`profile_id` bleibt lesbar, steuert keine Kompatibilität mehr und wird bei neuen Recordings weggelassen.
 
 ### SkillsKnown-Gate und RightSkillSelector (Gate 21.2)
@@ -44,10 +45,18 @@ Phase 21 macht das am Charakter ausgewählte Kampfprofil zur einzigen Combat-Aut
 - Combat, Profile-Casts, Teleport und Town Portal nutzen denselben RightSkillSelector: F-Key nur bei Bedarf, RMB erst nach frischem `RightSkillID` (Stadtportal akzeptiert 359/220/411). Eine laufende Skill-Auswahl wird nicht von einem anderen RMB-Skill (z. B. Teleport während Amplify Damage) verdrängt; erst Timeout oder Bestätigung gibt den Selector frei.
 - Setup-Preview/API liefern `standard_attack`, geordnete `required_skills` (Key/ID/Label) und Registry-`supported_runs` read-only.
 
+### Slotbewusster SkillSelector (Gate 22.4)
+
+- Der gemeinsame `SkillSelector` besitzt getrennte Pending-Zustände für LMB und RMB; ein Skill kann den Pending-Zustand eines anderen Skills desselben Slots nicht vor dem Timeout übernehmen.
+- Der bestehende `RightSkillSelector` delegiert an den RMB-Zweig und behält damit das bisherige Verhalten für Combat, Teleport, Profil-Hooks und Stadtportal.
+- LMB-Skills werden ausschließlich über einen neueren Tick mit passender `LeftSkillID` bestätigt. Ein Select-Key kann im selben Tick niemals einen produktiven Cast autorisieren.
+- Das Binding muss den vom Profil geforderten Mausslot verwenden; ein LMB/RMB-Mismatch bricht vor dem Cast ab.
+
 ### OperatorSettings Schema 3 und Loadout-Freeze (Gate 21.3)
 
 - Persistente `profile_bindings` (F1–F8, Gürtel) und presence-sensitives `inventory_lock` (4×10) pro Charakter.
 - Partielle Bindings speicherbar (Onboarding „Später“); Queue-Start verlangt vollständige Pflichtskills + vier Gürtelslots.
+- Gemeinsam optionale Profilpaare bleiben leer/leer oder vollständig; Hammerdin-CTA lehnt BC-only und BO-only im Core ab. Ein separates `cta.enabled` existiert nicht.
 - `CharacterLoadoutResolver` friert Bindings für Queue-Sessions; `app.New` nimmt keinen globalen BindingSource mehr aus `config.Input.Bindings`.
 - Dashboard-Aufnahmen und Kandidatentests frieren beim Start ebenfalls den Schema-3-Loadout des aktuell bestätigten Charakters ein; der passive Desktop-Monitor ist keine Binding-Autorität.
 - Settings-Tab „Charaktere“ und gemeinsamer BindingEditor; Katalog liefert `farm_ready` / `farm_ready_reasons`.
@@ -67,10 +76,18 @@ Phase 21 macht das am Charakter ausgewählte Kampfprofil zur einzigen Combat-Aut
 - „Später“ erlaubt Onboarding-Abschluss bei sichtbarem Queue-Block.
 - Profilwechsel bewahrt Queue, Inventar und inaktive Profilbindings; unsupported Queue-Einträge bleiben sichtbar.
 
+### Hammerdin-Bindings (Gate 22.5c)
+
+- Der BindingEditor zeigt die vom Core vorgegebenen LMB-/RMB-Slots; der Operator wählt weiterhin nur F-Tasten.
+- Battle Command und Battle Orders erscheinen als gemeinsamer optionaler Call-to-Arms-Block mit dem Hinweis auf Waffenset II und „beide oder keine“.
+- Binding-Readiness, Gründe und Söldnerpflicht werden aus der Charakter-Setup-Projektion angezeigt und nicht in React neu berechnet.
+- Der Paladin gilt nur gemäß `catalog.farm_ready` als farmbereit. UI-Texte versprechen weder Item- noch Insight-Erkennung.
+- Component- und Browserprüfungen decken Tastaturbedienung sowie 1280×720 und 390×844 ohne horizontalen Überlauf ab.
+
 ### Dokumentation und Produktabnahme (Gate 21.6)
 
 - Globales `input.bindings` ist aus dem Configschema entfernt; KnownFields lehnt den Schlüssel ab.
-- Recording-Voraussetzungen für Teleport/Town Portal lesen Schema-3-`profile_bindings` des ausgewählten Charakters.
+- Recording-Voraussetzungen für Teleport, Stadtportal und Pickit lesen Schema-3-`profile_bindings` und die Pickit-Zuordnung des im Routenbereich ausgewählten Charakters. Ein fehlender Lifecycle-Bestätigungseintrag erzeugt keine falschen Bindings- oder Pickit-Sperren; die Live-Aufnahme prüft Name und Klasse weiterhin per Memory.
 - Produktiver DataRoot bleibt Schema 3 ohne Config-Fallback.
 - Manuell bestätigt: Charaktere-Tab bei 1280×720 und 390×844 funktional lesbar; installierter Countess-Zyklus mit MrBones (`outcome=success`, Save & Exit, bewusster F11-Abbruch erst danach).
 
@@ -88,7 +105,8 @@ Geplante Erweiterungen ohne Implementierungsauftrag in Phase 21:
 - `memory.SkillCatalogEntry`: Key, ID, CharClass, Left/Right/InTown/Scroll/Passive
 - `memory.PlayerSkills`: `Complete` / `IncompleteReason` neben der bekannten Liste
 - `config.ProfileCombatConfig`: `standard_attack`, Intervalle, Distanzwerte
-- `config.RequiredSkillConfig`: `skill`, `display_name`
+- `config.RequiredSkillConfig`: `skill`, `display_name` und optional erzwungener LMB-/RMB-`slot`
+- `config.OptionalSkillPairConfig`: gemeinsam optionale Skillpaare wie Hammerdin-CTA ohne separaten Aktivierungsschalter
 - `profile.RunStrategy` / `app.CombatStrategyRegistry`: ausführbare Profil×Run-Paare
 - `app.RightSkillSelector`: pending Select → Snapshot-Confirm → RMB
 - `app.OperatorSettings` Schema 3: `profile_bindings`, presence-sensitives `inventory_lock`
@@ -110,4 +128,4 @@ Lokaler CASC-Extrakt unter `.tmp/d2r-excel`, Go-Generator nach dem Muster der It
 - [Phase-21-Core-Vertrag](phase-21-core-contract.md)
 
 ---
-*Zuletzt aktualisiert: 2026-08-10*
+*Zuletzt aktualisiert: 2026-08-16*

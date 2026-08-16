@@ -500,7 +500,7 @@ func (r *Runner) emitStep(event telemetry.EventName, step string, outcome RunOut
 	}
 	record.Stage = stage
 	if pipeline, ok := r.run.(*runPipeline); ok && step == pipelineStepEngageBoss {
-		index := pipeline.encounterActionIndex
+		index := pipeline.boss.encounterActionIndex
 		record.ActionIndex = &index
 	}
 	if err := r.deps.Telemetry.Emit(record); err != nil {

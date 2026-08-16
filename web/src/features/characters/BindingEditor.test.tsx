@@ -13,9 +13,9 @@ describe("BindingEditor", () => {
     });
     render(<BindingEditor
       requiredSkills={[
-        { skill: "teleport", skill_id: 54, display_name: "Teleport" },
-        { skill: "town_portal", skill_id: 359, display_name: "Stadtportal" },
-        { skill: "bone_spear", skill_id: 84, display_name: "Knochen-Speer" },
+        { skill: "teleport", skill_id: 54, display_name: "Teleport", slot: "right" },
+        { skill: "town_portal", skill_id: 359, display_name: "Stadtportal", slot: "right" },
+        { skill: "bone_spear", skill_id: 84, display_name: "Knochen-Speer", slot: "right" },
       ]}
       standardAttack="bone_spear"
       value={value}
@@ -40,5 +40,44 @@ describe("BindingEditor", () => {
       belt: { slot_1: "1", slot_3: "3", slot_4: "4" },
     });
     expect(emptyBindings()).toEqual({ skills: {}, belt: {} });
+  });
+
+  it("zeigt den Hammerdin-Slotvertrag und bedient das optionale CTA-Paar per Tastatur", () => {
+    const onChange = vi.fn();
+    render(<BindingEditor
+      requiredSkills={[
+        { skill: "blessed_hammer", skill_id: 112, display_name: "Gesegneter Hammer", slot: "left" },
+        { skill: "concentration", skill_id: 113, display_name: "Konzentration", slot: "right" },
+      ]}
+      optionalSkillPairs={[{ skills: [
+        { skill: "battle_command", skill_id: 155, display_name: "Battle Command", slot: "right" },
+        { skill: "battle_orders", skill_id: 149, display_name: "Battle Orders", slot: "right" },
+      ] }]}
+      standardAttack="blessed_hammer"
+      requiresMercenary
+      bindingsReady={false}
+      bindingReasons={["profile_bindings_incomplete"]}
+      value={bindingsFromDTO({ skills: {}, belt: {} })}
+      mutable
+      onChange={onChange}
+    />);
+
+    expect(screen.getByText("Core: Tasten fehlen")).toBeInTheDocument();
+    expect(screen.getByText(/CTA im zweiten Waffenset/)).toBeInTheDocument();
+    expect(screen.getByText(/Holy-Shield-Schild/)).toBeInTheDocument();
+    expect(screen.getByText(/nicht das Runenwort oder die Söldnerausrüstung/)).toBeInTheDocument();
+    expect(screen.getByText("Waffenset II · beide oder keine")).toBeInTheDocument();
+    expect(screen.getByText(/lebender Söldner/)).toBeInTheDocument();
+    expect(screen.getByText("LMB")).toBeInTheDocument();
+    expect(screen.getAllByText(/RMB/)).toHaveLength(3);
+
+    const battleCommand = screen.getByLabelText("Battle Command Taste");
+    battleCommand.focus();
+    expect(battleCommand).toHaveFocus();
+    fireEvent.change(battleCommand, { target: { value: "f4" } });
+    expect(onChange).toHaveBeenCalledWith({
+      skills: { battle_command: "f4" },
+      belt: { slot_1: "", slot_2: "", slot_3: "", slot_4: "" },
+    });
   });
 });

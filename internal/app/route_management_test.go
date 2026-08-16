@@ -39,7 +39,7 @@ func freezeManagementCandidate(t *testing.T, cfg *config.Config) RouteCandidate 
 	store, _ := NewCandidateStore(cfg)
 	seed := uint32(42)
 	route := pathing.Route{Version: 1, ID: "candidate-route", Name: "Kandidat", Kind: pathing.RouteKindNavigation, Binding: pathing.RouteBinding{CharacterName: "MrBones", CharacterClass: "necromancer", Difficulty: pathing.RouteDifficultyNightmare, MapSeed: &seed, GameVersion: "3.2.92777", LayoutFingerprint: pathing.RouteLayoutFingerprint{Version: 1, AreaID: world.BlackMarsh, AnchorCount: 1, Hash: strings.Repeat("a", 64)}}, Recording: pathing.RouteRecording{RecordedAt: time.Now().UTC(), SampleDistanceTiles: 4}, Playback: pathing.RoutePlayback{WaypointToleranceTiles: 3, MaxDriftTiles: 8, MaxLocalCorrections: 2, SegmentTimeoutMs: 30000, TransitionTimeoutMs: 10000}, Segments: []pathing.RouteSegment{{ID: "black-marsh", FromAreaID: world.BlackMarsh, ToAreaID: world.TowerCellarLevel5, Movement: pathing.RouteMovementTeleport, Points: []pathing.RoutePoint{{X: 100, Y: 100}, {X: 110, Y: 110}}, Transition: pathing.RouteTransition{Type: "entrance", EntranceKind: "tower_cellar_down"}}, {ID: "tower-cellar-level-5", FromAreaID: world.TowerCellarLevel5, ToAreaID: world.TowerCellarLevel5, Movement: pathing.RouteMovementTeleport, Points: []pathing.RoutePoint{{X: 120, Y: 120}, {X: 125, Y: 125}}, Transition: pathing.RouteTransition{Type: "terminal"}}}}
-	candidate, err := store.Freeze(route, RouteCandidate{RunID: tasks.RunIDCountess, Character: "MrBones", Difficulty: "nightmare", GameVersion: "3.2.92777", State: RouteCandidateRecorded, MeasuredBossDistance: 20, SourceCatalogRevision: catalog.Revision, SourceAssignmentRevision: assignment.Revision, CreatedAt: time.Now().UTC()})
+	candidate, err := store.Freeze(route, RouteCandidate{RunID: tasks.RunIDCountess, Character: "MrBones", Difficulty: "nightmare", GameVersion: "3.2.92777", State: RouteCandidateRecorded, MeasuredBossDistance: 20, SourceCatalogRevision: catalog.Revision, SourceAssignmentRevision: assignment.Revision, SourceAssignedRouteID: assignedRoute(assignment, "mrbones", tasks.RunIDCountess, ""), CreatedAt: time.Now().UTC()})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -132,6 +132,29 @@ func TestCowCandidatesPublishBothRolesWithoutInvalidatingSiblingCandidate(t *tes
 	}
 }
 
+func TestPreviewCandidateSurvivesUnrelatedCharacterConfirmation(t *testing.T) {
+	cfg := managementTestConfig(t)
+	candidate := freezeTestPassedCandidate(t, cfg)
+	lifecycle, err := NewRouteLifecycleStore(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	preview, err := lifecycle.Preview("MrHammer", "hell")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := lifecycle.Confirm(preview, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	service, err := NewRouteManagementService(cfg, RouteManagementHooks{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.PreviewCandidate(candidate.CandidateID); err != nil {
+		t.Fatalf("publish preview after unrelated character confirm: %v", err)
+	}
+}
+
 func freezeMephistoManagementCandidate(t *testing.T, cfg *config.Config) RouteCandidate {
 	t.Helper()
 	lifecycle, err := NewRouteLifecycleStore(cfg)
@@ -174,7 +197,8 @@ func freezeMephistoManagementCandidate(t *testing.T, cfg *config.Config) RouteCa
 	candidate, err := store.Freeze(route, RouteCandidate{
 		RunID: tasks.RunIDMephisto, Character: "MrBones", Difficulty: "nightmare", GameVersion: "3.2.92777",
 		State: RouteCandidateRecorded, MeasuredBossDistance: 20,
-		SourceCatalogRevision: catalog.Revision, SourceAssignmentRevision: assignment.Revision, CreatedAt: time.Now().UTC(),
+		SourceCatalogRevision: catalog.Revision, SourceAssignmentRevision: assignment.Revision,
+		SourceAssignedRouteID: assignedRoute(assignment, "mrbones", tasks.RunIDMephisto, ""), CreatedAt: time.Now().UTC(),
 	})
 	if err != nil {
 		t.Fatal(err)

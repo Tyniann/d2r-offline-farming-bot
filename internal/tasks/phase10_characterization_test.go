@@ -42,7 +42,7 @@ func TestPhase10CharacterizationCountessFullRunTransitionsWithoutLoot(t *testing
 }
 
 func TestPhase10CharacterizationCountessLootBranchReturnsToSharedCompletion(t *testing.T) {
-	run := &runPipeline{lootScanHasTarget: true}
+	run := &runPipeline{loot: pipelineLootState{lootScanHasTarget: true}}
 	if got := run.nextStep(pipelineStepScanLoot); got != pipelineStepPickLoot {
 		t.Fatalf("scan_loot successor = %q, want %q", got, pipelineStepPickLoot)
 	}
@@ -58,16 +58,14 @@ func TestPhase10CharacterizationCountessLootBranchReturnsToSharedCompletion(t *t
 }
 
 func TestPhase10CharacterizationCountessPersistentStateResetsAtExistingStepBoundaries(t *testing.T) {
-	run := &runPipeline{
-		navStarted:           true,
-		routeStarted:         true,
-		chestFallbackStarted: true,
-		targetSeen:           true,
-		targetUnitID:         42,
-		targetAbsentTicks:    2,
+	run := &runPipeline{travel: pipelineTravelState{navStarted: true,
+		routeStarted: true}, boss: pipelineBossState{chestFallbackStarted: true,
+		targetSeen:        true,
+		targetUnitID:      42,
+		targetAbsentTicks: 2},
 	}
 	run.onStepEnter(pipelineStepAcquireBoss)
-	if run.navStarted || run.routeStarted || run.chestFallbackStarted || run.targetSeen || run.targetUnitID != 0 || run.targetAbsentTicks != 0 {
+	if run.travel.navStarted || run.travel.routeStarted || run.boss.chestFallbackStarted || run.boss.targetSeen || run.boss.targetUnitID != 0 || run.boss.targetAbsentTicks != 0 {
 		t.Fatalf("acquire_boss did not reset persistent state: %+v", run)
 	}
 }

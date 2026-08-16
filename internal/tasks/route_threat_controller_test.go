@@ -218,8 +218,8 @@ func TestSummonerRouteOutOfRangeForceMovesAndAcceptsMeasuredProgress(t *testing.
 	route, clear, combat := controllerRoute(progress), &routeClearMock{}, &mockCombatActions{}
 	trace := &pipelineTelemetry{}
 	pipeline := &runPipeline{
-		definition: controllerDefinition(t), phase: RunPhasePlayRoute, routeID: "summoner-route",
-		combat: CombatConfig{Profile: "necro_bone_spear"}, routeCombat: cfg,
+		definition: controllerDefinition(t), phase: RunPhasePlayRoute, core: pipelineCoreState{routeID: "summoner-route",
+			combat: CombatConfig{Profile: "necro_bone_spear"}, routeCombat: cfg},
 	}
 	deps := Deps{Route: route, RouteClear: clear, Combat: combat, Telemetry: trace}
 
@@ -238,10 +238,10 @@ func TestSummonerRouteOutOfRangeForceMovesAndAcceptsMeasuredProgress(t *testing.
 	if result := pipeline.onTravelTick(context.Background(), deps, pipelineStepPlayRoute, progressed, progressed.At, base); result.failed {
 		t.Fatalf("measured approach progress failed: %+v", result)
 	}
-	if pipeline.routeApproachPending || pipeline.routeApproachFailures != 0 || combat.forceMoveCalls != 1 ||
-		pipeline.routeThreat.outOfRangeTicks != 0 {
+	if pipeline.travel.routeApproachPending || pipeline.travel.routeApproachFailures != 0 || combat.forceMoveCalls != 1 ||
+		pipeline.travel.routeThreat.outOfRangeTicks != 0 {
 		t.Fatalf("pending=%t failures=%d force moves=%d out-of-range ticks=%d",
-			pipeline.routeApproachPending, pipeline.routeApproachFailures, combat.forceMoveCalls, pipeline.routeThreat.outOfRangeTicks)
+			pipeline.travel.routeApproachPending, pipeline.travel.routeApproachFailures, combat.forceMoveCalls, pipeline.travel.routeThreat.outOfRangeTicks)
 	}
 	var approachAction, approachProgress *telemetry.Event
 	for i := range trace.events {
@@ -281,8 +281,8 @@ func TestSummonerRouteApproachExhaustionDefersToNoProgressWatchdog(t *testing.T)
 	route, clear, combat := controllerRoute(progress), &routeClearMock{}, &mockCombatActions{}
 	trace := &pipelineTelemetry{}
 	pipeline := &runPipeline{
-		definition: controllerDefinition(t), phase: RunPhasePlayRoute, routeID: "summoner-route",
-		combat: CombatConfig{Profile: "necro_bone_spear"}, routeCombat: cfg,
+		definition: controllerDefinition(t), phase: RunPhasePlayRoute, core: pipelineCoreState{routeID: "summoner-route",
+			combat: CombatConfig{Profile: "necro_bone_spear"}, routeCombat: cfg},
 	}
 	deps := Deps{Route: route, RouteClear: clear, Combat: combat, Telemetry: trace}
 
@@ -301,8 +301,8 @@ func TestSummonerRouteApproachExhaustionDefersToNoProgressWatchdog(t *testing.T)
 		}
 	}
 	if combat.forceMoveCalls != routeThreatApproachMaxFailures || route.tickCalls != 0 ||
-		pipeline.routeApproachExhaustedUnitID != target.UnitID {
-		t.Fatalf("force moves=%d route ticks=%d exhausted=%d", combat.forceMoveCalls, route.tickCalls, pipeline.routeApproachExhaustedUnitID)
+		pipeline.travel.routeApproachExhaustedUnitID != target.UnitID {
+		t.Fatalf("force moves=%d route ticks=%d exhausted=%d", combat.forceMoveCalls, route.tickCalls, pipeline.travel.routeApproachExhaustedUnitID)
 	}
 
 	timedOut := controllerState(base.Add(cfg.NoProgressTimeout+time.Second), target)
@@ -340,8 +340,8 @@ func TestSummonerRouteUnprojectableInRangeUsesForceMoveFallback(t *testing.T) {
 	clear := &routeClearMock{result: profile.Result{Status: profile.StatusPending, Reason: profile.RouteClearReasonTargetUnprojectable}}
 	combat := &mockCombatActions{}
 	pipeline := &runPipeline{
-		definition: controllerDefinition(t), phase: RunPhasePlayRoute, routeID: "summoner-route",
-		combat: CombatConfig{Profile: "necro_bone_spear"}, routeCombat: cfg,
+		definition: controllerDefinition(t), phase: RunPhasePlayRoute, core: pipelineCoreState{routeID: "summoner-route",
+			combat: CombatConfig{Profile: "necro_bone_spear"}, routeCombat: cfg},
 	}
 	for i := 0; i < Phase17StableClearSnapshots; i++ {
 		state := controllerState(base.Add(time.Duration(i)*100*time.Millisecond), target)
@@ -363,8 +363,8 @@ func TestSummonerRouteThreatInterleaveNeverTicksRouteOnThreat(t *testing.T) {
 	route := controllerRoute(progress)
 	clear := &routeClearMock{}
 	pipeline := &runPipeline{
-		definition: definition, phase: RunPhasePlayRoute, routeID: "summoner-route",
-		combat: CombatConfig{Profile: "necro_bone_spear"}, routeCombat: cfg,
+		definition: definition, phase: RunPhasePlayRoute, core: pipelineCoreState{routeID: "summoner-route",
+			combat: CombatConfig{Profile: "necro_bone_spear"}, routeCombat: cfg},
 	}
 	state := controllerState(base, world.Monster{NPCID: world.ArcaneSpecter, UnitID: 7, Position: world.Position{X: 110, Y: 100}})
 	result := pipeline.onTravelTick(context.Background(), Deps{Route: route, RouteClear: clear}, pipelineStepPlayRoute, state, base, base)
@@ -383,8 +383,8 @@ func TestSummonerRoutePickitHoldsBeforePickupAndCombatHasPriority(t *testing.T) 
 	}
 	newPipeline := func() *runPipeline {
 		return &runPipeline{
-			definition: controllerDefinition(t), phase: RunPhasePlayRoute, routeID: "summoner-route",
-			combat: CombatConfig{Profile: "necro_bone_spear"}, routeCombat: cfg,
+			definition: controllerDefinition(t), phase: RunPhasePlayRoute, core: pipelineCoreState{routeID: "summoner-route",
+				combat: CombatConfig{Profile: "necro_bone_spear"}, routeCombat: cfg},
 		}
 	}
 
@@ -432,8 +432,8 @@ func TestSummonerRoutePickitCollectsAllKeepTargetsBeforeMovement(t *testing.T) {
 		},
 	}
 	pipeline := &runPipeline{
-		definition: controllerDefinition(t), phase: RunPhasePlayRoute, routeID: "summoner-route",
-		combat: CombatConfig{Profile: "necro_bone_spear"}, routeCombat: cfg,
+		definition: controllerDefinition(t), phase: RunPhasePlayRoute, core: pipelineCoreState{routeID: "summoner-route",
+			combat: CombatConfig{Profile: "necro_bone_spear"}, routeCombat: cfg},
 	}
 	deps := Deps{Route: route, RouteClear: &routeClearMock{}, Loot: lootActions, Combat: &mockCombatActions{}}
 	for tick := 0; tick < 3; tick++ {
@@ -461,8 +461,8 @@ func TestSummonerRoutePickitReusesBoundedTeleportApproach(t *testing.T) {
 	lootActions := &mockLootActions{scans: []LootScanResult{{HasTarget: true, CandidateCount: 1, NextTarget: target}}}
 	combat := &mockCombatActions{}
 	pipeline := &runPipeline{
-		definition: controllerDefinition(t), phase: RunPhasePlayRoute, routeID: "summoner-route",
-		combat: CombatConfig{Profile: "necro_bone_spear"}, routeCombat: cfg,
+		definition: controllerDefinition(t), phase: RunPhasePlayRoute, core: pipelineCoreState{routeID: "summoner-route",
+			combat: CombatConfig{Profile: "necro_bone_spear"}, routeCombat: cfg},
 	}
 	result := pipeline.onTravelTick(context.Background(), Deps{
 		Route: route, RouteClear: &routeClearMock{}, Loot: lootActions, Combat: combat,
@@ -561,8 +561,8 @@ func TestSummonerRoutePendingResourceStillClearsButActionConsumesTick(t *testing
 		route, clear := controllerRoute(progress), &routeClearMock{}
 		resources := &mockProfileActions{resourceResults: []profile.Result{{Status: profile.StatusPending}}}
 		pipeline := &runPipeline{
-			definition: definition, phase: RunPhasePlayRoute, routeID: "summoner-route",
-			combat: CombatConfig{Profile: "necro_bone_spear"}, routeCombat: cfg,
+			definition: definition, phase: RunPhasePlayRoute, core: pipelineCoreState{routeID: "summoner-route",
+				combat: CombatConfig{Profile: "necro_bone_spear"}, routeCombat: cfg},
 		}
 		result := pipeline.onTravelTick(context.Background(), Deps{Route: route, RouteClear: clear, Profile: resources}, pipelineStepPlayRoute, state, base, base)
 		if result.failed || route.tickCalls != 0 || route.holdCalls != 1 || len(clear.requests) != 1 {
@@ -574,8 +574,8 @@ func TestSummonerRoutePendingResourceStillClearsButActionConsumesTick(t *testing
 		route, clear := controllerRoute(progress), &routeClearMock{}
 		resources := &mockProfileActions{resourceResults: []profile.Result{{Status: profile.StatusAction, Resource: profile.ResourceMana}}}
 		pipeline := &runPipeline{
-			definition: definition, phase: RunPhasePlayRoute, routeID: "summoner-route",
-			combat: CombatConfig{Profile: "necro_bone_spear"}, routeCombat: cfg,
+			definition: definition, phase: RunPhasePlayRoute, core: pipelineCoreState{routeID: "summoner-route",
+				combat: CombatConfig{Profile: "necro_bone_spear"}, routeCombat: cfg},
 		}
 		result := pipeline.onTravelTick(context.Background(), Deps{Route: route, RouteClear: clear, Profile: resources}, pipelineStepPlayRoute, state, base, base)
 		if result.failed || route.tickCalls != 0 || route.holdCalls != 0 || len(clear.requests) != 0 {
@@ -634,8 +634,8 @@ func TestSummonerRouteMissingManaResourceFailsImmediately(t *testing.T) {
 		Status: profile.StatusComplete, Resource: profile.ResourceMana, Reason: "mana_potion_unavailable",
 	}}}
 	pipeline := &runPipeline{
-		definition: definition, phase: RunPhasePlayRoute, routeID: "summoner-route",
-		combat: CombatConfig{Profile: "necro_bone_spear"}, routeCombat: cfg,
+		definition: definition, phase: RunPhasePlayRoute, core: pipelineCoreState{routeID: "summoner-route",
+			combat: CombatConfig{Profile: "necro_bone_spear"}, routeCombat: cfg},
 	}
 	result := pipeline.onTravelTick(context.Background(), Deps{Route: route, RouteClear: clear, Profile: resources}, pipelineStepPlayRoute, state, base, base)
 	if !result.failed || result.reason != string(RouteThreatReasonManaRecoveryFailed) || route.tickCalls != 0 || len(clear.requests) != 0 {
@@ -733,8 +733,8 @@ func TestSummonerPipelineNeverTicksSecondIneffectiveRecoveryInput(t *testing.T) 
 	progress.MovementTarget = progress.PreviousConfirmed
 	route, clear := controllerRoute(progress), &routeClearMock{}
 	pipeline := &runPipeline{
-		definition: definition, phase: RunPhasePlayRoute, routeID: "summoner-route",
-		combat: CombatConfig{Profile: "necro_bone_spear"}, routeCombat: cfg,
+		definition: definition, phase: RunPhasePlayRoute, core: pipelineCoreState{routeID: "summoner-route",
+			combat: CombatConfig{Profile: "necro_bone_spear"}, routeCombat: cfg},
 	}
 	state := controllerState(base)
 	state.Player.Position = world.Position{X: 140, Y: 100}

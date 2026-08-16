@@ -108,4 +108,59 @@ describe("CharacterSetupWizard", () => {
     expect(screen.getByText(/Queue bleibt gesperrt/)).toBeInTheDocument();
     expect(mocks.save).not.toHaveBeenCalled();
   });
+
+  it("zeigt Hammerdin mit Core-Readiness, LMB und optionalem CTA-Vertrag", async () => {
+    mocks.preview.mockResolvedValue(setupPreview("HammerGuy", {
+      character: { name: "HammerGuy", slug: "hammerguy", character_class: "paladin", class_display_name: "Paladin" },
+      profiles: [{
+        id: "paladin_hammerdin",
+        display_name: "Hammerdin",
+        is_default: true,
+        is_selected: true,
+        standard_attack: "blessed_hammer",
+        required_skills: [
+          { skill: "blessed_hammer", skill_id: 112, display_name: "Gesegneter Hammer", slot: "left" },
+          { skill: "concentration", skill_id: 113, display_name: "Konzentration", slot: "right" },
+          { skill: "teleport", skill_id: 54, display_name: "Teleport", slot: "right" },
+          { skill: "holy_shield", skill_id: 117, display_name: "Heiliger Schild", slot: "right" },
+          { skill: "town_portal", skill_id: 359, display_name: "Stadtportal", slot: "right" },
+        ],
+        optional_skill_pairs: [{ skills: [
+          { skill: "battle_command", skill_id: 155, display_name: "Battle Command", slot: "right" },
+          { skill: "battle_orders", skill_id: 149, display_name: "Battle Orders", slot: "right" },
+        ] }],
+        requires_mercenary: true,
+        bindings_ready: false,
+        binding_reasons: ["profile_bindings_incomplete"],
+        supported_runs: ["mephisto"],
+      }],
+      selected_profile_id: "paladin_hammerdin",
+      default_profile_id: "paladin_hammerdin",
+      setup_state: "ready",
+    }));
+    mocks.settings.mockResolvedValue({
+      schema_version: 3,
+      revision: 4,
+      characters: {
+        hammerguy: { character_class: "paladin", combat_profile: "paladin_hammerdin", last_difficulty: "hell", queue: ["mephisto"] },
+      },
+      budgets: { max_runs: 10, max_duration_ms: 1, max_consecutive_failures: 1, max_total_restarts: 1 },
+      input: { enabled: true, pause_hotkey: "pause", stop_after_run_hotkey: "f10", recording_finish_hotkey: "f9", emergency_stop_hotkey: "f11" },
+      history: { retention_enabled: true, retention_days: 60 },
+    });
+
+    render(<CharacterSetupWizard character="HammerGuy" catalog={catalog} status={status} mode="onboarding" />);
+
+    expect(await screen.findByRole("heading", { name: /HammerGuy · Paladin/ })).toBeInTheDocument();
+    expect(screen.getByText(/Kampfprofil:/).parentElement).toHaveTextContent("Hammerdin");
+    expect(screen.getByText("Core: Tasten fehlen")).toBeInTheDocument();
+    expect(screen.getByText("Waffenset II · beide oder keine")).toBeInTheDocument();
+    expect(screen.getByText("LMB")).toBeInTheDocument();
+    expect(screen.getByText(/Seine Ausrüstung wird nicht geprüft/)).toBeInTheDocument();
+
+    mocks.save.mockRejectedValueOnce(new Error("Für Call to Arms müssen Battle Command und Battle Orders beide belegt sein."));
+    fireEvent.change(screen.getByLabelText("Battle Command Taste"), { target: { value: "f4" } });
+    fireEvent.click(screen.getByRole("button", { name: "Tasten speichern" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Für Call to Arms müssen Battle Command und Battle Orders beide belegt sein.");
+  });
 });

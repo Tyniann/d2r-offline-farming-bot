@@ -9,6 +9,7 @@ import (
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/input"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/memory"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/process"
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/replay"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/world"
 )
 
@@ -45,6 +46,7 @@ type inputController interface {
 	MoveTo(clientX, clientY int) error
 	Click(button input.MouseButton) error
 	ClickWithModifier(modifier string, button input.MouseButton) error
+	ClickAtWithModifier(clientX, clientY int, modifier string, button input.MouseButton) error
 	PressKey(key string) error
 	Focus() error
 	Window() (input.WindowInfo, bool)
@@ -168,6 +170,12 @@ func (rt *Runtime) runTickWithMode(ctx context.Context, state *runState, mode ru
 
 	st := rt.Process.Poll()
 	if st.State == process.StateLost {
+		if rt.RuntimeTrace != nil && rt.RuntimeTrace.Enabled() {
+			result := rt.Tasks.Result()
+			if err := rt.finalizeRuntimeTrace(replay.Terminal{Step: result.Step, Outcome: "failed", Reason: "process_lost"}); err != nil {
+				rt.Log.Error("runtime trace finalization failed", "error", err)
+			}
+		}
 		rt.Input.Unbind()
 		if mode == runTickModeFull {
 			rt.Tasks.Reset("process_lost")
@@ -203,7 +211,7 @@ func (rt *Runtime) runTickWithMode(ctx context.Context, state *runState, mode ru
 		if err := rt.abortRunOnMercenaryDeath(prevWorld, cur); err != nil {
 			return err
 		}
-		if rt.Config.Input.Enabled && rt.Options.InputTest == "" && rt.Options.OfflineDifficulty == "" && !rt.Options.OfflineExitTest && rt.Options.UIStateProbe == "" && rt.Options.ScreenAnchorCapture == "" && rt.Options.MercenaryProbe == "" && rt.Options.CowProbe == "" && !rt.Options.TownInspect && rt.Options.TownTest == "" && !rt.pathingTestIsReadOnly() && !rt.routeCommandIsReadOnly() && snap.Valid && snap.Phase == memory.GamePhaseInGame && !state.bindingsPrecheckDone {
+		if rt.shouldRunBindingsPrecheck(snap, state) {
 			state.bindingsPrecheckDone = true
 			if err := BindingsPrecheck(rt.Log, rt.Bindings, snap, true); err != nil {
 				return fmt.Errorf("bindings precheck: %w", err)
@@ -214,7 +222,15 @@ func (rt *Runtime) runTickWithMode(ctx context.Context, state *runState, mode ru
 			return err
 		}
 		if ready && rt.shouldTickTasks(cur) {
-			rt.Tasks.Tick(ctx, cur, time.Now())
+			now := time.Now()
+			if rt.RuntimeTrace != nil && rt.RuntimeTrace.Enabled() {
+				status := rt.Input.Status()
+				rt.RuntimeTrace.BeginTick(now, replay.NormalizeWorld(cur), cur.Generation, replay.RuntimeGates{InputEnabled: status.Enabled, Paused: status.Paused, Stopped: status.Stopped, WindowBound: rt.Input.Bound()}, traceTickState(rt.Tasks.Result()))
+			}
+			result := rt.Tasks.Tick(ctx, cur, now)
+			if rt.RuntimeTrace != nil && rt.RuntimeTrace.Enabled() {
+				rt.RuntimeTrace.EndTick(traceTickState(result))
+			}
 		}
 	}
 	prev := state.world.lastLogged
@@ -226,6 +242,23 @@ func (rt *Runtime) runTickWithMode(ctx context.Context, state *runState, mode ru
 	}
 
 	return nil
+}
+
+// shouldRunBindingsPrecheck reports whether this full tick must fail closed on
+// Teleport. Isolated probes skip it. Idle desktop and character confirmation
+// poll with empty dummy bindings and must not require a loadout; frozen
+// Schema-3 loadouts still precheck before recording or candidate playback.
+func (rt *Runtime) shouldRunBindingsPrecheck(snap memory.Snapshot, state *runState) bool {
+	if !rt.Config.Input.Enabled || state.bindingsPrecheckDone || !snap.Valid || snap.Phase != memory.GamePhaseInGame {
+		return false
+	}
+	if rt.Options.InputTest != "" || rt.Options.OfflineDifficulty != "" || rt.Options.OfflineExitTest || rt.Options.UIStateProbe != "" || rt.Options.ScreenAnchorCapture != "" || rt.Options.MercenaryProbe != "" || rt.Options.CowProbe != "" || rt.Options.WeaponSetProbe != "" || rt.Options.TownInspect || rt.Options.TownTest != "" || rt.pathingTestIsReadOnly() || rt.routeCommandIsReadOnly() {
+		return false
+	}
+	if rt.Options.Loadout == nil && !CharacterLoadoutRequired(rt.Options) {
+		return false
+	}
+	return true
 }
 
 func (rt *Runtime) tryBindInput(state *runState) error {

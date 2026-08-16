@@ -382,6 +382,9 @@ const (
 	RunReasonEncounterActionFailed RunReason = "encounter_action_failed"
 	// RunReasonBossKillUnconfirmed reports an exhausted kill-confirmation budget.
 	RunReasonBossKillUnconfirmed RunReason = "boss_kill_unconfirmed"
+	// RunReasonBossCombatNoProgress reports that Hammerdin boss combat sent
+	// neither a confirmed close-range hammer nor a bounded teleport in time.
+	RunReasonBossCombatNoProgress RunReason = "boss_combat_no_progress"
 	// RunReasonLootPolicyInvalid reports an invalid pickup or sell policy.
 	RunReasonLootPolicyInvalid RunReason = "loot_policy_invalid"
 	// RunReasonItemTierUnknown reports missing authoritative base-tier data.

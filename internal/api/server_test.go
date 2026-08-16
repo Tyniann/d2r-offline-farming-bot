@@ -55,7 +55,7 @@ func (b *apiTestBackend) ConfirmHistoryDeleteAll(HistoryDeleteConfirmRequest) (H
 func (b *apiTestBackend) RouteLibrary(string, bool) (RouteLibraryDTO, error) {
 	return RouteLibraryDTO{Revision: 3, Routes: []RouteEntryDTO{{RouteID: "countess-mrbones-1", DisplayName: "Countess", RunID: "countess", Character: "mrbones", Difficulty: "nightmare", LifecycleStatus: "valid", ManagementStatus: "active", Assigned: true}}}, nil
 }
-func (b *apiTestBackend) RecordingOptions() []RecordingOptionDTO { return []RecordingOptionDTO{} }
+func (b *apiTestBackend) RecordingOptions(string) []RecordingOptionDTO { return []RecordingOptionDTO{} }
 func (b *apiTestBackend) RouteCandidates() ([]RouteCandidateDTO, error) {
 	return []RouteCandidateDTO{{CandidateID: "candidate-1", RunID: "countess", Character: "MrBones", Difficulty: "nightmare", State: "test_passed", RouteSHA256: strings.Repeat("a", 64)}}, nil
 }

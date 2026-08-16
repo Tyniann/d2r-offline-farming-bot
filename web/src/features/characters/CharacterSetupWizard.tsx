@@ -218,12 +218,17 @@ export function CharacterSetupWizard({
     {setupPreview?.setup_state === "ready" && <>
       {mode !== "settings" && <StateMessage kind="empty" title="Charakter ist eingerichtet">Kampfprofil, Lootprofile und Auswahlbild sind bereit. Wähle oben die gewünschte Schwierigkeit und klicke anschließend auf „Über Core bestätigen“.</StateMessage>}
       {selectedProfile && mode !== "settings" && <>
+        <p className="character-profile-summary">Kampfprofil: <strong>{selectedProfile.display_name}</strong></p>
         <h4>Pflichtskills</h4>
         <RequiredSkillsList skills={selectedProfile.required_skills ?? []} standardAttack={selectedProfile.standard_attack} />
         <h4>Tastenbelegung</h4>
         <BindingEditor
           requiredSkills={selectedProfile.required_skills ?? []}
+          optionalSkillPairs={selectedProfile.optional_skill_pairs ?? []}
           standardAttack={selectedProfile.standard_attack}
+          requiresMercenary={selectedProfile.requires_mercenary}
+          bindingsReady={selectedProfile.bindings_ready}
+          bindingReasons={selectedProfile.binding_reasons ?? []}
           value={bindingDraft}
           mutable={!busy}
           onChange={setBindingDraft}

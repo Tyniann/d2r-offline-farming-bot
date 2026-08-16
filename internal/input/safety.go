@@ -50,6 +50,7 @@ func (c *Controller) Pause(reason string) {
 	c.paused = true
 	c.log.Info("input safety state changed", "paused", true, "reason", reason)
 	c.stateMu.Unlock()
+	c.releaseHeldModifierClick()
 }
 
 // Resume clears a pause set by [Controller.Pause] or [Controller.TogglePause].
@@ -77,6 +78,9 @@ func (c *Controller) TogglePause(reason string) bool {
 	paused := c.paused
 	c.log.Info("input safety state changed", "paused", paused, "reason", reason)
 	c.stateMu.Unlock()
+	if paused {
+		c.releaseHeldModifierClick()
+	}
 	return paused
 }
 
@@ -91,6 +95,7 @@ func (c *Controller) Stop(reason string) {
 	c.paused = false
 	c.log.Info("input safety stop requested", "reason", reason)
 	c.stateMu.Unlock()
+	c.releaseHeldModifierClick()
 }
 
 func (c *Controller) actionGuard(kind, action, reason string, attrs ...any) error {

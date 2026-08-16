@@ -146,6 +146,29 @@ func TestCharacterSetupHTTPMapsConflictAndUnavailable(t *testing.T) {
 	_ = response.Body.Close()
 }
 
+func TestCharacterSetupDTOTransportsHammerdinBindingContractAndReadiness(t *testing.T) {
+	value := app.CharacterSetupPreview{Profiles: []app.CharacterSetupProfile{{
+		ID: "paladin_hammerdin", DisplayName: "Hammerdin", StandardAttack: "blessed_hammer",
+		RequiredSkills: []app.CharacterSetupRequiredSkill{{Skill: "blessed_hammer", SkillID: 112, DisplayName: "Gesegneter Hammer", Slot: "left"}},
+		OptionalSkillPairs: []app.CharacterSetupOptionalSkillPair{{Skills: []app.CharacterSetupRequiredSkill{
+			{Skill: "battle_command", SkillID: 155, DisplayName: "Battle Command", Slot: "right"},
+			{Skill: "battle_orders", SkillID: 149, DisplayName: "Battle Orders", Slot: "right"},
+		}}},
+		RequiresMercenary: true, BindingsReady: false, BindingReasons: []string{"profile_bindings_incomplete"},
+		SupportedRuns: []string{"mephisto"},
+	}}}
+	dto := characterSetupPreviewDTO(value)
+	if len(dto.Profiles) != 1 {
+		t.Fatalf("profiles=%+v", dto.Profiles)
+	}
+	profile := dto.Profiles[0]
+	if profile.RequiredSkills[0].Slot != "left" || len(profile.OptionalSkillPairs) != 1 ||
+		profile.OptionalSkillPairs[0].Skills[0].SkillID != 155 || profile.OptionalSkillPairs[0].Skills[1].SkillID != 149 ||
+		!profile.RequiresMercenary || profile.BindingsReady || len(profile.BindingReasons) != 1 || profile.SupportedRuns[0] != "mephisto" {
+		t.Fatalf("Hammerdin DTO=%+v", profile)
+	}
+}
+
 func TestCharacterCatalogInvalidationPublishesExactlyOnceForAChangedProjection(t *testing.T) {
 	publisher := telemetry.NewLivePublisher(8, 2)
 	backend := &LiveBackend{

@@ -178,6 +178,54 @@ combat_profiles:
         minimum_recast_interval_ms: 10000
         settle_ms: 750
 
+  paladin_hammerdin:
+    character_class: paladin
+    display_name: Hammerdin
+    setup:
+      enabled: true
+      default: true
+    combat:
+      # Blessed Hammer nur aus Nahkampf: auf 1 Tile teleportieren, dann hämmern.
+      standard_attack: blessed_hammer
+      attack_interval_ms: 300
+      engage_distance_tiles: 1
+      reposition_distance_tiles: 3
+      kill_confirm_ticks: 3
+    required_skills:
+      - {skill: teleport, display_name: Teleport, slot: right}
+      - {skill: town_portal, display_name: Stadtportal, slot: right}
+      - {skill: blessed_hammer, display_name: Gesegneter Hammer, slot: left}
+      - {skill: concentration, display_name: Konzentration, slot: right}
+      - {skill: holy_shield, display_name: Heiliger Schild, slot: right}
+    optional_skill_pairs:
+      - skills:
+          - {skill: battle_command, slot: right}
+          - {skill: battle_orders, slot: right}
+    requires_mercenary: true
+    hooks:
+      town_ready: []
+      boss_engage: []
+    resources:
+      healing:
+        use_below_percent: 65
+        belt_slots: [1]
+        cooldown_ms: 4000
+      mana:
+        use_below_percent: 35
+        belt_slots: [2, 3]
+        cooldown_ms: 4000
+      rejuvenation:
+        use_below_percent: 35
+        belt_slots: [4]
+        cooldown_ms: 1500
+      mercenary:
+        enabled: true
+        use_below_percent: 50
+        belt_slots: [1]
+        cooldown_ms: 4000
+      throttle_ms: 1500
+      verify_timeout_ms: 1500
+
 character_setup:
   pickit_defaults:
     countess: [gems, keys, countess-standard]

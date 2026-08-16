@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -144,5 +145,31 @@ func TestProfileTelemetryAdapterOmitsSkillForPotionEvents(t *testing.T) {
 	}
 	if event.Skill != "" || event.SkillID != 0 || event.Resource != "mana" || event.UnitID != 217 {
 		t.Fatalf("event=%+v", event)
+	}
+}
+
+func TestNewProfileExecutorAllowsUnregisteredDummyCarrier(t *testing.T) {
+	profiles := config.ProfilesConfig{}
+	profiles.ApplyDefaults()
+	log := config.NewLogger("error")
+	in := &mockInput{}
+	bindings := testBindings()
+	pathCfg := pathing.DefaultConfig()
+	combat := newCombatAdapter(log, in, bindings, pathCfg, time.Millisecond)
+	registry := NewCombatStrategyRegistry()
+
+	got, err := newProfileExecutor(log, profiles, "paladin_hammerdin", "countess", registry, in, bindings, pathCfg, combat, &profileTelemetryAdapter{}, false)
+	if err != nil || got == nil {
+		t.Fatalf("dummy carrier err=%v executor=%v", err, got)
+	}
+
+	_, err = newProfileExecutor(log, profiles, "paladin_hammerdin", "countess", registry, in, bindings, pathCfg, combat, &profileTelemetryAdapter{}, true)
+	if err == nil || !strings.Contains(err.Error(), ReasonProfileRunStrategyUnavailable) {
+		t.Fatalf("productive dummy carrier err=%v", err)
+	}
+
+	got, err = newProfileExecutor(log, profiles, "paladin_hammerdin", "mephisto", registry, in, bindings, pathCfg, combat, &profileTelemetryAdapter{}, true)
+	if err != nil || got == nil {
+		t.Fatalf("registered mephisto err=%v executor=%v", err, got)
 	}
 }

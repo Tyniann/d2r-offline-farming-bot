@@ -47,7 +47,7 @@ type Config struct {
 
 type routeBackend interface {
 	RouteLibrary(string, bool) (RouteLibraryDTO, error)
-	RecordingOptions() []RecordingOptionDTO
+	RecordingOptions(string) []RecordingOptionDTO
 	RouteCandidates() ([]RouteCandidateDTO, error)
 	SystemRouteStatuses() []SystemRouteStatusDTO
 	HotkeyHelp() HotkeyHelpDTO
@@ -684,7 +684,7 @@ func (s *Server) handleRouteRecordingStart(w http.ResponseWriter, r *http.Reques
 	if !s.decodeBody(w, r, &request) {
 		return
 	}
-	workflowRequest := RouteWorkflowRequest{ExpectedGeneration: request.ExpectedGeneration, Operation: "record", RunID: request.RunID, RouteRole: request.RouteRole}
+	workflowRequest := RouteWorkflowRequest{ExpectedGeneration: request.ExpectedGeneration, Operation: "record", RunID: request.RunID, RouteRole: request.RouteRole, Character: request.Character}
 	value, err := backend.StartRouteWorkflow(workflowRequest)
 	if err != nil {
 		s.writeCommandOrConflict(w, r, "route_workflow_conflict", err)
@@ -833,7 +833,7 @@ func (s *Server) handleRecordingOptions(w http.ResponseWriter, r *http.Request) 
 	}
 	backend, ok := s.routesBackend(w, r)
 	if ok {
-		s.writeJSON(w, http.StatusOK, backend.RecordingOptions())
+		s.writeJSON(w, http.StatusOK, backend.RecordingOptions(r.URL.Query().Get("character")))
 	}
 }
 func (s *Server) handleRouteCandidates(w http.ResponseWriter, r *http.Request) {

@@ -103,6 +103,7 @@ reset := model.Reset(at, "process_lost")
 
 ### Player & State
 
+- `Player.ActiveWeaponSet`: mappt nur verfügbare Snapshot-Werte `0`/`1` auf Primary/Secondary; jeder andere oder fehlende Wert bleibt `Available=false`.
 - `Player.HPPercent()` / `ManaPercent()`: Integer-Math, `0` bei `Max == 0`, Clamp auf `100`.
 - `Mercenary.HPPercent()`: gleiche Prozentgrenzen, aber nur bei `VitalsKnown`.
 - `State`: Value-Type; bei `Valid == false` ist `Reason` gesetzt (oder leer), `Area`/`Player` sind Zero-Values und nicht zu lesen.
@@ -117,6 +118,7 @@ reset := model.Reset(at, "process_lost")
 | `AreaKind` | `Unknown`, `Outdoor`, `Dungeon`, `Special` |
 | `Position` | Rohe Tile-Koordinaten |
 | `Player` | Position + HP/Mana |
+| `WeaponSetState` | Aktives primäres/sekundäres Waffenset mit expliziter Availability; unbekannt ist niemals implizit primär |
 | `Mercenary` | Hired-/Alive-/Dead-/Vitals-Evidenz, Class-/Unit-ID und HP |
 | `GamePhase` | `Unknown`, `Menu`, `Loading`, `InGame` — aus `memory.Snapshot.Phase` |
 | `State` | Tick-Snapshot mit `At`, `Generation`, `Phase`, `Valid`, `Reason`, `Area`, `Player`, Entity- und Item-Slices, direkter Cow-Corpse-Coverage, `MonsterCoverage` sowie read-only UI-Flags inklusive `QuitMenuOpen` und fail-closed `CubeOpen` |
@@ -244,4 +246,4 @@ Low-Level Memory/Offset-Validierung: [State Probe](state-probe.md) (Phase 1, D2R
 - [Phase-18-Core-Vertrag](phase-18-core-contract.md) — Merc-Evidenz und Unknown-Grenzen
 
 ---
-*Zuletzt aktualisiert: 2026-08-01*
+*Zuletzt aktualisiert: 2026-08-15*

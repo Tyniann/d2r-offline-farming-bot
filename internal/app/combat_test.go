@@ -15,12 +15,22 @@ import (
 
 type recordingCombatInput struct {
 	mockInput
-	castCalls   int
-	selectCalls int
-	moveCalls   int
-	clickCalls  []input.MouseButton
-	pressedKeys []string
-	lastSkill   uint16
+	castCalls      int
+	selectCalls    int
+	moveCalls      int
+	clickCalls     []input.MouseButton
+	modifiedClicks []modifiedClick
+	holds          []modifiedClick
+	releaseCalls   int
+	holdActive     bool
+	pressedKeys    []string
+	lastSkill      uint16
+}
+
+type modifiedClick struct {
+	clientX, clientY int
+	modifier         string
+	button           input.MouseButton
 }
 
 func (r *recordingCombatInput) CastSkillAt(_ input.BindingSource, skillID uint16, _, _ int) error {
@@ -38,6 +48,31 @@ func (r *recordingCombatInput) SelectSkill(_ input.BindingSource, skillID uint16
 func (r *recordingCombatInput) Click(button input.MouseButton) error {
 	r.clickCalls = append(r.clickCalls, button)
 	return nil
+}
+
+func (r *recordingCombatInput) ClickAtWithModifier(clientX, clientY int, modifier string, button input.MouseButton) error {
+	r.modifiedClicks = append(r.modifiedClicks, modifiedClick{clientX: clientX, clientY: clientY, modifier: modifier, button: button})
+	r.lastClientX = clientX
+	r.lastClientY = clientY
+	return nil
+}
+
+func (r *recordingCombatInput) HoldAt(clientX, clientY int, button input.MouseButton) error {
+	r.holds = append(r.holds, modifiedClick{clientX: clientX, clientY: clientY, button: button})
+	r.lastClientX = clientX
+	r.lastClientY = clientY
+	r.holdActive = true
+	return nil
+}
+
+func (r *recordingCombatInput) ReleaseModifierHold() error {
+	r.releaseCalls++
+	r.holdActive = false
+	return nil
+}
+
+func (r *recordingCombatInput) ModifierHoldActive() bool {
+	return r.holdActive
 }
 
 func (r *recordingCombatInput) MoveTo(clientX, clientY int) error {
@@ -332,5 +367,138 @@ func TestCombatAdapterResetClearsPendingSelection(t *testing.T) {
 	adapter.Reset()
 	if adapter.selector.pending != 0 {
 		t.Fatalf("pending=%d, want reset", adapter.selector.pending)
+	}
+}
+
+func hammerdinCombatBindings() configBindingSource {
+	hammer := memory.MustSkillID("blessed_hammer")
+	concentration := memory.MustSkillID("concentration")
+	return configBindingSource{skills: map[uint16]input.SkillCast{
+		hammer:               {SkillID: hammer, SelectKey: "f1", CastButton: input.MouseLeft},
+		concentration:        {SkillID: concentration, SelectKey: "f2", CastButton: input.MouseRight},
+		memory.SkillTeleport: {SkillID: memory.SkillTeleport, SelectKey: "f3", CastButton: input.MouseRight},
+	}}
+}
+
+func hammerdinBoss(hovered bool) world.Monster {
+	return world.Monster{UnitID: 42, NPCID: 242, Position: world.Position{X: 105, Y: 100}, IsHovered: hovered}
+}
+
+func TestCombatAdapterHoldsBlessedHammerOnHoveredMonster(t *testing.T) {
+	in := &recordingCombatInput{}
+	adapter := newCombatAdapter(config.NewLogger("error"), in, hammerdinCombatBindings(), pathing.DefaultConfig(), 350*time.Millisecond)
+	hammer := memory.MustSkillID("blessed_hammer")
+	player := world.Player{
+		Position:     world.Position{X: 100, Y: 100},
+		LeftSkillID:  hammer,
+		RightSkillID: memory.MustSkillID("concentration"),
+	}
+	boss := hammerdinBoss(true)
+
+	result, err := adapter.HoldStandardAttack(time.Now(), hammer, player, boss)
+	if err != nil || !result.Sent || result.TargetingMode != profile.MonsterTargetingHoverConfirmed {
+		t.Fatalf("hammer hold=%+v err=%v, want hover-confirmed LMB", result, err)
+	}
+	if len(in.clickCalls) != 0 || len(in.modifiedClicks) != 0 {
+		t.Fatalf("clicks=%v modified=%v, want none", in.clickCalls, in.modifiedClicks)
+	}
+	if len(in.holds) != 1 {
+		t.Fatalf("holds=%v, want one LMB hold", in.holds)
+	}
+	got := in.holds[0]
+	if got.clientX == 640 && got.clientY == 360 {
+		t.Fatalf("hold=%+v, want monster projection not client center", got)
+	}
+	if got.modifier != "" || got.button != input.MouseLeft {
+		t.Fatalf("hold=%+v, want left without modifier", got)
+	}
+	again, err := adapter.HoldStandardAttack(time.Now().Add(time.Second), hammer, player, boss)
+	if err != nil || again.Sent || len(in.holds) != 1 {
+		t.Fatalf("second hold sent=%t err=%v holds=%d, want no-op", again.Sent, err, len(in.holds))
+	}
+	if err := adapter.StopAttack(); err != nil || in.releaseCalls != 1 || in.holdActive {
+		t.Fatalf("release calls=%d active=%t err=%v", in.releaseCalls, in.holdActive, err)
+	}
+}
+
+func TestCombatAdapterAimsAtMonsterBeforeHammerHold(t *testing.T) {
+	in := &recordingCombatInput{}
+	adapter := newCombatAdapter(config.NewLogger("error"), in, hammerdinCombatBindings(), pathing.DefaultConfig(), 350*time.Millisecond)
+	hammer := memory.MustSkillID("blessed_hammer")
+	player := world.Player{
+		Position:     world.Position{X: 100, Y: 100},
+		LeftSkillID:  hammer,
+		RightSkillID: memory.MustSkillID("concentration"),
+	}
+	boss := hammerdinBoss(false)
+
+	aimed, err := adapter.HoldStandardAttack(time.Now(), hammer, player, boss)
+	if err != nil || aimed.Sent || !aimed.AimRequested || len(in.holds) != 0 || in.moveCalls != 1 {
+		t.Fatalf("aim=%+v err=%v holds=%d moves=%d, want aim move and no hold", aimed, err, len(in.holds), in.moveCalls)
+	}
+
+	overlay := hammerdinBoss(true)
+	overlay.UnitID = 99
+	held, err := adapter.HoldStandardAttack(time.Now().Add(400*time.Millisecond), hammer, player, overlay)
+	if err != nil || !held.Sent || len(in.holds) != 1 {
+		t.Fatalf("overlay hold=%+v err=%v holds=%d", held, err, len(in.holds))
+	}
+	if in.holds[0].clientX == 640 && in.holds[0].clientY == 360 {
+		t.Fatal("overlay hold used client center")
+	}
+}
+
+func TestCombatAdapterReconfirmsConcentrationAfterTeleportBeforeHammer(t *testing.T) {
+	in := &recordingCombatInput{}
+	adapter := newCombatAdapter(config.NewLogger("error"), in, hammerdinCombatBindings(), pathing.DefaultConfig(), 350*time.Millisecond)
+	hammer := memory.MustSkillID("blessed_hammer")
+	concentration := memory.MustSkillID("concentration")
+	now := time.Now()
+	player := world.Player{
+		Position:     world.Position{X: 100, Y: 100},
+		LeftSkillID:  hammer,
+		RightSkillID: memory.SkillTeleport,
+	}
+
+	boss := hammerdinBoss(true)
+	sent, err := adapter.HoldStandardAttack(now, hammer, player, boss)
+	if err != nil || sent.Sent {
+		t.Fatalf("concentration select sent=%t err=%v, want no hammer", sent.Sent, err)
+	}
+	if in.selectCalls != 1 || in.lastSkill != concentration || len(in.holds) != 0 || len(in.clickCalls) != 0 {
+		t.Fatalf("selects=%d last=%d holds=%v clicks=%v, want Concentration then no hold", in.selectCalls, in.lastSkill, in.holds, in.clickCalls)
+	}
+
+	player.RightSkillID = concentration
+	sent, err = adapter.HoldStandardAttack(now.Add(400*time.Millisecond), hammer, player, boss)
+	if err != nil || !sent.Sent {
+		t.Fatalf("hammer after aura sent=%t err=%v", sent.Sent, err)
+	}
+	if len(in.holds) != 1 || in.holds[0].button != input.MouseLeft || in.holds[0].modifier != "" || (in.holds[0].clientX == 640 && in.holds[0].clientY == 360) {
+		t.Fatalf("holds=%v, want one LMB hold on the monster after Concentration", in.holds)
+	}
+}
+
+func TestCombatAdapterFailsWhenLeftSkillSelectionIsNotConfirmed(t *testing.T) {
+	in := &recordingCombatInput{}
+	adapter := newCombatAdapter(config.NewLogger("error"), in, hammerdinCombatBindings(), pathing.DefaultConfig(), 350*time.Millisecond)
+	adapter.skills.timeout = 300 * time.Millisecond
+	hammer := memory.MustSkillID("blessed_hammer")
+	now := time.Now()
+	player := world.Player{
+		Position:     world.Position{X: 100, Y: 100},
+		RightSkillID: memory.MustSkillID("concentration"),
+	}
+
+	boss := hammerdinBoss(true)
+	sent, err := adapter.HoldStandardAttack(now, hammer, player, boss)
+	if err != nil || sent.Sent {
+		t.Fatalf("selection sent=%t err=%v, want no hammer hold", sent.Sent, err)
+	}
+	if _, err := adapter.HoldStandardAttack(now.Add(400*time.Millisecond), hammer, player, boss); err == nil {
+		t.Fatal("HoldStandardAttack error = nil, want unconfirmed left-skill failure")
+	}
+	if len(in.holds) != 0 || len(in.clickCalls) != 0 {
+		t.Fatalf("holds=%v clicks=%v, want none while LeftSkillID stays unconfirmed", in.holds, in.clickCalls)
 	}
 }

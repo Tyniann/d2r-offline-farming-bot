@@ -153,7 +153,11 @@ Stat-Liste am Unit `+0x88`: Die Probe bevorzugt `BaseStats` bei `statsListEx + 0
 go run ./cmd/d2rbot
 go run ./cmd/d2rbot --probe
 go run ./cmd/d2rbot --probe --verbose
+$dataRoot = Join-Path $env:LOCALAPPDATA 'D2ROfflineFarmingBot'
+go run ./cmd/d2rbot --data-root $dataRoot --weapon-set-probe primary-secondary
 ```
+
+`--weapon-set-probe primary-secondary` ist ein begrenzter read-only Gate-22.3-Probe. Der Operator wechselt mit `W` selbst. Drei frische Generationen bestätigen einen Zustand; bestanden ist der Probe erst nach zwei alternierenden Übergängen, die beide Sets enthalten. Er sendet keinen Tastatur- oder Mausinput und schreibt sein JSON-Artefakt unter `diagnostics/weapon-sets/`.
 
 Mit `--probe` erscheinen nach `process attached` sparsame World-State-Logs:
 
@@ -210,4 +214,4 @@ Semantische World-State-Validierung (Countess-Route, Area-Namen, `hp_pct`, Log-P
 - [World Model](world-model.md) — Domain-Typen und kontinuierliches Update im App-Loop
 
 ---
-*Zuletzt aktualisiert: 2026-08-01*
+*Zuletzt aktualisiert: 2026-08-15*

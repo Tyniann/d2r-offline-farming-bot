@@ -15,13 +15,17 @@ type CharacterSetupPreviewRequest struct {
 
 // CharacterSetupProfileDTO beschreibt ein freigegebenes Profil.
 type CharacterSetupProfileDTO struct {
-	ID             string                            `json:"id"`
-	DisplayName    string                            `json:"display_name"`
-	IsDefault      bool                              `json:"is_default"`
-	IsSelected     bool                              `json:"is_selected"`
-	StandardAttack string                            `json:"standard_attack,omitempty"`
-	RequiredSkills []CharacterSetupRequiredSkillDTO  `json:"required_skills,omitempty"`
-	SupportedRuns  []string                          `json:"supported_runs,omitempty"`
+	ID                 string                               `json:"id"`
+	DisplayName        string                               `json:"display_name"`
+	IsDefault          bool                                 `json:"is_default"`
+	IsSelected         bool                                 `json:"is_selected"`
+	StandardAttack     string                               `json:"standard_attack,omitempty"`
+	RequiredSkills     []CharacterSetupRequiredSkillDTO     `json:"required_skills,omitempty"`
+	OptionalSkillPairs []CharacterSetupOptionalSkillPairDTO `json:"optional_skill_pairs,omitempty"`
+	RequiresMercenary  bool                                 `json:"requires_mercenary"`
+	BindingsReady      bool                                 `json:"bindings_ready"`
+	BindingReasons     []string                             `json:"binding_reasons,omitempty"`
+	SupportedRuns      []string                             `json:"supported_runs,omitempty"`
 }
 
 // CharacterSetupRequiredSkillDTO is one ordered required skill for read-only Setup UI.
@@ -29,6 +33,12 @@ type CharacterSetupRequiredSkillDTO struct {
 	Skill       string `json:"skill"`
 	SkillID     uint16 `json:"skill_id"`
 	DisplayName string `json:"display_name"`
+	Slot        string `json:"slot"`
+}
+
+// CharacterSetupOptionalSkillPairDTO transports one Core-defined all-or-nothing pair.
+type CharacterSetupOptionalSkillPairDTO struct {
+	Skills []CharacterSetupRequiredSkillDTO `json:"skills"`
 }
 
 // CharacterSetupPickitDefaultDTO beschreibt eine feste lesbare Run-Kette.
@@ -89,12 +99,24 @@ func characterSetupPreviewDTO(value app.CharacterSetupPreview) CharacterSetupPre
 		skills := make([]CharacterSetupRequiredSkillDTO, len(profile.RequiredSkills))
 		for skillIndex, skill := range profile.RequiredSkills {
 			skills[skillIndex] = CharacterSetupRequiredSkillDTO{
-				Skill: skill.Skill, SkillID: skill.SkillID, DisplayName: skill.DisplayName,
+				Skill: skill.Skill, SkillID: skill.SkillID, DisplayName: skill.DisplayName, Slot: skill.Slot,
 			}
+		}
+		optionalPairs := make([]CharacterSetupOptionalSkillPairDTO, len(profile.OptionalSkillPairs))
+		for pairIndex, pair := range profile.OptionalSkillPairs {
+			optionalSkills := make([]CharacterSetupRequiredSkillDTO, len(pair.Skills))
+			for skillIndex, skill := range pair.Skills {
+				optionalSkills[skillIndex] = CharacterSetupRequiredSkillDTO{
+					Skill: skill.Skill, SkillID: skill.SkillID, DisplayName: skill.DisplayName, Slot: skill.Slot,
+				}
+			}
+			optionalPairs[pairIndex] = CharacterSetupOptionalSkillPairDTO{Skills: optionalSkills}
 		}
 		profiles[index] = CharacterSetupProfileDTO{
 			ID: profile.ID, DisplayName: profile.DisplayName, IsDefault: profile.IsDefault, IsSelected: profile.IsSelected,
-			StandardAttack: profile.StandardAttack, RequiredSkills: skills, SupportedRuns: append([]string(nil), profile.SupportedRuns...),
+			StandardAttack: profile.StandardAttack, RequiredSkills: skills, OptionalSkillPairs: optionalPairs,
+			RequiresMercenary: profile.RequiresMercenary, BindingsReady: profile.BindingsReady,
+			BindingReasons: append([]string(nil), profile.BindingReasons...), SupportedRuns: append([]string(nil), profile.SupportedRuns...),
 		}
 	}
 	defaults := make([]CharacterSetupPickitDefaultDTO, len(value.PickitDefaults))

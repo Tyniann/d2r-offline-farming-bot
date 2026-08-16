@@ -196,6 +196,13 @@ func (m *mockInput) Click(input.MouseButton) error { m.clickCalls++; return nil 
 
 func (m *mockInput) ClickWithModifier(string, input.MouseButton) error { return nil }
 
+func (m *mockInput) ClickAtWithModifier(clientX, clientY int, _ string, _ input.MouseButton) error {
+	m.lastClientX = clientX
+	m.lastClientY = clientY
+	m.clickCalls++
+	return nil
+}
+
 func (m *mockInput) PressKey(string) error { return nil }
 
 func (m *mockInput) Focus() error {

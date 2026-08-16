@@ -122,13 +122,31 @@ export async function launchCore(options: CoreLaunchOptions): Promise<CoreConnec
     stdio: ["ignore", "ignore", "pipe"],
     env: options.environment,
   });
-  child.stderr?.resume();
+  let stderr = "";
+  child.stderr?.setEncoding("utf8");
+  child.stderr?.on("data", (chunk: string) => {
+    stderr += chunk;
+    if (Buffer.byteLength(stderr, "utf8") > MAX_HANDSHAKE_BYTES) {
+      stderr = stderr.slice(0, MAX_HANDSHAKE_BYTES);
+    }
+  });
 
   const timeout = setTimeout(() => {
     rejectHandshake?.(new DesktopCoreError("core_handshake_timeout", "Der Core antwortete nicht rechtzeitig."));
   }, options.handshakeTimeoutMs);
   const earlyExit = new Promise<never>((_, reject) => child.once("exit", (code, signal) => {
-    reject(new DesktopCoreError("core_start_failed", `Der Core endete vor dem Handshake (${code ?? signal ?? "unbekannt"}).`));
+    const fail = () => {
+      const detail = summarizeCoreStderr(stderr);
+      reject(new DesktopCoreError("core_start_failed", detail
+        ? `Der Core endete vor dem Handshake: ${detail}`
+        : `Der Core endete vor dem Handshake (${code ?? signal ?? "unbekannt"}).`));
+    };
+    if (child.stderr && !child.stderr.readableEnded) {
+      child.stderr.once("end", fail);
+      child.stderr.once("error", fail);
+    } else {
+      fail();
+    }
   }));
   const spawnError = new Promise<never>((_, reject) => child.once("error", (error) => {
     reject(new DesktopCoreError("core_start_failed", `Der Core konnte nicht gestartet werden: ${error.message}`));
@@ -162,6 +180,13 @@ function parseProvisioningResult(raw: string): CoreProvisioningResult {
     throw new DesktopCoreError("core_start_failed", "Das Provisionierungsergebnis verletzt den Desktopvertrag.");
   }
   return value as unknown as CoreProvisioningResult;
+}
+
+function summarizeCoreStderr(raw: string): string {
+  const line = raw.replace(/\r/g, "").split("\n").map((value) => value.trim()).find(Boolean) ?? "";
+  const cleaned = line.replace(/^error:\s*/i, "");
+  if (!cleaned) return "";
+  return cleaned.length > 220 ? `${cleaned.slice(0, 217)}...` : cleaned;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

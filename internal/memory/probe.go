@@ -48,6 +48,7 @@ type Snapshot struct {
 	Mercenary             MercenarySnapshot
 	Items                 []ItemUnit
 	PlayerSkills          PlayerSkills
+	ActiveWeaponSet       WeaponSetSnapshot
 	Hover                 HoverState
 	UI                    UIState
 	Identity              IdentityProbe
@@ -57,25 +58,26 @@ type Snapshot struct {
 
 // ProbeReader resolves the main player via the unit table and reads vital stats.
 type ProbeReader struct {
-	reader                *Reader
-	offsets               OffsetSet
-	activeOffsets         OffsetSet
-	offsetsResolved       bool
-	lastModuleBase        uintptr
-	scannedCachePath      string
-	lastScanAttempt       time.Time
-	scanFailCount         int
-	lastPlayerPtr         uintptr
-	observedMaxHP         uint32
-	observedMaxMana       uint32
-	lastGateValue         uint8
-	lastGateLog           time.Time
-	hasGateValue          bool
-	lastIdentityProbe     IdentityProbe
-	identityCandidate     IdentityProbe
-	identityStableTicks   uint8
-	noHirelingStableTicks uint8
-	snapshotGeneration    uint64
+	reader                   *Reader
+	offsets                  OffsetSet
+	activeOffsets            OffsetSet
+	offsetsResolved          bool
+	lastModuleBase           uintptr
+	scannedCachePath         string
+	lastScanAttempt          time.Time
+	scanFailCount            int
+	lastPlayerPtr            uintptr
+	observedMaxHP            uint32
+	observedMaxMana          uint32
+	lastGateValue            uint8
+	lastGateLog              time.Time
+	hasGateValue             bool
+	lastIdentityProbe        IdentityProbe
+	identityCandidate        IdentityProbe
+	identityStableTicks      uint8
+	noHirelingStableTicks    uint8
+	snapshotGeneration       uint64
+	weaponSetSecondarySkills [2]uint16
 }
 
 const (
@@ -315,6 +317,7 @@ func (p *ProbeReader) Snapshot() Snapshot {
 		snap.Identity = p.stabilizeIdentity(p.readIdentityProbe(playerPtr, off))
 		p.logIdentityProbe(snap.Identity)
 		p.enrichPlayerSkills(playerPtr, off, &snap)
+		snap.ActiveWeaponSet = p.readActiveWeaponSetFromSkills(snap.PlayerSkills)
 		snap.Hover = p.readHover(moduleBase, off)
 		if err := p.enumerateEntities(moduleBase, off, &snap); err != nil {
 			p.reader.log.Debug("entity enumeration failed", "error", err)

@@ -63,3 +63,48 @@ func TestNewCharacterWorkflowRuntimeUsesSelectedCharacterLoadout(t *testing.T) {
 		t.Fatalf("source config character mutated to %q", cfg.Session.Character)
 	}
 }
+
+func TestNewCharacterWorkflowRuntimeAllowsHammerdinWithoutCountessPickit(t *testing.T) {
+	store, root := newOperatorSettingsTestStore(t)
+	initial, err := store.Snapshot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	assigned, err := store.AssignCharacterProfile("MrHammer", "paladin", "paladin_hammerdin", initial.Revision)
+	if err != nil {
+		t.Fatal(err)
+	}
+	replacement := cloneOperatorSettings(assigned.Settings)
+	character := replacement.Characters["mrhammer"]
+	character.ProfileBindings = map[string]OperatorProfileBindings{
+		"paladin_hammerdin": hammerdinBindingsFixture(true),
+	}
+	character.InventoryLock = &OperatorInventoryLock{Grid: sampleInventoryGrid(false)}
+	replacement.Characters["mrhammer"] = character
+	if _, updateErr := store.Update(assigned.Settings.Revision, replacement); updateErr != nil {
+		t.Fatal(updateErr)
+	}
+
+	cfg, err := config.Load(filepath.Join("..", "..", "configs", "config.example.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.DataRoot = root
+	cfg.Session.Character = "MrBones"
+	resolver := NewCharacterLoadoutResolver(store, cfg.Profiles, replacement.Input)
+	runtime, err := NewCharacterWorkflowRuntime(cfg, resolver, "MrHammer")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if closeErr := runtime.CloseLog(); closeErr != nil {
+			t.Errorf("CloseLog() error = %v", closeErr)
+		}
+	})
+	if runtime.Config.Session.Character != "MrHammer" {
+		t.Fatalf("runtime character = %q, want MrHammer", runtime.Config.Session.Character)
+	}
+	if runtime.combatProfileID != "paladin_hammerdin" {
+		t.Fatalf("runtime profile = %q, want paladin_hammerdin", runtime.combatProfileID)
+	}
+}

@@ -26,6 +26,8 @@ Verschwindet der Boss vor Abschluss beider Aktionen oder erscheint Mephisto mit 
 
 Der anschließende Bone-Spear-Angriff verwendet ausschließlich die rechte Skillseite. Nach den Bone Prisons fordert der gemeinsame Combat-Adapter F8 zunächst ohne Mausklick an. Erst ein späterer Memory-Snapshot mit `RightSkillID=84` bestätigt, dass Bone Spear tatsächlich rechts ausgewählt wurde; danach erzeugt jeder freigegebene Combat-Tick einen RMB-Puls an der neu projizierten Bossposition. RMB besitzt für Bone Spear keine Laufsemantik und benötigt deshalb kein synthetisches Stand-still-Modifier. Bleibt F8 links gebunden oder ändert sich nur `LeftSkillID`, endet der Kampf fail-closed ohne Angriffsklick. Die YAML- und D2R-Belegung müssen beide `F8 → Bone Spear auf rechter Skillseite` verwenden; der linke Slot bleibt Attack/Throw.
 
+Hammerdin folgt derselben Pin- und Killbestätigung, überspringt die Bone-Prison-Sequenz aber vollständig. Sobald die aufgezeichnete Route endet, prüft jeder Tick die Distanz zum gepinnten Mephisto: über 3 Tiles folgt ein Teleport auf 1 Tile, innerhalb der Toleranz Blessed Hammer als LMB-Hold auf dem sichtbaren Boss-Sprite. Overlay-Hover auf demselben Körper ist erlaubt. Nach Teleport wird Konzentration auf RMB erneut bestätigt. Ein aktiver Hold wird erst nach drei Snapshots und mehr als 5 Tiles Distanz gelöst; der nächste Teleport wartet den folgenden Snapshot ab. Ohne Hammer-Fortschritt innerhalb von 25 Sekunden oder nach 12 Teleports endet der Versuch mit `boss_combat_no_progress`. Gate 22.7 hat diesen Pfad am 16.08.2026 live abgenommen.
+
 ### Loot und Rückkehr
 
 Nach bestätigtem Kill teleportiert die gemeinsame Run-Pipeline zunächst bis auf Pickup-Distanz zur letzten Memory-bestätigten Bossposition. Diese Repositionierung ist für alle registrierten Boss-Runs verbindlich und läuft vor Drop-Wartezeit, Pickit-Scan und Pickup; ein fehlender Positionspin oder Teleportfehler stoppt fail-closed.
@@ -65,6 +67,7 @@ Der vollständige produktive Lauf wurde am manuellen Session-Gate 10.11 erfolgre
 - [Route Recording und Playback](route-recording-playback.md)
 - [Character Encounter Profiles](character-encounter-profiles.md)
 - [Town Services](town-services.md)
+- [Paladin „Hammerdin“](hammerdin.md)
 
 ---
-*Zuletzt aktualisiert: 2026-07-28*
+*Zuletzt aktualisiert: 2026-08-16*

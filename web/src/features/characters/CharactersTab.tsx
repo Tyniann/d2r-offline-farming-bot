@@ -146,7 +146,11 @@ export function CharactersTab({
           ? <StateMessage kind="empty" title="Kein Kampfprofil">Richte den Charakter zuerst ein, bevor Tasten gespeichert werden.</StateMessage>
           : <BindingEditor
             requiredSkills={selectedProfile.required_skills ?? []}
+            optionalSkillPairs={selectedProfile.optional_skill_pairs ?? []}
             standardAttack={selectedProfile.standard_attack}
+            requiresMercenary={selectedProfile.requires_mercenary}
+            bindingsReady={selectedProfile.bindings_ready}
+            bindingReasons={selectedProfile.binding_reasons ?? []}
             value={bindingValue}
             mutable={mutable && !!profileID}
             onChange={updateBindings}

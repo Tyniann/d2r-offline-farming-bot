@@ -1,4 +1,9 @@
-import type { CharacterSetupRequiredSkillDTO, OperatorBeltBindingsDTO, OperatorProfileBindingsDTO } from "../../api/generated";
+import type {
+  CharacterSetupOptionalSkillPairDTO,
+  CharacterSetupRequiredSkillDTO,
+  OperatorBeltBindingsDTO,
+  OperatorProfileBindingsDTO,
+} from "../../api/generated";
 import { StatusBadge } from "../../app/ui";
 
 const skillKeys = ["f1", "f2", "f3", "f4", "f5", "f6", "f7", "f8"] as const;
@@ -42,12 +47,17 @@ export function bindingsToDTO(value: BindingEditorValue): OperatorProfileBinding
   return { skills, belt };
 }
 
-/** BindingEditor belegt Pflichtskills (F1–F8) und Gürtel gemeinsam; RMB ist fest. */
+/** BindingEditor belegt profilautorisierte Pflicht- und optionale Skills sowie den Gürtel. */
 export function BindingEditor({
-  requiredSkills, standardAttack, value, mutable, onChange,
+  requiredSkills, optionalSkillPairs = [], standardAttack, requiresMercenary = false,
+  bindingsReady, bindingReasons = [], value, mutable, onChange,
 }: {
   requiredSkills: CharacterSetupRequiredSkillDTO[];
+  optionalSkillPairs?: CharacterSetupOptionalSkillPairDTO[];
   standardAttack?: string;
+  requiresMercenary?: boolean;
+  bindingsReady?: boolean;
+  bindingReasons?: string[];
   value: BindingEditorValue;
   mutable: boolean;
   onChange: (next: BindingEditorValue) => void;
@@ -55,7 +65,15 @@ export function BindingEditor({
   const collisions = collectCollisions(value);
 
   return <div className="binding-editor">
-    <p className="hint">Jede F-Taste muss in D2R dem rechten Skill-Slot zugeordnet sein. Der Bot speichert keinen Mausbutton und wirft Skills immer mit Rechtsklick.</p>
+    {bindingsReady !== undefined && <div className="binding-readiness" role="status" aria-label="Core-Status der Tastenbelegung">
+      <StatusBadge tone={bindingsReady ? "success" : "warning"}>
+        {bindingsReady ? "Core: Tasten vollständig" : "Core: Tasten fehlen"}
+      </StatusBadge>
+      {!bindingsReady && bindingReasons.length > 0
+        ? <span>{bindingReasons.map((reason) => bindingReasonText(reason, optionalSkillPairs.length > 0)).join(" ")}</span>
+        : null}
+    </div>}
+    <p className="hint">Der Mausslot ist durch das Kampfprofil festgelegt. Du wählst nur die F-Taste.</p>
     <div className="binding-skill-grid" role="group" aria-label="Skilltasten">
       {requiredSkills.map((skill) => {
         const selected = value.skills[skill.skill] ?? "";
@@ -63,6 +81,7 @@ export function BindingEditor({
         return <label key={skill.skill} className={collision ? "binding-collision" : undefined}>
           <span className="binding-skill-label">
             <strong>{skill.display_name}</strong>
+            <StatusBadge tone="neutral">{skillSlotLabel(skill.slot)}</StatusBadge>
             {standardAttack === skill.skill ? <StatusBadge tone="success">Standardangriff</StatusBadge> : null}
           </span>
           <select
@@ -82,6 +101,44 @@ export function BindingEditor({
         </label>;
       })}
     </div>
+
+    {optionalSkillPairs.map((pair, pairIndex) => <section className="binding-optional-pair" key={pair.skills.map((skill) => skill.skill).join("-") || pairIndex}>
+      <div className="binding-optional-heading">
+        <div>
+          <h4>Optional: Call to Arms</h4>
+          <p>Call to Arms ist optional. Wenn du Battle Command und Battle Orders belegst, muss CTA im zweiten Waffenset liegen. Ein Holy-Shield-Schild darf ebenfalls dort ausgerüstet sein. Der Bot prüft Waffenset und Skillauswahl, aber nicht das Runenwort oder die Söldnerausrüstung.</p>
+        </div>
+        <StatusBadge tone="neutral">Waffenset II · beide oder keine</StatusBadge>
+      </div>
+      <div className="binding-skill-grid" role="group" aria-label="Optionale Call-to-Arms-Tasten">
+        {pair.skills.map((skill) => {
+          const selected = value.skills[skill.skill] ?? "";
+          const collision = selected ? collisions[selected] : undefined;
+          return <label key={skill.skill} className={collision ? "binding-collision" : undefined}>
+            <span className="binding-skill-label">
+              <strong>{skill.display_name}</strong>
+              <StatusBadge tone="neutral">Optional · {skillSlotLabel(skill.slot)}</StatusBadge>
+            </span>
+            <select
+              value={selected}
+              disabled={!mutable}
+              aria-label={`${skill.display_name} Taste`}
+              aria-invalid={!!collision}
+              onChange={(event) => onChange({
+                ...value,
+                skills: { ...value.skills, [skill.skill]: event.target.value },
+              })}
+            >
+              <option value="">Nicht belegt</option>
+              {skillKeys.map((key) => <option key={key} value={key}>{key.toUpperCase()}</option>)}
+            </select>
+            {collision ? <small role="alert">{collision}</small> : null}
+          </label>;
+        })}
+      </div>
+    </section>)}
+
+    {requiresMercenary && <p className="binding-mercenary-note">Für Hammerdin muss ein lebender Söldner verfügbar sein. Seine Ausrüstung wird nicht geprüft.</p>}
 
     <h4>Gürtel</h4>
     <div className="binding-belt-grid" role="group" aria-label="Gürteltasten">
@@ -109,6 +166,18 @@ export function BindingEditor({
       })}
     </div>
   </div>;
+}
+
+function skillSlotLabel(slot: CharacterSetupRequiredSkillDTO["slot"]): string {
+  if (slot === "left") return "LMB";
+  if (slot === "right") return "RMB";
+  return "Mausslot";
+}
+
+function bindingReasonText(reason: string, hasOptionalPair: boolean): string {
+  if (reason === "profile_bindings_incomplete" && hasOptionalPair) return "Pflichtskills, Gürtel oder das optionale CTA-Paar sind noch nicht vollständig gültig.";
+  if (reason === "profile_bindings_incomplete") return "Pflichtskills oder Gürtel sind noch nicht vollständig gültig.";
+  return "Die Tastenbelegung ist laut Core noch nicht gültig.";
 }
 
 function collectCollisions(value: BindingEditorValue): Record<string, string> {

@@ -9,7 +9,7 @@ Der Task Runner führt registrierte Run-Definitionen über eine gemeinsame Pipel
 - **Paket:** `internal/tasks/`
 - **Einstieg:** `cmd/d2rbot` mit `--run <id>` oder `runs.active` in der Config
 - **App-Integration:** `internal/app/run_tick.go`, `internal/app/run_mode.go`
-- **Wichtige Dateien:** `runner.go`, `registry.go`, `run_pipeline.go`, `run_contract.go`, `step.go`, `deps.go`, `result.go`
+- **Wichtige Dateien:** `runner.go`, `registry.go`, `run_pipeline.go`, `pipeline_flow.go`, `pipeline_state.go`, `pipeline_deps.go`, `pipeline_travel.go`, `pipeline_boss.go`, `pipeline_loot.go`, `pipeline_return.go`, `run_contract.go`, `step.go`, `deps.go`, `result.go`
 - **Config:** `configs/config.example.yaml` → Sektion `runs`
 
 ## Funktionalität
@@ -33,6 +33,22 @@ Beim Startup wird nur `task run configured` geloggt (wenn ein Run gesetzt ist). 
 Nach dem ersten Attach kann der Start um **1–2 Poll-Ticks** verzögert sein (Attach-Tick führt kein `World.Update` aus).
 
 ### Step-Modell
+
+Die Standardpipeline ist nach fachlicher Verantwortung getrennt und verwendet weiterhin denselben internen `*runPipeline`-Receiver als Orchestrator. `run_pipeline.go` dispatcht nur Full-Run und isolierte Phasen. `pipeline_flow.go` besitzt Step-/Phasentopologie, `pipeline_state.go` den gruppierten Generation-State und die zentrale Reset-Barriere; Travel, Boss, Loot und Return enthalten ihre bestehenden Handler.
+
+Der persistente Zustand besitzt genau eine fachliche Gruppe:
+
+| Domäne | Persistenter Zustand |
+|---|---|
+| Core | Run-Definition, Phase, Route-/Combat-Konfiguration |
+| Travel/Route | Navigator-/Route-Start, Resume, Route-Progress-Verfügbarkeit, Threat-Approach, Route-Loot und terminale Safe-Snapshots |
+| Boss | Suchfallback, Boss-Pin, Encounter-Index, Approach, Nihlathak-Aim und Post-Boss-Cleanup |
+| Loot | Drop-/Scan-Stabilität, Post-Kill-Reposition, Pickup-Ziel und begrenzte Pickup-Recovery |
+| Return | Town-Egress sowie Portal-UnitID und begrenzte Portal-Recovery |
+
+Die unveränderliche Core-Gruppe wird beim Aufbau einer Runner-Generation gesetzt. Die zentrale Reset-Barriere leert alle vier veränderlichen Gruppen, bevor eine andere Generation starten darf. Die Domain-Handler erhalten schmale Dependency-Sichten: Travel sieht nur Waypoint/Town-Walk/Route/Combat/Loot/Profile/Telemetry, Boss nur Pathing/Combat/Route-Clear/Profile/Telemetry, Loot nur Combat/Loot und Return nur seine Portal-/Stash-/Town-Abhängigkeiten. Damit kann kein Handler versehentlich auf einen Input-Eigentümer einer fremden Domäne zugreifen.
+
+Der Runtime-Recorder lehnt einen Tick mit mehr als einem produktiven semantischen Input-Intent fail-closed ab. Damit bleibt die bereits fachlich geltende Ein-Input-Gelegenheit pro Tick auch während mechanischer Refactors als ausführbare Invariante erhalten.
 
 Zwei Abschluss-Mechanismen (nicht vermischen):
 
@@ -145,4 +161,4 @@ JSONL-Transitionen `run_step_started`, `run_step_completed` und `run_step_failed
 - [Mercenary Support](mercenary-support.md) — Combat-/Town-Söldner
 
 ---
-*Zuletzt aktualisiert: 2026-07-31*
+*Zuletzt aktualisiert: 2026-08-14*

@@ -976,6 +976,16 @@
     "/api/v1/route-recording/options": {
       "get": {
         "operationId": "getRecordingOptions",
+        "parameters": [
+          {
+            "name": "character",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Recording contracts",
@@ -1877,17 +1887,26 @@
       },
       "CharacterSetupRequiredSkillDTO": {
         "type": "object",
-        "required": ["skill", "skill_id", "display_name"],
+        "required": ["skill", "skill_id", "display_name", "slot"],
         "additionalProperties": false,
         "properties": {
           "skill": {"type": "string"},
           "skill_id": {"type": "integer", "minimum": 0, "maximum": 65535},
-          "display_name": {"type": "string"}
+          "display_name": {"type": "string"},
+          "slot": {"type": "string", "enum": ["left", "right", ""]}
+        }
+      },
+      "CharacterSetupOptionalSkillPairDTO": {
+        "type": "object",
+        "required": ["skills"],
+        "additionalProperties": false,
+        "properties": {
+          "skills": {"type": "array", "minItems": 2, "maxItems": 2, "items": {"$ref": "#/components/schemas/CharacterSetupRequiredSkillDTO"}}
         }
       },
       "CharacterSetupProfileDTO": {
         "type": "object",
-        "required": ["id", "display_name", "is_default", "is_selected"],
+        "required": ["id", "display_name", "is_default", "is_selected", "requires_mercenary", "bindings_ready"],
         "additionalProperties": false,
         "properties": {
           "id": {"type": "string"},
@@ -1896,6 +1915,10 @@
           "is_selected": {"type": "boolean"},
           "standard_attack": {"type": "string"},
           "required_skills": {"type": "array", "items": {"$ref": "#/components/schemas/CharacterSetupRequiredSkillDTO"}},
+          "optional_skill_pairs": {"type": "array", "items": {"$ref": "#/components/schemas/CharacterSetupOptionalSkillPairDTO"}},
+          "requires_mercenary": {"type": "boolean"},
+          "bindings_ready": {"type": "boolean"},
+          "binding_reasons": {"type": "array", "items": {"type": "string"}},
           "supported_runs": {"type": "array", "items": {"type": "string"}}
         }
       },
@@ -3090,6 +3113,12 @@
           },
           "act": {
             "type": "string"
+          },
+          "character": {
+            "type": "string"
+          },
+          "difficulty": {
+            "type": "string"
           }
         }
       },
@@ -3108,6 +3137,9 @@
             "type": "string"
           },
           "route_role": {
+            "type": "string"
+          },
+          "character": {
             "type": "string"
           }
         }

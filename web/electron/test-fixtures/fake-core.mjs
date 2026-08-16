@@ -17,6 +17,10 @@ const { values } = parseArgs({
   strict: false,
 });
 const mode = String(values.mode);
+if (mode === "start-fail") {
+  process.stderr.write("error: pickit assignment invalid for MrHammer/countess: pickit_assignment_missing\n");
+  process.exit(1);
+}
 const pipe = String(values["desktop-handshake-pipe"] ?? "");
 let state = mode === "exit-active" || mode === "active-command" || mode === "steady-active" ? "running_run" : "idle";
 let generation = 1;

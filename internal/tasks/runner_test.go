@@ -165,6 +165,7 @@ func (m *mockRoutePlayback) Reset()                 { m.resetCalls++ }
 
 type mockCombatActions struct {
 	castCalls           int
+	holdCalls           int
 	castSkills          []uint16
 	teleportCalls       int
 	stopCalls           int
@@ -184,6 +185,7 @@ type mockCombatActions struct {
 	castMonsterErr      error
 	castMonsterResults  []profile.MonsterCastResult
 	castMonsterUnitIDs  []uint32
+	holdResults         []profile.MonsterCastResult
 }
 
 type mockRunActions struct {
@@ -363,6 +365,18 @@ func (m *mockCombatActions) CastAttackAtWorld(_ time.Time, skillID uint16, _ wor
 	m.castSkills = append(m.castSkills, skillID)
 	m.lastSkillID = skillID
 	return true, nil
+}
+
+func (m *mockCombatActions) HoldStandardAttack(_ time.Time, skillID uint16, _ world.Player, target world.Monster) (profile.MonsterCastResult, error) {
+	m.holdCalls++
+	m.lastSkillID = skillID
+	m.lastMonsterUnitID = target.UnitID
+	if len(m.holdResults) > 0 {
+		result := m.holdResults[0]
+		m.holdResults = m.holdResults[1:]
+		return result, nil
+	}
+	return profile.MonsterCastResult{Sent: true, TargetingMode: profile.MonsterTargetingHoverConfirmed}, nil
 }
 
 func (m *mockCombatActions) CastAttackAtMonster(_ time.Time, skillID uint16, _ world.Player, target world.Monster) (profile.MonsterCastResult, error) {
@@ -777,6 +791,8 @@ func TestCountessFullRunSuccessCastsTownPortal(t *testing.T) {
 		healthy(townStateWithWaypoint()),
 		healthy(blackMarshState()),
 		healthy(blackMarshState()),
+		healthy(blackMarshState()),
+		healthy(blackMarshState()),
 		healthy(areaState(world.ForgottenTower)),
 		healthy(areaState(world.TowerCellarLevel1)),
 		healthy(areaState(world.TowerCellarLevel2)),
@@ -973,7 +989,7 @@ func TestCountessTravelMarshSuccessThroughLoading(t *testing.T) {
 		},
 	}
 	tw := &mockTownWalker{}
-	r := NewRunner(config.NewLogger("error"), RunSelection{Run: "countess", Phase: RunPhaseTravelEntry}, RunConfig{StepTimeout: time.Second}, Deps{Waypoint: wp, TownWalk: tw})
+	r := NewRunner(config.NewLogger("error"), RunSelection{Run: "countess", Phase: RunPhaseTravelEntry}, RunConfig{StepTimeout: 10 * time.Second}, Deps{Waypoint: wp, TownWalk: tw})
 	now := time.Now()
 
 	res := r.Tick(context.Background(), townStateWithWaypoint(), now)
@@ -1016,8 +1032,20 @@ func TestCountessTravelMarshSuccessThroughLoading(t *testing.T) {
 		t.Fatalf("loading wait tick = %+v, want still waiting", res)
 	}
 	res = r.Tick(context.Background(), blackMarshState(), now.Add(time.Second))
+	if res.Step != pipelineStepWaitEntryArea || res.Outcome != RunOutcomeRunning {
+		t.Fatalf("first black marsh tick = %+v, want wait_entry_area running", res)
+	}
+	mid := blackMarshState()
+	mid.At = now.Add(2 * time.Second)
+	res = r.Tick(context.Background(), mid, now.Add(2*time.Second))
+	if res.Step != pipelineStepWaitEntryArea || res.Outcome != RunOutcomeRunning {
+		t.Fatalf("unsettled black marsh tick = %+v, want wait_entry_area running", res)
+	}
+	settled := blackMarshState()
+	settled.At = now.Add(4 * time.Second)
+	res = r.Tick(context.Background(), settled, now.Add(4*time.Second))
 	if res.Outcome != RunOutcomeSuccess {
-		t.Fatalf("black marsh tick = %+v, want success", res)
+		t.Fatalf("settled black marsh tick = %+v, want success", res)
 	}
 }
 
@@ -1112,6 +1140,15 @@ func TestMephistoTownNormalizationFailsClosedBeforeMovement(t *testing.T) {
 	if res := pipeline.onTownNormalizationTick(context.Background(), Deps{}, pipelineStepWaitHubArea, areaState(world.TamoeHighland), now, now); !res.failed || res.reason != string(RunReasonUnexpectedArea) {
 		t.Fatalf("wrong hub area=%+v", res)
 	}
+	loading := areaState(world.None)
+	if res := pipeline.onTownNormalizationTick(context.Background(), Deps{}, pipelineStepWaitHubArea, loading, now, now); res.complete || res.failed {
+		t.Fatalf("hub fade area 0=%+v, want pending", res)
+	}
+	seedless := areaState(world.DuranceOfHateLevel3)
+	seedless.Identity = world.GameIdentity{Valid: true, CharacterName: "MrHammer", Class: world.CharacterClassPaladin, MapSeed: 0}
+	if res := pipeline.onTownNormalizationTick(context.Background(), Deps{}, pipelineStepWaitHubArea, seedless, now, now); res.complete || res.failed {
+		t.Fatalf("hub fade seed 0=%+v, want pending", res)
+	}
 }
 
 func TestCountessTravelMarshPrecheckFailsOutsideAct1Town(t *testing.T) {
@@ -1159,7 +1196,7 @@ func TestCountessTravelCellar5SuccessStartsExpectedGoals(t *testing.T) {
 	wp := &mockWaypointActions{}
 	nav := &mockNavigator{}
 	route := &mockRoutePlayback{}
-	r := NewRunner(config.NewLogger("error"), RunSelection{Run: "countess", Phase: RunPhasePlayRoute}, RunConfig{StepTimeout: 5 * time.Second, RouteID: "test-countess-route"}, Deps{
+	r := NewRunner(config.NewLogger("error"), RunSelection{Run: "countess", Phase: RunPhasePlayRoute}, RunConfig{StepTimeout: 10 * time.Second, RouteID: "test-countess-route"}, Deps{
 		Waypoint: wp,
 		TownWalk: &mockTownWalker{},
 		Pathing:  nav,
@@ -1167,25 +1204,32 @@ func TestCountessTravelCellar5SuccessStartsExpectedGoals(t *testing.T) {
 	})
 	now := time.Now()
 
-	ticks := []world.State{
-		townStateWithWaypoint(),
-		townStateWithWaypoint(),
-		townStateWithWaypoint(),
-		townStateWithWaypoint(),
-		townStateWithWaypoint(),
-		blackMarshState(),
-		blackMarshState(),
-		areaState(world.ForgottenTower),
-		areaState(world.TowerCellarLevel1),
-		areaState(world.TowerCellarLevel2),
-		areaState(world.TowerCellarLevel3),
-		areaState(world.TowerCellarLevel4),
-		areaState(world.TowerCellarLevel5),
+	ticks := []struct {
+		state world.State
+		at    time.Duration
+	}{
+		{townStateWithWaypoint(), 0},
+		{townStateWithWaypoint(), 200 * time.Millisecond},
+		{townStateWithWaypoint(), 400 * time.Millisecond},
+		{townStateWithWaypoint(), 600 * time.Millisecond},
+		{townStateWithWaypoint(), 800 * time.Millisecond},
+		{blackMarshState(), time.Second},
+		{blackMarshState(), 2500 * time.Millisecond},
+		{blackMarshState(), 4 * time.Second},
+		{blackMarshState(), 5500 * time.Millisecond},
+		{areaState(world.ForgottenTower), 5700 * time.Millisecond},
+		{areaState(world.TowerCellarLevel1), 5900 * time.Millisecond},
+		{areaState(world.TowerCellarLevel2), 6100 * time.Millisecond},
+		{areaState(world.TowerCellarLevel3), 6300 * time.Millisecond},
+		{areaState(world.TowerCellarLevel4), 6500 * time.Millisecond},
+		{areaState(world.TowerCellarLevel5), 6700 * time.Millisecond},
 	}
 
 	var res TickResult
-	for i, st := range ticks {
-		res = r.Tick(context.Background(), st, now.Add(time.Duration(i)*200*time.Millisecond))
+	for _, tick := range ticks {
+		st := tick.state
+		st.At = now.Add(tick.at)
+		res = r.Tick(context.Background(), st, now.Add(tick.at))
 	}
 	if res.Outcome != RunOutcomeSuccess || res.Step != pipelineStepPlayRoute {
 		t.Fatalf("final tick = %+v, want success at play_bound_route", res)
@@ -1202,7 +1246,7 @@ func TestCountessTravelCellar5SuccessStartsExpectedGoals(t *testing.T) {
 func TestPhase17NoThreatSummonerRouteRemainsDirectPlaybackBeforeControllerWiring(t *testing.T) {
 	definition, _ := DefaultRunRegistry().Definition(RunIDSummoner)
 	route := &mockRoutePlayback{}
-	pipeline := &runPipeline{definition: definition, phase: RunPhasePlayRoute, routeID: "summoner-route"}
+	pipeline := &runPipeline{definition: definition, phase: RunPhasePlayRoute, core: pipelineCoreState{routeID: "summoner-route"}}
 	state := areaState(world.ArcaneSanctuary)
 	result := pipeline.onTravelTick(context.Background(), Deps{Route: route}, pipelineStepPlayRoute, state, time.Now(), time.Now())
 	if result.failed || result.complete {
@@ -1222,9 +1266,8 @@ func TestCowRouteProgressUnavailableRequiresFreshSustainedProof(t *testing.T) {
 	t.Run("transient projection loss recovers", func(t *testing.T) {
 		route := &mockRoutePlayback{progressOK: false}
 		pipeline := &runPipeline{
-			definition:  definition,
-			routeID:     "cow-route",
-			routeCombat: RouteCombatConfig{Enabled: true},
+			definition: definition, core: pipelineCoreState{routeID: "cow-route",
+				routeCombat: RouteCombatConfig{Enabled: true}},
 		}
 
 		result := pipeline.onTravelTick(context.Background(), Deps{Route: route}, pipelineStepPlayRoute, state, base, base)
@@ -1237,17 +1280,16 @@ func TestCowRouteProgressUnavailableRequiresFreshSustainedProof(t *testing.T) {
 		route.progressOK = true
 		route.progress = RouteProgress{Mode: RouteProgressMovement}
 		result = pipeline.onTravelTick(context.Background(), Deps{Route: route}, pipelineStepPlayRoute, recovered, recovered.At, base)
-		if result.failed || route.tickCalls != 1 || !pipeline.routeProgressUnavailableSince.IsZero() {
-			t.Fatalf("recovered progress result=%+v ticks=%d unavailableSince=%v", result, route.tickCalls, pipeline.routeProgressUnavailableSince)
+		if result.failed || route.tickCalls != 1 || !pipeline.travel.routeProgressUnavailableSince.IsZero() {
+			t.Fatalf("recovered progress result=%+v ticks=%d unavailableSince=%v", result, route.tickCalls, pipeline.travel.routeProgressUnavailableSince)
 		}
 	})
 
 	t.Run("same snapshot cannot consume grace", func(t *testing.T) {
 		route := &mockRoutePlayback{progressOK: false}
 		pipeline := &runPipeline{
-			definition:  definition,
-			routeID:     "cow-route",
-			routeCombat: RouteCombatConfig{Enabled: true},
+			definition: definition, core: pipelineCoreState{routeID: "cow-route",
+				routeCombat: RouteCombatConfig{Enabled: true}},
 		}
 
 		result := pipeline.onTravelTick(context.Background(), Deps{Route: route}, pipelineStepPlayRoute, state, base, base)
@@ -1524,8 +1566,7 @@ func TestBossRunRepositionsAtLastBossPositionBeforeLoot(t *testing.T) {
 	definition, _ := DefaultRunRegistry().Definition(RunIDCountess)
 	position := world.Position{X: 130, Y: 100}
 	pipeline := &runPipeline{
-		definition: definition, combat: killRunConfig().Combat,
-		targetSeen: true, targetUnitID: 10, targetPosition: position, targetPositionSet: true,
+		definition: definition, boss: pipelineBossState{targetSeen: true, targetUnitID: 10, targetPosition: position, targetPositionSet: true}, core: pipelineCoreState{combat: killRunConfig().Combat},
 	}
 	now := time.Now()
 	state := cellar5State()
@@ -1551,8 +1592,7 @@ func TestBossLootRepositionRetriesOnlyAfterFreshSnapshotsThenContinuesToItemScan
 	definition, _ := DefaultRunRegistry().Definition(RunIDCountess)
 	position := world.Position{X: 130, Y: 100}
 	pipeline := &runPipeline{
-		definition: definition, combat: killRunConfig().Combat,
-		targetSeen: true, targetUnitID: 10, targetPosition: position, targetPositionSet: true,
+		definition: definition, boss: pipelineBossState{targetSeen: true, targetUnitID: 10, targetPosition: position, targetPositionSet: true}, core: pipelineCoreState{combat: killRunConfig().Combat},
 	}
 	now := time.Now()
 	state := cellar5State()
@@ -1560,7 +1600,7 @@ func TestBossLootRepositionRetriesOnlyAfterFreshSnapshotsThenContinuesToItemScan
 	state.Player.Position = world.Position{X: 100, Y: 100}
 
 	res := pipeline.onBossTick(context.Background(), Deps{Combat: combat}, pipelineStepRepositionForLoot, state, now)
-	if res.complete || res.failed || combat.teleportCalls != 1 || pipeline.postKillTeleportAttempts != 1 {
+	if res.complete || res.failed || combat.teleportCalls != 1 || pipeline.loot.postKillTeleportAttempts != 1 {
 		t.Fatalf("first attempt=%+v calls=%d state=%+v", res, combat.teleportCalls, pipeline)
 	}
 	res = pipeline.onBossTick(context.Background(), Deps{Combat: combat}, pipelineStepRepositionForLoot, state, now.Add(time.Second))
@@ -1585,19 +1625,19 @@ func TestBossLootRepositionDoesNotConsumeRetryForThrottledNoOp(t *testing.T) {
 	combat := &mockCombatActions{teleportSent: []bool{false, true}}
 	definition, _ := DefaultRunRegistry().Definition(RunIDCountess)
 	pipeline := &runPipeline{
-		definition: definition, targetPosition: world.Position{X: 130, Y: 100}, targetPositionSet: true,
+		definition: definition, boss: pipelineBossState{targetPosition: world.Position{X: 130, Y: 100}, targetPositionSet: true},
 	}
 	state := cellar5State()
 	state.At = time.Now()
 	state.Player.Position = world.Position{X: 100, Y: 100}
 
 	_ = pipeline.onBossTick(context.Background(), Deps{Combat: combat}, pipelineStepRepositionForLoot, state, state.At)
-	if pipeline.postKillTeleportAttempts != 0 {
+	if pipeline.loot.postKillTeleportAttempts != 0 {
 		t.Fatalf("throttled call consumed retry: %+v", pipeline)
 	}
 	_ = pipeline.onBossTick(context.Background(), Deps{Combat: combat}, pipelineStepRepositionForLoot, state, state.At.Add(time.Millisecond))
-	if pipeline.postKillTeleportAttempts != 1 || combat.teleportCalls != 2 {
-		t.Fatalf("real retry attempts=%d calls=%d", pipeline.postKillTeleportAttempts, combat.teleportCalls)
+	if pipeline.loot.postKillTeleportAttempts != 1 || combat.teleportCalls != 2 {
+		t.Fatalf("real retry attempts=%d calls=%d", pipeline.loot.postKillTeleportAttempts, combat.teleportCalls)
 	}
 }
 
@@ -1611,7 +1651,7 @@ func TestLootCandidateRepositionsToCurrentItemBeforePickup(t *testing.T) {
 	lootActions := &mockLootActions{
 		scans: []LootScanResult{{GroundItemCount: 1, CandidateCount: 1, HasTarget: true, NextTarget: target}},
 	}
-	pipeline := &runPipeline{definition: definition, lootPickupDistanceTiles: 8}
+	pipeline := &runPipeline{definition: definition, core: pipelineCoreState{lootPickupDistanceTiles: 8}}
 	now := time.Now()
 	state := cellar5State()
 	state.At = now
@@ -1645,7 +1685,7 @@ func TestLootCandidateSkipsFarChaseWithoutTeleport(t *testing.T) {
 		scans: []LootScanResult{{GroundItemCount: 1, CandidateCount: 1, HasTarget: true, NextTarget: target}},
 		ticks: []LootPickupResult{{Status: LootPickupTooFar, Done: true, Target: target}},
 	}
-	pipeline := &runPipeline{definition: definition, lootPickupDistanceTiles: 8}
+	pipeline := &runPipeline{definition: definition, core: pipelineCoreState{lootPickupDistanceTiles: 8}}
 	now := time.Now()
 	state := cellar5State()
 	state.At = now
@@ -1675,7 +1715,7 @@ func TestLootPickupRecoversOnceAfterHoverNotFound(t *testing.T) {
 			{Status: LootPickupPickedUp, Done: true, Target: target},
 		},
 	}
-	pipeline := &runPipeline{definition: definition, lootPickupDistanceTiles: 8}
+	pipeline := &runPipeline{definition: definition, core: pipelineCoreState{lootPickupDistanceTiles: 8}}
 	now := time.Now()
 	state := cellar5State()
 	state.At = now
@@ -1688,16 +1728,16 @@ func TestLootPickupRecoversOnceAfterHoverNotFound(t *testing.T) {
 
 	res := pipeline.onLootTick(context.Background(), deps, pipelineStepPickLoot, state, now, now)
 	if res.failed || res.complete || len(lootActions.startCalls) != 1 || len(lootActions.clearSkipIDs) != 1 ||
-		lootActions.clearSkipIDs[0] != target.UnitID || !pipeline.lootRecoveryPending || combat.teleportCalls != 0 {
+		lootActions.clearSkipIDs[0] != target.UnitID || !pipeline.loot.lootRecoveryPending || combat.teleportCalls != 0 {
 		t.Fatalf("hover fail result=%+v starts=%d clears=%v pending=%v teleports=%d",
-			res, len(lootActions.startCalls), lootActions.clearSkipIDs, pipeline.lootRecoveryPending, combat.teleportCalls)
+			res, len(lootActions.startCalls), lootActions.clearSkipIDs, pipeline.loot.lootRecoveryPending, combat.teleportCalls)
 	}
 
 	res = pipeline.onLootTick(context.Background(), deps, pipelineStepPickLoot, state, now.Add(time.Millisecond), now)
 	if res.failed || res.complete || combat.teleportCalls != 1 || combat.lastTeleportTarget != target.Position ||
-		len(lootActions.startCalls) != 1 || !pipeline.lootRecoveryTeleportSent {
+		len(lootActions.startCalls) != 1 || !pipeline.loot.lootRecoveryTeleportSent {
 		t.Fatalf("recovery teleport result=%+v teleports=%d target=%+v starts=%d sent=%v",
-			res, combat.teleportCalls, combat.lastTeleportTarget, len(lootActions.startCalls), pipeline.lootRecoveryTeleportSent)
+			res, combat.teleportCalls, combat.lastTeleportTarget, len(lootActions.startCalls), pipeline.loot.lootRecoveryTeleportSent)
 	}
 
 	settled := state
@@ -1705,9 +1745,9 @@ func TestLootPickupRecoversOnceAfterHoverNotFound(t *testing.T) {
 	settled.Player.Position = target.Position
 	res = pipeline.onLootTick(context.Background(), deps, pipelineStepPickLoot, settled, settled.At, now)
 	if res.failed || res.complete || len(lootActions.startCalls) != 2 || lootActions.tickCalls != 2 ||
-		pipeline.lootRecoveryPending || combat.teleportCalls != 1 {
+		pipeline.loot.lootRecoveryPending || combat.teleportCalls != 1 {
 		t.Fatalf("recovery pickup result=%+v starts=%d ticks=%d pending=%v teleports=%d",
-			res, len(lootActions.startCalls), lootActions.tickCalls, pipeline.lootRecoveryPending, combat.teleportCalls)
+			res, len(lootActions.startCalls), lootActions.tickCalls, pipeline.loot.lootRecoveryPending, combat.teleportCalls)
 	}
 }
 
@@ -1725,7 +1765,7 @@ func TestLootPickupRecoversOnceAfterTooFar(t *testing.T) {
 			{Status: LootPickupPickedUp, Done: true, Target: target},
 		},
 	}
-	pipeline := &runPipeline{definition: definition, lootPickupDistanceTiles: 8}
+	pipeline := &runPipeline{definition: definition, core: pipelineCoreState{lootPickupDistanceTiles: 8}}
 	now := time.Now()
 	state := cellar5State()
 	state.At = now
@@ -1738,16 +1778,16 @@ func TestLootPickupRecoversOnceAfterTooFar(t *testing.T) {
 
 	res := pipeline.onLootTick(context.Background(), deps, pipelineStepPickLoot, state, now, now)
 	if res.failed || res.complete || len(lootActions.startCalls) != 1 || len(lootActions.clearSkipIDs) != 1 ||
-		lootActions.clearSkipIDs[0] != target.UnitID || !pipeline.lootRecoveryPending || combat.teleportCalls != 0 {
+		lootActions.clearSkipIDs[0] != target.UnitID || !pipeline.loot.lootRecoveryPending || combat.teleportCalls != 0 {
 		t.Fatalf("too-far fail result=%+v starts=%d clears=%v pending=%v teleports=%d",
-			res, len(lootActions.startCalls), lootActions.clearSkipIDs, pipeline.lootRecoveryPending, combat.teleportCalls)
+			res, len(lootActions.startCalls), lootActions.clearSkipIDs, pipeline.loot.lootRecoveryPending, combat.teleportCalls)
 	}
 
 	res = pipeline.onLootTick(context.Background(), deps, pipelineStepPickLoot, state, now.Add(time.Millisecond), now)
 	if res.failed || res.complete || combat.teleportCalls != 1 || combat.lastTeleportTarget != target.Position ||
-		!pipeline.lootRecoveryTeleportSent {
+		!pipeline.loot.lootRecoveryTeleportSent {
 		t.Fatalf("recovery teleport result=%+v teleports=%d target=%+v sent=%v",
-			res, combat.teleportCalls, combat.lastTeleportTarget, pipeline.lootRecoveryTeleportSent)
+			res, combat.teleportCalls, combat.lastTeleportTarget, pipeline.loot.lootRecoveryTeleportSent)
 	}
 
 	settled := state
@@ -1755,9 +1795,9 @@ func TestLootPickupRecoversOnceAfterTooFar(t *testing.T) {
 	settled.Player.Position = target.Position
 	res = pipeline.onLootTick(context.Background(), deps, pipelineStepPickLoot, settled, settled.At, now)
 	if res.failed || res.complete || len(lootActions.startCalls) != 2 || lootActions.tickCalls != 2 ||
-		pipeline.lootRecoveryPending || combat.teleportCalls != 1 {
+		pipeline.loot.lootRecoveryPending || combat.teleportCalls != 1 {
 		t.Fatalf("recovery pickup result=%+v starts=%d ticks=%d pending=%v teleports=%d",
-			res, len(lootActions.startCalls), lootActions.tickCalls, pipeline.lootRecoveryPending, combat.teleportCalls)
+			res, len(lootActions.startCalls), lootActions.tickCalls, pipeline.loot.lootRecoveryPending, combat.teleportCalls)
 	}
 }
 
@@ -1776,7 +1816,7 @@ func TestRouteLootRecoversThreatFreeTooFarCandidateWithinScanRadius(t *testing.T
 		},
 	}
 	route := &mockRoutePlayback{}
-	pipeline := &runPipeline{definition: definition, lootPickupDistanceTiles: 8}
+	pipeline := &runPipeline{definition: definition, core: pipelineCoreState{lootPickupDistanceTiles: 8}}
 	progress := RouteProgress{Mode: RouteProgressMovement, SegmentIndex: 0, PointIndex: 7}
 	now := time.Now()
 	state := cellar5State()
@@ -1788,35 +1828,35 @@ func TestRouteLootRecoversThreatFreeTooFarCandidateWithinScanRadius(t *testing.T
 	}}
 	deps := Deps{Route: route, Loot: lootActions, Combat: combat}
 
-	handled, res := pipeline.tickRouteLoot(deps, state, progress, now)
+	handled, res := pipeline.tickRouteLoot(narrowTravelDeps(deps), state, progress, now)
 	if !handled || res.failed || len(lootActions.startCalls) != 1 || len(lootActions.clearSkipIDs) != 1 ||
-		!pipeline.lootRecoveryPending || combat.teleportCalls != 0 {
+		!pipeline.loot.lootRecoveryPending || combat.teleportCalls != 0 {
 		t.Fatalf("too-far result=%+v handled=%v starts=%d clears=%v pending=%v teleports=%d",
-			res, handled, len(lootActions.startCalls), lootActions.clearSkipIDs, pipeline.lootRecoveryPending, combat.teleportCalls)
+			res, handled, len(lootActions.startCalls), lootActions.clearSkipIDs, pipeline.loot.lootRecoveryPending, combat.teleportCalls)
 	}
 
-	handled, res = pipeline.tickRouteLoot(deps, state, progress, now.Add(time.Millisecond))
+	handled, res = pipeline.tickRouteLoot(narrowTravelDeps(deps), state, progress, now.Add(time.Millisecond))
 	if !handled || res.failed || combat.teleportCalls != 1 || combat.lastTeleportTarget != target.Position ||
-		!pipeline.lootRecoveryTeleportSent {
+		!pipeline.loot.lootRecoveryTeleportSent {
 		t.Fatalf("recovery teleport result=%+v handled=%v teleports=%d target=%+v sent=%v",
-			res, handled, combat.teleportCalls, combat.lastTeleportTarget, pipeline.lootRecoveryTeleportSent)
+			res, handled, combat.teleportCalls, combat.lastTeleportTarget, pipeline.loot.lootRecoveryTeleportSent)
 	}
 
 	settled := state
 	settled.At = now.Add(lootRepositionRetryDelay + time.Millisecond)
 	settled.Player.Position = target.Position
-	handled, res = pipeline.tickRouteLoot(deps, settled, progress, settled.At)
-	if !handled || res.failed || len(lootActions.startCalls) != 2 || pipeline.lootRecoveryPending || !pipeline.lootPickupActive {
+	handled, res = pipeline.tickRouteLoot(narrowTravelDeps(deps), settled, progress, settled.At)
+	if !handled || res.failed || len(lootActions.startCalls) != 2 || pipeline.loot.lootRecoveryPending || !pipeline.loot.lootPickupActive {
 		t.Fatalf("recovery restart result=%+v handled=%v starts=%d pending=%v active=%v",
-			res, handled, len(lootActions.startCalls), pipeline.lootRecoveryPending, pipeline.lootPickupActive)
+			res, handled, len(lootActions.startCalls), pipeline.loot.lootRecoveryPending, pipeline.loot.lootPickupActive)
 	}
 
 	settled.At = settled.At.Add(time.Millisecond)
-	handled, res = pipeline.tickRouteLoot(deps, settled, progress, settled.At)
-	if !handled || res.failed || pipeline.lootPickupActive || pipeline.lootRecoveryPending || combat.teleportCalls != 1 ||
+	handled, res = pipeline.tickRouteLoot(narrowTravelDeps(deps), settled, progress, settled.At)
+	if !handled || res.failed || pipeline.loot.lootPickupActive || pipeline.loot.lootRecoveryPending || combat.teleportCalls != 1 ||
 		lootActions.tickCalls != 2 {
 		t.Fatalf("recovery pickup result=%+v handled=%v active=%v pending=%v teleports=%d ticks=%d",
-			res, handled, pipeline.lootPickupActive, pipeline.lootRecoveryPending, combat.teleportCalls, lootActions.tickCalls)
+			res, handled, pipeline.loot.lootPickupActive, pipeline.loot.lootRecoveryPending, combat.teleportCalls, lootActions.tickCalls)
 	}
 }
 
@@ -1839,7 +1879,7 @@ func TestLootPickupRecoveryIsBoundedToOneTeleportPerUnit(t *testing.T) {
 			{Status: LootPickupFailed, Done: true, Target: target},
 		},
 	}
-	pipeline := &runPipeline{definition: definition, lootPickupDistanceTiles: 8}
+	pipeline := &runPipeline{definition: definition, core: pipelineCoreState{lootPickupDistanceTiles: 8}}
 	now := time.Now()
 	state := cellar5State()
 	state.At = now
@@ -1855,15 +1895,15 @@ func TestLootPickupRecoveryIsBoundedToOneTeleportPerUnit(t *testing.T) {
 	settled := state
 	settled.At = now.Add(lootRepositionRetryDelay + time.Millisecond)
 	_ = pipeline.onLootTick(context.Background(), deps, pipelineStepPickLoot, settled, settled.At, now)
-	if combat.teleportCalls != 1 || len(lootActions.startCalls) != 2 || pipeline.lootRecoveryPending {
-		t.Fatalf("after second fail teleports=%d starts=%d pending=%v", combat.teleportCalls, len(lootActions.startCalls), pipeline.lootRecoveryPending)
+	if combat.teleportCalls != 1 || len(lootActions.startCalls) != 2 || pipeline.loot.lootRecoveryPending {
+		t.Fatalf("after second fail teleports=%d starts=%d pending=%v", combat.teleportCalls, len(lootActions.startCalls), pipeline.loot.lootRecoveryPending)
 	}
 
 	later := settled
 	later.At = settled.At.Add(time.Millisecond)
 	_ = pipeline.onLootTick(context.Background(), deps, pipelineStepPickLoot, later, later.At, now)
-	if combat.teleportCalls != 1 || len(lootActions.startCalls) != 2 || pipeline.lootRecoveryPending {
-		t.Fatalf("bounded recovery teleports=%d starts=%d pending=%v", combat.teleportCalls, len(lootActions.startCalls), pipeline.lootRecoveryPending)
+	if combat.teleportCalls != 1 || len(lootActions.startCalls) != 2 || pipeline.loot.lootRecoveryPending {
+		t.Fatalf("bounded recovery teleports=%d starts=%d pending=%v", combat.teleportCalls, len(lootActions.startCalls), pipeline.loot.lootRecoveryPending)
 	}
 }
 
@@ -2106,21 +2146,21 @@ func testEnterTownPortalRecoversOnce(t *testing.T, failStatus pathing.TownPortal
 	deps := Deps{Portal: portals, Combat: combat}
 
 	res := pipeline.tickEnterTownPortal(context.Background(), deps, state, now)
-	if res.failed || res.complete || !pipeline.portalRecoveryPending || combat.teleportCalls != 0 || portals.calls != 1 {
-		t.Fatalf("arm recovery result=%+v pending=%v teleports=%d portalCalls=%d", res, pipeline.portalRecoveryPending, combat.teleportCalls, portals.calls)
+	if res.failed || res.complete || !pipeline.ret.portalRecoveryPending || combat.teleportCalls != 0 || portals.calls != 1 {
+		t.Fatalf("arm recovery result=%+v pending=%v teleports=%d portalCalls=%d", res, pipeline.ret.portalRecoveryPending, combat.teleportCalls, portals.calls)
 	}
 
 	res = pipeline.tickEnterTownPortal(context.Background(), deps, state, now.Add(time.Millisecond))
-	if res.failed || res.complete || combat.teleportCalls != 1 || combat.lastTeleportTarget != state.Objects[0].Position || !pipeline.portalRecoveryTeleportSent {
-		t.Fatalf("recovery teleport result=%+v teleports=%d target=%+v sent=%v", res, combat.teleportCalls, combat.lastTeleportTarget, pipeline.portalRecoveryTeleportSent)
+	if res.failed || res.complete || combat.teleportCalls != 1 || combat.lastTeleportTarget != state.Objects[0].Position || !pipeline.ret.portalRecoveryTeleportSent {
+		t.Fatalf("recovery teleport result=%+v teleports=%d target=%+v sent=%v", res, combat.teleportCalls, combat.lastTeleportTarget, pipeline.ret.portalRecoveryTeleportSent)
 	}
 
 	settled := state
 	settled.At = now.Add(lootRepositionRetryDelay + time.Millisecond)
 	settled.Player.Position = state.Objects[0].Position
 	res = pipeline.tickEnterTownPortal(context.Background(), deps, settled, settled.At)
-	if res.failed || res.complete || pipeline.portalRecoveryPending || portals.resets != 1 {
-		t.Fatalf("settle result=%+v pending=%v resets=%d", res, pipeline.portalRecoveryPending, portals.resets)
+	if res.failed || res.complete || pipeline.ret.portalRecoveryPending || portals.resets != 1 {
+		t.Fatalf("settle result=%+v pending=%v resets=%d", res, pipeline.ret.portalRecoveryPending, portals.resets)
 	}
 
 	res = pipeline.tickEnterTownPortal(context.Background(), deps, settled, settled.At.Add(time.Millisecond))

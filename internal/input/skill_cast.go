@@ -36,6 +36,10 @@ const NoClientCoord = -1
 
 // SelectSkill presses the in-game hotkey that places skillID on the mouse cursor.
 func (c *Controller) SelectSkill(src BindingSource, skillID uint16) error {
+	return c.withGameplayAction(func() error { return c.selectSkill(src, skillID) })
+}
+
+func (c *Controller) selectSkill(src BindingSource, skillID uint16) error {
 	cast, err := src.Resolve(skillID)
 	if err != nil {
 		return err
@@ -49,6 +53,10 @@ func (c *Controller) SelectSkill(src BindingSource, skillID uint16) error {
 
 // CastSkillAt selects a skill, moves to client coordinates, and clicks the bound mouse button.
 func (c *Controller) CastSkillAt(src BindingSource, skillID uint16, clientX, clientY int) error {
+	return c.withGameplayAction(func() error { return c.castSkillAt(src, skillID, clientX, clientY) })
+}
+
+func (c *Controller) castSkillAt(src BindingSource, skillID uint16, clientX, clientY int) error {
 	cast, err := src.Resolve(skillID)
 	if err != nil {
 		return err
@@ -115,7 +123,7 @@ func (c *Controller) CastBelt(src BeltBindingSource, slot int) error {
 	if err != nil {
 		return err
 	}
-	return c.pressKey(k, "belt_slot")
+	return c.withGameplayAction(func() error { return c.pressKey(k, "belt_slot") })
 }
 
 // CastBeltWithModifier presses modifier then the configured belt hotkey under one
@@ -143,6 +151,12 @@ func (c *Controller) CastBeltWithModifier(src BeltBindingSource, modifier string
 	if err != nil {
 		return err
 	}
+	return c.withGameplayAction(func() error {
+		return c.castBeltWithModifier(mod, belt, slot)
+	})
+}
+
+func (c *Controller) castBeltWithModifier(mod, belt Key, slot int) error {
 	if err := c.actionGuard("keyboard", "belt_modifier", "belt_slot_shift",
 		"modifier", mod, "belt_key", belt, "belt_slot", slot,
 	); err != nil {

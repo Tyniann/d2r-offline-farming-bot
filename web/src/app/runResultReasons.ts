@@ -68,6 +68,7 @@ const messages: Record<string, string> = {
   cow_ce_back_to_back: "Ein Corpse-Explosion-Folgecast ohne frischen Snapshot wurde verhindert.",
   cow_combat_not_wired: "Die Cow-Kampfsteuerung ist nicht vollständig verfügbar.",
   cow_combat_no_progress: "Der Cow-Kampf erzielte innerhalb des Sicherheitsfensters keinen bestätigten Fortschritt.",
+  boss_combat_no_progress: "Der Hammerdin-Kampf erzielte innerhalb des Sicherheitsfensters keinen bestätigten Fortschritt.",
   cow_rejuvenation_reserve_missing: "Für den Cow-Run fehlt mindestens ein verwendbarer Regenerationstrank in der vorgesehenen Gürtelspalte.",
   cow_belt_layout_unseeded: "Für den Cow-Run fehlen korrekt belegte Heil- oder Manatrank-Gürtelspalten.",
   mercenary_died_during_run: "Der Söldner ist gestorben. Der Angriff wurde gestoppt und der Versuch wird nach sicherer Rückkehr neu gestartet.",

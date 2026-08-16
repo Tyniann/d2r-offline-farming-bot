@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/input"
@@ -303,6 +304,104 @@ func TestCharacterLoadoutResolverAndReadiness(t *testing.T) {
 	}
 }
 
+func TestHammerdinBindingsRequireDutySkillsAndAllOrNothingCTA(t *testing.T) {
+	store, _ := newOperatorSettingsTestStore(t)
+	initial, _ := store.Snapshot()
+	assigned, err := store.AssignCharacterProfile("MrHammer", "paladin", "paladin_hammerdin", initial.Revision)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	replacement := cloneOperatorSettings(assigned.Settings)
+	value := replacement.Characters["mrhammer"]
+	value.ProfileBindings = map[string]OperatorProfileBindings{"paladin_hammerdin": hammerdinBindingsFixture(false)}
+	value.InventoryLock = &OperatorInventoryLock{Grid: sampleInventoryGrid(false)}
+	replacement.Characters["mrhammer"] = value
+	withoutCTA, err := store.Update(assigned.Settings.Revision, replacement)
+	if err != nil {
+		t.Fatalf("required bindings with empty CTA: %v", err)
+	}
+	profile := store.profiles["paladin_hammerdin"]
+	explicitEmptyCTA := hammerdinBindingsFixture(false)
+	explicitEmptyCTA.Skills["battle_command"] = ""
+	explicitEmptyCTA.Skills["battle_orders"] = ""
+	if err := validateOperatorProfileBindings("mrhammer", map[string]OperatorProfileBindings{"paladin_hammerdin": explicitEmptyCTA}, store.profiles, assigned.Settings.Input); err != nil {
+		t.Fatalf("explicit empty/empty CTA: %v", err)
+	}
+	if !ProfileBindingsComplete(withoutCTA.Settings.Characters["mrhammer"].ProfileBindings["paladin_hammerdin"], profile) {
+		t.Fatal("valid required bindings with empty CTA are incomplete")
+	}
+
+	withCTA := cloneOperatorSettings(withoutCTA.Settings)
+	withCTAValue := withCTA.Characters["mrhammer"]
+	withCTAValue.ProfileBindings["paladin_hammerdin"] = hammerdinBindingsFixture(true)
+	withCTA.Characters["mrhammer"] = withCTAValue
+	updated, err := store.Update(withoutCTA.Settings.Revision, withCTA)
+	if err != nil {
+		t.Fatalf("complete CTA pair: %v", err)
+	}
+	resolver := NewCharacterLoadoutResolver(store, store.profiles, updated.Settings.Input)
+	loadout, err := resolver.Resolve("MrHammer")
+	if err != nil || !loadout.BindingsComplete {
+		t.Fatalf("Hammerdin loadout=%+v err=%v", loadout, err)
+	}
+	hammer, err := loadout.Bindings.Resolve(memory.MustSkillID("blessed_hammer"))
+	if err != nil || hammer.CastButton != input.MouseLeft {
+		t.Fatalf("Blessed Hammer binding=%+v err=%v", hammer, err)
+	}
+	for _, skill := range []string{"teleport", "town_portal", "concentration", "holy_shield", "battle_command", "battle_orders"} {
+		cast, resolveErr := loadout.Bindings.Resolve(memory.MustSkillID(skill))
+		if resolveErr != nil || cast.CastButton != input.MouseRight {
+			t.Fatalf("%s binding=%+v err=%v", skill, cast, resolveErr)
+		}
+	}
+
+	for _, missing := range []string{"battle_command", "battle_orders"} {
+		t.Run("missing "+missing, func(t *testing.T) {
+			partial := cloneOperatorSettings(updated.Settings)
+			partialValue := partial.Characters["mrhammer"]
+			bindings := hammerdinBindingsFixture(true)
+			delete(bindings.Skills, missing)
+			partialValue.ProfileBindings["paladin_hammerdin"] = bindings
+			partial.Characters["mrhammer"] = partialValue
+			if _, updateErr := store.Update(updated.Settings.Revision, partial); updateErr == nil || !strings.Contains(updateErr.Error(), "Für Call to Arms müssen Battle Command und Battle Orders beide belegt sein") {
+				t.Fatalf("partial CTA error=%v", updateErr)
+			}
+		})
+	}
+
+	missingRequired := hammerdinBindingsFixture(false)
+	delete(missingRequired.Skills, "holy_shield")
+	if ProfileBindingsComplete(missingRequired, profile) {
+		t.Fatal("missing Holy Shield binding accepted as complete")
+	}
+}
+
+func TestOperatorSettingsRejectsCTAEnabledToggle(t *testing.T) {
+	store, _ := newOperatorSettingsTestStore(t)
+	initial, _ := store.Snapshot()
+	assigned, err := store.AssignCharacterProfile("MrHammer", "paladin", "paladin_hammerdin", initial.Revision)
+	if err != nil {
+		t.Fatal(err)
+	}
+	settings := cloneOperatorSettings(assigned.Settings)
+	value := settings.Characters["mrhammer"]
+	value.ProfileBindings = map[string]OperatorProfileBindings{"paladin_hammerdin": hammerdinBindingsFixture(false)}
+	settings.Characters["mrhammer"] = value
+	encoded := string(mustMarshalOperatorSettings(settings))
+	needle := "\n                skills:\n"
+	withToggle := strings.Replace(encoded, needle, "\n                cta:\n                    enabled: true"+needle, 1)
+	if withToggle == encoded {
+		t.Fatal("test fixture could not insert CTA toggle")
+	}
+	if err := os.WriteFile(store.path, []byte(withToggle), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.Snapshot(); err == nil || !strings.Contains(err.Error(), "field cta not found") {
+		t.Fatalf("CTA toggle error=%v", err)
+	}
+}
+
 func necroBoneSpearBindingsFixture() OperatorProfileBindings {
 	return OperatorProfileBindings{
 		Skills: map[string]string{
@@ -316,6 +415,24 @@ func necroBoneSpearBindingsFixture() OperatorProfileBindings {
 		},
 		Belt: OperatorBeltBindings{Slot1: "1", Slot2: "2", Slot3: "3", Slot4: "4"},
 	}
+}
+
+func hammerdinBindingsFixture(withCTA bool) OperatorProfileBindings {
+	bindings := OperatorProfileBindings{
+		Skills: map[string]string{
+			"blessed_hammer": "f1",
+			"concentration":  "f2",
+			"teleport":       "f3",
+			"holy_shield":    "f4",
+			"town_portal":    "f5",
+		},
+		Belt: OperatorBeltBindings{Slot1: "1", Slot2: "2", Slot3: "3", Slot4: "4"},
+	}
+	if withCTA {
+		bindings.Skills["battle_command"] = "f6"
+		bindings.Skills["battle_orders"] = "f7"
+	}
+	return bindings
 }
 
 func sampleInventoryGrid(allLocked bool) [][]int {

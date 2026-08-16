@@ -14,14 +14,16 @@ type ProfilesConfig map[string]ProfileConfig
 
 // ProfileConfig defines class-gated hooks, setup metadata and in-run resource policies.
 type ProfileConfig struct {
-	CharacterClass   string                        `yaml:"character_class"`
-	DisplayName      string                        `yaml:"display_name,omitempty"`
-	Setup            ProfileSetupConfig            `yaml:"setup,omitempty"`
-	Combat           ProfileCombatConfig           `yaml:"combat,omitempty"`
-	RequiredSkills   []RequiredSkillConfig         `yaml:"required_skills,omitempty"`
-	Hooks            ProfileHooksConfig            `yaml:"hooks"`
-	Resources        ProfileResourcesConfig        `yaml:"resources"`
-	RouteMaintenance ProfileRouteMaintenanceConfig `yaml:"route_maintenance,omitempty"`
+	CharacterClass     string                        `yaml:"character_class"`
+	DisplayName        string                        `yaml:"display_name,omitempty"`
+	Setup              ProfileSetupConfig            `yaml:"setup,omitempty"`
+	Combat             ProfileCombatConfig           `yaml:"combat,omitempty"`
+	RequiredSkills     []RequiredSkillConfig         `yaml:"required_skills,omitempty"`
+	OptionalSkillPairs []OptionalSkillPairConfig     `yaml:"optional_skill_pairs,omitempty"`
+	RequiresMercenary  bool                          `yaml:"requires_mercenary,omitempty"`
+	Hooks              ProfileHooksConfig            `yaml:"hooks"`
+	Resources          ProfileResourcesConfig        `yaml:"resources"`
+	RouteMaintenance   ProfileRouteMaintenanceConfig `yaml:"route_maintenance,omitempty"`
 }
 
 // ProfileCombatConfig holds build-owned combat metadata that no longer belongs on a run.
@@ -42,6 +44,19 @@ type ProfileCombatConfig struct {
 type RequiredSkillConfig struct {
 	Skill       string `yaml:"skill"`
 	DisplayName string `yaml:"display_name"`
+	Slot        string `yaml:"slot,omitempty"`
+}
+
+// OptionalSkillPairConfig declares exactly two jointly optional profile skills.
+// Operator bindings may omit both entries, but never configure only one.
+type OptionalSkillPairConfig struct {
+	Skills []ProfileSkillSlotConfig `yaml:"skills"`
+}
+
+// ProfileSkillSlotConfig binds one canonical CASC skill key to its forced mouse slot.
+type ProfileSkillSlotConfig struct {
+	Skill string `yaml:"skill"`
+	Slot  string `yaml:"slot"`
 }
 
 // ProfileRouteMaintenanceConfig contains the deliberately narrow maintenance
@@ -149,6 +164,11 @@ func (c *ProfilesConfig) applyDefaults() {
 	if *c == nil {
 		*c = ProfilesConfig{}
 	}
+	c.applyNecroBoneSpearDefaults()
+	c.applyPaladinHammerdinDefaults()
+}
+
+func (c *ProfilesConfig) applyNecroBoneSpearDefaults() {
 	if existing, ok := (*c)["necro_bone_spear"]; ok {
 		if existing.DisplayName == "" {
 			existing.DisplayName = "Knochen-Speer"
@@ -192,6 +212,46 @@ func (c *ProfilesConfig) applyDefaults() {
 			Enabled: &enabled, Skill: "bone_armor", RefreshIntervalMs: 60000,
 			RefreshAfterDamageBelowPct: 65, MinimumRecastIntervalMs: 10000, SettleMs: 750,
 		}},
+	}
+}
+
+func (c *ProfilesConfig) applyPaladinHammerdinDefaults() {
+	if _, ok := (*c)["paladin_hammerdin"]; ok {
+		return
+	}
+	(*c)["paladin_hammerdin"] = ProfileConfig{
+		CharacterClass:    "paladin",
+		DisplayName:       "Hammerdin",
+		Setup:             ProfileSetupConfig{Enabled: true, Default: true},
+		RequiresMercenary: true,
+		Combat: ProfileCombatConfig{
+			StandardAttack: "blessed_hammer",
+			// Blessed Hammer needs a finished cast frame. 100 ms interrupts
+			// the windup so the game shows no hammer and the Paladin walks.
+			AttackIntervalMs:        300,
+			EngageDistanceTiles:     1,
+			RepositionDistanceTiles: 3,
+			KillConfirmTicks:        3,
+		},
+		RequiredSkills: []RequiredSkillConfig{
+			{Skill: "teleport", DisplayName: "Teleport", Slot: "right"},
+			{Skill: "town_portal", DisplayName: "Stadtportal", Slot: "right"},
+			{Skill: "blessed_hammer", DisplayName: "Gesegneter Hammer", Slot: "left"},
+			{Skill: "concentration", DisplayName: "Konzentration", Slot: "right"},
+			{Skill: "holy_shield", DisplayName: "Heiliger Schild", Slot: "right"},
+		},
+		OptionalSkillPairs: []OptionalSkillPairConfig{{Skills: []ProfileSkillSlotConfig{
+			{Skill: "battle_command", Slot: "right"},
+			{Skill: "battle_orders", Slot: "right"},
+		}}},
+		Resources: ProfileResourcesConfig{
+			Healing:      ResourceRuleConfig{UseBelowPercent: 65, BeltSlots: []int{1}, CooldownMs: 4000},
+			Mana:         ResourceRuleConfig{UseBelowPercent: 35, BeltSlots: []int{2, 3}, CooldownMs: 4000},
+			Rejuvenation: ResourceRuleConfig{UseBelowPercent: 35, BeltSlots: []int{4}, CooldownMs: 1500},
+			Mercenary:    MercenaryResourceConfig{UseBelowPercent: 50, BeltSlots: []int{1}, CooldownMs: 4000},
+			ThrottleMs:   1500,
+			VerifyMs:     1500,
+		},
 	}
 }
 
@@ -422,6 +482,7 @@ func validateProfileCombatAndRequiredSkills(profileID string, profileCfg Profile
 		return fmt.Errorf("combat_profiles.%s.required_skills must contain at most 8 entries", profileID)
 	}
 	required := make(map[string]struct{}, len(profileCfg.RequiredSkills))
+	requiredSlots := make(map[string]string, len(profileCfg.RequiredSkills))
 	for i, entry := range profileCfg.RequiredSkills {
 		skill := strings.TrimSpace(entry.Skill)
 		if skill == "" || skill != entry.Skill {
@@ -436,7 +497,35 @@ func validateProfileCombatAndRequiredSkills(profileID string, profileCfg Profile
 		if err := validateRequiredSkillDisplayName(profileID, i, entry.DisplayName); err != nil {
 			return err
 		}
+		if entry.Slot != "" {
+			if err := validateProfileSkillSlot(profileID, fmt.Sprintf("required_skills[%d]", i), skill, entry.Slot); err != nil {
+				return err
+			}
+		}
 		required[skill] = struct{}{}
+		requiredSlots[skill] = entry.Slot
+	}
+	optionalSkills := make(map[string]struct{})
+	for pairIndex, pair := range profileCfg.OptionalSkillPairs {
+		if len(pair.Skills) != 2 {
+			return fmt.Errorf("combat_profiles.%s.optional_skill_pairs[%d].skills must contain exactly two entries", profileID, pairIndex)
+		}
+		for skillIndex, entry := range pair.Skills {
+			skill := strings.TrimSpace(entry.Skill)
+			if skill == "" || skill != entry.Skill {
+				return fmt.Errorf("combat_profiles.%s.optional_skill_pairs[%d].skills[%d].skill must be a canonical catalog key", profileID, pairIndex, skillIndex)
+			}
+			if _, exists := required[skill]; exists {
+				return fmt.Errorf("combat_profiles.%s optional skill %q is already required", profileID, skill)
+			}
+			if _, duplicate := optionalSkills[skill]; duplicate {
+				return fmt.Errorf("combat_profiles.%s optional skill %q is duplicated", profileID, skill)
+			}
+			if err := validateProfileSkillSlot(profileID, fmt.Sprintf("optional_skill_pairs[%d].skills[%d]", pairIndex, skillIndex), skill, entry.Slot); err != nil {
+				return err
+			}
+			optionalSkills[skill] = struct{}{}
+		}
 	}
 	for _, skill := range []string{"teleport", "town_portal"} {
 		if _, ok := required[skill]; !ok {
@@ -465,6 +554,63 @@ func validateProfileCombatAndRequiredSkills(profileID string, profileCfg Profile
 				return fmt.Errorf("combat_profiles.%s.route_maintenance.bone_armor.skill %q must be listed in required_skills", profileID, skill)
 			}
 		}
+	}
+	if profileID == "paladin_hammerdin" {
+		return validatePaladinHammerdinContract(profileCfg, requiredSlots)
+	}
+	return nil
+}
+
+func validateProfileSkillSlot(profileID, field, skill, slot string) error {
+	entry, ok := memory.LookupSkillByKey(skill)
+	if !ok {
+		return fmt.Errorf("combat_profiles.%s.%s.skill %q is not in the skill catalog", profileID, field, skill)
+	}
+	switch slot {
+	case "left":
+		if !entry.LeftSkill {
+			return fmt.Errorf("combat_profiles.%s.%s slot left is not supported by CASC skill %q", profileID, field, skill)
+		}
+	case "right":
+		// TownPortal is the existing RMB portal action. Its CASC row deliberately
+		// has no ordinary skill-menu slot flags, so only catalog identity applies.
+		if !entry.RightSkill && skill != "town_portal" {
+			return fmt.Errorf("combat_profiles.%s.%s slot right is not supported by CASC skill %q", profileID, field, skill)
+		}
+	default:
+		return fmt.Errorf("combat_profiles.%s.%s.slot must be left or right", profileID, field)
+	}
+	return nil
+}
+
+func validatePaladinHammerdinContract(profileCfg ProfileConfig, slots map[string]string) error {
+	if profileCfg.CharacterClass != "paladin" {
+		return fmt.Errorf("combat_profiles.paladin_hammerdin.character_class must be paladin")
+	}
+	wantSlots := map[string]string{
+		"teleport":       "right",
+		"town_portal":    "right",
+		"blessed_hammer": "left",
+		"concentration":  "right",
+		"holy_shield":    "right",
+	}
+	if len(slots) != len(wantSlots) {
+		return fmt.Errorf("combat_profiles.paladin_hammerdin.required_skills must contain exactly the Hammerdin duty skills")
+	}
+	for skill, wantSlot := range wantSlots {
+		if slots[skill] != wantSlot {
+			return fmt.Errorf("combat_profiles.paladin_hammerdin required skill %q must use slot %s", skill, wantSlot)
+		}
+	}
+	if !profileCfg.RequiresMercenary {
+		return fmt.Errorf("combat_profiles.paladin_hammerdin.requires_mercenary must be true")
+	}
+	if len(profileCfg.OptionalSkillPairs) != 1 {
+		return fmt.Errorf("combat_profiles.paladin_hammerdin must declare one optional Battle Command/Battle Orders pair")
+	}
+	pair := profileCfg.OptionalSkillPairs[0].Skills
+	if len(pair) != 2 || pair[0].Skill != "battle_command" || pair[0].Slot != "right" || pair[1].Skill != "battle_orders" || pair[1].Slot != "right" {
+		return fmt.Errorf("combat_profiles.paladin_hammerdin optional pair must be battle_command and battle_orders on right")
 	}
 	return nil
 }

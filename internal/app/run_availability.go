@@ -55,7 +55,7 @@ func ResolveRunsInspectReport(cfg *config.Config, opts Options) (RunsInspectRepo
 	if !opts.RunsInspect {
 		return RunsInspectReport{}, fmt.Errorf("runs inspect mode is not selected")
 	}
-	if opts.SessionInspect || opts.Probe || opts.InputTest != "" || opts.Run != "" || opts.RunPhase != "" || opts.PathingTest != "" || opts.OfflineDifficulty != "" || opts.OfflineCharacter != "" || opts.OfflineExitTest || opts.UIStateProbe != "" || opts.ScreenAnchorCapture != "" || opts.MercenaryProbe != "" || opts.CowProbe != "" || opts.Route != "" || opts.RouteName != "" || opts.RouteDifficulty != "" || opts.TownInspect || opts.TownTest != "" {
+	if opts.SessionInspect || opts.Probe || opts.InputTest != "" || opts.Run != "" || opts.RunPhase != "" || opts.PathingTest != "" || opts.OfflineDifficulty != "" || opts.OfflineCharacter != "" || opts.OfflineExitTest || opts.UIStateProbe != "" || opts.ScreenAnchorCapture != "" || opts.MercenaryProbe != "" || opts.CowProbe != "" || opts.WeaponSetProbe != "" || opts.Route != "" || opts.RouteName != "" || opts.RouteDifficulty != "" || opts.TownInspect || opts.TownTest != "" {
 		return RunsInspectReport{}, fmt.Errorf("--runs-inspect is mutually exclusive with session, run, probe, route, town, and test modes")
 	}
 	context := RunAvailabilityContext{

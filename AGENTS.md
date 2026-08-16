@@ -67,6 +67,7 @@ Dokumentation und UI-facing Strings müssen ordentliches Deutsch und Umlaute ver
 4. **Commits:** nur auf ausdrückliche Anfrage; nie `git config` ändern; kein Force-Push auf `master`.
 5. **Validierung:** Nach einer abgeschlossenen Änderung nur die kleinsten betroffenen Tests und Builds einmal ausführen. Keine automatische Gesamtsuite. Vollständige Go-/UI-Tests, Lint, Produktbuild und Installer-Smokes nur bei ausdrücklichem Gesamtvalidierungs- oder Release-Auftrag über `scripts/build-release.ps1`.
 6. **UI facing strings:** Nur für Bot Benutzer relevante und nützliche Informationen anzeigen. Simple, klare Formulierungen - KEIN Technobabble.
+7. **Coding Prinzipien:** Strebe nach KISS und YAGNI Implementierungen.
 
 ## Lokaler Release-Workflow
 

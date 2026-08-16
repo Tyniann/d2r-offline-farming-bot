@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/app"
@@ -28,6 +29,12 @@ func TestShouldRunSessionDoesNotOverrideExplicitRunOrProbe(t *testing.T) {
 	if shouldRunSession(cfg, app.Options{Desktop: true}) {
 		t.Fatal("desktop mode must never start the autonomous session")
 	}
+	if shouldRunSession(cfg, app.Options{RuntimeTraceCapture: "focus-loss"}) {
+		t.Fatal("runtime trace request must not fall through to autonomous session")
+	}
+	if shouldRunSession(cfg, app.Options{WeaponSetProbe: "primary-secondary"}) {
+		t.Fatal("weapon-set probe must not fall through to autonomous session")
+	}
 	if !shouldRunSession(cfg, app.Options{}) {
 		t.Fatal("bare enabled config should run autonomous session")
 	}
@@ -39,6 +46,25 @@ func TestValidateDesktopModeRejectsRuntimeCommands(t *testing.T) {
 	}
 	if err := validateDesktopMode(app.Options{Desktop: true, Run: "countess"}); err == nil {
 		t.Fatal("expected desktop/run conflict")
+	}
+	if err := validateDesktopMode(app.Options{Desktop: true, RuntimeTraceCapture: "focus-loss"}); err == nil {
+		t.Fatal("expected desktop/runtime-trace conflict")
+	}
+	if err := validateDesktopMode(app.Options{Desktop: true, WeaponSetProbe: "primary-secondary"}); err == nil {
+		t.Fatal("expected desktop/weapon-set-probe conflict")
+	}
+}
+
+func TestRuntimeReplayModeBypassesConfigAndRejectsRuntimeCombination(t *testing.T) {
+	err := runWithDataRoot(filepath.Join(t.TempDir(), "missing-config.yaml"), "", app.Options{ReplayRuntimeTrace: filepath.Join(t.TempDir(), "missing.trace.gz")})
+	if err == nil || !strings.Contains(err.Error(), "open runtime trace bundle") {
+		t.Fatalf("headless replay error = %v, want trace open error before config loading", err)
+	}
+	if err := validateReplayMode(app.Options{ReplayRuntimeTrace: "trace.gz", Run: "mephisto"}, ""); err == nil {
+		t.Fatal("expected replay/run mutual-exclusion error")
+	}
+	if err := validateReplayMode(app.Options{ReplayRuntimeTrace: "trace.gz"}, t.TempDir()); err == nil {
+		t.Fatal("expected replay/data-root mutual-exclusion error")
 	}
 }
 

@@ -25,11 +25,16 @@ type Controller struct {
 	hotkeyListen   HotkeyListener
 	hotkeyWG       sync.WaitGroup
 
-	mu      sync.Mutex
-	keyMu   sync.Mutex
-	mouseMu sync.Mutex
-	window  WindowInfo
-	bound   bool
+	mu         sync.Mutex
+	gameplayMu sync.Mutex
+	keyMu      sync.Mutex
+	mouseMu    sync.Mutex
+	heldMu     sync.Mutex
+	window     WindowInfo
+	bound      bool
+	heldActive bool
+	heldKey    Key
+	heldButton MouseButton
 }
 
 // CaptureClient returns a read-only RGBA screenshot of the complete bound D2R
@@ -101,6 +106,8 @@ func (c *Controller) Bind(pid uint32) error {
 	if pid == 0 {
 		return fmt.Errorf("bind window: %w", ErrInvalidPID)
 	}
+	c.gameplayMu.Lock()
+	defer c.gameplayMu.Unlock()
 
 	hwnd, err := c.api.FindMainWindow(pid, defaultWindowTitle)
 	if err != nil {
@@ -132,6 +139,9 @@ func (c *Controller) Bind(pid uint32) error {
 
 // Unbind clears stored window metadata. It is idempotent.
 func (c *Controller) Unbind() {
+	c.gameplayMu.Lock()
+	defer c.gameplayMu.Unlock()
+	c.releaseHeldModifierClick()
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -167,28 +177,30 @@ func (c *Controller) Window() (WindowInfo, bool) {
 // Focus activates the bound D2R window and verifies that it became the
 // foreground window before a keyboard-sensitive workflow continues.
 func (c *Controller) Focus() error {
-	if err := c.actionGuard("window", "focus", "window_focus"); err != nil {
-		return err
-	}
-	c.mu.Lock()
-	if !c.bound {
-		c.mu.Unlock()
-		return fmt.Errorf("focus window: %w", ErrWindowNotBound)
-	}
-	hwnd := nativeWindow(c.window.Handle)
-	c.mu.Unlock()
-	for attempt := 0; attempt < 10; attempt++ {
-		// Windows may reject the first foreground request while the dashboard owns
-		// the foreground lock. Retrying remains input-free; the authoritative gate
-		// is still GetForegroundWindow below.
-		if err := c.api.Activate(hwnd); err != nil {
+	return c.withGameplayAction(func() error {
+		if err := c.actionGuard("window", "focus", "window_focus"); err != nil {
 			return err
 		}
-		if c.api.IsForeground(hwnd) {
-			c.logAllowedAction("window", "focus", "window_focus", "hwnd", fmt.Sprintf("0x%X", hwnd), "verify_attempt", attempt+1)
-			return nil
+		c.mu.Lock()
+		if !c.bound {
+			c.mu.Unlock()
+			return fmt.Errorf("focus window: %w", ErrWindowNotBound)
 		}
-		time.Sleep(20 * time.Millisecond)
-	}
-	return fmt.Errorf("focus window hwnd=%#x: %w", hwnd, ErrWindowNotForeground)
+		hwnd := nativeWindow(c.window.Handle)
+		c.mu.Unlock()
+		for attempt := 0; attempt < 10; attempt++ {
+			// Windows may reject the first foreground request while the dashboard owns
+			// the foreground lock. Retrying remains input-free; the authoritative gate
+			// is still GetForegroundWindow below.
+			if err := c.api.Activate(hwnd); err != nil {
+				return err
+			}
+			if c.api.IsForeground(hwnd) {
+				c.logAllowedAction("window", "focus", "window_focus", "hwnd", fmt.Sprintf("0x%X", hwnd), "verify_attempt", attempt+1)
+				return nil
+			}
+			time.Sleep(20 * time.Millisecond)
+		}
+		return fmt.Errorf("focus window hwnd=%#x: %w", hwnd, ErrWindowNotForeground)
+	})
 }

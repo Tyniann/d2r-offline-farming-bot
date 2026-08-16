@@ -98,12 +98,52 @@ func TestResolveActiveRunCLIPriority(t *testing.T) {
 	}
 }
 
+func TestWeaponSetProbeSuppressesConfiguredRunAndValidatesReadOnlyMode(t *testing.T) {
+	cfg := &config.Config{Runs: config.RunsConfig{Active: "countess"}}
+	opts := Options{WeaponSetProbe: weaponSetProbeLabel}
+	if got := resolveActiveRun(opts, cfg); got != "" {
+		t.Fatalf("resolveActiveRun() = %q, want empty for weapon-set probe", got)
+	}
+	if err := validateRunMode(resolveRunSelection(opts, cfg), cfg, opts, config.NewLogger("error")); err != nil {
+		t.Fatalf("validateRunMode() = %v", err)
+	}
+	if err := validateRunMode(tasksSelection("", ""), cfg, Options{WeaponSetProbe: weaponSetProbeLabel, WeaponSetProbeTimeoutMs: -1}, config.NewLogger("error")); err == nil {
+		t.Fatal("negative weapon-set probe timeout should fail")
+	}
+	if CharacterLoadoutRequired(opts) {
+		t.Fatal("read-only weapon-set probe must not require an operator loadout")
+	}
+	if farmingRouteRequired(opts, tasksSelection("", "")) {
+		t.Fatal("read-only weapon-set probe must not require a farming route")
+	}
+}
+
 func TestValidateRunModeKnownRunOK(t *testing.T) {
 	cfg := fullCountessConfig(t)
 	log := config.NewLogger("error")
 	opts := Options{Run: "countess", Loadout: loadoutFromConfigBindingsForTest(cfg)}
 	if err := validateRunMode(tasksSelection("countess", ""), cfg, opts, log); err != nil {
 		t.Fatalf("countess err = %v", err)
+	}
+}
+
+func TestValidateRunModeRuntimeTraceRequiresExplicitFullRun(t *testing.T) {
+	cfg := fullCountessConfig(t)
+	log := config.NewLogger("error")
+	loadout := loadoutFromConfigBindingsForTest(cfg)
+	valid := Options{Run: "countess", RuntimeTraceCapture: "focus-loss", Loadout: loadout}
+	if err := validateRunMode(tasksSelection("countess", ""), cfg, valid, log); err != nil {
+		t.Fatalf("runtime trace options error = %v", err)
+	}
+	for _, opts := range []Options{
+		{RuntimeTraceCapture: "focus-loss"},
+		{Run: "countess", RunPhase: tasks.RunPhaseBoss, RuntimeTraceCapture: "focus-loss", Loadout: loadout},
+		{Run: "countess", RuntimeTraceCapture: "../escape", Loadout: loadout},
+		{Run: "countess", RuntimeTraceCapture: "focus-loss", Route: "list", Loadout: loadout},
+	} {
+		if err := validateRunMode(resolveRunSelection(opts, cfg), cfg, opts, log); err == nil {
+			t.Fatalf("validateRunMode(%+v) succeeded, want trace-mode rejection", opts)
+		}
 	}
 }
 
@@ -147,6 +187,46 @@ func TestValidateRunModeFullCountessRequiresBindings(t *testing.T) {
 	bindings.Skills["bone_spear"] = config.SkillBindingConfig{Key: "f8", Button: "left"}
 	if err := validateRunMode(tasksSelection("countess", ""), cfg, Options{Run: "countess", Loadout: loadoutFromBindingsForTest(cfg.Session.Character, bindings)}, log); err == nil {
 		t.Fatal("expected unsafe left-mouse attack binding error")
+	}
+}
+
+func TestValidateMephistoHammerdinAcceptsLeftMouseBlessedHammer(t *testing.T) {
+	cfg := &config.Config{
+		Runs:     config.RunsConfig{Definitions: map[string]config.RunConfig{"mephisto": {}}},
+		Profiles: config.ProfilesConfig{},
+	}
+	cfg.Profiles.ApplyDefaults()
+	source, err := newConfigBindingSource(config.InputBindingsConfig{
+		Skills: map[string]config.SkillBindingConfig{
+			"teleport":       {Key: "f7", Button: "right"},
+			"blessed_hammer": {Key: "f1", Button: "left"},
+			"town_portal":    {Key: "f6", Button: "right"},
+			"concentration":  {Key: "f2", Button: "right"},
+			"holy_shield":    {Key: "f4", Button: "right"},
+		},
+		Belt: config.BeltBindingsConfig{Slot1: "1", Slot2: "2", Slot3: "3", Slot4: "4"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := validateBossBindingsWithProfile(cfg, "mephisto", source, "paladin_hammerdin"); err != nil {
+		t.Fatalf("boss LMB Blessed Hammer rejected: %v", err)
+	}
+	if err := validateFullRunBindingsWithProfile(cfg, "mephisto", source, "paladin_hammerdin"); err != nil {
+		t.Fatalf("full-run LMB Blessed Hammer rejected: %v", err)
+	}
+
+	rightHammer, err := newConfigBindingSource(config.InputBindingsConfig{
+		Skills: map[string]config.SkillBindingConfig{
+			"teleport":       {Key: "f7", Button: "right"},
+			"blessed_hammer": {Key: "f1", Button: "right"},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := validateBossBindingsWithProfile(cfg, "mephisto", rightHammer, "paladin_hammerdin"); err == nil {
+		t.Fatal("RMB Blessed Hammer accepted against the profile LMB slot")
 	}
 }
 
@@ -270,6 +350,25 @@ func TestPassiveDesktopUIAllowsMissingInitialFarmingAssignment(t *testing.T) {
 	selection := resolveRunSelection(opts, &config.Config{})
 	if farmingRouteRequired(opts, selection) {
 		t.Fatal("passive desktop UI must start before the first route assignment exists")
+	}
+}
+
+func TestPassiveDesktopDoesNotRequireDummyCountessPickitOrStrategy(t *testing.T) {
+	if CharacterLoadoutRequired(Options{Desktop: true}) {
+		t.Fatal("passive desktop UI must construct without a frozen loadout")
+	}
+	if CharacterLoadoutRequired(Options{Desktop: true, Loadout: &CharacterLoadoutSnapshot{ProfileID: "paladin_hammerdin"}}) {
+		t.Fatal("route recording must not require Countess pickit or strategy for the dummy carrier")
+	}
+	if !CharacterLoadoutRequired(Options{TownTest: "hammerdin-prebuff"}) {
+		t.Fatal("isolated town-test must still require character pickit and strategy")
+	}
+	if !CharacterLoadoutRequired(Options{Run: "mephisto"}) {
+		t.Fatal("productive runs must still require pickit and strategy")
+	}
+	pickit, err := loadRuntimePickitPolicy(Options{Desktop: true}, nil, "MrHammer", tasks.RunIDCountess)
+	if err != nil || pickit == nil {
+		t.Fatalf("idle desktop pickit err=%v pickit=%v", err, pickit)
 	}
 }
 

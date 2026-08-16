@@ -4,7 +4,9 @@ import (
 	"errors"
 	"fmt"
 	"runtime"
+	"sync"
 	"testing"
+	"time"
 	"unsafe"
 )
 
@@ -444,5 +446,258 @@ func TestMouseInputRecordSize(t *testing.T) {
 	const wantSize = 40
 	if got := unsafe.Sizeof(mouseInputRecord{}); got != wantSize {
 		t.Fatalf("sizeof(mouseInputRecord) = %d, want %d", got, wantSize)
+	}
+}
+
+type orderedInputRecorder struct {
+	mu     sync.Mutex
+	events []string
+}
+
+func (r *orderedInputRecorder) add(event string) {
+	r.mu.Lock()
+	r.events = append(r.events, event)
+	r.mu.Unlock()
+}
+
+func (r *orderedInputRecorder) snapshot() []string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return append([]string(nil), r.events...)
+}
+
+type orderedKeySender struct {
+	recorder  *orderedInputRecorder
+	downHook  func(Key)
+	upCalls   int
+	failUpFor int
+}
+
+func (s *orderedKeySender) KeyDown(key Key) error {
+	s.recorder.add("key_down:" + string(key))
+	if s.downHook != nil {
+		s.downHook(key)
+	}
+	return nil
+}
+
+func (s *orderedKeySender) KeyUp(key Key) error {
+	s.upCalls++
+	s.recorder.add("key_up:" + string(key))
+	if s.upCalls <= s.failUpFor {
+		return errors.New("key up failed")
+	}
+	return nil
+}
+
+type orderedMouseSender struct {
+	recorder *orderedInputRecorder
+}
+
+func (s *orderedMouseSender) MoveTo(x, y int) error {
+	s.recorder.add(fmt.Sprintf("move:%d,%d", x, y))
+	return nil
+}
+
+func (s *orderedMouseSender) ButtonDown(button MouseButton) error {
+	s.recorder.add("mouse_down:" + string(button))
+	return nil
+}
+
+func (s *orderedMouseSender) ButtonUp(button MouseButton) error {
+	s.recorder.add("mouse_up:" + string(button))
+	return nil
+}
+
+func newForegroundTransactionController(keys KeySender, mouse MouseSender) *Controller {
+	api := &mockWindowAPI{
+		findHWND:   0x1234,
+		foreground: true,
+		area:       WindowInfo{Handle: 0x1234, ClientLeft: 100, ClientTop: 200, ClientWidth: 800, ClientHeight: 600},
+	}
+	c := mustNewTestController(api, keys, mouse, DefaultKeyboardConfig(), testSafetyEnabled(), testKeyTimings())
+	if err := c.Bind(42); err != nil {
+		panic(err)
+	}
+	return c
+}
+
+func TestHoldAtLeavesOnlyLeftDown(t *testing.T) {
+	recorder := &orderedInputRecorder{}
+	c := newForegroundTransactionController(&orderedKeySender{recorder: recorder}, &orderedMouseSender{recorder: recorder})
+	if err := c.HoldAt(400, 300, MouseLeft); err != nil {
+		t.Fatal(err)
+	}
+	if !c.ModifierHoldActive() {
+		t.Fatal("hold should stay active")
+	}
+	want := []string{"move:500,500", "mouse_down:left"}
+	if got := recorder.snapshot(); fmt.Sprint(got) != fmt.Sprint(want) {
+		t.Fatalf("events = %v, want %v", got, want)
+	}
+	if err := c.ReleaseModifierHold(); err != nil {
+		t.Fatal(err)
+	}
+	want = append(want, "mouse_up:left")
+	if got := recorder.snapshot(); fmt.Sprint(got) != fmt.Sprint(want) {
+		t.Fatalf("release events = %v, want %v", got, want)
+	}
+}
+
+func TestHoldAtWithModifierLeavesShiftAndLeftDown(t *testing.T) {
+	recorder := &orderedInputRecorder{}
+	c := newForegroundTransactionController(&orderedKeySender{recorder: recorder}, &orderedMouseSender{recorder: recorder})
+	if err := c.HoldAtWithModifier(400, 300, "shift", MouseLeft); err != nil {
+		t.Fatal(err)
+	}
+	if !c.ModifierHoldActive() {
+		t.Fatal("hold should stay active")
+	}
+	want := []string{"move:500,500", "key_down:shift", "mouse_down:left"}
+	if got := recorder.snapshot(); fmt.Sprint(got) != fmt.Sprint(want) {
+		t.Fatalf("events = %v, want %v", got, want)
+	}
+	if err := c.ReleaseModifierHold(); err != nil {
+		t.Fatal(err)
+	}
+	if c.ModifierHoldActive() {
+		t.Fatal("hold should be released")
+	}
+	want = append(want, "mouse_up:left", "key_up:shift")
+	if got := recorder.snapshot(); fmt.Sprint(got) != fmt.Sprint(want) {
+		t.Fatalf("release events = %v, want %v", got, want)
+	}
+}
+
+func TestPauseReleasesHeldModifierClick(t *testing.T) {
+	recorder := &orderedInputRecorder{}
+	c := newForegroundTransactionController(&orderedKeySender{recorder: recorder}, &orderedMouseSender{recorder: recorder})
+	if err := c.HoldAtWithModifier(400, 300, "shift", MouseLeft); err != nil {
+		t.Fatal(err)
+	}
+	c.Pause("test")
+	if c.ModifierHoldActive() {
+		t.Fatal("pause should release the hold")
+	}
+	wantSuffix := []string{"mouse_up:left", "key_up:shift"}
+	events := recorder.snapshot()
+	if len(events) < 2 || fmt.Sprint(events[len(events)-2:]) != fmt.Sprint(wantSuffix) {
+		t.Fatalf("events=%v, want release suffix %v", events, wantSuffix)
+	}
+}
+
+func TestClickAtWithModifierOrdersOneAtomicTransaction(t *testing.T) {
+	recorder := &orderedInputRecorder{}
+	c := newForegroundTransactionController(&orderedKeySender{recorder: recorder}, &orderedMouseSender{recorder: recorder})
+	if err := c.ClickAtWithModifier(400, 300, "shift", MouseLeft); err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"move:500,500", "key_down:shift", "mouse_down:left", "mouse_up:left", "key_up:shift"}
+	got := recorder.snapshot()
+	if fmt.Sprint(got) != fmt.Sprint(want) {
+		t.Fatalf("events = %v, want %v", got, want)
+	}
+}
+
+func TestClickAtWithModifierRechecksForegroundBeforeInput(t *testing.T) {
+	recorder := &orderedInputRecorder{}
+	api := &mockWindowAPI{
+		findHWND: 0x1234,
+		area:     WindowInfo{Handle: 0x1234, ClientLeft: 100, ClientTop: 200, ClientWidth: 800, ClientHeight: 600},
+	}
+	c := mustNewTestController(api, &orderedKeySender{recorder: recorder}, &orderedMouseSender{recorder: recorder}, DefaultKeyboardConfig(), testSafetyEnabled(), testKeyTimings())
+	if err := c.Bind(42); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.ClickAtWithModifier(400, 300, "shift", MouseLeft); !errors.Is(err, ErrWindowNotForeground) {
+		t.Fatalf("ClickAtWithModifier() error = %v, want ErrWindowNotForeground", err)
+	}
+	if got := recorder.snapshot(); len(got) != 0 {
+		t.Fatalf("foreground rejection emitted input: %v", got)
+	}
+}
+
+func TestClickAtWithModifierStopsAfterUnrecoverableModifierCleanup(t *testing.T) {
+	recorder := &orderedInputRecorder{}
+	keys := &orderedKeySender{recorder: recorder, failUpFor: 2}
+	c := newForegroundTransactionController(keys, &orderedMouseSender{recorder: recorder})
+	if err := c.ClickAtWithModifier(400, 300, "shift", MouseLeft); err == nil {
+		t.Fatal("ClickAtWithModifier() error = nil, want modifier release failure")
+	}
+	if !c.Status().Stopped || keys.upCalls != 2 {
+		t.Fatalf("status=%+v key-up calls=%d, want stopped after two failed releases", c.Status(), keys.upCalls)
+	}
+	events := recorder.snapshot()
+	mouseDowns := 0
+	for _, event := range events {
+		if event == "mouse_down:left" {
+			mouseDowns++
+		}
+	}
+	if mouseDowns != 1 {
+		t.Fatalf("events=%v, want exactly one LMB down and no fallback", events)
+	}
+}
+
+func TestStopDuringModifiedClickAllowsCleanupButBlocksFollowingInput(t *testing.T) {
+	recorder := &orderedInputRecorder{}
+	keys := &orderedKeySender{recorder: recorder}
+	mouse := &orderedMouseSender{recorder: recorder}
+	c := newForegroundTransactionController(keys, mouse)
+	keys.downHook = func(key Key) {
+		if key == "shift" {
+			c.Stop("test_during_transaction")
+		}
+	}
+	if err := c.ClickAtWithModifier(400, 300, "shift", MouseLeft); err != nil {
+		t.Fatalf("in-flight transaction should finish cleanup: %v", err)
+	}
+	if !c.Status().Stopped {
+		t.Fatal("controller should remain stopped")
+	}
+	before := len(recorder.snapshot())
+	if err := c.Click(MouseLeft); !errors.Is(err, ErrInputStopped) {
+		t.Fatalf("following click error = %v, want ErrInputStopped", err)
+	}
+	if after := len(recorder.snapshot()); after != before {
+		t.Fatalf("following stopped click emitted input: before=%d after=%d", before, after)
+	}
+}
+
+func TestGameplayLeasePreventsPlayerPotionInterleaveWithShiftClick(t *testing.T) {
+	recorder := &orderedInputRecorder{}
+	shiftHeld := make(chan struct{})
+	releaseShift := make(chan struct{})
+	keys := &orderedKeySender{recorder: recorder}
+	keys.downHook = func(key Key) {
+		if key == "shift" {
+			close(shiftHeld)
+			<-releaseShift
+		}
+	}
+	c := newForegroundTransactionController(keys, &orderedMouseSender{recorder: recorder})
+	clickDone := make(chan error, 1)
+	go func() { clickDone <- c.ClickAtWithModifier(400, 300, "shift", MouseLeft) }()
+	<-shiftHeld
+	beltDone := make(chan error, 1)
+	go func() {
+		beltDone <- c.CastBelt(mockBindingSource{beltKeys: [4]string{"1", "2", "3", "4"}}, 1)
+	}()
+	select {
+	case err := <-beltDone:
+		t.Fatalf("belt action interleaved before Shift cleanup: %v", err)
+	case <-time.After(25 * time.Millisecond):
+	}
+	close(releaseShift)
+	if err := <-clickDone; err != nil {
+		t.Fatal(err)
+	}
+	if err := <-beltDone; err != nil {
+		t.Fatal(err)
+	}
+	wantSuffix := []string{"mouse_down:left", "mouse_up:left", "key_up:shift", "key_down:1", "key_up:1"}
+	events := recorder.snapshot()
+	if len(events) < len(wantSuffix) || fmt.Sprint(events[len(events)-len(wantSuffix):]) != fmt.Sprint(wantSuffix) {
+		t.Fatalf("events=%v, want suffix %v", events, wantSuffix)
 	}
 }

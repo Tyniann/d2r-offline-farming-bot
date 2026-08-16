@@ -103,6 +103,26 @@ func TestFromSnapshotClonesSkillsKnown(t *testing.T) {
 	}
 }
 
+func TestFromSnapshotMapsAvailableWeaponSetFailClosed(t *testing.T) {
+	for _, test := range []struct {
+		name string
+		in   memory.WeaponSetSnapshot
+		want WeaponSetState
+	}{
+		{name: "primary", in: memory.WeaponSetSnapshot{Value: 0, Available: true}, want: WeaponSetState{Set: WeaponSetPrimary, Available: true}},
+		{name: "secondary", in: memory.WeaponSetSnapshot{Value: 1, Available: true}, want: WeaponSetState{Set: WeaponSetSecondary, Available: true}},
+		{name: "unavailable", in: memory.WeaponSetSnapshot{Value: 1}},
+		{name: "invalid", in: memory.WeaponSetSnapshot{Value: 2, Available: true}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			state := FromSnapshot(memory.Snapshot{Valid: true, Phase: memory.GamePhaseInGame, ActiveWeaponSet: test.in})
+			if state.Player.ActiveWeaponSet != test.want {
+				t.Fatalf("ActiveWeaponSet = %+v, want %+v", state.Player.ActiveWeaponSet, test.want)
+			}
+		})
+	}
+}
+
 func TestFromSnapshotMapsMercenary(t *testing.T) {
 	tests := []struct {
 		name string

@@ -59,7 +59,7 @@ func TestAbortOpenStepEmitsFailedAndIsIdempotent(t *testing.T) {
 func TestRunPipelineTelemetryCarriesDefinitionStepOutcomeAndActionIndex(t *testing.T) {
 	trace := &pipelineTelemetry{}
 	definition, _ := DefaultRunRegistry().Definition(RunIDCountess)
-	pipeline := &runPipeline{definition: definition, encounterActionIndex: 0}
+	pipeline := &runPipeline{definition: definition, boss: pipelineBossState{encounterActionIndex: 0}}
 	runner := NewRunner(config.NewLogger("error"), RunSelection{Run: string(RunIDCountess)}, RunConfig{}, Deps{Telemetry: trace})
 	runner.run = pipeline
 
@@ -119,31 +119,51 @@ func TestRunPipelineTelemetryFailureStopsBeforeFollowingInput(t *testing.T) {
 
 func TestRunPipelineCentralResetBarrierClearsGenerationOnce(t *testing.T) {
 	definition, _ := DefaultRunRegistry().Definition(RunIDCountess)
+	now := time.Unix(100, 0)
 	pipeline := &runPipeline{
-		definition: definition, targetSeen: true, targetUnitID: 42, routeStarted: true,
-		lootPickupActive: true, encounterActionIndex: 1,
-		postKillTeleportAttempts: 2, lootApproachTargetSet: true,
-		lootApproachTarget: LootTarget{UnitID: 99}, lootApproachAttempts: 2,
-		lootPickupRecovered: map[uint32]bool{7: true}, lootRecoveryPending: true,
-		lootRecoveryTarget: LootTarget{UnitID: 7}, lootRecoveryTeleportSent: true,
-		portalRecovered: map[uint32]bool{59: true}, portalRecoveryPending: true,
-		portalRecoveryUnitID: 59, portalRecoveryTeleportSent: true,
+		definition: definition,
+		travel: pipelineTravelState{
+			routeThreat: RouteThreatController{state: RouteThreatClearing}, navStarted: true, resumeAfterPrecheckSet: true, resumeAfterPrecheck: pipelineStepPlayRoute, routeStarted: true,
+			routeProgressUnavailableSince: now, routeProgressUnavailableSnapshot: now, routeLootPointSet: true, routeLootSegmentIndex: 2, routeLootPointIndex: 3, routeLootScanned: true,
+			routeApproachTargetUnitID: 41, routeApproachOrigin: world.Position{X: 1}, routeApproachGoal: world.Position{X: 2}, routeApproachSentAt: now, routeApproachSnapshotAt: now,
+			routeApproachPending: true, routeApproachFailures: 2, routeApproachExhaustedUnitID: 42, cowNoProgressRecoveryStage: cowNoProgressStageApproached,
+			cowNoProgressApproachUnitID: 43, terminalSafeSnapshots: 2, terminalSafeSnapshotAt: now,
+		},
+		boss: pipelineBossState{
+			chestFallbackStarted: true, targetSeen: true, targetUnitID: 51, targetPosition: world.Position{X: 3}, targetPositionSet: true, targetAbsentTicks: 2,
+			encounterActionIndex: 1, encounterActionStarted: true, bossKillEmitted: true, bossApproachPending: true, bossApproachAttempted: true,
+			bossApproachAt: now, bossApproachSnapshot: now, nihlathakAimUnitID: 52, nihlathakAimPlayerPosition: world.Position{X: 4},
+			nihlathakAimTargetPosition: world.Position{X: 5}, nihlathakAimSnapshot: now, cleanupTargetUnitID: 53, cleanupCastCount: 2,
+			cleanupNoTargetTicks: 2, cleanupLastProgressAt: now, cleanupSkippedUnitIDs: map[uint32]bool{54: true},
+		},
+		loot: pipelineLootState{
+			dropStableTicks: 2, lootScanHasTarget: true, lootPickupActive: true, lootNoTargetTicks: 2,
+			postKillTeleportAttempts: 2, postKillTeleportAt: now, postKillTeleportSnapshot: now, lootApproachTarget: LootTarget{UnitID: 61},
+			lootApproachTargetSet: true, lootApproachAttempts: 2, lootApproachAt: now, lootApproachSnapshot: now,
+			lootPickupRecovered: map[uint32]bool{62: true}, lootRecoveryPending: true, lootRecoveryTarget: LootTarget{UnitID: 62},
+			lootRecoveryTeleportSent: true, lootRecoveryAt: now, lootRecoverySnapshot: now, lootRecoveryMaxDistance: 30,
+		},
+		ret: pipelineReturnState{
+			egressStarted: true, portalRecovered: map[uint32]bool{71: true}, portalRecoveryPending: true, portalRecoveryUnitID: 71,
+			portalRecoveryPos: world.Position{X: 6}, portalRecoveryTeleportSent: true, portalRecoveryAt: now, portalRecoverySnapshot: now,
+		},
 	}
 	profileActions := &mockProfileActions{}
 	lootActions := &mockLootActions{}
-	runner := NewRunner(config.NewLogger("error"), RunSelection{Run: string(RunIDCountess)}, RunConfig{}, Deps{Profile: profileActions, Loot: lootActions})
+	combatActions := &mockCombatActions{}
+	runner := NewRunner(config.NewLogger("error"), RunSelection{Run: string(RunIDCountess)}, RunConfig{}, Deps{Profile: profileActions, Loot: lootActions, Combat: combatActions})
 	runner.run = pipeline
 
 	runner.Reset("process_lost")
 	runner.Reset("duplicate")
-	if pipeline.targetSeen || pipeline.targetUnitID != 0 || pipeline.routeStarted || pipeline.lootPickupActive || pipeline.encounterActionIndex != 0 ||
-		pipeline.postKillTeleportAttempts != 0 || pipeline.lootApproachTargetSet || pipeline.lootApproachTarget.UnitID != 0 || pipeline.lootApproachAttempts != 0 ||
-		pipeline.lootPickupRecovered != nil || pipeline.lootRecoveryPending || pipeline.lootRecoveryTarget.UnitID != 0 || pipeline.lootRecoveryTeleportSent ||
-		pipeline.portalRecovered != nil || pipeline.portalRecoveryPending || pipeline.portalRecoveryUnitID != 0 || pipeline.portalRecoveryTeleportSent {
-		t.Fatalf("pipeline state crossed reset barrier: %+v", pipeline)
+	expected := &runPipeline{}
+	expected.resetGeneration()
+	if !reflect.DeepEqual(pipeline.travel, expected.travel) || !reflect.DeepEqual(pipeline.boss, expected.boss) ||
+		!reflect.DeepEqual(pipeline.loot, expected.loot) || !reflect.DeepEqual(pipeline.ret, expected.ret) {
+		t.Fatalf("pipeline state crossed reset barrier:\ntravel=%+v\nboss=%+v\nloot=%+v\nreturn=%+v", pipeline.travel, pipeline.boss, pipeline.loot, pipeline.ret)
 	}
-	if profileActions.resetCalls != 1 || lootActions.resetCalls != 1 {
-		t.Fatalf("reset calls: profile=%d loot=%d, want exactly one", profileActions.resetCalls, lootActions.resetCalls)
+	if profileActions.resetCalls != 1 || lootActions.resetCalls != 1 || combatActions.resetCalls != 1 {
+		t.Fatalf("reset calls: profile=%d loot=%d combat=%d, want exactly one", profileActions.resetCalls, lootActions.resetCalls, combatActions.resetCalls)
 	}
 }
 
@@ -154,7 +174,7 @@ func TestRunPipelineEncounterActionTelemetryUsesStableIndex(t *testing.T) {
 	combat := &mockCombatActions{}
 	target := countessMonster(73, world.Position{X: 101, Y: 100})
 	pipeline := &runPipeline{
-		definition: definition, combat: killRunConfig().Combat, targetSeen: true, targetUnitID: target.UnitID,
+		definition: definition, boss: pipelineBossState{targetSeen: true, targetUnitID: target.UnitID}, core: pipelineCoreState{combat: killRunConfig().Combat},
 	}
 
 	result := pipeline.onBossTick(context.Background(), Deps{Telemetry: trace, Profile: profiles, Combat: combat}, pipelineStepEngageBoss, healthy(cellar5State(target)), time.Now())
@@ -173,7 +193,7 @@ func TestRunPipelineEncounterTelemetryFailureBlocksProfileAndCombatInput(t *test
 	combat := &mockCombatActions{}
 	target := countessMonster(74, world.Position{X: 101, Y: 100})
 	pipeline := &runPipeline{
-		definition: definition, combat: killRunConfig().Combat, targetSeen: true, targetUnitID: target.UnitID,
+		definition: definition, boss: pipelineBossState{targetSeen: true, targetUnitID: target.UnitID}, core: pipelineCoreState{combat: killRunConfig().Combat},
 	}
 
 	result := pipeline.onBossTick(context.Background(), Deps{Telemetry: trace, Profile: profiles, Combat: combat}, pipelineStepEngageBoss, healthy(cellar5State(target)), time.Now())
@@ -201,10 +221,9 @@ func TestRunPipelineEmptyEngageSequenceStartsRegularCombatWithoutProfileHook(t *
 			profiles := &mockProfileActions{}
 			combat := &mockCombatActions{}
 			pipeline := &runPipeline{
-				definition:   definition,
-				combat:       killRunConfig().Combat,
-				targetSeen:   true,
-				targetUnitID: target.UnitID,
+				definition: definition,
+				boss: pipelineBossState{targetSeen: true,
+					targetUnitID: target.UnitID}, core: pipelineCoreState{combat: killRunConfig().Combat},
 			}
 
 			result := pipeline.onBossTick(context.Background(), Deps{Profile: profiles, Combat: combat}, pipelineStepEngageBoss, state, time.Now())
@@ -220,7 +239,7 @@ func TestRunPipelineEmptyEngageSequenceStartsRegularCombatWithoutProfileHook(t *
 
 func TestPostBossCleanupUsesStandardAttackForSummoner(t *testing.T) {
 	definition, _ := DefaultRunRegistry().Definition(RunIDSummoner)
-	pipeline := &runPipeline{definition: definition, combat: killRunConfig().Combat, targetUnitID: 99}
+	pipeline := &runPipeline{definition: definition, boss: pipelineBossState{targetUnitID: 99}, core: pipelineCoreState{combat: killRunConfig().Combat}}
 	state := healthy(areaState(world.ArcaneSanctuary))
 	state.Player.Position = world.Position{X: 100, Y: 100}
 	state.Monsters = []world.Monster{
@@ -230,7 +249,7 @@ func TestPostBossCleanupUsesStandardAttackForSummoner(t *testing.T) {
 	combat := &mockCombatActions{}
 
 	result := pipeline.onBossTick(context.Background(), Deps{Combat: combat}, pipelineStepClearNearbyHostiles, state, time.Now())
-	if result.failed || result.complete || combat.castCalls != 1 || pipeline.cleanupCastCount != 1 || pipeline.cleanupTargetUnitID != 11 {
+	if result.failed || result.complete || combat.castCalls != 1 || pipeline.boss.cleanupCastCount != 1 || pipeline.boss.cleanupTargetUnitID != 11 {
 		t.Fatalf("result=%+v casts=%d cleanup=%+v", result, combat.castCalls, pipeline)
 	}
 	if combat.lastSkillID != killRunConfig().Combat.AttackSkillID {
@@ -243,8 +262,8 @@ func TestPostBossCleanupUsesStandardAttackForSummoner(t *testing.T) {
 	state.Monsters[0].Position = world.Position{X: 101, Y: 100}
 	state.Monsters[1].Position = world.Position{X: 115, Y: 100}
 	result = pipeline.onBossTick(context.Background(), Deps{Combat: combat}, pipelineStepClearNearbyHostiles, state, time.Now())
-	if result.failed || combat.lastMonsterUnitID != 10 || pipeline.cleanupTargetUnitID != 10 {
-		t.Fatalf("nearest target was not refreshed: result=%+v combat_target=%d cleanup_target=%d", result, combat.lastMonsterUnitID, pipeline.cleanupTargetUnitID)
+	if result.failed || combat.lastMonsterUnitID != 10 || pipeline.boss.cleanupTargetUnitID != 10 {
+		t.Fatalf("nearest target was not refreshed: result=%+v combat_target=%d cleanup_target=%d", result, combat.lastMonsterUnitID, pipeline.boss.cleanupTargetUnitID)
 	}
 }
 
@@ -253,7 +272,7 @@ func TestPostBossCleanupCompletesWhenStableClearOrBudgetExhausted(t *testing.T) 
 	state := healthy(areaState(world.ArcaneSanctuary))
 	state.Player.Position = world.Position{X: 100, Y: 100}
 	combat := &mockCombatActions{}
-	pipeline := &runPipeline{definition: definition, combat: killRunConfig().Combat}
+	pipeline := &runPipeline{definition: definition, core: pipelineCoreState{combat: killRunConfig().Combat}}
 
 	for tick := 1; tick <= postBossCleanupStableTicks; tick++ {
 		result := pipeline.onBossTick(context.Background(), Deps{Combat: combat}, pipelineStepClearNearbyHostiles, state, time.Now())
@@ -262,7 +281,7 @@ func TestPostBossCleanupCompletesWhenStableClearOrBudgetExhausted(t *testing.T) 
 		}
 	}
 
-	pipeline.cleanupCastCount = postBossCleanupMaxCasts
+	pipeline.boss.cleanupCastCount = postBossCleanupMaxCasts
 	state.Monsters = []world.Monster{{NPCID: 131, UnitID: 10, Position: world.Position{X: 101, Y: 100}}}
 	result := pipeline.onBossTick(context.Background(), Deps{Combat: combat}, pipelineStepClearNearbyHostiles, state, time.Now())
 	if result.failed || !result.complete || combat.castCalls != 0 {
@@ -284,6 +303,37 @@ func TestRunPipelineWaitEntryAreaIgnoresTransientAreaZero(t *testing.T) {
 	result = pipeline.onTravelTick(context.Background(), Deps{}, pipelineStepWaitEntryArea, wrong, time.Now(), time.Now())
 	if !result.failed || result.reason != string(RunReasonUnexpectedArea) {
 		t.Fatalf("confirmed wrong area result = %+v", result)
+	}
+}
+
+func TestRunPipelineWaitEntryAreaSettlesBeforeCompleting(t *testing.T) {
+	definition, _ := DefaultRunRegistry().Definition(RunIDMephisto)
+	pipeline := &runPipeline{definition: definition}
+	now := time.Now()
+	arrived := world.State{Valid: true, Phase: world.GamePhaseInGame, Area: world.LookupArea(world.DuranceOfHateLevel2), At: now}
+
+	loading := arrived
+	loading.Phase = world.GamePhaseLoading
+	if result := pipeline.onTravelTick(context.Background(), Deps{}, pipelineStepWaitEntryArea, loading, now, now); result.complete || result.failed {
+		t.Fatalf("loading destination result=%+v, want pending", result)
+	}
+
+	open := arrived
+	open.UI.WaypointOpen = true
+	if result := pipeline.onTravelTick(context.Background(), Deps{}, pipelineStepWaitEntryArea, open, now, now); result.complete || result.failed {
+		t.Fatalf("sticky waypoint-open first result=%+v, want pending", result)
+	}
+
+	early := open
+	early.At = now.Add(time.Second)
+	if result := pipeline.onTravelTick(context.Background(), Deps{}, pipelineStepWaitEntryArea, early, now.Add(time.Second), now); result.complete || result.failed {
+		t.Fatalf("unsettled destination result=%+v, want pending", result)
+	}
+
+	settled := open
+	settled.At = now.Add(entryAreaArriveSettle)
+	if result := pipeline.onTravelTick(context.Background(), Deps{}, pipelineStepWaitEntryArea, settled, now.Add(entryAreaArriveSettle), now); !result.complete || result.failed {
+		t.Fatalf("settled destination with sticky waypoint-open result=%+v, want complete", result)
 	}
 }
 
@@ -385,24 +435,23 @@ func TestNihlathakEngageUsesOneApproachThenRetryableProjectionLoss(t *testing.T)
 	aimFalse := false
 	combat := &mockCombatActions{aimProjectable: &aimFalse, farthestDistance: 18, farthestOK: boolPtr(true)}
 	pipeline := &runPipeline{
-		definition:   definition,
-		combat:       killRunConfig().Combat,
-		targetSeen:   true,
-		targetUnitID: boss.UnitID,
+		definition: definition,
+		boss: pipelineBossState{targetSeen: true,
+			targetUnitID: boss.UnitID}, core: pipelineCoreState{combat: killRunConfig().Combat},
 	}
 	now := time.Unix(10, 0).UTC()
 	state := nihlathakBossState(world.Position{X: 100, Y: 100}, boss)
 
 	first := pipeline.onBossTick(context.Background(), Deps{Combat: combat}, pipelineStepEngageBoss, state, now)
-	if first.failed || first.complete || combat.teleportCalls != 1 || !pipeline.bossApproachAttempted {
-		t.Fatalf("first approach = %+v teleports=%d attempted=%t", first, combat.teleportCalls, pipeline.bossApproachAttempted)
+	if first.failed || first.complete || combat.teleportCalls != 1 || !pipeline.boss.bossApproachAttempted {
+		t.Fatalf("first approach = %+v teleports=%d attempted=%t", first, combat.teleportCalls, pipeline.boss.bossApproachAttempted)
 	}
 
 	settled := state
 	settled.At = state.At.Add(time.Second)
 	lost := pipeline.onBossTick(context.Background(), Deps{Combat: combat}, pipelineStepEngageBoss, settled, now.Add(bossApproachSettle+time.Millisecond))
-	if !lost.failed || lost.reason != "boss_combat_unprojectable" || combat.teleportCalls != 1 || pipeline.bossApproachPending {
-		t.Fatalf("projection loss = %+v teleports=%d pending=%t, want boss_combat_unprojectable without second approach", lost, combat.teleportCalls, pipeline.bossApproachPending)
+	if !lost.failed || lost.reason != "boss_combat_unprojectable" || combat.teleportCalls != 1 || pipeline.boss.bossApproachPending {
+		t.Fatalf("projection loss = %+v teleports=%d pending=%t, want boss_combat_unprojectable without second approach", lost, combat.teleportCalls, pipeline.boss.bossApproachPending)
 	}
 }
 
@@ -411,11 +460,10 @@ func TestNihlathakEngageUnprojectableCastAfterApproachIsRetryable(t *testing.T) 
 	boss := world.Monster{NPCID: world.Nihlathak, UnitID: 42, Position: world.Position{X: 120, Y: 100}, IsHovered: true}
 	combat := &mockCombatActions{castMonsterErr: profile.ErrRouteClearTargetUnprojectable}
 	pipeline := &runPipeline{
-		definition:            definition,
-		combat:                killRunConfig().Combat,
-		targetSeen:            true,
-		targetUnitID:          boss.UnitID,
-		bossApproachAttempted: true,
+		definition: definition,
+		boss: pipelineBossState{targetSeen: true,
+			targetUnitID:          boss.UnitID,
+			bossApproachAttempted: true}, core: pipelineCoreState{combat: killRunConfig().Combat},
 	}
 	result := pipeline.onBossTick(context.Background(), Deps{Combat: combat}, pipelineStepEngageBoss, nihlathakBossState(world.Position{X: 100, Y: 100}, boss), time.Unix(10, 0).UTC())
 	if !result.failed || result.reason != "boss_combat_unprojectable" {
@@ -434,10 +482,9 @@ func TestNihlathakEngageAcceptsOccludingMonsterOnlyAfterFreshBossAim(t *testing.
 		{AimRequested: true},
 	}}
 	pipeline := &runPipeline{
-		definition:   definition,
-		combat:       killRunConfig().Combat,
-		targetSeen:   true,
-		targetUnitID: boss.UnitID,
+		definition: definition,
+		boss: pipelineBossState{targetSeen: true,
+			targetUnitID: boss.UnitID}, core: pipelineCoreState{combat: killRunConfig().Combat},
 	}
 	state := nihlathakBossState(world.Position{X: 100, Y: 100}, boss)
 	state.Monsters = []world.Monster{occluder, boss}

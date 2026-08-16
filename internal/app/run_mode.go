@@ -11,6 +11,7 @@ import (
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/input"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/memory"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/pathing"
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/replay"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/tasks"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/world"
 )
@@ -27,7 +28,7 @@ var (
 
 // resolveActiveRun returns the configured run name; CLI overrides YAML.
 func resolveActiveRun(opts Options, cfg *config.Config) string {
-	if opts.Desktop || opts.UIStateProbe != "" || opts.ScreenAnchorCapture != "" || opts.OfflineExitTest || opts.OfflineDifficulty != "" || opts.TownTest != "" || opts.TownInspect || opts.MercenaryProbe != "" || opts.CowProbe != "" {
+	if opts.Desktop || opts.UIStateProbe != "" || opts.ScreenAnchorCapture != "" || opts.OfflineExitTest || opts.OfflineDifficulty != "" || opts.TownTest != "" || opts.TownInspect || opts.MercenaryProbe != "" || opts.CowProbe != "" || opts.WeaponSetProbe != "" {
 		return ""
 	}
 	if opts.Run != "" {
@@ -138,6 +139,17 @@ func cowBindingAvailable(bindings configBindingSource, skillID uint16) bool {
 
 // validateRunMode checks run prerequisites after resolving CLI vs config.
 func validateRunMode(sel tasks.RunSelection, cfg *config.Config, opts Options, log *slog.Logger) error {
+	if opts.RuntimeTraceCapture != "" {
+		if err := replay.ValidateCaptureLabel(opts.RuntimeTraceCapture); err != nil {
+			return fmt.Errorf("--runtime-trace-capture: %w", err)
+		}
+		if opts.Run == "" || opts.RunPhase != "" {
+			return fmt.Errorf("--runtime-trace-capture requires an explicit full --run without --phase")
+		}
+		if opts.InputTest != "" || opts.PathingTest != "" || opts.OfflineDifficulty != "" || opts.OfflineCharacter != "" || opts.OfflineExitTest || opts.UIStateProbe != "" || opts.ScreenAnchorCapture != "" || opts.MercenaryProbe != "" || opts.CowProbe != "" || opts.WeaponSetProbe != "" || opts.Route != "" || opts.TownInspect || opts.TownTest != "" || opts.SessionInspect || opts.RunsInspect || opts.WaypointTargetsInspect {
+			return fmt.Errorf("--runtime-trace-capture is only valid with one explicit full run")
+		}
+	}
 	if opts.UIStateProbe != "" {
 		if opts.InputTest != "" || opts.PathingTest != "" || opts.OfflineDifficulty != "" || opts.OfflineCharacter != "" || opts.OfflineExitTest || opts.ScreenAnchorCapture != "" || opts.MercenaryProbe != "" || opts.Route != "" || opts.Run != "" || opts.RunPhase != "" {
 			return fmt.Errorf("--ui-state-probe is mutually exclusive with run and other test modes")
@@ -161,7 +173,7 @@ func validateRunMode(sel tasks.RunSelection, cfg *config.Config, opts Options, l
 		}
 	}
 	if opts.CowProbe != "" {
-		if opts.InputTest != "" || opts.PathingTest != "" || opts.OfflineDifficulty != "" || opts.OfflineCharacter != "" || opts.OfflineExitTest || opts.UIStateProbe != "" || opts.ScreenAnchorCapture != "" || opts.MercenaryProbe != "" || opts.Route != "" || opts.Run != "" || opts.RunPhase != "" || opts.TownInspect || opts.TownTest != "" {
+		if opts.InputTest != "" || opts.PathingTest != "" || opts.OfflineDifficulty != "" || opts.OfflineCharacter != "" || opts.OfflineExitTest || opts.UIStateProbe != "" || opts.ScreenAnchorCapture != "" || opts.MercenaryProbe != "" || opts.WeaponSetProbe != "" || opts.Route != "" || opts.Run != "" || opts.RunPhase != "" || opts.TownInspect || opts.TownTest != "" {
 			return fmt.Errorf("--cow-probe is mutually exclusive with run and other test modes")
 		}
 		if err := validateCowProbeLabel(opts.CowProbe); err != nil {
@@ -169,6 +181,17 @@ func validateRunMode(sel tasks.RunSelection, cfg *config.Config, opts Options, l
 		}
 		if opts.CowProbeTimeoutMs < 0 {
 			return fmt.Errorf("--cow-probe-timeout-ms must not be negative")
+		}
+	}
+	if opts.WeaponSetProbe != "" {
+		if opts.InputTest != "" || opts.PathingTest != "" || opts.OfflineDifficulty != "" || opts.OfflineCharacter != "" || opts.OfflineExitTest || opts.UIStateProbe != "" || opts.ScreenAnchorCapture != "" || opts.MercenaryProbe != "" || opts.CowProbe != "" || opts.Route != "" || opts.Run != "" || opts.RunPhase != "" || opts.TownInspect || opts.TownTest != "" {
+			return fmt.Errorf("--weapon-set-probe is mutually exclusive with run and other test modes")
+		}
+		if err := validateWeaponSetProbeLabel(opts.WeaponSetProbe); err != nil {
+			return err
+		}
+		if opts.WeaponSetProbeTimeoutMs < 0 {
+			return fmt.Errorf("--weapon-set-probe-timeout-ms must not be negative")
 		}
 	}
 	if opts.ScreenAnchorCapture != "" {
@@ -331,7 +354,7 @@ func farmingRouteRequired(opts Options, sel tasks.RunSelection) bool {
 	if opts.Desktop && sel.Run == "" {
 		return false
 	}
-	if sel.Run == "" && (opts.TownTest != "" || opts.TownInspect || opts.MercenaryProbe != "" || opts.CowProbe != "" || opts.InputTest != "" || opts.Probe || opts.UIStateProbe != "" || opts.ScreenAnchorCapture != "" || opts.PathingTest != "" || opts.OfflineDifficulty != "" || opts.OfflineExitTest || opts.Route != "") {
+	if sel.Run == "" && (opts.TownTest != "" || opts.TownInspect || opts.MercenaryProbe != "" || opts.CowProbe != "" || opts.WeaponSetProbe != "" || opts.InputTest != "" || opts.Probe || opts.UIStateProbe != "" || opts.ScreenAnchorCapture != "" || opts.PathingTest != "" || opts.OfflineDifficulty != "" || opts.OfflineExitTest || opts.Route != "") {
 		return false
 	}
 	return !opts.Desktop || sel.Run != ""
@@ -384,8 +407,8 @@ func validateFullRunBindingsWithProfile(cfg *config.Config, runID string, bindin
 	if err != nil {
 		return fmt.Errorf("%s requires %s binding: %w", runID, profileCfg.Combat.StandardAttack, err)
 	}
-	if attackCast.CastButton != input.MouseRight {
-		return fmt.Errorf("%s attack skill %s must use right mouse, configured=%s", runID, profileCfg.Combat.StandardAttack, attackCast.CastButton)
+	if err := requireStandardAttackButton(runID, profileCfg, attackCast); err != nil {
+		return err
 	}
 	runCfg, _ := cfg.Runs.Run(runID)
 	if runCfg.RouteCombat.EnabledValue() {
@@ -466,10 +489,29 @@ func validateBossBindingsWithProfile(cfg *config.Config, runID string, bindings 
 	if err != nil {
 		return fmt.Errorf("boss requires %s binding: %w", profileCfg.Combat.StandardAttack, err)
 	}
-	if attackCast.CastButton != input.MouseRight {
-		return fmt.Errorf("boss attack skill %s must use right mouse, configured=%s", profileCfg.Combat.StandardAttack, attackCast.CastButton)
+	if err := requireStandardAttackButton("boss", profileCfg, attackCast); err != nil {
+		return err
 	}
 	return nil
+}
+
+// requireStandardAttackButton compares the frozen binding against the
+// profile-declared mouse slot of `combat.standard_attack`. Necromancer Bone
+// Spear stays RMB; Hammerdin Blessed Hammer is LMB because required_skills
+// already pins that slot. There is no RMB fallback for Blessed Hammer.
+func requireStandardAttackButton(scope string, profileCfg config.ProfileConfig, attackCast input.SkillCast) error {
+	want := standardAttackMouseButton(profileCfg)
+	if attackCast.CastButton != want {
+		return fmt.Errorf("%s attack skill %s must use %s mouse, configured=%s", scope, profileCfg.Combat.StandardAttack, want, attackCast.CastButton)
+	}
+	return nil
+}
+
+func standardAttackMouseButton(profileCfg config.ProfileConfig) input.MouseButton {
+	if profileSkillSlot(profileCfg, profileCfg.Combat.StandardAttack) == "left" {
+		return input.MouseLeft
+	}
+	return input.MouseRight
 }
 
 func validateLootBindings(bindings configBindingSource) error {

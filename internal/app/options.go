@@ -18,6 +18,10 @@ type Options struct {
 	Run string
 	// RunPhase selects an optional phase for the active run (e.g. travel-entry).
 	RunPhase string
+	// RuntimeTraceCapture enables one labeled, bounded diagnosis bundle for an explicit full run.
+	RuntimeTraceCapture string
+	// ReplayRuntimeTrace selects one headless runtime trace bundle and bypasses normal Runtime construction.
+	ReplayRuntimeTrace string
 	// PathingTest starts the manual pathing-test mode with the given spec (empty = disabled).
 	// Specs: teleport:TX,TY | hover:watch | inspect:entrances|layout | move-area:<id|name> | click-entity:waypoint|entrance | pickup:item
 	PathingTest string
@@ -41,6 +45,10 @@ type Options struct {
 	CowProbe string
 	// CowProbeTimeoutMs bounds the read-only Cow evidence capture.
 	CowProbeTimeoutMs int
+	// WeaponSetProbe starts the read-only Phase-22.3 primary/secondary evidence capture.
+	WeaponSetProbe string
+	// WeaponSetProbeTimeoutMs bounds the read-only weapon-set capture.
+	WeaponSetProbeTimeoutMs int
 	// ScreenAnchorCapture labels one Phase-7.3 frontend screenshot capture.
 	ScreenAnchorCapture string
 	// SessionInspect resolves and prints the Phase-7.5 session plan without runtime initialization.

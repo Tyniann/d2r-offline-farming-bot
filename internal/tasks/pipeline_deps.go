@@ -1,0 +1,59 @@
+package tasks
+
+// Domain dependency views keep each pipeline component from reaching inputs
+// owned by another domain. The orchestrator narrows the generation-wide Deps
+// snapshot once at the component boundary.
+type pipelineTravelDeps struct {
+	Waypoint   WaypointActions
+	TownWalk   TownWalker
+	Combat     CombatActions
+	Loot       LootActions
+	Route      RoutePlayback
+	RouteClear RouteClearExecutor
+	Profile    ProfileActions
+	Telemetry  RunTelemetry
+}
+
+type pipelineBossDeps struct {
+	Pathing    Navigator
+	Combat     CombatActions
+	RouteClear RouteClearExecutor
+	Profile    ProfileActions
+	Telemetry  RunTelemetry
+}
+
+type pipelineLootDeps struct {
+	Combat CombatActions
+	Loot   LootActions
+}
+
+type pipelineReturnDeps struct {
+	Waypoint   WaypointActions
+	Portal     TownPortalActions
+	Stash      PersonalStashActions
+	Combat     CombatActions
+	Actions    RunActions
+	Loot       LootActions
+	TownEgress TownEgressPlayback
+	Town       TownPreparationActions
+}
+
+func narrowTravelDeps(deps Deps) pipelineTravelDeps {
+	return pipelineTravelDeps{Waypoint: deps.Waypoint, TownWalk: deps.TownWalk, Combat: deps.Combat, Loot: deps.Loot, Route: deps.Route, RouteClear: deps.RouteClear, Profile: deps.Profile, Telemetry: deps.Telemetry}
+}
+
+func narrowBossDeps(deps Deps) pipelineBossDeps {
+	return pipelineBossDeps{Pathing: deps.Pathing, Combat: deps.Combat, RouteClear: deps.RouteClear, Profile: deps.Profile, Telemetry: deps.Telemetry}
+}
+
+func narrowLootDeps(deps Deps) pipelineLootDeps {
+	return pipelineLootDeps{Combat: deps.Combat, Loot: deps.Loot}
+}
+
+func narrowReturnDeps(deps Deps) pipelineReturnDeps {
+	return pipelineReturnDeps{Waypoint: deps.Waypoint, Portal: deps.Portal, Stash: deps.Stash, Combat: deps.Combat, Actions: deps.Actions, Loot: deps.Loot, TownEgress: deps.TownEgress, Town: deps.Town}
+}
+
+func (deps pipelineTravelDeps) lootDeps() pipelineLootDeps {
+	return pipelineLootDeps{Combat: deps.Combat, Loot: deps.Loot}
+}

@@ -33,11 +33,16 @@ func (m *offlineSelectionMock) SelectSkill(input.BindingSource, uint16) error   
 func (m *offlineSelectionMock) MoveTo(x, y int) error                                   { m.movedX, m.movedY = x, y; return nil }
 func (m *offlineSelectionMock) Click(input.MouseButton) error                           { m.clicks++; return nil }
 func (m *offlineSelectionMock) ClickWithModifier(string, input.MouseButton) error       { return nil }
-func (m *offlineSelectionMock) PressKey(string) error                                   { return nil }
-func (m *offlineSelectionMock) Focus() error                                            { return nil }
-func (m *offlineSelectionMock) Window() (input.WindowInfo, bool)                        { return m.window, true }
-func (m *offlineSelectionMock) TogglePause(string) bool                                 { return false }
-func (m *offlineSelectionMock) Stop(string)                                             {}
+func (m *offlineSelectionMock) ClickAtWithModifier(x, y int, _ string, _ input.MouseButton) error {
+	m.movedX, m.movedY = x, y
+	m.clicks++
+	return nil
+}
+func (m *offlineSelectionMock) PressKey(string) error            { return nil }
+func (m *offlineSelectionMock) Focus() error                     { return nil }
+func (m *offlineSelectionMock) Window() (input.WindowInfo, bool) { return m.window, true }
+func (m *offlineSelectionMock) TogglePause(string) bool          { return false }
+func (m *offlineSelectionMock) Stop(string)                      {}
 func (m *offlineSelectionMock) ListenHotkeys(context.Context, chan<- input.HotkeyEvent, chan<- error) {
 }
 func (m *offlineSelectionMock) CaptureClient() (*image.RGBA, error) {

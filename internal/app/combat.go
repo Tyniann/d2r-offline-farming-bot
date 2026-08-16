@@ -24,14 +24,26 @@ type combatAdapter struct {
 	forceMoveKey        string
 	interval            time.Duration
 	lastAction          time.Time
+	skills              *SkillSelector
 	selector            *RightSkillSelector
 	pendingTargetUnitID uint32
 	hoverProbeAttempt   int
+	attackHeld          bool
 }
 
 type verifiedCombatInput interface {
 	SelectSkill(input.BindingSource, uint16) error
 	Click(input.MouseButton) error
+}
+
+type modifiedClickInput interface {
+	ClickAtWithModifier(clientX, clientY int, modifier string, button input.MouseButton) error
+}
+
+type modifierHoldInput interface {
+	HoldAt(clientX, clientY int, button input.MouseButton) error
+	ReleaseModifierHold() error
+	ModifierHoldActive() bool
 }
 
 func newCombatAdapter(log *slog.Logger, in inputController, bindings configBindingSource, cfg pathing.Config, interval time.Duration) *combatAdapter {
@@ -51,13 +63,35 @@ func newCombatAdapter(log *slog.Logger, in inputController, bindings configBindi
 		forceMoveKey: cfg.TownWalk.ForceMoveKey,
 		interval:     interval,
 	}
+	adapter.log.Info("combat attack interval", "attack_interval_ms", interval.Milliseconds())
 	if combatInput, ok := in.(verifiedCombatInput); ok {
-		adapter.selector = NewRightSkillSelector(bindings, combatInput)
+		adapter.skills = NewSkillSelector(bindings, combatInput)
+		adapter.selector = &RightSkillSelector{selector: adapter.skills, timeout: rightSkillSelectionTimeout}
 	}
 	return adapter
 }
 
 func (c *combatAdapter) CastAttackAtWorld(now time.Time, skillID uint16, player world.Player, targetPos world.Position) (bool, error) {
+	cast, err := c.bindings.Resolve(skillID)
+	if err != nil {
+		return false, fmt.Errorf("combat resolve %s(%d): %w", memory.SkillName(skillID), skillID, err)
+	}
+	if cast.CastButton == input.MouseLeft {
+		result, err := c.HoldStandardAttack(now, skillID, player, world.Monster{Position: targetPos, IsHovered: true})
+		return result.Sent, err
+	}
+	return c.castRightAttackAtWorld(now, skillID, player, targetPos)
+}
+
+// HoldStandardAttack aims at the living target's visible body, then presses
+// LMB and leaves it down until [combatAdapter.StopAttack]. Hover ID may
+// belong to an overlaying monster; the cursor uses the supplied world
+// position. A second call while the hold is active is a no-op.
+func (c *combatAdapter) HoldStandardAttack(now time.Time, skillID uint16, player world.Player, target world.Monster) (profile.MonsterCastResult, error) {
+	return c.holdLeftAttackAtMonster(now, skillID, player, target)
+}
+
+func (c *combatAdapter) castRightAttackAtWorld(now time.Time, skillID uint16, player world.Player, targetPos world.Position) (bool, error) {
 	combatInput, ok := c.input.(verifiedCombatInput)
 	if !ok || c.selector == nil {
 		return false, fmt.Errorf("combat verified input not wired")
@@ -102,6 +136,133 @@ func (c *combatAdapter) CastAttackAtWorld(now time.Time, skillID uint16, player 
 		return false, nil
 	}
 	return true, nil
+}
+
+func (c *combatAdapter) holdLeftAttackAtMonster(now time.Time, skillID uint16, player world.Player, target world.Monster) (profile.MonsterCastResult, error) {
+	if c.skills == nil {
+		return profile.MonsterCastResult{}, fmt.Errorf("combat verified input not wired")
+	}
+	holder, ok := c.input.(modifierHoldInput)
+	if !ok {
+		return profile.MonsterCastResult{}, fmt.Errorf("combat modified hold not wired")
+	}
+	if c.standardAttackHeld(holder) {
+		return profile.MonsterCastResult{}, nil
+	}
+	if concentrationID, bound := c.boundConcentrationID(); bound && player.RightSkillID != concentrationID {
+		if !c.ready(now) && c.skills.pending[SkillSlotRight] != concentrationID {
+			return profile.MonsterCastResult{}, nil
+		}
+		confirmed, err := c.skills.EnsureSelected(SkillSlotRight, concentrationID, player.LeftSkillID, player.RightSkillID, now)
+		c.syncRightSelector()
+		if err != nil {
+			return profile.MonsterCastResult{}, err
+		}
+		if !confirmed && c.skills.pending[SkillSlotRight] == concentrationID && c.skills.requestedAt[SkillSlotRight].Equal(now) {
+			c.lastAction = now
+			c.log.Info("combat right-mouse skill selection requested", "skill", memory.SkillName(concentrationID), "skill_id", concentrationID, "current_right_skill_id", player.RightSkillID)
+		}
+		return profile.MonsterCastResult{}, nil
+	}
+	if player.LeftSkillID == skillID {
+		if !c.ready(now) {
+			return profile.MonsterCastResult{}, nil
+		}
+	} else if !c.ready(now) && c.skills.pending[SkillSlotLeft] != skillID {
+		return profile.MonsterCastResult{}, nil
+	}
+	clientX, clientY, mode, aimOnly, err := c.monsterHoldCursor(player, target)
+	if err != nil {
+		return profile.MonsterCastResult{}, err
+	}
+	if aimOnly {
+		c.lastAction = now
+		return profile.MonsterCastResult{AimRequested: true}, nil
+	}
+	sent, err := c.skills.EnsureAndCast(SkillSlotLeft, skillID, player.LeftSkillID, player.RightSkillID, now, func() error {
+		if holdErr := holder.HoldAt(clientX, clientY, input.MouseLeft); holdErr != nil {
+			return fmt.Errorf("combat left hold %s(%d): %w", memory.SkillName(skillID), skillID, holdErr)
+		}
+		c.attackHeld = true
+		c.lastAction = now
+		c.log.Info("combat left-mouse skill hold started",
+			"skill", memory.SkillName(skillID),
+			"skill_id", skillID,
+			"left_skill_id", player.LeftSkillID,
+			"unit_id", target.UnitID,
+			"npc_id", target.NPCID,
+			"hovered", target.IsHovered,
+			"targeting_mode", string(mode),
+			"mana", player.Mana,
+			"max_mana", player.MaxMana,
+			"target_x", target.Position.X,
+			"target_y", target.Position.Y,
+			"client_x", clientX,
+			"client_y", clientY,
+		)
+		return nil
+	})
+	if err != nil {
+		return profile.MonsterCastResult{}, err
+	}
+	if !sent {
+		if c.skills.pending[SkillSlotLeft] == skillID && c.skills.requestedAt[SkillSlotLeft].Equal(now) {
+			c.lastAction = now
+			c.log.Info("combat left-mouse skill selection requested", "skill", memory.SkillName(skillID), "skill_id", skillID, "current_left_skill_id", player.LeftSkillID)
+		}
+		return profile.MonsterCastResult{}, nil
+	}
+	return profile.MonsterCastResult{Sent: true, TargetingMode: mode}, nil
+}
+
+func (c *combatAdapter) monsterHoldCursor(player world.Player, target world.Monster) (clientX, clientY int, mode profile.MonsterTargetingMode, aimOnly bool, err error) {
+	win, ok := c.input.Window()
+	if !ok {
+		return 0, 0, "", false, fmt.Errorf("combat projection: window not bound")
+	}
+	if target.IsHovered {
+		clientX, clientY, projected := pathing.ProjectHoverProbe(c.projector, player.Position, target.Position, win, c.hoverProbe, 0)
+		if !projected {
+			return 0, 0, "", false, fmt.Errorf("%w: unit %d", profile.ErrRouteClearTargetUnprojectable, target.UnitID)
+		}
+		c.pendingTargetUnitID = target.UnitID
+		c.hoverProbeAttempt = 0
+		return clientX, clientY, profile.MonsterTargetingHoverConfirmed, false, nil
+	}
+	if c.pendingTargetUnitID != target.UnitID {
+		c.hoverProbeAttempt = 0
+	}
+	if c.hoverProbe.MaxHoverAttempts > 0 && c.hoverProbeAttempt >= c.hoverProbe.MaxHoverAttempts {
+		clientX, clientY, projected := pathing.ProjectHoverProbe(c.projector, player.Position, target.Position, win, c.hoverProbe, 0)
+		if !projected {
+			c.pendingTargetUnitID = 0
+			c.hoverProbeAttempt = 0
+			return 0, 0, "", false, fmt.Errorf("%w: unit %d", profile.ErrRouteClearTargetUnprojectable, target.UnitID)
+		}
+		c.pendingTargetUnitID = 0
+		c.hoverProbeAttempt = 0
+		return clientX, clientY, profile.MonsterTargetingWorldProjected, false, nil
+	}
+	attempt := c.hoverProbeAttempt
+	clientX, clientY, projected := pathing.ProjectHoverProbe(c.projector, player.Position, target.Position, win, c.hoverProbe, attempt)
+	if !projected {
+		return 0, 0, "", false, fmt.Errorf("%w: unit %d", profile.ErrRouteClearTargetUnprojectable, target.UnitID)
+	}
+	if moveErr := c.input.MoveTo(clientX, clientY); moveErr != nil {
+		return 0, 0, "", false, fmt.Errorf("combat aim monster %d: %w", target.UnitID, moveErr)
+	}
+	c.pendingTargetUnitID = target.UnitID
+	c.hoverProbeAttempt++
+	c.log.Info("combat monster aim requested",
+		"unit_id", target.UnitID,
+		"npc_id", target.NPCID,
+		"hover_probe_attempt", attempt+1,
+		"target_x", target.Position.X,
+		"target_y", target.Position.Y,
+		"client_x", clientX,
+		"client_y", clientY,
+	)
+	return clientX, clientY, "", true, nil
 }
 
 func (c *combatAdapter) CastAttackAtMonster(now time.Time, skillID uint16, player world.Player, target world.Monster) (profile.MonsterCastResult, error) {
@@ -225,12 +386,28 @@ func (c *combatAdapter) CastAttackAtMonster(now time.Time, skillID uint16, playe
 }
 
 func (c *combatAdapter) StopAttack() error {
-	if c.selector != nil {
-		c.selector.Reset()
+	if holder, ok := c.input.(modifierHoldInput); ok && (c.attackHeld || holder.ModifierHoldActive()) {
+		if err := holder.ReleaseModifierHold(); err != nil {
+			return fmt.Errorf("combat release standard attack hold: %w", err)
+		}
+		c.log.Info("combat left-mouse skill hold released")
 	}
+	c.attackHeld = false
+	if c.skills != nil {
+		c.skills.Reset()
+	}
+	c.syncRightSelector()
 	c.pendingTargetUnitID = 0
 	c.hoverProbeAttempt = 0
 	return nil
+}
+
+func (c *combatAdapter) standardAttackHeld(holder modifierHoldInput) bool {
+	if c.attackHeld && holder.ModifierHoldActive() {
+		return true
+	}
+	c.attackHeld = false
+	return false
 }
 
 // MonsterAimProjectable reports whether the same visible-body anchor used by
@@ -260,6 +437,11 @@ func (c *combatAdapter) FarthestProjectableMonsterApproach(playerPos, targetPos 
 }
 
 func (c *combatAdapter) TeleportToward(now time.Time, player world.Player, targetPos world.Position, desiredDistanceTiles float64) (bool, error) {
+	if holder, ok := c.input.(modifierHoldInput); ok && (c.attackHeld || holder.ModifierHoldActive()) {
+		if err := c.StopAttack(); err != nil {
+			return false, err
+		}
+	}
 	combatInput, ok := c.input.(verifiedCombatInput)
 	if !ok || c.selector == nil {
 		return false, fmt.Errorf("combat verified input not wired")
@@ -346,6 +528,27 @@ func (c *combatAdapter) Reset() {
 	}
 	c.lastAction = time.Time{}
 	c.pendingTargetUnitID = 0
+}
+
+func (c *combatAdapter) boundConcentrationID() (uint16, bool) {
+	id := memory.MustSkillID("concentration")
+	if _, err := c.bindings.Resolve(id); err != nil {
+		return 0, false
+	}
+	return id, true
+}
+
+func (c *combatAdapter) syncRightSelector() {
+	if c.selector == nil {
+		return
+	}
+	if c.skills == nil {
+		c.selector.pending = 0
+		c.selector.requestedAt = time.Time{}
+		return
+	}
+	c.selector.pending = c.skills.pending[SkillSlotRight]
+	c.selector.requestedAt = c.skills.requestedAt[SkillSlotRight]
 }
 
 func (c *combatAdapter) ready(now time.Time) bool {

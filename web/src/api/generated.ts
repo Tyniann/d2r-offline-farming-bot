@@ -81,6 +81,11 @@ export interface CharacterSetupRequiredSkillDTO {
   skill: string;
   skill_id: number;
   display_name: string;
+  slot: "left" | "right" | "";
+}
+
+export interface CharacterSetupOptionalSkillPairDTO {
+  skills: Array<CharacterSetupRequiredSkillDTO>;
 }
 
 export interface CharacterSetupProfileDTO {
@@ -90,6 +95,10 @@ export interface CharacterSetupProfileDTO {
   is_selected: boolean;
   standard_attack?: string;
   required_skills?: Array<CharacterSetupRequiredSkillDTO>;
+  optional_skill_pairs?: Array<CharacterSetupOptionalSkillPairDTO>;
+  requires_mercenary: boolean;
+  bindings_ready: boolean;
+  binding_reasons?: Array<string>;
   supported_runs?: Array<string>;
 }
 
@@ -457,12 +466,15 @@ export interface RouteWorkflowRequest {
   route_role?: string;
   candidate_id?: string;
   act?: string;
+  character?: string;
+  difficulty?: string;
 }
 
 export interface RouteRecordingStartRequest {
   expected_generation: number;
   run_id: string;
   route_role?: string;
+  character?: string;
 }
 
 export interface RouteWorkflowFinishRequest {
@@ -1052,8 +1064,9 @@ export function getRouteLibrary(character = "", archived = false, signal?: Abort
   return getJSON<RouteLibraryDTO>("/api/v1/routes?" + query.toString(), signal);
 }
 
-export function getRecordingOptions(signal?: AbortSignal): Promise<Array<RecordingOptionDTO>> {
-  return getJSON<Array<RecordingOptionDTO>>("/api/v1/route-recording/options", signal);
+export function getRecordingOptions(character = "", signal?: AbortSignal): Promise<Array<RecordingOptionDTO>> {
+  const query = character ? "?" + new URLSearchParams({ character }).toString() : "";
+  return getJSON<Array<RecordingOptionDTO>>("/api/v1/route-recording/options" + query, signal);
 }
 
 export function getRouteCandidates(signal?: AbortSignal): Promise<Array<RouteCandidateDTO>> {

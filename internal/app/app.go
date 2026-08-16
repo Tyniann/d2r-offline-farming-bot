@@ -21,6 +21,7 @@ import (
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/pathing"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/process"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/profile"
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/replay"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/tasks"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/telemetry"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/town"
@@ -51,6 +52,7 @@ type Runtime struct {
 	ActivePickit       PickitPolicySnapshot
 	Telemetry          *telemetry.Recorder
 	Profile            *profile.Executor
+	RuntimeTrace       *replay.Recorder
 	profileTelemetry   *profileTelemetryAdapter
 	compatibility      d2rCompatibilityContract
 	processPreAttached atomic.Bool
@@ -160,9 +162,14 @@ func New(cfg *config.Config, opts Options) (rt *Runtime, err error) {
 		runtimeRunID = cfg.Session.Run
 	}
 	if runtimeRunID == "" {
-		// Passive and isolated diagnostic modes retain the Countess profile and
-		// pickup policy without selecting or authorizing a farming run.
+		// Passive desktop and isolated diagnostics keep Countess only as a
+		// profile carrier. They must not require a Countess pickit or strategy.
 		runtimeRunID = string(tasks.RunIDCountess)
+	}
+	if isHammerdinPrebuffTownTest(opts.TownTest) {
+		// The isolated prebuff uses the registered Hammerdin/Mephisto profile
+		// carrier without authorizing route playback or boss combat.
+		runtimeRunID = string(tasks.RunIDMephisto)
 	}
 	selectedRunCfg, ok := cfg.Runs.Run(runtimeRunID)
 	if !ok {
@@ -224,7 +231,11 @@ func New(cfg *config.Config, opts Options) (rt *Runtime, err error) {
 	wireNavigatorRightSkill(nav, combat, inputCtrl)
 	runActions := newRunActionsAdapter(log, inputCtrl, bindings, combat)
 	profileTrace := &profileTelemetryAdapter{}
-	profileExecutor, err := newProfileExecutor(log, cfg.Profiles, combatProfileID, runtimeRunID, strategyRegistry, inputCtrl, bindings, pathingCfg, combat, profileTrace)
+	profileExecutor, err := newProfileExecutor(log, cfg.Profiles, combatProfileID, runtimeRunID, strategyRegistry, inputCtrl, bindings, pathingCfg, combat, profileTrace, CharacterLoadoutRequired(opts))
+	if err != nil {
+		return nil, fmt.Errorf("profile config: %w", err)
+	}
+	profileActions, err := attachHammerdinTownReady(combatProfileID, profileExecutor, bindings, inputCtrl)
 	if err != nil {
 		return nil, fmt.Errorf("profile config: %w", err)
 	}
@@ -243,7 +254,7 @@ func New(cfg *config.Config, opts Options) (rt *Runtime, err error) {
 	if err != nil {
 		return nil, fmt.Errorf("pickit assignments: %w", err)
 	}
-	pickit, err := loadEffectivePickitPolicy(pickitAssignments, cfg.Session.Character, tasks.RunID(runtimeRunID))
+	pickit, err := loadRuntimePickitPolicy(opts, pickitAssignments, cfg.Session.Character, tasks.RunID(runtimeRunID))
 	if err != nil {
 		return nil, err
 	}
@@ -285,7 +296,7 @@ func New(cfg *config.Config, opts Options) (rt *Runtime, err error) {
 	}
 	taskDeps := tasks.Deps{
 		Input: inputCtrl, Pathing: nav, Waypoint: runWaypoints, Portal: townPortals, TownWalk: layoutTownWalker,
-		Stash: personalStash, Combat: combat, Actions: runActions, Loot: lootActions, Route: routePlayback, RouteClear: profileExecutor, TownEgress: townEgress, Profile: profileExecutor, Town: townPreparation, Cow: cowSetup, CowRecipe: cowRecipe,
+		Stash: personalStash, Combat: combat, Actions: runActions, Loot: lootActions, Route: routePlayback, RouteClear: profileExecutor, TownEgress: townEgress, Profile: profileActions, Town: townPreparation, Cow: cowSetup, CowRecipe: cowRecipe,
 	}
 	// Do not assign a nil *telemetry.Recorder to the interface: that would make
 	// the interface non-nil and turn the first fail-closed pipeline event into a
@@ -294,9 +305,27 @@ func New(cfg *config.Config, opts Options) (rt *Runtime, err error) {
 	if runTelemetry != nil {
 		taskDeps.Telemetry = runTelemetry
 	}
+	var runtimeTrace *replay.Recorder
+	if opts.RuntimeTraceCapture != "" {
+		runtimeTrace, err = replay.NewRecorder(replay.Config{
+			Enabled:   true,
+			Directory: runtimeTraceDirectory(cfg),
+			Label:     opts.RuntimeTraceCapture,
+		}, replay.Metadata{BotVersion: version.Version, Commit: version.Commit}, runtimeTraceContract(cfg, opts, runSelection, runCfg))
+		if err != nil {
+			return nil, fmt.Errorf("runtime trace capture: %w", err)
+		}
+		taskDeps = replay.InstrumentDeps(taskDeps, runtimeTrace)
+		log.Info("runtime trace capture enabled", "label", opts.RuntimeTraceCapture, "directory", runtimeTraceDirectory(cfg))
+	}
 
 	probe := memory.NewProbeReader(mem, offsetSet)
 	probe.SetScannedCachePath(cfg.ResolvePath(memory.DefaultScannedCacheFile))
+	if opts.WeaponSetProbe != "" || combatProfileID == hammerdinProfileID {
+		if err := probe.ConfigureWeaponSetSkillEvidence(memory.MustSkillID("battle_orders"), memory.MustSkillID("battle_command")); err != nil {
+			return nil, fmt.Errorf("configure weapon-set skill evidence: %w", err)
+		}
+	}
 
 	rt = &Runtime{
 		Config:            cfg,
@@ -318,6 +347,7 @@ func New(cfg *config.Config, opts Options) (rt *Runtime, err error) {
 		PickitAssignments: pickitAssignments,
 		Telemetry:         runTelemetry,
 		Profile:           profileExecutor,
+		RuntimeTrace:      runtimeTrace,
 		profileTelemetry:  profileTrace,
 		taskDeps:          taskDeps,
 		runConfig:         runCfg,
@@ -349,7 +379,7 @@ func New(cfg *config.Config, opts Options) (rt *Runtime, err error) {
 			{name: "loot", resetter: lootActions},
 			{name: "route", resetter: routePlayback},
 			{name: "town_egress", resetter: townEgress},
-			{name: "profile", resetter: profileExecutor},
+			{name: "profile", resetter: profileActions},
 		},
 		resetWorld: func(at time.Time, reason string) { rt.World.Reset(at, reason) },
 	}
@@ -368,12 +398,12 @@ func New(cfg *config.Config, opts Options) (rt *Runtime, err error) {
 // the process. Specialized CLI modes such as --pathing-test and --route must
 // return false even when session.enabled is true.
 func SessionExecutionRequested(opts Options) bool {
-	return !opts.Desktop && !opts.SessionInspect && !opts.RunsInspect && !opts.WaypointTargetsInspect && !opts.Probe && opts.InputTest == "" && opts.Run == "" && opts.RunPhase == "" && opts.PathingTest == "" && opts.OfflineDifficulty == "" && opts.OfflineCharacter == "" && !opts.OfflineExitTest && opts.UIStateProbe == "" && opts.ScreenAnchorCapture == "" && opts.MercenaryProbe == "" && opts.CowProbe == "" && opts.Route == "" && !opts.TownInspect && opts.TownTest == ""
+	return !opts.Desktop && !opts.SessionInspect && !opts.RunsInspect && !opts.WaypointTargetsInspect && !opts.Probe && opts.InputTest == "" && opts.Run == "" && opts.RunPhase == "" && opts.RuntimeTraceCapture == "" && opts.ReplayRuntimeTrace == "" && opts.PathingTest == "" && opts.OfflineDifficulty == "" && opts.OfflineCharacter == "" && !opts.OfflineExitTest && opts.UIStateProbe == "" && opts.ScreenAnchorCapture == "" && opts.MercenaryProbe == "" && opts.CowProbe == "" && opts.WeaponSetProbe == "" && opts.Route == "" && !opts.TownInspect && opts.TownTest == ""
 }
 
 // CharacterLoadoutRequired reports whether Runtime construction needs a frozen character loadout.
 func CharacterLoadoutRequired(opts Options) bool {
-	if opts.Desktop || opts.SessionInspect || opts.RunsInspect || opts.WaypointTargetsInspect || opts.Probe || opts.UIStateProbe != "" || opts.ScreenAnchorCapture != "" || opts.MercenaryProbe != "" || opts.CowProbe != "" || opts.TownInspect {
+	if opts.Desktop || opts.SessionInspect || opts.RunsInspect || opts.WaypointTargetsInspect || opts.Probe || opts.UIStateProbe != "" || opts.ScreenAnchorCapture != "" || opts.MercenaryProbe != "" || opts.CowProbe != "" || opts.WeaponSetProbe != "" || opts.TownInspect {
 		return false
 	}
 	if SessionExecutionRequested(opts) {
@@ -390,6 +420,16 @@ func resolveRuntimeBindings(opts Options) (configBindingSource, error) {
 		return configBindingSource{}, fmt.Errorf("character loadout required")
 	}
 	return configBindingSource{skills: make(map[uint16]input.SkillCast)}, nil
+}
+
+func loadRuntimePickitPolicy(opts Options, assignments *PickitAssignmentStore, character string, runID tasks.RunID) (*loot.Pickit, error) {
+	if !CharacterLoadoutRequired(opts) {
+		// Idle desktop and route recording must start without a dummy Countess
+		// assignment. Productive runs and town-tests stay fail-closed below.
+		empty, err := loot.CompilePickitRules("unassigned pickit", nil)
+		return empty, err
+	}
+	return loadEffectivePickitPolicy(assignments, character, runID)
 }
 
 func loadEffectivePickitPolicy(assignments *PickitAssignmentStore, character string, runID tasks.RunID) (*loot.Pickit, error) {
@@ -496,16 +536,19 @@ func (rt *Runtime) Run() error {
 		select {
 		case <-ctx.Done():
 			rt.Log.Info("shutting down")
-			return nil
+			result := rt.Tasks.Result()
+			return rt.finalizeRuntimeTrace(replay.Terminal{Step: result.Step, Outcome: "failed", Reason: "operator_stop"})
 		case ev := <-hotkeyEvents:
 			rt.handleHotkeyEvent(ev, cancel)
 		case <-ticker.C:
 			if err := rt.runTick(ctx, state); err != nil {
 				if errors.Is(err, context.Canceled) {
-					return nil
+					result := rt.Tasks.Result()
+					return rt.finalizeRuntimeTrace(replay.Terminal{Step: result.Step, Outcome: "failed", Reason: "operator_stop"})
 				}
 				rt.Log.Error("run loop stopped", "error", err)
-				return err
+				result := rt.Tasks.Result()
+				return errors.Join(err, rt.finalizeRuntimeTrace(replay.Terminal{Step: result.Step, Outcome: "failed", Reason: err.Error()}))
 			}
 			if done, err := rt.configuredTaskResult(); done {
 				return err
@@ -524,16 +567,17 @@ func (rt *Runtime) configuredTaskResult() (bool, error) {
 
 	result := rt.Tasks.Result()
 	if result.Outcome == tasks.RunOutcomeSuccess {
-		return true, nil
+		return true, rt.finalizeRuntimeTrace(replay.Terminal{Step: result.Step, Outcome: string(result.Outcome), Reason: result.Reason})
 	}
 
-	return true, fmt.Errorf(
+	runErr := fmt.Errorf(
 		"task run %s phase %s failed at step %s: %s",
 		rt.Tasks.ConfiguredRun(),
 		rt.Tasks.ConfiguredPhase(),
 		result.Step,
 		result.Reason,
 	)
+	return true, errors.Join(runErr, rt.finalizeRuntimeTrace(replay.Terminal{Step: result.Step, Outcome: string(result.Outcome), Reason: result.Reason}))
 }
 
 func (rt *Runtime) startShutdownSignals(ctx context.Context, cancel context.CancelFunc) {

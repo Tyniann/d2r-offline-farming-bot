@@ -44,9 +44,82 @@ func (rt *Runtime) RunTownTest(spec string) error {
 		return rt.runMercenaryHealTownTest()
 	case "mercenary-revive":
 		return rt.runMercenaryReviveTownTest()
+	case hammerdinPrebuffCTA:
+		return rt.runHammerdinPrebuffTownTest(true)
+	case hammerdinPrebuffNoCTA:
+		return rt.runHammerdinPrebuffTownTest(false)
 	default:
 		return fmt.Errorf("town test: unsupported spec %q", spec)
 	}
+}
+
+func (rt *Runtime) runHammerdinPrebuffTownTest(expectCTA bool) error {
+	if !rt.Input.Status().Enabled {
+		return fmt.Errorf("hammerdin prebuff town test requires input.enabled=true")
+	}
+	profileID, err := rt.resolvedCombatProfileID()
+	if err != nil {
+		return err
+	}
+	if profileID != "paladin_hammerdin" {
+		return fmt.Errorf("hammerdin prebuff town test requires profile paladin_hammerdin, got %q", profileID)
+	}
+	ctrl, ok := rt.Input.(hammerdinPrebuffInput)
+	if !ok {
+		return fmt.Errorf("hammerdin prebuff town test: verified input not wired")
+	}
+	prebuff, err := newHammerdinPrebuff(rt.Bindings, ctrl, expectCTA)
+	if err != nil {
+		return err
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	rt.startShutdownSignals(ctx, cancel)
+	defer func() {
+		if detachErr := rt.Process.Detach(); detachErr != nil {
+			rt.Log.Warn("process detach failed", "error", detachErr)
+		}
+	}()
+	defer rt.Input.Unbind()
+	hotkeys, err := rt.startHotkeys(ctx)
+	if err != nil {
+		return err
+	}
+	defer rt.stopHotkeys(cancel)
+	ticker := time.NewTicker(time.Duration(rt.Config.Runtime.PollIntervalMs) * time.Millisecond)
+	defer ticker.Stop()
+	state := &runState{}
+	if readyErr := rt.waitPathingTestReady(ctx, state, hotkeys, ticker, time.Now().Add(rt.attachTimeoutOrDefault(60*time.Second)), cancel, true); readyErr != nil {
+		return readyErr
+	}
+	deadline := time.Now().Add(townTestTimeout)
+	rt.Log.Info("hammerdin prebuff acceptance started", "cta", expectCTA, "profile", profileID, "requires", "combat_area")
+	for time.Now().Before(deadline) {
+		current, stop, tickErr := rt.pathingTestTick(ctx, state, hotkeys, ticker, cancel)
+		if tickErr != nil {
+			return tickErr
+		}
+		if stop {
+			return nil
+		}
+		if current.Valid && current.Area.IsTown() {
+			rt.Log.Info("hammerdin prebuff waiting for combat area", "area", current.Area.Name)
+			continue
+		}
+		result, prebuffErr := prebuff.tick(current, current.At)
+		if prebuffErr != nil {
+			return prebuffErr
+		}
+		if result.Action != "" {
+			rt.Log.Info("hammerdin prebuff action", "action", result.Action, "generation", current.Generation, "weapon_set", current.Player.ActiveWeaponSet.Set.String())
+		}
+		if result.Done {
+			rt.Log.Info("hammerdin prebuff acceptance completed", "cta", expectCTA, "outcome", "success", "weapon_set", current.Player.ActiveWeaponSet.Set.String())
+			return nil
+		}
+	}
+	return fmt.Errorf("hammerdin prebuff town test timeout after %s", townTestTimeout)
 }
 
 func (rt *Runtime) runAkaraShopTownTest() error {

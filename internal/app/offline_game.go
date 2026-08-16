@@ -306,7 +306,10 @@ func (rt *Runtime) runOfflineDifficultyForCharacter(parent context.Context, diff
 		case event := <-hotkeys:
 			rt.handleHotkeyEvent(event, cancel)
 		case <-ticker.C:
-			if err := rt.runTick(ctx, state); err != nil && !errors.Is(err, context.Canceled) {
+			// Selection only needs attach, window bind and world identity.
+			// A full tick would run BindingsPrecheck against empty desktop dummy
+			// bindings after the difficulty click enters InGame.
+			if err := rt.pollQueueSnapshot(ctx, state); err != nil && !errors.Is(err, context.Canceled) {
 				return fmt.Errorf("offline game start poll: %w", err)
 			}
 			action, done, err := machine.tick(time.Now(), rt.World.Current())

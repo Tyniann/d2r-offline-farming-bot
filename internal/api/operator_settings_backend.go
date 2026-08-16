@@ -202,6 +202,10 @@ func (b *LiveBackend) applyOperatorSettingsChange(change app.OperatorSettingsCha
 }
 
 func operatorSettingsCommandError(err error) error {
+	var validationErr *app.OperatorSettingsValidationError
+	if errors.As(err, &validationErr) {
+		return &commandError{code: "config_invalid", message: validationErr.Error()}
+	}
 	var settingsErr *app.OperatorSettingsError
 	if errors.As(err, &settingsErr) {
 		switch settingsErr.Code {

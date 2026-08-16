@@ -21,6 +21,7 @@ Echte OS-Eingaben sind standardmäßig deaktiviert (`input.enabled: false`). Glo
   - `keyboard_windows.go` — Windows `SendInput`-Backend und Virtual-Key-Mapping
   - `keyboard_stub.go` — Nicht-Windows-Stub mit `ErrUnsupportedPlatform`
   - `mouse.go` — `MouseButton`, `MouseSender`, `MoveTo`, `Click`, Clamping
+  - `lease.go` — gemeinsame Gameplay-Lease für vollständige Tastatur-/Maustransaktionen
   - `mouse_windows.go` — Windows `SetCursorPos` und Mouse-`SendInput`-Backend
   - `mouse_stub.go` — Nicht-Windows-Stub mit `ErrUnsupportedPlatform`
   - `window.go` — `WindowInfo`, `windowAPI`-Interface
@@ -75,6 +76,12 @@ Echte OS-Eingaben sind standardmäßig deaktiviert (`input.enabled: false`). Glo
 - **Cleanup-Ausnahme:** Best-effort Key-/Button-Release nach begonnenem `PressCombo`/`Click` umgeht den Guard, damit keine Taste hängen bleibt.
 
 Startup-Log: `input safety configured enabled=… pause_hotkey=… stop_after_run_hotkey=… stop_hotkey=…`.
+
+### Gameplay-Lease und atomarer Shift-Klick (Phase 22.4)
+
+Alle bot-eigenen Tastatur-, Maus- und Fokusaktionen teilen eine Gameplay-Lease. Safety und benötigter Fensterzustand werden erst nach ihrem Erwerb geprüft; ein wartender Spielertrank kann daher nicht zwischen `Shift down` und `Shift up` geraten. `Bind` und `Unbind` warten ebenfalls auf die Lease, damit HWND und Clientgeometrie während einer laufenden Transaktion stabil bleiben.
+
+`ClickAtWithModifier` aktualisiert die Clientgeometrie, bestätigt das gebundene HWND als Foreground und führt Cursorbewegung sowie `Modifier down → Button down/up → Modifier up` innerhalb genau einer Lease aus. Jeder Fehler bricht ohne Plain-Click-Fallback ab. `HoldAt` bewegt den Cursor und lässt nur die Maustaste unten, bis `ReleaseModifierHold`, Pause, Stop oder Unbind. Hammerdin nutzt diesen Hold ohne Shift, weil Blessed Hammer live kein Stand-still-Modifier ist. Modifier-Cleanup bleibt nach Pause/Stop erlaubt; scheitert auch der Best-effort-Release, sperrt `Stop` jeden weiteren Gameplay-Input. Spielertränke verwenden weiterhin `CastBelt` ohne Modifier, Söldnertränke ausschließlich die eigene atomare `CastBeltWithModifier`-Transaktion.
 
 ### Manual Input Test (Phase 3.5)
 
@@ -236,7 +243,7 @@ Erwartung: Fenster gebunden, Aktionen in `input action`-Logs sichtbar, `input te
 - **Keine Pathing-/UI-Klicks:** nur Low-Level-Primitives, kein semantisches D2R-UI-Modell.
 - **Globale Hotkeys:** können von anderer Software belegt sein; Start schlägt dann fehl statt ohne Safety zu laufen.
 - **Versionsgate:** Vor exakt bestätigtem `compatible` werden weder Hotkeys noch Window-Bind, Fokus oder Gameplay-Input erreicht.
-- **Statische Geometrie:** Client-Rect wird nur bei `Bind` aktualisiert; Move/Resize erfordert später `Refresh()` oder Re-Bind.
+- **Geometrie:** Allgemeine Mausaktionen verwenden weiterhin die Geometrie aus `Bind`; `ClickAtWithModifier` aktualisiert sie unmittelbar in seiner Lease.
 - **Teleport-Bewegung:** `SetCursorPos` setzt den Cursor sofort; keine schrittweise Bewegung in 3.3.
 - **DPI/Multi-Monitor:** Screen-Koordinaten hängen von `ClientToScreen` und der DPI-Awareness des Prozesses ab; kein eigener DPI-Fix in 3.3.
 - **Rand-Clamp only:** 10-px-Margin vermeidet Fensterränder, keine HUD-Erkennung.
@@ -256,4 +263,4 @@ Erwartung: Fenster gebunden, Aktionen in `input action`-Logs sichtbar, `input te
 - [State Probe](state-probe.md) — läuft parallel weiter, auch ohne erfolgreiches Bind
 
 ---
-*Zuletzt aktualisiert: 2026-07-30*
+*Zuletzt aktualisiert: 2026-08-16*

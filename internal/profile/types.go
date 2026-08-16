@@ -25,6 +25,8 @@ type Hook string
 const (
 	// HookTownReady runs after a stable town start and before town navigation.
 	HookTownReady Hook = "town_ready"
+	// HookFieldReady runs after arrival in the run entry area and before recorded-route playback.
+	HookFieldReady Hook = "field_ready"
 	// HookBossEngage runs after a boss UnitID is confirmed and before attacks.
 	HookBossEngage Hook = "boss_engage"
 	// HookRouteMaintenance identifies a route-owned maintenance cast.

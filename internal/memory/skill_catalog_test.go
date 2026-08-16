@@ -8,6 +8,11 @@ func TestGeneratedSkillCatalogResolvesProductSkills(t *testing.T) {
 	}
 	cases := map[string]uint16{
 		"teleport":         SkillTeleport,
+		"blessed_hammer":   112,
+		"concentration":    113,
+		"holy_shield":      117,
+		"battle_orders":    149,
+		"battle_command":   155,
 		"amplify_damage":   SkillAmplifyDamage,
 		"bone_armor":       SkillBoneArmor,
 		"corpse_explosion": SkillCorpseExplosion,
@@ -31,6 +36,15 @@ func TestGeneratedSkillCatalogResolvesProductSkills(t *testing.T) {
 	}
 	if _, ok := LookupSkillByKey("missing_skill"); ok {
 		t.Fatal("missing skill unexpectedly found")
+	}
+	if hammer, _ := LookupSkillByKey("blessed_hammer"); !hammer.LeftSkill || !hammer.RightSkill || hammer.SourceName != "Blessed Hammer" {
+		t.Fatalf("Blessed Hammer CASC slot contract = %+v", hammer)
+	}
+	for _, key := range []string{"teleport", "concentration", "holy_shield", "battle_orders", "battle_command"} {
+		entry, _ := LookupSkillByKey(key)
+		if entry.LeftSkill || !entry.RightSkill {
+			t.Fatalf("%s CASC slot contract = %+v", key, entry)
+		}
 	}
 }
 

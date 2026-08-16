@@ -218,6 +218,27 @@ func TestStoppedPriorityOverDisabled(t *testing.T) {
 	}
 }
 
+func TestGameplayActionRechecksStopAfterWaitingForLease(t *testing.T) {
+	keys := &mockKeySender{}
+	c := testKeyboardController(keys, DefaultKeyboardConfig())
+	c.gameplayMu.Lock()
+	started := make(chan struct{})
+	done := make(chan error, 1)
+	go func() {
+		close(started)
+		done <- c.PressKey("f1")
+	}()
+	<-started
+	c.Stop("queued_action_test")
+	c.gameplayMu.Unlock()
+	if err := <-done; !errors.Is(err, ErrInputStopped) {
+		t.Fatalf("queued PressKey() error = %v, want ErrInputStopped", err)
+	}
+	if len(keys.downCalls) != 0 || len(keys.upCalls) != 0 {
+		t.Fatalf("queued stopped action emitted input: down=%v up=%v", keys.downCalls, keys.upCalls)
+	}
+}
+
 func TestInvalidKeyBeforeGuard(t *testing.T) {
 	mock := &mockKeySender{}
 	c := testKeyboardController(mock, DefaultKeyboardConfig())

@@ -58,8 +58,8 @@ func newCowPipeline(definition RunDefinition, cfg RunConfig) *cowPipeline {
 	legRouteCombat.Enabled = false
 	return &cowPipeline{
 		definition: definition, config: cfg, preflight: cowPreflight{config: cfg.Cow},
-		legRoute: runPipeline{definition: definition, routeID: cfg.SetupRouteID, combat: cfg.Combat, routeCombat: legRouteCombat, suppressRouteLoot: true},
-		cowSweep: runPipeline{definition: definition, routeID: cfg.RouteID, combat: cfg.Combat, routeCombat: cfg.RouteCombat, requireTerminalSafe: true},
+		legRoute: runPipeline{definition: definition, core: pipelineCoreState{routeID: cfg.SetupRouteID, combat: cfg.Combat, routeCombat: legRouteCombat, suppressRouteLoot: true}},
+		cowSweep: runPipeline{definition: definition, core: pipelineCoreState{routeID: cfg.RouteID, combat: cfg.Combat, routeCombat: cfg.RouteCombat, requireTerminalSafe: true}},
 		cowHold:  newCowHoldExecutor(cfg.RouteCombat),
 	}
 }
@@ -269,7 +269,7 @@ func (c *cowPipeline) onTick(ctx context.Context, deps Deps, step string, state 
 		}
 		return stepResult{}
 	case cowStepPlayLegRoute:
-		return c.legRoute.onTravelTick(ctx, deps, pipelineStepPlayRoute, state, now, stepStartedAt)
+		return c.legRoute.tickTravel(ctx, narrowTravelDeps(deps), pipelineStepPlayRoute, state, now, stepStartedAt)
 	case cowStepOpenWirt:
 		if deps.Cow == nil {
 			return stepResult{failed: true, reason: CowReasonCapabilityMissing}
@@ -290,7 +290,7 @@ func (c *cowPipeline) onTick(ctx context.Context, deps Deps, step string, state 
 	case cowStepPickupLeg:
 		return c.tickLegPickup(deps, state, now)
 	case cowStepCastReturnTP:
-		result := tickRunTownPortal(deps, state)
+		result := tickRunTownPortal(narrowReturnDeps(deps), state)
 		if result.failed {
 			return stepResult{failed: true, reason: "cow_return_portal_failed"}
 		}
@@ -365,7 +365,7 @@ func (c *cowPipeline) onTick(ctx context.Context, deps Deps, step string, state 
 		c.cowHold.bind(clear)
 		sweepDeps := deps
 		sweepDeps.RouteClear = &c.cowHold
-		return c.cowSweep.onTravelTick(ctx, sweepDeps, pipelineStepPlayRoute, state, now, stepStartedAt)
+		return c.cowSweep.tickTravel(ctx, narrowTravelDeps(sweepDeps), pipelineStepPlayRoute, state, now, stepStartedAt)
 	case cowStepSweepComplete:
 		return stepResult{complete: true}
 	case pipelineStepCastTownPortal, pipelineStepEnterTownPortal, pipelineStepWaitOriginTown,

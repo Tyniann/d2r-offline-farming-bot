@@ -161,6 +161,11 @@ type CombatActions interface {
 	// The boolean reports whether this call actually sent the attack click;
 	// selection and throttled calls return false.
 	CastAttackAtWorld(now time.Time, skillID uint16, player world.Player, targetPos world.Position) (bool, error)
+	// HoldStandardAttack aims at the living target, then presses LMB and keeps
+	// it down until StopAttack. Hover ID may be an overlaying monster; the
+	// cursor follows the supplied world position. Sent is true only when this
+	// call started the hold.
+	HoldStandardAttack(now time.Time, skillID uint16, player world.Player, target world.Monster) (profile.MonsterCastResult, error)
 	// CastAttackAtMonster aims at the supplied living monster and sends the
 	// attack after either exact hover confirmation or an exhausted hover search
 	// with a fresh playable world projection. The result identifies the proof.

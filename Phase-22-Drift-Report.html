@@ -1,0 +1,524 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark light">
+  <title>Phase 22 – Drift-Report</title>
+  <style>
+    :root {
+      --bg: #090b0d;
+      --bg-soft: #0f1317;
+      --panel: #151a1f;
+      --panel-2: #1b2229;
+      --text: #f2f4f5;
+      --muted: #b2bcc5;
+      --line: #35414b;
+      --gold: #d9a34f;
+      --gold-soft: #2b2011;
+      --blue: #8ec7e6;
+      --green: #72d7a2;
+      --yellow: #f1cf72;
+      --red: #f07d86;
+      --code: #090c0f;
+      --shadow: 0 20px 60px rgba(0, 0, 0, .34);
+    }
+
+    @media (prefers-color-scheme: light) {
+      :root {
+        --bg: #f4f1ea;
+        --bg-soft: #ebe6dc;
+        --panel: #fffefa;
+        --panel-2: #f2ede3;
+        --text: #1c2329;
+        --muted: #56636d;
+        --line: #d5cdbf;
+        --gold: #8b5d14;
+        --gold-soft: #f6ead4;
+        --blue: #236989;
+        --green: #15774a;
+        --yellow: #8b6600;
+        --red: #ae3540;
+        --code: #f2eee6;
+        --shadow: 0 18px 50px rgba(60, 47, 26, .12);
+      }
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+
+    body {
+      margin: 0;
+      color: var(--text);
+      background:
+        radial-gradient(circle at 90% -5%, rgba(217, 163, 79, .22), transparent 30rem),
+        radial-gradient(circle at 5% 20%, rgba(71, 131, 161, .15), transparent 28rem),
+        var(--bg);
+      font: 16px/1.62 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    a { color: var(--blue); }
+    a:hover { text-decoration-thickness: 2px; }
+
+    code, pre {
+      font-family: "Cascadia Code", Consolas, "Liberation Mono", monospace;
+    }
+
+    code {
+      padding: .08rem .32rem;
+      color: var(--blue);
+      background: var(--code);
+      border: 1px solid var(--line);
+      border-radius: 5px;
+      font-size: .92em;
+    }
+
+    pre {
+      margin: 14px 0 0;
+      padding: 16px;
+      overflow: auto;
+      color: var(--text);
+      background: var(--code);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      line-height: 1.48;
+    }
+
+    main {
+      width: min(1100px, calc(100% - 32px));
+      margin: 0 auto;
+      padding: 34px 0 80px;
+    }
+
+    .hero {
+      position: relative;
+      padding: clamp(24px, 5vw, 48px);
+      overflow: hidden;
+      background: linear-gradient(135deg, rgba(49, 36, 18, .95), rgba(24, 31, 36, .96) 54%, rgba(14, 18, 21, .98));
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      box-shadow: var(--shadow);
+    }
+
+    .eyebrow {
+      margin: 0 0 8px;
+      color: var(--gold);
+      font-size: .82rem;
+      font-weight: 800;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+    }
+
+    h1, h2, h3, h4 { line-height: 1.2; }
+    h1 {
+      max-width: 980px;
+      margin: 0;
+      font-size: clamp(2rem, 5vw, 3.4rem);
+      letter-spacing: -.04em;
+    }
+    h2 {
+      margin: 52px 0 0;
+      padding: 18px 0 10px;
+      border-bottom: 1px solid var(--line);
+      font-size: clamp(1.35rem, 3vw, 1.85rem);
+      letter-spacing: -.02em;
+    }
+    h3 { margin: 28px 0 0; font-size: 1.12rem; }
+    h4 { margin: 16px 0 0; font-size: 1rem; }
+    p { margin: 10px 0 0; }
+    ul, ol { margin: 12px 0 0; padding-left: 1.35rem; }
+    li + li { margin-top: 6px; }
+
+    .lead {
+      max-width: 980px;
+      margin-top: 18px;
+      color: var(--muted);
+      font-size: 1.08rem;
+    }
+
+    .hero-meta {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+      margin-top: 28px;
+    }
+
+    .hero-meta div,
+    .card,
+    .callout,
+    .finding {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+    }
+
+    .hero-meta div { padding: 14px; background: rgba(20, 25, 29, .76); }
+    .hero-meta strong { display: block; color: var(--gold); font-size: 1.05rem; }
+    .hero-meta span { display: block; margin-top: 2px; color: var(--muted); font-size: .86rem; }
+
+    .toc {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 18px;
+      padding: 10px;
+      background: color-mix(in srgb, var(--bg) 88%, transparent);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+    }
+
+    .toc a {
+      padding: 7px 10px;
+      color: var(--muted);
+      text-decoration: none;
+      border-radius: 8px;
+      font-size: .86rem;
+    }
+
+    .toc a:hover { color: var(--text); background: var(--panel-2); }
+
+    section { scroll-margin-top: 24px; }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+      margin-top: 16px;
+    }
+
+    .grid.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .card { padding: 18px; }
+    .card h3, .card h4 { margin-top: 0; }
+    .card p { color: var(--muted); }
+    .good { color: var(--green); }
+    .warn-text { color: var(--yellow); }
+    .bad { color: var(--red); }
+    .muted { color: var(--muted); }
+
+    .callout {
+      margin-top: 18px;
+      padding: 18px;
+      border-left: 4px solid var(--blue);
+    }
+
+    .callout.warn { border-left-color: var(--yellow); }
+    .callout.danger { border-left-color: var(--red); }
+    .callout.success { border-left-color: var(--green); }
+    .callout h3 { margin: 0; }
+
+    .finding {
+      display: grid;
+      grid-template-columns: 92px 1fr;
+      gap: 16px;
+      margin-top: 16px;
+      padding: 18px;
+      border-left: 4px solid var(--yellow);
+    }
+
+    .finding-id {
+      color: var(--gold);
+      font-size: 1.15rem;
+      font-weight: 850;
+    }
+
+    .finding h3 { margin: 0; }
+    .finding p { color: var(--muted); }
+
+    .badge {
+      display: inline-flex;
+      margin-top: 8px;
+      padding: 4px 8px;
+      border: 1px solid currentColor;
+      border-radius: 999px;
+      font-size: .67rem;
+      font-weight: 800;
+      letter-spacing: .035em;
+      text-transform: uppercase;
+    }
+
+    .badge.warn { color: var(--yellow); }
+    .badge.ok { color: var(--green); }
+    .badge.mute { color: var(--muted); }
+
+    .table-wrap {
+      width: 100%;
+      margin-top: 16px;
+      overflow-x: auto;
+      border: 1px solid var(--line);
+      border-radius: 13px;
+    }
+
+    table {
+      width: 100%;
+      min-width: 720px;
+      border-collapse: collapse;
+      background: var(--panel);
+    }
+
+    th, td {
+      padding: 11px 13px;
+      text-align: left;
+      vertical-align: top;
+      border-bottom: 1px solid var(--line);
+    }
+
+    th {
+      color: var(--text);
+      background: var(--panel-2);
+      font-size: .83rem;
+      letter-spacing: .04em;
+      text-transform: uppercase;
+    }
+
+    tr:last-child td { border-bottom: 0; }
+
+    .fix {
+      margin-top: 14px;
+      padding: 14px 16px;
+      background: var(--panel-2);
+      border-radius: 12px;
+    }
+
+    .fix strong { color: var(--green); }
+
+    footer {
+      margin-top: 48px;
+      color: var(--muted);
+      font-size: .9rem;
+    }
+
+    @media (max-width: 860px) {
+      .hero-meta, .grid, .grid.two, .finding { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <header class="hero" id="top">
+    <p class="eyebrow">Read-only Audit · Phase 22</p>
+    <h1>Drift-Report gegen den Umsetzungsplan</h1>
+    <p class="lead">
+      Abgleich von <a href="phase-22-implementation-plan.html">phase-22-implementation-plan.html</a>
+      mit dem aktuellen Stand. Erwartung: Stages A–C erledigt, Stage D vertagt,
+      Plan vollständig bis zum manuellen Gate 22.6, Gates 22.7 und 22.8 offen.
+      Korrekturvorschläge gelten unter der Vorgabe: keine neuen Memory-Offsets,
+      Scanner oder Item-/Widget-Abhängigkeiten.
+    </p>
+    <div class="hero-meta">
+      <div><strong>Audit</strong><span>15. August 2026</span></div>
+      <div><strong>Befunde</strong><span>4 echte Abweichungen</span></div>
+      <div><strong>22.6</strong><span>Code bereit, Live-Abnahme offen</span></div>
+      <div><strong>Constraint</strong><span>keine neuen Offsets</span></div>
+    </div>
+  </header>
+
+  <nav class="toc" aria-label="Inhaltsübersicht">
+    <a href="#stand">Stand</a>
+    <a href="#befunde">Befunde</a>
+    <a href="#fixes">Korrekturen</a>
+    <a href="#nicht">Nicht anfassen</a>
+    <a href="#ok">Abgeglichen</a>
+  </nav>
+
+  <section id="stand">
+    <h2>1. Geprüfter Stand</h2>
+    <div class="grid">
+      <article class="card"><h3 class="good">Stages A–C</h3><p>Pipeline in Flow, State, Travel, Boss, Loot, Return getrennt; State-Gruppen core/travel/boss/loot/ret; zentrale Reset-Barriere erhalten.</p></article>
+      <article class="card"><h3 class="good">22.0a–22.5c</h3><p>Replay, Weapon-Set-Probe, SkillSelector, Hammerdin-Registry, Schema-3 und UI sind planentsprechend vorhanden.</p></article>
+      <article class="card"><h3 class="warn-text">22.6 manuell offen</h3><p>Isolierter Town-Test ist verdrahtet. Live-Fälle CTA / falsches Binding / leer-leer fehlen noch als Operatorabnahme.</p></article>
+    </div>
+    <div class="callout success">
+      <h3>Erwartete Lücken, keine Drift</h3>
+      <p>
+        Stage D bleibt vertagt. Gate 22.7 (Mephisto-Combat) und 22.8 (Docs-Release <code>v0.20.0</code>)
+        sind bewusst nicht begonnen. <code>hammerdin.Configure</code> bleibt für Combat ein No-Op.
+        <code>ClickAtWithModifier</code> hat Tests, aber noch keinen produktiven Hammer-Verbraucher.
+      </p>
+    </div>
+  </section>
+
+  <section id="befunde">
+    <h2>2. Abweichungen</h2>
+    <p class="muted">Nur Stellen, an denen der Code den geschriebenen Plan verfehlt. 22.7, 22.8 und Stage D sind hier nicht als Befund geführt.</p>
+
+    <article class="finding" id="d1">
+      <div class="finding-id">D1<span class="badge warn">Validierung</span></div>
+      <div>
+        <h3>Produktive Run-Validierung verlangt weiter RMB für den Standardangriff</h3>
+        <p><strong>Plan:</strong> Abschnitt 8 / 6, Gate 22.5a — Blessed Hammer liegt verbindlich auf LMB. Der Operator wählt nur die F-Taste.</p>
+        <p><strong>Code:</strong> <code>validateFullRunBindingsWithProfile</code> und <code>validateBossBindingsWithProfile</code> in <code>internal/app/run_mode.go</code> lehnen jeden Standardangriff ab, der nicht RMB ist.</p>
+<pre><code>if attackCast.CastButton != input.MouseRight {
+    return fmt.Errorf("%s attack skill %s must use right mouse, …")
+}</code></pre>
+        <p>
+          Der Loadout setzt Blessed Hammer bereits auf LMB. Ein farmbereiter Hammerdin kann deshalb
+          <code>--run mephisto</code> und eine Queue mit Mephisto nicht starten. Der Town-Test 22.6
+          umgeht die Prüfung, weil er keinen Run auswählt. Gate 22.7 ist mit dem geplanten Befehl
+          <code>.\d2rbot.exe --run mephisto</code> blockiert.
+        </p>
+      </div>
+    </article>
+
+    <article class="finding" id="d2">
+      <div class="finding-id">D2<span class="badge warn">CTA</span></div>
+      <div>
+        <h3>CTA-Recast ist ein Timer, nicht die Recast-Policy aus Abschnitt 7</h3>
+        <p><strong>Plan:</strong> Abschnitt 7 Recast — einmal pro neuem Spiel; früheste Erneuerung nach 150 Sekunden ab dem bestätigten zweiten Battle Command; nur an sicherer Grenze, bevorzugt <code>town_ready</code>; nie während Movement oder Combat; Holy Shield wird mit CTA erneuert; Game-/Generation-Reset löscht den Anker.</p>
+        <p><strong>Code:</strong> <code>timedCastAnchor</code> wird nach dem zweiten BC gesetzt und im Unit-Test bei 150s geprüft. <code>hammerdinPrebuff.tick</code> liest <code>due()</code> nie, überspringt keinen noch gültigen Buff und wartet nicht auf <code>town_ready</code>. <code>reset()</code> existiert, hat aber keinen produktiven Eigentümer: <code>strategy.Configure</code> bleibt ein No-Op, <code>hooks.town_ready</code> ist leer.</p>
+        <p>
+          Zusätzlich wird <code>ConfigureWeaponSetSkillEvidence(149, 155)</code> nur für Probe und
+          <code>--town-test</code> gesetzt. In Session/<code>--run</code> bleibt
+          <code>ActiveWeaponSet.Available</code> deshalb falsch, ohne neue Offsets zu brauchen.
+        </p>
+        <p>Die drei Live-Fälle von 22.6 brauchen Recast nicht. Der Recast-Vertrag aus Abschnitt 7 ist trotzdem nicht umgesetzt.</p>
+      </div>
+    </article>
+
+    <article class="finding" id="d3">
+      <div class="finding-id">D3<span class="badge warn">UI</span></div>
+      <div>
+        <h3>UI-facing Fehlertexte und CTA-Hinweis weichen von Abschnitt 7 und 9 ab</h3>
+        <p><strong>Plan:</strong> Abschnitt 9 listet fünf feste deutsche Sätze. Abschnitt 7 fordert den Operatorhinweis inklusive Holy-Shield-Schild in Waffenset II und „keine Runenwort-/Merc-Prüfung“.</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Vorgabe</th><th>Ist</th></tr></thead>
+            <tbody>
+              <tr><td>„Für Call to Arms müssen Battle Command und Battle Orders beide belegt sein.“</td><td>Core: „Battle Command und Battle Orders müssen gemeinsam belegt oder beide leer sein.“</td></tr>
+              <tr><td>„Battle Command konnte im zweiten Waffenset nicht bestätigt werden. Prüfe CTA und die F-Taste.“</td><td>Kein History-/UI-Mapping; Rohcode <code>hammerdin_cta_skill_unconfirmed</code></td></tr>
+              <tr><td>„Das primäre Waffenset konnte nach den Buffs nicht bestätigt werden. Die Queue wurde beendet.“</td><td>Rohcode <code>hammerdin_primary_set_restore_failed</code></td></tr>
+              <tr><td>„Für Hammerdin muss ein lebender Söldner verfügbar sein. Seine Ausrüstung wird nicht geprüft.“</td><td>Stimmt</td></tr>
+              <tr><td>„Blessed Hammer konnte nicht auf der linken Maustaste bestätigt werden.“</td><td>Kein Mapping; <code>hammerdin_blessed_hammer_unconfirmed</code></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>
+          Der CTA-Hinweis in <code>BindingEditor.tsx</code> lässt die beiden Sätze zu Schild in Set II und
+          fehlender Runenwort-/Merc-Erkennung weg und ersetzt sie durch „Belege entweder beide F-Tasten oder keine.“
+          Gate 22.5c ist als abgeschlossen markiert; das ist Rest-Copy, kein 22.8-Release.
+        </p>
+      </div>
+    </article>
+
+    <article class="finding" id="d4">
+      <div class="finding-id">D4<span class="badge warn">Docs</span></div>
+      <div>
+        <h3>Feature-Doc-Befehle für 22.6 entsprechen nicht dem CLI-Vertrag</h3>
+        <p><strong>Plan:</strong> Abschnitt 10, verbindliche Live-Gate-Befehle:</p>
+<pre><code>.\d2rbot.exe --town-test hammerdin-prebuff:cta
+.\d2rbot.exe --town-test hammerdin-prebuff:no-cta</code></pre>
+        <p><strong>Code/Docs:</strong> <code>docs/features/hammerdin.md</code> dokumentiert eine lokale <code>.tmp</code>-Binary und <code>--data-root</code>:</p>
+<pre><code>.\.tmp\d2rbot-phase22.exe --data-root $dataRoot --town-test hammerdin-prebuff:cta</code></pre>
+        <p>Die Flags existieren auf der echten CLI. Der dokumentierte Einstieg ist nicht der Gate-22.6-Vertrag. <code>--data-root</code> ist analog zu 22.3 sinnvoll, steht dort aber nicht.</p>
+      </div>
+    </article>
+  </section>
+
+  <section id="fixes">
+    <h2>3. Vorgeschlagene Korrekturen</h2>
+    <p>
+      Alle vier Lücken sind ohne neue Memory-Offsets, Scanner, Body-Location-, Widget- oder
+      Runenwort-Reads schließbar. Weapon-Set bleibt die vorhandene vollständige Skill-Liste
+      (Battle Orders <code>149</code>, Battle Command <code>155</code> aus dem lokalen CASC-Katalog).
+      Recast bleibt eine bot-eigene Uhr, keine Buff-Dauer aus dem Speicher.
+    </p>
+    <div class="callout warn">
+      <h3>Constraint</h3>
+      <p>Keine neuen Memory-Offset-Mechaniken oder Abhängigkeiten. Insbesondere kein Buff-Icon-Read, keine CTA-Itemerkennung, kein <code>cta.enabled</code>, kein HWND-Input.</p>
+    </div>
+
+    <h3>D1 — Profilslot statt festem RMB</h3>
+    <div class="fix">
+      <p>
+        <strong>Fix:</strong> In beiden Validatoren <code>attackCast.CastButton</code> gegen den vom Profil
+        deklarierten Slot von <code>standard_attack</code> prüfen, nicht gegen <code>MouseRight</code>.
+        Necro bleibt RMB. Hammerdin fordert LMB, weil <code>required_skills.blessed_hammer.slot</code>
+        bereits <code>left</code> ist. Der Slot kommt aus der Config, nicht aus Memory.
+      </p>
+      <p>
+        Bis 22.7 keinen Blessed-Hammer-RMB-Fallback bauen. Erreicht ein voller Mephisto-Run
+        <code>engage_boss</code>, fail-closed der bestehende Selector mit „must use left mouse“.
+        Travel und Town bleiben nutzbar, weil Teleport RMB bleibt. Das ist sicherer als ein
+        temporärer Hover-Cast. Die Amplify-Damage-RMB-Prüfung für Route-Combat kann bleiben:
+        Hammerdin-Mephisto aktiviert <code>route_clear</code> nicht.
+      </p>
+    </div>
+
+    <h3>D2 — Recast über Uhr und <code>town_ready</code></h3>
+    <div class="fix">
+      <p><strong>Fix:</strong> Dieselbe Prebuff-Maschine behalten. Keine Buff-Restzeit, Aura-Widgets oder CTA-Items lesen. Vorhandene Evidenz reicht:</p>
+      <ul>
+        <li>Waffenset: <code>ConfigureWeaponSetSkillEvidence(149, 155)</code> auf der bestehenden Skill-Liste. Heute nur Probe und Town-Test. Künftig immer, wenn das aktive Profil <code>paladin_hammerdin</code> ist.</li>
+        <li>Frische: <code>world.State.Generation</code> (bereits Swap-Bestätigung).</li>
+        <li>Zeit: <code>state.At</code> / Tick-Uhr, wie im 150-Sekunden-Test.</li>
+        <li>Neues Spiel: vorhandene <code>GamePhase</code> Menu/Loading → InGame plus Runner-Generation-Reset, analog Bone Armor <code>OncePerGame</code>. <code>MapSeed</code> nicht als Recast-Schlüssel verwenden.</li>
+      </ul>
+      <p>An <code>town_ready_profile</code> (bereits in der Pipeline):</p>
+      <ol>
+        <li>Waffenset <code>Available=false</code> → <code>weapon_set_read_unavailable</code>, kein <code>W</code>.</li>
+        <li>CTA-Paar leer → Holy Shield einmal pro Spiel im Primärset, danach Hammer/Concentration wiederherstellen.</li>
+        <li>CTA vollständig und (Anker leer oder <code>due()</code> nach 150s) → BC → BO → BC → Holy Shield → Primärset.</li>
+        <li>CTA vollständig und nicht fällig → Hook ohne Input beenden.</li>
+        <li>Unbestätigter Wechsel/Skill → dieselben Reason-Codes, weiter höchstens ein <code>W</code> pro Ziel, keine Toggle-Schleife.</li>
+      </ol>
+      <p>
+        Keine YAML-<code>hooks.town_ready</code>-Einträge (keine Buff-DSL). Sequenz bleibt am Hammerdin-Profil /
+        bestehenden Prebuff-Typ und wird vom Town-Ready-Hook aufgerufen. <code>Configure()</code> verdrahtet nur
+        Prebuff; Hammer-Combat bleibt unverdrahtet. Town-Test bleibt der isolierte 22.6-Befehl.
+        Self-Cast weiter RMB an der Clientmitte aus <code>Window()</code>; optional <code>MoveTo</code>+<code>Click</code>
+        in einer vorhandenen <code>withGameplayAction</code>-Lease.
+      </p>
+    </div>
+
+    <h3>D3 — Copy und Reason-Maps, keine zweite Readiness-Logik</h3>
+    <div class="fix">
+      <p><strong>Fix:</strong> Teilbelegung weiter ablehnen. Für genau diesen Fehler den Plansatz verwenden: „Für Call to Arms müssen Battle Command und Battle Orders beide belegt sein.“ Leer/leer trifft diesen Pfad nicht.</p>
+      <p>CTA-Hinweis: die zwei fehlenden Sätze aus Abschnitt 7 wiederherstellen (Holy-Shield-Schild darf in Set II liegen; Bot prüft Set und Skill, nicht Runenwort oder Merc-Ausrüstung). „Beide oder keine“ als Badge behalten.</p>
+      <p>Runtime-Reasons in <code>history_contract.go</code> und ggf. Queue-<code>Detail</code> mappen:</p>
+      <ul>
+        <li><code>hammerdin_cta_skill_unconfirmed</code></li>
+        <li><code>hammerdin_primary_set_restore_failed</code></li>
+        <li><code>hammerdin_blessed_hammer_unconfirmed</code></li>
+        <li>übrige Codes aus Abschnitt 7, falls sie in der History landen können</li>
+      </ul>
+      <p>Die UI projiziert weiter Core-Text und rechnet CTA nicht selbst aus.</p>
+    </div>
+
+    <h3>D4 — CLI-Vertrag im Feature-Doc</h3>
+    <div class="fix">
+      <p><strong>Fix:</strong> In <code>docs/features/hammerdin.md</code> die Gate-22.6-Befehle aus Abschnitt 10 verwenden:</p>
+<pre><code>.\d2rbot.exe --town-test hammerdin-prebuff:cta
+.\d2rbot.exe --town-test hammerdin-prebuff:no-cta</code></pre>
+      <p>Falls das installierte DataRoot nötig ist, analog zu 22.3 ergänzen (<code>$dataRoot = Join-Path $env:LOCALAPPDATA 'D2ROfflineFarmingBot'</code>), nicht als private <code>.tmp</code>-Binary.</p>
+    </div>
+  </section>
+
+  <section id="nicht">
+    <h2>4. Bewusst nicht tun</h2>
+    <div class="grid two">
+      <article class="card"><h4>Keine neuen Offsets</h4><p>Kein Weapon-Set-, Inventar-, Body-Location- oder Runenwort-Scanner. Kein Buff-Dauer-Read für Recast.</p></article>
+      <article class="card"><h4>Kein Produktumfang</h4><p>Kein <code>cta.enabled</code>, kein HWND-/<code>PostMessage</code>-Input, keine Buff-DSL, kein Stage-D-Graph.</p></article>
+      <article class="card"><h4>Kein 22.7 vorziehen</h4><p>Kein Mephisto-Kampfanker, kein produktives <code>Shift+LMB</code>, kein Burst-Budget.</p></article>
+      <article class="card"><h4>Kein 22.8 vorziehen</h4><p>Kein Versionsbump <code>0.20.0</code>, kein <code>build-release.ps1</code> in diesem Korrekturschnitt.</p></article>
+    </div>
+  </section>
+
+  <section id="ok">
+    <h2>5. Planentsprechend abgeglichen</h2>
+    <ul>
+      <li>Stages A–C Dateischnitt und State-Gruppen; <code>nextStep</code> bleibt expliziter Switch (kein Stage D).</li>
+      <li>Runtime-Trace opt-in, Redaktion, Headless-Replay, Live-Fixture <code>hard_stuck</code>.</li>
+      <li>Weapon-Set-Vertrag über CASC-IDs 149/155; <code>Available=false</code> nie als Primary.</li>
+      <li>Slotbewusster <code>SkillSelector</code> plus RMB-Wrapper; Select und Cast nie im selben Tick.</li>
+      <li><code>paladin_hammerdin</code> nur Mephisto; Pflichtskills und optionales BC/BO-Paar; kein <code>cta.enabled</code>.</li>
+      <li>Isolierter Town-Test BC → BO → BC → Holy Shield → Primary; genau zwei <code>W</code> im CTA-Zweig, null ohne CTA; Fail-closed ohne Toggle-Schleife.</li>
+      <li>CLI-Flags <code>--town-test hammerdin-prebuff:cta|no-cta</code> existieren.</li>
+    </ul>
+  </section>
+
+  <footer>
+    <p>Phase 22 · Drift-Report · D2R Offline Farming Bot · Audit 15. August 2026</p>
+    <p><a href="phase-22-implementation-plan.html">Zum Umsetzungsplan</a> · <a href="#top">Zurück nach oben</a></p>
+  </footer>
+</main>
+</body>
+</html>

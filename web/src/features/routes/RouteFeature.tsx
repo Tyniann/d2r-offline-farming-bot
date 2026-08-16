@@ -50,7 +50,7 @@ export function RouteFeature({ characters, selectedCharacter, refreshKey, liveLo
   const refresh = async (signal?: AbortSignal) => {
     try {
       const [library, nextCandidates, nextOptions, nextHotkeys, nextWorkflow] = await Promise.all([
-        getRouteLibrary(character, archive, signal), getRouteCandidates(signal), getRecordingOptions(signal), getHotkeyHelp(signal), getRouteWorkflow(signal),
+        getRouteLibrary(character, archive, signal), getRouteCandidates(signal), getRecordingOptions(character, signal), getHotkeyHelp(signal), getRouteWorkflow(signal),
       ]);
       setRoutes(library.routes.filter((entry) => archive ? entry.management_status === "archived" : entry.management_status !== "archived"));
       setCandidates(nextCandidates);
@@ -100,7 +100,7 @@ export function RouteFeature({ characters, selectedCharacter, refreshKey, liveLo
     finally { setPending(false); }
   };
 
-  const start = async (operation: string, data: { runId?: string; routeRole?: string; candidateId?: string }) => {
+  const start = async (operation: string, data: { runId?: string; routeRole?: string; candidateId?: string; character?: string }) => {
     if (!workflow) return;
     setPending(true); setError("");
     try { setWorkflow(await startRouteWorkflow(operation, workflow.generation, data)); }
@@ -129,7 +129,7 @@ export function RouteFeature({ characters, selectedCharacter, refreshKey, liveLo
     {error && <p className="route-error" role="alert">{error}</p>}
     {!character ? <p className="route-empty">Wähle zuerst einen Charakter.</p> : <>
       {area === "library" && <RouteLibraryPanel routes={routes} options={options} archive={archive} locked={actionsLocked} onArchiveChange={setArchive} onRecord={openRecording} onMutate={(operation, routeID) => void prepare(operation, routeID)} />}
-      {area === "recording" && <RouteRecordingPanel options={options} selectedRun={selectedRun} selectedRole={selectedRole} hotkeys={hotkeys} workflow={workflow} locked={liveLocked || workflowBusy} lockedReason={workflowBusy ? "Schließe zuerst den laufenden Routenvorgang ab." : liveLocked ? "Bestätige zuerst eine kompatible D2R-Version." : undefined} pending={pending} onSelectRun={selectRun} onSelectRole={setSelectedRole} onStart={(option) => void start("record", { runId: option.run_id, routeRole: option.route_role })} onFinish={() => void finish()} onOpenDrafts={() => setArea("drafts")} />}
+      {area === "recording" && <RouteRecordingPanel options={options} selectedRun={selectedRun} selectedRole={selectedRole} hotkeys={hotkeys} workflow={workflow} locked={liveLocked || workflowBusy} lockedReason={workflowBusy ? "Schließe zuerst den laufenden Routenvorgang ab." : liveLocked ? "Bestätige zuerst eine kompatible D2R-Version." : undefined} pending={pending} onSelectRun={selectRun} onSelectRole={setSelectedRole} onStart={(option) => void start("record", { runId: option.run_id, routeRole: option.route_role, character })} onFinish={() => void finish()} onOpenDrafts={() => setArea("drafts")} />}
       {area === "drafts" && <RouteDraftsPanel candidates={visibleCandidates} workflow={workflow} locked={actionsLocked} runFilter={draftFilter} onRunFilterChange={setDraftFilter} onTest={(candidate) => void start("test", { candidateId: candidate.candidate_id })} onPublish={(candidate) => void prepare("publish", "", candidate.candidate_id)} onDelete={deleteDraft} />}
     </>}
 

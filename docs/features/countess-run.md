@@ -98,7 +98,7 @@ Es wird kein D2R-Waypoint-Hotkey vorausgesetzt. Der Ablauf folgt dem Koolo-Model
 1. `acquire_town_waypoint`: Wenn der Waypoint noch nicht enumeriert ist, läuft `pathing.TownWalker` per Force Move (`e`) entlang der für den konfigurierten Schwierigkeitsgrad aufgezeichneten Act-1-Route Richtung Waypoint.
 2. `open_waypoint`: `pathing.WaypointActions.TickTownWaypoint` klickt den nächsten `ObjectKindWaypoint` erst nach Hover-Bestätigung.
 3. `select_run_waypoint`: erst nach post-open Settle (500 ms ab unserem Objektklick plus Positions-Settle) und Memory-`WaypointOpen` wählt der Executor den registrierten Act-1-Tab und nach 200 ms die Black-Marsh-Zeile. Sticky `WaypointOpen` ohne unseren Open-Klick reicht nicht. Jeder Tick erzeugt höchstens einen Klick.
-4. `wait_entry_area`: Erfolg bei `world.BlackMarsh`; eine andere bestätigte Area oder `runs.step_timeout_ms` beendet ohne weiteren Klick.
+4. `wait_entry_area`: Erfolg erst nach drei frischen InGame-Snapshots in `world.BlackMarsh` und drei Sekunden Settle. Sticky `WaypointOpen` darf eine gesetzte Ankunft nicht zurücksetzen. Eine andere bestätigte Area oder `runs.step_timeout_ms` beendet ohne weiteren Klick. Loading oder eine vorzeitig gemeldete Ziel-Area allein reicht nicht.
 
 Die Default-UI-Koordinate ist für 1280x720 windowed kalibriert:
 

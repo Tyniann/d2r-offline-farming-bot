@@ -22,7 +22,7 @@ Abschnitt 11.2 stellt den Go-Core über eine versionierte lokale HTTP-/JSON-Gren
 
 ### Prozessmodell
 
-Der private Desktopmodus wird ausschließlich durch eine Electron-eigene Handshake-Pipe aktiviert. Er erzeugt die normale Core-Runtime, startet aber weder deren Task-Loop noch `RunSession`. Ein eigener passiver Monitor verwendet den bestehenden Snapshot-Tick für Prozess-Attach, Fensterbindung und World-Update. Er ruft keine Farming-Tasks auf. Gameplay-Input ist ausschließlich über den expliziten, screenshot- und Memory-bestätigten Selection-Apply erlaubt. Das Live-Backend projiziert D2R, Input-Safety-Gates, World Model, aktive Auswahl und Supervisor.
+Der private Desktopmodus wird ausschließlich durch eine Electron-eigene Handshake-Pipe aktiviert. Er erzeugt die normale Core-Runtime, startet aber weder deren Task-Loop noch `RunSession`. Idle-Start und Routenaufnahme verlangen kein Countess-Pickit und keine Countess-Strategy für den Dummy-Träger. Ein eigener passiver Monitor verwendet den bestehenden Snapshot-Tick für Prozess-Attach, Fensterbindung und World-Update. Er ruft keine Farming-Tasks auf. Gameplay-Input ist ausschließlich über den expliziten, screenshot- und Memory-bestätigten Selection-Apply erlaubt. Das Live-Backend projiziert D2R, Input-Safety-Gates, World Model, aktive Auswahl und Supervisor.
 
 Der Server wählt über `net.Listen("tcp4", "127.0.0.1:0")` einen freien Loopback-Port. URL und einmaliger Bootstrap-Token gelangen nur über die PID-gebundene Named Pipe an Electron. Der Control-Token steht bei der ersten Renderer-Navigation im URL-Fragment, wird von React in Memory übernommen und sofort per `history.replaceState` entfernt. Nach einem Reload erneuert `GET /api/v1/control/bootstrap` denselben Prozess-Token ausschließlich für einen Request mit dem nicht einfachen Header `X-D2RBot-Bootstrap: 1`. Ein fremder Origin scheitert am exakten Origin-Gate. Der Token wird weder in Web Storage noch in Cookie, Datei, URL-History, Standardausgabe oder Log persistiert.
 
@@ -117,4 +117,4 @@ Die API wird nicht direkt vom Operator gestartet. Electron übergibt absoluten D
 - [Historien-API und Export](history-api-export.md)
 
 ---
-*Zuletzt aktualisiert: 1. August 2026*
+*Zuletzt aktualisiert: 16. August 2026*

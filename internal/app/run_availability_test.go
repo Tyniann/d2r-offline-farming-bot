@@ -162,6 +162,30 @@ func TestResolveRunAvailabilitiesRejectsUnsupportedCharacterProfileStrategy(t *t
 	}
 }
 
+func TestResolveRunAvailabilitiesAllowsOnlyHammerdinMephistoStrategy(t *testing.T) {
+	cfg := availabilityConfig(t)
+	report, err := ResolveRunAvailabilities(cfg, RunAvailabilityContext{
+		Character: "MrBones", CharacterClass: "paladin", CombatProfile: "paladin_hammerdin",
+		Difficulty: "nightmare", GameVersion: "3.2.92777",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, runID := range []tasks.RunID{tasks.RunIDCountess, tasks.RunIDCows, tasks.RunIDNihlathak, tasks.RunIDSummoner} {
+		availability, _ := findRunAvailability(report.Runs, runID)
+		if !containsRunReason(availability.Reasons, tasks.RunReasonProfileRunStrategyUnavailable) {
+			t.Fatalf("Hammerdin %s reasons = %v", runID, availability.Reasons)
+		}
+	}
+	mephisto, _ := findRunAvailability(report.Runs, tasks.RunIDMephisto)
+	if containsRunReason(mephisto.Reasons, tasks.RunReasonProfileRunStrategyUnavailable) {
+		t.Fatalf("Hammerdin Mephisto strategy unavailable: %v", mephisto.Reasons)
+	}
+	if mephisto.Status == tasks.RunAvailabilityAvailable {
+		t.Fatal("fixture without Act-3 egress unexpectedly became fully available")
+	}
+}
+
 func TestResolveSessionPlanBlocksUnavailableRunBeforeRuntime(t *testing.T) {
 	cfg := availabilityConfig(t)
 	cfg.Session.Enabled = true

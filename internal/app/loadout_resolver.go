@@ -14,7 +14,7 @@ type CharacterLoadoutSnapshot struct {
 	Character           string
 	ProfileID           string
 	Revision            uint64
-	Bindings            configBindingSource // always MouseRight for casts
+	Bindings            configBindingSource // cast buttons follow the frozen profile slot contract
 	BindingsComplete    bool
 	InventoryConfigured bool
 	InventoryGrid       [][]int // defensive copy; nil when unconfigured
@@ -62,7 +62,7 @@ func (r *CharacterLoadoutResolver) Resolve(character string) (CharacterLoadoutSn
 		return CharacterLoadoutSnapshot{}, fmt.Errorf("character %q combat profile %q is unknown", character, profileID)
 	}
 	bindings := value.ProfileBindings[profileID]
-	source, err := bindingSourceFromOperatorBindings(bindings)
+	source, err := bindingSourceFromOperatorBindings(bindings, profile)
 	if err != nil {
 		return CharacterLoadoutSnapshot{}, fmt.Errorf("character %q profile %q bindings: %w", character, profileID, err)
 	}
@@ -107,6 +107,9 @@ func ProfileBindingsComplete(bindings OperatorProfileBindings, profile config.Pr
 		if !ok || !isOperatorSkillFKey(strings.ToLower(strings.TrimSpace(bound))) {
 			return false
 		}
+	}
+	if err := validateOptionalSkillPairBindings(bindings, profile); err != nil {
+		return false
 	}
 	return strings.TrimSpace(bindings.Belt.Slot1) != "" &&
 		strings.TrimSpace(bindings.Belt.Slot2) != "" &&
@@ -192,7 +195,7 @@ func cowStaticCanPlace(locked [4][10]bool, width, height int) bool {
 	return false
 }
 
-func bindingSourceFromOperatorBindings(bindings OperatorProfileBindings) (configBindingSource, error) {
+func bindingSourceFromOperatorBindings(bindings OperatorProfileBindings, profileCfg config.ProfileConfig) (configBindingSource, error) {
 	out := configBindingSource{
 		skills: make(map[uint16]input.SkillCast, len(bindings.Skills)),
 		belt: [4]string{
@@ -208,13 +211,36 @@ func bindingSourceFromOperatorBindings(bindings OperatorProfileBindings) (config
 			return configBindingSource{}, fmt.Errorf("skills.%s: %w", rawName, err)
 		}
 		key := strings.ToLower(strings.TrimSpace(rawKey))
+		if key == "" {
+			continue
+		}
+		button := input.MouseRight
+		if profileSkillSlot(profileCfg, rawName) == "left" {
+			button = input.MouseLeft
+		}
 		out.skills[skillID] = input.SkillCast{
 			SkillID:    skillID,
 			SelectKey:  key,
-			CastButton: input.MouseRight,
+			CastButton: button,
 		}
 	}
 	return out, nil
+}
+
+func profileSkillSlot(profileCfg config.ProfileConfig, skill string) string {
+	for _, required := range profileCfg.RequiredSkills {
+		if required.Skill == skill {
+			return required.Slot
+		}
+	}
+	for _, pair := range profileCfg.OptionalSkillPairs {
+		for _, optional := range pair.Skills {
+			if optional.Skill == skill {
+				return optional.Slot
+			}
+		}
+	}
+	return ""
 }
 
 func cloneConfigBindingSource(src configBindingSource) configBindingSource {

@@ -78,11 +78,11 @@ func (c *runPipeline) tickNavigateArea(ctx context.Context, deps Deps, w world.S
 	if deps.Pathing == nil {
 		return stepResult{failed: true, reason: "pathing_not_wired"}
 	}
-	if !c.navStarted {
+	if !c.travel.navStarted {
 		if err := deps.Pathing.Start(goal); err != nil {
 			return stepResult{failed: true, reason: pathingStartFailureReason(err)}
 		}
-		c.navStarted = true
+		c.travel.navStarted = true
 	}
 	res := deps.Pathing.Tick(ctx, w)
 	if !res.Done {

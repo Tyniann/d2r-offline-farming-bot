@@ -44,6 +44,9 @@ const reasonLabels: Record<string, string> = {
   recording_boss_dead: "Der Boss muss beim Aufnahmeende noch leben.",
   recording_endpoint_too_far: "Der Endpunkt liegt zu weit vom Ziel entfernt.",
   pickit_assignment_missing: "Ordne diesem Run zuerst ein Lootprofil zu.",
+  onboarding_teleport_binding_missing: "Vervollständige für diesen Charakter unter „Charaktere“ die Tastenbelegung des Kampfprofils.",
+  onboarding_town_portal_binding_missing: "Hinterlege für diesen Charakter unter „Charaktere“ die Taste für das Stadtportal.",
+  onboarding_waypoint_required: "Der erforderliche Startwegpunkt ist noch nicht verfügbar.",
   route_test_start_failed: "Der Test konnte am Startort nicht vorbereitet werden.",
   route_test_playback_failed: "Die Route konnte nicht vollständig abgespielt werden.",
   route_test_terminal_mismatch: "Der Endpunkt der Route wurde nicht bestätigt.",
@@ -53,6 +56,8 @@ const reasonLabels: Record<string, string> = {
   cow_sweep_route_missing: "Nimm zuerst die Cow-Route auf.",
   cow_sweep_route_stale: "Die Cow-Route muss neu aufgenommen werden.",
   route_set_binding_mismatch: "Die beiden Kuhlevel-Routen passen nicht zum selben Charakter.",
+  route_candidate_changed: "Die Zuordnung für diesen Run hat sich seit der Aufnahme geändert.",
+  "live candidate context changed": "Charakter oder Schwierigkeit passen nicht mehr zu diesem Entwurf.",
 };
 
 const candidateStatusLabels: Record<string, string> = {

@@ -120,6 +120,8 @@ func TestSessionExecutionRequestedExcludesSpecializedModes(t *testing.T) {
 		{Probe: true},
 		{TownTest: "prepare:act2"},
 		{InputTest: "belt:1"},
+		{RuntimeTraceCapture: "focus-loss"},
+		{WeaponSetProbe: "primary-secondary"},
 	}
 	for _, opts := range specialized {
 		if SessionExecutionRequested(opts) {

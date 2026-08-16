@@ -27,7 +27,7 @@ func TestBootstrapBackendIsReadOnlyAndDeterministic(t *testing.T) {
 	if len(first.Runs) != 5 {
 		t.Fatalf("bootstrap runs = %+v", first.Runs)
 	}
-	if len(first.Profiles) != 1 || first.Profiles[0].ID != "necro_bone_spear" {
+	if len(first.Profiles) != 2 || first.Profiles[0].ID != "necro_bone_spear" || first.Profiles[1].ID != "paladin_hammerdin" {
 		t.Fatalf("bootstrap setup profiles = %+v", first.Profiles)
 	}
 	for _, run := range first.Runs {

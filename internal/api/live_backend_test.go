@@ -223,7 +223,7 @@ func TestCowRecordingOptionsExposeTwoFixedRoleWorkflows(t *testing.T) {
 		t.Fatal(err)
 	}
 	roles := map[string]RecordingOptionDTO{}
-	for _, option := range backend.RecordingOptions() {
+	for _, option := range backend.RecordingOptions("") {
 		if option.RunID == "cows" {
 			roles[option.RouteRole] = option
 		}
@@ -994,6 +994,56 @@ func configureDesktopCharacterContract(t *testing.T, backend *LiveBackend, cfg *
 	})
 }
 
+func configureHammerdinRecordingContext(t *testing.T, backend *LiveBackend, cfg *config.Config) {
+	t.Helper()
+	settings, err := app.NewOperatorSettingsStore(t.TempDir(), cfg, []string{"MrHammer"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	snapshot, err := settings.Snapshot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	assigned, err := settings.AssignCharacterProfile("MrHammer", "paladin", "paladin_hammerdin", snapshot.Revision)
+	if err != nil {
+		t.Fatal(err)
+	}
+	replacement := assigned.Settings
+	replacement.LastCharacter = "MrHammer"
+	value := replacement.Characters["mrhammer"]
+	value.LastDifficulty = "hell"
+	value.ProfileBindings = map[string]app.OperatorProfileBindings{
+		"paladin_hammerdin": {
+			Skills: map[string]string{
+				"blessed_hammer": "f1", "concentration": "f2", "teleport": "f3",
+				"holy_shield": "f4", "town_portal": "f5", "battle_command": "f6", "battle_orders": "f7",
+			},
+			Belt: app.OperatorBeltBindings{Slot1: "1", Slot2: "2", Slot3: "3", Slot4: "4"},
+		},
+	}
+	value.InventoryLock = &app.OperatorInventoryLock{Grid: sampleAPIInventoryGrid()}
+	replacement.Characters["mrhammer"] = value
+	if _, err = settings.Update(assigned.Settings.Revision, replacement); err != nil {
+		t.Fatal(err)
+	}
+	if err = backend.SetOperatorSettingsStore(settings); err != nil {
+		t.Fatal(err)
+	}
+	backend.SetLoadoutResolver(app.NewCharacterLoadoutResolver(settings, cfg.Profiles, replacement.Input))
+	assignments, err := app.NewPickitAssignmentStore(filepath.Join(t.TempDir(), "pickit-assignments.local.yaml"), backend.pickitProfiles)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = assignments.Initialize(map[string]map[tasks.RunID][]string{
+		"MrHammer": {tasks.RunIDMephisto: append([]string(nil), cfg.CharacterSetup.PickitDefaults["mephisto"]...)},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	backend.mu.Lock()
+	backend.pickitAssignments = assignments
+	backend.mu.Unlock()
+}
+
 func TestCatalogFarmReadyDependsOnProfileBindings(t *testing.T) {
 	cfg, err := config.Load("../../configs/config.example.yaml")
 	if err != nil {
@@ -1081,12 +1131,12 @@ func TestRecordingPrerequisitesUseSchema3ProfileBindings(t *testing.T) {
 	backend.status.Selection = SelectionStatusDTO{Character: "MrBones", Difficulty: "nightmare"}
 	backend.mu.Unlock()
 
-	if recordingPrerequisiteReady(backend.RecordingOptions(), "countess", "teleport") || recordingPrerequisiteReady(backend.RecordingOptions(), "countess", "town_portal") {
+	if recordingPrerequisiteReady(backend.RecordingOptions(""), "countess", "teleport") || recordingPrerequisiteReady(backend.RecordingOptions(""), "countess", "town_portal") {
 		t.Fatal("recording skill prerequisites must stay unready without Schema 3 profile bindings")
 	}
 
 	configureDesktopCharacterContract(t, backend, cfg, "countess")
-	if !recordingPrerequisiteReady(backend.RecordingOptions(), "countess", "teleport") || !recordingPrerequisiteReady(backend.RecordingOptions(), "countess", "town_portal") {
+	if !recordingPrerequisiteReady(backend.RecordingOptions(""), "countess", "teleport") || !recordingPrerequisiteReady(backend.RecordingOptions(""), "countess", "town_portal") {
 		t.Fatal("recording skill prerequisites must become ready from Schema 3 profile bindings")
 	}
 
@@ -1104,12 +1154,184 @@ func TestRecordingPrerequisitesUseSchema3ProfileBindings(t *testing.T) {
 	if _, err = settings.Update(snapshot.Revision, replacement); err != nil {
 		t.Fatal(err)
 	}
-	if recordingPrerequisiteReady(backend.RecordingOptions(), "countess", "teleport") {
+	if recordingPrerequisiteReady(backend.RecordingOptions(""), "countess", "teleport") {
 		t.Fatal("teleport prerequisite must reflect removed Schema 3 binding")
 	}
-	if !recordingPrerequisiteReady(backend.RecordingOptions(), "countess", "town_portal") {
+	if !recordingPrerequisiteReady(backend.RecordingOptions(""), "countess", "town_portal") {
 		t.Fatal("town portal prerequisite must remain ready when only teleport is missing")
 	}
+}
+
+func TestRecordingPrerequisitesUseSelectedCharacterWithoutConfirmedSelection(t *testing.T) {
+	cfg, err := config.Load("../../configs/config.example.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.Input.Enabled = true
+	root := t.TempDir()
+	cfg.Routes.FarmingRoot = filepath.Join(root, "farming")
+	cfg.Routes.CandidateRoot = filepath.Join(root, "candidates")
+	cfg.Routes.LifecycleFile = filepath.Join(root, "lifecycle.yaml")
+	cfg.Routes.AssignmentsFile = filepath.Join(root, "assignments.yaml")
+	cfg.Routes.RecoveryFile = filepath.Join(root, "recovery.yaml")
+	backend, err := NewLiveBackend(cfg, telemetry.NewLivePublisher(16, 4))
+	if err != nil {
+		t.Fatal(err)
+	}
+	configureHammerdinRecordingContext(t, backend, cfg)
+
+	options := backend.RecordingOptions("MrHammer")
+	if !recordingPrerequisiteReady(options, "mephisto", "teleport") || !recordingPrerequisiteReady(options, "mephisto", "town_portal") || !recordingPrerequisiteReady(options, "mephisto", "pickit") {
+		t.Fatal("Hammerdin Mephisto recording must use Schema 3 bindings and Mephisto pickit without a confirmed selection")
+	}
+	if recordingPrerequisiteReady(options, "countess", "pickit") {
+		t.Fatal("Countess pickit must stay unready when only Mephisto is assigned")
+	}
+	if !recordingOptionAvailable(options, "mephisto") {
+		t.Fatal("Hammerdin Mephisto recording must be available from operator last difficulty")
+	}
+
+	backend.SetRouteWorkflowHandler(func(RouteWorkflowRequest, <-chan struct{}, app.RouteWorkflowReporter) error { return nil })
+	markBackendCompatible(backend)
+	snapshot, err := backend.StartRouteWorkflow(RouteWorkflowRequest{ExpectedGeneration: 1, Operation: "record", RunID: "mephisto", Character: "MrHammer"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if snapshot.Character != "MrHammer" {
+		t.Fatalf("workflow character = %q, want MrHammer", snapshot.Character)
+	}
+}
+
+func freezeHammerdinMephistoCandidate(t *testing.T, backend *LiveBackend, cfg *config.Config) app.RouteCandidate {
+	t.Helper()
+	_, catalog, err := backend.lifecycle.Snapshot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	assignment, err := backend.routeAssignments.Snapshot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	seed := uint32(42)
+	route := pathing.Route{
+		Version: 1, ID: "hammerdin-mephisto-candidate", Name: "Mephisto-Entwurf", Kind: pathing.RouteKindNavigation,
+		Binding: pathing.RouteBinding{
+			CharacterName: "MrHammer", CharacterClass: "paladin", Difficulty: pathing.RouteDifficultyHell,
+			MapSeed: &seed, GameVersion: cfg.Memory.GameVersion,
+			LayoutFingerprint: pathing.RouteLayoutFingerprint{Version: 1, AreaID: world.DuranceOfHateLevel2, AnchorCount: 1, Hash: strings.Repeat("c", 64)},
+		},
+		Recording: pathing.RouteRecording{RecordedAt: time.Now().UTC(), SampleDistanceTiles: 4},
+		Playback:  pathing.RoutePlayback{WaypointToleranceTiles: 3, MaxDriftTiles: 8, MaxLocalCorrections: 2, SegmentTimeoutMs: 30000, TransitionTimeoutMs: 10000},
+		Segments: []pathing.RouteSegment{{
+			ID: "durance-level-2", FromAreaID: world.DuranceOfHateLevel2, ToAreaID: world.DuranceOfHateLevel3, Movement: pathing.RouteMovementTeleport,
+			Points:     []pathing.RoutePoint{{X: 100, Y: 100}, {X: 110, Y: 110}},
+			Transition: pathing.RouteTransition{Type: "entrance", EntranceKind: "durance_down"},
+		}, {
+			ID: "durance-level-3", FromAreaID: world.DuranceOfHateLevel3, ToAreaID: world.DuranceOfHateLevel3, Movement: pathing.RouteMovementTeleport,
+			Points:     []pathing.RoutePoint{{X: 120, Y: 120}, {X: 125, Y: 125}},
+			Transition: pathing.RouteTransition{Type: "terminal"},
+		}},
+	}
+	candidate, err := backend.routeCandidates.Freeze(route, app.RouteCandidate{
+		RunID: tasks.RunIDMephisto, Character: "MrHammer", Difficulty: "hell", GameVersion: cfg.Memory.GameVersion,
+		State: app.RouteCandidateRecorded, MeasuredBossDistance: 18, SourceCatalogRevision: catalog.Revision,
+		SourceAssignmentRevision: assignment.Revision, CreatedAt: time.Now().UTC(),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return candidate
+}
+
+func TestCandidateTestUsesDraftContextWithoutConfirmedSelection(t *testing.T) {
+	cfg, err := config.Load("../../configs/config.example.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.Input.Enabled = true
+	root := t.TempDir()
+	cfg.Routes.FarmingRoot = filepath.Join(root, "farming")
+	cfg.Routes.CandidateRoot = filepath.Join(root, "candidates")
+	cfg.Routes.LifecycleFile = filepath.Join(root, "lifecycle.yaml")
+	cfg.Routes.AssignmentsFile = filepath.Join(root, "assignments.yaml")
+	cfg.Routes.RecoveryFile = filepath.Join(root, "recovery.yaml")
+	backend, err := NewLiveBackend(cfg, telemetry.NewLivePublisher(16, 4))
+	if err != nil {
+		t.Fatal(err)
+	}
+	configureHammerdinRecordingContext(t, backend, cfg)
+	candidate := freezeHammerdinMephistoCandidate(t, backend, cfg)
+	started := make(chan RouteWorkflowRequest, 1)
+	backend.SetRouteWorkflowHandler(func(request RouteWorkflowRequest, _ <-chan struct{}, _ app.RouteWorkflowReporter) error {
+		started <- request
+		return nil
+	})
+	markBackendCompatible(backend)
+	backend.mu.Lock()
+	backend.status.State = string(app.SupervisorStateIdle)
+	backend.status.Selection = SelectionStatusDTO{}
+	backend.mu.Unlock()
+
+	if _, err := backend.PreviewRouteMutation(RouteMutationPreviewRequest{CandidateID: candidate.CandidateID, Operation: string(app.RouteMutationDeleteCandidate)}); err != nil {
+		t.Fatalf("preview without confirmed selection: %v", err)
+	}
+	snapshot, err := backend.StartRouteWorkflow(RouteWorkflowRequest{ExpectedGeneration: 1, Operation: "test", CandidateID: candidate.CandidateID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if snapshot.Character != "MrHammer" {
+		t.Fatalf("workflow character = %q, want MrHammer", snapshot.Character)
+	}
+	select {
+	case got := <-started:
+		if got.Character != "MrHammer" || got.Difficulty != "hell" || got.CandidateID != candidate.CandidateID {
+			t.Fatalf("handler request = %+v", got)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("candidate test handler was not called")
+	}
+}
+
+func TestCandidateTestRejectsConflictingConfirmedSelection(t *testing.T) {
+	cfg, err := config.Load("../../configs/config.example.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.Input.Enabled = true
+	root := t.TempDir()
+	cfg.Routes.FarmingRoot = filepath.Join(root, "farming")
+	cfg.Routes.CandidateRoot = filepath.Join(root, "candidates")
+	cfg.Routes.LifecycleFile = filepath.Join(root, "lifecycle.yaml")
+	cfg.Routes.AssignmentsFile = filepath.Join(root, "assignments.yaml")
+	cfg.Routes.RecoveryFile = filepath.Join(root, "recovery.yaml")
+	backend, err := NewLiveBackend(cfg, telemetry.NewLivePublisher(16, 4))
+	if err != nil {
+		t.Fatal(err)
+	}
+	configureHammerdinRecordingContext(t, backend, cfg)
+	candidate := freezeHammerdinMephistoCandidate(t, backend, cfg)
+	backend.SetRouteWorkflowHandler(func(RouteWorkflowRequest, <-chan struct{}, app.RouteWorkflowReporter) error {
+		return nil
+	})
+	markBackendCompatible(backend)
+	backend.mu.Lock()
+	backend.status.State = string(app.SupervisorStateIdle)
+	backend.status.Selection = SelectionStatusDTO{Character: "MrBones", Difficulty: "nightmare"}
+	backend.mu.Unlock()
+
+	_, err = backend.StartRouteWorkflow(RouteWorkflowRequest{ExpectedGeneration: 1, Operation: "test", CandidateID: candidate.CandidateID})
+	if err == nil || !strings.Contains(err.Error(), "live candidate context changed") {
+		t.Fatalf("err = %v, want live candidate context changed", err)
+	}
+}
+
+func recordingOptionAvailable(options []RecordingOptionDTO, runID string) bool {
+	for _, option := range options {
+		if option.RunID == runID {
+			return option.Available
+		}
+	}
+	return false
 }
 
 func TestValidateQueueRejectsIncompleteAndUnconfiguredLoadout(t *testing.T) {

@@ -7,16 +7,48 @@ Versionierung nach [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.20.0] - 2026-08-16
+
 ### Added
+- Wire Hammerdin Mephisto standard attack as confirmed LMB Blessed Hammer after a close teleport, with Concentration restored on RMB and a finite no-progress budget
+- Add an isolated fail-closed Hammerdin CTA/Holy Shield prebuff with one-shot weapon swaps, confirmed RMB skills, no-CTA path, and Town acceptance commands
+- Add a responsive Hammerdin binding UI with Core-owned readiness, fixed LMB/RMB roles, optional second-weapon-set CTA pair, and keyboard-accessible controls
+- Add the `paladin_hammerdin` profile with CASC-backed skill slots, optional Battle Command/Battle Orders pair, required Mercenary preflight, and Mephisto-only strategy registration
+- Add Hammerdin Schema-3 binding validation and Core-owned setup/API readiness projection with generated slot and optional-pair web types
+- Add a slot-aware skill selector and one-lease foreground-verified modified click for safe left-mouse skills
+- Add a read-only CASC-backed primary/secondary weapon-set probe and fail-closed `ActiveWeaponSet` snapshot/World evidence
+- Add canonical Phase-22 pipeline golden traces and a minimized real Offline-D2R Mephisto `hard_stuck` replay fixture
+- Add a headless runtime replayer with fake monotonic time, transcript-backed dependencies, intent comparison, and deterministic first-divergence reports
+- Add opt-in versioned runtime failure traces with semantic World snapshots, immutable contracts, dependency results, input intents, redaction, atomic publication, and bounded retention
 - Add revision-bound deletion for unpublished route drafts with state and immutable-content revalidation
 
 ### Changed
+- Complete Phase 22 after Gates 22.0a–22.7, including live Hammerdin Mephisto combat on Blessed Hammer LMB hold
+- Align embedded, README, handoff, packaging, and Git tag release metadata with version `0.20.0`
+- Hold Hammerdin Blessed Hammer as LMB on the boss sprite from 1 tile, accepting an overlaying hover ID, until a 3-snapshot distance recheck fails or the boss dies
+- Tighten Hammerdin engage and reposition distances to 1 and 3 tiles so Blessed Hammer stays glued to the boss
+- Validate Hammerdin Blessed Hammer against the profile-declared LMB slot instead of requiring RMB
+- Wire the Hammerdin CTA/Holy Shield sequence to recorded-route start in a combat area, because Battle Command and Battle Orders cannot be cast in town
+- Show the planned Call-to-Arms operator copy and map Hammerdin fail-closed reasons to German history text
+- Group standard pipeline state by core, travel, boss, loot, and return ownership and narrow each domain's dependency surface
+- Split the standard run pipeline into flow, state, travel, boss, loot, and return files without changing steps, timings, reasons, or input ordering
 - Redesign the Electron routes UI around “Meine Routen”, “Route aufnehmen”, and “Entwürfe” with grouped Cow routes, contextual hotkeys, responsive master-detail recording, and user-facing German status labels
 - Remove system Egress, raw identifiers, hashes, workflow generations, and backend status codes from the routes product surface
 - Allow failed route drafts to be tested again from the routes UI
 - Store immutable run context once in Schema-4 JSONL telemetry and show raw history as shared context plus filterable compact events
 
 ### Fixed
+- Treat area 0 and a zero map seed during the Act-1 hub waypoint fade as pending so Mephisto return does not fail as unexpected_area
+- Delay Hammerdin teleport until the snapshot after LMB release so a dying Mephisto does not trigger a walk away from the corpse
+- Ignore sticky waypoint-open while settling the run entry area so field-ready can start after a real Durance arrival
+- Wait for a settled InGame arrival after the run waypoint so Hammerdin field-ready does not send weapon-swap during the load fade
+- Fix publishing a tested route draft after confirming a character, which previously treated the catalog revision bump as a stale draft
+- Fix character confirmation after an offline difficulty click so the idle desktop poll does not require a Teleport loadout
+- Fix route draft testing and publication to use the draft's character and difficulty when no lifecycle confirmation exists yet
+- Fix desktop Core startup when the last character has no Countess pickit or strategy for the idle dummy carrier
+- Fix route recording prerequisites and start to use the selected character's Schema-3 bindings, pickit, and last difficulty when no lifecycle confirmation exists yet
+- Wait 1000 ms after Holy Shield before restoring the Hammerdin primary weapon set, so the one-shot `W` is not ignored
+- Fix runtime trace publication rejecting compressible full-World histories by separating compressed and bounded expansion limits
 - Fix Nihlathak engaging a randomly hovered monster before first aiming at the pinned boss while preserving an occluding sprite as a Bone Spear attack surface after fresh boss-directed aim
 - Fix history deletion remaining blocked after a terminal route workflow and keep repeated zero-file deletion previews available
 - Fix desktop route recording and candidate testing to use the selected character's frozen Schema-3 loadout and surface actionable loadout errors

@@ -34,13 +34,17 @@ const (
 
 // CharacterSetupProfile ist ein freigegebenes Kampfprofil ohne interne Verhaltensparameter.
 type CharacterSetupProfile struct {
-	ID              string
-	DisplayName     string
-	IsDefault       bool
-	IsSelected      bool
-	StandardAttack  string
-	RequiredSkills  []CharacterSetupRequiredSkill
-	SupportedRuns   []string
+	ID                 string
+	DisplayName        string
+	IsDefault          bool
+	IsSelected         bool
+	StandardAttack     string
+	RequiredSkills     []CharacterSetupRequiredSkill
+	OptionalSkillPairs []CharacterSetupOptionalSkillPair
+	RequiresMercenary  bool
+	BindingsReady      bool
+	BindingReasons     []string
+	SupportedRuns      []string
 }
 
 // CharacterSetupRequiredSkill is one ordered, labeled profile skill for read-only Setup/API.
@@ -48,6 +52,12 @@ type CharacterSetupRequiredSkill struct {
 	Skill       string
 	SkillID     uint16
 	DisplayName string
+	Slot        string
+}
+
+// CharacterSetupOptionalSkillPair is one Core-defined all-or-nothing binding pair.
+type CharacterSetupOptionalSkillPair struct {
+	Skills []CharacterSetupRequiredSkill
 }
 
 // CharacterSetupPickitDefault projiziert eine feste Run-Kette mit lesbaren Profilnamen.
@@ -285,12 +295,21 @@ func (s *CharacterSetupService) buildPreview(catalog CharacterCatalog, settings 
 	}
 	for id, profile := range s.cfg.Profiles {
 		if profile.Setup.Enabled && profile.CharacterClass == entry.ExpectedClass {
+			bindings := OperatorProfileBindings{}
+			if characterSettings, ok := settings.Characters[strings.ToLower(entry.Name)]; ok && characterSettings.ProfileBindings != nil {
+				bindings = characterSettings.ProfileBindings[id]
+			}
 			setupProfile := CharacterSetupProfile{
-				ID:             id,
-				DisplayName:    profile.DisplayName,
-				IsDefault:      profile.Setup.Default,
-				StandardAttack: strings.TrimSpace(profile.Combat.StandardAttack),
-				SupportedRuns:  DefaultCombatStrategyRegistry().SupportedRuns(id),
+				ID:                id,
+				DisplayName:       profile.DisplayName,
+				IsDefault:         profile.Setup.Default,
+				StandardAttack:    strings.TrimSpace(profile.Combat.StandardAttack),
+				RequiresMercenary: profile.RequiresMercenary,
+				BindingsReady:     ProfileBindingsComplete(bindings, profile),
+				SupportedRuns:     DefaultCombatStrategyRegistry().SupportedRuns(id),
+			}
+			if !setupProfile.BindingsReady {
+				setupProfile.BindingReasons = []string{string(QueueReasonProfileBindingsIncomplete)}
 			}
 			for _, skill := range profile.RequiredSkills {
 				skillID, skillErr := memory.ParseSkillTestName(skill.Skill)
@@ -298,8 +317,21 @@ func (s *CharacterSetupService) buildPreview(catalog CharacterCatalog, settings 
 					return CharacterSetupPreview{}, fmt.Errorf("character setup profile %q required skill %q: %w", id, skill.Skill, skillErr)
 				}
 				setupProfile.RequiredSkills = append(setupProfile.RequiredSkills, CharacterSetupRequiredSkill{
-					Skill: skill.Skill, SkillID: skillID, DisplayName: strings.TrimSpace(skill.DisplayName),
+					Skill: skill.Skill, SkillID: skillID, DisplayName: strings.TrimSpace(skill.DisplayName), Slot: skill.Slot,
 				})
+			}
+			for _, pair := range profile.OptionalSkillPairs {
+				projected := CharacterSetupOptionalSkillPair{}
+				for _, skill := range pair.Skills {
+					catalog, ok := memory.LookupSkillByKey(skill.Skill)
+					if !ok {
+						return CharacterSetupPreview{}, fmt.Errorf("character setup profile %q optional skill %q is not in the catalog", id, skill.Skill)
+					}
+					projected.Skills = append(projected.Skills, CharacterSetupRequiredSkill{
+						Skill: skill.Skill, SkillID: catalog.ID, DisplayName: catalog.SourceName, Slot: skill.Slot,
+					})
+				}
+				setupProfile.OptionalSkillPairs = append(setupProfile.OptionalSkillPairs, projected)
 			}
 			result.Profiles = append(result.Profiles, setupProfile)
 			if profile.Setup.Default {

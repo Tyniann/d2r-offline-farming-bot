@@ -42,6 +42,7 @@ describe("RouteFeature Redesign", () => {
     for (const label of ["Meine Routen", "Route aufnehmen", "Entwürfe"]) expect(screen.getByRole("button", { name: new RegExp(label) })).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("Charakter"), { target: { value: "MrHammer" } });
     await waitFor(() => expect(mocks.library).toHaveBeenCalledWith("MrHammer", false, expect.any(AbortSignal)));
+    expect(mocks.options).toHaveBeenCalledWith("MrHammer", expect.any(AbortSignal));
     expect(screen.getByRole("button", { name: "Meine Routen" })).toHaveAttribute("aria-pressed", "true");
   });
 

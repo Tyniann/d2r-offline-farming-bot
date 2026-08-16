@@ -1,9 +1,39 @@
 package world
 
+// WeaponSet identifies one of D2R's two player weapon sets.
+type WeaponSet uint8
+
+const (
+	// WeaponSetPrimary is the normal player weapon set.
+	WeaponSetPrimary WeaponSet = iota
+	// WeaponSetSecondary is the swapped player weapon set.
+	WeaponSetSecondary
+)
+
+// String returns the stable operator-facing weapon-set label.
+func (s WeaponSet) String() string {
+	switch s {
+	case WeaponSetPrimary:
+		return "primary"
+	case WeaponSetSecondary:
+		return "secondary"
+	default:
+		return "unknown"
+	}
+}
+
+// WeaponSetState is available only when a fresh snapshot unambiguously
+// distinguishes the primary and secondary set.
+type WeaponSetState struct {
+	Set       WeaponSet
+	Available bool
+}
+
 // Player holds interpreted main-player vitals without memory pointers.
 // Carried and private-Stash gold remain separate because only carried gold is
 // a verified vendor source; the Known flags preserve unavailable-versus-zero.
 type Player struct {
+	ActiveWeaponSet       WeaponSetState
 	Position              Position
 	HP                    uint32 // Current life points.
 	MaxHP                 uint32 // Maximum life points for percentage helpers.

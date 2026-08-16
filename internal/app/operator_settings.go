@@ -43,12 +43,12 @@ type OperatorSettings struct {
 
 // OperatorCharacterSettings bindet Setup-Paar, Queue und letzte Difficulty an genau einen Charakter.
 type OperatorCharacterSettings struct {
-	CharacterClass   string                             `yaml:"character_class,omitempty" json:"character_class,omitempty"`
-	CombatProfile    string                             `yaml:"combat_profile,omitempty" json:"combat_profile,omitempty"`
-	LastDifficulty   string                             `yaml:"last_difficulty" json:"last_difficulty"`
-	Queue            []string                           `yaml:"queue" json:"queue"`
-	ProfileBindings  map[string]OperatorProfileBindings `yaml:"profile_bindings,omitempty" json:"profile_bindings,omitempty"`
-	InventoryLock    *OperatorInventoryLock             `yaml:"inventory_lock,omitempty" json:"inventory_lock,omitempty"`
+	CharacterClass  string                             `yaml:"character_class,omitempty" json:"character_class,omitempty"`
+	CombatProfile   string                             `yaml:"combat_profile,omitempty" json:"combat_profile,omitempty"`
+	LastDifficulty  string                             `yaml:"last_difficulty" json:"last_difficulty"`
+	Queue           []string                           `yaml:"queue" json:"queue"`
+	ProfileBindings map[string]OperatorProfileBindings `yaml:"profile_bindings,omitempty" json:"profile_bindings,omitempty"`
+	InventoryLock   *OperatorInventoryLock             `yaml:"inventory_lock,omitempty" json:"inventory_lock,omitempty"`
 }
 
 // OperatorProfileBindings stores skill F-keys and belt keys for one combat profile.
@@ -104,6 +104,19 @@ type OperatorSettingsChange struct {
 type OperatorSettingsError struct {
 	Code Phase15ReasonCode
 	Err  error
+}
+
+// OperatorSettingsValidationError is a user-actionable Core validation failure.
+type OperatorSettingsValidationError struct {
+	Message string
+}
+
+// Error returns the user-facing validation message.
+func (e *OperatorSettingsValidationError) Error() string {
+	if e == nil {
+		return ""
+	}
+	return e.Message
 }
 
 // Error liefert Reason-Code und technische Ursache.
@@ -700,8 +713,12 @@ func validateOperatorProfileBindings(character string, bindings map[string]Opera
 		if profileID == "" || profileID != rawProfileID {
 			return fmt.Errorf("operator settings character %q has invalid profile_bindings key", character)
 		}
-		if _, ok := profiles[profileID]; !ok {
+		profileCfg, ok := profiles[profileID]
+		if !ok {
 			return fmt.Errorf("operator settings character %q profile_bindings references unknown combat profile %q", character, profileID)
+		}
+		if err := validateOptionalSkillPairBindings(value, profileCfg); err != nil {
+			return fmt.Errorf("operator settings character %q profile %q: %w", character, profileID, err)
 		}
 		usedKeys := make(map[string]string, len(value.Skills)+4)
 		for skillKey, rawKey := range value.Skills {
@@ -713,6 +730,9 @@ func validateOperatorProfileBindings(character string, bindings map[string]Opera
 				return fmt.Errorf("operator settings character %q profile %q skill %q: %w", character, profileID, skillKey, err)
 			}
 			key := strings.ToLower(strings.TrimSpace(rawKey))
+			if key == "" && rawKey == "" && profileOptionalSkill(profileCfg, skillKey) {
+				continue
+			}
 			if key == "" || key != rawKey {
 				return fmt.Errorf("operator settings character %q profile %q skill %q key must be canonical lowercase", character, profileID, skillKey)
 			}
@@ -756,6 +776,49 @@ func validateOperatorProfileBindings(character string, bindings map[string]Opera
 		}
 	}
 	return nil
+}
+
+func profileOptionalSkill(profileCfg config.ProfileConfig, skill string) bool {
+	for _, pair := range profileCfg.OptionalSkillPairs {
+		for _, entry := range pair.Skills {
+			if entry.Skill == skill {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func validateOptionalSkillPairBindings(bindings OperatorProfileBindings, profileCfg config.ProfileConfig) error {
+	for _, pair := range profileCfg.OptionalSkillPairs {
+		if len(pair.Skills) != 2 {
+			return fmt.Errorf("optionaler Skill-Paar-Vertrag ist ungültig")
+		}
+		first := pair.Skills[0].Skill
+		second := pair.Skills[1].Skill
+		firstSet := strings.TrimSpace(bindings.Skills[first]) != ""
+		secondSet := strings.TrimSpace(bindings.Skills[second]) != ""
+		if firstSet != secondSet {
+			message := fmt.Sprintf("%s und %s müssen gemeinsam belegt oder beide leer sein.", optionalSkillDisplayName(first), optionalSkillDisplayName(second))
+			if optionalSkillPairIsCTA(first, second) {
+				message = hammerdinCTAPairRequiredMessage
+			}
+			return &OperatorSettingsValidationError{Message: message}
+		}
+	}
+	return nil
+}
+
+func optionalSkillPairIsCTA(first, second string) bool {
+	skills := map[string]bool{first: true, second: true}
+	return skills["battle_command"] && skills["battle_orders"]
+}
+
+func optionalSkillDisplayName(skill string) string {
+	if entry, ok := memory.LookupSkillByKey(skill); ok && entry.SourceName != "" {
+		return entry.SourceName
+	}
+	return skill
 }
 
 func validateOperatorInventoryLock(character string, lock *OperatorInventoryLock) error {

@@ -173,6 +173,37 @@ func TestRouteLifecycleSameContextConfirmationIsRevisionIdempotent(t *testing.T)
 	}
 }
 
+func TestRouteLifecycleIdentityConfirmDoesNotBumpRevision(t *testing.T) {
+	cfg, root := lifecycleTestConfig(t, "MrBones", "nightmare")
+	saveLifecycleTestRoute(t, root, "MrBones", "nightmare", "mrbones-route", time.Now().Add(-time.Hour))
+	store, _ := NewRouteLifecycleStore(cfg)
+	bones, err := store.Preview("MrBones", "nightmare")
+	if err != nil {
+		t.Fatal(err)
+	}
+	confirmedBones, err := store.Confirm(bones, time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	hammer, err := store.Preview("MrHammer", "hell")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if hammer.Reason != "" || len(hammer.AffectedRoutes) != 0 {
+		t.Fatalf("identity preview = %+v", hammer)
+	}
+	confirmedHammer, err := store.Confirm(hammer, time.Now().Add(time.Second))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if confirmedHammer.Revision != confirmedBones.Revision {
+		t.Fatalf("identity confirm bumped revision from %d to %d", confirmedBones.Revision, confirmedHammer.Revision)
+	}
+	if confirmedHammer.Characters["mrhammer"].LastConfirmedDifficulty != "hell" {
+		t.Fatalf("identity confirm did not persist MrHammer: %+v", confirmedHammer.Characters["mrhammer"])
+	}
+}
+
 func TestRouteLifecycleRejectsDuplicateCorruptAndStaleRevision(t *testing.T) {
 	cfg, root := lifecycleTestConfig(t, "MrBones", "nightmare")
 	saveLifecycleTestRoute(t, root, "MrBones", "nightmare", "duplicate-route", time.Now())

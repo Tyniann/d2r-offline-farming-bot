@@ -115,3 +115,29 @@ func TestConsumeRunReadinessLeavesStandardRunWithLivingMercInputFree(t *testing.
 		t.Fatalf("living standard readiness ready=%t err=%v pending=%t", ready, err, rt.runReadinessPending)
 	}
 }
+
+func TestConsumeRunReadinessRequiresHammerdinMercenaryWhenPotionPolicyDisabled(t *testing.T) {
+	disabled := false
+	rt := &Runtime{
+		Config: &config.Config{
+			Session: config.SessionConfig{Run: "mephisto"},
+			Runs:    config.RunsConfig{Definitions: map[string]config.RunConfig{"mephisto": {}}},
+			Profiles: config.ProfilesConfig{"paladin_hammerdin": {
+				RequiresMercenary: true,
+				Resources:         config.ProfileResourcesConfig{Mercenary: config.MercenaryResourceConfig{Enabled: &disabled}},
+			}},
+		},
+		combatProfileID:     "paladin_hammerdin",
+		runReadinessPending: true,
+		productiveRunActive: true,
+	}
+	state := world.State{
+		Valid: true, Phase: world.GamePhaseInGame, Area: world.LookupArea(world.RogueEncampment),
+		Identity:  world.GameIdentity{Valid: true, CharacterName: "MrHammer"},
+		Mercenary: world.Mercenary{HiredKnown: true, Hired: false},
+	}
+	ready, err := rt.consumeRunReadiness(context.Background(), state)
+	if err == nil || err.Error() != "mercenary_not_hired" || ready || rt.runReadinessPending {
+		t.Fatalf("Hammerdin merc gate ready=%t err=%v pending=%t", ready, err, rt.runReadinessPending)
+	}
+}

@@ -90,7 +90,13 @@ func defaultEnabledCombatProfileID(profiles config.ProfilesConfig) (string, erro
 		}
 		return "", fmt.Errorf("no enabled default combat profile is configured")
 	}
-	return "", fmt.Errorf("multiple enabled default combat profiles are configured")
+	// Classless read-only and legacy CLI fixtures have no character setup from
+	// which to select a class default. Preserve their established Necro carrier;
+	// productive runtimes use the frozen character-owned profile above.
+	if profileCfg, ok := profiles["necro_bone_spear"]; ok && profileCfg.Setup.Enabled && profileCfg.Setup.Default {
+		return "necro_bone_spear", nil
+	}
+	return "", fmt.Errorf("multiple enabled default combat profiles are configured without a class context")
 }
 
 func mapCombatConfigFromProfile(profileID string, profileCfg config.ProfileConfig) (tasks.CombatConfig, error) {

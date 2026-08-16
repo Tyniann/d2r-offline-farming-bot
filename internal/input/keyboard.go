@@ -106,7 +106,7 @@ func (c *Controller) KeyDown(key string) error {
 	if err != nil {
 		return err
 	}
-	return c.keyDown(k, "direct_call")
+	return c.withGameplayAction(func() error { return c.keyDown(k, "direct_call") })
 }
 
 // KeyUp sends a key-up event for the given key string.
@@ -115,7 +115,7 @@ func (c *Controller) KeyUp(key string) error {
 	if err != nil {
 		return err
 	}
-	return c.keyUp(k, "direct_call")
+	return c.withGameplayAction(func() error { return c.keyUp(k, "direct_call") })
 }
 
 // PressKey sends a key-down, waits a configured random delay, then key-up.
@@ -124,7 +124,7 @@ func (c *Controller) PressKey(key string) error {
 	if err != nil {
 		return err
 	}
-	return c.pressKey(k, "direct_call")
+	return c.withGameplayAction(func() error { return c.pressKey(k, "direct_call") })
 }
 
 // PressCombo presses keys in order, holds for combo_hold_ms, then releases in reverse order.
@@ -141,7 +141,7 @@ func (c *Controller) PressCombo(keys ...string) error {
 		}
 		normalized[i] = k
 	}
-	return c.pressCombo(normalized, "combo")
+	return c.withGameplayAction(func() error { return c.pressCombo(normalized, "combo") })
 }
 
 func (c *Controller) keyDown(k Key, reason string) error {

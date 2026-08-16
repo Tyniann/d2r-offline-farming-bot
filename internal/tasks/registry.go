@@ -425,9 +425,8 @@ func newRunMachine(sel RunSelection, cfg RunConfig) (runMachine, error) {
 	switch sel.Phase {
 	case "", RunPhaseTravelEntry, RunPhasePlayRoute, RunPhaseBoss, RunPhaseLootAndReturn, RunPhaseRetryReturn, RunPhaseStashPersonal, RunPhaseTownReady:
 		return &runPipeline{
-			definition: definition, phase: sel.Phase, combat: cfg.Combat, routeID: cfg.RouteID,
-			routeCombat:             cfg.RouteCombat,
-			lootPickupDistanceTiles: cfg.LootPickupDistanceTiles,
+			definition: definition, phase: sel.Phase,
+			core: pipelineCoreState{combat: cfg.Combat, routeID: cfg.RouteID, routeCombat: cfg.RouteCombat, lootPickupDistanceTiles: cfg.LootPickupDistanceTiles},
 		}, nil
 	default:
 		return nil, fmt.Errorf("unknown run phase %q", sel.Phase)

@@ -47,12 +47,12 @@ func (b *LiveBackend) RouteLibrary(character string, includeArchived bool) (Rout
 }
 
 // RecordingOptions returns contracts from the authoritative run registry.
-func (b *LiveBackend) RecordingOptions() []RecordingOptionDTO {
+func (b *LiveBackend) RecordingOptions(character string) []RecordingOptionDTO {
 	b.mu.RLock()
-	selection := b.status.Selection
 	supervisorState := b.status.State
 	workflowState := b.routeWorkflow.State
 	b.mu.RUnlock()
+	recordingCharacter, recordingDifficulty := b.recordingCharacterContext(character)
 	definitions := tasks.DefaultRunRegistry().Definitions()
 	result := make([]RecordingOptionDTO, 0, len(definitions))
 	for _, definition := range definitions {
@@ -69,7 +69,7 @@ func (b *LiveBackend) RecordingOptions() []RecordingOptionDTO {
 			available, reason := true, ""
 			if !b.cfg.Input.Enabled {
 				available, reason = false, "input_disabled"
-			} else if selection.Character == "" || selection.Difficulty == "" {
+			} else if recordingCharacter == "" || recordingDifficulty == "" {
 				available, reason = false, "selection_unconfirmed"
 			} else if routeWorkflowBusy(workflowState) {
 				available, reason = false, "route_workflow_active"
@@ -83,16 +83,13 @@ func (b *LiveBackend) RecordingOptions() []RecordingOptionDTO {
 			case pathing.RouteRoleCowSweep:
 				displayName = "Cow-Route"
 			}
-			result = append(result, RecordingOptionDTO{RunID: string(definition.ID), RouteRole: string(role), DisplayName: displayName, InstructionsDE: contract.InstructionsDE, OperatorHintsDE: recordingOperatorHints(role), StartKind: string(contract.StartKind), StartWaypoint: string(contract.StartWaypoint), AllowedStartAreaID: uint32(contract.AllowedStartArea), AllowedRouteAreaIDs: areas, TerminalAreaID: uint32(contract.TerminalArea), TerminalMaxDistanceTiles: contract.TerminalMaxDistanceTiles, Available: available, Reason: reason, Prerequisites: b.recordingPrerequisites(definition, contract)})
+			result = append(result, RecordingOptionDTO{RunID: string(definition.ID), RouteRole: string(role), DisplayName: displayName, InstructionsDE: contract.InstructionsDE, OperatorHintsDE: recordingOperatorHints(role), StartKind: string(contract.StartKind), StartWaypoint: string(contract.StartWaypoint), AllowedStartAreaID: uint32(contract.AllowedStartArea), AllowedRouteAreaIDs: areas, TerminalAreaID: uint32(contract.TerminalArea), TerminalMaxDistanceTiles: contract.TerminalMaxDistanceTiles, Available: available, Reason: reason, Prerequisites: b.recordingPrerequisites(recordingCharacter, definition, contract)})
 		}
 	}
 	return result
 }
 
-func (b *LiveBackend) recordingPrerequisites(definition tasks.RunDefinition, contract tasks.RecordingContract) []RecordingPrerequisiteDTO {
-	b.mu.RLock()
-	character := b.status.Selection.Character
-	b.mu.RUnlock()
+func (b *LiveBackend) recordingPrerequisites(character string, definition tasks.RunDefinition, contract tasks.RecordingContract) []RecordingPrerequisiteDTO {
 	teleport, townPortal := b.characterSkillBindingsReady(character)
 	pickitReady := false
 	if character != "" {
@@ -109,6 +106,70 @@ func (b *LiveBackend) recordingPrerequisites(definition tasks.RunDefinition, con
 		result = append([]RecordingPrerequisiteDTO{{ID: "waypoint", Ready: waypointReady, Reason: prerequisiteReason(waypointReady, "onboarding_waypoint_required")}}, result...)
 	}
 	return result
+}
+
+// recordingCharacterContext resolves the character used for recording readiness.
+// The routes page character is authoritative when present; otherwise the confirmed
+// selection or the last operator character supplies the idle desktop context.
+func (b *LiveBackend) recordingCharacterContext(requested string) (character, difficulty string) {
+	requested = strings.TrimSpace(requested)
+	b.mu.RLock()
+	selection := b.status.Selection
+	b.mu.RUnlock()
+	if requested != "" {
+		if strings.EqualFold(strings.TrimSpace(selection.Character), requested) && strings.TrimSpace(selection.Difficulty) != "" {
+			return selection.Character, selection.Difficulty
+		}
+		if lastDifficulty := b.operatorCharacterDifficulty(requested); lastDifficulty != "" {
+			return requested, lastDifficulty
+		}
+		return requested, ""
+	}
+	if strings.TrimSpace(selection.Character) != "" && strings.TrimSpace(selection.Difficulty) != "" {
+		return selection.Character, selection.Difficulty
+	}
+	return b.operatorLastCharacterContext()
+}
+
+func (b *LiveBackend) operatorLastCharacterContext() (string, string) {
+	if b.operatorSettings == nil {
+		return "", ""
+	}
+	settings, err := b.operatorSettings.Snapshot()
+	if err != nil {
+		return "", ""
+	}
+	character := strings.TrimSpace(settings.LastCharacter)
+	if character == "" {
+		return "", ""
+	}
+	return character, b.operatorCharacterDifficulty(character)
+}
+
+// confirmedSelectionConflictsCandidate reports a confirmed lifecycle selection
+// that no longer matches the draft. An empty selection is not a conflict:
+// drafts carry their own character and difficulty, and live identity is
+// checked in-game during recording, test playback, and confirmation.
+func confirmedSelectionConflictsCandidate(selection SelectionStatusDTO, candidate app.RouteCandidate) bool {
+	if strings.TrimSpace(selection.Character) == "" {
+		return false
+	}
+	return !strings.EqualFold(selection.Character, candidate.Character) || !strings.EqualFold(selection.Difficulty, candidate.Difficulty)
+}
+
+func (b *LiveBackend) operatorCharacterDifficulty(character string) string {
+	if b.operatorSettings == nil {
+		return ""
+	}
+	settings, err := b.operatorSettings.Snapshot()
+	if err != nil {
+		return ""
+	}
+	entry, ok := settings.Characters[strings.ToLower(strings.TrimSpace(character))]
+	if !ok {
+		return ""
+	}
+	return strings.TrimSpace(entry.LastDifficulty)
 }
 
 // characterSkillBindingsReady reports whether Teleport and Town Portal F-keys exist
@@ -246,7 +307,7 @@ func (b *LiveBackend) PreviewRouteMutation(request RouteMutationPreviewRequest) 
 		if loadErr != nil {
 			return RouteMutationPreviewDTO{}, loadErr
 		}
-		if !strings.EqualFold(selection.Character, candidate.Character) || !strings.EqualFold(selection.Difficulty, candidate.Difficulty) {
+		if confirmedSelectionConflictsCandidate(selection, candidate) {
 			return RouteMutationPreviewDTO{}, fmt.Errorf("live candidate context changed")
 		}
 		if request.Operation == string(app.RouteMutationDeleteCandidate) {
@@ -280,20 +341,24 @@ func (b *LiveBackend) ConfirmRouteMutation(request RouteMutationConfirmRequest) 
 	}
 	// Candidate publication is revalidated immediately before the one-use
 	// management capability is consumed; route-only operations have no candidate.
+	refreshCharacter, refreshDifficulty := selection.Character, selection.Difficulty
 	if preview, ok := b.routeManagement.PreviewForToken(request.ConfirmationToken); ok && preview.CandidateID != "" {
 		candidate, _, err := b.routeCandidates.Load(preview.CandidateID)
 		if err != nil {
 			return err
 		}
-		if !strings.EqualFold(selection.Character, candidate.Character) || !strings.EqualFold(selection.Difficulty, candidate.Difficulty) {
+		if confirmedSelectionConflictsCandidate(selection, candidate) {
 			return fmt.Errorf("live candidate context changed")
+		}
+		if strings.TrimSpace(refreshCharacter) == "" {
+			refreshCharacter, refreshDifficulty = candidate.Character, candidate.Difficulty
 		}
 	}
 	if err := b.routeManagement.Confirm(app.RouteMutationConfirm{Token: request.ConfirmationToken, ConfirmRouteID: request.ConfirmRouteID}); err != nil {
 		return err
 	}
 	report, refreshErr := app.ResolveRunAvailabilities(b.cfg, app.RunAvailabilityContext{
-		Character: selection.Character, Difficulty: selection.Difficulty, GameVersion: b.cfg.Memory.GameVersion,
+		Character: refreshCharacter, Difficulty: refreshDifficulty, GameVersion: b.cfg.Memory.GameVersion,
 	})
 	b.mu.Lock()
 	b.catalog.Revision++
@@ -355,6 +420,10 @@ func (b *LiveBackend) StartRouteWorkflow(request RouteWorkflowRequest) (RouteWor
 	default:
 		return RouteWorkflowDTO{}, fmt.Errorf("unsupported route workflow")
 	}
+	recordingCharacter, recordingDifficulty := "", ""
+	if request.Operation == "record" {
+		recordingCharacter, recordingDifficulty = b.recordingCharacterContext(request.Character)
+	}
 	b.mu.Lock()
 	selection := b.status.Selection
 	if err := b.requireCompatibleLocked(); err != nil {
@@ -373,11 +442,11 @@ func (b *LiveBackend) StartRouteWorkflow(request RouteWorkflowRequest) (RouteWor
 		b.mu.Unlock()
 		return RouteWorkflowDTO{}, fmt.Errorf("route workflow requires enabled input")
 	}
-	if request.Operation == "record" && (selection.Character == "" || selection.Difficulty == "") {
+	if request.Operation == "record" && (recordingCharacter == "" || recordingDifficulty == "") {
 		b.mu.Unlock()
 		return RouteWorkflowDTO{}, fmt.Errorf("route recording requires confirmed character and difficulty")
 	}
-	if testCandidate != nil && (!strings.EqualFold(selection.Character, testCandidate.Character) || !strings.EqualFold(selection.Difficulty, testCandidate.Difficulty)) {
+	if testCandidate != nil && confirmedSelectionConflictsCandidate(selection, *testCandidate) {
 		b.mu.Unlock()
 		return RouteWorkflowDTO{}, fmt.Errorf("live candidate context changed")
 	}
@@ -400,8 +469,15 @@ func (b *LiveBackend) StartRouteWorkflow(request RouteWorkflowRequest) (RouteWor
 		state = app.RouteWorkflowPreparingPlayback
 	}
 	runID, character := request.RunID, selection.Character
+	if request.Operation == "record" {
+		character = recordingCharacter
+		request.Character = recordingCharacter
+		request.Difficulty = recordingDifficulty
+	}
 	if testCandidate != nil {
 		runID, character, request.RouteRole = string(testCandidate.RunID), testCandidate.Character, string(testCandidate.RouteRole)
+		request.Character = testCandidate.Character
+		request.Difficulty = testCandidate.Difficulty
 	}
 	if request.Operation == "system_record" || request.Operation == "system_test" {
 		character = ""

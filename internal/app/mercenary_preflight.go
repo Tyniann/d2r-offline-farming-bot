@@ -53,6 +53,9 @@ func (rt *Runtime) consumeRunReadiness(ctx context.Context, state world.State) (
 		return false, fmt.Errorf("mercenary preflight: profile %q unavailable", profileID)
 	}
 	enabled, rule := profileCfg.Resources.Mercenary.Resolve()
+	// Build-required availability is independent from the optional in-run
+	// potion policy. The Hammerdin may disable Merc potions, never the Merc gate.
+	enabled = enabled || profileCfg.RequiresMercenary
 	reason := town.EvaluateMercenaryPreflight(town.MercenaryPolicy{
 		Enabled: enabled, ThresholdPercent: rule.UseBelowPercent,
 	}, state.Mercenary)

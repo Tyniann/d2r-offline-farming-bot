@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"path/filepath"
 	"testing"
@@ -47,6 +48,38 @@ func TestOperatorSettingsBackendEnforcesGenerationIdleLockAndControlledRestart(t
 	}
 	if _, err := backend.UpdateOperatorSettings(OperatorSettingsMutationRequest{ExpectedRevision: updated.Settings.Revision, ExpectedGeneration: 4, Settings: activeDraft}); err == nil {
 		t.Fatal("stale generation was accepted")
+	}
+}
+
+func TestOperatorSettingsPreviewReturnsActionablePartialCTAError(t *testing.T) {
+	backend := newSelectionTestBackend(t)
+	store, err := app.NewOperatorSettingsStore(t.TempDir(), backend.cfg, []string{"MrHammer"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	initial, err := store.Snapshot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	assigned, err := store.AssignCharacterProfile("MrHammer", "paladin", "paladin_hammerdin", initial.Revision)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := backend.SetOperatorSettingsStore(store); err != nil {
+		t.Fatal(err)
+	}
+	draft := operatorSettingsDTO(assigned.Settings)
+	character := draft.Characters["mrhammer"]
+	character.ProfileBindings = map[string]OperatorProfileBindingsDTO{"paladin_hammerdin": {
+		Skills: map[string]string{"battle_command": "f6"},
+	}}
+	draft.Characters["mrhammer"] = character
+	_, err = backend.PreviewOperatorSettings(OperatorSettingsMutationRequest{
+		ExpectedRevision: assigned.Settings.Revision, ExpectedGeneration: 0, Settings: draft,
+	})
+	var commandErr *commandError
+	if !errors.As(err, &commandErr) || commandErr.code != "config_invalid" || commandErr.message != "Für Call to Arms müssen Battle Command und Battle Orders beide belegt sein." {
+		t.Fatalf("partial CTA API error=%v", err)
 	}
 }
 

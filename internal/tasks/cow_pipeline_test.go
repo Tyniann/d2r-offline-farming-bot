@@ -17,19 +17,19 @@ func TestCowLegRouteDisablesOnlyItsPrivateCombatCopy(t *testing.T) {
 	}
 	cfg := RunConfig{SetupRouteID: "leg-route", RouteCombat: RouteCombatConfig{Enabled: true}}
 	pipeline := newCowPipeline(definition, cfg)
-	if pipeline.legRoute.routeID != "leg-route" {
-		t.Fatalf("setup route=%q", pipeline.legRoute.routeID)
+	if pipeline.legRoute.core.routeID != "leg-route" {
+		t.Fatalf("setup route=%q", pipeline.legRoute.core.routeID)
 	}
-	if pipeline.legRoute.routeCombat.Enabled {
+	if pipeline.legRoute.core.routeCombat.Enabled {
 		t.Fatal("Wirt-Leg route combat remained enabled")
 	}
 	if !pipeline.config.RouteCombat.Enabled || !cfg.RouteCombat.Enabled {
 		t.Fatal("Cow-Sweep combat config was mutated while disabling Wirt-Leg combat")
 	}
-	if !pipeline.cowSweep.routeCombat.Enabled || !pipeline.cowSweep.requireTerminalSafe {
+	if !pipeline.cowSweep.core.routeCombat.Enabled || !pipeline.cowSweep.core.requireTerminalSafe {
 		t.Fatal("Cow-Sweep lost combat or terminal safe-snapshot enforcement")
 	}
-	if !pipeline.legRoute.suppressRouteLoot {
+	if !pipeline.legRoute.core.suppressRouteLoot {
 		t.Fatal("setup route may not consume inventory capacity with incidental loot")
 	}
 }

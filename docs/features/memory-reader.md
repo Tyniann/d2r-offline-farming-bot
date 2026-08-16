@@ -17,6 +17,10 @@ Low-Level Read-only Memory Reader für Phase 1 Schritt 2: rohe Bytes aus dem ang
 
 ## Funktionalität
 
+### Aktives Waffenset (Phase 22.3)
+
+`Snapshot.ActiveWeaponSet` verwendet keine zusätzliche Speicheradresse. Der explizite Hammerdin-CTA-Vertrag wertet ausschließlich die bereits vollständig gelesene `PlayerSkills.SkillsKnown`-Liste aus: Die CASC-Skills Battle Orders und Battle Command gemeinsam abwesend bedeuten Primärset, gemeinsam vorhanden Sekundärset. Eine unvollständige Skill-Liste oder nur einer der beiden Skills ergibt `Available=false`. Runtime-Scanner, Scan-Cache, Default-Offsets und Offset-Konfiguration bleiben unverändert.
+
 ### ProcessAccess
 
 Schmales Interface, das `process.Service` erfüllt:
@@ -121,4 +125,4 @@ Erwartung ohne `--probe`: Wait-/Attach-/Lost-Verhalten wie in [Process Detection
 - [Phase-18-Core-Vertrag](phase-18-core-contract.md) — Live-Evidenz, Decoder und Unknown-Grenzen
 
 ---
-*Zuletzt aktualisiert: 2026-07-30*
+*Zuletzt aktualisiert: 2026-08-15*

@@ -5,6 +5,7 @@ describe("runResultReasonText", () => {
   it("übersetzt Cow-Rezept-, Kampf- und dynamische Shopfehler", () => {
     expect(runResultReasonText("cow_portal_missing_after_consumption")).toContain("kein neues Kuhportal");
     expect(runResultReasonText("cow_combat_no_progress")).toContain("keinen bestätigten Fortschritt");
+    expect(runResultReasonText("boss_combat_no_progress")).toContain("Hammerdin-Kampf");
     expect(runResultReasonText("cow_tome_shop_close_failed: escape rejected")).toContain("Handelsfenster");
     expect(runResultReasonText("cow_rejuvenation_reserve_missing")).toContain("Regenerationstrank");
     expect(runResultReasonText("cow_belt_layout_unseeded")).toContain("Gürtelspalten");
