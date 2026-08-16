@@ -38,6 +38,7 @@ Versionierung nach [Semantic Versioning](https://semver.org/).
 - Store immutable run context once in Schema-4 JSONL telemetry and show raw history as shared context plus filterable compact events
 
 ### Fixed
+- Record the approved `wait_entry_area` settle divergence on the Phase-22 live hard-stuck fixture and extend the waypoint-settle replay capture to the 3-second arrival
 - Treat area 0 and a zero map seed during the Act-1 hub waypoint fade as pending so Mephisto return does not fail as unexpected_area
 - Delay Hammerdin teleport until the snapshot after LMB release so a dying Mephisto does not trigger a walk away from the corpse
 - Ignore sticky waypoint-open while settling the run entry area so field-ready can start after a real Durance arrival

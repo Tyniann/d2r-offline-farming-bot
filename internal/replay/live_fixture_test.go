@@ -14,12 +14,18 @@ func TestReplayRealOfflineMephistoHardStuckFixture(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ReadBundle() error = %v", err)
 	}
-	report, err := Replay(bundle)
-	if err != nil {
-		t.Fatalf("Replay() error = %v", err)
+	if bundle.Terminal.Step != "play_bound_route" || bundle.Terminal.Outcome != "failed" || bundle.Terminal.Reason != "hard_stuck" {
+		t.Fatalf("live fixture terminal = %+v", bundle.Terminal)
 	}
-	if report.Ticks != 328 || report.Step != "play_bound_route" || report.Outcome != "failed" || report.Reason != "hard_stuck" {
-		t.Fatalf("Replay() report = %+v", report)
+	// Productive wait_entry_area now requires a settled InGame arrival. The
+	// 14.08.2026 capture still proves the later hard_stuck path; replay stops
+	// at the first approved decision change instead of inventing later ticks.
+	_, err = Replay(bundle)
+	if err == nil {
+		t.Fatal("Replay() succeeded, want first divergence at wait_entry_area")
+	}
+	if !strings.Contains(err.Error(), "tick 82") || !strings.Contains(err.Error(), "wait_entry_area") || !strings.Contains(err.Error(), "telemetry.emit") {
+		t.Fatalf("Replay() error = %v, want documented wait_entry_area settle divergence", err)
 	}
 	if len(bundle.Checkpoints) != 0 || bundle.Contract.Character != "" || len(bundle.Contract.Loadout) != 0 {
 		t.Fatalf("live fixture retains non-decision identity payload: contract=%+v checkpoints=%d", bundle.Contract, len(bundle.Checkpoints))

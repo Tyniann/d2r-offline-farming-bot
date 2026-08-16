@@ -181,11 +181,16 @@ func captureWaypointSettleFixture(t *testing.T) Bundle {
 	deps := InstrumentDeps(tasks.Deps{Waypoint: waypoint, TownWalk: waypoint, Telemetry: replayTelemetryFixture{}}, recorder)
 	runner := tasks.NewRunner(slog.New(slog.NewTextHandler(io.Discard, nil)), tasks.RunSelection{Run: contract.RunID, Phase: contract.Phase}, tasks.RunConfig{StepTimeout: 10 * time.Second, Combat: tasks.CombatConfig{Profile: contract.ProfileID}}, deps)
 	townState := world.State{Phase: world.GamePhaseInGame, Valid: true, Area: world.LookupArea(world.RogueEncampment), Player: world.Player{Position: world.Position{X: 100, Y: 100}, HP: 1000, MaxHP: 1000, Mana: 500, MaxMana: 500}, Objects: []world.Object{{Kind: world.ObjectKindWaypoint, ID: 119, UnitID: 50, Position: world.Position{X: 102, Y: 100}}}}
-	times := []time.Duration{0, 50 * time.Millisecond, 100 * time.Millisecond, 200 * time.Millisecond, 300 * time.Millisecond, 800 * time.Millisecond, time.Second}
+	times := []time.Duration{
+		0, 50 * time.Millisecond, 100 * time.Millisecond, 200 * time.Millisecond,
+		300 * time.Millisecond, 800 * time.Millisecond,
+		time.Second, 2 * time.Second, 3 * time.Second, 4 * time.Second,
+	}
+	const blackMarshFrom = 6
 	for index, elapsed := range times {
 		now := start.Add(elapsed)
 		state := townState
-		if index == len(times)-1 {
+		if index >= blackMarshFrom {
 			state.Area = world.LookupArea(world.BlackMarsh)
 		}
 		state.At = now

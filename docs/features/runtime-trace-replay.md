@@ -103,7 +103,7 @@ Die Matrix wird vollständig headless durch die gezielten Pakettests ausgeführt
 
 ### Permanentes Live-Fixture
 
-`internal/replay/testdata/mephisto-live-hard-stuck.trace.gz` stammt aus einem echten Offline-D2R-Lauf. Der Capture- und Replay-Pfad endet jeweils nach 328 Ticks mit `play_bound_route / failed / hard_stuck`. Lokale Identitäten und für diesen Fehler nachweislich irrelevante World-Daten wurden entfernt; nach jedem Minimierungsschritt musste der produktive Replayer weiterhin identisch erfolgreich sein. Das resultierende Fixture ist kleiner als 32 KiB.
+`internal/replay/testdata/mephisto-live-hard-stuck.trace.gz` stammt aus einem echten Offline-D2R-Lauf. Das Bundle-Terminal bleibt `play_bound_route / failed / hard_stuck` nach 328 Ticks. Seit der produktiven `wait_entry_area`-Settle-Änderung vom 16.08.2026 divergiert der Replay am ersten geänderten Tick 82; spätere Frames werden nicht erfunden. Lokale Identitäten und für diesen Fehler nachweislich irrelevante World-Daten fehlen. Das Fixture bleibt kleiner als 32 KiB.
 
 ## Abhängigkeiten
 
