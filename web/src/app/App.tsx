@@ -4,7 +4,7 @@ import {
   applySelection, connectLiveEvents, consumeBootstrapToken, emergencyStop, pauseAfterRun,
   previewSelection, resumeQueue, startQueue, stopAfterRun, validateQueue, type LiveConnectionState,
 } from "../api/client";
-import { getCatalog, getStatus, type CatalogDTO, type LiveEvent, type SelectionPreviewDTO, type StatusDTO } from "../api/generated";
+import { getCatalog, getOperatorSettings, getRunAvailabilities, getRouteWorkflow, getStatus, type CatalogDTO, type LiveEvent, type OperatorSettingsDTO, type RouteWorkflowDTO, type RunCatalogEntry, type SelectionPreviewDTO, type StatusDTO } from "../api/generated";
 import "./app.css";
 import { RouteFeature } from "../features/routes/RouteFeature";
 import { PickitFeature } from "../features/pickit/PickitFeature";
@@ -18,8 +18,9 @@ import { Button, Dialog, PageHeader, StateMessage, StatusBadge } from "./ui";
 import { characterAvailabilityText } from "./characterReasons";
 import { CharacterSetupWizard } from "../features/characters/CharacterSetupWizard";
 import { farmReadyReasonText } from "../features/characters/characterReasonText";
-import { runAvailabilityText } from "./runReasons";
+import { isRunStartable, queueStartErrorText, runAvailabilityText, selectionErrorText } from "./runReasons";
 import { runResultReasonText } from "./runResultReasons";
+import { terminalWorkflowStates } from "../features/routes/routePresentation";
 
 const editableStates = new Set(["idle", "idle_in_game", "stopped_error"]);
 const emergencyStates = new Set(["starting_game", "starting_run", "running_run", "paused_between_runs", "exiting_game"]);
@@ -54,6 +55,9 @@ function CoreApp() {
   const [target, setTarget] = useState<AppTarget>(() => targetFromHash(window.location.hash));
   const [status, setStatus] = useState<StatusDTO | null>(null);
   const [catalog, setCatalog] = useState<CatalogDTO | null>(null);
+  const [operatorSettings, setOperatorSettings] = useState<OperatorSettingsDTO | null>(null);
+  const [selectionRuns, setSelectionRuns] = useState<RunCatalogEntry[] | null>(null);
+  const [routeWorkflow, setRouteWorkflow] = useState<RouteWorkflowDTO | null>(null);
   const [events, setEvents] = useState<LiveEvent[]>([]);
   const [connection, setConnection] = useState<LiveConnectionState>("wird verbunden");
   const [character, setCharacter] = useState("");
@@ -77,6 +81,7 @@ function CoreApp() {
   const [settingsDirty, setSettingsDirty] = useState(false);
   const [pendingNav, setPendingNav] = useState<AppTarget | null>(null);
   const [setupCharacter, setSetupCharacter] = useState("");
+  const selectionEdited = useRef(false);
   const emergencyConfirmRef = useRef<HTMLButtonElement>(null);
   const contentRef = useRef<HTMLElement>(null);
   const settingsDirtyRef = useRef(false);
@@ -171,12 +176,20 @@ function CoreApp() {
       }
     };
 
-    void Promise.all([getStatus(controller.signal), getCatalog(controller.signal)]).then(([nextStatus, nextCatalog]) => {
+    void Promise.all([
+      getStatus(controller.signal),
+      getCatalog(controller.signal),
+      getRouteWorkflow(controller.signal),
+      getOperatorSettings(controller.signal).catch(() => null),
+    ]).then(([nextStatus, nextCatalog, nextWorkflow, nextSettings]) => {
       if (controller.signal.aborted) return;
       setStatus(nextStatus);
       setCatalog(nextCatalog);
-      setCharacter(nextCatalog.characters.find((entry) => entry.selectable)?.name ?? "");
-      setDifficulty(nextCatalog.default_difficulty);
+      setRouteWorkflow(nextWorkflow);
+      setOperatorSettings(nextSettings);
+      const confirmed = nextStatus.selection.character;
+      setCharacter(confirmed || nextCatalog.characters.find((entry) => entry.selectable)?.name || "");
+      setDifficulty(nextStatus.selection.difficulty || nextCatalog.default_difficulty);
       disconnect = connectLiveEvents(
         (data) => setStatus(data as StatusDTO),
         (data) => {
@@ -184,9 +197,13 @@ function CoreApp() {
           if ((data as LiveEvent).event.startsWith("route_")) {
             setRouteRefreshKey((value) => value + 1);
             void getCatalog(controller.signal).then(setCatalog).catch(reportError);
+            void getRouteWorkflow(controller.signal).then(setRouteWorkflow).catch(reportError);
           }
           if ((data as LiveEvent).event === "catalog_changed") {
             void getCatalog(controller.signal).then(setCatalog).catch(reportError);
+          }
+          if ((data as LiveEvent).event === "operator_settings_changed") {
+            void getOperatorSettings(controller.signal).then(setOperatorSettings).catch(() => setOperatorSettings(null));
           }
           if ((data as LiveEvent).event.startsWith("pickit_")) setPickitRefreshKey((value) => value + 1);
           if ((data as LiveEvent).event === "history_changed") setHistoryRefreshKey((value) => value + 1);
@@ -198,10 +215,38 @@ function CoreApp() {
     return () => { controller.abort(); disconnect(); };
   }, []);
 
+  useEffect(() => {
+    const selectedCharacter = status?.selection.character;
+    const selectedDifficulty = status?.selection.difficulty;
+    if (!selectedCharacter || !selectedDifficulty) {
+      setSelectionRuns(null);
+      return;
+    }
+    const controller = new AbortController();
+    setSelectionRuns(null);
+    void getRunAvailabilities(selectedCharacter, selectedDifficulty, controller.signal)
+      .then((value) => { if (!controller.signal.aborted) setSelectionRuns(value.runs ?? []); })
+      .catch(() => { if (!controller.signal.aborted) setSelectionRuns([]); });
+    return () => controller.abort();
+  }, [status?.selection.character, status?.selection.difficulty, catalog?.revision, routeRefreshKey]);
+
+  useEffect(() => {
+    if (selectionEdited.current || !status?.selection.character) return;
+    setCharacter(status.selection.character);
+    if (status.selection.difficulty) setDifficulty(status.selection.difficulty);
+  }, [status?.selection.character, status?.selection.difficulty]);
+
   const refreshAfterCommand = async () => {
-    const [nextStatus, nextCatalog] = await Promise.all([getStatus(), getCatalog()]);
+    const [nextStatus, nextCatalog, nextWorkflow, nextSettings] = await Promise.all([
+      getStatus(),
+      getCatalog(),
+      getRouteWorkflow(),
+      getOperatorSettings().catch(() => null),
+    ]);
     setStatus(nextStatus);
     setCatalog(nextCatalog);
+    setRouteWorkflow(nextWorkflow);
+    setOperatorSettings(nextSettings);
   };
 
   const applyPreview = async (selectionPreview: SelectionPreviewDTO) => {
@@ -211,9 +256,12 @@ function CoreApp() {
     try {
       await applySelection(selectionPreview.character, selectionPreview.new_difficulty, catalog.revision, status.generation, selectionPreview.confirmation_token);
       await refreshAfterCommand();
+      selectionEdited.current = false;
+      setCharacter(selectionPreview.character);
+      setDifficulty(selectionPreview.new_difficulty);
       setPreview(null);
     } catch (reason: unknown) {
-      setSelectionError(reason instanceof Error ? reason.message : "Auswahl fehlgeschlagen");
+      setSelectionError(reason instanceof Error ? selectionErrorText(reason.message) : "Auswahl fehlgeschlagen");
     } finally {
       setApplying(false);
     }
@@ -232,7 +280,7 @@ function CoreApp() {
         return;
       }
     } catch (reason: unknown) {
-      setSelectionError(reason instanceof Error ? reason.message : "Vorschau fehlgeschlagen");
+      setSelectionError(reason instanceof Error ? selectionErrorText(reason.message) : "Vorschau fehlgeschlagen");
     } finally {
       setApplying(false);
     }
@@ -247,7 +295,7 @@ function CoreApp() {
       await action();
       await refreshAfterCommand();
     } catch (reason: unknown) {
-      setQueueError(reason instanceof Error ? reason.message : "Session-Befehl fehlgeschlagen");
+      setQueueError(reason instanceof Error ? queueStartErrorText(reason.message) : "Session-Befehl fehlgeschlagen");
     } finally {
       commandLock.current = false;
       setCommandPending(false);
@@ -256,7 +304,8 @@ function CoreApp() {
 
   const submitQueue = async () => {
     if (!status || !catalog || !status.selection.character || !status.selection.difficulty) return;
-    const entries = status.queue.default_entries ?? [];
+    const entries = configuredQueue;
+    if (entries.length === 0) return;
     await runCommand(async () => {
       setQueueWarning("");
       const validation = await validateQueue(entries, status.selection.character!, status.selection.difficulty!, catalog.revision);
@@ -268,16 +317,37 @@ function CoreApp() {
   };
 
   const selectionLocked = applying || commandPending || (!!status && !editableStates.has(status.state));
-  const configuredQueue = status?.queue.default_entries ?? [];
+  const confirmedSelection = !!status?.selection.character && !!status.selection.difficulty;
+  const draftDiffers = confirmedSelection && (character !== status?.selection.character || difficulty !== status?.selection.difficulty);
+  const farmCatalogEntry = catalog?.characters.find((entry) => entry.name === status?.selection.character);
+  const storedFarmSettings = storedCharacterSettings(operatorSettings, catalog, status?.selection.character ?? "");
+  const configuredQueue = storedFarmSettings?.queue ?? (status?.queue.default_entries ?? []);
   const hasPendingIntent = !!status?.pending_intent && status.pending_intent !== "none";
   const compatibilityState = status?.compatibility?.state ?? "not_detected";
   const liveLocked = compatibilityState !== "compatible";
-  const selectedCatalogEntry = catalog?.characters.find((entry) => entry.name === status?.selection.character);
-  const farmReadyBlocked = !!selectedCatalogEntry && selectedCatalogEntry.selectable && !selectedCatalogEntry.farm_ready;
-  const queueStartLocked = !status || !catalog || !editableStates.has(status.state) || commandPending || liveLocked || farmReadyBlocked;
-  const effectiveSelectionLocked = selectionLocked || liveLocked || !status?.input.enabled || status.input.paused || status.input.stopped;
-  const needsFirstRoute = !!catalog && catalog.runs.length > 0
-    && !catalog.runs.some((run) => run.status === "available" || run.status === "runtime_validation_required");
+  const farmReadyBlocked = !!farmCatalogEntry && farmCatalogEntry.selectable && !farmCatalogEntry.farm_ready;
+  const viewedCatalogEntry = catalog?.characters.find((entry) => entry.name === character);
+  const viewedFarmReadyBlocked = !!viewedCatalogEntry && viewedCatalogEntry.selectable && !viewedCatalogEntry.farm_ready;
+  const inputHandoff = commandPending || (!!status && !editableStates.has(status.state));
+  const inputNotReady = !!status && !inputHandoff && (!!status.input.paused || !!status.input.stopped || !status.input.enabled);
+  const routeWorkflowBusy = !!routeWorkflow && !terminalWorkflowStates.has(routeWorkflow.state);
+  const queueEntriesStartable = configuredQueue.length > 0 && (selectionRuns ?? []).length > 0
+    && configuredQueue.every((runID) => {
+      const run = (selectionRuns ?? []).find((entry) => entry.run_id === runID);
+      return !!run && isRunStartable(run.status);
+    });
+  const startFailureText = queueError || (status?.state === "stopped_error" && status.last_error && status.last_error.code !== "runtime_read_failed"
+    ? queueStartErrorText(status.last_error.message || status.last_error.code)
+    : "");
+  const queueStartLocked = !status || !catalog || !editableStates.has(status.state) || commandPending || liveLocked
+    || farmReadyBlocked || inputNotReady || routeWorkflowBusy || !queueEntriesStartable || selectionRuns === null || draftDiffers;
+  const effectiveSelectionLocked = selectionLocked || liveLocked || inputNotReady;
+  const confirmedDifficultyLabel = catalog?.difficulties.find((entry) => entry.id === status?.selection.difficulty)?.display_name
+    ?? status?.selection.difficulty
+    ?? "";
+  const focusedCatalogEntry = viewedCatalogEntry;
+  const needsFirstRoute = confirmedSelection && !draftDiffers && selectionRuns !== null && selectionRuns.length > 0
+    && !selectionRuns.some((run) => isRunStartable(run.status));
   const openRoutes = (runID = "countess") => {
     setPreferredRecordingRun(runID);
     setRouteOpenedFromOnboarding(true);
@@ -332,20 +402,27 @@ function CoreApp() {
             <div className="section-heading"><div><p className="eyebrow">Voraussetzung</p><h2>Charakter und Schwierigkeit</h2></div></div>
             <p>D2R muss auf dem Offline-Charakterbildschirm bei 1280 × 720 stehen. Die Auswahl wird vor jedem Klick visuell und anschließend im Spiel über Memory bestätigt.</p>
             {selectionError && <p role="alert">{selectionError}</p>}
-            <p><strong>Aktiv bestätigt:</strong> {status?.selection.character ? `${status.selection.character} / ${status.selection.difficulty}` : "Noch kein Kontext bestätigt"}<br /><strong>Entwurf:</strong> {character || "–"} / {difficulty || "–"}</p>
+            <p><strong>In D2R bestätigt:</strong> {status?.selection.character ? `${status.selection.character} / ${confirmedDifficultyLabel}` : "Noch keine Auswahl bestätigt"}</p>
+            {draftDiffers && <StateMessage kind="error" title="Auswahl noch nicht in D2R">Queue und Start gelten für {status?.selection.character}. Nach dem Anwenden lädt die Queue von {character}.</StateMessage>}
             <div className="selection-grid">
-              <label>Charakter<select value={character} onChange={(event) => setCharacter(event.target.value)} disabled={effectiveSelectionLocked}>{catalog?.characters.map((entry) => <option key={entry.slug} value={entry.name} disabled={!entry.selectable}>{entry.name}{entry.selectable ? "" : " – nicht verfügbar"}</option>)}</select></label>
-              <label>Schwierigkeit<select value={difficulty} onChange={(event) => setDifficulty(event.target.value)} disabled={effectiveSelectionLocked}>{catalog?.difficulties.map((entry) => <option key={entry.id} value={entry.id}>{entry.display_name}</option>)}</select></label>
+              <label>Charakter<select value={character} onChange={(event) => {
+                const next = event.target.value;
+                selectionEdited.current = true;
+                setCharacter(next);
+                const stored = storedCharacterSettings(operatorSettings, catalog, next);
+                if (stored?.last_difficulty) setDifficulty(stored.last_difficulty);
+              }} disabled={effectiveSelectionLocked}>{catalog?.characters.map((entry) => <option key={entry.slug} value={entry.name} disabled={!entry.selectable}>{entry.name}{entry.selectable ? "" : " – nicht verfügbar"}</option>)}</select></label>
+              <label>Schwierigkeit<select value={difficulty} onChange={(event) => { selectionEdited.current = true; setDifficulty(event.target.value); }} disabled={effectiveSelectionLocked}>{catalog?.difficulties.map((entry) => <option key={entry.id} value={entry.id}>{entry.display_name}</option>)}</select></label>
               <button type="button" disabled={effectiveSelectionLocked || !character || (status?.state !== "idle" && status?.state !== "idle_in_game" && status?.state !== "stopped_error")} onClick={() => void submitSelection()}>{applying ? "Auswahl wird geprüft …" : "Auswahl in D2R anwenden"}</button>
             </div>
-            <ul className="character-list">{catalog?.characters.filter((entry) => !entry.selectable || !entry.farm_ready).map((entry) => {
-              const setupable = !(entry.reasons ?? []).includes("character_class_unsupported");
-              return <li key={entry.slug}>
-                <strong>{entry.name}</strong>
-                <span>{entry.selectable ? ((entry.farm_ready_reasons ?? []).map((reason) => farmReadyReasonText(reason)).join(" ") || "Noch nicht farmbereit") : characterAvailabilityText(entry, catalog)}</span>
-                {setupable && status && <Button variant="secondary" onClick={() => setSetupCharacter(entry.name)}>Charakter einrichten</Button>}
-              </li>;
-            })}</ul>
+            {catalog && focusedCatalogEntry && !focusedCatalogEntry.selectable && !(focusedCatalogEntry.reasons ?? []).includes("character_class_unsupported") && status && (
+              <ul className="character-list"><li key={focusedCatalogEntry.slug}>
+                <strong>{focusedCatalogEntry.name}</strong>
+                <span>{characterAvailabilityText(focusedCatalogEntry, catalog)}</span>
+                <Button variant="secondary" onClick={() => setSetupCharacter(focusedCatalogEntry.name)}>Charakter einrichten</Button>
+              </li></ul>
+            )}
+            {viewedFarmReadyBlocked && <StateMessage kind="error" title="Charakter nicht farmbereit">{(viewedCatalogEntry?.farm_ready_reasons ?? []).map((reason) => farmReadyReasonText(reason)).join(" ") || "Tasten oder Inventarschutz fehlen noch."} <a href="#settings">Einstellungen → Charaktere</a>{status && viewedCatalogEntry && <Button variant="secondary" onClick={() => setSetupCharacter(viewedCatalogEntry.name)}>Charakter einrichten</Button>}</StateMessage>}
             {setupCharacter && status && catalog && <CharacterSetupWizard
               character={setupCharacter}
               catalog={catalog}
@@ -353,21 +430,28 @@ function CoreApp() {
               mode="dashboard"
               onChanged={async () => { await refreshAfterCommand(); }}
             />}
-            {farmReadyBlocked && <StateMessage kind="error" title="Charakter nicht farmbereit">{(selectedCatalogEntry?.farm_ready_reasons ?? []).map((reason) => farmReadyReasonText(reason)).join(" ") || "Öffne Einstellungen → Charaktere und speichere Tasten sowie Inventarschutz."}</StateMessage>}
           </section>
 
           <section>
             <div className="section-heading"><div><p className="eyebrow">Farming</p><h2>Run-Reihenfolge pro Spiel</h2></div></div>
             <p>Die Reihenfolge wird persistent pro Charakter gespeichert. Änderungen erfolgen zentral unter <a href="#settings">Einstellungen</a>.</p>
-            {queueError && <p role="alert">{queueError}</p>}
+            {startFailureText && <StateMessage kind="error" title="Queue-Start fehlgeschlagen">{startFailureText}</StateMessage>}
             {queueWarning && <StateMessage kind="error" title="Queue-Hinweis">{queueWarning}</StateMessage>}
-            <div className="run-grid">{catalog?.runs.map((run) => {
-              const availability = runAvailabilityText(run.status, run.reasons);
-              return <article key={run.run_id}><strong>{run.display_name}</strong><span>{availability.title}</span><small>{availability.detail}</small></article>;
-            }) ?? <StateMessage kind="loading" title="Katalog wird geladen" />}</div>
-            <h3>Konfigurierte Queue</h3>
-            {configuredQueue.length === 0 ? <StateMessage kind="empty" title="Keine Queue konfiguriert">Lege die Run-Reihenfolge in den Einstellungen für den ausgewählten Charakter fest.</StateMessage> : <ol className="queue-list">{configuredQueue.map((runID, index) => <li key={`${runID}-${index}`}><span>{index + 1}</span><strong>{runID}</strong></li>)}</ol>}
+            {inputNotReady && !startFailureText && <StateMessage kind="error" title="Spielsteuerung nicht bereit">Prüfe Freigabe, Pause und Notstopp oder warte den kontrollierten Core-Neustart ab.</StateMessage>}
+            {routeWorkflowBusy && <StateMessage kind="error" title="Routenvorgang aktiv">Zuerst den Routenvorgang beenden.</StateMessage>}
+            {!confirmedSelection
+              ? <StateMessage kind="empty" title="Zuerst Charakter in D2R bestätigen">Ohne bestätigte Auswahl gibt es keine Farm-Queue.</StateMessage>
+              : selectionRuns === null
+                ? <StateMessage kind="loading" title="Katalog wird geladen" />
+                : <div className="run-grid">{selectionRuns.map((run) => {
+                  const availability = runAvailabilityText(run.status, run.reasons, farmCatalogEntry?.expected_class);
+                  return <article key={run.run_id}><strong>{run.display_name}</strong><span>{availability.title}</span><small>{availability.detail}</small></article>;
+                })}</div>}
+            {confirmedSelection && <>
+            <h3>Reihenfolge für {status?.selection.character} / {confirmedDifficultyLabel} (in D2R bestätigt)</h3>
+            {configuredQueue.length === 0 ? <StateMessage kind="empty" title="Keine Queue konfiguriert">Lege die Run-Reihenfolge in den Einstellungen für {status?.selection.character} fest.</StateMessage> : <ol className="queue-list">{configuredQueue.map((runID, index) => <li key={`${runID}-${index}`}><span>{index + 1}</span><strong>{(selectionRuns ?? []).find((run) => run.run_id === runID)?.display_name ?? runID}</strong></li>)}</ol>}
             <div className="queue-toolbar"><a className="button secondary" href="#settings">Queue in Einstellungen ändern</a><button type="button" disabled={queueStartLocked || configuredQueue.length === 0 || !status?.selection.character} onClick={() => void submitQueue()}>{commandPending ? "Core bestätigt …" : "Queue prüfen und starten"}</button></div>
+            </>}
             {status && <div className="queue-status" aria-live="polite"><strong>Core-Queue:</strong> {(status.queue.entries ?? []).length ? (status.queue.entries ?? []).join(" → ") : "keine aktive Queue"}<span>Spiel {status.game_id || "–"} · Spielzyklus {status.queue.cycle + 1} · Lifecycle {status.lifecycle_phase}</span><span>Index {status.queue.index + 1} · Retry {status.queue.retry} · Run-ID {status.run_id || "–"}</span><span>Gestartet {status.queue.started_runs}/{status.queue.budgets.max_runs} · Restarts {status.queue.total_restarts}/{status.queue.budgets.max_total_restarts}</span>{status.active_run_id && <span>Aktiv: {status.active_run_id}{status.step ? ` · ${status.step}` : ""}</span>}{hasPendingIntent && <span>Vorgemerkt: {status.pending_intent}</span>}{status.last_result && <span>Letztes Ergebnis: {status.last_result.disposition}{status.last_result.reason ? ` · ${runResultReasonText(status.last_result.reason)}` : ""}</span>}</div>}
             <div className="session-controls"><button type="button" disabled={commandPending || status?.state !== "running_run" || hasPendingIntent} onClick={() => status && void runCommand(() => pauseAfterRun(status.generation))}>Nach aktuellem Run pausieren</button><button type="button" disabled={liveLocked || commandPending || status?.state !== "paused_between_runs"} onClick={() => status && void runCommand(() => resumeQueue(status.generation))}>Queue fortsetzen</button><button type="button" disabled={commandPending || status?.state !== "running_run" || hasPendingIntent} onClick={() => status && void runCommand(() => stopAfterRun(status.generation))}>Nach aktuellem Run stoppen</button><button type="button" className="danger" disabled={commandPending || !status || !emergencyStates.has(status.state)} onClick={() => setConfirmEmergency(true)}>Emergency Stop</button></div>
             <p className="hint">Pause und Stop warten auf die sichere Run-Grenze. Emergency Stop und F11 brechen sofort ab und garantieren kein Save &amp; Exit.</p>
@@ -386,4 +470,10 @@ function CoreApp() {
       {pendingNav && <Dialog title="Ungespeicherte Änderungen" onClose={() => setPendingNav(null)}><p>Deine Änderungen an der Run-Reihenfolge sind noch nicht gespeichert. Ohne Speichern startet der Bot mit der alten Reihenfolge.</p><div className="modal-actions"><Button variant="secondary" onClick={() => setPendingNav(null)}>Zurück zu den Einstellungen</Button><Button variant="danger" onClick={discardSettingsAndNavigate}>Änderungen verwerfen</Button></div></Dialog>}
     </div>
   );
+}
+
+function storedCharacterSettings(settings: OperatorSettingsDTO | null, catalog: CatalogDTO | null | undefined, name: string) {
+  const slug = catalog?.characters.find((entry) => entry.name === name)?.slug;
+  if (!slug) return undefined;
+  return settings?.characters[slug];
 }

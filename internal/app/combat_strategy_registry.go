@@ -32,7 +32,9 @@ func NewCombatStrategyRegistry() *CombatStrategyRegistry {
 	registry.mustRegister(necrobonespear.NewNihlathakFactory())
 	registry.mustRegister(necrobonespear.NewSummonerFactory())
 	registry.mustRegister(necrobonespear.NewCowsFactory())
-	registry.mustRegister(hammerdin.NewMephistoFactory())
+	registry.mustRegister(hammerdin.NewBossFactory(string(tasks.RunIDCountess)))
+	registry.mustRegister(hammerdin.NewBossFactory(string(tasks.RunIDMephisto)))
+	registry.mustRegister(hammerdin.NewBossFactory(string(tasks.RunIDNihlathak)))
 	return registry
 }
 

@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync/atomic"
 
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/config"
@@ -34,6 +35,16 @@ func configuredFarmQueuePlan(cfg *config.Config) (FarmQueuePlan, error) {
 		return FarmQueuePlan{}, fmt.Errorf("configured farm queue requires config")
 	}
 	selection := FarmQueueValidationContext{Character: cfg.Session.Character, Difficulty: cfg.Session.Difficulty}
+	if catalog, err := ResolveCharacterCatalog(cfg); err == nil {
+		for _, entry := range catalog.Characters {
+			if strings.EqualFold(entry.Name, cfg.Session.Character) {
+				ctx := BuildCharacterRunAvailabilityContext(cfg, entry, cfg.Session.Difficulty)
+				selection.CharacterClass = ctx.CharacterClass
+				selection.CombatProfile = ctx.CombatProfile
+				break
+			}
+		}
+	}
 	return ValidateFarmQueue(cfg, FarmQueueValidationRequest{
 		RunIDs: cfg.Session.Queue, Character: selection.Character, Difficulty: selection.Difficulty,
 	}, selection)

@@ -32,6 +32,7 @@ const (
 	// QueueReasonCharacterInventoryUnconfigured rejects a queue when the character has no saved inventory lock.
 	QueueReasonCharacterInventoryUnconfigured QueueReason = "character_inventory_unconfigured"
 )
+
 // FarmQueueBudgets are immutable hard limits copied from YAML for one runtime queue.
 type FarmQueueBudgets struct {
 	MaxRuns                int
@@ -51,6 +52,8 @@ type FarmQueueValidationRequest struct {
 // FarmQueueValidationContext is the authoritative confirmed selection and catalog revision.
 type FarmQueueValidationContext struct {
 	Character       string
+	CharacterClass  string
+	CombatProfile   string
 	Difficulty      string
 	CatalogRevision uint64
 }
@@ -107,9 +110,7 @@ func ValidateFarmQueue(cfg *config.Config, request FarmQueueValidationRequest, c
 		!strings.EqualFold(strings.TrimSpace(request.Difficulty), strings.TrimSpace(current.Difficulty)) {
 		return FarmQueuePlan{}, &QueueValidationError{Code: QueueReasonContextMismatch, EntryIndex: -1}
 	}
-	report, err := ResolveRunAvailabilities(cfg, RunAvailabilityContext{
-		Character: current.Character, Difficulty: current.Difficulty, GameVersion: cfg.Memory.GameVersion,
-	})
+	report, err := ResolveRunAvailabilities(cfg, queueRunAvailabilityContext(cfg, current))
 	if err != nil {
 		return FarmQueuePlan{}, fmt.Errorf("resolve farm queue availability: %w", err)
 	}
@@ -137,6 +138,12 @@ func ValidateFarmQueue(cfg *config.Config, request FarmQueueValidationRequest, c
 		RunIDs: queue, Character: current.Character, Difficulty: current.Difficulty,
 		CatalogRevision: current.CatalogRevision, Budgets: budgets,
 	}, nil
+}
+
+func queueRunAvailabilityContext(cfg *config.Config, current FarmQueueValidationContext) RunAvailabilityContext {
+	return BuildCharacterRunAvailabilityContext(cfg, CharacterCatalogEntry{
+		Name: current.Character, ExpectedClass: current.CharacterClass, CombatProfile: current.CombatProfile,
+	}, current.Difficulty)
 }
 
 func validateUniqueQueueRunIDs(runIDs []string) ([]string, error) {

@@ -357,13 +357,23 @@ func (b *LiveBackend) ConfirmRouteMutation(request RouteMutationConfirmRequest) 
 	if err := b.routeManagement.Confirm(app.RouteMutationConfirm{Token: request.ConfirmationToken, ConfirmRouteID: request.ConfirmRouteID}); err != nil {
 		return err
 	}
-	report, refreshErr := app.ResolveRunAvailabilities(b.cfg, app.RunAvailabilityContext{
-		Character: refreshCharacter, Difficulty: refreshDifficulty, GameVersion: b.cfg.Memory.GameVersion,
-	})
+	var refreshEntry app.CharacterCatalogEntry
+	b.mu.RLock()
+	if entry, ok := b.bootstrap.character(refreshCharacter); ok {
+		refreshEntry = entry
+	}
+	b.mu.RUnlock()
+	var refreshedRuns []RunCatalogEntry
+	var refreshErr error
+	if refreshEntry.Name != "" {
+		refreshedRuns, refreshErr = b.resolveRunsForEntry(refreshEntry, refreshDifficulty)
+	} else {
+		refreshErr = fmt.Errorf("character catalog entry missing")
+	}
 	b.mu.Lock()
 	b.catalog.Revision++
 	if refreshErr == nil {
-		b.catalog.Runs = runCatalogEntries(report, b.cfg)
+		b.catalog.Runs = refreshedRuns
 	} else {
 		// Die Mutation ist zu diesem Zeitpunkt bereits atomar veröffentlicht.
 		// Ein fehlgeschlagener Re-Read darf keinen alten, scheinbar verfügbaren

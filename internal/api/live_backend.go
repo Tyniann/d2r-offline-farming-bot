@@ -77,7 +77,7 @@ func (b *LiveBackend) SetSessionSupervisor(supervisor *app.SessionSupervisor, be
 		b.mu.RUnlock()
 		_, err := app.ValidateFarmQueue(b.cfg, app.FarmQueueValidationRequest{
 			RunIDs: plan.RunIDs, Character: plan.Character, Difficulty: plan.Difficulty, CatalogRevision: plan.CatalogRevision,
-		}, app.FarmQueueValidationContext{Character: selection.Character, Difficulty: selection.Difficulty, CatalogRevision: revision})
+		}, b.farmQueueValidationContext(selection.Character, selection.Difficulty, revision))
 		return err
 	}); err != nil {
 		return err
@@ -483,9 +483,7 @@ func (b *LiveBackend) ValidateQueue(request QueueValidationRequest) (QueueValida
 	plan, err := app.ValidateFarmQueue(b.cfg, app.FarmQueueValidationRequest{
 		RunIDs: append([]string(nil), request.Entries...), Character: request.Character,
 		Difficulty: request.Difficulty, CatalogRevision: request.CatalogRevision,
-	}, app.FarmQueueValidationContext{
-		Character: selection.Character, Difficulty: selection.Difficulty, CatalogRevision: freshRevision,
-	})
+	}, b.farmQueueValidationContext(selection.Character, selection.Difficulty, freshRevision))
 	if err != nil {
 		var queueErr *app.QueueValidationError
 		if errors.As(err, &queueErr) {
@@ -493,7 +491,7 @@ func (b *LiveBackend) ValidateQueue(request QueueValidationRequest) (QueueValida
 		}
 		var supervisorErr *app.SupervisorCommandError
 		if errors.As(err, &supervisorErr) {
-			return QueueValidationDTO{}, &commandError{code: string(supervisorErr.Code), message: "Der Katalog hat sich seit der Queue-Prüfung geändert."}
+			return QueueValidationDTO{}, &commandError{code: string(supervisorErr.Code), message: "Der Charakterkatalog hat sich geändert. Seite aktualisieren."}
 		}
 		return QueueValidationDTO{}, err
 	}
@@ -702,14 +700,7 @@ func (b *LiveBackend) applySelectionCommand(request CommandRequest) (CommandResp
 			if b.operatorSettings != nil {
 				settingsChange, settingsErr = b.operatorSettings.ConfirmSelection(entry.Name, payload.Difficulty)
 			}
-			var report app.RunsInspectReport
-			report, refreshErr = app.ResolveRunAvailabilities(b.cfg, app.RunAvailabilityContext{
-				Character: entry.Name, CharacterClass: entry.ExpectedClass, CombatProfile: entry.CombatProfile,
-				Difficulty: payload.Difficulty, GameVersion: b.cfg.Memory.GameVersion,
-			})
-			if refreshErr == nil {
-				refreshedRuns = runCatalogEntries(report, b.cfg)
-			}
+			refreshedRuns, refreshErr = b.resolveRunsForEntry(entry, payload.Difficulty)
 		}
 	}
 	b.mu.Lock()
@@ -755,7 +746,7 @@ func (b *LiveBackend) applySelectionCommand(request CommandRequest) (CommandResp
 	b.publisher.Publish(telemetry.LiveEvent{Event: "supervisor_state_changed", Details: map[string]any{"state": response.State, "generation": response.Generation}})
 	if err != nil {
 		b.publisher.Publish(telemetry.LiveEvent{Event: "selection_failed", Reason: "character_selection_unconfirmed", Details: map[string]any{"character": entry.Name, "difficulty": payload.Difficulty}})
-		return response, &commandError{code: "character_selection_unconfirmed", message: "Die Charakterauswahl konnte nicht sicher bestätigt werden: " + err.Error()}
+		return response, &commandError{code: "character_selection_unconfirmed", message: characterSelectionFailureMessage(err)}
 	}
 	if commitErr != nil {
 		b.publisher.Publish(telemetry.LiveEvent{Event: "selection_lifecycle_failed", Reason: lifecycleErrorCode(commitErr), Details: map[string]any{"character": entry.Name, "difficulty": payload.Difficulty}})
@@ -769,6 +760,23 @@ func (b *LiveBackend) applySelectionCommand(request CommandRequest) (CommandResp
 	}
 	b.publisher.Publish(telemetry.LiveEvent{Event: "selection_completed", Reason: response.State, Details: map[string]any{"character": entry.Name, "difficulty": payload.Difficulty}})
 	return response, nil
+}
+
+func characterSelectionFailureMessage(err error) string {
+	if err == nil {
+		return "Die Charakterauswahl konnte nicht sicher bestätigt werden."
+	}
+	text := err.Error()
+	if strings.Contains(text, "no usable client area") {
+		return "Das D2R-Fenster hat keine nutzbare Fläche. Stelle Fenster-Modus 1280 × 720 ein und lass das Fenster sichtbar, nicht minimiert."
+	}
+	if strings.Contains(text, "character selection timeout") {
+		return "Der Charakterbildschirm wurde nicht sicher erkannt. D2R muss auf dem Offline-Charakterbildschirm bei 1280 × 720 stehen, und der gewünschte Save muss sichtbar markiert sein."
+	}
+	if strings.Contains(text, "target anchor not found") {
+		return "Der Charakter wurde auf dem Auswahlbildschirm nicht gefunden. Prüfe 1280 × 720 und den markierten Save."
+	}
+	return "Die Charakterauswahl konnte nicht sicher bestätigt werden."
 }
 
 func (b *LiveBackend) sessionCommand(name string, request CommandRequest) (CommandResponse, error) {
@@ -822,7 +830,7 @@ func (b *LiveBackend) sessionCommand(name string, request CommandRequest) (Comma
 		}
 		plan, validateErr := app.ValidateFarmQueue(b.cfg, app.FarmQueueValidationRequest{
 			RunIDs: payload.Entries, Character: payload.Character, Difficulty: payload.Difficulty, CatalogRevision: payload.CatalogRevision,
-		}, app.FarmQueueValidationContext{Character: selection.Character, Difficulty: selection.Difficulty, CatalogRevision: freshRevision})
+		}, b.farmQueueValidationContext(selection.Character, selection.Difficulty, freshRevision))
 		if validateErr != nil {
 			return CommandResponse{}, mapQueueCommandError(validateErr)
 		}
@@ -971,7 +979,7 @@ func mapQueueCommandError(err error) error {
 	}
 	var supervisorErr *app.SupervisorCommandError
 	if errors.As(err, &supervisorErr) {
-		return &commandError{code: string(supervisorErr.Code), message: "Der Queue-Kontext hat sich geändert."}
+		return &commandError{code: string(supervisorErr.Code), message: "Der Charakterkatalog hat sich geändert. Seite aktualisieren."}
 	}
 	return &commandError{code: "queue_entry_unavailable", message: "Die Farm-Queue konnte nicht sicher geprüft werden."}
 }
@@ -981,14 +989,26 @@ func queueCommandError(queueErr *app.QueueValidationError) *commandError {
 	if queueErr.Code == app.QueueReasonDuplicateRun {
 		details["first_index"] = queueErr.FirstIndex
 	}
-	message := "Die Farm-Queue ist nicht verfügbar: " + queueErr.Error()
-	if queueErr.Code == app.QueueReasonProfileBindingsIncomplete {
-		message = "Für dieses Kampfprofil fehlen Tastenbelegungen."
+	return &commandError{code: string(queueErr.Code), message: queueValidationMessage(queueErr), details: details}
+}
+
+func queueValidationMessage(queueErr *app.QueueValidationError) string {
+	switch queueErr.Code {
+	case app.QueueReasonEmpty:
+		return "Die Farm-Queue ist leer."
+	case app.QueueReasonDuplicateRun:
+		return "Dieselbe Route steht mehrfach in der Reihenfolge."
+	case app.QueueReasonEntryUnavailable:
+		return "Ein Run in der Reihenfolge ist für diesen Charakter nicht startfähig."
+	case app.QueueReasonContextMismatch:
+		return "Die Queue gehört nicht zur bestätigten Auswahl."
+	case app.QueueReasonProfileBindingsIncomplete:
+		return "Für dieses Kampfprofil fehlen Tastenbelegungen."
+	case app.QueueReasonCharacterInventoryUnconfigured:
+		return "Der Inventarschutz wurde noch nicht bestätigt."
+	default:
+		return "Die Farm-Queue ist nicht verfügbar."
 	}
-	if queueErr.Code == app.QueueReasonCharacterInventoryUnconfigured {
-		message = "Der Inventarschutz wurde noch nicht bestätigt."
-	}
-	return &commandError{code: string(queueErr.Code), message: message, details: details}
 }
 
 func mapSupervisorCommandError(err error) error {

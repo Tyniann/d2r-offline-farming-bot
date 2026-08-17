@@ -297,3 +297,27 @@ func (rt *Runtime) tryBindInput(state *runState) error {
 	}
 	return nil
 }
+
+type visibleWindowBinder interface {
+	BindVisible(pid uint32) error
+}
+
+// ensureVisibleInputWindow restores a 0×0/minimized D2R HWND during selection
+// and offline start. Idle [tryBindInput] stays restore-free so the dashboard
+// does not yank the game every second.
+func (rt *Runtime) ensureVisibleInputWindow() {
+	if rt.Input.Bound() {
+		return
+	}
+	pid := rt.Process.Status().PID
+	if pid == 0 {
+		return
+	}
+	binder, ok := rt.Input.(visibleWindowBinder)
+	if !ok {
+		return
+	}
+	if err := binder.BindVisible(pid); err != nil {
+		rt.Log.Debug("visible input window not ready", "pid", pid, "error", err)
+	}
+}

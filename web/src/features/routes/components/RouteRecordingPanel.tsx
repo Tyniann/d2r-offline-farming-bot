@@ -1,6 +1,6 @@
 import { Check, ChevronRight, CircleAlert, X } from "lucide-react";
 import type { HotkeyHelpDTO, RecordingOptionDTO, RouteWorkflowDTO } from "../../../api/generated";
-import { prerequisiteLabel, reasonLabel, roleLabel, runLabel, runOrder, targetLabel, waypointLabel } from "../routePresentation";
+import { prerequisiteLabel, reasonLabel, roleLabel, runLabel, runOrder, targetLabel, terminalWorkflowStates, waypointLabel } from "../routePresentation";
 import { RouteWorkflowPanel } from "./RouteWorkflowPanel";
 
 interface Props {
@@ -32,7 +32,8 @@ export function RouteRecordingPanel({ options, selectedRun, selectedRole, hotkey
   });
   const runOptions = options.filter((entry) => entry.run_id === selectedRun);
   const option = runOptions.find((entry) => entry.route_role === selectedRole) ?? runOptions[0];
-  const workflowActive = !!workflow && workflow.state !== "idle" && workflow.state !== "completed";
+  const workflowBusy = !!workflow && !terminalWorkflowStates.has(workflow.state);
+  const showTerminalFailure = !!workflow && (workflow.state === "failed_safe" || workflow.state === "emergency_cancelled") && workflow.run_id === option?.run_id;
   const missingPrerequisite = option?.prerequisites?.find((entry) => !entry.ready);
   const disabledReason = locked ? (lockedReason ?? "Aktion derzeit nicht möglich.") : missingPrerequisite ? reasonLabel(missingPrerequisite.reason) : option && !option.available ? reasonLabel(option.reason) : "";
 
@@ -64,7 +65,8 @@ export function RouteRecordingPanel({ options, selectedRun, selectedRole, hotkey
           {missingPrerequisite && <p className="route-inline-warning"><CircleAlert aria-hidden="true" size={18} /> {reasonLabel(missingPrerequisite.reason)}</p>}
           <div className="route-locations"><span><small>Start</small><strong>{waypointLabel(option.start_waypoint, option.start_kind)}</strong></span><ChevronRight aria-hidden="true" /><span><small>Ziel</small><strong>{targetLabel(option.run_id, option.route_role)}</strong></span></div>
           <div className="route-instructions"><p>{option.instructions_de}</p>{(option.operator_hints_de ?? []).length > 0 && <ol>{(option.operator_hints_de ?? []).map((hint, index) => <li key={hint}><span>{index + 1}</span><p>{hint}</p></li>)}</ol>}</div>
-          {workflowActive && workflow?.run_id === option.run_id ? <RouteWorkflowPanel workflow={workflow} hotkeys={hotkeys} pending={pending} onFinish={onFinish} onOpenDrafts={onOpenDrafts} onNextCowStep={() => onSelectRole("cow_sweep")} /> : <div className="route-recording-actions">
+          {(workflowBusy && workflow?.run_id === option.run_id || showTerminalFailure) && <RouteWorkflowPanel workflow={workflow} hotkeys={hotkeys} pending={pending} onFinish={onFinish} onOpenDrafts={onOpenDrafts} onNextCowStep={() => onSelectRole("cow_sweep")} />}
+          {!workflowBusy && <div className="route-recording-actions">
             <div><div className="route-hotkeys"><span><kbd>{hotkeys?.recording_finish ?? "F9"}</kbd> Aufnahme beenden</span><span><kbd>{hotkeys?.emergency_stop ?? "F11"}</kbd> Notabbruch</span></div>{disabledReason && <p className="route-disabled-reason">{disabledReason}</p>}</div>
             <button type="button" disabled={pending || locked || !option.available || !!missingPrerequisite} onClick={() => onStart(option)}>{actionLabel(option)}</button>
           </div>}

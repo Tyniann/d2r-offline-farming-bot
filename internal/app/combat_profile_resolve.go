@@ -12,8 +12,8 @@ import (
 
 // resolveActiveCombatProfileID returns the character-owned combat profile.
 // OperatorSettings is the productive authority when a character is set up.
-// Pure config/CLI fixtures without setup fall back to the single enabled class default.
-func resolveActiveCombatProfileID(cfg *config.Config, settings *OperatorSettings, characterName string) (string, error) {
+// Otherwise the enabled default combat profile of characterClass is used.
+func resolveActiveCombatProfileID(cfg *config.Config, settings *OperatorSettings, characterName, characterClass string) (string, error) {
 	if cfg == nil {
 		return "", fmt.Errorf("config is required to resolve combat profile")
 	}
@@ -30,9 +30,12 @@ func resolveActiveCombatProfileID(cfg *config.Config, settings *OperatorSettings
 				}
 				return profileID, nil
 			}
+			if characterClass == "" {
+				characterClass = value.CharacterClass
+			}
 		}
 	}
-	return defaultEnabledCombatProfileID(cfg.Profiles)
+	return defaultEnabledCombatProfileID(cfg.Profiles, characterClass)
 }
 
 // resolveRuntimeCombatProfileID binds productive runtime construction to the
@@ -43,7 +46,7 @@ func resolveRuntimeCombatProfileID(cfg *config.Config, loadout *CharacterLoadout
 		return "", fmt.Errorf("config is required to resolve runtime combat profile")
 	}
 	if loadout == nil {
-		return resolveActiveCombatProfileID(cfg, nil, cfg.Session.Character)
+		return resolveActiveCombatProfileID(cfg, nil, cfg.Session.Character, "")
 	}
 	profileID := strings.TrimSpace(loadout.ProfileID)
 	if profileID == "" {
@@ -71,10 +74,27 @@ func (rt *Runtime) resolvedCombatProfileID() (string, error) {
 		return profileID, nil
 	}
 	// Hand-built read-only/unit-test Runtime fixtures predate the frozen field.
-	return resolveActiveCombatProfileID(rt.Config, nil, rt.Config.Session.Character)
+	return resolveActiveCombatProfileID(rt.Config, nil, rt.Config.Session.Character, "")
 }
 
-func defaultEnabledCombatProfileID(profiles config.ProfilesConfig) (string, error) {
+func defaultEnabledCombatProfileID(profiles config.ProfilesConfig, characterClass string) (string, error) {
+	class := strings.ToLower(strings.TrimSpace(characterClass))
+	if class != "" {
+		var defaults []string
+		for id, profileCfg := range profiles {
+			if profileCfg.Setup.Enabled && profileCfg.Setup.Default && strings.EqualFold(profileCfg.CharacterClass, class) {
+				defaults = append(defaults, id)
+			}
+		}
+		if len(defaults) == 1 {
+			return defaults[0], nil
+		}
+		if len(defaults) > 1 {
+			return "", fmt.Errorf("multiple enabled default combat profiles for class %s", class)
+		}
+		// Unknown or unsupported classes keep the classless last resort so
+		// inspect can still report profile_class_mismatch against a real profile.
+	}
 	var defaults []string
 	for id, profileCfg := range profiles {
 		if profileCfg.Setup.Enabled && profileCfg.Setup.Default {
@@ -84,19 +104,32 @@ func defaultEnabledCombatProfileID(profiles config.ProfilesConfig) (string, erro
 	if len(defaults) == 1 {
 		return defaults[0], nil
 	}
-	if len(defaults) == 0 {
-		if _, ok := profiles["necro_bone_spear"]; ok {
-			return "necro_bone_spear", nil
-		}
-		return "", fmt.Errorf("no enabled default combat profile is configured")
-	}
-	// Classless read-only and legacy CLI fixtures have no character setup from
-	// which to select a class default. Preserve their established Necro carrier;
-	// productive runtimes use the frozen character-owned profile above.
-	if profileCfg, ok := profiles["necro_bone_spear"]; ok && profileCfg.Setup.Enabled && profileCfg.Setup.Default {
+	if _, ok := profiles["necro_bone_spear"]; ok {
 		return "necro_bone_spear", nil
 	}
+	if len(defaults) == 0 {
+		return "", fmt.Errorf("no enabled default combat profile is configured")
+	}
 	return "", fmt.Errorf("multiple enabled default combat profiles are configured without a class context")
+}
+
+// BuildCharacterRunAvailabilityContext builds the desktop run-availability
+// context. The stored combat profile wins; otherwise the class default is used.
+func BuildCharacterRunAvailabilityContext(cfg *config.Config, entry CharacterCatalogEntry, difficulty string) RunAvailabilityContext {
+	if cfg == nil {
+		return RunAvailabilityContext{Character: entry.Name, CharacterClass: entry.ExpectedClass, Difficulty: difficulty}
+	}
+	profile := strings.TrimSpace(entry.CombatProfile)
+	if profile == "" {
+		profile, _ = defaultEnabledCombatProfileID(cfg.Profiles, entry.ExpectedClass)
+	}
+	if strings.TrimSpace(difficulty) == "" {
+		difficulty = cfg.Session.Difficulty
+	}
+	return RunAvailabilityContext{
+		Character: entry.Name, CharacterClass: entry.ExpectedClass, CombatProfile: profile,
+		Difficulty: difficulty, GameVersion: cfg.Memory.GameVersion,
+	}
 }
 
 func mapCombatConfigFromProfile(profileID string, profileCfg config.ProfileConfig) (tasks.CombatConfig, error) {

@@ -1,6 +1,7 @@
 package input
 
 import (
+	"errors"
 	"fmt"
 	"image"
 	"log/slog"
@@ -103,6 +104,17 @@ func (c *Controller) Ready() bool {
 
 // Bind finds the D2R main window for pid and stores its client-area geometry.
 func (c *Controller) Bind(pid uint32) error {
+	return c.bindWindow(pid, false)
+}
+
+// BindVisible restores a minimized D2R window once, then binds its client area.
+// Idle polling uses [Bind] so a focused dashboard does not yank D2R every second;
+// character selection and offline start call this when the client rect is still 0×0.
+func (c *Controller) BindVisible(pid uint32) error {
+	return c.bindWindow(pid, true)
+}
+
+func (c *Controller) bindWindow(pid uint32, restore bool) error {
 	if pid == 0 {
 		return fmt.Errorf("bind window: %w", ErrInvalidPID)
 	}
@@ -115,6 +127,12 @@ func (c *Controller) Bind(pid uint32) error {
 	}
 
 	info, err := c.api.ClientArea(hwnd)
+	if restore && errors.Is(err, ErrInvalidClientArea) {
+		if activateErr := c.api.Activate(hwnd); activateErr != nil {
+			return fmt.Errorf("restore window hwnd=%#x: %w", hwnd, activateErr)
+		}
+		info, err = c.api.ClientArea(hwnd)
+	}
 	if err != nil {
 		return err
 	}

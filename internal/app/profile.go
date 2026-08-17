@@ -153,8 +153,8 @@ func newProfileExecutor(log *slog.Logger, profiles config.ProfilesConfig, profil
 	}
 	executor.SetTelemetry(trace)
 	if registry == nil || !requireRegisteredStrategy {
-		// Idle desktop and route recording keep Countess only as a dummy
-		// carrier. Mephisto-only profiles such as Hammerdin must still construct.
+		// Idle desktop and route recording keep an unregistered run as a dummy
+		// carrier so profiles without that run still construct.
 		return executor, nil
 	}
 	factory, ok := registry.Resolve(profileID, runID)

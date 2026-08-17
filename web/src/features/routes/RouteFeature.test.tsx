@@ -87,6 +87,36 @@ describe("RouteFeature Redesign", () => {
     expect(screen.queryByText("Hotkey-Hilfe")).not.toBeInTheDocument();
   });
 
+  it.each([
+    { run_id: "countess", button: "Gräfin aufnehmen" },
+    { run_id: "mephisto", button: "Mephisto aufnehmen" },
+  ])("lässt nach fehlgeschlagener $button-Aufnahme erneut starten", async ({ run_id, button }) => {
+    mocks.workflow.mockResolvedValue({ workflow_id: "workflow-1", generation: 4, state: "failed_safe", run_id, character: "MrBones", reason: "recording_terminal_area_mismatch" });
+    render(<RouteFeature characters={["MrBones"]} selectedCharacter="MrBones" refreshKey={0} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Route aufnehmen" }));
+    expect(await screen.findByText("Vorgang abgebrochen")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: button }));
+    await waitFor(() => expect(mocks.start).toHaveBeenCalledWith("record", 4, expect.objectContaining({ runId: run_id, character: "MrBones" })));
+  });
+
+  it("lässt nach fehlgeschlagener Aufnahme einen anderen Run starten", async () => {
+    mocks.workflow.mockResolvedValue({ workflow_id: "workflow-1", generation: 4, state: "failed_safe", run_id: "countess", character: "MrBones", reason: "recording_terminal_area_mismatch" });
+    render(<RouteFeature characters={["MrBones"]} selectedCharacter="MrBones" refreshKey={0} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Route aufnehmen" }));
+    fireEvent.click(await screen.findByRole("button", { name: /^Mephisto/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Mephisto aufnehmen" }));
+    await waitFor(() => expect(mocks.start).toHaveBeenCalledWith("record", 4, expect.objectContaining({ runId: "mephisto" })));
+  });
+
+  it("lässt nach Notabbruch denselben Run erneut starten", async () => {
+    mocks.workflow.mockResolvedValue({ workflow_id: "workflow-2", generation: 5, state: "emergency_cancelled", run_id: "countess", character: "MrBones" });
+    render(<RouteFeature characters={["MrBones"]} selectedCharacter="MrBones" refreshKey={0} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Route aufnehmen" }));
+    expect(await screen.findByText("Notabbruch ausgeführt")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Gräfin aufnehmen" }));
+    await waitFor(() => expect(mocks.start).toHaveBeenCalledWith("record", 5, expect.objectContaining({ runId: "countess" })));
+  });
+
   it("beendet eine aktive Aufnahme über denselben Core-Intent wie F9", async () => {
     mocks.workflow.mockResolvedValue({ workflow_id: "workflow-1", generation: 3, state: "recording", run_id: "countess", character: "MrBones" });
     render(<RouteFeature characters={["MrBones"]} selectedCharacter="MrBones" refreshKey={0} />);

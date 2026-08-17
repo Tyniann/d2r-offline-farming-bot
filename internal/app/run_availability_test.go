@@ -162,7 +162,7 @@ func TestResolveRunAvailabilitiesRejectsUnsupportedCharacterProfileStrategy(t *t
 	}
 }
 
-func TestResolveRunAvailabilitiesAllowsOnlyHammerdinMephistoStrategy(t *testing.T) {
+func TestResolveRunAvailabilitiesAllowsHammerdinBossStrategies(t *testing.T) {
 	cfg := availabilityConfig(t)
 	report, err := ResolveRunAvailabilities(cfg, RunAvailabilityContext{
 		Character: "MrBones", CharacterClass: "paladin", CombatProfile: "paladin_hammerdin",
@@ -171,18 +171,37 @@ func TestResolveRunAvailabilitiesAllowsOnlyHammerdinMephistoStrategy(t *testing.
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, runID := range []tasks.RunID{tasks.RunIDCountess, tasks.RunIDCows, tasks.RunIDNihlathak, tasks.RunIDSummoner} {
+	for _, runID := range []tasks.RunID{tasks.RunIDCows, tasks.RunIDSummoner} {
 		availability, _ := findRunAvailability(report.Runs, runID)
 		if !containsRunReason(availability.Reasons, tasks.RunReasonProfileRunStrategyUnavailable) {
 			t.Fatalf("Hammerdin %s reasons = %v", runID, availability.Reasons)
 		}
 	}
-	mephisto, _ := findRunAvailability(report.Runs, tasks.RunIDMephisto)
-	if containsRunReason(mephisto.Reasons, tasks.RunReasonProfileRunStrategyUnavailable) {
-		t.Fatalf("Hammerdin Mephisto strategy unavailable: %v", mephisto.Reasons)
+	for _, runID := range []tasks.RunID{tasks.RunIDCountess, tasks.RunIDMephisto, tasks.RunIDNihlathak} {
+		availability, _ := findRunAvailability(report.Runs, runID)
+		if containsRunReason(availability.Reasons, tasks.RunReasonProfileRunStrategyUnavailable) {
+			t.Fatalf("Hammerdin %s strategy unavailable: %v", runID, availability.Reasons)
+		}
 	}
+	mephisto, _ := findRunAvailability(report.Runs, tasks.RunIDMephisto)
 	if mephisto.Status == tasks.RunAvailabilityAvailable {
 		t.Fatal("fixture without Act-3 egress unexpectedly became fully available")
+	}
+}
+
+func TestResolveRunAvailabilitiesUsesClassDefaultInsteadOfNecroFallback(t *testing.T) {
+	cfg := availabilityConfig(t)
+	report, err := ResolveRunAvailabilities(cfg, RunAvailabilityContext{
+		Character: "MrHammer", CharacterClass: "paladin", Difficulty: "nightmare", GameVersion: "3.2.92777",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, runID := range []tasks.RunID{tasks.RunIDCountess, tasks.RunIDMephisto, tasks.RunIDNihlathak} {
+		availability, _ := findRunAvailability(report.Runs, runID)
+		if containsRunReason(availability.Reasons, tasks.RunReasonProfileClassMismatch) {
+			t.Fatalf("%s used necro fallback: %v", runID, availability.Reasons)
+		}
 	}
 }
 

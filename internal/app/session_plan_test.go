@@ -79,6 +79,24 @@ func TestResolveSessionPlanReadyForRecordedMephistoRouteAndEgress(t *testing.T) 
 	}
 }
 
+func TestResolveSessionAvailabilityContextUsesFrozenHammerdinProfile(t *testing.T) {
+	cfg, err := config.Load("../../configs/config.example.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.Session.Character = "MrHammer"
+	cfg.Session.Difficulty = "hell"
+	loadout := &CharacterLoadoutSnapshot{Character: "MrHammer", ProfileID: "paladin_hammerdin"}
+
+	context, err := resolveSessionAvailabilityContext(cfg, Options{Loadout: loadout}, cfg.Session.Character)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if context.Character != "MrHammer" || context.CharacterClass != "paladin" || context.CombatProfile != "paladin_hammerdin" {
+		t.Fatalf("Hammerdin session context = %+v", context)
+	}
+}
+
 func TestMephistoSessionRunContextBindsDefinitionAssetsAndPolicies(t *testing.T) {
 	cfg, err := config.Load("../../configs/config.example.yaml")
 	if err != nil {

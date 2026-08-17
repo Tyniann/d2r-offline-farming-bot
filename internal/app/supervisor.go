@@ -420,7 +420,7 @@ func (s *SessionSupervisor) runLifecycleWorker(ctx context.Context, request Supe
 
 	if revalidate {
 		if err := lifecycle.RevalidateGame(ctx, request); err != nil {
-			s.finishLifecycleFailure(lifecycle, SupervisorReasonPausedGameLost)
+			s.finishLifecycleFailure(lifecycle, SupervisorReasonPausedGameLost, err)
 			return
 		}
 		if pendingWrap {
@@ -446,7 +446,7 @@ func (s *SessionSupervisor) runLifecycleWorker(ctx context.Context, request Supe
 	s.mu.Unlock()
 	if needsGame {
 		if err := lifecycle.StartGame(ctx, request); err != nil {
-			s.finishLifecycleFailure(lifecycle, SupervisorReasonGameStartFailed)
+			s.finishLifecycleFailure(lifecycle, SupervisorReasonGameStartFailed, err)
 			return
 		}
 		s.mu.Lock()
@@ -624,14 +624,20 @@ func (s *SessionSupervisor) exitLifecycleGame(ctx context.Context, lifecycle Far
 	return true
 }
 
-func (s *SessionSupervisor) finishLifecycleFailure(_ FarmQueueLifecycleRunner, reason SupervisorReason) {
+func (s *SessionSupervisor) finishLifecycleFailure(_ FarmQueueLifecycleRunner, reason SupervisorReason, cause error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.state == SupervisorStateCancelling || s.shutdown {
 		s.finishQueueLocked(SupervisorStateIdle, emergencyStopResult(), true)
 		return
 	}
-	s.finishQueueLocked(SupervisorStateStoppedError, SupervisorRunResult{Disposition: QueueRunStop, Reason: string(reason)}, false)
+	detail := ""
+	if reason == SupervisorReasonGameStartFailed {
+		detail = queueGameStartDetail(cause)
+	} else if cause != nil {
+		detail = strings.TrimSpace(cause.Error())
+	}
+	s.finishQueueLocked(SupervisorStateStoppedError, SupervisorRunResult{Disposition: QueueRunStop, Reason: string(reason), Detail: detail}, false)
 }
 
 // runRunnerWithoutLifecycle keeps the supervisor scheduler independently testable

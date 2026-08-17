@@ -389,7 +389,7 @@ func validateAkaraBulkProfile(cfg *config.Config) error {
 	if _, configured := cfg.Runs.Run(string(tasks.RunIDCountess)); !configured {
 		return fmt.Errorf("town test: Countess run config unavailable")
 	}
-	profileID, err := resolveActiveCombatProfileID(cfg, nil, cfg.Session.Character)
+	profileID, err := resolveActiveCombatProfileID(cfg, nil, cfg.Session.Character, "")
 	if err != nil {
 		return fmt.Errorf("town test: %w", err)
 	}

@@ -136,6 +136,8 @@ export function formatCandidateTime(candidate: RouteCandidateDTO): string {
   return `${prefix}, ${date.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })}`;
 }
 
+export const terminalWorkflowStates = new Set(["idle", "completed", "failed_safe", "emergency_cancelled"]);
+
 export type WorkflowPresentation = { title: string; instruction: string; tone: "active" | "success" | "danger" };
 
 export function workflowPresentation(workflow: RouteWorkflowDTO): WorkflowPresentation | null {
@@ -150,7 +152,7 @@ export function workflowPresentation(workflow: RouteWorkflowDTO): WorkflowPresen
     case "awaiting_publish_confirmation": return { title: "Veröffentlichung bestätigen", instruction: "Der Test ist bestanden. Bestätige jetzt die Veröffentlichung.", tone: "active" };
     case "publishing": return { title: "Route wird veröffentlicht", instruction: "Die neue Route wird sicher zugeordnet.", tone: "active" };
     case "completed": return { title: "Vorgang abgeschlossen", instruction: "Die Änderung wurde erfolgreich übernommen.", tone: "success" };
-    case "failed_safe": return { title: "Vorgang abgebrochen", instruction: reasonLabel(workflow.reason), tone: "danger" };
+    case "failed_safe": return { title: "Vorgang abgebrochen", instruction: `${reasonLabel(workflow.reason)} Starte die Aufnahme erneut, sobald du am richtigen Ort stehst.`, tone: "danger" };
     case "emergency_cancelled": return { title: "Notabbruch ausgeführt", instruction: "Der Vorgang wurde sofort beendet. Du kannst ihn neu starten, sobald das Spiel bereit ist.", tone: "danger" };
     default: return { title: "Vorgang läuft", instruction: "Bitte warte, bis der aktuelle Vorgang abgeschlossen ist.", tone: "active" };
   }

@@ -46,12 +46,14 @@ func (v *sessionGameVerifier) Observe(state world.State, gameVersion string) (se
 	if v.generation == 0 {
 		return sessionGameVerification{}, false, fmt.Errorf("session game verifier requires cycle reset")
 	}
-	if state.Phase == world.GamePhaseLoading || !state.Valid || !state.Identity.Valid {
+	if state.Phase == world.GamePhaseLoading || state.Phase == world.GamePhaseMenu || state.Phase == world.GamePhaseUnknown ||
+		!state.Valid || !state.Identity.Valid || state.Area.ID == 0 {
 		v.stableTicks = 0
 		return sessionGameVerification{}, false, nil
 	}
 	if state.Phase != world.GamePhaseInGame {
-		return sessionGameVerification{}, false, fmt.Errorf("session game expected in_game, got %s", state.Phase)
+		v.stableTicks = 0
+		return sessionGameVerification{}, false, nil
 	}
 	if gameVersion == "" || gameVersion != v.expectation.GameVersion {
 		return sessionGameVerification{}, false, fmt.Errorf("session game version mismatch: active=%q expected=%q", gameVersion, v.expectation.GameVersion)

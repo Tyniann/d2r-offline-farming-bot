@@ -1,6 +1,6 @@
 import { Trash2 } from "lucide-react";
 import type { RouteCandidateDTO, RouteWorkflowDTO } from "../../../api/generated";
-import { candidateStatusLabel, candidateTitle, difficultyLabel, formatCandidateTime, reasonLabel, routeStatusTone, runLabel, runOrder } from "../routePresentation";
+import { candidateStatusLabel, candidateTitle, difficultyLabel, formatCandidateTime, reasonLabel, routeStatusTone, runLabel, runOrder, terminalWorkflowStates } from "../routePresentation";
 
 interface Props {
   candidates: RouteCandidateDTO[];
@@ -23,7 +23,7 @@ export function RouteDraftsPanel({ candidates, workflow, locked, runFilter, onRu
     {visible.length === 0 ? <p className="route-empty">Für diesen Charakter gibt es noch keine unveröffentlichte Aufnahme.</p> : <div className="route-draft-list">
       {visible.map((candidate) => {
         const status = candidateStatusLabel(candidate.state);
-        const testing = workflow && !["idle", "completed", "failed_safe", "emergency_cancelled"].includes(workflow.state) && workflow.run_id === candidate.run_id;
+        const testing = workflow && !terminalWorkflowStates.has(workflow.state) && workflow.run_id === candidate.run_id;
         const shownStatus = testing ? "Test läuft" : status;
         const canTest = candidate.state === "validated" || candidate.state === "failed";
         return <article key={candidate.candidate_id} className={`route-draft-row${candidate.state === "failed" ? " failed" : ""}${testing ? " active" : ""}`}>

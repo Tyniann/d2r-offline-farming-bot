@@ -241,6 +241,44 @@ func TestReadyIndependentOfBound(t *testing.T) {
 	}
 }
 
+func TestBindVisibleRestoresZeroClientArea(t *testing.T) {
+	api := &restoreWindowAPI{
+		mockWindowAPI: mockWindowAPI{
+			findHWND: 0x500a9c,
+			area:     WindowInfo{Handle: 0x500a9c, ClientWidth: 1280, ClientHeight: 720},
+		},
+	}
+	c := testController(api)
+	if err := c.Bind(4196); !errors.Is(err, ErrInvalidClientArea) {
+		t.Fatalf("Bind() error = %v, want invalid client area", err)
+	}
+	if api.activateCalls != 0 {
+		t.Fatalf("idle Bind must not restore, activate calls = %d", api.activateCalls)
+	}
+	if err := c.BindVisible(4196); err != nil {
+		t.Fatal(err)
+	}
+	if api.activateCalls != 1 {
+		t.Fatalf("activate calls = %d, want 1", api.activateCalls)
+	}
+	info, ok := c.Window()
+	if !ok || info.ClientWidth != 1280 || info.ClientHeight != 720 {
+		t.Fatalf("bound window = %+v ok=%v", info, ok)
+	}
+}
+
+type restoreWindowAPI struct {
+	mockWindowAPI
+}
+
+func (m *restoreWindowAPI) ClientArea(_ nativeWindow) (WindowInfo, error) {
+	m.areaCalls++
+	if m.activateCalls == 0 {
+		return WindowInfo{}, fmt.Errorf("client rect hwnd=%#x 0x0: %w", 0x500a9c, ErrInvalidClientArea)
+	}
+	return m.area, nil
+}
+
 func TestIsBindRetryable(t *testing.T) {
 	cases := []struct {
 		err  error

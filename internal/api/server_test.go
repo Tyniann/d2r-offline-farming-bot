@@ -91,6 +91,10 @@ func (b *apiTestBackend) Catalog() CatalogDTO {
 	return CatalogDTO{Revision: 1, Runs: []RunCatalogEntry{{RunID: "countess", DisplayName: "Countess", Status: "runtime_validation_required"}}}
 }
 
+func (b *apiTestBackend) RunAvailabilities(character, difficulty string) (RunAvailabilitiesDTO, error) {
+	return RunAvailabilitiesDTO{Character: character, Difficulty: difficulty, Runs: b.Catalog().Runs}, nil
+}
+
 func (b *apiTestBackend) PreviewSelection(request SelectionPreviewRequest) (SelectionPreviewDTO, error) {
 	b.previews.Add(1)
 	return SelectionPreviewDTO{Character: request.Character, NewDifficulty: request.Difficulty, CatalogRevision: request.CatalogRevision, ConfirmationToken: "preview"}, nil

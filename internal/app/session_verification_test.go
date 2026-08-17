@@ -42,6 +42,24 @@ func TestSessionGameVerifierRequiresResetAndThreeFreshTicks(t *testing.T) {
 	}
 }
 
+func TestSessionGameVerifierWaitsForMenuAndUnknownInsteadOfFailing(t *testing.T) {
+	verifier := newSessionGameVerifier(sessionGameExpectation{Character: "MrBones", GameVersion: "3.2.92777", StartArea: world.RogueEncampment})
+	verifier.ResetForNextGame()
+	menu := world.State{At: time.Now(), Valid: true, Phase: world.GamePhaseMenu, Identity: world.GameIdentity{Valid: true, CharacterName: "MrBones"}}
+	if _, ready, err := verifier.Observe(menu, "3.2.92777"); err != nil || ready {
+		t.Fatalf("menu should wait: ready=%t err=%v", ready, err)
+	}
+	unknown := world.State{At: time.Now(), Valid: true, Phase: world.GamePhaseUnknown}
+	if _, ready, err := verifier.Observe(unknown, "3.2.92777"); err != nil || ready {
+		t.Fatalf("unknown should wait: ready=%t err=%v", ready, err)
+	}
+	zeroArea := sessionTownState(time.Now(), "MrBones")
+	zeroArea.Area = world.Area{}
+	if _, ready, err := verifier.Observe(zeroArea, "3.2.92777"); err != nil || ready {
+		t.Fatalf("area 0 should wait: ready=%t err=%v", ready, err)
+	}
+}
+
 func TestSessionGameVerifierRejectsWrongContextBeforeRun(t *testing.T) {
 	tests := []struct {
 		name    string

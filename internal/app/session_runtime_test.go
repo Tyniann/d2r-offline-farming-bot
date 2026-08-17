@@ -58,6 +58,20 @@ func TestPrepareSessionRunBindsSharedPipelineTelemetry(t *testing.T) {
 	}
 }
 
+func TestSessionRunContextHonorsFrozenCombatProfile(t *testing.T) {
+	cfg := availabilityConfig(t)
+	cfg.Session.Enabled = true
+	cfg.Session.Run = string(tasks.RunIDCountess)
+	cfg.Input.Enabled = true
+	loadout := &CharacterLoadoutSnapshot{Character: "MrBones", ProfileID: "paladin_hammerdin"}
+	rt := &Runtime{Config: cfg, Options: Options{Loadout: loadout}}
+
+	_, err := rt.sessionRunContextEvent()
+	if err == nil || !strings.Contains(err.Error(), string(tasks.RunReasonProfileClassMismatch)) {
+		t.Fatalf("session run context ignored frozen Paladin profile: %v", err)
+	}
+}
+
 func TestRunTaskCancelClosesOpenStepBeforeTerminal(t *testing.T) {
 	rt := &Runtime{
 		Config: &config.Config{

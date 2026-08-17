@@ -28,14 +28,15 @@ type queueRunUnitFactory func(string) (queueRunUnit, error)
 
 // CanAdoptQueueGame reports whether a queue may verify and reuse the passive
 // monitor's current game instead of entering the character-screen start flow.
-// This is only a branch-selection hint: [RuntimeQueueRunner.StartGame] still
-// proves character and Rogue Encampment through Memory before any run input.
+// `idle_in_game` after Apply is not enough: Memory must currently show an
+// attached, bound Rogue Encampment. Otherwise StartGame uses the offline
+// selector. [RuntimeQueueRunner.StartGame] still proves character and town
+// through Memory before any run input.
 func CanAdoptQueueGame(state SupervisorState, runtime UIStatusSnapshot) bool {
-	if state == SupervisorStateIdleInGame {
-		return true
+	if state != SupervisorStateIdle && state != SupervisorStateIdleInGame {
+		return false
 	}
-	return state == SupervisorStateIdle &&
-		runtime.ProcessState == "attached" &&
+	return runtime.ProcessState == "attached" &&
 		runtime.WindowBound &&
 		runtime.WorldValid &&
 		runtime.WorldPhase == world.GamePhaseInGame.String() &&
@@ -427,29 +428,49 @@ const queueReasonRetryReturnFailed = "retry_return_failed"
 
 func (u *runtimeQueueUnit) StartOrVerifyGame(ctx context.Context, alreadyActive bool) error {
 	u.runtime.Log.Info("queue game lifecycle start", "adopt_existing_game", alreadyActive)
-	if !alreadyActive {
-		catalog, err := ResolveCharacterCatalog(u.runtime.Config)
-		if err != nil {
-			return fmt.Errorf("resolve queue character selection: %w", err)
-		}
-		selection, err := configuredQueueCharacterSelection(u.runtime.Config, catalog)
-		if err != nil {
+	if alreadyActive {
+		if err := u.runtime.verifyActiveQueueGame(ctx); err == nil {
+			u.rearmRunReadinessForNewGame(true)
+			return nil
+		} else if !isMissingActiveQueueGame(err) {
+			u.runtime.Log.Error("queue game lifecycle start failed", "stage", "active_game_verification", "error", err)
 			return err
+		} else {
+			u.runtime.Log.Info("queue game adopt unavailable, starting from character screen", "error", err)
 		}
-		// Queue starts must not depend on whichever offline save D2R happened to
-		// leave selected. Reuse the bounded Home/Down selector that onboarding
-		// already validated, then keep its visual and post-entry Memory gates.
-		if err := u.runtime.ApplyCharacterSelection(ctx, selection); err != nil {
-			u.runtime.Log.Error("queue game lifecycle start failed", "stage", "character_selection", "error", err)
-			return err
-		}
+	}
+	catalog, err := ResolveCharacterCatalog(u.runtime.Config)
+	if err != nil {
+		return fmt.Errorf("resolve queue character selection: %w", err)
+	}
+	selection, err := configuredQueueCharacterSelection(u.runtime.Config, catalog)
+	if err != nil {
+		return err
+	}
+	// Queue starts must not depend on whichever offline save D2R happened to
+	// leave selected. Reuse the bounded Home/Down selector that onboarding
+	// already validated, then keep its visual and post-entry Memory gates.
+	if err := u.runtime.ApplyCharacterSelection(ctx, selection); err != nil {
+		u.runtime.Log.Error("queue game lifecycle start failed", "stage", "character_selection", "error", err)
+		return err
 	}
 	if err := u.runtime.verifyActiveQueueGame(ctx); err != nil {
 		u.runtime.Log.Error("queue game lifecycle start failed", "stage", "active_game_verification", "error", err)
 		return err
 	}
-	u.rearmRunReadinessForNewGame(alreadyActive)
+	u.rearmRunReadinessForNewGame(false)
 	return nil
+}
+
+func isMissingActiveQueueGame(err error) bool {
+	if err == nil {
+		return false
+	}
+	if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
+		return errors.Is(err, context.DeadlineExceeded)
+	}
+	msg := err.Error()
+	return strings.Contains(msg, "expected in_game") || strings.Contains(msg, "context deadline exceeded")
 }
 
 func (u *runtimeQueueUnit) rearmRunReadinessForNewGame(alreadyActive bool) {
@@ -569,13 +590,15 @@ func (u *runtimeQueueUnit) Close() {
 	}
 }
 
-func (rt *Runtime) verifyActiveQueueGame(parent context.Context) error {
+func (rt *Runtime) verifyActiveQueueGame(parent context.Context) (err error) {
 	ctx, cancel := context.WithTimeout(parent, time.Duration(rt.Config.Session.StateTimeoutMs)*time.Millisecond)
 	defer cancel()
 	rt.startShutdownSignals(ctx, cancel)
 	defer func() {
-		rt.Input.Unbind()
-		_ = rt.Process.Detach()
+		if err != nil {
+			rt.Input.Unbind()
+			_ = rt.Process.Detach()
+		}
 	}()
 	hotkeys, err := rt.startHotkeys(ctx)
 	if err != nil {
@@ -596,18 +619,46 @@ func (rt *Runtime) verifyActiveQueueGame(parent context.Context) error {
 		case event := <-hotkeys:
 			rt.handleHotkeyEvent(event, cancel)
 		case <-ticker.C:
-			if err := rt.pollQueueSnapshot(ctx, state); err != nil && !errors.Is(err, context.Canceled) {
-				return err
+			if pollErr := rt.pollQueueSnapshot(ctx, state); pollErr != nil && !errors.Is(pollErr, context.Canceled) {
+				return pollErr
 			}
-			if _, confirmed, err := verifier.Observe(rt.World.Current(), rt.Config.Memory.GameVersion); err != nil {
-				return err
+			rt.ensureVisibleInputWindow()
+			if _, confirmed, observeErr := verifier.Observe(rt.World.Current(), rt.Config.Memory.GameVersion); observeErr != nil {
+				return observeErr
 			} else if confirmed {
-				if err := focusVerifiedQueueGame(rt.Input); err != nil {
-					return err
+				if focusErr := focusVerifiedQueueGame(rt.Input); focusErr != nil {
+					return focusErr
 				}
 				return nil
 			}
 		}
+	}
+}
+
+func queueGameStartDetail(err error) string {
+	if err == nil {
+		return "Das Spiel konnte nicht sicher gestartet werden."
+	}
+	msg := err.Error()
+	switch {
+	case strings.Contains(msg, "expected in_game"):
+		return "Kein laufendes Spiel im Rogue Encampment. D2R muss im Lager stehen oder auf dem Offline-Charakterbildschirm, damit der Bot das Spiel öffnet."
+	case strings.Contains(msg, "character mismatch"):
+		return "Im Spiel ist ein anderer Charakter aktiv als die bestätigte Auswahl."
+	case strings.Contains(msg, "start area mismatch"):
+		return "Das Spiel muss im Rogue Encampment stehen, bevor die Queue startet."
+	case strings.Contains(msg, "blocked by open UI"):
+		return "Schließe Inventar, Händler und andere Fenster, bevor die Queue startet."
+	case strings.Contains(msg, "no usable client area"):
+		return "Das D2R-Fenster hat keine nutzbare Fläche. Stelle Fenster-Modus 1280 × 720 ein und lass das Fenster sichtbar, nicht minimiert."
+	case strings.Contains(msg, "character selection timeout"):
+		return "Der Charakterbildschirm wurde nicht sicher erkannt. D2R muss auf dem Offline-Charakterbildschirm bei 1280 × 720 stehen."
+	case strings.Contains(msg, "hotkey"):
+		return "Die Tastatursteuerung konnte nicht sicher gestartet werden."
+	case errors.Is(err, context.DeadlineExceeded) || strings.Contains(msg, "context deadline exceeded"):
+		return "Das Spiel im Rogue Encampment wurde nicht rechtzeitig bestätigt."
+	default:
+		return "Das Spiel konnte nicht sicher gestartet werden."
 	}
 }
 

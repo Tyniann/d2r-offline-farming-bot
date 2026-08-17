@@ -73,6 +73,7 @@
       "perMachine": false,
       "allowElevation": false,
       "allowToChangeInstallationDirectory": true,
+      "useZip": true,
       "createDesktopShortcut": false,
       "createStartMenuShortcut": true,
       "shortcutName": "D2R Offline Farming Bot",

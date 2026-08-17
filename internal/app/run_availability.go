@@ -105,7 +105,7 @@ func resolveRunAvailabilities(cfg *config.Config, context RunAvailabilityContext
 		}
 		profileCfg, profileConfigured := cfg.Profiles[context.CombatProfile]
 		if context.CombatProfile == "" {
-			if defaultID, err := defaultEnabledCombatProfileID(cfg.Profiles); err == nil {
+			if defaultID, err := defaultEnabledCombatProfileID(cfg.Profiles, context.CharacterClass); err == nil {
 				context.CombatProfile = defaultID
 				profileCfg, profileConfigured = cfg.Profiles[defaultID]
 			}

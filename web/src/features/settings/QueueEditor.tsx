@@ -1,17 +1,18 @@
 import { useState, type DragEvent } from "react";
 import { Button, StateMessage } from "../../app/ui";
-import { runAvailabilityText } from "../../app/runReasons";
+import { isRunStartable, runAvailabilityText } from "../../app/runReasons";
 import { move } from "./settingsDiff";
 import type { SettingsRun } from "./settingsTypes";
 
 /** QueueEditor zeigt die Run-Reihenfolge als Zwei-Spalten-Hero mit Drag & Drop. */
 export function QueueEditor({
-  queue, runs, mutable, changed, onChange,
+  queue, runs, mutable, changed, characterClass = "", onChange,
 }: {
   queue: string[];
   runs: SettingsRun[];
   mutable: boolean;
   changed: boolean;
+  characterClass?: string;
   onChange: (queue: string[]) => void;
 }) {
   const [dragIndex, setDragIndex] = useState<number | null>(null);
@@ -25,6 +26,8 @@ export function QueueEditor({
 
   const insertCatalogRun = (runID: string, at: number) => {
     if (!mutable || queue.includes(runID)) return;
+    const run = runs.find((entry) => entry.id === runID);
+    if (!run || !isRunStartable(run.status ?? "")) return;
     const next = [...queue];
     next.splice(Math.max(0, Math.min(at, next.length)), 0, runID);
     onChange(next);
@@ -111,21 +114,26 @@ export function QueueEditor({
           ? <p className="hint">Alle Katalog-Runs sind bereits in der Reihenfolge.</p>
           : <ul className="settings-run-catalog">
             {available.map((run) => {
-              const availability = runAvailabilityText(run.status ?? "", run.reasons ?? []);
+              const availability = runAvailabilityText(run.status ?? "", run.reasons ?? [], characterClass);
+              const startable = isRunStartable(run.status ?? "");
               return <li
                 key={run.id}
-                draggable={mutable}
+                draggable={mutable && startable}
                 onDragStart={(event) => {
+                  if (!startable) {
+                    event.preventDefault();
+                    return;
+                  }
                   event.dataTransfer.setData("text/plain", `add:${run.id}`);
                   event.dataTransfer.effectAllowed = "copy";
                 }}
-                className={mutable ? "catalog-draggable" : undefined}
-                title={mutable ? "In die aktive Reihenfolge ziehen" : undefined}
+                className={mutable && startable ? "catalog-draggable" : undefined}
+                title={startable ? (mutable ? "In die aktive Reihenfolge ziehen" : undefined) : availability.detail}
               >
                 <span className="drag-handle" aria-hidden="true">⠿</span>
                 <Button
                   variant="secondary"
-                  disabled={!mutable}
+                  disabled={!mutable || !startable}
                   onClick={() => onChange([...queue, run.id])}
                   onDragStart={(event) => event.preventDefault()}
                 >+ {run.label}</Button>

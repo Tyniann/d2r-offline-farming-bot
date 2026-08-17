@@ -22,6 +22,8 @@ it("durchläuft Queue, Pause, Resume, Stop und Emergency Stop gegen einen Fake-C
     requests.push({ path, body });
     if (path === "/api/v1/status") return response(status());
     if (path === "/api/v1/catalog") return response(catalog);
+    if (path.includes("/api/v1/runs")) return response({ schema_version: 1, character: "MrBones", difficulty: "nightmare", runs: catalog.runs });
+    if (path === "/api/v1/routes/workflow") return response({ workflow_id: "", generation: 1, state: "idle", run_id: "", character: "" });
     if (path === "/api/v1/control/bootstrap") return response({ control_token: "fake-token" });
     if (path === "/api/v1/queue/validate") return response({ ...body, schema_version: 1, budgets: queueStatus().budgets });
     if (path === "/api/v1/session/start") {
@@ -46,8 +48,10 @@ it("durchläuft Queue, Pause, Resume, Stop und Emergency Stop gegen einen Fake-C
   vi.stubGlobal("EventSource", FakeEventSource);
 
   render(<App />);
-  expect(await screen.findByRole("heading", { name: "Konfigurierte Queue" })).toBeInTheDocument();
-  fireEvent.click(screen.getByRole("button", { name: "Queue prüfen und starten" }));
+  expect(await screen.findByRole("heading", { name: "Reihenfolge für MrBones / Alptraum (in D2R bestätigt)" })).toBeInTheDocument();
+  const start = screen.getByRole("button", { name: "Queue prüfen und starten" });
+  await waitFor(() => expect(start).toBeEnabled());
+  fireEvent.click(start);
   await waitFor(() => expect(screen.getByText("running_run")).toBeInTheDocument());
   expect(requests.some((request) => request.path === "/api/v1/queue/validate")).toBe(true);
   expect(requests.some((request) => request.path === "/api/v1/session/start")).toBe(true);

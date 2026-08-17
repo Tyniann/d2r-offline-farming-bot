@@ -10,24 +10,31 @@ import (
 
 const profileID = "paladin_hammerdin"
 
-// NewMephistoFactory returns the first registered Hammerdin strategy.
-func NewMephistoFactory() profile.StrategyFactory {
-	return func() profile.RunStrategy { return &mephistoStrategy{} }
+// NewBossFactory returns the Hammerdin strategy for the named run.
+// Combat stays in the shared pipeline standard-attack path; this factory
+// only registers the profile/run pair and required skills.
+func NewBossFactory(runID string) profile.StrategyFactory {
+	return func() profile.RunStrategy {
+		return &bossStrategy{runID: runID}
+	}
 }
 
-type mephistoStrategy struct{}
+type bossStrategy struct {
+	runID string
+}
 
-func (s *mephistoStrategy) ProfileID() string { return profileID }
-func (s *mephistoStrategy) RunID() string     { return "mephisto" }
-func (s *mephistoStrategy) RequiredSkills() []string {
+func (s *bossStrategy) ProfileID() string { return profileID }
+func (s *bossStrategy) RunID() string     { return s.runID }
+func (s *bossStrategy) RequiredSkills() []string {
 	return []string{"teleport", "town_portal", "blessed_hammer", "concentration", "holy_shield"}
 }
-func (s *mephistoStrategy) Configure(exec *profile.Executor, standardAttackID uint16, _ profile.RouteCombatActions) error {
+func (s *bossStrategy) Configure(exec *profile.Executor, standardAttackID uint16, _ profile.RouteCombatActions) error {
 	if exec == nil || standardAttackID != memory.MustSkillID("blessed_hammer") {
-		return fmt.Errorf("hammerdin mephisto strategy requires executor and Blessed Hammer standard attack")
+		return fmt.Errorf("hammerdin strategy requires executor and Blessed Hammer standard attack")
 	}
 	// Town-ready CTA/Holy Shield is owned by the app-layer town_ready wrapper.
 	// Standard attack (close teleport, then confirmed LMB) is owned by
-	// the shared Mephisto pipeline, not by encounter hooks.
+	// the shared boss pipeline, not by encounter hooks. Nihlathak does not
+	// bind RouteClear: Blessed Hammer already clears nearby hostiles.
 	return nil
 }

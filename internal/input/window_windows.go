@@ -72,21 +72,41 @@ func (w *user32WindowAPI) FindMainWindow(pid uint32, title string) (nativeWindow
 	if ret == 0 {
 		return 0, fmt.Errorf("enum windows: %w", err)
 	}
-
-	switch len(ctx.matches) {
-	case 0:
+	if len(ctx.matches) == 0 {
 		return 0, fmt.Errorf("find main window pid=%d title=%q: %w", pid, title, ErrWindowNotFound)
-	case 1:
-		return ctx.matches[0], nil
-	default:
-		if w.log != nil {
-			w.log.Warn("multiple matching windows; using first candidate",
-				"count", len(ctx.matches),
-				"pid", pid,
-			)
-		}
-		return ctx.matches[0], nil
 	}
+
+	candidates := make([]windowCandidate, 0, len(ctx.matches))
+	for _, hwnd := range ctx.matches {
+		owner, _, _ := procGetWindow.Call(hwnd, gwOwner)
+		candidate := windowCandidate{hwnd: hwnd, owned: owner != 0}
+		if info, areaErr := w.ClientArea(hwnd); areaErr == nil {
+			candidate.width, candidate.height = info.ClientWidth, info.ClientHeight
+		}
+		candidates = append(candidates, candidate)
+	}
+	hwnd, ok := pickMainWindow(candidates)
+	if !ok {
+		return 0, fmt.Errorf("find main window pid=%d title=%q: %w", pid, title, ErrWindowNotFound)
+	}
+	if w.log != nil && len(candidates) > 1 {
+		picked := windowCandidate{}
+		for _, candidate := range candidates {
+			if candidate.hwnd == hwnd {
+				picked = candidate
+				break
+			}
+		}
+		w.log.Info("input window selected among candidates",
+			"count", len(candidates),
+			"pid", pid,
+			"hwnd", fmt.Sprintf("0x%X", hwnd),
+			"owned", picked.owned,
+			"client_width", picked.width,
+			"client_height", picked.height,
+		)
+	}
+	return hwnd, nil
 }
 
 func (w *user32WindowAPI) ClientArea(hwnd nativeWindow) (WindowInfo, error) {
@@ -201,11 +221,6 @@ func enumWindowsProc(hwnd syscall.Handle, _ uintptr) uintptr {
 
 	visible, _, _ := procIsWindowVisible.Call(uintptr(hwnd))
 	if visible == 0 {
-		return 1
-	}
-
-	owner, _, _ := procGetWindow.Call(uintptr(hwnd), gwOwner)
-	if owner != 0 {
 		return 1
 	}
 

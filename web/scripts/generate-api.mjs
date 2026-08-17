@@ -52,6 +52,12 @@ export function getCatalog(signal?: AbortSignal): Promise<CatalogDTO> {
   return getJSON<CatalogDTO>("/api/v1/catalog", signal);
 }
 
+export function getRunAvailabilities(character: string, difficulty = "", signal?: AbortSignal): Promise<RunAvailabilitiesDTO> {
+  const query = new URLSearchParams({ character });
+  if (difficulty) query.set("difficulty", difficulty);
+  return getJSON<RunAvailabilitiesDTO>("/api/v1/runs?" + query.toString(), signal);
+}
+
 export function reloadCharacters(signal?: AbortSignal): Promise<CharacterReloadDTO> {
   return sendJSON<CharacterReloadDTO>("/api/v1/characters/reload", "POST", {}, "", signal);
 }

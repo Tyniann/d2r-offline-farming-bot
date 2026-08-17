@@ -364,11 +364,14 @@ func (c *runPipeline) tickEngageTarget(deps pipelineBossDeps, w world.State, tar
 	if deps.Combat == nil {
 		return stepResult{failed: true, reason: "combat_not_wired"}
 	}
-	if c.effectiveDefinition().ID == RunIDNihlathak {
-		return c.tickNihlathakEngageTarget(deps, w, target, now)
-	}
+	// Hammerdin uses the shared Mephisto standard-attack hold for every
+	// registered boss, including Nihlathak. The Necro projection/aim path
+	// stays Nihlathak-only for Bone Spear.
 	if c.hammerdinBossCombat() {
 		return c.tickHammerdinEngageTarget(deps, w, target, now)
+	}
+	if c.effectiveDefinition().ID == RunIDNihlathak {
+		return c.tickNihlathakEngageTarget(deps, w, target, now)
 	}
 	distance := world.Distance(w.Player.Position, target.Position)
 	var err error

@@ -108,6 +108,14 @@ type CatalogDTO struct {
 	Runs              []RunCatalogEntry        `json:"runs"`
 }
 
+// RunAvailabilitiesDTO is the character-bound run catalog from GET /api/v1/runs.
+type RunAvailabilitiesDTO struct {
+	SchemaVersion int               `json:"schema_version"`
+	Character     string            `json:"character"`
+	Difficulty    string            `json:"difficulty"`
+	Runs          []RunCatalogEntry `json:"runs"`
+}
+
 // CharacterCatalogEntry exposes a save filename identity and its fail-closed availability.
 type CharacterCatalogEntry struct {
 	Name             string   `json:"name"`
@@ -229,6 +237,7 @@ type ErrorDTO struct {
 type Backend interface {
 	Status() StatusDTO
 	Catalog() CatalogDTO
+	RunAvailabilities(character, difficulty string) (RunAvailabilitiesDTO, error)
 	PreviewSelection(SelectionPreviewRequest) (SelectionPreviewDTO, error)
 	ValidateQueue(QueueValidationRequest) (QueueValidationDTO, error)
 	Command(name string, request CommandRequest) (CommandResponse, error)

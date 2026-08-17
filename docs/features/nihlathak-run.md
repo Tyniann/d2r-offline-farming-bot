@@ -26,6 +26,8 @@ Die körperversetzte Hover-Spirale beginnt immer an Nihlathaks aktueller Positio
 
 Nach Memory-bestätigtem Bosskill ist diese CE-Gefahr beendet. Nihlathak verwendet deshalb anschließend den vorhandenen begrenzten `clear_nearby_hostiles`-Schritt innerhalb von 30 Tiles. Die Nihlathak-Strategy (`NewNihlathakFactory`) bindet dafür `ConfigureRouteClear` mit Amplify Damage und Bone Spear, ohne die Run-Capability `route_clear` und ohne Travel-Route-Combat: `RequiresRouteClear()` bleibt bewusst `false`. Das Profil wirkt einmal Amplify Damage auf das erste hover-bestätigte lebende Ziel und räumt danach mit Bone Spear. Die Memory-Erfassung enthält dafür den vollständigen gebietseigenen Halls-of-Vaught-Hostile-Katalog, lässt Spieler-Summons jedoch weiterhin aus. Während dieses Post-Boss-Clears darf jedes bereits Memory-bestätigt gehovte lebende Monster sofort angegriffen werden, damit ein überlagerndes Rudel keine neue Aim-Schleife erzeugt. Wird ein Ziel nach der Hover-Suche nicht mehr in den spielbaren Clientbereich projiziert, merkt sich der Cleanup dessen UnitID als unbrauchbar und wählt im nächsten Tick den nächsten Gegner. Drei gegnerfreie beziehungsweise nur noch übersprungene Snapshots, drei Sekunden ohne gesendeten Combat-Input oder das Nihlathak-spezifische Budget von 40 tatsächlich gesendeten Aktionen geben Loot und Town Portal frei.
 
+Hammerdin folgt dem gemeinsamen Mephisto-Standardangriff statt dieses Necro-Projektionspfads: Distanzprüfung, Teleport auf 1 Tile, Sprite-Hover mit Distanzvorrang und LMB-Hold auf Gesegnetem Hammer. Nach dem Kill geht Hammerdin direkt zu `reposition_for_loot`; `clear_nearby_hostiles` entfällt, weil Blessed Hammer als Flächenangriff die meisten Gegner bereits wegräumt. Die Necro-Strategy und ihr AD-/Bone-Spear-Cleanup bleiben unverändert.
+
 ### Loot und Rückkehr
 
 `[gems, keys]`; Rückkehr TP → Harrogath → Act-5-Egress → Act 1 → Stash.
@@ -65,8 +67,9 @@ Der spätere Run `nihlathak-20260730t013139999999999z-9c9cea99` erwarb den Boss 
 
 - [Summoner-Run](summoner-run.md)
 - [Mephisto-Run](mephisto-run.md)
+- [Paladin „Hammerdin“](hammerdin.md)
 - [Run Registry](run-registry.md)
 - [System-Egress](system-egress.md)
 
 ---
-*Zuletzt aktualisiert: 2026-08-13*
+*Zuletzt aktualisiert: 2026-08-16*

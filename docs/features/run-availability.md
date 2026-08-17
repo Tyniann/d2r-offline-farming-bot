@@ -9,6 +9,7 @@ Der read-only Availability-Resolver bewertet alle registrierten Farmziele determ
 - **Paket:** `internal/app/`
 - **Resolver:** `run_availability.go`
 - **Vertrag:** `internal/tasks/run_contract.go`
+- **API:** `GET /api/v1/catalog` und `GET /api/v1/runs?character=&difficulty=`
 - **CLI:** `cmd/d2rbot/main.go`
 - **Session-Integration:** `internal/app/session_plan.go`
 - **Config:** `runs.definitions`, `combat_profiles`, `routes.directory`, `town.egress`, `session.character`, `session.difficulty`, `memory.game_version`
@@ -27,7 +28,7 @@ Der read-only Availability-Resolver bewertet alle registrierten Farmziele determ
 
 ### Prüfkontext
 
-`RunAvailabilityContext` kann Character, Character-Class, das charakterbezogen gespeicherte Combat-Profil, Difficulty, Game-Version, Map-Seed und Layout-Fingerprint enthalten. Leere Live-Felder werden nie geraten. Fehlt für das aktive Profil eine Strategy zum Run, liefert der Resolver `profile_run_strategy_unavailable`. Klassenmismatch bleibt `profile_class_mismatch`. Die CLI übernimmt Character und Difficulty aus `session` sowie die Game-Version aus `memory`; ohne OperatorSettings fällt das Combat-Profil auf den einzelnen freigegebenen Klassendefault zurück.
+`RunAvailabilityContext` kann Character, Character-Class, das charakterbezogen gespeicherte Combat-Profil, Difficulty, Game-Version, Map-Seed und Layout-Fingerprint enthalten. Leere Live-Felder werden nie geraten. Fehlt für das aktive Profil eine Strategy zum Run, liefert der Resolver `profile_run_strategy_unavailable`. Klassenmismatch bleibt `profile_class_mismatch`. Desktop-Availability kommt aus `BuildCharacterRunAvailabilityContext`: gespeichertes Kampfprofil, sonst der enabled Default der Saveklasse. `necro_bone_spear` bleibt nur der klassenlose CLI-/Fixture-Notnagel und ist niemals Paladin-Default, nur weil Necro und Paladin je ein Klassendefault besitzen. `RunConfiguredQueue` übernimmt denselben Kontext, sobald der Savekatalog den Session-Charakter auflöst. Die CLI `--runs-inspect` übernimmt Character und Difficulty aus `session` sowie die Game-Version aus `memory`.
 
 Ein passender expliziter Map-Seed und Fingerprint machen Countess `available`. Abweichende statische Route-Metadaten liefern `route_binding_mismatch`, ein abweichender Live-Fingerprint `route_layout_mismatch`. Legacy-Route-`profile_id` wird für Availability ignoriert.
 
@@ -72,4 +73,4 @@ Für vorhandene lokale Countess- und Mephisto-Bindungen wird ohne Attach jeweils
 - [Route Recording und Playback](route-recording-playback.md)
 
 ---
-*Zuletzt aktualisiert: 1. August 2026*
+*Zuletzt aktualisiert: 17. August 2026*

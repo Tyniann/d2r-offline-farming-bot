@@ -74,9 +74,11 @@ func ResolveSessionPlan(cfg *config.Config, opts Options) (SessionPlan, error) {
 	if err != nil {
 		return SessionPlan{}, fmt.Errorf("session.character: %w", err)
 	}
-	availability, err := resolveRunAvailabilities(cfg, RunAvailabilityContext{
-		Character: character, Difficulty: session.Difficulty, GameVersion: cfg.Memory.GameVersion,
-	})
+	availabilityContext, err := resolveSessionAvailabilityContext(cfg, opts, character)
+	if err != nil {
+		return SessionPlan{}, err
+	}
+	availability, err := resolveRunAvailabilities(cfg, availabilityContext)
 	if err != nil {
 		return SessionPlan{}, err
 	}
@@ -129,6 +131,22 @@ func ResolveSessionPlan(cfg *config.Config, opts Options) (SessionPlan, error) {
 		return SessionPlan{}, err
 	}
 	return plan, nil
+}
+
+func resolveSessionAvailabilityContext(cfg *config.Config, opts Options, character string) (RunAvailabilityContext, error) {
+	context := RunAvailabilityContext{
+		Character: character, Difficulty: cfg.Session.Difficulty, GameVersion: cfg.Memory.GameVersion,
+	}
+	if opts.Loadout == nil {
+		return context, nil
+	}
+	profileID, err := resolveRuntimeCombatProfileID(cfg, opts.Loadout)
+	if err != nil {
+		return RunAvailabilityContext{}, fmt.Errorf("session combat profile: %w", err)
+	}
+	context.CombatProfile = profileID
+	context.CharacterClass = cfg.Profiles[profileID].CharacterClass
+	return context, nil
 }
 
 func bindSessionSetupRoute(plan *SessionPlan, availability runAvailabilityResolution, runID tasks.RunID) error {

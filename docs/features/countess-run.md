@@ -148,6 +148,8 @@ Wenn Countess noch nicht sichtbar ist, startet der Bot genau einmal ein `GoalKin
 
 Der MVP-Kampf ist fest auf `necro_bone_spear` begrenzt. Der Task ruft Combat pro Tick auf; der App-Adapter drosselt echte Casts über `runs.definitions.countess.combat.attack_interval_ms`. Bei Abstand größer `reposition_distance_tiles` teleportiert der Bot in Richtung Countess, mit `engage_distance_tiles` als gewünschtem Restabstand. Sonst castet er den aufgelösten Skill `bone_spear`.
 
+Hammerdin (`paladin_hammerdin`) nutzt dieselbe Pipeline und denselben Countess-Pin, überspringt aber den Bone-Prison-Hook. Der Bosskampf folgt dem gemeinsamen Standardangriff aus dem Mephisto-Pfad: Distanzprüfung, Teleport auf 1 Tile, Sprite-Hover mit Vorrang auf Distanz statt Hover-Monster-ID, anschließend LMB-Hold auf Gesegnetem Hammer. Details: [Paladin „Hammerdin“](hammerdin.md).
+
 Kill-Erfolg wird defensiv gezählt: Erst wenn eine gespeicherte Countess-`UnitID` in gültigen Cellar-5-Snapshots `kill_confirm_ticks` mal in Folge nicht mehr als living monster erscheint, endet die Phase erfolgreich. Ungültige Snapshots, Loading und Area-Wechsel zählen nicht als Tod; ein Area-Wechsel aus Cellar 5 während des Kampfes schlägt mit `unexpected_area` fehl.
 
 ```yaml
@@ -216,8 +218,8 @@ Town-Portal, bestätigte Rückkehr ins Rogue Encampment, Stash, Versorgung und n
 - Town-Walk ist nur für Rogue Encampment / Act 1 vorgesehen.
 - Keine OCR-/Bild-Erkennung des Waypoint-Menüs.
 - Keine Shared-Stash-, Sell- oder Identify-Automation. Phase 5.8 automatisiert ausschließlich den Personal Stash für aktuelle Pickit-MVP-Typen.
-- `boss` nutzt keine Curses, Summons oder Good-Chest-Interaktion. Profilgebundene Lifecycle-Hooks wie Bone Prison sowie die zentrale Ressourcenregel bleiben Teil des freigegebenen Kampfprofils.
+- `boss` nutzt keine Curses, Summons oder Good-Chest-Interaktion. Profilgebundene Lifecycle-Hooks wie Bone Prison sowie die zentrale Ressourcenregel bleiben Teil des Necro-Kampfprofils; Hammerdin lässt die Hooks leer und greift direkt mit Blessed Hammer an.
 - Der produktive Run verwendet die charakter-, schwierigkeits- und layoutgebundene veröffentlichte Route. Die frühere globale Explorer-Traversierung des Phase-5-Stands ist kein produktiver Fallback.
 
 ---
-*Zuletzt aktualisiert: 2026-08-10*
+*Zuletzt aktualisiert: 2026-08-16*

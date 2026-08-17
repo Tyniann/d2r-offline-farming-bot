@@ -52,15 +52,12 @@ func (b *LiveBackend) SetOperatorSettingsStore(store *app.OperatorSettingsStore)
 	b.mu.Unlock()
 	b.publishCharacterCatalog(catalog, false)
 	if selectionConfigured {
-		report, resolveErr := app.ResolveRunAvailabilities(b.cfg, app.RunAvailabilityContext{
-			Character: configuredEntry.Name, CharacterClass: configuredEntry.ExpectedClass, CombatProfile: configuredEntry.CombatProfile,
-			Difficulty: selection.Difficulty, GameVersion: b.cfg.Memory.GameVersion,
-		})
+		runs, resolveErr := b.resolveRunsForEntry(configuredEntry, selection.Difficulty)
 		if resolveErr != nil {
 			return fmt.Errorf("resolve configured character runs: %w", resolveErr)
 		}
 		b.mu.Lock()
-		b.catalog.Runs = runCatalogEntries(report, b.cfg)
+		b.catalog.Runs = runs
 		b.mu.Unlock()
 	}
 	return nil

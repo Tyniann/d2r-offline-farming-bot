@@ -49,6 +49,41 @@
         }
       }
     },
+    "/api/v1/runs": {
+      "get": {
+        "operationId": "getRunAvailabilities",
+        "parameters": [
+          {
+            "name": "character",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "difficulty",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Character-bound run availability",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunAvailabilitiesDTO"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/characters/reload": {
       "post": {
         "operationId": "reloadCharacters",
@@ -2419,6 +2454,32 @@
             "items": {
               "$ref": "#/components/schemas/ProfileCatalogEntry"
             }
+          },
+          "runs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RunCatalogEntry"
+            }
+          }
+        }
+      },
+      "RunAvailabilitiesDTO": {
+        "type": "object",
+        "required": [
+          "schema_version",
+          "character",
+          "difficulty",
+          "runs"
+        ],
+        "properties": {
+          "schema_version": {
+            "type": "integer"
+          },
+          "character": {
+            "type": "string"
+          },
+          "difficulty": {
+            "type": "string"
           },
           "runs": {
             "type": "array",

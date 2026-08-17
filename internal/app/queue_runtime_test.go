@@ -81,7 +81,9 @@ func TestCanAdoptQueueGameUsesConfirmedPassiveRuntime(t *testing.T) {
 		runtime UIStatusSnapshot
 		want    bool
 	}{
-		{name: "explicit idle in game", state: SupervisorStateIdleInGame, want: true},
+		{name: "explicit idle in game with town", state: SupervisorStateIdleInGame, runtime: inGame, want: true},
+		{name: "idle in game on character screen", state: SupervisorStateIdleInGame, runtime: UIStatusSnapshot{ProcessState: "attached", WindowBound: true, WorldValid: true, WorldPhase: world.GamePhaseMenu.String()}, want: false},
+		{name: "idle in game without world", state: SupervisorStateIdleInGame, want: false},
 		{name: "passive monitor confirmed open game", state: SupervisorStateIdle, runtime: inGame, want: true},
 		{name: "character screen", state: SupervisorStateIdle, runtime: UIStatusSnapshot{ProcessState: "attached", WindowBound: true, WorldValid: true, WorldPhase: world.GamePhaseMenu.String()}, want: false},
 		{name: "wrong start area", state: SupervisorStateIdle, runtime: UIStatusSnapshot{ProcessState: "attached", WindowBound: true, WorldValid: true, WorldPhase: world.GamePhaseInGame.String(), AreaID: uint32(world.BlackMarsh)}, want: false},
@@ -93,6 +95,19 @@ func TestCanAdoptQueueGameUsesConfirmedPassiveRuntime(t *testing.T) {
 				t.Fatalf("CanAdoptQueueGame() = %t, want %t", got, test.want)
 			}
 		})
+	}
+}
+
+func TestQueueGameStartDetailIsGermanAndHidesRawCause(t *testing.T) {
+	got := queueGameStartDetail(fmt.Errorf("session game expected in_game, got menu"))
+	if got == "" || strings.Contains(got, "expected in_game") || strings.Contains(got, "got menu") {
+		t.Fatalf("detail = %q", got)
+	}
+	if !isMissingActiveQueueGame(fmt.Errorf("session game expected in_game, got menu")) {
+		t.Fatal("menu mismatch must fall back to character-screen start")
+	}
+	if isMissingActiveQueueGame(fmt.Errorf("session character mismatch: active=%q expected=%q", "Bones", "Hammer")) {
+		t.Fatal("character mismatch must not fall back to selector")
 	}
 }
 

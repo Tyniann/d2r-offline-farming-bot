@@ -11,6 +11,10 @@ const classLabels: Record<string, string> = {
   warlock: "Hexenmeister",
 };
 
+export function characterClassLabel(characterClass: string) {
+  return classLabels[characterClass] ?? "";
+}
+
 export function supportedCharacterClasses(catalog: CatalogDTO): string {
   const classes = [...new Set(catalog.profiles.map((profile) => classLabels[profile.character_class] ?? profile.character_class))];
   return classes.length ? classes.join(", ") : "keine";

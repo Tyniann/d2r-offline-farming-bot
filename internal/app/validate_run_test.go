@@ -190,9 +190,11 @@ func TestValidateRunModeFullCountessRequiresBindings(t *testing.T) {
 	}
 }
 
-func TestValidateMephistoHammerdinAcceptsLeftMouseBlessedHammer(t *testing.T) {
+func TestValidateHammerdinAcceptsLeftMouseBlessedHammer(t *testing.T) {
 	cfg := &config.Config{
-		Runs:     config.RunsConfig{Definitions: map[string]config.RunConfig{"mephisto": {}}},
+		Runs: config.RunsConfig{Definitions: map[string]config.RunConfig{
+			"countess": {}, "mephisto": {}, "nihlathak": {},
+		}},
 		Profiles: config.ProfilesConfig{},
 	}
 	cfg.Profiles.ApplyDefaults()
@@ -209,11 +211,13 @@ func TestValidateMephistoHammerdinAcceptsLeftMouseBlessedHammer(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err = validateBossBindingsWithProfile(cfg, "mephisto", source, "paladin_hammerdin"); err != nil {
-		t.Fatalf("boss LMB Blessed Hammer rejected: %v", err)
-	}
-	if err = validateFullRunBindingsWithProfile(cfg, "mephisto", source, "paladin_hammerdin"); err != nil {
-		t.Fatalf("full-run LMB Blessed Hammer rejected: %v", err)
+	for _, runID := range []string{"countess", "mephisto", "nihlathak"} {
+		if err = validateBossBindingsWithProfile(cfg, runID, source, "paladin_hammerdin"); err != nil {
+			t.Fatalf("%s boss LMB Blessed Hammer rejected: %v", runID, err)
+		}
+		if err = validateFullRunBindingsWithProfile(cfg, runID, source, "paladin_hammerdin"); err != nil {
+			t.Fatalf("%s full-run LMB Blessed Hammer rejected: %v", runID, err)
+		}
 	}
 
 	rightHammer, err := newConfigBindingSource(config.InputBindingsConfig{

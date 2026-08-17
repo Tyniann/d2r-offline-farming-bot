@@ -23,10 +23,10 @@ it("transportiert den Core-Vertrag für Slots, CTA und Readiness", () => {
     requires_mercenary: true,
     bindings_ready: false,
     binding_reasons: ["profile_bindings_incomplete"],
-    supported_runs: ["mephisto"],
+    supported_runs: ["countess", "mephisto", "nihlathak"],
   };
 
-  expect(profile).toMatchObject({ requires_mercenary: true, bindings_ready: false, supported_runs: ["mephisto"] });
+  expect(profile).toMatchObject({ requires_mercenary: true, bindings_ready: false, supported_runs: ["countess", "mephisto", "nihlathak"] });
   expect(profile.required_skills?.[0].slot).toBe("left");
   expect(profile.optional_skill_pairs?.[0].skills.map((skill) => skill.skill_id)).toEqual([155, 149]);
 });

@@ -13,6 +13,7 @@ describe("runResultReasonText", () => {
     expect(runResultReasonText("combat_resource_exhausted")).toContain("Trank ist aufgebraucht");
     expect(runResultReasonText("profile_required_skills_missing")).toContain("Pflichtskills");
     expect(runResultReasonText("profile_skills_read_unavailable")).toContain("nicht sicher geprüft");
+    expect(runResultReasonText("game_start_failed")).toContain("nicht sicher gestartet");
   });
 
   it("lässt unbekannte Gründe unverändert", () => {

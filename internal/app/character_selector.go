@@ -149,11 +149,17 @@ func (rt *Runtime) navigateOfflineCharacter(ctx context.Context, character, anch
 			rt.handleHotkeyEvent(event, cancel)
 		case <-ticker.C:
 			if time.Since(startedAt) >= offlineStartTimeout {
+				current := rt.World.Current()
+				rt.Log.Error("character selection timeout", "phase", current.Phase, "valid", current.Valid, "bound", rt.Input.Bound(), "focused", focused)
+				if !rt.Input.Bound() {
+					return image.Rectangle{}, fmt.Errorf("character selection timeout: d2r window has no usable client area")
+				}
 				return image.Rectangle{}, fmt.Errorf("character selection timeout")
 			}
 			if err := rt.runTick(ctx, state); err != nil && !errors.Is(err, context.Canceled) {
 				return image.Rectangle{}, fmt.Errorf("character selection poll: %w", err)
 			}
+			rt.ensureVisibleInputWindow()
 			current := rt.World.Current()
 			if current.Phase != world.GamePhaseMenu || current.Valid || !rt.Input.Bound() || time.Now().Before(nextCapture) {
 				continue

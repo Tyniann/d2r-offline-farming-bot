@@ -155,6 +155,13 @@ func nextSharedStash(current string) string {
 	}
 }
 
+// shouldClearNearbyAfterBoss reports whether the current profile should run
+// the definition's post-boss cleanup. Hammerdin skips it: Blessed Hammer is
+// an AOE and already clears most nearby hostiles during the engage.
+func (c *runPipeline) shouldClearNearbyAfterBoss() bool {
+	return c.effectiveDefinition().ClearNearbyAfterBoss && !c.hammerdinBossCombat()
+}
+
 func (c *runPipeline) nextStep(current string) string {
 	if c.phase == RunPhaseTownReady {
 		switch current {
@@ -280,14 +287,14 @@ func (c *runPipeline) nextStep(current string) string {
 		return pipelineStepAcquireBoss
 	case pipelineStepAcquireBoss:
 		if c.boss.bossKillEmitted {
-			if c.effectiveDefinition().ClearNearbyAfterBoss {
+			if c.shouldClearNearbyAfterBoss() {
 				return pipelineStepClearNearbyHostiles
 			}
 			return pipelineStepRepositionForLoot
 		}
 		return pipelineStepEngageBoss
 	case pipelineStepEngageBoss:
-		if c.effectiveDefinition().ClearNearbyAfterBoss {
+		if c.shouldClearNearbyAfterBoss() {
 			return pipelineStepClearNearbyHostiles
 		}
 

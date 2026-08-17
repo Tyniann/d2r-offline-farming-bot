@@ -38,20 +38,29 @@ func TestCombatStrategyRegistryResolvesBoneSpearMatrix(t *testing.T) {
 	}
 }
 
-func TestCombatStrategyRegistryExposesOnlyHammerdinMephisto(t *testing.T) {
+func TestCombatStrategyRegistryExposesHammerdinBossRuns(t *testing.T) {
 	registry := NewCombatStrategyRegistry()
-	factory, ok := registry.Resolve("paladin_hammerdin", "mephisto")
-	if !ok || factory == nil {
-		t.Fatal("Hammerdin Mephisto strategy is missing")
-	}
-	strategy := factory()
-	if strategy.ProfileID() != "paladin_hammerdin" || strategy.RunID() != "mephisto" {
-		t.Fatalf("strategy identity = %s/%s", strategy.ProfileID(), strategy.RunID())
-	}
-	if got := registry.SupportedRuns("paladin_hammerdin"); len(got) != 1 || got[0] != "mephisto" {
+	want := []string{"countess", "mephisto", "nihlathak"}
+	if got := registry.SupportedRuns("paladin_hammerdin"); len(got) != len(want) {
 		t.Fatalf("Hammerdin supported runs = %v", got)
 	}
-	for _, runID := range []string{"countess", "summoner", "nihlathak", "cows"} {
+	for index, runID := range want {
+		factory, ok := registry.Resolve("paladin_hammerdin", runID)
+		if !ok || factory == nil {
+			t.Fatalf("Hammerdin %s strategy is missing", runID)
+		}
+		strategy := factory()
+		if strategy.ProfileID() != "paladin_hammerdin" || strategy.RunID() != runID {
+			t.Fatalf("strategy identity = %s/%s", strategy.ProfileID(), strategy.RunID())
+		}
+		if _, ok := strategy.(profile.SupportsRouteClear); ok {
+			t.Fatalf("Hammerdin %s must not wire route clear", runID)
+		}
+		if registry.SupportedRuns("paladin_hammerdin")[index] != runID {
+			t.Fatalf("Hammerdin supported runs = %v", registry.SupportedRuns("paladin_hammerdin"))
+		}
+	}
+	for _, runID := range []string{"summoner", "cows"} {
 		if _, exists := registry.Resolve("paladin_hammerdin", runID); exists {
 			t.Fatalf("Hammerdin unexpectedly supports %s", runID)
 		}

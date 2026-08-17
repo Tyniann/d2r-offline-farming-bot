@@ -7,8 +7,25 @@ Versionierung nach [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+- Restore the recording start action after a failed or emergency-cancelled route workflow for any run instead of leaving the panel stuck on the error
+- Resolve farm-queue and settings run availability from the character's stored combat profile or class default instead of the classless Necromancer fallback
+- Bind dashboard and settings run cards to `GET /api/v1/runs` for the selected character, keep unsupported saves out of the selection card, and disable start when a queue entry is not startable
+- Initialize the dashboard character dropdown from the confirmed D2R selection
+- Load the stored farm queue and run cards for the Memory-confirmed character after Apply, and keep dropdown changes from showing a different character's queue
+- Bind the D2R window with a usable client area during character apply, restoring a 0×0/minimized HWND instead of waiting 45 seconds without ever capturing the character screen
+- Start the farm queue from the character screen after Apply unless Memory currently shows Rogue Encampment, keep the German start failure visible, and stop treating the brief monitor handoff as missing game control
+- Carry the frozen character profile through session preflight and per-run context creation so Hammerdin queues are not rejected against the classless Necromancer fallback
+- Extract the NSIS payload with ZIP so Chromium, `app.asar` and Core actually land on disk; a 7-Zip store archive was aborting silently and the installed app died before any window
+
+## [0.21.0] - 2026-08-16
+
+### Added
+- Register Hammerdin Countess and Nihlathak on the shared Blessed Hammer standard-attack path and skip Nihlathak post-boss cleanup
+
 ### Changed
 - Mark Phase 22 Gates 22.8 and the Definition of Done complete after the `v0.20.0` release
+- Align embedded, README, handoff, and packaging metadata with version `0.21.0`
 
 ## [0.20.0] - 2026-08-16
 

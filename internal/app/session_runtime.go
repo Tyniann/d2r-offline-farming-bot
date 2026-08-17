@@ -96,7 +96,10 @@ func cloneRevisionMap(source map[string]uint64) map[string]uint64 {
 }
 
 func (rt *Runtime) sessionRunContextEvent() (telemetry.Event, error) {
-	plan, err := ResolveSessionPlan(rt.Config, Options{SessionInspect: true})
+	// The run boundary must use the same immutable loadout as Runtime
+	// construction. Re-resolving without it would silently fall back to the
+	// Necromancer profile and reject valid Paladin routes.
+	plan, err := ResolveSessionPlan(rt.Config, Options{SessionInspect: true, Loadout: rt.Options.Loadout})
 	if err != nil {
 		return telemetry.Event{}, fmt.Errorf("resolve session run context: %w", err)
 	}

@@ -51,7 +51,7 @@ func mapRunConfigWithProfile(cfg *config.Config, runID, profileID string, requir
 		return tasks.RunConfig{}, fmt.Errorf("%s: %q", tasks.RunReasonConfigMissing, runID)
 	}
 	if strings.TrimSpace(profileID) == "" {
-		resolved, err := resolveActiveCombatProfileID(cfg, nil, cfg.Session.Character)
+		resolved, err := resolveActiveCombatProfileID(cfg, nil, cfg.Session.Character, "")
 		if err != nil {
 			return tasks.RunConfig{}, err
 		}

@@ -16,11 +16,13 @@ Der `SessionSupervisor` führt eine eindeutige, geordnete Run-Folge innerhalb ei
 
 ### Eindeutiger Preflight
 
-`ValidateFarmQueue` prüft die vollständige Queue read-only gegen einen Memory-bestätigten Charakter-/Difficulty-Kontext und eine Katalogrevision. Die Liste muss nicht leer sein und darf jede registrierte Run-ID höchstens einmal enthalten. Ein Duplikat liefert `queue_duplicate_run` mit `run_id`, `first_index` und `duplicate_index`, bevor Prozessbindung, Worker oder Input entstehen. YAML-Defaults werden mit demselben Grund fail-closed abgewiesen.
+`ValidateFarmQueue` prüft die vollständige Queue read-only gegen einen Memory-bestätigten Charakter-/Difficulty-Kontext und eine Katalogrevision. Dieselbe Prüfung verwendet den gespeicherten Kampfprofil-Kontext des Charakters, sonst den Default seiner Klasse – nie das Necromancer-Kampfprofil als klassenlosen Paladin-Fallback. Die Liste muss nicht leer sein und darf jede registrierte Run-ID höchstens einmal enthalten. Ein Duplikat liefert `queue_duplicate_run` mit `run_id`, `first_index` und `duplicate_index`, bevor Prozessbindung, Worker oder Input entstehen. YAML-Defaults werden mit demselben Grund fail-closed abgewiesen.
 
 Unbekannte, `stale`, `unavailable` oder kontextfremde Einträge behalten ihre präzisen Reason-Codes. `runtime_validation_required` bleibt zulässig, weil Playback vor dem ersten Routeninput live gegatet wird.
 
 Im Desktoppfad lädt der Core vor Queue-Validierung und Queue-Start den Savekatalog frisch. Der ausgewählte Charakter muss weiterhin dieselbe Headerklasse und dasselbe in OperatorSettings gespeicherte, freigegebene Kampfprofil besitzen. Jeder angeforderte Run muss exakt dieses Profil verlangen und eine gültige Pickit-Zuordnung besitzen. Dasselbe enge Gate läuft nochmals vor jedem vom Supervisor gestarteten Queue-Eintrag. Klassen- oder Profilabweichungen stoppen vor Worker und Input; eine fehlende Pickit-Zuordnung sperrt ausschließlich den betroffenen Run.
+
+Das beim Queue-Start eingefrorene Charakter-Loadout bleibt sowohl für die interne Session-Plan-Prüfung beim Runtime-Aufbau als auch für die erneute Run-Kontexterzeugung direkt vor der Task-Ausführung autoritativ. Profil-ID und Klasse werden an keiner dieser Grenzen erneut über den klassenlosen Necromancer-Notnagel aufgelöst. Dadurch prüft eine Hammerdin-Queue ihre Paladin-Routen durchgehend gegen `paladin_hammerdin`.
 
 ### Game-Lifecycle und Run-Executor
 
@@ -44,7 +46,7 @@ Der `town_ready`-Profilhook bleibt bewusst run-spezifisch: Bone Armor wird zu Be
 - Retry bleibt am Index. Nur ein als sicher bestätigtes Ergebnis darf über den verifizierten Exit-Vertrag ein Recovery-Spiel beginnen; andernfalls stoppt die Queue fail-closed.
 - `mercenary_died_during_run`, `combat_resource_exhausted` und `route_mana_recovery_failed` erzwingen unabhängig von der konfigurierbaren Retry-Liste genau diesen kontrollierten Rückweg. Jeder anschließend tatsächlich neu gestartete und verifizierte Spiel-Lifecycle aktiviert die Run-Readiness erneut, auch wenn derselbe Run seine Runtime-Einheit wiederverwendet. Nach Merc-Tod stellt sie den angeheuerten Merc per bestehendem Kashya-Plan wieder her; der Versuch wird nicht an einem alten Routenpunkt fortgesetzt. Same-Game-Handoffs und Pause/Resume aktivieren sie nicht erneut.
 - Terminale Ergebnisse starten keinen anderen Eintrag.
-- Start aus `idle_in_game` konsumiert das bereits bestätigte Spiel ohne Menüinput. Nach einem Core-Neustart darf auch der Supervisor-Zustand `idle` dieses Spiel übernehmen, wenn der passive Monitor Prozess, Fenster, gültiges `in_game` und Rogue Encampment bestätigt; der Queue-Runner bestätigt Charakter und Startgebiet anschließend erneut über Memory, bevor Run-Input möglich ist.
+- Start aus `idle_in_game` übernimmt das Spiel nur, wenn der passive Monitor gleichzeitig Prozess, Fenster, gültiges `in_game` und Rogue Encampment bestätigt. Nach Apply allein, auf dem Charakterbildschirm oder ohne Town-Nachweis startet die Queue denselben Offline-Selector wie ein frischer `idle`-Start. Der Queue-Runner bestätigt Charakter und Startgebiet anschließend erneut über Memory, bevor Run-Input möglich ist.
 - `max_runs` zählt gestartete Run-Einträge. `max_duration_ms` wird vor jedem Folgestart ausgewertet. Budgetende führt an der sicheren Run-Grenze zu einem Exit.
 - Normaler Queue-Wrap erhöht den Spielzyklus, nicht den Recovery-Restart-Zähler.
 
@@ -71,7 +73,7 @@ session:
 
 Eine Einzelqueue wie `[countess]` wiederholt Countess über sauber getrennte Spiele. `[countess, countess]` ist ungültig.
 
-Die autonome CLI liest diesen YAML-Plan über `RunConfiguredQueue` und verwendet anschließend denselben `RuntimeQueueRunner`, `SessionSupervisor.StartQueue`, Run-Executor und zentralen Exit-Owner wie das Dashboard. Sie beginnt bewusst am vorbereiteten Offline-Charakterbildschirm und übernimmt kein laufendes Spiel implizit.
+Die autonome CLI liest diesen YAML-Plan über `RunConfiguredQueue` und verwendet anschließend denselben `RuntimeQueueRunner`, `SessionSupervisor.StartQueue`, Run-Executor und zentralen Exit-Owner wie das Dashboard. Sie beginnt bewusst am vorbereiteten Offline-Charakterbildschirm und übernimmt kein laufendes Spiel implizit. Ist der Savekatalog auflösbar, bindet sie denselben Klassen-Default wie der Desktop; ohne Save bleibt `necro_bone_spear` der klassenlose Notnagel.
 
 ### Live-Abnahme
 
@@ -92,4 +94,4 @@ Die vollständige Phase-11-Abnahme wurde am 17. Juli 2026 abgeschlossen. Pause u
 - [Phase-11-Core-Vertrag](phase-11-core-contract.md)
 
 ---
-*Zuletzt aktualisiert: 9. August 2026*
+*Zuletzt aktualisiert: 17. August 2026*

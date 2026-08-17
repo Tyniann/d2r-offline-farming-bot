@@ -100,7 +100,7 @@ func (w *layoutTownWaypointWalker) Reset() {
 }
 
 func newTownPreparationAdapter(log *slog.Logger, controller townPreparationController, pathCfg pathing.Config, cfg *config.Config, runID string, run config.RunConfig, layoutPin *townLayoutPin, telemetry town.ExecutorTelemetry, services bool) (*townPreparationAdapter, error) {
-	profileID, err := resolveActiveCombatProfileID(cfg, nil, cfg.Session.Character)
+	profileID, err := resolveActiveCombatProfileID(cfg, nil, cfg.Session.Character, "")
 	if err != nil {
 		return nil, err
 	}

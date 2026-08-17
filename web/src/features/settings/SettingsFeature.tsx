@@ -256,6 +256,8 @@ export function SettingsFeature({
       saved={settings}
       selectedCharacter={selectedCharacter}
       characterNames={characterNames}
+      catalog={catalog}
+      status={status}
       runs={runs}
       mutable={mutable}
       restartRequired={restartRequired}

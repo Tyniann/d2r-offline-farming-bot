@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -152,6 +153,9 @@ func TestSameGameQueueStartAndExitFailuresAreStable(t *testing.T) {
 		waitSupervisorState(t, supervisor, SupervisorStateStoppedError)
 		if got := supervisor.Snapshot().LastResult.Reason; got != string(SupervisorReasonGameStartFailed) {
 			t.Fatalf("start reason = %q", got)
+		}
+		if got := supervisor.Snapshot().LastResult.Detail; got == "" || strings.Contains(got, "no character screen") {
+			t.Fatalf("start detail = %q, want German operator text", got)
 		}
 	})
 	t.Run("exit", func(t *testing.T) {

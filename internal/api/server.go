@@ -166,6 +166,7 @@ func (s *Server) routes() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/v1/status", s.handleStatus)
 	mux.HandleFunc("/api/v1/catalog", s.handleCatalog)
+	mux.HandleFunc("/api/v1/runs", s.handleRunAvailabilities)
 	mux.HandleFunc("/api/v1/pickit/catalog", s.handlePickitCatalog)
 	mux.HandleFunc("/api/v1/pickit/profiles", s.handlePickitProfiles)
 	mux.HandleFunc("/api/v1/pickit/profiles/validate", s.handlePickitValidation)
@@ -1057,6 +1058,33 @@ func (s *Server) handleCatalog(w http.ResponseWriter, r *http.Request) {
 	catalog := s.backend.Catalog()
 	catalog.SchemaVersion = schemaVersion
 	s.writeJSON(w, http.StatusOK, catalog)
+}
+
+func (s *Server) handleRunAvailabilities(w http.ResponseWriter, r *http.Request) {
+	if !requireMethod(w, r, http.MethodGet, s) {
+		return
+	}
+	character := strings.TrimSpace(r.URL.Query().Get("character"))
+	if character == "" {
+		s.writeError(w, http.StatusBadRequest, "request_invalid", "Charakter ist erforderlich.", requestIDFrom(r), nil)
+		return
+	}
+	runs, err := s.backend.RunAvailabilities(character, strings.TrimSpace(r.URL.Query().Get("difficulty")))
+	if err != nil {
+		var commandErr *commandError
+		if errors.As(err, &commandErr) {
+			status := http.StatusConflict
+			if commandErr.code == "request_invalid" {
+				status = http.StatusBadRequest
+			}
+			s.writeError(w, status, commandErr.code, commandErr.message, requestIDFrom(r), commandErr.details)
+			return
+		}
+		s.writeError(w, http.StatusConflict, "run_catalog_refresh_failed", "Die Run-Verfügbarkeit konnte nicht geladen werden.", requestIDFrom(r), nil)
+		return
+	}
+	runs.SchemaVersion = schemaVersion
+	s.writeJSON(w, http.StatusOK, runs)
 }
 
 func (s *Server) handleSelectionPreview(w http.ResponseWriter, r *http.Request) {

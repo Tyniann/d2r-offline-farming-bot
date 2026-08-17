@@ -37,7 +37,8 @@ Echte OS-Eingaben sind standardmäßig deaktiviert (`input.enabled: false`). Glo
 ### Window Binding (Phase 3.1)
 
 - Nach `process attached` ruft der App-Loop `Input.Bind(pid)` auf.
-- Windows: `EnumWindows` durchsucht sichtbare Top-Level-Fenster mit passender PID, Titel und ohne Owner-Fenster.
+- Windows: `EnumWindows` sammelt sichtbare Top-Level-Fenster mit passender PID und Titel, einschließlich owned Fenster. Unter mehreren Kandidaten gewinnt eine gemessene Clientfläche, bevorzugt 1280×720, sonst das unowned Fenster.
+- Eine Clientfläche 0×0 (minimiert oder Dummy-HWND) ist kein Bind. Charakterauswahl und Offline-Start rufen `BindVisible` auf, stellen das Fenster einmal wieder her und messen erneut. Der Idle-Poll tut das nicht, damit das Dashboard D2R nicht jede Sekunde nach vorne holt.
 - Client-Geometrie via `GetClientRect` + `ClientToScreen` (Screen-Koordinaten der spielbaren Fläche ohne Fensterrahmen).
 - Erfolg: Log `input window bound` mit PID, Titel, HWND und Client-Maßen.
 
@@ -263,4 +264,4 @@ Erwartung: Fenster gebunden, Aktionen in `input action`-Logs sichtbar, `input te
 - [State Probe](state-probe.md) — läuft parallel weiter, auch ohne erfolgreiches Bind
 
 ---
-*Zuletzt aktualisiert: 2026-08-16*
+*Zuletzt aktualisiert: 17. August 2026*

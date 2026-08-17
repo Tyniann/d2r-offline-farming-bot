@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   previewDelete: vi.fn(), confirmDelete: vi.fn(),
   createDiagnostic: vi.fn(),
   previewCharacterSetup: vi.fn(),
+  getRunAvailabilities: vi.fn(),
   getDesktop: vi.fn(), updateDesktop: vi.fn(), restartCore: vi.fn(),
   getUpdate: vi.fn(), checkUpdate: vi.fn(), openRelease: vi.fn(), revealDiagnostic: vi.fn(),
 }));
@@ -17,6 +18,7 @@ vi.mock("../../api/generated", () => ({
   previewOperatorSettings: mocks.preview,
   previewResetOperatorSettings: mocks.previewReset,
   previewCharacterSetup: mocks.previewCharacterSetup,
+  getRunAvailabilities: mocks.getRunAvailabilities,
   reloadCharacters: vi.fn(),
 }));
 vi.mock("../../api/client", () => ({
@@ -39,6 +41,15 @@ describe("SettingsFeature", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.get.mockResolvedValue(operator);
+    mocks.getRunAvailabilities.mockResolvedValue({
+      schema_version: 1, character: "MrBones", difficulty: "nightmare",
+      runs: [
+        { run_id: "countess", display_name: "Countess", status: "available" },
+        { run_id: "mephisto", display_name: "Mephisto", status: "available" },
+        { run_id: "nihlathak", display_name: "Nihlathak", status: "runtime_validation_required" },
+        { run_id: "summoner", display_name: "Summoner", status: "available" },
+      ],
+    });
     mocks.previewCharacterSetup.mockResolvedValue({
       schema_version: 1,
       catalog_revision: 1,
@@ -211,8 +222,8 @@ describe("SettingsFeature", () => {
     const catalog = await screen.findByRole("heading", { name: "Verfügbare Runs" });
     const pane = catalog.closest(".settings-queue-pane");
     expect(pane).toBeTruthy();
-    expect(within(pane as HTMLElement).getByRole("button", { name: "+ Summoner" })).toBeInTheDocument();
-    expect(within(pane as HTMLElement).getByRole("button", { name: "+ Nihlathak" })).toBeInTheDocument();
+    await waitFor(() => expect(within(pane as HTMLElement).getByRole("button", { name: "+ Summoner" })).toBeEnabled());
+    expect(within(pane as HTMLElement).getByRole("button", { name: "+ Nihlathak" })).toBeEnabled();
     fireEvent.click(within(pane as HTMLElement).getByRole("button", { name: "+ Summoner" }));
     expect(screen.getByText("Summoner")).toBeInTheDocument();
 
@@ -227,6 +238,32 @@ describe("SettingsFeature", () => {
     fireEvent.drop(dropPane, { dataTransfer: transfer });
     expect(screen.getByText("Nihlathak")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Speichern" })).toBeEnabled();
+  });
+
+  it("nimmt nicht startfähige Katalog-Runs nicht in die Reihenfolge auf", async () => {
+    mocks.getRunAvailabilities.mockResolvedValue({
+      schema_version: 1, character: "MrBones", difficulty: "nightmare",
+      runs: [
+        { run_id: "countess", display_name: "Countess", status: "available" },
+        { run_id: "mephisto", display_name: "Mephisto", status: "available" },
+        { run_id: "summoner", display_name: "Summoner", status: "unavailable", reasons: ["profile_run_strategy_unavailable"] },
+      ],
+    });
+    renderFeature();
+    const dropPane = await screen.findByTestId("queue-drop-pane");
+    const transfer = { getData: (type: string) => type === "text/plain" ? "add:summoner" : "", dropEffect: "copy", effectAllowed: "copy", types: ["text/plain"] };
+    fireEvent.drop(dropPane, { dataTransfer: transfer });
+    expect(screen.queryByRole("button", { name: "+ Summoner" })).toBeDisabled();
+    expect(within(dropPane).queryByText("Summoner")).not.toBeInTheDocument();
+  });
+
+  it("zeigt Katalog-Namen ohne Live-Availability wenn der Run-Fetch fehlschlägt", async () => {
+    mocks.getRunAvailabilities.mockRejectedValue(new Error("offline"));
+    renderFeature();
+    const catalog = await screen.findByRole("heading", { name: "Verfügbare Runs" });
+    const pane = catalog.closest(".settings-queue-pane");
+    expect(within(pane as HTMLElement).getByRole("button", { name: "+ Summoner" })).toBeDisabled();
+    expect(within(pane as HTMLElement).getByRole("button", { name: "+ Nihlathak" })).toBeDisabled();
   });
 
   it("sortiert die aktive Run-Reihenfolge per Drag mit move-dropEffect", async () => {

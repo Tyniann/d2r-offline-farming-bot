@@ -10,7 +10,7 @@ import { RouteDraftsPanel } from "./components/RouteDraftsPanel";
 import { RouteLibraryPanel } from "./components/RouteLibraryPanel";
 import { RoutePageHeader, type RouteArea } from "./components/RoutePageHeader";
 import { RouteRecordingPanel } from "./components/RouteRecordingPanel";
-import { candidateTitle, roleLabel, runLabel } from "./routePresentation";
+import { candidateTitle, roleLabel, runLabel, terminalWorkflowStates } from "./routePresentation";
 import "./RouteFeature.css";
 
 interface Props {
@@ -22,7 +22,6 @@ interface Props {
   onReturnToOnboarding?(): void;
 }
 
-const terminalWorkflowStates = new Set(["idle", "completed", "failed_safe", "emergency_cancelled"]);
 const testWorkflowStates = new Set(["preparing_playback", "playing_candidate", "validating_terminal", "returning_after_test", "awaiting_publish_confirmation", "publishing"]);
 
 export function RouteFeature({ characters, selectedCharacter, refreshKey, liveLocked = false, preferredRecordingRun = "", onReturnToOnboarding }: Props) {

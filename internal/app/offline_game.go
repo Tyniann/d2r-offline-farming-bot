@@ -312,6 +312,7 @@ func (rt *Runtime) runOfflineDifficultyForCharacter(parent context.Context, diff
 			if err := rt.pollQueueSnapshot(ctx, state); err != nil && !errors.Is(err, context.Canceled) {
 				return fmt.Errorf("offline game start poll: %w", err)
 			}
+			rt.ensureVisibleInputWindow()
 			action, done, err := machine.tick(time.Now(), rt.World.Current())
 			if err != nil {
 				return err

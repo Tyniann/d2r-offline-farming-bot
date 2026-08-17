@@ -2,20 +2,20 @@
 
 ## Überblick
 
-`paladin_hammerdin` ist das zweite freigegebene Kampfprofil. Es registriert ausschließlich Mephisto und friert die Skill-, Slot-, CTA- und Söldnerverträge ein. Phase 22.6 stellt den isolierten CTA-/Holy-Shield-Prebuff bereit und verdrahtet denselben Ablauf produktiv vor dem Abspielen der aufgezeichneten Route. Battle Command und Battle Orders sind CASC-seitig nicht in der Stadt wirkbar. Der produktive Blessed-Hammer-Kampf ist verdrahtet; das manuelle Gate 22.7 ist am 16.08.2026 bestanden.
+`paladin_hammerdin` ist das zweite freigegebene Kampfprofil. Es registriert Countess, Mephisto und Nihlathak auf demselben Standardangriff und friert die Skill-, Slot-, CTA- und Söldnerverträge ein. Phase 22.6 stellt den isolierten CTA-/Holy-Shield-Prebuff bereit und verdrahtet denselben Ablauf produktiv vor dem Abspielen der aufgezeichneten Route. Battle Command und Battle Orders sind CASC-seitig nicht in der Stadt wirkbar. Der produktive Blessed-Hammer-Kampf ist verdrahtet; das manuelle Gate 22.7 ist am 16.08.2026 für Mephisto bestanden.
 
 ## Ort im Code
 
 - **Paket:** `internal/profile/hammerdin/`
-- **Einstieg:** `hammerdin.NewMephistoFactory`
+- **Einstieg:** `hammerdin.NewBossFactory`
 - **Wichtige Dateien:** `internal/config/profile.go`, `internal/app/combat.go`, `internal/app/combat_strategy_registry.go`, `internal/app/hammerdin_prebuff.go`, `internal/app/hammerdin_town_ready.go`, `internal/tasks/pipeline_boss.go`
 - **Config:** `combat_profiles.paladin_hammerdin` in `configs/config.example.yaml`
 
 ## Funktionalität
 
-### Profil und erster Run
+### Profil und Bossläufe
 
-Das Profil ist für die Klasse `paladin` im Charakter-Setup freigegeben. Die Runtime-Registry enthält genau das Paar `paladin_hammerdin × mephisto`; Countess, Summoner, Nihlathak und Kuh-Level bleiben für dieses Profil nicht verfügbar. Die fünf Pflichtskills sind Teleport, Stadtportal, Gesegneter Hammer, Konzentration und Heiliger Schild.
+Das Profil ist für die Klasse `paladin` im Charakter-Setup freigegeben. Die Runtime-Registry enthält die Paare `paladin_hammerdin × countess|mephisto|nihlathak`. Summoner und Kuh-Level bleiben für dieses Profil nicht verfügbar. Die fünf Pflichtskills sind Teleport, Stadtportal, Gesegneter Hammer, Konzentration und Heiliger Schild.
 
 ### Skill-Slots und CTA
 
@@ -33,13 +33,15 @@ Der gültige leer/leer-Zweig sendet weder `W` noch Battle-Command-/Battle-Orders
 
 Die produktive Queue ruft dieselbe Maschine nach der Wegpunkt-Ankunft auf, unmittelbar bevor die aufgezeichnete Route startet. In der Stadt wird nicht gecastet: Battle Command und Battle Orders haben `InTown=false`. CTA vollständig und der 150-Sekunden-Anker noch nicht fällig bedeutet: der Hook endet ohne Input. CTA vollständig und Anker leer oder fällig bedeutet: volle Sequenz inklusive Holy Shield im zweiten Set. Ohne CTA wird Holy Shield einmal pro Spielgeneration im Primärset gewirkt. Der 150-Sekunden-Anker wird erst nach dem tatsächlich autorisierten zweiten Battle-Command-Cast gesetzt. Ein Game- oder Generations-Reset sowie Menu-/Loading-Phasen löschen Timer, Pending Selection und Weapon-Swap-Zustand.
 
-### Mephisto-Standardangriff
+### Standardangriff
 
 Nach dem Wegpunkt wartet die Pipeline auf eine gesetzte Ankunft im Kampfgebiet (InGame, drei frische Snapshots, drei Sekunden Settle), bevor CTA/Holy Shield startet. Sticky `WaypointOpen` blockiert diese Ankunft nicht. Eine nur gemeldete Ziel-Area während des Ladebildschirms reicht nicht.
 
-Nach dem letzten aufgezeichneten Routenpunkt pinnt die gemeinsame Mephisto-Pipeline den Boss über NPC-ID und UnitID. Es gibt keine Bone-Prison- oder sonstigen Encounter-Hooks: `boss_engage` bleibt leer, der Standardangriff beginnt unmittelbar.
+Nach dem letzten aufgezeichneten Routenpunkt pinnt die gemeinsame Boss-Pipeline den Boss über NPC-ID und UnitID. Es gibt keine Bone-Prison- oder sonstigen Encounter-Hooks: `boss_engage` bleibt leer, der Standardangriff beginnt unmittelbar. Countess und Mephisto schließen die leeren Registry-Hooks in denselben Ticks ab; Nihlathak hat keine Engage-Sequenz.
 
-Jeder Kampftick prüft Spieler- gegen Bossposition. Liegt die Distanz über 3 Tiles, teleportiert der Bot auf 1 Tile und prüft erneut. Ist die Distanz in Reichweite, zielt der Cursor auf den sichtbaren Boss-Körper wie beim Nihlathak-Aim. Eine andere Hover-ID auf demselben Sprite (überlagerndes Monster) ist erlaubt; die Mausposition hat Vorrang. Anschließend bleibt `LMB` auf diesem Punkt gedrückt, ohne Shift. Alle drei World-Snapshots folgt eine Distanzprüfung. Über 5 Tiles oder bei totem Boss geht LMB hoch; ein Teleport folgt erst im nächsten Snapshot, damit ein sterbender Boss keinen Lauf vom Leichnam weg auslöst. Nach einem Teleport muss Konzentration erneut auf RMB bestätigt sein, bevor der Hold startet. Auswahl, Aim und Hold liegen nie im selben Tick.
+Jeder Kampftick prüft Spieler- gegen Bossposition. Liegt die Distanz über 3 Tiles, teleportiert der Bot auf 1 Tile und prüft erneut. Ist die Distanz in Reichweite, zielt der Cursor auf den sichtbaren Boss-Körper. Eine andere Hover-ID auf demselben Sprite (überlagerndes Monster) ist erlaubt; die Mausposition hat Vorrang vor der Monster-ID. Anschließend bleibt `LMB` auf diesem Punkt gedrückt, ohne Shift. Alle drei World-Snapshots folgt eine Distanzprüfung. Über 5 Tiles oder bei totem Boss geht LMB hoch; ein Teleport folgt erst im nächsten Snapshot, damit ein sterbender Boss keinen Lauf vom Leichnam weg auslöst. Nach einem Teleport muss Konzentration erneut auf RMB bestätigt sein, bevor der Hold startet. Auswahl, Aim und Hold liegen nie im selben Tick.
+
+Nihlathak verwendet genau diesen Pfad, nicht den Necro-Projektionsansatz und nicht Bone Spear. Nach dem Kill folgt direkt die Loot-Repositionierung; `clear_nearby_hostiles` entfällt, weil Blessed Hammer als Flächenangriff die meisten Gegner bereits wegräumt.
 
 Ohne bestätigten Hammer innerhalb von 25 Sekunden oder nach 12 wirkungslosen Teleports endet der Run mit `boss_combat_no_progress`. Distanz, Cursorpunkt und Hold sind live bestätigt: 1/3/5 Tiles, Sprite-Aim, LMB ohne Shift.
 
@@ -48,7 +50,7 @@ Ohne bestätigten Hammer innerhalb von 25 Sekunden oder nach 12 wirkungslosen Te
 - `config.RequiredSkillConfig.Slot`: erzwungener Profilslot `left` oder `right`
 - `config.OptionalSkillPairConfig`: genau zwei gemeinsam optionale Skills
 - `config.ProfileConfig.RequiresMercenary`: von der Trankpolicy unabhängiges Preflight-Gate
-- `profile.RunStrategy`: registriert aktuell nur Mephisto und seine fünf Pflichtskills
+- `profile.RunStrategy`: registriert Countess, Mephisto und Nihlathak mit denselben fünf Pflichtskills; kein RouteClear
 
 Die Skill-IDs stammen aus dem lokal extrahierten `.tmp/d2r-excel/skills.txt`: Teleport 54, Blessed Hammer 112, Concentration 113, Holy Shield 117, Battle Orders 149, Battle Command 155 und TownPortal 359. Der eingebettete Katalog bleibt auf stabile `skill`-/`*Id`-Schlüssel zurückführbar. Für Hammerdin aktiviert die Runtime die vorhandene Weapon-Set-Evidenz über dieselben CASC-IDs 149 und 155.
 
@@ -89,6 +91,8 @@ Live-Beleg 16.08.2026, Charakter `MrHammer`: `d2rbot-20260816-184632.log` und `d
 - [Mercenary Support](mercenary-support.md)
 - [Input Controller](input-controller.md)
 - [Mephisto-Run](mephisto-run.md)
+- [Countess-Run](countess-run.md)
+- [Nihlathak-Run](nihlathak-run.md)
 
 ---
 *Zuletzt aktualisiert: 2026-08-16*

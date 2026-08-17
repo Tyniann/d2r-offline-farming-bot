@@ -29,7 +29,7 @@ Spätere Ideen (noch nicht umgesetzt): [`docs/backlog.md`](../backlog.md).
 | [Nihlathak-Run](nihlathak-run.md) | Key of Destruction: Halls of Pain → Vaught, Halls-Warps 76–78, Act-5-Egress, Pickit `[gems, keys]`; Live-Gate bestanden |
 | [Character- und Encounter-Profile](character-encounter-profiles.md) | Klassenbegrenzte Lifecycle-Hooks, Resource Policy und entwicklerverwaltete Phase-16-Setup-Freigabe samt Default |
 | [Character Loadouts](character-loadouts.md) | Phase 21: Skillkatalog, Strategy Registry, SkillsKnown, Schema-3-Bindings, Inventarschutz, Setup-Wizard |
-| [Paladin „Hammerdin“](hammerdin.md) | Phase 22.6/22.7 bestanden: CTA-/Holy-Shield-Prebuff vor der Route, Mephisto-Standardangriff als LMB-Hold nach Nahkampf-Teleport, verpflichtender Mercenary-Preflight |
+| [Paladin „Hammerdin“](hammerdin.md) | CTA-/Holy-Shield-Prebuff vor der Route, gemeinsamer Blessed-Hammer-LMB-Hold für Countess, Mephisto und Nihlathak, verpflichtender Mercenary-Preflight |
 | [Mercenary Support](mercenary-support.md) | Phase 18: fail-closed Merc-State, Combat-Heal, Akara-Heal, Kashya-Revive und `waypoint-kashya` |
 | [Route-Threat-Combat](route-threat-combat.md) | Gemeinsames Summoner-/Cow-Route-Hold mit stationärem Profil-Clear, Coverage, Ressourcen, Recovery-Guard und Cow-CE-Strategie |
 | [Cow Level / Moo Moo Farm](cow-level-run.md) | Phase 20.0–20.6: CASC-/Leichen-Grundlagen, zwei Routenrollen, Setup, Cow-Portal-Rezept, Cow-Hold-Sweep und gemeinsamer Town-Handoff |

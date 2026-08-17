@@ -190,6 +190,19 @@ func TestValidateFarmQueueRejectsInvalidContextRevisionAndEntry(t *testing.T) {
 	}
 }
 
+func TestValidateFarmQueueUsesClassDefaultInsteadOfNecroFallback(t *testing.T) {
+	cfg := newQueueValidationConfig(t)
+	context := FarmQueueValidationContext{
+		Character: "MrBones", CharacterClass: "necromancer", Difficulty: "nightmare", CatalogRevision: 3,
+	}
+	_, err := ValidateFarmQueue(cfg, FarmQueueValidationRequest{
+		RunIDs: []string{"countess"}, Character: "MrBones", Difficulty: "nightmare", CatalogRevision: 3,
+	}, context)
+	if err != nil {
+		t.Fatalf("class default queue: %v", err)
+	}
+}
+
 func TestValidateFarmQueueRejectsAvailableDuplicatesWithIndices(t *testing.T) {
 	cfg := newQueueValidationConfig(t)
 	context := FarmQueueValidationContext{Character: "MrBones", Difficulty: "nightmare", CatalogRevision: 3}

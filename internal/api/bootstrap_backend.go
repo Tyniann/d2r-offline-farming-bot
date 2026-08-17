@@ -13,6 +13,7 @@ import (
 // BootstrapBackend is the read-only Phase-11.2 projection used before live
 // status binding. Mutating commands remain unavailable and cannot start input.
 type BootstrapBackend struct {
+	cfg        *config.Config
 	status     StatusDTO
 	catalog    CatalogDTO
 	characters map[string]app.CharacterCatalogEntry
@@ -25,17 +26,24 @@ func NewBootstrapBackend(cfg *config.Config) (*BootstrapBackend, error) {
 	if cfg == nil {
 		return nil, fmt.Errorf("bootstrap API backend requires config")
 	}
-	report, err := app.ResolveRunAvailabilities(cfg, app.RunAvailabilityContext{
-		Character: cfg.Session.Character, Difficulty: cfg.Session.Difficulty, GameVersion: cfg.Memory.GameVersion,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("resolve bootstrap run catalog: %w", err)
-	}
-	runs := runCatalogEntries(report, cfg)
 	characterCatalog, err := app.ResolveCharacterCatalog(cfg)
 	if err != nil {
 		return nil, fmt.Errorf("resolve character catalog: %w", err)
 	}
+	availabilityContext := app.RunAvailabilityContext{
+		Character: cfg.Session.Character, Difficulty: cfg.Session.Difficulty, GameVersion: cfg.Memory.GameVersion,
+	}
+	for _, entry := range characterCatalog.Characters {
+		if strings.EqualFold(entry.Name, cfg.Session.Character) {
+			availabilityContext = app.BuildCharacterRunAvailabilityContext(cfg, entry, cfg.Session.Difficulty)
+			break
+		}
+	}
+	report, err := app.ResolveRunAvailabilities(cfg, availabilityContext)
+	if err != nil {
+		return nil, fmt.Errorf("resolve bootstrap run catalog: %w", err)
+	}
+	runs := runCatalogEntries(report, cfg)
 	characters := make([]CharacterCatalogEntry, 0, len(characterCatalog.Characters))
 	characterEntries := make(map[string]app.CharacterCatalogEntry, len(characterCatalog.Characters))
 	for _, character := range characterCatalog.Characters {
@@ -51,14 +59,23 @@ func NewBootstrapBackend(cfg *config.Config) (*BootstrapBackend, error) {
 	}
 	sort.Slice(profiles, func(i, j int) bool { return profiles[i].ID < profiles[j].ID })
 	return &BootstrapBackend{
+		cfg:     cfg,
 		status:  StatusDTO{CoreVersion: version.Version, AppVersion: version.Version, State: "idle", LifecyclePhase: "idle", D2R: D2RDTO{State: "detached"}, Compatibility: CompatibilityDTO{State: "not_detected", Reason: string(app.Phase15ReasonD2RVersionNotDetected), ExpectedVersion: cfg.Memory.GameVersion}, Input: InputDTO{Enabled: false}, World: WorldDTO{Phase: "unknown"}},
 		catalog: CatalogDTO{Revision: characterCatalog.Revision, DefaultDifficulty: cfg.Session.Difficulty, Characters: characters, Difficulties: []DifficultyCatalogEntry{{ID: "normal", DisplayName: "Normal"}, {ID: "nightmare", DisplayName: "Alptraum"}, {ID: "hell", DisplayName: "Hölle"}}, Profiles: profiles, Runs: runs}, characters: characterEntries, difficulty: cfg.Session.Difficulty,
 	}, nil
 }
 
 func (b *BootstrapBackend) character(name string) (app.CharacterCatalogEntry, bool) {
-	entry, ok := b.characters[strings.ToLower(strings.TrimSpace(name))]
-	return entry, ok
+	key := strings.ToLower(strings.TrimSpace(name))
+	if entry, ok := b.characters[key]; ok {
+		return entry, true
+	}
+	for _, entry := range b.characters {
+		if strings.EqualFold(entry.Name, name) || strings.EqualFold(entry.Slug, name) {
+			return entry, true
+		}
+	}
+	return app.CharacterCatalogEntry{}, false
 }
 
 func runCatalogEntries(report app.RunsInspectReport, cfg *config.Config) []RunCatalogEntry {
@@ -102,6 +119,23 @@ func (b *BootstrapBackend) Catalog() CatalogDTO {
 		catalog.Runs[i].Reasons = append([]string(nil), catalog.Runs[i].Reasons...)
 	}
 	return catalog
+}
+
+// RunAvailabilities resolves the read-only run catalog for one character and difficulty.
+func (b *BootstrapBackend) RunAvailabilities(character, difficulty string) (RunAvailabilitiesDTO, error) {
+	entry, ok := b.character(character)
+	if !ok {
+		return RunAvailabilitiesDTO{}, &commandError{code: app.CharacterReasonSaveMissing, message: "Der lokale Offline-Spielstand wurde nicht gefunden."}
+	}
+	if strings.TrimSpace(difficulty) == "" {
+		difficulty = b.difficulty
+	}
+	ctx := app.BuildCharacterRunAvailabilityContext(b.cfg, entry, difficulty)
+	report, err := app.ResolveRunAvailabilities(b.cfg, ctx)
+	if err != nil {
+		return RunAvailabilitiesDTO{}, err
+	}
+	return RunAvailabilitiesDTO{Character: ctx.Character, Difficulty: ctx.Difficulty, Runs: runCatalogEntries(report, b.cfg)}, nil
 }
 
 // Command rejects every mutation until the live supervisor adapter is bound.

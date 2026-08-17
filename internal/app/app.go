@@ -88,7 +88,10 @@ func New(cfg *config.Config, opts Options) (rt *Runtime, err error) {
 		return nil, err
 	}
 	if cfg.Session.Enabled && SessionExecutionRequested(opts) {
-		if _, planErr := ResolveSessionPlan(cfg, Options{SessionInspect: true}); planErr != nil {
+		// Queue runtimes already own an immutable character loadout. Preserve it
+		// for the read-only session preflight so Paladin routes are not checked
+		// against the classless Necromancer fallback.
+		if _, planErr := ResolveSessionPlan(cfg, Options{SessionInspect: true, Loadout: opts.Loadout}); planErr != nil {
 			return nil, planErr
 		}
 		if bindingErr := validateFullRunBindingsWithProfile(cfg, cfg.Session.Run, bindings, combatProfileID); bindingErr != nil {

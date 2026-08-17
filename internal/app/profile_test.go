@@ -158,18 +158,20 @@ func TestNewProfileExecutorAllowsUnregisteredDummyCarrier(t *testing.T) {
 	combat := newCombatAdapter(log, in, bindings, pathCfg, time.Millisecond)
 	registry := NewCombatStrategyRegistry()
 
-	got, err := newProfileExecutor(log, profiles, "paladin_hammerdin", "countess", registry, in, bindings, pathCfg, combat, &profileTelemetryAdapter{}, false)
+	got, err := newProfileExecutor(log, profiles, "paladin_hammerdin", "summoner", registry, in, bindings, pathCfg, combat, &profileTelemetryAdapter{}, false)
 	if err != nil || got == nil {
 		t.Fatalf("dummy carrier err=%v executor=%v", err, got)
 	}
 
-	_, err = newProfileExecutor(log, profiles, "paladin_hammerdin", "countess", registry, in, bindings, pathCfg, combat, &profileTelemetryAdapter{}, true)
+	_, err = newProfileExecutor(log, profiles, "paladin_hammerdin", "summoner", registry, in, bindings, pathCfg, combat, &profileTelemetryAdapter{}, true)
 	if err == nil || !strings.Contains(err.Error(), ReasonProfileRunStrategyUnavailable) {
 		t.Fatalf("productive dummy carrier err=%v", err)
 	}
 
-	got, err = newProfileExecutor(log, profiles, "paladin_hammerdin", "mephisto", registry, in, bindings, pathCfg, combat, &profileTelemetryAdapter{}, true)
-	if err != nil || got == nil {
-		t.Fatalf("registered mephisto err=%v executor=%v", err, got)
+	for _, runID := range []string{"countess", "mephisto", "nihlathak"} {
+		got, err = newProfileExecutor(log, profiles, "paladin_hammerdin", runID, registry, in, bindings, pathCfg, combat, &profileTelemetryAdapter{}, true)
+		if err != nil || got == nil {
+			t.Fatalf("registered %s err=%v executor=%v", runID, err, got)
+		}
 	}
 }
