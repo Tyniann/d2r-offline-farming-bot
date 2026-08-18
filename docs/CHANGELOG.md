@@ -11,6 +11,9 @@ Versionierung nach [Semantic Versioning](https://semver.org/).
 - Register Hammerdin Summoner with route-clear combat during playback using the Blessed Hammer standard-attack hold
 - Expose per-character belt potion columns in Settings → Characters so operators can assign healing, mana, or rejuvenation to slots 1–4 without editing combat-profile YAML
 
+### Changed
+- Replace the abstract portal glyph with a Town Portal stone-tile app icon for the Windows package, tray, notifications, and in-app brand mark
+
 ### Fixed
 - Reposition Hammerdin toward a nearby monster while keeping the surviving attack target pinned, fall back to a bounded route-forward teleport when none is nearby, attack from the new position before any return approach, confirm successful teleports without a fixed settle delay, overlap Concentration selection with cursor aim, and keep no-progress termination finite
 - Derive Cow preflight skills, character class, corpse-explosion wrapping, and combat approach from the selected profile/run strategy instead of inheriting Necromancer behavior

@@ -9,6 +9,7 @@ Abschnitt 15.11 liefert die bestehende Electron-App und den Go-Core als per-user
 - **Pipeline:** `scripts/build-release.ps1`
 - **Electron-Builder-Konfiguration:** `web/package.json`
 - **NSIS-Erweiterung:** `web/build/installer.nsh`
+- **App-Icon:** `web/electron/app-icon.ico` (16/32/48/256, dasselbe Town-Portal-PNG)
 - **Build-Icon:** `web/electron/create-build-icon.mjs`
 - **Paketprüfung:** `web/electron/verify-package.mjs`
 - **Installierter Smoke-Test:** `web/electron/package-smoke.mjs`
@@ -37,7 +38,7 @@ Renderer, Preload und Electron Main liegen im ASAR. Ein eigener ASAR-Audit lehnt
 
 ### Installer und Deinstallation
 
-NSIS installiert ohne Maschinenkontext für den aktuellen Benutzer, legt einen Startmenüeintrag an und erzwingt weder Desktopshortcut noch Administratorrechte. Das Produkt besitzt eine feste App-ID und ein aus dem bestehenden Portalzeichen erzeugtes Windows-Icon.
+NSIS installiert ohne Maschinenkontext für den aktuellen Benutzer, legt einen Startmenüeintrag an und erzwingt weder Desktopshortcut noch Administratorrechte. Das Produkt besitzt eine feste App-ID und ein Windows-Icon mit 16-, 32-, 48- und 256-Pixel-Kacheln desselben Town-Portal-Zeichens.
 
 Die Deinstallation erhält `%LOCALAPPDATA%\D2ROfflineFarmingBot\` standardmäßig. Nur im interaktiven Uninstaller kann der Operator nach zwei standardmäßig auf „Nein“ stehenden Bestätigungen exakt diesen festen Root zusätzlich löschen. Silent-Uninstall fragt nicht und erhält die Daten.
 
@@ -71,4 +72,4 @@ Für eine ausdrücklich angeordnete manuelle Gate-Iteration darf derselbe Builde
 - [Lokales Diagnosepaket und Versionshinweis](diagnostics-and-update-check.md)
 
 ---
-*Zuletzt aktualisiert: 31. Juli 2026*
+*Zuletzt aktualisiert: 18. August 2026*

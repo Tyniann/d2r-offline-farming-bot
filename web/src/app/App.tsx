@@ -367,7 +367,7 @@ function CoreApp() {
     <div className="app-shell">
       <aside className="sidebar">
         <a className="brand" href="#dashboard" aria-label="D2R Offline Farming Bot – Dashboard">
-          <img src="/portal-mark.svg" alt="" width="46" height="46" />
+          <img src="./portal-mark.png" alt="" width="46" height="46" />
           <span><strong>D2R Offline</strong><small>Farming Bot</small></span>
         </a>
         <nav className="main-navigation" aria-label="Hauptnavigation">

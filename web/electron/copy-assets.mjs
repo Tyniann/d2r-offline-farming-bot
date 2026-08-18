@@ -12,6 +12,6 @@ await mkdir(target, { recursive: true });
 await rm(join(target, "ui"), { recursive: true, force: true });
 await Promise.all([
   ...["recovery.html", "recovery.css"].map((name) => copyFile(join(source, name), join(target, name))),
-  copyFile(join(root, "public", "portal-mark.svg"), join(target, "portal-mark.svg")),
+  copyFile(join(root, "public", "portal-mark.png"), join(target, "portal-mark.png")),
   cp(join(root, "..", "internal", "api", "ui", "dist"), join(target, "ui"), { recursive: true, force: true }),
 ]);

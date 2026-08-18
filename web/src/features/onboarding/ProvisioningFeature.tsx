@@ -31,7 +31,7 @@ export function ProvisioningFeature() {
 
   return <main className="provisioning-shell">
     <header className="provisioning-header">
-      <img src="./portal-mark.svg" width="62" height="62" alt="" />
+      <img src="./portal-mark.png" width="62" height="62" alt="" />
       <p className="eyebrow">Erster Start</p>
       <h1>Datenbasis einrichten</h1>
       <p>Bevor der produktive Core startet, braucht die App genau einen vollständig validierten lokalen Datenroot.</p>

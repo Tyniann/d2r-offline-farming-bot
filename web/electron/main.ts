@@ -13,7 +13,7 @@ import { isAllowedIPCSender, isAllowedNavigation, secureWebPreferences, type Cor
 import { DesktopSettingsStore, desktopSettingsDefaults, type DesktopSettings } from "./desktop-settings.js";
 import { desktopLifecyclePolicy, desktopNotificationSpec, notificationForTransition, shouldShowDesktopNotification, type DesktopNotificationKind, type StableAppTarget } from "./desktop-lifecycle.js";
 import { clampWindowBounds } from "./desktop-window.js";
-import { createPortalIconPNG } from "./portal-icon.js";
+import { portalMarkPath } from "./portal-icon.js";
 import { checkLatestRelease, githubReleasesURL, type DesktopUpdateStatus } from "./update-check.js";
 import { carryOnboardingStep } from "./onboarding-resume.js";
 
@@ -44,7 +44,7 @@ const desktopSettingsStore = new DesktopSettingsStore(join(dataRoot, "desktop-se
 let desktopSettingsSave = Promise.resolve(desktopSettings);
 let updateStatus: DesktopUpdateStatus = { status: "unavailable", current_version: app.getVersion(), reason: "update_check_unavailable" };
 let updateCheckPending: Promise<DesktopUpdateStatus> | undefined;
-const portalIcon = nativeImage.createFromBuffer(createPortalIconPNG(32));
+const portalIcon = nativeImage.createFromPath(portalMarkPath()).resize({ width: 32, height: 32 });
 
 const gotSingleInstanceLock = app.requestSingleInstanceLock({ dataRoot });
 if (!gotSingleInstanceLock) {
@@ -145,6 +145,7 @@ function ensureWindow(): BrowserWindow {
     minHeight: 700,
     show: false,
     autoHideMenuBar: true,
+    icon: portalMarkPath(),
     webPreferences: secureWebPreferences(preload),
   });
   mainWindow.webContents.setWindowOpenHandler(() => ({ action: "deny" }));

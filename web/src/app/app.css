@@ -6,7 +6,7 @@ body { margin: 0; min-height: 100vh; overflow-x: hidden; background: radial-grad
 .app-shell { min-width: 0; min-height: 100vh; display: grid; grid-template-columns: 248px minmax(0, 1fr); }
 .sidebar { position: sticky; top: 0; height: 100vh; display: flex; flex-direction: column; gap: var(--space-5); padding: 22px 16px; border-right: 1px solid var(--border); background: linear-gradient(180deg, #171219f5, #0f0d11f8); box-shadow: 12px 0 40px #0006; z-index: 8; }
 .brand { display: flex; align-items: center; gap: 12px; padding: 6px; color: var(--text); text-decoration: none; }
-.brand img { filter: drop-shadow(0 0 14px #d9612f66); }
+.brand img { border-radius: 10px; object-fit: cover; filter: drop-shadow(0 0 14px #d9612f66); }
 .brand span { display: grid; line-height: 1.12; }.brand small { color: var(--gold); letter-spacing: .06em; text-transform: uppercase; }
 .main-navigation { display: grid; gap: 6px; }
 .main-navigation a { display: flex; align-items: center; gap: 11px; min-height: 44px; padding: 10px 12px; border: 1px solid transparent; border-radius: 9px; color: var(--muted); font-weight: 650; text-decoration: none; }
@@ -202,7 +202,7 @@ section.settings-field-changed { border-color: #6b4a35; box-shadow: inset 3px 0 
 .settings-scope-farming > section.settings-field-changed { border-left-color: var(--gold); }
 .provisioning-shell { min-height: 100vh; display: grid; align-content: center; gap: var(--space-5); width: min(960px, calc(100% - 48px)); margin: auto; padding: 48px 0; }
 .provisioning-header { max-width: 700px; }
-.provisioning-header img { float: left; margin: 0 var(--space-4) var(--space-2) 0; }
+.provisioning-header img { float: left; margin: 0 var(--space-4) var(--space-2) 0; border-radius: 12px; object-fit: cover; }
 .provisioning-header h1 { margin: 0; font-size: clamp(2rem, 5vw, 3.5rem); }
 .provisioning-header p:last-child { color: var(--muted); }
 .provisioning-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-4); }

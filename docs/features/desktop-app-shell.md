@@ -8,7 +8,7 @@ Abschnitt 15.5 fasst Dashboard, Routen, Pickit, Historie und Einstellungen in ei
 
 - **Paket:** `web/src/app/`
 - **Einstieg:** `web/src/app/App.tsx`
-- **Wichtige Dateien:** `navigation.ts`, `ui.tsx`, `app.css`, `web/public/portal-mark.svg`
+- **Wichtige Dateien:** `navigation.ts`, `ui.tsx`, `app.css`, `web/public/portal-mark.png`
 - **Featurekomponenten:** `web/src/features/routes/`, `web/src/features/pickit/`, `web/src/features/history/`
 
 ## Funktionalität
@@ -21,7 +21,7 @@ Jedes Ziel rendert die vorhandene Featurekomponente. Es gibt keine zweite Routen
 
 ### Design- und Zustandsbasis
 
-CSS-Custom-Properties definieren Ember, Gold, Crimson, Flächen, Text, Fokus, Abstände und semantische Zustände. Das abstrakte Portalzeichen ist ein originales, lokal ausgeliefertes SVG. Lucide-Icons ergänzen sichtbaren Text und sind dekorativ markiert; Status wird nie nur durch Farbe vermittelt.
+CSS-Custom-Properties definieren Ember, Gold, Crimson, Flächen, Text, Fokus, Abstände und semantische Zustände. Das Town-Portal-Zeichen ist ein originales, lokal ausgeliefertes PNG. Lucide-Icons ergänzen sichtbaren Text und sind dekorativ markiert; Status wird nie nur durch Farbe vermittelt.
 
 Kleine gemeinsame Komponenten decken reale Mehrfachverwendung ab: Seitenkopf, Buttonvarianten, Statusbadges, Loading-/Empty-/Error-Zustände und Dialoge. Dialoge setzen den Anfangsfokus, halten Tabulatorfokus innerhalb des Dialogs, schließen per Escape und geben den Fokus an den Auslöser zurück.
 
@@ -55,4 +55,4 @@ Die Shell führt kein Fach-Datenmodell ein. `StatusDTO`, Katalog, Queue, Routen-
 - [Tatsächliches D2R-Versionsgate](d2r-version-gate.md)
 
 ---
-*Zuletzt aktualisiert: 22. Juli 2026*
+*Zuletzt aktualisiert: 18. August 2026*
