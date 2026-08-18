@@ -1941,7 +1941,7 @@
       },
       "CharacterSetupProfileDTO": {
         "type": "object",
-        "required": ["id", "display_name", "is_default", "is_selected", "requires_mercenary", "bindings_ready"],
+        "required": ["id", "display_name", "is_default", "is_selected", "requires_mercenary", "bindings_ready", "default_belt_layout", "belt_layout"],
         "additionalProperties": false,
         "properties": {
           "id": {"type": "string"},
@@ -1954,7 +1954,9 @@
           "requires_mercenary": {"type": "boolean"},
           "bindings_ready": {"type": "boolean"},
           "binding_reasons": {"type": "array", "items": {"type": "string"}},
-          "supported_runs": {"type": "array", "items": {"type": "string"}}
+          "supported_runs": {"type": "array", "items": {"type": "string"}},
+          "default_belt_layout": {"$ref": "#/components/schemas/OperatorBeltLayoutDTO"},
+          "belt_layout": {"$ref": "#/components/schemas/OperatorBeltLayoutDTO"}
         }
       },
       "CharacterSetupPickitDefaultDTO": {
@@ -2071,6 +2073,9 @@
           },
           "belt": {
             "$ref": "#/components/schemas/OperatorBeltBindingsDTO"
+          },
+          "belt_layout": {
+            "$ref": "#/components/schemas/OperatorBeltLayoutDTO"
           }
         }
       },
@@ -2089,6 +2094,28 @@
           },
           "slot_4": {
             "type": "string"
+          }
+        }
+      },
+      "OperatorBeltLayoutDTO": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "slot_1": {
+            "type": "string",
+            "enum": ["healing", "mana", "rejuvenation"]
+          },
+          "slot_2": {
+            "type": "string",
+            "enum": ["healing", "mana", "rejuvenation"]
+          },
+          "slot_3": {
+            "type": "string",
+            "enum": ["healing", "mana", "rejuvenation"]
+          },
+          "slot_4": {
+            "type": "string",
+            "enum": ["healing", "mana", "rejuvenation"]
           }
         }
       },

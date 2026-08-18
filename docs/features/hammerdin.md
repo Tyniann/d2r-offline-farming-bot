@@ -2,7 +2,7 @@
 
 ## Überblick
 
-`paladin_hammerdin` ist das zweite freigegebene Kampfprofil. Es registriert Countess, Mephisto und Nihlathak auf demselben Standardangriff und friert die Skill-, Slot-, CTA- und Söldnerverträge ein. Phase 22.6 stellt den isolierten CTA-/Holy-Shield-Prebuff bereit und verdrahtet denselben Ablauf produktiv vor dem Abspielen der aufgezeichneten Route. Battle Command und Battle Orders sind CASC-seitig nicht in der Stadt wirkbar. Der produktive Blessed-Hammer-Kampf ist verdrahtet; das manuelle Gate 22.7 ist am 16.08.2026 für Mephisto bestanden.
+`paladin_hammerdin` ist das zweite freigegebene Kampfprofil. Es registriert Countess, Mephisto, Nihlathak und Summoner. Countess, Mephisto und Nihlathak teilen denselben Standardangriff. Summoner nutzt denselben Blessed-Hammer-Hold zusätzlich während der aufgezeichneten Route (Combat-to-go). Das Profil friert die Skill-, Slot-, CTA- und Söldnerverträge ein. Phase 22.6 stellt den isolierten CTA-/Holy-Shield-Prebuff bereit und verdrahtet denselben Ablauf produktiv vor dem Abspielen der aufgezeichneten Route. Battle Command und Battle Orders sind CASC-seitig nicht in der Stadt wirkbar. Der produktive Blessed-Hammer-Kampf ist verdrahtet; das manuelle Gate 22.7 ist am 16.08.2026 für Mephisto bestanden.
 
 ## Ort im Code
 
@@ -15,7 +15,7 @@
 
 ### Profil und Bossläufe
 
-Das Profil ist für die Klasse `paladin` im Charakter-Setup freigegeben. Die Runtime-Registry enthält die Paare `paladin_hammerdin × countess|mephisto|nihlathak`. Summoner und Kuh-Level bleiben für dieses Profil nicht verfügbar. Die fünf Pflichtskills sind Teleport, Stadtportal, Gesegneter Hammer, Konzentration und Heiliger Schild.
+Das Profil ist für die Klasse `paladin` im Charakter-Setup freigegeben. Die Runtime-Registry enthält die Paare `paladin_hammerdin × countess|mephisto|nihlathak|summoner`. Kuh-Level bleibt für dieses Profil nicht verfügbar. Die fünf Pflichtskills sind Teleport, Stadtportal, Gesegneter Hammer, Konzentration und Heiliger Schild.
 
 ### Skill-Slots und CTA
 
@@ -37,20 +37,26 @@ Die produktive Queue ruft dieselbe Maschine nach der Wegpunkt-Ankunft auf, unmit
 
 Nach dem Wegpunkt wartet die Pipeline auf eine gesetzte Ankunft im Kampfgebiet (InGame, drei frische Snapshots, drei Sekunden Settle), bevor CTA/Holy Shield startet. Sticky `WaypointOpen` blockiert diese Ankunft nicht. Eine nur gemeldete Ziel-Area während des Ladebildschirms reicht nicht.
 
-Nach dem letzten aufgezeichneten Routenpunkt pinnt die gemeinsame Boss-Pipeline den Boss über NPC-ID und UnitID. Es gibt keine Bone-Prison- oder sonstigen Encounter-Hooks: `boss_engage` bleibt leer, der Standardangriff beginnt unmittelbar. Countess und Mephisto schließen die leeren Registry-Hooks in denselben Ticks ab; Nihlathak hat keine Engage-Sequenz.
+Nach dem letzten aufgezeichneten Routenpunkt pinnt die gemeinsame Boss-Pipeline den Boss über NPC-ID und UnitID. Es gibt keine Bone-Prison- oder sonstigen Encounter-Hooks: `boss_engage` bleibt leer, der Standardangriff beginnt unmittelbar. Countess und Mephisto schließen die leeren Registry-Hooks in denselben Ticks ab; Nihlathak und Summoner haben keine Engage-Sequenz.
 
-Jeder Kampftick prüft Spieler- gegen Bossposition. Liegt die Distanz über 3 Tiles, teleportiert der Bot auf 1 Tile und prüft erneut. Ist die Distanz in Reichweite, zielt der Cursor auf den sichtbaren Boss-Körper. Eine andere Hover-ID auf demselben Sprite (überlagerndes Monster) ist erlaubt; die Mausposition hat Vorrang vor der Monster-ID. Anschließend bleibt `LMB` auf diesem Punkt gedrückt, ohne Shift. Alle drei World-Snapshots folgt eine Distanzprüfung. Über 5 Tiles oder bei totem Boss geht LMB hoch; ein Teleport folgt erst im nächsten Snapshot, damit ein sterbender Boss keinen Lauf vom Leichnam weg auslöst. Nach einem Teleport muss Konzentration erneut auf RMB bestätigt sein, bevor der Hold startet. Auswahl, Aim und Hold liegen nie im selben Tick.
+Jeder Kampftick prüft Spieler- gegen Bossposition. Liegt die Distanz über 3 Tiles, teleportiert der Bot auf 1 Tile und prüft erneut. Ist die Distanz in Reichweite, zielt der Cursor auf den sichtbaren Boss-Körper. Eine andere Hover-ID auf demselben Sprite (überlagerndes Monster) ist erlaubt; die Mausposition hat Vorrang vor der Monster-ID. Anschließend bleibt `LMB` auf diesem Punkt gedrückt, ohne Shift. Alle drei World-Snapshots folgt eine Distanzprüfung. Über 5 Tiles oder bei totem Boss geht LMB hoch; ein Teleport folgt erst im nächsten Snapshot, damit ein sterbender Boss keinen Lauf vom Leichnam weg auslöst. Lebt das gepinnte Ziel nach zwei Sekunden stationärem Hold noch, teleportiert der Bot stattdessen zum nächsten anderen lebenden Monster innerhalb von 18 Tiles zum gepinnten Ziel, hält aber die alte UnitID als Angriffsziel fest. Dadurch entsteht eine neue Hammerspirale auf einer tatsächlich im Pack belegten Passage, während das alte Ziel zum Paladin nachziehen kann. Bereits verwendete Ausweichziele bleiben ausgeschlossen; fehlt ein nahes anderes Monster, läuft der Hold bis zum endlichen Boss-Watchdog weiter. Nach bestätigter Bewegung wird vor jeder normalen Distanz-Rückannäherung zuerst der Hover und Hammer-Hold auf dem alten Ziel versucht. Eine bestätigte Positionsänderung beendet das Teleport-Settle bereits im ersten frischen Snapshot, während 500 ms nur noch die Frist für eine blockierte Landung bilden. Nach einem Teleport muss Konzentration erneut auf RMB bestätigt sein, bevor der Hold startet. Die Konzentrationsauswahl verschiebt den Cursor bereits im selben Tick zum Ziel; LMB folgt erst nach der Memory-Bestätigung von Aura und Hover.
 
-Nihlathak verwendet genau diesen Pfad, nicht den Necro-Projektionsansatz und nicht Bone Spear. Nach dem Kill folgt direkt die Loot-Repositionierung; `clear_nearby_hostiles` entfällt, weil Blessed Hammer als Flächenangriff die meisten Gegner bereits wegräumt.
+Nihlathak und Summoner verwenden genau diesen Pfad, nicht den Necro-Projektionsansatz und nicht Bone Spear. Nach dem Kill folgt direkt die Loot-Repositionierung; `clear_nearby_hostiles` entfällt, weil Blessed Hammer als Flächenangriff die meisten Gegner bereits wegräumt.
 
-Ohne bestätigten Hammer innerhalb von 25 Sekunden oder nach 12 wirkungslosen Teleports endet der Run mit `boss_combat_no_progress`. Distanz, Cursorpunkt und Hold sind live bestätigt: 1/3/5 Tiles, Sprite-Aim, LMB ohne Shift.
+### Summoner-Route (Combat-to-go)
+
+Summoner registriert denselben Route-Clear wie der Necromancer: Threat-Hold, Hostile-Allowlist, Mana-Reserve, endlicher No-Progress-Watchdog und Pickit unterwegs bleiben unverändert. Statt Amplify Damage und Bone Spear teleportiert der Hammerdin vor dem ersten Angriff bei mehr als 3 Tiles Distanz auf 1 Tile. Während eines Mana-Holds ist dieser Teleport gesperrt. Anschließend zielt der Cursor auf den sichtbaren Körper; befindet sich dort irgendein lebendes Monster, startet der Blessed-Hammer-LMB-Hold auf genau dieser UnitID. Aim-only-Ticks bleiben noch nicht gepinnt, damit ein überlagerndes Monster unter dem Cursor das eigentliche Angriffsziel werden kann.
+
+Nach Beginn des Holds bleibt die bestätigte UnitID bis zu ihrem Tod gepinnt, auch wenn sie den ursprünglichen Threat-Korridor verlässt. Wie im Mephisto-Pfad wird die Distanz nur alle drei frischen Snapshots erneut bewertet; erst über 5 Tiles geht LMB hoch und die begrenzte Teleport-Annäherung beginnt erneut. Bleibt das Ziel zwei Sekunden am Leben, wählt Route-Clear das nächste andere lebende Allowlist-Monster innerhalb von 18 Tiles zum gepinnten Ziel als Teleportziel, behält aber die alte UnitID für Hover und Hammer-Hold. Gibt es kein nahes Ausweichmonster, teleportiert der Bot höchstens 8 Tiles in Richtung des bereits validierten nächsten Routenpunkts; ein weit entferntes Monster wird dafür nicht gewählt. Ein bestätigter Teleport wird ohne feste 500-ms-Wartezeit übernommen; nur eine ausbleibende Positionsänderung wartet bis zur Terrain-Frist. Vor einer normalen Rückannäherung muss der Bot von der neuen Position mindestens einen Angriff auf das alte Ziel versuchen. Ein bereits verwendetes Ausweichmonster wird beim nächsten Versuch übersprungen. Erst nach bestätigtem Tod wird das reguläre Angriffsziel freigegeben. Der Summoner-Boss am Routenende nutzt denselben Standardangriff; es gibt kein gesondertes Encounter-Verhalten.
+
+Ohne weiteres Ausweichmonster bleibt der Hold bestehen, damit ein langsamer Boss weiter Schaden nehmen kann. Spätestens nach 25 Sekunden ohne bestätigten Fortschritt oder nach 12 wirkungslosen Teleports endet der Bosskampf mit `boss_combat_no_progress`. Das bloße Starten oder Fortsetzen eines LMB-Holds zählt nicht als Fortschritt. Distanz, Cursorpunkt und Hold sind live bestätigt: 1/3/5 Tiles, Sprite-Aim, LMB ohne Shift.
 
 ## Datenmodell
 
 - `config.RequiredSkillConfig.Slot`: erzwungener Profilslot `left` oder `right`
 - `config.OptionalSkillPairConfig`: genau zwei gemeinsam optionale Skills
 - `config.ProfileConfig.RequiresMercenary`: von der Trankpolicy unabhängiges Preflight-Gate
-- `profile.RunStrategy`: registriert Countess, Mephisto und Nihlathak mit denselben fünf Pflichtskills; kein RouteClear
+- `profile.RunStrategy`: registriert Countess, Mephisto, Nihlathak und Summoner mit denselben fünf Pflichtskills; Summoner bindet RouteClear ohne Fluch-Opener
 
 Die Skill-IDs stammen aus dem lokal extrahierten `.tmp/d2r-excel/skills.txt`: Teleport 54, Blessed Hammer 112, Concentration 113, Holy Shield 117, Battle Orders 149, Battle Command 155 und TownPortal 359. Der eingebettete Katalog bleibt auf stabile `skill`-/`*Id`-Schlüssel zurückführbar. Für Hammerdin aktiviert die Runtime die vorhandene Weapon-Set-Evidenz über dieselben CASC-IDs 149 und 155.
 
@@ -77,7 +83,7 @@ $dataRoot = Join-Path $env:LOCALAPPDATA 'D2ROfflineFarmingBot'
 .\d2rbot.exe --data-root $dataRoot --run mephisto
 ```
 
-Live-Beleg 16.08.2026, Charakter `MrHammer`: `d2rbot-20260816-184632.log` und `d2rbot-20260816-185534.log` schließen beide mit `outcome=success`. Hämmer entstehen durch gehaltenes LMB auf dem Boss-Sprite, Teleport und Konzentration jeweils bestätigt, LMB geht bei Distanzverlust oder Kill hoch. Nach dem Loslassen wartet ein Snapshot, bevor ein Teleport folgen darf. Endlicher Abbruch bei ausbleibendem Fortschritt bleibt codegedeckt.
+Live-Beleg 16.08.2026, Charakter `MrHammer`: `d2rbot-20260816-184632.log` und `d2rbot-20260816-185534.log` schließen beide mit `outcome=success`. Hämmer entstehen durch gehaltenes LMB auf dem Boss-Sprite, Teleport und Konzentration jeweils bestätigt, LMB geht bei Distanzverlust oder Kill hoch. Nach dem Loslassen wartet ein Snapshot, bevor ein Teleport folgen darf. Der Zwei-Sekunden-Ausweichfallback über ein anderes Monster und der endliche Abbruch bei ausbleibendem Fortschritt sind codegedeckt.
 
 ## Abhängigkeiten
 
@@ -92,7 +98,9 @@ Live-Beleg 16.08.2026, Charakter `MrHammer`: `d2rbot-20260816-184632.log` und `d
 - [Input Controller](input-controller.md)
 - [Mephisto-Run](mephisto-run.md)
 - [Countess-Run](countess-run.md)
+- [Summoner-Run](summoner-run.md)
 - [Nihlathak-Run](nihlathak-run.md)
+- [Route-Threat-Combat](route-threat-combat.md)
 
 ---
-*Zuletzt aktualisiert: 2026-08-16*
+*Zuletzt aktualisiert: 2026-08-17*

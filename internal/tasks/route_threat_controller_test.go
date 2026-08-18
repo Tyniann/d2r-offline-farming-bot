@@ -55,7 +55,7 @@ func controllerTick(t *testing.T, controller *RouteThreatController, route *mock
 	t.Helper()
 	definition := controllerDefinition(t)
 	assessment := assessThreats(state, progress, definition.RouteHostileNPCIDs, cfg)
-	return controller.Tick(context.Background(), route, clear, state, progress, assessment, definition, cfg, "necro_bone_spear", state.At)
+	return controller.Tick(context.Background(), route, clear, state, progress, assessment, definition, cfg, CombatConfig{Profile: "necro_bone_spear"}, state.At)
 }
 
 func TestRouteThreatControllerHoldsAndClearsImmediateThreat(t *testing.T) {
@@ -135,6 +135,41 @@ func TestRouteThreatControllerNoProgressAndProgressBeyondTwelveSeconds(t *testin
 	}
 	if len(clear.requests) != 25 {
 		t.Fatalf("clear actions = %d", len(clear.requests))
+	}
+}
+
+func TestHammerdinStickyTargetIgnoresCollateralCountProgress(t *testing.T) {
+	base := time.Date(2026, 8, 17, 13, 0, 0, 0, time.UTC)
+	progress, cfg := phase17ThreatProgress(), phase17ThreatConfig()
+	cfg.NoProgressTimeout = 12 * time.Second
+	target := world.Monster{NPCID: world.ArcaneSpecter, UnitID: 7, Position: world.Position{X: 102, Y: 100}}
+	other := world.Monster{NPCID: world.ArcaneHellClan, UnitID: 8, Position: world.Position{X: 104, Y: 100}}
+	route := controllerRoute(progress)
+	clear := &routeClearMock{result: profile.Result{
+		Status: profile.StatusAction, ActionKind: profile.RouteClearActionAttack,
+		TargetUnitID: target.UnitID, TargetNPCID: target.NPCID,
+	}}
+	definition := controllerDefinition(t)
+	combat := hammerdinMephistoCombat()
+	var controller RouteThreatController
+
+	state := controllerState(base, target, other)
+	assessment := assessThreats(state, progress, definition.RouteHostileNPCIDs, cfg)
+	if result := controller.Tick(context.Background(), route, clear, state, progress, assessment, definition, cfg, combat, state.At); result.Failed {
+		t.Fatalf("initial hold failed: %+v", result)
+	}
+	for _, elapsed := range []time.Duration{4 * time.Second, 8 * time.Second} {
+		state = controllerState(base.Add(elapsed), target)
+		assessment = assessThreats(state, progress, definition.RouteHostileNPCIDs, cfg)
+		if result := controller.Tick(context.Background(), route, clear, state, progress, assessment, definition, cfg, combat, state.At); result.Reason == RouteThreatReasonClearNoProgress {
+			t.Fatalf("premature sticky-target timeout at %s: %+v", elapsed, result)
+		}
+	}
+	state = controllerState(base.Add(cfg.NoProgressTimeout), target)
+	assessment = assessThreats(state, progress, definition.RouteHostileNPCIDs, cfg)
+	result := controller.Tick(context.Background(), route, clear, state, progress, assessment, definition, cfg, combat, state.At)
+	if !result.Failed || result.Reason != RouteThreatReasonClearNoProgress {
+		t.Fatalf("sticky timeout result=%+v, want %s", result, RouteThreatReasonClearNoProgress)
 	}
 }
 
@@ -355,6 +390,380 @@ func TestSummonerRouteUnprojectableInRangeUsesForceMoveFallback(t *testing.T) {
 	}
 }
 
+func TestHammerdinSummonerRouteTeleportsIntoMeleeBeforeHammers(t *testing.T) {
+	base := time.Date(2026, 7, 29, 12, 0, 0, 0, time.UTC)
+	progress, cfg := phase17ThreatProgress(), phase17ThreatConfig()
+	cfg.NoProgressTimeout = 12 * time.Second
+	target := world.Monster{NPCID: world.ArcaneSpecter, UnitID: 7, Position: world.Position{X: 110, Y: 100}}
+	route, clear, combat := controllerRoute(progress), &routeClearMock{result: profile.Result{Status: profile.StatusAction}}, &mockCombatActions{}
+	pipeline := &runPipeline{
+		definition: controllerDefinition(t), phase: RunPhasePlayRoute,
+		core: pipelineCoreState{routeID: "summoner-route", combat: hammerdinMephistoCombat(), routeCombat: cfg},
+	}
+	state := controllerState(base, target)
+	result := pipeline.onTravelTick(context.Background(), Deps{Route: route, RouteClear: clear, Combat: combat}, pipelineStepPlayRoute, state, state.At, base)
+	if result.failed || combat.teleportCalls != 1 || combat.lastDesired != 1 || combat.lastTeleportTarget != target.Position ||
+		combat.forceMoveCalls != 0 || combat.holdCalls != 0 || len(clear.requests) != 0 || route.tickCalls != 0 {
+		t.Fatalf("result=%+v teleports=%d desired=%.0f target=%+v force=%d holds=%d clears=%d ticks=%d",
+			result, combat.teleportCalls, combat.lastDesired, combat.lastTeleportTarget, combat.forceMoveCalls, combat.holdCalls, len(clear.requests), route.tickCalls)
+	}
+}
+
+func TestHammerdinSummonerRouteClearsInMeleeWithoutTeleport(t *testing.T) {
+	base := time.Date(2026, 7, 29, 12, 0, 0, 0, time.UTC)
+	progress, cfg := phase17ThreatProgress(), phase17ThreatConfig()
+	cfg.NoProgressTimeout = 12 * time.Second
+	target := world.Monster{NPCID: world.ArcaneSpecter, UnitID: 7, Position: world.Position{X: 102, Y: 100}}
+	route, clear, combat := controllerRoute(progress), &routeClearMock{result: profile.Result{Status: profile.StatusAction}}, &mockCombatActions{}
+	pipeline := &runPipeline{
+		definition: controllerDefinition(t), phase: RunPhasePlayRoute,
+		core: pipelineCoreState{routeID: "summoner-route", combat: hammerdinMephistoCombat(), routeCombat: cfg},
+	}
+	state := controllerState(base, target)
+	result := pipeline.onTravelTick(context.Background(), Deps{Route: route, RouteClear: clear, Combat: combat}, pipelineStepPlayRoute, state, state.At, base)
+	if result.failed || combat.teleportCalls != 0 || combat.forceMoveCalls != 0 || len(clear.requests) != 1 ||
+		clear.requests[0].Target.UnitID != target.UnitID || route.tickCalls != 0 {
+		t.Fatalf("result=%+v teleports=%d force=%d clears=%d ticks=%d",
+			result, combat.teleportCalls, combat.forceMoveCalls, len(clear.requests), route.tickCalls)
+	}
+}
+
+func TestHammerdinSummonerRouteDoesNotTeleportDuringManaHold(t *testing.T) {
+	base := time.Date(2026, 7, 29, 12, 0, 0, 0, time.UTC)
+	progress, cfg := phase17ThreatProgress(), phase17ThreatConfig()
+	cfg.NoProgressTimeout = 12 * time.Second
+	cfg.TeleportManaReservePercent = 20
+	cfg.ResumeManaPercent = 35
+	cfg.EmergencyManaPercent = 10
+	cfg.ManaRecoveryTimeout = 5 * time.Second
+	target := world.Monster{NPCID: world.ArcaneSpecter, UnitID: 7, Position: world.Position{X: 110, Y: 100}}
+	route, clear, combat := controllerRoute(progress), &routeClearMock{result: profile.Result{Status: profile.StatusAction}}, &mockCombatActions{}
+	resources := &mockProfileActions{}
+	pipeline := &runPipeline{
+		definition: controllerDefinition(t), phase: RunPhasePlayRoute,
+		core: pipelineCoreState{routeID: "summoner-route", combat: hammerdinMephistoCombat(), routeCombat: cfg},
+	}
+	state := controllerState(base, target)
+	state.Player.Mana, state.Player.MaxMana = 10, 100
+
+	result := pipeline.onTravelTick(context.Background(), Deps{
+		Route: route, RouteClear: clear, Combat: combat, Profile: resources,
+	}, pipelineStepPlayRoute, state, state.At, base)
+	if result.failed || combat.teleportCalls != 0 || combat.stopCalls != 1 ||
+		len(clear.requests) != 0 || route.holdCalls != 1 || route.tickCalls != 0 {
+		t.Fatalf("result=%+v teleports=%d stops=%d clears=%d holds=%d ticks=%d",
+			result, combat.teleportCalls, combat.stopCalls, len(clear.requests), route.holdCalls, route.tickCalls)
+	}
+	if len(resources.resourceContexts) != 1 || !resources.resourceContexts[0].MobilityCritical {
+		t.Fatalf("resource contexts = %+v, want active mana hold", resources.resourceContexts)
+	}
+}
+
+func TestHammerdinSummonerRouteIgnoresUnrelatedHoveredMonsterWithoutBlocker(t *testing.T) {
+	base := time.Date(2026, 7, 29, 12, 0, 0, 0, time.UTC)
+	progress, cfg := phase17ThreatProgress(), phase17ThreatConfig()
+	cfg.NoProgressTimeout = 12 * time.Second
+	hovered := world.Monster{NPCID: 999, UnitID: 81, Position: world.Position{X: 110, Y: 100}, IsHovered: true}
+	route, clear, combat := controllerRoute(progress), &routeClearMock{result: profile.Result{Status: profile.StatusAction}}, &mockCombatActions{}
+	pipeline := &runPipeline{
+		definition: controllerDefinition(t), phase: RunPhasePlayRoute,
+		core: pipelineCoreState{routeID: "summoner-route", combat: hammerdinMephistoCombat(), routeCombat: cfg},
+	}
+
+	result := pipeline.onTravelTick(context.Background(), Deps{
+		Route: route, RouteClear: clear, Combat: combat,
+	}, pipelineStepPlayRoute, controllerState(base, hovered), base, base)
+	if result.failed || combat.teleportCalls != 0 || len(clear.requests) != 0 || route.tickCalls != 1 {
+		t.Fatalf("result=%+v teleports=%d clears=%d ticks=%d",
+			result, combat.teleportCalls, len(clear.requests), route.tickCalls)
+	}
+}
+
+func TestHammerdinSummonerRoutePinsStartedHoldUntilTargetDies(t *testing.T) {
+	base := time.Date(2026, 7, 29, 12, 0, 0, 0, time.UTC)
+	progress, cfg := phase17ThreatProgress(), phase17ThreatConfig()
+	cfg.NoProgressTimeout = 12 * time.Second
+	definition := controllerDefinition(t)
+	combat := hammerdinMephistoCombat()
+	route := controllerRoute(progress)
+	clear := &routeClearMock{result: profile.Result{
+		Status: profile.StatusAction, ActionKind: profile.RouteClearActionAttack,
+		TargetUnitID: 7, TargetNPCID: world.ArcaneSpecter,
+	}}
+	var controller RouteThreatController
+
+	closeTarget := world.Monster{
+		NPCID: world.ArcaneSpecter, UnitID: 7,
+		Position: world.Position{X: 102, Y: 100}, IsHovered: true,
+	}
+	state := controllerState(base, closeTarget)
+	assessment := assessThreats(state, progress, definition.RouteHostileNPCIDs, cfg)
+	first := controller.Tick(context.Background(), route, clear, state, progress, assessment, definition, cfg, combat, state.At)
+	if first.Failed || controller.stickyTargetUnitID != closeTarget.UnitID || len(clear.requests) != 1 {
+		t.Fatalf("first=%+v sticky=%d clears=%d", first, controller.stickyTargetUnitID, len(clear.requests))
+	}
+	clear.result = profile.Result{Status: profile.StatusPending}
+
+	movedTarget := closeTarget
+	movedTarget.Position = world.Position{X: 200, Y: 200}
+	movedTarget.IsHovered = false
+	var moved RouteThreatTickResult
+	for snapshot := 1; snapshot <= hammerdinHoldRecheckSnapshots; snapshot++ {
+		state = controllerState(base.Add(time.Duration(snapshot)*100*time.Millisecond), movedTarget)
+		assessment = assessThreats(state, progress, definition.RouteHostileNPCIDs, cfg)
+		moved = controller.Tick(context.Background(), route, clear, state, progress, assessment, definition, cfg, combat, state.At)
+		if snapshot < hammerdinHoldRecheckSnapshots && moved.Failed {
+			t.Fatalf("moved snapshot %d failed early: %+v", snapshot, moved)
+		}
+	}
+	if !moved.Failed || moved.Reason != RouteThreatReasonOutOfRange ||
+		moved.ApproachTarget.UnitID != movedTarget.UnitID || controller.stickyTargetUnitID != movedTarget.UnitID {
+		t.Fatalf("moved=%+v sticky=%d, want pinned approach", moved, controller.stickyTargetUnitID)
+	}
+
+	state = controllerState(base.Add(time.Duration(hammerdinHoldRecheckSnapshots+1) * 100 * time.Millisecond))
+	assessment = assessThreats(state, progress, definition.RouteHostileNPCIDs, cfg)
+	dead := controller.Tick(context.Background(), route, clear, state, progress, assessment, definition, cfg, combat, state.At)
+	if dead.Failed || dead.AllowMovement || controller.stickyTargetUnitID != 0 || controller.stableClear != 1 {
+		t.Fatalf("dead=%+v sticky=%d stable=%d", dead, controller.stickyTargetUnitID, controller.stableClear)
+	}
+}
+
+func TestHammerdinSummonerRouteRepositionsThroughOtherMonstersWhenLandingBlocks(t *testing.T) {
+	base := time.Date(2026, 8, 17, 13, 0, 0, 0, time.UTC)
+	progress, cfg := phase17ThreatProgress(), phase17ThreatConfig()
+	cfg.NoProgressTimeout = 12 * time.Second
+	target := world.Monster{
+		NPCID: world.ArcaneSpecter, UnitID: 7,
+		Position: world.Position{X: 102, Y: 100}, IsHovered: true,
+	}
+	next := world.Monster{
+		NPCID: world.ArcaneHellClan, UnitID: 8,
+		Position: world.Position{X: 115, Y: 100},
+	}
+	third := world.Monster{
+		NPCID: world.ArcaneHellClan, UnitID: 9,
+		Position: world.Position{X: 120, Y: 100},
+	}
+	route := controllerRoute(progress)
+	clear := &routeClearMock{result: profile.Result{
+		Status: profile.StatusAction, ActionKind: profile.RouteClearActionAttack,
+		TargetUnitID: target.UnitID, TargetNPCID: target.NPCID,
+	}}
+	combat := &mockCombatActions{}
+	pipeline := &runPipeline{
+		definition: controllerDefinition(t), phase: RunPhasePlayRoute,
+		core: pipelineCoreState{routeID: "summoner-route", combat: hammerdinMephistoCombat(), routeCombat: cfg},
+	}
+	deps := Deps{Route: route, RouteClear: clear, Combat: combat}
+
+	state := controllerState(base, target, next, third)
+	if result := pipeline.onTravelTick(context.Background(), deps, pipelineStepPlayRoute, state, state.At, base); result.failed {
+		t.Fatalf("initial hold failed: %+v", result)
+	}
+	state = controllerState(base.Add(hammerdinAttackWindow), target, next, third)
+	if result := pipeline.onTravelTick(context.Background(), deps, pipelineStepPlayRoute, state, state.At, base); result.failed {
+		t.Fatalf("first fallback failed: %+v", result)
+	}
+	if combat.teleportCalls != 1 || combat.lastDesired != 1 || combat.lastTeleportTarget != next.Position {
+		t.Fatalf("first fallback teleports=%d desired=%.0f target=%+v, want %+v",
+			combat.teleportCalls, combat.lastDesired, combat.lastTeleportTarget, next.Position)
+	}
+
+	// The unchanged player position after the settle models an invalid terrain
+	// landing. The controller must resume the pinned target, then teleport
+	// toward another monster instead of retrying beside the pinned one.
+	state = controllerState(base.Add(hammerdinAttackWindow+routeThreatApproachSettle), target, next, third)
+	if result := pipeline.onTravelTick(context.Background(), deps, pipelineStepPlayRoute, state, state.At, base); result.failed {
+		t.Fatalf("blocked landing settle failed: %+v", result)
+	}
+	state = controllerState(base.Add(hammerdinAttackWindow+routeThreatApproachSettle+time.Millisecond), target, next, third)
+	if result := pipeline.onTravelTick(context.Background(), deps, pipelineStepPlayRoute, state, state.At, base); result.failed {
+		t.Fatalf("second hold failed: %+v", result)
+	}
+	state = controllerState(base.Add(2*hammerdinAttackWindow+routeThreatApproachSettle+time.Millisecond), target, next, third)
+	if result := pipeline.onTravelTick(context.Background(), deps, pipelineStepPlayRoute, state, state.At, base); result.failed {
+		t.Fatalf("second fallback failed: %+v", result)
+	}
+	if combat.teleportCalls != 2 || combat.lastDesired != 1 || combat.lastTeleportTarget != third.Position {
+		t.Fatalf("second fallback teleports=%d desired=%.0f target=%+v, want %+v",
+			combat.teleportCalls, combat.lastDesired, combat.lastTeleportTarget, third.Position)
+	}
+}
+
+func TestHammerdinSummonerRouteAcceptsConfirmedTeleportBeforeSettleDeadline(t *testing.T) {
+	base := time.Date(2026, 8, 17, 13, 0, 0, 0, time.UTC)
+	progress, cfg := phase17ThreatProgress(), phase17ThreatConfig()
+	cfg.NoProgressTimeout = 12 * time.Second
+	target := world.Monster{
+		NPCID: world.ArcaneSpecter, UnitID: 7,
+		Position: world.Position{X: 102, Y: 100}, IsHovered: true,
+	}
+	next := world.Monster{
+		NPCID: world.ArcaneHellClan, UnitID: 8,
+		Position: world.Position{X: 110, Y: 100},
+	}
+	route := controllerRoute(progress)
+	clear := &routeClearMock{result: profile.Result{
+		Status: profile.StatusAction, ActionKind: profile.RouteClearActionAttack,
+		TargetUnitID: target.UnitID, TargetNPCID: target.NPCID,
+	}}
+	combat := &mockCombatActions{}
+	pipeline := &runPipeline{
+		definition: controllerDefinition(t), phase: RunPhasePlayRoute,
+		core: pipelineCoreState{routeID: "summoner-route", combat: hammerdinMephistoCombat(), routeCombat: cfg},
+	}
+	deps := Deps{Route: route, RouteClear: clear, Combat: combat}
+
+	state := controllerState(base, target, next)
+	if result := pipeline.onTravelTick(context.Background(), deps, pipelineStepPlayRoute, state, state.At, base); result.failed {
+		t.Fatalf("initial hold failed: %+v", result)
+	}
+	state = controllerState(base.Add(hammerdinAttackWindow), target, next)
+	if result := pipeline.onTravelTick(context.Background(), deps, pipelineStepPlayRoute, state, state.At, base); result.failed {
+		t.Fatalf("fallback failed: %+v", result)
+	}
+
+	state = controllerState(base.Add(hammerdinAttackWindow+100*time.Millisecond), target, next)
+	state.Player.Position = world.Position{X: 114, Y: 100}
+	if result := pipeline.onTravelTick(context.Background(), deps, pipelineStepPlayRoute, state, state.At, base); result.failed {
+		t.Fatalf("early progress failed: %+v", result)
+	}
+	if pipeline.travel.routeApproachPending || pipeline.travel.routeThreat.stickyRepositionPending {
+		t.Fatalf("confirmed teleport remained pending before settle deadline")
+	}
+	state = controllerState(base.Add(hammerdinAttackWindow+200*time.Millisecond), target, next)
+	state.Player.Position = world.Position{X: 114, Y: 100}
+	if result := pipeline.onTravelTick(context.Background(), deps, pipelineStepPlayRoute, state, state.At, base); result.failed {
+		t.Fatalf("pinned attack after reposition failed: %+v", result)
+	}
+	if combat.teleportCalls != 1 || len(clear.requests) != 2 || clear.requests[1].Target.UnitID != target.UnitID {
+		t.Fatalf("teleports=%d requests=%+v, want distant pinned target attacked without return teleport", combat.teleportCalls, clear.requests)
+	}
+}
+
+func TestHammerdinSummonerRouteUsesBoundedRouteTeleportWithoutNearbyMonster(t *testing.T) {
+	base := time.Date(2026, 8, 17, 13, 0, 0, 0, time.UTC)
+	progress, cfg := phase17ThreatProgress(), phase17ThreatConfig()
+	cfg.NoProgressTimeout = 12 * time.Second
+	target := world.Monster{
+		NPCID: world.ArcaneSpecter, UnitID: 7,
+		Position: world.Position{X: 102, Y: 100}, IsHovered: true,
+	}
+	distant := world.Monster{
+		NPCID: world.ArcaneHellClan, UnitID: 8,
+		Position: world.Position{X: 150, Y: 100},
+	}
+	route := controllerRoute(progress)
+	clear := &routeClearMock{result: profile.Result{
+		Status: profile.StatusAction, ActionKind: profile.RouteClearActionAttack,
+		TargetUnitID: target.UnitID, TargetNPCID: target.NPCID,
+	}}
+	combat := &mockCombatActions{}
+	pipeline := &runPipeline{
+		definition: controllerDefinition(t), phase: RunPhasePlayRoute,
+		core: pipelineCoreState{routeID: "summoner-route", combat: hammerdinMephistoCombat(), routeCombat: cfg},
+	}
+	deps := Deps{Route: route, RouteClear: clear, Combat: combat}
+
+	state := controllerState(base, target, distant)
+	if result := pipeline.onTravelTick(context.Background(), deps, pipelineStepPlayRoute, state, state.At, base); result.failed {
+		t.Fatalf("initial hold failed: %+v", result)
+	}
+	state = controllerState(base.Add(hammerdinAttackWindow), target, distant)
+	if result := pipeline.onTravelTick(context.Background(), deps, pipelineStepPlayRoute, state, state.At, base); result.failed {
+		t.Fatalf("distant fallback check failed: %+v", result)
+	}
+	if combat.teleportCalls != 1 || combat.lastTeleportTarget != (world.Position{X: 108, Y: 100}) || combat.lastDesired != 0 {
+		t.Fatalf("teleports=%d target=%+v desired=%.1f, want bounded route teleport to (108,100)", combat.teleportCalls, combat.lastTeleportTarget, combat.lastDesired)
+	}
+
+	state = controllerState(base.Add(hammerdinAttackWindow+100*time.Millisecond), target, distant)
+	state.Player.Position = world.Position{X: 108, Y: 100}
+	if result := pipeline.onTravelTick(context.Background(), deps, pipelineStepPlayRoute, state, state.At, base); result.failed {
+		t.Fatalf("route teleport progress failed: %+v", result)
+	}
+	state = controllerState(base.Add(hammerdinAttackWindow+200*time.Millisecond), target, distant)
+	state.Player.Position = world.Position{X: 108, Y: 100}
+	if result := pipeline.onTravelTick(context.Background(), deps, pipelineStepPlayRoute, state, state.At, base); result.failed {
+		t.Fatalf("pinned attack after route teleport failed: %+v", result)
+	}
+	if len(clear.requests) != 2 || clear.requests[1].Target.UnitID != target.UnitID {
+		t.Fatalf("requests=%+v, want old target attacked from bounded route position", clear.requests)
+	}
+}
+
+func TestHammerdinSummonerRoutePinsLivingMonsterFoundUnderCursor(t *testing.T) {
+	base := time.Date(2026, 7, 29, 12, 0, 0, 0, time.UTC)
+	progress, cfg := phase17ThreatProgress(), phase17ThreatConfig()
+	cfg.NoProgressTimeout = 12 * time.Second
+	definition := controllerDefinition(t)
+	combat := hammerdinMephistoCombat()
+	route := controllerRoute(progress)
+	clear := &routeClearMock{result: profile.Result{Status: profile.StatusPending}}
+	var controller RouteThreatController
+
+	blocker := world.Monster{
+		NPCID: world.ArcaneSpecter, UnitID: 7,
+		Position: world.Position{X: 102, Y: 100},
+	}
+	state := controllerState(base, blocker)
+	assessment := assessThreats(state, progress, definition.RouteHostileNPCIDs, cfg)
+	aim := controller.Tick(context.Background(), route, clear, state, progress, assessment, definition, cfg, combat, state.At)
+	if aim.Failed || controller.stickyTargetUnitID != 0 || len(clear.requests) != 1 ||
+		clear.requests[0].Target.UnitID != blocker.UnitID {
+		t.Fatalf("aim=%+v sticky=%d requests=%+v", aim, controller.stickyTargetUnitID, clear.requests)
+	}
+
+	overlay := world.Monster{
+		NPCID: 999, UnitID: 81,
+		Position: world.Position{X: 102, Y: 100}, IsHovered: true,
+	}
+	clear.result = profile.Result{Status: profile.StatusAction, ActionKind: profile.RouteClearActionAttack}
+	state = controllerState(base.Add(time.Second), blocker, overlay)
+	assessment = assessThreats(state, progress, definition.RouteHostileNPCIDs, cfg)
+	hold := controller.Tick(context.Background(), route, clear, state, progress, assessment, definition, cfg, combat, state.At)
+	if hold.Failed || len(clear.requests) != 2 || clear.requests[1].Target.UnitID != overlay.UnitID ||
+		controller.stickyTargetUnitID != overlay.UnitID {
+		t.Fatalf("hold=%+v sticky=%d requests=%+v", hold, controller.stickyTargetUnitID, clear.requests)
+	}
+}
+
+func TestHammerdinSummonerRouteApproachExhaustionUsesSharedWatchdog(t *testing.T) {
+	base := time.Date(2026, 7, 29, 12, 0, 0, 0, time.UTC)
+	progress, cfg := phase17ThreatProgress(), phase17ThreatConfig()
+	cfg.NoProgressTimeout = 12 * time.Second
+	target := world.Monster{NPCID: world.ArcaneHellClan, UnitID: 133, Position: world.Position{X: 110, Y: 100}}
+	route, clear, combat := controllerRoute(progress), &routeClearMock{}, &mockCombatActions{}
+	pipeline := &runPipeline{
+		definition: controllerDefinition(t), phase: RunPhasePlayRoute,
+		core: pipelineCoreState{routeID: "summoner-route", combat: hammerdinMephistoCombat(), routeCombat: cfg},
+	}
+	deps := Deps{Route: route, RouteClear: clear, Combat: combat}
+
+	state := controllerState(base, target)
+	if result := pipeline.onTravelTick(context.Background(), deps, pipelineStepPlayRoute, state, state.At, base); result.failed {
+		t.Fatalf("initial approach failed: %+v", result)
+	}
+	for failure := 1; failure <= routeThreatApproachMaxFailures; failure++ {
+		state = controllerState(base.Add(time.Duration(failure)*routeThreatApproachSettle), target)
+		result := pipeline.onTravelTick(context.Background(), deps, pipelineStepPlayRoute, state, state.At, base)
+		if result.failed {
+			t.Fatalf("approach failure %d bypassed watchdog: %+v", failure, result)
+		}
+	}
+	if combat.teleportCalls != routeThreatApproachMaxFailures ||
+		pipeline.travel.routeApproachExhaustedUnitID != target.UnitID {
+		t.Fatalf("teleports=%d exhausted=%d", combat.teleportCalls, pipeline.travel.routeApproachExhaustedUnitID)
+	}
+
+	state = controllerState(base.Add(cfg.NoProgressTimeout+time.Second), target)
+	result := pipeline.onTravelTick(context.Background(), deps, pipelineStepPlayRoute, state, state.At, base)
+	if !result.failed || result.reason != string(RouteThreatReasonClearNoProgress) {
+		t.Fatalf("watchdog result=%+v, want %s", result, RouteThreatReasonClearNoProgress)
+	}
+}
+
 func TestSummonerRouteThreatInterleaveNeverTicksRouteOnThreat(t *testing.T) {
 	base := time.Date(2026, 7, 29, 12, 0, 0, 0, time.UTC)
 	progress, cfg := phase17ThreatProgress(), phase17ThreatConfig()
@@ -535,7 +944,7 @@ func TestRouteManaEmergencyContextAndFiveSecondTimeout(t *testing.T) {
 		if !resourceContext.MobilityCritical || !resourceContext.Threatened || !resourceContext.EmergencyMana {
 			t.Fatalf("context at %s = %+v", elapsed, resourceContext)
 		}
-		result := controller.Tick(context.Background(), route, clear, state, progress, assessment, controllerDefinition(t), cfg, "necro_bone_spear", state.At)
+		result := controller.Tick(context.Background(), route, clear, state, progress, assessment, controllerDefinition(t), cfg, CombatConfig{Profile: "necro_bone_spear"}, state.At)
 		if elapsed < 5*time.Second && result.Failed {
 			t.Fatalf("premature failure at %s: %+v", elapsed, result)
 		}
@@ -773,7 +1182,7 @@ func TestRouteThreatTelemetryIsTransitionAndActionBound(t *testing.T) {
 	for i := 0; i < 2; i++ {
 		state := controllerState(base.Add(time.Duration(i)*time.Second), monster)
 		assessment := assessThreats(state, progress, definition.RouteHostileNPCIDs, cfg)
-		result := controller.Tick(context.Background(), route, clear, state, progress, assessment, definition, cfg, "necro_bone_spear", state.At)
+		result := controller.Tick(context.Background(), route, clear, state, progress, assessment, definition, cfg, CombatConfig{Profile: "necro_bone_spear"}, state.At)
 		if result.Failed {
 			t.Fatalf("threat tick %d = %+v", i, result)
 		}
@@ -781,7 +1190,7 @@ func TestRouteThreatTelemetryIsTransitionAndActionBound(t *testing.T) {
 	for i := 2; i < 2+Phase17StableClearSnapshots; i++ {
 		state := controllerState(base.Add(time.Duration(i) * time.Second))
 		assessment := assessThreats(state, progress, definition.RouteHostileNPCIDs, cfg)
-		result := controller.Tick(context.Background(), route, clear, state, progress, assessment, definition, cfg, "necro_bone_spear", state.At)
+		result := controller.Tick(context.Background(), route, clear, state, progress, assessment, definition, cfg, CombatConfig{Profile: "necro_bone_spear"}, state.At)
 		if result.Failed {
 			t.Fatalf("clear tick %d = %+v", i, result)
 		}
@@ -836,7 +1245,7 @@ func TestRouteThreatTelemetryPreservesExecutorActionContext(t *testing.T) {
 	state := controllerState(base, monster)
 	assessment := assessThreats(state, progress, definition.RouteHostileNPCIDs, cfg)
 
-	result := controller.Tick(context.Background(), route, clear, state, progress, assessment, definition, cfg, "necro_bone_spear", base)
+	result := controller.Tick(context.Background(), route, clear, state, progress, assessment, definition, cfg, CombatConfig{Profile: "necro_bone_spear"}, base)
 	if result.Failed {
 		t.Fatalf("threat tick = %+v", result)
 	}

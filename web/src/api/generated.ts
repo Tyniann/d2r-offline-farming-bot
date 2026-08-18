@@ -100,6 +100,8 @@ export interface CharacterSetupProfileDTO {
   bindings_ready: boolean;
   binding_reasons?: Array<string>;
   supported_runs?: Array<string>;
+  default_belt_layout: OperatorBeltLayoutDTO;
+  belt_layout: OperatorBeltLayoutDTO;
 }
 
 export interface CharacterSetupPickitDefaultDTO {
@@ -154,6 +156,7 @@ export interface OperatorCharacterSettingsDTO {
 export interface OperatorProfileBindingsDTO {
   skills?: Record<string, string>;
   belt?: OperatorBeltBindingsDTO;
+  belt_layout?: OperatorBeltLayoutDTO;
 }
 
 export interface OperatorBeltBindingsDTO {
@@ -161,6 +164,13 @@ export interface OperatorBeltBindingsDTO {
   slot_2?: string;
   slot_3?: string;
   slot_4?: string;
+}
+
+export interface OperatorBeltLayoutDTO {
+  slot_1?: "healing" | "mana" | "rejuvenation";
+  slot_2?: "healing" | "mana" | "rejuvenation";
+  slot_3?: "healing" | "mana" | "rejuvenation";
+  slot_4?: "healing" | "mana" | "rejuvenation";
 }
 
 export interface OperatorInventoryLockDTO {

@@ -197,8 +197,16 @@ func New(cfg *config.Config, opts Options) (rt *Runtime, err error) {
 	} else if CharacterLoadoutRequired(opts) {
 		return nil, fmt.Errorf("character loadout required for inventory lock")
 	}
+	// Operator belt_layout overrides combat-profile potion columns for this
+	// runtime only; shared config.yaml defaults stay unchanged for other characters.
+	runtimeCFG := *cfg
+	runtimeCFG.Profiles = cloneProfilesConfig(cfg.Profiles)
+	if err = applyLoadoutBeltLayout(runtimeCFG.Profiles, opts.Loadout); err != nil {
+		return nil, fmt.Errorf("belt layout: %w", err)
+	}
+	cfg = &runtimeCFG
 	if runtimeRunID == string(tasks.RunIDCows) {
-		runCfg.Cow = mapCowConfig(cfg, bindings, inventoryCells)
+		runCfg.Cow = mapCowConfig(cfg, bindings, inventoryCells, combatProfileID)
 	}
 
 	pathingCfg := mapPathingConfig(cfg.Pathing)

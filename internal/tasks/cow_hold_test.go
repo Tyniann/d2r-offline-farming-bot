@@ -597,7 +597,7 @@ func TestCowRouteThreatUsesDedicatedNoProgressReason(t *testing.T) {
 	for index := 0; index < 2; index++ {
 		state := cowHoldState(base.Add(time.Duration(index)*time.Second), uint64(index+1), []world.Monster{cow}, nil)
 		assessment := assessThreats(state, progress, definition.RouteHostileNPCIDs, config)
-		result := controller.Tick(context.Background(), route, clear, state, progress, assessment, definition, config, "necro_bone_spear", state.At)
+		result := controller.Tick(context.Background(), route, clear, state, progress, assessment, definition, config, CombatConfig{Profile: "necro_bone_spear"}, state.At)
 		if index == 0 && result.Failed {
 			t.Fatalf("first tick failed: %+v", result)
 		}
@@ -614,6 +614,35 @@ type cowApproachClear struct {
 
 func (c *cowApproachClear) ObserveRouteClearApproachProgress() {
 	c.confirmedApproaches++
+}
+
+func TestHammerdinCowApproachUsesProfileEngageDistance(t *testing.T) {
+	definition, ok := DefaultRunRegistry().Definition(RunIDCows)
+	if !ok {
+		t.Fatal("Cow definition missing")
+	}
+	now := time.Date(2026, 8, 17, 12, 5, 0, 0, time.UTC)
+	target := world.Monster{NPCID: world.HellBovine, UnitID: 77, Position: world.Position{X: 125, Y: 100}}
+	state := cowHoldState(now, 1, []world.Monster{target}, nil)
+	combat := &mockCombatActions{}
+	pipeline := &runPipeline{
+		definition: definition,
+		core: pipelineCoreState{combat: CombatConfig{
+			Profile: hammerdinCombatProfileID, EngageDistanceTiles: 1,
+		}},
+	}
+
+	result := pipeline.tickRouteThreatApproach(
+		narrowTravelDeps(Deps{Combat: combat}),
+		state,
+		RouteProgress{RouteID: "cow-route", Mode: RouteProgressMovement},
+		target,
+		now,
+	)
+	if result.failed || combat.teleportCalls != 1 || combat.lastDesired != 1 || combat.lastTeleportTarget != target.Position {
+		t.Fatalf("Hammerdin Cow approach result=%+v teleports=%d desired=%v target=%+v",
+			result, combat.teleportCalls, combat.lastDesired, combat.lastTeleportTarget)
+	}
 }
 
 func TestCowDensityProjectionLossUsesBoundedRouteApproach(t *testing.T) {

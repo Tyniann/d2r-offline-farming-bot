@@ -2,6 +2,7 @@ package tasks
 
 import (
 	"context"
+	"math"
 	"time"
 
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/profile"
@@ -12,10 +13,19 @@ import (
 type RouteThreatTickResult struct {
 	State         RouteThreatState
 	AllowMovement bool
-	Failed        bool
-	Reason        RouteThreatReason
+	// StopAttack requests a fail-checked release before a mana hold suppresses
+	// the Hammerdin teleport that would otherwise follow a lost-distance check.
+	StopAttack bool
+	Failed     bool
+	Reason     RouteThreatReason
 	// ApproachTarget identifies the executor-selected living target that could not be projected.
 	ApproachTarget world.Monster
+	// HammerdinReposition requests a teleport toward another living monster
+	// while the controller keeps the previous attack target pinned.
+	HammerdinReposition bool
+	// HammerdinRouteForward identifies the bounded route-direction fallback
+	// used when no nearby alternate monster exists.
+	HammerdinRouteForward bool
 }
 
 // RouteThreatController owns generation-scoped route-clear state and watchdogs.
@@ -31,10 +41,25 @@ type RouteThreatController struct {
 
 	lastTargetUnitID uint32
 	lastTargetMode   profile.RouteClearMode
-	lastEligible     int
-	lastRelevant     int
-	lastCoverage     float64
-	lastComplete     bool
+	// stickyTargetUnitID pins a Hammerdin target only after the LMB hold
+	// actually starts. Aim-only ticks may still accept a different living
+	// monster that Memory confirms under the cursor.
+	stickyTargetUnitID  uint32
+	stickyAttackHeld    bool
+	stickyHoldSnapshots int
+	stickyHoldStartedAt time.Time
+	// A pending reposition target survives Teleport skill selection. The last
+	// target remains excluded so repeated fallbacks keep advancing through the
+	// nearby pack instead of teleporting to the same landing again.
+	stickyRepositionPending      bool
+	stickyRepositionReady        bool
+	stickyRepositionTargetUnitID uint32
+	stickyRepositionPosition     world.Position
+	stickyRepositionRouteForward bool
+	lastEligible                 int
+	lastRelevant                 int
+	lastCoverage                 float64
+	lastComplete                 bool
 
 	outOfRangeUnitID uint32
 	outOfRangeTicks  int
@@ -107,7 +132,9 @@ func (c *RouteThreatController) ObserveResources(state world.State, assessment T
 		Threatened:       assessment.RouteTargetFound,
 		EmergencyMana:    immediateThreat && manaPercent <= cfg.EmergencyManaPercent,
 		// AllowMercenary only while route clear would attack a threat or density target.
-		AllowMercenary:    assessment.RouteTargetFound || (assessment.DensityTargetFound && !assessment.CoverageComplete),
+		AllowMercenary: assessment.RouteTargetFound ||
+			(assessment.DensityTargetFound && !assessment.CoverageComplete) ||
+			c.stickyTargetUnitID != 0,
 		FailOnUnavailable: true,
 	}
 }
@@ -122,7 +149,7 @@ func (c *RouteThreatController) Tick(
 	assessment ThreatAssessment,
 	definition RunDefinition,
 	cfg RouteCombatConfig,
-	profileID string,
+	combat CombatConfig,
 	now time.Time,
 ) RouteThreatTickResult {
 	if ctx.Err() != nil {
@@ -142,7 +169,8 @@ func (c *RouteThreatController) Tick(
 		return c.fail(RouteThreatReasonStateInvalid)
 	}
 
-	needsBlock := assessment.RouteTargetFound || !assessment.CoverageComplete || c.manaRecovery ||
+	stickyTarget, stickyTargetFound := c.hammerdinStickyTarget(state, combat.Profile)
+	needsBlock := assessment.RouteTargetFound || !assessment.CoverageComplete || c.manaRecovery || stickyTargetFound ||
 		definition.ID == RunIDCows && assessment.DensityTargetFound
 	if !c.blocked && !needsBlock {
 		if !c.movementAfter.IsZero() && !state.At.After(c.movementAfter) {
@@ -179,13 +207,13 @@ func (c *RouteThreatController) Tick(
 
 	if !c.blocked {
 		c.beginBlock(state, assessment, now)
-		if err := c.emitClearStarted(state, progress, definition, cfg, profileID, now); err != nil {
+		if err := c.emitClearStarted(state, progress, definition, cfg, combat.Profile, now); err != nil {
 			return c.fail(RouteThreatReasonStateInvalid)
 		}
 	}
 	previousEligible, previousRelevant := c.lastEligible, c.lastRelevant
 	progressTargetUnitID := c.lastTargetUnitID
-	if c.observeObjectiveProgress(state, progress, assessment, definition.RouteHostileNPCIDs, cfg, definition.ID == RunIDCows, now) {
+	if c.observeObjectiveProgress(state, progress, assessment, definition.RouteHostileNPCIDs, cfg, definition.ID == RunIDCows, combat.Profile, now) {
 		if err := c.emitClearProgress(state, progress, assessment, progressTargetUnitID, previousEligible, previousRelevant, now); err != nil {
 			return c.fail(RouteThreatReasonStateInvalid)
 		}
@@ -225,6 +253,11 @@ func (c *RouteThreatController) Tick(
 	}
 
 	target, mode, targetFound := selectRouteClearTarget(state, assessment, cfg)
+	if stickyTargetFound {
+		target = stickyTarget
+		mode = profile.RouteClearThreat
+		targetFound = true
+	}
 	if assessment.RouteTargetFound && !routeTargetWithinAttack(state, assessment.RouteTarget, cfg) && !assessment.DensityTargetFound {
 		if c.observeOutOfRange(assessment.RouteTarget.UnitID) {
 			return c.fail(RouteThreatReasonOutOfRange)
@@ -242,6 +275,58 @@ func (c *RouteThreatController) Tick(
 		c.recordBlockBaseline(state, assessment)
 		return RouteThreatTickResult{State: c.state}
 	}
+	hammerdinApproachRequired := false
+	if combat.Profile == hammerdinCombatProfileID {
+		if stickyTargetFound && c.stickyRepositionPending {
+			if c.manaRecovery {
+				c.state = RouteThreatManaRecovery
+				return RouteThreatTickResult{State: c.state, StopAttack: true}
+			}
+			approachTarget := stickyTarget
+			if c.stickyRepositionRouteForward {
+				approachTarget.Position = c.stickyRepositionPosition
+			} else {
+				var found bool
+				approachTarget, found = state.FindMonsterByUnitID(c.stickyRepositionTargetUnitID)
+				if !found {
+					c.completeHammerdinReposition(false)
+					c.stickyHoldStartedAt = now
+					return RouteThreatTickResult{State: c.State()}
+				}
+			}
+			failed := c.fail(RouteThreatReasonOutOfRange)
+			failed.ApproachTarget = approachTarget
+			failed.HammerdinReposition = true
+			failed.HammerdinRouteForward = c.stickyRepositionRouteForward
+			return failed
+		}
+		distance := world.Distance(state.Player.Position, target.Position)
+		if stickyTargetFound && c.stickyAttackHeld {
+			if !c.stickyHoldStartedAt.IsZero() && now.Sub(c.stickyHoldStartedAt) >= hammerdinAttackWindow {
+				return c.beginHammerdinReposition(state, progress, stickyTarget, definition.RouteHostileNPCIDs)
+			}
+			c.stickyHoldSnapshots++
+			if c.stickyHoldSnapshots >= hammerdinHoldRecheckSnapshots {
+				c.stickyHoldSnapshots = 0
+				hammerdinApproachRequired = distance > hammerdinLostDistanceTiles
+			}
+		} else if !c.stickyRepositionReady {
+			hammerdinApproachRequired = distance > combat.RepositionDistanceTiles
+		}
+	}
+	if hammerdinApproachRequired {
+		c.state = RouteThreatClearing
+		c.recordBlockBaseline(state, assessment)
+		c.stickyAttackHeld = false
+		c.stickyHoldSnapshots = 0
+		if c.manaRecovery {
+			c.state = RouteThreatManaRecovery
+			return RouteThreatTickResult{State: c.state, StopAttack: true}
+		}
+		failed := c.fail(RouteThreatReasonOutOfRange)
+		failed.ApproachTarget = target
+		return failed
+	}
 
 	if mode == profile.RouteClearThreat {
 		c.state = RouteThreatClearing
@@ -256,7 +341,7 @@ func (c *RouteThreatController) Tick(
 	}
 	c.telemetryTargets[target.UnitID] = struct{}{}
 	result := clear.TickRouteClear(ctx, profile.RouteClearRequest{
-		RunID: string(definition.ID), DefinitionID: profileID, Player: state.Player,
+		RunID: string(definition.ID), DefinitionID: combat.Profile, Player: state.Player,
 		Target: target, Mode: mode, AssessmentAt: assessment.SnapshotAt,
 	}, now)
 	if result.Status == profile.StatusPending && result.Reason == profile.RouteClearReasonTargetUnprojectable {
@@ -270,6 +355,7 @@ func (c *RouteThreatController) Tick(
 		// lying outside the directional client viewport. Keep holding without
 		// moving the cursor and require the same fresh-snapshot proof as range.
 		if c.observeOutOfRange(approachTarget.UnitID) {
+			c.stickyRepositionReady = false
 			failed := c.fail(RouteThreatReasonOutOfRange)
 			failed.ApproachTarget = approachTarget
 			return failed
@@ -295,8 +381,22 @@ func (c *RouteThreatController) Tick(
 		if result.ActionKind == profile.RouteClearActionCorpseExplosion {
 			hoverConfirmed = false
 		}
-		if err := c.emitClearAction(state, progress, actionTarget, mode, profileID, result, hoverConfirmed, now); err != nil {
+		if err := c.emitClearAction(state, progress, actionTarget, mode, combat.Profile, result, hoverConfirmed, now); err != nil {
 			return c.fail(RouteThreatReasonStateInvalid)
+		}
+		if combat.Profile == hammerdinCombatProfileID && result.ActionKind == profile.RouteClearActionAttack {
+			if c.stickyTargetUnitID != actionTarget.UnitID {
+				c.stickyRepositionPending = false
+				c.stickyRepositionReady = false
+				c.stickyRepositionTargetUnitID = 0
+				c.stickyRepositionPosition = world.Position{}
+				c.stickyRepositionRouteForward = false
+			}
+			c.stickyTargetUnitID = actionTarget.UnitID
+			c.stickyAttackHeld = true
+			c.stickyRepositionReady = false
+			c.stickyHoldSnapshots = 0
+			c.stickyHoldStartedAt = now
 		}
 	}
 	c.lastTargetUnitID = trackingTarget.UnitID
@@ -371,6 +471,13 @@ func (c *RouteThreatController) ObserveApproachNoProgress(
 	return c.emitApproachProgress(state, progress, target, positionProgress, "approach_no_progress", now)
 }
 
+func (c *RouteThreatController) completeHammerdinReposition(moved bool) {
+	c.stickyRepositionPending = false
+	c.stickyRepositionReady = moved
+	c.stickyRepositionPosition = world.Position{}
+	c.stickyRepositionRouteForward = false
+}
+
 func guardRecoveryInput(state world.State, progress RouteProgress) RouteThreatReason {
 	if !progress.TargetAvailable {
 		return RouteThreatReasonStateInvalid
@@ -401,14 +508,27 @@ func (c *RouteThreatController) beginBlock(state world.State, assessment ThreatA
 	c.lastAssessmentAt = time.Time{}
 	c.lastTargetUnitID = 0
 	c.lastTargetMode = ""
+	c.stickyTargetUnitID = 0
+	c.stickyAttackHeld = false
+	c.stickyHoldSnapshots = 0
+	c.stickyHoldStartedAt = time.Time{}
+	c.stickyRepositionPending = false
+	c.stickyRepositionReady = false
+	c.stickyRepositionTargetUnitID = 0
+	c.stickyRepositionPosition = world.Position{}
+	c.stickyRepositionRouteForward = false
 	c.recordBlockBaseline(state, assessment)
 }
 
-func (c *RouteThreatController) observeObjectiveProgress(state world.State, progress RouteProgress, assessment ThreatAssessment, allowed []uint32, cfg RouteCombatConfig, cowHold bool, now time.Time) bool {
+func (c *RouteThreatController) observeObjectiveProgress(state world.State, progress RouteProgress, assessment ThreatAssessment, allowed []uint32, cfg RouteCombatConfig, cowHold bool, profileID string, now time.Time) bool {
 	targetProgressed := c.lastTargetUnitID != 0 &&
 		!routeClearTargetStillRelevant(state, progress, c.lastTargetUnitID, c.lastTargetMode, allowed, cfg, assessment.CoverageComplete, cowHold)
 	progressed := targetProgressed
-	if assessment.RelevantThreatCount < c.lastRelevant ||
+	if profileID == hammerdinCombatProfileID && c.stickyTargetUnitID != 0 {
+		_, found := state.FindMonsterByUnitID(c.stickyTargetUnitID)
+		targetProgressed = !found
+		progressed = targetProgressed
+	} else if assessment.RelevantThreatCount < c.lastRelevant ||
 		state.MonsterCoverage.EligibleMonsterCount < c.lastEligible ||
 		assessment.CoverageComplete && !c.lastComplete ||
 		state.MonsterCoverage.MonsterCoverageRadiusTiles > c.lastCoverage {
@@ -420,6 +540,15 @@ func (c *RouteThreatController) observeObjectiveProgress(state world.State, prog
 	if targetProgressed {
 		c.lastTargetUnitID = 0
 		c.lastTargetMode = ""
+		c.stickyTargetUnitID = 0
+		c.stickyAttackHeld = false
+		c.stickyHoldSnapshots = 0
+		c.stickyHoldStartedAt = time.Time{}
+		c.stickyRepositionPending = false
+		c.stickyRepositionReady = false
+		c.stickyRepositionTargetUnitID = 0
+		c.stickyRepositionPosition = world.Position{}
+		c.stickyRepositionRouteForward = false
 	}
 	return progressed
 }
@@ -436,6 +565,15 @@ func (c *RouteThreatController) clearBlockTracking() {
 	c.lastProgressAt = time.Time{}
 	c.lastTargetUnitID = 0
 	c.lastTargetMode = ""
+	c.stickyTargetUnitID = 0
+	c.stickyAttackHeld = false
+	c.stickyHoldSnapshots = 0
+	c.stickyHoldStartedAt = time.Time{}
+	c.stickyRepositionPending = false
+	c.stickyRepositionReady = false
+	c.stickyRepositionTargetUnitID = 0
+	c.stickyRepositionPosition = world.Position{}
+	c.stickyRepositionRouteForward = false
 	c.lastEligible = 0
 	c.lastRelevant = 0
 	c.lastCoverage = 0
@@ -446,6 +584,89 @@ func (c *RouteThreatController) clearBlockTracking() {
 	c.telemetryActions = 0
 	c.telemetryDensityActions = 0
 	c.telemetryTargets = nil
+}
+
+func (c *RouteThreatController) hammerdinStickyTarget(state world.State, profileID string) (world.Monster, bool) {
+	if profileID != hammerdinCombatProfileID || c.stickyTargetUnitID == 0 {
+		return world.Monster{}, false
+	}
+	return state.FindMonsterByUnitID(c.stickyTargetUnitID)
+}
+
+func (c *RouteThreatController) beginHammerdinReposition(state world.State, progress RouteProgress, target world.Monster, allowedNPCIDs []uint32) RouteThreatTickResult {
+	repositionTarget, found := selectHammerdinRepositionTarget(state, target, c.stickyRepositionTargetUnitID, allowedNPCIDs)
+	if !found {
+		position, ok := hammerdinRouteForwardPosition(state.Player.Position, progress)
+		if !ok {
+			return RouteThreatTickResult{State: c.State()}
+		}
+		c.stickyAttackHeld = false
+		c.stickyHoldSnapshots = 0
+		c.stickyHoldStartedAt = time.Time{}
+		c.stickyRepositionPending = true
+		c.stickyRepositionReady = false
+		c.stickyRepositionPosition = position
+		c.stickyRepositionRouteForward = true
+		approachTarget := target
+		approachTarget.Position = position
+		failed := c.fail(RouteThreatReasonOutOfRange)
+		failed.ApproachTarget = approachTarget
+		failed.HammerdinReposition = true
+		failed.HammerdinRouteForward = true
+		return failed
+	}
+	c.stickyAttackHeld = false
+	c.stickyHoldSnapshots = 0
+	c.stickyHoldStartedAt = time.Time{}
+	c.stickyRepositionPending = true
+	c.stickyRepositionReady = false
+	c.stickyRepositionTargetUnitID = repositionTarget.UnitID
+	c.stickyRepositionPosition = repositionTarget.Position
+	c.stickyRepositionRouteForward = false
+	failed := c.fail(RouteThreatReasonOutOfRange)
+	failed.ApproachTarget = repositionTarget
+	failed.HammerdinReposition = true
+	return failed
+}
+
+func selectHammerdinRepositionTarget(state world.State, pinned world.Monster, excludedUnitID uint32, allowedNPCIDs []uint32) (world.Monster, bool) {
+	var selected world.Monster
+	var selectedDistance float64
+	for _, candidate := range state.Monsters {
+		if candidate.UnitID == 0 || candidate.UnitID == pinned.UnitID || candidate.UnitID == excludedUnitID ||
+			!routeHostileAllowed(candidate.NPCID, allowedNPCIDs) {
+			continue
+		}
+		if world.Distance(pinned.Position, candidate.Position) > hammerdinRepositionMaxTargetDistanceTiles {
+			continue
+		}
+		distance := positionDistanceSquared(state.Player.Position, candidate.Position)
+		if distance <= 1 {
+			continue
+		}
+		if selected.UnitID == 0 || distance < selectedDistance ||
+			(distance == selectedDistance && candidate.UnitID < selected.UnitID) {
+			selected = candidate
+			selectedDistance = distance
+		}
+	}
+	return selected, selected.UnitID != 0
+}
+
+func hammerdinRouteForwardPosition(player world.Position, progress RouteProgress) (world.Position, bool) {
+	if !progress.TargetAvailable {
+		return world.Position{}, false
+	}
+	distance := world.Distance(player, progress.MovementTarget)
+	if distance <= routeThreatApproachProgressEpsilonTiles {
+		return world.Position{}, false
+	}
+	step := math.Min(distance, hammerdinRouteForwardDistanceTiles)
+	scale := step / distance
+	return world.Position{
+		X: uint32(math.Round(float64(player.X) + (float64(progress.MovementTarget.X)-float64(player.X))*scale)),
+		Y: uint32(math.Round(float64(player.Y) + (float64(progress.MovementTarget.Y)-float64(player.Y))*scale)),
+	}, true
 }
 
 func (c *RouteThreatController) fail(reason RouteThreatReason) RouteThreatTickResult {

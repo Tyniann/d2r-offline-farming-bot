@@ -15,6 +15,7 @@ type CharacterLoadoutSnapshot struct {
 	ProfileID           string
 	Revision            uint64
 	Bindings            configBindingSource // cast buttons follow the frozen profile slot contract
+	BeltLayout          OperatorBeltLayout  // empty means combat-profile YAML defaults
 	BindingsComplete    bool
 	InventoryConfigured bool
 	InventoryGrid       [][]int // defensive copy; nil when unconfigured
@@ -71,6 +72,7 @@ func (r *CharacterLoadoutResolver) Resolve(character string) (CharacterLoadoutSn
 		ProfileID:           profileID,
 		Revision:            settings.Revision,
 		Bindings:            source,
+		BeltLayout:          bindings.BeltLayout,
 		BindingsComplete:    ProfileBindingsComplete(bindings, profile),
 		InventoryConfigured: value.InventoryLock != nil,
 	}

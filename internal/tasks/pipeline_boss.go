@@ -389,13 +389,18 @@ func (c *runPipeline) tickEngageTarget(deps pipelineBossDeps, w world.State, tar
 const (
 	hammerdinEngageNoProgressTimeout = 25 * time.Second
 	hammerdinEngageMaxTeleports      = 12
+	// hammerdinAttackWindow bounds one stationary hold before the pinned target
+	// is attacked again from another living monster in the pack.
+	hammerdinAttackWindow = 2 * time.Second
 	// hammerdinHoldRecheckSnapshots is how many World snapshots stay ignored
 	// while LMB remains down before the next distance check.
 	hammerdinHoldRecheckSnapshots = 3
 	// hammerdinLostDistanceTiles releases an active hold only after the
 	// Paladin has actually left melee, not after one boss step.
-	hammerdinLostDistanceTiles = 5
-	hammerdinCombatProfileID   = "paladin_hammerdin"
+	hammerdinLostDistanceTiles                = 5
+	hammerdinRepositionMaxTargetDistanceTiles = 18
+	hammerdinRouteForwardDistanceTiles        = 8
+	hammerdinCombatProfileID                  = "paladin_hammerdin"
 )
 
 func (c *runPipeline) hammerdinBossCombat() bool {
@@ -413,8 +418,24 @@ func (c *runPipeline) tickHammerdinEngageTarget(deps pipelineBossDeps, w world.S
 		}
 		return stepResult{failed: true, reason: string(RunReasonBossCombatNoProgress)}
 	}
+	if c.boss.hammerdinRepositionPending {
+		return c.tickHammerdinBossReposition(deps, w, now)
+	}
 	distance := world.Distance(w.Player.Position, target.Position)
 	if c.boss.hammerdinAttackHeld {
+		if !c.boss.hammerdinHoldStartedAt.IsZero() && now.Sub(c.boss.hammerdinHoldStartedAt) >= hammerdinAttackWindow {
+			repositionTarget, found := selectHammerdinBossRepositionTarget(w, target, c.boss.hammerdinRepositionTargetUnitID)
+			if !found {
+				c.boss.hammerdinHoldStartedAt = now
+				return stepResult{}
+			}
+			if stop := c.stopCombatAttack(deps); stop.failed {
+				return stop
+			}
+			c.boss.hammerdinRepositionPending = true
+			c.boss.hammerdinRepositionTargetUnitID = repositionTarget.UnitID
+			return stepResult{}
+		}
 		c.boss.hammerdinHoldSnapshots++
 		if c.boss.hammerdinHoldSnapshots < hammerdinHoldRecheckSnapshots {
 			return stepResult{}
@@ -428,10 +449,9 @@ func (c *runPipeline) tickHammerdinEngageTarget(deps pipelineBossDeps, w world.S
 			// dying; a same-tick teleport looks like a walk off the corpse.
 			return stepResult{}
 		}
-		c.boss.engageLastProgressAt = now
 		return stepResult{}
 	}
-	if distance > c.core.combat.RepositionDistanceTiles {
+	if distance > c.core.combat.RepositionDistanceTiles && !c.boss.hammerdinRepositionReady {
 		return c.teleportHammerdinToTarget(deps, w, target, now)
 	}
 	attackTarget := target
@@ -442,6 +462,10 @@ func (c *runPipeline) tickHammerdinEngageTarget(deps pipelineBossDeps, w world.S
 	}
 	result, err := deps.Combat.HoldStandardAttack(now, c.core.combat.AttackSkillID, w.Player, attackTarget)
 	if err != nil {
+		if c.boss.hammerdinRepositionReady && errors.Is(err, profile.ErrRouteClearTargetUnprojectable) {
+			c.boss.hammerdinRepositionReady = false
+			return stepResult{}
+		}
 		return stepResult{failed: true, reason: "combat_action_failed"}
 	}
 	if result.AimRequested {
@@ -449,8 +473,9 @@ func (c *runPipeline) tickHammerdinEngageTarget(deps pipelineBossDeps, w world.S
 	}
 	if result.Sent {
 		c.boss.hammerdinAttackHeld = true
+		c.boss.hammerdinRepositionReady = false
 		c.boss.hammerdinHoldSnapshots = 0
-		c.boss.engageLastProgressAt = now
+		c.boss.hammerdinHoldStartedAt = now
 	}
 	return stepResult{}
 }
@@ -478,6 +503,77 @@ func (c *runPipeline) teleportHammerdinToTarget(deps pipelineBossDeps, w world.S
 	return stepResult{}
 }
 
+func (c *runPipeline) tickHammerdinBossReposition(deps pipelineBossDeps, w world.State, now time.Time) stepResult {
+	repositionTarget, found := w.FindMonsterByUnitID(c.boss.hammerdinRepositionTargetUnitID)
+	if !found {
+		c.clearHammerdinBossReposition(false)
+		return stepResult{}
+	}
+	if c.boss.hammerdinRepositionSent {
+		if !w.At.After(c.boss.hammerdinRepositionSnapshot) {
+			return stepResult{}
+		}
+		if world.Distance(c.boss.hammerdinRepositionOrigin, w.Player.Position) > routeThreatApproachProgressEpsilonTiles {
+			c.clearHammerdinBossReposition(true)
+			return stepResult{}
+		}
+		if now.Sub(c.boss.hammerdinRepositionAt) < routeThreatApproachSettle {
+			return stepResult{}
+		}
+		// A blocked landing does not terminate the fight. The next attack
+		// window may choose another monster while the boss stays pinned.
+		c.clearHammerdinBossReposition(false)
+		return stepResult{}
+	}
+	sent, err := deps.Combat.TeleportToward(now, w.Player, repositionTarget.Position, c.core.combat.EngageDistanceTiles)
+	if err != nil {
+		return stepResult{failed: true, reason: "combat_action_failed"}
+	}
+	if sent {
+		c.boss.engageTeleportCount++
+		if c.boss.engageTeleportCount >= hammerdinEngageMaxTeleports {
+			return stepResult{failed: true, reason: string(RunReasonBossCombatNoProgress)}
+		}
+		c.boss.hammerdinRepositionSent = true
+		c.boss.hammerdinRepositionOrigin = w.Player.Position
+		c.boss.hammerdinRepositionAt = now
+		c.boss.hammerdinRepositionSnapshot = w.At
+	}
+	return stepResult{}
+}
+
+func selectHammerdinBossRepositionTarget(state world.State, pinned world.Monster, excludedUnitID uint32) (world.Monster, bool) {
+	var selected world.Monster
+	var selectedDistance float64
+	for _, candidate := range state.Monsters {
+		if candidate.UnitID == 0 || candidate.UnitID == pinned.UnitID || candidate.UnitID == excludedUnitID {
+			continue
+		}
+		if world.Distance(pinned.Position, candidate.Position) > hammerdinRepositionMaxTargetDistanceTiles {
+			continue
+		}
+		distance := positionDistanceSquared(state.Player.Position, candidate.Position)
+		if distance <= 1 {
+			continue
+		}
+		if selected.UnitID == 0 || distance < selectedDistance ||
+			(distance == selectedDistance && candidate.UnitID < selected.UnitID) {
+			selected = candidate
+			selectedDistance = distance
+		}
+	}
+	return selected, selected.UnitID != 0
+}
+
+func (c *runPipeline) clearHammerdinBossReposition(moved bool) {
+	c.boss.hammerdinRepositionPending = false
+	c.boss.hammerdinRepositionSent = false
+	c.boss.hammerdinRepositionReady = moved
+	c.boss.hammerdinRepositionOrigin = world.Position{}
+	c.boss.hammerdinRepositionAt = time.Time{}
+	c.boss.hammerdinRepositionSnapshot = time.Time{}
+}
+
 func (c *runPipeline) stopCombatAttack(deps pipelineBossDeps) stepResult {
 	if deps.Combat != nil {
 		if err := deps.Combat.StopAttack(); err != nil {
@@ -486,6 +582,7 @@ func (c *runPipeline) stopCombatAttack(deps pipelineBossDeps) stepResult {
 	}
 	c.boss.hammerdinAttackHeld = false
 	c.boss.hammerdinHoldSnapshots = 0
+	c.boss.hammerdinHoldStartedAt = time.Time{}
 	return stepResult{}
 }
 
@@ -495,6 +592,14 @@ func (c *runPipeline) resetHammerdinEngage() {
 	c.boss.engageTeleportCount = 0
 	c.boss.hammerdinAttackHeld = false
 	c.boss.hammerdinHoldSnapshots = 0
+	c.boss.hammerdinHoldStartedAt = time.Time{}
+	c.boss.hammerdinRepositionPending = false
+	c.boss.hammerdinRepositionSent = false
+	c.boss.hammerdinRepositionReady = false
+	c.boss.hammerdinRepositionTargetUnitID = 0
+	c.boss.hammerdinRepositionOrigin = world.Position{}
+	c.boss.hammerdinRepositionAt = time.Time{}
+	c.boss.hammerdinRepositionSnapshot = time.Time{}
 }
 
 func (c *runPipeline) tickNihlathakEngageTarget(deps pipelineBossDeps, w world.State, target world.Monster, now time.Time) stepResult {

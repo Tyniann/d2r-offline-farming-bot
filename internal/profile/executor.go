@@ -95,10 +95,24 @@ func (e *Executor) SetTelemetry(sink Telemetry) {
 	}
 }
 
-// ConfigureRouteClear binds one validated code-backed strategy, its one-time
-// opener, and its regular attack to the movement-free combat surface.
+// ConfigureRouteClear binds one validated code-backed strategy, its optional
+// one-time opener, and its regular attack to the movement-free combat surface.
+// Necromancer Summoner/Cow require Amplify Damage as opener; Hammerdin
+// Summoner passes openerSkillID 0 and attacks only with Blessed Hammer.
 func (e *Executor) ConfigureRouteClear(strategy RouteClearStrategy, openerSkillID, attackSkillID uint16, actions RouteCombatActions) error {
-	if e == nil || e.definition.ID != "necro_bone_spear" || strategy != RouteClearSingleTarget || openerSkillID == 0 || attackSkillID == 0 || actions == nil {
+	if e == nil || strategy != RouteClearSingleTarget || attackSkillID == 0 || actions == nil {
+		return fmt.Errorf("profile route clear requires single_target, attack skill, and combat actions")
+	}
+	switch e.definition.ID {
+	case "necro_bone_spear":
+		if openerSkillID == 0 {
+			return fmt.Errorf("profile route clear requires single_target, opener skill, attack skill, and combat actions")
+		}
+	case "paladin_hammerdin":
+		if openerSkillID != 0 {
+			return fmt.Errorf("hammerdin route clear does not use a curse opener")
+		}
+	default:
 		return fmt.Errorf("profile route clear requires single_target, opener skill, attack skill, and combat actions")
 	}
 	e.routeClear = routeClearExecutor{
@@ -487,7 +501,7 @@ func (e *Executor) TickRouteClear(ctx context.Context, request RouteClearRequest
 		return Result{Status: StatusFailed, Reason: "profile_cancelled"}
 	}
 	if e.routeClear.strategy != RouteClearSingleTarget || e.routeClear.actions == nil ||
-		e.routeClear.openerSkillID == 0 || e.routeClear.attackSkillID == 0 {
+		e.routeClear.attackSkillID == 0 {
 		return Result{Status: StatusFailed, Reason: "route_clear_strategy_unavailable"}
 	}
 	if request.Target.UnitID == 0 || request.Target.Position.X == 0 || request.Target.Position.Y == 0 || request.AssessmentAt.IsZero() {
@@ -495,7 +509,7 @@ func (e *Executor) TickRouteClear(ctx context.Context, request RouteClearRequest
 	}
 	skillID := e.routeClear.attackSkillID
 	actionKind := RouteClearActionAttack
-	if request.Mode == RouteClearThreat && !e.routeClear.openerDone {
+	if request.Mode == RouteClearThreat && !e.routeClear.openerDone && e.routeClear.openerSkillID != 0 {
 		skillID = e.routeClear.openerSkillID
 		actionKind = RouteClearActionCurse
 	}

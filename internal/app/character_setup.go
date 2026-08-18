@@ -45,6 +45,10 @@ type CharacterSetupProfile struct {
 	BindingsReady      bool
 	BindingReasons     []string
 	SupportedRuns      []string
+	// DefaultBeltLayout is derived from combat_profiles.*.resources belt columns.
+	DefaultBeltLayout OperatorBeltLayout
+	// BeltLayout is the effective operator override or DefaultBeltLayout.
+	BeltLayout OperatorBeltLayout
 }
 
 // CharacterSetupRequiredSkill is one ordered, labeled profile skill for read-only Setup/API.
@@ -308,6 +312,8 @@ func (s *CharacterSetupService) buildPreview(catalog CharacterCatalog, settings 
 				BindingsReady:     ProfileBindingsComplete(bindings, profile),
 				SupportedRuns:     DefaultCombatStrategyRegistry().SupportedRuns(id),
 			}
+			setupProfile.DefaultBeltLayout = EffectiveBeltLayout(OperatorBeltLayout{}, profile.Resources)
+			setupProfile.BeltLayout = EffectiveBeltLayout(bindings.BeltLayout, profile.Resources)
 			if !setupProfile.BindingsReady {
 				setupProfile.BindingReasons = []string{string(QueueReasonProfileBindingsIncomplete)}
 			}

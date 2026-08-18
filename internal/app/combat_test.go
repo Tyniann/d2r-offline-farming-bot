@@ -460,16 +460,17 @@ func TestCombatAdapterReconfirmsConcentrationAfterTeleportBeforeHammer(t *testin
 		RightSkillID: memory.SkillTeleport,
 	}
 
-	boss := hammerdinBoss(true)
+	boss := hammerdinBoss(false)
 	sent, err := adapter.HoldStandardAttack(now, hammer, player, boss)
 	if err != nil || sent.Sent {
 		t.Fatalf("concentration select sent=%t err=%v, want no hammer", sent.Sent, err)
 	}
-	if in.selectCalls != 1 || in.lastSkill != concentration || len(in.holds) != 0 || len(in.clickCalls) != 0 {
-		t.Fatalf("selects=%d last=%d holds=%v clicks=%v, want Concentration then no hold", in.selectCalls, in.lastSkill, in.holds, in.clickCalls)
+	if in.selectCalls != 1 || in.lastSkill != concentration || in.moveCalls != 1 || len(in.holds) != 0 || len(in.clickCalls) != 0 {
+		t.Fatalf("selects=%d last=%d moves=%d holds=%v clicks=%v, want Concentration and overlapped aim", in.selectCalls, in.lastSkill, in.moveCalls, in.holds, in.clickCalls)
 	}
 
 	player.RightSkillID = concentration
+	boss.IsHovered = true
 	sent, err = adapter.HoldStandardAttack(now.Add(400*time.Millisecond), hammer, player, boss)
 	if err != nil || !sent.Sent {
 		t.Fatalf("hammer after aura sent=%t err=%v", sent.Sent, err)
@@ -500,5 +501,49 @@ func TestCombatAdapterFailsWhenLeftSkillSelectionIsNotConfirmed(t *testing.T) {
 	}
 	if len(in.holds) != 0 || len(in.clickCalls) != 0 {
 		t.Fatalf("holds=%v clicks=%v, want none while LeftSkillID stays unconfirmed", in.holds, in.clickCalls)
+	}
+}
+
+func TestCombatAdapterCastAttackAtMonsterHoldsLeftMouseBlessedHammer(t *testing.T) {
+	in := &recordingCombatInput{}
+	adapter := newCombatAdapter(config.NewLogger("error"), in, hammerdinCombatBindings(), pathing.DefaultConfig(), 350*time.Millisecond)
+	hammer := memory.MustSkillID("blessed_hammer")
+	player := world.Player{
+		Position:     world.Position{X: 100, Y: 100},
+		LeftSkillID:  hammer,
+		RightSkillID: memory.MustSkillID("concentration"),
+	}
+	target := world.Monster{UnitID: 11, NPCID: world.ArcaneSpecter, Position: world.Position{X: 102, Y: 100}, IsHovered: true}
+
+	result, err := adapter.CastAttackAtMonster(time.Now(), hammer, player, target)
+	if err != nil || !result.Sent || result.TargetingMode != profile.MonsterTargetingHoverConfirmed {
+		t.Fatalf("route-clear hammer=%+v err=%v, want LMB hold", result, err)
+	}
+	if len(in.holds) != 1 || in.holds[0].button != input.MouseLeft || len(in.clickCalls) != 0 {
+		t.Fatalf("holds=%v clicks=%v, want one LMB hold", in.holds, in.clickCalls)
+	}
+}
+
+func TestCombatAdapterRetargetsHammerHoldWhenUnitChanges(t *testing.T) {
+	in := &recordingCombatInput{}
+	adapter := newCombatAdapter(config.NewLogger("error"), in, hammerdinCombatBindings(), pathing.DefaultConfig(), 350*time.Millisecond)
+	hammer := memory.MustSkillID("blessed_hammer")
+	player := world.Player{
+		Position:     world.Position{X: 100, Y: 100},
+		LeftSkillID:  hammer,
+		RightSkillID: memory.MustSkillID("concentration"),
+	}
+	first := world.Monster{UnitID: 11, NPCID: world.ArcaneSpecter, Position: world.Position{X: 102, Y: 100}, IsHovered: true}
+	next := world.Monster{UnitID: 22, NPCID: world.ArcaneHellClan, Position: world.Position{X: 101, Y: 100}, IsHovered: true}
+	now := time.Now()
+
+	if result, err := adapter.HoldStandardAttack(now, hammer, player, first); err != nil || !result.Sent {
+		t.Fatalf("first hold=%+v err=%v", result, err)
+	}
+	if result, err := adapter.HoldStandardAttack(now.Add(400*time.Millisecond), hammer, player, next); err != nil || !result.Sent {
+		t.Fatalf("retarget hold=%+v err=%v", result, err)
+	}
+	if in.releaseCalls != 1 || len(in.holds) != 2 {
+		t.Fatalf("releases=%d holds=%d, want release then second hold", in.releaseCalls, len(in.holds))
 	}
 }

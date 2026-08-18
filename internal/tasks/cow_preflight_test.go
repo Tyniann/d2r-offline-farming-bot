@@ -37,7 +37,7 @@ func TestCowPreflightMatrix(t *testing.T) {
 			}
 		}, want: CowReasonInventorySpaceMissing},
 		{name: "portal tome", mutate: func(_ *CowConfig, state *world.State) { state.Items = state.Items[:1] }, want: CowReasonReturnPortalUnavailable},
-		{name: "combat skill", mutate: func(cfg *CowConfig, _ *world.State) { cfg.HasCorpseExplosion = false }, want: CowReasonCombatSkillMissing},
+		{name: "combat skill", mutate: func(cfg *CowConfig, _ *world.State) { cfg.RequiredSkillsReady = false }, want: CowReasonCombatSkillMissing},
 		{name: "route capability", mutate: func(cfg *CowConfig, _ *world.State) { cfg.HasTownServices = false }, want: CowReasonCapabilityMissing},
 	}
 	for _, test := range tests {
@@ -51,6 +51,18 @@ func TestCowPreflightMatrix(t *testing.T) {
 				t.Fatalf("reason=%q, want %q", got, test.want)
 			}
 		})
+	}
+}
+
+func TestCowPreflightUsesConfiguredProfileClass(t *testing.T) {
+	cfg, state := validCowPreflightFixture()
+	cfg.Character = "MrHammer"
+	cfg.ExpectedClass = world.CharacterClassPaladin
+	state.Identity.CharacterName = "MrHammer"
+	state.Identity.Class = world.CharacterClassPaladin
+
+	if reason, _ := evaluateCowPreflight(cfg, state, "setup", "sweep", 1280, 720); reason != "" {
+		t.Fatalf("Paladin Cow preflight reason=%q", reason)
 	}
 }
 
@@ -117,8 +129,9 @@ func TestCowPreflightFailureSendsNoAutomaticInput(t *testing.T) {
 
 func validCowPreflightFixture() (CowConfig, world.State) {
 	cfg := CowConfig{
-		Character: "MrBones", Difficulty: "hell", ClientWidth: 1280, ClientHeight: 720,
-		HasTownPortal: true, HasTeleport: true, HasAmplifyDamage: true, HasCorpseExplosion: true, HasBoneSpear: true, HasTownServices: true,
+		Character: "MrBones", ExpectedClass: world.CharacterClassNecromancer, ExpectedClassKnown: true,
+		Difficulty: "hell", ClientWidth: 1280, ClientHeight: 720,
+		HasTownPortal: true, HasTeleport: true, RequiredSkillsReady: true, HasTownServices: true,
 	}
 	for row := 0; row < 2; row++ {
 		for col := 0; col < 2; col++ {

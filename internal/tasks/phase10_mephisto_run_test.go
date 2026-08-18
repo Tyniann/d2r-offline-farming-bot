@@ -418,6 +418,142 @@ func TestHammerdinEngageKeepsHoldUntilRecheckThenTeleports(t *testing.T) {
 	}
 }
 
+func TestHammerdinEngageRepositionsThroughOtherMonstersWhenLandingBlocks(t *testing.T) {
+	definition, _ := DefaultRunRegistry().Definition(RunIDMephisto)
+	target := mephistoMonster(4242)
+	next := world.Monster{NPCID: 243, UnitID: 5001, Position: world.Position{X: 17575, Y: 8066}}
+	third := world.Monster{NPCID: 244, UnitID: 5002, Position: world.Position{X: 17582, Y: 8066}}
+	combat := &mockCombatActions{}
+	pipeline := &runPipeline{
+		definition: definition,
+		boss: pipelineBossState{
+			targetSeen:           true,
+			targetUnitID:         target.UnitID,
+			encounterActionIndex: len(definition.BossEngageSequence),
+		},
+		core: pipelineCoreState{combat: hammerdinMephistoCombat()},
+	}
+	base := time.Date(2026, 8, 17, 13, 0, 0, 0, time.UTC)
+	state := closeMephistoState(target, next, third)
+	state.At = base
+	if result := pipeline.onBossTick(context.Background(), Deps{Combat: combat}, pipelineStepEngageBoss, state, base); result.failed {
+		t.Fatalf("initial hold failed: %+v", result)
+	}
+
+	state.At = base.Add(hammerdinAttackWindow)
+	if result := pipeline.onBossTick(context.Background(), Deps{Combat: combat}, pipelineStepEngageBoss, state, state.At); result.failed {
+		t.Fatalf("first fallback start failed: %+v", result)
+	}
+	if combat.stopCalls != 1 || combat.teleportCalls != 0 {
+		t.Fatalf("first fallback stops=%d teleports=%d, want release-only tick", combat.stopCalls, combat.teleportCalls)
+	}
+	state.At = state.At.Add(time.Millisecond)
+	if result := pipeline.onBossTick(context.Background(), Deps{Combat: combat}, pipelineStepEngageBoss, state, state.At); result.failed {
+		t.Fatalf("first fallback teleport failed: %+v", result)
+	}
+	if combat.teleportCalls != 1 || combat.lastDesired != 1 || combat.lastTeleportTarget != next.Position {
+		t.Fatalf("first fallback teleports=%d desired=%.0f target=%+v, want %+v",
+			combat.teleportCalls, combat.lastDesired, combat.lastTeleportTarget, next.Position)
+	}
+
+	// No player movement at settle means the terrain rejected candidate 1.
+	state.At = state.At.Add(routeThreatApproachSettle)
+	if result := pipeline.onBossTick(context.Background(), Deps{Combat: combat}, pipelineStepEngageBoss, state, state.At); result.failed {
+		t.Fatalf("blocked landing settle failed: %+v", result)
+	}
+	state.At = state.At.Add(time.Millisecond)
+	if result := pipeline.onBossTick(context.Background(), Deps{Combat: combat}, pipelineStepEngageBoss, state, state.At); result.failed {
+		t.Fatalf("second hold failed: %+v", result)
+	}
+	state.At = state.At.Add(hammerdinAttackWindow)
+	if result := pipeline.onBossTick(context.Background(), Deps{Combat: combat}, pipelineStepEngageBoss, state, state.At); result.failed {
+		t.Fatalf("second fallback start failed: %+v", result)
+	}
+	state.At = state.At.Add(time.Millisecond)
+	if result := pipeline.onBossTick(context.Background(), Deps{Combat: combat}, pipelineStepEngageBoss, state, state.At); result.failed {
+		t.Fatalf("second fallback teleport failed: %+v", result)
+	}
+	if combat.teleportCalls != 2 || combat.lastDesired != 1 || combat.lastTeleportTarget != third.Position {
+		t.Fatalf("second fallback teleports=%d desired=%.0f target=%+v, want %+v",
+			combat.teleportCalls, combat.lastDesired, combat.lastTeleportTarget, third.Position)
+	}
+}
+
+func TestHammerdinEngageAttacksPinnedBossBeforeReturningAfterReposition(t *testing.T) {
+	definition, _ := DefaultRunRegistry().Definition(RunIDMephisto)
+	target := mephistoMonster(4242)
+	next := world.Monster{NPCID: 243, UnitID: 5001, Position: world.Position{X: 17575, Y: 8066}}
+	combat := &mockCombatActions{}
+	pipeline := &runPipeline{
+		definition: definition,
+		boss: pipelineBossState{
+			targetSeen:           true,
+			targetUnitID:         target.UnitID,
+			encounterActionIndex: len(definition.BossEngageSequence),
+		},
+		core: pipelineCoreState{combat: hammerdinMephistoCombat()},
+	}
+	base := time.Date(2026, 8, 17, 13, 0, 0, 0, time.UTC)
+	state := closeMephistoState(target, next)
+	state.At = base
+	if result := pipeline.onBossTick(context.Background(), Deps{Combat: combat}, pipelineStepEngageBoss, state, state.At); result.failed {
+		t.Fatalf("initial hold failed: %+v", result)
+	}
+	state.At = base.Add(hammerdinAttackWindow)
+	if result := pipeline.onBossTick(context.Background(), Deps{Combat: combat}, pipelineStepEngageBoss, state, state.At); result.failed {
+		t.Fatalf("fallback start failed: %+v", result)
+	}
+	state.At = state.At.Add(time.Millisecond)
+	if result := pipeline.onBossTick(context.Background(), Deps{Combat: combat}, pipelineStepEngageBoss, state, state.At); result.failed {
+		t.Fatalf("fallback teleport failed: %+v", result)
+	}
+
+	state.At = base.Add(hammerdinAttackWindow + 100*time.Millisecond)
+	state.Player.Position = world.Position{X: 17574, Y: 8066}
+	if result := pipeline.onBossTick(context.Background(), Deps{Combat: combat}, pipelineStepEngageBoss, state, state.At); result.failed {
+		t.Fatalf("fallback progress failed: %+v", result)
+	}
+	state.At = base.Add(hammerdinAttackWindow + 200*time.Millisecond)
+	if result := pipeline.onBossTick(context.Background(), Deps{Combat: combat}, pipelineStepEngageBoss, state, state.At); result.failed {
+		t.Fatalf("pinned boss attack failed: %+v", result)
+	}
+	if combat.teleportCalls != 1 || combat.holdCalls != 2 || combat.lastMonsterUnitID != target.UnitID {
+		t.Fatalf("teleports=%d holds=%d target=%d, want pinned boss attacked before return", combat.teleportCalls, combat.holdCalls, combat.lastMonsterUnitID)
+	}
+}
+
+func TestHammerdinEngageInRangeHoldDoesNotRefreshNoProgressWatchdog(t *testing.T) {
+	definition, _ := DefaultRunRegistry().Definition(RunIDMephisto)
+	target := mephistoMonster(4242)
+	combat := &mockCombatActions{}
+	pipeline := &runPipeline{
+		definition: definition,
+		boss: pipelineBossState{
+			targetSeen:           true,
+			targetUnitID:         target.UnitID,
+			encounterActionIndex: len(definition.BossEngageSequence),
+		},
+		core: pipelineCoreState{combat: hammerdinMephistoCombat()},
+	}
+	base := time.Date(2026, 8, 17, 13, 0, 0, 0, time.UTC)
+	state := closeMephistoState(target)
+	state.At = base
+	if result := pipeline.onBossTick(context.Background(), Deps{Combat: combat}, pipelineStepEngageBoss, state, base); result.failed {
+		t.Fatalf("initial hold failed: %+v", result)
+	}
+	for snapshot := 1; snapshot <= hammerdinHoldRecheckSnapshots; snapshot++ {
+		state.At = base.Add(time.Duration(snapshot) * 100 * time.Millisecond)
+		if result := pipeline.onBossTick(context.Background(), Deps{Combat: combat}, pipelineStepEngageBoss, state, state.At); result.failed {
+			t.Fatalf("hold recheck %d failed: %+v", snapshot, result)
+		}
+	}
+	state.At = base.Add(hammerdinEngageNoProgressTimeout)
+	result := pipeline.onBossTick(context.Background(), Deps{Combat: combat}, pipelineStepEngageBoss, state, state.At)
+	if !result.failed || result.reason != string(RunReasonBossCombatNoProgress) || combat.stopCalls != 1 {
+		t.Fatalf("timeout result=%+v stops=%d, want boss_combat_no_progress", result, combat.stopCalls)
+	}
+}
+
 func TestHammerdinEngageFailsAfterTeleportBudget(t *testing.T) {
 	definition, _ := DefaultRunRegistry().Definition(RunIDMephisto)
 	target := mephistoMonster(4242)

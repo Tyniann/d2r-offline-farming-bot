@@ -26,6 +26,8 @@ type CharacterSetupProfileDTO struct {
 	BindingsReady      bool                                 `json:"bindings_ready"`
 	BindingReasons     []string                             `json:"binding_reasons,omitempty"`
 	SupportedRuns      []string                             `json:"supported_runs,omitempty"`
+	DefaultBeltLayout  OperatorBeltLayoutDTO                `json:"default_belt_layout"`
+	BeltLayout         OperatorBeltLayoutDTO                `json:"belt_layout"`
 }
 
 // CharacterSetupRequiredSkillDTO is one ordered required skill for read-only Setup UI.
@@ -117,6 +119,8 @@ func characterSetupPreviewDTO(value app.CharacterSetupPreview) CharacterSetupPre
 			StandardAttack: profile.StandardAttack, RequiredSkills: skills, OptionalSkillPairs: optionalPairs,
 			RequiresMercenary: profile.RequiresMercenary, BindingsReady: profile.BindingsReady,
 			BindingReasons: append([]string(nil), profile.BindingReasons...), SupportedRuns: append([]string(nil), profile.SupportedRuns...),
+			DefaultBeltLayout: OperatorBeltLayoutDTO(profile.DefaultBeltLayout),
+			BeltLayout:        OperatorBeltLayoutDTO(profile.BeltLayout),
 		}
 	}
 	defaults := make([]CharacterSetupPickitDefaultDTO, len(value.PickitDefaults))

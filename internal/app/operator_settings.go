@@ -51,10 +51,11 @@ type OperatorCharacterSettings struct {
 	InventoryLock   *OperatorInventoryLock             `yaml:"inventory_lock,omitempty" json:"inventory_lock,omitempty"`
 }
 
-// OperatorProfileBindings stores skill F-keys and belt keys for one combat profile.
+// OperatorProfileBindings stores skill F-keys, belt keys and potion columns for one combat profile.
 type OperatorProfileBindings struct {
-	Skills map[string]string    `yaml:"skills,omitempty" json:"skills,omitempty"` // canonical skill key -> f1..f8
-	Belt   OperatorBeltBindings `yaml:"belt,omitempty" json:"belt,omitempty"`
+	Skills     map[string]string    `yaml:"skills,omitempty" json:"skills,omitempty"` // canonical skill key -> f1..f8
+	Belt       OperatorBeltBindings `yaml:"belt,omitempty" json:"belt,omitempty"`
+	BeltLayout OperatorBeltLayout   `yaml:"belt_layout,omitempty" json:"belt_layout,omitempty"`
 }
 
 // OperatorBeltBindings stores optional belt slot keys for one combat profile.
@@ -680,7 +681,7 @@ func cloneOperatorProfileBindings(bindings map[string]OperatorProfileBindings) m
 	}
 	clone := make(map[string]OperatorProfileBindings, len(bindings))
 	for profileID, value := range bindings {
-		cloned := OperatorProfileBindings{Belt: value.Belt}
+		cloned := OperatorProfileBindings{Belt: value.Belt, BeltLayout: value.BeltLayout}
 		if value.Skills != nil {
 			cloned.Skills = make(map[string]string, len(value.Skills))
 			for skill, key := range value.Skills {
@@ -719,6 +720,15 @@ func validateOperatorProfileBindings(character string, bindings map[string]Opera
 		}
 		if err := validateOptionalSkillPairBindings(value, profileCfg); err != nil {
 			return fmt.Errorf("operator settings character %q profile %q: %w", character, profileID, err)
+		}
+		if err := validateOperatorBeltLayout(value.BeltLayout); err != nil {
+			return fmt.Errorf("operator settings character %q profile %q: %w", character, profileID, err)
+		}
+		if beltLayoutConfigured(value.BeltLayout) {
+			mercEnabled, _ := profileCfg.Resources.Mercenary.Resolve()
+			if (profileCfg.RequiresMercenary || mercEnabled) && !beltLayoutHasKind(value.BeltLayout, beltPotionHealing) {
+				return fmt.Errorf("operator settings character %q profile %q belt_layout needs at least one healing column for mercenary potions", character, profileID)
+			}
 		}
 		usedKeys := make(map[string]string, len(value.Skills)+4)
 		for skillKey, rawKey := range value.Skills {

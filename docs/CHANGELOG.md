@@ -7,7 +7,14 @@ Versionierung nach [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- Register Hammerdin Summoner with route-clear combat during playback using the Blessed Hammer standard-attack hold
+- Expose per-character belt potion columns in Settings → Characters so operators can assign healing, mana, or rejuvenation to slots 1–4 without editing combat-profile YAML
+
 ### Fixed
+- Reposition Hammerdin toward a nearby monster while keeping the surviving attack target pinned, fall back to a bounded route-forward teleport when none is nearby, attack from the new position before any return approach, confirm successful teleports without a fixed settle delay, overlap Concentration selection with cursor aim, and keep no-progress termination finite
+- Derive Cow preflight skills, character class, corpse-explosion wrapping, and combat approach from the selected profile/run strategy instead of inheriting Necromancer behavior
+- Validate route-combat openers from the selected profile/run strategy so Hammerdin Summoner no longer requires the Necromancer `amplify_damage` binding
 - Restore the recording start action after a failed or emergency-cancelled route workflow for any run instead of leaving the panel stuck on the error
 - Resolve farm-queue and settings run availability from the character's stored combat profile or class default instead of the classless Necromancer fallback
 - Bind dashboard and settings run cards to `GET /api/v1/runs` for the selected character, keep unsupported saves out of the selection card, and disable start when a queue entry is not startable

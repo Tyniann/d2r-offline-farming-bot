@@ -28,21 +28,42 @@ describe("BindingEditor", () => {
     expect(onChange).toHaveBeenCalledWith({
       skills: { teleport: "f7", town_portal: "f7", bone_spear: "f8" },
       belt: { slot_1: "1", slot_2: "2", slot_3: "3", slot_4: "4" },
+      belt_layout: { slot_1: "healing", slot_2: "mana", slot_3: "mana", slot_4: "rejuvenation" },
     });
   });
 
-  it("serialisiert nur gesetzte Bindings", () => {
+  it("serialisiert Tasten und Trankspalten", () => {
     expect(bindingsToDTO({
       skills: { teleport: "f7", bone_spear: "" },
       belt: { slot_1: "1", slot_2: "", slot_3: "3", slot_4: "4" },
+      belt_layout: { slot_1: "healing", slot_2: "healing", slot_3: "rejuvenation", slot_4: "rejuvenation" },
     })).toEqual({
       skills: { teleport: "f7" },
       belt: { slot_1: "1", slot_3: "3", slot_4: "4" },
+      belt_layout: { slot_1: "healing", slot_2: "healing", slot_3: "rejuvenation", slot_4: "rejuvenation" },
     });
-    expect(emptyBindings()).toEqual({ skills: {}, belt: {} });
+    expect(emptyBindings()).toEqual({
+      skills: {},
+      belt: {},
+      belt_layout: { slot_1: "healing", slot_2: "mana", slot_3: "mana", slot_4: "rejuvenation" },
+    });
   });
 
-  it("zeigt den Hammerdin-Slotvertrag und bedient das optionale CTA-Paar per Tastatur", () => {
+  it("ändert den Tranktyp eines Gürtelslots", () => {
+    const onChange = vi.fn();
+    render(<BindingEditor
+      requiredSkills={[{ skill: "teleport", skill_id: 54, display_name: "Teleport", slot: "right" }]}
+      value={bindingsFromDTO({ skills: { teleport: "f7" }, belt: { slot_1: "1", slot_2: "2", slot_3: "3", slot_4: "4" } })}
+      mutable
+      onChange={onChange}
+    />);
+    fireEvent.change(screen.getByLabelText("Gürtel Slot 2 Trank"), { target: { value: "healing" } });
+    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({
+      belt_layout: { slot_1: "healing", slot_2: "healing", slot_3: "mana", slot_4: "rejuvenation" },
+    }));
+  });
+
+  it("zeigt den Hammerdin-Slotvertrag und bedient das optionale CTA-Paar per Tastatur", async () => {
     const onChange = vi.fn();
     render(<BindingEditor
       requiredSkills={[
@@ -75,9 +96,11 @@ describe("BindingEditor", () => {
     battleCommand.focus();
     expect(battleCommand).toHaveFocus();
     fireEvent.change(battleCommand, { target: { value: "f4" } });
+    await waitFor(() => expect(onChange).toHaveBeenCalled());
     expect(onChange).toHaveBeenCalledWith({
       skills: { battle_command: "f4" },
       belt: { slot_1: "", slot_2: "", slot_3: "", slot_4: "" },
+      belt_layout: { slot_1: "healing", slot_2: "mana", slot_3: "mana", slot_4: "rejuvenation" },
     });
   });
 });

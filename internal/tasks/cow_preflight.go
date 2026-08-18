@@ -27,17 +27,17 @@ const (
 // CowConfig freezes the strict operator scope and runtime capabilities for one
 // Cow execution generation.
 type CowConfig struct {
-	Character          string
-	Difficulty         string
-	ClientWidth        int
-	ClientHeight       int
-	InventoryLocked    [4][10]bool
-	HasTownPortal      bool
-	HasTeleport        bool
-	HasAmplifyDamage   bool
-	HasCorpseExplosion bool
-	HasBoneSpear       bool
-	HasTownServices    bool
+	Character           string
+	ExpectedClass       world.CharacterClass
+	ExpectedClassKnown  bool
+	Difficulty          string
+	ClientWidth         int
+	ClientHeight        int
+	InventoryLocked     [4][10]bool
+	HasTownPortal       bool
+	HasTeleport         bool
+	RequiredSkillsReady bool
+	HasTownServices     bool
 }
 
 type cowPreflight struct {
@@ -74,7 +74,7 @@ func (p *cowPreflight) tick(state world.State, setupRouteID, sweepRouteID string
 
 func evaluateCowPreflight(cfg CowConfig, state world.State, setupRouteID, sweepRouteID string, windowWidth, windowHeight int) (string, string) {
 	if !state.Identity.Valid || !strings.EqualFold(state.Identity.CharacterName, cfg.Character) ||
-		state.Identity.Class != world.CharacterClassNecromancer || !strings.EqualFold(cfg.Difficulty, "hell") ||
+		!cfg.ExpectedClassKnown || state.Identity.Class != cfg.ExpectedClass || !strings.EqualFold(cfg.Difficulty, "hell") ||
 		windowWidth != cfg.ClientWidth || windowHeight != cfg.ClientHeight || state.Area.ID != world.RogueEncampment {
 		return CowReasonScopeUnsupported, cowPreflightSignature(state)
 	}
@@ -122,7 +122,7 @@ func evaluateCowPreflight(cfg CowConfig, state world.State, setupRouteID, sweepR
 	if !cfg.HasTownPortal || !hasOperationalTome {
 		return CowReasonReturnPortalUnavailable, cowPreflightSignature(state)
 	}
-	if !cfg.HasTeleport || !cfg.HasAmplifyDamage || !cfg.HasCorpseExplosion || !cfg.HasBoneSpear {
+	if !cfg.HasTeleport || !cfg.RequiredSkillsReady {
 		return CowReasonCombatSkillMissing, cowPreflightSignature(state)
 	}
 	return "", cowPreflightSignature(state)

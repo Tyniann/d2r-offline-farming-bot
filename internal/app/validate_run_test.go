@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/config"
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/memory"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/tasks"
 )
 
@@ -191,9 +192,11 @@ func TestValidateRunModeFullCountessRequiresBindings(t *testing.T) {
 }
 
 func TestValidateHammerdinAcceptsLeftMouseBlessedHammer(t *testing.T) {
+	enabled := true
 	cfg := &config.Config{
 		Runs: config.RunsConfig{Definitions: map[string]config.RunConfig{
 			"countess": {}, "mephisto": {}, "nihlathak": {},
+			"summoner": {RouteCombat: config.RouteCombatConfig{Enabled: &enabled}},
 		}},
 		Profiles: config.ProfilesConfig{},
 	}
@@ -211,13 +214,38 @@ func TestValidateHammerdinAcceptsLeftMouseBlessedHammer(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, runID := range []string{"countess", "mephisto", "nihlathak"} {
+	for _, runID := range []string{"countess", "mephisto", "nihlathak", "summoner"} {
 		if err = validateBossBindingsWithProfile(cfg, runID, source, "paladin_hammerdin"); err != nil {
 			t.Fatalf("%s boss LMB Blessed Hammer rejected: %v", runID, err)
 		}
 		if err = validateFullRunBindingsWithProfile(cfg, runID, source, "paladin_hammerdin"); err != nil {
 			t.Fatalf("%s full-run LMB Blessed Hammer rejected: %v", runID, err)
 		}
+	}
+	hammerdinFactory, ok := DefaultCombatStrategyRegistry().Resolve("paladin_hammerdin", "summoner")
+	if !ok || !cowStrategyBindingsReady(source, hammerdinFactory()) {
+		t.Fatal("strategy-required Hammerdin bindings were treated as Necromancer Cow bindings")
+	}
+	missingConcentration := cloneConfigBindingSource(source)
+	delete(missingConcentration.skills, memory.MustSkillID("concentration"))
+	if cowStrategyBindingsReady(missingConcentration, hammerdinFactory()) {
+		t.Fatal("strategy-required Hammerdin binding gap was accepted")
+	}
+
+	necroWithoutOpener, err := newConfigBindingSource(config.InputBindingsConfig{
+		Skills: map[string]config.SkillBindingConfig{
+			"teleport":    {Key: "f7", Button: "right"},
+			"bone_spear":  {Key: "f8", Button: "right"},
+			"town_portal": {Key: "f6", Button: "right"},
+		},
+		Belt: config.BeltBindingsConfig{Slot1: "1", Slot2: "2", Slot3: "3", Slot4: "4"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = validateFullRunBindingsWithProfile(cfg, "summoner", necroWithoutOpener, "necro_bone_spear"); err == nil ||
+		!strings.Contains(err.Error(), "amplify_damage") {
+		t.Fatalf("Necromancer Summoner without Amplify Damage error = %v", err)
 	}
 
 	rightHammer, err := newConfigBindingSource(config.InputBindingsConfig{
@@ -406,6 +434,43 @@ func TestMapRunConfigResolvesCountessCombatSkill(t *testing.T) {
 	}
 	if got.LootPickupDistanceTiles != 6 {
 		t.Fatalf("LootPickupDistanceTiles = %v, want 6", got.LootPickupDistanceTiles)
+	}
+}
+
+func TestMapCowCombatUsesSelectedProfileStrategyCapabilities(t *testing.T) {
+	cfg, err := config.Load("../../configs/config.example.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	necroBindings, err := newConfigBindingSource(config.InputBindingsConfig{Skills: map[string]config.SkillBindingConfig{
+		"teleport":         {Key: "f7", Button: "right"},
+		"town_portal":      {Key: "f6", Button: "right"},
+		"bone_spear":       {Key: "f8", Button: "right"},
+		"amplify_damage":   {Key: "f1", Button: "right"},
+		"corpse_explosion": {Key: "f2", Button: "right"},
+		"bone_armor":       {Key: "f5", Button: "right"},
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	cow := mapCowConfig(cfg, necroBindings, nil, "necro_bone_spear")
+	if !cow.ExpectedClassKnown || cow.ExpectedClass.String() != "necromancer" || !cow.RequiredSkillsReady {
+		t.Fatalf("Necromancer Cow preflight config = %+v", cow)
+	}
+	necro, err := mapRunConfigWithProfile(cfg, "cows", "necro_bone_spear", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if necro.Combat.Profile != "necro_bone_spear" || !necro.Combat.UseCorpseExplosion {
+		t.Fatalf("Necromancer Cow combat = %+v", necro.Combat)
+	}
+
+	hammerdin, err := mapRunConfigWithProfile(cfg, "cows", "paladin_hammerdin", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if hammerdin.Combat.Profile != "paladin_hammerdin" || hammerdin.Combat.UseCorpseExplosion {
+		t.Fatalf("Hammerdin Cow combat inherited Necromancer capability: %+v", hammerdin.Combat)
 	}
 }
 

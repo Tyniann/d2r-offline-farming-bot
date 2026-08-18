@@ -186,7 +186,7 @@ func (c *runPipeline) tickTravel(ctx context.Context, deps pipelineTravelDeps, s
 				}
 			}
 
-			if c.travel.routeApproachPending && w.At.After(c.travel.routeApproachSnapshotAt) && now.Sub(c.travel.routeApproachSentAt) >= routeThreatApproachSettle {
+			if c.travel.routeApproachPending && w.At.After(c.travel.routeApproachSnapshotAt) {
 				target, found := w.FindMonsterByUnitID(c.travel.routeApproachTargetUnitID)
 				if !found {
 					target = world.Monster{UnitID: c.travel.routeApproachTargetUnitID, Position: c.travel.routeApproachGoal}
@@ -198,16 +198,31 @@ func (c *runPipeline) tickTravel(ctx context.Context, deps pipelineTravelDeps, s
 
 				return stepResult{}
 			}
-			threat := c.travel.routeThreat.Tick(ctx, deps.Route, deps.RouteClear, w, progress, assessment, c.definition, c.core.routeCombat, c.core.combat.Profile, now)
+			threat := c.travel.routeThreat.Tick(ctx, deps.Route, deps.RouteClear, w, progress, assessment, c.definition, c.core.routeCombat, c.core.combat, now)
+			if threat.StopAttack {
+				if deps.Combat == nil {
+					return stepResult{failed: true, reason: "combat_not_wired"}
+				}
+				if err := deps.Combat.StopAttack(); err != nil {
+					return stepResult{failed: true, reason: string(RouteThreatReasonStateInvalid)}
+				}
+				if !threat.Failed {
+					return stepResult{}
+				}
+			}
 			if threat.Failed {
 				if c.definition.ID == RunIDCows && threat.Reason == RouteThreatReasonCowNoProgress {
 					return c.tickCowNoProgressRecovery(deps, w, progress, assessment, now)
 				}
 				cowApproach := c.definition.ID == RunIDCows && threat.Reason == RouteThreatReasonOutOfRange
+				hammerdinApproach := c.hammerdinBossCombat() && threat.Reason == RouteThreatReasonOutOfRange
 				standardApproach := threat.Reason == RouteThreatReasonOutOfRange &&
 					progress.Mode == RouteProgressMovement && progress.TargetAvailable
-				if cowApproach || standardApproach {
+				if cowApproach || hammerdinApproach || standardApproach {
 					if threat.ApproachTarget.UnitID != 0 {
+						if threat.HammerdinReposition {
+							return c.tickRouteThreatHammerdinReposition(deps, w, progress, threat.ApproachTarget, threat.HammerdinRouteForward, now)
+						}
 						return c.tickRouteThreatApproach(deps, w, progress, threat.ApproachTarget, now)
 					}
 					if assessment.RouteTargetFound {
@@ -297,6 +312,8 @@ func (c *runPipeline) resetRouteThreatApproach() {
 	c.travel.routeApproachSnapshotAt = time.Time{}
 	c.travel.routeApproachPending = false
 	c.travel.routeApproachFailures = 0
+	c.travel.routeApproachHammerdinReposition = false
+	c.travel.routeApproachHammerdinRouteForward = false
 	c.travel.routeApproachExhaustedUnitID = 0
 }
 
@@ -363,10 +380,27 @@ func (c *runPipeline) tickCowNoProgressRecovery(
 }
 
 // tickRouteThreatApproach keeps Summoner on the already validated next route
-// point. Cow instead reuses the bounded projection-driven combat teleport
-// toward the executor-pinned group member, so recovery cannot walk past the
-// blocked pack. Neither path calls Route.Tick.
+// point. Hammerdin always teleports to its profile-owned EngageDistanceTiles,
+// including a future Cow strategy. Other Cow profiles use the bounded,
+// projection-driven combat teleport toward the executor-pinned group member,
+// so recovery cannot walk past the blocked pack. Neither path calls Route.Tick.
 func (c *runPipeline) tickRouteThreatApproach(deps pipelineTravelDeps, w world.State, progress RouteProgress, target world.Monster, now time.Time) stepResult {
+	return c.tickRouteThreatApproachMode(deps, w, progress, target, false, false, now)
+}
+
+func (c *runPipeline) tickRouteThreatHammerdinReposition(deps pipelineTravelDeps, w world.State, progress RouteProgress, target world.Monster, routeForward bool, now time.Time) stepResult {
+	return c.tickRouteThreatApproachMode(deps, w, progress, target, true, routeForward, now)
+}
+
+func (c *runPipeline) tickRouteThreatApproachMode(
+	deps pipelineTravelDeps,
+	w world.State,
+	progress RouteProgress,
+	target world.Monster,
+	hammerdinReposition bool,
+	hammerdinRouteForward bool,
+	now time.Time,
+) stepResult {
 	if deps.Combat == nil {
 		return stepResult{failed: true, reason: "combat_not_wired"}
 	}
@@ -375,7 +409,8 @@ func (c *runPipeline) tickRouteThreatApproach(deps pipelineTravelDeps, w world.S
 		c.travel.routeApproachTargetUnitID = target.UnitID
 	}
 	if c.travel.routeApproachPending {
-		if !w.At.After(c.travel.routeApproachSnapshotAt) || now.Sub(c.travel.routeApproachSentAt) < routeThreatApproachSettle {
+		reposition := c.travel.routeApproachHammerdinReposition
+		if !w.At.After(c.travel.routeApproachSnapshotAt) {
 			return stepResult{}
 		}
 		positionProgress := routeApproachDirectionalProgress(c.travel.routeApproachOrigin, c.travel.routeApproachGoal, w.Player.Position)
@@ -389,6 +424,16 @@ func (c *runPipeline) tickRouteThreatApproach(deps pipelineTravelDeps, w world.S
 				observer.ObserveRouteClearApproachProgress()
 			}
 			c.travel.routeApproachPending = false
+			c.travel.routeApproachHammerdinReposition = false
+			c.travel.routeApproachHammerdinRouteForward = false
+			if reposition {
+				c.travel.routeThreat.completeHammerdinReposition(true)
+			}
+			return stepResult{}
+		}
+		// Positive movement proves a completed teleport immediately. The settle
+		// duration remains only the deadline for declaring a blocked landing.
+		if now.Sub(c.travel.routeApproachSentAt) < routeThreatApproachSettle {
 			return stepResult{}
 		}
 		if err := c.travel.routeThreat.ObserveApproachNoProgress(w, progress, target, positionProgress, now); err != nil {
@@ -396,6 +441,14 @@ func (c *runPipeline) tickRouteThreatApproach(deps pipelineTravelDeps, w world.S
 		}
 		c.travel.routeApproachFailures++
 		c.travel.routeApproachPending = false
+		c.travel.routeApproachHammerdinReposition = false
+		c.travel.routeApproachHammerdinRouteForward = false
+		if reposition {
+			c.travel.routeApproachFailures = 0
+			c.travel.routeApproachExhaustedUnitID = 0
+			c.travel.routeThreat.completeHammerdinReposition(false)
+			return stepResult{}
+		}
 		if c.travel.routeApproachFailures >= routeThreatApproachMaxFailures {
 			c.travel.routeApproachExhaustedUnitID = target.UnitID
 			return stepResult{}
@@ -408,7 +461,20 @@ func (c *runPipeline) tickRouteThreatApproach(deps pipelineTravelDeps, w world.S
 	sent := false
 	actionKind := "force_move"
 	var err error
-	if c.definition.ID == RunIDCows {
+	if hammerdinReposition {
+		goal = target.Position
+		desiredDistance := c.core.combat.EngageDistanceTiles
+		actionKind = "hammerdin_reposition"
+		if hammerdinRouteForward {
+			desiredDistance = 0
+			actionKind = "hammerdin_route_forward"
+		}
+		sent, err = deps.Combat.TeleportToward(now, w.Player, target.Position, desiredDistance)
+	} else if c.hammerdinBossCombat() {
+		goal = target.Position
+		actionKind = "teleport"
+		sent, err = deps.Combat.TeleportToward(now, w.Player, target.Position, c.core.combat.EngageDistanceTiles)
+	} else if c.definition.ID == RunIDCows {
 		landing, desiredDistance, projectable := deps.Combat.FarthestProjectableMonsterApproach(w.Player.Position, target.Position)
 		if !projectable {
 			c.travel.routeApproachExhaustedUnitID = target.UnitID
@@ -434,6 +500,8 @@ func (c *runPipeline) tickRouteThreatApproach(deps pipelineTravelDeps, w world.S
 		c.travel.routeApproachSentAt = now
 		c.travel.routeApproachSnapshotAt = w.At
 		c.travel.routeApproachPending = true
+		c.travel.routeApproachHammerdinReposition = hammerdinReposition
+		c.travel.routeApproachHammerdinRouteForward = hammerdinRouteForward
 		if err := c.travel.routeThreat.ObserveApproachInput(w, progress, target, c.travel.routeApproachFailures+1, actionKind, now); err != nil {
 			return stepResult{failed: true, reason: "telemetry_failed"}
 		}

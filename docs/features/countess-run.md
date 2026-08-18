@@ -83,13 +83,13 @@ Vor jedem normalen Task-Tick prüft der Runner den aktuellen HP-Stand. Die Safet
 
 Nach einem Safety-Cast endet der aktuelle Poll-Tick sofort, damit pro Tick nur eine echte Input-Aktion passiert. Der Guard ist auf 1500 ms gedrosselt. Falls die Run-Actions nicht verdrahtet sind, läuft der normale Step weiter; falls ein vorhandener Belt-Cast fehlschlägt, endet der Run mit `safety_potion_failed`.
 
-Feste MVP-Belegung:
+Feste MVP-Belegung (Profil-Default, überschreibbar in Einstellungen → Charaktere → Gürtel):
 
 - Slot 1 = Heiltränke
 - Slot 2 und 3 = Manatränke
 - Slot 4 = Full Rejuvenation Potions
 
-Diese Belegung soll später durch den Nutzer konfigurierbar werden. Mana-Potions werden in 4.7 noch nicht automatisch verbraucht.
+Die Zuordnung liegt unter `profile_bindings.<profil>.belt_layout`. Mana-Potions werden in 4.7 noch nicht automatisch verbraucht.
 
 ## Waypoint-Interaktion
 

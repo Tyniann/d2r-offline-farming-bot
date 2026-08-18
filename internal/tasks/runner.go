@@ -40,6 +40,10 @@ type RunConfig struct {
 type CombatConfig struct {
 	// Profile identifies the resolved character and encounter profile.
 	Profile string
+	// UseCorpseExplosion reports that the resolved profile/run strategy owns the
+	// Cow-specific corpse-explosion hold. Profiles without that capability use
+	// their regular route-clear strategy during the Cow sweep.
+	UseCorpseExplosion bool
 	// AttackSkillID is the resolved skill ID used for attack casts.
 	AttackSkillID uint16
 	// AttackInterval is the minimum delay between real combat inputs.

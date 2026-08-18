@@ -2,25 +2,43 @@ import type {
   CharacterSetupOptionalSkillPairDTO,
   CharacterSetupRequiredSkillDTO,
   OperatorBeltBindingsDTO,
+  OperatorBeltLayoutDTO,
   OperatorProfileBindingsDTO,
 } from "../../api/generated";
 import { StatusBadge } from "../../app/ui";
 
 const skillKeys = ["f1", "f2", "f3", "f4", "f5", "f6", "f7", "f8"] as const;
 const beltKeys = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0", "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z", ",", ".", "-", "]"] as const;
+const potionKinds = [
+  { value: "healing", label: "Heiltrank" },
+  { value: "mana", label: "Manatrank" },
+  { value: "rejuvenation", label: "Regeneration" },
+] as const;
 
 export type BindingEditorValue = {
   skills: Record<string, string>;
   belt: OperatorBeltBindingsDTO;
+  belt_layout: OperatorBeltLayoutDTO;
 };
 
-/** emptyBindings liefert einen leeren Binding-Draft. */
+const defaultBeltLayout = (): OperatorBeltLayoutDTO => ({
+  slot_1: "healing",
+  slot_2: "mana",
+  slot_3: "mana",
+  slot_4: "rejuvenation",
+});
+
+/** emptyBindings liefert einen leeren Binding-Draft mit Standard-Trankspalten. */
 export function emptyBindings(): BindingEditorValue {
-  return { skills: {}, belt: {} };
+  return { skills: {}, belt: {}, belt_layout: defaultBeltLayout() };
 }
 
 /** bindingsFromDTO normalisiert optionale Core-Bindings für den Editor. */
-export function bindingsFromDTO(value?: OperatorProfileBindingsDTO | null): BindingEditorValue {
+export function bindingsFromDTO(
+  value?: OperatorProfileBindingsDTO | null,
+  layoutFallback?: OperatorBeltLayoutDTO | null,
+): BindingEditorValue {
+  const fallback = layoutFallback && layoutComplete(layoutFallback) ? layoutFallback : defaultBeltLayout();
   return {
     skills: { ...(value?.skills ?? {}) },
     belt: {
@@ -28,6 +46,12 @@ export function bindingsFromDTO(value?: OperatorProfileBindingsDTO | null): Bind
       slot_2: value?.belt?.slot_2 ?? "",
       slot_3: value?.belt?.slot_3 ?? "",
       slot_4: value?.belt?.slot_4 ?? "",
+    },
+    belt_layout: {
+      slot_1: value?.belt_layout?.slot_1 || fallback.slot_1 || "healing",
+      slot_2: value?.belt_layout?.slot_2 || fallback.slot_2 || "mana",
+      slot_3: value?.belt_layout?.slot_3 || fallback.slot_3 || "mana",
+      slot_4: value?.belt_layout?.slot_4 || fallback.slot_4 || "rejuvenation",
     },
   };
 }
@@ -44,7 +68,13 @@ export function bindingsToDTO(value: BindingEditorValue): OperatorProfileBinding
   if (value.belt.slot_2?.trim()) belt.slot_2 = value.belt.slot_2.trim();
   if (value.belt.slot_3?.trim()) belt.slot_3 = value.belt.slot_3.trim();
   if (value.belt.slot_4?.trim()) belt.slot_4 = value.belt.slot_4.trim();
-  return { skills, belt };
+  const belt_layout: OperatorBeltLayoutDTO = {
+    slot_1: value.belt_layout.slot_1,
+    slot_2: value.belt_layout.slot_2,
+    slot_3: value.belt_layout.slot_3,
+    slot_4: value.belt_layout.slot_4,
+  };
+  return { skills, belt, belt_layout };
 }
 
 /** BindingEditor belegt profilautorisierte Pflicht- und optionale Skills sowie den Gürtel. */
@@ -141,31 +171,54 @@ export function BindingEditor({
     {requiresMercenary && <p className="binding-mercenary-note">Für Hammerdin muss ein lebender Söldner verfügbar sein. Seine Ausrüstung wird nicht geprüft.</p>}
 
     <h4>Gürtel</h4>
-    <div className="binding-belt-grid" role="group" aria-label="Gürteltasten">
+    <p className="hint">Pro Spalte Taste und Tranktyp festlegen. Der Bot hebt und benutzt nur die hier zugeordneten Tränke.</p>
+    <div className="binding-belt-grid" role="group" aria-label="Gürtelbelegung">
       {([1, 2, 3, 4] as const).map((slot) => {
         const field = `slot_${slot}` as keyof OperatorBeltBindingsDTO;
         const selected = value.belt[field] ?? "";
+        const potion = value.belt_layout[field] ?? "";
         const collision = selected ? collisions[selected] : undefined;
-        return <label key={slot} className={collision ? "binding-collision" : undefined}>
-          <span>Slot {slot}</span>
-          <select
-            value={selected}
-            disabled={!mutable}
-            aria-label={`Gürtel Slot ${slot}`}
-            aria-invalid={!!collision}
-            onChange={(event) => onChange({
-              ...value,
-              belt: { ...value.belt, [field]: event.target.value },
-            })}
-          >
-            <option value="">Nicht belegt</option>
-            {beltKeys.map((key) => <option key={key} value={key}>{key}</option>)}
-          </select>
+        return <div key={slot} className={collision ? "binding-belt-slot binding-collision" : "binding-belt-slot"}>
+          <span className="binding-belt-slot-title">Slot {slot}</span>
+          <label>
+            <span>Taste</span>
+            <select
+              value={selected}
+              disabled={!mutable}
+              aria-label={`Gürtel Slot ${slot} Taste`}
+              aria-invalid={!!collision}
+              onChange={(event) => onChange({
+                ...value,
+                belt: { ...value.belt, [field]: event.target.value },
+              })}
+            >
+              <option value="">Nicht belegt</option>
+              {beltKeys.map((key) => <option key={key} value={key}>{key}</option>)}
+            </select>
+          </label>
+          <label>
+            <span>Trank</span>
+            <select
+              value={potion}
+              disabled={!mutable}
+              aria-label={`Gürtel Slot ${slot} Trank`}
+              onChange={(event) => onChange({
+                ...value,
+                belt_layout: { ...value.belt_layout, [field]: event.target.value as OperatorBeltLayoutDTO[typeof field] },
+              })}
+            >
+              {potionKinds.map((kind) => <option key={kind.value} value={kind.value}>{kind.label}</option>)}
+            </select>
+          </label>
           {collision ? <small role="alert">{collision}</small> : null}
-        </label>;
+        </div>;
       })}
     </div>
   </div>;
+}
+
+function layoutComplete(layout: OperatorBeltLayoutDTO): boolean {
+  return Boolean(layout.slot_1 && layout.slot_2 && layout.slot_3 && layout.slot_4);
 }
 
 function skillSlotLabel(slot: CharacterSetupRequiredSkillDTO["slot"]): string {

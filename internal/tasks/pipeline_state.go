@@ -53,6 +53,12 @@ type pipelineTravelState struct {
 	routeApproachSnapshotAt          time.Time
 	routeApproachPending             bool
 	routeApproachFailures            int
+	// routeApproachHammerdinReposition marks a fallback teleport toward another
+	// monster while the route controller keeps the previous attack target pinned.
+	routeApproachHammerdinReposition bool
+	// routeApproachHammerdinRouteForward distinguishes the bounded next-route
+	// fallback from a teleport toward another monster.
+	routeApproachHammerdinRouteForward bool
 	// routeApproachExhaustedUnitID suppresses further local movement for one
 	// blocker after the bounded attempts. The shared no-progress watchdog, not
 	// this low-level targeting inconvenience, owns any later run termination.
@@ -106,6 +112,16 @@ type pipelineBossState struct {
 	// hammerdinHoldSnapshots counts World snapshots since the last distance
 	// re-check while the hold is down.
 	hammerdinHoldSnapshots int
+	hammerdinHoldStartedAt time.Time
+	// hammerdinRepositionPending survives Teleport skill selection and waits
+	// for a fresh snapshot after a sent teleport toward another monster.
+	hammerdinRepositionPending      bool
+	hammerdinRepositionSent         bool
+	hammerdinRepositionReady        bool
+	hammerdinRepositionTargetUnitID uint32
+	hammerdinRepositionOrigin       world.Position
+	hammerdinRepositionAt           time.Time
+	hammerdinRepositionSnapshot     time.Time
 }
 
 // pipelineLootState owns drop, pickup, reposition, and bounded recovery state.

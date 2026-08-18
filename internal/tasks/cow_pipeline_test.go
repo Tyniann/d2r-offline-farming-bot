@@ -34,6 +34,34 @@ func TestCowLegRouteDisablesOnlyItsPrivateCombatCopy(t *testing.T) {
 	}
 }
 
+func TestCowSweepUsesCorpseExplosionWrapperOnlyForProfileCapability(t *testing.T) {
+	definition, ok := DefaultRunRegistry().Definition(RunIDCows)
+	if !ok {
+		t.Fatal("Cow definition missing")
+	}
+	now := time.Date(2026, 8, 17, 12, 0, 0, 0, time.UTC)
+	state := world.State{
+		At: now, Generation: 1, Valid: true, Phase: world.GamePhaseInGame,
+		Area: world.LookupArea(world.MooMooFarm),
+	}
+	route := controllerRoute(RouteProgress{RouteID: "cow-route", Mode: RouteProgressMovement})
+	clear := &routeClearMock{}
+
+	hammerdin := newCowPipeline(definition, RunConfig{
+		RouteID: "cow-route", Combat: CombatConfig{Profile: hammerdinCombatProfileID},
+	})
+	if result := hammerdin.onTick(context.Background(), Deps{Route: route, RouteClear: clear}, cowStepSweep, state, now, now, 0); result.failed {
+		t.Fatalf("profile-only Cow sweep failed: %+v", result)
+	}
+
+	necro := newCowPipeline(definition, RunConfig{
+		RouteID: "cow-route", Combat: CombatConfig{Profile: "necro_bone_spear", UseCorpseExplosion: true},
+	})
+	if result := necro.onTick(context.Background(), Deps{Route: route, RouteClear: clear}, cowStepSweep, state, now, now, 0); !result.failed || result.reason != CowReasonCapabilityMissing {
+		t.Fatalf("CE Cow sweep accepted route clear without CE capability: %+v", result)
+	}
+}
+
 func TestCowRetryReturnUsesSharedStandardPipeline(t *testing.T) {
 	machine, err := newRunMachine(RunSelection{Run: string(RunIDCows), Phase: RunPhaseRetryReturn}, RunConfig{})
 	if err != nil {

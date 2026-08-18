@@ -540,6 +540,34 @@ func TestRouteClearRejectsUnsupportedProfile(t *testing.T) {
 	}
 }
 
+func TestRouteClearHammerdinAttacksWithoutCurseOpener(t *testing.T) {
+	definition := testDefinition()
+	definition.ID = "paladin_hammerdin"
+	definition.CharacterClass = world.CharacterClassPaladin
+	executor, _ := NewExecutor(config.NewLogger("error"), definition, &actionMock{})
+	if err := executor.ConfigureRouteClear(RouteClearSingleTarget, 66, 112, &routeCombatActionMock{}); err == nil {
+		t.Fatal("hammerdin curse opener was accepted")
+	}
+	actions := &routeCombatActionMock{sent: true}
+	if err := executor.ConfigureRouteClear(RouteClearSingleTarget, 0, 112, actions); err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now()
+	result := executor.TickRouteClear(context.Background(), RouteClearRequest{
+		RunID: "summoner", DefinitionID: "paladin_hammerdin",
+		Player:       world.Player{Position: world.Position{X: 100, Y: 100}},
+		Target:       world.Monster{NPCID: world.ArcaneSpecter, UnitID: 44, Position: world.Position{X: 102, Y: 100}},
+		Mode:         RouteClearThreat,
+		AssessmentAt: now,
+	}, now)
+	if result.Status != StatusAction || result.SkillID != 112 || result.ActionKind != RouteClearActionAttack {
+		t.Fatalf("hammerdin clear = %+v, want Blessed Hammer attack", result)
+	}
+	if len(actions.skills) != 1 || actions.skills[0] != 112 {
+		t.Fatalf("skills = %v", actions.skills)
+	}
+}
+
 func TestMercenaryResourceHealsAfterPlayerPriority(t *testing.T) {
 	actions := &actionMock{}
 	e, _ := NewExecutor(config.NewLogger("error"), testDefinition(), actions)

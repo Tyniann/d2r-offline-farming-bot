@@ -358,13 +358,18 @@ func (c *cowPipeline) onTick(ctx context.Context, deps Deps, step string, state 
 	case cowStepRecipeComplete:
 		return stepResult{complete: true}
 	case cowStepSweep:
-		clear, ok := deps.RouteClear.(CowRouteClearExecutor)
-		if !ok {
-			return stepResult{failed: true, reason: CowReasonCapabilityMissing}
-		}
-		c.cowHold.bind(clear)
 		sweepDeps := deps
-		sweepDeps.RouteClear = &c.cowHold
+		if c.config.Combat.UseCorpseExplosion {
+			clear, ok := deps.RouteClear.(CowRouteClearExecutor)
+			if !ok {
+				return stepResult{failed: true, reason: CowReasonCapabilityMissing}
+			}
+			// AD/Bone-Spear/CE pack handling belongs only to strategies that
+			// explicitly declare Corpse Explosion. Other profiles retain their
+			// regular route-clear behavior for this same Cow sweep.
+			c.cowHold.bind(clear)
+			sweepDeps.RouteClear = &c.cowHold
+		}
 		return c.cowSweep.tickTravel(ctx, narrowTravelDeps(sweepDeps), pipelineStepPlayRoute, state, now, stepStartedAt)
 	case cowStepSweepComplete:
 		return stepResult{complete: true}

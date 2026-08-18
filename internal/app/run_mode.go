@@ -11,6 +11,7 @@ import (
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/input"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/memory"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/pathing"
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/profile"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/replay"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/tasks"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/world"
@@ -65,6 +66,11 @@ func mapRunConfigWithProfile(cfg *config.Config, runID, profileID string, requir
 	if err != nil {
 		return tasks.RunConfig{}, err
 	}
+	if factory, strategyFound := DefaultCombatStrategyRegistry().Resolve(profileID, runID); strategyFound {
+		if capability, ok := factory().(profile.SupportsCorpseExplosion); ok {
+			combat.UseCorpseExplosion = capability.RequiresCorpseExplosion()
+		}
+	}
 	mapped := tasks.RunConfig{
 		StepTimeout:             time.Duration(cfg.Runs.StepTimeoutMs) * time.Millisecond,
 		LootPickupDistanceTiles: cfg.Loot.Pickup.MaxDistanceTiles,
@@ -114,10 +120,13 @@ func mapRunConfigWithProfile(cfg *config.Config, runID, profileID string, requir
 	return resolved.Config, nil
 }
 
-func mapCowConfig(cfg *config.Config, bindings configBindingSource, inventoryGrid [][]int) tasks.CowConfig {
+func mapCowConfig(cfg *config.Config, bindings configBindingSource, inventoryGrid [][]int, profileID string) tasks.CowConfig {
 	mapped := tasks.CowConfig{
 		Character: cfg.Session.Character, Difficulty: cfg.Session.Difficulty,
 		ClientWidth: offlineDifficultyClientWidth, ClientHeight: offlineDifficultyClientHeight,
+	}
+	if profileCfg, ok := cfg.Profiles[profileID]; ok {
+		mapped.ExpectedClass, mapped.ExpectedClassKnown = mapProfileClass(profileCfg.CharacterClass)
 	}
 	for row := 0; row < len(inventoryGrid) && row < len(mapped.InventoryLocked); row++ {
 		for col := 0; col < len(inventoryGrid[row]) && col < len(mapped.InventoryLocked[row]); col++ {
@@ -126,10 +135,23 @@ func mapCowConfig(cfg *config.Config, bindings configBindingSource, inventoryGri
 	}
 	mapped.HasTownPortal = cowBindingAvailable(bindings, memory.SkillTownPortal)
 	mapped.HasTeleport = cowBindingAvailable(bindings, memory.SkillTeleport)
-	mapped.HasAmplifyDamage = cowBindingAvailable(bindings, memory.SkillAmplifyDamage)
-	mapped.HasCorpseExplosion = cowBindingAvailable(bindings, memory.SkillCorpseExplosion)
-	mapped.HasBoneSpear = cowBindingAvailable(bindings, memory.SkillBoneSpear)
+	if factory, ok := DefaultCombatStrategyRegistry().Resolve(profileID, string(tasks.RunIDCows)); ok {
+		mapped.RequiredSkillsReady = cowStrategyBindingsReady(bindings, factory())
+	}
 	return mapped
+}
+
+func cowStrategyBindingsReady(bindings configBindingSource, strategy profile.RunStrategy) bool {
+	if strategy == nil {
+		return false
+	}
+	for _, skill := range strategy.RequiredSkills() {
+		skillID, err := memory.ParseSkillTestName(skill)
+		if err != nil || !cowBindingAvailable(bindings, skillID) {
+			return false
+		}
+	}
+	return true
 }
 
 func cowBindingAvailable(bindings configBindingSource, skillID uint16) bool {
@@ -412,12 +434,25 @@ func validateFullRunBindingsWithProfile(cfg *config.Config, runID string, bindin
 	}
 	runCfg, _ := cfg.Runs.Run(runID)
 	if runCfg.RouteCombat.EnabledValue() {
-		openerCast, resolveErr := bindings.Resolve(memory.SkillAmplifyDamage)
-		if resolveErr != nil {
-			return fmt.Errorf("%s route combat requires amplify_damage binding: %w", runID, resolveErr)
+		factory, strategyFound := DefaultCombatStrategyRegistry().Resolve(profileID, runID)
+		if !strategyFound {
+			return fmt.Errorf("%s: profile %q run %q", ReasonProfileRunStrategyUnavailable, profileID, runID)
 		}
-		if openerCast.CastButton != input.MouseRight {
-			return fmt.Errorf("%s route combat opener amplify_damage must use right mouse, configured=%s", runID, openerCast.CastButton)
+		requiresAmplifyDamage := false
+		for _, skill := range factory().RequiredSkills() {
+			if skill == "amplify_damage" {
+				requiresAmplifyDamage = true
+				break
+			}
+		}
+		if requiresAmplifyDamage {
+			openerCast, resolveErr := bindings.Resolve(memory.SkillAmplifyDamage)
+			if resolveErr != nil {
+				return fmt.Errorf("%s route combat requires amplify_damage binding: %w", runID, resolveErr)
+			}
+			if openerCast.CastButton != input.MouseRight {
+				return fmt.Errorf("%s route combat opener amplify_damage must use right mouse, configured=%s", runID, openerCast.CastButton)
+			}
 		}
 	}
 	if _, err := bindings.Resolve(memory.SkillTownPortal); err != nil {

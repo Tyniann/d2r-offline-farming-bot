@@ -84,6 +84,8 @@ describe("CharactersTab", () => {
           { skill: "bone_prison", skill_id: 88, display_name: "Knochengefängnis", slot: "right" },
         ],
         supported_runs: ["countess"],
+        default_belt_layout: { slot_1: "healing", slot_2: "mana", slot_3: "mana", slot_4: "rejuvenation" },
+        belt_layout: { slot_1: "healing", slot_2: "mana", slot_3: "mana", slot_4: "rejuvenation" },
       }],
       selected_profile_id: "necro_bone_spear",
       default_profile_id: "necro_bone_spear",
@@ -121,10 +123,14 @@ describe("CharactersTab", () => {
     expect(screen.getByLabelText("Stadtportal Taste")).toHaveValue("f6");
     expect(screen.getByLabelText("Teleport Taste")).toHaveValue("f7");
     expect(screen.getByLabelText("Knochen-Speer Taste")).toHaveValue("f8");
-    expect(screen.getByLabelText("Gürtel Slot 1")).toHaveValue("1");
-    expect(screen.getByLabelText("Gürtel Slot 2")).toHaveValue("2");
-    expect(screen.getByLabelText("Gürtel Slot 3")).toHaveValue("3");
-    expect(screen.getByLabelText("Gürtel Slot 4")).toHaveValue("4");
+    expect(screen.getByLabelText("Gürtel Slot 1 Taste")).toHaveValue("1");
+    expect(screen.getByLabelText("Gürtel Slot 2 Taste")).toHaveValue("2");
+    expect(screen.getByLabelText("Gürtel Slot 3 Taste")).toHaveValue("3");
+    expect(screen.getByLabelText("Gürtel Slot 4 Taste")).toHaveValue("4");
+    expect(screen.getByLabelText("Gürtel Slot 1 Trank")).toHaveValue("healing");
+    expect(screen.getByLabelText("Gürtel Slot 2 Trank")).toHaveValue("mana");
+    expect(screen.getByLabelText("Gürtel Slot 3 Trank")).toHaveValue("mana");
+    expect(screen.getByLabelText("Gürtel Slot 4 Trank")).toHaveValue("rejuvenation");
     expect(screen.getByRole("grid", { name: /inventarschutz/i })).toBeInTheDocument();
     expect(screen.queryByText("Noch nicht bestätigt")).not.toBeInTheDocument();
     await waitFor(() => expect(mocks.preview).toHaveBeenCalledWith({ character: "MrBones" }));

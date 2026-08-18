@@ -63,8 +63,11 @@ export function CharactersTab({
 
   const bindingValue = useMemo<BindingEditorValue>(() => {
     if (!characterSettings || !profileID) return emptyBindings();
-    return bindingsFromDTO(characterSettings.profile_bindings?.[profileID]);
-  }, [characterSettings, profileID]);
+    return bindingsFromDTO(
+      characterSettings.profile_bindings?.[profileID],
+      selectedProfile?.belt_layout ?? selectedProfile?.default_belt_layout,
+    );
+  }, [characterSettings, profileID, selectedProfile?.belt_layout, selectedProfile?.default_belt_layout]);
 
   const updateBindings = (next: BindingEditorValue) => {
     if (!profileID) return;
@@ -142,6 +145,7 @@ export function CharactersTab({
         <h3>Pflichtskills</h3>
         <RequiredSkillsList skills={selectedProfile.required_skills ?? []} standardAttack={selectedProfile.standard_attack} />
         <h3>Tastenbelegung</h3>
+        <p className="hint">Skills, Gürteltasten und welche Trankart in welcher Spalte liegt.</p>
         {!profileID
           ? <StateMessage kind="empty" title="Kein Kampfprofil">Richte den Charakter zuerst ein, bevor Tasten gespeichert werden.</StateMessage>
           : <BindingEditor

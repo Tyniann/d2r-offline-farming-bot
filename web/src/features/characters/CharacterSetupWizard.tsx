@@ -95,8 +95,12 @@ export function CharacterSetupWizard({
       return;
     }
     const key = character.trim().toLowerCase();
-    setBindingDraft(bindingsFromDTO(settings.characters[key]?.profile_bindings?.[profileID]));
-  }, [settings, character, profileID]);
+    const selected = setupPreview?.profiles.find((profile) => profile.id === profileID);
+    setBindingDraft(bindingsFromDTO(
+      settings.characters[key]?.profile_bindings?.[profileID],
+      selected?.belt_layout ?? selected?.default_belt_layout,
+    ));
+  }, [settings, character, profileID, setupPreview]);
 
   async function run(action: () => Promise<void>) {
     if (busy) return;

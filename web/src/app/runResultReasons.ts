@@ -1,5 +1,5 @@
 const messages: Record<string, string> = {
-  cow_scope_unsupported: "Cow-Setup unterstützt nur MrBones als Nekromant auf Hölle bei 1280 × 720 im Rogue Encampment.",
+  cow_scope_unsupported: "Charakter, Klasse, Schwierigkeit, Fenstergröße oder Aufenthaltsort passen nicht zum Cow-Setup.",
   cow_cube_missing: "Der Horadrimwürfel fehlt im persönlichen Inventar.",
   cow_cube_ambiguous: "Der Horadrimwürfel konnte nicht eindeutig im persönlichen Inventar bestätigt werden.",
   cow_cube_unprotected: "Alle vier Inventarfelder des Horadrimwürfels müssen gesperrt sein.",
@@ -7,7 +7,7 @@ const messages: Record<string, string> = {
   cow_existing_leg: "Ein altes Wirt’s Leg ist sichtbar. Entferne es vor dem Cow-Run manuell.",
   cow_inventory_space_missing: "Es fehlt gleichzeitig freier Platz für Wirt’s Leg und ein zusätzliches Stadtportalbuch.",
   cow_return_portal_unavailable: "Für die sichere Rückkehr fehlt ein verwendbares Stadtportalbuch oder die Town-Portal-Bindung.",
-  cow_combat_skill_missing: "Eine benötigte Bindung für Teleport, Amplify Damage, Corpse Explosion oder Bone Spear fehlt.",
+  cow_combat_skill_missing: "Eine für das gewählte Kampfprofil benötigte Fertigkeitsbindung fehlt.",
   run_capability_missing: "Eine benötigte Cow-Route oder Stadtfunktion fehlt.",
   cow_wirt_interaction_failed: "Wirts Körper konnte nicht sicher geöffnet werden.",
   cow_wirt_hover_failed: "Wirts Körper wurde unter dem Mauszeiger nicht bestätigt.",

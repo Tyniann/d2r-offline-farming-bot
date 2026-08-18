@@ -74,3 +74,35 @@ func TestHammerdinNihlathakSkipsPostBossCleanup(t *testing.T) {
 		t.Fatalf("Hammerdin Nihlathak acquire successor = %q, want loot reposition", got)
 	}
 }
+
+func TestHammerdinSummonerStartsStandardAttackAfterEmptyEngage(t *testing.T) {
+	definition, _ := DefaultRunRegistry().Definition(RunIDSummoner)
+	target := world.Monster{NPCID: world.Summoner, UnitID: 77, Position: world.Position{X: 101, Y: 100}}
+	combat := &mockCombatActions{}
+	pipeline := &runPipeline{
+		definition: definition,
+		boss:       pipelineBossState{targetSeen: true, targetUnitID: target.UnitID},
+		core:       pipelineCoreState{combat: hammerdinMephistoCombat()},
+	}
+	state := healthy(areaState(world.ArcaneSanctuary))
+	state.Player.Position = world.Position{X: 100, Y: 100}
+	state.Monsters = []world.Monster{target}
+
+	result := pipeline.onBossTick(context.Background(), Deps{Combat: combat}, pipelineStepEngageBoss, state, time.Now())
+	if result.failed || combat.holdCalls != 1 || combat.castCalls != 0 || combat.teleportCalls != 0 ||
+		combat.lastSkillID != memory.MustSkillID("blessed_hammer") {
+		t.Fatalf("summoner engage=%+v holds=%d casts=%d teleports=%d skill=%d",
+			result, combat.holdCalls, combat.castCalls, combat.teleportCalls, combat.lastSkillID)
+	}
+}
+
+func TestHammerdinSummonerSkipsPostBossCleanup(t *testing.T) {
+	summoner, _ := DefaultRunRegistry().Definition(RunIDSummoner)
+	pipeline := &runPipeline{
+		definition: summoner,
+		core:       pipelineCoreState{combat: hammerdinMephistoCombat()},
+	}
+	if got := pipeline.nextStep(pipelineStepEngageBoss); got != pipelineStepRepositionForLoot {
+		t.Fatalf("Hammerdin Summoner engage successor = %q, want loot reposition", got)
+	}
+}

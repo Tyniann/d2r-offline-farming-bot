@@ -15,22 +15,31 @@ type OperatorSettingsDTO struct {
 
 // OperatorCharacterSettingsDTO enthält Setupwerte, Queue, Difficulty sowie optionale Bindings und Inventar.
 type OperatorCharacterSettingsDTO struct {
-	CharacterClass  string                                     `json:"character_class,omitempty"`
-	CombatProfile   string                                     `json:"combat_profile,omitempty"`
-	LastDifficulty  string                                     `json:"last_difficulty"`
-	Queue           []string                                   `json:"queue"`
-	ProfileBindings map[string]OperatorProfileBindingsDTO      `json:"profile_bindings,omitempty"`
-	InventoryLock   *OperatorInventoryLockDTO                  `json:"inventory_lock"`
+	CharacterClass  string                                `json:"character_class,omitempty"`
+	CombatProfile   string                                `json:"combat_profile,omitempty"`
+	LastDifficulty  string                                `json:"last_difficulty"`
+	Queue           []string                              `json:"queue"`
+	ProfileBindings map[string]OperatorProfileBindingsDTO `json:"profile_bindings,omitempty"`
+	InventoryLock   *OperatorInventoryLockDTO             `json:"inventory_lock"`
 }
 
-// OperatorProfileBindingsDTO speichert Skill-F-Tasten und Gürtelbelegung eines Kampfprofils.
+// OperatorProfileBindingsDTO speichert Skill-F-Tasten, Gürteltasten und Trankspalten eines Kampfprofils.
 type OperatorProfileBindingsDTO struct {
-	Skills map[string]string       `json:"skills,omitempty"`
-	Belt   OperatorBeltBindingsDTO `json:"belt,omitempty"`
+	Skills     map[string]string       `json:"skills,omitempty"`
+	Belt       OperatorBeltBindingsDTO `json:"belt,omitempty"`
+	BeltLayout OperatorBeltLayoutDTO   `json:"belt_layout,omitempty"`
 }
 
 // OperatorBeltBindingsDTO speichert optionale Gürteltasten.
 type OperatorBeltBindingsDTO struct {
+	Slot1 string `json:"slot_1,omitempty"`
+	Slot2 string `json:"slot_2,omitempty"`
+	Slot3 string `json:"slot_3,omitempty"`
+	Slot4 string `json:"slot_4,omitempty"`
+}
+
+// OperatorBeltLayoutDTO speichert die Tranktypen der Gürtelspalten 1–4.
+type OperatorBeltLayoutDTO struct {
 	Slot1 string `json:"slot_1,omitempty"`
 	Slot2 string `json:"slot_2,omitempty"`
 	Slot3 string `json:"slot_3,omitempty"`
@@ -107,7 +116,10 @@ func operatorCharacterSettingsDTO(value app.OperatorCharacterSettings) OperatorC
 	if value.ProfileBindings != nil {
 		dto.ProfileBindings = make(map[string]OperatorProfileBindingsDTO, len(value.ProfileBindings))
 		for profileID, bindings := range value.ProfileBindings {
-			cloned := OperatorProfileBindingsDTO{Belt: OperatorBeltBindingsDTO(bindings.Belt)}
+			cloned := OperatorProfileBindingsDTO{
+				Belt:       OperatorBeltBindingsDTO(bindings.Belt),
+				BeltLayout: OperatorBeltLayoutDTO(bindings.BeltLayout),
+			}
 			if bindings.Skills != nil {
 				cloned.Skills = make(map[string]string, len(bindings.Skills))
 				for skill, key := range bindings.Skills {
@@ -142,7 +154,10 @@ func operatorCharacterSettingsFromDTO(value OperatorCharacterSettingsDTO) app.Op
 	if value.ProfileBindings != nil {
 		settings.ProfileBindings = make(map[string]app.OperatorProfileBindings, len(value.ProfileBindings))
 		for profileID, bindings := range value.ProfileBindings {
-			cloned := app.OperatorProfileBindings{Belt: app.OperatorBeltBindings(bindings.Belt)}
+			cloned := app.OperatorProfileBindings{
+				Belt:       app.OperatorBeltBindings(bindings.Belt),
+				BeltLayout: app.OperatorBeltLayout(bindings.BeltLayout),
+			}
 			if bindings.Skills != nil {
 				cloned.Skills = make(map[string]string, len(bindings.Skills))
 				for skill, key := range bindings.Skills {

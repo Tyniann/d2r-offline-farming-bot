@@ -40,7 +40,7 @@ func TestCombatStrategyRegistryResolvesBoneSpearMatrix(t *testing.T) {
 
 func TestCombatStrategyRegistryExposesHammerdinBossRuns(t *testing.T) {
 	registry := NewCombatStrategyRegistry()
-	want := []string{"countess", "mephisto", "nihlathak"}
+	want := []string{"countess", "mephisto", "nihlathak", "summoner"}
 	if got := registry.SupportedRuns("paladin_hammerdin"); len(got) != len(want) {
 		t.Fatalf("Hammerdin supported runs = %v", got)
 	}
@@ -53,17 +53,20 @@ func TestCombatStrategyRegistryExposesHammerdinBossRuns(t *testing.T) {
 		if strategy.ProfileID() != "paladin_hammerdin" || strategy.RunID() != runID {
 			t.Fatalf("strategy identity = %s/%s", strategy.ProfileID(), strategy.RunID())
 		}
-		if _, ok := strategy.(profile.SupportsRouteClear); ok {
+		clear, hasClear := strategy.(profile.SupportsRouteClear)
+		if runID == "summoner" {
+			if !hasClear || !clear.RequiresRouteClear() {
+				t.Fatal("Hammerdin summoner must require travel route_clear")
+			}
+		} else if hasClear {
 			t.Fatalf("Hammerdin %s must not wire route clear", runID)
 		}
 		if registry.SupportedRuns("paladin_hammerdin")[index] != runID {
 			t.Fatalf("Hammerdin supported runs = %v", registry.SupportedRuns("paladin_hammerdin"))
 		}
 	}
-	for _, runID := range []string{"summoner", "cows"} {
-		if _, exists := registry.Resolve("paladin_hammerdin", runID); exists {
-			t.Fatalf("Hammerdin unexpectedly supports %s", runID)
-		}
+	if _, exists := registry.Resolve("paladin_hammerdin", "cows"); exists {
+		t.Fatal("Hammerdin unexpectedly supports cows")
 	}
 	if got := registry.SupportedRuns("necro_bone_spear"); len(got) != 5 {
 		t.Fatalf("existing Bone-Spear registry changed: %v", got)
