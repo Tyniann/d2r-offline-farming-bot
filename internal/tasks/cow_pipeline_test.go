@@ -40,26 +40,44 @@ func TestCowSweepUsesCorpseExplosionWrapperOnlyForProfileCapability(t *testing.T
 		t.Fatal("Cow definition missing")
 	}
 	now := time.Date(2026, 8, 17, 12, 0, 0, 0, time.UTC)
-	state := world.State{
-		At: now, Generation: 1, Valid: true, Phase: world.GamePhaseInGame,
-		Area: world.LookupArea(world.MooMooFarm),
-	}
 	route := controllerRoute(RouteProgress{RouteID: "cow-route", Mode: RouteProgressMovement})
 	clear := &routeClearMock{}
+	deps := Deps{Route: route, RouteClear: clear}
 
 	hammerdin := newCowPipeline(definition, RunConfig{
 		RouteID: "cow-route", Combat: CombatConfig{Profile: hammerdinCombatProfileID},
 	})
-	if result := hammerdin.onTick(context.Background(), Deps{Route: route, RouteClear: clear}, cowStepSweep, state, now, now, 0); result.failed {
+	if result := tickCowSweepAfterArrivalSettle(t, hammerdin, deps, now); result.failed {
 		t.Fatalf("profile-only Cow sweep failed: %+v", result)
 	}
 
 	necro := newCowPipeline(definition, RunConfig{
 		RouteID: "cow-route", Combat: CombatConfig{Profile: "necro_bone_spear", UseCorpseExplosion: true},
 	})
-	if result := necro.onTick(context.Background(), Deps{Route: route, RouteClear: clear}, cowStepSweep, state, now, now, 0); !result.failed || result.reason != CowReasonCapabilityMissing {
+	if result := tickCowSweepAfterArrivalSettle(t, necro, deps, now); !result.failed || result.reason != CowReasonCapabilityMissing {
 		t.Fatalf("CE Cow sweep accepted route clear without CE capability: %+v", result)
 	}
+}
+
+func tickCowSweepAfterArrivalSettle(t *testing.T, pipeline *cowPipeline, deps Deps, now time.Time) stepResult {
+	t.Helper()
+	pipeline.onStepEnter(cowStepSweep)
+	var result stepResult
+	for index := 0; index < entryAreaArriveSnapshots; index++ {
+		at := now.Add(time.Duration(index) * time.Second)
+		if index == entryAreaArriveSnapshots-1 {
+			at = now.Add(entryAreaArriveSettle)
+		}
+		state := world.State{
+			At: at, Generation: uint64(index + 1), Valid: true, Phase: world.GamePhaseInGame,
+			Area: world.LookupArea(world.MooMooFarm),
+		}
+		result = pipeline.onTick(context.Background(), deps, cowStepSweep, state, at, now, 0)
+		if result.failed && index < entryAreaArriveSnapshots-1 {
+			t.Fatalf("settle tick %d failed: %+v", index, result)
+		}
+	}
+	return result
 }
 
 func TestCowRetryReturnUsesSharedStandardPipeline(t *testing.T) {
@@ -231,5 +249,56 @@ func TestCowLegPickupFinishesActiveExecutorAfterInventoryConfirmation(t *testing
 	}
 	if loot.tickCalls != 1 {
 		t.Fatalf("TickPickup calls=%d, want 1", loot.tickCalls)
+	}
+}
+
+func TestCowWaitStonyFieldSettlesBeforeLegRoute(t *testing.T) {
+	definition, ok := DefaultRunRegistry().Definition(RunIDCows)
+	if !ok {
+		t.Fatal("Cow definition missing")
+	}
+	pipeline := newCowPipeline(definition, RunConfig{})
+	pipeline.onStepEnter(cowStepWaitStony)
+	now := time.Date(2026, 8, 18, 21, 0, 0, 0, time.UTC)
+	arrived := world.State{Valid: true, Phase: world.GamePhaseInGame, Area: world.LookupArea(world.StonyField), At: now}
+
+	loading := arrived
+	loading.Phase = world.GamePhaseLoading
+	if result := pipeline.onTick(context.Background(), Deps{}, cowStepWaitStony, loading, now, now, 0); result.complete || result.failed {
+		t.Fatalf("loading Stony Field result=%+v, want pending", result)
+	}
+
+	open := arrived
+	open.UI.WaypointOpen = true
+	if result := pipeline.onTick(context.Background(), Deps{}, cowStepWaitStony, open, now, now, 0); result.complete || result.failed {
+		t.Fatalf("first Stony Field snapshot result=%+v, want pending", result)
+	}
+
+	early := open
+	early.At = now.Add(time.Second)
+	if result := pipeline.onTick(context.Background(), Deps{}, cowStepWaitStony, early, now.Add(time.Second), now, 0); result.complete || result.failed {
+		t.Fatalf("unsettled Stony Field result=%+v, want pending", result)
+	}
+
+	settled := open
+	settled.At = now.Add(entryAreaArriveSettle)
+	if result := pipeline.onTick(context.Background(), Deps{}, cowStepWaitStony, settled, now.Add(entryAreaArriveSettle), now, 0); !result.complete || result.failed {
+		t.Fatalf("settled Stony Field result=%+v, want complete", result)
+	}
+}
+
+func TestCowSweepSettlesMooMooArrivalBeforePlayback(t *testing.T) {
+	definition, ok := DefaultRunRegistry().Definition(RunIDCows)
+	if !ok {
+		t.Fatal("Cow definition missing")
+	}
+	pipeline := newCowPipeline(definition, RunConfig{RouteID: "cow-route"})
+	pipeline.onStepEnter(cowStepSweep)
+	now := time.Date(2026, 8, 18, 21, 5, 0, 0, time.UTC)
+	state := world.State{
+		At: now, Valid: true, Phase: world.GamePhaseInGame, Area: world.LookupArea(world.MooMooFarm),
+	}
+	if result := pipeline.onTick(context.Background(), Deps{}, cowStepSweep, state, now, now, 0); result.complete || result.failed {
+		t.Fatalf("first Moo Moo snapshot result=%+v, want pending settle", result)
 	}
 }

@@ -36,6 +36,7 @@ func NewCombatStrategyRegistry() *CombatStrategyRegistry {
 	registry.mustRegister(hammerdin.NewBossFactory(string(tasks.RunIDMephisto)))
 	registry.mustRegister(hammerdin.NewBossFactory(string(tasks.RunIDNihlathak)))
 	registry.mustRegister(hammerdin.NewSummonerFactory())
+	registry.mustRegister(hammerdin.NewCowsFactory())
 	return registry
 }
 

@@ -63,6 +63,17 @@ const reasonPriority = [
   "route_stale",
 ];
 
+function unsupportedResolutionText(message: string) {
+  if (!/requires 1280x720/i.test(message)) {
+    return "";
+  }
+  const got = message.match(/got (\d+)x(\d+)/i);
+  if (got) {
+    return `D2R läuft in ${got[1]} × ${got[2]}. Stelle Fenster-Modus 1280 × 720 ein. Der Bot arbeitet nur in dieser Auflösung.`;
+  }
+  return "D2R läuft nicht in 1280 × 720. Stelle Fenster-Modus 1280 × 720 ein. Der Bot arbeitet nur in dieser Auflösung.";
+}
+
 export function isRunStartable(status: string) {
   return status === "available" || status === "runtime_validation_required";
 }
@@ -95,6 +106,10 @@ export function runAvailabilityText(status: string, reasons: string[] = [], char
 
 export function queueStartErrorText(message: string) {
   const text = message.trim();
+  const resolution = unsupportedResolutionText(text);
+  if (resolution) {
+    return resolution;
+  }
   if (text.includes("queue_entry_unavailable") || text.includes("profile_class_mismatch")) {
     return "Ein Run in der Reihenfolge ist für diesen Charakter nicht startfähig.";
   }
@@ -121,6 +136,10 @@ export function queueStartErrorText(message: string) {
 
 export function selectionErrorText(message: string) {
   const text = message.trim();
+  const resolution = unsupportedResolutionText(text);
+  if (resolution) {
+    return resolution;
+  }
   if (text.includes("no usable client area")) {
     return "Das D2R-Fenster hat keine nutzbare Fläche. Stelle Fenster-Modus 1280 × 720 ein und lass das Fenster sichtbar, nicht minimiert.";
   }

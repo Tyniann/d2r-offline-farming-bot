@@ -197,6 +197,7 @@ func TestValidateHammerdinAcceptsLeftMouseBlessedHammer(t *testing.T) {
 		Runs: config.RunsConfig{Definitions: map[string]config.RunConfig{
 			"countess": {}, "mephisto": {}, "nihlathak": {},
 			"summoner": {RouteCombat: config.RouteCombatConfig{Enabled: &enabled}},
+			"cows":     {RouteCombat: config.RouteCombatConfig{Enabled: &enabled}},
 		}},
 		Profiles: config.ProfilesConfig{},
 	}
@@ -214,7 +215,7 @@ func TestValidateHammerdinAcceptsLeftMouseBlessedHammer(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, runID := range []string{"countess", "mephisto", "nihlathak", "summoner"} {
+	for _, runID := range []string{"countess", "cows", "mephisto", "nihlathak", "summoner"} {
 		if err = validateBossBindingsWithProfile(cfg, runID, source, "paladin_hammerdin"); err != nil {
 			t.Fatalf("%s boss LMB Blessed Hammer rejected: %v", runID, err)
 		}
@@ -222,7 +223,7 @@ func TestValidateHammerdinAcceptsLeftMouseBlessedHammer(t *testing.T) {
 			t.Fatalf("%s full-run LMB Blessed Hammer rejected: %v", runID, err)
 		}
 	}
-	hammerdinFactory, ok := DefaultCombatStrategyRegistry().Resolve("paladin_hammerdin", "summoner")
+	hammerdinFactory, ok := DefaultCombatStrategyRegistry().Resolve("paladin_hammerdin", "cows")
 	if !ok || !cowStrategyBindingsReady(source, hammerdinFactory()) {
 		t.Fatal("strategy-required Hammerdin bindings were treated as Necromancer Cow bindings")
 	}
@@ -471,6 +472,24 @@ func TestMapCowCombatUsesSelectedProfileStrategyCapabilities(t *testing.T) {
 	}
 	if hammerdin.Combat.Profile != "paladin_hammerdin" || hammerdin.Combat.UseCorpseExplosion {
 		t.Fatalf("Hammerdin Cow combat inherited Necromancer capability: %+v", hammerdin.Combat)
+	}
+
+	hammerdinBindings, err := newConfigBindingSource(config.InputBindingsConfig{Skills: map[string]config.SkillBindingConfig{
+		"teleport":       {Key: "f7", Button: "right"},
+		"town_portal":    {Key: "f6", Button: "right"},
+		"blessed_hammer": {Key: "f1", Button: "left"},
+		"concentration":  {Key: "f2", Button: "right"},
+		"holy_shield":    {Key: "f4", Button: "right"},
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	hammerdinCow := mapCowConfig(cfg, hammerdinBindings, nil, "paladin_hammerdin")
+	if !hammerdinCow.ExpectedClassKnown || hammerdinCow.ExpectedClass.String() != "paladin" || !hammerdinCow.RequiredSkillsReady {
+		t.Fatalf("Hammerdin Cow preflight config = %+v", hammerdinCow)
+	}
+	if mapCowConfig(cfg, necroBindings, nil, "paladin_hammerdin").RequiredSkillsReady {
+		t.Fatal("Hammerdin Cow preflight accepted Necromancer skill bindings")
 	}
 }
 

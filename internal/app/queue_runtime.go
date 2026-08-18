@@ -640,6 +640,9 @@ func queueGameStartDetail(err error) string {
 		return "Das Spiel konnte nicht sicher gestartet werden."
 	}
 	msg := err.Error()
+	if detail, ok := queueUnsupportedResolutionDetail(msg); ok {
+		return detail
+	}
 	switch {
 	case strings.Contains(msg, "expected in_game"):
 		return "Kein laufendes Spiel im Rogue Encampment. D2R muss im Lager stehen oder auf dem Offline-Charakterbildschirm, damit der Bot das Spiel öffnet."
@@ -660,6 +663,29 @@ func queueGameStartDetail(err error) string {
 	default:
 		return "Das Spiel konnte nicht sicher gestartet werden."
 	}
+}
+
+func queueUnsupportedResolutionDetail(msg string) (string, bool) {
+	required := fmt.Sprintf("requires %dx%d", offlineExitClientWidth, offlineExitClientHeight)
+	if !strings.Contains(msg, required) {
+		return "", false
+	}
+	if width, height, ok := parseGotClientSize(msg); ok {
+		return fmt.Sprintf("D2R läuft in %d × %d. Stelle Fenster-Modus %d × %d ein. Der Bot arbeitet nur in dieser Auflösung.", width, height, offlineExitClientWidth, offlineExitClientHeight), true
+	}
+	return fmt.Sprintf("D2R läuft nicht in %d × %d. Stelle Fenster-Modus %d × %d ein. Der Bot arbeitet nur in dieser Auflösung.", offlineExitClientWidth, offlineExitClientHeight, offlineExitClientWidth, offlineExitClientHeight), true
+}
+
+func parseGotClientSize(msg string) (int, int, bool) {
+	idx := strings.LastIndex(msg, "got ")
+	if idx < 0 {
+		return 0, 0, false
+	}
+	var width, height int
+	if _, err := fmt.Sscanf(msg[idx:], "got %dx%d", &width, &height); err != nil {
+		return 0, 0, false
+	}
+	return width, height, true
 }
 
 func focusVerifiedQueueGame(controller inputController) error {

@@ -146,9 +146,9 @@ func (a *routePlaybackAdapter) Progress(state world.State) (tasks.RouteProgress,
 
 // Hold freezes route playback for one validated snapshot and extends only the
 // adapter-owned deadline by the real elapsed hold duration. It commits points
-// already reached in Memory and rebases authorized external movement onto the
-// first matching forward route edge. It sends no route input and ticks no
-// navigator or transition.
+// already reached in Memory and rebases authorized external movement onto a
+// later route edge only when the skipped path length is plausible for that
+// move. It sends no route input and ticks no navigator or transition.
 func (a *routePlaybackAdapter) Hold(state world.State) error {
 	if a.player == nil {
 		return fmt.Errorf("run route playback not started")

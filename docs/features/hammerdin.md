@@ -2,7 +2,7 @@
 
 ## Überblick
 
-`paladin_hammerdin` ist das zweite freigegebene Kampfprofil. Es registriert Countess, Mephisto, Nihlathak und Summoner. Countess, Mephisto und Nihlathak teilen denselben Standardangriff. Summoner nutzt denselben Blessed-Hammer-Hold zusätzlich während der aufgezeichneten Route (Combat-to-go). Das Profil friert die Skill-, Slot-, CTA- und Söldnerverträge ein. Phase 22.6 stellt den isolierten CTA-/Holy-Shield-Prebuff bereit und verdrahtet denselben Ablauf produktiv vor dem Abspielen der aufgezeichneten Route. Battle Command und Battle Orders sind CASC-seitig nicht in der Stadt wirkbar. Der produktive Blessed-Hammer-Kampf ist verdrahtet; das manuelle Gate 22.7 ist am 16.08.2026 für Mephisto bestanden.
+`paladin_hammerdin` ist das zweite freigegebene Kampfprofil. Es registriert Countess, Mephisto, Nihlathak, Summoner und Kuh-Level. Countess, Mephisto und Nihlathak teilen denselben Standardangriff. Summoner und der Cow-Sweep nutzen denselben Blessed-Hammer-Hold zusätzlich während der aufgezeichneten Route (Combat-to-go). Das Profil friert die Skill-, Slot-, CTA- und Söldnerverträge ein. Phase 22.6 stellt den isolierten CTA-/Holy-Shield-Prebuff bereit und verdrahtet denselben Ablauf produktiv vor dem Abspielen der aufgezeichneten Route. Battle Command und Battle Orders sind CASC-seitig nicht in der Stadt wirkbar. Der produktive Blessed-Hammer-Kampf ist verdrahtet; das manuelle Gate 22.7 ist am 16.08.2026 für Mephisto bestanden.
 
 ## Ort im Code
 
@@ -15,7 +15,7 @@
 
 ### Profil und Bossläufe
 
-Das Profil ist für die Klasse `paladin` im Charakter-Setup freigegeben. Die Runtime-Registry enthält die Paare `paladin_hammerdin × countess|mephisto|nihlathak|summoner`. Kuh-Level bleibt für dieses Profil nicht verfügbar. Die fünf Pflichtskills sind Teleport, Stadtportal, Gesegneter Hammer, Konzentration und Heiliger Schild.
+Das Profil ist für die Klasse `paladin` im Charakter-Setup freigegeben. Die Runtime-Registry enthält die Paare `paladin_hammerdin × countess|cows|mephisto|nihlathak|summoner`. Die fünf Pflichtskills sind Teleport, Stadtportal, Gesegneter Hammer, Konzentration und Heiliger Schild.
 
 ### Skill-Slots und CTA
 
@@ -31,7 +31,7 @@ Der CTA-Zweig verlangt zu Beginn ein frisch bestätigtes Primärset. Er sendet `
 
 Der gültige leer/leer-Zweig sendet weder `W` noch Battle-Command-/Battle-Orders-Input. Holy Shield wird einmal im Primärset gewirkt; anschließend werden dieselben Kampfslots wiederhergestellt. Ein unlesbares Waffenset, ein nicht bestätigter Wechsel oder eine nicht bestätigte Skillauswahl beendet den Ablauf ohne Toggle-Schleife.
 
-Die produktive Queue ruft dieselbe Maschine nach der Wegpunkt-Ankunft auf, unmittelbar bevor die aufgezeichnete Route startet. In der Stadt wird nicht gecastet: Battle Command und Battle Orders haben `InTown=false`. CTA vollständig und der 150-Sekunden-Anker noch nicht fällig bedeutet: der Hook endet ohne Input. CTA vollständig und Anker leer oder fällig bedeutet: volle Sequenz inklusive Holy Shield im zweiten Set. Ohne CTA wird Holy Shield einmal pro Spielgeneration im Primärset gewirkt. Der 150-Sekunden-Anker wird erst nach dem tatsächlich autorisierten zweiten Battle-Command-Cast gesetzt. Ein Game- oder Generations-Reset sowie Menu-/Loading-Phasen löschen Timer, Pending Selection und Weapon-Swap-Zustand.
+Die produktive Queue ruft dieselbe Maschine nach der Wegpunkt-Ankunft auf, unmittelbar bevor die aufgezeichnete Route startet, und danach weiter in jedem `play_route`-Tick. In der Stadt wird nicht gecastet: Battle Command und Battle Orders haben `InTown=false`. CTA vollständig und der 150-Sekunden-Anker noch nicht fällig bedeutet: der Hook endet ohne Input. CTA vollständig und Anker leer oder fällig bedeutet: volle Sequenz inklusive Holy Shield im zweiten Set; ein gehaltener Hammer-Angriff wird vorher gelöst, danach wartet der Bot 250 ms bevor `W` das Sekundärset anwählt. Ohne CTA wird Holy Shield einmal pro Spielgeneration im Primärset gewirkt. Der 150-Sekunden-Anker wird erst nach dem tatsächlich autorisierten zweiten Battle-Command-Cast gesetzt. Ein Game- oder Generations-Reset sowie Menu-/Loading-Phasen löschen Timer, Pending Selection und Weapon-Swap-Zustand.
 
 ### Standardangriff
 
@@ -51,12 +51,18 @@ Nach Beginn des Holds bleibt die bestätigte UnitID bis zu ihrem Tod gepinnt, au
 
 Ohne weiteres Ausweichmonster bleibt der Hold bestehen, damit ein langsamer Boss weiter Schaden nehmen kann. Spätestens nach 25 Sekunden ohne bestätigten Fortschritt oder nach 12 wirkungslosen Teleports endet der Bosskampf mit `boss_combat_no_progress`. Das bloße Starten oder Fortsetzen eines LMB-Holds zählt nicht als Fortschritt. Distanz, Cursorpunkt und Hold sind live bestätigt: 1/3/5 Tiles, Sprite-Aim, LMB ohne Shift.
 
+### Kuh-Level
+
+Kuh-Level bleibt ein gemeinsamer Zwei-Rollen-Run (`leg_acquisition` / `cow_sweep`). Hammerdin registriert dieselbe Cow-Pipeline wie der Necromancer: Preflight, Town-Ready, Stony-Field-Wegpunkt, combatfreie Wirt-Route, Bein, Tome, Cube-Rezept und Sweep. Der Preflight übernimmt Klasse und Pflichtskills aus der Hammerdin-Cow-Strategie; Amplify Damage, Corpse Explosion, Bone Spear und Bone Armor werden nicht verlangt. CTA und Holy Shield laufen über `field_ready` nach gesetzter Ankunft in Stony Field bzw. Moo Moo Farm, nicht im Town-Ready-Schritt. Derselbe Hook bleibt während des Cow-Sweeps aktiv, damit der 150-Sekunden-CTA-Anker die Buffs erneuert, bevor Battle Orders auslaufen.
+
+Der Sweep bindet denselben Blessed-Hammer-Route-Clear wie Summoner und schaltet den Necromancer-CE-Hold nicht ein. Annäherung bleibt die profildefinierte 1-Tile-Distanz. Beide Routenrollen müssen für den Paladin-Charakter aufgenommen und veröffentlicht werden; Necromancer-Aufnahmen sind nicht übertragbar.
+
 ## Datenmodell
 
 - `config.RequiredSkillConfig.Slot`: erzwungener Profilslot `left` oder `right`
 - `config.OptionalSkillPairConfig`: genau zwei gemeinsam optionale Skills
 - `config.ProfileConfig.RequiresMercenary`: von der Trankpolicy unabhängiges Preflight-Gate
-- `profile.RunStrategy`: registriert Countess, Mephisto, Nihlathak und Summoner mit denselben fünf Pflichtskills; Summoner bindet RouteClear ohne Fluch-Opener
+- `profile.RunStrategy`: registriert Countess, Mephisto, Nihlathak, Summoner und Kuh-Level mit denselben fünf Pflichtskills; Summoner und Cow-Sweep binden RouteClear ohne Fluch-Opener und ohne Corpse Explosion
 
 Die Skill-IDs stammen aus dem lokal extrahierten `.tmp/d2r-excel/skills.txt`: Teleport 54, Blessed Hammer 112, Concentration 113, Holy Shield 117, Battle Orders 149, Battle Command 155 und TownPortal 359. Der eingebettete Katalog bleibt auf stabile `skill`-/`*Id`-Schlüssel zurückführbar. Für Hammerdin aktiviert die Runtime die vorhandene Weapon-Set-Evidenz über dieselben CASC-IDs 149 und 155.
 
@@ -100,7 +106,8 @@ Live-Beleg 16.08.2026, Charakter `MrHammer`: `d2rbot-20260816-184632.log` und `d
 - [Countess-Run](countess-run.md)
 - [Summoner-Run](summoner-run.md)
 - [Nihlathak-Run](nihlathak-run.md)
+- [Cow Level / Moo Moo Farm](cow-level-run.md)
 - [Route-Threat-Combat](route-threat-combat.md)
 
 ---
-*Zuletzt aktualisiert: 2026-08-17*
+*Zuletzt aktualisiert: 2026-08-18*

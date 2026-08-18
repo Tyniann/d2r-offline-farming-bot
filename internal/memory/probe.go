@@ -408,11 +408,23 @@ func (p *ProbeReader) normalizeVitalStats(playerPtr uintptr, vitals VitalStats) 
 		p.observedMaxMana = 0
 	}
 
-	p.observedMaxHP = maxUint32(p.observedMaxHP, vitals.MaxHP, vitals.HP)
-	p.observedMaxMana = maxUint32(p.observedMaxMana, vitals.MaxMana, vitals.Mana)
+	// D2R MaxLife/MaxMana can omit buff bonuses that already appear in the
+	// current values. Raise the observed max while current exceeds the stated
+	// cap so HP% stays honest during Battle Orders. When the bonus expires,
+	// current reconverges with the stated cap; a sticky peak would look like
+	// missing HP and dump healing potions into an already-full life globe.
+	p.observedMaxHP = observeVitalMaximum(p.observedMaxHP, vitals.MaxHP, vitals.HP)
+	p.observedMaxMana = observeVitalMaximum(p.observedMaxMana, vitals.MaxMana, vitals.Mana)
 	vitals.MaxHP = p.observedMaxHP
 	vitals.MaxMana = p.observedMaxMana
 	return vitals
+}
+
+func observeVitalMaximum(observed, stated, current uint32) uint32 {
+	if current <= stated {
+		return stated
+	}
+	return maxUint32(observed, current)
 }
 
 func (p *ProbeReader) parseProbeVitalStats(statsListEx uintptr, off OffsetSet) (VitalStats, string, error) {

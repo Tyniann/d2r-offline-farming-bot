@@ -34,7 +34,7 @@ clientX = playable_center_x·W + (dx − dy)·tile_width
 clientY = playable_center_y·H + (dx + dy)·tile_height
 ```
 
-Defaults `19.8` / `9.9` und `playable_center 0.5/0.52` sind für **1280×720 windowed** kalibriert. Bei abweichender Client-Größe loggt der Bot beim Fenster-Bind eine Warnung (kein Hard-Fail).
+Defaults `19.8` / `9.9` und `playable_center 0.5/0.52` sind für **1280×720 windowed** kalibriert. Bei abweichender Client-Größe loggt der Bot beim Fenster-Bind eine Warnung (kein Hard-Fail). Teleport-Casts von `TeleportMover` und Combat-`TeleportToward` klemmen die Client-Y auf höchstens 74 % der Fensterhöhe, damit RMB nicht ins untere HUD (Gürtel) fällt. Hammer-Aim und Force-Move nutzen diesen Clamp nicht.
 
 ### Hover-Feedback-Loop (EntityClicker)
 

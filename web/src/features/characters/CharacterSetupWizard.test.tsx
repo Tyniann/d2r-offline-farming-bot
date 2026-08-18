@@ -132,7 +132,7 @@ describe("CharacterSetupWizard", () => {
         requires_mercenary: true,
         bindings_ready: false,
         binding_reasons: ["profile_bindings_incomplete"],
-        supported_runs: ["countess", "mephisto", "nihlathak", "summoner"],
+        supported_runs: ["countess", "cows", "mephisto", "nihlathak", "summoner"],
       }],
       selected_profile_id: "paladin_hammerdin",
       default_profile_id: "paladin_hammerdin",

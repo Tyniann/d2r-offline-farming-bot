@@ -287,6 +287,27 @@ func TestCombatAdapterReportsOffscreenMonsterWithoutMovingOrClicking(t *testing.
 	}
 }
 
+func TestCombatAdapterTeleportTowardClampsBelowPlayableHUD(t *testing.T) {
+	in := &recordingCombatInput{}
+	bindings := configBindingSource{skills: map[uint16]input.SkillCast{
+		memory.SkillTeleport: {SkillID: memory.SkillTeleport, SelectKey: "f7", CastButton: input.MouseRight},
+	}}
+	adapter := newCombatAdapter(config.NewLogger("error"), in, bindings, pathing.DefaultConfig(), time.Millisecond)
+	player := world.Player{Position: world.Position{X: 100, Y: 100}, RightSkillID: memory.SkillTeleport}
+	sent, err := adapter.TeleportToward(time.Now(), player, world.Position{X: 120, Y: 120}, 0)
+	if err != nil || !sent {
+		t.Fatalf("sent=%t err=%v", sent, err)
+	}
+	win, ok := in.Window()
+	if !ok {
+		t.Fatal("expected bound test window")
+	}
+	_, maxY := pathing.ClampTeleportClientPoint(0, win.ClientHeight, win)
+	if in.lastClientY != maxY {
+		t.Fatalf("clientY=%d, want playable clamp %d (74%% of %d)", in.lastClientY, maxY, win.ClientHeight)
+	}
+}
+
 func TestCombatAdapterTeleportTowardKeepsDesiredDistance(t *testing.T) {
 	in := &recordingCombatInput{}
 	bindings := configBindingSource{skills: map[uint16]input.SkillCast{

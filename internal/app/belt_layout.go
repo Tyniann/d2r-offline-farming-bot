@@ -137,14 +137,19 @@ func ApplyBeltLayoutToResources(resources config.ProfileResourcesConfig, layout 
 	out.Healing.BeltSlots = nil
 	out.Mana.BeltSlots = nil
 	out.Rejuvenation.BeltSlots = nil
-	for slot, kind := range map[int]string{1: layout.Slot1, 2: layout.Slot2, 3: layout.Slot3, 4: layout.Slot4} {
-		switch strings.ToLower(strings.TrimSpace(kind)) {
+	for _, slot := range []struct {
+		index int
+		kind  string
+	}{
+		{1, layout.Slot1}, {2, layout.Slot2}, {3, layout.Slot3}, {4, layout.Slot4},
+	} {
+		switch strings.ToLower(strings.TrimSpace(slot.kind)) {
 		case beltPotionHealing:
-			out.Healing.BeltSlots = append(out.Healing.BeltSlots, slot)
+			out.Healing.BeltSlots = append(out.Healing.BeltSlots, slot.index)
 		case beltPotionMana:
-			out.Mana.BeltSlots = append(out.Mana.BeltSlots, slot)
+			out.Mana.BeltSlots = append(out.Mana.BeltSlots, slot.index)
 		case beltPotionRejuvenation:
-			out.Rejuvenation.BeltSlots = append(out.Rejuvenation.BeltSlots, slot)
+			out.Rejuvenation.BeltSlots = append(out.Rejuvenation.BeltSlots, slot.index)
 		}
 	}
 	if enabled, rule := out.Mercenary.Resolve(); enabled {

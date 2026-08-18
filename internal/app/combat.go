@@ -512,6 +512,11 @@ func (c *combatAdapter) TeleportToward(now time.Time, player world.Player, targe
 	if err != nil {
 		return false, err
 	}
+	if win, ok := c.input.Window(); ok {
+		// Route teleports already exclude the bottom HUD; combat teleports
+		// must use the same playable Y so RMB cannot open the belt.
+		clientX, clientY = pathing.ClampTeleportClientPoint(clientX, clientY, win)
+	}
 	sent, err := c.selector.EnsureAndCast(memory.SkillTeleport, player.RightSkillID, now, func() error {
 		if moveErr := c.input.MoveTo(clientX, clientY); moveErr != nil {
 			return fmt.Errorf("combat teleport aim: %w", moveErr)

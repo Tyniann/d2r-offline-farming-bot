@@ -23,12 +23,12 @@ it("transportiert den Core-Vertrag für Slots, CTA und Readiness", () => {
     requires_mercenary: true,
     bindings_ready: false,
     binding_reasons: ["profile_bindings_incomplete"],
-    supported_runs: ["countess", "mephisto", "nihlathak", "summoner"],
+    supported_runs: ["countess", "cows", "mephisto", "nihlathak", "summoner"],
     default_belt_layout: { slot_1: "healing", slot_2: "mana", slot_3: "mana", slot_4: "rejuvenation" },
     belt_layout: { slot_1: "healing", slot_2: "mana", slot_3: "mana", slot_4: "rejuvenation" },
   };
 
-  expect(profile).toMatchObject({ requires_mercenary: true, bindings_ready: false, supported_runs: ["countess", "mephisto", "nihlathak", "summoner"] });
+  expect(profile).toMatchObject({ requires_mercenary: true, bindings_ready: false, supported_runs: ["countess", "cows", "mephisto", "nihlathak", "summoner"] });
   expect(profile.required_skills?.[0].slot).toBe("left");
   expect(profile.optional_skill_pairs?.[0].skills.map((skill) => skill.skill_id)).toEqual([155, 149]);
 });

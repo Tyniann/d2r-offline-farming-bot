@@ -172,10 +172,14 @@ func TestResolveRunAvailabilitiesAllowsHammerdinBossStrategies(t *testing.T) {
 		t.Fatal(err)
 	}
 	cows, _ := findRunAvailability(report.Runs, tasks.RunIDCows)
-	if !containsRunReason(cows.Reasons, tasks.RunReasonProfileRunStrategyUnavailable) {
+	if containsRunReason(cows.Reasons, tasks.RunReasonProfileRunStrategyUnavailable) {
+		t.Fatalf("Hammerdin cows strategy unavailable: %v", cows.Reasons)
+	}
+	if !containsRunReason(cows.Reasons, tasks.RunReasonCowSweepRouteMissing) ||
+		!containsRunReason(cows.Reasons, tasks.RunReasonLegAcquisitionRouteMissing) {
 		t.Fatalf("Hammerdin cows reasons = %v", cows.Reasons)
 	}
-	for _, runID := range []tasks.RunID{tasks.RunIDCountess, tasks.RunIDMephisto, tasks.RunIDNihlathak, tasks.RunIDSummoner} {
+	for _, runID := range []tasks.RunID{tasks.RunIDCountess, tasks.RunIDCows, tasks.RunIDMephisto, tasks.RunIDNihlathak, tasks.RunIDSummoner} {
 		availability, _ := findRunAvailability(report.Runs, runID)
 		if containsRunReason(availability.Reasons, tasks.RunReasonProfileRunStrategyUnavailable) {
 			t.Fatalf("Hammerdin %s strategy unavailable: %v", runID, availability.Reasons)

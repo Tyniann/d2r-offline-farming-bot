@@ -154,10 +154,16 @@ func (c *cowPipeline) blocksAutomaticInput(string) bool { return true }
 func (c *cowPipeline) handlesResources(string) bool { return false }
 
 func (c *cowPipeline) onStepEnter(step string) {
+	if step == cowStepWaitStony {
+		// Hammerdin field-ready CTA starts on the first play_route tick. Reuse
+		// the shared waypoint-arrival settle so W is not sent during load fade.
+		c.legRoute.onStepEnter(pipelineStepWaitEntryArea)
+	}
 	if step == cowStepPlayLegRoute {
 		c.legRoute.onStepEnter(pipelineStepPlayRoute)
 	}
 	if step == cowStepSweep {
+		c.cowSweep.resetEntryArrival()
 		c.cowSweep.onStepEnter(pipelineStepPlayRoute)
 	}
 	if step == cowStepPickupLeg {
@@ -264,10 +270,7 @@ func (c *cowPipeline) onTick(ctx context.Context, deps Deps, step string, state 
 		}
 		return stepResult{complete: true}
 	case cowStepWaitStony:
-		if state.Valid && state.Area.ID == world.StonyField {
-			return stepResult{complete: true}
-		}
-		return stepResult{}
+		return c.legRoute.tickWaitEntryArea(state, now)
 	case cowStepPlayLegRoute:
 		return c.legRoute.tickTravel(ctx, narrowTravelDeps(deps), pipelineStepPlayRoute, state, now, stepStartedAt)
 	case cowStepOpenWirt:
@@ -358,6 +361,14 @@ func (c *cowPipeline) onTick(ctx context.Context, deps Deps, step string, state 
 	case cowStepRecipeComplete:
 		return stepResult{complete: true}
 	case cowStepSweep:
+		if !c.cowSweep.travel.fieldReadyComplete && !c.cowSweep.travel.routeStarted {
+			// Portal arrival can report Area 39 during the fade, same as a
+			// waypoint. Settle before field-ready so a late CTA recast does
+			// not send an unconfirmed weapon swap.
+			if wait := c.cowSweep.tickWaitSettledArea(state, now, world.MooMooFarm); !wait.complete {
+				return wait
+			}
+		}
 		sweepDeps := deps
 		if c.config.Combat.UseCorpseExplosion {
 			clear, ok := deps.RouteClear.(CowRouteClearExecutor)

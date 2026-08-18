@@ -7,14 +7,28 @@ Versionierung nach [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.21.0] - 2026-08-19
+
 ### Added
 - Register Hammerdin Summoner with route-clear combat during playback using the Blessed Hammer standard-attack hold
+- Register Hammerdin Cow Level with the shared Wirt/cube setup pipeline and Blessed Hammer sweep combat, without Corpse Explosion
 - Expose per-character belt potion columns in Settings → Characters so operators can assign healing, mana, or rejuvenation to slots 1–4 without editing combat-profile YAML
+- Register Hammerdin Countess and Nihlathak on the shared Blessed Hammer standard-attack path and skip Nihlathak post-boss cleanup
 
 ### Changed
 - Replace the abstract portal glyph with a Town Portal stone-tile app icon for the Windows package, tray, notifications, and in-app brand mark
+- Mark Phase 22 Gates 22.8 and the Definition of Done complete after the `v0.20.0` release
+- Align embedded, README, handoff, and packaging metadata with version `0.21.0`
 
 ### Fixed
+- Wait 250 ms after releasing Blessed Hammer before a mid-combat CTA weapon swap so D2R accepts `W` without pausing a Hell pack for a full second
+- Clamp combat teleport aims to the same 74% playable client height used by route teleports so RMB does not open the belt panel
+- Keep the mouse 48 px above the bottom client edge so non-teleport gameplay clicks stay out of the belt hover strip
+- Reset observed max life and mana when Battle Orders expires, so a full life globe is not treated as missing HP
+- Recast Hammerdin CTA and Holy Shield during long route playback when the 150-second anchor is due
+- Keep Cow sweep on the unplayed recorded loop instead of snapping combat at the portal onto the return path
+- Show a clear German queue-start error when D2R is not 1280 × 720 instead of the generic game-start failure
+- Settle Cow Stony Field and Moo Moo Farm arrivals like other runs before Hammerdin field-ready, so CTA does not send an unconfirmed weapon swap during the load fade
 - Reposition Hammerdin toward a nearby monster while keeping the surviving attack target pinned, fall back to a bounded route-forward teleport when none is nearby, attack from the new position before any return approach, confirm successful teleports without a fixed settle delay, overlap Concentration selection with cursor aim, and keep no-progress termination finite
 - Derive Cow preflight skills, character class, corpse-explosion wrapping, and combat approach from the selected profile/run strategy instead of inheriting Necromancer behavior
 - Validate route-combat openers from the selected profile/run strategy so Hammerdin Summoner no longer requires the Necromancer `amplify_damage` binding
@@ -27,15 +41,6 @@ Versionierung nach [Semantic Versioning](https://semver.org/).
 - Start the farm queue from the character screen after Apply unless Memory currently shows Rogue Encampment, keep the German start failure visible, and stop treating the brief monitor handoff as missing game control
 - Carry the frozen character profile through session preflight and per-run context creation so Hammerdin queues are not rejected against the classless Necromancer fallback
 - Extract the NSIS payload with ZIP so Chromium, `app.asar` and Core actually land on disk; a 7-Zip store archive was aborting silently and the installed app died before any window
-
-## [0.21.0] - 2026-08-16
-
-### Added
-- Register Hammerdin Countess and Nihlathak on the shared Blessed Hammer standard-attack path and skip Nihlathak post-boss cleanup
-
-### Changed
-- Mark Phase 22 Gates 22.8 and the Definition of Done complete after the `v0.20.0` release
-- Align embedded, README, handoff, and packaging metadata with version `0.21.0`
 
 ## [0.20.0] - 2026-08-16
 

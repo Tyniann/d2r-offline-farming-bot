@@ -28,6 +28,15 @@ func NewSummonerFactory() profile.StrategyFactory {
 	}
 }
 
+// NewCowsFactory returns the Hammerdin Cow strategy. Shared Cow preflight,
+// Wirt setup and cube recipe stay in the Cow pipeline; sweep combat reuses
+// the Blessed Hammer route-clear hold and does not declare Corpse Explosion.
+func NewCowsFactory() profile.StrategyFactory {
+	return func() profile.RunStrategy {
+		return &cowsStrategy{}
+	}
+}
+
 type bossStrategy struct {
 	runID string
 }
@@ -62,5 +71,23 @@ func (s *summonerStrategy) Configure(exec *profile.Executor, standardAttackID ui
 	}
 	// No curse opener: Blessed Hammer is the only route-clear attack. The
 	// combat adapter holds LMB after a close teleport, matching Mephisto.
+	return exec.ConfigureRouteClear(profile.RouteClearSingleTarget, 0, standardAttackID, routeClear)
+}
+
+type cowsStrategy struct{}
+
+func (s *cowsStrategy) ProfileID() string { return profileID }
+func (s *cowsStrategy) RunID() string     { return "cows" }
+func (s *cowsStrategy) RequiredSkills() []string {
+	return []string{"teleport", "town_portal", "blessed_hammer", "concentration", "holy_shield"}
+}
+func (s *cowsStrategy) RequiresRouteClear() bool { return true }
+func (s *cowsStrategy) Configure(exec *profile.Executor, standardAttackID uint16, routeClear profile.RouteCombatActions) error {
+	if exec == nil || routeClear == nil || standardAttackID != memory.MustSkillID("blessed_hammer") {
+		return fmt.Errorf("hammerdin cows strategy requires executor, route clear and Blessed Hammer standard attack")
+	}
+	// Cow setup (Wirt, leg, cube recipe) is owned by the shared cow pipeline.
+	// Sweep combat matches Summoner: Blessed Hammer LMB hold, no curse opener
+	// and no Corpse Explosion capability for the CE cow-hold wrapper.
 	return exec.ConfigureRouteClear(profile.RouteClearSingleTarget, 0, standardAttackID, routeClear)
 }

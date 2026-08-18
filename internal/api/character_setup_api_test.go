@@ -155,7 +155,7 @@ func TestCharacterSetupDTOTransportsHammerdinBindingContractAndReadiness(t *test
 			{Skill: "battle_orders", SkillID: 149, DisplayName: "Battle Orders", Slot: "right"},
 		}}},
 		RequiresMercenary: true, BindingsReady: false, BindingReasons: []string{"profile_bindings_incomplete"},
-		SupportedRuns: []string{"countess", "mephisto", "nihlathak", "summoner"},
+		SupportedRuns: []string{"countess", "cows", "mephisto", "nihlathak", "summoner"},
 	}}}
 	dto := characterSetupPreviewDTO(value)
 	if len(dto.Profiles) != 1 {
@@ -165,9 +165,9 @@ func TestCharacterSetupDTOTransportsHammerdinBindingContractAndReadiness(t *test
 	if profile.RequiredSkills[0].Slot != "left" || len(profile.OptionalSkillPairs) != 1 ||
 		profile.OptionalSkillPairs[0].Skills[0].SkillID != 155 || profile.OptionalSkillPairs[0].Skills[1].SkillID != 149 ||
 		!profile.RequiresMercenary || profile.BindingsReady || len(profile.BindingReasons) != 1 ||
-		len(profile.SupportedRuns) != 4 || profile.SupportedRuns[0] != "countess" ||
-		profile.SupportedRuns[1] != "mephisto" || profile.SupportedRuns[2] != "nihlathak" ||
-		profile.SupportedRuns[3] != "summoner" {
+		len(profile.SupportedRuns) != 5 || profile.SupportedRuns[0] != "countess" ||
+		profile.SupportedRuns[1] != "cows" || profile.SupportedRuns[2] != "mephisto" ||
+		profile.SupportedRuns[3] != "nihlathak" || profile.SupportedRuns[4] != "summoner" {
 		t.Fatalf("Hammerdin DTO=%+v", profile)
 	}
 }

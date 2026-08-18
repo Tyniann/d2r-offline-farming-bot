@@ -66,7 +66,7 @@ func (m *TeleportMover) TeleportTo(now time.Time, player world.Player, target wo
 		return 0, 0, fmt.Errorf("teleport to %d,%d: %w", target.X, target.Y, ErrProjectionFailed)
 	}
 	rawClientX, rawClientY := clientX, clientY
-	clientX, clientY = clampTeleportClientPoint(clientX, clientY, win)
+	clientX, clientY = ClampTeleportClientPoint(clientX, clientY, win)
 
 	if m.clicker == nil {
 		return clientX, clientY, fmt.Errorf("teleport cast: right skill clicker is required")
@@ -107,7 +107,9 @@ func (m *TeleportMover) SetRightSkillClicker(clicker RightSkillClicker) {
 	m.clicker = clicker
 }
 
-func clampTeleportClientPoint(clientX, clientY int, win input.WindowInfo) (int, int) {
+// ClampTeleportClientPoint keeps a teleport aim inside the playable client
+// area. The bottom 26% is reserved for HUD, including the collapsed belt.
+func ClampTeleportClientPoint(clientX, clientY int, win input.WindowInfo) (int, int) {
 	if win.ClientWidth > 0 {
 		clientX = clampInt(clientX, 0, win.ClientWidth-1)
 	}

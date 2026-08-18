@@ -111,6 +111,16 @@ func TestQueueGameStartDetailIsGermanAndHidesRawCause(t *testing.T) {
 	}
 }
 
+func TestQueueGameStartDetailReportsUnsupportedResolution(t *testing.T) {
+	got := queueGameStartDetail(fmt.Errorf("start queue game: offline exit requires 1280x720, got 1920x1080"))
+	if !strings.Contains(got, "1920 × 1080") || !strings.Contains(got, "1280 × 720") {
+		t.Fatalf("detail = %q", got)
+	}
+	if strings.Contains(got, "offline exit") || strings.Contains(got, "requires 1280x720") || strings.Contains(got, "sicher gestartet") {
+		t.Fatalf("raw or generic start copy leaked: %q", got)
+	}
+}
+
 func TestConfiguredQueueCharacterSelectionReusesCatalogBoundSelector(t *testing.T) {
 	cfg := &config.Config{}
 	cfg.Session.Character = "mrbones"

@@ -143,7 +143,7 @@ func TestMoveToClientToScreenConversion(t *testing.T) {
 		wantY   int
 	}{
 		{"origin clamped", 0, 0, 110, 210},
-		{"max clamped", 799, 599, 889, 789},
+		{"max clamped", 799, 599, 889, 751},
 		{"negative clamped", -50, -50, 110, 210},
 		{"inside safe area", 400, 300, 500, 500},
 	}
@@ -303,21 +303,24 @@ func TestClickSenderErrorOnButtonDown(t *testing.T) {
 
 func TestClampMouseCoord(t *testing.T) {
 	cases := []struct {
-		value, size int
-		want        int
-		clamped     bool
+		value, size, minMargin, maxMargin int
+		want                              int
+		clamped                           bool
 	}{
-		{0, 800, 10, true},
-		{789, 800, 789, false},
-		{799, 800, 789, true},
-		{7, 15, 7, false},
-		{0, 15, 7, true},
+		{0, 800, defaultMouseEdgeMargin, defaultMouseEdgeMargin, 10, true},
+		{789, 800, defaultMouseEdgeMargin, defaultMouseEdgeMargin, 789, false},
+		{799, 800, defaultMouseEdgeMargin, defaultMouseEdgeMargin, 789, true},
+		{7, 15, defaultMouseEdgeMargin, defaultMouseEdgeMargin, 7, false},
+		{0, 15, defaultMouseEdgeMargin, defaultMouseEdgeMargin, 7, true},
+		{719, 720, defaultMouseEdgeMargin, defaultMouseBottomMargin, 671, true},
+		{671, 720, defaultMouseEdgeMargin, defaultMouseBottomMargin, 671, false},
+		{10, 720, defaultMouseEdgeMargin, defaultMouseBottomMargin, 10, false},
 	}
 	for _, tc := range cases {
-		got, clamped := clampMouseCoord(tc.value, tc.size)
+		got, clamped := clampMouseCoord(tc.value, tc.size, tc.minMargin, tc.maxMargin)
 		if got != tc.want || clamped != tc.clamped {
-			t.Fatalf("clampMouseCoord(%d,%d) = (%d,%v), want (%d,%v)",
-				tc.value, tc.size, got, clamped, tc.want, tc.clamped)
+			t.Fatalf("clampMouseCoord(%d,%d,%d,%d) = (%d,%v), want (%d,%v)",
+				tc.value, tc.size, tc.minMargin, tc.maxMargin, got, clamped, tc.want, tc.clamped)
 		}
 	}
 }

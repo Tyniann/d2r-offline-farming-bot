@@ -17,6 +17,11 @@ const (
 	weaponSetTimeout        = 1500 * time.Millisecond
 	prebuffCastSettle       = 300 * time.Millisecond
 	prebuffWeaponSwapSettle = 1000 * time.Millisecond
+	// prebuffRecastSwapSettle waits after a combat CTA recast before W.
+	// D2R ignores W during the Paladin cast animation; 126 ms after releasing
+	// Blessed Hammer was not enough, but a full 1000 ms leaves a Hell pack
+	// unattended.
+	prebuffRecastSwapSettle = 250 * time.Millisecond
 	ctaRecastAfter          = 150 * time.Second
 )
 
@@ -233,6 +238,8 @@ func (p *hammerdinPrebuff) tick(state world.State, now time.Time) (hammerdinPreb
 			return hammerdinPrebuffResult{Done: true}, nil
 		}
 		p.restartSequence()
+		p.settleUntil = now.Add(prebuffRecastSwapSettle)
+		return hammerdinPrebuffResult{}, nil
 	}
 
 	switch p.state {

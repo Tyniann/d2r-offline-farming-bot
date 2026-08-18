@@ -277,9 +277,11 @@ func (p *RouteSegmentPlayer) SyncReached(state world.State) error {
 }
 
 // ReconcileForward rebases playback onto the first later recorded edge that
-// contains the player inside the configured drift corridor. It is reserved for
-// caller-authorized external movement such as a combat or loot Hold; ordinary
-// playback remains strictly sequential and never invokes this method.
+// contains the player inside the configured drift corridor and whose skipped
+// path length is at most the external move plus `max_drift_tiles`. It is
+// reserved for caller-authorized external movement such as a combat or loot
+// Hold; ordinary playback remains strictly sequential and never invokes this
+// method. A looping route that recrosses the start is not treated as progress.
 func (p *RouteSegmentPlayer) ReconcileForward(state world.State) (bool, error) {
 	if p.done {
 		return false, nil
@@ -307,12 +309,21 @@ func (p *RouteSegmentPlayer) ReconcileForward(state world.State) (bool, error) {
 		return false, nil
 	}
 
-	// Select the first forward edge that contains the externally moved player.
-	// Using the earliest match avoids skipping an entire loop when a later route
-	// section crosses the same world coordinates.
+	// Select the first forward edge that contains the externally moved player
+	// and whose skipped path length is plausible for that move. Earliest
+	// geometric match alone is not enough: a looping Cow sweep recrosses the
+	// portal pack, so combat at the start would otherwise snap onto the return
+	// path and skip the unplayed loop.
+	origin := p.previous
+	maxSkipPath := world.Distance(state.Player.Position, origin) + p.route.Playback.MaxDriftTiles
+	pathLen := 0.0
 	for point := p.point + 1; point < len(p.segment.Points); point++ {
 		previous := routePointPosition(p.segment.Points[point-1])
 		target := routePointPosition(p.segment.Points[point])
+		pathLen += world.Distance(previous, target)
+		if pathLen > maxSkipPath {
+			return false, nil
+		}
 		if distanceToEdge(state.Player.Position, previous, target) > p.route.Playback.MaxDriftTiles {
 			continue
 		}

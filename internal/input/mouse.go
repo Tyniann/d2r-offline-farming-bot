@@ -7,7 +7,13 @@ import (
 
 const modifierClickHold = 40 * time.Millisecond
 
-const defaultMouseEdgeMargin = 10
+const (
+	defaultMouseEdgeMargin   = 10
+	// defaultMouseBottomMargin keeps gameplay clicks above the collapsed belt
+	// hover strip. 10 px still opened the potion panel; 48 px is a small extra
+	// gap without using the larger teleport playable-area clamp.
+	defaultMouseBottomMargin = 48
+)
 
 // MouseButton identifies a mouse button for click primitives.
 type MouseButton string
@@ -38,12 +44,11 @@ func isValidMouseButton(button MouseButton) bool {
 	return button == MouseLeft || button == MouseRight
 }
 
-func clampMouseCoord(value, clientSize int) (clamped int, wasClamped bool) {
-	margin := defaultMouseEdgeMargin
-	minBound := margin
-	maxBound := clientSize - 1 - margin
+func clampMouseCoord(value, clientSize, minMargin, maxMargin int) (clamped int, wasClamped bool) {
+	minBound := minMargin
+	maxBound := clientSize - 1 - maxMargin
 
-	if clientSize < 2*margin+1 {
+	if clientSize < minMargin+maxMargin+1 {
 		center := (clientSize - 1) / 2
 		if value != center {
 			return center, true
@@ -61,8 +66,8 @@ func clampMouseCoord(value, clientSize int) (clamped int, wasClamped bool) {
 }
 
 func clientToScreenPoint(win WindowInfo, clientX, clientY int) mousePoint {
-	clampedX, clampX := clampMouseCoord(clientX, win.ClientWidth)
-	clampedY, clampY := clampMouseCoord(clientY, win.ClientHeight)
+	clampedX, clampX := clampMouseCoord(clientX, win.ClientWidth, defaultMouseEdgeMargin, defaultMouseEdgeMargin)
+	clampedY, clampY := clampMouseCoord(clientY, win.ClientHeight, defaultMouseEdgeMargin, defaultMouseBottomMargin)
 	return mousePoint{
 		clientX: clampedX,
 		clientY: clampedY,

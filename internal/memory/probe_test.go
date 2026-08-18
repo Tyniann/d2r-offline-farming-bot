@@ -315,6 +315,22 @@ func TestProbeNormalizesMaxVitalsFromObservedCurrent(t *testing.T) {
 	if snap.Mana != 300 || snap.MaxMana != 484 {
 		t.Fatalf("mana/max_mana after spend = %d/%d, want 300/484", snap.Mana, snap.MaxMana)
 	}
+
+	writeStatEntry(access, baseArray+0, 0, StatLife, int32(949<<8))
+	writeStatEntry(access, baseArray+8, 0, StatMaxLife, int32(949<<8))
+	writeStatEntry(access, baseArray+16, 0, StatMana, int32(191<<8))
+	writeStatEntry(access, baseArray+24, 0, StatMaxMana, int32(191<<8))
+
+	snap = probe.Snapshot()
+	if !snap.Valid {
+		t.Fatalf("expected valid third snapshot, reason=%q", snap.Reason)
+	}
+	if snap.HP != 949 || snap.MaxHP != 949 {
+		t.Fatalf("hp/max_hp after buff expiry = %d/%d, want 949/949", snap.HP, snap.MaxHP)
+	}
+	if snap.Mana != 191 || snap.MaxMana != 191 {
+		t.Fatalf("mana/max_mana after buff expiry = %d/%d, want 191/191", snap.Mana, snap.MaxMana)
+	}
 }
 
 func TestProbePlayerPointerUnavailable(t *testing.T) {

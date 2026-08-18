@@ -58,7 +58,7 @@ Echte OS-Eingaben sind standardmäßig deaktiviert (`input.enabled: false`). Glo
 
 - **Low-Level:** `MoveTo(clientX, clientY)`, `Click(left|right)` — serialisiert über `mouseMu`.
 - Koordinaten sind **client-relativ**: `(0,0)` = obere linke Ecke des D2R-Clientbereichs aus `WindowInfo`.
-- `MoveTo` klemmt auf eine sichere Client-Fläche (Default-Rand 10 px), konvertiert dann zu Screen-Koordinaten (`ClientLeft/Top + geklemmte Werte`).
+- `MoveTo` klemmt auf eine sichere Client-Fläche (10 px an den Seiten und oben, 48 px unten gegen den Gürtel), konvertiert dann zu Screen-Koordinaten (`ClientLeft/Top + geklemmte Werte`). Dieser Fensterrand ist unabhängig vom Teleport-HUD-Clamp (74 % Höhe) und gilt für alle Mausbewegungen.
 - `Click` sendet Button Down/Up an der **aktuellen** Cursorposition; bewegt die Maus nicht.
 - `ClickWithModifier` hält für genau einen Maus-Down/Up-Zyklus einen Modifier wie `ctrl` und gibt ihn auf jedem Fehlerpfad best-effort wieder frei. Phase 5.8 nutzt dies für atomare Personal-Stash-Transfers.
 - Beide Methoden verlangen ein gebundenes Fenster (`ErrWindowNotBound` ohne `Bind`).
@@ -247,7 +247,7 @@ Erwartung: Fenster gebunden, Aktionen in `input action`-Logs sichtbar, `input te
 - **Geometrie:** Allgemeine Mausaktionen verwenden weiterhin die Geometrie aus `Bind`; `ClickAtWithModifier` aktualisiert sie unmittelbar in seiner Lease.
 - **Teleport-Bewegung:** `SetCursorPos` setzt den Cursor sofort; keine schrittweise Bewegung in 3.3.
 - **DPI/Multi-Monitor:** Screen-Koordinaten hängen von `ClientToScreen` und der DPI-Awareness des Prozesses ab; kein eigener DPI-Fix in 3.3.
-- **Rand-Clamp only:** 10-px-Margin vermeidet Fensterränder, keine HUD-Erkennung.
+- **Rand-Clamp:** 10 px an den Seiten und oben vermeiden Fensterränder; 48 px unten halten den Cursor aus der Gürtel-Hoverzone. Keine HUD-Erkennung. Teleport-Casts klemmen zusätzlich auf 74 % der Clienthöhe, bevor `MoveTo` den Fensterrand anwendet.
 - **Fenstertitel:** hardcoded englischer Titel; Lokalisierung/Config später.
 - **Globaler OS-Input:** `SendInput`/`SetCursorPos` sind nicht an `Bound()` gekoppelt; `MoveTo`/`Click` prüfen Binding, Tasks prüfen Fokus in späteren Phasen.
 
@@ -264,4 +264,4 @@ Erwartung: Fenster gebunden, Aktionen in `input action`-Logs sichtbar, `input te
 - [State Probe](state-probe.md) — läuft parallel weiter, auch ohne erfolgreiches Bind
 
 ---
-*Zuletzt aktualisiert: 17. August 2026*
+*Zuletzt aktualisiert: 18. August 2026*

@@ -243,6 +243,40 @@ func TestRouteSegmentPlayerReconcilesAuthorizedForwardMovement(t *testing.T) {
 	}
 }
 
+func TestRouteSegmentPlayerDoesNotReconcileLoopReturnAsForwardProgress(t *testing.T) {
+	route := validRoute()
+	route.Segments[0].Points = []RoutePoint{
+		{X: 25173, Y: 5928},
+		{X: 25151, Y: 5897},
+		{X: 25094, Y: 5886},
+		{X: 25048, Y: 5943},
+		{X: 25116, Y: 5912},
+		{X: 25153, Y: 5952},
+	}
+	nav := &segmentNavigatorMock{next: NavTickResult{Status: NavMoving}}
+	player, err := NewRouteSegmentPlayer(nav, route, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	state := segmentPlaybackState(world.BlackMarsh, 25162, 5916)
+	if syncErr := player.SyncReached(state); syncErr != nil {
+		t.Fatal(syncErr)
+	}
+	before := player.PointIndex()
+	if before > 1 {
+		t.Fatalf("start point = %d, want the opening of the loop", before)
+	}
+
+	state.Player.Position = world.Position{X: 25149, Y: 5940}
+	reconciled, err := player.ReconcileForward(state)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reconciled || player.PointIndex() != before {
+		t.Fatalf("loop return reconciled=%t point=%d, want stay at %d", reconciled, player.PointIndex(), before)
+	}
+}
+
 func TestRouteSegmentPlayerSkipsNearbyBlockedPointAfterSettledInputs(t *testing.T) {
 	route := validRoute()
 	route.Segments[0].Points = append(route.Segments[0].Points, RoutePoint{X: 14790, Y: 5065})

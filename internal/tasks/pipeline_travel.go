@@ -91,10 +91,11 @@ func (c *runPipeline) tickTravel(ctx context.Context, deps pipelineTravelDeps, s
 	case pipelineStepWaitEntryArea:
 		return c.tickWaitEntryArea(w, now)
 	case pipelineStepPlayRoute:
-		if deps.Profile != nil && !c.travel.fieldReadyComplete {
+		if deps.Profile != nil {
 			if !w.Valid || w.Phase != world.GamePhaseInGame {
 				return stepResult{}
 			}
+			alreadyReady := c.travel.fieldReadyComplete
 			res := deps.Profile.TickHook(ctx, profile.HookFieldReady, w, profile.EncounterTarget{}, now)
 			switch res.Status {
 			case profile.StatusFailed:
@@ -102,6 +103,14 @@ func (c *runPipeline) tickTravel(ctx context.Context, deps pipelineTravelDeps, s
 			case profile.StatusComplete:
 				c.travel.fieldReadyComplete = true
 			default:
+				// Keep ticking field-ready after the first complete so Hammerdin
+				// CTA/Holy Shield can recast during a long route. Release any
+				// held attack before the weapon-swap sequence starts.
+				if alreadyReady && deps.Combat != nil {
+					if err := deps.Combat.StopAttack(); err != nil {
+						return stepResult{failed: true, reason: string(RouteThreatReasonStateInvalid)}
+					}
+				}
 				return stepResult{}
 			}
 		}
@@ -692,6 +701,17 @@ func (c *runPipeline) tickWaitEntryArea(w world.State, now time.Time) stepResult
 	c.resetEntryArrival()
 	if w.Area.ID != world.RogueEncampment {
 		return stepResult{failed: true, reason: string(RunReasonUnexpectedArea)}
+	}
+	return stepResult{}
+}
+
+func (c *runPipeline) tickWaitSettledArea(w world.State, now time.Time, want world.AreaID) stepResult {
+	if !w.Valid || w.Phase != world.GamePhaseInGame || w.Area.ID == world.None || w.Area.ID != want {
+		c.resetEntryArrival()
+		return stepResult{}
+	}
+	if c.observeEntryArrival(w, now) {
+		return stepResult{complete: true}
 	}
 	return stepResult{}
 }

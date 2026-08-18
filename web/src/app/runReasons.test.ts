@@ -25,9 +25,16 @@ describe("runReasons", () => {
     expect(queueStartErrorText("queue_context_mismatch")).toBe("Die Queue gehört nicht zur bestätigten Auswahl.");
     expect(queueStartErrorText("game_start_failed")).toContain("Rogue Encampment");
     expect(queueStartErrorText("start queue game: session game expected in_game, got menu")).toContain("Rogue Encampment");
+    expect(queueStartErrorText("start queue game: offline exit requires 1280x720, got 1920x1080")).toBe(
+      "D2R läuft in 1920 × 1080. Stelle Fenster-Modus 1280 × 720 ein. Der Bot arbeitet nur in dieser Auflösung.",
+    );
+    expect(queueStartErrorText("start queue game: offline exit requires 1280x720, got 1920x1080")).not.toContain("Rogue Encampment");
   });
 
   it("übersetzt Charakterauswahl-Timeout ohne Rohcodes", () => {
+    expect(selectionErrorText("offline exit requires 1280x720, got 2560x1440")).toBe(
+      "D2R läuft in 2560 × 1440. Stelle Fenster-Modus 1280 × 720 ein. Der Bot arbeitet nur in dieser Auflösung.",
+    );
     expect(selectionErrorText("character selection timeout: d2r window has no usable client area")).toBe("Das D2R-Fenster hat keine nutzbare Fläche. Stelle Fenster-Modus 1280 × 720 ein und lass das Fenster sichtbar, nicht minimiert.");
     expect(selectionErrorText("Die Charakterauswahl konnte nicht sicher bestätigt werden: character selection timeout")).toBe("Der Charakterbildschirm wurde nicht sicher erkannt. D2R muss auf dem Offline-Charakterbildschirm bei 1280 × 720 stehen, und der gewünschte Save muss sichtbar markiert sein.");
     expect(selectionErrorText("character selection timeout")).not.toMatch(/timeout/);

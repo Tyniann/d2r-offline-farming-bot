@@ -1,6 +1,6 @@
 # D2R Offline Farming Bot
 
-Go-basierter Bot für Diablo II: Resurrected (Offline/Singleplayer). **v0.21.0** unterstützt autonome Farming-Runs für Countess, Mephisto, Summoner, Nihlathak und das Cow Level einschließlich Charakter-Loadouts, Hammerdin (Countess, Mephisto, Nihlathak), Runtime Replay, Combat, Loot, Sockel-Pickit, Town-Diensten, Mercenary-Support und Desktop-App.
+Go-basierter Bot für Diablo II: Resurrected (Offline/Singleplayer). **v0.21.0** unterstützt autonome Farming-Runs für Countess, Mephisto, Summoner, Nihlathak und das Cow Level einschließlich Charakter-Loadouts, Hammerdin (Countess, Mephisto, Nihlathak, Summoner, Cow Level), Runtime Replay, Combat, Loot, Sockel-Pickit, Town-Diensten, Mercenary-Support und Desktop-App.
 
 ## Voraussetzungen
 
@@ -88,7 +88,7 @@ powershell -ExecutionPolicy Bypass -File scripts/build-release.ps1 -Version 0.21
 Optional Version taggen (nur für Git-Historie):
 
 ```powershell
-git tag -a v0.21.0 -m "Release v0.21.0: Hammerdin Countess and Nihlathak"
+git tag -a v0.21.0 -m "Release v0.21.0: Hammerdin Summoner, Cow Level, and combat reliability"
 git push origin v0.21.0
 ```
 

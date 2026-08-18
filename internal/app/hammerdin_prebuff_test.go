@@ -341,11 +341,30 @@ func TestHammerdinCTAPrebuffSkipsWhileAnchorNotDueAndRecastsAfter150s(t *testing
 	state.Player.LeftSkillID = 0
 	state.Player.RightSkillID = 0
 	result, tickErr = prebuff.tick(state, state.At)
-	if tickErr != nil || result.Done {
+	if tickErr != nil || result.Done || result.Action != "" {
 		t.Fatalf("due restart result=%+v err=%v", result, tickErr)
 	}
+	if got, want := strings.Join(in.keys, ","), "w,w"; got != want {
+		t.Fatalf("due restart sent W during hammer animation: %v", in.keys)
+	}
+
 	state.Generation++
-	state.At = state.At.Add(400 * time.Millisecond)
+	state.At = state.At.Add(prebuffRecastSwapSettle - time.Millisecond)
+	result, tickErr = prebuff.tick(state, state.At)
+	if tickErr != nil || result.Action != "" {
+		t.Fatalf("recast settle result=%+v err=%v", result, tickErr)
+	}
+	if len(in.keys) != 2 {
+		t.Fatalf("recast W sent during 250ms settle: %v", in.keys)
+	}
+
+	state.Generation++
+	state.At = state.At.Add(time.Millisecond)
+	if _, tickErr = prebuff.tick(state, state.At); tickErr != nil {
+		t.Fatal(tickErr)
+	}
+	state.Generation++
+	state.At = state.At.Add(time.Millisecond)
 	result, tickErr = prebuff.tick(state, state.At)
 	if tickErr != nil || result.Action != "weapon_set_secondary" {
 		t.Fatalf("due recast action=%+v err=%v", result, tickErr)
