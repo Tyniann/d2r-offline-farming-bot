@@ -95,21 +95,29 @@ git push origin v0.21.0
 ## Projektstruktur
 
 ```
-cmd/d2rbot/          # Einstiegspunkt (main)
+cmd/d2rbot/          # Einstiegspunkt (main, CLI-Flags, Wiring)
 internal/
-  app/               # Anwendungs-Orchestrierung, World-Log-Loop
+  app/               # Orchestrierung, Supervisor/Queue-Lifecycle, Adapter
+  process/           # D2R-Prozesssuche, Handles, Versionsgate
+  memory/            # Memory Reader, Snapshots, Offsets
+  world/             # Spielzustand (Area, Entities, Items)
+  pathing/           # Navigation, Teleport, Routenaufnahme/-wiedergabe
+  input/             # Tastatur & Maus, Fensterbindung, Safety-Hotkeys
+  tasks/             # Run-State-Machines (Countess, Mephisto, Summoner, Nihlathak, Cow Level)
+  profile/           # Klassen-/Combat-Profile, Encounter-Hooks, Route-Clear
+  town/              # Town-Graph, Vendor/Stash-Dienste, System-Egress
+  loot/              # Pickit, Inventar, Stash
+  telemetry/         # JSONL Run-/Session-Telemetrie und History
+  replay/            # Runtime-Traces und headless Replay
+  api/               # Loopback-HTTP/SSE Core-API für die Desktop-UI
+  api/ui/            # Eingebetteter React-Produktionsbuild
   config/            # Konfiguration & Logging
-  process/           # Prozesssuche, Handles
-  memory/            # Memory Reader, Offsets, State Probe
-  world/             # Spielzustand (Area, Player, State)
   version/           # Release-Version (Build-Zeit injizierbar)
-  pathing/           # Navigation / Teleport
-  input/             # Tastatur & Maus
-  tasks/             # Run-State-Machines
-  loot/              # Pickit, Inventar
-configs/             # YAML-Konfiguration & Offset-Beispiele
+web/                 # Electron-Desktop-App und React-Quellen
+configs/             # YAML-Konfiguration, Pickit, Routen, Offset-Beispiele
+tools/               # CASC-Katalog-Generatoren und Default-Bundle
 scripts/             # Release-Build
-docs/                # Feature-Docs & Changelog
+docs/                # Feature-Docs, Changelog, Agent-Docs
 ```
 
 ## Entwicklung

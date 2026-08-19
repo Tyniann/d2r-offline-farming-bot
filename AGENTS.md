@@ -30,18 +30,22 @@ Feature-first unter `internal/` und `web/src/features/`. Paket-Grenzen strikt ei
 | `internal/world` | Interpretierter Spielzustand (Area, Entities, Items) |
 | `internal/pathing` | Navigation, Teleport, Routenaufnahme/-wiedergabe |
 | `internal/input` | Tastatur & Maus, Fensterbindung, Safety-Hotkeys |
-| `internal/tasks` | Run-State-Machines (Countess, Mephisto, Summoner, Nihlathak) |
+| `internal/tasks` | Run-State-Machines (Countess, Mephisto, Summoner, Nihlathak, Cow Level) |
 | `internal/profile` | Klassen-/Combat-Profile, Encounter-Hooks, Route-Clear |
 | `internal/town` | Town-Graph, Vendor/Stash-Dienste, System-Egress |
 | `internal/loot` | Pickit, Inventar, Stash |
 | `internal/telemetry` | JSONL Run-/Session-Telemetrie und History |
+| `internal/replay` | Opt-in Runtime-Traces und headless Replay ohne Memory oder OS-Input |
 | `internal/api` | Loopback-HTTP/SSE Core-API für die Desktop-UI |
 | `internal/api/ui` | Eingebetteter React-Produktionsbuild |
 | `internal/config` | Config-Laden, Logger-Setup |
 | `internal/version` | Eingebettete Build-Version und Commit |
 | `web/` | Electron-Desktop-App und React-Quellen (`web/src/features/…`) |
+| `tools/` | CASC-Katalog-Generatoren und Default-Bundle |
+| `configs/` | YAML für Runs, Pickit, Routen, Offsets (`config.example.yaml` versionieren) |
+| `docs/` | Feature-Docs, Changelog, Agent-Docs |
 
-**Datenfluss:** `process` → `memory` (Snapshot) → `world` (Model) → `tasks`/`profile` (Entscheidung) → `input` (Aktion). `pathing`, `loot` und `town` hängen am World Model, nicht direkt an Raw Memory. Operator-UI: `web` ↔ `internal/api` ↔ `internal/app`. `telemetry` beobachtet Runs/Sessions, steuert sie nicht.
+**Datenfluss:** `process` → `memory` (Snapshot) → `world` (Model) → `tasks`/`profile` (Entscheidung) → `input` (Aktion). `pathing`, `loot` und `town` hängen am World Model, nicht direkt an Raw Memory. Operator-UI: `web` ↔ `internal/api` ↔ `internal/app`. `telemetry` beobachtet Runs/Sessions, steuert sie nicht. `replay` zeichnet opt-in Runtime-Traces und spielt sie headless gegen die Task-Pipeline ab.
 
 ## In-code-Dokumentation 
 
