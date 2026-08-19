@@ -267,3 +267,17 @@ Bei jeder relevanten Änderung:
 2. Bei Release: `[Unreleased]` → `[X.Y.Z] - YYYY-MM-DD`, neues leeres `[Unreleased]` oben
 
 Commits und Releases nur auf ausdrückliche Anfrage des Nutzers.
+
+## Agent skills
+
+### Issue tracker
+
+GitHub Issues on `Tyniann/d2r-offline-farming-bot`, via `gh`. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Default role names: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: root `CONTEXT.md` plus `docs/adr/`. See `docs/agents/domain.md`.
