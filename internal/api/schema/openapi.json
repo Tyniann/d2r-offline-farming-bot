@@ -2043,6 +2043,11 @@
               "type": "string"
             }
           },
+          "players": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 8
+          },
           "profile_bindings": {
             "type": "object",
             "additionalProperties": {

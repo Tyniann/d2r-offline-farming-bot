@@ -3,6 +3,7 @@ import type { OperatorSettingsDTO } from "../../api/generated";
 const fieldLabels: Array<{ pattern: RegExp; label: (match: RegExpMatchArray) => string }> = [
   { pattern: /^characters\.([^.]+)\.queue$/, label: (m) => `Run-Reihenfolge (${m[1]})` },
   { pattern: /^characters\.([^.]+)\.last_difficulty$/, label: (m) => `Letzte Schwierigkeit (${m[1]})` },
+  { pattern: /^characters\.([^.]+)\.players$/, label: (m) => `Spieleranzahl (${m[1]})` },
   { pattern: /^characters\.([^.]+)\.profile_bindings$/, label: (m) => `Tastenbelegung (${m[1]})` },
   { pattern: /^characters\.([^.]+)\.inventory_lock$/, label: (m) => `Inventarschutz (${m[1]})` },
   { pattern: /^budgets\.max_runs$/, label: () => "Maximale Runs" },
@@ -54,6 +55,7 @@ export function collectLocalDiffPaths(saved: OperatorSettingsDTO, draft: Operato
       continue;
     }
     if (character.last_difficulty !== baseline.last_difficulty) paths.push(`characters.${name}.last_difficulty`);
+    if ((character.players ?? 1) !== (baseline.players ?? 1)) paths.push(`characters.${name}.players`);
     if (JSON.stringify(character.queue) !== JSON.stringify(baseline.queue)) paths.push(`characters.${name}.queue`);
     if (JSON.stringify(character.profile_bindings ?? {}) !== JSON.stringify(baseline.profile_bindings ?? {})) {
       paths.push(`characters.${name}.profile_bindings`);

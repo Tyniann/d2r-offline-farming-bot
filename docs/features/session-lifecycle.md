@@ -63,6 +63,8 @@ Phase 7 unterstützt im MVP ausschließlich:
 
 `GamePhaseMenu` allein ist kein unterstützter Startzustand, weil er Charakterbildschirm, Difficulty-Dialog und andere Menüs nicht unterscheidet. Loading, unbekannte Dialoge, ein Dungeon-Start, ein toter Charakter, Prozessverlust oder widersprüchliche UI-Signale führen nicht zu einem Klick. Phase 7.1 darf den unterstützten Startumfang anhand live validierter read-only Signale enger fassen.
 
+Nach bestätigtem In-Game sendet die Queue genau einmal den Offline-`/players`-Befehl des eingefrorenen Charakters. Same-Game-Folgeruns wiederholen ihn nicht. Details: [Offline-Spieleranzahl](offline-players.md).
+
 ## Ergebnisvertrag
 
 Der bestehende `tasks.RunOutcome` bleibt zunächst unverändert. Der Session-Lifecycle mappt ein terminales Task-Ergebnis in einen eigenen Vertrag:

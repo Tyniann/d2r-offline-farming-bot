@@ -39,6 +39,7 @@ func (m *offlineSelectionMock) ClickAtWithModifier(x, y int, _ string, _ input.M
 	return nil
 }
 func (m *offlineSelectionMock) PressKey(string) error            { return nil }
+func (m *offlineSelectionMock) SendChatCommand(string) error     { return nil }
 func (m *offlineSelectionMock) Focus() error                     { return nil }
 func (m *offlineSelectionMock) Window() (input.WindowInfo, bool) { return m.window, true }
 func (m *offlineSelectionMock) TogglePause(string) bool          { return false }

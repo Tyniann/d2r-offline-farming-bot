@@ -17,6 +17,7 @@ Echte OS-Eingaben sind standardmäßig deaktiviert (`input.enabled: false`). Glo
   - `safety.go` — `SafetyConfig`, `Status`, Pause/Stop-State, Action-Guards und Logging
   - `hotkey.go`, `hotkey_windows.go`, `hotkey_stub.go` — globale Hotkey-Typen und Windows-`RegisterHotKey`-Listener
   - `keyboard.go` — `KeyboardConfig`, `KeySender`, `PressKey`, `PressCombo`
+  - `chat.go` — `SendChatCommand` für den allowlisted `/players 1`–`/players 8`-Chat; Befehlstext per Unicode, Enter als virtueller Key
   - `skill_cast.go` — `BindingSource`, `SelectSkill`, `CastSkillAt`, `CastBelt`, `CastBeltWithModifier`
   - `keyboard_windows.go` — Windows `SendInput`-Backend und Virtual-Key-Mapping
   - `keyboard_stub.go` — Nicht-Windows-Stub mit `ErrUnsupportedPlatform`

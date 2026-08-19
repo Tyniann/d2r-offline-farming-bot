@@ -268,7 +268,7 @@ func TestCharacterLoadoutResolverAndReadiness(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !snapshot.BindingsComplete || snapshot.ProfileID != "necro_bone_spear" || !snapshot.InventoryConfigured {
+	if !snapshot.BindingsComplete || snapshot.ProfileID != "necro_bone_spear" || !snapshot.InventoryConfigured || snapshot.Players != DefaultOfflinePlayers {
 		t.Fatalf("snapshot=%+v", snapshot)
 	}
 	cast, err := snapshot.Bindings.Resolve(memory.SkillBoneSpear)

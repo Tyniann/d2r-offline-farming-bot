@@ -41,12 +41,13 @@ type OperatorSettings struct {
 	History       OperatorHistorySettings              `yaml:"history" json:"history"`
 }
 
-// OperatorCharacterSettings bindet Setup-Paar, Queue und letzte Difficulty an genau einen Charakter.
+// OperatorCharacterSettings bindet Setup-Paar, Queue, Offline-Spieleranzahl und letzte Difficulty an genau einen Charakter.
 type OperatorCharacterSettings struct {
 	CharacterClass  string                             `yaml:"character_class,omitempty" json:"character_class,omitempty"`
 	CombatProfile   string                             `yaml:"combat_profile,omitempty" json:"combat_profile,omitempty"`
 	LastDifficulty  string                             `yaml:"last_difficulty" json:"last_difficulty"`
 	Queue           []string                           `yaml:"queue" json:"queue"`
+	Players         int                                `yaml:"players" json:"players"`
 	ProfileBindings map[string]OperatorProfileBindings `yaml:"profile_bindings,omitempty" json:"profile_bindings,omitempty"`
 	InventoryLock   *OperatorInventoryLock             `yaml:"inventory_lock,omitempty" json:"inventory_lock,omitempty"`
 }
@@ -199,7 +200,7 @@ func NewOperatorSettingsStore(dataRoot string, cfg *config.Config, characterName
 	return &OperatorSettingsStore{
 		mu: lock.(*sync.Mutex), path: path, backupRoot: filepath.Join(cleanRoot, "backups"),
 		defaults: defaults, profiles: profiles,
-		characterDefaults: OperatorCharacterSettings{LastDifficulty: cfg.Session.Difficulty, Queue: append([]string(nil), cfg.Session.Queue...)},
+		characterDefaults: defaultOperatorCharacterSettings(cfg.Session.Difficulty, cfg.Session.Queue),
 		read:              os.ReadFile, write: writeAtomicYAML, now: time.Now,
 	}, nil
 }
@@ -356,6 +357,7 @@ func (s *OperatorSettingsStore) previewLocked(current OperatorSettings, expected
 	}
 	replacement.SchemaVersion = OperatorSettingsSchemaVersion
 	replacement.Revision = current.Revision + 1
+	normalizeOperatorSettings(&replacement)
 	if err := validateOperatorSettings(replacement, s.profiles); err != nil {
 		return OperatorSettingsChange{}, err
 	}
@@ -410,6 +412,7 @@ func (s *OperatorSettingsStore) loadLocked() (OperatorSettings, error) {
 	if trailingErr := decoder.Decode(&struct{}{}); trailingErr != io.EOF {
 		return OperatorSettings{}, fmt.Errorf("operator settings must contain one YAML document")
 	}
+	normalizeOperatorSettings(&settings)
 	if settings.SchemaVersion != OperatorSettingsSchemaVersion {
 		return OperatorSettings{}, &OperatorSettingsError{Code: Phase15ReasonConfigSchemaUnsupported, Err: fmt.Errorf("unsupported operator settings schema %d", settings.SchemaVersion)}
 	}
@@ -479,9 +482,27 @@ func operatorSettingsDefaults(cfg *config.Config, characters map[string]string) 
 		History: OperatorHistorySettings{RetentionEnabled: true, RetentionDays: 60},
 	}
 	for slug := range characters {
-		settings.Characters[slug] = OperatorCharacterSettings{LastDifficulty: cfg.Session.Difficulty, Queue: append([]string(nil), cfg.Session.Queue...)}
+		settings.Characters[slug] = defaultOperatorCharacterSettings(cfg.Session.Difficulty, cfg.Session.Queue)
 	}
 	return settings
+}
+
+func defaultOperatorCharacterSettings(difficulty string, queue []string) OperatorCharacterSettings {
+	return OperatorCharacterSettings{
+		LastDifficulty: difficulty,
+		Queue:          append([]string(nil), queue...),
+		Players:        DefaultOfflinePlayers,
+	}
+}
+
+func normalizeOperatorSettings(settings *OperatorSettings) {
+	if settings == nil {
+		return
+	}
+	for key, value := range settings.Characters {
+		value.Players = EffectivePlayers(value.Players)
+		settings.Characters[key] = value
+	}
 }
 
 func validateOperatorSettings(settings OperatorSettings, profiles config.ProfilesConfig) error {
@@ -529,6 +550,9 @@ func validateOperatorSettings(settings OperatorSettings, profiles config.Profile
 		case "normal", "nightmare", "hell":
 		default:
 			return fmt.Errorf("operator settings character %q has invalid difficulty", rawCharacter)
+		}
+		if err := validateOfflinePlayers(value.Players); err != nil {
+			return fmt.Errorf("operator settings character %q: %w", rawCharacter, err)
 		}
 		if _, err := validateUniqueQueueRunIDs(value.Queue); err != nil {
 			return fmt.Errorf("operator settings character %q queue: %w", rawCharacter, err)

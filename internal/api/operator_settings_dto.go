@@ -19,6 +19,7 @@ type OperatorCharacterSettingsDTO struct {
 	CombatProfile   string                                `json:"combat_profile,omitempty"`
 	LastDifficulty  string                                `json:"last_difficulty"`
 	Queue           []string                              `json:"queue"`
+	Players         int                                   `json:"players"`
 	ProfileBindings map[string]OperatorProfileBindingsDTO `json:"profile_bindings,omitempty"`
 	InventoryLock   *OperatorInventoryLockDTO             `json:"inventory_lock"`
 }
@@ -112,6 +113,7 @@ func operatorCharacterSettingsDTO(value app.OperatorCharacterSettings) OperatorC
 	dto := OperatorCharacterSettingsDTO{
 		CharacterClass: value.CharacterClass, CombatProfile: value.CombatProfile,
 		LastDifficulty: value.LastDifficulty, Queue: append([]string(nil), value.Queue...),
+		Players: app.EffectivePlayers(value.Players),
 	}
 	if value.ProfileBindings != nil {
 		dto.ProfileBindings = make(map[string]OperatorProfileBindingsDTO, len(value.ProfileBindings))
@@ -150,6 +152,7 @@ func operatorCharacterSettingsFromDTO(value OperatorCharacterSettingsDTO) app.Op
 	settings := app.OperatorCharacterSettings{
 		CharacterClass: value.CharacterClass, CombatProfile: value.CombatProfile,
 		LastDifficulty: value.LastDifficulty, Queue: append([]string(nil), value.Queue...),
+		Players: app.EffectivePlayers(value.Players),
 	}
 	if value.ProfileBindings != nil {
 		settings.ProfileBindings = make(map[string]app.OperatorProfileBindings, len(value.ProfileBindings))

@@ -19,6 +19,7 @@ type CharacterLoadoutSnapshot struct {
 	BindingsComplete    bool
 	InventoryConfigured bool
 	InventoryGrid       [][]int // defensive copy; nil when unconfigured
+	Players             int     // frozen /players 1–8; 0 means default 1
 }
 
 // CharacterLoadoutResolver resolves OperatorSettings Schema 3 into an immutable runtime snapshot.
@@ -75,6 +76,7 @@ func (r *CharacterLoadoutResolver) Resolve(character string) (CharacterLoadoutSn
 		BeltLayout:          bindings.BeltLayout,
 		BindingsComplete:    ProfileBindingsComplete(bindings, profile),
 		InventoryConfigured: value.InventoryLock != nil,
+		Players:             EffectivePlayers(value.Players),
 	}
 	if value.InventoryLock != nil {
 		snapshot.InventoryGrid = cloneInventoryGrid(value.InventoryLock.Grid)

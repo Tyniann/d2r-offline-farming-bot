@@ -24,7 +24,7 @@ Abschnitt 15.2 macht den Go-Core zur einzigen Autorität für alle über die GUI
 Der Store enthält eine positive Revision und:
 
 - `last_character` als zuletzt erfolgreich vom Core bestätigten Bedienkontext;
-- pro kanonischem Charakternamen eine nicht leere, geordnete und duplikatfreie Queue sowie `normal`, `nightmare` oder `hell` als letzte Difficulty;
+- pro kanonischem Charakternamen eine nicht leere, geordnete und duplikatfreie Queue, `normal`, `nightmare` oder `hell` als letzte Difficulty sowie `players` 1–8 (fehlend wird als 1 gelesen);
 - `character_class` und `combat_profile` als gemeinsam leeres oder gemeinsam gesetztes Setup-Paar; ein gesetztes Profil muss bekannt, für Setup freigegeben und mit der Klasse kompatibel sein;
 - Schema 3: `profile_bindings` (F1–F8, Gürteltasten und optional `belt_layout` für Trankspalten) sowie presence-sensitives `inventory_lock` (4×10) pro Charakter;
 - globale Grenzen für maximale Runs, Dauer, aufeinanderfolgende Fehler und Restarts;

@@ -430,8 +430,7 @@ func (u *runtimeQueueUnit) StartOrVerifyGame(ctx context.Context, alreadyActive 
 	u.runtime.Log.Info("queue game lifecycle start", "adopt_existing_game", alreadyActive)
 	if alreadyActive {
 		if err := u.runtime.verifyActiveQueueGame(ctx); err == nil {
-			u.rearmRunReadinessForNewGame(true)
-			return nil
+			return u.finishVerifiedQueueGame(true)
 		} else if !isMissingActiveQueueGame(err) {
 			u.runtime.Log.Error("queue game lifecycle start failed", "stage", "active_game_verification", "error", err)
 			return err
@@ -458,7 +457,15 @@ func (u *runtimeQueueUnit) StartOrVerifyGame(ctx context.Context, alreadyActive 
 		u.runtime.Log.Error("queue game lifecycle start failed", "stage", "active_game_verification", "error", err)
 		return err
 	}
-	u.rearmRunReadinessForNewGame(false)
+	return u.finishVerifiedQueueGame(false)
+}
+
+func (u *runtimeQueueUnit) finishVerifiedQueueGame(alreadyActive bool) error {
+	if err := u.runtime.applyOfflinePlayersCommand(); err != nil {
+		u.runtime.Log.Error("queue game lifecycle start failed", "stage", "offline_players", "error", err)
+		return err
+	}
+	u.rearmRunReadinessForNewGame(alreadyActive)
 	return nil
 }
 
@@ -652,6 +659,8 @@ func queueGameStartDetail(err error) string {
 		return "Das Spiel muss im Rogue Encampment stehen, bevor die Queue startet."
 	case strings.Contains(msg, "blocked by open UI"):
 		return "Schließe Inventar, Händler und andere Fenster, bevor die Queue startet."
+	case strings.Contains(msg, "offline players"):
+		return "Die Spieleranzahl konnte nach dem Spielstart nicht gesetzt werden."
 	case strings.Contains(msg, "no usable client area"):
 		return "Das D2R-Fenster hat keine nutzbare Fläche. Stelle Fenster-Modus 1280 × 720 ein und lass das Fenster sichtbar, nicht minimiert."
 	case strings.Contains(msg, "character selection timeout"):

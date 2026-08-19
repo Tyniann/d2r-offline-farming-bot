@@ -131,6 +131,7 @@ describe("CharactersTab", () => {
     expect(screen.getByLabelText("Gürtel Slot 2 Trank")).toHaveValue("mana");
     expect(screen.getByLabelText("Gürtel Slot 3 Trank")).toHaveValue("mana");
     expect(screen.getByLabelText("Gürtel Slot 4 Trank")).toHaveValue("rejuvenation");
+    expect(screen.getByRole("combobox", { name: "Spieleranzahl" })).toHaveValue("1");
     expect(screen.getByRole("grid", { name: /inventarschutz/i })).toBeInTheDocument();
     expect(screen.queryByText("Noch nicht bestätigt")).not.toBeInTheDocument();
     await waitFor(() => expect(mocks.preview).toHaveBeenCalledWith({ character: "MrBones" }));

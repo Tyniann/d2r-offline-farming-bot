@@ -6,10 +6,55 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"regexp"
 	"testing"
 
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/config"
 )
+
+func TestOperatorSettingsPlayersDefaultRangeAndLoadoutFreeze(t *testing.T) {
+	store, _ := newOperatorSettingsTestStore(t)
+	initial, err := store.Snapshot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if initial.Characters["mrbones"].Players != DefaultOfflinePlayers {
+		t.Fatalf("default players=%d", initial.Characters["mrbones"].Players)
+	}
+
+	replacement := cloneOperatorSettings(initial)
+	value := replacement.Characters["mrbones"]
+	value.Players = 8
+	replacement.Characters["mrbones"] = value
+	change, err := store.Update(initial.Revision, replacement)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if change.Settings.Characters["mrbones"].Players != 8 {
+		t.Fatalf("persisted players=%d", change.Settings.Characters["mrbones"].Players)
+	}
+
+	invalid := cloneOperatorSettings(change.Settings)
+	bad := invalid.Characters["mrbones"]
+	bad.Players = 9
+	invalid.Characters["mrbones"] = bad
+	if _, err = store.Update(change.Settings.Revision, invalid); err == nil {
+		t.Fatal("expected players 9 to fail")
+	}
+
+	body := string(mustMarshalOperatorSettings(change.Settings))
+	stripped := regexp.MustCompile(`(?m)^[ \t]*players: 8\n`).ReplaceAllString(body, "")
+	if stripped == body {
+		t.Fatal("expected players field in marshaled settings")
+	}
+	if err := os.WriteFile(store.path, []byte(stripped), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	reloaded, err := store.Snapshot()
+	if err != nil || reloaded.Characters["mrbones"].Players != DefaultOfflinePlayers {
+		t.Fatalf("missing field players=%d err=%v", reloaded.Characters["mrbones"].Players, err)
+	}
+}
 
 func TestOperatorSettingsInitializesDefaultsAndPersistsTwoCharacterQueues(t *testing.T) {
 	store, root := newOperatorSettingsTestStore(t)

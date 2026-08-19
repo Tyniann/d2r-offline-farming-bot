@@ -20,3 +20,7 @@ func (s *stubKeySender) KeyDown(_ Key) error {
 func (s *stubKeySender) KeyUp(_ Key) error {
 	return fmt.Errorf("keyboard up: %w", ErrUnsupportedPlatform)
 }
+
+func (s *stubKeySender) TypeRune(_ rune) error {
+	return fmt.Errorf("type rune: %w", ErrUnsupportedPlatform)
+}

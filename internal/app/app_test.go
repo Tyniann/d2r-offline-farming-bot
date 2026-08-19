@@ -205,6 +205,8 @@ func (m *mockInput) ClickAtWithModifier(clientX, clientY int, _ string, _ input.
 
 func (m *mockInput) PressKey(string) error { return nil }
 
+func (m *mockInput) SendChatCommand(string) error { return nil }
+
 func (m *mockInput) Focus() error {
 	m.focusCalls++
 	return m.focusErr

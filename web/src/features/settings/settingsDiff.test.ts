@@ -15,6 +15,7 @@ describe("settingsDiff", () => {
   it("übersetzt Feldpfade und fasst Änderungen zusammen", () => {
     expect(labelChangedField("input.pause_hotkey")).toBe("Pause-Hotkey");
     expect(labelChangedField("characters.mrbones.queue")).toBe("Run-Reihenfolge (mrbones)");
+    expect(labelChangedField("characters.mrbones.players")).toBe("Spieleranzahl (mrbones)");
     expect(summarizeChangedFields(["input.pause_hotkey", "budgets.max_runs"])).toBe("Pause-Hotkey, Maximale Runs");
   });
 
@@ -25,5 +26,11 @@ describe("settingsDiff", () => {
     };
     expect(collectLocalDiffPaths(base, draft)).toEqual(["characters.mrbones.profile_bindings"]);
     expect(labelChangedField("characters.mrbones.profile_bindings")).toBe("Tastenbelegung (mrbones)");
+  });
+
+  it("erkennt Spieleranzahl-Diffs", () => {
+    const draft = structuredClone(base);
+    draft.characters.mrbones.players = 8;
+    expect(collectLocalDiffPaths(base, draft)).toEqual(["characters.mrbones.players"]);
   });
 });

@@ -34,6 +34,8 @@ export function CharactersTab({
   const selectedProfile = preview?.profiles.find((profile) => profile.id === profileID) ?? preview?.profiles.find((profile) => profile.is_selected) ?? preview?.profiles[0];
   const bindingsChanged = pathChanged(diffPaths, `characters.${selectedCharacter}.profile_bindings`);
   const inventoryChanged = pathChanged(diffPaths, `characters.${selectedCharacter}.inventory_lock`);
+  const playersChanged = pathChanged(diffPaths, `characters.${selectedCharacter}.players`);
+  const players = characterSettings?.players ?? 1;
   const inventoryGrid = characterSettings?.inventory_lock?.grid ?? null;
   const inventoryIsConfigured = inventoryConfigured(inventoryGrid);
   const queueIncludesCows = (characterSettings?.queue ?? []).includes("cows");
@@ -90,6 +92,15 @@ export function CharactersTab({
     });
   };
 
+  const updatePlayers = (next: number) => {
+    onChangeDraft((current) => {
+      const character = current.characters[selectedCharacter];
+      if (!character) return current;
+      current.characters[selectedCharacter] = { ...character, players: next };
+      return current;
+    });
+  };
+
   return <div className="settings-tab-body settings-scope-characters">
     <p className="settings-scope-line">Tastenbelegung und Inventarschutz gehören zum Charakter. Speichern nutzt dieselbe Core-Revision wie Farming.</p>
 
@@ -113,7 +124,7 @@ export function CharactersTab({
         </ul>}
     </section>
 
-    {characterSettings && <section className={(bindingsChanged || inventoryChanged) ? "settings-field-changed" : undefined}>
+    {characterSettings && <section className={(bindingsChanged || inventoryChanged || playersChanged) ? "settings-field-changed" : undefined}>
       <div className="section-heading">
         <div>
           <h2>{catalogEntry?.name ?? selectedCharacter}</h2>
@@ -123,7 +134,7 @@ export function CharactersTab({
           </p>
         </div>
         <div className="inline-actions">
-          {(bindingsChanged || inventoryChanged) && <StatusBadge tone="warning">Geändert</StatusBadge>}
+          {(bindingsChanged || inventoryChanged || playersChanged) && <StatusBadge tone="warning">Geändert</StatusBadge>}
           {catalogEntry && <StatusBadge tone={catalogEntry.farm_ready ? "success" : "warning"}>{characterStatusLabel(catalogEntry, catalog)}</StatusBadge>}
         </div>
       </div>
@@ -140,6 +151,12 @@ export function CharactersTab({
         showReload={false}
         onChanged={onSetupChanged}
       />}
+
+      <h3>Spieleranzahl</h3>
+      <p className="hint">Der Bot setzt diesen Wert nach jedem bestätigten Spielstart. Höhere Werte machen Gegner und Erfahrung härter.</p>
+      <select aria-label="Spieleranzahl" value={players} disabled={!mutable} onChange={(event) => updatePlayers(Number(event.target.value))}>
+        {[1, 2, 3, 4, 5, 6, 7, 8].map((value) => <option key={value} value={value}>{value}</option>)}
+      </select>
 
       {selectedProfile && <>
         <h3>Pflichtskills</h3>

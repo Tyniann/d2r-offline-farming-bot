@@ -7,6 +7,9 @@ Versionierung nach [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- Add a per-character offline players setting (1–8, default 1) and send `/players N` once after each certified game start
+
 ## [0.21.0] - 2026-08-19
 
 ### Added

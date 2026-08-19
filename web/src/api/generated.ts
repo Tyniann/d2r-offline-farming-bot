@@ -149,6 +149,7 @@ export interface OperatorCharacterSettingsDTO {
   combat_profile?: string;
   last_difficulty: "normal" | "nightmare" | "hell";
   queue: Array<string>;
+  players?: number;
   profile_bindings?: Record<string, OperatorProfileBindingsDTO>;
   inventory_lock?: OperatorInventoryLockDTO | null;
 }

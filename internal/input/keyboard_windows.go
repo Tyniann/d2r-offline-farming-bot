@@ -11,8 +11,9 @@ import (
 )
 
 const (
-	inputKeyboard         = 1
-	keyEventFKeyUp uint32 = 0x0002
+	inputKeyboard           = 1
+	keyEventFKeyUp   uint32 = 0x0002
+	keyEventFUnicode uint32 = 0x0004
 )
 
 var (
@@ -69,6 +70,25 @@ func (s *winKeySender) KeyDown(key Key) error {
 
 func (s *winKeySender) KeyUp(key Key) error {
 	return s.sendKeyEvent(key, true)
+}
+
+func (s *winKeySender) TypeRune(r rune) error {
+	if r < 0 || r > 0xFFFF {
+		return fmt.Errorf("rune %U: %w", r, ErrInvalidKey)
+	}
+	scan := uint16(r)
+	inputs := []inputRecord{
+		{Type: inputKeyboard, Ki: keybdInput{Scan: scan, Flags: keyEventFUnicode}},
+		{Type: inputKeyboard, Ki: keybdInput{Scan: scan, Flags: keyEventFUnicode | keyEventFKeyUp}},
+	}
+	sent, err := s.send(inputs)
+	if err != nil {
+		return fmt.Errorf("rune %U: %w", r, fmt.Errorf("%w: %w", ErrKeySendFailed, err))
+	}
+	if sent != 2 {
+		return fmt.Errorf("rune %U sent=%d: %w", r, sent, ErrKeySendFailed)
+	}
+	return nil
 }
 
 func (s *winKeySender) sendKeyEvent(key Key, release bool) error {

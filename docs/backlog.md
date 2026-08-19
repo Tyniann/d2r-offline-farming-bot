@@ -318,49 +318,11 @@ Der aktuelle Session-Preflight behandelt `mercenary_dead_at_start` noch vor dies
 
 ### Konfigurierbare Offline-Players-Anzahl (`/players 1–8`)
 
-**Status:** `idea`
+**Status:** `done`
+**Abgeschlossen:** 2026-08-19
+**Umsetzung:** [`docs/features/offline-players.md`](features/offline-players.md)
 
-**Ziel-Phase:** nach stabiler Session-/Town-Orchestrierung; Session-Config zuerst, Desktop-UI optional danach
-
-**Verwandt:** Session-Config, Input Controller (Chat), Game-Join / neues Spiel, Telemetrie
-
-#### Kontext
-
-Im Solo-Offline-Modus steuert der Chat-Befehl `/players 1`–`/players 8` Monster-Schwierigkeit und Erfahrung so, als wären entsprechend viele Spieler im Spiel. Typischer Use Case: Powerleveling oder härtere Farm-Runs (z. B. `/players 8` Richtung Level 99). Ohne Befehl bleibt das Spiel unverändert (effektiv players 1).
-
-#### Idee
-
-Der Bot-Benutzer kann optional eine Players-Anzahl `1`–`8` konfigurieren. Der Bot setzt den Wert per Chat-Befehl **einmal pro neuem Game** (nach Town-/Game-Join), nicht dauerhaft im Chat. Bei jedem Game-Reset erneut.
-
-**Default / Opt-in:**
-
-- Config weggelassen oder `0` = Bot fasst Players **nicht** an (unverändertes Spiel).
-- `1`–`8` = aktiv; Bot erzwingt diesen Wunschwert nach Join.
-- `0`/unset ist bewusst besser als stillschweigendes `1`, damit „Bot hat nichts angefasst“ explizit bleibt.
-
-**Ort:**
-
-- Primär Session-/Run-Config (YAML).
-- Später optional Desktop-UI: einfache Zahl `1`–`8` plus Hinweis „nur Offline“.
-
-**Telemetrie (v1):**
-
-- gewünschter Wert
-- ob der Befehl in diesem Game gesendet wurde  
-Memory-Verify des aktiven Players-Werts ist nice-to-have, kein Muss für v1.
-
-**Verhalten / Grenzen:**
-
-- Chat öffnen, Befehl tippen, Chat schließen — über den bestehenden Input-Pfad, geloggt wie andere Eingaben.
-- Wenn der Nutzer Players schon manuell gesetzt hat und Config aktiv ist: Bot erzwingt den konfigurierten Wunschwert einmalig nach Join (klar dokumentieren).
-- Höhere Players machen Runs härter → mehr Timeouts/Deaths sind erwartetes Verhalten, kein Bug.
-- Priorität hinter Town-/Run-Stabilität; kein Core-Contract-Thema.
-
-#### Offene Punkte
-
-- Exakter Config-Key (z. B. `session.players`) und Validierung `0|1–8`
-- Timing relativ zu Town-Prep / erstem Waypoint
-- UI-Darstellung und Warnhinweis bei hohen Werten
+**Verwandt:** [Offline-Spieleranzahl](features/offline-players.md)
 
 ---
 
@@ -380,6 +342,45 @@ Phase 21 liefert den Loadout-Vertrag und genau ein produktives Kampfprofil (`nec
 - Weitere Runs werden einzeln als `(profileID, runID)`-Factories ergänzt und brauchen Strategy-, Required-Skill- und Availability-Tests.
 - BindingEditor erhält „Aus anderem Profil kopieren“ mit Preview und ohne automatisches Überschreiben.
 - Isolierter „Tasten prüfen“-Flow: Taste senden, frisches `RightSkillID` lesen, Ergebnis anzeigen — ohne Binding-Mutation und ohne Memory-Write.
+
+---
+
+### Gemessene Teleport-Wiederholung (kein FCR-Wert)
+
+**Status:** `idea`  
+**Ziel-Phase:** erst nach einem Live-Beleg, dass der feste Recast oder die 700-ms-Settle-Frist produktive Runs bremst  
+**Verwandt:** [Pathing](features/pathing.md), [Character Loadouts](features/character-loadouts.md), [Paladin „Hammerdin“](features/hammerdin.md)
+
+#### Kontext
+
+`teleportSettleTimeout` in `internal/pathing/navigator.go` ist 700 ms und nur die Frist, nach der ein Cast ohne Positionsänderung als blockiert gilt. Ein erfolgreicher Teleport gibt den nächsten Cast frei, sobald die Position um mindestens `stuck_progress_tiles` (3) springt. Hammerdin-Combat bestätigt Landungen ebenfalls ohne feste Wartezeit. `pathing.move_interval_ms` ist 250 und drosselt den nächsten Bot-Cast.
+
+D2-Teleportframes liegen grob zwischen etwa 520 ms (langsam, 0 FCR) und 280 ms (Sorc 200 FCR). 700 ms liegt bereits über dem langsamen Ende. Eine schnelle Build wartet auf einem gelandeten Cast nicht auf diese Decke. Der reale Engpass für langsame Enigma-Charaktere ist eher der 250-ms-Recast mitten in der Animation.
+
+#### Messung
+
+Kein einzelnes Klicken durch den Operator. Anweisung: Teleport-Taste (RMB) mindestens etwa 6 Sekunden halten. D2R wiederholt dann selbst im FCR-Takt. Gemessen wird die Zeit zwischen Memory-Positionsprüngen, nicht die Zeit zwischen menschlichen Klicks und nicht die Zeit von Bot-`SendInput` bis zum Sprung.
+
+Auswertung:
+
+- ersten Sprung verwerfen (Zielen, ggf. Wegpunkt)
+- Sprünge unter 3 Tiles verwerfen (Wand, Baum, ungültiges Ziel)
+- Median der gelandeten Intervalle, plus Zuschlag
+- Ergebnis zwischen etwa 200 und 700 ms klemmen
+
+Der Median gehört zuerst auf `move_interval_ms`. Der Zuschlag ist nötig, weil ein gehaltener RMB enger wiederholt als der Bot-Pfad (Skillwahl, Hover, Gameplay-Lease). 700 ms bleibt die harte Blocked-Cast-Decke. Nur wenn der langsamste *gelandete* Sprung der Probe deutlich darunter liegt, darf die Decke auf diesen Wert plus Zuschlag sinken. Die Regel „Position bewegt sich, weiterketten“ bleibt.
+
+#### Ort und UI
+
+Offenes Outdoor-Gelände, Cursor auf leeren Boden, nicht lenken. Blood Moor vor dem Act-1-Stadttor reicht und braucht keinen Wegpunkt. Stony Field geht, wenn der Charakter ohnehin dort steht. Hell-Packs und Bäume erzeugen sonst künstlich langsame Intervalle.
+
+Einstellungen → Charaktere, Knopf etwa „Teleport messen“, nicht „FCR optimieren“. Der Bot liest keinen FCR-Wert. Anzeige des gespeicherten Millisekundenwerts und des Messzeitpunkts. Nach Ausrüstungswechsel neu messen. Messung auf dem Farm-Waffenset; CTA-Set hat oft anderen FCR und darf die Farmzahl nicht überschreiben.
+
+Persistenz pro Charakter in Operator Settings, analog `players`. Fehlt der Wert, gelten weiter 250 ms Recast und 700 ms Settle.
+
+#### Wann bauen
+
+Nicht als nächstes Feature. Bauen, wenn ein Live-Log entweder verschwendete Recasts auf einem langsamen Enigma-Build oder festes Warten auf die volle 700-ms-Frist bei schnellem FCR zeigt.
 
 ---
 
