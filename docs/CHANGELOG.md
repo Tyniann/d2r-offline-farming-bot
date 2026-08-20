@@ -7,9 +7,32 @@ Versionierung nach [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.22.0] - 2026-08-20
+
 ### Added
 - Add a per-character offline players setting (1–8, default 1) and send `/players N` once after each certified game start
 - Add read-only `--object-inspect` to capture object IDs, modes, catalog names, and key-stack quantity stat 70 before Lower Kurast product IDs are committed
+- Catalog live Lower Kurast Supertruhe and hut-rack classes (`JungleChest` 181, `JungleChest2` 183, `ArmorStand1` 104, `WeaponRack2` 107) with object Mode and Base-first item quantity
+- Add `WaypointTargetLowerKurast` (Act 3 row 5, Area 79) to the 1280×720 waypoint registry and an isolated `--town-test waypoint:lower_kurast` acceptance path
+- Add Akara city-key restock (`key`, threshold 6, target 12, 45 gold) only when the next run is Lower Kurast
+- Add a Lower Kurast chest-sweep run (`lower-kurast`) to the registry without a boss, with `RecordingTerminalEndpoint` in Area 79 and Act-3 return
+- Add Lower Kurast chest-sweep execution on the shared run pipeline: hut proximity filter, hover-confirmed open, skip without keys, one retry, leftover sweep, and `chest_sweep_empty` when the recorded path shows no Supertruhe
+- Add Lower Kurast pickit profile `lk-superchests` (Pul through Ber, elite unique/set) with default chain `gems, lk-superchests`, German route labels, recording thumbnails, and chest/rack telemetry without fake boss kills
+- Document the Lower Kurast Supertruhe run: city keys, hut chests and racks, campfire recording contract, and live `objects.txt` IDs
+- Add one bounded Lower Kurast local clear when a hover probe confirms a monster blocking a hut object, then retry the same chest or rack once
+
+### Changed
+- Report Active and Base item stat lists separately on `--object-inspect` key stacks so a Base-only quantity stat is visible
+- Mark Phase 23 Gates 23.0–23.9 complete after the productive Lower Kurast cycle
+- Align embedded, README, handoff, and packaging metadata with version `0.22.0`
+
+### Fixed
+- Keep Lower Kurast leftover chest sweep from holding a finished route, which aborted the run with `route_threat_state_invalid` after playback reached the campfire
+- Open Lower Kurast Supertruhen during route playback without requiring route-clear, and keep both west hut Supertruhen eligible (~33 tiles from the armor stand)
+- Delay Lower Kurast operate-on-sight until a hut chest is within 40 tiles and give chest approaches six bounded teleports, preventing visible but distant Supertruhen from exhausting the ordinary loot retry budget
+- Aim Lower Kurast Supertruhe clicks at the object body instead of the ground tile, log the last hover identity on miss, and retry hover misses once during leftover sweep
+- Fight the nearest living hostile within 12 tiles when a Lower Kurast hover names a hireling or corpse, and clear that pack before retrying a blocked pickup instead of looping hover probes
+
 
 ## [0.21.0] - 2026-08-19
 

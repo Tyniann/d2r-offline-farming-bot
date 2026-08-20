@@ -5,5 +5,6 @@ assignments:
     countess: [gems, keys, countess-standard]
     cows: [gems, keys]
     mephisto: [gems, mephisto-standard]
+    lower-kurast: [gems, lk-superchests]
     summoner: [gems, keys]
     nihlathak: [gems, keys]

@@ -53,11 +53,32 @@ func TestRestockVerifierBulkOnceSingleBoundedAndTimeout(t *testing.T) {
 	}
 }
 
+func TestPlanRestockCityKeysUseSingleClicks(t *testing.T) {
+	orders, reason := PlanRestock(RestockInput{
+		Levels:             []RestockLevel{{Resource: RestockKey, Current: 5, Threshold: KeyRestockThreshold, Target: KeyRestockTarget}},
+		BeltLayoutComplete: true, GoldKnown: true, GoldSufficient: true,
+	})
+	if reason != "" || len(orders) != 1 || orders[0].Resource != RestockKey || orders[0].Mode != BuyModeSingle || orders[0].Clicks != 7 {
+		t.Fatalf("orders=%+v reason=%s", orders, reason)
+	}
+	orders, reason = PlanRestock(RestockInput{
+		Levels:    []RestockLevel{{Resource: RestockKey, Current: KeyRestockThreshold, Threshold: KeyRestockThreshold, Target: KeyRestockTarget}},
+		GoldKnown: true, GoldSufficient: true,
+	})
+	if reason != "" || len(orders) != 0 {
+		t.Fatalf("at-threshold orders=%+v reason=%s", orders, reason)
+	}
+}
+
 func TestMaximumRestockCostUsesConservativeUnitPrices(t *testing.T) {
 	levels := []RestockLevel{{Resource: RestockHealing, Current: 1, Threshold: 2, Target: 4}, {Resource: RestockMana, Current: 5, Threshold: 6, Target: 8}}
 	got, reason := MaximumRestockCost(levels)
 	if reason != "" || got != 4500 {
 		t.Fatalf("cost=%d reason=%s", got, reason)
+	}
+	got, reason = MaximumRestockCost([]RestockLevel{{Resource: RestockKey, Current: 5, Threshold: KeyRestockThreshold, Target: KeyRestockTarget}})
+	if reason != "" || got != 315 {
+		t.Fatalf("key cost=%d reason=%s", got, reason)
 	}
 	levels = append(levels, RestockLevel{Resource: "rejuvenation", Current: 0, Threshold: 1, Target: 4})
 	if _, reason := MaximumRestockCost(levels); reason != ReasonRestockStateInvalid {

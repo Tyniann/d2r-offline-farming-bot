@@ -76,6 +76,11 @@
 .route-instructions li { display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 10px; align-items: start; border: 0; padding: 5px 0; }
 .route-instructions li > span { display: grid; place-items: center; width: 27px; height: 27px; border-radius: 50%; background: #392831; color: #ffc1a6; font-size: .78rem; font-weight: 900; }
 .route-instructions li p { margin: 2px 0 0; }
+.route-guide-thumbs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 14px; }
+.route-guide-thumbs button { display: grid; gap: 8px; padding: 8px; min-height: 44px; text-align: left; }
+.route-guide-thumbs img { width: 100%; height: 120px; object-fit: cover; border-radius: 8px; background: #100e12; }
+.route-guide-full { display: block; width: 100%; max-height: min(70vh, 720px); object-fit: contain; border-radius: 10px; background: #100e12; }
+.modal.route-guide-modal { width: min(1100px, 100%); }
 .route-recording-actions { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--border); }
 .route-recording-actions > button { flex: 0 0 auto; }
 .route-hotkeys { display: flex; flex-wrap: wrap; gap: 10px 16px; color: var(--muted); font-size: .8rem; }

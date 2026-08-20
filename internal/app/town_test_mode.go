@@ -48,6 +48,8 @@ func (rt *Runtime) RunTownTest(spec string) error {
 		return rt.runHammerdinPrebuffTownTest(true)
 	case hammerdinPrebuffNoCTA:
 		return rt.runHammerdinPrebuffTownTest(false)
+	case waypointLowerKurastTownTest:
+		return rt.runLowerKurastWaypointTownTest()
 	default:
 		return fmt.Errorf("town test: unsupported spec %q", spec)
 	}

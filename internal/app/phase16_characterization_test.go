@@ -90,6 +90,9 @@ func TestPhase16CharacterizationPickitAssignmentsRemainRunSpecific(t *testing.T)
 	if got := findPickitAssignment(manifest, "MrBones", tasks.RunIDNihlathak); !reflect.DeepEqual(got, []string{"gems", "keys"}) {
 		t.Fatalf("Nihlathak assignment=%v", got)
 	}
+	if got := findPickitAssignment(manifest, "MrBones", tasks.RunIDLowerKurast); !reflect.DeepEqual(got, []string{"gems", "lk-superchests"}) {
+		t.Fatalf("Lower Kurast assignment=%v", got)
+	}
 }
 
 func TestPhase16CharacterizationExplicitRunsRetainDirectProfileClass(t *testing.T) {

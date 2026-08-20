@@ -2,12 +2,12 @@
 
 ## Überblick
 
-`paladin_hammerdin` ist das zweite freigegebene Kampfprofil. Es registriert Countess, Mephisto, Nihlathak, Summoner und Kuh-Level. Countess, Mephisto und Nihlathak teilen denselben Standardangriff. Summoner und der Cow-Sweep nutzen denselben Blessed-Hammer-Hold zusätzlich während der aufgezeichneten Route (Combat-to-go). Das Profil friert die Skill-, Slot-, CTA- und Söldnerverträge ein. Phase 22.6 stellt den isolierten CTA-/Holy-Shield-Prebuff bereit und verdrahtet denselben Ablauf produktiv vor dem Abspielen der aufgezeichneten Route. Battle Command und Battle Orders sind CASC-seitig nicht in der Stadt wirkbar. Der produktive Blessed-Hammer-Kampf ist verdrahtet; das manuelle Gate 22.7 ist am 16.08.2026 für Mephisto bestanden.
+`paladin_hammerdin` ist das zweite freigegebene Kampfprofil. Es registriert Countess, Mephisto, Nihlathak, Summoner, Kuh-Level und Lower Kurast. Countess, Mephisto und Nihlathak teilen denselben Standardangriff. Summoner und der Cow-Sweep nutzen denselben Blessed-Hammer-Hold zusätzlich während der aufgezeichneten Route (Combat-to-go). Lower Kurast besitzt kein globales Route-Clear, kann aber nach einem bestätigten Monster-Hover einmal lokal um eine blockierte Hütten-Truhe kämpfen. Das Profil friert die Skill-, Slot-, CTA- und Söldnerverträge ein. Phase 22.6 stellt den isolierten CTA-/Holy-Shield-Prebuff bereit und verdrahtet denselben Ablauf produktiv vor dem Abspielen der aufgezeichneten Route. Battle Command und Battle Orders sind CASC-seitig nicht in der Stadt wirkbar. Der produktive Blessed-Hammer-Kampf ist verdrahtet; das manuelle Gate 22.7 ist am 16.08.2026 für Mephisto bestanden.
 
 ## Ort im Code
 
 - **Paket:** `internal/profile/hammerdin/`
-- **Einstieg:** `hammerdin.NewBossFactory`
+- **Einstieg:** `hammerdin.NewBossFactory`, `hammerdin.NewLowerKurastFactory`
 - **Wichtige Dateien:** `internal/config/profile.go`, `internal/app/combat.go`, `internal/app/combat_strategy_registry.go`, `internal/app/hammerdin_prebuff.go`, `internal/app/hammerdin_town_ready.go`, `internal/tasks/pipeline_boss.go`
 - **Config:** `combat_profiles.paladin_hammerdin` in `configs/config.example.yaml`
 
@@ -15,7 +15,7 @@
 
 ### Profil und Bossläufe
 
-Das Profil ist für die Klasse `paladin` im Charakter-Setup freigegeben. Die Runtime-Registry enthält die Paare `paladin_hammerdin × countess|cows|mephisto|nihlathak|summoner`. Die fünf Pflichtskills sind Teleport, Stadtportal, Gesegneter Hammer, Konzentration und Heiliger Schild.
+Das Profil ist für die Klasse `paladin` im Charakter-Setup freigegeben. Die Runtime-Registry enthält die Paare `paladin_hammerdin × countess|cows|lower-kurast|mephisto|nihlathak|summoner`. Die fünf Pflichtskills sind Teleport, Stadtportal, Gesegneter Hammer, Konzentration und Heiliger Schild.
 
 ### Skill-Slots und CTA
 
@@ -51,6 +51,10 @@ Nach Beginn des Holds bleibt die bestätigte UnitID bis zu ihrem Tod gepinnt, au
 
 Ohne weiteres Ausweichmonster bleibt der Hold bestehen, damit ein langsamer Boss weiter Schaden nehmen kann. Spätestens nach 25 Sekunden ohne bestätigten Fortschritt oder nach 12 wirkungslosen Teleports endet der Bosskampf mit `boss_combat_no_progress`. Das bloße Starten oder Fortsetzen eines LMB-Holds zählt nicht als Fortschritt. Distanz, Cursorpunkt und Hold sind live bestätigt: 1/3/5 Tiles, Sprite-Aim, LMB ohne Shift.
 
+### Lower-Kurast-Objektblocker
+
+Lower Kurast registriert den Blessed-Hammer-Route-Clear nur als interne Recovery für `chest_sweep`; `RequiresRouteClear()` bleibt `false`. Erst wenn eine laufende Objekt- oder Pickup-Hover-Suche einen Monster-Hover beobachtet und trotzdem erschöpft, hält die Route und greift lebende Gegner im 12-Kachel-Kreis um die gepinnte Truhe, das Gestell oder das Item an. Sitzt der Hover auf einem Söldner oder einer Leiche, kämpft der Clear gegen den nächsten lebenden Gegner in dem Kreis. Der Clear endet nach drei monsterfreien Snapshots oder spätestens nach zwölf Aktionen, sechs Sekunden beziehungsweise drei Sekunden ohne gesendete Aktion. Anschließend löst der Executor den LMB-Hold; Objekt-Suche und Pickup erhalten jeweils genau einen neuen Versuch. Ohne lebenden Gegner im Kreis startet kein Kampf.
+
 ### Kuh-Level
 
 Kuh-Level bleibt ein gemeinsamer Zwei-Rollen-Run (`leg_acquisition` / `cow_sweep`). Hammerdin registriert dieselbe Cow-Pipeline wie der Necromancer: Preflight, Town-Ready, Stony-Field-Wegpunkt, combatfreie Wirt-Route, Bein, Tome, Cube-Rezept und Sweep. Der Preflight übernimmt Klasse und Pflichtskills aus der Hammerdin-Cow-Strategie; Amplify Damage, Corpse Explosion, Bone Spear und Bone Armor werden nicht verlangt. CTA und Holy Shield laufen über `field_ready` nach gesetzter Ankunft in Stony Field bzw. Moo Moo Farm, nicht im Town-Ready-Schritt. Derselbe Hook bleibt während des Cow-Sweeps aktiv, damit der 150-Sekunden-CTA-Anker die Buffs erneuert, bevor Battle Orders auslaufen.
@@ -62,7 +66,7 @@ Der Sweep bindet denselben Blessed-Hammer-Route-Clear wie Summoner und schaltet 
 - `config.RequiredSkillConfig.Slot`: erzwungener Profilslot `left` oder `right`
 - `config.OptionalSkillPairConfig`: genau zwei gemeinsam optionale Skills
 - `config.ProfileConfig.RequiresMercenary`: von der Trankpolicy unabhängiges Preflight-Gate
-- `profile.RunStrategy`: registriert Countess, Mephisto, Nihlathak, Summoner und Kuh-Level mit denselben fünf Pflichtskills; Summoner und Cow-Sweep binden RouteClear ohne Fluch-Opener und ohne Corpse Explosion
+- `profile.RunStrategy`: registriert Countess, Mephisto, Nihlathak, Summoner, Lower Kurast und Kuh-Level mit denselben fünf Pflichtskills; Summoner und Cow-Sweep binden Travel-RouteClear, Lower Kurast nur die lokale Objektblocker-Recovery
 
 Die Skill-IDs stammen aus dem lokal extrahierten `.tmp/d2r-excel/skills.txt`: Teleport 54, Blessed Hammer 112, Concentration 113, Holy Shield 117, Battle Orders 149, Battle Command 155 und TownPortal 359. Der eingebettete Katalog bleibt auf stabile `skill`-/`*Id`-Schlüssel zurückführbar. Für Hammerdin aktiviert die Runtime die vorhandene Weapon-Set-Evidenz über dieselben CASC-IDs 149 und 155.
 
@@ -107,7 +111,8 @@ Live-Beleg 16.08.2026, Charakter `MrHammer`: `d2rbot-20260816-184632.log` und `d
 - [Summoner-Run](summoner-run.md)
 - [Nihlathak-Run](nihlathak-run.md)
 - [Cow Level / Moo Moo Farm](cow-level-run.md)
+- [Lower-Kurast-Run](lower-kurast-run.md)
 - [Route-Threat-Combat](route-threat-combat.md)
 
 ---
-*Zuletzt aktualisiert: 2026-08-18*
+*Zuletzt aktualisiert: 2026-08-20*

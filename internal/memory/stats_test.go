@@ -41,6 +41,33 @@ func TestStatNumSocketsMatchesLocalItemStatCost(t *testing.T) {
 	}
 }
 
+func TestStatQuantityMatchesLocalItemStatCost(t *testing.T) {
+	if StatQuantity != 70 {
+		t.Fatalf("StatQuantity = %d, want 70 from quantity", StatQuantity)
+	}
+
+	path := filepath.Join("..", "..", ".tmp", "d2r-excel", "itemstatcost.txt")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Skipf("local excel extract unavailable: %v", err)
+	}
+	found := false
+	for _, line := range strings.Split(string(data), "\n") {
+		fields := strings.Split(line, "\t")
+		if len(fields) < 2 || fields[0] != "quantity" {
+			continue
+		}
+		found = true
+		if fields[1] != "70" {
+			t.Fatalf("quantity *ID = %q, want 70", fields[1])
+		}
+		break
+	}
+	if !found {
+		t.Fatal("quantity row missing from itemstatcost.txt")
+	}
+}
+
 func TestParseVitalStatsSkipsNonZeroLayer(t *testing.T) {
 	access := newMockAccess()
 	const header = uintptr(0xC000)

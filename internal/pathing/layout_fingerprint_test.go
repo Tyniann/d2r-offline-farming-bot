@@ -43,6 +43,27 @@ func TestBuildLayoutFingerprintStableAcrossOrderAndUnitIDs(t *testing.T) {
 	}
 }
 
+func TestBuildLayoutFingerprintIgnoresSuperChestsAndRacks(t *testing.T) {
+	a := fingerprintState()
+	b := fingerprintState()
+	b.Objects = append(b.Objects,
+		world.Object{Kind: world.ObjectKindSuperChest, ID: 181, UnitID: 80, Position: world.Position{X: 150, Y: 150}, ModeKnown: true},
+		world.Object{Kind: world.ObjectKindRack, ID: 107, UnitID: 81, Position: world.Position{X: 151, Y: 150}, Mode: 2, ModeKnown: true},
+		world.Object{Kind: world.ObjectKindUnknown, ID: 240, UnitID: 82, Position: world.Position{X: 152, Y: 150}},
+	)
+	fa, err := BuildLayoutFingerprint(a)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fb, err := BuildLayoutFingerprint(b)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fa.Hash != fb.Hash {
+		t.Fatal("super chests and racks must not become layout anchors")
+	}
+}
+
 func TestBuildLayoutFingerprintIgnoresPlayerPosition(t *testing.T) {
 	a := fingerprintState()
 	b := fingerprintState()

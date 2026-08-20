@@ -32,6 +32,7 @@ var (
 		pipelineStepSelectRunWaypoint,
 		pipelineStepWaitEntryArea,
 		pipelineStepPlayRoute,
+		pipelineStepChestSweep,
 		pipelineStepAcquireBoss,
 		pipelineStepEngageBoss,
 		pipelineStepClearNearbyHostiles,
@@ -128,6 +129,12 @@ func TestStandardPipelinePhasePathsGolden(t *testing.T) {
 		{"failure.hub_waypoint_timeout", func() *runPipeline {
 			return &runPipeline{definition: countess}
 		}, "waypoint_destination_timeout"},
+		{"lower_kurast_full", func() *runPipeline {
+			return &runPipeline{definition: mustDefinition(t, RunIDLowerKurast)}
+		}, "precheck>acquire_town_waypoint>open_waypoint>select_run_waypoint>wait_entry_area>play_bound_route>chest_sweep>wait_for_drops>scan_loot>cast_town_portal>enter_town_portal>wait_origin_town>play_town_egress>open_origin_waypoint>select_hub_waypoint>wait_hub_area>open_personal_stash>stash_items>close_personal_stash>prepare_town_handoff>complete"},
+		{"lower_kurast_boss", func() *runPipeline {
+			return &runPipeline{definition: mustDefinition(t, RunIDLowerKurast), phase: RunPhaseBoss}
+		}, "precheck>chest_sweep"},
 	}
 
 	var got strings.Builder

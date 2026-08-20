@@ -167,6 +167,8 @@ func (d *replayDependencies) taskDeps(names []string) (tasks.Deps, error) {
 			deps.Cow = d
 		case "cow_recipe":
 			deps.CowRecipe = replayCowRecipe{d}
+		case "chest":
+			deps.Chest = replayChest{d}
 		case "telemetry":
 			deps.Telemetry = d
 		default:
@@ -333,6 +335,18 @@ func (c replayCowRecipe) Tick(state world.State, now time.Time, leg, tome, cube 
 func (c replayCowRecipe) Reset() {}
 func decodeCowResult(call DependencyCall) tasks.CowSetupActionResult {
 	return tasks.CowSetupActionResult{Done: boolValue(call.Result, "done"), Reason: stringValue(call.Result, "reason"), UnitID: uint32(uint64Value(call.Result, "unit_id")), ProgressKind: stringValue(call.Result, "progress_kind")}
+}
+
+type replayChest struct{ deps *replayDependencies }
+
+func (c replayChest) Tick(state world.State, target world.Object, maxDistance float64) tasks.ChestOperateResult {
+	return c.deps.TickChest(state, target, maxDistance)
+}
+func (c replayChest) Reset() {}
+
+func (d *replayDependencies) TickChest(world.State, world.Object, float64) tasks.ChestOperateResult {
+	call := d.consume("chest.tick")
+	return tasks.ChestOperateResult{Status: tasks.ChestOperateStatus(stringValue(call.Result, "status")), Done: boolValue(call.Result, "done"), Reason: stringValue(call.Result, "reason")}
 }
 
 func (d *replayDependencies) Emit(telemetry.Event) error {

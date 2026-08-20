@@ -1,5 +1,9 @@
 import { Check, ChevronRight, CircleAlert, X } from "lucide-react";
+import { useState } from "react";
 import type { HotkeyHelpDTO, RecordingOptionDTO, RouteWorkflowDTO } from "../../../api/generated";
+import { Dialog } from "../../../app/ui";
+import campfireGuide from "../../../assets/route-guides/lower-kurast/campfire.png";
+import hutGuide from "../../../assets/route-guides/lower-kurast/huts.png";
 import { prerequisiteLabel, reasonLabel, roleLabel, runLabel, runOrder, targetLabel, terminalWorkflowStates, waypointLabel } from "../routePresentation";
 import { RouteWorkflowPanel } from "./RouteWorkflowPanel";
 
@@ -25,7 +29,13 @@ function actionLabel(option: RecordingOptionDTO): string {
   return `${runLabel(option.run_id)} aufnehmen`;
 }
 
+const lowerKurastGuides = [
+  { id: "campfire", title: "Lagerfeuer", src: campfireGuide, alt: "Lagerfeuer mit Fackelkreis in Unteres Kurast" },
+  { id: "huts", title: "Hüttenlayout", src: hutGuide, alt: "Lagerfeuer-Hütten in Unteres Kurast mit geöffneter Karte" },
+] as const;
+
 export function RouteRecordingPanel({ options, selectedRun, selectedRole, hotkeys, workflow, locked, lockedReason, pending, onSelectRun, onSelectRole, onStart, onFinish, onOpenDrafts }: Props) {
+  const [guideID, setGuideID] = useState<(typeof lowerKurastGuides)[number]["id"] | null>(null);
   const runIDs = [...new Set(options.map((entry) => entry.run_id))].sort((left, right) => {
     const leftIndex = runOrder.indexOf(left as typeof runOrder[number]); const rightIndex = runOrder.indexOf(right as typeof runOrder[number]);
     return (leftIndex < 0 ? 99 : leftIndex) - (rightIndex < 0 ? 99 : rightIndex);
@@ -36,6 +46,7 @@ export function RouteRecordingPanel({ options, selectedRun, selectedRole, hotkey
   const showTerminalFailure = !!workflow && (workflow.state === "failed_safe" || workflow.state === "emergency_cancelled") && workflow.run_id === option?.run_id;
   const missingPrerequisite = option?.prerequisites?.find((entry) => !entry.ready);
   const disabledReason = locked ? (lockedReason ?? "Aktion derzeit nicht möglich.") : missingPrerequisite ? reasonLabel(missingPrerequisite.reason) : option && !option.available ? reasonLabel(option.reason) : "";
+  const openGuide = lowerKurastGuides.find((entry) => entry.id === guideID);
 
   if (options.length === 0) return <div className="route-panel"><h3>Route aufnehmen</h3><p className="route-empty">Für die aktuelle Auswahl ist keine Routenaufnahme verfügbar.</p></div>;
 
@@ -65,6 +76,12 @@ export function RouteRecordingPanel({ options, selectedRun, selectedRole, hotkey
           {missingPrerequisite && <p className="route-inline-warning"><CircleAlert aria-hidden="true" size={18} /> {reasonLabel(missingPrerequisite.reason)}</p>}
           <div className="route-locations"><span><small>Start</small><strong>{waypointLabel(option.start_waypoint, option.start_kind)}</strong></span><ChevronRight aria-hidden="true" /><span><small>Ziel</small><strong>{targetLabel(option.run_id, option.route_role)}</strong></span></div>
           <div className="route-instructions"><p>{option.instructions_de}</p>{(option.operator_hints_de ?? []).length > 0 && <ol>{(option.operator_hints_de ?? []).map((hint, index) => <li key={hint}><span>{index + 1}</span><p>{hint}</p></li>)}</ol>}</div>
+          {option.run_id === "lower-kurast" && <div className="route-guide-thumbs" aria-label="Aufnahmefotos für Unteres Kurast">
+            {lowerKurastGuides.map((guide) => <button type="button" key={guide.id} onClick={() => setGuideID(guide.id)} aria-label={`${guide.title} vergrößern`}>
+              <img src={guide.src} alt={guide.alt} />
+              <span>{guide.title}</span>
+            </button>)}
+          </div>}
           {(workflowBusy && workflow?.run_id === option.run_id || showTerminalFailure) && <RouteWorkflowPanel workflow={workflow} hotkeys={hotkeys} pending={pending} onFinish={onFinish} onOpenDrafts={onOpenDrafts} onNextCowStep={() => onSelectRole("cow_sweep")} />}
           {!workflowBusy && <div className="route-recording-actions">
             <div><div className="route-hotkeys"><span><kbd>{hotkeys?.recording_finish ?? "F9"}</kbd> Aufnahme beenden</span><span><kbd>{hotkeys?.emergency_stop ?? "F11"}</kbd> Notabbruch</span></div>{disabledReason && <p className="route-disabled-reason">{disabledReason}</p>}</div>
@@ -73,5 +90,9 @@ export function RouteRecordingPanel({ options, selectedRun, selectedRole, hotkey
         </>}
       </div>
     </div>
+    {openGuide && <Dialog title={openGuide.title} className="route-guide-modal" onClose={() => setGuideID(null)}>
+      <img className="route-guide-full" src={openGuide.src} alt={openGuide.alt} />
+      <div className="modal-actions"><button type="button" onClick={() => setGuideID(null)}>Schließen</button></div>
+    </Dialog>}
   </div>;
 }

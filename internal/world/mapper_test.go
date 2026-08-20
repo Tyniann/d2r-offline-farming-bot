@@ -435,6 +435,42 @@ func TestFromSnapshotMapsItems(t *testing.T) {
 	}
 }
 
+func TestFromSnapshotMapsObjectModeAndLowerKurastKinds(t *testing.T) {
+	snap := validSnapshot()
+	snap.Objects = []memory.ObjectUnit{
+		{TxtFileNo: JungleChestID, UnitID: 10, PosX: 200, PosY: 201, Mode: 0, ModeKnown: true},
+		{TxtFileNo: WeaponRack2ID, UnitID: 11, PosX: 210, PosY: 201, Mode: 2, ModeKnown: true},
+		{TxtFileNo: 240, UnitID: 12, PosX: 220, PosY: 201},
+	}
+	state := FromSnapshot(snap)
+	if len(state.Objects) != 3 {
+		t.Fatalf("objects = %d, want 3", len(state.Objects))
+	}
+	chest := state.Objects[0]
+	if chest.Kind != ObjectKindSuperChest || chest.Name != "Super Chest" || !chest.ModeKnown || chest.Mode != 0 {
+		t.Fatalf("super chest = %+v", chest)
+	}
+	rack := state.Objects[1]
+	if rack.Kind != ObjectKindRack || rack.Name != "Weapon Rack" || !rack.ModeKnown || rack.Mode != 2 {
+		t.Fatalf("rack = %+v", rack)
+	}
+	if state.Objects[2].Kind != ObjectKindUnknown || state.Objects[2].ModeKnown {
+		t.Fatalf("unknown chest = %+v, want unknown without mode", state.Objects[2])
+	}
+}
+
+func TestFromSnapshotMapsItemQuantity(t *testing.T) {
+	snap := validSnapshot()
+	snap.Items = []memory.ItemUnit{{
+		TxtFileNo: 558, UnitID: 9, Quality: 2, RawLocation: 0, PlayerOwned: true,
+		Quantity: 5, QuantityKnown: true,
+	}}
+	got := FromSnapshot(snap).Items[0]
+	if !got.QuantityKnown || got.Quantity != 5 {
+		t.Fatalf("quantity = known=%t value=%d, want 5", got.QuantityKnown, got.Quantity)
+	}
+}
+
 func TestFromSnapshotMapsUnavailableSocketsSafely(t *testing.T) {
 	snap := validSnapshot()
 	snap.Items = []memory.ItemUnit{{

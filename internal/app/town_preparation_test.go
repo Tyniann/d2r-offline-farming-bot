@@ -422,6 +422,30 @@ func TestPurchaseCostUsesActualNightmareVendorOffer(t *testing.T) {
 	}
 }
 
+func TestCountInventoryKeysSumsKnownStacksAndTreatsUnknownAsZero(t *testing.T) {
+	state := world.State{Items: []world.Item{
+		{Code: "key", Location: world.ItemLocationInventory, PlayerOwned: true, Page: 0, Quantity: 5, QuantityKnown: true},
+		{Code: "key", Location: world.ItemLocationInventory, PlayerOwned: true, Page: 0, Quantity: 4, QuantityKnown: true},
+		{Code: "key", Location: world.ItemLocationInventory, PlayerOwned: true, Page: 0, QuantityKnown: false},
+		{Code: "pk1", Location: world.ItemLocationInventory, PlayerOwned: true, Page: 0, Quantity: 1, QuantityKnown: true},
+		{Code: "key", Location: world.ItemLocationStash, PlayerOwned: true, Page: 0, Quantity: 12, QuantityKnown: true},
+	}}
+	if got := countInventoryKeys(state); got != 9 {
+		t.Fatalf("keys=%d, want 9", got)
+	}
+}
+
+func TestPurchaseCostForCityKeyIgnoresOtherKeyTypes(t *testing.T) {
+	state := world.State{Items: []world.Item{
+		{TxtFileNo: 559, Code: "luv", Type: "key", Location: world.ItemLocationVendor},
+		{TxtFileNo: 558, Code: "key", Type: "key", Location: world.ItemLocationVendor},
+	}}
+	code, cost, ok := purchaseCostForState(state, config.ProfileResourcesConfig{}, town.RestockOrder{Resource: town.RestockKey, Mode: town.BuyModeSingle, Target: town.KeyRestockTarget})
+	if !ok || code != "key" || cost != 45 {
+		t.Fatalf("purchase=%q/%d/%v", code, cost, ok)
+	}
+}
+
 func TestTownPotionHandlerBuysOnceAndVerifiesTarget(t *testing.T) {
 	in := &preparationInputMock{}
 	a := &townPreparationAdapter{

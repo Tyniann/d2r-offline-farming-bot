@@ -19,7 +19,7 @@ func RunStageForStep(step string) (telemetry.HistoryStage, bool) {
 		pipelineStepOpenWaypoint, pipelineStepSelectRunWaypoint, pipelineStepWaitEntryArea,
 		pipelineStepPlayRoute:
 		return telemetry.HistoryStageTravel, true
-	case pipelineStepAcquireBoss, pipelineStepEngageBoss, pipelineStepClearNearbyHostiles:
+	case pipelineStepAcquireBoss, pipelineStepEngageBoss, pipelineStepClearNearbyHostiles, pipelineStepChestSweep:
 		return telemetry.HistoryStageCombat, true
 	case pipelineStepRepositionForLoot, pipelineStepWaitForDrops, pipelineStepScanLoot, pipelineStepPickLoot:
 		return telemetry.HistoryStageLoot, true

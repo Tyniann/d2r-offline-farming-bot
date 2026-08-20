@@ -124,6 +124,12 @@ const (
 	MercenaryDied EventName = "mercenary_died"
 	// CowRecipeProgress records one Memory-confirmed semantic Cow setup or recipe boundary.
 	CowRecipeProgress EventName = "cow_recipe_progress"
+	// ChestOpened records a Memory-confirmed Supertruhe open. It is not a boss kill.
+	ChestOpened EventName = "chest_opened"
+	// ChestSkipped records a Supertruhe or hut rack that was left unopened after the allowed click budget.
+	ChestSkipped EventName = "chest_skipped"
+	// RackOperated records a Memory-confirmed hut-rack open next to a Supertruhe.
+	RackOperated EventName = "rack_operated"
 )
 
 // Event is one JSONL record. Zero-valued optional fields are omitted.

@@ -210,6 +210,8 @@ func mapObject(o memory.ObjectUnit, hover HoverInfo) Object {
 		Position:  Position{X: o.PosX, Y: o.PosY},
 		Name:      name,
 		IsHovered: hover.Matches(HoverUnitTypeObject, o.UnitID),
+		Mode:      o.Mode,
+		ModeKnown: o.ModeKnown,
 	}
 }
 

@@ -9,7 +9,7 @@ Der Task Runner führt registrierte Run-Definitionen über eine gemeinsame Pipel
 - **Paket:** `internal/tasks/`
 - **Einstieg:** `cmd/d2rbot` mit `--run <id>` oder `runs.active` in der Config
 - **App-Integration:** `internal/app/run_tick.go`, `internal/app/run_mode.go`
-- **Wichtige Dateien:** `runner.go`, `registry.go`, `run_pipeline.go`, `pipeline_flow.go`, `pipeline_state.go`, `pipeline_deps.go`, `pipeline_travel.go`, `pipeline_boss.go`, `pipeline_loot.go`, `pipeline_return.go`, `run_contract.go`, `step.go`, `deps.go`, `result.go`
+- **Wichtige Dateien:** `runner.go`, `registry.go`, `run_pipeline.go`, `pipeline_flow.go`, `pipeline_state.go`, `pipeline_deps.go`, `pipeline_travel.go`, `pipeline_boss.go`, `pipeline_loot.go`, `pipeline_return.go`, `chest_select.go`, `chest_sweep.go`, `run_contract.go`, `step.go`, `deps.go`, `result.go`
 - **Config:** `configs/config.example.yaml` → Sektion `runs`
 
 ## Funktionalität
@@ -18,7 +18,7 @@ Der Task Runner führt registrierte Run-Definitionen über eine gemeinsame Pipel
 
 - CLI `--run` überschreibt YAML `runs.active`
 - Leerer Name = passiver Modus (nur Monitor, wie bisher)
-- Bekannte Definitionen: `countess`, `mephisto`, `summoner`, `nihlathak` und `cows` aus der typisierten `RunRegistry`. Die vier klassischen Runs verwenden die gemeinsame Standardpipeline. `cows` besitzt wegen seiner zwei festen Routenrollen und des linearen Setup-/Rezept-/Sweep-Vertrags eine eigene enge Pipeline; die Route-Hold-, Loot-, Portal-, Town- und Profil-Primitiven bleiben gemeinsam.
+- Bekannte Definitionen: `countess`, `cows`, `lower-kurast`, `mephisto`, `summoner` und `nihlathak` aus der typisierten `RunRegistry`. Die klassischen Boss-Runs verwenden die gemeinsame Standardpipeline. `lower-kurast` ist ein Einzelrouten-`chest_sweep` ohne Boss. `cows` besitzt wegen seiner zwei festen Routenrollen und des linearen Setup-/Rezept-/Sweep-Vertrags eine eigene enge Pipeline; die Route-Hold-, Loot-, Portal-, Town- und Profil-Primitiven bleiben gemeinsam.
 
 ### Lazy Run-Start
 
@@ -34,7 +34,7 @@ Nach dem ersten Attach kann der Start um **1–2 Poll-Ticks** verzögert sein (A
 
 ### Step-Modell
 
-Die Standardpipeline ist nach fachlicher Verantwortung getrennt und verwendet weiterhin denselben internen `*runPipeline`-Receiver als Orchestrator. `run_pipeline.go` dispatcht nur Full-Run und isolierte Phasen. `pipeline_flow.go` besitzt Step-/Phasentopologie, `pipeline_state.go` den gruppierten Generation-State und die zentrale Reset-Barriere; Travel, Boss, Loot und Return enthalten ihre bestehenden Handler.
+Die Standardpipeline ist nach fachlicher Verantwortung getrennt und verwendet weiterhin denselben internen `*runPipeline`-Receiver als Orchestrator. `run_pipeline.go` dispatcht nur Full-Run und isolierte Phasen. `pipeline_flow.go` besitzt Step-/Phasentopologie, `pipeline_state.go` den gruppierten Generation-State und die zentrale Reset-Barriere; Travel, Boss, Chest, Loot und Return enthalten ihre bestehenden Handler.
 
 Der persistente Zustand besitzt genau eine fachliche Gruppe:
 
@@ -43,10 +43,11 @@ Der persistente Zustand besitzt genau eine fachliche Gruppe:
 | Core | Run-Definition, Phase, Route-/Combat-Konfiguration |
 | Travel/Route | Navigator-/Route-Start, Resume, Route-Progress-Verfügbarkeit, Threat-Approach, Route-Loot und terminale Safe-Snapshots |
 | Boss | Suchfallback, Boss-Pin, Encounter-Index, Approach, Nihlathak-Aim und Post-Boss-Cleanup |
+| Chest | Hütten-Supertruhen, Skip-/Retry-UnitIDs, Cluster-Gestelle und Drop-Wait vor Pickup |
 | Loot | Drop-/Scan-Stabilität, Post-Kill-Reposition, Pickup-Ziel und begrenzte Pickup-Recovery |
 | Return | Town-Egress sowie Portal-UnitID und begrenzte Portal-Recovery |
 
-Die unveränderliche Core-Gruppe wird beim Aufbau einer Runner-Generation gesetzt. Die zentrale Reset-Barriere leert alle vier veränderlichen Gruppen, bevor eine andere Generation starten darf. Die Domain-Handler erhalten schmale Dependency-Sichten: Travel sieht nur Waypoint/Town-Walk/Route/Combat/Loot/Profile/Telemetry, Boss nur Pathing/Combat/Route-Clear/Profile/Telemetry, Loot nur Combat/Loot und Return nur seine Portal-/Stash-/Town-Abhängigkeiten. Damit kann kein Handler versehentlich auf einen Input-Eigentümer einer fremden Domäne zugreifen.
+Die unveränderliche Core-Gruppe wird beim Aufbau einer Runner-Generation gesetzt. Die zentrale Reset-Barriere leert alle veränderlichen Gruppen, bevor eine andere Generation starten darf. Die Domain-Handler erhalten schmale Dependency-Sichten: Travel sieht Waypoint/Town-Walk/Route/Combat/Loot/Chest/Profile/Telemetry, Chest nur Click/Combat/Loot/Route-Hold, Boss nur Pathing/Combat/Route-Clear/Profile/Telemetry, Loot nur Combat/Loot und Return nur seine Portal-/Stash-/Town-Abhängigkeiten. Damit kann kein Handler versehentlich auf einen Input-Eigentümer einer fremden Domäne zugreifen.
 
 Der Runtime-Recorder lehnt einen Tick mit mehr als einem produktiven semantischen Input-Intent fail-closed ab. Damit bleibt die bereits fachlich geltende Ein-Input-Gelegenheit pro Tick auch während mechanischer Refactors als ausführbare Invariante erhalten.
 
@@ -58,9 +59,11 @@ Zwei Abschluss-Mechanismen (nicht vermischen):
 | **Tick-Zähler** (`ticksInStep`) | Deterministische kurze Steps, wenn ein Run sie explizit markiert |
 | **Sofort-Fail** | Bedingung klar verletzt -> sofort `task step failed` |
 
-**Gemeinsame Full-Run-Pipeline:**
+**Gemeinsame Full-Run-Pipeline (Boss-Runs):**
 
 `precheck -> acquire_town_waypoint -> open_waypoint -> select_run_waypoint -> wait_entry_area -> play_bound_route -> acquire_boss -> engage_boss -> [clear_nearby_hostiles] -> reposition_for_loot -> wait_for_drops -> scan_loot -> pick_loot -> cast_town_portal -> enter_town_portal -> wait_origin_town -> open_personal_stash -> stash_items -> close_personal_stash -> prepare_town_handoff -> complete`
+
+**Lower Kurast** bleibt auf derselben Pipeline. `chest_sweep` ersetzt `acquire_boss`. Während `play_bound_route` hält die Wiedergabe erst, wenn die nächste geschlossene Hütten-Supertruhe höchstens 40 Kacheln entfernt ist. Der Bot nähert sich mit höchstens sechs Teleports, klickt hover-bestätigt auf den sichtbaren Objektkörper (`anchor_offset_tiles`, Default 2), bedient die Gestelle dieser Truhe, wartet `wait_for_drops` und Pickup, dann geht die Route weiter. Das gilt unabhängig von globalem `route_clear`. Beobachtet die Hover-Suche einen Monster-Hover und erschöpft danach ihr Budget, räumt das aktive Profil genau einmal lebende Gegner im 12-Kachel-Kreis um das Objekt. Sitzt der Hover auf einem Söldner oder einer Leiche, die nicht in der feindlichen Liste stehen, gilt der nächste lebende Gegner in dem Kreis. Zwölf Kampfaktionen, sechs Sekunden Laufzeit und drei Sekunden ohne Aktion begrenzen den Clear. Drei monsterfreie Snapshots beenden ihn; danach erhält dieselbe Truhe oder dasselbe Gestell genau einen neuen Hover-Versuch. Verdeckt ein Monster-Hover das Pickup nach dem Öffnen, folgt derselbe lokale Clear und anschließend ein Pickup-Retry statt einer Teleport-Recovery. Ohne lebenden Gegner im Kreis bleibt der Skip; der Rest-Sweep nach dem Terminal gibt Hover-Misses genau einmal frei, weil der Standpunkt am Lagerfeuer ein anderer ist. Ein zweiter Hover-Miss bleibt übersprungen. 0 sichtbare und 0 geöffnete Supertruhen endet mit `chest_sweep_empty`. Gestelle ohne Supertruhe in der Nähe bleiben unberührt. Die Extra-JungleChest neben der Westhütte darf mitlaufen, damit beide westlichen Supertruhen im Filter bleiben. Isoliertes `--phase boss` ist hier `precheck -> chest_sweep`.
 
 **Isolierte Default-Pfade derselben Pipeline:**
 
@@ -70,7 +73,7 @@ Zwei Abschluss-Mechanismen (nicht vermischen):
 | `stash-personal` | `precheck -> open_personal_stash -> stash_items -> close_personal_stash -> complete` |
 | `travel-entry` | `precheck -> acquire_town_waypoint -> open_waypoint -> select_run_waypoint -> wait_entry_area` |
 | `play-route` | `precheck -> acquire_town_waypoint -> open_waypoint -> select_run_waypoint -> wait_entry_area -> play_bound_route` |
-| `boss` | `precheck -> acquire_boss -> engage_boss` |
+| `boss` | `precheck -> acquire_boss -> engage_boss` (Lower Kurast: `precheck -> chest_sweep`) |
 | `loot-and-return` | `precheck -> wait_for_drops -> scan_loot -> cast_town_portal -> enter_town_portal -> wait_origin_town -> open_personal_stash -> stash_items -> close_personal_stash -> complete` |
 
 Loot-Ziel, Fremdakt-Rückweg und Travel-Resume bleiben dynamische Abzweigungen und stehen nicht in dieser Default-Tabelle. `loot-and-return` endet nach dem Stash bei `complete` und überspringt `prepare_town_handoff`.
@@ -174,4 +177,4 @@ JSONL-Transitionen `run_step_started`, `run_step_completed` und `run_step_failed
 - [Mercenary Support](mercenary-support.md) — Combat-/Town-Söldner
 
 ---
-*Zuletzt aktualisiert: 2026-08-17*
+*Zuletzt aktualisiert: 2026-08-20*

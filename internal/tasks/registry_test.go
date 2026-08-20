@@ -12,52 +12,61 @@ import (
 
 func TestDefaultRunRegistryMetadataAndOrder(t *testing.T) {
 	definitions := DefaultRunRegistry().Definitions()
-	if len(definitions) != 5 || definitions[0].ID != RunIDCountess || definitions[1].ID != RunIDCows || definitions[2].ID != RunIDMephisto || definitions[3].ID != RunIDNihlathak || definitions[4].ID != RunIDSummoner {
+	if len(definitions) != 6 ||
+		definitions[0].ID != RunIDCountess ||
+		definitions[1].ID != RunIDCows ||
+		definitions[2].ID != RunIDLowerKurast ||
+		definitions[3].ID != RunIDMephisto ||
+		definitions[4].ID != RunIDNihlathak ||
+		definitions[5].ID != RunIDSummoner {
 		t.Fatalf("definitions = %+v", definitions)
 	}
-	// Keep the legacy assertions below indexed Countess/Mephisto/Nihlathak/Summoner.
-	definitions = []RunDefinition{definitions[0], definitions[2], definitions[3], definitions[4], definitions[1]}
-	if len(definitions[0].BossEngageSequence) != 1 || !definitions[0].Boss.RequireSuperUnique || definitions[0].ReturnOrigin != town.OriginAct1 || definitions[0].ClearNearbyAfterBoss {
-		t.Fatalf("Countess definition = %+v", definitions[0])
+	countess := definitions[0]
+	cows := definitions[1]
+	lowerKurast := definitions[2]
+	mephisto := definitions[3]
+	nihlathak := definitions[4]
+	summoner := definitions[5]
+	if len(countess.BossEngageSequence) != 1 || !countess.Boss.RequireSuperUnique || countess.ReturnOrigin != town.OriginAct1 || countess.ClearNearbyAfterBoss {
+		t.Fatalf("Countess definition = %+v", countess)
 	}
-	if len(definitions[1].BossEngageSequence) != 2 || definitions[1].Boss.NPCID != world.Mephisto || definitions[1].Boss.RequireSuperUnique || definitions[1].ReturnOrigin != town.OriginAct3 {
-		t.Fatalf("Mephisto definition = %+v", definitions[1])
+	if len(mephisto.BossEngageSequence) != 2 || mephisto.Boss.NPCID != world.Mephisto || mephisto.Boss.RequireSuperUnique || mephisto.ReturnOrigin != town.OriginAct3 {
+		t.Fatalf("Mephisto definition = %+v", mephisto)
 	}
-	if len(definitions[2].BossEngageSequence) != 0 || definitions[2].Boss.NPCID != world.Nihlathak ||
-		definitions[2].Boss.SearchAnchorObject != world.ObjectKindUnknown || definitions[2].Boss.SearchAnchorEntrance != world.EntranceKindUnknown ||
-		!definitions[2].ClearNearbyAfterBoss || definitions[2].ReturnOrigin != town.OriginAct5 {
-		t.Fatalf("Nihlathak definition = %+v", definitions[2])
+	if len(nihlathak.BossEngageSequence) != 0 || nihlathak.Boss.NPCID != world.Nihlathak ||
+		nihlathak.Boss.SearchAnchorObject != world.ObjectKindUnknown || nihlathak.Boss.SearchAnchorEntrance != world.EntranceKindUnknown ||
+		!nihlathak.ClearNearbyAfterBoss || nihlathak.ReturnOrigin != town.OriginAct5 {
+		t.Fatalf("Nihlathak definition = %+v", nihlathak)
 	}
-	if len(definitions[3].BossEngageSequence) != 0 || definitions[3].Boss.NPCID != world.Summoner ||
-		definitions[3].Boss.SearchAnchorObject != world.ObjectKindUnknown || definitions[3].Boss.SearchAnchorEntrance != world.EntranceKindUnknown ||
-		definitions[3].ReturnOrigin != town.OriginAct2 {
-		t.Fatalf("Summoner definition = %+v", definitions[3])
+	if len(summoner.BossEngageSequence) != 0 || summoner.Boss.NPCID != world.Summoner ||
+		summoner.Boss.SearchAnchorObject != world.ObjectKindUnknown || summoner.Boss.SearchAnchorEntrance != world.EntranceKindUnknown ||
+		summoner.ReturnOrigin != town.OriginAct2 {
+		t.Fatalf("Summoner definition = %+v", summoner)
 	}
-	if definitions[0].Recording.StartWaypoint != pathing.WaypointTargetBlackMarsh || definitions[0].Recording.TerminalArea != world.TowerCellarLevel5 || definitions[0].Recording.Boss.NPCID != definitions[0].Boss.NPCID || definitions[0].Recording.TerminalMaxDistanceTiles != 80 {
-		t.Fatalf("Countess recording contract = %+v", definitions[0].Recording)
+	if countess.Recording.StartWaypoint != pathing.WaypointTargetBlackMarsh || countess.Recording.TerminalArea != world.TowerCellarLevel5 || countess.Recording.Boss.NPCID != countess.Boss.NPCID || countess.Recording.TerminalMaxDistanceTiles != 80 {
+		t.Fatalf("Countess recording contract = %+v", countess.Recording)
 	}
-	if definitions[1].Recording.StartWaypoint != pathing.WaypointTargetDuranceOfHateLevel2 || definitions[1].Recording.TerminalArea != world.DuranceOfHateLevel3 || definitions[1].Recording.Boss.NPCID != definitions[1].Boss.NPCID || definitions[1].Recording.TerminalMaxDistanceTiles != 60 {
-		t.Fatalf("Mephisto recording contract = %+v", definitions[1].Recording)
+	if mephisto.Recording.StartWaypoint != pathing.WaypointTargetDuranceOfHateLevel2 || mephisto.Recording.TerminalArea != world.DuranceOfHateLevel3 || mephisto.Recording.Boss.NPCID != mephisto.Boss.NPCID || mephisto.Recording.TerminalMaxDistanceTiles != 60 {
+		t.Fatalf("Mephisto recording contract = %+v", mephisto.Recording)
 	}
-	if definitions[3].Recording.StartWaypoint != pathing.WaypointTargetArcaneSanctuary || definitions[3].Recording.TerminalArea != world.ArcaneSanctuary || definitions[3].Recording.EgressOriginAct != town.OriginAct2 {
-		t.Fatalf("Summoner recording contract = %+v", definitions[3].Recording)
+	if summoner.Recording.StartWaypoint != pathing.WaypointTargetArcaneSanctuary || summoner.Recording.TerminalArea != world.ArcaneSanctuary || summoner.Recording.EgressOriginAct != town.OriginAct2 {
+		t.Fatalf("Summoner recording contract = %+v", summoner.Recording)
 	}
-	if !definitions[3].HasCapability(RunCapabilityRouteClear) ||
-		!definitions[3].AllowsRouteHostile(world.ArcaneSpecter) ||
-		!definitions[3].AllowsRouteHostile(world.ArcaneHellClan) ||
-		!definitions[3].AllowsRouteHostile(world.ArcaneGhoulLord) ||
-		len(definitions[3].RouteHostileNPCIDs) != 3 {
-		t.Fatalf("Summoner route-clear contract = %+v", definitions[3])
+	if !summoner.HasCapability(RunCapabilityRouteClear) ||
+		!summoner.AllowsRouteHostile(world.ArcaneSpecter) ||
+		!summoner.AllowsRouteHostile(world.ArcaneHellClan) ||
+		!summoner.AllowsRouteHostile(world.ArcaneGhoulLord) ||
+		len(summoner.RouteHostileNPCIDs) != 3 {
+		t.Fatalf("Summoner route-clear contract = %+v", summoner)
 	}
-	for _, definition := range definitions[:3] {
+	for _, definition := range []RunDefinition{countess, mephisto, nihlathak, lowerKurast} {
 		if definition.HasCapability(RunCapabilityRouteClear) || len(definition.RouteHostileNPCIDs) != 0 {
 			t.Fatalf("%s unexpectedly enables route clear: %+v", definition.ID, definition)
 		}
 	}
-	if definitions[2].Recording.StartWaypoint != pathing.WaypointTargetHallsOfPain || definitions[2].Recording.TerminalArea != world.HallsOfVaught || definitions[2].Recording.EgressOriginAct != town.OriginAct5 {
-		t.Fatalf("Nihlathak recording contract = %+v", definitions[2].Recording)
+	if nihlathak.Recording.StartWaypoint != pathing.WaypointTargetHallsOfPain || nihlathak.Recording.TerminalArea != world.HallsOfVaught || nihlathak.Recording.EgressOriginAct != town.OriginAct5 {
+		t.Fatalf("Nihlathak recording contract = %+v", nihlathak.Recording)
 	}
-	cows := definitions[4]
 	if cows.RouteSet == nil || cows.RouteSet.PrimaryRole != pathing.RouteRoleCowSweep || len(cows.RouteRoles()) != 2 {
 		t.Fatalf("Cow route set = %+v", cows.RouteSet)
 	}
@@ -65,6 +74,35 @@ func TestDefaultRunRegistryMetadataAndOrder(t *testing.T) {
 	sweep, sweepOK := cows.RecordingForRole(pathing.RouteRoleCowSweep)
 	if !legOK || !sweepOK || leg.StartWaypoint != pathing.WaypointTargetStonyField || leg.TerminalObjectKind != world.ObjectKindWirtsBody || sweep.StartKind != RecordingStartObjectPortalArrival || sweep.TerminalKind != RecordingTerminalEndpoint {
 		t.Fatalf("Cow recording contracts leg=%+v sweep=%+v", leg, sweep)
+	}
+	if lowerKurast.DisplayName != "Lower Kurast" ||
+		lowerKurast.EntryArea != world.LowerKurast ||
+		lowerKurast.RouteTerminalArea != world.LowerKurast ||
+		lowerKurast.WaypointTarget != pathing.WaypointTargetLowerKurast ||
+		lowerKurast.Boss.NPCID != 0 ||
+		strings.TrimSpace(lowerKurast.Boss.Name) != "" ||
+		len(lowerKurast.BossEngageSequence) != 0 ||
+		lowerKurast.ClearNearbyAfterBoss ||
+		lowerKurast.ReturnOrigin != town.OriginAct3 ||
+		!lowerKurast.HasCapability(RunCapabilityChestSweep) ||
+		!lowerKurast.HasCapability(RunCapabilityForeignTownEgress) ||
+		lowerKurast.RouteSet != nil {
+		t.Fatalf("Lower Kurast definition = %+v", lowerKurast)
+	}
+	if lowerKurast.Recording.StartKind != RecordingStartWaypoint ||
+		lowerKurast.Recording.StartWaypoint != pathing.WaypointTargetLowerKurast ||
+		lowerKurast.Recording.AllowedStartArea != world.LowerKurast ||
+		lowerKurast.Recording.TerminalKind != RecordingTerminalEndpoint ||
+		lowerKurast.Recording.TerminalArea != world.LowerKurast ||
+		lowerKurast.Recording.Boss.NPCID != 0 ||
+		lowerKurast.Recording.TerminalObjectKind != world.ObjectKindUnknown ||
+		lowerKurast.Recording.TerminalMaxDistanceTiles != 60 ||
+		lowerKurast.Recording.Movement != pathing.RouteMovementTeleport ||
+		lowerKurast.Recording.SafetyReturn != RecordingSafetyReturnTownPortal ||
+		lowerKurast.Recording.EgressOriginAct != town.OriginAct3 ||
+		!strings.Contains(lowerKurast.Recording.InstructionsDE, "Lagerfeuer") ||
+		town.KeyRestockNextRun != string(RunIDLowerKurast) {
+		t.Fatalf("Lower Kurast recording contract = %+v", lowerKurast.Recording)
 	}
 }
 
@@ -136,6 +174,18 @@ func TestRunRegistryRejectsInvalidCapabilityCombinations(t *testing.T) {
 	summoner.RouteHostileNPCIDs = nil
 	if _, err := NewRunRegistry(summoner); err == nil || !strings.Contains(err.Error(), "allowlist") {
 		t.Fatalf("capability without allowlist error = %v", err)
+	}
+
+	lowerKurast, _ := DefaultRunRegistry().Definition(RunIDLowerKurast)
+	lowerKurast.RequiredCaps = withoutCapability(lowerKurast.RequiredCaps, RunCapabilityChestSweep)
+	if _, err := NewRunRegistry(lowerKurast); err == nil || !strings.Contains(err.Error(), "boss descriptor is required for a single-route run") {
+		t.Fatalf("boss-less single-route without chest_sweep error = %v", err)
+	}
+
+	countess, _ = DefaultRunRegistry().Definition(RunIDCountess)
+	countess.RequiredCaps = append(countess.RequiredCaps, RunCapabilityChestSweep)
+	if _, err := NewRunRegistry(countess); err == nil || !strings.Contains(err.Error(), "chest_sweep run must not declare a boss descriptor") {
+		t.Fatalf("chest_sweep with boss error = %v", err)
 	}
 }
 

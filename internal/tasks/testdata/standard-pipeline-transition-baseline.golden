@@ -5,6 +5,7 @@ full|open_waypoint|select_run_waypoint
 full|select_run_waypoint|wait_entry_area
 full|wait_entry_area|play_bound_route
 full|play_bound_route|acquire_boss
+full|chest_sweep|wait_for_drops
 full|acquire_boss|engage_boss
 full|engage_boss|reposition_for_loot
 full|clear_nearby_hostiles|reposition_for_loot
@@ -34,6 +35,7 @@ travel-entry|open_waypoint|select_run_waypoint
 travel-entry|select_run_waypoint|wait_entry_area
 travel-entry|wait_entry_area|-
 travel-entry|play_bound_route|-
+travel-entry|chest_sweep|-
 travel-entry|acquire_boss|-
 travel-entry|engage_boss|-
 travel-entry|clear_nearby_hostiles|-
@@ -63,6 +65,7 @@ play-route|open_waypoint|select_run_waypoint
 play-route|select_run_waypoint|wait_entry_area
 play-route|wait_entry_area|play_bound_route
 play-route|play_bound_route|-
+play-route|chest_sweep|-
 play-route|acquire_boss|-
 play-route|engage_boss|-
 play-route|clear_nearby_hostiles|-
@@ -92,6 +95,7 @@ boss|open_waypoint|-
 boss|select_run_waypoint|-
 boss|wait_entry_area|-
 boss|play_bound_route|-
+boss|chest_sweep|-
 boss|acquire_boss|engage_boss
 boss|engage_boss|-
 boss|clear_nearby_hostiles|-
@@ -121,6 +125,7 @@ loot-and-return|open_waypoint|-
 loot-and-return|select_run_waypoint|-
 loot-and-return|wait_entry_area|-
 loot-and-return|play_bound_route|-
+loot-and-return|chest_sweep|-
 loot-and-return|acquire_boss|-
 loot-and-return|engage_boss|-
 loot-and-return|clear_nearby_hostiles|-
@@ -150,6 +155,7 @@ retry-return|open_waypoint|-
 retry-return|select_run_waypoint|-
 retry-return|wait_entry_area|-
 retry-return|play_bound_route|-
+retry-return|chest_sweep|-
 retry-return|acquire_boss|-
 retry-return|engage_boss|-
 retry-return|clear_nearby_hostiles|-
@@ -179,6 +185,7 @@ stash-personal|open_waypoint|-
 stash-personal|select_run_waypoint|-
 stash-personal|wait_entry_area|-
 stash-personal|play_bound_route|-
+stash-personal|chest_sweep|-
 stash-personal|acquire_boss|-
 stash-personal|engage_boss|-
 stash-personal|clear_nearby_hostiles|-
@@ -208,6 +215,7 @@ town-ready|open_waypoint|-
 town-ready|select_run_waypoint|-
 town-ready|wait_entry_area|-
 town-ready|play_bound_route|-
+town-ready|chest_sweep|-
 town-ready|acquire_boss|-
 town-ready|engage_boss|-
 town-ready|clear_nearby_hostiles|-
@@ -237,6 +245,7 @@ not-a-phase|open_waypoint|select_run_waypoint
 not-a-phase|select_run_waypoint|wait_entry_area
 not-a-phase|wait_entry_area|play_bound_route
 not-a-phase|play_bound_route|acquire_boss
+not-a-phase|chest_sweep|wait_for_drops
 not-a-phase|acquire_boss|engage_boss
 not-a-phase|engage_boss|reposition_for_loot
 not-a-phase|clear_nearby_hostiles|reposition_for_loot

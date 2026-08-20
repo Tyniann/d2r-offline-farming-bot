@@ -97,7 +97,8 @@ func TestPhase16OwnershipReasonsDefaultsAndNonGoalsAreComplete(t *testing.T) {
 	}
 	defaults := Phase16DefaultPickitChains()
 	if !reflect.DeepEqual(defaults[tasks.RunIDCountess], []string{"gems", "keys", "countess-standard"}) ||
-		!reflect.DeepEqual(defaults[tasks.RunIDMephisto], []string{"gems", "mephisto-standard"}) {
+		!reflect.DeepEqual(defaults[tasks.RunIDMephisto], []string{"gems", "mephisto-standard"}) ||
+		!reflect.DeepEqual(defaults[tasks.RunIDLowerKurast], []string{"gems", "lk-superchests"}) {
 		t.Fatalf("defaults=%v", defaults)
 	}
 	defaults[tasks.RunIDCountess][0] = "mutated"

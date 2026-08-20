@@ -12,6 +12,16 @@ type pipelineTravelDeps struct {
 	RouteClear RouteClearExecutor
 	Profile    ProfileActions
 	Telemetry  RunTelemetry
+	Chest      ChestOperateActions
+}
+
+type pipelineChestDeps struct {
+	Chest      ChestOperateActions
+	Combat     CombatActions
+	Loot       LootActions
+	Route      RoutePlayback
+	RouteClear RouteClearExecutor
+	Telemetry  RunTelemetry
 }
 
 type pipelineBossDeps struct {
@@ -39,7 +49,18 @@ type pipelineReturnDeps struct {
 }
 
 func narrowTravelDeps(deps Deps) pipelineTravelDeps {
-	return pipelineTravelDeps{Waypoint: deps.Waypoint, TownWalk: deps.TownWalk, Combat: deps.Combat, Loot: deps.Loot, Route: deps.Route, RouteClear: deps.RouteClear, Profile: deps.Profile, Telemetry: deps.Telemetry}
+	return pipelineTravelDeps{Waypoint: deps.Waypoint, TownWalk: deps.TownWalk, Combat: deps.Combat, Loot: deps.Loot, Route: deps.Route, RouteClear: deps.RouteClear, Profile: deps.Profile, Telemetry: deps.Telemetry, Chest: deps.Chest}
+}
+
+func narrowChestDeps(deps Deps) pipelineChestDeps {
+	// Terminal leftover sweep runs after play_bound_route is done. Hold on that
+	// finished adapter fails closed with no active progress; operate-on-sight
+	// during playback keeps Route via [narrowChestDepsFromTravel].
+	return pipelineChestDeps{Chest: deps.Chest, Combat: deps.Combat, Loot: deps.Loot, RouteClear: deps.RouteClear, Telemetry: deps.Telemetry}
+}
+
+func narrowChestDepsFromTravel(deps pipelineTravelDeps) pipelineChestDeps {
+	return pipelineChestDeps{Chest: deps.Chest, Combat: deps.Combat, Loot: deps.Loot, Route: deps.Route, RouteClear: deps.RouteClear, Telemetry: deps.Telemetry}
 }
 
 func narrowBossDeps(deps Deps) pipelineBossDeps {

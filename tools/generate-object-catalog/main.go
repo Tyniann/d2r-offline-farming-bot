@@ -28,6 +28,8 @@ type selectedObjects struct {
 	GoodChest       objectRow
 	Stash           objectRow
 	Waypoints       []objectRow
+	SuperChests     []objectRow
+	Racks           []objectRow
 }
 
 func main() {
@@ -129,6 +131,8 @@ func selectObjects(rows []objectRow) (selectedObjects, error) {
 	wirtsBodyCount := 0
 	chestCount := 0
 	stashCount := 0
+	superChestCounts := map[string]int{}
+	rackCounts := map[string]int{}
 	for _, row := range rows {
 		switch row.Class {
 		case "TownPortal":
@@ -146,6 +150,12 @@ func selectObjects(rows []objectRow) (selectedObjects, error) {
 		case "Bank":
 			selected.Stash = row
 			stashCount++
+		case "JungleChest", "JungleChest2":
+			selected.SuperChests = append(selected.SuperChests, row)
+			superChestCounts[row.Class]++
+		case "ArmorStand1", "WeaponRack2":
+			selected.Racks = append(selected.Racks, row)
+			rackCounts[row.Class]++
 		}
 		if row.Name == "Waypoint" {
 			selected.Waypoints = append(selected.Waypoints, row)
@@ -169,7 +179,19 @@ func selectObjects(rows []objectRow) (selectedObjects, error) {
 	if len(selected.Waypoints) == 0 {
 		return selectedObjects{}, fmt.Errorf("Name=Waypoint count = 0")
 	}
+	for _, class := range []string{"JungleChest", "JungleChest2"} {
+		if superChestCounts[class] != 1 {
+			return selectedObjects{}, fmt.Errorf("Class=%s count = %d, want 1", class, superChestCounts[class])
+		}
+	}
+	for _, class := range []string{"ArmorStand1", "WeaponRack2"} {
+		if rackCounts[class] != 1 {
+			return selectedObjects{}, fmt.Errorf("Class=%s count = %d, want 1", class, rackCounts[class])
+		}
+	}
 	sort.Slice(selected.Waypoints, func(i, j int) bool { return selected.Waypoints[i].ID < selected.Waypoints[j].ID })
+	sort.Slice(selected.SuperChests, func(i, j int) bool { return selected.SuperChests[i].ID < selected.SuperChests[j].ID })
+	sort.Slice(selected.Racks, func(i, j int) bool { return selected.Racks[i].ID < selected.Racks[j].ID })
 	return selected, nil
 }
 
@@ -183,6 +205,12 @@ func renderMemory(version string, selected selectedObjects) []byte {
 	fmt.Fprintf(&b, "\t%d: {}, // %s\n", selected.WirtsBody.ID, selected.WirtsBody.Class)
 	fmt.Fprintf(&b, "\t%d: {}, // %s\n", selected.GoodChest.ID, selected.GoodChest.Class)
 	fmt.Fprintf(&b, "\t%d: {}, // %s\n", selected.Stash.ID, selected.Stash.Class)
+	for _, chest := range selected.SuperChests {
+		fmt.Fprintf(&b, "\t%d: {}, // %s\n", chest.ID, chest.Class)
+	}
+	for _, rack := range selected.Racks {
+		fmt.Fprintf(&b, "\t%d: {}, // %s\n", rack.ID, rack.Class)
+	}
 	for _, waypoint := range selected.Waypoints {
 		fmt.Fprintf(&b, "\t%d: {}, // %s\n", waypoint.ID, waypoint.Class)
 	}
@@ -200,18 +228,55 @@ func renderWorld(version string, selected selectedObjects) []byte {
 	fmt.Fprintf(&b, "\t// WirtsBodyID is the Tristram quest object from objects.txt Class=Wirt.\n\tWirtsBodyID uint32 = %d\n", selected.WirtsBody.ID)
 	fmt.Fprintf(&b, "\t// GoodChestID is the unique chest placement object for this generated D2R version.\n\tGoodChestID uint32 = %d\n", selected.GoodChest.ID)
 	fmt.Fprintf(&b, "\t// PersonalStashID is the character stash object for this generated D2R version.\n\tPersonalStashID uint32 = %d\n", selected.Stash.ID)
+	for _, chest := range selected.SuperChests {
+		fmt.Fprintf(&b, "\t// %sID is objects.txt Class=%s, live Lower-Kurast Supertruhe.\n\t%sID uint32 = %d\n", chest.Class, chest.Class, chest.Class, chest.ID)
+	}
+	for _, rack := range selected.Racks {
+		fmt.Fprintf(&b, "\t// %sID is objects.txt Class=%s, live Lower-Kurast Hüttengestell.\n\t%sID uint32 = %d\n", rack.Class, rack.Class, rack.Class, rack.ID)
+	}
 	b.WriteString(")\n\n")
 	b.WriteString("var waypointIDs = []uint32{\n")
 	for _, waypoint := range selected.Waypoints {
 		fmt.Fprintf(&b, "\t%d, // %s\n", waypoint.ID, waypoint.Class)
 	}
 	b.WriteString("}\n\n")
+	b.WriteString("var superChestIDs = []uint32{\n")
+	for _, chest := range selected.SuperChests {
+		fmt.Fprintf(&b, "\t%d, // %s\n", chest.ID, chest.Class)
+	}
+	b.WriteString("}\n\n")
+	b.WriteString("var rackIDs = []uint32{\n")
+	for _, rack := range selected.Racks {
+		fmt.Fprintf(&b, "\t%d, // %s\n", rack.ID, rack.Class)
+	}
+	b.WriteString("}\n\n")
 	b.WriteString("// IsWaypointID reports whether id is a waypoint object in the generated catalog.\n")
 	b.WriteString("func IsWaypointID(id uint32) bool {\n\tfor _, waypointID := range waypointIDs {\n\t\tif id == waypointID {\n\t\t\treturn true\n\t\t}\n\t}\n\treturn false\n}\n\n")
 	b.WriteString("// AllWaypointIDs returns a copy of generated waypoint object IDs.\n")
 	b.WriteString("func AllWaypointIDs() []uint32 { return append([]uint32(nil), waypointIDs...) }\n\n")
+	b.WriteString("// IsSuperChestID reports whether id is a live Lower-Kurast Supertruhe class.\n")
+	b.WriteString("func IsSuperChestID(id uint32) bool {\n\tfor _, chestID := range superChestIDs {\n\t\tif id == chestID {\n\t\t\treturn true\n\t\t}\n\t}\n\treturn false\n}\n\n")
+	b.WriteString("// AllSuperChestIDs returns a copy of generated Supertruhe object IDs.\n")
+	b.WriteString("func AllSuperChestIDs() []uint32 { return append([]uint32(nil), superChestIDs...) }\n\n")
+	b.WriteString("// IsRackID reports whether id is a live Lower-Kurast Hüttengestell class.\n")
+	b.WriteString("func IsRackID(id uint32) bool {\n\tfor _, rackID := range rackIDs {\n\t\tif id == rackID {\n\t\t\treturn true\n\t\t}\n\t}\n\treturn false\n}\n\n")
+	b.WriteString("// AllRackIDs returns a copy of generated Hüttengestell object IDs.\n")
+	b.WriteString("func AllRackIDs() []uint32 { return append([]uint32(nil), rackIDs...) }\n\n")
 	b.WriteString("var objectNames = map[uint32]string{\n")
 	fmt.Fprintf(&b, "\tTownPortalID: \"Town Portal\",\n\tPermanentPortalID: \"Permanent Portal\",\n\tWirtsBodyID: \"Wirt's Body\",\n\tGoodChestID: \"Good Chest\",\n\tPersonalStashID: \"Personal Stash\",\n")
+	for _, chest := range selected.SuperChests {
+		fmt.Fprintf(&b, "\t%d: \"Super Chest\",\n", chest.ID)
+	}
+	for _, rack := range selected.Racks {
+		name := "Rack"
+		switch rack.Class {
+		case "ArmorStand1":
+			name = "Armor Stand"
+		case "WeaponRack2":
+			name = "Weapon Rack"
+		}
+		fmt.Fprintf(&b, "\t%d: %q,\n", rack.ID, name)
+	}
 	for _, waypoint := range selected.Waypoints {
 		fmt.Fprintf(&b, "\t%d: \"Waypoint\",\n", waypoint.ID)
 	}

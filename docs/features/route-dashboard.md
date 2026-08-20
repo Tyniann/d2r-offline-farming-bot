@@ -33,6 +33,8 @@ Voraussetzungen erscheinen als kurze übersetzte Checkliste. Nur eine fehlende V
 
 Das Kuhlevel verwendet einen Zweischritt-Umschalter für Wirt- und Cow-Route. Der ausführliche Vorbereitungshinweis erscheint ausschließlich im Kuhlevel-Kontext. Nach einer fertigen Wirt-Aufnahme kann direkt zur Cow-Route gewechselt werden.
 
+Unteres Kurast erscheint in der Act-3-Gruppe nach Mephisto. Start und Ziel lauten „Unteres Kurast“ und „Lagerfeuer-Hütten“. Unter der Anleitung stehen zwei Fotos (Lagerfeuer, Hüttenlayout); ein Klick öffnet ein Vollbild-Overlay mit Schließen-Button. Es gibt keinen Hinweis zum Neuwürfeln der Karte.
+
 ### Entwürfe
 
 Entwürfe werden neueste zuerst als Arbeitsliste gezeigt. Sichtbar sind Run, optionale Teilroute, Aufnahmezeit, Schwierigkeit, verständlicher Prüfstatus und ein entscheidungsrelevanter Distanzwert. Kandidaten-ID und SHA-256 bleiben ausschließlich intern an Commands gebunden.
@@ -69,4 +71,4 @@ Die Oberfläche verwendet die bestehende lokale Core-API, React und Lucide-Icons
 - [Lokale Core-API](local-core-api.md)
 
 ---
-*Zuletzt aktualisiert: 17. August 2026*
+*Zuletzt aktualisiert: 20. August 2026*

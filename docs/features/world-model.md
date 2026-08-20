@@ -86,6 +86,8 @@ Phase 10.5 ergänzt Mephisto über den eigenen `monstats.txt`-Generator als NPC-
 
 Phase 20.0 ergänzt read-only die Objekte `PermanentPortalID=60` und `WirtsBodyID=268` sowie lebende Rakanishu-/Hell-Bovine-/Cow-King-Units aus lokalen CASC-Extrakten. Phase 20.1 projiziert direkte Kuh-Leichen aus demselben Monster-Walk separat als `CowCorpses`. Jede Leiche ist an `State.At` und `State.Generation` gebunden; `CowCorpsesComplete` widerruft bei Readfehlern, inkonsistenten CE-Verbrauchsbits, Duplikaten oder einer Überschneidung mit lebenden Monster-UnitIDs. `FindCurrentCowCorpse` liefert nur exakt eine Leiche aus dem aktuellen vollständigen State.
 
+Gate 23.1 ergänzt `ObjectKindSuperChest` und `ObjectKindRack` aus den live belegten `objects.txt`-Klassen `JungleChest` (181), `JungleChest2` (183), `ArmorStand1` (104) und `WeaponRack2` (107). Andere Act-3-Kisten und Gestellvarianten bleiben `ObjectKindUnknown` und stehen nicht auf der Memory-Allowlist. `world.Object` trägt denselben Mode wie `memory.ObjectUnit` (`UnitAny+0x0C`) plus `ModeKnown`. Items tragen `Quantity`/`QuantityKnown` aus Stat 70, Base-first und unskaliert.
+
 `State.UI.CubeOpen` ist nur bei `CubeOpenKnown=true` autoritativ. Der Mapper übernimmt das live bestätigte Byte `UI+0x5` fail-closed und widerruft einen früheren Open-State sofort, sobald der nächste Snapshot den UI-Buffer nicht mehr eindeutig lesen kann.
 
 Allowlists in `internal/memory/countess_filter.go` (sync mit `world/*_ids.go` via `TestCountessFilterMatchesWorldIDs`).
@@ -123,8 +125,8 @@ reset := model.Reset(at, "process_lost")
 | `GamePhase` | `Unknown`, `Menu`, `Loading`, `InGame` — aus `memory.Snapshot.Phase` |
 | `State` | Tick-Snapshot mit `At`, `Generation`, `Phase`, `Valid`, `Reason`, `Area`, `Player`, Entity- und Item-Slices, direkter Cow-Corpse-Coverage, `MonsterCoverage` sowie read-only UI-Flags inklusive `QuitMenuOpen` und fail-closed `CubeOpen` |
 | `CowCorpse` | Direkte Kuh-Leiche mit UnitID, NPCID, Position, Verbrauchsevidenz sowie Snapshot-Zeit und -Generation |
-| `Object`/`Entrance`/`Monster` | Countess-relevante Entities mit Kind, ID, UnitID, Position, Name |
-| `Item` | Read-only Item mit UnitID, Code/Name, Qualität, Location, Position, Flags, Raw-Stats sowie optionaler, gegen Qualität und Basiscode validierter Set-/Unique-Identität |
+| `Object`/`Entrance`/`Monster` | Countess-relevante Entities mit Kind, ID, UnitID, Position, Name; Objekte zusätzlich mit Mode und Known-Flag |
+| `Item` | Read-only Item mit UnitID, Code/Name, Qualität, Location, Position, Flags, Raw-Stats, optionaler Set-/Unique-Identität sowie fail-closed `Sockets` und `Quantity` |
 
 ## Operator / CLI
 
@@ -246,4 +248,4 @@ Low-Level Memory/Offset-Validierung: [State Probe](state-probe.md) (Phase 1, D2R
 - [Phase-18-Core-Vertrag](phase-18-core-contract.md) — Merc-Evidenz und Unknown-Grenzen
 
 ---
-*Zuletzt aktualisiert: 2026-08-15*
+*Zuletzt aktualisiert: 2026-08-20*

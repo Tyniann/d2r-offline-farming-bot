@@ -19,6 +19,15 @@ func NewBossFactory(runID string) profile.StrategyFactory {
 	}
 }
 
+// NewLowerKurastFactory returns the Hammerdin Lower-Kurast strategy. It wires
+// stationary Blessed Hammer combat only for object-blocker recovery; travel
+// remains without route-clear capability.
+func NewLowerKurastFactory() profile.StrategyFactory {
+	return func() profile.RunStrategy {
+		return &lowerKurastStrategy{}
+	}
+}
+
 // NewSummonerFactory returns the Hammerdin Summoner strategy. Travel uses the
 // shared route-clear hold; attacks stay on the Blessed Hammer standard-attack
 // path instead of a Necromancer curse opener.
@@ -55,6 +64,25 @@ func (s *bossStrategy) Configure(exec *profile.Executor, standardAttackID uint16
 	// the shared boss pipeline, not by encounter hooks. Countess, Mephisto,
 	// and Nihlathak do not bind RouteClear: those runs have no travel combat.
 	return nil
+}
+
+type lowerKurastStrategy struct{}
+
+func (s *lowerKurastStrategy) ProfileID() string { return profileID }
+func (s *lowerKurastStrategy) RunID() string     { return "lower-kurast" }
+func (s *lowerKurastStrategy) RequiredSkills() []string {
+	return []string{"teleport", "town_portal", "blessed_hammer", "concentration", "holy_shield"}
+}
+
+// RequiresRouteClear reports false because Lower Kurast uses stationary combat
+// only after a monster blocks a chest hover probe.
+func (s *lowerKurastStrategy) RequiresRouteClear() bool { return false }
+
+func (s *lowerKurastStrategy) Configure(exec *profile.Executor, standardAttackID uint16, routeClear profile.RouteCombatActions) error {
+	if exec == nil || routeClear == nil || standardAttackID != memory.MustSkillID("blessed_hammer") {
+		return fmt.Errorf("hammerdin lower-kurast strategy requires executor, route clear and Blessed Hammer standard attack")
+	}
+	return exec.ConfigureRouteClear(profile.RouteClearSingleTarget, 0, standardAttackID, routeClear)
 }
 
 type summonerStrategy struct{}

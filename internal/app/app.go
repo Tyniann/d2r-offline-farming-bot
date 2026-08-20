@@ -306,9 +306,10 @@ func New(cfg *config.Config, opts Options) (rt *Runtime, err error) {
 		}
 		runCfg.Cow.HasTownServices = true
 	}
+	chestOperate := newChestOperateAdapter(log, inputCtrl, pathingCfg)
 	taskDeps := tasks.Deps{
 		Input: inputCtrl, Pathing: nav, Waypoint: runWaypoints, Portal: townPortals, TownWalk: layoutTownWalker,
-		Stash: personalStash, Combat: combat, Actions: runActions, Loot: lootActions, Route: routePlayback, RouteClear: profileExecutor, TownEgress: townEgress, Profile: profileActions, Town: townPreparation, Cow: cowSetup, CowRecipe: cowRecipe,
+		Stash: personalStash, Combat: combat, Actions: runActions, Loot: lootActions, Route: routePlayback, RouteClear: profileExecutor, TownEgress: townEgress, Profile: profileActions, Town: townPreparation, Cow: cowSetup, CowRecipe: cowRecipe, Chest: chestOperate,
 	}
 	// Do not assign a nil *telemetry.Recorder to the interface: that would make
 	// the interface non-nil and turn the first fail-closed pipeline event into a

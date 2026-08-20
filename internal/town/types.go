@@ -51,35 +51,35 @@ const (
 type Reason string
 
 const (
-	ReasonUnknownOrigin             Reason = "town_origin_unknown"
-	ReasonEgressMissing             Reason = "town_egress_missing"
-	ReasonHubTransferUnsupported    Reason = "hub_transfer_unsupported"
-	ReasonNextTargetUnsupported     Reason = "next_target_unsupported"
-	ReasonBudgetExhausted           Reason = "town_budget_exhausted"
-	ReasonStopped                   Reason = "town_stopped"
-	ReasonPaused                    Reason = "town_paused"
-	ReasonGoldUnavailable           Reason = "town_gold_unavailable"
-	ReasonRestockStateInvalid       Reason = "town_restock_state_invalid"
-	ReasonRestockVerifyTimeout      Reason = "town_restock_verify_timeout"
-	ReasonItemClassificationInvalid Reason = "town_item_classification_invalid"
-	ReasonItemStateInvalid          Reason = "town_item_state_invalid"
-	ReasonItemPinInvalid            Reason = "town_item_pin_invalid"
-	ReasonItemVerifyTimeout         Reason = "town_item_verify_timeout"
-	ReasonRepairStateUnavailable    Reason = "repair_state_unavailable"
-	ReasonTransferStateInvalid      Reason = "town_transfer_state_invalid"
-	ReasonTransferVerifyTimeout     Reason = "town_transfer_verify_timeout"
-	ReasonTelemetryFailed           Reason = "town_telemetry_failed"
-	ReasonTownLayoutUnavailable     Reason = "town_layout_unavailable"
-	ReasonTownLayoutRouteMissing    Reason = "town_layout_route_missing"
-	ReasonTownLayoutMismatch        Reason = "town_layout_mismatch"
-	ReasonMercenaryNotHired         Reason = "mercenary_not_hired"
-	ReasonMercenaryDeadAtStart      Reason = "mercenary_dead_at_start"
-	ReasonMercenaryStateInvalid     Reason = "mercenary_state_invalid"
-	ReasonMercenaryHealStateInvalid Reason = "mercenary_heal_state_invalid"
-	ReasonMercenaryHealVerifyTimeout Reason = "mercenary_heal_verify_timeout"
-	ReasonMercenaryReviveStateInvalid Reason = "mercenary_revive_state_invalid"
+	ReasonUnknownOrigin                   Reason = "town_origin_unknown"
+	ReasonEgressMissing                   Reason = "town_egress_missing"
+	ReasonHubTransferUnsupported          Reason = "hub_transfer_unsupported"
+	ReasonNextTargetUnsupported           Reason = "next_target_unsupported"
+	ReasonBudgetExhausted                 Reason = "town_budget_exhausted"
+	ReasonStopped                         Reason = "town_stopped"
+	ReasonPaused                          Reason = "town_paused"
+	ReasonGoldUnavailable                 Reason = "town_gold_unavailable"
+	ReasonRestockStateInvalid             Reason = "town_restock_state_invalid"
+	ReasonRestockVerifyTimeout            Reason = "town_restock_verify_timeout"
+	ReasonItemClassificationInvalid       Reason = "town_item_classification_invalid"
+	ReasonItemStateInvalid                Reason = "town_item_state_invalid"
+	ReasonItemPinInvalid                  Reason = "town_item_pin_invalid"
+	ReasonItemVerifyTimeout               Reason = "town_item_verify_timeout"
+	ReasonRepairStateUnavailable          Reason = "repair_state_unavailable"
+	ReasonTransferStateInvalid            Reason = "town_transfer_state_invalid"
+	ReasonTransferVerifyTimeout           Reason = "town_transfer_verify_timeout"
+	ReasonTelemetryFailed                 Reason = "town_telemetry_failed"
+	ReasonTownLayoutUnavailable           Reason = "town_layout_unavailable"
+	ReasonTownLayoutRouteMissing          Reason = "town_layout_route_missing"
+	ReasonTownLayoutMismatch              Reason = "town_layout_mismatch"
+	ReasonMercenaryNotHired               Reason = "mercenary_not_hired"
+	ReasonMercenaryDeadAtStart            Reason = "mercenary_dead_at_start"
+	ReasonMercenaryStateInvalid           Reason = "mercenary_state_invalid"
+	ReasonMercenaryHealStateInvalid       Reason = "mercenary_heal_state_invalid"
+	ReasonMercenaryHealVerifyTimeout      Reason = "mercenary_heal_verify_timeout"
+	ReasonMercenaryReviveStateInvalid     Reason = "mercenary_revive_state_invalid"
 	ReasonMercenaryReviveInsufficientGold Reason = "mercenary_revive_insufficient_gold"
-	ReasonMercenaryReviveVerifyTimeout Reason = "mercenary_revive_verify_timeout"
+	ReasonMercenaryReviveVerifyTimeout    Reason = "mercenary_revive_verify_timeout"
 )
 
 // Origin identifies the confirmed act and anchor at which preparation starts.
@@ -103,19 +103,21 @@ type HubTransfer struct {
 
 // Demand is the immutable result of a read-only preparation inspection.
 type Demand struct {
-	Stash            bool
-	Potions          bool
-	Scrolls          bool
-	Identify         bool
-	Sell             bool
-	Repair           bool
-	MercenaryHeal    bool
-	MercenaryRevive  bool
+	Stash           bool
+	Potions         bool
+	Scrolls         bool
+	Identify        bool
+	Sell            bool
+	Repair          bool
+	MercenaryHeal   bool
+	MercenaryRevive bool
+	// Keys is city-key restock demand. It is true only for the Lower Kurast handoff.
+	Keys bool
 }
 
 // Empty reports whether no service is required.
 func (d Demand) Empty() bool {
-	return !d.Stash && !d.Potions && !d.Scrolls && !d.Identify && !d.Sell && !d.Repair && !d.MercenaryHeal && !d.MercenaryRevive
+	return !d.Stash && !d.Potions && !d.Scrolls && !d.Identify && !d.Sell && !d.Repair && !d.MercenaryHeal && !d.MercenaryRevive && !d.Keys
 }
 
 // NextRunTarget is the validated destination handed to the next run at the hub waypoint.

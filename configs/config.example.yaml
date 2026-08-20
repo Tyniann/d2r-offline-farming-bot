@@ -80,7 +80,7 @@ input:
   # (characters.*.profile_bindings), nicht in config.yaml.
 
 runs:
-  # countess | mephisto | summoner | nihlathak | leer — stabile IDs aus der Run Registry.
+  # countess | cows | lower-kurast | mephisto | nihlathak | summoner | leer — stabile IDs aus der Run Registry.
   active: ""
   step_timeout_ms: 45000
   definitions:
@@ -97,6 +97,7 @@ runs:
         resume_mana_percent: 35
         emergency_mana_percent: 10
         mana_recovery_timeout_ms: 5000
+    lower-kurast:
     mephisto:
       # MrBones/Nightmare-Aufnahme aus Gate 10.9; andere Bindungen benötigen eine eigene Route.
     summoner:
@@ -230,6 +231,7 @@ character_setup:
   pickit_defaults:
     countess: [gems, keys, countess-standard]
     mephisto: [gems, mephisto-standard]
+    lower-kurast: [gems, lk-superchests]
     summoner: [gems, keys]
     nihlathak: [gems, keys]
 

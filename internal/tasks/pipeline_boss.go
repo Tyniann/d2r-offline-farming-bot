@@ -16,6 +16,9 @@ func (c *runPipeline) onBossTick(ctx context.Context, deps Deps, step string, w 
 }
 
 func (c *runPipeline) tickBoss(ctx context.Context, deps pipelineBossDeps, step string, w world.State, now time.Time) stepResult {
+	if c.definition.HasCapability(RunCapabilityChestSweep) {
+		return stepResult{failed: true, reason: "chest_sweep_used_boss_path"}
+	}
 	switch step {
 	case pipelineStepPrecheck:
 		if !w.Valid {

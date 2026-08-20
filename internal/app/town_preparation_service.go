@@ -49,6 +49,8 @@ func (a *townPreparationAdapter) start(state world.State) string {
 		{Resource: town.RestockMana, Current: mana, Threshold: manaThreshold, Target: manaTarget},
 	}
 	needsPotions := healing < healingThreshold || mana < manaThreshold
+	keys := countInventoryKeys(state)
+	needsKeys := a.nextRunID == town.KeyRestockNextRun && keys < town.KeyRestockThreshold
 	itemOrders, itemReason := a.planItemServiceOrders(state)
 	if itemReason != "" {
 		return string(itemReason)
@@ -64,7 +66,7 @@ func (a *townPreparationAdapter) start(state world.State) string {
 	}
 	startAnchor := a.planningStartAnchor(state)
 	a.resolvedStart = startAnchor
-	if !a.services || (!needsPotions && len(itemOrders) == 0 && !mercHeal && !mercRevive) {
+	if !a.services || (!needsPotions && !needsKeys && len(itemOrders) == 0 && !mercHeal && !mercRevive) {
 		// No demand means no NPC detour. Initial run setup also enters here even
 		// with a low belt because its only responsibility is reaching Waypoint.
 		targetAnchor := a.handoffAnchor()
@@ -89,7 +91,10 @@ func (a *townPreparationAdapter) start(state world.State) string {
 	maximumCost := 0
 	beltComplete := true
 	restockOrders := []town.RestockOrder(nil)
-	if needsPotions {
+	if needsPotions || needsKeys {
+		if needsKeys {
+			levels = append(levels, town.RestockLevel{Resource: town.RestockKey, Current: keys, Threshold: town.KeyRestockThreshold, Target: town.KeyRestockTarget})
+		}
 		var reason town.Reason
 		maximumCost, reason = town.MaximumRestockCost(levels)
 		if reason != "" {
@@ -101,10 +106,12 @@ func (a *townPreparationAdapter) start(state world.State) string {
 			a.log.Warn("town restock gold gate failed", "gold_known", state.Player.GoldKnown, "carried_gold", state.Player.Gold, "required_maximum", maximumCost)
 			return string(town.ReasonGoldUnavailable)
 		}
-		var slotsReason string
-		beltComplete, slotsReason = completeBeltProfile(a.profile)
-		if slotsReason != "" {
-			return slotsReason
+		if needsPotions {
+			var slotsReason string
+			beltComplete, slotsReason = completeBeltProfile(a.profile)
+			if slotsReason != "" {
+				return slotsReason
+			}
 		}
 		restockOrders, reason = town.PlanRestock(town.RestockInput{Levels: levels, BeltLayoutComplete: beltComplete, GoldKnown: true, GoldSufficient: true})
 		if reason != "" {
@@ -118,11 +125,11 @@ func (a *townPreparationAdapter) start(state world.State) string {
 	effectiveThresholds := a.thresholds
 	effectiveThresholds.Healing, effectiveThresholds.Mana = healingThreshold, manaThreshold
 	snapshot := town.InspectDemand(town.SupplySnapshot{
-		Healing: healing, Mana: mana, BeltLayoutComplete: beltComplete,
+		Healing: healing, Mana: mana, BeltLayoutComplete: beltComplete, Keys: keys,
 		TownPortalScrolls: a.thresholds.TownPortalScrolls, IdentifyScrolls: a.thresholds.IdentifyScrolls,
 		IdentifyRequired: needsIdentify, VendorCandidates: needsSell,
 		MercenaryHeal: mercHeal, MercenaryRevive: mercRevive,
-	}, effectiveThresholds)
+	}, effectiveThresholds, a.nextRunID)
 	plan, reason := planner.Plan(town.Origin{Act: town.OriginAct1, Anchor: startAnchor}, snapshot, town.NextRunTarget{ID: a.nextRunID, Act: town.OriginAct1})
 	if reason != "" {
 		return string(reason)
@@ -144,7 +151,7 @@ func (a *townPreparationAdapter) start(state world.State) string {
 	a.handler = handler
 	a.executor = executor
 	a.started = true
-	a.log.Info("central town preparation started", "origin", startAnchor, "potions", needsPotions, "identify", needsIdentify, "sell", needsSell, "mercenary_heal", mercHeal, "mercenary_revive", mercRevive, "item_orders", len(itemOrders), "handoff", a.nextRunID, "edge_count", len(traversals), "healing", healing, "mana", mana, "gold", state.Player.Gold, "required_maximum_gold", maximumCost, "town_layout", a.layout)
+	a.log.Info("central town preparation started", "origin", startAnchor, "potions", needsPotions, "keys", needsKeys, "key_count", keys, "identify", needsIdentify, "sell", needsSell, "mercenary_heal", mercHeal, "mercenary_revive", mercRevive, "item_orders", len(itemOrders), "handoff", a.nextRunID, "edge_count", len(traversals), "healing", healing, "mana", mana, "gold", state.Player.Gold, "required_maximum_gold", maximumCost, "town_layout", a.layout)
 	return ""
 }
 
@@ -1010,7 +1017,24 @@ func (h *townPreparationStepHandler) Reset() {
 	h.walker = nil
 }
 
+func countInventoryKeys(state world.State) int {
+	total := 0
+	for _, item := range state.InventoryItems() {
+		if item.Code != town.KeyItemCode {
+			continue
+		}
+		if !item.QuantityKnown {
+			continue
+		}
+		total += item.Quantity
+	}
+	return total
+}
+
 func countRestockResource(state world.State, profile config.ProfileResourcesConfig, resource town.RestockResource) int {
+	if resource == town.RestockKey {
+		return countInventoryKeys(state)
+	}
 	healing, mana, _ := countProfilePotionSupplies(state, profile)
 	if resource == town.RestockHealing {
 		return healing
@@ -1022,6 +1046,9 @@ func countRestockResource(state world.State, profile config.ProfileResourcesConf
 }
 
 func vendorRequest(order town.RestockOrder) town.VendorRequest {
+	if order.Resource == town.RestockKey {
+		return town.VendorRequest{Code: town.KeyItemCode, Mode: order.Mode}
+	}
 	typeCode := "hpot"
 	if order.Resource == town.RestockMana {
 		typeCode = "mpot"
@@ -1034,11 +1061,12 @@ func purchaseCostForState(state world.State, profile config.ProfileResourcesConf
 	var selected world.Item
 	found := false
 	for _, item := range state.ItemsByLocation(world.ItemLocationVendor) {
-		if item.Type != request.Type {
+		if request.Code != "" && item.Code != request.Code {
 			continue
 		}
-		// Higher TxtFileNo is the strongest available potion tier Akara exposes;
-		// pricing and the later buyer remain bound to the selected concrete code.
+		if request.Code == "" && request.Type != "" && item.Type != request.Type {
+			continue
+		}
 		if !found || item.TxtFileNo > selected.TxtFileNo {
 			selected, found = item, true
 		}
@@ -1063,6 +1091,9 @@ func thresholdFor(thresholds town.Thresholds, resource town.RestockResource) int
 	}
 	if resource == town.RestockMana {
 		return thresholds.Mana
+	}
+	if resource == town.RestockKey {
+		return town.KeyRestockThreshold
 	}
 	return 0
 }

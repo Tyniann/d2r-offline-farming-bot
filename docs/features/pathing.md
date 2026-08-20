@@ -45,7 +45,7 @@ Die Projektion liefert nur den **Startpunkt** — geklickt wird erst nach Bestä
 3. Spiral-Offset für Versuch N (archimedische Spirale, `spiral_step` Grad pro Versuch)
 4. `MoveTo(clientX, clientY)`
 5. Nächster Tick: `state.Hover` matcht **UnitID und UnitType** → `Click(left)` → `hit`
-6. Nach `max_hover_attempts` ohne Match → `hover_not_found` — **kein blinder Klick**
+6. Nach `max_hover_attempts` ohne Match → `hover_not_found` — **kein blinder Klick**. Das Warn-Log nennt `hovered`, `hover_unit_type` und `hover_unit_id` der letzten Probe, damit ein verdeckter Sprite von einem reinen Miss unterscheidbar ist.
 
 Der Hover-Offset kommt — wie UnitTable und UI — per **Signature-Scan** (d2go-Pattern) aus `ScanProbeOffsets`. Schlägt der Scan fehl, bleibt `Hover=0`: Lesen ist fail-open (`HoverState` leer), Klicken fail-closed (nie ohne Bestätigung).
 
@@ -144,7 +144,7 @@ Der Act-1-Town-Walker erhält ausschließlich bereits validierte Punkte einer Gr
 
 ### Generische Waypoint-Ziele (Phase 10.7)
 
-`WaypointTargetRegistry` registriert die auf 1280×720 gebundenen Ziele (Black Marsh, Durance of Hate Level 2, Arcane Sanctuary, Halls of Pain, Rogue Encampment). Jede Aktion enthält Akt-Tab, Zielzeile, 200-ms-Settle und erwartete Ziel-Area. Tab- und Zeilenklicks erfordern zusätzlich zu `world.UIState.WaypointOpen` eine post-open-Evidenz aus unserem eigenen hover-bestätigten Waypoint-Objektklick: mindestens 500 ms sowie ein Positions-Settle (`pathing.town_walk.settle_timeout_ms`). Sticky `WaypointOpen` allein reicht nicht — auf dem aktuellen Build bleibt das Bit nach Reisen oft gesetzt, obwohl das Panel geschlossen ist; UI-Koordinaten würden sonst in die Welt fallen und die Figur am Waypoint vorbeischieben. `beginStep` setzt Waypoint-State beim Eintritt in `select_run_waypoint` / `select_hub_waypoint` deshalb nicht zurück. Ein Tick führt höchstens einen Klick aus; nach dem Zielklick wird niemals erneut geklickt. Falsche Auflösung, unbekanntes Ziel, fehlendes UI-Gate, falsche Ziel-Area und Timeout enden fail-closed.
+`WaypointTargetRegistry` registriert die auf 1280×720 gebundenen Ziele (Black Marsh, Durance of Hate Level 2, Lower Kurast, Arcane Sanctuary, Halls of Pain, Rogue Encampment). Jede Aktion enthält Akt-Tab, Zielzeile, 200-ms-Settle und erwartete Ziel-Area. Tab- und Zeilenklicks erfordern zusätzlich zu `world.UIState.WaypointOpen` eine post-open-Evidenz aus unserem eigenen hover-bestätigten Waypoint-Objektklick: mindestens 500 ms sowie ein Positions-Settle (`pathing.town_walk.settle_timeout_ms`). Sticky `WaypointOpen` allein reicht nicht — auf dem aktuellen Build bleibt das Bit nach Reisen oft gesetzt, obwohl das Panel geschlossen ist; UI-Koordinaten würden sonst in die Welt fallen und die Figur am Waypoint vorbeischieben. `beginStep` setzt Waypoint-State beim Eintritt in `select_run_waypoint` / `select_hub_waypoint` deshalb nicht zurück. Ein Tick führt höchstens einen Klick aus; nach dem Zielklick wird niemals erneut geklickt. Falsche Auflösung, unbekanntes Ziel, fehlendes UI-Gate, falsche Ziel-Area und Timeout enden fail-closed.
 
 Die frühere konfigurierbare Black-Marsh-Sonderaktion wurde vollständig entfernt. Die autoritative read-only Kalibrierung ist abrufbar mit:
 
@@ -152,7 +152,14 @@ Die frühere konfigurierbare Black-Marsh-Sonderaktion wurde vollständig entfern
 go run ./cmd/d2rbot --config configs/config.yaml --waypoint-targets-inspect
 ```
 
-Sie liefert für 1280×720: Act-1-Tab `(159,148)`, Act-3-Tab `(273,148)`, Black Marsh `(200,342)`, Durance Level 2 `(200,506)` und Rogue Encampment `(200,178)`. Der Befehl attachiert keinen Prozess, registriert keine Hotkeys und sendet keinen Input.
+Sie liefert für 1280×720: Act-1-Tab `(159,148)`, Act-3-Tab `(273,148)`, Black Marsh `(200,342)`, Lower Kurast `(200,342)`, Durance Level 2 `(200,506)` und Rogue Encampment `(200,178)`. Der Befehl attachiert keinen Prozess, registriert keine Hotkeys und sendet keinen Input.
+
+Der isolierte Live-Pfad für Unteres Kurast öffnet den Stadt-Wegpunkt, wählt `WaypointTargetLowerKurast` mit demselben Executor wie Durance und wartet auf Area 79:
+
+```powershell
+$dataRoot = Join-Path $env:LOCALAPPDATA 'D2ROfflineFarmingBot'
+go run ./cmd/d2rbot --data-root $dataRoot --town-test waypoint:lower_kurast
+```
 
 ### Kalibrierung
 
@@ -195,4 +202,4 @@ Sie liefert für 1280×720: Act-1-Tab `(159,148)`, Act-3-Tab `(273,148)`, Black 
 - [Input Controller](input-controller.md) — führt alle Maus-/Tastatur-Aktionen aus
 
 ---
-*Zuletzt aktualisiert: 2026-07-31*
+*Zuletzt aktualisiert: 2026-08-20*

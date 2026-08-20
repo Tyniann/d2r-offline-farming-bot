@@ -20,7 +20,7 @@ import (
 
 const (
 	objectInspectDefaultTimeout = 30 * time.Second
-	objectInspectSchemaVersion  = 1
+	objectInspectSchemaVersion  = 2
 	// objectInspectQuantityStatID is itemstatcost.txt quantity (*ID 70). Gate 23.0
 	// only reports the raw live stat; the productive StatQuantity constant belongs
 	// to 23.1 after this report.
@@ -31,6 +31,7 @@ var objectInspectLabelPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,63}$`)
 
 type objectInspectEvidenceReader interface {
 	CollectObjectInspectEvidence() ([]memory.ObjectInspectEvidence, error)
+	CollectItemStatListEvidence() ([]memory.ItemStatListEvidence, error)
 }
 
 type objectInspectArtifact struct {
@@ -66,17 +67,26 @@ type objectInspectObject struct {
 }
 
 type objectInspectKeyItem struct {
-	TxtFileNo      uint32             `json:"txt_file_no"`
-	UnitID         uint32             `json:"unit_id"`
-	Code           string             `json:"code"`
-	Name           string             `json:"name"`
-	Location       world.ItemLocation `json:"location"`
-	GridX          int                `json:"grid_x"`
-	GridY          int                `json:"grid_y"`
-	Stats          []world.ItemStat   `json:"stats"`
-	QuantityStat   *int32             `json:"quantity_stat,omitempty"`
-	QuantityKnown  bool               `json:"quantity_known"`
-	QuantityStatID uint16             `json:"quantity_stat_id"`
+	TxtFileNo           uint32             `json:"txt_file_no"`
+	UnitID              uint32             `json:"unit_id"`
+	Code                string             `json:"code"`
+	Name                string             `json:"name"`
+	Location            world.ItemLocation `json:"location"`
+	GridX               int                `json:"grid_x"`
+	GridY               int                `json:"grid_y"`
+	Identified          bool               `json:"identified"`
+	Stats               []world.ItemStat   `json:"stats"`
+	StatsListExPresent  bool               `json:"stats_list_ex_present"`
+	StatsActive         []world.ItemStat   `json:"stats_active"`
+	StatsActiveReadable bool               `json:"stats_active_readable"`
+	StatsActiveError    string             `json:"stats_active_error,omitempty"`
+	StatsBase           []world.ItemStat   `json:"stats_base"`
+	StatsBaseReadable   bool               `json:"stats_base_readable"`
+	StatsBaseError      string             `json:"stats_base_error,omitempty"`
+	QuantityStat        *int32             `json:"quantity_stat,omitempty"`
+	QuantityKnown       bool               `json:"quantity_known"`
+	QuantitySource      string             `json:"quantity_source,omitempty"`
+	QuantityStatID      uint16             `json:"quantity_stat_id"`
 }
 
 type objectInspectCatalogEntry struct {
@@ -142,8 +152,12 @@ func (rt *Runtime) RunObjectInspect(label string) error {
 			if collectErr != nil {
 				return fmt.Errorf("object inspect collect: %w", collectErr)
 			}
+			statLists, statErr := rt.ObjectInspect.CollectItemStatListEvidence()
+			if statErr != nil {
+				return fmt.Errorf("object inspect item stats: %w", statErr)
+			}
 			catalog, catalogSource := loadObjectInspectCatalog(rt.objectInspectCatalogPath())
-			artifact := buildObjectInspectArtifact(label, rt.Config.Memory.GameVersion, current, objects, catalog, catalogSource)
+			artifact := buildObjectInspectArtifact(label, rt.Config.Memory.GameVersion, current, objects, statLists, catalog, catalogSource)
 			path, err := saveObjectInspectArtifact(rt.Config.ResolvePath(filepath.Join("diagnostics", "objects")), artifact)
 			if err != nil {
 				return err
@@ -166,7 +180,12 @@ func (rt *Runtime) RunObjectInspect(label string) error {
 				rt.Log.Info("object inspect key stack",
 					"unit_id", key.UnitID, "location", key.Location,
 					"grid", fmt.Sprintf("%d,%d", key.GridX, key.GridY),
+					"identified", key.Identified,
+					"stats_list_ex_present", key.StatsListExPresent,
+					"stats_active_readable", key.StatsActiveReadable, "stats_active_count", len(key.StatsActive),
+					"stats_base_readable", key.StatsBaseReadable, "stats_base_count", len(key.StatsBase),
 					"quantity_known", key.QuantityKnown, "quantity_stat", valueOrNil(key.QuantityStat),
+					"quantity_source", key.QuantitySource,
 					"stat_count", len(key.Stats),
 				)
 			}
@@ -182,7 +201,7 @@ func (rt *Runtime) objectInspectCatalogPath() string {
 	return filepath.Join(".tmp", "d2r-excel", "objects.txt")
 }
 
-func buildObjectInspectArtifact(label, gameVersion string, state world.State, objects []memory.ObjectInspectEvidence, catalog map[uint32]objectInspectCatalogEntry, catalogSource string) objectInspectArtifact {
+func buildObjectInspectArtifact(label, gameVersion string, state world.State, objects []memory.ObjectInspectEvidence, statLists []memory.ItemStatListEvidence, catalog map[uint32]objectInspectCatalogEntry, catalogSource string) objectInspectArtifact {
 	rows := make([]objectInspectObject, 0, len(objects))
 	for _, object := range objects {
 		name := world.LookupObjectName(object.TxtFileNo)
@@ -235,34 +254,55 @@ func buildObjectInspectArtifact(label, gameVersion string, state world.State, ob
 		Hover:         state.Hover,
 		ObjectCount:   len(rows),
 		Objects:       rows,
-		KeyStacks:     collectObjectInspectKeyStacks(state.Items),
+		KeyStacks:     collectObjectInspectKeyStacks(state.Items, statLists),
 		CatalogSource: catalogSource,
 		Notes: []string{
 			"Read-only Gate 23.0 capture. This mode never sends keyboard or mouse input.",
 			"The object walk is not filtered by the productive runtime allowlist.",
 			"No Supertruhe or rack IDs are authorized for product use by this report.",
 			"Mode uses UnitAny+0x0C. Closed, opening, open, and locked values come from live deltas.",
-			"quantity_stat reports raw itemstatcost ID 70 on code=key stacks when that layer-0 stat is present.",
+			"stats is the productive Active-preferred item list. stats_active and stats_base are read separately.",
+			"quantity_stat is itemstatcost ID 70 on layer 0, Active first then Base. This is not a productive stack counter.",
 		},
 	}
 }
 
-func collectObjectInspectKeyStacks(items []world.Item) []objectInspectKeyItem {
+func collectObjectInspectKeyStacks(items []world.Item, statLists []memory.ItemStatListEvidence) []objectInspectKeyItem {
+	byUnit := make(map[uint32]memory.ItemStatListEvidence, len(statLists))
+	for _, list := range statLists {
+		byUnit[list.UnitID] = list
+	}
 	out := make([]objectInspectKeyItem, 0)
 	for _, item := range items {
 		if item.Code != "key" {
 			continue
 		}
-		quantity, known := objectInspectQuantity(item.Stats)
 		row := objectInspectKeyItem{
 			TxtFileNo: item.TxtFileNo, UnitID: item.UnitID, Code: item.Code, Name: item.Name,
 			Location: item.Location, GridX: item.GridX, GridY: item.GridY,
-			Stats:         append([]world.ItemStat(nil), item.Stats...),
-			QuantityKnown: known, QuantityStatID: objectInspectQuantityStatID,
+			Identified:     item.Identified,
+			Stats:          append([]world.ItemStat(nil), item.Stats...),
+			QuantityStatID: objectInspectQuantityStatID,
 		}
-		if known {
+		if list, ok := byUnit[item.UnitID]; ok {
+			row.StatsListExPresent = list.StatsListExPresent
+			row.StatsActive = rawStatsToItemStats(list.Active)
+			row.StatsActiveReadable = list.ActiveReadable
+			row.StatsActiveError = list.ActiveError
+			row.StatsBase = rawStatsToItemStats(list.Base)
+			row.StatsBaseReadable = list.BaseReadable
+			row.StatsBaseError = list.BaseError
+		}
+		if quantity, known := objectInspectQuantity(row.StatsActive); known {
 			value := quantity
 			row.QuantityStat = &value
+			row.QuantityKnown = true
+			row.QuantitySource = "active"
+		} else if quantity, known := objectInspectQuantity(row.StatsBase); known {
+			value := quantity
+			row.QuantityStat = &value
+			row.QuantityKnown = true
+			row.QuantitySource = "base"
 		}
 		out = append(out, row)
 	}
@@ -285,6 +325,17 @@ func objectInspectQuantity(stats []world.ItemStat) (int32, bool) {
 		}
 	}
 	return 0, false
+}
+
+func rawStatsToItemStats(stats []memory.RawStat) []world.ItemStat {
+	if stats == nil {
+		return nil
+	}
+	out := make([]world.ItemStat, 0, len(stats))
+	for _, stat := range stats {
+		out = append(out, world.ItemStat{ID: stat.ID, Layer: stat.Layer, Value: stat.Value})
+	}
+	return out
 }
 
 func loadObjectInspectCatalog(path string) (map[uint32]objectInspectCatalogEntry, string) {

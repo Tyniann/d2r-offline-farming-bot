@@ -31,6 +31,8 @@ Die D2R-Quelldaten enthalten zwei echte Namenskollisionen: eine alte und eine ak
 
 Abschnitt 13.2 transportiert die bekannte numerische Set-/Unique-Referenz aus den Item-Daten als vorzeichenbehafteten Rohwert samt eigenem Available-Flag. Nur Items mit Qualität `set` oder `unique` werden aufgelöst. Identitätsart und Raw-ID müssen im getrennten Katalograum existieren, und der dort gebundene Basiscode muss dem aus `TxtFileNo` aufgelösten Item-Code entsprechen. Erst dann übernimmt `world.Item` stabilen Schlüssel und kanonischen englischen Namen. Ein negativer Sentinel, unbekannte ID, Qualitäts- oder Basiswiderspruch bleibt fail-closed ohne geratenen Namen.
 
+Gate 23.1 liest Stapelgröße unabhängig von der produktiven `Stats`-Liste. Stat `70` (`quantity` in `itemstatcost.txt`) kommt live auf Base, während Active leer ist. Der Decoder ist deshalb Base-first und unskaliert; unlesbar oder widersprüchlich bleibt `QuantityKnown=false`. Town-Restock für Stadtschlüssel kommt erst in 23.3.
+
 ### Item-Katalog regenerieren
 
 Wenn `TxtFileNo`-IDs aus dem Speicher nicht zu sichtbaren Item-Namen passen, wird nicht an Memory-Offsets geraten. Zuerst wird geprüft, ob Unit, Hover und Position zusammenpassen. Beispiel aus Phase 5.1: Der sichtbare `Key of Terror` wurde gehovert, `hover_type=item hover_unit_id=309` passte zu einem Ground-Item mit `unit=309`, aber der alte Katalog kannte `id=662` nicht. Das bewies: Reader und Hover-Match waren plausibel, der semantische Katalog war veraltet.
@@ -62,9 +64,9 @@ Die Phase-20.0-Diagnose schreibt für alle sichtbaren Inventory-/Cube-Items eine
 
 | Typ | Rolle |
 |-----|-------|
-| `memory.ItemUnit` | Rohe Item-Daten aus dem Item-Segment: `TxtFileNo`, `UnitID`, `Quality`, optionale `UniqueSetID`, `RawLocation`, Position, Flags, Identified/Ethereal, `Sockets`/`SocketsAvailable`/`Socketed`, rohe Stats, Gate-19.0 Active-/Base-Stat-194-Evidenz |
+| `memory.ItemUnit` | Rohe Item-Daten aus dem Item-Segment: `TxtFileNo`, `UnitID`, `Quality`, optionale `UniqueSetID`, `RawLocation`, Position, Flags, Identified/Ethereal, `Sockets`/`SocketsAvailable`/`Socketed`, `Quantity`/`QuantityKnown`, rohe Stats, Gate-19.0 Active-/Base-Stat-194-Evidenz |
 | `memory.RawStat` | Bounded Raw-Stat-Eintrag ohne Life/Mana-Skalierung |
-| `world.Item` | Semantisches Item mit streng validierter Set-/Unique-Identität, `Sockets`/`SocketsAvailable`/`Socketed` und explizitem Validitätsgrund im World State |
+| `world.Item` | Semantisches Item mit streng validierter Set-/Unique-Identität, `Sockets`/`SocketsAvailable`/`Socketed`, `Quantity`/`QuantityKnown` und explizitem Validitätsgrund im World State |
 | `world.ItemQuality` | Qualität: normal, magic, rare, unique, set usw. |
 | `world.ItemLocation` | Locations: `ground`, `inventory`, `equipped`, `belt`, `cursor`, `cube`, `stash`, `shared_stash_1..3`, `socket`, `unknown` |
 | `world.ItemIdentityCatalogEntry` | Eingebettete Set-/Unique-Identität mit Art, Raw-ID, stabilem Schlüssel, englischem Namen, Basiscode und Spawnability |
@@ -104,4 +106,4 @@ Nach einem Countess-Kill sollen Ground-Drops im `world state` erscheinen, z. B. 
 - [Sockel-Support für Pickit](socket-pickit.md)
 
 ---
-*Zuletzt aktualisiert: 2026-08-01*
+*Zuletzt aktualisiert: 2026-08-20*

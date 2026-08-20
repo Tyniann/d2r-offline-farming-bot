@@ -168,7 +168,7 @@ func TestNewProfileExecutorAllowsUnregisteredDummyCarrier(t *testing.T) {
 		t.Fatalf("productive dummy carrier err=%v", err)
 	}
 
-	for _, runID := range []string{"countess", "cows", "mephisto", "nihlathak", "summoner"} {
+	for _, runID := range []string{"countess", "cows", "lower-kurast", "mephisto", "nihlathak", "summoner"} {
 		got, err = newProfileExecutor(log, profiles, "paladin_hammerdin", runID, registry, in, bindings, pathCfg, combat, &profileTelemetryAdapter{}, true)
 		if err != nil || got == nil {
 			t.Fatalf("registered %s err=%v executor=%v", runID, err, got)

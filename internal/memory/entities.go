@@ -1,11 +1,15 @@
 package memory
 
 // ObjectUnit is a minimal object entity from the unit table object segment.
+// Mode is UnitAny+0x0C, the same field object-inspect and hirelings use.
+// ModeKnown is false when that read failed; Mode 0 is then not "closed".
 type ObjectUnit struct {
 	TxtFileNo uint32
 	UnitID    uint32
 	PosX      uint32
 	PosY      uint32
+	Mode      uint32
+	ModeKnown bool
 }
 
 // EntranceUnit is a minimal entrance entity from the unit table entrance segment.
@@ -105,4 +109,9 @@ type ItemUnit struct {
 	Sockets          int
 	SocketsAvailable bool
 	Socketed         bool
+	// Quantity and QuantityKnown are the fail-closed Gate-23.1 stack size.
+	// Live keys keep Stat 70 on Base while Active is empty; the decoder is
+	// Base-first and never treats an empty Active list as quantity 0.
+	Quantity      int
+	QuantityKnown bool
 }

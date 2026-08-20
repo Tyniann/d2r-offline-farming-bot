@@ -251,6 +251,9 @@ func TestCharacterSetupDefaultsAndStructuralValidation(t *testing.T) {
 	if got := setup.PickitDefaults["mephisto"]; strings.Join(got, ",") != "gems,mephisto-standard" {
 		t.Fatalf("mephisto=%v", got)
 	}
+	if got := setup.PickitDefaults["lower-kurast"]; strings.Join(got, ",") != "gems,lk-superchests" {
+		t.Fatalf("lower-kurast=%v", got)
+	}
 	for _, runID := range []string{"summoner", "nihlathak"} {
 		if got := setup.PickitDefaults[runID]; strings.Join(got, ",") != "gems,keys" {
 			t.Fatalf("%s=%v", runID, got)

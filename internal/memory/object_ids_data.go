@@ -7,6 +7,10 @@ var runtimeObjectIDs = map[uint32]struct{}{
 	268: {}, // Wirt
 	584: {}, // PlaceUniqueChest
 	267: {}, // Bank
+	181: {}, // JungleChest
+	183: {}, // JungleChest2
+	104: {}, // ArmorStand1
+	107: {}, // WeaponRack2
 	119: {}, // WaypointOutsideAct1
 	145: {}, // InnerHellWaypoint
 	156: {}, // WaypointAct2

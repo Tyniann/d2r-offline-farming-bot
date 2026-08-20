@@ -204,12 +204,14 @@ type HoverFrame struct {
 
 // EntityFrame represents an interpreted object or entrance.
 type EntityFrame struct {
-	Kind    string `json:"kind"`
-	ID      uint32 `json:"id"`
-	UnitID  uint32 `json:"unit_id"`
-	X       uint32 `json:"x"`
-	Y       uint32 `json:"y"`
-	Hovered bool   `json:"hovered"`
+	Kind      string `json:"kind"`
+	ID        uint32 `json:"id"`
+	UnitID    uint32 `json:"unit_id"`
+	X         uint32 `json:"x"`
+	Y         uint32 `json:"y"`
+	Hovered   bool   `json:"hovered"`
+	Mode      uint32 `json:"mode,omitempty"`
+	ModeKnown bool   `json:"mode_known,omitempty"`
 }
 
 // MonsterFrame represents one interpreted living monster.
@@ -258,6 +260,8 @@ type ItemFrame struct {
 	Sockets          int    `json:"sockets,omitempty"`
 	SocketsAvailable bool   `json:"sockets_available"`
 	Socketed         bool   `json:"socketed"`
+	Quantity         int    `json:"quantity,omitempty"`
+	QuantityKnown    bool   `json:"quantity_known,omitempty"`
 }
 
 // MonsterCoverage preserves the local enumeration completeness contract.
@@ -292,7 +296,7 @@ func NormalizeWorld(state world.State) WorldFrame {
 		Evidence:        map[string]bool{"cow_corpses_complete": state.CowCorpsesComplete},
 	}
 	for _, object := range state.Objects {
-		frame.Objects = append(frame.Objects, EntityFrame{Kind: object.Kind.String(), ID: object.ID, UnitID: object.UnitID, X: object.Position.X, Y: object.Position.Y, Hovered: object.IsHovered})
+		frame.Objects = append(frame.Objects, EntityFrame{Kind: object.Kind.String(), ID: object.ID, UnitID: object.UnitID, X: object.Position.X, Y: object.Position.Y, Hovered: object.IsHovered, Mode: object.Mode, ModeKnown: object.ModeKnown})
 	}
 	for _, entrance := range state.Entrances {
 		frame.Entrances = append(frame.Entrances, EntityFrame{Kind: entrance.Kind.String(), ID: entrance.ID, UnitID: entrance.UnitID, X: entrance.Position.X, Y: entrance.Position.Y, Hovered: entrance.IsHovered})
@@ -304,7 +308,7 @@ func NormalizeWorld(state world.State) WorldFrame {
 		frame.CowCorpses = append(frame.CowCorpses, CowCorpseFrame{NPCID: corpse.NPCID, UnitID: corpse.UnitID, X: corpse.Position.X, Y: corpse.Position.Y, TypeFlag: corpse.MonsterTypeFlag, Consumed: corpse.Consumed, ConsumptionKnown: corpse.ConsumptionKnown})
 	}
 	for _, item := range state.Items {
-		frame.Items = append(frame.Items, ItemFrame{TxtFileNo: item.TxtFileNo, UnitID: item.UnitID, Code: item.Code, Quality: item.Quality.String(), IdentityKind: string(item.IdentityKind), IdentityKey: item.IdentityKey, IdentityValid: item.IdentityValid, Location: item.Location.String(), OwnerID: item.OwnerID, PlayerOwned: item.PlayerOwned, Page: item.Page, GridX: item.GridX, GridY: item.GridY, Width: item.Width, Height: item.Height, X: item.Position.X, Y: item.Position.Y, Identified: item.Identified, Ethereal: item.Ethereal, Hovered: item.IsHovered, Sockets: item.Sockets, SocketsAvailable: item.SocketsAvailable, Socketed: item.Socketed})
+		frame.Items = append(frame.Items, ItemFrame{TxtFileNo: item.TxtFileNo, UnitID: item.UnitID, Code: item.Code, Quality: item.Quality.String(), IdentityKind: string(item.IdentityKind), IdentityKey: item.IdentityKey, IdentityValid: item.IdentityValid, Location: item.Location.String(), OwnerID: item.OwnerID, PlayerOwned: item.PlayerOwned, Page: item.Page, GridX: item.GridX, GridY: item.GridY, Width: item.Width, Height: item.Height, X: item.Position.X, Y: item.Position.Y, Identified: item.Identified, Ethereal: item.Ethereal, Hovered: item.IsHovered, Sockets: item.Sockets, SocketsAvailable: item.SocketsAvailable, Socketed: item.Socketed, Quantity: item.Quantity, QuantityKnown: item.QuantityKnown})
 	}
 	return frame
 }

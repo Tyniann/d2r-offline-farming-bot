@@ -183,6 +183,9 @@ func (r *Runner) resetGeneration() {
 	if r.deps.CowRecipe != nil {
 		r.deps.CowRecipe.Reset()
 	}
+	if r.deps.Chest != nil {
+		r.deps.Chest.Reset()
+	}
 	if r.deps.Profile != nil {
 		r.deps.Profile.Reset()
 	}
@@ -368,6 +371,9 @@ func (r *Runner) beginStep(name string, now time.Time) error {
 	}
 	if r.deps.CowRecipe != nil {
 		r.deps.CowRecipe.Reset()
+	}
+	if r.deps.Chest != nil {
+		r.deps.Chest.Reset()
 	}
 	if r.deps.Combat != nil {
 		r.deps.Combat.Reset()

@@ -112,6 +112,9 @@ func (c *EntityClicker) Tick(state world.State, target ClickTarget, maxDistance 
 			"unit_id", target.UnitID,
 			"unit_type", target.UnitType.String(),
 			"attempts", attempts,
+			"hovered", state.Hover.IsHovered,
+			"hover_unit_type", state.Hover.UnitType.String(),
+			"hover_unit_id", state.Hover.UnitID,
 		)
 		c.Reset()
 		return ClickTickResult{Status: ClickHoverNotFound, Attempt: attempts, Done: true}, nil

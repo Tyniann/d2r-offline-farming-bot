@@ -14,6 +14,7 @@ type SupplySnapshot struct {
 	Mana               int
 	TownPortalScrolls  int
 	IdentifyScrolls    int
+	Keys               int
 	StashRequired      bool
 	IdentifyRequired   bool
 	VendorCandidates   bool
@@ -31,7 +32,8 @@ type DemandSnapshot struct {
 }
 
 // InspectDemand derives immutable Boolean service needs from a coherent source snapshot.
-func InspectDemand(supply SupplySnapshot, thresholds Thresholds) DemandSnapshot {
+// nextRun is the upcoming handoff ID; city-key restock is authorized only for KeyRestockNextRun.
+func InspectDemand(supply SupplySnapshot, thresholds Thresholds, nextRun string) DemandSnapshot {
 	return DemandSnapshot{Supply: supply, Thresholds: thresholds, Demand: Demand{
 		Stash:           supply.StashRequired,
 		Potions:         supply.Healing < thresholds.Healing || supply.Mana < thresholds.Mana,
@@ -41,5 +43,6 @@ func InspectDemand(supply SupplySnapshot, thresholds Thresholds) DemandSnapshot 
 		Repair:          supply.RepairRequired,
 		MercenaryHeal:   supply.MercenaryHeal,
 		MercenaryRevive: supply.MercenaryRevive,
+		Keys:            nextRun == KeyRestockNextRun && supply.Keys < KeyRestockThreshold,
 	}}
 }

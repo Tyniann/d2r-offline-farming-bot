@@ -755,7 +755,7 @@ func TestIsKnownRun(t *testing.T) {
 
 func TestKnownRunsStable(t *testing.T) {
 	runs := KnownRuns()
-	if !reflect.DeepEqual(runs, []string{"countess", "cows", "mephisto", "nihlathak", "summoner"}) {
+	if !reflect.DeepEqual(runs, []string{"countess", "cows", "lower-kurast", "mephisto", "nihlathak", "summoner"}) {
 		t.Fatalf("KnownRuns() = %v", runs)
 	}
 }

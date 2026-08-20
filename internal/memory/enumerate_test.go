@@ -192,6 +192,9 @@ func TestProbeSnapshotEnumeratesCountessEntitiesWhenInGame(t *testing.T) {
 	if len(snap.Objects) != 1 || snap.Objects[0].TxtFileNo != 157 || snap.Objects[0].UnitID != 1001 {
 		t.Fatalf("Objects = %+v, want waypoint 157", snap.Objects)
 	}
+	if !snap.Objects[0].ModeKnown {
+		t.Fatal("waypoint mode should be readable from UnitAny+0x0C")
+	}
 	if len(snap.Entrances) != 1 || snap.Entrances[0].TxtFileNo != 10 {
 		t.Fatalf("Entrances = %+v, want tower entrance 10", snap.Entrances)
 	}
@@ -226,6 +229,47 @@ func TestProbeSnapshotEnumeratesSuperUniqueRegardlessOfNPCID(t *testing.T) {
 	}
 	if unitSegmentBase(moduleBase, off.UnitTable, unitSegmentEntrance) != moduleBase+off.UnitTable+5120 {
 		t.Fatal("entrance segment offset mismatch")
+	}
+}
+
+func TestProbeSnapshotReadsSuperChestMode(t *testing.T) {
+	access, probe, moduleBase := setupProbeMock(t)
+	off := testOffsetSet()
+
+	const (
+		objUnit = uintptr(0x60000)
+		objData = uintptr(0x61000)
+		objPath = uintptr(0x62000)
+	)
+	writeSegmentHead(access, moduleBase, off.UnitTable, unitSegmentObject, objUnit)
+	setupObjectUnit(access, objUnit, objData, objPath, 181, 159)
+	writeObjectMode(t, access, objUnit, 2)
+
+	snap := probe.Snapshot()
+	if len(snap.Objects) != 1 {
+		t.Fatalf("Objects = %+v, want one super chest", snap.Objects)
+	}
+	got := snap.Objects[0]
+	if got.TxtFileNo != 181 || got.UnitID != 159 || !got.ModeKnown || got.Mode != 2 {
+		t.Fatalf("super chest = %+v, want id 181 unit 159 mode 2", got)
+	}
+}
+
+func TestProbeSnapshotKeepsUnknownObjectIDsOut(t *testing.T) {
+	access, probe, moduleBase := setupProbeMock(t)
+	off := testOffsetSet()
+
+	const (
+		objUnit = uintptr(0x60000)
+		objData = uintptr(0x61000)
+		objPath = uintptr(0x62000)
+	)
+	writeSegmentHead(access, moduleBase, off.UnitTable, unitSegmentObject, objUnit)
+	setupObjectUnit(access, objUnit, objData, objPath, 240, 12)
+
+	snap := probe.Snapshot()
+	if len(snap.Objects) != 0 {
+		t.Fatalf("Objects = %+v, want none for Chest5", snap.Objects)
 	}
 }
 

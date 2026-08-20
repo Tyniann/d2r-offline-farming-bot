@@ -190,6 +190,7 @@ func TestPhase14CoreContractIsStable(t *testing.T) {
 		"combat_resource_exhausted",
 		"mercenary_died_during_run",
 		"cow_rejuvenation_reserve_missing",
+		"chest_sweep_empty",
 	} {
 		if message, ok := HistoryReasonMessage(code); !ok || message == "" {
 			t.Fatalf("missing German route-threat message for %q", code)

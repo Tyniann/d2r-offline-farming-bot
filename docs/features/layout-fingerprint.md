@@ -13,7 +13,7 @@ Phase 6.1d erzeugt einen deterministischen Fingerabdruck des aktuell beobachtbar
 
 ## Datenmodell
 
-`LayoutFingerprint` enthält Schemaversion, Area-ID, Spielerposition als Diagnose, Anzahl stabiler Anker und SHA-256-Hash. Der kanonische Hash verwendet Area-ID sowie sortierte semantische IDs und World-Koordinaten stabiler Waypoints, Truhen, Stash-Objekte und Entrances.
+`LayoutFingerprint` enthält Schemaversion, Area-ID, Spielerposition als Diagnose, Anzahl stabiler Anker und SHA-256-Hash. Der kanonische Hash verwendet Area-ID sowie sortierte semantische IDs und World-Koordinaten stabiler Waypoints, Countess-Good-Chests, Stash-Objekte, Permanent Portals und Entrances. Supertruhen und Hüttengestelle sind keine Anker: Mode und Sichtbarkeit ändern sich während eines Laufs.
 
 UnitIDs, Pointer, Zeitstempel, Monster, Items und Spielerposition werden nicht gehasht. Damit bleibt derselbe Layoutanker trotz neuer Laufzeit-IDs und kleiner manueller Bewegung stabil.
 
@@ -38,4 +38,4 @@ Am 11.07.2026 reproduzierten zwei getrennte Nightmare-Spiele mit `MrBones` am Bl
 - [Route Recording und Playback](route-recording-playback.md)
 
 ---
-*Zuletzt aktualisiert: 2026-07-10*
+*Zuletzt aktualisiert: 2026-08-20*

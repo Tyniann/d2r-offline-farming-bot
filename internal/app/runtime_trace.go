@@ -103,6 +103,9 @@ func runtimeTraceContract(cfg *config.Config, opts Options, selection tasks.RunS
 	if selection.Run == string(tasks.RunIDCows) {
 		contract.Dependencies = append(contract.Dependencies, "cow", "cow_recipe")
 	}
+	if selection.Run == string(tasks.RunIDLowerKurast) {
+		contract.Dependencies = append(contract.Dependencies, "chest")
+	}
 	if opts.Loadout == nil {
 		return contract
 	}

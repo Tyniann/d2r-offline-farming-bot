@@ -247,7 +247,7 @@
           <span class="pill">Memory Bot Core</span>
           <span class="pill">Go 1.26</span>
           <span class="pill">Countess MVP</span>
-          <span class="pill good">Stand: v0.21.0 · Hammerdin Countess, Mephisto, Nihlathak, Summoner und Cow Level</span>
+          <span class="pill good">Stand: v0.22.0 · Hammerdin Countess, Mephisto, Nihlathak, Summoner, Cow Level und Lower Kurast</span>
           <span class="pill good">Phase 20 Cow Level abgenommen</span>
           <span class="pill good">Mercenary-Support abgenommen</span>
         </div>
@@ -862,6 +862,15 @@
         <h3>Reliability, Runtime Replay und Hammerdin <span class="ok">— Gates 22.0a–22.7 bestanden · Phase 22 abgeschlossen · v0.20.0</span></h3>
         <p><strong>Stand:</strong> Opt-in Runtime-Traces und ein headless Replayer reproduzieren echte Offline-Fehler ohne D2R, Fenster oder OS-Input. Die Standard-Run-Pipeline ist in Flow-, State-, Travel-, Boss-, Loot- und Return-Dateien zerlegt. Stage D bleibt ein bedingter Folgeauftrag; die verbindliche Entscheidung steht in <a href="stage-d-decision.html">stage-d-decision.html</a>. Paladin/Hammerdin farmt Countess, Mephisto und Nihlathak über denselben Blessed-Hammer-LMB-Hold: CTA- und Holy-Shield-Prebuff vor der Route, Concentration und Teleport auf RMB, lebender Söldner als Voraussetzung. Nihlathak ohne Post-Boss-Cleanup. Shift wurde live verworfen. Detailplan: <a href="phase-22-implementation-plan.html">Phase-22-Umsetzungsplan</a>.</p>
         <p><strong>Gates:</strong> 22.0a Recorder → 22.0b Replayer → 22.0c Live-Replay-Fixture → 22.1/22.2 Pipeline A–C → 22.3 Weapon-Set → 22.4 Skill-Selector → 22.5a–c Hammerdin-Profil/UI → 22.6 Prebuff → 22.7 Mephisto-Combat → 22.8 Dokumentation und lokales Release.</p>
+      </div>
+    </div>
+
+    <div class="phase">
+      <strong>Phase 23</strong>
+      <div>
+        <h3>Lower Kurast Supertruhen <span class="ok">— Gates 23.0–23.9 bestanden · Phase 23 abgeschlossen · v0.22.0</span></h3>
+        <p><strong>Stand:</strong> Der Queue-Run <code>lower-kurast</code> ist ein Hell-Einzelrouten-Sweep ohne Boss und ohne globales Route-Clear. Town kauft Stadt-Schlüssel bei Akara unter Schwelle 6 (Ziel 12). Der Act-3-Wegpunkt landet in Area 79; die gebundene Teleport-Route führt zum Lagerfeuer auf der bestehenden Offline-Karte. Sichtbare Hütten-Supertruhen (<code>JungleChest</code> 181, <code>JungleChest2</code> 183) öffnen hover-bestätigt, Gestelle nur an denselben Hütten (<code>ArmorStand1</code> 104, <code>WeaponRack2</code> 107). Loot folgt <code>[gems, lk-superchests]</code>, Rückkehr über Portal, Kurast Docks und Stash. Ein lokaler Hammerdin-Clear greift nur nach Monster-Hover im 12-Kachel-Kreis; Neu würfeln ist kein Produktweg. Der 0-Schlüssel-Lauf ist als Live-Gate gestrichen, die Skip-Regel bleibt. Feature-Doc: <a href="docs/features/lower-kurast-run.md">lower-kurast-run.md</a>. Detailplan: <a href="phase-23-implementation-plan.html">Phase-23-Umsetzungsplan</a>.</p>
+        <p><strong>Gates:</strong> 23.0 Object-Inspect → 23.1 Katalog/Mode → 23.2 LK-Waypoint → 23.3 Akara-Schlüssel → 23.4 Registry ohne Boss → 23.5 Pipeline <code>chest_sweep</code> → 23.6 Pickit/UI → 23.7 Aufnahme → 23.8 produktiver Zyklus (fünf Hell-Läufe, MrHammer, Route <code>lower-kurast-mrhammer-d48622a56f</code>) → 23.9 Dokumentation.</p>
       </div>
     </div>
 

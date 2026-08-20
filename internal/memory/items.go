@@ -102,8 +102,9 @@ func (p *ProbeReader) readItemUnit(unitAddr uintptr, off OffsetSet, mainPlayerUn
 	if err != nil {
 		return ItemUnit{}, false
 	}
-	stats, socketActive, socketBase := p.readItemStats(unitAddr, off)
+	stats, socketActive, socketBase, quantityActive, quantityBase := p.readItemStats(unitAddr, off)
 	sockets, socketsAvailable, socketed := decodeItemSockets(flags, socketActive, socketBase)
+	quantity, quantityKnown := decodeItemQuantity(quantityActive, quantityBase)
 	// Die Set-/Unique-Referenz ist eine optionale Diagnosequelle. Ein einzelner
 	// fehlgeschlagener Read darf das ansonsten konsistente Item nicht verwerfen.
 	uniqueSetIDRaw, uniqueSetIDErr := p.reader.ReadUint32(uintptr(unitData) + itemDataOffsetUniqueSetID)
@@ -131,48 +132,53 @@ func (p *ProbeReader) readItemUnit(unitAddr uintptr, off OffsetSet, mainPlayerUn
 		Sockets:              sockets,
 		SocketsAvailable:     socketsAvailable,
 		Socketed:             socketed,
+		Quantity:             quantity,
+		QuantityKnown:        quantityKnown,
 	}, true
 }
 
 // readItemStats liest Active und Base jeweils höchstens einmal. Die produktive
 // Stats-Liste bevorzugt weiterhin Active bei erfolgreichem Parse und fällt nur
-// dann auf Base zurück. Socket-Evidenz wird unabhängig aus beiden Listen gewonnen,
-// damit Gate 19.0 einen nur in Base vorhandenen Stat 194 nicht verdeckt.
-func (p *ProbeReader) readItemStats(unitAddr uintptr, off OffsetSet) ([]RawStat, SocketStatEvidence, SocketStatEvidence) {
+// dann auf Base zurück. Socket- und Quantity-Evidenz werden unabhängig aus
+// beiden Listen gewonnen, damit ein leeres Active Base-only Stat 194 oder 70
+// nicht verdeckt.
+func (p *ProbeReader) readItemStats(unitAddr uintptr, off OffsetSet) ([]RawStat, SocketStatEvidence, SocketStatEvidence, SocketStatEvidence, SocketStatEvidence) {
 	statsListEx, err := p.reader.ReadUint64(unitAddr + off.Unit.StatsListEx)
 	if err != nil || statsListEx == 0 {
-		return nil, SocketStatEvidence{}, SocketStatEvidence{}
+		return nil, SocketStatEvidence{}, SocketStatEvidence{}, SocketStatEvidence{}, SocketStatEvidence{}
 	}
 
 	activeHeader := uintptr(statsListEx) + off.Unit.StatsListActive
 	activeStats, activeErr := parseRawStats(p.reader, activeHeader, off.Stats)
-	activeEvidence := socketStatEvidenceFrom(activeStats, activeErr)
+	socketActive := layerZeroStatEvidence(activeStats, activeErr, StatNumSockets)
+	quantityActive := layerZeroStatEvidence(activeStats, activeErr, StatQuantity)
 
 	baseHeader := uintptr(statsListEx) + off.Unit.StatsListBase
 	baseStats, baseErr := parseRawStats(p.reader, baseHeader, off.Stats)
-	baseEvidence := socketStatEvidenceFrom(baseStats, baseErr)
+	socketBase := layerZeroStatEvidence(baseStats, baseErr, StatNumSockets)
+	quantityBase := layerZeroStatEvidence(baseStats, baseErr, StatQuantity)
 
 	if activeErr == nil {
-		return activeStats, activeEvidence, baseEvidence
+		return activeStats, socketActive, socketBase, quantityActive, quantityBase
 	}
 	if baseErr == nil {
-		return baseStats, activeEvidence, baseEvidence
+		return baseStats, socketActive, socketBase, quantityActive, quantityBase
 	}
 	p.reader.log.Debug("item stats read failed",
 		"unit_addr", fmt.Sprintf("0x%X", unitAddr),
 		"active_error", activeErr,
 		"base_error", baseErr,
 	)
-	return nil, activeEvidence, baseEvidence
+	return nil, socketActive, socketBase, quantityActive, quantityBase
 }
 
-func socketStatEvidenceFrom(stats []RawStat, err error) SocketStatEvidence {
+func layerZeroStatEvidence(stats []RawStat, err error, id uint16) SocketStatEvidence {
 	if err != nil {
 		return SocketStatEvidence{}
 	}
 	ev := SocketStatEvidence{ListReadable: true}
 	for _, stat := range stats {
-		if stat.Layer != 0 || stat.ID != StatNumSockets {
+		if stat.Layer != 0 || stat.ID != id {
 			continue
 		}
 		ev.Present = true
@@ -217,6 +223,31 @@ func resolveSocketStatValue(active, base SocketStatEvidence) (value int32, prese
 	}
 	if base.Present {
 		return base.Value, true
+	}
+	return 0, false
+}
+
+// decodeItemQuantity reads stack size from Stat 70. Live keys keep the value on
+// Base while Active is empty, so Base wins when both lists are readable.
+// A successful empty Active parse must not hide a Base-only value. Negative
+// values and Active/Base conflicts stay unknown.
+func decodeItemQuantity(active, base SocketStatEvidence) (quantity int, known bool) {
+	value, present := resolveQuantityStatValue(active, base)
+	if !present || value < 0 {
+		return 0, false
+	}
+	return int(value), true
+}
+
+func resolveQuantityStatValue(active, base SocketStatEvidence) (value int32, present bool) {
+	if active.Present && base.Present && active.Value != base.Value {
+		return 0, false
+	}
+	if base.Present {
+		return base.Value, true
+	}
+	if active.Present {
+		return active.Value, true
 	}
 	return 0, false
 }

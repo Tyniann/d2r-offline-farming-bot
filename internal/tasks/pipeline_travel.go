@@ -275,6 +275,11 @@ func (c *runPipeline) tickTravel(ctx context.Context, deps pipelineTravelDeps, s
 				}
 			}
 		}
+		// Operate-on-sight is independent of route-clear. Lower Kurast has
+		// chest_sweep without route_clear; Summoner and Cows skip via capability.
+		if handled, result := c.tickRouteChestOperate(ctx, deps, w, now); handled {
+			return result
+		}
 		done, err := deps.Route.Tick(ctx, w)
 		if err != nil {
 			return stepResult{failed: true, reason: routePlaybackFailureReason(err)}

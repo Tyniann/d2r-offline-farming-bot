@@ -73,6 +73,9 @@ func InstrumentDeps(deps tasks.Deps, recorder *Recorder) tasks.Deps {
 	if deps.CowRecipe != nil {
 		deps.CowRecipe = &traceCowRecipe{next: deps.CowRecipe, recorder: recorder}
 	}
+	if deps.Chest != nil {
+		deps.Chest = &traceChest{next: deps.Chest, recorder: recorder}
+	}
 	if deps.Telemetry != nil {
 		deps.Telemetry = &traceTelemetry{next: deps.Telemetry, recorder: recorder}
 	}
@@ -484,6 +487,20 @@ func (t *traceCowRecipe) Tick(state world.State, now time.Time, legUnitID, tomeU
 	return result
 }
 func (t *traceCowRecipe) Reset() { t.next.Reset() }
+
+type traceChest struct {
+	next     tasks.ChestOperateActions
+	recorder *Recorder
+}
+
+func (t *traceChest) Tick(state world.State, target world.Object, maxDistance float64) tasks.ChestOperateResult {
+	result := t.next.Tick(state, target, maxDistance)
+	args := map[string]any{"unit_id": target.UnitID, "object_id": target.ID, "kind": target.Kind.String(), "max_distance": maxDistance}
+	recordResult(t.recorder, "chest.tick", args, map[string]any{"status": string(result.Status), "done": result.Done, "reason": result.Reason}, nil)
+	recordIntent(t.recorder, "chest_operate", map[string]any{"unit_id": target.UnitID, "object_id": target.ID}, result.Status == tasks.ChestOperateClicked, nil)
+	return result
+}
+func (t *traceChest) Reset() { t.next.Reset() }
 
 func cowResult(result tasks.CowSetupActionResult) map[string]any {
 	return map[string]any{"done": result.Done, "reason": result.Reason, "unit_id": result.UnitID, "progress_kind": result.ProgressKind}

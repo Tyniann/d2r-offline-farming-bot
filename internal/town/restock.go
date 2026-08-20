@@ -10,6 +10,19 @@ const (
 	RestockMana             RestockResource = "mana"
 	RestockTownPortalScroll RestockResource = "town_portal_scroll"
 	RestockIdentifyScroll   RestockResource = "identify_scroll"
+	// RestockKey is the Act-1 city-key stack bought from Akara before Lower Kurast.
+	RestockKey RestockResource = "key"
+)
+
+const (
+	// KeyItemCode is the `misc.txt` city-key code, not Uber keys pk1–pk3.
+	KeyItemCode = "key"
+	// KeyRestockThreshold is the inclusive inventory count that still skips a purchase.
+	KeyRestockThreshold = 6
+	// KeyRestockTarget is one full city-key stack.
+	KeyRestockTarget = 12
+	// KeyRestockNextRun is the only handoff that authorizes city-key restock.
+	KeyRestockNextRun = "lower-kurast"
 )
 
 // RestockLevel contains the trigger threshold, observed count, and fill target.
@@ -86,6 +99,9 @@ func PlanRestock(input RestockInput) ([]RestockOrder, Reason) {
 		if !input.BeltLayoutComplete && (level.Resource == RestockHealing || level.Resource == RestockMana) {
 			mode, clicks = BuyModeSingle, missing
 		}
+		if level.Resource == RestockKey {
+			mode, clicks = BuyModeSingle, missing
+		}
 		orders = append(orders, RestockOrder{Resource: level.Resource, Mode: mode, Before: level.Current, Target: level.Target, Clicks: clicks})
 	}
 	return orders, ""
@@ -141,7 +157,7 @@ func (v *RestockVerifier) Tick(current int) InteractionResult {
 
 func validRestockResource(resource RestockResource) bool {
 	switch resource {
-	case RestockHealing, RestockMana, RestockTownPortalScroll, RestockIdentifyScroll:
+	case RestockHealing, RestockMana, RestockTownPortalScroll, RestockIdentifyScroll, RestockKey:
 		return true
 	default:
 		return false

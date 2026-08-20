@@ -130,7 +130,7 @@ func TestMigratedPickitProfilesReproduceCountessAndMephistoPolicies(t *testing.T
 		t.Fatal(err)
 	}
 	allProfiles, err := profiles.List()
-	if err != nil || len(allProfiles) != 4 {
+	if err != nil || len(allProfiles) != 5 {
 		t.Fatalf("initial profiles = %d error=%v", len(allProfiles), err)
 	}
 	assignments, err := NewPickitAssignmentStore(filepath.Join(t.TempDir(), "assignments.yaml"), profiles)
@@ -194,6 +194,50 @@ func TestMigratedPickitProfilesReproduceCountessAndMephistoPolicies(t *testing.T
 	}
 }
 
+func TestLowerKurastPickitDefaultKeepsPulAndEliteNotKeys(t *testing.T) {
+	profiles, err := NewPickitProfileService(filepath.Join("..", "..", "configs", "pickit", "profiles"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	assignments, err := NewPickitAssignmentStore(filepath.Join(t.TempDir(), "assignments.yaml"), profiles)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, initErr := assignments.Initialize(map[string]map[tasks.RunID][]string{"MrBones": {
+		tasks.RunIDLowerKurast: {"gems", "lk-superchests"},
+	}}); initErr != nil {
+		t.Fatal(initErr)
+	}
+	policy, err := assignments.Resolve("MrBones", tasks.RunIDLowerKurast)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tests := []struct {
+		name string
+		item world.Item
+		keep bool
+	}{
+		{name: "pul", item: world.Item{Code: "r21", Type: "rune"}, keep: true},
+		{name: "ber", item: world.Item{Code: "r30", Type: "rune"}, keep: true},
+		{name: "jah", item: world.Item{Code: "r31", Type: "rune"}},
+		{name: "el", item: world.Item{Code: "r01", Type: "rune"}},
+		{name: "unique elite", item: world.Item{Quality: world.ItemQualityUnique, BaseTier: world.BaseTierElite}, keep: true},
+		{name: "set elite", item: world.Item{Quality: world.ItemQualitySet, BaseTier: world.BaseTierElite}, keep: true},
+		{name: "unique exceptional", item: world.Item{Quality: world.ItemQualityUnique, BaseTier: world.BaseTierExceptional}},
+		{name: "uber key", item: world.Item{Code: "pk1"}},
+		{name: "flawless gem", item: world.Item{Code: "gzv"}, keep: true},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			result := policy.All.Evaluate(test.item)
+			kept := result.Matched && result.Action == loot.ActionKeep
+			if kept != test.keep {
+				t.Fatalf("keep=%t want=%t result=%+v", kept, test.keep, result)
+			}
+		})
+	}
+}
+
 func TestRepositoryPickitAssignmentExampleReferencesValidProfiles(t *testing.T) {
 	profiles, err := NewPickitProfileService(filepath.Join("..", "..", "configs", "pickit", "profiles"))
 	if err != nil {
@@ -236,6 +280,7 @@ func TestEnsureMissingPickitDefaultsPreservesUserChainsAndIsIdempotent(t *testin
 		if got.Revision != 2 || len(got.Assignments) != 1 ||
 			!equalStrings(findPickitAssignment(got, "MrBones", tasks.RunIDCountess), defaults[tasks.RunIDCountess]) ||
 			!equalStrings(findPickitAssignment(got, "MrBones", tasks.RunIDMephisto), defaults[tasks.RunIDMephisto]) ||
+			!equalStrings(findPickitAssignment(got, "MrBones", tasks.RunIDLowerKurast), defaults[tasks.RunIDLowerKurast]) ||
 			!equalStrings(findPickitAssignment(got, "MrBones", tasks.RunIDSummoner), defaults[tasks.RunIDSummoner]) ||
 			!equalStrings(findPickitAssignment(got, "MrBones", tasks.RunIDNihlathak), defaults[tasks.RunIDNihlathak]) {
 			t.Fatalf("manifest=%+v", got)
@@ -272,10 +317,11 @@ func TestEnsureMissingPickitDefaultsPreservesUserChainsAndIsIdempotent(t *testin
 			t.Fatal(err)
 		}
 		existing := map[tasks.RunID][]string{
-			tasks.RunIDCountess:  {"keys"},
-			tasks.RunIDMephisto:  {"mephisto-standard", "gems"},
-			tasks.RunIDSummoner:  {"gems", "keys"},
-			tasks.RunIDNihlathak: {"gems", "keys"},
+			tasks.RunIDCountess:    {"keys"},
+			tasks.RunIDMephisto:    {"mephisto-standard", "gems"},
+			tasks.RunIDLowerKurast: {"gems", "lk-superchests"},
+			tasks.RunIDSummoner:    {"gems", "keys"},
+			tasks.RunIDNihlathak:   {"gems", "keys"},
 		}
 		if _, err = assignments.Initialize(map[string]map[tasks.RunID][]string{"MrBones": existing}); err != nil {
 			t.Fatal(err)

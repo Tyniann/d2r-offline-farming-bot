@@ -63,7 +63,7 @@ func main() {
 	routeName := flag.String("route-name", "", "display name for a route recording; only valid with record")
 	routeDifficulty := flag.String("route-difficulty", "", "recording label: normal, nightmare, or hell; required with record")
 	townInspect := flag.Bool("town-inspect", false, "write one read-only Phase-9.1 Town data-availability report")
-	townTest := flag.String("town-test", "", "isolated Town interaction test (including hammerdin-prebuff:cta|no-cta)")
+	townTest := flag.String("town-test", "", "isolated Town interaction test (including waypoint:lower_kurast, hammerdin-prebuff:cta|no-cta)")
 	showVersion := flag.Bool("version", false, "print version and exit")
 	desktopHandshakePipe := flag.String("desktop-handshake-pipe", "", "private one-shot Electron handshake pipe")
 	flag.Parse()

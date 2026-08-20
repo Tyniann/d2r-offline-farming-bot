@@ -10,7 +10,7 @@ import (
 
 func TestCombatStrategyRegistryResolvesBoneSpearMatrix(t *testing.T) {
 	registry := NewCombatStrategyRegistry()
-	runs := []string{"countess", "mephisto", "summoner", "nihlathak", "cows"}
+	runs := []string{"countess", "mephisto", "summoner", "nihlathak", "cows", "lower-kurast"}
 	for _, runID := range runs {
 		factory, ok := registry.Resolve("necro_bone_spear", runID)
 		if !ok || factory == nil {
@@ -33,14 +33,14 @@ func TestCombatStrategyRegistryResolvesBoneSpearMatrix(t *testing.T) {
 		t.Fatal("unknown run resolved")
 	}
 	got := registry.SupportedRuns("necro_bone_spear")
-	if len(got) != 5 {
+	if len(got) != 6 {
 		t.Fatalf("supported runs = %v", got)
 	}
 }
 
 func TestCombatStrategyRegistryExposesHammerdinBossRuns(t *testing.T) {
 	registry := NewCombatStrategyRegistry()
-	want := []string{"countess", "cows", "mephisto", "nihlathak", "summoner"}
+	want := []string{"countess", "cows", "lower-kurast", "mephisto", "nihlathak", "summoner"}
 	if got := registry.SupportedRuns("paladin_hammerdin"); len(got) != len(want) {
 		t.Fatalf("Hammerdin supported runs = %v", got)
 	}
@@ -58,6 +58,10 @@ func TestCombatStrategyRegistryExposesHammerdinBossRuns(t *testing.T) {
 			if !hasClear || !clear.RequiresRouteClear() {
 				t.Fatalf("Hammerdin %s must require travel route_clear", runID)
 			}
+		} else if runID == "lower-kurast" {
+			if !hasClear || clear.RequiresRouteClear() {
+				t.Fatal("Hammerdin lower-kurast must wire local clear without travel route_clear")
+			}
 		} else if hasClear {
 			t.Fatalf("Hammerdin %s must not wire route clear", runID)
 		}
@@ -68,7 +72,7 @@ func TestCombatStrategyRegistryExposesHammerdinBossRuns(t *testing.T) {
 			t.Fatalf("Hammerdin supported runs = %v", registry.SupportedRuns("paladin_hammerdin"))
 		}
 	}
-	if got := registry.SupportedRuns("necro_bone_spear"); len(got) != 5 {
+	if got := registry.SupportedRuns("necro_bone_spear"); len(got) != 6 {
 		t.Fatalf("existing Bone-Spear registry changed: %v", got)
 	}
 }

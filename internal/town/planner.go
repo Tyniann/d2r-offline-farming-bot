@@ -55,7 +55,8 @@ func (p *Planner) Plan(origin Origin, snapshot DemandSnapshot, target NextRunTar
 func demandNeeds(d Demand, service Service) bool {
 	switch service {
 	case ServicePotions:
-		return d.Potions
+		// City keys share Akara's existing potion shop path. No second vendor.
+		return d.Potions || d.Keys
 	case ServiceScrolls:
 		return d.Scrolls
 	case ServiceIdentify:

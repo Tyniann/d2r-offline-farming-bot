@@ -29,12 +29,14 @@ func NewCombatStrategyRegistry() *CombatStrategyRegistry {
 	registry := &CombatStrategyRegistry{factories: map[string]map[string]profile.StrategyFactory{}}
 	registry.mustRegister(necrobonespear.NewBossFactory(string(tasks.RunIDCountess)))
 	registry.mustRegister(necrobonespear.NewBossFactory(string(tasks.RunIDMephisto)))
+	registry.mustRegister(necrobonespear.NewBossFactory(string(tasks.RunIDLowerKurast)))
 	registry.mustRegister(necrobonespear.NewNihlathakFactory())
 	registry.mustRegister(necrobonespear.NewSummonerFactory())
 	registry.mustRegister(necrobonespear.NewCowsFactory())
 	registry.mustRegister(hammerdin.NewBossFactory(string(tasks.RunIDCountess)))
 	registry.mustRegister(hammerdin.NewBossFactory(string(tasks.RunIDMephisto)))
 	registry.mustRegister(hammerdin.NewBossFactory(string(tasks.RunIDNihlathak)))
+	registry.mustRegister(hammerdin.NewLowerKurastFactory())
 	registry.mustRegister(hammerdin.NewSummonerFactory())
 	registry.mustRegister(hammerdin.NewCowsFactory())
 	return registry

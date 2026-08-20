@@ -202,6 +202,7 @@ var historyReasonMessages = map[HistoryReasonCode]string{
 	"hammerdin_blessed_hammer_unconfirmed": "Blessed Hammer konnte nicht auf der linken Maustaste bestätigt werden.",
 	"hammerdin_concentration_unconfirmed":  "Konzentration auf der rechten Maustaste konnte nicht bestätigt werden.",
 	"hammerdin_prebuff_requires_field":     "Battle Command und Battle Orders wirken nur außerhalb der Stadt. Der Buff erfolgt vor der Route am Wegpunkt.",
+	"chest_sweep_empty":                    "Am aufgenommenen Weg lagen keine Supertruhen.",
 	"telemetry_failed":                     "Die Run-Telemetrie konnte nicht sicher geschrieben werden.",
 	"profile_telemetry_failed":             "Die Profil-Telemetrie konnte nicht sicher geschrieben werden.",
 	"operator_stop":                        "Der Run wurde durch den Operator gestoppt.",

@@ -35,22 +35,30 @@ func validRecordingPreflight() RecordingPreflight {
 }
 
 func TestGuidedRecordingStartRequiresConfiguredWaypointProximity(t *testing.T) {
-	definition, ok := tasks.DefaultRunRegistry().Definition(tasks.RunIDCountess)
-	if !ok {
-		t.Fatal("countess definition missing")
-	}
-	state := recordingState(world.BlackMarsh, 100, 100)
-	contract := definition.Recording
-	state.UI.WaypointOpen = true
-	if !guidedRecordingStartReady(state, contract, 15) {
-		t.Fatal("waypoint inside configured proximity was rejected because of stale post-transfer UI flag")
-	}
-	if guidedRecordingStartReady(state, contract, 5) {
-		t.Fatal("waypoint outside configured proximity was accepted")
-	}
-	state.UI.InventoryOpen = true
-	if guidedRecordingStartReady(state, contract, 15) {
-		t.Fatal("actually blocking inventory UI was accepted")
+	for _, tc := range []struct {
+		runID tasks.RunID
+		area  world.AreaID
+	}{
+		{tasks.RunIDCountess, world.BlackMarsh},
+		{tasks.RunIDLowerKurast, world.LowerKurast},
+	} {
+		definition, ok := tasks.DefaultRunRegistry().Definition(tc.runID)
+		if !ok {
+			t.Fatalf("%s definition missing", tc.runID)
+		}
+		state := recordingState(tc.area, 100, 100)
+		contract := definition.Recording
+		state.UI.WaypointOpen = true
+		if !guidedRecordingStartReady(state, contract, 15) {
+			t.Fatalf("%s: waypoint inside configured proximity was rejected because of stale post-transfer UI flag", tc.runID)
+		}
+		if guidedRecordingStartReady(state, contract, 5) {
+			t.Fatalf("%s: waypoint outside configured proximity was accepted", tc.runID)
+		}
+		state.UI.InventoryOpen = true
+		if guidedRecordingStartReady(state, contract, 15) {
+			t.Fatalf("%s: actually blocking inventory UI was accepted", tc.runID)
+		}
 	}
 }
 

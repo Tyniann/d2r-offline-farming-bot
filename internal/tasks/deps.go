@@ -30,7 +30,42 @@ type Deps struct {
 	Town       TownPreparationActions
 	Cow        CowSetupActions
 	CowRecipe  CowPortalRecipeActions
+	Chest      ChestOperateActions
 	Telemetry  RunTelemetry
+}
+
+// ChestOperateActions is the hover-confirmed object click used by chest_sweep.
+type ChestOperateActions interface {
+	Tick(state world.State, target world.Object, maxDistance float64) ChestOperateResult
+	Reset()
+}
+
+// ChestOperateStatus is the per-tick outcome of one chest or rack click.
+type ChestOperateStatus string
+
+const (
+	// ChestOperatePending means the mouse moved and the next tick checks hover.
+	ChestOperatePending ChestOperateStatus = "pending"
+	// ChestOperateClicked means hover confirmed and the click was sent.
+	ChestOperateClicked ChestOperateStatus = "clicked"
+	// ChestOperateTooFar means the target is beyond the click distance.
+	ChestOperateTooFar ChestOperateStatus = "too_far"
+	// ChestOperateHoverNotFound means hover search exhausted without a match.
+	ChestOperateHoverNotFound ChestOperateStatus = "hover_not_found"
+	// ChestOperateFailed means input or projection failed closed.
+	ChestOperateFailed ChestOperateStatus = "failed"
+)
+
+// ChestOperateResult reports one bounded chest or rack click.
+type ChestOperateResult struct {
+	Status ChestOperateStatus
+	Done   bool
+	Reason string
+	// Attempt is the number of hover probe positions tried for this target.
+	Attempt int
+	// BlockerUnitID is a Memory-confirmed monster observed under a probe after
+	// the object search started. It authorizes only bounded local recovery.
+	BlockerUnitID uint32
 }
 
 // CowSetupActions owns only the Wirt interaction and the Akara single-tome

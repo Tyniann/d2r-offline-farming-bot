@@ -215,7 +215,7 @@ func TestValidateHammerdinAcceptsLeftMouseBlessedHammer(t *testing.T) {
 	enabled := true
 	cfg := &config.Config{
 		Runs: config.RunsConfig{Definitions: map[string]config.RunConfig{
-			"countess": {}, "mephisto": {}, "nihlathak": {},
+			"countess": {}, "mephisto": {}, "nihlathak": {}, "lower-kurast": {},
 			"summoner": {RouteCombat: config.RouteCombatConfig{Enabled: &enabled}},
 			"cows":     {RouteCombat: config.RouteCombatConfig{Enabled: &enabled}},
 		}},
@@ -235,7 +235,7 @@ func TestValidateHammerdinAcceptsLeftMouseBlessedHammer(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, runID := range []string{"countess", "cows", "mephisto", "nihlathak", "summoner"} {
+	for _, runID := range []string{"countess", "cows", "lower-kurast", "mephisto", "nihlathak", "summoner"} {
 		if err = validateBossBindingsWithProfile(cfg, runID, source, "paladin_hammerdin"); err != nil {
 			t.Fatalf("%s boss LMB Blessed Hammer rejected: %v", runID, err)
 		}

@@ -16,6 +16,7 @@ type runPipeline struct {
 	core   pipelineCoreState
 	travel pipelineTravelState
 	boss   pipelineBossState
+	chest  pipelineChestState
 	loot   pipelineLootState
 	ret    pipelineReturnState
 }
@@ -74,6 +75,48 @@ type pipelineTravelState struct {
 	entryArriveAt         time.Time
 	entryArriveSnapshots  int
 	entryArriveSnapshotAt time.Time
+}
+
+type chestOperatePhase string
+
+const (
+	chestPhaseIdle         chestOperatePhase = ""
+	chestPhaseClick        chestOperatePhase = "click"
+	chestPhaseClearBlocker chestOperatePhase = "clear_blocker"
+	chestPhaseSettle       chestOperatePhase = "settle"
+	chestPhaseWaitDrops    chestOperatePhase = "wait_drops"
+	chestPhasePickup       chestOperatePhase = "pickup"
+)
+
+// pipelineChestState owns hut Supertruhe selection, skip/retry, leftover
+// hover-miss retry, and cluster loot.
+type pipelineChestState struct {
+	skipped            map[uint32]bool
+	hoverMissed        map[uint32]bool
+	leftoverHoverRetry bool
+	opened             map[uint32]bool
+	seenEligible       bool
+	openedSuperChests  int
+	phase              chestOperatePhase
+	pin                world.Object
+	clusterChest       world.Object
+	clicksOnPin        int
+	keysAtClick        int
+	groundAtClick      map[uint32]bool
+	settleTicks        int
+	dropWaitTicks      int
+	lootNoTargetTicks  int
+	approachAttempts   int
+	approachAt         time.Time
+	approachSnapshot   time.Time
+	clusterActive      bool
+	blockerUnitID      uint32
+	clearAttempted     map[uint32]bool
+	clearResume        chestOperatePhase
+	clearActions       int
+	clearNoTargetTicks int
+	clearStartedAt     time.Time
+	clearLastActionAt  time.Time
 }
 
 // pipelineBossState owns boss identity, encounter, approach, and cleanup state.
@@ -216,6 +259,7 @@ func (c *runPipeline) resetGeneration() {
 	c.travel.cowNoProgressApproachUnitID = 0
 	c.resetPortalEntryRecovery()
 	c.resetTerminalSafe()
+	c.resetChestWork()
 }
 
 func (c *runPipeline) onStepEnter(step string) {

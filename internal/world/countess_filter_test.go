@@ -24,6 +24,19 @@ func TestCountessFilterMatchesWorldIDs(t *testing.T) {
 	if !memory.IsRuntimeObjectID(PermanentPortalID) || !memory.IsRuntimeObjectID(WirtsBodyID) {
 		t.Fatal("Phase-20 portal or Wirt object missing from runtime filter")
 	}
+	for _, id := range AllSuperChestIDs() {
+		if !memory.IsRuntimeObjectID(id) {
+			t.Fatalf("super chest %d missing from runtime filter", id)
+		}
+	}
+	for _, id := range AllRackIDs() {
+		if !memory.IsRuntimeObjectID(id) {
+			t.Fatalf("rack %d missing from runtime filter", id)
+		}
+	}
+	if memory.IsRuntimeObjectID(240) || memory.IsRuntimeObjectID(105) {
+		t.Fatal("generic jungle chests and unused rack facings must stay off the allowlist")
+	}
 	for _, id := range AllEntranceIDs() {
 		if !memory.IsCountessEntranceID(id) {
 			t.Fatalf("entrance %d missing from countess filter", id)

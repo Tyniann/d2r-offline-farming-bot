@@ -38,23 +38,57 @@ func TestBuildObjectInspectArtifactKeepsUnknownIDsAndKeyQuantity(t *testing.T) {
 	}
 	objects := []memory.ObjectInspectEvidence{
 		{TxtFileNo: 267, UnitID: 1, PosX: 110, PosY: 100, PositionKnown: true, Mode: 1, ModeKnown: true},
-		{TxtFileNo: 181, UnitID: 2, PosX: 130, PosY: 120, PositionKnown: true, Mode: 0, ModeKnown: true},
+		{TxtFileNo: 240, UnitID: 2, PosX: 130, PosY: 120, PositionKnown: true, Mode: 0, ModeKnown: true},
+		{TxtFileNo: 181, UnitID: 3, PosX: 125, PosY: 118, PositionKnown: true, Mode: 0, ModeKnown: true},
 	}
 	catalog := map[uint32]objectInspectCatalogEntry{
 		181: {Class: "JungleChest", Name: "jungle chest"},
+		240: {Class: "Chest5", Name: "chest"},
 	}
-	got := buildObjectInspectArtifact("closed", "3.2.92777", state, objects, catalog, "fixture")
-	if got.AreaID != 79 || got.AreaName != "Lower Kurast" || got.ObjectCount != 2 {
+	statLists := []memory.ItemStatListEvidence{{
+		TxtFileNo: 558, UnitID: 3, StatsListExPresent: true,
+		Active: []memory.RawStat{{ID: 70, Value: quantity}}, ActiveReadable: true,
+		BaseReadable: true, Base: []memory.RawStat{},
+	}}
+	got := buildObjectInspectArtifact("closed", "3.2.92777", state, objects, statLists, catalog, "fixture")
+	if got.AreaID != 79 || got.AreaName != "Lower Kurast" || got.ObjectCount != 3 {
 		t.Fatalf("area/count = %+v", got)
 	}
 	if got.Objects[0].TxtFileNo != 267 || got.Objects[0].RuntimeKind != "personal_stash" || got.Objects[0].CatalogName != "Personal Stash" {
 		t.Fatalf("nearest object = %+v", got.Objects[0])
 	}
-	if got.Objects[1].TxtFileNo != 181 || got.Objects[1].RuntimeKind != "unknown" || got.Objects[1].CatalogClass != "JungleChest" || got.Objects[1].CatalogName != "jungle chest" {
-		t.Fatalf("unknown object = %+v", got.Objects[1])
+	if got.Objects[1].TxtFileNo != 181 || got.Objects[1].RuntimeKind != "super_chest" || got.Objects[1].CatalogClass != "JungleChest" {
+		t.Fatalf("catalog super chest = %+v", got.Objects[1])
 	}
-	if len(got.KeyStacks) != 1 || !got.KeyStacks[0].QuantityKnown || got.KeyStacks[0].QuantityStat == nil || *got.KeyStacks[0].QuantityStat != 7 {
+	if got.Objects[2].TxtFileNo != 240 || got.Objects[2].RuntimeKind != "unknown" || got.Objects[2].CatalogClass != "Chest5" {
+		t.Fatalf("unknown object = %+v", got.Objects[2])
+	}
+	if len(got.KeyStacks) != 1 || !got.KeyStacks[0].QuantityKnown || got.KeyStacks[0].QuantityStat == nil || *got.KeyStacks[0].QuantityStat != 7 || got.KeyStacks[0].QuantitySource != "active" {
 		t.Fatalf("key stacks = %+v", got.KeyStacks)
+	}
+}
+
+func TestBuildObjectInspectArtifactReadsQuantityFromBaseWhenActiveEmpty(t *testing.T) {
+	quantity := int32(6)
+	state := world.State{
+		Valid: true, Phase: world.GamePhaseInGame, Area: world.LookupArea(world.RogueEncampment),
+		Items: []world.Item{{Code: "key", Name: "Key", TxtFileNo: 558, UnitID: 9, Location: world.ItemLocationInventory}},
+	}
+	statLists := []memory.ItemStatListEvidence{{
+		TxtFileNo: 558, UnitID: 9, StatsListExPresent: true,
+		ActiveReadable: true, Active: []memory.RawStat{},
+		BaseReadable: true, Base: []memory.RawStat{{ID: 70, Layer: 0, Value: quantity}},
+	}}
+	got := buildObjectInspectArtifact("keys-in-town", "3.2.92777", state, nil, statLists, nil, "fixture")
+	if len(got.KeyStacks) != 1 {
+		t.Fatalf("key stacks = %+v", got.KeyStacks)
+	}
+	key := got.KeyStacks[0]
+	if !key.StatsActiveReadable || len(key.StatsActive) != 0 {
+		t.Fatalf("active = readable=%t stats=%+v", key.StatsActiveReadable, key.StatsActive)
+	}
+	if !key.QuantityKnown || key.QuantityStat == nil || *key.QuantityStat != quantity || key.QuantitySource != "base" {
+		t.Fatalf("quantity = known=%t source=%q stat=%v", key.QuantityKnown, key.QuantitySource, key.QuantityStat)
 	}
 }
 

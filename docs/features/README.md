@@ -15,13 +15,13 @@ Spätere Ideen (noch nicht umgesetzt): [`docs/backlog.md`](../backlog.md).
 | [Read-only Game Identity](game-identity.md) | Phase 6.1: bestätigte Character Identity, kontrollierte Offline-Difficulty-Auswahl und autoritativer Layout-Fingerprint ohne persistenten Auswahl-Cache |
 | [Layout-Fingerprint](layout-fingerprint.md) | Deterministischer Hash stabiler World-Anker als fail-closed Kartenprüfung vor Route Playback |
 | [Read-only UI-State-Probe](ui-state-probe.md) | Phase 7.1: benannte UI-Buffer-Captures mit stabilen/volatilen Bytes, Fingerprint und lokalem JSON-Artefakt ohne Menüinput |
-| [Objekt-Inspect](object-inspect.md) | Gate 23.0: read-only `--object-inspect` für alle Area-Objekte mit Mode und Schlüssel-Quantity, ohne Produkt-Truhen-IDs |
+| [Objekt-Inspect](object-inspect.md) | Gate 23.0: read-only `--object-inspect` für Area-Objekte mit Mode und Schlüssel-Stats (Active/Base, Stat 70), ohne Produkt-Truhen-IDs |
 
 ## Runs, Tasks und Combat-Profile
 
 | Feature | Beschreibung |
 |---------|--------------|
-| [Run Registry und gemeinsames Run-Schema](run-registry.md) | Typisierte Run-Definitionen (Countess, Mephisto, Summoner, Nihlathak), gemeinsames Config-Schema und fail-closed Definition Resolver |
+| [Run Registry und gemeinsames Run-Schema](run-registry.md) | Typisierte Run-Definitionen (Countess, Mephisto, Summoner, Nihlathak, Cows, Lower Kurast), gemeinsames Config-Schema und fail-closed Definition Resolver |
 | [Run-Verfügbarkeit und Inspect](run-availability.md) | Deterministischer read-only Availability-Resolver, Reason-Codes und `--runs-inspect`-JSON |
 | [Task Runner](task-runner.md) | Gemeinsame Run-Pipeline, Lazy Run-Start und Registry-Auflösung; `--run <id>` / `runs.active` |
 | [Countess-Run](countess-run.md) | Phase 5.6: vollständiger Countess-Run mit Travel, Kill, Loot-Pickup, Safety-Potion und Town-Portal-Abschluss; isolierte Testphasen bleiben verfügbar |
@@ -34,6 +34,7 @@ Spätere Ideen (noch nicht umgesetzt): [`docs/backlog.md`](../backlog.md).
 | [Mercenary Support](mercenary-support.md) | Phase 18: fail-closed Merc-State, Combat-Heal, Akara-Heal, Kashya-Revive und `waypoint-kashya` |
 | [Route-Threat-Combat](route-threat-combat.md) | Gemeinsames Summoner-/Cow-Route-Hold mit stationärem Profil-Clear, Coverage, Ressourcen, Recovery-Guard und Cow-CE-Strategie |
 | [Cow Level / Moo Moo Farm](cow-level-run.md) | Phase 20.0–20.6: CASC-/Leichen-Grundlagen, zwei Routenrollen, Setup, Cow-Portal-Rezept, Cow-Hold-Sweep und gemeinsamer Town-Handoff |
+| [Lower-Kurast-Run](lower-kurast-run.md) | Phase 23: Supertruhen am Lagerfeuer ohne Boss, Akara-Schlüssel, Hüttengestelle, Pickit `[gems, lk-superchests]`; Live-Gate bestanden |
 
 ## Pathing, Routen und Town
 
@@ -45,7 +46,7 @@ Spätere Ideen (noch nicht umgesetzt): [`docs/backlog.md`](../backlog.md).
 | [Farming-Route-Assignment](route-assignment.md) | Schema 2: atomische Einzelzuordnung plus feste Cow-Rollenslots, Migration, Revisionen und orthogonaler Managementstatus |
 | [Geführte Farming-Routenaufnahme](guided-route-recording.md) | Exklusiver Recorder-Core mit Wegpunkt-/Portalstart, Boss-/Objekt-/Endpunktprüfung, immutable Kandidaten und TP-Sicherheitsrückweg |
 | [Kandidaten-Playback und Routenverwaltung](route-management.md) | Abschnitt 12.4: isolierter Navigationstest sowie revisions- und Recovery-gesicherte Publish/Replace/Archive/Restore/Delete-Transaktionen |
-| [Routenoberfläche](route-dashboard.md) | Aufgabenorientierte Bibliothek, Einzelaufnahme, Kuhlevel-Zweischritt und sichere Entwurfsverwaltung ohne technische Identitäten |
+| [Routenoberfläche](route-dashboard.md) | Aufgabenorientierte Bibliothek, Einzelaufnahme, Kuhlevel-Zweischritt, Unteres-Kurast-Fotos und sichere Entwurfsverwaltung ohne technische Identitäten |
 | [Town Services](town-services.md) | Phase 9: fail-closed Bedarfsermittlung, zentraler Act-1-Hub und minimales Fremdakt-Egress-Format |
 | [Globaler System-Egress](system-egress.md) | Abschnitt 12.2: aktgenerische globale Portal-zum-Wegpunkt-Routen für Akt 2–5 ohne Character-/Difficulty-Bindung |
 

@@ -70,7 +70,7 @@ func TestResolveRunAvailabilitiesGoldenOrderAndReasons(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := `{"context":{"character":"MrBones","character_class":"necromancer","difficulty":"nightmare","game_version":"3.2.92777"},"runs":[{"run_id":"countess","display_name":"Countess","status":"runtime_validation_required","reasons":["route_runtime_validation_required"],"route":{"route_id":"black-marsh-cellar5-nightmare-mrbones","reason":"route_runtime_validation_required"}},{"run_id":"cows","display_name":"Kuh-Level","status":"unavailable","reasons":["cow_sweep_route_missing","leg_acquisition_route_missing"],"route":{"reason":"route_missing"},"route_roles":{"cow_sweep":{"reason":"route_missing"},"leg_acquisition":{"reason":"route_missing"}}},{"run_id":"mephisto","display_name":"Mephisto","status":"unavailable","reasons":["town_egress_missing"],"route":{"route_id":"durance-2-mephisto-nightmare-mrbones"}},{"run_id":"nihlathak","display_name":"Nihlathak","status":"unavailable","reasons":["route_assignment_missing"],"route":{"reason":"route_missing"}},{"run_id":"summoner","display_name":"Summoner","status":"unavailable","reasons":["route_assignment_missing"],"route":{"reason":"route_missing"}}]}`
+	want := `{"context":{"character":"MrBones","character_class":"necromancer","difficulty":"nightmare","game_version":"3.2.92777"},"runs":[{"run_id":"countess","display_name":"Countess","status":"runtime_validation_required","reasons":["route_runtime_validation_required"],"route":{"route_id":"black-marsh-cellar5-nightmare-mrbones","reason":"route_runtime_validation_required"}},{"run_id":"cows","display_name":"Kuh-Level","status":"unavailable","reasons":["cow_sweep_route_missing","leg_acquisition_route_missing"],"route":{"reason":"route_missing"},"route_roles":{"cow_sweep":{"reason":"route_missing"},"leg_acquisition":{"reason":"route_missing"}}},{"run_id":"lower-kurast","display_name":"Lower Kurast","status":"unavailable","reasons":["route_assignment_missing","town_egress_missing"],"route":{"reason":"route_missing"}},{"run_id":"mephisto","display_name":"Mephisto","status":"unavailable","reasons":["town_egress_missing"],"route":{"route_id":"durance-2-mephisto-nightmare-mrbones"}},{"run_id":"nihlathak","display_name":"Nihlathak","status":"unavailable","reasons":["route_assignment_missing"],"route":{"reason":"route_missing"}},{"run_id":"summoner","display_name":"Summoner","status":"unavailable","reasons":["route_assignment_missing"],"route":{"reason":"route_missing"}}]}`
 	if string(encoded) != want {
 		t.Fatalf("availability JSON:\n%s\nwant:\n%s", encoded, want)
 	}
@@ -179,7 +179,7 @@ func TestResolveRunAvailabilitiesAllowsHammerdinBossStrategies(t *testing.T) {
 		!containsRunReason(cows.Reasons, tasks.RunReasonLegAcquisitionRouteMissing) {
 		t.Fatalf("Hammerdin cows reasons = %v", cows.Reasons)
 	}
-	for _, runID := range []tasks.RunID{tasks.RunIDCountess, tasks.RunIDCows, tasks.RunIDMephisto, tasks.RunIDNihlathak, tasks.RunIDSummoner} {
+	for _, runID := range []tasks.RunID{tasks.RunIDCountess, tasks.RunIDCows, tasks.RunIDLowerKurast, tasks.RunIDMephisto, tasks.RunIDNihlathak, tasks.RunIDSummoner} {
 		availability, _ := findRunAvailability(report.Runs, runID)
 		if containsRunReason(availability.Reasons, tasks.RunReasonProfileRunStrategyUnavailable) {
 			t.Fatalf("Hammerdin %s strategy unavailable: %v", runID, availability.Reasons)
@@ -199,7 +199,7 @@ func TestResolveRunAvailabilitiesUsesClassDefaultInsteadOfNecroFallback(t *testi
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, runID := range []tasks.RunID{tasks.RunIDCountess, tasks.RunIDMephisto, tasks.RunIDNihlathak} {
+	for _, runID := range []tasks.RunID{tasks.RunIDCountess, tasks.RunIDLowerKurast, tasks.RunIDMephisto, tasks.RunIDNihlathak} {
 		availability, _ := findRunAvailability(report.Runs, runID)
 		if containsRunReason(availability.Reasons, tasks.RunReasonProfileClassMismatch) {
 			t.Fatalf("%s used necro fallback: %v", runID, availability.Reasons)

@@ -59,6 +59,39 @@ func TestBossStrategyContract(t *testing.T) {
 	}
 }
 
+func TestLowerKurastStrategyWiresLocalClearWithoutTravelRouteClear(t *testing.T) {
+	strategy := NewLowerKurastFactory()()
+	if strategy.ProfileID() != "paladin_hammerdin" || strategy.RunID() != "lower-kurast" {
+		t.Fatalf("strategy identity = %s/%s", strategy.ProfileID(), strategy.RunID())
+	}
+	clear, ok := strategy.(profile.SupportsRouteClear)
+	if !ok || clear.RequiresRouteClear() {
+		t.Fatal("lower-kurast must wire local clear without travel route_clear")
+	}
+	definition := profile.Definition{ID: "paladin_hammerdin", CharacterClass: world.CharacterClassPaladin}
+	executor, err := profile.NewExecutor(config.NewLogger("error"), definition, profileActionsStub{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	actions := &routeClearActionsStub{sent: true}
+	if configureErr := strategy.Configure(executor, memory.MustSkillID("blessed_hammer"), actions); configureErr != nil {
+		t.Fatal(configureErr)
+	}
+	now := time.Now()
+	result := executor.TickRouteClear(context.Background(), profile.RouteClearRequest{
+		RunID:        "lower-kurast",
+		DefinitionID: "paladin_hammerdin",
+		Player:       world.Player{Position: world.Position{X: 100, Y: 100}},
+		Target:       world.Monster{UnitID: 9, NPCID: 1, Position: world.Position{X: 102, Y: 100}},
+		Mode:         profile.RouteClearThreat,
+		AssessmentAt: now,
+	}, now)
+	if result.Status != profile.StatusAction || result.SkillID != memory.MustSkillID("blessed_hammer") ||
+		result.ActionKind != profile.RouteClearActionAttack {
+		t.Fatalf("local clear result = %+v, want Blessed Hammer without opener", result)
+	}
+}
+
 func TestSummonerStrategyWiresRouteClearWithoutCurseOpener(t *testing.T) {
 	strategy := NewSummonerFactory()()
 	if strategy.ProfileID() != "paladin_hammerdin" || strategy.RunID() != "summoner" {

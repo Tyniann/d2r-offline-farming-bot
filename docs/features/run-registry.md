@@ -2,9 +2,9 @@
 
 ## Überblick
 
-Die Run-Registry hält stabile, typisierte Definitionen für `countess`, `mephisto`, `summoner` und `nihlathak`. Sie enthält ausschließlich unveränderliche Produktmetadaten und Capabilities; operatorabhängige Route, Combat-Tuning sowie Pickup-/Sell-Policies kommen für alle IDs aus demselben Config-Typ.
+Die Run-Registry hält stabile, typisierte Definitionen für `countess`, `mephisto`, `summoner`, `nihlathak`, `cows` und `lower-kurast`. Sie enthält ausschließlich unveränderliche Produktmetadaten und Capabilities; operatorabhängige Route, Combat-Tuning sowie Pickup-/Sell-Policies kommen für alle IDs aus demselben Config-Typ.
 
-Alle Runs teilen die gemeinsame Pipeline ohne Run-ID-Switch. Fremdakt-Runs (Mephisto Act 3, Summoner Act 2, Nihlathak Act 5) verlangen `foreign_town_egress`. Ohne live verfügbaren Layout-Fingerprint meldet der Resolver für die gebundene Route `route_runtime_validation_required`.
+Alle Runs teilen die gemeinsame Pipeline ohne Run-ID-Switch, außer `cows` mit seinem festen Route-Set. Fremdakt-Runs (Mephisto und Lower Kurast Act 3, Summoner Act 2, Nihlathak Act 5) verlangen `foreign_town_egress`. Ohne live verfügbaren Layout-Fingerprint meldet der Resolver für die gebundene Route `route_runtime_validation_required`.
 
 ## Ort im Code
 
@@ -24,6 +24,8 @@ Seit Phase 12.0 enthält jede Definition zusätzlich einen typisierten `Recordin
 
 Countess besitzt eine `boss_engage`-Aktion, verlangt wegen ihrer geteilten Dark-Stalker-Basis-ID das Super-Unique-Flag und kehrt direkt in Act 1 zurück. Mephisto besitzt zwei getrennte `boss_engage`-Aktionen und die NPC-ID `242`. Summoner (`250`) und Nihlathak (`526`) haben eine **leere** Engage-Sequenz (direkt Bone Spear, kein Bone Prison) und verlangen Fremdakt-Egress.
 
+`lower-kurast` ist ein Einzelrouten-Run ohne Boss. Die Capability `chest_sweep` ersetzt den Boss-Deskriptor; ein Fake-NPC ist unzulässig. Die gemeinsame Pipeline geht nach `play_bound_route` in `chest_sweep` statt `acquire_boss`. Aufnahme endet als `RecordingTerminalEndpoint` in Area 79 (Unteres Kurast), Rückkehr ist `OriginAct3` wie Mephisto, ohne Route-Clear. Eine Einzelroute ohne diese Capability und ohne Boss bleibt ungültig. Cows bleibt unverändert ein Route-Set und umgeht die Boss-Pflicht nicht über `chest_sweep`.
+
 ### Gemeinsames Config-Schema
 
 ```yaml
@@ -33,6 +35,7 @@ runs:
   definitions:
     countess:
       combat: { profile: necro_bone_spear, attack_skill: bone_spear }
+    lower-kurast:
     mephisto:
       combat: { profile: necro_bone_spear, attack_skill: bone_spear }
     summoner:
@@ -56,7 +59,7 @@ Fehlende Config liefert `run_config_missing`, unbekannte ID `run_unknown`, ungü
 
 ## Operator / CLI
 
-`--run countess|mephisto|summoner|nihlathak` verwendet die gemeinsame Pipeline. Die optionalen Werte für `--phase` sind definitionsneutral: `travel-entry`, `play-route`, `boss`, `loot-and-return`, `stash-personal` und `town-ready`.
+`--run countess|cows|lower-kurast|mephisto|summoner|nihlathak` verwendet die gemeinsame Pipeline, `cows` die eigene Route-Set-Pipeline. Die optionalen Werte für `--phase` sind definitionsneutral: `travel-entry`, `play-route`, `boss`, `loot-and-return`, `stash-personal` und `town-ready`.
 
 ## Abhängigkeiten
 
@@ -75,4 +78,4 @@ Fehlende Config liefert `run_config_missing`, unbekannte ID `run_unknown`, ungü
 - [Nihlathak-Run](nihlathak-run.md)
 
 ---
-*Zuletzt aktualisiert: 2026-07-28*
+*Zuletzt aktualisiert: 2026-08-20*

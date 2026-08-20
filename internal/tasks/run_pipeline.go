@@ -16,6 +16,9 @@ func (c *runPipeline) onTick(ctx context.Context, deps Deps, step string, w worl
 		return c.tickStashPersonal(ctx, narrowReturnDeps(deps), step, w)
 	}
 	if c.phase == RunPhaseBoss {
+		if c.definition.HasCapability(RunCapabilityChestSweep) {
+			return c.onChestSweepPhaseTick(ctx, deps, step, w, now)
+		}
 		return c.tickBoss(ctx, narrowBossDeps(deps), step, w, now)
 	}
 	if c.phase == RunPhaseLootAndReturn {
@@ -31,6 +34,26 @@ func (c *runPipeline) onTick(ctx context.Context, deps Deps, step string, w worl
 		return c.onRunTick(ctx, deps, step, w, now, stepStartedAt)
 	}
 	return stepResult{failed: true, reason: "unknown_step"}
+}
+
+func (c *runPipeline) onChestSweepPhaseTick(ctx context.Context, deps Deps, step string, w world.State, now time.Time) stepResult {
+	switch step {
+	case pipelineStepPrecheck:
+		if !w.Valid {
+			return stepResult{failed: true, reason: "invalid_world"}
+		}
+		if w.Phase != world.GamePhaseInGame {
+			return stepResult{failed: true, reason: "not_in_game"}
+		}
+		if w.Area.ID != c.effectiveDefinition().RouteTerminalArea {
+			return stepResult{failed: true, reason: string(RunReasonUnexpectedArea)}
+		}
+		return stepResult{complete: true}
+	case pipelineStepChestSweep:
+		return c.tickChestSweep(ctx, narrowChestDeps(deps), w, now)
+	default:
+		return stepResult{failed: true, reason: "unknown_step"}
+	}
 }
 
 func (c *runPipeline) onRetryReturnTick(ctx context.Context, deps Deps, step string, w world.State, now, stepStartedAt time.Time) stepResult {
@@ -98,6 +121,8 @@ func (c *runPipeline) onRunTick(ctx context.Context, deps Deps, step string, w w
 	case pipelineStepAcquireTownWaypoint, pipelineStepOpenWaypoint, pipelineStepSelectRunWaypoint,
 		pipelineStepWaitEntryArea, pipelineStepPlayRoute:
 		return c.tickTravel(ctx, narrowTravelDeps(deps), step, w, now, stepStartedAt)
+	case pipelineStepChestSweep:
+		return c.tickChestSweep(ctx, narrowChestDeps(deps), w, now)
 	case pipelineStepAcquireBoss, pipelineStepEngageBoss, pipelineStepClearNearbyHostiles, pipelineStepRepositionForLoot:
 		return c.tickBoss(ctx, narrowBossDeps(deps), step, w, now)
 	case pipelineStepWaitForDrops, pipelineStepScanLoot, pipelineStepPickLoot:

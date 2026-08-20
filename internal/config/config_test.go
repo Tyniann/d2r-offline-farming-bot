@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/tasks"
 	"gopkg.in/yaml.v3"
 )
 
@@ -36,7 +37,7 @@ func TestLoadExampleConfig(t *testing.T) {
 	if !ok {
 		t.Fatal("Countess run config missing")
 	}
-	for _, runID := range []string{"mephisto", "summoner", "nihlathak"} {
+	for _, runID := range []string{"cows", "lower-kurast", "mephisto", "summoner", "nihlathak"} {
 		run, configured := cfg.Runs.Run(runID)
 		if !configured {
 			t.Fatalf("%s run config missing", runID)
@@ -97,6 +98,18 @@ func TestLoadExampleConfig(t *testing.T) {
 	}
 	if cfg.LoadedFrom == "" {
 		t.Error("LoadedFrom should be set after Load")
+	}
+}
+
+func TestExampleConfigDefinesEveryRegisteredRun(t *testing.T) {
+	cfg, err := Load(filepath.Join("..", "..", "configs", "config.example.yaml"))
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	for _, definition := range tasks.DefaultRunRegistry().Definitions() {
+		if _, ok := cfg.Runs.Run(string(definition.ID)); !ok {
+			t.Fatalf("example config missing runs.definitions.%s", definition.ID)
+		}
 	}
 }
 

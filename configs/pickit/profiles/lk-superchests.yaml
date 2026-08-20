@@ -1,0 +1,11 @@
+schema_version: 1
+revision: 1
+id: lk-superchests
+name: Supertruhen Unteres Kurast
+rules:
+  - id: pul-through-ber
+    action: keep
+    expression: '[name] == r21 || [name] == r22 || [name] == r23 || [name] == r24 || [name] == r25 || [name] == r26 || [name] == r27 || [name] == r28 || [name] == r29 || [name] == r30'
+  - id: elite-unique-set
+    action: keep
+    expression: '([quality] == unique || [quality] == set) && [tier] == elite'

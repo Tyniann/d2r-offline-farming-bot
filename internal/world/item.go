@@ -159,6 +159,9 @@ type Item struct {
 	Sockets          int
 	SocketsAvailable bool
 	Socketed         bool
+	// Quantity and QuantityKnown are the fail-closed Gate-23.1 stack size.
+	Quantity      int
+	QuantityKnown bool
 }
 
 // SocketStatEvidence mirrors memory Active/Base Stat-194 diagnosis for verbose logs.
@@ -268,6 +271,8 @@ func mapItem(i memory.ItemUnit, hover HoverInfo) Item {
 		Sockets:          i.Sockets,
 		SocketsAvailable: i.SocketsAvailable,
 		Socketed:         i.Socketed,
+		Quantity:         i.Quantity,
+		QuantityKnown:    i.QuantityKnown,
 	}
 	applyItemIdentity(&item, i.UniqueSetID, i.UniqueSetIDAvailable, LookupItemIdentity)
 	return item

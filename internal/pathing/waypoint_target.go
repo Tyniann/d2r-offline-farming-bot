@@ -20,6 +20,8 @@ const (
 	WaypointTargetBlackMarsh WaypointTargetID = "black_marsh"
 	// WaypointTargetDuranceOfHateLevel2 selects the Act-3 Durance Level 2 destination.
 	WaypointTargetDuranceOfHateLevel2 WaypointTargetID = "durance_of_hate_level_2"
+	// WaypointTargetLowerKurast selects the Act-3 Lower Kurast destination.
+	WaypointTargetLowerKurast WaypointTargetID = "lower_kurast"
 	// WaypointTargetArcaneSanctuary selects the Act-2 Arcane Sanctuary destination.
 	WaypointTargetArcaneSanctuary WaypointTargetID = "arcane_sanctuary"
 	// WaypointTargetHallsOfPain selects the Act-5 Halls of Pain destination.
@@ -88,13 +90,14 @@ func NewWaypointTargetRegistry(actions ...WaypointTargetAction) (*WaypointTarget
 
 // DefaultWaypointTargetRegistry returns the resolution-bound 1280×720 waypoint targets.
 // Act-2/5 TabX remains a linear candidate from the measured Act-1→Act-3 spacing
-// until live Memory confirmation; row indices follow the `levels.txt` waypoint
-// order within each act tab (Arcane=8, Halls of Pain=6).
+// until live Memory confirmation. Row indices are the live Act-tab order
+// (Lower Kurast Act-3 row 5, Arcane=8, Halls of Pain=6), not a `levels.txt` derivation.
 func DefaultWaypointTargetRegistry() *WaypointTargetRegistry {
 	registry, err := NewWaypointTargetRegistry(
 		waypointTargetAction(WaypointTargetStonyField, "Stony Field", 1, 3, world.StonyField),
 		waypointTargetAction(WaypointTargetBlackMarsh, "Black Marsh", 1, 5, world.BlackMarsh),
 		waypointTargetAction(WaypointTargetDuranceOfHateLevel2, "Durance of Hate Level 2", 3, 9, world.DuranceOfHateLevel2),
+		waypointTargetAction(WaypointTargetLowerKurast, "Lower Kurast", 3, 5, world.LowerKurast),
 		waypointTargetAction(WaypointTargetArcaneSanctuary, "Arcane Sanctuary", 2, 8, world.ArcaneSanctuary),
 		waypointTargetAction(WaypointTargetHallsOfPain, "Halls of Pain", 5, 6, world.HallsOfPain),
 		waypointTargetAction(WaypointTargetRogueEncampment, "Rogue Encampment", 1, 1, world.RogueEncampment),

@@ -28,6 +28,7 @@ const (
 	pipelineStepSelectRunWaypoint   = "select_run_waypoint"
 	pipelineStepWaitEntryArea       = "wait_entry_area"
 	pipelineStepPlayRoute           = "play_bound_route"
+	pipelineStepChestSweep          = "chest_sweep"
 	pipelineStepAcquireBoss         = "acquire_boss"
 	pipelineStepEngageBoss          = "engage_boss"
 	pipelineStepClearNearbyHostiles = "clear_nearby_hostiles"
@@ -190,6 +191,16 @@ func (c *runPipeline) nextStep(current string) string {
 		}
 	}
 	if c.phase == RunPhaseBoss {
+		if c.definition.HasCapability(RunCapabilityChestSweep) {
+			switch current {
+			case pipelineStepPrecheck:
+				return pipelineStepChestSweep
+			case pipelineStepChestSweep, pipelineStepComplete:
+				return ""
+			default:
+				return ""
+			}
+		}
 		switch current {
 		case pipelineStepPrecheck:
 			return pipelineStepAcquireBoss
@@ -284,7 +295,12 @@ func (c *runPipeline) nextStep(current string) string {
 	case pipelineStepWaitEntryArea:
 		return pipelineStepPlayRoute
 	case pipelineStepPlayRoute:
+		if c.definition.HasCapability(RunCapabilityChestSweep) {
+			return pipelineStepChestSweep
+		}
 		return pipelineStepAcquireBoss
+	case pipelineStepChestSweep:
+		return pipelineStepWaitForDrops
 	case pipelineStepAcquireBoss:
 		if c.boss.bossKillEmitted {
 			if c.shouldClearNearbyAfterBoss() {

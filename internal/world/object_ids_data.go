@@ -12,6 +12,14 @@ const (
 	GoodChestID uint32 = 584
 	// PersonalStashID is the character stash object for this generated D2R version.
 	PersonalStashID uint32 = 267
+	// JungleChestID is objects.txt Class=JungleChest, live Lower-Kurast Supertruhe.
+	JungleChestID uint32 = 181
+	// JungleChest2ID is objects.txt Class=JungleChest2, live Lower-Kurast Supertruhe.
+	JungleChest2ID uint32 = 183
+	// ArmorStand1ID is objects.txt Class=ArmorStand1, live Lower-Kurast Hüttengestell.
+	ArmorStand1ID uint32 = 104
+	// WeaponRack2ID is objects.txt Class=WeaponRack2, live Lower-Kurast Hüttengestell.
+	WeaponRack2ID uint32 = 107
 )
 
 var waypointIDs = []uint32{
@@ -33,6 +41,16 @@ var waypointIDs = []uint32{
 	539, // TempleWaypoint
 }
 
+var superChestIDs = []uint32{
+	181, // JungleChest
+	183, // JungleChest2
+}
+
+var rackIDs = []uint32{
+	104, // ArmorStand1
+	107, // WeaponRack2
+}
+
 // IsWaypointID reports whether id is a waypoint object in the generated catalog.
 func IsWaypointID(id uint32) bool {
 	for _, waypointID := range waypointIDs {
@@ -46,12 +64,42 @@ func IsWaypointID(id uint32) bool {
 // AllWaypointIDs returns a copy of generated waypoint object IDs.
 func AllWaypointIDs() []uint32 { return append([]uint32(nil), waypointIDs...) }
 
+// IsSuperChestID reports whether id is a live Lower-Kurast Supertruhe class.
+func IsSuperChestID(id uint32) bool {
+	for _, chestID := range superChestIDs {
+		if id == chestID {
+			return true
+		}
+	}
+	return false
+}
+
+// AllSuperChestIDs returns a copy of generated Supertruhe object IDs.
+func AllSuperChestIDs() []uint32 { return append([]uint32(nil), superChestIDs...) }
+
+// IsRackID reports whether id is a live Lower-Kurast Hüttengestell class.
+func IsRackID(id uint32) bool {
+	for _, rackID := range rackIDs {
+		if id == rackID {
+			return true
+		}
+	}
+	return false
+}
+
+// AllRackIDs returns a copy of generated Hüttengestell object IDs.
+func AllRackIDs() []uint32 { return append([]uint32(nil), rackIDs...) }
+
 var objectNames = map[uint32]string{
 	TownPortalID:      "Town Portal",
 	PermanentPortalID: "Permanent Portal",
 	WirtsBodyID:       "Wirt's Body",
 	GoodChestID:       "Good Chest",
 	PersonalStashID:   "Personal Stash",
+	181:               "Super Chest",
+	183:               "Super Chest",
+	104:               "Armor Stand",
+	107:               "Weapon Rack",
 	119:               "Waypoint",
 	145:               "Waypoint",
 	156:               "Waypoint",

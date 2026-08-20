@@ -1,3 +1,7 @@
 Class	Name	*Description	*ID
 PortalPermanent	Portal	Permanent town portal	60
 Wirt	wirt's body	wirt's body	268
+JungleChest	chest	jungle chest act 3	181
+JungleChest2	chest	chest-L-med jungle	183
+ArmorStand1	ArmorStand	Armor Stand 1R	104
+WeaponRack2	WeaponRack	Weapon Rack 2L	107

@@ -21,6 +21,8 @@ const (
 	RunIDNihlathak RunID = "nihlathak"
 	// RunIDCows identifies the two-route Moo Moo Farm run.
 	RunIDCows RunID = "cows"
+	// RunIDLowerKurast identifies the Lower Kurast superchest run.
+	RunIDLowerKurast RunID = "lower-kurast"
 )
 
 // RunCapability identifies a runtime facility required by a run definition.
@@ -44,6 +46,8 @@ const (
 	RunCapabilityForeignTownEgress RunCapability = "foreign_town_egress"
 	// RunCapabilityRouteClear permits threat-aware combat during bound route playback.
 	RunCapabilityRouteClear RunCapability = "route_clear"
+	// RunCapabilityChestSweep replaces a boss encounter with a catalog chest sweep.
+	RunCapabilityChestSweep RunCapability = "chest_sweep"
 )
 
 // BossDescriptor identifies the Memory-confirmed boss selected by a run.
@@ -205,6 +209,8 @@ const (
 	RunStepWaitEntryArea RunStep = "wait_entry_area"
 	// RunStepPlayBoundRoute plays the compatible recorded route.
 	RunStepPlayBoundRoute RunStep = "play_bound_route"
+	// RunStepChestSweep operates remaining visible hut Supertruhen and nearby racks.
+	RunStepChestSweep RunStep = "chest_sweep"
 	// RunStepAcquireBoss finds and pins the definition's boss UnitID.
 	RunStepAcquireBoss RunStep = "acquire_boss"
 	// RunStepBossEngageAction executes one indexed pre-combat encounter action.
@@ -249,7 +255,8 @@ var sharedRunStepContracts = []RunStepContract{
 	{Step: RunStepAcquireAct1Waypoint, AllowedNext: []RunStep{RunStepSelectRunWaypoint}},
 	{Step: RunStepSelectRunWaypoint, AllowedNext: []RunStep{RunStepWaitEntryArea}},
 	{Step: RunStepWaitEntryArea, AllowedNext: []RunStep{RunStepPlayBoundRoute}},
-	{Step: RunStepPlayBoundRoute, AllowedNext: []RunStep{RunStepAcquireBoss}},
+	{Step: RunStepPlayBoundRoute, AllowedNext: []RunStep{RunStepAcquireBoss, RunStepChestSweep}},
+	{Step: RunStepChestSweep, AllowedNext: []RunStep{RunStepScanAndPickLoot}},
 	{Step: RunStepAcquireBoss, AllowedNext: []RunStep{RunStepBossEngageAction, RunStepEngageBoss}},
 	{Step: RunStepBossEngageAction, AllowedNext: []RunStep{RunStepBossEngageAction, RunStepEngageBoss}},
 	{Step: RunStepEngageBoss, AllowedNext: []RunStep{RunStepConfirmKill}},
@@ -374,6 +381,8 @@ const (
 	RunReasonWaypointDestinationTimeout RunReason = "waypoint_destination_timeout"
 	// RunReasonUnexpectedArea reports a valid but disallowed current area.
 	RunReasonUnexpectedArea RunReason = "unexpected_area"
+	// RunReasonChestSweepEmpty reports that the recorded path showed no Supertruhe.
+	RunReasonChestSweepEmpty RunReason = "chest_sweep_empty"
 	// RunReasonBossNotFound reports that the configured boss was not acquired.
 	RunReasonBossNotFound RunReason = "boss_not_found"
 	// RunReasonBossPinLost reports a lost or changed boss UnitID.

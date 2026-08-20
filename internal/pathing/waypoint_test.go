@@ -126,6 +126,7 @@ func TestDefaultWaypointTargetRegistryGeometryCandidates(t *testing.T) {
 		WaypointTargetStonyField:          {Act: 1, TabX: 159, TabY: 148, RowX: 200, RowY: 260, ExpectedAreaID: world.StonyField},
 		WaypointTargetBlackMarsh:          {Act: 1, TabX: 159, TabY: 148, RowX: 200, RowY: 342, ExpectedAreaID: world.BlackMarsh},
 		WaypointTargetDuranceOfHateLevel2: {Act: 3, TabX: 273, TabY: 148, RowX: 200, RowY: 506, ExpectedAreaID: world.DuranceOfHateLevel2},
+		WaypointTargetLowerKurast:         {Act: 3, TabX: 273, TabY: 148, RowX: 200, RowY: 342, ExpectedAreaID: world.LowerKurast},
 		WaypointTargetArcaneSanctuary:     {Act: 2, TabX: 216, TabY: 148, RowX: 200, RowY: 465, ExpectedAreaID: world.ArcaneSanctuary},
 		WaypointTargetHallsOfPain:         {Act: 5, TabX: 387, TabY: 148, RowX: 200, RowY: 383, ExpectedAreaID: world.HallsOfPain},
 		WaypointTargetRogueEncampment:     {Act: 1, TabX: 159, TabY: 148, RowX: 200, RowY: 178, ExpectedAreaID: world.RogueEncampment},
@@ -168,6 +169,24 @@ func TestWaypointActionsSelectTargetTabSettleAndRow(t *testing.T) {
 	res = actions.SelectWaypointTarget(context.Background(), state, WaypointTargetDuranceOfHateLevel2, readyAt.Add(time.Second))
 	if res.Status != WaypointActionClicked || len(in.clicks) != 2 {
 		t.Fatalf("completed tick = %+v clicks=%v, want no repeated click", res, in.clicks)
+	}
+}
+
+func TestWaypointActionsSelectsLowerKurastAct3Row(t *testing.T) {
+	in := newMockInput()
+	actions := NewWaypointActions(config.NewLogger("error"), in, DefaultConfig())
+	now := time.Now()
+	state := waypointMenuState()
+	actions.noteMenuRequested(now, world.Position{})
+	readyAt := now.Add(waypointMenuOpenSettle)
+
+	res := actions.SelectWaypointTarget(context.Background(), state, WaypointTargetLowerKurast, readyAt)
+	if res.Status != WaypointActionPending || len(in.moves) != 1 || in.moves[0] != [2]int{273, 148} {
+		t.Fatalf("tab tick = %+v moves=%v", res, in.moves)
+	}
+	res = actions.SelectWaypointTarget(context.Background(), state, WaypointTargetLowerKurast, readyAt.Add(200*time.Millisecond))
+	if res.Status != WaypointActionClicked || !res.Done || len(in.moves) != 2 || in.moves[1] != [2]int{200, 342} {
+		t.Fatalf("row tick = %+v moves=%v", res, in.moves)
 	}
 }
 

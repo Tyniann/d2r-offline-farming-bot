@@ -98,12 +98,17 @@ func (p *ProbeReader) enumerateObjects(moduleBase uintptr, off OffsetSet, visite
 			return unitWalkContinue, nil
 		}
 
-		snap.Objects = append(snap.Objects, ObjectUnit{
+		object := ObjectUnit{
 			TxtFileNo: txtFileNo,
 			UnitID:    unitID,
 			PosX:      uint32(posX),
 			PosY:      uint32(posY),
-		})
+		}
+		if mode, modeErr := p.reader.ReadUint32(unitAddr + unitOffsetMode); modeErr == nil {
+			object.Mode = mode
+			object.ModeKnown = true
+		}
+		snap.Objects = append(snap.Objects, object)
 		return unitWalkContinue, nil
 	})
 }

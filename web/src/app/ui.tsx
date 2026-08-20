@@ -24,7 +24,7 @@ export function StateMessage({ kind, title, children }: { kind: "loading" | "emp
   </div>;
 }
 
-export function Dialog({ title, children, onClose, initialFocusRef }: { title: string; children: ReactNode; onClose: () => void; initialFocusRef?: RefObject<HTMLElement | null> }) {
+export function Dialog({ title, children, onClose, initialFocusRef, className }: { title: string; children: ReactNode; onClose: () => void; initialFocusRef?: RefObject<HTMLElement | null>; className?: string }) {
   const titleID = useId();
   const dialogRef = useRef<HTMLDivElement>(null);
   const closeRef = useRef(onClose);
@@ -62,7 +62,7 @@ export function Dialog({ title, children, onClose, initialFocusRef }: { title: s
   }, [initialFocusRef]);
 
   return <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) closeRef.current(); }}>
-    <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby={titleID} className="modal" tabIndex={-1}>
+    <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby={titleID} className={["modal", className].filter(Boolean).join(" ")} tabIndex={-1}>
       <h2 id={titleID}>{title}</h2>
       {children}
     </div>

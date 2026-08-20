@@ -19,6 +19,7 @@ vi.mock("../../api/client", () => ({
 const recordingOptions = [
   { run_id: "countess", display_name: "Countess", instructions_de: "Gräfin-Anleitung vollständig.", start_waypoint: "black_marsh", allowed_start_area_id: 6, allowed_route_area_ids: [6, 20], terminal_area_id: 25, terminal_max_distance_tiles: 80, available: true, prerequisites: [{ id: "waypoint", ready: true }] },
   { run_id: "mephisto", display_name: "Mephisto", instructions_de: "Mephisto-Anleitung vollständig.", start_waypoint: "durance_of_hate_level_2", allowed_start_area_id: 101, allowed_route_area_ids: [101], terminal_area_id: 102, terminal_max_distance_tiles: 80, available: true, prerequisites: [] },
+  { run_id: "lower-kurast", display_name: "Lower Kurast", instructions_de: "Starte am Wegpunkt Unteres Kurast und ende an den Lagerfeuer-Hütten.", start_waypoint: "lower_kurast", allowed_start_area_id: 79, allowed_route_area_ids: [79], terminal_area_id: 79, terminal_max_distance_tiles: 80, available: true, prerequisites: [{ id: "waypoint", ready: true }] },
   { run_id: "cows", route_role: "leg_acquisition", display_name: "Kuhlevel", instructions_de: "Wirt-Anleitung vollständig.", start_waypoint: "stony_field", allowed_start_area_id: 4, allowed_route_area_ids: [4, 38], terminal_area_id: 38, terminal_max_distance_tiles: 20, available: true, prerequisites: [{ id: "town_portal", ready: true }] },
   { run_id: "cows", route_role: "cow_sweep", display_name: "Kuhlevel", instructions_de: "Cow-Anleitung vollständig.", start_kind: "object_portal_arrival", start_waypoint: "", allowed_start_area_id: 39, allowed_route_area_ids: [39], terminal_area_id: 39, terminal_max_distance_tiles: 0, available: true, prerequisites: [{ id: "teleport", ready: true }] },
 ];
@@ -72,6 +73,21 @@ describe("RouteFeature Redesign", () => {
     fireEvent.click(screen.getByRole("button", { name: "2 Cow-Route" }));
     expect(screen.getByText("Cow-Anleitung vollständig.")).toBeInTheDocument();
     expect(screen.queryByText("Wirt-Anleitung vollständig.")).not.toBeInTheDocument();
+  });
+
+  it("zeigt Unteres Kurast mit Lagerfeuer-Ziel und schließt das Aufnahme-Overlay per Button", async () => {
+    render(<RouteFeature characters={["MrBones"]} selectedCharacter="MrBones" refreshKey={0} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Route aufnehmen" }));
+    fireEvent.click(screen.getByRole("button", { name: /Unteres Kurast/ }));
+    expect(screen.getByText("Starte am Wegpunkt Unteres Kurast und ende an den Lagerfeuer-Hütten.")).toBeInTheDocument();
+    expect(screen.getByText("Lagerfeuer-Hütten")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Unteres Kurast aufnehmen" })).toBeInTheDocument();
+    expect(screen.queryByText(/Würfel|Neuwürfeln|gute Karte/)).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Lagerfeuer vergrößern" }));
+    const dialog = await screen.findByRole("dialog", { name: "Lagerfeuer" });
+    expect(dialog).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Schließen" }));
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Lagerfeuer" })).not.toBeInTheDocument());
   });
 
   it("gruppiert beide Kuhlevel-Routen und hält F9 sowie F11 an der Aufnahmeaktion", async () => {

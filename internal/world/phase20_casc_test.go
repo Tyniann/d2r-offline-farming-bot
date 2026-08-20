@@ -20,6 +20,10 @@ func TestPhase20IDsMatchLocalCASCFixtures(t *testing.T) {
 	objects := readPhase20Fixture(t, "objects.txt")
 	assertFixtureUint(t, objects, "Class", "PortalPermanent", "*ID", uint64(PermanentPortalID))
 	assertFixtureUint(t, objects, "Class", "Wirt", "*ID", uint64(WirtsBodyID))
+	assertFixtureUint(t, objects, "Class", "JungleChest", "*ID", uint64(JungleChestID))
+	assertFixtureUint(t, objects, "Class", "JungleChest2", "*ID", uint64(JungleChest2ID))
+	assertFixtureUint(t, objects, "Class", "ArmorStand1", "*ID", uint64(ArmorStand1ID))
+	assertFixtureUint(t, objects, "Class", "WeaponRack2", "*ID", uint64(WeaponRack2ID))
 
 	skills := readPhase20Fixture(t, "skills.txt")
 	assertFixtureUint(t, skills, "skill", "Teleport", "*Id", uint64(memory.SkillTeleport))

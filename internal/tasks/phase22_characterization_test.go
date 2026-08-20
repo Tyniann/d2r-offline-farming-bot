@@ -12,7 +12,7 @@ import (
 // before Phase 22 splits the standard pipeline across domain files.
 func TestPhase22StandardPipelineGolden(t *testing.T) {
 	var trace strings.Builder
-	for _, runID := range []RunID{RunIDCountess, RunIDMephisto, RunIDSummoner, RunIDNihlathak} {
+	for _, runID := range []RunID{RunIDCountess, RunIDMephisto, RunIDSummoner, RunIDNihlathak, RunIDLowerKurast} {
 		definition, ok := DefaultRunRegistry().Definition(runID)
 		if !ok {
 			t.Fatalf("definition %q missing", runID)

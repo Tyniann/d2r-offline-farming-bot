@@ -24,7 +24,7 @@ func TestBootstrapBackendIsReadOnlyAndDeterministic(t *testing.T) {
 		t.Fatalf("bootstrap status = %+v", status)
 	}
 	first := backend.Catalog()
-	if len(first.Runs) != 5 {
+	if len(first.Runs) != 6 {
 		t.Fatalf("bootstrap runs = %+v", first.Runs)
 	}
 	if len(first.Profiles) != 2 || first.Profiles[0].ID != "necro_bone_spear" || first.Profiles[1].ID != "paladin_hammerdin" {

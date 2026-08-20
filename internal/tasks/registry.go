@@ -216,6 +216,19 @@ func defaultRunDefinitions() []RunDefinition {
 				},
 			},
 		},
+		{
+			ID: RunIDLowerKurast, DisplayName: "Lower Kurast", EntryArea: world.LowerKurast,
+			RouteTerminalArea: world.LowerKurast, WaypointTarget: pathing.WaypointTargetLowerKurast,
+			ReturnOrigin: town.OriginAct3,
+			RequiredCaps: append(append([]RunCapability(nil), shared...), RunCapabilityForeignTownEgress, RunCapabilityChestSweep),
+			Recording: RecordingContract{
+				InstructionsDE: "Reise zum Wegpunkt Unteres Kurast und starte dort die Aufnahme. Teleportiere die Hüttenreihen entlang und suche das Lagerfeuer: zwei rechteckige Hütten, darunter ein Feuer, das von einer kurzen Mauer eingefasst ist. In der westlichen Hütte stehen zwei große Truhen, in der östlichen eine. Dieselben Hütten haben ein Rüstungs- und ein Waffengestell. Wenn du ein zweites Feuer mit derselben Anordnung siehst, nimm den Weg dorthin ebenfalls auf. Klicke Truhen und Gestelle nicht selbst an. Beende die Aufnahme in der Nähe der letzten Hüttengruppe mit F9.",
+				StartKind:      RecordingStartWaypoint, StartWaypoint: pathing.WaypointTargetLowerKurast, AllowedStartArea: world.LowerKurast,
+				AllowedRouteAreas: []world.AreaID{world.LowerKurast},
+				TerminalKind:      RecordingTerminalEndpoint, TerminalArea: world.LowerKurast,
+				TerminalMaxDistanceTiles: 60, Movement: pathing.RouteMovementTeleport, SafetyReturn: RecordingSafetyReturnTownPortal, EgressOriginAct: town.OriginAct3,
+			},
+		},
 	}
 }
 
@@ -228,9 +241,6 @@ func validateRunDefinition(definition RunDefinition) error {
 	}
 	if definition.WaypointTarget == "" {
 		return fmt.Errorf("waypoint target is required")
-	}
-	if definition.RouteSet == nil && (definition.Boss.NPCID == 0 || strings.TrimSpace(definition.Boss.Name) == "") {
-		return fmt.Errorf("boss descriptor is required for a single-route run")
 	}
 	// An empty BossEngageSequence is valid: combat starts with the regular
 	// attack skill and skips pre-combat profile hooks such as Bone Prison.
@@ -285,9 +295,32 @@ func validateRunDefinition(definition RunDefinition) error {
 	} else if len(definition.RouteHostileNPCIDs) != 0 {
 		return fmt.Errorf("route hostile allowlist requires %s", RunCapabilityRouteClear)
 	}
+	chestSweep := seen[RunCapabilityChestSweep]
+	if chestSweep && definition.RouteSet != nil {
+		return fmt.Errorf("chest_sweep is a single-route capability")
+	}
+	if definition.RouteSet == nil {
+		emptyBoss := definition.Boss.NPCID == 0 && strings.TrimSpace(definition.Boss.Name) == ""
+		if chestSweep {
+			if !emptyBoss {
+				return fmt.Errorf("chest_sweep run must not declare a boss descriptor")
+			}
+			if len(definition.BossEngageSequence) != 0 || definition.ClearNearbyAfterBoss {
+				return fmt.Errorf("chest_sweep run must not declare boss engage or nearby clear")
+			}
+			if seen[RunCapabilityRouteClear] {
+				return fmt.Errorf("chest_sweep run must not declare route clear")
+			}
+		} else if emptyBoss {
+			return fmt.Errorf("boss descriptor is required for a single-route run")
+		}
+	}
 	if definition.RouteSet == nil {
 		if err := validateRecordingContract(definition, definition.Recording, true); err != nil {
 			return err
+		}
+		if chestSweep && definition.Recording.TerminalKind != RecordingTerminalEndpoint {
+			return fmt.Errorf("chest_sweep run requires an endpoint recording terminal")
 		}
 	} else if err := validateRouteSetDefinition(definition); err != nil {
 		return err

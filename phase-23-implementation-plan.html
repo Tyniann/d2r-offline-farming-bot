@@ -474,7 +474,7 @@
     </div>
     <div class="hero-meta">
       <div><strong>Stand</strong><span>20. August 2026</span></div>
-      <div><strong>Status</strong><span>23.0 Code bereit; wartet auf Live-Evidenz</span></div>
+      <div><strong>Status</strong><span>23.0–23.9 bestanden. Phase 23 abgeschlossen</span></div>
       <div><strong>Run-ID</strong><span><code>lower-kurast</code></span></div>
       <div><strong>Rückkehr</strong><span>Act 3 · Kurast Docks</span></div>
     </div>
@@ -640,18 +640,18 @@
             <td>Wegpunkt</td>
             <td>Act-3-Tab existiert für Durance Ebene 2, Zeile <code>Y=506</code>.</td>
             <td>LK liegt früher in derselben Liste. Zeile darf nicht geraten werden.</td>
-            <td><code>WaypointTargetLowerKurast</code> nach Live-Kalibrierung 1280×720.</td>
+            <td><code>WaypointTargetLowerKurast</code> Act 3 Zeile 5, <code>RowY=342</code>, Area 79. Live-Abnahme über <code>--town-test waypoint:lower_kurast</code>.</td>
           </tr>
           <tr>
             <td>Town</td>
             <td>Akara-Shop und <code>VendorBuyer</code> sind produktiv.</td>
-            <td><code>AkaraVendorCost("key")</code> fehlt. Scroll-Mengen sind im Demand-Pfad noch Stub.</td>
+            <td>Echte Inventar-Stackzahl für <code>key</code>. Restock nur vor LK. <code>AkaraVendorCost("key")=45</code>.</td>
             <td>Echte Inventar-Stackzahl für <code>key</code>. Restock nur vor LK.</td>
           </tr>
           <tr>
             <td>Öffnen</td>
-            <td>Hover-Klick existiert für WP, Portale, Good-Chest-Suche.</td>
-            <td>Good Chest ist Suchanker, keine Ertragsöffnung. Kein produktiver Chest-Executor.</td>
+            <td>Hover-Operate auf Hütten-Supertruhen und Gestelle daneben, Mode 0→2, Skip ohne Schlüssel, Operate-on-sight plus Schlusssweep.</td>
+            <td>Good Chest bleibt Suchanker. Produktiver LK-Executor sitzt auf der gemeinsamen Pipeline, nicht auf einem Fake-Boss.</td>
             <td>Operate, Mode-Wechsel abwarten, Loot, nächste Truhe.</td>
           </tr>
           <tr>
@@ -777,10 +777,10 @@
       <table>
         <thead><tr><th>Objekt</th><th>*ID / Quelle</th><th>Was es droppt</th><th>v1</th></tr></thead>
         <tbody>
-          <tr><td><code>JungleChest</code> / <code>JungleChest2</code></td><td>181 / 183</td><td>Kandidaten für die Hüttentruhen</td><td>Nur nach Live-Treffer</td></tr>
-          <tr><td><code>Chest5</code>–<code>Chest7</code></td><td>240–242</td><td>allgemeine <code>gchest</code></td><td>Nur nach Live-Treffer</td></tr>
-          <tr><td><code>SpecialChest100</code></td><td>455</td><td>einzige <code>SpecialChest*</code>-Zeile im Extract</td><td>Nur nach Live-Treffer</td></tr>
-          <tr><td>Rüstungs-/Waffengestelle</td><td>104–107, 548–551 in <code>objects.txt</code></td><td>eine Waffe oder Rüstung, erhöhte Unique/Set-Chance, kein MF, keine Supertruhen-Runen</td><td class="good">Ja, nur an den Lagerfeuer-Hütten</td></tr>
+          <tr><td><code>JungleChest</code> / <code>JungleChest2</code></td><td>181 / 183</td><td>Die drei Hüttentruhen am Live-Lagerfeuer. 181 liegt zusätzlich als weitere Kiste neben der westlichen Hütte; ID allein unterscheidet Supertruhe nicht.</td><td class="good">Ja, nur die drei am Feuer, plus Nähe-Filter</td></tr>
+          <tr><td><code>Chest5</code>–<code>Chest7</code></td><td>240–242</td><td>allgemeine <code>gchest</code></td><td class="bad">Nein. Am Lagerfeuer nicht gesehen.</td></tr>
+          <tr><td><code>SpecialChest100</code></td><td>455</td><td>einzige <code>SpecialChest*</code>-Zeile im Extract</td><td class="bad">Nein. Am Lagerfeuer nicht gesehen.</td></tr>
+          <tr><td>Rüstungs-/Waffengestelle</td><td>104 / 107 live; CASC auch 105–106, 548–551</td><td>Westen <code>ArmorStand1</code> 104, Osten <code>WeaponRack2</code> 107. Eine Waffe oder Rüstung, erhöhte Unique/Set-Chance, kein MF, keine Supertruhen-Runen</td><td class="good">Ja, nur an den Lagerfeuer-Hütten</td></tr>
           <tr><td>Funkenkisten, Holz, Leichen</td><td>diverse</td><td>normale TCs, MF wirkt, nicht das 65k-Muster</td><td class="bad">Nein</td></tr>
           <tr><td><code>PlaceUniqueChest</code></td><td>584</td><td>Countess-Anker</td><td class="muted">Unverändert, nicht LK</td></tr>
         </tbody>
@@ -812,23 +812,22 @@
     <div class="callout danger">
       <h3>Keine geratenen Truhen-IDs im Shipping-Code</h3>
       <p>
-        Der Generator darf Supertruhen erst aufnehmen, wenn Gate 23.0 an einem gefundenen Lagerfeuer die
-        <code>TxtFileNo</code> der drei Hüttenkisten geschrieben hat. Eine kleine Allowlist, nicht jede
-        <code>Class=chest</code>. Gestell-IDs stehen schon im CASC. Gate 23.0 bestätigt trotzdem, dass die
-        Hüttengestelle genau diese Klassen sind.
+        Live hat die drei Hüttenkisten auf 181 und 183 reduziert. Der Generator darf genau diese Klassen
+        aufnehmen, nicht jede <code>Class=chest</code> und nicht jede 181 in Unteres Kurast. 181 kommt
+        am selben Hof auch außerhalb der Hütte vor. Gestelle am Feuer waren 104 und 107.
       </p>
     </div>
 
     <h3>Objekt-Mode</h3>
     <p>
-      <code>ObjectUnit</code> liefert heute nur ID, UnitID und Position. Söldner und Kühe lesen <code>unitOffsetMode = 0x0C</code>
-      bereits. Dieselbe Offsets muss Gate 23.0 an Truhen und Gestellen belegen: welcher Mode geschlossen, öffnend
-      und offen ist, und ob „verschlossen“ ein eigener Mode ist. Ohne Mode klickt der Bot geöffnete Objekte erneut an.
+      Live, <code>UnitAny+0x0C</code>: geschlossen ist Mode 0, geöffnet Mode 2, belegt an Hüttentruhe 181
+      und Waffengestell 107. Feuer und Fackeln stehen dauerhaft auf 2. Ohne diesen Sprung 0→2 würde der Bot
+      offene Objekte erneut anklicken.
     </p>
     <p>
-      Falls „verschlossen“ kein eigener Mode ist, sondern nur am Fehlschlag des Klicks sichtbar wird:
-      ein Klick, kurzes Mode-/Hover-Settle, kein Mode-Wechsel und Schlüsselbestand unverändert bedeutet Skip
-      dieser UnitID, nicht eine Schleife.
+      Verschlossen ist kein eigener Mode. Dieselbe geschlossene 181 las Mode 0 mit Schlüssel im Inventar
+      und mit Schlüssel im Stash. Produkt: ein Klick, kurzes Mode-/Hover-Settle, Mode bleibt 0 und
+      Schlüsselbestand unverändert bedeutet Skip dieser UnitID, nicht eine Schleife.
     </p>
   </section>
 
@@ -940,8 +939,8 @@ letzten Hüttengruppe mit F9.</pre>
     <h3>Wegpunkt</h3>
     <p>
       Neues Ziel <code>WaypointTargetLowerKurast</code>, erwartete Area 79, Act-Tab 3 (dieselbe Geometrie wie
-      Durance: Tab <code>273,148</code>). Die Zeile wird in Gate 23.2 live bei 1280×720 gemessen und erst dann
-      eingecheckt. <code>levels.txt</code> fehlt im Extract und darf die Zeile nicht ersetzen.
+      Durance: Tab <code>273,148</code>). Live-Zeile 5 ergibt <code>RowY 342</code>, bestätigt 20. August 2026.
+      <code>levels.txt</code> darf die Zeile nicht ersetzen.
     </p>
 
     <h3>Egress</h3>
@@ -1011,14 +1010,17 @@ letzten Hüttengruppe mit F9.</pre>
     <div class="phase-list">
 
       <article class="gate manual-gate">
-        <div class="gate-id">23.0<span class="gate-mode manual">Live · Code bereit</span></div>
+        <div class="gate-id">23.0<span class="gate-mode manual">Live · bestanden</span></div>
         <div>
           <h3>Objektidentität am Lagerfeuer</h3>
           <p>
-            Read-only <code>--object-inspect</code> schreibt für die aktuelle Area ID, UnitID, Position, Mode
-            und Katalogname. Operator steht in Hell-LK am gefundenen Lagerfeuer seiner bestehenden Karte,
-            Truhen noch geschlossen. Danach eine Truhe und ein Gestell öffnen, Inspect wiederholen, Mode-Delta
-            notieren. Wenn möglich eine verschlossene Truhe mit und ohne Schlüssel im Inventar.
+            Read-only <code>--object-inspect</code> ist ein Snapshot: Szene stehen, Befehl starten, JSON,
+            Prozessende. Kein Klick, kein Warten, Hover unnötig. Hell, 1280×720, bestehende Karte.
+            Zuerst am Feuer bei geschlossenen Hütten. Dann eine Hüttentruhe und ein Gestell dort öffnen
+            und denselben Befehl mit Label <code>opened</code> wiederholen. Verschlossen: dieselbe noch
+            geschlossene 181/183 fotografieren, einmal mit Stadtschlüssel im Inventar, einmal nachdem der
+            Stapel im Stash liegt. Nicht aufschließen. Inspect beendet sich sofort; wer erst nach dem Start
+            klickt, kommt zu spät.
           </p>
           <div class="gate-proof">
             <strong>Bestanden:</strong> Die drei Hüttenkisten sind auf eine kleine ID-Menge reduziert. Die
@@ -1026,22 +1028,42 @@ letzten Hüttengruppe mit F9.</pre>
             Verschlossen ist entweder ein Mode oder ein belegtes Fail-closed-Verhalten. Quantity-Stat 70 ist
             an einem Schlüsselstapel sichtbar. Keine Produkt-Truhen-IDs vor diesem Report.
           </div>
-          <div class="callout" style="margin-top:14px">
-            <h3>Implementierungsstand 20. August 2026</h3>
+          <div class="callout success" style="margin-top:14px">
+            <h3>Live 20. August 2026 · Hell LK, Area 79, bestehende Karte</h3>
             <p>
-              Der Diagnose-Walk ist da und umgeht die produktive Allowlist. Mode kommt von
-              <code>UnitAny+0x0C</code>. Katalognamen kommen aus dem bestehenden World-Lookup oder, falls
-              vorhanden, aus <code>.tmp/d2r-excel/objects.txt</code>. Schlüsselstapel <code>code=key</code>
-              tragen den rohen Stat 70. Keine Supertruhen-IDs, kein <code>ObjectKindSuperChest</code>, kein
-              produktives Quantity-Decoding. Automatische Tests sind grün. Das Gate bleibt offen, bis die
-              Live-JSONs die drei Hüttenkisten, Gestellklassen, Mode-Deltas und Stat 70 zeigen.
+              Westen: zwei <code>JungleChest2</code> 183 plus <code>ArmorStand1</code> 104.
+              Osten: eine <code>JungleChest</code> 181 plus <code>WeaponRack2</code> 107.
+              Dieselbe 181 steht zusätzlich neben der westlichen Hütte. 240–242 und 455 waren am Feuer nicht da.
+            </p>
+            <p>
+              Mode 0 geschlossen, Mode 2 geöffnet, an Truhe 181 Unit 159 und Gestell 107 Unit 158.
+              Verschlossene 181 Unit 180 blieb Mode 0 mit Schlüssel im Inventar und mit Schlüssel im Stash.
+              Locked ist kein Mode. Produkt skippt, wenn der Klick Mode 0 lässt und die Schlüsselzahl gleich bleibt.
+            </p>
+            <p>
+              Artefakte unter <code>configs/diagnostics/objects/</code>:
+              <code>20260820T083741…-closed.json</code>,
+              <code>20260820T084035…-closed.json</code> (Label falsch, Inhalt ist das Open-Delta),
+              <code>20260820T085953…-locked-with-key.json</code>,
+              <code>20260820T090040…-locked-no-key.json</code>,
+              <code>20260820T091637…-keys-in-town.json</code>.
+            </p>
+          </div>
+          <div class="callout success" style="margin-top:14px">
+            <h3>Stat 70 · Rogue Encampment, 1 Inventarstapel à 5</h3>
+            <p>
+              Unit 344, Inventar 9,3, <code>code=key</code>, 558. Active lesbar und leer.
+              Base trägt Layer-0 Stat 70 mit Wert 5, unskaliert gleich der Stapelgröße.
+              Produktives <code>stats</code> bleibt leer, weil der Item-Read Active bevorzugt.
+              23.1 liest Quantity aus Base, analog Stat 194. Cursor zeigte in dem Capture einen zweiten
+              Stapel mit Wert 4; Restock zählt nur Inventar, nicht den Cursor.
             </p>
           </div>
         </div>
       </article>
 
       <article class="gate auto-gate">
-        <div class="gate-id">23.1<span class="gate-mode auto">Auto</span></div>
+        <div class="gate-id">23.1<span class="gate-mode auto">Auto · bestanden</span></div>
         <div>
           <h3>Katalog, Mode, Quantity</h3>
           <p>
@@ -1049,31 +1071,56 @@ letzten Hüttengruppe mit F9.</pre>
             erweitern. Neue Kinds <code>ObjectKindSuperChest</code> und <code>ObjectKindRack</code>.
             <code>ObjectUnit</code> und World-<code>Object</code> tragen Mode plus Known-Flag.
             <code>StatQuantity = 70</code> analog zu Sockets, Test gegen lokales <code>itemstatcost.txt</code>.
+            Live: nur Base, Active leer, Wert unskaliert gleich der Stapelgröße. Decoder Base-first wie Stat 194.
             Replay-Decoder und Layout-Fingerprint nur so weit anfassen, dass die neuen Kinds nicht als unbekannt zerbrechen.
           </p>
           <div class="gate-proof">
             <strong>Bestanden:</strong> Generator- und World-Tests grün. Unbekannte IDs bleiben
             <code>ObjectKindUnknown</code> und werden nicht geöffnet.
           </div>
+          <div class="callout success" style="margin-top:14px">
+            <h3>Katalog 20. August 2026 · CASC <code>objects.txt</code> 3.2.92777</h3>
+            <p>
+              Generator nimmt genau <code>JungleChest</code> 181, <code>JungleChest2</code> 183,
+              <code>ArmorStand1</code> 104 und <code>WeaponRack2</code> 107. Nicht 105/106, nicht 240–242,
+              nicht 455, nicht die Expansion-Gestelle 548–551. ID allein macht aus 181 keine Supertruhe;
+              der Nähefilter kommt in 23.5.
+            </p>
+            <p>
+              Mode sitzt produktiv auf <code>UnitAny+0x0C</code> mit Known-Flag. Stat 70 ist
+              <code>StatQuantity</code>, Decoder Base-first, Wert unskaliert. Replay liest
+              <code>super_chest</code>/<code>rack</code>; ein alter Trace mit Label <code>unknown</code>
+              bleibt unknown. Layout-Fingerprint ignoriert Supertruhen und Gestelle.
+            </p>
+          </div>
         </div>
       </article>
 
       <article class="gate manual-gate">
-        <div class="gate-id">23.2<span class="gate-mode manual">Live</span></div>
+        <div class="gate-id">23.2<span class="gate-mode manual">Live · bestanden</span></div>
         <div>
           <h3>Wegpunkt Unteres Kurast</h3>
           <p>
-            Bei offenem Act-3-Menü Zeile für Unteres Kurast auf 1280×720 messen, Ankunft Area 79 Memory-bestätigen.
-            Erst danach <code>WaypointTargetLowerKurast</code> und Registry-Tests einchecken. Parallel zu 23.0 zulässig.
+            Registry-Zeile Act 3 / Zeile 5 / Area 79 (Tab <code>273,148</code>, Row <code>200,342</code>),
+            derselbe Executor wie Durance. Isolierter Nachweis:
+            <code>--data-root %LOCALAPPDATA%\D2ROfflineFarmingBot --town-test waypoint:lower_kurast</code>.
           </p>
           <div class="gate-proof">
             <strong>Bestanden:</strong> Ein isolierter Waypoint-Select landet in Area 79. Keine geratene <code>RowY</code>.
+          </div>
+          <div class="callout success" style="margin-top:14px">
+            <h3>Live 20. August 2026 · MrHammer, 1280×720</h3>
+            <p>
+              Town-WP Unit 417 hover-bestätigt. Act-3-Tab <code>273,148</code>, Zeile 5
+              <code>200,342</code>. Memory-Ankunft Area 79 (Lower Kurast).
+              Log <code>d2rbot-20260820-120249.log</code>.
+            </p>
           </div>
         </div>
       </article>
 
       <article class="gate auto-gate">
-        <div class="gate-id">23.3<span class="gate-mode auto">Auto</span></div>
+        <div class="gate-id">23.3<span class="gate-mode auto">Auto · bestanden</span></div>
         <div>
           <h3>Akara-Schlüssel-Restock</h3>
           <p>
@@ -1084,11 +1131,19 @@ letzten Hüttengruppe mit F9.</pre>
             <strong>Bestanden:</strong> Unter Schwelle entsteht genau eine Key-Order. Andere Runs erzeugen keine.
             Unlesbare Quantity gilt als 0 (nachkaufen), nicht als „voll“.
           </div>
+          <div class="callout success" style="margin-top:14px">
+            <h3>CASC 20. August 2026 · <code>misc.txt</code> / <code>npc.txt</code> 3.2.92777</h3>
+            <p>
+              <code>key</code> kostet 45, Stack 12. Akara <code>sell mult</code> 1024. <code>RestockKey</code>
+              Schwelle 6, Ziel 12, nur Einzel-RMB auf dem bestehenden Akara-Potion-Pfad.
+              Demand nur bei Handoff <code>lower-kurast</code>. Unlesbare Stat-70-Quantity zählt als 0.
+            </p>
+          </div>
         </div>
       </article>
 
       <article class="gate auto-gate">
-        <div class="gate-id">23.4<span class="gate-mode auto">Auto</span></div>
+        <div class="gate-id">23.4<span class="gate-mode auto">Auto · bestanden</span></div>
         <div>
           <h3>Registry ohne Boss</h3>
           <p>
@@ -1100,11 +1155,27 @@ letzten Hüttengruppe mit F9.</pre>
             <strong>Bestanden:</strong> Default-Registry lädt. Eine Einzelroute ohne Capability und ohne Boss wird
             weiter abgelehnt. Cows bleibt unverändert ein Route-Set.
           </div>
+          <div class="callout success" style="margin-top:14px">
+            <h3>Registry 20. August 2026 · <code>lower-kurast</code></h3>
+            <p>
+              <code>RunIDLowerKurast</code>, DisplayName <code>Lower Kurast</code> (deutsche UI-Labels in 23.6).
+              Capability <code>chest_sweep</code> ersetzt den Boss: leerer Deskriptor, keine Engage-Sequenz,
+              kein Nearby-Clear, kein Route-Clear. Ohne diese Capability bleibt ein leerer Boss an einer
+              Einzelroute fail-closed. Cows bleibt das einzige Route-Set.
+            </p>
+            <p>
+              Aufnahme: Start am LK-Wegpunkt, Area 79, Terminal <code>RecordingTerminalEndpoint</code>,
+              max. 60 Tiles, Teleport, Safety-Return per Stadtportal, Return <code>OriginAct3</code>.
+              <code>InstructionsDE</code> ist der Vertrag aus Abschnitt 7, inklusive „Truhen und Gestelle
+              nicht selbst anklicken“. Necro und Hammerdin registrieren denselben Run; <code>Configure</code>
+              ist ein No-op. Config-Stub <code>runs.definitions.lower-kurast</code> existiert.
+            </p>
+          </div>
         </div>
       </article>
 
       <article class="gate auto-gate">
-        <div class="gate-id">23.5<span class="gate-mode auto">Auto</span></div>
+        <div class="gate-id">23.5<span class="gate-mode auto">Auto · bestanden</span></div>
         <div>
           <h3>Chest-Executor und Pipeline</h3>
           <p>
@@ -1117,27 +1188,58 @@ letzten Hüttengruppe mit F9.</pre>
             <strong>Bestanden:</strong> Unit-Tests für Skip, Retry, 0-Truhen-Fail, Gestell ignorieren ohne Truhe
             in der Nähe, keine Re-Clicks. Kein <code>acquire_boss</code> auf diesem Pfad.
           </div>
+          <div class="callout warn" style="margin-top:14px">
+            <h3>Erkenntnis · Nähefilter 28 / 22 Tiles</h3>
+            <p>
+              <code>chestRackSeedTiles = 28</code> und <code>chestPairTiles = 22</code> sind an ein Hell-Live-Camp
+              vom 20. August 2026 (MrHammer) angepasst, nicht an CASC. Relativabstände in einem Preset bleiben bei
+              Rotation erhalten; die Lagerfeuerposition auf der Karte ist zufällig. Die zusätzliche
+              <code>JungleChest</code> 181 neben der Westhütte kann ein Junk-Spawn pro Betreten sein.
+            </p>
+            <p>
+              Radius 28 zu klein: Camp oder Westhütte wird nicht geseedet, der Run endet mit
+              <code>chest_sweep_empty</code> am Feuer. Radius 22 zu klein: die zweite West-Supertruhe fällt raus,
+              der Run kann trotzdem bestehen. Radius 22 zu groß: Extra-181 wird mitgeöffnet. Radius 28 zu groß:
+              Extra-181 plus ein Gestell auf dem Weg gilt als Camp, Weg-Gestelle werden geklickt. Andere Presets
+              oder ein weiter auseinander liegendes Westpaar sind nicht belegt.
+            </p>
+          </div>
         </div>
       </article>
 
       <article class="gate auto-gate">
-        <div class="gate-id">23.6<span class="gate-mode auto">Auto</span></div>
+        <div class="gate-id">23.6<span class="gate-mode auto">Auto · bestanden</span></div>
         <div>
           <h3>Pickit, UI, Defaults</h3>
           <p>
             Profil Pul+ und Elite-Unique/Set, Default-Kette, Bundle, <code>runOrder</code>, deutsche Labels inklusive
             des Aufnahmevertrags aus Abschnitt 7, zwei Thumbnails mit Vollbild-Overlay in der LK-Aufnahmeansicht,
-            Charakter-Setup, History ohne Fake-Kills. Kleinster betroffener UI- und Config-Test. Die Screenshot-Dateien
-            können als Platzhalter landen, bis du die endgültigen Bilder nachreichst.
+            Charakter-Setup, History ohne Fake-Kills. Kleinster betroffener UI- und Config-Test.
           </p>
           <div class="gate-proof">
             <strong>Bestanden:</strong> Setup zeigt den Run für beide Profile. Pickit-Default hält Pul+ und Elite-Unique/Set, keine Uber-Keys. Overlay schließt per Button.
+          </div>
+          <div class="callout success" style="margin-top:14px">
+            <h3>Pickit und UI 20. August 2026</h3>
+            <p>
+              Profil <code>lk-superchests</code>: Keep für <code>r21</code>–<code>r30</code> (Pul bis Ber) und
+              Elite-Unique/Set. Jah <code>r31</code> und Cham <code>r32</code> bleiben draußen. Default-Kette
+              <code>gems</code>, <code>lk-superchests</code>. Kein <code>keys.yaml</code>, kein
+              <code>mephisto-standard</code>. Setup und Bundle lesen dieselbe Kette.
+            </p>
+            <p>
+              <code>runOrder</code> nach Mephisto. Labels: Run und Wegpunkt „Unteres Kurast“, Ziel
+              „Lagerfeuer-Hütten“. Die gelieferten Fotos liegen unter
+              <code>web/src/assets/route-guides/lower-kurast/</code> (<code>campfire.png</code>,
+              <code>huts.png</code>). Overlay schließt per Button. History belässt <code>boss_kills</code> bei 0;
+              JSONL zählt <code>chest_opened</code>, <code>chest_skipped</code>, <code>rack_operated</code>.
+            </p>
           </div>
         </div>
       </article>
 
       <article class="gate manual-gate">
-        <div class="gate-id">23.7<span class="gate-mode manual">Live</span></div>
+        <div class="gate-id">23.7<span class="gate-mode manual">Live · bestanden</span></div>
         <div>
           <h3>Aufnahme und Routentest</h3>
           <p>
@@ -1149,28 +1251,143 @@ letzten Hüttengruppe mit F9.</pre>
           <div class="gate-proof">
             <strong>Bestanden:</strong> Aufnahme startet nur am LK-WP. Playback endet an den Lagerfeuer-Hütten. Safety-Return per Portal. Die UI zeigt den Vertragstext, keinen Würfel-Hinweis.
           </div>
+          <div class="callout success" style="margin-top:14px">
+            <h3>Aufnahme 20. August 2026 · MrHammer Hell, Area 79</h3>
+            <p>
+              Veröffentlicht: <code>lower-kurast-mrhammer-d48622a56f</code>, Paladin, Seed
+              <code>466817790</code>, Einzelroute Teleport in Area 79, 11 Punkte vom Wegpunkt
+              <code>5253,2933</code> zum Endpunkt <code>5057,2996</code>. Assignment unter
+              <code>mrhammer.lower-kurast</code>. Geführter Test
+              <code>candidate-ca117764279aa7f5</code> mit <code>test_passed</code>,
+              <code>measured_boss_distance=0</code>. Start nur am LK-WP: Anker Wegpunkt sichtbar,
+              Distanz 1,4 bei Toleranz 15. Playback über Act-3-Egress, WP-Zeile 5, dann Portal-Rückkehr.
+              Vertragstext aus Abschnitt 7, kein Würfel-Hinweis.
+            </p>
+            <p>
+              Erster Startversuch scheiterte, bevor die Ortsprüfung lief: der Operator-<code>config.yaml</code>
+              fehlte der leere Stub <code>runs.definitions.lower-kurast</code>, den Gräfin, Mephisto und die
+              anderen Runs schon hatten. Dieselbe Aufnahme-Mechanik wie bei den Einzelrouten, kein Sonderweg.
+              Stub nachgetragen; <code>config.example.yaml</code> hatte ihn bereits.
+            </p>
+          </div>
         </div>
       </article>
 
       <article class="gate manual-gate">
-        <div class="gate-id">23.8<span class="gate-mode manual">Live</span></div>
+        <div class="gate-id">23.8<span class="gate-mode manual">Live · bestanden</span></div>
         <div>
           <h3>Ein voller produktiver Zyklus</h3>
           <p>
             Town kauft Schlüssel unter Schwelle, WP landet in 79, Route spielt, sichtbare Supertruhen öffnen
             (verschlossene mit Schlüssel), Hüttengestelle bedienen, Loot nach Pickit, Portal, Docks-Egress, Stash.
-            Zweiter Durchlauf mit absichtlich 0 Schlüsseln: verschlossene Truhe wird übersprungen, Run endet nicht
-            deswegen. Gestelle auf dem Weg vor dem Feuer bleiben unberührt.
+            Gestelle auf dem Weg vor dem Feuer bleiben unberührt. Der zweite Durchlauf mit absichtlich 0 Schlüsseln
+            ist gestrichen: Town kauft unter Schwelle 6 bei Akara nach, ein leerer Schlüsselstapel ist als
+            Operatoraktion nicht haltbar. Die Skip-Regel <code>chest_locked_no_key</code> bleibt im Code.
           </p>
           <div class="gate-proof">
-            <strong>Bestanden:</strong> Beide Läufe loggen Operate/Skip nachvollziehbar. Keine Extra-Kiste außerhalb
+            <strong>Bestanden:</strong> Produktive Läufe loggen Operate nachvollziehbar. Keine Extra-Kiste außerhalb
             der Allowlist, keine Gestelle außer an den Hütten. Kein Schreiben in D2R-Install oder Savegames.
+            0-Schlüssel-Lauf gestrichen.
+          </div>
+          <div class="callout success" style="margin-top:14px">
+            <h3>Zyklus 20. August 2026 · fünf abgeschlossene Hell-Läufe</h3>
+            <p>
+              Session <code>session-20260820t183916999999999z-a7b983e6</code>, MrHammer Hell, Route
+              <code>lower-kurast-mrhammer-d48622a56f</code>. Alle fünf Runs
+              (<code>a565a16d</code>, <code>29348546</code>, <code>c70c9abf</code>,
+              <code>e09720b3</code>, <code>a52d17c3</code>) endeten mit <code>run_completed</code>:
+              je vier Supertruhen (181/183), Weapon Rack 107 und Armor Stand 104, keine
+              <code>chest_skipped</code>, kein lokaler Clear. Run 4 kaufte Schlüssel
+              (<code>current_count</code> 5, Schwelle 6, vier Einzel-RMB, <code>verified_final_count</code> 12).
+              Jeder RMB erhöhte den Zähler um 2; die Stapel bleiben oft 2er-Stapel. Pickit-Treffer gingen
+              in den Stash. Session-Ende per Stop zählt nicht gegen das Gate.
+            </p>
+          </div>
+          <div class="callout warn" style="margin-top:14px">
+            <h3>Erkenntnis · Rest-Sweep hält keine fertige Route</h3>
+            <p>
+              20. August 2026, MrHammer: <code>play_bound_route</code> endete am Lagerfeuer
+              (<code>5057,2996</code>), danach scheiterte <code>chest_sweep</code> in 98&nbsp;ms mit
+              <code>route_threat_state_invalid</code>. Ursache war <code>Route.Hold</code> auf dem
+              bereits abgeschlossenen Adapter (<code>run route hold has no active progress</code>),
+              nicht der Aufnahme-Endpunkt. Operate-on-sight während der Fahrt behält Hold;
+              der Rest-Sweep danach nicht. Gate 23.8 blieb nach diesem Versuch offen.
+            </p>
+          </div>
+          <div class="callout warn" style="margin-top:14px">
+            <h3>Erkenntnis · Operate während der Route + westliches Paar</h3>
+            <p>
+              20. August 2026, zweiter Versuch: Rest-Sweep öffnete ost 181 (<code>5060,2972</code>),
+              Gestell 107, west 183 am Ständer (<code>5033,2983</code>) und Gestell 104, dann Ende.
+              Die zweite westliche Supertruhe (~30 Kacheln weiter) blieb draußen, weil Operate-on-sight
+              hinter <code>route_clear</code> hing (Lower Kurast hat nur <code>chest_sweep</code>) und
+              der Nähefilter 28/22 das Paar kappte. Filter jetzt 34/32; Extra-JungleChest 181 an der
+              Hütte darf mitlaufen, damit keine Supertruhe verloren geht. Gate 23.8 blieb nach diesem Versuch offen.
+            </p>
+          </div>
+          <div class="callout warn" style="margin-top:14px">
+            <h3>Erkenntnis · Sichtweite ist keine Approach-Reichweite</h3>
+            <p>
+              20. August 2026, dritter Versuch: Route, Portal, Docks-Egress und Stash liefen vollständig.
+              Zwei Hütten-Gestelle und die nahe Extra-JungleChest wurden bedient. Drei eigentliche
+              Supertruhen endeten jedoch mit <code>chest_approach_exhausted</code>, weil die Auswahl
+              schon bei bloßer Sichtbarkeit hielt und nach dem gewöhnlichen Loot-Limit von drei
+              Teleports dauerhaft skippen durfte. Operate-on-sight startet jetzt erst innerhalb
+              von 40 Kacheln; Truhen erhalten sechs begrenzte Approach-Teleports. Gate 23.8 blieb nach diesem Versuch offen.
+            </p>
+          </div>
+          <div class="callout warn" style="margin-top:14px">
+            <h3>Erkenntnis · Monster können den Objekt-Hover verdecken</h3>
+            <p>
+              20. August 2026, vierter Versuch: Der Approach-Fix öffnete drei der vier zugelassenen
+              Kisten. Die westliche Hütten-Supertruhe und der zweite Gestell-Hover erschöpften jedoch
+              jeweils 15 Proben mit <code>chest_hover_not_found</code>, während viele Gegner direkt
+              an der Hütte standen. Die Objekt-Recovery merkt sich deshalb einen tatsächlich
+              Memory-bestätigten Monster-Hover. Nur nach anschließend erschöpftem Suchbudget folgt genau
+              ein lokaler Hammerdin-Clear im 12-Kachel-Kreis, begrenzt auf zwölf Aktionen, sechs
+              Sekunden und drei Sekunden ohne Aktion. Nach drei monsterfreien Snapshots wird dasselbe
+              Objekt einmal neu versucht. Lower Kurast erhält weiterhin kein globales
+              <code>route_clear</code>. Gate 23.8 blieb nach diesem Versuch offen.
+            </p>
+          </div>
+          <div class="callout warn" style="margin-top:14px">
+            <h3>Erkenntnis · Supertruhen-Hover sitzt über der Bodenkachel</h3>
+            <p>
+              20. August 2026, fünfter Versuch: Vier produktive Läufe, drei vollständig.
+              Run 3 übersprang die westliche Supertruhe <code>183</code> bei
+              <code>5031,2968</code> nach 15 Hover-Proben mit
+              <code>chest_hover_not_found</code>, ohne Monsterbeleg. Supertruhen trafen
+              in denselben Läufen fast immer erst bei Versuch 11–12, Gestelle bei 1.
+              Ursache: der Truhen-Adapter setzte <code>anchor_offset_tiles</code> auf 0
+              (Bodenkachel). Die 15-Pixel-Spirale läuft erst bei Versuch 10–12 nach oben
+              zum Deckel; bei Charakter auf der Kachel (Probe bei Bildschirm-Y ~355 statt
+              ~295) verfehlt sie. Der Adapter nutzt wieder den normalen Objekt-Anker
+              (Default 2). Fehlgeschlagene Hover loggen die letzte Hover-Unit. Der
+              Rest-Sweep gibt Hover-Misses genau einmal frei. Gate 23.8 blieb nach diesem Versuch offen.
+            </p>
+          </div>
+          <div class="callout warn" style="margin-top:14px">
+            <h3>Erkenntnis · Söldner-Hover ist kein lebendes Ziel</h3>
+            <p>
+              20. August 2026, sechster Versuch: Fünf produktive Läufe. Supertruhen öffneten
+              nach dem Anker-Fix meist beim ersten Hover. Run 5 übersprang die östliche
+              Supertruhe <code>122</code> bei <code>5060,2972</code> nach 15 Proben mit
+              <code>hovered=true hover_unit_type=monster hover_unit_id=46</code>, ohne
+              Blessed Hammer; der Rest-Sweep öffnete dieselbe Truhe. Ein Flawless Amethyst
+              verbrannte danach sechs volle Hover-Spiralen auf Monster <code>43</code>,
+              ebenfalls ohne Kampf. Ursache: der lokale Clear verlangte die gehoverte
+              UnitID in der feindlichen Monsterliste. Söldner und Leichen erscheinen als
+              Monster-Hover, stehen dort aber nicht. Der Clear nimmt jetzt den nächsten
+              lebenden Gegner im 12-Kachel-Kreis; verdeckt ein Monster-Hover das Pickup,
+              folgt derselbe Clear und ein Pickup-Retry statt Teleport-Recovery.
+              Dieser Befund ist durch den späteren Zyklus überholt, in dem kein Kampf nötig war.
+            </p>
           </div>
         </div>
       </article>
 
       <article class="gate auto-gate">
-        <div class="gate-id">23.9<span class="gate-mode auto">Auto</span></div>
+        <div class="gate-id">23.9<span class="gate-mode auto">Auto · bestanden</span></div>
         <div>
           <h3>Dokumentation</h3>
           <p>
@@ -1180,6 +1397,7 @@ letzten Hüttengruppe mit F9.</pre>
           <div class="gate-proof">
             <strong>Bestanden:</strong> Doc nennt Keys, Skip-Regel, Hüttengestelle ja / Weggestelle nein, den
             Lagerfeuer-Aufnahmevertrag und die Live-IDs mit CASC-Zeile. Kein Neuwürfel-Workflow.
+            0-Schlüssel-Lauf als Gate gestrichen, Skip-Regel dokumentiert.
           </div>
         </div>
       </article>
@@ -1233,11 +1451,14 @@ letzten Hüttengruppe mit F9.</pre>
 
     <h3>Implementierungsreihenfolge</h3>
     <ol>
-      <li>23.0 und 23.2 live, parallel.</li>
-      <li>23.1 Katalog/Mode, sobald IDs fest sind.</li>
-      <li>23.3 Keys und 23.4 Registry, parallel nach 23.1-Quantity bzw. unabhängig vom Katalog.</li>
-      <li>23.5 Pipeline, 23.6 UI/Pickit.</li>
-      <li>23.7 Aufnahme, 23.8 Zyklus, 23.9 Docs.</li>
+      <li>23.0 Live bestanden. 23.1 Katalog/Mode auf 181, 183, 104, 107. <code>StatQuantity</code> Base-first, Wert unskaliert. Bestanden.</li>
+      <li>23.2 WP live bestanden: Act-3 Zeile 5, Tab <code>273,148</code>, Row <code>200,342</code>, Area 79.</li>
+      <li>23.3 Akara-Schlüssel: <code>RestockKey</code>, 45 Gold, nur vor <code>lower-kurast</code>. Bestanden.</li>
+      <li>23.4 Registry ohne Boss: Capability <code>chest_sweep</code>, Einzelroute, Endpoint in Area 79. Bestanden.</li>
+      <li>23.5 Pipeline bestanden. Nähefilter 28/22 ist eine Live-Anpassung, nicht CASC.</li>
+      <li>23.6 Pickit <code>lk-superchests</code> (Pul–Ber, Elite-Unique/Set), UI-Labels, Overlay mit gelieferten Fotos. Bestanden.</li>
+      <li>23.7 Aufnahme und Routentest bestanden: MrHammer Hell, Route <code>lower-kurast-mrhammer-d48622a56f</code>.</li>
+      <li>23.8 produktiver Zyklus bestanden (fünf Hell-Läufe, 0-Schlüssel gestrichen). 23.9 Docs bestanden.</li>
     </ol>
 
     <div class="callout success">

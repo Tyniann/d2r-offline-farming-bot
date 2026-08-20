@@ -23,11 +23,14 @@ func TestDemandInspectorAndPlannerScenarios(t *testing.T) {
 		{"incomplete belt stays planable", Origin{Act: OriginAct1}, SupplySnapshot{Healing: 1, Mana: 4, TownPortalScrolls: 5, IdentifyScrolls: 3, BeltLayoutComplete: false}, NextRunTarget{}, "", []StepKind{StepService}},
 		{"countess handoff", Origin{Act: OriginAct1}, SupplySnapshot{Healing: 2, Mana: 4, TownPortalScrolls: 5, IdentifyScrolls: 3}, NextRunTarget{ID: "countess", Act: OriginAct1}, "", []StepKind{StepAct1Waypoint, StepHandoff}},
 		{"mephisto handoff", Origin{Act: OriginAct1}, SupplySnapshot{Healing: 2, Mana: 4, TownPortalScrolls: 5, IdentifyScrolls: 3}, NextRunTarget{ID: "mephisto", Act: OriginAct1}, "", []StepKind{StepAct1Waypoint, StepHandoff}},
+		{"lk keys below threshold", Origin{Act: OriginAct1}, SupplySnapshot{Healing: 2, Mana: 4, TownPortalScrolls: 5, IdentifyScrolls: 3, Keys: 5}, NextRunTarget{ID: KeyRestockNextRun, Act: OriginAct1}, "", []StepKind{StepService, StepAct1Waypoint, StepHandoff}},
+		{"countess ignores missing keys", Origin{Act: OriginAct1}, SupplySnapshot{Healing: 2, Mana: 4, TownPortalScrolls: 5, IdentifyScrolls: 3, Keys: 0}, NextRunTarget{ID: "countess", Act: OriginAct1}, "", []StepKind{StepAct1Waypoint, StepHandoff}},
+		{"lk keys at threshold", Origin{Act: OriginAct1}, SupplySnapshot{Healing: 2, Mana: 4, TownPortalScrolls: 5, IdentifyScrolls: 3, Keys: KeyRestockThreshold}, NextRunTarget{ID: KeyRestockNextRun, Act: OriginAct1}, "", []StepKind{StepAct1Waypoint, StepHandoff}},
 		{"missing egress", Origin{Act: OriginAct2, Anchor: AnchorPortalArrival}, SupplySnapshot{}, NextRunTarget{}, ReasonEgressMissing, nil},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			snapshot := InspectDemand(tc.supply, thresholds)
+			snapshot := InspectDemand(tc.supply, thresholds, tc.target.ID)
 			plan, reason := planner.Plan(tc.origin, snapshot, tc.target)
 			if reason != tc.wantReason {
 				t.Fatalf("reason = %q, want %q", reason, tc.wantReason)

@@ -43,7 +43,7 @@ Die feste Reihenfolge lautet:
 2. Nur vollständig fehlende Pickit-Zuordnungen in einem atomaren Assignment-Write ergänzen.
 3. Beide Stores neu lesen und den Charakterkatalog neu projizieren.
 
-Vorhandene Benutzerzuordnungen werden weder ergänzt noch sortiert noch überschrieben. Scheitert der zweite Store, bleibt das gültige Charakterprofil bestehen und nur der betroffene Run bleibt wegen seiner fehlenden Pickit-Zuordnung gesperrt. Ein erneuter identischer Confirm ist sicher und revisionsneutral.
+Vorhandene Benutzerzuordnungen werden weder ergänzt noch sortiert noch überschrieben. Lower Kurast erhält bei fehlender Kette `[gems, lk-superchests]`. Scheitert der zweite Store, bleibt das gültige Charakterprofil bestehen und nur der betroffene Run bleibt wegen seiner fehlenden Pickit-Zuordnung gesperrt. Ein erneuter identischer Confirm ist sicher und revisionsneutral.
 
 ### Auswahlbild erfassen
 
@@ -112,4 +112,4 @@ Die installierte Phase-16-Abnahme vom 28. Juli 2026 bestätigte den vollständig
 - [Lokale Core-API](local-core-api.md)
 
 ---
-*Zuletzt aktualisiert: 28. Juli 2026*
+*Zuletzt aktualisiert: 20. August 2026*

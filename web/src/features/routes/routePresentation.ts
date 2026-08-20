@@ -1,10 +1,11 @@
 import type { RouteCandidateDTO, RouteEntryDTO, RouteWorkflowDTO } from "../../api/generated";
 
-export const runOrder = ["countess", "mephisto", "summoner", "nihlathak", "cows"] as const;
+export const runOrder = ["countess", "mephisto", "lower-kurast", "summoner", "nihlathak", "cows"] as const;
 
 const runLabels: Record<string, string> = {
   countess: "Gräfin",
   mephisto: "Mephisto",
+  "lower-kurast": "Unteres Kurast",
   summoner: "Beschwörer",
   nihlathak: "Nihlathak",
   cows: "Kuhlevel",
@@ -26,6 +27,7 @@ const difficultyLabels: Record<string, string> = {
 const waypointLabels: Record<string, string> = {
   black_marsh: "Schwarzmoor",
   durance_of_hate_level_2: "Kerker des Hasses – Ebene 2",
+  lower_kurast: "Unteres Kurast",
   halls_of_pain: "Hallen der Schmerzen",
   arcane_sanctuary: "Geheime Zuflucht",
   stony_field: "Feld der Steine",
@@ -88,6 +90,7 @@ export function waypointLabel(waypoint: string, startKind?: string): string {
 export function targetLabel(runID: string, role?: string): string {
   if (runID === "cows" && role === "leg_acquisition") return "Wirts Körper in Tristram";
   if (runID === "cows") return "Gewünschter Endpunkt im Kuhlevel";
+  if (runID === "lower-kurast") return "Lagerfeuer-Hütten";
   return runLabel(runID);
 }
 

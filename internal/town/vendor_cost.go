@@ -20,6 +20,8 @@ func MaximumAkaraUnitCost(resource RestockResource) (int, bool) {
 		return 100, true
 	case RestockIdentifyScroll:
 		return 80, true
+	case RestockKey:
+		return 45, true
 	default:
 		return 0, false
 	}
@@ -38,4 +40,5 @@ var akaraVendorCosts = map[string]int{
 	"mp5": 1000,
 	"tsc": 100,
 	"isc": 80,
+	"key": 45,
 }

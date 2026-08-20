@@ -78,7 +78,7 @@ func TestRunPipelineTelemetryCarriesDefinitionStepOutcomeAndActionIndex(t *testi
 func TestPhase14AllPipelineStepsHaveExactlyOneStableStage(t *testing.T) {
 	tests := map[telemetry.HistoryStage][]string{
 		telemetry.HistoryStageTravel:     {pipelineStepPrecheck, pipelineStepApplyTownProfile, pipelineStepAcquireTownWaypoint, pipelineStepOpenWaypoint, pipelineStepSelectRunWaypoint, pipelineStepWaitEntryArea, pipelineStepPlayRoute},
-		telemetry.HistoryStageCombat:     {pipelineStepAcquireBoss, pipelineStepEngageBoss, pipelineStepClearNearbyHostiles},
+		telemetry.HistoryStageCombat:     {pipelineStepAcquireBoss, pipelineStepEngageBoss, pipelineStepClearNearbyHostiles, pipelineStepChestSweep},
 		telemetry.HistoryStageLoot:       {pipelineStepRepositionForLoot, pipelineStepWaitForDrops, pipelineStepScanLoot, pipelineStepPickLoot},
 		telemetry.HistoryStageReturnTown: {pipelineStepCastTownPortal, pipelineStepEnterTownPortal, pipelineStepWaitOriginTown, pipelineStepPlayTownEgress, pipelineStepOpenOriginWaypoint, pipelineStepSelectHubWaypoint, pipelineStepWaitHubArea, pipelineStepOpenStash, pipelineStepStashItems, pipelineStepCloseStash, pipelineStepPrepareTown, pipelineStepComplete},
 	}
@@ -95,8 +95,8 @@ func TestPhase14AllPipelineStepsHaveExactlyOneStableStage(t *testing.T) {
 			seen[step] = stage
 		}
 	}
-	if len(seen) != 26 {
-		t.Fatalf("mapped steps=%d, want 26", len(seen))
+	if len(seen) != 27 {
+		t.Fatalf("mapped steps=%d, want 27", len(seen))
 	}
 	if _, ok := RunStageForStep("unknown"); ok {
 		t.Fatal("unknown step received a stage")
@@ -147,6 +147,11 @@ func TestRunPipelineCentralResetBarrierClearsGenerationOnce(t *testing.T) {
 			egressStarted: true, portalRecovered: map[uint32]bool{71: true}, portalRecoveryPending: true, portalRecoveryUnitID: 71,
 			portalRecoveryPos: world.Position{X: 6}, portalRecoveryTeleportSent: true, portalRecoveryAt: now, portalRecoverySnapshot: now,
 		},
+		chest: pipelineChestState{
+			skipped: map[uint32]bool{81: true}, opened: map[uint32]bool{82: true}, seenEligible: true, openedSuperChests: 2,
+			phase: chestPhaseClick, pin: world.Object{UnitID: 83}, clusterChest: world.Object{UnitID: 84}, clusterActive: true,
+			clicksOnPin: 1, keysAtClick: 4, settleTicks: 2, dropWaitTicks: 1,
+		},
 	}
 	profileActions := &mockProfileActions{}
 	lootActions := &mockLootActions{}
@@ -159,8 +164,9 @@ func TestRunPipelineCentralResetBarrierClearsGenerationOnce(t *testing.T) {
 	expected := &runPipeline{}
 	expected.resetGeneration()
 	if !reflect.DeepEqual(pipeline.travel, expected.travel) || !reflect.DeepEqual(pipeline.boss, expected.boss) ||
-		!reflect.DeepEqual(pipeline.loot, expected.loot) || !reflect.DeepEqual(pipeline.ret, expected.ret) {
-		t.Fatalf("pipeline state crossed reset barrier:\ntravel=%+v\nboss=%+v\nloot=%+v\nreturn=%+v", pipeline.travel, pipeline.boss, pipeline.loot, pipeline.ret)
+		!reflect.DeepEqual(pipeline.loot, expected.loot) || !reflect.DeepEqual(pipeline.ret, expected.ret) ||
+		!reflect.DeepEqual(pipeline.chest, expected.chest) {
+		t.Fatalf("pipeline state crossed reset barrier:\ntravel=%+v\nboss=%+v\nloot=%+v\nreturn=%+v\nchest=%+v", pipeline.travel, pipeline.boss, pipeline.loot, pipeline.ret, pipeline.chest)
 	}
 	if profileActions.resetCalls != 1 || lootActions.resetCalls != 1 || combatActions.resetCalls != 1 {
 		t.Fatalf("reset calls: profile=%d loot=%d combat=%d, want exactly one", profileActions.resetCalls, lootActions.resetCalls, combatActions.resetCalls)
