@@ -47,7 +47,7 @@ func TestOperatorSettingsPlayersDefaultRangeAndLoadoutFreeze(t *testing.T) {
 	if stripped == body {
 		t.Fatal("expected players field in marshaled settings")
 	}
-	if err := os.WriteFile(store.path, []byte(stripped), 0o600); err != nil {
+	if err = os.WriteFile(store.path, []byte(stripped), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	reloaded, err := store.Snapshot()

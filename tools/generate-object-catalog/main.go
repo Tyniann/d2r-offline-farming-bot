@@ -181,12 +181,12 @@ func selectObjects(rows []objectRow) (selectedObjects, error) {
 	}
 	for _, class := range []string{"JungleChest", "JungleChest2"} {
 		if superChestCounts[class] != 1 {
-			return selectedObjects{}, fmt.Errorf("Class=%s count = %d, want 1", class, superChestCounts[class])
+			return selectedObjects{}, fmt.Errorf("class %s count = %d, want 1", class, superChestCounts[class])
 		}
 	}
 	for _, class := range []string{"ArmorStand1", "WeaponRack2"} {
 		if rackCounts[class] != 1 {
-			return selectedObjects{}, fmt.Errorf("Class=%s count = %d, want 1", class, rackCounts[class])
+			return selectedObjects{}, fmt.Errorf("class %s count = %d, want 1", class, rackCounts[class])
 		}
 	}
 	sort.Slice(selected.Waypoints, func(i, j int) bool { return selected.Waypoints[i].ID < selected.Waypoints[j].ID })
