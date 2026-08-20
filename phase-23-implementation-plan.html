@@ -1,0 +1,1247 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark light">
+  <title>Phase 23 – Lower-Kurast-Supertruhen</title>
+  <style>
+    :root {
+      --bg: #090b0d;
+      --bg-soft: #0f1317;
+      --panel: #151a1f;
+      --panel-2: #1b2229;
+      --text: #f2f4f5;
+      --muted: #b2bcc5;
+      --line: #35414b;
+      --gold: #d9a34f;
+      --gold-soft: #2b2011;
+      --blue: #8ec7e6;
+      --green: #72d7a2;
+      --good: #72d7a2;
+      --yellow: #f1cf72;
+      --warn: #f1cf72;
+      --red: #f07d86;
+      --code: #090c0f;
+      --shadow: 0 20px 60px rgba(0, 0, 0, .34);
+    }
+
+    @media (prefers-color-scheme: light) {
+      :root {
+        --bg: #f4f1ea;
+        --bg-soft: #ebe6dc;
+        --panel: #fffefa;
+        --panel-2: #f2ede3;
+        --text: #1c2329;
+        --muted: #56636d;
+        --line: #d5cdbf;
+        --gold: #8b5d14;
+        --gold-soft: #f6ead4;
+        --blue: #236989;
+        --green: #15774a;
+        --good: #15774a;
+        --yellow: #8b6600;
+        --warn: #8b6600;
+        --red: #ae3540;
+        --code: #f2eee6;
+        --shadow: 0 18px 50px rgba(60, 47, 26, .12);
+      }
+    }
+
+    * { box-sizing: border-box; }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      margin: 0;
+      color: var(--text);
+      background:
+        radial-gradient(circle at 90% -5%, rgba(217, 163, 79, .22), transparent 30rem),
+        radial-gradient(circle at 5% 20%, rgba(71, 131, 161, .15), transparent 28rem),
+        var(--bg);
+      font: 16px/1.62 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    a { color: var(--blue); }
+    a:hover { text-decoration-thickness: 2px; }
+
+    code, pre {
+      font-family: "Cascadia Code", Consolas, "Liberation Mono", monospace;
+    }
+
+    code {
+      padding: .08rem .32rem;
+      color: var(--blue);
+      background: var(--code);
+      border: 1px solid var(--line);
+      border-radius: 5px;
+      font-size: .92em;
+    }
+
+    pre {
+      margin: 14px 0 0;
+      padding: 16px;
+      overflow: auto;
+      color: var(--text);
+      background: var(--code);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      line-height: 1.48;
+    }
+
+    main {
+      width: min(1240px, calc(100% - 32px));
+      margin: 0 auto;
+      padding: 34px 0 80px;
+    }
+
+    .hero {
+      position: relative;
+      padding: clamp(24px, 5vw, 48px);
+      overflow: hidden;
+      background: linear-gradient(135deg, rgba(49, 36, 18, .95), rgba(24, 31, 36, .96) 54%, rgba(14, 18, 21, .98));
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      box-shadow: var(--shadow);
+    }
+
+    .hero::after {
+      position: absolute;
+      right: -60px;
+      bottom: -110px;
+      width: 320px;
+      height: 320px;
+      content: "";
+      border: 1px solid rgba(217, 163, 79, .22);
+      border-radius: 50%;
+      box-shadow: 0 0 0 42px rgba(217, 163, 79, .04), 0 0 0 84px rgba(217, 163, 79, .025);
+      pointer-events: none;
+    }
+
+    .eyebrow {
+      margin: 0 0 8px;
+      color: var(--gold);
+      font-size: .82rem;
+      font-weight: 800;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+    }
+
+    h1, h2, h3, h4 { line-height: 1.2; }
+
+    h1 {
+      max-width: 980px;
+      margin: 0;
+      font-size: clamp(2.15rem, 6vw, 4.25rem);
+      letter-spacing: -.045em;
+    }
+
+    h2 {
+      margin: 52px 0 0;
+      padding: 18px 0 10px;
+      border-bottom: 1px solid var(--line);
+      font-size: clamp(1.45rem, 3vw, 2rem);
+      letter-spacing: -.02em;
+    }
+
+    h3 { margin: 28px 0 0; font-size: 1.15rem; }
+    h4 { margin: 18px 0 0; font-size: 1rem; }
+    p { margin: 10px 0 0; }
+
+    ul, ol {
+      margin: 12px 0 0;
+      padding-left: 1.35rem;
+    }
+
+    li + li { margin-top: 6px; }
+
+    .lead {
+      max-width: 980px;
+      margin-top: 18px;
+      color: var(--muted);
+      font-size: 1.13rem;
+    }
+
+    .chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 9px;
+      margin-top: 20px;
+    }
+
+    .chip {
+      padding: 5px 11px;
+      color: #ffe4b8;
+      background: rgba(78, 55, 22, .52);
+      border: 1px solid #755429;
+      border-radius: 999px;
+      font-size: .9rem;
+    }
+
+    .hero-meta {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+      margin-top: 28px;
+    }
+
+    .hero-meta div,
+    .card,
+    .callout,
+    .gate,
+    .decision {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+    }
+
+    .hero-meta div { padding: 14px; background: rgba(20, 25, 29, .76); }
+    .hero-meta strong { display: block; color: var(--gold); font-size: 1.12rem; }
+    .hero-meta span { display: block; margin-top: 2px; color: var(--muted); font-size: .86rem; }
+
+    .toc {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      display: flex;
+      gap: 6px;
+      margin-top: 18px;
+      padding: 10px;
+      overflow-x: auto;
+      background: color-mix(in srgb, var(--bg) 88%, transparent);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      backdrop-filter: blur(12px);
+    }
+
+    .toc a {
+      flex: 0 0 auto;
+      padding: 7px 10px;
+      color: var(--muted);
+      text-decoration: none;
+      border-radius: 8px;
+      font-size: .86rem;
+    }
+
+    .toc a:hover { color: var(--text); background: var(--panel-2); }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+      margin-top: 16px;
+    }
+
+    .grid.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .card { padding: 18px; }
+    section { min-width: 0; scroll-margin-top: 72px; }
+    .card, .node, .gate > div, .decision > * { min-width: 0; }
+    .card h3, .card h4 { margin-top: 0; }
+    .card p { color: var(--muted); }
+    .metric { color: var(--gold); font-size: 1.75rem; font-weight: 800; }
+    .metric-label { color: var(--muted); font-size: .88rem; }
+
+    .callout {
+      margin-top: 18px;
+      padding: 18px;
+      border-left: 4px solid var(--blue);
+    }
+
+    .callout.warn { border-left-color: var(--yellow); }
+    .callout.danger { border-left-color: var(--red); }
+    .callout.success { border-left-color: var(--green); }
+    .callout h3 { margin: 0; }
+
+    .good { color: var(--green); }
+    .warn-text { color: var(--yellow); }
+    .bad { color: var(--red); }
+    .muted { color: var(--muted); }
+
+    .table-wrap {
+      width: 100%;
+      max-width: 100%;
+      margin-top: 16px;
+      overflow-x: auto;
+      border: 1px solid var(--line);
+      border-radius: 13px;
+    }
+
+    table {
+      width: 100%;
+      min-width: 760px;
+      border-collapse: collapse;
+      background: var(--panel);
+    }
+
+    th, td {
+      padding: 11px 13px;
+      text-align: left;
+      vertical-align: top;
+      border-bottom: 1px solid var(--line);
+    }
+
+    th {
+      color: var(--text);
+      background: var(--panel-2);
+      font-size: .83rem;
+      letter-spacing: .04em;
+      text-transform: uppercase;
+    }
+
+    tr:last-child td { border-bottom: 0; }
+
+    .flow {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 10px;
+      margin-top: 18px;
+      align-items: stretch;
+    }
+
+    .flow.six { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+
+    .flow .node {
+      position: relative;
+      min-height: 102px;
+      padding: 14px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+    }
+
+    .flow .node:not(:last-child)::after {
+      position: absolute;
+      top: 50%;
+      right: -10px;
+      z-index: 2;
+      content: "→";
+      color: var(--gold);
+      font-weight: 900;
+      transform: translate(50%, -50%);
+    }
+
+    .node strong { display: block; }
+    .node small { display: block; margin-top: 6px; color: var(--muted); }
+
+    .phase-list { display: grid; gap: 12px; margin-top: 16px; }
+
+    .gate {
+      display: grid;
+      grid-template-columns: 92px 1fr;
+      gap: 16px;
+      padding: 18px;
+    }
+
+    .gate-id {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 8px;
+      color: var(--gold);
+      font-size: 1.15rem;
+      font-weight: 850;
+    }
+
+    .gate h3 { margin: 0; }
+    .gate p { color: var(--muted); }
+    .gate.auto-gate { border-left: 4px solid var(--good); }
+    .gate.manual-gate { border-left: 4px solid var(--warn); }
+    .gate-mode {
+      display: inline-flex;
+      max-width: 100%;
+      padding: 4px 8px;
+      border: 1px solid currentColor;
+      border-radius: 999px;
+      font-size: .67rem;
+      font-weight: 800;
+      line-height: 1.25;
+      letter-spacing: .035em;
+      text-transform: uppercase;
+    }
+    .gate-mode.auto { color: var(--good); background: color-mix(in srgb, var(--good) 10%, transparent); }
+    .gate-mode.manual { color: var(--warn); background: color-mix(in srgb, var(--warn) 10%, transparent); }
+    .gate-legend { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; margin: 14px 0 4px; }
+    .gate-legend > span { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); }
+    .gate-proof { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--line); }
+
+    .decision-list { display: grid; gap: 10px; margin-top: 16px; }
+
+    .decision {
+      display: grid;
+      grid-template-columns: 180px 1fr;
+      gap: 14px;
+      padding: 15px;
+    }
+
+    .decision strong { color: var(--gold); }
+
+    .sequence {
+      margin-top: 18px;
+      padding: 0;
+      list-style: none;
+      counter-reset: sequence;
+    }
+
+    .sequence li {
+      position: relative;
+      margin: 0 0 10px 30px;
+      padding: 13px 15px 13px 20px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 11px;
+      counter-increment: sequence;
+    }
+
+    .sequence li::before {
+      position: absolute;
+      top: 50%;
+      left: -30px;
+      display: grid;
+      width: 38px;
+      height: 38px;
+      content: counter(sequence);
+      place-items: center;
+      color: #17120a;
+      background: var(--gold);
+      border-radius: 50%;
+      font-weight: 900;
+      transform: translateY(-50%);
+    }
+
+    .checks { padding-left: 0; list-style: none; }
+    .checks li { position: relative; padding-left: 26px; }
+    .checks li::before { position: absolute; left: 0; content: "✓"; color: var(--green); font-weight: 900; }
+
+    .risk { color: var(--red); font-weight: 750; }
+    .owner { color: var(--blue); font-weight: 750; }
+
+    footer {
+      margin-top: 54px;
+      padding-top: 20px;
+      color: var(--muted);
+      text-align: center;
+      border-top: 1px solid var(--line);
+    }
+
+    @media (max-width: 1100px) {
+      .flow.six { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+      .flow.six .node:not(:last-child)::after { display: none; }
+    }
+
+    @media (max-width: 900px) {
+      .hero-meta, .grid, .grid.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .flow { grid-template-columns: 1fr; }
+      .flow .node:not(:last-child)::after { top: auto; right: 50%; bottom: -13px; transform: translate(50%, 50%) rotate(90deg); }
+    }
+
+    @media (max-width: 620px) {
+      main { width: min(100% - 20px, 1240px); padding-top: 10px; }
+      .hero { border-radius: 14px; }
+      .hero-meta, .grid, .grid.two { grid-template-columns: 1fr; }
+      .gate, .decision { grid-template-columns: 1fr; }
+      .toc { top: 4px; }
+      th, td { padding: 9px 10px; }
+    }
+
+    @media print {
+      body { background: #fff; }
+      main { width: 100%; padding: 0; }
+      .hero, .card, .callout, .gate, .decision, table, .node { box-shadow: none; break-inside: avoid; }
+      .toc { display: none; }
+      a { color: inherit; }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <header class="hero" id="top">
+    <p class="eyebrow">Research- und Implementierungsentwurf · Phase 23</p>
+    <h1>Lower-Kurast-Supertruhen</h1>
+    <p class="lead">
+      Dieser Entwurf definiert den ersten produktiven Kisten-Run: eine aufgezeichnete Teleport-Route vom
+      Wegpunkt <strong>Unteres Kurast</strong> zu den Lagerfeuer-Hütten, das Öffnen der Supertruhen und der
+      Gestelle in genau diesen Hütten, und die Rückkehr über den bestehenden Act-3-Egress. Die Aufnahme erklärt
+      das Lagerfeuer so, dass jemand ohne LK-Erfahrung weiß, worauf er zuläuft. Die Karte bleibt die, die der
+      Charakter auf dieser Schwierigkeit schon hat. Neu würfeln ist kein Produktweg.
+    </p>
+    <div class="chips" aria-label="Schwerpunkte">
+      <span class="chip">Offline / Singleplayer</span>
+      <span class="chip">Kein Boss</span>
+      <span class="chip">Hell · /players 7</span>
+      <span class="chip">Akara-Schlüssel</span>
+      <span class="chip">Supertruhen + Hüttengestelle</span>
+      <span class="chip">Pul+ Runen</span>
+    </div>
+    <div class="hero-meta">
+      <div><strong>Stand</strong><span>20. August 2026</span></div>
+      <div><strong>Status</strong><span>Entwurf; nicht bindend bis zu deinem Go</span></div>
+      <div><strong>Run-ID</strong><span><code>lower-kurast</code></span></div>
+      <div><strong>Rückkehr</strong><span>Act 3 · Kurast Docks</span></div>
+    </div>
+  </header>
+
+  <nav class="toc" aria-label="Inhaltsübersicht">
+    <a href="#entscheidung">Entscheidung</a>
+    <a href="#warum">Warum LK</a>
+    <a href="#ist">Ist-Zustand</a>
+    <a href="#ablauf">Ablauf</a>
+    <a href="#schluessel">Schlüssel</a>
+    <a href="#truhen">Truhen &amp; Gestelle</a>
+    <a href="#route">Lagerfeuer &amp; Route</a>
+    <a href="#town">Town &amp; WP</a>
+    <a href="#loot">Loot</a>
+    <a href="#scope">Scope</a>
+    <a href="#gates">Gates</a>
+    <a href="#risiken">Risiken</a>
+  </nav>
+
+  <section id="entscheidung">
+    <h2>1. Executive Decision</h2>
+    <div class="callout success">
+      <h3>Empfohlene Form</h3>
+      <p>
+        Ein einzelner Hell-Run ohne Boss und ohne Route-Clear. Der Operator startet am LK-Wegpunkt, sucht auf
+        <em>seiner</em> festen Karte das Lagerfeuer mit den zwei rechteckigen Hütten und nimmt den Weg dorthin auf.
+        Der Bot spielt nur Bewegung ab. Unterwegs und am Ende öffnet er jede katalogisierte Supertruhe in Sicht
+        und, sobald er an den Hütten hält, auch das Rüstungs- und das Waffengestell dort. Funkenkisten, Holz und
+        Leichen bleiben draußen. Stadtschlüssel kauft Akara in Act 1. Fehlt ein Schlüssel an einer verschlossenen
+        Truhe, wird genau diese Truhe übersprungen.
+      </p>
+    </div>
+
+    <div class="decision-list">
+      <div class="decision"><strong>Run-ID</strong><span><code>lower-kurast</code>, Anzeigename Registry <code>Lower Kurast</code>, UI <code>Unteres Kurast</code>. Area <code>79</code> existiert bereits.</span></div>
+      <div class="decision"><strong>Lootvertrag</strong><span>Nur dieser Run liefert Um–Ber über das 65.536-Muster der Supertruhen. Magic Find gilt dort nicht. Unique/Set kommen aus den Truhen nicht, aus den Hüttengestellen schon. Travincal und Andariel bleiben draußen.</span></div>
+      <div class="decision"><strong>Schlüssel</strong><span>Ja, kaufen. Akara verkauft den Stadtschlüssel <code>key</code> (nicht <code>pk1</code>–<code>pk3</code>). Neues Town-Restock nur wenn der nächste Run <code>lower-kurast</code> ist. Schwelle 6, Ziel 12, 45 Gold/Stück. Ohne Schlüssel: Truhe skippen, Run nicht abbrechen.</span></div>
+      <div class="decision"><strong>Gestelle</strong><span>Ja, aber nur die in den Lagerfeuer-Hütten. Unique/Set-Chance ist dort höher als bei einem Monster derselben Basis, ohne MF. Der Bot hält nicht extra für Gestelle auf dem Weg, nur wenn er sowieso an den Supertruhen stoppt.</span></div>
+      <div class="decision"><strong>Kartenlayout</strong><span>Pro Charakter und Schwierigkeit fest. Schwierigkeit wechseln macht alle aufgenommenen Routen ungültig, also würfelt niemand neu. Die Aufnahme sucht das Feuer auf der Karte, die der Charakter schon hat. Ein zweites Feuer mitzunehmen ist Glück, kein Pflichtziel.</span></div>
+      <div class="decision"><strong>Aufnahme</strong><span>Nur Bewegung vom LK-Wegpunkt zum gefundenen Lagerfeuer, durch beide Hütten, bei einem zweiten Feuer auch dorthin. Keine aufgenommenen Klicks. Terminal ist <code>RecordingTerminalEndpoint</code> in Area 79. Der Weg darf lang sein.</span></div>
+      <div class="decision"><strong>Öffnen</strong><span>Operate-on-sight für Supertruhen während der Wiedergabe, plus Schlusssweep. Gestelle nur in der Nähe einer gerade bearbeiteten oder sichtbaren Supertruhe. Sonst sind die ersten Hütten schon entladen, wenn die Route endet.</span></div>
+      <div class="decision"><strong>Rückkehr</strong><span>Stadtportal, bestehender Act-3-Egress, Act-1-Hub, Stash. Kein Act-4-Logout-Skip.</span></div>
+      <div class="decision"><strong>Combat</strong><span>Teleport vorbei. Kein Route-Clear, kein Boss-Engage. Beide Profile registrieren eine dünne Travel-Strategy über die bestehende <code>NewBossFactory</code>.</span></div>
+    </div>
+
+    <h3>Phase 23 umfasst</h3>
+    <ul>
+      <li>Live-Identität der Lagerfeuer-Supertruhen und ihres Objekt-Mode (geschlossen / öffnend / offen / verschlossen).</li>
+      <li>Objektkatalog um <code>ObjectKindSuperChest</code>, Memory-Mode am Object, Wegpunktziel Unteres Kurast.</li>
+      <li>Akara-Restock für Stadtschlüssel, nur vor diesem Run.</li>
+      <li>Registry-Vertrag für einen Einzelrouten-Run ohne Boss, Capability <code>chest_sweep</code>.</li>
+      <li>Hover-bestätigtes Öffnen der Supertruhen und der Hüttengestelle, Loot nach jedem Objekt, Town-Portal, Act-3-Normalisierung.</li>
+      <li>Standard-Pickit Pul+ plus Elite-Unique/Set, UI-Verdrahtung, Feature-Doc, Changelog.</li>
+      <li>Eine vollständige Live-Abnahme auf der Karte, die der Testcharakter schon hat.</li>
+    </ul>
+
+    <h3>Nicht Teil von Phase 23</h3>
+    <ul>
+      <li>Travincal, Andariel, Duriel, Diablo, Baal, Uber Tristram.</li>
+      <li>Gestelle außerhalb der Lagerfeuer-Hütten, Holzstapel, Funkenkisten, Leichen, normale Dschungeltruhen.</li>
+      <li>Karten-Score, Map-Datei löschen, Schwierigkeitswechsel zum Würfeln, Terrorzone, Players-Command als Bot-Default.</li>
+      <li>Act-3-Händler (Ormus), Act-4-Wegpunkt-Logout, autonome Suche nach einem zweiten Feuer.</li>
+      <li>Ein zweites Combat-Profil oder neue Pflichtskills über Teleport und Stadtportal hinaus.</li>
+    </ul>
+  </section>
+
+  <section id="warum">
+    <h2>2. Warum Lower Kurast — und warum nur das</h2>
+    <p>
+      Die bestehende Farmdecke deckt Uniques (Mephisto), Countess-Runen plus Key of Terror, Summoner- und
+      Nihlathak-Schlüssel sowie Cow-Dichte. Was fehlt, ist ein Run, dessen <em>Hauptertrag</em> hohe Runen
+      oberhalb von Ist sind, ohne Horker und ohne Boss-TC.
+    </p>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Quelle</th><th>Mechanik</th><th>Was sie wirklich gibt</th><th>Produktfolge</th></tr></thead>
+        <tbody>
+          <tr>
+            <td>LK-Supertruhen</td>
+            <td>65.536 feste Muster, kein MF</td>
+            <td>Pul, Um, Mal, Ist, Gul, Vex, Ohm, Lo, Sur, Ber. Kein Jah/Cham. Kein Unique/Set aus diesen Truhen.</td>
+            <td class="good">Genau ein neuer Lootvertrag. Phase 23.</td>
+          </tr>
+          <tr>
+            <td>Act-3-Chest-TCs in <code>TreasureClassEx.txt</code></td>
+            <td>Normale / funkennde Kisten, MF wirkt</td>
+            <td>Kein Supertruhen-Muster. Lokaler Extract enthält die 65k-Tabelle nicht.</td>
+            <td>Nicht als Odds-Quelle verwenden. Nur Abgrenzung.</td>
+          </tr>
+          <tr>
+            <td>Travincal</td>
+            <td>Boss-/Council-TCs, Hork verdoppelt</td>
+            <td>Hohe Runen plus Uniques, die Mephisto schon abdeckt. Ohne Find Item kein eigener Vertrag.</td>
+            <td class="muted">Draußen. Dieser Bot hat keinen Horker.</td>
+          </tr>
+          <tr>
+            <td>Andariel</td>
+            <td>Quest-TC, mlvl 75</td>
+            <td>Schmuck und <code>tes</code>; Ceiling unter Mephisto.</td>
+            <td class="muted">Draußen. Kein neuer Loot über bestehende Routen.</td>
+          </tr>
+          <tr>
+            <td>Countess</td>
+            <td>Rune-TC</td>
+            <td>Ist-Spezialist, Key of Terror.</td>
+            <td class="muted">Bleibt. LK ersetzt sie nicht.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="callout">
+      <h3>Players und Schwierigkeit</h3>
+      <p>
+        Community-Tabellen: p7/p8 sind insgesamt am besten; Lo ist bei p3–p5 etwas häufiger, Ber bei p7/p8.
+        Der Bot sendet <code>/players N</code> bereits als Operator-Einstellung und bekommt keinen fest verdrahteten
+        LK-Default. Docs und UI sagen: Hell, <code>/players 7</code>. Andere Schwierigkeiten bleiben technisch
+        startbar — der Lootvertrag gilt nur in Hell.
+      </p>
+    </div>
+
+    <div class="callout warn">
+      <h3>Was der lokale CASC nicht beweist</h3>
+      <p>
+        <code>TreasureClassEx.txt</code> ist jetzt da und reicht, um Monster- und normale Kisten-TCs von Supertruhen
+        zu trennen. Die 65.536 Muster selbst liegen nicht im Extract. Um–Ber-Aussagen stützen sich auf die
+        öffentlich dokumentierten Supertruhen-Tabellen (D2Runewizard / Blizzhackers), nicht auf eine selbst
+        gerechnete TC-Walk. Objekt-<code>*ID</code>s der Lagerfeuertruhen dürfen erst nach Gate 23.0 ins Produkt.
+      </p>
+    </div>
+  </section>
+
+  <section id="ist">
+    <h2>3. Technischer Ist-Zustand und Lücken</h2>
+    <div class="grid">
+      <article class="card"><div class="metric">79</div><div class="metric-label">Area <code>LowerKurast</code> ist katalogisiert, aber ohne Wegpunktziel</div></article>
+      <article class="card"><div class="metric">0</div><div class="metric-label">Supertruhen im Objektkatalog; Countess-Good-Chest ist <code>PlaceUniqueChest</code> 584</div></article>
+      <article class="card"><div class="metric">Boss</div><div class="metric-label">Einzelrouten müssen heute einen Boss deklarieren</div></article>
+      <article class="card"><div class="metric">4</div><div class="metric-label">Akara-Restocks: Heilung, Mana, TP, ID — kein <code>key</code></div></article>
+      <article class="card"><div class="metric">70</div><div class="metric-label"><code>quantity</code> in <code>itemstatcost.txt</code>; Items lesen Stats schon, Stackzahl ist nicht verdrahtet</div></article>
+      <article class="card"><div class="metric">Act 3</div><div class="metric-label">Egress Kurast Docks → Act 1 existiert und wird von Mephisto genutzt</div></article>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Verantwortung</th><th>Heute</th><th>Lücke</th><th>Ziel</th></tr></thead>
+        <tbody>
+          <tr>
+            <td>Registry</td>
+            <td><code>validateRunDefinition</code> verlangt Boss, sobald <code>RouteSet == nil</code>.</td>
+            <td>Einen Boss zu erfinden wäre falsch. Cows umgeht das nur über ein Route-Set.</td>
+            <td>Leerer Boss ist gültig, wenn <code>RunCapabilityChestSweep</code> gesetzt ist.</td>
+          </tr>
+          <tr>
+            <td>Objekte</td>
+            <td>Generator wählt WP, Good Chest, Portale, Stash, Wirt.</td>
+            <td>Lagerfeuertruhen sind nicht im Allowlist. <code>ObjectUnit</code> hat kein Mode.</td>
+            <td>Live-IDs + Mode; neues Kind, nicht <code>ObjectKindGoodChest</code> wiederverwenden.</td>
+          </tr>
+          <tr>
+            <td>Wegpunkt</td>
+            <td>Act-3-Tab existiert für Durance Ebene 2, Zeile <code>Y=506</code>.</td>
+            <td>LK liegt früher in derselben Liste. Zeile darf nicht geraten werden.</td>
+            <td><code>WaypointTargetLowerKurast</code> nach Live-Kalibrierung 1280×720.</td>
+          </tr>
+          <tr>
+            <td>Town</td>
+            <td>Akara-Shop und <code>VendorBuyer</code> sind produktiv.</td>
+            <td><code>AkaraVendorCost("key")</code> fehlt. Scroll-Mengen sind im Demand-Pfad noch Stub.</td>
+            <td>Echte Inventar-Stackzahl für <code>key</code>. Restock nur vor LK.</td>
+          </tr>
+          <tr>
+            <td>Öffnen</td>
+            <td>Hover-Klick existiert für WP, Portale, Good-Chest-Suche.</td>
+            <td>Good Chest ist Suchanker, keine Ertragsöffnung. Kein produktiver Chest-Executor.</td>
+            <td>Operate, Mode-Wechsel abwarten, Loot, nächste Truhe.</td>
+          </tr>
+          <tr>
+            <td>Profile</td>
+            <td>Necro und Hammerdin brauchen eine registrierte Strategy pro Run.</td>
+            <td><code>lower-kurast</code> ist unbekannt → Run gilt als unverfügbar.</td>
+            <td><code>NewBossFactory("lower-kurast")</code> für beide; Configure bleibt No-Op.</td>
+          </tr>
+          <tr>
+            <td>UI</td>
+            <td><code>runOrder</code> und Wegpunktlabels sind fest verdrahtet.</td>
+            <td>Neuer Run fehlt in Reihenfolge, Labels, Pickit-Defaults, Setup-Tests.</td>
+            <td>Ein Eintrag, deutsche Strings, Pickit-Kette <code>gems</code> + <code>lk-superchests</code> (Pul+ und Elite-Unique/Set).</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="ablauf">
+    <h2>4. Soll-Ablauf</h2>
+    <div class="flow six" aria-label="LK-Run-Datenfluss">
+      <div class="node"><strong>Act-1-Hub</strong><small>Stash, dann Schlüssel bei Akara wenn unter 6</small></div>
+      <div class="node"><strong>Wegpunkt LK</strong><small>Area 79, neues Ziel, Live-Zeile</small></div>
+      <div class="node"><strong>Route</strong><small>aufgenommener Teleport zum Lagerfeuer</small></div>
+      <div class="node"><strong>Sweep</strong><small>Truhen in Sicht, Gestelle an den Hütten</small></div>
+      <div class="node"><strong>Portal</strong><small>bestehendes Stadtportal</small></div>
+      <div class="node"><strong>Act-3-Egress</strong><small>Docks → Act 1 → Stash</small></div>
+    </div>
+
+    <h3>State-Machine (neu gegenüber Boss-Runs)</h3>
+    <ol class="sequence">
+      <li><strong>prepare_town</strong> — wie bisher, plus schlüssel-sensitiver Demand nur bei Handoff <code>lower-kurast</code>.</li>
+      <li><strong>select_run_waypoint</strong> — neues Ziel, gleiche UI-Gates wie Durance.</li>
+      <li><strong>play_recorded_route</strong> — Teleport-Playback. Sobald eine unopened Supertruhe in Klickreichweite liegt: Route pausieren, operate, benachbarte Gestelle, loot, fortsetzen.</li>
+      <li><strong>chest_sweep</strong> — nach Terminal alle noch sichtbaren, geschlossenen Katalogtruhen und die Gestelle daneben. 0 sichtbare und 0 geöffnete Supertruhen bedeutet Run fehlgeschlagen, kein stiller Erfolg. Gestelle allein zählen nicht als Erfolg.</li>
+      <li><strong>cast_town_portal / enter_portal</strong> — unverändert.</li>
+      <li><strong>foreign_town_egress</strong> — <code>OriginAct3</code>, bestehende Kurast-Docks-Aufnahme.</li>
+    </ol>
+
+    <div class="callout warn">
+      <h3>Kein Fake-Boss</h3>
+      <p>
+        Die Pipeline darf hier nicht durch <code>acquire_boss</code> oder ein erfundenes NPC laufen. Cows ist das
+        Vorbild für „kein Boss“, aber über ein Route-Set. LK bleibt eine Einzelroute. Die Capability
+        <code>chest_sweep</code> ersetzt den Boss-Deskriptor, sie erweitert ihn nicht.
+      </p>
+    </div>
+  </section>
+
+  <section id="schluessel">
+    <h2>5. Stadtschlüssel — Forschung und Produkt</h2>
+    <p>
+      Supertruhen können verschlossen sein. Community-Beobachtung: grob jede fünfte. Die Muster-<em>Inhalte</em>
+      sind bei offenen und verschlossenen Truhen dieselben; wer verschlossene überspringt, verliert Volumen, nicht
+      eine andere Runenverteilung. Deshalb kaufen wir Schlüssel, statt die Farm auf offene Truhen zu beschneiden.
+    </p>
+
+    <div class="grid two">
+      <article class="card">
+        <h3>Was der CASC sagt</h3>
+        <p>
+          <code>misc.txt</code>: Code <code>key</code>, Typ <code>key</code>, Kosten 45, Stack 12.
+          Katalog-ID <code>558</code> ist bereits in <code>item_catalog_data.go</code>.
+          Akara-Sell-Multiplikator in <code>npc.txt</code> ist 1024 — dieselbe Regel wie Heiltränke:
+          Einkaufspreis = 45 Gold. Das sind <em>nicht</em> die Uber-Schlüssel <code>pk1</code>–<code>pk3</code>
+          aus dem Pickit <code>keys.yaml</code>.
+        </p>
+      </article>
+      <article class="card">
+        <h3>Was der Bot schon kann</h3>
+        <p>
+          Akara-Dialog, Shop-UI, Rasterkauf und <code>VendorBuyer</code> (einzeln oder Bulk) sind produktiv.
+          <code>PlanRestock</code> kennt nur Heilung, Mana, TP- und ID-Rollen. Ormus und ein Act-3-Shopgraph
+          existieren nicht und werden nicht gebaut. Schlüssel gehören in den Act-1-Hub.
+        </p>
+      </article>
+    </div>
+
+    <h3>Kann der Bot Schlüssel kaufen?</h3>
+    <p>
+      Ja, sobald drei kleine Lücken geschlossen sind. Kein neuer Vendor, keine neue Town-Kante.
+    </p>
+    <ul>
+      <li><code>RestockKey</code> als fünfte Ressource, <code>AkaraVendorCost("key") = 45</code>, <code>MaximumAkaraUnitCost</code> 45.</li>
+      <li>Inventarzählung: Summe von Stat <code>quantity</code> / ID <code>70</code> über alle persönlichen Inventar-Items mit Code <code>key</code>. Live-Gate, analog zu Sockets: CASC pinnt die ID, der Live-Read muss die Stat-Liste eines echten Stapels zeigen.</li>
+      <li>Demand nur wenn der nächste Handoff <code>lower-kurast</code> ist. Countess- oder Mephisto-Vorbereitung kauft keine Schlüssel.</li>
+    </ul>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Regel</th><th>Wert</th><th>Begründung</th></tr></thead>
+        <tbody>
+          <tr><td>Schwelle</td><td>6</td><td>Eine 6er-Karte plus Reserve, wenn ein Stapel schon angebrochen ist.</td></tr>
+          <tr><td>Ziel</td><td>12</td><td>Ein voller Stapel, 1×1 Inventar, 540 Gold.</td></tr>
+          <tr><td>Kauf</td><td>Einzel-RMB bis Ziel, Bulk nur nach Live-Beweis</td><td>Shift+RMB auf stapelbare Vendor-Items ist in D2R nicht überall ein voller Stack.</td></tr>
+          <tr><td>Gold fehlt</td><td>bestehendes <code>gold_unavailable</code></td><td>Kein Stash-Gold abheben. 540 Gold ist in Hell-Runs üblich.</td></tr>
+          <tr><td>Verschlossen, 0 Schlüssel</td><td>Truhe skippen, loggen, nächste</td><td>Nicht den Run killen. Nächste Town-Vorbereitung füllt nach.</td></tr>
+          <tr><td>Öffnen</td><td>normaler Objektklick</td><td>D2R zieht den Schlüssel selbst. Kein Extra-Skill, kein Inventar-Use.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="callout">
+      <h3>Warum nicht Ormus?</h3>
+      <p>
+        Nach dem Run steht der Charakter in Kurast Docks. Der produktive Hub bleibt Act 1. Einen zweiten
+        Schlüssel-Vendor in Act 3 zu bauen, verdoppelt Town-Komplexität für 540 Gold, die Akara schon verkauft.
+        Truhen droppen gelegentlich selbst Schlüssel; das ist Bonus, kein Planersatz.
+      </p>
+    </div>
+  </section>
+
+  <section id="truhen">
+    <h2>6. Welche Objekte der Bot öffnet</h2>
+    <p>
+      Supertruhen sind die großen Holzkisten in den beiden Hütten am Lagerfeuer. Sie sehen aus wie normale
+      Act-3-Kisten, nutzen aber das 65k-Muster. Der Countess-<code>PlaceUniqueChest</code> (584) ist ein
+      anderer Gegenstand und bleibt Suchanker.
+    </p>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Objekt</th><th>*ID / Quelle</th><th>Was es droppt</th><th>v1</th></tr></thead>
+        <tbody>
+          <tr><td><code>JungleChest</code> / <code>JungleChest2</code></td><td>181 / 183</td><td>Kandidaten für die Hüttentruhen</td><td>Nur nach Live-Treffer</td></tr>
+          <tr><td><code>Chest5</code>–<code>Chest7</code></td><td>240–242</td><td>allgemeine <code>gchest</code></td><td>Nur nach Live-Treffer</td></tr>
+          <tr><td><code>SpecialChest100</code></td><td>455</td><td>einzige <code>SpecialChest*</code>-Zeile im Extract</td><td>Nur nach Live-Treffer</td></tr>
+          <tr><td>Rüstungs-/Waffengestelle</td><td>104–107, 548–551 in <code>objects.txt</code></td><td>eine Waffe oder Rüstung, erhöhte Unique/Set-Chance, kein MF, keine Supertruhen-Runen</td><td class="good">Ja, nur an den Lagerfeuer-Hütten</td></tr>
+          <tr><td>Funkenkisten, Holz, Leichen</td><td>diverse</td><td>normale TCs, MF wirkt, nicht das 65k-Muster</td><td class="bad">Nein</td></tr>
+          <tr><td><code>PlaceUniqueChest</code></td><td>584</td><td>Countess-Anker</td><td class="muted">Unverändert, nicht LK</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Gestelle: die Chance ist real, der Ort entscheidet</h3>
+    <p>
+      Du liegst richtig, dass Gestelle Unique und Set öfter würfeln als ein Monster dieselbe Basis. Community-Rechnung
+      über <code>itemratio.txt</code> (PureDiablo, Item Generation Tutorial): grob 1:250 Unique und 1:100 Set, sobald
+      das Gestell eine Basis mit Unique- oder Set-Version zieht. Magic Find zählt nicht. Der lokale Extract hat
+      <code>itemratio.txt</code> nicht, <code>TreasureClassEx.txt</code> enthält keine Rack-TCs. Gestelle wählen die
+      Basis anders als Monster-TCs.
+    </p>
+    <p>
+      Das ist kein besserer Unique-Farm als Mephisto. Ein Gestell gibt genau ein Item, die Basis hängt am
+      Karten-Seed, der Unique-Pool ist schmaler als Mephistos TC. Es ist ein Beifang, der sich lohnt, weil
+      die Gestelle <em>in denselben zwei Hütten</em> stehen. Maxroll: westliche Hütte zwei Supertruhen plus
+      Rüstungsgestell, nordöstliche Hütte eine Supertruhe plus Waffengestell. Zwei Extra-Klicks, während der
+      Bot sowieso dort hält.
+    </p>
+    <p>
+      Deshalb öffnet v1 Gestelle nur, wenn eine katalogisierte Supertruhe in Sicht oder in kurzer Distanz liegt.
+      Ein langer Suchweg vom Wegpunkt darf nicht jedes Gestell in Unteres Kurast anfassen. Holz, Leichen und
+      Funkenkisten bleiben draußen. Maxroll nennt sie als Extra-Runen, sie nutzen aber normale TCs und vervielfachen
+      die Objektmenge ohne den LK-Vertrag.
+    </p>
+
+    <div class="callout danger">
+      <h3>Keine geratenen Truhen-IDs im Shipping-Code</h3>
+      <p>
+        Der Generator darf Supertruhen erst aufnehmen, wenn Gate 23.0 an einem gefundenen Lagerfeuer die
+        <code>TxtFileNo</code> der drei Hüttenkisten geschrieben hat. Eine kleine Allowlist, nicht jede
+        <code>Class=chest</code>. Gestell-IDs stehen schon im CASC. Gate 23.0 bestätigt trotzdem, dass die
+        Hüttengestelle genau diese Klassen sind.
+      </p>
+    </div>
+
+    <h3>Objekt-Mode</h3>
+    <p>
+      <code>ObjectUnit</code> liefert heute nur ID, UnitID und Position. Söldner und Kühe lesen <code>unitOffsetMode = 0x0C</code>
+      bereits. Dieselbe Offsets muss Gate 23.0 an Truhen und Gestellen belegen: welcher Mode geschlossen, öffnend
+      und offen ist, und ob „verschlossen“ ein eigener Mode ist. Ohne Mode klickt der Bot geöffnete Objekte erneut an.
+    </p>
+    <p>
+      Falls „verschlossen“ kein eigener Mode ist, sondern nur am Fehlschlag des Klicks sichtbar wird:
+      ein Klick, kurzes Mode-/Hover-Settle, kein Mode-Wechsel und Schlüsselbestand unverändert bedeutet Skip
+      dieser UnitID, nicht eine Schleife.
+    </p>
+  </section>
+
+  <section id="route">
+    <h2>7. Was du suchen musst, und wie die Aufnahme läuft</h2>
+    <p>
+      „Camp“ im ersten Entwurf war Jargon. Gemeint ist ein festes Geländestück in Unteres Kurast, das
+      D2Runewizard und Maxroll so beschreiben:
+    </p>
+    <ul>
+      <li>Zwei rechteckige Hütten, eine westlich oder nordwestlich, eine östlich oder nordöstlich.</li>
+      <li>Darunter ein Lagerfeuer, oft von Fackeln umstellt.</li>
+      <li>Unter dem Feuer eine kurze Mauer, oft L-förmig. Genau diese Mauer unterscheidet das Stück von den vielen ähnlichen Hüttenreihen.</li>
+    </ul>
+    <p>
+      In der westlichen Hütte stehen zwei große Truhen und ein Rüstungsgestell. In der östlichen steht eine
+      große Truhe und ein Waffengestell. Das sind die drei Supertruhen. Andere Holzkisten in Unteres Kurast
+      zählen nicht.
+    </p>
+    <p>
+      Unteres Kurast ist ein grobes Raster aus Hütten. Die meisten Gruppen sehen ähnlich aus und haben kein
+      solches Feuer. Du teleportierst die Reihen entlang, bis die Kombination Feuer plus zwei Hütten plus
+      Mauer sitzt. Auf der Minimap ist das Feuer oft als kleiner heller Punkt in einem Hof zu sehen.
+    </p>
+
+    <div class="callout">
+      <h3>Wie viele solche Feuer hat eine Karte?</h3>
+      <p>
+        D2Runewizard: Jede LK-Karte hat mindestens eines, manchmal ein zweites (dann sechs Supertruhen).
+        Wo es liegt, ist zufällig. Nah am Wegpunkt ist bequem, weit weg ist der Normalfall, den dieser Bot
+        bedienen muss. Neu würfeln hieße die Map-Datei löschen oder die Schwierigkeit wechseln. Beides macht
+        aufgenommene Routen anderer Runs ungültig. Der Bot erwartet das nicht und bietet dafür keinen Workflow.
+      </p>
+    </div>
+
+    <h3>Aufnahmevertrag (UI-Text, verbindlich)</h3>
+    <p>
+      Der Recorder speichert Bewegung, keine Objektklicks. Der Operator klickt die Truhen nicht selbst an.
+      Dieser deutsche Text gehört in <code>RecordingContract.InstructionsDE</code> und in die Routen-UI:
+    </p>
+    <pre>Reise zum Wegpunkt Unteres Kurast und starte dort die Aufnahme.
+Teleportiere die Hüttenreihen entlang und suche das Lagerfeuer:
+zwei rechteckige Hütten, darunter ein Feuer, das von einer kurzen
+Mauer eingefasst ist. In der westlichen Hütte stehen zwei große
+Truhen, in der östlichen eine. Dieselben Hütten haben ein Rüstungs-
+und ein Waffengestell. Wenn du ein zweites Feuer mit derselben
+Anordnung siehst, nimm den Weg dorthin ebenfalls auf. Klicke Truhen
+und Gestelle nicht selbst an. Beende die Aufnahme in der Nähe der
+letzten Hüttengruppe mit F9.</pre>
+
+    <h3>Was der Bot zur Laufzeit macht</h3>
+    <ul>
+      <li>Während der Wiedergabe: Route halten, sobald eine katalogisierte, geschlossene Supertruhe in der konfigurierten Klickdistanz liegt, sonst erst heranteleportieren.</li>
+      <li>Hover-bestätigter Klick, Mode- oder Drop-Evidenz, dann Gestelle in kurzer Distanz zu dieser Truhe. Erst danach <code>wait_for_drops</code> und die bestehende Pickup-Pipeline, dann die nächste Truhe.</li>
+      <li>Nach dem Routenende: dieselbe Logik für Restbestände in Sicht.</li>
+      <li>Bereits geöffnete oder in diesem Run übersprungene UnitIDs nicht erneut anfassen.</li>
+    </ul>
+
+    <div class="callout warn">
+      <h3>Kein zweites Feuer suchen, kein Würfeln vorschlagen</h3>
+      <p>
+        Der Bot folgt nur der Aufnahme. Liegt das zweite Feuer abseits der Route, bleibt es liegen.
+        Findet die Wiedergabe keine Supertruhe, ist der Run fehlgeschlagen. Der Reason sagt, am
+        aufgenommenen Weg lagen keine Supertruhen. Er sagt nicht, die Karte sei schlecht oder man
+        solle die Schwierigkeit wechseln. Entweder die Aufnahme hat das Feuer verfehlt, oder die
+        Objekt-IDs stimmen nicht.
+      </p>
+    </div>
+
+    <h3>Loot erst nach Settle, nicht beim ersten Snapshot</h3>
+    <p>
+      Chest-Drops stehen oft schon in Memory, während das Item noch fällt und nicht klickbar ist.
+      Der Bot darf nach dem Öffnen nicht sofort <code>pick_loot</code> starten.
+    </p>
+    <p>
+      Wirts Bein hat keine Extra-Wartezeit in Millisekunden. Es nutzt denselben Pickup-Executor:
+      zwei aufeinanderfolgende Snapshots mit gleicher UnitID, gleichem Code und gleicher Position,
+      plus Hover, bevor der Klick geht. Bewegt sich die Position dazwischen, endet der Versuch mit
+      <code>target_unstable</code> und diese UnitID wird übersprungen. Zusätzlich wartet die
+      Boss-Loot-Pipeline in <code>wait_for_drops</code> drei gültige In-Game-Ticks (bei
+      <code>poll_interval_ms: 100</code> etwa 300 ms), bevor sie scannt.
+    </p>
+    <p>
+      LK übernimmt beides nach jeder Truhe und nach den Hüttengestellen: erst Mode-Wechsel der Kiste,
+      dann <code>wait_for_drops</code>, dann Scan und Pickup. Kein neuer Animations-Timer, solange
+      Gate 23.8 keine Welle aus <code>hover_not_found</code> oder <code>target_unstable</code> zeigt.
+    </p>
+
+    <h3>Fehlerfälle</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Lage</th><th>Verhalten</th></tr></thead>
+        <tbody>
+          <tr><td>0 Supertruhen nach Route und Sweep</td><td>Run fehlgeschlagen. Deutscher Reason ohne Würfel-Hinweis.</td></tr>
+          <tr><td>Verschlossen, Schlüssel vorhanden</td><td>Klick wie offen. D2R verbraucht einen Schlüssel.</td></tr>
+          <tr><td>Verschlossen, 0 Schlüssel</td><td>Skip, weiter. Town füllt später nach.</td></tr>
+          <tr><td>Klick ohne Mode-Wechsel</td><td>Ein Retry mit frischem Hover, dann Skip dieser UnitID.</td></tr>
+          <tr><td>Gestell ohne Supertruhe in der Nähe</td><td>Ignorieren. Kein Halt nur für ein Gestell auf dem Suchweg.</td></tr>
+          <tr><td>Pack umzingelt / Stuck</td><td>Bestehende Travel-Timeouts und Portal-Recovery. Kein Clear.</td></tr>
+          <tr><td>Inventar voll während Sweep</td><td>Bestehende Loot- und Town-Verträge.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="town">
+    <h2>8. Town, Wegpunkt, Profile</h2>
+
+    <h3>Wegpunkt</h3>
+    <p>
+      Neues Ziel <code>WaypointTargetLowerKurast</code>, erwartete Area 79, Act-Tab 3 (dieselbe Geometrie wie
+      Durance: Tab <code>273,148</code>). Die Zeile wird in Gate 23.2 live bei 1280×720 gemessen und erst dann
+      eingecheckt. <code>levels.txt</code> fehlt im Extract und darf die Zeile nicht ersetzen.
+    </p>
+
+    <h3>Egress</h3>
+    <p>
+      Identisch zu Mephisto: Portal nach Kurast Docks, vorhandene <code>portal-waypoint.yaml</code>, Rogue
+      Encampment, Stash. Der menschliche Speedtrick „Act-4-WP, ausloggen, in Act 1 stehen“ ist kein
+      Produktvertrag und wird nicht automatisiert.
+    </p>
+
+    <h3>Combat-Profile</h3>
+    <p>
+      <code>RunCapabilityEncounterProfile</code> bleibt, weil Teleport und Stadtportal darüber gebunden sind.
+      Necro und Hammerdin registrieren <code>NewBossFactory("lower-kurast")</code>. Configure bleibt leer,
+      kein Route-Clear, keine Corpse Explosion, keine Bone-Prison-Pflicht über das hinaus, was die Factory
+      schon für Countess/Mephisto listet. Söldner ist keine Voraussetzung.
+    </p>
+  </section>
+
+  <section id="loot">
+    <h2>9. Pickit, UI, Telemetrie</h2>
+    <p>
+      Supertruhen droppen Runen, Gold, Gems und Junk, keine Unique oder Set aus dem 65k-Muster.
+      Gestelle droppen Waffen und Rüstungen, darunter Elite-Unique und Elite-Set. Das Standardprofil
+      hält beides. Es liegt noch nicht im Repo, gehört aber fest zu Phase 23.
+    </p>
+    <ul>
+      <li>Neues Profil <code>configs/pickit/profiles/lk-superchests.yaml</code> mit zwei Keep-Regeln: Runen <code>r21</code> (Pul) und höher (Ber ist <code>r30</code>), plus <code>([quality] == unique || [quality] == set) && [tier] == elite</code>.</li>
+      <li>Default-Kette: <code>gems</code>, <code>lk-superchests</code>. Kein <code>keys.yaml</code>. Uber-Schlüssel droppen hier nicht, Stadtschlüssel sind Town-Ressource. Kein <code>mephisto-standard</code>, das Unique/Set verkauft statt sie zu behalten.</li>
+      <li>Installer-Bundle kopiert das Profil über den bestehenden Default-Bundle-Pfad.</li>
+      <li>History: <code>boss_kills</code> bleibt 0. Telemetrie zählt geöffnete und übersprungene Truhen, plus bediente Gestelle. Kein Fake-Kill.</li>
+    </ul>
+
+    <h3>UI-Fläche</h3>
+    <ul>
+      <li><code>runOrder</code> um <code>lower-kurast</code> ergänzen (nach Mephisto oder ans Ende der Act-3-Gruppe).</li>
+      <li>Labels: Run „Unteres Kurast“, Wegpunkt „Unteres Kurast“, Ziel „Lagerfeuer-Hütten“.</li>
+      <li>Aufnahmehinweis ist der Vertragstext aus Abschnitt 7. Darunter zwei Thumbnails: Lagerfeuer und Hüttenlayout. Klick öffnet ein Overlay in voller Größe mit Schließen-Button. Die Dateien lieferst du, Ablage unter <code>web/src/assets/route-guides/lower-kurast/</code>. Kein Satz über gute Karten oder Neuwürfeln.</li>
+      <li>Charakter-Setup: Run in <code>supported_runs</code>, sobald beide Strategies registriert sind.</li>
+    </ul>
+  </section>
+
+  <section id="scope">
+    <h2>10. Geschlossene Produktlücken</h2>
+    <p>Das sind die Fragen, die vor Implementierung nicht mehr offen bleiben sollen. Widerspruch jetzt, nicht mitten im Code.</p>
+    <div class="decision-list">
+      <div class="decision"><strong>Keys kaufen?</strong><span>Ja. Akara, Act 1, nur vor LK. Technisch möglich nach Quantity-Gate und einer Cost-Zeile.</span></div>
+      <div class="decision"><strong>Keys können wir kaufen?</strong><span>Ja. Gleicher Shop wie Tränke. Kein Ormus.</span></div>
+      <div class="decision"><strong>Start der Aufnahme?</strong><span>LK-Wegpunkt. Nicht Rogue Encampment, nicht Docks.</span></div>
+      <div class="decision"><strong>Truhen auf der Route?</strong><span>Ja, Operate-on-sight plus End-Sweep. Keine aufgenommenen Klicks.</span></div>
+      <div class="decision"><strong>Gestelle?</strong><span>Ja, die in den Lagerfeuer-Hütten. Nicht jedes Gestell auf dem Weg.</span></div>
+      <div class="decision"><strong>Kartenlayout?</strong><span>Fest pro Charakter und Schwierigkeit. Aufnahme sucht das Feuer. Kein Würfel-Workflow.</span></div>
+      <div class="decision"><strong>Schwierigkeit?</strong><span>Farm ist Hell. Kein hartes Difficulty-Lock im Registry-Vertrag.</span></div>
+      <div class="decision"><strong>Players?</strong><span>Empfehlung 7, Operator-Setting, kein neuer Default im Code.</span></div>
+      <div class="decision"><strong>Act-4-Skip?</strong><span>Nein.</span></div>
+      <div class="decision"><strong>Travincal im selben Run?</strong><span>Nein. Anderer Lootvertrag, anderer Weg, Horker-Thema.</span></div>
+      <div class="decision"><strong>Drop-Animation</strong><span>Nach jeder Öffnung <code>wait_for_drops</code>, dann zwei positionsstabile Pickup-Ticks und Hover. Kein Sofortklick auf den ersten Ground-Snapshot.</span></div>
+      <div class="decision"><strong>Lagerfeuer-Bilder</strong><span>Zwei von dir gelieferte Screenshots (Feuer, Hüttenlayout). In der LK-Aufnahme-UI als Thumbnails, Klick öffnet Vollbild-Overlay mit Schließen. Keine fremden Guide-Grafiken.</span></div>
+    </div>
+  </section>
+
+  <section id="gates">
+    <h2>11. Gates</h2>
+    <p class="gate-legend">
+      <span><span class="gate-mode auto">Auto</span> Tests und Generator, ohne D2R</span>
+      <span><span class="gate-mode manual">Live</span> einmalig am Offline-Client, 1280×720</span>
+    </p>
+    <div class="phase-list">
+
+      <article class="gate manual-gate">
+        <div class="gate-id">23.0<span class="gate-mode manual">Live</span></div>
+        <div>
+          <h3>Objektidentität am Lagerfeuer</h3>
+          <p>
+            Read-only <code>--object-inspect</code> schreibt für die aktuelle Area ID, UnitID, Position, Mode
+            und Katalogname. Operator steht in Hell-LK am gefundenen Lagerfeuer seiner bestehenden Karte,
+            Truhen noch geschlossen. Danach eine Truhe und ein Gestell öffnen, Inspect wiederholen, Mode-Delta
+            notieren. Wenn möglich eine verschlossene Truhe mit und ohne Schlüssel im Inventar.
+          </p>
+          <div class="gate-proof">
+            <strong>Bestanden:</strong> Die drei Hüttenkisten sind auf eine kleine ID-Menge reduziert. Die
+            Hüttengestelle treffen die CASC-Klassen. Mode-Werte für geschlossen und offen sind belegt.
+            Verschlossen ist entweder ein Mode oder ein belegtes Fail-closed-Verhalten. Quantity-Stat 70 ist
+            an einem Schlüsselstapel sichtbar. Keine Produkt-Truhen-IDs vor diesem Report.
+          </div>
+        </div>
+      </article>
+
+      <article class="gate auto-gate">
+        <div class="gate-id">23.1<span class="gate-mode auto">Auto</span></div>
+        <div>
+          <h3>Katalog, Mode, Quantity</h3>
+          <p>
+            Generator um die live belegten Supertruhen-Klassen und die Gestell-Klassen aus <code>objects.txt</code>
+            erweitern. Neue Kinds <code>ObjectKindSuperChest</code> und <code>ObjectKindRack</code>.
+            <code>ObjectUnit</code> und World-<code>Object</code> tragen Mode plus Known-Flag.
+            <code>StatQuantity = 70</code> analog zu Sockets, Test gegen lokales <code>itemstatcost.txt</code>.
+            Replay-Decoder und Layout-Fingerprint nur so weit anfassen, dass die neuen Kinds nicht als unbekannt zerbrechen.
+          </p>
+          <div class="gate-proof">
+            <strong>Bestanden:</strong> Generator- und World-Tests grün. Unbekannte IDs bleiben
+            <code>ObjectKindUnknown</code> und werden nicht geöffnet.
+          </div>
+        </div>
+      </article>
+
+      <article class="gate manual-gate">
+        <div class="gate-id">23.2<span class="gate-mode manual">Live</span></div>
+        <div>
+          <h3>Wegpunkt Unteres Kurast</h3>
+          <p>
+            Bei offenem Act-3-Menü Zeile für Unteres Kurast auf 1280×720 messen, Ankunft Area 79 Memory-bestätigen.
+            Erst danach <code>WaypointTargetLowerKurast</code> und Registry-Tests einchecken. Parallel zu 23.0 zulässig.
+          </p>
+          <div class="gate-proof">
+            <strong>Bestanden:</strong> Ein isolierter Waypoint-Select landet in Area 79. Keine geratene <code>RowY</code>.
+          </div>
+        </div>
+      </article>
+
+      <article class="gate auto-gate">
+        <div class="gate-id">23.3<span class="gate-mode auto">Auto</span></div>
+        <div>
+          <h3>Akara-Schlüssel-Restock</h3>
+          <p>
+            Neue Restock-Ressource, Cost-Map, Demand nur bei Next-Run <code>lower-kurast</code>, Inventarsumme über
+            Quantity. Planner- und Vendor-Tests. Shop-Input bleibt der bestehende Akara-Pfad.
+          </p>
+          <div class="gate-proof">
+            <strong>Bestanden:</strong> Unter Schwelle entsteht genau eine Key-Order. Andere Runs erzeugen keine.
+            Unlesbare Quantity gilt als 0 (nachkaufen), nicht als „voll“.
+          </div>
+        </div>
+      </article>
+
+      <article class="gate auto-gate">
+        <div class="gate-id">23.4<span class="gate-mode auto">Auto</span></div>
+        <div>
+          <h3>Registry ohne Boss</h3>
+          <p>
+            <code>RunCapabilityChestSweep</code>, leerer Boss erlaubt, Recording
+            <code>RecordingTerminalEndpoint</code> in Area 79, Return <code>OriginAct3</code>, kein Route-Clear.
+            Strategies für Necro und Hammerdin. Verfügbarkeit und Setup-Tests.
+          </p>
+          <div class="gate-proof">
+            <strong>Bestanden:</strong> Default-Registry lädt. Eine Einzelroute ohne Capability und ohne Boss wird
+            weiter abgelehnt. Cows bleibt unverändert ein Route-Set.
+          </div>
+        </div>
+      </article>
+
+      <article class="gate auto-gate">
+        <div class="gate-id">23.5<span class="gate-mode auto">Auto</span></div>
+        <div>
+          <h3>Chest-Executor und Pipeline</h3>
+          <p>
+            Hover-Operate, UnitID-Pin, Mode- oder Fail-Settle, Skip-ohne-Schlüssel, Operate-on-sight für Supertruhen,
+            Gestelle nur neben einer Supertruhe, nach jeder Öffnung <code>wait_for_drops</code> vor Scan/Pickup,
+            Schlusssweep, Portal, Act-3-Egress. Characterization-Fixture für die neuen Steps. Headless Replay darf
+            die neuen Intents lesen.
+          </p>
+          <div class="gate-proof">
+            <strong>Bestanden:</strong> Unit-Tests für Skip, Retry, 0-Truhen-Fail, Gestell ignorieren ohne Truhe
+            in der Nähe, keine Re-Clicks. Kein <code>acquire_boss</code> auf diesem Pfad.
+          </div>
+        </div>
+      </article>
+
+      <article class="gate auto-gate">
+        <div class="gate-id">23.6<span class="gate-mode auto">Auto</span></div>
+        <div>
+          <h3>Pickit, UI, Defaults</h3>
+          <p>
+            Profil Pul+ und Elite-Unique/Set, Default-Kette, Bundle, <code>runOrder</code>, deutsche Labels inklusive
+            des Aufnahmevertrags aus Abschnitt 7, zwei Thumbnails mit Vollbild-Overlay in der LK-Aufnahmeansicht,
+            Charakter-Setup, History ohne Fake-Kills. Kleinster betroffener UI- und Config-Test. Die Screenshot-Dateien
+            können als Platzhalter landen, bis du die endgültigen Bilder nachreichst.
+          </p>
+          <div class="gate-proof">
+            <strong>Bestanden:</strong> Setup zeigt den Run für beide Profile. Pickit-Default hält Pul+ und Elite-Unique/Set, keine Uber-Keys. Overlay schließt per Button.
+          </div>
+        </div>
+      </article>
+
+      <article class="gate manual-gate">
+        <div class="gate-id">23.7<span class="gate-mode manual">Live</span></div>
+        <div>
+          <h3>Aufnahme und Routentest</h3>
+          <p>
+            Auf der bestehenden Hell-Karte des Testcharakters die Route aufnehmen und den geführten Test spielen.
+            Die beiden UI-Screenshots kommen von dir und werden nur verdrahtet, nicht live aufgenommen.
+            Der Test darf Truhen öffnen oder, wenn der bestehende Route-Test nur Bewegung prüft, wenigstens Area
+            und Endpunkt bestätigen. Produktiver Sweep gehört in 23.8.
+          </p>
+          <div class="gate-proof">
+            <strong>Bestanden:</strong> Aufnahme startet nur am LK-WP. Playback endet an den Lagerfeuer-Hütten. Safety-Return per Portal. Die UI zeigt den Vertragstext, keinen Würfel-Hinweis.
+          </div>
+        </div>
+      </article>
+
+      <article class="gate manual-gate">
+        <div class="gate-id">23.8<span class="gate-mode manual">Live</span></div>
+        <div>
+          <h3>Ein voller produktiver Zyklus</h3>
+          <p>
+            Town kauft Schlüssel unter Schwelle, WP landet in 79, Route spielt, sichtbare Supertruhen öffnen
+            (verschlossene mit Schlüssel), Hüttengestelle bedienen, Loot nach Pickit, Portal, Docks-Egress, Stash.
+            Zweiter Durchlauf mit absichtlich 0 Schlüsseln: verschlossene Truhe wird übersprungen, Run endet nicht
+            deswegen. Gestelle auf dem Weg vor dem Feuer bleiben unberührt.
+          </p>
+          <div class="gate-proof">
+            <strong>Bestanden:</strong> Beide Läufe loggen Operate/Skip nachvollziehbar. Keine Extra-Kiste außerhalb
+            der Allowlist, keine Gestelle außer an den Hütten. Kein Schreiben in D2R-Install oder Savegames.
+          </div>
+        </div>
+      </article>
+
+      <article class="gate auto-gate">
+        <div class="gate-id">23.9<span class="gate-mode auto">Auto</span></div>
+        <div>
+          <h3>Dokumentation</h3>
+          <p>
+            <code>docs/features/lower-kurast-run.md</code> nach Template, Index, Changelog unter Unreleased/Added.
+            Godoc an jedem neuen exportierten Symbol. UI-Strings Deutsch.
+          </p>
+          <div class="gate-proof">
+            <strong>Bestanden:</strong> Doc nennt Keys, Skip-Regel, Hüttengestelle ja / Weggestelle nein, den
+            Lagerfeuer-Aufnahmevertrag und die Live-IDs mit CASC-Zeile. Kein Neuwürfel-Workflow.
+          </div>
+        </div>
+      </article>
+    </div>
+  </section>
+
+  <section id="risiken">
+    <h2>12. Risiken und Reihenfolge</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Risiko</th><th>Warum es weh tut</th><th>Gegenmittel</th></tr></thead>
+        <tbody>
+          <tr>
+            <td>Falsche Objekt-ID</td>
+            <td>Bot öffnet Junk oder sieht die Hüttenkisten nicht.</td>
+            <td class="owner">23.0 vor jedem Produkt-ID-Commit.</td>
+          </tr>
+          <tr>
+            <td>Mode nicht lesbar</td>
+            <td>Endlosklicks auf offene Truhen.</td>
+            <td>Known-Flag; ohne Mode nur UnitID-once plus Drop-Wait.</td>
+          </tr>
+          <tr>
+            <td>Quantity nicht live</td>
+            <td>Key-Restock kauft blind oder nie.</td>
+            <td>Unlesbar = 0. Live-Beweis am Stapel bevor der Shop-Pfad produktiv wird.</td>
+          </tr>
+          <tr>
+            <td>Geratene WP-Zeile</td>
+            <td>Reise nach Travincal oder Durance statt LK.</td>
+            <td>23.2, ExpectedArea 79, bestehendes post-open-Settle.</td>
+          </tr>
+          <tr>
+            <td>Nur End-Sweep</td>
+            <td>Die ersten Hütten sind entladen, sobald die Route am zweiten Feuer endet.</td>
+            <td>Operate-on-sight für Supertruhen ist Pflicht, nicht optional.</td>
+          </tr>
+          <tr>
+            <td>Jedes Gestell auf dem Suchweg</td>
+            <td>Eine lange Route vom Wegpunkt würde Dutzende Ständer öffnen.</td>
+            <td>Gestelle nur neben einer Supertruhe.</td>
+          </tr>
+          <tr>
+            <td>Boss-Pipeline wiederverwenden</td>
+            <td>Timeouts und Telemetrie lügen.</td>
+            <td>Eigene Steps, 0 Kills, Capability statt Fake-NPC.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Implementierungsreihenfolge</h3>
+    <ol>
+      <li>23.0 und 23.2 live, parallel.</li>
+      <li>23.1 Katalog/Mode, sobald IDs fest sind.</li>
+      <li>23.3 Keys und 23.4 Registry, parallel nach 23.1-Quantity bzw. unabhängig vom Katalog.</li>
+      <li>23.5 Pipeline, 23.6 UI/Pickit.</li>
+      <li>23.7 Aufnahme, 23.8 Zyklus, 23.9 Docs.</li>
+    </ol>
+
+    <div class="callout success">
+      <h3>Validierung</h3>
+      <p>
+        Nach jeder abgeschlossenen Änderung nur die kleinsten betroffenen Tests. Keine Gesamtsuite, kein
+        Release-Skript, kein Commit, bis du das ausdrücklich willst. Dieser HTML-Entwurf ist die Spezifikation,
+        nicht der Startschuss.
+      </p>
+    </div>
+  </section>
+
+  <footer>
+    Phase 23 · Lower-Kurast-Supertruhen · Entwurf 20. August 2026 · nicht bindend ohne Freigabe
+  </footer>
+</main>
+</body>
+</html>
