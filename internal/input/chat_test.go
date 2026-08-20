@@ -35,8 +35,8 @@ func TestSendChatCommandTypesPlayersAndSubmits(t *testing.T) {
 	if string(mock.runes) != "/players 8" {
 		t.Fatalf("typed = %q", string(mock.runes))
 	}
-	if len(sleeps) == 0 || sleeps[0] != chatOpenSettle {
-		t.Fatalf("first sleep = %v, want chat settle", sleeps)
+	if len(sleeps) < 2 || sleeps[1] != chatOpenSettle {
+		t.Fatalf("sleeps = %v, want chat settle after open-key delay", sleeps)
 	}
 }
 
