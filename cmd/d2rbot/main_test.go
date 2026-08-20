@@ -35,6 +35,9 @@ func TestShouldRunSessionDoesNotOverrideExplicitRunOrProbe(t *testing.T) {
 	if shouldRunSession(cfg, app.Options{WeaponSetProbe: "primary-secondary"}) {
 		t.Fatal("weapon-set probe must not fall through to autonomous session")
 	}
+	if shouldRunSession(cfg, app.Options{ObjectInspect: "closed"}) {
+		t.Fatal("object inspect must not fall through to autonomous session")
+	}
 	if !shouldRunSession(cfg, app.Options{}) {
 		t.Fatal("bare enabled config should run autonomous session")
 	}
@@ -52,6 +55,9 @@ func TestValidateDesktopModeRejectsRuntimeCommands(t *testing.T) {
 	}
 	if err := validateDesktopMode(app.Options{Desktop: true, WeaponSetProbe: "primary-secondary"}); err == nil {
 		t.Fatal("expected desktop/weapon-set-probe conflict")
+	}
+	if err := validateDesktopMode(app.Options{Desktop: true, ObjectInspect: "closed"}); err == nil {
+		t.Fatal("expected desktop/object-inspect conflict")
 	}
 }
 

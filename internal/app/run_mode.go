@@ -29,7 +29,7 @@ var (
 
 // resolveActiveRun returns the configured run name; CLI overrides YAML.
 func resolveActiveRun(opts Options, cfg *config.Config) string {
-	if opts.Desktop || opts.UIStateProbe != "" || opts.ScreenAnchorCapture != "" || opts.OfflineExitTest || opts.OfflineDifficulty != "" || opts.TownTest != "" || opts.TownInspect || opts.MercenaryProbe != "" || opts.CowProbe != "" || opts.WeaponSetProbe != "" {
+	if opts.Desktop || opts.UIStateProbe != "" || opts.ScreenAnchorCapture != "" || opts.OfflineExitTest || opts.OfflineDifficulty != "" || opts.TownTest != "" || opts.TownInspect || opts.MercenaryProbe != "" || opts.CowProbe != "" || opts.WeaponSetProbe != "" || opts.ObjectInspect != "" {
 		return ""
 	}
 	if opts.Run != "" {
@@ -168,7 +168,7 @@ func validateRunMode(sel tasks.RunSelection, cfg *config.Config, opts Options, l
 		if opts.Run == "" || opts.RunPhase != "" {
 			return fmt.Errorf("--runtime-trace-capture requires an explicit full --run without --phase")
 		}
-		if opts.InputTest != "" || opts.PathingTest != "" || opts.OfflineDifficulty != "" || opts.OfflineCharacter != "" || opts.OfflineExitTest || opts.UIStateProbe != "" || opts.ScreenAnchorCapture != "" || opts.MercenaryProbe != "" || opts.CowProbe != "" || opts.WeaponSetProbe != "" || opts.Route != "" || opts.TownInspect || opts.TownTest != "" || opts.SessionInspect || opts.RunsInspect || opts.WaypointTargetsInspect {
+		if opts.InputTest != "" || opts.PathingTest != "" || opts.OfflineDifficulty != "" || opts.OfflineCharacter != "" || opts.OfflineExitTest || opts.UIStateProbe != "" || opts.ScreenAnchorCapture != "" || opts.MercenaryProbe != "" || opts.CowProbe != "" || opts.WeaponSetProbe != "" || opts.ObjectInspect != "" || opts.Route != "" || opts.TownInspect || opts.TownTest != "" || opts.SessionInspect || opts.RunsInspect || opts.WaypointTargetsInspect {
 			return fmt.Errorf("--runtime-trace-capture is only valid with one explicit full run")
 		}
 	}
@@ -184,7 +184,7 @@ func validateRunMode(sel tasks.RunSelection, cfg *config.Config, opts Options, l
 		}
 	}
 	if opts.MercenaryProbe != "" {
-		if opts.InputTest != "" || opts.PathingTest != "" || opts.OfflineDifficulty != "" || opts.OfflineCharacter != "" || opts.OfflineExitTest || opts.UIStateProbe != "" || opts.ScreenAnchorCapture != "" || opts.Route != "" || opts.Run != "" || opts.RunPhase != "" || opts.TownInspect || opts.TownTest != "" {
+		if opts.InputTest != "" || opts.PathingTest != "" || opts.OfflineDifficulty != "" || opts.OfflineCharacter != "" || opts.OfflineExitTest || opts.UIStateProbe != "" || opts.ScreenAnchorCapture != "" || opts.ObjectInspect != "" || opts.Route != "" || opts.Run != "" || opts.RunPhase != "" || opts.TownInspect || opts.TownTest != "" {
 			return fmt.Errorf("--mercenary-probe is mutually exclusive with run and other test modes")
 		}
 		if err := validateMercenaryProbeLabel(opts.MercenaryProbe); err != nil {
@@ -195,7 +195,7 @@ func validateRunMode(sel tasks.RunSelection, cfg *config.Config, opts Options, l
 		}
 	}
 	if opts.CowProbe != "" {
-		if opts.InputTest != "" || opts.PathingTest != "" || opts.OfflineDifficulty != "" || opts.OfflineCharacter != "" || opts.OfflineExitTest || opts.UIStateProbe != "" || opts.ScreenAnchorCapture != "" || opts.MercenaryProbe != "" || opts.WeaponSetProbe != "" || opts.Route != "" || opts.Run != "" || opts.RunPhase != "" || opts.TownInspect || opts.TownTest != "" {
+		if opts.InputTest != "" || opts.PathingTest != "" || opts.OfflineDifficulty != "" || opts.OfflineCharacter != "" || opts.OfflineExitTest || opts.UIStateProbe != "" || opts.ScreenAnchorCapture != "" || opts.MercenaryProbe != "" || opts.WeaponSetProbe != "" || opts.ObjectInspect != "" || opts.Route != "" || opts.Run != "" || opts.RunPhase != "" || opts.TownInspect || opts.TownTest != "" {
 			return fmt.Errorf("--cow-probe is mutually exclusive with run and other test modes")
 		}
 		if err := validateCowProbeLabel(opts.CowProbe); err != nil {
@@ -206,7 +206,7 @@ func validateRunMode(sel tasks.RunSelection, cfg *config.Config, opts Options, l
 		}
 	}
 	if opts.WeaponSetProbe != "" {
-		if opts.InputTest != "" || opts.PathingTest != "" || opts.OfflineDifficulty != "" || opts.OfflineCharacter != "" || opts.OfflineExitTest || opts.UIStateProbe != "" || opts.ScreenAnchorCapture != "" || opts.MercenaryProbe != "" || opts.CowProbe != "" || opts.Route != "" || opts.Run != "" || opts.RunPhase != "" || opts.TownInspect || opts.TownTest != "" {
+		if opts.InputTest != "" || opts.PathingTest != "" || opts.OfflineDifficulty != "" || opts.OfflineCharacter != "" || opts.OfflineExitTest || opts.UIStateProbe != "" || opts.ScreenAnchorCapture != "" || opts.MercenaryProbe != "" || opts.CowProbe != "" || opts.ObjectInspect != "" || opts.Route != "" || opts.Run != "" || opts.RunPhase != "" || opts.TownInspect || opts.TownTest != "" {
 			return fmt.Errorf("--weapon-set-probe is mutually exclusive with run and other test modes")
 		}
 		if err := validateWeaponSetProbeLabel(opts.WeaponSetProbe); err != nil {
@@ -214,6 +214,17 @@ func validateRunMode(sel tasks.RunSelection, cfg *config.Config, opts Options, l
 		}
 		if opts.WeaponSetProbeTimeoutMs < 0 {
 			return fmt.Errorf("--weapon-set-probe-timeout-ms must not be negative")
+		}
+	}
+	if opts.ObjectInspect != "" {
+		if opts.InputTest != "" || opts.PathingTest != "" || opts.OfflineDifficulty != "" || opts.OfflineCharacter != "" || opts.OfflineExitTest || opts.UIStateProbe != "" || opts.ScreenAnchorCapture != "" || opts.MercenaryProbe != "" || opts.CowProbe != "" || opts.WeaponSetProbe != "" || opts.Route != "" || opts.Run != "" || opts.RunPhase != "" || opts.TownInspect || opts.TownTest != "" {
+			return fmt.Errorf("--object-inspect is mutually exclusive with run and other test modes")
+		}
+		if err := validateObjectInspectLabel(opts.ObjectInspect); err != nil {
+			return err
+		}
+		if opts.ObjectInspectTimeoutMs < 0 {
+			return fmt.Errorf("--object-inspect-timeout-ms must not be negative")
 		}
 	}
 	if opts.ScreenAnchorCapture != "" {
@@ -376,7 +387,7 @@ func farmingRouteRequired(opts Options, sel tasks.RunSelection) bool {
 	if opts.Desktop && sel.Run == "" {
 		return false
 	}
-	if sel.Run == "" && (opts.TownTest != "" || opts.TownInspect || opts.MercenaryProbe != "" || opts.CowProbe != "" || opts.WeaponSetProbe != "" || opts.InputTest != "" || opts.Probe || opts.UIStateProbe != "" || opts.ScreenAnchorCapture != "" || opts.PathingTest != "" || opts.OfflineDifficulty != "" || opts.OfflineExitTest || opts.Route != "") {
+	if sel.Run == "" && (opts.TownTest != "" || opts.TownInspect || opts.MercenaryProbe != "" || opts.CowProbe != "" || opts.WeaponSetProbe != "" || opts.ObjectInspect != "" || opts.InputTest != "" || opts.Probe || opts.UIStateProbe != "" || opts.ScreenAnchorCapture != "" || opts.PathingTest != "" || opts.OfflineDifficulty != "" || opts.OfflineExitTest || opts.Route != "") {
 		return false
 	}
 	return !opts.Desktop || sel.Run != ""

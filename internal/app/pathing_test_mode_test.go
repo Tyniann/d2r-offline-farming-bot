@@ -122,6 +122,7 @@ func TestSessionExecutionRequestedExcludesSpecializedModes(t *testing.T) {
 		{InputTest: "belt:1"},
 		{RuntimeTraceCapture: "focus-loss"},
 		{WeaponSetProbe: "primary-secondary"},
+		{ObjectInspect: "closed"},
 	}
 	for _, opts := range specialized {
 		if SessionExecutionRequested(opts) {

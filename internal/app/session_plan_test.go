@@ -146,6 +146,7 @@ func TestResolveSessionPlanRejectsModeConflict(t *testing.T) {
 	for _, opts := range []Options{
 		{SessionInspect: true, Run: "countess"},
 		{SessionInspect: true, CowProbe: "gate-20-0"},
+		{SessionInspect: true, ObjectInspect: "closed"},
 	} {
 		if _, err := ResolveSessionPlan(cfg, opts); err == nil {
 			t.Fatalf("expected mode conflict for %+v", opts)

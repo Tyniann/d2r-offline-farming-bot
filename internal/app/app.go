@@ -41,6 +41,7 @@ type Runtime struct {
 	Probe              snapshotReader
 	UIProbe            uiBufferCaptureReader
 	HirelingProbe      hirelingEvidenceReader
+	ObjectInspect      objectInspectEvidenceReader
 	World              *world.Model
 	Input              inputController
 	Bindings           configBindingSource
@@ -348,6 +349,7 @@ func New(cfg *config.Config, opts Options) (rt *Runtime, err error) {
 		Probe:             probe,
 		UIProbe:           probe,
 		HirelingProbe:     probe,
+		ObjectInspect:     probe,
 		World:             world.NewModel(log),
 		Input:             inputCtrl,
 		Bindings:          bindings,
@@ -409,12 +411,12 @@ func New(cfg *config.Config, opts Options) (rt *Runtime, err error) {
 // the process. Specialized CLI modes such as --pathing-test and --route must
 // return false even when session.enabled is true.
 func SessionExecutionRequested(opts Options) bool {
-	return !opts.Desktop && !opts.SessionInspect && !opts.RunsInspect && !opts.WaypointTargetsInspect && !opts.Probe && opts.InputTest == "" && opts.Run == "" && opts.RunPhase == "" && opts.RuntimeTraceCapture == "" && opts.ReplayRuntimeTrace == "" && opts.PathingTest == "" && opts.OfflineDifficulty == "" && opts.OfflineCharacter == "" && !opts.OfflineExitTest && opts.UIStateProbe == "" && opts.ScreenAnchorCapture == "" && opts.MercenaryProbe == "" && opts.CowProbe == "" && opts.WeaponSetProbe == "" && opts.Route == "" && !opts.TownInspect && opts.TownTest == ""
+	return !opts.Desktop && !opts.SessionInspect && !opts.RunsInspect && !opts.WaypointTargetsInspect && !opts.Probe && opts.InputTest == "" && opts.Run == "" && opts.RunPhase == "" && opts.RuntimeTraceCapture == "" && opts.ReplayRuntimeTrace == "" && opts.PathingTest == "" && opts.OfflineDifficulty == "" && opts.OfflineCharacter == "" && !opts.OfflineExitTest && opts.UIStateProbe == "" && opts.ScreenAnchorCapture == "" && opts.MercenaryProbe == "" && opts.CowProbe == "" && opts.WeaponSetProbe == "" && opts.ObjectInspect == "" && opts.Route == "" && !opts.TownInspect && opts.TownTest == ""
 }
 
 // CharacterLoadoutRequired reports whether Runtime construction needs a frozen character loadout.
 func CharacterLoadoutRequired(opts Options) bool {
-	if opts.Desktop || opts.SessionInspect || opts.RunsInspect || opts.WaypointTargetsInspect || opts.Probe || opts.UIStateProbe != "" || opts.ScreenAnchorCapture != "" || opts.MercenaryProbe != "" || opts.CowProbe != "" || opts.WeaponSetProbe != "" || opts.TownInspect {
+	if opts.Desktop || opts.SessionInspect || opts.RunsInspect || opts.WaypointTargetsInspect || opts.Probe || opts.UIStateProbe != "" || opts.ScreenAnchorCapture != "" || opts.MercenaryProbe != "" || opts.CowProbe != "" || opts.WeaponSetProbe != "" || opts.ObjectInspect != "" || opts.TownInspect {
 		return false
 	}
 	if SessionExecutionRequested(opts) {

@@ -257,6 +257,7 @@ func TestResolveRunsInspectReportRejectsRuntimeModeConflict(t *testing.T) {
 	for _, opts := range []Options{
 		{RunsInspect: true, Run: "countess"},
 		{RunsInspect: true, CowProbe: "gate-20-0"},
+		{RunsInspect: true, ObjectInspect: "closed"},
 	} {
 		if _, err := ResolveRunsInspectReport(cfg, opts); err == nil {
 			t.Fatalf("expected --runs-inspect conflict for %+v", opts)

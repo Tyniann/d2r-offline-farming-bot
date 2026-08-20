@@ -35,6 +35,7 @@ func TestResolveWaypointTargetsInspectReportRejectsConflicts(t *testing.T) {
 	for _, opts := range []Options{
 		{WaypointTargetsInspect: true, Run: "countess"},
 		{WaypointTargetsInspect: true, CowProbe: "gate-20-0"},
+		{WaypointTargetsInspect: true, ObjectInspect: "closed"},
 	} {
 		if _, err := ResolveWaypointTargetsInspectReport(opts); err == nil {
 			t.Fatalf("expected conflicting mode to fail for %+v", opts)

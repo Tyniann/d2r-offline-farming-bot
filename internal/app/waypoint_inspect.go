@@ -18,7 +18,7 @@ func ResolveWaypointTargetsInspectReport(opts Options) (WaypointTargetsInspectRe
 	if !opts.WaypointTargetsInspect {
 		return WaypointTargetsInspectReport{}, fmt.Errorf("waypoint target inspect mode is not selected")
 	}
-	if opts.SessionInspect || opts.RunsInspect || opts.Probe || opts.InputTest != "" || opts.Run != "" || opts.RunPhase != "" || opts.PathingTest != "" || opts.OfflineDifficulty != "" || opts.OfflineCharacter != "" || opts.OfflineExitTest || opts.UIStateProbe != "" || opts.ScreenAnchorCapture != "" || opts.MercenaryProbe != "" || opts.CowProbe != "" || opts.WeaponSetProbe != "" || opts.Route != "" || opts.TownInspect || opts.TownTest != "" {
+	if opts.SessionInspect || opts.RunsInspect || opts.Probe || opts.InputTest != "" || opts.Run != "" || opts.RunPhase != "" || opts.PathingTest != "" || opts.OfflineDifficulty != "" || opts.OfflineCharacter != "" || opts.OfflineExitTest || opts.UIStateProbe != "" || opts.ScreenAnchorCapture != "" || opts.MercenaryProbe != "" || opts.CowProbe != "" || opts.WeaponSetProbe != "" || opts.ObjectInspect != "" || opts.Route != "" || opts.TownInspect || opts.TownTest != "" {
 		return WaypointTargetsInspectReport{}, fmt.Errorf("--waypoint-targets-inspect is mutually exclusive with session, run, probe, route, town, and test modes")
 	}
 	return WaypointTargetsInspectReport{SchemaVersion: 1, Targets: pathing.DefaultWaypointTargetRegistry().Actions()}, nil

@@ -252,7 +252,7 @@ func (rt *Runtime) shouldRunBindingsPrecheck(snap memory.Snapshot, state *runSta
 	if !rt.Config.Input.Enabled || state.bindingsPrecheckDone || !snap.Valid || snap.Phase != memory.GamePhaseInGame {
 		return false
 	}
-	if rt.Options.InputTest != "" || rt.Options.OfflineDifficulty != "" || rt.Options.OfflineExitTest || rt.Options.UIStateProbe != "" || rt.Options.ScreenAnchorCapture != "" || rt.Options.MercenaryProbe != "" || rt.Options.CowProbe != "" || rt.Options.WeaponSetProbe != "" || rt.Options.TownInspect || rt.Options.TownTest != "" || rt.pathingTestIsReadOnly() || rt.routeCommandIsReadOnly() {
+	if rt.Options.InputTest != "" || rt.Options.OfflineDifficulty != "" || rt.Options.OfflineExitTest || rt.Options.UIStateProbe != "" || rt.Options.ScreenAnchorCapture != "" || rt.Options.MercenaryProbe != "" || rt.Options.CowProbe != "" || rt.Options.WeaponSetProbe != "" || rt.Options.ObjectInspect != "" || rt.Options.TownInspect || rt.Options.TownTest != "" || rt.pathingTestIsReadOnly() || rt.routeCommandIsReadOnly() {
 		return false
 	}
 	if rt.Options.Loadout == nil && !CharacterLoadoutRequired(rt.Options) {

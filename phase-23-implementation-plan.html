@@ -474,7 +474,7 @@
     </div>
     <div class="hero-meta">
       <div><strong>Stand</strong><span>20. August 2026</span></div>
-      <div><strong>Status</strong><span>Entwurf; nicht bindend bis zu deinem Go</span></div>
+      <div><strong>Status</strong><span>23.0 Code bereit; wartet auf Live-Evidenz</span></div>
       <div><strong>Run-ID</strong><span><code>lower-kurast</code></span></div>
       <div><strong>Rückkehr</strong><span>Act 3 · Kurast Docks</span></div>
     </div>
@@ -1011,7 +1011,7 @@ letzten Hüttengruppe mit F9.</pre>
     <div class="phase-list">
 
       <article class="gate manual-gate">
-        <div class="gate-id">23.0<span class="gate-mode manual">Live</span></div>
+        <div class="gate-id">23.0<span class="gate-mode manual">Live · Code bereit</span></div>
         <div>
           <h3>Objektidentität am Lagerfeuer</h3>
           <p>
@@ -1025,6 +1025,17 @@ letzten Hüttengruppe mit F9.</pre>
             Hüttengestelle treffen die CASC-Klassen. Mode-Werte für geschlossen und offen sind belegt.
             Verschlossen ist entweder ein Mode oder ein belegtes Fail-closed-Verhalten. Quantity-Stat 70 ist
             an einem Schlüsselstapel sichtbar. Keine Produkt-Truhen-IDs vor diesem Report.
+          </div>
+          <div class="callout" style="margin-top:14px">
+            <h3>Implementierungsstand 20. August 2026</h3>
+            <p>
+              Der Diagnose-Walk ist da und umgeht die produktive Allowlist. Mode kommt von
+              <code>UnitAny+0x0C</code>. Katalognamen kommen aus dem bestehenden World-Lookup oder, falls
+              vorhanden, aus <code>.tmp/d2r-excel/objects.txt</code>. Schlüsselstapel <code>code=key</code>
+              tragen den rohen Stat 70. Keine Supertruhen-IDs, kein <code>ObjectKindSuperChest</code>, kein
+              produktives Quantity-Decoding. Automatische Tests sind grün. Das Gate bleibt offen, bis die
+              Live-JSONs die drei Hüttenkisten, Gestellklassen, Mode-Deltas und Stat 70 zeigen.
+            </p>
           </div>
         </div>
       </article>

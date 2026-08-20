@@ -49,6 +49,10 @@ type Options struct {
 	WeaponSetProbe string
 	// WeaponSetProbeTimeoutMs bounds the read-only weapon-set capture.
 	WeaponSetProbeTimeoutMs int
+	// ObjectInspect labels one read-only Gate-23.0 object evidence capture.
+	ObjectInspect string
+	// ObjectInspectTimeoutMs bounds the read-only object inspect capture.
+	ObjectInspectTimeoutMs int
 	// ScreenAnchorCapture labels one Phase-7.3 frontend screenshot capture.
 	ScreenAnchorCapture string
 	// SessionInspect resolves and prints the Phase-7.5 session plan without runtime initialization.

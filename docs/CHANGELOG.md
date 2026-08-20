@@ -9,6 +9,7 @@ Versionierung nach [Semantic Versioning](https://semver.org/).
 
 ### Added
 - Add a per-character offline players setting (1–8, default 1) and send `/players N` once after each certified game start
+- Add read-only `--object-inspect` to capture object IDs, modes, catalog names, and key-stack quantity stat 70 before Lower Kurast product IDs are committed
 
 ## [0.21.0] - 2026-08-19
 

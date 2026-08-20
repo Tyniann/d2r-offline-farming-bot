@@ -40,6 +40,7 @@ Ab Phase 6.1 enthält `memory.Snapshot.Identity` zusätzlich Charaktername, Clas
 | `--probe --verbose` | World-Logging aktiv; Positionsänderungen zusätzlich auf Debug |
 | `--ui-state-probe <label>` | Isolierter Phase-7.1-Modus: zwölf read-only UI-Buffer-Samples als lokales JSON-Artefakt; kein Menüinput |
 | `--cow-probe <label>` | Isolierter Phase-20.0-Modus: read-only Zeitreihe für Portal-/Wirt-Objekte, direkte Kuh-Rohzustände einschließlich StatListEx-Forschungsfenster, Rezeptitems und UI-Buffer; Cube-Labels ergänzen gedrosselte 64-KiB-UI-Forschung; kein Spielinput |
+| `--object-inspect <label>` | Isolierter Gate-23.0-Modus: ein read-only Area-Report aller Objekte mit Mode und Katalogname plus Schlüsselstapel mit Stat 70; kein Spielinput |
 
 Startup-Log enthält `probe_enabled` (World-State-Logging-Schalter), `verbose` sowie `offset configuration` (`game_version`, `offset_set`, `offsets_file`, `attach_timeout_ms`).
 
@@ -214,4 +215,4 @@ Semantische World-State-Validierung (Countess-Route, Area-Namen, `hp_pct`, Log-P
 - [World Model](world-model.md) — Domain-Typen und kontinuierliches Update im App-Loop
 
 ---
-*Zuletzt aktualisiert: 2026-08-18*
+*Zuletzt aktualisiert: 2026-08-20*

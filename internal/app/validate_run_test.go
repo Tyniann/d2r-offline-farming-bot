@@ -99,6 +99,26 @@ func TestResolveActiveRunCLIPriority(t *testing.T) {
 	}
 }
 
+func TestObjectInspectSuppressesConfiguredRunAndValidatesReadOnlyMode(t *testing.T) {
+	cfg := &config.Config{Runs: config.RunsConfig{Active: "countess"}}
+	opts := Options{ObjectInspect: "closed"}
+	if got := resolveActiveRun(opts, cfg); got != "" {
+		t.Fatalf("resolveActiveRun() = %q, want empty for object inspect", got)
+	}
+	if err := validateRunMode(resolveRunSelection(opts, cfg), cfg, opts, config.NewLogger("error")); err != nil {
+		t.Fatalf("validateRunMode() = %v", err)
+	}
+	if err := validateRunMode(tasksSelection("", ""), cfg, Options{ObjectInspect: "closed", ObjectInspectTimeoutMs: -1}, config.NewLogger("error")); err == nil {
+		t.Fatal("negative object inspect timeout should fail")
+	}
+	if CharacterLoadoutRequired(opts) {
+		t.Fatal("read-only object inspect must not require an operator loadout")
+	}
+	if farmingRouteRequired(opts, tasksSelection("", "")) {
+		t.Fatal("read-only object inspect must not require a farming route")
+	}
+}
+
 func TestWeaponSetProbeSuppressesConfiguredRunAndValidatesReadOnlyMode(t *testing.T) {
 	cfg := &config.Config{Runs: config.RunsConfig{Active: "countess"}}
 	opts := Options{WeaponSetProbe: weaponSetProbeLabel}
