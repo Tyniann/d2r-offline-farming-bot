@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/world"
 )
@@ -14,6 +15,9 @@ const (
 	MinOfflinePlayers = 1
 	// MaxOfflinePlayers is the highest accepted offline /players value.
 	MaxOfflinePlayers = 8
+	// offlinePlayersNewGameSettle is the load-fade wait before `/players`. Memory
+	// can already report InGame while D2R still swallows keyboard, same as wait_entry_area.
+	offlinePlayersNewGameSettle = 3 * time.Second
 )
 
 type chatCommandSender interface {
@@ -48,6 +52,13 @@ func offlinePlayersCommand(players int) (string, error) {
 		return "", err
 	}
 	return fmt.Sprintf("/players %d", players), nil
+}
+
+func offlinePlayersFadeDelay(alreadyActive bool) time.Duration {
+	if alreadyActive {
+		return 0
+	}
+	return offlinePlayersNewGameSettle
 }
 
 func applyOfflinePlayersCommand(state world.State, sender chatCommandSender, players int) error {

@@ -25,7 +25,7 @@ Der Befehl läuft erst, nachdem `verifyActiveQueueGame` ein In-Game im Rogue Enc
 
 ### Chat-Eingabe
 
-Enter öffnet den Chat, Unicode tippt `/players N` layoutunabhängig, Enter sendet. Der erlaubte Text ist genau `/players 1` bis `/players 8`. Schlägt der Versand fehl, bricht der Spielstart ab. Es gibt kein Esc-Raten und keine Chat-Open-Memoryprüfung: ein frisch bestätigtes Spiel hat keinen offenen Chat.
+Enter öffnet den Chat, virtuelle Tasten tippen `/players N` über das aktuelle Windows-Tastaturlayout, Enter sendet. Unicode-`SendInput` erreicht D2Rs In-Engine-Chat nicht. Der erlaubte Text ist genau `/players 1` bis `/players 8`. Nach einem neu erzeugten Spiel wartet der Bot drei Sekunden auf das Load-Fade, bevor der Chat aufgeht; ein übernommenes Town-Spiel sendet sofort. Schlägt der Versand fehl, bricht der Spielstart ab. Es gibt kein Esc-Raten und keine Chat-Open-Memoryprüfung: ein frisch bestätigtes Spiel hat keinen offenen Chat.
 
 ## Datenmodell
 
@@ -38,7 +38,7 @@ Einstellungen → Charaktere zeigt ein Dropdown 1–8. Höhere Werte machen Gegn
 
 ## Abhängigkeiten
 
-Windows `SendInput` mit `KEYEVENTF_UNICODE` für den Befehlstext. Enter bleibt ein virtueller Key.
+Windows `SendInput` mit virtuellen Tasten (`VkKeyScanW`) für den Befehlstext. Enter bleibt ein virtueller Key. Nach einem neuen Spielstart gelten dieselben drei Sekunden Load-Fade wie bei `wait_entry_area`.
 
 ## Verwandte Features
 
@@ -48,4 +48,4 @@ Windows `SendInput` mit `KEYEVENTF_UNICODE` für den Befehlstext. Enter bleibt e
 - [Input Controller](input-controller.md)
 
 ---
-*Zuletzt aktualisiert: 2026-08-19*
+*Zuletzt aktualisiert: 2026-08-20*

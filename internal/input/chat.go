@@ -15,7 +15,8 @@ type runeSender interface {
 }
 
 // SendChatCommand opens D2R chat, types an allowlisted command, and submits it.
-// The only accepted command is `/players 1` through `/players 8`.
+// The only accepted command is `/players 1` through `/players 8`. Chat text uses
+// layout-mapped virtual keys, not Unicode, because D2R ignores KEYEVENTF_UNICODE.
 func (c *Controller) SendChatCommand(command string) error {
 	if err := validateOfflinePlayersCommand(command); err != nil {
 		return err

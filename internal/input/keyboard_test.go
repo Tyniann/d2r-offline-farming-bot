@@ -305,6 +305,66 @@ func TestWinKeySenderSendInputPayload(t *testing.T) {
 	}
 }
 
+func TestTypeRuneSendsVirtualKeysNotUnicode(t *testing.T) {
+	if runtime.GOOS != "windows" {
+		t.Skip("windows-only SendInput adapter test")
+	}
+
+	var captured []inputRecord
+	sender := &winKeySender{
+		send: func(inputs []inputRecord) (uint32, error) {
+			captured = append(captured, inputs...)
+			return uint32(len(inputs)), nil
+		},
+	}
+
+	for _, r := range []rune{'p', '/', '8', ' '} {
+		captured = captured[:0]
+		if err := sender.TypeRune(r); err != nil {
+			t.Fatalf("TypeRune(%q): %v", r, err)
+		}
+		if len(captured) < 2 {
+			t.Fatalf("TypeRune(%q) inputs = %d, want at least key down/up", r, len(captured))
+		}
+		sawDown, sawUp := false, false
+		for _, rec := range captured {
+			if rec.Ki.Flags&keyEventFUnicode != 0 {
+				t.Fatalf("TypeRune(%q) used UNICODE SendInput (%+v); D2R chat ignores that", r, rec.Ki)
+			}
+			if rec.Ki.Vk == 0 {
+				t.Fatalf("TypeRune(%q) missing virtual key (%+v)", r, rec.Ki)
+			}
+			if rec.Ki.Flags&keyEventFKeyUp == 0 {
+				sawDown = true
+			} else {
+				sawUp = true
+			}
+		}
+		if !sawDown || !sawUp {
+			t.Fatalf("TypeRune(%q) down=%v up=%v payload=%+v", r, sawDown, sawUp, captured)
+		}
+	}
+}
+
+func TestParseVkKeyScanShiftAndFailure(t *testing.T) {
+	if runtime.GOOS != "windows" {
+		t.Skip("windows-only SendInput adapter test")
+	}
+	if _, _, err := parseVkKeyScan(0xFFFF, '/'); err == nil {
+		t.Fatal("expected unmapped rune to fail")
+	}
+	vk, shift, err := parseVkKeyScan(0x0137, '/')
+	if err != nil {
+		t.Fatal(err)
+	}
+	if vk != 0x37 || !shift {
+		t.Fatalf("shift+7 = vk=0x%02X shift=%v", vk, shift)
+	}
+	if _, _, err := parseVkKeyScan(0x0250, 'p'); err == nil {
+		t.Fatal("expected ctrl mapping to fail")
+	}
+}
+
 func TestInputRecordSize(t *testing.T) {
 	if runtime.GOOS != "windows" {
 		t.Skip("windows-only struct size test")

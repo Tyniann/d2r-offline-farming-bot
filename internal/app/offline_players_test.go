@@ -4,6 +4,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/world"
 )
@@ -89,5 +90,14 @@ func TestValidateOfflinePlayersRange(t *testing.T) {
 	}
 	if _, err := offlinePlayersCommand(0); err == nil {
 		t.Fatal("expected raw 0 command to fail")
+	}
+}
+
+func TestOfflinePlayersFadeDelayWaitsAfterNewGameOnly(t *testing.T) {
+	if got := offlinePlayersFadeDelay(false); got != 3*time.Second {
+		t.Fatalf("new game delay = %s", got)
+	}
+	if got := offlinePlayersFadeDelay(true); got != 0 {
+		t.Fatalf("adopted game delay = %s", got)
 	}
 }

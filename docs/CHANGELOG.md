@@ -7,6 +7,9 @@ Versionierung nach [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+- Send `/players N` with layout-mapped virtual keys and wait three seconds after a new game start so D2R chat actually receives the command
+
 ## [0.22.0] - 2026-08-20
 
 ### Added

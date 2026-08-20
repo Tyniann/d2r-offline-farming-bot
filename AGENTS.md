@@ -72,6 +72,7 @@ Dokumentation und UI-facing Strings müssen ordentliches Deutsch und Umlaute ver
 5. **Validierung:** Nach einer abgeschlossenen Änderung nur die kleinsten betroffenen Tests und Builds einmal ausführen. Keine automatische Gesamtsuite. Vollständige Go-/UI-Tests, Lint, Produktbuild und Installer-Smokes nur bei ausdrücklichem Gesamtvalidierungs- oder Release-Auftrag über `scripts/build-release.ps1`.
 6. **UI facing strings:** Nur für Bot Benutzer relevante und nützliche Informationen anzeigen. Simple, klare Formulierungen - KEIN Technobabble.
 7. **Coding Prinzipien:** Strebe nach KISS und YAGNI Implementierungen.
+8. **Replay Tool:** Verwenden um bugs zu finden für die gilt "jeder Snapshot war plausibel, die Reihenfolge der Entscheidungen war falsch". CLI plus `--runtime-trace-capture`
 
 ## Lokaler Release-Workflow
 

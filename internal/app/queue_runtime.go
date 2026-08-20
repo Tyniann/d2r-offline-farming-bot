@@ -461,6 +461,10 @@ func (u *runtimeQueueUnit) StartOrVerifyGame(ctx context.Context, alreadyActive 
 }
 
 func (u *runtimeQueueUnit) finishVerifiedQueueGame(alreadyActive bool) error {
+	if delay := offlinePlayersFadeDelay(alreadyActive); delay > 0 {
+		u.runtime.Log.Info("offline players waiting for game fade", "settle_ms", delay.Milliseconds())
+		time.Sleep(delay)
+	}
 	if err := u.runtime.applyOfflinePlayersCommand(); err != nil {
 		u.runtime.Log.Error("queue game lifecycle start failed", "stage", "offline_players", "error", err)
 		return err

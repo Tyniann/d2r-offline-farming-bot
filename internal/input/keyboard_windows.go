@@ -14,11 +14,13 @@ const (
 	inputKeyboard           = 1
 	keyEventFKeyUp   uint32 = 0x0002
 	keyEventFUnicode uint32 = 0x0004
+	vkLeftShift      uint16 = 0xA0
 )
 
 var (
 	modUser32Send      = windows.NewLazySystemDLL("user32.dll")
 	procSendInput      = modUser32Send.NewProc("SendInput")
+	procVkKeyScanW     = modUser32Send.NewProc("VkKeyScanW")
 	defaultSendInputFn = sendInputCall
 )
 
@@ -72,23 +74,54 @@ func (s *winKeySender) KeyUp(key Key) error {
 	return s.sendKeyEvent(key, true)
 }
 
+// TypeRune sends a character as virtual-key events. D2R's in-engine chat
+// ignores KEYEVENTF_UNICODE, which is the same SendInput path that gameplay
+// keys already use successfully.
 func (s *winKeySender) TypeRune(r rune) error {
-	if r < 0 || r > 0xFFFF {
-		return fmt.Errorf("rune %U: %w", r, ErrInvalidKey)
+	vk, shift, err := virtualKeyForRune(r)
+	if err != nil {
+		return err
 	}
-	scan := uint16(r)
-	inputs := []inputRecord{
-		{Type: inputKeyboard, Ki: keybdInput{Scan: scan, Flags: keyEventFUnicode}},
-		{Type: inputKeyboard, Ki: keybdInput{Scan: scan, Flags: keyEventFUnicode | keyEventFKeyUp}},
+	var inputs []inputRecord
+	if shift {
+		inputs = append(inputs, keyboardInput(vkLeftShift, 0))
+	}
+	inputs = append(inputs, keyboardInput(vk, 0), keyboardInput(vk, keyEventFKeyUp))
+	if shift {
+		inputs = append(inputs, keyboardInput(vkLeftShift, keyEventFKeyUp))
 	}
 	sent, err := s.send(inputs)
 	if err != nil {
 		return fmt.Errorf("rune %U: %w", r, fmt.Errorf("%w: %w", ErrKeySendFailed, err))
 	}
-	if sent != 2 {
+	if int(sent) != len(inputs) {
 		return fmt.Errorf("rune %U sent=%d: %w", r, sent, ErrKeySendFailed)
 	}
 	return nil
+}
+
+func virtualKeyForRune(r rune) (uint16, bool, error) {
+	if r < 0 || r > 0xFFFF {
+		return 0, false, fmt.Errorf("rune %U: %w", r, ErrInvalidKey)
+	}
+	ret, _, _ := procVkKeyScanW.Call(uintptr(uint16(r)))
+	return parseVkKeyScan(ret, r)
+}
+
+func parseVkKeyScan(ret uintptr, r rune) (uint16, bool, error) {
+	code := int16(ret)
+	if code == -1 {
+		return 0, false, fmt.Errorf("rune %U: %w", r, ErrInvalidKey)
+	}
+	mods := byte(uint16(code) >> 8)
+	if mods&^1 != 0 {
+		return 0, false, fmt.Errorf("rune %U: %w", r, ErrInvalidKey)
+	}
+	return uint16(byte(code)), mods&1 != 0, nil
+}
+
+func keyboardInput(vk uint16, flags uint32) inputRecord {
+	return inputRecord{Type: inputKeyboard, Ki: keybdInput{Vk: vk, Flags: flags}}
 }
 
 func (s *winKeySender) sendKeyEvent(key Key, release bool) error {
@@ -102,13 +135,7 @@ func (s *winKeySender) sendKeyEvent(key Key, release bool) error {
 		flags = keyEventFKeyUp
 	}
 
-	inputs := []inputRecord{{
-		Type: inputKeyboard,
-		Ki: keybdInput{
-			Vk:    vk,
-			Flags: flags,
-		},
-	}}
+	inputs := []inputRecord{keyboardInput(vk, flags)}
 
 	sent, err := s.send(inputs)
 	if err != nil {
