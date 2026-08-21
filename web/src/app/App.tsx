@@ -21,6 +21,7 @@ import { farmReadyReasonText } from "../features/characters/characterReasonText"
 import { isRunStartable, queueStartErrorText, runAvailabilityText, selectionErrorText } from "./runReasons";
 import { runResultReasonText } from "./runResultReasons";
 import { terminalWorkflowStates } from "../features/routes/routePresentation";
+import { DashboardPrototype, DashboardPrototypeContext, type DashboardPrototypeVariant } from "../features/dashboard-prototype/DashboardPrototype";
 
 const editableStates = new Set(["idle", "idle_in_game", "stopped_error"]);
 const emergencyStates = new Set(["starting_game", "starting_run", "running_run", "paused_between_runs", "exiting_game"]);
@@ -345,6 +346,8 @@ function CoreApp() {
   const confirmedDifficultyLabel = catalog?.difficulties.find((entry) => entry.id === status?.selection.difficulty)?.display_name
     ?? status?.selection.difficulty
     ?? "";
+  const prototypeVariant = dashboardPrototypeVariant();
+  const prototypeQueue = storedCharacterSettings(operatorSettings, catalog, character)?.queue ?? configuredQueue;
   const focusedCatalogEntry = viewedCatalogEntry;
   const needsFirstRoute = confirmedSelection && !draftDiffers && selectionRuns !== null && selectionRuns.length > 0
     && !selectionRuns.some((run) => isRunStartable(run.status));
@@ -373,16 +376,47 @@ function CoreApp() {
         <nav className="main-navigation" aria-label="Hauptnavigation">
           {navigation.map(({ target: itemTarget, label, icon: Icon }) => <a key={itemTarget} href={`#${itemTarget}`} aria-current={target === itemTarget ? "page" : undefined}><Icon aria-hidden="true" size={19} /><span>{label}</span></a>)}
         </nav>
-        <div className="sidebar-meta">
+        {prototypeVariant && <DashboardPrototypeContext
+          catalog={catalog}
+          character={character || "MrHammer"}
+          difficulty={difficulty || "hell"}
+          confirmedCharacter={status?.selection.character ?? "MrHammer"}
+          locked={(!!status && !editableStates.has(status.state)) || dashboardPrototypeActive()}
+          onCharacter={(next) => {
+            selectionEdited.current = true;
+            setCharacter(next);
+            const stored = storedCharacterSettings(operatorSettings, catalog, next);
+            if (stored?.last_difficulty) setDifficulty(stored.last_difficulty);
+          }}
+          onDifficulty={(next) => { selectionEdited.current = true; setDifficulty(next); }}
+        />}
+        {prototypeVariant ? <div className="sidebar-meta">
+          <StatusBadge tone={connection === "verbunden" || !status ? "success" : "danger"} icon={connection === "verbunden" || !status ? Wifi : WifiOff}>{connection === "verbunden" || !status ? "Live verbunden" : "Verbindung unterbrochen"}</StatusBadge>
+        </div> : <div className="sidebar-meta">
           <StatusBadge tone={connection === "verbunden" ? "success" : "danger"} icon={connection === "verbunden" ? Wifi : WifiOff}>Core {connection}</StatusBadge>
           {updateAvailable && <a href="#settings" aria-label="Neue App-Version verfügbar"><StatusBadge tone="warning" icon={CircleArrowUp}>Update verfügbar</StatusBadge></a>}
           <small>App {status?.app_version ?? "–"}</small><small>Core {status?.core_version ?? "–"}</small>
-        </div>
+        </div>}
       </aside>
 
       <main ref={contentRef} id="app-content" className="app-content" tabIndex={-1}>
         {onboardingOpen && status && catalog && <OnboardingFeature status={status} catalog={catalog} initialStep={onboardingStep} onRefresh={refreshAfterCommand} onClose={() => { setRouteOpenedFromOnboarding(false); setOnboardingOpen(false); }} onOpenRoutes={openRoutes} />}
-        {!onboardingOpen && <>{target === "dashboard" && <>
+        {!onboardingOpen && <>{target === "dashboard" && (prototypeVariant ? <DashboardPrototype
+          variant={prototypeVariant}
+          status={status}
+          catalog={catalog}
+          character={character || "MrHammer"}
+          difficulty={difficulty || "hell"}
+          confirmedDifficultyLabel={confirmedDifficultyLabel}
+          queueIDs={prototypeQueue}
+          availableRuns={catalog?.runs ?? selectionRuns ?? []}
+          connected={connection === "verbunden" || !status}
+          hotkeys={{
+            pause: operatorSettings?.input.pause_hotkey ?? "Pause",
+            stopAfterRun: operatorSettings?.input.stop_after_run_hotkey ?? "F10",
+            emergencyStop: operatorSettings?.input.emergency_stop_hotkey ?? "F11",
+          }}
+        /> : <>
           <PageHeader eyebrow="Betrieb" title="Lokales Dashboard" description="Core-autoritärer Überblick für Auswahl, Queue und Session. Keine Anzeige berechnet einen zweiten Fachzustand." actions={<StatusBadge tone={connection === "verbunden" ? "success" : "danger"} icon={connection === "verbunden" ? Wifi : WifiOff}>Live: {connection}</StatusBadge>} />
           {needsFirstRoute && <section className="first-route-cta"><div><p className="eyebrow">Einrichtung fortsetzen</p><h2>Erste Route aufnehmen</h2><p>Für den bestätigten Kontext fehlt noch eine verwendbare Farming-Route. Die geführte Aufnahme verwendet denselben Core-Workflow wie die Routenbibliothek.</p></div><Button onClick={() => openRoutes("countess")}>Erste Route aufnehmen</Button></section>}
           {status && liveLocked && <section className="compatibility-block" role="alert" aria-labelledby="compatibility-title"><CircleAlert aria-hidden="true" size={28} /><div><h2 id="compatibility-title">D2R-Kompatibilität blockiert Input</h2><p>Zustand <strong>{compatibilityState}</strong>{status.compatibility?.reason ? ` · ${status.compatibility.reason}` : ""}. Einstellungen, Historie und Diagnose bleiben verfügbar.</p><small>Erwartet {status.compatibility?.expected_version || "–"} · Offsets {status.compatibility?.offset_version || "–"} · Erkannt {status.compatibility?.actual_version || "–"}</small></div></section>}
@@ -456,7 +490,7 @@ function CoreApp() {
             <div className="session-controls"><button type="button" disabled={commandPending || status?.state !== "running_run" || hasPendingIntent} onClick={() => status && void runCommand(() => pauseAfterRun(status.generation))}>Nach aktuellem Run pausieren</button><button type="button" disabled={liveLocked || commandPending || status?.state !== "paused_between_runs"} onClick={() => status && void runCommand(() => resumeQueue(status.generation))}>Queue fortsetzen</button><button type="button" disabled={commandPending || status?.state !== "running_run" || hasPendingIntent} onClick={() => status && void runCommand(() => stopAfterRun(status.generation))}>Nach aktuellem Run stoppen</button><button type="button" className="danger" disabled={commandPending || !status || !emergencyStates.has(status.state)} onClick={() => setConfirmEmergency(true)}>Emergency Stop</button></div>
             <p className="hint">Pause und Stop warten auf die sichere Run-Grenze. Emergency Stop und F11 brechen sofort ab und garantieren kein Save &amp; Exit.</p>
           </section>
-        </>}
+        </>)}
 
         {target === "routes" && <>{liveLocked && <StateMessage kind="error" title="Live-Routenaktionen sind gesperrt">Die Routenbibliothek bleibt read-only, bis D2R kompatibel bestätigt ist.</StateMessage>}<RouteFeature characters={catalog?.characters.map((entry) => entry.name) ?? []} selectedCharacter={status?.selection.character ?? character} refreshKey={routeRefreshKey} liveLocked={liveLocked} preferredRecordingRun={routeOpenedFromOnboarding ? preferredRecordingRun : ""} onReturnToOnboarding={routeOpenedFromOnboarding ? returnToOnboarding : undefined} /></>}
         {target === "pickit" && <><PageHeader eyebrow="Loot-Policy" title="Pickit" description="Profile, Regeln und Zuordnungen bleiben Core-validiert und gelten erst an einer sicheren Run-Grenze." /><PickitFeature characters={catalog?.characters.map((entry) => entry.name) ?? []} selectedCharacter={status?.selection.character ?? character} runs={catalog?.runs.map((entry) => entry.run_id) ?? []} locked={!!status && !editableStates.has(status.state)} refreshKey={pickitRefreshKey} /></>}
@@ -476,4 +510,14 @@ function storedCharacterSettings(settings: OperatorSettingsDTO | null, catalog: 
   const slug = catalog?.characters.find((entry) => entry.name === name)?.slug;
   if (!slug) return undefined;
   return settings?.characters[slug];
+}
+
+function dashboardPrototypeVariant(): DashboardPrototypeVariant | null {
+  if (!import.meta.env.DEV) return null;
+  const value = new URLSearchParams(window.location.search).get("variant")?.toUpperCase();
+  return value === "A" || value === "B" || value === "C" ? value : null;
+}
+
+function dashboardPrototypeActive(): boolean {
+  return import.meta.env.DEV && new URLSearchParams(window.location.search).get("state") === "active";
 }

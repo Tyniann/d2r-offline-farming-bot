@@ -1,0 +1,538 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Dashboard – UI/UX-Redesign-Spezifikation</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0d0b0f;
+      --surface: #171419;
+      --surface-2: #1e191e;
+      --surface-3: #271f24;
+      --line: #42363d;
+      --line-strong: #6a505a;
+      --text: #f7f1ed;
+      --muted: #b8aab0;
+      --faint: #84757c;
+      --orange: #ee7845;
+      --orange-soft: #47291f;
+      --gold: #f0c371;
+      --green: #65d5a1;
+      --red: #f07878;
+      --yellow: #e5b65c;
+      --radius: 16px;
+      --content: 1220px;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      background:
+        radial-gradient(circle at 78% -10%, rgba(176, 62, 29, .22), transparent 33rem),
+        radial-gradient(circle at -12% 35%, rgba(95, 54, 98, .13), transparent 30rem),
+        var(--bg);
+      color: var(--text);
+      font: 16px/1.58 Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    a { color: #f3a27f; }
+    a:hover { color: #ffd0ba; }
+    h1, h2, h3, h4 { line-height: 1.18; text-wrap: balance; }
+    h1 { margin: 0 0 1rem; font-size: clamp(2.2rem, 5vw, 4.3rem); letter-spacing: -.05em; }
+    h2 { margin: 0 0 1rem; font-size: clamp(1.55rem, 3vw, 2.35rem); letter-spacing: -.03em; }
+    h3 { margin: 0 0 .65rem; font-size: 1.22rem; }
+    h4 { margin: 0 0 .4rem; font-size: 1rem; }
+    p { margin: 0 0 1rem; }
+    code, kbd { font-family: "Cascadia Code", Consolas, monospace; font-size: .9em; }
+    code { padding: .12rem .35rem; border: 1px solid var(--line); border-radius: 6px; background: #100d12; color: #f3c7b5; }
+    kbd { display: inline-flex; min-height: 27px; align-items: center; padding: .08rem .48rem; border: 1px solid #6c555d; border-bottom-width: 3px; border-radius: 7px; background: #292229; color: #fff; font-weight: 800; }
+    pre { overflow: auto; margin: 1rem 0 0; padding: 1rem; border: 1px solid var(--line); border-radius: 12px; background: #100d12; color: #efdcd4; }
+    pre code { padding: 0; border: 0; background: transparent; }
+    .shell { width: min(calc(100% - 32px), var(--content)); margin: 0 auto; }
+    .hero { padding: 72px 0 42px; }
+    .eyebrow { margin: 0 0 .65rem; color: var(--orange); font-size: .75rem; font-weight: 850; letter-spacing: .14em; text-transform: uppercase; }
+    .lead { max-width: 840px; color: #d6c9ce; font-size: 1.16rem; }
+    .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 22px; }
+    .chip { padding: 7px 10px; border: 1px solid var(--line); border-radius: 999px; background: #151116; color: var(--muted); font-size: .78rem; }
+    .chip.good { border-color: #35634f; color: #88ddb7; }
+    .layout { display: grid; grid-template-columns: 255px minmax(0, 1fr); gap: 28px; align-items: start; padding-bottom: 80px; }
+    nav { position: sticky; top: 18px; display: grid; gap: 4px; padding: 14px; border: 1px solid var(--line); border-radius: 14px; background: rgba(18, 15, 19, .9); backdrop-filter: blur(14px); }
+    nav strong { margin: 0 8px 8px; font-size: .78rem; letter-spacing: .1em; text-transform: uppercase; }
+    nav a { padding: 7px 8px; border-radius: 8px; color: var(--muted); font-size: .82rem; text-decoration: none; }
+    nav a:hover { background: var(--orange-soft); color: #ffd0ba; }
+    main { min-width: 0; }
+    .section { padding: 34px 0; border-top: 1px solid var(--line); scroll-margin-top: 24px; }
+    .section > p, .section > ul, .section > ol { max-width: 900px; }
+    .card { min-width: 0; padding: 20px; border: 1px solid var(--line); border-radius: var(--radius); background: linear-gradient(145deg, #1b171c, #121013); box-shadow: 0 18px 48px rgba(0, 0, 0, .25); }
+    .grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+    .grid-3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+    .callout { margin: 18px 0; padding: 16px 18px; border-left: 4px solid var(--orange); border-radius: 0 12px 12px 0; background: #211712; }
+    .callout.good { border-color: var(--green); background: #12231b; }
+    .callout.warn { border-color: var(--yellow); background: #261f12; }
+    .callout p:last-child { margin-bottom: 0; }
+    table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: .9rem; }
+    th, td { padding: 11px 12px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+    th { color: #f6c6b1; font-size: .74rem; letter-spacing: .08em; text-transform: uppercase; }
+    td { color: #d3c6cb; }
+    ul, ol { padding-left: 1.3rem; }
+    li + li { margin-top: .42rem; }
+    .decision { display: grid; grid-template-columns: 32px minmax(0, 1fr); gap: 11px; }
+    .decision b:first-child { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 9px; background: var(--orange-soft); color: #ffb18d; }
+    .decision p { margin: .2rem 0 0; color: var(--muted); font-size: .9rem; }
+    .mock-shell { overflow: hidden; border: 1px solid #5a434c; border-radius: 18px; background: #0f0d10; box-shadow: 0 26px 70px rgba(0, 0, 0, .5); }
+    .mock-app { display: grid; grid-template-columns: 158px minmax(0, 1fr); min-height: 610px; font-size: 12px; }
+    .mock-side { padding: 18px 12px; border-right: 1px solid var(--line); background: #121014; }
+    .mock-brand { margin-bottom: 22px; color: #f3e9e5; font-weight: 900; }
+    .mock-nav { display: grid; gap: 7px; color: var(--muted); }
+    .mock-nav span { padding: 8px; border-radius: 8px; }
+    .mock-nav .active { border: 1px solid #714436; background: #2d1c19; color: #fff; }
+    .mock-context { margin-top: 28px; padding: 10px; border: 1px solid #523e45; border-radius: 10px; background: #1c171c; }
+    .mock-context small { display: block; color: var(--faint); }
+    .mock-context b { display: block; margin-top: 5px; padding: 7px; border: 1px solid var(--line); border-radius: 7px; }
+    .mock-content { min-width: 0; padding: 22px; background: radial-gradient(circle at 80% 0, #2d1511, transparent 25rem); }
+    .mock-header { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 15px; }
+    .mock-header h3 { margin: 0; font-size: 24px; }
+    .mock-status { color: var(--green); white-space: nowrap; }
+    .mock-period { display: flex; justify-content: flex-end; gap: 5px; margin-bottom: 8px; color: var(--muted); }
+    .mock-period b { padding: 4px 7px; border-radius: 6px; background: var(--orange-soft); color: #ffc0a0; }
+    .mock-row-1 { display: grid; grid-template-columns: 1.08fr .82fr .64fr; gap: 10px; }
+    .mock-row-2 { display: grid; grid-template-columns: 1.35fr .75fr; gap: 10px; margin-top: 10px; }
+    .mock-panel { min-width: 0; min-height: 190px; padding: 13px; border: 1px solid var(--line); border-radius: 12px; background: #171419; }
+    .mock-panel > small { color: var(--orange); font-weight: 850; letter-spacing: .1em; text-transform: uppercase; }
+    .mock-panel h4 { margin: 3px 0 10px; }
+    .mock-queue div, .mock-recent div { display: flex; justify-content: space-between; gap: 8px; padding: 7px 0; border-bottom: 1px solid #3a3035; }
+    .mock-queue button { width: 100%; margin-top: 10px; padding: 9px; border: 0; border-radius: 8px; background: linear-gradient(#df6738, #ad4425); color: #fff; font-weight: 800; }
+    .mock-metrics { display: grid; grid-template-columns: 1fr 1fr; overflow: hidden; border: 1px solid var(--line); border-radius: 9px; }
+    .mock-metrics div { padding: 12px 9px; border: 1px solid var(--line); }
+    .mock-metrics small { display: block; color: var(--muted); }
+    .mock-metrics b { font-size: 19px; }
+    .mock-donut { width: 104px; height: 104px; margin: 8px auto; border-radius: 50%; background: conic-gradient(var(--green) 0 91.8%, var(--red) 91.8% 96.7%, var(--yellow) 96.7%); mask: radial-gradient(circle, transparent 52%, #000 53%); }
+    .mock-legend { display: grid; gap: 4px; color: var(--muted); }
+    .mock-bar { display: grid; grid-template-columns: 76px minmax(0, 1fr); align-items: center; gap: 8px; margin: 11px 0; }
+    .mock-bar i { display: block; height: 10px; border-radius: 999px; background: linear-gradient(90deg, #d9592f, #f0a363); }
+    .state-flow { display: grid; grid-template-columns: 1fr auto 1fr; gap: 12px; align-items: center; margin: 18px 0; }
+    .state-arrow { color: var(--orange); font-size: 1.5rem; }
+    .state-box { padding: 17px; border: 1px solid var(--line); border-radius: 13px; background: var(--surface); }
+    .state-box strong { display: block; margin-bottom: 5px; }
+    .state-box span { color: var(--muted); font-size: .9rem; }
+    .step { counter-increment: steps; position: relative; padding: 20px 20px 20px 62px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); }
+    .steps { counter-reset: steps; display: grid; gap: 12px; }
+    .step::before { content: counter(steps); position: absolute; left: 18px; top: 18px; display: grid; place-items: center; width: 29px; height: 29px; border-radius: 9px; background: var(--orange-soft); color: #ffb18d; font-weight: 900; }
+    .step p:last-child, .step ul:last-child { margin-bottom: 0; }
+    .done { color: var(--green); font-weight: 800; }
+    .no { color: #ff9a9f; }
+    .copy-table td:first-child { width: 34%; color: #f5e7e1; font-weight: 750; }
+    .footer { padding: 28px 0 60px; border-top: 1px solid var(--line); color: var(--faint); font-size: .84rem; }
+    @media (max-width: 980px) {
+      .layout { grid-template-columns: 1fr; }
+      nav { position: static; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      nav strong { grid-column: 1 / -1; }
+      .mock-row-1 { grid-template-columns: 1fr 1fr; }
+      .mock-row-1 .outcome { grid-column: 2; }
+      .grid-3 { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 700px) {
+      .grid-2, .mock-row-1, .mock-row-2, .state-flow { grid-template-columns: 1fr; }
+      .state-arrow { transform: rotate(90deg); justify-self: center; }
+      .mock-app { grid-template-columns: 1fr; }
+      .mock-side { display: none; }
+      .mock-row-1 .outcome { grid-column: auto; }
+      table { display: block; overflow-x: auto; }
+    }
+    @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+  </style>
+</head>
+<body>
+  <header class="hero shell">
+    <p class="eyebrow">Verbindliche Umsetzungsspezifikation · 21. August 2026</p>
+    <h1>Dashboard-Redesign</h1>
+    <p class="lead">Das Dashboard wird zur kompakten Kommandozentrale für Charakter, Farming und Ergebnisse. Es zeigt den ausgewählten Charakter überall, nutzt vorhandene Historiedaten sinnvoll und erklärt einen laufenden Run in verständlichen Etappen – ohne interne IDs, Rohzustände oder doppelte Bedienelemente.</p>
+    <div class="chips">
+      <span class="chip good">Produktentscheidungen abgeschlossen</span>
+      <span class="chip">Grundlage: Entwurf A</span>
+      <span class="chip">Bestehendes Dark-Fantasy-Design</span>
+      <span class="chip">Keine neue Komponentenbibliothek</span>
+      <span class="chip">Browser-geprüft: 1440×900 und 1100×700</span>
+    </div>
+  </header>
+
+  <div class="layout shell">
+    <nav aria-label="Inhalt">
+      <strong>Inhalt</strong>
+      <a href="#auftrag">1. Auftrag</a>
+      <a href="#entscheidungen">2. Entscheidungen</a>
+      <a href="#zielbild">3. Zielbild</a>
+      <a href="#auswahl">4. Globale Auswahl</a>
+      <a href="#dashboard">5. Dashboard-Bausteine</a>
+      <a href="#run">6. Aktiver Run</a>
+      <a href="#daten">7. Datenverträge</a>
+      <a href="#zustaende">8. Zustände</a>
+      <a href="#responsive">9. Responsive &amp; Bewegung</a>
+      <a href="#texte">10. Texte &amp; Barrierefreiheit</a>
+      <a href="#dateien">11. Code-Zuschnitt</a>
+      <a href="#plan">12. Umsetzungsreihenfolge</a>
+      <a href="#abnahme">13. Abnahme</a>
+    </nav>
+
+    <main>
+      <section class="section" id="auftrag">
+        <p class="eyebrow">1 · Auftrag</p>
+        <h2>Was sich ändern muss</h2>
+        <div class="grid-2">
+          <div class="card">
+            <h3>Heute</h3>
+            <ul>
+              <li>Große, weit auseinanderliegende Flächen mit geringer Informationsdichte.</li>
+              <li>Charakterauswahl wirkt lokal, beeinflusst andere App-Bereiche erst nach dem Anwenden.</li>
+              <li>Farming-Karten wiederholen denselben Tipp und verlinken denselben Editor mehrfach.</li>
+              <li>Interne Begriffe wie Core-Zustand, Generation oder Lifecycle erreichen den Benutzer.</li>
+              <li>Historie und Kennzahlen sind vorhanden, aber nicht auf der Startseite nutzbar.</li>
+              <li>Ein laufender Run bietet Schaltflächen, obwohl der Bot Maus und D2R-Fokus übernimmt.</li>
+            </ul>
+          </div>
+          <div class="card">
+            <h3>Nach dem Redesign</h3>
+            <ul>
+              <li>Der aktuelle App-Kontext ist in der Seitenleiste dauerhaft sichtbar.</li>
+              <li>Das Dashboard beantwortet sofort: Was läuft, was kommt als Nächstes und wie erfolgreich war dieser Charakter?</li>
+              <li>Die Queue ist kompakt, einmal editierbar und mit genau einer primären Startaktion versehen.</li>
+              <li>Vier Kennzahlen, Ergebnisverteilung und Routenvergleich nutzen denselben Zeitraum.</li>
+              <li>Ein laufender Run zeigt Queue-Position, Etappe und wirksame Tastenkürzel.</li>
+              <li>Jeder sichtbare Text hilft bei einer Entscheidung oder erklärt einen Zustand.</li>
+            </ul>
+          </div>
+        </div>
+        <div class="callout good"><strong>Definition von Erfolg:</strong> Ein Benutzer erkennt in höchstens fünf Sekunden den ausgewählten Charakter, die Schwierigkeit, die nächste Farming-Aktion und die jüngste Leistung.</div>
+      </section>
+
+      <section class="section" id="entscheidungen">
+        <p class="eyebrow">2 · Entscheidungen</p>
+        <h2>Keine offenen Produktfragen</h2>
+        <div class="grid-2">
+          <div class="card decision"><b>1</b><div><strong>Entwurf A ist die Grundlage.</strong><p>Ruhige Kommandozentrale statt Analysewand oder dauerhaft geteiltem Cockpit.</p></div></div>
+          <div class="card decision"><b>2</b><div><strong>Charakterwechsel gilt sofort appweit.</strong><p>Queue-Vorschau, Statistik und andere charakterbezogene Ansichten folgen der App-Auswahl. D2R bleibt bis zur bestätigten Anwendung unverändert.</p></div></div>
+          <div class="card decision"><b>3</b><div><strong>Auswahl wird über Neustarts gemerkt.</strong><p>Die gespeicherte App-Präferenz ist keine Bestätigung in D2R und darf nie ein Safety-Gate ersetzen.</p></div></div>
+          <div class="card decision"><b>4</b><div><strong>Während einer Session ist die Auswahl gesperrt.</strong><p>Der aktive Run bleibt an den bestätigten Kontext gebunden.</p></div></div>
+          <div class="card decision"><b>5</b><div><strong>Ein gemeinsamer Zeitraumfilter.</strong><p><q>7 Tage</q>, <q>30 Tage</q> und <q>Gesamt</q> steuern Kennzahlen, Ergebnisverteilung und Routenbalken. <q>Zuletzt</q> bleibt unabhängig.</p></div></div>
+          <div class="card decision"><b>6</b><div><strong>Vier Kennzahlen.</strong><p>Runs, Ø Runzeit, gesicherte Items und Items pro Stunde. Die Erfolgsquote erscheint nicht doppelt, sondern zentral im Ringdiagramm.</p></div></div>
+          <div class="card decision"><b>7</b><div><strong>Aktive Steuerung nur per Hotkey-Hinweis.</strong><p>Pause, F10 und F11 werden als nicht klickbare Tasten-Chips gezeigt. Nach Tastendruck bestätigt das Dashboard die vorgemerkte Aktion.</p></div></div>
+          <div class="card decision"><b>8</b><div><strong>Fortschritt pro Run-Etappe.</strong><p>Kein Queue-Prozentwert und keine erfundene Restzeit. <q>Run 1 von 3</q> bleibt separat.</p></div></div>
+          <div class="card decision"><b>9</b><div><strong>Vorhandene UI-Bausteine reichen.</strong><p>Lucide, Recharts und die bestehende CSS-Basis werden weiterverwendet. Eine vollständige Komponentenbibliothek wird nicht eingeführt.</p></div></div>
+          <div class="card decision"><b>10</b><div><strong>Gezielte, zurückhaltende Bewegung.</strong><p>Übergänge erklären Änderungen. Daueranimationen und dekoratives Flackern sind ausgeschlossen.</p></div></div>
+        </div>
+      </section>
+
+      <section class="section" id="zielbild">
+        <p class="eyebrow">3 · Zielbild</p>
+        <h2>Verbindliche Desktop-Anordnung</h2>
+        <p>Die folgende Darstellung ist kein loses Beispiel. Reihenfolge, Hierarchie und Benennung sind das Ziel. Feinabstände dürfen bei der Implementierung angepasst werden, solange die Abnahmekriterien erhalten bleiben.</p>
+        <div class="mock-shell" aria-label="Zielbild des neuen Dashboards">
+          <div class="mock-app">
+            <aside class="mock-side">
+              <div class="mock-brand">D2R Offline<br><small>Farming Bot</small></div>
+              <div class="mock-nav"><span class="active">Dashboard</span><span>Routen</span><span>Pickit</span><span>Historie</span><span>Einstellungen</span></div>
+              <div class="mock-context"><small>Ausgewählter Charakter</small><b>MrHammer ▾</b><b>Hölle ▾</b><small style="color:var(--green);margin-top:6px">● In D2R aktiv</small></div>
+            </aside>
+            <div class="mock-content">
+              <header class="mock-header"><div><small class="eyebrow">Dashboard</small><h3>MrHammer ist bereit</h3><span style="color:var(--muted)">Hölle · 3 Runs pro Spiel</span></div><span class="mock-status">● Verbunden · D2R bereit</span></header>
+              <div class="mock-period"><span>Statistik für MrHammer</span><span>7 Tage</span><b>30 Tage</b><span>Gesamt</span></div>
+              <div class="mock-row-1">
+                <section class="mock-panel"><small>Farming</small><h4>Deine Run-Reihenfolge</h4><div class="mock-queue"><div><span>1 · Unter-Kurast</span><em>Bereit</em></div><div><span>2 · Mephisto</span><em>Bereit</em></div><div><span>3 · Gräfin</span><em>Bereit</em></div><button>▶ Jetzt farmen</button></div></section>
+                <section class="mock-panel"><small>Leistung</small><h4>Auf einen Blick</h4><div class="mock-metrics"><div><small>↻ Runs</small><b>184</b></div><div><small>◷ Ø Runzeit</small><b>1:18</b></div><div><small>✦ Gesicherte Items</small><b>43</b></div><div><small>⌁ Items pro Stunde</small><b>2,7</b></div></div></section>
+                <section class="mock-panel outcome"><small>Ergebnisse</small><h4>Verteilung</h4><div class="mock-donut"></div><div class="mock-legend"><span style="color:var(--green)">● Erfolgreich · 169</span><span style="color:var(--red)">● Fehlgeschlagen · 9</span><span style="color:var(--yellow)">● Abgebrochen · 6</span></div></section>
+              </div>
+              <div class="mock-row-2">
+                <section class="mock-panel"><small>Routen</small><h4>Welche Route lohnt sich?</h4><div class="mock-bar"><span>Unter-Kurast</span><i style="width:100%"></i></div><div class="mock-bar"><span>Mephisto</span><i style="width:76%"></i></div><div class="mock-bar"><span>Gräfin</span><i style="width:58%"></i></div><div class="mock-bar"><span>Nihlathak</span><i style="width:39%"></i></div></section>
+                <section class="mock-panel"><small>Zuletzt</small><h4>Letzte Runs</h4><div class="mock-recent"><div><span>✓ Unter-Kurast</span><small>2 gesichert</small></div><div><span>✓ Mephisto</span><small>1 gesichert</small></div><div><span>! Gräfin</span><small>Boss nicht gefunden</small></div></div></section>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="callout"><strong>Browser-Abnahme des Prototyps:</strong> Bei 1440×900 stehen die drei Hauptkarten in einer Reihe. Bei 1100×700 bleiben Farming und Kennzahlen nebeneinander; die Ergebnisverteilung rückt unter den Kennzahlenblock. In beiden Größen gibt es keinen horizontalen Überlauf.</div>
+      </section>
+
+      <section class="section" id="auswahl">
+        <p class="eyebrow">4 · Globale Auswahl</p>
+        <h2>Zwei Zustände bleiben ausdrücklich getrennt</h2>
+        <div class="state-flow">
+          <div class="state-box"><strong>App-Auswahl</strong><span>Was der Benutzer gerade in der App betrachtet: Charakter und Schwierigkeit für Queue-Vorschau, Statistik, Historie und Einstellungen.</span></div>
+          <div class="state-arrow">→</div>
+          <div class="state-box"><strong>In D2R bestätigt</strong><span>Was der Core per visueller Auswahl und Memory-Prüfung bestätigt hat. Nur dieser Kontext darf eine Queue starten.</span></div>
+        </div>
+        <div class="callout warn"><strong>Safety-Invariante:</strong> Ein Dropdown-Wechsel darf niemals so dargestellt werden, als wäre D2R bereits umgestellt. Start bleibt gesperrt, solange App-Auswahl und bestätigte Auswahl voneinander abweichen.</div>
+        <h3>Direkte Verhaltensanweisungen</h3>
+        <ol>
+          <li>Verschiebe Charakter und Schwierigkeit aus der Dashboard-Karte in einen kompakten Kontextblock der Seitenleiste.</li>
+          <li>Ein Dropdown-Wechsel aktualisiert sofort den zentralen React-Zustand. Alle charakterbezogenen Routen lesen denselben Zustand; keine Feature-Seite hält eine eigene Kopie.</li>
+          <li>Lade für die neue App-Auswahl sofort gespeicherte Queue, Run-Verfügbarkeit und Statistik. Das ist eine Vorschau, kein Startkontext.</li>
+          <li>Wenn die App-Auswahl von <code>status.selection</code> abweicht, zeige direkt über dem Dashboard-Inhalt: <strong>„MrBones ist in der App ausgewählt“</strong>, darunter <strong>„In D2R ist noch MrHammer · Hölle aktiv.“</strong> und genau eine Aktion <strong>„In D2R verwenden“</strong>.</li>
+          <li>Nach erfolgreicher Core-Bestätigung verschwindet der Hinweis. Die Seitenleiste zeigt <strong>„In D2R aktiv“</strong>.</li>
+          <li>Bei laufender Session sind beide Dropdowns deaktiviert. Ergänze <strong>„Während der Session gesperrt“</strong>.</li>
+          <li>Persistiere nur die App-Präferenz. Beim Start validiert der Renderer sie gegen den aktuellen Katalog; unbekannte Charaktere oder Schwierigkeiten fallen auf den letzten bestätigten beziehungsweise ersten wählbaren Eintrag zurück.</li>
+        </ol>
+        <h3>Persistenz</h3>
+        <p>Erweitere <code>desktop-settings.json</code> als UI-Präferenz um optionale Felder <code>selected_character</code> und <code>selected_difficulty</code>. Erhöhe die Schema-Version und migriere Schema 1 explizit. Diese Werte sind keine Fach- oder Safety-Autorität. <code>status.selection</code> bleibt alleiniger Beleg für D2R.</p>
+        <pre><code>interface AppSelection {
+  character: string;
+  difficulty: string;
+}
+
+// Nur die App-Auswahl. Der bestätigte D2R-Kontext kommt weiterhin aus StatusDTO.
+interface DesktopSettingsView {
+  selected_character?: string;
+  selected_difficulty?: string;
+}</code></pre>
+      </section>
+
+      <section class="section" id="dashboard">
+        <p class="eyebrow">5 · Dashboard-Bausteine</p>
+        <h2>Inhalt und Priorität jeder Fläche</h2>
+        <table>
+          <thead><tr><th>Fläche</th><th>Muss enthalten</th><th>Darf nicht enthalten</th></tr></thead>
+          <tbody>
+            <tr><td>Seitenleiste</td><td>Globale App-Auswahl, Schwierigkeit, Bestätigungsstatus, Sperrhinweis.</td><td>Core-Versionen, Generation, interne Zustandsnamen im normalen Betrieb.</td></tr>
+            <tr><td>Seitenkopf</td><td><q>MrHammer ist bereit</q> oder <q>Unter-Kurast läuft</q>; darunter Schwierigkeit und Queue-Größe; rechts kurze Bereitschafts-Chips.</td><td>Marketingtext, Restzeitversprechen, technische Architekturerklärungen.</td></tr>
+            <tr><td>Farming</td><td>Persistente Reihenfolge als kompakte nummerierte Liste, einmal <q>Bearbeiten</q>, primär <q>Jetzt farmen</q>, kurze Gesamtzusammenfassung.</td><td>Sechs identische Tipptexte, doppelte Links, Core-Queue-Rohwerte.</td></tr>
+            <tr><td>Kennzahlen</td><td>2×2: Runs, Ø Runzeit, gesicherte Items, Items pro Stunde; jeweils Icon, Wert und kurze Einheit.</td><td>Erfolgsquote als fünfte Zahl; künstliche Vergleiche ohne Datenbasis.</td></tr>
+            <tr><td>Ergebnisverteilung</td><td>Ringdiagramm mit Quote in der Mitte; Legende mit absoluten Zahlen für erfolgreich, fehlgeschlagen, abgebrochen.</td><td>Nur Farbe ohne Beschriftung; Werte, die nicht dem Zeitraumfilter folgen.</td></tr>
+            <tr><td>Routenvergleich</td><td>Horizontale, absteigend sortierte Balken für gesicherte Items pro Stunde; Wert zusätzlich als Text.</td><td>Interne Run-IDs; Vergleich von Routen mit unklarer Kennzahl.</td></tr>
+            <tr><td>Zuletzt</td><td>Drei jüngste Runs mit Name, Uhrzeit/Dauer und Ergebnis beziehungsweise gesicherten Items; Link zur gefilterten Historie.</td><td>Zeitraumfilter; mehr als vier Einträge; technische Reason-Codes.</td></tr>
+          </tbody>
+        </table>
+        <h3>Zeitraumfilter</h3>
+        <p>Setze einen einzigen segmentierten Schalter <strong>7 Tage · 30 Tage · Gesamt</strong> oberhalb der Statistikflächen. Standard ist <strong>30 Tage</strong>. Der Schalter steuert gemeinsam Kennzahlen, Ergebnisverteilung und Routenbalken. Beim Wechsel bleiben die alten Werte sichtbar, bis die neue Antwort eintrifft; zeige im betroffenen Bereich einen dezenten Ladezustand und verhindere Springen der Kartenhöhe.</p>
+        <h3>Farming-Karte</h3>
+        <ul>
+          <li>Zeige pro Route nur Reihenfolge, Anzeigename und verständlichen Status: <q>Bereit</q>, <q>Läuft</q> oder konkreter Handlungsbedarf.</li>
+          <li>Öffne über <q>Bearbeiten</q> den einzigen Queue-Editor in den Einstellungen.</li>
+          <li><q>Jetzt farmen</q> führt weiterhin vollständigen Preflight und token-geschützten Start aus. Das Redesign ändert kein Safety-Verhalten.</li>
+          <li>Wenn keine Queue existiert, ersetze Liste und Startknopf durch <q>Noch keine Run-Reihenfolge</q> und eine Aktion <q>Run-Reihenfolge festlegen</q>.</li>
+        </ul>
+      </section>
+
+      <section class="section" id="run">
+        <p class="eyebrow">6 · Aktiver Run</p>
+        <h2>Etappen statt Scheinpräzision</h2>
+        <p>Die aktive Karte bleibt direkt unter dem Seitenkopf. Sie zeigt links die aktuelle Route, in der Mitte einen segmentierten Etappenbalken und rechts drei reine Tastaturhinweise.</p>
+        <div class="card">
+          <small class="eyebrow">Beispiel</small>
+          <h3>Unter-Kurast · Run 1 von 3</h3>
+          <p style="color:var(--muted)">Kellergeschoss 3 von 5 · Etappe 6 von 13 · 0:48 vergangen</p>
+          <div style="display:flex;gap:4px;margin:14px 0 18px" aria-label="Etappe 6 von 13">
+            <i style="flex:1;height:8px;border-radius:9px;background:var(--orange)"></i><i style="flex:1;height:8px;border-radius:9px;background:var(--orange)"></i><i style="flex:1;height:8px;border-radius:9px;background:var(--orange)"></i><i style="flex:1;height:8px;border-radius:9px;background:var(--orange)"></i><i style="flex:1;height:8px;border-radius:9px;background:var(--orange)"></i><i style="flex:1;height:8px;border-radius:9px;background:var(--gold)"></i><i style="flex:1;height:8px;border-radius:9px;background:#44363b"></i><i style="flex:1;height:8px;border-radius:9px;background:#44363b"></i><i style="flex:1;height:8px;border-radius:9px;background:#44363b"></i><i style="flex:1;height:8px;border-radius:9px;background:#44363b"></i><i style="flex:1;height:8px;border-radius:9px;background:#44363b"></i><i style="flex:1;height:8px;border-radius:9px;background:#44363b"></i><i style="flex:1;height:8px;border-radius:9px;background:#44363b"></i>
+          </div>
+          <p><kbd>⏸ Pause</kbd>&nbsp;&nbsp; <kbd>□ F10</kbd>&nbsp;&nbsp; <kbd style="border-color:#9d4650;background:#57242a">⊗ F11</kbd></p>
+        </div>
+        <h3 style="margin-top:24px">Semantik</h3>
+        <ul>
+          <li><strong>Queue-Position:</strong> <q>Run 1 von 3</q> wird aus <code>status.queue.index</code> und <code>status.queue.entries.length</code> gebildet.</li>
+          <li><strong>Run-Etappe:</strong> Der Core liefert eine benutzerverständliche Etappe sowie aktuelle und gesamte Etappenzahl.</li>
+          <li><strong>Fortschritt:</strong> Abgeschlossene Etappen sind orange, die aktuelle Etappe gold, zukünftige Etappen neutral. Es gibt keine lineare Restzeitrechnung.</li>
+          <li><strong>Zeit:</strong> Nur die vergangene Zeit darf gezeigt werden. Entferne <q>endet voraussichtlich in …</q>, solange keine belastbare Core-Prognose existiert.</li>
+          <li><strong>Hotkeys:</strong> Die drei Chips sind keine <code>button</code>-Elemente und haben keinen Klickhandler. Tooltip und Screenreader-Text erklären <q>Nach diesem Run pausieren</q>, <q>Nach diesem Run stoppen</q> und <q>Sofort stoppen</q>.</li>
+          <li><strong>Bestätigung:</strong> Bei <code>pending_intent=pause</code> erscheint <q>Pause nach diesem Run vorgemerkt</q>; bei Stop entsprechend <q>Stopp nach diesem Run vorgemerkt</q>. F11 nutzt den vorhandenen Notstopp-Zustand.</li>
+        </ul>
+        <h3>Beispielhafte Gräfin-Etappen</h3>
+        <p>Vorbereitung im Dorf → Wegpunkt → Reise zum Turm → Kellergeschoss 1–5 → Bosskampf → Beute → Rückkehr in die Stadt → Truhe → Abschluss. Mehrere interne Pipeline-Schritte dürfen in einer Etappe zusammengefasst werden. Einzelne Wegpunkte einer aufgenommenen Route sind ausdrücklich keine UI-Etappen.</p>
+      </section>
+
+      <section class="section" id="daten">
+        <p class="eyebrow">7 · Datenverträge</p>
+        <h2>Der Core liefert Fachzustand, die UI rendert ihn</h2>
+        <h3>Neue kleine Fortschrittsprojektion</h3>
+        <p>Ergänze <code>UIStatusSnapshot</code> und <code>StatusDTO</code> um <code>run_progress</code>. Die Projektion gehört fachlich zu <code>internal/tasks</code>; <code>internal/app</code> übernimmt den aktuellen Snapshot, <code>internal/api</code> transportiert ihn unverändert. React darf <code>status.step</code> nicht übersetzen oder aus <code>SegmentIndex</code>/<code>PointIndex</code> eigene Fachlogik bauen.</p>
+        <pre><code>type RunProgress struct {
+    Label   string // z. B. "Kellergeschoss 3 von 5"
+    Current int    // einsbasiert, aktuelle Etappe
+    Total   int    // Gesamtzahl sinnvoller Etappen
+}
+
+type RunProgressDTO struct {
+    Label   string `json:"label"`
+    Current int    `json:"current"`
+    Total   int    `json:"total"`
+}</code></pre>
+        <ul>
+          <li><code>Current</code> liegt bei aktivem Fortschritt zwischen 1 und <code>Total</code>; ungültige Werte werden nicht veröffentlicht.</li>
+          <li>Fortschritt ändert sich nur an fachlich sichtbaren Etappengrenzen. Kein SSE-Ereignis pro Mausaktion, Tick oder Routenpunkt.</li>
+          <li>Der vollständige Status-Snapshot bleibt wiederherstellbar. Nach Renderer-Reload muss dieselbe Etappe erscheinen.</li>
+          <li>Wenn eine Route noch keine Projektion liefert, zeigt die UI <q>Run wird ausgeführt</q> ohne Balken. Sie fällt nie auf einen internen Schrittnamen zurück.</li>
+        </ul>
+        <h3>Historie</h3>
+        <p>Nutze die vorhandenen read-only Endpunkte <code>getHistorySummary</code>, <code>getHistoryComparisons</code> und <code>getHistoryRuns</code>. Jede Anfrage erhält App-Charakter, App-Schwierigkeit sowie den Zeitraum. Für <q>Gesamt</q> entfallen Datumsgrenzen. Die UI darf Quotienten und Anzeigeformate berechnen, aber keine zweite Ergebnis- oder Erfolgsdefinition einführen.</p>
+        <table>
+          <thead><tr><th>Anzeige</th><th>Quelle</th><th>Regel</th></tr></thead>
+          <tbody>
+            <tr><td>Runs, Ergebnisse, Ø Runzeit, gesicherte Items</td><td><code>getHistorySummary</code></td><td>Gleicher Charakter, Schwierigkeit und Zeitraum.</td></tr>
+            <tr><td>Items pro Stunde</td><td>Summary-Wert verwenden, falls vorhanden; sonst einmalig aus gesicherten Items und Gesamtdauer der gleichen Antwort berechnen.</td><td>Bei 0 Sekunden <q>–</q>, nie <code>Infinity</code>.</td></tr>
+            <tr><td>Routenbalken</td><td><code>getHistoryComparisons</code></td><td>Nach gesicherten Items pro Stunde absteigend; Wert zusätzlich als Text.</td></tr>
+            <tr><td>Zuletzt</td><td><code>getHistoryRuns</code></td><td>Unabhängig vom Zeitraum, auf drei Einträge begrenzen, App-Kontext anwenden.</td></tr>
+            <tr><td>Hotkeys</td><td><code>getHotkeyHelp</code> oder bereits geladene Operator-Einstellungen.</td><td>Effektive Werte zeigen, nicht fest <q>F10/F11</q> codieren.</td></tr>
+          </tbody>
+        </table>
+        <h3>Visualisierung</h3>
+        <p>Verwende die bereits installierten Pakete <strong>Recharts</strong> für Ring und Balken sowie <strong>Lucide React</strong> für Icons. Führe keine neue UI-Bibliothek ein. Falls eine spätere Funktion komplexe Overlays oder Menüs erfordert, muss eine Bibliothek anhand mehrerer konkreter Einsatzorte separat begründet werden.</p>
+      </section>
+
+      <section class="section" id="zustaende">
+        <p class="eyebrow">8 · Zustände</p>
+        <h2>Jede Datenfläche braucht eine klare Antwort</h2>
+        <table>
+          <thead><tr><th>Zustand</th><th>Verhalten</th></tr></thead>
+          <tbody>
+            <tr><td>Laden</td><td>Formstabile Skeletons nur in den Statistikflächen. Seitenkopf und Farming bleiben bedienbar, sofern ihre Daten vorhanden sind.</td></tr>
+            <tr><td>Keine Historie</td><td><q>Noch keine Runs für MrHammer auf Hölle.</q> Darunter: <q>Nach dem ersten Run erscheinen hier Laufzeit, Ergebnisse und Ertrag.</q> Keine leeren Diagrammachsen.</td></tr>
+            <tr><td>Historienfehler</td><td>Eine kompakte Meldung innerhalb des Statistikbereichs mit <q>Erneut versuchen</q>. Farming und Start bleiben unabhängig davon verfügbar.</td></tr>
+            <tr><td>Verbindung fehlt</td><td>Bereitschafts-Chip wird rot; mutierende Aktionen bleiben nach bestehenden Regeln gesperrt. Gespeicherte Historie darf sichtbar bleiben.</td></tr>
+            <tr><td>App-Auswahl weicht ab</td><td>Gelber Auswahlhinweis, Queue-Vorschau und Statistik folgen der App-Auswahl, Start ist gesperrt, bis D2R bestätigt.</td></tr>
+            <tr><td>Aktiver Run</td><td>Auswahl gesperrt, <q>Jetzt farmen</q> verborgen, aktive Run-Karte sichtbar, laufender Queue-Eintrag markiert.</td></tr>
+            <tr><td>Pause/Stop vorgemerkt</td><td>Hotkey-Chip und Textstatus bestätigen die Absicht. Nicht so formulieren, als wäre der aktuelle Run schon angehalten.</td></tr>
+            <tr><td>Notstopp</td><td>Rot, klar und unmittelbar. Keine Save-&amp;-Exit-Zusage. Der vorhandene Core-Zustand bleibt maßgeblich.</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section class="section" id="responsive">
+        <p class="eyebrow">9 · Responsive &amp; Bewegung</p>
+        <h2>Informationsdichte ohne gequetschte Inhalte</h2>
+        <table>
+          <thead><tr><th>Breite</th><th>Layout</th></tr></thead>
+          <tbody>
+            <tr><td>≥ 1181 px Fensterbreite</td><td>Erste Reihe: Farming · Kennzahlen · Ergebnisverteilung. Richtwert Spaltenverhältnis <code>1.08fr .82fr .64fr</code>. Zweite Reihe: Routenvergleich · Zuletzt.</td></tr>
+            <tr><td>1000–1180 px</td><td>Farming links. Rechts Kennzahlen, darunter Ergebnisverteilung. Zweite Reihe bleibt zweispaltig, solange Werte und Beschriftungen nicht umbrechen.</td></tr>
+            <tr><td>761–999 px</td><td>Einspaltiger Inhalt. Kennzahlen bleiben 2×2. Zeitraumfilter darf unter seine Beschriftung rücken.</td></tr>
+            <tr><td>≤ 760 px</td><td>Einspaltig; Hotkey-Chips teilen sich eine Reihe oder brechen gleichmäßig um. Kein horizontaler Scrollbereich.</td></tr>
+          </tbody>
+        </table>
+        <h3>Bewegungsregeln</h3>
+        <ul>
+          <li>Hover, Fokus und Filterwechsel: 150–220 ms, <code>ease-out</code>.</li>
+          <li>Diagramme animieren einmal beim Datenwechsel, nicht bei jedem SSE-Tick.</li>
+          <li>Die aktuelle Run-Etappe darf leicht pulsieren; abgeschlossene und zukünftige Segmente bleiben ruhig.</li>
+          <li>Neue <code>pending_intent</code>-Bestätigung darf kurz einblenden, bleibt danach statisch sichtbar.</li>
+          <li>Unter <code>prefers-reduced-motion: reduce</code> werden alle nicht notwendigen Animationen abgeschaltet.</li>
+          <li>Keine Dauer-Glows, Partikeleffekte, springenden Zahlen oder automatisch wandernden Karussells.</li>
+        </ul>
+      </section>
+
+      <section class="section" id="texte">
+        <p class="eyebrow">10 · Texte &amp; Barrierefreiheit</p>
+        <h2>Benutzersprache, keine Systemdiagnose</h2>
+        <table class="copy-table">
+          <thead><tr><th>Nicht anzeigen</th><th>Stattdessen</th></tr></thead>
+          <tbody>
+            <tr><td><q>Core-autoritärer Überblick …</q></td><td>Kein Ersatz nötig. Der Seitenkopf erklärt den konkreten Zustand.</td></tr>
+            <tr><td><q>Core idle · Generation 27</q></td><td><q>Bereit</q></td></tr>
+            <tr><td><q>D2R attached</q></td><td><q>D2R bereit</q> oder <q>D2R nicht gefunden</q></td></tr>
+            <tr><td><q>Lifecycle idle</q></td><td>Nicht anzeigen.</td></tr>
+            <tr><td><q>lower-kurast</q></td><td><q>Unter-Kurast</q></td></tr>
+            <tr><td><q>stop_after_run</q></td><td><q>Stopp nach diesem Run vorgemerkt</q></td></tr>
+            <tr><td><q>queue_duplicate_run</q></td><td><q>Diese Route ist bereits in der Reihenfolge.</q></td></tr>
+          </tbody>
+        </table>
+        <h3>Barrierefreiheit</h3>
+        <ul>
+          <li>Farben werden immer durch Text, Icon oder Muster ergänzt. Ergebnisstatus darf nie nur über Grün/Rot erkennbar sein.</li>
+          <li>Ring- und Balkendiagramme erhalten eine zugängliche Textzusammenfassung; Recharts-SVGs sind für Screenreader dekorativ, wenn dieselben Werte direkt daneben stehen.</li>
+          <li>Der Zeitraumfilter verwendet echte Buttons mit <code>aria-pressed</code>. Fokusrahmen sind deutlich sichtbar.</li>
+          <li>Die globalen Selects haben sichtbare Labels. Der Sperrgrund ist als Text verfügbar.</li>
+          <li>Hotkey-Chips sind keine Buttons. <code>kbd</code> zeigt die Taste; ein zugänglicher Name erklärt die Wirkung.</li>
+          <li>Live-Meldungen für vorgemerkte Aktionen verwenden <code>role="status"</code>; Notstoppfehler verwenden <code>role="alert"</code>.</li>
+        </ul>
+      </section>
+
+      <section class="section" id="dateien">
+        <p class="eyebrow">11 · Code-Zuschnitt</p>
+        <h2>Verantwortungen aus <code>App.tsx</code> herauslösen</h2>
+        <table>
+          <thead><tr><th>Datei / Modul</th><th>Direkter Auftrag</th></tr></thead>
+          <tbody>
+            <tr><td><code>web/src/app/AppSelectionContext.tsx</code></td><td>Einzige React-Quelle für App-Charakter und Schwierigkeit; Initialisierung, Katalog-Fallback, Persistenz und Session-Sperre. Keine D2R-Bestätigung simulieren.</td></tr>
+            <tr><td><code>web/src/app/App.tsx</code></td><td>Shell, Navigation und Datenwiring. Bestehendes umfangreiches Dashboard-Markup entfernen und das Feature einhängen.</td></tr>
+            <tr><td><code>web/src/features/dashboard/DashboardFeature.tsx</code></td><td>Dashboard-Zustände koordinieren, Statistik laden, vorhandene Start-/Apply-Callbacks aufrufen.</td></tr>
+            <tr><td><code>web/src/features/dashboard/DashboardHeader.tsx</code></td><td>Seitenkopf, Bereitschaft und Auswahlabweichung.</td></tr>
+            <tr><td><code>web/src/features/dashboard/FarmingPanel.tsx</code></td><td>Queue-Vorschau, Bearbeiten, Jetzt farmen und leere Queue.</td></tr>
+            <tr><td><code>web/src/features/dashboard/DashboardStats.tsx</code></td><td>Zeitraumfilter, 2×2-Kennzahlen, Ring, Routenbalken, Zuletzt sowie Lade-/Leer-/Fehlerzustände.</td></tr>
+            <tr><td><code>web/src/features/dashboard/ActiveRunPanel.tsx</code></td><td>Queue-Position, Etappenbalken, vergangene Zeit, effektive Hotkeys und <code>pending_intent</code>.</td></tr>
+            <tr><td><code>web/src/features/dashboard/dashboard.css</code></td><td>Feature-lokales Raster, Karten, Diagramme und Responsive-Regeln. Bestehende Design-Tokens wiederverwenden.</td></tr>
+            <tr><td><code>web/electron/desktop-settings.ts</code>, <code>main.ts</code>, <code>preload.cts</code>, <code>web/src/vite-env.d.ts</code></td><td>Optionale App-Auswahl persistieren, Schema 1 migrieren, exakte IPC-Felder und Tests aktualisieren.</td></tr>
+            <tr><td><code>internal/tasks/run_progress.go</code></td><td>Interne Pipeline-/Routenschritte in wenige benutzerverständliche Etappen projizieren. Tests für alle unterstützten Run-Arten.</td></tr>
+            <tr><td><code>internal/app/ui_monitor.go</code></td><td>Aktuellen, unveränderlichen Run-Fortschritt in <code>UIStatusSnapshot</code> aufnehmen.</td></tr>
+            <tr><td><code>internal/api/dto.go</code>, <code>live_backend.go</code>, <code>schema/openapi.json</code></td><td><code>RunProgressDTO</code> transportieren, bei fachlicher Etappenänderung Live-Refresh auslösen und TypeScript-Client neu generieren.</td></tr>
+          </tbody>
+        </table>
+        <div class="callout"><strong>Modulgrenze:</strong> <code>internal/tasks</code> kennt die Bedeutung der Etappen. <code>internal/app</code> orchestriert. <code>internal/api</code> transportiert. React formatiert und rendert. Keine Schicht darf die Zuordnung einer anderen Schicht duplizieren.</div>
+        <p>Die Prototypdateien unter <code>web/src/features/dashboard-prototype/</code> und der Query-Schalter <code>?variant=</code> sind Designbelege. Sie werden nicht zur Produktionsimplementierung ausgebaut und vor Abschluss des Features entfernt. Das normale Dashboard-Verhalten darf bis zur eigentlichen Umstellung unverändert bleiben.</p>
+      </section>
+
+      <section class="section" id="plan">
+        <p class="eyebrow">12 · Umsetzungsreihenfolge</p>
+        <h2>Agentenplan mit Abschlusskriterien</h2>
+        <div class="steps">
+          <article class="step"><h3>Bestehendes Verhalten festnageln</h3><p>Ergänze gezielte Tests für Auswahlabweichung, Start-Sperre, Queue nach erfolgreichem Apply, Session-Lock und Renderer-Reload. Ändere noch kein Layout.</p><p class="done">Fertig, wenn die Tests das heutige Safety-Verhalten eindeutig beschreiben.</p></article>
+          <article class="step"><h3>Appweite Auswahl einführen</h3><p>Baue <code>AppSelectionContext</code>, hänge die Seitenleisten-Selects an und leite Dashboard, Historie, Pickit/Routen-Kontext sowie Einstellungen auf dieselbe Auswahl um. Trenne die App-Auswahl weiterhin von <code>status.selection</code>.</p><p class="done">Fertig, wenn ein Dropdown-Wechsel alle Vorschauen aktualisiert, aber keinen Start freigibt.</p></article>
+          <article class="step"><h3>App-Auswahl sicher persistieren</h3><p>Erweitere Desktop-Einstellungen samt Migration, Preload-Vertrag, IPC-Validierung und Tests. Unbekannte gespeicherte Werte dürfen den Start nicht blockieren und werden gegen den Katalog verworfen.</p><p class="done">Fertig, wenn ein Neustart dieselbe App-Auswahl wiederherstellt und D2R weiterhin separat bestätigt werden muss.</p></article>
+          <article class="step"><h3>Dashboard-Feature extrahieren</h3><p>Verschiebe das Dashboard aus <code>App.tsx</code> in das neue Feature. Verdrahte bestehende Apply-, Preflight-, Start- und Navigationspfade, statt sie neu zu implementieren.</p><p class="done">Fertig, wenn das alte Dashboard-Markup entfernt ist und alle bisherigen Safety-Tests grün bleiben.</p></article>
+          <article class="step"><h3>Leerlauf-Layout umsetzen</h3><p>Baue Header, Auswahlhinweis, Farming-Karte, 2×2-Kennzahlen, Ergebnisring, Routenbalken und Zuletzt exakt in der festgelegten Reihenfolge. Entferne doppelte Queue-Links und wiederholte Routen-Tipps.</p><p class="done">Fertig, wenn 1440×900 und 1100×700 dem Zielraster entsprechen.</p></article>
+          <article class="step"><h3>Historiedaten anbinden</h3><p>Implementiere den gemeinsamen Zeitraumzustand, parallele abbrechbare Requests und formstabile Lade-/Leer-/Fehlerzustände. <q>Zuletzt</q> lädt unabhängig vom Zeitraum.</p><p class="done">Fertig, wenn alle drei Statistikflächen denselben Filter verwenden und ein Fehler Farming nicht blockiert.</p></article>
+          <article class="step"><h3>Run-Fortschritt im Core modellieren</h3><p>Definiere die Etappenprojektion in <code>internal/tasks</code>. Gruppiere Pipeline-, Routen-, Kampf-, Loot- und Town-Schritte sinnvoll. Ergänze DTO, OpenAPI, Generator und gezielte Go-Tests.</p><p class="done">Fertig, wenn jede unterstützte Run-Art stabile, verständliche Etappen liefert und kein interner Schritt im UI-Vertrag erscheint.</p></article>
+          <article class="step"><h3>Aktiven Run umsetzen</h3><p>Rendere Etappenbalken, Queue-Position, vergangene Zeit, effektive Hotkeys und vorgemerkte Aktionen. Entferne klickbare Pause-/Stop-Schaltflächen aus dieser Fläche.</p><p class="done">Fertig, wenn Pause/F10/F11 als nicht klickbare Chips erscheinen und ein Renderer-Reload dieselbe Etappe rekonstruiert.</p></article>
+          <article class="step"><h3>Politur und Barrierefreiheit</h3><p>Ergänze Fokuszustände, semantische Diagrammtexte, <code>aria-live</code>, reduzierte Bewegung und gezielte Übergänge. Prüfe deutsche Texte auf interne Begriffe.</p><p class="done">Fertig, wenn das Dashboard vollständig per Tastatur lesbar ist und bei reduzierter Bewegung ruhig bleibt.</p></article>
+          <article class="step"><h3>Prototyp entfernen und Dokumentation aktualisieren</h3><p>Entferne Dashboard-Prototyp, Query-Switcher und Prototype-Script. Aktualisiere <code>docs/features/live-dashboard.md</code>, den Feature-Index und <code>docs/CHANGELOG.md</code> unter <q>Changed</q>.</p><p class="done">Fertig, wenn nur die Produktionsimplementierung erreichbar ist und Dokumentation das neue Verhalten beschreibt.</p></article>
+        </div>
+      </section>
+
+      <section class="section" id="abnahme">
+        <p class="eyebrow">13 · Abnahme</p>
+        <h2>Verbindliche Prüfliste</h2>
+        <div class="grid-2">
+          <div class="card">
+            <h3>Funktion</h3>
+            <ul>
+              <li>App-Auswahl ist auf jeder Hauptseite sichtbar.</li>
+              <li>Dropdown-Wechsel aktualisiert Queue-Vorschau und Statistik sofort.</li>
+              <li>Start bleibt bei abweichender D2R-Auswahl gesperrt.</li>
+              <li>Apply lädt die bestätigte Queue ohne Regression.</li>
+              <li>Session sperrt Auswahl; Reload rekonstruiert Zustand.</li>
+              <li>7 Tage, 30 Tage und Gesamt steuern alle drei Statistikflächen.</li>
+              <li>Zuletzt bleibt vom Zeitraum unabhängig.</li>
+              <li>Etappe kommt aus dem Core; Queue-Position ist separat.</li>
+              <li>Pause/F10/F11 zeigen die konfigurierten Tasten.</li>
+              <li>Vorgemerkte Pause und Stop werden korrekt bestätigt.</li>
+            </ul>
+          </div>
+          <div class="card">
+            <h3>UI/UX</h3>
+            <ul>
+              <li>Keine interne ID und kein Rohzustand im Normalbetrieb.</li>
+              <li>Kein doppelter Link zum Queue-Editor.</li>
+              <li>Keine identischen Routen-Tippkarten.</li>
+              <li>Keine erfundene Restzeit.</li>
+              <li>1440×900: drei Hauptkarten in einer Reihe.</li>
+              <li>1100×700: Ring unter Kennzahlen, kein horizontaler Überlauf.</li>
+              <li>Diagrammwerte sind auch als Text vorhanden.</li>
+              <li>Keyboard-Fokus ist sichtbar.</li>
+              <li><code>prefers-reduced-motion</code> wird respektiert.</li>
+              <li>Leere und fehlerhafte Historie blockieren Farming nicht.</li>
+            </ul>
+          </div>
+        </div>
+        <h3 style="margin-top:24px">Kleinste erforderliche Validierung</h3>
+        <ol>
+          <li>Gezielte Go-Tests für Run-Fortschrittsprojektion und Status-DTO.</li>
+          <li>Gezielte Electron-Tests für Desktop-Settings-Migration und IPC-Vertrag.</li>
+          <li>Gezielte React-Tests für globale Auswahl, Safety-Sperren, Statistikzustände und aktiven Run.</li>
+          <li><code>pnpm typecheck:renderer</code>.</li>
+          <li>Browser-Abnahme im Leerlauf und aktiven Run bei 1440×900 und 1100×700; Console ohne Fehler.</li>
+        </ol>
+        <div class="callout good"><strong>Abschluss:</strong> Das Feature ist erst fertig, wenn sowohl das neue Zielbild als auch alle bestehenden Start-, Auswahl- und Notstopp-Sicherheiten erfüllt sind. Eine rein visuelle Umgestaltung ohne appweite Auswahl und Core-gelieferten Run-Fortschritt ist unvollständig.</div>
+      </section>
+    </main>
+  </div>
+
+  <footer class="footer shell">
+    <p>Designgrundlage: bestätigte Variante A mit Kennzahlen, Ergebnisverteilung und Routenbalken aus Variante B. Referenz für Dokumentstruktur: <a href="route-ui-redesign-spec.html">Routen-UI-Redesign-Spezifikation</a>. Prototypquelle: <code>web/src/features/dashboard-prototype/</code>.</p>
+  </footer>
+</body>
+</html>

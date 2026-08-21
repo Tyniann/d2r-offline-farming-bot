@@ -8,6 +8,7 @@
   "author": "Tyniann",
   "scripts": {
     "generate": "node scripts/generate-api.mjs",
+    "prototype:dashboard": "vite --host 127.0.0.1",
     "pretest": "node scripts/generate-api.mjs --check",
     "test": "vitest run",
     "typecheck:renderer": "tsc --noEmit",
