@@ -30,7 +30,7 @@ Phase 21 macht das am Charakter ausgewählte Kampfprofil zur einzigen Combat-Aut
 ### Strategy Registry und Run-Entkopplung (Gate 21.1)
 
 - `(profileID, runID)` löst über `CombatStrategyRegistry` eine ausführbare Factory auf.
-- Bone-Spear besitzt Factories für Countess, Mephisto, Summoner, Nihlathak und Cows.
+- Bone-Spear besitzt Factories für Countess, Mephisto, Summoner, Nihlathak, Cows und Lower Kurast.
 - Combat-Tuning und Standardangriff kommen aus dem Charakterprofil, nicht aus `runs.definitions.*.combat`.
 - Availability und Desktop-Setup blockieren mit `profile_run_strategy_unavailable`, wenn keine Strategy existiert.
 - Passive Desktop-Starts und Routenaufnahmen konstruieren die Runtime ohne Countess-Pickit und ohne registrierte Countess-Strategy. Queue-Start, Town-Test und produktive Runs bleiben fail-closed.
@@ -128,4 +128,4 @@ Lokaler CASC-Extrakt unter `.tmp/d2r-excel`, Go-Generator nach dem Muster der It
 - [Phase-21-Core-Vertrag](phase-21-core-contract.md)
 
 ---
-*Zuletzt aktualisiert: 2026-08-16*
+*Zuletzt aktualisiert: 2026-08-21*

@@ -156,6 +156,8 @@ func (v *RestockVerifier) Tick(current int) InteractionResult {
 }
 
 func validRestockResource(resource RestockResource) bool {
+	// Keep this closed allowlist aligned with [MaximumAkaraUnitCost]. If the
+	// resource set grows again, replace both switches with one descriptor table.
 	switch resource {
 	case RestockHealing, RestockMana, RestockTownPortalScroll, RestockIdentifyScroll, RestockKey:
 		return true

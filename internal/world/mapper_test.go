@@ -622,6 +622,18 @@ func TestStateInventoryItemsUsesValidatedPersonalInventoryOnly(t *testing.T) {
 	}
 }
 
+func TestStateInventoryQuantityByCodeSumsOnlyKnownPersonalStacks(t *testing.T) {
+	state := State{Items: []Item{
+		{Code: "key", Location: ItemLocationInventory, PlayerOwned: true, Page: 0, Quantity: 7, QuantityKnown: true},
+		{Code: "key", Location: ItemLocationInventory, PlayerOwned: true, Page: 0, Quantity: 4, QuantityKnown: false},
+		{Code: "key", Location: ItemLocationStash, PlayerOwned: true, Page: 0, Quantity: 12, QuantityKnown: true},
+		{Code: "pk1", Location: ItemLocationInventory, PlayerOwned: true, Page: 0, Quantity: 1, QuantityKnown: true},
+	}}
+	if got := state.InventoryQuantityByCode("key"); got != 7 {
+		t.Fatalf("InventoryQuantityByCode(key) = %d, want 7", got)
+	}
+}
+
 func TestVendorItemLocationRequiresVendorFlagAndSentinelOwner(t *testing.T) {
 	snap := validSnapshot()
 	snap.Items = []memory.ItemUnit{{TxtFileNo: 606, UnitID: 99, RawLocation: 0, OwnerID: ^uint32(0), Flags: 0x2000, GridX: 2, GridY: 3}}

@@ -346,7 +346,11 @@ func (c replayChest) Reset() {}
 
 func (d *replayDependencies) TickChest(world.State, world.Object, float64) tasks.ChestOperateResult {
 	call := d.consume("chest.tick")
-	return tasks.ChestOperateResult{Status: tasks.ChestOperateStatus(stringValue(call.Result, "status")), Done: boolValue(call.Result, "done"), Reason: stringValue(call.Result, "reason")}
+	return tasks.ChestOperateResult{
+		Status: tasks.ChestOperateStatus(stringValue(call.Result, "status")), Done: boolValue(call.Result, "done"),
+		Reason: stringValue(call.Result, "reason"), Attempt: int(uint64Value(call.Result, "attempt")),
+		BlockerUnitID: uint32(uint64Value(call.Result, "blocker_unit_id")),
+	}
 }
 
 func (d *replayDependencies) Emit(telemetry.Event) error {

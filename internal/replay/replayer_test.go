@@ -27,6 +27,42 @@ func TestReplayReachesIdenticalTerminalFailure(t *testing.T) {
 	}
 }
 
+func TestReplayPreservesChestBlockerRecoveryEvidence(t *testing.T) {
+	bundle := captureChestBlockerRecoveryFixture(t)
+	var firstChest, secondChest, clearIndex = -1, -1, -1
+	callIndex := 0
+	for _, frame := range bundle.Frames {
+		for _, call := range frame.Dependencies {
+			switch call.Name {
+			case "chest.tick":
+				if firstChest < 0 {
+					firstChest = callIndex
+					if got := uint64Value(call.Result, "blocker_unit_id"); got != 77 {
+						t.Fatalf("captured blocker_unit_id = %d, want 77", got)
+					}
+				} else if secondChest < 0 {
+					secondChest = callIndex
+				}
+			case "route_clear.tick":
+				if clearIndex < 0 {
+					clearIndex = callIndex
+				}
+			}
+			callIndex++
+		}
+	}
+	if firstChest < 0 || clearIndex <= firstChest || secondChest <= clearIndex {
+		t.Fatalf("dependency order chest/clear/retry = %d/%d/%d", firstChest, clearIndex, secondChest)
+	}
+	report, err := Replay(bundle)
+	if err != nil {
+		t.Fatalf("Replay() error = %v", err)
+	}
+	if report.Outcome != string(tasks.RunOutcomeSuccess) {
+		t.Fatalf("Replay() report = %+v", report)
+	}
+}
+
 func TestReplayReportsFirstDependencyOrderDivergence(t *testing.T) {
 	bundle := captureBossFocusLossFixture(t)
 	mutated := false
@@ -215,9 +251,112 @@ func captureWaypointSettleFixture(t *testing.T) Bundle {
 	return Bundle{}
 }
 
+func captureChestBlockerRecoveryFixture(t *testing.T) Bundle {
+	t.Helper()
+	directory := t.TempDir()
+	start := time.Date(2026, time.August, 21, 10, 0, 0, 0, time.UTC)
+	contract := ContractSnapshot{
+		RunID: string(tasks.RunIDLowerKurast), Phase: tasks.RunPhaseBoss, ProfileID: "necro_bone_spear",
+		Dependencies: []string{"loot", "route_clear", "chest", "telemetry"},
+		Definition:   map[string]any{"fixture": "chest_blocker_recovery"},
+		Tuning: map[string]any{
+			"step_timeout_ms": 10000, "loot_pickup_distance_tiles": 30,
+		},
+	}
+	recorder := newTestRecorder(t, directory, start, Config{Enabled: true, Label: "chest-blocker", SaveSuccessful: true}, contract)
+	state := world.State{
+		Phase: world.GamePhaseInGame, Valid: true, Area: world.LookupArea(world.LowerKurast),
+		Player: world.Player{Position: world.Position{X: 5032, Y: 2994}},
+		Objects: []world.Object{
+			{ID: world.JungleChest2ID, Kind: world.ObjectKindSuperChest, UnitID: 183, Position: world.Position{X: 5032, Y: 2994}, Mode: world.ObjectModeClosed, ModeKnown: true},
+			{ID: world.ArmorStand1ID, Kind: world.ObjectKindRack, UnitID: 182, Position: world.Position{X: 5012, Y: 2983}, Mode: world.ObjectModeOpened, ModeKnown: true},
+		},
+		Monsters: []world.Monster{{UnitID: 77, NPCID: 1, Position: world.Position{X: 5033, Y: 2994}}},
+	}
+	chest := &replayChestBlockerFixture{state: &state}
+	clear := &replayChestClearFixture{state: &state}
+	deps := InstrumentDeps(tasks.Deps{
+		Loot: &replayNoLootFixture{}, RouteClear: clear, Chest: chest, Telemetry: replayTelemetryFixture{},
+	}, recorder)
+	runner := tasks.NewRunner(slog.New(slog.NewTextHandler(io.Discard, nil)), tasks.RunSelection{
+		Run: contract.RunID, Phase: contract.Phase,
+	}, tasks.RunConfig{StepTimeout: 10 * time.Second, LootPickupDistanceTiles: 30, Combat: tasks.CombatConfig{Profile: contract.ProfileID}}, deps)
+	for tick := 0; tick < 60; tick++ {
+		now := start.Add(time.Duration(tick) * 100 * time.Millisecond)
+		state.At = now
+		state.Generation = uint64(tick + 1)
+		before := traceStateFromResult(runner.Result())
+		recorder.BeginTick(now, NormalizeWorld(state), state.Generation, RuntimeGates{InputEnabled: true, WindowBound: true}, before)
+		result := runner.Tick(context.Background(), state, now)
+		recorder.EndTick(traceStateFromResult(result))
+		if runner.Terminal() {
+			final, err := recorder.Finalize(Terminal{Step: result.Step, Outcome: string(result.Outcome), Reason: result.Reason})
+			if err != nil {
+				t.Fatalf("Finalize() error = %v", err)
+			}
+			bundle, err := ReadBundle(filepath.Join(directory, final.Filename), 1<<20)
+			if err != nil {
+				t.Fatalf("ReadBundle() error = %v", err)
+			}
+			return bundle
+		}
+	}
+	t.Fatal("chest blocker fixture did not terminate")
+	return Bundle{}
+}
+
 type waypointSettleFixture struct {
 	openCalls int
 }
+
+type replayChestBlockerFixture struct {
+	state *world.State
+	calls int
+}
+
+func (f *replayChestBlockerFixture) Tick(_ world.State, target world.Object, _ float64) tasks.ChestOperateResult {
+	f.calls++
+	if f.calls == 1 {
+		return tasks.ChestOperateResult{Status: tasks.ChestOperateHoverNotFound, Done: true, Attempt: 15, BlockerUnitID: 77}
+	}
+	for index := range f.state.Objects {
+		if f.state.Objects[index].UnitID == target.UnitID {
+			f.state.Objects[index].Mode = world.ObjectModeOpened
+		}
+	}
+	return tasks.ChestOperateResult{Status: tasks.ChestOperateClicked, Done: true, Attempt: 1}
+}
+
+func (*replayChestBlockerFixture) Reset() {}
+
+type replayChestClearFixture struct{ state *world.State }
+
+func (f *replayChestClearFixture) TickRouteClear(context.Context, profile.RouteClearRequest, time.Time) profile.Result {
+	f.state.Monsters = nil
+	return profile.Result{Status: profile.StatusAction, ActionKind: profile.RouteClearActionAttack, TargetUnitID: 77, TargetNPCID: 1}
+}
+
+func (*replayChestClearFixture) ResetRouteClear() {}
+
+type replayNoLootFixture struct{}
+
+func (*replayNoLootFixture) Scan(world.State) tasks.LootScanResult { return tasks.LootScanResult{} }
+func (*replayNoLootFixture) ScanRouteKeep(world.State, float64) tasks.LootScanResult {
+	return tasks.LootScanResult{}
+}
+func (*replayNoLootFixture) StartPickup(tasks.LootTarget) error       { return nil }
+func (*replayNoLootFixture) StartCowLegPickup(tasks.LootTarget) error { return nil }
+func (*replayNoLootFixture) TickPickup(world.State, time.Time) tasks.LootPickupResult {
+	return tasks.LootPickupResult{}
+}
+func (*replayNoLootFixture) ClearSkippedPickup(uint32) {}
+func (*replayNoLootFixture) TickStash(world.State, time.Time) tasks.LootStashResult {
+	return tasks.LootStashResult{}
+}
+func (*replayNoLootFixture) TickCloseStash(world.State, time.Time) tasks.LootStashResult {
+	return tasks.LootStashResult{}
+}
+func (*replayNoLootFixture) Reset() {}
 
 func (*waypointSettleFixture) Reset() {}
 func (*waypointSettleFixture) TickAct1Waypoint(context.Context, world.State) pathing.TownWalkResult {

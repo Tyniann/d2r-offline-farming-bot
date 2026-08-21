@@ -88,8 +88,20 @@ const (
 	chestPhasePickup       chestOperatePhase = "pickup"
 )
 
-// pipelineChestState owns hut Supertruhe selection, skip/retry, leftover
-// hover-miss retry, and cluster loot.
+// pipelineChestState owns one Lower-Kurast object workflow.
+//
+// Transitions:
+//
+//   - idle -> click -> settle -> wait_drops -> pickup -> idle is the success path.
+//   - click or pickup -> clear_blocker -> saved phase is the one-shot local recovery.
+//   - exhausted approach, hover or settle -> skipped UnitID -> idle is the abandon path.
+//
+// The pin, cluster anchor, click evidence and clear budgets persist across
+// ticks. opened and skipped are terminal UnitID sets; only hover misses receive
+// the explicit leftover-sweep retry. A known closed object gets at most two
+// clicks, an unknown Mode exactly one. Mode, drop or key-consumption evidence
+// starts the success path. Local clear, approach, settle and pickup have finite
+// budgets; a clear timeout resumes once, so another blocker miss is abandoned.
 type pipelineChestState struct {
 	skipped            map[uint32]bool
 	hoverMissed        map[uint32]bool

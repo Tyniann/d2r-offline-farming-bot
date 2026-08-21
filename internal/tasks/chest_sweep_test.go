@@ -252,6 +252,9 @@ func TestChestSweepSkipsLockedChestWithoutKeysAndDoesNotReclick(t *testing.T) {
 	if got := countChestEvents(trace, telemetry.ChestSkipped); got < 4 {
 		t.Fatalf("chest_skipped events = %d, want at least 4: %+v", got, trace.events)
 	}
+	if got := countChestEvents(trace, telemetry.RackSkipped); got != 2 {
+		t.Fatalf("rack_skipped events = %d, want 2: %+v", got, trace.events)
+	}
 	if got := countChestEvents(trace, telemetry.ChestOpened) + countChestEvents(trace, telemetry.RackOperated); got != 0 {
 		t.Fatalf("opened events on skip run = chest=%d rack=%d", countChestEvents(trace, telemetry.ChestOpened), countChestEvents(trace, telemetry.RackOperated))
 	}
@@ -286,6 +289,78 @@ func TestChestSweepRetriesClickWithoutModeChangeThenSkips(t *testing.T) {
 	}
 	if counts[182] != 2 {
 		t.Fatalf("rack 182 clicks = %d, want 2", counts[182])
+	}
+}
+
+func TestChestSweepUnknownModeClicksOnceThenWaitsForDrops(t *testing.T) {
+	definition, _ := DefaultRunRegistry().Definition(RunIDLowerKurast)
+	pipeline := &runPipeline{definition: definition}
+	chest := world.Object{
+		ID: world.JungleChest2ID, Kind: world.ObjectKindSuperChest, UnitID: 183,
+		Position: world.Position{X: 5032, Y: 2994},
+	}
+	rack := closedObject(world.ArmorStand1ID, world.ObjectKindRack, 182, 5012, 2983)
+	rack.Mode = world.ObjectModeOpened
+	state := lowerKurastSweepState([]world.Object{chest, rack}, 5)
+	operate := &fakeChestOperate{}
+	loot := &mockLootActions{}
+	trace := &pipelineTelemetry{}
+	deps := pipelineChestDeps{
+		Chest: operate, Combat: &teleportingCombat{state: &state}, Loot: loot, Telemetry: trace,
+	}
+	now := time.Now()
+	var terminal stepResult
+	for i := 0; i < 40; i++ {
+		tickAt := now.Add(time.Duration(i) * time.Second)
+		state.At = tickAt
+		terminal = pipeline.tickChestSweep(context.Background(), deps, state, tickAt)
+		if terminal.failed || terminal.complete {
+			break
+		}
+	}
+	if terminal.failed || !terminal.complete {
+		t.Fatalf("unknown-mode sweep = %+v phase=%q", terminal, pipeline.chest.phase)
+	}
+	if got := clickCounts(operate.clicks)[183]; got != 1 {
+		t.Fatalf("unknown-mode clicks = %d, want exactly one", got)
+	}
+	if loot.scanCalls < lootNoTargetStableTicks {
+		t.Fatalf("drop pickup scans = %d, want at least %d", loot.scanCalls, lootNoTargetStableTicks)
+	}
+	if got := countChestEvents(trace, telemetry.ChestSkipped); got != 1 {
+		t.Fatalf("chest_skipped = %d, events=%+v", got, trace.events)
+	}
+}
+
+func TestChestSweepWaitsAndScansAfterEveryOperatedObject(t *testing.T) {
+	definition, _ := DefaultRunRegistry().Definition(RunIDLowerKurast)
+	pipeline := &runPipeline{definition: definition}
+	state := lowerKurastSweepState([]world.Object{
+		closedObject(world.JungleChest2ID, world.ObjectKindSuperChest, 183, 5032, 2994),
+		closedObject(world.ArmorStand1ID, world.ObjectKindRack, 182, 5012, 2983),
+	}, 5)
+	operate := &fakeChestOperate{open: true, world: &state}
+	loot := &mockLootActions{}
+	deps := pipelineChestDeps{Chest: operate, Combat: &teleportingCombat{state: &state}, Loot: loot}
+	now := time.Now()
+	var terminal stepResult
+	for i := 0; i < 60; i++ {
+		tickAt := now.Add(time.Duration(i) * time.Second)
+		state.At = tickAt
+		terminal = pipeline.tickChestSweep(context.Background(), deps, state, tickAt)
+		if terminal.failed || terminal.complete {
+			break
+		}
+	}
+	if terminal.failed || !terminal.complete {
+		t.Fatalf("per-object loot sweep = %+v phase=%q", terminal, pipeline.chest.phase)
+	}
+	if got, want := loot.scanCalls, 2*lootNoTargetStableTicks; got != want {
+		t.Fatalf("loot scans = %d, want %d stable scans across two objects", got, want)
+	}
+	counts := clickCounts(operate.clicks)
+	if counts[183] != 1 || counts[182] != 1 {
+		t.Fatalf("operate clicks = %v, want one per object", counts)
 	}
 }
 

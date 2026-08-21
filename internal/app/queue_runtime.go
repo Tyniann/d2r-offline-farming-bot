@@ -430,7 +430,7 @@ func (u *runtimeQueueUnit) StartOrVerifyGame(ctx context.Context, alreadyActive 
 	u.runtime.Log.Info("queue game lifecycle start", "adopt_existing_game", alreadyActive)
 	if alreadyActive {
 		if err := u.runtime.verifyActiveQueueGame(ctx); err == nil {
-			return u.finishVerifiedQueueGame(true)
+			return u.finishVerifiedQueueGame(ctx, true)
 		} else if !isMissingActiveQueueGame(err) {
 			u.runtime.Log.Error("queue game lifecycle start failed", "stage", "active_game_verification", "error", err)
 			return err
@@ -457,13 +457,19 @@ func (u *runtimeQueueUnit) StartOrVerifyGame(ctx context.Context, alreadyActive 
 		u.runtime.Log.Error("queue game lifecycle start failed", "stage", "active_game_verification", "error", err)
 		return err
 	}
-	return u.finishVerifiedQueueGame(false)
+	return u.finishVerifiedQueueGame(ctx, false)
 }
 
-func (u *runtimeQueueUnit) finishVerifiedQueueGame(alreadyActive bool) error {
+func (u *runtimeQueueUnit) finishVerifiedQueueGame(ctx context.Context, alreadyActive bool) error {
 	if delay := offlinePlayersFadeDelay(alreadyActive); delay > 0 {
 		u.runtime.Log.Info("offline players waiting for game fade", "settle_ms", delay.Milliseconds())
-		time.Sleep(delay)
+		timer := time.NewTimer(delay)
+		defer timer.Stop()
+		select {
+		case <-timer.C:
+		case <-ctx.Done():
+			return fmt.Errorf("wait for offline players game fade: %w", ctx.Err())
+		}
 	}
 	if err := u.runtime.applyOfflinePlayersCommand(); err != nil {
 		u.runtime.Log.Error("queue game lifecycle start failed", "stage", "offline_players", "error", err)

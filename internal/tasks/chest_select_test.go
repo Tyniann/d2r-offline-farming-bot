@@ -126,9 +126,9 @@ func TestInventoryKeyCountTreatsUnknownQuantityAsZero(t *testing.T) {
 	}
 }
 
-func TestObjectIsClosedRequiresKnownMode(t *testing.T) {
-	if objectIsClosed(world.Object{Mode: 0}) {
-		t.Fatal("unknown mode must not count as closed")
+func TestObjectIsClosedAllowsUnknownModeForOneShotFallback(t *testing.T) {
+	if !objectIsClosed(world.Object{Mode: 0}) {
+		t.Fatal("unknown mode must remain selectable for the one-shot fallback")
 	}
 	if !objectIsClosed(world.Object{Mode: world.ObjectModeClosed, ModeKnown: true}) {
 		t.Fatal("known mode 0 should count as closed")

@@ -75,7 +75,7 @@ func (s *winKeySender) KeyUp(key Key) error {
 }
 
 // TypeRune sends a character as virtual-key events. D2R's in-engine chat
-// ignores KEYEVENTF_UNICODE, which is the same SendInput path that gameplay
+// ignores `KEYEVENTF_UNICODE`, which is the same `SendInput` path that gameplay
 // keys already use successfully.
 func (s *winKeySender) TypeRune(r rune) error {
 	vk, shift, err := virtualKeyForRune(r)

@@ -11,6 +11,9 @@ func AkaraVendorCost(code string) (int, bool) {
 // MaximumAkaraUnitCost returns the highest supported undiscounted unit cost
 // used to prove gold sufficiency before navigation or shop input begins.
 func MaximumAkaraUnitCost(resource RestockResource) (int, bool) {
+	// The explicit mapping is clearer while the supported set stays small. Before
+	// adding another resource, centralize code, price, buy mode and counter so
+	// this switch and the app-side request mapping cannot drift apart.
 	switch resource {
 	case RestockHealing:
 		return 500, true

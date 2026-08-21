@@ -49,7 +49,7 @@ func (a *townPreparationAdapter) start(state world.State) string {
 		{Resource: town.RestockMana, Current: mana, Threshold: manaThreshold, Target: manaTarget},
 	}
 	needsPotions := healing < healingThreshold || mana < manaThreshold
-	keys := countInventoryKeys(state)
+	keys := state.InventoryQuantityByCode(town.KeyItemCode)
 	needsKeys := a.nextRunID == town.KeyRestockNextRun && keys < town.KeyRestockThreshold
 	itemOrders, itemReason := a.planItemServiceOrders(state)
 	if itemReason != "" {
@@ -1017,23 +1017,9 @@ func (h *townPreparationStepHandler) Reset() {
 	h.walker = nil
 }
 
-func countInventoryKeys(state world.State) int {
-	total := 0
-	for _, item := range state.InventoryItems() {
-		if item.Code != town.KeyItemCode {
-			continue
-		}
-		if !item.QuantityKnown {
-			continue
-		}
-		total += item.Quantity
-	}
-	return total
-}
-
 func countRestockResource(state world.State, profile config.ProfileResourcesConfig, resource town.RestockResource) int {
 	if resource == town.RestockKey {
-		return countInventoryKeys(state)
+		return state.InventoryQuantityByCode(town.KeyItemCode)
 	}
 	healing, mana, _ := countProfilePotionSupplies(state, profile)
 	if resource == town.RestockHealing {

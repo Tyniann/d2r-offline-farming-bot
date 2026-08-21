@@ -430,7 +430,7 @@ func TestCountInventoryKeysSumsKnownStacksAndTreatsUnknownAsZero(t *testing.T) {
 		{Code: "pk1", Location: world.ItemLocationInventory, PlayerOwned: true, Page: 0, Quantity: 1, QuantityKnown: true},
 		{Code: "key", Location: world.ItemLocationStash, PlayerOwned: true, Page: 0, Quantity: 12, QuantityKnown: true},
 	}}
-	if got := countInventoryKeys(state); got != 9 {
+	if got := state.InventoryQuantityByCode(town.KeyItemCode); got != 9 {
 		t.Fatalf("keys=%d, want 9", got)
 	}
 }

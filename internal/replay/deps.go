@@ -496,7 +496,10 @@ type traceChest struct {
 func (t *traceChest) Tick(state world.State, target world.Object, maxDistance float64) tasks.ChestOperateResult {
 	result := t.next.Tick(state, target, maxDistance)
 	args := map[string]any{"unit_id": target.UnitID, "object_id": target.ID, "kind": target.Kind.String(), "max_distance": maxDistance}
-	recordResult(t.recorder, "chest.tick", args, map[string]any{"status": string(result.Status), "done": result.Done, "reason": result.Reason}, nil)
+	recordResult(t.recorder, "chest.tick", args, map[string]any{
+		"status": string(result.Status), "done": result.Done, "reason": result.Reason,
+		"attempt": result.Attempt, "blocker_unit_id": result.BlockerUnitID,
+	}, nil)
 	recordIntent(t.recorder, "chest_operate", map[string]any{"unit_id": target.UnitID, "object_id": target.ID}, result.Status == tasks.ChestOperateClicked, nil)
 	return result
 }

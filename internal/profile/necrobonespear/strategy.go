@@ -17,6 +17,15 @@ func NewBossFactory(runID string) profile.StrategyFactory {
 	}
 }
 
+// NewLowerKurastFactory returns the Bone-Spear Lower-Kurast strategy. It binds
+// Amplify Damage followed by Bone Spear only for local object-blocker recovery;
+// travel remains without route-clear capability.
+func NewLowerKurastFactory() profile.StrategyFactory {
+	return func() profile.RunStrategy {
+		return &lowerKurastStrategy{}
+	}
+}
+
 // NewNihlathakFactory returns the Bone-Spear boss strategy with post-boss AD/Bone-Spear clear.
 // Travel remains without route_clear capability; only clear_nearby_hostiles uses RouteClear.
 func NewNihlathakFactory() profile.StrategyFactory {
@@ -41,6 +50,25 @@ func NewCowsFactory() profile.StrategyFactory {
 
 type bossStrategy struct {
 	runID string
+}
+
+type lowerKurastStrategy struct{}
+
+func (s *lowerKurastStrategy) ProfileID() string { return profileID }
+func (s *lowerKurastStrategy) RunID() string     { return "lower-kurast" }
+func (s *lowerKurastStrategy) RequiredSkills() []string {
+	return []string{"teleport", "town_portal", "bone_spear", "amplify_damage", "bone_armor"}
+}
+
+// RequiresRouteClear reports false because Lower Kurast uses combat only after
+// a Memory-confirmed monster blocks an object or loot hover probe.
+func (s *lowerKurastStrategy) RequiresRouteClear() bool { return false }
+
+func (s *lowerKurastStrategy) Configure(exec *profile.Executor, standardAttackID uint16, routeClear profile.RouteCombatActions) error {
+	if exec == nil || routeClear == nil || standardAttackID != memory.SkillBoneSpear {
+		return fmt.Errorf("necro bone spear lower-kurast strategy requires executor, route clear and Bone Spear standard attack")
+	}
+	return exec.ConfigureRouteClear(profile.RouteClearSingleTarget, memory.SkillAmplifyDamage, standardAttackID, routeClear)
 }
 
 func (s *bossStrategy) ProfileID() string { return profileID }

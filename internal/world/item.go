@@ -384,6 +384,19 @@ func (s State) InventoryItems() []Item {
 	return out
 }
 
+// InventoryQuantityByCode sums known stack quantities for matching items in
+// the player's personal inventory. Items without a known quantity contribute
+// zero because the World Model cannot prove their stack size.
+func (s State) InventoryQuantityByCode(code string) int {
+	total := 0
+	for _, item := range s.InventoryItems() {
+		if item.Code == code && item.QuantityKnown {
+			total += item.Quantity
+		}
+	}
+	return total
+}
+
 // GroundItems returns all items currently modeled at ground location.
 func (s State) GroundItems() []Item {
 	return s.ItemsByLocation(ItemLocationGround)

@@ -9,6 +9,12 @@ Versionierung nach [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 - Send `/players N` with layout-mapped virtual keys and wait three seconds after a new game start so D2R chat actually receives the command
+- Cancel the post-start `/players N` fade wait immediately when the queue context stops
+- Operate Lower Kurast objects with unreadable Mode exactly once and still wait for delayed drops
+- Preserve chest blocker UnitIDs and probe attempts in runtime traces so local clear and retry replay deterministically
+- Give Bone-Spear Necromancers a bounded Lower Kurast blocker clear using Amplify Damage followed by Bone Spear
+- Wait for drops and run pickup after every operated Lower Kurast chest or rack, then resume the same hut cluster
+- Report failed hut racks as `rack_skipped` without splitting their shared blocker-recovery state machine from chests
 
 ## [0.22.0] - 2026-08-20
 

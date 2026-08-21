@@ -126,10 +126,12 @@ const (
 	CowRecipeProgress EventName = "cow_recipe_progress"
 	// ChestOpened records a Memory-confirmed Supertruhe open. It is not a boss kill.
 	ChestOpened EventName = "chest_opened"
-	// ChestSkipped records a Supertruhe or hut rack that was left unopened after the allowed click budget.
+	// ChestSkipped records a Supertruhe left unopened after the allowed click budget.
 	ChestSkipped EventName = "chest_skipped"
 	// RackOperated records a Memory-confirmed hut-rack open next to a Supertruhe.
 	RackOperated EventName = "rack_operated"
+	// RackSkipped records a hut rack left unopened after the allowed click budget.
+	RackSkipped EventName = "rack_skipped"
 )
 
 // Event is one JSONL record. Zero-valued optional fields are omitted.

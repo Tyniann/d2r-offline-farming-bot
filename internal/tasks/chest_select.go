@@ -20,7 +20,7 @@ const (
 )
 
 func objectIsClosed(object world.Object) bool {
-	return object.ModeKnown && object.Mode == world.ObjectModeClosed
+	return !object.ModeKnown || object.Mode == world.ObjectModeClosed
 }
 
 func objectIsOpened(object world.Object) bool {
@@ -28,17 +28,7 @@ func objectIsOpened(object world.Object) bool {
 }
 
 func inventoryKeyCount(state world.State) int {
-	total := 0
-	for _, item := range state.InventoryItems() {
-		if item.Code != town.KeyItemCode {
-			continue
-		}
-		if !item.QuantityKnown {
-			continue
-		}
-		total += item.Quantity
-	}
-	return total
+	return state.InventoryQuantityByCode(town.KeyItemCode)
 }
 
 func groundItemIDs(state world.State) map[uint32]bool {

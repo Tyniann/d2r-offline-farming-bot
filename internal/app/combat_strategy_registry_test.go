@@ -26,6 +26,11 @@ func TestCombatStrategyRegistryResolvesBoneSpearMatrix(t *testing.T) {
 	if !ok || clear.RequiresRouteClear() {
 		t.Fatal("nihlathak must wire post-boss route clear without travel capability")
 	}
+	lowerKurast := registry.factories["necro_bone_spear"]["lower-kurast"]()
+	clear, ok = lowerKurast.(profile.SupportsRouteClear)
+	if !ok || clear.RequiresRouteClear() {
+		t.Fatal("lower-kurast must wire local clear without travel capability")
+	}
 	if _, ok := registry.Resolve("unknown_profile", "countess"); ok {
 		t.Fatal("unknown profile resolved")
 	}

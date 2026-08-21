@@ -8,7 +8,7 @@
 
 - **Paket:** `internal/tasks/`
 - **Einstieg:** `cmd/d2rbot --run lower-kurast`
-- **Wichtige Dateien:** `registry.go`, `chest_select.go`, `chest_sweep.go`, `run_pipeline.go`, `internal/app/chest_operate_adapter.go`, `internal/profile/hammerdin/strategy.go`
+- **Wichtige Dateien:** `registry.go`, `chest_select.go`, `chest_sweep.go`, `run_pipeline.go`, `internal/app/chest_operate_adapter.go`, `internal/profile/hammerdin/strategy.go`, `internal/profile/necrobonespear/strategy.go`
 - **Config:** `runs.definitions.lower-kurast`, `town.egress.act3`, Pickit-Default `[gems, lk-superchests]`
 - **IDs:** Area 79 (`levels.txt`, `*StringName=Lower Kurast`); Objekte aus `objects.txt` Class `JungleChest` 181, `JungleChest2` 183, `ArmorStand1` 104, `WeaponRack2` 107; Stadt-Schlüssel `misc.txt` Code `key`
 
@@ -16,7 +16,7 @@
 
 ### Town, Schlüssel und Waypoint
 
-Vor dem Handoff `lower-kurast` kauft Akara Stadt-Schlüssel, wenn der Inventarzähler unter 6 liegt. Ziel ist 12, Stückpreis 45 Gold. Gezählt werden persönliche Stapel mit Code `key` über Stat 70; unlesbare Quantity zählt als 0. Uber-Schlüssel `pk1`–`pk3` zählen nicht. Der Kauf bleibt Einzel-RMB. Live erhöht jeder Klick den Zähler um 2 und legt oft einen neuen 2er-Stapel an, statt einen vorhandenen 12er-Stapel zu füllen. Der Verifier stoppt, sobald die Summe das Ziel erreicht.
+Vor dem Handoff `lower-kurast` kauft Akara Stadt-Schlüssel, wenn der Inventarzähler unter 6 liegt. Ziel ist 12, Stückpreis 45 Gold. Gezählt werden persönliche Stapel mit Code `key` über Stat 70; unlesbare Quantity zählt als 0. `Uber` ist der etablierte D2R-Eigenname für Uber Tristram und die Schlüssel `pk1`–`pk3`; diese Uber-Schlüssel zählen nicht. Der Kauf bleibt Einzel-RMB. Live erhöht jeder Klick den Zähler um 2 und legt oft einen neuen 2er-Stapel an, statt einen vorhandenen 12er-Stapel zu füllen. Der Verifier stoppt, sobald die Summe das Ziel erreicht.
 
 Ohne Schlüssel überspringt `chest_sweep` eine verschlossene Supertruhe mit `chest_locked_no_key` und beendet den Run deswegen nicht. Der produktive 0-Schlüssel-Lauf ist gestrichen, weil Town unter der Schwelle nachkauft.
 
@@ -32,13 +32,13 @@ Playback ist eine Teleport-Einzelroute in Area 79. `RequiresRouteClear()` bleibt
 
 Nur `ObjectKindSuperChest` und `ObjectKindRack` der live belegten Klassen. Andere Act-3-Kisten bleiben unbekannt. Gestelle nur neben einer Supertruhe (Nähe 34/32 Kacheln, Extra-JungleChest 181 an der Westhütte darf mitlaufen). Gestelle auf dem Weg vor dem Feuer bleiben unberührt.
 
-Der Klick zielt auf den Objektkörper (`anchor_offset_tiles` Default 2), nicht auf die Bodenkachel. Höchstens sechs Approach-Teleports. Mode bekannt: geschlossen klicken, geöffnet nicht erneut. Ein Retry ohne Mode-Änderung, dann Skip. Telemetrie: `chest_opened`, `rack_operated`, `chest_skipped` — keine Boss-Kills.
+Der Klick zielt auf den Objektkörper (`anchor_offset_tiles` Default 2), nicht auf die Bodenkachel. Höchstens sechs Approach-Teleports. Mode bekannt: geschlossen klicken, geöffnet nicht erneut. Ein Retry ohne Mode-Änderung, dann Skip. Ohne lesbaren Mode wird die UnitID genau einmal bedient, anschließend als erledigt markiert und nur noch das Drop-Fenster ausgewertet. Telemetrie: `chest_opened`, `rack_operated`, `chest_skipped`, `rack_skipped`; keine Boss-Kills.
 
-Verdeckt ein Monster-Hover die Objektsuche oder das Pickup, folgt genau ein lokaler Hammerdin-Clear im 12-Kachel-Kreis. Sitzt der Hover auf einem Söldner oder einer Leiche, gilt der nächste lebende Gegner in dem Kreis. Ohne lebenden Gegner kein Kampf. Danach ein neuer Hover- bzw. Pickup-Versuch statt Teleport-Recovery.
+Verdeckt ein Monster-Hover die Objektsuche oder das Pickup, folgt genau ein lokaler, objektgebundener Clear im 12-Kachel-Kreis. Der Hammerdin setzt Blessed Hammer ein. Der Bone-Spear-Necro eröffnet sein Ziel einmal mit Amplify Damage und spammt danach Bone Spear wie beim Nihlathak-Trash-Clear. Sitzt der Hover auf einem Söldner oder einer Leiche, gilt der nächste lebende Gegner in dem Kreis. Ohne lebenden Gegner kein Kampf. Danach ein neuer Hover- bzw. Pickup-Versuch statt Teleport-Recovery. Beide Profile behalten `RequiresRouteClear() == false`; die gebundene Combat-Strategie ist nur für diesen lokalen Recovery-Pfad da.
 
 ### Loot und Rückkehr
 
-Pickit-Default `[gems, lk-superchests]`: Pul bis Ber (`r21`–`r30`) sowie Elite-Unique und Elite-Set, `keep`. Nach jedem Hütten-Cluster wartet die Pipeline Drops und hebt Keep-Treffer auf. Town Portal, Kurast Docks, Act-3-Egress, Rogue Encampment, Personal Stash.
+Pickit-Default `[gems, lk-superchests]`: Pul bis Ber (`r21`–`r30`) sowie Elite-Unique und Elite-Set, `keep`. Nach jedem bestätigten Operate an einer Truhe oder einem Gestell wartet die Pipeline auf Drops und hebt Keep-Treffer auf. Danach setzt sie denselben Hütten-Cluster fort. Town Portal, Kurast Docks, Act-3-Egress, Rogue Encampment, Personal Stash.
 
 ## Datenmodell
 
@@ -83,4 +83,4 @@ Session `session-20260820t183916999999999z-a7b983e6`, MrHammer Hell, Route `lowe
 - [Mephisto-Run](mephisto-run.md)
 
 ---
-*Zuletzt aktualisiert: 2026-08-20*
+*Zuletzt aktualisiert: 2026-08-21*

@@ -95,7 +95,7 @@ Die Live-Abnahme am 12. Juli 2026 erfüllte diese Bedingungen. Das Log `d2rbot-2
 
 `RestockVerifier` erlaubt höchstens die geplante Klickzahl und beendet erst bei bestätigter Zielmenge. Bleibt die Menge unverändert, endet der Auftrag nach einem festen Verify-Budget mit `town_restock_verify_timeout`; er wiederholt einen Bulk-Klick niemals. Rejuvenation gehört nicht zu `RestockResource` und kann daher weder Bedarf noch Vendor-Input erzeugen.
 
-`RestockKey` ist die fünfte Akara-Ressource und nur vor dem Handoff `lower-kurast` aktiv. Schwelle 6, Ziel 12, 45 Gold laut `misc.txt` (Akara `sell mult` 1024). Der Kauf bleibt Einzel-RMB; Bulk kommt erst nach einem späteren Live-Beweis. Live erhöht jeder RMB den Inventarzähler um 2 und legt oft einen neuen 2er-Stapel an, statt einen vorhandenen Stapel auf 12 zu füllen. Der Verifier stoppt bei erreichter Summe. Gezählt werden persönliche Inventar-Stapel mit Code `key` über Stat 70; unlesbare Quantity zählt als 0 und löst Nachkauf aus. Uber-Schlüssel `pk1`–`pk3` und `luv` zählen nicht. Shop-Input bleibt der bestehende Akara-Potion-Pfad.
+`RestockKey` ist die fünfte Akara-Ressource und nur vor dem Handoff `lower-kurast` aktiv. Schwelle 6, Ziel 12, 45 Gold laut `misc.txt` (Akara `sell mult` 1024). Der Kauf bleibt Einzel-RMB; Bulk kommt erst nach einem späteren Live-Beweis. Live erhöht jeder RMB den Inventarzähler um 2 und legt oft einen neuen 2er-Stapel an, statt einen vorhandenen Stapel auf 12 zu füllen. Der Verifier stoppt bei erreichter Summe. Gezählt werden persönliche Inventar-Stapel mit Code `key` über Stat 70; unlesbare Quantity zählt als 0 und löst Nachkauf aus. `Uber` ist hier der etablierte D2R-Eigenname für Uber Tristram und dessen Schlüssel; `pk1`–`pk3` und `luv` zählen nicht. Shop-Input bleibt der bestehende Akara-Potion-Pfad.
 
 ## Identify und Sell (9.7)
 
@@ -164,4 +164,4 @@ Die Live-Abnahme am 13. Juli 2026 erfüllte das Gate vollständig. Der autonome 
 - [Lower-Kurast-Run](lower-kurast-run.md)
 
 ---
-*Zuletzt aktualisiert: 2026-08-20*
+*Zuletzt aktualisiert: 2026-08-21*

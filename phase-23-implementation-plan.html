@@ -518,7 +518,7 @@
       <div class="decision"><strong>Aufnahme</strong><span>Nur Bewegung vom LK-Wegpunkt zum gefundenen Lagerfeuer, durch beide Hütten, bei einem zweiten Feuer auch dorthin. Keine aufgenommenen Klicks. Terminal ist <code>RecordingTerminalEndpoint</code> in Area 79. Der Weg darf lang sein.</span></div>
       <div class="decision"><strong>Öffnen</strong><span>Operate-on-sight für Supertruhen während der Wiedergabe, plus Schlusssweep. Gestelle nur in der Nähe einer gerade bearbeiteten oder sichtbaren Supertruhe. Sonst sind die ersten Hütten schon entladen, wenn die Route endet.</span></div>
       <div class="decision"><strong>Rückkehr</strong><span>Stadtportal, bestehender Act-3-Egress, Act-1-Hub, Stash. Kein Act-4-Logout-Skip.</span></div>
-      <div class="decision"><strong>Combat</strong><span>Teleport vorbei. Kein Route-Clear, kein Boss-Engage. Beide Profile registrieren eine dünne Travel-Strategy über die bestehende <code>NewBossFactory</code>.</span></div>
+      <div class="decision"><strong>Combat</strong><span>Teleport vorbei. Kein globales oder reisebegleitendes Route-Clear, kein Boss-Engage. Beide Profile registrieren eine eigene Lower-Kurast-Strategy nur für objektgebundene Blocker-Recovery: Hammerdin mit Blessed Hammer, Bone-Spear-Necro mit einmal Amplify Damage und anschließend Bone Spear.</span></div>
     </div>
 
     <h3>Phase 23 umfasst</h3>
@@ -534,7 +534,7 @@
 
     <h3>Nicht Teil von Phase 23</h3>
     <ul>
-      <li>Travincal, Andariel, Duriel, Diablo, Baal, Uber Tristram.</li>
+      <li>Travincal, Andariel, Duriel, Diablo, Baal, Uber Tristram. <code>Uber</code> bleibt in diesem Plan als etablierter D2R-Eigenname unübersetzt.</li>
       <li>Gestelle außerhalb der Lagerfeuer-Hütten, Holzstapel, Funkenkisten, Leichen, normale Dschungeltruhen.</li>
       <li>Karten-Score, Map-Datei löschen, Schwierigkeitswechsel zum Würfeln, Terrorzone, Players-Command als Bot-Default.</li>
       <li>Act-3-Händler (Ormus), Act-4-Wegpunkt-Logout, autonome Suche nach einem zweiten Feuer.</li>
@@ -658,7 +658,7 @@
             <td>Profile</td>
             <td>Necro und Hammerdin brauchen eine registrierte Strategy pro Run.</td>
             <td><code>lower-kurast</code> ist unbekannt → Run gilt als unverfügbar.</td>
-            <td><code>NewBossFactory("lower-kurast")</code> für beide; Configure bleibt No-Op.</td>
+            <td>Eigene Lower-Kurast-Factory pro Profil. <code>Configure</code> bindet nur den lokalen Blocker-Clear; <code>RequiresRouteClear()</code> bleibt für die Reise <code>false</code>.</td>
           </tr>
           <tr>
             <td>UI</td>
@@ -717,7 +717,7 @@
           <code>misc.txt</code>: Code <code>key</code>, Typ <code>key</code>, Kosten 45, Stack 12.
           Katalog-ID <code>558</code> ist bereits in <code>item_catalog_data.go</code>.
           Akara-Sell-Multiplikator in <code>npc.txt</code> ist 1024 — dieselbe Regel wie Heiltränke:
-          Einkaufspreis = 45 Gold. Das sind <em>nicht</em> die Uber-Schlüssel <code>pk1</code>–<code>pk3</code>
+          Einkaufspreis = 45 Gold. Das sind <em>nicht</em> die D2R-fachsprachlichen Uber-Schlüssel <code>pk1</code>–<code>pk3</code>
           aus dem Pickit <code>keys.yaml</code>.
         </p>
       </article>
@@ -881,7 +881,7 @@ letzten Hüttengruppe mit F9.</pre>
     <h3>Was der Bot zur Laufzeit macht</h3>
     <ul>
       <li>Während der Wiedergabe: Route halten, sobald eine katalogisierte, geschlossene Supertruhe in der konfigurierten Klickdistanz liegt, sonst erst heranteleportieren.</li>
-      <li>Hover-bestätigter Klick, Mode- oder Drop-Evidenz, dann Gestelle in kurzer Distanz zu dieser Truhe. Erst danach <code>wait_for_drops</code> und die bestehende Pickup-Pipeline, dann die nächste Truhe.</li>
+      <li>Hover-bestätigter Klick, Mode- oder Drop-Evidenz, danach für genau dieses Objekt <code>wait_for_drops</code> und die bestehende Pickup-Pipeline. Anschließend folgen Gestelle in kurzer Distanz und weitere Truhen nach demselben Ablauf.</li>
       <li>Nach dem Routenende: dieselbe Logik für Restbestände in Sicht.</li>
       <li>Bereits geöffnete oder in diesem Run übersprungene UnitIDs nicht erneut anfassen.</li>
     </ul>
@@ -953,9 +953,12 @@ letzten Hüttengruppe mit F9.</pre>
     <h3>Combat-Profile</h3>
     <p>
       <code>RunCapabilityEncounterProfile</code> bleibt, weil Teleport und Stadtportal darüber gebunden sind.
-      Necro und Hammerdin registrieren <code>NewBossFactory("lower-kurast")</code>. Configure bleibt leer,
-      kein Route-Clear, keine Corpse Explosion, keine Bone-Prison-Pflicht über das hinaus, was die Factory
-      schon für Countess/Mephisto listet. Söldner ist keine Voraussetzung.
+      Necro und Hammerdin registrieren eine eigene <code>NewLowerKurastFactory()</code>. Beide Strategies
+      konfigurieren nur den lokalen, objektgebundenen Blocker-Clear und melden
+      <code>RequiresRouteClear() == false</code>, damit die Reise ohne Route-Clear bleibt. Hammerdin verwendet
+      Blessed Hammer. Der Necro eröffnet ein lokales Ziel einmal mit Amplify Damage und spammt anschließend
+      Bone Spear wie beim Nihlathak-Trash-Clear. Corpse Explosion und Bone Prison sind dafür keine Pflicht;
+      ein Söldner ist ebenfalls keine Voraussetzung.
     </p>
   </section>
 
@@ -968,7 +971,7 @@ letzten Hüttengruppe mit F9.</pre>
     </p>
     <ul>
       <li>Neues Profil <code>configs/pickit/profiles/lk-superchests.yaml</code> mit zwei Keep-Regeln: Runen <code>r21</code> (Pul) und höher (Ber ist <code>r30</code>), plus <code>([quality] == unique || [quality] == set) && [tier] == elite</code>.</li>
-      <li>Default-Kette: <code>gems</code>, <code>lk-superchests</code>. Kein <code>keys.yaml</code>. Uber-Schlüssel droppen hier nicht, Stadtschlüssel sind Town-Ressource. Kein <code>mephisto-standard</code>, das Unique/Set verkauft statt sie zu behalten.</li>
+      <li>Default-Kette: <code>gems</code>, <code>lk-superchests</code>. Kein <code>keys.yaml</code>. <code>Uber</code> ist der etablierte D2R-Eigenname für Uber Tristram und dessen Schlüssel; diese droppen hier nicht. Stadtschlüssel sind Town-Ressource. Kein <code>mephisto-standard</code>, das Unique/Set verkauft statt sie zu behalten.</li>
       <li>Installer-Bundle kopiert das Profil über den bestehenden Default-Bundle-Pfad.</li>
       <li>History: <code>boss_kills</code> bleibt 0. Telemetrie zählt geöffnete und übersprungene Truhen, plus bediente Gestelle. Kein Fake-Kill.</li>
     </ul>
@@ -1167,8 +1170,9 @@ letzten Hüttengruppe mit F9.</pre>
               Aufnahme: Start am LK-Wegpunkt, Area 79, Terminal <code>RecordingTerminalEndpoint</code>,
               max. 60 Tiles, Teleport, Safety-Return per Stadtportal, Return <code>OriginAct3</code>.
               <code>InstructionsDE</code> ist der Vertrag aus Abschnitt 7, inklusive „Truhen und Gestelle
-              nicht selbst anklicken“. Necro und Hammerdin registrieren denselben Run; <code>Configure</code>
-              ist ein No-op. Config-Stub <code>runs.definitions.lower-kurast</code> existiert.
+              nicht selbst anklicken“. Necro und Hammerdin registrieren denselben Run mit eigenen
+              Lower-Kurast-Strategies. <code>Configure</code> bindet ausschließlich den lokalen Blocker-Clear;
+              Reise-Route-Clear bleibt deaktiviert. Config-Stub <code>runs.definitions.lower-kurast</code> existiert.
             </p>
           </div>
         </div>
@@ -1180,19 +1184,21 @@ letzten Hüttengruppe mit F9.</pre>
           <h3>Chest-Executor und Pipeline</h3>
           <p>
             Hover-Operate, UnitID-Pin, Mode- oder Fail-Settle, Skip-ohne-Schlüssel, Operate-on-sight für Supertruhen,
-            Gestelle nur neben einer Supertruhe, nach jeder Öffnung <code>wait_for_drops</code> vor Scan/Pickup,
+            Gestelle nur neben einer Supertruhe, nach jedem bestätigten Operate <code>wait_for_drops</code> vor Scan/Pickup,
             Schlusssweep, Portal, Act-3-Egress. Characterization-Fixture für die neuen Steps. Headless Replay darf
             die neuen Intents lesen.
           </p>
           <div class="gate-proof">
-            <strong>Bestanden:</strong> Unit-Tests für Skip, Retry, 0-Truhen-Fail, Gestell ignorieren ohne Truhe
-            in der Nähe, keine Re-Clicks. Kein <code>acquire_boss</code> auf diesem Pfad.
+            <strong>Bestanden:</strong> Unit-Tests für Skip, Retry, unbekannten Mode mit genau einem Klick,
+            per-object Drop-Wait, 0-Truhen-Fail, Gestell ignorieren ohne Truhe in der Nähe und keine Re-Clicks.
+            Capture→Replay belegt Hover-Miss, lokalen Clear und Retry. Kein <code>acquire_boss</code> auf diesem Pfad.
           </div>
           <div class="callout warn" style="margin-top:14px">
-            <h3>Erkenntnis · Nähefilter 28 / 22 Tiles</h3>
+            <h3>Verworfener erster Nähefilter · 28 / 22 Tiles</h3>
             <p>
-              <code>chestRackSeedTiles = 28</code> und <code>chestPairTiles = 22</code> sind an ein Hell-Live-Camp
-              vom 20. August 2026 (MrHammer) angepasst, nicht an CASC. Relativabstände in einem Preset bleiben bei
+              <code>chestRackSeedTiles = 28</code> und <code>chestPairTiles = 22</code> waren der erste Versuch an einem
+              Hell-Live-Camp vom 20. August 2026 (MrHammer), nicht aus CASC. Sie wurden nach dem vollständigen
+              Westhütten-Beleg durch 34 / 32 ersetzt. Relativabstände in einem Preset bleiben bei
               Rotation erhalten; die Lagerfeuerposition auf der Karte ist zufällig. Die zusätzliche
               <code>JungleChest</code> 181 neben der Westhütte kann ein Junk-Spawn pro Betreten sein.
             </p>
@@ -1217,7 +1223,7 @@ letzten Hüttengruppe mit F9.</pre>
             Charakter-Setup, History ohne Fake-Kills. Kleinster betroffener UI- und Config-Test.
           </p>
           <div class="gate-proof">
-            <strong>Bestanden:</strong> Setup zeigt den Run für beide Profile. Pickit-Default hält Pul+ und Elite-Unique/Set, keine Uber-Keys. Overlay schließt per Button.
+            <strong>Bestanden:</strong> Setup zeigt den Run für beide Profile. Pickit-Default hält Pul+ und Elite-Unique/Set, keine Uber-Schlüssel. Overlay schließt per Button.
           </div>
           <div class="callout success" style="margin-top:14px">
             <h3>Pickit und UI 20. August 2026</h3>
@@ -1232,7 +1238,7 @@ letzten Hüttengruppe mit F9.</pre>
               „Lagerfeuer-Hütten“. Die gelieferten Fotos liegen unter
               <code>web/src/assets/route-guides/lower-kurast/</code> (<code>campfire.png</code>,
               <code>huts.png</code>). Overlay schließt per Button. History belässt <code>boss_kills</code> bei 0;
-              JSONL zählt <code>chest_opened</code>, <code>chest_skipped</code>, <code>rack_operated</code>.
+               JSONL zählt <code>chest_opened</code>, <code>chest_skipped</code>, <code>rack_operated</code>, <code>rack_skipped</code>.
             </p>
           </div>
         </div>
@@ -1344,7 +1350,8 @@ letzten Hüttengruppe mit F9.</pre>
               jeweils 15 Proben mit <code>chest_hover_not_found</code>, während viele Gegner direkt
               an der Hütte standen. Die Objekt-Recovery merkt sich deshalb einen tatsächlich
               Memory-bestätigten Monster-Hover. Nur nach anschließend erschöpftem Suchbudget folgt genau
-              ein lokaler Hammerdin-Clear im 12-Kachel-Kreis, begrenzt auf zwölf Aktionen, sechs
+               ein lokaler profilabhängiger Clear im 12-Kachel-Kreis: Hammerdin mit Blessed Hammer, Bone-Spear-Necro
+               mit einmal Amplify Damage und anschließend Bone Spear. Er bleibt begrenzt auf zwölf Aktionen, sechs
               Sekunden und drei Sekunden ohne Aktion. Nach drei monsterfreien Snapshots wird dasselbe
               Objekt einmal neu versucht. Lower Kurast erhält weiterhin kein globales
               <code>route_clear</code>. Gate 23.8 blieb nach diesem Versuch offen.
@@ -1455,7 +1462,7 @@ letzten Hüttengruppe mit F9.</pre>
       <li>23.2 WP live bestanden: Act-3 Zeile 5, Tab <code>273,148</code>, Row <code>200,342</code>, Area 79.</li>
       <li>23.3 Akara-Schlüssel: <code>RestockKey</code>, 45 Gold, nur vor <code>lower-kurast</code>. Bestanden.</li>
       <li>23.4 Registry ohne Boss: Capability <code>chest_sweep</code>, Einzelroute, Endpoint in Area 79. Bestanden.</li>
-      <li>23.5 Pipeline bestanden. Nähefilter 28/22 ist eine Live-Anpassung, nicht CASC.</li>
+       <li>23.5 Pipeline bestanden. Nähefilter 34/32 ist eine Live-Anpassung, nicht CASC; 28/22 war der verworfene erste Versuch.</li>
       <li>23.6 Pickit <code>lk-superchests</code> (Pul–Ber, Elite-Unique/Set), UI-Labels, Overlay mit gelieferten Fotos. Bestanden.</li>
       <li>23.7 Aufnahme und Routentest bestanden: MrHammer Hell, Route <code>lower-kurast-mrhammer-d48622a56f</code>.</li>
       <li>23.8 produktiver Zyklus bestanden (fünf Hell-Läufe, 0-Schlüssel gestrichen). 23.9 Docs bestanden.</li>

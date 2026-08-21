@@ -40,7 +40,7 @@ Die versionierten Startprofile sind:
 - `lk-superchests`: Pul bis Ber (`r21`–`r30`) sowie Elite-Unique und Elite-Set, `keep`
 - Das optionale Abnahmeprofil `tal-rasha` ist nach Phase 13 nicht Teil der versionierten Produktprofile. Es kann bei Bedarf über den Editor neu angelegt werden.
 
-Die Entwickler-Defaults für `MrBones` lauten Countess `[gems, keys, countess-standard]`, Mephisto `[gems, mephisto-standard]`, Lower Kurast `[gems, lk-superchests]` sowie Summoner und Nihlathak jeweils `[gems, keys]`. Damit bleibt die charakterisierte Pickup-/Keep-/Sell-Matrix der bestehenden Runs erhalten und beide Key-Runs verwenden dasselbe Profil für `pk1`/`pk2`/`pk3`. Lower Kurast hält keine Uber-Schlüssel. Das versionierte Beispiel referenziert ausschließlich vorhandene Produktprofile.
+Die Entwickler-Defaults für `MrBones` lauten Countess `[gems, keys, countess-standard]`, Mephisto `[gems, mephisto-standard]`, Lower Kurast `[gems, lk-superchests]` sowie Summoner und Nihlathak jeweils `[gems, keys]`. Damit bleibt die charakterisierte Pickup-/Keep-/Sell-Matrix der bestehenden Runs erhalten und beide Key-Runs verwenden dasselbe Profil für `pk1`/`pk2`/`pk3`. `Uber` bleibt als etablierter D2R-Eigenname für Uber Tristram und dessen Schlüssel unübersetzt; Lower Kurast hält keine Uber-Schlüssel. Das versionierte Beispiel referenziert ausschließlich vorhandene Produktprofile.
 
 `runs.definitions.*.loot.pickup_file`, `sell_file` und die drei alten NIP-Policy-Dateien sind entfernt. Ein altes `loot`-Run-Schema wird mit einem konkreten Migrationshinweis abgelehnt und niemals still als Fallback gelesen.
 
@@ -80,4 +80,4 @@ Die lokale Core-API besitzt CRUD, Validierung, Vorschau, Assignment sowie Import
 - [Charaktereinrichtung](character-setup.md)
 
 ---
-*Zuletzt aktualisiert: 20. August 2026*
+*Zuletzt aktualisiert: 21. August 2026*

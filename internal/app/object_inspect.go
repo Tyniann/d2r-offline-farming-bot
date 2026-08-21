@@ -21,10 +21,6 @@ import (
 const (
 	objectInspectDefaultTimeout = 30 * time.Second
 	objectInspectSchemaVersion  = 2
-	// objectInspectQuantityStatID is itemstatcost.txt quantity (*ID 70). Gate 23.0
-	// only reports the raw live stat; the productive StatQuantity constant belongs
-	// to 23.1 after this report.
-	objectInspectQuantityStatID uint16 = 70
 )
 
 var objectInspectLabelPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,63}$`)
@@ -282,7 +278,7 @@ func collectObjectInspectKeyStacks(items []world.Item, statLists []memory.ItemSt
 			Location: item.Location, GridX: item.GridX, GridY: item.GridY,
 			Identified:     item.Identified,
 			Stats:          append([]world.ItemStat(nil), item.Stats...),
-			QuantityStatID: objectInspectQuantityStatID,
+			QuantityStatID: memory.StatQuantity,
 		}
 		if list, ok := byUnit[item.UnitID]; ok {
 			row.StatsListExPresent = list.StatsListExPresent
@@ -320,7 +316,7 @@ func collectObjectInspectKeyStacks(items []world.Item, statLists []memory.ItemSt
 
 func objectInspectQuantity(stats []world.ItemStat) (int32, bool) {
 	for _, stat := range stats {
-		if stat.Layer == 0 && stat.ID == objectInspectQuantityStatID {
+		if stat.Layer == 0 && stat.ID == memory.StatQuantity {
 			return stat.Value, true
 		}
 	}

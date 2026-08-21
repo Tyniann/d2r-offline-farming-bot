@@ -61,7 +61,11 @@ func (c *runPipeline) markChestSkipped(deps pipelineChestDeps, object world.Obje
 		return nil
 	}
 	c.rememberChestDone(object.UnitID)
-	return c.emitChestOutcome(deps, telemetry.ChestSkipped, object, reason)
+	event := telemetry.ChestSkipped
+	if object.Kind == world.ObjectKindRack {
+		event = telemetry.RackSkipped
+	}
+	return c.emitChestOutcome(deps, event, object, reason)
 }
 
 func (c *runPipeline) markChestOpened(deps pipelineChestDeps, object world.Object) error {
@@ -125,11 +129,23 @@ func (c *runPipeline) completeChestOpen(deps pipelineChestDeps, object world.Obj
 	if err := c.markChestOpened(deps, object); err != nil {
 		return chestTelemetryFailed(err)
 	}
-	c.clearChestPin()
-	c.chest.phase = chestPhaseIdle
 	if deps.Chest != nil {
 		deps.Chest.Reset()
 	}
+	c.beginChestObjectLoot()
+	return stepResult{}
+}
+
+func (c *runPipeline) completeUnknownModeAttempt(deps pipelineChestDeps, object world.Object) stepResult {
+	if err := c.markChestSkipped(deps, object, "chest_mode_unknown_unconfirmed"); err != nil {
+		return chestTelemetryFailed(err)
+	}
+	if deps.Chest != nil {
+		deps.Chest.Reset()
+	}
+	// Mode cannot confirm the operate. The terminal UnitID set prevents a
+	// second click while the normal drop window still catches delayed evidence.
+	c.beginChestObjectLoot()
 	return stepResult{}
 }
 
@@ -160,13 +176,20 @@ func (c *runPipeline) resetChestBlockerState() {
 	c.chest.clearLastActionAt = time.Time{}
 }
 
-func (c *runPipeline) beginChestClusterLoot() {
+func (c *runPipeline) beginChestObjectLoot() {
 	c.clearChestPin()
 	c.chest.phase = chestPhaseWaitDrops
 	c.chest.dropWaitTicks = 0
 	c.chest.lootNoTargetTicks = 0
 	c.loot.lootPickupActive = false
 	c.resetLootApproach()
+}
+
+func (c *runPipeline) finishChestObjectLoot() {
+	c.clearChestPin()
+	c.chest.phase = chestPhaseIdle
+	c.chest.dropWaitTicks = 0
+	c.chest.lootNoTargetTicks = 0
 }
 
 func (c *runPipeline) finishChestCluster() {
@@ -250,8 +273,8 @@ func (c *runPipeline) tickChestWork(ctx context.Context, deps pipelineChestDeps,
 			if err := c.holdChestRoute(deps, w); err != nil {
 				return true, stepResult{failed: true, reason: err.Error()}
 			}
-			c.beginChestClusterLoot()
-			return true, c.tickChestWaitDrops(deps, w, now)
+			c.finishChestCluster()
+			return true, stepResult{}
 		}
 		return false, stepResult{}
 	}
@@ -529,6 +552,9 @@ func (c *runPipeline) tickChestSettle(deps pipelineChestDeps, w world.State) ste
 	if opened {
 		return c.completeChestOpen(deps, c.chest.pin)
 	}
+	if !c.chest.pin.ModeKnown {
+		return c.completeUnknownModeAttempt(deps, c.chest.pin)
+	}
 	keysNow := inventoryKeyCount(w)
 	if c.chest.pin.Kind == world.ObjectKindSuperChest && c.chest.keysAtClick == 0 {
 		return c.abandonChest(deps, c.chest.pin, "chest_locked_no_key")
@@ -563,7 +589,7 @@ func (c *runPipeline) tickChestWaitDrops(deps pipelineChestDeps, w world.State, 
 
 func (c *runPipeline) tickChestPickup(deps pipelineChestDeps, w world.State, now time.Time) stepResult {
 	if deps.Loot == nil {
-		c.finishChestCluster()
+		c.finishChestObjectLoot()
 		return stepResult{}
 	}
 	if c.loot.lootPickupActive {
@@ -579,7 +605,7 @@ func (c *runPipeline) tickChestPickup(deps pipelineChestDeps, w world.State, now
 	if scan.InventoryFull || !scan.HasTarget {
 		c.chest.lootNoTargetTicks++
 		if scan.InventoryFull || c.chest.lootNoTargetTicks >= lootNoTargetStableTicks {
-			c.finishChestCluster()
+			c.finishChestObjectLoot()
 		}
 		return stepResult{}
 	}

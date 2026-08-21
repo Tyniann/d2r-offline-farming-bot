@@ -88,7 +88,7 @@ Felder des im Speicher vollständig ergänzten Ereignismodells:
 - Pipeline-Telemetrie wird vor der folgenden Input-Gelegenheit geflusht. Ein Fehler beendet den Task mit `telemetry_failed` und durchläuft die zentrale Run-Reset-Barriere.
 - Ein Fehler, der beim Protokollieren einer gerade ausgeführten Aktion entsteht, kann diese bereits ausgeführte Aktion naturgemäß nicht rückgängig machen; er verhindert aber jede folgende Aktion.
 - Ein Boss-Kill wird nicht aus Combat-Start oder Step-Abschluss abgeleitet. Schlägt sein synchroner Emit fehl, darf der Kill-Step nicht erfolgreich abschließen.
-- Lower-Kurast-Truhen erzeugen `chest_opened`, `chest_skipped` oder `rack_operated`. Sie erhöhen `boss_kills` nicht.
+- Lower-Kurast-Objekte erzeugen `chest_opened`, `chest_skipped`, `rack_operated` oder `rack_skipped`. Sie erhöhen `boss_kills` nicht.
 - Ein `item_sell`-Shopinput ist nur `town_action`. Erst ein späterer kohärenter World-Snapshot, in dem die gepinnte Unit das persönliche Inventory verlassen hat, erzeugt `sell_success`.
 
 ## Live-Validierung
@@ -113,4 +113,4 @@ Phase-16-Gate D bestätigte einen vollständigen produktiven Countess-Stream mit
 - [Personal-Stash MVP](personal-stash-mvp.md)
 
 ---
-*Zuletzt aktualisiert: 20. August 2026*
+*Zuletzt aktualisiert: 21. August 2026*

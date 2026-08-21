@@ -1,11 +1,13 @@
 package app
 
 import (
+	"context"
 	"errors"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/config"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/world"
 )
 
@@ -99,5 +101,20 @@ func TestOfflinePlayersFadeDelayWaitsAfterNewGameOnly(t *testing.T) {
 	}
 	if got := offlinePlayersFadeDelay(true); got != 0 {
 		t.Fatalf("adopted game delay = %s", got)
+	}
+}
+
+func TestFinishVerifiedQueueGameCancelsDuringFadeWait(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	time.AfterFunc(10*time.Millisecond, cancel)
+	unit := &runtimeQueueUnit{runtime: &Runtime{Log: config.NewLogger("error")}}
+	started := time.Now()
+	err := unit.finishVerifiedQueueGame(ctx, false)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("finishVerifiedQueueGame() error = %v, want context canceled", err)
+	}
+	if elapsed := time.Since(started); elapsed >= time.Second {
+		t.Fatalf("canceled fade wait took %s", elapsed)
 	}
 }
