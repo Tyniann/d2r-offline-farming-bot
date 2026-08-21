@@ -41,7 +41,7 @@ describe("HistoryFeature", () => {
 
   it("zeigt Route, Sample, Keep/Sell, Verlust und priorisierten Fehler und sortiert interaktiv", async () => {
     mocks.comparisons.mockImplementation((request: { sort?: string }) => Promise.resolve({ meta, comparisons: request.sort === "average_duration" ? [routeB, routeA, routeMephisto] : [routeA, routeB, routeMephisto] }));
-    const { container } = render(<HistoryFeature characters={["MrBones"]} runs={["countess"]} refreshKey={0} />);
+    const { container } = render(<HistoryFeature characters={["MrBones"]} selectedCharacter="MrBones" selectedDifficulty="nightmare" runs={["countess"]} refreshKey={0} />);
     expect((await screen.findAllByText("Kleine Stichprobe (< 10 Kills)")).length).toBe(3);
     expect(screen.getAllByText("Der Boss wurde nicht gefunden.").length).toBeGreaterThan(0);
     expect(screen.getAllByText("1 / 1")).toHaveLength(2);
@@ -66,7 +66,7 @@ describe("HistoryFeature", () => {
   it("filtert, paginiert und lädt den Fehler-Drill-down mit eingeklapptem Raw-JSON", async () => {
     mocks.runs.mockImplementation((request: { cursor?: string }) => Promise.resolve(request.cursor ? { meta, runs: [{ ...run, run_id: "run-2", route_id: "route-a" }] } : { meta, runs: [run], next_cursor: "runs-next" }));
     mocks.items.mockImplementation((request: { cursor?: string }) => Promise.resolve(request.cursor ? { meta, items: [{ ...item, item_key: "base:r02:normal", item_name: "Eld-Rune" }] } : { meta, items: [item], next_cursor: "items-next" }));
-    render(<HistoryFeature characters={["MrBones"]} runs={["countess"]} refreshKey={0} />);
+    render(<HistoryFeature characters={["MrBones"]} selectedCharacter="MrBones" selectedDifficulty="nightmare" runs={["countess"]} refreshKey={0} />);
     await screen.findByRole("table", { name: /Vergleich derselben/ });
     fireEvent.change(screen.getByLabelText("Charakter"), { target: { value: "MrBones" } });
     fireEvent.change(screen.getByLabelText("Ergebnis"), { target: { value: "failed" } });
@@ -96,7 +96,7 @@ describe("HistoryFeature", () => {
   });
 
   it("führt Exporte aus und zeigt Export-, Empty- und No-results-Zustände zugänglich an", async () => {
-    const { rerender } = render(<HistoryFeature characters={[]} runs={[]} refreshKey={0} />);
+    const { rerender } = render(<HistoryFeature characters={[]} selectedCharacter="" selectedDifficulty="" runs={[]} refreshKey={0} />);
     await screen.findByRole("button", { name: "JSON-Report" });
     fireEvent.click(screen.getByRole("button", { name: "JSON-Report" }));
     await waitFor(() => expect(mocks.download).toHaveBeenCalledWith("json", "", expect.objectContaining({ timezone: expect.any(String), from: expect.stringMatching(/Z$/), to: expect.stringMatching(/Z$/) })));
@@ -104,7 +104,7 @@ describe("HistoryFeature", () => {
     fireEvent.click(screen.getByRole("button", { name: "Run-CSV" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Export nicht verfügbar");
     mocks.summary.mockResolvedValue({ meta, daily_buckets: [], summary: { runs: 0, terminal_runs: 0, successful: 0, failed: 0, aborted: 0, incomplete: 0, running: 0, boss_kills: 0, durations: { ...durations, count: 0 }, stages, funnel } });
-    rerender(<HistoryFeature characters={[]} runs={[]} refreshKey={1} />);
+    rerender(<HistoryFeature characters={[]} selectedCharacter="" selectedDifficulty="" runs={[]} refreshKey={1} />);
     expect(await screen.findByRole("heading", { name: "Noch keine Historie" })).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("Ergebnis"), { target: { value: "failed" } });
     fireEvent.click(screen.getByRole("button", { name: "Filter anwenden" }));
@@ -113,7 +113,7 @@ describe("HistoryFeature", () => {
 
   it("kennzeichnet Loading und API-Fehler als zugängliche Zustände", async () => {
     mocks.summary.mockRejectedValueOnce(new Error("Historie vorübergehend nicht verfügbar"));
-    render(<HistoryFeature characters={[]} runs={[]} refreshKey={0} />);
+    render(<HistoryFeature characters={[]} selectedCharacter="" selectedDifficulty="" runs={[]} refreshKey={0} />);
     expect(screen.getByRole("status")).toHaveTextContent("Historie wird geladen");
     expect(await screen.findByRole("alert")).toHaveTextContent("Historie vorübergehend nicht verfügbar");
   });

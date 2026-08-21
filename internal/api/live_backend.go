@@ -274,7 +274,7 @@ func (b *LiveBackend) UpdateRuntime(runtime app.UIStatusSnapshot) {
 	b.status.Compatibility = compatibilityDTO(runtime.Compatibility)
 	b.status.Input = InputDTO{Enabled: runtime.InputEnabled && runtime.Compatibility.State == app.D2RCompatibilityCompatible, Paused: runtime.InputPaused, Stopped: runtime.InputStopped}
 	b.status.World = WorldDTO{Valid: runtime.WorldValid, Phase: runtime.WorldPhase, AreaID: runtime.AreaID, AreaName: runtime.AreaName}
-	b.status.Step = runtime.Step
+	b.status.RunProgress = runProgressDTO(runtime.RunProgress)
 	if runtime.RunID != "" {
 		b.status.ActiveRunID = runtime.RunID
 	}
@@ -306,7 +306,7 @@ func (b *LiveBackend) UpdateSupervisor(supervisor app.SupervisorSnapshot) {
 	b.status.RunInstanceID = supervisor.RunInstanceID
 	b.status.GameID = supervisor.GameID
 	if supervisor.ActiveRunID == "" {
-		b.status.Step = ""
+		b.status.RunProgress = nil
 	}
 	queue := queueStatusDTO(supervisor)
 	queue.DefaultEntries = append(make([]string, 0, len(b.status.Queue.DefaultEntries)), b.status.Queue.DefaultEntries...)
@@ -337,7 +337,7 @@ func (b *LiveBackend) Update(runtime app.UIStatusSnapshot, supervisor app.Superv
 	status := StatusDTO{
 		CoreVersion: previous.CoreVersion, AppVersion: previous.AppVersion, State: string(supervisor.State), Generation: supervisor.Generation,
 		LifecyclePhase: string(supervisor.State), PendingIntent: string(supervisor.PendingIntent), ActiveRunID: supervisor.ActiveRunID,
-		RunInstanceID: supervisor.RunInstanceID, GameID: supervisor.GameID, Step: runtime.Step,
+		RunInstanceID: supervisor.RunInstanceID, GameID: supervisor.GameID, RunProgress: runProgressDTO(runtime.RunProgress),
 		D2R:           D2RDTO{State: runtime.ProcessState, PID: runtime.PID, WindowBound: runtime.WindowBound, ClientWidth: runtime.ClientWidth, ClientHeight: runtime.ClientHeight},
 		Compatibility: compatibilityDTO(runtime.Compatibility),
 		Input:         InputDTO{Enabled: runtime.InputEnabled && runtime.Compatibility.State == app.D2RCompatibilityCompatible, Paused: runtime.InputPaused, Stopped: runtime.InputStopped},
@@ -395,8 +395,8 @@ func (b *LiveBackend) publishStatusDeltas(previous, status StatusDTO) {
 	if previous.World.Valid != status.World.Valid || previous.World.Phase != status.World.Phase {
 		b.publisher.Publish(telemetry.LiveEvent{Event: "world_state_changed", Details: map[string]any{"valid": status.World.Valid, "phase": status.World.Phase}})
 	}
-	if previous.Step != status.Step && status.Step != "" {
-		b.publisher.Publish(telemetry.LiveEvent{Event: "step_changed", GameID: status.GameID, RunID: status.RunInstanceID, Run: status.ActiveRunID, Step: status.Step})
+	if !equalRunProgress(previous.RunProgress, status.RunProgress) && status.RunProgress != nil {
+		b.publisher.Publish(telemetry.LiveEvent{Event: "run_progress_changed", GameID: status.GameID, RunID: status.RunInstanceID, Run: status.ActiveRunID, Details: map[string]any{"label": status.RunProgress.Label, "current": status.RunProgress.Current, "total": status.RunProgress.Total}})
 	}
 	if status.LastError != nil && (previous.LastError == nil || previous.LastError.Message != status.LastError.Message) {
 		b.publisher.Publish(telemetry.LiveEvent{Event: "runtime_error", Reason: status.LastError.Code, Details: map[string]any{"message": status.LastError.Message}})
@@ -407,6 +407,20 @@ func (b *LiveBackend) publishStatusDeltas(previous, status StatusDTO) {
 	if status.LastResult != nil && (previous.LastResult == nil || *previous.LastResult != *status.LastResult) {
 		b.publisher.Publish(telemetry.LiveEvent{Event: "session_result", Reason: status.LastResult.Reason, Details: map[string]any{"disposition": status.LastResult.Disposition}})
 	}
+}
+
+func runProgressDTO(progress *tasks.RunProgress) *RunProgressDTO {
+	if progress == nil || progress.Label == "" || progress.Total < 1 || progress.Current < 1 || progress.Current > progress.Total {
+		return nil
+	}
+	return &RunProgressDTO{Label: progress.Label, Current: progress.Current, Total: progress.Total}
+}
+
+func equalRunProgress(left, right *RunProgressDTO) bool {
+	if left == nil || right == nil {
+		return left == nil && right == nil
+	}
+	return *left == *right
 }
 
 // History refreshes JSONL and returns one defensive analyzer generation.

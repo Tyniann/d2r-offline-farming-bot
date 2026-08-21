@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   applySelection: vi.fn(), emergencyStop: vi.fn(), connect: vi.fn(), getCatalog: vi.fn(), getStatus: vi.fn(), getRunAvailabilities: vi.fn(), getOperatorSettings: vi.fn(),
   pauseAfterRun: vi.fn(), previewSelection: vi.fn(), resumeQueue: vi.fn(), startQueue: vi.fn(), stopAfterRun: vi.fn(), validateQueue: vi.fn(),
   confirmRouteMutation: vi.fn(), previewRouteMutation: vi.fn(), startRouteWorkflow: vi.fn(), finishRouteRecording: vi.fn(), getRouteLibrary: vi.fn(), getRouteCandidates: vi.fn(), getRecordingOptions: vi.fn(), getSystemRouteStatus: vi.fn(), getHotkeyHelp: vi.fn(), getRouteWorkflow: vi.fn(),
+  getHistorySummary: vi.fn(), getHistoryComparisons: vi.fn(), getHistoryRuns: vi.fn(),
 }));
 
 vi.mock("../api/client", () => ({
@@ -14,12 +15,12 @@ vi.mock("../api/client", () => ({
   startQueue: mocks.startQueue, stopAfterRun: mocks.stopAfterRun, validateQueue: mocks.validateQueue,
   confirmRouteMutation: mocks.confirmRouteMutation, previewRouteMutation: mocks.previewRouteMutation, startRouteWorkflow: mocks.startRouteWorkflow, finishRouteRecording: mocks.finishRouteRecording,
 }));
-vi.mock("../api/generated", () => ({ getCatalog: mocks.getCatalog, getStatus: mocks.getStatus, getRunAvailabilities: mocks.getRunAvailabilities, getOperatorSettings: mocks.getOperatorSettings, getRouteLibrary: mocks.getRouteLibrary, getRouteCandidates: mocks.getRouteCandidates, getRecordingOptions: mocks.getRecordingOptions, getSystemRouteStatus: mocks.getSystemRouteStatus, getHotkeyHelp: mocks.getHotkeyHelp, getRouteWorkflow: mocks.getRouteWorkflow }));
-vi.mock("../features/routes/RouteFeature", () => ({ RouteFeature: ({ onReturnToOnboarding }: { onReturnToOnboarding?: () => void }) => <section><h1>Routen</h1>{onReturnToOnboarding && <button onClick={onReturnToOnboarding}>Zurück zur Einrichtung</button>}</section> }));
+vi.mock("../api/generated", () => ({ getCatalog: mocks.getCatalog, getStatus: mocks.getStatus, getRunAvailabilities: mocks.getRunAvailabilities, getOperatorSettings: mocks.getOperatorSettings, getRouteLibrary: mocks.getRouteLibrary, getRouteCandidates: mocks.getRouteCandidates, getRecordingOptions: mocks.getRecordingOptions, getSystemRouteStatus: mocks.getSystemRouteStatus, getHotkeyHelp: mocks.getHotkeyHelp, getRouteWorkflow: mocks.getRouteWorkflow, getHistorySummary: mocks.getHistorySummary, getHistoryComparisons: mocks.getHistoryComparisons, getHistoryRuns: mocks.getHistoryRuns }));
+vi.mock("../features/routes/RouteFeature", () => ({ RouteFeature: ({ selectedCharacter, onReturnToOnboarding }: { selectedCharacter: string; onReturnToOnboarding?: () => void }) => <section><h1>Routen</h1><p>Routen-Kontext {selectedCharacter}</p>{onReturnToOnboarding && <button onClick={onReturnToOnboarding}>Zurück zur Einrichtung</button>}</section> }));
 vi.mock("../features/onboarding/OnboardingFeature", () => ({ OnboardingFeature: () => <section><h1>First-Run-Assistent</h1></section> }));
-vi.mock("../features/pickit/PickitFeature", () => ({ PickitFeature: () => <section><h2>Pickit-Funktion</h2></section> }));
-vi.mock("../features/history/HistoryFeature", () => ({ HistoryFeature: () => <section><h2>Historie</h2></section> }));
-vi.mock("../features/settings/SettingsFeature", () => ({ SettingsFeature: () => <section><h2>Settings-Funktion</h2></section> }));
+vi.mock("../features/pickit/PickitFeature", () => ({ PickitFeature: ({ selectedCharacter }: { selectedCharacter: string }) => <section><h2>Pickit-Funktion</h2><p>Pickit-Kontext {selectedCharacter}</p></section> }));
+vi.mock("../features/history/HistoryFeature", () => ({ HistoryFeature: ({ selectedCharacter, selectedDifficulty }: { selectedCharacter: string; selectedDifficulty: string }) => <section><h2>Historie</h2><p>Historien-Kontext {selectedCharacter} / {selectedDifficulty}</p></section> }));
+vi.mock("../features/settings/SettingsFeature", () => ({ SettingsFeature: ({ selectedCharacter }: { selectedCharacter: string }) => <section><h2>Settings-Funktion</h2><p>Einstellungs-Kontext {selectedCharacter}</p></section> }));
 vi.mock("../features/characters/CharacterSetupWizard", () => ({ CharacterSetupWizard: () => <section><h2>Charakter-Setup</h2></section> }));
 
 const operatorSettings = {
@@ -57,11 +58,14 @@ describe("App", () => {
     mocks.getRouteCandidates.mockResolvedValue([]); mocks.getRecordingOptions.mockResolvedValue([]); mocks.getSystemRouteStatus.mockResolvedValue([]);
     mocks.getHotkeyHelp.mockResolvedValue({ recording_finish: "f9", stop_after_run: "f10", emergency_stop: "f11", pause: "pause" });
     mocks.getRouteWorkflow.mockResolvedValue({ workflow_id: "", generation: 1, state: "idle", run_id: "", character: "" });
+    mocks.getHistorySummary.mockResolvedValue({ summary: { runs: 0, terminal_runs: 0, successful: 0, failed: 0, aborted: 0, incomplete: 0, running: 0, boss_kills: 0, durations: { count: 0, total_ms: 0, average_ms: 0, median_ms: 0, minimum_ms: 0, maximum_ms: 0 }, stages: { travel_ms: 0, combat_ms: 0, loot_ms: 0, return_town_ms: 0, other_ms: 0 }, funnel: { seen: 0, matched: 0, picked_up: 0, stashed: 0, sold: 0, keep_return: 0, pickup_lost: 0, post_pickup_lost: 0 } } });
+    mocks.getHistoryComparisons.mockResolvedValue({ comparisons: [] });
+    mocks.getHistoryRuns.mockResolvedValue({ runs: [] });
   });
 
   it("bindet die Core-autoritäre Historie über die Hauptnavigation ein", async () => {
     render(<App />);
-    expect(await screen.findByRole("heading", { name: "Lokales Dashboard" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Farming vorbereiten" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Historie" })).toHaveAttribute("href", "#history");
     await act(async () => {
       window.location.hash = "#history";
@@ -78,9 +82,7 @@ describe("App", () => {
       last_result: { disposition: "stop", reason: "emergency_stop_requested" },
     });
     render(<App />);
-    expect(await screen.findByText("keine aktive Queue")).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Lokales Dashboard" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Emergency Stop" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Farming vorbereiten" })).toBeInTheDocument();
   });
 
   it("ordnet die offene Einrichtung zuerst an und führt aus dem Routenbereich zurück", async () => {
@@ -95,8 +97,8 @@ describe("App", () => {
     });
     render(<App />);
     const setup = await screen.findByText("Einrichtung fortsetzen");
-    const coreStatus = screen.getByRole("heading", { name: "Core-Status" });
-    expect(setup.closest("section")!.compareDocumentPosition(coreStatus.closest("section")!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    const farming = screen.getByRole("heading", { name: "Deine Run-Reihenfolge" });
+    expect(setup.closest("section")!.compareDocumentPosition(farming.closest("section")!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 
     fireEvent.click(screen.getByRole("button", { name: "Erste Route aufnehmen" }));
     expect(await screen.findByRole("button", { name: "Zurück zur Einrichtung" })).toBeInTheDocument();
@@ -121,7 +123,7 @@ describe("App", () => {
       ],
     });
     render(<App />);
-    await screen.findByRole("heading", { name: "Lokales Dashboard" });
+    await screen.findByRole("heading", { name: "MrBones ist bereit" });
     expect(screen.queryByText("Einrichtung fortsetzen")).not.toBeInTheDocument();
   });
 
@@ -148,9 +150,9 @@ describe("App", () => {
 
   it("stellt alle fünf iconbeschrifteten Hash-Ziele tastaturzugänglich bereit", async () => {
     render(<App />);
-    await screen.findByRole("heading", { level: 1, name: "Lokales Dashboard" });
+    await screen.findByRole("heading", { level: 1, name: "Farming vorbereiten" });
     const targets = [
-      ["Dashboard", "dashboard", "Lokales Dashboard"],
+      ["Dashboard", "dashboard", "Farming vorbereiten"],
       ["Routen", "routes", "Routen"],
       ["Pickit", "pickit", "Pickit"],
       ["Historie", "history", "Historie"],
@@ -179,7 +181,7 @@ describe("App", () => {
       onNavigate: vi.fn((callback) => { navigate = callback; return vi.fn(); }),
     };
     render(<App />);
-    await screen.findByRole("heading", { level: 1, name: "Lokales Dashboard" });
+    await screen.findByRole("heading", { level: 1, name: "Farming vorbereiten" });
     await act(async () => navigate?.("settings"));
     expect(window.location.hash).toBe("#settings");
     expect(await screen.findByRole("heading", { level: 1, name: "Einstellungen" })).toBeInTheDocument();
@@ -188,12 +190,11 @@ describe("App", () => {
   it("lädt nach einem Live-Delta die aktuelle Statusprojektion neu", async () => {
     mocks.getStatus.mockResolvedValueOnce(attached);
     render(<App />);
-    expect(await screen.findByText("detached")).toBeInTheDocument();
+    expect(await screen.findByText("D2R nicht bereit")).toBeInTheDocument();
     await waitFor(() => expect(mocks.connect).toHaveBeenCalledOnce());
     const onEvent = mocks.connect.mock.calls[0][1] as (event: unknown) => void;
     await act(async () => onEvent({ sequence: 1, timestamp: new Date().toISOString(), event: "d2r_state_changed" }));
-    await waitFor(() => expect(screen.getByText("attached")).toBeInTheDocument());
-    expect(screen.getByText("1920 × 1080")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("D2R bereit")).toBeInTheDocument());
     expect(screen.getByText("Rogue Encampment")).toBeInTheDocument();
   });
 
@@ -207,7 +208,9 @@ describe("App", () => {
     expect(screen.getByLabelText("Charakter")).toHaveValue("MrBones");
     expect(screen.queryByText("Nicht nutzbare Charaktere")).not.toBeInTheDocument();
     expect(screen.queryByText(/Für diese Klasse gibt es noch kein freigegebenes Kampfprofil/)).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Auswahl in D2R anwenden" }));
+    const apply = await screen.findByRole("button", { name: "In D2R verwenden" });
+    await waitFor(() => expect(apply).toBeEnabled());
+    fireEvent.click(apply);
     await waitFor(() => expect(mocks.applySelection).toHaveBeenCalledWith("MrBones", "nightmare", 3, 0, "safe-preview"));
   });
 
@@ -230,7 +233,7 @@ describe("App", () => {
     expect(screen.queryByText(/Entwurf/)).not.toBeInTheDocument();
   });
 
-  it("hält Queue und Start beim bestätigten Charakter und lädt nach Apply die neue Queue", async () => {
+  it("aktualisiert alle Vorschauen appweit und hält den Start bis zur D2R-Bestätigung gesperrt", async () => {
     mocks.getCatalog.mockResolvedValue({
       schema_version: 1, revision: 3, default_difficulty: "nightmare", profiles: [],
       difficulties: [{ id: "nightmare", display_name: "Alptraum" }, { id: "hell", display_name: "Hölle" }],
@@ -267,27 +270,180 @@ describe("App", () => {
     });
     mocks.applySelection.mockResolvedValue(undefined);
     render(<App />);
-    expect(await screen.findByRole("heading", { name: "Reihenfolge für MrBones / Alptraum (in D2R bestätigt)" })).toBeInTheDocument();
+    await screen.findByRole("option", { name: "MrHammer" });
     fireEvent.change(screen.getByLabelText("Charakter"), { target: { value: "MrHammer" } });
-    await waitFor(() => expect(screen.getByLabelText("Charakter")).toHaveValue("MrHammer"));
+    await screen.findByText("MrHammer ist in der App ausgewählt");
+    expect(screen.getByLabelText("Charakter")).toHaveValue("MrHammer");
     expect(screen.getByLabelText("Schwierigkeit")).toHaveValue("hell");
-    expect(screen.getByText("Auswahl noch nicht in D2R")).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Reihenfolge für MrBones / Alptraum (in D2R bestätigt)" })).toBeInTheDocument();
-    expect(screen.queryByRole("heading", { name: "Reihenfolge für MrHammer / Hölle (in D2R bestätigt)" })).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Queue prüfen und starten" })).toBeDisabled();
-    mocks.getStatus.mockResolvedValue({
-      ...bonesStatus,
+    expect(screen.getByRole("heading", { name: "MrHammer ist bereit" })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Jetzt farmen" })).toBeDisabled();
+    expect(mocks.validateQueue).not.toHaveBeenCalled();
+    expect(mocks.startQueue).not.toHaveBeenCalled();
+    for (const [target, context] of [
+      ["routes", "Routen-Kontext MrHammer"],
+      ["pickit", "Pickit-Kontext MrHammer"],
+      ["history", "Historien-Kontext MrHammer / hell"],
+      ["settings", "Einstellungs-Kontext mrhammer"],
+    ] as const) {
+      await act(async () => {
+        window.location.hash = `#${target}`;
+        window.dispatchEvent(new HashChangeEvent("hashchange"));
+      });
+      expect(screen.getByText(context)).toBeInTheDocument();
+    }
+  });
+
+  it("sperrt Charakter und Schwierigkeit während einer laufenden Session", async () => {
+    mocks.getCatalog.mockResolvedValue({
+      schema_version: 1, revision: 3, default_difficulty: "nightmare", profiles: [], runs: [],
+      difficulties: [{ id: "nightmare", display_name: "Alptraum" }, { id: "hell", display_name: "Hölle" }],
+      characters: [
+        { name: "MrBones", slug: "mrbones", selectable: true, farm_ready: true },
+        { name: "MrHammer", slug: "mrhammer", selectable: true, farm_ready: true },
+      ],
+    });
+    mocks.getStatus.mockReset().mockResolvedValue({
+      ...detached,
+      state: "running_run",
+      lifecycle_phase: "running_run",
+      selection: { character: "MrBones", difficulty: "nightmare" },
+    });
+
+    render(<App />);
+
+    const character = await screen.findByLabelText("Charakter");
+    await waitFor(() => expect(character).toHaveValue("MrBones"));
+    expect(character).toBeDisabled();
+    expect(screen.getByLabelText("Schwierigkeit")).toBeDisabled();
+    expect(screen.queryByRole("button", { name: "In D2R verwenden" })).not.toBeInTheDocument();
+    expect(screen.getByText("Während der Session gesperrt")).toBeInTheDocument();
+  });
+
+  it("rekonstruiert nach einem Renderer-Reload die bestätigte Auswahl und deren Queue", async () => {
+    mocks.getCatalog.mockResolvedValue({
+      schema_version: 1, revision: 3, default_difficulty: "nightmare", profiles: [],
+      difficulties: [{ id: "nightmare", display_name: "Alptraum" }, { id: "hell", display_name: "Hölle" }],
+      characters: [
+        { name: "MrBones", slug: "mrbones", selectable: true, farm_ready: true },
+        { name: "MrHammer", slug: "mrhammer", selectable: true, farm_ready: true },
+      ],
+      runs: [{ run_id: "countess", display_name: "Countess" }, { run_id: "mephisto", display_name: "Mephisto" }],
+    });
+    mocks.getOperatorSettings.mockResolvedValue({
+      ...operatorSettings,
+      characters: {
+        mrbones: { last_difficulty: "nightmare", queue: ["countess"] },
+        mrhammer: { last_difficulty: "hell", queue: ["mephisto"] },
+      },
+    });
+    mocks.getRunAvailabilities.mockImplementation(async (name: string) => ({
+      schema_version: 1,
+      character: name,
+      difficulty: name === "MrHammer" ? "hell" : "nightmare",
+      runs: [{ run_id: name === "MrHammer" ? "mephisto" : "countess", display_name: name === "MrHammer" ? "Mephisto" : "Countess", status: "runtime_validation_required" }],
+    }));
+    mocks.getStatus.mockReset().mockResolvedValue({
+      ...detached,
+      state: "idle_in_game",
       selection: { character: "MrHammer", difficulty: "hell" },
       queue: { ...queue, default_entries: ["mephisto"] },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Auswahl in D2R anwenden" }));
-    expect(await screen.findByRole("heading", { name: "Reihenfolge für MrHammer / Hölle (in D2R bestätigt)" })).toBeInTheDocument();
-    await waitFor(() => {
-      const entries = screen.getAllByRole("listitem");
-      expect(entries.some((entry) => entry.textContent?.includes("1Mephisto"))).toBe(true);
+
+    const firstRenderer = render(<App />);
+    await waitFor(() => expect(screen.getByLabelText("Charakter")).toHaveValue("MrHammer"));
+    fireEvent.change(screen.getByLabelText("Charakter"), { target: { value: "MrBones" } });
+    expect(screen.getByText("MrBones ist in der App ausgewählt")).toBeInTheDocument();
+    firstRenderer.unmount();
+
+    render(<App />);
+
+    await waitFor(() => expect(screen.getByLabelText("Charakter")).toHaveValue("MrHammer"));
+    expect(screen.getByLabelText("Schwierigkeit")).toHaveValue("hell");
+    expect(screen.queryByText("MrBones ist in der App ausgewählt")).not.toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Deine Run-Reihenfolge" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getAllByRole("listitem").some((entry) => entry.textContent?.includes("1Mephisto"))).toBe(true));
+  });
+
+  it("stellt die gespeicherte App-Auswahl wieder her, ohne sie als D2R-Bestätigung zu behandeln", async () => {
+    const updateDesktopSettings = vi.fn(async (request: Parameters<D2RDesktopBridge["updateDesktopSettings"]>[0]) => ({
+      schema_version: 2, autostart: false, onboarding_completed: true,
+      selected_character: request.selected_character,
+      selected_difficulty: request.selected_difficulty,
+    }));
+    window.d2rDesktop = desktopBridge({
+      schema_version: 2, autostart: false, onboarding_completed: true,
+      selected_character: "MrHammer", selected_difficulty: "hell",
+    }, updateDesktopSettings);
+    mocks.getCatalog.mockResolvedValue({
+      schema_version: 1, revision: 3, default_difficulty: "nightmare", profiles: [],
+      difficulties: [{ id: "nightmare", display_name: "Alptraum" }, { id: "hell", display_name: "Hölle" }],
+      characters: [
+        { name: "MrBones", slug: "mrbones", selectable: true, farm_ready: true },
+        { name: "MrHammer", slug: "mrhammer", selectable: true, farm_ready: true },
+      ],
+      runs: [{ run_id: "countess", display_name: "Countess" }, { run_id: "mephisto", display_name: "Mephisto" }],
     });
-    expect(screen.queryByText("Auswahl noch nicht in D2R")).not.toBeInTheDocument();
-    expect(mocks.applySelection).toHaveBeenCalledWith("MrHammer", "hell", 3, 0, "switch-preview");
+    mocks.getOperatorSettings.mockResolvedValue({
+      ...operatorSettings,
+      characters: {
+        mrbones: { last_difficulty: "nightmare", queue: ["countess"] },
+        mrhammer: { last_difficulty: "hell", queue: ["mephisto"] },
+      },
+    });
+    mocks.getRunAvailabilities.mockResolvedValue({
+      schema_version: 1, character: "MrHammer", difficulty: "hell",
+      runs: [{ run_id: "mephisto", display_name: "Mephisto", status: "runtime_validation_required" }],
+    });
+    mocks.getStatus.mockReset().mockResolvedValue({
+      ...detached,
+      state: "idle_in_game",
+      selection: { character: "MrBones", difficulty: "nightmare" },
+      queue: { ...queue, default_entries: ["countess"] },
+    });
+
+    render(<App />);
+
+    await waitFor(() => expect(screen.getByLabelText("Charakter")).toHaveValue("MrHammer"));
+    expect(screen.getByLabelText("Schwierigkeit")).toHaveValue("hell");
+    expect(screen.getByText("MrHammer ist in der App ausgewählt")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "MrHammer ist bereit" })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Jetzt farmen" })).toBeDisabled();
+    expect(mocks.applySelection).not.toHaveBeenCalled();
+    expect(updateDesktopSettings).not.toHaveBeenCalled();
+    fireEvent.change(screen.getByLabelText("Schwierigkeit"), { target: { value: "nightmare" } });
+    await waitFor(() => expect(updateDesktopSettings).toHaveBeenCalledWith({ selected_character: "MrHammer", selected_difficulty: "nightmare" }));
+  });
+
+  it("verwirft unbekannte gespeicherte Auswahlwerte gegen den Katalog", async () => {
+    const updateDesktopSettings = vi.fn(async (request: Parameters<D2RDesktopBridge["updateDesktopSettings"]>[0]) => ({
+      schema_version: 2, autostart: false, onboarding_completed: true, ...request,
+    }));
+    window.d2rDesktop = desktopBridge({
+      schema_version: 2, autostart: false, onboarding_completed: true,
+      selected_character: "Unbekannt", selected_difficulty: "torment",
+    }, updateDesktopSettings);
+    mocks.getCatalog.mockResolvedValue({
+      schema_version: 1, revision: 3, default_difficulty: "hell", profiles: [],
+      runs: [{ run_id: "countess", display_name: "Countess" }, { run_id: "mephisto", display_name: "Mephisto" }],
+      difficulties: [{ id: "nightmare", display_name: "Alptraum" }, { id: "hell", display_name: "Hölle" }],
+      characters: [{ name: "MrBones", slug: "mrbones", selectable: true, farm_ready: true }],
+    });
+    mocks.getRunAvailabilities.mockResolvedValue({
+      schema_version: 1, character: "MrBones", difficulty: "nightmare",
+      runs: [
+        { run_id: "countess", display_name: "Countess", status: "runtime_validation_required" },
+        { run_id: "mephisto", display_name: "Mephisto", status: "runtime_validation_required" },
+      ],
+    });
+    mocks.getStatus.mockReset().mockResolvedValue({ ...detached, state: "idle_in_game", selection: { character: "MrBones", difficulty: "nightmare" } });
+
+    render(<App />);
+
+    await waitFor(() => expect(screen.getByLabelText("Charakter")).toHaveValue("MrBones"));
+    expect(screen.getByLabelText("Schwierigkeit")).toHaveValue("nightmare");
+    await waitFor(() => expect(updateDesktopSettings).toHaveBeenCalledWith({ selected_character: "MrBones", selected_difficulty: "nightmare" }));
+    expect(screen.queryByText(/ist in der App ausgewählt/)).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("button", { name: "Jetzt farmen" })).toBeEnabled());
   });
 
   it("fordert vor einer Routen-Invalidierung eine explizite Bestätigung", async () => {
@@ -296,7 +452,7 @@ describe("App", () => {
     mocks.previewSelection.mockResolvedValue({ schema_version: 1, character: "MrBones", old_difficulty: "nightmare", new_difficulty: "hell", affected_routes: ["countess.yaml", "mephisto.yaml"], invalidation_reason: "difficulty_changed", requires_confirmation: true, confirmation_token: "impact-preview", catalog_revision: 4, lifecycle_revision: 7 });
     mocks.applySelection.mockResolvedValue(undefined);
     render(<App />);
-    const apply = await screen.findByRole("button", { name: "Auswahl in D2R anwenden" });
+    const apply = await screen.findByRole("button", { name: "In D2R verwenden" });
     await waitFor(() => expect(apply).toBeEnabled());
     fireEvent.change(screen.getByLabelText("Schwierigkeit"), { target: { value: "hell" } });
     await waitFor(() => expect(screen.getByLabelText("Schwierigkeit")).toHaveValue("hell"));
@@ -311,7 +467,7 @@ describe("App", () => {
     mocks.previewSelection.mockRejectedValue(new Error("Character-Screen nicht bestätigt"));
     mocks.getStatus.mockResolvedValue(detached);
     render(<App />);
-    const apply = await screen.findByRole("button", { name: "Auswahl in D2R anwenden" });
+    const apply = await screen.findByRole("button", { name: "In D2R verwenden" });
     await waitFor(() => expect(apply).toBeEnabled());
     fireEvent.click(apply);
     await waitFor(() => expect(mocks.previewSelection).toHaveBeenCalledOnce());
@@ -332,9 +488,9 @@ describe("App", () => {
     mocks.validateQueue.mockResolvedValue({ entries: [], budgets: {} });
     mocks.startQueue.mockResolvedValue({ state: "starting_run", generation: 6 });
     render(<App />);
-    expect(await screen.findByRole("heading", { name: "Reihenfolge für MrBones / Alptraum (in D2R bestätigt)" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Queue in Einstellungen ändern" })).toHaveAttribute("href", "#settings");
-    const start = await screen.findByRole("button", { name: "Queue prüfen und starten" });
+    expect(await screen.findByRole("heading", { name: "Deine Run-Reihenfolge" })).toBeInTheDocument();
+    expect(await screen.findByRole("link", { name: "Bearbeiten" })).toHaveAttribute("href", "#settings");
+    const start = await screen.findByRole("button", { name: "Jetzt farmen" });
     await waitFor(() => expect(start).toBeEnabled());
     fireEvent.click(start);
     fireEvent.click(start);
@@ -364,13 +520,12 @@ describe("App", () => {
       input: { enabled: true, paused: false, stopped: false },
     });
     render(<App />);
-    expect(await screen.findByText("Queue-Start fehlgeschlagen")).toBeInTheDocument();
-    expect(screen.getByText(/Kein laufendes Spiel im Rogue Encampment/)).toBeInTheDocument();
+    expect(await screen.findByText("Farming konnte nicht gestartet werden")).toBeInTheDocument();
     expect(screen.getByText(/Das Spiel konnte nicht sicher gestartet werden/)).toBeInTheDocument();
     expect(screen.queryByText("Spielsteuerung nicht bereit")).not.toBeInTheDocument();
     const onEvent = mocks.connect.mock.calls[0][1] as (event: unknown) => void;
     await act(async () => onEvent({ sequence: 2, timestamp: new Date().toISOString(), event: "d2r_state_changed" }));
-    expect(screen.getByText("Queue-Start fehlgeschlagen")).toBeInTheDocument();
+    expect(screen.getByText("Farming konnte nicht gestartet werden")).toBeInTheDocument();
   });
 
   it("sperrt den Queue-Start bei fehlender Loadout-Farm-Readiness", async () => {
@@ -395,10 +550,10 @@ describe("App", () => {
     });
 
     render(<App />);
-    const start = await screen.findByRole("button", { name: "Queue prüfen und starten" });
+    const start = await screen.findByRole("button", { name: "Jetzt farmen" });
     await waitFor(() => expect(start).toBeDisabled());
     expect(screen.getByText("Charakter nicht farmbereit")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Einstellungen → Charaktere" })).toHaveAttribute("href", "#settings");
+    expect(screen.getByRole("link", { name: "Charaktereinstellungen öffnen" })).toHaveAttribute("href", "#settings");
     expect(mocks.validateQueue).not.toHaveBeenCalled();
   });
 
@@ -420,7 +575,7 @@ describe("App", () => {
     });
     render(<App />);
     expect(await screen.findByText("Noch nicht eingerichtet")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Queue prüfen und starten" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Jetzt farmen" })).toBeDisabled();
     expect(mocks.validateQueue).not.toHaveBeenCalled();
   });
 
@@ -438,31 +593,45 @@ describe("App", () => {
     });
     mocks.getStatus.mockReset().mockResolvedValue(ready);
     render(<App />);
-    expect(await screen.findByRole("heading", { name: "Reihenfolge für MrBones / Alptraum (in D2R bestätigt)" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Deine Run-Reihenfolge" })).toBeInTheDocument();
     await waitFor(() => {
       const entries = screen.getAllByRole("listitem");
-      expect(entries.some((entry) => entry.textContent?.includes("1Countess"))).toBe(true);
+      expect(entries.some((entry) => entry.textContent?.includes("1Gräfin"))).toBe(true);
       expect(entries.some((entry) => entry.textContent?.includes("2Mephisto"))).toBe(true);
     });
     expect(screen.queryByRole("button", { name: /entfernen/ })).not.toBeInTheDocument();
   });
 
-  it("sperrt den Queue-Start und bestätigt Emergency Stop per Tastatur und Dialog", async () => {
-    const running = { ...detached, state: "running_run", generation: 12, pending_intent: "", active_run_id: "countess", selection: { character: "MrBones", difficulty: "nightmare" } };
+  it("rekonstruiert die Core-Etappe und zeigt Session-Aktionen nur als effektive Hotkeys", async () => {
+    const running = { ...detached, state: "running_run", lifecycle_phase: "running_run", generation: 12, pending_intent: "pause_after_run", active_run_id: "countess", run_id: "run-1", run_progress: { label: "Kellergeschoss 3 von 5", current: 6, total: 13 }, selection: { character: "MrBones", difficulty: "nightmare" } };
     mocks.getCatalog.mockResolvedValue({ schema_version: 1, revision: 2, default_difficulty: "nightmare", profiles: [], characters: [], difficulties: [], runs: [{ run_id: "countess", display_name: "Countess", status: "runtime_validation_required" }] });
     mocks.getStatus.mockReset().mockResolvedValue(running);
-    mocks.emergencyStop.mockResolvedValue({ state: "cancelling", generation: 13 });
+    const first = render(<App />);
+    expect(await screen.findByLabelText("Etappe 6 von 13")).toBeInTheDocument();
+    expect(screen.getByText("Pause nach diesem Run vorgemerkt")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Jetzt farmen" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /pausieren|stoppen|Emergency Stop/i })).not.toBeInTheDocument();
+    expect(screen.getByText("Pause", { selector: "kbd" })).toBeInTheDocument();
+    expect(screen.getByText("F10", { selector: "kbd" })).toBeInTheDocument();
+    expect(screen.getByText("F11", { selector: "kbd" })).toBeInTheDocument();
+    first.unmount();
+
     render(<App />);
-    expect(await screen.findByRole("button", { name: "Queue prüfen und starten" })).toBeDisabled();
-    const emergency = await screen.findByRole("button", { name: "Emergency Stop" });
-    await waitFor(() => expect(emergency).toBeEnabled());
-    fireEvent.click(emergency);
-    const confirm = await screen.findByRole("button", { name: "Emergency Stop bestätigen" });
-    await waitFor(() => expect(confirm).toHaveFocus());
-    fireEvent.keyDown(window, { key: "Escape" });
-    expect(screen.queryByRole("dialog", { name: "Session sofort abbrechen?" })).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Emergency Stop" }));
-    fireEvent.click(await screen.findByRole("button", { name: "Emergency Stop bestätigen" }));
-    await waitFor(() => expect(mocks.emergencyStop).toHaveBeenCalledWith(12));
+    expect(await screen.findByLabelText("Etappe 6 von 13")).toBeInTheDocument();
   });
 });
+
+function desktopBridge(settings: DesktopSettingsView, updateDesktopSettings: D2RDesktopBridge["updateDesktopSettings"]): D2RDesktopBridge {
+  return {
+    getProvisioningState: vi.fn().mockResolvedValue({ required: false, import_selected: false, import_label: "" }),
+    chooseImportRoot: vi.fn(),
+    provision: vi.fn(),
+    getAppInfo: vi.fn(),
+    getDesktopSettings: vi.fn().mockResolvedValue(settings),
+    updateDesktopSettings,
+    showWindow: vi.fn(),
+    restartCore: vi.fn(),
+    restartAsAdministrator: vi.fn(),
+    onNavigate: vi.fn(() => vi.fn()),
+  };
+}

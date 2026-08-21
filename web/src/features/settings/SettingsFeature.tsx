@@ -12,11 +12,13 @@ import type { SettingsRun, SettingsTab } from "./settingsTypes";
 
 /** SettingsFeature orchestriert Farming-, Charaktere-, App- und Wartung-Scopes mit sticky Core-Commit. */
 export function SettingsFeature({
-  generation, coreState, characters, runs, events, catalog, status, onOpenOnboarding, onSettingsApplied, onHistoryDeleted, onDirtyChange,
+  generation, coreState, characters, selectedCharacter, onSelectedCharacterChange, runs, events, catalog, status, onOpenOnboarding, onSettingsApplied, onHistoryDeleted, onDirtyChange,
 }: {
   generation: number;
   coreState: string;
   characters: string[];
+  selectedCharacter?: string;
+  onSelectedCharacterChange?(character: string): void;
   runs: SettingsRun[];
   events: LiveEvent[];
   catalog?: CatalogDTO | null;
@@ -29,7 +31,6 @@ export function SettingsFeature({
   const [settings, setSettings] = useState<OperatorSettingsDTO | null>(null);
   const [draft, setDraft] = useState<OperatorSettingsDTO | null>(null);
   const [desktop, setDesktop] = useState<DesktopSettingsView | null>(null);
-  const [selectedCharacter, setSelectedCharacter] = useState("");
   const [tab, setTab] = useState<SettingsTab>("farming");
   const [preview, setPreview] = useState<{ mode: "save" | "reset"; change: OperatorSettingsChangeDTO } | null>(null);
   const [restartRequired, setRestartRequired] = useState(false);
@@ -42,6 +43,7 @@ export function SettingsFeature({
   const [includeTelemetry, setIncludeTelemetry] = useState(false);
   const [includeRoutes, setIncludeRoutes] = useState(false);
   const dirtyRef = useRef(false);
+  const activeCharacter = selectedCharacter || characters[0] || "";
   const mutable = coreState === "idle" || coreState === "stopped_error";
   const editableTab = tab === "farming" || tab === "characters";
 
@@ -58,8 +60,6 @@ export function SettingsFeature({
       setDraft(cloneSettings(operator));
       setDesktop(desktopSettings);
       setUpdateStatus(currentUpdateStatus);
-      const names = Object.keys(operator.characters).sort((left, right) => left.localeCompare(right, "de"));
-      setSelectedCharacter((current) => current && operator.characters[current] ? current : names[0] ?? "");
       setPreview(null);
       setStale(false);
       setMessage("");
@@ -254,7 +254,7 @@ export function SettingsFeature({
     {tab === "farming" && <FarmingTab
       draft={draft}
       saved={settings}
-      selectedCharacter={selectedCharacter}
+      selectedCharacter={activeCharacter}
       characterNames={characterNames}
       catalog={catalog}
       status={status}
@@ -262,19 +262,19 @@ export function SettingsFeature({
       mutable={mutable}
       restartRequired={restartRequired}
       diffPaths={diffPaths}
-      onSelectCharacter={setSelectedCharacter}
+      onSelectCharacter={onSelectedCharacterChange ?? ignoreCharacterChange}
       onChangeDraft={changeDraft}
       onReset={() => void requestReset()}
     />}
     {tab === "characters" && <CharactersTab
       draft={draft}
       catalog={catalog ?? null}
-      selectedCharacter={selectedCharacter}
+      selectedCharacter={activeCharacter}
       characterNames={characterNames}
       mutable={mutable}
       diffPaths={diffPaths}
       status={status ?? null}
-      onSelectCharacter={setSelectedCharacter}
+      onSelectCharacter={onSelectedCharacterChange ?? ignoreCharacterChange}
       onChangeDraft={changeDraft}
       onSetupChanged={onSettingsApplied}
     />}
@@ -338,3 +338,5 @@ export function SettingsFeature({
 function errorText(reason: unknown, fallback: string): string {
   return reason instanceof Error ? reason.message : fallback;
 }
+
+function ignoreCharacterChange() {}

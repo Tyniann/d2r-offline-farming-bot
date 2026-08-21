@@ -13,11 +13,15 @@ export interface DesktopSettingsView {
   schema_version: number;
   autostart: boolean;
   onboarding_completed: boolean;
+  selected_character?: string;
+  selected_difficulty?: string;
 }
 
 export interface DesktopSettingsUpdate {
-  autostart: boolean;
-  onboarding_completed: boolean;
+  autostart?: boolean;
+  onboarding_completed?: boolean;
+  selected_character?: string;
+  selected_difficulty?: string;
 }
 
 export interface DesktopProvisioningState {

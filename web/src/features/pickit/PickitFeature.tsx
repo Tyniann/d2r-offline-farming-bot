@@ -10,7 +10,7 @@ import {
   type SocketOperator,
 } from "./pickitRuleBuilder";
 
-interface Props { characters: string[]; selectedCharacter: string; runs: string[]; locked: boolean; refreshKey: number }
+interface Props { characters: string[]; selectedCharacter: string; onSelectedCharacterChange?(character: string): void; runs: string[]; locked: boolean; refreshKey: number }
 const actionLabels: Record<string, string> = { keep: "Behalten", sell: "Identifizieren / verkaufen" };
 const pickitSlugPattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 type PickitDialog =
@@ -19,7 +19,7 @@ type PickitDialog =
   | { kind: "delete" }
   | { kind: "discard"; nextID: string };
 
-export function PickitFeature({ characters, selectedCharacter, runs, locked, refreshKey }: Props) {
+export function PickitFeature({ characters, selectedCharacter: assignmentCharacter, onSelectedCharacterChange, runs, locked, refreshKey }: Props) {
   const [catalog, setCatalog] = useState<PickitCatalogDTO | null>(null);
   const [profiles, setProfiles] = useState<PickitProfileDTO[]>([]);
   const [assignments, setAssignments] = useState<PickitAssignmentsDTO | null>(null);
@@ -41,7 +41,6 @@ export function PickitFeature({ characters, selectedCharacter, runs, locked, ref
   const [builderErrors, setBuilderErrors] = useState<ReturnType<typeof buildCombinedRuleExpression>["errors"]>({});
   const [advanced, setAdvanced] = useState(false);
   const [importText, setImportText] = useState("");
-  const [assignmentCharacter, setAssignmentCharacter] = useState(selectedCharacter);
   const [assignmentRun, setAssignmentRun] = useState(runs[0] ?? "");
   const [assignmentProfiles, setAssignmentProfiles] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
@@ -60,7 +59,6 @@ export function PickitFeature({ characters, selectedCharacter, runs, locked, ref
     selectProfile(nextProfiles.profiles, nextID); setError("");
   };
   useEffect(() => { const controller = new AbortController(); void load(controller.signal).catch((reason: unknown) => !controller.signal.aborted && setError(message(reason))); return () => controller.abort(); }, [refreshKey]);
-  useEffect(() => { if (selectedCharacter) setAssignmentCharacter(selectedCharacter); }, [selectedCharacter]);
   useEffect(() => { if (!assignmentRun && runs[0]) setAssignmentRun(runs[0]); }, [assignmentRun, runs]);
   useEffect(() => {
     if (!assignments || !assignmentCharacter || !assignmentRun) return;
@@ -271,7 +269,7 @@ export function PickitFeature({ characters, selectedCharacter, runs, locked, ref
         </>}
       </div>
     </div>}
-    {assignments && <div className="assignment-editor"><h3>Zuordnung</h3><div className="selection-grid"><label>Charakter<select value={assignmentCharacter} onChange={(event) => setAssignmentCharacter(event.target.value)}>{characters.map((character) => <option key={character}>{character}</option>)}</select></label><label>Run<select value={assignmentRun} onChange={(event) => setAssignmentRun(event.target.value)}>{runs.map((run) => <option key={run}>{run}</option>)}</select></label></div><p>Reihenfolge durch Auswahl; das erste passende Profil gewinnt.</p><ol>{assignmentProfiles.map((id, index) => <li key={id}>{index + 1}. {profiles.find((profile) => profile.id === id)?.name ?? id}<button type="button" className="secondary" onClick={() => setAssignmentProfiles((current) => current.filter((entry) => entry !== id))}>Entfernen</button></li>)}</ol><label>Profil hinzufügen<select value="" onChange={(event) => { const id = event.target.value; if (id && !assignmentProfiles.includes(id)) setAssignmentProfiles((current) => [...current, id]); }}><option value="">Bitte wählen</option>{profiles.filter((profile) => !assignmentProfiles.includes(profile.id)).map((profile) => <option key={profile.id} value={profile.id}>{profile.name}</option>)}</select></label><button type="button" onClick={() => void saveAssignment()} disabled={locked || busy}>Zuordnung speichern</button></div>}
+    {assignments && <div className="assignment-editor"><h3>Zuordnung</h3><div className="selection-grid"><label>Charakter<select value={assignmentCharacter} onChange={(event) => onSelectedCharacterChange?.(event.target.value)}>{characters.map((character) => <option key={character}>{character}</option>)}</select></label><label>Run<select value={assignmentRun} onChange={(event) => setAssignmentRun(event.target.value)}>{runs.map((run) => <option key={run}>{run}</option>)}</select></label></div><p>Reihenfolge durch Auswahl; das erste passende Profil gewinnt.</p><ol>{assignmentProfiles.map((id, index) => <li key={id}>{index + 1}. {profiles.find((profile) => profile.id === id)?.name ?? id}<button type="button" className="secondary" onClick={() => setAssignmentProfiles((current) => current.filter((entry) => entry !== id))}>Entfernen</button></li>)}</ol><label>Profil hinzufügen<select value="" onChange={(event) => { const id = event.target.value; if (id && !assignmentProfiles.includes(id)) setAssignmentProfiles((current) => [...current, id]); }}><option value="">Bitte wählen</option>{profiles.filter((profile) => !assignmentProfiles.includes(profile.id)).map((profile) => <option key={profile.id} value={profile.id}>{profile.name}</option>)}</select></label><button type="button" onClick={() => void saveAssignment()} disabled={locked || busy}>Zuordnung speichern</button></div>}
     {(dialog?.kind === "create" || dialog?.kind === "duplicate") && <Dialog title={dialog.kind === "create" ? "Neues Pickit-Profil" : "Profil duplizieren"} onClose={closeDialog} initialFocusRef={dialogInputRef}>
       <p>{dialog.kind === "create" ? "Die Profil-ID ist unveränderlich und muss ein Kleinbuchstaben-Slug sein." : `Kopie von ${draft?.name ?? ""} anlegen. Die neue Profil-ID ist unveränderlich.`}</p>
       <label>Profil-ID<input ref={dialogInputRef} value={dialog.id} disabled={busy} onChange={(event) => { setDialogError(""); setDialog({ ...dialog, id: event.target.value }); }} placeholder="mein-profil" /></label>

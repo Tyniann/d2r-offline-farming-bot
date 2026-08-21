@@ -10,7 +10,7 @@ import { dirname, isAbsolute, join, resolve } from "node:path";
 import { DesktopCoreController } from "./core-controller.js";
 import { provisionDataRoot } from "./core-process.js";
 import { isAllowedIPCSender, isAllowedNavigation, secureWebPreferences, type CoreHandshake, type DesktopCoreReason } from "./core-contract.js";
-import { DesktopSettingsStore, desktopSettingsDefaults, type DesktopSettings } from "./desktop-settings.js";
+import { DesktopSettingsStore, desktopSettingsDefaults, parseDesktopSettingsUpdate, type DesktopSettings } from "./desktop-settings.js";
 import { desktopLifecyclePolicy, desktopNotificationSpec, notificationForTransition, shouldShowDesktopNotification, type DesktopNotificationKind, type StableAppTarget } from "./desktop-lifecycle.js";
 import { clampWindowBounds } from "./desktop-window.js";
 import { portalMarkPath } from "./portal-icon.js";
@@ -275,14 +275,14 @@ function registerDesktopIPC(): void {
   });
   ipcMain.handle("desktop:get-settings", (event) => {
     validateSender(event.senderFrame?.url ?? "");
-    return { schema_version: desktopSettings.schema_version, autostart: desktopSettings.autostart, onboarding_completed: desktopSettings.onboarding_completed };
+    return desktopSettingsView(desktopSettings);
   });
   ipcMain.handle("desktop:update-settings", async (event, request: unknown) => {
     validateSender(event.senderFrame?.url ?? "");
     const update = parseDesktopSettingsUpdate(request);
     desktopSettings = await persistDesktopSettings(update);
     applyAutostart(desktopSettings.autostart);
-    return { schema_version: desktopSettings.schema_version, autostart: desktopSettings.autostart, onboarding_completed: desktopSettings.onboarding_completed };
+    return desktopSettingsView(desktopSettings);
   });
   ipcMain.handle("desktop:restart-core", async (event) => {
     validateSender(event.senderFrame?.url ?? "");
@@ -407,14 +407,14 @@ function persistDesktopSettings(update: Partial<DesktopSettings>): Promise<Deskt
   return desktopSettingsSave;
 }
 
-function parseDesktopSettingsUpdate(value: unknown): Pick<DesktopSettings, "autostart" | "onboarding_completed"> {
-  if (typeof value !== "object" || value === null || Array.isArray(value)) throw new Error("Desktop-Einstellungen müssen ein Objekt sein.");
-  const record = value as Record<string, unknown>;
-  const keys = Object.keys(record).sort();
-  if (keys.join(",") !== "autostart,onboarding_completed" || typeof record.autostart !== "boolean" || typeof record.onboarding_completed !== "boolean") {
-    throw new Error("Desktop-Einstellungen enthalten fehlende oder unerlaubte Felder.");
-  }
-  return { autostart: record.autostart, onboarding_completed: record.onboarding_completed };
+function desktopSettingsView(settings: DesktopSettings) {
+  return {
+    schema_version: settings.schema_version,
+    autostart: settings.autostart,
+    onboarding_completed: settings.onboarding_completed,
+    ...(settings.selected_character ? { selected_character: settings.selected_character } : {}),
+    ...(settings.selected_difficulty ? { selected_difficulty: settings.selected_difficulty } : {}),
+  };
 }
 
 function applyAutostart(enabled: boolean): void {

@@ -11,7 +11,7 @@ export interface StatusDTO {
   active_run_id?: string;
   run_id?: string;
   game_id?: string;
-  step?: string;
+  run_progress?: RunProgressDTO;
   d2r: D2RDTO;
   compatibility: CompatibilityDTO;
   input: InputDTO;
@@ -20,6 +20,12 @@ export interface StatusDTO {
   queue: QueueStatusDTO;
   last_result?: SessionResultDTO;
   last_error?: ErrorDTO;
+}
+
+export interface RunProgressDTO {
+  label: string;
+  current: number;
+  total: number;
 }
 
 export interface CompatibilityDTO {

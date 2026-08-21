@@ -19,9 +19,10 @@ test("lädt genau ein sandboxed Fenster und blockiert Navigation, Fenster und zw
     await expect.poll(() => app.windows().length).toBe(1);
     expect(await page.evaluate(() => ({ process: typeof process, require: typeof require, bridge: Object.keys((window as unknown as { d2rDesktop: object }).d2rDesktop ?? {}).sort() }))).toEqual({ process: "undefined", require: "undefined", bridge: ["checkForUpdates", "chooseImportRoot", "getAppInfo", "getDesktopSettings", "getProvisioningState", "getUpdateStatus", "onNavigate", "onUpdateStatus", "openReleasePage", "provision", "restartAsAdministrator", "restartCore", "revealDiagnosticBundle", "showWindow", "updateDesktopSettings"] });
     await expect(page.evaluate(() => (window as unknown as { d2rDesktop: { restartAsAdministrator(): Promise<void> } }).d2rDesktop.restartAsAdministrator())).rejects.toThrow("nicht nachgewiesen");
-    expect(await page.evaluate(() => (window as unknown as { d2rDesktop: { getDesktopSettings(): Promise<unknown> } }).d2rDesktop.getDesktopSettings())).toEqual({ schema_version: 1, autostart: false, onboarding_completed: false });
-    expect(await page.evaluate(() => (window as unknown as { d2rDesktop: { updateDesktopSettings(value: unknown): Promise<unknown> } }).d2rDesktop.updateDesktopSettings({ autostart: true, onboarding_completed: true }))).toEqual({ schema_version: 1, autostart: true, onboarding_completed: true });
-    await expect(page.evaluate(() => (window as unknown as { d2rDesktop: { updateDesktopSettings(value: unknown): Promise<unknown> } }).d2rDesktop.updateDesktopSettings({ autostart: true, onboarding_completed: true, input_enabled: true }))).rejects.toThrow("unerlaubte Felder");
+    expect(await page.evaluate(() => (window as unknown as { d2rDesktop: { getDesktopSettings(): Promise<unknown> } }).d2rDesktop.getDesktopSettings())).toEqual({ schema_version: 2, autostart: false, onboarding_completed: false });
+    expect(await page.evaluate(() => (window as unknown as { d2rDesktop: { updateDesktopSettings(value: unknown): Promise<unknown> } }).d2rDesktop.updateDesktopSettings({ autostart: true, onboarding_completed: true }))).toEqual({ schema_version: 2, autostart: true, onboarding_completed: true });
+    expect(await page.evaluate(() => (window as unknown as { d2rDesktop: { updateDesktopSettings(value: unknown): Promise<unknown> } }).d2rDesktop.updateDesktopSettings({ selected_character: "MrBones", selected_difficulty: "nightmare" }))).toEqual({ schema_version: 2, autostart: true, onboarding_completed: true, selected_character: "MrBones", selected_difficulty: "nightmare" });
+    await expect(page.evaluate(() => (window as unknown as { d2rDesktop: { updateDesktopSettings(value: unknown): Promise<unknown> } }).d2rDesktop.updateDesktopSettings({ autostart: true, onboarding_completed: true, input_enabled: true }))).rejects.toThrow("Unbekanntes");
 
     const original = page.url();
     await page.evaluate(() => { location.href = "https://example.com/"; });
@@ -34,7 +35,7 @@ test("lädt genau ein sandboxed Fenster und blockiert Navigation, Fenster und zw
     expect(exitCode).toBe(0);
     await expect.poll(() => app.windows().length).toBe(1);
     expect(await page.evaluate(() => fetch("/api/test/commands").then((response) => response.json()))).toMatchObject({ count: 0 });
-    expect(JSON.parse(await readFile(join(root, "desktop-settings.json"), "utf8"))).toMatchObject({ autostart: true, onboarding_completed: true });
+    expect(JSON.parse(await readFile(join(root, "desktop-settings.json"), "utf8"))).toMatchObject({ schema_version: 2, autostart: true, onboarding_completed: true, selected_character: "MrBones", selected_difficulty: "nightmare" });
   } finally {
     await close(launched);
   }
@@ -84,7 +85,7 @@ test("Import übernimmt den abgeschlossenen Onboarding-Zustand vor dem produktiv
     await expect.poll(() => page.evaluate(() => (
       window as unknown as { d2rDesktop: { getDesktopSettings(): Promise<unknown> } }
     ).d2rDesktop.getDesktopSettings())).toEqual({
-      schema_version: 1,
+      schema_version: 2,
       autostart: false,
       onboarding_completed: true,
     });

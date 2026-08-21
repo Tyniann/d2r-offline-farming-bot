@@ -8,15 +8,15 @@ import {
   type HistoryRunsResponse, type HistorySummaryResponse,
 } from "../../api/generated";
 
-interface Props { characters: string[]; runs: string[]; refreshKey: number }
-interface FilterDraft { period: string; from: string; to: string; character: string; run: string; difficulty: string; outcome: string; reason: string; pickitProfile: string }
+interface Props { characters: string[]; selectedCharacter: string; selectedDifficulty: string; onSelectedCharacterChange?(character: string): void; onSelectedDifficultyChange?(difficulty: string): void; runs: string[]; refreshKey: number }
+interface FilterDraft { period: string; from: string; to: string; run: string; outcome: string; reason: string; pickitProfile: string }
 
-const emptyFilter: FilterDraft = { period: "30d", from: "", to: "", character: "", run: "", difficulty: "", outcome: "", reason: "", pickitProfile: "" };
+const emptyFilter: FilterDraft = { period: "30d", from: "", to: "", run: "", outcome: "", reason: "", pickitProfile: "" };
 const outcomeLabels: Record<string, string> = { success: "Erfolg", failed: "Fehlgeschlagen", aborted: "Abgebrochen", incomplete: "Unvollständig", running: "Aktiv" };
 
-export function HistoryFeature({ characters, runs, refreshKey }: Props) {
+export function HistoryFeature({ characters, selectedCharacter, selectedDifficulty, onSelectedCharacterChange, onSelectedDifficultyChange, runs, refreshKey }: Props) {
   const [draft, setDraft] = useState<FilterDraft>(emptyFilter);
-  const [query, setQuery] = useState<HistoryQuery>(() => filterQuery(emptyFilter));
+  const [query, setQuery] = useState<HistoryQuery>(() => filterQuery(emptyFilter, selectedCharacter, selectedDifficulty));
   const [summary, setSummary] = useState<HistorySummaryResponse | null>(null);
   const [comparisons, setComparisons] = useState<HistoryComparisonDTO[]>([]);
   const [items, setItems] = useState<HistoryItemsResponse | null>(null);
@@ -57,8 +57,17 @@ export function HistoryFeature({ characters, runs, refreshKey }: Props) {
     return () => controller.abort();
   }, [query, refreshKey, comparisonSort]); // `history_changed`, Filter und Core-Sortierung laden serialisiert neu.
 
-  const applyFilters = () => setQuery(filterQuery(draft));
-  const resetFilters = () => { setDraft(emptyFilter); setQuery(filterQuery(emptyFilter)); };
+  useEffect(() => {
+    setQuery((current) => {
+      const character = selectedCharacter ? [selectedCharacter] : undefined;
+      const difficulty = selectedDifficulty ? [selectedDifficulty] : undefined;
+      if (current.character?.[0] === character?.[0] && current.difficulty?.[0] === difficulty?.[0]) return current;
+      return { ...current, character, difficulty };
+    });
+  }, [selectedCharacter, selectedDifficulty]);
+
+  const applyFilters = () => setQuery(filterQuery(draft, selectedCharacter, selectedDifficulty));
+  const resetFilters = () => { setDraft(emptyFilter); setQuery(filterQuery(emptyFilter, selectedCharacter, selectedDifficulty)); };
 
   const loadMore = async (kind: "runs" | "items") => {
     const cursor = kind === "runs" ? runList?.next_cursor : items?.next_cursor;
@@ -97,7 +106,7 @@ export function HistoryFeature({ characters, runs, refreshKey }: Props) {
     } finally { setExporting(false); }
   };
 
-  const filtered = draft.period !== "30d" || [query.character, query.run, query.difficulty, query.outcome, query.reason, query.pickit_profile].some((value) => value?.length);
+  const filtered = draft.period !== "30d" || [query.run, query.outcome, query.reason, query.pickit_profile].some((value) => value?.length);
   const noRuns = !loading && !error && summary?.summary.runs === 0;
 
   return <section id="history" aria-labelledby="history-title" className="history-feature">
@@ -108,9 +117,9 @@ export function HistoryFeature({ characters, runs, refreshKey }: Props) {
       <label>Zeitraum<select value={draft.period} onChange={(event) => setDraft({ ...draft, period: event.target.value })}><option value="all">Gesamte Historie</option><option value="today">Heute</option><option value="7d">Letzte 7 Tage</option><option value="30d">Letzte 30 Tage</option><option value="custom">Freier Zeitraum</option></select></label>
       <label>Von<input type="datetime-local" value={draft.from} onChange={(event) => setDraft({ ...draft, from: event.target.value })} /></label>
       <label>Bis<input type="datetime-local" value={draft.to} onChange={(event) => setDraft({ ...draft, to: event.target.value })} /></label>
-      <label>Charakter<select value={draft.character} onChange={(event) => setDraft({ ...draft, character: event.target.value })}><option value="">Alle</option>{characters.map((value) => <option key={value}>{value}</option>)}</select></label>
+      <label>Charakter<select value={selectedCharacter} onChange={(event) => onSelectedCharacterChange?.(event.target.value)}>{characters.map((value) => <option key={value}>{value}</option>)}</select></label>
       <label>Run<select value={draft.run} onChange={(event) => setDraft({ ...draft, run: event.target.value })}><option value="">Alle</option>{runs.map((value) => <option key={value}>{value}</option>)}</select></label>
-      <label>Schwierigkeit<select value={draft.difficulty} onChange={(event) => setDraft({ ...draft, difficulty: event.target.value })}><option value="">Alle</option><option value="normal">Normal</option><option value="nightmare">Alptraum</option><option value="hell">Hölle</option></select></label>
+      <label>Schwierigkeit<select value={selectedDifficulty} onChange={(event) => onSelectedDifficultyChange?.(event.target.value)}><option value="normal">Normal</option><option value="nightmare">Alptraum</option><option value="hell">Hölle</option></select></label>
       <label>Ergebnis<select value={draft.outcome} onChange={(event) => setDraft({ ...draft, outcome: event.target.value })}><option value="">Alle</option>{Object.entries(outcomeLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
       <label>Reason-Code<input value={draft.reason} placeholder="z. B. boss_not_found" onChange={(event) => setDraft({ ...draft, reason: event.target.value })} /></label>
       <label>Pickit-Profil<input value={draft.pickitProfile} placeholder="optional" onChange={(event) => setDraft({ ...draft, pickitProfile: event.target.value })} /></label>
@@ -172,7 +181,7 @@ function RawEventDetails({ detail, onLoad }: { detail: HistoryRunDetailResponse;
   </details>;
 }
 
-function filterQuery(filter: FilterDraft): HistoryQuery {
+function filterQuery(filter: FilterDraft, character: string, difficulty: string): HistoryQuery {
 	const now = new Date();
 	let from = filter.from ? new Date(filter.from) : undefined;
 	let to = filter.to ? new Date(filter.to) : undefined;
@@ -188,9 +197,9 @@ function filterQuery(filter: FilterDraft): HistoryQuery {
     from: from?.toISOString(),
     to: to?.toISOString(),
     timezone: browserTimezone(),
-    character: filter.character ? [filter.character] : undefined,
+    character: character ? [character] : undefined,
     run: filter.run ? [filter.run] : undefined,
-    difficulty: filter.difficulty ? [filter.difficulty] : undefined,
+    difficulty: difficulty ? [difficulty] : undefined,
     outcome: filter.outcome ? [filter.outcome] : undefined,
 		reason: filter.reason.trim() ? [filter.reason.trim()] : undefined,
 		pickit_profile: filter.pickitProfile.trim() ? [filter.pickitProfile.trim()] : undefined,

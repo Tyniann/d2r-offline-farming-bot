@@ -44,7 +44,7 @@ try {
     throw new Error(`packaged Electron version ${bridgeVersion} differs from ${expectedVersion}`);
   }
   const sidebar = await page.locator(".sidebar-meta").innerText();
-  if (!sidebar.includes(`App ${expectedVersion}`) || !sidebar.includes(`Core ${expectedVersion}`) || sidebar.includes("dev")) {
+  if (!sidebar.includes(`Version ${expectedVersion}`) || sidebar.includes("dev")) {
     throw new Error(`sidebar versions are inconsistent: ${sidebar}`);
   }
 } finally {

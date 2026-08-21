@@ -18,7 +18,7 @@ type StatusDTO struct {
 	RunInstanceID  string             `json:"run_id,omitempty"`
 	GameID         string             `json:"game_id,omitempty"`
 	LifecyclePhase string             `json:"lifecycle_phase"`
-	Step           string             `json:"step,omitempty"`
+	RunProgress    *RunProgressDTO    `json:"run_progress,omitempty"`
 	D2R            D2RDTO             `json:"d2r"`
 	Compatibility  CompatibilityDTO   `json:"compatibility"`
 	Input          InputDTO           `json:"input"`
@@ -27,6 +27,13 @@ type StatusDTO struct {
 	Queue          QueueStatusDTO     `json:"queue"`
 	LastResult     *SessionResultDTO  `json:"last_result,omitempty"`
 	LastError      *ErrorDTO          `json:"last_error,omitempty"`
+}
+
+// RunProgressDTO transports one stable, user-facing stage of an active run.
+type RunProgressDTO struct {
+	Label   string `json:"label"`
+	Current int    `json:"current"`
+	Total   int    `json:"total"`
 }
 
 // CompatibilityDTO projects the path-free authoritative D2R version gate.

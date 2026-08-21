@@ -111,6 +111,41 @@ func TestLiveBackendProjectsStatusAndMeaningfulEvents(t *testing.T) {
 	}
 }
 
+func TestLiveBackendPublishesOnlyUserFacingRunProgressChanges(t *testing.T) {
+	publisher := telemetry.NewLivePublisher(16, 4)
+	backend := &LiveBackend{publisher: publisher, status: StatusDTO{Queue: QueueStatusDTO{Entries: []string{}, DefaultEntries: []string{}}}}
+	first := &tasks.RunProgress{Label: "Reise zum Turm", Current: 3, Total: 13}
+	backend.UpdateRuntime(app.UIStatusSnapshot{RunID: "countess", Step: "play_bound_route", RunProgress: first})
+	status := backend.Status()
+	if status.RunProgress == nil || *status.RunProgress != (RunProgressDTO{Label: "Reise zum Turm", Current: 3, Total: 13}) {
+		t.Fatalf("run progress = %+v", status.RunProgress)
+	}
+	sequence := publisher.Sequence()
+	if sequence != 1 {
+		t.Fatalf("sequence after first progress = %d, want 1", sequence)
+	}
+
+	// Internal steps may change inside one visible stage without causing an SSE refresh.
+	backend.UpdateRuntime(app.UIStatusSnapshot{RunID: "countess", Step: "wait_entry_area", RunProgress: first})
+	if publisher.Sequence() != sequence {
+		t.Fatalf("internal step change published event; sequence = %d, want %d", publisher.Sequence(), sequence)
+	}
+
+	next := &tasks.RunProgress{Label: "Kellergeschoss 1 von 5", Current: 4, Total: 13}
+	backend.UpdateRuntime(app.UIStatusSnapshot{RunID: "countess", Step: "play_bound_route", RunProgress: next})
+	replay, subscription := publisher.Subscribe(0)
+	subscription.Close()
+	if !containsLiveEvent(replay, "run_progress_changed") || publisher.Sequence() != sequence+1 {
+		t.Fatalf("progress events = %+v", replay)
+	}
+
+	invalid := &tasks.RunProgress{Label: "Ungültig", Current: 14, Total: 13}
+	backend.UpdateRuntime(app.UIStatusSnapshot{RunID: "countess", RunProgress: invalid})
+	if backend.Status().RunProgress != nil {
+		t.Fatalf("invalid run progress was published: %+v", backend.Status().RunProgress)
+	}
+}
+
 func TestLiveBackendDoesNotRestoreSelectionWithoutCharacterProfile(t *testing.T) {
 	cfg, err := config.Load("../../configs/config.example.yaml")
 	if err != nil {

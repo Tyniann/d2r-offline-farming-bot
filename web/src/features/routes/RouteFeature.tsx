@@ -16,6 +16,7 @@ import "./RouteFeature.css";
 interface Props {
   characters: string[];
   selectedCharacter: string;
+  onSelectedCharacterChange?(character: string): void;
   refreshKey: number;
   liveLocked?: boolean;
   preferredRecordingRun?: string;
@@ -24,8 +25,7 @@ interface Props {
 
 const testWorkflowStates = new Set(["preparing_playback", "playing_candidate", "validating_terminal", "returning_after_test", "awaiting_publish_confirmation", "publishing"]);
 
-export function RouteFeature({ characters, selectedCharacter, refreshKey, liveLocked = false, preferredRecordingRun = "", onReturnToOnboarding }: Props) {
-  const [character, setCharacter] = useState(selectedCharacter);
+export function RouteFeature({ characters, selectedCharacter: character, onSelectedCharacterChange, refreshKey, liveLocked = false, preferredRecordingRun = "", onReturnToOnboarding }: Props) {
   const [area, setArea] = useState<RouteArea>(preferredRecordingRun ? "recording" : "library");
   const [archive, setArchive] = useState(false);
   const [routes, setRoutes] = useState<RouteEntryDTO[] | null>(null);
@@ -69,7 +69,6 @@ export function RouteFeature({ characters, selectedCharacter, refreshKey, liveLo
   };
 
   useEffect(() => { const controller = new AbortController(); setRoutes(null); void refresh(controller.signal); return () => controller.abort(); }, [character, archive, refreshKey]);
-  useEffect(() => { if (!character && selectedCharacter) setCharacter(selectedCharacter); }, [character, selectedCharacter]);
   useEffect(() => {
     if (!preview || preview.operation === "delete_candidate") return;
     confirmRef.current?.focus();
@@ -123,7 +122,7 @@ export function RouteFeature({ characters, selectedCharacter, refreshKey, liveLo
   const previewRoute = preview?.route_id ? routes?.find((entry) => entry.route_id === preview.route_id) : undefined;
 
   return <section className="route-feature" aria-labelledby="routes-title">
-    <RoutePageHeader characters={characters} character={character} area={area} draftCount={visibleCandidates.length} onCharacterChange={setCharacter} onAreaChange={setArea} />
+    <RoutePageHeader characters={characters} character={character} area={area} draftCount={visibleCandidates.length} onCharacterChange={(next) => onSelectedCharacterChange?.(next)} onAreaChange={setArea} />
     {onReturnToOnboarding && <div className="onboarding-return"><div><strong>Aus der Einrichtung geöffnet</strong><p>Schließe die Aufnahme hier ab und kehre danach zur Einrichtung zurück.</p></div><button type="button" className="secondary" onClick={onReturnToOnboarding}>Zurück zur Einrichtung</button></div>}
     {error && <p className="route-error" role="alert">{error}</p>}
     {!character ? <p className="route-empty">Wähle zuerst einen Charakter.</p> : <>

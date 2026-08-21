@@ -99,7 +99,7 @@ Spätere Ideen (noch nicht umgesetzt): [`docs/backlog.md`](../backlog.md).
 | Feature | Beschreibung |
 |---------|--------------|
 | [Lokale Core-API und eingebettete Web-Anwendung](local-core-api.md) | Abschnitt 11.2: Loopback-only HTTP/JSON, Security Envelope, OpenAPI-generierter TypeScript-Client und eingebetteter React-Build |
-| [Live-Dashboard und Session-Steuerung](live-dashboard.md) | Electron-Live-Projektion, read-only persistente Charakter-Queue, sichere Supervisor-Controls, Reconnect und deutsche Statuskarten |
+| [Live-Dashboard](live-dashboard.md) | App-weite Auswahl, read-only Farm-Queue, Historienkennzahlen und Core-projizierter Run-Fortschritt mit globalen Safety-Hotkeys |
 | [Installierter Datenroot und Desktop-Einstellungen](installed-data-root.md) | Abschnitt 15.1: expliziter Core-Root, hashgebundene Defaults, stagingbasierter Import und getrennter atomarer Desktop-Settings-Store |
 | [Persistente Operator-Einstellungen](operator-settings.md) | Schema 2 mit geschütztem Charakterprofil-Paar, Queues, Budgets, Input, Hotkeys, Retention, Preview/Reset und zehn Backups |
 | [Sichere Electron-Shell und Core-Kindprozess](desktop-shell.md) | Abschnitt 15.3: gehärtetes Einzelfenster, private Handshake-Pipe, Datenroot-Lock, minimale IPC-Bridge und fail-closed Crash-Recovery |

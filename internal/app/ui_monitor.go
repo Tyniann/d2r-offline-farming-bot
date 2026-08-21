@@ -3,6 +3,8 @@ package app
 import (
 	"context"
 	"time"
+
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/tasks"
 )
 
 // UIStatusSnapshot is the immutable read-only runtime projection consumed by
@@ -23,6 +25,7 @@ type UIStatusSnapshot struct {
 	AreaName      string
 	RunID         string
 	Step          string
+	RunProgress   *tasks.RunProgress
 	LastError     string
 	Compatibility D2RCompatibilitySnapshot
 }
@@ -48,7 +51,11 @@ func (rt *Runtime) CurrentUIStatus(lastError string) UIStatusSnapshot {
 	}
 	if rt.Tasks != nil {
 		snapshot.RunID = rt.Tasks.ConfiguredRun()
-		snapshot.Step = rt.Tasks.Result().Step
+		result := rt.Tasks.Result()
+		snapshot.Step = result.Step
+		if progress, ok := rt.Tasks.Progress(worldState.Area.ID); ok {
+			snapshot.RunProgress = &progress
+		}
 	}
 	return snapshot
 }

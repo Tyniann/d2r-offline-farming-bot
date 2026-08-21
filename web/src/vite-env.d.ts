@@ -4,6 +4,8 @@ interface DesktopSettingsView {
   schema_version: number;
   autostart: boolean;
   onboarding_completed: boolean;
+  selected_character?: string;
+  selected_difficulty?: string;
 }
 
 type DesktopUpdateStatus =
@@ -22,7 +24,7 @@ interface D2RDesktopBridge {
   openReleasePage?(): Promise<void>;
   revealDiagnosticBundle?(filename: string): Promise<void>;
   getDesktopSettings(): Promise<DesktopSettingsView>;
-  updateDesktopSettings(request: { autostart: boolean; onboarding_completed: boolean }): Promise<DesktopSettingsView>;
+  updateDesktopSettings(request: { autostart?: boolean; onboarding_completed?: boolean; selected_character?: string; selected_difficulty?: string }): Promise<DesktopSettingsView>;
   showWindow(): Promise<void>;
   restartCore(): Promise<void>;
   restartAsAdministrator(): Promise<void>;

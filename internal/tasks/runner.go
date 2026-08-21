@@ -74,6 +74,7 @@ type Runner struct {
 	generationReset bool
 
 	lastSafetyPotionAt time.Time
+	progress           RunProgress
 }
 
 // NewRunner builds a task runner for sel (empty Run = passive mode).

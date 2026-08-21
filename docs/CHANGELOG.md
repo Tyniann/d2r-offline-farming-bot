@@ -7,6 +7,9 @@ Versionierung nach [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+- Redesign the dashboard around app-wide selection, persistent queues, shared-period history statistics, and Core-projected active-run stages
+
 ### Fixed
 - Send `/players N` with layout-mapped virtual keys and wait three seconds after a new game start so D2R chat actually receives the command
 - Cancel the post-start `/players N` fade wait immediately when the queue context stops

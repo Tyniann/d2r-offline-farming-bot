@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { mkdir, open, readFile, rename, rm } from "node:fs/promises";
 import { dirname, isAbsolute } from "node:path";
 
-export const DESKTOP_SETTINGS_SCHEMA_VERSION = 1;
+export const DESKTOP_SETTINGS_SCHEMA_VERSION = 2;
 
 export interface WindowBounds {
   x: number;
@@ -16,7 +16,11 @@ export interface DesktopSettings {
   window_bounds?: WindowBounds;
   autostart: boolean;
   onboarding_completed: boolean;
+  selected_character?: string;
+  selected_difficulty?: string;
 }
+
+export type DesktopSettingsUpdate = Partial<Pick<DesktopSettings, "autostart" | "onboarding_completed" | "selected_character" | "selected_difficulty">>;
 
 export interface LoadedDesktopSettings {
   settings: DesktopSettings;
@@ -95,17 +99,42 @@ export function parseDesktopSettings(value: unknown): DesktopSettings {
   if (!isRecord(value)) {
     throw new Error("Desktop-Einstellungen müssen ein JSON-Objekt sein.");
   }
+  if (value.schema_version === 1) {
+    requireExactKeys(
+      value,
+      ["schema_version", "window_bounds", "autostart", "onboarding_completed"],
+      ["schema_version", "autostart", "onboarding_completed"],
+    );
+    return parseKnownDesktopSettings(value);
+  }
   requireExactKeys(
     value,
-    ["schema_version", "window_bounds", "autostart", "onboarding_completed"],
+    ["schema_version", "window_bounds", "autostart", "onboarding_completed", "selected_character", "selected_difficulty"],
     ["schema_version", "autostart", "onboarding_completed"],
   );
   if (value.schema_version !== DESKTOP_SETTINGS_SCHEMA_VERSION) {
     throw new Error("Unbekannte Desktop-Einstellungsversion.");
   }
-  if (typeof value.autostart !== "boolean" || typeof value.onboarding_completed !== "boolean") {
-    throw new Error("Desktop-Schalter müssen boolesch sein.");
-  }
+  return parseKnownDesktopSettings(value);
+}
+
+export function parseDesktopSettingsUpdate(value: unknown): DesktopSettingsUpdate {
+  if (!isRecord(value)) throw new Error("Desktop-Einstellungen müssen ein Objekt sein.");
+  requireExactKeys(value, ["autostart", "onboarding_completed", "selected_character", "selected_difficulty"], []);
+  if (Object.keys(value).length === 0) throw new Error("Desktop-Einstellungen enthalten keine Änderung.");
+  if ("autostart" in value && typeof value.autostart !== "boolean") throw new Error("Autostart muss boolesch sein.");
+  if ("onboarding_completed" in value && typeof value.onboarding_completed !== "boolean") throw new Error("Onboarding muss boolesch sein.");
+
+  const update: DesktopSettingsUpdate = {};
+  if ("autostart" in value) update.autostart = value.autostart as boolean;
+  if ("onboarding_completed" in value) update.onboarding_completed = value.onboarding_completed as boolean;
+  if ("selected_character" in value) update.selected_character = parsePreference(value.selected_character, "Charakter", 128);
+  if ("selected_difficulty" in value) update.selected_difficulty = parsePreference(value.selected_difficulty, "Schwierigkeit", 32);
+  return update;
+}
+
+function parseKnownDesktopSettings(value: Record<string, unknown>): DesktopSettings {
+  if (typeof value.autostart !== "boolean" || typeof value.onboarding_completed !== "boolean") throw new Error("Desktop-Schalter müssen boolesch sein.");
 
   const settings: DesktopSettings = {
     schema_version: DESKTOP_SETTINGS_SCHEMA_VERSION,
@@ -115,7 +144,16 @@ export function parseDesktopSettings(value: unknown): DesktopSettings {
   if (value.window_bounds !== undefined) {
     settings.window_bounds = parseWindowBounds(value.window_bounds);
   }
+  if (value.selected_character !== undefined) settings.selected_character = parsePreference(value.selected_character, "Charakter", 128);
+  if (value.selected_difficulty !== undefined) settings.selected_difficulty = parsePreference(value.selected_difficulty, "Schwierigkeit", 32);
   return settings;
+}
+
+function parsePreference(value: unknown, label: string, maxLength: number): string {
+  if (typeof value !== "string" || value.length === 0 || value.length > maxLength || value.trim() !== value || /[\u0000-\u001f\u007f]/.test(value)) {
+    throw new Error(`Gespeicherte ${label}-Auswahl ist ungültig.`);
+  }
+  return value;
 }
 
 function parseWindowBounds(value: unknown): WindowBounds {

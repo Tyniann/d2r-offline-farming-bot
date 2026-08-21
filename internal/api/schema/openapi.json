@@ -1727,8 +1727,8 @@
           "game_id": {
             "type": "string"
           },
-          "step": {
-            "type": "string"
+          "run_progress": {
+            "$ref": "#/components/schemas/RunProgressDTO"
           },
           "d2r": {
             "$ref": "#/components/schemas/D2RDTO"
@@ -1753,6 +1753,25 @@
           },
           "last_error": {
             "$ref": "#/components/schemas/ErrorDTO"
+          }
+        }
+      },
+      "RunProgressDTO": {
+        "type": "object",
+        "required": [
+          "label",
+          "current",
+          "total"
+        ],
+        "properties": {
+          "label": {
+            "type": "string"
+          },
+          "current": {
+            "type": "integer"
+          },
+          "total": {
+            "type": "integer"
           }
         }
       },
