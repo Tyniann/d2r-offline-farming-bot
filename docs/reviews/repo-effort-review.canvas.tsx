@@ -106,7 +106,7 @@ export default function RepoEffortReview() {
           [
             "Documentation",
             "9",
-            "72 feature docs, Keep-a-Changelog, handoff.html, 13 phase plans. Exceptional. Some package Godocs and README lag.",
+            "72 feature docs, Keep-a-Changelog, docs/plans/handoff.html, 13 phase plans. Exceptional. Some package Godocs and README lag.",
           ],
           [
             "Code quality",

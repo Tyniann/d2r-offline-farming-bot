@@ -1,6 +1,6 @@
 # Feature-Dokumentation
 
-Übersicht dokumentierter Bot-Features. Architektur-Gesamtbild: [`handoff.html`](../../handoff.html).
+Übersicht dokumentierter Bot-Features. Architektur-Gesamtbild: [`handoff.html`](../plans/handoff.html).
 Spätere Ideen (noch nicht umgesetzt): [`docs/backlog.md`](../backlog.md).
 
 ## Fundament: Prozess, Memory, World, Input

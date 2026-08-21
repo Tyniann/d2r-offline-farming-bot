@@ -38,7 +38,7 @@ Eigene Kriterien (0–10). Scores sind Reviewer-Urteil aus statischer Evidenz (C
 |-----------|------:|--------|
 | Structure / architecture | **9** | Strikter Fluss `process → memory → world → tasks/profile → input`; pathing/loot/town am World Model; API/UI als Operator-Schale. Für AI-Repos selten so sauber. |
 | Feature completeness | **8,5** | Voller Offline-Stack: 4 Runs, Town, Pickit, Telemetrie, Electron-UI, Mercenary. Fehlend: Baal/Cows; Combat-Tiefe vor allem Necro. |
-| Documentation | **9** | 72 Feature-Docs, Keep a Changelog, `handoff.html`, 13 Phase-Pläne. Ausnahmen: Package-Godoc-Lücken, README-/Versions-Drift. |
+| Documentation | **9** | 72 Feature-Docs, Keep a Changelog, `docs/plans/handoff.html`, 13 Phase-Pläne. Ausnahmen: Package-Godoc-Lücken, README-/Versions-Drift. |
 | Code quality | **8** | Fail-closed-Verträge, interface-mockbare Windows-APIs, gemeinsame Run-Pipeline, Safety-Hotkeys, hover-bestätigte Aktionen. |
 | Code readability | **7,5** | Klare Domain-Typen und Reason-Codes; `internal/app` (~19k LOC) ist Dichte-Hotspot; etwas AI-Verbosität. |
 | Test discipline | **8,5** | ~39 % der Go-Zeilen sind Tests; Phase-Contract-/Characterization-Tests; Vitest + Playwright. |
@@ -53,7 +53,7 @@ Ausgewertet u. a.:
 
 - Verzeichnisbaum (`cmd/`, `internal/`, `web/`, `configs/`, `docs/`, `tools/`)
 - LOC nach Sprache und Paket (ohne `node_modules` / `.tmp`)
-- `docs/features/`, `docs/CHANGELOG.md`, `handoff.html`, Phase-Plan-HTMLs
+- `docs/features/`, `docs/CHANGELOG.md`, `docs/plans/handoff.html`, Phase-Plan-HTMLs
 - Paketinventar unter `internal/` inkl. Maturity-Einschätzung
 - Stichproben: `internal/world/state.go`, `internal/app/supervisor.go`, Tasks-/Pipeline-Struktur
 - Git: `git rev-list --count`, Log 2026-06-25 → 2026-07-31, Tags/`git describe`
@@ -155,8 +155,8 @@ Fakten aus dem Review-Pass — keine Fixes in diesem Dokument:
 
 - [`docs/CHANGELOG.md`](../CHANGELOG.md) — Release-Historie bis 0.16.0
 - [`docs/features/README.md`](../features/README.md) — Feature-Index
-- [`handoff.html`](../../handoff.html) — Produkt- und Architektur-Handoff
-- Root: `phase-*-implementation-plan.html` — Phasenpläne
+- [`handoff.html`](../plans/handoff.html) — Produkt- und Architektur-Handoff
+- `docs/plans/phase-*-implementation-plan.html` — Phasenpläne
 
 ---
 

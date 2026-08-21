@@ -6,7 +6,7 @@ Phase 19 ergänzt das bestehende First-Match-Pickit um fail-closed gelesene Gesa
 
 **19.4** (Dokumentation und Feature-Gesamtmatrix) und **19.5** (manuelle Produktabnahme) sind bestanden. Phase 19 ist abgeschlossen; Freigabeziel `v0.17.0`.
 
-Detailplan: [`phase-19-implementation-plan.html`](../../phase-19-implementation-plan.html).
+Detailplan: [`phase-19-implementation-plan.html`](../plans/phase-19-implementation-plan.html).
 
 ## Ort im Code
 

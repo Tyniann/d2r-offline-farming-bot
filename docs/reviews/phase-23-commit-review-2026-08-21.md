@@ -7,7 +7,7 @@ Stand: 2026-08-21. Verglichen wurde `git diff cf355b6...HEAD`. Der feste Punkt `
 - `c26a570` Korrekturen für `golangci-lint`
 - `6077c1d` Load-Fade-Wartezeit und virtuelle Tasten für `/players N`
 
-Sollquelle ist `phase-23-implementation-plan.html` in `HEAD`. Die Prüfung war statisch und umfasste den Diff, die betroffenen Tests und die im Plan festgehaltenen Live-Belege. Ein eigener D2R-Live-Lauf war nicht Teil dieses Reviews.
+Sollquelle ist `docs/plans/phase-23-implementation-plan.html` in `HEAD`. Die Prüfung war statisch und umfasste den Diff, die betroffenen Tests und die im Plan festgehaltenen Live-Belege. Ein eigener D2R-Live-Lauf war nicht Teil dieses Reviews.
 
 ## Urteil
 
@@ -83,7 +83,7 @@ Stand nach der Nacharbeit vom 21. August 2026:
 
 ### P1. Mode-unbekannte Objekte werden nie bedient, der Run kann trotzdem erfolgreich enden
 
-- **Planreferenz:** `phase-23-implementation-plan.html:1419-1422`. Ohne lesbaren Mode gilt "UnitID-once plus Drop-Wait".
+- **Planreferenz:** `docs/plans/phase-23-implementation-plan.html:1419-1422`. Ohne lesbaren Mode gilt "UnitID-once plus Drop-Wait".
 - **Codereferenz:** `internal/tasks/chest_select.go:22-27`, `internal/tasks/chest_select.go:148-169`, `internal/tasks/chest_sweep.go:136-139`, `internal/tasks/chest_sweep.go:199-202`.
 - **Abweichung:** `objectIsClosed` akzeptiert nur `ModeKnown && Mode == 0`. Ein Objekt mit unbekanntem Mode fällt aus jeder Auswahl. Die reine Nähegruppe setzt trotzdem `seenEligible`, wodurch der Rest-Sweep Erfolg melden kann, obwohl kein Klick versucht wurde.
 - **Folge:** Ein temporär fehlgeschlagener Mode-Read kann einen grünen Run ohne bearbeitete Supertruhe erzeugen.
@@ -91,7 +91,7 @@ Stand nach der Nacharbeit vom 21. August 2026:
 
 ### P1. Headless Replay verliert die Evidenz für Blocker-Recovery
 
-- **Planreferenz:** `phase-23-implementation-plan.html:1182-1185` verlangt Replay-Unterstützung. Die Live-Anpassung in `phase-23-implementation-plan.html:1345-1350` bindet den lokalen Clear an einen Memory-bestätigten Monster-Hover.
+- **Planreferenz:** `docs/plans/phase-23-implementation-plan.html:1182-1185` verlangt Replay-Unterstützung. Die Live-Anpassung in `docs/plans/phase-23-implementation-plan.html:1345-1350` bindet den lokalen Clear an einen Memory-bestätigten Monster-Hover.
 - **Codereferenz:** `internal/replay/deps.go:496-500`, `internal/replay/replay_deps.go:347-350`, Felddefinition in `internal/tasks/deps.go:62-65`.
 - **Abweichung:** `ChestOperateResult.BlockerUnitID` wird weder in `chest.tick` geschrieben noch beim Replay dekodiert.
 - **Folge:** Live startet nach erschöpfter Objektsuche den lokalen Clear. Replay sieht keinen Blocker, überspringt das Objekt und verbraucht die nachfolgenden `route_clear`-Calls an der falschen Stelle.
@@ -99,7 +99,7 @@ Stand nach der Nacharbeit vom 21. August 2026:
 
 ### P1. Necro wird als unterstützt angeboten, kann bei derselben Blocker-Evidenz aber den ganzen Run abbrechen
 
-- **Planreferenz:** `phase-23-implementation-plan.html:521`, `:661`, `:956-958` verlangt für beide Profile eine No-op-Strategy ohne Route-Clear. Die spätere Live-Anpassung `:1345-1350` beschreibt nur einen lokalen Hammerdin-Clear.
+- **Planreferenz:** `docs/plans/phase-23-implementation-plan.html:521`, `:661`, `:956-958` verlangt für beide Profile eine No-op-Strategy ohne Route-Clear. Die spätere Live-Anpassung `:1345-1350` beschreibt nur einen lokalen Hammerdin-Clear.
 - **Codereferenz:** `internal/app/combat_strategy_registry.go:30-39`, `internal/profile/necrobonespear/strategy.go:42-55`, `internal/app/app.go:309-312`, `internal/tasks/chest_sweep.go:370-393`, `internal/tasks/chest_sweep.go:449-460`, `internal/profile/executor.go:499-505`.
 - **Abweichung:** Der Necro nutzt `NewBossFactory("lower-kurast")`; dessen `Configure` bindet keinen Route-Clear. `tasks.Deps.RouteClear` enthält trotzdem immer den Profil-Executor. `startChestBlockerClear` prüft nur auf ein nicht-nil Interface und startet den Clear. Der Executor antwortet dann mit `route_clear_strategy_unavailable`; die Chest-Pipeline macht daraus `combat_action_failed` und bricht den Run ab.
 - **Folge:** Dieselbe verdeckte Truhe wird beim Hammerdin lokal freigekämpft, beim als unterstützt ausgewiesenen Necro kann sie den gesamten Run beenden. Das widerspricht dem vorgesehenen Skip-Verhalten nach ausgeschöpfter Objektsuche.
@@ -107,15 +107,15 @@ Stand nach der Nacharbeit vom 21. August 2026:
 
 ### P2. Drop-Wait und Pickup laufen pro Hütten-Cluster statt nach jeder Öffnung
 
-- **Planreferenz:** `phase-23-implementation-plan.html:530`, `:914-916`, `:1182-1184` fordert `wait_for_drops` nach jeder Öffnung.
+- **Planreferenz:** `docs/plans/phase-23-implementation-plan.html:530`, `:914-916`, `:1182-1184` fordert `wait_for_drops` nach jeder Öffnung.
 - **Codereferenz:** `internal/tasks/chest_sweep.go:124-133`, `internal/tasks/chest_sweep.go:247-254`, `internal/tasks/chest_select.go:205-210`.
 - **Abweichung:** Nach bestätigtem Öffnen wechselt die State-Machine auf Idle und wählt bei gesetzter `clusterChest` erst die Gestelle. Drop-Wait und Pickup beginnen erst, wenn im Cluster kein weiteres Objekt übrig ist.
-- **Begründung:** `phase-23-implementation-plan.html:883-885` beschreibt dagegen Truhe, danach Gestelle und erst dann Drop-Wait. Der Plan ist an dieser Stelle widersprüchlich. Die Feature-Dokumentation übernimmt das Cluster-Verhalten.
+- **Begründung:** `docs/plans/phase-23-implementation-plan.html:883-885` beschreibt dagegen Truhe, danach Gestelle und erst dann Drop-Wait. Der Plan ist an dieser Stelle widersprüchlich. Die Feature-Dokumentation übernimmt das Cluster-Verhalten.
 - **Vorgeschlagener Fix:** Produktentscheidung festziehen. Wenn das Gate gilt, nach jedem bestätigten Operate warten und looten, danach den Cluster fortsetzen. Wenn Cluster-Loot beabsichtigt ist, die früheren Muss-Formulierungen im Plan ändern und das Verhalten mit einem Drop-Stabilitäts-Test absichern.
 
 ### P2. `chest_skipped` umfasst auch fehlgeschlagene Gestelle
 
-- **Planreferenz:** `phase-23-implementation-plan.html:973` und `:1234-1235` trennt geöffnete oder übersprungene Truhen von bedienten Gestellen.
+- **Planreferenz:** `docs/plans/phase-23-implementation-plan.html:973` und `:1234-1235` trennt geöffnete oder übersprungene Truhen von bedienten Gestellen.
 - **Codereferenz:** `internal/tasks/chest_sweep.go:59-64`, `internal/tasks/chest_sweep.go:109-121`, `internal/telemetry/recorder.go:127-132`.
 - **Abweichung:** `abandonChest` wird für Truhen und Gestelle verwendet. Beide erzeugen `ChestSkipped`. Der Kommentar am Event bestätigt diese Vermischung.
 - **Folge:** Eine Auswertung nach Eventname kann fehlgeschlagene Rack-Klicks als übersprungene Supertruhen zählen.
@@ -123,8 +123,8 @@ Stand nach der Nacharbeit vom 21. August 2026:
 
 ### P2. Der Plan widerspricht sich beim Combat-Vertrag und beim Nähefilter
 
-- **Planreferenz Combat:** `phase-23-implementation-plan.html:521`, `:661`, `:956-958`, `:1169-1171` fordert No-op-Konfiguration. `:1345-1350` führt später lokalen Hammerdin-Kampf ein.
-- **Planreferenz Nähefilter:** `phase-23-implementation-plan.html:1192-1204` und `:1458` nennt 28/22. `:1322-1325` sowie `internal/tasks/chest_select.go:9-19` verwenden 34/32.
+- **Planreferenz Combat:** `docs/plans/phase-23-implementation-plan.html:521`, `:661`, `:956-958`, `:1169-1171` fordert No-op-Konfiguration. `:1345-1350` führt später lokalen Hammerdin-Kampf ein.
+- **Planreferenz Nähefilter:** `docs/plans/phase-23-implementation-plan.html:1192-1204` und `:1458` nennt 28/22. `:1322-1325` sowie `internal/tasks/chest_select.go:9-19` verwenden 34/32.
 - **Abweichung:** Die historischen Live-Erkenntnisse wurden ergänzt, die vorherigen Soll- und Abschlussstellen aber nicht aktualisiert.
 - **Folge:** Der aktuelle HTML-Plan kann nicht als eindeutige Abnahmequelle dienen. Je nach Abschnitt ist dieselbe Implementierung konform oder abweichend.
 - **Vorgeschlagener Fix:** Historische Werte deutlich als verworfen markieren. Die normativen Abschnitte auf lokalen, objektgebundenen Hammerdin-Clear und 34/32 aktualisieren. Außerdem festhalten, dass Necro ohne konfigurierte Recovery skippt, sofern kein eigener Necro-Clear beschlossen wird.

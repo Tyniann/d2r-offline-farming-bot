@@ -13,7 +13,7 @@ Die Phase-7-Einzelzyklusarchitektur ist historischer Kontext. Seit Phase 11 verw
 - **Konfiguration und Inspect:** `internal/config/session.go`, `internal/app/session_plan.go`
 - **Telemetrie:** `internal/telemetry/`
 - **Input- und Prozessgrenzen:** `internal/input/`, `internal/process/`
-- **Konzeptplan:** [`phase-7-implementation-plan.html`](../../phase-7-implementation-plan.html)
+- **Konzeptplan:** [`phase-7-implementation-plan.html`](../plans/phase-7-implementation-plan.html)
 
 ## Begriffe und Identitäten
 

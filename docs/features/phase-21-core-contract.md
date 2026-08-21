@@ -4,14 +4,14 @@
 
 Abschnitt 21.0 friert den CASC-Skillkatalog und den Profilvertrag für Pflichtskills sowie Combat-Metadaten ein. Es ändert weder Runtime-Skillauswahl noch OperatorSettings, Bindings oder Inventar.
 
-Detailplan: [`phase-21-implementation-plan.html`](../../phase-21-implementation-plan.html).
+Detailplan: [`phase-21-implementation-plan.html`](../plans/phase-21-implementation-plan.html).
 
 ## Ort im Code
 
 - **Skillkatalog:** `tools/generate-skill-catalog/`, `internal/memory/generate.go`, `internal/memory/skill_catalog*.go`
 - **Profilvertrag:** `internal/config/profile.go`, `configs/config.example.yaml`
 - **Feature-Doc:** [character-loadouts.md](character-loadouts.md)
-- **Detailplan:** `phase-21-implementation-plan.html`
+- **Detailplan:** `docs/plans/phase-21-implementation-plan.html`
 
 ## Status und Sequenzgrenze
 

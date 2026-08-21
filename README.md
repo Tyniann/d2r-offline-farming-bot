@@ -135,6 +135,6 @@ golangci-lint run ./...
 
 | Was | Wo |
 |-----|-----|
-| Produkt & Architektur | [`handoff.html`](handoff.html) |
+| Produkt & Architektur | [`docs/plans/handoff.html`](docs/plans/handoff.html) |
 | Feature-Docs (Index) | [`docs/features/README.md`](docs/features/README.md) |
 | Changelog | [`docs/CHANGELOG.md`](docs/CHANGELOG.md) |

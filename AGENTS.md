@@ -6,7 +6,7 @@
 - **Ansatz:** Memory Bot (Prozess lesen → World Model → Tasks → Input). Kein Pixelbot, kein Savegame-Hack, keine Spielstands-Manipulation.
 - **Scope:** Nur privater Offline-Einsatz. Kein Battle.net / Online-Modus.
 - **Status:** Backward compatibility und Legacy-Verhalten sind **keine** Ziele, außer explizit gewünscht.
-- **Referenz:** Produkt- und Architekturdetails in `handoff.html`; Feature-Docs unter `docs/features/`; Changelog in `docs/CHANGELOG.md`.
+- **Referenz:** Produkt- und Architekturdetails in `docs/plans/handoff.html`; Feature-Docs unter `docs/features/`; Changelog in `docs/CHANGELOG.md`.
 
 ## Tech stack
 - **Language / runtime:** Go 1.26+, Zielplattform **Windows** (`GOOS=windows`).
@@ -79,7 +79,7 @@ Dokumentation und UI-facing Strings müssen ordentliches Deutsch und Umlaute ver
 Der Auftrag `Release [X.Y.Z|patch|minor|major]` autorisiert den vollständigen Releaseflow; fehlt die Version, nach SemVer aus `Unreleased` ableiten und nur bei echter Mehrdeutigkeit nachfragen. Keine GitHub Actions.
 
 1. Diff, Branch, `origin` und GitHub-Account prüfen; keine unerwarteten oder lokalen Dateien veröffentlichen.
-2. Version und Release-Datum in Code, Changelog, README, `handoff.html` und betroffenen Paketmetadaten konsistent aktualisieren; aus dem Changelog eine verständliche GitHub-Beschreibung erstellen.
+2. Version und Release-Datum in Code, Changelog, README, `docs/plans/handoff.html` und betroffenen Paketmetadaten konsistent aktualisieren; aus dem Changelog eine verständliche GitHub-Beschreibung erstellen.
 3. Alle vorgesehenen Release-Änderungen einschließlich Metadaten committen und `scripts/build-release.ps1 -Version X.Y.Z` genau einmal ohne Skip-Schalter auf diesem Commit ausführen.
 4. Nur bei grüner Pipeline Installer und SHA-256-Datei gemeinsam als `D2R-Offline-Farming-Bot-X.Y.Z-Windows-x64.zip` packen, Commit pushen, annotierten Tag `vX.Y.Z` pushen, mit `gh release create` samt ZIP veröffentlichen und als latest markieren.
 5. Tag, Releasebeschreibung, Assetname und Prüfsummen abschließend verifizieren. Bei Fehler vor Tag/Publish stoppen; nach teilweisem Publish Zustand prüfen und idempotent fortsetzen statt doppelt anzulegen.
@@ -95,7 +95,7 @@ Diese Regel definiert, wann und wie **Feature-Dokumentation** (Architektur & Ver
 | **Code** | Godoc an exportierten Go-Symbolen | API, Parameter, Warum/Wann |
 | **Feature** | `docs/features/*.md` | Modul-Verhalten, Datenfluss, Config, Grenzen |
 
-Produktkontext und Gesamtarchitektur: `handoff.html`.
+Produktkontext und Gesamtarchitektur: `docs/plans/handoff.html`.
 
 ### 1. Wann dokumentieren?
 

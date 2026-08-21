@@ -4,7 +4,7 @@
 
 Abschnitt 18.0 friert die Baseline und den live bestätigten read-only Merc-Evidenzvertrag ein. Abschnitt 18.1 integriert diesen Vertrag in den produktiven Memory-Snapshot und das World Model. Es gibt weiterhin weder Merc-Input noch Town-Heal/Revive oder Shift+Belt.
 
-Detailplan: [`phase-18-implementation-plan.html`](../../phase-18-implementation-plan.html).
+Detailplan: [`phase-18-implementation-plan.html`](../plans/phase-18-implementation-plan.html).
 
 ## Ort im Code
 
@@ -12,7 +12,7 @@ Detailplan: [`phase-18-implementation-plan.html`](../../phase-18-implementation-
 - **Diagnose-CLI:** `internal/app/mercenary_probe.go`, Flag `--mercenary-probe`
 - **Artefakte:** `diagnostics/mercenary/` (gitignored)
 - **Vertrag:** diese Datei
-- **Detailplan:** `phase-18-implementation-plan.html`
+- **Detailplan:** `docs/plans/phase-18-implementation-plan.html`
 
 ## Status und Sequenzgrenze
 
@@ -45,8 +45,8 @@ Vor dem ersten Phase-18-Code stand der Worktree so:
 | `.cursor/rules/00-d2rbot-project.mdc` | Operator / bestehende lokale Änderung |
 | `AGENTS.md` | Operator / bestehende lokale Änderung |
 | `docs/CHANGELOG.md` | bereits Plan-Eintrag Phase 18 |
-| `handoff.html` | bereits Phase-18-Zielbeschreibung |
-| `phase-18-implementation-plan.html` | neuer Plan (untracked) |
+| `docs/plans/handoff.html` | bereits Phase-18-Zielbeschreibung |
+| `docs/plans/phase-18-implementation-plan.html` | neuer Plan (untracked) |
 
 Phase-18-Code ändert ausschließlich die für 18.0 vorgesehenen Dateien und Docs. Operator-eigene Dateien werden nicht zurückgesetzt.
 

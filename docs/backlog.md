@@ -2,7 +2,7 @@
 
 Sammlung von **späteren** Ideen und Verbesserungen — keine verbindliche Roadmap.
 Implementierte Features landen in `docs/features/` und `docs/CHANGELOG.md`.
-Die verbindliche Phasenfolge 0–15 steht in [`handoff.html`](../handoff.html). Aktbewusste Town Services sind Phase 9; GUI, Routenverwaltung, Pickit-Editor und Statistiken folgen in den Phasen 11–14.
+Die verbindliche Phasenfolge 0–15 steht in [`handoff.html`](plans/handoff.html). Aktbewusste Town Services sind Phase 9; GUI, Routenverwaltung, Pickit-Editor und Statistiken folgen in den Phasen 11–14.
 
 **Status-Legende:** `idea` → `planned` → `in_progress` → `done` (dann hier entfernen oder nach `done` verschieben)
 

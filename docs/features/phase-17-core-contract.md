@@ -15,7 +15,7 @@ Phase 17 schützt ausschließlich den produktiven Summoner-Full-Run und `--run s
 - **Ressourcenkontext:** `internal/profile/phase17_contract.go`
 - **Vertragstests:** `internal/tasks/phase17_contract_test.go`
 - **Produktiver Einstieg ab 17.3:** `internal/tasks/run_pipeline.go` im Step `play_bound_route`
-- **Detailplan:** `phase-17-implementation-plan.html`
+- **Detailplan:** `docs/plans/phase-17-implementation-plan.html`
 
 ## Status und Sequenzgrenze
 
