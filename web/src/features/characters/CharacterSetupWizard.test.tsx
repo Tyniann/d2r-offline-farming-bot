@@ -1,6 +1,7 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { CatalogDTO, StatusDTO } from "../../api/generated";
+import { apiError } from "../../test/apiError";
 import { CharacterSetupWizard } from "./CharacterSetupWizard";
 
 const mocks = vi.hoisted(() => ({
@@ -41,7 +42,7 @@ const catalog = {
     { name: "MrBones", slug: "mrbones", selectable: true, farm_ready: false, farm_ready_reasons: ["profile_bindings_incomplete"] },
     { name: "MrSpare", slug: "mrspare", selectable: false, reasons: ["character_profile_missing"] },
   ],
-  difficulties: [{ id: "nightmare", display_name: "Alptraum" }],
+  difficulties: [{ id: "nightmare" }],
   profiles: [{ id: "necro_bone_spear", character_class: "necromancer" }],
   runs: [],
 } as CatalogDTO;
@@ -86,7 +87,7 @@ describe("CharacterSetupWizard", () => {
     render(<CharacterSetupWizard character="MrSpare" catalog={catalog} status={status} mode="dashboard" />);
     expect(await screen.findByRole("heading", { name: /MrSpare/ })).toBeInTheDocument();
     expect(screen.getByText("Kampfprofil festlegen")).toBeInTheDocument();
-    expect(screen.getByRole("combobox")).toHaveDisplayValue(/Knochen-Speer/);
+    expect(screen.getByRole("combobox")).toHaveDisplayValue(/Knochen-Totenbeschwörer/);
     fireEvent.click(screen.getByRole("button", { name: "Profil und Lootprofile bestätigen" }));
     await waitFor(() => expect(mocks.confirm).toHaveBeenCalledWith(expect.objectContaining({ character: "MrSpare", profile_id: "necro_bone_spear" })));
   });
@@ -158,9 +159,9 @@ describe("CharacterSetupWizard", () => {
     expect(screen.getByText("LMB")).toBeInTheDocument();
     expect(screen.getByText(/Seine Ausrüstung wird nicht geprüft/)).toBeInTheDocument();
 
-    mocks.save.mockRejectedValueOnce(new Error("Für Call to Arms müssen Battle Command und Battle Orders beide belegt sein."));
-    fireEvent.change(screen.getByLabelText("Battle Command Taste"), { target: { value: "f4" } });
+    mocks.save.mockRejectedValueOnce(apiError("character_setup_write_failed"));
+    fireEvent.change(screen.getByLabelText("Kampfaufruf Taste"), { target: { value: "f4" } });
     fireEvent.click(screen.getByRole("button", { name: "Tasten speichern" }));
-    expect(await screen.findByRole("alert")).toHaveTextContent("Für Call to Arms müssen Battle Command und Battle Orders beide belegt sein.");
+    expect(await screen.findByRole("alert")).toHaveTextContent("Die Einstellungen sind unvollständig oder ungültig.");
   });
 });

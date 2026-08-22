@@ -1,6 +1,8 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { OperatorSettingsChangeDTO, OperatorSettingsDTO } from "../../api/generated";
+import { changeAppLanguage } from "../../i18n";
+import { apiError } from "../../test/apiError";
 import { SettingsFeature } from "./SettingsFeature";
 
 const mocks = vi.hoisted(() => ({
@@ -38,7 +40,8 @@ const operator: OperatorSettingsDTO = {
 };
 
 describe("SettingsFeature", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
+    await changeAppLanguage("de");
     vi.clearAllMocks();
     mocks.get.mockResolvedValue(operator);
     mocks.getRunAvailabilities.mockResolvedValue({
@@ -78,6 +81,16 @@ describe("SettingsFeature", () => {
     };
   });
   afterEach(() => { cleanup(); delete window.d2rDesktop; });
+
+  it("rendert die repräsentative Einstellungsoberfläche auf Englisch", async () => {
+    await changeAppLanguage("en");
+    render(<SettingsFeature generation={12} coreState="idle" characters={["mrbones"]} runs={defaultRuns()} events={[]} />);
+
+    expect(await screen.findByRole("tablist", { name: "Settings sections" })).toBeInTheDocument();
+    for (const label of ["Farming", "Characters", "App", "Maintenance"]) {
+      expect(screen.getByRole("tab", { name: label })).toBeInTheDocument();
+    }
+  });
 
   it("speichert Farming-Änderungen über Speichern und meldet Dirty-State", async () => {
     const changed = change({ ...operator, revision: 5, input: { ...operator.input, pause_hotkey: "f8" } }, ["input.pause_hotkey"], true);
@@ -125,7 +138,7 @@ describe("SettingsFeature", () => {
 
   it("zeigt Resetvorschau und einen stale Revision-Konflikt persistent", async () => {
     mocks.previewReset.mockResolvedValue(change({ ...operator, revision: 5 }, ["budgets.max_runs"], false));
-    mocks.restore.mockRejectedValue(new Error("Die Einstellungen wurden zwischenzeitlich geändert."));
+    mocks.restore.mockRejectedValue(apiError("config_revision_conflict"));
     renderFeature();
     fireEvent.click(await screen.findByRole("button", { name: "Auf sichere Standardwerte zurücksetzen" }));
     expect(await screen.findByRole("dialog", { name: "Sichere Standardwerte anwenden?" })).toBeInTheDocument();
@@ -222,10 +235,10 @@ describe("SettingsFeature", () => {
     const catalog = await screen.findByRole("heading", { name: "Verfügbare Runs" });
     const pane = catalog.closest(".settings-queue-pane");
     expect(pane).toBeTruthy();
-    await waitFor(() => expect(within(pane as HTMLElement).getByRole("button", { name: "+ Summoner" })).toBeEnabled());
+    await waitFor(() => expect(within(pane as HTMLElement).getByRole("button", { name: "+ Beschwörer" })).toBeEnabled());
     expect(within(pane as HTMLElement).getByRole("button", { name: "+ Nihlathak" })).toBeEnabled();
-    fireEvent.click(within(pane as HTMLElement).getByRole("button", { name: "+ Summoner" }));
-    expect(screen.getByText("Summoner")).toBeInTheDocument();
+    fireEvent.click(within(pane as HTMLElement).getByRole("button", { name: "+ Beschwörer" }));
+    expect(screen.getByText("Beschwörer")).toBeInTheDocument();
 
     const nihlathakRow = within(pane as HTMLElement).getByRole("button", { name: "+ Nihlathak" }).closest("li");
     const dropPane = screen.getByTestId("queue-drop-pane");
@@ -253,8 +266,8 @@ describe("SettingsFeature", () => {
     const dropPane = await screen.findByTestId("queue-drop-pane");
     const transfer = { getData: (type: string) => type === "text/plain" ? "add:summoner" : "", dropEffect: "copy", effectAllowed: "copy", types: ["text/plain"] };
     fireEvent.drop(dropPane, { dataTransfer: transfer });
-    expect(screen.queryByRole("button", { name: "+ Summoner" })).toBeDisabled();
-    expect(within(dropPane).queryByText("Summoner")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "+ Beschwörer" })).toBeDisabled();
+    expect(within(dropPane).queryByText("Beschwörer")).not.toBeInTheDocument();
   });
 
   it("zeigt Katalog-Namen ohne Live-Availability wenn der Run-Fetch fehlschlägt", async () => {
@@ -262,7 +275,7 @@ describe("SettingsFeature", () => {
     renderFeature();
     const catalog = await screen.findByRole("heading", { name: "Verfügbare Runs" });
     const pane = catalog.closest(".settings-queue-pane");
-    expect(within(pane as HTMLElement).getByRole("button", { name: "+ Summoner" })).toBeDisabled();
+    expect(within(pane as HTMLElement).getByRole("button", { name: "+ Beschwörer" })).toBeDisabled();
     expect(within(pane as HTMLElement).getByRole("button", { name: "+ Nihlathak" })).toBeDisabled();
   });
 
@@ -271,7 +284,7 @@ describe("SettingsFeature", () => {
     const dropPane = await screen.findByTestId("queue-drop-pane");
     const rows = within(dropPane).getAllByRole("listitem");
     expect(rows).toHaveLength(2);
-    expect(within(rows[0]).getByText("Countess")).toBeInTheDocument();
+    expect(within(rows[0]).getByText("Gräfin")).toBeInTheDocument();
     expect(within(rows[1]).getByText("Mephisto")).toBeInTheDocument();
 
     const transfer = {
@@ -288,7 +301,7 @@ describe("SettingsFeature", () => {
 
     const reordered = within(dropPane).getAllByRole("listitem");
     expect(within(reordered[0]).getByText("Mephisto")).toBeInTheDocument();
-    expect(within(reordered[1]).getByText("Countess")).toBeInTheDocument();
+    expect(within(reordered[1]).getByText("Gräfin")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Speichern" })).toBeEnabled();
   });
 

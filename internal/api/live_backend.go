@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"sync"
 	"time"
@@ -104,25 +105,16 @@ func (b *LiveBackend) evaluateQueueLoadout(character string) error {
 	profiles := b.cfg.Profiles
 	b.mu.RUnlock()
 	if store == nil {
-		return &commandError{code: string(app.QueueReasonProfileBindingsIncomplete), message: "Für dieses Kampfprofil fehlen Tastenbelegungen."}
+		return &commandError{code: string(app.QueueReasonProfileBindingsIncomplete)}
 	}
 	settings, err := store.Snapshot()
 	if err != nil {
 		return err
 	}
 	if reasons := app.EvaluateLoadoutReadiness(settings, character, profiles); len(reasons) > 0 {
-		return &commandError{code: reasons[0], message: loadoutReasonMessage(reasons[0])}
+		return &commandError{code: reasons[0]}
 	}
 	return nil
-}
-
-func loadoutReasonMessage(code string) string {
-	switch code {
-	case string(app.QueueReasonCharacterInventoryUnconfigured):
-		return "Der Inventarschutz wurde noch nicht bestätigt."
-	default:
-		return "Für dieses Kampfprofil fehlen Tastenbelegungen."
-	}
 }
 
 func (b *LiveBackend) queueLoadoutWarnings(character string, runIDs []string) []string {
@@ -279,7 +271,7 @@ func (b *LiveBackend) UpdateRuntime(runtime app.UIStatusSnapshot) {
 		b.status.ActiveRunID = runtime.RunID
 	}
 	if runtime.LastError != "" {
-		b.status.LastError = &ErrorDTO{Code: "runtime_read_failed", Message: runtime.LastError}
+		b.status.LastError = &ProblemDTO{Code: "runtime_read_failed"}
 	} else if b.status.LastError != nil && b.status.LastError.Code == "runtime_read_failed" {
 		b.status.LastError = nil
 	}
@@ -317,11 +309,7 @@ func (b *LiveBackend) UpdateSupervisor(supervisor app.SupervisorSnapshot) {
 		b.status.LastResult = &SessionResultDTO{Disposition: string(supervisor.LastResult.Disposition), Reason: supervisor.LastResult.Reason}
 	}
 	if supervisor.LastResult.Reason != "" && supervisor.State == app.SupervisorStateStoppedError {
-		message := supervisor.LastResult.Reason
-		if detail := strings.TrimSpace(supervisor.LastResult.Detail); detail != "" {
-			message = detail
-		}
-		b.status.LastError = &ErrorDTO{Code: supervisor.LastResult.Reason, Message: message}
+		b.status.LastError = &ProblemDTO{Code: supervisor.LastResult.Reason}
 	} else if b.status.LastError != nil && b.status.LastError.Code == "session_stopped" {
 		b.status.LastError = nil
 	}
@@ -350,7 +338,7 @@ func (b *LiveBackend) Update(runtime app.UIStatusSnapshot, supervisor app.Superv
 		status.Queue.DefaultEntries = append(make([]string, 0, len(previous.Queue.DefaultEntries)), previous.Queue.DefaultEntries...)
 	}
 	if runtime.LastError != "" {
-		status.LastError = &ErrorDTO{Code: "runtime_read_failed", Message: runtime.LastError}
+		status.LastError = &ProblemDTO{Code: "runtime_read_failed"}
 	}
 	b.status = status
 	b.mu.Unlock()
@@ -396,10 +384,10 @@ func (b *LiveBackend) publishStatusDeltas(previous, status StatusDTO) {
 		b.publisher.Publish(telemetry.LiveEvent{Event: "world_state_changed", Details: map[string]any{"valid": status.World.Valid, "phase": status.World.Phase}})
 	}
 	if !equalRunProgress(previous.RunProgress, status.RunProgress) && status.RunProgress != nil {
-		b.publisher.Publish(telemetry.LiveEvent{Event: "run_progress_changed", GameID: status.GameID, RunID: status.RunInstanceID, Run: status.ActiveRunID, Details: map[string]any{"label": status.RunProgress.Label, "current": status.RunProgress.Current, "total": status.RunProgress.Total}})
+		b.publisher.Publish(telemetry.LiveEvent{Event: "run_progress_changed", GameID: status.GameID, RunID: status.RunInstanceID, Run: status.ActiveRunID, Details: map[string]any{"stage_code": status.RunProgress.StageCode, "params": status.RunProgress.Params, "current": status.RunProgress.Current, "total": status.RunProgress.Total}})
 	}
-	if status.LastError != nil && (previous.LastError == nil || previous.LastError.Message != status.LastError.Message) {
-		b.publisher.Publish(telemetry.LiveEvent{Event: "runtime_error", Reason: status.LastError.Code, Details: map[string]any{"message": status.LastError.Message}})
+	if status.LastError != nil && (previous.LastError == nil || previous.LastError.Code != status.LastError.Code || !reflect.DeepEqual(previous.LastError.Params, status.LastError.Params)) {
+		b.publisher.Publish(telemetry.LiveEvent{Event: "runtime_error", Reason: status.LastError.Code, Details: status.LastError.Params})
 	}
 	if previous.LastError != nil && status.LastError == nil {
 		b.publisher.Publish(telemetry.LiveEvent{Event: "runtime_error_cleared"})
@@ -410,17 +398,17 @@ func (b *LiveBackend) publishStatusDeltas(previous, status StatusDTO) {
 }
 
 func runProgressDTO(progress *tasks.RunProgress) *RunProgressDTO {
-	if progress == nil || progress.Label == "" || progress.Total < 1 || progress.Current < 1 || progress.Current > progress.Total {
+	if progress == nil || progress.StageCode == "" || progress.Total < 1 || progress.Current < 1 || progress.Current > progress.Total {
 		return nil
 	}
-	return &RunProgressDTO{Label: progress.Label, Current: progress.Current, Total: progress.Total}
+	return &RunProgressDTO{StageCode: progress.StageCode, Params: progress.Params, Current: progress.Current, Total: progress.Total}
 }
 
 func equalRunProgress(left, right *RunProgressDTO) bool {
 	if left == nil || right == nil {
 		return left == nil && right == nil
 	}
-	return *left == *right
+	return reflect.DeepEqual(left, right)
 }
 
 // History refreshes JSONL and returns one defensive analyzer generation.
@@ -492,7 +480,7 @@ func (b *LiveBackend) ValidateQueue(request QueueValidationRequest) (QueueValida
 	workflowState := b.routeWorkflow.State
 	b.mu.RUnlock()
 	if routeWorkflowBusy(workflowState) {
-		return QueueValidationDTO{}, &commandError{code: "command_conflict", message: "Die Queue ist während eines Routen-Workflows gesperrt."}
+		return QueueValidationDTO{}, &commandError{code: "command_conflict", params: map[string]any{"operation": "queue_validation"}}
 	}
 	plan, err := app.ValidateFarmQueue(b.cfg, app.FarmQueueValidationRequest{
 		RunIDs: append([]string(nil), request.Entries...), Character: request.Character,
@@ -505,7 +493,7 @@ func (b *LiveBackend) ValidateQueue(request QueueValidationRequest) (QueueValida
 		}
 		var supervisorErr *app.SupervisorCommandError
 		if errors.As(err, &supervisorErr) {
-			return QueueValidationDTO{}, &commandError{code: string(supervisorErr.Code), message: "Der Charakterkatalog hat sich geändert. Seite aktualisieren."}
+			return QueueValidationDTO{}, &commandError{code: string(supervisorErr.Code), cause: fmt.Errorf("validate queue: %w", err)}
 		}
 		return QueueValidationDTO{}, err
 	}
@@ -587,24 +575,24 @@ func (b *LiveBackend) PreviewSelection(request SelectionPreviewRequest) (Selecti
 	difficulties := append([]DifficultyCatalogEntry(nil), b.catalog.Difficulties...)
 	b.mu.RUnlock()
 	if routeWorkflowBusy(routeState) {
-		return SelectionPreviewDTO{}, &commandError{code: "command_conflict", message: "Die Auswahl ist während eines Routen-Workflows gesperrt."}
+		return SelectionPreviewDTO{}, &commandError{code: "command_conflict", params: map[string]any{"operation": "selection"}}
 	}
 	if request.CatalogRevision != catalogRevision {
-		return SelectionPreviewDTO{}, &commandError{code: "state_changed", message: "Der Katalog hat sich geändert."}
+		return SelectionPreviewDTO{}, &commandError{code: "state_changed"}
 	}
 	if state != string(app.SupervisorStateIdle) && state != string(app.SupervisorStateIdleInGame) {
-		return SelectionPreviewDTO{}, &commandError{code: "command_conflict", message: "Die Auswahl ist während einer aktiven Aktion gesperrt."}
+		return SelectionPreviewDTO{}, &commandError{code: "command_conflict", params: map[string]any{"operation": "selection"}}
 	}
 	entry, ok := b.bootstrap.character(request.Character)
 	if !ok || !entry.Selectable || entry.CombatProfile == "" {
-		return SelectionPreviewDTO{}, &commandError{code: app.CharacterReasonProfileMissing, message: "Der Charakter ist noch nicht vollständig eingerichtet."}
+		return SelectionPreviewDTO{}, &commandError{code: app.CharacterReasonProfileMissing}
 	}
 	if !knownDifficulty(difficulties, request.Difficulty) {
-		return SelectionPreviewDTO{}, &commandError{code: "request_invalid", message: "Die Schwierigkeit ist ungültig."}
+		return SelectionPreviewDTO{}, &commandError{code: "request_invalid", params: map[string]any{"field": "difficulty"}}
 	}
 	preview, err := b.lifecycle.Preview(entry.Name, request.Difficulty)
 	if err != nil {
-		return SelectionPreviewDTO{}, &commandError{code: lifecycleErrorCode(err), message: "Der Routen-Lifecycle konnte nicht sicher gelesen werden: " + err.Error()}
+		return SelectionPreviewDTO{}, &commandError{code: lifecycleErrorCode(err), cause: fmt.Errorf("read route lifecycle for selection preview: %w", err)}
 	}
 	token, err := randomToken(32)
 	if err != nil {
@@ -652,11 +640,11 @@ func (b *LiveBackend) applySelectionCommand(request CommandRequest) (CommandResp
 	}
 	if request.ExpectedGeneration != b.status.Generation || (b.status.State != string(app.SupervisorStateIdle) && b.status.State != string(app.SupervisorStateIdleInGame)) {
 		b.mu.Unlock()
-		return CommandResponse{}, &commandError{code: "state_changed", message: "Der Core-Zustand hat sich geändert."}
+		return CommandResponse{}, &commandError{code: "state_changed"}
 	}
 	if routeWorkflowBusy(b.routeWorkflow.State) {
 		b.mu.Unlock()
-		return CommandResponse{}, &commandError{code: "command_conflict", message: "Die Auswahl ist während eines Routen-Workflows gesperrt."}
+		return CommandResponse{}, &commandError{code: "command_conflict", params: map[string]any{"operation": "selection"}}
 	}
 	var payload struct {
 		Character         string `json:"character"`
@@ -668,7 +656,7 @@ func (b *LiveBackend) applySelectionCommand(request CommandRequest) (CommandResp
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(&payload); err != nil {
 		b.mu.Unlock()
-		return CommandResponse{}, &commandError{code: "request_invalid", message: "Die Auswahl ist ungültig."}
+		return CommandResponse{}, &commandError{code: "request_invalid", params: map[string]any{"field": "selection"}}
 	}
 	entry, ok := b.bootstrap.character(payload.Character)
 	previewRecord, previewOK := b.previews[payload.ConfirmationToken]
@@ -676,24 +664,21 @@ func (b *LiveBackend) applySelectionCommand(request CommandRequest) (CommandResp
 		previewRecord.dto.Character != entry.Name || previewRecord.dto.NewDifficulty != payload.Difficulty ||
 		previewRecord.dto.CatalogRevision != payload.CatalogRevision || payload.CatalogRevision != b.catalog.Revision {
 		b.mu.Unlock()
-		return CommandResponse{}, &commandError{code: "selection_confirmation_invalid", message: "Die Auswahlvorschau fehlt oder ist veraltet."}
+		return CommandResponse{}, &commandError{code: "selection_confirmation_invalid"}
 	}
 	if !b.status.Input.Enabled || b.status.Input.Paused || b.status.Input.Stopped {
 		b.mu.Unlock()
-		return CommandResponse{}, &commandError{
-			code:    "input_not_ready",
-			message: "Gameplay-Input ist im laufenden Core nicht freigegeben. Gehe im Assistenten zum Schritt „Input“, aktiviere die Freigabe und warte den kontrollierten Core-Neustart ab.",
-		}
+		return CommandResponse{}, &commandError{code: "input_not_ready"}
 	}
 	manifest, _, lifecycleErr := b.lifecycle.Snapshot()
 	if lifecycleErr != nil || manifest.Revision != previewRecord.dto.LifecycleRevision {
 		b.mu.Unlock()
-		return CommandResponse{}, &commandError{code: "selection_confirmation_invalid", message: "Der Routen-Lifecycle hat sich seit der Vorschau geändert."}
+		return CommandResponse{}, &commandError{code: "selection_confirmation_invalid"}
 	}
 	handler := b.selection
 	if handler == nil {
 		b.mu.Unlock()
-		return CommandResponse{}, &commandError{code: "request_invalid", message: "Die Charakterauswahl ist nicht verfügbar."}
+		return CommandResponse{}, &commandError{code: "request_invalid", params: map[string]any{"field": "selection_handler"}}
 	}
 	characterCount := len(b.catalog.Characters)
 	b.status.State = string(app.SupervisorStateActivatingSelection)
@@ -720,18 +705,18 @@ func (b *LiveBackend) applySelectionCommand(request CommandRequest) (CommandResp
 	b.mu.Lock()
 	if err != nil {
 		b.status.State = string(app.SupervisorStateIdle)
-		b.status.LastError = &ErrorDTO{Code: "character_selection_unconfirmed", Message: err.Error()}
+		b.status.LastError = &ProblemDTO{Code: "character_selection_unconfirmed"}
 	} else if commitErr != nil {
 		b.status.State = string(app.SupervisorStateIdleInGame)
-		b.status.LastError = &ErrorDTO{Code: lifecycleErrorCode(commitErr), Message: commitErr.Error()}
+		b.status.LastError = &ProblemDTO{Code: lifecycleErrorCode(commitErr)}
 	} else {
 		b.status.State = string(app.SupervisorStateIdleInGame)
 		if settingsErr != nil {
-			b.status.LastError = &ErrorDTO{Code: "selection_persistence_failed", Message: settingsErr.Error()}
+			b.status.LastError = &ProblemDTO{Code: "selection_persistence_failed"}
 		} else if refreshErr == nil {
 			b.status.LastError = nil
 		} else {
-			b.status.LastError = &ErrorDTO{Code: "run_catalog_refresh_failed", Message: refreshErr.Error()}
+			b.status.LastError = &ProblemDTO{Code: "run_catalog_refresh_failed"}
 		}
 		b.status.Selection = SelectionStatusDTO{Character: entry.Name, Difficulty: payload.Difficulty}
 		b.cfg.Session.Character = entry.Name
@@ -760,37 +745,20 @@ func (b *LiveBackend) applySelectionCommand(request CommandRequest) (CommandResp
 	b.publisher.Publish(telemetry.LiveEvent{Event: "supervisor_state_changed", Details: map[string]any{"state": response.State, "generation": response.Generation}})
 	if err != nil {
 		b.publisher.Publish(telemetry.LiveEvent{Event: "selection_failed", Reason: "character_selection_unconfirmed", Details: map[string]any{"character": entry.Name, "difficulty": payload.Difficulty}})
-		return response, &commandError{code: "character_selection_unconfirmed", message: characterSelectionFailureMessage(err)}
+		return response, &commandError{code: "character_selection_unconfirmed", cause: fmt.Errorf("confirm character selection: %w", err)}
 	}
 	if commitErr != nil {
 		b.publisher.Publish(telemetry.LiveEvent{Event: "selection_lifecycle_failed", Reason: lifecycleErrorCode(commitErr), Details: map[string]any{"character": entry.Name, "difficulty": payload.Difficulty}})
-		return response, &commandError{code: lifecycleErrorCode(commitErr), message: "Die Auswahl wurde im Spiel bestätigt, aber der Routen-Lifecycle konnte nicht atomisch gespeichert werden. Farming bleibt gesperrt: " + commitErr.Error()}
+		return response, &commandError{code: lifecycleErrorCode(commitErr), cause: fmt.Errorf("commit route lifecycle after character selection: %w", commitErr)}
 	}
 	if refreshErr != nil {
-		b.publisher.Publish(telemetry.LiveEvent{Event: "runtime_error", Reason: "run_catalog_refresh_failed", Details: map[string]any{"message": refreshErr.Error()}})
+		b.publisher.Publish(telemetry.LiveEvent{Event: "runtime_error", Reason: "run_catalog_refresh_failed"})
 	}
 	if settingsErr != nil {
-		b.publisher.Publish(telemetry.LiveEvent{Event: "runtime_error", Reason: "selection_persistence_failed", Details: map[string]any{"message": settingsErr.Error()}})
+		b.publisher.Publish(telemetry.LiveEvent{Event: "runtime_error", Reason: "selection_persistence_failed"})
 	}
 	b.publisher.Publish(telemetry.LiveEvent{Event: "selection_completed", Reason: response.State, Details: map[string]any{"character": entry.Name, "difficulty": payload.Difficulty}})
 	return response, nil
-}
-
-func characterSelectionFailureMessage(err error) string {
-	if err == nil {
-		return "Die Charakterauswahl konnte nicht sicher bestätigt werden."
-	}
-	text := err.Error()
-	if strings.Contains(text, "no usable client area") {
-		return "Das D2R-Fenster hat keine nutzbare Fläche. Stelle Fenster-Modus 1280 × 720 ein und lass das Fenster sichtbar, nicht minimiert."
-	}
-	if strings.Contains(text, "character selection timeout") {
-		return "Der Charakterbildschirm wurde nicht sicher erkannt. D2R muss auf dem Offline-Charakterbildschirm bei 1280 × 720 stehen, und der gewünschte Save muss sichtbar markiert sein."
-	}
-	if strings.Contains(text, "target anchor not found") {
-		return "Der Charakter wurde auf dem Auswahlbildschirm nicht gefunden. Prüfe 1280 × 720 und den markierten Save."
-	}
-	return "Die Charakterauswahl konnte nicht sicher bestätigt werden."
 }
 
 func (b *LiveBackend) sessionCommand(name string, request CommandRequest) (CommandResponse, error) {
@@ -816,16 +784,16 @@ func (b *LiveBackend) sessionCommand(name string, request CommandRequest) (Comma
 	routeState := b.routeWorkflow.State
 	b.mu.RUnlock()
 	if routeWorkflowBusy(routeState) {
-		return CommandResponse{}, &commandError{code: "command_conflict", message: "Session-Befehle sind während eines Routen-Workflows gesperrt."}
+		return CommandResponse{}, &commandError{code: "command_conflict", params: map[string]any{"operation": "session"}}
 	}
 	if (name == "start_queue" || name == "resume") && compatibility.State != string(app.D2RCompatibilityCompatible) {
 		return CommandResponse{}, compatibilityCommandError(compatibility)
 	}
 	if request.ExpectedGeneration != statusGeneration {
-		return CommandResponse{}, &commandError{code: string(app.SupervisorReasonStateChanged), message: "Der Core-Zustand hat sich geändert."}
+		return CommandResponse{}, &commandError{code: string(app.SupervisorReasonStateChanged)}
 	}
 	if supervisor == nil {
-		return CommandResponse{}, &commandError{code: "request_invalid", message: "Die Session-Steuerung ist nicht verfügbar."}
+		return CommandResponse{}, &commandError{code: "request_invalid", params: map[string]any{"field": "session_supervisor"}}
 	}
 	meta := app.SupervisorCommandMeta{CommandID: request.CommandID, ExpectedGeneration: supervisor.Snapshot().Generation}
 	var (
@@ -836,7 +804,7 @@ func (b *LiveBackend) sessionCommand(name string, request CommandRequest) (Comma
 	case "start_queue":
 		var payload SessionStartPayload
 		if decodeErr := decodeCommandPayload(request.Payload, &payload); decodeErr != nil {
-			return CommandResponse{}, &commandError{code: "request_invalid", message: "Die Queue-Startdaten sind ungültig."}
+			return CommandResponse{}, &commandError{code: "request_invalid", params: map[string]any{"field": "payload"}, cause: fmt.Errorf("decode queue start payload: %w", decodeErr)}
 		}
 		_, freshRevision, contractErr := b.validateDesktopCharacterContract(payload.Character, payload.Entries)
 		if contractErr != nil {
@@ -853,7 +821,7 @@ func (b *LiveBackend) sessionCommand(name string, request CommandRequest) (Comma
 		}
 		if beforeWorker != nil {
 			if monitorErr := beforeWorker(); monitorErr != nil {
-				return CommandResponse{}, &commandError{code: "command_conflict", message: "Der passive Monitor konnte vor dem Queue-Start nicht beendet werden: " + monitorErr.Error()}
+				return CommandResponse{}, &commandError{code: "command_conflict", params: map[string]any{"operation": "start_queue"}, cause: fmt.Errorf("stop passive monitor before queue start: %w", monitorErr)}
 			}
 		}
 		if beginQueue != nil {
@@ -861,40 +829,40 @@ func (b *LiveBackend) sessionCommand(name string, request CommandRequest) (Comma
 				// Loadout readiness already passed; freeze/resolve failures must not be
 				// papered over as profile_bindings_incomplete.
 				return CommandResponse{}, &commandError{
-					code:    "command_conflict",
-					message: "Der Charakter-Loadout für die Queue konnte nicht eingefroren werden.",
-					details: map[string]any{"error": beginErr.Error()},
+					code:   "command_conflict",
+					params: map[string]any{"operation": "freeze_loadout"},
+					cause:  fmt.Errorf("freeze character loadout for queue: %w", beginErr),
 				}
 			}
 		}
 		snapshot, err = supervisor.StartQueue(meta, plan)
 	case "pause_after_run":
 		if !emptyCommandPayload(request.Payload) {
-			return CommandResponse{}, &commandError{code: "request_invalid", message: "Pause-after-run akzeptiert keine Nutzdaten."}
+			return CommandResponse{}, &commandError{code: "request_invalid", params: map[string]any{"field": "payload"}}
 		}
 		snapshot, err = supervisor.PauseAfterRun(meta)
 	case "stop_after_run":
 		if !emptyCommandPayload(request.Payload) {
-			return CommandResponse{}, &commandError{code: "request_invalid", message: "Stop-after-run akzeptiert keine Nutzdaten."}
+			return CommandResponse{}, &commandError{code: "request_invalid", params: map[string]any{"field": "payload"}}
 		}
 		snapshot, err = supervisor.StopAfterRun(meta)
 	case "resume":
 		if !emptyCommandPayload(request.Payload) {
-			return CommandResponse{}, &commandError{code: "request_invalid", message: "Resume akzeptiert keine Nutzdaten."}
+			return CommandResponse{}, &commandError{code: "request_invalid", params: map[string]any{"field": "payload"}}
 		}
 		if beforeWorker != nil {
 			if monitorErr := beforeWorker(); monitorErr != nil {
-				return CommandResponse{}, &commandError{code: "command_conflict", message: "Der passive Monitor konnte vor Resume nicht beendet werden: " + monitorErr.Error()}
+				return CommandResponse{}, &commandError{code: "command_conflict", params: map[string]any{"operation": "resume"}, cause: fmt.Errorf("stop passive monitor before resume: %w", monitorErr)}
 			}
 		}
 		snapshot, err = supervisor.Resume(meta)
 	case "emergency_stop":
 		if !emptyCommandPayload(request.Payload) {
-			return CommandResponse{}, &commandError{code: "request_invalid", message: "Emergency Stop akzeptiert keine Nutzdaten."}
+			return CommandResponse{}, &commandError{code: "request_invalid", params: map[string]any{"field": "payload"}}
 		}
 		snapshot, err = supervisor.EmergencyStop(meta)
 	default:
-		return CommandResponse{}, &commandError{code: "request_invalid", message: "Unbekannter Session-Befehl."}
+		return CommandResponse{}, &commandError{code: "request_invalid", params: map[string]any{"field": "command"}}
 	}
 	if err != nil {
 		return CommandResponse{}, mapSupervisorCommandError(err)
@@ -928,7 +896,7 @@ func compatibilityCommandError(compatibility CompatibilityDTO) error {
 	if code == "" {
 		code = string(app.Phase15ReasonD2RVersionNotDetected)
 	}
-	return &commandError{code: code, message: "Die tatsächliche D2R-Version ist nicht als kompatibel bestätigt; Input und Live-Workflows bleiben gesperrt."}
+	return &commandError{code: code}
 }
 
 func routeWorkflowBusy(state string) bool {
@@ -946,7 +914,7 @@ func (b *LiveBackend) replayCommandLocked(name string, request CommandRequest) (
 		return CommandResponse{}, false, nil
 	}
 	if record.name != name || record.generation != request.ExpectedGeneration || record.payload != compactCommandPayload(request.Payload) {
-		return CommandResponse{}, false, &commandError{code: "request_invalid", message: "command_id wurde mit anderem Inhalt wiederverwendet."}
+		return CommandResponse{}, false, &commandError{code: "request_invalid", params: map[string]any{"field": "command_id"}}
 	}
 	return record.response, true, nil
 }
@@ -993,48 +961,29 @@ func mapQueueCommandError(err error) error {
 	}
 	var supervisorErr *app.SupervisorCommandError
 	if errors.As(err, &supervisorErr) {
-		return &commandError{code: string(supervisorErr.Code), message: "Der Charakterkatalog hat sich geändert. Seite aktualisieren."}
+		return &commandError{code: string(supervisorErr.Code), cause: fmt.Errorf("map queue command: %w", err)}
 	}
-	return &commandError{code: "queue_entry_unavailable", message: "Die Farm-Queue konnte nicht sicher geprüft werden."}
+	return &commandError{code: "queue_entry_unavailable", cause: fmt.Errorf("map queue command: %w", err)}
 }
 
 func queueCommandError(queueErr *app.QueueValidationError) *commandError {
-	details := map[string]any{"run_id": queueErr.RunID, "duplicate_index": queueErr.EntryIndex}
+	params := map[string]any{"run_id": queueErr.RunID, "duplicate_index": queueErr.EntryIndex}
 	if queueErr.Code == app.QueueReasonDuplicateRun {
-		details["first_index"] = queueErr.FirstIndex
+		params["first_index"] = queueErr.FirstIndex
 	}
-	return &commandError{code: string(queueErr.Code), message: queueValidationMessage(queueErr), details: details}
-}
-
-func queueValidationMessage(queueErr *app.QueueValidationError) string {
-	switch queueErr.Code {
-	case app.QueueReasonEmpty:
-		return "Die Farm-Queue ist leer."
-	case app.QueueReasonDuplicateRun:
-		return "Dieselbe Route steht mehrfach in der Reihenfolge."
-	case app.QueueReasonEntryUnavailable:
-		return "Ein Run in der Reihenfolge ist für diesen Charakter nicht startfähig."
-	case app.QueueReasonContextMismatch:
-		return "Die Queue gehört nicht zur bestätigten Auswahl."
-	case app.QueueReasonProfileBindingsIncomplete:
-		return "Für dieses Kampfprofil fehlen Tastenbelegungen."
-	case app.QueueReasonCharacterInventoryUnconfigured:
-		return "Der Inventarschutz wurde noch nicht bestätigt."
-	default:
-		return "Die Farm-Queue ist nicht verfügbar."
-	}
+	return &commandError{code: string(queueErr.Code), params: params, cause: queueErr}
 }
 
 func mapSupervisorCommandError(err error) error {
 	var supervisorErr *app.SupervisorCommandError
 	if errors.As(err, &supervisorErr) {
-		return &commandError{code: string(supervisorErr.Code), message: "Der Session-Befehl ist im aktuellen Zustand nicht erlaubt."}
+		return &commandError{code: string(supervisorErr.Code), cause: fmt.Errorf("map supervisor command: %w", err)}
 	}
 	var queueErr *app.QueueValidationError
 	if errors.As(err, &queueErr) {
-		return &commandError{code: string(queueErr.Code), message: "Die Farm-Queue ist nicht mehr verfügbar."}
+		return queueCommandError(queueErr)
 	}
-	return &commandError{code: "state_changed", message: "Der Core-Zustand hat sich geändert."}
+	return &commandError{code: "state_changed", cause: fmt.Errorf("map supervisor command: %w", err)}
 }
 
 func knownDifficulty(entries []DifficultyCatalogEntry, value string) bool {
@@ -1046,13 +995,7 @@ func knownDifficulty(entries []DifficultyCatalogEntry, value string) bool {
 	return false
 }
 
-func lifecycleErrorCode(err error) string {
-	if strings.Contains(err.Error(), "decode route lifecycle") || strings.Contains(err.Error(), "schema_version") {
-		return "route_manifest_corrupt"
-	}
-	if strings.Contains(err.Error(), "write") || strings.Contains(err.Error(), "replace") || strings.Contains(err.Error(), "flush") {
-		return "route_manifest_write_failed"
-	}
+func lifecycleErrorCode(_ error) string {
 	return "state_changed"
 }
 

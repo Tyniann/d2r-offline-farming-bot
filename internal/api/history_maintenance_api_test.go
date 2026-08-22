@@ -20,7 +20,7 @@ func TestHistoryDeleteAllAPIRequiresTokenAndProjectsPreviewAndResult(t *testing.
 	}
 	backend.historyDeleteResult = HistoryDeleteResultDTO{
 		DeletedFiles: 4, DeletedBytes: 1234, ProtectedFiles: 1,
-		Diagnostics: []HistoryMaintenanceDiagnosticDTO{{FileID: "history-a1b2c3d4", Code: "history_delete_active_protected", Message: "geschützt"}},
+		Diagnostics: []HistoryMaintenanceDiagnosticDTO{{FileID: "history-a1b2c3d4", Code: "history_delete_active_protected"}},
 	}
 	unguarded, _ := http.NewRequest(http.MethodPost, server.URL()+"/api/v1/history/delete-all/preview", strings.NewReader(`{"expected_generation":3}`))
 	unguarded.Header.Set("Content-Type", "application/json")

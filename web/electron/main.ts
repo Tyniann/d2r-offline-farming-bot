@@ -10,8 +10,9 @@ import { dirname, isAbsolute, join, resolve } from "node:path";
 import { DesktopCoreController } from "./core-controller.js";
 import { provisionDataRoot } from "./core-process.js";
 import { isAllowedIPCSender, isAllowedNavigation, secureWebPreferences, type CoreHandshake, type DesktopCoreReason } from "./core-contract.js";
-import { DesktopSettingsStore, desktopSettingsDefaults, parseDesktopSettingsUpdate, type DesktopSettings } from "./desktop-settings.js";
-import { desktopLifecyclePolicy, desktopNotificationSpec, notificationForTransition, shouldShowDesktopNotification, type DesktopNotificationKind, type StableAppTarget } from "./desktop-lifecycle.js";
+import { DesktopSettingsStore, desktopSettingsDefaults, parseDesktopSettingsUpdate, resolveDesktopLanguage, type DesktopSettings } from "./desktop-settings.js";
+import { desktopLifecyclePolicy, desktopNotificationTarget, notificationForTransition, shouldShowDesktopNotification, type DesktopNotificationKind, type StableAppTarget } from "./desktop-lifecycle.js";
+import { desktopDialogText, desktopNotificationText, desktopRecoveryText, desktopTrayText, loadDesktopTranslators, type DesktopTranslator } from "./i18n.js";
 import { clampWindowBounds } from "./desktop-window.js";
 import { portalMarkPath } from "./portal-icon.js";
 import { checkLatestRelease, githubReleasesURL, type DesktopUpdateStatus } from "./update-check.js";
@@ -40,8 +41,9 @@ let exitPromptOpen = false;
 let restartCorePending = false;
 let boundsTimer: ReturnType<typeof setTimeout> | undefined;
 let desktopSettings = desktopSettingsDefaults();
-const desktopSettingsStore = new DesktopSettingsStore(join(dataRoot, "desktop-settings.json"));
+let desktopSettingsStore: DesktopSettingsStore;
 let desktopSettingsSave = Promise.resolve(desktopSettings);
+let desktopTranslators: Record<"de" | "en", DesktopTranslator>;
 let updateStatus: DesktopUpdateStatus = { status: "unavailable", current_version: app.getVersion(), reason: "update_check_unavailable" };
 let updateCheckPending: Promise<DesktopUpdateStatus> | undefined;
 const portalIcon = nativeImage.createFromPath(portalMarkPath()).resize({ width: 32, height: 32 });
@@ -62,8 +64,10 @@ async function startDesktop(): Promise<void> {
   });
 
   await app.whenReady();
+  desktopSettingsStore = new DesktopSettingsStore(join(dataRoot, "desktop-settings.json"), {}, resolveDesktopLanguage(app.getLocale()));
   const loaded = await desktopSettingsStore.load();
   desktopSettings = loaded.settings;
+  desktopTranslators = await loadDesktopTranslators(join(moduleDirectory, "locales"));
   desktopSettingsSave = Promise.resolve(desktopSettings);
   applyAutostart(desktopSettings.autostart);
   registerPermissionDeny();
@@ -123,7 +127,14 @@ async function loadRecoveryWindow(reason: DesktopCoreReason, restartCount: numbe
   const window = ensureWindow();
   const recoveryFile = join(moduleDirectory, "recovery.html");
   recoveryURL = pathToFileURL(recoveryFile).toString();
-  await window.loadFile(recoveryFile, { query: { reason, restarts: String(restartCount) } });
+  const recovery = desktopRecoveryText(currentDesktopTranslator(), reason, restartCount);
+  await window.loadFile(recoveryFile, { query: {
+    language: desktopSettings.language,
+    reason,
+    restarts: String(restartCount),
+    title: recovery.title,
+    body: recovery.body,
+  } });
   window.show();
 }
 
@@ -183,18 +194,18 @@ function showMainWindow(target?: StableAppTarget): void {
 function registerDesktopIPC(): void {
   ipcMain.handle("desktop:get-provisioning-state", (event) => {
     validateSender(event.senderFrame?.url ?? "");
-    return { required: provisioningActive, import_selected: selectedImportRoot !== undefined, import_label: selectedImportRoot ? "Ausgewählter bestehender Datenroot" : "" };
+    return { required: provisioningActive, import_selected: selectedImportRoot !== undefined, import_label: selectedImportRoot ? currentDesktopTranslator().t("desktop.provisioning.selectedImportRoot") : "" };
   });
   ipcMain.handle("desktop:choose-import-root", async (event) => {
     validateSender(event.senderFrame?.url ?? "");
     if (!provisioningActive || provisioningPending) throw new Error("Die Importauswahl ist derzeit nicht verfügbar.");
     const result = await dialog.showOpenDialog(mainWindow!, {
-      title: "Bestehenden D2R-Offline-Farming-Bot-Datenroot auswählen",
+      title: currentDesktopTranslator().t("desktop.provisioning.chooseImportRoot"),
       properties: ["openDirectory", "dontAddToRecent"],
     });
     if (result.canceled || result.filePaths.length !== 1) return { selected: false, label: "" };
     selectedImportRoot = resolve(result.filePaths[0]);
-    return { selected: true, label: "Bestehender Datenroot ausgewählt" };
+    return { selected: true, label: currentDesktopTranslator().t("desktop.provisioning.importRootSelected") };
   });
   ipcMain.handle("desktop:provision", async (event, request: unknown) => {
     validateSender(event.senderFrame?.url ?? "");
@@ -280,8 +291,10 @@ function registerDesktopIPC(): void {
   ipcMain.handle("desktop:update-settings", async (event, request: unknown) => {
     validateSender(event.senderFrame?.url ?? "");
     const update = parseDesktopSettingsUpdate(request);
+    const previousLanguage = desktopSettings.language;
     desktopSettings = await persistDesktopSettings(update);
     applyAutostart(desktopSettings.autostart);
+    if (desktopSettings.language !== previousLanguage) rebuildTray();
     return desktopSettingsView(desktopSettings);
   });
   ipcMain.handle("desktop:restart-core", async (event) => {
@@ -327,16 +340,17 @@ function ensureTray(): void {
 function rebuildTray(): void {
   if (!tray || tray.isDestroyed()) return;
   const policy = desktopLifecyclePolicy(controller.statusSnapshot);
-  tray.setToolTip(`D2R Offline Farming Bot – ${policy.label}`);
+  const text = desktopTrayText(currentDesktopTranslator(), policy.state);
+  tray.setToolTip(text.tooltip);
   tray.setContextMenu(Menu.buildFromTemplate([
-    { label: "Öffnen", click: () => showMainWindow() },
-    { label: `Status: ${policy.label}`, enabled: false },
+    { label: text.open, click: () => showMainWindow() },
+    { label: text.status, enabled: false },
     { type: "separator" },
-    { label: "Pause nach aktuellem Run", enabled: policy.canPauseAfterRun, click: () => void performTrayIntent("pause_after_run") },
-    { label: "Stop nach aktuellem Run", enabled: policy.canStopAfterRun, click: () => void performTrayIntent("stop_after_run") },
-    { label: "Emergency Stop", enabled: policy.canEmergencyStop, click: () => void performTrayIntent("emergency_stop") },
+    { label: text.pauseAfterRun, enabled: policy.canPauseAfterRun, click: () => void performTrayIntent("pause_after_run") },
+    { label: text.stopAfterRun, enabled: policy.canStopAfterRun, click: () => void performTrayIntent("stop_after_run") },
+    { label: text.emergencyStop, enabled: policy.canEmergencyStop, click: () => void performTrayIntent("emergency_stop") },
     { type: "separator" },
-    { label: "Beenden", enabled: policy.canQuit, click: () => void requestQuit(false) },
+    { label: text.quit, enabled: policy.canQuit, click: () => void requestQuit(false) },
   ]));
 }
 
@@ -344,15 +358,16 @@ async function performTrayIntent(intent: "pause_after_run" | "stop_after_run" | 
   try {
     await controller.sendSessionIntent(intent);
   } catch (error) {
-    await showDesktopDialog({ type: "error", title: "Befehl nicht ausgeführt", message: errorMessage(error), buttons: ["OK"] });
+    console.error("Desktop session command failed.", error);
+    await showTranslatedDialog("command_failed", "error");
   }
 }
 
 function showDesktopNotification(kind: DesktopNotificationKind): void {
   if (!shouldShowDesktopNotification(mainWindow?.isFocused() === true, Notification.isSupported())) return;
-  const spec = desktopNotificationSpec(kind);
-  const notification = new Notification({ title: spec.title, body: spec.body, icon: portalIcon });
-  notification.on("click", () => showMainWindow(spec.target));
+  const text = desktopNotificationText(currentDesktopTranslator(), kind);
+  const notification = new Notification({ title: text.title, body: text.body, icon: portalIcon });
+  notification.on("click", () => showMainWindow(desktopNotificationTarget(kind)));
   notification.show();
 }
 
@@ -361,19 +376,13 @@ async function requestQuit(confirmInactive: boolean): Promise<void> {
   const policy = desktopLifecyclePolicy(controller.statusSnapshot);
   if (!policy.canQuit) {
     showMainWindow("dashboard");
-    await showDesktopDialog({
-      type: "warning",
-      title: "Session zuerst beenden",
-      message: "Die App beendet keinen aktiven Core blind.",
-      detail: "Nutze zuerst „Stop nach aktuellem Run“ oder den getrennten Emergency Stop. Währenddessen bleibt X→Tray aktiv.",
-      buttons: ["OK"],
-    });
+    await showTranslatedDialog("active_session", "warning");
     return;
   }
   if (confirmInactive) {
     if (exitPromptOpen) return;
     exitPromptOpen = true;
-    const answer = await showDesktopDialog({ type: "question", title: "App beenden?", message: "D2R Offline Farming Bot vollständig beenden?", detail: "Die inaktive Core-Instanz wird kontrolliert geschlossen.", buttons: ["Beenden", "Abbrechen"], defaultId: 1, cancelId: 1, noLink: true });
+    const answer = await showTranslatedDialog("confirm_quit", "question", { defaultId: 1, cancelId: 1, noLink: true });
     exitPromptOpen = false;
     if (answer.response !== 0) return;
   }
@@ -384,7 +393,8 @@ async function requestQuit(confirmInactive: boolean): Promise<void> {
     app.quit();
   } catch (error) {
     quitting = false;
-    await showDesktopDialog({ type: "error", title: "Core konnte nicht beendet werden", message: errorMessage(error), buttons: ["OK"] });
+    console.error("Core shutdown failed.", error);
+    await showTranslatedDialog("shutdown_failed", "error");
   }
 }
 
@@ -410,6 +420,7 @@ function persistDesktopSettings(update: Partial<DesktopSettings>): Promise<Deskt
 function desktopSettingsView(settings: DesktopSettings) {
   return {
     schema_version: settings.schema_version,
+    language: settings.language,
     autostart: settings.autostart,
     onboarding_completed: settings.onboarding_completed,
     ...(settings.selected_character ? { selected_character: settings.selected_character } : {}),
@@ -422,8 +433,13 @@ function applyAutostart(enabled: boolean): void {
   app.setLoginItemSettings({ openAtLogin: enabled, path: process.execPath, args: ["--data-root", dataRoot] });
 }
 
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : "Unbekannter Desktopfehler.";
+function currentDesktopTranslator(): DesktopTranslator {
+  return desktopTranslators[desktopSettings.language];
+}
+
+function showTranslatedDialog(kind: Parameters<typeof desktopDialogText>[1], type: MessageBoxOptions["type"], overrides: Partial<MessageBoxOptions> = {}): Promise<MessageBoxReturnValue> {
+  const text = desktopDialogText(currentDesktopTranslator(), kind);
+  return showDesktopDialog({ type, ...text, ...overrides });
 }
 
 function showDesktopDialog(options: MessageBoxOptions): Promise<MessageBoxReturnValue> {

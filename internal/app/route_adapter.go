@@ -225,7 +225,7 @@ func (a *routePlaybackAdapter) Tick(ctx context.Context, state world.State) (boo
 	_, skippedBefore, hadSkippedBefore := a.player.LastSkippedPoint()
 	done, err := a.player.Tick(ctx, state)
 	if err != nil {
-		_ = a.emit(telemetry.Event{Event: telemetry.RoutePlaybackFailed, RouteID: a.route.ID, SegmentID: a.player.Segment().ID, Reason: err.Error()})
+		_ = a.emit(telemetry.Event{Event: telemetry.RoutePlaybackFailed, RouteID: a.route.ID, SegmentID: a.player.Segment().ID, Reason: routePlaybackReason(err)})
 		return false, err
 	}
 	if skippedPoint, skippedIndex, ok := a.player.LastSkippedPoint(); ok && (!hadSkippedBefore || skippedIndex != skippedBefore) {
@@ -280,6 +280,23 @@ func (a *routePlaybackAdapter) Tick(ctx context.Context, state world.State) (boo
 		}
 	}
 	return false, nil
+}
+
+func routePlaybackReason(err error) string {
+	switch {
+	case errors.Is(err, pathing.ErrRouteUnexpectedArea):
+		return "unexpected_area"
+	case errors.Is(err, pathing.ErrRouteHardStuck):
+		return "hard_stuck"
+	case errors.Is(err, pathing.ErrRouteSegmentTimeout):
+		return "route_segment_timeout"
+	case errors.Is(err, pathing.ErrRouteTransitionFailed):
+		return "route_transition_failed"
+	case errors.Is(err, pathing.ErrRouteDriftExceeded):
+		return "route_drift_exceeded"
+	default:
+		return "route_playback_failed"
+	}
 }
 
 func (a *routePlaybackAdapter) resetSegmentDeadline(now time.Time) {

@@ -25,6 +25,13 @@ describe("App-Designvertrag", () => {
     expect(css).toMatch(/prefers-reduced-motion:\s*reduce/);
   });
 
+  it("behält Sprachschalter, Verbindung und Version im kompakten Layout sichtbar", () => {
+    expect(css).toContain(".language-switcher");
+    expect(css).not.toContain(".sidebar-meta { display: none; }");
+    expect(css).toMatch(/@media\s*\(max-width:\s*1000px\)[\s\S]*?\.sidebar-meta\s*\{[^}]*display:\s*flex/);
+    expect(css).toMatch(/@media\s*\(max-width:\s*620px\)[\s\S]*?\.sidebar-meta\s*\{[^}]*width:\s*100%/);
+  });
+
   it("isoliert Onboarding-Schritte und einfache Listen von der globalen Dreispaltenregel", () => {
     expect(css).toMatch(/\.onboarding-progress li\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)/s);
     expect(css).toMatch(/\.onboarding-panel\s*>\s*ul:not\(\.character-availability\):not\(\.readiness-list\)\s*>\s*li\s*\{[^}]*display:\s*list-item/s);

@@ -9,6 +9,9 @@ import { MaintenanceTab } from "./MaintenanceTab";
 import { SettingsActionBar } from "./SettingsActionBar";
 import { cloneSettings, collectLocalDiffPaths, settingsEqual, summarizeChangedFields } from "./settingsDiff";
 import type { SettingsRun, SettingsTab } from "./settingsTypes";
+import { useTranslation } from "react-i18next";
+import { formatNumber } from "../../i18n/format";
+import { apiErrorCode, presentApiError, type AppTranslator } from "../../i18n/presenters";
 
 /** SettingsFeature orchestriert Farming-, Charaktere-, App- und Wartung-Scopes mit sticky Core-Commit. */
 export function SettingsFeature({
@@ -28,6 +31,7 @@ export function SettingsFeature({
   onHistoryDeleted?: () => void;
   onDirtyChange?: (dirty: boolean) => void;
 }) {
+  const { t, i18n } = useTranslation();
   const [settings, setSettings] = useState<OperatorSettingsDTO | null>(null);
   const [draft, setDraft] = useState<OperatorSettingsDTO | null>(null);
   const [desktop, setDesktop] = useState<DesktopSettingsView | null>(null);
@@ -64,13 +68,13 @@ export function SettingsFeature({
       setStale(false);
       setMessage("");
     } catch (reason) {
-      setError(errorText(reason, "Einstellungen konnten nicht geladen werden."));
+      setError(errorText(reason, t, t("settings.loadFailed")));
     } finally {
       setBusy(false);
     }
   };
 
-  useEffect(() => { void load(); }, []);
+  useEffect(() => { void load(); }, [t]);
   useEffect(() => window.d2rDesktop?.onUpdateStatus?.(setUpdateStatus), []);
 
   const dirty = !!(settings && draft && !settingsEqual(settings, draft));
@@ -106,8 +110,8 @@ export function SettingsFeature({
       ...characters.map((name) => name.trim().toLowerCase()).filter(Boolean),
       ...Object.keys(draft?.characters ?? {}),
     ]);
-    return [...names].sort((left, right) => left.localeCompare(right, "de"));
-  }, [characters, draft]);
+    return [...names].sort((left, right) => left.localeCompare(right, i18n.resolvedLanguage));
+  }, [characters, draft, i18n.resolvedLanguage]);
 
   const changeDraft = (update: (current: OperatorSettingsDTO) => OperatorSettingsDTO) => {
     setDraft((current) => current ? update(cloneSettings(current)) : current);
@@ -142,7 +146,7 @@ export function SettingsFeature({
       setDraft(cloneSettings(result.settings));
       setRestartRequired(Boolean(result.restart_required));
       setPreview(null);
-      setMessage(result.changed_fields.length ? "Gespeichert. Der Bot verwendet ab dem nächsten Start diese Werte." : "Es waren keine Änderungen zu speichern.");
+      setMessage(t(result.changed_fields.length ? "settings.savedForNextStart" : "settings.nothingToSave"));
       onSettingsApplied?.();
     });
   };
@@ -158,7 +162,7 @@ export function SettingsFeature({
     if (!window.d2rDesktop) return;
     await run(async () => {
       await window.d2rDesktop!.restartCore();
-      setMessage("Der Core wurde kontrolliert neu gestartet.");
+      setMessage(t("settings.coreRestarted"));
       setRestartRequired(false);
     });
   };
@@ -178,7 +182,7 @@ export function SettingsFeature({
         candidate_bytes: deletePreview.candidate_bytes,
       });
       setDeletePreview(null);
-      setMessage(`${result.deleted_files} Historiendatei(en) wurden dauerhaft gelöscht; ${result.protected_files} aktive Datei(en) blieben geschützt.`);
+      setMessage(t("settings.historyDeleted", { deleted: formatNumber(result.deleted_files), protected: formatNumber(result.protected_files) }));
       onHistoryDeleted?.();
     });
   };
@@ -191,7 +195,7 @@ export function SettingsFeature({
   const buildDiagnosticBundle = async () => {
     await run(async () => {
       const result = await createDiagnosticBundle({ include_telemetry: includeTelemetry, include_routes: includeRoutes });
-      setMessage(`Diagnosepaket ${result.filename} wurde lokal erstellt (${result.bytes.toLocaleString("de-DE")} Byte).`);
+      setMessage(t("settings.diagnosticCreated", { filename: result.filename, bytes: formatNumber(result.bytes) }));
       await window.d2rDesktop?.revealDiagnosticBundle?.(result.filename);
     });
   };
@@ -205,9 +209,9 @@ export function SettingsFeature({
     try {
       await action();
     } catch (reason) {
-      const text = errorText(reason, "Einstellungsänderung fehlgeschlagen.");
+      const text = errorText(reason, t, t("settings.changeFailed"));
       setError(text);
-      if (/revision|zwischenzeitlich|zustand hat sich geändert/i.test(text)) setStale(true);
+      if (["config_revision_conflict", "revision_conflict", "state_changed"].includes(apiErrorCode(reason) ?? "")) setStale(true);
     } finally {
       setBusy(false);
     }
@@ -215,28 +219,28 @@ export function SettingsFeature({
 
   if (!settings || !draft) {
     return error
-      ? <StateMessage kind="error" title="Einstellungen nicht verfügbar">{error}</StateMessage>
-      : <StateMessage kind="loading" title="Einstellungen werden geladen">Core- und Desktopverträge werden gemeinsam gelesen.</StateMessage>;
+      ? <StateMessage kind="error" title={t("settings.notAvailable")}>{error}</StateMessage>
+      : <StateMessage kind="loading" title={t("settings.loadingSettings")}>{t("settings.loadingContracts")}</StateMessage>;
   }
 
   return <>
     <div className="settings-status-row">
-      <StatusBadge tone="neutral">Revision {settings.revision}</StatusBadge>
-      <StatusBadge tone={mutable ? "success" : "warning"}>{mutable ? "Änderbar" : "Gesperrt"}</StatusBadge>
+      <StatusBadge tone="neutral">{t("settings.revision", { revision: settings.revision })}</StatusBadge>
+      <StatusBadge tone={mutable ? "success" : "warning"}>{t(mutable ? "settings.editable" : "settings.locked")}</StatusBadge>
     </div>
 
-    {!mutable && <StateMessage kind="error" title="Diese Einstellungen sind gesperrt">Gesperrt, solange eine Session läuft. Speichern ist wieder möglich, sobald der Bot inaktiv ist.</StateMessage>}
-    {stale && <div className="settings-feedback"><StateMessage kind="error" title="Revision ist veraltet">Lade den aktuellen Core-Stand neu, bevor du erneut änderst.</StateMessage><Button variant="secondary" onClick={() => void load()}>Aktuellen Stand laden</Button></div>}
-    {error && !stale && <StateMessage kind="error" title="Änderung fehlgeschlagen">{error}</StateMessage>}
+    {!mutable && <StateMessage kind="error" title={t("settings.lockedTitle")}>{t("settings.lockedSession")} {t("settings.saveWhenIdle")}</StateMessage>}
+    {stale && <div className="settings-feedback"><StateMessage kind="error" title={t("settings.staleTitle")}>{t("settings.staleDetail")}</StateMessage><Button variant="secondary" onClick={() => void load()}>{t("settings.reload")}</Button></div>}
+    {error && !stale && <StateMessage kind="error" title={t("settings.changeFailedTitle")}>{error}</StateMessage>}
     {message && <div className="settings-success" role="status"><strong>{message}</strong></div>}
-    {restartRequired && <div className="restart-required" role="status"><div><strong>Core-Neustart erforderlich</strong><p>Input- oder Hotkeyressourcen bleiben bis zu einem kontrollierten Neustart unverändert.</p></div><Button onClick={() => void restartCore()} disabled={!mutable || busy || !window.d2rDesktop}>Core kontrolliert neu starten</Button></div>}
+    {restartRequired && <div className="restart-required" role="status"><div><strong>{t("settings.restartCoreTitle")}</strong><p>{t("settings.restartCoreDetail")}</p></div><Button onClick={() => void restartCore()} disabled={!mutable || busy || !window.d2rDesktop}>{t("settings.restartCore")}</Button></div>}
 
-    <div className="settings-tabs" role="tablist" aria-label="Einstellungsbereiche">
+    <div className="settings-tabs" role="tablist" aria-label={t("settings.tabsAria")}>
       {([
-        { id: "farming" as const, label: "Farming" },
-        { id: "characters" as const, label: "Charaktere" },
-        { id: "app" as const, label: "App" },
-        { id: "maintenance" as const, label: "Wartung" },
+        { id: "farming" as const, label: t("settings.tabFarming") },
+        { id: "characters" as const, label: t("settings.tabCharacters") },
+        { id: "app" as const, label: t("settings.tabApp") },
+        { id: "maintenance" as const, label: t("settings.tabMaintenance") },
       ]).map((entry) => (
         <button
           key={entry.id}
@@ -246,7 +250,7 @@ export function SettingsFeature({
           className={`settings-tab${tab === entry.id ? " active" : ""}${(entry.id === "farming" || entry.id === "characters") && dirty ? " dirty" : ""}`}
           onClick={() => setTab(entry.id)}
         >
-          {entry.label}{(entry.id === "farming" || entry.id === "characters") && dirty ? <span className="settings-tab-dot" aria-label="ungespeicherte Änderungen" /> : null}
+          {entry.label}{(entry.id === "farming" || entry.id === "characters") && dirty ? <span className="settings-tab-dot" aria-label={t("settings.unsavedAria")} /> : null}
         </button>
       ))}
     </div>
@@ -313,30 +317,30 @@ export function SettingsFeature({
       onShowFarming={() => setTab("farming")}
     />
 
-    {deletePreview && <Dialog title="Gesamte Historie dauerhaft löschen?" onClose={() => !busy && setDeletePreview(null)}>
-      <p><strong>{deletePreview.candidate_files}</strong> direkte Datei(en) mit {deletePreview.candidate_bytes.toLocaleString("de-DE")} Byte sind vorgesehen. {deletePreview.protected_files} aktive Datei(en) sind geschützt.</p>
-      <p>Kategorien: {Object.entries(deletePreview.categories).map(([name, count]) => `${name}: ${count}`).join(" · ") || "keine"}</p>
-      <StateMessage kind="error" title="Nicht rückgängig zu machen">Die Metadaten und Indexgeneration werden unmittelbar erneut geprüft. Veraltete Vorschauen werden vollständig abgelehnt.</StateMessage>
+    {deletePreview && <Dialog title={t("settings.deleteConfirmTitle")} onClose={() => !busy && setDeletePreview(null)}>
+      <p>{t("settings.deletePreviewDetail", { files: formatNumber(deletePreview.candidate_files), bytes: formatNumber(deletePreview.candidate_bytes), protected: formatNumber(deletePreview.protected_files) })}</p>
+      <p>{t("settings.categories", { categories: Object.entries(deletePreview.categories).map(([name, count]) => `${name}: ${formatNumber(count)}`).join(" · ") || t("history.none") })}</p>
+      <StateMessage kind="error" title={t("settings.irreversible")}>{t("settings.irreversibleDetail")}</StateMessage>
       <div className="modal-actions">
-        <Button variant="secondary" onClick={() => setDeletePreview(null)} disabled={busy}>Abbrechen</Button>
-        <Button variant="danger" onClick={() => void deleteHistory()} disabled={busy || deletePreview.candidate_files === 0}>Alles endgültig löschen</Button>
+        <Button variant="secondary" onClick={() => setDeletePreview(null)} disabled={busy}>{t("common.cancel")}</Button>
+        <Button variant="danger" onClick={() => void deleteHistory()} disabled={busy || deletePreview.candidate_files === 0}>{t("settings.deleteAll")}</Button>
       </div>
     </Dialog>}
 
-    {preview && <Dialog title={preview.mode === "reset" ? "Sichere Standardwerte anwenden?" : "Änderungen speichern?"} onClose={() => !busy && setPreview(null)}>
-      <p>Geänderte Felder: <strong>{summarizeChangedFields(preview.change.changed_fields) || "keine"}</strong></p>
-      <details className="effective-settings"><summary>Technische Feldnamen anzeigen</summary><pre>{preview.change.changed_fields.join("\n") || "keine"}</pre></details>
-      {preview.change.restart_required && <StateMessage kind="error" title="Core-Neustart erforderlich">Input und Hotkeys werden erst nach dem kontrollierten Neustart wirksam.</StateMessage>}
+    {preview && <Dialog title={t(preview.mode === "reset" ? "settings.applyDefaultsTitle" : "settings.saveChangesTitle")} onClose={() => !busy && setPreview(null)}>
+      <p>{t("settings.changedFields")}<strong>{summarizeChangedFields(preview.change.changed_fields) || t("history.none")}</strong></p>
+      <details className="effective-settings"><summary>{t("settings.technicalFields")}</summary><pre>{preview.change.changed_fields.join("\n") || t("history.none")}</pre></details>
+      {preview.change.restart_required && <StateMessage kind="error" title={t("settings.restartCoreTitle")}>{t("settings.restartEffectiveDetail")}</StateMessage>}
       <div className="modal-actions">
-        <Button variant="secondary" onClick={() => setPreview(null)} disabled={busy}>Abbrechen</Button>
-        <Button variant={preview.mode === "reset" ? "danger" : "primary"} onClick={() => void applyPreview()} disabled={busy}>{preview.mode === "reset" ? "Standardwerte anwenden" : "Jetzt speichern"}</Button>
+        <Button variant="secondary" onClick={() => setPreview(null)} disabled={busy}>{t("common.cancel")}</Button>
+        <Button variant={preview.mode === "reset" ? "danger" : "primary"} onClick={() => void applyPreview()} disabled={busy}>{t(preview.mode === "reset" ? "settings.applyDefaults" : "settings.saveNow")}</Button>
       </div>
     </Dialog>}
   </>;
 }
 
-function errorText(reason: unknown, fallback: string): string {
-  return reason instanceof Error ? reason.message : fallback;
+function errorText(reason: unknown, t: AppTranslator, fallback: string): string {
+  return presentApiError(reason, t, fallback);
 }
 
 function ignoreCharacterChange() {}

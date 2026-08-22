@@ -26,14 +26,15 @@ type StatusDTO struct {
 	Selection      SelectionStatusDTO `json:"selection"`
 	Queue          QueueStatusDTO     `json:"queue"`
 	LastResult     *SessionResultDTO  `json:"last_result,omitempty"`
-	LastError      *ErrorDTO          `json:"last_error,omitempty"`
+	LastError      *ProblemDTO        `json:"last_error,omitempty"`
 }
 
 // RunProgressDTO transports one stable, user-facing stage of an active run.
 type RunProgressDTO struct {
-	Label   string `json:"label"`
-	Current int    `json:"current"`
-	Total   int    `json:"total"`
+	StageCode string         `json:"stage_code"`
+	Params    map[string]any `json:"params,omitempty"`
+	Current   int            `json:"current"`
+	Total     int            `json:"total"`
 }
 
 // CompatibilityDTO projects the path-free authoritative D2R version gate.
@@ -136,8 +137,7 @@ type CharacterCatalogEntry struct {
 
 // DifficultyCatalogEntry describes one supported offline difficulty.
 type DifficultyCatalogEntry struct {
-	ID          string `json:"id"`
-	DisplayName string `json:"display_name"`
+	ID string `json:"id"`
 }
 
 // ProfileCatalogEntry describes one configured combat profile without YAML internals.
@@ -149,7 +149,6 @@ type ProfileCatalogEntry struct {
 // RunCatalogEntry describes one stable run and its current availability.
 type RunCatalogEntry struct {
 	RunID       string               `json:"run_id"`
-	DisplayName string               `json:"display_name"`
 	Status      string               `json:"status"`
 	Reasons     []string             `json:"reasons,omitempty"`
 	RouteCombat RouteCombatConfigDTO `json:"route_combat"`
@@ -232,11 +231,16 @@ type SessionStartPayload struct {
 	CatalogRevision uint64   `json:"catalog_revision"`
 }
 
-// ErrorDTO is the stable API error envelope with a German operator message.
+// ProblemDTO identifies a user-visible problem without carrying localized prose.
+type ProblemDTO struct {
+	Code   string         `json:"code"`
+	Params map[string]any `json:"params,omitempty"`
+}
+
+// ErrorDTO is the stable HTTP error envelope with request correlation.
 type ErrorDTO struct {
 	Code      string         `json:"code"`
-	Message   string         `json:"message"`
-	Details   map[string]any `json:"details,omitempty"`
+	Params    map[string]any `json:"params,omitempty"`
 	RequestID string         `json:"request_id"`
 }
 
@@ -251,9 +255,11 @@ type Backend interface {
 }
 
 type commandError struct {
-	code    string
-	message string
-	details map[string]any
+	code   string
+	params map[string]any
+	cause  error
 }
 
 func (e *commandError) Error() string { return e.code }
+
+func (e *commandError) Unwrap() error { return e.cause }

@@ -1752,20 +1752,24 @@
             "$ref": "#/components/schemas/SessionResultDTO"
           },
           "last_error": {
-            "$ref": "#/components/schemas/ErrorDTO"
+            "$ref": "#/components/schemas/ProblemDTO"
           }
         }
       },
       "RunProgressDTO": {
         "type": "object",
         "required": [
-          "label",
+          "stage_code",
           "current",
           "total"
         ],
         "properties": {
-          "label": {
+          "stage_code": {
             "type": "string"
+          },
+          "params": {
+            "type": "object",
+            "additionalProperties": true
           },
           "current": {
             "type": "integer"
@@ -1930,23 +1934,21 @@
       },
       "CharacterSetupCharacterDTO": {
         "type": "object",
-        "required": ["name", "slug", "character_class", "class_display_name"],
+        "required": ["name", "slug", "character_class"],
         "additionalProperties": false,
         "properties": {
           "name": {"type": "string"},
           "slug": {"type": "string"},
-          "character_class": {"type": "string"},
-          "class_display_name": {"type": "string"}
+          "character_class": {"type": "string"}
         }
       },
       "CharacterSetupRequiredSkillDTO": {
         "type": "object",
-        "required": ["skill", "skill_id", "display_name", "slot"],
+        "required": ["skill", "skill_id", "slot"],
         "additionalProperties": false,
         "properties": {
           "skill": {"type": "string"},
           "skill_id": {"type": "integer", "minimum": 0, "maximum": 65535},
-          "display_name": {"type": "string"},
           "slot": {"type": "string", "enum": ["left", "right", ""]}
         }
       },
@@ -1980,11 +1982,10 @@
       },
       "CharacterSetupPickitDefaultDTO": {
         "type": "object",
-        "required": ["run_id", "run_display_name", "profile_names", "state"],
+        "required": ["run_id", "profile_names", "state"],
         "additionalProperties": false,
         "properties": {
           "run_id": {"type": "string"},
-          "run_display_name": {"type": "string"},
           "profile_names": {"type": "array", "items": {"type": "string"}},
           "state": {"type": "string", "enum": ["missing", "ready"]}
         }
@@ -2581,14 +2582,10 @@
       "DifficultyCatalogEntry": {
         "type": "object",
         "required": [
-          "id",
-          "display_name"
+          "id"
         ],
         "properties": {
           "id": {
-            "type": "string"
-          },
-          "display_name": {
             "type": "string"
           }
         }
@@ -2612,14 +2609,10 @@
         "type": "object",
         "required": [
           "run_id",
-          "display_name",
           "status"
         ],
         "properties": {
           "run_id": {
-            "type": "string"
-          },
-          "display_name": {
             "type": "string"
           },
           "status": {
@@ -2967,8 +2960,7 @@
         "type": "object",
         "required": [
           "run_id",
-          "display_name",
-          "instructions_de",
+          "instruction_code",
           "start_waypoint",
           "allowed_start_area_id",
           "allowed_route_area_ids",
@@ -2984,13 +2976,10 @@
           "route_role": {
             "type": "string"
           },
-          "display_name": {
+          "instruction_code": {
             "type": "string"
           },
-          "instructions_de": {
-            "type": "string"
-          },
-          "operator_hints_de": {
+          "operator_hint_codes": {
             "type": "array",
             "items": {
               "type": "string"
@@ -3890,17 +3879,13 @@
         "type": "object",
         "required": [
           "file",
-          "code",
-          "message"
+          "code"
         ],
         "properties": {
           "file": {
             "type": "string"
           },
           "code": {
-            "type": "string"
-          },
-          "message": {
             "type": "string"
           }
         }
@@ -4045,7 +4030,6 @@
         "required": [
           "step",
           "reason",
-          "reason_message",
           "count",
           "lost_duration_ms"
         ],
@@ -4054,9 +4038,6 @@
             "type": "string"
           },
           "reason": {
-            "type": "string"
-          },
-          "reason_message": {
             "type": "string"
           },
           "count": {
@@ -4320,9 +4301,6 @@
           "reason": {
             "type": "string"
           },
-          "reason_message": {
-            "type": "string"
-          },
           "last_step": {
             "type": "string"
           },
@@ -4456,9 +4434,6 @@
             "type": "string"
           },
           "reason": {
-            "type": "string"
-          },
-          "reason_message": {
             "type": "string"
           },
           "last_step": {
@@ -4666,11 +4641,10 @@
       },
       "HistoryMaintenanceDiagnosticDTO": {
         "type": "object",
-        "required": ["code", "message"],
+        "required": ["code"],
         "properties": {
           "file_id": {"type": "string"},
-          "code": {"type": "string"},
-          "message": {"type": "string"}
+          "code": {"type": "string"}
         }
       },
       "HistoryDeletePreviewRequest": {
@@ -4737,21 +4711,31 @@
           "included_routes": {"type": "boolean"}
         }
       },
+      "ProblemDTO": {
+        "type": "object",
+        "required": [
+          "code"
+        ],
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "params": {
+            "type": "object"
+          }
+        }
+      },
       "ErrorDTO": {
         "type": "object",
         "required": [
           "code",
-          "message",
           "request_id"
         ],
         "properties": {
           "code": {
             "type": "string"
           },
-          "message": {
-            "type": "string"
-          },
-          "details": {
+          "params": {
             "type": "object"
           },
           "request_id": {

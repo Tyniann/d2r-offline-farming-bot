@@ -1,53 +1,6 @@
 /** Run-Availability-Texte für Dashboard und Settings-Queue-Editor. */
 
-import { characterClassLabel } from "./characterReasons";
-
-const reasonCopy: Record<string, { title: string; detail: string }> = {
-  profile_class_mismatch: {
-    title: "Nicht verfügbar",
-    detail: "Die gespeicherte Route gehört zu einer anderen Klasse oder einem anderen Charakter.",
-  },
-  character_profile_run_incompatible: {
-    title: "Nicht verfügbar",
-    detail: "Die gespeicherte Route gehört zu einer anderen Klasse oder einem anderen Charakter.",
-  },
-  profile_run_strategy_unavailable: {
-    title: "Nicht verfügbar",
-    detail: "Für dieses Kampfprofil ist dieser Run noch nicht freigegeben.",
-  },
-  route_assignment_missing: {
-    title: "Noch nicht eingerichtet",
-    detail: "Für diesen Run wurde noch keine Route eingerichtet. Entferne den Run oder nimm die Route auf.",
-  },
-  leg_acquisition_route_missing: {
-    title: "Noch nicht eingerichtet",
-    detail: "Nimm zuerst die Wirt-Route auf.",
-  },
-  leg_acquisition_route_stale: {
-    title: "Noch nicht bereit",
-    detail: "Die Wirt-Route muss neu aufgenommen werden.",
-  },
-  cow_sweep_route_missing: {
-    title: "Noch nicht eingerichtet",
-    detail: "Nimm zuerst die Cow-Route auf.",
-  },
-  cow_sweep_route_stale: {
-    title: "Noch nicht bereit",
-    detail: "Die Cow-Route muss neu aufgenommen werden.",
-  },
-  route_set_binding_mismatch: {
-    title: "Nicht verfügbar",
-    detail: "Die beiden Kuhlevel-Routen passen nicht zum selben Charakter.",
-  },
-  route_lifecycle_unavailable: {
-    title: "Noch nicht bereit",
-    detail: "Die Route ist unvollständig oder nicht mehr verwendbar.",
-  },
-  route_stale: {
-    title: "Noch nicht bereit",
-    detail: "Die Route muss neu aufgenommen werden.",
-  },
-};
+import { presentApiError, type AppTranslator } from "../i18n/presenters";
 
 const reasonPriority = [
   "profile_class_mismatch",
@@ -63,91 +16,49 @@ const reasonPriority = [
   "route_stale",
 ];
 
-function unsupportedResolutionText(message: string) {
-  if (!/requires 1280x720/i.test(message)) {
-    return "";
-  }
-  const got = message.match(/got (\d+)x(\d+)/i);
-  if (got) {
-    return `D2R läuft in ${got[1]} × ${got[2]}. Stelle Fenster-Modus 1280 × 720 ein. Der Bot arbeitet nur in dieser Auflösung.`;
-  }
-  return "D2R läuft nicht in 1280 × 720. Stelle Fenster-Modus 1280 × 720 ein. Der Bot arbeitet nur in dieser Auflösung.";
-}
-
 export function isRunStartable(status: string) {
   return status === "available" || status === "runtime_validation_required";
 }
 
-export function runAvailabilityText(status: string, reasons: string[] = [], characterClass = "") {
+export function runAvailabilityText(status: string, reasons: string[] = [], _characterClass = "", t: AppTranslator) {
   if (status === "available") {
-    return { title: "Bereit", detail: "Route und Konfiguration sind bereit." };
+    return { title: t("reasons.readyTitle"), detail: t("reasons.readyDetail") };
   }
   if (status === "runtime_validation_required") {
-    return { title: "Bereit", detail: "Tipp für Fernkämpfer: Beende die Routenaufnahme mit etwas Abstand zum Boss – an dieser Position beginnt später der Kampf." };
+    return { title: t("reasons.readyTitle"), detail: t("reasons.runtimeValidationDetail") };
   }
   const matched = reasonPriority.find((reason) => reasons.includes(reason));
-  if (matched === "profile_run_strategy_unavailable") {
-    const classLabel = characterClassLabel(characterClass);
-    return {
-      title: "Nicht verfügbar",
-      detail: classLabel
-        ? `Dieser Run ist für ${classLabel} noch nicht freigegeben.`
-        : "Für dieses Kampfprofil ist dieser Run noch nicht freigegeben.",
-    };
+  switch (matched) {
+    case "profile_class_mismatch":
+    case "character_profile_run_incompatible":
+      return { title: t("reasons.unavailableTitle"), detail: t("reasons.routeBindingMismatch") };
+    case "profile_run_strategy_unavailable":
+      return { title: t("reasons.unavailableTitle"), detail: t("reasons.profileRunUnavailable") };
+    case "route_assignment_missing":
+      return { title: t("reasons.notConfiguredTitle"), detail: t("reasons.routeMissing") };
+    case "leg_acquisition_route_missing":
+      return { title: t("reasons.notConfiguredTitle"), detail: t("reasons.legRouteMissing") };
+    case "leg_acquisition_route_stale":
+      return { title: t("reasons.notReadyTitle"), detail: t("reasons.legRouteStale") };
+    case "cow_sweep_route_missing":
+      return { title: t("reasons.notConfiguredTitle"), detail: t("reasons.cowRouteMissing") };
+    case "cow_sweep_route_stale":
+      return { title: t("reasons.notReadyTitle"), detail: t("reasons.cowRouteStale") };
+    case "route_set_binding_mismatch":
+      return { title: t("reasons.unavailableTitle"), detail: t("reasons.cowRouteMismatch") };
+    case "route_lifecycle_unavailable":
+      return { title: t("reasons.notReadyTitle"), detail: t("reasons.routeUnavailable") };
+    case "route_stale":
+      return { title: t("reasons.notReadyTitle"), detail: t("reasons.routeStale") };
+    default:
+      return { title: t("reasons.notReadyTitle"), detail: t("reasons.fallback") };
   }
-  if (matched && reasonCopy[matched]) {
-    return reasonCopy[matched];
-  }
-  for (const reason of reasons) {
-    if (reasonCopy[reason]) return reasonCopy[reason];
-  }
-  return { title: "Noch nicht bereit", detail: "Öffne die Routen, um die fehlende Einrichtung zu prüfen." };
 }
 
-export function queueStartErrorText(message: string) {
-  const text = message.trim();
-  const resolution = unsupportedResolutionText(text);
-  if (resolution) {
-    return resolution;
-  }
-  if (text.includes("queue_entry_unavailable") || text.includes("profile_class_mismatch")) {
-    return "Ein Run in der Reihenfolge ist für diesen Charakter nicht startfähig.";
-  }
-  if (text.includes("queue_context_mismatch")) {
-    return "Die Queue gehört nicht zur bestätigten Auswahl.";
-  }
-  if (text.includes("state_changed")) {
-    return "Der Charakterkatalog hat sich geändert. Seite aktualisieren.";
-  }
-  if (text.includes("game_start_failed") || text.includes("expected in_game") || text.includes("start queue game")) {
-    return "Das Spiel konnte nicht sicher gestartet werden. D2R muss im Rogue Encampment stehen oder auf dem Offline-Charakterbildschirm, damit der Bot das Spiel öffnet.";
-  }
-  if (text.includes("no usable client area")) {
-    return "Das D2R-Fenster hat keine nutzbare Fläche. Stelle Fenster-Modus 1280 × 720 ein und lass das Fenster sichtbar, nicht minimiert.";
-  }
-  if (text.includes("character mismatch")) {
-    return "Im Spiel ist ein anderer Charakter aktiv als die bestätigte Auswahl.";
-  }
-  if (text.includes("start area mismatch")) {
-    return "Das Spiel muss im Rogue Encampment stehen, bevor die Queue startet.";
-  }
-  return text || "Die Farm-Queue konnte nicht sicher geprüft werden.";
+export function queueStartErrorText(reason: unknown, t: AppTranslator): string {
+  return presentApiError(reason, t, t("app.sessionCommandFailed"));
 }
 
-export function selectionErrorText(message: string) {
-  const text = message.trim();
-  const resolution = unsupportedResolutionText(text);
-  if (resolution) {
-    return resolution;
-  }
-  if (text.includes("no usable client area")) {
-    return "Das D2R-Fenster hat keine nutzbare Fläche. Stelle Fenster-Modus 1280 × 720 ein und lass das Fenster sichtbar, nicht minimiert.";
-  }
-  if (text.includes("character selection timeout") || text.includes("character_selection_unconfirmed")) {
-    return "Der Charakterbildschirm wurde nicht sicher erkannt. D2R muss auf dem Offline-Charakterbildschirm bei 1280 × 720 stehen, und der gewünschte Save muss sichtbar markiert sein.";
-  }
-  if (text.includes("target anchor not found")) {
-    return "Der Charakter wurde auf dem Auswahlbildschirm nicht gefunden. Prüfe 1280 × 720 und den markierten Save.";
-  }
-  return text || "Die Charakterauswahl konnte nicht sicher bestätigt werden.";
+export function selectionErrorText(reason: unknown, t: AppTranslator, fallback = t("app.selectionFailed")): string {
+  return presentApiError(reason, t, fallback);
 }

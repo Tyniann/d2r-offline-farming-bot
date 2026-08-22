@@ -181,7 +181,8 @@ func (a *townPreparationAdapter) Tick(ctx context.Context, state world.State) ta
 		traversal := a.traversals[a.index]
 		points, err := pathing.LoadLayoutBoundTownRoute(filepath.Join(a.directory, traversal.Edge.Route), traversal.Edge.ID, a.layout, a.layoutOrigin)
 		if err != nil {
-			return tasks.TownPreparationResult{Status: "failed", Reason: err.Error(), Done: true}
+			a.log.Error("Stadtroute konnte nicht geladen werden", "edge", traversal.Edge.ID, "error", err)
+			return tasks.TownPreparationResult{Status: "failed", Reason: string(town.ReasonTownLayoutUnavailable), Done: true}
 		}
 		if traversal.Reverse {
 			reversePositions(points)

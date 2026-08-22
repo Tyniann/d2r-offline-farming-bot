@@ -1,6 +1,7 @@
 package api
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -77,7 +78,7 @@ func (b *LiveBackend) PreviewPickit(request PickitPreviewRequest) (PickitPreview
 		return PickitPreviewDTO{}, err
 	}
 	if err := validatePickitPreviewSockets(request.Item); err != nil {
-		return PickitPreviewDTO{}, &commandError{code: "request_invalid", message: err.Error()}
+		return PickitPreviewDTO{}, &commandError{code: "request_invalid", cause: fmt.Errorf("validate Pickit preview sockets: %w", err)}
 	}
 	document := pickitDocument(validated.Profile)
 	specs := make([]loot.PickitRuleSpec, len(document.Rules))
@@ -161,10 +162,10 @@ func (b *LiveBackend) pickitMutation(operation func() error) error {
 	state, workflow := b.status.State, b.routeWorkflow.State
 	b.mu.RUnlock()
 	if state != string(app.SupervisorStateIdle) && state != string(app.SupervisorStateIdleInGame) {
-		return &commandError{code: "command_conflict", message: "Pickit kann während eines aktiven Runs nicht geändert werden."}
+		return &commandError{code: "command_conflict", params: map[string]any{"operation": "pickit"}}
 	}
 	if routeWorkflowBusy(workflow) {
-		return &commandError{code: "command_conflict", message: "Pickit ist während eines Routen-Workflows gesperrt."}
+		return &commandError{code: "command_conflict", params: map[string]any{"operation": "pickit"}}
 	}
 	return operation()
 }
@@ -185,9 +186,9 @@ func (b *LiveBackend) CreatePickit(request PickitCreateRequest) (result PickitPr
 func (b *LiveBackend) UpdatePickit(id string, request PickitUpdateRequest) (result PickitProfileDTO, err error) {
 	err = b.pickitMutation(func() error {
 		value, e := b.pickitProfiles.Update(id, request.ExpectedRevision, pickitDocument(request.Profile))
-		if e != nil && strings.Contains(e.Error(), "revision_conflict") {
+		if errors.Is(e, app.ErrPickitProfileRevisionConflict) {
 			current, _ := b.pickitProfiles.Get(id)
-			return &commandError{code: "revision_conflict", message: "Das Pickit-Profil wurde zwischenzeitlich geändert.", details: map[string]any{"expected_revision": request.ExpectedRevision, "current_revision": current.Revision, "path": "profile.revision"}}
+			return &commandError{code: "revision_conflict", params: map[string]any{"expected_revision": request.ExpectedRevision, "current_revision": current.Revision, "path": "profile.revision"}}
 		}
 		if e == nil {
 			result = profileDTO(value)
@@ -219,7 +220,7 @@ func (b *LiveBackend) DeletePickit(id string, request PickitDeleteRequest) error
 			return e
 		}
 		if current.Revision != request.ExpectedRevision {
-			return &commandError{code: "revision_conflict", message: "Das Pickit-Profil wurde zwischenzeitlich geändert.", details: map[string]any{"expected_revision": request.ExpectedRevision, "current_revision": current.Revision, "path": "profile.revision"}}
+			return &commandError{code: "revision_conflict", params: map[string]any{"expected_revision": request.ExpectedRevision, "current_revision": current.Revision, "path": "profile.revision"}}
 		}
 		return b.pickitProfiles.Delete(id, b.pickitAssignments)
 	})
@@ -249,9 +250,9 @@ func assignmentsDTO(manifest app.PickitAssignmentManifest) PickitAssignmentsDTO 
 func (b *LiveBackend) UpdatePickitAssignment(request PickitAssignmentUpdateRequest) (result PickitAssignmentsDTO, err error) {
 	err = b.pickitMutation(func() error {
 		value, e := b.pickitAssignments.Replace(request.Character, tasks.RunID(request.RunID), request.ProfileIDs, request.ExpectedRevision)
-		if e != nil && strings.Contains(e.Error(), "revision_conflict") {
+		if errors.Is(e, app.ErrPickitAssignmentRevisionConflict) {
 			current, _ := b.pickitAssignments.Snapshot()
-			return &commandError{code: "revision_conflict", message: "Die Pickit-Zuordnung wurde zwischenzeitlich geändert.", details: map[string]any{"expected_revision": request.ExpectedRevision, "current_revision": current.Revision, "path": "assignments.revision"}}
+			return &commandError{code: "revision_conflict", params: map[string]any{"expected_revision": request.ExpectedRevision, "current_revision": current.Revision, "path": "assignments.revision"}}
 		}
 		if e == nil {
 			result = assignmentsDTO(value)

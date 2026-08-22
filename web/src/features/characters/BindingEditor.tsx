@@ -6,13 +6,16 @@ import type {
   OperatorProfileBindingsDTO,
 } from "../../api/generated";
 import { StatusBadge } from "../../app/ui";
+import { useTranslation } from "react-i18next";
+import type { AppTranslator } from "../../i18n/presenters";
+import { gameSkillName } from "../../i18n/game";
 
 const skillKeys = ["f1", "f2", "f3", "f4", "f5", "f6", "f7", "f8"] as const;
 const beltKeys = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0", "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z", ",", ".", "-", "]"] as const;
 const potionKinds = [
-  { value: "healing", label: "Heiltrank" },
-  { value: "mana", label: "Manatrank" },
-  { value: "rejuvenation", label: "Regeneration" },
+  "healing",
+  "mana",
+  "rejuvenation",
 ] as const;
 
 export type BindingEditorValue = {
@@ -92,39 +95,40 @@ export function BindingEditor({
   mutable: boolean;
   onChange: (next: BindingEditorValue) => void;
 }) {
-  const collisions = collectCollisions(value);
+  const { t, i18n } = useTranslation();
+  const collisions = collectCollisions(value, t);
 
   return <div className="binding-editor">
-    {bindingsReady !== undefined && <div className="binding-readiness" role="status" aria-label="Core-Status der Tastenbelegung">
+    {bindingsReady !== undefined && <div className="binding-readiness" role="status" aria-label={t("characters.bindingsCoreAria")}>
       <StatusBadge tone={bindingsReady ? "success" : "warning"}>
-        {bindingsReady ? "Core: Tasten vollständig" : "Core: Tasten fehlen"}
+        {t(bindingsReady ? "characters.bindingsComplete" : "characters.bindingsMissing")}
       </StatusBadge>
       {!bindingsReady && bindingReasons.length > 0
-        ? <span>{bindingReasons.map((reason) => bindingReasonText(reason, optionalSkillPairs.length > 0)).join(" ")}</span>
+        ? <span>{bindingReasons.map((reason) => bindingReasonText(reason, optionalSkillPairs.length > 0, t)).join(" ")}</span>
         : null}
     </div>}
-    <p className="hint">Der Mausslot ist durch das Kampfprofil festgelegt. Du wählst nur die F-Taste.</p>
-    <div className="binding-skill-grid" role="group" aria-label="Skilltasten">
+    <p className="hint">{t("characters.mouseSlotHint")}</p>
+    <div className="binding-skill-grid" role="group" aria-label={t("characters.skillKeysAria")}>
       {requiredSkills.map((skill) => {
         const selected = value.skills[skill.skill] ?? "";
         const collision = selected ? collisions[selected] : undefined;
         return <label key={skill.skill} className={collision ? "binding-collision" : undefined}>
           <span className="binding-skill-label">
-            <strong>{skill.display_name}</strong>
-            <StatusBadge tone="neutral">{skillSlotLabel(skill.slot)}</StatusBadge>
-            {standardAttack === skill.skill ? <StatusBadge tone="success">Standardangriff</StatusBadge> : null}
+            <strong>{gameSkillName(skill.skill, skill.skill, i18n.resolvedLanguage)}</strong>
+            <StatusBadge tone="neutral">{skillSlotLabel(skill.slot, t)}</StatusBadge>
+            {standardAttack === skill.skill ? <StatusBadge tone="success">{t("characters.standardAttack")}</StatusBadge> : null}
           </span>
           <select
             value={selected}
             disabled={!mutable}
-            aria-label={`${skill.display_name} Taste`}
+            aria-label={t("characters.keyAria", { skill: gameSkillName(skill.skill, skill.skill, i18n.resolvedLanguage) })}
             aria-invalid={!!collision}
             onChange={(event) => onChange({
               ...value,
               skills: { ...value.skills, [skill.skill]: event.target.value },
             })}
           >
-            <option value="">Nicht belegt</option>
+            <option value="">{t("characters.unassigned")}</option>
             {skillKeys.map((key) => <option key={key} value={key}>{key.toUpperCase()}</option>)}
           </select>
           {collision ? <small role="alert">{collision}</small> : null}
@@ -135,31 +139,31 @@ export function BindingEditor({
     {optionalSkillPairs.map((pair, pairIndex) => <section className="binding-optional-pair" key={pair.skills.map((skill) => skill.skill).join("-") || pairIndex}>
       <div className="binding-optional-heading">
         <div>
-          <h4>Optional: Call to Arms</h4>
-          <p>Call to Arms ist optional. Wenn du Battle Command und Battle Orders belegst, muss CTA im zweiten Waffenset liegen. Ein Holy-Shield-Schild darf ebenfalls dort ausgerüstet sein. Der Bot prüft Waffenset und Skillauswahl, aber nicht das Runenwort oder die Söldnerausrüstung.</p>
+          <h4>{t("characters.optionalCta")}</h4>
+          <p>{t("characters.optionalCtaDetail")}</p>
         </div>
-        <StatusBadge tone="neutral">Waffenset II · beide oder keine</StatusBadge>
+        <StatusBadge tone="neutral">{t("characters.optionalCtaBadge")}</StatusBadge>
       </div>
-      <div className="binding-skill-grid" role="group" aria-label="Optionale Call-to-Arms-Tasten">
+      <div className="binding-skill-grid" role="group" aria-label={t("characters.optionalCtaAria")}>
         {pair.skills.map((skill) => {
           const selected = value.skills[skill.skill] ?? "";
           const collision = selected ? collisions[selected] : undefined;
           return <label key={skill.skill} className={collision ? "binding-collision" : undefined}>
             <span className="binding-skill-label">
-              <strong>{skill.display_name}</strong>
-              <StatusBadge tone="neutral">Optional · {skillSlotLabel(skill.slot)}</StatusBadge>
+              <strong>{gameSkillName(skill.skill, skill.skill, i18n.resolvedLanguage)}</strong>
+              <StatusBadge tone="neutral">{t("characters.optionalSlot", { slot: skillSlotLabel(skill.slot, t) })}</StatusBadge>
             </span>
             <select
               value={selected}
               disabled={!mutable}
-              aria-label={`${skill.display_name} Taste`}
+              aria-label={t("characters.keyAria", { skill: gameSkillName(skill.skill, skill.skill, i18n.resolvedLanguage) })}
               aria-invalid={!!collision}
               onChange={(event) => onChange({
                 ...value,
                 skills: { ...value.skills, [skill.skill]: event.target.value },
               })}
             >
-              <option value="">Nicht belegt</option>
+              <option value="">{t("characters.unassigned")}</option>
               {skillKeys.map((key) => <option key={key} value={key}>{key.toUpperCase()}</option>)}
             </select>
             {collision ? <small role="alert">{collision}</small> : null}
@@ -168,46 +172,46 @@ export function BindingEditor({
       </div>
     </section>)}
 
-    {requiresMercenary && <p className="binding-mercenary-note">Für Hammerdin muss ein lebender Söldner verfügbar sein. Seine Ausrüstung wird nicht geprüft.</p>}
+    {requiresMercenary && <p className="binding-mercenary-note">{t("characters.mercenaryHint")}</p>}
 
-    <h4>Gürtel</h4>
-    <p className="hint">Pro Spalte Taste und Tranktyp festlegen. Der Bot hebt und benutzt nur die hier zugeordneten Tränke.</p>
-    <div className="binding-belt-grid" role="group" aria-label="Gürtelbelegung">
+    <h4>{t("characters.belt")}</h4>
+    <p className="hint">{t("characters.beltHint")}</p>
+    <div className="binding-belt-grid" role="group" aria-label={t("characters.beltAria")}>
       {([1, 2, 3, 4] as const).map((slot) => {
         const field = `slot_${slot}` as keyof OperatorBeltBindingsDTO;
         const selected = value.belt[field] ?? "";
         const potion = value.belt_layout[field] ?? "";
         const collision = selected ? collisions[selected] : undefined;
         return <div key={slot} className={collision ? "binding-belt-slot binding-collision" : "binding-belt-slot"}>
-          <span className="binding-belt-slot-title">Slot {slot}</span>
+          <span className="binding-belt-slot-title">{t("characters.slot", { slot })}</span>
           <label>
-            <span>Taste</span>
+            <span>{t("characters.key")}</span>
             <select
               value={selected}
               disabled={!mutable}
-              aria-label={`Gürtel Slot ${slot} Taste`}
+              aria-label={t("characters.beltKeyAria", { slot })}
               aria-invalid={!!collision}
               onChange={(event) => onChange({
                 ...value,
                 belt: { ...value.belt, [field]: event.target.value },
               })}
             >
-              <option value="">Nicht belegt</option>
+              <option value="">{t("characters.unassigned")}</option>
               {beltKeys.map((key) => <option key={key} value={key}>{key}</option>)}
             </select>
           </label>
           <label>
-            <span>Trank</span>
+            <span>{t("characters.potion")}</span>
             <select
               value={potion}
               disabled={!mutable}
-              aria-label={`Gürtel Slot ${slot} Trank`}
+              aria-label={t("characters.beltPotionAria", { slot })}
               onChange={(event) => onChange({
                 ...value,
                 belt_layout: { ...value.belt_layout, [field]: event.target.value as OperatorBeltLayoutDTO[typeof field] },
               })}
             >
-              {potionKinds.map((kind) => <option key={kind.value} value={kind.value}>{kind.label}</option>)}
+              {potionKinds.map((kind) => <option key={kind} value={kind}>{t(`characters.${kind === "healing" ? "healingPotion" : kind === "mana" ? "manaPotion" : "rejuvenationPotion"}`)}</option>)}
             </select>
           </label>
           {collision ? <small role="alert">{collision}</small> : null}
@@ -221,19 +225,19 @@ function layoutComplete(layout: OperatorBeltLayoutDTO): boolean {
   return Boolean(layout.slot_1 && layout.slot_2 && layout.slot_3 && layout.slot_4);
 }
 
-function skillSlotLabel(slot: CharacterSetupRequiredSkillDTO["slot"]): string {
+function skillSlotLabel(slot: CharacterSetupRequiredSkillDTO["slot"], t: AppTranslator): string {
   if (slot === "left") return "LMB";
   if (slot === "right") return "RMB";
-  return "Mausslot";
+  return t("characters.mouseSlot");
 }
 
-function bindingReasonText(reason: string, hasOptionalPair: boolean): string {
-  if (reason === "profile_bindings_incomplete" && hasOptionalPair) return "Pflichtskills, Gürtel oder das optionale CTA-Paar sind noch nicht vollständig gültig.";
-  if (reason === "profile_bindings_incomplete") return "Pflichtskills oder Gürtel sind noch nicht vollständig gültig.";
-  return "Die Tastenbelegung ist laut Core noch nicht gültig.";
+function bindingReasonText(reason: string, hasOptionalPair: boolean, t: AppTranslator): string {
+  if (reason === "profile_bindings_incomplete" && hasOptionalPair) return t("characters.bindingsIncompleteOptional");
+  if (reason === "profile_bindings_incomplete") return t("characters.bindingsIncomplete");
+  return t("characters.bindingsInvalid");
 }
 
-function collectCollisions(value: BindingEditorValue): Record<string, string> {
+function collectCollisions(value: BindingEditorValue, t: AppTranslator): Record<string, string> {
   const owners = new Map<string, string>();
   const collisions: Record<string, string> = {};
   const mark = (rawKey: string | undefined, owner: string) => {
@@ -241,15 +245,15 @@ function collectCollisions(value: BindingEditorValue): Record<string, string> {
     if (!key) return;
     const prior = owners.get(key);
     if (prior && prior !== owner) {
-      collisions[key] = `Taste ${key.toUpperCase()} ist doppelt belegt (${prior} und ${owner}).`;
+      collisions[key] = t("characters.collision", { key: key.toUpperCase(), first: prior, second: owner });
       return;
     }
     owners.set(key, owner);
   };
   for (const [skill, key] of Object.entries(value.skills)) mark(key, skill);
-  mark(value.belt.slot_1, "Gürtel 1");
-  mark(value.belt.slot_2, "Gürtel 2");
-  mark(value.belt.slot_3, "Gürtel 3");
-  mark(value.belt.slot_4, "Gürtel 4");
+  mark(value.belt.slot_1, t("characters.beltOwner", { slot: 1 }));
+  mark(value.belt.slot_2, t("characters.beltOwner", { slot: 2 }));
+  mark(value.belt.slot_3, t("characters.beltOwner", { slot: 3 }));
+  mark(value.belt.slot_4, t("characters.beltOwner", { slot: 4 }));
   return collisions;
 }

@@ -103,7 +103,7 @@ const (
 // boss descriptor instead of maintaining a second NPC identity table.
 type RecordingContract struct {
 	RouteRole                pathing.RouteRole
-	InstructionsDE           string
+	InstructionCode          string
 	StartKind                RecordingStartKind
 	StartWaypoint            pathing.WaypointTargetID
 	StartObjectKind          world.ObjectKind

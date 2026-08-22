@@ -2,7 +2,6 @@ package app
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 	"time"
 
@@ -289,7 +288,8 @@ func (a *cowSetupAdapter) TickTome(ctx context.Context, state world.State) tasks
 		}
 		if !a.tomeCloseSent {
 			if err := a.controller.PressKey("esc"); err != nil {
-				return tasks.CowSetupActionResult{Done: true, Reason: fmt.Sprintf("cow_tome_shop_close_failed: %v", err)}
+				a.log.Error("Cow-Setup-Tome: Händlerfenster konnte nicht geschlossen werden", "error", err)
+				return tasks.CowSetupActionResult{Done: true, Reason: "cow_tome_shop_close_failed"}
 			}
 			a.tomeCloseSent = true
 		}

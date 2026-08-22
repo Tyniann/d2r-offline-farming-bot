@@ -1,7 +1,7 @@
 package tasks
 
 import (
-	"strings"
+	"reflect"
 	"testing"
 
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/world"
@@ -9,25 +9,23 @@ import (
 
 func TestProjectRunProgressCoversEverySupportedRun(t *testing.T) {
 	tests := []struct {
-		run, step, label string
-		area             world.AreaID
-		current, total   int
+		run, step, stageCode string
+		area                 world.AreaID
+		params               map[string]any
+		current, total       int
 	}{
-		{string(RunIDCountess), pipelineStepPlayRoute, "Kellergeschoss 3 von 5", world.TowerCellarLevel3, 6, 13},
-		{string(RunIDMephisto), pipelineStepEngageBoss, "Bosskampf", world.DuranceOfHateLevel3, 4, 8},
-		{string(RunIDSummoner), pipelineStepPlayRoute, "Reise zum Beschwörer", world.ArcaneSanctuary, 3, 8},
-		{string(RunIDNihlathak), pipelineStepWaitForDrops, "Beute", world.HallsOfVaught, 5, 8},
-		{string(RunIDLowerKurast), pipelineStepChestSweep, "Supertruhen", world.LowerKurast, 4, 8},
-		{string(RunIDCows), cowStepPortalRecipe, "Portal ins Kuh-Level", world.RogueEncampment, 8, 12},
+		{string(RunIDCountess), pipelineStepPlayRoute, "cellar_floor", world.TowerCellarLevel3, map[string]any{"floor": 3, "floors": 5}, 6, 13},
+		{string(RunIDMephisto), pipelineStepEngageBoss, "boss_combat", world.DuranceOfHateLevel3, nil, 4, 8},
+		{string(RunIDSummoner), pipelineStepPlayRoute, "travel_summoner", world.ArcaneSanctuary, nil, 3, 8},
+		{string(RunIDNihlathak), pipelineStepWaitForDrops, "loot", world.HallsOfVaught, nil, 5, 8},
+		{string(RunIDLowerKurast), pipelineStepChestSweep, "superchests", world.LowerKurast, nil, 4, 8},
+		{string(RunIDCows), cowStepPortalRecipe, "cow_portal", world.RogueEncampment, nil, 8, 12},
 	}
 	for _, test := range tests {
 		t.Run(test.run, func(t *testing.T) {
 			got, ok := ProjectRunProgress(test.run, test.step, test.area)
-			if !ok || got.Label != test.label || got.Current != test.current || got.Total != test.total {
-				t.Fatalf("ProjectRunProgress() = %+v, %v; want %q, %d/%d", got, ok, test.label, test.current, test.total)
-			}
-			if strings.Contains(got.Label, test.step) {
-				t.Fatalf("label %q exposes internal step %q", got.Label, test.step)
+			if !ok || got.StageCode != test.stageCode || !reflect.DeepEqual(got.Params, test.params) || got.Current != test.current || got.Total != test.total {
+				t.Fatalf("ProjectRunProgress() = %+v, %v; want %q, %v, %d/%d", got, ok, test.stageCode, test.params, test.current, test.total)
 			}
 		})
 	}
@@ -35,7 +33,7 @@ func TestProjectRunProgressCoversEverySupportedRun(t *testing.T) {
 
 func TestProjectRunProgressRejectsUnknownOrUnmappedState(t *testing.T) {
 	for _, test := range []struct{ run, step string }{{"unknown", pipelineStepPrecheck}, {string(RunIDCountess), "mouse_action"}} {
-		if got, ok := ProjectRunProgress(test.run, test.step, world.None); ok || got != (RunProgress{}) {
+		if got, ok := ProjectRunProgress(test.run, test.step, world.None); ok || !reflect.DeepEqual(got, RunProgress{}) {
 			t.Fatalf("ProjectRunProgress(%q, %q) = %+v, %v", test.run, test.step, got, ok)
 		}
 	}
@@ -49,11 +47,11 @@ func TestRunnerProgressPublishesOnlyActiveValidProgress(t *testing.T) {
 	runner.started = true
 	runner.tracker.name = pipelineStepPlayRoute
 	progress, ok := runner.Progress(world.TowerCellarLevel3)
-	if !ok || progress.Label != "Kellergeschoss 3 von 5" {
+	if !ok || progress.StageCode != "cellar_floor" || progress.Params["floor"] != 3 {
 		t.Fatalf("active progress = %+v, %v", progress, ok)
 	}
 	progress, ok = runner.Progress(world.None)
-	if !ok || progress.Label != "Kellergeschoss 3 von 5" {
+	if !ok || progress.StageCode != "cellar_floor" || progress.Params["floor"] != 3 {
 		t.Fatalf("loading snapshot regressed progress = %+v, %v", progress, ok)
 	}
 	runner.terminal = true
@@ -97,7 +95,7 @@ func assertValidProgressForSteps(t *testing.T, run string, steps []string) {
 	t.Helper()
 	for _, step := range steps {
 		progress, ok := ProjectRunProgress(run, step, world.None)
-		if !ok || progress.Label == "" || progress.Current < 1 || progress.Current > progress.Total {
+		if !ok || progress.StageCode == "" || progress.Current < 1 || progress.Current > progress.Total {
 			t.Errorf("run %q step %q has invalid progress %+v, %v", run, step, progress, ok)
 		}
 	}

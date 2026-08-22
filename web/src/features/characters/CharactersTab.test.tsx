@@ -120,9 +120,9 @@ describe("CharactersTab", () => {
     expect(screen.getByLabelText("Kadaverexplosion Taste")).toHaveValue("f2");
     expect(screen.getByLabelText("Knochengefängnis Taste")).toHaveValue("f3");
     expect(screen.getByLabelText("Knochenrüstung Taste")).toHaveValue("f5");
-    expect(screen.getByLabelText("Stadtportal Taste")).toHaveValue("f6");
+    expect(screen.getByLabelText("Schriftrolle des Stadtportals Taste")).toHaveValue("f6");
     expect(screen.getByLabelText("Teleport Taste")).toHaveValue("f7");
-    expect(screen.getByLabelText("Knochen-Speer Taste")).toHaveValue("f8");
+    expect(screen.getByLabelText("Knochenspeer Taste")).toHaveValue("f8");
     expect(screen.getByLabelText("Gürtel Slot 1 Taste")).toHaveValue("1");
     expect(screen.getByLabelText("Gürtel Slot 2 Taste")).toHaveValue("2");
     expect(screen.getByLabelText("Gürtel Slot 3 Taste")).toHaveValue("3");

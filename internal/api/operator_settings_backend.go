@@ -87,7 +87,7 @@ func (b *LiveBackend) PreviewOperatorSettings(request OperatorSettingsMutationRe
 		return OperatorSettingsChangeDTO{}, fmt.Errorf("operator settings store is unavailable")
 	}
 	if request.ExpectedGeneration != generation {
-		return OperatorSettingsChangeDTO{}, &commandError{code: "state_changed", message: "Der Core-Zustand hat sich geändert."}
+		return OperatorSettingsChangeDTO{}, &commandError{code: "state_changed"}
 	}
 	change, err := store.Preview(request.ExpectedRevision, operatorSettingsFromDTO(request.Settings))
 	if err != nil {
@@ -105,7 +105,7 @@ func (b *LiveBackend) PreviewResetOperatorSettings(request OperatorSettingsReset
 		return OperatorSettingsChangeDTO{}, fmt.Errorf("operator settings store is unavailable")
 	}
 	if request.ExpectedGeneration != generation {
-		return OperatorSettingsChangeDTO{}, &commandError{code: "state_changed", message: "Der Core-Zustand hat sich geändert."}
+		return OperatorSettingsChangeDTO{}, &commandError{code: "state_changed"}
 	}
 	change, err := store.PreviewReset(request.ExpectedRevision)
 	if err != nil {
@@ -153,13 +153,13 @@ func (b *LiveBackend) operatorSettingsMutationContext(expectedGeneration uint64)
 		return nil, 0, fmt.Errorf("operator settings store is unavailable")
 	}
 	if expectedGeneration != b.status.Generation {
-		return nil, 0, &commandError{code: "state_changed", message: "Der Core-Zustand hat sich geändert."}
+		return nil, 0, &commandError{code: "state_changed"}
 	}
 	if b.status.State != string(app.SupervisorStateIdle) && b.status.State != string(app.SupervisorStateStoppedError) {
-		return nil, 0, &commandError{code: "command_conflict", message: "Einstellungen können nur bei inaktiver Session geändert werden."}
+		return nil, 0, &commandError{code: "command_conflict", params: map[string]any{"operation": "operator_settings"}}
 	}
 	if routeWorkflowBusy(b.routeWorkflow.State) {
-		return nil, 0, &commandError{code: "command_conflict", message: "Einstellungen sind während eines Routen-Workflows gesperrt."}
+		return nil, 0, &commandError{code: "command_conflict", params: map[string]any{"operation": "operator_settings"}}
 	}
 	return b.operatorSettings, b.status.Generation, nil
 }
@@ -201,16 +201,16 @@ func (b *LiveBackend) applyOperatorSettingsChange(change app.OperatorSettingsCha
 func operatorSettingsCommandError(err error) error {
 	var validationErr *app.OperatorSettingsValidationError
 	if errors.As(err, &validationErr) {
-		return &commandError{code: "config_invalid", message: validationErr.Error()}
+		return &commandError{code: "config_invalid", cause: fmt.Errorf("validate operator settings: %w", validationErr)}
 	}
 	var settingsErr *app.OperatorSettingsError
 	if errors.As(err, &settingsErr) {
 		switch settingsErr.Code {
 		case app.Phase15ReasonConfigRevisionConflict:
-			return &commandError{code: string(settingsErr.Code), message: "Die Einstellungen wurden zwischenzeitlich geändert."}
+			return &commandError{code: string(settingsErr.Code)}
 		case app.Phase15ReasonConfigSchemaUnsupported:
-			return &commandError{code: string(settingsErr.Code), message: "Die Einstellungsversion wird nicht unterstützt."}
+			return &commandError{code: string(settingsErr.Code)}
 		}
 	}
-	return &commandError{code: "config_invalid", message: "Die Einstellungen sind unvollständig oder ungültig.", details: map[string]any{"error": err.Error()}}
+	return &commandError{code: "config_invalid", cause: fmt.Errorf("apply operator settings: %w", err)}
 }

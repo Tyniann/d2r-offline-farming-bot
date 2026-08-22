@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -114,10 +115,10 @@ func TestLiveBackendProjectsStatusAndMeaningfulEvents(t *testing.T) {
 func TestLiveBackendPublishesOnlyUserFacingRunProgressChanges(t *testing.T) {
 	publisher := telemetry.NewLivePublisher(16, 4)
 	backend := &LiveBackend{publisher: publisher, status: StatusDTO{Queue: QueueStatusDTO{Entries: []string{}, DefaultEntries: []string{}}}}
-	first := &tasks.RunProgress{Label: "Reise zum Turm", Current: 3, Total: 13}
+	first := &tasks.RunProgress{StageCode: "travel_tower", Current: 3, Total: 13}
 	backend.UpdateRuntime(app.UIStatusSnapshot{RunID: "countess", Step: "play_bound_route", RunProgress: first})
 	status := backend.Status()
-	if status.RunProgress == nil || *status.RunProgress != (RunProgressDTO{Label: "Reise zum Turm", Current: 3, Total: 13}) {
+	if status.RunProgress == nil || !reflect.DeepEqual(*status.RunProgress, RunProgressDTO{StageCode: "travel_tower", Current: 3, Total: 13}) {
 		t.Fatalf("run progress = %+v", status.RunProgress)
 	}
 	sequence := publisher.Sequence()
@@ -131,7 +132,7 @@ func TestLiveBackendPublishesOnlyUserFacingRunProgressChanges(t *testing.T) {
 		t.Fatalf("internal step change published event; sequence = %d, want %d", publisher.Sequence(), sequence)
 	}
 
-	next := &tasks.RunProgress{Label: "Kellergeschoss 1 von 5", Current: 4, Total: 13}
+	next := &tasks.RunProgress{StageCode: "cellar_floor", Params: map[string]any{"floor": 1, "floors": 5}, Current: 4, Total: 13}
 	backend.UpdateRuntime(app.UIStatusSnapshot{RunID: "countess", Step: "play_bound_route", RunProgress: next})
 	replay, subscription := publisher.Subscribe(0)
 	subscription.Close()
@@ -139,7 +140,7 @@ func TestLiveBackendPublishesOnlyUserFacingRunProgressChanges(t *testing.T) {
 		t.Fatalf("progress events = %+v", replay)
 	}
 
-	invalid := &tasks.RunProgress{Label: "Ungültig", Current: 14, Total: 13}
+	invalid := &tasks.RunProgress{StageCode: "invalid", Current: 14, Total: 13}
 	backend.UpdateRuntime(app.UIStatusSnapshot{RunID: "countess", RunProgress: invalid})
 	if backend.Status().RunProgress != nil {
 		t.Fatalf("invalid run progress was published: %+v", backend.Status().RunProgress)
@@ -273,8 +274,9 @@ func TestCowRecordingOptionsExposeTwoFixedRoleWorkflows(t *testing.T) {
 			t.Fatalf("cow sweep must not claim a waypoint prerequisite: %+v", sweep.Prerequisites)
 		}
 	}
-	if !strings.Contains(strings.Join(leg.OperatorHintsDE, " "), "Wirt") || !strings.Contains(strings.Join(sweep.OperatorHintsDE, " "), "vollständig leeren") {
-		t.Fatalf("cow operator hints = %+v / %+v", leg.OperatorHintsDE, sweep.OperatorHintsDE)
+	if !reflect.DeepEqual(leg.OperatorHintCodes, []string{"cow_leg_portal_open", "cow_leg_do_not_click_wirt"}) ||
+		!reflect.DeepEqual(sweep.OperatorHintCodes, []string{"cow_portal_open", "cow_level_clear"}) {
+		t.Fatalf("cow operator hint codes = %+v / %+v", leg.OperatorHintCodes, sweep.OperatorHintCodes)
 	}
 }
 
@@ -1502,7 +1504,7 @@ func TestStartQueueDoesNotPaperOverBeginQueueFreezeFailure(t *testing.T) {
 	if commandErr.code == string(app.QueueReasonProfileBindingsIncomplete) {
 		t.Fatalf("freeze failure papered over as bindings incomplete: %+v", commandErr)
 	}
-	if commandErr.code != "command_conflict" || !strings.Contains(commandErr.message, "Loadout") {
+	if commandErr.code != "command_conflict" || commandErr.params["operation"] != "freeze_loadout" || commandErr.cause == nil {
 		t.Fatalf("freeze failure error=%+v", commandErr)
 	}
 }

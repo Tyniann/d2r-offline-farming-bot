@@ -32,10 +32,9 @@ type CharacterSetupProfileDTO struct {
 
 // CharacterSetupRequiredSkillDTO is one ordered required skill for read-only Setup UI.
 type CharacterSetupRequiredSkillDTO struct {
-	Skill       string `json:"skill"`
-	SkillID     uint16 `json:"skill_id"`
-	DisplayName string `json:"display_name"`
-	Slot        string `json:"slot"`
+	Skill   string `json:"skill"`
+	SkillID uint16 `json:"skill_id"`
+	Slot    string `json:"slot"`
 }
 
 // CharacterSetupOptionalSkillPairDTO transports one Core-defined all-or-nothing pair.
@@ -45,10 +44,9 @@ type CharacterSetupOptionalSkillPairDTO struct {
 
 // CharacterSetupPickitDefaultDTO beschreibt eine feste lesbare Run-Kette.
 type CharacterSetupPickitDefaultDTO struct {
-	RunID          string   `json:"run_id"`
-	RunDisplayName string   `json:"run_display_name"`
-	ProfileNames   []string `json:"profile_names"`
-	State          string   `json:"state"`
+	RunID        string   `json:"run_id"`
+	ProfileNames []string `json:"profile_names"`
+	State        string   `json:"state"`
 }
 
 // CharacterSetupPreviewDTO ist die vollständige Core-Projektion ohne Dateipfade.
@@ -68,12 +66,11 @@ type CharacterSetupPreviewDTO struct {
 	Reasons                  []string                         `json:"reasons"`
 }
 
-// CharacterSetupCharacterDTO enthält Name, Slug, Klasse und deutschen Klassennamen.
+// CharacterSetupCharacterDTO enthält Name, Slug und den stabilen Klassenschlüssel.
 type CharacterSetupCharacterDTO struct {
-	Name             string `json:"name"`
-	Slug             string `json:"slug"`
-	CharacterClass   string `json:"character_class"`
-	ClassDisplayName string `json:"class_display_name"`
+	Name           string `json:"name"`
+	Slug           string `json:"slug"`
+	CharacterClass string `json:"character_class"`
 }
 
 // CharacterSetupConfirmRequest bestätigt Profil und fehlende Defaults revisionsgebunden.
@@ -100,17 +97,13 @@ func characterSetupPreviewDTO(value app.CharacterSetupPreview) CharacterSetupPre
 	for index, profile := range value.Profiles {
 		skills := make([]CharacterSetupRequiredSkillDTO, len(profile.RequiredSkills))
 		for skillIndex, skill := range profile.RequiredSkills {
-			skills[skillIndex] = CharacterSetupRequiredSkillDTO{
-				Skill: skill.Skill, SkillID: skill.SkillID, DisplayName: skill.DisplayName, Slot: skill.Slot,
-			}
+			skills[skillIndex] = CharacterSetupRequiredSkillDTO{Skill: skill.Skill, SkillID: skill.SkillID, Slot: skill.Slot}
 		}
 		optionalPairs := make([]CharacterSetupOptionalSkillPairDTO, len(profile.OptionalSkillPairs))
 		for pairIndex, pair := range profile.OptionalSkillPairs {
 			optionalSkills := make([]CharacterSetupRequiredSkillDTO, len(pair.Skills))
 			for skillIndex, skill := range pair.Skills {
-				optionalSkills[skillIndex] = CharacterSetupRequiredSkillDTO{
-					Skill: skill.Skill, SkillID: skill.SkillID, DisplayName: skill.DisplayName, Slot: skill.Slot,
-				}
+				optionalSkills[skillIndex] = CharacterSetupRequiredSkillDTO{Skill: skill.Skill, SkillID: skill.SkillID, Slot: skill.Slot}
 			}
 			optionalPairs[pairIndex] = CharacterSetupOptionalSkillPairDTO{Skills: optionalSkills}
 		}
@@ -125,15 +118,12 @@ func characterSetupPreviewDTO(value app.CharacterSetupPreview) CharacterSetupPre
 	}
 	defaults := make([]CharacterSetupPickitDefaultDTO, len(value.PickitDefaults))
 	for index, item := range value.PickitDefaults {
-		defaults[index] = CharacterSetupPickitDefaultDTO{
-			RunID: string(item.RunID), RunDisplayName: item.RunDisplayName,
-			ProfileNames: append([]string(nil), item.ProfileNames...), State: item.State,
-		}
+		defaults[index] = CharacterSetupPickitDefaultDTO{RunID: string(item.RunID), ProfileNames: append([]string(nil), item.ProfileNames...), State: item.State}
 	}
 	return CharacterSetupPreviewDTO{
 		SchemaVersion: schemaVersion, CatalogRevision: value.CatalogRevision,
 		OperatorSettingsRevision: value.OperatorSettingsRevision, PickitAssignmentRevision: value.PickitAssignmentRevision,
-		Character: CharacterSetupCharacterDTO{Name: value.CharacterName, Slug: value.CharacterSlug, CharacterClass: value.CharacterClass, ClassDisplayName: value.ClassDisplayName},
+		Character: CharacterSetupCharacterDTO{Name: value.CharacterName, Slug: value.CharacterSlug, CharacterClass: value.CharacterClass},
 		Supported: value.Supported, Profiles: profiles, SelectedProfileID: value.SelectedProfileID, DefaultProfileID: value.DefaultProfileID,
 		PickitDefaults: defaults, AnchorState: string(value.AnchorState), SetupState: string(value.SetupState), Reasons: append([]string(nil), value.Reasons...),
 	}

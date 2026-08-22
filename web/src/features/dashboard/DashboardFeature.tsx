@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { CircleAlert } from "lucide-react";
 import type { LiveConnectionState } from "../../api/client";
 import type { CatalogDTO, RunCatalogEntry, StatusDTO } from "../../api/generated";
@@ -12,6 +13,7 @@ import { FarmingPanel } from "./FarmingPanel";
 import { ActiveRunPanel } from "./ActiveRunPanel";
 import { dashboardRunName } from "./dashboardText";
 import "./dashboard.css";
+import type { AppTranslator } from "../../i18n/presenters";
 
 interface Props {
   status: StatusDTO | null;
@@ -47,6 +49,7 @@ interface Props {
 
 /** DashboardFeature coordinates the idle dashboard while App keeps Core commands and navigation. */
 export function DashboardFeature(props: Props) {
+  const { t } = useTranslation();
   const {
     status, catalog, connection, error, selectionError, character, confirmedDifficultyLabel,
     appDifficultyLabel, selectionNeedsApply, needsFirstRoute, liveLocked, compatibilityState, selectionRuns,
@@ -58,7 +61,7 @@ export function DashboardFeature(props: Props) {
   const viewedCatalogEntry = catalog?.characters.find((entry) => entry.name === character);
   const viewedFarmReadyBlocked = !!viewedCatalogEntry && viewedCatalogEntry.selectable && !viewedCatalogEntry.farm_ready;
   const activeRun = (selectionRuns ?? catalog?.runs ?? []).find((entry) => entry.run_id === status?.active_run_id);
-  const activeRunName = activeRun ? dashboardRunName(activeRun.run_id, activeRun.display_name) : undefined;
+  const activeRunName = activeRun ? dashboardRunName(activeRun.run_id, t) : undefined;
 
   return <div className="dashboard-feature">
     <DashboardHeader
@@ -78,20 +81,20 @@ export function DashboardFeature(props: Props) {
 
     {status && !["idle", "idle_in_game", "stopped_error"].includes(status.state) && <ActiveRunPanel status={status} runName={activeRunName} hotkeys={hotkeys} />}
 
-    {needsFirstRoute && <section className="first-route-cta"><div><p className="eyebrow">Einrichtung fortsetzen</p><h2>Erste Route aufnehmen</h2><p>Für den bestätigten Kontext fehlt noch eine verwendbare Farming-Route.</p></div><Button onClick={() => onOpenRoutes("countess")}>Erste Route aufnehmen</Button></section>}
-    {error && <StateMessage kind="error" title="Statusabfrage fehlgeschlagen">{error}</StateMessage>}
-    {!error && !status && <StateMessage kind="loading" title="Verbindung wird hergestellt">Die lokale App wird kontaktiert.</StateMessage>}
-    {status && liveLocked && <section className="compatibility-block" role="alert" aria-labelledby="compatibility-title"><CircleAlert aria-hidden="true" size={28} /><div><h2 id="compatibility-title">D2R ist nicht bereit</h2><p>Prüfe, ob D2R läuft und die unterstützte Version verwendet. Einstellungen, Historie und Diagnose bleiben verfügbar.</p><small>{compatibilityMessage(compatibilityState)}</small></div></section>}
-    {catalog && viewedCatalogEntry && !viewedCatalogEntry.selectable && !(viewedCatalogEntry.reasons ?? []).includes("character_class_unsupported") && status && <StateMessage kind="error" title={`${viewedCatalogEntry.name} ist noch nicht eingerichtet`}>{characterAvailabilityText(viewedCatalogEntry, catalog)} <Button variant="secondary" onClick={() => setSetupCharacter(viewedCatalogEntry.name)}>Charakter einrichten</Button></StateMessage>}
-    {viewedFarmReadyBlocked && <StateMessage kind="error" title="Charakter nicht farmbereit">{(viewedCatalogEntry.farm_ready_reasons ?? []).map((reason) => farmReadyReasonText(reason)).join(" ") || "Tasten oder Inventarschutz fehlen noch."} <a href="#settings">Charaktereinstellungen öffnen</a>{status && <Button variant="secondary" onClick={() => setSetupCharacter(viewedCatalogEntry.name)}>Charakter einrichten</Button>}</StateMessage>}
+    {needsFirstRoute && <section className="first-route-cta"><div><p className="eyebrow">{t("dashboard.setup.continue")}</p><h2>{t("dashboard.setup.firstRouteTitle")}</h2><p>{t("dashboard.setup.firstRouteDetail")}</p></div><Button onClick={() => onOpenRoutes("countess")}>{t("dashboard.setup.firstRouteTitle")}</Button></section>}
+    {error && <StateMessage kind="error" title={t("dashboard.setup.statusFailed")}>{error}</StateMessage>}
+    {!error && !status && <StateMessage kind="loading" title={t("dashboard.setup.connectingTitle")}>{t("dashboard.setup.connectingDetail")}</StateMessage>}
+    {status && liveLocked && <section className="compatibility-block" role="alert" aria-labelledby="compatibility-title"><CircleAlert aria-hidden="true" size={28} /><div><h2 id="compatibility-title">{t("dashboard.setup.d2rNotReady")}</h2><p>{t("dashboard.setup.d2rNotReadyDetail")}</p><small>{compatibilityMessage(compatibilityState, t)}</small></div></section>}
+    {catalog && viewedCatalogEntry && !viewedCatalogEntry.selectable && !(viewedCatalogEntry.reasons ?? []).includes("character_class_unsupported") && status && <StateMessage kind="error" title={t("dashboard.setup.characterNotConfigured", { character: viewedCatalogEntry.name })}>{characterAvailabilityText(viewedCatalogEntry, catalog, t)} <Button variant="secondary" onClick={() => setSetupCharacter(viewedCatalogEntry.name)}>{t("dashboard.setup.configureCharacter")}</Button></StateMessage>}
+    {viewedFarmReadyBlocked && <StateMessage kind="error" title={t("dashboard.setup.characterNotFarmReady")}>{(viewedCatalogEntry.farm_ready_reasons ?? []).map((reason) => farmReadyReasonText(reason, t)).join(" ") || t("dashboard.setup.bindingsOrInventoryMissing")} <a href="#settings">{t("dashboard.setup.openCharacterSettings")}</a>{status && <Button variant="secondary" onClick={() => setSetupCharacter(viewedCatalogEntry.name)}>{t("dashboard.setup.configureCharacter")}</Button>}</StateMessage>}
     {setupCharacter && status && catalog && <CharacterSetupWizard character={setupCharacter} catalog={catalog} status={status} mode="dashboard" onChanged={onRefresh} />}
 
-    {startFailureText && <StateMessage kind="error" title="Farming konnte nicht gestartet werden">{startFailureText}</StateMessage>}
-    {queueWarning && <StateMessage kind="error" title="Hinweis zur Run-Reihenfolge">{queueWarning}</StateMessage>}
-    {inputNotReady && !startFailureText && <StateMessage kind="error" title="Spielsteuerung nicht bereit">Prüfe Freigabe, Pause und Notstopp.</StateMessage>}
-    {routeWorkflowBusy && <StateMessage kind="error" title="Routenvorgang aktiv">Beende zuerst den Routenvorgang.</StateMessage>}
+    {startFailureText && <StateMessage kind="error" title={t("dashboard.setup.farmingStartFailed")}>{startFailureText}</StateMessage>}
+    {queueWarning && <StateMessage kind="error" title={t("dashboard.setup.queueNotice")}>{queueWarning}</StateMessage>}
+    {inputNotReady && !startFailureText && <StateMessage kind="error" title={t("dashboard.setup.inputNotReady")}>{t("dashboard.setup.inputNotReadyDetail")}</StateMessage>}
+    {routeWorkflowBusy && <StateMessage kind="error" title={t("dashboard.setup.routeWorkflowActive")}>{t("dashboard.setup.routeWorkflowActiveDetail")}</StateMessage>}
 
-    <DashboardStats character={character} difficulty={props.difficulty} runNames={Object.fromEntries((catalog?.runs ?? selectionRuns ?? []).map((run) => [run.run_id, dashboardRunName(run.run_id, run.display_name)]))} farming={<FarmingPanel
+    <DashboardStats character={character} difficulty={props.difficulty} runNames={Object.fromEntries((catalog?.runs ?? selectionRuns ?? []).map((run) => [run.run_id, dashboardRunName(run.run_id, t)]))} farming={<FarmingPanel
         status={status}
         character={character}
         difficulty={props.difficulty}
@@ -105,6 +108,7 @@ export function DashboardFeature(props: Props) {
   </div>;
 }
 
-function compatibilityMessage(state: string): string {
-  return ({ not_detected: "D2R wurde nicht gefunden.", incompatible: "Diese D2R-Version wird nicht unterstützt.", unreadable: "Die D2R-Version konnte nicht gelesen werden." } as Record<string, string>)[state] ?? "D2R ist nicht bereit.";
+function compatibilityMessage(state: string, t: AppTranslator): string {
+  const keys = { not_detected: "dashboard.setup.compatibilityNotDetected", incompatible: "dashboard.setup.compatibilityIncompatible", unreadable: "dashboard.setup.compatibilityUnreadable" } as const;
+  return t(keys[state as keyof typeof keys] ?? "dashboard.setup.compatibilityFallback");
 }

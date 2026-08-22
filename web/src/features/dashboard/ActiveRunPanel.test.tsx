@@ -6,10 +6,10 @@ import { ActiveRunPanel } from "./ActiveRunPanel";
 const status = {
   run_id: "run-1",
   pending_intent: "pause_after_run",
-  run_progress: { label: "Kellergeschoss 3 von 5", current: 6, total: 13 },
+  run_progress: { stage_code: "cellar_floor", params: { floor: 3, floors: 5 }, current: 6, total: 13 },
   input: { enabled: true, paused: false, stopped: false },
   queue: { entries: ["countess", "mephisto", "summoner"], index: 0 },
-} as StatusDTO;
+} as unknown as StatusDTO;
 
 describe("ActiveRunPanel", () => {
   afterEach(cleanup);

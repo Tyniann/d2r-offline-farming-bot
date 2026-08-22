@@ -1,5 +1,7 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { changeAppLanguage } from "../i18n";
+import { apiError } from "../test/apiError";
 import { App } from "./App";
 
 const mocks = vi.hoisted(() => ({
@@ -40,7 +42,8 @@ const attached = { ...detached, d2r: { state: "attached", pid: 42, window_bound:
 
 describe("App", () => {
   afterEach(() => { cleanup(); delete window.d2rDesktop; });
-  beforeEach(() => {
+  beforeEach(async () => {
+    await changeAppLanguage("de");
     vi.clearAllMocks();
     delete window.d2rDesktop;
     mocks.getCatalog.mockReset();
@@ -61,6 +64,16 @@ describe("App", () => {
     mocks.getHistorySummary.mockResolvedValue({ summary: { runs: 0, terminal_runs: 0, successful: 0, failed: 0, aborted: 0, incomplete: 0, running: 0, boss_kills: 0, durations: { count: 0, total_ms: 0, average_ms: 0, median_ms: 0, minimum_ms: 0, maximum_ms: 0 }, stages: { travel_ms: 0, combat_ms: 0, loot_ms: 0, return_town_ms: 0, other_ms: 0 }, funnel: { seen: 0, matched: 0, picked_up: 0, stashed: 0, sold: 0, keep_return: 0, pickup_lost: 0, post_pickup_lost: 0 } } });
     mocks.getHistoryComparisons.mockResolvedValue({ comparisons: [] });
     mocks.getHistoryRuns.mockResolvedValue({ runs: [] });
+  });
+
+  it("rendert die repräsentative Shell auf Englisch", async () => {
+    await changeAppLanguage("en");
+    render(<App />);
+
+    expect(await screen.findByRole("heading", { name: "Prepare farming" })).toBeInTheDocument();
+    expect(screen.getByRole("navigation", { name: "Main navigation" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "History" })).toHaveAttribute("href", "#history");
+    expect(screen.getByRole("link", { name: "Settings" })).toHaveAttribute("href", "#settings");
   });
 
   it("bindet die Core-autoritäre Historie über die Hauptnavigation ein", async () => {
@@ -195,7 +208,7 @@ describe("App", () => {
     const onEvent = mocks.connect.mock.calls[0][1] as (event: unknown) => void;
     await act(async () => onEvent({ sequence: 1, timestamp: new Date().toISOString(), event: "d2r_state_changed" }));
     await waitFor(() => expect(screen.getByText("D2R bereit")).toBeInTheDocument());
-    expect(screen.getByText("Rogue Encampment")).toBeInTheDocument();
+    expect(screen.getByText("Lager der Jägerinnen")).toBeInTheDocument();
   });
 
   it("zeigt gesperrte Charaktere und sendet nur eine freigegebene Auswahl", async () => {
@@ -366,12 +379,12 @@ describe("App", () => {
 
   it("stellt die gespeicherte App-Auswahl wieder her, ohne sie als D2R-Bestätigung zu behandeln", async () => {
     const updateDesktopSettings = vi.fn(async (request: Parameters<D2RDesktopBridge["updateDesktopSettings"]>[0]) => ({
-      schema_version: 2, autostart: false, onboarding_completed: true,
+      schema_version: 3, language: "de" as const, autostart: false, onboarding_completed: true,
       selected_character: request.selected_character,
       selected_difficulty: request.selected_difficulty,
     }));
     window.d2rDesktop = desktopBridge({
-      schema_version: 2, autostart: false, onboarding_completed: true,
+      schema_version: 3, language: "de", autostart: false, onboarding_completed: true,
       selected_character: "MrHammer", selected_difficulty: "hell",
     }, updateDesktopSettings);
     mocks.getCatalog.mockResolvedValue({
@@ -416,10 +429,10 @@ describe("App", () => {
 
   it("verwirft unbekannte gespeicherte Auswahlwerte gegen den Katalog", async () => {
     const updateDesktopSettings = vi.fn(async (request: Parameters<D2RDesktopBridge["updateDesktopSettings"]>[0]) => ({
-      schema_version: 2, autostart: false, onboarding_completed: true, ...request,
+      schema_version: 3, language: request.language ?? "de", autostart: false, onboarding_completed: true, ...request,
     }));
     window.d2rDesktop = desktopBridge({
-      schema_version: 2, autostart: false, onboarding_completed: true,
+      schema_version: 3, language: "de", autostart: false, onboarding_completed: true,
       selected_character: "Unbekannt", selected_difficulty: "torment",
     }, updateDesktopSettings);
     mocks.getCatalog.mockResolvedValue({
@@ -464,17 +477,17 @@ describe("App", () => {
 
   it("behält einen Selection-Fehler trotz folgendem Live-Refresh sichtbar", async () => {
     mocks.getCatalog.mockResolvedValue({ schema_version: 1, revision: 1, default_difficulty: "nightmare", profiles: [], runs: [], difficulties: [{ id: "nightmare", display_name: "Alptraum" }], characters: [{ name: "MrBones", slug: "mrbones", selectable: true, farm_ready: true }] });
-    mocks.previewSelection.mockRejectedValue(new Error("Character-Screen nicht bestätigt"));
+    mocks.previewSelection.mockRejectedValue(apiError("character_selection_unconfirmed"));
     mocks.getStatus.mockResolvedValue(detached);
     render(<App />);
     const apply = await screen.findByRole("button", { name: "In D2R verwenden" });
     await waitFor(() => expect(apply).toBeEnabled());
     fireEvent.click(apply);
     await waitFor(() => expect(mocks.previewSelection).toHaveBeenCalledOnce());
-    expect(await screen.findByText("Character-Screen nicht bestätigt", {}, { timeout: 10_000 })).toBeInTheDocument();
+    expect(await screen.findByText("Die Charakterauswahl konnte nicht sicher bestätigt werden.", {}, { timeout: 10_000 })).toBeInTheDocument();
     const onEvent = mocks.connect.mock.calls[0][1] as (event: unknown) => void;
     await act(async () => onEvent({ sequence: 2, timestamp: new Date().toISOString(), event: "selection_failed" }));
-    expect(screen.getByText("Character-Screen nicht bestätigt")).toBeInTheDocument();
+    expect(screen.getByText("Die Charakterauswahl konnte nicht sicher bestätigt werden.")).toBeInTheDocument();
   }, 15_000);
 
   it("startet die persistente Charakter-Queue nach vollständigem Preflight genau einmal", async () => {
@@ -603,7 +616,7 @@ describe("App", () => {
   });
 
   it("rekonstruiert die Core-Etappe und zeigt Session-Aktionen nur als effektive Hotkeys", async () => {
-    const running = { ...detached, state: "running_run", lifecycle_phase: "running_run", generation: 12, pending_intent: "pause_after_run", active_run_id: "countess", run_id: "run-1", run_progress: { label: "Kellergeschoss 3 von 5", current: 6, total: 13 }, selection: { character: "MrBones", difficulty: "nightmare" } };
+    const running = { ...detached, state: "running_run", lifecycle_phase: "running_run", generation: 12, pending_intent: "pause_after_run", active_run_id: "countess", run_id: "run-1", run_progress: { stage_code: "cellar_floor", params: { floor: 3, floors: 5 }, current: 6, total: 13 }, selection: { character: "MrBones", difficulty: "nightmare" } };
     mocks.getCatalog.mockResolvedValue({ schema_version: 1, revision: 2, default_difficulty: "nightmare", profiles: [], characters: [], difficulties: [], runs: [{ run_id: "countess", display_name: "Countess", status: "runtime_validation_required" }] });
     mocks.getStatus.mockReset().mockResolvedValue(running);
     const first = render(<App />);

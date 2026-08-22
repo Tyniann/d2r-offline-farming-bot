@@ -22,7 +22,7 @@ func TestCharacterSetupPreviewConfirmAndIdempotentRetry(t *testing.T) {
 		t.Fatalf("preview=%+v", preview)
 	}
 	if preview.Profiles[0].StandardAttack != "bone_spear" || len(preview.Profiles[0].RequiredSkills) != 7 ||
-		preview.Profiles[0].RequiredSkills[0].DisplayName != "Teleport" || len(preview.Profiles[0].SupportedRuns) != 6 {
+		preview.Profiles[0].RequiredSkills[0].Skill != "teleport" || len(preview.Profiles[0].SupportedRuns) != 6 {
 		t.Fatalf("required skills projection=%+v", preview.Profiles[0])
 	}
 	confirmed, err := service.Confirm(CharacterSetupConfirmRequest{

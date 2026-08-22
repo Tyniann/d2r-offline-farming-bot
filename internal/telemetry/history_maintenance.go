@@ -16,9 +16,8 @@ import (
 
 // HistoryMaintenanceDiagnostic ist eine pfadfreie Diagnose einer Retention- oder Löschoperation.
 type HistoryMaintenanceDiagnostic struct {
-	FileID  string
-	Code    HistoryReasonCode
-	Message string
+	FileID string
+	Code   HistoryReasonCode
 }
 
 // HistoryRetentionResult beschreibt genau einen automatischen Retentionlauf.
@@ -396,13 +395,12 @@ func historyNameSet(names []string) map[string]bool {
 }
 
 func maintenanceDiagnostic(name string, code HistoryReasonCode) HistoryMaintenanceDiagnostic {
-	message, _ := HistoryReasonMessage(code)
 	hash := sha256.Sum256([]byte(name))
 	fileID := ""
 	if name != "" {
 		fileID = "history-" + hex.EncodeToString(hash[:4])
 	}
-	return HistoryMaintenanceDiagnostic{FileID: fileID, Code: code, Message: message}
+	return HistoryMaintenanceDiagnostic{FileID: fileID, Code: code}
 }
 
 func cloneHistoryDeletePreview(value HistoryDeletePreview) HistoryDeletePreview {

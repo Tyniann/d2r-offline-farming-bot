@@ -10,8 +10,11 @@ await mkdir(target, { recursive: true });
 // projection first so an installer never carries unreachable historical UI
 // bundles alongside the index.html-selected build.
 await rm(join(target, "ui"), { recursive: true, force: true });
+await rm(join(target, "locales"), { recursive: true, force: true });
+await mkdir(join(target, "locales"), { recursive: true });
 await Promise.all([
   ...["recovery.html", "recovery.css"].map((name) => copyFile(join(source, name), join(target, name))),
+  ...["de.json", "en.json"].map((name) => copyFile(join(root, "src", "i18n", "locales", name), join(target, "locales", name))),
   copyFile(join(root, "public", "portal-mark.png"), join(target, "portal-mark.png")),
   cp(join(root, "..", "internal", "api", "ui", "dist"), join(target, "ui"), { recursive: true, force: true }),
 ]);

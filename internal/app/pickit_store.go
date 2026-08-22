@@ -42,6 +42,17 @@ type EffectivePickitPolicy struct {
 
 var pickitStoreLocks sync.Map
 
+var (
+	// ErrPickitProfileIDConflict reports that a profile ID already exists.
+	ErrPickitProfileIDConflict = errors.New("pickit_profile_id_conflict")
+	// ErrPickitProfileRevisionConflict reports a stale profile revision.
+	ErrPickitProfileRevisionConflict = errors.New("pickit_profile_revision_conflict")
+	// ErrPickitProfileAssigned reports that a referenced profile cannot be deleted.
+	ErrPickitProfileAssigned = errors.New("pickit_profile_assigned")
+	// ErrPickitAssignmentRevisionConflict reports a stale assignment revision.
+	ErrPickitAssignmentRevisionConflict = errors.New("pickit_assignment_revision_conflict")
+)
+
 // NewPickitProfileService erstellt einen Profilservice für genau ein Verzeichnis.
 func NewPickitProfileService(root string) (*PickitProfileService, error) {
 	if strings.TrimSpace(root) == "" {
@@ -108,7 +119,7 @@ func (s *PickitProfileService) Create(profile PickitProfileDocument) (PickitProf
 	}
 	path := s.path(canonical.ID)
 	if _, err := os.Stat(path); err == nil {
-		return PickitProfileDocument{}, fmt.Errorf("pickit_profile_id_conflict")
+		return PickitProfileDocument{}, ErrPickitProfileIDConflict
 	} else if !errors.Is(err, fs.ErrNotExist) {
 		return PickitProfileDocument{}, err
 	}
@@ -135,7 +146,7 @@ func (s *PickitProfileService) Update(id string, expectedRevision uint64, replac
 		return current, nil
 	}
 	if current.Revision != expectedRevision {
-		return PickitProfileDocument{}, fmt.Errorf("pickit_profile_revision_conflict")
+		return PickitProfileDocument{}, ErrPickitProfileRevisionConflict
 	}
 	canonical.Revision = current.Revision + 1
 	return s.writeProfileLocked(canonical)
@@ -166,7 +177,7 @@ func (s *PickitProfileService) Delete(id string, assignments *PickitAssignmentSt
 		return err
 	}
 	if referenced {
-		return fmt.Errorf("pickit_profile_assigned")
+		return ErrPickitProfileAssigned
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -220,7 +231,7 @@ func (s *PickitAssignmentStore) Replace(character string, runID tasks.RunID, pro
 		return clonePickitAssignments(manifest), nil
 	}
 	if manifest.Revision != expectedRevision {
-		return PickitAssignmentManifest{}, fmt.Errorf("pickit_assignment_revision_conflict")
+		return PickitAssignmentManifest{}, ErrPickitAssignmentRevisionConflict
 	}
 	if manifest.Assignments[storedCharacter] == nil {
 		manifest.Assignments[storedCharacter] = map[tasks.RunID][]string{}
@@ -278,7 +289,7 @@ func (s *PickitAssignmentStore) EnsureMissingDefaults(character string, defaults
 		return clonePickitAssignments(manifest), nil
 	}
 	if manifest.Revision != expectedRevision {
-		return PickitAssignmentManifest{}, fmt.Errorf("pickit_assignment_revision_conflict")
+		return PickitAssignmentManifest{}, ErrPickitAssignmentRevisionConflict
 	}
 	if manifest.Assignments[storedCharacter] == nil {
 		manifest.Assignments[storedCharacter] = make(map[tasks.RunID][]string, len(missing))

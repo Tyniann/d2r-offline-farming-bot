@@ -36,9 +36,8 @@ type HistoryDailyBucketDTO struct {
 
 // HistoryDiagnosticDTO exposes only a basename and stable error explanation.
 type HistoryDiagnosticDTO struct {
-	File    string `json:"file"`
-	Code    string `json:"code"`
-	Message string `json:"message"`
+	File string `json:"file"`
+	Code string `json:"code"`
 }
 
 // HistoryMetaDTO binds every response to one index generation and filter.
@@ -87,7 +86,6 @@ type HistoryFunnelDTO struct {
 type HistoryFailureDTO struct {
 	Step           string `json:"step"`
 	Reason         string `json:"reason"`
-	ReasonMessage  string `json:"reason_message"`
 	Count          int    `json:"count"`
 	LostDurationMs int64  `json:"lost_duration_ms"`
 }
@@ -156,21 +154,20 @@ type HistoryItemDTO struct {
 
 // HistoryRunDTO is one paginated run-list row.
 type HistoryRunDTO struct {
-	RunID         string                   `json:"run_id"`
-	StartedAt     time.Time                `json:"started_at"`
-	ObservedAt    time.Time                `json:"observed_at"`
-	Character     string                   `json:"character"`
-	Difficulty    string                   `json:"difficulty"`
-	Run           string                   `json:"run"`
-	DefinitionID  string                   `json:"definition_id"`
-	RouteID       string                   `json:"route_id"`
-	Outcome       telemetry.HistoryOutcome `json:"outcome"`
-	Reason        string                   `json:"reason,omitempty"`
-	ReasonMessage string                   `json:"reason_message,omitempty"`
-	LastStep      string                   `json:"last_step,omitempty"`
-	DurationMs    int64                    `json:"duration_ms"`
-	BossKills     int                      `json:"boss_kills"`
-	Funnel        HistoryFunnelDTO         `json:"funnel"`
+	RunID        string                   `json:"run_id"`
+	StartedAt    time.Time                `json:"started_at"`
+	ObservedAt   time.Time                `json:"observed_at"`
+	Character    string                   `json:"character"`
+	Difficulty   string                   `json:"difficulty"`
+	Run          string                   `json:"run"`
+	DefinitionID string                   `json:"definition_id"`
+	RouteID      string                   `json:"route_id"`
+	Outcome      telemetry.HistoryOutcome `json:"outcome"`
+	Reason       string                   `json:"reason,omitempty"`
+	LastStep     string                   `json:"last_step,omitempty"`
+	DurationMs   int64                    `json:"duration_ms"`
+	BossKills    int                      `json:"boss_kills"`
+	Funnel       HistoryFunnelDTO         `json:"funnel"`
 }
 
 // HistoryRunItemDTO is one item chain inside a run detail.
@@ -252,9 +249,8 @@ type HistoryReportDTO struct {
 
 // HistoryMaintenanceDiagnosticDTO is one path-free maintenance diagnostic.
 type HistoryMaintenanceDiagnosticDTO struct {
-	FileID  string `json:"file_id,omitempty"`
-	Code    string `json:"code"`
-	Message string `json:"message"`
+	FileID string `json:"file_id,omitempty"`
+	Code   string `json:"code"`
 }
 
 // HistoryDeletePreviewRequest binds preview creation to the current supervisor generation.

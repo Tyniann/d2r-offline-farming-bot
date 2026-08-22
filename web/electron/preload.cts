@@ -11,6 +11,7 @@ export interface DesktopAppInfo {
 
 export interface DesktopSettingsView {
   schema_version: number;
+  language: "de" | "en";
   autostart: boolean;
   onboarding_completed: boolean;
   selected_character?: string;
@@ -18,6 +19,7 @@ export interface DesktopSettingsView {
 }
 
 export interface DesktopSettingsUpdate {
+  language?: "de" | "en";
   autostart?: boolean;
   onboarding_completed?: boolean;
   selected_character?: string;

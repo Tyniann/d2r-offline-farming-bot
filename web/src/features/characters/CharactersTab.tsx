@@ -7,6 +7,8 @@ import { characterStatusLabel, farmReadyReasonText } from "./characterReasonText
 import { InventoryLockEditor, inventoryConfigured, inventoryCowSuitable, type InventoryGrid } from "./InventoryLockEditor";
 import { RequiredSkillsList } from "./RequiredSkillsList";
 import { pathChanged } from "../settings/settingsDiff";
+import { useTranslation } from "react-i18next";
+import { presentApiError, presentClassName, presentProfileName } from "../../i18n/presenters";
 
 /** CharactersTab bündelt Profilwechsel, Pflichtskills, Bindings und Inventarschutz. */
 export function CharactersTab({
@@ -24,6 +26,7 @@ export function CharactersTab({
   onChangeDraft: (update: (current: OperatorSettingsDTO) => OperatorSettingsDTO) => void;
   onSetupChanged?: () => Promise<void> | void;
 }) {
+  const { t } = useTranslation();
   const [preview, setPreview] = useState<CharacterSetupPreviewDTO | null>(null);
   const [previewError, setPreviewError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -55,13 +58,13 @@ export function CharactersTab({
     }).catch((reason) => {
       if (!cancelled) {
         setPreview(null);
-        setPreviewError(reason instanceof Error ? reason.message : "Charaktervorschau fehlgeschlagen.");
+        setPreviewError(presentApiError(reason, t, t("characters.previewFallback")));
       }
     }).finally(() => {
       if (!cancelled) setBusy(false);
     });
     return () => { cancelled = true; };
-  }, [selectedCharacter, characterSettings?.combat_profile, catalogEntry?.name]);
+  }, [selectedCharacter, characterSettings?.combat_profile, catalogEntry?.name, t]);
 
   const bindingValue = useMemo<BindingEditorValue>(() => {
     if (!characterSettings || !profileID) return emptyBindings();
@@ -102,22 +105,22 @@ export function CharactersTab({
   };
 
   return <div className="settings-tab-body settings-scope-characters">
-    <p className="settings-scope-line">Tastenbelegung und Inventarschutz gehören zum Charakter. Speichern nutzt dieselbe Core-Revision wie Farming.</p>
+    <p className="settings-scope-line">{t("characters.scope")}</p>
 
     <section>
       <div className="section-heading">
-        <div><h2>Charaktere</h2><p>Alle erkannten Spielstände mit Core-Readiness.</p></div>
+        <div><h2>{t("characters.title")}</h2><p>{t("characters.subtitle")}</p></div>
       </div>
       {characterNames.length === 0
-        ? <StateMessage kind="empty" title="Keine Charaktere">Der Core hat noch keine Operatorwerte geliefert.</StateMessage>
-        : <ul className="character-loadout-list" aria-label="Charakterliste">
+        ? <StateMessage kind="empty" title={t("characters.emptyTitle")}>{t("characters.emptyDetail")}</StateMessage>
+        : <ul className="character-loadout-list" aria-label={t("characters.listAria")}>
           {characterNames.map((name) => {
             const entry = catalog?.characters.find((item) => item.slug === name || item.name.toLowerCase() === name);
             const active = name === selectedCharacter;
             return <li key={name}>
               <button type="button" className={active ? "active" : undefined} onClick={() => onSelectCharacter(name)} aria-current={active ? "true" : undefined}>
                 <strong>{entry?.name ?? name}</strong>
-                <span>{characterStatusLabel(entry, catalog)}</span>
+                <span>{characterStatusLabel(entry, catalog, t)}</span>
               </button>
             </li>;
           })}
@@ -129,18 +132,17 @@ export function CharactersTab({
         <div>
           <h2>{catalogEntry?.name ?? selectedCharacter}</h2>
           <p>
-            Klasse {preview?.character.class_display_name || characterSettings.character_class || "–"}
-            {" · "}Profil {selectedProfile?.display_name || characterSettings.combat_profile || "noch nicht gesetzt"}
+            {t("characters.classProfile", { className: presentClassName(preview?.character.character_class || characterSettings.character_class || "", t), profile: selectedProfile ? presentProfileName(selectedProfile.id, selectedProfile.display_name, t) : characterSettings.combat_profile || t("characters.profileUnset") })}
           </p>
         </div>
         <div className="inline-actions">
-          {(bindingsChanged || inventoryChanged || playersChanged) && <StatusBadge tone="warning">Geändert</StatusBadge>}
-          {catalogEntry && <StatusBadge tone={catalogEntry.farm_ready ? "success" : "warning"}>{characterStatusLabel(catalogEntry, catalog)}</StatusBadge>}
+          {(bindingsChanged || inventoryChanged || playersChanged) && <StatusBadge tone="warning">{t("characters.changed")}</StatusBadge>}
+          {catalogEntry && <StatusBadge tone={catalogEntry.farm_ready ? "success" : "warning"}>{characterStatusLabel(catalogEntry, catalog, t)}</StatusBadge>}
         </div>
       </div>
 
-      {previewError && <StateMessage kind="error" title="Vorschau fehlgeschlagen">{previewError}</StateMessage>}
-      {busy && !preview && <StateMessage kind="loading" title="Charakterdaten werden geladen" />}
+      {previewError && <StateMessage kind="error" title={t("characters.previewFailed")}>{previewError}</StateMessage>}
+      {busy && !preview && <StateMessage kind="loading" title={t("characters.loading")} />}
 
       {status && catalog && <CharacterSetupWizard
         character={catalogEntry?.name ?? selectedCharacter}
@@ -152,19 +154,19 @@ export function CharactersTab({
         onChanged={onSetupChanged}
       />}
 
-      <h3>Spieleranzahl</h3>
-      <p className="hint">Der Bot setzt diesen Wert nach jedem bestätigten Spielstart. Höhere Werte machen Gegner und Erfahrung härter.</p>
-      <select aria-label="Spieleranzahl" value={players} disabled={!mutable} onChange={(event) => updatePlayers(Number(event.target.value))}>
+      <h3>{t("characters.playersTitle")}</h3>
+      <p className="hint">{t("characters.playersHint")}</p>
+      <select aria-label={t("characters.playersAria")} value={players} disabled={!mutable} onChange={(event) => updatePlayers(Number(event.target.value))}>
         {[1, 2, 3, 4, 5, 6, 7, 8].map((value) => <option key={value} value={value}>{value}</option>)}
       </select>
 
       {selectedProfile && <>
-        <h3>Pflichtskills</h3>
+        <h3>{t("characters.requiredSkills")}</h3>
         <RequiredSkillsList skills={selectedProfile.required_skills ?? []} standardAttack={selectedProfile.standard_attack} />
-        <h3>Tastenbelegung</h3>
-        <p className="hint">Skills, Gürteltasten und welche Trankart in welcher Spalte liegt.</p>
+        <h3>{t("characters.bindings")}</h3>
+        <p className="hint">{t("characters.bindingsHint")}</p>
         {!profileID
-          ? <StateMessage kind="empty" title="Kein Kampfprofil">Richte den Charakter zuerst ein, bevor Tasten gespeichert werden.</StateMessage>
+          ? <StateMessage kind="empty" title={t("characters.noProfileTitle")}>{t("characters.noProfileDetail")}</StateMessage>
           : <BindingEditor
             requiredSkills={selectedProfile.required_skills ?? []}
             optionalSkillPairs={selectedProfile.optional_skill_pairs ?? []}
@@ -178,21 +180,21 @@ export function CharactersTab({
           />}
       </>}
 
-      <h3>Inventarschutz</h3>
+      <h3>{t("characters.inventory")}</h3>
       <InventoryLockEditor
         value={inventoryGrid}
         configured={inventoryIsConfigured}
         mutable={mutable}
         onChange={updateInventory}
       />
-      {cowWarning && <StateMessage kind="error" title="Inventarlayout für Cow-Runs ungeeignet">Countess und andere Runs bleiben möglich. Für Cow-Runs fehlt gleichzeitig geschützter 2×2-Platz und freier Platz für Bein sowie Stadtportalbuch.</StateMessage>}
+      {cowWarning && <StateMessage kind="error" title={t("characters.cowWarningTitle")}>{t("characters.cowWarningDetail")}</StateMessage>}
 
       {catalogEntry && !catalogEntry.farm_ready && (catalogEntry.farm_ready_reasons?.length ?? 0) > 0 && (
-        <StateMessage kind="error" title="Queue bleibt gesperrt">
-          {(catalogEntry.farm_ready_reasons ?? []).map((reason) => farmReadyReasonText(reason)).join(" ")}
+        <StateMessage kind="error" title={t("characters.queueLocked")}>
+          {(catalogEntry.farm_ready_reasons ?? []).map((reason) => farmReadyReasonText(reason, t)).join(" ")}
         </StateMessage>
       )}
-      {catalogEntry?.farm_ready && <StateMessage kind="empty" title="Charakter farmbereit">Die Queue darf starten, sobald Route und übrige Voraussetzungen bereit sind.</StateMessage>}
+      {catalogEntry?.farm_ready && <StateMessage kind="empty" title={t("characters.farmReady")}>{t("characters.farmReadyDetail")}</StateMessage>}
     </section>}
   </div>;
 }

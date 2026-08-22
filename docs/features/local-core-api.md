@@ -16,6 +16,7 @@ Abschnitt 11.2 stellt den Go-Core über eine versionierte lokale HTTP-/JSON-Gren
 - **Embed-Paket:** `internal/api/ui/embed.go`
 - **Produktionsassets:** `internal/api/ui/dist/`
 - **Frontend-Quelle:** `web/`
+- **Renderer-Präsentation:** `web/src/i18n/`
 - **Desktop-Wiring:** `cmd/d2rbot/main.go` → private `--desktop-handshake-pipe`
 
 ## Funktionalität
@@ -66,7 +67,7 @@ Unbekannte `/api/`-Versionen oder Endpunkte liefern `api_version_unsupported` un
 - Mutationen verlangen `X-D2RBot-Control-Token`, `POST` und `Content-Type: application/json`.
 - JSON wird mit unbekannten Feldern fail-closed dekodiert; Body-Limit ist 64 KiB.
 - Jede Antwort trägt eine zufällige Request-ID, `nosniff`, eine restriktive Content Security Policy und bei JSON `Cache-Control: no-store`.
-- Fehler verwenden stabilen englischen `code`, ordentliche deutsche `message`, optionale `details` und `request_id`.
+- Fehler verwenden `ProblemDTO` mit stabilem `code`, erlaubten strukturierten `params` und bei HTTP-Antworten einer `request_id`. Der Core liefert keine Bedienermeldung.
 - `command_id` ist verpflichtend; `expected_generation` gehört zum maschinenlesbaren DTO. Fachliche Idempotenz und Generation bleiben beim `SessionSupervisor`.
 
 Ein Fremd-Origin, falscher Host, fehlender Token, falsche Methode, falscher Content-Type, malformed JSON, unbekanntes Feld oder übergroßer Body erreicht niemals das Command-Backend.
@@ -95,9 +96,13 @@ pnpm build
 
 Vite schreibt den Produktionsbuild direkt nach `internal/api/ui/dist`. Das ausgelieferte Go-Binary benötigt deshalb weder Node.js noch einen separaten Webserver.
 
+Die API transportiert keine Sprache. Reason-, Fortschritts-, Routen- und Fehlerzustände bestehen aus stabilen Codes, IDs und Parametern. React löst diese Werte über die deutschen oder englischen Kataloge unter `web/src/i18n/` auf. Unbekannte Codes erhalten einen lokalisierten allgemeinen Text, zeigen aber den unveränderten Code für Supportzwecke. JSON- und CSV-Exporte bleiben sprachneutral.
+
 ## Operator / Desktop
 
 Die API wird nicht direkt vom Operator gestartet. Electron übergibt absoluten Datenroot und private Handshake-Pipe an den gebündelten Core. Desktopmodus und Session-, Run-, Inspect-, Probe-, Route-, Town- oder Testmodi sind gegenseitig exklusiv. Der Prozess endet über den kontrollierten Electron-Shutdown oder `SIGTERM` mit einem begrenzten HTTP-Shutdown.
+
+Die Sprache wird ausschließlich im Electron-Store `desktop-settings.json` gespeichert. Sie verändert weder Core-Konfiguration noch API-Vertrag.
 
 ## Abhängigkeiten und Grenzen
 
@@ -115,6 +120,7 @@ Die API wird nicht direkt vom Operator gestartet. Electron übergibt absoluten D
 - [Run-Verfügbarkeit und Inspect](run-availability.md)
 - [Charaktereinrichtung](character-setup.md)
 - [Historien-API und Export](history-api-export.md)
+- [Internationalisierung Deutsch und Englisch](internationalization.md)
 
 ---
-*Zuletzt aktualisiert: 16. August 2026*
+*Zuletzt aktualisiert: 22. August 2026*

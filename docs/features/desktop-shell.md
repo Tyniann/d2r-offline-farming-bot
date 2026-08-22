@@ -9,6 +9,7 @@ Die installierte Windows-App führt die bestehende React-Oberfläche in genau ei
 - **Electron Main/Preload:** `web/electron/main.ts`, `web/electron/preload.cts`
 - **Core-Lifecycle:** `web/electron/core-process.ts`, `web/electron/core-controller.ts`
 - **Verträge:** `web/electron/core-contract.ts`
+- **Desktop-i18n:** `web/electron/i18n.ts`, `web/electron/recovery.ts`
 - **Go-Bootstrap:** `internal/app/desktop_handshake.go`, `internal/app/data_root_lock_windows.go`
 - **Wiring:** `cmd/d2rbot/main.go`
 - **Native Tests:** `web/electron/e2e/desktop-shell.spec.ts`
@@ -29,7 +30,7 @@ Der Control-Token erscheint ausschließlich im URL-Fragment der einmaligen Boots
 
 ### Crash und Shutdown
 
-Ein erwarteter Desktop-Shutdown beendet zuerst den Core. Ein unerwarteter Core-Exit wird nur dann genau einmal automatisch neu gestartet, wenn der letzte autoritative Supervisorzustand sicher inaktiv und der Routenworkflow `idle` war. Bei aktiver, unbekannter oder bereits einmal neu gestarteter Instanz zeigt Electron eine lokale Recovery-Seite und bleibt fail-closed.
+Ein erwarteter Desktop-Shutdown beendet zuerst den Core. Ein unerwarteter Core-Exit wird nur dann genau einmal automatisch neu gestartet, wenn der letzte autoritative Supervisorzustand sicher inaktiv und der Routenworkflow `idle` war. Bei aktiver, unbekannter oder bereits einmal neu gestarteter Instanz zeigt Electron eine lokale Recovery-Seite und bleibt fail-closed. Der Main-Prozess löst Sprache, Titel und Body aus der stabilen `DesktopCoreReason`-ID auf. Rohe Prozessfehler und `stderr` bleiben im Log.
 
 ### Renderer-Sicherheitsgrenze
 
@@ -39,13 +40,17 @@ Der CommonJS-Preload veröffentlicht ausschließlich eng typisierte Desktopopera
 
 - `getProvisioningState()`, `chooseImportRoot()` und `provision()` ausschließlich im lokalen Pre-Core-Provisionierungsmodus
 - `getAppInfo()`
-- `getDesktopSettings()` und `updateDesktopSettings()` für Autostart und Onboarding
+- `getDesktopSettings()` und `updateDesktopSettings()` für Sprache, Autostart, Onboarding und die letzte Auswahl
 - `restartCore()` für einen kontrollierten Neustart im sicher inaktiven Zustand
 - `restartAsAdministrator()` — argumentlos und nur bei Core-bestätigtem `privilege_mismatch`
 - `showWindow()`
 - `onNavigate()` für die drei stabilen Notification-Ziele Dashboard, Historie und Einstellungen
 
 Jeder IPC-Handler prüft zusätzlich den Sender-Origin. Prozess-, Dateisystem-, Shell-, Token- und frei parametrisierbare IPC-Zugriffe werden nicht in den Renderer gereicht.
+
+### Desktop-Sprache
+
+Electron lädt nach `app.whenReady()` die validierten Katalogkopien aus `dist-electron/locales/`. Der Adapter verwendet nur die Node-Standardbibliothek und löst ausschließlich `desktop.*` auf. Tray, Tooltip, native Dialoge, Benachrichtigungen, Provisionierungsdialog und Recovery verwenden den in `desktop-settings.json` gespeicherten Wert `de` oder `en`. Nach einem Sprachwechsel baut Electron das Tray sofort neu auf. Neue Benachrichtigungen verwenden die geänderte Sprache.
 
 ## Operator / CLI
 
@@ -63,6 +68,7 @@ d2rbot.exe --data-root <absoluter-pfad> --desktop-handshake-pipe <private-pipe>
 - Pipe-Tests prüfen gültigen, verspäteten, falschen und abgebrochenen Handshake.
 - Playwright startet echtes Electron mit einem Fake-Core und prüft exakt ein Fenster, Renderer-Isolation, Navigation/Window-Open, zweite Instanz sowie aktive und inaktive Core-Exits.
 - Der Fresh-Root-Fall prüft, dass dieselbe gebaute React-App vor dem produktiven Core erscheint und erst nach erfolgreicher Go-Provisionierung in den normalen Handshake wechselt.
+- Desktop-i18n-Tests prüfen Traylabels, Notificationtitel, Dialogbuttons und Recovery in Deutsch und Englisch.
 - `pnpm test:electron` baut die Electron-Artefakte vor jedem nativen Lauf neu.
 
 ### Nativer Desktopbetrieb
@@ -81,6 +87,7 @@ Installer und produktives Packaging sind im Phase-15-Releasepfad gebunden. Die S
 - [Live-Dashboard und Session-Steuerung](live-dashboard.md)
 - [Desktop-Betrieb und Einstellungen](desktop-operation.md)
 - [First Run, Provisionierung und erste Route](first-run-onboarding.md)
+- [Internationalisierung Deutsch und Englisch](internationalization.md)
 
 ---
-*Zuletzt aktualisiert: 26. Juli 2026*
+*Zuletzt aktualisiert: 22. August 2026*

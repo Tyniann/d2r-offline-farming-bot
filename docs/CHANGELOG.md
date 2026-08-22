@@ -7,10 +7,15 @@ Versionierung nach [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.23.0] - 2026-08-22
+
 ### Added
+- Add dynamic German and English switching across React, Electron, Recovery, and the Windows installer
 - Add route-purpose hints before recording with recommended loot targets and a direct link to Pickit configuration
 
 ### Changed
+- Replace localized Core and API presentation fields with stable codes and structured parameters for renderer-side translation
+- Show a German or English language selector when the Windows installer starts interactively
 - Darken the app shell, cards, sidebar, and warm gradients while retaining ember orange as the primary fire accent
 - Redesign the dashboard around app-wide selection, persistent queues, shared-period history statistics, and Core-projected active-run stages
 

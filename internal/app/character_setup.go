@@ -53,10 +53,9 @@ type CharacterSetupProfile struct {
 
 // CharacterSetupRequiredSkill is one ordered, labeled profile skill for read-only Setup/API.
 type CharacterSetupRequiredSkill struct {
-	Skill       string
-	SkillID     uint16
-	DisplayName string
-	Slot        string
+	Skill   string
+	SkillID uint16
+	Slot    string
 }
 
 // CharacterSetupOptionalSkillPair is one Core-defined all-or-nothing binding pair.
@@ -66,10 +65,9 @@ type CharacterSetupOptionalSkillPair struct {
 
 // CharacterSetupPickitDefault projiziert eine feste Run-Kette mit lesbaren Profilnamen.
 type CharacterSetupPickitDefault struct {
-	RunID          tasks.RunID
-	RunDisplayName string
-	ProfileNames   []string
-	State          string
+	RunID        tasks.RunID
+	ProfileNames []string
+	State        string
 }
 
 // CharacterSetupPreview ist der pfadfreie, vollständig vom Core berechnete Setupstand.
@@ -80,7 +78,6 @@ type CharacterSetupPreview struct {
 	CharacterName            string
 	CharacterSlug            string
 	CharacterClass           string
-	ClassDisplayName         string
 	Supported                bool
 	Profiles                 []CharacterSetupProfile
 	SelectedProfileID        string
@@ -288,7 +285,7 @@ func (s *CharacterSetupService) buildPreview(catalog CharacterCatalog, settings 
 	result := CharacterSetupPreview{
 		CatalogRevision: catalog.Revision, OperatorSettingsRevision: settings.Revision, PickitAssignmentRevision: assignments.Revision,
 		CharacterName: entry.Name, CharacterSlug: entry.Slug, CharacterClass: entry.ExpectedClass,
-		ClassDisplayName: characterClassDisplayName(entry.ExpectedClass), AnchorState: anchorState(entry),
+		AnchorState: anchorState(entry),
 	}
 	for _, reason := range entry.Reasons {
 		switch reason {
@@ -322,9 +319,7 @@ func (s *CharacterSetupService) buildPreview(catalog CharacterCatalog, settings 
 				if skillErr != nil {
 					return CharacterSetupPreview{}, fmt.Errorf("character setup profile %q required skill %q: %w", id, skill.Skill, skillErr)
 				}
-				setupProfile.RequiredSkills = append(setupProfile.RequiredSkills, CharacterSetupRequiredSkill{
-					Skill: skill.Skill, SkillID: skillID, DisplayName: strings.TrimSpace(skill.DisplayName), Slot: skill.Slot,
-				})
+				setupProfile.RequiredSkills = append(setupProfile.RequiredSkills, CharacterSetupRequiredSkill{Skill: skill.Skill, SkillID: skillID, Slot: skill.Slot})
 			}
 			for _, pair := range profile.OptionalSkillPairs {
 				projected := CharacterSetupOptionalSkillPair{}
@@ -333,9 +328,7 @@ func (s *CharacterSetupService) buildPreview(catalog CharacterCatalog, settings 
 					if !ok {
 						return CharacterSetupPreview{}, fmt.Errorf("character setup profile %q optional skill %q is not in the catalog", id, skill.Skill)
 					}
-					projected.Skills = append(projected.Skills, CharacterSetupRequiredSkill{
-						Skill: skill.Skill, SkillID: catalog.ID, DisplayName: catalog.SourceName, Slot: skill.Slot,
-					})
+					projected.Skills = append(projected.Skills, CharacterSetupRequiredSkill{Skill: skill.Skill, SkillID: catalog.ID, Slot: skill.Slot})
 				}
 				setupProfile.OptionalSkillPairs = append(setupProfile.OptionalSkillPairs, projected)
 			}
@@ -345,7 +338,7 @@ func (s *CharacterSetupService) buildPreview(catalog CharacterCatalog, settings 
 			}
 		}
 	}
-	sort.Slice(result.Profiles, func(i, j int) bool { return result.Profiles[i].DisplayName < result.Profiles[j].DisplayName })
+	sort.Slice(result.Profiles, func(i, j int) bool { return result.Profiles[i].ID < result.Profiles[j].ID })
 	result.Supported = len(result.Profiles) > 0 && len(result.Reasons) == 0
 	stored := settings.Characters[entry.Slug]
 	if stored.CharacterClass != "" || stored.CombatProfile != "" {
@@ -360,8 +353,7 @@ func (s *CharacterSetupService) buildPreview(catalog CharacterCatalog, settings 
 	}
 	defaults := phase16ConfiguredDefaults(s.cfg)
 	for _, runID := range Phase16DefaultPickitRunIDs() {
-		definition, _ := tasks.DefaultRunRegistry().Definition(runID)
-		item := CharacterSetupPickitDefault{RunID: runID, RunDisplayName: definition.DisplayName, State: "missing"}
+		item := CharacterSetupPickitDefault{RunID: runID, State: "missing"}
 		for _, profileID := range defaults[runID] {
 			profile, err := s.profiles.Get(profileID)
 			if err != nil {
@@ -421,13 +413,6 @@ func anchorState(entry CharacterCatalogEntry) CharacterAnchorState {
 	return CharacterAnchorMissing
 }
 
-func characterClassDisplayName(class string) string {
-	return map[string]string{
-		"amazon": "Amazone", "sorceress": "Zauberin", "necromancer": "Totenbeschwörer", "paladin": "Paladin",
-		"barbarian": "Barbar", "druid": "Druide", "assassin": "Assassine", "warlock": "Hexenmeister",
-	}[class]
-}
-
 func phase16ConfiguredDefaults(cfg *config.Config) map[tasks.RunID][]string {
 	result := make(map[tasks.RunID][]string, len(cfg.CharacterSetup.PickitDefaults))
 	for runID, profiles := range cfg.CharacterSetup.PickitDefaults {
@@ -442,7 +427,8 @@ func setupUnavailable(err error) error {
 
 func setupStoreError(err error, partial bool) error {
 	code := "character_setup_write_failed"
-	if strings.Contains(err.Error(), "revision_conflict") {
+	var settingsErr *OperatorSettingsError
+	if errors.Is(err, ErrPickitAssignmentRevisionConflict) || errors.As(err, &settingsErr) && settingsErr.Code == Phase15ReasonConfigRevisionConflict {
 		code = string(Phase15ReasonConfigRevisionConflict)
 	}
 	return &CharacterSetupError{Code: code, Partial: partial, Err: err}

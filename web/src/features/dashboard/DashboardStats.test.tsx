@@ -1,5 +1,6 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { changeAppLanguage } from "../../i18n";
 import { DashboardStats, dashboardHistoryQueries } from "./DashboardStats";
 
 const mocks = vi.hoisted(() => ({ summary: vi.fn(), comparisons: vi.fn(), runs: vi.fn() }));
@@ -18,11 +19,21 @@ const recent = { run_id: "run-1", started_at: "2026-08-22T10:00:00Z", observed_a
 
 describe("DashboardStats", () => {
   afterEach(cleanup);
-  beforeEach(() => {
+  beforeEach(async () => {
+    await changeAppLanguage("de");
     vi.clearAllMocks();
     mocks.summary.mockResolvedValue({ summary });
     mocks.comparisons.mockResolvedValue({ comparisons: [comparison] });
     mocks.runs.mockResolvedValue({ runs: [recent] });
+  });
+
+  it("rendert die repräsentative Statistikoberfläche auf Englisch", async () => {
+    await changeAppLanguage("en");
+    render(<DashboardStats farming={<div>Farming remains visible</div>} character="MrBones" difficulty="nightmare" runNames={{ countess: "Countess" }} />);
+
+    expect(await screen.findByRole("heading", { name: "At a glance" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Which route pays off?" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "30 days" })).toHaveAttribute("aria-pressed", "true");
   });
 
   it("lädt 30 Tage parallel und hält die letzten Runs vom Zeitraum unabhängig", async () => {

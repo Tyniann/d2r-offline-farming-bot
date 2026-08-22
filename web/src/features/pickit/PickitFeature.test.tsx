@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { PickitFeature } from "./PickitFeature";
+import { apiError } from "../../test/apiError";
 
 const mocks = vi.hoisted(() => ({
   catalog: vi.fn(), profiles: vi.fn(), assignments: vi.fn(), validate: vi.fn(), importRules: vi.fn(),
@@ -32,15 +33,15 @@ describe("PickitFeature", () => {
     renderFeature();
     const search = await screen.findByPlaceholderText("z. B. Tal Rasha oder Thresher");
     fireEvent.change(search, { target: { value: "Tal Rasha" } });
-    fireEvent.click(screen.getByRole("button", { name: /Ganzes Set Tal Rasha's Wrappings hinzufügen \(5\)/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Ganzes Set Tal Rashas Hüllen hinzufügen \(5\)/ }));
     expect(screen.getByRole("status")).toHaveTextContent("5 Einzelregeln");
     expect(screen.getAllByText(/\[setitem\]/)).toHaveLength(5);
   });
 
   it("erzeugt für ätherischen Thresher genau eine kombinierte Regel und ordnet Regeln um", async () => {
     renderFeature(); await screen.findByRole("heading", { name: "Basis" });
-    fireEvent.change(screen.getByPlaceholderText("z. B. Tal Rasha oder Thresher"), { target: { value: "Thresher" } });
-    fireEvent.click(screen.getByLabelText("Nur ätherisch")); fireEvent.click(screen.getByRole("button", { name: /Thresher.*7s8/ }));
+    fireEvent.change(screen.getByPlaceholderText("z. B. Tal Rasha oder Thresher"), { target: { value: "Drescher" } });
+    fireEvent.click(screen.getByLabelText("Nur ätherisch")); fireEvent.click(screen.getByRole("button", { name: /Drescher.*7s8/ }));
     expect(screen.getByText(`[name] == "7s8" && [flag] == ethereal`)).toBeInTheDocument();
     expect(screen.queryByRole("group", { name: "Entscheidungsvorschau" })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Regel 2 nach oben" }));
@@ -50,7 +51,7 @@ describe("PickitFeature", () => {
 
   it("legt Profile über In-App-Dialoge an und dupliziert sie", async () => {
     mocks.create.mockResolvedValueOnce({ schema_version: 1, revision: 1, id: "mein-profil", name: "Mein Profil", rules: [{ id: "regel-1", action: "keep", expression: `[type] == "rune"` }] });
-    mocks.remove.mockRejectedValueOnce(new Error("Profil ist noch zugeordnet."));
+    mocks.remove.mockRejectedValueOnce(apiError("profile_assigned"));
     renderFeature(); await screen.findByRole("heading", { name: "Basis" });
     fireEvent.click(screen.getByRole("button", { name: "Neu" }));
     expect(screen.getByRole("dialog", { name: "Neues Pickit-Profil" })).toBeInTheDocument();
@@ -85,12 +86,12 @@ describe("PickitFeature", () => {
   });
 
   it("zeigt Importfehler, stale Save und leere Assignment-Validierung verständlich", async () => {
-    mocks.importRules.mockRejectedValueOnce(new Error("Import Zeile 2 ist ungültig"));
+    mocks.importRules.mockRejectedValueOnce(apiError("pickit_invalid"));
     renderFeature(); await screen.findByRole("heading", { name: "Basis" });
     fireEvent.click(screen.getByRole("button", { name: "Erweitertes Ausdrucksfeld" }));
     fireEvent.change(screen.getByLabelText("NIP-Text"), { target: { value: "[kaputt]" } }); fireEvent.click(screen.getByRole("button", { name: "Als Entwurf importieren" }));
-    expect(await screen.findByRole("alert")).toHaveTextContent("Zeile 2");
-    mocks.update.mockRejectedValueOnce(new Error("revision conflict: aktueller Stand ist Revision 2"));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Die Pickit-Daten sind ungültig.");
+    mocks.update.mockRejectedValueOnce(apiError("revision_conflict"));
     fireEvent.change(screen.getByLabelText("Profilname"), { target: { value: "Geändert" } }); fireEvent.click(screen.getByRole("button", { name: "Profil speichern" }));
     expect(await screen.findByRole("button", { name: "Aktuellen Stand laden" })).toBeInTheDocument();
     const removeButtons = screen.getAllByRole("button", { name: "Entfernen" });

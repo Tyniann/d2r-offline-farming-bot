@@ -3,6 +3,7 @@ import { Button, StateMessage } from "../../app/ui";
 import { isRunStartable, runAvailabilityText } from "../../app/runReasons";
 import { move } from "./settingsDiff";
 import type { SettingsRun } from "./settingsTypes";
+import { useTranslation } from "react-i18next";
 
 /** QueueEditor zeigt die Run-Reihenfolge als Zwei-Spalten-Hero mit Drag & Drop. */
 export function QueueEditor({
@@ -15,6 +16,7 @@ export function QueueEditor({
   characterClass?: string;
   onChange: (queue: string[]) => void;
 }) {
+  const { t } = useTranslation();
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [dropHighlight, setDropHighlight] = useState(false);
   const available = runs.filter((run) => !queue.includes(run.id));
@@ -66,8 +68,8 @@ export function QueueEditor({
 
   return <div className={`settings-queue-editor${changed ? " settings-field-changed" : ""}`}>
     <div className="section-heading">
-      <div><h2>Run-Reihenfolge</h2><p>Die Runs laufen pro Spiel in dieser Reihenfolge. Ziehe Katalog-Runs von rechts nach links oder sortiere die aktive Liste.</p></div>
-      {changed && <span className="status-badge status-warning">Geändert</span>}
+      <div><h2>{t("settings.queueTitle")}</h2><p>{t("settings.queueDetail")}</p></div>
+      {changed && <span className="status-badge status-warning">{t("settings.changed")}</span>}
     </div>
     <div className="settings-queue-panes">
       <div
@@ -77,9 +79,9 @@ export function QueueEditor({
         onDragLeave={() => setDropHighlight(false)}
         onDrop={(event) => dropAt(event, queue.length)}
       >
-        <h3>Deine Reihenfolge</h3>
+        <h3>{t("settings.yourOrder")}</h3>
         {queue.length === 0
-          ? <StateMessage kind="empty" title="Noch keine Runs in der Reihenfolge">Ziehe rechts einen Run hierher oder klicke auf „+“.</StateMessage>
+          ? <StateMessage kind="empty" title={t("settings.queueEmpty")}>{t("settings.queueEmptyDetail")}</StateMessage>
           : <ol className="queue-list settings-queue">
             {queue.map((runID, index) => {
               const label = runs.find((run) => run.id === runID)?.label ?? runID;
@@ -100,21 +102,21 @@ export function QueueEditor({
                 <span>{index + 1}</span>
                 <strong>{label}</strong>
                 <div className="queue-actions">
-                  <Button variant="secondary" aria-label={`${label} nach oben`} disabled={!mutable || index === 0} onClick={() => reorder(index, index - 1)}>↑</Button>
-                  <Button variant="secondary" aria-label={`${label} nach unten`} disabled={!mutable || index === queue.length - 1} onClick={() => reorder(index, index + 1)}>↓</Button>
-                  <Button variant="secondary" disabled={!mutable} onClick={() => onChange(queue.filter((entry) => entry !== runID))}>Entfernen</Button>
+                  <Button variant="secondary" aria-label={t("settings.moveUp", { label })} disabled={!mutable || index === 0} onClick={() => reorder(index, index - 1)}>↑</Button>
+                  <Button variant="secondary" aria-label={t("settings.moveDown", { label })} disabled={!mutable || index === queue.length - 1} onClick={() => reorder(index, index + 1)}>↓</Button>
+                  <Button variant="secondary" disabled={!mutable} onClick={() => onChange(queue.filter((entry) => entry !== runID))}>{t("settings.remove")}</Button>
                 </div>
               </li>;
             })}
           </ol>}
       </div>
       <div className="settings-queue-pane">
-        <h3>Verfügbare Runs</h3>
+        <h3>{t("settings.availableRuns")}</h3>
         {available.length === 0
-          ? <p className="hint">Alle Katalog-Runs sind bereits in der Reihenfolge.</p>
+          ? <p className="hint">{t("settings.allRunsAdded")}</p>
           : <ul className="settings-run-catalog">
             {available.map((run) => {
-              const availability = runAvailabilityText(run.status ?? "", run.reasons ?? [], characterClass);
+              const availability = runAvailabilityText(run.status ?? "", run.reasons ?? [], characterClass, t);
               const startable = isRunStartable(run.status ?? "");
               return <li
                 key={run.id}
@@ -128,7 +130,7 @@ export function QueueEditor({
                   event.dataTransfer.effectAllowed = "copy";
                 }}
                 className={mutable && startable ? "catalog-draggable" : undefined}
-                title={startable ? (mutable ? "In die aktive Reihenfolge ziehen" : undefined) : availability.detail}
+                title={startable ? (mutable ? t("settings.dragToQueue") : undefined) : availability.detail}
               >
                 <span className="drag-handle" aria-hidden="true">⠿</span>
                 <Button

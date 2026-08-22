@@ -117,6 +117,9 @@ export class DesktopCoreController {
       await this.#callbacks.onReady(connection.handshake);
     } catch (error) {
       const reason = error instanceof DesktopCoreError ? error.code : "core_start_failed";
+      // Rohe Prozessfehler und begrenztes stderr bleiben reine Diagnose. Die
+      // Recovery erhält nur den stabilen Reason-Code und löst ihren Bedienertext selbst auf.
+      console.error("Core launch failed.", error);
       await this.#callbacks.onRecoveryRequired(reason, this.#restartCount);
     }
   }

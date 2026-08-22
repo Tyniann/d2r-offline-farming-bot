@@ -1,6 +1,8 @@
 import { OctagonX, Pause, Play, Square } from "lucide-react";
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import type { StatusDTO } from "../../api/generated";
+import { presentRunStage } from "../../i18n/presenters";
 
 interface Hotkeys {
   pause: string;
@@ -16,34 +18,35 @@ interface Props {
 
 /** ActiveRunPanel renders Core-owned progress and keyboard-only safety hints. */
 export function ActiveRunPanel({ status, runName, hotkeys }: Props) {
+  const { t } = useTranslation();
   const elapsed = useObservedElapsed(status.run_id);
   const progress = validProgress(status.run_progress) ? status.run_progress : undefined;
   const queueTotal = status.queue.entries.length;
   const queueCurrent = queueTotal > 0 ? Math.min(Math.max(status.queue.index + 1, 1), queueTotal) : 0;
   const pendingText = status.pending_intent === "pause_after_run"
-    ? "Pause nach diesem Run vorgemerkt"
+    ? t("dashboard.active.pausePending")
     : status.pending_intent === "stop_after_run"
-      ? "Stopp nach diesem Run vorgemerkt"
+      ? t("dashboard.active.stopPending")
       : "";
 
   return <section className="dashboard-active-run" aria-labelledby="dashboard-active-run-title" aria-live="polite">
     <div className="dashboard-active-run-icon"><Play aria-hidden="true" size={21} fill="currentColor" /></div>
     <div className="dashboard-active-run-copy">
-      <span>{queueTotal > 0 ? `Run ${queueCurrent} von ${queueTotal}` : "Aktive Session"}</span>
-      <h2 id="dashboard-active-run-title">{runName ? `${runName} läuft` : "Session wird vorbereitet"}</h2>
+      <span>{queueTotal > 0 ? t("dashboard.active.queuePosition", { current: queueCurrent, total: queueTotal }) : t("dashboard.active.activeSession")}</span>
+      <h2 id="dashboard-active-run-title">{runName ? t("dashboard.active.runActive", { run: runName }) : t("dashboard.active.preparing")}</h2>
       {progress ? <>
-        <div className="dashboard-active-run-steps" aria-label={`Etappe ${progress.current} von ${progress.total}`}>
+        <div className="dashboard-active-run-steps" aria-label={t("dashboard.active.stageAria", { current: progress.current, total: progress.total })}>
           {Array.from({ length: progress.total }, (_, index) => <i key={index} className={index < progress.current - 1 ? "is-complete" : index === progress.current - 1 ? "is-current" : undefined} />)}
         </div>
-        <small>{progress.label} · Etappe {progress.current} von {progress.total} · {formatElapsed(elapsed)} vergangen</small>
-      </> : <small>Run wird ausgeführt · {formatElapsed(elapsed)} vergangen</small>}
+        <small>{t("dashboard.active.stageDetail", { label: presentRunStage(progress.stage_code, progress.params, t), current: progress.current, total: progress.total, elapsed: formatElapsed(elapsed) })}</small>
+      </> : <small>{t("dashboard.active.runningDetail", { elapsed: formatElapsed(elapsed) })}</small>}
       {pendingText && <strong className="dashboard-active-intent" role="status">{pendingText}</strong>}
-      {status.input.stopped && <strong className="dashboard-active-intent is-danger" role="alert">Notstopp aktiv</strong>}
+      {status.input.stopped && <strong className="dashboard-active-intent is-danger" role="alert">{t("dashboard.active.emergencyActive")}</strong>}
     </div>
-    <div className="dashboard-active-hotkeys" aria-label="Steuerung im Spiel">
-      <HotkeyHint icon={Pause} keyLabel={hotkeys.pause} label="Nach diesem Run pausieren" active={status.pending_intent === "pause_after_run"} />
-      <HotkeyHint icon={Square} keyLabel={hotkeys.stopAfterRun} label="Nach diesem Run stoppen" active={status.pending_intent === "stop_after_run"} />
-      <HotkeyHint icon={OctagonX} keyLabel={hotkeys.emergencyStop} label="Sofort stoppen" danger active={status.input.stopped} />
+    <div className="dashboard-active-hotkeys" aria-label={t("dashboard.active.controls")}>
+      <HotkeyHint icon={Pause} keyLabel={hotkeys.pause} label={t("dashboard.active.pauseAfterRun")} active={status.pending_intent === "pause_after_run"} />
+      <HotkeyHint icon={Square} keyLabel={hotkeys.stopAfterRun} label={t("dashboard.active.stopAfterRun")} active={status.pending_intent === "stop_after_run"} />
+      <HotkeyHint icon={OctagonX} keyLabel={hotkeys.emergencyStop} label={t("dashboard.active.stopImmediately")} danger active={status.input.stopped} />
     </div>
   </section>;
 }
@@ -73,7 +76,7 @@ function useObservedElapsed(runID?: string): number {
 }
 
 function validProgress(progress: StatusDTO["run_progress"]): progress is NonNullable<StatusDTO["run_progress"]> {
-  return !!progress && progress.current >= 1 && progress.total >= progress.current && progress.label.trim() !== "";
+  return !!progress && progress.current >= 1 && progress.total >= progress.current && typeof progress.stage_code === "string" && progress.stage_code.trim() !== "";
 }
 
 function formatElapsed(seconds: number): string {

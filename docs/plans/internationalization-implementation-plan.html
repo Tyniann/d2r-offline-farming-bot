@@ -148,6 +148,7 @@
 
     .phase-list { display: grid; gap: 12px; margin-top: 16px; }
     .gate { display: grid; grid-template-columns: 110px 1fr; gap: 16px; padding: 18px; border-left: 4px solid var(--green); }
+    .gate.completed { background: color-mix(in srgb, var(--green) 7%, var(--panel)); }
     .gate.manual { border-left-color: var(--yellow); }
     .gate-id { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; color: var(--gold); font-size: 1.1rem; font-weight: 850; }
     .gate h3 { margin: 0; }
@@ -207,7 +208,7 @@
     </div>
     <div class="hero-meta">
       <div><strong>Stand</strong><span>22. August 2026</span></div>
-      <div><strong>Status</strong><span>Implementierungsentwurf, noch nicht umgesetzt</span></div>
+      <div><strong>Status</strong><span>I18N-0 bis I18N-8 abgeschlossen · Gesamtvalidierung und manueller DE/EN-Installer-Smoke bestanden</span></div>
       <div><strong>Neue Pakete</strong><span><code>i18next</code>, <code>react-i18next</code></span></div>
       <div><strong>Persistenz</strong><span><code>desktop-settings.json</code>, nicht Core-Config</span></div>
     </div>
@@ -627,7 +628,7 @@ presentReason(domain, code, params, t): string</code></pre>
     <h3>Installer</h3>
     <ul>
       <li><code>installerLanguages</code> wird auf <code>["de_DE", "en_US"]</code> gesetzt.</li>
-      <li>Die erzwungene LCID <code>1031</code> entfällt. Electron-builder verwendet die Windows-Sprache.</li>
+      <li>Die erzwungene LCID <code>1031</code> entfällt. Beim interaktiven Start wählt der Operator Deutsch oder Englisch im NSIS-Sprachdialog; Silent-Installationen überspringen ihn.</li>
       <li>Jeder eigene Text in <code>installer.nsh</code> wird als <code>LangString</code> für Deutsch und Englisch definiert.</li>
       <li>Die doppelte Löschbestätigung bleibt in beiden Sprachen inhaltlich gleich streng. Datenverlustwarnungen werden nicht verkürzt.</li>
     </ul>
@@ -681,8 +682,8 @@ presentReason(domain, code, params, t): string</code></pre>
     </p>
 
     <div class="phase-list">
-      <article class="gate">
-        <div class="gate-id">I18N-0<span class="gate-mode">Automatisch</span></div>
+      <article class="gate completed">
+        <div class="gate-id">I18N-0<span class="gate-mode">Abgeschlossen</span></div>
         <div>
           <h3>Textinventar und Vertragsbaseline</h3>
           <p>
@@ -696,12 +697,95 @@ presentReason(domain, code, params, t): string</code></pre>
             <li>Dokumentiere neu gefundene Transportprosa direkt in der Arbeitspaket-Checkliste oder im Testnamen, nicht in einer zweiten dauerhaften Inventardatei.</li>
             <li>Markiere jeden freien Corefehler, der derzeit durch <code>err.Error()</code> bis ins UI gelangt.</li>
           </ul>
-          <div class="gate-proof"><strong>Bestanden:</strong> Jeder sichtbare Textpfad hat eine Zielklasse; die Liste enthält React, API/SSE, Electron, Recovery und Installer. Keine Produktdatei wurde bereits halb migriert.</div>
+          <h4>Abgeschlossene Klassifikation</h4>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Klasse</th><th>Erfasste Quellen und Ziel</th></tr></thead>
+              <tbody>
+                <tr>
+                  <td>Produkttext</td>
+                  <td>
+                    Shell und Renderer: <code>web/index.html</code>, <code>web/src/app/App.tsx</code>,
+                    <code>web/src/app/{characterReasons,runReasons,runResultReasons}.ts</code>,
+                    <code>web/src/api/client.ts</code> sowie alle rendernden Dateien und Presenter unter
+                    <code>web/src/features/{characters,dashboard,history,onboarding,pickit,routes,settings}</code>.
+                    Erfasst sind JSX-Text, Labels, Tooltips, Placeholder, Dialoge, ARIA, Chart- und Tabellenlabels,
+                    Loading-, Empty-, Error- und Fallbacktexte sowie feste Datums- und Zahlen-Locale. Diese Texte
+                    wandern in die zwei manuellen Kataloge und werden über das Renderer-i18n-Modul aufgelöst.
+                  </td>
+                </tr>
+                <tr>
+                  <td>Produkttext</td>
+                  <td>
+                    Desktop und Installation: sichtbare Tray-, Dialog-, Notification-, Provisionierungs- und
+                    Lifecycle-Texte in <code>web/electron/main.ts</code> und <code>desktop-lifecycle.ts</code>, die
+                    Recovery-Oberfläche in <code>recovery.html</code> und <code>recovery.ts</code>, der Fenstertitel
+                    sowie alle eigenen NSIS-Texte in <code>web/build/installer.nsh</code>. Sie werden über
+                    <code>desktop.*</code>-Keys beziehungsweise NSIS-<code>LangString</code> aufgelöst.
+                  </td>
+                </tr>
+                <tr>
+                  <td>Stabiler Fachcode</td>
+                  <td>
+                    HTTP-<code>code</code>, Status-, Event-, State-, Outcome-, Action-, Stage-, Reason-, Run-,
+                    Route-Role-, Difficulty- und Skill-Keys sowie numerische IDs bleiben unverändert. Dazu gehören
+                    insbesondere die Reason-Mengen in <code>internal/tasks</code>, <code>internal/app</code> und
+                    <code>internal/telemetry</code>, SSE-<code>event</code>/<code>state</code>/<code>reason</code> und
+                    die entsprechenden Felder in <code>internal/api</code> und <code>web/src/api/generated.ts</code>.
+                    Presenter ordnen diese Werte später Übersetzungsschlüsseln zu.
+                  </td>
+                </tr>
+                <tr>
+                  <td>Benutzerinhalt</td>
+                  <td>
+                    Charakternamen, benutzerdefinierte Pickit-Profilnamen und -IDs, Routennamen sowie importierte
+                    oder eingegebene Regeltexte bleiben bytegetreu. Betroffen sind die entsprechenden
+                    <code>character</code>-, <code>name</code>-, <code>slug</code>-, <code>route_id</code>-,
+                    <code>display_name</code>- und <code>expression</code>-Pfade in Character-, Route-, Pickit-,
+                    Settings- und History-DTOs. Die UI lokalisiert nur umgebende Beschriftungen.
+                  </td>
+                </tr>
+                <tr>
+                  <td>D2R-Spieldatum</td>
+                  <td>
+                    Gegenstandsidentitäten und Basisnamen aus <code>internal/world/item_catalog_data.go</code> und
+                    den Pickit-/History-Feldern <code>item_name</code>, <code>display_name</code> und
+                    <code>set_name</code>; außerdem <code>world.area_name</code> sowie D2R-native Gebiets-,
+                    Wegpunkt- und Skillnamen. Die stabile ID beziehungsweise der CASC-Key bleibt autoritativ. Eine
+                    sichtbare Übersetzung darf nur aus den lokalen CASC-Extrakten generiert werden.
+                  </td>
+                </tr>
+                <tr>
+                  <td>Technische Diagnose</td>
+                  <td>
+                    Logs, stderr, Request-ID, Dateipfade und -basenames, Stack- und Parsefehler, Handles,
+                    <code>details.error</code>/<code>details.message</code> sowie Electron-
+                    <code>DesktopCoreError.message</code> bleiben technische Diagnose. Sie dürfen nicht als
+                    Bedienertext gerendert werden. Recovery zeigt künftig einen lokalisierten Reason-Code statt
+                    stderr oder freier Fehlerprosa.
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <h4>Markierte Transportprosa und freie Fehlerketten</h4>
+          <ul>
+            <li><code>internal/api/dto.go</code>: <code>ErrorDTO.message</code>, <code>StatusDTO.last_error.message</code>, <code>RunProgressDTO.label</code>, freie <code>SessionResultDTO.reason</code> sowie System-<code>display_name</code> und <code>world.area_name</code>.</li>
+            <li><code>internal/api/route_dto.go</code>: <code>instructions_de</code>, <code>operator_hints_de</code>, gemischte <code>display_name</code>-Quellen und freie Lifecycle-/Workflow-/Candidate-<code>reason</code>-Werte.</li>
+            <li><code>internal/api/history_dto.go</code>, <code>history_mapping.go</code> und <code>internal/telemetry/{history_contract,history_analyzer,history_index,history_maintenance,history_reader}.go</code>: <code>message</code>, <code>reason_message</code>, deutscher <code>HistoryReasonMessage</code>-Katalog und der rohe <code>err.Error()</code>-Fallback.</li>
+            <li><code>internal/api/{server,diagnostic_server,history_server,history_maintenance_server,operator_settings_backend,pickit_backend,live_backend,live_backend_routes}.go</code>: Handlertexte, <code>commandError.message</code>, direkte <code>err.Error()</code>-Antworten sowie SSE-<code>details.message</code>.</li>
+            <li><code>internal/app/{ui_monitor,run_tick,queue_runtime,supervisor,route_adapter,route_play,route_lifecycle,town_preparation,town_preparation_service,chest_operate_adapter}.go</code> und <code>internal/tasks/{runner,chest_sweep}.go</code>: freie Fehler gelangen über Runtime-Status, Sessionresultat, Route-Reasons oder Telemetrie bis zu API und Historie.</li>
+            <li><code>web/src/api/client.ts</code> übernimmt <code>ErrorDTO.message</code> in JavaScript-<code>Error.message</code>; mehrere Feature-<code>message(reason)</code>-Helfer rendern diesen Wert. <code>web/src/app/runReasons.ts</code> parst zusätzlich englische Satzfragmente. Beide Pfade werden in I18N-4 entfernt.</li>
+            <li><code>web/electron/{core-contract,core-process}.ts</code> baut freie deutsche Fehlersätze und hängt stderr beziehungsweise <code>Error.message</code> an. Diese Werte werden nur noch geloggt; sichtbare Dialoge und Recovery verwenden in I18N-7 stabile <code>DesktopCoreReason</code>-Codes.</li>
+          </ul>
+
+          <div class="gate-proof"><strong>Bestanden am 22. August 2026:</strong> Vollständige <code>rg</code>-Audits über React, API/SSE, Electron, Recovery und NSIS ordnen jeden sichtbaren Pfad einer der fünf Zielklassen zu. Der Audit erfasst direkte JSX-Texte, Stringliterale, ARIA, Placeholder, Titel, native Dialoge, <code>Intl</code>/<code>toLocale*</code>, alle sprachtragenden DTO-Felder und jeden aktuellen <code>err.Error()</code>-Transportpfad. Der Worktree enthielt vor dem Gate keine fremden Änderungen; außer diesem Status- und Erkenntnisnachtrag wurde keine Produktdatei migriert.</div>
         </div>
       </article>
 
-      <article class="gate">
-        <div class="gate-id">I18N-1<span class="gate-mode">Automatisch</span></div>
+      <article class="gate completed">
+        <div class="gate-id">I18N-1<span class="gate-mode">Abgeschlossen</span></div>
         <div>
           <h3>i18n-Grundmodul und Katalogvertrag</h3>
           <p>
@@ -715,12 +799,12 @@ presentReason(domain, code, params, t): string</code></pre>
             <li>Formattertests belegen <code>de-DE</code> und <code>en-US</code> für Datum, Zahl, Prozent und Dauer.</li>
             <li>Die Testumgebung initialisiert i18next deterministisch und unabhängig von der Hostsprache.</li>
           </ul>
-          <div class="gate-proof"><strong>Bestanden:</strong> Ein Test kann denselben Schlüssel auf Deutsch und Englisch rendern; fehlender oder zusätzlicher Key schlägt fehl; Typecheck akzeptiert bekannte und verwirft unbekannte Keys.</div>
+          <div class="gate-proof"><strong>Bestanden am 22. August 2026:</strong> <code>i18next@26.4.0</code> und <code>react-i18next@17.0.12</code> sind nach erneuter Prüfung der offiziellen Registry exakt gepinnt. Das Renderer-Modul bündelt beide JSON-Kataloge statisch und initialisiert Tests unabhängig von der Hostsprache mit <code>de</code>. 13 fokussierte Vitest-Fälle belegen DE/EN-Ausgabe, Pluralformen, unbekannte Keys, rekursive Pfad- und Blatttyp-Parität, Locale-Auflösung sowie Datum, Zahl, Prozent, Byte und Dauer. Der Renderer-Typecheck belegt bekannte und verwirft unbekannte Keys. Wichtige Versionsabweichung zur älteren i18next-API: 26.4.0 verwendet <code>initAsync: false</code> statt <code>initImmediate: false</code>.</div>
         </div>
       </article>
 
-      <article class="gate">
-        <div class="gate-id">I18N-2<span class="gate-mode">Automatisch</span></div>
+      <article class="gate completed">
+        <div class="gate-id">I18N-2<span class="gate-mode">Abgeschlossen</span></div>
         <div>
           <h3>Persistierter Sprachwechsel</h3>
           <p>
@@ -733,11 +817,11 @@ presentReason(domain, code, params, t): string</code></pre>
             <li>IPC-Persistenz erfolgt vor <code>changeLanguage</code>.</li>
             <li>Responsive CSS erhält Navigation, Charakterkontext, Sprachschalter, Verbindung und Version.</li>
           </ul>
-          <div class="gate-proof"><strong>Bestanden:</strong> Komponenten-Test wechselt ohne Reload von DE zu EN; Desktop-Store-Test lädt die Auswahl nach neuem Store-Start; fehlgeschlagenes Speichern lässt die alte Sprache aktiv.</div>
+          <div class="gate-proof"><strong>Bestanden am 22. August 2026:</strong> <code>desktop-settings.json</code> verwendet Schema 3 mit verpflichtendem <code>language</code>. Schema 1 und 2 migrieren ohne Recovery mit <code>de</code>; ein frischer Store leitet <code>de-AT</code>/<code>de_DE</code> zu <code>de</code> und alle anderen geprüften Systemsprachen zu <code>en</code> ab, ohne den fehlenden Zielroot anzulegen. Preload und Renderer transportieren den Wert. Der Bootstrap lädt ihn vor <code>createRoot().render()</code>; der Browsermodus nutzt <code>navigator.language</code>. Der Sidebar-Schalter persistiert vor <code>changeLanguage</code>, sperrt beide Buttons währenddessen und behält bei einem Write-Fehler die alte Sprache. 26 fokussierte Tests sowie Renderer- und Electron-Typecheck sind grün; der CSS-Vertrag hält Sprachschalter, Verbindung und Version auch unter 1000 und 620 Pixeln sichtbar.</div>
         </div>
       </article>
 
-      <article class="gate">
+      <article class="gate completed">
         <div class="gate-id">I18N-3<span class="gate-mode">Automatisch</span></div>
         <div>
           <h3>Statische React-Texte und lokale Formatierung</h3>
@@ -752,12 +836,12 @@ presentReason(domain, code, params, t): string</code></pre>
             <li>Charts, Tabellen-<code>data-label</code>, Dialoge, Empty-/Loading-/Error-Zustände und ARIA werden mitmigriert.</li>
             <li>Keine UI-Komponente importiert den JSON-Katalog direkt; sie nutzt das i18n-Modul.</li>
           </ul>
-          <div class="gate-proof"><strong>Bestanden:</strong> Die kleinsten bestehenden Tests jedes Features laufen in der bisherigen deutschen Sprache; je ein repräsentativer Shell-, Dashboard-, Routen-, Historien- und Settings-Test belegt Englisch.</div>
+          <div class="gate-proof"><strong>Bestanden am 22. August 2026:</strong> Shell, Dashboard, Characters, Routes, Pickit, History, Settings, Onboarding und Provisioning wurden strikt in dieser Reihenfolge auf typisierte Katalogschlüssel migriert. Zahlen, Prozentwerte, Daten, Uhrzeiten und Dauern folgen dem aktiven Locale; direkte deutsche Lowercase- und Sortier-Locale-Festlegungen sind entfernt. Die kleinsten betroffenen deutschen Feature-Tests liefen während jeder Teilmigration grün. Der Abschlusslauf umfasst 89 fokussierte Tests: fünf repräsentative Oberflächenpfade belegen zusätzlich Englisch, der deutsche Pickit-Validierungsvertrag bleibt erhalten und die rekursive Katalogparität ist grün; Renderer-Typecheck ebenfalls grün. Bewusst offen und den Folgetoren zugeordnet bleiben Core-Fehler und Core-Anweisungen für I18N-4/5 sowie D2R-Systemnamen wie Schwierigkeit, Run, Klasse und Itemtyp für I18N-6.</div>
         </div>
       </article>
 
-      <article class="gate">
-        <div class="gate-id">I18N-4<span class="gate-mode">Automatisch</span></div>
+      <article class="gate completed">
+        <div class="gate-id">I18N-4<span class="gate-mode">Abgeschlossen</span></div>
         <div>
           <h3>Fehlervertrag und generierter Client</h3>
           <p>
@@ -771,12 +855,12 @@ presentReason(domain, code, params, t): string</code></pre>
             <li>Ein Test scannt den OpenAPI-Vertrag gegen sprachspezifische Felder und erforderliche <code>message</code>-Felder.</li>
             <li>Technische Fehler werden mit Kontext gewrappt und nur auf oberster Ebene geloggt.</li>
           </ul>
-          <div class="gate-proof"><strong>Bestanden:</strong> Kein Renderer-Pfad hängt von deutscher Core-Prosa oder englischem Satzfragment ab; bekannte Codes erscheinen in DE und EN; unbekannte Codes nutzen den allgemeinen lokalisierten Fallback.</div>
+          <div class="gate-proof"><strong>Bestanden am 22. August 2026:</strong> HTTP-Fehler und Runtime-Status verwenden den sprachneutralen <code>ProblemDTO</code>-Vertrag aus <code>code</code> und erlaubten <code>params</code>; nur HTTP ergänzt <code>request_id</code>. Der generierte Client erzeugt zentral strukturierte <code>ApiError</code>-Objekte. Gemeinsame Handler, Bootstrap, Run-Verfügbarkeit, Charakter-Setup, Operator-Einstellungen, Pickit, Historie, Diagnose und Live-Backend geben keine Bedienerprosa oder technischen Fehlerketten mehr aus; SSE transportiert dieselben stabilen Codes ohne Request-ID und ohne <code>details.message</code>. Renderer-Presenter und Reload-Entscheidungen hängen ausschließlich an Codes, nicht an deutschen oder englischen Satzfragmenten. Der OpenAPI-Scan friert den neutralen Fehlervertrag ein und weist die verbleibenden, bewusst I18N-5 zugeordneten Sprachfelder aus. Die betroffenen Go-Pakete, 97 fokussierte Renderer-Tests, Renderer-Typecheck, Katalogparität und Generator-Synchronität sind grün; bekannte Codes wurden in Deutsch und Englisch sowie der lokalisierte Unknown-Code-Fallback geprüft.</div>
         </div>
       </article>
 
-      <article class="gate">
-        <div class="gate-id">I18N-5<span class="gate-mode">Automatisch</span></div>
+      <article class="gate completed">
+        <div class="gate-id">I18N-5<span class="gate-mode">Abgeschlossen</span></div>
         <div>
           <h3>Fortschritt, Routenanleitungen und Historie</h3>
           <p>
@@ -790,12 +874,12 @@ presentReason(domain, code, params, t): string</code></pre>
             <li>Historienanalyse speichert und aggregiert Reasons, nicht lokalisierte Sätze.</li>
             <li>JSON-/CSV-Export bleibt sprachneutral und verwendet Codes; die UI-Ansicht übersetzt.</li>
           </ul>
-          <div class="gate-proof"><strong>Bestanden:</strong> OpenAPI enthält weder <code>instructions_de</code> noch <code>operator_hints_de</code> noch <code>reason_message</code> noch <code>run_progress.label</code>. Task-, API- und UI-Tests belegen denselben semantischen Zustand.</div>
+          <div class="gate-proof"><strong>Bestanden am 22. August 2026:</strong> Der Core projiziert Run-Fortschritt nur noch als <code>stage_code</code>, strukturierte Parameter sowie unveränderte <code>current</code>/<code>total</code>-Werte. Aufnahmeoptionen liefern <code>instruction_code</code> und getrennte <code>operator_hint_codes</code>; der Renderer interpoliert den effektiven Aufnahme-Hotkey und unterscheidet Wirt- und Cow-Route. Historienanalyse, JSON und CSV führen ausschließlich Reason-Codes, während Listen, Prioritätskarten, Diagnosen und Details denselben Code in Deutsch oder Englisch auflösen. Auch verbliebene Run-, Routen- und Stadtdienstfehler werden an der Fachgrenze als stabile Codes transportiert; technische Ursachen bleiben im Log. Der OpenAPI-Audit bestätigt das vollständige Fehlen von <code>instructions_de</code>, <code>operator_hints_de</code>, <code>reason_message</code> und <code>run_progress.label</code>. Die betroffenen Pakete <code>internal/tasks</code>, <code>internal/telemetry</code>, <code>internal/api</code> und <code>internal/app</code> sind grün; 93 fokussierte Renderer-Tests, Renderer-Typecheck, Katalogparität und Generator-Synchronität belegen denselben semantischen Zustand in DE und EN.</div>
         </div>
       </article>
 
-      <article class="gate manual">
-        <div class="gate-id">I18N-6<span class="gate-mode">CASC-abhängig</span></div>
+      <article class="gate completed">
+        <div class="gate-id">I18N-6<span class="gate-mode">Abgeschlossen</span></div>
         <div>
           <h3>Systemkataloge und D2R-Namen</h3>
           <p>
@@ -809,12 +893,32 @@ presentReason(domain, code, params, t): string</code></pre>
             <li>Fehlende <code>deDE</code>- oder <code>enUS</code>-Werte brechen für tatsächlich referenzierte Schlüssel ab.</li>
             <li>Kein fremdes Projekt und keine geratenen Namen als Fallback.</li>
           </ul>
-          <div class="gate-proof"><strong>Bestanden:</strong> Alle mit vorhandenen CASC-Daten belegbaren Namen wechseln live. Wenn Gebiets- oder Skillstrings fehlen, liegt eine konkrete Nachforderung mit Schlüsselliste vor; das Gate bleibt für diese Teilmenge offen.</div>
+          <div class="gate-proof">
+            <strong>Bestanden am 22. August 2026:</strong> Der lokale Generator erzeugt aus dem CASC-Export für
+            Build <code>3.2.92777</code> deterministische Dateien
+            <code>web/src/i18n/generated/game.de.json</code> und <code>game.en.json</code>. Deren Manifest nennt
+            Build, Locale, alle TXT-/JSON-Quelldateien sowie <code>area_id</code>, <code>skill_key</code>,
+            <code>base_code</code>, <code>identity_key</code> und <code>set_key</code> als stabile Schlüsselarten.
+            Enthalten sind 137 Gebiete, 12 tatsächlich verwendete Produkt-Skills, 684 lokalisierte Itembasen,
+            573 Unique-/Set-Identitäten und 35 Sets. Die acht nicht lokalisierten, nicht spawnbaren
+            Legacy-Platzhalter <code>hpo</code>, <code>mpo</code>, <code>hpf</code>, <code>mpf</code>,
+            <code>rps</code>, <code>rpl</code>, <code>bps</code> und <code>bpl</code> werden ausdrücklich nicht
+            ausgegeben. Fehlende oder doppelte relevante Schlüssel sowie leere <code>deDE</code>- oder
+            <code>enUS</code>-Werte brechen die Generierung ab; das Fixture belegt einen abweichenden deutschen
+            und englischen Gebietsnamen. Difficulty, Run, Klasse und bekannte eingebaute Profile werden über
+            den App-Katalog präsentiert. Gebiets-, Skill-, Basis-, Identitäts- und Setnamen kommen ausschließlich
+            aus dem generierten CASC-Katalog. Der Core transportiert hierfür nur stabile Schlüssel; der
+            OpenAPI-Vertrag enthält keine Difficulty-, Run-, Klassen-, Skill- oder Aufnahme-Anzeigenamen mehr.
+            Historie und Pickit bevorzugen stabile Itemschlüssel, während alte nicht auflösbare Telemetrie den
+            vorhandenen technischen Namen neutral beibehält. Kein Renderer-Runtimepfad liest
+            <code>.tmp/d2r-excel</code>. Generatorausgabe und OpenAPI-Client sind synchron; die betroffenen
+            Go-Pakete sind grün, ebenso 62 fokussierte Renderer-Tests und der Renderer-Typecheck.
+          </div>
         </div>
       </article>
 
-      <article class="gate">
-        <div class="gate-id">I18N-7<span class="gate-mode">Automatisch</span></div>
+      <article class="gate completed">
+        <div class="gate-id">I18N-7<span class="gate-mode">Abgeschlossen</span></div>
         <div>
           <h3>Electron-Main, Tray, Notifications und Recovery</h3>
           <p>
@@ -827,12 +931,28 @@ presentReason(domain, code, params, t): string</code></pre>
             <li>Recovery-Test öffnet dieselbe Reason-ID in DE und EN.</li>
             <li>Package-Smoke beweist, dass beide Katalogdateien im ASAR-/App-Inhalt verfügbar sind.</li>
           </ul>
-          <div class="gate-proof"><strong>Bestanden:</strong> Ein Wechsel in React ändert anschließend aufgebautes Tray und neue Notifications; ein Core-Ausfall zeigt Recovery in der gespeicherten Sprache; Electron benötigt kein i18n-Paket aus <code>node_modules</code>.</div>
+          <div class="gate-proof">
+            <strong>Bestanden am 22. August 2026:</strong> Der frameworkfreie Electron-Adapter lädt nach
+            <code>app.whenReady()</code> und dem Desktop-Settings-Load ausschließlich den validierten
+            <code>desktop.*</code>-Teil der kopierten Kataloge. Lifecycle-Policy und Notification-Ziele enthalten nur
+            noch Zustand, Fähigkeiten und stabile Ziele; Tray, Tooltip, Notificationtitel und -texte,
+            Provisionierungsdialoge sowie native Message-Boxen werden im Main-Prozess aus dem aktiven DE-/EN-Katalog
+            aufgelöst. Ein erfolgreich persistierter Sprachwechsel baut das Tray unmittelbar neu auf; spätere
+            Notifications verwenden denselben aktuellen Sprachwert. Recovery erhält Sprache, Titel und Body bereits
+            aufgelöst vom Main-Prozess und zeigt für dieselbe <code>DesktopCoreReason</code>-ID den deutschen oder
+            englischen Text. Rohe Prozessfehler, <code>stderr</code> und <code>Error.message</code> bleiben im
+            Diagnosepfad und gelangen nicht in Dialoge oder Recovery. 66 fokussierte Electron-Tests und zwei
+            Katalogparitätstests sind grün, ebenso Electron- und Renderer-Typecheck sowie der fokussierte
+            Electron-Build. Die Buildprojektion enthält bytegleiche <code>de.json</code>- und
+            <code>en.json</code>-Kopien, Recovery und Renderer; ein temporärer ASAR-Smoke mit der produktiven
+            Paketprüfung bestätigt dieselben Inhalte und den weiterhin vollständigen Ausschluss von
+            <code>node_modules</code>.
+          </div>
         </div>
       </article>
 
-      <article class="gate manual">
-        <div class="gate-id">I18N-8<span class="gate-mode">Installer-Smoke</span></div>
+      <article class="gate completed">
+        <div class="gate-id">I18N-8<span class="gate-mode">Abgeschlossen</span></div>
         <div>
           <h3>NSIS, Dokumentation und Abschlussaudit</h3>
           <p>
@@ -846,7 +966,7 @@ presentReason(domain, code, params, t): string</code></pre>
             <li>Changelog unter <code>Unreleased / Added</code> mit dynamischer DE/EN-Umschaltung; Vertragsänderung gegebenenfalls zusätzlich unter <code>Changed</code>.</li>
             <li>Installer-Smoke nur im ausdrücklich autorisierten Gesamtvalidierungsflow.</li>
           </ul>
-          <div class="gate-proof"><strong>Bestanden:</strong> Deutscher und englischer Installer zeigen jeweils die richtige eigene Löschwarnung; alle Dokumente stimmen mit Schema, Sprach-Seam und Fallbackverhalten überein; der Abschlussaudit findet keine unklassifizierte sichtbare Prosa.</div>
+          <div class="gate-proof"><strong>Bestanden am 22. August 2026:</strong> Eine Setup-Datei bietet beim interaktiven Start die Auswahl zwischen Deutsch und Englisch. Der manuelle Smoke bestätigt Installer und beide eigenen Uninstall-Warnungen in jeder gewählten Sprache; die zweite, standardmäßig ablehnende Bestätigung erhält den Datenroot. Die vollständige Pipeline ist grün: 279 Renderer-Tests in 42 Dateien, 10 native Electron-Tests, alle Go-Tests, <code>golangci-lint</code>, Produktionsbuild sowie stille Installations-, Upgrade- und Deinstallations-Smokes. Feature-Dokumentation, Index, Changelog und die betroffenen Vertragsdokumente stimmen mit Schema 3, Desktop-Sprachgrenze und Fallbackverhalten überein. Der Abschlussaudit findet keine unklassifizierte sichtbare Prosa, keine sprachcodierten OpenAPI-Felder und keine Fehlertextauswertung im Renderer.</div>
         </div>
       </article>
     </div>
@@ -1002,7 +1122,7 @@ presentReason(domain, code, params, t): string</code></pre>
   </section>
 
   <footer>
-    Internationalisierung DE/EN · Implementierungsplan für Agenten · Entwurf vom 22. August 2026 · keine Implementierungsfreigabe
+    Internationalisierung DE/EN · Implementierung und Gesamtvalidierung abgeschlossen am 22. August 2026
   </footer>
 </main>
 </body>

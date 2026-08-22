@@ -98,6 +98,7 @@ Spätere Ideen (noch nicht umgesetzt): [`docs/backlog.md`](../backlog.md).
 
 | Feature | Beschreibung |
 |---------|--------------|
+| [Internationalisierung Deutsch und Englisch](internationalization.md) | Dynamischer DE-/EN-Wechsel für React, Electron, Recovery und Installer mit sprachneutralem Core-Vertrag und CASC-generierten D2R-Namen |
 | [Lokale Core-API und eingebettete Web-Anwendung](local-core-api.md) | Abschnitt 11.2: Loopback-only HTTP/JSON, Security Envelope, OpenAPI-generierter TypeScript-Client und eingebetteter React-Build |
 | [Live-Dashboard](live-dashboard.md) | App-weite Auswahl, read-only Farm-Queue, Historienkennzahlen und Core-projizierter Run-Fortschritt mit globalen Safety-Hotkeys |
 | [Installierter Datenroot und Desktop-Einstellungen](installed-data-root.md) | Abschnitt 15.1: expliziter Core-Root, hashgebundene Defaults, stagingbasierter Import und getrennter atomarer Desktop-Settings-Store |

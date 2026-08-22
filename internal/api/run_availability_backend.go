@@ -10,7 +10,7 @@ import (
 // RunAvailabilities resolves the read-only run catalog for one character and difficulty.
 func (b *LiveBackend) RunAvailabilities(character, difficulty string) (RunAvailabilitiesDTO, error) {
 	if strings.TrimSpace(character) == "" {
-		return RunAvailabilitiesDTO{}, &commandError{code: "request_invalid", message: "Charakter ist erforderlich."}
+		return RunAvailabilitiesDTO{}, &commandError{code: "request_invalid", params: map[string]any{"field": "character"}}
 	}
 	catalog, err := b.reloadCharacterCatalog()
 	if err != nil {
@@ -18,7 +18,7 @@ func (b *LiveBackend) RunAvailabilities(character, difficulty string) (RunAvaila
 	}
 	entry, ok := findCharacterCatalogEntry(catalog.Characters, character)
 	if !ok {
-		return RunAvailabilitiesDTO{}, &commandError{code: app.CharacterReasonSaveMissing, message: "Der lokale Offline-Spielstand wurde nicht gefunden."}
+		return RunAvailabilitiesDTO{}, &commandError{code: app.CharacterReasonSaveMissing}
 	}
 	if strings.TrimSpace(difficulty) == "" {
 		difficulty = b.cfg.Session.Difficulty

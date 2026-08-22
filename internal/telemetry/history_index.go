@@ -106,8 +106,7 @@ func (i *HistoryIndex) Refresh() error {
 				continue
 			}
 			code := historyErrorCode(readErr)
-			message, _ := HistoryReasonMessage(code)
-			diagnostics = append(diagnostics, HistoryFileDiagnostic{File: name, Code: code, Message: message})
+			diagnostics = append(diagnostics, HistoryFileDiagnostic{File: name, Code: code})
 			continue
 		}
 		if stable, ok := previous[name]; ok && stable.Fingerprint == source.fingerprint {
@@ -121,8 +120,7 @@ func (i *HistoryIndex) Refresh() error {
 		file, readErr := parseHistorySource(name, source)
 		if readErr != nil {
 			code := historyErrorCode(readErr)
-			message, _ := HistoryReasonMessage(code)
-			diagnostics = append(diagnostics, HistoryFileDiagnostic{File: name, Code: code, Message: message})
+			diagnostics = append(diagnostics, HistoryFileDiagnostic{File: name, Code: code})
 			continue
 		}
 		if file.Ignored {
@@ -305,8 +303,7 @@ func correlateHistoryFiles(files map[string]HistoryFile) ([]HistoryRun, []Histor
 }
 
 func historyDiagnostic(file string, code HistoryReasonCode) HistoryFileDiagnostic {
-	message, _ := HistoryReasonMessage(code)
-	return HistoryFileDiagnostic{File: file, Code: code, Message: message}
+	return HistoryFileDiagnostic{File: file, Code: code}
 }
 
 func historyIndexSignature(files map[string]HistoryFile, diagnostics []HistoryFileDiagnostic, ignored int) string {

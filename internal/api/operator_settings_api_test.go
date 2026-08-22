@@ -78,7 +78,7 @@ func TestOperatorSettingsPreviewReturnsActionablePartialCTAError(t *testing.T) {
 		ExpectedRevision: assigned.Settings.Revision, ExpectedGeneration: 0, Settings: draft,
 	})
 	var commandErr *commandError
-	if !errors.As(err, &commandErr) || commandErr.code != "config_invalid" || commandErr.message != "Für Call to Arms müssen Battle Command und Battle Orders beide belegt sein." {
+	if !errors.As(err, &commandErr) || commandErr.code != "config_invalid" || commandErr.cause == nil {
 		t.Fatalf("partial CTA API error=%v", err)
 	}
 }
@@ -123,7 +123,7 @@ func TestOperatorSettingsHTTPReadPreviewUpdateResetAndTokenGate(t *testing.T) {
 	unauthorized, _ := http.NewRequest(http.MethodPut, server.URL()+"/api/v1/settings/operator", bytes.NewReader(body))
 	unauthorized.Header.Set("Content-Type", "application/json")
 	unauthorizedResponse, _ := http.DefaultClient.Do(unauthorized)
-	assertAPIError(t, unauthorizedResponse, http.StatusUnauthorized, "request_unauthorized")
+	assertAPIError(t, unauthorizedResponse, http.StatusUnauthorized, "request_unauthorized", nil)
 	_ = unauthorizedResponse.Body.Close()
 
 	update, _ := http.NewRequest(http.MethodPut, server.URL()+"/api/v1/settings/operator", bytes.NewReader(body))

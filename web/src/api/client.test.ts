@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { connectLiveEvents, consumeBootstrapToken, controlHeaders } from "./client";
+import { connectLiveEvents, consumeBootstrapToken, controlHeaders, validateQueue } from "./client";
+import { ApiError } from "./generated";
 
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
@@ -16,6 +17,19 @@ describe("bootstrap token", () => {
 });
 
 describe("control bootstrap", () => {
+  it("erzeugt aus dem sprachneutralen Fehlervertrag einen ApiError", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+      ok: false,
+      status: 409,
+      headers: new Headers({ "X-Request-ID": "header-request" }),
+      json: async () => ({ code: "queue_duplicate_run", params: { run_id: "countess", first_index: 0, duplicate_index: 2 }, request_id: "body-request" }),
+    }));
+
+    const error = await validateQueue(["countess", "countess"], "MrBones", "nightmare", 7).catch((reason: unknown) => reason);
+    expect(error).toBeInstanceOf(ApiError);
+    expect(error).toMatchObject({ code: "queue_duplicate_run", params: { run_id: "countess", first_index: 0, duplicate_index: 2 }, requestId: "body-request", status: 409 });
+  });
+
   it("erneuert den Memory-Token nach einem Browser-Refresh", async () => {
     vi.resetModules();
     const fetchMock = vi.fn()
@@ -69,7 +83,7 @@ describe("live events", () => {
     const events: unknown[] = [];
     const disconnect = connectLiveEvents(snapshots.push.bind(snapshots), events.push.bind(events), states.push.bind(states));
     listeners.get("snapshot")?.({ data: '{"state":"idle"}' } as unknown as Event);
-    expect(states).toEqual(["wird verbunden"]);
+    expect(states).toEqual(["connecting"]);
     expect(snapshots).toEqual([{ state: "idle" }]);
     expect(listeners.has("operator_settings_changed")).toBe(true);
     listeners.get("operator_settings_changed")?.({ data: '{"event":"operator_settings_changed","details":{"revision":5}}' } as unknown as Event);

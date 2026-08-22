@@ -1,22 +1,23 @@
 import type { OperatorSettingsDTO } from "../../api/generated";
+import { i18n } from "../../i18n";
 
 const fieldLabels: Array<{ pattern: RegExp; label: (match: RegExpMatchArray) => string }> = [
-  { pattern: /^characters\.([^.]+)\.queue$/, label: (m) => `Run-Reihenfolge (${m[1]})` },
-  { pattern: /^characters\.([^.]+)\.last_difficulty$/, label: (m) => `Letzte Schwierigkeit (${m[1]})` },
-  { pattern: /^characters\.([^.]+)\.players$/, label: (m) => `Spieleranzahl (${m[1]})` },
-  { pattern: /^characters\.([^.]+)\.profile_bindings$/, label: (m) => `Tastenbelegung (${m[1]})` },
-  { pattern: /^characters\.([^.]+)\.inventory_lock$/, label: (m) => `Inventarschutz (${m[1]})` },
-  { pattern: /^budgets\.max_runs$/, label: () => "Maximale Runs" },
-  { pattern: /^budgets\.max_duration_ms$/, label: () => "Maximale Dauer" },
-  { pattern: /^budgets\.max_consecutive_failures$/, label: () => "Fehler in Folge" },
-  { pattern: /^budgets\.max_total_restarts$/, label: () => "Gesamte Restarts" },
-  { pattern: /^input\.enabled$/, label: () => "Gameplay-Input" },
-  { pattern: /^input\.pause_hotkey$/, label: () => "Pause-Hotkey" },
-  { pattern: /^input\.stop_after_run_hotkey$/, label: () => "Stop-nach-Run-Hotkey" },
-  { pattern: /^input\.recording_finish_hotkey$/, label: () => "Aufnahme-Hotkey" },
-  { pattern: /^input\.emergency_stop_hotkey$/, label: () => "Emergency-Stop-Hotkey" },
-  { pattern: /^history\.retention_enabled$/, label: () => "Aufbewahrung aktiv" },
-  { pattern: /^history\.retention_days$/, label: () => "Aufbewahrung" },
+  { pattern: /^characters\.([^.]+)\.queue$/, label: (m) => i18n.t("settings.fieldQueue", { character: m[1] }) },
+  { pattern: /^characters\.([^.]+)\.last_difficulty$/, label: (m) => i18n.t("settings.fieldDifficulty", { character: m[1] }) },
+  { pattern: /^characters\.([^.]+)\.players$/, label: (m) => i18n.t("settings.fieldPlayers", { character: m[1] }) },
+  { pattern: /^characters\.([^.]+)\.profile_bindings$/, label: (m) => i18n.t("settings.fieldBindings", { character: m[1] }) },
+  { pattern: /^characters\.([^.]+)\.inventory_lock$/, label: (m) => i18n.t("settings.fieldInventory", { character: m[1] }) },
+  { pattern: /^budgets\.max_runs$/, label: () => i18n.t("settings.maxRuns") },
+  { pattern: /^budgets\.max_duration_ms$/, label: () => i18n.t("settings.maxDuration") },
+  { pattern: /^budgets\.max_consecutive_failures$/, label: () => i18n.t("settings.consecutiveErrors") },
+  { pattern: /^budgets\.max_total_restarts$/, label: () => i18n.t("settings.totalRestarts") },
+  { pattern: /^input\.enabled$/, label: () => i18n.t("settings.fieldGameplayInput") },
+  { pattern: /^input\.pause_hotkey$/, label: () => i18n.t("settings.fieldPauseHotkey") },
+  { pattern: /^input\.stop_after_run_hotkey$/, label: () => i18n.t("settings.fieldStopHotkey") },
+  { pattern: /^input\.recording_finish_hotkey$/, label: () => i18n.t("settings.fieldRecordingHotkey") },
+  { pattern: /^input\.emergency_stop_hotkey$/, label: () => i18n.t("settings.fieldEmergencyHotkey") },
+  { pattern: /^history\.retention_enabled$/, label: () => i18n.t("settings.fieldRetentionEnabled") },
+  { pattern: /^history\.retention_days$/, label: () => i18n.t("settings.fieldRetention") },
 ];
 
 /** cloneSettings kopiert den Operator-Vertrag für Draft-Mutationen. */
@@ -40,7 +41,7 @@ export function labelChangedField(path: string): string {
 
 /** summarizeChangedFields liefert eine kurze deutsche Zusammenfassung. */
 export function summarizeChangedFields(paths: string[]): string {
-  if (!paths.length) return "keine";
+  if (!paths.length) return i18n.t("history.none");
   const labels = [...new Set(paths.map(labelChangedField))];
   return labels.join(", ");
 }

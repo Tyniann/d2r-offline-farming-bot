@@ -40,8 +40,8 @@ func TestHistoryAPIProjectsSameAnalysisAcrossEndpointsAndJSONExport(t *testing.T
 	if summary.Meta.IndexGeneration != 7 || summary.Meta.Timezone != "Europe/Vienna" || len(summary.Meta.Diagnostics) != 1 || len(backend.historyFilter.Difficulties) != 1 || backend.historyFilter.Difficulties[0] != "nightmare" || backend.historyFilter.Timezone != "Europe/Vienna" {
 		t.Fatalf("meta/filter=%+v backend=%+v", summary.Meta, backend.historyFilter)
 	}
-	if runs.Runs[1].ReasonMessage != "Der Boss wurde nicht gefunden." {
-		t.Fatalf("reason message=%q, want stable German explanation", runs.Runs[1].ReasonMessage)
+	if runs.Runs[1].Reason != "boss_not_found" {
+		t.Fatalf("reason=%q, want stable reason code", runs.Runs[1].Reason)
 	}
 	if disposition := response.Header.Get("Content-Disposition"); !strings.HasPrefix(disposition, `attachment; filename="d2r-history-`) || strings.Contains(disposition, "countess") {
 		t.Fatalf("unsafe JSON disposition=%q", disposition)
@@ -215,7 +215,7 @@ func historyAPIFixture() historyData {
 			Items: []telemetry.HistoryItemAggregate{{ItemKey: "base:r01:normal", ItemName: `=HYPERLINK("bad")`, Seen: 2, Matched: 2, PickedUp: 1, Stashed: 1, Sold: 1, PickupLost: 1, PostPickupLost: 1, YieldPerHour: &mephistoKeepPerHour}},
 			Runs:  runs,
 		},
-		snapshot: telemetry.HistorySnapshot{Generation: 7, Diagnostics: []telemetry.HistoryFileDiagnostic{{File: "broken.jsonl", Code: telemetry.HistoryReasonFileInvalid, Message: "Beschädigt."}}, Runs: []telemetry.HistoryRun{{RunID: "countess-a", Events: []telemetry.Event{{SchemaVersion: telemetry.HistorySchemaVersion, Stream: telemetry.HistoryStreamRun, Event: telemetry.RunContext, RunID: "countess-a", Mode: telemetry.HistoryModeProductiveFarming, Run: "countess"}}}}},
+		snapshot: telemetry.HistorySnapshot{Generation: 7, Diagnostics: []telemetry.HistoryFileDiagnostic{{File: "broken.jsonl", Code: telemetry.HistoryReasonFileInvalid}}, Runs: []telemetry.HistoryRun{{RunID: "countess-a", Events: []telemetry.Event{{SchemaVersion: telemetry.HistorySchemaVersion, Stream: telemetry.HistoryStreamRun, Event: telemetry.RunContext, RunID: "countess-a", Mode: telemetry.HistoryModeProductiveFarming, Run: "countess"}}}}},
 	}
 }
 
@@ -256,7 +256,7 @@ func assertHistoryAPIError(t *testing.T, endpoint string, status int, code strin
 	if err := json.NewDecoder(response.Body).Decode(&body); err != nil {
 		t.Fatal(err)
 	}
-	if response.StatusCode != status || body.Code != code || body.Message == "" {
+	if response.StatusCode != status || body.Code != code || body.Params != nil || body.RequestID == "" {
 		t.Fatalf("endpoint=%s status=%d body=%+v", endpoint, response.StatusCode, body)
 	}
 }

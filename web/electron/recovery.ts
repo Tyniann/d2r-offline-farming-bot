@@ -1,7 +1,23 @@
-const parameters = new URLSearchParams(location.search);
-const reason = parameters.get("reason") ?? "core_recovery_required";
-const restarts = parameters.get("restarts") ?? "0";
-document.body.dataset.reason = reason;
-document.body.dataset.restarts = restarts;
-const target = document.querySelector("#reason");
-if (target) target.textContent = `Der lokale Core ist nicht sicher verfügbar (${reason}). Automatische Neustarts: ${restarts}. Es wurden keine weiteren Bot-Aktionen gestartet.`;
+export function renderRecovery(targetDocument: Document, search: string): void {
+  const parameters = new URLSearchParams(search);
+  const language = parameters.get("language");
+  const reason = parameters.get("reason");
+  const restarts = parameters.get("restarts");
+  const title = parameters.get("title");
+  const body = parameters.get("body");
+
+  if (language === "de" || language === "en") targetDocument.documentElement.lang = language;
+  if (reason) targetDocument.body.dataset.reason = reason;
+  if (restarts) targetDocument.body.dataset.restarts = restarts;
+  if (title) {
+    targetDocument.title = title;
+    const heading = targetDocument.querySelector("#title");
+    if (heading) heading.textContent = title;
+  }
+  if (body) {
+    const target = targetDocument.querySelector("#reason");
+    if (target) target.textContent = body;
+  }
+}
+
+renderRecovery(document, location.search);

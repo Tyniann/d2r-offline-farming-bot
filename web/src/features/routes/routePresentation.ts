@@ -1,155 +1,112 @@
 import type { RouteCandidateDTO, RouteEntryDTO, RouteWorkflowDTO } from "../../api/generated";
+import { formatDate } from "../../i18n/format";
+import { i18n } from "../../i18n";
+import { presentDifficultyName, presentRouteReason, presentRunName } from "../../i18n/presenters";
 
 export const runOrder = ["countess", "mephisto", "lower-kurast", "summoner", "nihlathak", "cows"] as const;
 
-const runLabels: Record<string, string> = {
-  countess: "Gräfin",
-  mephisto: "Mephisto",
-  "lower-kurast": "Unteres Kurast",
-  summoner: "Beschwörer",
-  nihlathak: "Nihlathak",
-  cows: "Kuhlevel",
-};
+const runPurposes = {
+  countess: ["routes.purposes.terrorKey", "routes.purposes.runes"],
+  summoner: ["routes.purposes.hateKey"],
+  "lower-kurast": ["routes.purposes.highRunes", "routes.purposes.gems"],
+  mephisto: ["routes.purposes.setItems", "routes.purposes.uniqueItems"],
+  nihlathak: ["routes.purposes.destructionKey"],
+  cows: ["routes.purposes.whiteBases", "routes.purposes.socketedBases", "routes.purposes.gems", "routes.purposes.experience"],
+} as const;
 
-const runPurposes: Record<string, readonly string[]> = {
-  countess: ["Schlüssel des Terrors", "Runen"],
-  summoner: ["Schlüssel des Hasses"],
-  "lower-kurast": ["Hohe Runen", "Edelsteine"],
-  mephisto: ["Set-Items", "Unique-Items"],
-  nihlathak: ["Schlüssel der Zerstörung"],
-  cows: ["Weiße Rohlinge", "Gesockelte Rohlinge", "Edelsteine", "Erfahrung"],
-};
+const roleLabels = {
+  leg_acquisition: "routes.roles.legAcquisition",
+  cow_sweep: "routes.roles.cowSweep",
+  host: "routes.roles.legAcquisition",
+  cow: "routes.roles.cowSweep",
+} as const;
 
-const roleLabels: Record<string, string> = {
-  leg_acquisition: "Wirt-Route",
-  cow_sweep: "Cow-Route",
-  host: "Wirt-Route",
-  cow: "Cow-Route",
-};
+const waypointLabels = {
+  black_marsh: "routes.waypoints.blackMarsh",
+  durance_of_hate_level_2: "routes.waypoints.durance2",
+  lower_kurast: "routes.waypoints.lowerKurast",
+  halls_of_pain: "routes.waypoints.hallsPain",
+  arcane_sanctuary: "routes.waypoints.arcaneSanctuary",
+  stony_field: "routes.waypoints.stonyField",
+} as const;
 
-const difficultyLabels: Record<string, string> = {
-  normal: "Normal",
-  nightmare: "Alptraum",
-  hell: "Hölle",
-};
-
-const waypointLabels: Record<string, string> = {
-  black_marsh: "Schwarzmoor",
-  durance_of_hate_level_2: "Kerker des Hasses – Ebene 2",
-  lower_kurast: "Unteres Kurast",
-  halls_of_pain: "Hallen der Schmerzen",
-  arcane_sanctuary: "Geheime Zuflucht",
-  stony_field: "Feld der Steine",
-};
-
-const reasonLabels: Record<string, string> = {
-  input_disabled: "Aktiviere zuerst die Spielsteuerung in den Einstellungen.",
-  selection_unconfirmed: "Bestätige zuerst Charakter und Schwierigkeit.",
-  route_workflow_active: "Schließe zuerst den laufenden Routenvorgang ab.",
-  session_active: "Beende zuerst die laufende Farming-Session.",
-  recording_preflight_failed: "Stelle dich an den angegebenen Startwegpunkt.",
-  recording_start_area_mismatch: "Stelle dich an den angegebenen Startort.",
-  recording_terminal_area_mismatch: "Der Endpunkt liegt nicht im erwarteten Zielgebiet.",
-  recording_boss_missing: "Der Boss wurde am Endpunkt nicht gefunden.",
-  recording_object_missing: "Wirts Körper wurde am Endpunkt nicht gefunden.",
-  recording_boss_dead: "Der Boss muss beim Aufnahmeende noch leben.",
-  recording_endpoint_too_far: "Der Endpunkt liegt zu weit vom Ziel entfernt.",
-  pickit_assignment_missing: "Ordne diesem Run zuerst ein Lootprofil zu.",
-  onboarding_teleport_binding_missing: "Vervollständige für diesen Charakter unter „Charaktere“ die Tastenbelegung des Kampfprofils.",
-  onboarding_town_portal_binding_missing: "Hinterlege für diesen Charakter unter „Charaktere“ die Taste für das Stadtportal.",
-  onboarding_waypoint_required: "Der erforderliche Startwegpunkt ist noch nicht verfügbar.",
-  route_test_start_failed: "Der Test konnte am Startort nicht vorbereitet werden.",
-  route_test_playback_failed: "Die Route konnte nicht vollständig abgespielt werden.",
-  route_test_terminal_mismatch: "Der Endpunkt der Route wurde nicht bestätigt.",
-  route_safety_return_failed: "Die sichere Rückkehr ins Dorf ist fehlgeschlagen.",
-  leg_acquisition_route_missing: "Nimm zuerst die Wirt-Route auf.",
-  leg_acquisition_route_stale: "Die Wirt-Route muss neu aufgenommen werden.",
-  cow_sweep_route_missing: "Nimm zuerst die Cow-Route auf.",
-  cow_sweep_route_stale: "Die Cow-Route muss neu aufgenommen werden.",
-  route_set_binding_mismatch: "Die beiden Kuhlevel-Routen passen nicht zum selben Charakter.",
-  route_candidate_changed: "Die Zuordnung für diesen Run hat sich seit der Aufnahme geändert.",
-  "live candidate context changed": "Charakter oder Schwierigkeit passen nicht mehr zu diesem Entwurf.",
-};
-
-const candidateStatusLabels: Record<string, string> = {
-  recorded: "Bereit zum Test",
-  validated: "Bereit zum Test",
-  test_running: "Test läuft",
-  test_passed: "Test bestanden",
-  failed: "Test fehlgeschlagen",
-};
+const candidateStatusLabels = {
+  recorded: "routes.candidateStatus.readyTest",
+  validated: "routes.candidateStatus.readyTest",
+  test_running: "routes.candidateStatus.testRunning",
+  test_passed: "routes.candidateStatus.testPassed",
+  failed: "routes.candidateStatus.testFailed",
+} as const;
 
 export function runLabel(runID: string): string {
-  return runLabels[runID] ?? "Farming-Run";
+  return presentRunName(runID, i18n.t);
 }
 
 export function runPurposeLabels(runID: string): readonly string[] {
-  return runPurposes[runID] ?? [];
+  const purposes = runPurposes[runID as keyof typeof runPurposes] ?? [];
+  return purposes.map((purpose) => i18n.t(purpose));
 }
 
 export function roleLabel(role?: string): string {
-  return role ? (roleLabels[role] ?? "Teilroute") : "";
+  const key = roleLabels[role as keyof typeof roleLabels] ?? "routes.roles.partial";
+  return role ? i18n.t(key) : "";
 }
 
 export function difficultyLabel(difficulty: string): string {
-  return difficultyLabels[difficulty.toLowerCase()] ?? "Gewählte Schwierigkeit";
+  return presentDifficultyName(difficulty.toLowerCase(), i18n.t);
 }
 
 export function waypointLabel(waypoint: string, startKind?: string): string {
-  if (startKind === "object_portal_arrival") return "Rotes Ankunftsportal";
-  return waypointLabels[waypoint] ?? "Angegebener Startwegpunkt";
+  if (startKind === "object_portal_arrival") return i18n.t("routes.waypoints.redArrivalPortal");
+  const key = waypointLabels[waypoint as keyof typeof waypointLabels] ?? "routes.waypoints.specifiedStart";
+  return i18n.t(key);
 }
 
 export function targetLabel(runID: string, role?: string): string {
-  if (runID === "cows" && role === "leg_acquisition") return "Wirts Körper in Tristram";
-  if (runID === "cows") return "Gewünschter Endpunkt im Kuhlevel";
-  if (runID === "lower-kurast") return "Lagerfeuer-Hütten";
+  if (runID === "cows" && role === "leg_acquisition") return i18n.t("routes.targets.wirtBody");
+  if (runID === "cows") return i18n.t("routes.targets.cowEndpoint");
+  if (runID === "lower-kurast") return i18n.t("routes.targets.campfireHuts");
   return runLabel(runID);
 }
 
 export function reasonLabel(reason?: string): string {
-  if (!reason) return "Aktion derzeit nicht möglich.";
-  const normalized = reason.toLowerCase();
-  if (normalized.includes("teleport not configured")) {
-    return "Vervollständige für diesen Charakter unter „Charaktere“ die Tastenbelegung des Kampfprofils.";
-  }
-  if (normalized.includes("town portal not configured")) {
-    return "Hinterlege für diesen Charakter unter „Charaktere“ die Taste für das Stadtportal.";
-  }
-  return reasonLabels[reason] ?? "Aktion derzeit nicht möglich.";
+  return presentRouteReason(reason ?? "", i18n.t);
 }
 
 export function prerequisiteLabel(id: string): string {
-  return ({ waypoint: "Wegpunkt verfügbar", teleport: "Teleport verfügbar", town_portal: "Stadtportal verfügbar", pickit: "Pickit bereit" } as Record<string, string>)[id] ?? "Voraussetzung geprüft";
+  const keys = { waypoint: "routes.prerequisites.waypoint", teleport: "routes.prerequisites.teleport", town_portal: "routes.prerequisites.townPortal", pickit: "routes.prerequisites.pickit" } as const;
+  const key = keys[id as keyof typeof keys] ?? "routes.prerequisites.checked";
+  return i18n.t(key);
 }
 
 export function candidateStatusLabel(state: string): string {
-  return candidateStatusLabels[state] ?? "Prüfung ausstehend";
+  const key = candidateStatusLabels[state as keyof typeof candidateStatusLabels] ?? "routes.candidateStatus.pending";
+  return i18n.t(key);
 }
 
 export function routeStatus(route?: RouteEntryDTO): string {
-  if (!route) return "Noch nicht aufgenommen";
-  if (route.management_status === "archived") return "Archiviert";
-  if (route.lifecycle_status === "unavailable" || route.lifecycle_status === "stale") return "Unvollständig";
-  return route.assigned ? "Aktiv" : "Nicht verwendet";
+  if (!route) return i18n.t("routes.routeStatus.notRecorded");
+  if (route.management_status === "archived") return i18n.t("routes.routeStatus.archived");
+  if (route.lifecycle_status === "unavailable" || route.lifecycle_status === "stale") return i18n.t("routes.routeStatus.incomplete");
+  return i18n.t(route.assigned ? "routes.routeStatus.active" : "routes.routeStatus.unused");
 }
 
 export function routeStatusTone(status: string): string {
-  if (status === "Aktiv" || status === "Vollständig" || status === "Test bestanden") return "route-status-good";
-  if (status === "Unvollständig" || status === "Test fehlgeschlagen") return "route-status-bad";
-  if (status === "Bereit zum Test" || status === "Test läuft") return "route-status-info";
+  if ([i18n.t("routes.routeStatus.active"), i18n.t("routes.complete"), i18n.t("routes.candidateStatus.testPassed")].includes(status)) return "route-status-good";
+  if ([i18n.t("routes.routeStatus.incomplete"), i18n.t("routes.candidateStatus.testFailed")].includes(status)) return "route-status-bad";
+  if ([i18n.t("routes.candidateStatus.readyTest"), i18n.t("routes.candidateStatus.testRunning")].includes(status)) return "route-status-info";
   return "route-status-muted";
 }
 
 export function formatCandidateTime(candidate: RouteCandidateDTO): string {
-  if (!candidate.created_at) return "Aufnahmezeit nicht verfügbar";
+  if (!candidate.created_at) return i18n.t("routes.timeUnavailable");
   const date = new Date(candidate.created_at);
-  if (Number.isNaN(date.getTime())) return "Aufnahmezeit nicht verfügbar";
+  if (Number.isNaN(date.getTime())) return i18n.t("routes.timeUnavailable");
   const now = new Date();
   const sameDay = date.toDateString() === now.toDateString();
   const yesterday = new Date(now); yesterday.setDate(now.getDate() - 1);
-  const prefix = sameDay ? "Heute" : date.toDateString() === yesterday.toDateString() ? "Gestern" : date.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" });
-  return `${prefix}, ${date.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })}`;
+  const prefix = sameDay ? i18n.t("routes.today") : date.toDateString() === yesterday.toDateString() ? i18n.t("routes.yesterday") : formatDate(date, { day: "2-digit", month: "2-digit", year: "numeric" });
+  return `${prefix}, ${formatDate(date, { hour: "2-digit", minute: "2-digit" })}`;
 }
 
 export const terminalWorkflowStates = new Set(["idle", "completed", "failed_safe", "emergency_cancelled"]);
@@ -159,18 +116,18 @@ export type WorkflowPresentation = { title: string; instruction: string; tone: "
 export function workflowPresentation(workflow: RouteWorkflowDTO): WorkflowPresentation | null {
   switch (workflow.state) {
     case "idle": return null;
-    case "preflight": case "preparing_playback": return { title: "Start wird vorbereitet", instruction: workflow.state === "preflight" ? "Bleibe am angegebenen Startort stehen, bis der Vorgang beginnt." : "Der Charakter wird zum Start der Route gebracht.", tone: "active" };
-    case "recording": return { title: "Aufnahme läuft", instruction: "Folge jetzt dem gewünschten Laufweg und beende die Aufnahme am Ziel.", tone: "active" };
-    case "freezing": case "validating": return { title: "Aufnahme wird geprüft", instruction: "Keine Eingabe nötig. Die Aufnahme wird gespeichert und geprüft.", tone: "active" };
-    case "playing_candidate": case "validating_terminal": return { title: "Test läuft", instruction: "Keine Eingabe nötig. Die Aufnahme wird im Spiel geprüft.", tone: "active" };
-    case "returning_via_portal": case "returning_after_test": return { title: "Sichere Rückkehr", instruction: "Der Charakter kehrt sicher ins Dorf zurück.", tone: "active" };
-    case "candidate_ready": return { title: "Aufnahme gespeichert", instruction: "Der Entwurf ist bereit für seinen Test.", tone: "success" };
-    case "awaiting_publish_confirmation": return { title: "Veröffentlichung bestätigen", instruction: "Der Test ist bestanden. Bestätige jetzt die Veröffentlichung.", tone: "active" };
-    case "publishing": return { title: "Route wird veröffentlicht", instruction: "Die neue Route wird sicher zugeordnet.", tone: "active" };
-    case "completed": return { title: "Vorgang abgeschlossen", instruction: "Die Änderung wurde erfolgreich übernommen.", tone: "success" };
-    case "failed_safe": return { title: "Vorgang abgebrochen", instruction: `${reasonLabel(workflow.reason)} Starte die Aufnahme erneut, sobald du am richtigen Ort stehst.`, tone: "danger" };
-    case "emergency_cancelled": return { title: "Notabbruch ausgeführt", instruction: "Der Vorgang wurde sofort beendet. Du kannst ihn neu starten, sobald das Spiel bereit ist.", tone: "danger" };
-    default: return { title: "Vorgang läuft", instruction: "Bitte warte, bis der aktuelle Vorgang abgeschlossen ist.", tone: "active" };
+    case "preflight": case "preparing_playback": return { title: i18n.t("routes.workflow.prepareStartTitle"), instruction: i18n.t(workflow.state === "preflight" ? "routes.workflow.prepareStartInstruction" : "routes.workflow.preparePlaybackInstruction"), tone: "active" };
+    case "recording": return { title: i18n.t("routes.workflow.recordingTitle"), instruction: i18n.t("routes.workflow.recordingInstruction"), tone: "active" };
+    case "freezing": case "validating": return { title: i18n.t("routes.workflow.validatingTitle"), instruction: i18n.t("routes.workflow.validatingInstruction"), tone: "active" };
+    case "playing_candidate": case "validating_terminal": return { title: i18n.t("routes.workflow.testTitle"), instruction: i18n.t("routes.workflow.testInstruction"), tone: "active" };
+    case "returning_via_portal": case "returning_after_test": return { title: i18n.t("routes.workflow.returningTitle"), instruction: i18n.t("routes.workflow.returningInstruction"), tone: "active" };
+    case "candidate_ready": return { title: i18n.t("routes.workflow.candidateReadyTitle"), instruction: i18n.t("routes.workflow.candidateReadyInstruction"), tone: "success" };
+    case "awaiting_publish_confirmation": return { title: i18n.t("routes.workflow.publishConfirmTitle"), instruction: i18n.t("routes.workflow.publishConfirmInstruction"), tone: "active" };
+    case "publishing": return { title: i18n.t("routes.workflow.publishingTitle"), instruction: i18n.t("routes.workflow.publishingInstruction"), tone: "active" };
+    case "completed": return { title: i18n.t("routes.workflow.completedTitle"), instruction: i18n.t("routes.workflow.completedInstruction"), tone: "success" };
+    case "failed_safe": return { title: i18n.t("routes.workflow.failedTitle"), instruction: i18n.t("routes.workflow.failedInstruction", { reason: reasonLabel(workflow.reason) }), tone: "danger" };
+    case "emergency_cancelled": return { title: i18n.t("routes.workflow.emergencyTitle"), instruction: i18n.t("routes.workflow.emergencyInstruction"), tone: "danger" };
+    default: return { title: i18n.t("routes.workflow.activeTitle"), instruction: i18n.t("routes.workflow.activeInstruction"), tone: "active" };
   }
 }
 

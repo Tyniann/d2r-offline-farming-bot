@@ -1,56 +1,46 @@
 import type { CatalogDTO, CharacterCatalogEntry } from "../api/generated";
+import { presentClassName, type AppTranslator } from "../i18n/presenters";
 
-const classLabels: Record<string, string> = {
-  amazon: "Amazone",
-  assassin: "Assassine",
-  barbarian: "Barbar",
-  druid: "Druide",
-  necromancer: "Totenbeschwörer",
-  paladin: "Paladin",
-  sorceress: "Zauberin",
-  warlock: "Hexenmeister",
-};
-
-export function characterClassLabel(characterClass: string) {
-  return classLabels[characterClass] ?? "";
+export function characterClassLabel(characterClass: string, t: AppTranslator) {
+  return presentClassName(characterClass, t);
 }
 
-export function supportedCharacterClasses(catalog: CatalogDTO): string {
-  const classes = [...new Set(catalog.profiles.map((profile) => classLabels[profile.character_class] ?? profile.character_class))];
-  return classes.length ? classes.join(", ") : "keine";
+export function supportedCharacterClasses(catalog: CatalogDTO, t: AppTranslator): string {
+  const classes = [...new Set(catalog.profiles.map((profile) => presentClassName(profile.character_class, t)))];
+  return classes.length ? classes.join(", ") : t("characters.noSupportedClasses");
 }
 
-export function characterReasonText(reason: string, catalog: CatalogDTO): string {
+export function characterReasonText(reason: string, catalog: CatalogDTO, t: AppTranslator): string {
   switch (reason) {
     case "character_save_missing":
-      return "Lokaler Offline-Spielstand fehlt.";
+      return t("characters.reasons.saveMissing");
     case "character_save_unreadable":
-      return "Der lokale Offline-Spielstand kann nicht sicher gelesen werden.";
+      return t("characters.reasons.saveUnreadable");
     case "character_save_header_invalid":
-      return "Der lokale Offline-Spielstand hat keinen gültigen D2R-Kopf.";
+      return t("characters.reasons.saveHeaderInvalid");
     case "character_save_version_unsupported":
-      return "Diese Spielstandsversion wird noch nicht unterstützt.";
+      return t("characters.reasons.saveVersionUnsupported");
     case "character_save_name_mismatch":
-      return "Dateiname und Charaktername im Spielstand stimmen nicht überein.";
+      return t("characters.reasons.saveNameMismatch");
     case "character_save_name_conflict":
-      return "Mehrere Spielstände verwenden denselben Charakternamen.";
+      return t("characters.reasons.saveNameConflict");
     case "character_class_unknown":
-      return "Die Charakterklasse dieses Spielstands ist unbekannt.";
+      return t("characters.reasons.classUnknown");
     case "character_class_unsupported":
-      return `Für diese Klasse gibt es noch kein freigegebenes Kampfprofil. Derzeit unterstützt: ${supportedCharacterClasses(catalog)}.`;
+      return t("characters.reasons.classUnsupported", { classes: supportedCharacterClasses(catalog, t) });
     case "character_profile_missing":
-      return "Das feste Kampfprofil für diesen Charakter muss noch bestätigt werden.";
+      return t("characters.reasons.profileMissing");
     case "character_profile_incompatible":
-      return "Das gespeicherte Kampfprofil passt nicht zur Charakterklasse.";
+      return t("characters.reasons.profileIncompatible");
     case "character_anchor_missing":
-      return "Das Auswahlbild für diesen Charakter fehlt noch.";
+      return t("characters.reasons.anchorMissing");
     case "profile_bindings_incomplete":
-      return "Für dieses Kampfprofil fehlen Tastenbelegungen.";
+      return t("characters.reasons.bindingsIncomplete");
     default:
-      return "Dieser Charakter ist derzeit nicht verfügbar.";
+      return t("characters.reasons.unavailable");
   }
 }
 
-export function characterAvailabilityText(entry: CharacterCatalogEntry, catalog: CatalogDTO): string {
-  return (entry.reasons ?? []).map((reason) => characterReasonText(reason, catalog)).join(" ");
+export function characterAvailabilityText(entry: CharacterCatalogEntry, catalog: CatalogDTO, t: AppTranslator): string {
+  return (entry.reasons ?? []).map((reason) => characterReasonText(reason, catalog, t)).join(" ");
 }

@@ -1,4 +1,5 @@
 import { useRef } from "react";
+import { useTranslation } from "react-i18next";
 
 const rows = 4;
 const cols = 10;
@@ -70,6 +71,7 @@ export function InventoryLockEditor({
   mutable: boolean;
   onChange: (next: InventoryGrid) => void;
 }) {
+  const { t } = useTranslation();
   const dragTarget = useRef<InventoryCell | null>(null);
   const grid = normalizeGrid(value);
 
@@ -116,16 +118,16 @@ export function InventoryLockEditor({
   };
 
   return <div className="inventory-lock-editor">
-    <p className="hint">4 Zeilen × 10 Spalten. Geschützte Felder bleiben für den Bot gesperrt; freie Felder stehen für Beute zur Verfügung.</p>
-    {!configured && <p className="inventory-unconfirmed" role="status">Noch nicht bestätigt</p>}
+    <p className="hint">{t("characters.inventoryHint")}</p>
+    {!configured && <p className="inventory-unconfirmed" role="status">{t("characters.inventoryUnconfirmed")}</p>}
     <div className="inventory-lock-legend" aria-hidden="true">
-      <span className="inventory-legend-locked">Geschützt</span>
-      <span className="inventory-legend-free">Für Beute verfügbar</span>
+      <span className="inventory-legend-locked">{t("characters.inventoryLocked")}</span>
+      <span className="inventory-legend-free">{t("characters.inventoryFree")}</span>
     </div>
     <div
       className="inventory-lock-grid"
       role="grid"
-      aria-label="Inventarschutz 4 Zeilen mal 10 Spalten"
+      aria-label={t("characters.inventoryGridAria")}
       onPointerUp={endDrag}
       onPointerCancel={endDrag}
       onPointerLeave={endDrag}
@@ -139,7 +141,7 @@ export function InventoryLockEditor({
             type="button"
             role="gridcell"
             className={locked ? "inventory-cell locked" : "inventory-cell free"}
-            aria-label={locked ? `Zeile ${row + 1} Spalte ${col + 1} geschützt` : `Zeile ${row + 1} Spalte ${col + 1} für Beute verfügbar`}
+            aria-label={t(locked ? "characters.inventoryCellLocked" : "characters.inventoryCellFree", { row: row + 1, column: col + 1 })}
             aria-pressed={locked}
             disabled={!mutable}
             onPointerDown={(event) => {
@@ -165,7 +167,7 @@ export function InventoryLockEditor({
       </div>)}
     </div>
     <div className="inline-actions">
-      <button type="button" disabled={!mutable} onClick={lockAll}>Alle schützen</button>
+      <button type="button" disabled={!mutable} onClick={lockAll}>{t("characters.lockAll")}</button>
     </div>
   </div>;
 }

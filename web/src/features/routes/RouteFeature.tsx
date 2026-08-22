@@ -12,6 +12,7 @@ import { RoutePageHeader, type RouteArea } from "./components/RoutePageHeader";
 import { RouteRecordingPanel } from "./components/RouteRecordingPanel";
 import { candidateTitle, roleLabel, runLabel, terminalWorkflowStates } from "./routePresentation";
 import "./RouteFeature.css";
+import { useTranslation } from "react-i18next";
 
 interface Props {
   characters: string[];
@@ -26,6 +27,7 @@ interface Props {
 const testWorkflowStates = new Set(["preparing_playback", "playing_candidate", "validating_terminal", "returning_after_test", "awaiting_publish_confirmation", "publishing"]);
 
 export function RouteFeature({ characters, selectedCharacter: character, onSelectedCharacterChange, refreshKey, liveLocked = false, preferredRecordingRun = "", onReturnToOnboarding }: Props) {
+  const { t } = useTranslation();
   const [area, setArea] = useState<RouteArea>(preferredRecordingRun ? "recording" : "library");
   const [archive, setArchive] = useState(false);
   const [routes, setRoutes] = useState<RouteEntryDTO[] | null>(null);
@@ -64,7 +66,7 @@ export function RouteFeature({ characters, selectedCharacter: character, onSelec
       if (!terminalWorkflowStates.has(nextWorkflow.state)) setArea(testWorkflowStates.has(nextWorkflow.state) ? "drafts" : "recording");
       setError("");
     } catch {
-      if (!signal?.aborted) setError("Routen konnten nicht geladen werden.");
+      if (!signal?.aborted) setError(t("routes.loadFailed"));
     }
   };
 
@@ -84,7 +86,7 @@ export function RouteFeature({ characters, selectedCharacter: character, onSelec
   const prepare = async (operation: string, routeID = "", candidateID = "") => {
     setPending(true); setError("");
     try { setPreview(await previewRouteMutation(operation, routeID, candidateID)); }
-    catch { setError("Die Aktion kann gerade nicht vorbereitet werden."); if (operation === "delete_candidate") setDeletingCandidate(null); }
+    catch { setError(t("routes.prepareFailed")); if (operation === "delete_candidate") setDeletingCandidate(null); }
     finally { setPending(false); }
   };
 
@@ -94,7 +96,7 @@ export function RouteFeature({ characters, selectedCharacter: character, onSelec
     try {
       await confirmRouteMutation(preview, preview.operation === "delete" ? preview.route_id : "");
       setPreview(null); setDeletingCandidate(null); await refresh();
-    } catch { setError("Der Stand hat sich geändert. Bitte erneut versuchen."); }
+    } catch { setError(t("routes.changedRetry")); }
     finally { setPending(false); }
   };
 
@@ -102,7 +104,7 @@ export function RouteFeature({ characters, selectedCharacter: character, onSelec
     if (!workflow) return;
     setPending(true); setError("");
     try { setWorkflow(await startRouteWorkflow(operation, workflow.generation, data)); }
-    catch { setError("Der Vorgang konnte nicht gestartet werden."); }
+    catch { setError(t("routes.startFailed")); }
     finally { setPending(false); }
   };
 
@@ -110,7 +112,7 @@ export function RouteFeature({ characters, selectedCharacter: character, onSelec
     if (!workflow) return;
     setPending(true); setError("");
     try { setWorkflow(await finishRouteRecording(workflow.workflow_id, workflow.generation)); }
-    catch { setError("Die Aufnahme konnte nicht beendet werden."); }
+    catch { setError(t("routes.finishFailed")); }
     finally { setPending(false); }
   };
 
@@ -123,21 +125,21 @@ export function RouteFeature({ characters, selectedCharacter: character, onSelec
 
   return <section className="route-feature" aria-labelledby="routes-title">
     <RoutePageHeader characters={characters} character={character} area={area} draftCount={visibleCandidates.length} onCharacterChange={(next) => onSelectedCharacterChange?.(next)} onAreaChange={setArea} />
-    {onReturnToOnboarding && <div className="onboarding-return"><div><strong>Aus der Einrichtung geöffnet</strong><p>Schließe die Aufnahme hier ab und kehre danach zur Einrichtung zurück.</p></div><button type="button" className="secondary" onClick={onReturnToOnboarding}>Zurück zur Einrichtung</button></div>}
+    {onReturnToOnboarding && <div className="onboarding-return"><div><strong>{t("routes.onboardingTitle")}</strong><p>{t("routes.onboardingDetail")}</p></div><button type="button" className="secondary" onClick={onReturnToOnboarding}>{t("routes.returnOnboarding")}</button></div>}
     {error && <p className="route-error" role="alert">{error}</p>}
-    {!character ? <p className="route-empty">Wähle zuerst einen Charakter.</p> : <>
+    {!character ? <p className="route-empty">{t("routes.selectCharacterFirst")}</p> : <>
       {area === "library" && <RouteLibraryPanel routes={routes} options={options} archive={archive} locked={actionsLocked} onArchiveChange={setArchive} onRecord={openRecording} onMutate={(operation, routeID) => void prepare(operation, routeID)} />}
-      {area === "recording" && <RouteRecordingPanel options={options} selectedRun={selectedRun} selectedRole={selectedRole} hotkeys={hotkeys} workflow={workflow} locked={liveLocked || workflowBusy} lockedReason={workflowBusy ? "Schließe zuerst den laufenden Routenvorgang ab." : liveLocked ? "Bestätige zuerst eine kompatible D2R-Version." : undefined} pending={pending} onSelectRun={selectRun} onSelectRole={setSelectedRole} onStart={(option) => void start("record", { runId: option.run_id, routeRole: option.route_role, character })} onFinish={() => void finish()} onOpenDrafts={() => setArea("drafts")} />}
+      {area === "recording" && <RouteRecordingPanel options={options} selectedRun={selectedRun} selectedRole={selectedRole} hotkeys={hotkeys} workflow={workflow} locked={liveLocked || workflowBusy} lockedReason={workflowBusy ? t("routes.finishWorkflowFirst") : liveLocked ? t("routes.confirmCompatibilityFirst") : undefined} pending={pending} onSelectRun={selectRun} onSelectRole={setSelectedRole} onStart={(option) => void start("record", { runId: option.run_id, routeRole: option.route_role, character })} onFinish={() => void finish()} onOpenDrafts={() => setArea("drafts")} />}
       {area === "drafts" && <RouteDraftsPanel candidates={visibleCandidates} workflow={workflow} locked={actionsLocked} runFilter={draftFilter} onRunFilterChange={setDraftFilter} onTest={(candidate) => void start("test", { candidateId: candidate.candidate_id })} onPublish={(candidate) => void prepare("publish", "", candidate.candidate_id)} onDelete={deleteDraft} />}
     </>}
 
     {deletingCandidate && preview?.operation === "delete_candidate" && <DeleteDraftDialog candidate={deletingCandidate} pending={pending} onClose={() => { setDeletingCandidate(null); setPreview(null); }} onConfirm={() => void confirm()} />}
     {preview && preview.operation !== "delete_candidate" && <div className="modal-backdrop" onMouseDown={(event) => { if (event.currentTarget === event.target) setPreview(null); }}><div className="modal" role="dialog" aria-modal="true" aria-labelledby="route-confirm-title">
-      <h3 id="route-confirm-title">{preview.operation === "publish" || preview.operation === "replace" ? "Route veröffentlichen?" : preview.operation === "archive" ? "Route archivieren?" : preview.operation === "restore" ? "Route wiederherstellen?" : "Route endgültig löschen?"}</h3>
+      <h3 id="route-confirm-title">{t(preview.operation === "publish" || preview.operation === "replace" ? "routes.publishConfirm" : preview.operation === "archive" ? "routes.archiveConfirm" : preview.operation === "restore" ? "routes.restoreConfirm" : "routes.deleteConfirm")}</h3>
       <p><strong>{previewCandidate ? candidateTitle(previewCandidate) : `${runLabel(previewRoute?.run_id ?? "")} ${roleLabel(previewRoute?.route_role)}`.trim()}</strong></p>
-      {preview.operation === "replace" && <p>Die bisher aktive Route wird unverändert archiviert und bleibt wiederherstellbar.</p>}
-      {preview.operation === "delete" && <p>Die archivierte Route wird dauerhaft entfernt. Diese Aktion kann nicht rückgängig gemacht werden.</p>}
-      <div className="modal-actions"><button type="button" className="secondary" onClick={() => setPreview(null)} disabled={pending}>Abbrechen</button><button ref={confirmRef} type="button" className={preview.operation === "delete" ? "danger" : ""} onClick={() => void confirm()} disabled={pending}>{pending ? "Änderung wird geprüft …" : preview.operation === "delete" ? "Route löschen" : "Änderung bestätigen"}</button></div>
+      {preview.operation === "replace" && <p>{t("routes.replaceDetail")}</p>}
+      {preview.operation === "delete" && <p>{t("routes.deleteDetail")}</p>}
+      <div className="modal-actions"><button type="button" className="secondary" onClick={() => setPreview(null)} disabled={pending}>{t("common.cancel")}</button><button ref={confirmRef} type="button" className={preview.operation === "delete" ? "danger" : ""} onClick={() => void confirm()} disabled={pending}>{t(pending ? "routes.checkingChange" : preview.operation === "delete" ? "routes.deleteRoute" : "routes.confirmChange")}</button></div>
     </div></div>}
   </section>;
 }

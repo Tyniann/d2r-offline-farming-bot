@@ -1,6 +1,8 @@
 package api
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"sort"
@@ -76,14 +78,7 @@ func (b *LiveBackend) RecordingOptions(character string) []RecordingOptionDTO {
 			} else if supervisorState != string(app.SupervisorStateIdle) && supervisorState != string(app.SupervisorStateIdleInGame) {
 				available, reason = false, "session_active"
 			}
-			displayName := definition.DisplayName
-			switch role {
-			case pathing.RouteRoleLegAcquisition:
-				displayName = "Wirt-Route"
-			case pathing.RouteRoleCowSweep:
-				displayName = "Cow-Route"
-			}
-			result = append(result, RecordingOptionDTO{RunID: string(definition.ID), RouteRole: string(role), DisplayName: displayName, InstructionsDE: contract.InstructionsDE, OperatorHintsDE: recordingOperatorHints(role), StartKind: string(contract.StartKind), StartWaypoint: string(contract.StartWaypoint), AllowedStartAreaID: uint32(contract.AllowedStartArea), AllowedRouteAreaIDs: areas, TerminalAreaID: uint32(contract.TerminalArea), TerminalMaxDistanceTiles: contract.TerminalMaxDistanceTiles, Available: available, Reason: reason, Prerequisites: b.recordingPrerequisites(recordingCharacter, definition, contract)})
+			result = append(result, RecordingOptionDTO{RunID: string(definition.ID), RouteRole: string(role), InstructionCode: contract.InstructionCode, OperatorHintCodes: recordingOperatorHintCodes(role), StartKind: string(contract.StartKind), StartWaypoint: string(contract.StartWaypoint), AllowedStartAreaID: uint32(contract.AllowedStartArea), AllowedRouteAreaIDs: areas, TerminalAreaID: uint32(contract.TerminalArea), TerminalMaxDistanceTiles: contract.TerminalMaxDistanceTiles, Available: available, Reason: reason, Prerequisites: b.recordingPrerequisites(recordingCharacter, definition, contract)})
 		}
 	}
 	return result
@@ -207,12 +202,12 @@ func operatorSkillKeyBound(bindings app.OperatorProfileBindings, name string) bo
 	return false
 }
 
-func recordingOperatorHints(role pathing.RouteRole) []string {
+func recordingOperatorHintCodes(role pathing.RouteRole) []string {
 	switch role {
 	case pathing.RouteRoleLegAcquisition:
-		return []string{"Das Tristram-Portal muss bereits geöffnet sein.", "Wirt während Aufnahme und Test nicht anklicken; ein vorheriger Clear ist nicht nötig."}
+		return []string{"cow_leg_portal_open", "cow_leg_do_not_click_wirt"}
 	case pathing.RouteRoleCowSweep:
-		return []string{"Das Cow-Portal in diesem Spiel manuell öffnen.", "Das Cow Level vor der Aufnahme vollständig leeren; Kampf- und Rückteleports verfälschen die Route."}
+		return []string{"cow_portal_open", "cow_level_clear"}
 	default:
 		return nil
 	}
@@ -387,7 +382,7 @@ func (b *LiveBackend) ConfirmRouteMutation(request RouteMutationConfirmRequest) 
 	b.mu.Unlock()
 	b.publisher.Publish(routeEvent("route_library_changed", generation, ""))
 	if refreshErr != nil {
-		b.publisher.Publish(telemetry.LiveEvent{Event: "runtime_error", Reason: "run_catalog_refresh_failed", Details: map[string]any{"message": refreshErr.Error()}})
+		b.publisher.Publish(telemetry.LiveEvent{Event: "runtime_error", Reason: "run_catalog_refresh_failed", Details: map[string]any{"generation": generation}})
 	}
 	return nil
 }
@@ -523,12 +518,13 @@ func (b *LiveBackend) StartRouteWorkflow(request RouteWorkflowRequest) (RouteWor
 		b.mu.Lock()
 		b.routeWorkflow.Generation++
 		if runErr != nil {
-			if strings.Contains(strings.ToLower(runErr.Error()), "cancel") {
+			if errors.Is(runErr, context.Canceled) {
 				b.routeWorkflow.State = string(app.RouteWorkflowEmergencyCancelled)
+				b.routeWorkflow.Reason = "route_workflow_cancelled"
 			} else {
 				b.routeWorkflow.State = string(app.RouteWorkflowFailedSafe)
+				b.routeWorkflow.Reason = "route_workflow_failed"
 			}
-			b.routeWorkflow.Reason = runErr.Error()
 		} else {
 			b.routeWorkflow.State = string(app.RouteWorkflowCompleted)
 			b.routeWorkflow.Reason = ""

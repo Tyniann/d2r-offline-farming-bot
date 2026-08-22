@@ -1,39 +1,76 @@
+import type { AppTranslator } from "../../i18n/presenters";
+
+const equipmentTypeTranslationKeys = {
+  crossbows: "pickit.equipmentTypes.crossbows",
+  axes: "pickit.equipmentTypes.axes",
+  bows: "pickit.equipmentTypes.bows",
+  amazonBows: "pickit.equipmentTypes.amazonBows",
+  daggers: "pickit.equipmentTypes.daggers",
+  hammers: "pickit.equipmentTypes.hammers",
+  helms: "pickit.equipmentTypes.helms",
+  barbarianHelms: "pickit.equipmentTypes.barbarianHelms",
+  druidHelms: "pickit.equipmentTypes.druidHelms",
+  circlets: "pickit.equipmentTypes.circlets",
+  clubs: "pickit.equipmentTypes.clubs",
+  assassinClaws: "pickit.equipmentTypes.assassinClaws",
+  bodyArmor: "pickit.equipmentTypes.bodyArmor",
+  sorceressOrbs: "pickit.equipmentTypes.sorceressOrbs",
+  shields: "pickit.equipmentTypes.shields",
+  warlockGrimoires: "pickit.equipmentTypes.warlockGrimoires",
+  necromancerHeads: "pickit.equipmentTypes.necromancerHeads",
+  paladinShields: "pickit.equipmentTypes.paladinShields",
+  swords: "pickit.equipmentTypes.swords",
+  spears: "pickit.equipmentTypes.spears",
+  amazonSpears: "pickit.equipmentTypes.amazonSpears",
+  staves: "pickit.equipmentTypes.staves",
+  polearms: "pickit.equipmentTypes.polearms",
+  maces: "pickit.equipmentTypes.maces",
+  scepters: "pickit.equipmentTypes.scepters",
+  wands: "pickit.equipmentTypes.wands",
+} as const;
+
+export type EquipmentTypeID = keyof typeof equipmentTypeTranslationKeys;
+
 export interface EquipmentTypeOption {
-  label: string;
+  id: EquipmentTypeID;
   codes: readonly string[];
 }
 
 export const equipmentTypeOptions: readonly EquipmentTypeOption[] = [
-  { label: "Armbrüste", codes: ["xbow"] },
-  { label: "Äxte", codes: ["axe"] },
-  { label: "Bögen", codes: ["bow"] },
-  { label: "Bögen – Amazone", codes: ["abow"] },
-  { label: "Dolche", codes: ["knif"] },
-  { label: "Hämmer", codes: ["hamm"] },
-  { label: "Helme", codes: ["helm"] },
-  { label: "Helme – Barbar", codes: ["phlm"] },
-  { label: "Helme – Druide", codes: ["pelt"] },
-  { label: "Helme – Reife", codes: ["circ"] },
-  { label: "Keulen", codes: ["club"] },
-  { label: "Klauen – Assassine", codes: ["h2h", "h2h2"] },
-  { label: "Körperrüstungen", codes: ["tors"] },
-  { label: "Orbs – Zauberin", codes: ["orb"] },
-  { label: "Schilde", codes: ["shie"] },
-  { label: "Schilde – Hexenmeister (Grimoires)", codes: ["grim"] },
-  { label: "Schilde – Nekromant (Köpfe)", codes: ["head"] },
-  { label: "Schilde – Paladin", codes: ["ashd"] },
-  { label: "Schwerter", codes: ["swor"] },
-  { label: "Speere", codes: ["spea"] },
-  { label: "Speere – Amazone", codes: ["aspe"] },
-  { label: "Stäbe", codes: ["staf"] },
-  { label: "Stangenwaffen", codes: ["pole"] },
-  { label: "Streitkolben", codes: ["mace"] },
-  { label: "Szepter", codes: ["scep"] },
-  { label: "Zauberstäbe", codes: ["wand"] },
-].sort((left, right) => left.label.localeCompare(right.label, "de"));
+  { id: "crossbows", codes: ["xbow"] },
+  { id: "axes", codes: ["axe"] },
+  { id: "bows", codes: ["bow"] },
+  { id: "amazonBows", codes: ["abow"] },
+  { id: "daggers", codes: ["knif"] },
+  { id: "hammers", codes: ["hamm"] },
+  { id: "helms", codes: ["helm"] },
+  { id: "barbarianHelms", codes: ["phlm"] },
+  { id: "druidHelms", codes: ["pelt"] },
+  { id: "circlets", codes: ["circ"] },
+  { id: "clubs", codes: ["club"] },
+  { id: "assassinClaws", codes: ["h2h", "h2h2"] },
+  { id: "bodyArmor", codes: ["tors"] },
+  { id: "sorceressOrbs", codes: ["orb"] },
+  { id: "shields", codes: ["shie"] },
+  { id: "warlockGrimoires", codes: ["grim"] },
+  { id: "necromancerHeads", codes: ["head"] },
+  { id: "paladinShields", codes: ["ashd"] },
+  { id: "swords", codes: ["swor"] },
+  { id: "spears", codes: ["spea"] },
+  { id: "amazonSpears", codes: ["aspe"] },
+  { id: "staves", codes: ["staf"] },
+  { id: "polearms", codes: ["pole"] },
+  { id: "maces", codes: ["mace"] },
+  { id: "scepters", codes: ["scep"] },
+  { id: "wands", codes: ["wand"] },
+];
 
 export const socketOperators = ["==", "!=", ">", ">=", "<", "<="] as const;
 export type SocketOperator = (typeof socketOperators)[number];
+
+export function equipmentTypeLabel(id: EquipmentTypeID, t: AppTranslator): string {
+  return t(equipmentTypeTranslationKeys[id]);
+}
 
 interface CombinedRuleInput {
   types: readonly EquipmentTypeOption[];
@@ -54,12 +91,12 @@ export interface CombinedRuleResult {
 
 export function buildCombinedRuleExpression(input: CombinedRuleInput): CombinedRuleResult {
   const errors: CombinedRuleResult["errors"] = {};
-  if (input.types.length === 0) errors.types = "Mindestens einen Itemtyp auswählen.";
-  if (!input.socketsOperator) errors.socketsOperator = "Sockeloperator auswählen.";
+  if (input.types.length === 0) errors.types = i18n.t("pickit.typeRequired");
+  if (!input.socketsOperator) errors.socketsOperator = i18n.t("pickit.socketOperatorRequired");
 
   const sockets = Number(input.sockets);
   if (!Number.isInteger(sockets) || sockets < 1 || sockets > 6 || input.sockets.trim() === "") {
-    errors.sockets = "Sockelzahl muss eine ganze Zahl von 1 bis 6 sein.";
+    errors.sockets = i18n.t("pickit.socketCountInvalid");
   }
   if (Object.keys(errors).length > 0) return { expression: "", errors };
 
@@ -80,3 +117,4 @@ export function missingEquipmentTypeCodes(catalogTypes: Iterable<string>): strin
   return [...new Set(equipmentTypeOptions.flatMap((option) => option.codes))]
     .filter((code) => !available.has(code));
 }
+import { i18n } from "../../i18n";

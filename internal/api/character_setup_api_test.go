@@ -131,7 +131,7 @@ func TestCharacterSetupMutationContextRequiresGenerationIdleAndNoWorkflow(t *tes
 }
 
 func TestCharacterSetupHTTPMapsConflictAndUnavailable(t *testing.T) {
-	backend := &characterSetupTransportBackend{previewErr: &commandError{code: "config_revision_conflict", message: "stale"}}
+	backend := &characterSetupTransportBackend{previewErr: &commandError{code: "config_revision_conflict"}}
 	server := newUnstartedCharacterSetupServer(t, backend)
 	response, _ := http.Post(server.URL()+"/api/v1/characters/setup/preview", "application/json", bytes.NewReader([]byte(`{"character":"MrBones"}`)))
 	if response.StatusCode != http.StatusConflict {
@@ -149,10 +149,10 @@ func TestCharacterSetupHTTPMapsConflictAndUnavailable(t *testing.T) {
 func TestCharacterSetupDTOTransportsHammerdinBindingContractAndReadiness(t *testing.T) {
 	value := app.CharacterSetupPreview{Profiles: []app.CharacterSetupProfile{{
 		ID: "paladin_hammerdin", DisplayName: "Hammerdin", StandardAttack: "blessed_hammer",
-		RequiredSkills: []app.CharacterSetupRequiredSkill{{Skill: "blessed_hammer", SkillID: 112, DisplayName: "Gesegneter Hammer", Slot: "left"}},
+		RequiredSkills: []app.CharacterSetupRequiredSkill{{Skill: "blessed_hammer", SkillID: 112, Slot: "left"}},
 		OptionalSkillPairs: []app.CharacterSetupOptionalSkillPair{{Skills: []app.CharacterSetupRequiredSkill{
-			{Skill: "battle_command", SkillID: 155, DisplayName: "Battle Command", Slot: "right"},
-			{Skill: "battle_orders", SkillID: 149, DisplayName: "Battle Orders", Slot: "right"},
+			{Skill: "battle_command", SkillID: 155, Slot: "right"},
+			{Skill: "battle_orders", SkillID: 149, Slot: "right"},
 		}}},
 		RequiresMercenary: true, BindingsReady: false, BindingReasons: []string{"profile_bindings_incomplete"},
 		SupportedRuns: []string{"countess", "cows", "mephisto", "nihlathak", "summoner"},
@@ -222,7 +222,7 @@ func (b *characterSetupTransportBackend) CaptureCharacterSelection(context.Conte
 func sampleCharacterSetupPreviewDTO() CharacterSetupPreviewDTO {
 	return CharacterSetupPreviewDTO{
 		SchemaVersion: 1, CatalogRevision: 1, OperatorSettingsRevision: 1, PickitAssignmentRevision: 1,
-		Character: CharacterSetupCharacterDTO{Name: "MrBones", Slug: "mrbones", CharacterClass: "necromancer", ClassDisplayName: "Totenbeschwörer"},
+		Character: CharacterSetupCharacterDTO{Name: "MrBones", Slug: "mrbones", CharacterClass: "necromancer"},
 		Supported: true, Profiles: []CharacterSetupProfileDTO{{
 			ID: "necro_bone_spear", DisplayName: "Knochen-Speer", IsDefault: true,
 			DefaultBeltLayout: OperatorBeltLayoutDTO{Slot1: "healing", Slot2: "mana", Slot3: "mana", Slot4: "rejuvenation"},

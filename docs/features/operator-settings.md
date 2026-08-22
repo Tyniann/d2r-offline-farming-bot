@@ -2,7 +2,7 @@
 
 ## Überblick
 
-Abschnitt 15.2 macht den Go-Core zur einzigen Autorität für alle über die GUI editierbaren Fach- und Safetywerte. Abschnitt 16.2 hebt `operator-settings.local.yaml` auf einen strikten, revisionierten Schema-2-Vertrag und ergänzt das charakterbezogene Setup-Paar. Fehlt die Datei in einem frischen Datenroot, wird Revision 1 aus der validierten Basiskonfiguration initialisiert. Schema 1 wird weder gelesen noch migriert.
+Abschnitt 15.2 macht den Go-Core zur einzigen Autorität für alle über die GUI editierbaren Fach- und Safetywerte. Abschnitt 16.2 hebt `operator-settings.local.yaml` auf einen strikten, revisionierten Schema-2-Vertrag und ergänzt das charakterbezogene Setup-Paar. Fehlt die Datei in einem frischen Datenroot, wird Revision 1 aus der validierten Basiskonfiguration initialisiert. Schema 1 wird weder gelesen noch migriert. Die Oberflächensprache gehört nicht zu diesem Core-Vertrag; Electron speichert sie getrennt in `desktop-settings.json`.
 
 ## Ort im Code
 
@@ -74,7 +74,7 @@ Nach einer erfolgreichen allgemeinen Mutation übernimmt der Core Queue und Budg
 
 Die Datei ist Core-eigene Persistenz und nicht für paralleles manuelles Editieren während des Betriebs gedacht. Konflikte werden nicht gemergt. Der Repositorybetrieb ohne expliziten Datenroot bleibt weiterhin allein durch `config.yaml` bestimmt.
 
-Seit Abschnitt 15.6 bildet die Settings-Seite Read, Preview, Update, Resetvorschau und Reset direkt ab. Die Bedienoberfläche trennt die Speicherziele in die Tabs **Farming** (revisioniertes Core-Dokument), **App** (Desktop-Store) und **Wartung** (Sofortaktionen). Farming speichert über eine sticky Action-Bar: `Speichern` führt intern Preview und Bestätigungsdialog aus; `Verwerfen` setzt nur den lokalen Draft zurück. Ungespeicherte Farming-Änderungen blockieren die Hash-Navigation und `beforeunload`. Autostart im App-Tab speichert sofort beim Umschalten. Die Run-Reihenfolge ist ein Zwei-Spalten-Editor. Availability kommt aus `GET /api/v1/runs` für den im Tab gewählten Charakter, nicht aus dem globalen Live-Katalog. Schlägt dieser Fetch fehl, bleiben Run-Namen sichtbar, gelten aber als nicht startfähig. Nur startfähige Runs sind aufnehmbar, auch per Drop. Der Tab zeigt Katalognamen und warnt, wenn eine andere gespeicherte Reihenfolge bearbeitet wird als die in D2R bestätigte Auswahl. Die Seite hält Revisionkonflikte bis zum expliziten Neuladen sichtbar, sperrt Mutationen während aktiver Sessions und bietet bei `restart_required` ausschließlich den kontrollierten Electron-Core-Neustart an. Effektive Werte und Speicherort werden unter Wartung nur lesbar projiziert.
+Seit Abschnitt 15.6 bildet die Settings-Seite Read, Preview, Update, Resetvorschau und Reset direkt ab. Die Bedienoberfläche trennt die Speicherziele in die Tabs **Farming** für das revisionierte Core-Dokument, **App** für den Desktop-Store und **Wartung** für Sofortaktionen. Farming speichert über eine sticky Action-Bar. `Speichern` führt intern Preview und Bestätigungsdialog aus; `Verwerfen` setzt nur den lokalen Draft zurück. Ungespeicherte Farming-Änderungen blockieren die Hash-Navigation und `beforeunload`. Autostart im App-Tab speichert sofort beim Umschalten. Der app-weite Sprachschalter speichert `de` oder `en` ebenfalls im Desktop-Store und verändert keine Operator-Settings-Revision. Die Run-Reihenfolge ist ein Zwei-Spalten-Editor. Availability kommt aus `GET /api/v1/runs` für den im Tab gewählten Charakter, nicht aus dem globalen Live-Katalog. Schlägt dieser Fetch fehl, bleiben Run-Namen sichtbar, gelten aber als nicht startfähig. Nur startfähige Runs sind aufnehmbar, auch per Drop. Der Tab zeigt Katalognamen und warnt, wenn eine andere gespeicherte Reihenfolge bearbeitet wird als die in D2R bestätigte Auswahl. Die Seite hält Revisionkonflikte bis zum expliziten Neuladen sichtbar, sperrt Mutationen während aktiver Sessions und bietet bei `restart_required` ausschließlich den kontrollierten Electron-Core-Neustart an. Effektive Werte und Speicherort werden unter Wartung nur lesbar projiziert.
 
 ## Abhängigkeiten
 
@@ -91,6 +91,7 @@ Seit Abschnitt 15.6 bildet die Settings-Seite Read, Preview, Update, Resetvorsch
 - [Phase-15-Core-Vertrag](phase-15-core-contract.md)
 - [Desktop-Betrieb und Einstellungen](desktop-operation.md)
 - [Charaktereinrichtung](character-setup.md)
+- [Internationalisierung Deutsch und Englisch](internationalization.md)
 
 ---
-*Zuletzt aktualisiert: 17. August 2026*
+*Zuletzt aktualisiert: 22. August 2026*

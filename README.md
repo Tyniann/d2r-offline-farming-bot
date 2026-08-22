@@ -1,6 +1,6 @@
 # D2R Offline Farming Bot
 
-Go-basierter Bot für Diablo II: Resurrected (Offline/Singleplayer). **v0.22.0** unterstützt autonome Farming-Runs für Countess, Mephisto, Summoner, Nihlathak, das Cow Level und Lower-Kurast-Supertruhen einschließlich Charakter-Loadouts, Hammerdin, Runtime Replay, Combat, Loot, Sockel-Pickit, Town-Diensten, Mercenary-Support und Desktop-App.
+Go-basierter Bot für Diablo II: Resurrected (Offline/Singleplayer). **v0.23.0** unterstützt autonome Farming-Runs für Countess, Mephisto, Summoner, Nihlathak, das Cow Level und Lower-Kurast-Supertruhen einschließlich Charakter-Loadouts, Hammerdin, Runtime Replay, Combat, Loot, Sockel-Pickit, Town-Diensten, Mercenary-Support, Desktop-App und Deutsch/Englisch-Umschaltung.
 
 ## Voraussetzungen
 
@@ -11,8 +11,8 @@ Go-basierter Bot für Diablo II: Resurrected (Offline/Singleplayer). **v0.22.0**
 ## Release (Windows EXE)
 
 ```powershell
-# Windows-Installer bauen (dist/release/D2R-Offline-Farming-Bot-0.22.0-Setup.exe)
-powershell -ExecutionPolicy Bypass -File scripts/build-release.ps1 -Version 0.22.0
+# Windows-Installer bauen (dist/release/D2R-Offline-Farming-Bot-0.23.0-Setup.exe)
+powershell -ExecutionPolicy Bypass -File scripts/build-release.ps1 -Version 0.23.0
 
 # Oder über Make
 make release
@@ -81,15 +81,15 @@ Details: [`docs/features/input-controller.md`](docs/features/input-controller.md
 Windows-Installer lokal erzeugen und bei Bedarf manuell verteilen:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts/build-release.ps1 -Version 0.22.0
-# Ergebnis: dist\release\D2R-Offline-Farming-Bot-0.22.0-Setup.exe
+powershell -ExecutionPolicy Bypass -File scripts/build-release.ps1 -Version 0.23.0
+# Ergebnis: dist\release\D2R-Offline-Farming-Bot-0.23.0-Setup.exe
 ```
 
 Optional Version taggen (nur für Git-Historie):
 
 ```powershell
-git tag -a v0.22.0 -m "Release v0.22.0: Lower Kurast Supertruhen"
-git push origin v0.22.0
+git tag -a v0.23.0 -m "Release v0.23.0: Internationalization"
+git push origin v0.23.0
 ```
 
 ## Projektstruktur

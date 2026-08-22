@@ -498,7 +498,8 @@ func (h *townPreparationStepHandler) tickItemOrders(state world.State, kind town
 		h.itemOrders[h.itemOrder] = order
 		executor, err := town.NewItemServiceExecutor(h.itemInput, order, townRestockVerifyTicks)
 		if err != nil {
-			return town.InteractionResult{Status: town.InteractionFailed, Reason: err.Error(), Done: true}
+			h.adapter.log.Error("Stadt-Itemdienst konnte nicht vorbereitet werden", "unit_id", order.UnitID, "error", err)
+			return town.InteractionResult{Status: town.InteractionFailed, Reason: string(town.ReasonItemStateInvalid), Done: true}
 		}
 		h.itemExecutor = executor
 		h.itemPolicy = policy
@@ -545,7 +546,8 @@ func (h *townPreparationStepHandler) tickCloseUI(state world.State, anchor town.
 	}
 	if !h.shopCloseSent {
 		if err := h.adapter.controller.PressKey("esc"); err != nil {
-			return town.InteractionResult{Status: town.InteractionFailed, Reason: fmt.Sprintf("town_ui_close_failed: %v", err), Done: true}
+			h.adapter.log.Error("Händlerfenster konnte nicht geschlossen werden", "error", err)
+			return town.InteractionResult{Status: town.InteractionFailed, Reason: "town_ui_close_failed", Done: true}
 		}
 		h.shopCloseSent = true
 		return town.InteractionResult{Status: town.InteractionAction, Action: "shop_close", Vendor: anchor}
@@ -946,7 +948,8 @@ func (h *townPreparationStepHandler) tickWalk(ctx context.Context, state world.S
 	if h.walker == nil {
 		points, err := pathing.LoadLayoutBoundTownRoute(filepath.Join(h.adapter.directory, traversal.Edge.Route), traversal.Edge.ID, h.adapter.layout, h.adapter.layoutOrigin)
 		if err != nil {
-			return town.InteractionResult{Status: town.InteractionFailed, Reason: err.Error(), Done: true}
+			h.adapter.log.Error("Stadtroute konnte nicht geladen werden", "edge", traversal.Edge.ID, "error", err)
+			return town.InteractionResult{Status: town.InteractionFailed, Reason: string(town.ReasonTownLayoutUnavailable), Done: true}
 		}
 		if traversal.Reverse {
 			reversePositions(points)

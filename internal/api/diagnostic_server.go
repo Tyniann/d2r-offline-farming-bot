@@ -1,8 +1,8 @@
 package api
 
 import (
+	"errors"
 	"net/http"
-	"strings"
 
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/app"
 )
@@ -17,7 +17,7 @@ func (s *Server) handleDiagnosticBundle(w http.ResponseWriter, r *http.Request) 
 	}
 	backend, ok := s.backend.(diagnosticBackend)
 	if !ok {
-		s.writeError(w, http.StatusNotImplemented, string(app.Phase15ReasonDiagnosticBundleFailed), "Diagnosepakete sind nicht verfügbar.", requestIDFrom(r), nil)
+		s.writeError(w, http.StatusNotImplemented, string(app.Phase15ReasonDiagnosticBundleFailed), requestIDFrom(r), nil)
 		return
 	}
 	var request DiagnosticBundleRequest
@@ -27,10 +27,11 @@ func (s *Server) handleDiagnosticBundle(w http.ResponseWriter, r *http.Request) 
 	result, err := backend.CreateDiagnosticBundle(request)
 	if err != nil {
 		code := app.Phase15ReasonDiagnosticBundleFailed
-		if strings.Contains(err.Error(), string(app.Phase15ReasonDiagnosticContentRejected)) {
+		if errors.Is(err, app.ErrDiagnosticContentRejected) {
 			code = app.Phase15ReasonDiagnosticContentRejected
 		}
-		s.writeError(w, http.StatusConflict, string(code), "Das lokale Diagnosepaket konnte nicht sicher erstellt werden.", requestIDFrom(r), nil)
+		s.logger.Warn("Diagnostic bundle request rejected", "code", code, "request_id", requestIDFrom(r), "error", err)
+		s.writeError(w, http.StatusConflict, string(code), requestIDFrom(r), nil)
 		return
 	}
 	s.writeJSON(w, http.StatusCreated, result)

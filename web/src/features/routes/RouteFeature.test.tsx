@@ -1,5 +1,6 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { changeAppLanguage } from "../../i18n";
 import { RouteFeature } from "./RouteFeature";
 
 const mocks = vi.hoisted(() => ({
@@ -17,16 +18,17 @@ vi.mock("../../api/client", () => ({
 }));
 
 const recordingOptions = [
-  { run_id: "countess", display_name: "Countess", instructions_de: "Gräfin-Anleitung vollständig.", start_waypoint: "black_marsh", allowed_start_area_id: 6, allowed_route_area_ids: [6, 20], terminal_area_id: 25, terminal_max_distance_tiles: 80, available: true, prerequisites: [{ id: "waypoint", ready: true }] },
-  { run_id: "mephisto", display_name: "Mephisto", instructions_de: "Mephisto-Anleitung vollständig.", start_waypoint: "durance_of_hate_level_2", allowed_start_area_id: 101, allowed_route_area_ids: [101], terminal_area_id: 102, terminal_max_distance_tiles: 80, available: true, prerequisites: [] },
-  { run_id: "lower-kurast", display_name: "Lower Kurast", instructions_de: "Starte am Wegpunkt Unteres Kurast und ende an den Lagerfeuer-Hütten.", start_waypoint: "lower_kurast", allowed_start_area_id: 79, allowed_route_area_ids: [79], terminal_area_id: 79, terminal_max_distance_tiles: 80, available: true, prerequisites: [{ id: "waypoint", ready: true }] },
-  { run_id: "cows", route_role: "leg_acquisition", display_name: "Kuhlevel", instructions_de: "Wirt-Anleitung vollständig.", start_waypoint: "stony_field", allowed_start_area_id: 4, allowed_route_area_ids: [4, 38], terminal_area_id: 38, terminal_max_distance_tiles: 20, available: true, prerequisites: [{ id: "town_portal", ready: true }] },
-  { run_id: "cows", route_role: "cow_sweep", display_name: "Kuhlevel", instructions_de: "Cow-Anleitung vollständig.", start_kind: "object_portal_arrival", start_waypoint: "", allowed_start_area_id: 39, allowed_route_area_ids: [39], terminal_area_id: 39, terminal_max_distance_tiles: 0, available: true, prerequisites: [{ id: "teleport", ready: true }] },
+  { run_id: "countess", display_name: "Countess", instruction_code: "record_countess", start_waypoint: "black_marsh", allowed_start_area_id: 6, allowed_route_area_ids: [6, 20], terminal_area_id: 25, terminal_max_distance_tiles: 80, available: true, prerequisites: [{ id: "waypoint", ready: true }] },
+  { run_id: "mephisto", display_name: "Mephisto", instruction_code: "record_mephisto", start_waypoint: "durance_of_hate_level_2", allowed_start_area_id: 101, allowed_route_area_ids: [101], terminal_area_id: 102, terminal_max_distance_tiles: 80, available: true, prerequisites: [] },
+  { run_id: "lower-kurast", display_name: "Lower Kurast", instruction_code: "record_lower_kurast", start_waypoint: "lower_kurast", allowed_start_area_id: 79, allowed_route_area_ids: [79], terminal_area_id: 79, terminal_max_distance_tiles: 80, available: true, prerequisites: [{ id: "waypoint", ready: true }] },
+  { run_id: "cows", route_role: "leg_acquisition", display_name: "Kuhlevel", instruction_code: "record_cow_leg", start_waypoint: "stony_field", allowed_start_area_id: 4, allowed_route_area_ids: [4, 38], terminal_area_id: 38, terminal_max_distance_tiles: 20, available: true, prerequisites: [{ id: "town_portal", ready: true }] },
+  { run_id: "cows", route_role: "cow_sweep", display_name: "Kuhlevel", instruction_code: "record_cow_sweep", start_kind: "object_portal_arrival", start_waypoint: "", allowed_start_area_id: 39, allowed_route_area_ids: [39], terminal_area_id: 39, terminal_max_distance_tiles: 0, available: true, prerequisites: [{ id: "teleport", ready: true }] },
 ];
 
 describe("RouteFeature Redesign", () => {
   afterEach(cleanup);
-  beforeEach(() => {
+  beforeEach(async () => {
+    await changeAppLanguage("de");
     vi.clearAllMocks();
     mocks.library.mockResolvedValue({ revision: 1, character: "MrBones", routes: [] });
     mocks.candidates.mockResolvedValue([]);
@@ -35,6 +37,16 @@ describe("RouteFeature Redesign", () => {
     mocks.workflow.mockResolvedValue({ workflow_id: "", generation: 1, state: "idle", run_id: "", character: "MrBones" });
     mocks.start.mockResolvedValue({ workflow_id: "workflow-1", generation: 2, state: "recording", run_id: "countess", character: "MrBones" });
     mocks.finish.mockResolvedValue({ workflow_id: "workflow-1", generation: 3, state: "freezing", run_id: "countess", character: "MrBones" });
+  });
+
+  it("rendert die repräsentative Routenoberfläche auf Englisch", async () => {
+    await changeAppLanguage("en");
+    render(<RouteFeature characters={["MrBones"]} selectedCharacter="MrBones" refreshKey={0} />);
+
+    expect(await screen.findByRole("heading", { name: "Routes" })).toBeInTheDocument();
+    for (const label of ["My routes", "Record route", "Drafts"]) {
+      expect(screen.getByRole("button", { name: new RegExp(label) })).toBeInTheDocument();
+    }
   });
 
   it("zeigt drei aufgabenorientierte Bereiche und behält den Charakterkontext", async () => {
@@ -67,15 +79,15 @@ describe("RouteFeature Redesign", () => {
   it("zeigt nur die Anleitung des ausgewählten Runs und Kuhhinweise ausschließlich beim Kuhlevel", async () => {
     render(<RouteFeature characters={["MrBones"]} selectedCharacter="MrBones" refreshKey={0} />);
     fireEvent.click(await screen.findByRole("button", { name: "Route aufnehmen" }));
-    expect(screen.getByText("Gräfin-Anleitung vollständig.")).toBeInTheDocument();
-    expect(screen.queryByText("Mephisto-Anleitung vollständig.")).not.toBeInTheDocument();
+    expect(screen.getByText(/Reise zum Wegpunkt Schwarzmarsch.*F9/)).toBeInTheDocument();
+    expect(screen.queryByText(/Reise zum Wegpunkt Kerker des Hasses/)).not.toBeInTheDocument();
     expect(screen.queryByText("Vorbereitung für das Kuhlevel")).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: /Kuhlevel/ }));
-    expect(screen.getByText("Wirt-Anleitung vollständig.")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Kuh-Level/ }));
+    expect(screen.getByText(/betrete das bereits geöffnete rote Portal nach Tristram.*F9/)).toBeInTheDocument();
     expect(screen.getByText("Vorbereitung für das Kuhlevel")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "2 Cow-Route" }));
-    expect(screen.getByText("Cow-Anleitung vollständig.")).toBeInTheDocument();
-    expect(screen.queryByText("Wirt-Anleitung vollständig.")).not.toBeInTheDocument();
+    expect(screen.getByText(/folge deiner vollständigen Farming-Schleife.*F9/)).toBeInTheDocument();
+    expect(screen.queryByText(/betrete das bereits geöffnete rote Portal nach Tristram/)).not.toBeInTheDocument();
   });
 
   it("zeigt vor der Aufnahme den Routenzweck und den Weg zu Pickit", async () => {
@@ -96,10 +108,10 @@ describe("RouteFeature Redesign", () => {
   it("zeigt Unteres Kurast mit Lagerfeuer-Ziel und schließt das Aufnahme-Overlay per Button", async () => {
     render(<RouteFeature characters={["MrBones"]} selectedCharacter="MrBones" refreshKey={0} />);
     fireEvent.click(await screen.findByRole("button", { name: "Route aufnehmen" }));
-    fireEvent.click(screen.getByRole("button", { name: /Unteres Kurast/ }));
-    expect(screen.getByText("Starte am Wegpunkt Unteres Kurast und ende an den Lagerfeuer-Hütten.")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Unter-Kurast/ }));
+    expect(screen.getByText(/Reise zum Wegpunkt Unteres Kurast.*letzten Hüttengruppe mit F9/)).toBeInTheDocument();
     expect(screen.getByText("Lagerfeuer-Hütten")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Unteres Kurast aufnehmen" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Unter-Kurast aufnehmen" })).toBeInTheDocument();
     expect(screen.queryByText(/Würfel|Neuwürfeln|gute Karte/)).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Lagerfeuer vergrößern" }));
     const dialog = await screen.findByRole("dialog", { name: "Lagerfeuer" });

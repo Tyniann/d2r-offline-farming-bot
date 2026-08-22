@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -382,7 +383,15 @@ func (s *SessionSupervisor) startWorkerLocked() {
 	}
 	if s.queueGuard != nil {
 		if err := s.queueGuard(cloneFarmQueuePlan(s.plan), s.queueIndex); err != nil {
-			s.finishQueueLocked(SupervisorStateStoppedError, SupervisorRunResult{Disposition: QueueRunStop, Reason: err.Error()}, false)
+			reason := string(QueueReasonEntryUnavailable)
+			var queueErr *QueueValidationError
+			var commandErr *SupervisorCommandError
+			if errors.As(err, &queueErr) {
+				reason = string(queueErr.Code)
+			} else if errors.As(err, &commandErr) {
+				reason = string(commandErr.Code)
+			}
+			s.finishQueueLocked(SupervisorStateStoppedError, SupervisorRunResult{Disposition: QueueRunStop, Reason: reason}, false)
 			return
 		}
 	}

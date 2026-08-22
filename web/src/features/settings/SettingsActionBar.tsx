@@ -1,5 +1,6 @@
 import { Save } from "lucide-react";
 import { Button } from "../../app/ui";
+import { useTranslation } from "react-i18next";
 
 /** SettingsActionBar ist die sticky Commit-Leiste für das Core-Farming-Dokument. */
 export function SettingsActionBar({
@@ -15,17 +16,18 @@ export function SettingsActionBar({
   onSave: () => void;
   onShowFarming?: () => void;
 }) {
+  const { t } = useTranslation();
   if (collapsed) {
     return <div className={`settings-actionbar${dirty ? " dirty" : ""}`} role="status">
-      <div><strong>Ungespeicherte Einstellungsänderungen</strong><p>{summary}</p></div>
-      {onShowFarming && <Button variant="secondary" onClick={onShowFarming}>Ansehen</Button>}
+      <div><strong>{t("settings.unsavedChanges")}</strong><p>{summary}</p></div>
+      {onShowFarming && <Button variant="secondary" onClick={onShowFarming}>{t("settings.view")}</Button>}
     </div>;
   }
 
   if (locked) {
     return <div className="settings-actionbar locked" role="status">
-      <div><strong>Gesperrt, solange eine Session läuft.</strong><p>Speichern ist wieder möglich, sobald der Bot inaktiv ist.</p></div>
-      <Button disabled><Save aria-hidden="true" size={16} /> Speichern</Button>
+      <div><strong>{t("settings.lockedSession")}</strong><p>{t("settings.saveWhenIdle")}</p></div>
+      <Button disabled><Save aria-hidden="true" size={16} /> {t("settings.save")}</Button>
     </div>;
   }
 
@@ -33,12 +35,12 @@ export function SettingsActionBar({
   return <div className={`settings-actionbar${dirty ? " dirty" : ""}`} role="status">
     <div>
       {dirty
-        ? <strong>{changeCount} Änderung{changeCount === 1 ? "" : "en"}: {summary}</strong>
-        : <><strong>Keine offenen Änderungen</strong><p>Revision {revision}</p></>}
+        ? <strong>{t("settings.changeCount", { count: changeCount, summary })}</strong>
+        : <><strong>{t("settings.noOpenChanges")}</strong><p>{t("settings.revision", { revision })}</p></>}
     </div>
     <div className="inline-actions">
-      {dirty && <Button variant="secondary" onClick={onDiscard} disabled={busy}>Verwerfen</Button>}
-      <Button onClick={onSave} disabled={!dirty || busy}><Save aria-hidden="true" size={16} /> {busy ? "Core prüft …" : "Speichern"}</Button>
+      {dirty && <Button variant="secondary" onClick={onDiscard} disabled={busy}>{t("settings.discard")}</Button>}
+      <Button onClick={onSave} disabled={!dirty || busy}><Save aria-hidden="true" size={16} /> {t(busy ? "settings.coreChecking" : "settings.save")}</Button>
     </div>
   </div>;
 }

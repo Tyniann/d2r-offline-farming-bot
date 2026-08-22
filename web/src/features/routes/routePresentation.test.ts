@@ -1,13 +1,11 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 
+import { changeAppLanguage } from "../../i18n";
 import { reasonLabel, runPurposeLabels } from "./routePresentation";
 
-describe("reasonLabel", () => {
-  it("übersetzt einen fehlenden Teleport-Binding aus dem Core", () => {
-    expect(reasonLabel("bindings precheck: teleport not configured: set the character loadout Teleport F-key in Charaktere"))
-      .toBe("Vervollständige für diesen Charakter unter „Charaktere“ die Tastenbelegung des Kampfprofils.");
-  });
+beforeEach(() => changeAppLanguage("de"));
 
+describe("reasonLabel", () => {
   it("übersetzt die Recording-Voraussetzungsgründe des Core", () => {
     expect(reasonLabel("onboarding_teleport_binding_missing"))
       .toBe("Vervollständige für diesen Charakter unter „Charaktere“ die Tastenbelegung des Kampfprofils.");
@@ -15,12 +13,16 @@ describe("reasonLabel", () => {
       .toBe("Hinterlege für diesen Charakter unter „Charaktere“ die Taste für das Stadtportal.");
   });
 
-  it("übersetzt einen geänderten Entwurfskontext", () => {
-    expect(reasonLabel("live candidate context changed"))
-      .toBe("Charakter oder Schwierigkeit passen nicht mehr zu diesem Entwurf.");
-    expect(reasonLabel("route_candidate_changed"))
-      .toBe("Die Zuordnung für diesen Run hat sich seit der Aufnahme geändert.");
-  });
+	it("übersetzt einen geänderten Entwurfskontext ausschließlich über den Code", () => {
+		expect(reasonLabel("route_candidate_changed"))
+			.toBe("Die Zuordnung für diesen Run hat sich seit der Aufnahme geändert.");
+	});
+
+	it("übersetzt denselben Code auf Englisch und fällt für unbekannte Codes neutral zurück", async () => {
+		await changeAppLanguage("en");
+		expect(reasonLabel("route_candidate_changed")).toBe("The assignment for this run changed after recording.");
+		expect(reasonLabel("free-form sentence")).toBe("This action is not available right now.");
+	});
 });
 
 describe("runPurposeLabels", () => {

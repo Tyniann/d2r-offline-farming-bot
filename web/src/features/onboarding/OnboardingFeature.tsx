@@ -10,6 +10,8 @@ import { characterAvailabilityText, supportedCharacterClasses } from "../../app/
 import { farmReadyReasonText } from "../characters/characterReasonText";
 import { CharacterSetupWizard } from "../characters/CharacterSetupWizard";
 import { prepareOnboardingResume } from "./onboardingResume";
+import { useTranslation } from "react-i18next";
+import { presentApiError, presentDifficultyName, presentRecordingInstruction, presentRunName, type AppTranslator } from "../../i18n/presenters";
 
 interface Props {
   status: StatusDTO;
@@ -20,24 +22,26 @@ interface Props {
   initialStep?: number;
 }
 
-const steps = ["Willkommen", "System", "D2R", "Safety", "Input", "Charakter", "Readiness", "Erste Route", "Abschluss"];
-const prerequisiteLabels: Record<string, string> = { waypoint: "Startwegpunkt", teleport: "Teleport-Binding", town_portal: "Town-Portal-Binding", pickit: "Pickit-Zuordnung" };
-const prerequisiteReasons: Record<string, string> = {
-  onboarding_waypoint_required: "Der erforderliche Startwegpunkt ist noch nicht verfügbar.",
-  onboarding_waypoint_missing: "Der erforderliche Startwegpunkt ist noch nicht verfügbar.",
-  onboarding_teleport_binding_missing: "Die Teleport-Tastenbelegung fehlt.",
-  onboarding_teleport_missing: "Die Teleport-Tastenbelegung fehlt.",
-  onboarding_town_portal_binding_missing: "Die Town-Portal-Tastenbelegung fehlt.",
-  onboarding_town_portal_missing: "Die Town-Portal-Tastenbelegung fehlt.",
-  pickit_assignment_missing: "Für diesen Charakter und Run ist noch kein Lootprofil zugeordnet.",
-};
+const stepKeys = ["welcome", "system", "d2r", "safety", "input", "character", "readiness", "firstRoute", "finish"] as const;
 
-function prerequisiteStatus(entry: { ready: boolean; reason?: string }): string {
-  return entry.ready ? "bereit" : prerequisiteReasons[entry.reason ?? ""] ?? "Diese Voraussetzung fehlt noch.";
+function prerequisiteLabel(id: string, t: AppTranslator): string {
+  return t(id === "waypoint" ? "onboarding.waypoint" : id === "teleport" ? "onboarding.teleport" : id === "town_portal" ? "onboarding.townPortal" : id === "pickit" ? "onboarding.pickit" : "onboarding.otherPrerequisite");
+}
+
+function prerequisiteStatus(entry: { ready: boolean; reason?: string }, t: AppTranslator): string {
+  if (entry.ready) return t("onboarding.ready");
+  const reason = entry.reason ?? "";
+  if (reason === "onboarding_waypoint_required" || reason === "onboarding_waypoint_missing") return t("onboarding.waypointMissing");
+  if (reason === "onboarding_teleport_binding_missing" || reason === "onboarding_teleport_missing") return t("onboarding.teleportMissing");
+  if (reason === "onboarding_town_portal_binding_missing" || reason === "onboarding_town_portal_missing") return t("onboarding.townPortalMissing");
+  if (reason === "pickit_assignment_missing") return t("onboarding.pickitMissing");
+  return t("onboarding.prerequisiteMissing");
 }
 
 export function OnboardingFeature({ status, catalog, onRefresh, onClose, onOpenRoutes, initialStep = 0 }: Props) {
-  const [step, setStep] = useState(() => Math.min(Math.max(initialStep, 0), steps.length - 1));
+  const { t } = useTranslation();
+  const steps = stepKeys.map((key) => t(`onboarding.steps.${key}`));
+  const [step, setStep] = useState(() => Math.min(Math.max(initialStep, 0), stepKeys.length - 1));
   const [settings, setSettings] = useState<OperatorSettingsDTO | null>(null);
   const [options, setOptions] = useState<RecordingOptionDTO[]>([]);
   const [hotkeys, setHotkeys] = useState<{ recording_finish: string; stop_after_run: string; emergency_stop: string; pause: string } | null>(null);
@@ -61,10 +65,10 @@ export function OnboardingFeature({ status, catalog, onRefresh, onClose, onOpenR
       setWorkflowState(workflow.state);
       setError("");
     } catch (reason) {
-      setError(message(reason, "Onboarding-Daten konnten nicht geladen werden."));
+      setError(message(reason, t, t("onboarding.loadFailed")));
     }
   }
-  useEffect(() => { void load(); }, [catalog.revision]);
+  useEffect(() => { void load(); }, [catalog.revision, t]);
   useEffect(() => {
     if (catalog.characters.some((entry) => entry.name === character)) return;
     setCharacter(status.selection.character || catalog.characters.find((entry) => entry.selectable)?.name || catalog.characters[0]?.name || "");
@@ -74,7 +78,7 @@ export function OnboardingFeature({ status, catalog, onRefresh, onClose, onOpenR
     if (busy) return;
     setBusy(true);
     setError("");
-    try { await action(); } catch (reason) { setError(message(reason, "Der Schritt konnte nicht abgeschlossen werden.")); } finally { setBusy(false); }
+    try { await action(); } catch (reason) { setError(message(reason, t, t("onboarding.stepFailed"))); } finally { setBusy(false); }
   }
 
   async function submitSelection() {
@@ -142,34 +146,34 @@ export function OnboardingFeature({ status, catalog, onRefresh, onClose, onOpenR
     && (step !== 5 || !!status.selection.character);
   return <section className="onboarding" aria-labelledby="onboarding-title">
     <div className="section-heading">
-      <div><p className="eyebrow">First Run · Schritt {step + 1} von {steps.length}</p><h1 id="onboarding-title">{steps[step]}</h1></div>
+      <div><p className="eyebrow">{t("onboarding.stepKicker", { current: step + 1, total: steps.length })}</p><h1 id="onboarding-title">{steps[step]}</h1></div>
       <StatusBadge tone={step === steps.length - 1 ? "success" : "warning"}>{step + 1}/{steps.length}</StatusBadge>
     </div>
-    <ol className="onboarding-progress" aria-label="Fortschritt">
+    <ol className="onboarding-progress" aria-label={t("onboarding.progressAria")}>
       {steps.map((label, index) => <li key={label} aria-current={index === step ? "step" : undefined} className={index < step ? "complete" : ""}><span>{index < step ? <Check aria-hidden="true" size={15} /> : index + 1}</span>{label}</li>)}
     </ol>
-    {error && <StateMessage kind="error" title="Schritt nicht abgeschlossen">{error}</StateMessage>}
+    {error && <StateMessage kind="error" title={t("onboarding.stepIncomplete")}>{error}</StateMessage>}
 
-    {step === 0 && <div className="onboarding-panel"><ShieldCheck aria-hidden="true" size={32} /><h2>Sicher zum ersten echten Run</h2><p>Der Assistent erklärt Einrichtung und Safety. Er startet weder D2R noch Farming automatisch und verwendet für jede Fachentscheidung den bestehenden Core.</p></div>}
-    {step === 1 && <div className="onboarding-panel"><h2>Lokale Installation</h2><ul><li>Windows 10/11 x64</li><li>App und Core verwenden denselben expliziten LocalAppData-Datenroot.</li><li>Die Datenbasis wurde vor dem produktiven Core atomar provisioniert.</li><li>Administratorrechte sind nur bei einem nachgewiesenen Privilegienkonflikt nötig.</li></ul></div>}
-    {step === 2 && <div className="onboarding-panel"><h2>D2R manuell starten</h2><p>Zustand: <strong>{compatibility}</strong></p><p>Erwartet {status.compatibility.expected_version || "–"} · Erkannt {status.compatibility.actual_version || "–"}</p>{compatibility !== "compatible" && <StateMessage kind="error" title="D2R ist noch nicht kompatibel bestätigt">{status.compatibility.reason || "Starte D2R manuell und warte auf die read-only Versionsprüfung."}</StateMessage>}{status.compatibility.privilege_mismatch && <Button variant="secondary" onClick={() => void window.d2rDesktop?.restartAsAdministrator()}>App als Administrator neu starten</Button>}</div>}
-    {step === 3 && <div className="onboarding-panel"><h2>Safety vor Komfort</h2><ul><li>D2R im Fenstermodus mit 1280×720 verwenden.</li><li><strong>{hotkeys?.pause ?? "Pause"}</strong>: Pause nach Run; <strong>{hotkeys?.stop_after_run ?? "F10"}</strong>: Stop nach Run.</li><li><strong>{hotkeys?.emergency_stop ?? "F11"}</strong>: sofortiger Emergency Stop ohne Save-&amp;-Exit-Garantie.</li><li><strong>{hotkeys?.recording_finish ?? "F9"}</strong>: laufende Routenaufnahme beenden.</li></ul></div>}
-    {step === 4 && <div className="onboarding-panel"><h2>Gameplay-Input bewusst freigeben</h2><p>Gespeicherte Freigabe: <strong>{settings?.input.enabled ? "aktiv" : "deaktiviert"}</strong>. Effektiver Core-Zustand: <strong>{status.input.stopped ? "gestoppt" : status.input.paused ? "pausiert" : status.input.enabled ? "freigegeben" : "deaktiviert"}</strong>. Eine Änderung wird revisionsgebunden gespeichert und löst bei Bedarf einen kontrollierten Core-Neustart aus. Erst wenn der laufende Core die Freigabe bestätigt, wird die Charakterauswahl aktiv.</p>{settings?.input.enabled && !effectiveInputReady && <StateMessage kind="error" title="Core-Freigabe noch nicht aktiv">Warte den kontrollierten Core-Neustart ab oder lade diesen Schritt neu. Die Auswahl bleibt bis zur effektiven Bestätigung gesperrt.</StateMessage>}<div className="inline-actions"><Button disabled={busy || settings?.input.enabled} onClick={() => void setInput(true)}>Input ausdrücklich freigeben</Button><Button variant="secondary" disabled={busy || !settings?.input.enabled} onClick={() => void setInput(false)}>Input deaktiviert lassen</Button></div></div>}
+    {step === 0 && <div className="onboarding-panel"><ShieldCheck aria-hidden="true" size={32} /><h2>{t("onboarding.welcomeTitle")}</h2><p>{t("onboarding.welcomeDetail")}</p></div>}
+    {step === 1 && <div className="onboarding-panel"><h2>{t("onboarding.installTitle")}</h2><ul><li>{t("onboarding.installWindows")}</li><li>{t("onboarding.installRoot")}</li><li>{t("onboarding.installProvisioned")}</li><li>{t("onboarding.installAdmin")}</li></ul></div>}
+    {step === 2 && <div className="onboarding-panel"><h2>{t("onboarding.d2rTitle")}</h2><p>{t("onboarding.state")}<strong>{compatibilityStateText(compatibility, t)}</strong></p><p>{t("onboarding.versions", { expected: status.compatibility.expected_version || "–", actual: status.compatibility.actual_version || "–" })}</p>{compatibility !== "compatible" && <StateMessage kind="error" title={t("onboarding.d2rNotConfirmed")}>{compatibilityDetailText(compatibility, t)}</StateMessage>}{status.compatibility.privilege_mismatch && <Button variant="secondary" onClick={() => void window.d2rDesktop?.restartAsAdministrator()}>{t("onboarding.restartAdmin")}</Button>}</div>}
+    {step === 3 && <div className="onboarding-panel"><h2>{t("onboarding.safetyTitle")}</h2><ul><li>{t("onboarding.windowMode")}</li><li>{t("onboarding.pauseStop", { pause: hotkeys?.pause ?? "Pause", stop: hotkeys?.stop_after_run ?? "F10" })}</li><li>{t("onboarding.emergency", { key: hotkeys?.emergency_stop ?? "F11" })}</li><li>{t("onboarding.recordingFinish", { key: hotkeys?.recording_finish ?? "F9" })}</li></ul></div>}
+    {step === 4 && <div className="onboarding-panel"><h2>{t("onboarding.inputTitle")}</h2><p>{t("onboarding.inputDetail", { saved: t(settings?.input.enabled ? "onboarding.active" : "onboarding.disabled"), effective: t(status.input.stopped ? "onboarding.stopped" : status.input.paused ? "onboarding.paused" : status.input.enabled ? "onboarding.enabled" : "onboarding.disabled") })}</p>{settings?.input.enabled && !effectiveInputReady && <StateMessage kind="error" title={t("onboarding.inputPending")}>{t("onboarding.inputPendingDetail")}</StateMessage>}<div className="inline-actions"><Button disabled={busy || settings?.input.enabled} onClick={() => void setInput(true)}>{t("onboarding.enableInput")}</Button><Button variant="secondary" disabled={busy || !settings?.input.enabled} onClick={() => void setInput(false)}>{t("onboarding.leaveInputOff")}</Button></div></div>}
     {step === 5 && <div className="onboarding-panel">
-      <h2>Charakter und Schwierigkeit bestätigen</h2>
-      <p>Alle gefundenen lokalen Charaktere werden angezeigt. Verfügbar sind nur Charaktere mit freigegebenem Kampfprofil und sicherer D2R-Auswahl. Derzeit unterstützt: <strong>{supportedCharacterClasses(catalog)}</strong>.</p>
+      <h2>{t("onboarding.characterTitle")}</h2>
+      <p>{t("onboarding.characterDetail", { classes: supportedCharacterClasses(catalog, t) })}</p>
       <div className="selection-grid">
-        <label>Charakter
+        <label>{t("onboarding.character")}
           <select value={character} onChange={(event) => setCharacter(event.target.value)}>
-            {catalog.characters.map((entry) => <option key={entry.slug} value={entry.name}>{entry.name}{entry.selectable ? "" : " – Einrichtung nötig"}</option>)}
+            {catalog.characters.map((entry) => <option key={entry.slug} value={entry.name}>{entry.name}{entry.selectable ? "" : ` – ${t("onboarding.setupRequired")}`}</option>)}
           </select>
         </label>
-        <label>Schwierigkeit
+        <label>{t("onboarding.difficulty")}
           <select value={difficulty} onChange={(event) => setDifficulty(event.target.value)}>
-            {catalog.difficulties.map((entry) => <option key={entry.id} value={entry.id}>{entry.display_name}</option>)}
+            {catalog.difficulties.map((entry) => <option key={entry.id} value={entry.id}>{presentDifficultyName(entry.id, t)}</option>)}
           </select>
         </label>
-        <Button disabled={busy || !character || !effectiveInputReady || !selectedCharacterReady} onClick={() => void submitSelection()}>Über Core bestätigen</Button>
+        <Button disabled={busy || !character || !effectiveInputReady || !selectedCharacterReady} onClick={() => void submitSelection()}>{t("onboarding.confirmCore")}</Button>
       </div>
       <CharacterSetupWizard
         character={character}
@@ -178,23 +182,35 @@ export function OnboardingFeature({ status, catalog, onRefresh, onClose, onOpenR
         mode="onboarding"
         onChanged={async () => { await onRefresh(); await load(); }}
       />
-      <p>Aktiv: {status.selection.character ? `${status.selection.character} / ${status.selection.difficulty}` : "noch nicht bestätigt"}</p>
+      <p>{t("onboarding.activeSelection", { selection: status.selection.character ? `${status.selection.character} / ${presentDifficultyName(status.selection.difficulty ?? "", t)}` : t("onboarding.notConfirmed") })}</p>
       {catalog.characters.some((entry) => !entry.selectable) && <>
-        <h3>Warum sind Charaktere nicht verfügbar?</h3>
-        <ul className="character-availability">{catalog.characters.filter((entry) => !entry.selectable).map((entry) => <li key={entry.slug}><strong>{entry.name}</strong><span>{characterAvailabilityText(entry, catalog)}</span></li>)}</ul>
+        <h3>{t("onboarding.whyUnavailable")}</h3>
+        <ul className="character-availability">{catalog.characters.filter((entry) => !entry.selectable).map((entry) => <li key={entry.slug}><strong>{entry.name}</strong><span>{characterAvailabilityText(entry, catalog, t)}</span></li>)}</ul>
       </>}
     </div>}
-    {step === 6 && <div className="onboarding-panel"><h2>Core-Readiness</h2><p>Die Liste stammt aus Status-, Katalog- und Recording-API.</p><ul className="readiness-list"><li><span>Versionsgate</span><strong>{compatibility === "compatible" ? "bereit" : "fehlt"}</strong></li><li><span>Charakter/Difficulty</span><strong>{status.selection.character ? "bereit" : "fehlt"}</strong></li><li><span>Input</span><strong>{effectiveInputReady ? "bereit" : "abgelehnt/deaktiviert"}</strong></li><li><span>Tastenbelegung</span><strong>{farmReady ? "bereit" : "fehlt"}</strong></li>{(selectedOption?.prerequisites ?? []).map((entry) => <li key={entry.id}><span>{prerequisiteLabels[entry.id] ?? "Weitere Voraussetzung"}</span><strong>{prerequisiteStatus(entry)}</strong></li>)}</ul>{!farmReady && <StateMessage kind="error" title="Noch nicht farmbereit">{(selectedCatalogEntry?.farm_ready_reasons ?? ["profile_bindings_incomplete"]).map((reason) => farmReadyReasonText(reason)).join(" ")}</StateMessage>}<Button variant="secondary" onClick={() => void load()}>Readiness neu laden</Button></div>}
-    {step === 7 && <div className="onboarding-panel"><h2>Erste echte Route</h2><p><strong>So startest du:</strong> Öffne unten den Routenbereich und klicke dort beim gewünschten Run auf „Aufnahme starten“. Bleibe am Startwegpunkt stehen, bis der Core „Aufnahme läuft“ meldet. <strong>{hotkeys?.recording_finish ?? "F9"} startet keine Aufnahme</strong>, sondern beendet ausschließlich eine bereits laufende Aufnahme an der gewünschten Kampfposition.</p><div className="route-choice">{(onboardingOptions.length > 0 ? onboardingOptions : catalog.runs.map((run) => ({ run_id: run.run_id, display_name: run.display_name, instructions_de: "", prerequisites: [] as RecordingOptionDTO["prerequisites"] }))).map((option, index) => (
-      <label key={option.run_id}><input type="radio" name="first-route" checked={routeID === option.run_id} onChange={() => setRouteID(option.run_id)} /> {option.display_name || option.run_id}{index === 0 ? <> <strong>empfohlen</strong></> : null}</label>
-    ))}</div>{selectedOption && <><p>{selectedOption.instructions_de}</p><ul>{(selectedOption.prerequisites ?? []).map((entry) => <li key={entry.id}>{prerequisiteLabels[entry.id] ?? "Weitere Voraussetzung"}: {prerequisiteStatus(entry)}</li>)}</ul></>} {["failed_safe", "emergency_cancelled"].includes(workflowState) && <StateMessage kind="error" title="Vorherige Aufnahme wurde verworfen">Es gibt kein Resume. Starte die Aufnahme sauber neu.</StateMessage>}<Button disabled={!allPrerequisitesReady || !settings?.input.enabled || compatibility !== "compatible"} onClick={() => onOpenRoutes(routeID)}>Routenbereich öffnen und Aufnahme starten <ExternalLink aria-hidden="true" size={17} /></Button></div>}
-    {step === 8 && <div className="onboarding-panel"><h2>Bereit für das Dashboard</h2><p>Du kannst den Assistenten ohne fertige Route abschließen. Das Dashboard zeigt dann weiterhin den konkreten Einstieg „Erste Route aufnehmen“. Es startet kein Testlauf und keine Farming-Session.</p>{!farmReady && <StateMessage kind="error" title="Einrichtung fehlt noch">Abschluss ist erlaubt. Die Queue bleibt gesperrt, bis Tasten und Inventarschutz unter Einstellungen → Charaktere gespeichert sind.</StateMessage>}<div className="inline-actions"><Button onClick={() => void finish(false)}>Assistent abschließen</Button><Button variant="secondary" onClick={() => onOpenRoutes(routeID)}>Jetzt zur Routenaufnahme</Button>{!farmReady && <Button variant="secondary" onClick={() => setStep(5)}>Jetzt konfigurieren</Button>}</div></div>}
+    {step === 6 && <div className="onboarding-panel"><h2>{t("onboarding.readinessTitle")}</h2><p>{t("onboarding.readinessDetail")}</p><ul className="readiness-list"><li><span>{t("onboarding.versionGate")}</span><strong>{t(compatibility === "compatible" ? "onboarding.ready" : "onboarding.missing")}</strong></li><li><span>{t("onboarding.characterDifficulty")}</span><strong>{t(status.selection.character ? "onboarding.ready" : "onboarding.missing")}</strong></li><li><span>{t("onboarding.input")}</span><strong>{t(effectiveInputReady ? "onboarding.ready" : "onboarding.inputRejected")}</strong></li><li><span>{t("onboarding.bindings")}</span><strong>{t(farmReady ? "onboarding.ready" : "onboarding.missing")}</strong></li>{(selectedOption?.prerequisites ?? []).map((entry) => <li key={entry.id}><span>{prerequisiteLabel(entry.id, t)}</span><strong>{prerequisiteStatus(entry, t)}</strong></li>)}</ul>{!farmReady && <StateMessage kind="error" title={t("onboarding.notFarmReady")}>{(selectedCatalogEntry?.farm_ready_reasons ?? ["profile_bindings_incomplete"]).map((reason) => farmReadyReasonText(reason, t)).join(" ")}</StateMessage>}<Button variant="secondary" onClick={() => void load()}>{t("onboarding.reloadReadiness")}</Button></div>}
+    {step === 7 && <div className="onboarding-panel"><h2>{t("onboarding.firstRouteTitle")}</h2><p><strong>{t("onboarding.howToStart")}</strong> {t("onboarding.firstRouteDetail", { key: hotkeys?.recording_finish ?? "F9" })}</p><div className="route-choice">{(onboardingOptions.length > 0 ? onboardingOptions : catalog.runs.map((run) => ({ run_id: run.run_id, instruction_code: "", prerequisites: [] as RecordingOptionDTO["prerequisites"] }))).map((option, index) => (
+      <label key={option.run_id}><input type="radio" name="first-route" checked={routeID === option.run_id} onChange={() => setRouteID(option.run_id)} /> {presentRunName(option.run_id, t)}{index === 0 ? <> <strong>{t("onboarding.recommended")}</strong></> : null}</label>
+    ))}</div>{selectedOption && <><p>{presentRecordingInstruction(selectedOption.instruction_code, hotkeys?.recording_finish ?? "F9", t)}</p><ul>{(selectedOption.prerequisites ?? []).map((entry) => <li key={entry.id}>{prerequisiteLabel(entry.id, t)}: {prerequisiteStatus(entry, t)}</li>)}</ul></>} {["failed_safe", "emergency_cancelled"].includes(workflowState) && <StateMessage kind="error" title={t("onboarding.discardedTitle")}>{t("onboarding.discardedDetail")}</StateMessage>}<Button disabled={!allPrerequisitesReady || !settings?.input.enabled || compatibility !== "compatible"} onClick={() => onOpenRoutes(routeID)}>{t("onboarding.openRoutes")} <ExternalLink aria-hidden="true" size={17} /></Button></div>}
+    {step === 8 && <div className="onboarding-panel"><h2>{t("onboarding.finishTitle")}</h2><p>{t("onboarding.finishDetail")}</p>{!farmReady && <StateMessage kind="error" title={t("onboarding.setupMissing")}>{t("onboarding.setupMissingDetail")}</StateMessage>}<div className="inline-actions"><Button onClick={() => void finish(false)}>{t("onboarding.finishAssistant")}</Button><Button variant="secondary" onClick={() => onOpenRoutes(routeID)}>{t("onboarding.recordNow")}</Button>{!farmReady && <Button variant="secondary" onClick={() => setStep(5)}>{t("onboarding.configureNow")}</Button>}</div></div>}
 
-    <footer className="onboarding-actions"><Button variant="secondary" disabled={step === 0 || busy} onClick={() => setStep((value) => value - 1)}>Zurück</Button><Button variant="secondary" disabled={busy} onClick={() => void finish(true)}>Überspringen – Input bleibt aus</Button>{step < steps.length - 1 && <Button disabled={!canAdvance || busy} onClick={() => setStep((value) => value + 1)}>Weiter</Button>}</footer>
-    {selectionPreview && <Dialog title="Routenwirkung bestätigen" onClose={() => setSelectionPreview(null)}><p>Der Difficulty-Wechsel betrifft {selectionPreview.affected_routes.length} Route(n). Die vorhandene Core-Vorschau bleibt autoritativ.</p><div className="modal-actions"><Button variant="secondary" onClick={() => setSelectionPreview(null)}>Abbrechen</Button><Button onClick={() => void confirmSelection()}>Auswahl bestätigen</Button></div></Dialog>}
+    <footer className="onboarding-actions"><Button variant="secondary" disabled={step === 0 || busy} onClick={() => setStep((value) => value - 1)}>{t("onboarding.back")}</Button><Button variant="secondary" disabled={busy} onClick={() => void finish(true)}>{t("onboarding.skip")}</Button>{step < steps.length - 1 && <Button disabled={!canAdvance || busy} onClick={() => setStep((value) => value + 1)}>{t("onboarding.next")}</Button>}</footer>
+    {selectionPreview && <Dialog title={t("onboarding.routeImpactTitle")} onClose={() => setSelectionPreview(null)}><p>{t("onboarding.routeImpactDetail", { count: selectionPreview.affected_routes.length })}</p><div className="modal-actions"><Button variant="secondary" onClick={() => setSelectionPreview(null)}>{t("common.cancel")}</Button><Button onClick={() => void confirmSelection()}>{t("onboarding.confirmSelection")}</Button></div></Dialog>}
   </section>;
 }
 
-function message(reason: unknown, fallback: string): string {
-  return reason instanceof Error ? reason.message : fallback;
+function compatibilityStateText(state: string, t: AppTranslator): string {
+  const keys = { compatible: "onboarding.compatibilityState.compatible", not_detected: "onboarding.compatibilityState.notDetected", incompatible: "onboarding.compatibilityState.incompatible", unreadable: "onboarding.compatibilityState.unreadable" } as const;
+  const key = keys[state as keyof typeof keys] ?? "onboarding.compatibilityState.unknown";
+  return t(key);
+}
+
+function compatibilityDetailText(state: string, t: AppTranslator): string {
+  const keys = { not_detected: "onboarding.compatibilityDetail.notDetected", incompatible: "onboarding.compatibilityDetail.incompatible", unreadable: "onboarding.compatibilityDetail.unreadable" } as const;
+  const key = keys[state as keyof typeof keys];
+  return key ? t(key) : t("onboarding.d2rFallback");
+}
+
+function message(reason: unknown, t: AppTranslator, fallback: string): string {
+  return presentApiError(reason, t, fallback);
 }

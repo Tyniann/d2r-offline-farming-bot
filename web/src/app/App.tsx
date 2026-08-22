@@ -19,17 +19,21 @@ import { isRunStartable, queueStartErrorText, selectionErrorText } from "./runRe
 import { terminalWorkflowStates } from "../features/routes/routePresentation";
 import { DashboardFeature } from "../features/dashboard/DashboardFeature";
 import { AppSelectionProvider, useAppSelectionState } from "./AppSelectionContext";
+import { LanguageSwitcher } from "./LanguageSwitcher";
+import { useTranslation } from "react-i18next";
+import { presentApiError, presentDifficultyName, presentProblem, presentRunName } from "../i18n/presenters";
 
 const editableStates = new Set(["idle", "idle_in_game", "stopped_error"]);
 const navigation = [
-  { target: "dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { target: "routes", label: "Routen", icon: Map },
-  { target: "pickit", label: "Pickit", icon: SlidersHorizontal },
-  { target: "history", label: "Historie", icon: History },
-  { target: "settings", label: "Einstellungen", icon: Settings },
+  { target: "dashboard", icon: LayoutDashboard },
+  { target: "routes", icon: Map },
+  { target: "pickit", icon: SlidersHorizontal },
+  { target: "history", icon: History },
+  { target: "settings", icon: Settings },
 ] as const;
 
 export function App() {
+  const { t } = useTranslation();
   const bridge = window.d2rDesktop;
   const [provisioning, setProvisioning] = useState<boolean | null>(() => bridge?.getProvisioningState ? null : false);
 
@@ -42,12 +46,13 @@ export function App() {
     return () => { active = false; };
   }, [bridge]);
 
-  if (provisioning === null) return <main className="provisioning-shell"><StateMessage kind="loading" title="Lokaler Datenroot wird geprüft" /></main>;
+  if (provisioning === null) return <main className="provisioning-shell"><StateMessage kind="loading" title={t("app.provisioningCheck")} /></main>;
   if (provisioning) return <ProvisioningFeature />;
   return <CoreApp />;
 }
 
 function CoreApp() {
+  const { t } = useTranslation();
   const [onboardingStep, setOnboardingStep] = useState(() => readOnboardingResumeStep(8));
   const [target, setTarget] = useState<AppTarget>(() => targetFromHash(window.location.hash));
   const [status, setStatus] = useState<StatusDTO | null>(null);
@@ -57,9 +62,9 @@ function CoreApp() {
   const [routeWorkflow, setRouteWorkflow] = useState<RouteWorkflowDTO | null>(null);
   const [desktopSettings, setDesktopSettings] = useState<DesktopSettingsView | null>(() => window.d2rDesktop?.getDesktopSettings
     ? null
-    : { schema_version: 2, autostart: false, onboarding_completed: true });
+    : { schema_version: 3, language: "de", autostart: false, onboarding_completed: true });
   const [events, setEvents] = useState<LiveEvent[]>([]);
-  const [connection, setConnection] = useState<LiveConnectionState>("wird verbunden");
+  const [connection, setConnection] = useState<LiveConnectionState>("connecting");
   const [applying, setApplying] = useState(false);
   const [commandPending, setCommandPending] = useState(false);
   const commandLock = useRef(false);
@@ -87,8 +92,8 @@ function CoreApp() {
     void window.d2rDesktop.updateDesktopSettings({
       selected_character: selection.character,
       selected_difficulty: selection.difficulty,
-    }).then(setDesktopSettings).catch(() => setSelectionError("App-Auswahl konnte nicht gespeichert werden."));
-  }, []);
+    }).then(setDesktopSettings).catch(() => setSelectionError(t("app.selectionSaveFailed")));
+  }, [t]);
   const appSelection = useAppSelectionState(
     catalog,
     status,
@@ -111,7 +116,7 @@ function CoreApp() {
         return;
       }
       setTarget(next);
-      document.title = `${navigation.find((entry) => entry.target === next)?.label ?? "Dashboard"} · D2R Offline Farming Bot`;
+      document.title = t("app.documentTitle", { page: t(`navigation.${next}`) });
     };
     syncTarget();
     window.addEventListener("hashchange", syncTarget);
@@ -126,10 +131,10 @@ function CoreApp() {
       setDesktopSettings(settings);
       if (!settings.onboarding_completed) setOnboardingOpen(true);
     }).catch(() => {
-      if (active) setDesktopSettings({ schema_version: 2, autostart: false, onboarding_completed: true });
+      if (active) setDesktopSettings({ schema_version: 3, language: "de", autostart: false, onboarding_completed: true });
     });
     return () => { active = false; };
-  }, []);
+  }, [t]);
 
   useEffect(() => window.d2rDesktop?.onNavigate((next) => {
     const resolved = targetFromHash(`#${next}`);
@@ -168,7 +173,7 @@ function CoreApp() {
     let refreshPending = false;
 
     const reportError = (reason: unknown) => {
-      if (!controller.signal.aborted) setError(reason instanceof Error ? reason.message : "Statusabfrage fehlgeschlagen");
+      if (!controller.signal.aborted) setError(presentApiError(reason, t, t("app.statusFailed")));
     };
     const refreshStatus = async () => {
       if (refreshing) {
@@ -223,7 +228,7 @@ function CoreApp() {
       );
     }).catch(reportError);
     return () => { controller.abort(); disconnect(); };
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     const selectedCharacter = character;
@@ -263,7 +268,7 @@ function CoreApp() {
       appSelection.confirm({ character: selectionPreview.character, difficulty: selectionPreview.new_difficulty });
       setPreview(null);
     } catch (reason: unknown) {
-      setSelectionError(reason instanceof Error ? selectionErrorText(reason.message) : "Auswahl fehlgeschlagen");
+      setSelectionError(selectionErrorText(reason, t));
     } finally {
       setApplying(false);
     }
@@ -282,7 +287,7 @@ function CoreApp() {
         return;
       }
     } catch (reason: unknown) {
-      setSelectionError(reason instanceof Error ? selectionErrorText(reason.message) : "Vorschau fehlgeschlagen");
+      setSelectionError(selectionErrorText(reason, t, t("app.previewFailed")));
     } finally {
       setApplying(false);
     }
@@ -297,7 +302,7 @@ function CoreApp() {
       await action();
       await refreshAfterCommand();
     } catch (reason: unknown) {
-      setQueueError(reason instanceof Error ? queueStartErrorText(reason.message) : "Session-Befehl fehlgeschlagen");
+      setQueueError(queueStartErrorText(reason, t));
     } finally {
       commandLock.current = false;
       setCommandPending(false);
@@ -312,7 +317,7 @@ function CoreApp() {
       setQueueWarning("");
       const validation = await validateQueue(entries, status.selection.character!, status.selection.difficulty!, catalog.revision);
       if ((validation.warnings ?? []).includes("inventory_layout_unsuitable_for_cows")) {
-        setQueueWarning("Inventarlayout für Cow-Runs ungeeignet. Countess und andere Runs bleiben möglich.");
+        setQueueWarning(t("app.inventoryWarning"));
       }
       await startQueue(entries, status.selection.character!, status.selection.difficulty!, catalog.revision, status.generation);
     });
@@ -338,17 +343,15 @@ function CoreApp() {
       return !!run && isRunStartable(run.status);
     });
   const startFailureText = queueError || (status?.state === "stopped_error" && status.last_error && status.last_error.code !== "runtime_read_failed"
-    ? queueStartErrorText(`${status.last_error.code}: ${status.last_error.message}`)
+    ? presentProblem(status.last_error, t)
     : "");
   const queueStartLocked = !status || !catalog || !editableStates.has(status.state) || commandPending || liveLocked
     || farmReadyBlocked || inputNotReady || routeWorkflowBusy || !queueEntriesStartable || selectionRuns === null || draftDiffers;
   const effectiveSelectionLocked = selectionLocked || liveLocked || inputNotReady;
   const selectionApplyLocked = effectiveSelectionLocked || !character || (!draftDiffers && confirmedSelection)
     || (status?.state !== "idle" && status?.state !== "idle_in_game" && status?.state !== "stopped_error");
-  const confirmedDifficultyLabel = catalog?.difficulties.find((entry) => entry.id === status?.selection.difficulty)?.display_name
-    ?? status?.selection.difficulty
-    ?? "";
-  const appDifficultyLabel = catalog?.difficulties.find((entry) => entry.id === difficulty)?.display_name ?? difficulty;
+  const confirmedDifficultyLabel = status?.selection.difficulty ? presentDifficultyName(status.selection.difficulty, t) : "";
+  const appDifficultyLabel = presentDifficultyName(difficulty, t);
   const needsFirstRoute = confirmedSelection && !draftDiffers && selectionRuns !== null && selectionRuns.length > 0
     && !selectionRuns.some((run) => isRunStartable(run.status));
   const openRoutes = (runID = "countess") => {
@@ -370,28 +373,29 @@ function CoreApp() {
     <AppSelectionProvider value={appSelection}>
     <div className="app-shell">
       <aside className="sidebar">
-        <a className="brand" href="#dashboard" aria-label="D2R Offline Farming Bot – Dashboard">
+        <a className="brand" href="#dashboard" aria-label={t("sidebar.brandDashboard")}>
           <img src="./portal-mark.png" alt="" width="46" height="46" />
           <span><strong>D2R Offline</strong><small>Farming Bot</small></span>
         </a>
-        <nav className="main-navigation" aria-label="Hauptnavigation">
-          {navigation.map(({ target: itemTarget, label, icon: Icon }) => <a key={itemTarget} href={`#${itemTarget}`} aria-current={target === itemTarget ? "page" : undefined}><Icon aria-hidden="true" size={19} /><span>{label}</span></a>)}
+        <nav className="main-navigation" aria-label={t("sidebar.mainNavigation")}>
+          {navigation.map(({ target: itemTarget, icon: Icon }) => <a key={itemTarget} href={`#${itemTarget}`} aria-current={target === itemTarget ? "page" : undefined}><Icon aria-hidden="true" size={19} /><span>{t(`navigation.${itemTarget}`)}</span></a>)}
         </nav>
         <div className="sidebar-context">
-          <strong>Ausgewählter Charakter</strong>
-          <label>Charakter<select value={character} onChange={(event) => {
+          <strong>{t("sidebar.selectedCharacter")}</strong>
+          <label>{t("sidebar.character")}<select value={character} onChange={(event) => {
             const next = event.target.value;
             selectCharacter(next, storedCharacterSettings(operatorSettings, catalog, next)?.last_difficulty);
-          }} disabled={effectiveSelectionLocked}>{catalog?.characters.map((entry) => <option key={entry.slug} value={entry.name} disabled={!entry.selectable}>{entry.name}{entry.selectable ? "" : " – nicht verfügbar"}</option>)}</select></label>
-          <label>Schwierigkeit<select value={difficulty} onChange={(event) => selectDifficulty(event.target.value)} disabled={effectiveSelectionLocked}>{catalog?.difficulties.map((entry) => <option key={entry.id} value={entry.id}>{entry.display_name}</option>)}</select></label>
-          {sessionSelectionLocked && <small>Während der Session gesperrt</small>}
-          {!sessionSelectionLocked && confirmedSelection && !draftDiffers && <small className="sidebar-context-confirmed">In D2R aktiv</small>}
-          {draftDiffers && <small className="sidebar-context-pending">Noch nicht in D2R aktiv</small>}
+          }} disabled={effectiveSelectionLocked}>{catalog?.characters.map((entry) => <option key={entry.slug} value={entry.name} disabled={!entry.selectable}>{entry.name}{entry.selectable ? "" : ` – ${t("sidebar.unavailable")}`}</option>)}</select></label>
+          <label>{t("sidebar.difficulty")}<select value={difficulty} onChange={(event) => selectDifficulty(event.target.value)} disabled={effectiveSelectionLocked}>{catalog?.difficulties.map((entry) => <option key={entry.id} value={entry.id}>{presentDifficultyName(entry.id, t)}</option>)}</select></label>
+          {sessionSelectionLocked && <small>{t("sidebar.lockedDuringSession")}</small>}
+          {!sessionSelectionLocked && confirmedSelection && !draftDiffers && <small className="sidebar-context-confirmed">{t("sidebar.activeInD2R")}</small>}
+          {draftDiffers && <small className="sidebar-context-pending">{t("sidebar.notActiveInD2R")}</small>}
         </div>
         <div className="sidebar-meta">
-          <StatusBadge tone={connection === "verbunden" ? "success" : "danger"} icon={connection === "verbunden" ? Wifi : WifiOff}>{connection === "verbunden" ? "App verbunden" : "Verbindung getrennt"}</StatusBadge>
-          {updateAvailable && <a href="#settings" aria-label="Neue App-Version verfügbar"><StatusBadge tone="warning" icon={CircleArrowUp}>Update verfügbar</StatusBadge></a>}
-          <small>Version {status?.app_version ?? "–"}</small>
+          <LanguageSwitcher />
+          <StatusBadge tone={connection === "connected" ? "success" : "danger"} icon={connection === "connected" ? Wifi : WifiOff}>{t(connection === "connected" ? "sidebar.connected" : connection === "connecting" ? "sidebar.connecting" : "sidebar.disconnected")}</StatusBadge>
+          {updateAvailable && <a href="#settings" aria-label={t("sidebar.updateAvailableAria")}><StatusBadge tone="warning" icon={CircleArrowUp}>{t("sidebar.updateAvailable")}</StatusBadge></a>}
+          <small>{t("sidebar.version", { version: status?.app_version ?? "–" })}</small>
         </div>
       </aside>
 
@@ -433,15 +437,15 @@ function CoreApp() {
           onStartQueue={() => void submitQueue()}
         />}
 
-        {target === "routes" && <>{liveLocked && <StateMessage kind="error" title="Live-Routenaktionen sind gesperrt">Die Routenbibliothek bleibt read-only, bis D2R kompatibel bestätigt ist.</StateMessage>}<RouteFeature characters={catalog?.characters.map((entry) => entry.name) ?? []} selectedCharacter={character} onSelectedCharacterChange={(next) => selectCharacter(next, storedCharacterSettings(operatorSettings, catalog, next)?.last_difficulty)} refreshKey={routeRefreshKey} liveLocked={liveLocked} preferredRecordingRun={routeOpenedFromOnboarding ? preferredRecordingRun : ""} onReturnToOnboarding={routeOpenedFromOnboarding ? returnToOnboarding : undefined} /></>}
-        {target === "pickit" && <><PageHeader eyebrow="Loot-Policy" title="Pickit" description="Profile, Regeln und Zuordnungen bleiben Core-validiert und gelten erst an einer sicheren Run-Grenze." /><PickitFeature characters={catalog?.characters.map((entry) => entry.name) ?? []} selectedCharacter={character} onSelectedCharacterChange={(next) => selectCharacter(next, storedCharacterSettings(operatorSettings, catalog, next)?.last_difficulty)} runs={catalog?.runs.map((entry) => entry.run_id) ?? []} locked={!!status && !editableStates.has(status.state)} refreshKey={pickitRefreshKey} /></>}
-        {target === "history" && <><PageHeader eyebrow="Auswertung" title="Historie" description="Core-berechnete Runs, Itemertrag, Vergleiche und Exporte ohne UI-eigene Aggregation." /><HistoryFeature characters={catalog?.characters.map((entry) => entry.name) ?? []} selectedCharacter={character} selectedDifficulty={difficulty} onSelectedCharacterChange={(next) => selectCharacter(next, storedCharacterSettings(operatorSettings, catalog, next)?.last_difficulty)} onSelectedDifficultyChange={selectDifficulty} runs={catalog?.runs.map((entry) => entry.run_id) ?? []} refreshKey={historyRefreshKey} /></>}
-        {target === "settings" && <><PageHeader eyebrow="System" title="Einstellungen" description="Bot-Verhalten, Charaktere, App und Wartung – getrennt nach Speicherziel." /><SettingsFeature generation={status?.generation ?? 0} coreState={status?.state ?? ""} status={status} characters={catalog?.characters.map((entry) => entry.slug) ?? []} selectedCharacter={catalog?.characters.find((entry) => entry.name === character)?.slug ?? ""} onSelectedCharacterChange={(slug) => { const next = catalog?.characters.find((entry) => entry.slug === slug)?.name; if (next) selectCharacter(next, storedCharacterSettings(operatorSettings, catalog, next)?.last_difficulty); }} catalog={catalog} runs={catalog?.runs.map((entry) => ({ id: entry.run_id, label: entry.display_name, status: entry.status, reasons: entry.reasons, routeCombat: entry.route_combat })) ?? []} events={events} onOpenOnboarding={() => { setOnboardingStep(0); setOnboardingOpen(true); }} onSettingsApplied={() => { void refreshAfterCommand(); }} onHistoryDeleted={() => setHistoryRefreshKey((value) => value + 1)} onDirtyChange={setSettingsDirty} /></>}
+        {target === "routes" && <>{liveLocked && <StateMessage kind="error" title={t("app.routesLockedTitle")}>{t("app.routesLockedDetail")}</StateMessage>}<RouteFeature characters={catalog?.characters.map((entry) => entry.name) ?? []} selectedCharacter={character} onSelectedCharacterChange={(next) => selectCharacter(next, storedCharacterSettings(operatorSettings, catalog, next)?.last_difficulty)} refreshKey={routeRefreshKey} liveLocked={liveLocked} preferredRecordingRun={routeOpenedFromOnboarding ? preferredRecordingRun : ""} onReturnToOnboarding={routeOpenedFromOnboarding ? returnToOnboarding : undefined} /></>}
+        {target === "pickit" && <><PageHeader eyebrow={t("app.pickitEyebrow")} title={t("navigation.pickit")} description={t("app.pickitDescription")} /><PickitFeature characters={catalog?.characters.map((entry) => entry.name) ?? []} selectedCharacter={character} onSelectedCharacterChange={(next) => selectCharacter(next, storedCharacterSettings(operatorSettings, catalog, next)?.last_difficulty)} runs={catalog?.runs.map((entry) => entry.run_id) ?? []} locked={!!status && !editableStates.has(status.state)} refreshKey={pickitRefreshKey} /></>}
+        {target === "history" && <><PageHeader eyebrow={t("app.historyEyebrow")} title={t("navigation.history")} description={t("app.historyDescription")} /><HistoryFeature characters={catalog?.characters.map((entry) => entry.name) ?? []} selectedCharacter={character} selectedDifficulty={difficulty} onSelectedCharacterChange={(next) => selectCharacter(next, storedCharacterSettings(operatorSettings, catalog, next)?.last_difficulty)} onSelectedDifficultyChange={selectDifficulty} runs={catalog?.runs.map((entry) => entry.run_id) ?? []} refreshKey={historyRefreshKey} /></>}
+        {target === "settings" && <><PageHeader eyebrow={t("app.settingsEyebrow")} title={t("navigation.settings")} description={t("app.settingsDescription")} /><SettingsFeature generation={status?.generation ?? 0} coreState={status?.state ?? ""} status={status} characters={catalog?.characters.map((entry) => entry.slug) ?? []} selectedCharacter={catalog?.characters.find((entry) => entry.name === character)?.slug ?? ""} onSelectedCharacterChange={(slug) => { const next = catalog?.characters.find((entry) => entry.slug === slug)?.name; if (next) selectCharacter(next, storedCharacterSettings(operatorSettings, catalog, next)?.last_difficulty); }} catalog={catalog} runs={catalog?.runs.map((entry) => ({ id: entry.run_id, label: presentRunName(entry.run_id, t), status: entry.status, reasons: entry.reasons, routeCombat: entry.route_combat })) ?? []} events={events} onOpenOnboarding={() => { setOnboardingStep(0); setOnboardingOpen(true); }} onSettingsApplied={() => { void refreshAfterCommand(); }} onHistoryDeleted={() => setHistoryRefreshKey((value) => value + 1)} onDirtyChange={setSettingsDirty} /></>}
         </>}
       </main>
 
-      {preview && <Dialog title="Routen werden unbrauchbar" onClose={() => !applying && setPreview(null)}><p>Der Wechsel von <strong>{preview.old_difficulty || "unbestätigt"}</strong> auf <strong>{preview.new_difficulty}</strong> markiert folgende Farming-Routen als <code>stale</code>:</p><ul>{preview.affected_routes.map((route) => <li key={route}>{route}</li>)}</ul><p>Die Dateien werden nicht gelöscht oder verändert. Neue Aufnahmen sind vor Farming erforderlich.</p><div className="modal-actions"><Button variant="secondary" onClick={() => setPreview(null)} disabled={applying}>Abbrechen</Button><Button onClick={() => void applyPreview(preview)} disabled={applying}>{applying ? "Wird angewendet …" : "Auswirkungen bestätigen und anwenden"}</Button></div></Dialog>}
-      {pendingNav && <Dialog title="Ungespeicherte Änderungen" onClose={() => setPendingNav(null)}><p>Deine Änderungen an der Run-Reihenfolge sind noch nicht gespeichert. Ohne Speichern startet der Bot mit der alten Reihenfolge.</p><div className="modal-actions"><Button variant="secondary" onClick={() => setPendingNav(null)}>Zurück zu den Einstellungen</Button><Button variant="danger" onClick={discardSettingsAndNavigate}>Änderungen verwerfen</Button></div></Dialog>}
+      {preview && <Dialog title={t("app.routeInvalidationTitle")} onClose={() => !applying && setPreview(null)}><p>{t("app.routeInvalidationIntro", { oldDifficulty: preview.old_difficulty || t("app.unconfirmed"), newDifficulty: preview.new_difficulty })}</p><ul>{preview.affected_routes.map((route) => <li key={route}>{route}</li>)}</ul><p>{t("app.routeInvalidationDetail")}</p><div className="modal-actions"><Button variant="secondary" onClick={() => setPreview(null)} disabled={applying}>{t("common.cancel")}</Button><Button onClick={() => void applyPreview(preview)} disabled={applying}>{t(applying ? "app.applying" : "app.confirmApply")}</Button></div></Dialog>}
+      {pendingNav && <Dialog title={t("app.unsavedTitle")} onClose={() => setPendingNav(null)}><p>{t("app.unsavedDetail")}</p><div className="modal-actions"><Button variant="secondary" onClick={() => setPendingNav(null)}>{t("app.returnToSettings")}</Button><Button variant="danger" onClick={discardSettingsAndNavigate}>{t("app.discardChanges")}</Button></div></Dialog>}
     </div>
     </AppSelectionProvider>
   );

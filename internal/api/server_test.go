@@ -8,6 +8,7 @@ import (
 	"io/fs"
 	"log/slog"
 	"net/http"
+	"reflect"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -88,7 +89,7 @@ func (b *apiTestBackend) Status() StatusDTO {
 }
 
 func (b *apiTestBackend) Catalog() CatalogDTO {
-	return CatalogDTO{Revision: 1, Runs: []RunCatalogEntry{{RunID: "countess", DisplayName: "Countess", Status: "runtime_validation_required"}}}
+	return CatalogDTO{Revision: 1, Runs: []RunCatalogEntry{{RunID: "countess", Status: "runtime_validation_required"}}}
 }
 
 func (b *apiTestBackend) RunAvailabilities(character, difficulty string) (RunAvailabilitiesDTO, error) {
@@ -132,7 +133,7 @@ func TestSelectionPreviewIsTokenFreeStrictAndOriginProtected(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	assertAPIError(t, response, http.StatusBadRequest, "request_invalid")
+	assertAPIError(t, response, http.StatusBadRequest, "request_invalid", map[string]any{"field": "body"})
 	_ = response.Body.Close()
 
 	request, err = http.NewRequest(http.MethodPost, server.URL()+"/api/v1/selection/preview", strings.NewReader(`{"character":"MrBones","difficulty":"nightmare","catalog_revision":1}`))
@@ -145,7 +146,7 @@ func TestSelectionPreviewIsTokenFreeStrictAndOriginProtected(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	assertAPIError(t, response, http.StatusForbidden, "origin_rejected")
+	assertAPIError(t, response, http.StatusForbidden, "origin_rejected", nil)
 	_ = response.Body.Close()
 	if backend.previews.Load() != 1 {
 		t.Fatalf("rejected previews reached backend: %d", backend.previews.Load())
@@ -182,12 +183,12 @@ func TestQueueValidationIsTokenFreeAndStrict(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer response.Body.Close()
-	assertAPIError(t, response, http.StatusBadRequest, "request_invalid")
+	assertAPIError(t, response, http.StatusBadRequest, "request_invalid", map[string]any{"field": "body"})
 }
 
 func TestQueueValidationReturnsDuplicateIndices(t *testing.T) {
 	server, backend := startAPITestServer(t)
-	backend.queueErr = &commandError{code: "queue_duplicate_run", message: "Die Farm-Queue enthält einen Run mehrfach.", details: map[string]any{"run_id": "countess", "first_index": 0, "duplicate_index": 2}}
+	backend.queueErr = &commandError{code: "queue_duplicate_run", params: map[string]any{"run_id": "countess", "first_index": 0, "duplicate_index": 2}}
 	request, err := http.NewRequest(http.MethodPost, server.URL()+"/api/v1/queue/validate", strings.NewReader(`{"entries":["countess","mephisto","countess"],"character":"MrBones","difficulty":"nightmare","catalog_revision":1}`))
 	if err != nil {
 		t.Fatal(err)
@@ -202,7 +203,7 @@ func TestQueueValidationReturnsDuplicateIndices(t *testing.T) {
 	if err := json.NewDecoder(response.Body).Decode(&apiErr); err != nil {
 		t.Fatal(err)
 	}
-	if response.StatusCode != http.StatusConflict || apiErr.Code != "queue_duplicate_run" || apiErr.Details["run_id"] != "countess" || apiErr.Details["first_index"] != float64(0) || apiErr.Details["duplicate_index"] != float64(2) {
+	if response.StatusCode != http.StatusConflict || apiErr.Code != "queue_duplicate_run" || apiErr.Params["run_id"] != "countess" || apiErr.Params["first_index"] != float64(0) || apiErr.Params["duplicate_index"] != float64(2) || apiErr.RequestID == "" {
 		t.Fatalf("duplicate response status=%d body=%+v", response.StatusCode, apiErr)
 	}
 }
@@ -247,7 +248,7 @@ func TestServerEventsRejectInvalidLastEventID(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer response.Body.Close()
-	assertAPIError(t, response, http.StatusBadRequest, "request_invalid")
+	assertAPIError(t, response, http.StatusBadRequest, "request_invalid", map[string]any{"field": "last_event_id"})
 }
 
 func (b *apiTestBackend) Command(_ string, request CommandRequest) (CommandResponse, error) {
@@ -376,7 +377,7 @@ func TestServerRejectsForeignOriginBeforeCommand(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer response.Body.Close()
-	assertAPIError(t, response, http.StatusForbidden, "origin_rejected")
+	assertAPIError(t, response, http.StatusForbidden, "origin_rejected", nil)
 	if backend.commands.Load() != 0 {
 		t.Fatal("foreign origin reached command backend")
 	}
@@ -393,7 +394,7 @@ func TestServerRejectsWrongHostAndUnsupportedAPIVersion(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	assertAPIError(t, response, http.StatusBadRequest, "request_invalid")
+	assertAPIError(t, response, http.StatusBadRequest, "request_invalid", map[string]any{"field": "host"})
 	_ = response.Body.Close()
 
 	response, err = http.Get(server.URL() + "/api/v2/status")
@@ -401,7 +402,7 @@ func TestServerRejectsWrongHostAndUnsupportedAPIVersion(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer response.Body.Close()
-	assertAPIError(t, response, http.StatusNotFound, "api_version_unsupported")
+	assertAPIError(t, response, http.StatusNotFound, "api_version_unsupported", nil)
 }
 
 func TestServerSecurityEnvelope(t *testing.T) {
@@ -414,13 +415,14 @@ func TestServerSecurityEnvelope(t *testing.T) {
 		body        string
 		wantStatus  int
 		wantCode    string
+		wantParams  map[string]any
 	}{
-		{name: "method", method: http.MethodGet, wantStatus: http.StatusMethodNotAllowed, wantCode: "request_invalid"},
-		{name: "content type", method: http.MethodPost, token: server.token, body: `{}`, wantStatus: http.StatusUnsupportedMediaType, wantCode: "request_invalid"},
+		{name: "method", method: http.MethodGet, wantStatus: http.StatusMethodNotAllowed, wantCode: "request_invalid", wantParams: map[string]any{"field": "method"}},
+		{name: "content type", method: http.MethodPost, token: server.token, body: `{}`, wantStatus: http.StatusUnsupportedMediaType, wantCode: "request_invalid", wantParams: map[string]any{"field": "content_type"}},
 		{name: "token", method: http.MethodPost, contentType: "application/json", body: `{}`, wantStatus: http.StatusUnauthorized, wantCode: "request_unauthorized"},
-		{name: "malformed", method: http.MethodPost, contentType: "application/json", token: server.token, body: `{`, wantStatus: http.StatusBadRequest, wantCode: "request_invalid"},
-		{name: "command id", method: http.MethodPost, contentType: "application/json", token: server.token, body: `{"expected_generation":0}`, wantStatus: http.StatusBadRequest, wantCode: "request_invalid"},
-		{name: "unknown field", method: http.MethodPost, contentType: "application/json", token: server.token, body: `{"command_id":"x","expected_generation":0,"unknown":true}`, wantStatus: http.StatusBadRequest, wantCode: "request_invalid"},
+		{name: "malformed", method: http.MethodPost, contentType: "application/json", token: server.token, body: `{`, wantStatus: http.StatusBadRequest, wantCode: "request_invalid", wantParams: map[string]any{"field": "body"}},
+		{name: "command id", method: http.MethodPost, contentType: "application/json", token: server.token, body: `{"expected_generation":0}`, wantStatus: http.StatusBadRequest, wantCode: "request_invalid", wantParams: map[string]any{"field": "command_id"}},
+		{name: "unknown field", method: http.MethodPost, contentType: "application/json", token: server.token, body: `{"command_id":"x","expected_generation":0,"unknown":true}`, wantStatus: http.StatusBadRequest, wantCode: "request_invalid", wantParams: map[string]any{"field": "body"}},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -435,7 +437,7 @@ func TestServerSecurityEnvelope(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer response.Body.Close()
-			assertAPIError(t, response, test.wantStatus, test.wantCode)
+			assertAPIError(t, response, test.wantStatus, test.wantCode, test.wantParams)
 		})
 	}
 	if backend.commands.Load() != 0 {
@@ -452,7 +454,7 @@ func TestServerRejectsOversizedPayload(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer response.Body.Close()
-	assertAPIError(t, response, http.StatusRequestEntityTooLarge, "payload_too_large")
+	assertAPIError(t, response, http.StatusRequestEntityTooLarge, "payload_too_large", map[string]any{"field": "body"})
 	if backend.commands.Load() != 0 {
 		t.Fatal("oversized request reached command backend")
 	}
@@ -508,7 +510,7 @@ func TestControlBootstrapRequiresCustomHeaderAndRejectsForeignOrigin(t *testing.
 	if err != nil {
 		t.Fatal(err)
 	}
-	assertAPIError(t, response, http.StatusUnauthorized, "request_unauthorized")
+	assertAPIError(t, response, http.StatusUnauthorized, "request_unauthorized", nil)
 	_ = response.Body.Close()
 
 	request, err := http.NewRequest(http.MethodGet, server.URL()+"/api/v1/control/bootstrap", nil)
@@ -521,7 +523,7 @@ func TestControlBootstrapRequiresCustomHeaderAndRejectsForeignOrigin(t *testing.
 	if err != nil {
 		t.Fatal(err)
 	}
-	assertAPIError(t, response, http.StatusForbidden, "origin_rejected")
+	assertAPIError(t, response, http.StatusForbidden, "origin_rejected", nil)
 	_ = response.Body.Close()
 }
 
@@ -581,7 +583,7 @@ func TestDiagnosticBundleRequiresTokenAndProjectsOnlyNeutralFilename(t *testing.
 		t.Fatal(err)
 	}
 	defer response.Body.Close()
-	assertAPIError(t, response, http.StatusUnauthorized, "request_unauthorized")
+	assertAPIError(t, response, http.StatusUnauthorized, "request_unauthorized", nil)
 }
 
 func startAPITestServer(t *testing.T) (*Server, *apiTestBackend) {
@@ -620,7 +622,7 @@ func newCommandRequest(t *testing.T, server *Server, path, body string) *http.Re
 	return request
 }
 
-func assertAPIError(t *testing.T, response *http.Response, status int, code string) {
+func assertAPIError(t *testing.T, response *http.Response, status int, code string, params map[string]any) {
 	t.Helper()
 	if response.StatusCode != status {
 		t.Fatalf("status = %d, want %d", response.StatusCode, status)
@@ -629,7 +631,7 @@ func assertAPIError(t *testing.T, response *http.Response, status int, code stri
 	if err := json.NewDecoder(response.Body).Decode(&apiError); err != nil {
 		t.Fatal(err)
 	}
-	if apiError.Code != code || apiError.Message == "" || apiError.RequestID == "" {
+	if apiError.Code != code || !reflect.DeepEqual(apiError.Params, params) || apiError.RequestID == "" {
 		t.Fatalf("API error = %+v", apiError)
 	}
 }

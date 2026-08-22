@@ -35,16 +35,18 @@ Das entbehrliche Chromium-Laufzeitprofil liegt dabei getrennt im benutzereigenen
 
 ### Desktop-Einstellungen
 
-`DesktopSettingsStore` liegt im Electron-Main-Bereich und besitzt ausschließlich `window_bounds`, `autostart` und `onboarding_completed` im strikten JSON-Schema 1. Fachwerte wie Input, Queue oder Budgets sind ausdrücklich ausgeschlossen. Ein Save schreibt eine eindeutige Temp-Datei im selben Verzeichnis, flusht sie, ersetzt atomar und liest den persistierten Vertrag erneut. Unbekannte Felder, unbekannte Versionen oder ungültige Bounds setzen den gesamten effektiven Desktopzustand fail-closed auf Defaults zurück; Autostart ist dabei aus.
+`DesktopSettingsStore` liegt im Electron-Main-Bereich und verwendet das strikte JSON-Schema 3. Es besitzt `language`, optionale `window_bounds`, `autostart`, `onboarding_completed` sowie die letzte Charakter- und Schwierigkeitsauswahl. Fachwerte wie Input, Queue oder Budgets sind ausdrücklich ausgeschlossen. Ein Save schreibt eine eindeutige Temp-Datei im selben Verzeichnis, flusht sie, ersetzt atomar und liest den persistierten Vertrag erneut. Unbekannte Felder, unbekannte Versionen oder ungültige Werte setzen den gesamten effektiven Desktopzustand fail-closed auf Defaults zurück; Autostart ist dabei aus.
 
-Bei einem Import liest Electron vor der Core-Provisionierung ausschließlich `onboarding_completed` aus dem streng validierten Desktop-Store der Quelle. Nach der atomaren Veröffentlichung lädt es den Ziel-Store erneut und persistiert einen importierten Abschluss, bevor der produktive Renderer startet. Autostart und Fensterbounds werden bewusst nicht übernommen. Fehlt der Quelldatensatz oder ist er ungültig, bleibt der Abschluss fail-closed auf `false` und der Assistent wird regulär angeboten. Der Go-Core kopiert weiterhin ausschließlich seine eigenen fachlichen Daten und erhält keine Ownership über `desktop-settings.json`.
+`language` akzeptiert ausschließlich `de` oder `en`. Schema 1 und 2 migrieren vollständig validiert mit `de` auf Schema 3. Bei einer fehlenden Datei verwendet Electron `de` für eine deutsche Windows-Sprache und sonst `en`, ohne den noch nicht provisionierten Zielroot anzulegen. Der Renderer speichert einen Sprachwechsel über die Preload-Bridge atomar. Die Core-YAML enthält keine Sprache.
+
+Bei einem Import liest Electron vor der Core-Provisionierung ausschließlich `onboarding_completed` aus dem streng validierten Desktop-Store der Quelle. Nach der atomaren Veröffentlichung lädt es den Ziel-Store erneut und persistiert einen importierten Abschluss, bevor der produktive Renderer startet. Sprache, Autostart, Fensterbounds und letzte Auswahl werden bewusst nicht übernommen. Fehlt der Quelldatensatz oder ist er ungültig, bleibt der Abschluss fail-closed auf `false` und der Assistent wird regulär angeboten. Der Go-Core kopiert weiterhin ausschließlich seine eigenen fachlichen Daten und erhält keine Ownership über `desktop-settings.json`.
 
 ## Datenmodell
 
 - `DataRootStatus`: `published` oder `existing`
 - `DataRootResult`: kanonischer Root, Status und isolierte History-Diagnosen
 - `DefaultBundleManifest`: Schema-Version und SHA-256-gebundene Dateien
-- `DesktopSettings`: Schema 1, optionale Fensterbounds, Autostart und Onboardingstatus
+- `DesktopSettings`: Schema 3 mit `language: "de" | "en"`, optionalen Fensterbounds, Autostart, Onboardingstatus und optionaler letzter Auswahl
 
 ## Operator / CLI
 
@@ -65,6 +67,7 @@ Bei einem Import liest Electron vor der Core-Provisionierung ausschließlich `on
 - [Session-Konfiguration und Inspect](session-configuration.md)
 - [History-Reader und In-Memory-Index](history-reader-index.md)
 - [First Run, Provisionierung und erste Route](first-run-onboarding.md)
+- [Internationalisierung Deutsch und Englisch](internationalization.md)
 
 ---
-*Zuletzt aktualisiert: 26. Juli 2026*
+*Zuletzt aktualisiert: 22. August 2026*

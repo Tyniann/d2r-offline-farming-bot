@@ -137,8 +137,8 @@ func defaultRunDefinitions() []RunDefinition {
 			BossEngageSequence: []EncounterAction{{Hook: profile.HookBossEngage}}, ReturnOrigin: town.OriginAct1,
 			RequiredCaps: append([]RunCapability(nil), shared...),
 			Recording: RecordingContract{
-				InstructionsDE: "Reise zum Wegpunkt Schwarzmarsch, starte dort die Aufnahme und bewege dich bis zu deiner gewünschten Kampfposition bei der Gräfin. Beende die Aufnahme mit F9.",
-				StartKind:      RecordingStartWaypoint, StartWaypoint: pathing.WaypointTargetBlackMarsh, AllowedStartArea: world.BlackMarsh,
+				InstructionCode: "record_countess",
+				StartKind:       RecordingStartWaypoint, StartWaypoint: pathing.WaypointTargetBlackMarsh, AllowedStartArea: world.BlackMarsh,
 				AllowedRouteAreas: []world.AreaID{world.BlackMarsh, world.ForgottenTower, world.TowerCellarLevel1, world.TowerCellarLevel2, world.TowerCellarLevel3, world.TowerCellarLevel4, world.TowerCellarLevel5},
 				TerminalKind:      RecordingTerminalBoss, TerminalArea: world.TowerCellarLevel5, Boss: BossDescriptor{NPCID: world.DarkStalker, Name: "Countess", RequireSuperUnique: true, AllowAnySuperUniqueFallback: true, SearchAnchorObject: world.ObjectKindGoodChest, SearchAnchorEntrance: world.EntranceKindTowerCellarDown},
 				TerminalMaxDistanceTiles: 80, Movement: pathing.RouteMovementTeleport, SafetyReturn: RecordingSafetyReturnTownPortal, EgressOriginAct: town.OriginAct1,
@@ -151,8 +151,8 @@ func defaultRunDefinitions() []RunDefinition {
 			BossEngageSequence: []EncounterAction{{Hook: profile.HookBossEngage}, {Hook: profile.HookBossEngage}}, ReturnOrigin: town.OriginAct3,
 			RequiredCaps: append(append([]RunCapability(nil), shared...), RunCapabilityForeignTownEgress),
 			Recording: RecordingContract{
-				InstructionsDE: "Reise zum Wegpunkt Kerker des Hasses – Ebene 2, starte dort die Aufnahme und bewege dich bis zu deiner gewünschten Kampfposition bei Mephisto. Beende die Aufnahme mit F9.",
-				StartKind:      RecordingStartWaypoint, StartWaypoint: pathing.WaypointTargetDuranceOfHateLevel2, AllowedStartArea: world.DuranceOfHateLevel2,
+				InstructionCode: "record_mephisto",
+				StartKind:       RecordingStartWaypoint, StartWaypoint: pathing.WaypointTargetDuranceOfHateLevel2, AllowedStartArea: world.DuranceOfHateLevel2,
 				AllowedRouteAreas: []world.AreaID{world.DuranceOfHateLevel2, world.DuranceOfHateLevel3},
 				TerminalKind:      RecordingTerminalBoss, TerminalArea: world.DuranceOfHateLevel3, Boss: BossDescriptor{NPCID: world.Mephisto, Name: "Mephisto"},
 				TerminalMaxDistanceTiles: 60, Movement: pathing.RouteMovementTeleport, SafetyReturn: RecordingSafetyReturnTownPortal, EgressOriginAct: town.OriginAct3,
@@ -166,8 +166,8 @@ func defaultRunDefinitions() []RunDefinition {
 			RouteHostileNPCIDs: []uint32{world.ArcaneSpecter, world.ArcaneHellClan, world.ArcaneGhoulLord},
 			RequiredCaps:       append(append([]RunCapability(nil), shared...), RunCapabilityForeignTownEgress, RunCapabilityRouteClear),
 			Recording: RecordingContract{
-				InstructionsDE: "Reise zum Wegpunkt Arcane Sanctuary, starte dort die Aufnahme und bewege dich bis zu deiner gewünschten Kampfposition beim Summoner. Beende die Aufnahme mit F9.",
-				StartKind:      RecordingStartWaypoint, StartWaypoint: pathing.WaypointTargetArcaneSanctuary, AllowedStartArea: world.ArcaneSanctuary,
+				InstructionCode: "record_summoner",
+				StartKind:       RecordingStartWaypoint, StartWaypoint: pathing.WaypointTargetArcaneSanctuary, AllowedStartArea: world.ArcaneSanctuary,
 				AllowedRouteAreas: []world.AreaID{world.ArcaneSanctuary},
 				TerminalKind:      RecordingTerminalBoss, TerminalArea: world.ArcaneSanctuary, Boss: BossDescriptor{NPCID: world.Summoner, Name: "Summoner"},
 				TerminalMaxDistanceTiles: 60, Movement: pathing.RouteMovementTeleport, SafetyReturn: RecordingSafetyReturnTownPortal, EgressOriginAct: town.OriginAct2,
@@ -180,8 +180,8 @@ func defaultRunDefinitions() []RunDefinition {
 			BossEngageSequence: nil, ClearNearbyAfterBoss: true, ReturnOrigin: town.OriginAct5,
 			RequiredCaps: append(append([]RunCapability(nil), shared...), RunCapabilityForeignTownEgress),
 			Recording: RecordingContract{
-				InstructionsDE: "Reise zum Wegpunkt Halls of Pain (Halls of Death's Calling), starte dort die Aufnahme und bewege dich bis zu deiner gewünschten Kampfposition bei Nihlathak in den Halls of Vaught. Beende die Aufnahme mit F9.",
-				StartKind:      RecordingStartWaypoint, StartWaypoint: pathing.WaypointTargetHallsOfPain, AllowedStartArea: world.HallsOfPain,
+				InstructionCode: "record_nihlathak",
+				StartKind:       RecordingStartWaypoint, StartWaypoint: pathing.WaypointTargetHallsOfPain, AllowedStartArea: world.HallsOfPain,
 				AllowedRouteAreas: []world.AreaID{world.HallsOfPain, world.HallsOfVaught},
 				TerminalKind:      RecordingTerminalBoss, TerminalArea: world.HallsOfVaught, Boss: BossDescriptor{NPCID: world.Nihlathak, Name: "Nihlathak"},
 				TerminalMaxDistanceTiles: 60, Movement: pathing.RouteMovementTeleport, SafetyReturn: RecordingSafetyReturnTownPortal, EgressOriginAct: town.OriginAct5,
@@ -198,17 +198,17 @@ func defaultRunDefinitions() []RunDefinition {
 				PrimaryRole: pathing.RouteRoleCowSweep,
 				Recordings: map[pathing.RouteRole]RecordingContract{
 					pathing.RouteRoleLegAcquisition: {
-						RouteRole:      pathing.RouteRoleLegAcquisition,
-						InstructionsDE: "Reise zum Wegpunkt Stony Field. Ein vorheriger Clear ist nicht nötig. Starte dort die Aufnahme, betrete das bereits geöffnete rote Portal nach Tristram und bewege dich bis in die Nähe von Wirts Körper. Klicke Wirt nicht an. Beende die Aufnahme mit F9.",
-						StartKind:      RecordingStartWaypoint, StartWaypoint: pathing.WaypointTargetStonyField,
+						RouteRole:       pathing.RouteRoleLegAcquisition,
+						InstructionCode: "record_cow_leg",
+						StartKind:       RecordingStartWaypoint, StartWaypoint: pathing.WaypointTargetStonyField,
 						AllowedStartArea: world.StonyField, AllowedRouteAreas: []world.AreaID{world.StonyField, world.Tristram},
 						TerminalKind: RecordingTerminalObject, TerminalArea: world.Tristram, TerminalObjectKind: world.ObjectKindWirtsBody,
 						TerminalMaxDistanceTiles: 20, Movement: pathing.RouteMovementTeleport, SafetyReturn: RecordingSafetyReturnTownPortal, EgressOriginAct: town.OriginAct1,
 					},
 					pathing.RouteRoleCowSweep: {
-						RouteRole:      pathing.RouteRoleCowSweep,
-						InstructionsDE: "Öffne das Kuh-Level manuell und räume es vor der Aufnahme vollständig. Starte die Aufnahme in der Moo Moo Farm nahe dem roten Ankunftsportal, folge deiner vollständigen Farming-Schleife und beende sie am gewünschten Endpunkt mit F9.",
-						StartKind:      RecordingStartObjectPortalArrival, StartObjectKind: world.ObjectKindPermanentPortal, StartPortalFromArea: world.RogueEncampment,
+						RouteRole:       pathing.RouteRoleCowSweep,
+						InstructionCode: "record_cow_sweep",
+						StartKind:       RecordingStartObjectPortalArrival, StartObjectKind: world.ObjectKindPermanentPortal, StartPortalFromArea: world.RogueEncampment,
 						AllowedStartArea: world.MooMooFarm, AllowedRouteAreas: []world.AreaID{world.MooMooFarm},
 						TerminalKind: RecordingTerminalEndpoint, TerminalArea: world.MooMooFarm,
 						TerminalMaxDistanceTiles: 20, Movement: pathing.RouteMovementTeleport, SafetyReturn: RecordingSafetyReturnTownPortal, EgressOriginAct: town.OriginAct1,
@@ -222,8 +222,8 @@ func defaultRunDefinitions() []RunDefinition {
 			ReturnOrigin: town.OriginAct3,
 			RequiredCaps: append(append([]RunCapability(nil), shared...), RunCapabilityForeignTownEgress, RunCapabilityChestSweep),
 			Recording: RecordingContract{
-				InstructionsDE: "Reise zum Wegpunkt Unteres Kurast und starte dort die Aufnahme. Teleportiere die Hüttenreihen entlang und suche das Lagerfeuer: zwei rechteckige Hütten, darunter ein Feuer, das von einer kurzen Mauer eingefasst ist. In der westlichen Hütte stehen zwei große Truhen, in der östlichen eine. Dieselben Hütten haben ein Rüstungs- und ein Waffengestell. Wenn du ein zweites Feuer mit derselben Anordnung siehst, nimm den Weg dorthin ebenfalls auf. Klicke Truhen und Gestelle nicht selbst an. Beende die Aufnahme in der Nähe der letzten Hüttengruppe mit F9.",
-				StartKind:      RecordingStartWaypoint, StartWaypoint: pathing.WaypointTargetLowerKurast, AllowedStartArea: world.LowerKurast,
+				InstructionCode: "record_lower_kurast",
+				StartKind:       RecordingStartWaypoint, StartWaypoint: pathing.WaypointTargetLowerKurast, AllowedStartArea: world.LowerKurast,
 				AllowedRouteAreas: []world.AreaID{world.LowerKurast},
 				TerminalKind:      RecordingTerminalEndpoint, TerminalArea: world.LowerKurast,
 				TerminalMaxDistanceTiles: 60, Movement: pathing.RouteMovementTeleport, SafetyReturn: RecordingSafetyReturnTownPortal, EgressOriginAct: town.OriginAct3,
@@ -329,7 +329,7 @@ func validateRunDefinition(definition RunDefinition) error {
 }
 
 func validateRecordingContract(definition RunDefinition, contract RecordingContract, singleRoute bool) error {
-	if strings.TrimSpace(contract.InstructionsDE) == "" || contract.AllowedStartArea == world.None || contract.TerminalArea == world.None {
+	if strings.TrimSpace(contract.InstructionCode) == "" || contract.AllowedStartArea == world.None || contract.TerminalArea == world.None {
 		return fmt.Errorf("recording instructions, start area, and terminal area are required")
 	}
 	switch contract.StartKind {
@@ -386,7 +386,7 @@ func validateRecordingContract(definition RunDefinition, contract RecordingContr
 
 func validateRouteSetDefinition(definition RunDefinition) error {
 	set := definition.RouteSet
-	if definition.ID != RunIDCows || set == nil || len(set.Roles) != 2 || set.PrimaryRole != pathing.RouteRoleCowSweep || len(set.Recordings) != 2 || definition.Recording.InstructionsDE != "" {
+	if definition.ID != RunIDCows || set == nil || len(set.Roles) != 2 || set.PrimaryRole != pathing.RouteRoleCowSweep || len(set.Recordings) != 2 || definition.Recording.InstructionCode != "" {
 		return fmt.Errorf("cows route set must declare exactly leg_acquisition and primary cow_sweep")
 	}
 	want := []pathing.RouteRole{pathing.RouteRoleLegAcquisition, pathing.RouteRoleCowSweep}

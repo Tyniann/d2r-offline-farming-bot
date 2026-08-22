@@ -2,7 +2,9 @@ import { randomUUID } from "node:crypto";
 import { mkdir, open, readFile, rename, rm } from "node:fs/promises";
 import { dirname, isAbsolute } from "node:path";
 
-export const DESKTOP_SETTINGS_SCHEMA_VERSION = 2;
+export const DESKTOP_SETTINGS_SCHEMA_VERSION = 3;
+
+export type DesktopLanguage = "de" | "en";
 
 export interface WindowBounds {
   x: number;
@@ -13,6 +15,7 @@ export interface WindowBounds {
 
 export interface DesktopSettings {
   schema_version: typeof DESKTOP_SETTINGS_SCHEMA_VERSION;
+  language: DesktopLanguage;
   window_bounds?: WindowBounds;
   autostart: boolean;
   onboarding_completed: boolean;
@@ -20,7 +23,7 @@ export interface DesktopSettings {
   selected_difficulty?: string;
 }
 
-export type DesktopSettingsUpdate = Partial<Pick<DesktopSettings, "autostart" | "onboarding_completed" | "selected_character" | "selected_difficulty">>;
+export type DesktopSettingsUpdate = Partial<Pick<DesktopSettings, "language" | "autostart" | "onboarding_completed" | "selected_character" | "selected_difficulty">>;
 
 export interface LoadedDesktopSettings {
   settings: DesktopSettings;
@@ -33,6 +36,7 @@ export interface DesktopSettingsStoreHooks {
 
 const DEFAULT_SETTINGS: Readonly<DesktopSettings> = Object.freeze({
   schema_version: DESKTOP_SETTINGS_SCHEMA_VERSION,
+  language: "de",
   autostart: false,
   onboarding_completed: false,
 });
@@ -42,13 +46,15 @@ const DEFAULT_SETTINGS: Readonly<DesktopSettings> = Object.freeze({
 export class DesktopSettingsStore {
   readonly #path: string;
   readonly #hooks: DesktopSettingsStoreHooks;
+  readonly #defaultLanguage: DesktopLanguage;
 
-  constructor(path: string, hooks: DesktopSettingsStoreHooks = {}) {
+  constructor(path: string, hooks: DesktopSettingsStoreHooks = {}, defaultLanguage: DesktopLanguage = "de") {
     if (!isAbsolute(path)) {
       throw new Error("Der Pfad für Desktop-Einstellungen muss absolut sein.");
     }
     this.#path = path;
     this.#hooks = hooks;
+    this.#defaultLanguage = defaultLanguage;
   }
 
   async load(): Promise<LoadedDesktopSettings> {
@@ -57,11 +63,11 @@ export class DesktopSettingsStore {
       return { settings: parseDesktopSettings(raw), recovered: false };
     } catch (error) {
       if (isMissingFile(error)) {
-        return { settings: desktopSettingsDefaults(), recovered: false };
+        return { settings: desktopSettingsDefaults(this.#defaultLanguage), recovered: false };
       }
       // Beschädigte, unbekannte oder unzulässige Inhalte werden nie teilweise
       // übernommen. Insbesondere bleibt Autostart nach einer Recovery deaktiviert.
-      return { settings: desktopSettingsDefaults(), recovered: true };
+      return { settings: desktopSettingsDefaults(this.#defaultLanguage), recovered: true };
     }
   }
 
@@ -91,8 +97,8 @@ export class DesktopSettingsStore {
   }
 }
 
-export function desktopSettingsDefaults(): DesktopSettings {
-  return { ...DEFAULT_SETTINGS };
+export function desktopSettingsDefaults(language: DesktopLanguage = "de"): DesktopSettings {
+  return { ...DEFAULT_SETTINGS, language };
 }
 
 export function parseDesktopSettings(value: unknown): DesktopSettings {
@@ -105,27 +111,36 @@ export function parseDesktopSettings(value: unknown): DesktopSettings {
       ["schema_version", "window_bounds", "autostart", "onboarding_completed"],
       ["schema_version", "autostart", "onboarding_completed"],
     );
-    return parseKnownDesktopSettings(value);
+    return parseKnownDesktopSettings(value, "de");
+  }
+  if (value.schema_version === 2) {
+    requireExactKeys(
+      value,
+      ["schema_version", "window_bounds", "autostart", "onboarding_completed", "selected_character", "selected_difficulty"],
+      ["schema_version", "autostart", "onboarding_completed"],
+    );
+    return parseKnownDesktopSettings(value, "de");
   }
   requireExactKeys(
     value,
-    ["schema_version", "window_bounds", "autostart", "onboarding_completed", "selected_character", "selected_difficulty"],
-    ["schema_version", "autostart", "onboarding_completed"],
+    ["schema_version", "language", "window_bounds", "autostart", "onboarding_completed", "selected_character", "selected_difficulty"],
+    ["schema_version", "language", "autostart", "onboarding_completed"],
   );
   if (value.schema_version !== DESKTOP_SETTINGS_SCHEMA_VERSION) {
     throw new Error("Unbekannte Desktop-Einstellungsversion.");
   }
-  return parseKnownDesktopSettings(value);
+  return parseKnownDesktopSettings(value, parseDesktopLanguage(value.language));
 }
 
 export function parseDesktopSettingsUpdate(value: unknown): DesktopSettingsUpdate {
   if (!isRecord(value)) throw new Error("Desktop-Einstellungen müssen ein Objekt sein.");
-  requireExactKeys(value, ["autostart", "onboarding_completed", "selected_character", "selected_difficulty"], []);
+  requireExactKeys(value, ["language", "autostart", "onboarding_completed", "selected_character", "selected_difficulty"], []);
   if (Object.keys(value).length === 0) throw new Error("Desktop-Einstellungen enthalten keine Änderung.");
   if ("autostart" in value && typeof value.autostart !== "boolean") throw new Error("Autostart muss boolesch sein.");
   if ("onboarding_completed" in value && typeof value.onboarding_completed !== "boolean") throw new Error("Onboarding muss boolesch sein.");
 
   const update: DesktopSettingsUpdate = {};
+  if ("language" in value) update.language = parseDesktopLanguage(value.language);
   if ("autostart" in value) update.autostart = value.autostart as boolean;
   if ("onboarding_completed" in value) update.onboarding_completed = value.onboarding_completed as boolean;
   if ("selected_character" in value) update.selected_character = parsePreference(value.selected_character, "Charakter", 128);
@@ -133,11 +148,12 @@ export function parseDesktopSettingsUpdate(value: unknown): DesktopSettingsUpdat
   return update;
 }
 
-function parseKnownDesktopSettings(value: Record<string, unknown>): DesktopSettings {
+function parseKnownDesktopSettings(value: Record<string, unknown>, language: DesktopLanguage): DesktopSettings {
   if (typeof value.autostart !== "boolean" || typeof value.onboarding_completed !== "boolean") throw new Error("Desktop-Schalter müssen boolesch sein.");
 
   const settings: DesktopSettings = {
     schema_version: DESKTOP_SETTINGS_SCHEMA_VERSION,
+    language,
     autostart: value.autostart,
     onboarding_completed: value.onboarding_completed,
   };
@@ -147,6 +163,15 @@ function parseKnownDesktopSettings(value: Record<string, unknown>): DesktopSetti
   if (value.selected_character !== undefined) settings.selected_character = parsePreference(value.selected_character, "Charakter", 128);
   if (value.selected_difficulty !== undefined) settings.selected_difficulty = parsePreference(value.selected_difficulty, "Schwierigkeit", 32);
   return settings;
+}
+
+export function resolveDesktopLanguage(value: string | null | undefined): DesktopLanguage {
+  return value?.trim().toLowerCase().replace("_", "-").split("-")[0] === "de" ? "de" : "en";
+}
+
+function parseDesktopLanguage(value: unknown): DesktopLanguage {
+  if (value !== "de" && value !== "en") throw new Error("Desktop-Sprache muss de oder en sein.");
+  return value;
 }
 
 function parsePreference(value: unknown, label: string, maxLength: number): string {

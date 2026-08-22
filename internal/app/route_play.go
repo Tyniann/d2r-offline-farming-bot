@@ -35,7 +35,7 @@ func (rt *Runtime) RunRoutePlay(routeID string) (retErr error) {
 	}
 	defer func() {
 		if retErr != nil {
-			_ = trace.Emit(telemetry.Event{Event: telemetry.RoutePlaybackFailed, RouteID: routeID, SegmentID: player.Segment().ID, Reason: retErr.Error()})
+			_ = trace.Emit(telemetry.Event{Event: telemetry.RoutePlaybackFailed, RouteID: routeID, SegmentID: player.Segment().ID, Reason: routePlaybackReason(retErr)})
 		}
 		if closeErr := trace.Close(); closeErr != nil && retErr == nil {
 			retErr = closeErr

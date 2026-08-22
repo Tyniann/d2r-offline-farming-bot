@@ -18,7 +18,7 @@ Abschnitt 15.6 verbindet die Core-autoritären Operator-Einstellungen mit der in
 
 ### Settings-Seite
 
-Die Seite lädt die revisionierten Operator-Einstellungen vom Go-Core und die kleinen Desktop-Einstellungen aus Electron. Editierbar sind charakterbezogene Difficulty und Queue, Sessionbudgets, Input-Opt-in, vier verschiedene Hotkeys, History-Retention, Autostart und der Onboarding-Merker. Die effektive Core-Konfiguration und ihr relativer Speicherort bleiben read-only sichtbar.
+Die Seite lädt die revisionierten Operator-Einstellungen vom Go-Core und die kleinen Desktop-Einstellungen aus Electron. Editierbar sind charakterbezogene Difficulty und Queue, Sessionbudgets, Input-Opt-in, vier verschiedene Hotkeys, History-Retention, Autostart und der Onboarding-Merker. Der app-weite Sidebar-Schalter speichert die Sprache getrennt im Desktop-Store. Die effektive Core-Konfiguration und ihr relativer Speicherort bleiben read-only sichtbar.
 
 Operatoränderungen durchlaufen zuerst die Core-Vorschau. Update und Reset senden die erwartete Store-Revision, die aktuelle Supervisorgeneration und den Control-Token. Eine veraltete Revision bleibt als eigener Konfliktzustand sichtbar und kann nur durch Neuladen aufgelöst werden. Input- oder Hotkeyänderungen zeigen `restart_required`; der anschließend angebotene Neustart läuft kontrolliert über Electron und ist nur bei sicher inaktivem Core möglich. Während einer aktiven Session sind alle fachlichen Mutationen gesperrt.
 
@@ -35,7 +35,7 @@ Operatoränderungen durchlaufen zuerst die Core-Vorschau. Update und Reset sende
 | `error` | Bestätigung | gesperrt | gesperrt | erlaubt |
 | `core_down` | Bestätigung | gesperrt | gesperrt | erlaubt |
 
-Das Tray enthält ausschließlich Öffnen, den nicht interaktiven Status, Pause nach Run, Stop nach Run, Emergency Stop und Beenden. Commands sind single-flight und an den jüngsten Control-Token sowie die jüngste Supervisorgeneration gebunden. Eine zweite App-Instanz aktiviert nur das bestehende Fenster und erzeugt keinen Command.
+Das Tray enthält ausschließlich Öffnen, den nicht interaktiven Status, Pause nach Run, Stop nach Run, Emergency Stop und Beenden. Electron übersetzt Labels und Tooltip aus dem gespeicherten Wert `de` oder `en` und baut das Menü nach einem Sprachwechsel sofort neu auf. Commands sind single-flight und an den jüngsten Control-Token sowie die jüngste Supervisorgeneration gebunden. Eine zweite App-Instanz aktiviert nur das bestehende Fenster und erzeugt keinen Command.
 
 ### Fenster und Autostart
 
@@ -53,6 +53,8 @@ Native Benachrichtigungen erscheinen ausschließlich, wenn das Fenster nicht fok
 - verfügbare Version → `#settings`.
 
 Ein Klick stellt dasselbe vorhandene Fenster wieder her, fokussiert es und navigiert über die begrenzte Preload-Bridge zum stabilen Hash-Ziel. Abschnitt 15.10 bindet den einmaligen stabilen Versionshinweis an; die Einstellungen bieten den einzigen manuellen Retry und ausschließlich die fest kompilierte Release-Seite.
+
+Titel und Body kommen aus demselben Desktop-Katalog wie das Tray. Native Dialoge und Recovery verwenden ebenfalls die gespeicherte Sprache. Rohe Core-Fehler bleiben Diagnosewerte und werden nicht in diesen Oberflächen angezeigt.
 
 ### Quit- und Cancellation-Sicherheit
 
@@ -72,6 +74,7 @@ Aktive, vorgemerkte, pausierte, abbrechende und unbekannte Corezustände dürfen
 - [Persistente Operator-Einstellungen](operator-settings.md)
 - [Installierter Datenroot und Desktop-Einstellungen](installed-data-root.md)
 - [Desktop-App-Shell und Designsystem](desktop-app-shell.md)
+- [Internationalisierung Deutsch und Englisch](internationalization.md)
 
 ---
-*Zuletzt aktualisiert: 26. Juli 2026*
+*Zuletzt aktualisiert: 22. August 2026*

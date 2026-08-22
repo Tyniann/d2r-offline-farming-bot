@@ -11,6 +11,7 @@ import (
 // chestOperateAdapter wraps the shared hover-confirmed entity clicker for hut
 // Supertruhen and nearby racks. Approach and Mode settle stay in the task pipeline.
 type chestOperateAdapter struct {
+	log           *slog.Logger
 	clicker       *pathing.EntityClicker
 	targetUnitID  uint32
 	probeActive   bool
@@ -21,7 +22,7 @@ func newChestOperateAdapter(log *slog.Logger, driver pathing.InputDriver, pathCf
 	// Supertruhen sitzen über ihrer Bodenkachel. Der normale Objekt-Anker
 	// (Default 2 Kacheln) legt die Hover-Spirale auf den Sprite, nicht auf den
 	// Boden; Offset 0 traf den Deckel erst bei Versuch 11–12 von 15.
-	return &chestOperateAdapter{clicker: pathing.NewEntityClicker(log, driver, pathCfg.Projector(), pathCfg.Click)}
+	return &chestOperateAdapter{log: log, clicker: pathing.NewEntityClicker(log, driver, pathCfg.Projector(), pathCfg.Click)}
 }
 
 // Tick advances one hover-confirmed object click toward target.
@@ -43,7 +44,10 @@ func (a *chestOperateAdapter) Tick(state world.State, target world.Object, maxDi
 		Name:     target.Name,
 	}, maxDistance)
 	if err != nil {
-		return tasks.ChestOperateResult{Status: tasks.ChestOperateFailed, Done: true, Reason: err.Error()}
+		if a.log != nil {
+			a.log.Error("chest interaction failed", "unit_id", target.UnitID, "error", err)
+		}
+		return tasks.ChestOperateResult{Status: tasks.ChestOperateFailed, Done: true, Reason: "chest_operate_failed"}
 	}
 	status := tasks.ChestOperatePending
 	switch result.Status {

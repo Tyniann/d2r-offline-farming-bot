@@ -26,9 +26,8 @@ type RouteEntryDTO struct {
 type RecordingOptionDTO struct {
 	RunID                    string                     `json:"run_id"`
 	RouteRole                string                     `json:"route_role,omitempty"`
-	DisplayName              string                     `json:"display_name"`
-	InstructionsDE           string                     `json:"instructions_de"`
-	OperatorHintsDE          []string                   `json:"operator_hints_de,omitempty"`
+	InstructionCode          string                     `json:"instruction_code"`
+	OperatorHintCodes        []string                   `json:"operator_hint_codes,omitempty"`
 	StartKind                string                     `json:"start_kind"`
 	StartWaypoint            string                     `json:"start_waypoint"`
 	AllowedStartAreaID       uint32                     `json:"allowed_start_area_id"`

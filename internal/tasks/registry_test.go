@@ -100,7 +100,7 @@ func TestDefaultRunRegistryMetadataAndOrder(t *testing.T) {
 		lowerKurast.Recording.Movement != pathing.RouteMovementTeleport ||
 		lowerKurast.Recording.SafetyReturn != RecordingSafetyReturnTownPortal ||
 		lowerKurast.Recording.EgressOriginAct != town.OriginAct3 ||
-		!strings.Contains(lowerKurast.Recording.InstructionsDE, "Lagerfeuer") ||
+		lowerKurast.Recording.InstructionCode != "record_lower_kurast" ||
 		town.KeyRestockNextRun != string(RunIDLowerKurast) {
 		t.Fatalf("Lower Kurast recording contract = %+v", lowerKurast.Recording)
 	}

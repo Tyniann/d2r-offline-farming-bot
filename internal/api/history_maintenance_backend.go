@@ -96,7 +96,7 @@ func (b *LiveBackend) historyMaintenanceContext(expectedGeneration uint64) ([]st
 	activeRunID := b.status.RunInstanceID
 	b.mu.RUnlock()
 	if expectedGeneration != generation || !historyMaintenanceIdle(state, workflow) {
-		return nil, &commandError{code: string(telemetry.HistoryReasonRetentionBlocked), message: "Die Historie kann nur ohne laufende Session oder laufenden Routenvorgang gelöscht werden."}
+		return nil, &commandError{code: string(telemetry.HistoryReasonRetentionBlocked)}
 	}
 	active := make([]string, 0, 2)
 	if activeRunID != "" {
@@ -126,7 +126,7 @@ func historyMaintenanceIdle(state, workflow string) bool {
 func historyMaintenanceDiagnosticsDTO(values []telemetry.HistoryMaintenanceDiagnostic) []HistoryMaintenanceDiagnosticDTO {
 	out := make([]HistoryMaintenanceDiagnosticDTO, len(values))
 	for index, value := range values {
-		out[index] = HistoryMaintenanceDiagnosticDTO{FileID: value.FileID, Code: string(value.Code), Message: value.Message}
+		out[index] = HistoryMaintenanceDiagnosticDTO{FileID: value.FileID, Code: string(value.Code)}
 	}
 	return out
 }

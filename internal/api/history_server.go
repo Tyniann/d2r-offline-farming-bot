@@ -28,7 +28,7 @@ type historyCursor struct {
 func (s *Server) historyBackend(w http.ResponseWriter, r *http.Request) (historyBackend, bool) {
 	backend, ok := s.backend.(historyBackend)
 	if !ok {
-		s.writeError(w, http.StatusNotImplemented, "history_unavailable", "Die Historie ist nicht verfügbar.", requestIDFrom(r), nil)
+		s.writeError(w, http.StatusNotImplemented, "history_unavailable", requestIDFrom(r), nil)
 	}
 	return backend, ok
 }
@@ -351,13 +351,7 @@ func (s *Server) writeHistoryBackendError(w http.ResponseWriter, r *http.Request
 	code := telemetry.HistoryErrorCode(err)
 	var commandErr *commandError
 	if errors.As(err, &commandErr) {
-		candidate := telemetry.HistoryReasonCode(commandErr.code)
-		if _, known := telemetry.HistoryReasonMessage(candidate); known {
-			code = candidate
-		}
-	}
-	if code == telemetry.HistoryReasonFileInvalid && !strings.Contains(err.Error(), string(code)) {
-		code = telemetry.HistoryReasonUnavailable
+		code = telemetry.HistoryReasonCode(commandErr.code)
 	}
 	s.writeHistoryError(w, r, code)
 }
@@ -370,11 +364,7 @@ func (s *Server) writeHistoryError(w http.ResponseWriter, r *http.Request, code 
 	case telemetry.HistoryReasonUnavailable:
 		status = http.StatusServiceUnavailable
 	}
-	message, ok := telemetry.HistoryReasonMessage(code)
-	if !ok {
-		message = "Die Historienanfrage konnte nicht verarbeitet werden."
-	}
-	s.writeError(w, status, string(code), message, requestIDFrom(r), nil)
+	s.writeError(w, status, string(code), requestIDFrom(r), nil)
 }
 
 func writeHistoryRunCSV(writer *csv.Writer, runs []telemetry.HistoryRunAnalysis) {

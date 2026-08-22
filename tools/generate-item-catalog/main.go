@@ -16,6 +16,7 @@ import (
 type row struct {
 	Code       string
 	Name       string
+	SourceKey  string
 	Type       string
 	NormalCode string
 	UberCode   string
@@ -31,14 +32,20 @@ func main() {
 	src := flag.String("src", ".tmp/d2r-excel", "directory containing weapons.txt, armor.txt, misc.txt")
 	version := flag.String("version", "", "D2R version that produced the TXT files")
 	out := flag.String("out", filepath.Join("internal", "world", "item_catalog_data.go"), "generated Go file path")
+	gameDEOut := flag.String("game-de-out", "", "generated German game-name JSON path")
+	gameENOut := flag.String("game-en-out", "", "generated English game-name JSON path")
 	flag.Parse()
-	if err := generateCatalog(*version, *src, *out); err != nil {
+	if err := generateCatalogWithGameNames(*version, *src, *out, *gameDEOut, *gameENOut); err != nil {
 		fmt.Fprintf(os.Stderr, "generate item catalog: %v\n", err)
 		os.Exit(1)
 	}
 }
 
 func generateCatalog(version, src, out string) error {
+	return generateCatalogWithGameNames(version, src, out, "", "")
+}
+
+func generateCatalogWithGameNames(version, src, out, gameDEOut, gameENOut string) error {
 	if strings.TrimSpace(version) == "" {
 		return fmt.Errorf("-version is required")
 	}
@@ -59,6 +66,14 @@ func generateCatalog(version, src, out string) error {
 	}
 	if err := os.WriteFile(out, data, 0o644); err != nil {
 		return fmt.Errorf("write %s: %w", out, err)
+	}
+	if (gameDEOut == "") != (gameENOut == "") {
+		return fmt.Errorf("-game-de-out and -game-en-out must be provided together")
+	}
+	if gameDEOut != "" {
+		if err := generateGameNames(version, src, rows, identities, gameDEOut, gameENOut); err != nil {
+			return fmt.Errorf("generate localized game names: %w", err)
+		}
 	}
 	return nil
 }
@@ -150,6 +165,7 @@ func readFile(path string) ([]row, error) {
 		rows = append(rows, row{
 			Code:       code,
 			Name:       firstNonEmpty(value(rec, header, "name"), value(rec, header, "namestr")),
+			SourceKey:  firstNonEmpty(value(rec, header, "namestr"), value(rec, header, "name")),
 			Type:       value(rec, header, "type"),
 			NormalCode: value(rec, header, "normcode"),
 			UberCode:   value(rec, header, "ubercode"),

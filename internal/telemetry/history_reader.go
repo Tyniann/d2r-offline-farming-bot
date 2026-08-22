@@ -29,9 +29,8 @@ var errHistoryFileChanging = errors.New("history file is currently changing")
 
 // HistoryFileDiagnostic beschreibt eine isolierte, nicht statistikfähige Datei.
 type HistoryFileDiagnostic struct {
-	File    string            `json:"file"`
-	Code    HistoryReasonCode `json:"code"`
-	Message string            `json:"message"`
+	File string            `json:"file"`
+	Code HistoryReasonCode `json:"code"`
 }
 
 // HistoryFile ist das immutable Ergebnis einer vollständig validierten JSONL-Datei.
@@ -274,7 +273,11 @@ func historyErrorCode(err error) HistoryReasonCode {
 
 // HistoryErrorCode extrahiert den stabilen Reason-Code eines Historienfehlers.
 func HistoryErrorCode(err error) HistoryReasonCode {
-	return historyErrorCode(err)
+	var target *historyReadErrorValue
+	if errors.As(err, &target) {
+		return target.code
+	}
+	return HistoryReasonUnavailable
 }
 
 func validateHistoryEvent(event Event) error {

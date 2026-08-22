@@ -9,7 +9,7 @@ import (
 func (s *Server) historyMaintenanceBackend(w http.ResponseWriter, r *http.Request) (historyMaintenanceBackend, bool) {
 	backend, ok := s.backend.(historyMaintenanceBackend)
 	if !ok {
-		s.writeError(w, http.StatusNotImplemented, string(telemetry.HistoryReasonUnavailable), "Die Historienwartung ist nicht verfügbar.", requestIDFrom(r), nil)
+		s.writeError(w, http.StatusNotImplemented, string(telemetry.HistoryReasonUnavailable), requestIDFrom(r), nil)
 	}
 	return backend, ok
 }

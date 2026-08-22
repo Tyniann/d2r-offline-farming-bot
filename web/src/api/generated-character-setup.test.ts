@@ -15,10 +15,10 @@ it("transportiert den Core-Vertrag für Slots, CTA und Readiness", () => {
     display_name: "Hammerdin",
     is_default: true,
     is_selected: true,
-    required_skills: [{ skill: "blessed_hammer", skill_id: 112, display_name: "Gesegneter Hammer", slot: "left" }],
+    required_skills: [{ skill: "blessed_hammer", skill_id: 112, slot: "left" }],
     optional_skill_pairs: [{ skills: [
-      { skill: "battle_command", skill_id: 155, display_name: "Battle Command", slot: "right" },
-      { skill: "battle_orders", skill_id: 149, display_name: "Battle Orders", slot: "right" },
+      { skill: "battle_command", skill_id: 155, slot: "right" },
+      { skill: "battle_orders", skill_id: 149, slot: "right" },
     ] }],
     requires_mercenary: true,
     bindings_ready: false,

@@ -6,6 +6,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -25,6 +26,9 @@ const (
 )
 
 var (
+	// ErrDiagnosticContentRejected identifies a diagnostic source that violates the bundle allowlist.
+	ErrDiagnosticContentRejected = errors.New(string(Phase15ReasonDiagnosticContentRejected))
+
 	diagnosticSecretYAML = regexp.MustCompile(`(?im)^(\s*[^#\r\n]*(?:token|secret|password|api[_-]?key|authorization)[^:=\r\n]*\s*[:=]\s*).*$`)
 	diagnosticSecretJSON = regexp.MustCompile(`(?i)("(?:[^"])*(?:token|secret|password|api[_-]?key|authorization)(?:[^"])*"\s*:\s*)"[^"]*"`)
 	diagnosticUserPath   = regexp.MustCompile(`(?i)[a-z]:[\\/]+Users[\\/]+[^\\/"\r\n]+(?:[\\/][^"\r\n,}]*)?`)
@@ -54,7 +58,7 @@ type DiagnosticBundleCollector struct {
 // NewDiagnosticBundleCollector bindet den Collector an einen absoluten installierten Datenroot.
 func NewDiagnosticBundleCollector(root string, history *telemetry.HistoryIndex) (*DiagnosticBundleCollector, error) {
 	if !filepath.IsAbs(root) {
-		return nil, fmt.Errorf("%s: diagnostic data root must be absolute", Phase15ReasonDiagnosticContentRejected)
+		return nil, fmt.Errorf("%w: diagnostic data root must be absolute", ErrDiagnosticContentRejected)
 	}
 	return &DiagnosticBundleCollector{root: filepath.Clean(root), history: history, now: time.Now}, nil
 }
@@ -183,10 +187,10 @@ func (c *DiagnosticBundleCollector) writeSelectedDirectory(writer *zip.Writer, r
 		return nil
 	}
 	if err != nil {
-		return fmt.Errorf("%s: inspect diagnostic source: %w", Phase15ReasonDiagnosticContentRejected, err)
+		return fmt.Errorf("%w: inspect diagnostic source: %w", ErrDiagnosticContentRejected, err)
 	}
 	if !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
-		return fmt.Errorf("%s: diagnostic source is not a regular directory", Phase15ReasonDiagnosticContentRejected)
+		return fmt.Errorf("%w: diagnostic source is not a regular directory", ErrDiagnosticContentRejected)
 	}
 	var names []string
 	walkErr := filepath.WalkDir(root, func(path string, entry os.DirEntry, walkErr error) error {
@@ -218,7 +222,7 @@ func (c *DiagnosticBundleCollector) writeSelectedDirectory(writer *zip.Writer, r
 		return nil
 	})
 	if walkErr != nil {
-		return fmt.Errorf("%s: scan diagnostic source: %w", Phase15ReasonDiagnosticContentRejected, walkErr)
+		return fmt.Errorf("%w: scan diagnostic source: %w", ErrDiagnosticContentRejected, walkErr)
 	}
 	sort.Strings(names)
 	if len(names) > maximum {
@@ -245,10 +249,10 @@ func readDiagnosticFile(path string) ([]byte, bool, error) {
 		return nil, false, nil
 	}
 	if err != nil {
-		return nil, false, fmt.Errorf("%s: inspect diagnostic file: %w", Phase15ReasonDiagnosticContentRejected, err)
+		return nil, false, fmt.Errorf("%w: inspect diagnostic file: %w", ErrDiagnosticContentRejected, err)
 	}
 	if !info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0 || info.Size() > diagnosticMaximumFileBytes {
-		return nil, false, fmt.Errorf("%s: diagnostic file is not an allowed regular file", Phase15ReasonDiagnosticContentRejected)
+		return nil, false, fmt.Errorf("%w: diagnostic file is not an allowed regular file", ErrDiagnosticContentRejected)
 	}
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -260,7 +264,7 @@ func readDiagnosticFile(path string) ([]byte, bool, error) {
 func (c *DiagnosticBundleCollector) writeEntry(writer *zip.Writer, name string, data []byte) error {
 	clean := filepath.ToSlash(filepath.Clean(name))
 	if clean == "." || strings.HasPrefix(clean, "../") || strings.HasPrefix(clean, "/") {
-		return fmt.Errorf("%s: invalid diagnostic entry", Phase15ReasonDiagnosticContentRejected)
+		return fmt.Errorf("%w: invalid diagnostic entry", ErrDiagnosticContentRejected)
 	}
 	entry, err := writer.CreateHeader(&zip.FileHeader{Name: clean, Method: zip.Deflate})
 	if err != nil {

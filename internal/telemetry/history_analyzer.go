@@ -217,11 +217,7 @@ func AnalyzeHistory(snapshot HistorySnapshot, filter HistoryFilter) (HistoryAnal
 				file = run.RunID + ".jsonl"
 			}
 			code := HistoryErrorCode(err)
-			message, _ := HistoryReasonMessage(code)
-			if message == "" {
-				message = err.Error()
-			}
-			analysis.Diagnostics = append(analysis.Diagnostics, HistoryFileDiagnostic{File: file, Code: code, Message: message})
+			analysis.Diagnostics = append(analysis.Diagnostics, HistoryFileDiagnostic{File: file, Code: code})
 			continue
 		}
 		analysis.Runs = append(analysis.Runs, row)

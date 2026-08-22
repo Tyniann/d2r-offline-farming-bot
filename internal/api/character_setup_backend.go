@@ -115,7 +115,7 @@ func (b *LiveBackend) replayCharacterCommand(commandID, name, payload string) (C
 		return CharacterSetupPreviewDTO{}, false, nil
 	}
 	if record.name != name || record.payload != payload {
-		return CharacterSetupPreviewDTO{}, false, &commandError{code: "command_id_conflict", message: "Die Command-ID wurde bereits anders verwendet."}
+		return CharacterSetupPreviewDTO{}, false, &commandError{code: "command_id_conflict"}
 	}
 	return record.response, true, nil
 }
@@ -124,19 +124,19 @@ func (b *LiveBackend) characterSetupMutationContext(commandID string, expectedGe
 	b.mu.RLock()
 	defer b.mu.RUnlock()
 	if strings.TrimSpace(commandID) == "" {
-		return nil, &commandError{code: "command_invalid", message: "Eine Command-ID ist erforderlich."}
+		return nil, &commandError{code: "command_invalid", params: map[string]any{"field": "command_id"}}
 	}
 	if b.characterSetup == nil {
 		return nil, fmt.Errorf("character setup service is unavailable")
 	}
 	if expectedGeneration != b.status.Generation {
-		return nil, &commandError{code: "state_changed", message: "Der Core-Zustand hat sich geändert."}
+		return nil, &commandError{code: "state_changed"}
 	}
 	if b.status.State != string(app.SupervisorStateIdle) && b.status.State != string(app.SupervisorStateStoppedError) {
-		return nil, &commandError{code: "command_conflict", message: "Charakter-Setup ist nur bei inaktiver Session möglich."}
+		return nil, &commandError{code: "command_conflict", params: map[string]any{"operation": "character_setup"}}
 	}
 	if routeWorkflowBusy(b.routeWorkflow.State) {
-		return nil, &commandError{code: "command_conflict", message: "Charakter-Setup ist während eines Routen-Workflows gesperrt."}
+		return nil, &commandError{code: "command_conflict", params: map[string]any{"operation": "character_setup"}}
 	}
 	return b.characterSetup, nil
 }
@@ -167,11 +167,11 @@ func (b *LiveBackend) reloadCharacterCatalog() (app.CharacterCatalog, error) {
 	reload := b.characterCatalogReload
 	b.mu.RUnlock()
 	if reload == nil {
-		return app.CharacterCatalog{}, &commandError{code: "character_catalog_unavailable", message: "Die lokalen Spielstände konnten nicht sicher neu gelesen werden."}
+		return app.CharacterCatalog{}, &commandError{code: "character_catalog_unavailable"}
 	}
 	catalog, err := reload()
 	if err != nil {
-		return app.CharacterCatalog{}, &commandError{code: "character_catalog_unavailable", message: "Die lokalen Spielstände konnten nicht sicher neu gelesen werden."}
+		return app.CharacterCatalog{}, &commandError{code: "character_catalog_unavailable", cause: fmt.Errorf("reload character catalog: %w", err)}
 	}
 	b.publishCharacterCatalog(catalog, catalog.Revision != previousRevision)
 	return catalog, nil
@@ -183,7 +183,7 @@ func (b *LiveBackend) validateDesktopCharacterContract(character string, runIDs 
 	assignments := b.pickitAssignments
 	b.mu.RUnlock()
 	if settingsStore == nil {
-		return app.CharacterCatalogEntry{}, 0, &commandError{code: "character_setup_unavailable", message: "Die Charaktereinrichtung ist noch nicht verfügbar."}
+		return app.CharacterCatalogEntry{}, 0, &commandError{code: "character_setup_unavailable"}
 	}
 	catalog, err := b.reloadCharacterCatalog()
 	if err != nil {
@@ -198,48 +198,45 @@ func (b *LiveBackend) validateDesktopCharacterContract(character string, runIDs 
 		}
 	}
 	if !found {
-		return app.CharacterCatalogEntry{}, catalog.Revision, &commandError{code: app.CharacterReasonSaveMissing, message: "Der lokale Offline-Spielstand wurde nicht gefunden."}
+		return app.CharacterCatalogEntry{}, catalog.Revision, &commandError{code: app.CharacterReasonSaveMissing}
 	}
 	if !entry.Selectable || entry.ExpectedClass == "" || entry.CombatProfile == "" {
 		code := app.CharacterReasonProfileMissing
 		if len(entry.Reasons) > 0 {
 			code = entry.Reasons[0]
 		}
-		return app.CharacterCatalogEntry{}, catalog.Revision, &commandError{code: code, message: "Der Charakter ist noch nicht vollständig eingerichtet."}
+		return app.CharacterCatalogEntry{}, catalog.Revision, &commandError{code: code}
 	}
 	settings, snapshotErr := settingsStore.Snapshot()
 	if snapshotErr != nil {
-		return app.CharacterCatalogEntry{}, catalog.Revision, &commandError{code: "character_setup_unavailable", message: "Die Charaktereinrichtung konnte nicht sicher gelesen werden."}
+		return app.CharacterCatalogEntry{}, catalog.Revision, &commandError{code: "character_setup_unavailable", cause: fmt.Errorf("read character setup: %w", snapshotErr)}
 	}
 	stored := settings.Characters[entry.Slug]
 	profile, profileExists := b.cfg.Profiles[stored.CombatProfile]
 	if stored.CharacterClass != entry.ExpectedClass || stored.CombatProfile != entry.CombatProfile ||
 		!profileExists || !profile.Setup.Enabled || profile.CharacterClass != entry.ExpectedClass {
-		return app.CharacterCatalogEntry{}, catalog.Revision, &commandError{code: app.CharacterReasonProfileIncompatible, message: "Das gespeicherte Kampfprofil passt nicht zur Charakterklasse."}
+		return app.CharacterCatalogEntry{}, catalog.Revision, &commandError{code: app.CharacterReasonProfileIncompatible}
 	}
 	for _, runID := range runIDs {
 		if _, ok := b.cfg.Runs.Run(strings.TrimSpace(runID)); !ok {
 			return app.CharacterCatalogEntry{}, catalog.Revision, &commandError{
-				code:    string(tasks.RunReasonConfigMissing),
-				message: "Dieser Run ist in der Konfiguration nicht vorhanden.",
-				details: map[string]any{"run_id": runID},
+				code:   string(tasks.RunReasonConfigMissing),
+				params: map[string]any{"run_id": strings.TrimSpace(runID)},
 			}
 		}
 		if _, ok := app.DefaultCombatStrategyRegistry().Resolve(entry.CombatProfile, strings.TrimSpace(runID)); !ok {
 			return app.CharacterCatalogEntry{}, catalog.Revision, &commandError{
-				code:    string(tasks.RunReasonProfileRunStrategyUnavailable),
-				message: "Das Kampfprofil unterstützt diesen Run noch nicht.",
-				details: map[string]any{"run_id": runID},
+				code:   string(tasks.RunReasonProfileRunStrategyUnavailable),
+				params: map[string]any{"run_id": strings.TrimSpace(runID)},
 			}
 		}
 		if assignments == nil {
-			return app.CharacterCatalogEntry{}, catalog.Revision, &commandError{code: "pickit_assignment_invalid", message: "Die Lootprofil-Zuordnung ist nicht verfügbar."}
+			return app.CharacterCatalogEntry{}, catalog.Revision, &commandError{code: "pickit_assignment_invalid", params: map[string]any{"run_id": strings.TrimSpace(runID)}}
 		}
 		if _, resolveErr := assignments.Resolve(entry.Name, tasks.RunID(runID)); resolveErr != nil {
 			return app.CharacterCatalogEntry{}, catalog.Revision, &commandError{
-				code:    "pickit_assignment_invalid",
-				message: "Für diesen Charakter und Run fehlt eine gültige Lootprofil-Zuordnung.",
-				details: map[string]any{"run_id": runID},
+				code:   "pickit_assignment_invalid",
+				params: map[string]any{"run_id": strings.TrimSpace(runID)},
 			}
 		}
 	}
@@ -252,7 +249,7 @@ func characterSetupCommandError(err error) error {
 		if setupErr.Code == "character_setup_unavailable" {
 			return setupErr
 		}
-		return &commandError{code: setupErr.Code, message: "Der Charakter-Setup-Stand hat sich geändert oder ist unvollständig.", details: map[string]any{"partial": setupErr.Partial}}
+		return &commandError{code: setupErr.Code, params: map[string]any{"partial": setupErr.Partial}, cause: fmt.Errorf("apply character setup: %w", setupErr)}
 	}
 	return err
 }

@@ -2,6 +2,7 @@
 
 interface DesktopSettingsView {
   schema_version: number;
+  language: "de" | "en";
   autostart: boolean;
   onboarding_completed: boolean;
   selected_character?: string;
@@ -24,7 +25,7 @@ interface D2RDesktopBridge {
   openReleasePage?(): Promise<void>;
   revealDiagnosticBundle?(filename: string): Promise<void>;
   getDesktopSettings(): Promise<DesktopSettingsView>;
-  updateDesktopSettings(request: { autostart?: boolean; onboarding_completed?: boolean; selected_character?: string; selected_difficulty?: string }): Promise<DesktopSettingsView>;
+  updateDesktopSettings(request: { language?: "de" | "en"; autostart?: boolean; onboarding_completed?: boolean; selected_character?: string; selected_difficulty?: string }): Promise<DesktopSettingsView>;
   showWindow(): Promise<void>;
   restartCore(): Promise<void>;
   restartAsAdministrator(): Promise<void>;

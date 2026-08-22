@@ -718,7 +718,7 @@ func queueRuntimeTerminal(err error) SupervisorRunResult {
 	if errors.Is(err, context.Canceled) {
 		return SupervisorRunResult{Disposition: QueueRunStop, Reason: string(SupervisorReasonEmergencyStopRequested)}
 	}
-	return SupervisorRunResult{Disposition: QueueRunStop, Reason: err.Error()}
+	return SupervisorRunResult{Disposition: QueueRunStop, Reason: "queue_runtime_failed"}
 }
 
 func queueRunTerminalEvent(result SupervisorRunResult) telemetry.EventName {

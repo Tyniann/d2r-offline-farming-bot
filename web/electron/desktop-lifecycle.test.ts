@@ -1,7 +1,7 @@
 // @vitest-environment node
 
 import { describe, expect, it } from "vitest";
-import { desktopLifecyclePolicy, desktopNotificationSpec, notificationForTransition, shouldShowDesktopNotification, type DesktopCoreSnapshot, type DesktopLifecycleState } from "./desktop-lifecycle.js";
+import { desktopLifecyclePolicy, desktopNotificationTarget, notificationForTransition, shouldShowDesktopNotification, type DesktopCoreSnapshot, type DesktopLifecycleState } from "./desktop-lifecycle.js";
 
 describe("Desktop-State-Matrix", () => {
   it.each([
@@ -16,6 +16,7 @@ describe("Desktop-State-Matrix", () => {
   ] as const)("projiziert %s exakt", (expectedState, snapshot, closeAction, pause, stop, emergency, quit) => {
     const policy = desktopLifecyclePolicy(snapshot);
     expect(policy).toMatchObject({ state: expectedState, closeAction, canPauseAfterRun: pause, canStopAfterRun: stop, canEmergencyStop: emergency, canQuit: quit });
+    expect(policy).not.toHaveProperty("label");
   });
 
   it("behandelt einen unbekannten verbundenen Zustand fail-closed", () => {
@@ -32,11 +33,11 @@ describe("Desktop-Benachrichtigungen", () => {
     [snapshot("running_run", "pause_after_run"), snapshot("paused_between_runs"), "pause_reached", "dashboard"],
   ] as const)("erkennt nur den fachlichen Übergang %s → %s", (before, after, kind, target) => {
     expect(notificationForTransition(before, after)).toBe(kind);
-    expect(desktopNotificationSpec(kind).target).toBe(target);
+    expect(desktopNotificationTarget(kind)).toBe(target);
   });
 
   it("projiziert den vierten erlaubten Updatetyp auf Settings", () => {
-    expect(desktopNotificationSpec("update_available")).toMatchObject({ target: "settings", title: "Neue Version verfügbar" });
+    expect(desktopNotificationTarget("update_available")).toBe("settings");
   });
 
   it("erlaubt native Benachrichtigungen ausschließlich bei unfokussiertem Fenster", () => {

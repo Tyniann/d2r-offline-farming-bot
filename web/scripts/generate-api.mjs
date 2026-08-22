@@ -30,9 +30,29 @@ const definitions = Object.entries(schema.components.schemas).map(([name, defini
 
 const client = `export const API_VERSION = "v1" as const;
 
+export class ApiError extends Error {
+  constructor(
+    readonly code: string,
+    readonly params: Record<string, unknown>,
+    readonly requestId: string,
+    readonly status: number,
+  ) {
+    super(\`API request failed: \${code} (\${status})\`);
+    this.name = "ApiError";
+  }
+}
+
+export async function apiErrorFromResponse(response: Response): Promise<ApiError> {
+  const problem = await response.json().catch(() => null) as Partial<ErrorDTO> | null;
+  const code = typeof problem?.code === "string" && problem.code ? problem.code : "request_failed";
+  const params = problem?.params && typeof problem.params === "object" ? problem.params : { status: response.status };
+  const requestId = typeof problem?.request_id === "string" ? problem.request_id : response.headers.get("X-Request-ID") ?? "";
+  return new ApiError(code, params, requestId, response.status);
+}
+
 async function getJSON<T>(path: string, signal?: AbortSignal): Promise<T> {
   const response = await fetch(path, { signal, headers: { Accept: "application/json" } });
-  if (!response.ok) { const error = await response.json().catch(() => null) as { message?: string } | null; throw new Error(error?.message ?? \`API-Abfrage fehlgeschlagen (\${response.status})\`); }
+  if (!response.ok) throw await apiErrorFromResponse(response);
   return response.json() as Promise<T>;
 }
 
@@ -40,7 +60,7 @@ async function sendJSON<T>(path: string, method: string, body: unknown, token = 
   const headers: Record<string, string> = { Accept: "application/json", "Content-Type": "application/json" };
   if (token) headers["X-D2RBot-Control-Token"] = token;
   const response = await fetch(path, { method, body: JSON.stringify(body), signal, headers });
-  if (!response.ok) { const error = await response.json().catch(() => null) as { message?: string } | null; throw new Error(error?.message ?? \`API-Mutation fehlgeschlagen (\${response.status})\`); }
+  if (!response.ok) throw await apiErrorFromResponse(response);
   return response.status === 204 ? (undefined as T) : response.json() as Promise<T>;
 }
 
@@ -132,7 +152,7 @@ export function getHistoryExportURL(format: "json" | "csv", dataset: "" | "runs"
 }
 export async function downloadHistoryExport(format: "json" | "csv", dataset: "" | "runs" | "items" = "", query: HistoryQuery = {}, signal?: AbortSignal): Promise<{ blob: Blob; filename: string }> {
   const response = await fetch(getHistoryExportURL(format, dataset, query), { signal, headers: { Accept: format === "json" ? "application/json" : "text/csv" } });
-  if (!response.ok) { const error = await response.json().catch(() => null) as { message?: string } | null; throw new Error(error?.message ?? \`Historienexport fehlgeschlagen (\${response.status})\`); }
+  if (!response.ok) throw await apiErrorFromResponse(response);
   const disposition = response.headers.get("Content-Disposition") ?? "";
   const filename = disposition.match(/filename="([A-Za-z0-9._-]+)"/)?.[1] ?? \`d2r-history.\${format}\`;
   return { blob: await response.blob(), filename };

@@ -13,9 +13,9 @@ describe("BindingEditor", () => {
     });
     render(<BindingEditor
       requiredSkills={[
-        { skill: "teleport", skill_id: 54, display_name: "Teleport", slot: "right" },
-        { skill: "town_portal", skill_id: 359, display_name: "Stadtportal", slot: "right" },
-        { skill: "bone_spear", skill_id: 84, display_name: "Knochen-Speer", slot: "right" },
+        { skill: "teleport", skill_id: 54, slot: "right" },
+        { skill: "town_portal", skill_id: 359, slot: "right" },
+        { skill: "bone_spear", skill_id: 84, slot: "right" },
       ]}
       standardAttack="bone_spear"
       value={value}
@@ -24,7 +24,7 @@ describe("BindingEditor", () => {
     />);
     expect(screen.getByText("Standardangriff")).toBeInTheDocument();
     expect(screen.getAllByText(/Taste F7 ist doppelt belegt/).length).toBeGreaterThan(0);
-    fireEvent.change(screen.getByLabelText("Knochen-Speer Taste"), { target: { value: "f8" } });
+    fireEvent.change(screen.getByLabelText("Knochenspeer Taste"), { target: { value: "f8" } });
     expect(onChange).toHaveBeenCalledWith({
       skills: { teleport: "f7", town_portal: "f7", bone_spear: "f8" },
       belt: { slot_1: "1", slot_2: "2", slot_3: "3", slot_4: "4" },
@@ -52,7 +52,7 @@ describe("BindingEditor", () => {
   it("ändert den Tranktyp eines Gürtelslots", () => {
     const onChange = vi.fn();
     render(<BindingEditor
-      requiredSkills={[{ skill: "teleport", skill_id: 54, display_name: "Teleport", slot: "right" }]}
+      requiredSkills={[{ skill: "teleport", skill_id: 54, slot: "right" }]}
       value={bindingsFromDTO({ skills: { teleport: "f7" }, belt: { slot_1: "1", slot_2: "2", slot_3: "3", slot_4: "4" } })}
       mutable
       onChange={onChange}
@@ -67,12 +67,12 @@ describe("BindingEditor", () => {
     const onChange = vi.fn();
     render(<BindingEditor
       requiredSkills={[
-        { skill: "blessed_hammer", skill_id: 112, display_name: "Gesegneter Hammer", slot: "left" },
-        { skill: "concentration", skill_id: 113, display_name: "Konzentration", slot: "right" },
+        { skill: "blessed_hammer", skill_id: 112, slot: "left" },
+        { skill: "concentration", skill_id: 113, slot: "right" },
       ]}
       optionalSkillPairs={[{ skills: [
-        { skill: "battle_command", skill_id: 155, display_name: "Battle Command", slot: "right" },
-        { skill: "battle_orders", skill_id: 149, display_name: "Battle Orders", slot: "right" },
+        { skill: "battle_command", skill_id: 155, slot: "right" },
+        { skill: "battle_orders", skill_id: 149, slot: "right" },
       ] }]}
       standardAttack="blessed_hammer"
       requiresMercenary
@@ -92,7 +92,7 @@ describe("BindingEditor", () => {
     expect(screen.getByText("LMB")).toBeInTheDocument();
     expect(screen.getAllByText(/RMB/)).toHaveLength(3);
 
-    const battleCommand = screen.getByLabelText("Battle Command Taste");
+    const battleCommand = screen.getByLabelText("Kampfaufruf Taste");
     battleCommand.focus();
     expect(battleCommand).toHaveFocus();
     fireEvent.change(battleCommand, { target: { value: "f4" } });

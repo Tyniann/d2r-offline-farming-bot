@@ -460,7 +460,7 @@ func scanFarmingRoutes(root string) ([]FarmingRouteCatalogEntry, error) {
 		entry.Character, entry.Difficulty = parts[0], parts[1]
 		route, err := pathing.LoadRoute(path)
 		if err != nil {
-			entry.Reason = err.Error()
+			entry.Reason = "route_file_invalid"
 			entries = append(entries, entry)
 			return nil
 		}
@@ -472,7 +472,7 @@ func scanFarmingRoutes(root string) ([]FarmingRouteCatalogEntry, error) {
 		}
 		fingerprint, err := fileSHA256(path)
 		if err != nil {
-			entry.Reason = err.Error()
+			entry.Reason = "route_file_unreadable"
 			entries = append(entries, entry)
 			return nil
 		}

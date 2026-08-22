@@ -1,21 +1,23 @@
 import { describe, expect, it } from "vitest";
 import {
   buildCombinedRuleExpression,
+  equipmentTypeLabel,
   equipmentTypeOptions,
   missingEquipmentTypeCodes,
   socketOperators,
 } from "./pickitRuleBuilder";
+import { i18n } from "../../i18n";
 
-const option = (label: string) => {
-  const result = equipmentTypeOptions.find((entry) => entry.label === label);
-  if (!result) throw new Error(`Testoption fehlt: ${label}`);
+const option = (id: string) => {
+  const result = equipmentTypeOptions.find((entry) => entry.id === id);
+  if (!result) throw new Error(`Testoption fehlt: ${id}`);
   return result;
 };
 
 describe("buildCombinedRuleExpression", () => {
   it("baut einen einzelnen Typ ohne Klammer", () => {
     expect(buildCombinedRuleExpression({
-      types: [option("Stangenwaffen")],
+      types: [option("polearms")],
       tier: "",
       socketsOperator: ">=",
       sockets: "1",
@@ -25,7 +27,7 @@ describe("buildCombinedRuleExpression", () => {
 
   it("baut mehrere Typen in fester Reihenfolge", () => {
     expect(buildCombinedRuleExpression({
-      types: [option("Schilde"), option("Schilde – Paladin")],
+      types: [option("shields"), option("paladinShields")],
       tier: "elite",
       socketsOperator: "==",
       sockets: "4",
@@ -35,7 +37,7 @@ describe("buildCombinedRuleExpression", () => {
 
   it("expandiert Assassinenklauen sichtbar", () => {
     expect(buildCombinedRuleExpression({
-      types: [option("Klauen – Assassine")],
+      types: [option("assassinClaws")],
       tier: "exceptional",
       socketsOperator: "<=",
       sockets: "6",
@@ -45,7 +47,7 @@ describe("buildCombinedRuleExpression", () => {
 
   it.each(socketOperators)("unterstützt den Operator %s", (socketsOperator) => {
     expect(buildCombinedRuleExpression({
-      types: [option("Helme")],
+      types: [option("helms")],
       tier: "normal",
       socketsOperator,
       sockets: "2",
@@ -55,7 +57,7 @@ describe("buildCombinedRuleExpression", () => {
 
   it.each(["", "0", "7", "1.5", "keine"])("lehnt die Sockelzahl %j ab", (sockets) => {
     expect(buildCombinedRuleExpression({
-      types: [option("Helme")],
+      types: [option("helms")],
       tier: "",
       socketsOperator: "==",
       sockets,
@@ -95,13 +97,13 @@ describe("equipmentTypeOptions", () => {
   });
 
   it("ist deutsch alphabetisch sortiert", () => {
-    const labels = equipmentTypeOptions.map((entry) => entry.label);
+    const labels = equipmentTypeOptions.map((entry) => equipmentTypeLabel(entry.id, i18n.t));
     expect(labels).toEqual([...labels].sort((left, right) => left.localeCompare(right, "de")));
   });
 
   it("ordnet Grimoires dem Hexenmeister und Köpfe dem Nekromanten zu", () => {
-    expect(option("Schilde – Hexenmeister (Grimoires)").codes).toEqual(["grim"]);
-    expect(option("Schilde – Nekromant (Köpfe)").codes).toEqual(["head"]);
-    expect(equipmentTypeOptions.some((entry) => entry.label.includes("Nekromant") && entry.codes.includes("grim"))).toBe(false);
+    expect(option("warlockGrimoires").codes).toEqual(["grim"]);
+    expect(option("necromancerHeads").codes).toEqual(["head"]);
+    expect(option("necromancerHeads").codes).not.toContain("grim");
   });
 });

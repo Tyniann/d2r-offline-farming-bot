@@ -17,6 +17,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/app"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/telemetry"
 )
 
@@ -226,7 +227,7 @@ func (s *Server) routes() http.Handler {
 func (s *Server) characterSetupBackend(w http.ResponseWriter, r *http.Request) (characterSetupBackend, bool) {
 	backend, ok := s.backend.(characterSetupBackend)
 	if !ok {
-		s.writeError(w, http.StatusNotImplemented, "feature_unavailable", "Charakter-Setup ist nicht verfügbar.", requestIDFrom(r), nil)
+		s.writeError(w, http.StatusNotImplemented, "feature_unavailable", requestIDFrom(r), map[string]any{"feature": "character_setup"})
 	}
 	return backend, ok
 }
@@ -324,23 +325,24 @@ func (s *Server) requireCharacterName(w http.ResponseWriter, r *http.Request, ch
 	if character == strings.TrimSpace(character) && characterRequestNamePattern.MatchString(character) {
 		return true
 	}
-	s.writeError(w, http.StatusBadRequest, "request_invalid", "Der Charaktername ist ungültig.", requestIDFrom(r), nil)
+	s.writeError(w, http.StatusBadRequest, "request_invalid", requestIDFrom(r), map[string]any{"field": "character"})
 	return false
 }
 
 func (s *Server) writeCharacterSetupError(w http.ResponseWriter, r *http.Request, err error) {
 	var commandErr *commandError
 	if errors.As(err, &commandErr) {
-		s.writeError(w, http.StatusConflict, commandErr.code, commandErr.message, requestIDFrom(r), commandErr.details)
+		s.writeCommandError(w, r, http.StatusConflict, commandErr)
 		return
 	}
-	s.writeError(w, http.StatusServiceUnavailable, "character_setup_unavailable", "Der Charakter-Setup-Stand konnte nicht geladen werden.", requestIDFrom(r), nil)
+	s.logger.Error("Character setup request failed", "request_id", requestIDFrom(r), "error", err)
+	s.writeError(w, http.StatusServiceUnavailable, "character_setup_unavailable", requestIDFrom(r), nil)
 }
 
 func (s *Server) operatorSettingsBackend(w http.ResponseWriter, r *http.Request) (operatorSettingsBackend, bool) {
 	backend, ok := s.backend.(operatorSettingsBackend)
 	if !ok {
-		s.writeError(w, http.StatusNotImplemented, "feature_unavailable", "Einstellungen sind nicht verfügbar.", requestIDFrom(r), nil)
+		s.writeError(w, http.StatusNotImplemented, "feature_unavailable", requestIDFrom(r), map[string]any{"feature": "operator_settings"})
 	}
 	return backend, ok
 }
@@ -440,16 +442,17 @@ func (s *Server) handleOperatorSettingsResetPreview(w http.ResponseWriter, r *ht
 func (s *Server) writeOperatorSettingsError(w http.ResponseWriter, r *http.Request, err error) {
 	var commandErr *commandError
 	if errors.As(err, &commandErr) {
-		s.writeError(w, http.StatusConflict, commandErr.code, commandErr.message, requestIDFrom(r), commandErr.details)
+		s.writeCommandError(w, r, http.StatusConflict, commandErr)
 		return
 	}
-	s.writeError(w, http.StatusServiceUnavailable, "config_unavailable", "Die Einstellungen konnten nicht geladen werden.", requestIDFrom(r), nil)
+	s.logger.Error("Operator settings request failed", "request_id", requestIDFrom(r), "error", err)
+	s.writeError(w, http.StatusServiceUnavailable, "config_unavailable", requestIDFrom(r), nil)
 }
 
 func (s *Server) pickitBackend(w http.ResponseWriter, r *http.Request) (pickitBackend, bool) {
 	backend, ok := s.backend.(pickitBackend)
 	if !ok {
-		s.writeError(w, http.StatusNotImplemented, "feature_unavailable", "Pickit ist nicht verfügbar.", requestIDFrom(r), nil)
+		s.writeError(w, http.StatusNotImplemented, "feature_unavailable", requestIDFrom(r), map[string]any{"feature": "pickit"})
 	}
 	return backend, ok
 }
@@ -655,22 +658,22 @@ func (s *Server) handlePickitExport(w http.ResponseWriter, r *http.Request) {
 func (s *Server) writePickitError(w http.ResponseWriter, r *http.Request, err error) {
 	var commandErr *commandError
 	if errors.As(err, &commandErr) {
-		s.writeError(w, http.StatusConflict, commandErr.code, commandErr.message, requestIDFrom(r), commandErr.details)
+		s.writeCommandError(w, r, http.StatusConflict, commandErr)
 		return
 	}
 	code, status := "pickit_invalid", http.StatusBadRequest
 	switch {
-	case strings.Contains(err.Error(), "revision_conflict"):
+	case errors.Is(err, app.ErrPickitProfileRevisionConflict), errors.Is(err, app.ErrPickitAssignmentRevisionConflict):
 		code, status = "revision_conflict", http.StatusConflict
-	case strings.Contains(err.Error(), "id_conflict"):
+	case errors.Is(err, app.ErrPickitProfileIDConflict):
 		code, status = "id_conflict", http.StatusConflict
-	case strings.Contains(err.Error(), "assigned"):
+	case errors.Is(err, app.ErrPickitProfileAssigned):
 		code, status = "profile_assigned", http.StatusConflict
-	case errors.Is(err, fs.ErrNotExist), strings.Contains(err.Error(), "file does not exist"):
+	case errors.Is(err, fs.ErrNotExist):
 		code, status = "pickit_not_found", http.StatusNotFound
 	}
-	details := map[string]any{"path": "pickit", "error": err.Error()}
-	s.writeError(w, status, code, err.Error(), requestIDFrom(r), details)
+	s.logger.Warn("Pickit request rejected", "code", code, "request_id", requestIDFrom(r), "error", err)
+	s.writeError(w, status, code, requestIDFrom(r), map[string]any{"path": "pickit"})
 }
 
 func (s *Server) handleRouteRecordingStart(w http.ResponseWriter, r *http.Request) {
@@ -799,7 +802,7 @@ func (s *Server) handleRouteMutationPreviewValue(w http.ResponseWriter, r *http.
 func (s *Server) routesBackend(w http.ResponseWriter, r *http.Request) (routeBackend, bool) {
 	backend, ok := s.backend.(routeBackend)
 	if !ok {
-		s.writeError(w, http.StatusServiceUnavailable, "route_feature_unavailable", "Die Routenverwaltung ist noch nicht verfügbar.", requestIDFrom(r), nil)
+		s.writeError(w, http.StatusServiceUnavailable, "route_feature_unavailable", requestIDFrom(r), nil)
 	}
 	return backend, ok
 }
@@ -816,14 +819,15 @@ func (s *Server) handleRouteLibrary(w http.ResponseWriter, r *http.Request) {
 	if raw := strings.TrimSpace(r.URL.Query().Get("include_archived")); raw != "" {
 		parsed, err := strconv.ParseBool(raw)
 		if err != nil {
-			s.writeError(w, http.StatusBadRequest, "request_invalid", "include_archived ist ungültig.", requestIDFrom(r), nil)
+			s.writeError(w, http.StatusBadRequest, "request_invalid", requestIDFrom(r), map[string]any{"field": "include_archived"})
 			return
 		}
 		includeArchived = parsed
 	}
 	value, err := backend.RouteLibrary(r.URL.Query().Get("character"), includeArchived)
 	if err != nil {
-		s.writeError(w, http.StatusConflict, "route_catalog_unavailable", err.Error(), requestIDFrom(r), nil)
+		s.logger.Error("Route catalog request failed", "request_id", requestIDFrom(r), "error", err)
+		s.writeError(w, http.StatusConflict, "route_catalog_unavailable", requestIDFrom(r), nil)
 		return
 	}
 	s.writeJSON(w, http.StatusOK, value)
@@ -847,7 +851,8 @@ func (s *Server) handleRouteCandidates(w http.ResponseWriter, r *http.Request) {
 	}
 	value, err := backend.RouteCandidates()
 	if err != nil {
-		s.writeError(w, http.StatusConflict, "route_candidates_unavailable", err.Error(), requestIDFrom(r), nil)
+		s.logger.Error("Route candidate request failed", "request_id", requestIDFrom(r), "error", err)
+		s.writeError(w, http.StatusConflict, "route_candidates_unavailable", requestIDFrom(r), nil)
 		return
 	}
 	s.writeJSON(w, http.StatusOK, value)
@@ -943,7 +948,7 @@ func (s *Server) handleControlBootstrap(w http.ResponseWriter, r *http.Request) 
 	// A foreign browser cannot send this non-simple header without a CORS
 	// preflight, which the loopback server rejects before exposing the token.
 	if r.Header.Get(bootstrapHeader) != "1" {
-		s.writeError(w, http.StatusUnauthorized, "request_unauthorized", "Der lokale Control-Bootstrap wurde nicht bestätigt.", requestIDFrom(r), nil)
+		s.writeError(w, http.StatusUnauthorized, "request_unauthorized", requestIDFrom(r), nil)
 		return
 	}
 	s.writeJSON(w, http.StatusOK, struct {
@@ -958,11 +963,11 @@ func (s *Server) security(next http.Handler) http.Handler {
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Header().Set("Content-Security-Policy", "default-src 'self'; connect-src 'self'; img-src 'self'; style-src 'self'; script-src 'self'")
 		if r.Host != strings.TrimPrefix(s.baseURL, "http://") {
-			s.writeError(w, http.StatusBadRequest, "request_invalid", "Ungültiger Host.", requestID, nil)
+			s.writeError(w, http.StatusBadRequest, "request_invalid", requestID, map[string]any{"field": "host"})
 			return
 		}
 		if origin := r.Header.Get("Origin"); origin != "" && origin != s.baseURL {
-			s.writeError(w, http.StatusForbidden, "origin_rejected", "Die Anfrage stammt nicht aus der lokalen Oberfläche.", requestID, nil)
+			s.writeError(w, http.StatusForbidden, "origin_rejected", requestID, nil)
 			return
 		}
 		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), requestIDKey{}, requestID)))
@@ -975,18 +980,18 @@ func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 	}
 	flusher, ok := w.(http.Flusher)
 	if !ok {
-		s.writeError(w, http.StatusInternalServerError, "stream_unavailable", "Der Live-Stream ist nicht verfügbar.", requestIDFrom(r), nil)
+		s.writeError(w, http.StatusInternalServerError, "stream_unavailable", requestIDFrom(r), nil)
 		return
 	}
 	after := s.events.Sequence()
 	if header := strings.TrimSpace(r.Header.Get("Last-Event-ID")); header != "" {
 		parsed, err := strconv.ParseUint(header, 10, 64)
 		if err != nil {
-			s.writeError(w, http.StatusBadRequest, "request_invalid", "Last-Event-ID ist ungültig.", requestIDFrom(r), nil)
+			s.writeError(w, http.StatusBadRequest, "request_invalid", requestIDFrom(r), map[string]any{"field": "last_event_id"})
 			return
 		}
 		if parsed > s.events.Sequence() {
-			s.writeError(w, http.StatusBadRequest, "request_invalid", "Last-Event-ID liegt vor dem aktuellen Stream.", requestIDFrom(r), nil)
+			s.writeError(w, http.StatusBadRequest, "request_invalid", requestIDFrom(r), map[string]any{"field": "last_event_id"})
 			return
 		}
 		after = parsed
@@ -1039,7 +1044,7 @@ func writeSSE(w io.Writer, event string, sequence uint64, value any) bool {
 }
 
 func (s *Server) handleUnsupportedAPI(w http.ResponseWriter, r *http.Request) {
-	s.writeError(w, http.StatusNotFound, "api_version_unsupported", "API-Version oder Endpunkt wird nicht unterstützt.", requestIDFrom(r), nil)
+	s.writeError(w, http.StatusNotFound, "api_version_unsupported", requestIDFrom(r), nil)
 }
 
 func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
@@ -1066,7 +1071,7 @@ func (s *Server) handleRunAvailabilities(w http.ResponseWriter, r *http.Request)
 	}
 	character := strings.TrimSpace(r.URL.Query().Get("character"))
 	if character == "" {
-		s.writeError(w, http.StatusBadRequest, "request_invalid", "Charakter ist erforderlich.", requestIDFrom(r), nil)
+		s.writeError(w, http.StatusBadRequest, "request_invalid", requestIDFrom(r), map[string]any{"field": "character"})
 		return
 	}
 	runs, err := s.backend.RunAvailabilities(character, strings.TrimSpace(r.URL.Query().Get("difficulty")))
@@ -1077,10 +1082,11 @@ func (s *Server) handleRunAvailabilities(w http.ResponseWriter, r *http.Request)
 			if commandErr.code == "request_invalid" {
 				status = http.StatusBadRequest
 			}
-			s.writeError(w, status, commandErr.code, commandErr.message, requestIDFrom(r), commandErr.details)
+			s.writeCommandError(w, r, status, commandErr)
 			return
 		}
-		s.writeError(w, http.StatusConflict, "run_catalog_refresh_failed", "Die Run-Verfügbarkeit konnte nicht geladen werden.", requestIDFrom(r), nil)
+		s.logger.Error("Run catalog refresh failed", "request_id", requestIDFrom(r), "error", err)
+		s.writeError(w, http.StatusConflict, "run_catalog_refresh_failed", requestIDFrom(r), nil)
 		return
 	}
 	runs.SchemaVersion = schemaVersion
@@ -1099,10 +1105,11 @@ func (s *Server) handleSelectionPreview(w http.ResponseWriter, r *http.Request) 
 	if err != nil {
 		var commandErr *commandError
 		if errors.As(err, &commandErr) {
-			s.writeError(w, http.StatusConflict, commandErr.code, commandErr.message, requestIDFrom(r), commandErr.details)
+			s.writeCommandError(w, r, http.StatusConflict, commandErr)
 			return
 		}
-		s.writeError(w, http.StatusConflict, "state_changed", "Der Auswahlkontext hat sich geändert.", requestIDFrom(r), nil)
+		s.logger.Error("Selection preview failed", "request_id", requestIDFrom(r), "error", err)
+		s.writeError(w, http.StatusConflict, "state_changed", requestIDFrom(r), nil)
 		return
 	}
 	preview.SchemaVersion = schemaVersion
@@ -1121,10 +1128,11 @@ func (s *Server) handleQueueValidation(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		var commandErr *commandError
 		if errors.As(err, &commandErr) {
-			s.writeError(w, http.StatusConflict, commandErr.code, commandErr.message, requestIDFrom(r), commandErr.details)
+			s.writeCommandError(w, r, http.StatusConflict, commandErr)
 			return
 		}
-		s.writeError(w, http.StatusConflict, "queue_entry_unavailable", "Die Farm-Queue konnte nicht sicher geprüft werden.", requestIDFrom(r), nil)
+		s.logger.Error("Queue validation failed", "request_id", requestIDFrom(r), "error", err)
+		s.writeError(w, http.StatusConflict, "queue_entry_unavailable", requestIDFrom(r), nil)
 		return
 	}
 	validation.SchemaVersion = schemaVersion
@@ -1140,18 +1148,18 @@ func (s *Server) handleCommand(w http.ResponseWriter, r *http.Request, command s
 		return
 	}
 	if strings.TrimSpace(request.CommandID) == "" {
-		s.writeError(w, http.StatusBadRequest, "request_invalid", "command_id ist erforderlich.", requestIDFrom(r), nil)
+		s.writeError(w, http.StatusBadRequest, "request_invalid", requestIDFrom(r), map[string]any{"field": "command_id"})
 		return
 	}
 	response, err := s.backend.Command(command, request)
 	if err != nil {
 		var commandErr *commandError
 		if errors.As(err, &commandErr) {
-			s.logger.Warn("API command rejected", "command", command, "code", commandErr.code, "request_id", requestIDFrom(r))
-			s.writeError(w, http.StatusConflict, commandErr.code, commandErr.message, requestIDFrom(r), commandErr.details)
+			s.writeCommandError(w, r, http.StatusConflict, commandErr)
 			return
 		}
-		s.writeError(w, http.StatusConflict, "state_changed", "Der Core-Zustand hat sich geändert.", requestIDFrom(r), nil)
+		s.logger.Error("Session command failed", "command", command, "request_id", requestIDFrom(r), "error", err)
+		s.writeError(w, http.StatusConflict, "state_changed", requestIDFrom(r), nil)
 		return
 	}
 	response.SchemaVersion = schemaVersion
@@ -1164,7 +1172,7 @@ func requireMethod(w http.ResponseWriter, r *http.Request, method string, s *Ser
 		return true
 	}
 	w.Header().Set("Allow", method)
-	s.writeError(w, http.StatusMethodNotAllowed, "request_invalid", "HTTP-Methode nicht erlaubt.", requestIDFrom(r), nil)
+	s.writeError(w, http.StatusMethodNotAllowed, "request_invalid", requestIDFrom(r), map[string]any{"field": "method"})
 	return false
 }
 
@@ -1174,11 +1182,11 @@ func requireJSONPost(w http.ResponseWriter, r *http.Request, s *Server, tokenReq
 	}
 	mediaType := strings.ToLower(strings.TrimSpace(strings.Split(r.Header.Get("Content-Type"), ";")[0]))
 	if mediaType != "application/json" {
-		s.writeError(w, http.StatusUnsupportedMediaType, "request_invalid", "Content-Type application/json ist erforderlich.", requestIDFrom(r), nil)
+		s.writeError(w, http.StatusUnsupportedMediaType, "request_invalid", requestIDFrom(r), map[string]any{"field": "content_type"})
 		return false
 	}
 	if tokenRequired && r.Header.Get(controlTokenHeader) != s.token {
-		s.writeError(w, http.StatusUnauthorized, "request_unauthorized", "Control-Token fehlt oder ist ungültig.", requestIDFrom(r), nil)
+		s.writeError(w, http.StatusUnauthorized, "request_unauthorized", requestIDFrom(r), nil)
 		return false
 	}
 	return true
@@ -1190,11 +1198,11 @@ func requireJSONMutation(w http.ResponseWriter, r *http.Request, s *Server, meth
 	}
 	mediaType := strings.ToLower(strings.TrimSpace(strings.Split(r.Header.Get("Content-Type"), ";")[0]))
 	if mediaType != "application/json" {
-		s.writeError(w, http.StatusUnsupportedMediaType, "request_invalid", "Content-Type application/json ist erforderlich.", requestIDFrom(r), nil)
+		s.writeError(w, http.StatusUnsupportedMediaType, "request_invalid", requestIDFrom(r), map[string]any{"field": "content_type"})
 		return false
 	}
 	if r.Header.Get(controlTokenHeader) != s.token {
-		s.writeError(w, http.StatusUnauthorized, "request_unauthorized", "Control-Token fehlt oder ist ungültig.", requestIDFrom(r), nil)
+		s.writeError(w, http.StatusUnauthorized, "request_unauthorized", requestIDFrom(r), nil)
 		return false
 	}
 	return true
@@ -1205,32 +1213,40 @@ func (s *Server) decodeBody(w http.ResponseWriter, r *http.Request, target any) 
 	decoder := json.NewDecoder(r.Body)
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(target); err != nil {
-		code, status, message := "request_invalid", http.StatusBadRequest, "Ungültiger JSON-Request."
+		code, status := "request_invalid", http.StatusBadRequest
 		var tooLarge *http.MaxBytesError
 		if errors.As(err, &tooLarge) {
-			code, status, message = "payload_too_large", http.StatusRequestEntityTooLarge, "Der Request ist zu groß."
+			code, status = "payload_too_large", http.StatusRequestEntityTooLarge
 		}
-		s.writeError(w, status, code, message, requestIDFrom(r), nil)
+		s.writeError(w, status, code, requestIDFrom(r), map[string]any{"field": "body"})
 		return false
 	}
 	if err := decoder.Decode(&struct{}{}); err != io.EOF {
-		s.writeError(w, http.StatusBadRequest, "request_invalid", "Der Request enthält mehrere JSON-Werte.", requestIDFrom(r), nil)
+		s.writeError(w, http.StatusBadRequest, "request_invalid", requestIDFrom(r), map[string]any{"field": "body"})
 		return false
 	}
 	return true
 }
 
-func (s *Server) writeError(w http.ResponseWriter, status int, code, message, requestID string, details map[string]any) {
-	s.writeJSON(w, status, ErrorDTO{Code: code, Message: message, Details: details, RequestID: requestID})
+func (s *Server) writeError(w http.ResponseWriter, status int, code, requestID string, params map[string]any) {
+	s.writeJSON(w, status, ErrorDTO{Code: code, Params: params, RequestID: requestID})
 }
 
 func (s *Server) writeCommandOrConflict(w http.ResponseWriter, r *http.Request, fallback string, err error) {
 	var commandErr *commandError
 	if errors.As(err, &commandErr) {
-		s.writeError(w, http.StatusConflict, commandErr.code, commandErr.message, requestIDFrom(r), commandErr.details)
+		s.writeCommandError(w, r, http.StatusConflict, commandErr)
 		return
 	}
-	s.writeError(w, http.StatusConflict, fallback, err.Error(), requestIDFrom(r), nil)
+	s.logger.Error("API command failed", "code", fallback, "request_id", requestIDFrom(r), "error", err)
+	s.writeError(w, http.StatusConflict, fallback, requestIDFrom(r), nil)
+}
+
+func (s *Server) writeCommandError(w http.ResponseWriter, r *http.Request, status int, commandErr *commandError) {
+	if commandErr.cause != nil {
+		s.logger.Warn("API command rejected", "code", commandErr.code, "request_id", requestIDFrom(r), "error", commandErr.cause)
+	}
+	s.writeError(w, status, commandErr.code, requestIDFrom(r), commandErr.params)
 }
 
 func (s *Server) writeJSON(w http.ResponseWriter, status int, value any) {

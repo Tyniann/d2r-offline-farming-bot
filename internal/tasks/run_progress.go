@@ -4,9 +4,10 @@ import "github.com/Tyniann/d2r-offline-farming-bot/internal/world"
 
 // RunProgress describes one stable, user-facing stage of an active run.
 type RunProgress struct {
-	Label   string
-	Current int
-	Total   int
+	StageCode string
+	Params    map[string]any
+	Current   int
+	Total     int
 }
 
 // ProjectRunProgress maps an internal task step to the product-facing stage
@@ -19,11 +20,11 @@ func ProjectRunProgress(runID, step string, areaID world.AreaID) (RunProgress, b
 	case RunIDCows:
 		return cowRunProgress(step)
 	case RunIDMephisto:
-		return standardBossRunProgress(step, "Wegpunkt Kerker des Hasses", "Reise zu Mephisto")
+		return standardBossRunProgress(step, "waypoint_durance_of_hate_level_2", "travel_mephisto")
 	case RunIDSummoner:
-		return standardBossRunProgress(step, "Wegpunkt Geheime Zuflucht", "Reise zum Beschwörer")
+		return standardBossRunProgress(step, "waypoint_arcane_sanctuary", "travel_summoner")
 	case RunIDNihlathak:
-		return standardBossRunProgress(step, "Wegpunkt Hallen der Schmerzen", "Reise zu Nihlathak")
+		return standardBossRunProgress(step, "waypoint_halls_of_pain", "travel_nihlathak")
 	case RunIDLowerKurast:
 		return lowerKurastRunProgress(step)
 	default:
@@ -55,62 +56,62 @@ func countessRunProgress(step string, areaID world.AreaID) (RunProgress, bool) {
 	const total = 13
 	switch step {
 	case pipelineStepPrecheck, pipelineStepApplyTownProfile:
-		return validRunProgress("Vorbereitung im Dorf", 1, total)
+		return validRunProgress("town_preparation", nil, 1, total)
 	case pipelineStepAcquireTownWaypoint, pipelineStepOpenWaypoint, pipelineStepSelectRunWaypoint:
-		return validRunProgress("Wegpunkt Schwarzmarsch", 2, total)
+		return validRunProgress("waypoint_black_marsh", nil, 2, total)
 	case pipelineStepWaitEntryArea:
-		return validRunProgress("Reise zum Turm", 3, total)
+		return validRunProgress("travel_tower", nil, 3, total)
 	case pipelineStepPlayRoute:
 		switch areaID {
 		case world.TowerCellarLevel1:
-			return validRunProgress("Kellergeschoss 1 von 5", 4, total)
+			return validRunProgress("cellar_floor", map[string]any{"floor": 1, "floors": 5}, 4, total)
 		case world.TowerCellarLevel2:
-			return validRunProgress("Kellergeschoss 2 von 5", 5, total)
+			return validRunProgress("cellar_floor", map[string]any{"floor": 2, "floors": 5}, 5, total)
 		case world.TowerCellarLevel3:
-			return validRunProgress("Kellergeschoss 3 von 5", 6, total)
+			return validRunProgress("cellar_floor", map[string]any{"floor": 3, "floors": 5}, 6, total)
 		case world.TowerCellarLevel4:
-			return validRunProgress("Kellergeschoss 4 von 5", 7, total)
+			return validRunProgress("cellar_floor", map[string]any{"floor": 4, "floors": 5}, 7, total)
 		case world.TowerCellarLevel5:
-			return validRunProgress("Kellergeschoss 5 von 5", 8, total)
+			return validRunProgress("cellar_floor", map[string]any{"floor": 5, "floors": 5}, 8, total)
 		default:
-			return validRunProgress("Reise zum Turm", 3, total)
+			return validRunProgress("travel_tower", nil, 3, total)
 		}
 	case pipelineStepAcquireBoss, pipelineStepEngageBoss, pipelineStepClearNearbyHostiles:
-		return validRunProgress("Bosskampf", 9, total)
+		return validRunProgress("boss_combat", nil, 9, total)
 	case pipelineStepRepositionForLoot, pipelineStepWaitForDrops, pipelineStepScanLoot, pipelineStepPickLoot:
-		return validRunProgress("Beute", 10, total)
+		return validRunProgress("loot", nil, 10, total)
 	case pipelineStepCastTownPortal, pipelineStepEnterTownPortal, pipelineStepWaitOriginTown,
 		pipelineStepPlayTownEgress, pipelineStepOpenOriginWaypoint, pipelineStepSelectHubWaypoint, pipelineStepWaitHubArea:
-		return validRunProgress("Rückkehr in die Stadt", 11, total)
+		return validRunProgress("return_town", nil, 11, total)
 	case pipelineStepOpenStash, pipelineStepStashItems, pipelineStepCloseStash:
-		return validRunProgress("Truhe", 12, total)
+		return validRunProgress("stash", nil, 12, total)
 	case pipelineStepPrepareTown, pipelineStepComplete:
-		return validRunProgress("Abschluss", 13, total)
+		return validRunProgress("complete", nil, 13, total)
 	default:
 		return RunProgress{}, false
 	}
 }
 
-func standardBossRunProgress(step, waypointLabel, travelLabel string) (RunProgress, bool) {
+func standardBossRunProgress(step, waypointCode, travelCode string) (RunProgress, bool) {
 	const total = 8
 	switch step {
 	case pipelineStepPrecheck, pipelineStepApplyTownProfile:
-		return validRunProgress("Vorbereitung im Dorf", 1, total)
+		return validRunProgress("town_preparation", nil, 1, total)
 	case pipelineStepAcquireTownWaypoint, pipelineStepOpenWaypoint, pipelineStepSelectRunWaypoint:
-		return validRunProgress(waypointLabel, 2, total)
+		return validRunProgress(waypointCode, nil, 2, total)
 	case pipelineStepWaitEntryArea, pipelineStepPlayRoute:
-		return validRunProgress(travelLabel, 3, total)
+		return validRunProgress(travelCode, nil, 3, total)
 	case pipelineStepAcquireBoss, pipelineStepEngageBoss, pipelineStepClearNearbyHostiles:
-		return validRunProgress("Bosskampf", 4, total)
+		return validRunProgress("boss_combat", nil, 4, total)
 	case pipelineStepRepositionForLoot, pipelineStepWaitForDrops, pipelineStepScanLoot, pipelineStepPickLoot:
-		return validRunProgress("Beute", 5, total)
+		return validRunProgress("loot", nil, 5, total)
 	case pipelineStepCastTownPortal, pipelineStepEnterTownPortal, pipelineStepWaitOriginTown,
 		pipelineStepPlayTownEgress, pipelineStepOpenOriginWaypoint, pipelineStepSelectHubWaypoint, pipelineStepWaitHubArea:
-		return validRunProgress("Rückkehr in die Stadt", 6, total)
+		return validRunProgress("return_town", nil, 6, total)
 	case pipelineStepOpenStash, pipelineStepStashItems, pipelineStepCloseStash:
-		return validRunProgress("Truhe", 7, total)
+		return validRunProgress("stash", nil, 7, total)
 	case pipelineStepPrepareTown, pipelineStepComplete:
-		return validRunProgress("Abschluss", 8, total)
+		return validRunProgress("complete", nil, 8, total)
 	default:
 		return RunProgress{}, false
 	}
@@ -120,22 +121,22 @@ func lowerKurastRunProgress(step string) (RunProgress, bool) {
 	const total = 8
 	switch step {
 	case pipelineStepPrecheck, pipelineStepApplyTownProfile:
-		return validRunProgress("Vorbereitung im Dorf", 1, total)
+		return validRunProgress("town_preparation", nil, 1, total)
 	case pipelineStepAcquireTownWaypoint, pipelineStepOpenWaypoint, pipelineStepSelectRunWaypoint:
-		return validRunProgress("Wegpunkt Unteres Kurast", 2, total)
+		return validRunProgress("waypoint_lower_kurast", nil, 2, total)
 	case pipelineStepWaitEntryArea, pipelineStepPlayRoute:
-		return validRunProgress("Reise zu den Hütten", 3, total)
+		return validRunProgress("travel_huts", nil, 3, total)
 	case pipelineStepChestSweep:
-		return validRunProgress("Supertruhen", 4, total)
+		return validRunProgress("superchests", nil, 4, total)
 	case pipelineStepRepositionForLoot, pipelineStepWaitForDrops, pipelineStepScanLoot, pipelineStepPickLoot:
-		return validRunProgress("Beute", 5, total)
+		return validRunProgress("loot", nil, 5, total)
 	case pipelineStepCastTownPortal, pipelineStepEnterTownPortal, pipelineStepWaitOriginTown,
 		pipelineStepPlayTownEgress, pipelineStepOpenOriginWaypoint, pipelineStepSelectHubWaypoint, pipelineStepWaitHubArea:
-		return validRunProgress("Rückkehr in die Stadt", 6, total)
+		return validRunProgress("return_town", nil, 6, total)
 	case pipelineStepOpenStash, pipelineStepStashItems, pipelineStepCloseStash:
-		return validRunProgress("Truhe", 7, total)
+		return validRunProgress("stash", nil, 7, total)
 	case pipelineStepPrepareTown, pipelineStepComplete:
-		return validRunProgress("Abschluss", 8, total)
+		return validRunProgress("complete", nil, 8, total)
 	default:
 		return RunProgress{}, false
 	}
@@ -145,37 +146,37 @@ func cowRunProgress(step string) (RunProgress, bool) {
 	const total = 12
 	switch step {
 	case cowStepPreflight, cowStepTownReady:
-		return validRunProgress("Vorbereitung im Dorf", 1, total)
+		return validRunProgress("town_preparation", nil, 1, total)
 	case cowStepAcquireWaypoint, cowStepOpenWaypoint, cowStepSelectStony, cowStepWaitStony:
-		return validRunProgress("Wegpunkt Steinfeld", 2, total)
+		return validRunProgress("waypoint_stony_field", nil, 2, total)
 	case cowStepPlayLegRoute:
-		return validRunProgress("Reise nach Tristram", 3, total)
+		return validRunProgress("travel_tristram", nil, 3, total)
 	case cowStepOpenWirt:
-		return validRunProgress("Wirts Leiche", 4, total)
+		return validRunProgress("wirts_body", nil, 4, total)
 	case cowStepPickupLeg:
-		return validRunProgress("Wirts Bein", 5, total)
+		return validRunProgress("wirts_leg", nil, 5, total)
 	case cowStepCastReturnTP, cowStepEnterReturnTP, cowStepWaitRogue, cowStepSafeFailure:
-		return validRunProgress("Rückkehr ins Dorf", 6, total)
+		return validRunProgress("return_village", nil, 6, total)
 	case cowStepBuyTome:
-		return validRunProgress("Foliant besorgen", 7, total)
+		return validRunProgress("buy_tome", nil, 7, total)
 	case cowStepSetupComplete, cowStepPortalRecipe, cowStepRecipeComplete:
-		return validRunProgress("Portal ins Kuh-Level", 8, total)
+		return validRunProgress("cow_portal", nil, 8, total)
 	case cowStepSweep, cowStepSweepComplete:
-		return validRunProgress("Kuh-Level räumen", 9, total)
+		return validRunProgress("cow_sweep", nil, 9, total)
 	case pipelineStepCastTownPortal, pipelineStepEnterTownPortal, pipelineStepWaitOriginTown:
-		return validRunProgress("Rückkehr in die Stadt", 10, total)
+		return validRunProgress("return_town", nil, 10, total)
 	case pipelineStepOpenStash, pipelineStepStashItems, pipelineStepCloseStash:
-		return validRunProgress("Truhe", 11, total)
+		return validRunProgress("stash", nil, 11, total)
 	case pipelineStepPrepareTown, pipelineStepComplete:
-		return validRunProgress("Abschluss", 12, total)
+		return validRunProgress("complete", nil, 12, total)
 	default:
 		return RunProgress{}, false
 	}
 }
 
-func validRunProgress(label string, current, total int) (RunProgress, bool) {
-	if label == "" || current < 1 || total < 1 || current > total {
+func validRunProgress(stageCode string, params map[string]any, current, total int) (RunProgress, bool) {
+	if stageCode == "" || current < 1 || total < 1 || current > total {
 		return RunProgress{}, false
 	}
-	return RunProgress{Label: label, Current: current, Total: total}, true
+	return RunProgress{StageCode: stageCode, Params: params, Current: current, Total: total}, true
 }

@@ -27,8 +27,8 @@ const operator: OperatorSettingsDTO = {
 const catalog = {
   schema_version: 1, revision: 3, default_difficulty: "nightmare", profiles: [{ id: "necro_bone_spear", character_class: "necromancer" }],
   characters: [{ name: "MrBones", slug: "mrbones", selectable: true, farm_ready: true }],
-  difficulties: [{ id: "nightmare", display_name: "Alptraum" }],
-  runs: [{ run_id: "countess", display_name: "Countess", status: "unavailable", reasons: ["route_assignment_missing"] }],
+  difficulties: [{ id: "nightmare" }],
+  runs: [{ run_id: "countess", status: "unavailable", reasons: ["route_assignment_missing"] }],
 } as CatalogDTO;
 const status = {
   schema_version: 1, app_version: "test", core_version: "test", state: "idle", lifecycle_phase: "idle", generation: 4,
@@ -53,7 +53,7 @@ const readySetup = {
 
 function option(missing = ""): RecordingOptionDTO {
   return {
-    run_id: "countess", display_name: "Countess", instructions_de: "Vom Wegpunkt zum Boss.", start_waypoint: "black_marsh",
+    run_id: "countess", instruction_code: "record_countess", start_waypoint: "black_marsh",
     allowed_start_area_id: 6, allowed_route_area_ids: [6], terminal_area_id: 25, terminal_max_distance_tiles: 20, available: true,
     prerequisites: ["waypoint", "teleport", "town_portal", "pickit"].map((id) => ({
       id: id as "waypoint",
@@ -111,7 +111,7 @@ describe("OnboardingFeature", () => {
     fireEvent.click(screen.getByRole("button", { name: "Weiter" }));
     expect(screen.getByRole("heading", { name: "D2R" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Weiter" })).toBeDisabled();
-    expect(screen.getByText("d2r_version_unsupported")).toBeInTheDocument();
+    expect(screen.getByText("Diese D2R-Version wird nicht unterstützt.")).toBeInTheDocument();
   });
 
   it("bietet beim frischen Root einen vorbereiteten Charakter an und erklärt gesperrte Einträge", async () => {
@@ -170,9 +170,9 @@ describe("OnboardingFeature", () => {
     mocks.previewSetup.mockResolvedValueOnce(needsSetup).mockResolvedValue(readySetup);
     render(<OnboardingFeature initialStep={5} status={{ ...status, selection: { character: "", difficulty: "nightmare" } }} catalog={{ ...catalog, characters: [{ ...catalog.characters[0], selectable: false, reasons: ["character_profile_missing", "character_anchor_missing"] }] }} onRefresh={onRefresh} onClose={onClose} onOpenRoutes={onOpenRoutes} />);
 
-    expect(await screen.findByText("Knochen-Speer", { selector: "strong" })).toBeInTheDocument();
+    expect(await screen.findByText("Knochen-Totenbeschwörer", { selector: "strong" })).toBeInTheDocument();
     expect(screen.queryByRole("combobox", { name: "Kampfprofil" })).not.toBeInTheDocument();
-    expect(screen.getByText((_, element) => element?.tagName === "LI" && element.textContent?.includes("Countess: Runen") === true)).toBeInTheDocument();
+    expect(screen.getByText((_, element) => element?.tagName === "LI" && element.textContent?.includes("Gräfin: Runen") === true)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Profil und Lootprofile bestätigen" }));
 
     await waitFor(() => expect(mocks.confirmSetup).toHaveBeenCalledWith(expect.objectContaining({
@@ -291,8 +291,8 @@ describe("OnboardingFeature", () => {
     render(<OnboardingFeature initialStep={7} status={status} catalog={catalog} onRefresh={onRefresh} onClose={onClose} onOpenRoutes={onOpenRoutes} />);
 
     await screen.findByRole("radio", { name: "Nihlathak" });
-    expect(screen.getByRole("radio", { name: "Summoner" })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("radio", { name: "Summoner" }));
+    expect(screen.getByRole("radio", { name: "Beschwörer" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("radio", { name: "Beschwörer" }));
     fireEvent.click(screen.getByRole("button", { name: /Routenbereich öffnen und Aufnahme starten/ }));
     expect(onOpenRoutes).toHaveBeenCalledWith("summoner");
   });

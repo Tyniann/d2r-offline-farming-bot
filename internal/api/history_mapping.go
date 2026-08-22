@@ -19,10 +19,10 @@ type historyBackend interface {
 func historyMeta(data historyData, generatedAt time.Time) HistoryMetaDTO {
 	diagnostics := make([]HistoryDiagnosticDTO, 0, len(data.snapshot.Diagnostics)+len(data.analysis.Diagnostics))
 	for _, diagnostic := range data.snapshot.Diagnostics {
-		diagnostics = append(diagnostics, HistoryDiagnosticDTO{File: diagnostic.File, Code: string(diagnostic.Code), Message: diagnostic.Message})
+		diagnostics = append(diagnostics, HistoryDiagnosticDTO{File: diagnostic.File, Code: string(diagnostic.Code)})
 	}
 	for _, diagnostic := range data.analysis.Diagnostics {
-		diagnostics = append(diagnostics, HistoryDiagnosticDTO{File: diagnostic.File, Code: string(diagnostic.Code), Message: diagnostic.Message})
+		diagnostics = append(diagnostics, HistoryDiagnosticDTO{File: diagnostic.File, Code: string(diagnostic.Code)})
 	}
 	return HistoryMetaDTO{
 		SchemaVersion: schemaVersion, GeneratedAt: generatedAt.UTC(), Timezone: data.analysis.Filter.Timezone,
@@ -80,7 +80,7 @@ func historyFailureDTO(value *telemetry.HistoryFailure) *HistoryFailureDTO {
 	if value == nil {
 		return nil
 	}
-	return &HistoryFailureDTO{Step: value.Step, Reason: value.Reason, ReasonMessage: historyReasonText(value.Reason), Count: value.Count, LostDurationMs: value.LostDurationMs}
+	return &HistoryFailureDTO{Step: value.Step, Reason: value.Reason, Count: value.Count, LostDurationMs: value.LostDurationMs}
 }
 
 func historyComparisonsDTO(values []telemetry.HistoryComparison) []HistoryComparisonDTO {
@@ -123,7 +123,7 @@ func historyRunDTO(value telemetry.HistoryRunAnalysis) HistoryRunDTO {
 	return HistoryRunDTO{
 		RunID: value.RunID, StartedAt: value.StartedAt, ObservedAt: value.ObservedAt,
 		Character: value.Character, Difficulty: value.Difficulty, Run: value.Run, DefinitionID: value.DefinitionID,
-		RouteID: value.RouteID, Outcome: value.Outcome, Reason: value.Reason, ReasonMessage: historyReasonText(value.Reason),
+		RouteID: value.RouteID, Outcome: value.Outcome, Reason: value.Reason,
 		LastStep: value.LastStep, DurationMs: value.DurationMs, BossKills: value.BossKills, Funnel: historyFunnelDTO(value.Funnel),
 	}
 }
@@ -194,16 +194,6 @@ func historyRawContextDTO(event telemetry.Event) map[string]any {
 		context["pickit_assignment_revision"] = event.PickitAssignmentRevision
 	}
 	return context
-}
-
-func historyReasonText(reason string) string {
-	if reason == "" {
-		return ""
-	}
-	if message, ok := telemetry.HistoryReasonMessage(telemetry.HistoryReasonCode(reason)); ok {
-		return message
-	}
-	return "Der Run endete mit dem Reason-Code „" + reason + "“."
 }
 
 func cloneFloat(value *float64) *float64 {

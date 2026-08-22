@@ -61,7 +61,7 @@ func NewBootstrapBackend(cfg *config.Config) (*BootstrapBackend, error) {
 	return &BootstrapBackend{
 		cfg:     cfg,
 		status:  StatusDTO{CoreVersion: version.Version, AppVersion: version.Version, State: "idle", LifecyclePhase: "idle", D2R: D2RDTO{State: "detached"}, Compatibility: CompatibilityDTO{State: "not_detected", Reason: string(app.Phase15ReasonD2RVersionNotDetected), ExpectedVersion: cfg.Memory.GameVersion}, Input: InputDTO{Enabled: false}, World: WorldDTO{Phase: "unknown"}},
-		catalog: CatalogDTO{Revision: characterCatalog.Revision, DefaultDifficulty: cfg.Session.Difficulty, Characters: characters, Difficulties: []DifficultyCatalogEntry{{ID: "normal", DisplayName: "Normal"}, {ID: "nightmare", DisplayName: "Alptraum"}, {ID: "hell", DisplayName: "Hölle"}}, Profiles: profiles, Runs: runs}, characters: characterEntries, difficulty: cfg.Session.Difficulty,
+		catalog: CatalogDTO{Revision: characterCatalog.Revision, DefaultDifficulty: cfg.Session.Difficulty, Characters: characters, Difficulties: []DifficultyCatalogEntry{{ID: "normal"}, {ID: "nightmare"}, {ID: "hell"}}, Profiles: profiles, Runs: runs}, characters: characterEntries, difficulty: cfg.Session.Difficulty,
 	}, nil
 }
 
@@ -87,7 +87,7 @@ func runCatalogEntries(report app.RunsInspectReport, cfg *config.Config) []RunCa
 		}
 		routeCombat := cfg.Runs.Definitions[string(run.RunID)].RouteCombat
 		runs = append(runs, RunCatalogEntry{
-			RunID: string(run.RunID), DisplayName: run.DisplayName, Status: string(run.Status), Reasons: reasons,
+			RunID: string(run.RunID), Status: string(run.Status), Reasons: reasons,
 			RouteCombat: RouteCombatConfigDTO{
 				Enabled: routeCombat.EnabledValue(), ImmediateRadiusTiles: routeCombat.ImmediateRadiusTiles,
 				CorridorWidthTiles: routeCombat.CorridorWidthTiles, LandingRadiusTiles: routeCombat.LandingRadiusTiles,
@@ -125,7 +125,7 @@ func (b *BootstrapBackend) Catalog() CatalogDTO {
 func (b *BootstrapBackend) RunAvailabilities(character, difficulty string) (RunAvailabilitiesDTO, error) {
 	entry, ok := b.character(character)
 	if !ok {
-		return RunAvailabilitiesDTO{}, &commandError{code: app.CharacterReasonSaveMissing, message: "Der lokale Offline-Spielstand wurde nicht gefunden."}
+		return RunAvailabilitiesDTO{}, &commandError{code: app.CharacterReasonSaveMissing}
 	}
 	if strings.TrimSpace(difficulty) == "" {
 		difficulty = b.difficulty

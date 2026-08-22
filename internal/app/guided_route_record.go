@@ -109,7 +109,7 @@ func (rt *Runtime) runGuidedRouteRecord(runID tasks.RunID, routeRole pathing.Rou
 		return nil
 	}
 
-	rt.Log.Info("guided route recording waiting for confirmed start", "run_id", runID, "route_role", routeRole, "instructions", contract.InstructionsDE, "finish_hotkey", rt.Config.Input.RecordingFinishHotkey, "emergency_stop_hotkey", rt.Config.Input.StopHotkey)
+	rt.Log.Info("guided route recording waiting for confirmed start", "run_id", runID, "route_role", routeRole, "instruction_code", contract.InstructionCode, "finish_hotkey", rt.Config.Input.RecordingFinishHotkey, "emergency_stop_hotkey", rt.Config.Input.StopHotkey)
 	reportRouteWorkflow(reporter, RouteWorkflowProgress{State: RouteWorkflowPreflight})
 	lastReportedArea := world.AreaID(0)
 	for {
