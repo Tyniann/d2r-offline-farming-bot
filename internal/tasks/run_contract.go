@@ -379,6 +379,8 @@ const (
 	RunReasonWaypointUIUnconfirmed RunReason = "waypoint_ui_unconfirmed"
 	// RunReasonWaypointDestinationTimeout reports missing destination confirmation.
 	RunReasonWaypointDestinationTimeout RunReason = "waypoint_destination_timeout"
+	// RunReasonTownPortalDestinationTimeout reports that one bounded portal retry did not reach town.
+	RunReasonTownPortalDestinationTimeout RunReason = "town_portal_destination_timeout"
 	// RunReasonUnexpectedArea reports a valid but disallowed current area.
 	RunReasonUnexpectedArea RunReason = "unexpected_area"
 	// RunReasonChestSweepEmpty reports that the recorded path showed no Supertruhe.

@@ -4,19 +4,13 @@ import (
 	"context"
 	"time"
 
-	"github.com/Tyniann/d2r-offline-farming-bot/internal/profile"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/telemetry"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/world"
 )
 
 const (
-	// Chest blocker recovery is object-local and one-shot. These limits keep a
-	// crowded hut from turning chest_sweep into unrestricted route combat.
-	chestBlockerRadiusTiles          float64 = 12
-	chestBlockerMaxActions                   = 12
-	chestBlockerStableClearSnapshots         = 3
-	chestBlockerTimeout                      = 6 * time.Second
-	chestBlockerNoProgressTimeout            = 3 * time.Second
+	chestBlockerRadiusTiles = localThreatClearRadiusTiles
+	chestBlockerMaxActions  = localThreatClearMaxActions
 )
 
 func (c *runPipeline) resetChestWork() {
@@ -170,10 +164,7 @@ func (c *runPipeline) clearChestPin() {
 func (c *runPipeline) resetChestBlockerState() {
 	c.chest.blockerUnitID = 0
 	c.chest.clearResume = ""
-	c.chest.clearActions = 0
-	c.chest.clearNoTargetTicks = 0
-	c.chest.clearStartedAt = time.Time{}
-	c.chest.clearLastActionAt = time.Time{}
+	c.chest.clear = localThreatClear{}
 }
 
 func (c *runPipeline) beginChestObjectLoot() {
@@ -406,10 +397,7 @@ func (c *runPipeline) startChestBlockerClear(deps pipelineChestDeps, w world.Sta
 		c.chest.clearResume = chestPhaseClick
 	}
 	c.chest.phase = chestPhaseClearBlocker
-	c.chest.clearActions = 0
-	c.chest.clearNoTargetTicks = 0
-	c.chest.clearStartedAt = now
-	c.chest.clearLastActionAt = now
+	c.chest.clear.start(object.Position, c.chest.blockerUnitID, now)
 	if deps.Chest != nil {
 		deps.Chest.Reset()
 	}
@@ -453,37 +441,13 @@ func (c *runPipeline) tickChestBlockerClear(ctx context.Context, deps pipelineCh
 		}
 		c.chest.pin = fresh
 	}
-	if c.chest.clearActions >= chestBlockerMaxActions ||
-		now.Sub(c.chest.clearStartedAt) >= chestBlockerTimeout ||
-		now.Sub(c.chest.clearLastActionAt) >= chestBlockerNoProgressTimeout {
-		c.finishChestBlockerClear(deps)
-		return stepResult{}
-	}
-	target, found := c.findChestBlockerTarget(w)
-	if !found {
-		c.chest.clearNoTargetTicks++
-		deps.RouteClear.ResetRouteClear()
-		if c.chest.clearNoTargetTicks >= chestBlockerStableClearSnapshots {
-			c.finishChestBlockerClear(deps)
-		}
-		return stepResult{}
-	}
-	c.chest.clearNoTargetTicks = 0
-	result := deps.RouteClear.TickRouteClear(ctx, profile.RouteClearRequest{
-		RunID:        string(c.effectiveDefinition().ID),
-		DefinitionID: c.core.combat.Profile,
-		Player:       w.Player,
-		Target:       target,
-		Mode:         profile.RouteClearThreat,
-		AssessmentAt: w.At,
-	}, now)
-	switch result.Status {
-	case profile.StatusFailed:
+	result := c.chest.clear.tick(ctx, deps.RouteClear, w, now, string(c.effectiveDefinition().ID), c.core.combat.Profile)
+	if result.failed {
 		c.stopChestBlockerClear(deps)
-		return stepResult{failed: true, reason: "combat_action_failed"}
-	case profile.StatusAction:
-		c.chest.clearActions++
-		c.chest.clearLastActionAt = now
+		return stepResult{failed: true, reason: result.reason}
+	}
+	if result.done {
+		c.finishChestBlockerClear(deps)
 	}
 	return stepResult{}
 }
@@ -492,24 +456,7 @@ func (c *runPipeline) findChestBlockerTarget(w world.State) (world.Monster, bool
 	// Hover may name a merc or corpse that is not in the hostile list. Prefer
 	// that UnitID when it is a living hostile in range; otherwise the nearest
 	// living monster within [chestBlockerRadiusTiles] of the pinned object.
-	var nearest world.Monster
-	nearestDistance := 0.0
-	found := false
-	for _, monster := range w.Monsters {
-		distance := world.Distance(monster.Position, c.chest.pin.Position)
-		if distance > chestBlockerRadiusTiles {
-			continue
-		}
-		if monster.UnitID == c.chest.blockerUnitID {
-			return monster, true
-		}
-		if !found || distance < nearestDistance {
-			nearest = monster
-			nearestDistance = distance
-			found = true
-		}
-	}
-	return nearest, found
+	return selectLocalThreat(w, c.chest.pin.Position, c.chest.blockerUnitID, chestBlockerRadiusTiles)
 }
 
 func (c *runPipeline) finishChestBlockerClear(deps pipelineChestDeps) {
@@ -533,9 +480,7 @@ func (c *runPipeline) finishChestBlockerClear(deps pipelineChestDeps) {
 }
 
 func (c *runPipeline) stopChestBlockerClear(deps pipelineChestDeps) {
-	if deps.RouteClear != nil {
-		deps.RouteClear.ResetRouteClear()
-	}
+	c.chest.clear.reset(deps.RouteClear)
 	c.resetChestBlockerState()
 }
 

@@ -54,6 +54,7 @@ Bei produktiven Queue-Runs schreibt der Runtime-Owner vor dem Schließen des Run
 | `run_encounter_action_started` / `run_encounter_action_completed` | eine geordnete Pre-Combat-Aktion beginnt oder endet | je Definition und Aktionsindex |
 | `boss_kill_confirmed` | die bestehende Kill-Bedingung bestätigt das Verschwinden der gepinnten Boss-Unit | genau einmal je Run |
 | `sell_success` | die gepinnte Unit hat das persönliche Inventory nach dem Sell-Input verlassen | terminal je verkauftem Item |
+| `town_portal_entry_unconfirmed` / `town_portal_recovery_started` / `town_portal_retry_clicked` / `town_portal_recovery_completed` | erster Klick bleibt im Route-Terminal, Recovery beginnt, Retry-Klick erfolgt und Ziel-Area wird bestätigt | höchstens einmal je Event und Run |
 
 `stash_full` wird im aktuellen Personal-Stash-MVP mit unbegrenzten Sammel-Tabs nicht heuristisch erzeugt.
 
@@ -113,4 +114,4 @@ Phase-16-Gate D bestätigte einen vollständigen produktiven Countess-Stream mit
 - [Personal-Stash MVP](personal-stash-mvp.md)
 
 ---
-*Zuletzt aktualisiert: 21. August 2026*
+*Zuletzt aktualisiert: 22. August 2026*

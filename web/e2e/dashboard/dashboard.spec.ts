@@ -54,6 +54,32 @@ test("aktiver Run bleibt bei reduzierter Bewegung ruhig und verwendet nur Hotkey
   expect(browserErrors).toEqual([]);
 });
 
+test("Diagramme entsprechen dem Mock ohne Werteliste und mit dunklen Tooltips", async ({ page }) => {
+  await mockDashboard(page, false);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/#dashboard");
+  await expect(page.getByRole("heading", { name: "MrBones ist bereit" })).toBeVisible();
+
+  await expect.soft(page.locator(".dashboard-route-values")).toHaveCount(0);
+  await expect(page.getByRole("img", { name: /Gesicherte Items pro Stunde: Gräfin 56,3/ })).toBeVisible();
+
+  await page.locator(".dashboard-route-chart .recharts-rectangle").first().hover();
+  const routeTooltip = page.locator(".dashboard-route-chart .recharts-default-tooltip");
+  await expect(routeTooltip).toBeVisible();
+  expect.soft(await routeTooltip.evaluate((element) => getComputedStyle(element).backgroundColor)).toBe("rgb(24, 20, 25)");
+  await expect.soft(routeTooltip).toContainText("56,3");
+  await expect.soft(routeTooltip).not.toContainText("56.312");
+  await page.screenshot({ path: "../.tmp/dashboard-route-tooltip-dark.png" });
+
+  const outcomeBounds = await page.locator(".dashboard-outcome-ring").boundingBox();
+  if (!outcomeBounds) throw new Error("Ergebnisring hat keine sichtbare Geometrie");
+  await page.mouse.move(outcomeBounds.x + outcomeBounds.width - 15, outcomeBounds.y + outcomeBounds.height / 2);
+  const outcomeTooltip = page.locator(".dashboard-outcome-ring .recharts-default-tooltip");
+  await expect(outcomeTooltip).toBeVisible();
+  expect.soft(await outcomeTooltip.evaluate((element) => getComputedStyle(element).backgroundColor)).toBe("rgb(24, 20, 25)");
+  await page.screenshot({ path: "../.tmp/dashboard-outcome-tooltip-dark.png" });
+});
+
 function captureBrowserErrors(page: Page): string[] {
   const errors: string[] = [];
   page.on("console", (message) => {
@@ -81,7 +107,7 @@ async function mockDashboard(page: Page, active: boolean): Promise<void> {
   const stages = { travel_ms: 180000, combat_ms: 90000, loot_ms: 60000, return_town_ms: 60000, other_ms: 0 };
   const funnel = { seen: 12, matched: 8, picked_up: 6, stashed: 4, sold: 0, keep_return: 4, pickup_lost: 2, post_pickup_lost: 0 };
   const summary = { runs: 5, terminal_runs: 5, successful: 4, failed: 1, aborted: 0, incomplete: 0, running: 0, success_rate: .8, boss_kills: 4, durations, stages, funnel, keep_per_hour: 2.7 };
-  const comparison = { id: "countess-a", character: "MrBones", difficulty: "nightmare", definition_id: "countess", run: "countess", route_id: "route-a", terminal_runs: 5, successful: 4, failed: 1, aborted: 0, success_rate: .8, boss_kills: 4, low_sample: false, durations, stages, funnel, keep_per_hour: 2.7 };
+  const comparison = { id: "countess-a", character: "MrBones", difficulty: "nightmare", definition_id: "countess", run: "countess", route_id: "route-a", terminal_runs: 5, successful: 4, failed: 1, aborted: 0, success_rate: .8, boss_kills: 4, low_sample: false, durations, stages, funnel, keep_per_hour: 56.312452576254624 };
   const recent = { run_id: "history-1", started_at: "2026-08-22T10:00:00Z", observed_at: "2026-08-22T10:01:18Z", character: "MrBones", difficulty: "nightmare", run: "countess", definition_id: "countess", route_id: "route-a", outcome: "success", duration_ms: 78000, boss_kills: 1, funnel };
   await page.route("**/api/v1/**", async (route: Route) => {
     const path = new URL(route.request().url()).pathname;

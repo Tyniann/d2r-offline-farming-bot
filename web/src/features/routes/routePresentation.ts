@@ -11,6 +11,15 @@ const runLabels: Record<string, string> = {
   cows: "Kuhlevel",
 };
 
+const runPurposes: Record<string, readonly string[]> = {
+  countess: ["Schlüssel des Terrors", "Runen"],
+  summoner: ["Schlüssel des Hasses"],
+  "lower-kurast": ["Hohe Runen", "Edelsteine"],
+  mephisto: ["Set-Items", "Unique-Items"],
+  nihlathak: ["Schlüssel der Zerstörung"],
+  cows: ["Weiße Rohlinge", "Gesockelte Rohlinge", "Edelsteine", "Erfahrung"],
+};
+
 const roleLabels: Record<string, string> = {
   leg_acquisition: "Wirt-Route",
   cow_sweep: "Cow-Route",
@@ -72,6 +81,10 @@ const candidateStatusLabels: Record<string, string> = {
 
 export function runLabel(runID: string): string {
   return runLabels[runID] ?? "Farming-Run";
+}
+
+export function runPurposeLabels(runID: string): readonly string[] {
+  return runPurposes[runID] ?? [];
 }
 
 export function roleLabel(role?: string): string {

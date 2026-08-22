@@ -22,6 +22,7 @@ func TestOfflineExitMachineRequiresVerifiedSequence(t *testing.T) {
 	machine := &offlineExitMachine{}
 	now := time.Unix(100, 0)
 	state := safeOfflineExitState()
+	const maximumTownSettle = 500 * time.Millisecond
 
 	for i := 0; i < offlineExitStableTicks; i++ {
 		action, done, err := machine.tick(now.Add(time.Duration(i)*time.Millisecond), state)
@@ -29,7 +30,7 @@ func TestOfflineExitMachineRequiresVerifiedSequence(t *testing.T) {
 			t.Fatalf("safe tick %d = action %d done %v err %v", i, action, done, err)
 		}
 	}
-	action, done, err := machine.tick(now.Add(offlineExitTownSettle), state)
+	action, done, err := machine.tick(now.Add(maximumTownSettle), state)
 	if err != nil || done || action != offlineExitPressEscape {
 		t.Fatalf("escape tick = action %d done %v err %v", action, done, err)
 	}
@@ -88,7 +89,7 @@ func TestOfflineExitMachineRejectsUnsafeInitialStates(t *testing.T) {
 	})
 }
 
-func TestOfflineExitMachineWaitsForTownUIToCloseBeforeSettle(t *testing.T) {
+func TestOfflineExitMachineDoesNotExtendSettleForStaleTownUI(t *testing.T) {
 	machine := &offlineExitMachine{}
 	now := time.Unix(100, 0)
 	state := safeOfflineExitState()
@@ -98,12 +99,11 @@ func TestOfflineExitMachineWaitsForTownUIToCloseBeforeSettle(t *testing.T) {
 		t.Fatalf("open waypoint tick = action %d done %v err %v", action, done, err)
 	}
 	state.UI.WaypointOpen = false
-	_, _, _ = machine.tick(now.Add(time.Second), state)
-	action, done, err = machine.tick(now.Add(time.Second+time.Millisecond), state)
+	action, done, err = machine.tick(now.Add(offlineExitTownSettle-time.Millisecond), state)
 	if err != nil || done || action != offlineExitNoAction {
-		t.Fatalf("insufficient stable ticks = action %d done %v err %v", action, done, err)
+		t.Fatalf("premature settle tick = action %d done %v err %v", action, done, err)
 	}
-	action, done, err = machine.tick(now.Add(time.Second+offlineExitTownSettle), state)
+	action, done, err = machine.tick(now.Add(offlineExitTownSettle), state)
 	if err != nil || done || action != offlineExitPressEscape {
 		t.Fatalf("closed waypoint settle = action %d done %v err %v", action, done, err)
 	}

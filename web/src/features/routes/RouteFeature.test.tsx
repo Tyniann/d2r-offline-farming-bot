@@ -78,6 +78,21 @@ describe("RouteFeature Redesign", () => {
     expect(screen.queryByText("Wirt-Anleitung vollständig.")).not.toBeInTheDocument();
   });
 
+  it("zeigt vor der Aufnahme den Routenzweck und den Weg zu Pickit", async () => {
+    render(<RouteFeature characters={["MrBones"]} selectedCharacter="MrBones" refreshKey={0} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Route aufnehmen" }));
+    const countessPurpose = screen.getByRole("note", { name: "Geeignet für Gräfin" });
+    expect(countessPurpose).toHaveTextContent("Schlüssel des Terrors");
+    expect(countessPurpose).toHaveTextContent("Runen");
+    expect(within(countessPurpose).getByRole("link", { name: "Pickit konfigurieren" })).toHaveAttribute("href", "#pickit");
+
+    fireEvent.click(screen.getByRole("button", { name: /^Mephisto/ }));
+    const mephistoPurpose = screen.getByRole("note", { name: "Geeignet für Mephisto" });
+    expect(mephistoPurpose).toHaveTextContent("Set-Items");
+    expect(mephistoPurpose).toHaveTextContent("Unique-Items");
+    expect(screen.queryByText("Schlüssel des Terrors")).not.toBeInTheDocument();
+  });
+
   it("zeigt Unteres Kurast mit Lagerfeuer-Ziel und schließt das Aufnahme-Overlay per Button", async () => {
     render(<RouteFeature characters={["MrBones"]} selectedCharacter="MrBones" refreshKey={0} />);
     fireEvent.click(await screen.findByRole("button", { name: "Route aufnehmen" }));

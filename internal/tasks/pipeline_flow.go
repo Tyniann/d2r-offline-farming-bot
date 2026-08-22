@@ -360,6 +360,9 @@ func (c *runPipeline) timeoutReason(step string) string {
 	if step == pipelineStepWaitEntryArea || step == pipelineStepWaitHubArea {
 		return string(RunReasonWaypointDestinationTimeout)
 	}
+	if step == pipelineStepWaitOriginTown {
+		return string(RunReasonTownPortalDestinationTimeout)
+	}
 	return "timeout"
 }
 

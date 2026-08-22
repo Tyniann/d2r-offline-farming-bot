@@ -11,6 +11,14 @@ describe("App-Designvertrag", () => {
     }
   });
 
+  it("hält Grundflächen fast schwarz und verwendet Feuerfarben nur als Akzent", () => {
+    expect(css).toContain("--surface-0: #060507");
+    expect(css).toContain("--surface-1: #0c090d");
+    expect(css).toContain("--surface-2: #130f14");
+    expect(css).toContain("--surface-3: #1b151c");
+    expect(css).toMatch(/body\s*\{[^}]*radial-gradient\([^)]*#1d0a06[^)]*\)[^}]*linear-gradient\([^)]*#060507/s);
+  });
+
   it("enthält kleine Desktopgrößen und den reduzierten Bewegungsmodus", () => {
     expect(css).toMatch(/@media\s*\(max-width:\s*1000px\)/);
     expect(css).toMatch(/@media\s*\(max-width:\s*620px\)/);

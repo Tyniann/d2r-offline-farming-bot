@@ -1,10 +1,10 @@
-import { Check, ChevronRight, CircleAlert, X } from "lucide-react";
+import { Check, ChevronRight, CircleAlert, Sparkles, X } from "lucide-react";
 import { useState } from "react";
 import type { HotkeyHelpDTO, RecordingOptionDTO, RouteWorkflowDTO } from "../../../api/generated";
 import { Dialog } from "../../../app/ui";
 import campfireGuide from "../../../assets/route-guides/lower-kurast/campfire.png";
 import hutGuide from "../../../assets/route-guides/lower-kurast/huts.png";
-import { prerequisiteLabel, reasonLabel, roleLabel, runLabel, runOrder, targetLabel, terminalWorkflowStates, waypointLabel } from "../routePresentation";
+import { prerequisiteLabel, reasonLabel, roleLabel, runLabel, runOrder, runPurposeLabels, targetLabel, terminalWorkflowStates, waypointLabel } from "../routePresentation";
 import { RouteWorkflowPanel } from "./RouteWorkflowPanel";
 
 interface Props {
@@ -47,6 +47,7 @@ export function RouteRecordingPanel({ options, selectedRun, selectedRole, hotkey
   const missingPrerequisite = option?.prerequisites?.find((entry) => !entry.ready);
   const disabledReason = locked ? (lockedReason ?? "Aktion derzeit nicht möglich.") : missingPrerequisite ? reasonLabel(missingPrerequisite.reason) : option && !option.available ? reasonLabel(option.reason) : "";
   const openGuide = lowerKurastGuides.find((entry) => entry.id === guideID);
+  const purposeLabels = option ? runPurposeLabels(option.run_id) : [];
 
   if (options.length === 0) return <div className="route-panel"><h3>Route aufnehmen</h3><p className="route-empty">Für die aktuelle Auswahl ist keine Routenaufnahme verfügbar.</p></div>;
 
@@ -69,6 +70,11 @@ export function RouteRecordingPanel({ options, selectedRun, selectedRole, hotkey
         </div>}
         {option && <>
           <div className="route-detail-heading"><div><h3>{runLabel(option.run_id)} aufnehmen</h3><p>{roleLabel(option.route_role) || "Farming-Route"}</p></div>{option.route_role && <span className="route-status route-status-info">{roleLabel(option.route_role)}</span>}</div>
+          {purposeLabels.length > 0 && <aside className="route-purpose" role="note" aria-label={`Geeignet für ${runLabel(option.run_id)}`}>
+            <Sparkles aria-hidden="true" size={20} />
+            <div><strong>Geeignet für</strong><ul>{purposeLabels.map((label) => <li key={label}>{label}</li>)}</ul></div>
+            <a href="#pickit">Pickit konfigurieren</a>
+          </aside>}
           {option.run_id === "cows" && <div className="route-cow-notice"><strong>Vorbereitung für das Kuhlevel</strong><p>Die gewählte Schwierigkeit muss abgeschlossen sein. Halte einen geschützten Horadrimwürfel, Platz für Wirts Bein und die benötigten Stadtportalbücher bereit. Entferne alte Wirts Beine vorher manuell.</p></div>}
           <div className="route-prerequisites">
             {(option.prerequisites ?? []).map((entry) => <span key={entry.id} className={entry.ready ? "ready" : "missing"}>{entry.ready ? <Check aria-hidden="true" size={15} /> : <X aria-hidden="true" size={15} />}{prerequisiteLabel(entry.id)}</span>)}

@@ -35,6 +35,8 @@ Vor `Esc` verlangt die State-Machine drei aufeinanderfolgende Ticks mit:
 
 Loading, `unknown` und vorübergehend ungültige In-Game-Snapshots setzen den Stabilitätszähler zurück. Ein bestätigter Menüscreen, eine falsche Area, offene kritische UI oder ein bereits geöffnetes Quit-Menü endet fail-closed vor Input.
 
+Nach dem ersten gültigen Rogue-Encampment-Snapshot mit bestätigter Character Identity wartet der Automat einmalig höchstens 500 ms, bevor er `Esc` sendet. Bewegung und stale Town-UI verlängern dieses Fenster nicht. Normaler Queue-Abschluss, Budgetende und kontrollierte Retry-Rückkehr verwenden denselben Wert.
+
 ### `await_quit_menu`
 
 Nach genau einem `Esc` wartet der Flow maximal fünf Sekunden auf drei stabile `QuitMenuOpen=true`-Ticks. Area, In-Game-Phase und geschlossene Inventory-/Stash-UI müssen erhalten bleiben. Ohne Bestätigung erfolgt kein Save-&-Exit-Klick und kein zweites `Esc`.
@@ -73,6 +75,7 @@ Der Modus ist gegenseitig exklusiv mit Run, Phase, Input-Test, Pathing-Test, Rou
 | Grenze | Wert | Reaktion |
 |--------|------|----------|
 | Gesamtflow | 30 s | Abbruch ohne weitere Inputs. |
+| Town-Settle vor `Esc` | 500 ms | Einmalige kurze Eingaberuhe nach bestätigtem Town-Handoff. |
 | Quit-Menü-Bestätigung | 5 s | Abbruch ohne Save-&-Exit-Klick. |
 | Menü-Ankunft nach Klick | 15 s | Abbruch; kein zweiter Klick. |
 | Stabilität je Gate | 3 Ticks | Jeder abweichende Tick setzt nur das aktuelle Gate zurück. |
@@ -133,4 +136,4 @@ Phase 7.2 ist abgeschlossen. Längere Serien bleiben freiwillige Diagnose, keine
 - [Offline-Difficulty-Auswahl](offline-difficulty-selection.md)
 
 ---
-*Zuletzt aktualisiert: 2026-07-11*
+*Zuletzt aktualisiert: 2026-08-22*

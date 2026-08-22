@@ -9,6 +9,16 @@ import { dashboardDifficultyName, dashboardRunName } from "./dashboardText";
 
 export type DashboardPeriod = "7" | "30" | "all";
 
+const dashboardTooltipStyle = {
+  backgroundColor: "#181419",
+  border: "1px solid #5b464d",
+  borderRadius: "8px",
+  boxShadow: "0 10px 28px #0009",
+  color: "#f3e7ec",
+};
+const dashboardTooltipLabelStyle = { color: "#f3e7ec", fontWeight: 700 };
+const dashboardTooltipItemStyle = { color: "#ee9a74" };
+
 interface DashboardHistoryData {
   summary: HistorySummaryDTO;
   comparisons: HistoryComparisonDTO[];
@@ -116,7 +126,7 @@ function OutcomeRing({ summary, empty, reducedMotion }: { summary?: HistorySumma
   const successRate = summary?.success_rate;
   return <>
     <div className="dashboard-outcome-ring" role="img" aria-label={summary ? `Ergebnisverteilung: ${rows.map((row) => `${row.name} ${row.value}`).join(", ")}` : "Ergebnisverteilung wird geladen"}>
-      {!empty && summary && <ResponsiveContainer width="100%" height="100%"><PieChart accessibilityLayer={false}><Pie data={rows} dataKey="value" nameKey="name" innerRadius="68%" outerRadius="94%" paddingAngle={3} stroke="none" isAnimationActive={!reducedMotion} animationDuration={180} animationEasing="ease-out">{rows.map((row) => <Cell key={row.name} fill={row.color} />)}</Pie><Tooltip /></PieChart></ResponsiveContainer>}
+      {!empty && summary && <ResponsiveContainer width="100%" height="100%"><PieChart accessibilityLayer={false}><Pie data={rows} dataKey="value" nameKey="name" innerRadius="68%" outerRadius="94%" paddingAngle={3} stroke="none" isAnimationActive={!reducedMotion} animationDuration={180} animationEasing="ease-out">{rows.map((row) => <Cell key={row.name} fill={row.color} />)}</Pie><Tooltip contentStyle={dashboardTooltipStyle} labelStyle={dashboardTooltipLabelStyle} itemStyle={dashboardTooltipItemStyle} /></PieChart></ResponsiveContainer>}
       <span>{percent(successRate)}<small>Erfolg</small></span>
     </div>
     <div className="dashboard-legend">{rows.map((row) => <span key={row.name}><i style={{ background: row.color }} />{row.name} <strong>{summary ? row.value : "–"}</strong></span>)}</div>
@@ -127,10 +137,7 @@ function RouteBars({ rows, runNames, empty, reducedMotion }: { rows?: HistoryCom
   if (!rows) return <div className="dashboard-chart-placeholder">Routenvergleich wird geladen</div>;
   if (empty || rows.length === 0) return <div className="dashboard-chart-placeholder">Noch keine vergleichbaren Routen</div>;
   const chartRows = rows.map((row) => ({ ...row, name: runNames[row.run] ?? labelRun(row.run), rate: row.keep_per_hour ?? 0 }));
-  return <>
-    <div className="dashboard-route-chart" role="img" aria-label={`Gesicherte Items pro Stunde: ${chartRows.map((row) => `${row.name} ${rate(row.rate)}`).join(", ")}`}><ResponsiveContainer width="100%" height="100%"><BarChart accessibilityLayer={false} data={chartRows} layout="vertical" margin={{ top: 4, right: 18, left: 8, bottom: 4 }}><XAxis type="number" hide /><YAxis type="category" dataKey="name" width={100} tick={{ fill: "#c7b9bf", fontSize: 12 }} axisLine={false} tickLine={false} /><Tooltip /><Bar dataKey="rate" name="Items pro Stunde" fill="#e97845" radius={[0, 6, 6, 0]} barSize={18} isAnimationActive={!reducedMotion} animationDuration={180} animationEasing="ease-out" /></BarChart></ResponsiveContainer></div>
-    <ul className="dashboard-route-values">{chartRows.map((row) => <li key={row.id}><span>{row.name}</span><strong>{rate(row.rate)}</strong></li>)}</ul>
-  </>;
+  return <div className="dashboard-route-chart" role="img" aria-label={`Gesicherte Items pro Stunde: ${chartRows.map((row) => `${row.name} ${rate(row.rate)}`).join(", ")}`}><ResponsiveContainer width="100%" height="100%"><BarChart accessibilityLayer={false} data={chartRows} layout="vertical" margin={{ top: 4, right: 18, left: 8, bottom: 4 }}><XAxis type="number" hide /><YAxis type="category" dataKey="name" width={100} tick={{ fill: "#c7b9bf", fontSize: 12 }} axisLine={false} tickLine={false} /><Tooltip formatter={(value) => rate(Number(value))} contentStyle={dashboardTooltipStyle} labelStyle={dashboardTooltipLabelStyle} itemStyle={dashboardTooltipItemStyle} cursor={{ fill: "#2b2327" }} /><Bar dataKey="rate" name="Items pro Stunde" fill="#e97845" radius={[0, 6, 6, 0]} barSize={18} isAnimationActive={!reducedMotion} animationDuration={180} animationEasing="ease-out" /></BarChart></ResponsiveContainer></div>;
 }
 
 function RecentRuns({ rows, runNames }: { rows?: HistoryRunDTO[]; runNames: Record<string, string> }) {

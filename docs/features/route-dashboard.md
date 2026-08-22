@@ -29,6 +29,8 @@ Aktive Routen bieten Archivieren in einem kontextuellen Menü. Der Archivfilter 
 
 Desktop zeigt eine kompakte Run-Liste links und genau eine Anleitung rechts. Unter 760 Pixeln wird die Auswahl als Select oberhalb des Detailbereichs dargestellt. Start und Ziel werden als Ortsnamen gezeigt; Area-IDs und interne Startschlüssel bleiben unsichtbar.
 
+Direkt unter dem Run-Titel zeigt „Geeignet für“ den Zweck der gewählten Route als kompakte Beuteziele. Die Zuordnung umfasst Schlüssel, Runen, Edelsteine, Set-/Unique-Items, weiße und gesockelte Rohlinge sowie beim Kuhlevel Erfahrung. „Pickit konfigurieren“ führt zum bestehenden Pickit-Editor. Der Hinweis ändert keine Profile oder Assignments automatisch.
+
 Voraussetzungen erscheinen als kurze übersetzte Checkliste. Nur eine fehlende Voraussetzung erhält eine konkrete Erklärung. `F9` zum Beenden der Aufnahme und `F11` für den Notabbruch stehen direkt an der Aufnahmeaktion und bleiben während einer aktiven Aufnahme sichtbar. Endet die Aufnahme mit `failed_safe` oder `emergency_cancelled`, bleibt die übersetzte Ursache sichtbar; der Startknopf ist sofort wieder bedienbar, unabhängig vom Run. Ein App-Neustart ist nicht erforderlich.
 
 Das Kuhlevel verwendet einen Zweischritt-Umschalter für Wirt- und Cow-Route. Der ausführliche Vorbereitungshinweis erscheint ausschließlich im Kuhlevel-Kontext. Nach einer fertigen Wirt-Aufnahme kann direkt zur Cow-Route gewechselt werden.
@@ -71,4 +73,4 @@ Die Oberfläche verwendet die bestehende lokale Core-API, React und Lucide-Icons
 - [Lokale Core-API](local-core-api.md)
 
 ---
-*Zuletzt aktualisiert: 20. August 2026*
+*Zuletzt aktualisiert: 22. August 2026*

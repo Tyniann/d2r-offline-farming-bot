@@ -15,7 +15,7 @@ func TestPipelineDependencyViewsStayNarrow(t *testing.T) {
 		{name: "chest", value: pipelineChestDeps{}, fields: []string{"Chest", "Combat", "Loot", "Route", "RouteClear", "Telemetry"}},
 		{name: "boss", value: pipelineBossDeps{}, fields: []string{"Pathing", "Combat", "RouteClear", "Profile", "Telemetry"}},
 		{name: "loot", value: pipelineLootDeps{}, fields: []string{"Combat", "Loot"}},
-		{name: "return", value: pipelineReturnDeps{}, fields: []string{"Waypoint", "Portal", "Stash", "Combat", "Actions", "Loot", "TownEgress", "Town"}},
+		{name: "return", value: pipelineReturnDeps{}, fields: []string{"Waypoint", "Portal", "Stash", "Combat", "Actions", "Loot", "RouteClear", "TownEgress", "Town", "Telemetry"}},
 	}
 
 	for _, test := range tests {

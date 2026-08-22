@@ -1,0 +1,1009 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark light">
+  <title>Implementierungsplan – Internationalisierung Deutsch und Englisch</title>
+  <style>
+    :root {
+      --bg: #090b0d;
+      --bg-soft: #0f1317;
+      --panel: #151a1f;
+      --panel-2: #1b2229;
+      --text: #f2f4f5;
+      --muted: #b2bcc5;
+      --line: #35414b;
+      --gold: #d9a34f;
+      --gold-soft: #2b2011;
+      --blue: #8ec7e6;
+      --green: #72d7a2;
+      --yellow: #f1cf72;
+      --red: #f07d86;
+      --code: #090c0f;
+      --shadow: 0 20px 60px rgba(0, 0, 0, .34);
+    }
+
+    @media (prefers-color-scheme: light) {
+      :root {
+        --bg: #f4f1ea;
+        --bg-soft: #ebe6dc;
+        --panel: #fffefa;
+        --panel-2: #f2ede3;
+        --text: #1c2329;
+        --muted: #56636d;
+        --line: #d5cdbf;
+        --gold: #8b5d14;
+        --gold-soft: #f6ead4;
+        --blue: #236989;
+        --green: #15774a;
+        --yellow: #8b6600;
+        --red: #ae3540;
+        --code: #f2eee6;
+        --shadow: 0 18px 50px rgba(60, 47, 26, .12);
+      }
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+
+    body {
+      margin: 0;
+      color: var(--text);
+      background:
+        radial-gradient(circle at 90% -5%, rgba(217, 163, 79, .22), transparent 30rem),
+        radial-gradient(circle at 5% 22%, rgba(71, 131, 161, .16), transparent 29rem),
+        var(--bg);
+      font: 16px/1.62 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    a { color: var(--blue); }
+    a:hover { text-decoration-thickness: 2px; }
+    h1, h2, h3, h4 { line-height: 1.2; }
+    h1 { margin: 0; font-size: clamp(2.1rem, 6vw, 4.1rem); letter-spacing: -.045em; }
+    h2 { margin: 52px 0 0; padding: 18px 0 10px; border-bottom: 1px solid var(--line); font-size: clamp(1.45rem, 3vw, 2rem); }
+    h3 { margin: 28px 0 0; font-size: 1.15rem; }
+    h4 { margin: 18px 0 0; font-size: 1rem; }
+    p { margin: 10px 0 0; }
+    ul, ol { margin: 12px 0 0; padding-left: 1.35rem; }
+    li + li { margin-top: 6px; }
+
+    code, pre { font-family: "Cascadia Code", Consolas, "Liberation Mono", monospace; }
+    code { padding: .08rem .32rem; color: var(--blue); background: var(--code); border: 1px solid var(--line); border-radius: 5px; font-size: .92em; }
+    pre { margin: 14px 0 0; padding: 16px; overflow: auto; color: var(--text); background: var(--code); border: 1px solid var(--line); border-radius: 12px; line-height: 1.48; }
+
+    main { width: min(1240px, calc(100% - 32px)); margin: 0 auto; padding: 34px 0 80px; }
+    section { min-width: 0; scroll-margin-top: 72px; }
+
+    .hero {
+      position: relative;
+      padding: clamp(24px, 5vw, 48px);
+      overflow: hidden;
+      background: linear-gradient(135deg, rgba(49, 36, 18, .95), rgba(24, 31, 36, .96) 54%, rgba(14, 18, 21, .98));
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      box-shadow: var(--shadow);
+    }
+
+    .hero::after {
+      position: absolute;
+      right: -60px;
+      bottom: -110px;
+      width: 320px;
+      height: 320px;
+      content: "";
+      border: 1px solid rgba(217, 163, 79, .22);
+      border-radius: 50%;
+      box-shadow: 0 0 0 42px rgba(217, 163, 79, .04), 0 0 0 84px rgba(217, 163, 79, .025);
+      pointer-events: none;
+    }
+
+    .eyebrow { margin: 0 0 8px; color: var(--gold); font-size: .82rem; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
+    .lead { max-width: 990px; margin-top: 18px; color: var(--muted); font-size: 1.13rem; }
+    .chips { display: flex; flex-wrap: wrap; gap: 9px; margin-top: 20px; }
+    .chip { padding: 5px 11px; color: #ffe4b8; background: rgba(78, 55, 22, .52); border: 1px solid #755429; border-radius: 999px; font-size: .9rem; }
+    .hero-meta { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-top: 28px; }
+    .hero-meta div { padding: 14px; background: rgba(20, 25, 29, .76); border: 1px solid var(--line); border-radius: 14px; }
+    .hero-meta strong { display: block; color: var(--gold); font-size: 1.08rem; }
+    .hero-meta span { display: block; margin-top: 2px; color: var(--muted); font-size: .86rem; }
+
+    .toc { position: sticky; top: 0; z-index: 10; display: flex; gap: 6px; margin-top: 18px; padding: 10px; overflow-x: auto; background: color-mix(in srgb, var(--bg) 88%, transparent); border: 1px solid var(--line); border-radius: 12px; backdrop-filter: blur(12px); }
+    .toc a { flex: 0 0 auto; padding: 7px 10px; color: var(--muted); text-decoration: none; border-radius: 8px; font-size: .86rem; }
+    .toc a:hover { color: var(--text); background: var(--panel-2); }
+
+    .grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin-top: 16px; }
+    .grid.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .card, .callout, .gate, .decision { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; }
+    .card { min-width: 0; padding: 18px; }
+    .card h3, .card h4 { margin-top: 0; }
+    .card p { color: var(--muted); }
+    .metric { color: var(--gold); font-size: 1.75rem; font-weight: 800; }
+    .metric-label { color: var(--muted); font-size: .88rem; }
+
+    .callout { margin-top: 18px; padding: 18px; border-left: 4px solid var(--blue); }
+    .callout.warn { border-left-color: var(--yellow); }
+    .callout.danger { border-left-color: var(--red); }
+    .callout.success { border-left-color: var(--green); }
+    .callout h3 { margin: 0; }
+    .muted { color: var(--muted); }
+    .good { color: var(--green); }
+    .warn-text { color: var(--yellow); }
+    .bad { color: var(--red); }
+
+    .table-wrap { width: 100%; max-width: 100%; margin-top: 16px; overflow-x: auto; border: 1px solid var(--line); border-radius: 13px; }
+    table { width: 100%; min-width: 760px; border-collapse: collapse; background: var(--panel); }
+    th, td { padding: 11px 13px; text-align: left; vertical-align: top; border-bottom: 1px solid var(--line); }
+    th { color: var(--text); background: var(--panel-2); font-size: .83rem; letter-spacing: .04em; text-transform: uppercase; }
+    tr:last-child td { border-bottom: 0; }
+
+    .flow { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; margin-top: 18px; align-items: stretch; }
+    .flow .node { position: relative; min-width: 0; min-height: 112px; padding: 14px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; }
+    .flow .node:not(:last-child)::after { position: absolute; top: 50%; right: -10px; z-index: 2; content: "→"; color: var(--gold); font-weight: 900; transform: translate(50%, -50%); }
+    .node strong { display: block; }
+    .node small { display: block; margin-top: 6px; color: var(--muted); }
+
+    .decision-list { display: grid; gap: 10px; margin-top: 16px; }
+    .decision { display: grid; grid-template-columns: 210px 1fr; gap: 14px; padding: 15px; }
+    .decision strong { color: var(--gold); }
+
+    .phase-list { display: grid; gap: 12px; margin-top: 16px; }
+    .gate { display: grid; grid-template-columns: 110px 1fr; gap: 16px; padding: 18px; border-left: 4px solid var(--green); }
+    .gate.manual { border-left-color: var(--yellow); }
+    .gate-id { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; color: var(--gold); font-size: 1.1rem; font-weight: 850; }
+    .gate h3 { margin: 0; }
+    .gate p { color: var(--muted); }
+    .gate-mode { display: inline-flex; max-width: 100%; padding: 4px 8px; border: 1px solid currentColor; border-radius: 999px; color: var(--green); background: color-mix(in srgb, var(--green) 10%, transparent); font-size: .66rem; font-weight: 800; line-height: 1.25; letter-spacing: .035em; text-transform: uppercase; }
+    .gate.manual .gate-mode { color: var(--yellow); background: color-mix(in srgb, var(--yellow) 10%, transparent); }
+    .gate-proof { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--line); }
+
+    .checks { padding-left: 0; list-style: none; }
+    .checks li { position: relative; padding-left: 26px; }
+    .checks li::before { position: absolute; left: 0; content: "✓"; color: var(--green); font-weight: 900; }
+    .file-list code { white-space: nowrap; }
+
+    footer { margin-top: 54px; padding-top: 20px; color: var(--muted); text-align: center; border-top: 1px solid var(--line); }
+
+    @media (max-width: 900px) {
+      .hero-meta, .grid, .grid.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .flow { grid-template-columns: 1fr; }
+      .flow .node:not(:last-child)::after { top: auto; right: 50%; bottom: -13px; transform: translate(50%, 50%) rotate(90deg); }
+    }
+
+    @media (max-width: 620px) {
+      main { width: min(100% - 20px, 1240px); padding-top: 10px; }
+      .hero { border-radius: 14px; }
+      .hero-meta, .grid, .grid.two { grid-template-columns: 1fr; }
+      .gate, .decision { grid-template-columns: 1fr; }
+      .toc { top: 4px; }
+      th, td { padding: 9px 10px; }
+    }
+
+    @media print {
+      body { background: #fff; }
+      main { width: 100%; padding: 0; }
+      .hero, .card, .callout, .gate, .decision, table, .node { box-shadow: none; break-inside: avoid; }
+      .toc { display: none; }
+      a { color: inherit; }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <header class="hero" id="top">
+    <p class="eyebrow">Agentenplan · Desktop, Core-Vertrag und UI</p>
+    <h1>Internationalisierung Deutsch und Englisch</h1>
+    <p class="lead">
+      Dieser Plan führt die vollständige Internationalisierung der installierten Windows-App ein. Sämtliche
+      Texte, die ein Operator in React, Electron, Recovery und Installer sieht, wechseln ohne App- oder
+      Core-Neustart zwischen Deutsch und Englisch. Der Core bleibt sprachneutral und liefert stabile Codes,
+      IDs und strukturierte Werte. Die UI formuliert daraus den Text der aktiven Sprache.
+    </p>
+    <div class="chips" aria-label="Schwerpunkte">
+      <span class="chip">Deutsch · Englisch</span>
+      <span class="chip">Dynamischer Wechsel</span>
+      <span class="chip">Sprachneutraler Core</span>
+      <span class="chip">React + Electron + NSIS</span>
+      <span class="chip">CASC-verankerte Spielnamen</span>
+    </div>
+    <div class="hero-meta">
+      <div><strong>Stand</strong><span>22. August 2026</span></div>
+      <div><strong>Status</strong><span>Implementierungsentwurf, noch nicht umgesetzt</span></div>
+      <div><strong>Neue Pakete</strong><span><code>i18next</code>, <code>react-i18next</code></span></div>
+      <div><strong>Persistenz</strong><span><code>desktop-settings.json</code>, nicht Core-Config</span></div>
+    </div>
+  </header>
+
+  <nav class="toc" aria-label="Inhaltsübersicht">
+    <a href="#auftrag">Auftrag</a>
+    <a href="#quellen">Quellen</a>
+    <a href="#entscheidungen">Entscheidungen</a>
+    <a href="#zielbild">Zielbild</a>
+    <a href="#kataloge">Kataloge</a>
+    <a href="#transport">Core-Vertrag</a>
+    <a href="#desktop">Desktop</a>
+    <a href="#spieldaten">Spieldaten</a>
+    <a href="#gates">Arbeitspakete</a>
+    <a href="#dateien">Dateien</a>
+    <a href="#validierung">Validierung</a>
+    <a href="#done">Definition of Done</a>
+  </nav>
+
+  <section id="auftrag">
+    <h2>1. Auftrag und Erfolgsgrenze</h2>
+    <div class="callout success">
+      <h3>Verbindliches Ergebnis</h3>
+      <p>
+        Ein Operator kann jederzeit <code>DE</code> oder <code>EN</code> wählen. Die laufende App übernimmt die
+        Auswahl sofort, speichert sie atomar und verwendet sie beim nächsten Start wieder. React, Dokumenttitel,
+        ARIA-Texte, Datum, Zahlen, Tray, native Dialoge, Notifications, Recovery und Installer sind abgedeckt.
+        Ein Sprachwechsel berührt weder Sessionzustand noch Bot-Input noch den Go-Core-Prozess.
+      </p>
+    </div>
+
+    <div class="grid">
+      <article class="card">
+        <div class="metric">2</div>
+        <div class="metric-label">unterstützte Sprachen</div>
+        <p><code>de</code> und <code>en</code> sind die einzigen erlaubten Laufzeitwerte.</p>
+      </article>
+      <article class="card">
+        <div class="metric">4</div>
+        <div class="metric-label">sichtbare Ausgabekanäle</div>
+        <p>React, Electron-Main, Recovery und NSIS müssen denselben Sprachzustand respektieren.</p>
+      </article>
+      <article class="card">
+        <div class="metric">0</div>
+        <div class="metric-label">Core-Neustarts beim Wechsel</div>
+        <p>Sprache ist eine Desktoppräferenz, keine fachliche Bot-Konfiguration.</p>
+      </article>
+    </div>
+
+    <h3>Im Scope</h3>
+    <ul>
+      <li>Alle produkteigenen Texte in <code>web/src/</code>, einschließlich Tooltips, Platzhalter, Dialoge, ARIA-Namen, Tabellenlabels, Chartnamen, Loading-, Empty- und Error-Zustände.</li>
+      <li>Alle im UI sichtbaren Core-Zustände, Reasons, Fortschrittsstufen, Routenanleitungen, Historienmeldungen und Katalogbezeichnungen.</li>
+      <li>Electron-Tray, native Message-Boxen, Desktopbenachrichtigungen, Provisionierung und Core-Recovery.</li>
+      <li>Deutscher und englischer NSIS-Installer einschließlich der eigenen Uninstall-Warnungen.</li>
+      <li>Lokalisierte D2R-Gegenstands-, Gebiets- und Skillnamen, soweit die erforderlichen lokalen CASC-Quellen vorliegen.</li>
+    </ul>
+
+    <h3>Bewusste Grenzen</h3>
+    <ul>
+      <li>Logs, JSONL-Telemetrie, Replay, Config-Keys, Reason-Codes, Run-IDs und CLI-Diagnose bleiben sprachneutral beziehungsweise technisch Englisch.</li>
+      <li>Charakternamen, benutzerdefinierte Profilnamen und andere Benutzerdaten werden unverändert angezeigt.</li>
+      <li>Es entsteht keine automatische Übersetzung freier Texte. Jeder sichtbare Produkttext hat einen stabilen Schlüssel oder wird aus stabilen Daten formatiert.</li>
+      <li>Dieser Plan autorisiert noch keine Implementierung, keinen Commit und keinen Release.</li>
+    </ul>
+  </section>
+
+  <section id="quellen">
+    <h2>2. Autoritative Quellen</h2>
+    <p>
+      Lies diese Quellen vor der jeweiligen Änderung. Der Plan beschreibt Ziel und Reihenfolge. Die verlinkten
+      Dateien bleiben autoritativ für vorhandene Verträge und lokale Konventionen.
+    </p>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Quelle</th><th>Wofür sie gilt</th><th>Wann lesen</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><a href="../research/react-i18n-package-evaluation-2026-08-22.md"><code>docs/research/react-i18n-package-evaluation-2026-08-22.md</code></a></td>
+            <td>Paketwahl, React-Anbindung, TypeScript, Sprachwechsel, Pluralisierung und bewertete Alternativen.</td>
+            <td>Vor Paketinstallation und i18n-Initialisierung.</td>
+          </tr>
+          <tr>
+            <td><a href="../features/local-core-api.md"><code>docs/features/local-core-api.md</code></a></td>
+            <td>HTTP-, SSE-, Fehler- und OpenAPI-Vertrag.</td>
+            <td>Vor jeder DTO- oder Clientänderung.</td>
+          </tr>
+          <tr>
+            <td><a href="../features/desktop-app-shell.md"><code>docs/features/desktop-app-shell.md</code></a></td>
+            <td>App-Shell, Sidebar, Navigation und responsive Regeln.</td>
+            <td>Vor Sprachschalter und Renderer-Migration.</td>
+          </tr>
+          <tr>
+            <td><a href="../features/operator-settings.md"><code>docs/features/operator-settings.md</code></a></td>
+            <td>Trennung zwischen Core-eigenen Operatorwerten und Desktopwerten.</td>
+            <td>Vor der Persistenzentscheidung.</td>
+          </tr>
+          <tr>
+            <td><a href="../features/installed-data-root.md"><code>docs/features/installed-data-root.md</code></a></td>
+            <td>Datenroot, Provisionierung und atomare Desktop-Persistenz.</td>
+            <td>Vor Schema-3-Migration und Erststartlogik.</td>
+          </tr>
+          <tr>
+            <td><a href="handoff.html"><code>docs/plans/handoff.html</code></a></td>
+            <td>Produktkontext und Gesamtarchitektur.</td>
+            <td>Wenn eine Änderung Paketgrenzen oder Datenfluss berührt.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Belegte Problemstellen im Code</h3>
+    <div class="grid two">
+      <article class="card file-list">
+        <h3>React</h3>
+        <ul>
+          <li><a href="../../web/src/app/App.tsx"><code>web/src/app/App.tsx</code></a>: Navigation, Sidebar, Dialoge und Seitenköpfe enthalten direkte deutsche Texte.</li>
+          <li><a href="../../web/src/app/runReasons.ts"><code>web/src/app/runReasons.ts</code></a>: Reason-Mappings sind nützlich, parsen aber auch freie englische Fehlerfragmente.</li>
+          <li><a href="../../web/src/features/history/HistoryFeature.tsx"><code>web/src/features/history/HistoryFeature.tsx</code></a>: Historientexte und <code>de-DE</code>-Formatierung.</li>
+          <li><a href="../../web/src/features/routes/routePresentation.ts"><code>web/src/features/routes/routePresentation.ts</code></a>: Routenstatus und festes deutsches Datum.</li>
+        </ul>
+      </article>
+      <article class="card file-list">
+        <h3>Core und Transport</h3>
+        <ul>
+          <li><a href="../../internal/api/dto.go"><code>internal/api/dto.go</code></a>: <code>ErrorDTO.message</code>, <code>RunProgressDTO.label</code> und mehrere <code>display_name</code>-Felder.</li>
+          <li><a href="../../internal/api/route_dto.go"><code>internal/api/route_dto.go</code></a>: <code>instructions_de</code> und <code>operator_hints_de</code>.</li>
+          <li><a href="../../internal/tasks/run_progress.go"><code>internal/tasks/run_progress.go</code></a>: etwa 40 deutsche Fortschrittslabels.</li>
+          <li><a href="../../internal/telemetry/history_contract.go"><code>internal/telemetry/history_contract.go</code></a>: deutsche Historienmeldungen.</li>
+        </ul>
+      </article>
+      <article class="card file-list">
+        <h3>Electron</h3>
+        <ul>
+          <li><a href="../../web/electron/desktop-settings.ts"><code>web/electron/desktop-settings.ts</code></a>: bestehender atomarer Desktop-Store, derzeit Schema 2.</li>
+          <li><a href="../../web/electron/main.ts"><code>web/electron/main.ts</code></a>: Tray, Dialoge, Notifications und Provisionierungsstrings.</li>
+          <li><a href="../../web/electron/desktop-lifecycle.ts"><code>web/electron/desktop-lifecycle.ts</code></a>: deutsche Lifecycle- und Notificationtexte.</li>
+          <li><a href="../../web/electron/recovery.html"><code>web/electron/recovery.html</code></a>: statisch deutsches Recovery-Dokument.</li>
+        </ul>
+      </article>
+      <article class="card file-list">
+        <h3>Build und Installer</h3>
+        <ul>
+          <li><a href="../../web/package.json"><code>web/package.json</code></a>: exakte Dependency-Pins und deutsch erzwungener NSIS-Installer.</li>
+          <li><a href="../../web/electron/copy-assets.mjs"><code>web/electron/copy-assets.mjs</code></a>: kopiert Electron-Assets, aber noch keine Sprachkataloge.</li>
+          <li><a href="../../web/build/installer.nsh"><code>web/build/installer.nsh</code></a>: eigene deutsche Uninstall-Texte.</li>
+          <li><a href="../../web/tsconfig.electron.build.json"><code>web/tsconfig.electron.build.json</code></a>: Electron wird kompiliert, nicht gebündelt.</li>
+        </ul>
+      </article>
+    </div>
+  </section>
+
+  <section id="entscheidungen">
+    <h2>3. Verbindliche Architekturentscheidungen</h2>
+    <div class="decision-list">
+      <div class="decision"><strong>Sprach-Seam</strong><span>Der Core beschreibt Fakten mit Codes, IDs und Parametern. Die Präsentationsmodule in React und Electron erzeugen den sichtbaren Text. Übersetzungen liegen nie in <code>internal/tasks</code>, <code>internal/app</code>, <code>internal/telemetry</code> oder HTTP-Handlern.</span></div>
+      <div class="decision"><strong>Pakete</strong><span><code>i18next</code> <code>26.4.0</code> und <code>react-i18next</code> <code>17.0.12</code> werden exakt gepinnt. Vor dem tatsächlichen Installieren die offizielle Paketmetadaten noch einmal prüfen. Weitere i18n-Pakete kommen nur nach einem belegten Bedarf hinzu.</span></div>
+      <div class="decision"><strong>Persistenz</strong><span><code>language: "de" | "en"</code> gehört in den Electron-Store <code>desktop-settings.json</code>. Die Core-eigenen Operator-Settings bleiben unverändert.</span></div>
+      <div class="decision"><strong>Sprachdateien</strong><span>Produkttexte liegen in genau <code>de.json</code> und <code>en.json</code>. Beide Dateien haben denselben verschachtelten Schlüsselbaum. Generierte D2R-Texte liegen separat, weil manuell gepflegte und generierte Quellen nicht vermischt werden.</span></div>
+      <div class="decision"><strong>Electron-Adapter</strong><span>Electron-Main importiert kein neues Runtime-Paket. Ein kleiner frameworkfreier Übersetzer liest dieselben kopierten JSON-Kataloge. Das bestehende Packaging schließt <code>node_modules</code> aus und bleibt unverändert.</span></div>
+      <div class="decision"><strong>Fehler</strong><span>Das UI parst keine Satzfragmente. Jeder sichtbare Fehler entsteht aus einem stabilen Code und erlaubten, strukturierten Parametern. Rohe Fehlertexte gehören in Logs oder explizite technische Diagnosen.</span></div>
+      <div class="decision"><strong>Fallback</strong><span>Fehlende Übersetzung ist ein Testfehler. Zur Laufzeit darf ein unbekannter Core-Code eine lokalisierte allgemeine Meldung plus sichtbaren Code anzeigen. Er fällt nicht still auf freie deutsche Core-Prosa zurück.</span></div>
+      <div class="decision"><strong>Sprachschalter</strong><span>Die Sidebar zeigt <code>DE</code> und <code>EN</code> als zugängliche Toggle-Buttons. Flaggen dürfen nur dekorativ ergänzen, nie allein die Sprache bezeichnen.</span></div>
+    </div>
+
+    <div class="callout warn">
+      <h3>Warum JSON statt zweier <code>as const</code>-Dateien?</h3>
+      <p>
+        Die Research-Notiz bevorzugt TypeScript-Ressourcen für maximale Interpolationstypisierung. Dieses Repo hat
+        jedoch zwei JavaScript-Laufzeiten: Vite bündelt den Renderer, Electron-Main wird nur mit <code>tsc</code>
+        kompiliert und liefert keine Dependencies aus. JSON ist die kleinste gemeinsame Quelle. TypeScript prüft
+        die Schlüssel über den importierten Referenzbaum, ein Paritätstest prüft beide Sprachen, und parametrisierte
+        Fachmeldungen laufen über typisierte Presenter statt über freie <code>t()</code>-Aufrufe.
+      </p>
+    </div>
+  </section>
+
+  <section id="zielbild">
+    <h2>4. Zielmodule und Datenfluss</h2>
+    <div class="flow" aria-label="Internationalisierter Datenfluss">
+      <div class="node"><strong>Core</strong><small>Code, ID, boolescher Zustand und strukturierte Parameter. Keine UI-Prosa.</small></div>
+      <div class="node"><strong>OpenAPI / SSE</strong><small>Versionierter, maschinenlesbarer Transportvertrag.</small></div>
+      <div class="node"><strong>Presenter</strong><small>Ordnet Fachcodes einem bekannten Übersetzungsschlüssel zu.</small></div>
+      <div class="node"><strong>Sprachkatalog</strong><small><code>de</code> oder <code>en</code>, Interpolation und Pluralformen.</small></div>
+      <div class="node"><strong>Operator</strong><small>React-Text, Tray, Dialog, Notification, Recovery oder Installer.</small></div>
+    </div>
+
+    <h3>Renderer-i18n-Modul</h3>
+    <p>
+      Das neue Modul unter <code>web/src/i18n/</code> verbirgt Initialisierung, Locale-Auflösung, Formatierung und
+      Fehlerpräsentation hinter einer kleinen Interface. Komponenten verwenden <code>useTranslation()</code> für
+      statische Texte und spezialisierte Presenter für Core-Codes. Datum und Zahlen erhalten den aktiven Locale-Code
+      ausschließlich aus diesem Modul.
+    </p>
+    <pre><code>type SupportedLanguage = "de" | "en";
+
+initializeI18n(language: SupportedLanguage): Promise&lt;void&gt;
+changeAppLanguage(language: SupportedLanguage): Promise&lt;void&gt;
+formatDate(value, options): string
+formatNumber(value, options): string
+presentApiError(error: ApiError, t): string
+presentReason(domain, code, params, t): string</code></pre>
+
+    <h3>Electron-i18n-Modul</h3>
+    <p>
+      <code>web/electron/i18n.ts</code> nimmt einen validierten Katalog als Abhängigkeit, löst ausschließlich
+      <code>desktop.*</code>-Schlüssel auf und interpoliert primitive Werte. Tests injizieren kleine In-Memory-Kataloge.
+      Der Main-Prozess lädt den produktiven Katalog nach <code>app.whenReady()</code> und nach dem Laden der
+      Desktop-Einstellungen. Damit ist die Interface zugleich die Test-Seam.
+    </p>
+
+    <h3>Fehler- und Reason-Presenter</h3>
+    <p>
+      Bestehende Mappingmodule wie <code>runReasons.ts</code> bleiben als fachliche Presenter erhalten. Die
+      Implementierung gibt keine deutschen Strings mehr zurück, sondern ruft bekannte Keys auf. Alle Aufrufer
+      nutzen diese Module. Ein unbekannter Code landet in genau einem allgemeinen Fallback und zeigt den Code für
+      Supportzwecke an.
+    </p>
+  </section>
+
+  <section id="kataloge">
+    <h2>5. Sprachkatalogvertrag</h2>
+    <h3>Ablage</h3>
+    <pre><code>web/src/i18n/
+  index.ts
+  types.ts
+  format.ts
+  presenters.ts
+  i18next.d.ts
+  locales/
+    de.json
+    en.json
+  generated/
+    game.de.json
+    game.en.json</code></pre>
+
+    <h3>Schlüsselstruktur</h3>
+    <pre><code>{
+  "common": { "save": "Speichern", "cancel": "Abbrechen" },
+  "navigation": { "dashboard": "Dashboard", "routes": "Routen" },
+  "sidebar": { "selectedCharacter": "Ausgewählter Charakter" },
+  "dashboard": { "...": "..." },
+  "settings": { "...": "..." },
+  "routes": { "...": "..." },
+  "history": { "...": "..." },
+  "onboarding": { "...": "..." },
+  "errors": { "state_changed": "Der Core-Zustand hat sich geändert." },
+  "reasons": { "...": "..." },
+  "progress": { "...": "..." },
+  "desktop": { "tray": { "open": "Öffnen" }, "recovery": { "...": "..." } }
+}</code></pre>
+
+    <h3>Regeln für Autoren</h3>
+    <ul>
+      <li>Keys benennen Bedeutung, nicht den deutschen Satz. Gut: <code>settings.unsavedChanges.title</code>. Schlecht: <code>settings.aenderungenNichtGespeichert</code>.</li>
+      <li>Ein vollständiger Satz bleibt ein Eintrag. Sätze werden nicht aus übersetzten Fragmenten zusammengebaut.</li>
+      <li>Variablen sind benannt: <code>{{count}}</code>, <code>{{character}}</code>, <code>{{width}}</code>. Positionsparameter sind unzulässig.</li>
+      <li>Pluralformen verwenden i18next-Format v4 mit <code>_one</code> und <code>_other</code>. Der Aufruf übergibt <code>count</code>.</li>
+      <li><code>Trans</code> wird nur für Sätze mit echten React-Elementen eingesetzt. Gewöhnliche Texte verwenden <code>t()</code>.</li>
+      <li>Übersetzte Inhalte werden als Text gerendert. <code>dangerouslySetInnerHTML</code> ist kein Übersetzungsweg.</li>
+      <li>Der Paritätstest vergleicht alle Blattpfade und zusätzlich den Typ jedes Blatts. Fehlende und zusätzliche Keys schlagen fehl.</li>
+      <li>Im Testbetrieb wird <code>missingKeyHandler</code> so konfiguriert, dass unbekannte Keys den Test fehlschlagen lassen.</li>
+    </ul>
+
+    <h3>Locale-Auflösung</h3>
+    <ol>
+      <li>Eine gespeicherte Sprache gewinnt immer.</li>
+      <li>Ein bestehendes Schema 1 oder 2 wird mit <code>de</code> auf Schema 3 gehoben, damit Bestandsnutzer ihre bisherige Sprache behalten.</li>
+      <li>Bei einem frischen Datenroot wählt eine deutsche Systemsprache <code>de</code>, jede andere Systemsprache <code>en</code>.</li>
+      <li>Regionale Werte wie <code>de-AT</code>, <code>de-DE</code>, <code>en-GB</code> und <code>en-US</code> werden auf <code>de</code> beziehungsweise <code>en</code> reduziert.</li>
+      <li>i18next erhält <code>supportedLngs: ["de", "en"]</code>, <code>load: "languageOnly"</code> und <code>fallbackLng: "de"</code>. Die Katalogparität verhindert reguläre Fallbacks im Produkt.</li>
+    </ol>
+  </section>
+
+  <section id="transport">
+    <h2>6. Sprachneutraler Core- und Transportvertrag</h2>
+    <div class="callout danger">
+      <h3>Harte Regel</h3>
+      <p>
+        Kein neues DTO-Feld mit Suffix <code>_de</code> oder <code>_en</code>. Kein Handler baut einen Bedienersatz.
+        Kein React-Code zeigt direkt <code>err.Error()</code>, <code>Error.message</code> aus dem Core oder ein
+        <code>details.message</code> an. Technische Fehler werden auf oberster Ebene strukturiert geloggt.
+      </p>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Heute</th><th>Zielvertrag</th><th>Betroffene Quellen</th><th>Abschlusskriterium</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><code>ErrorDTO { code, message, details, request_id }</code></td>
+            <td><code>ProblemDTO { code, params }</code> für Status; HTTP-Fehler ergänzt <code>request_id</code>. Rohe Diagnose bleibt außerhalb des Bedienervertrags.</td>
+            <td><code>internal/api/dto.go</code>, <code>server.go</code>, Backends, OpenAPI, Generator.</td>
+            <td>Der generierte Client erstellt einen <code>ApiError</code> mit Code, Parametern und Request-ID. Kein UI-Pfad benötigt Core-Prosa.</td>
+          </tr>
+          <tr>
+            <td><code>StatusDTO.last_error.message</code></td>
+            <td><code>last_error.code</code> plus erlaubte Parameter.</td>
+            <td><code>internal/api/live_backend.go</code>, <code>internal/app/ui_monitor.go</code>.</td>
+            <td>Status und SSE enthalten bei Runtimefehlern denselben stabilen Code; Log erhält den gewrappten Fehler separat.</td>
+          </tr>
+          <tr>
+            <td><code>RunProgressDTO.label</code></td>
+            <td><code>stage_code</code> plus strukturierte Werte wie Ebene, Ziel oder Gesamtzahl.</td>
+            <td><code>internal/tasks/run_progress.go</code>, <code>internal/api/dto.go</code>, Dashboard.</td>
+            <td>Alle bisherigen Fortschrittszustände erscheinen in beiden Sprachen, ohne deutschen String im Core.</td>
+          </tr>
+          <tr>
+            <td><code>instructions_de</code>, <code>operator_hints_de</code></td>
+            <td><code>instruction_code</code> und <code>operator_hint_codes</code>. Run-ID, Route-Role, Hotkeys und Startdaten bleiben eigene Felder.</td>
+            <td><code>internal/tasks/registry.go</code>, <code>run_contract.go</code>, <code>live_backend_routes.go</code>, Route-UI.</td>
+            <td>OpenAPI enthält keine sprachspezifischen Felder; jede Aufnahmeoption hat bekannte deutsche und englische Texte.</td>
+          </tr>
+          <tr>
+            <td><code>reason_message</code> in Historie</td>
+            <td>Nur <code>reason</code> und strukturierte Diagnoseparameter.</td>
+            <td><code>internal/telemetry/history_contract.go</code>, <code>internal/api/history_dto.go</code>, <code>history_mapping.go</code>.</td>
+            <td>Historienlisten, Prioritätskarten und Details übersetzen denselben Reason-Code im Renderer.</td>
+          </tr>
+          <tr>
+            <td>Deutsche <code>display_name</code>-Werte für Systemkataloge</td>
+            <td>Stabile ID ist autoritativ. UI löst Run, Difficulty, Klasse, eingebaute Profile und Skills über die Kataloge auf.</td>
+            <td><code>bootstrap_backend.go</code>, <code>config/profile.go</code>, Character-Setup, Queue-UI.</td>
+            <td>Ein Sprachwechsel aktualisiert alle Systemnamen. Benutzerdefinierte Namen bleiben gleich.</td>
+          </tr>
+          <tr>
+            <td>SSE <code>details.message</code></td>
+            <td>Reason-Code und maschinenlesbare Details.</td>
+            <td><code>internal/api/live_backend.go</code>, <code>web/src/api/client.ts</code>, Maintenance-Feed.</td>
+            <td>Der sichtbare Feed zeigt übersetzte Event- und Reason-Namen; rohe JSON-Details erscheinen nur im technischen Detailbereich.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Fehlercode-Disziplin</h3>
+    <ul>
+      <li>Bestehende stabile Codes werden wiederverwendet. Es entsteht kein zweiter Übersetzungscode für denselben Zustand.</li>
+      <li>Freie Runtimefehler erhalten am Ort der Fachentscheidung einen stabilen Code. Die gewrappte Fehlerkette bleibt im Log.</li>
+      <li><code>params</code> enthält nur Werte, die der Übersetzungssatz braucht. Pfade, Handles, Stacktraces und freie Fehlersätze gehören nicht hinein.</li>
+      <li>Jeder neue Code erhält im selben Diff deutsche und englische Keys sowie einen Presenter-Test.</li>
+      <li>Der OpenAPI-Generator erzeugt <code>ApiError</code> zentral. Einzelne Fetch-Funktionen parsen Fehler nicht selbst.</li>
+    </ul>
+
+    <h3>Beispiel</h3>
+    <pre><code>{
+  "code": "unsupported_resolution",
+  "params": {
+    "expected_width": 1280,
+    "expected_height": 720,
+    "actual_width": 1920,
+    "actual_height": 1080
+  },
+  "request_id": "..."
+}</code></pre>
+    <p class="muted">
+      Der Renderer wählt <code>errors.unsupported_resolution</code> und interpoliert vier Zahlen. Er durchsucht
+      weder deutsche noch englische Satzfragmente.
+    </p>
+  </section>
+
+  <section id="desktop">
+    <h2>7. Desktop-Persistenz, Sprachschalter und native Oberflächen</h2>
+    <h3>Desktop-Settings Schema 3</h3>
+    <pre><code>interface DesktopSettings {
+  schema_version: 3;
+  language: "de" | "en";
+  window_bounds?: WindowBounds;
+  autostart: boolean;
+  onboarding_completed: boolean;
+  selected_character?: string;
+  selected_difficulty?: string;
+}</code></pre>
+    <ul>
+      <li>Schema 1 und 2 werden vollständig validiert und anschließend mit <code>language: "de"</code> auf Schema 3 projiziert.</li>
+      <li>Eine frische, fehlende Datei erhält den aus der Systemsprache abgeleiteten Default.</li>
+      <li>Während der Pre-Core-Provisionierung bleibt der Zielroot unberührt. Der abgeleitete Sprachwert lebt bis zur atomaren Core-Veröffentlichung nur im Main-Prozess und wird danach mit den übrigen Desktopwerten gespeichert.</li>
+      <li><code>getDesktopSettings</code> und <code>updateDesktopSettings</code> transportieren <code>language</code> über die bestehende Preload-Bridge.</li>
+    </ul>
+
+    <h3>Renderer-Bootstrap</h3>
+    <ol>
+      <li><code>main.tsx</code> liest, wenn vorhanden, die Desktop-Einstellungen vor dem ersten React-Render.</li>
+      <li>Es initialisiert i18next synchron mit gebündelten Ressourcen und der aufgelösten Sprache.</li>
+      <li>Erst danach wird <code>createRoot(...).render(...)</code> aufgerufen. Damit flackert die UI nicht kurz in der falschen Sprache.</li>
+      <li>Ohne Electron-Bridge nutzt die eingebettete Entwicklungsoberfläche die Browsersprache für die aktuelle Sitzung.</li>
+      <li>Bei jeder Änderung werden <code>document.documentElement.lang</code> und der lokalisierte Dokumenttitel aktualisiert.</li>
+    </ol>
+
+    <h3>Sprachschalter</h3>
+    <p>
+      Der Schalter sitzt in der Sidebar unmittelbar oberhalb von Verbindung und Version. Er besteht aus zwei
+      Buttons mit sichtbarem <code>DE</code> und <code>EN</code>, <code>aria-pressed</code>, lokalisiertem
+      <code>aria-label</code> und <code>lang</code>-Attribut. Die aktive Sprache erhält den vorhandenen Gold-/Ember-
+      Auswahlstil. Im kompakten Layout bleibt die Gruppe sichtbar und tastaturbedienbar.
+    </p>
+    <ol>
+      <li>Button sperren, solange ein Sprachupdate läuft.</li>
+      <li>Sprache über IPC atomar speichern.</li>
+      <li>Nur bei erfolgreicher Antwort <code>i18n.changeLanguage(saved.language)</code> ausführen.</li>
+      <li>Electron baut Tray und Tooltip unmittelbar neu auf.</li>
+      <li>Bei Persistenzfehler bleibt die alte Sprache aktiv und ein lokalisierter Desktopfehler sichtbar.</li>
+    </ol>
+
+    <h3>Electron-Main</h3>
+    <ul>
+      <li><code>copy-assets.mjs</code> kopiert <code>de.json</code> und <code>en.json</code> nach <code>dist-electron/locales/</code>.</li>
+      <li><code>electron/i18n.ts</code> validiert den geladenen Katalog und stellt <code>t(key, params)</code> bereit.</li>
+      <li><code>desktopLifecyclePolicy</code> liefert Zustand und Fähigkeiten, keine fertigen Labels. Main übersetzt das Label beim Aufbau des Tray-Menüs.</li>
+      <li><code>desktopNotificationSpec</code> liefert stabile Titel- und Body-Keys oder wird durch einen Presenter ersetzt.</li>
+      <li>Native Dialoge verwenden ausschließlich <code>desktop.dialogs.*</code>-Keys.</li>
+      <li>Recovery erhält Sprache, Titel und Body vom Main-Prozess. Die statische HTML-Datei enthält nur neutrale leere Zielknoten und einen sicheren Fallback.</li>
+    </ul>
+
+    <h3>Installer</h3>
+    <ul>
+      <li><code>installerLanguages</code> wird auf <code>["de_DE", "en_US"]</code> gesetzt.</li>
+      <li>Die erzwungene LCID <code>1031</code> entfällt. Electron-builder verwendet die Windows-Sprache.</li>
+      <li>Jeder eigene Text in <code>installer.nsh</code> wird als <code>LangString</code> für Deutsch und Englisch definiert.</li>
+      <li>Die doppelte Löschbestätigung bleibt in beiden Sprachen inhaltlich gleich streng. Datenverlustwarnungen werden nicht verkürzt.</li>
+    </ul>
+  </section>
+
+  <section id="spieldaten">
+    <h2>8. Lokalisierte D2R-Spieldaten</h2>
+    <div class="callout warn">
+      <h3>CASC-Regel bleibt unverändert</h3>
+      <p>
+        D2R-Namen werden nicht übersetzt, geraten oder aus Fremdprojekten kopiert. Jeder generierte Name muss auf
+        einen lokalen CASC-Extrakt und einen stabilen Schlüssel zurückführbar sein. Fehlt die Quelle, stoppt nur
+        das betroffene Spieldaten-Arbeitspaket und nennt dem Entwickler die benötigten Dateien und Spalten.
+      </p>
+    </div>
+
+    <h3>Bereits verfügbare Quelle</h3>
+    <p>
+      <a href="../../.tmp/d2r-excel/item-names.json"><code>.tmp/d2r-excel/item-names.json</code></a> enthält
+      stabile <code>Key</code>-Werte sowie <code>enUS</code> und <code>deDE</code>. Der bestehende
+      <a href="../../tools/generate-item-catalog/identity.go"><code>tools/generate-item-catalog</code></a>
+      übernimmt derzeit nur <code>enUS</code>. Er wird minimal erweitert, um die für UI und Historie benötigten
+      Gegenstandsnamen für beide Sprachen zu generieren.
+    </p>
+
+    <h3>Noch zu belegende Quellen</h3>
+    <p>
+      <code>levels.txt</code> und <code>skills.txt</code> enthalten stabile IDs beziehungsweise englische
+      Quellnamen, aber keinen vollständigen deutschen und englischen Anzeigenamenvertrag. Vor dem Generieren von
+      Gebiets- oder Skillnamen muss der Entwickler die zu diesem D2R-Build gehörenden lokalen String-Exporte
+      nachreichen. Benötigt werden Datensätze mit stabilem String-Key sowie mindestens den Spalten
+      <code>enUS</code> und <code>deDE</code> für die in <code>levels.txt</code> und <code>skills.txt</code>
+      referenzierten Schlüssel. Der Agent nennt die konkret fehlenden Schlüssel aus dem lokalen Extract und wartet.
+    </p>
+
+    <h3>Darstellungsregeln</h3>
+    <ul>
+      <li>World und Transport behalten <code>area_id</code>. <code>area_name</code> ist höchstens diagnostischer Fallback und nicht autoritativ für das UI.</li>
+      <li>Skills werden über den kanonischen Skill-Key aufgelöst. Config und Memory bleiben beim Key und der numerischen ID.</li>
+      <li>Historie speichert weiterhin stabile Item-Keys, Identity-Keys und Basecodes. Der Renderer löst den sichtbaren Namen in der gewählten Sprache auf.</li>
+      <li>Alte Telemetriezeilen ohne auflösbaren Schlüssel zeigen einen neutralen Fallback plus bestehenden technischen Namen. Sie werden nicht umgeschrieben.</li>
+      <li>Sortierung und Pagination bleiben zunächst auf dem stabilen Backendvertrag. Eine exakt locale-sortierte serverseitige Itemliste ist ein eigenes Folgefeature.</li>
+    </ul>
+  </section>
+
+  <section id="gates">
+    <h2>9. Implementierungsreihenfolge und Gates</h2>
+    <p>
+      Arbeite strikt in dieser Reihenfolge. Jedes Gate endet erst, wenn sein Kriterium mit dem kleinsten betroffenen
+      Test belegt ist. Ein späteres Gate darf keinen offenen Vertragsbruch eines früheren Gates kaschieren.
+    </p>
+
+    <div class="phase-list">
+      <article class="gate">
+        <div class="gate-id">I18N-0<span class="gate-mode">Automatisch</span></div>
+        <div>
+          <h3>Textinventar und Vertragsbaseline</h3>
+          <p>
+            Erfasse alle sichtbaren Texte in <code>web/src</code>, <code>web/electron</code>, Recovery und NSIS sowie
+            alle Core-Felder, die sichtbare Prosa liefern. Ordne jeden Fund genau einer Klasse zu: Produkttext,
+            stabiler Fachcode, Benutzerinhalt, D2R-Spieldatum oder technische Diagnose. Ergänze keine Übersetzung,
+            bevor diese Zuordnung feststeht.
+          </p>
+          <ul>
+            <li>Nutze <code>rg</code> und kontrolliere JSX-Text, Stringliterale, ARIA, Placeholder, Dokumenttitel, native Dialoge und Formatierungs-Locale.</li>
+            <li>Dokumentiere neu gefundene Transportprosa direkt in der Arbeitspaket-Checkliste oder im Testnamen, nicht in einer zweiten dauerhaften Inventardatei.</li>
+            <li>Markiere jeden freien Corefehler, der derzeit durch <code>err.Error()</code> bis ins UI gelangt.</li>
+          </ul>
+          <div class="gate-proof"><strong>Bestanden:</strong> Jeder sichtbare Textpfad hat eine Zielklasse; die Liste enthält React, API/SSE, Electron, Recovery und Installer. Keine Produktdatei wurde bereits halb migriert.</div>
+        </div>
+      </article>
+
+      <article class="gate">
+        <div class="gate-id">I18N-1<span class="gate-mode">Automatisch</span></div>
+        <div>
+          <h3>i18n-Grundmodul und Katalogvertrag</h3>
+          <p>
+            Pinne <code>i18next</code> und <code>react-i18next</code>, lege die zwei manuellen JSON-Kataloge sowie
+            Initialisierung, Typdefinition, Formatter und Paritätstest an. Beide Ressourcen werden statisch
+            gebündelt; es gibt keinen HTTP-Loader und keinen Detector.
+          </p>
+          <ul>
+            <li>Der deutsche Katalog startet als Referenzbaum, der englische muss sofort vollständig sein.</li>
+            <li>Ein Test vergleicht Blattpfade und Blatttypen rekursiv.</li>
+            <li>Formattertests belegen <code>de-DE</code> und <code>en-US</code> für Datum, Zahl, Prozent und Dauer.</li>
+            <li>Die Testumgebung initialisiert i18next deterministisch und unabhängig von der Hostsprache.</li>
+          </ul>
+          <div class="gate-proof"><strong>Bestanden:</strong> Ein Test kann denselben Schlüssel auf Deutsch und Englisch rendern; fehlender oder zusätzlicher Key schlägt fehl; Typecheck akzeptiert bekannte und verwirft unbekannte Keys.</div>
+        </div>
+      </article>
+
+      <article class="gate">
+        <div class="gate-id">I18N-2<span class="gate-mode">Automatisch</span></div>
+        <div>
+          <h3>Persistierter Sprachwechsel</h3>
+          <p>
+            Hebe Desktop-Settings auf Schema 3, ergänze Preload-Typen und initialisiere den Renderer vor dem ersten
+            sichtbaren Render. Baue den zugänglichen <code>DE</code>/<code>EN</code>-Schalter in die Sidebar ein.
+          </p>
+          <ul>
+            <li>Schema-1/2-Fixtures bleiben lesbar und erhalten <code>de</code>.</li>
+            <li>Frische Defaults folgen der Systemsprache, ohne den noch nicht veröffentlichten Datenroot anzulegen.</li>
+            <li>IPC-Persistenz erfolgt vor <code>changeLanguage</code>.</li>
+            <li>Responsive CSS erhält Navigation, Charakterkontext, Sprachschalter, Verbindung und Version.</li>
+          </ul>
+          <div class="gate-proof"><strong>Bestanden:</strong> Komponenten-Test wechselt ohne Reload von DE zu EN; Desktop-Store-Test lädt die Auswahl nach neuem Store-Start; fehlgeschlagenes Speichern lässt die alte Sprache aktiv.</div>
+        </div>
+      </article>
+
+      <article class="gate">
+        <div class="gate-id">I18N-3<span class="gate-mode">Automatisch</span></div>
+        <div>
+          <h3>Statische React-Texte und lokale Formatierung</h3>
+          <p>
+            Migriere die Shell und danach Feature für Feature: Dashboard, Characters, Routes, Pickit, History,
+            Settings, Onboarding und Provisioning. Entferne lokale Texttabellen nur dann, wenn ihre Fachlogik im
+            Presenter erhalten bleibt.
+          </p>
+          <ul>
+            <li>Navigation und Dokumenttitel werden aus Keys gebaut.</li>
+            <li>Alle <code>de-DE</code>- und <code>toLocaleLowerCase("de")</code>-Stellen verwenden den aktiven Locale-Code.</li>
+            <li>Charts, Tabellen-<code>data-label</code>, Dialoge, Empty-/Loading-/Error-Zustände und ARIA werden mitmigriert.</li>
+            <li>Keine UI-Komponente importiert den JSON-Katalog direkt; sie nutzt das i18n-Modul.</li>
+          </ul>
+          <div class="gate-proof"><strong>Bestanden:</strong> Die kleinsten bestehenden Tests jedes Features laufen in der bisherigen deutschen Sprache; je ein repräsentativer Shell-, Dashboard-, Routen-, Historien- und Settings-Test belegt Englisch.</div>
+        </div>
+      </article>
+
+      <article class="gate">
+        <div class="gate-id">I18N-4<span class="gate-mode">Automatisch</span></div>
+        <div>
+          <h3>Fehlervertrag und generierter Client</h3>
+          <p>
+            Führe <code>ProblemDTO</code>, strukturierte Parameter und den generierten <code>ApiError</code> ein.
+            Migriere zuerst gemeinsame Handler, danach Backend für Backend. Entferne Satzfragment-Parsing aus
+            <code>runReasons.ts</code> und vergleichbaren Helfern.
+          </p>
+          <ul>
+            <li>Jeder HTTP-Fehlertest assertiert Code, stabile Parameter und Request-ID.</li>
+            <li>Status- und SSE-Fehler nutzen dieselben Codes, aber keine HTTP-spezifische Request-ID.</li>
+            <li>Ein Test scannt den OpenAPI-Vertrag gegen sprachspezifische Felder und erforderliche <code>message</code>-Felder.</li>
+            <li>Technische Fehler werden mit Kontext gewrappt und nur auf oberster Ebene geloggt.</li>
+          </ul>
+          <div class="gate-proof"><strong>Bestanden:</strong> Kein Renderer-Pfad hängt von deutscher Core-Prosa oder englischem Satzfragment ab; bekannte Codes erscheinen in DE und EN; unbekannte Codes nutzen den allgemeinen lokalisierten Fallback.</div>
+        </div>
+      </article>
+
+      <article class="gate">
+        <div class="gate-id">I18N-5<span class="gate-mode">Automatisch</span></div>
+        <div>
+          <h3>Fortschritt, Routenanleitungen und Historie</h3>
+          <p>
+            Ersetze die übrigen fertigen Core-Texte durch Stage-, Instruction-, Hint- und Reason-Codes. Diese
+            Änderung reicht von <code>internal/tasks</code> über <code>internal/api</code> bis zu den Feature-
+            Presentern.
+          </p>
+          <ul>
+            <li>Alle bisherigen Fortschrittszustände behalten Reihenfolge, <code>current</code> und <code>total</code>.</li>
+            <li>Routenanleitungen interpolieren Hotkeys und zeigen für Cow-Rollen getrennte Texte.</li>
+            <li>Historienanalyse speichert und aggregiert Reasons, nicht lokalisierte Sätze.</li>
+            <li>JSON-/CSV-Export bleibt sprachneutral und verwendet Codes; die UI-Ansicht übersetzt.</li>
+          </ul>
+          <div class="gate-proof"><strong>Bestanden:</strong> OpenAPI enthält weder <code>instructions_de</code> noch <code>operator_hints_de</code> noch <code>reason_message</code> noch <code>run_progress.label</code>. Task-, API- und UI-Tests belegen denselben semantischen Zustand.</div>
+        </div>
+      </article>
+
+      <article class="gate manual">
+        <div class="gate-id">I18N-6<span class="gate-mode">CASC-abhängig</span></div>
+        <div>
+          <h3>Systemkataloge und D2R-Namen</h3>
+          <p>
+            Migriere Difficulty, Run, Klasse, Profile und bekannte produkteigene Skilllabels. Erweitere danach den
+            lokalen Generator für Itemnamen. Gebiets- und Skillnamen werden erst generiert, wenn die erforderlichen
+            mehrsprachigen CASC-Stringdaten vorliegen.
+          </p>
+          <ul>
+            <li>Generator-Fixtures enthalten mindestens einen abweichenden deutschen und englischen Namen.</li>
+            <li>Generierte Dateien tragen D2R-Version, Quelldatei und stabilen Schlüssel im Header beziehungsweise Manifest.</li>
+            <li>Fehlende <code>deDE</code>- oder <code>enUS</code>-Werte brechen für tatsächlich referenzierte Schlüssel ab.</li>
+            <li>Kein fremdes Projekt und keine geratenen Namen als Fallback.</li>
+          </ul>
+          <div class="gate-proof"><strong>Bestanden:</strong> Alle mit vorhandenen CASC-Daten belegbaren Namen wechseln live. Wenn Gebiets- oder Skillstrings fehlen, liegt eine konkrete Nachforderung mit Schlüsselliste vor; das Gate bleibt für diese Teilmenge offen.</div>
+        </div>
+      </article>
+
+      <article class="gate">
+        <div class="gate-id">I18N-7<span class="gate-mode">Automatisch</span></div>
+        <div>
+          <h3>Electron-Main, Tray, Notifications und Recovery</h3>
+          <p>
+            Führe den frameworkfreien Desktop-Adapter ein, kopiere beide Kataloge in den Electron-Build und ersetze
+            jede sichtbare Main-Prozess-Prosa. Recovery erhält die bereits aufgelöste Sprache vom Main-Prozess.
+          </p>
+          <ul>
+            <li>Lifecycle-Tests prüfen Zustand und Fähigkeiten getrennt von Texten.</li>
+            <li>Desktop-i18n-Tests prüfen Traylabels, Notificationtitel und Dialogbuttons in beiden Sprachen.</li>
+            <li>Recovery-Test öffnet dieselbe Reason-ID in DE und EN.</li>
+            <li>Package-Smoke beweist, dass beide Katalogdateien im ASAR-/App-Inhalt verfügbar sind.</li>
+          </ul>
+          <div class="gate-proof"><strong>Bestanden:</strong> Ein Wechsel in React ändert anschließend aufgebautes Tray und neue Notifications; ein Core-Ausfall zeigt Recovery in der gespeicherten Sprache; Electron benötigt kein i18n-Paket aus <code>node_modules</code>.</div>
+        </div>
+      </article>
+
+      <article class="gate manual">
+        <div class="gate-id">I18N-8<span class="gate-mode">Installer-Smoke</span></div>
+        <div>
+          <h3>NSIS, Dokumentation und Abschlussaudit</h3>
+          <p>
+            Aktiviere den zweisprachigen Installer, lokalisiere die Custom-Uninstall-Texte und dokumentiere das
+            Feature. Führe danach den Textaudit aus Abschnitt 11 durch. Kein Release-Build ohne ausdrücklichen
+            Gesamtvalidierungs- oder Release-Auftrag.
+          </p>
+          <ul>
+            <li>Neue Feature-Doku <code>docs/features/internationalization.md</code> nach Projekttemplate.</li>
+            <li>Feature-Index, lokale Core-API-, Desktop-Shell-, Installed-Data-Root- und Operator-Settings-Doku aktualisieren.</li>
+            <li>Changelog unter <code>Unreleased / Added</code> mit dynamischer DE/EN-Umschaltung; Vertragsänderung gegebenenfalls zusätzlich unter <code>Changed</code>.</li>
+            <li>Installer-Smoke nur im ausdrücklich autorisierten Gesamtvalidierungsflow.</li>
+          </ul>
+          <div class="gate-proof"><strong>Bestanden:</strong> Deutscher und englischer Installer zeigen jeweils die richtige eigene Löschwarnung; alle Dokumente stimmen mit Schema, Sprach-Seam und Fallbackverhalten überein; der Abschlussaudit findet keine unklassifizierte sichtbare Prosa.</div>
+        </div>
+      </article>
+    </div>
+  </section>
+
+  <section id="dateien">
+    <h2>10. Erwartete Dateilandkarte</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Bereich</th><th>Neue Dateien</th><th>Wesentliche Änderungen</th></tr></thead>
+        <tbody>
+          <tr>
+            <td>Renderer-i18n</td>
+            <td><code>web/src/i18n/index.ts</code>, <code>types.ts</code>, <code>format.ts</code>, <code>presenters.ts</code>, <code>i18next.d.ts</code>, <code>locales/de.json</code>, <code>locales/en.json</code>, Tests.</td>
+            <td><code>web/src/main.tsx</code>, Testsetup und Vite-Typecheck.</td>
+          </tr>
+          <tr>
+            <td>Sprachschalter</td>
+            <td><code>web/src/app/LanguageSwitcher.tsx</code> mit fokussiertem Test.</td>
+            <td><code>App.tsx</code>, <code>app.css</code>, App-Integrationstests.</td>
+          </tr>
+          <tr>
+            <td>Featuretexte</td>
+            <td>Keine zusätzlichen Textdateien außerhalb der zwei Kataloge.</td>
+            <td>Alle Dateien unter <code>web/src/features/</code> mit sichtbarer Prosa und die vorhandenen Presenter.</td>
+          </tr>
+          <tr>
+            <td>Transport</td>
+            <td>Optional fokussiertes <code>problem_dto.go</code>, wenn dadurch <code>dto.go</code> klarer bleibt.</td>
+            <td><code>internal/api/schema/openapi.json</code>, DTOs, Handler, Backends, <code>web/scripts/generate-api.mjs</code>, generierter Client.</td>
+          </tr>
+          <tr>
+            <td>Core-Semantik</td>
+            <td>Keine neue Übersetzungsschicht in Go.</td>
+            <td><code>internal/tasks/run_progress.go</code>, Registry-/Recording-Vertrag, Historienvertrag und Live-Projektion.</td>
+          </tr>
+          <tr>
+            <td>Electron</td>
+            <td><code>web/electron/i18n.ts</code> und Test.</td>
+            <td><code>desktop-settings.ts</code>, Preload, Main, Lifecycle, Recovery, Copy-Assets, Package-Smoke.</td>
+          </tr>
+          <tr>
+            <td>Spieldaten</td>
+            <td><code>web/src/i18n/generated/game.de.json</code>, <code>game.en.json</code> als Generatorausgabe.</td>
+            <td><code>tools/generate-item-catalog</code> und nur belegte weitere lokale Generatoren.</td>
+          </tr>
+          <tr>
+            <td>Installer</td>
+            <td>Keine neue Scriptfamilie.</td>
+            <td><code>web/package.json</code>, <code>web/build/installer.nsh</code>.</td>
+          </tr>
+          <tr>
+            <td>Dokumentation</td>
+            <td><code>docs/features/internationalization.md</code>.</td>
+            <td>Feature-Index, Changelog und die in I18N-8 genannten Feature-Dokumente.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="validierung">
+    <h2>11. Tests und Abschlussaudit</h2>
+    <h3>Tests an der jeweiligen Interface</h3>
+    <div class="grid two">
+      <article class="card">
+        <h3>Renderer</h3>
+        <ul>
+          <li>Katalogparität und unbekannte Keys.</li>
+          <li>Locale-Auflösung für <code>de-AT</code>, <code>de-DE</code>, <code>en-GB</code>, <code>en-US</code> und fremde Systemsprache.</li>
+          <li>Formatter für Datum, Zeit, Zahlen, Prozent, Byte und Dauer.</li>
+          <li>Sprachwechsel ohne Reload sowie Dokument-<code>lang</code> und Titel.</li>
+          <li>Presenter für bekannte und unbekannte Codes.</li>
+        </ul>
+      </article>
+      <article class="card">
+        <h3>Core und Transport</h3>
+        <ul>
+          <li>DTO-Mapping bleibt frei von Bedienerprosa.</li>
+          <li>Fehlerparameter enthalten nur erlaubte Werte.</li>
+          <li>OpenAPI und generierter Client sind synchron.</li>
+          <li>Fortschrittsstufen behalten Semantik und Reihenfolge.</li>
+          <li>Historienaggregation hängt nur an Reasons.</li>
+        </ul>
+      </article>
+      <article class="card">
+        <h3>Electron</h3>
+        <ul>
+          <li>Schema-Migration und atomare Sprachpersistenz.</li>
+          <li>Tray, Notification, Dialog und Recovery in beiden Sprachen.</li>
+          <li>Pre-Core-Provisionierung schreibt keinen Zielroot.</li>
+          <li>Build enthält Kataloge, Recovery und Renderer.</li>
+        </ul>
+      </article>
+      <article class="card">
+        <h3>CASC-Generator</h3>
+        <ul>
+          <li>Stabiler Key löst <code>deDE</code> und <code>enUS</code> eindeutig auf.</li>
+          <li>Fehlende, leere und doppelte relevante Werte schlagen fehl.</li>
+          <li>Generatorausgabe ist deterministisch.</li>
+          <li>Runtime liest weder <code>.tmp</code> noch D2R-Dateien.</li>
+        </ul>
+      </article>
+    </div>
+
+    <h3>Textaudit nach I18N-8</h3>
+    <ul class="checks">
+      <li><code>rg</code> findet keine fest verdrahteten deutschen Bedienersätze in <code>web/src</code> außerhalb von Tests und Sprachkatalogen.</li>
+      <li><code>rg</code> findet kein festes <code>de-DE</code> in Featurecode. Zulässig sind nur zentrale Locale-Mappings und Tests.</li>
+      <li>OpenAPI enthält keine Felder mit <code>_de</code> oder <code>_en</code>.</li>
+      <li>Renderer sucht keine Fehlertextfragmente mit <code>includes</code>, Regex oder <code>match</code>.</li>
+      <li>Jeder sichtbare <code>display_name</code>-Wert ist als Benutzerinhalt, generiertes Spieldatum oder nichtautoritativer Fallback klassifiziert.</li>
+      <li>Electron-Main enthält keine direkt sichtbaren deutschen oder englischen Sätze außerhalb des i18n-Adapters und seiner Tests.</li>
+      <li>Recovery und Installer sind in beiden Sprachen überprüft.</li>
+    </ul>
+
+    <div class="callout warn">
+      <h3>Validierungsumfang</h3>
+      <p>
+        Nach jedem Gate nur die kleinsten betroffenen Tests und Builds einmal ausführen. Keine automatische
+        Gesamtsuite. Vollständige Go-/UI-Tests, Lint, Produktbuild und Installer-Smokes laufen nur bei einem
+        ausdrücklichen Gesamtvalidierungs- oder Release-Auftrag über den vorgesehenen Projektworkflow.
+      </p>
+    </div>
+  </section>
+
+  <section id="done">
+    <h2>12. Definition of Done</h2>
+    <ul class="checks">
+      <li>Der Operator kann DE und EN jederzeit über die Sidebar wechseln, ohne Reload oder Core-Neustart.</li>
+      <li>Die Auswahl bleibt nach vollständigem App-Neustart erhalten.</li>
+      <li>React, Dokumenttitel, ARIA, Datum, Zahlen, Charts und Dialoge wechseln vollständig.</li>
+      <li>Tray, Notifications, native Dialoge und Recovery verwenden dieselbe gespeicherte Sprache.</li>
+      <li>Der NSIS-Installer und die eigenen Uninstall-Warnungen existieren auf Deutsch und Englisch.</li>
+      <li>Core, HTTP und SSE liefern stabile Codes, IDs und Parameter statt fertiger Bedienersätze.</li>
+      <li>Alle bestehenden Reason-, Progress-, Route- und Historyzustände haben deutsche und englische Präsentationen.</li>
+      <li>Produkttexte haben genau einen manuellen Katalog je Sprache; beide Schlüsselbäume sind identisch.</li>
+      <li>D2R-Spielnamen stammen ausschließlich aus lokalen, dokumentierten CASC-Extrakten oder bleiben als konkret benannter offener Blocker sichtbar.</li>
+      <li>Benutzerinhalte, Logs, JSONL, Replay und Config-Keys wurden nicht versehentlich übersetzt oder umgeschrieben.</li>
+      <li>Feature-Dokumentation, Index und Changelog stimmen mit dem implementierten Verhalten überein.</li>
+      <li>Es gibt keinen Test, der nur einen internen Übersetzungshelfer prüft, während der sichtbare Ausgang ungeprüft bleibt. Die Interface ist die Testfläche.</li>
+    </ul>
+
+    <div class="callout success">
+      <h3>Letzter Agentencheck</h3>
+      <p>
+        Lies vor Abschluss den vollständigen Diff. Ordne jede sichtbare Textänderung einer Quelle zu, prüfe jeden
+        neuen exportierten Go-Symbolkommentar, bestätige die OpenAPI-Generierung und stelle sicher, dass nur die
+        in diesem Plan vorgesehenen Dateien geändert wurden. Melde verbleibende CASC-Lücken konkret. Markiere das
+        Feature erst dann als abgeschlossen, wenn alle nicht extern blockierten Punkte der Definition of Done belegt sind.
+      </p>
+    </div>
+  </section>
+
+  <footer>
+    Internationalisierung DE/EN · Implementierungsplan für Agenten · Entwurf vom 22. August 2026 · keine Implementierungsfreigabe
+  </footer>
+</main>
+</body>
+</html>

@@ -41,14 +41,17 @@ describe("DashboardStats", () => {
     expect(mocks.comparisons.mock.calls[0][1]).toBeInstanceOf(AbortSignal);
     expect(mocks.runs.mock.calls[0][1]).toBeInstanceOf(AbortSignal);
 
-    expect((await screen.findAllByText("2,7")).length).toBeGreaterThanOrEqual(2);
-    expect(screen.getAllByText("Gräfin").length).toBeGreaterThanOrEqual(2);
+    expect(await screen.findByText("2,7")).toBeInTheDocument();
+    expect(screen.getAllByText("2,7")).toHaveLength(1);
+    expect(screen.getByRole("img", { name: /Gesicherte Items pro Stunde: Gräfin 2,7/ })).toBeInTheDocument();
+    expect(screen.getAllByText("Gräfin")).toHaveLength(1);
     expect(screen.getByText("4 gesichert")).toBeInTheDocument();
   });
 
   it("behält alte Werte beim Zeitraumwechsel und ersetzt sie erst nach der Antwort", async () => {
     render(<DashboardStats farming={<div>Farming bleibt sichtbar</div>} character="MrBones" difficulty="nightmare" runNames={{ countess: "Gräfin" }} />);
-    expect((await screen.findAllByText("2,7")).length).toBeGreaterThanOrEqual(2);
+    expect(await screen.findByText("2,7")).toBeInTheDocument();
+    expect(screen.getAllByText("2,7")).toHaveLength(1);
 
     let resolveSummary!: (value: unknown) => void;
     let resolveComparisons!: (value: unknown) => void;
@@ -59,11 +62,13 @@ describe("DashboardStats", () => {
     fireEvent.click(screen.getByRole("button", { name: "7 Tage" }));
 
     expect(await screen.findByText("Statistik wird aktualisiert")).toBeInTheDocument();
-    expect(screen.getAllByText("2,7").length).toBeGreaterThanOrEqual(2);
+    expect(screen.getAllByText("2,7")).toHaveLength(1);
     resolveSummary({ summary: { ...summary, keep_per_hour: 3.4 } });
     resolveComparisons({ comparisons: [{ ...comparison, keep_per_hour: 3.4 }] });
     resolveRuns({ runs: [recent] });
-    expect((await screen.findAllByText("3,4")).length).toBeGreaterThanOrEqual(2);
+    expect(await screen.findByText("3,4")).toBeInTheDocument();
+    expect(screen.getAllByText("3,4")).toHaveLength(1);
+    expect(screen.getByRole("img", { name: /Gesicherte Items pro Stunde: Gräfin 3,4/ })).toBeInTheDocument();
   });
 
   it("zeigt Statistikfehler formstabil und blockiert Farming nicht", async () => {

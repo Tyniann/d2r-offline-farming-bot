@@ -18,7 +18,7 @@ func (c *runPipeline) tickReturn(ctx context.Context, deps pipelineReturnDeps, s
 	case pipelineStepEnterTownPortal:
 		return c.tickEnterTownPortalWithDeps(ctx, deps, w, now)
 	case pipelineStepWaitOriginTown:
-		return c.tickWaitOriginTown(w)
+		return c.tickWaitOriginTown(ctx, deps, w, now)
 	case pipelineStepPlayTownEgress, pipelineStepOpenOriginWaypoint, pipelineStepSelectHubWaypoint, pipelineStepWaitHubArea:
 		return c.tickTownNormalization(ctx, deps, step, w, now, stepStartedAt)
 	case pipelineStepOpenStash, pipelineStepStashItems, pipelineStepCloseStash:
@@ -188,6 +188,10 @@ func (c *runPipeline) tickEnterTownPortalWithDeps(ctx context.Context, deps pipe
 	case pathing.TownPortalActionPending:
 		return stepResult{}
 	case pathing.TownPortalActionClicked:
+		if portal, found := w.NearestObject(world.ObjectKindTownPortal); found {
+			c.ret.destinationPortalUnitID = portal.UnitID
+			c.ret.destinationPortalPos = portal.Position
+		}
 		return stepResult{complete: true}
 	case pathing.TownPortalActionNotFound:
 		return stepResult{failed: true, reason: "town_portal_not_found"}
@@ -200,19 +204,6 @@ func (c *runPipeline) tickEnterTownPortalWithDeps(ctx context.Context, deps pipe
 	default:
 		return stepResult{failed: true, reason: "town_portal_enter_failed"}
 	}
-}
-
-func (c *runPipeline) tickWaitOriginTown(w world.State) stepResult {
-	if !w.Valid || w.Phase != world.GamePhaseInGame {
-		return stepResult{}
-	}
-	if w.Area.ID == c.originTownArea() {
-		return stepResult{complete: true}
-	}
-	if w.Area.ID != c.effectiveDefinition().RouteTerminalArea {
-		return stepResult{failed: true, reason: "unexpected_area"}
-	}
-	return stepResult{}
 }
 
 func (c *runPipeline) onTownNormalizationTick(ctx context.Context, deps Deps, step string, w world.State, now, stepStartedAt time.Time) stepResult {

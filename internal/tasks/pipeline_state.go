@@ -125,10 +125,7 @@ type pipelineChestState struct {
 	blockerUnitID      uint32
 	clearAttempted     map[uint32]bool
 	clearResume        chestOperatePhase
-	clearActions       int
-	clearNoTargetTicks int
-	clearStartedAt     time.Time
-	clearLastActionAt  time.Time
+	clear              localThreatClear
 }
 
 // pipelineBossState owns boss identity, encounter, approach, and cleanup state.
@@ -214,6 +211,20 @@ type pipelineReturnState struct {
 	portalRecoveryTeleportSent bool
 	portalRecoveryAt           time.Time
 	portalRecoverySnapshot     time.Time
+	// destination* verifies that a sent portal click actually changed Area.
+	// One failed confirmation may clear local threats, teleport to the pinned
+	// portal, and retry the hover-confirmed click without extending the step.
+	destinationPhase          portalDestinationPhase
+	destinationPortalUnitID   uint32
+	destinationPortalPos      world.Position
+	destinationObservedAt     time.Time
+	destinationLastSnapshotAt time.Time
+	destinationSnapshots      int
+	destinationRecoveryUsed   bool
+	destinationClear          localThreatClear
+	destinationTeleportAt     time.Time
+	destinationTeleportSnap   time.Time
+	destinationClearActions   int
 }
 
 type routeClearObjectiveObserver interface {
@@ -270,6 +281,7 @@ func (c *runPipeline) resetGeneration() {
 	c.travel.cowNoProgressRecoveryStage = cowNoProgressStageNone
 	c.travel.cowNoProgressApproachUnitID = 0
 	c.resetPortalEntryRecovery()
+	c.resetPortalDestinationRecovery()
 	c.resetTerminalSafe()
 	c.resetChestWork()
 }
@@ -280,6 +292,9 @@ func (c *runPipeline) onStepEnter(step string) {
 	c.resetRouteProgressUnavailable()
 	if step == pipelineStepWaitEntryArea {
 		c.resetEntryArrival()
+	}
+	if step == pipelineStepCastTownPortal {
+		c.resetPortalDestinationRecovery()
 	}
 	c.ret.egressStarted = false
 	if step == pipelineStepClearNearbyHostiles {

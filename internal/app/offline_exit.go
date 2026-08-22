@@ -16,7 +16,7 @@ const (
 	offlineExitClickX            = 640
 	offlineExitClickY            = 327
 	offlineExitStableTicks       = 3
-	offlineExitTownSettle        = 3 * time.Second
+	offlineExitTownSettle        = 500 * time.Millisecond
 	offlineExitOverallTimeout    = 30 * time.Second
 	offlineExitQuitMenuTimeout   = 5 * time.Second
 	offlineExitQuitMenuRetry     = 1500 * time.Millisecond

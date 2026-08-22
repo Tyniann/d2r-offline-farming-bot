@@ -132,6 +132,14 @@ const (
 	RackOperated EventName = "rack_operated"
 	// RackSkipped records a hut rack left unopened after the allowed click budget.
 	RackSkipped EventName = "rack_skipped"
+	// TownPortalEntryUnconfirmed records that a sent portal click left the player in the route terminal area.
+	TownPortalEntryUnconfirmed EventName = "town_portal_entry_unconfirmed"
+	// TownPortalRecoveryStarted records the single local clear and retry decision.
+	TownPortalRecoveryStarted EventName = "town_portal_recovery_started"
+	// TownPortalRetryClicked records the second hover-confirmed portal click.
+	TownPortalRetryClicked EventName = "town_portal_retry_clicked"
+	// TownPortalRecoveryCompleted records Memory-confirmed arrival after recovery.
+	TownPortalRecoveryCompleted EventName = "town_portal_recovery_completed"
 )
 
 // Event is one JSONL record. Zero-valued optional fields are omitted.

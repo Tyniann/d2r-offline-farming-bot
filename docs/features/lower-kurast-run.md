@@ -38,7 +38,7 @@ Verdeckt ein Monster-Hover die Objektsuche oder das Pickup, folgt genau ein loka
 
 ### Loot und Rückkehr
 
-Pickit-Default `[gems, lk-superchests]`: Pul bis Ber (`r21`–`r30`) sowie Elite-Unique und Elite-Set, `keep`. Nach jedem bestätigten Operate an einer Truhe oder einem Gestell wartet die Pipeline auf Drops und hebt Keep-Treffer auf. Danach setzt sie denselben Hütten-Cluster fort. Town Portal, Kurast Docks, Act-3-Egress, Rogue Encampment, Personal Stash.
+Pickit-Default `[gems, lk-superchests]`: Pul bis Ber (`r21`–`r30`) sowie Elite-Unique und Elite-Set, `keep`. Nach jedem bestätigten Operate an einer Truhe oder einem Gestell wartet die Pipeline auf Drops und hebt Keep-Treffer auf. Danach setzt sie denselben Hütten-Cluster fort. Town Portal, Kurast Docks, Act-3-Egress, Rogue Encampment, Personal Stash. Bleibt der Charakter nach dem ersten Portal-Klick stabil in Lower Kurast, räumt die gemeinsame Portal-Recovery einmal Gegner im 12-Kachel-Kreis, teleportiert zum gepinnten Portal und klickt es erneut. Nur die Memory-bestätigten Kurast Docks schließen `wait_origin_town` erfolgreich ab.
 
 ## Datenmodell
 
@@ -83,4 +83,4 @@ Session `session-20260820t183916999999999z-a7b983e6`, MrHammer Hell, Route `lowe
 - [Mephisto-Run](mephisto-run.md)
 
 ---
-*Zuletzt aktualisiert: 2026-08-21*
+*Zuletzt aktualisiert: 2026-08-22*

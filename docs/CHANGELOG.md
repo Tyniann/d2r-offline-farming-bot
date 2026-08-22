@@ -7,10 +7,17 @@ Versionierung nach [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- Add route-purpose hints before recording with recommended loot targets and a direct link to Pickit configuration
+
 ### Changed
+- Darken the app shell, cards, sidebar, and warm gradients while retaining ember orange as the primary fire accent
 - Redesign the dashboard around app-wide selection, persistent queues, shared-period history statistics, and Core-projected active-run stages
 
 ### Fixed
+- Reduce the global verified-town delay before Save & Exit from three seconds to 500 milliseconds
+- Match dashboard chart tooltips to the dark prototype, round route rates to one decimal place, and remove the duplicate visible route-value list
+- Verify Town Portal destinations and retry one blocked entry through bounded local clear, teleport, and hover-confirmed click
 - Send `/players N` with layout-mapped virtual keys and wait three seconds after a new game start so D2R chat actually receives the command
 - Cancel the post-start `/players N` fade wait immediately when the queue context stops
 - Operate Lower Kurast objects with unreadable Mode exactly once and still wait for delayed drops

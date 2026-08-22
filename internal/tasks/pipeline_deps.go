@@ -44,8 +44,10 @@ type pipelineReturnDeps struct {
 	Combat     CombatActions
 	Actions    RunActions
 	Loot       LootActions
+	RouteClear RouteClearExecutor
 	TownEgress TownEgressPlayback
 	Town       TownPreparationActions
+	Telemetry  RunTelemetry
 }
 
 func narrowTravelDeps(deps Deps) pipelineTravelDeps {
@@ -72,7 +74,7 @@ func narrowLootDeps(deps Deps) pipelineLootDeps {
 }
 
 func narrowReturnDeps(deps Deps) pipelineReturnDeps {
-	return pipelineReturnDeps{Waypoint: deps.Waypoint, Portal: deps.Portal, Stash: deps.Stash, Combat: deps.Combat, Actions: deps.Actions, Loot: deps.Loot, TownEgress: deps.TownEgress, Town: deps.Town}
+	return pipelineReturnDeps{Waypoint: deps.Waypoint, Portal: deps.Portal, Stash: deps.Stash, Combat: deps.Combat, Actions: deps.Actions, Loot: deps.Loot, RouteClear: deps.RouteClear, TownEgress: deps.TownEgress, Town: deps.Town, Telemetry: deps.Telemetry}
 }
 
 func (deps pipelineTravelDeps) lootDeps() pipelineLootDeps {

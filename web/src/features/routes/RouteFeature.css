@@ -60,6 +60,13 @@
 .route-detail-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
 .route-detail-heading h3 { margin: 0 0 4px; }
 .route-detail-heading p { margin: 0; }
+.route-purpose { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 12px; margin: 16px 0; padding: 13px 14px; border: 1px solid #604755; border-radius: 11px; background: linear-gradient(110deg, #170c11, #090609); }
+.route-purpose > svg { color: #f09a72; }
+.route-purpose > div { display: grid; gap: 7px; }
+.route-purpose strong { font-size: .8rem; letter-spacing: .04em; text-transform: uppercase; }
+.route-purpose ul { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.route-purpose li { display: block; flex: 0 1 auto; min-width: 0; padding: 5px 8px; border: 1px solid #684b59; border-radius: 999px; background: #21191f; color: #e8d8df; font-size: .76rem; }
+.route-purpose a { color: #f3b092; font-size: .8rem; font-weight: 750; white-space: nowrap; }
 .route-cow-notice { margin: 16px 0; padding: 14px; border: 1px solid #735c25; border-radius: 10px; background: #302512; color: #ecd9ae; }
 .route-cow-notice p { margin: 5px 0 0; color: #d7c69f; }
 .route-prerequisites { display: flex; flex-wrap: wrap; gap: 8px; margin: 16px 0; }
@@ -124,6 +131,8 @@
   .route-run-rail { display: none; }
   .route-recording-layout { grid-template-columns: minmax(0, 1fr); }
   .route-recording-detail { padding: 16px; }
+  .route-purpose { grid-template-columns: auto minmax(0, 1fr); }
+  .route-purpose a { grid-column: 2; justify-self: start; }
   .route-locations { grid-template-columns: minmax(0, 1fr); }
   .route-locations > svg { transform: rotate(90deg); }
   .route-recording-actions > button { width: 100%; }
