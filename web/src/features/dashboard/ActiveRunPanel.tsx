@@ -23,6 +23,8 @@ export function ActiveRunPanel({ status, runName, hotkeys }: Props) {
   const progress = validProgress(status.run_progress) ? status.run_progress : undefined;
   const queueTotal = status.queue.entries.length;
   const queueCurrent = queueTotal > 0 ? Math.min(Math.max(status.queue.index + 1, 1), queueTotal) : 0;
+  const maxRuns = status.queue.budgets.max_runs;
+  const sessionCurrent = maxRuns > 0 ? Math.min(Math.max(status.queue.started_runs, 1), maxRuns) : 0;
   const pendingText = status.pending_intent === "pause_after_run"
     ? t("dashboard.active.pausePending")
     : status.pending_intent === "stop_after_run"
@@ -32,7 +34,10 @@ export function ActiveRunPanel({ status, runName, hotkeys }: Props) {
   return <section className="dashboard-active-run" aria-labelledby="dashboard-active-run-title" aria-live="polite">
     <div className="dashboard-active-run-icon"><Play aria-hidden="true" size={21} fill="currentColor" /></div>
     <div className="dashboard-active-run-copy">
-      <span>{queueTotal > 0 ? t("dashboard.active.queuePosition", { current: queueCurrent, total: queueTotal }) : t("dashboard.active.activeSession")}</span>
+      <div className="dashboard-active-run-meta">
+        <span>{queueTotal > 0 ? t("dashboard.active.queuePosition", { current: queueCurrent, total: queueTotal }) : t("dashboard.active.activeSession")}</span>
+        {maxRuns > 0 && <span>{t("dashboard.active.sessionProgress", { current: sessionCurrent, total: maxRuns })}</span>}
+      </div>
       <h2 id="dashboard-active-run-title">{runName ? t("dashboard.active.runActive", { run: runName }) : t("dashboard.active.preparing")}</h2>
       {progress ? <>
         <div className="dashboard-active-run-steps" aria-label={t("dashboard.active.stageAria", { current: progress.current, total: progress.total })}>

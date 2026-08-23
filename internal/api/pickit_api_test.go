@@ -190,8 +190,8 @@ func TestPickitDeleteRequiresConfirmationAndMatchingRevisions(t *testing.T) {
 		if !errors.Is(err, app.ErrPickitProfileAssigned) {
 			t.Fatalf("delete error = %v", err)
 		}
-		if _, err := backend.pickitProfiles.Get("base"); err != nil {
-			t.Fatalf("profile changed after rejected delete: %v", err)
+		if _, getErr := backend.pickitProfiles.Get("base"); getErr != nil {
+			t.Fatalf("profile changed after rejected delete: %v", getErr)
 		}
 		manifest, err := backend.pickitAssignments.Snapshot()
 		if err != nil || manifest.Revision != 1 || !reflect.DeepEqual(manifest.Assignments["MrBones"][tasks.RunIDCountess], []string{"base"}) {

@@ -207,7 +207,7 @@ func (rt *Runtime) runAkaraShopTownTest() error {
 		switch phase {
 		case 0:
 			result := npc.Tick(current)
-			if err := logTownInteraction(rt, "npc", result); err != nil {
+			if err := logTownInteraction("npc", result); err != nil {
 				return err
 			}
 			if result.Done {
@@ -216,7 +216,7 @@ func (rt *Runtime) runAkaraShopTownTest() error {
 			}
 		case 1:
 			result := shop.Tick(current)
-			if err := logTownInteraction(rt, "shop", result); err != nil {
+			if err := logTownInteraction("shop", result); err != nil {
 				return err
 			}
 			if result.Done {
@@ -239,7 +239,7 @@ func (rt *Runtime) runAkaraShopTownTest() error {
 				rt.Log.Info("town bulk purchase action", "resource", labels[buyerIndex], "vendor_item_unit_id", result.UnitID, "mode", "bulk")
 				purchaseSettleUntil = time.Now().Add(townPurchaseSettle)
 			}
-			if err := logTownInteraction(rt, "buy_"+labels[buyerIndex], result); err != nil {
+			if err := logTownInteraction("buy_"+labels[buyerIndex], result); err != nil {
 				return err
 			}
 			if result.Done {
@@ -272,8 +272,7 @@ func (rt *Runtime) runItemServicesTownTest() error {
 	if !ok {
 		return fmt.Errorf("town item-service test: controller lacks click or modified-click support")
 	}
-	runCfg, configured := rt.Config.Runs.Run("mephisto")
-	if !configured {
+	if _, configured := rt.Config.Runs.Run("mephisto"); !configured {
 		return fmt.Errorf("town item-service test: Mephisto run config unavailable")
 	}
 	effective, err := rt.PickitAssignments.Resolve(rt.Config.Session.Character, tasks.RunIDMephisto)
@@ -290,7 +289,7 @@ func (rt *Runtime) runItemServicesTownTest() error {
 		return fmt.Errorf("town item-service test telemetry: %w", err)
 	}
 	defer trace.Close()
-	adapter, err := newTownPreparationAdapter(rt.Log, ctrl, mapPathingConfig(rt.Config.Pathing), rt.Config, "mephisto", runCfg, &townLayoutPin{}, townTelemetryAdapter{emitter: trace}, true)
+	adapter, err := newTownPreparationAdapter(rt.Log, ctrl, mapPathingConfig(rt.Config.Pathing), rt.Config, "mephisto", &townLayoutPin{}, townTelemetryAdapter{emitter: trace}, true)
 	if err != nil {
 		return err
 	}
@@ -368,7 +367,7 @@ func validateItemServicesAcceptanceOrders(orders []town.ItemServiceOrder) error 
 	return nil
 }
 
-func logTownInteraction(rt *Runtime, stage string, result town.InteractionResult) error {
+func logTownInteraction(stage string, result town.InteractionResult) error {
 	if result.Status == town.InteractionFailed {
 		return fmt.Errorf("town test %s failed: %s", stage, result.Reason)
 	}
@@ -435,8 +434,7 @@ func (rt *Runtime) runMercenaryTownServiceTest(service town.Service, anchor town
 	if !ok {
 		return fmt.Errorf("town %s test: controller lacks click support", label)
 	}
-	runCfg, configured := rt.Config.Runs.Run(string(tasks.RunIDCountess))
-	if !configured {
+	if _, configured := rt.Config.Runs.Run(string(tasks.RunIDCountess)); !configured {
 		return fmt.Errorf("town %s test: Countess run config unavailable", label)
 	}
 	trace, err := telemetry.New(rt.Config.Telemetry.Directory, "town-"+label, string(tasks.RunIDCountess))
@@ -444,7 +442,7 @@ func (rt *Runtime) runMercenaryTownServiceTest(service town.Service, anchor town
 		return fmt.Errorf("town %s test telemetry: %w", label, err)
 	}
 	defer trace.Close()
-	adapter, err := newTownPreparationAdapter(rt.Log, ctrl, mapPathingConfig(rt.Config.Pathing), rt.Config, string(tasks.RunIDCountess), runCfg, &townLayoutPin{}, townTelemetryAdapter{emitter: trace}, true)
+	adapter, err := newTownPreparationAdapter(rt.Log, ctrl, mapPathingConfig(rt.Config.Pathing), rt.Config, string(tasks.RunIDCountess), &townLayoutPin{}, townTelemetryAdapter{emitter: trace}, true)
 	if err != nil {
 		return err
 	}
@@ -490,7 +488,7 @@ func (rt *Runtime) runMercenaryTownServiceTest(service town.Service, anchor town
 			return fmt.Errorf("town %s test: stand within range of %s before starting", label, anchor)
 		}
 		result := handler.Tick(ctx, step, current)
-		if err := logTownInteraction(rt, label, result); err != nil {
+		if err := logTownInteraction(label, result); err != nil {
 			return err
 		}
 		if result.Status == town.InteractionComplete && result.Done {

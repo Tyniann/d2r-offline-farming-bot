@@ -10,6 +10,7 @@ Das Dashboard ist die produktive Startansicht der Desktop-App. Es verbindet die 
 - **Runtime-Projektion:** `internal/app/ui_monitor.go`
 - **API und SSE:** `internal/api/live_backend.go`, `internal/api/schema.go`
 - **Dashboard:** `web/src/features/dashboard/`
+- **UI-Plan:** [Dashboard-UI-Redesign](../plans/ui/dashboard-ui-redesign-spec.html)
 - **App-weite Auswahl:** `web/src/app/AppSelectionContext.tsx`
 - **Desktop-Persistenz:** `web/electron/desktop-settings.ts`
 - **Shell-Wiring:** `web/src/app/App.tsx`
@@ -68,4 +69,4 @@ Die Ansicht wechselt bei 1180 Pixeln von drei auf zwei Spalten und unter 1000 Pi
 - [Desktop-App-Shell und Designsystem](desktop-app-shell.md)
 
 ---
-*Zuletzt aktualisiert: 22. August 2026*
+*Zuletzt aktualisiert: 23. August 2026*

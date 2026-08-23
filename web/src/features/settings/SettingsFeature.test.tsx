@@ -156,12 +156,12 @@ describe("SettingsFeature", () => {
     fireEvent.click(screen.getByRole("tab", { name: "Wartung" }));
     expect(screen.getByRole("button", { name: "Löschvorschau erstellen" })).toBeDisabled();
     fireEvent.click(screen.getByRole("tab", { name: "Farming" }));
-    expect(screen.getByLabelText("Maximale Runs")).toBeDisabled();
+    expect(screen.getByLabelText("Maximale Routenausführungen")).toBeDisabled();
   });
 
   it("zeigt keinen Sperrhinweis und lässt Felder im inaktiven Zustand zu", async () => {
     renderFeature();
-    expect(await screen.findByLabelText("Maximale Runs")).toBeEnabled();
+    expect(await screen.findByLabelText("Maximale Routenausführungen")).toBeEnabled();
     expect(screen.queryByText("Diese Einstellungen sind gesperrt")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Speichern" })).toBeDisabled();
   });
@@ -232,7 +232,7 @@ describe("SettingsFeature", () => {
 
   it("ergänzt Queue-Runs per Klick und per Drag aus dem Katalog", async () => {
     renderFeature();
-    const catalog = await screen.findByRole("heading", { name: "Verfügbare Runs" });
+    const catalog = await screen.findByRole("heading", { name: "Verfügbare Routen" });
     const pane = catalog.closest(".settings-queue-pane");
     expect(pane).toBeTruthy();
     await waitFor(() => expect(within(pane as HTMLElement).getByRole("button", { name: "+ Beschwörer" })).toBeEnabled());
@@ -273,7 +273,7 @@ describe("SettingsFeature", () => {
   it("zeigt Katalog-Namen ohne Live-Availability wenn der Run-Fetch fehlschlägt", async () => {
     mocks.getRunAvailabilities.mockRejectedValue(new Error("offline"));
     renderFeature();
-    const catalog = await screen.findByRole("heading", { name: "Verfügbare Runs" });
+    const catalog = await screen.findByRole("heading", { name: "Verfügbare Routen" });
     const pane = catalog.closest(".settings-queue-pane");
     expect(within(pane as HTMLElement).getByRole("button", { name: "+ Beschwörer" })).toBeDisabled();
     expect(within(pane as HTMLElement).getByRole("button", { name: "+ Nihlathak" })).toBeDisabled();

@@ -1,6 +1,8 @@
 # Repo Effort Evaluation
 
-Holistische Bewertung des Repositorys zum Stand **2026-07-31** (HEAD nahe Release **v0.16.0** / Phase 18). Kontext: **100 % des Codes ist AI-generiert**.
+Snapshot vom **2026-07-31**, HEAD nahe **v0.16.0** / Phase 18. Keine Folgebewertung. Danach kamen unter anderem Cow Level, Lower Kurast, Hammerdin, i18n und das Pickit-Workspace. Die Scores beschreiben diesen Schnitt, nicht das Repo von heute.
+
+Kontext: **100 % des Codes ist AI-generiert**.
 
 **Canvas (visuelle Fassung):** [repo-effort-review.canvas.tsx](repo-effort-review.canvas.tsx) — archivierter Snapshot im Repo. Live-Ansicht in Cursor (neben dem Chat): Projektdatei unter den Cursor-Canvases, Dateiname `repo-effort-review.canvas.tsx`.
 

@@ -176,8 +176,7 @@ func New(cfg *config.Config, opts Options) (rt *Runtime, err error) {
 		// carrier without authorizing route playback or boss combat.
 		runtimeRunID = string(tasks.RunIDMephisto)
 	}
-	selectedRunCfg, ok := cfg.Runs.Run(runtimeRunID)
-	if !ok {
+	if _, ok := cfg.Runs.Run(runtimeRunID); !ok {
 		return nil, fmt.Errorf("%s: %q", tasks.RunReasonConfigMissing, runtimeRunID)
 	}
 	// Der passive Desktop-UI-Start muss einen frisch provisionierten Root ohne
@@ -226,7 +225,7 @@ func New(cfg *config.Config, opts Options) (rt *Runtime, err error) {
 	personalStash := pathing.NewPersonalStashActions(log, inputCtrl, pathingCfg)
 	townLayout := &townLayoutPin{}
 	townTrace := &townTelemetryRelay{}
-	townPreparation, err := newTownPreparationAdapterWithProfile(log, inputCtrl, pathingCfg, cfg, runtimeRunID, selectedRunCfg, combatProfileID, townLayout, townTrace, true)
+	townPreparation, err := newTownPreparationAdapterWithProfile(log, inputCtrl, pathingCfg, cfg, runtimeRunID, combatProfileID, townLayout, townTrace, true)
 	if err != nil {
 		return nil, err
 	}
@@ -234,7 +233,7 @@ func New(cfg *config.Config, opts Options) (rt *Runtime, err error) {
 		townPreparation.requireFullBuyableBelt = true
 		townPreparation.minimumRejuvenation = 1
 	}
-	townStartAdapter, err := newTownPreparationAdapterWithProfile(log, inputCtrl, pathingCfg, cfg, runtimeRunID, selectedRunCfg, combatProfileID, townLayout, townTrace, false)
+	townStartAdapter, err := newTownPreparationAdapterWithProfile(log, inputCtrl, pathingCfg, cfg, runtimeRunID, combatProfileID, townLayout, townTrace, false)
 	if err != nil {
 		return nil, err
 	}
@@ -297,7 +296,7 @@ func New(cfg *config.Config, opts Options) (rt *Runtime, err error) {
 	var cowSetup *cowSetupAdapter
 	var cowRecipe *cowPortalRecipeAdapter
 	if runtimeRunID == string(tasks.RunIDCows) {
-		cowSetup, err = newCowSetupAdapterWithProfile(log, inputCtrl, nav, pathingCfg, cfg, runtimeRunID, selectedRunCfg, combatProfileID, townLayout, townTrace)
+		cowSetup, err = newCowSetupAdapterWithProfile(log, inputCtrl, nav, pathingCfg, cfg, runtimeRunID, combatProfileID, townLayout, townTrace)
 		if err != nil {
 			return nil, fmt.Errorf("cow setup: %w", err)
 		}

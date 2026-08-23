@@ -10,7 +10,6 @@ interface Props {
   character: string;
   difficultyLabel: string;
   confirmedDifficultyLabel: string;
-  queueSize: number;
   selectionNeedsApply: boolean;
   selectionError: string;
   applyLocked: boolean;
@@ -20,7 +19,7 @@ interface Props {
 }
 
 /** DashboardHeader presents the selected farming context without exposing Core internals. */
-export function DashboardHeader({ status, connection, character, difficultyLabel, confirmedDifficultyLabel, queueSize, selectionNeedsApply, selectionError, applyLocked, applying, activeRunName, onApplySelection }: Props) {
+export function DashboardHeader({ status, connection, character, difficultyLabel, confirmedDifficultyLabel, selectionNeedsApply, selectionError, applyLocked, applying, activeRunName, onApplySelection }: Props) {
   const { t, i18n } = useTranslation();
   const connected = connection === "connected";
   const inputReady = !!status?.input.enabled && !status.input.paused && !status.input.stopped;
@@ -31,7 +30,7 @@ export function DashboardHeader({ status, connection, character, difficultyLabel
       <div>
         <p className="dashboard-kicker">{t("dashboard.header.kicker")}</p>
         <h1>{activeRunName ? t("dashboard.header.runActive", { run: activeRunName }) : character ? t("dashboard.header.characterReady", { character }) : t("dashboard.header.prepare")}</h1>
-        <p>{character ? t("dashboard.header.context", { difficulty: difficultyLabel, count: queueSize }) : t("dashboard.header.chooseCharacter")}</p>
+        <p>{character ? t("dashboard.header.context", { difficulty: difficultyLabel }) : t("dashboard.header.chooseCharacter")}</p>
       </div>
       <div className="dashboard-readiness" aria-label={t("dashboard.header.readiness")}>
         <span className={connected ? "is-ready" : "is-warning"}>{connected ? <Wifi aria-hidden="true" size={15} /> : <WifiOff aria-hidden="true" size={15} />}{connected ? t("dashboard.header.connected") : t("dashboard.header.connectionMissing")}</span>

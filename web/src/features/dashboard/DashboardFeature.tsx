@@ -70,7 +70,6 @@ export function DashboardFeature(props: Props) {
       character={character}
       difficultyLabel={appDifficultyLabel}
       confirmedDifficultyLabel={confirmedDifficultyLabel}
-      queueSize={configuredQueue.length}
       selectionNeedsApply={selectionNeedsApply}
       selectionError={selectionError}
       applyLocked={selectionApplyLocked}

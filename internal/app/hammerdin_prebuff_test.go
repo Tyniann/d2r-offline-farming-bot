@@ -320,7 +320,7 @@ func TestHammerdinCTAPrebuffSkipsWhileAnchorNotDueAndRecastsAfter150s(t *testing
 		t.Fatal(err)
 	}
 	state := hammerdinTownState(time.Unix(500, 0), 1, world.WeaponSetPrimary, 0, 0)
-	driveHammerdinCTAToComplete(t, prebuff, in, &state)
+	driveHammerdinCTAToComplete(t, prebuff, &state)
 	if got, want := strings.Join(in.keys, ","), "w,w"; got != want {
 		t.Fatalf("initial swap keys=%q", got)
 	}
@@ -381,7 +381,7 @@ func TestHammerdinPrebuffResetsAnchorOnMenuPhase(t *testing.T) {
 		t.Fatal(err)
 	}
 	state := hammerdinTownState(time.Unix(600, 0), 1, world.WeaponSetPrimary, 0, 0)
-	driveHammerdinCTAToComplete(t, prebuff, in, &state)
+	driveHammerdinCTAToComplete(t, prebuff, &state)
 
 	state.Phase = world.GamePhaseMenu
 	state.Valid = false
@@ -413,7 +413,7 @@ func TestHammerdinTownReadyHookCompletesWithoutInputWhenCTANotDue(t *testing.T) 
 	wrapper := &hammerdinTownReadyProfile{Executor: &profile.Executor{}, prebuff: prebuff}
 	state := hammerdinTownState(time.Unix(700, 0), 1, world.WeaponSetPrimary, 0, 0)
 	state.Identity = world.GameIdentity{Valid: true, Class: world.CharacterClassPaladin}
-	driveHammerdinCTAToComplete(t, prebuff, in, &state)
+	driveHammerdinCTAToComplete(t, prebuff, &state)
 
 	state.Generation++
 	state.At = state.At.Add(time.Second)
@@ -437,7 +437,7 @@ func TestHammerdinTownReadyHookCompletesWithoutInputWhenCTANotDue(t *testing.T) 
 	}
 }
 
-func driveHammerdinCTAToComplete(t *testing.T, prebuff *hammerdinPrebuff, in *hammerdinPrebuffInputMock, state *world.State) {
+func driveHammerdinCTAToComplete(t *testing.T, prebuff *hammerdinPrebuff, state *world.State) {
 	t.Helper()
 	tick := func() hammerdinPrebuffResult {
 		t.Helper()

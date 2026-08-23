@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { collectLocalDiffPaths, labelChangedField, minutesToMs, msToMinutes, summarizeChangedFields } from "./settingsDiff";
+import { collectLocalDiffPaths, labelChangedField, summarizeChangedFields } from "./settingsDiff";
 import type { OperatorSettingsDTO } from "../../api/generated";
 
 const base: OperatorSettingsDTO = {
@@ -14,9 +14,9 @@ const base: OperatorSettingsDTO = {
 describe("settingsDiff", () => {
   it("übersetzt Feldpfade und fasst Änderungen zusammen", () => {
     expect(labelChangedField("input.pause_hotkey")).toBe("Pause-Hotkey");
-    expect(labelChangedField("characters.mrbones.queue")).toBe("Run-Reihenfolge (mrbones)");
+    expect(labelChangedField("characters.mrbones.queue")).toBe("Routenreihenfolge (mrbones)");
     expect(labelChangedField("characters.mrbones.players")).toBe("Spieleranzahl (mrbones)");
-    expect(summarizeChangedFields(["input.pause_hotkey", "budgets.max_runs"])).toBe("Pause-Hotkey, Maximale Runs");
+    expect(summarizeChangedFields(["input.pause_hotkey", "budgets.max_runs"])).toBe("Pause-Hotkey, Maximale Routenausführungen");
   });
 
   it("erkennt Binding-Diffs", () => {

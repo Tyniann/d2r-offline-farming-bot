@@ -168,8 +168,7 @@ func TestTownPreparationPotionPlanFromWaypointUsesAkaraRoundtrip(t *testing.T) {
 		t.Fatal(err)
 	}
 	in := &preparationInputMock{}
-	runCfg, _ := cfg.Runs.Run("cows")
-	a, err := newTownPreparationAdapter(config.NewLogger("error"), in, pathing.DefaultConfig(), cfg, "cows", runCfg, &townLayoutPin{}, &preparationTelemetryMock{}, true)
+	a, err := newTownPreparationAdapter(config.NewLogger("error"), in, pathing.DefaultConfig(), cfg, "cows", &townLayoutPin{}, &preparationTelemetryMock{}, true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -333,8 +332,7 @@ func TestTownPreparationBuildsProductivePotionPlanWithLiveGold(t *testing.T) {
 		t.Fatal(err)
 	}
 	in := &preparationInputMock{}
-	runCfg, _ := cfg.Runs.Run("countess")
-	a, err := newTownPreparationAdapter(config.NewLogger("error"), in, pathing.DefaultConfig(), cfg, "countess", runCfg, &townLayoutPin{}, &preparationTelemetryMock{}, true)
+	a, err := newTownPreparationAdapter(config.NewLogger("error"), in, pathing.DefaultConfig(), cfg, "countess", &townLayoutPin{}, &preparationTelemetryMock{}, true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -364,8 +362,7 @@ func TestCowReadinessRequiresRejuvenationAndFillsAssignedColumns(t *testing.T) {
 		t.Fatal(err)
 	}
 	in := &preparationInputMock{}
-	runCfg, _ := cfg.Runs.Run("cows")
-	a, err := newTownPreparationAdapter(config.NewLogger("error"), in, pathing.DefaultConfig(), cfg, "cows", runCfg, &townLayoutPin{}, &preparationTelemetryMock{}, true)
+	a, err := newTownPreparationAdapter(config.NewLogger("error"), in, pathing.DefaultConfig(), cfg, "cows", &townLayoutPin{}, &preparationTelemetryMock{}, true)
 	if err != nil {
 		t.Fatal(err)
 	}

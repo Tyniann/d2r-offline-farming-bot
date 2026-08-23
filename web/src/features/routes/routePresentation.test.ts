@@ -15,12 +15,12 @@ describe("reasonLabel", () => {
 
 	it("übersetzt einen geänderten Entwurfskontext ausschließlich über den Code", () => {
 		expect(reasonLabel("route_candidate_changed"))
-			.toBe("Die Zuordnung für diesen Run hat sich seit der Aufnahme geändert.");
+			.toBe("Die Zuordnung für diese Route hat sich seit der Aufnahme geändert.");
 	});
 
 	it("übersetzt denselben Code auf Englisch und fällt für unbekannte Codes neutral zurück", async () => {
 		await changeAppLanguage("en");
-		expect(reasonLabel("route_candidate_changed")).toBe("The assignment for this run changed after recording.");
+		expect(reasonLabel("route_candidate_changed")).toBe("The assignment for this route changed after recording.");
 		expect(reasonLabel("free-form sentence")).toBe("This action is not available right now.");
 	});
 });

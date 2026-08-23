@@ -48,9 +48,9 @@ func TestPickitProfileCRUDRevisionDuplicateDeleteAndWriteRollback(t *testing.T) 
 		t.Fatalf("immutable id error = %v", updateErr)
 	}
 
-	copy, err := profiles.Duplicate("base", "copy", "Kopie")
-	if err != nil || copy.ID != "copy" || copy.Revision != 1 || copy.Rules[0].ID != "runes" {
-		t.Fatalf("duplicate = %+v error=%v", copy, err)
+	duplicated, err := profiles.Duplicate("base", "copy", "Kopie")
+	if err != nil || duplicated.ID != "copy" || duplicated.Revision != 1 || duplicated.Rules[0].ID != "runes" {
+		t.Fatalf("duplicate = %+v error=%v", duplicated, err)
 	}
 	if _, initErr := assignments.Initialize(map[string]map[tasks.RunID][]string{"MrBones": {tasks.RunIDCountess: {"base"}}}); initErr != nil {
 		t.Fatal(initErr)
@@ -210,8 +210,8 @@ func TestPickitCascadeRestoresAssignmentsWhenProfileDeleteFails(t *testing.T) {
 	if _, _, deleteErr := profiles.DeleteWithAssignments("base", assignments, before.Revision, true); deleteErr == nil {
 		t.Fatal("expected profile delete failure")
 	}
-	if _, err := profiles.Get("base"); err != nil {
-		t.Fatalf("profile disappeared after failed delete: %v", err)
+	if _, getErr := profiles.Get("base"); getErr != nil {
+		t.Fatalf("profile disappeared after failed delete: %v", getErr)
 	}
 	after, err := assignments.Snapshot()
 	if err != nil || !reflect.DeepEqual(after, before) {

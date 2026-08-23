@@ -121,7 +121,7 @@ func resolveRunAvailabilities(cfg *config.Config, context RunAvailabilityContext
 			}
 		}
 		if definition.RouteSet != nil {
-			resolveRouteSetAvailability(&availability, result, definition, context.CombatProfile, context, assignments, candidates, profileCfg, profileConfigured)
+			resolveRouteSetAvailability(&availability, result, definition, context, assignments, candidates, profileCfg, profileConfigured)
 			if _, supported := pathing.DefaultWaypointTargetRegistry().Action(definition.WaypointTarget); !supported {
 				availability.Reasons = append(availability.Reasons, tasks.RunReasonWaypointTargetUnsupported)
 			}
@@ -158,7 +158,7 @@ func resolveRunAvailabilities(cfg *config.Config, context RunAvailabilityContext
 				route = candidate.Route
 				result.routes[definition.ID] = candidate.Route
 				result.routePaths[candidate.ID] = candidate.Path
-				if !routeMatchesDefinitionAndContext(candidate.Route, definition, context.CombatProfile, context) {
+				if !routeMatchesDefinitionAndContext(candidate.Route, definition, context) {
 					availability.Route.Reason = tasks.RunReasonRouteBindingMismatch
 					availability.Reasons = append(availability.Reasons, tasks.RunReasonRouteBindingMismatch)
 				}
@@ -197,7 +197,7 @@ func resolveRunAvailabilities(cfg *config.Config, context RunAvailabilityContext
 	return result, nil
 }
 
-func resolveRouteSetAvailability(availability *tasks.RunAvailability, result runAvailabilityResolution, definition tasks.RunDefinition, profileID string, context RunAvailabilityContext, assignments RouteAssignmentManifest, candidates map[string]FarmingRouteCatalogEntry, profileCfg config.ProfileConfig, profileConfigured bool) {
+func resolveRouteSetAvailability(availability *tasks.RunAvailability, result runAvailabilityResolution, definition tasks.RunDefinition, context RunAvailabilityContext, assignments RouteAssignmentManifest, candidates map[string]FarmingRouteCatalogEntry, profileCfg config.ProfileConfig, profileConfigured bool) {
 	availability.RouteRoles = make(map[pathing.RouteRole]tasks.RouteAvailability, len(definition.RouteSet.Roles))
 	resolvedRoutes := make(map[pathing.RouteRole]pathing.Route, len(definition.RouteSet.Roles))
 	character := strings.ToLower(strings.TrimSpace(context.Character))
@@ -221,7 +221,7 @@ func resolveRouteSetAvailability(availability *tasks.RunAvailability, result run
 		} else if candidate.Status != RouteLifecycleValid && candidate.Status != RouteLifecycleRuntimeValidationRequired || candidate.ManagementStatus == RouteManagementArchived {
 			roleAvailability.Reason = tasks.RunReasonRouteStale
 			availability.Reasons = append(availability.Reasons, staleReason)
-		} else if !routeMatchesRoleAndContext(candidate.Route, definition, role, profileID, context) {
+		} else if !routeMatchesRoleAndContext(candidate.Route, definition, role, context) {
 			roleAvailability.Reason = tasks.RunReasonRouteBindingMismatch
 			availability.Reasons = append(availability.Reasons, tasks.RunReasonRouteSetBindingMismatch)
 		} else {
@@ -259,7 +259,7 @@ func roleAvailabilityReasons(role pathing.RouteRole) (tasks.RunReason, tasks.Run
 	return tasks.RunReasonCowSweepRouteMissing, tasks.RunReasonCowSweepRouteStale
 }
 
-func routeMatchesRoleAndContext(route pathing.Route, definition tasks.RunDefinition, role pathing.RouteRole, profileID string, context RunAvailabilityContext) bool {
+func routeMatchesRoleAndContext(route pathing.Route, definition tasks.RunDefinition, role pathing.RouteRole, context RunAvailabilityContext) bool {
 	contract, ok := definition.RecordingForRole(role)
 	if !ok || route.Binding.RouteRole != role || len(route.Segments) == 0 || route.Segments[0].FromAreaID != contract.AllowedStartArea || route.Segments[len(route.Segments)-1].ToAreaID != contract.TerminalArea {
 		return false
@@ -299,7 +299,7 @@ func validateTownEgressAvailability(cfg *config.Config, egress town.EgressConfig
 	return ""
 }
 
-func routeMatchesDefinitionAndContext(route pathing.Route, definition tasks.RunDefinition, profileID string, context RunAvailabilityContext) bool {
+func routeMatchesDefinitionAndContext(route pathing.Route, definition tasks.RunDefinition, context RunAvailabilityContext) bool {
 	if len(route.Segments) == 0 || route.Segments[0].FromAreaID != definition.EntryArea || route.Segments[len(route.Segments)-1].ToAreaID != definition.RouteTerminalArea {
 		return false
 	}

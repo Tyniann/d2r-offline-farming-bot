@@ -37,7 +37,6 @@ export function FarmingPanel({ status, character, difficulty, queue, runs, expec
           : <>
             <ol className="dashboard-queue-list">{rows.map((row, index) => <li key={`${row.id}-${index}`}><span>{index + 1}</span><strong>{row.name}</strong><small>{status?.state === "running_run" && status.active_run_id && status.queue.index === index ? t("dashboard.farming.running") : row.availability}</small></li>)}</ol>
             {!sessionActive && <button className="dashboard-start" type="button" disabled={startLocked || !status?.selection.character} onClick={onStart}><Play aria-hidden="true" size={18} />{commandPending ? t("dashboard.farming.startPending") : t("dashboard.farming.start")}</button>}
-            <p className="dashboard-panel-summary">{t("dashboard.farming.summary", { count: rows.length })}</p>
           </>}
   </section>;
 }

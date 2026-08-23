@@ -48,7 +48,7 @@ it("startet die Queue und spiegelt Core-Fortschritt sowie Hotkey-Vormerkungen", 
   vi.stubGlobal("EventSource", FakeEventSource);
 
   render(<App />);
-  expect(await screen.findByRole("heading", { name: "Deine Run-Reihenfolge" })).toBeInTheDocument();
+  expect(await screen.findByRole("heading", { name: "Deine Routenreihenfolge" })).toBeInTheDocument();
   const start = await screen.findByRole("button", { name: "Jetzt farmen" });
   await waitFor(() => expect(start).toBeEnabled());
   fireEvent.click(start);
@@ -58,10 +58,10 @@ it("startet die Queue und spiegelt Core-Fortschritt sowie Hotkey-Vormerkungen", 
 
   pendingIntent = "pause_after_run"; generation++;
   await emitSupervisorDelta(listeners);
-  expect(await screen.findByText("Pause nach diesem Run vorgemerkt")).toBeInTheDocument();
+  expect(await screen.findByText("Pause nach dieser Route vorgemerkt")).toBeInTheDocument();
   pendingIntent = "stop_after_run"; generation++;
   await emitSupervisorDelta(listeners);
-  expect(await screen.findByText("Stopp nach diesem Run vorgemerkt")).toBeInTheDocument();
+  expect(await screen.findByText("Stopp nach dieser Route vorgemerkt")).toBeInTheDocument();
   expect(screen.queryByRole("button", { name: /pausieren|stoppen|Emergency Stop/i })).not.toBeInTheDocument();
   expect(requests.some((request) => ["/api/v1/session/pause-after-run", "/api/v1/session/resume", "/api/v1/session/stop-after-run", "/api/v1/session/emergency-stop"].includes(request.path))).toBe(false);
 });

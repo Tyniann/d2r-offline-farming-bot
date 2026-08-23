@@ -1,140 +1,84 @@
 # D2R Offline Farming Bot
 
-Go-basierter Bot für Diablo II: Resurrected (Offline/Singleplayer). **v0.23.0** unterstützt autonome Farming-Runs für Countess, Mephisto, Summoner, Nihlathak, das Cow Level und Lower-Kurast-Supertruhen einschließlich Charakter-Loadouts, Hammerdin, Runtime Replay, Combat, Loot, Sockel-Pickit, Town-Diensten, Mercenary-Support, Desktop-App und Deutsch/Englisch-Umschaltung.
+Windows-Desktop-App, die Diablo II: Resurrected **offline** farmt. Go liest den Prozess, baut ein World Model und steuert Tastatur und Maus. Electron zeigt Queue, Routen, Pickit und Verlauf. Battle.net ist nicht im Scope und nicht implementiert.
 
-## Voraussetzungen
+Das Repo ist ein persönliches Fallbeispiel: Architektur und Abnahme kommen von mir, der Code ist mit AI geschrieben. Es ist kein Produkt und keine Aufforderung, die Blizzard-EULA zu umgehen.
 
-- Windows (Zielplattform)
-- Go 1.26+ ([go.dev/dl](https://go.dev/dl/)) — nur für Entwicklung/Build
-- Optional: `make`, `golangci-lint`, `goimports`
+English: a Windows desktop app (Go core, Electron UI) for repeatable **offline** D2R farming. Personal AI-assisted engineering case study, not an online cheat and not affiliated with Blizzard.
 
-## Release (Windows EXE)
+![Dashboard](docs/screenshots/dashboard.png)
+
+![Routenaufzeichnung](docs/screenshots/route-recording.png)
+
+![Pickit](docs/screenshots/pickit.png)
+
+Die drei Bilder liegen unter [`docs/screenshots/`](docs/screenshots/README.md). Fehlen sie noch, ist das der Ablageort.
+
+## Was es kann
+
+- Farming-Ziele: Countess, Mephisto, Summoner, Nihlathak, Cow Level, Lower-Kurast-Supertruhen
+- Kampfprofile: Necromancer und Hammerdin, inklusive Mercenary
+- Selbst aufgezeichnete Routen mit Playback gegen das Memory-World-Model
+- Pickit-Profile, Town (Identifizieren, Verkaufen, Stash), Session-Queue
+- Desktop-UI auf Deutsch und Englisch, plus Windows-Installer
+
+Auflösung 1280×720. D2R startet der Operator selbst.
+
+## Architektur
+
+```
+D2R.exe  →  process  →  memory snapshot  →  world model
+                                              ↓
+Electron UI  ←  loopback API  ←  app  ←  tasks / profile / town / loot
+                                              ↓
+                                           input (SendInput)
+```
+
+Pathing, Loot und Town hängen am World Model, nicht an Rohbytes. Die UI redet nur mit `internal/api` auf localhost. Input geht erst nach explizitem Opt-in und bleibt über Hotkeys abbrechbar.
+
+## Wie es gebaut wurde
+
+Phasenpläne, fail-closed Gates, Feature-Docs und ein Changelog vor jedem Release. Live-Abnahme im Spiel, nicht nur grüne Tests. Die Agent-Regeln stehen in [`AGENTS.md`](AGENTS.md), die Phasen in [`docs/plans/`](docs/plans/).
+
+Eine Momentaufnahme vom 31. Juli 2026 (damals v0.16, vier Runs, ohne Cows, Lower Kurast, Hammerdin und i18n) liegt in der [Repo-Effort-Evaluation](docs/reviews/repo-effort-evaluation-2026-07-31.md). Die Zahlen dort sind der Stand von da, kein aktuelles Scoreboard.
+
+## Lizenz und Grenzen
+
+Siehe [`LICENSE`](LICENSE). Quelltext ansehen und daraus lernen: ja. Battle.net, Verkauf als Produkt, Blizzard-Affiliation: nein.
+
+Diablo II: Resurrected ist eine Marke von Blizzard Entertainment, Inc. Dieses Projekt ist inoffiziell.
+
+## Installer
+
+Windows 10/11 x64, unsignierter NSIS-Installer. SmartScreen kann warnen. Daten liegen unter `%LOCALAPPDATA%\D2ROfflineFarmingBot\`.
 
 ```powershell
-# Windows-Installer bauen (dist/release/D2R-Offline-Farming-Bot-0.23.0-Setup.exe)
 powershell -ExecutionPolicy Bypass -File scripts/build-release.ps1 -Version 0.23.0
-
-# Oder über Make
-make release
 ```
 
-Der Installer enthält die Desktop-App, den Go-Core und die produktiven Standardkonfigurationen.
+Ergebnis: `dist/release/D2R-Offline-Farming-Bot-0.23.0-Setup.exe` plus SHA-256. Details: [`docs/INSTALLATION.md`](docs/INSTALLATION.md).
 
-Version prüfen:
+## Entwicklung
 
-```powershell
-.\d2rbot.exe --version
-```
-
-## Schnellstart (Entwicklung)
+Windows, Go 1.26+, Node/pnpm für die UI.
 
 ```powershell
-# Lokale Konfiguration anlegen
 Copy-Item configs\config.example.yaml configs\config.yaml
-
-# Abhängigkeiten laden
-go mod tidy
-
-# Prozess-Monitor (Default)
-go run ./cmd/d2rbot
-
-# Mit World-State-Logging
-go run ./cmd/d2rbot --probe
-
-# Positionen auf Debug
-go run ./cmd/d2rbot --probe --verbose
-
-# Manueller Input-Test (input.enabled: true in config.yaml erforderlich)
-go run ./cmd/d2rbot --input-test "belt:1"
-go run ./cmd/d2rbot --input-test "portal"
-go run ./cmd/d2rbot --input-test "skill:1"
-go run ./cmd/d2rbot --input-test "center-click"
-go run ./cmd/d2rbot --input-test "click:640,360"
-go run ./cmd/d2rbot --input-test "belt:1,portal,skill:1" --input-test-observe-ms 3000
-
-# Oder bauen
-go build -o bin\d2rbot.exe ./cmd/d2rbot
-.\bin\d2rbot.exe --probe
+go test ./...
+go run ./cmd/d2rbot --version
 ```
 
-Optional: Offset-Overrides in `configs/offsets.local.yaml` (von `offsets.example.yaml` kopieren) und in `config.yaml` unter `memory.offsets_file` eintragen.
+UI: `web/` (Vite, Electron, Vitest). Feature-Docs: [`docs/features/README.md`](docs/features/README.md). Changelog: [`docs/CHANGELOG.md`](docs/CHANGELOG.md). Interne Produktskizze: [`docs/plans/handoff.html`](docs/plans/handoff.html).
 
-## Manual Input Test (Phase 3.5)
-
-Expliziter CLI-Testmodus zur Validierung der Input-Primitives im Offline-Spiel. Sendet **echte OS-Eingaben** — nur mit bewusstem `--input-test` und `input.enabled: true` in der lokalen Config verwenden.
-
-```powershell
-.\d2rbot.exe --config configs\config.yaml --input-test "belt:1"
-.\d2rbot.exe --config configs\config.yaml --input-test "portal"
-.\d2rbot.exe --config configs\config.yaml --input-test "skill:1"
-.\d2rbot.exe --config configs\config.yaml --input-test "center-click"
-```
-
-Aktionen: `belt:N` / `potion:N` (1–4), `portal`, `skill:N` (1–8), `center-click`, `click:X,Y`. Komma trennt kurze Sequenzen. `--input-test-observe-ms` (Default 3000) steuert die World-State-Beobachtung nach den Aktionen.
-
-Der Testmodus wartet auf Prozess, Fensterbindung und gültigen In-Game-World-State, loggt Vor-/Nachher-Zustand (ohne `--probe`), führt die Aktionen aus und beendet sich sauber. Pause-/Stop-Hotkeys aus der Config bleiben aktiv. D2R sollte im Fokus sein — es gibt noch kein Fokus-Management.
-
-Details: [`docs/features/input-controller.md`](docs/features/input-controller.md).
-
-## Release bauen
-
-Windows-Installer lokal erzeugen und bei Bedarf manuell verteilen:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File scripts/build-release.ps1 -Version 0.23.0
-# Ergebnis: dist\release\D2R-Offline-Farming-Bot-0.23.0-Setup.exe
-```
-
-Optional Version taggen (nur für Git-Historie):
-
-```powershell
-git tag -a v0.23.0 -m "Release v0.23.0: Internationalization"
-git push origin v0.23.0
-```
+CLI-Flags wie `--probe` und `--input-test` sind Diagnose, nicht der Produktstart. Dafür ist die installierte App da. `--input-test` sendet echte OS-Eingaben und braucht `input.enabled: true`.
 
 ## Projektstruktur
 
 ```
-cmd/d2rbot/          # Einstiegspunkt (main, CLI-Flags, Wiring)
-internal/
-  app/               # Orchestrierung, Supervisor/Queue-Lifecycle, Adapter
-  process/           # D2R-Prozesssuche, Handles, Versionsgate
-  memory/            # Memory Reader, Snapshots, Offsets
-  world/             # Spielzustand (Area, Entities, Items)
-  pathing/           # Navigation, Teleport, Routenaufnahme/-wiedergabe
-  input/             # Tastatur & Maus, Fensterbindung, Safety-Hotkeys
-  tasks/             # Run-State-Machines (Countess, Mephisto, Summoner, Nihlathak, Cow Level)
-  profile/           # Klassen-/Combat-Profile, Encounter-Hooks, Route-Clear
-  town/              # Town-Graph, Vendor/Stash-Dienste, System-Egress
-  loot/              # Pickit, Inventar, Stash
-  telemetry/         # JSONL Run-/Session-Telemetrie und History
-  replay/            # Runtime-Traces und headless Replay
-  api/               # Loopback-HTTP/SSE Core-API für die Desktop-UI
-  api/ui/            # Eingebetteter React-Produktionsbuild
-  config/            # Konfiguration & Logging
-  version/           # Release-Version (Build-Zeit injizierbar)
-web/                 # Electron-Desktop-App und React-Quellen
-configs/             # YAML-Konfiguration, Pickit, Routen, Offset-Beispiele
-tools/               # CASC-Katalog-Generatoren und Default-Bundle
-scripts/             # Release-Build
-docs/                # Feature-Docs, Changelog, Agent-Docs
+cmd/d2rbot/     Einstieg, Flags, Wiring
+internal/       process, memory, world, pathing, input, tasks, profile, town, loot, api
+web/            Electron-Desktop und React
+configs/        YAML-Beispiele, Pickit, Routen
+docs/           Features, Pläne, Changelog
+scripts/        Release-Build
 ```
-
-## Entwicklung
-
-```powershell
-# Dev-Tools installieren (einmalig)
-go install golang.org/x/tools/cmd/goimports@latest
-go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest
-
-go test ./...
-golangci-lint run ./...
-```
-
-## Dokumentation
-
-| Was | Wo |
-|-----|-----|
-| Produkt & Architektur | [`docs/plans/handoff.html`](docs/plans/handoff.html) |
-| Feature-Docs (Index) | [`docs/features/README.md`](docs/features/README.md) |
-| Changelog | [`docs/CHANGELOG.md`](docs/CHANGELOG.md) |

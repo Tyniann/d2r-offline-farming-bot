@@ -99,15 +99,15 @@ func (w *layoutTownWaypointWalker) Reset() {
 	}
 }
 
-func newTownPreparationAdapter(log *slog.Logger, controller townPreparationController, pathCfg pathing.Config, cfg *config.Config, runID string, run config.RunConfig, layoutPin *townLayoutPin, telemetry town.ExecutorTelemetry, services bool) (*townPreparationAdapter, error) {
+func newTownPreparationAdapter(log *slog.Logger, controller townPreparationController, pathCfg pathing.Config, cfg *config.Config, runID string, layoutPin *townLayoutPin, telemetry town.ExecutorTelemetry, services bool) (*townPreparationAdapter, error) {
 	profileID, err := resolveActiveCombatProfileID(cfg, nil, cfg.Session.Character, "")
 	if err != nil {
 		return nil, err
 	}
-	return newTownPreparationAdapterWithProfile(log, controller, pathCfg, cfg, runID, run, profileID, layoutPin, telemetry, services)
+	return newTownPreparationAdapterWithProfile(log, controller, pathCfg, cfg, runID, profileID, layoutPin, telemetry, services)
 }
 
-func newTownPreparationAdapterWithProfile(log *slog.Logger, controller townPreparationController, pathCfg pathing.Config, cfg *config.Config, runID string, run config.RunConfig, profileID string, layoutPin *townLayoutPin, telemetry town.ExecutorTelemetry, services bool) (*townPreparationAdapter, error) {
+func newTownPreparationAdapterWithProfile(log *slog.Logger, controller townPreparationController, pathCfg pathing.Config, cfg *config.Config, runID string, profileID string, layoutPin *townLayoutPin, telemetry town.ExecutorTelemetry, services bool) (*townPreparationAdapter, error) {
 	directory := cfg.ResolvePath(cfg.Town.Hub.RoutesDirectory)
 	graph, err := town.LoadServiceGraph(filepath.Join(directory, "graph.yaml"))
 	if err != nil {

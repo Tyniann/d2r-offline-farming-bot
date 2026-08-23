@@ -58,8 +58,8 @@ type cowSetupAdapter struct {
 	tomeCloseSent    bool
 }
 
-func newCowSetupAdapterWithProfile(log *slog.Logger, controller townPreparationController, navigator *pathing.Navigator, pathCfg pathing.Config, cfg *config.Config, runID string, run config.RunConfig, profileID string, layoutPin *townLayoutPin, trace town.ExecutorTelemetry) (*cowSetupAdapter, error) {
-	approach, err := newTownPreparationAdapterWithProfile(log, controller, pathCfg, cfg, runID, run, profileID, layoutPin, trace, false)
+func newCowSetupAdapterWithProfile(log *slog.Logger, controller townPreparationController, navigator *pathing.Navigator, pathCfg pathing.Config, cfg *config.Config, runID string, profileID string, layoutPin *townLayoutPin, trace town.ExecutorTelemetry) (*cowSetupAdapter, error) {
+	approach, err := newTownPreparationAdapterWithProfile(log, controller, pathCfg, cfg, runID, profileID, layoutPin, trace, false)
 	if err != nil {
 		return nil, err
 	}

@@ -32,7 +32,9 @@ test("aktiver Run bleibt bei reduzierter Bewegung ruhig und verwendet nur Hotkey
   await page.setViewportSize({ width: 760, height: 800 });
   await page.goto("/#dashboard");
   await expect(page.getByLabel("Etappe 6 von 13")).toBeVisible();
-  await expect(page.getByRole("status").filter({ hasText: "Pause nach diesem Run vorgemerkt" })).toBeVisible();
+  await expect(page.getByText("Route 1 von 2")).toBeVisible();
+  await expect(page.getByText("Routenausführung 1 von 8")).toBeVisible();
+  await expect(page.getByRole("status").filter({ hasText: "Pause nach dieser Route vorgemerkt" })).toBeVisible();
   await expect(page.getByRole("button", { name: /pausieren|stoppen|Emergency Stop/i })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Jetzt farmen" })).toHaveCount(0);
   for (const [width, height] of [[1440, 900], [1100, 700], [760, 800]] as const) {

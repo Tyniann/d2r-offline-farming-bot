@@ -9,6 +9,7 @@ Technische Identitäten, Prüfsummen, rohe Statuscodes, Workflow-Generationen un
 ## Ort im Code
 
 - **Paket:** `web/src/features/routes/`
+- **UI-Plan:** [Routen-UI-Redesign](../plans/ui/route-ui-redesign-spec.html)
 - **Einstieg:** `RouteFeature.tsx`
 - **Komponenten:** `components/RoutePageHeader.tsx`, `components/RouteLibraryPanel.tsx`, `components/RouteRecordingPanel.tsx`, `components/RouteDraftsPanel.tsx`, `components/RouteWorkflowPanel.tsx`, `components/DeleteDraftDialog.tsx`
 - **Darstellungskatalog:** `routePresentation.ts`
@@ -73,4 +74,4 @@ Die Oberfläche verwendet die bestehende lokale Core-API, React und Lucide-Icons
 - [Lokale Core-API](local-core-api.md)
 
 ---
-*Zuletzt aktualisiert: 22. August 2026*
+*Zuletzt aktualisiert: 23. August 2026*

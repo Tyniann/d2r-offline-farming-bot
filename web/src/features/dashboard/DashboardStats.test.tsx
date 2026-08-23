@@ -59,6 +59,22 @@ describe("DashboardStats", () => {
     expect(screen.getByText("4 gesichert")).toBeInTheDocument();
   });
 
+  it("legt lange Fehlgründe unter den Routennamen statt daneben", async () => {
+    mocks.runs.mockResolvedValueOnce({
+      runs: [{
+        ...recent,
+        run_id: "run-fail",
+        outcome: "failed",
+        reason: "retry_return_failed",
+        funnel: { ...funnel, keep_return: 0 },
+      }],
+    });
+    render(<DashboardStats farming={<div>Farming bleibt sichtbar</div>} character="MrBones" difficulty="nightmare" runNames={{ countess: "Unter-Kurast" }} />);
+    expect(await screen.findByText("Unter-Kurast")).toBeInTheDocument();
+    expect(screen.getByText("Die kontrollierte Rückkehr nach Akt 1 vor dem erneuten Routenstart ist fehlgeschlagen.")).toBeInTheDocument();
+    expect(screen.getByText("Fehlgeschlagen", { selector: ".dashboard-recent-status" })).toBeInTheDocument();
+  });
+
   it("behält alte Werte beim Zeitraumwechsel und ersetzt sie erst nach der Antwort", async () => {
     render(<DashboardStats farming={<div>Farming bleibt sichtbar</div>} character="MrBones" difficulty="nightmare" runNames={{ countess: "Gräfin" }} />);
     expect(await screen.findByText("2,7")).toBeInTheDocument();

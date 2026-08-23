@@ -11,7 +11,7 @@
 ## Tech stack
 - **Language / runtime:** Go 1.26+, Zielplattform **Windows** (`GOOS=windows`).
 - **Module:** `github.com/Tyniann/d2r-offline-farming-bot`
-- **Repo:** `Tyniann/d2r-offline-farming-bot` (privat). Git-Remote per SSH: `git@github.com-tyniann:Tyniann/...` — **nicht** auf DHMG-Account oder Standard-`github.com`-Host wechseln.
+- **Repo:** `Tyniann/d2r-offline-farming-bot`. Remote bleibt dieses GitHub-Repository.
 - **Config:** YAML unter `configs/` (`config.example.yaml` versionieren; `config.yaml` lokal, gitignored).
 - **D2R-IDs:** Alle IDs und statischen Spieldaten stammen ausschließlich aus den lokalen CASC-Extrakten unter `.tmp/d2r-excel`. Eingecheckte Werte müssen über Generator oder Test-Fixture auf Datei und stabilen Zeilenschlüssel zurückführbar sein. Fehlt ein benötigter Extrakt, keine ID raten oder aus Fremdprojekten übernehmen: dem Entwickler die konkret benötigte CASC-Datei sowie nach Möglichkeit Zeilen/Spalten nennen und um Nachreichung bitten.
 - **Logging:** `log/slog` (strukturiert). JSONL für Run-Telemetrie.

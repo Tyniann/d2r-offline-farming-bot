@@ -56,7 +56,7 @@
         "filter": ["**/*"]
       },
       {
-        "from": "../docs/RELEASE-NOTES.md",
+        "from": "../docs/INSTALLATION.md",
         "to": "INSTALLATION.md"
       }
     ],

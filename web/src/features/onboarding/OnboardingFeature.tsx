@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Check, CircleAlert, ExternalLink, ShieldCheck } from "lucide-react";
+import { Check, ExternalLink, ShieldCheck } from "lucide-react";
 import { applySelection, previewSelection, saveOperatorSettings } from "../../api/client";
 import {
   getHotkeyHelp, getOperatorSettings, getRecordingOptions, getRouteWorkflow,

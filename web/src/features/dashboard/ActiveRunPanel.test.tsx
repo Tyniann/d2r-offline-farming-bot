@@ -8,7 +8,7 @@ const status = {
   pending_intent: "pause_after_run",
   run_progress: { stage_code: "cellar_floor", params: { floor: 3, floors: 5 }, current: 6, total: 13 },
   input: { enabled: true, paused: false, stopped: false },
-  queue: { entries: ["countess", "mephisto", "summoner"], index: 0 },
+  queue: { entries: ["countess", "mephisto", "summoner"], index: 0, started_runs: 1, budgets: { max_runs: 8, max_duration_ms: 7200000, max_consecutive_failures: 2, max_total_restarts: 3 } },
 } as unknown as StatusDTO;
 
 describe("ActiveRunPanel", () => {
@@ -18,6 +18,7 @@ describe("ActiveRunPanel", () => {
     render(<ActiveRunPanel status={status} runName="Gräfin" hotkeys={{ pause: "pause", stopAfterRun: "f8", emergencyStop: "f12" }} />);
     expect(screen.getByRole("heading", { name: "Gräfin läuft" })).toBeInTheDocument();
     expect(screen.getByText("Route 1 von 3")).toBeInTheDocument();
+    expect(screen.getByText("Routenausführung 1 von 8")).toBeInTheDocument();
     expect(screen.getByLabelText("Etappe 6 von 13")).toBeInTheDocument();
     expect(screen.getByText(/Kellergeschoss 3 von 5 · Etappe 6 von 13 · 0:00 vergangen/)).toBeInTheDocument();
     expect(screen.getByRole("status")).toHaveTextContent("Pause nach dieser Route vorgemerkt");

@@ -37,7 +37,7 @@ export function PickitFeature({ selectedCharacter: assignmentCharacter, runs, lo
   const [draft, setDraft] = useState<PickitProfileDTO | null>(null);
   const [saved, setSaved] = useState("");
   const [query, setQuery] = useState("");
-  const [newAction, setNewAction] = useState("keep");
+  const newAction = "keep";
   const [typePickerOpen, setTypePickerOpen] = useState(false);
   const [typeQuery, setTypeQuery] = useState("");
   const [selectedTypes, setSelectedTypes] = useState<string[]>(["shields"]);

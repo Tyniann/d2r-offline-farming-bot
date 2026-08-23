@@ -102,8 +102,7 @@
       "runActive": "{{run}} is running",
       "characterReady": "{{character}} is ready",
       "prepare": "Prepare farming",
-      "context_one": "{{difficulty}} · {{count}} route in the queue",
-      "context_other": "{{difficulty}} · {{count}} routes in the queue",
+      "context": "{{difficulty}}",
       "chooseCharacter": "Select a character in the sidebar.",
       "readiness": "Readiness",
       "connected": "Connected",
@@ -120,6 +119,7 @@
     },
     "active": {
       "queuePosition": "Route {{current}} of {{total}}",
+      "sessionProgress": "Route execution {{current}} of {{total}}",
       "activeSession": "Active session",
       "runActive": "{{run}} is running",
       "preparing": "Preparing session",
@@ -175,9 +175,7 @@
       "configure": "Set route order",
       "running": "Running",
       "startPending": "Confirming start…",
-      "start": "Start farming",
-      "summary_one": "{{count}} route in the queue",
-      "summary_other": "{{count}} routes in the queue"
+      "start": "Start farming"
     },
     "stats": {
       "loadFailed": "Statistics could not be loaded.",

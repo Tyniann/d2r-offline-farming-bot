@@ -256,7 +256,7 @@ describe("OnboardingFeature", () => {
     mocks.getSettings.mockResolvedValue({ ...operator, input: { ...operator.input, enabled: true } });
     mocks.getOptions.mockResolvedValue([option("pickit")]);
     render(<OnboardingFeature initialStep={6} status={status} catalog={catalog} onRefresh={onRefresh} onClose={onClose} onOpenRoutes={onOpenRoutes} />);
-    expect(await screen.findByText("Für diesen Charakter und Run ist noch kein Lootprofil zugeordnet.")).toBeInTheDocument();
+    expect(await screen.findByText("Für diesen Charakter und diese Route ist noch kein Lootprofil zugeordnet.")).toBeInTheDocument();
     expect(screen.queryByText("pickit_assignment_missing")).not.toBeInTheDocument();
   });
 

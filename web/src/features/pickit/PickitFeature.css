@@ -25,18 +25,18 @@
 .pickit-profile-list span { display: flex; justify-content: space-between; gap: 8px; color: var(--muted); font-size: .76rem; font-weight: 500; }
 .pickit-profile-list small { color: var(--gold); }
 
-.pickit-editor-header { position: relative; display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 20px; border-bottom: 1px solid var(--border); background: linear-gradient(135deg, #141015, #0d0a0e); }
+.pickit-editor-header { position: relative; display: flex; align-items: flex-end; justify-content: space-between; gap: 18px; padding: 20px; border-bottom: 1px solid var(--border); background: linear-gradient(135deg, #141015, #0d0a0e); }
 .pickit-editor-title { display: flex; align-items: flex-end; gap: 10px; min-width: 0; }
-.pickit-editor-title label { min-width: 0; gap: 3px; }
+.pickit-editor-title label { display: grid; min-width: 0; gap: 3px; }
 .pickit-editor-title label > span { font-size: .72rem; font-weight: 750; letter-spacing: .07em; text-transform: uppercase; }
 .pickit-editor-title input { width: min(360px, 100%); min-height: 38px; padding: 4px 8px; border-color: transparent; background: transparent; color: var(--text); font-size: 1.35rem; font-weight: 800; }
 .pickit-editor-title input:hover, .pickit-editor-title input:focus { border-color: var(--border); background: var(--surface-2); }
-.pickit-profile-actions { display: flex; flex: 0 0 auto; gap: 6px; }
-.pickit-profile-actions button { min-height: 36px; padding: 6px 9px; }
+.pickit-profile-actions { display: flex; flex: 0 0 auto; align-items: center; gap: 6px; }
+.pickit-profile-actions button { min-height: 38px; padding: 6px 9px; }
 .pickit-more-button { display: none !important; }
 .pickit-delete-button { color: #f29aa0; }
 .pickit-usage-shell { position: relative; }
-.pickit-usage-button { min-height: 34px; padding: 5px 9px; border-color: #5d493e; background: #1d1619; color: var(--gold-soft); font-size: .78rem; }
+.pickit-usage-button { min-height: 38px; padding: 5px 9px; border-color: #5d493e; background: #1d1619; color: var(--gold-soft); font-size: .78rem; white-space: nowrap; }
 .pickit-usage-popover { position: absolute; top: calc(100% + 7px); left: 0; z-index: 8; width: 270px; padding: 13px; border: 1px solid #6c4b3e; border-radius: 10px; background: #171116; box-shadow: 0 18px 46px #000c; }
 .pickit-usage-popover ul { display: grid; gap: 7px; margin: 9px 0 0; padding: 0; list-style: none; }
 .pickit-usage-popover li { display: block; padding: 7px 0; border-bottom: 1px solid var(--border); color: var(--muted); }

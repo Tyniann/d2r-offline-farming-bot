@@ -7,6 +7,7 @@ Das eingebettete React-Feature verwaltet globale Pickit-Profile und ihre geordne
 ## Ort im Code
 
 - **Feature:** `web/src/features/pickit/PickitFeature.tsx`
+- **UI-Plan:** [Pickit-UI-Redesign](../plans/ui/pickit-ui-redesign-spec.html)
 - **Regelbuilder:** `web/src/features/pickit/pickitRuleBuilder.ts`
 - **Tests:** `web/src/features/pickit/PickitFeature.test.tsx`, `web/src/features/pickit/pickitRuleBuilder.test.ts`
 - **API:** `web/src/api/generated.ts`, `web/src/api/client.ts`
@@ -47,4 +48,4 @@ Gate B wurde am 21. Juli 2026 bestanden: UnitID `225` wurde als `Arrows`/`aqv` v
 - [Sockel-Support für Pickit](socket-pickit.md)
 
 ---
-*Zuletzt aktualisiert: 2026-07-31*
+*Zuletzt aktualisiert: 2026-08-23*

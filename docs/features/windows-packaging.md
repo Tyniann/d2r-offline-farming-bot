@@ -14,7 +14,7 @@ Abschnitt 15.11 liefert die bestehende Electron-App und den Go-Core als per-user
 - **Paketprüfung:** `web/electron/verify-package.mjs`
 - **Installierter Smoke-Test:** `web/electron/package-smoke.mjs`
 - **Defaults-Builder:** `tools/build-default-bundle/main.go`
-- **Installationshinweis:** `docs/RELEASE-NOTES.md`
+- **Installationshinweis:** `docs/INSTALLATION.md`
 
 ## Funktionalität
 

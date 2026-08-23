@@ -153,7 +153,19 @@ function RecentRuns({ rows, runNames }: { rows?: HistoryRunDTO[]; runNames: Reco
   if (rows.length === 0) return <div className="dashboard-recent-placeholder">{t("dashboard.stats.recentEmpty")}</div>;
   return <ul className="dashboard-recent-runs">{rows.map((run) => {
     const success = run.outcome === "success";
-    return <li key={run.run_id}><i className={success ? "success" : "failed"}>{success ? <Check aria-hidden="true" size={13} /> : <CircleAlert aria-hidden="true" size={13} />}</i><div><strong>{runNames[run.run] ?? labelRun(run.run, t)}</strong><span>{formatDate(run.started_at, { hour: "2-digit", minute: "2-digit" })} · {formatDuration(run.duration_ms)}</span></div><small>{run.funnel.keep_return ? t("dashboard.stats.securedCount", { count: run.funnel.keep_return }) : run.reason ? presentHistoryReason(run.reason, t) : outcomeLabel(run.outcome, t)}</small></li>;
+    const statusText = run.funnel.keep_return
+      ? t("dashboard.stats.securedCount", { count: run.funnel.keep_return })
+      : outcomeLabel(run.outcome, t);
+    const reasonText = !run.funnel.keep_return && run.reason ? presentHistoryReason(run.reason, t) : undefined;
+    return <li key={run.run_id}>
+      <i className={success ? "success" : "failed"}>{success ? <Check aria-hidden="true" size={13} /> : <CircleAlert aria-hidden="true" size={13} />}</i>
+      <div>
+        <strong>{runNames[run.run] ?? labelRun(run.run, t)}</strong>
+        <span>{formatDate(run.started_at, { hour: "2-digit", minute: "2-digit" })} · {formatDuration(run.duration_ms)}</span>
+        {reasonText && <small className="dashboard-recent-reason">{reasonText}</small>}
+      </div>
+      <small className="dashboard-recent-status">{statusText}</small>
+    </li>;
   })}</ul>;
 }
 

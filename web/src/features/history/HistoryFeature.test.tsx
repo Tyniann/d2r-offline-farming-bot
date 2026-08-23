@@ -63,7 +63,7 @@ describe("HistoryFeature", () => {
     expect(container.querySelectorAll(".table-scroll")).toHaveLength(7);
     expect(screen.getByRole("heading", { name: "Tagesverlauf" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Routenvergleich" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Run-Stages" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Ausführungsphasen" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Loot-Funnel" })).toBeInTheDocument();
     const dailyTable = screen.getByRole("table", { name: "Exakte Core-Werte des Tagesverlaufs" });
     expect(within(dailyTable).getByText("2026-07-21").closest("tr")).toHaveTextContent("2026-07-212026-07-21T00:00:00Z – 2026-07-22T00:00:00Z0–00–");
@@ -89,12 +89,12 @@ describe("HistoryFeature", () => {
     fireEvent.click(screen.getByRole("button", { name: "Filter anwenden" }));
     await waitFor(() => expect(mocks.summary).toHaveBeenLastCalledWith(expect.objectContaining({ character: ["MrBones"], outcome: ["failed"], reason: ["boss_not_found"], pickit_profile: ["runes"], from: expect.stringMatching(/Z$/) }), expect.any(AbortSignal)));
     expect(screen.getByText("Aktive Filter:").closest("p")).toHaveTextContent("Reason: boss_not_found");
-    fireEvent.click(await screen.findByRole("button", { name: "Mehr Runs laden" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Mehr Ausführungen laden" }));
     await waitFor(() => expect(mocks.runs).toHaveBeenCalledWith(expect.objectContaining({ cursor: "runs-next" })));
     fireEvent.click(screen.getByRole("button", { name: "Mehr Items laden" }));
     await waitFor(() => expect(mocks.items).toHaveBeenCalledWith(expect.objectContaining({ cursor: "items-next" })));
-    fireEvent.click(screen.getAllByRole("button", { name: "Run öffnen" })[0]);
-    expect(await screen.findByRole("heading", { name: "Run run-1" })).toBeInTheDocument();
+    fireEvent.click(screen.getAllByRole("button", { name: "Ausführung öffnen" })[0]);
+    expect(await screen.findByRole("heading", { name: "Route run-1" })).toBeInTheDocument();
     expect(screen.getByText("nach Pickup verloren")).toBeInTheDocument();
     expect(screen.getByText("Fehlerstelle").closest("div")).toHaveTextContent("boss_not_found · Schritt acquire_boss");
     expect(screen.getByText(/Pickit runes Revision 3/)).toHaveTextContent("Regel el-rune · Aktion keep · Assignment-Revision 8");
@@ -102,9 +102,9 @@ describe("HistoryFeature", () => {
     Object.defineProperty(raw, "open", { configurable: true, value: true });
     fireEvent(raw, new Event("toggle"));
     await waitFor(() => expect(mocks.detail).toHaveBeenLastCalledWith("run-1", true));
-    expect(await screen.findByRole("heading", { name: "Gemeinsamer Run-Kontext" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Gemeinsamer Ausführungskontext" })).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("Ereignistyp"), { target: { value: "route_clear_action" } });
-    expect(screen.getByText("1 von 2 Ereignissen. Gemeinsame Run-Daten werden nur oben angezeigt.")).toBeInTheDocument();
+    expect(screen.getByText("1 von 2 Ereignissen. Gemeinsame Ausführungsdaten werden nur oben angezeigt.")).toBeInTheDocument();
   });
 
   it("führt Exporte aus und zeigt Export-, Empty- und No-results-Zustände zugänglich an", async () => {
@@ -113,14 +113,14 @@ describe("HistoryFeature", () => {
     fireEvent.click(screen.getByRole("button", { name: "JSON-Report" }));
     await waitFor(() => expect(mocks.download).toHaveBeenCalledWith("json", "", expect.objectContaining({ timezone: expect.any(String), from: expect.stringMatching(/Z$/), to: expect.stringMatching(/Z$/) })));
     mocks.download.mockRejectedValueOnce(apiError("history_unavailable"));
-    fireEvent.click(screen.getByRole("button", { name: "Run-CSV" }));
+    fireEvent.click(screen.getByRole("button", { name: "Ausführungs-CSV" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Die Historie ist derzeit nicht verfügbar.");
     mocks.summary.mockResolvedValue({ meta, daily_buckets: [], summary: { runs: 0, terminal_runs: 0, successful: 0, failed: 0, aborted: 0, incomplete: 0, running: 0, boss_kills: 0, durations: { ...durations, count: 0 }, stages, funnel } });
     rerender(<HistoryFeature characters={[]} selectedCharacter="" selectedDifficulty="" runs={[]} refreshKey={1} />);
     expect(await screen.findByRole("heading", { name: "Noch keine Historie" })).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("Ergebnis"), { target: { value: "failed" } });
     fireEvent.click(screen.getByRole("button", { name: "Filter anwenden" }));
-    expect(await screen.findByRole("heading", { name: "Keine passenden Runs" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Keine passenden Routenausführungen" })).toBeInTheDocument();
   });
 
   it("kennzeichnet Loading und API-Fehler als zugängliche Zustände", async () => {
