@@ -4,8 +4,6 @@ Snapshot vom **2026-07-31**, HEAD nahe **v0.16.0** / Phase 18. Keine Folgebewert
 
 Kontext: **100 % des Codes ist AI-generiert**.
 
-**Canvas (visuelle Fassung):** [repo-effort-review.canvas.tsx](repo-effort-review.canvas.tsx) — archivierter Snapshot im Repo. Live-Ansicht in Cursor (neben dem Chat): Projektdatei unter den Cursor-Canvases, Dateiname `repo-effort-review.canvas.tsx`.
-
 ---
 
 ## Überblick
@@ -111,34 +109,6 @@ Ausgewertet u. a.:
 - Necro-zentrische Combat-Tiefe; Multi-Class eher strukturell
 - Verbosе Characterization-/Phase-Contract-Tests
 - Einzelne veraltete Kommentare (z. B. Session „inspect only“)
-
----
-
-## Canvas
-
-### Zweck
-
-Die Canvas-Datei visualisiert dieselbe Bewertung: Scores als Balkendiagramm, Stats, Tabellen zu Kriterien/Paketen, Stärken/Schwächen und Aufwandsurteil.
-
-### Ablage
-
-| Ort | Rolle |
-|-----|--------|
-| [`repo-effort-review.canvas.tsx`](repo-effort-review.canvas.tsx) | **Versionierter Snapshot** im Repo (dieses Review-Artefakt) |
-| Cursor-Projekt-Canvases (`…/canvases/repo-effort-review.canvas.tsx`) | **Live-Canvas** zum Öffnen neben dem Chat (SDK `cursor/canvas`) |
-
-Die Live-Canvas wird von Cursor nur aus dem verwalteten Canvases-Ordner gerendert. Der Snapshot hier dient der Nachvollziehbarkeit im Git; bei inhaltlichen Updates beide Stellen angleichen.
-
-### Inhalt der Canvas (Abschnitte)
-
-1. Headline + Pills (Maturity, Kalender, LOC, Version)
-2. Verdict-Callout
-3. Kennzahlen-Grid (Go/Tests/Docs/Runs/Web/Qualität)
-4. Kriterien-Scores (BarChart + Tabelle)
-5. Scale- und Process-Signale
-6. Package-Maturity-Tabelle
-7. Stärken vs. AI-Fingerabdrücke
-8. Aufwandsurteil (absolut / Kalender / AI-Qualitätsleiste)
 
 ---
 

@@ -7,6 +7,12 @@ Versionierung nach [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- Add a 2026-08-23 follow-up repo effort evaluation (same eight criteria as 2026-07-31) under `docs/reviews/`
+
+### Removed
+- Remove Cursor canvas snapshots from `docs/reviews/`; the Markdown evaluations are the git-readable record
+
 ## [0.24.0] - 2026-08-23
 
 ### Added

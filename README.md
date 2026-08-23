@@ -46,7 +46,7 @@ Pathing, Loot und Town hängen am World Model, nicht an Rohbytes. Die UI redet n
 
 Phasenpläne, fail-closed Gates, Feature-Docs und ein Changelog vor jedem Release. Live-Abnahme im Spiel, nicht nur grüne Tests. Arbeitsregeln für den Agenten: [`AGENTS.md`](AGENTS.md). Phasenpläne: [`docs/plans/`](docs/plans/).
 
-Eine Momentaufnahme vom 31. Juli 2026 (damals v0.16, vier Runs, ohne Cows, Lower Kurast, Hammerdin und i18n) liegt in der [Repo-Effort-Evaluation](docs/reviews/repo-effort-evaluation-2026-07-31.md). Die Zahlen dort sind der Stand von da, kein aktuelles Scoreboard.
+Aktuelle Aufwand-/Qualitätsbewertung (v0.24, 2026-08-23): [Repo-Effort-Evaluation](docs/reviews/repo-effort-evaluation-2026-08-23.md). Der Juli-Snapshot (v0.16, vier Runs) bleibt unter [docs/reviews/](docs/reviews/) als Vergleich.
 
 ## Lizenz und Grenzen
 
