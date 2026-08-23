@@ -153,9 +153,12 @@ func tickRunTownPortal(deps pipelineReturnDeps, w world.State) stepResult {
 	if deps.Actions == nil {
 		return stepResult{failed: true, reason: "run_actions_not_wired"}
 	}
-	if err := deps.Actions.CastTownPortal(time.Now(), w.Player); err != nil {
+	if err := deps.Actions.CastTownPortal(time.Now(), w); err != nil {
 		if errors.Is(err, profile.ErrSkillSelectionPending) {
 			return stepResult{}
+		}
+		if errors.Is(err, ErrTownPortalSupplyEmpty) {
+			return stepResult{failed: true, reason: "town_portal_supply_empty"}
 		}
 		return stepResult{failed: true, reason: "town_portal_failed"}
 	}

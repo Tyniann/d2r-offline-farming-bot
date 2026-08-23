@@ -306,10 +306,23 @@ func (b *LiveBackend) UpdateSupervisor(supervisor app.SupervisorSnapshot) {
 	if supervisor.LastResult.Disposition == "" && supervisor.LastResult.Reason == "" {
 		b.status.LastResult = nil
 	} else {
-		b.status.LastResult = &SessionResultDTO{Disposition: string(supervisor.LastResult.Disposition), Reason: supervisor.LastResult.Reason}
+		b.status.LastResult = &SessionResultDTO{
+			Disposition: string(supervisor.LastResult.Disposition), Reason: supervisor.LastResult.Reason,
+			OriginalReason: supervisor.LastResult.OriginalReason, RecoveryReason: supervisor.LastResult.RecoveryReason,
+		}
 	}
 	if supervisor.LastResult.Reason != "" && supervisor.State == app.SupervisorStateStoppedError {
-		b.status.LastError = &ProblemDTO{Code: supervisor.LastResult.Reason}
+		params := map[string]any{}
+		if supervisor.LastResult.OriginalReason != "" {
+			params["original_reason"] = supervisor.LastResult.OriginalReason
+		}
+		if supervisor.LastResult.RecoveryReason != "" {
+			params["recovery_reason"] = supervisor.LastResult.RecoveryReason
+		}
+		if len(params) == 0 {
+			params = nil
+		}
+		b.status.LastError = &ProblemDTO{Code: supervisor.LastResult.Reason, Params: params}
 	} else if b.status.LastError != nil && b.status.LastError.Code == "session_stopped" {
 		b.status.LastError = nil
 	}

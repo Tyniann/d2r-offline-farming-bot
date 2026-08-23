@@ -28,6 +28,9 @@ func IsRuntimeMonsterCandidate(id uint32, monsterTypeFlag uint8) bool {
 	if _, ok := runtimeBossNPCIDs[id]; ok {
 		return true
 	}
+	if _, ok := runtimeLowerKurastMonsterNPCIDs[id]; ok {
+		return true
+	}
 	if _, ok := runtimePhase20MonsterNPCIDs[id]; ok {
 		return true
 	}

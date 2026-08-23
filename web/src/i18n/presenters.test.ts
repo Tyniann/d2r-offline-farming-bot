@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { changeAppLanguage, i18n } from ".";
 import {
   presentHistoryReason,
+  presentProblem,
   presentClassName,
   presentDifficultyName,
   presentProfileName,
@@ -36,6 +37,17 @@ describe("semantische Presenter", () => {
     await changeAppLanguage("en");
     expect(presentHistoryReason("boss_not_found", i18n.t)).toBe("The boss was not found.");
     expect(presentHistoryReason("future_reason", i18n.t)).toBe("Reason code: future_reason");
+  });
+
+  it("zeigt beide Ursachen eines fehlgeschlagenen kontrollierten Rückwegs", () => {
+    expect(presentProblem({
+      code: "retry_return_failed",
+      params: { original_reason: "mercenary_died_during_run", recovery_reason: "town_portal_not_found" },
+    }, i18n.t)).toContain("Söldner");
+    expect(presentProblem({
+      code: "retry_return_failed",
+      params: { original_reason: "mercenary_died_during_run", recovery_reason: "town_portal_not_found" },
+    }, i18n.t)).toContain("kein Stadtportal");
   });
 
   it("übersetzt Difficulty, Run, Klasse und eingebautes Profil", async () => {

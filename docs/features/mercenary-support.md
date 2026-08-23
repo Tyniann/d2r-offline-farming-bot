@@ -33,7 +33,9 @@ Die produktive Live-Abnahme `cows-20260808t213233999999999z-815d1ccc` bestätigt
 
 ### Tod während eines Runs
 
-Eine bestätigte Alive→Dead-Kante stoppt den Combat-Adapter vor jeder weiteren Task-Aktion und schließt den offenen Run-Schritt mit `mercenary_died_during_run`. Die Queue verwendet danach ihren vorhandenen kontrollierten Town-Portal-Rückweg, Save & Exit und denselben endlichen Retry-Index. Der nächste Versuch belebt den Merc vor dem ersten produktiven Task-Tick. Der Tod stoppt daher nicht permanent die gesamte Queue; eine riskante Fortsetzung am Cow-Routenpunkt findet ebenfalls nicht statt.
+Ein einzelner Dead-Read beendet keinen Run mehr. Nach der ersten Dead-Evidenz stoppt der Combat-Adapter sofort und der allgemeine Task-Eingang bleibt gesperrt. Im selben stabilen Gebiet wird der Tod erst nach drei frischen World-Snapshots bestätigt. Folgt der Read auf einen Gebietswechsel, muss zusätzlich dasselbe Zielgebiet drei Sekunden stabil bleiben; ein neuer Alive-Read verwirft den Kandidaten. Damit kann ein kurzzeitig gemischter Waypoint-/Load-Snapshot weder Lower Kurast noch eine andere Route fälschlich abbrechen.
+
+Erst die bestätigte Todeslage schließt den offenen Run-Schritt mit `mercenary_died_during_run`. Die Queue verwendet danach ihren vorhandenen kontrollierten Town-Portal-Rückweg, Save & Exit und denselben endlichen Retry-Index. Der nächste Versuch belebt den Merc vor dem ersten produktiven Task-Tick. Der Tod stoppt daher nicht permanent die gesamte Queue; eine riskante Fortsetzung am Cow-Routenpunkt findet ebenfalls nicht statt.
 
 Run `cows-20260808t213733999999999z-6ddb2272` bestätigte die produktive Alive→Dead-Kante: `mercenary_died` und der Abbruch von `cow_play_cow_sweep` entstanden im selben Snapshot; danach wurde keine weitere Offensivaktion geschrieben. Der Supervisor rief anschließend die bestehende kontrollierte Retry-Rückkehr auf. Der dabei noch installierte Zwischenbuild enthielt den lokalen Cow-Dispatch-Fix für die gemeinsame Phase `retry-return` nicht und blieb deshalb bis zum manuellen F11 ohne Portalinput stehen. Dieser Lauf bestätigt den Offensivstopp, nicht den noch ausstehenden Live-Abschluss der korrigierten Rückkehr.
 
@@ -76,4 +78,4 @@ Bestehende Snapshot-/Resource-/Town-/Graph-Verträge. Koolo/d2go nur Recherche.
 - [Town Services](town-services.md)
 
 ---
-*Zuletzt aktualisiert: 2026-08-09 · Readiness an verifizierten Folgespielstart gebunden*
+*Zuletzt aktualisiert: 2026-08-23 · Tod über frische, gebietsstabile Snapshots bestätigt*

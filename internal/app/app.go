@@ -75,6 +75,7 @@ type Runtime struct {
 	stopAfterRunHotkeyHandler func() error
 	runReadinessPending       bool
 	productiveRunActive       bool
+	mercenaryDeath            mercenaryDeathGuard
 	lastSnapshot              memory.Snapshot
 }
 

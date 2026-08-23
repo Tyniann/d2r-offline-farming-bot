@@ -455,7 +455,7 @@ func (m *mockRunActions) CastBelt(slot int) error {
 	return m.beltErr
 }
 
-func (m *mockRunActions) CastTownPortal(time.Time, world.Player) error {
+func (m *mockRunActions) CastTownPortal(time.Time, world.State) error {
 	m.portalCalls++
 	return m.portalErr
 }
@@ -928,6 +928,13 @@ func TestCountessFullRunPortalRequiresRunActions(t *testing.T) {
 	res := r.Tick(context.Background(), healthy(cellar5State()), time.Now())
 	if res.Outcome != RunOutcomeFailed || res.Reason != "run_actions_not_wired" {
 		t.Fatalf("tick = %+v, want run_actions_not_wired failure", res)
+	}
+}
+
+func TestTownPortalKnownEmptySupplyHasExactFailureReason(t *testing.T) {
+	result := tickRunTownPortal(pipelineReturnDeps{Actions: &mockRunActions{portalErr: ErrTownPortalSupplyEmpty}}, healthy(cellar5State()))
+	if !result.failed || result.reason != "town_portal_supply_empty" {
+		t.Fatalf("result=%+v", result)
 	}
 }
 

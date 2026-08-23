@@ -60,6 +60,28 @@ func TestQueueStatusDTOEntriesNeverJSONNull(t *testing.T) {
 	}
 }
 
+func TestLiveBackendProjectsControlledRetryFailureContext(t *testing.T) {
+	backend := &LiveBackend{status: StatusDTO{State: "idle", LifecyclePhase: "idle"}}
+	backend.UpdateSupervisor(app.SupervisorSnapshot{
+		Generation: 1,
+		State:      app.SupervisorStateStoppedError,
+		LastResult: app.SupervisorRunResult{
+			Disposition: app.QueueRunStop, Reason: "retry_return_failed",
+			OriginalReason: "mercenary_died_during_run", RecoveryReason: "town_portal_not_found",
+		},
+	})
+
+	status := backend.Status()
+	if status.LastResult == nil || status.LastResult.OriginalReason != "mercenary_died_during_run" ||
+		status.LastResult.RecoveryReason != "town_portal_not_found" {
+		t.Fatalf("last result = %+v", status.LastResult)
+	}
+	if status.LastError == nil || status.LastError.Params["original_reason"] != "mercenary_died_during_run" ||
+		status.LastError.Params["recovery_reason"] != "town_portal_not_found" {
+		t.Fatalf("last error = %+v", status.LastError)
+	}
+}
+
 func TestLiveBackendProjectsStatusAndMeaningfulEvents(t *testing.T) {
 	cfg, err := config.Load("../../configs/config.example.yaml")
 	if err != nil {

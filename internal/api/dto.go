@@ -50,8 +50,10 @@ type CompatibilityDTO struct {
 
 // SessionResultDTO projects the last terminal worker disposition and reason.
 type SessionResultDTO struct {
-	Disposition string `json:"disposition"`
-	Reason      string `json:"reason,omitempty"`
+	Disposition    string `json:"disposition"`
+	Reason         string `json:"reason,omitempty"`
+	OriginalReason string `json:"original_reason,omitempty"`
+	RecoveryReason string `json:"recovery_reason,omitempty"`
 }
 
 // QueueStatusDTO projects the immutable active runtime queue and hard budgets.

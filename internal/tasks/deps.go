@@ -2,6 +2,7 @@ package tasks
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/input"
@@ -230,8 +231,12 @@ type RunActions interface {
 	CastBelt(slot int) error
 	// CastTownPortal casts Town Portal at the player-centered window position.
 	// Selection waits for RightSkillID confirmation before the RMB click.
-	CastTownPortal(now time.Time, player world.Player) error
+	CastTownPortal(now time.Time, state world.State) error
 }
+
+// ErrTownPortalSupplyEmpty reports authoritative zero quantity for the active
+// inventory-backed portal source before any RMB cast is sent.
+var ErrTownPortalSupplyEmpty = errors.New("town portal supply empty")
 
 // LootActions exposes the stateful loot pickup loop used by run pipelines.
 type LootActions interface {

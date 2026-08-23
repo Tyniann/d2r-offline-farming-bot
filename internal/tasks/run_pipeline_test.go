@@ -80,7 +80,7 @@ func TestPhase14AllPipelineStepsHaveExactlyOneStableStage(t *testing.T) {
 		telemetry.HistoryStageTravel:     {pipelineStepPrecheck, pipelineStepApplyTownProfile, pipelineStepAcquireTownWaypoint, pipelineStepOpenWaypoint, pipelineStepSelectRunWaypoint, pipelineStepWaitEntryArea, pipelineStepPlayRoute},
 		telemetry.HistoryStageCombat:     {pipelineStepAcquireBoss, pipelineStepEngageBoss, pipelineStepClearNearbyHostiles, pipelineStepChestSweep},
 		telemetry.HistoryStageLoot:       {pipelineStepRepositionForLoot, pipelineStepWaitForDrops, pipelineStepScanLoot, pipelineStepPickLoot},
-		telemetry.HistoryStageReturnTown: {pipelineStepCastTownPortal, pipelineStepEnterTownPortal, pipelineStepWaitOriginTown, pipelineStepPlayTownEgress, pipelineStepOpenOriginWaypoint, pipelineStepSelectHubWaypoint, pipelineStepWaitHubArea, pipelineStepOpenStash, pipelineStepStashItems, pipelineStepCloseStash, pipelineStepPrepareTown, pipelineStepComplete},
+		telemetry.HistoryStageReturnTown: {pipelineStepWaitRecoveryArea, pipelineStepCastTownPortal, pipelineStepEnterTownPortal, pipelineStepWaitOriginTown, pipelineStepPlayTownEgress, pipelineStepOpenOriginWaypoint, pipelineStepSelectHubWaypoint, pipelineStepWaitHubArea, pipelineStepOpenStash, pipelineStepStashItems, pipelineStepCloseStash, pipelineStepPrepareTown, pipelineStepComplete},
 	}
 	seen := make(map[string]telemetry.HistoryStage)
 	for wantStage, steps := range tests {
@@ -95,8 +95,8 @@ func TestPhase14AllPipelineStepsHaveExactlyOneStableStage(t *testing.T) {
 			seen[step] = stage
 		}
 	}
-	if len(seen) != 27 {
-		t.Fatalf("mapped steps=%d, want 27", len(seen))
+	if len(seen) != 28 {
+		t.Fatalf("mapped steps=%d, want 28", len(seen))
 	}
 	if _, ok := RunStageForStep("unknown"); ok {
 		t.Fatal("unknown step received a stage")
@@ -355,6 +355,7 @@ func TestRetryReturnPhaseUsesOnlyPortalAndTownNormalization(t *testing.T) {
 	}
 	want := []string{
 		pipelineStepPrecheck,
+		pipelineStepWaitRecoveryArea,
 		pipelineStepCastTownPortal,
 		pipelineStepEnterTownPortal,
 		pipelineStepWaitOriginTown,
@@ -370,6 +371,29 @@ func TestRetryReturnPhaseUsesOnlyPortalAndTownNormalization(t *testing.T) {
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("retry-return steps = %v, want %v", got, want)
+	}
+}
+
+func TestRetryReturnWaitsForStableRecoveryAreaBeforePortalCast(t *testing.T) {
+	t.Parallel()
+
+	pipeline := &runPipeline{
+		definition: RunDefinition{Recording: RecordingContract{AllowedRouteAreas: []world.AreaID{world.LowerKurast}}},
+		phase:      RunPhaseRetryReturn,
+	}
+	base := time.Unix(400, 0).UTC()
+
+	for index, elapsed := range []time.Duration{0, time.Second, 3 * time.Second} {
+		state := areaState(world.LowerKurast)
+		state.Generation = uint64(index + 1)
+		state.At = base.Add(elapsed)
+		got := pipeline.onRetryReturnTick(context.Background(), Deps{}, pipelineStepWaitRecoveryArea, state, state.At, base)
+		if index < 2 && (got.complete || got.failed) {
+			t.Fatalf("unsettled observation %d = %+v, want pending", index+1, got)
+		}
+		if index == 2 && (!got.complete || got.failed) {
+			t.Fatalf("settled observation = %+v, want complete", got)
+		}
 	}
 }
 

@@ -40,6 +40,7 @@ var (
 		pipelineStepWaitForDrops,
 		pipelineStepScanLoot,
 		pipelineStepPickLoot,
+		pipelineStepWaitRecoveryArea,
 		pipelineStepCastTownPortal,
 		pipelineStepEnterTownPortal,
 		pipelineStepWaitOriginTown,

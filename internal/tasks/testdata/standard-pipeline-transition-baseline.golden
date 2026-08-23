@@ -13,6 +13,7 @@ full|reposition_for_loot|wait_for_drops
 full|wait_for_drops|scan_loot
 full|scan_loot|cast_town_portal
 full|pick_loot|cast_town_portal
+full|wait_recovery_area|-
 full|cast_town_portal|enter_town_portal
 full|enter_town_portal|wait_origin_town
 full|wait_origin_town|open_personal_stash
@@ -43,6 +44,7 @@ travel-entry|reposition_for_loot|-
 travel-entry|wait_for_drops|-
 travel-entry|scan_loot|-
 travel-entry|pick_loot|-
+travel-entry|wait_recovery_area|-
 travel-entry|cast_town_portal|-
 travel-entry|enter_town_portal|-
 travel-entry|wait_origin_town|-
@@ -73,6 +75,7 @@ play-route|reposition_for_loot|-
 play-route|wait_for_drops|-
 play-route|scan_loot|-
 play-route|pick_loot|-
+play-route|wait_recovery_area|-
 play-route|cast_town_portal|-
 play-route|enter_town_portal|-
 play-route|wait_origin_town|-
@@ -103,6 +106,7 @@ boss|reposition_for_loot|-
 boss|wait_for_drops|-
 boss|scan_loot|-
 boss|pick_loot|-
+boss|wait_recovery_area|-
 boss|cast_town_portal|-
 boss|enter_town_portal|-
 boss|wait_origin_town|-
@@ -133,6 +137,7 @@ loot-and-return|reposition_for_loot|-
 loot-and-return|wait_for_drops|scan_loot
 loot-and-return|scan_loot|cast_town_portal
 loot-and-return|pick_loot|cast_town_portal
+loot-and-return|wait_recovery_area|-
 loot-and-return|cast_town_portal|enter_town_portal
 loot-and-return|enter_town_portal|wait_origin_town
 loot-and-return|wait_origin_town|open_personal_stash
@@ -148,7 +153,7 @@ loot-and-return|complete|-
 loot-and-return|-|-
 loot-and-return|unknown_step|-
 loot-and-return|cow_preflight|-
-retry-return|precheck|cast_town_portal
+retry-return|precheck|wait_recovery_area
 retry-return|town_ready_profile|-
 retry-return|acquire_town_waypoint|-
 retry-return|open_waypoint|-
@@ -163,6 +168,7 @@ retry-return|reposition_for_loot|-
 retry-return|wait_for_drops|-
 retry-return|scan_loot|-
 retry-return|pick_loot|-
+retry-return|wait_recovery_area|cast_town_portal
 retry-return|cast_town_portal|enter_town_portal
 retry-return|enter_town_portal|wait_origin_town
 retry-return|wait_origin_town|complete
@@ -193,6 +199,7 @@ stash-personal|reposition_for_loot|-
 stash-personal|wait_for_drops|-
 stash-personal|scan_loot|-
 stash-personal|pick_loot|-
+stash-personal|wait_recovery_area|-
 stash-personal|cast_town_portal|-
 stash-personal|enter_town_portal|-
 stash-personal|wait_origin_town|-
@@ -223,6 +230,7 @@ town-ready|reposition_for_loot|-
 town-ready|wait_for_drops|-
 town-ready|scan_loot|-
 town-ready|pick_loot|-
+town-ready|wait_recovery_area|-
 town-ready|cast_town_portal|-
 town-ready|enter_town_portal|-
 town-ready|wait_origin_town|-
@@ -253,6 +261,7 @@ not-a-phase|reposition_for_loot|wait_for_drops
 not-a-phase|wait_for_drops|scan_loot
 not-a-phase|scan_loot|cast_town_portal
 not-a-phase|pick_loot|cast_town_portal
+not-a-phase|wait_recovery_area|-
 not-a-phase|cast_town_portal|enter_town_portal
 not-a-phase|enter_town_portal|wait_origin_town
 not-a-phase|wait_origin_town|open_personal_stash

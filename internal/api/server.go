@@ -564,11 +564,12 @@ func (s *Server) handlePickitProfile(w http.ResponseWriter, r *http.Request) {
 		if !s.decodeBody(w, r, &request) {
 			return
 		}
-		if err := backend.DeletePickit(id, request); err != nil {
+		result, err := backend.DeletePickit(id, request)
+		if err != nil {
 			s.writePickitError(w, r, err)
 			return
 		}
-		w.WriteHeader(http.StatusNoContent)
+		s.writeJSON(w, http.StatusOK, result)
 	default:
 		requireMethod(w, r, http.MethodPut, s)
 	}

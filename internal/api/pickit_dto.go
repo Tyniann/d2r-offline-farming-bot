@@ -1,6 +1,9 @@
 package api
 
-import "github.com/Tyniann/d2r-offline-farming-bot/internal/app"
+import (
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/app"
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/loot"
+)
 
 // PickitCatalogDTO ist der patchgenaue Katalogvertrag des Regel-Editors.
 type PickitCatalogDTO struct {
@@ -36,9 +39,29 @@ type PickitIdentityDTO struct {
 
 // PickitRuleDTO ist eine geordnete Editor-Regel.
 type PickitRuleDTO struct {
-	ID         string `json:"id"`
-	Action     string `json:"action"`
-	Expression string `json:"expression"`
+	ID         string                `json:"id"`
+	Action     string                `json:"action"`
+	Expression string                `json:"expression"`
+	Summary    *PickitRuleSummaryDTO `json:"summary,omitempty"`
+}
+
+// PickitRuleSummaryDTO projiziert einen sprachneutralen Darstellungshinweis ohne Parser-Interna.
+type PickitRuleSummaryDTO struct {
+	Kind   string                     `json:"kind"`
+	Params PickitRuleSummaryParamsDTO `json:"params"`
+}
+
+// PickitRuleSummaryParamsDTO projiziert typisierte, sprachneutrale Katalog- und Filterwerte.
+type PickitRuleSummaryParamsDTO struct {
+	Codes          []string `json:"codes,omitempty"`
+	Types          []string `json:"types,omitempty"`
+	Qualities      []string `json:"qualities,omitempty"`
+	Tiers          []string `json:"tiers,omitempty"`
+	SetKey         string   `json:"set_key,omitempty"`
+	UniqueKey      string   `json:"unique_key,omitempty"`
+	SocketOperator string   `json:"socket_operator,omitempty"`
+	SocketCount    *int     `json:"socket_count,omitempty"`
+	Ethereal       *bool    `json:"ethereal,omitempty"`
 }
 
 // PickitProfileDTO ist die JSON-Projektion eines persistierten Profils.
@@ -132,9 +155,23 @@ type PickitDuplicateRequest struct {
 	TargetName string `json:"target_name"`
 }
 
-// PickitDeleteRequest löscht ein unzugeordnetes Profil revisionsgebunden.
+// PickitDeleteRequest löscht ein Profil und optional alle bestätigten Zuordnungen revisionsgebunden.
 type PickitDeleteRequest struct {
-	ExpectedRevision uint64 `json:"expected_revision"`
+	ExpectedRevision           uint64 `json:"expected_revision"`
+	ExpectedAssignmentRevision uint64 `json:"expected_assignment_revision"`
+	RemoveAssignments          bool   `json:"remove_assignments"`
+}
+
+// PickitAssignmentUsageDTO bezeichnet eine entfernte Profilverwendung.
+type PickitAssignmentUsageDTO struct {
+	Character string `json:"character"`
+	RouteID   string `json:"route_id"`
+}
+
+// PickitDeleteResultDTO liefert nach dem Löschen den autoritativen Assignment-Stand.
+type PickitDeleteResultDTO struct {
+	Assignments PickitAssignmentsDTO       `json:"assignments"`
+	Removed     []PickitAssignmentUsageDTO `json:"removed"`
 }
 
 // PickitAssignmentsDTO ist die JSON-Projektion der einzigen Assignment-Autorität.
@@ -180,7 +217,7 @@ type pickitBackend interface {
 	CreatePickit(PickitCreateRequest) (PickitProfileDTO, error)
 	UpdatePickit(string, PickitUpdateRequest) (PickitProfileDTO, error)
 	DuplicatePickit(string, PickitDuplicateRequest) (PickitProfileDTO, error)
-	DeletePickit(string, PickitDeleteRequest) error
+	DeletePickit(string, PickitDeleteRequest) (PickitDeleteResultDTO, error)
 	PickitAssignments() (PickitAssignmentsDTO, error)
 	UpdatePickitAssignment(PickitAssignmentUpdateRequest) (PickitAssignmentsDTO, error)
 	ImportPickit(PickitImportRequest) (PickitImportDTO, error)
@@ -190,7 +227,21 @@ type pickitBackend interface {
 func profileDTO(document app.PickitProfileDocument) PickitProfileDTO {
 	rules := make([]PickitRuleDTO, len(document.Rules))
 	for i, rule := range document.Rules {
-		rules[i] = PickitRuleDTO{ID: rule.ID, Action: string(rule.Action), Expression: rule.Expression}
+		summary, err := loot.SummarizePickitExpression(rule.Expression)
+		if err != nil {
+			summary = loot.PickitRuleSummary{Kind: "custom"}
+		}
+		rules[i] = PickitRuleDTO{ID: rule.ID, Action: string(rule.Action), Expression: rule.Expression, Summary: pickitRuleSummaryDTO(summary)}
 	}
 	return PickitProfileDTO{SchemaVersion: document.SchemaVersion, Revision: document.Revision, ID: document.ID, Name: document.Name, Rules: rules}
+}
+
+func pickitRuleSummaryDTO(summary loot.PickitRuleSummary) *PickitRuleSummaryDTO {
+	params := summary.Params
+	return &PickitRuleSummaryDTO{Kind: summary.Kind, Params: PickitRuleSummaryParamsDTO{
+		Codes: append([]string(nil), params.Codes...), Types: append([]string(nil), params.Types...),
+		Qualities: append([]string(nil), params.Qualities...), Tiers: append([]string(nil), params.Tiers...),
+		SetKey: params.SetKey, UniqueKey: params.UniqueKey, SocketOperator: params.SocketOperator,
+		SocketCount: params.SocketCount, Ethereal: params.Ethereal,
+	}}
 }

@@ -1,4 +1,4 @@
-# Pickit-API und sichere Run-Grenze
+# Pickit-API und sichere Routengrenze
 
 ## Überblick
 
@@ -19,11 +19,19 @@ Die lokale Core-API stellt Katalog, Profile, Validierung, kontrollierte Vorschau
 
 ### Revisionen und Exklusivität
 
-Profil- und Assignment-Updates verwenden `expected_revision`. Stale Writes liefern `revision_conflict` mit erwarteter und aktueller Revision. `commandMu` serialisiert parallele Writes. Während eines aktiven Runs oder eines exklusiven Routen-Workflows werden Pickit-Mutationen mit `command_conflict` abgelehnt. Erfolgreiche Änderungen erzeugen ein SSE-Ereignis.
+Profil- und Assignment-Updates verwenden `expected_revision`. Stale Writes liefern `revision_conflict` mit erwarteter und aktueller Revision. `commandMu` serialisiert parallele Writes. Während einer aktiven Route oder eines exklusiven Routen-Workflows werden Pickit-Mutationen mit `command_conflict` abgelehnt. Erfolgreiche Änderungen erzeugen ein SSE-Ereignis.
 
-### Run-Snapshot
+### Sprachneutrale Regel-Summary
 
-Vor jeder Session-Run-Generation löst der Core Character, Run, geordnete Profil-IDs, Profilrevisionen und Assignment-Revision neu auf. Erst nach vollständigem Laden, Validieren und Kompilieren wird die eine Action Policy atomar für Pickup, Stash und Town aktiviert. Ein fehlerhafter Reload stoppt den nächsten Run sichtbar und lässt die aktive Policy unverändert. Session- und Queue-Preflight verlangen für jeden geplanten Run eine gültige Zuordnung.
+Jede Regel in einer Profil-, Validierungs- oder Mutationsantwort enthält eine vom bestehenden Parser berechnete `summary`. `kind` unterscheidet bekannte Runen-, Trank-, Item-, Qualitäts-, Tier-, Identitäts- und Sockelfilter von `custom`. `params` transportiert ausschließlich typisierte sprachneutrale Werte wie `codes`, `types`, `qualities`, `tiers`, Identitätsschlüssel, Sockeloperator/-zahl und Ätherisch-Status. Die React-Oberfläche übersetzt diese Werte und parst den Pickit-Ausdruck nicht selbst. Nicht verlustfrei darstellbare, negierte oder manuell geschriebene Regeln werden als `custom` projiziert; ihr vollständiger Ausdruck bleibt erhalten.
+
+### Kaskadierendes Profil-Löschen
+
+Delete prüft Profil- und Assignment-Revision gemeinsam unter `commandMu`. Ohne `remove_assignments=true` bleibt ein verwendetes Profil mit `profile_assigned` geschützt. Nach ausdrücklicher Bestätigung entfernt der App-Vertrag alle Charakter-/Routenreferenzen in höchstens einer Assignment-Revision, löscht leere Routen- und Charaktereinträge und danach das Profil. Schlägt das Profil-Löschen fehl, wird das vorherige Assignment-Manifest wiederhergestellt. Die Erfolgsantwort enthält den autoritativen Assignment-Stand und jede entfernte Verwendung; bei einer tatsächlichen Kaskade werden Profil- und Assignment-Ereignis veröffentlicht.
+
+### Routen-Snapshot
+
+Vor jeder Routen-Generation einer Session löst der Core Charakter, Route, geordnete Profil-IDs, Profilrevisionen und Assignment-Revision neu auf. Erst nach vollständigem Laden, Validieren und Kompilieren wird die eine Action Policy atomar für Pickup, Stash und Town aktiviert. Ein fehlerhafter Reload stoppt die nächste Route sichtbar und lässt die aktive Policy unverändert. Session- und Queue-Preflight verlangen für jede geplante Route eine gültige Zuordnung.
 
 ### Import und Export
 
@@ -54,4 +62,4 @@ Die Vorschau arbeitet ausschließlich mit einem vom Request gelieferten Test-Ite
 - [Sockel-Support für Pickit](socket-pickit.md)
 
 ---
-*Zuletzt aktualisiert: 2026-07-31*
+*Zuletzt aktualisiert: 23. August 2026*

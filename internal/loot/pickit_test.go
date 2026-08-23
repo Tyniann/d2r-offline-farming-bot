@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -263,6 +264,43 @@ func TestPickitRejectsUnsupportedSyntax(t *testing.T) {
 				t.Fatalf("error = %v, want %q with line context", err, tc.want)
 			}
 		})
+	}
+}
+
+func TestSummarizePickitExpressionProjectsTypedLanguageNeutralParams(t *testing.T) {
+	trueValue := true
+	four := 4
+	tests := []struct {
+		name       string
+		expression string
+		want       PickitRuleSummary
+	}{
+		{name: "runes", expression: `[type] == rune`, want: PickitRuleSummary{Kind: "runes"}},
+		{name: "rejuvenation", expression: `[type] == rpot`, want: PickitRuleSummary{Kind: "rejuvenation"}},
+		{name: "item codes", expression: `[name] == pk1 || [name] == pk2`, want: PickitRuleSummary{Kind: "item_codes", Params: PickitRuleSummaryParams{Codes: []string{"pk1", "pk2"}}}},
+		{name: "item types", expression: `[type] == pole || [type] == spea`, want: PickitRuleSummary{Kind: "item_types", Params: PickitRuleSummaryParams{Types: []string{"pole", "spea"}}}},
+		{name: "quality", expression: `[quality] == unique || [quality] == set`, want: PickitRuleSummary{Kind: "quality", Params: PickitRuleSummaryParams{Qualities: []string{"unique", "set"}}}},
+		{name: "tier", expression: `[tier] == elite`, want: PickitRuleSummary{Kind: "tier", Params: PickitRuleSummaryParams{Tiers: []string{"elite"}}}},
+		{name: "quality and tier", expression: `([quality] == unique || [quality] == set) && [tier] == elite`, want: PickitRuleSummary{Kind: "quality_tier", Params: PickitRuleSummaryParams{Qualities: []string{"unique", "set"}, Tiers: []string{"elite"}}}},
+		{name: "set item", expression: `[setitem] == "Tal Rasha's Adjudication"`, want: PickitRuleSummary{Kind: "set_item", Params: PickitRuleSummaryParams{SetKey: "Tal Rasha's Adjudication"}}},
+		{name: "unique item", expression: `[uniqueitem] == "Harlequin Crest"`, want: PickitRuleSummary{Kind: "unique_item", Params: PickitRuleSummaryParams{UniqueKey: "Harlequin Crest"}}},
+		{name: "socket filter", expression: `[type] == pole && [tier] == elite && [sockets] == 4 && [flag] == ethereal`, want: PickitRuleSummary{Kind: "socket_filter", Params: PickitRuleSummaryParams{Types: []string{"pole"}, Tiers: []string{"elite"}, SocketOperator: "==", SocketCount: &four, Ethereal: &trueValue}}},
+		{name: "manual stat", expression: `[stat:39] >= 30`, want: PickitRuleSummary{Kind: "custom"}},
+		{name: "unrepresentable negation", expression: `[type] != rune`, want: PickitRuleSummary{Kind: "custom"}},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			got, err := SummarizePickitExpression(test.expression)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !reflect.DeepEqual(got, test.want) {
+				t.Fatalf("summary = %#v, want %#v", got, test.want)
+			}
+		})
+	}
+	if _, err := SummarizePickitExpression(`[type] ==`); err == nil {
+		t.Fatal("invalid expression returned a summary")
 	}
 }
 

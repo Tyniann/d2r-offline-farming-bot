@@ -36,6 +36,7 @@ const (
 	pipelineStepWaitForDrops        = "wait_for_drops"
 	pipelineStepScanLoot            = "scan_loot"
 	pipelineStepPickLoot            = "pick_loot"
+	pipelineStepWaitRecoveryArea    = "wait_recovery_area"
 	pipelineStepCastTownPortal      = "cast_town_portal"
 	pipelineStepEnterTownPortal     = "enter_town_portal"
 	pipelineStepWaitOriginTown      = "wait_origin_town"
@@ -249,6 +250,8 @@ func (c *runPipeline) nextStep(current string) string {
 	if c.phase == RunPhaseRetryReturn {
 		switch current {
 		case pipelineStepPrecheck:
+			return pipelineStepWaitRecoveryArea
+		case pipelineStepWaitRecoveryArea:
 			return pipelineStepCastTownPortal
 		case pipelineStepCastTownPortal, pipelineStepEnterTownPortal:
 			return nextSharedPortalReturn(current)
@@ -357,6 +360,9 @@ func (c *runPipeline) usesTickTimeout(step string) bool {
 }
 
 func (c *runPipeline) timeoutReason(step string) string {
+	if step == pipelineStepWaitRecoveryArea {
+		return "retry_return_area_unstable"
+	}
 	if step == pipelineStepWaitEntryArea || step == pipelineStepWaitHubArea {
 		return string(RunReasonWaypointDestinationTimeout)
 	}
@@ -367,6 +373,9 @@ func (c *runPipeline) timeoutReason(step string) string {
 }
 
 func (c *runPipeline) allowsNonInputTick(step string) bool {
+	if c.phase == RunPhaseRetryReturn && step == pipelineStepWaitRecoveryArea {
+		return true
+	}
 	if step == pipelineStepWaitOriginTown && (c.phase == "" || c.phase == RunPhaseLootAndReturn || c.phase == RunPhaseRetryReturn) {
 		return true
 	}

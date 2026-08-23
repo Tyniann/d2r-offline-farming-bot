@@ -537,6 +537,7 @@ func (u *runtimeQueueUnit) VerifyProfileSkills(ctx context.Context) SupervisorRu
 
 func (u *runtimeQueueUnit) RunToTown(ctx context.Context, request SupervisorRunRequest, sameGameContinuation bool) SupervisorRunResult {
 	u.runtime.Tasks.Reset("queue_run_start")
+	u.runtime.mercenaryDeath.reset()
 	if sameGameContinuation {
 		// The prior run's verified Town handoff replaces the new-game settle
 		// delay. The hook action itself remains run-scoped and still executes.
@@ -585,12 +586,50 @@ func isMandatoryControlledExit(reason string) bool {
 
 func controlledRetryResult(ctx context.Context, reason string, recoverToTown func(context.Context) error) (SupervisorRunResult, error) {
 	if recoverToTown == nil {
-		return SupervisorRunResult{Disposition: QueueRunStop, Reason: queueReasonRetryReturnFailed}, errors.New("controlled retry return is not wired")
+		return SupervisorRunResult{
+			Disposition: QueueRunStop, Reason: queueReasonRetryReturnFailed,
+			OriginalReason: reason, RecoveryReason: "retry_return_not_wired",
+		}, errors.New("controlled retry return is not wired")
 	}
 	if err := recoverToTown(ctx); err != nil {
-		return SupervisorRunResult{Disposition: QueueRunStop, Reason: queueReasonRetryReturnFailed}, fmt.Errorf("controlled retry return: %w", err)
+		return SupervisorRunResult{
+			Disposition: QueueRunStop, Reason: queueReasonRetryReturnFailed,
+			OriginalReason: reason, RecoveryReason: retryReturnFailureReason(err),
+		}, fmt.Errorf("controlled retry return: %w", err)
 	}
 	return SupervisorRunResult{Disposition: QueueRunRetryCurrent, Reason: reason, SafeToExit: true}, nil
+}
+
+type retryReturnFailure struct {
+	Reason string
+	Err    error
+}
+
+// Error describes the stable recovery reason with its underlying cause.
+func (e *retryReturnFailure) Error() string {
+	if e == nil {
+		return "retry return failed"
+	}
+	if e.Err == nil {
+		return e.Reason
+	}
+	return fmt.Sprintf("%s: %v", e.Reason, e.Err)
+}
+
+// Unwrap exposes the underlying controlled-return failure.
+func (e *retryReturnFailure) Unwrap() error {
+	if e == nil {
+		return nil
+	}
+	return e.Err
+}
+
+func retryReturnFailureReason(err error) string {
+	var failure *retryReturnFailure
+	if errors.As(err, &failure) && failure.Reason != "" {
+		return failure.Reason
+	}
+	return "retry_return_execution_failed"
 }
 
 func (u *runtimeQueueUnit) ExitGame(ctx context.Context) error {

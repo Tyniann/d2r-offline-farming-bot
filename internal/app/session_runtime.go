@@ -205,14 +205,14 @@ func (rt *Runtime) runRetryReturnToTown(parent context.Context) error {
 	}, rt.runConfig, rt.taskDeps)
 	result, err := rt.runTaskToTerminal(parent)
 	if err != nil {
-		return fmt.Errorf("retry return execution: %w", err)
+		return &retryReturnFailure{Reason: "retry_return_execution_failed", Err: fmt.Errorf("retry return execution: %w", err)}
 	}
 	if result.Outcome != tasks.RunOutcomeSuccess {
-		return fmt.Errorf("retry return failed: %s", result.Reason)
+		return &retryReturnFailure{Reason: result.Reason, Err: fmt.Errorf("retry return failed")}
 	}
 	state := rt.World.Current()
 	if !state.Valid || state.Phase != world.GamePhaseInGame || state.Area.ID != world.RogueEncampment {
-		return fmt.Errorf("retry return Act-1 handoff unconfirmed")
+		return &retryReturnFailure{Reason: "retry_return_town_unconfirmed", Err: fmt.Errorf("retry return Act-1 handoff unconfirmed")}
 	}
 	return nil
 }

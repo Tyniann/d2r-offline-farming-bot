@@ -18,9 +18,10 @@ import (
 
 // PickitProfileService besitzt die atomare YAML-Persistenz globaler Pickit-Profile.
 type PickitProfileService struct {
-	mu    *sync.Mutex
-	root  string
-	write func(string, []byte, string) error
+	mu     *sync.Mutex
+	root   string
+	write  func(string, []byte, string) error
+	remove func(string) error
 }
 
 // PickitAssignmentStore besitzt die einzige atomare Zuordnung pro Charakter und Run.
@@ -38,6 +39,12 @@ type EffectivePickitPolicy struct {
 	ProfileRevisions   map[string]uint64
 	AssignmentRevision uint64
 	All                *loot.Pickit
+}
+
+// PickitAssignmentUsage bezeichnet eine Routenzuordnung, die ein Profil referenziert.
+type PickitAssignmentUsage struct {
+	Character string
+	RunID     tasks.RunID
 }
 
 var pickitStoreLocks sync.Map
@@ -60,7 +67,7 @@ func NewPickitProfileService(root string) (*PickitProfileService, error) {
 	}
 	clean := filepath.Clean(root)
 	lock, _ := pickitStoreLocks.LoadOrStore("profiles\x00"+clean, &sync.Mutex{})
-	return &PickitProfileService{mu: lock.(*sync.Mutex), root: clean, write: writeAtomicYAML}, nil
+	return &PickitProfileService{mu: lock.(*sync.Mutex), root: clean, write: writeAtomicYAML, remove: os.Remove}, nil
 }
 
 // NewPickitAssignmentStore erstellt einen Store mit Profilreferenzprüfung.
@@ -181,10 +188,115 @@ func (s *PickitProfileService) Delete(id string, assignments *PickitAssignmentSt
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if err := os.Remove(s.path(id)); err != nil {
+	if err := s.remove(s.path(id)); err != nil {
 		return fmt.Errorf("delete pickit profile %q: %w", id, err)
 	}
 	return nil
+}
+
+// DeleteWithAssignments löscht ein Profil gegen eine Assignment-Revision und entfernt optional zuerst alle Referenzen.
+// Schlägt das Profil-Löschen danach fehl, wird vor der Fehlerrückgabe das vorherige Manifest wiederhergestellt.
+func (s *PickitProfileService) DeleteWithAssignments(id string, assignments *PickitAssignmentStore, expectedAssignmentRevision uint64, removeAssignments bool) (PickitAssignmentManifest, []PickitAssignmentUsage, error) {
+	if assignments == nil {
+		return PickitAssignmentManifest{}, nil, fmt.Errorf("pickit assignments are required for delete")
+	}
+	if !removeAssignments {
+		manifest, err := assignments.Snapshot()
+		if err != nil {
+			return PickitAssignmentManifest{}, nil, err
+		}
+		if manifest.Revision != expectedAssignmentRevision {
+			return PickitAssignmentManifest{}, nil, ErrPickitAssignmentRevisionConflict
+		}
+		if err := s.Delete(id, assignments); err != nil {
+			return PickitAssignmentManifest{}, nil, err
+		}
+		return manifest, []PickitAssignmentUsage{}, nil
+	}
+
+	before, updated, usages, err := assignments.RemoveProfileReferences(id, expectedAssignmentRevision)
+	if err != nil {
+		return PickitAssignmentManifest{}, nil, err
+	}
+	if err := s.Delete(id, assignments); err != nil {
+		if len(usages) > 0 {
+			if _, restoreErr := assignments.RestoreSnapshot(before, updated.Revision); restoreErr != nil {
+				return PickitAssignmentManifest{}, nil, fmt.Errorf("delete pickit profile: %v; restore assignments: %w", err, restoreErr)
+			}
+		}
+		return PickitAssignmentManifest{}, nil, err
+	}
+	return updated, usages, nil
+}
+
+// RemoveProfileReferences entfernt ein Profil in genau einer Revision aus allen Routenzuordnungen.
+// Leere Routen- und Charaktereinträge entfallen, damit das Manifest eine verlässliche Bereitschaftsquelle bleibt.
+func (s *PickitAssignmentStore) RemoveProfileReferences(profileID string, expectedRevision uint64) (PickitAssignmentManifest, PickitAssignmentManifest, []PickitAssignmentUsage, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	current, err := s.loadLocked()
+	if err != nil {
+		return PickitAssignmentManifest{}, PickitAssignmentManifest{}, nil, err
+	}
+	if current.Revision != expectedRevision {
+		return PickitAssignmentManifest{}, PickitAssignmentManifest{}, nil, ErrPickitAssignmentRevisionConflict
+	}
+	before := clonePickitAssignments(current)
+	usages := make([]PickitAssignmentUsage, 0)
+	for character, runs := range current.Assignments {
+		for runID, profileIDs := range runs {
+			filtered := make([]string, 0, len(profileIDs))
+			removed := false
+			for _, id := range profileIDs {
+				if id == profileID {
+					removed = true
+					continue
+				}
+				filtered = append(filtered, id)
+			}
+			if !removed {
+				continue
+			}
+			usages = append(usages, PickitAssignmentUsage{Character: character, RunID: runID})
+			if len(filtered) == 0 {
+				delete(runs, runID)
+			} else {
+				runs[runID] = filtered
+			}
+		}
+		if len(runs) == 0 {
+			delete(current.Assignments, character)
+		}
+	}
+	if len(usages) == 0 {
+		return before, before, usages, nil
+	}
+	sort.Slice(usages, func(i, j int) bool {
+		if usages[i].Character != usages[j].Character {
+			return usages[i].Character < usages[j].Character
+		}
+		return usages[i].RunID < usages[j].RunID
+	})
+	current.Revision++
+	updated, err := s.writeManifestLocked(current)
+	if err != nil {
+		return PickitAssignmentManifest{}, PickitAssignmentManifest{}, nil, err
+	}
+	return before, updated, usages, nil
+}
+
+// RestoreSnapshot kompensiert ein fehlgeschlagenes koordiniertes Profil-Löschen.
+func (s *PickitAssignmentStore) RestoreSnapshot(snapshot PickitAssignmentManifest, expectedCurrentRevision uint64) (PickitAssignmentManifest, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	current, err := s.loadLocked()
+	if err != nil {
+		return PickitAssignmentManifest{}, err
+	}
+	if current.Revision != expectedCurrentRevision {
+		return PickitAssignmentManifest{}, ErrPickitAssignmentRevisionConflict
+	}
+	return s.writeManifestLocked(clonePickitAssignments(snapshot))
 }
 
 // Snapshot lädt die aktuelle Assignment-Autorität defensiv.

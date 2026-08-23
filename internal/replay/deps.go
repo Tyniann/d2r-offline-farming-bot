@@ -282,8 +282,8 @@ func (t *traceRunActions) CastBelt(slot int) error {
 	recordIntent(t.recorder, "belt_cast", args, err == nil, err)
 	return err
 }
-func (t *traceRunActions) CastTownPortal(now time.Time, player world.Player) error {
-	err := t.next.CastTownPortal(now, player)
+func (t *traceRunActions) CastTownPortal(now time.Time, state world.State) error {
+	err := t.next.CastTownPortal(now, state)
 	recordResult(t.recorder, "actions.cast_town_portal", nil, nil, err)
 	recordIntent(t.recorder, "town_portal_cast", nil, err == nil, err)
 	return err

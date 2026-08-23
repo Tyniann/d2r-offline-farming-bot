@@ -124,6 +124,101 @@ func TestPickitAssignmentsRevisionDuplicateUnknownAndRollback(t *testing.T) {
 	}
 }
 
+func TestPickitAssignmentCascadeRemovesEveryUseAndRestoresSnapshot(t *testing.T) {
+	profiles, assignments := newTestPickitStores(t)
+	for _, id := range []string{"base", "keep"} {
+		if _, err := profiles.Create(testPickitProfile(id, id, "rule", loot.ActionKeep, `[type] == rune`)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	before, err := assignments.Initialize(map[string]map[tasks.RunID][]string{
+		"MrBones": {
+			tasks.RunIDCountess: {"base", "keep"},
+			tasks.RunIDMephisto: {"base"},
+		},
+		"MrHammer": {tasks.RunIDSummoner: {"base"}},
+		"MrSorc":   {tasks.RunIDNihlathak: {"keep"}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	snapshot, updated, usages, err := assignments.RemoveProfileReferences("base", before.Revision)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantUsages := []PickitAssignmentUsage{
+		{Character: "MrBones", RunID: tasks.RunIDCountess},
+		{Character: "MrBones", RunID: tasks.RunIDMephisto},
+		{Character: "MrHammer", RunID: tasks.RunIDSummoner},
+	}
+	if updated.Revision != before.Revision+1 || !reflect.DeepEqual(usages, wantUsages) || !reflect.DeepEqual(snapshot, before) {
+		t.Fatalf("snapshot=%+v updated=%+v usages=%+v", snapshot, updated, usages)
+	}
+	if got := findPickitAssignment(updated, "MrBones", tasks.RunIDCountess); !reflect.DeepEqual(got, []string{"keep"}) {
+		t.Fatalf("remaining Countess chain = %v", got)
+	}
+	if _, exists := updated.Assignments["MrBones"][tasks.RunIDMephisto]; exists {
+		t.Fatal("empty route assignment was retained")
+	}
+	if _, exists := updated.Assignments["MrHammer"]; exists {
+		t.Fatal("empty character assignment was retained")
+	}
+	if got := findPickitAssignment(updated, "MrSorc", tasks.RunIDNihlathak); !reflect.DeepEqual(got, []string{"keep"}) {
+		t.Fatalf("unrelated assignment changed: %v", got)
+	}
+
+	if _, _, _, conflictErr := assignments.RemoveProfileReferences("base", before.Revision); !errors.Is(conflictErr, ErrPickitAssignmentRevisionConflict) {
+		t.Fatalf("stale cascade error = %v", conflictErr)
+	}
+	restored, err := assignments.RestoreSnapshot(snapshot, updated.Revision)
+	if err != nil || !reflect.DeepEqual(restored, before) {
+		t.Fatalf("restored=%+v err=%v", restored, err)
+	}
+}
+
+func TestPickitAssignmentCascadeWriteFailurePreservesManifest(t *testing.T) {
+	profiles, assignments := newTestPickitStores(t)
+	if _, err := profiles.Create(testPickitProfile("base", "Base", "rule", loot.ActionKeep, `[type] == rune`)); err != nil {
+		t.Fatal(err)
+	}
+	before, err := assignments.Initialize(map[string]map[tasks.RunID][]string{"MrBones": {tasks.RunIDCountess: {"base"}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	assignments.write = func(string, []byte, string) error { return errors.New("injected cascade write failure") }
+	if _, _, _, removeErr := assignments.RemoveProfileReferences("base", before.Revision); removeErr == nil {
+		t.Fatal("expected cascade write failure")
+	}
+	assignments.write = writeAtomicYAML
+	after, err := assignments.Snapshot()
+	if err != nil || !reflect.DeepEqual(after, before) {
+		t.Fatalf("manifest changed after failed cascade: before=%+v after=%+v err=%v", before, after, err)
+	}
+}
+
+func TestPickitCascadeRestoresAssignmentsWhenProfileDeleteFails(t *testing.T) {
+	profiles, assignments := newTestPickitStores(t)
+	if _, err := profiles.Create(testPickitProfile("base", "Base", "rule", loot.ActionKeep, `[type] == rune`)); err != nil {
+		t.Fatal(err)
+	}
+	before, err := assignments.Initialize(map[string]map[tasks.RunID][]string{"MrBones": {tasks.RunIDCountess: {"base"}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	profiles.remove = func(string) error { return errors.New("injected profile delete failure") }
+	if _, _, deleteErr := profiles.DeleteWithAssignments("base", assignments, before.Revision, true); deleteErr == nil {
+		t.Fatal("expected profile delete failure")
+	}
+	if _, err := profiles.Get("base"); err != nil {
+		t.Fatalf("profile disappeared after failed delete: %v", err)
+	}
+	after, err := assignments.Snapshot()
+	if err != nil || !reflect.DeepEqual(after, before) {
+		t.Fatalf("assignments were not restored: before=%+v after=%+v err=%v", before, after, err)
+	}
+}
+
 func TestMigratedPickitProfilesReproduceCountessAndMephistoPolicies(t *testing.T) {
 	profiles, err := NewPickitProfileService(filepath.Join("..", "..", "configs", "pickit", "profiles"))
 	if err != nil {

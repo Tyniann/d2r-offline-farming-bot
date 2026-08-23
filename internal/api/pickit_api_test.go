@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"net/http"
 	"os"
+	"reflect"
 	"strings"
 	"sync"
 	"testing"
@@ -142,5 +143,140 @@ func TestPickitParallelSavesStaleRevisionAndRunLock(t *testing.T) {
 	var commandErr *commandError
 	if !errors.As(err, &commandErr) || commandErr.code != "command_conflict" {
 		t.Fatalf("run lock err=%v", err)
+	}
+}
+
+func TestPickitProfilesProjectKnownAndManualRuleSummaries(t *testing.T) {
+	backend := newPickitAPIBackend(t)
+	for _, profile := range []app.PickitProfileDocument{
+		{SchemaVersion: 1, Revision: 1, ID: "socket", Name: "Socket", Rules: []app.PickitProfileRuleDocument{{ID: "four", Action: loot.ActionKeep, Expression: `[type] == pole && [tier] == elite && [sockets] == 4 && [flag] == ethereal`}}},
+		{SchemaVersion: 1, Revision: 1, ID: "manual", Name: "Manual", Rules: []app.PickitProfileRuleDocument{{ID: "resist", Action: loot.ActionKeep, Expression: `[stat:39] >= 30`}}},
+	} {
+		if _, err := backend.pickitProfiles.Create(profile); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	profiles, err := backend.PickitProfiles()
+	if err != nil {
+		t.Fatal(err)
+	}
+	byID := make(map[string]PickitRuleSummaryDTO, len(profiles.Profiles))
+	for _, profile := range profiles.Profiles {
+		if len(profile.Rules) != 1 || profile.Rules[0].Summary == nil {
+			t.Fatalf("profile %s has no summary: %+v", profile.ID, profile)
+		}
+		byID[profile.ID] = *profile.Rules[0].Summary
+	}
+	if got := byID["base"]; got.Kind != "runes" || !reflect.DeepEqual(got.Params, PickitRuleSummaryParamsDTO{}) {
+		t.Fatalf("rune summary = %+v", got)
+	}
+	four, ethereal := 4, true
+	wantSocket := PickitRuleSummaryDTO{Kind: "socket_filter", Params: PickitRuleSummaryParamsDTO{
+		Types: []string{"pole"}, Tiers: []string{"elite"}, SocketOperator: "==", SocketCount: &four, Ethereal: &ethereal,
+	}}
+	if got := byID["socket"]; !reflect.DeepEqual(got, wantSocket) {
+		t.Fatalf("socket summary = %+v, want %+v", got, wantSocket)
+	}
+	if got := byID["manual"]; got.Kind != "custom" || !reflect.DeepEqual(got.Params, PickitRuleSummaryParamsDTO{}) {
+		t.Fatalf("manual summary = %+v", got)
+	}
+}
+
+func TestPickitDeleteRequiresConfirmationAndMatchingRevisions(t *testing.T) {
+	t.Run("assigned without confirmation", func(t *testing.T) {
+		backend := newPickitAPIBackend(t)
+		_, err := backend.DeletePickit("base", PickitDeleteRequest{ExpectedRevision: 1, ExpectedAssignmentRevision: 1})
+		if !errors.Is(err, app.ErrPickitProfileAssigned) {
+			t.Fatalf("delete error = %v", err)
+		}
+		if _, err := backend.pickitProfiles.Get("base"); err != nil {
+			t.Fatalf("profile changed after rejected delete: %v", err)
+		}
+		manifest, err := backend.pickitAssignments.Snapshot()
+		if err != nil || manifest.Revision != 1 || !reflect.DeepEqual(manifest.Assignments["MrBones"][tasks.RunIDCountess], []string{"base"}) {
+			t.Fatalf("assignments changed after rejected delete: %+v err=%v", manifest, err)
+		}
+	})
+
+	for _, test := range []struct {
+		name    string
+		request PickitDeleteRequest
+		path    string
+	}{
+		{name: "profile revision", request: PickitDeleteRequest{ExpectedRevision: 99, ExpectedAssignmentRevision: 1, RemoveAssignments: true}, path: "profile.revision"},
+		{name: "assignment revision", request: PickitDeleteRequest{ExpectedRevision: 1, ExpectedAssignmentRevision: 99, RemoveAssignments: true}, path: "assignments.revision"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			backend := newPickitAPIBackend(t)
+			_, err := backend.DeletePickit("base", test.request)
+			var commandErr *commandError
+			if !errors.As(err, &commandErr) || commandErr.code != "revision_conflict" || commandErr.params["path"] != test.path {
+				t.Fatalf("delete error = %#v", err)
+			}
+		})
+	}
+}
+
+func TestPickitDeleteCascadeRemovesAllUsesOnceAndPublishesEvents(t *testing.T) {
+	backend := newPickitAPIBackend(t)
+	if _, err := backend.pickitProfiles.Create(app.PickitProfileDocument{SchemaVersion: 1, Revision: 1, ID: "keep", Name: "Keep", Rules: []app.PickitProfileRuleDocument{{ID: "rune", Action: loot.ActionKeep, Expression: `[type] == rune`}}}); err != nil {
+		t.Fatal(err)
+	}
+	manifest, err := backend.pickitAssignments.Replace("MrBones", tasks.RunIDCountess, []string{"base", "keep"}, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	manifest, err = backend.pickitAssignments.Replace("MrBones", tasks.RunIDMephisto, []string{"base"}, manifest.Revision)
+	if err != nil {
+		t.Fatal(err)
+	}
+	manifest, err = backend.pickitAssignments.Replace("MrHammer", tasks.RunIDSummoner, []string{"base"}, manifest.Revision)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sequence := backend.publisher.Sequence()
+	result, err := backend.DeletePickit("base", PickitDeleteRequest{ExpectedRevision: 1, ExpectedAssignmentRevision: manifest.Revision, RemoveAssignments: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantRemoved := []PickitAssignmentUsageDTO{
+		{Character: "MrBones", RouteID: string(tasks.RunIDCountess)},
+		{Character: "MrBones", RouteID: string(tasks.RunIDMephisto)},
+		{Character: "MrHammer", RouteID: string(tasks.RunIDSummoner)},
+	}
+	if result.Assignments.Revision != manifest.Revision+1 || !reflect.DeepEqual(result.Removed, wantRemoved) {
+		t.Fatalf("delete result = %+v", result)
+	}
+	if got := result.Assignments.Assignments["MrBones"][string(tasks.RunIDCountess)]; !reflect.DeepEqual(got, []string{"keep"}) {
+		t.Fatalf("remaining chain = %v", got)
+	}
+	if _, exists := result.Assignments.Assignments["MrBones"][string(tasks.RunIDMephisto)]; exists {
+		t.Fatal("empty route remained in assignment result")
+	}
+	if _, exists := result.Assignments.Assignments["MrHammer"]; exists {
+		t.Fatal("empty character remained in assignment result")
+	}
+	if _, err := backend.pickitProfiles.Get("base"); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("deleted profile lookup error = %v", err)
+	}
+	replay, subscription := backend.publisher.Subscribe(sequence)
+	subscription.Close()
+	if len(replay) != 2 || replay[0].Event != "pickit_profile_changed" || replay[1].Event != "pickit_assignment_changed" {
+		t.Fatalf("published events = %+v", replay)
+	}
+}
+
+func TestPickitDeleteUnassignedProfileKeepsAssignmentRevision(t *testing.T) {
+	backend := newPickitAPIBackend(t)
+	if _, err := backend.pickitProfiles.Create(app.PickitProfileDocument{SchemaVersion: 1, Revision: 1, ID: "unused", Name: "Unused", Rules: []app.PickitProfileRuleDocument{{ID: "rune", Action: loot.ActionKeep, Expression: `[type] == rune`}}}); err != nil {
+		t.Fatal(err)
+	}
+	result, err := backend.DeletePickit("unused", PickitDeleteRequest{ExpectedRevision: 1, ExpectedAssignmentRevision: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Assignments.Revision != 1 || len(result.Removed) != 0 {
+		t.Fatalf("delete result = %+v", result)
 	}
 }

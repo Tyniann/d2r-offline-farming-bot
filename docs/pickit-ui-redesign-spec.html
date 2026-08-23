@@ -1,0 +1,241 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Pickit-Integrationsplan</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0d0b0f; --surface: #171419; --surface-2: #1e191e; --surface-3: #271f24;
+      --line: #42363d; --line-strong: #6a505a; --text: #f7f1ed; --muted: #b8aab0; --faint: #84757c;
+      --orange: #ee7845; --orange-soft: #47291f; --gold: #f0c371; --green: #65d5a1;
+      --red: #f07878; --yellow: #e5b65c; --radius: 16px; --content: 1240px;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body { margin: 0; background: radial-gradient(circle at 80% -8%, rgba(176,62,29,.22), transparent 34rem), radial-gradient(circle at -10% 38%, rgba(95,54,98,.12), transparent 30rem), var(--bg); color: var(--text); font: 16px/1.58 Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    a { color: #f3a27f; } a:hover { color: #ffd0ba; }
+    h1, h2, h3, h4 { line-height: 1.18; text-wrap: balance; }
+    h1 { margin: 0 0 1rem; font-size: clamp(2.25rem, 5vw, 4.2rem); letter-spacing: -.05em; }
+    h2 { margin: 0 0 1rem; font-size: clamp(1.55rem, 3vw, 2.35rem); letter-spacing: -.03em; }
+    h3 { margin: 0 0 .65rem; font-size: 1.2rem; } h4 { margin: 0 0 .4rem; }
+    p { margin: 0 0 1rem; }
+    code, kbd { font-family: "Cascadia Code", Consolas, monospace; font-size: .9em; }
+    code { padding: .12rem .35rem; border: 1px solid var(--line); border-radius: 6px; background: #100d12; color: #f3c7b5; }
+    .shell { width: min(calc(100% - 32px), var(--content)); margin: 0 auto; }
+    .hero { padding: 68px 0 42px; }
+    .eyebrow { margin: 0 0 .65rem; color: var(--orange); font-size: .75rem; font-weight: 850; letter-spacing: .14em; text-transform: uppercase; }
+    .lead { max-width: 900px; color: #d6c9ce; font-size: 1.16rem; }
+    .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 22px; }
+    .chip { padding: 7px 10px; border: 1px solid var(--line); border-radius: 999px; background: #151116; color: var(--muted); font-size: .78rem; }
+    .chip.good { border-color: #35634f; color: #88ddb7; }
+    .chip.warn { border-color: #745a30; color: #efc56f; }
+    .layout { display: grid; grid-template-columns: 250px minmax(0,1fr); gap: 28px; align-items: start; padding-bottom: 80px; }
+    nav { position: sticky; top: 18px; display: grid; gap: 4px; padding: 14px; border: 1px solid var(--line); border-radius: 14px; background: rgba(18,15,19,.92); backdrop-filter: blur(14px); }
+    nav strong { margin: 0 8px 8px; font-size: .78rem; letter-spacing: .1em; text-transform: uppercase; }
+    nav a { padding: 7px 8px; border-radius: 8px; color: var(--muted); font-size: .82rem; text-decoration: none; }
+    nav a:hover { background: var(--orange-soft); color: #ffd0ba; }
+    main { min-width: 0; }
+    .section { padding: 34px 0; border-top: 1px solid var(--line); scroll-margin-top: 24px; }
+    .section > p, .section > ul, .section > ol { max-width: 920px; }
+    .card { min-width: 0; padding: 20px; border: 1px solid var(--line); border-radius: var(--radius); background: linear-gradient(145deg,#1b171c,#121013); box-shadow: 0 18px 48px rgba(0,0,0,.25); }
+    .grid-2 { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 14px; }
+    .grid-3 { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 14px; }
+    .callout { margin: 18px 0; padding: 16px 18px; border-left: 4px solid var(--orange); border-radius: 0 12px 12px 0; background: #211712; }
+    .callout.good { border-color: var(--green); background: #12231b; }
+    .callout.warn { border-color: var(--yellow); background: #261f12; }
+    .callout p:last-child { margin-bottom: 0; }
+    table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: .9rem; }
+    th, td { padding: 11px 12px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+    th { color: #f6c6b1; font-size: .74rem; letter-spacing: .08em; text-transform: uppercase; }
+    td { color: #d3c6cb; }
+    ul, ol { padding-left: 1.3rem; } li + li { margin-top: .42rem; }
+    .step { counter-increment: steps; position: relative; padding: 20px 20px 20px 62px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); }
+    .steps { counter-reset: steps; display: grid; gap: 12px; }
+    .step::before { content: counter(steps); position: absolute; left: 18px; top: 18px; display: grid; place-items: center; width: 29px; height: 29px; border-radius: 9px; background: var(--orange-soft); color: #ffb18d; font-weight: 900; }
+    .step p:last-child, .step ul:last-child { margin-bottom: 0; }
+    .step-complete { border-color: #35634f; background: linear-gradient(145deg,#18251f,#121713); }
+    .step-complete::before { background: #214b39; color: #9be8c5; }
+    .done { color: var(--green); font-weight: 800; }
+    .status-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 14px; margin: 18px 0 24px; }
+    .status-grid ul { margin-bottom: 0; }
+    .footer { padding: 28px 0 60px; border-top: 1px solid var(--line); color: var(--faint); font-size: .84rem; }
+    @media (max-width: 980px) { .layout { grid-template-columns: 1fr; } nav { position: static; grid-template-columns: repeat(2,minmax(0,1fr)); } nav strong { grid-column: 1/-1; } .grid-3 { grid-template-columns: 1fr; } }
+    @media (max-width: 700px) { .grid-2, .status-grid { grid-template-columns: 1fr; } table { display: block; overflow-x: auto; } }
+    @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+  </style>
+</head>
+<body>
+  <header class="hero shell">
+    <p class="eyebrow">Verbindlicher Integrationsplan · 23. August 2026</p>
+    <h1>Pickit produktiv anbinden</h1>
+    <p class="lead">Der existierende Pickit-Prototyp ist visuell fertig. Dieser Plan definiert kein neues UI. Er beschreibt ausschließlich, wie der Prototyp mit echten Daten, Mutationen, Validierung, Internationalisierung und Backendverträgen zur produktiven Pickit-Seite wird.</p>
+    <div class="chips">
+      <span class="chip good">Prototyp ist visuelle Autorität</span>
+      <span class="chip">Keine visuelle Neuentwicklung</span>
+      <span class="chip">Deutsch und Englisch</span>
+      <span class="chip">Business-Logik vollständig anbinden</span>
+      <span class="chip warn">Prototyp erst nach erfolgreicher Integration entfernen</span>
+    </div>
+  </header>
+
+  <div class="layout shell">
+    <nav aria-label="Inhalt">
+      <strong>Inhalt</strong>
+      <a href="#auftrag">1. Auftrag</a><a href="#autoritaet">2. Visuelle Autorität</a><a href="#verhalten">3. Produktverhalten</a>
+      <a href="#vokabular">4. Fachvokabular</a><a href="#vertraege">5. Datenverträge</a><a href="#dateien">6. Code-Zuschnitt</a>
+      <a href="#plan">7. Umsetzung</a><a href="#abnahme">8. Abnahme</a>
+    </nav>
+
+    <main>
+      <section class="section" id="auftrag">
+        <p class="eyebrow">1 · Auftrag</p><h2>Integration statt Redesign</h2>
+        <p>Die produktive Pickit-Seite übernimmt den existierenden Prototyp. Der Agent ersetzt dessen Beispieldaten und lokale Demo-Aktionen durch die vorhandenen Pickit-APIs und die in diesem Plan beschriebenen Backendergänzungen. Layout, Komponentenform, Abstände, Farben, Typografie, responsive Anordnung, Animationen und sichtbare Interaktionsmuster stammen ausschließlich aus dem Prototyp.</p>
+        <div class="callout warn"><strong>Arbeitsgrenze:</strong> Der Auftrag autorisiert keine alternative Gestaltung und keine Verbesserung am Prototyp. Fehlt im Prototyp eine sichtbare Darstellung, die für eine erforderliche Funktion zwingend nötig ist, stoppt der Agent an dieser Stelle und fordert eine Produktentscheidung an. Er entwirft die fehlende Darstellung nicht selbst.</div>
+        <p>Zusätzlich korrigiert die Umsetzung das sichtbare Fachvokabular der gesamten App. Das Laufzeitverhalten von Queue, Wiederholungen und Telemetrie bleibt unverändert. Interne Typen wie <code>tasks.RunID</code> dürfen bestehen, solange sie nicht als Benutzertext erscheinen.</p>
+      </section>
+
+      <section class="section" id="autoritaet">
+        <p class="eyebrow">2 · Visuelle Autorität</p><h2>Der Prototyp ist die Spezifikation</h2>
+        <div class="card">
+          <h3>Verbindliche Quelle</h3>
+          <p>Die gesicherten Bilder unter <code>docs/assets/pickit-prototype-reference/</code> halten die verbindliche visuelle Quelle fest. Die abgenommene Umsetzung liegt produktiv in <code>PickitFeature.tsx</code> und <code>PickitFeature.css</code>; sie wird nicht anhand dieses Dokuments neu entworfen.</p>
+          <ol>
+            <li>Prototyp im Browser öffnen und die Zustände Profile, geöffneter Regel-Builder, Erweitert, Zuordnung und Löschdialog erfassen.</li>
+            <li>Referenzbilder bei 1440×900, 1100×700 und 900×760 sichern. Diese Bilder dienen nur dem Vergleich während der Integration.</li>
+            <li>Bestehendes Markup und bestehende Styles weiterverwenden. Mock-Daten und Demo-Handler schrittweise durch echte Props, API-Daten und Mutationen ersetzen.</li>
+            <li>Falls eine Aufteilung in Dateien nötig ist, JSX-Struktur und Klassen unverändert verschieben. Eine Komponentenaufteilung ist kein Anlass für neues Markup oder neue Styles.</li>
+            <li>Nach der produktiven Abnahme den Prototyp-Einstieg und nicht mehr benötigte Demo-Daten entfernen. Produktive Styles bleiben erhalten und werden passend benannt.</li>
+          </ol>
+        </div>
+        <div class="callout good"><strong>Abgeschlossen, wenn:</strong> Die produktive Seite und der Prototyp sind mit denselben Zuständen bei den drei Zielgrößen visuell deckungsgleich. Zulässige Unterschiede entstehen nur durch echte Namen, Regelzahlen, Routen und Validierungszustände.</div>
+      </section>
+
+      <section class="section" id="verhalten">
+        <p class="eyebrow">3 · Produktverhalten</p><h2>Diese Funktionen werden an den Prototyp gebunden</h2>
+        <table><thead><tr><th>Bereich</th><th>Verbindliches Verhalten</th></tr></thead><tbody>
+          <tr><td>Profile laden</td><td>Profilkatalog, Profile und Zuordnungen kommen aus den bestehenden APIs. Der Prototyp enthält nach der Integration keine festen Profile, Regeln, Charaktere oder Routen.</td></tr>
+          <tr><td>Profil wählen</td><td>Ein Wechsel lädt den gewählten Profilentwurf. Bei ungespeicherten Änderungen verlangt die vorhandene Dialogdarstellung eine Bestätigung.</td></tr>
+          <tr><td>Neu</td><td>Der Benutzer gibt nur den Profilnamen an. Die UI erzeugt intern eine kollisionsfreie ID. Das neue Profil bleibt bis zum ersten erfolgreichen Speichern ein lokaler leerer Entwurf.</td></tr>
+          <tr><td>Profil duplizieren</td><td>Die vorhandene Profilduplizierung bleibt. Sie kopiert alle Regeln unter einen neuen Namen und eine intern erzeugte ID.</td></tr>
+          <tr><td>Regeln darstellen</td><td>Die API liefert eine sprachneutrale Summary. Der Standardpfad zeigt keinen Parserausdruck, keine Revision und keine interne ID.</td></tr>
+          <tr><td>Regeln bearbeiten</td><td>Hinzufügen, Reihenfolge, Entfernen, letzte Entfernung rückgängig machen, Speichern und Verwerfen arbeiten auf einem lokalen Entwurf. Regelduplizierung und deaktivierte Regeln existieren nicht.</td></tr>
+          <tr><td>Itemtypen</td><td>Der Itemtyp-Picker verwendet den vollständigen realen Katalog. Suche, Checkbox-Mehrfachauswahl, Trefferzahl, Auswahlzahl, Entfernen einzelner Werte und Tastaturbedienung dürfen nicht regressieren.</td></tr>
+          <tr><td>Erweitert</td><td>Jede Regel behält ihren vollständigen Pickit-Ausdruck in einem editierbaren Textfeld. Import, Prüfen, Speichern und Verwerfen verwenden die bestehenden Backendpfade. Es gibt keine Item-Vorschau und keinen Regeltest-Dialog.</td></tr>
+          <tr><td>Zuordnung</td><td>Der appweit gewählte Charakter gilt. Routen werden über <code>presentRunName</code> übersetzt. Profilketten lassen sich ordnen und speichern. Eine leere Kette darf nicht gespeichert werden.</td></tr>
+          <tr><td>Profil löschen</td><td>Der Dialog listet jede betroffene Charakter-Route-Zuordnung. Erst die ausdrückliche Bestätigung entfernt alle Referenzen und danach das Profil. Der Benutzer räumt keine Zuordnungen manuell auf.</td></tr>
+          <tr><td>Zugänglichkeit</td><td>Vorhandene sichtbare Interaktionen erhalten korrekte Semantik, Fokusführung, Escape-Verhalten und Tastaturalternativen. Diese Ergänzungen verändern die sichtbare Gestaltung nicht.</td></tr>
+          <tr><td>Internationalisierung</td><td>Jeder Benutzertext liegt in <code>de.json</code> und <code>en.json</code>. Profilnamen bleiben unverändert; Systembegriffe und Katalognamen werden übersetzt.</td></tr>
+        </tbody></table>
+      </section>
+
+      <section class="section" id="vokabular">
+        <p class="eyebrow">4 · Globales Fachvokabular</p><h2>Ein Begriff pro Fachobjekt</h2>
+        <table><thead><tr><th>Fachobjekt</th><th>Bedeutung</th><th>Deutsch</th><th>Englisch</th></tr></thead><tbody>
+          <tr><td>Farming route</td><td>Ein benannter Queue-Eintrag wie Gräfin oder Kuh-Level. Er kann eine oder mehrere veröffentlichte Routenaufzeichnungen benötigen.</td><td>Route</td><td>route</td></tr>
+          <tr><td>Route recording</td><td>Eine konkrete aufgezeichnete und veröffentlichte Wegstrecke.</td><td>Routenaufzeichnung</td><td>route recording</td></tr>
+          <tr><td>Queue</td><td>Die sortierte Liste von Routen.</td><td>Queue</td><td>queue</td></tr>
+          <tr><td>Route execution</td><td>Ein Startversuch einer Route. Jeder Wiederholungsversuch zählt erneut. Historie, Statistik und das heutige <code>MaxRuns</code>-Budget zählen diese Einheit.</td><td>Routenausführung</td><td>route execution</td></tr>
+          <tr><td>Queue cycle</td><td>Eine vollständige Wiedergabe der Queue. Entspricht dem bestehenden Zähler <code>cycle</code>.</td><td>Durchlauf</td><td>queue cycle</td></tr>
+          <tr><td>Session</td><td>Der gesamte Farming-Zeitraum. Eine Session kann mehrere Durchläufe und Routenausführungen enthalten.</td><td>Session</td><td>session</td></tr>
+        </tbody></table>
+        <table><thead><tr><th>Bereich</th><th>Anwendung</th></tr></thead><tbody>
+          <tr><td>Pickit</td><td><q>Bei n Routen verwendet</q>, <q>Route auswählen</q> und Zuordnung je Charakter plus Route.</td></tr>
+          <tr><td>Aktives Dashboard</td><td><q>Route 1 von 3</q>. Pause und Stopp erfolgen nach der aktuellen Route.</td></tr>
+          <tr><td>Statistik und Historie</td><td>Zähler, Dauer, Ergebnisse und Ertrag beziehen sich auf Routenausführungen.</td></tr>
+          <tr><td>Einstellungen</td><td><q>Routenreihenfolge</q>, <q>Verfügbare Routen</q> und <q>Maximale Routenausführungen</q>. Der Hilfetext erklärt, dass Wiederholungsversuche mitzählen.</td></tr>
+          <tr><td>Routenverwaltung</td><td>Die Auswahl heißt Route. Aufnahme, Entwurf, Test, Veröffentlichung und Archiv beziehen sich auf Routenaufzeichnungen.</td></tr>
+          <tr><td>Onboarding, Desktop und Fehler</td><td>Texte unterscheiden Route und Routenausführung nach derselben Bedeutung. Rohe IDs und interne Telemetriebegriffe bleiben verborgen.</td></tr>
+        </tbody></table>
+        <div class="callout warn"><strong>Keine Verhaltensänderung:</strong> <q>Maximale Runs</q> wird zu <q>Maximale Routenausführungen</q>. Der zugrunde liegende Zähler zählt weiterhin jede gestartete Route und jeden Wiederholungsversuch, nicht vollständige Queue-Durchläufe.</div>
+        <ul><li><code>systemCatalog.runs</code>, <code>presentRunName</code>, <code>run_id</code> und <code>tasks.RunID</code> dürfen intern bestehen.</li><li>Ein Test durchsucht deutsche und englische Übersetzungswerte nach dem alleinstehenden Wort <q>Run</q> beziehungsweise <q>runs</q>. Echte Wörter wie <q>Runen</q> und <q>runeword</q> bleiben zulässig.</li></ul>
+      </section>
+
+      <section class="section" id="vertraege">
+        <p class="eyebrow">5 · Datenverträge</p><h2>Backendergänzungen für die vorhandene UI</h2>
+        <div class="grid-2">
+          <div class="card"><h3>Regel-Summary</h3><p><code>PickitRuleDTO</code> erhält eine nicht persistierte, vom bestehenden Pickit-Parser berechnete <code>summary</code>.</p><ul><li><code>kind</code>: <code>runes</code>, <code>rejuvenation</code>, <code>item_codes</code>, <code>item_types</code>, <code>quality</code>, <code>tier</code>, <code>quality_tier</code>, <code>set_item</code>, <code>unique_item</code>, <code>socket_filter</code> oder <code>custom</code>.</li><li><code>params</code>: optionale sprachneutrale Felder <code>codes[]</code>, <code>types[]</code>, <code>qualities[]</code>, <code>tiers[]</code>, <code>set_key</code>, <code>unique_key</code>, <code>socket_operator</code>, <code>socket_count</code> und <code>ethereal</code>.</li><li>Profilantworten liefern die Summary für jede Regel. Mutationseingaben dürfen sie weglassen; das Backend berechnet sie neu.</li><li>React übersetzt die Summary. React parst den Pickit-Ausdruck nicht.</li><li><code>custom</code> zeigt <q>Manuell bearbeitete Regel</q>. Der Ausdruck bleibt unter <q>Erweitert</q>.</li></ul></div>
+          <div class="card"><h3>Kaskadierendes Löschen</h3><p><code>DELETE /api/v1/pickit/profiles/{id}</code> erhält <code>expected_revision</code>, <code>expected_assignment_revision</code> und <code>remove_assignments</code>.</p><ul><li>Die Erfolgsantwort enthält das aktuelle Assignment-Manifest und jede entfernte Verwendung mit <code>character</code> und <code>route_id</code>.</li><li>Das Backend prüft beide Revisionen unter dem bestehenden Command-Lock.</li><li><code>remove_assignments=false</code> behält bei vorhandenen Verwendungen den Fehler <code>profile_assigned</code>.</li><li>Die bestätigte Kaskade entfernt alle Referenzen, danach leere Routen- und Charaktereinträge und zuletzt das Profil.</li><li>Die Assignment-Revision steigt höchstens einmal. Schlägt das Profil-Löschen fehl, stellt das Backend den vorherigen Assignment-Snapshot wieder her.</li><li>Nach Erfolg veröffentlicht das Backend die betroffenen Profil- und Assignment-Ereignisse.</li></ul></div>
+        </div>
+        <div class="callout"><strong>OpenAPI bleibt Autorität:</strong> Verträge zuerst in <code>internal/api/schema/openapi.json</code> festlegen und <code>generated.ts</code> ausschließlich mit dem vorhandenen Generator aktualisieren.</div>
+      </section>
+
+      <section class="section" id="dateien">
+        <p class="eyebrow">6 · Code-Zuschnitt</p><h2>Bestehenden Prototyp produktiv machen</h2>
+        <table><thead><tr><th>Datei oder Bereich</th><th>Aufgabe</th></tr></thead><tbody>
+          <tr><td><code>PickitFeature.tsx</code> und <code>PickitFeature.css</code></td><td>Abgenommenes Markup und Styles beibehalten. Produktive Daten und Handler sind die einzige Implementierung.</td></tr>
+          <tr><td><code>PickitFeature.tsx</code></td><td>Daten laden, Entwürfe koordinieren und Mutationen ausführen. Keine zweite visuelle Umsetzung neben dem Prototyp pflegen.</td></tr>
+          <tr><td>Optionale Pickit-Unterkomponenten</td><td>Nur zur Wartbarkeit extrahieren. JSX-Struktur, Klassen und Styles des Prototyps unverändert übernehmen.</td></tr>
+          <tr><td><code>internal/loot/pickit.go</code></td><td>Sprachneutrale Summary aus dem bestehenden Parser ableiten.</td></tr>
+          <tr><td><code>internal/app/pickit_store.go</code></td><td>Alle Profilreferenzen revisionsgeschützt entfernen und bei fehlgeschlagenem Profil-Löschen wiederherstellen.</td></tr>
+          <tr><td><code>internal/api/pickit_*.go</code> und OpenAPI</td><td>Summary- und Delete-Verträge, Fehlerabbildung und Ereignisse implementieren.</td></tr>
+          <tr><td><code>de.json</code>, <code>en.json</code> und Presenter</td><td>Prototyptexte produktiv internationalisieren und das globale Fachvokabular berichtigen.</td></tr>
+          <tr><td>Feature-Dokumentation und Changelog</td><td>Produktives Verhalten, Delete-Semantik und Begriffstrennung dokumentieren.</td></tr>
+        </tbody></table>
+        <div class="callout warn"><strong>Arbeitsbaum zuerst lesen:</strong> Es können unvollständige Änderungen aus einem abgebrochenen Integrationsstart vorhanden sein. Der Agent gleicht sie gegen diesen Plan und den Prototyp ab. Unabhängige Änderungen bleiben unangetastet.</div>
+      </section>
+
+      <section class="section" id="plan">
+        <p class="eyebrow">7 · Umsetzungsreihenfolge</p><h2>Direkter Arbeitsplan</h2>
+        <div class="status-grid">
+          <div class="card">
+            <h3>Aktueller Status</h3>
+            <p class="done">Alle 8 Schritte abgeschlossen · 23. August 2026</p>
+            <p>Fünf Prototypzustände wurden bei allen drei Zielgrößen als Viewport-Referenz gesichert: Profile, Regel-Builder, Erweitert mit geöffnetem Pickit-Text, Zuordnung und Löschdialog.</p>
+            <p>Ablage: <a href="assets/pickit-prototype-reference/">docs/assets/pickit-prototype-reference/</a>. Der temporäre Browser-Einstieg wurde danach vollständig entfernt; der Referenzlauf meldete keine Console-Fehler.</p>
+            <p>Das sichtbare Fachvokabular ist in Deutsch und Englisch auf Route, Routenaufzeichnung, Routenausführung, Durchlauf und Session vereinheitlicht. Das Root-Glossar <code>CONTEXT.md</code> hält diese Trennung fest.</p>
+            <p>Validierung Schritt 2: 25 i18n-/Dashboard-Tests grün; Renderer-Typecheck grün; automatischer Locale-Scan meldet 0 unerlaubte Werte mit alleinstehendem <q>Run</q> oder <q>runs</q>.</p>
+            <p>Schritt 3 ersetzt die angefangene String-Map-Summary durch typisierte Parameter und bündelt die bestätigte Löschkaskade in <code>PickitProfileService.DeleteWithAssignments</code>. Gezielte Tests in <code>internal/loot</code>, <code>internal/app</code> und <code>internal/api</code> sind grün.</p>
+            <p>Schritt 4 bildet diese Verträge vollständig in OpenAPI und dem generierten TypeScript-Client ab. Der vorhandene Generator erzeugt den typisierten Delete-Rückgabewert selbst; <code>generated.ts</code> wird nicht manuell gepflegt.</p>
+            <p>Schritt 5 entfernt sämtliche Demo-Profile und Demo-Regeln aus dem Prototyp. Die bestätigte Oberfläche lädt nun Katalog, Profile, sprachneutrale Summaries und Zuordnungen aus den produktiven APIs; der temporäre Prototyp-Einstieg verweist nur noch auf diese eine Implementierung.</p>
+            <p>Validierung Schritt 5: Renderer-Typecheck grün; gezielte Datenbindungs- und Katalogtests grün; Browserabnahme ohne Console-Fehler. Profile und Builder wurden bei 1440×900, der Builder zusätzlich bei 1100×700 und 900×760 sowie Zuordnung, Löschdialog und erweiterter Pickit-Text gegen die gesicherten Referenzen geprüft.</p>
+            <p>Schritt 6 verdrahtet alle vorgesehenen Produktflüsse vollständig. Lokal erstellte Regeln erhalten sofort dieselben sprachneutralen Summaries wie Serverantworten; eine manuelle Ausdrucksänderung verwirft bewusst eine nicht mehr zutreffende Summary. Auch der Summary-Typ <code>item_types</code> wird aus seinen Codes lokalisiert dargestellt.</p>
+            <p>Validierung Schritt 6: Zehn React-Produktflüsse und 18 Builder-Tests grün; Renderer-Typecheck grün. Abgedeckt sind Anlegen, Speichern, Duplizieren, Dirty-Wechsel, Verwerfen, Regelerstellung einschließlich suchbarer Mehrfachauswahl, Undo, manueller Pickit-Text, Validierung, Import, Zuordnungsreihenfolge sowie unzugeordnetes und bestätigtes kaskadierendes Löschen.</p>
+            <p>Schritt 7 ergänzt die nicht-visuelle Bediensemantik: Tabs sind mit ihren Bereichen verknüpft und per Pfeiltasten steuerbar, aufklappbare Werkzeuge geben den Fokus beim Schließen zurück, die Zuordnungsreihenfolge lässt sich zusätzlich mit Alt und Pfeiltasten ändern und Reduced Motion unterbindet sämtliche Pickit-Animationen und -Übergänge. Alle neuen Hilfetexte und zugänglichen Namen liegen in Deutsch und Englisch vor.</p>
+            <p>Validierung Schritt 7: 38 gezielte Pickit-, Builder-, Dialog- und i18n-Tests grün; vollständiger Renderer- und Electron-Typecheck grün. Die Browserprüfung bei 1440×900, 1100×700 und 900×760 zeigt in beiden Sprachen keinen horizontalen Seitenüberlauf, keine aus dem Viewport ragenden sichtbaren Steuerelemente und keine Console-Fehler.</p>
+            <p>Schritt 8 benennt Komponente, Styles, CSS-Klassen und i18n-Namespace produktiv. <code>PickitPrototype.tsx</code>, <code>PickitPrototype.css</code>, <code>?variant=B</code> und das Prototyp-Script sind entfernt. Die reguläre <code>#pickit</code>-Navigation rendert direkt <code>PickitFeature</code>.</p>
+            <p>Validierung Schritt 8: 60 gezielte React-, App-, Builder- und i18n-Tests grün; Generator-Driftprüfung und vollständiger Produktionsbuild einschließlich Renderer-, Electron- und Vite-Build grün. Die produktive Navigation wurde im Browser ohne Prototyp-Knoten, zusätzlichen Seitenkopf oder Console-Meldungen geprüft.</p>
+          </div>
+          <div class="card">
+            <h3>Gesicherte Befunde zum vorhandenen Diff</h3>
+            <ul>
+              <li>Die zweite visuelle Implementierung ist beseitigt. <code>PickitFeature.tsx</code> und <code>PickitFeature.css</code> enthalten die einzige produktive Oberfläche; der frühere Entwicklungsverweis ist gelöscht.</li>
+              <li>Die angefangene String-Map-Summary wurde verworfen. Backend, OpenAPI und TypeScript verwenden jetzt dieselben typisierten, sprachneutralen Parameter aus Abschnitt 5.</li>
+              <li>Die vorher nur teilweise implementierte Löschkaskade ist durch den koordinierten Servicevertrag und die vollständige Backend-Testabdeckung ersetzt.</li>
+              <li>Der Entwicklungsparameter <code>?variant=B</code>, das Prototyp-Script und sämtliche Pickit-Prototypnamen in der Webanwendung sind entfernt.</li>
+            </ul>
+          </div>
+        </div>
+        <div class="callout">
+          <strong>Abgegrenzter Arbeitsumfang:</strong> Visuelle Integration in <code>PickitFeature.tsx</code>, <code>PickitFeature.css</code>, <code>App.tsx</code> und <code>web/package.json</code>; Datenanbindung in <code>web/src/api/client.ts</code> und <code>generated.ts</code>; Verträge in <code>internal/loot/pickit.go</code>, <code>internal/app/pickit_store.go</code>, <code>internal/api/pickit_*.go</code>, <code>server.go</code> und OpenAPI; sichtbares Fachvokabular in den Locale-, Presenter-, Dashboard-, API- und zugehörigen Dokumentations-/Testdateien. Andere bereits veränderte Runtime-, Mercenary-, Memory-, Task- und Replay-Dateien gehören nicht zu diesem Auftrag und bleiben unangetastet.
+        </div>
+        <div class="steps">
+          <article class="step step-complete"><h3>Prototyp als Referenz sichern</h3><p>Arbeitsbaum lesen, Prototyp in allen relevanten Zuständen öffnen und Referenzbilder bei 1440×900, 1100×700 und 900×760 anlegen. Keine Produktdatei verändern, bevor diese Referenz vollständig ist.</p><p><strong>Abgeschlossen:</strong> 15 normalisierte Viewport-Referenzen liegen unter <code>docs/assets/pickit-prototype-reference/</code>. Der vorhandene Diff wurde nach plan-konformen, zu korrigierenden und auftragsfremden Änderungen abgegrenzt.</p></article>
+          <article class="step step-complete"><h3>Fachvokabular korrigieren</h3><p>Deutsche und englische UI-Texte in Dashboard, Einstellungen, Historie, Routenverwaltung, Pickit, Onboarding, Desktop und Fehlerabbildung nach Abschnitt 4 berichtigen. Einen Regressionstest für alleinstehendes <q>Run</q> und <q>runs</q> ergänzen.</p><p><strong>Abgeschlossen:</strong> Alle Locale-Werte sind fachlich zugeordnet; Dashboard und Einstellungen sprechen von Routen, Historie und Statistik von Routenausführungen. Der Regressionstest entfernt Interpolationsplatzhalter vor der Prüfung, damit interne Parameternamen erlaubt bleiben, aber sichtbare Texte weiterhin geschützt sind.</p></article>
+          <article class="step step-complete"><h3>Backendverträge fertigstellen</h3><p>Regel-Summary und kaskadierendes Löschen gemäß Abschnitt 5 implementieren. Tests decken bekannte und manuelle Regeln, unzugeordnetes Löschen, bestätigte Kaskade, mehrere Verwendungen, leere Restketten, Revisionskonflikte, Wiederherstellung und Ereignisse ab.</p><p><strong>Abgeschlossen:</strong> Profilantworten erhalten ihre Summary ausschließlich aus dem bestehenden Runtime-Parser. Nicht verlustfrei darstellbare Regeln fallen auf <code>custom</code> zurück. Die Löschkaskade prüft beide Revisionen, entfernt alle Verwendungen deterministisch in höchstens einer Assignment-Revision, räumt leere Einträge auf, stellt bei fehlgeschlagenem Profil-Löschen den vorherigen Snapshot wieder her und veröffentlicht nach Erfolg die erforderlichen Ereignisse.</p></article>
+          <article class="step step-complete"><h3>OpenAPI und Client abgleichen</h3><p>OpenAPI aktualisieren, TypeScript-Client generieren und API-Mocks anpassen.</p><p><strong>Abgeschlossen:</strong> Die Summary-Kinds sind als Union und ihre Parameter als eigenes typisiertes DTO beschrieben. Löschanfrage und Löschantwort transportieren beide Revisionen, die Kaskadenbestätigung, das aktuelle Assignment-Manifest und alle entfernten Verwendungen. Generator-Driftprüfung, Renderer-Typecheck und OpenAPI-Vertragstest sind grün.</p></article>
+          <article class="step step-complete"><h3>Prototyp mit echten Daten verbinden</h3><p>Im vorhandenen Prototyp feste Daten und Demo-Handler nacheinander durch Katalog, Profile, Assignments, Entwürfe und Mutationen ersetzen. Sichtbares Markup und Styles bleiben bestehen.</p><p><strong>Abgeschlossen:</strong> Demo-Daten und lokale Scheinmutationen sind entfernt. Katalogsuche, Profile, Regelentwurf, Summary-Darstellung, Verwendungen und Profilzuordnungen stammen aus den produktiven Verträgen. Die temporäre Prototyp-Komponente leitet auf dieselbe produktive Implementierung weiter, sodass kein zweites JSX mehr gepflegt wird. Referenzvergleiche zeigen ausschließlich inhaltlich erklärbare Abweichungen durch echte DTO-Daten.</p></article>
+          <article class="step step-complete"><h3>Alle Produktflüsse anschließen</h3><p>Neu, Profilduplizierung, Dirty-Wechsel, Regelerstellung, suchbare Itemtyp-Mehrfachauswahl, Undo, Erweitert, Save, Verwerfen, Zuordnung und kaskadierendes Löschen vollständig verdrahten.</p><p><strong>Abgeschlossen:</strong> Alle Flüsse arbeiten mit realen API-Daten und produktiven Mutationen. Lokale Regel-Summaries bleiben bis zur manuellen Ausdrucksbearbeitung fachlich korrekt; alle zehn Produktfluss-Tests, 18 Builder-Tests und der Renderer-Typecheck sind grün.</p></article>
+          <article class="step step-complete"><h3>Zugänglichkeit und Internationalisierung prüfen</h3><p>Semantik, Tastaturbedienung, Fokus, Escape, Live-Status, Reduced Motion sowie deutsche und englische Texte prüfen, ohne die sichtbare Gestaltung zu verändern.</p><p><strong>Abgeschlossen:</strong> Dialoge, Tabs, Popover, Itemtyp-Picker, Regel-Builder und Zuordnungsreihenfolge sind vollständig per Tastatur bedienbar; Live-Status und Reduced Motion sind abgedeckt. Beide Sprachen verwenden dieselbe Struktur und bleiben bei allen drei Zielgrößen ohne horizontalen Überlauf oder abgeschnittene sichtbare Steuerelemente.</p></article>
+          <article class="step step-complete"><h3>Produktiv umbenennen und Demo entfernen</h3><p>Nach erfolgreicher Abnahme die Prototyp-Komponente und ihre Styles produktiv benennen. Den separaten Prototyp-Einstieg, Demo-Daten und das Prototyp-Script entfernen.</p><p><strong>Abgeschlossen:</strong> Die reguläre <code>#pickit</code>-Navigation ist der einzige Einstieg. Komponente, Styles, Klassen und Übersetzungsnamespace sind produktiv benannt; Wrapper, Variantenparameter, Demo-Daten und Prototyp-Script existieren nicht mehr.</p></article>
+        </div>
+      </section>
+
+      <section class="section" id="abnahme">
+        <p class="eyebrow">8 · Abnahme</p><h2>Verbindliche Prüfliste</h2>
+        <div class="grid-3">
+          <div class="card"><h3>Visuelle Treue</h3><ul><li>Produktive Seite gegen die gesicherten Prototypbilder vergleichen.</li><li>Profile, Builder, Erweitert, Zuordnung und Löschdialog stimmen überein.</li><li>1440×900, 1100×700 und 900×760 stimmen im responsiven Verhalten überein.</li><li>Keine neu entworfene Komponente, Anordnung oder Stilregel.</li><li>Abweichungen sind ausschließlich durch echte Inhalte oder Zustände erklärbar.</li></ul></div>
+          <div class="card"><h3>Funktion</h3><ul><li>Profile laden, wechseln, neu anlegen, umbenennen und duplizieren.</li><li>Regeln hinzufügen, ordnen, entfernen, rückgängig machen, speichern und verwerfen.</li><li>Itemtypen suchen und mehrfach auswählen.</li><li>Pickit-Ausdrücke unter <q>Erweitert</q> bearbeiten.</li><li>Zuordnungen laden, ordnen und speichern.</li><li>Bestätigtes Löschen entfernt Profil und Zuordnungen ohne Teilmutation.</li></ul></div>
+          <div class="card"><h3>Fachvokabular</h3><ul><li>Pickit spricht von Routen.</li><li>Das aktive Dashboard zeigt <q>Route x von y</q>.</li><li>Historie und Statistik sprechen von Routenausführungen.</li><li>Einstellungen zeigen <q>Maximale Routenausführungen</q> mit korrektem Hilfetext.</li><li>Routenverwaltung unterscheidet Route und Routenaufzeichnung.</li><li>Deutsch und Englisch enthalten kein unerlaubtes alleinstehendes <q>Run</q> oder <q>runs</q>.</li></ul></div>
+        </div>
+        <h3 style="margin-top:24px">Kleinste erforderliche Validierung</h3>
+        <ol><li>Gezielte Pickit-Tests in <code>internal/loot</code>, <code>internal/app</code> und <code>internal/api</code>.</li><li>Im Verzeichnis <code>web</code>: <code>pnpm exec node scripts/generate-api.mjs --check</code>.</li><li>Gezielte React-Tests für Pickit und Terminologie.</li><li><code>pnpm typecheck</code>.</li><li>Browser-Vergleich mit dem Prototyp bei 1440×900, 1100×700 und 900×760 auf Deutsch und Englisch. Console ohne Fehler und kein horizontaler Seitenüberlauf.</li></ol>
+        <div class="callout good"><strong>Fertig:</strong> Die abgenommene Oberfläche ist die produktive Pickit-Seite mit echter Business-Logik. Es gibt keine zweite visuelle Umsetzung und keinen verbliebenen Demo-Einstieg.</div>
+      </section>
+    </main>
+  </div>
+
+  <footer class="footer shell"><p>Produktive Umsetzung: <code>web/src/features/pickit/PickitFeature.tsx</code> und <code>PickitFeature.css</code>. Verbindliche Referenzbilder: <code>docs/assets/pickit-prototype-reference/</code>.</p></footer>
+</body>
+</html>

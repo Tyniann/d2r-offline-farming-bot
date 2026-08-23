@@ -8,6 +8,7 @@ import (
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/input"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/memory"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/profile"
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/tasks"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/world"
 )
 
@@ -35,7 +36,11 @@ func (a *runActionsAdapter) CastBelt(slot int) error {
 	return nil
 }
 
-func (a *runActionsAdapter) CastTownPortal(now time.Time, player world.Player) error {
+func (a *runActionsAdapter) CastTownPortal(now time.Time, state world.State) error {
+	if townPortalTomeKnownEmpty(state) {
+		return tasks.ErrTownPortalSupplyEmpty
+	}
+	player := state.Player
 	win, ok := a.input.Window()
 	if !ok {
 		return fmt.Errorf("run town portal: window not bound")
@@ -66,4 +71,24 @@ func (a *runActionsAdapter) CastTownPortal(now time.Time, player world.Player) e
 		return profile.ErrSkillSelectionPending
 	}
 	return nil
+}
+
+func townPortalTomeKnownEmpty(state world.State) bool {
+	bookID := memory.MustSkillID("book_of_townportal")
+	if state.Player.RightSkillID != bookID {
+		return false
+	}
+	found := false
+	total := 0
+	for _, item := range state.InventoryItems() {
+		if item.Code != "tbk" {
+			continue
+		}
+		found = true
+		if !item.QuantityKnown {
+			return false
+		}
+		total += item.Quantity
+	}
+	return found && total <= 0
 }

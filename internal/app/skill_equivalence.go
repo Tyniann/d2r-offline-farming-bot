@@ -2,13 +2,15 @@ package app
 
 import "github.com/Tyniann/d2r-offline-farming-bot/internal/memory"
 
-// Town Portal has three live identities that represent the same configured
+// Town Portal has four live identities that represent the same configured
 // requirement and the same castable RMB action:
 //   - TownPortal (359): catalog action / binding key
+//   - Scroll of Townportal (219): loose-scroll list evidence
 //   - Book of Townportal (220): tome-granted list evidence
 //   - Townportal O Skill (411): Sling-granted list and hotbar selection
 var skillTownPortalEquivalentIDs = [...]uint16{
 	memory.SkillTownPortal,
+	memory.MustSkillID("scroll_of_townportal"),
 	memory.MustSkillID("book_of_townportal"),
 	memory.MustSkillID("townportal_o_skill"),
 }

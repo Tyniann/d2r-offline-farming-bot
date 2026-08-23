@@ -213,8 +213,8 @@ func (b *LiveBackend) DuplicatePickit(id string, request PickitDuplicateRequest)
 	}
 	return
 }
-func (b *LiveBackend) DeletePickit(id string, request PickitDeleteRequest) error {
-	err := b.pickitMutation(func() error {
+func (b *LiveBackend) DeletePickit(id string, request PickitDeleteRequest) (result PickitDeleteResultDTO, err error) {
+	err = b.pickitMutation(func() error {
 		current, e := b.pickitProfiles.Get(id)
 		if e != nil {
 			return e
@@ -222,12 +222,28 @@ func (b *LiveBackend) DeletePickit(id string, request PickitDeleteRequest) error
 		if current.Revision != request.ExpectedRevision {
 			return &commandError{code: "revision_conflict", params: map[string]any{"expected_revision": request.ExpectedRevision, "current_revision": current.Revision, "path": "profile.revision"}}
 		}
-		return b.pickitProfiles.Delete(id, b.pickitAssignments)
+		updated, usages, e := b.pickitProfiles.DeleteWithAssignments(id, b.pickitAssignments, request.ExpectedAssignmentRevision, request.RemoveAssignments)
+		if errors.Is(e, app.ErrPickitAssignmentRevisionConflict) {
+			currentAssignments, _ := b.pickitAssignments.Snapshot()
+			return &commandError{code: "revision_conflict", params: map[string]any{"expected_revision": request.ExpectedAssignmentRevision, "current_revision": currentAssignments.Revision, "path": "assignments.revision"}}
+		}
+		if e != nil {
+			return e
+		}
+		removed := make([]PickitAssignmentUsageDTO, len(usages))
+		for index, usage := range usages {
+			removed[index] = PickitAssignmentUsageDTO{Character: usage.Character, RouteID: string(usage.RunID)}
+		}
+		result = PickitDeleteResultDTO{Assignments: assignmentsDTO(updated), Removed: removed}
+		return nil
 	})
 	if err == nil {
 		b.publishPickit("pickit_profile_changed")
+		if len(result.Removed) > 0 {
+			b.publishPickit("pickit_assignment_changed")
+		}
 	}
-	return err
+	return result, err
 }
 
 func (b *LiveBackend) PickitAssignments() (PickitAssignmentsDTO, error) {

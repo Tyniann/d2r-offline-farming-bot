@@ -203,6 +203,14 @@ type pipelineLootState struct {
 // pipelineReturnState owns foreign-town egress and bounded portal recovery.
 type pipelineReturnState struct {
 	egressStarted bool
+	// recoveryArea* prevents retry-return input during a waypoint/load transition.
+	// The destination must remain the same across fresh snapshots for the full
+	// load-fade settle before a Town Portal request is allowed.
+	recoveryAreaID         world.AreaID
+	recoveryAreaStartedAt  time.Time
+	recoveryAreaSnapshots  int
+	recoveryAreaGeneration uint64
+	recoveryAreaSnapshotAt time.Time
 	// portalRecovered bounds post-fail portal teleports to one attempt per portal UnitID.
 	portalRecovered            map[uint32]bool
 	portalRecoveryPending      bool
@@ -267,6 +275,7 @@ func (c *runPipeline) resetGeneration() {
 	c.resetEntryArrival()
 	c.travel.routeThreat.Reset(nil)
 	c.ret.egressStarted = false
+	c.resetRecoveryAreaArrival()
 	c.boss.encounterActionIndex = 0
 	c.boss.encounterActionStarted = false
 	c.boss.bossKillEmitted = false
@@ -292,6 +301,9 @@ func (c *runPipeline) onStepEnter(step string) {
 	c.resetRouteProgressUnavailable()
 	if step == pipelineStepWaitEntryArea {
 		c.resetEntryArrival()
+	}
+	if step == pipelineStepWaitRecoveryArea {
+		c.resetRecoveryAreaArrival()
 	}
 	if step == pipelineStepCastTownPortal {
 		c.resetPortalDestinationRecovery()

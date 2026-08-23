@@ -69,7 +69,47 @@ func (c *runPipeline) onRetryReturnTick(ctx context.Context, deps Deps, step str
 		}
 		return stepResult{complete: true}
 	}
+	if step == pipelineStepWaitRecoveryArea {
+		return c.tickWaitRecoveryArea(w)
+	}
 	return c.tickReturn(ctx, narrowReturnDeps(deps), step, w, now, stepStartedAt)
+}
+
+func (c *runPipeline) tickWaitRecoveryArea(w world.State) stepResult {
+	if !w.Valid || w.Phase != world.GamePhaseInGame || w.Area.ID == world.None {
+		return stepResult{}
+	}
+	if !c.allowsRetryReturnArea(w.Area.ID) {
+		return stepResult{failed: true, reason: string(RunReasonUnexpectedArea)}
+	}
+	if c.ret.recoveryAreaID != w.Area.ID {
+		c.resetRecoveryAreaArrival()
+		c.ret.recoveryAreaID = w.Area.ID
+		c.ret.recoveryAreaStartedAt = w.At
+	}
+	if w.Generation != 0 {
+		if w.Generation != c.ret.recoveryAreaGeneration {
+			c.ret.recoveryAreaSnapshots++
+			c.ret.recoveryAreaGeneration = w.Generation
+			c.ret.recoveryAreaSnapshotAt = w.At
+		}
+	} else if !w.At.IsZero() && w.At != c.ret.recoveryAreaSnapshotAt {
+		c.ret.recoveryAreaSnapshots++
+		c.ret.recoveryAreaSnapshotAt = w.At
+	}
+	if c.ret.recoveryAreaSnapshots < entryAreaArriveSnapshots || c.ret.recoveryAreaStartedAt.IsZero() ||
+		w.At.Sub(c.ret.recoveryAreaStartedAt) < entryAreaArriveSettle {
+		return stepResult{}
+	}
+	return stepResult{complete: true}
+}
+
+func (c *runPipeline) resetRecoveryAreaArrival() {
+	c.ret.recoveryAreaID = world.None
+	c.ret.recoveryAreaStartedAt = time.Time{}
+	c.ret.recoveryAreaSnapshots = 0
+	c.ret.recoveryAreaGeneration = 0
+	c.ret.recoveryAreaSnapshotAt = time.Time{}
 }
 
 func (c *runPipeline) onTownReadyTick(ctx context.Context, deps Deps, step string, w world.State, now time.Time) stepResult {

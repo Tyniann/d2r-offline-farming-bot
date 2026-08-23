@@ -250,7 +250,7 @@ func (d *replayDependencies) ForceMoveToward(time.Time, world.Position, world.Po
 func (d *replayDependencies) CastBelt(int) error {
 	return replayCallError(d.consume("actions.cast_belt"))
 }
-func (d *replayDependencies) CastTownPortal(time.Time, world.Player) error {
+func (d *replayDependencies) CastTownPortal(time.Time, world.State) error {
 	return replayCallError(d.consume("actions.cast_town_portal"))
 }
 

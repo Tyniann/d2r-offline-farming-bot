@@ -184,7 +184,7 @@ func (rt *Runtime) runGuidedRouteRecord(runID tasks.RunID, routeRole pathing.Rou
 					return rt.completeRecordingReturnFailure(coordinator, fmt.Errorf("town portal actions not wired"))
 				}
 				rt.taskDeps.Portal.Reset()
-				if err := rt.taskDeps.Actions.CastTownPortal(time.Now(), current.Player); err != nil {
+				if err := rt.taskDeps.Actions.CastTownPortal(time.Now(), current); err != nil {
 					if errors.Is(err, charprofile.ErrSkillSelectionPending) {
 						continue
 					}

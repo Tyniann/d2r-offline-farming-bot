@@ -51,6 +51,24 @@ func TestMissingRequiredSkillsAcceptsTownPortalBookEvidence(t *testing.T) {
 	}
 }
 
+func TestMissingRequiredSkillsAcceptsLooseTownPortalScrollEvidence(t *testing.T) {
+	player := world.Player{
+		SkillsComplete: true,
+		SkillsKnown: map[uint16]bool{
+			memory.SkillTeleport:                       true,
+			memory.MustSkillID("scroll_of_townportal"): true,
+		},
+	}
+	missing := missingRequiredSkills(
+		player,
+		[]uint16{memory.SkillTeleport, memory.SkillTownPortal},
+		map[uint16]string{memory.SkillTownPortal: "Stadtportal"},
+	)
+	if len(missing) != 0 {
+		t.Fatalf("town portal scroll evidence produced missing=%v", missing)
+	}
+}
+
 func TestMissingRequiredSkillsAcceptsSlingTownPortalEvidence(t *testing.T) {
 	player := world.Player{
 		SkillsComplete: true,

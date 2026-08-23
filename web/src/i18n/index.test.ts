@@ -7,11 +7,11 @@ describe("i18n-Grundmodul", () => {
   it("rendert denselben Schlüssel auf Deutsch und Englisch", async () => {
     await initializeI18n("de");
     expect(i18n.t("common.save")).toBe("Speichern");
-    expect(i18n.t("common.runsCompleted", { count: 1 })).toBe("1 Run abgeschlossen");
+    expect(i18n.t("common.runsCompleted", { count: 1 })).toBe("1 Routenausführung abgeschlossen");
 
     await changeAppLanguage("en");
     expect(i18n.t("common.save")).toBe("Save");
-    expect(i18n.t("common.runsCompleted", { count: 2 })).toBe("2 runs completed");
+    expect(i18n.t("common.runsCompleted", { count: 2 })).toBe("2 route executions completed");
   });
 
   it("bricht im Testbetrieb bei unbekannten Schlüsseln ab", async () => {

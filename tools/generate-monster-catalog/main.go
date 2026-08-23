@@ -27,6 +27,7 @@ type bossTarget struct {
 	ID              string
 	ConstName       string
 	Phase20         bool
+	LowerKurast     bool
 	Priority        bool
 	SuperUniqueName string
 	DisplayName     string
@@ -41,12 +42,16 @@ var defaultBossTargets = []bossTarget{
 	{HCIdx: 250, ID: "summoner", ConstName: "Summoner"},
 	{HCIdx: 526, ID: "nihlathakboss", ConstName: "Nihlathak"},
 	{HCIdx: 20, ID: "fallen2", ConstName: "Rakanishu", Phase20: true, Priority: true, SuperUniqueName: "Rakanishu", DisplayName: "Rakanishu"},
+	{HCIdx: 51, ID: "baboon4", ConstName: "DoomApe", LowerKurast: true},
 	{HCIdx: 53, ID: "goatman1", ConstName: "StonyMoonClan", Phase20: true},
 	{HCIdx: 54, ID: "goatman2", ConstName: "TristramNightClan", Phase20: true},
 	{HCIdx: 59, ID: "fallenshaman2", ConstName: "TristramCarverShaman", Phase20: true},
+	{HCIdx: 81, ID: "sandleaper4", ConstName: "TreeLurker", LowerKurast: true},
+	{HCIdx: 112, ID: "vulture3", ConstName: "HellBuzzard", LowerKurast: true},
 	{HCIdx: 160, ID: "cr_archer1", ConstName: "StonyDarkRanger", Phase20: true},
 	{HCIdx: 170, ID: "sk_archer1", ConstName: "TristramSkeletonArcher", Phase20: true},
 	{HCIdx: 206, ID: "crownest1", ConstName: "StonyFoulCrowNest", Phase20: true},
+	{HCIdx: 235, ID: "zealot1", ConstName: "Zakarumite", LowerKurast: true},
 	{HCIdx: 391, ID: "hellbovine", ConstName: "HellBovine", Phase20: true},
 	{HCIdx: 735, ID: "cowking", ConstName: "CowKing", Phase20: true, Priority: true, SuperUniqueName: "The Cow King", DisplayName: "Cow King"},
 }
@@ -216,10 +221,17 @@ func renderMemory(version string, bosses []selectedBoss) []byte {
 	b.WriteString(")\n\n")
 	b.WriteString("var runtimeBossNPCIDs = map[uint32]struct{}{\n")
 	for _, boss := range bosses {
-		if boss.Target.Phase20 {
+		if boss.Target.Phase20 || boss.Target.LowerKurast {
 			continue
 		}
 		fmt.Fprintf(&b, "\t%d: {}, // %s\n", boss.Row.HCIdx, boss.Row.Name)
+	}
+	b.WriteString("}\n")
+	b.WriteString("\nvar runtimeLowerKurastMonsterNPCIDs = map[uint32]struct{}{\n")
+	for _, boss := range bosses {
+		if boss.Target.LowerKurast {
+			fmt.Fprintf(&b, "\t%d: {}, // %s (%s)\n", boss.Row.HCIdx, boss.Target.ConstName, boss.Row.ID)
+		}
 	}
 	b.WriteString("}\n")
 	b.WriteString("\nvar runtimePhase20MonsterNPCIDs = map[uint32]struct{}{\n")

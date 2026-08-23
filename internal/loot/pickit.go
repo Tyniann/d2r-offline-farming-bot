@@ -146,6 +146,176 @@ func CanonicalPickitExpression(expression string) (string, error) {
 	return canonical, err
 }
 
+// PickitRuleSummary ist ein sprachneutraler Darstellungshinweis aus dem geparsten Ausdrucksbaum.
+type PickitRuleSummary struct {
+	Kind   string
+	Params PickitRuleSummaryParams
+}
+
+// PickitRuleSummaryParams enthält ausschließlich stabile Katalogschlüssel und primitive Filterwerte.
+// Leere Slices und nil-Zeiger bedeuten, dass der jeweilige Filter nicht Teil der Summary ist.
+type PickitRuleSummaryParams struct {
+	Codes          []string
+	Types          []string
+	Qualities      []string
+	Tiers          []string
+	SetKey         string
+	UniqueKey      string
+	SocketOperator string
+	SocketCount    *int
+	Ethereal       *bool
+}
+
+// SummarizePickitExpression parst einen Ausdruck mit dem Runtime-Parser und liefert eine sichere UI-Summary.
+func SummarizePickitExpression(expression string) (PickitRuleSummary, error) {
+	_, expr, err := canonicalPickitExpression("expression", 1, expression)
+	if err != nil {
+		return PickitRuleSummary{}, err
+	}
+	groups, ok := summarizePickitGroups(expr)
+	if !ok {
+		return customPickitRuleSummary(), nil
+	}
+	params, ok := summarizePickitParams(groups)
+	if !ok {
+		return customPickitRuleSummary(), nil
+	}
+	if sockets, ok := groups["sockets"]; ok {
+		if len(sockets.values) != 1 {
+			return customPickitRuleSummary(), nil
+		}
+		count, parseErr := strconv.Atoi(sockets.values[0])
+		if parseErr != nil {
+			return customPickitRuleSummary(), nil
+		}
+		params.SocketOperator = sockets.operator
+		params.SocketCount = &count
+		return PickitRuleSummary{Kind: "socket_filter", Params: params}, nil
+	}
+	if len(groups) == 2 {
+		if _, quality := groups["quality"]; quality {
+			if _, tier := groups["tier"]; tier {
+				return PickitRuleSummary{Kind: "quality_tier", Params: params}, nil
+			}
+		}
+	}
+	if len(groups) != 1 {
+		return customPickitRuleSummary(), nil
+	}
+	for field, group := range groups {
+		if group.operator != "==" {
+			return customPickitRuleSummary(), nil
+		}
+		if field == "type" && len(group.values) == 1 {
+			switch group.values[0] {
+			case "rune":
+				return PickitRuleSummary{Kind: "runes"}, nil
+			case "rpot":
+				return PickitRuleSummary{Kind: "rejuvenation"}, nil
+			}
+		}
+		kinds := map[string]string{
+			"name": "item_codes", "type": "item_types", "quality": "quality",
+			"tier": "tier", "setitem": "set_item", "uniqueitem": "unique_item",
+		}
+		if kind := kinds[field]; kind != "" {
+			return PickitRuleSummary{Kind: kind, Params: params}, nil
+		}
+	}
+	return customPickitRuleSummary(), nil
+}
+
+func customPickitRuleSummary() PickitRuleSummary {
+	return PickitRuleSummary{Kind: "custom"}
+}
+
+func summarizePickitParams(groups map[string]pickitSummaryGroup) (PickitRuleSummaryParams, bool) {
+	params := PickitRuleSummaryParams{}
+	for field, group := range groups {
+		if field != "sockets" && field != "flag" && group.operator != "==" {
+			return PickitRuleSummaryParams{}, false
+		}
+		switch field {
+		case "name":
+			params.Codes = append([]string(nil), group.values...)
+		case "type":
+			params.Types = append([]string(nil), group.values...)
+		case "quality":
+			params.Qualities = append([]string(nil), group.values...)
+		case "tier":
+			params.Tiers = append([]string(nil), group.values...)
+		case "setitem":
+			if len(group.values) != 1 {
+				return PickitRuleSummaryParams{}, false
+			}
+			params.SetKey = group.values[0]
+		case "uniqueitem":
+			if len(group.values) != 1 {
+				return PickitRuleSummaryParams{}, false
+			}
+			params.UniqueKey = group.values[0]
+		case "flag":
+			if len(group.values) != 1 || group.values[0] != "ethereal" {
+				return PickitRuleSummaryParams{}, false
+			}
+			value := group.operator == "=="
+			params.Ethereal = &value
+		case "sockets":
+			// The caller validates and projects the numeric socket predicate.
+		default:
+			return PickitRuleSummaryParams{}, false
+		}
+	}
+	return params, true
+}
+
+type pickitSummaryGroup struct {
+	operator string
+	values   []string
+}
+
+func summarizePickitGroups(expr pickitExpr) (map[string]pickitSummaryGroup, bool) {
+	terms := flattenPickitBinary(expr, tokenAnd)
+	result := make(map[string]pickitSummaryGroup, len(terms))
+	for _, term := range terms {
+		comparisons := flattenPickitBinary(term, tokenOr)
+		var field string
+		group := pickitSummaryGroup{}
+		for _, comparison := range comparisons {
+			value, ok := comparison.(compareExpr)
+			if !ok {
+				return nil, false
+			}
+			if field == "" {
+				field = value.field.label
+				group.operator = tokenText(value.op)
+			}
+			if field != value.field.label || group.operator != tokenText(value.op) {
+				return nil, false
+			}
+			literal := value.lit.text
+			if value.lit.kind == literalInt {
+				literal = strconv.Itoa(value.lit.num)
+			}
+			group.values = append(group.values, literal)
+		}
+		if _, duplicate := result[field]; duplicate {
+			return nil, false
+		}
+		result[field] = group
+	}
+	return result, true
+}
+
+func flattenPickitBinary(expr pickitExpr, operator tokenKind) []pickitExpr {
+	value, ok := expr.(binaryExpr)
+	if !ok || value.op != operator {
+		return []pickitExpr{expr}
+	}
+	left := flattenPickitBinary(value.left, operator)
+	return append(left, flattenPickitBinary(value.right, operator)...)
+}
+
 // RequiresIdentificationForKeep reports whether final keep/stash evaluation must wait for identification.
 func RequiresIdentificationForKeep(item world.Item) bool {
 	if item.Identified {

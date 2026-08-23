@@ -229,13 +229,22 @@ func TestControlledRetryResultRequiresVerifiedTownReturn(t *testing.T) {
 	failed, err := controlledRetryResult(context.Background(), "route_threat_out_of_range", func(context.Context) error {
 		return errors.New("portal unavailable")
 	})
-	if err == nil || failed.Disposition != QueueRunStop || failed.Reason != queueReasonRetryReturnFailed || failed.SafeToExit {
+	if err == nil || failed.Disposition != QueueRunStop || failed.Reason != queueReasonRetryReturnFailed || failed.SafeToExit ||
+		failed.OriginalReason != "route_threat_out_of_range" || failed.RecoveryReason != "retry_return_execution_failed" {
 		t.Fatalf("failed controlled retry = %+v, err=%v", failed, err)
 	}
 
 	missing, err := controlledRetryResult(context.Background(), "route_threat_out_of_range", nil)
-	if err == nil || missing.Disposition != QueueRunStop || missing.Reason != queueReasonRetryReturnFailed || missing.SafeToExit {
+	if err == nil || missing.Disposition != QueueRunStop || missing.Reason != queueReasonRetryReturnFailed || missing.SafeToExit ||
+		missing.OriginalReason != "route_threat_out_of_range" || missing.RecoveryReason != "retry_return_not_wired" {
 		t.Fatalf("missing controlled retry = %+v, err=%v", missing, err)
+	}
+
+	typed, err := controlledRetryResult(context.Background(), "mercenary_died_during_run", func(context.Context) error {
+		return &retryReturnFailure{Reason: "town_portal_not_found", Err: errors.New("portal did not appear")}
+	})
+	if err == nil || typed.OriginalReason != "mercenary_died_during_run" || typed.RecoveryReason != "town_portal_not_found" {
+		t.Fatalf("typed controlled retry = %+v, err=%v", typed, err)
 	}
 }
 

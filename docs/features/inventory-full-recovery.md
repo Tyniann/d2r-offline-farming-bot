@@ -86,6 +86,7 @@ Stabile terminale Gründe:
 | Reason | Bedeutung |
 |--------|-----------|
 | `town_portal_not_found` | Nach dem Cast erschien innerhalb des Limits kein generiertes Portal-Objekt |
+| `town_portal_supply_empty` | Der aktive Foliant war laut vollständiger Quantity-Evidenz leer; es wurde kein RMB-Cast gesendet |
 | `town_portal_enter_failed` | Hover, Distanz, Projektion oder Input verhinderten den sicheren Klick |
 | `town_portal_destination_timeout` | Auch der einmalige Clear-, Teleport- und Klick-Retry erreichte den erwarteten Herkunftsort nicht |
 | `unexpected_area` | Nach Portal-Eintritt erschien ein anderes gültiges Gebiet als Cellar 5 oder Rogue Encampment |
@@ -126,4 +127,4 @@ Der eigentliche `inventory_full`-Branch ist zusätzlich durch Task-Integrationst
 - [Loot- und Recovery-Loop](loot-recovery-loop.md)
 
 ---
-*Zuletzt aktualisiert: 2026-08-22*
+*Zuletzt aktualisiert: 2026-08-23*

@@ -23,6 +23,13 @@ var runtimeBossNPCIDs = map[uint32]struct{}{
 	526: {}, // Nihlathak
 }
 
+var runtimeLowerKurastMonsterNPCIDs = map[uint32]struct{}{
+	51:  {}, // DoomApe (baboon4)
+	81:  {}, // TreeLurker (sandleaper4)
+	112: {}, // HellBuzzard (vulture3)
+	235: {}, // Zakarumite (zealot1)
+}
+
 var runtimePhase20MonsterNPCIDs = map[uint32]struct{}{
 	0:   {}, // StonySkeleton (skeleton1)
 	1:   {}, // TristramReturned (skeleton2)

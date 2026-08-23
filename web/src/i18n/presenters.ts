@@ -216,9 +216,16 @@ const errorKeys = {
   history_retention_partial: "errors.historyUnavailable",
   diagnostic_bundle_failed: "errors.diagnosticFailed",
   diagnostic_content_rejected: "errors.diagnosticRejected",
+  retry_return_failed: "errors.retryReturnFailed",
 } as const;
 
 export function presentProblem(problem: ProblemDTO, t: AppTranslator): string {
+  if (problem.code === "retry_return_failed" && typeof problem.params?.original_reason === "string" && typeof problem.params?.recovery_reason === "string") {
+    return t("errors.retryReturnFailedDetailed", {
+      original: presentHistoryReason(problem.params.original_reason, t),
+      recovery: presentHistoryReason(problem.params.recovery_reason, t),
+    });
+  }
   const key = errorKeys[problem.code as keyof typeof errorKeys];
   return key ? t(key, problem.params ?? {}) : presentUnknownCode(problem.code, t);
 }

@@ -63,8 +63,8 @@ Spätere Ideen (noch nicht umgesetzt): [`docs/backlog.md`](../backlog.md).
 | [Inventory-Full-Recovery](inventory-full-recovery.md) | Phase 5.7: explizites `inventory_full`, hover-bestätigter Town-Portal-Eintritt und verifizierte Rückkehr ins Rogue Encampment |
 | [Personal-Stash MVP](personal-stash-mvp.md) | Phase 5.8: Memory-bestätigte Town-Navigation, geschützte Ctrl+LMB-Transfers und sauberer UI-Abschluss |
 | [Identification-Strategie](identification-strategy.md) | Phase 5.9: Statregeln nur für identifizierte Items und `identify_required` vor Keep/Stash |
-| [Pickit-Profile und Assignments](pickit-profiles.md) | Atomare revisionierte YAML-Profile, geordnete Charakter-/Run-Zuordnung und idempotente Ergänzung vollständig fehlender Setup-Defaults |
-| [Pickit-API und sichere Run-Grenze](pickit-api.md) | Abschnitt 13.5: vollständiger HTTP-Vertrag, sichere revisionierte Mutationen und unveränderlicher Policy-Snapshot pro Run |
+| [Pickit-Profile und Assignments](pickit-profiles.md) | Atomare revisionierte YAML-Profile, geordnete Charakter-/Routenzuordnung, bestätigte Löschkaskade und idempotente Ergänzung vollständig fehlender Setup-Defaults |
+| [Pickit-API und sichere Routengrenze](pickit-api.md) | Sprachneutrale Regel-Summaries, revisionsgeschützte Mutationen, kaskadierendes Löschen und unveränderlicher Policy-Snapshot pro Route |
 | [Pickit-Profilbibliothek und Editor](pickit-editor.md) | Abschnitte 13.6–13.7: geführte Katalogregeln, Profil-CRUD, Assignments und Core-basierte Testitem-Vorschau mit vollständigem Trace |
 | [Sockel-Support für Pickit](socket-pickit.md) | Phase 19 abgeschlossen (Gates 19.0–19.5): fail-closed `[sockets]`/`socketed`, kombinierter Builder; Freigabe `v0.17.0` |
 

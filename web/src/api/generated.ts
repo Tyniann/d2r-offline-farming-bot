@@ -42,6 +42,8 @@ export interface CompatibilityDTO {
 export interface SessionResultDTO {
   disposition: string;
   reason?: string;
+  original_reason?: string;
+  recovery_reason?: string;
 }
 
 export interface SelectionStatusDTO {
@@ -544,6 +546,24 @@ export interface PickitRuleDTO {
   id: string;
   action: string;
   expression: string;
+  summary?: PickitRuleSummaryDTO;
+}
+
+export interface PickitRuleSummaryDTO {
+  kind: "runes" | "rejuvenation" | "item_codes" | "item_types" | "quality" | "tier" | "quality_tier" | "set_item" | "unique_item" | "socket_filter" | "custom";
+  params: PickitRuleSummaryParamsDTO;
+}
+
+export interface PickitRuleSummaryParamsDTO {
+  codes?: Array<string>;
+  types?: Array<string>;
+  qualities?: Array<string>;
+  tiers?: Array<string>;
+  set_key?: string;
+  unique_key?: string;
+  socket_operator?: string;
+  socket_count?: number;
+  ethereal?: boolean;
 }
 
 export interface PickitProfileDTO {
@@ -628,6 +648,18 @@ export interface PickitDuplicateRequest {
 
 export interface PickitDeleteRequest {
   expected_revision: number;
+  expected_assignment_revision: number;
+  remove_assignments: boolean;
+}
+
+export interface PickitAssignmentUsageDTO {
+  character: string;
+  route_id: string;
+}
+
+export interface PickitDeleteResultDTO {
+  assignments: PickitAssignmentsDTO;
+  removed: Array<PickitAssignmentUsageDTO>;
 }
 
 export interface PickitAssignmentsDTO {
@@ -1097,7 +1129,7 @@ export function previewPickit(request: PickitPreviewRequest, signal?: AbortSigna
 export function createPickitProfile(request: PickitCreateRequest, token: string, signal?: AbortSignal): Promise<PickitProfileDTO> { return sendJSON<PickitProfileDTO>("/api/v1/pickit/profiles", "POST", request, token, signal); }
 export function updatePickitProfile(id: string, request: PickitUpdateRequest, token: string, signal?: AbortSignal): Promise<PickitProfileDTO> { return sendJSON<PickitProfileDTO>(`/api/v1/pickit/profiles/${encodeURIComponent(id)}`, "PUT", request, token, signal); }
 export function duplicatePickitProfile(id: string, request: PickitDuplicateRequest, token: string, signal?: AbortSignal): Promise<PickitProfileDTO> { return sendJSON<PickitProfileDTO>(`/api/v1/pickit/profiles/${encodeURIComponent(id)}/duplicate`, "POST", request, token, signal); }
-export function deletePickitProfile(id: string, request: PickitDeleteRequest, token: string, signal?: AbortSignal): Promise<void> { return sendJSON<void>(`/api/v1/pickit/profiles/${encodeURIComponent(id)}`, "DELETE", request, token, signal); }
+export function deletePickitProfile(id: string, request: PickitDeleteRequest, token: string, signal?: AbortSignal): Promise<PickitDeleteResultDTO> { return sendJSON<PickitDeleteResultDTO>(`/api/v1/pickit/profiles/${encodeURIComponent(id)}`, "DELETE", request, token, signal); }
 export function getPickitAssignments(signal?: AbortSignal): Promise<PickitAssignmentsDTO> { return getJSON<PickitAssignmentsDTO>("/api/v1/pickit/assignments", signal); }
 export function updatePickitAssignment(request: PickitAssignmentUpdateRequest, token: string, signal?: AbortSignal): Promise<PickitAssignmentsDTO> { return sendJSON<PickitAssignmentsDTO>("/api/v1/pickit/assignments", "PUT", request, token, signal); }
 export function importPickit(request: PickitImportRequest, signal?: AbortSignal): Promise<PickitImportDTO> { return sendJSON<PickitImportDTO>("/api/v1/pickit/import", "POST", request, "", signal); }

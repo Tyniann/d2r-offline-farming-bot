@@ -20,7 +20,7 @@ vi.mock("../api/client", () => ({
 vi.mock("../api/generated", () => ({ getCatalog: mocks.getCatalog, getStatus: mocks.getStatus, getRunAvailabilities: mocks.getRunAvailabilities, getOperatorSettings: mocks.getOperatorSettings, getRouteLibrary: mocks.getRouteLibrary, getRouteCandidates: mocks.getRouteCandidates, getRecordingOptions: mocks.getRecordingOptions, getSystemRouteStatus: mocks.getSystemRouteStatus, getHotkeyHelp: mocks.getHotkeyHelp, getRouteWorkflow: mocks.getRouteWorkflow, getHistorySummary: mocks.getHistorySummary, getHistoryComparisons: mocks.getHistoryComparisons, getHistoryRuns: mocks.getHistoryRuns }));
 vi.mock("../features/routes/RouteFeature", () => ({ RouteFeature: ({ selectedCharacter, onReturnToOnboarding }: { selectedCharacter: string; onReturnToOnboarding?: () => void }) => <section><h1>Routen</h1><p>Routen-Kontext {selectedCharacter}</p>{onReturnToOnboarding && <button onClick={onReturnToOnboarding}>Zurück zur Einrichtung</button>}</section> }));
 vi.mock("../features/onboarding/OnboardingFeature", () => ({ OnboardingFeature: () => <section><h1>First-Run-Assistent</h1></section> }));
-vi.mock("../features/pickit/PickitFeature", () => ({ PickitFeature: ({ selectedCharacter }: { selectedCharacter: string }) => <section><h2>Pickit-Funktion</h2><p>Pickit-Kontext {selectedCharacter}</p></section> }));
+vi.mock("../features/pickit/PickitFeature", () => ({ PickitFeature: ({ selectedCharacter }: { selectedCharacter: string }) => <section><h1>Pickit</h1><p>Pickit-Kontext {selectedCharacter}</p></section> }));
 vi.mock("../features/history/HistoryFeature", () => ({ HistoryFeature: ({ selectedCharacter, selectedDifficulty }: { selectedCharacter: string; selectedDifficulty: string }) => <section><h2>Historie</h2><p>Historien-Kontext {selectedCharacter} / {selectedDifficulty}</p></section> }));
 vi.mock("../features/settings/SettingsFeature", () => ({ SettingsFeature: ({ selectedCharacter }: { selectedCharacter: string }) => <section><h2>Settings-Funktion</h2><p>Einstellungs-Kontext {selectedCharacter}</p></section> }));
 vi.mock("../features/characters/CharacterSetupWizard", () => ({ CharacterSetupWizard: () => <section><h2>Charakter-Setup</h2></section> }));
@@ -110,7 +110,7 @@ describe("App", () => {
     });
     render(<App />);
     const setup = await screen.findByText("Einrichtung fortsetzen");
-    const farming = screen.getByRole("heading", { name: "Deine Run-Reihenfolge" });
+    const farming = screen.getByRole("heading", { name: "Deine Routenreihenfolge" });
     expect(setup.closest("section")!.compareDocumentPosition(farming.closest("section")!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 
     fireEvent.click(screen.getByRole("button", { name: "Erste Route aufnehmen" }));
@@ -195,6 +195,7 @@ describe("App", () => {
     };
     render(<App />);
     await screen.findByRole("heading", { level: 1, name: "Farming vorbereiten" });
+    await waitFor(() => expect(window.d2rDesktop?.onNavigate).toHaveBeenCalledOnce());
     await act(async () => navigate?.("settings"));
     expect(window.location.hash).toBe("#settings");
     expect(await screen.findByRole("heading", { level: 1, name: "Einstellungen" })).toBeInTheDocument();
@@ -373,7 +374,7 @@ describe("App", () => {
     await waitFor(() => expect(screen.getByLabelText("Charakter")).toHaveValue("MrHammer"));
     expect(screen.getByLabelText("Schwierigkeit")).toHaveValue("hell");
     expect(screen.queryByText("MrBones ist in der App ausgewählt")).not.toBeInTheDocument();
-    expect(await screen.findByRole("heading", { name: "Deine Run-Reihenfolge" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Deine Routenreihenfolge" })).toBeInTheDocument();
     await waitFor(() => expect(screen.getAllByRole("listitem").some((entry) => entry.textContent?.includes("1Mephisto"))).toBe(true));
   });
 
@@ -501,7 +502,7 @@ describe("App", () => {
     mocks.validateQueue.mockResolvedValue({ entries: [], budgets: {} });
     mocks.startQueue.mockResolvedValue({ state: "starting_run", generation: 6 });
     render(<App />);
-    expect(await screen.findByRole("heading", { name: "Deine Run-Reihenfolge" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Deine Routenreihenfolge" })).toBeInTheDocument();
     expect(await screen.findByRole("link", { name: "Bearbeiten" })).toHaveAttribute("href", "#settings");
     const start = await screen.findByRole("button", { name: "Jetzt farmen" });
     await waitFor(() => expect(start).toBeEnabled());
@@ -606,7 +607,7 @@ describe("App", () => {
     });
     mocks.getStatus.mockReset().mockResolvedValue(ready);
     render(<App />);
-    expect(await screen.findByRole("heading", { name: "Deine Run-Reihenfolge" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Deine Routenreihenfolge" })).toBeInTheDocument();
     await waitFor(() => {
       const entries = screen.getAllByRole("listitem");
       expect(entries.some((entry) => entry.textContent?.includes("1Gräfin"))).toBe(true);
@@ -621,7 +622,7 @@ describe("App", () => {
     mocks.getStatus.mockReset().mockResolvedValue(running);
     const first = render(<App />);
     expect(await screen.findByLabelText("Etappe 6 von 13")).toBeInTheDocument();
-    expect(screen.getByText("Pause nach diesem Run vorgemerkt")).toBeInTheDocument();
+    expect(screen.getByText("Pause nach dieser Route vorgemerkt")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Jetzt farmen" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /pausieren|stoppen|Emergency Stop/i })).not.toBeInTheDocument();
     expect(screen.getByText("Pause", { selector: "kbd" })).toBeInTheDocument();

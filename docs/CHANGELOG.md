@@ -7,6 +7,18 @@ Versionierung nach [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+- Replace the Pickit editor with the approved responsive profile workspace, searchable multi-select rule builder, manual expression editing, keyboard-accessible assignments, and automatic assignment cleanup on confirmed profile deletion
+- Delete unassigned Pickit profiles immediately and reserve the confirmation dialog for profiles assigned to at least one route
+
+### Added
+- Add language-neutral Pickit rule summaries and confirmed profile deletion that removes every character-route assignment atomically
+
+### Fixed
+- Fix visible terminology so routes, route recordings, route executions, queue cycles, and sessions are no longer conflated as runs
+- Include normal Lower Kurast hostile classes in runtime snapshots so chest-blocker recovery can start its local combat clear
+- Confirm Mercenary death and retry-return arrival across fresh, area-stable snapshots before aborting a run or casting a recovery portal, reject an authoritatively empty active portal tome before RMB input, and preserve both failure reasons when recovery fails
+
 ## [0.23.0] - 2026-08-22
 
 ### Added

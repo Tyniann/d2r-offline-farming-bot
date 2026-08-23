@@ -113,7 +113,7 @@ func (d *runtimeCandidatePlaybackDriver) EnsureTown(ctx context.Context, act tow
 				return fmt.Errorf("town portal actions not wired")
 			}
 			d.rt.taskDeps.Portal.Reset()
-			if err := d.rt.taskDeps.Actions.CastTownPortal(time.Now(), current.Player); err != nil {
+			if err := d.rt.taskDeps.Actions.CastTownPortal(time.Now(), current); err != nil {
 				if errors.Is(err, profile.ErrSkillSelectionPending) {
 					continue
 				}

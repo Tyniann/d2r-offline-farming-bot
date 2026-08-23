@@ -23,7 +23,7 @@ func RunStageForStep(step string) (telemetry.HistoryStage, bool) {
 		return telemetry.HistoryStageCombat, true
 	case pipelineStepRepositionForLoot, pipelineStepWaitForDrops, pipelineStepScanLoot, pipelineStepPickLoot:
 		return telemetry.HistoryStageLoot, true
-	case pipelineStepCastTownPortal, pipelineStepEnterTownPortal, pipelineStepWaitOriginTown,
+	case pipelineStepWaitRecoveryArea, pipelineStepCastTownPortal, pipelineStepEnterTownPortal, pipelineStepWaitOriginTown,
 		pipelineStepPlayTownEgress, pipelineStepOpenOriginWaypoint, pipelineStepSelectHubWaypoint,
 		pipelineStepWaitHubArea, pipelineStepOpenStash, pipelineStepStashItems,
 		pipelineStepCloseStash, pipelineStepPrepareTown, pipelineStepComplete:

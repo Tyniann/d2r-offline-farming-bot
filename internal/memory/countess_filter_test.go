@@ -25,6 +25,23 @@ func TestRuntimeMonsterCandidateIncludesAct1TownNPCs(t *testing.T) {
 	}
 }
 
+func TestRuntimeMonsterCandidateIncludesLowerKurastHostiles(t *testing.T) {
+	want := map[uint32]string{
+		51:  "baboon4",
+		81:  "sandleaper4",
+		112: "vulture3",
+		235: "zealot1",
+	}
+	if len(runtimeLowerKurastMonsterNPCIDs) != len(want) {
+		t.Fatalf("Lower Kurast runtime candidates = %v, want exactly %v", runtimeLowerKurastMonsterNPCIDs, want)
+	}
+	for id, rowKey := range want {
+		if _, ok := runtimeLowerKurastMonsterNPCIDs[id]; !ok || !IsRuntimeMonsterCandidate(id, 0) {
+			t.Fatalf("Lower Kurast monstats row %s with *hcIdx %d should be enumerated", rowKey, id)
+		}
+	}
+}
+
 func TestPostBossCleanupNPCIDs(t *testing.T) {
 	for _, id := range []uint32{40, 56, 131} {
 		if !IsPostBossCleanupNPCID(id) || !IsRuntimeMonsterCandidate(id, 0) {

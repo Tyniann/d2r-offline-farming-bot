@@ -66,6 +66,11 @@ type SupervisorRunRequest struct {
 type SupervisorRunResult struct {
 	Disposition QueueRunDisposition
 	Reason      string
+	// OriginalReason preserves the productive run failure when a later
+	// controlled-return failure becomes the terminal Reason.
+	OriginalReason string
+	// RecoveryReason identifies the exact controlled-return failure.
+	RecoveryReason string
 	// Detail carries an optional operator-facing German explanation for terminal
 	// reasons such as missing required skills. Reason stays the stable machine code.
 	Detail string

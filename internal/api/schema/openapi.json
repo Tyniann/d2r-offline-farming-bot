@@ -842,8 +842,15 @@
           }
         },
         "responses": {
-          "204": {
-            "description": "Deleted profile"
+          "200": {
+            "description": "Deleted profile and authoritative assignments",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PickitDeleteResultDTO"
+                }
+              }
+            }
           }
         }
       }
@@ -1828,6 +1835,12 @@
             "type": "string"
           },
           "reason": {
+            "type": "string"
+          },
+          "original_reason": {
+            "type": "string"
+          },
+          "recovery_reason": {
             "type": "string"
           }
         }
@@ -3420,6 +3433,83 @@
           },
           "expression": {
             "type": "string"
+          },
+          "summary": {
+            "$ref": "#/components/schemas/PickitRuleSummaryDTO"
+          }
+        }
+      },
+      "PickitRuleSummaryDTO": {
+        "type": "object",
+        "required": [
+          "kind",
+          "params"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "runes",
+              "rejuvenation",
+              "item_codes",
+              "item_types",
+              "quality",
+              "tier",
+              "quality_tier",
+              "set_item",
+              "unique_item",
+              "socket_filter",
+              "custom"
+            ]
+          },
+          "params": {
+            "$ref": "#/components/schemas/PickitRuleSummaryParamsDTO"
+          }
+        }
+      },
+      "PickitRuleSummaryParamsDTO": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "codes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "types": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "qualities": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "tiers": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "set_key": {
+            "type": "string"
+          },
+          "unique_key": {
+            "type": "string"
+          },
+          "socket_operator": {
+            "type": "string"
+          },
+          "socket_count": {
+            "type": "integer"
+          },
+          "ethereal": {
+            "type": "boolean"
           }
         }
       },
@@ -3693,12 +3783,53 @@
       "PickitDeleteRequest": {
         "type": "object",
         "required": [
-          "expected_revision"
+          "expected_revision",
+          "expected_assignment_revision",
+          "remove_assignments"
         ],
         "additionalProperties": false,
         "properties": {
           "expected_revision": {
             "type": "integer"
+          },
+          "expected_assignment_revision": {
+            "type": "integer"
+          },
+          "remove_assignments": {
+            "type": "boolean"
+          }
+        }
+      },
+      "PickitAssignmentUsageDTO": {
+        "type": "object",
+        "required": [
+          "character",
+          "route_id"
+        ],
+        "properties": {
+          "character": {
+            "type": "string"
+          },
+          "route_id": {
+            "type": "string"
+          }
+        }
+      },
+      "PickitDeleteResultDTO": {
+        "type": "object",
+        "required": [
+          "assignments",
+          "removed"
+        ],
+        "properties": {
+          "assignments": {
+            "$ref": "#/components/schemas/PickitAssignmentsDTO"
+          },
+          "removed": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PickitAssignmentUsageDTO"
+            }
           }
         }
       },

@@ -4,7 +4,7 @@
   "version": "0.23.0",
   "type": "module",
   "main": "dist-electron/main.js",
-  "description": "Installierte Windows-App für wiederholbare D2R-Offline-Farming-Runs",
+  "description": "Installierte Windows-App für wiederholbare D2R-Offline-Farming-Routen",
   "author": "Tyniann",
   "scripts": {
     "generate": "node scripts/generate-api.mjs",

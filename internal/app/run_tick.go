@@ -179,6 +179,7 @@ func (rt *Runtime) runTickWithMode(ctx context.Context, state *runState, mode ru
 		rt.Input.Unbind()
 		if mode == runTickModeFull {
 			rt.Tasks.Reset("process_lost")
+			rt.mercenaryDeath.reset()
 		}
 		state.input = inputLoopState{}
 		state.bindingsPrecheckDone = false
@@ -204,11 +205,12 @@ func (rt *Runtime) runTickWithMode(ctx context.Context, state *runState, mode ru
 
 	snap := rt.Probe.Snapshot()
 	rt.lastSnapshot = snap
-	prevWorld := rt.World.Current()
 	cur := rt.World.Update(snap)
+	mercenaryDeath := mercenaryDeathObservation{Decision: mercenaryDeathStable}
 	if mode == runTickModeFull {
-		rt.observeMercenaryDeath(prevWorld, cur)
-		if err := rt.abortRunOnMercenaryDeath(prevWorld, cur); err != nil {
+		mercenaryDeath = rt.mercenaryDeath.observe(cur)
+		rt.observeMercenaryDeath(mercenaryDeath)
+		if err := rt.holdRunForMercenaryDeath(mercenaryDeath); err != nil {
 			return err
 		}
 		if rt.shouldRunBindingsPrecheck(snap, state) {
@@ -221,7 +223,7 @@ func (rt *Runtime) runTickWithMode(ctx context.Context, state *runState, mode ru
 		if err != nil {
 			return err
 		}
-		if ready && rt.shouldTickTasks(cur) {
+		if ready && mercenaryDeath.Decision == mercenaryDeathStable && rt.shouldTickTasks(cur) {
 			now := time.Now()
 			if rt.RuntimeTrace != nil && rt.RuntimeTrace.Enabled() {
 				status := rt.Input.Status()
