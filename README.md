@@ -12,8 +12,6 @@ English: a Windows desktop app (Go core, Electron UI) for repeatable **offline**
 
 ![Pickit](docs/screenshots/pickit.png)
 
-Die drei Bilder liegen unter [`docs/screenshots/`](docs/screenshots/README.md). Fehlen sie noch, ist das der Ablageort.
-
 ## Was es kann
 
 - Farming-Ziele: Countess, Mephisto, Summoner, Nihlathak, Cow Level, Lower-Kurast-Supertruhen
