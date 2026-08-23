@@ -7,6 +7,8 @@ Versionierung nach [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.24.0] - 2026-08-23
+
 ### Added
 - Add a source-available license, public README, installer note, and screenshot slots for a public GitHub listing
 - Add language-neutral Pickit rule summaries and confirmed profile deletion that removes every character-route assignment atomically

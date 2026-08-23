@@ -59,10 +59,10 @@ Diablo II: Resurrected ist eine Marke von Blizzard Entertainment, Inc. Dieses Pr
 Windows 10/11 x64, unsignierter NSIS-Installer. SmartScreen kann warnen. Daten: `%LOCALAPPDATA%\D2ROfflineFarmingBot\`.
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts/build-release.ps1 -Version 0.23.0
+powershell -ExecutionPolicy Bypass -File scripts/build-release.ps1 -Version 0.24.0
 ```
 
-Ergebnis: `dist/release/D2R-Offline-Farming-Bot-0.23.0-Setup.exe` plus SHA-256. Installer-Hinweise: [`docs/INSTALLATION.md`](docs/INSTALLATION.md).
+Ergebnis: `dist/release/D2R-Offline-Farming-Bot-0.24.0-Setup.exe` plus SHA-256. Installer-Hinweise: [`docs/INSTALLATION.md`](docs/INSTALLATION.md).
 
 Lokal: Windows, Go 1.26+, Node/pnpm. `Copy-Item configs\config.example.yaml configs\config.yaml`, dann `go test ./...`. UI unter `web/`. Feature-Docs: [`docs/features/README.md`](docs/features/README.md). Changelog: [`docs/CHANGELOG.md`](docs/CHANGELOG.md).
 
