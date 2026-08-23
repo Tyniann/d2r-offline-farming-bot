@@ -2,15 +2,9 @@
 
 Windows-Desktop-App, die Diablo II: Resurrected **offline** farmt. Go liest den Prozess, baut ein World Model und steuert Tastatur und Maus. Electron zeigt Queue, Routen, Pickit und Verlauf. Battle.net ist nicht im Scope und nicht implementiert.
 
-Das Repo ist ein persönliches Fallbeispiel: Architektur und Abnahme kommen von mir, der Code ist mit AI geschrieben. Es ist kein Produkt und keine Aufforderung, die Blizzard-EULA zu umgehen.
+Persönliches Fallbeispiel: Architektur und Abnahme kommen von mir, der Code ist mit AI geschrieben. Kein Produkt, keine Aufforderung, die Blizzard-EULA zu umgehen.
 
 English: a Windows desktop app (Go core, Electron UI) for repeatable **offline** D2R farming. Personal AI-assisted engineering case study, not an online cheat and not affiliated with Blizzard.
-
-![Dashboard](docs/screenshots/dashboard.png)
-
-![Routenaufzeichnung](docs/screenshots/route-recording.png)
-
-![Pickit](docs/screenshots/pickit.png)
 
 ## Was es kann
 
@@ -21,6 +15,20 @@ English: a Windows desktop app (Go core, Electron UI) for repeatable **offline**
 - Desktop-UI auf Deutsch und Englisch, plus Windows-Installer
 
 Auflösung 1280×720. D2R startet der Operator selbst.
+
+## Oberfläche
+
+**Dashboard.** Laufende Session auf Hell: Queue Unter-Kurast → Countess → Mephisto, Countess aktiv im Turmkeller, Fortschritt der Aufnahme und der Session, Kennzahlen und letzte Ausführungen.
+
+![Dashboard mit aktiver Countess-Route, Queue und Sessionstatistik](docs/screenshots/dashboard.png)
+
+**Routen aufzeichnen.** Aufnahme für Unter-Kurast: Ziel (hohe Runen, Edelsteine), erfüllte Voraussetzungen, Start- und Zielgebiet, kurze Anleitung plus Referenzbilder, Hotkeys zum Beenden.
+
+![Routenaufnahme für Unter-Kurast mit Voraussetzungen, Pfad und Referenzbildern](docs/screenshots/route-recording.png)
+
+**Pickit.** Profilworkspace: Bibliothek links, Regelbau rechts. Hier „Countess Standard“ mit Schnellfiltern, Sockelregel und geordneter Behalten-Liste.
+
+![Pickit-Editor mit Profilbibliothek, Regelbau und Countess-Standardregeln](docs/screenshots/pickit.png)
 
 ## Architektur
 
@@ -36,47 +44,33 @@ Pathing, Loot und Town hängen am World Model, nicht an Rohbytes. Die UI redet n
 
 ## Wie es gebaut wurde
 
-Phasenpläne, fail-closed Gates, Feature-Docs und ein Changelog vor jedem Release. Live-Abnahme im Spiel, nicht nur grüne Tests. Die Agent-Regeln stehen in [`AGENTS.md`](AGENTS.md), die Phasen in [`docs/plans/`](docs/plans/).
+Phasenpläne, fail-closed Gates, Feature-Docs und ein Changelog vor jedem Release. Live-Abnahme im Spiel, nicht nur grüne Tests. Arbeitsregeln für den Agenten: [`AGENTS.md`](AGENTS.md). Phasenpläne: [`docs/plans/`](docs/plans/).
 
 Eine Momentaufnahme vom 31. Juli 2026 (damals v0.16, vier Runs, ohne Cows, Lower Kurast, Hammerdin und i18n) liegt in der [Repo-Effort-Evaluation](docs/reviews/repo-effort-evaluation-2026-07-31.md). Die Zahlen dort sind der Stand von da, kein aktuelles Scoreboard.
 
 ## Lizenz und Grenzen
 
-Siehe [`LICENSE`](LICENSE). Quelltext ansehen und daraus lernen: ja. Battle.net, Verkauf als Produkt, Blizzard-Affiliation: nein.
+[`LICENSE`](LICENSE): Quelltext ansehen und daraus lernen ja. Battle.net, Verkauf als Produkt, Blizzard-Affiliation nein.
 
 Diablo II: Resurrected ist eine Marke von Blizzard Entertainment, Inc. Dieses Projekt ist inoffiziell.
 
-## Installer
+## Installer und Entwicklung
 
-Windows 10/11 x64, unsignierter NSIS-Installer. SmartScreen kann warnen. Daten liegen unter `%LOCALAPPDATA%\D2ROfflineFarmingBot\`.
+Windows 10/11 x64, unsignierter NSIS-Installer. SmartScreen kann warnen. Daten: `%LOCALAPPDATA%\D2ROfflineFarmingBot\`.
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts/build-release.ps1 -Version 0.23.0
 ```
 
-Ergebnis: `dist/release/D2R-Offline-Farming-Bot-0.23.0-Setup.exe` plus SHA-256. Details: [`docs/INSTALLATION.md`](docs/INSTALLATION.md).
+Ergebnis: `dist/release/D2R-Offline-Farming-Bot-0.23.0-Setup.exe` plus SHA-256. Installer-Hinweise: [`docs/INSTALLATION.md`](docs/INSTALLATION.md).
 
-## Entwicklung
-
-Windows, Go 1.26+, Node/pnpm für die UI.
-
-```powershell
-Copy-Item configs\config.example.yaml configs\config.yaml
-go test ./...
-go run ./cmd/d2rbot --version
-```
-
-UI: `web/` (Vite, Electron, Vitest). Feature-Docs: [`docs/features/README.md`](docs/features/README.md). Changelog: [`docs/CHANGELOG.md`](docs/CHANGELOG.md). Interne Produktskizze: [`docs/plans/handoff.html`](docs/plans/handoff.html).
-
-CLI-Flags wie `--probe` und `--input-test` sind Diagnose, nicht der Produktstart. Dafür ist die installierte App da. `--input-test` sendet echte OS-Eingaben und braucht `input.enabled: true`.
-
-## Projektstruktur
+Lokal: Windows, Go 1.26+, Node/pnpm. `Copy-Item configs\config.example.yaml configs\config.yaml`, dann `go test ./...`. UI unter `web/`. Feature-Docs: [`docs/features/README.md`](docs/features/README.md). Changelog: [`docs/CHANGELOG.md`](docs/CHANGELOG.md).
 
 ```
-cmd/d2rbot/     Einstieg, Flags, Wiring
+cmd/d2rbot/     Einstieg
 internal/       process, memory, world, pathing, input, tasks, profile, town, loot, api
-web/            Electron-Desktop und React
-configs/        YAML-Beispiele, Pickit, Routen
+web/            Electron und React
+configs/        YAML, Pickit, Routen
 docs/           Features, Pläne, Changelog
 scripts/        Release-Build
 ```
