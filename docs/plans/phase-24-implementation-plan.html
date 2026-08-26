@@ -1,0 +1,1233 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark light">
+  <title>Phase 24 – Gestufte Run-Recovery und Startakt-Normalisierung</title>
+  <style>
+    :root {
+      --bg: #090b0d;
+      --bg-soft: #0f1317;
+      --panel: #151a1f;
+      --panel-2: #1b2229;
+      --text: #f2f4f5;
+      --muted: #b2bcc5;
+      --line: #35414b;
+      --gold: #d9a34f;
+      --blue: #8ec7e6;
+      --green: #72d7a2;
+      --yellow: #f1cf72;
+      --red: #f07d86;
+      --code: #090c0f;
+      --shadow: 0 20px 60px rgba(0, 0, 0, .34);
+    }
+
+    @media (prefers-color-scheme: light) {
+      :root {
+        --bg: #f4f1ea;
+        --bg-soft: #ebe6dc;
+        --panel: #fffefa;
+        --panel-2: #f2ede3;
+        --text: #1c2329;
+        --muted: #56636d;
+        --line: #d5cdbf;
+        --gold: #8b5d14;
+        --blue: #236989;
+        --green: #15774a;
+        --yellow: #8b6600;
+        --red: #ae3540;
+        --code: #f2eee6;
+        --shadow: 0 18px 50px rgba(60, 47, 26, .12);
+      }
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+
+    body {
+      margin: 0;
+      color: var(--text);
+      background:
+        radial-gradient(circle at 90% -5%, rgba(217, 163, 79, .22), transparent 30rem),
+        radial-gradient(circle at 5% 20%, rgba(71, 131, 161, .15), transparent 28rem),
+        var(--bg);
+      font: 16px/1.62 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    a { color: var(--blue); }
+    a:hover { text-decoration-thickness: 2px; }
+
+    code, pre { font-family: "Cascadia Code", Consolas, "Liberation Mono", monospace; }
+    code {
+      padding: .08rem .32rem;
+      color: var(--blue);
+      background: var(--code);
+      border: 1px solid var(--line);
+      border-radius: 5px;
+      font-size: .92em;
+    }
+
+    pre {
+      margin: 14px 0 0;
+      padding: 16px;
+      overflow: auto;
+      color: var(--text);
+      background: var(--code);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      line-height: 1.48;
+    }
+
+    main {
+      width: min(1240px, calc(100% - 32px));
+      margin: 0 auto;
+      padding: 34px 0 80px;
+    }
+
+    .hero {
+      position: relative;
+      padding: clamp(24px, 5vw, 48px);
+      overflow: hidden;
+      background: linear-gradient(135deg, rgba(49, 36, 18, .95), rgba(24, 31, 36, .96) 54%, rgba(14, 18, 21, .98));
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      box-shadow: var(--shadow);
+    }
+
+    .hero::after {
+      position: absolute;
+      right: -60px;
+      bottom: -110px;
+      width: 320px;
+      height: 320px;
+      content: "";
+      border: 1px solid rgba(217, 163, 79, .22);
+      border-radius: 50%;
+      box-shadow: 0 0 0 42px rgba(217, 163, 79, .04), 0 0 0 84px rgba(217, 163, 79, .025);
+      pointer-events: none;
+    }
+
+    .eyebrow {
+      margin: 0 0 8px;
+      color: var(--gold);
+      font-size: .82rem;
+      font-weight: 800;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+    }
+
+    h1, h2, h3, h4 { line-height: 1.2; }
+    h1 {
+      max-width: 1000px;
+      margin: 0;
+      font-size: clamp(2.1rem, 6vw, 4.1rem);
+      letter-spacing: -.045em;
+    }
+    h2 {
+      margin: 52px 0 0;
+      padding: 18px 0 10px;
+      border-bottom: 1px solid var(--line);
+      font-size: clamp(1.45rem, 3vw, 2rem);
+      letter-spacing: -.02em;
+    }
+    h3 { margin: 28px 0 0; font-size: 1.15rem; }
+    h4 { margin: 18px 0 0; font-size: 1rem; }
+    p { margin: 10px 0 0; }
+    ul, ol { margin: 12px 0 0; padding-left: 1.35rem; }
+    li + li { margin-top: 6px; }
+
+    .lead {
+      max-width: 980px;
+      margin-top: 18px;
+      color: var(--muted);
+      font-size: 1.13rem;
+    }
+
+    .chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 9px;
+      margin-top: 20px;
+    }
+
+    .chip {
+      padding: 5px 11px;
+      color: #ffe4b8;
+      background: rgba(78, 55, 22, .52);
+      border: 1px solid #755429;
+      border-radius: 999px;
+      font-size: .9rem;
+    }
+
+    .hero-meta {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+      margin-top: 28px;
+    }
+
+    .hero-meta div,
+    .card,
+    .callout,
+    .gate,
+    .decision {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+    }
+
+    .hero-meta div { padding: 14px; background: rgba(20, 25, 29, .76); }
+    .hero-meta strong { display: block; color: var(--gold); font-size: 1.05rem; }
+    .hero-meta span { display: block; margin-top: 2px; color: var(--muted); font-size: .86rem; }
+
+    .toc {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      display: flex;
+      gap: 6px;
+      margin-top: 18px;
+      padding: 10px;
+      overflow-x: auto;
+      background: color-mix(in srgb, var(--bg) 88%, transparent);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      backdrop-filter: blur(12px);
+    }
+
+    .toc a {
+      flex: 0 0 auto;
+      padding: 7px 10px;
+      color: var(--muted);
+      text-decoration: none;
+      border-radius: 8px;
+      font-size: .86rem;
+    }
+    .toc a:hover { color: var(--text); background: var(--panel-2); }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+      margin-top: 16px;
+    }
+    .grid.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .card { padding: 18px; }
+    .card h3, .card h4 { margin-top: 0; }
+    .card p { color: var(--muted); }
+    section { min-width: 0; scroll-margin-top: 72px; }
+
+    .callout {
+      margin-top: 18px;
+      padding: 18px;
+      border-left: 4px solid var(--blue);
+    }
+    .callout.warn { border-left-color: var(--yellow); }
+    .callout.danger { border-left-color: var(--red); }
+    .callout.success { border-left-color: var(--green); }
+    .callout h3 { margin: 0; }
+
+    .good { color: var(--green); }
+    .warn-text { color: var(--yellow); }
+    .bad { color: var(--red); }
+    .muted { color: var(--muted); }
+
+    .table-wrap {
+      width: 100%;
+      max-width: 100%;
+      margin-top: 16px;
+      overflow-x: auto;
+      border: 1px solid var(--line);
+      border-radius: 13px;
+    }
+
+    table {
+      width: 100%;
+      min-width: 760px;
+      border-collapse: collapse;
+      background: var(--panel);
+    }
+
+    th, td {
+      padding: 11px 13px;
+      text-align: left;
+      vertical-align: top;
+      border-bottom: 1px solid var(--line);
+    }
+    th {
+      color: var(--text);
+      background: var(--panel-2);
+      font-size: .83rem;
+      letter-spacing: .04em;
+      text-transform: uppercase;
+    }
+    tr:last-child td { border-bottom: 0; }
+
+    .flow {
+      display: grid;
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+      gap: 10px;
+      margin-top: 18px;
+      align-items: stretch;
+    }
+    .flow.five { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+    .flow .node {
+      position: relative;
+      min-height: 108px;
+      padding: 14px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+    }
+    .flow .node:not(:last-child)::after {
+      position: absolute;
+      top: 50%;
+      right: -10px;
+      z-index: 2;
+      content: "→";
+      color: var(--gold);
+      font-weight: 900;
+      transform: translate(50%, -50%);
+    }
+    .node strong { display: block; }
+    .node small { display: block; margin-top: 6px; color: var(--muted); }
+
+    .decision-list { display: grid; gap: 10px; margin-top: 16px; }
+    .decision {
+      display: grid;
+      grid-template-columns: 220px 1fr;
+      gap: 14px;
+      padding: 15px;
+    }
+    .decision strong { color: var(--gold); }
+
+    .phase-list { display: grid; gap: 12px; margin-top: 16px; }
+    .gate {
+      display: grid;
+      grid-template-columns: 98px 1fr;
+      gap: 16px;
+      padding: 18px;
+    }
+    .gate-id {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 8px;
+      color: var(--gold);
+      font-size: 1.15rem;
+      font-weight: 850;
+    }
+    .gate h3 { margin: 0; }
+    .gate p { color: var(--muted); }
+    .gate.auto-gate { border-left: 4px solid var(--green); }
+    .gate.manual-gate { border-left: 4px solid var(--yellow); }
+    .gate-mode {
+      display: inline-flex;
+      max-width: 100%;
+      padding: 4px 8px;
+      border: 1px solid currentColor;
+      border-radius: 999px;
+      font-size: .67rem;
+      font-weight: 800;
+      line-height: 1.25;
+      letter-spacing: .035em;
+      text-transform: uppercase;
+    }
+    .gate-mode.auto { color: var(--green); background: color-mix(in srgb, var(--green) 10%, transparent); }
+    .gate-mode.manual { color: var(--yellow); background: color-mix(in srgb, var(--yellow) 10%, transparent); }
+    .gate-legend { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; margin: 14px 0 4px; }
+    .gate-legend > span { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); }
+    .gate-proof { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--line); }
+    .gate-files { margin-top: 12px; color: var(--muted); font-size: .93rem; }
+
+    .sequence {
+      margin-top: 18px;
+      padding: 0;
+      list-style: none;
+      counter-reset: sequence;
+    }
+    .sequence li {
+      position: relative;
+      margin: 0 0 10px 30px;
+      padding: 13px 15px 13px 20px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 11px;
+      counter-increment: sequence;
+    }
+    .sequence li::before {
+      position: absolute;
+      top: 50%;
+      left: -30px;
+      display: grid;
+      width: 38px;
+      height: 38px;
+      content: counter(sequence);
+      place-items: center;
+      color: #17120a;
+      background: var(--gold);
+      border-radius: 50%;
+      font-weight: 900;
+      transform: translateY(-50%);
+    }
+
+    .checks { padding-left: 0; list-style: none; }
+    .checks li { position: relative; padding-left: 26px; }
+    .checks li::before { position: absolute; left: 0; content: "✓"; color: var(--green); font-weight: 900; }
+    .stop { color: var(--red); font-weight: 800; }
+    .owner { color: var(--blue); font-weight: 750; }
+
+    footer {
+      margin-top: 54px;
+      padding-top: 20px;
+      color: var(--muted);
+      text-align: center;
+      border-top: 1px solid var(--line);
+    }
+
+    @media (max-width: 1100px) {
+      .flow { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+      .flow .node:not(:last-child)::after { display: none; }
+    }
+    @media (max-width: 900px) {
+      .hero-meta, .grid, .grid.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+    @media (max-width: 620px) {
+      main { width: min(100% - 20px, 1240px); padding-top: 10px; }
+      .hero { border-radius: 14px; }
+      .hero-meta, .grid, .grid.two, .flow { grid-template-columns: 1fr; }
+      .gate, .decision { grid-template-columns: 1fr; }
+      .toc { top: 4px; }
+      th, td { padding: 9px 10px; }
+    }
+    @media print {
+      body { background: #fff; }
+      main { width: 100%; padding: 0; }
+      .hero, .card, .callout, .gate, .decision, table, .node { box-shadow: none; break-inside: avoid; }
+      .toc { display: none; }
+      a { color: inherit; }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <header class="hero" id="top">
+    <p class="eyebrow">Implementierungsplan · Phase 24</p>
+    <h1>Gestufte Run-Recovery und Startakt-Normalisierung</h1>
+    <p class="lead">
+      Phase 24 macht retryfähige Fehler in Runs ohne Travel-Combat überlebbarer und tatsächlich retryfähig.
+      Eine blockierte Rückkehr erhält genau ein kurzes, profilgebundenes Kampf-Intermezzo und genau einen
+      weiteren Portalversuch. Scheitert die kontrollierte Rückkehr danach weiterhin, beendet der Supervisor
+      das aktuelle Spiel Memory-bestätigt direkt. Ein Folgespiel, das deshalb in Akt 2 bis 5 startet, wird
+      über eine eigene Spawn-zum-Wegpunkt-Systemroute nach Akt 1 normalisiert. Erst wenn diese begrenzte
+      Recovery-Kette scheitert oder ein Budget endet, darf die Farming-Session hart abbrechen.
+    </p>
+    <div class="chips" aria-label="Schwerpunkte">
+      <span class="chip">Countess</span>
+      <span class="chip">Mephisto</span>
+      <span class="chip">Nihlathak</span>
+      <span class="chip">Lokaler Profilkampf</span>
+      <span class="chip">Direkter Save &amp; Exit</span>
+      <span class="chip">Spawn-Egress Akt 2–5</span>
+      <span class="chip">Retry desselben Queue-Index</span>
+    </div>
+    <div class="hero-meta">
+      <div><strong>Stand</strong><span>27. August 2026</span></div>
+      <div><strong>Status</strong><span>Geplant · Implementierung nicht begonnen</span></div>
+      <div><strong>Vorgänger</strong><span><a href="phase-23-implementation-plan.html">Phase 23</a></span></div>
+      <div><strong>Grundlage</strong><span><a href="../research/dynamic-emergency-local-clear.md">Recovery-Recherche</a></span></div>
+    </div>
+  </header>
+
+  <nav class="toc" aria-label="Inhaltsübersicht">
+    <a href="#entscheidung">Entscheidung</a>
+    <a href="#scope">Scope</a>
+    <a href="#ist">Ist-Zustand</a>
+    <a href="#ablauf">Recovery</a>
+    <a href="#module">Module</a>
+    <a href="#combat">Local Clear</a>
+    <a href="#exit">Exit-Vertrag</a>
+    <a href="#spawn">Spawn-Egress</a>
+    <a href="#telemetrie">Telemetrie</a>
+    <a href="#agenten">Agentenregeln</a>
+    <a href="#gates">Gates</a>
+    <a href="#abnahme">Abnahme</a>
+  </nav>
+
+  <section id="entscheidung">
+    <h2>1. Executive Decision</h2>
+    <div class="callout success">
+      <h3>Die Recovery ist eine kurze Leiter, keine zweite Run-Pipeline</h3>
+      <p>
+        Der produktive Run endet mit seinem ursprünglichen Fehler. Danach besitzt ausschließlich die
+        Recovery-Pipeline die Eingabehoheit. Sie versucht den vorhandenen kontrollierten Rückweg. Bei einer
+        blockierten Portalinteraktion darf sie einmal lokal kämpfen und dasselbe Portal einmal erneut versuchen.
+        Sie setzt den produktiven Weg nicht fort. Jeder weitere Rückkehrfehler fordert einen direkten,
+        Memory-bestätigten Save &amp; Exit an. Nach erfolgreichem Exit wird derselbe Queue-Index innerhalb der
+        vorhandenen Fehler- und Restart-Budgets neu begonnen.
+      </p>
+    </div>
+
+    <div class="decision-list">
+      <div class="decision"><strong>Produktiver Run</strong><span>Nach Eintritt in Recovery terminal. Kein Boss-Retry, keine erneute Route, kein Loot- oder Stash-Nachlauf im selben Spiel.</span></div>
+      <div class="decision"><strong>Oh-shit-Verhalten</strong><span>Interner Name <code>local_recovery_clear</code>. Kein globaler Combat-Schalter. Die Task ruft vorübergehend den Standardangriff des eingefrorenen Profil-/Run-Paars auf.</span></div>
+      <div class="decision"><strong>Trigger</strong><span>Nur in der isolierten <code>retry-return</code>-Pipeline und nur beim ersten fehlgeschlagenen Portalbeitritt. Kein proaktiver Kampf auf der Farming-Route.</span></div>
+      <div class="decision"><strong>Ende des Clears</strong><span><code>cleared</code> oder <code>exhausted</code> führt nach fehlergeprüftem <code>StopAttack</code> zum einmaligen Portal-Retry. Verbleibende Monster entscheiden nicht über den Sessionabbruch.</span></div>
+      <div class="decision"><strong>Sicherheitsausnahme</strong><span><code>failed</code>, fehlende kritische Tränke, inkonsistenter World-State oder fehlende Profilfähigkeit überspringen weiteren Kampf und fordern direktes Save &amp; Exit an.</span></div>
+      <div class="decision"><strong>Direkter Exit</strong><span>Gleicher Menü- und Memory-Confirm wie der bestehende Exit, aber aus einer stabilen aktuellen In-Game-Area. Kein Blindklick und kein Exit während Loading.</span></div>
+      <div class="decision"><strong>Neues Spiel</strong><span>Rogue Encampment bleibt der einzige Start für normale Run-Vorbereitung. Ein frisch gestartetes Spiel in Akt 2–5 wird zuerst über <code>spawn-waypoint.yaml</code> nach Akt 1 gebracht.</span></div>
+      <div class="decision"><strong>Harter Sessionfehler</strong><span>Nur bei unbestätigtem direktem Exit, fehlgeschlagener Startakt-Normalisierung, erschöpftem Budget oder echten Prozess-, Telemetrie- und Invariantenfehlern.</span></div>
+    </div>
+  </section>
+
+  <section id="scope">
+    <h2>2. Scope und Nicht-Ziele</h2>
+    <div class="grid two">
+      <div class="card">
+        <h3>Phase 24 umfasst</h3>
+        <ul>
+          <li>Capability-gesteuerte Recovery für Countess, Mephisto und Nihlathak mit beiden vorhandenen Kampfprofilen.</li>
+          <li>Ein gemeinsames lokales Clear-Modul mit unterscheidbaren Ergebnissen <code>cleared</code>, <code>exhausted</code> und <code>failed</code>.</li>
+          <li>Genau einen Recovery-Clear und einen Portal-Retry pro kontrolliertem Rückweg.</li>
+          <li>Einen expliziten Exit-Vertrag zwischen Run-Owner und Supervisor statt widersprüchlicher Bool-Kombinationen.</li>
+          <li>Direkten Save &amp; Exit aus der aktuellen stabilen In-Game-Area.</li>
+          <li>Systemrouten <code>spawn-waypoint.yaml</code> für Akt 2, 3, 4 und 5.</li>
+          <li>Startakt-Normalisierung für frisch vom Bot gestartete Spiele.</li>
+          <li>Telemetry, Operatorstatus, fokussierte Tests, Live-Gates und Feature-Dokumentation.</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>Nicht Teil von Phase 24</h3>
+        <ul>
+          <li>Adaptive Immunitätserkennung, Monster-HP, Schadensmessung oder eine neue universelle Combat-AI.</li>
+          <li>Wiederaufnahme der produktiven Route nach dem Notfall-Clear.</li>
+          <li>Unbegrenzte Clear-, Portal-, Exit- oder Startnormalisierungs-Retries.</li>
+          <li>Automatische Adoption eines beliebigen bereits offenen Spiels in einer fremden Stadt.</li>
+          <li>Neue Farm-Runs, neue Profile oder automatische Freigabe zukünftiger Profile ohne explizite Capability.</li>
+          <li>Schreiben in D2R-Installation oder Savegames.</li>
+          <li>Release, Commit, Gesamtsuite oder Installer-Build ohne gesonderten Auftrag.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="callout warn">
+      <h3>Keine Überlebensgarantie</h3>
+      <p>
+        Phase 24 verkürzt die Zeit in einem gescheiterten Rückweg und beseitigt einen unnötigen Sessionabbruch.
+        Sie kann einen bereits toten Charakter nicht retten und erkennt physische Immunität mit dem heutigen
+        World Model nicht. Bone Spear und Blessed Hammer verursachen im aktuellen Profilbestand Magieschaden;
+        daraus entsteht keine allgemeine Immunitätslogik.
+      </p>
+    </div>
+  </section>
+
+  <section id="ist">
+    <h2>3. Technischer Ist-Zustand und belegte Lücken</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Bereich</th><th>Heute</th><th>Phase-24-Lücke</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><code>localThreatClear</code></td>
+            <td>12 Tiles, 12 Aktionen, 6 Sekunden, 3 Sekunden ohne Aktion, 3 freie Snapshots.</td>
+            <td>Budgetende wird als erledigt behandelt, selbst wenn Gegner bleiben. Ergebnis und Coverage müssen ehrlich werden.</td>
+          </tr>
+          <tr>
+            <td>Portal vor Klick</td>
+            <td><code>hover_not_found</code> führt zu einem Teleport zum Portal und einem zweiten Hover-Versuch.</td>
+            <td>Kein lokaler Combat-Fallback; Blocker-Evidenz wird nur geloggt, nicht zurückgegeben.</td>
+          </tr>
+          <tr>
+            <td>Portal nach Klick</td>
+            <td>Bei ausbleibender Town-Ankunft existiert bereits Clear, StopAttack, Teleport und Retry.</td>
+            <td>Die Profilmatrix stellt den benötigten Clear bei Countess und Mephisto nicht bereit.</td>
+          </tr>
+          <tr>
+            <td>Profile</td>
+            <td>Lower Kurast zeigt lokalen Clear ohne Travel-Combat. Necro-Nihlathak besitzt Post-Boss-Clear.</td>
+            <td>Capability und Strategie sind nicht für alle sechs Zielkombinationen vollständig.</td>
+          </tr>
+          <tr>
+            <td>Controlled retry</td>
+            <td>Erfolg liefert <code>RetryCurrent + SafeToExit</code>. Fehler liefert terminal <code>retry_return_failed</code>.</td>
+            <td>Ein erfolgreicher direkter Exit kann kein Retry-Ergebnis ausdrücken.</td>
+          </tr>
+          <tr>
+            <td>Save &amp; Exit</td>
+            <td>Der Automat verlangt Rogue Encampment, 1280×720 und bestätigt Quit-Menü sowie Offline-Menü.</td>
+            <td>Kein Memory-gated Modus für eine stabile aktuelle In-Game-Area.</td>
+          </tr>
+          <tr>
+            <td>Spielstart</td>
+            <td><code>verifyActiveQueueGame</code> verlangt sofort Rogue Encampment.</td>
+            <td>Ein legitimer frischer Start in Akt 2–5 beendet die Session, bevor Recovery greifen kann.</td>
+          </tr>
+          <tr>
+            <td>System-Egress</td>
+            <td><code>portal-waypoint.yaml</code>, ausschließlich <code>portal_arrival → waypoint</code>.</td>
+            <td>Spawn und Portalankunft brauchen getrennte Startverträge, aber denselben Walker.</td>
+          </tr>
+          <tr>
+            <td>Layout-Fingerprint</td>
+            <td>Benötigt mindestens einen sichtbaren stabilen Anker. Act 2 ist heute nur an Stash 267 gebunden.</td>
+            <td>Am New-Game-Spawn kann noch kein Anker sichtbar sein. Startbeweis und Layoutbeweis müssen zeitlich getrennt werden.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="ablauf">
+    <h2>4. Verbindlicher Recovery-Ablauf</h2>
+    <div class="flow">
+      <div class="node"><strong>Runfehler</strong><small>Ursprünglicher Reason bleibt erhalten. Produktiver Run ist terminal.</small></div>
+      <div class="node"><strong>Kontrollierter Rückweg</strong><small>TP casten, Portal betreten, Herkunftsstadt bestätigen.</small></div>
+      <div class="node"><strong>Lokaler Clear</strong><small>Nur bei erstem Portalbeitrittsfehler, streng begrenzt.</small></div>
+      <div class="node"><strong>Portal-Retry</strong><small>Angriff stoppen, dasselbe Portal genau einmal erneut versuchen.</small></div>
+      <div class="node"><strong>Direkter Exit</strong><small>Bei weiterem Rückkehrfehler im aktuellen stabilen Gebiet.</small></div>
+      <div class="node"><strong>Retry</strong><small>Dasselbe Queue-Element, vorhandene Budgets, Startakt vorher normalisieren.</small></div>
+    </div>
+
+    <h3>Entscheidungstabelle</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Beobachtung</th><th>Nächste Aktion</th><th>Verboten</th></tr></thead>
+        <tbody>
+          <tr>
+            <td>Kontrollierter Rückweg erreicht Rogue Encampment.</td>
+            <td>Verifizierter Town-Exit, dann <code>RetryCurrent</code>.</td>
+            <td>Lokaler Clear oder produktive Route erneut spielen.</td>
+          </tr>
+          <tr>
+            <td>Erster Portalbeitritt scheitert, Recovery-Capability und Ressourcen sind verfügbar.</td>
+            <td>Lokalen Clear ausführen; nach <code>cleared</code> oder <code>exhausted</code> Angriff stoppen und Portal einmal erneut versuchen.</td>
+            <td>Auf vollständige Monsterfreiheit unbegrenzt warten.</td>
+          </tr>
+          <tr>
+            <td>Portalbeitritt scheitert ohne Capability, mit fehlender kritischer Ressource oder Combat-Fehler.</td>
+            <td>Combat sicher stoppen und direkten Exit anfordern.</td>
+            <td>Unbekannten Skill casten oder ohne Tränke weiterkämpfen.</td>
+          </tr>
+          <tr>
+            <td>Portal-Retry, Town-Egress, Waypoint oder Act-1-Bestätigung scheitert.</td>
+            <td>Direkten Exit im aktuellen Gebiet anfordern.</td>
+            <td>Zweiten Clear, neues Portal oder neue Egress-Schleife starten.</td>
+          </tr>
+          <tr>
+            <td>Direkter Exit wird im Offline-Menü bestätigt.</td>
+            <td>Budget verbuchen und denselben Queue-Index neu starten.</td>
+            <td>Noch einmal Exit senden.</td>
+          </tr>
+          <tr>
+            <td>Direkter Exit kann nicht sicher ausgeführt oder bestätigt werden.</td>
+            <td>Session hart mit korreliertem Original- und Recovery-Grund stoppen.</td>
+            <td>Blindklick oder automatischer Neustart.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="callout danger">
+      <h3>Einmaligkeits-Invariante</h3>
+      <p>
+        Pro produktivem Runfehler gibt es höchstens einen lokalen Recovery-Clear, einen Portal-Retry und einen
+        direkten Exit. Kein Zustand darf sich selbst oder die gesamte Recovery-Pipeline rekursiv starten.
+      </p>
+    </div>
+  </section>
+
+  <section id="module">
+    <h2>5. Modulgrenzen und Ownership</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Modul</th><th>Besitzt</th><th>Besitzt ausdrücklich nicht</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><code>internal/pathing</code></td>
+            <td>Portal-Klickergebnis mit gepinnter Portal-UnitID und optionaler gehoverter Blocker-UnitID; Systemrouten-Walker.</td>
+            <td>Combat-Entscheidung, Queue-Budget oder Save &amp; Exit.</td>
+          </tr>
+          <tr>
+            <td><code>internal/tasks</code></td>
+            <td>Recovery-State-Machine, Clear-Budget, kritische Ressourcenprüfung, Rückkehrpunkt und genau einen Portal-Retry.</td>
+            <td>Spielstart, Offline-Menü oder Session-Restart.</td>
+          </tr>
+          <tr>
+            <td><code>internal/profile</code></td>
+            <td>Standardangriff und optionalen Opener des aktiven Profil-/Run-Paars; fehlergeprüftes <code>StopAttack</code>.</td>
+            <td>Portal, Route, Waypoint, Exit und Retry-Entscheidung.</td>
+          </tr>
+          <tr>
+            <td><code>internal/town</code></td>
+            <td>Strikten Systemrouten-Vertrag mit Startanker <code>portal_arrival</code> oder <code>spawn</code>.</td>
+            <td>Prozesszustand, Game-Generation und Input-Freigabe.</td>
+          </tr>
+          <tr>
+            <td><code>internal/app</code></td>
+            <td>Profilverdrahtung, Exit-Autorisierung, Supervisor-Übergang, Fresh-Game-Provenienz und Startakt-Normalisierung.</td>
+            <td>Eigene Combat-AI oder doppelte Town-Walker.</td>
+          </tr>
+          <tr>
+            <td><code>internal/telemetry</code></td>
+            <td>Korrelierte Beobachtung von Originalfehler, Recovery-Stufen, Exit, Spielstart und Ergebnis.</td>
+            <td>Steuerung der Recovery.</td>
+          </tr>
+          <tr>
+            <td><code>internal/api</code> / <code>web</code></td>
+            <td>Kurze deutsche Operatorzustände und vorhandene Reason-Projektion.</td>
+            <td>Eigene Recovery-Entscheidungen oder zusätzliche Retry-Schalter.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="callout">
+      <h3>Ein gemeinsamer tiefer Systemrouten-Adapter</h3>
+      <p>
+        <code>portal-waypoint.yaml</code> und <code>spawn-waypoint.yaml</code> unterscheiden nur Startbeweis und
+        Dateiauswahl. Contract-Validierung, Layout-Match, Walk-Playback, Drift, Timeout und Waypoint-Ankunft
+        bleiben in einem gemeinsamen Modul. Keine zweite Spawn-Navigation kopieren.
+      </p>
+    </div>
+  </section>
+
+  <section id="combat">
+    <h2>6. Vertrag des lokalen Recovery-Clears</h2>
+    <h3>Capability statt Travel-Combat</h3>
+    <p>
+      Die Run-Registry erhält eine explizite Capability für lokalen Recovery-Combat. Sie ist unabhängig von
+      <code>RunCapabilityRouteClear</code> und verändert <code>RequiresRouteClear()</code> nicht. Phase 24 aktiviert
+      sie für Countess, Mephisto und Nihlathak. Jedes vorhandene Profil registriert für diese Runs eine
+      passende Strategie. Ein zukünftiges Profil oder ein neuer Run ist ohne ausdrückliche Strategie nicht freigegeben.
+    </p>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Profil</th><th>Countess</th><th>Mephisto</th><th>Nihlathak</th></tr></thead>
+        <tbody>
+          <tr><td>Bone-Spear-Necro</td><td>Amplify Damage einmal, dann Bone Spear</td><td>Amplify Damage einmal, dann Bone Spear</td><td>Bestehenden Nihlathak-Clear wiederverwenden</td></tr>
+          <tr><td>Hammerdin</td><td>Blessed Hammer</td><td>Blessed Hammer</td><td>Blessed Hammer</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>State-Machine</h3>
+    <pre>idle
+  -> resource_gate
+  -> observe_or_attack
+       |-- 3 frische, radiusvollständige Snapshots ohne Gegner -> cleared
+       |-- Aktions-/Zeit-/No-Progress-Budget erreicht          -> exhausted
+       |-- Resource-, Input-, Profil- oder State-Fehler        -> failed
+  -> stop_attack
+  -> reset_profile_clear
+  -> portal_retry | direct_exit_required</pre>
+
+    <ul>
+      <li>Die vorhandenen Grenzen von 12 Tiles, 12 Aktionen, 6 Sekunden und 3 Sekunden ohne Aktion bleiben zunächst unverändert.</li>
+      <li><code>cleared</code> verlangt drei frische Snapshots, deren <code>MonsterCoverage</code> den gesamten 12-Tile-Radius abdeckt.</li>
+      <li><code>exhausted</code> ist kein Erfolg und wird so telemetriert. Für diesen Recovery-Pfad erlaubt es trotzdem den genau einmaligen Portal-Retry.</li>
+      <li>Vor jedem Combat-Tick läuft <code>TickResources</code> mit <code>FailOnUnavailable=true</code>.</li>
+      <li><code>StopAttack</code> wird vor Portal-Retry oder direktem Exit fehlergeprüft. <code>ResetRouteClear</code> ersetzt diesen Nachweis nicht.</li>
+      <li>Ein fehlender Monsterblocker verhindert die Recovery nicht. Ohne lebendes Ziel sendet das Modul keinen Angriff und erreicht nach vollständigen freien Snapshots <code>cleared</code>.</li>
+      <li>Der letzte Hover-Blocker wird als Diagnose weitergereicht, aber nicht zur alleinigen Angriffsfreigabe. Angegriffen wird nur eine aktuell lebende, Memory-bestätigte Unit im Radius.</li>
+    </ul>
+  </section>
+
+  <section id="exit">
+    <h2>7. Expliziter Exit- und Retry-Vertrag</h2>
+    <p>
+      <code>SafeToExit</code> und <code>ExitRequired</code> werden durch genau einen typisierten Exit-Vertrag
+      ersetzt. Der Name darf in der Implementierung abweichen; die Semantik nicht. Ungültige Kombinationen
+      müssen bereits beim Ergebnisbau und zusätzlich am Supervisor fail-closed abgewiesen werden.
+    </p>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Exit-Autorisierung</th><th>Bedeutung</th><th>Zulässige Dispositionen</th></tr></thead>
+        <tbody>
+          <tr><td><code>none</code></td><td>Kein weiterer automatischer Input ist sicher autorisiert.</td><td><code>Stop</code></td></tr>
+          <tr><td><code>verified_rogue_town</code></td><td>Rogue Encampment und Identity sind bestätigt; bestehender Town-Exit darf laufen.</td><td><code>Advance</code>, <code>RetryCurrent</code>, <code>Stop</code></td></tr>
+          <tr><td><code>memory_gated_current_area</code></td><td>Direkter Exit ist nötig; der Exit-Automat muss aktuelle Area, Identity und Game-Generation selbst stabil bestätigen.</td><td><code>RetryCurrent</code>, <code>Stop</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Direkter Exit-Modus</h3>
+    <ol class="sequence">
+      <li>Offene Task-Schritte und Navigation abbrechen; keine neue Run-Aktion mehr zulassen.</li>
+      <li><code>StopAttack</code> fehlergeprüft ausführen und Profil-/Route-Zustand zurücksetzen.</li>
+      <li>Drei frische Snapshots mit derselben Character Identity, derselben Game-Generation, <code>in_game</code>, validem World-State und ohne Loading verlangen. Die Area muss nicht Rogue Encampment sein.</li>
+      <li>Wenn das Quit-Menü geschlossen ist, D2R fokussieren und Escape mit dem bestehenden maximalen Zweiversuchs-Budget senden. Ist es bereits offen, kein Escape senden.</li>
+      <li>Quit-Menü drei Snapshots stabil bestätigen, erst dann die vorhandene Save-&amp;-Exit-Schaltfläche bei validierter 1280×720-Clientfläche klicken.</li>
+      <li>Offline-Menü drei Snapshots stabil bestätigen. Erst dieser Nachweis erlaubt Retry oder terminalen Abschluss.</li>
+    </ol>
+
+    <div class="callout danger">
+      <h3>Fail-closed</h3>
+      <p>
+        Loading, wechselnde Identity oder Game-Generation, verlorene Fensterbindung, unbekannte Clientgröße,
+        unbestätigtes Quit-Menü oder ausbleibende Menüankunft beenden den Exit-Versuch ohne weiteren Klick.
+        Ein fehlgeschlagener direkter Exit startet kein neues Spiel.
+      </p>
+    </div>
+  </section>
+
+  <section id="spawn">
+    <h2>8. Startakt-Normalisierung und Spawn-Egress</h2>
+    <div class="flow five">
+      <div class="node"><strong>Fresh Game</strong><small>Vom Supervisor gestartete Generation, Identity stabil.</small></div>
+      <div class="node"><strong>Town erkennen</strong><small>Akt 1: normal weiter. Akt 2–5: Spawn-Recovery.</small></div>
+      <div class="node"><strong>Spawn-Walk</strong><small><code>spawn-waypoint.yaml</code>, nur Force Move.</small></div>
+      <div class="node"><strong>Waypoint</strong><small>Öffnen, Rogue Encampment wählen, Act 1 bestätigen.</small></div>
+      <div class="node"><strong>Normaler Start</strong><small>Offline-Players, Readiness und Run-Preflight wie bisher.</small></div>
+    </div>
+
+    <h3>Zwei getrennte Startanker</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Datei</th><th>From → To</th><th>Startbeweis</th><th>Layoutbeweis</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><code>portal-waypoint.yaml</code></td>
+            <td><code>portal_arrival → waypoint</code></td>
+            <td>Sichtbares Memory-Portal und Nähe zur aufgezeichneten Startposition.</td>
+            <td>Vor erstem Input, wie heute.</td>
+          </tr>
+          <tr>
+            <td><code>spawn-waypoint.yaml</code></td>
+            <td><code>spawn → waypoint</code></td>
+            <td>Bot-eigene Fresh-Game-Generation, 3 stabile Identity-/Area-Snapshots und Nähe zum ersten Routenpunkt.</td>
+            <td>Sofort, falls ein stabiler Anker sichtbar ist; sonst einmalig verzögert entlang der Route, zwingend vor Waypoint-Klick.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Die Stash-Abhängigkeit wird nicht vorausgesetzt</h3>
+    <p>
+      Der Recorder übernimmt das bereits im Act-1-Town-Recording verwendete Beobachtungsmuster: valide
+      Bewegungsproben dürfen gepuffert werden, solange <code>BuildLayoutFingerprint</code> noch
+      <code>ErrLayoutAnchorsUnavailable</code> liefert. Der erste später sichtbare stabile Anker pinnt den
+      Layout-Fingerprint. Zulässig bleiben Waypoint, Good Chest, Personal Stash, Permanent Portal oder Entrance.
+      Der Spawnvertrag verlangt niemals speziell den Stash.
+    </p>
+
+    <div class="callout warn">
+      <h3>Verzögerter Layoutbeweis ist begrenzt</h3>
+      <p>
+        Vor Implementierung eines Zahlenwerts misst Gate 24.7 pro Akt den ersten stabil sichtbaren Anker.
+        Das Produkt verwendet anschließend den kleinsten gemeinsamen, durch alle vier Captures belegten
+        Punkt- oder Zeitrahmen. Bis dahin steht kein geratenes Distanzlimit im Shipping-Code. Fehlt der
+        Layoutbeweis innerhalb dieses Rahmens oder stimmt er nicht, stoppt der Walker vor dem Waypoint-Klick.
+      </p>
+    </div>
+
+    <h3>Startkontext</h3>
+    <ul>
+      <li>Normalisiert werden nur Spiele, die der aktuelle Supervisor unmittelbar selbst gestartet hat.</li>
+      <li><code>CanAdoptQueueGame</code> bleibt für beliebige fremde Towns geschlossen. Ein bereits offenes Act-2–5-Spiel wird nicht allein wegen seiner Area übernommen.</li>
+      <li>Unterstützte Startareas sind exakt Lut Gholein, Kurast Docks, The Pandemonium Fortress und Harrogath.</li>
+      <li>Eine Nicht-Town-Area, unbekannte Area, fehlende Route, falsche Startposition oder falsches Layout stoppt vor weiterem Input.</li>
+      <li>Nach bestätigtem Rogue Encampment läuft derselbe Startpfad weiter wie heute. Keine zweite Run-Vorbereitung.</li>
+    </ul>
+  </section>
+
+  <section id="telemetrie">
+    <h2>9. Telemetrie und Operatorzustände</h2>
+    <h3>Korrelation</h3>
+    <p>
+      Jeder Recovery-Datensatz trägt Session, Game, Run, Queue-Index, ursprünglichen Run-Reason,
+      Recovery-Reason, Exit-Autorisierung und Retryzähler. Der ursprüngliche Fehler wird nie durch
+      <code>retry_return_failed</code> oder einen generischen Exitfehler überschrieben.
+    </p>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Ereignis / Zustand</th><th>Pflichtfelder</th><th>Operator-Text</th></tr></thead>
+        <tbody>
+          <tr><td><code>local_recovery_clear_started</code></td><td>Anker, Portal-UnitID, optional Blocker-UnitID, Radius, Budgets</td><td>„Rückkehr blockiert. Die unmittelbare Umgebung wird geräumt.“</td></tr>
+          <tr><td><code>local_recovery_clear_finished</code></td><td><code>cleared|exhausted|failed</code>, Aktionen, Dauer, verbleibende Gegner, Coverage</td><td>Kein eigener Toast; Diagnose und History.</td></tr>
+          <tr><td><code>return_portal_retry</code></td><td>Versuch exakt 1, Portal-UnitID, Ergebnis</td><td>„Stadtportal wird erneut versucht.“</td></tr>
+          <tr><td><code>direct_exit_started</code></td><td>Area, Original- und Recovery-Reason</td><td>„Sicherer Rückweg fehlgeschlagen. Das Spiel wird direkt beendet.“</td></tr>
+          <tr><td><code>direct_exit_completed|failed</code></td><td>Menübestätigung, Dauer, Exit-Reason</td><td>Bei Fehler: „Das Spiel konnte nicht sicher beendet werden. Die Session wurde gestoppt.“</td></tr>
+          <tr><td><code>start_town_normalization_started</code></td><td>Akt, Area, Routenfile, Startposition</td><td>„Spiel startete in Akt X. Rückkehr nach Akt 1 läuft.“</td></tr>
+          <tr><td><code>start_town_normalization_completed|failed</code></td><td>Layoutnachweis, Waypoint, Zielarea, Dauer</td><td>Bei Fehler: „Die Rückkehr nach Akt 1 ist fehlgeschlagen.“</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p>
+      Ein erfolgreicher direkter Exit beendet den fehlgeschlagenen Run als <code>run_aborted</code>, schreibt
+      genau ein <code>game_exited</code> und führt danach zu <code>RetryCurrent</code>. Ein fehlgeschlagener
+      direkter Exit oder eine fehlgeschlagene Startnormalisierung endet als <code>run_failed</code> beziehungsweise
+      Sessionfehler. Dashboard, API, JSONL und History verwenden dieselben stabilen Reasons.
+    </p>
+  </section>
+
+  <section id="agenten">
+    <h2>10. Verbindliche Arbeitsregeln für Implementierungsagenten</h2>
+    <ol class="sequence">
+      <li><strong>Vor jedem Gate:</strong> <code>git status --short</code> prüfen. Vorhandene fremde Änderungen nicht anfassen. Nur die im Gate genannten Module und unmittelbar erforderliche Tests oder Docs ändern.</li>
+      <li><strong>Gate-Reihenfolge:</strong> Kein Gate überspringen. Automatische Gates dürfen nach grünem Nachweis direkt fortgesetzt werden. Bei einem roten Test oder einer unerwarteten Architekturabweichung stoppen und den Befund dokumentieren.</li>
+      <li><strong>Manuelles STOP-Gate:</strong> Keine Live-Annahme erfinden. Artefaktpfade, Session-/Run-IDs, Area, Game-Version und beobachtete Koordinaten im Plan ergänzen und auf ausdrückliche Abnahme warten.</li>
+      <li><strong>Tests zuerst:</strong> Den geforderten Übergang zunächst mit der kleinsten Fixture rot belegen. Danach minimal implementieren. Keine Gesamtsuite als Ersatz für fehlende gezielte Zustandsübergangstests.</li>
+      <li><strong>Eine State-Machine pro Verantwortung:</strong> Recovery in <code>tasks</code>, Exit und Start-Lifecycle in <code>app</code>, Routenvertrag in <code>town</code>. Keine Cross-Package-Switches auf Run-ID, außer der bestehenden Registry-Zuordnung.</li>
+      <li><strong>Input-Regel:</strong> Jede Input-Aktion mit Grund und Ergebnis loggen. Keine Portal-, Waypoint- oder Save-&amp;-Exit-Klicks ohne unmittelbar vorher bestätigten Memory-/UI-Kontext.</li>
+      <li><strong>Dokumentation:</strong> Neue oder geänderte exportierte Go-Symbole sofort mit Godoc versehen. Nicht offensichtliche Budgets, Einmaligkeits- und Fail-closed-Invarianten am Code erklären.</li>
+      <li><strong>Gate-Abschluss:</strong> Betroffene Tests genau einmal ausführen, Ergebnis und relevante Artefakte notieren, erst dann Gate-Status ändern. Kein Commit und kein Release ohne ausdrücklichen Auftrag.</li>
+    </ol>
+
+    <div class="callout danger">
+      <h3>STOP-Bedingungen für jeden Agenten</h3>
+      <ul>
+        <li>Ein Design würde den produktiven Run nach Recovery wieder aufnehmen.</li>
+        <li>Eine Lösung braucht einen globalen Combat-Schalter oder dupliziert Boss-/Travel-Pipelines.</li>
+        <li>Ein direkter Exit müsste ohne bestätigtes Quit-Menü klicken.</li>
+        <li>Ein Spawn-Walker müsste ohne Bot-eigene Fresh-Game-Provenienz starten.</li>
+        <li>Die Live-Daten belegen keinen stabilen Layoutanker vor der Waypoint-Interaktion.</li>
+        <li>Ein fremder Dirty-Worktree-Bereich überschneidet sich mit dem Gate.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section id="gates">
+    <h2>11. Implementierungsgates</h2>
+    <p class="gate-legend">
+      <span><span class="gate-mode auto">Auto</span> Agent darf nach grünem Nachweis fortsetzen</span>
+      <span><span class="gate-mode manual">Live · STOP</span> Operatornachweis und ausdrückliche Freigabe erforderlich</span>
+    </p>
+
+    <div class="phase-list">
+      <article class="gate auto-gate">
+        <div class="gate-id">24.0<span class="gate-mode auto">Auto</span></div>
+        <div>
+          <h3>Baseline und Ergebnisvertrag einfrieren</h3>
+          <p>
+            Characterization-Tests für den heutigen Fehlerpfad schreiben: erster Portal-Hover-Fehler besitzt
+            keinen Combat-Retry, <code>controlledRetryResult</code> wird bei Rückkehrfehler terminal, und ein
+            frischer Act-3-Start scheitert an der Rogue-Encampment-Prüfung. Danach den typisierten Exit-Vertrag
+            samt zulässiger Dispositionen definieren. Noch keinen neuen Input senden.
+          </p>
+          <ul>
+            <li>Exit-Autorisierung <code>none</code>, <code>verified_rogue_town</code>, <code>memory_gated_current_area</code>.</li>
+            <li>Invalid-Kombinationen als Table-Test.</li>
+            <li>Original- und Recovery-Reason bleiben getrennte Felder.</li>
+            <li>Bestehende erfolgreiche Queue-, Stop- und Cow-Pfade werden charakterisiert.</li>
+          </ul>
+          <p class="gate-files"><strong>Primäre Dateien:</strong> <code>internal/app/supervisor.go</code>, <code>internal/app/queue_runtime.go</code>, zugehörige Tests.</p>
+          <div class="gate-proof"><strong>Bestanden:</strong> Neue Tests beschreiben den Zielvertrag; vorhandene Semantik ist als Baseline sichtbar. Kein Produktverhalten und keine Route geändert.</div>
+        </div>
+      </article>
+
+      <article class="gate auto-gate">
+        <div class="gate-id">24.1<span class="gate-mode auto">Auto</span></div>
+        <div>
+          <h3>Ehrlicher lokaler Clear und Portal-Evidenz</h3>
+          <p>
+            <code>localThreatClear</code> in ein wiederverwendbares begrenztes Modul vertiefen. Ergebnis
+            <code>cleared</code>, <code>exhausted</code> und <code>failed</code> unterscheiden. Coverage für
+            <code>cleared</code> verlangen. Den Portal-Klickvertrag um Portal- und optionale Blocker-UnitID
+            erweitern; keine Kampfentscheidung in <code>pathing</code>.
+          </p>
+          <ul>
+            <li>Budgetende mit verbleibendem Gegner ergibt <code>exhausted</code>.</li>
+            <li>Drei freie, aber unvollständig abgedeckte Snapshots ergeben nicht <code>cleared</code>.</li>
+            <li>Input-/Profilfehler ergibt <code>failed</code> mit stabiler Reason.</li>
+            <li>Portal-Hover-Miss transportiert die zuletzt Memory-bestätigte Monster-UnitID, falls vorhanden.</li>
+            <li>Bestehende Lower-Kurast- und Portal-Destination-Recovery bleiben funktional.</li>
+          </ul>
+          <p class="gate-files"><strong>Primäre Dateien:</strong> <code>internal/tasks/local_threat_clear.go</code>, <code>internal/tasks/deps.go</code>, <code>internal/pathing/click.go</code>, <code>internal/pathing/town_portal.go</code>, Tests und Replay-Adapter.</p>
+          <div class="gate-proof"><strong>Bestanden:</strong> Fokussierte <code>internal/tasks</code>-, <code>internal/pathing</code>- und Replay-Tests sind grün; kein neuer Portal- oder Combat-Input wurde unbestätigt freigegeben.</div>
+        </div>
+      </article>
+
+      <article class="gate auto-gate">
+        <div class="gate-id">24.2<span class="gate-mode auto">Auto</span></div>
+        <div>
+          <h3>Recovery-Capability und vollständige Profilmatrix</h3>
+          <p>
+            Eine eigene Recovery-Combat-Capability in Registry und Profilverdrahtung einführen. Countess,
+            Mephisto und Nihlathak für Bone-Spear-Necro und Hammerdin konfigurieren. Travel-Combat bleibt bei
+            allen drei Runs unverändert deaktiviert.
+          </p>
+          <ul>
+            <li>Alle sechs Profil-/Run-Paare lösen einen gültigen lokalen Clear auf.</li>
+            <li><code>RequiresRouteClear()</code> bleibt <code>false</code>, wo es heute <code>false</code> ist.</li>
+            <li>Fehlende zukünftige Strategy scheitert im Preflight vor produktivem Input oder führt in aktiver Recovery direkt zum Exit, nie zu unbekanntem Combat.</li>
+            <li>Required-Skill-Gate deckt den verwendeten Standardangriff und Opener ab.</li>
+          </ul>
+          <p class="gate-files"><strong>Primäre Dateien:</strong> <code>internal/tasks/registry.go</code>, <code>internal/profile</code>, <code>internal/profile/hammerdin</code>, <code>internal/profile/necrobonespear</code>, <code>internal/app/combat_strategy_registry.go</code>, Matrix-Tests.</p>
+          <div class="gate-proof"><strong>Bestanden:</strong> Registry- und Profiltests belegen 6/6 Recovery-Strategien und 0 neue Travel-Combat-Freigaben.</div>
+        </div>
+      </article>
+
+      <article class="gate auto-gate">
+        <div class="gate-id">24.3<span class="gate-mode auto">Auto</span></div>
+        <div>
+          <h3>Begrenzte Retry-Return-Recovery</h3>
+          <p>
+            Die bestehende <code>retry-return</code>-Pipeline um die Zustände
+            <code>local_clear → stop_combat → retry_portal</code> erweitern. Nur der erste
+            Portalbeitrittsfehler darf diese Abzweigung nehmen. Alle anderen Rückkehrfehler liefern
+            <code>memory_gated_current_area</code>.
+          </p>
+          <ul>
+            <li>Vor jedem Clear-Tick <code>TickResources</code> mit <code>FailOnUnavailable=true</code>.</li>
+            <li><code>cleared</code> und <code>exhausted</code> führen zu genau einem Portal-Retry.</li>
+            <li><code>failed</code> oder Resource-Ausfall führt ohne weiteren Angriff zum direkten Exit.</li>
+            <li><code>StopAttack</code>-Fehler verhindert Portal-Retry und wird Recovery-Reason.</li>
+            <li>Nach erfolgreichem Portal-Retry laufen vorhandener Fremdakt-Egress, Waypoint und Act-1-Bestätigung unverändert weiter.</li>
+            <li>Nach zweitem Portalfehler, Egressfehler oder Waypointfehler kein zweiter Clear.</li>
+          </ul>
+          <p class="gate-files"><strong>Primäre Dateien:</strong> <code>internal/tasks/pipeline_return.go</code>, <code>internal/tasks/portal_destination_recovery.go</code>, neue schmale Recovery-State-Machine und Task-Tests.</p>
+          <div class="gate-proof"><strong>Bestanden:</strong> Table-Tests decken Pre-Click-Miss, Post-Click-Timeout, clear, exhausted, resource failure, StopAttack-Fehler, Portal-Retry-Erfolg und Portal-Retry-Fehler ab. Jede Spur enthält höchstens einen Clear und einen Retry.</div>
+        </div>
+      </article>
+
+      <article class="gate auto-gate">
+        <div class="gate-id">24.4<span class="gate-mode auto">Auto</span></div>
+        <div>
+          <h3>Direkter Memory-gated Save &amp; Exit</h3>
+          <p>
+            Den vorhandenen Offline-Exit-Automaten um einen expliziten Modus für die aktuelle In-Game-Area
+            erweitern. Menüöffnung, Fensterprüfung, Save-Klick und Offline-Menü-Confirm bleiben gemeinsam.
+            Nur die Vorbedingung unterscheidet sich.
+          </p>
+          <ul>
+            <li>Standardmodus verlangt weiterhin Rogue Encampment.</li>
+            <li>Direktmodus verlangt stabile Identity, Game-Generation, <code>in_game</code>, validen State und kein Loading.</li>
+            <li>Bereits offenes Quit-Menü sendet kein Escape.</li>
+            <li>Maximal zwei Escape-Versuche, genau ein Save-Klick, drei stabile Abschluss-Snapshots.</li>
+            <li>Stop/F11 und Context-Cancel verhindern jeden weiteren Input.</li>
+          </ul>
+          <p class="gate-files"><strong>Primäre Dateien:</strong> <code>internal/app/offline_exit.go</code>, Lifecycle-Adapter, Exit-Machine-Tests.</p>
+          <div class="gate-proof"><strong>Bestanden:</strong> Tests belegen Act-1-Standardexit, Direktmodus in Field und Foreign Town sowie alle Fail-closed-Gates. Kein Live-Test in diesem Gate.</div>
+        </div>
+      </article>
+
+      <article class="gate auto-gate">
+        <div class="gate-id">24.5<span class="gate-mode auto">Auto</span></div>
+        <div>
+          <h3>Supervisor nutzt nach direktem Exit das Retry-Budget</h3>
+          <p>
+            Ergebnisvertrag und Lifecycle zusammenführen. <code>RetryCurrent</code> mit
+            <code>verified_rogue_town</code> verwendet den bestehenden Exit. <code>RetryCurrent</code> mit
+            <code>memory_gated_current_area</code> verwendet den Direktmodus. Erst bestätigter Exit erhöht
+            Restart-/Retry-Zähler und startet denselben Queue-Index.
+          </p>
+          <ul>
+            <li>Keine doppelte Exit-Ausführung.</li>
+            <li>Exitfehler stoppt hart und startet kein Spiel.</li>
+            <li>Budgetende führt noch zum erforderlichen sicheren Exit, aber nicht zum Neustart.</li>
+            <li><code>OriginalReason</code> und <code>RecoveryReason</code> bleiben bis API und Telemetrie erhalten.</li>
+            <li>Queue-Advance, Wrap, Stop-after-run, Pause und Cow-Sonderpfad bleiben charakterisiert.</li>
+          </ul>
+          <p class="gate-files"><strong>Primäre Dateien:</strong> <code>internal/app/supervisor.go</code>, <code>internal/app/queue_runtime.go</code>, <code>internal/app/session_runtime.go</code>, API-Projektion und Lifecycle-Tests.</p>
+          <div class="gate-proof"><strong>Bestanden:</strong> Fake-Lifecycle-Tests beweisen: direkter Exit erfolgreich → gleicher Index; Exit fehlgeschlagen → <code>stopped_error</code>; Budget erschöpft → Exit ohne Restart.</div>
+        </div>
+      </article>
+
+      <article class="gate auto-gate">
+        <div class="gate-id">24.6<span class="gate-mode auto">Auto</span></div>
+        <div>
+          <h3>Systemrouten-Vertrag für Spawn und Portalankunft</h3>
+          <p>
+            Den bestehenden <code>SystemEgressContract</code> so vertiefen, dass genau
+            <code>portal_arrival → waypoint</code> und <code>spawn → waypoint</code> zulässig sind. Der Dateiname
+            wird aus dem Startanker bestimmt. Schema 1 bleibt bestehen, sofern kein neues persistiertes Feld
+            nötig wird. Es gibt keinen neuen Config-Key.
+          </p>
+          <ul>
+            <li><code>portal-waypoint.yaml</code> bleibt unverändert gültig.</li>
+            <li><code>spawn-waypoint.yaml</code> verlangt <code>from: spawn</code>.</li>
+            <li>Loader prüft Dateiname und Contract gegeneinander.</li>
+            <li>Character, Class, Difficulty und Map Seed bleiben verboten.</li>
+            <li>Gemeinsamer Adapter erhält einen Startbeweis-Strategievertrag statt kopierter Walker.</li>
+            <li>Recorder-Syntax: <code>--route record-egress:act2/spawn</code>; ohne Suffix bleibt <code>portal_arrival</code>.</li>
+          </ul>
+          <p class="gate-files"><strong>Primäre Dateien:</strong> <code>internal/town/system_egress_contract.go</code>, <code>internal/app/town_egress.go</code>, <code>internal/app/route_mode.go</code>, <code>internal/app/route_record.go</code>, Tests.</p>
+          <div class="gate-proof"><strong>Bestanden:</strong> Contract-, Parser-, Recorder- und Playback-Tests belegen beide Startanker. Falscher Dateiname, falsches From, Teleportbewegung und Farming-Felder werden abgewiesen.</div>
+        </div>
+      </article>
+
+      <article class="gate manual-gate">
+        <div class="gate-id">24.7<span class="gate-mode manual">Live · STOP</span></div>
+        <div>
+          <h3>Read-only Spawn- und Anchor-Survey in Akt 2–5</h3>
+          <p>
+            Vor dem produktiven verzögerten Layout-Gate pro Akt ein frisches Offline-Spiel erzeugen, am Spawn
+            stehen bleiben und einen read-only World-/Object-Capture anfertigen. Danach manuell auf geradem
+            sicheren Weg zum lokalen Waypoint gehen und an sinnvollen Zwischenpunkten erneut capturen. Kein
+            Bot-Walk, kein Routenfile und kein D2R-Dateischreiben in diesem Gate.
+          </p>
+          <ol>
+            <li>Akt als letzten Akt des Testcharakters setzen und das Spiel normal beenden.</li>
+            <li>Frisches Spiel starten, nicht bewegen, Area, Identity, Spielerposition und sichtbare stabile Anker capturen.</li>
+            <li>Manuell zum Waypoint gehen; Position des ersten stabil sichtbaren Ankers und dessen Art dokumentieren.</li>
+            <li>Am Waypoint letzten Capture erstellen und Game-Version notieren.</li>
+            <li>Für Akt 2, 3, 4 und 5 wiederholen.</li>
+          </ol>
+          <p class="gate-files"><strong>Artefakte:</strong> vier Spawn-Captures plus Zwischen-/Waypoint-Captures unter einem neuen, klar benannten Diagnoseverzeichnis; Tabelle mit Area, Spawnkoordinate, erstem Anker, erster Ankerkoordinate und zurückgelegter Punktzahl.</p>
+          <div class="gate-proof"><strong>Bestanden:</strong> Für jeden Akt ist belegt, ob am Spawn ein Layoutanker sichtbar ist und spätestens an welchem Routenpunkt einer erscheint. Erst danach wird das gemeinsame verzögerte Layout-Limit in Code und Tests festgelegt.</div>
+          <p class="stop">STOP: Artefakte im Plan verlinken und ausdrückliche Operatorfreigabe abwarten. Ohne vollständigen Act-2–5-Beleg nicht mit 24.8 fortfahren.</p>
+        </div>
+      </article>
+
+      <article class="gate auto-gate">
+        <div class="gate-id">24.8<span class="gate-mode auto">Auto</span></div>
+        <div>
+          <h3>Fresh-Game-Normalisierung und verzögerter Layoutbeweis</h3>
+          <p>
+            Den Start-Lifecycle in drei Schritte teilen: Fresh Game verifizieren, Starttown normalisieren,
+            Rogue Encampment verifizieren. Der Spawn-Walker darf nach dem starken Fresh-Game-/Positionsbeweis
+            beginnen, muss den in 24.7 belegten Layout-Fingerprint aber innerhalb des festgelegten Rahmens und
+            zwingend vor Waypoint-Interaktion matchen.
+          </p>
+          <ul>
+            <li>Act 1 bleibt No-op und läuft anschließend unverändert weiter.</li>
+            <li>Act 2–5 wählen <code>spawn-waypoint.yaml</code> und danach den vorhandenen Hub-Transfer.</li>
+            <li>Fehlende Route, falsche Position, Layout-Mismatch, Deadline, falsche Area und UI-Blockade stoppen fail-closed.</li>
+            <li>Offline-Players-Command und Run-Readiness erst nach bestätigtem Rogue Encampment.</li>
+            <li><code>CanAdoptQueueGame</code> bleibt auf Rogue Encampment beschränkt.</li>
+          </ul>
+          <p class="gate-files"><strong>Primäre Dateien:</strong> <code>internal/app/queue_runtime.go</code>, <code>internal/app/town_egress.go</code>, <code>internal/app/session_verification.go</code>, Start-/Egress-Tests.</p>
+          <div class="gate-proof"><strong>Bestanden:</strong> Snapshot-Fixtures für Act 1–5 sind grün. Jeder negative Startfall stoppt vor dem ersten unautorisierten Input. Der belegte Layout-Rahmen steht als benannte, kommentierte Invariante im Code.</div>
+        </div>
+      </article>
+
+      <article class="gate manual-gate">
+        <div class="gate-id">24.9<span class="gate-mode manual">Live · STOP</span></div>
+        <div>
+          <h3>Vier Spawn-Egress-Routen aufnehmen und isoliert abspielen</h3>
+          <p>
+            Für jeden Akt ein neues Spiel am unveränderten Spawn beginnen und
+            <code>record-egress:actX/spawn</code> starten. Erst nach sichtbarem Recording-Status manuell zum
+            lokalen Waypoint gehen und dort F9 verwenden. Danach in einem erneut frisch in demselben Akt
+            gestarteten Spiel das isolierte Playback ausführen.
+          </p>
+          <ol>
+            <li>Act 2 aufnehmen, Contract validieren, in frischem Act-2-Spiel abspielen, Rogue Encampment bestätigen.</li>
+            <li>Act 3 aufnehmen, validieren und isoliert bis Rogue Encampment abspielen.</li>
+            <li>Act 4 aufnehmen, validieren und isoliert bis Rogue Encampment abspielen.</li>
+            <li>Act 5 aufnehmen, validieren und isoliert bis Rogue Encampment abspielen.</li>
+            <li>Danach alle vier <code>spawn-waypoint.yaml</code> in einem automatischen Bundle-/Contract-Test laden.</li>
+          </ol>
+          <p class="gate-files"><strong>Erwartete Dateien:</strong> <code>configs/routes/town/act2/egress/spawn-waypoint.yaml</code> bis <code>act5/egress/spawn-waypoint.yaml</code>. Bestehende Portaldateien nicht überschreiben.</p>
+          <div class="gate-proof"><strong>Bestanden:</strong> 4/4 Aufnahmen und 4/4 isolierte Playbacks landen Memory-bestätigt im Rogue Encampment. Kein Playback startet außerhalb der Spawn-Toleranz oder bei Layout-Mismatch.</div>
+          <p class="stop">STOP: Pro Akt Route, Log, Game-Version, Startposition und Abschlussbeweis im Plan dokumentieren und Operatorfreigabe abwarten.</p>
+        </div>
+      </article>
+
+      <article class="gate auto-gate">
+        <div class="gate-id">24.10<span class="gate-mode auto">Auto</span></div>
+        <div>
+          <h3>Telemetrie, API, UI und Dokumentation</h3>
+          <p>
+            Recovery- und Startnormalisierungs-Ereignisse ergänzen, ohne einen zweiten Statusautomaten in der
+            UI zu bauen. Kurze deutsche Texte aus Abschnitt 9 verwenden. Feature-Dokumentation und Changelog
+            aktualisieren.
+          </p>
+          <ul>
+            <li>History unterscheidet abgebrochenen Retry von hartem Sessionfehler.</li>
+            <li>API projiziert Original- und Recovery-Reason sowie aktuellen Recovery-Schritt.</li>
+            <li>Neue Feature-Doc <code>docs/features/emergency-run-recovery.md</code>.</li>
+            <li><code>system-egress.md</code>, <code>session-lifecycle.md</code>, <code>task-runner.md</code>, <code>farm-queue-scheduler.md</code> und bei Bedarf <code>session-recovery-telemetry.md</code> aktualisieren.</li>
+            <li>Feature-Index und <code>docs/CHANGELOG.md</code> unter Unreleased aktualisieren.</li>
+            <li>Alle neuen exportierten Symbole besitzen Godoc; UI-Strings haben korrekte Umlaute.</li>
+          </ul>
+          <p class="gate-files"><strong>Primäre Dateien:</strong> <code>internal/telemetry</code>, <code>internal/api</code>, <code>web/src/features</code>, genannte Feature-Docs und Changelog.</p>
+          <div class="gate-proof"><strong>Bestanden:</strong> Kleinste betroffene Telemetrie-, API- und UI-Tests sind grün; Docs stimmen mit tatsächlichen Reasons, Budgets, Routenfiles und Gate-Resultaten überein.</div>
+        </div>
+      </article>
+
+      <article class="gate manual-gate">
+        <div class="gate-id">24.11<span class="gate-mode manual">Live · STOP</span></div>
+        <div>
+          <h3>Produktive Fehler- und Retry-Abnahme</h3>
+          <p>
+            Mit einem Debug-/Fault-Injection-Hook, der keine Produktentscheidung verändert, die seltenen
+            Fehler reproduzierbar auslösen. Falls kein vorhandener Hook den Portalfehler sicher erzeugt,
+            nur einen test-build-exklusiven, klar markierten Injektor ergänzen und vor Abschluss wieder aus
+            dem Shipping-Pfad entfernen oder dauerhaft hinter einem Dev-only-Build-Gate halten.
+          </p>
+          <ol>
+            <li><strong>Countess:</strong> Portalbeitritt einmal blockieren. Clear und genau einen Portal-Retry belegen; kontrollierter Act-1-Exit; gleicher Queue-Index.</li>
+            <li><strong>Mephisto:</strong> Rückweg nach dem Portal-Retry scheitern lassen. Direkter Exit in Akt 3; neues Spiel startet in Akt 3; Spawn-Egress nach Akt 1; gleicher Queue-Index.</li>
+            <li><strong>Nihlathak:</strong> denselben direkten Exit in Akt 5 und anschließende Normalisierung belegen.</li>
+            <li><strong>Negative Fälle:</strong> fehlende Spawnroute, falsche Spawnposition, Layout-Mismatch, ausbleibender Layoutanker und unbestätigtes Quit-Menü stoppen vor gefährlichem Input.</li>
+            <li><strong>Budgets:</strong> Retrybudget wird bei Erfolg verbraucht; erschöpftes Budget beendet nach bestätigtem Exit ohne Neustart.</li>
+            <li><strong>Controls:</strong> F11 und Stop während Clear, Exit und Spawn-Egress verhindern weitere Inputs.</li>
+          </ol>
+          <div class="gate-proof"><strong>Bestanden:</strong> Dashboard, API, Log und JSONL stimmen für Originalfehler, Recovery, Exit, Game-ID, Queue-Index und Budget überein. Kein zweiter Clear, kein zweiter Portal-Retry, keine produktive Routenwiederaufnahme und kein doppelter Exit.</div>
+          <p class="stop">STOP: Phase 24 erst nach ausdrücklicher Operatorabnahme als abgeschlossen markieren.</p>
+        </div>
+      </article>
+    </div>
+  </section>
+
+  <section id="abnahme">
+    <h2>12. Reihenfolge, automatische Kommandos und Definition of Done</h2>
+    <h3>Strikte Reihenfolge</h3>
+    <ol>
+      <li>24.0 Ergebnisvertrag und Baseline.</li>
+      <li>24.1 ehrlicher Clear und Portal-Evidenz.</li>
+      <li>24.2 Profilmatrix.</li>
+      <li>24.3 Retry-Return-Recovery.</li>
+      <li>24.4 direkter Exit.</li>
+      <li>24.5 Supervisor-Retry.</li>
+      <li>24.6 Systemrouten-Vertrag und Recorder.</li>
+      <li>24.7 Live-Survey, danach STOP.</li>
+      <li>24.8 Startnormalisierung mit belegtem Layoutlimit.</li>
+      <li>24.9 vier Live-Routen und Playbacks, danach STOP.</li>
+      <li>24.10 Telemetrie, UI und Docs.</li>
+      <li>24.11 produktive Live-Abnahme, danach STOP und Abschlussentscheidung.</li>
+    </ol>
+
+    <h3>Automatische Gate-Kommandos</h3>
+    <pre>go test ./internal/pathing ./internal/tasks
+go test ./internal/profile/... ./internal/app
+go test ./internal/town ./internal/telemetry ./internal/api
+
+# Nur falls Web-Dateien betroffen sind:
+cd web
+pnpm test -- &lt;kleinster betroffener Testpfad&gt;</pre>
+    <p class="muted">
+      Die Agenten ersetzen die Platzhalter des UI-Kommandos durch das tatsächlich im Repository etablierte
+      fokussierte Kommando. Keine automatische Gesamtsuite, kein <code>scripts/build-release.ps1</code> und
+      kein Release-Build in Phase 24 ohne ausdrücklichen Gesamtvalidierungs- oder Release-Auftrag.
+    </p>
+
+    <h3>Definition of Done</h3>
+    <ul class="checks">
+      <li>Countess, Mephisto und Nihlathak besitzen für beide aktuellen Profile expliziten lokalen Recovery-Combat, ohne Travel-Combat zu aktivieren.</li>
+      <li>Ein Portalfehler kann höchstens einen begrenzten Clear und einen Portal-Retry auslösen.</li>
+      <li>Clear-Budgetende wird ehrlich als <code>exhausted</code> erfasst und blockiert den einmaligen Portal-Retry nicht.</li>
+      <li>Kritischer Ressourcenmangel startet keinen weiteren Kampf.</li>
+      <li>Jeder Combat-Pfad endet vor Navigation oder Exit mit fehlergeprüftem <code>StopAttack</code>.</li>
+      <li>Ein weiterer Rückkehrfehler führt zu genau einem Memory-bestätigten direkten Exit.</li>
+      <li>Erfolgreicher direkter Exit verwendet dasselbe Queue-Element und die vorhandenen Budgets.</li>
+      <li>Fresh Games in Akt 2–5 normalisieren über getrennte, live belegte Spawn-Routen nach Akt 1.</li>
+      <li>Spawn-Egress ist nicht vom am Spawn sichtbaren Stash abhängig und bestätigt das Layout spätestens vor dem Waypoint-Klick.</li>
+      <li>Unbekannte Area, falscher Spawn, fehlende Route, Layout-Mismatch und unbestätigter Exit bleiben fail-closed.</li>
+      <li>Originalfehler und Recoveryfehler bleiben in Log, JSONL, API, Dashboard und History unterscheidbar.</li>
+      <li>Alle automatischen Gates und die drei manuellen Abnahmeblöcke sind belegt; Dokumentation und Changelog entsprechen dem Shipping-Verhalten.</li>
+      <li>Keine D2R-Installations- oder Savegame-Datei wurde geschrieben oder verändert.</li>
+    </ul>
+
+    <div class="callout success">
+      <h3>Abschlussregel</h3>
+      <p>
+        Erst wenn 24.11 ausdrücklich abgenommen ist, wird der Hero-Status auf „Phase 24 abgeschlossen“ geändert.
+        Bis dahin bleibt dieses Dokument die verbindliche Implementierungsspezifikation, nicht der Nachweis
+        einer bereits ausgelieferten Funktion.
+      </p>
+    </div>
+  </section>
+
+  <footer>
+    Phase 24 · Gestufte Run-Recovery und Startakt-Normalisierung · Entwurf 27. August 2026 · kein Implementierungsstart
+  </footer>
+</main>
+</body>
+</html>

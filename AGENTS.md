@@ -43,7 +43,7 @@ Feature-first unter `internal/` und `web/src/features/`. Paket-Grenzen strikt ei
 | `web/` | Electron-Desktop-App und React-Quellen (`web/src/features/…`) |
 | `tools/` | CASC-Katalog-Generatoren und Default-Bundle |
 | `configs/` | YAML für Runs, Pickit, Routen, Offsets (`config.example.yaml` versionieren) |
-| `docs/` | Feature-Docs, Changelog, Agent-Docs |
+| `docs/` | Feature-Docs, Changelog, Agent-Docs, Plans |
 
 **Datenfluss:** `process` → `memory` (Snapshot) → `world` (Model) → `tasks`/`profile` (Entscheidung) → `input` (Aktion). `pathing`, `loot` und `town` hängen am World Model, nicht direkt an Raw Memory. Operator-UI: `web` ↔ `internal/api` ↔ `internal/app`. `telemetry` beobachtet Runs/Sessions, steuert sie nicht. `replay` zeichnet opt-in Runtime-Traces und spielt sie headless gegen die Task-Pipeline ab.
 
