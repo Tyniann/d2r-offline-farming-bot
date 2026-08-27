@@ -68,9 +68,9 @@ func TestSessionGameVerifierRejectsWrongContextBeforeRun(t *testing.T) {
 	}{
 		{"character", sessionTownState(time.Now(), "MrHammer"), "3.2.92777"},
 		{"version", sessionTownState(time.Now(), "MrBones"), "old"},
-		{"area", func() world.State {
+		{"fresh act 3 start", func() world.State {
 			s := sessionTownState(time.Now(), "MrBones")
-			s.Area = world.Area{ID: world.BlackMarsh, Name: "Black Marsh"}
+			s.Area = world.Area{ID: world.KurastDocks, Name: "Kurast Docks"}
 			return s
 		}(), "3.2.92777"},
 		{"ui", func() world.State { s := sessionTownState(time.Now(), "MrBones"); s.UI.StashOpen = true; return s }(), "3.2.92777"},
@@ -83,6 +83,68 @@ func TestSessionGameVerifierRejectsWrongContextBeforeRun(t *testing.T) {
 				t.Fatal("expected context mismatch")
 			}
 		})
+	}
+}
+
+func TestFreshSessionGameVerifierAcceptsEveryTownAndIgnoresStickyWaypointBit(t *testing.T) {
+	areas := []world.AreaID{
+		world.RogueEncampment,
+		world.LutGholein,
+		world.KurastDocks,
+		world.ThePandemoniumFortress,
+		world.Harrogath,
+	}
+	for _, area := range areas {
+		t.Run(world.LookupArea(area).Name, func(t *testing.T) {
+			verifier := newSessionGameVerifier(sessionGameExpectation{
+				Character: "MrBones", GameVersion: "3.2.92777", AllowedStartAreas: areas,
+			})
+			verifier.ResetForNextGame()
+			start := time.Now()
+			for tick := 0; tick < sessionGameStableTicks; tick++ {
+				state := sessionTownState(start.Add(time.Duration(tick)*time.Millisecond), "MrBones")
+				state.Area = world.LookupArea(area)
+				state.UI.WaypointOpen = true
+				verification, ready, err := verifier.Observe(state, "3.2.92777")
+				if err != nil {
+					t.Fatal(err)
+				}
+				if ready != (tick == sessionGameStableTicks-1) {
+					t.Fatalf("tick %d ready=%t", tick, ready)
+				}
+				if ready && verification.AreaID != area {
+					t.Fatalf("verified area=%s want=%s", verification.AreaID, area)
+				}
+			}
+		})
+	}
+}
+
+func TestFreshSessionGameVerifierResetsStabilityWhenTownChanges(t *testing.T) {
+	verifier := newSessionGameVerifier(sessionGameExpectation{
+		Character: "MrBones", GameVersion: "3.2.92777",
+		AllowedStartAreas: []world.AreaID{world.RogueEncampment, world.LutGholein},
+	})
+	verifier.ResetForNextGame()
+	start := time.Now()
+	rogue := sessionTownState(start, "MrBones")
+	if _, ready, err := verifier.Observe(rogue, "3.2.92777"); err != nil || ready {
+		t.Fatalf("first town tick ready=%t err=%v", ready, err)
+	}
+	lut := sessionTownState(start.Add(time.Millisecond), "MrBones")
+	lut.Area = world.LookupArea(world.LutGholein)
+	if _, ready, err := verifier.Observe(lut, "3.2.92777"); err != nil || ready {
+		t.Fatalf("changed town tick ready=%t err=%v", ready, err)
+	}
+	for tick := 0; tick < sessionGameStableTicks-1; tick++ {
+		lut.At = lut.At.Add(time.Millisecond)
+		_, ready, err := verifier.Observe(lut, "3.2.92777")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if ready != (tick == sessionGameStableTicks-2) {
+			t.Fatalf("stable tick %d ready=%t", tick, ready)
+		}
 	}
 }
 

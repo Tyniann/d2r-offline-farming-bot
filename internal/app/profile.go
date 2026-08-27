@@ -166,10 +166,12 @@ func newProfileExecutor(log *slog.Logger, profiles config.ProfilesConfig, profil
 	if parseErr != nil {
 		return nil, fmt.Errorf("profile %q standard attack: %w", profileID, parseErr)
 	}
-	// Any SupportsRouteClear strategy receives the combat adapter for Configure,
-	// including post-boss-only clears that return RequiresRouteClear() == false.
+	// Route playback and local recovery are separate authorizations, but both
+	// configure the same profile-owned single-target combat executor.
 	var routeClear profile.RouteCombatActions
-	if _, needsClear := strategy.(profile.SupportsRouteClear); needsClear {
+	_, supportsRouteClear := strategy.(profile.SupportsRouteClear)
+	_, supportsLocalRecovery := strategy.(profile.SupportsLocalRecoveryClear)
+	if supportsRouteClear || supportsLocalRecovery {
 		routeClear = combat
 	}
 	if configureErr := strategy.Configure(executor, standardAttackID, routeClear); configureErr != nil {

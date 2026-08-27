@@ -247,9 +247,10 @@
           <span class="pill">Memory Bot Core</span>
           <span class="pill">Go 1.26</span>
           <span class="pill">Countess MVP</span>
-          <span class="pill good">Stand: v0.24.0 · Hammerdin Countess, Mephisto, Nihlathak, Summoner, Cow Level, Lower Kurast, Pickit-Workspace und Deutsch/Englisch-Umschaltung</span>
+          <span class="pill good">Stand: v0.25.0 · Hammerdin Countess, Mephisto, Nihlathak, Summoner, Cow Level, Lower Kurast, Pickit-Workspace, Deutsch/Englisch-Umschaltung und begrenzte Run-Recovery</span>
           <span class="pill good">Phase 20 Cow Level abgenommen</span>
           <span class="pill good">Mercenary-Support abgenommen</span>
+          <span class="pill good">Phase 24 Run-Recovery abgenommen</span>
         </div>
       </div>
 
@@ -871,6 +872,14 @@
         <h3>Lower Kurast Supertruhen <span class="ok">— Gates 23.0–23.9 bestanden · Phase 23 abgeschlossen · v0.22.0</span></h3>
         <p><strong>Stand:</strong> Der Queue-Run <code>lower-kurast</code> ist ein Hell-Einzelrouten-Sweep ohne Boss und ohne globales Route-Clear. Town kauft Stadt-Schlüssel bei Akara unter Schwelle 6 (Ziel 12). Der Act-3-Wegpunkt landet in Area 79; die gebundene Teleport-Route führt zum Lagerfeuer auf der bestehenden Offline-Karte. Sichtbare Hütten-Supertruhen (<code>JungleChest</code> 181, <code>JungleChest2</code> 183) öffnen hover-bestätigt, Gestelle nur an denselben Hütten (<code>ArmorStand1</code> 104, <code>WeaponRack2</code> 107). Loot folgt <code>[gems, lk-superchests]</code>, Rückkehr über Portal, Kurast Docks und Stash. Ein lokaler Hammerdin-Clear greift nur nach Monster-Hover im 12-Kachel-Kreis; Neu würfeln ist kein Produktweg. Der 0-Schlüssel-Lauf ist als Live-Gate gestrichen, die Skip-Regel bleibt. Feature-Doc: <a href="../features/lower-kurast-run.md">lower-kurast-run.md</a>. Detailplan: <a href="phase-23-implementation-plan.html">Phase-23-Umsetzungsplan</a>.</p>
         <p><strong>Gates:</strong> 23.0 Object-Inspect → 23.1 Katalog/Mode → 23.2 LK-Waypoint → 23.3 Akara-Schlüssel → 23.4 Registry ohne Boss → 23.5 Pipeline <code>chest_sweep</code> → 23.6 Pickit/UI → 23.7 Aufnahme → 23.8 produktiver Zyklus (fünf Hell-Läufe, MrHammer, Route <code>lower-kurast-mrhammer-d48622a56f</code>) → 23.9 Dokumentation.</p>
+      </div>
+    </div>
+
+    <div class="phase">
+      <strong>Phase 24</strong>
+      <div>
+        <h3>Gestufte Run-Recovery und Startakt-Normalisierung <span class="ok">— Gates 24.0–24.11 bestanden · Phase 24 abgeschlossen · v0.25.0</span></h3>
+        <p><strong>Stand:</strong> Countess, Mephisto und Nihlathak behandeln einen bestätigten Portal-Rückkehrfehler mit höchstens einem lokalen Clear und einem Portal-Retry. Scheitert die Rückkehr weiter, beendet der Supervisor das Spiel über einen Memory-bestätigten direkten Exit und startet denselben Queue-Index erneut. Neue Spiele aus Akt 2 bis 5 normalisieren über getrennte, layoutgebundene Spawn-Egress-Routen nach Akt 1. Log, JSONL, API, Dashboard und History zeigen Original- und Recoveryfehler getrennt. Alle Live-Gates liefen ausschließlich auf Hell. Detailplan: <a href="phase-24-implementation-plan.html">Phase-24-Umsetzungsplan</a>.</p>
       </div>
     </div>
 

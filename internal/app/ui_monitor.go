@@ -25,6 +25,7 @@ type UIStatusSnapshot struct {
 	AreaName      string
 	RunID         string
 	Step          string
+	RecoveryStep  string
 	RunProgress   *tasks.RunProgress
 	LastError     string
 	Compatibility D2RCompatibilitySnapshot
@@ -56,8 +57,34 @@ func (rt *Runtime) CurrentUIStatus(lastError string) UIStatusSnapshot {
 		if progress, ok := rt.Tasks.Progress(worldState.Area.ID); ok {
 			snapshot.RunProgress = &progress
 		}
+		snapshot.RecoveryStep = rt.Tasks.RecoveryStep()
+	}
+	if step := rt.currentRecoveryStep(); step != "" {
+		snapshot.RecoveryStep = step
 	}
 	return snapshot
+}
+
+func (rt *Runtime) setRecoveryStep(step string) {
+	if rt == nil || step == "" {
+		if rt != nil {
+			rt.recoveryStep.Store(nil)
+		}
+		return
+	}
+	value := step
+	rt.recoveryStep.Store(&value)
+}
+
+func (rt *Runtime) currentRecoveryStep() string {
+	if rt == nil {
+		return ""
+	}
+	value := rt.recoveryStep.Load()
+	if value == nil {
+		return ""
+	}
+	return *value
 }
 
 // SetUIStatusPublisher installs an optional non-blocking observer used by the

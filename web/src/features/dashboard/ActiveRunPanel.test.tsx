@@ -35,4 +35,10 @@ describe("ActiveRunPanel", () => {
     expect(screen.getByText("Stopp nach dieser Route vorgemerkt")).toBeInTheDocument();
     expect(screen.queryByLabelText(/Etappe/)).not.toBeInTheDocument();
   });
+
+  it("zeigt den aktuellen Recovery-Schritt als kurzen Bedienhinweis", () => {
+    render(<ActiveRunPanel status={{ ...status, pending_intent: "none", recovery_step: "local_recovery_clear" }} hotkeys={{ pause: "Pause", stopAfterRun: "F10", emergencyStop: "F11" }} />);
+    expect(screen.getByRole("status")).toHaveTextContent("Rückkehr blockiert. Die unmittelbare Umgebung wird geräumt.");
+    expect(screen.queryByText("local_recovery_clear")).not.toBeInTheDocument();
+  });
 });

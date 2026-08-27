@@ -7,6 +7,7 @@ export interface StatusDTO {
   state: string;
   generation: number;
   lifecycle_phase: string;
+  recovery_step?: string;
   pending_intent?: string;
   active_run_id?: string;
   run_id?: string;

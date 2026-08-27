@@ -11,7 +11,7 @@ English: a Windows desktop app (Go core, Electron UI) for repeatable **offline**
 - Farming-Ziele: Countess, Mephisto, Summoner, Nihlathak, Cow Level, Lower-Kurast-Supertruhen
 - Kampfprofile: Necromancer und Hammerdin, inklusive Mercenary
 - Selbst aufgezeichnete Routen mit Playback gegen das Memory-World-Model
-- Pickit-Profile, Town (Identifizieren, Verkaufen, Stash), Session-Queue
+- Pickit-Profile, Town (Identifizieren, Verkaufen, Stash), Session-Queue und begrenzte Run-Recovery
 - Desktop-UI auf Deutsch und Englisch, plus Windows-Installer
 
 Auflösung 1280×720. D2R startet der Operator selbst.
@@ -46,7 +46,7 @@ Pathing, Loot und Town hängen am World Model, nicht an Rohbytes. Die UI redet n
 
 Phasenpläne, fail-closed Gates, Feature-Docs und ein Changelog vor jedem Release. Live-Abnahme im Spiel, nicht nur grüne Tests. Arbeitsregeln für den Agenten: [`AGENTS.md`](AGENTS.md). Phasenpläne: [`docs/plans/`](docs/plans/).
 
-Aktuelle Aufwand-/Qualitätsbewertung (v0.24, 2026-08-23): [Repo-Effort-Evaluation](docs/reviews/repo-effort-evaluation-2026-08-23.md). Der Juli-Snapshot (v0.16, vier Runs) bleibt unter [docs/reviews/](docs/reviews/) als Vergleich.
+Aktuelle Aufwand-/Qualitätsbewertung (v0.24, 2026-08-23): [Repo-Effort-Evaluation](docs/reviews/repo-effort-evaluation-2026-08-23.md). Phase 24 ergänzt begrenzte Run-Recovery und die Startakt-Normalisierung. Der Juli-Snapshot (v0.16, vier Runs) bleibt unter [docs/reviews/](docs/reviews/) als Vergleich.
 
 ## Lizenz und Grenzen
 
@@ -59,10 +59,10 @@ Diablo II: Resurrected ist eine Marke von Blizzard Entertainment, Inc. Dieses Pr
 Windows 10/11 x64, unsignierter NSIS-Installer. SmartScreen kann warnen. Daten: `%LOCALAPPDATA%\D2ROfflineFarmingBot\`.
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts/build-release.ps1 -Version 0.24.0
+powershell -ExecutionPolicy Bypass -File scripts/build-release.ps1 -Version 0.25.0
 ```
 
-Ergebnis: `dist/release/D2R-Offline-Farming-Bot-0.24.0-Setup.exe` plus SHA-256. Installer-Hinweise: [`docs/INSTALLATION.md`](docs/INSTALLATION.md).
+Ergebnis: `dist/release/D2R-Offline-Farming-Bot-0.25.0-Setup.exe` plus SHA-256. Installer-Hinweise: [`docs/INSTALLATION.md`](docs/INSTALLATION.md).
 
 Lokal: Windows, Go 1.26+, Node/pnpm. `Copy-Item configs\config.example.yaml configs\config.yaml`, dann `go test ./...`. UI unter `web/`. Feature-Docs: [`docs/features/README.md`](docs/features/README.md). Changelog: [`docs/CHANGELOG.md`](docs/CHANGELOG.md).
 

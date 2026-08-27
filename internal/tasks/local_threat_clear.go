@@ -28,10 +28,18 @@ type localThreatClear struct {
 	lastSnapshotAt    time.Time
 }
 
+type localThreatClearOutcome string
+
+const (
+	localThreatClearPending   localThreatClearOutcome = ""
+	localThreatClearCleared   localThreatClearOutcome = "cleared"
+	localThreatClearExhausted localThreatClearOutcome = "exhausted"
+	localThreatClearFailed    localThreatClearOutcome = "failed"
+)
+
 type localThreatClearResult struct {
-	done   bool
-	failed bool
-	reason string
+	outcome localThreatClearOutcome
+	reason  string
 }
 
 func (c *localThreatClear) start(anchor world.Position, preferredUnitID uint32, now time.Time) {
@@ -45,19 +53,27 @@ func (c *localThreatClear) start(anchor world.Position, preferredUnitID uint32, 
 
 func (c *localThreatClear) tick(ctx context.Context, clear RouteClearExecutor, state world.State, now time.Time, runID, profileID string) localThreatClearResult {
 	if clear == nil {
-		return localThreatClearResult{failed: true, reason: "combat_not_wired"}
+		return localThreatClearResult{outcome: localThreatClearFailed, reason: "combat_not_wired"}
 	}
 	if !state.Valid || state.Phase != world.GamePhaseInGame {
 		return localThreatClearResult{}
 	}
-	if c.actions >= localThreatClearMaxActions ||
-		now.Sub(c.startedAt) >= localThreatClearTimeout ||
-		now.Sub(c.lastActionAt) >= localThreatClearNoProgressTimeout {
-		return localThreatClearResult{done: true}
+	if c.actions >= localThreatClearMaxActions {
+		return localThreatClearResult{outcome: localThreatClearExhausted, reason: "action_budget_exhausted"}
+	}
+	if now.Sub(c.startedAt) >= localThreatClearTimeout {
+		return localThreatClearResult{outcome: localThreatClearExhausted, reason: "time_budget_exhausted"}
+	}
+	if now.Sub(c.lastActionAt) >= localThreatClearNoProgressTimeout {
+		return localThreatClearResult{outcome: localThreatClearExhausted, reason: "no_progress_budget_exhausted"}
 	}
 	target, found := selectLocalThreat(state, c.anchor, c.preferredUnitID, localThreatClearRadiusTiles)
 	if !found {
 		clear.ResetRouteClear()
+		if state.MonsterCoverage.MonstersTruncated && state.MonsterCoverage.MonsterCoverageRadiusTiles < localThreatClearRadiusTiles {
+			c.noTargetSnapshots = 0
+			return localThreatClearResult{}
+		}
 		snapshotAt := state.At
 		if snapshotAt.IsZero() {
 			snapshotAt = now
@@ -66,7 +82,10 @@ func (c *localThreatClear) tick(ctx context.Context, clear RouteClearExecutor, s
 			c.lastSnapshotAt = snapshotAt
 			c.noTargetSnapshots++
 		}
-		return localThreatClearResult{done: c.noTargetSnapshots >= localThreatClearStableSnapshots}
+		if c.noTargetSnapshots >= localThreatClearStableSnapshots {
+			return localThreatClearResult{outcome: localThreatClearCleared}
+		}
+		return localThreatClearResult{}
 	}
 	c.noTargetSnapshots = 0
 	c.lastSnapshotAt = state.At
@@ -76,7 +95,11 @@ func (c *localThreatClear) tick(ctx context.Context, clear RouteClearExecutor, s
 	}, now)
 	switch result.Status {
 	case profile.StatusFailed:
-		return localThreatClearResult{failed: true, reason: "combat_action_failed"}
+		reason := result.Reason
+		if reason == "" {
+			reason = "combat_action_failed"
+		}
+		return localThreatClearResult{outcome: localThreatClearFailed, reason: reason}
 	case profile.StatusAction:
 		c.actions++
 		c.lastActionAt = now

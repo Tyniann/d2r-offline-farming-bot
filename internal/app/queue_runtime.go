@@ -9,18 +9,22 @@ import (
 	"time"
 
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/config"
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/pathing"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/profile"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/tasks"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/telemetry"
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/town"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/world"
 )
 
+type queueLifecycleTelemetry func(telemetry.Event) error
+
 type queueRunUnit interface {
-	StartOrVerifyGame(context.Context, bool) error
+	StartOrVerifyGame(context.Context, bool, queueLifecycleTelemetry) error
 	VerifySameGame(context.Context) error
 	VerifyProfileSkills(context.Context) SupervisorRunResult
 	RunToTown(context.Context, SupervisorRunRequest, bool) SupervisorRunResult
-	ExitGame(context.Context) error
+	ExitGame(context.Context, SupervisorRunResult, queueLifecycleTelemetry) error
 	Close()
 }
 
@@ -49,7 +53,7 @@ type FarmQueueLifecycleRunner interface {
 	SupervisorRunner
 	StartGame(context.Context, SupervisorRunRequest) error
 	RevalidateGame(context.Context, SupervisorRunRequest) error
-	ExitGame(context.Context, SupervisorRunRequest, string) error
+	ExitGame(context.Context, SupervisorRunRequest, SupervisorRunResult) error
 	CloseQueue()
 }
 
@@ -204,7 +208,7 @@ func (r *RuntimeQueueRunner) StartGame(ctx context.Context, request SupervisorRu
 			return fmt.Errorf("emit queue session start: %w", err)
 		}
 	}
-	if err := unit.StartOrVerifyGame(ctx, r.initialInGame); err != nil {
+	if err := unit.StartOrVerifyGame(ctx, r.initialInGame, r.lifecycleTelemetry(request)); err != nil {
 		return fmt.Errorf("start queue game: %w", err)
 	}
 	if r.sessionTrace != nil {
@@ -242,12 +246,12 @@ func (r *RuntimeQueueRunner) RevalidateGame(ctx context.Context, request Supervi
 // Game start and Save & Exit are deliberately outside this method.
 func (r *RuntimeQueueRunner) Run(ctx context.Context, request SupervisorRunRequest) SupervisorRunResult {
 	if r == nil {
-		return SupervisorRunResult{Disposition: QueueRunStop, Reason: "queue_runtime_missing"}
+		return SupervisorRunResult{Disposition: QueueRunStop, Reason: "queue_runtime_missing", ExitAuthorization: ExitAuthorizationNone}
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if !r.gameOpen {
-		return SupervisorRunResult{Disposition: QueueRunStop, Reason: "queue_game_not_active"}
+		return SupervisorRunResult{Disposition: QueueRunStop, Reason: "queue_game_not_active", ExitAuthorization: ExitAuthorizationNone}
 	}
 	unit, err := r.ensureUnitLocked(request.DefinitionID)
 	if err != nil {
@@ -264,32 +268,41 @@ func (r *RuntimeQueueRunner) Run(ctx context.Context, request SupervisorRunReque
 		r.skillsVerified = true
 	}
 	if r.persistEvents && r.sessionTrace == nil {
-		return SupervisorRunResult{Disposition: QueueRunStop, Reason: "telemetry_failed"}
+		return SupervisorRunResult{Disposition: QueueRunStop, Reason: "telemetry_failed", ExitAuthorization: ExitAuthorizationNone}
 	}
 	if r.sessionTrace != nil {
 		request.SessionID = r.sessionTrace.SessionID()
 		if err := r.sessionTrace.Emit(queueTelemetryEvent(telemetry.RunStarted, request)); err != nil {
-			return SupervisorRunResult{Disposition: QueueRunStop, Reason: "telemetry_failed"}
+			return SupervisorRunResult{Disposition: QueueRunStop, Reason: "telemetry_failed", ExitAuthorization: ExitAuthorizationNone}
 		}
 	}
 	result := unit.RunToTown(ctx, request, r.runsInGame > 0)
 	r.runsInGame++
 	if r.sessionTrace != nil {
-		terminal := queueTelemetryEvent(queueRunTerminalEvent(result), request)
-		terminal.Reason = result.Reason
+		terminal := queueRunTelemetryEvent(result, request)
 		if result.Detail != "" {
 			terminal.Name = result.Detail
 		}
 		if err := r.sessionTrace.Emit(terminal); err != nil {
-			return SupervisorRunResult{Disposition: QueueRunStop, Reason: "telemetry_failed", SafeToExit: result.SafeToExit}
+			return SupervisorRunResult{Disposition: QueueRunStop, Reason: "telemetry_failed", ExitAuthorization: result.ExitAuthorization}
 		}
 	}
 	return result
 }
 
+func queueRunTelemetryEvent(result SupervisorRunResult, request SupervisorRunRequest) telemetry.Event {
+	event := queueTelemetryEvent(queueRunTerminalEvent(result), request)
+	event.Reason = result.Reason
+	event.OriginalReason = result.OriginalReason
+	event.RecoveryReason = result.RecoveryReason
+	event.ExitAuthorization = string(result.ExitAuthorization)
+	event.Retry = request.Retry
+	return event
+}
+
 // ExitGame performs the one supervisor-authorized Save-&-Exit boundary. Calls
 // after a confirmed exit are idempotent and send no additional input.
-func (r *RuntimeQueueRunner) ExitGame(ctx context.Context, request SupervisorRunRequest, reason string) error {
+func (r *RuntimeQueueRunner) ExitGame(ctx context.Context, request SupervisorRunRequest, result SupervisorRunResult) error {
 	if r == nil {
 		return fmt.Errorf("queue runtime missing")
 	}
@@ -302,12 +315,16 @@ func (r *RuntimeQueueRunner) ExitGame(ctx context.Context, request SupervisorRun
 	if err != nil {
 		return err
 	}
-	if err := unit.ExitGame(ctx); err != nil {
-		return fmt.Errorf("exit queue game (%s): %w", reason, err)
+	if err := unit.ExitGame(ctx, result, r.lifecycleTelemetry(request)); err != nil {
+		return fmt.Errorf("exit queue game (%s): %w", result.Reason, err)
 	}
 	if r.sessionTrace != nil {
 		exited := queueTelemetryEvent(telemetry.GameExited, request)
-		exited.Reason = reason
+		exited.Reason = result.Reason
+		exited.OriginalReason = result.OriginalReason
+		exited.RecoveryReason = result.RecoveryReason
+		exited.ExitAuthorization = string(result.ExitAuthorization)
+		exited.Retry = request.Retry
 		if err := r.sessionTrace.Emit(exited); err != nil {
 			return fmt.Errorf("emit queue game exit: %w", err)
 		}
@@ -315,6 +332,22 @@ func (r *RuntimeQueueRunner) ExitGame(ctx context.Context, request SupervisorRun
 	r.gameOpen = false
 	r.runsInGame = 0
 	return nil
+}
+
+func (r *RuntimeQueueRunner) lifecycleTelemetry(request SupervisorRunRequest) queueLifecycleTelemetry {
+	return func(event telemetry.Event) error {
+		if r == nil || r.sessionTrace == nil {
+			return nil
+		}
+		queueIndex, queueCycle := request.QueueIndex, request.Cycle
+		event.RunID = request.ExecutionID
+		event.GameID = request.GameID
+		event.Run = request.DefinitionID
+		event.QueueIndex = &queueIndex
+		event.QueueCycle = &queueCycle
+		event.Retry = request.Retry
+		return r.sessionTrace.Emit(event)
+	}
 }
 
 // CloseQueue releases current run resources without sending D2R input.
@@ -426,7 +459,7 @@ type runtimeQueueUnit struct {
 
 const queueReasonRetryReturnFailed = "retry_return_failed"
 
-func (u *runtimeQueueUnit) StartOrVerifyGame(ctx context.Context, alreadyActive bool) error {
+func (u *runtimeQueueUnit) StartOrVerifyGame(ctx context.Context, alreadyActive bool, emit queueLifecycleTelemetry) error {
 	u.runtime.Log.Info("queue game lifecycle start", "adopt_existing_game", alreadyActive)
 	if alreadyActive {
 		if err := u.runtime.verifyActiveQueueGame(ctx); err == nil {
@@ -453,11 +486,97 @@ func (u *runtimeQueueUnit) StartOrVerifyGame(ctx context.Context, alreadyActive 
 		u.runtime.Log.Error("queue game lifecycle start failed", "stage", "character_selection", "error", err)
 		return err
 	}
+	fresh, err := u.runtime.verifyFreshQueueGame(ctx)
+	if err != nil {
+		u.runtime.Log.Error("queue game lifecycle start failed", "stage", "fresh_game_verification", "error", err)
+		return err
+	}
+	if err := u.normalizeFreshQueueGame(ctx, fresh, emit); err != nil {
+		u.runtime.Log.Error("queue game lifecycle start failed", "stage", "start_town_normalization", "start_area_id", fresh.AreaID, "error", err)
+		return &startTownNormalizationError{err: err}
+	}
 	if err := u.runtime.verifyActiveQueueGame(ctx); err != nil {
 		u.runtime.Log.Error("queue game lifecycle start failed", "stage", "active_game_verification", "error", err)
 		return err
 	}
 	return u.finishVerifiedQueueGame(ctx, false)
+}
+
+func (u *runtimeQueueUnit) normalizeFreshQueueGame(ctx context.Context, fresh sessionGameVerification, emit queueLifecycleTelemetry) error {
+	act, normalize, err := freshGameOriginAct(fresh.AreaID)
+	if err != nil || !normalize {
+		return err
+	}
+	state := u.runtime.World.Current()
+	startedAt := time.Now()
+	started := telemetry.Event{
+		Event: telemetry.StartTownNormalizationStarted, Act: string(act), AreaID: uint32(fresh.AreaID),
+		RouteFile: town.SystemEgressSpawnFilename, PlayerX: state.Player.Position.X, PlayerY: state.Player.Position.Y,
+	}
+	if err := emit(started); err != nil {
+		return fmt.Errorf("emit start-town normalization start: %w", err)
+	}
+	u.runtime.setRecoveryStep("start_town_normalization")
+	defer u.runtime.setRecoveryStep("")
+	egress, _, err := u.runtime.systemEgressConfig(act)
+	if err != nil {
+		return emitStartTownNormalizationFailure(emit, started, startedAt, err)
+	}
+	route, err := town.LoadSystemEgressRoute(u.runtime.Config.ResolvePath(egress.RoutesDirectory + "/" + town.SystemEgressSpawnFilename))
+	if err != nil {
+		return emitStartTownNormalizationFailure(emit, started, startedAt, fmt.Errorf("load fresh game spawn egress for %s: %w", act, err))
+	}
+	if err := u.runtime.normalizeFreshQueueGame(ctx, fresh.AreaID); err != nil {
+		return emitStartTownNormalizationFailure(emit, started, startedAt, err)
+	}
+	completed := started
+	completed.Event = telemetry.StartTownNormalizationCompleted
+	completed.RouteLayoutFingerprint = route.Contract.LayoutFingerprint.Hash
+	completed.WaypointTarget = string(pathing.WaypointTargetRogueEncampment)
+	completed.TargetAreaID = uint32(world.RogueEncampment)
+	completed.Confirmed = true
+	completed.ElapsedMs = time.Since(startedAt).Milliseconds()
+	if err := emit(completed); err != nil {
+		return fmt.Errorf("emit start-town normalization completion: %w", err)
+	}
+	return nil
+}
+
+func emitStartTownNormalizationFailure(emit queueLifecycleTelemetry, started telemetry.Event, startedAt time.Time, cause error) error {
+	failed := started
+	failed.Event = telemetry.StartTownNormalizationFailed
+	failed.Reason = "start_town_normalization_failed"
+	failed.RecoveryReason = startTownNormalizationFailureReason(cause)
+	failed.ElapsedMs = time.Since(startedAt).Milliseconds()
+	if emitErr := emit(failed); emitErr != nil {
+		return fmt.Errorf("normalize fresh game town: %v; emit failure: %w", cause, emitErr)
+	}
+	return cause
+}
+
+type startTownNormalizationError struct{ err error }
+
+func (e *startTownNormalizationError) Error() string {
+	return fmt.Sprintf("start-town normalization: %v", e.err)
+}
+
+func (e *startTownNormalizationError) Unwrap() error { return e.err }
+
+func startTownNormalizationFailureReason(err error) string {
+	switch {
+	case errors.Is(err, pathing.ErrRouteNotFound):
+		return "spawn_route_missing"
+	case errors.Is(err, pathing.ErrRouteStartMismatch):
+		return "spawn_position_mismatch"
+	case errors.Is(err, pathing.ErrRouteLayoutMismatch):
+		return "layout_mismatch"
+	case errors.Is(err, pathing.ErrLayoutAnchorsUnavailable):
+		return "layout_anchors_unavailable"
+	case errors.Is(err, context.DeadlineExceeded):
+		return "start_town_normalization_timeout"
+	default:
+		return "start_town_normalization_failed"
+	}
 }
 
 func (u *runtimeQueueUnit) finishVerifiedQueueGame(ctx context.Context, alreadyActive bool) error {
@@ -525,12 +644,12 @@ func (u *runtimeQueueUnit) VerifyProfileSkills(ctx context.Context) SupervisorRu
 	profileID, err := u.runtime.resolvedCombatProfileID()
 	if err != nil {
 		u.runtime.Log.Error("profile skills gate resolve failed", "error", err)
-		return SupervisorRunResult{Disposition: QueueRunStop, Reason: reasonProfileSkillsReadUnavailable, ExitRequired: true}
+		return SupervisorRunResult{Disposition: QueueRunStop, Reason: reasonProfileSkillsReadUnavailable, ExitAuthorization: ExitAuthorizationMemoryGatedCurrentArea}
 	}
 	profileCfg, ok := u.runtime.Config.Profiles[profileID]
 	if !ok {
 		u.runtime.Log.Error("profile skills gate missing profile", "profile", profileID)
-		return SupervisorRunResult{Disposition: QueueRunStop, Reason: reasonProfileSkillsReadUnavailable, ExitRequired: true}
+		return SupervisorRunResult{Disposition: QueueRunStop, Reason: reasonProfileSkillsReadUnavailable, ExitAuthorization: ExitAuthorizationMemoryGatedCurrentArea}
 	}
 	return u.runtime.verifyProfileSkillsOnce(ctx, profileID, profileCfg.RequiredSkills)
 }
@@ -553,18 +672,18 @@ func (u *runtimeQueueUnit) RunToTown(ctx context.Context, request SupervisorRunR
 	if runErr != nil {
 		var readinessErr *runReadinessError
 		if errors.As(runErr, &readinessErr) {
-			result = SupervisorRunResult{Disposition: QueueRunStop, Reason: readinessErr.reason}
+			result = SupervisorRunResult{Disposition: QueueRunStop, Reason: readinessErr.reason, ExitAuthorization: ExitAuthorizationNone}
 		} else {
 			result = queueRuntimeTerminal(fmt.Errorf("execute queue run: %w", runErr))
 		}
 	} else if taskResult.Outcome == tasks.RunOutcomeSuccess {
-		result = SupervisorRunResult{Disposition: QueueRunAdvance, SafeToExit: true}
+		result = SupervisorRunResult{Disposition: QueueRunAdvance, ExitAuthorization: ExitAuthorizationVerifiedRogueTown}
 	} else if isTerminalMercenaryFailure(taskResult.Reason) {
-		result = SupervisorRunResult{Disposition: QueueRunStop, Reason: taskResult.Reason}
+		result = SupervisorRunResult{Disposition: QueueRunStop, Reason: taskResult.Reason, ExitAuthorization: ExitAuthorizationNone}
 	} else if request.DefinitionID == string(tasks.RunIDCows) && taskResult.Reason == "cow_return_portal_failed" {
 		// The Cow setup already exhausted its bounded portal return. Bypass
 		// configurable retry classes and delegate one Save & Exit to the supervisor.
-		result = SupervisorRunResult{Disposition: QueueRunStop, Reason: taskResult.Reason, ExitRequired: true}
+		result = SupervisorRunResult{Disposition: QueueRunStop, Reason: taskResult.Reason, ExitAuthorization: ExitAuthorizationMemoryGatedCurrentArea}
 	} else if isMandatoryControlledExit(taskResult.Reason) || isRestartableSessionFailure(taskResult.Reason, u.runtime.Config.Session.RetryClasses) {
 		var recoveryErr error
 		result, recoveryErr = controlledRetryResult(ctx, taskResult.Reason, u.runtime.runRetryReturnToTown)
@@ -572,10 +691,10 @@ func (u *runtimeQueueUnit) RunToTown(ctx context.Context, request SupervisorRunR
 			u.runtime.Log.Error("controlled retry return failed", "run", request.DefinitionID, "reason", taskResult.Reason, "error", recoveryErr)
 		}
 	} else {
-		result = SupervisorRunResult{Disposition: QueueRunStop, Reason: taskResult.Reason}
+		result = SupervisorRunResult{Disposition: QueueRunStop, Reason: taskResult.Reason, ExitAuthorization: ExitAuthorizationNone}
 	}
 	if err := u.runtime.finishSessionRunTelemetry(result); err != nil {
-		return SupervisorRunResult{Disposition: QueueRunStop, Reason: "telemetry_failed", SafeToExit: result.SafeToExit, ExitRequired: result.ExitRequired}
+		return SupervisorRunResult{Disposition: QueueRunStop, Reason: "telemetry_failed", ExitAuthorization: result.ExitAuthorization}
 	}
 	return result
 }
@@ -587,17 +706,17 @@ func isMandatoryControlledExit(reason string) bool {
 func controlledRetryResult(ctx context.Context, reason string, recoverToTown func(context.Context) error) (SupervisorRunResult, error) {
 	if recoverToTown == nil {
 		return SupervisorRunResult{
-			Disposition: QueueRunStop, Reason: queueReasonRetryReturnFailed,
-			OriginalReason: reason, RecoveryReason: "retry_return_not_wired",
+			Disposition: QueueRunRetryCurrent, Reason: queueReasonRetryReturnFailed,
+			OriginalReason: reason, RecoveryReason: "retry_return_not_wired", ExitAuthorization: ExitAuthorizationMemoryGatedCurrentArea,
 		}, errors.New("controlled retry return is not wired")
 	}
 	if err := recoverToTown(ctx); err != nil {
 		return SupervisorRunResult{
-			Disposition: QueueRunStop, Reason: queueReasonRetryReturnFailed,
-			OriginalReason: reason, RecoveryReason: retryReturnFailureReason(err),
+			Disposition: QueueRunRetryCurrent, Reason: queueReasonRetryReturnFailed,
+			OriginalReason: reason, RecoveryReason: retryReturnFailureReason(err), ExitAuthorization: ExitAuthorizationMemoryGatedCurrentArea,
 		}, fmt.Errorf("controlled retry return: %w", err)
 	}
-	return SupervisorRunResult{Disposition: QueueRunRetryCurrent, Reason: reason, SafeToExit: true}, nil
+	return SupervisorRunResult{Disposition: QueueRunRetryCurrent, Reason: reason, ExitAuthorization: ExitAuthorizationVerifiedRogueTown}, nil
 }
 
 type retryReturnFailure struct {
@@ -632,8 +751,44 @@ func retryReturnFailureReason(err error) string {
 	return "retry_return_execution_failed"
 }
 
-func (u *runtimeQueueUnit) ExitGame(ctx context.Context) error {
-	return u.runtime.runOfflineExitTest(ctx)
+func (u *runtimeQueueUnit) ExitGame(ctx context.Context, result SupervisorRunResult, emit queueLifecycleTelemetry) error {
+	mode, err := offlineExitModeForAuthorization(result.ExitAuthorization)
+	if err != nil {
+		return err
+	}
+	if result.ExitAuthorization != ExitAuthorizationMemoryGatedCurrentArea {
+		return u.runtime.runOfflineExit(ctx, mode)
+	}
+	u.runtime.setRecoveryStep("direct_exit")
+	defer u.runtime.setRecoveryStep("")
+	startedAt := time.Now()
+	state := u.runtime.World.Current()
+	event := telemetry.Event{
+		Event: telemetry.DirectExitStarted, AreaID: uint32(state.Area.ID), Reason: result.Reason,
+		OriginalReason: result.OriginalReason, RecoveryReason: result.RecoveryReason,
+		ExitAuthorization: string(result.ExitAuthorization),
+	}
+	if err := emit(event); err != nil {
+		return fmt.Errorf("emit direct exit start: %w", err)
+	}
+	if err := u.runtime.runOfflineExit(ctx, mode); err != nil {
+		failed := event
+		failed.Event = telemetry.DirectExitFailed
+		failed.ElapsedMs = time.Since(startedAt).Milliseconds()
+		failed.Reason = "game_exit_failed"
+		if emitErr := emit(failed); emitErr != nil {
+			return fmt.Errorf("direct exit: %v; emit failure: %w", err, emitErr)
+		}
+		return err
+	}
+	completed := event
+	completed.Event = telemetry.DirectExitCompleted
+	completed.ElapsedMs = time.Since(startedAt).Milliseconds()
+	completed.Confirmed = true
+	if err := emit(completed); err != nil {
+		return fmt.Errorf("emit direct exit completion: %w", err)
+	}
+	return nil
 }
 
 func (u *runtimeQueueUnit) Close() {
@@ -647,7 +802,67 @@ func (u *runtimeQueueUnit) Close() {
 }
 
 func (rt *Runtime) verifyActiveQueueGame(parent context.Context) (err error) {
+	_, err = rt.verifyQueueGame(parent, sessionGameExpectation{
+		Character: rt.Config.Session.Character, GameVersion: rt.Config.Memory.GameVersion, StartArea: world.RogueEncampment,
+	})
+	return err
+}
+
+func (rt *Runtime) verifyFreshQueueGame(parent context.Context) (sessionGameVerification, error) {
+	return rt.verifyQueueGame(parent, sessionGameExpectation{
+		Character: rt.Config.Session.Character, GameVersion: rt.Config.Memory.GameVersion,
+		AllowedStartAreas: []world.AreaID{world.RogueEncampment, world.LutGholein, world.KurastDocks, world.ThePandemoniumFortress, world.Harrogath},
+	})
+}
+
+func (rt *Runtime) verifyQueueGame(parent context.Context, expectation sessionGameExpectation) (verification sessionGameVerification, err error) {
 	ctx, cancel := context.WithTimeout(parent, time.Duration(rt.Config.Session.StateTimeoutMs)*time.Millisecond)
+	defer cancel()
+	rt.startShutdownSignals(ctx, cancel)
+	defer func() {
+		if err != nil {
+			rt.Input.Unbind()
+			_ = rt.Process.Detach()
+		}
+	}()
+	hotkeys, err := rt.startHotkeys(ctx)
+	if err != nil {
+		return sessionGameVerification{}, err
+	}
+	defer rt.stopHotkeys(cancel)
+	verifier := newSessionGameVerifier(expectation)
+	verifier.ResetForNextGame()
+	state := &runState{}
+	ticker := time.NewTicker(time.Duration(rt.Config.Runtime.PollIntervalMs) * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return sessionGameVerification{}, ctx.Err()
+		case event := <-hotkeys:
+			rt.handleHotkeyEvent(event, cancel)
+		case <-ticker.C:
+			if pollErr := rt.pollQueueSnapshot(ctx, state); pollErr != nil && !errors.Is(pollErr, context.Canceled) {
+				return sessionGameVerification{}, pollErr
+			}
+			rt.ensureVisibleInputWindow()
+			if observed, confirmed, observeErr := verifier.Observe(rt.World.Current(), rt.Config.Memory.GameVersion); observeErr != nil {
+				return sessionGameVerification{}, observeErr
+			} else if confirmed {
+				if focusErr := focusVerifiedQueueGame(rt.Input); focusErr != nil {
+					return sessionGameVerification{}, focusErr
+				}
+				return observed, nil
+			}
+		}
+	}
+}
+
+func (rt *Runtime) normalizeFreshQueueGame(parent context.Context, startArea world.AreaID) (err error) {
+	if startArea == world.RogueEncampment {
+		return nil
+	}
+	ctx, cancel := context.WithTimeout(parent, time.Duration(rt.Config.Session.StartTimeoutMs)*time.Millisecond)
 	defer cancel()
 	rt.startShutdownSignals(ctx, cancel)
 	defer func() {
@@ -661,17 +876,19 @@ func (rt *Runtime) verifyActiveQueueGame(parent context.Context) (err error) {
 		return err
 	}
 	defer rt.stopHotkeys(cancel)
-	verifier := newSessionGameVerifier(sessionGameExpectation{
-		Character: rt.Config.Session.Character, GameVersion: rt.Config.Memory.GameVersion, StartArea: world.RogueEncampment,
-	})
-	verifier.ResetForNextGame()
+	normalizer := newFreshGameNormalizer(rt.townEgress, rt.taskDeps.Waypoint)
+	if done, startErr := normalizer.Start(rt.World.Current()); startErr != nil {
+		return startErr
+	} else if done {
+		return nil
+	}
 	state := &runState{}
 	ticker := time.NewTicker(time.Duration(rt.Config.Runtime.PollIntervalMs) * time.Millisecond)
 	defer ticker.Stop()
 	for {
 		select {
 		case <-ctx.Done():
-			return ctx.Err()
+			return fmt.Errorf("fresh game start-town normalization deadline: %w", ctx.Err())
 		case event := <-hotkeys:
 			rt.handleHotkeyEvent(event, cancel)
 		case <-ticker.C:
@@ -679,12 +896,11 @@ func (rt *Runtime) verifyActiveQueueGame(parent context.Context) (err error) {
 				return pollErr
 			}
 			rt.ensureVisibleInputWindow()
-			if _, confirmed, observeErr := verifier.Observe(rt.World.Current(), rt.Config.Memory.GameVersion); observeErr != nil {
-				return observeErr
-			} else if confirmed {
-				if focusErr := focusVerifiedQueueGame(rt.Input); focusErr != nil {
-					return focusErr
-				}
+			done, tickErr := normalizer.Tick(ctx, rt.World.Current())
+			if tickErr != nil {
+				return tickErr
+			}
+			if done {
 				return nil
 			}
 		}
@@ -696,6 +912,10 @@ func queueGameStartDetail(err error) string {
 		return "Das Spiel konnte nicht sicher gestartet werden."
 	}
 	msg := err.Error()
+	var normalizationErr *startTownNormalizationError
+	if errors.As(err, &normalizationErr) {
+		return "Die Rückkehr nach Akt 1 ist fehlgeschlagen."
+	}
 	if detail, ok := queueUnsupportedResolutionDetail(msg); ok {
 		return detail
 	}
@@ -755,9 +975,9 @@ func focusVerifiedQueueGame(controller inputController) error {
 
 func queueRuntimeTerminal(err error) SupervisorRunResult {
 	if errors.Is(err, context.Canceled) {
-		return SupervisorRunResult{Disposition: QueueRunStop, Reason: string(SupervisorReasonEmergencyStopRequested)}
+		return SupervisorRunResult{Disposition: QueueRunStop, Reason: string(SupervisorReasonEmergencyStopRequested), ExitAuthorization: ExitAuthorizationNone}
 	}
-	return SupervisorRunResult{Disposition: QueueRunStop, Reason: "queue_runtime_failed"}
+	return SupervisorRunResult{Disposition: QueueRunStop, Reason: "queue_runtime_failed", ExitAuthorization: ExitAuthorizationNone}
 }
 
 func queueRunTerminalEvent(result SupervisorRunResult) telemetry.EventName {

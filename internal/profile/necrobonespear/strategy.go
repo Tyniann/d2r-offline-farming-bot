@@ -74,13 +74,20 @@ func (s *lowerKurastStrategy) Configure(exec *profile.Executor, standardAttackID
 func (s *bossStrategy) ProfileID() string { return profileID }
 func (s *bossStrategy) RunID() string     { return s.runID }
 func (s *bossStrategy) RequiredSkills() []string {
-	return []string{"teleport", "town_portal", "bone_spear", "bone_armor", "bone_prison"}
+	return []string{"teleport", "town_portal", "bone_spear", "amplify_damage", "bone_armor", "bone_prison"}
 }
-func (s *bossStrategy) Configure(exec *profile.Executor, _ uint16, _ profile.RouteCombatActions) error {
-	if exec == nil {
-		return fmt.Errorf("necro bone spear boss strategy requires executor")
+
+// RequiresRouteClear reports false because these runs use local recovery
+// combat without authorizing attacks during route playback.
+func (s *bossStrategy) RequiresRouteClear() bool { return false }
+
+func (s *bossStrategy) SupportsLocalRecoveryClear() {}
+
+func (s *bossStrategy) Configure(exec *profile.Executor, standardAttackID uint16, routeClear profile.RouteCombatActions) error {
+	if exec == nil || routeClear == nil || standardAttackID != memory.SkillBoneSpear {
+		return fmt.Errorf("necro bone spear boss strategy requires executor, local recovery clear and Bone Spear standard attack")
 	}
-	return nil
+	return exec.ConfigureRouteClear(profile.RouteClearSingleTarget, memory.SkillAmplifyDamage, standardAttackID, routeClear)
 }
 
 type nihlathakStrategy struct{}
@@ -94,6 +101,8 @@ func (s *nihlathakStrategy) RequiredSkills() []string {
 // RequiresRouteClear reports false because Nihlathak has no travel route_clear
 // capability; Configure still binds RouteClear for post-boss cleanup only.
 func (s *nihlathakStrategy) RequiresRouteClear() bool { return false }
+
+func (s *nihlathakStrategy) SupportsLocalRecoveryClear() {}
 
 func (s *nihlathakStrategy) Configure(exec *profile.Executor, standardAttackID uint16, routeClear profile.RouteCombatActions) error {
 	if exec == nil || routeClear == nil || standardAttackID == 0 {

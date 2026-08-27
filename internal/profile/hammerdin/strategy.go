@@ -55,15 +55,22 @@ func (s *bossStrategy) RunID() string     { return s.runID }
 func (s *bossStrategy) RequiredSkills() []string {
 	return []string{"teleport", "town_portal", "blessed_hammer", "concentration", "holy_shield"}
 }
-func (s *bossStrategy) Configure(exec *profile.Executor, standardAttackID uint16, _ profile.RouteCombatActions) error {
-	if exec == nil || standardAttackID != memory.MustSkillID("blessed_hammer") {
-		return fmt.Errorf("hammerdin strategy requires executor and Blessed Hammer standard attack")
+
+// RequiresRouteClear reports false because these runs use local recovery
+// combat without authorizing attacks during route playback.
+func (s *bossStrategy) RequiresRouteClear() bool { return false }
+
+func (s *bossStrategy) SupportsLocalRecoveryClear() {}
+
+func (s *bossStrategy) Configure(exec *profile.Executor, standardAttackID uint16, routeClear profile.RouteCombatActions) error {
+	if exec == nil || routeClear == nil || standardAttackID != memory.MustSkillID("blessed_hammer") {
+		return fmt.Errorf("hammerdin strategy requires executor, local recovery clear and Blessed Hammer standard attack")
 	}
 	// Town-ready CTA/Holy Shield is owned by the app-layer town_ready wrapper.
 	// Standard attack (close teleport, then confirmed LMB) is owned by
 	// the shared boss pipeline, not by encounter hooks. Countess, Mephisto,
-	// and Nihlathak do not bind RouteClear: those runs have no travel combat.
-	return nil
+	// and Nihlathak do not authorize route playback combat.
+	return exec.ConfigureRouteClear(profile.RouteClearSingleTarget, 0, standardAttackID, routeClear)
 }
 
 type lowerKurastStrategy struct{}

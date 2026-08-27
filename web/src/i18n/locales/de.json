@@ -133,6 +133,16 @@
       "pauseAfterRun": "Nach dieser Route pausieren",
       "stopAfterRun": "Nach dieser Route stoppen",
       "stopImmediately": "Sofort stoppen",
+      "recovery": {
+        "retryReturn": "Sichere Rückkehr nach Akt 1 läuft.",
+        "localClear": "Rückkehr blockiert. Die unmittelbare Umgebung wird geräumt.",
+        "portalReposition": "Der Weg zum Stadtportal wird freigemacht.",
+        "portalRetry": "Stadtportal wird erneut versucht.",
+        "directExit": "Sicherer Rückweg fehlgeschlagen. Das Spiel wird direkt beendet.",
+        "startTownNormalization": "Spiel startete in Akt {{act}}. Rückkehr nach Akt 1 läuft.",
+        "returnToAct1": "Rückkehr nach Akt 1 läuft.",
+        "restartGame": "Die Route wird in einem neuen Spiel wiederholt."
+      },
       "stages": {
         "town_preparation": "Vorbereitung im Dorf",
         "waypoint_black_marsh": "Wegpunkt Schwarzmarsch",
@@ -1399,6 +1409,8 @@
     "profileBindingsIncomplete": "Für dieses Kampfprofil fehlen Tastenbelegungen.",
     "inventoryUnconfigured": "Der Inventarschutz wurde noch nicht bestätigt.",
     "gameStartFailed": "Das Spiel konnte nicht sicher gestartet werden. D2R muss im Rogue Encampment stehen oder auf dem Offline-Charakterbildschirm, damit der Bot das Spiel öffnet.",
+    "gameExitFailed": "Das Spiel konnte nicht sicher beendet werden. Die Session wurde gestoppt.",
+    "startTownNormalizationFailed": "Die Rückkehr nach Akt 1 ist fehlgeschlagen.",
     "unsupportedResolution": "D2R läuft in {{actual_width}} × {{actual_height}}. Stelle Fenster-Modus {{expected_width}} × {{expected_height}} ein.",
     "runCatalogRefreshFailed": "Die verfügbaren Routen konnten nicht geladen werden.",
     "routeUnavailable": "Die Routenverwaltung ist derzeit nicht verfügbar.",

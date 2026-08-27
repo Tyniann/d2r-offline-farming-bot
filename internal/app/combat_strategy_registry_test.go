@@ -63,9 +63,9 @@ func TestCombatStrategyRegistryExposesHammerdinBossRuns(t *testing.T) {
 			if !hasClear || !clear.RequiresRouteClear() {
 				t.Fatalf("Hammerdin %s must require travel route_clear", runID)
 			}
-		} else if runID == "lower-kurast" {
+		} else if runID == "lower-kurast" || runID == "countess" || runID == "mephisto" || runID == "nihlathak" {
 			if !hasClear || clear.RequiresRouteClear() {
-				t.Fatal("Hammerdin lower-kurast must wire local clear without travel route_clear")
+				t.Fatalf("Hammerdin %s must wire local clear without travel route_clear", runID)
 			}
 		} else if hasClear {
 			t.Fatalf("Hammerdin %s must not wire route clear", runID)
@@ -79,6 +79,28 @@ func TestCombatStrategyRegistryExposesHammerdinBossRuns(t *testing.T) {
 	}
 	if got := registry.SupportedRuns("necro_bone_spear"); len(got) != 6 {
 		t.Fatalf("existing Bone-Spear registry changed: %v", got)
+	}
+}
+
+func TestCombatStrategyRegistryExposesPhase24RecoveryMatrixWithoutTravelCombat(t *testing.T) {
+	registry := NewCombatStrategyRegistry()
+	profiles := []string{"necro_bone_spear", "paladin_hammerdin"}
+	runs := []string{"countess", "mephisto", "nihlathak"}
+	for _, profileID := range profiles {
+		for _, runID := range runs {
+			factory, ok := registry.Resolve(profileID, runID)
+			if !ok {
+				t.Fatalf("missing recovery strategy for %s/%s", profileID, runID)
+			}
+			strategy := factory()
+			if _, ok := strategy.(profile.SupportsLocalRecoveryClear); !ok {
+				t.Fatalf("%s/%s does not expose local recovery clear", profileID, runID)
+			}
+			clear, ok := strategy.(profile.SupportsRouteClear)
+			if !ok || clear.RequiresRouteClear() {
+				t.Fatalf("%s/%s must configure local clear without travel combat", profileID, runID)
+			}
+		}
 	}
 }
 
@@ -103,6 +125,23 @@ func TestCombatStrategyRegistryValidateAgainstProfiles(t *testing.T) {
 	broken["necro_bone_spear"] = value
 	err = registry.ValidateAgainstProfiles(broken)
 	if err == nil || !strings.Contains(err.Error(), "corpse_explosion") {
+		t.Fatalf("error = %v", err)
+	}
+}
+
+type strategyWithoutRecovery struct{}
+
+func (strategyWithoutRecovery) ProfileID() string        { return "future_profile" }
+func (strategyWithoutRecovery) RunID() string            { return "countess" }
+func (strategyWithoutRecovery) RequiredSkills() []string { return nil }
+func (strategyWithoutRecovery) Configure(*profile.Executor, uint16, profile.RouteCombatActions) error {
+	return nil
+}
+
+func TestCombatStrategyRegistryRejectsRecoveryRunWithoutExplicitStrategyCapability(t *testing.T) {
+	registry := &CombatStrategyRegistry{factories: map[string]map[string]profile.StrategyFactory{}}
+	err := registry.Register(func() profile.RunStrategy { return strategyWithoutRecovery{} })
+	if err == nil || !strings.Contains(err.Error(), "lacks local recovery clear") {
 		t.Fatalf("error = %v", err)
 	}
 }

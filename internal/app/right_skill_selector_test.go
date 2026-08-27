@@ -313,7 +313,7 @@ func TestSkillSelectorKeepsLeftAndRightPendingIndependent(t *testing.T) {
 
 func TestProfileRequiredSkillsMissingResultListsLabels(t *testing.T) {
 	result := profileRequiredSkillsMissingResult("MrBones", "Knochen-Speer", []string{"Knochenrüstung", "Stadtportal"})
-	if result.Disposition != QueueRunStop || result.Reason != reasonProfileRequiredSkillsMissing || !result.ExitRequired {
+	if result.Disposition != QueueRunStop || result.Reason != reasonProfileRequiredSkillsMissing || result.ExitAuthorization != ExitAuthorizationMemoryGatedCurrentArea {
 		t.Fatalf("result = %+v", result)
 	}
 	if !strings.Contains(result.Detail, "MrBones fehlen für Knochen-Speer") || !strings.Contains(result.Detail, "Knochenrüstung") {

@@ -22,6 +22,14 @@ type SupportsRouteClear interface {
 	RequiresRouteClear() bool
 }
 
+// SupportsLocalRecoveryClear marks a strategy that explicitly configures the
+// bounded local combat used by a failed return-to-Town recovery. It does not
+// authorize combat during recorded-route playback.
+type SupportsLocalRecoveryClear interface {
+	// SupportsLocalRecoveryClear is a marker method with no runtime switch.
+	SupportsLocalRecoveryClear()
+}
+
 // SupportsCorpseExplosion reports whether the strategy needs authorized CE wiring.
 type SupportsCorpseExplosion interface {
 	RequiresCorpseExplosion() bool

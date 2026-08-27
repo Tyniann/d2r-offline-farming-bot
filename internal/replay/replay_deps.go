@@ -190,7 +190,11 @@ func decodeWaypoint(call DependencyCall) pathing.WaypointActionResult {
 }
 func (d *replayDependencies) TickPortal(context.Context, world.State, time.Time) pathing.TownPortalActionResult {
 	call := d.consume("portal.tick")
-	return pathing.TownPortalActionResult{Status: pathing.TownPortalActionStatus(stringValue(call.Result, "status")), Reason: stringValue(call.Result, "reason"), Done: boolValue(call.Result, "done")}
+	return pathing.TownPortalActionResult{
+		Status: pathing.TownPortalActionStatus(stringValue(call.Result, "status")),
+		Reason: stringValue(call.Result, "reason"), Done: boolValue(call.Result, "done"),
+		PortalUnitID: uint32(int64Value(call.Result, "portal_unit_id")), BlockerUnitID: uint32(int64Value(call.Result, "blocker_unit_id")),
+	}
 }
 
 type replayPortal struct{ deps *replayDependencies }

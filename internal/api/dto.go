@@ -18,6 +18,7 @@ type StatusDTO struct {
 	RunInstanceID  string             `json:"run_id,omitempty"`
 	GameID         string             `json:"game_id,omitempty"`
 	LifecyclePhase string             `json:"lifecycle_phase"`
+	RecoveryStep   string             `json:"recovery_step,omitempty"`
 	RunProgress    *RunProgressDTO    `json:"run_progress,omitempty"`
 	D2R            D2RDTO             `json:"d2r"`
 	Compatibility  CompatibilityDTO   `json:"compatibility"`

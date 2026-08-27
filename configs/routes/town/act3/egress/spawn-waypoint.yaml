@@ -1,0 +1,80 @@
+schema_version: 1
+contract:
+    act: act3
+    town_area_id: 75
+    game_version: 3.2.92777
+    layout_fingerprint:
+        version: 1
+        area_id: 75
+        anchor_count: 2
+        hash: c8cb0be7d1721b7e78f724a2644103e35b8928c554f65d5dceb1c0a7982064e9
+        anchors:
+            - o:237:5159,5049
+            - o:267:5141,5057
+    layout_proof_point_index: 13
+    from: spawn
+    to: waypoint
+    movement: walk
+    arrival_tolerance_tiles: 15
+sample_distance_tiles: 4
+points:
+    - x: 5118
+      "y": 5168
+    - x: 5122
+      "y": 5167
+    - x: 5127
+      "y": 5164
+    - x: 5130
+      "y": 5159
+    - x: 5132
+      "y": 5154
+    - x: 5132
+      "y": 5150
+    - x: 5132
+      "y": 5145
+    - x: 5132
+      "y": 5141
+    - x: 5132
+      "y": 5137
+    - x: 5131
+      "y": 5132
+    - x: 5131
+      "y": 5128
+    - x: 5131
+      "y": 5123
+    - x: 5132
+      "y": 5119
+    - x: 5132
+      "y": 5115
+    - x: 5133
+      "y": 5110
+    - x: 5134
+      "y": 5106
+    - x: 5134
+      "y": 5101
+    - x: 5135
+      "y": 5097
+    - x: 5137
+      "y": 5092
+    - x: 5142
+      "y": 5090
+    - x: 5146
+      "y": 5088
+    - x: 5149
+      "y": 5085
+    - x: 5150
+      "y": 5081
+    - x: 5152
+      "y": 5076
+    - x: 5153
+      "y": 5071
+    - x: 5153
+      "y": 5067
+    - x: 5154
+      "y": 5062
+    - x: 5155
+      "y": 5058
+    - x: 5156
+      "y": 5054
+    - x: 5158
+      "y": 5052

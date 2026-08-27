@@ -59,7 +59,7 @@ func main() {
 	runsInspect := flag.Bool("runs-inspect", false, "print read-only run metadata and availability as stable JSON")
 	waypointTargetsInspect := flag.Bool("waypoint-targets-inspect", false, "print registered read-only waypoint target calibration as stable JSON")
 	sessionMaxRuns := flag.Int("session-max-runs", 0, "override the finite autonomous-session run count (0 uses config)")
-	routeCommand := flag.String("route", "", "route command (list | inspect/validate/record/play:<id> | play-segment:<id>/<segment-id> | inspect/record/validate/play-egress:<act2|act3|act4|act5>)")
+	routeCommand := flag.String("route", "", "route command (list | inspect/validate/record/play:<id> | play-segment:<id>/<segment-id> | inspect-egress:<act2|act3|act4|act5> | record/validate/play-egress:<act2|act3|act4|act5>[/spawn])")
 	routeName := flag.String("route-name", "", "display name for a route recording; only valid with record")
 	routeDifficulty := flag.String("route-difficulty", "", "recording label: normal, nightmare, or hell; required with record")
 	townInspect := flag.Bool("town-inspect", false, "write one read-only Phase-9.1 Town data-availability report")

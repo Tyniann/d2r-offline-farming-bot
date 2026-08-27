@@ -27,8 +27,8 @@ type LayoutFingerprint struct {
 	PlayerY     uint32
 	AnchorCount int
 	Hash        string
-	// Anchors lists the sorted canonical strings that produced Hash.
-	// They are diagnostic only and are not persisted on system-egress contracts.
+	// Anchors lists the sorted canonical strings that produced Hash. System
+	// Egress persists them so playback can tolerate small coordinate jitter.
 	Anchors []string
 }
 

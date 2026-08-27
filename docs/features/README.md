@@ -76,6 +76,7 @@ Spätere Ideen (noch nicht umgesetzt): [`docs/backlog.md`](../backlog.md).
 | [FarmQueue-Scheduler](farm-queue-scheduler.md) | Abschnitt 11.7/15.13: vollständiger Queue-Preflight, persistente Charakter-Queue, zyklischer Scheduler, Retry-same-index und Core-autoritative Safety-Budgets |
 | [Session-Konfiguration und Inspect](session-configuration.md) | Phase 7.5: explizites Opt-in, endliche Budgets und read-only Planauflösung mit Route-/Character-/Difficulty-Preflight vor Attach/Input |
 | [Session-Recovery und Lifecycle-Telemetrie](session-recovery-telemetry.md) | Phase 7.7: exakte Retry-Klassifikation, harte Fehler-/Restart-Budgets und synchron korrelierte Session-/Game-/Run-JSONL-Ereignisse |
+| [Notfall-Recovery für Run und Spielstart](emergency-run-recovery.md) | Phase 24: begrenzter lokaler Portal-Clear, ein Portal-Retry, direkter Spielaustritt und Spawn-Normalisierung aus Akt 2–5 |
 | [Charaktereinrichtung](character-setup.md) | Phase 16: Core-validierte Profil- und Pickit-Einrichtung, sichere Auswahlbilderfassung und erneute Selection-/Queue-/Run-Gates |
 | [Read-only Charakterkatalog und Screenshot-gated Selector](character-selection.md) | Abschnitt 11.4: Save-Dateinamen-Katalog, fail-closed Anker-Availability und begrenzte Home/Down-Auswahl mit Memory-Bestätigung |
 | [Verifizierter Offline-Game-Start](offline-difficulty-selection.md) | Phase 7.3: Screen- und Memory-gated Charakter-, Play- und Difficulty-Auswahl mit bestätigter Ankunft in Rogue Encampment |

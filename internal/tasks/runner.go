@@ -122,6 +122,37 @@ func (r *Runner) Result() TickResult {
 	return TickResult{Active: r.started && !r.terminal && !r.reset, Outcome: r.outcome, Step: r.tracker.name, Reason: r.terminalReason}
 }
 
+// RecoveryStep projects the active retry-return substep without exposing the
+// task pipeline's internal state machine to API or UI packages.
+func (r *Runner) RecoveryStep() string {
+	if r == nil || r.selection.Phase != RunPhaseRetryReturn {
+		return ""
+	}
+	pipeline, ok := r.run.(*runPipeline)
+	if !ok {
+		return ""
+	}
+	switch r.tracker.name {
+	case pipelineStepWaitRecoveryArea, pipelineStepCastTownPortal, pipelineStepEnterTownPortal:
+		return "retry_return"
+	case pipelineStepWaitOriginTown:
+		switch pipeline.ret.destinationPhase {
+		case portalDestinationClear:
+			return "local_recovery_clear"
+		case portalDestinationTeleport, portalDestinationSettle:
+			return "return_portal_reposition"
+		case portalDestinationRetryClick, portalDestinationRetryWait:
+			return "return_portal_retry"
+		default:
+			return "retry_return"
+		}
+	case pipelineStepPlayTownEgress, pipelineStepOpenOriginWaypoint, pipelineStepSelectHubWaypoint, pipelineStepWaitHubArea:
+		return "return_to_act1"
+	default:
+		return ""
+	}
+}
+
 // WasReset reports whether the run was reset (e.g. after process lost).
 func (r *Runner) WasReset() bool {
 	return r.reset

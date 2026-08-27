@@ -175,6 +175,8 @@ const errorKeys = {
   profile_bindings_incomplete: "errors.profileBindingsIncomplete",
   character_inventory_unconfigured: "errors.inventoryUnconfigured",
   game_start_failed: "errors.gameStartFailed",
+  game_exit_failed: "errors.gameExitFailed",
+  start_town_normalization_failed: "errors.startTownNormalizationFailed",
   unsupported_resolution: "errors.unsupportedResolution",
   run_catalog_refresh_failed: "errors.runCatalogRefreshFailed",
   route_feature_unavailable: "errors.routeUnavailable",

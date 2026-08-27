@@ -20,15 +20,16 @@ const (
 
 // verifyProfileSkillsOnce waits for one complete PlayerSkills snapshot and
 // compares required combat-profile skills. Incomplete lists never produce a
-// Missing result. On Missing or read timeout the queue stops with ExitRequired.
+// Missing result. On Missing or read timeout the queue requests the
+// memory-gated current-area exit authorization.
 func (rt *Runtime) verifyProfileSkillsOnce(parent context.Context, profileID string, required []config.RequiredSkillConfig) SupervisorRunResult {
 	if rt == nil {
-		return SupervisorRunResult{Disposition: QueueRunStop, Reason: reasonProfileSkillsReadUnavailable, ExitRequired: true}
+		return SupervisorRunResult{Disposition: QueueRunStop, Reason: reasonProfileSkillsReadUnavailable, ExitAuthorization: ExitAuthorizationMemoryGatedCurrentArea}
 	}
 	requiredIDs, labels, err := resolveRequiredSkillIDs(required)
 	if err != nil {
 		rt.Log.Error("profile skills gate failed", "error", err)
-		return SupervisorRunResult{Disposition: QueueRunStop, Reason: reasonProfileSkillsReadUnavailable, ExitRequired: true}
+		return SupervisorRunResult{Disposition: QueueRunStop, Reason: reasonProfileSkillsReadUnavailable, ExitAuthorization: ExitAuthorizationMemoryGatedCurrentArea}
 	}
 	ctx, cancel := context.WithTimeout(parent, time.Duration(rt.Config.Session.StateTimeoutMs)*time.Millisecond)
 	defer cancel()
@@ -53,7 +54,7 @@ func (rt *Runtime) verifyProfileSkillsOnce(parent context.Context, profileID str
 			}
 			rt.Log.Error("profile skills gate timed out waiting for complete skill list",
 				"profile", profileID, "incomplete_reason", rt.World.Current().Player.SkillsIncompleteReason)
-			return SupervisorRunResult{Disposition: QueueRunStop, Reason: reasonProfileSkillsReadUnavailable, ExitRequired: true}
+			return SupervisorRunResult{Disposition: QueueRunStop, Reason: reasonProfileSkillsReadUnavailable, ExitAuthorization: ExitAuthorizationMemoryGatedCurrentArea}
 		case event := <-hotkeys:
 			rt.handleHotkeyEvent(event, cancel)
 		case <-ticker.C:
@@ -89,10 +90,10 @@ func profileRequiredSkillsMissingResult(characterName, profileID string, missing
 		profileLabel = "das Kampfprofil"
 	}
 	return SupervisorRunResult{
-		Disposition:  QueueRunStop,
-		Reason:       reasonProfileRequiredSkillsMissing,
-		Detail:       fmt.Sprintf("%s fehlen für %s: %s. Die Queue wurde beendet.", character, profileLabel, strings.Join(missing, ", ")),
-		ExitRequired: true,
+		Disposition:       QueueRunStop,
+		Reason:            reasonProfileRequiredSkillsMissing,
+		Detail:            fmt.Sprintf("%s fehlen für %s: %s. Die Queue wurde beendet.", character, profileLabel, strings.Join(missing, ", ")),
+		ExitAuthorization: ExitAuthorizationMemoryGatedCurrentArea,
 	}
 }
 

@@ -82,6 +82,23 @@ func TestLiveBackendProjectsControlledRetryFailureContext(t *testing.T) {
 	}
 }
 
+func TestLiveBackendProjectsCurrentRecoveryStep(t *testing.T) {
+	backend := &LiveBackend{status: StatusDTO{State: "running_run", LifecyclePhase: "running_run"}}
+	backend.UpdateRuntime(app.UIStatusSnapshot{RecoveryStep: "local_recovery_clear"})
+	if got := backend.Status().RecoveryStep; got != "local_recovery_clear" {
+		t.Fatalf("runtime recovery step = %q", got)
+	}
+
+	backend.UpdateSupervisor(app.SupervisorSnapshot{
+		Generation: 1,
+		State:      app.SupervisorStateExitingGame,
+		LastResult: app.SupervisorRunResult{ExitAuthorization: app.ExitAuthorizationMemoryGatedCurrentArea},
+	})
+	if got := backend.Status().RecoveryStep; got != "direct_exit" {
+		t.Fatalf("direct-exit recovery step = %q", got)
+	}
+}
+
 func TestLiveBackendProjectsStatusAndMeaningfulEvents(t *testing.T) {
 	cfg, err := config.Load("../../configs/config.example.yaml")
 	if err != nil {
@@ -547,7 +564,7 @@ func TestLiveBackendSessionCommandsUseSupervisorAndRemainIdempotent(t *testing.T
 	if _, err := backend.Command("pause_after_run", CommandRequest{CommandID: "pause", ExpectedGeneration: pauseGeneration}); err != nil {
 		t.Fatal(err)
 	}
-	runner.release <- app.SupervisorRunResult{Disposition: app.QueueRunAdvance}
+	runner.release <- app.SupervisorRunResult{Disposition: app.QueueRunAdvance, ExitAuthorization: app.ExitAuthorizationVerifiedRogueTown}
 	waitAPIBackendSupervisor(t, supervisor, app.SupervisorStatePausedBetweenRuns)
 	backend.UpdateSupervisor(supervisor.Snapshot())
 	if backend.Status().Queue.Index != 1 || backend.Status().PendingIntent != string(app.SupervisorIntentNone) {
@@ -563,7 +580,7 @@ func TestLiveBackendSessionCommandsUseSupervisorAndRemainIdempotent(t *testing.T
 	if _, err := backend.Command("stop_after_run", CommandRequest{CommandID: "stop", ExpectedGeneration: backend.Status().Generation}); err != nil {
 		t.Fatal(err)
 	}
-	runner.release <- app.SupervisorRunResult{Disposition: app.QueueRunAdvance}
+	runner.release <- app.SupervisorRunResult{Disposition: app.QueueRunAdvance, ExitAuthorization: app.ExitAuthorizationVerifiedRogueTown}
 	waitAPIBackendSupervisor(t, supervisor, app.SupervisorStateIdle)
 	backend.UpdateSupervisor(supervisor.Snapshot())
 	if len(backend.Status().Queue.Entries) != 0 || len(backend.Status().Queue.DefaultEntries) != 2 {

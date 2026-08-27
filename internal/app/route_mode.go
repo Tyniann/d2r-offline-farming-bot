@@ -9,9 +9,10 @@ import (
 )
 
 type routeCommand struct {
-	action    string
-	id        string
-	segmentID string
+	action      string
+	id          string
+	segmentID   string
+	startAnchor town.Anchor
 }
 
 func parseRouteCommand(raw string) (routeCommand, error) {
@@ -24,11 +25,23 @@ func parseRouteCommand(raw string) (routeCommand, error) {
 		return routeCommand{}, fmt.Errorf("route command must be list, inspect:<route-id>, or validate:<route-id>")
 	}
 	if action == "inspect-egress" || action == "record-egress" || action == "validate-egress" || action == "play-egress" {
-		act := town.OriginAct(strings.TrimSpace(id))
+		actValue := strings.TrimSpace(id)
+		anchor := town.Anchor("")
+		if value, suffix, hasSuffix := strings.Cut(actValue, "/"); hasSuffix {
+			if action != "record-egress" && action != "validate-egress" && action != "play-egress" {
+				return routeCommand{}, fmt.Errorf("%s does not accept a start anchor", action)
+			}
+			if strings.Contains(suffix, "/") || (suffix != string(town.AnchorPortalArrival) && suffix != string(town.AnchorSpawn)) {
+				return routeCommand{}, fmt.Errorf("%s start anchor must be portal_arrival or spawn", action)
+			}
+			actValue = value
+			anchor = town.Anchor(suffix)
+		}
+		act := town.OriginAct(strings.TrimSpace(actValue))
 		if _, ok := town.TownAreaForAct(act); !ok {
 			return routeCommand{}, fmt.Errorf("%s expects act2, act3, act4, or act5", action)
 		}
-		return routeCommand{action: action, id: string(act)}, nil
+		return routeCommand{action: action, id: string(act), startAnchor: anchor}, nil
 	}
 	if action == "play-segment" {
 		routeID, segmentID, ok := strings.Cut(id, "/")
@@ -59,13 +72,25 @@ func (rt *Runtime) RunRouteCommand(raw string) error {
 		return rt.RunTownEgressInspect(town.OriginAct(command.id))
 	}
 	if command.action == "record-egress" {
-		return rt.RunTownEgressRecord(town.OriginAct(command.id), rt.Options.RouteName)
+		anchor := command.startAnchor
+		if anchor == "" {
+			anchor = town.AnchorPortalArrival
+		}
+		return rt.RunTownEgressRecordFrom(town.OriginAct(command.id), anchor, rt.Options.RouteName)
 	}
 	if command.action == "validate-egress" {
-		return rt.RunTownEgressValidate(town.OriginAct(command.id))
+		anchor := command.startAnchor
+		if anchor == "" {
+			anchor = town.AnchorPortalArrival
+		}
+		return rt.RunTownEgressValidateFrom(town.OriginAct(command.id), anchor)
 	}
 	if command.action == "play-egress" {
-		return rt.RunTownEgressPlay(town.OriginAct(command.id))
+		anchor := command.startAnchor
+		if anchor == "" {
+			anchor = town.AnchorPortalArrival
+		}
+		return rt.RunTownEgressPlayFrom(town.OriginAct(command.id), anchor)
 	}
 	if command.action == "play-segment" {
 		return rt.RunRouteSegment(command.id, command.segmentID)

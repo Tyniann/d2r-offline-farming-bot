@@ -442,11 +442,11 @@ func (c *runPipeline) tickChestBlockerClear(ctx context.Context, deps pipelineCh
 		c.chest.pin = fresh
 	}
 	result := c.chest.clear.tick(ctx, deps.RouteClear, w, now, string(c.effectiveDefinition().ID), c.core.combat.Profile)
-	if result.failed {
+	if result.outcome == localThreatClearFailed {
 		c.stopChestBlockerClear(deps)
 		return stepResult{failed: true, reason: result.reason}
 	}
-	if result.done {
+	if result.outcome == localThreatClearCleared || result.outcome == localThreatClearExhausted {
 		c.finishChestBlockerClear(deps)
 	}
 	return stepResult{}

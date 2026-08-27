@@ -13,8 +13,10 @@ import (
 const (
 	// SystemEgressSchemaVersion is the current global Egress file format.
 	SystemEgressSchemaVersion = 1
-	// SystemEgressFilename is the fixed filename below every act Egress root.
+	// SystemEgressFilename is the backward-compatible portal-arrival filename.
 	SystemEgressFilename = "portal-waypoint.yaml"
+	// SystemEgressSpawnFilename is the fixed fresh-game spawn route filename.
+	SystemEgressSpawnFilename = "spawn-waypoint.yaml"
 )
 
 // SystemEgressMovement identifies the movement allowed by a global Egress.
@@ -36,18 +38,21 @@ type SystemEgressLayoutFingerprint struct {
 	Anchors []string `yaml:"anchors,omitempty"`
 }
 
-// SystemEgressContract defines one global portal-arrival-to-waypoint route.
+// SystemEgressContract defines one global Town-start-to-waypoint route.
 // Character, class, difficulty and map seed are deliberately absent because
 // they must never authorize or reject a system route.
 type SystemEgressContract struct {
-	Act                   OriginAct                     `yaml:"act"`
-	TownArea              world.AreaID                  `yaml:"town_area_id"`
-	GameVersion           string                        `yaml:"game_version"`
-	LayoutFingerprint     SystemEgressLayoutFingerprint `yaml:"layout_fingerprint"`
-	From                  Anchor                        `yaml:"from"`
-	To                    Anchor                        `yaml:"to"`
-	Movement              SystemEgressMovement          `yaml:"movement"`
-	ArrivalToleranceTiles float64                       `yaml:"arrival_tolerance_tiles"`
+	Act               OriginAct                     `yaml:"act"`
+	TownArea          world.AreaID                  `yaml:"town_area_id"`
+	GameVersion       string                        `yaml:"game_version"`
+	LayoutFingerprint SystemEgressLayoutFingerprint `yaml:"layout_fingerprint"`
+	// LayoutProofPointIndex is the buffered route point by which a spawn route
+	// must have matched its first stable layout. Portal routes prove layout at start.
+	LayoutProofPointIndex *int                 `yaml:"layout_proof_point_index,omitempty"`
+	From                  Anchor               `yaml:"from"`
+	To                    Anchor               `yaml:"to"`
+	Movement              SystemEgressMovement `yaml:"movement"`
+	ArrivalToleranceTiles float64              `yaml:"arrival_tolerance_tiles"`
 }
 
 // SystemEgressRoute is the complete global system route persisted outside the
@@ -79,10 +84,23 @@ func (c SystemEgressContract) Validate() error {
 	if len(c.LayoutFingerprint.Anchors) > 0 && len(c.LayoutFingerprint.Anchors) != c.LayoutFingerprint.AnchorCount {
 		return fmt.Errorf("system egress layout fingerprint anchors must match anchor_count")
 	}
-	if c.From != AnchorPortalArrival || c.To != AnchorWaypoint || c.Movement != SystemEgressMovementWalk || c.ArrivalToleranceTiles <= 0 {
-		return fmt.Errorf("system egress requires portal_arrival to waypoint walk movement and positive tolerance")
+	if (c.From != AnchorPortalArrival && c.From != AnchorSpawn) || c.To != AnchorWaypoint || c.Movement != SystemEgressMovementWalk || c.ArrivalToleranceTiles <= 0 {
+		return fmt.Errorf("system egress requires portal_arrival or spawn to waypoint walk movement and positive tolerance")
 	}
 	return nil
+}
+
+// SystemEgressFilenameForAnchor returns the fixed route filename for a
+// supported system-Egress start anchor.
+func SystemEgressFilenameForAnchor(anchor Anchor) (string, error) {
+	switch anchor {
+	case AnchorPortalArrival:
+		return SystemEgressFilename, nil
+	case AnchorSpawn:
+		return SystemEgressSpawnFilename, nil
+	default:
+		return "", fmt.Errorf("unsupported system egress start anchor %q", anchor)
+	}
 }
 
 // Validate rejects malformed, cross-act and unplayable global Egress routes.
@@ -99,6 +117,13 @@ func (r SystemEgressRoute) Validate() error {
 	}
 	if r.SampleDistanceTiles <= 0 || len(r.Points) < 2 {
 		return fmt.Errorf("system egress requires a positive sample distance and at least two points")
+	}
+	if r.Contract.From == AnchorSpawn {
+		if r.Contract.LayoutProofPointIndex == nil || *r.Contract.LayoutProofPointIndex < 0 || *r.Contract.LayoutProofPointIndex >= len(r.Points) {
+			return fmt.Errorf("spawn system egress layout proof point must be within recorded points")
+		}
+	} else if r.Contract.LayoutProofPointIndex != nil {
+		return fmt.Errorf("portal system egress must not define a layout proof point")
 	}
 	return nil
 }
@@ -134,12 +159,18 @@ func LoadSystemEgressRoute(path string) (SystemEgressRoute, error) {
 	if err := route.Validate(); err != nil {
 		return SystemEgressRoute{}, fmt.Errorf("validate system egress %q: %w", path, err)
 	}
+	if err := validateSystemEgressFilename(path, route.Contract.From); err != nil {
+		return SystemEgressRoute{}, err
+	}
 	return route, nil
 }
 
 // SaveSystemEgressRoute atomically publishes one validated global Egress file.
 func SaveSystemEgressRoute(path string, route SystemEgressRoute) error {
 	if err := route.Validate(); err != nil {
+		return err
+	}
+	if err := validateSystemEgressFilename(path, route.Contract.From); err != nil {
 		return err
 	}
 	data, err := yaml.Marshal(route)
@@ -168,6 +199,17 @@ func SaveSystemEgressRoute(path string, route SystemEgressRoute) error {
 	}
 	if err := replaceSystemEgressFile(temporaryPath, path); err != nil {
 		return fmt.Errorf("publish system egress: %w", err)
+	}
+	return nil
+}
+
+func validateSystemEgressFilename(path string, anchor Anchor) error {
+	want, err := SystemEgressFilenameForAnchor(anchor)
+	if err != nil {
+		return err
+	}
+	if filepath.Base(path) != want {
+		return fmt.Errorf("system egress filename %q does not match from %q; want %q", filepath.Base(path), anchor, want)
 	}
 	return nil
 }

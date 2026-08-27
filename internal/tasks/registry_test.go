@@ -59,6 +59,16 @@ func TestDefaultRunRegistryMetadataAndOrder(t *testing.T) {
 		len(summoner.RouteHostileNPCIDs) != 3 {
 		t.Fatalf("Summoner route-clear contract = %+v", summoner)
 	}
+	for _, definition := range []RunDefinition{countess, mephisto, nihlathak} {
+		if !definition.HasCapability(RunCapabilityLocalRecoveryClear) {
+			t.Fatalf("%s must enable local recovery clear: %+v", definition.ID, definition.RequiredCaps)
+		}
+	}
+	for _, definition := range []RunDefinition{summoner, cows, lowerKurast} {
+		if definition.HasCapability(RunCapabilityLocalRecoveryClear) {
+			t.Fatalf("%s unexpectedly enables local recovery clear: %+v", definition.ID, definition.RequiredCaps)
+		}
+	}
 	for _, definition := range []RunDefinition{countess, mephisto, nihlathak, lowerKurast} {
 		if definition.HasCapability(RunCapabilityRouteClear) || len(definition.RouteHostileNPCIDs) != 0 {
 			t.Fatalf("%s unexpectedly enables route clear: %+v", definition.ID, definition)

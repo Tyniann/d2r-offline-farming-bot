@@ -89,6 +89,97 @@ func TestOfflineExitMachineRejectsUnsafeInitialStates(t *testing.T) {
 	})
 }
 
+func TestOfflineExitMachineDirectModeAcceptsStableFieldAndForeignTown(t *testing.T) {
+	for _, areaID := range []world.AreaID{world.BlackMarsh, world.KurastDocks} {
+		t.Run(world.LookupArea(areaID).Name, func(t *testing.T) {
+			machine := &offlineExitMachine{mode: offlineExitCurrentArea}
+			base := time.Unix(100, 0)
+			state := safeOfflineExitState()
+			state.Area = world.LookupArea(areaID)
+			state.Identity.MapSeed = 42
+			for tick := 0; tick < offlineExitStableTicks; tick++ {
+				state.At = base.Add(time.Duration(tick) * time.Millisecond)
+				action, done, err := machine.tick(state.At, state)
+				want := offlineExitNoAction
+				if tick == offlineExitStableTicks-1 {
+					want = offlineExitPressEscape
+				}
+				if err != nil || done || action != want {
+					t.Fatalf("tick %d action=%d want=%d done=%v err=%v", tick, action, want, done, err)
+				}
+			}
+		})
+	}
+}
+
+func TestOfflineExitMachineDirectModeRequiresFreshStableGameContext(t *testing.T) {
+	base := time.Unix(100, 0)
+	valid := safeOfflineExitState()
+	valid.Area = world.LookupArea(world.BlackMarsh)
+	valid.Identity.MapSeed = 42
+	valid.At = base
+
+	t.Run("stale snapshot", func(t *testing.T) {
+		machine := &offlineExitMachine{mode: offlineExitCurrentArea}
+		_, _, _ = machine.tick(base, valid)
+		_, _, err := machine.tick(base.Add(time.Millisecond), valid)
+		if err == nil || !strings.Contains(err.Error(), "fresh snapshots") {
+			t.Fatalf("err = %v", err)
+		}
+	})
+
+	for _, tc := range []struct {
+		name   string
+		mutate func(*world.State)
+	}{
+		{name: "identity changed", mutate: func(state *world.State) { state.Identity.CharacterName = "Other" }},
+		{name: "map seed changed", mutate: func(state *world.State) { state.Identity.MapSeed++ }},
+		{name: "area changed", mutate: func(state *world.State) { state.Area = world.LookupArea(world.StonyField) }},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			machine := &offlineExitMachine{mode: offlineExitCurrentArea}
+			_, _, _ = machine.tick(base, valid)
+			changed := valid
+			changed.At = base.Add(time.Millisecond)
+			tc.mutate(&changed)
+			_, _, err := machine.tick(changed.At, changed)
+			if err == nil || !strings.Contains(err.Error(), "context changed") {
+				t.Fatalf("err = %v", err)
+			}
+		})
+	}
+}
+
+func TestOfflineExitMachineAlreadyOpenQuitMenuNeedsNoEscape(t *testing.T) {
+	machine := &offlineExitMachine{mode: offlineExitCurrentArea}
+	base := time.Unix(100, 0)
+	state := safeOfflineExitState()
+	state.Area = world.LookupArea(world.BlackMarsh)
+	state.Identity.MapSeed = 42
+	state.UI.QuitMenuOpen = true
+	for tick := 0; tick < offlineExitStableTicks; tick++ {
+		state.At = base.Add(time.Duration(tick) * time.Millisecond)
+		action, _, err := machine.tick(state.At, state)
+		if err != nil || action != offlineExitNoAction {
+			t.Fatalf("precondition tick %d action=%d err=%v", tick, action, err)
+		}
+	}
+	for tick := 0; tick < offlineExitStableTicks; tick++ {
+		state.At = base.Add(time.Duration(offlineExitStableTicks+tick) * time.Millisecond)
+		action, _, err := machine.tick(state.At, state)
+		want := offlineExitNoAction
+		if tick == offlineExitStableTicks-1 {
+			want = offlineExitClickSave
+		}
+		if err != nil || action != want {
+			t.Fatalf("menu tick %d action=%d want=%d err=%v", tick, action, want, err)
+		}
+	}
+	if machine.quitMenuRequests != 0 {
+		t.Fatalf("Escape requests = %d", machine.quitMenuRequests)
+	}
+}
+
 func TestOfflineExitMachineDoesNotExtendSettleForStaleTownUI(t *testing.T) {
 	machine := &offlineExitMachine{}
 	now := time.Unix(100, 0)
@@ -173,6 +264,18 @@ func TestValidateOfflineExitWindow(t *testing.T) {
 	invalid := &offlineSelectionMock{window: input.WindowInfo{ClientWidth: 1920, ClientHeight: 1080}}
 	if err := validateOfflineExitWindow(invalid); err == nil {
 		t.Fatal("expected geometry error")
+	}
+}
+
+func TestOfflineExitModeForAuthorization(t *testing.T) {
+	if mode, err := offlineExitModeForAuthorization(ExitAuthorizationVerifiedRogueTown); err != nil || mode != offlineExitVerifiedRogueTown {
+		t.Fatalf("verified town mode=%d err=%v", mode, err)
+	}
+	if mode, err := offlineExitModeForAuthorization(ExitAuthorizationMemoryGatedCurrentArea); err != nil || mode != offlineExitCurrentArea {
+		t.Fatalf("current area mode=%d err=%v", mode, err)
+	}
+	if _, err := offlineExitModeForAuthorization(ExitAuthorizationNone); err == nil {
+		t.Fatal("none authorization accepted")
 	}
 }
 

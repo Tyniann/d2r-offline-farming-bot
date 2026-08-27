@@ -14,7 +14,7 @@ func TestRunConfiguredQueueUsesLifecycleAndSingleExitBoundary(t *testing.T) {
 		done <- runConfiguredQueue(context.Background(), plan, runner)
 	}()
 	request := <-runner.started
-	runner.release <- SupervisorRunResult{Disposition: QueueRunAdvance, SafeToExit: true}
+	runner.release <- SupervisorRunResult{Disposition: QueueRunAdvance, ExitAuthorization: ExitAuthorizationVerifiedRogueTown}
 	select {
 	case err := <-done:
 		if err != nil {

@@ -169,6 +169,7 @@ type mockCombatActions struct {
 	castSkills          []uint16
 	teleportCalls       int
 	stopCalls           int
+	stopErr             error
 	resetCalls          int
 	lastSkillID         uint16
 	lastMonsterUnitID   uint32
@@ -408,7 +409,7 @@ func (m *mockCombatActions) CastBeltForMercenary(int) error { return nil }
 
 func (m *mockCombatActions) StopAttack() error {
 	m.stopCalls++
-	return nil
+	return m.stopErr
 }
 
 func (m *mockCombatActions) TeleportToward(_ time.Time, _ world.Player, target world.Position, desiredDistanceTiles float64) (bool, error) {
@@ -2141,6 +2142,7 @@ func TestEnterTownPortalRecoversOnceOnHoverNotFoundViaTeleportToward(t *testing.
 func testEnterTownPortalRecoversOnce(t *testing.T, failStatus pathing.TownPortalActionStatus) {
 	t.Helper()
 	combat := &mockCombatActions{}
+	clear := &routeClearMock{}
 	portals := &mockTownPortalActions{results: []pathing.TownPortalActionResult{
 		{Status: failStatus, Done: true},
 		{Status: pathing.TownPortalActionClicked, Done: true},
@@ -2150,11 +2152,11 @@ func testEnterTownPortalRecoversOnce(t *testing.T, failStatus pathing.TownPortal
 	now := time.Now()
 	state := portalCellarState(77, world.Position{X: 140, Y: 100})
 	state.At = now
-	deps := Deps{Portal: portals, Combat: combat}
+	deps := Deps{Portal: portals, Combat: combat, RouteClear: clear}
 
 	res := pipeline.tickEnterTownPortal(context.Background(), deps, state, now)
-	if res.failed || res.complete || !pipeline.ret.portalRecoveryPending || combat.teleportCalls != 0 || portals.calls != 1 {
-		t.Fatalf("arm recovery result=%+v pending=%v teleports=%d portalCalls=%d", res, pipeline.ret.portalRecoveryPending, combat.teleportCalls, portals.calls)
+	if res.failed || res.complete || !pipeline.ret.portalRecoveryPending || combat.teleportCalls != 0 || portals.calls != 1 || len(clear.requests) != 0 {
+		t.Fatalf("arm recovery result=%+v pending=%v teleports=%d portalCalls=%d clearRequests=%d", res, pipeline.ret.portalRecoveryPending, combat.teleportCalls, portals.calls, len(clear.requests))
 	}
 
 	res = pipeline.tickEnterTownPortal(context.Background(), deps, state, now.Add(time.Millisecond))
@@ -2171,8 +2173,8 @@ func testEnterTownPortalRecoversOnce(t *testing.T, failStatus pathing.TownPortal
 	}
 
 	res = pipeline.tickEnterTownPortal(context.Background(), deps, settled, settled.At.Add(time.Millisecond))
-	if !res.complete || res.failed || portals.calls != 2 || combat.teleportCalls != 1 {
-		t.Fatalf("retry click result=%+v portalCalls=%d teleports=%d", res, portals.calls, combat.teleportCalls)
+	if !res.complete || res.failed || portals.calls != 2 || combat.teleportCalls != 1 || len(clear.requests) != 0 {
+		t.Fatalf("retry click result=%+v portalCalls=%d teleports=%d clearRequests=%d", res, portals.calls, combat.teleportCalls, len(clear.requests))
 	}
 }
 

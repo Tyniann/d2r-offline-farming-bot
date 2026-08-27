@@ -7,8 +7,16 @@ Versionierung nach [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.25.0] - 2026-08-27
+
 ### Added
 - Add a 2026-08-23 follow-up repo effort evaluation (same eight criteria as 2026-07-31) under `docs/reviews/`
+- Add bounded emergency run recovery with a local portal clear, one portal retry, direct current-area exit, and same-index restart
+- Add fresh-game Act 2–5 spawn normalization through global system Egress routes
+- Add correlated recovery lifecycle telemetry and live recovery status to the Core API and dashboard
+
+### Fixed
+- Allow fresh queue games that start in supported Act 2–5 towns to reach spawn normalization and tolerate the transient unknown area during waypoint loading
 
 ### Removed
 - Remove Cursor canvas snapshots from `docs/reviews/`; the Markdown evaluations are the git-readable record

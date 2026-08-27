@@ -135,7 +135,7 @@ func defaultRunDefinitions() []RunDefinition {
 				SearchAnchorObject: world.ObjectKindGoodChest, SearchAnchorEntrance: world.EntranceKindTowerCellarDown,
 			},
 			BossEngageSequence: []EncounterAction{{Hook: profile.HookBossEngage}}, ReturnOrigin: town.OriginAct1,
-			RequiredCaps: append([]RunCapability(nil), shared...),
+			RequiredCaps: append(append([]RunCapability(nil), shared...), RunCapabilityLocalRecoveryClear),
 			Recording: RecordingContract{
 				InstructionCode: "record_countess",
 				StartKind:       RecordingStartWaypoint, StartWaypoint: pathing.WaypointTargetBlackMarsh, AllowedStartArea: world.BlackMarsh,
@@ -149,7 +149,7 @@ func defaultRunDefinitions() []RunDefinition {
 			RouteTerminalArea: world.DuranceOfHateLevel3, WaypointTarget: pathing.WaypointTargetDuranceOfHateLevel2,
 			Boss:               BossDescriptor{NPCID: world.Mephisto, Name: "Mephisto"},
 			BossEngageSequence: []EncounterAction{{Hook: profile.HookBossEngage}, {Hook: profile.HookBossEngage}}, ReturnOrigin: town.OriginAct3,
-			RequiredCaps: append(append([]RunCapability(nil), shared...), RunCapabilityForeignTownEgress),
+			RequiredCaps: append(append([]RunCapability(nil), shared...), RunCapabilityForeignTownEgress, RunCapabilityLocalRecoveryClear),
 			Recording: RecordingContract{
 				InstructionCode: "record_mephisto",
 				StartKind:       RecordingStartWaypoint, StartWaypoint: pathing.WaypointTargetDuranceOfHateLevel2, AllowedStartArea: world.DuranceOfHateLevel2,
@@ -178,7 +178,7 @@ func defaultRunDefinitions() []RunDefinition {
 			RouteTerminalArea: world.HallsOfVaught, WaypointTarget: pathing.WaypointTargetHallsOfPain,
 			Boss:               BossDescriptor{NPCID: world.Nihlathak, Name: "Nihlathak"},
 			BossEngageSequence: nil, ClearNearbyAfterBoss: true, ReturnOrigin: town.OriginAct5,
-			RequiredCaps: append(append([]RunCapability(nil), shared...), RunCapabilityForeignTownEgress),
+			RequiredCaps: append(append([]RunCapability(nil), shared...), RunCapabilityForeignTownEgress, RunCapabilityLocalRecoveryClear),
 			Recording: RecordingContract{
 				InstructionCode: "record_nihlathak",
 				StartKind:       RecordingStartWaypoint, StartWaypoint: pathing.WaypointTargetHallsOfPain, AllowedStartArea: world.HallsOfPain,

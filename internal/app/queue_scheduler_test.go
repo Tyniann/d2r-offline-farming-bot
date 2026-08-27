@@ -26,7 +26,7 @@ func TestFarmQueueCyclesCountessMephistoUntilRunBudget(t *testing.T) {
 	got := make([]SupervisorRunRequest, 0, len(want))
 	for range want {
 		got = append(got, <-runner.started)
-		runner.release <- SupervisorRunResult{Disposition: QueueRunAdvance}
+		runner.release <- SupervisorRunResult{Disposition: QueueRunAdvance, ExitAuthorization: ExitAuthorizationVerifiedRogueTown}
 	}
 	waitSupervisorState(t, supervisor, SupervisorStateIdle)
 	seen := make(map[string]bool, len(got))
@@ -70,14 +70,14 @@ func TestFarmQueueRetryStaysOnSameIndex(t *testing.T) {
 		t.Fatal(err)
 	}
 	first := <-runner.started
-	runner.release <- SupervisorRunResult{Disposition: QueueRunRetryCurrent, Reason: "hard_stuck"}
+	runner.release <- SupervisorRunResult{Disposition: QueueRunRetryCurrent, Reason: "hard_stuck", ExitAuthorization: ExitAuthorizationVerifiedRogueTown}
 	second := <-runner.started
-	runner.release <- SupervisorRunResult{Disposition: QueueRunAdvance}
+	runner.release <- SupervisorRunResult{Disposition: QueueRunAdvance, ExitAuthorization: ExitAuthorizationVerifiedRogueTown}
 	third := <-runner.started
 	if first.DefinitionID != "countess" || second.DefinitionID != "countess" || second.QueueIndex != 0 || second.Retry != 1 || third.DefinitionID != "mephisto" || third.QueueIndex != 1 {
 		t.Fatalf("retry sequence first=%+v second=%+v third=%+v", first, second, third)
 	}
-	runner.release <- SupervisorRunResult{Disposition: QueueRunStop, Reason: "terminal"}
+	runner.release <- SupervisorRunResult{Disposition: QueueRunStop, Reason: "terminal", ExitAuthorization: ExitAuthorizationNone}
 	waitSupervisorState(t, supervisor, SupervisorStateStoppedError)
 }
 
@@ -86,8 +86,8 @@ func TestFarmQueueTerminalAndRestartBudgetStopWithoutAdvancing(t *testing.T) {
 		name   string
 		result SupervisorRunResult
 	}{
-		{name: "terminal", result: SupervisorRunResult{Disposition: QueueRunStop, Reason: "terminal_context"}},
-		{name: "restart budget", result: SupervisorRunResult{Disposition: QueueRunRetryCurrent, Reason: "hard_stuck"}},
+		{name: "terminal", result: SupervisorRunResult{Disposition: QueueRunStop, Reason: "terminal_context", ExitAuthorization: ExitAuthorizationNone}},
+		{name: "restart budget", result: SupervisorRunResult{Disposition: QueueRunRetryCurrent, Reason: "hard_stuck", ExitAuthorization: ExitAuthorizationVerifiedRogueTown}},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -118,7 +118,7 @@ func TestFarmQueueDurationWinsBeforeNextRun(t *testing.T) {
 	supervisor.mu.Lock()
 	now = now.Add(time.Minute)
 	supervisor.mu.Unlock()
-	runner.release <- SupervisorRunResult{Disposition: QueueRunAdvance}
+	runner.release <- SupervisorRunResult{Disposition: QueueRunAdvance, ExitAuthorization: ExitAuthorizationVerifiedRogueTown}
 	waitSupervisorState(t, supervisor, SupervisorStateIdle)
 	if runner.calls.Load() != 1 || supervisor.Snapshot().LastResult.Reason != string(QueueReasonDurationBudgetExhausted) {
 		t.Fatalf("duration snapshot = %+v calls=%d", supervisor.Snapshot(), runner.calls.Load())
@@ -140,7 +140,7 @@ func TestFarmQueueRechecksAvailabilityBetweenRuns(t *testing.T) {
 	}
 	_, _ = supervisor.StartQueue(SupervisorCommandMeta{CommandID: "guard", ExpectedGeneration: 0}, queueSchedulerTestPlan([]string{"countess", "mephisto"}, 3))
 	<-runner.started
-	runner.release <- SupervisorRunResult{Disposition: QueueRunAdvance}
+	runner.release <- SupervisorRunResult{Disposition: QueueRunAdvance, ExitAuthorization: ExitAuthorizationVerifiedRogueTown}
 	waitSupervisorState(t, supervisor, SupervisorStateStoppedError)
 	if runner.calls.Load() != 1 || checks != 2 || supervisor.Snapshot().QueueIndex != 1 {
 		t.Fatalf("between-run guard calls=%d checks=%d snapshot=%+v", runner.calls.Load(), checks, supervisor.Snapshot())
@@ -158,7 +158,7 @@ func TestFarmQueueWorkerF11UsesEmergencyStopSemantics(t *testing.T) {
 		t.Fatal(err)
 	}
 	<-runner.started
-	runner.release <- SupervisorRunResult{Disposition: QueueRunStop, Reason: string(SupervisorReasonEmergencyStopRequested)}
+	runner.release <- SupervisorRunResult{Disposition: QueueRunStop, Reason: string(SupervisorReasonEmergencyStopRequested), ExitAuthorization: ExitAuthorizationNone}
 	waitSupervisorState(t, supervisor, SupervisorStateIdle)
 	snapshot := supervisor.Snapshot()
 	if snapshot.State != SupervisorStateIdle || snapshot.LastResult.Reason != string(SupervisorReasonEmergencyStopRequested) || len(snapshot.Queue) != 0 {

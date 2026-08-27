@@ -94,7 +94,7 @@ Nach den drei terminalen Safe-Snapshots beendet `cow_sweep_gate_complete` nicht 
 
 Entry-Area, Route-Terminal, Waypoint-Ziel, Boss, Suchanker, geordnete Encounter-Aktionen und Rückkehrakt stammen aus `RunDefinition`; Route, Combat und Loot-Policies aus dem ausgewählten `RunConfig`. `wait_entry_area`, Route-, Boss-, Loot- und Portal-Areagates vergleichen ausschließlich gegen diese Definition.
 
-`wait_origin_town` bestätigt den Portal-Eintritt ausschließlich über die Ziel-Area. Bleibt der Charakter nach dem ersten hover-bestätigten Klick mindestens eine Sekunde und drei frische gültige Snapshots im Route-Terminal, startet genau eine Recovery. Sie räumt lebende Gegner in einem 12-Kachel-Kreis um die gepinnte Portal-UnitID, teleportiert nach höchstens 12 Kampfaktionen oder sechs Sekunden zum Portal und wiederholt den normalen Hover-Klick. Loading und ungültige Snapshots erlauben keinen Recovery-Input. Der Versuch startet das ursprüngliche `runs.step_timeout_ms` nicht neu; eine weiterhin unbestätigte Ziel-Area endet mit `town_portal_destination_timeout`.
+`wait_origin_town` bestätigt den Portal-Eintritt ausschließlich über die Ziel-Area. Bleibt der Charakter nach dem ersten hover-bestätigten Klick mindestens eine Sekunde und drei frische gültige Snapshots im Route-Terminal, startet genau eine Recovery. Sie räumt lebende Gegner in einem 12-Kachel-Kreis um die gepinnte Portal-UnitID. Zwölf Kampfaktionen, sechs Sekunden Gesamtlaufzeit und drei Sekunden ohne neue Aktion begrenzen den Versuch. Danach teleportiert sie zum Portal und wiederholt den normalen Hover-Klick genau einmal. Loading und ungültige Snapshots erlauben keinen Recovery-Input. Der Versuch startet das ursprüngliche `runs.step_timeout_ms` nicht neu; eine weiterhin unbestätigte Ziel-Area endet mit `town_portal_destination_timeout`.
 
 Der Encounter-Aktionsindex beginnt pro Boss-Pin bei `0`. Jede Aktion erhält getrennte Start-/Abschluss-Telemetrie; erst danach darf regulärer Combat laufen. Pro Poll-Tick wird höchstens eine Action-Input-Gelegenheit konsumiert.
 
@@ -110,7 +110,7 @@ Seit Phase 17.4 besitzt nur dieser opt-in Route-Step auch die Ressourcenkoordina
 
 Phase 17.5 schützt auch `RouteProgress.Mode=recovery`. Das effektive Previous-Point-Ziel durchläuft dieselbe Immediate-/Corridor-/Landing-Prüfung; ein bekannter Blocker führt daher zu Hold/Clear statt Movement. Nach einem tatsächlich vom Navigator gemeldeten Recovery-Cast darf die Pipeline inputfrei bis zum nächsten möglichen Castzeitpunkt pollen. Liegt dann weniger Positionsfortschritt als das autoritative `stuck_progress_tiles` vor, endet der Step vor `Route.Tick` mit `route_recovery_unsafe`. Inputfreie Navigator-Ticks zählen nicht als Cast, bestätigter Fortschritt erlaubt den bestehenden Korrekturpfad, und Combat verändert weder Point noch Correction-Budget.
 
-Retryfähige Routenfehler verwenden die isolierte Phase `retry-return`. Sie ist nur in den registrierten Gebieten der veröffentlichten Run-Route zulässig und führt ausschließlich `precheck -> cast_town_portal -> enter_town_portal -> wait_origin_town` plus den vorhandenen Foreign-Town-Egress nach Akt 1 aus. Loot, Stash und Town-Service werden übersprungen. Erst ein Memory-bestätigtes Rogue Encampment setzt `SafeToExit`; anschließend führt der Supervisor exakt denselben Save-&-Exit-Automaten wie am normalen Queue-Ende aus und startet denselben Queue-Index innerhalb der konfigurierten Fehler- und Restart-Budgets neu. Der gemeinsame Automat wartet vor Escape einmalig 500 ms nach der bestätigten Act-1-/Identity-Übergabe. Bestätigt Memory nach dem ersten Escape weiterhin ein geschlossenes Quit-Menü, wird Escape nach 1,5 Sekunden genau einmal erneut gesendet; ein bereits offenes Menü kann dadurch nicht zugeklappt werden. Ein fehlgeschlagener Rückweg endet mit `retry_return_failed`, nicht mit einem unbestätigten Exit.
+Retryfähige Routenfehler verwenden die isolierte Phase `retry-return`. Sie ist nur in den registrierten Gebieten der veröffentlichten Run-Route zulässig und führt ausschließlich `precheck -> cast_town_portal -> enter_town_portal -> wait_origin_town` plus den vorhandenen Foreign-Town-Egress nach Akt 1 aus. Loot, Stash und Town-Service werden übersprungen. Erst ein Memory-bestätigtes Rogue Encampment setzt den normalen sicheren Exit-Kontext. Scheitert der Rückweg trotz lokalem Clear und einzigem Portal-Retry, liefert der Runner `retry_return_failed` mit getrenntem Original- und Recovery-Grund. Der Supervisor kann dann den gemeinsamen Save-&-Exit-Automaten direkt aus dem weiterhin bestätigten Routengebiet autorisieren und denselben Queue-Index innerhalb der Fehler- und Restart-Budgets neu starten. Ein unbestätigter Exit stoppt die Session; es gibt keinen blinden Neustart.
 
 ### Safety-Potion-Guard
 
@@ -157,7 +157,7 @@ go run ./cmd/d2rbot --run countess --probe   # input.enabled: true erforderlich
 | `task run finished` | `run`, `outcome`, `reason` |
 | `task run reset` | `run`, `reason` |
 
-JSONL-Transitionen `run_step_started`, `run_step_completed` und `run_step_failed` enthalten `definition_id`, `step`, `stage` und `outcome`. Die vollständige Core-Zuordnung ordnet jeden gemeinsamen Countess-/Mephisto-Step genau einer der stabilen Kategorien `travel`, `combat`, `loot` oder `return_town` zu; unbekannte Steps werden nicht ohne Stage persistiert. Encounter-Events ergänzen `action_index`. Nach der bestehenden Memory-bestätigten Kill-Bedingung schreibt die Pipeline genau ein `boss_kill_confirmed` für die gepinnte Unit. Schlägt ein persistierendes Telemetrie-Emit fehl, endet die Pipeline vor dem folgenden Input beziehungsweise Kill-Abschluss mit `telemetry_failed`.
+JSONL-Transitionen `run_step_started`, `run_step_completed` und `run_step_failed` enthalten `definition_id`, `step`, `stage` und `outcome`. Die vollständige Core-Zuordnung ordnet jeden gemeinsamen Countess-/Mephisto-Step genau einer der stabilen Kategorien `travel`, `combat`, `loot` oder `return_town` zu; unbekannte Steps werden nicht ohne Stage persistiert. Encounter-Events ergänzen `action_index`. Die Portal-Recovery emittiert zusätzlich `local_recovery_clear_started`, `local_recovery_clear_finished` und `return_portal_retry` mit UnitIDs, Budgets, Ergebnis und Restbedrohungen. Nach der bestehenden Memory-bestätigten Kill-Bedingung schreibt die Pipeline genau ein `boss_kill_confirmed` für die gepinnte Unit. Schlägt ein persistierendes Telemetrie-Emit fehl, endet die Pipeline vor dem folgenden Input beziehungsweise Kill-Abschluss mit `telemetry_failed`.
 
 `--run` und `--input-test` schließen sich gegenseitig aus. Run erfordert `input.enabled: true`.
 
@@ -177,6 +177,7 @@ JSONL-Transitionen `run_step_started`, `run_step_completed` und `run_step_failed
 - [Input Controller](input-controller.md) — Safety-Guards für Task-Ticks
 - [World Model](world-model.md) — `world.State` / Area-Katalog
 - [Mercenary Support](mercenary-support.md) — Combat-/Town-Söldner
+- [Notfall-Recovery für Run und Spielstart](emergency-run-recovery.md)
 
 ---
-*Zuletzt aktualisiert: 2026-08-22*
+*Zuletzt aktualisiert: 2026-08-27*

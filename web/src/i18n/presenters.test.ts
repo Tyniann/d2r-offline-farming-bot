@@ -50,6 +50,11 @@ describe("semantische Presenter", () => {
     }, i18n.t)).toContain("kein Stadtportal");
   });
 
+  it("zeigt die Recovery-Grenzfehler als kurze Bedienhinweise", () => {
+    expect(presentProblem({ code: "game_exit_failed" }, i18n.t)).toBe("Das Spiel konnte nicht sicher beendet werden. Die Session wurde gestoppt.");
+    expect(presentProblem({ code: "start_town_normalization_failed" }, i18n.t)).toBe("Die Rückkehr nach Akt 1 ist fehlgeschlagen.");
+  });
+
   it("übersetzt Difficulty, Run, Klasse und eingebautes Profil", async () => {
     expect([presentDifficultyName("nightmare", i18n.t), presentRunName("countess", i18n.t), presentClassName("necromancer", i18n.t), presentProfileName("necro_bone_spear", "Fallback", i18n.t)]).toEqual(["Alptraum", "Gräfin", "Totenbeschwörer", "Knochen-Totenbeschwörer"]);
     await changeAppLanguage("en");

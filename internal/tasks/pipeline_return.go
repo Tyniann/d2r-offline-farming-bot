@@ -183,6 +183,9 @@ func (c *runPipeline) tickEnterTownPortalWithDeps(ctx context.Context, deps pipe
 	if deps.Portal == nil {
 		return stepResult{failed: true, reason: "town_portal_actions_not_wired"}
 	}
+	if c.phase == RunPhaseRetryReturn && c.ret.destinationRecoveryUsed && c.ret.destinationPhase != portalDestinationObserve {
+		return c.tickPortalDestinationRecovery(ctx, deps, w, now, true)
+	}
 	if c.ret.portalRecoveryPending {
 		return c.tickPortalEntryRecovery(deps, w, now)
 	}
@@ -200,6 +203,13 @@ func (c *runPipeline) tickEnterTownPortalWithDeps(ctx context.Context, deps pipe
 		return stepResult{failed: true, reason: "town_portal_not_found"}
 	case pathing.TownPortalActionTooFar, pathing.TownPortalActionHoverNotFound:
 		portal, ok := w.NearestObject(world.ObjectKindTownPortal)
+		if ok && c.phase == RunPhaseRetryReturn {
+			preferredUnitID := res.BlockerUnitID
+			if preferredUnitID == 0 && w.Hover.IsHovered && w.Hover.UnitType == world.HoverUnitTypeMonster {
+				preferredUnitID = w.Hover.UnitID
+			}
+			return c.beginPortalDestinationRecovery(deps, w, portal, preferredUnitID, now)
+		}
 		if ok && c.beginPortalEntryRecovery(portal.UnitID, portal.Position) {
 			return stepResult{}
 		}

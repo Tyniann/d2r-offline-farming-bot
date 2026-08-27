@@ -43,12 +43,13 @@ Der `town_ready`-Profilhook bleibt bewusst run-spezifisch: Bone Armor wird zu Be
 
 - Erfolg schaltet zum nächsten Index im selben Spiel.
 - Der letzte erfolgreiche Eintrag führt genau einen Exit aus. Bei freien Budgets beginnt Index 0 mit neuer Game-ID und erhöhtem Spielzyklus.
-- Retry bleibt am Index. Nur ein als sicher bestätigtes Ergebnis darf über den verifizierten Exit-Vertrag ein Recovery-Spiel beginnen; andernfalls stoppt die Queue fail-closed.
+- Retry bleibt am Index. Die Queue versucht zuerst den kontrollierten Rückweg. Scheitert er nach dem einzigen lokalen Clear und Portal-Retry, darf der zentrale Exit-Owner direkt aus dem weiterhin bestätigten Offline-Gebiet aussteigen. Nur ein bestätigter Exit darf ein Recovery-Spiel am selben Index beginnen; andernfalls stoppt die Queue fail-closed.
 - `mercenary_died_during_run`, `combat_resource_exhausted` und `route_mana_recovery_failed` erzwingen unabhängig von der konfigurierbaren Retry-Liste genau diesen kontrollierten Rückweg. Jeder anschließend tatsächlich neu gestartete und verifizierte Spiel-Lifecycle aktiviert die Run-Readiness erneut, auch wenn derselbe Run seine Runtime-Einheit wiederverwendet. Nach Merc-Tod stellt sie den angeheuerten Merc per bestehendem Kashya-Plan wieder her; der Versuch wird nicht an einem alten Routenpunkt fortgesetzt. Same-Game-Handoffs und Pause/Resume aktivieren sie nicht erneut.
 - Vor dem Portal-Cast bestätigt `retry-return` das aktuelle Routengebiet über drei frische Snapshots und drei Sekunden stabile Gebietsevidenz. Loading, Area 0 oder ein Gebietswechsel bleiben inputfrei. Dadurch startet kein Recovery-Portal mehr auf dem ersten möglicherweise gemischten Snapshot nach Waypoint- oder Gebietswechsel.
-- Scheitert auch dieser Rückweg, bleibt `retry_return_failed` der terminale Code. `original_reason` bewahrt zusätzlich den produktiven Run-Fehler und `recovery_reason` die konkrete Rückkehrursache, etwa `town_portal_not_found`; beide Felder werden strukturiert im Supervisor- und API-Status projiziert.
+- Scheitert auch dieser Rückweg, bewahrt `original_reason` den produktiven Run-Fehler und `recovery_reason` die konkrete Rückkehrursache, etwa `town_portal_not_found`. Beide Felder werden strukturiert im Supervisor- und API-Status projiziert. Ein bestätigter direkter Exit klassifiziert den Versuch als `run_aborted`; ein fehlgeschlagener Exit beendet die Session mit `run_failed`.
 - Terminale Ergebnisse starten keinen anderen Eintrag.
 - Start aus `idle_in_game` übernimmt das Spiel nur, wenn der passive Monitor gleichzeitig Prozess, Fenster, gültiges `in_game` und Rogue Encampment bestätigt. Nach Apply allein, auf dem Charakterbildschirm oder ohne Town-Nachweis startet die Queue denselben Offline-Selector wie ein frischer `idle`-Start. Der Queue-Runner bestätigt Charakter und Startgebiet anschließend erneut über Memory, bevor Run-Input möglich ist.
+- Erscheint ein vom Bot gestartetes Spiel in einer bestätigten Stadt von Akt 2–5, normalisiert der Runner den Start über die eingecheckte globale `spawn`-Egress-Route und den Wegpunkt nach Akt 1. Fehlende Route, Spawn-/Layoutabweichung oder ausbleibende Memory-Bestätigung stoppen vor `/players` und Run-Input.
 - `max_runs` zählt gestartete Run-Einträge. `max_duration_ms` wird vor jedem Folgestart ausgewertet. Budgetende führt an der sicheren Run-Grenze zu einem Exit.
 - Normaler Queue-Wrap erhöht den Spielzyklus, nicht den Recovery-Restart-Zähler.
 
@@ -60,7 +61,7 @@ Der `town_ready`-Profilhook bleibt bewusst run-spezifisch: Bone Armor wird zu Be
 
 ## Datenmodell und Telemetrie
 
-- `SupervisorSnapshot` projiziert Queue, Index, Spielzyklus, Retry, Game-ID, Run-Instanz-ID und Budgets defensiv.
+- `SupervisorSnapshot` projiziert Queue, Index, Spielzyklus, Retry, Game-ID, Run-Instanz-ID, Original-/Recovery-Grund, aktuellen Recovery-Schritt und Budgets defensiv.
 - Jede Spielgeneration besitzt eine Game-ID; jeder Queue-Eintrag eine neue Run-ID.
 - SSE veröffentlicht `game_started`, `run_started`, `run_finished` und `game_exited` mit denselben Korrelationen.
 - Der Queue-Runner schreibt zusätzlich eine synchron geflushte Session-JSONL-Datei mit `session_started`, `game_started`, Run-Terminalevents und `game_exited`.
@@ -94,6 +95,7 @@ Die vollständige Phase-11-Abnahme wurde am 17. Juli 2026 abgeschlossen. Pause u
 - [Lokale Core-API](local-core-api.md)
 - [Live-Dashboard](live-dashboard.md)
 - [Phase-11-Core-Vertrag](phase-11-core-contract.md)
+- [Notfall-Recovery für Run und Spielstart](emergency-run-recovery.md)
 
 ---
-*Zuletzt aktualisiert: 17. August 2026*
+*Zuletzt aktualisiert: 27. August 2026*

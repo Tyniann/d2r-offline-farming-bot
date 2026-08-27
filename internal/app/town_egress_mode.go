@@ -69,32 +69,54 @@ func (rt *Runtime) RunTownEgressInspect(act town.OriginAct) error {
 
 // RunTownEgressRecord records one global portal-arrival-to-waypoint walk route.
 func (rt *Runtime) RunTownEgressRecord(act town.OriginAct, name string) error {
+	return rt.RunTownEgressRecordFrom(act, town.AnchorPortalArrival, name)
+}
+
+// RunTownEgressRecordFrom records a global Town walk from the explicit start
+// anchor to the local waypoint.
+func (rt *Runtime) RunTownEgressRecordFrom(act town.OriginAct, startAnchor town.Anchor, name string) error {
 	egress, area, err := rt.systemEgressConfig(act)
 	if err != nil {
 		return err
 	}
-	return rt.runSystemEgressRecord(act, name, rt.Config.ResolvePath(egress.RoutesDirectory), area, nil, nil)
+	return rt.runSystemEgressRecord(act, startAnchor, name, rt.Config.ResolvePath(egress.RoutesDirectory), area, nil, nil)
 }
 
 // RunTownEgressValidate structurally validates one configured global Egress asset.
 func (rt *Runtime) RunTownEgressValidate(act town.OriginAct) error {
+	return rt.RunTownEgressValidateFrom(act, town.AnchorPortalArrival)
+}
+
+// RunTownEgressValidateFrom structurally validates the configured global
+// Egress asset for the explicit portal-arrival or spawn start anchor.
+func (rt *Runtime) RunTownEgressValidateFrom(act town.OriginAct, startAnchor town.Anchor) error {
 	egress, area, err := rt.systemEgressConfig(act)
 	if err != nil {
 		return err
 	}
-	route, err := town.LoadSystemEgressRoute(rt.Config.ResolvePath(egress.RoutesDirectory + "/" + town.SystemEgressFilename))
+	filename, err := town.SystemEgressFilenameForAnchor(startAnchor)
 	if err != nil {
 		return err
 	}
-	if route.Contract.Act != act || route.Contract.TownArea != area {
+	route, err := town.LoadSystemEgressRoute(rt.Config.ResolvePath(egress.RoutesDirectory + "/" + filename))
+	if err != nil {
+		return err
+	}
+	if route.Contract.Act != act || route.Contract.TownArea != area || route.Contract.From != startAnchor {
 		return fmt.Errorf("system egress contract does not match %s", act)
 	}
-	rt.Log.Info("system egress route valid", "act", act, "movement", route.Contract.Movement, "point_count", len(route.Points), "layout_fingerprint", route.Contract.LayoutFingerprint.Hash)
+	rt.Log.Info("system egress route valid", "act", act, "start_anchor", startAnchor, "movement", route.Contract.Movement, "point_count", len(route.Points), "layout_fingerprint", route.Contract.LayoutFingerprint.Hash)
 	return nil
 }
 
 // RunTownEgressPlay performs the isolated Town walk and transfer to Rogue Encampment.
 func (rt *Runtime) RunTownEgressPlay(act town.OriginAct) error {
+	return rt.RunTownEgressPlayFrom(act, town.AnchorPortalArrival)
+}
+
+// RunTownEgressPlayFrom performs the isolated Town walk from the explicit
+// start anchor and transfers to Rogue Encampment.
+func (rt *Runtime) RunTownEgressPlayFrom(act town.OriginAct, startAnchor town.Anchor) error {
 	if !rt.Input.Status().Enabled {
 		return fmt.Errorf("%s egress playback requires input.enabled=true", act)
 	}
@@ -144,7 +166,7 @@ func (rt *Runtime) RunTownEgressPlay(act town.OriginAct) error {
 			if !current.Valid || current.Area.ID != area {
 				continue
 			}
-			if err := rt.townEgress.Start(act, current); err != nil {
+			if err := rt.townEgress.StartFrom(act, startAnchor, current); err != nil {
 				// The isolated test may become input-ready one or two ticks before
 				// the read-only identity probe reaches its consistency threshold.
 				if errors.Is(err, pathing.ErrGameIdentityUnavailable) {

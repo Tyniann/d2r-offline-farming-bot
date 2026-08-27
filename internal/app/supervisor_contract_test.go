@@ -73,3 +73,60 @@ func TestPhase11QueueDispositionValuesFreezeAdvanceSemantics(t *testing.T) {
 		t.Fatalf("queue dispositions changed: %q %q %q", QueueRunAdvance, QueueRunRetryCurrent, QueueRunStop)
 	}
 }
+
+func TestExitAuthorizationAllowsOnlySpecifiedQueueDispositions(t *testing.T) {
+	tests := []struct {
+		name          string
+		authorization ExitAuthorization
+		disposition   QueueRunDisposition
+		allowed       bool
+	}{
+		{name: "none stops", authorization: ExitAuthorizationNone, disposition: QueueRunStop, allowed: true},
+		{name: "none cannot advance", authorization: ExitAuthorizationNone, disposition: QueueRunAdvance},
+		{name: "none cannot retry", authorization: ExitAuthorizationNone, disposition: QueueRunRetryCurrent},
+		{name: "verified town advances", authorization: ExitAuthorizationVerifiedRogueTown, disposition: QueueRunAdvance, allowed: true},
+		{name: "verified town retries", authorization: ExitAuthorizationVerifiedRogueTown, disposition: QueueRunRetryCurrent, allowed: true},
+		{name: "verified town stops", authorization: ExitAuthorizationVerifiedRogueTown, disposition: QueueRunStop, allowed: true},
+		{name: "current area retries", authorization: ExitAuthorizationMemoryGatedCurrentArea, disposition: QueueRunRetryCurrent, allowed: true},
+		{name: "current area stops", authorization: ExitAuthorizationMemoryGatedCurrentArea, disposition: QueueRunStop, allowed: true},
+		{name: "current area cannot advance", authorization: ExitAuthorizationMemoryGatedCurrentArea, disposition: QueueRunAdvance},
+		{name: "unknown authorization", authorization: ExitAuthorization("unknown"), disposition: QueueRunStop},
+		{name: "unknown disposition", authorization: ExitAuthorizationNone, disposition: QueueRunDisposition("unknown")},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if got := test.authorization.Allows(test.disposition); got != test.allowed {
+				t.Fatalf("Allows(%q, %q) = %t, want %t", test.authorization, test.disposition, got, test.allowed)
+			}
+		})
+	}
+}
+
+func TestSupervisorRunResultValidateExitContract(t *testing.T) {
+	tests := []struct {
+		name    string
+		result  SupervisorRunResult
+		wantErr bool
+	}{
+		{name: "terminal without exit", result: SupervisorRunResult{Disposition: QueueRunStop, ExitAuthorization: ExitAuthorizationNone}},
+		{name: "advance from verified town", result: SupervisorRunResult{Disposition: QueueRunAdvance, ExitAuthorization: ExitAuthorizationVerifiedRogueTown}},
+		{name: "retry from verified town", result: SupervisorRunResult{Disposition: QueueRunRetryCurrent, ExitAuthorization: ExitAuthorizationVerifiedRogueTown}},
+		{name: "retry from current area", result: SupervisorRunResult{Disposition: QueueRunRetryCurrent, ExitAuthorization: ExitAuthorizationMemoryGatedCurrentArea}},
+		{name: "stop from current area", result: SupervisorRunResult{Disposition: QueueRunStop, ExitAuthorization: ExitAuthorizationMemoryGatedCurrentArea}},
+		{name: "advance without authorization", result: SupervisorRunResult{Disposition: QueueRunAdvance}, wantErr: true},
+		{name: "retry without authorization", result: SupervisorRunResult{Disposition: QueueRunRetryCurrent, ExitAuthorization: ExitAuthorizationNone}, wantErr: true},
+		{name: "advance from current area", result: SupervisorRunResult{Disposition: QueueRunAdvance, ExitAuthorization: ExitAuthorizationMemoryGatedCurrentArea}, wantErr: true},
+		{name: "unknown disposition", result: SupervisorRunResult{Disposition: QueueRunDisposition("unknown"), ExitAuthorization: ExitAuthorizationNone}, wantErr: true},
+		{name: "unknown authorization", result: SupervisorRunResult{Disposition: QueueRunStop, ExitAuthorization: ExitAuthorization("unknown")}, wantErr: true},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			err := test.result.Validate()
+			if (err != nil) != test.wantErr {
+				t.Fatalf("Validate() error = %v, wantErr %t", err, test.wantErr)
+			}
+		})
+	}
+}

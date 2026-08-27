@@ -92,6 +92,9 @@ func (c *runPipeline) effectiveDefinition() RunDefinition {
 }
 
 func (c *runPipeline) handlesResources(step string) bool {
+	if c.phase == RunPhaseRetryReturn && c.ret.destinationPhase == portalDestinationClear {
+		return true
+	}
 	return step == pipelineStepPlayRoute &&
 		c.core.routeCombat.Enabled &&
 		c.definition.HasCapability(RunCapabilityRouteClear)

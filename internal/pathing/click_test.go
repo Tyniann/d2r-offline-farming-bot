@@ -71,7 +71,11 @@ func TestEntityClickerHoverNotFound(t *testing.T) {
 
 	var last ClickTickResult
 	for i := 0; i < 10; i++ {
-		res, err := clicker.Tick(testClickState(world.HoverInfo{}), target, 0)
+		hover := world.HoverInfo{}
+		if i == 2 {
+			hover = world.HoverInfo{IsHovered: true, UnitType: world.HoverUnitTypeMonster, UnitID: 99}
+		}
+		res, err := clicker.Tick(testClickState(hover), target, 0)
 		if err != nil {
 			t.Fatalf("Tick() error = %v", err)
 		}
@@ -82,6 +86,9 @@ func TestEntityClickerHoverNotFound(t *testing.T) {
 	}
 	if last.Status != ClickHoverNotFound || !last.Done {
 		t.Fatalf("final result = %+v, want hover_not_found", last)
+	}
+	if last.TargetUnitID != target.UnitID || last.BlockerUnitID != 99 {
+		t.Fatalf("evidence = target %d blocker %d, want %d/99", last.TargetUnitID, last.BlockerUnitID, target.UnitID)
 	}
 	if len(in.clicks) != 0 {
 		t.Fatalf("clicks=%d, want 0 (no blind click)", len(in.clicks))

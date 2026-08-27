@@ -148,7 +148,11 @@ func (rt *Runtime) finishSessionRunTelemetry(result SupervisorRunResult) error {
 	if rt.Telemetry == nil {
 		return fmt.Errorf("session run telemetry is not active")
 	}
-	terminal := telemetry.Event{Event: queueRunTerminalEvent(result), Reason: result.Reason}
+	terminal := telemetry.Event{
+		Event: queueRunTerminalEvent(result), Reason: result.Reason,
+		OriginalReason: result.OriginalReason, RecoveryReason: result.RecoveryReason,
+		ExitAuthorization: string(result.ExitAuthorization),
+	}
 	emitErr := rt.Telemetry.Emit(terminal)
 	closeErr := rt.closeSessionRunTelemetry()
 	if emitErr != nil {

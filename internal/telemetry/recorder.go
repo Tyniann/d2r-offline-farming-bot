@@ -134,47 +134,68 @@ const (
 	RackSkipped EventName = "rack_skipped"
 	// TownPortalEntryUnconfirmed records that a sent portal click left the player in the route terminal area.
 	TownPortalEntryUnconfirmed EventName = "town_portal_entry_unconfirmed"
-	// TownPortalRecoveryStarted records the single local clear and retry decision.
-	TownPortalRecoveryStarted EventName = "town_portal_recovery_started"
-	// TownPortalRetryClicked records the second hover-confirmed portal click.
-	TownPortalRetryClicked EventName = "town_portal_retry_clicked"
-	// TownPortalRecoveryCompleted records Memory-confirmed arrival after recovery.
-	TownPortalRecoveryCompleted EventName = "town_portal_recovery_completed"
+	// LocalRecoveryClearStarted records the bounded clear around a blocked return portal.
+	LocalRecoveryClearStarted EventName = "local_recovery_clear_started"
+	// LocalRecoveryClearFinished records the terminal clear outcome before the portal retry.
+	LocalRecoveryClearFinished EventName = "local_recovery_clear_finished"
+	// ReturnPortalRetry records the single hover-confirmed return-portal retry.
+	ReturnPortalRetry EventName = "return_portal_retry"
+	// DirectExitStarted records a current-area Save & Exit before any menu input.
+	DirectExitStarted EventName = "direct_exit_started"
+	// DirectExitCompleted records a Memory-confirmed direct Save & Exit.
+	DirectExitCompleted EventName = "direct_exit_completed"
+	// DirectExitFailed records a failed direct Save & Exit.
+	DirectExitFailed EventName = "direct_exit_failed"
+	// StartTownNormalizationStarted records a fresh game in an Act 2-5 town.
+	StartTownNormalizationStarted EventName = "start_town_normalization_started"
+	// StartTownNormalizationCompleted records Memory-confirmed arrival in Act 1.
+	StartTownNormalizationCompleted EventName = "start_town_normalization_completed"
+	// StartTownNormalizationFailed records a failed fresh-game town normalization.
+	StartTownNormalizationFailed EventName = "start_town_normalization_failed"
 )
 
 // Event is one JSONL record. Zero-valued optional fields are omitted.
 type Event struct {
-	SchemaVersion                int                    `json:"schema_version,omitempty"`
-	Stream                       HistoryStream          `json:"stream,omitempty"`
-	Timestamp                    time.Time              `json:"timestamp"`
-	Event                        EventName              `json:"event"`
-	RunID                        string                 `json:"run_id,omitempty"`
-	SessionID                    string                 `json:"session_id,omitempty"`
-	GameID                       string                 `json:"game_id,omitempty"`
-	Mode                         HistoryMode            `json:"mode,omitempty"`
-	Character                    string                 `json:"character,omitempty"`
-	Difficulty                   string                 `json:"difficulty,omitempty"`
-	GameVersion                  string                 `json:"game_version,omitempty"`
-	Run                          string                 `json:"run,omitempty"`
-	DefinitionID                 string                 `json:"definition_id,omitempty"`
-	Phase                        string                 `json:"phase,omitempty"`
-	Step                         string                 `json:"step,omitempty"`
-	Stage                        HistoryStage           `json:"stage,omitempty"`
-	ActionIndex                  *int                   `json:"action_index,omitempty"`
-	AreaID                       uint32                 `json:"area_id,omitempty"`
-	UnitID                       uint32                 `json:"unit_id,omitempty"`
-	TxtFileNo                    uint32                 `json:"txt_file_no,omitempty"`
-	Code                         string                 `json:"code,omitempty"`
-	Name                         string                 `json:"name,omitempty"`
-	BossID                       string                 `json:"boss_id,omitempty"`
-	BossName                     string                 `json:"boss_name,omitempty"`
-	ItemKey                      string                 `json:"item_key,omitempty"`
-	ItemName                     string                 `json:"item_name,omitempty"`
-	BaseCode                     string                 `json:"base_code,omitempty"`
-	Quality                      string                 `json:"quality,omitempty"`
-	ItemIdentityKind             string                 `json:"item_identity_kind,omitempty"`
-	ItemIdentityKey              string                 `json:"item_identity_key,omitempty"`
-	Reason                       string                 `json:"reason,omitempty"`
+	SchemaVersion    int           `json:"schema_version,omitempty"`
+	Stream           HistoryStream `json:"stream,omitempty"`
+	Timestamp        time.Time     `json:"timestamp"`
+	Event            EventName     `json:"event"`
+	RunID            string        `json:"run_id,omitempty"`
+	SessionID        string        `json:"session_id,omitempty"`
+	GameID           string        `json:"game_id,omitempty"`
+	Mode             HistoryMode   `json:"mode,omitempty"`
+	Character        string        `json:"character,omitempty"`
+	Difficulty       string        `json:"difficulty,omitempty"`
+	GameVersion      string        `json:"game_version,omitempty"`
+	Run              string        `json:"run,omitempty"`
+	DefinitionID     string        `json:"definition_id,omitempty"`
+	Phase            string        `json:"phase,omitempty"`
+	Step             string        `json:"step,omitempty"`
+	Stage            HistoryStage  `json:"stage,omitempty"`
+	ActionIndex      *int          `json:"action_index,omitempty"`
+	AreaID           uint32        `json:"area_id,omitempty"`
+	UnitID           uint32        `json:"unit_id,omitempty"`
+	BlockerUnitID    uint32        `json:"blocker_unit_id,omitempty"`
+	TxtFileNo        uint32        `json:"txt_file_no,omitempty"`
+	Code             string        `json:"code,omitempty"`
+	Name             string        `json:"name,omitempty"`
+	BossID           string        `json:"boss_id,omitempty"`
+	BossName         string        `json:"boss_name,omitempty"`
+	ItemKey          string        `json:"item_key,omitempty"`
+	ItemName         string        `json:"item_name,omitempty"`
+	BaseCode         string        `json:"base_code,omitempty"`
+	Quality          string        `json:"quality,omitempty"`
+	ItemIdentityKind string        `json:"item_identity_kind,omitempty"`
+	ItemIdentityKey  string        `json:"item_identity_key,omitempty"`
+	Reason           string        `json:"reason,omitempty"`
+	// OriginalReason preserves the productive task failure before recovery.
+	OriginalReason string `json:"original_reason,omitempty"`
+	// RecoveryReason records the local recovery outcome or why it was skipped.
+	RecoveryReason string `json:"recovery_reason,omitempty"`
+	// ExitAuthorization records the typed offline exit decision.
+	ExitAuthorization string `json:"exit_authorization,omitempty"`
+	// Retry identifies the scheduled retry number after a confirmed exit.
+	Retry                        int                    `json:"retry,omitempty"`
 	Attempt                      int                    `json:"attempt,omitempty"`
 	HoverAttempt                 int                    `json:"hover_attempt,omitempty"`
 	GridX                        *int                   `json:"grid_x,omitempty"`
@@ -187,6 +208,8 @@ type Event struct {
 	RouteRole                    string                 `json:"route_role,omitempty"`
 	WaypointTarget               string                 `json:"waypoint_target,omitempty"`
 	TownOrigin                   string                 `json:"town_origin,omitempty"`
+	Act                          string                 `json:"act,omitempty"`
+	RouteFile                    string                 `json:"route_file,omitempty"`
 	SegmentID                    string                 `json:"segment_id,omitempty"`
 	SegmentIndex                 *int                   `json:"segment_index,omitempty"`
 	PointIndex                   *int                   `json:"point_index,omitempty"`
@@ -268,6 +291,8 @@ type Event struct {
 	HPPercent                    uint8                  `json:"hp_percent,omitempty"`
 	ManaPercent                  uint8                  `json:"mana_percent,omitempty"`
 	NoProgressTimeoutMs          int64                  `json:"no_progress_timeout_ms,omitempty"`
+	ActionBudget                 int                    `json:"action_budget,omitempty"`
+	TimeoutMs                    int64                  `json:"timeout_ms,omitempty"`
 	CombatActionsSent            int                    `json:"combat_actions_sent,omitempty"`
 	TargetsSeen                  int                    `json:"targets_seen,omitempty"`
 	DensityReliefActions         int                    `json:"density_relief_actions,omitempty"`

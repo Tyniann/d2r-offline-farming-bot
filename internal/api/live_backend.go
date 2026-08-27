@@ -267,6 +267,7 @@ func (b *LiveBackend) UpdateRuntime(runtime app.UIStatusSnapshot) {
 	b.status.Input = InputDTO{Enabled: runtime.InputEnabled && runtime.Compatibility.State == app.D2RCompatibilityCompatible, Paused: runtime.InputPaused, Stopped: runtime.InputStopped}
 	b.status.World = WorldDTO{Valid: runtime.WorldValid, Phase: runtime.WorldPhase, AreaID: runtime.AreaID, AreaName: runtime.AreaName}
 	b.status.RunProgress = runProgressDTO(runtime.RunProgress)
+	b.status.RecoveryStep = runtime.RecoveryStep
 	if runtime.RunID != "" {
 		b.status.ActiveRunID = runtime.RunID
 	}
@@ -297,6 +298,7 @@ func (b *LiveBackend) UpdateSupervisor(supervisor app.SupervisorSnapshot) {
 	b.status.ActiveRunID = supervisor.ActiveRunID
 	b.status.RunInstanceID = supervisor.RunInstanceID
 	b.status.GameID = supervisor.GameID
+	projectSupervisorRecoveryStep(&b.status, supervisor)
 	if supervisor.ActiveRunID == "" {
 		b.status.RunProgress = nil
 	}
@@ -338,7 +340,7 @@ func (b *LiveBackend) Update(runtime app.UIStatusSnapshot, supervisor app.Superv
 	status := StatusDTO{
 		CoreVersion: previous.CoreVersion, AppVersion: previous.AppVersion, State: string(supervisor.State), Generation: supervisor.Generation,
 		LifecyclePhase: string(supervisor.State), PendingIntent: string(supervisor.PendingIntent), ActiveRunID: supervisor.ActiveRunID,
-		RunInstanceID: supervisor.RunInstanceID, GameID: supervisor.GameID, RunProgress: runProgressDTO(runtime.RunProgress),
+		RunInstanceID: supervisor.RunInstanceID, GameID: supervisor.GameID, RecoveryStep: runtime.RecoveryStep, RunProgress: runProgressDTO(runtime.RunProgress),
 		D2R:           D2RDTO{State: runtime.ProcessState, PID: runtime.PID, WindowBound: runtime.WindowBound, ClientWidth: runtime.ClientWidth, ClientHeight: runtime.ClientHeight},
 		Compatibility: compatibilityDTO(runtime.Compatibility),
 		Input:         InputDTO{Enabled: runtime.InputEnabled && runtime.Compatibility.State == app.D2RCompatibilityCompatible, Paused: runtime.InputPaused, Stopped: runtime.InputStopped},
@@ -346,6 +348,7 @@ func (b *LiveBackend) Update(runtime app.UIStatusSnapshot, supervisor app.Superv
 		Selection:     previous.Selection,
 		Queue:         previous.Queue,
 	}
+	projectSupervisorRecoveryStep(&status, supervisor)
 	if supervisor.QueueKnown {
 		status.Queue = queueStatusDTO(supervisor)
 		status.Queue.DefaultEntries = append(make([]string, 0, len(previous.Queue.DefaultEntries)), previous.Queue.DefaultEntries...)
@@ -356,6 +359,28 @@ func (b *LiveBackend) Update(runtime app.UIStatusSnapshot, supervisor app.Superv
 	b.status = status
 	b.mu.Unlock()
 	b.publishStatusDeltas(previous, status)
+}
+
+func projectSupervisorRecoveryStep(status *StatusDTO, supervisor app.SupervisorSnapshot) {
+	if status == nil {
+		return
+	}
+	switch supervisor.State {
+	case app.SupervisorStateExitingGame:
+		if supervisor.LastResult.ExitAuthorization == app.ExitAuthorizationMemoryGatedCurrentArea {
+			status.RecoveryStep = "direct_exit"
+		} else {
+			status.RecoveryStep = ""
+		}
+	case app.SupervisorStateStartingGame:
+		if supervisor.Retry > 0 && status.RecoveryStep == "" {
+			status.RecoveryStep = "restart_game"
+		}
+	case app.SupervisorStateRunningRun:
+		// Runtime updates own retry-return substeps while the task is active.
+	default:
+		status.RecoveryStep = ""
+	}
 }
 
 func (b *LiveBackend) publishStatusDeltas(previous, status StatusDTO) {
@@ -398,6 +423,9 @@ func (b *LiveBackend) publishStatusDeltas(previous, status StatusDTO) {
 	}
 	if !equalRunProgress(previous.RunProgress, status.RunProgress) && status.RunProgress != nil {
 		b.publisher.Publish(telemetry.LiveEvent{Event: "run_progress_changed", GameID: status.GameID, RunID: status.RunInstanceID, Run: status.ActiveRunID, Details: map[string]any{"stage_code": status.RunProgress.StageCode, "params": status.RunProgress.Params, "current": status.RunProgress.Current, "total": status.RunProgress.Total}})
+	}
+	if previous.RecoveryStep != status.RecoveryStep {
+		b.publisher.Publish(telemetry.LiveEvent{Event: "recovery_step_changed", GameID: status.GameID, RunID: status.RunInstanceID, Run: status.ActiveRunID, Details: map[string]any{"recovery_step": status.RecoveryStep}})
 	}
 	if status.LastError != nil && (previous.LastError == nil || previous.LastError.Code != status.LastError.Code || !reflect.DeepEqual(previous.LastError.Params, status.LastError.Params)) {
 		b.publisher.Publish(telemetry.LiveEvent{Event: "runtime_error", Reason: status.LastError.Code, Details: status.LastError.Params})

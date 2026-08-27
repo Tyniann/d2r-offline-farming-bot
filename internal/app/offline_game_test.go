@@ -125,6 +125,39 @@ func TestOfflineStartMachineCompletesAfterStableIdentity(t *testing.T) {
 	}
 }
 
+func TestOfflineStartMachineAcceptsSupportedForeignTownForNormalization(t *testing.T) {
+	now := time.Now()
+	machine := &offlineStartMachine{stage: offlineStartAwaitGame, character: "MrHammer"}
+	inGame := world.State{
+		Valid:    true,
+		Phase:    world.GamePhaseInGame,
+		Area:     world.LookupArea(world.KurastDocks),
+		Identity: world.GameIdentity{Valid: true, CharacterName: "MrHammer"},
+	}
+	for i := 0; i < offlineExitStableTicks; i++ {
+		_, done, err := machine.tick(now.Add(time.Duration(i)*time.Millisecond), inGame)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if done != (i == offlineExitStableTicks-1) {
+			t.Fatalf("tick %d done = %t", i, done)
+		}
+	}
+}
+
+func TestOfflineStartMachineRejectsUnsupportedFreshGameArea(t *testing.T) {
+	machine := &offlineStartMachine{stage: offlineStartAwaitGame, character: "MrHammer"}
+	state := world.State{
+		Valid:    true,
+		Phase:    world.GamePhaseInGame,
+		Area:     world.LookupArea(world.BloodMoor),
+		Identity: world.GameIdentity{Valid: true, CharacterName: "MrHammer"},
+	}
+	if _, _, err := machine.tick(time.Now(), state); err == nil {
+		t.Fatal("unsupported fresh game area was accepted")
+	}
+}
+
 func TestOfflineStartMachineRejectsWrongCharacterClass(t *testing.T) {
 	now := time.Now()
 	machine := &offlineStartMachine{stage: offlineStartAwaitGame, character: "MrBones", expectedClass: world.CharacterClassNecromancer, verifyClass: true}

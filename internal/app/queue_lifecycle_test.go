@@ -11,9 +11,10 @@ import (
 )
 
 type lifecycleRunnerEvent struct {
-	Name    string
-	Request SupervisorRunRequest
-	Reason  string
+	Name          string
+	Request       SupervisorRunRequest
+	Reason        string
+	Authorization ExitAuthorization
 }
 
 type fakeLifecycleRunner struct {
@@ -57,8 +58,11 @@ func (r *fakeLifecycleRunner) Run(ctx context.Context, request SupervisorRunRequ
 	}
 }
 
-func (r *fakeLifecycleRunner) ExitGame(_ context.Context, request SupervisorRunRequest, reason string) error {
-	r.record("exit_game", request, reason)
+func (r *fakeLifecycleRunner) ExitGame(_ context.Context, request SupervisorRunRequest, result SupervisorRunResult) error {
+	r.record("exit_game", request, result.Reason)
+	r.mu.Lock()
+	r.events[len(r.events)-1].Authorization = result.ExitAuthorization
+	r.mu.Unlock()
 	return r.exitErr
 }
 
@@ -80,11 +84,11 @@ func TestSameGameQueueStartsOnceRunsAllEntriesAndExitsAtWrap(t *testing.T) {
 		t.Fatal(err)
 	}
 	first := <-runner.started
-	runner.release <- SupervisorRunResult{Disposition: QueueRunAdvance, SafeToExit: true}
+	runner.release <- SupervisorRunResult{Disposition: QueueRunAdvance, ExitAuthorization: ExitAuthorizationVerifiedRogueTown}
 	second := <-runner.started
-	runner.release <- SupervisorRunResult{Disposition: QueueRunAdvance, SafeToExit: true}
+	runner.release <- SupervisorRunResult{Disposition: QueueRunAdvance, ExitAuthorization: ExitAuthorizationVerifiedRogueTown}
 	third := <-runner.started
-	runner.release <- SupervisorRunResult{Disposition: QueueRunAdvance, SafeToExit: true}
+	runner.release <- SupervisorRunResult{Disposition: QueueRunAdvance, ExitAuthorization: ExitAuthorizationVerifiedRogueTown}
 	waitSupervisorState(t, supervisor, SupervisorStateIdle)
 
 	if first.GameID == "" || first.GameID != second.GameID || third.GameID == "" || third.GameID == first.GameID {
@@ -115,16 +119,87 @@ func TestSameGameQueueRetryExitsAndRestartsSameIndex(t *testing.T) {
 		t.Fatal(err)
 	}
 	first := <-runner.started
-	runner.release <- SupervisorRunResult{Disposition: QueueRunRetryCurrent, Reason: "hard_stuck", SafeToExit: true}
+	runner.release <- SupervisorRunResult{Disposition: QueueRunRetryCurrent, Reason: "hard_stuck", ExitAuthorization: ExitAuthorizationVerifiedRogueTown}
 	second := <-runner.started
 	if second.QueueIndex != first.QueueIndex || second.Retry != 1 || second.GameID == first.GameID {
 		t.Fatalf("retry first=%+v second=%+v", first, second)
 	}
-	runner.release <- SupervisorRunResult{Disposition: QueueRunStop, Reason: "terminal"}
+	runner.release <- SupervisorRunResult{Disposition: QueueRunStop, Reason: "terminal", ExitAuthorization: ExitAuthorizationNone}
 	waitSupervisorState(t, supervisor, SupervisorStateStoppedError)
 	events := runner.Events()
 	if len(events) < 5 || events[2].Name != "exit_game" || events[2].Reason != "retry_current" || events[3].Name != "start_game" {
 		t.Fatalf("retry events = %+v", events)
+	}
+}
+
+func TestSameGameQueueDirectExitRestartsSameIndexOnlyAfterConfirmation(t *testing.T) {
+	runner := newFakeLifecycleRunner(3)
+	supervisor, _ := NewSessionSupervisor(runner)
+	plan := queueSchedulerTestPlan([]string{"countess", "mephisto"}, 3)
+	_, _ = supervisor.StartQueue(SupervisorCommandMeta{CommandID: "direct-retry", ExpectedGeneration: 0}, plan)
+	first := <-runner.started
+	runner.release <- SupervisorRunResult{
+		Disposition: QueueRunRetryCurrent, Reason: queueReasonRetryReturnFailed,
+		OriginalReason: "route_threat_out_of_range", RecoveryReason: "town_portal_enter_failed",
+		ExitAuthorization: ExitAuthorizationMemoryGatedCurrentArea,
+	}
+	second := <-runner.started
+	if second.QueueIndex != first.QueueIndex || second.Retry != 1 || second.GameID == first.GameID {
+		t.Fatalf("direct retry first=%+v second=%+v", first, second)
+	}
+	events := runner.Events()
+	if len(events) < 4 || events[2].Name != "exit_game" || events[2].Authorization != ExitAuthorizationMemoryGatedCurrentArea || events[3].Name != "start_game" {
+		t.Fatalf("events = %+v", events)
+	}
+	snapshot := supervisor.Snapshot()
+	if snapshot.TotalRestarts != 1 || snapshot.LastResult.OriginalReason != "route_threat_out_of_range" || snapshot.LastResult.RecoveryReason != "town_portal_enter_failed" {
+		t.Fatalf("snapshot = %+v", snapshot)
+	}
+	runner.release <- SupervisorRunResult{Disposition: QueueRunStop, Reason: "terminal", ExitAuthorization: ExitAuthorizationNone}
+	waitSupervisorState(t, supervisor, SupervisorStateStoppedError)
+}
+
+func TestSameGameQueueDirectExitFailurePreservesReasonsAndDoesNotRestart(t *testing.T) {
+	runner := newFakeLifecycleRunner(2)
+	runner.exitErr = fmt.Errorf("menu did not arrive")
+	supervisor, _ := NewSessionSupervisor(runner)
+	_, _ = supervisor.StartQueue(SupervisorCommandMeta{CommandID: "direct-exit-fail", ExpectedGeneration: 0}, queueSchedulerTestPlan([]string{"countess"}, 3))
+	<-runner.started
+	runner.release <- SupervisorRunResult{
+		Disposition: QueueRunRetryCurrent, Reason: queueReasonRetryReturnFailed,
+		OriginalReason: "route_threat_out_of_range", RecoveryReason: "town_portal_enter_failed",
+		ExitAuthorization: ExitAuthorizationMemoryGatedCurrentArea,
+	}
+	waitSupervisorState(t, supervisor, SupervisorStateStoppedError)
+	snapshot := supervisor.Snapshot()
+	if snapshot.LastResult.Reason != string(SupervisorReasonGameExitFailed) || snapshot.LastResult.OriginalReason != "route_threat_out_of_range" ||
+		snapshot.LastResult.RecoveryReason != "town_portal_enter_failed" || snapshot.TotalRestarts != 0 {
+		t.Fatalf("snapshot = %+v", snapshot)
+	}
+	select {
+	case request := <-runner.started:
+		t.Fatalf("exit failure restarted game: %+v", request)
+	default:
+	}
+}
+
+func TestSameGameQueueDirectExitStillRunsWhenRestartBudgetIsExhausted(t *testing.T) {
+	runner := newFakeLifecycleRunner(2)
+	supervisor, _ := NewSessionSupervisor(runner)
+	plan := queueSchedulerTestPlan([]string{"countess"}, 3)
+	plan.Budgets.MaxTotalRestarts = 0
+	_, _ = supervisor.StartQueue(SupervisorCommandMeta{CommandID: "direct-budget", ExpectedGeneration: 0}, plan)
+	<-runner.started
+	runner.release <- SupervisorRunResult{Disposition: QueueRunRetryCurrent, Reason: queueReasonRetryReturnFailed, ExitAuthorization: ExitAuthorizationMemoryGatedCurrentArea}
+	waitSupervisorState(t, supervisor, SupervisorStateStoppedError)
+	events := runner.Events()
+	if len(events) < 4 || events[2].Name != "exit_game" || events[2].Authorization != ExitAuthorizationMemoryGatedCurrentArea || supervisor.Snapshot().TotalRestarts != 0 {
+		t.Fatalf("events=%+v snapshot=%+v", events, supervisor.Snapshot())
+	}
+	for _, event := range events[3:] {
+		if event.Name == "start_game" {
+			t.Fatalf("budget exhaustion restarted game: %+v", events)
+		}
 	}
 }
 
@@ -135,12 +210,32 @@ func TestSameGameQueueExecutesRequiredTerminalExitWithoutTownHandoff(t *testing.
 		t.Fatal(err)
 	}
 	<-runner.started
-	runner.release <- SupervisorRunResult{Disposition: QueueRunStop, Reason: "cow_return_portal_failed", ExitRequired: true}
+	runner.release <- SupervisorRunResult{Disposition: QueueRunStop, Reason: "cow_return_portal_failed", ExitAuthorization: ExitAuthorizationMemoryGatedCurrentArea}
 	waitSupervisorState(t, supervisor, SupervisorStateStoppedError)
 
 	events := runner.Events()
 	if len(events) < 4 || events[2].Name != "exit_game" || events[2].Reason != "cow_return_portal_failed" {
 		t.Fatalf("required exit events=%+v", events)
+	}
+}
+
+func TestSameGameQueueRejectsInvalidExitAuthorizationBeforeLifecycleInput(t *testing.T) {
+	runner := newFakeLifecycleRunner(1)
+	supervisor, _ := NewSessionSupervisor(runner)
+	if _, err := supervisor.StartQueue(SupervisorCommandMeta{CommandID: "invalid-exit-contract", ExpectedGeneration: 0}, queueSchedulerTestPlan([]string{"countess"}, 1)); err != nil {
+		t.Fatal(err)
+	}
+	<-runner.started
+	runner.release <- SupervisorRunResult{Disposition: QueueRunAdvance, ExitAuthorization: ExitAuthorizationNone}
+	waitSupervisorState(t, supervisor, SupervisorStateStoppedError)
+
+	if got := supervisor.Snapshot().LastResult.Reason; got != "invalid_run_result" {
+		t.Fatalf("reason = %q, want invalid_run_result", got)
+	}
+	for _, event := range runner.Events() {
+		if event.Name == "exit_game" || event.Name == "start_game" && event.Request.GameID == "game-002" {
+			t.Fatalf("invalid result caused lifecycle input: %+v", runner.Events())
+		}
 	}
 }
 
@@ -158,13 +253,27 @@ func TestSameGameQueueStartAndExitFailuresAreStable(t *testing.T) {
 			t.Fatalf("start detail = %q, want German operator text", got)
 		}
 	})
+	t.Run("start town normalization", func(t *testing.T) {
+		runner := newFakeLifecycleRunner(1)
+		runner.startErr = &startTownNormalizationError{err: fmt.Errorf("spawn route missing")}
+		supervisor, _ := NewSessionSupervisor(runner)
+		_, _ = supervisor.StartQueue(SupervisorCommandMeta{CommandID: "normalize-fail", ExpectedGeneration: 0}, queueSchedulerTestPlan([]string{"countess"}, 1))
+		waitSupervisorState(t, supervisor, SupervisorStateStoppedError)
+		snapshot := supervisor.Snapshot()
+		if got := snapshot.LastResult.Reason; got != string(SupervisorReasonStartTownNormalizationFailed) {
+			t.Fatalf("normalization reason = %q", got)
+		}
+		if got := snapshot.LastResult.Detail; got != "Die Rückkehr nach Akt 1 ist fehlgeschlagen." {
+			t.Fatalf("normalization detail = %q", got)
+		}
+	})
 	t.Run("exit", func(t *testing.T) {
 		runner := newFakeLifecycleRunner(1)
 		runner.exitErr = fmt.Errorf("dialog missing")
 		supervisor, _ := NewSessionSupervisor(runner)
 		_, _ = supervisor.StartQueue(SupervisorCommandMeta{CommandID: "exit-fail", ExpectedGeneration: 0}, queueSchedulerTestPlan([]string{"countess"}, 1))
 		<-runner.started
-		runner.release <- SupervisorRunResult{Disposition: QueueRunAdvance, SafeToExit: true}
+		runner.release <- SupervisorRunResult{Disposition: QueueRunAdvance, ExitAuthorization: ExitAuthorizationVerifiedRogueTown}
 		waitSupervisorState(t, supervisor, SupervisorStateStoppedError)
 		if got := supervisor.Snapshot().LastResult.Reason; got != string(SupervisorReasonGameExitFailed) {
 			t.Fatalf("exit reason = %q", got)
@@ -182,7 +291,7 @@ func TestSameGamePauseResumeAndStopUseOneOpenGame(t *testing.T) {
 	if _, err := supervisor.PauseAfterRun(SupervisorCommandMeta{CommandID: "pause", ExpectedGeneration: running.Generation}); err != nil {
 		t.Fatal(err)
 	}
-	runner.release <- SupervisorRunResult{Disposition: QueueRunAdvance, SafeToExit: true}
+	runner.release <- SupervisorRunResult{Disposition: QueueRunAdvance, ExitAuthorization: ExitAuthorizationVerifiedRogueTown}
 	waitSupervisorState(t, supervisor, SupervisorStatePausedBetweenRuns)
 	paused := supervisor.Snapshot()
 	if paused.QueueIndex != 1 || paused.GameID != first.GameID {
@@ -204,7 +313,7 @@ func TestSameGamePauseResumeAndStopUseOneOpenGame(t *testing.T) {
 	if _, err := supervisor.StopAfterRun(SupervisorCommandMeta{CommandID: "stop", ExpectedGeneration: running.Generation}); err != nil {
 		t.Fatal(err)
 	}
-	runner.release <- SupervisorRunResult{Disposition: QueueRunAdvance, SafeToExit: true}
+	runner.release <- SupervisorRunResult{Disposition: QueueRunAdvance, ExitAuthorization: ExitAuthorizationVerifiedRogueTown}
 	waitSupervisorState(t, supervisor, SupervisorStateIdle)
 	exits := 0
 	for _, event := range runner.Events() {
@@ -227,7 +336,7 @@ func TestSameGameResumeFailsClosedWhenPausedGameIsLost(t *testing.T) {
 	<-runner.started
 	running := supervisor.Snapshot()
 	_, _ = supervisor.PauseAfterRun(SupervisorCommandMeta{CommandID: "pause-lost", ExpectedGeneration: running.Generation})
-	runner.release <- SupervisorRunResult{Disposition: QueueRunAdvance, SafeToExit: true}
+	runner.release <- SupervisorRunResult{Disposition: QueueRunAdvance, ExitAuthorization: ExitAuthorizationVerifiedRogueTown}
 	waitSupervisorState(t, supervisor, SupervisorStatePausedBetweenRuns)
 	runner.verifyErr = fmt.Errorf("game identity changed")
 	paused := supervisor.Snapshot()
@@ -262,7 +371,7 @@ func TestStopIntentCannotBeDowngradedByPause(t *testing.T) {
 	if paused.PendingIntent != SupervisorIntentStopAfterRun {
 		t.Fatalf("pending intent = %q", paused.PendingIntent)
 	}
-	runner.release <- SupervisorRunResult{Disposition: QueueRunAdvance, SafeToExit: true}
+	runner.release <- SupervisorRunResult{Disposition: QueueRunAdvance, ExitAuthorization: ExitAuthorizationVerifiedRogueTown}
 	waitSupervisorState(t, supervisor, SupervisorStateIdle)
 }
 
@@ -278,7 +387,7 @@ func TestSameGameDurationBudgetExitsBeforeNextRun(t *testing.T) {
 	supervisor.mu.Lock()
 	now = now.Add(time.Minute)
 	supervisor.mu.Unlock()
-	runner.release <- SupervisorRunResult{Disposition: QueueRunAdvance, SafeToExit: true}
+	runner.release <- SupervisorRunResult{Disposition: QueueRunAdvance, ExitAuthorization: ExitAuthorizationVerifiedRogueTown}
 	waitSupervisorState(t, supervisor, SupervisorStateIdle)
 	if got := supervisor.Snapshot().LastResult.Reason; got != string(QueueReasonDurationBudgetExhausted) {
 		t.Fatalf("duration reason = %q", got)

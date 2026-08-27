@@ -27,6 +27,8 @@ const (
 	SupervisorReasonPausedGameLost SupervisorReason = "paused_game_lost"
 	// SupervisorReasonGameStartFailed reports the supervisor-owned game-start boundary.
 	SupervisorReasonGameStartFailed SupervisorReason = "game_start_failed"
+	// SupervisorReasonStartTownNormalizationFailed reports a failed Act 2–5 fresh-game return to Act 1.
+	SupervisorReasonStartTownNormalizationFailed SupervisorReason = "start_town_normalization_failed"
 	// SupervisorReasonGameExitFailed reports the supervisor-owned Save-&-Exit boundary.
 	SupervisorReasonGameExitFailed SupervisorReason = "game_exit_failed"
 	// SupervisorReasonEmergencyStopRequested correlates API and F11 cancellation.
@@ -74,12 +76,17 @@ type SupervisorRunResult struct {
 	// Detail carries an optional operator-facing German explanation for terminal
 	// reasons such as missing required skills. Reason stays the stable machine code.
 	Detail string
-	// SafeToExit confirms that the run reached the verified Town boundary where
-	// the supervisor may execute an orderly Save & Exit.
-	SafeToExit bool
-	// ExitRequired requests the supervisor-owned Save & Exit fallback when a
-	// terminal run failure cannot first establish the Town boundary.
-	ExitRequired bool
+	// ExitAuthorization states which supervisor-owned exit precondition the run
+	// owner established. The supervisor validates it before changing lifecycle state.
+	ExitAuthorization ExitAuthorization
+}
+
+// Validate rejects contradictory disposition and exit-authorization pairs.
+func (r SupervisorRunResult) Validate() error {
+	if !r.ExitAuthorization.Allows(r.Disposition) {
+		return fmt.Errorf("exit authorization %q does not allow disposition %q", r.ExitAuthorization, r.Disposition)
+	}
+	return nil
 }
 
 // SupervisorRunner executes one complete session unit and must return after
@@ -329,7 +336,7 @@ func (s *SessionSupervisor) EmergencyStop(meta SupervisorCommandMeta) (Superviso
 	if s.cancel != nil {
 		s.cancel()
 	} else {
-		s.finishQueueLocked(SupervisorStateIdle, SupervisorRunResult{Disposition: QueueRunStop, Reason: string(SupervisorReasonEmergencyStopRequested)}, true)
+		s.finishQueueLocked(SupervisorStateIdle, emergencyStopResult(), true)
 	}
 	snapshot := s.snapshotLocked()
 	s.rememberLocked(meta, SupervisorCommandEmergencyStop, "", snapshot)
@@ -366,7 +373,7 @@ func (s *SessionSupervisor) Shutdown(ctx context.Context) error {
 		s.state = SupervisorStateCancelling
 		s.cancel()
 	} else if s.state == SupervisorStatePausedBetweenRuns {
-		s.finishQueueLocked(SupervisorStateIdle, SupervisorRunResult{Disposition: QueueRunStop, Reason: string(SupervisorReasonEmergencyStopRequested)}, true)
+		s.finishQueueLocked(SupervisorStateIdle, emergencyStopResult(), true)
 	}
 	done := s.done
 	s.mu.Unlock()
@@ -383,7 +390,7 @@ func (s *SessionSupervisor) Shutdown(ctx context.Context) error {
 
 func (s *SessionSupervisor) startWorkerLocked() {
 	if len(s.plan.RunIDs) == 0 || s.queueIndex < 0 || s.queueIndex >= len(s.plan.RunIDs) {
-		s.finishQueueLocked(SupervisorStateStoppedError, SupervisorRunResult{Disposition: QueueRunStop, Reason: string(QueueReasonEntryUnavailable)}, false)
+		s.finishQueueLocked(SupervisorStateStoppedError, SupervisorRunResult{Disposition: QueueRunStop, Reason: string(QueueReasonEntryUnavailable), ExitAuthorization: ExitAuthorizationNone}, false)
 		return
 	}
 	if s.queueGuard != nil {
@@ -396,7 +403,7 @@ func (s *SessionSupervisor) startWorkerLocked() {
 			} else if errors.As(err, &commandErr) {
 				reason = string(commandErr.Code)
 			}
-			s.finishQueueLocked(SupervisorStateStoppedError, SupervisorRunResult{Disposition: QueueRunStop, Reason: reason}, false)
+			s.finishQueueLocked(SupervisorStateStoppedError, SupervisorRunResult{Disposition: QueueRunStop, Reason: reason, ExitAuthorization: ExitAuthorizationNone}, false)
 			return
 		}
 	}
@@ -513,10 +520,20 @@ func (s *SessionSupervisor) completeLifecycleRun(ctx context.Context, lifecycle 
 		s.mu.Unlock()
 		return
 	}
+	if err := result.Validate(); err != nil {
+		s.finishQueueLocked(SupervisorStateStoppedError, SupervisorRunResult{
+			Disposition:       QueueRunStop,
+			Reason:            "invalid_run_result",
+			Detail:            err.Error(),
+			ExitAuthorization: ExitAuthorizationNone,
+		}, false)
+		s.mu.Unlock()
+		return
+	}
 	switch result.Disposition {
 	case QueueRunAdvance:
-		if !result.SafeToExit {
-			s.finishQueueLocked(SupervisorStateStoppedError, SupervisorRunResult{Disposition: QueueRunStop, Reason: "run_town_handoff_unconfirmed"}, false)
+		if result.ExitAuthorization != ExitAuthorizationVerifiedRogueTown {
+			s.finishQueueLocked(SupervisorStateStoppedError, SupervisorRunResult{Disposition: QueueRunStop, Reason: "run_town_handoff_unconfirmed", ExitAuthorization: ExitAuthorizationNone}, false)
 			s.mu.Unlock()
 			return
 		}
@@ -532,10 +549,10 @@ func (s *SessionSupervisor) completeLifecycleRun(ctx context.Context, lifecycle 
 		intent := s.intent
 		if intent == SupervisorIntentStopAfterRun || budgetReason != "" {
 			reason := "stop_after_run"
-			terminal := SupervisorRunResult{Disposition: QueueRunStop, Reason: reason, SafeToExit: true}
+			terminal := SupervisorRunResult{Disposition: QueueRunStop, Reason: reason, ExitAuthorization: ExitAuthorizationVerifiedRogueTown}
 			if budgetReason != "" {
 				reason = budgetReason
-				terminal = SupervisorRunResult{Disposition: QueueRunStop, Reason: budgetReason, SafeToExit: true}
+				terminal = SupervisorRunResult{Disposition: QueueRunStop, Reason: budgetReason, ExitAuthorization: ExitAuthorizationVerifiedRogueTown}
 			}
 			s.result = terminal
 			s.mu.Unlock()
@@ -564,28 +581,27 @@ func (s *SessionSupervisor) completeLifecycleRun(ctx context.Context, lifecycle 
 		s.consecutiveFailures++
 		budgetReason := s.exhaustedBudgetLocked()
 		exhaustedRetry := s.consecutiveFailures > s.plan.Budgets.MaxConsecutiveFailures || s.totalRestarts >= s.plan.Budgets.MaxTotalRestarts
-		if !result.SafeToExit {
-			s.finishQueueLocked(SupervisorStateStoppedError, result, false)
-			s.mu.Unlock()
-			return
-		}
 		if budgetReason != "" {
-			s.result = SupervisorRunResult{Disposition: QueueRunStop, Reason: budgetReason, SafeToExit: true}
+			terminal := result
+			terminal.Disposition = QueueRunStop
+			terminal.Reason = budgetReason
+			s.result = terminal
 			s.mu.Unlock()
 			s.exitLifecycleGame(ctx, lifecycle, request, budgetReason, lifecycleExitFinishIdle)
 			return
 		}
 		if exhaustedRetry {
+			terminal := result
+			terminal.Disposition = QueueRunStop
+			s.result = terminal
 			s.mu.Unlock()
 			s.exitLifecycleGame(ctx, lifecycle, request, result.Reason, lifecycleExitFinishError)
 			return
 		}
-		s.totalRestarts++
-		s.retry++
 		s.mu.Unlock()
 		s.exitLifecycleGame(ctx, lifecycle, request, "retry_current", lifecycleExitRetry)
 	case QueueRunStop:
-		if result.SafeToExit || result.ExitRequired {
+		if result.ExitAuthorization != ExitAuthorizationNone {
 			s.mu.Unlock()
 			s.exitLifecycleGame(ctx, lifecycle, request, result.Reason, lifecycleExitFinishError)
 			return
@@ -593,7 +609,7 @@ func (s *SessionSupervisor) completeLifecycleRun(ctx context.Context, lifecycle 
 		s.finishQueueLocked(SupervisorStateStoppedError, result, false)
 		s.mu.Unlock()
 	default:
-		s.finishQueueLocked(SupervisorStateStoppedError, SupervisorRunResult{Disposition: QueueRunStop, Reason: "invalid_queue_disposition"}, false)
+		s.finishQueueLocked(SupervisorStateStoppedError, SupervisorRunResult{Disposition: QueueRunStop, Reason: "invalid_queue_disposition", ExitAuthorization: ExitAuthorizationNone}, false)
 		s.mu.Unlock()
 	}
 }
@@ -602,8 +618,10 @@ func (s *SessionSupervisor) exitLifecycleGame(ctx context.Context, lifecycle Far
 	s.mu.Lock()
 	s.state = SupervisorStateExitingGame
 	s.generation++
+	result := s.result
+	result.Reason = reason
 	s.mu.Unlock()
-	err := lifecycle.ExitGame(ctx, request, reason)
+	err := lifecycle.ExitGame(ctx, request, result)
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.state == SupervisorStateCancelling || ctx.Err() != nil || s.shutdown {
@@ -611,7 +629,11 @@ func (s *SessionSupervisor) exitLifecycleGame(ctx context.Context, lifecycle Far
 		return false
 	}
 	if err != nil {
-		s.finishQueueLocked(SupervisorStateStoppedError, SupervisorRunResult{Disposition: QueueRunStop, Reason: string(SupervisorReasonGameExitFailed)}, false)
+		failed := s.result
+		failed.Disposition = QueueRunStop
+		failed.Reason = string(SupervisorReasonGameExitFailed)
+		failed.ExitAuthorization = ExitAuthorizationNone
+		s.finishQueueLocked(SupervisorStateStoppedError, failed, false)
 		return false
 	}
 	s.gameOpen = false
@@ -633,6 +655,8 @@ func (s *SessionSupervisor) exitLifecycleGame(ctx context.Context, lifecycle Far
 		}
 		s.startWorkerLocked()
 	case lifecycleExitRetry:
+		s.totalRestarts++
+		s.retry++
 		s.startWorkerLocked()
 	}
 	return true
@@ -647,11 +671,15 @@ func (s *SessionSupervisor) finishLifecycleFailure(_ FarmQueueLifecycleRunner, r
 	}
 	detail := ""
 	if reason == SupervisorReasonGameStartFailed {
+		var normalizationErr *startTownNormalizationError
+		if errors.As(cause, &normalizationErr) {
+			reason = SupervisorReasonStartTownNormalizationFailed
+		}
 		detail = queueGameStartDetail(cause)
 	} else if cause != nil {
 		detail = strings.TrimSpace(cause.Error())
 	}
-	s.finishQueueLocked(SupervisorStateStoppedError, SupervisorRunResult{Disposition: QueueRunStop, Reason: string(reason), Detail: detail}, false)
+	s.finishQueueLocked(SupervisorStateStoppedError, SupervisorRunResult{Disposition: QueueRunStop, Reason: string(reason), Detail: detail, ExitAuthorization: ExitAuthorizationNone}, false)
 }
 
 // runRunnerWithoutLifecycle keeps the supervisor scheduler independently testable
@@ -677,6 +705,15 @@ func (s *SessionSupervisor) runRunnerWithoutLifecycle(ctx context.Context, gener
 		s.finishQueueLocked(SupervisorStateIdle, result, true)
 		return
 	}
+	if err := result.Validate(); err != nil {
+		s.finishQueueLocked(SupervisorStateStoppedError, SupervisorRunResult{
+			Disposition:       QueueRunStop,
+			Reason:            "invalid_run_result",
+			Detail:            err.Error(),
+			ExitAuthorization: ExitAuthorizationNone,
+		}, false)
+		return
+	}
 	switch result.Disposition {
 	case QueueRunAdvance:
 		s.consecutiveFailures = 0
@@ -689,7 +726,7 @@ func (s *SessionSupervisor) runRunnerWithoutLifecycle(ctx context.Context, gener
 		switch s.intent {
 		case SupervisorIntentPauseAfterRun:
 			if reason := s.exhaustedBudgetLocked(); reason != "" {
-				s.finishQueueLocked(SupervisorStateIdle, SupervisorRunResult{Disposition: QueueRunStop, Reason: reason}, false)
+				s.finishQueueLocked(SupervisorStateIdle, SupervisorRunResult{Disposition: QueueRunStop, Reason: reason, ExitAuthorization: ExitAuthorizationNone}, false)
 			} else {
 				s.state = SupervisorStatePausedBetweenRuns
 				s.intent = SupervisorIntentNone
@@ -700,7 +737,7 @@ func (s *SessionSupervisor) runRunnerWithoutLifecycle(ctx context.Context, gener
 			s.finishQueueLocked(SupervisorStateIdle, result, true)
 		case SupervisorIntentNone:
 			if reason := s.exhaustedBudgetLocked(); reason != "" {
-				s.finishQueueLocked(SupervisorStateIdle, SupervisorRunResult{Disposition: QueueRunStop, Reason: reason}, false)
+				s.finishQueueLocked(SupervisorStateIdle, SupervisorRunResult{Disposition: QueueRunStop, Reason: reason, ExitAuthorization: ExitAuthorizationNone}, false)
 			} else {
 				s.startWorkerLocked()
 			}
@@ -708,7 +745,7 @@ func (s *SessionSupervisor) runRunnerWithoutLifecycle(ctx context.Context, gener
 	case QueueRunRetryCurrent:
 		s.consecutiveFailures++
 		if reason := s.exhaustedBudgetLocked(); reason != "" {
-			s.finishQueueLocked(SupervisorStateIdle, SupervisorRunResult{Disposition: QueueRunStop, Reason: reason}, false)
+			s.finishQueueLocked(SupervisorStateIdle, SupervisorRunResult{Disposition: QueueRunStop, Reason: reason, ExitAuthorization: ExitAuthorizationNone}, false)
 			return
 		}
 		if s.consecutiveFailures > s.plan.Budgets.MaxConsecutiveFailures || s.totalRestarts >= s.plan.Budgets.MaxTotalRestarts {
@@ -721,21 +758,21 @@ func (s *SessionSupervisor) runRunnerWithoutLifecycle(ctx context.Context, gener
 	case QueueRunStop:
 		s.finishQueueLocked(SupervisorStateStoppedError, result, false)
 	default:
-		s.finishQueueLocked(SupervisorStateStoppedError, SupervisorRunResult{Disposition: QueueRunStop, Reason: "invalid_queue_disposition"}, false)
+		s.finishQueueLocked(SupervisorStateStoppedError, SupervisorRunResult{Disposition: QueueRunStop, Reason: "invalid_queue_disposition", ExitAuthorization: ExitAuthorizationNone}, false)
 	}
 }
 
 func runSupervisorUnit(ctx context.Context, runner SupervisorRunner, request SupervisorRunRequest) (result SupervisorRunResult) {
 	defer func() {
 		if recovered := recover(); recovered != nil {
-			result = SupervisorRunResult{Disposition: QueueRunStop, Reason: string(SupervisorReasonWorkerPanic)}
+			result = SupervisorRunResult{Disposition: QueueRunStop, Reason: string(SupervisorReasonWorkerPanic), ExitAuthorization: ExitAuthorizationNone}
 		}
 	}()
 	return runner.Run(ctx, request)
 }
 
 func emergencyStopResult() SupervisorRunResult {
-	return SupervisorRunResult{Disposition: QueueRunStop, Reason: string(SupervisorReasonEmergencyStopRequested)}
+	return SupervisorRunResult{Disposition: QueueRunStop, Reason: string(SupervisorReasonEmergencyStopRequested), ExitAuthorization: ExitAuthorizationNone}
 }
 
 func (s *SessionSupervisor) validateMetaLocked(meta SupervisorCommandMeta) error {
@@ -790,7 +827,7 @@ func (s *SessionSupervisor) finishQueueLocked(state SupervisorState, result Supe
 		if finisher, ok := s.runner.(farmQueueLifecycleFinisher); ok {
 			if err := finisher.FinishQueue(result, state); err != nil {
 				state = SupervisorStateStoppedError
-				result = SupervisorRunResult{Disposition: QueueRunStop, Reason: "telemetry_failed"}
+				result = SupervisorRunResult{Disposition: QueueRunStop, Reason: "telemetry_failed", ExitAuthorization: ExitAuthorizationNone}
 			}
 		}
 		lifecycle.CloseQueue()

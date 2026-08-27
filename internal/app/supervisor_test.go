@@ -25,13 +25,13 @@ func (r *supervisorFakeRunner) Run(ctx context.Context, request SupervisorRunReq
 	select {
 	case r.started <- request:
 	case <-ctx.Done():
-		return SupervisorRunResult{Disposition: QueueRunStop, Reason: "cancelled"}
+		return SupervisorRunResult{Disposition: QueueRunStop, Reason: "cancelled", ExitAuthorization: ExitAuthorizationNone}
 	}
 	select {
 	case result := <-r.release:
 		return result
 	case <-ctx.Done():
-		return SupervisorRunResult{Disposition: QueueRunStop, Reason: "cancelled"}
+		return SupervisorRunResult{Disposition: QueueRunStop, Reason: "cancelled", ExitAuthorization: ExitAuthorizationNone}
 	}
 }
 
@@ -57,7 +57,7 @@ func TestSessionSupervisorStartPauseResumeAndStopAfterRun(t *testing.T) {
 	if pausedIntent.PendingIntent != SupervisorIntentPauseAfterRun {
 		t.Fatalf("pause intent snapshot = %+v", pausedIntent)
 	}
-	runner.release <- SupervisorRunResult{Disposition: QueueRunAdvance}
+	runner.release <- SupervisorRunResult{Disposition: QueueRunAdvance, ExitAuthorization: ExitAuthorizationVerifiedRogueTown}
 	waitSupervisorState(t, supervisor, SupervisorStatePausedBetweenRuns)
 
 	paused := supervisor.Snapshot()
@@ -69,7 +69,7 @@ func TestSessionSupervisorStartPauseResumeAndStopAfterRun(t *testing.T) {
 	if _, err := supervisor.StopAfterRun(SupervisorCommandMeta{CommandID: "stop-after-1", ExpectedGeneration: running.Generation}); err != nil {
 		t.Fatal(err)
 	}
-	runner.release <- SupervisorRunResult{Disposition: QueueRunAdvance}
+	runner.release <- SupervisorRunResult{Disposition: QueueRunAdvance, ExitAuthorization: ExitAuthorizationVerifiedRogueTown}
 	waitSupervisorState(t, supervisor, SupervisorStateIdle)
 	if runner.calls.Load() != 2 {
 		t.Fatalf("runner calls = %d, want 2 fresh generations", runner.calls.Load())

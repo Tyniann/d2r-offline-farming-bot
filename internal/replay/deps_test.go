@@ -1,14 +1,35 @@
 package replay
 
 import (
+	"context"
 	"path/filepath"
 	"testing"
 	"time"
 
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/pathing"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/profile"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/tasks"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/world"
 )
+
+func TestReplayPortalPreservesTargetAndBlockerEvidence(t *testing.T) {
+	deps := &replayDependencies{}
+	deps.beginFrame(Frame{Dependencies: []DependencyCall{{
+		Name: "portal.tick",
+		Result: map[string]any{
+			"status": "hover_not_found", "reason": "hover_not_found", "done": true,
+			"portal_unit_id": float64(77), "blocker_unit_id": float64(99),
+		},
+	}}})
+
+	result := deps.TickPortal(context.Background(), world.State{}, time.Time{})
+	if result.Status != pathing.TownPortalActionHoverNotFound || result.PortalUnitID != 77 || result.BlockerUnitID != 99 {
+		t.Fatalf("result = %+v, want hover_not_found with portal 77 and blocker 99", result)
+	}
+	if err := deps.endFrame(); err != nil {
+		t.Fatal(err)
+	}
+}
 
 func TestInstrumentDepsForwardsOnceAndOnlyObservesIntent(t *testing.T) {
 	directory := t.TempDir()

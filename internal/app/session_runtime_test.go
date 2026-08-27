@@ -39,7 +39,7 @@ func TestPrepareSessionRunBindsSharedPipelineTelemetry(t *testing.T) {
 	if result.Reason == "telemetry_failed" {
 		t.Fatalf("first session tick failed because pipeline telemetry was not bound: %+v", result)
 	}
-	if err := rt.finishSessionRunTelemetry(SupervisorRunResult{Disposition: QueueRunAdvance, SafeToExit: true}); err != nil {
+	if err := rt.finishSessionRunTelemetry(SupervisorRunResult{Disposition: QueueRunAdvance, ExitAuthorization: ExitAuthorizationVerifiedRogueTown}); err != nil {
 		t.Fatal(err)
 	}
 	if rt.taskDeps.Telemetry != nil {

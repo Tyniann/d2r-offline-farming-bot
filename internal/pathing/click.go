@@ -35,6 +35,10 @@ type ClickTickResult struct {
 	Status  ClickStatus
 	Attempt int // Mouse positions tried so far for the current target.
 	Done    bool
+	// TargetUnitID identifies the entity pinned for this bounded click search.
+	TargetUnitID uint32
+	// BlockerUnitID is the last monster Memory confirmed under a hover probe.
+	BlockerUnitID uint32
 }
 
 // EntityClicker moves the mouse to a projected entity position and clicks
@@ -54,6 +58,9 @@ type EntityClicker struct {
 	target  ClickTarget
 	active  bool
 	attempt int
+	// lastBlockerUnitID is evidence only. It never authorizes a click and is
+	// cleared whenever the click target changes or the bounded search ends.
+	lastBlockerUnitID uint32
 }
 
 // NewEntityClicker wires the click loop to input, a projector, and click tuning.
@@ -71,6 +78,7 @@ func (c *EntityClicker) Reset() {
 	c.active = false
 	c.attempt = 0
 	c.target = ClickTarget{}
+	c.lastBlockerUnitID = 0
 }
 
 // Tick advances the hover-feedback loop by one step. maxDistance gates how far
@@ -85,16 +93,20 @@ func (c *EntityClicker) Tick(state world.State, target ClickTarget, maxDistance 
 	if maxDistance > 0 {
 		if d := world.Distance(state.Player.Position, target.Position); d > maxDistance {
 			c.Reset()
-			return ClickTickResult{Status: ClickTooFar, Done: true}, nil
+			return ClickTickResult{Status: ClickTooFar, Done: true, TargetUnitID: target.UnitID}, nil
 		}
+	}
+	if c.active && state.Hover.IsHovered && state.Hover.UnitType == world.HoverUnitTypeMonster {
+		c.lastBlockerUnitID = state.Hover.UnitID
 	}
 
 	// Hover confirmed from the previous mouse move: click and finish.
 	if c.active && state.Hover.Matches(target.UnitType, target.UnitID) {
 		if err := c.input.Click(input.MouseLeft); err != nil {
-			return ClickTickResult{Status: ClickPending, Attempt: c.attempt}, err
+			return ClickTickResult{Status: ClickPending, Attempt: c.attempt, TargetUnitID: target.UnitID, BlockerUnitID: c.lastBlockerUnitID}, err
 		}
 		attempts := c.attempt
+		blockerUnitID := c.lastBlockerUnitID
 		c.log.Info("entity click confirmed",
 			"target", target.Name,
 			"unit_id", target.UnitID,
@@ -102,11 +114,12 @@ func (c *EntityClicker) Tick(state world.State, target ClickTarget, maxDistance 
 			"hover_attempt", attempts,
 		)
 		c.Reset()
-		return ClickTickResult{Status: ClickHit, Attempt: attempts, Done: true}, nil
+		return ClickTickResult{Status: ClickHit, Attempt: attempts, Done: true, TargetUnitID: target.UnitID, BlockerUnitID: blockerUnitID}, nil
 	}
 
 	if c.active && c.attempt >= c.cfg.MaxHoverAttempts {
 		attempts := c.attempt
+		blockerUnitID := c.lastBlockerUnitID
 		c.log.Warn("entity click hover not found",
 			"target", target.Name,
 			"unit_id", target.UnitID,
@@ -117,23 +130,23 @@ func (c *EntityClicker) Tick(state world.State, target ClickTarget, maxDistance 
 			"hover_unit_id", state.Hover.UnitID,
 		)
 		c.Reset()
-		return ClickTickResult{Status: ClickHoverNotFound, Attempt: attempts, Done: true}, nil
+		return ClickTickResult{Status: ClickHoverNotFound, Attempt: attempts, Done: true, TargetUnitID: target.UnitID, BlockerUnitID: blockerUnitID}, nil
 	}
 
 	win, ok := c.input.Window()
 	if !ok {
 		c.Reset()
-		return ClickTickResult{Status: ClickProjectionFailed, Done: true}, nil
+		return ClickTickResult{Status: ClickProjectionFailed, Done: true, TargetUnitID: target.UnitID}, nil
 	}
 
 	clientX, clientY, ok := ProjectHoverProbe(c.projector, state.Player.Position, target.Position, win, c.cfg, c.attempt)
 	if !ok {
 		c.Reset()
-		return ClickTickResult{Status: ClickProjectionFailed, Done: true}, nil
+		return ClickTickResult{Status: ClickProjectionFailed, Done: true, TargetUnitID: target.UnitID}, nil
 	}
 
 	if err := c.input.MoveTo(clientX, clientY); err != nil {
-		return ClickTickResult{Status: ClickPending, Attempt: c.attempt}, err
+		return ClickTickResult{Status: ClickPending, Attempt: c.attempt, TargetUnitID: target.UnitID, BlockerUnitID: c.lastBlockerUnitID}, err
 	}
 
 	c.target = target
@@ -146,7 +159,7 @@ func (c *EntityClicker) Tick(state world.State, target ClickTarget, maxDistance 
 		"client_x", clientX,
 		"client_y", clientY,
 	)
-	return ClickTickResult{Status: ClickPending, Attempt: c.attempt}, nil
+	return ClickTickResult{Status: ClickPending, Attempt: c.attempt, TargetUnitID: target.UnitID, BlockerUnitID: c.lastBlockerUnitID}, nil
 }
 
 // ProjectHoverProbe projects an entity's visible-body anchor and applies one

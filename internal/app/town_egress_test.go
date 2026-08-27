@@ -74,6 +74,267 @@ func TestTownEgressAdapterSupportsGlobalRoutesForAllForeignActs(t *testing.T) {
 	}
 }
 
+func TestTownEgressAdapterSupportsSpawnStartProofWithoutPortal(t *testing.T) {
+	cfg, err := config.Load(filepath.Join("..", "..", "configs", "config.example.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	directory := t.TempDir()
+	egress := cfg.Town.Egress[town.OriginAct2]
+	egress.RoutesDirectory = directory
+	cfg.Town.Egress[town.OriginAct2] = egress
+	state := world.State{At: time.Now(), Valid: true, Phase: world.GamePhaseInGame, Area: world.LookupArea(world.LutGholein), Player: world.Player{Position: world.Position{X: 5100, Y: 5100}}, Identity: world.GameIdentity{Valid: true, CharacterName: "MrBones", Class: world.CharacterClassNecromancer, MapSeed: 42}, Objects: []world.Object{{ID: 237, UnitID: 7, Kind: world.ObjectKindWaypoint, Position: world.Position{X: 5120, Y: 5080}}}}
+	fingerprint, err := pathing.BuildLayoutFingerprint(state)
+	if err != nil {
+		t.Fatal(err)
+	}
+	proofPoint := 0
+	route := town.SystemEgressRoute{SchemaVersion: town.SystemEgressSchemaVersion, Contract: town.SystemEgressContract{Act: town.OriginAct2, TownArea: state.Area.ID, GameVersion: "3.2.92777", LayoutFingerprint: town.SystemEgressLayoutFingerprint{Version: fingerprint.Version, AreaID: fingerprint.AreaID, AnchorCount: fingerprint.AnchorCount, Hash: fingerprint.Hash, Anchors: fingerprint.Anchors}, LayoutProofPointIndex: &proofPoint, From: town.AnchorSpawn, To: town.AnchorWaypoint, Movement: town.SystemEgressMovementWalk, ArrivalToleranceTiles: 3}, SampleDistanceTiles: 4, Points: []town.SystemEgressPoint{{X: 5100, Y: 5100}, {X: 5110, Y: 5090}}}
+	if err := town.SaveSystemEgressRoute(filepath.Join(directory, town.SystemEgressSpawnFilename), route); err != nil {
+		t.Fatal(err)
+	}
+	adapter := newTownEgressAdapter(config.NewLogger("error"), cfg, "3.2.92777", &preparationInputMock{}, pathing.DefaultConfig(), nil)
+	if err := adapter.StartFrom(town.OriginAct2, town.AnchorSpawn, state); err != nil {
+		t.Fatalf("spawn StartFrom error = %v", err)
+	}
+	adapter.Reset()
+	far := state
+	far.Player.Position = world.Position{X: 5200, Y: 5200}
+	if err := adapter.StartFrom(town.OriginAct2, town.AnchorSpawn, far); !errors.Is(err, pathing.ErrRouteStartMismatch) {
+		t.Fatalf("far spawn error = %v", err)
+	}
+}
+
+func TestTownEgressSpawnReportsTransientIdentityUntilConfirmed(t *testing.T) {
+	cfg, err := config.Load(filepath.Join("..", "..", "configs", "config.example.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	directory := t.TempDir()
+	egress := cfg.Town.Egress[town.OriginAct2]
+	egress.RoutesDirectory = directory
+	cfg.Town.Egress[town.OriginAct2] = egress
+	confirmed := world.State{
+		At: time.Now(), Valid: true, Phase: world.GamePhaseInGame, Area: world.LookupArea(world.LutGholein),
+		Player:   world.Player{Position: world.Position{X: 5153, Y: 5203}},
+		Identity: world.GameIdentity{Valid: true, CharacterName: "MrHammer", Class: world.CharacterClassPaladin},
+		Objects:  []world.Object{{ID: 156, UnitID: 7, Kind: world.ObjectKindWaypoint, Position: world.Position{X: 5069, Y: 5084}}},
+	}
+	fingerprint, err := pathing.BuildLayoutFingerprint(confirmed)
+	if err != nil {
+		t.Fatal(err)
+	}
+	proofPoint := 1
+	route := town.SystemEgressRoute{SchemaVersion: town.SystemEgressSchemaVersion, Contract: town.SystemEgressContract{Act: town.OriginAct2, TownArea: world.LutGholein, GameVersion: "3.2.92777", LayoutFingerprint: town.SystemEgressLayoutFingerprint{Version: fingerprint.Version, AreaID: fingerprint.AreaID, AnchorCount: fingerprint.AnchorCount, Hash: fingerprint.Hash, Anchors: fingerprint.Anchors}, LayoutProofPointIndex: &proofPoint, From: town.AnchorSpawn, To: town.AnchorWaypoint, Movement: town.SystemEgressMovementWalk, ArrivalToleranceTiles: 15}, SampleDistanceTiles: 4, Points: []town.SystemEgressPoint{{X: 5153, Y: 5203}, {X: 5149, Y: 5199}}}
+	if err := town.SaveSystemEgressRoute(filepath.Join(directory, town.SystemEgressSpawnFilename), route); err != nil {
+		t.Fatal(err)
+	}
+	adapter := newTownEgressAdapter(config.NewLogger("error"), cfg, "3.2.92777", &preparationInputMock{}, pathing.DefaultConfig(), nil)
+	unconfirmed := confirmed
+	unconfirmed.Identity.Valid = false
+	if err := adapter.StartFrom(town.OriginAct2, town.AnchorSpawn, unconfirmed); !errors.Is(err, pathing.ErrGameIdentityUnavailable) {
+		t.Fatalf("unconfirmed identity error=%v, want transient identity error", err)
+	}
+	if err := adapter.StartFrom(town.OriginAct2, town.AnchorSpawn, confirmed); err != nil {
+		t.Fatalf("confirmed identity start failed: %v", err)
+	}
+}
+
+func TestTownEgressSpawnPinsDelayedLayoutByRecordedProofPoint(t *testing.T) {
+	cfg, err := config.Load(filepath.Join("..", "..", "configs", "config.example.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	directory := t.TempDir()
+	egress := cfg.Town.Egress[town.OriginAct2]
+	egress.RoutesDirectory = directory
+	cfg.Town.Egress[town.OriginAct2] = egress
+	input := &preparationInputMock{}
+	spawn := world.State{
+		At: time.Now(), Valid: true, Phase: world.GamePhaseInGame, Area: world.LookupArea(world.LutGholein),
+		Player:   world.Player{Position: world.Position{X: 100, Y: 100}},
+		Identity: world.GameIdentity{Valid: true, CharacterName: "MrBones", Class: world.CharacterClassNecromancer},
+	}
+	proofState := spawn
+	proofState.Player.Position = world.Position{X: 104, Y: 100}
+	proofState.Objects = []world.Object{{ID: 156, UnitID: 7, Kind: world.ObjectKindWaypoint, Position: world.Position{X: 120, Y: 100}}}
+	fingerprint, err := pathing.BuildLayoutFingerprint(proofState)
+	if err != nil {
+		t.Fatal(err)
+	}
+	proofPoint := 1
+	route := town.SystemEgressRoute{
+		SchemaVersion: town.SystemEgressSchemaVersion,
+		Contract: town.SystemEgressContract{
+			Act: town.OriginAct2, TownArea: world.LutGholein, GameVersion: "3.2.92777",
+			LayoutFingerprint:     town.SystemEgressLayoutFingerprint{Version: fingerprint.Version, AreaID: fingerprint.AreaID, AnchorCount: fingerprint.AnchorCount, Hash: fingerprint.Hash, Anchors: fingerprint.Anchors},
+			LayoutProofPointIndex: &proofPoint, From: town.AnchorSpawn, To: town.AnchorWaypoint,
+			Movement: town.SystemEgressMovementWalk, ArrivalToleranceTiles: 3,
+		},
+		SampleDistanceTiles: 4,
+		Points:              []town.SystemEgressPoint{{X: 100, Y: 100}, {X: 104, Y: 100}, {X: 108, Y: 100}},
+	}
+	if err := town.SaveSystemEgressRoute(filepath.Join(directory, town.SystemEgressSpawnFilename), route); err != nil {
+		t.Fatal(err)
+	}
+	adapter := newTownEgressAdapter(config.NewLogger("error"), cfg, "3.2.92777", input, pathing.DefaultConfig(), nil)
+	if err := adapter.StartFrom(town.OriginAct2, town.AnchorSpawn, spawn); err != nil {
+		t.Fatalf("delayed spawn start rejected: %v", err)
+	}
+	if _, err := adapter.Tick(t.Context(), spawn); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := adapter.Tick(t.Context(), proofState); err != nil {
+		t.Fatalf("recorded proof point rejected: %v", err)
+	}
+	if !adapter.layoutMatched {
+		t.Fatal("layout was not pinned at the recorded proof point")
+	}
+}
+
+func TestTownEgressSpawnFailsClosedBeforeInput(t *testing.T) {
+	tests := []struct {
+		name   string
+		mutate func(*world.State)
+	}{
+		{name: "layout mismatch", mutate: func(state *world.State) {
+			state.Objects = []world.Object{{ID: 267, UnitID: 9, Kind: world.ObjectKindPersonalStash, Position: world.Position{X: 130, Y: 130}}}
+		}},
+		{name: "wrong area", mutate: func(state *world.State) { state.Area = world.LookupArea(world.KurastDocks) }},
+		{name: "blocked ui", mutate: func(state *world.State) { state.UI.StashOpen = true }},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg, err := config.Load(filepath.Join("..", "..", "configs", "config.example.yaml"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			directory := t.TempDir()
+			egress := cfg.Town.Egress[town.OriginAct2]
+			egress.RoutesDirectory = directory
+			cfg.Town.Egress[town.OriginAct2] = egress
+			input := &preparationInputMock{}
+			spawn := world.State{At: time.Now(), Valid: true, Phase: world.GamePhaseInGame, Area: world.LookupArea(world.LutGholein), Player: world.Player{Position: world.Position{X: 100, Y: 100}}, Identity: world.GameIdentity{Valid: true, CharacterName: "MrBones", Class: world.CharacterClassNecromancer}}
+			boundState := spawn
+			boundState.Objects = []world.Object{{ID: 156, UnitID: 7, Kind: world.ObjectKindWaypoint, Position: world.Position{X: 120, Y: 100}}}
+			fingerprint, err := pathing.BuildLayoutFingerprint(boundState)
+			if err != nil {
+				t.Fatal(err)
+			}
+			proofPoint := 1
+			route := town.SystemEgressRoute{SchemaVersion: town.SystemEgressSchemaVersion, Contract: town.SystemEgressContract{Act: town.OriginAct2, TownArea: world.LutGholein, GameVersion: "3.2.92777", LayoutFingerprint: town.SystemEgressLayoutFingerprint{Version: fingerprint.Version, AreaID: fingerprint.AreaID, AnchorCount: fingerprint.AnchorCount, Hash: fingerprint.Hash, Anchors: fingerprint.Anchors}, LayoutProofPointIndex: &proofPoint, From: town.AnchorSpawn, To: town.AnchorWaypoint, Movement: town.SystemEgressMovementWalk, ArrivalToleranceTiles: 3}, SampleDistanceTiles: 4, Points: []town.SystemEgressPoint{{X: 100, Y: 100}, {X: 104, Y: 100}, {X: 108, Y: 100}}}
+			if err := town.SaveSystemEgressRoute(filepath.Join(directory, town.SystemEgressSpawnFilename), route); err != nil {
+				t.Fatal(err)
+			}
+			adapter := newTownEgressAdapter(config.NewLogger("error"), cfg, "3.2.92777", input, pathing.DefaultConfig(), nil)
+			if err := adapter.StartFrom(town.OriginAct2, town.AnchorSpawn, spawn); err != nil {
+				t.Fatal(err)
+			}
+			invalid := spawn
+			tc.mutate(&invalid)
+			if _, err := adapter.Tick(t.Context(), invalid); err == nil {
+				t.Fatal("negative start tick succeeded")
+			}
+			if input.moves != 0 || input.keys != 0 || input.clicks != 0 {
+				t.Fatalf("input before rejection: moves=%d keys=%d clicks=%d", input.moves, input.keys, input.clicks)
+			}
+		})
+	}
+}
+
+func TestTownEgressSpawnLayoutDeadlineStopsBeforeFurtherInput(t *testing.T) {
+	cfg, err := config.Load(filepath.Join("..", "..", "configs", "config.example.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	directory := t.TempDir()
+	egress := cfg.Town.Egress[town.OriginAct2]
+	egress.RoutesDirectory = directory
+	cfg.Town.Egress[town.OriginAct2] = egress
+	input := &preparationInputMock{}
+	spawn := world.State{At: time.Now(), Valid: true, Phase: world.GamePhaseInGame, Area: world.LookupArea(world.LutGholein), Player: world.Player{Position: world.Position{X: 100, Y: 100}}, Identity: world.GameIdentity{Valid: true, CharacterName: "MrBones", Class: world.CharacterClassNecromancer}}
+	boundState := spawn
+	boundState.Objects = []world.Object{{ID: 156, UnitID: 7, Kind: world.ObjectKindWaypoint, Position: world.Position{X: 120, Y: 100}}}
+	fingerprint, err := pathing.BuildLayoutFingerprint(boundState)
+	if err != nil {
+		t.Fatal(err)
+	}
+	proofPoint := 1
+	route := town.SystemEgressRoute{SchemaVersion: town.SystemEgressSchemaVersion, Contract: town.SystemEgressContract{Act: town.OriginAct2, TownArea: world.LutGholein, GameVersion: "3.2.92777", LayoutFingerprint: town.SystemEgressLayoutFingerprint{Version: fingerprint.Version, AreaID: fingerprint.AreaID, AnchorCount: fingerprint.AnchorCount, Hash: fingerprint.Hash, Anchors: fingerprint.Anchors}, LayoutProofPointIndex: &proofPoint, From: town.AnchorSpawn, To: town.AnchorWaypoint, Movement: town.SystemEgressMovementWalk, ArrivalToleranceTiles: 3}, SampleDistanceTiles: 4, Points: []town.SystemEgressPoint{{X: 100, Y: 100}, {X: 104, Y: 100}, {X: 108, Y: 100}}}
+	if err := town.SaveSystemEgressRoute(filepath.Join(directory, town.SystemEgressSpawnFilename), route); err != nil {
+		t.Fatal(err)
+	}
+	adapter := newTownEgressAdapter(config.NewLogger("error"), cfg, "3.2.92777", input, pathing.DefaultConfig(), nil)
+	if err := adapter.StartFrom(town.OriginAct2, town.AnchorSpawn, spawn); err != nil {
+		t.Fatal(err)
+	}
+	for _, position := range []world.Position{{X: 100, Y: 100}, {X: 104, Y: 100}} {
+		state := spawn
+		state.Player.Position = position
+		state.At = state.At.Add(time.Millisecond)
+		if _, err := adapter.Tick(t.Context(), state); err != nil {
+			t.Fatal(err)
+		}
+	}
+	state := spawn
+	state.Player.Position = world.Position{X: 108, Y: 100}
+	if _, err := adapter.Tick(t.Context(), state); err != nil {
+		t.Fatalf("final point settle start error=%v", err)
+	}
+	state.At = state.At.Add(time.Second)
+	if _, err := adapter.Tick(t.Context(), state); err == nil || !errors.Is(err, pathing.ErrLayoutAnchorsUnavailable) {
+		t.Fatalf("deadline error=%v", err)
+	}
+	if input.moves != 0 || input.keys != 0 || input.clicks != 0 {
+		t.Fatalf("deadline sent input: moves=%d keys=%d clicks=%d", input.moves, input.keys, input.clicks)
+	}
+}
+
+func TestTownEgressSpawnLayoutDeadlineAccountsForWalkerArrivalTolerance(t *testing.T) {
+	cfg, err := config.Load(filepath.Join("..", "..", "configs", "config.example.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	directory := t.TempDir()
+	egress := cfg.Town.Egress[town.OriginAct2]
+	egress.RoutesDirectory = directory
+	cfg.Town.Egress[town.OriginAct2] = egress
+	spawn := world.State{At: time.Now(), Valid: true, Phase: world.GamePhaseInGame, Area: world.LookupArea(world.LutGholein), Player: world.Player{Position: world.Position{X: 100, Y: 100}}, Identity: world.GameIdentity{Valid: true, CharacterName: "MrBones", Class: world.CharacterClassNecromancer}}
+	proofState := spawn
+	proofState.Player.Position = world.Position{X: 104, Y: 100}
+	proofState.Objects = []world.Object{{ID: 24, Kind: world.ObjectKindPermanentPortal, Position: world.Position{X: 80, Y: 100}}}
+	fingerprint, err := pathing.BuildLayoutFingerprint(proofState)
+	if err != nil {
+		t.Fatal(err)
+	}
+	proofPoint := 1
+	route := town.SystemEgressRoute{SchemaVersion: town.SystemEgressSchemaVersion, Contract: town.SystemEgressContract{Act: town.OriginAct2, TownArea: world.LutGholein, GameVersion: "3.2.92777", LayoutFingerprint: town.SystemEgressLayoutFingerprint{Version: fingerprint.Version, AreaID: fingerprint.AreaID, AnchorCount: fingerprint.AnchorCount, Hash: fingerprint.Hash, Anchors: fingerprint.Anchors}, LayoutProofPointIndex: &proofPoint, From: town.AnchorSpawn, To: town.AnchorWaypoint, Movement: town.SystemEgressMovementWalk, ArrivalToleranceTiles: 15}, SampleDistanceTiles: 4, Points: []town.SystemEgressPoint{{X: 100, Y: 100}, {X: 104, Y: 100}, {X: 108, Y: 100}, {X: 112, Y: 100}, {X: 116, Y: 100}}}
+	if err := town.SaveSystemEgressRoute(filepath.Join(directory, town.SystemEgressSpawnFilename), route); err != nil {
+		t.Fatal(err)
+	}
+	adapter := newTownEgressAdapter(config.NewLogger("error"), cfg, "3.2.92777", &preparationInputMock{}, pathing.DefaultConfig(), nil)
+	if err := adapter.StartFrom(town.OriginAct2, town.AnchorSpawn, spawn); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := adapter.Tick(t.Context(), spawn); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := adapter.Tick(t.Context(), spawn); err != nil {
+		t.Fatal(err)
+	}
+	approachingProof := spawn
+	approachingProof.Player.Position = world.Position{X: 101, Y: 100}
+	if _, err := adapter.Tick(t.Context(), approachingProof); err != nil {
+		t.Fatalf("walker index reached the deadline before the recorded proof position: %v", err)
+	}
+	if _, err := adapter.Tick(t.Context(), proofState); err != nil {
+		t.Fatalf("layout at recorded proof position rejected: %v", err)
+	}
+	if !adapter.layoutMatched {
+		t.Fatal("layout was not pinned at the recorded proof position")
+	}
+}
+
 func TestTownEgressAdapterAcceptsSmallAnchorCoordinateJitter(t *testing.T) {
 	cfg, err := config.Load(filepath.Join("..", "..", "configs", "config.example.yaml"))
 	if err != nil {
@@ -86,8 +347,8 @@ func TestTownEgressAdapterAcceptsSmallAnchorCoordinateJitter(t *testing.T) {
 
 	state := world.State{
 		At: time.Now(), Valid: true, Phase: world.GamePhaseInGame,
-		Area: world.LookupArea(world.LutGholein),
-		Player: world.Player{Position: world.Position{X: 5100, Y: 5100}},
+		Area:     world.LookupArea(world.LutGholein),
+		Player:   world.Player{Position: world.Position{X: 5100, Y: 5100}},
 		Identity: world.GameIdentity{Valid: true, CharacterName: "MrBones", Class: world.CharacterClassNecromancer, MapSeed: 42},
 		Objects: []world.Object{
 			{ID: 59, UnitID: 6, Kind: world.ObjectKindTownPortal, Position: world.Position{X: 5105, Y: 5100}},

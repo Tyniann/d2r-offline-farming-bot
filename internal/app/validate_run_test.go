@@ -33,6 +33,20 @@ func TestValidateRunModeAllowsGlobalEgressRecordingWithoutDifficulty(t *testing.
 	}
 }
 
+func TestEgressRouteCommandsDoNotRequireCharacterLoadout(t *testing.T) {
+	for _, route := range []string{
+		"record-egress:act2/spawn",
+		"validate-egress:act2/spawn",
+		"play-egress:act2/spawn",
+	} {
+		t.Run(route, func(t *testing.T) {
+			if CharacterLoadoutRequired(Options{Route: route}) {
+				t.Fatalf("route command %q must start without operator loadout", route)
+			}
+		})
+	}
+}
+
 func TestValidateRunModeOfflineExitTest(t *testing.T) {
 	log := config.NewLogger("error")
 	cfg := &config.Config{Input: config.InputConfig{Enabled: true}}

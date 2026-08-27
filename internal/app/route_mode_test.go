@@ -15,6 +15,9 @@ func TestParseRouteCommand(t *testing.T) {
 		"validate-egress:act3":                {action: "validate-egress", id: "act3"},
 		"play-egress:act3":                    {action: "play-egress", id: "act3"},
 		"record-egress:act2":                  {action: "record-egress", id: "act2"},
+		"record-egress:act2/spawn":            {action: "record-egress", id: "act2", startAnchor: "spawn"},
+		"validate-egress:act2/spawn":          {action: "validate-egress", id: "act2", startAnchor: "spawn"},
+		"play-egress:act2/spawn":              {action: "play-egress", id: "act2", startAnchor: "spawn"},
 		"validate-egress:act4":                {action: "validate-egress", id: "act4"},
 		"inspect-egress:act5":                 {action: "inspect-egress", id: "act5"},
 	}
@@ -27,7 +30,7 @@ func TestParseRouteCommand(t *testing.T) {
 }
 
 func TestParseRouteCommandRejectsInvalid(t *testing.T) {
-	for _, raw := range []string{"", "inspect", "inspect:", "play:", "play-segment:test", "list:any", "play-egress:act1"} {
+	for _, raw := range []string{"", "inspect", "inspect:", "play:", "play-segment:test", "list:any", "play-egress:act1", "record-egress:act2/stash", "record-egress:act2/spawn/extra", "inspect-egress:act2/spawn"} {
 		if _, err := parseRouteCommand(raw); err == nil {
 			t.Fatalf("parseRouteCommand(%q) expected error", raw)
 		}

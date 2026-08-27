@@ -126,8 +126,8 @@ func (m *offlineStartMachine) tick(now time.Time, state world.State) (offlineSta
 		if m.verifyClass && state.Identity.Class != m.expectedClass {
 			return offlineStartNoAction, false, fmt.Errorf("offline game start expected class %s, got %s", m.expectedClass, state.Identity.Class)
 		}
-		if state.Area.ID != world.RogueEncampment {
-			return offlineStartNoAction, false, fmt.Errorf("offline game start expected Rogue Encampment, got %s", state.Area.Name)
+		if _, _, err := freshGameOriginAct(state.Area.ID); err != nil {
+			return offlineStartNoAction, false, fmt.Errorf("offline game start expected supported town: %w", err)
 		}
 		m.stableTicks++
 		if m.stableTicks >= offlineExitStableTicks {
@@ -243,7 +243,7 @@ func canceledInputOperationError(ctx context.Context, status input.Status, stopH
 }
 
 // RunOfflineDifficultyTest starts one offline game from the verified character
-// screen and confirms the expected character in Rogue Encampment.
+// screen and confirms the expected character in a supported offline town.
 func (rt *Runtime) RunOfflineDifficultyTest(rawDifficulty string) error {
 	err := rt.runOfflineDifficultyTest(context.Background(), rawDifficulty)
 	if errors.Is(err, context.Canceled) {

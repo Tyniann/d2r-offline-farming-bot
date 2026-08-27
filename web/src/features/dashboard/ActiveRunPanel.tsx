@@ -2,7 +2,7 @@ import { OctagonX, Pause, Play, Square } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { StatusDTO } from "../../api/generated";
-import { presentRunStage } from "../../i18n/presenters";
+import { type AppTranslator, presentRunStage } from "../../i18n/presenters";
 
 interface Hotkeys {
   pause: string;
@@ -30,6 +30,7 @@ export function ActiveRunPanel({ status, runName, hotkeys }: Props) {
     : status.pending_intent === "stop_after_run"
       ? t("dashboard.active.stopPending")
       : "";
+  const recoveryText = presentRecoveryStep(status.recovery_step, status.world?.area_id, t);
 
   return <section className="dashboard-active-run" aria-labelledby="dashboard-active-run-title" aria-live="polite">
     <div className="dashboard-active-run-icon"><Play aria-hidden="true" size={21} fill="currentColor" /></div>
@@ -45,6 +46,7 @@ export function ActiveRunPanel({ status, runName, hotkeys }: Props) {
         </div>
         <small>{t("dashboard.active.stageDetail", { label: presentRunStage(progress.stage_code, progress.params, t), current: progress.current, total: progress.total, elapsed: formatElapsed(elapsed) })}</small>
       </> : <small>{t("dashboard.active.runningDetail", { elapsed: formatElapsed(elapsed) })}</small>}
+      {recoveryText && <strong className="dashboard-active-intent" role="status">{recoveryText}</strong>}
       {pendingText && <strong className="dashboard-active-intent" role="status">{pendingText}</strong>}
       {status.input.stopped && <strong className="dashboard-active-intent is-danger" role="alert">{t("dashboard.active.emergencyActive")}</strong>}
     </div>
@@ -54,6 +56,30 @@ export function ActiveRunPanel({ status, runName, hotkeys }: Props) {
       <HotkeyHint icon={OctagonX} keyLabel={hotkeys.emergencyStop} label={t("dashboard.active.stopImmediately")} danger active={status.input.stopped} />
     </div>
   </section>;
+}
+
+function presentRecoveryStep(step: string | undefined, areaID: number | undefined, t: AppTranslator): string {
+  switch (step) {
+    case "retry_return": return t("dashboard.active.recovery.retryReturn");
+    case "local_recovery_clear": return t("dashboard.active.recovery.localClear");
+    case "return_portal_reposition": return t("dashboard.active.recovery.portalReposition");
+    case "return_portal_retry": return t("dashboard.active.recovery.portalRetry");
+    case "direct_exit": return t("dashboard.active.recovery.directExit");
+    case "start_town_normalization": return t("dashboard.active.recovery.startTownNormalization", { act: townAct(areaID) });
+    case "return_to_act1": return t("dashboard.active.recovery.returnToAct1");
+    case "restart_game": return t("dashboard.active.recovery.restartGame");
+    default: return "";
+  }
+}
+
+function townAct(areaID: number | undefined): number | string {
+  switch (areaID) {
+    case 40: return 2;
+    case 75: return 3;
+    case 103: return 4;
+    case 109: return 5;
+    default: return "?";
+  }
 }
 
 function HotkeyHint({ icon: Icon, keyLabel, label, danger = false, active = false }: { icon: typeof Pause; keyLabel: string; label: string; danger?: boolean; active?: boolean }) {

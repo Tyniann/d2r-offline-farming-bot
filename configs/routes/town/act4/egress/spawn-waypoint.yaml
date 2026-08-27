@@ -1,0 +1,32 @@
+schema_version: 1
+contract:
+    act: act4
+    town_area_id: 103
+    game_version: 3.2.92777
+    layout_fingerprint:
+        version: 1
+        area_id: 103
+        anchor_count: 2
+        hash: fc8bbd3baabbf0a0fa3ff3ceb2141ad20e0247e57678a92a197277c369a4c5d3
+        anchors:
+            - o:267:5019,5040
+            - o:398:5044,5019
+    layout_proof_point_index: 0
+    from: spawn
+    to: waypoint
+    movement: walk
+    arrival_tolerance_tiles: 15
+sample_distance_tiles: 4
+points:
+    - x: 5048
+      "y": 5043
+    - x: 5047
+      "y": 5039
+    - x: 5047
+      "y": 5035
+    - x: 5046
+      "y": 5030
+    - x: 5045
+      "y": 5026
+    - x: 5044
+      "y": 5021

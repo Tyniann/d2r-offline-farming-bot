@@ -46,6 +46,9 @@ const (
 	RunCapabilityForeignTownEgress RunCapability = "foreign_town_egress"
 	// RunCapabilityRouteClear permits threat-aware combat during bound route playback.
 	RunCapabilityRouteClear RunCapability = "route_clear"
+	// RunCapabilityLocalRecoveryClear permits one bounded, profile-owned combat
+	// interlude after a failed return-to-Town portal entry.
+	RunCapabilityLocalRecoveryClear RunCapability = "local_recovery_clear"
 	// RunCapabilityChestSweep replaces a boss encounter with a catalog chest sweep.
 	RunCapabilityChestSweep RunCapability = "chest_sweep"
 )

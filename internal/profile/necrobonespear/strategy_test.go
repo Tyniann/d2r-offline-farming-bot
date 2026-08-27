@@ -31,6 +31,45 @@ func (profileActionsStub) CastSkillAtWorld(time.Time, uint16, world.Player, worl
 func (profileActionsStub) CastBelt(int) error             { return nil }
 func (profileActionsStub) CastBeltForMercenary(int) error { return nil }
 
+func TestBossStrategiesConfigureLocalRecoveryClear(t *testing.T) {
+	for _, runID := range []string{"countess", "mephisto"} {
+		strategy := NewBossFactory(runID)()
+		clear, ok := strategy.(profile.SupportsRouteClear)
+		if !ok || clear.RequiresRouteClear() {
+			t.Fatalf("%s must wire local clear without travel route clear", runID)
+		}
+		if _, ok := strategy.(profile.SupportsLocalRecoveryClear); !ok {
+			t.Fatalf("%s must expose local recovery clear", runID)
+		}
+		foundAmplifyDamage := false
+		for _, skill := range strategy.RequiredSkills() {
+			foundAmplifyDamage = foundAmplifyDamage || skill == "amplify_damage"
+		}
+		if !foundAmplifyDamage {
+			t.Fatalf("%s required skills = %v", runID, strategy.RequiredSkills())
+		}
+
+		executor, err := profile.NewExecutor(config.NewLogger("error"), profile.Definition{ID: "necro_bone_spear", CharacterClass: world.CharacterClassNecromancer}, profileActionsStub{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		actions := &routeClearActionsStub{sent: true}
+		if err := strategy.Configure(executor, memory.SkillBoneSpear, actions); err != nil {
+			t.Fatal(err)
+		}
+		now := time.Now()
+		result := executor.TickRouteClear(context.Background(), profile.RouteClearRequest{
+			RunID: runID, DefinitionID: "necro_bone_spear",
+			Player: world.Player{Position: world.Position{X: 100, Y: 100}},
+			Target: world.Monster{UnitID: 9, NPCID: 1, Position: world.Position{X: 110, Y: 100}},
+			Mode:   profile.RouteClearThreat, AssessmentAt: now,
+		}, now)
+		if result.Status != profile.StatusAction || result.SkillID != memory.SkillAmplifyDamage {
+			t.Fatalf("%s opener result = %+v", runID, result)
+		}
+	}
+}
+
 func TestNihlathakStrategyConfiguresPostBossRouteClear(t *testing.T) {
 	strategy := NewNihlathakFactory()()
 	clear, ok := strategy.(profile.SupportsRouteClear)
@@ -39,6 +78,9 @@ func TestNihlathakStrategyConfiguresPostBossRouteClear(t *testing.T) {
 	}
 	if clear.RequiresRouteClear() {
 		t.Fatal("nihlathak must not require travel route_clear capability")
+	}
+	if _, ok := strategy.(profile.SupportsLocalRecoveryClear); !ok {
+		t.Fatal("nihlathak must expose local recovery clear")
 	}
 	foundAD := false
 	for _, skill := range strategy.RequiredSkills() {

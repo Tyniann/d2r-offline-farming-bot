@@ -75,6 +75,7 @@ type Runtime struct {
 	stopAfterRunHotkeyHandler func() error
 	runReadinessPending       bool
 	productiveRunActive       bool
+	recoveryStep              atomic.Pointer[string]
 	mercenaryDeath            mercenaryDeathGuard
 	lastSnapshot              memory.Snapshot
 }
@@ -417,13 +418,13 @@ func SessionExecutionRequested(opts Options) bool {
 
 // CharacterLoadoutRequired reports whether Runtime construction needs a frozen character loadout.
 func CharacterLoadoutRequired(opts Options) bool {
-	if opts.Desktop || opts.SessionInspect || opts.RunsInspect || opts.WaypointTargetsInspect || opts.Probe || opts.UIStateProbe != "" || opts.ScreenAnchorCapture != "" || opts.MercenaryProbe != "" || opts.CowProbe != "" || opts.WeaponSetProbe != "" || opts.ObjectInspect != "" || opts.TownInspect {
+	if opts.Desktop || opts.SessionInspect || opts.RunsInspect || opts.WaypointTargetsInspect || opts.Probe || opts.UIStateProbe != "" || opts.ScreenAnchorCapture != "" || opts.MercenaryProbe != "" || opts.CowProbe != "" || opts.WeaponSetProbe != "" || opts.ObjectInspect != "" || opts.TownInspect || opts.Route != "" {
 		return false
 	}
 	if SessionExecutionRequested(opts) {
 		return true
 	}
-	return opts.Run != "" || opts.RunPhase != "" || opts.InputTest != "" || opts.PathingTest != "" || opts.TownTest != "" || opts.OfflineDifficulty != "" || opts.OfflineCharacter != "" || opts.OfflineExitTest || opts.Route != ""
+	return opts.Run != "" || opts.RunPhase != "" || opts.InputTest != "" || opts.PathingTest != "" || opts.TownTest != "" || opts.OfflineDifficulty != "" || opts.OfflineCharacter != "" || opts.OfflineExitTest
 }
 
 func resolveRuntimeBindings(opts Options) (configBindingSource, error) {

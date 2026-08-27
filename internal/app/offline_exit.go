@@ -35,6 +35,13 @@ type offlineWindowController interface {
 
 type offlineExitStage uint8
 
+type offlineExitMode uint8
+
+const (
+	offlineExitVerifiedRogueTown offlineExitMode = iota
+	offlineExitCurrentArea
+)
+
 const (
 	offlineExitAwaitSafeTown offlineExitStage = iota
 	offlineExitAwaitQuitMenu
@@ -51,6 +58,7 @@ const (
 )
 
 type offlineExitMachine struct {
+	mode                offlineExitMode
 	stage               offlineExitStage
 	stableTicks         int
 	startedAt           time.Time
@@ -58,6 +66,22 @@ type offlineExitMachine struct {
 	safeTownSince       time.Time
 	quitMenuRequestedAt time.Time
 	quitMenuRequests    int
+	contextArea         world.AreaID
+	contextCharacter    string
+	contextClass        world.CharacterClass
+	contextMapSeed      uint32
+	contextLastAt       time.Time
+}
+
+func offlineExitModeForAuthorization(authorization ExitAuthorization) (offlineExitMode, error) {
+	switch authorization {
+	case ExitAuthorizationVerifiedRogueTown:
+		return offlineExitVerifiedRogueTown, nil
+	case ExitAuthorizationMemoryGatedCurrentArea:
+		return offlineExitCurrentArea, nil
+	default:
+		return offlineExitVerifiedRogueTown, fmt.Errorf("offline exit authorization %q is not executable", authorization)
+	}
 }
 
 func (m *offlineExitMachine) tick(now time.Time, state world.State) (offlineExitAction, bool, error) {
@@ -71,6 +95,9 @@ func (m *offlineExitMachine) tick(now time.Time, state world.State) (offlineExit
 
 	switch m.stage {
 	case offlineExitAwaitSafeTown:
+		if m.mode == offlineExitCurrentArea {
+			return m.tickCurrentAreaPrecondition(now, state)
+		}
 		if state.Phase == world.GamePhaseLoading || state.Phase == world.GamePhaseUnknown {
 			return offlineExitNoAction, false, nil
 		}
@@ -111,10 +138,13 @@ func (m *offlineExitMachine) tick(now time.Time, state world.State) (offlineExit
 			return offlineExitNoAction, false, fmt.Errorf("offline exit timeout waiting for quit menu")
 		}
 		if !state.Valid || state.Phase == world.GamePhaseLoading {
+			if m.mode == offlineExitCurrentArea {
+				return offlineExitNoAction, false, fmt.Errorf("offline exit current-area context changed before quit menu confirmation")
+			}
 			m.stableTicks = 0
 			return offlineExitNoAction, false, nil
 		}
-		if state.Phase != world.GamePhaseInGame || state.Area.ID != world.RogueEncampment {
+		if state.Phase != world.GamePhaseInGame || !m.matchesAuthorizedContext(state) {
 			return offlineExitNoAction, false, fmt.Errorf("offline exit context changed before quit menu confirmation")
 		}
 		if !state.UI.QuitMenuOpen {
@@ -163,6 +193,53 @@ func (m *offlineExitMachine) tick(now time.Time, state world.State) (offlineExit
 	}
 }
 
+func (m *offlineExitMachine) tickCurrentAreaPrecondition(now time.Time, state world.State) (offlineExitAction, bool, error) {
+	if state.Phase == world.GamePhaseLoading || state.Phase == world.GamePhaseUnknown || !state.Valid {
+		if m.contextArea != world.None {
+			return offlineExitNoAction, false, fmt.Errorf("offline exit current-area context changed during authorization")
+		}
+		return offlineExitNoAction, false, nil
+	}
+	if state.Phase != world.GamePhaseInGame {
+		return offlineExitNoAction, false, fmt.Errorf("offline exit requires in_game, got %s", state.Phase)
+	}
+	if state.Area.ID == world.None || !state.Identity.Valid || state.Identity.MapSeed == 0 {
+		return offlineExitNoAction, false, fmt.Errorf("offline exit current-area context is incomplete")
+	}
+	if state.At.IsZero() || (!m.contextLastAt.IsZero() && !state.At.After(m.contextLastAt)) {
+		return offlineExitNoAction, false, fmt.Errorf("offline exit current-area authorization requires fresh snapshots")
+	}
+	if m.contextArea == world.None {
+		m.contextArea = state.Area.ID
+		m.contextCharacter = state.Identity.CharacterName
+		m.contextClass = state.Identity.Class
+		m.contextMapSeed = state.Identity.MapSeed
+	} else if !m.matchesAuthorizedContext(state) {
+		return offlineExitNoAction, false, fmt.Errorf("offline exit current-area context changed during authorization")
+	}
+	m.contextLastAt = state.At
+	m.stableTicks++
+	if m.stableTicks < offlineExitStableTicks {
+		return offlineExitNoAction, false, nil
+	}
+	m.advance(offlineExitAwaitQuitMenu, now)
+	if state.UI.QuitMenuOpen {
+		return offlineExitNoAction, false, nil
+	}
+	m.quitMenuRequestedAt = now
+	m.quitMenuRequests = 1
+	return offlineExitPressEscape, false, nil
+}
+
+func (m *offlineExitMachine) matchesAuthorizedContext(state world.State) bool {
+	if m.mode == offlineExitVerifiedRogueTown {
+		return state.Area.ID == world.RogueEncampment
+	}
+	return state.Area.ID == m.contextArea && state.Identity.Valid &&
+		state.Identity.CharacterName == m.contextCharacter && state.Identity.Class == m.contextClass &&
+		state.Identity.MapSeed == m.contextMapSeed
+}
+
 func (m *offlineExitMachine) advance(stage offlineExitStage, now time.Time) {
 	m.stage = stage
 	m.stageAt = now
@@ -206,6 +283,10 @@ func (rt *Runtime) RunOfflineExitTest() error {
 }
 
 func (rt *Runtime) runOfflineExitTest(parent context.Context) error {
+	return rt.runOfflineExit(parent, offlineExitVerifiedRogueTown)
+}
+
+func (rt *Runtime) runOfflineExit(parent context.Context, mode offlineExitMode) error {
 	ctrl, ok := rt.Input.(offlineExitController)
 	if !ok {
 		return fmt.Errorf("offline exit: controller lacks click support")
@@ -227,13 +308,18 @@ func (rt *Runtime) runOfflineExitTest(parent context.Context) error {
 	ticker := time.NewTicker(time.Duration(rt.Config.Runtime.PollIntervalMs) * time.Millisecond)
 	defer ticker.Stop()
 	state := &runState{}
-	machine := &offlineExitMachine{}
+	machine := &offlineExitMachine{mode: mode}
 	escapePresses := 0
 	saveClicked := false
 	lastDiagnosticAt := time.Time{}
 
-	rt.Log.Info("offline exit test waiting for safe town state",
-		"required_area", world.LookupArea(world.RogueEncampment).Name,
+	requiredArea := world.LookupArea(world.RogueEncampment).Name
+	if mode == offlineExitCurrentArea {
+		requiredArea = "stable_current_area"
+	}
+	rt.Log.Info("offline exit waiting for authorized state",
+		"mode", mode.String(),
+		"required_area", requiredArea,
 		"required_client_width", offlineExitClientWidth,
 		"required_client_height", offlineExitClientHeight,
 	)
@@ -258,6 +344,9 @@ func (rt *Runtime) runOfflineExitTest(parent context.Context) error {
 				rt.Log.Error("offline exit failed", append(offlineExitLogArgs(machine, current, now, escapePresses, saveClicked), "error", err)...)
 				return err
 			}
+			if err := ctx.Err(); err != nil {
+				return err
+			}
 			switch action {
 			case offlineExitPressEscape:
 				if escapePresses >= offlineExitQuitMenuAttempts {
@@ -275,7 +364,7 @@ func (rt *Runtime) runOfflineExitTest(parent context.Context) error {
 				escapePresses++
 				rt.Log.Info("offline exit quit menu requested", "attempt", escapePresses)
 			case offlineExitClickSave:
-				if escapePresses == 0 || saveClicked {
+				if saveClicked {
 					return fmt.Errorf("offline exit invariant: invalid Save & Exit click order")
 				}
 				if err := validateOfflineExitWindow(ctrl); err != nil {
@@ -307,6 +396,17 @@ func (rt *Runtime) runOfflineExitTest(parent context.Context) error {
 	}
 }
 
+func (m offlineExitMode) String() string {
+	switch m {
+	case offlineExitVerifiedRogueTown:
+		return "verified_rogue_town"
+	case offlineExitCurrentArea:
+		return "memory_gated_current_area"
+	default:
+		return fmt.Sprintf("unknown_%d", m)
+	}
+}
+
 func offlineExitLogArgs(machine *offlineExitMachine, state world.State, now time.Time, escapePresses int, saveClicked bool) []any {
 	startedElapsed := int64(-1)
 	if !machine.startedAt.IsZero() {
@@ -321,6 +421,7 @@ func offlineExitLogArgs(machine *offlineExitMachine, state world.State, now time
 		safeTownElapsed = now.Sub(machine.safeTownSince).Milliseconds()
 	}
 	return []any{
+		"mode", machine.mode.String(),
 		"stage", machine.stage.String(),
 		"elapsed_ms", startedElapsed,
 		"stage_elapsed_ms", stageElapsed,

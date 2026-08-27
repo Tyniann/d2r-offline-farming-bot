@@ -1722,6 +1722,9 @@
           "lifecycle_phase": {
             "type": "string"
           },
+          "recovery_step": {
+            "type": "string"
+          },
           "pending_intent": {
             "type": "string"
           },

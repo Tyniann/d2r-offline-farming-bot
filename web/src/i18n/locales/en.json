@@ -133,6 +133,16 @@
       "pauseAfterRun": "Pause after this route",
       "stopAfterRun": "Stop after this route",
       "stopImmediately": "Stop immediately",
+      "recovery": {
+        "retryReturn": "Safe return to Act 1 in progress.",
+        "localClear": "Return blocked. Clearing the immediate area.",
+        "portalReposition": "Clearing the path to the town portal.",
+        "portalRetry": "Trying the town portal again.",
+        "directExit": "Safe return failed. Exiting the game directly.",
+        "startTownNormalization": "Game started in Act {{act}}. Returning to Act 1.",
+        "returnToAct1": "Returning to Act 1.",
+        "restartGame": "Repeating the route in a new game."
+      },
       "stages": {
         "town_preparation": "Town preparation",
         "waypoint_black_marsh": "Black Marsh waypoint",
@@ -1399,6 +1409,8 @@
     "profileBindingsIncomplete": "Key bindings are missing for this combat profile.",
     "inventoryUnconfigured": "Inventory protection has not been confirmed yet.",
     "gameStartFailed": "The game could not be started safely. D2R must be in the Rogue Encampment or on the offline character screen so the bot can open the game.",
+    "gameExitFailed": "The game could not be exited safely. The session was stopped.",
+    "startTownNormalizationFailed": "The return to Act 1 failed.",
     "unsupportedResolution": "D2R is running at {{actual_width}} × {{actual_height}}. Set windowed mode to {{expected_width}} × {{expected_height}}.",
     "runCatalogRefreshFailed": "Route availability could not be loaded.",
     "routeUnavailable": "Route management is currently unavailable.",

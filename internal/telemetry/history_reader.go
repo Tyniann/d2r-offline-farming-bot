@@ -499,7 +499,9 @@ var historyEventNames = func() map[EventName]struct{} {
 		RouteClearProgress, RouteClearCompleted, RouteManaHold, RouteRecoverySuppressed,
 		TownMercenaryHealRequested, TownMercenaryHealConfirmed, TownMercenaryReviveRequested, TownMercenaryReviveConfirmed,
 		MercenaryDied, CowRecipeProgress, ChestOpened, ChestSkipped, RackOperated, RackSkipped,
-		TownPortalEntryUnconfirmed, TownPortalRecoveryStarted, TownPortalRetryClicked, TownPortalRecoveryCompleted,
+		TownPortalEntryUnconfirmed, LocalRecoveryClearStarted, LocalRecoveryClearFinished, ReturnPortalRetry,
+		DirectExitStarted, DirectExitCompleted, DirectExitFailed,
+		StartTownNormalizationStarted, StartTownNormalizationCompleted, StartTownNormalizationFailed,
 	}
 	out := make(map[EventName]struct{}, len(names))
 	for _, name := range names {

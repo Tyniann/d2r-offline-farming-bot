@@ -181,7 +181,10 @@ type tracePortal struct {
 func (t *tracePortal) Reset() { t.next.Reset() }
 func (t *tracePortal) Tick(ctx context.Context, state world.State, now time.Time) pathing.TownPortalActionResult {
 	result := t.next.Tick(ctx, state, now)
-	recordResult(t.recorder, "portal.tick", nil, map[string]any{"status": string(result.Status), "reason": result.Reason, "done": result.Done}, nil)
+	recordResult(t.recorder, "portal.tick", nil, map[string]any{
+		"status": string(result.Status), "reason": result.Reason, "done": result.Done,
+		"portal_unit_id": result.PortalUnitID, "blocker_unit_id": result.BlockerUnitID,
+	}, nil)
 	recordIntent(t.recorder, "town_portal_enter", nil, result.Status == pathing.TownPortalActionClicked, nil)
 	return result
 }

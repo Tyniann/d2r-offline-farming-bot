@@ -12,9 +12,10 @@ import (
 const sessionGameStableTicks = 3
 
 type sessionGameExpectation struct {
-	Character   string
-	GameVersion string
-	StartArea   world.AreaID
+	Character         string
+	GameVersion       string
+	StartArea         world.AreaID
+	AllowedStartAreas []world.AreaID
 }
 
 type sessionGameVerification struct {
@@ -30,6 +31,7 @@ type sessionGameVerifier struct {
 	generation  uint64
 	stableTicks int
 	lastAt      time.Time
+	lastArea    world.AreaID
 }
 
 func newSessionGameVerifier(expectation sessionGameExpectation) *sessionGameVerifier {
@@ -40,6 +42,7 @@ func (v *sessionGameVerifier) ResetForNextGame() {
 	v.generation++
 	v.stableTicks = 0
 	v.lastAt = time.Time{}
+	v.lastArea = world.None
 }
 
 func (v *sessionGameVerifier) Observe(state world.State, gameVersion string) (sessionGameVerification, bool, error) {
@@ -61,16 +64,20 @@ func (v *sessionGameVerifier) Observe(state world.State, gameVersion string) (se
 	if !strings.EqualFold(state.Identity.CharacterName, v.expectation.Character) {
 		return sessionGameVerification{}, false, fmt.Errorf("session character mismatch: active=%q expected=%q", state.Identity.CharacterName, v.expectation.Character)
 	}
-	if state.Area.ID != v.expectation.StartArea {
-		return sessionGameVerification{}, false, fmt.Errorf("session start area mismatch: active=%s expected=%s", state.Area.Name, world.LookupArea(v.expectation.StartArea).Name)
+	if !v.expectation.allowsStartArea(state.Area.ID) {
+		return sessionGameVerification{}, false, fmt.Errorf("session start area mismatch: active=%s expected=%s", state.Area.Name, v.expectation.startAreaDescription())
 	}
-	if state.UI.InventoryOpen || state.UI.NPCInteractOpen || state.UI.NPCShopOpen || state.UI.StashOpen || state.UI.QuitMenuOpen {
+	if queueGameUIBlocked(state) {
 		return sessionGameVerification{}, false, fmt.Errorf("session game verification blocked by open UI")
 	}
 	if !v.lastAt.IsZero() && !state.At.After(v.lastAt) {
 		return sessionGameVerification{}, false, fmt.Errorf("session game verification requires fresh snapshots")
 	}
+	if v.lastArea != world.None && v.lastArea != state.Area.ID {
+		v.stableTicks = 0
+	}
 	v.lastAt = state.At
+	v.lastArea = state.Area.ID
 	v.stableTicks++
 	if v.stableTicks < sessionGameStableTicks {
 		return sessionGameVerification{}, false, nil
@@ -79,6 +86,35 @@ func (v *sessionGameVerifier) Observe(state world.State, gameVersion string) (se
 		Generation: v.generation, CharacterName: state.Identity.CharacterName,
 		CharacterClass: state.Identity.Class.String(), AreaID: state.Area.ID, ConfirmedAt: state.At,
 	}, true, nil
+}
+
+func queueGameUIBlocked(state world.State) bool {
+	// WaypointOpen is deliberately absent: D2R 3.2 can leave this Memory bit
+	// sticky while the panel is closed. WaypointActions requires its own click evidence.
+	return state.UI.InventoryOpen || state.UI.NPCInteractOpen || state.UI.NPCShopOpen || state.UI.StashOpen || state.UI.QuitMenuOpen
+}
+
+func (e sessionGameExpectation) allowsStartArea(area world.AreaID) bool {
+	if len(e.AllowedStartAreas) == 0 {
+		return area == e.StartArea
+	}
+	for _, allowed := range e.AllowedStartAreas {
+		if area == allowed {
+			return true
+		}
+	}
+	return false
+}
+
+func (e sessionGameExpectation) startAreaDescription() string {
+	if len(e.AllowedStartAreas) == 0 {
+		return world.LookupArea(e.StartArea).Name
+	}
+	names := make([]string, 0, len(e.AllowedStartAreas))
+	for _, area := range e.AllowedStartAreas {
+		names = append(names, world.LookupArea(area).Name)
+	}
+	return strings.Join(names, ", ")
 }
 
 func verifySessionRouteStart(route pathing.Route, state world.State, gameVersion string) (pathing.LayoutFingerprint, error) {

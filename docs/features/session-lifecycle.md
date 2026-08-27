@@ -56,12 +56,13 @@ Es gibt keinen direkten Übergang von `run_active` zu `start_game`. Ein neues Sp
 
 ## Unterstützte Startzustände
 
-Phase 7 unterstützt im MVP ausschließlich:
+Der aktuelle Lifecycle unterstützt:
 
 1. einen validen `in_game`-Zustand im Rogue Encampment mit stabil bestätigter Character Identity; oder
-2. den in Phase 7.1 eindeutig nachgewiesenen Offline-Charakterbildschirm.
+2. den eindeutig nachgewiesenen Offline-Charakterbildschirm; oder
+3. nach einem vom Bot gestarteten Spiel eine bestätigte Stadt in Akt 2–5, sofern die passende globale Spawn-Egress-Route den Start sicher bis zum Rogue Encampment normalisieren kann.
 
-`GamePhaseMenu` allein ist kein unterstützter Startzustand, weil er Charakterbildschirm, Difficulty-Dialog und andere Menüs nicht unterscheidet. Loading, unbekannte Dialoge, ein Dungeon-Start, ein toter Charakter, Prozessverlust oder widersprüchliche UI-Signale führen nicht zu einem Klick. Phase 7.1 darf den unterstützten Startumfang anhand live validierter read-only Signale enger fassen.
+`GamePhaseMenu` allein ist kein unterstützter Startzustand, weil er Charakterbildschirm, Difficulty-Dialog und andere Menüs nicht unterscheidet. Loading, unbekannte Dialoge, ein Dungeon-Start, ein toter Charakter, Prozessverlust oder widersprüchliche UI-Signale führen nicht zu einem Klick. Nach dem Difficulty-Klick akzeptiert der Startautomat ausschließlich die fünf bekannten Stadt-Areas; dadurch erreicht ein legitimer Start in Akt 2–5 die nachgelagerte Normalisierung. Ein Fremdakt-Start autorisiert weder `/players` noch Run-Input: Erst Spawn-, Layout-, Wegpunkt- und Zielgebietsprüfung der Startnormalisierung geben das Rogue Encampment frei. Ein kurzzeitig unbekanntes Gebiet während des Wegpunkt-Ladens wird ohne weiteren Input bis zur bestätigten Ziel-Area oder zum Normalisierungs-Timeout abgewartet.
 
 Nach bestätigtem In-Game sendet die Queue genau einmal den Offline-`/players`-Befehl des eingefrorenen Charakters. Same-Game-Folgeruns wiederholen ihn nicht. Details: [Offline-Spieleranzahl](offline-players.md).
 
@@ -98,7 +99,7 @@ Der Lifecycle klassifiziert stabile Reason-Codes, nicht Logtexte. Unbekannte Cod
 | `terminal_infrastructure` | Prozessverlust, Telemetriefehler, nicht retrybarer Input-/Fensterfehler | Session stoppen und Telemetrie soweit möglich flushen. |
 | `operator_stop` | Stop-Hotkey oder Context-Cancel durch Operator | Aktiven Executor canceln, keine neuen Inputs, Ergebnis `stopped`. |
 
-Phase 7.0 erlaubt noch keinen automatischen Restart aus einem Dungeon. `run_restartable` wird erst wirksam, nachdem Phase 7.2 den Save-&-Exit-Flow aus dem betroffenen, gebundenen In-Game-Zustand isoliert live validiert hat. Vorher endet derselbe Code auf Session-Ebene terminal.
+Ein `run_restartable`-Fehler versucht zunächst den kontrollierten Rückweg. Bleibt ein Portaleintritt nach dem ersten bestätigten Klick aus, räumt die Task-Pipeline einmal begrenzt um dasselbe Portal und wiederholt den Eintritt genau einmal. Scheitert der Rückweg weiterhin, darf ausschließlich der zentrale Game-Lifecycle das bestätigte aktuelle Offline-Spiel direkt verlassen. Nur ein Memory-bestätigter Exit erlaubt den Neustart desselben Queue-Index; ein unsicherer Kontext oder Exit-Fehler beendet die Session.
 
 ## Hard-Stuck-Vertrag
 
@@ -172,7 +173,7 @@ session:
 4. Jede UI-Aktion folgt `stabiler Zustandsnachweis → genau eine geloggte Aktion → bestätigtes Ergebnis oder Timeout`.
 5. Zwischen Aktion und Ergebnisbestätigung wird keine zweite Lifecycle-Aktion ausgelöst.
 6. Feste Koordinaten sind client-relativ, versioniert und im MVP ausschließlich für exakt 1280×720 zugelassen.
-7. Save & Exit startet nach dem ersten validen Rogue-Encampment-Snapshot mit stabiler Character Identity genau ein nicht zurückgesetztes 500-ms-Settle-Fenster. Spielerbewegung oder ein nach dem Wegpunktwechsel stale gemeldetes Town-UI verlängern es nicht. Danach öffnet Escape das Quit-Menü; erst dessen stabile Memory-Bestätigung autorisiert den Save-&-Exit-Klick. Normaler Queue-Abschluss und kontrollierter Retry-Rückweg verwenden exakt diese gemeinsame Routine.
+7. Save & Exit startet nach einem autorisierten, validen In-Game-Snapshot mit stabiler Character Identity genau ein nicht zurückgesetztes 500-ms-Settle-Fenster. Der normale Queue-Abschluss verlangt das Rogue Encampment; der Notfallpfad darf das weiterhin bestätigte aktuelle Routengebiet verwenden. Danach öffnet Escape das Quit-Menü; erst dessen stabile Memory-Bestätigung autorisiert den Save-&-Exit-Klick. Beide Pfade verwenden exakt denselben Automaten.
 8. Difficulty-Auswahl benötigt einen bestätigten Difficulty-Dialog; die konfigurierte Difficulty ist kein Layoutnachweis.
 9. Character Identity, Game-Version, Rogue Encampment und Layout-Fingerprint werden nach jedem neuen Spiel erneut geprüft.
 10. Stop sperrt unmittelbar neue Inputs und cancelt aktive Goals; Cleanup darf selbst keinen Gameplay-Input erzeugen.
@@ -225,7 +226,7 @@ Vor jedem Game beginnt der Orchestrator mit `cycle_reset_requested`. Die reale R
 - Rogue Encampment als Startgebiet;
 - geschlossenem Inventory, Stash und Quit-Menü.
 
-Loading oder vorübergehend invalide Snapshots setzen nur den lokalen Stability-Zähler zurück. Falscher Character, Version, Area, offene UI oder wiederverwendete Snapshot-Zeitstempel sind fail-closed. Stability-Ticks aus Game N können Game N+1 nicht bestätigen.
+Loading oder vorübergehend invalide Snapshots setzen nur den lokalen Stability-Zähler zurück. Bei der Fresh-Game-Prüfung sind Rogue Encampment und die bekannten Städte von Akt 2–5 zulässig; nach einer Fremdakt-Normalisierung verlangt die aktive Game-Prüfung wieder ausschließlich Rogue Encampment. Während des ausgelösten Wegpunkttransfers ist eine kurzzeitig unbekannte Area ein passiver Ladezustand, keine bestätigte Ziel-Area. Falscher Character, Version, eine konkrete unerwartete Area, offene UI oder wiederverwendete Snapshot-Zeitstempel sind fail-closed. Stability-Ticks aus Game N können Game N+1 nicht bestätigen.
 
 Der Route-Layout-Nachweis bleibt bewusst ein zweites Gate: Der aufgezeichnete Fingerprint beginnt in Black Marsh und kann nicht seriös im Rogue Encampment berechnet werden. Beim Erreichen des ersten Routenpunkts baut der Route-Adapter den Fingerprint aus dem aktuellen Game neu auf und führt `ValidateRoutePrecheck` aus, bevor ein `RoutePlayer` beziehungsweise Navigator-Goal entstehen kann. Character, Klasse, Game-Version, Area, Startdistanz und Hash müssen passen.
 
@@ -235,7 +236,7 @@ Eine frische Run-Instanz wird weiterhin ausschließlich über `NewRun` erzeugt. 
 
 Route-Fehler werden weiterhin auf die stabilen Codes `hard_stuck`, `route_drift_exceeded`, `route_segment_timeout` oder `route_transition_failed` gemappt. Der Supervisor hält die harten Run-, Dauer-, Fehler- und Restart-Budgets; Retry bleibt auf dem aktuellen Queue-Index und beginnt über eine kontrollierte Spielgrenze neu. Unbekannte Gründe sind terminal.
 
-Der Schema-v2-Recorder korreliert `session_id`, `game_id` und `run_id` und flusht jedes Ereignis synchron. Ein Telemetriefehler blockiert die folgende Lifecycle-Aktion fail-closed.
+Der Schema-4-Recorder korreliert `session_id`, `game_id`, `run_id`, Queue-Index, Zyklus und Retry und flusht jedes Ereignis synchron. Recovery-Ereignisse bewahren `original_reason` und `recovery_reason`; der Live-Status ergänzt den aktuellen `recovery_step`. Ein Telemetriefehler blockiert die folgende Lifecycle-Aktion fail-closed.
 
 ## Historischer Phase-7-Multi-Run
 
@@ -276,6 +277,7 @@ Phase 7.0 ist abgeschlossen, wenn Zustände und Übergänge, unterstützte Start
 - [Route Recording und Playback](route-recording-playback.md)
 - [Input Controller](input-controller.md)
 - [Phase-11-Core-Vertrag](phase-11-core-contract.md)
+- [Notfall-Recovery für Run und Spielstart](emergency-run-recovery.md)
 
 ---
-*Zuletzt aktualisiert: 2026-08-22*
+*Zuletzt aktualisiert: 2026-08-27*

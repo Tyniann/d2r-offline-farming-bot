@@ -88,10 +88,17 @@ func TestTownPortalActionsFailsClosed(t *testing.T) {
 		_ = actions.Tick(context.Background(), townPortalState(), now.Add(townPortalActivationSettle))
 		var res TownPortalActionResult
 		for attempt := 0; attempt < townPortalHoverAttemptMultiplier; attempt++ {
-			res = actions.Tick(context.Background(), townPortalState(), now.Add(townPortalActivationSettle+time.Duration(attempt+1)*time.Millisecond))
+			state := townPortalState()
+			if attempt == 1 {
+				state.Hover = world.HoverInfo{IsHovered: true, UnitType: world.HoverUnitTypeMonster, UnitID: 99}
+			}
+			res = actions.Tick(context.Background(), state, now.Add(townPortalActivationSettle+time.Duration(attempt+1)*time.Millisecond))
 		}
 		if res.Status != TownPortalActionHoverNotFound || !res.Done {
 			t.Fatalf("tick = %+v, want hover_not_found", res)
+		}
+		if res.PortalUnitID != 77 || res.BlockerUnitID != 99 {
+			t.Fatalf("evidence = portal %d blocker %d, want 77/99", res.PortalUnitID, res.BlockerUnitID)
 		}
 	})
 }

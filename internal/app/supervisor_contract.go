@@ -73,6 +73,35 @@ const (
 	QueueRunStop QueueRunDisposition = "stop"
 )
 
+// ExitAuthorization defines which supervisor-owned game exit may follow a
+// terminal route execution. The authorization never performs the exit itself.
+type ExitAuthorization string
+
+const (
+	// ExitAuthorizationNone permits no automatic exit input.
+	ExitAuthorizationNone ExitAuthorization = "none"
+	// ExitAuthorizationVerifiedRogueTown permits the existing exit after the
+	// route owner confirmed Rogue Encampment and the active character identity.
+	ExitAuthorizationVerifiedRogueTown ExitAuthorization = "verified_rogue_town"
+	// ExitAuthorizationMemoryGatedCurrentArea requires the exit owner to prove a
+	// stable current in-game area, character identity, and game generation.
+	ExitAuthorizationMemoryGatedCurrentArea ExitAuthorization = "memory_gated_current_area"
+)
+
+// Allows reports whether this authorization may accompany the disposition.
+func (a ExitAuthorization) Allows(disposition QueueRunDisposition) bool {
+	switch a {
+	case ExitAuthorizationNone:
+		return disposition == QueueRunStop
+	case ExitAuthorizationVerifiedRogueTown:
+		return disposition == QueueRunAdvance || disposition == QueueRunRetryCurrent || disposition == QueueRunStop
+	case ExitAuthorizationMemoryGatedCurrentArea:
+		return disposition == QueueRunRetryCurrent || disposition == QueueRunStop
+	default:
+		return false
+	}
+}
+
 // SupervisorTransitionContract declares which commands are accepted in one
 // state. Internal worker completions are deliberately absent from this command
 // contract and will be specified by the supervisor implementation.

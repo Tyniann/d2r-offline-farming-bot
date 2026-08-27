@@ -68,6 +68,12 @@ func (r *CombatStrategyRegistry) Register(factory profile.StrategyFactory) error
 	if _, ok := tasks.DefaultRunRegistry().Definition(tasks.RunID(runID)); !ok {
 		return fmt.Errorf("combat strategy run %q is unknown", runID)
 	}
+	definition, _ := tasks.DefaultRunRegistry().Definition(tasks.RunID(runID))
+	if definition.HasCapability(tasks.RunCapabilityLocalRecoveryClear) {
+		if _, ok := strategy.(profile.SupportsLocalRecoveryClear); !ok {
+			return fmt.Errorf("combat strategy profile %q run %q lacks local recovery clear", profileID, runID)
+		}
+	}
 	if r.factories[profileID] == nil {
 		r.factories[profileID] = map[string]profile.StrategyFactory{}
 	}
@@ -143,6 +149,12 @@ func (r *CombatStrategyRegistry) ValidateAgainstProfiles(profiles config.Profile
 				definition, definitionOK := tasks.DefaultRunRegistry().Definition(tasks.RunID(runID))
 				if !definitionOK || !definition.HasCapability(tasks.RunCapabilityRouteClear) {
 					return fmt.Errorf("combat strategy profile %q run %q requires route clear capability", profileID, runID)
+				}
+			}
+			definition, definitionOK := tasks.DefaultRunRegistry().Definition(tasks.RunID(runID))
+			if definitionOK && definition.HasCapability(tasks.RunCapabilityLocalRecoveryClear) {
+				if _, ok := strategy.(profile.SupportsLocalRecoveryClear); !ok {
+					return fmt.Errorf("combat strategy profile %q run %q lacks local recovery clear", profileID, runID)
 				}
 			}
 		}

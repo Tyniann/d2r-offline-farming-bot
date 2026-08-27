@@ -81,6 +81,15 @@ func (w *TownWalker) Reset() {
 	w.lastPos = world.Position{}
 }
 
+// CurrentRoutePointIndex returns the point currently targeted by the walker.
+// Callers use it only for route-contract gates that must run before input.
+func (w *TownWalker) CurrentRoutePointIndex() int {
+	if w == nil {
+		return 0
+	}
+	return w.index
+}
+
 // TickRoute advances a generic Act-1 graph edge and succeeds at its final recorded point.
 func (w *TownWalker) TickRoute(ctx context.Context, state world.State) TownWalkResult {
 	return w.tick(ctx, state)

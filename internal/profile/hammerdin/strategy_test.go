@@ -47,13 +47,32 @@ func TestBossStrategyContract(t *testing.T) {
 				t.Fatalf("%s required skills = %v", runID, got)
 			}
 		}
-		if _, ok := strategy.(profile.SupportsRouteClear); ok {
-			t.Fatalf("%s must not wire route clear", runID)
+		clear, ok := strategy.(profile.SupportsRouteClear)
+		if !ok || clear.RequiresRouteClear() {
+			t.Fatalf("%s must wire local clear without travel route clear", runID)
 		}
-		if err := strategy.Configure(&profile.Executor{}, memory.MustSkillID("blessed_hammer"), nil); err != nil {
+		if _, ok := strategy.(profile.SupportsLocalRecoveryClear); !ok {
+			t.Fatalf("%s must expose local recovery clear", runID)
+		}
+		executor, err := profile.NewExecutor(config.NewLogger("error"), profile.Definition{ID: "paladin_hammerdin", CharacterClass: world.CharacterClassPaladin}, profileActionsStub{})
+		if err != nil {
 			t.Fatal(err)
 		}
-		if err := strategy.Configure(&profile.Executor{}, memory.MustSkillID("bone_spear"), nil); err == nil {
+		actions := &routeClearActionsStub{sent: true}
+		if err := strategy.Configure(executor, memory.MustSkillID("blessed_hammer"), actions); err != nil {
+			t.Fatal(err)
+		}
+		now := time.Now()
+		result := executor.TickRouteClear(context.Background(), profile.RouteClearRequest{
+			RunID: runID, DefinitionID: "paladin_hammerdin",
+			Player: world.Player{Position: world.Position{X: 100, Y: 100}},
+			Target: world.Monster{UnitID: 9, NPCID: 1, Position: world.Position{X: 102, Y: 100}},
+			Mode:   profile.RouteClearThreat, AssessmentAt: now,
+		}, now)
+		if result.Status != profile.StatusAction || result.SkillID != memory.MustSkillID("blessed_hammer") {
+			t.Fatalf("%s local clear result = %+v", runID, result)
+		}
+		if err := strategy.Configure(executor, memory.MustSkillID("bone_spear"), &routeClearActionsStub{}); err == nil {
 			t.Fatalf("%s accepted wrong standard attack", runID)
 		}
 	}

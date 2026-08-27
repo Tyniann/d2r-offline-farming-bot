@@ -38,6 +38,10 @@ type TownPortalActionResult struct {
 	Status TownPortalActionStatus
 	Reason string
 	Done   bool
+	// PortalUnitID identifies the portal pinned for this bounded entry attempt.
+	PortalUnitID uint32
+	// BlockerUnitID is the optional last Memory-confirmed monster hover evidence.
+	BlockerUnitID uint32
 }
 
 // TownPortalActions discovers and hover-clicks the temporary player-cast portal.
@@ -102,21 +106,21 @@ func (a *TownPortalActions) Tick(ctx context.Context, state world.State, now tim
 	a.missingSince = time.Time{}
 	if world.Distance(state.Player.Position, portal.Position) > a.cfg.MaxClickDistance {
 		a.Reset()
-		return TownPortalActionResult{Status: TownPortalActionTooFar, Reason: string(TownPortalActionTooFar), Done: true}
+		return TownPortalActionResult{Status: TownPortalActionTooFar, Reason: string(TownPortalActionTooFar), Done: true, PortalUnitID: portal.UnitID}
 	}
 	if a.portalUnitID != portal.UnitID || world.Distance(a.portalPosition, portal.Position) >= 1 {
 		a.portalUnitID = portal.UnitID
 		a.portalPosition = portal.Position
 		a.portalStableSince = now
 		a.clicker.Reset()
-		return TownPortalActionResult{Status: TownPortalActionPending}
+		return TownPortalActionResult{Status: TownPortalActionPending, PortalUnitID: portal.UnitID}
 	}
 	if a.portalStableSince.IsZero() {
 		a.portalStableSince = now
-		return TownPortalActionResult{Status: TownPortalActionPending}
+		return TownPortalActionResult{Status: TownPortalActionPending, PortalUnitID: portal.UnitID}
 	}
 	if now.Sub(a.portalStableSince) < townPortalActivationSettle {
-		return TownPortalActionResult{Status: TownPortalActionPending}
+		return TownPortalActionResult{Status: TownPortalActionPending, PortalUnitID: portal.UnitID}
 	}
 	res, err := a.clicker.Tick(state, ClickTarget{
 		UnitID:   a.portalUnitID,
@@ -125,22 +129,22 @@ func (a *TownPortalActions) Tick(ctx context.Context, state world.State, now tim
 		Name:     portal.Name,
 	}, a.cfg.MaxClickDistance)
 	if err != nil {
-		return TownPortalActionResult{Status: TownPortalActionInputError, Reason: err.Error(), Done: true}
+		return TownPortalActionResult{Status: TownPortalActionInputError, Reason: err.Error(), Done: true, PortalUnitID: res.TargetUnitID, BlockerUnitID: res.BlockerUnitID}
 	}
 	switch res.Status {
 	case ClickPending:
-		return TownPortalActionResult{Status: TownPortalActionPending}
+		return TownPortalActionResult{Status: TownPortalActionPending, PortalUnitID: res.TargetUnitID, BlockerUnitID: res.BlockerUnitID}
 	case ClickHit:
 		a.log.Info("town portal entry clicked", "unit_id", portal.UnitID, "hover_attempts", res.Attempt)
-		return TownPortalActionResult{Status: TownPortalActionClicked, Done: true}
+		return TownPortalActionResult{Status: TownPortalActionClicked, Done: true, PortalUnitID: res.TargetUnitID, BlockerUnitID: res.BlockerUnitID}
 	case ClickTooFar:
-		return TownPortalActionResult{Status: TownPortalActionTooFar, Reason: string(TownPortalActionTooFar), Done: true}
+		return TownPortalActionResult{Status: TownPortalActionTooFar, Reason: string(TownPortalActionTooFar), Done: true, PortalUnitID: res.TargetUnitID, BlockerUnitID: res.BlockerUnitID}
 	case ClickHoverNotFound:
-		return TownPortalActionResult{Status: TownPortalActionHoverNotFound, Reason: string(TownPortalActionHoverNotFound), Done: true}
+		return TownPortalActionResult{Status: TownPortalActionHoverNotFound, Reason: string(TownPortalActionHoverNotFound), Done: true, PortalUnitID: res.TargetUnitID, BlockerUnitID: res.BlockerUnitID}
 	case ClickProjectionFailed:
-		return TownPortalActionResult{Status: TownPortalActionProjectionFailed, Reason: string(TownPortalActionProjectionFailed), Done: true}
+		return TownPortalActionResult{Status: TownPortalActionProjectionFailed, Reason: string(TownPortalActionProjectionFailed), Done: true, PortalUnitID: res.TargetUnitID, BlockerUnitID: res.BlockerUnitID}
 	default:
-		return TownPortalActionResult{Status: TownPortalActionInputError, Reason: string(res.Status), Done: true}
+		return TownPortalActionResult{Status: TownPortalActionInputError, Reason: string(res.Status), Done: true, PortalUnitID: res.TargetUnitID, BlockerUnitID: res.BlockerUnitID}
 	}
 }
 

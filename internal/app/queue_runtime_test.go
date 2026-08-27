@@ -19,15 +19,22 @@ import (
 )
 
 type fakeQueueRunUnit struct {
-	runID         string
-	events        *[]string
-	continuations *[]bool
-	result        SupervisorRunResult
-	skills        SupervisorRunResult
+	runID          string
+	events         *[]string
+	continuations  *[]bool
+	result         SupervisorRunResult
+	skills         SupervisorRunResult
+	startLifecycle []telemetry.Event
+	exitLifecycle  []telemetry.Event
 }
 
-func (u *fakeQueueRunUnit) StartOrVerifyGame(_ context.Context, active bool) error {
+func (u *fakeQueueRunUnit) StartOrVerifyGame(_ context.Context, active bool, emit queueLifecycleTelemetry) error {
 	*u.events = append(*u.events, fmt.Sprintf("start:%s:%t", u.runID, active))
+	for _, event := range u.startLifecycle {
+		if err := emit(event); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -52,8 +59,13 @@ func (u *fakeQueueRunUnit) RunToTown(_ context.Context, _ SupervisorRunRequest, 
 	return u.result
 }
 
-func (u *fakeQueueRunUnit) ExitGame(context.Context) error {
+func (u *fakeQueueRunUnit) ExitGame(_ context.Context, _ SupervisorRunResult, emit queueLifecycleTelemetry) error {
 	*u.events = append(*u.events, "exit:"+u.runID)
+	for _, event := range u.exitLifecycle {
+		if err := emit(event); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -63,7 +75,7 @@ func (u *fakeQueueRunUnit) Close() {
 
 func newFakeRuntimeQueueRunner(events *[]string) *RuntimeQueueRunner {
 	return &RuntimeQueueRunner{newUnit: func(runID string) (queueRunUnit, error) {
-		return &fakeQueueRunUnit{runID: runID, events: events, result: SupervisorRunResult{Disposition: QueueRunAdvance, SafeToExit: true}}, nil
+		return &fakeQueueRunUnit{runID: runID, events: events, result: SupervisorRunResult{Disposition: QueueRunAdvance, ExitAuthorization: ExitAuthorizationVerifiedRogueTown}}, nil
 	}}
 }
 
@@ -174,16 +186,16 @@ func TestRuntimeQueueRunnerSeparatesRunFromExit(t *testing.T) {
 	if err := runner.StartGame(context.Background(), request); err != nil {
 		t.Fatal(err)
 	}
-	if result := runner.Run(context.Background(), request); result.Disposition != QueueRunAdvance || !result.SafeToExit {
+	if result := runner.Run(context.Background(), request); result.Disposition != QueueRunAdvance || result.ExitAuthorization != ExitAuthorizationVerifiedRogueTown {
 		t.Fatalf("run result = %+v", result)
 	}
 	if reflect.DeepEqual(events, []string{"start:countess:true", "verify:countess", "run:countess", "exit:countess"}) {
 		t.Fatal("RunToTown performed an exit")
 	}
-	if err := runner.ExitGame(context.Background(), request, "queue_wrap"); err != nil {
+	if err := runner.ExitGame(context.Background(), request, SupervisorRunResult{Reason: "queue_wrap", ExitAuthorization: ExitAuthorizationVerifiedRogueTown}); err != nil {
 		t.Fatal(err)
 	}
-	if err := runner.ExitGame(context.Background(), request, "duplicate"); err != nil {
+	if err := runner.ExitGame(context.Background(), request, SupervisorRunResult{Reason: "duplicate", ExitAuthorization: ExitAuthorizationVerifiedRogueTown}); err != nil {
 		t.Fatal(err)
 	}
 	want := []string{"start:countess:true", "verify:countess", "skills:countess", "run:countess", "exit:countess"}
@@ -213,6 +225,18 @@ func TestQueueRunTerminalEventMatchesDisposition(t *testing.T) {
 	}
 }
 
+func TestQueueRunTelemetryEventPreservesRecoveryContext(t *testing.T) {
+	event := queueRunTelemetryEvent(SupervisorRunResult{
+		Disposition: QueueRunRetryCurrent, Reason: queueReasonRetryReturnFailed,
+		OriginalReason: "route_threat_out_of_range", RecoveryReason: "town_portal_enter_failed",
+		ExitAuthorization: ExitAuthorizationMemoryGatedCurrentArea,
+	}, SupervisorRunRequest{ExecutionID: "run-1", DefinitionID: "countess", QueueIndex: 2, Cycle: 1, Retry: 3, GameID: "game-4"})
+	if event.Event != telemetry.RunAborted || event.OriginalReason != "route_threat_out_of_range" ||
+		event.RecoveryReason != "town_portal_enter_failed" || event.ExitAuthorization != string(ExitAuthorizationMemoryGatedCurrentArea) || event.Retry != 3 {
+		t.Fatalf("event = %+v", event)
+	}
+}
+
 func TestControlledRetryResultRequiresVerifiedTownReturn(t *testing.T) {
 	t.Parallel()
 
@@ -222,20 +246,20 @@ func TestControlledRetryResultRequiresVerifiedTownReturn(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if success.Disposition != QueueRunRetryCurrent || success.Reason != "route_threat_out_of_range" || !success.SafeToExit {
+	if success.Disposition != QueueRunRetryCurrent || success.Reason != "route_threat_out_of_range" || success.ExitAuthorization != ExitAuthorizationVerifiedRogueTown {
 		t.Fatalf("successful controlled retry = %+v", success)
 	}
 
 	failed, err := controlledRetryResult(context.Background(), "route_threat_out_of_range", func(context.Context) error {
 		return errors.New("portal unavailable")
 	})
-	if err == nil || failed.Disposition != QueueRunStop || failed.Reason != queueReasonRetryReturnFailed || failed.SafeToExit ||
+	if err == nil || failed.Disposition != QueueRunRetryCurrent || failed.Reason != queueReasonRetryReturnFailed || failed.ExitAuthorization != ExitAuthorizationMemoryGatedCurrentArea ||
 		failed.OriginalReason != "route_threat_out_of_range" || failed.RecoveryReason != "retry_return_execution_failed" {
 		t.Fatalf("failed controlled retry = %+v, err=%v", failed, err)
 	}
 
 	missing, err := controlledRetryResult(context.Background(), "route_threat_out_of_range", nil)
-	if err == nil || missing.Disposition != QueueRunStop || missing.Reason != queueReasonRetryReturnFailed || missing.SafeToExit ||
+	if err == nil || missing.Disposition != QueueRunRetryCurrent || missing.Reason != queueReasonRetryReturnFailed || missing.ExitAuthorization != ExitAuthorizationMemoryGatedCurrentArea ||
 		missing.OriginalReason != "route_threat_out_of_range" || missing.RecoveryReason != "retry_return_not_wired" {
 		t.Fatalf("missing controlled retry = %+v, err=%v", missing, err)
 	}
@@ -254,12 +278,12 @@ func TestRuntimeQueueRunnerStopsBeforeRunWhenSkillsMissing(t *testing.T) {
 		return &fakeQueueRunUnit{
 			runID:  runID,
 			events: &events,
-			result: SupervisorRunResult{Disposition: QueueRunAdvance, SafeToExit: true},
+			result: SupervisorRunResult{Disposition: QueueRunAdvance, ExitAuthorization: ExitAuthorizationVerifiedRogueTown},
 			skills: SupervisorRunResult{
-				Disposition:  QueueRunStop,
-				Reason:       reasonProfileRequiredSkillsMissing,
-				Detail:       "MrBones fehlen für Knochen-Speer: Teleport. Die Queue wurde beendet.",
-				ExitRequired: true,
+				Disposition:       QueueRunStop,
+				Reason:            reasonProfileRequiredSkillsMissing,
+				Detail:            "MrBones fehlen für Knochen-Speer: Teleport. Die Queue wurde beendet.",
+				ExitAuthorization: ExitAuthorizationMemoryGatedCurrentArea,
 			},
 		}, nil
 	}}
@@ -271,7 +295,7 @@ func TestRuntimeQueueRunnerStopsBeforeRunWhenSkillsMissing(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := runner.Run(context.Background(), req)
-	if got.Disposition != QueueRunStop || got.Reason != reasonProfileRequiredSkillsMissing || !got.ExitRequired {
+	if got.Disposition != QueueRunStop || got.Reason != reasonProfileRequiredSkillsMissing || got.ExitAuthorization != ExitAuthorizationMemoryGatedCurrentArea {
 		t.Fatalf("gate result = %+v", got)
 	}
 	if !strings.Contains(got.Detail, "Teleport") {
@@ -407,7 +431,7 @@ func TestRuntimeQueueRunnerKeepsGameAcrossFreshRunUnits(t *testing.T) {
 	var continuations []bool
 	runner := newFakeRuntimeQueueRunner(&events)
 	runner.newUnit = func(runID string) (queueRunUnit, error) {
-		return &fakeQueueRunUnit{runID: runID, events: &events, continuations: &continuations, result: SupervisorRunResult{Disposition: QueueRunAdvance, SafeToExit: true}}, nil
+		return &fakeQueueRunUnit{runID: runID, events: &events, continuations: &continuations, result: SupervisorRunResult{Disposition: QueueRunAdvance, ExitAuthorization: ExitAuthorizationVerifiedRogueTown}}, nil
 	}
 	if err := runner.BeginQueue(false); err != nil {
 		t.Fatal(err)
@@ -519,10 +543,10 @@ func TestRuntimeQueueRunnerPersistsGameAndRunBoundaries(t *testing.T) {
 	}
 	runner.Run(context.Background(), countess)
 	runner.Run(context.Background(), mephisto)
-	if err = runner.ExitGame(context.Background(), mephisto, "queue_wrap"); err != nil {
+	if err = runner.ExitGame(context.Background(), mephisto, SupervisorRunResult{Reason: "queue_wrap", ExitAuthorization: ExitAuthorizationVerifiedRogueTown}); err != nil {
 		t.Fatal(err)
 	}
-	if err = runner.FinishQueue(SupervisorRunResult{Disposition: QueueRunStop, Reason: string(QueueReasonRunBudgetExhausted)}, SupervisorStateIdle); err != nil {
+	if err = runner.FinishQueue(SupervisorRunResult{Disposition: QueueRunStop, Reason: string(QueueReasonRunBudgetExhausted), ExitAuthorization: ExitAuthorizationNone}, SupervisorStateIdle); err != nil {
 		t.Fatal(err)
 	}
 	runner.CloseQueue()
@@ -572,5 +596,63 @@ func TestRuntimeQueueRunnerPersistsGameAndRunBoundaries(t *testing.T) {
 	}
 	if persisted[1].RunID != "" || persisted[1].Run != "" || persisted[6].RunID != "" || persisted[6].Run != "" {
 		t.Fatalf("game lifecycle leaked run context: started=%+v exited=%+v", persisted[1], persisted[6])
+	}
+}
+
+func TestRuntimeQueueRunnerCorrelatesRecoveryLifecycleTelemetry(t *testing.T) {
+	directory := t.TempDir()
+	cfg := &config.Config{
+		Telemetry: config.TelemetryConfig{Directory: directory},
+		Session:   config.SessionConfig{Character: "MrHammer", Difficulty: "nightmare", MaxRuns: 2, MaxDurationMs: 60000},
+		Memory:    config.MemoryConfig{GameVersion: "3.2.92777"},
+	}
+	var calls []string
+	unit := &fakeQueueRunUnit{
+		runID: "mephisto", events: &calls,
+		startLifecycle: []telemetry.Event{
+			{Event: telemetry.StartTownNormalizationStarted, Act: "act3", AreaID: uint32(world.KurastDocks), RouteFile: "spawn-waypoint.yaml"},
+			{Event: telemetry.StartTownNormalizationCompleted, Act: "act3", AreaID: uint32(world.KurastDocks), TargetAreaID: uint32(world.RogueEncampment), Confirmed: true},
+		},
+		exitLifecycle: []telemetry.Event{
+			{Event: telemetry.DirectExitStarted, AreaID: uint32(world.KurastDocks), OriginalReason: "route_transition_failed", RecoveryReason: "town_portal_not_found"},
+			{Event: telemetry.DirectExitCompleted, AreaID: uint32(world.KurastDocks), Confirmed: true},
+		},
+	}
+	runner := &RuntimeQueueRunner{
+		config: cfg, persistEvents: true,
+		newUnit: func(string) (queueRunUnit, error) { return unit, nil },
+	}
+	request := SupervisorRunRequest{DefinitionID: "mephisto", ExecutionID: "run-recovery", GameID: "game-recovery", QueueIndex: 1, Cycle: 2, Retry: 3}
+	if err := runner.StartGame(context.Background(), request); err != nil {
+		t.Fatal(err)
+	}
+	result := SupervisorRunResult{
+		Disposition: QueueRunRetryCurrent, Reason: "retry_current", OriginalReason: "route_transition_failed",
+		RecoveryReason: "town_portal_not_found", ExitAuthorization: ExitAuthorizationMemoryGatedCurrentArea,
+	}
+	if err := runner.ExitGame(context.Background(), request, result); err != nil {
+		t.Fatal(err)
+	}
+	runner.CloseQueue()
+
+	files, err := filepath.Glob(filepath.Join(directory, "session-*.jsonl"))
+	if err != nil || len(files) != 1 {
+		t.Fatalf("session files=%v err=%v", files, err)
+	}
+	data, err := os.ReadFile(files[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []telemetry.EventName{
+		telemetry.StartTownNormalizationStarted, telemetry.StartTownNormalizationCompleted,
+		telemetry.DirectExitStarted, telemetry.DirectExitCompleted,
+	} {
+		if !strings.Contains(string(data), `"event":"`+string(name)+`"`) {
+			t.Fatalf("event %q missing from %s", name, data)
+		}
+	}
+	if !strings.Contains(string(data), `"run_id":"run-recovery"`) || !strings.Contains(string(data), `"retry":3`) ||
+		!strings.Contains(string(data), `"queue_index":1`) || !strings.Contains(string(data), `"queue_cycle":2`) {
+		t.Fatalf("recovery correlation missing from %s", data)
 	}
 }

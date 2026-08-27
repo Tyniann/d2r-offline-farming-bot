@@ -434,7 +434,7 @@
     </div>
     <div class="hero-meta">
       <div><strong>Stand</strong><span>27. August 2026</span></div>
-      <div><strong>Status</strong><span>Geplant · Implementierung nicht begonnen</span></div>
+      <div><strong>Status</strong><span>Phase 24 abgeschlossen · 24.11 am 27. August 2026 abgenommen</span></div>
       <div><strong>Vorgänger</strong><span><a href="phase-23-implementation-plan.html">Phase 23</a></span></div>
       <div><strong>Grundlage</strong><span><a href="../research/dynamic-emergency-local-clear.md">Recovery-Recherche</a></span></div>
     </div>
@@ -900,7 +900,7 @@
 
     <div class="phase-list">
       <article class="gate auto-gate">
-        <div class="gate-id">24.0<span class="gate-mode auto">Auto</span></div>
+        <div class="gate-id">24.0<span class="gate-mode auto">Abgeschlossen</span></div>
         <div>
           <h3>Baseline und Ergebnisvertrag einfrieren</h3>
           <p>
@@ -916,12 +916,13 @@
             <li>Bestehende erfolgreiche Queue-, Stop- und Cow-Pfade werden charakterisiert.</li>
           </ul>
           <p class="gate-files"><strong>Primäre Dateien:</strong> <code>internal/app/supervisor.go</code>, <code>internal/app/queue_runtime.go</code>, zugehörige Tests.</p>
-          <div class="gate-proof"><strong>Bestanden:</strong> Neue Tests beschreiben den Zielvertrag; vorhandene Semantik ist als Baseline sichtbar. Kein Produktverhalten und keine Route geändert.</div>
+          <div class="gate-proof"><strong>Bestanden am 27. August 2026:</strong> <code>go test ./internal/tasks ./internal/app -count=1</code> ist grün. Die Tests belegen den typisierten Vertrag, alle ungültigen Autorisierungs-/Disposition-Paare, die vorhandenen Queue-, Stop- und Cow-Pfade sowie die drei Baselines. Kein Runtime-Input und keine Route wurden geändert.</div>
+          <p><strong>Erkenntnisse:</strong> Der alte Bool-Vertrag ist vollständig entfernt. <code>SupervisorRunResult</code> trägt nur noch <code>ExitAuthorization</code>; der Supervisor weist direkt konstruierte widersprüchliche Ergebnisse vor jedem Lifecycle-Input mit <code>invalid_run_result</code> ab. <code>OriginalReason</code> und <code>RecoveryReason</code> bleiben getrennt. Der erste Portal-Hover-Fehler nutzt weiterhin nur den einmaligen Teleport-Retry ohne Combat, eine fehlgeschlagene kontrollierte Rückkehr bleibt terminal und ein frischer Start in Kurast Docks scheitert weiterhin an der Rogue-Encampment-Prüfung.</p>
         </div>
       </article>
 
       <article class="gate auto-gate">
-        <div class="gate-id">24.1<span class="gate-mode auto">Auto</span></div>
+        <div class="gate-id">24.1<span class="gate-mode auto">Abgeschlossen</span></div>
         <div>
           <h3>Ehrlicher lokaler Clear und Portal-Evidenz</h3>
           <p>
@@ -938,7 +939,8 @@
             <li>Bestehende Lower-Kurast- und Portal-Destination-Recovery bleiben funktional.</li>
           </ul>
           <p class="gate-files"><strong>Primäre Dateien:</strong> <code>internal/tasks/local_threat_clear.go</code>, <code>internal/tasks/deps.go</code>, <code>internal/pathing/click.go</code>, <code>internal/pathing/town_portal.go</code>, Tests und Replay-Adapter.</p>
-          <div class="gate-proof"><strong>Bestanden:</strong> Fokussierte <code>internal/tasks</code>-, <code>internal/pathing</code>- und Replay-Tests sind grün; kein neuer Portal- oder Combat-Input wurde unbestätigt freigegeben.</div>
+          <div class="gate-proof"><strong>Bestanden am 27. August 2026:</strong> <code>go test ./internal/pathing ./internal/tasks ./internal/replay -count=1</code> ist grün. Bestehende Lower-Kurast- und Portal-Destination-Recovery bleiben funktionsfähig. Kein neuer Portal- oder Combat-Input wurde freigegeben.</div>
+          <p><strong>Erkenntnisse:</strong> <code>localThreatClear</code> liefert jetzt die getrennten Ergebnisse <code>cleared</code>, <code>exhausted</code> und <code>failed</code>. Aktions-, Zeit- und No-Progress-Budget enden ehrlich als <code>exhausted</code>; der vorhandene einmalige Objekt- beziehungsweise Portalversuch bleibt danach erlaubt. Drei freie Snapshots ergeben nur bei vollständiger Coverage des 12-Tile-Radius <code>cleared</code>. Der Klicker merkt sich während einer gebundenen Suche die letzte Memory-bestätigte Monster-UnitID. <code>TownPortalActionResult</code> transportiert Portal- und optionale Blocker-UnitID, und Runtime-Trace sowie Headless Replay erhalten beide Werte.</p>
         </div>
       </article>
 
@@ -958,7 +960,8 @@
             <li>Required-Skill-Gate deckt den verwendeten Standardangriff und Opener ab.</li>
           </ul>
           <p class="gate-files"><strong>Primäre Dateien:</strong> <code>internal/tasks/registry.go</code>, <code>internal/profile</code>, <code>internal/profile/hammerdin</code>, <code>internal/profile/necrobonespear</code>, <code>internal/app/combat_strategy_registry.go</code>, Matrix-Tests.</p>
-          <div class="gate-proof"><strong>Bestanden:</strong> Registry- und Profiltests belegen 6/6 Recovery-Strategien und 0 neue Travel-Combat-Freigaben.</div>
+          <div class="gate-proof"><strong>Bestanden am 27. August 2026:</strong> <code>go test ./internal/profile/... ./internal/app ./internal/tasks -count=1</code> ist grün. Registry- und Profiltests belegen 6/6 Recovery-Strategien und 0 neue Travel-Combat-Freigaben.</div>
+          <p><strong>Erkenntnisse:</strong> Die neue Capability <code>local_recovery_clear</code> ist ausschließlich für Countess, Mephisto und Nihlathak registriert und bleibt unabhängig von <code>route_clear</code>. Der Marker <code>SupportsLocalRecoveryClear</code> verlangt pro Profil-/Run-Paar eine ausdrückliche Freigabe; unbekannte zukünftige Strategien werden bereits bei der Registrierung abgewiesen. Bone-Spear-Necro verwendet Amplify Damage einmal und danach Bone Spear, der Hammerdin Blessed Hammer. Standardangriff und Opener sind Teil von <code>RequiredSkills()</code>; <code>RequiresRouteClear()</code> bleibt für alle sechs Kombinationen <code>false</code>.</p>
         </div>
       </article>
 
@@ -981,7 +984,8 @@
             <li>Nach zweitem Portalfehler, Egressfehler oder Waypointfehler kein zweiter Clear.</li>
           </ul>
           <p class="gate-files"><strong>Primäre Dateien:</strong> <code>internal/tasks/pipeline_return.go</code>, <code>internal/tasks/portal_destination_recovery.go</code>, neue schmale Recovery-State-Machine und Task-Tests.</p>
-          <div class="gate-proof"><strong>Bestanden:</strong> Table-Tests decken Pre-Click-Miss, Post-Click-Timeout, clear, exhausted, resource failure, StopAttack-Fehler, Portal-Retry-Erfolg und Portal-Retry-Fehler ab. Jede Spur enthält höchstens einen Clear und einen Retry.</div>
+          <div class="gate-proof"><strong>Bestanden am 27. August 2026:</strong> <code>go test ./internal/tasks ./internal/app -count=1</code> ist grün. Table-Tests decken Pre-Click-Miss, Post-Click-Timeout, <code>cleared</code>, <code>exhausted</code>, Resource-Ausfall, StopAttack-Fehler, Portal-Retry-Erfolg und Portal-Retry-Fehler ab. Jede Spur enthält höchstens einen Clear und einen Retry.</div>
+          <p><strong>Erkenntnisse:</strong> Pre-Click-Fehler aus <code>too_far</code> oder <code>hover_not_found</code> und ein bestätigter Klick ohne Area-Wechsel laufen im kontrollierten <code>retry-return</code> in dieselbe einmalige Recovery-Generation. Der alte reine Teleport-Workaround bleibt außerhalb dieses Pfads erhalten. Jeder Clear-Tick prüft Ressourcen mit <code>FailOnUnavailable=true</code>; erst <code>cleared</code> oder <code>exhausted</code> darf nach erfolgreichem <code>StopAttack</code> zum Portal-Retry wechseln. Fehlende Capability oder Strategie, Resource-/Combat-Fehler und jeder zweite Portalfehler liefern <code>memory_gated_current_area</code>. Ein erfolgreicher Retry setzt die vorhandene Town- und Fremdakt-Normalisierung fort.</p>
         </div>
       </article>
 
@@ -1002,7 +1006,8 @@
             <li>Stop/F11 und Context-Cancel verhindern jeden weiteren Input.</li>
           </ul>
           <p class="gate-files"><strong>Primäre Dateien:</strong> <code>internal/app/offline_exit.go</code>, Lifecycle-Adapter, Exit-Machine-Tests.</p>
-          <div class="gate-proof"><strong>Bestanden:</strong> Tests belegen Act-1-Standardexit, Direktmodus in Field und Foreign Town sowie alle Fail-closed-Gates. Kein Live-Test in diesem Gate.</div>
+          <div class="gate-proof"><strong>Bestanden am 27. August 2026:</strong> <code>go test ./internal/app -count=1</code> ist grün. Tests belegen Act-1-Standardexit, Direktmodus in Field und Foreign Town sowie die Fail-closed-Gates. Kein Live-Test wurde in diesem Gate ausgeführt.</div>
+          <p><strong>Erkenntnisse:</strong> Beide Autorisierungen werden auf einen expliziten Exit-Modus abgebildet und verwenden danach denselben Menü-, Fenster- und Klickautomaten. <code>verified_rogue_town</code> behält den vorhandenen Rogue-Encampment-Settle. <code>memory_gated_current_area</code> verlangt drei frische Snapshots mit unveränderter Area, Character Identity und nichtleerer, stabiler MapSeed als Memory-Provenienz der laufenden Spielgeneration. Loading, ungültiger State, Provenienzwechsel oder stale Snapshots autorisieren keinen Input. Ist das Quit-Menü bereits offen, wird kein Escape gesendet; der Memory-bestätigte Save-&amp;-Exit-Klick bleibt trotzdem erlaubt. Ein Context-Cancel wird unmittelbar vor jeder vom Automaten angeforderten Input-Aktion erneut geprüft.</p>
         </div>
       </article>
 
@@ -1024,12 +1029,13 @@
             <li>Queue-Advance, Wrap, Stop-after-run, Pause und Cow-Sonderpfad bleiben charakterisiert.</li>
           </ul>
           <p class="gate-files"><strong>Primäre Dateien:</strong> <code>internal/app/supervisor.go</code>, <code>internal/app/queue_runtime.go</code>, <code>internal/app/session_runtime.go</code>, API-Projektion und Lifecycle-Tests.</p>
-          <div class="gate-proof"><strong>Bestanden:</strong> Fake-Lifecycle-Tests beweisen: direkter Exit erfolgreich → gleicher Index; Exit fehlgeschlagen → <code>stopped_error</code>; Budget erschöpft → Exit ohne Restart.</div>
+          <div class="gate-proof"><strong>Bestanden am 27. August 2026:</strong> <code>go test ./internal/app ./internal/api ./internal/telemetry -count=1</code> ist grün. Fake-Lifecycle-Tests beweisen: direkter Exit erfolgreich → gleicher Index; Exit fehlgeschlagen → <code>stopped_error</code>; Budget erschöpft → Exit ohne Restart.</div>
+          <p><strong>Erkenntnisse:</strong> Der Lifecycle erhält den vollständigen <code>SupervisorRunResult</code> und wählt den Exit-Modus ausschließlich aus dessen typisierter Autorisierung. Ein fehlgeschlagener kontrollierter Rückweg liefert jetzt <code>RetryCurrent</code> mit <code>memory_gated_current_area</code>; erst der vollständig bestätigte Exit erhöht <code>retry</code> und <code>totalRestarts</code>. Bei Exitfehler bleiben beide Zähler unverändert und es folgt kein <code>StartGame</code>. Ein bereits erschöpftes Restart-Budget verhindert den erforderlichen Exit nicht, wohl aber den Neustart. <code>OriginalReason</code> und <code>RecoveryReason</code> bleiben bei Exitfehlern erhalten und werden zusammen mit Autorisierung und Retrynummer in API und JSONL projiziert. Bestehende Advance-, Wrap-, Stop-, Pause- und Cow-Pfade bleiben charakterisiert.</p>
         </div>
       </article>
 
       <article class="gate auto-gate">
-        <div class="gate-id">24.6<span class="gate-mode auto">Auto</span></div>
+        <div class="gate-id">24.6<span class="gate-mode auto">Abgeschlossen</span></div>
         <div>
           <h3>Systemrouten-Vertrag für Spawn und Portalankunft</h3>
           <p>
@@ -1047,12 +1053,13 @@
             <li>Recorder-Syntax: <code>--route record-egress:act2/spawn</code>; ohne Suffix bleibt <code>portal_arrival</code>.</li>
           </ul>
           <p class="gate-files"><strong>Primäre Dateien:</strong> <code>internal/town/system_egress_contract.go</code>, <code>internal/app/town_egress.go</code>, <code>internal/app/route_mode.go</code>, <code>internal/app/route_record.go</code>, Tests.</p>
-          <div class="gate-proof"><strong>Bestanden:</strong> Contract-, Parser-, Recorder- und Playback-Tests belegen beide Startanker. Falscher Dateiname, falsches From, Teleportbewegung und Farming-Felder werden abgewiesen.</div>
+          <div class="gate-proof"><strong>Bestanden am 27. August 2026:</strong> <code>go test ./internal/town ./internal/app -count=1</code> ist grün. Contract-, Parser-, Recorder- und Playback-Tests belegen beide Startanker. Falscher Dateiname, falsches <code>from</code>, Teleportbewegung und Farming-Felder werden abgewiesen.</div>
+          <p><strong>Erkenntnisse:</strong> Schema 1 und die vorhandene Portaldatei bleiben unverändert. Der Contract akzeptiert ausschließlich <code>portal_arrival → waypoint</code> und <code>spawn → waypoint</code> mit <code>movement: walk</code>; Loader und Writer gleichen <code>from</code> fail-closed mit <code>portal-waypoint.yaml</code> beziehungsweise <code>spawn-waypoint.yaml</code> ab. <code>record-egress:actX</code> behält den Portal-Default, während <code>record-egress:actX/spawn</code> den expliziten Spawnvertrag schreibt. Portal und Spawn verwenden denselben Town-Walker, aber getrennte Startbeweis-Strategien. Der Spawnbeweis aus 24.6 prüft nur den expliziten Aufnahme- und isolierten Playback-Kontext; ein produktives verzögertes Layout-Gate wird erst aus den Live-Artefakten von 24.7 abgeleitet.</p>
         </div>
       </article>
 
       <article class="gate manual-gate">
-        <div class="gate-id">24.7<span class="gate-mode manual">Live · STOP</span></div>
+        <div class="gate-id">24.7<span class="gate-mode manual">Abgeschlossen · STOP</span></div>
         <div>
           <h3>Read-only Spawn- und Anchor-Survey in Akt 2–5</h3>
           <p>
@@ -1068,8 +1075,20 @@
             <li>Am Waypoint letzten Capture erstellen und Game-Version notieren.</li>
             <li>Für Akt 2, 3, 4 und 5 wiederholen.</li>
           </ol>
-          <p class="gate-files"><strong>Artefakte:</strong> vier Spawn-Captures plus Zwischen-/Waypoint-Captures unter einem neuen, klar benannten Diagnoseverzeichnis; Tabelle mit Area, Spawnkoordinate, erstem Anker, erster Ankerkoordinate und zurückgelegter Punktzahl.</p>
-          <div class="gate-proof"><strong>Bestanden:</strong> Für jeden Akt ist belegt, ob am Spawn ein Layoutanker sichtbar ist und spätestens an welchem Routenpunkt einer erscheint. Erst danach wird das gemeinsame verzögerte Layout-Limit in Code und Tests festgelegt.</div>
+          <p class="gate-files"><strong>Artefakte:</strong> <a href="../../configs/diagnostics/phase-24-spawn-survey-20260827/README.md">Auswertung und gebündelte Act-2–5-Logs</a>. Das Verzeichnis enthält vier Spawn-Captures, fünf Zwischen-/Waypoint-Captures und die jeweils zugehörigen Object- und Layout-Logs.</p>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Akt</th><th>Spawn</th><th>Anker am Spawn</th><th>Erster Ankerpunkt</th><th>Erster Layoutbeweis</th></tr></thead>
+              <tbody>
+                <tr><td>2</td><td><code>5153,5203</code></td><td>Nein</td><td>P1 bei <code>5100,5135</code></td><td>Entrance 24 und Waypoint 156; 86,215 Tiles direkte Distanz</td></tr>
+                <tr><td>3</td><td><code>5118,5168</code></td><td>Nein</td><td>P1 bei <code>5133,5115</code></td><td>Waypoint 237 und Personal Stash 267; 55,082 Tiles direkte Distanz</td></tr>
+                <tr><td>4</td><td><code>5048,5043</code></td><td>Ja</td><td>P0</td><td>Personal Stash 267 und Waypoint 398</td></tr>
+                <tr><td>5</td><td><code>5098,5023</code></td><td>Ja</td><td>P0</td><td>Personal Stash 267 und Waypoint 429</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="gate-proof"><strong>Bestanden am 27. August 2026:</strong> Alle vier Startareas, Spawnpositionen und Identities sind belegt. Akt 2 und 3 liefern spätestens an P1 einen kanonischen Layoutanker; Akt 4 und 5 bereits an P0. Der kleinste gemeinsame belegte Rahmen ist damit P1. Die längste direkte Spawn-Distanz zum ersten Beleg beträgt 86,215 Tiles in Akt 2 und bleibt Diagnose, nicht Shipping-Limit.</div>
+          <p><strong>Erkenntnisse:</strong> Akt 2 lädt zwischen P1 und P2 eine weitere Entrance; sein sichtbarer Fingerprint wächst von zwei auf drei Anker. Nach erfolgreichem Pinnen darf eine später größere sichtbare Ankerliste den bereits bestätigten Startbeweis nicht verwerfen. Akt 3 und 5 reproduzieren ihren Hash am Folgepunkt. Alle Layout-Läufe bestätigen dieselbe stabile Identity und D2R <code>3.2.92777</code>. <code>difficulty_source_unresolved</code> ist für den globalen Egress kein Gate. Der Memory-Wert <code>WaypointOpen</code> blieb an allen Aufnahmepunkten gesetzt, auch an den ankerlosen Spawns von Akt 2 und 3; 24.8 darf ihn daher nicht allein als UI-Blockade werten.</p>
           <p class="stop">STOP: Artefakte im Plan verlinken und ausdrückliche Operatorfreigabe abwarten. Ohne vollständigen Act-2–5-Beleg nicht mit 24.8 fortfahren.</p>
         </div>
       </article>
@@ -1092,12 +1111,13 @@
             <li><code>CanAdoptQueueGame</code> bleibt auf Rogue Encampment beschränkt.</li>
           </ul>
           <p class="gate-files"><strong>Primäre Dateien:</strong> <code>internal/app/queue_runtime.go</code>, <code>internal/app/town_egress.go</code>, <code>internal/app/session_verification.go</code>, Start-/Egress-Tests.</p>
-          <div class="gate-proof"><strong>Bestanden:</strong> Snapshot-Fixtures für Act 1–5 sind grün. Jeder negative Startfall stoppt vor dem ersten unautorisierten Input. Der belegte Layout-Rahmen steht als benannte, kommentierte Invariante im Code.</div>
+          <div class="gate-proof"><strong>Bestanden am 27. August 2026:</strong> Die Snapshot-Fixtures für Akt 1–5 sowie die betroffenen App-, Town-, Pathing- und CLI-Tests sind grün. Akt 1 bleibt ein No-op; Akt 2–5 wählen ausschließlich den Spawn-Contract. Fehlende Route, falsche Spawnposition, Layout-Mismatch, überschrittener Beweispunkt, falsche Area und blockierende UI stoppen vor dem jeweils nächsten nicht autorisierten Input. Validiert mit <code>go test ./cmd/d2rbot ./internal/app ./internal/town ./internal/pathing</code>.</div>
+          <p><strong>Erkenntnisse:</strong> Der Live-Rahmen P1 wird ohne geratenes Distanzlimit als <code>layout_proof_point_index</code> im Spawn-Contract gespeichert. Der Recorder beginnt nach starkem Spawn-/Identity-Beweis, puffert Bewegungs-Samples und pinnt den ersten stabilen Fingerprint auf den zugehörigen Routenpunkt. Playback darf bis zu diesem Punkt laufen, muss dort aber matchen und kann ohne Beweis weder weiterlaufen noch den Waypoint bedienen. Ein einmal gepinnter Ankersatz bleibt autoritativ, auch wenn Memory später zusätzliche Anker meldet. <code>WaypointOpen</code> bleibt als alleinige Blockade ausgeschlossen; die Waypoint-Auswahl verlangt weiterhin den eigenen hover-bestätigten Objektklick. Offline-Players und Run-Readiness bleiben hinter der abschließenden Drei-Tick-Bestätigung des Rogue Encampment, und <code>CanAdoptQueueGame</code> blieb unverändert darauf beschränkt.</p>
         </div>
       </article>
 
       <article class="gate manual-gate">
-        <div class="gate-id">24.9<span class="gate-mode manual">Live · STOP</span></div>
+        <div class="gate-id">24.9<span class="gate-mode manual">Abgeschlossen</span></div>
         <div>
           <h3>Vier Spawn-Egress-Routen aufnehmen und isoliert abspielen</h3>
           <p>
@@ -1114,13 +1134,42 @@
             <li>Danach alle vier <code>spawn-waypoint.yaml</code> in einem automatischen Bundle-/Contract-Test laden.</li>
           </ol>
           <p class="gate-files"><strong>Erwartete Dateien:</strong> <code>configs/routes/town/act2/egress/spawn-waypoint.yaml</code> bis <code>act5/egress/spawn-waypoint.yaml</code>. Bestehende Portaldateien nicht überschreiben.</p>
-          <div class="gate-proof"><strong>Bestanden:</strong> 4/4 Aufnahmen und 4/4 isolierte Playbacks landen Memory-bestätigt im Rogue Encampment. Kein Playback startet außerhalb der Spawn-Toleranz oder bei Layout-Mismatch.</div>
-          <p class="stop">STOP: Pro Akt Route, Log, Game-Version, Startposition und Abschlussbeweis im Plan dokumentieren und Operatorfreigabe abwarten.</p>
+          <table>
+            <thead><tr><th>Akt</th><th>Route und Start</th><th>Aufnahme</th><th>Playback und Abschluss</th></tr></thead>
+            <tbody>
+              <tr>
+                <td>2</td>
+                <td><a href="../../configs/routes/town/act2/egress/spawn-waypoint.yaml"><code>act2/egress/spawn-waypoint.yaml</code></a><br><code>5153,5203</code> · 31 Punkte</td>
+                <td><a href="../../logs/d2rbot-20260827-133508.log"><code>d2rbot-20260827-133508.log</code></a><br><code>3.2.92777</code> · Fingerprint <code>8284faf8…</code></td>
+                <td><a href="../../logs/d2rbot-20260827-134615.log"><code>d2rbot-20260827-134615.log</code></a><br><code>system egress acceptance completed</code> · Rogue Encampment · <code>success</code></td>
+              </tr>
+              <tr>
+                <td>3</td>
+                <td><a href="../../configs/routes/town/act3/egress/spawn-waypoint.yaml"><code>act3/egress/spawn-waypoint.yaml</code></a><br><code>5118,5168</code> · 30 Punkte</td>
+                <td><a href="../../logs/d2rbot-20260827-134726.log"><code>d2rbot-20260827-134726.log</code></a><br><code>3.2.92777</code> · Fingerprint <code>c8cb0be7…</code></td>
+                <td><a href="../../logs/d2rbot-20260827-134809.log"><code>d2rbot-20260827-134809.log</code></a><br><code>system egress acceptance completed</code> · Rogue Encampment · <code>success</code></td>
+              </tr>
+              <tr>
+                <td>4</td>
+                <td><a href="../../configs/routes/town/act4/egress/spawn-waypoint.yaml"><code>act4/egress/spawn-waypoint.yaml</code></a><br><code>5048,5043</code> · 6 Punkte</td>
+                <td><a href="../../logs/d2rbot-20260827-134851.log"><code>d2rbot-20260827-134851.log</code></a><br><code>3.2.92777</code> · Fingerprint <code>fc8bbd3b…</code></td>
+                <td><a href="../../logs/d2rbot-20260827-134912.log"><code>d2rbot-20260827-134912.log</code></a><br><code>system egress acceptance completed</code> · Rogue Encampment · <code>success</code></td>
+              </tr>
+              <tr>
+                <td>5</td>
+                <td><a href="../../configs/routes/town/act5/egress/spawn-waypoint.yaml"><code>act5/egress/spawn-waypoint.yaml</code></a><br><code>5098,5023</code> · 11 Punkte</td>
+                <td><a href="../../logs/d2rbot-20260827-135013.log"><code>d2rbot-20260827-135013.log</code></a><br><code>3.2.92777</code> · Fingerprint <code>3831813f…</code></td>
+                <td><a href="../../logs/d2rbot-20260827-135039.log"><code>d2rbot-20260827-135039.log</code></a><br><code>system egress acceptance completed</code> · Rogue Encampment · <code>success</code></td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="gate-proof"><strong>Bestanden am 27. August 2026:</strong> 4/4 Aufnahmen und 4/4 isolierte Playbacks landen Memory-bestätigt im Rogue Encampment. Alle acht Live-Logs sind frei von Warnungen und Fehlern. <code>go test ./internal/town -run TestPublishedSpawnSystemEgressBundle -count=1</code> lädt alle vier Dateien über den produktiven Contract; die vier Befehle <code>validate-egress:actX/spawn</code> sind ebenfalls grün. Der Operator meldete Aufnahme, Playback und Navigation nach Akt 1 für alle vier Akte als erfolgreich.</div>
+          <p><strong>Erkenntnisse:</strong> Akt 2 und 3 benötigen den verzögerten Layoutnachweis; das Playback pinnt ihre Fingerprints bei Routenpunkt 13 beziehungsweise 14 innerhalb der Walker-Toleranz. Akt 4 und 5 besitzen den Layoutnachweis bereits am Spawn. Der Contract-Fix unterscheidet einen noch unbestätigten Drei-Tick-Identitätszustand von einem echten Start-Mismatch. Die Layoutfrist rechnet die Ankunftstoleranz des Walkers in eine begrenzte Anzahl Routensamples um. Dadurch bleibt der gespeicherte erste Beweispunkt autoritativ, ohne vor der tatsächlich erreichbaren Position abzubrechen.</p>
         </div>
       </article>
 
       <article class="gate auto-gate">
-        <div class="gate-id">24.10<span class="gate-mode auto">Auto</span></div>
+        <div class="gate-id">24.10<span class="gate-mode auto">Abgeschlossen</span></div>
         <div>
           <h3>Telemetrie, API, UI und Dokumentation</h3>
           <p>
@@ -1137,12 +1186,13 @@
             <li>Alle neuen exportierten Symbole besitzen Godoc; UI-Strings haben korrekte Umlaute.</li>
           </ul>
           <p class="gate-files"><strong>Primäre Dateien:</strong> <code>internal/telemetry</code>, <code>internal/api</code>, <code>web/src/features</code>, genannte Feature-Docs und Changelog.</p>
-          <div class="gate-proof"><strong>Bestanden:</strong> Kleinste betroffene Telemetrie-, API- und UI-Tests sind grün; Docs stimmen mit tatsächlichen Reasons, Budgets, Routenfiles und Gate-Resultaten überein.</div>
+          <div class="gate-proof"><strong>Bestanden am 27. August 2026:</strong> <code>go test ./internal/tasks ./internal/app ./internal/telemetry ./internal/api -count=1</code> ist grün. <code>pnpm test -- ActiveRunPanel.test.tsx presenters.test.ts</code> bestätigt 9/9 UI-/Presenter-Tests; <code>pnpm typecheck:renderer</code> bestätigt die generierte API-Projektion. <code>git diff --check</code> meldet keine Whitespacefehler. Die neue Feature-Dokumentation, der Feature-Index, alle fünf betroffenen Bestandsdokumente und der Changelog stimmen mit den implementierten Reasons, Budgets und Routenfiles überein.</div>
+          <p><strong>Erkenntnisse:</strong> Task-, Lifecycle- und Startnormalisierungs-Ereignisse übernehmen dieselben Session-, Game-, Run-, Queue-, Zyklus- und Retry-Korrelationen. Ein fehlender Spawn-Egress erzeugt bereits nach dem gestarteten Normalisierungsereignis einen korrelierten Fehlerdatensatz. History trennt den bestätigten Retry-Abbruch von einem harten Sessionfehler. Die API projiziert den Core-eigenen <code>recovery_step</code>; das Dashboard übersetzt ihn ohne eigene Zustandsentscheidung. Direkter Exit und fehlgeschlagene Startnormalisierung verwenden exakt die kurzen deutschen Fehlertexte aus Abschnitt 9.</p>
         </div>
       </article>
 
       <article class="gate manual-gate">
-        <div class="gate-id">24.11<span class="gate-mode manual">Live · STOP</span></div>
+        <div class="gate-id">24.11<span class="gate-mode manual">Abgenommen · abgeschlossen</span></div>
         <div>
           <h3>Produktive Fehler- und Retry-Abnahme</h3>
           <p>
@@ -1159,8 +1209,27 @@
             <li><strong>Budgets:</strong> Retrybudget wird bei Erfolg verbraucht; erschöpftes Budget beendet nach bestätigtem Exit ohne Neustart.</li>
             <li><strong>Controls:</strong> F11 und Stop während Clear, Exit und Spawn-Egress verhindern weitere Inputs.</li>
           </ol>
-          <div class="gate-proof"><strong>Bestanden:</strong> Dashboard, API, Log und JSONL stimmen für Originalfehler, Recovery, Exit, Game-ID, Queue-Index und Budget überein. Kein zweiter Clear, kein zweiter Portal-Retry, keine produktive Routenwiederaufnahme und kein doppelter Exit.</div>
-          <p class="stop">STOP: Phase 24 erst nach ausdrücklicher Operatorabnahme als abgeschlossen markieren.</p>
+          <p class="gate-files"><strong>Für die Live-Abnahme verwendeter Acceptance-Build:</strong> <code>.tmp/phase24-acceptance/d2rbot.exe</code>, Build-Tag <code>phase24acceptance</code>, SHA-256 <code>42B35996A1586AA6C05D63605349554CC1217E9106368F7983AF35C8D6C42A95</code>. Der Tag unterstützte ausschließlich die sieben benannten Gate-Szenarien und die Runs Countess, Mephisto und Nihlathak. Die Control-Schalter <code>clear</code>, <code>exit</code> und <code>spawn-egress</code> öffneten am jeweils belegten Startpunkt ein zwanzigsekündiges inputfreies Bedienfenster. Nach der Operatorabnahme wurden Build, temporärer Datenroot, Injektoren, Haltefenster und No-op-Stubs entfernt.</p>
+          <div class="gate-proof"><strong>Automatische Vorbereitung bestanden am 27. August 2026:</strong> Vor der Live-Abnahme waren <code>go test ./internal/tasks ./internal/app -count=1</code> sowie dieselben Pakete mit <code>-tags phase24acceptance</code> grün. Die fokussierten Tests der drei Control-Fenster prüften außerdem ihre 20-Sekunden-Grenzen. Der isolierte Datenroot stammte aus dem installierten Operatorzustand; der installierte Datenroot wurde nicht verändert.</div>
+          <div class="gate-proof"><strong>Countess-Livefall bestanden am 27. August 2026:</strong> Der Acceptance-Fall <code>portal-retry-success</code> lief mit MrHammer ausschließlich auf <code>hell</code>. <code>countess-20260827t160042999999999z-c66ed8ea.jsonl</code> belegt den injizierten Originalfehler <code>route_transition_failed</code>, genau ein <code>local_recovery_clear_started</code>/<code>local_recovery_clear_finished</code> mit Ergebnis <code>cleared</code>, genau einen erfolgreichen <code>return_portal_retry</code> und anschließend <code>run_aborted</code> mit unverändertem Originalgrund. <code>session-20260827t160042999999999z-173641de.jsonl</code> belegt den bestätigten Akt-1-Exit, den Neustart desselben Queue-Index <code>0</code> und den erfolgreichen Wiederholungslauf. Beide <code>game_started</code>-Ereignisse tragen <code>difficulty=hell</code>; es gab keinen zweiten Clear, keinen zweiten Portal-Retry und keinen doppelten Exit.</div>
+          <p><strong>Erkenntnisse aus der Countess-Teilabnahme:</strong> Der einmalige Clear darf die blockierte Portalstelle freimachen, ohne den produktiven Run an derselben Stelle fortzusetzen. Nach bestätigter Town-Ankunft bleibt der Originalfehler autoritativ, der Supervisor beendet das Spiel kontrolliert und verbraucht genau einen Retry. Der Wiederholungslauf behält Queue-Index und Queue-Zyklus bei und kann regulär bis <code>run_completed</code> durchlaufen.</p>
+          <div class="gate-proof"><strong>Mephisto-Livefall bestanden am 27. August 2026:</strong> Der Acceptance-Fall <code>direct-exit</code> lief mit MrHammer ausschließlich auf <code>hell</code>. <code>session-20260827t161509999999999z-40d095d0.jsonl</code> belegt genau ein korreliertes <code>direct_exit_started</code>/<code>direct_exit_completed</code> aus Area 101 in Akt 3, den bestätigten <code>game_exited</code>-Grund <code>retry_current</code>, den folgenden Start in Kurast, genau ein <code>start_town_normalization_started</code>/<code>start_town_normalization_completed</code> über <code>spawn-waypoint.yaml</code> mit Layout-Fingerprint <code>c8cb0be7d1721b7e78f724a2644103e35b8928c554f65d5dceb1c0a7982064e9</code> und den Wiederholungsstart am unveränderten Queue-Index <code>0</code> mit <code>retry=1</code>. Nach dem zweiten Versuch endete das konfigurierte Run-Budget bestätigt ohne weiteren Neustart. Beide <code>game_started</code>-Ereignisse und sämtliche Session-Datensätze tragen <code>difficulty=hell</code>.</div>
+          <p><strong>Erkenntnisse aus der Mephisto-Teilabnahme:</strong> Die Live-Kette deckte zwei zuvor von Unit-Tests nicht erreichte Reihenfolgefehler auf. Der Offline-Startautomat verlangte noch Akt 1, bevor die bereits nachgelagerte Fremdakt-Normalisierung starten konnte; er akzeptiert nun ausschließlich die fünf unterstützten Stadt-Areas. Außerdem meldet Memory während des Wegpunkttransfers kurz <code>in_game</code> mit Area 0. Dieser passive Ladezustand wird jetzt innerhalb des vorhandenen Timeouts abgewartet, während eine konkrete falsche Ziel-Area weiterhin fail-closed bleibt. Die fokussierten Tests <code>TestOfflineStartMachineAcceptsSupportedForeignTownForNormalization</code>, <code>TestOfflineStartMachineRejectsUnsupportedFreshGameArea</code> und <code>TestFreshGameNormalizerCompletesOnlyAfterMemoryConfirmedRogueEncampment</code> sichern beide Korrekturen ab.</p>
+          <div class="gate-proof"><strong>Nihlathak-Livefall bestanden am 27. August 2026:</strong> Der Acceptance-Fall <code>direct-exit</code> lief mit MrHammer ausschließlich auf <code>hell</code>. <code>session-20260827t161842999999999z-811b4e24.jsonl</code> belegt genau ein korreliertes <code>direct_exit_started</code>/<code>direct_exit_completed</code> aus Area 124 in Akt 5, den bestätigten <code>game_exited</code>-Grund <code>retry_current</code>, den folgenden Start in Harrogath sowie genau ein <code>start_town_normalization_started</code>/<code>start_town_normalization_completed</code> über <code>spawn-waypoint.yaml</code>. Die Normalisierung verwendete den aufgezeichneten Layout-Fingerprint <code>3831813f8f90de51e8dfa37bfc1a63a4c9ed5a659cab8b09ae4af169dc18afa4</code>, bestätigte das Ziel Rogue Encampment und startete Nihlathak erneut am unveränderten Queue-Index <code>0</code> mit <code>retry=1</code>. Der Wiederholungslauf war erfolgreich; das konfigurierte Run-Budget führte anschließend zu einem bestätigten Exit ohne weiteren Neustart. Beide <code>game_started</code>-Ereignisse und sämtliche Session-Datensätze tragen <code>difficulty=hell</code>.</div>
+          <p><strong>Erkenntnisse aus der Nihlathak-Teilabnahme:</strong> Der gleiche Supervisor-Vertrag funktioniert damit auch für den längsten Zielpfad aus Akt 5: Der ursprüngliche Fehler <code>route_transition_failed</code> bleibt über den fehlgeschlagenen Portalrückweg, den Direktausstieg, die Fremdakt-Normalisierung und den Retry korreliert. Der Akt-5-Egress benötigt keine run-spezifische Sonderbehandlung; Route, Layoutbindung und bestätigter Zielakt reichen als gemeinsame Grenze aus. Die übrigen Warnungen betrafen bekannte Profil-, Routen- und Loot-Situationen; der einzige Error war der absichtlich injizierte fehlgeschlagene Recovery-Rückweg.</p>
+          <p><strong>Erkenntnis zur Acceptance-Automatisierung:</strong> Der eigenständige Cleanup-Prozess brauchte für die Live-Abnahme einen bestätigten Identitätskontext, bevor er einen Current-Area-Exit autorisieren durfte. Dieser Sonderfall gehörte nur zum getaggten Acceptance-Werkzeug und wurde nach der Abnahme zusammen mit dessen Test entfernt. Die produktive Current-Area-Autorisierung und ihre regulären Regressionstests bleiben erhalten.</p>
+          <div class="gate-proof"><strong>Vier Spawn-Negativfälle bestanden am 27. August 2026:</strong> Die Acceptance-Fälle <code>missing-spawn-route</code>, <code>spawn-position-mismatch</code>, <code>layout-mismatch</code> und <code>layout-anchors-unavailable</code> starteten jeweils ein neues Spiel in Harrogath ausschließlich auf <code>hell</code>. Die Session-Dateien <code>session-20260827t194337999999999z-72ff99bc.jsonl</code>, <code>session-20260827t194623999999999z-e00d050a.jsonl</code>, <code>session-20260827t194649999999999z-7396b1a4.jsonl</code> und <code>session-20260827t194707999999999z-19501c93.jsonl</code> enthalten je genau ein korreliertes <code>start_town_normalization_started</code>/<code>start_town_normalization_failed</code> für Akt 5 und die erwarteten Gründe <code>spawn_route_missing</code>, <code>spawn_position_mismatch</code>, <code>layout_mismatch</code> beziehungsweise <code>layout_anchors_unavailable</code>. Die zugehörigen Logs enthalten nach dem bestätigten Spielstart in allen vier Fällen null Tastatur- oder Mausaktionen; insbesondere wurden weder Spawnroute noch Wegpunkt bedient. Sämtliche Session-Datensätze tragen <code>difficulty=hell</code>.</div>
+          <p><strong>Erkenntnisse aus den Spawn-Negativfällen:</strong> Alle vier Fehlerklassen werden an derselben fail-closed-Grenze in eine operatorlesbare Recovery-Ursache übersetzt. Ein gültiger Fremdakt und eine bestätigte Identität reichen allein nicht zur Inputfreigabe: Route, Startposition, Layoutbindung und verfügbare Layoutanker müssen jeweils erfolgreich belegt sein.</p>
+          <div class="gate-proof"><strong>Unbestätigtes Quit-Menü bestanden am 27. August 2026:</strong> Der Acceptance-Fall <code>quit-menu-unconfirmed</code> lief mit Countess ausschließlich auf <code>hell</code>. <code>session-20260827t194832999999999z-37ffa87b.jsonl</code> korreliert den Originalfehler <code>route_transition_failed</code>, den fehlgeschlagenen Recovery-Rückweg, <code>direct_exit_started</code> aus Area 25 und <code>direct_exit_failed</code> mit <code>game_exit_failed</code>. <code>d2rbot-20260827-214832.log</code> belegt genau zwei begrenzte Esc-Versuche, danach <code>offline exit timeout waiting for quit menu</code> und exakt null Klicks auf „Speichern &amp; Beenden“. Das Spiel wurde erst anschließend durch einen separaten, bestätigten Acceptance-Cleanup geschlossen.</div>
+          <div class="gate-proof"><strong>Retry- und Run-Budgets bestanden am 27. August 2026:</strong> <code>session-20260827t160042999999999z-173641de.jsonl</code> belegt am erfolgreichen Countess-Wiederholungslauf <code>retry=1</code> bei unverändertem Queue-Index <code>0</code>; das Retrybudget wurde damit genau einmal verbraucht. Dieselbe Session sowie <code>session-20260827t161842999999999z-811b4e24.jsonl</code> belegen nach dem jeweils erfolgreichen zweiten Lauf einen bestätigten <code>game_exited</code> mit <code>reason=run_budget_exhausted</code> und <code>retry=1</code>, unmittelbar gefolgt von <code>session_completed</code>. Es existiert kein <code>game-003</code> und kein weiterer Run-Start.</div>
+          <div class="gate-proof"><strong>F11 während Recovery-Clear bestanden am 27. August 2026:</strong> <code>countess-20260827t200039999999999z-3c8f6656.jsonl</code> schrieb <code>local_recovery_clear_started</code> für Area 25 um 22:01:50, bevor der getaggte Control-Haltepunkt irgendeine Clear-Aktion freigab. F11 wurde um 22:01:54 als <code>input safety stop requested</code> mit <code>reason=hotkey</code> erkannt; derselbe Tick brach <code>wait_origin_town</code> mit <code>emergency_stop_requested</code> ab. <code>d2rbot-20260827-220039.log</code> enthält danach null erlaubte Inputs. Der einzige Folgeversuch war die bereits durch <code>blocked_by=stopped</code> gesperrte Fensterfokussierung; es existiert kein <code>local_recovery_clear_finished</code>.</div>
+          <div class="gate-proof"><strong>Stop-Signal während Recovery-Clear bestanden am 27. August 2026:</strong> <code>countess-20260827t202139999999999z-9b91a4f0.jsonl</code> enthält <code>local_recovery_clear_started</code> für Area 25 um 22:22:53 und kein <code>local_recovery_clear_finished</code>. <code>d2rbot-20260827-222139.log</code> erfasste das Stop-Signal um 22:22:56 mit <code>reason=signal</code>. Danach gab es null erlaubte Inputs; der einzige Folgeversuch war die mit <code>blocked_by=stopped</code> abgewiesene Fensterfokussierung. <code>session-20260827t202139999999999z-6657e21f.jsonl</code> bestätigt <code>difficulty=hell</code> und den anschließenden Abbruch.</div>
+          <div class="gate-proof"><strong>F11 und Stop-Signal während Exit bestanden am 27. August 2026:</strong> <code>d2rbot-20260827-221522.log</code> und <code>d2rbot-20260827-221550.log</code> belegen den bereits autorisierten Current-Area-Exit in Lut Gholein. F11 wurde um 22:15:36 mit <code>reason=hotkey</code>, das Stop-Signal um 22:16:02 mit <code>reason=signal</code> erkannt. Nach beiden Stops existieren null erlaubte Inputs, keine Escape-Eingabe und kein Klick auf „Speichern &amp; Beenden“.</div>
+          <div class="gate-proof"><strong>F11 und Stop-Signal während Spawn-Egress bestanden am 27. August 2026:</strong> <code>session-20260827t201743999999999z-9b28aeb1.jsonl</code> und <code>session-20260827t201815999999999z-c1bc0cdd.jsonl</code> belegen jeweils den Start der Akt-2-Normalisierung aus Lut Gholein über <code>spawn-waypoint.yaml</code> und ausschließlich <code>difficulty=hell</code>. <code>d2rbot-20260827-221743.log</code> erkannte F11 um 22:17:56, <code>d2rbot-20260827-221815.log</code> das Stop-Signal um 22:18:28. Nach beiden Stops existieren null erlaubte Inputs; die anschließenden Normalisierungsfehler sind die erwartete Folge der Abbrüche.</div>
+          <div class="gate-proof"><strong>24.11 abgenommen am 27. August 2026:</strong> Alle positiven Fälle, Negativfälle, Budgets und die sechs Control-Kombinationen sind live bestanden. Der Operator hat den Gesamtblock anschließend ausdrücklich abgenommen.</div>
+          <div class="gate-proof"><strong>Temporäre Abnahmewerkzeuge entfernt:</strong> Im Quellcode existieren keine Referenzen auf <code>phase24acceptance</code>, <code>D2RBOT_PHASE24_*</code> oder die zugehörigen Injektorfunktionen mehr. <code>.tmp/phase24-acceptance</code> einschließlich Test-Binary, Datenkopie und Live-Logs wurde gelöscht. Danach waren <code>go test ./internal/app ./internal/tasks -count=1</code> grün.</div>
+          <div class="gate-proof"><strong>Abnahmekriterium für den Gesamtblock:</strong> Dashboard, API, Log und JSONL stimmen für Originalfehler, Recovery, Exit, Game-ID, Queue-Index und Budget überein. Kein zweiter Clear, kein zweiter Portal-Retry, keine produktive Routenwiederaufnahme und kein doppelter Exit.</div>
+          <p class="stop">Operatorabnahme erteilt: Phase 24 ist abgeschlossen.</p>
         </div>
       </article>
     </div>
@@ -1218,15 +1287,15 @@ pnpm test -- &lt;kleinster betroffener Testpfad&gt;</pre>
     <div class="callout success">
       <h3>Abschlussregel</h3>
       <p>
-        Erst wenn 24.11 ausdrücklich abgenommen ist, wird der Hero-Status auf „Phase 24 abgeschlossen“ geändert.
-        Bis dahin bleibt dieses Dokument die verbindliche Implementierungsspezifikation, nicht der Nachweis
-        einer bereits ausgelieferten Funktion.
+        24.11 wurde am 27. August 2026 ausdrücklich abgenommen. Der Hero-Status ist deshalb auf
+        „Phase 24 abgeschlossen“ gesetzt. Dieses Dokument enthält den Implementierungs- und Abnahmenachweis;
+        eine Auslieferung erfolgt erst in einem gesondert beauftragten Release.
       </p>
     </div>
   </section>
 
   <footer>
-    Phase 24 · Gestufte Run-Recovery und Startakt-Normalisierung · Entwurf 27. August 2026 · kein Implementierungsstart
+    Phase 24 · Gestufte Run-Recovery und Startakt-Normalisierung · abgeschlossen und abgenommen · 27. August 2026
   </footer>
 </main>
 </body>
