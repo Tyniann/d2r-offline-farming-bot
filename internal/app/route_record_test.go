@@ -75,7 +75,7 @@ func TestSystemEgressSpawnRecordingUsesSpawnContractAndFilename(t *testing.T) {
 	rt := &Runtime{Config: &config.Config{Memory: config.MemoryConfig{GameVersion: "3.2.92777"}}, Log: slog.New(slog.NewTextHandler(io.Discard, nil))}
 	directory := t.TempDir()
 	proofPoint := 0
-	if err := rt.finishSystemEgressRecording(recorder, town.OriginAct2, town.AnchorSpawn, directory, area, fingerprint, &proofPoint, finish, 3, 3); err != nil {
+	if err = rt.finishSystemEgressRecording(recorder, town.OriginAct2, town.AnchorSpawn, directory, area, fingerprint, &proofPoint, finish, 3, 3); err != nil {
 		t.Fatal(err)
 	}
 	path := filepath.Join(directory, town.SystemEgressSpawnFilename)

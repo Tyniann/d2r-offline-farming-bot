@@ -166,7 +166,7 @@ func (a *townEgressAdapter) Tick(ctx context.Context, state world.State) (bool, 
 	if a.startAnchor == town.AnchorSpawn && !a.layoutMatched {
 		fingerprint, err := pathing.BuildLayoutFingerprint(state)
 		if err == nil {
-			if err := matchSystemEgressRouteLayout(fingerprint, a.activeRoute); err != nil {
+			if err = matchSystemEgressRouteLayout(fingerprint, a.activeRoute); err != nil {
 				return false, err
 			}
 			a.layoutMatched = true

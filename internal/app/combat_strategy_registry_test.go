@@ -93,7 +93,7 @@ func TestCombatStrategyRegistryExposesPhase24RecoveryMatrixWithoutTravelCombat(t
 				t.Fatalf("missing recovery strategy for %s/%s", profileID, runID)
 			}
 			strategy := factory()
-			if _, ok := strategy.(profile.SupportsLocalRecoveryClear); !ok {
+			if _, supportsLocalClear := strategy.(profile.SupportsLocalRecoveryClear); !supportsLocalClear {
 				t.Fatalf("%s/%s does not expose local recovery clear", profileID, runID)
 			}
 			clear, ok := strategy.(profile.SupportsRouteClear)

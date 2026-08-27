@@ -482,7 +482,7 @@ func (u *runtimeQueueUnit) StartOrVerifyGame(ctx context.Context, alreadyActive 
 	// Queue starts must not depend on whichever offline save D2R happened to
 	// leave selected. Reuse the bounded Home/Down selector that onboarding
 	// already validated, then keep its visual and post-entry Memory gates.
-	if err := u.runtime.ApplyCharacterSelection(ctx, selection); err != nil {
+	if err = u.runtime.ApplyCharacterSelection(ctx, selection); err != nil {
 		u.runtime.Log.Error("queue game lifecycle start failed", "stage", "character_selection", "error", err)
 		return err
 	}
@@ -513,7 +513,7 @@ func (u *runtimeQueueUnit) normalizeFreshQueueGame(ctx context.Context, fresh se
 		Event: telemetry.StartTownNormalizationStarted, Act: string(act), AreaID: uint32(fresh.AreaID),
 		RouteFile: town.SystemEgressSpawnFilename, PlayerX: state.Player.Position.X, PlayerY: state.Player.Position.Y,
 	}
-	if err := emit(started); err != nil {
+	if err = emit(started); err != nil {
 		return fmt.Errorf("emit start-town normalization start: %w", err)
 	}
 	u.runtime.setRecoveryStep("start_town_normalization")
