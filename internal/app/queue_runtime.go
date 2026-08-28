@@ -695,24 +695,16 @@ func (u *runtimeQueueUnit) RunToTown(ctx context.Context, request SupervisorRunR
 		}
 	} else if taskResult.Outcome == tasks.RunOutcomeSuccess {
 		result = SupervisorRunResult{Disposition: QueueRunAdvance, ExitAuthorization: ExitAuthorizationVerifiedRogueTown}
-	} else if isTerminalMercenaryFailure(taskResult.Reason) {
-		result = SupervisorRunResult{Disposition: QueueRunStop, Reason: taskResult.Reason, ExitAuthorization: ExitAuthorizationNone}
-	} else if request.DefinitionID == string(tasks.RunIDCows) && taskResult.Reason == "cow_return_portal_failed" {
-		// The Cow setup already exhausted its bounded portal return. Bypass
-		// configurable retry classes and delegate one Save & Exit to the supervisor.
-		result = SupervisorRunResult{Disposition: QueueRunStop, Reason: taskResult.Reason, ExitAuthorization: ExitAuthorizationMemoryGatedCurrentArea}
-	} else if isMandatoryControlledExit(taskResult.Reason) || isRestartableSessionFailure(taskResult.Reason, u.runtime.Config.Session.RetryClasses) {
+	} else {
 		state := world.State{}
 		if u.runtime.World != nil {
 			state = u.runtime.World.Current()
 		}
 		var recoveryErr error
-		result, recoveryErr = restartableFailureResult(ctx, taskResult.Reason, state, u.runtime.runRetryReturnToTown)
+		result, recoveryErr = classifyFailedQueueRun(ctx, request.DefinitionID, taskResult.Reason, u.runtime.Config.Session.RetryClasses, state, u.runtime.runRetryReturnToTown)
 		if recoveryErr != nil {
 			u.runtime.Log.Error("controlled retry return failed", "run", request.DefinitionID, "reason", taskResult.Reason, "error", recoveryErr)
 		}
-	} else {
-		result = SupervisorRunResult{Disposition: QueueRunStop, Reason: taskResult.Reason, ExitAuthorization: ExitAuthorizationNone}
 	}
 	if err := u.runtime.finishSessionRunTelemetry(result); err != nil {
 		return SupervisorRunResult{Disposition: QueueRunStop, Reason: "telemetry_failed", ExitAuthorization: result.ExitAuthorization}
@@ -722,6 +714,32 @@ func (u *runtimeQueueUnit) RunToTown(ctx context.Context, request SupervisorRunR
 
 func isMandatoryControlledExit(reason string) bool {
 	return reason == reasonMercenaryDiedDuringRun || reason == "combat_resource_exhausted" || reason == string(tasks.RouteThreatReasonManaRecoveryFailed)
+}
+
+func isDirectCurrentAreaRetry(reason string) bool {
+	return reason == "town_portal_enter_failed"
+}
+
+// classifyFailedQueueRun maps a productive task failure onto a supervisor
+// disposition. A failed hover-confirmed Town Portal click already exhausted its
+// one-shot teleport retry; recasting via retry-return would stand on the same
+// loot pile. Skip straight to a memory-gated Save & Exit and the same queue index.
+func classifyFailedQueueRun(ctx context.Context, definitionID, reason string, retryClasses []string, state world.State, recoverToTown func(context.Context) error) (SupervisorRunResult, error) {
+	if isTerminalMercenaryFailure(reason) {
+		return SupervisorRunResult{Disposition: QueueRunStop, Reason: reason, ExitAuthorization: ExitAuthorizationNone}, nil
+	}
+	if definitionID == string(tasks.RunIDCows) && reason == "cow_return_portal_failed" {
+		// The Cow setup already exhausted its bounded portal return. Bypass
+		// configurable retry classes and delegate one Save & Exit to the supervisor.
+		return SupervisorRunResult{Disposition: QueueRunStop, Reason: reason, ExitAuthorization: ExitAuthorizationMemoryGatedCurrentArea}, nil
+	}
+	if isDirectCurrentAreaRetry(reason) {
+		return SupervisorRunResult{Disposition: QueueRunRetryCurrent, Reason: reason, ExitAuthorization: ExitAuthorizationMemoryGatedCurrentArea}, nil
+	}
+	if isMandatoryControlledExit(reason) || isRestartableSessionFailure(reason, retryClasses) {
+		return restartableFailureResult(ctx, reason, state, recoverToTown)
+	}
+	return SupervisorRunResult{Disposition: QueueRunStop, Reason: reason, ExitAuthorization: ExitAuthorizationNone}, nil
 }
 
 func verifiedRogueTown(state world.State) bool {

@@ -112,6 +112,8 @@ Phase 17.5 schützt auch `RouteProgress.Mode=recovery`. Das effektive Previous-P
 
 Retryfähige Routenfehler verwenden die isolierte Phase `retry-return`. Sie ist nur in den registrierten Gebieten der veröffentlichten Run-Route zulässig und führt ausschließlich `precheck -> cast_town_portal -> enter_town_portal -> wait_origin_town` plus den vorhandenen Foreign-Town-Egress nach Akt 1 aus. Loot, Stash und Town-Service werden übersprungen. Erst ein Memory-bestätigtes Rogue Encampment setzt den normalen sicheren Exit-Kontext. Scheitert der Rückweg trotz lokalem Clear und einzigem Portal-Retry, liefert der Runner `retry_return_failed` mit getrenntem Original- und Recovery-Grund. Der Supervisor kann dann den gemeinsamen Save-&-Exit-Automaten direkt aus dem weiterhin bestätigten Routengebiet autorisieren und denselben Queue-Index innerhalb der Fehler- und Restart-Budgets neu starten. Ein unbestätigter Exit stoppt die Session; es gibt keinen blinden Neustart.
 
+Ein produktives `town_portal_enter_failed` umgeht `retry-return`. Nach dem einmaligen Teleport-Workaround im Enter-Step folgt direkt der Memory-gated Save-&-Exit und derselbe Queue-Index.
+
 ### Safety-Potion-Guard
 
 Vor dem normalen `run.onTick` prüft der Runner globale Safety:
@@ -180,4 +182,4 @@ JSONL-Transitionen `run_step_started`, `run_step_completed` und `run_step_failed
 - [Notfall-Recovery für Run und Spielstart](emergency-run-recovery.md)
 
 ---
-*Zuletzt aktualisiert: 2026-08-27*
+*Zuletzt aktualisiert: 2026-08-28*

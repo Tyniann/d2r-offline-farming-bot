@@ -272,6 +272,32 @@ func TestControlledRetryResultRequiresVerifiedTownReturn(t *testing.T) {
 	}
 }
 
+func TestTownPortalEnterFailureRetriesFromCurrentAreaWithoutPortalReturn(t *testing.T) {
+	t.Parallel()
+
+	called := false
+	got, err := classifyFailedQueueRun(context.Background(), "countess", "town_portal_enter_failed", []string{"hard_stuck"}, world.State{}, func(context.Context) error {
+		called = true
+		return errors.New("must not recast a town portal")
+	})
+	if err != nil || called {
+		t.Fatalf("portal enter recovered through retry-return: result=%+v err=%v called=%t", got, err, called)
+	}
+	if got.Disposition != QueueRunRetryCurrent || got.Reason != "town_portal_enter_failed" || got.ExitAuthorization != ExitAuthorizationMemoryGatedCurrentArea {
+		t.Fatalf("portal enter retry = %+v", got)
+	}
+
+	stuck, err := classifyFailedQueueRun(context.Background(), "countess", "hard_stuck", []string{"hard_stuck"}, world.State{}, func(context.Context) error {
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stuck.Disposition != QueueRunRetryCurrent || stuck.ExitAuthorization != ExitAuthorizationVerifiedRogueTown {
+		t.Fatalf("configured retry still needs town return = %+v", stuck)
+	}
+}
+
 func TestRestartableFailureSkipsPortalReturnWhenAlreadyInAct1Town(t *testing.T) {
 	t.Parallel()
 
@@ -682,5 +708,12 @@ func TestRuntimeQueueRunnerCorrelatesRecoveryLifecycleTelemetry(t *testing.T) {
 	if !strings.Contains(string(data), `"run_id":"run-recovery"`) || !strings.Contains(string(data), `"retry":3`) ||
 		!strings.Contains(string(data), `"queue_index":1`) || !strings.Contains(string(data), `"queue_cycle":2`) {
 		t.Fatalf("recovery correlation missing from %s", data)
+	}
+	reader, readerErr := telemetry.NewHistoryReader(directory)
+	if readerErr != nil {
+		t.Fatal(readerErr)
+	}
+	if _, err := reader.Read(filepath.Base(files[0])); err != nil {
+		t.Fatalf("persisted recovery session violates history reader contract: %v", err)
 	}
 }

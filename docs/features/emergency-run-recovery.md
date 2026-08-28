@@ -25,6 +25,8 @@ Nach `cleared` oder einem ausgeschöpften, aber technisch sauberen Clear telepor
 
 Scheitert auch der einzige Portal-Retry, bleibt der produktive Fehler in `original_reason` erhalten; die Rückkehrursache steht getrennt in `recovery_reason`. Der Queue-Runner autorisiert den direkten Exit nur aus einem weiterhin gültigen, gebundenen Offline-In-Game-Kontext. Derselbe zentrale Save-&-Exit-Automat öffnet das bestätigte Quit-Menü und klickt einmal auf „Speichern & Beenden“. Ein bestätigter Exit erzeugt einen abgebrochenen Run und erlaubt innerhalb der Session-Budgets einen Neustart am selben Queue-Index. Ein nicht bestätigter Exit beendet die Session als Fehler und startet kein neues Spiel.
 
+Ein produktives `enter_town_portal` mit `town_portal_enter_failed` nimmt denselben Direkt-Exit, ohne `retry-return` und ohne erneutes Portal. Der einmalige Teleport-Workaround im Step bleibt; danach folgt Save & Exit aus dem bestätigten Routengebiet und derselbe Queue-Index. Bodenitems auf dem Portal bleiben liegen.
+
 ### Normalisierung eines neuen Spiels
 
 Ein vom Bot gestartetes Spiel darf im Rogue Encampment oder in der gespeicherten Stadt von Akt 2–5 erscheinen. Bereits der Offline-Startautomat akzeptiert diese fünf konkreten Stadt-Areas; andere Gebiete bleiben fail-closed. Für einen Fremdakt lädt der Lifecycle ausschließlich die passende globale `spawn-waypoint.yaml`, prüft Akt, Area, Version, Spawn-Toleranz und Character Identity und läuft damit zum lokalen Wegpunkt. Während des Wegpunkttransfers darf Memory kurz `in_game` mit unbekannter Area melden; dieser Zustand löst keinen Input aus und wird nur innerhalb des vorhandenen Normalisierungs-Timeouts abgewartet. Die Ankunft in Akt 1 muss durch Memory bestätigt werden, bevor `/players`, Town-Vorbereitung oder Run-Input möglich sind. Fehlende Route, falscher Spawn, Layoutabweichung, fehlende Layoutanker, eine konkrete falsche Ziel-Area und Timeout stoppen fail-closed.
@@ -58,4 +60,4 @@ Die Recovery verwendet ausschließlich das konsistente World Model, das aktive K
 - [Session-Recovery und Lifecycle-Telemetrie](session-recovery-telemetry.md)
 
 ---
-*Zuletzt aktualisiert: 27. August 2026*
+*Zuletzt aktualisiert: 28. August 2026*

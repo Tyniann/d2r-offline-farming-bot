@@ -13,6 +13,7 @@ Versionierung nach [Semantic Versioning](https://semver.org/).
 
 ### Changed
 - Recover a stuck Act-1 stash approach by walking back to the portal or waypoint once, then Save & Exit and retry instead of stopping the session
+- Retry a failed Town Portal click with a direct current-area Save & Exit instead of ending the session
 
 ### Fixed
 - Keep Battle-Orders life and mana percentages honest after damage drops below the unbuffed stat cap
@@ -20,6 +21,7 @@ Versionierung nach [Semantic Versioning](https://semver.org/).
 - Keep the stabilized retry-return source area valid while a Town Portal transition still exposes the pre-load snapshot
 - Show Resume on the dashboard when a session is paused between routes, instead of the Pause hotkey chip
 - Load the session-end summary without a page limit on the history summary endpoint
+- Keep session history readable after a direct current-area Save & Exit or start-town normalization so the session summary still counts kept and sold items
 
 ## [0.25.0] - 2026-08-27
 

@@ -24,6 +24,8 @@ Der Reader betrachtet nur reguläre `*.jsonl`-Dateien direkt im konfigurierten T
 
 Ein produktiver History-Run benötigt dieselbe globale Run-ID in Session-Lifecycle, Run-Dateiname und jedem Run-Event. Session-ID, Game-ID, Modus, Charakter, Difficulty, D2R-Version, Run, Queue-Index und Queue-Zyklus müssen exakt übereinstimmen. Definition, Route, Layout-Fingerprint, Startzeit und Pickit-Snapshot bleiben innerhalb der Run-Datei unveränderlich.
 
+`game_started` und `game_exited` bleiben ohne Run-ID. Direct-Exit- und Startnormalisierungsereignisse gehören in den Session-Stream und dürfen dieselbe Run-ID tragen wie der zugehörige Versuch; sonst würde ein einzelner Retry die komplette Sessiondatei und damit alle korrelierten Runs aus der Historie nehmen.
+
 Das Ergebnis stammt aus genau einem Session-Terminal `run_completed`, `run_failed` oder `run_aborted`. Fehlt es, ist der Run `incomplete`. Nur wenn der aufrufende Core genau diese Run-ID aktuell als aktiv bestätigt, projiziert ein Snapshot vorübergehend `running`. Diagnose-Runs ohne produktiven Sessionvertrag werden weder als Farming-Run noch als Fehler in die Hauptpopulation aufgenommen.
 
 ### Rebuildbarer Index
@@ -53,4 +55,4 @@ Snapshots sind defensiv kopiert und stabil nach Startzeit plus Run-ID sortiert. 
 - [Session-/Recovery-Telemetrie](session-recovery-telemetry.md)
 
 ---
-*Zuletzt aktualisiert: 2026-08-13*
+*Zuletzt aktualisiert: 2026-08-28*

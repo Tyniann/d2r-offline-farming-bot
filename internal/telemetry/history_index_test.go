@@ -196,6 +196,84 @@ func TestHistoryIndexConcurrentRefreshAndSnapshotsWithLiveWriter(t *testing.T) {
 	}
 }
 
+func TestHistoryIndexKeepsSessionWithRecoveryRunIDsAndSessionKeepReturn(t *testing.T) {
+	directory := t.TempDir()
+	started := time.Date(2026, 8, 28, 12, 0, 0, 0, time.UTC)
+	session, run := openHistoryRun(t, directory, "countess-recovery", started)
+	events := []Event{
+		{Timestamp: started.Add(time.Second), Event: PickitMatch, Stage: HistoryStageLoot, UnitID: 347, ItemKey: "base:r04:normal", PickitAction: "keep"},
+		{Timestamp: started.Add(2 * time.Second), Event: PickupSuccess, Stage: HistoryStageLoot, UnitID: 347, ItemKey: "base:r04:normal", PickitAction: "keep"},
+		{Timestamp: started.Add(3 * time.Second), Event: StashSuccess, Stage: HistoryStageReturnTown, UnitID: 347, ItemKey: "base:r04:normal", PickitAction: "keep"},
+	}
+	for _, event := range events {
+		if err := run.Emit(event); err != nil {
+			t.Fatal(err)
+		}
+	}
+	recovery := Event{Timestamp: started.Add(5 * time.Second), Event: DirectExitStarted, RunID: "countess-recovery", GameID: "game-countess-recovery", Run: "countess", OriginalReason: "route_transition_failed", RecoveryReason: "town_portal_enter_failed"}
+	if err := session.Emit(recovery); err != nil {
+		t.Fatal(err)
+	}
+	recovery.Timestamp = started.Add(6 * time.Second)
+	recovery.Event = DirectExitCompleted
+	recovery.Confirmed = true
+	if err := session.Emit(recovery); err != nil {
+		t.Fatal(err)
+	}
+	if err := session.Emit(Event{Timestamp: started.Add(10 * time.Second), Event: RunAborted, RunID: "countess-recovery", GameID: "game-countess-recovery", Run: "countess", Reason: "retry_current"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := run.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := session.Close(); err != nil {
+		t.Fatal(err)
+	}
+	index, err := NewHistoryIndex(directory)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := index.Refresh(); err != nil {
+		t.Fatal(err)
+	}
+	snapshot := index.Snapshot("")
+	if len(snapshot.Runs) != 1 || snapshot.Runs[0].Outcome != HistoryOutcomeAborted || len(snapshot.Diagnostics) != 0 {
+		t.Fatalf("recovery session was not correlated: runs=%+v diagnostics=%+v", snapshot.Runs, snapshot.Diagnostics)
+	}
+	analysis, err := AnalyzeHistory(snapshot, HistoryFilter{SessionIDs: []string{"session-countess-recovery"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if analysis.Summary.TerminalRuns != 1 || analysis.Summary.Funnel.KeepReturn != 1 || analysis.Summary.Funnel.PickedUp != 1 {
+		t.Fatalf("session summary lost keep return after recovery telemetry: %+v", analysis.Summary)
+	}
+}
+
+func TestHistoryIndexRejectsGameLifecycleThatLeaksRunID(t *testing.T) {
+	directory := t.TempDir()
+	started := time.Date(2026, 8, 28, 12, 0, 0, 0, time.UTC)
+	session, run := openHistoryRun(t, directory, "countess-leak", started)
+	if err := session.Emit(Event{Timestamp: started.Add(time.Second), Event: GameExited, RunID: "countess-leak", GameID: "game-countess-leak", Run: "countess"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := session.Emit(Event{Timestamp: started.Add(10 * time.Second), Event: RunCompleted, RunID: "countess-leak", GameID: "game-countess-leak", Run: "countess"}); err != nil {
+		t.Fatal(err)
+	}
+	_ = run.Close()
+	_ = session.Close()
+	index, err := NewHistoryIndex(directory)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := index.Refresh(); err != nil {
+		t.Fatal(err)
+	}
+	snapshot := index.Snapshot("")
+	if len(snapshot.Runs) != 0 || !hasHistoryDiagnostic(snapshot.Diagnostics, "session-countess-leak.jsonl", HistoryReasonEventInvalid) {
+		t.Fatalf("game lifecycle run_id leak was not rejected: %+v", snapshot)
+	}
+}
+
 func TestHistoryIndexKeepsIncompleteItemFunnelsButRejectsIdentityDrift(t *testing.T) {
 	directory := t.TempDir()
 	started := time.Date(2026, 7, 22, 12, 0, 0, 0, time.UTC)

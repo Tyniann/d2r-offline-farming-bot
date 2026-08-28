@@ -27,4 +27,10 @@ func TestMandatoryControlledExitReasonsIgnoreConfigurableRetryList(t *testing.T)
 	if isMandatoryControlledExit("route_segment_timeout") {
 		t.Fatal("ordinary configured retry became mandatory")
 	}
+	if isDirectCurrentAreaRetry("hard_stuck") {
+		t.Fatal("configured retry became a direct current-area retry")
+	}
+	if !isDirectCurrentAreaRetry("town_portal_enter_failed") {
+		t.Fatal("town portal enter failure must retry from the current area")
+	}
 }

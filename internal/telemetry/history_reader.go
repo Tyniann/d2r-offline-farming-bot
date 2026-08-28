@@ -370,7 +370,7 @@ func validateHistoryFile(file *HistoryFile) error {
 					return err
 				}
 			}
-		} else if event.RunID != "" && event.Event != RunStarted && !isRunTerminal(event.Event) {
+		} else if event.RunID != "" && !sessionEventMayCarryRunID(event.Event) {
 			return historyReadError(HistoryReasonEventInvalid, "session event %q carries run ID", event.Event)
 		}
 		if isRunTerminal(event.Event) {
@@ -454,6 +454,21 @@ func isHistoryItemEvent(name EventName) bool {
 	}
 }
 
+// sessionEventMayCarryRunID erlaubt Run-Korrelation nur an Run-Grenzen und an
+// den Recovery-/Normalisierungsereignissen, die denselben Versuch binden.
+// Game- und Session-Grenzen bleiben ohne Run-ID, sonst fällt eine ganze Sessiondatei
+// nach einem einzigen Direct-Exit aus der Historie.
+func sessionEventMayCarryRunID(name EventName) bool {
+	switch name {
+	case RunStarted, RunCompleted, RunFailed, RunAborted,
+		DirectExitStarted, DirectExitCompleted, DirectExitFailed,
+		StartTownNormalizationStarted, StartTownNormalizationCompleted, StartTownNormalizationFailed:
+		return true
+	default:
+		return false
+	}
+}
+
 func equalOptionalInt(left, right *int) bool {
 	return left == nil && right == nil || left != nil && right != nil && *left == *right
 }
@@ -476,7 +491,9 @@ func historyEventAllowedInStream(stream HistoryStream, name EventName) bool {
 		}
 	}
 	switch name {
-	case SessionStarted, GameStarted, GameExited, RunStarted, RunCompleted, RunAborted, RunFailed, GameRestartRequested, SessionCompleted, SessionStopped, SessionFailed:
+	case SessionStarted, GameStarted, GameExited, RunStarted, RunCompleted, RunAborted, RunFailed, GameRestartRequested, SessionCompleted, SessionStopped, SessionFailed,
+		DirectExitStarted, DirectExitCompleted, DirectExitFailed,
+		StartTownNormalizationStarted, StartTownNormalizationCompleted, StartTownNormalizationFailed:
 		return true
 	default:
 		return false
