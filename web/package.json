@@ -1,7 +1,7 @@
 {
   "name": "d2r-offline-farming-bot-web",
   "private": true,
-  "version": "0.25.0",
+  "version": "0.26.0",
   "type": "module",
   "main": "dist-electron/main.js",
   "description": "Installierte Windows-App für wiederholbare D2R-Offline-Farming-Routen",
