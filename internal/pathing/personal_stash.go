@@ -43,7 +43,9 @@ type PersonalStashResult struct {
 
 // PersonalStashActions walks to the memory-discovered Act-1 stash and opens it after hover confirmation.
 // It is intentionally independent from the Town service graph because post-run
-// loot transfer begins at the portal and must establish the graph's Stash origin.
+// loot transfer begins at the portal or waypoint and must establish the graph's Stash origin.
+// One local stuck recovery walks back to that arrival anchor and retries the detours;
+// a second stuck fails closed so the session can Save & Exit.
 type PersonalStashActions struct {
 	log              *slog.Logger
 	input            InputDriver
@@ -57,6 +59,11 @@ type PersonalStashActions struct {
 	lastPos        world.Position
 	clickedAt      time.Time
 	routeIndex     int
+
+	originSet      bool
+	origin         world.Position
+	retreating     bool
+	reapproachUsed bool
 }
 
 // NewPersonalStashActions wires transfer-free personal-stash navigation to pathing input.
@@ -71,8 +78,19 @@ func NewPersonalStashActions(log *slog.Logger, in InputDriver, cfg Config) *Pers
 	}
 }
 
-// Reset clears in-flight walking, hover, and open-confirmation state.
+// Reset clears in-flight walking, hover, origin-recovery, and open-confirmation state.
 func (a *PersonalStashActions) Reset() {
+	if a == nil {
+		return
+	}
+	a.resetMotion()
+	a.originSet = false
+	a.origin = world.Position{}
+	a.retreating = false
+	a.reapproachUsed = false
+}
+
+func (a *PersonalStashActions) resetMotion() {
 	if a == nil {
 		return
 	}
@@ -133,8 +151,13 @@ func (a *PersonalStashActions) Tick(ctx context.Context, state world.State) Pers
 	}
 
 	if world.Distance(state.Player.Position, stash.Position) > a.maxClickDistance {
+		a.captureOrigin(state)
+		if a.retreating {
+			return a.tickRetreat(now, state, stash)
+		}
 		return a.tickApproach(now, state, stash)
 	}
+	a.retreating = false
 	if !a.approachSettled(now, state.Player.Position) {
 		return PersonalStashResult{Status: PersonalStashPending}
 	}
@@ -158,6 +181,26 @@ func (a *PersonalStashActions) Tick(ctx context.Context, state world.State) Pers
 	default:
 		a.Reset()
 		return PersonalStashResult{Status: PersonalStashOpenFailed, Reason: string(res.Status), Done: true}
+	}
+}
+
+func (a *PersonalStashActions) captureOrigin(state world.State) {
+	if a.originSet {
+		return
+	}
+	a.originSet = true
+	a.origin = state.Player.Position
+	// Portal arrival beats waypoint because both objects can be visible in Act 1.
+	// Distance is taken from the first approach tick, while the character still
+	// stands at the graph anchor they arrived from.
+	if portal, ok := state.NearestObject(world.ObjectKindTownPortal); ok &&
+		world.Distance(state.Player.Position, portal.Position) <= a.maxClickDistance {
+		a.origin = portal.Position
+		return
+	}
+	if waypoint, ok := state.NearestObject(world.ObjectKindWaypoint); ok &&
+		world.Distance(state.Player.Position, waypoint.Position) <= a.maxClickDistance {
+		a.origin = waypoint.Position
 	}
 }
 
@@ -195,14 +238,61 @@ func (a *PersonalStashActions) tickApproach(now time.Time, state world.State, st
 		a.lastProgressAt = now
 		a.lastPos = state.Player.Position
 	}
-	if a.lastProgressAt.IsZero() || world.Distance(a.lastPos, state.Player.Position) >= 1 {
+	if a.walkStuck(now, state.Player.Position) {
+		return a.recoverOrFail(now, state, stash)
+	}
+	return a.forceMoveTo(now, state, stash, target, "personal stash approach")
+}
+
+func (a *PersonalStashActions) tickRetreat(now time.Time, state world.State, stash world.Object) PersonalStashResult {
+	a.clicker.Reset()
+	if world.Distance(state.Player.Position, a.origin) <= a.townWalk.ArrivalDistance {
+		a.retreating = false
+		a.resetMotion()
+		a.log.Info("personal stash approach retry from origin",
+			"origin_x", a.origin.X,
+			"origin_y", a.origin.Y,
+			"player_x", state.Player.Position.X,
+			"player_y", state.Player.Position.Y,
+		)
+		return a.tickApproach(now, state, stash)
+	}
+	if a.walkStuck(now, state.Player.Position) {
+		return a.failStuck()
+	}
+	return a.forceMoveTo(now, state, stash, a.origin, "personal stash origin return")
+}
+
+func (a *PersonalStashActions) walkStuck(now time.Time, position world.Position) bool {
+	if a.lastProgressAt.IsZero() || world.Distance(a.lastPos, position) >= 1 {
 		a.lastProgressAt = now
-		a.lastPos = state.Player.Position
+		a.lastPos = position
 	}
-	if now.Sub(a.lastProgressAt) >= a.townWalk.StuckTimeout {
-		a.Reset()
-		return PersonalStashResult{Status: PersonalStashApproachFailed, Reason: "stuck", Done: true}
+	return now.Sub(a.lastProgressAt) >= a.townWalk.StuckTimeout
+}
+
+func (a *PersonalStashActions) recoverOrFail(now time.Time, state world.State, stash world.Object) PersonalStashResult {
+	if a.reapproachUsed {
+		return a.failStuck()
 	}
+	a.reapproachUsed = true
+	a.retreating = true
+	a.resetMotion()
+	a.log.Info("personal stash approach stuck, returning to origin",
+		"origin_x", a.origin.X,
+		"origin_y", a.origin.Y,
+		"player_x", state.Player.Position.X,
+		"player_y", state.Player.Position.Y,
+	)
+	return a.tickRetreat(now, state, stash)
+}
+
+func (a *PersonalStashActions) failStuck() PersonalStashResult {
+	a.Reset()
+	return PersonalStashResult{Status: PersonalStashApproachFailed, Reason: "stuck", Done: true}
+}
+
+func (a *PersonalStashActions) forceMoveTo(now time.Time, state world.State, stash world.Object, target world.Position, event string) PersonalStashResult {
 	if !a.lastMoveAt.IsZero() && now.Sub(a.lastMoveAt) < a.townWalk.MoveInterval {
 		return PersonalStashResult{Status: PersonalStashPending}
 	}
@@ -223,7 +313,7 @@ func (a *PersonalStashActions) tickApproach(now time.Time, state world.State, st
 		return PersonalStashResult{Status: PersonalStashInputError, Reason: err.Error(), Done: true}
 	}
 	a.lastMoveAt = now
-	a.log.Debug("personal stash approach",
+	a.log.Debug(event,
 		"unit_id", stash.UnitID,
 		"player_x", state.Player.Position.X,
 		"player_y", state.Player.Position.Y,

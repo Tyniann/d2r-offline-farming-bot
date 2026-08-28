@@ -11,7 +11,12 @@ Versionierung nach [Semantic Versioning](https://semver.org/).
 - Show a session-end dialog with wall-clock duration and expandable kept/sold item aggregates
 - Let character settings set Akara healing and mana restock thresholds per combat profile
 
+### Changed
+- Recover a stuck Act-1 stash approach by walking back to the portal or waypoint once, then Save & Exit and retry instead of stopping the session
+
 ### Fixed
+- Keep Battle-Orders life and mana percentages honest after damage drops below the unbuffed stat cap
+- Drink a healing potion at critical HP when the rejuvenation column is empty
 - Keep the stabilized retry-return source area valid while a Town Portal transition still exposes the pre-load snapshot
 - Show Resume on the dashboard when a session is paused between routes, instead of the Pause hotkey chip
 - Load the session-end summary without a page limit on the history summary endpoint

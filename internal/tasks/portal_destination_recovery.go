@@ -38,7 +38,7 @@ func (c *runPipeline) tickWaitOriginTown(ctx context.Context, deps pipelineRetur
 		return stepResult{}
 	}
 	if state.Area.ID == c.originTownArea() {
-		return c.completePortalDestinationRecovery(deps, state)
+		return c.completePortalDestinationRecovery(deps)
 	}
 	// A portal transition can briefly expose either Area 0 or the last source
 	// snapshot after the click. Retry-return already stabilized that source area
@@ -294,7 +294,7 @@ func hasLocalThreat(state world.State, anchor world.Position, radius float64) bo
 	return found
 }
 
-func (c *runPipeline) completePortalDestinationRecovery(deps pipelineReturnDeps, state world.State) stepResult {
+func (c *runPipeline) completePortalDestinationRecovery(deps pipelineReturnDeps) stepResult {
 	if !c.ret.destinationRecoveryUsed {
 		return stepResult{complete: true}
 	}

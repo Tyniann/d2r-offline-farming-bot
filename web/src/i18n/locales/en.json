@@ -1402,6 +1402,7 @@
   "operator_stop": "The operator stopped the route.",
   "step_timeout": "The current route stage exceeded its time limit.",
   "hard_stuck": "The route could not recover from being stuck.",
+  "stash_approach_failed": "The path to the stash was blocked.",
   "town_item_state_invalid": "An item's state was invalid for the town service.",
   "town_layout_unavailable": "The required town route could not be loaded safely.",
   "town_ui_close_failed": "The shop window could not be closed safely."
@@ -1461,6 +1462,7 @@
     "diagnosticRejected": "Disallowed diagnostic content was rejected.",
     "retryReturnFailed": "The controlled return to Act 1 before retrying the route failed.",
     "retryReturnFailedDetailed": "The controlled return failed. Original failure: {{original}} Recovery failure: {{recovery}}",
+    "stashApproachFailed": "The path to the stash was blocked.",
     "controlTokenMissing": "Local control authorization is missing."
   },
   "reasons": {

@@ -219,6 +219,7 @@ const errorKeys = {
   diagnostic_bundle_failed: "errors.diagnosticFailed",
   diagnostic_content_rejected: "errors.diagnosticRejected",
   retry_return_failed: "errors.retryReturnFailed",
+  stash_approach_failed: "errors.stashApproachFailed",
 } as const;
 
 export function presentProblem(problem: ProblemDTO, t: AppTranslator): string {

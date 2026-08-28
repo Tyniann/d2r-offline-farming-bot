@@ -15,7 +15,7 @@ Der Phase-11-Supervisor klassifiziert terminale Run-Ergebnisse über exakte Reas
 
 ## Stabile Fehlerklassifikation
 
-Nur die validierten Codes `hard_stuck`, `route_drift_exceeded`, `route_segment_timeout`, `route_transition_failed`, `route_clear_no_progress`, `route_threat_out_of_range`, `route_mana_recovery_failed`, `route_recovery_unsafe`, `boss_combat_unprojectable` und `cow_combat_no_progress` können einen Retry auslösen. Zusätzlich muss der konkrete Code in `session.retry_classes` erlaubt sein. Texte wie `hard_stuck_extra` oder ein Fehlerstring, der zufällig „hard_stuck“ enthält, bleiben terminal.
+Nur die validierten Codes `hard_stuck`, `route_drift_exceeded`, `route_segment_timeout`, `route_transition_failed`, `route_clear_no_progress`, `route_threat_out_of_range`, `route_mana_recovery_failed`, `route_recovery_unsafe`, `boss_combat_unprojectable`, `cow_combat_no_progress` und `stash_approach_failed` können einen Retry auslösen. Zusätzlich muss der konkrete Code in `session.retry_classes` erlaubt sein. Texte wie `hard_stuck_extra` oder ein Fehlerstring, der zufällig „hard_stuck“ enthält, bleiben terminal. `stash_approach_failed` entsteht erst nach einem lokalen Rückweg zum Portal- oder Waypoint-Anker; steht die Figur bereits im Rogue Encampment, entfällt der Recovery-Town-Portal und der Supervisor geht direkt in Save & Exit.
 
 ## Budget- und Lifecycle-Semantik
 
@@ -52,4 +52,4 @@ Supervisor-, Queue-Lifecycle- und Telemetrietests decken exakte Retry-Freigabe, 
 - [Notfall-Recovery für Run und Spielstart](emergency-run-recovery.md)
 
 ---
-*Zuletzt aktualisiert: 2026-08-27*
+*Zuletzt aktualisiert: 2026-08-28*

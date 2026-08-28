@@ -316,6 +316,20 @@ func TestProbeNormalizesMaxVitalsFromObservedCurrent(t *testing.T) {
 		t.Fatalf("mana/max_mana after spend = %d/%d, want 300/484", snap.Mana, snap.MaxMana)
 	}
 
+	writeStatEntry(access, baseArray+0, 0, StatLife, int32(800<<8))
+	writeStatEntry(access, baseArray+16, 0, StatMana, int32(100<<8))
+
+	snap = probe.Snapshot()
+	if !snap.Valid {
+		t.Fatalf("expected valid snapshot below stated cap, reason=%q", snap.Reason)
+	}
+	if snap.HP != 800 || snap.MaxHP != 1254 {
+		t.Fatalf("hp/max_hp below stated cap = %d/%d, want 800/1254", snap.HP, snap.MaxHP)
+	}
+	if snap.Mana != 100 || snap.MaxMana != 484 {
+		t.Fatalf("mana/max_mana below stated cap = %d/%d, want 100/484", snap.Mana, snap.MaxMana)
+	}
+
 	writeStatEntry(access, baseArray+0, 0, StatLife, int32(949<<8))
 	writeStatEntry(access, baseArray+8, 0, StatMaxLife, int32(949<<8))
 	writeStatEntry(access, baseArray+16, 0, StatMana, int32(191<<8))

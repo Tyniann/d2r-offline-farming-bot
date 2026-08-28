@@ -272,6 +272,34 @@ func TestControlledRetryResultRequiresVerifiedTownReturn(t *testing.T) {
 	}
 }
 
+func TestRestartableFailureSkipsPortalReturnWhenAlreadyInAct1Town(t *testing.T) {
+	t.Parallel()
+
+	called := false
+	town := world.State{Valid: true, Phase: world.GamePhaseInGame, Area: world.LookupArea(world.RogueEncampment)}
+	got, err := restartableFailureResult(context.Background(), "stash_approach_failed", town, func(context.Context) error {
+		called = true
+		return errors.New("must not cast a town portal from Act 1")
+	})
+	if err != nil || called {
+		t.Fatalf("Act-1 retry recovered through portal return: result=%+v err=%v called=%t", got, err, called)
+	}
+	if got.Disposition != QueueRunRetryCurrent || got.Reason != "stash_approach_failed" || got.ExitAuthorization != ExitAuthorizationVerifiedRogueTown {
+		t.Fatalf("Act-1 retry = %+v", got)
+	}
+
+	field := world.State{Valid: true, Phase: world.GamePhaseInGame, Area: world.LookupArea(world.BlackMarsh)}
+	fieldResult, err := restartableFailureResult(context.Background(), "hard_stuck", field, func(context.Context) error {
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fieldResult.Disposition != QueueRunRetryCurrent || fieldResult.ExitAuthorization != ExitAuthorizationVerifiedRogueTown {
+		t.Fatalf("field retry = %+v", fieldResult)
+	}
+}
+
 func TestRuntimeQueueRunnerStopsBeforeRunWhenSkillsMissing(t *testing.T) {
 	var events []string
 	runner := &RuntimeQueueRunner{newUnit: func(runID string) (queueRunUnit, error) {

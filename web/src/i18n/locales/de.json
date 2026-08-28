@@ -1402,6 +1402,7 @@
   "operator_stop": "Die Routenausführung wurde manuell gestoppt.",
   "step_timeout": "Der aktuelle Routenschritt hat sein Zeitlimit überschritten.",
   "hard_stuck": "Die Route konnte sich nicht aus einer Blockade erholen.",
+  "stash_approach_failed": "Der Weg zum Stash war blockiert.",
   "town_item_state_invalid": "Der Zustand eines Items war für den Stadtdienst ungültig.",
   "town_layout_unavailable": "Die benötigte Stadtroute konnte nicht sicher geladen werden.",
   "town_ui_close_failed": "Das Händlerfenster konnte nicht sicher geschlossen werden."
@@ -1461,6 +1462,7 @@
     "diagnosticRejected": "Nicht erlaubte Diagnoseinhalte wurden abgelehnt.",
     "retryReturnFailed": "Die kontrollierte Rückkehr nach Akt 1 vor dem erneuten Routenstart ist fehlgeschlagen.",
     "retryReturnFailedDetailed": "Die kontrollierte Rückkehr ist fehlgeschlagen. Ausgang: {{original}} Rückkehr: {{recovery}}",
+    "stashApproachFailed": "Der Weg zum Stash war blockiert.",
     "controlTokenMissing": "Die lokale Steuerungsberechtigung fehlt."
   },
   "reasons": {

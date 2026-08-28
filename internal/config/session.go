@@ -17,6 +17,7 @@ var supportedSessionRetryClasses = map[string]struct{}{
 	"route_recovery_unsafe":      {},
 	"boss_combat_unprojectable":  {},
 	"cow_combat_no_progress":     {},
+	"stash_approach_failed":      {},
 }
 
 var legacySessionRetryClasses = []string{
@@ -38,10 +39,18 @@ var phase19SessionRetryClasses = []string{
 	"boss_combat_unprojectable",
 }
 
-var defaultSessionRetryClasses = []string{
+// phase25SessionRetryClasses is the exact default list shipped before Act-1
+// stash-approach stuck became retryable after one local origin return.
+var phase25SessionRetryClasses = []string{
 	"hard_stuck", "route_drift_exceeded", "route_segment_timeout", "route_transition_failed",
 	"route_clear_no_progress", "route_threat_out_of_range", "route_mana_recovery_failed", "route_recovery_unsafe",
 	"boss_combat_unprojectable", "cow_combat_no_progress",
+}
+
+var defaultSessionRetryClasses = []string{
+	"hard_stuck", "route_drift_exceeded", "route_segment_timeout", "route_transition_failed",
+	"route_clear_no_progress", "route_threat_out_of_range", "route_mana_recovery_failed", "route_recovery_unsafe",
+	"boss_combat_unprojectable", "cow_combat_no_progress", "stash_approach_failed",
 }
 
 // SessionConfig defines finite budgets and static selection for an autonomous
@@ -118,7 +127,7 @@ func (c *SessionConfig) applyDefaults() {
 	if c.RetryClasses == nil {
 		c.RetryClasses = append([]string(nil), defaultSessionRetryClasses...)
 	} else if equalStrings(c.RetryClasses, legacySessionRetryClasses) || equalStrings(c.RetryClasses, phase17SessionRetryClasses) ||
-		equalStrings(c.RetryClasses, phase19SessionRetryClasses) {
+		equalStrings(c.RetryClasses, phase19SessionRetryClasses) || equalStrings(c.RetryClasses, phase25SessionRetryClasses) {
 		// Exact prior defaults are safe to migrate. Any reordered, reduced, or
 		// extended list is an operator decision and stays untouched.
 		c.RetryClasses = append([]string(nil), defaultSessionRetryClasses...)

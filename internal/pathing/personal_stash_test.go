@@ -163,3 +163,122 @@ func TestPersonalStashActionsWaitsForApproachToStopBeforeClicking(t *testing.T) 
 		t.Fatalf("moves=%v clicks=%v, want hover input after confirmed stop", in.moves, in.clicks)
 	}
 }
+
+func stashApproachConfig() Config {
+	cfg := DefaultConfig()
+	cfg.TownWalk.StuckTimeout = 100 * time.Millisecond
+	cfg.TownWalk.MoveInterval = 10 * time.Millisecond
+	return cfg
+}
+
+func farStashFromPortal() world.State {
+	st := personalStashState(50)
+	st.Objects = append(st.Objects, world.Object{
+		Kind: world.ObjectKindTownPortal, UnitID: 9, Name: "Town Portal", Position: world.Position{X: 100, Y: 100},
+	})
+	return st
+}
+
+func TestPersonalStashActionsReturnsToOriginAfterFirstStuck(t *testing.T) {
+	in := newMockInput()
+	cfg := stashApproachConfig()
+	a := NewPersonalStashActions(config.NewLogger("error"), in, cfg)
+	st := farStashFromPortal()
+
+	if res := a.Tick(context.Background(), st); res.Done || res.Status != PersonalStashPending {
+		t.Fatalf("start res=%+v, want pending approach", res)
+	}
+
+	st.At = st.At.Add(20 * time.Millisecond)
+	st.Player.Position = world.Position{X: 120, Y: 100}
+	if res := a.Tick(context.Background(), st); res.Done {
+		t.Fatalf("progress res=%+v, want still approaching", res)
+	}
+
+	st.At = st.At.Add(cfg.TownWalk.StuckTimeout)
+	movesBeforeRetreat := len(in.moves)
+	res := a.Tick(context.Background(), st)
+	if res.Done || res.Status != PersonalStashPending {
+		t.Fatalf("first stuck res=%+v, want local return to origin", res)
+	}
+	if len(in.moves) <= movesBeforeRetreat {
+		t.Fatalf("moves=%d, want retreat force-move after first stuck", len(in.moves))
+	}
+}
+
+func TestPersonalStashActionsRetriesApproachAfterReturningToOrigin(t *testing.T) {
+	in := newMockInput()
+	cfg := stashApproachConfig()
+	a := NewPersonalStashActions(config.NewLogger("error"), in, cfg)
+	st := farStashFromPortal()
+
+	_ = a.Tick(context.Background(), st)
+	st.At = st.At.Add(20 * time.Millisecond)
+	st.Player.Position = world.Position{X: 120, Y: 100}
+	_ = a.Tick(context.Background(), st)
+	st.At = st.At.Add(cfg.TownWalk.StuckTimeout)
+	if res := a.Tick(context.Background(), st); res.Done {
+		t.Fatalf("first stuck res=%+v, want local origin return", res)
+	}
+
+	st.At = st.At.Add(cfg.TownWalk.MoveInterval)
+	st.Player.Position = world.Position{X: 100, Y: 100}
+	res := a.Tick(context.Background(), st)
+	if res.Done || res.Status != PersonalStashPending {
+		t.Fatalf("origin arrival res=%+v, want retry from portal", res)
+	}
+	if a.routeIndex != 0 {
+		t.Fatalf("routeIndex=%d, want detour restart after origin return", a.routeIndex)
+	}
+}
+
+func TestPersonalStashActionsFailsAfterSecondApproachStuck(t *testing.T) {
+	in := newMockInput()
+	cfg := stashApproachConfig()
+	a := NewPersonalStashActions(config.NewLogger("error"), in, cfg)
+	st := farStashFromPortal()
+
+	_ = a.Tick(context.Background(), st)
+	st.At = st.At.Add(20 * time.Millisecond)
+	st.Player.Position = world.Position{X: 120, Y: 100}
+	_ = a.Tick(context.Background(), st)
+	st.At = st.At.Add(cfg.TownWalk.StuckTimeout)
+	if res := a.Tick(context.Background(), st); res.Done {
+		t.Fatalf("first stuck res=%+v, want local origin return", res)
+	}
+
+	st.At = st.At.Add(cfg.TownWalk.MoveInterval)
+	st.Player.Position = world.Position{X: 100, Y: 100}
+	_ = a.Tick(context.Background(), st)
+
+	st.At = st.At.Add(cfg.TownWalk.MoveInterval)
+	st.Player.Position = world.Position{X: 120, Y: 100}
+	_ = a.Tick(context.Background(), st)
+	st.At = st.At.Add(cfg.TownWalk.StuckTimeout)
+	res := a.Tick(context.Background(), st)
+	if res.Status != PersonalStashApproachFailed || !res.Done || res.Reason != "stuck" {
+		t.Fatalf("second stuck res=%+v, want stash_approach_failed", res)
+	}
+}
+
+func TestPersonalStashActionsFailsWhenOriginReturnIsAlsoStuck(t *testing.T) {
+	in := newMockInput()
+	cfg := stashApproachConfig()
+	a := NewPersonalStashActions(config.NewLogger("error"), in, cfg)
+	st := farStashFromPortal()
+
+	_ = a.Tick(context.Background(), st)
+	st.At = st.At.Add(20 * time.Millisecond)
+	st.Player.Position = world.Position{X: 120, Y: 100}
+	_ = a.Tick(context.Background(), st)
+	st.At = st.At.Add(cfg.TownWalk.StuckTimeout)
+	if res := a.Tick(context.Background(), st); res.Done {
+		t.Fatalf("first stuck res=%+v, want retreat", res)
+	}
+
+	st.At = st.At.Add(cfg.TownWalk.StuckTimeout)
+	res := a.Tick(context.Background(), st)
+	if res.Status != PersonalStashApproachFailed || !res.Done || res.Reason != "stuck" {
+		t.Fatalf("retreat stuck res=%+v, want stash_approach_failed", res)
+	}
+}

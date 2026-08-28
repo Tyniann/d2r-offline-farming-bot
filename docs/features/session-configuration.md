@@ -40,6 +40,7 @@ session:
     - route_recovery_unsafe
     - boss_combat_unprojectable
     - cow_combat_no_progress
+    - stash_approach_failed
 ```
 
 `max_runs`, `max_duration_ms` und alle State-Timeouts müssen positiv sein. Es gibt keinen Wert für unbegrenzten Betrieb. `cooldown_ms`, `max_consecutive_failures` und `max_total_restarts` dürfen explizit `0` sein; diese restriktiven Nullwerte werden nicht durch Defaults ersetzt.
@@ -82,4 +83,4 @@ Die Phase-7.5-Abnahme umfasst drei Operatorfälle: einen deaktivierten Plan mit 
 - [Run-Verfügbarkeit und Inspect](run-availability.md)
 
 ---
-*Zuletzt aktualisiert: 2026-07-13*
+*Zuletzt aktualisiert: 2026-08-28*

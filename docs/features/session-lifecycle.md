@@ -93,13 +93,13 @@ Der Lifecycle klassifiziert stabile Reason-Codes, nicht Logtexte. Unbekannte Cod
 | Klasse | Beispiele | Entscheidung |
 |--------|-----------|--------------|
 | `transient` | kurzzeitig ungültiger Snapshot oder Loading innerhalb des aktuellen Zustandsbudgets | Warten, ohne Input und ohne Game-Restart. |
-| `run_restartable` | live validierter `hard_stuck`, `route_drift_exceeded`, `route_segment_timeout` oder `route_transition_failed` | Run abbrechen, Fehlerbudget abbuchen; Game-Restart nur über einen validierten sicheren Exit-Flow. |
+| `run_restartable` | live validierter `hard_stuck`, `route_drift_exceeded`, `route_segment_timeout`, `route_transition_failed` oder `stash_approach_failed` | Run abbrechen, Fehlerbudget abbuchen; Game-Restart nur über einen validierten sicheren Exit-Flow. |
 | `terminal_context` | falscher Charakter, Game-Version oder Layout-Fingerprint; `unexpected_area`; unbekannter Menüscreen | Session stoppen, keine weiteren Inputs. |
 | `terminal_config` | unbekannter Run, fehlende Route/Bindings, ungültige Budgets oder nicht verdrahtete Actions | Vor Input stoppen. |
 | `terminal_infrastructure` | Prozessverlust, Telemetriefehler, nicht retrybarer Input-/Fensterfehler | Session stoppen und Telemetrie soweit möglich flushen. |
 | `operator_stop` | Stop-Hotkey oder Context-Cancel durch Operator | Aktiven Executor canceln, keine neuen Inputs, Ergebnis `stopped`. |
 
-Ein `run_restartable`-Fehler versucht zunächst den kontrollierten Rückweg. Bleibt ein Portaleintritt nach dem ersten bestätigten Klick aus, räumt die Task-Pipeline einmal begrenzt um dasselbe Portal und wiederholt den Eintritt genau einmal. Scheitert der Rückweg weiterhin, darf ausschließlich der zentrale Game-Lifecycle das bestätigte aktuelle Offline-Spiel direkt verlassen. Nur ein Memory-bestätigter Exit erlaubt den Neustart desselben Queue-Index; ein unsicherer Kontext oder Exit-Fehler beendet die Session.
+Ein `run_restartable`-Fehler versucht zunächst den kontrollierten Rückweg. Steht die Figur bereits im Rogue Encampment, entfällt dieser Portalrückweg und der Supervisor geht direkt in Save & Exit. Bleibt ein Portaleintritt nach dem ersten bestätigten Klick aus, räumt die Task-Pipeline einmal begrenzt um dasselbe Portal und wiederholt den Eintritt genau einmal. Scheitert der Rückweg weiterhin, darf ausschließlich der zentrale Game-Lifecycle das bestätigte aktuelle Offline-Spiel direkt verlassen. Nur ein Memory-bestätigter Exit erlaubt den Neustart desselben Queue-Index; ein unsicherer Kontext oder Exit-Fehler beendet die Session.
 
 ## Hard-Stuck-Vertrag
 
@@ -280,4 +280,4 @@ Phase 7.0 ist abgeschlossen, wenn Zustände und Übergänge, unterstützte Start
 - [Notfall-Recovery für Run und Spielstart](emergency-run-recovery.md)
 
 ---
-*Zuletzt aktualisiert: 2026-08-27*
+*Zuletzt aktualisiert: 2026-08-28*

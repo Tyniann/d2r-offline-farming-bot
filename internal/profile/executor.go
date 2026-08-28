@@ -320,9 +320,10 @@ func (e *Executor) TickRouteMaintenance(state world.State, now time.Time) Result
 // TickResources evaluates prioritized potion policy with an optional route
 // context and sends at most one belt input. Merc healing runs only after every
 // player resource rule declines and only when AllowMercenary is set.
-// MobilityCritical mana recovery must not starve mercenary healing: when the
-// selected player demand is only route mana-hold (not EmergencyMana / rejuv /
-// player HP), merc heal is evaluated first.
+// Critical HP prefers rejuvenation and falls back to a healing potion when
+// column 4 is empty. MobilityCritical mana recovery must not starve mercenary
+// healing: when the selected player demand is only route mana-hold (not
+// EmergencyMana / rejuv / player HP), merc heal is evaluated first.
 func (e *Executor) TickResources(state world.State, resourceContext ResourceContext, now time.Time) Result {
 	if !resourceWorldReady(state) {
 		return Result{Status: StatusComplete}
@@ -572,6 +573,13 @@ func (e *Executor) emitFailure(event Event, reason string) {
 func (e *Executor) selectResource(state world.State, resourceContext ResourceContext) (ResourceKind, ResourceRule, bool) {
 	policy := e.definition.Resources
 	if state.Player.MaxHP > 0 && state.Player.HPPercent() <= policy.Rejuvenation.UseBelowPercent {
+		if _, _, ok := selectBeltItem(state, ResourceRejuvenation, policy.Rejuvenation.BeltSlots); ok {
+			return ResourceRejuvenation, policy.Rejuvenation, true
+		}
+		// Critical HP still needs a refillable healing potion when column 4 is empty.
+		if _, _, ok := selectBeltItem(state, ResourceHealing, policy.Healing.BeltSlots); ok {
+			return ResourceHealing, policy.Healing, true
+		}
 		return ResourceRejuvenation, policy.Rejuvenation, true
 	}
 	if resourceContext.EmergencyMana {

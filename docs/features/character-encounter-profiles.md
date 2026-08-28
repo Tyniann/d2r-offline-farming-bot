@@ -38,7 +38,7 @@ Die Live-Abnahme `cows-20260808t213733999999999z-6ddb2272` schließt das Bone-Ar
 
 Die Resource Policy läuft bei gültigen In-Game-Ticks vor Hooks und Run-Aktionen. Priorität:
 
-1. kritische HP → Rejuvenation;
+1. kritische HP → Rejuvenation, sonst Healing wenn keine Rejuvenation im Gürtel liegt;
 2. Route-Emergency-Mana bzw. Mobility-Mana (nur mit `ResourceContext`);
 3. niedrige HP → Healing;
 4. niedriges Mana → Mana Potion;

@@ -145,7 +145,7 @@ Stat-Liste am Unit `+0x88`: Die Probe bevorzugt `BaseStats` bei `statsListEx + 0
 - IDs: Life=6, MaxLife=7, Mana=8, MaxMana=9 (d2go `pkg/data/stat`)
 - Life/Mana-Skalierung: `value >> 8`
 - Gold-IDs: `gold=14`, `goldbank=15`, unskaliert. D2R `3.2.92777` `itemstatcost.txt` und ein Live-Vergleich (`50938`/`2401390`) bestätigen Quelle und Encoding; Shared-Stash-Gold wird nicht daraus abgeleitet.
-- `HP`/`Mana` sind die aktuellen Werte. `MaxHP`/`MaxMana` folgen dem aktuellen Stat-Cap, sobald das Leben wieder darin liegt. Nur solange der aktuelle Wert das gelesene Max übersteigt (zum Beispiel Battle Orders), bleibt das beobachtete Max angehoben. Ein klebender Peak nach Buff-Ende würde volles Leben als Schaden werten.
+- `HP`/`Mana` sind die aktuellen Werte. `MaxHP`/`MaxMana` merken das höchste beobachtete Maximum, solange der aktuelle Wert das gelesene Stat-Cap übersteigt (zum Beispiel Battle Orders). Dieser Peak bleibt auch bei Schaden unter dem ungebufften Cap erhalten, damit die Prozentwerte der Lebenskugel folgen. Er fällt erst, wenn aktuelles Leben und Stat-Cap wieder zusammenfallen (Buff-Ende). Ein klebender Peak nach Buff-Ende würde volles Leben als Schaden werten.
 - Fehlt einer der vier Werte → `Valid=false`, `reason=stats_unavailable`
 
 ## Operator / CLI
@@ -215,4 +215,4 @@ Semantische World-State-Validierung (Countess-Route, Area-Namen, `hp_pct`, Log-P
 - [World Model](world-model.md) — Domain-Typen und kontinuierliches Update im App-Loop
 
 ---
-*Zuletzt aktualisiert: 2026-08-20*
+*Zuletzt aktualisiert: 2026-08-28*

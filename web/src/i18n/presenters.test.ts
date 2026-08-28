@@ -53,6 +53,8 @@ describe("semantische Presenter", () => {
   it("zeigt die Recovery-Grenzfehler als kurze Bedienhinweise", () => {
     expect(presentProblem({ code: "game_exit_failed" }, i18n.t)).toBe("Das Spiel konnte nicht sicher beendet werden. Die Session wurde gestoppt.");
     expect(presentProblem({ code: "start_town_normalization_failed" }, i18n.t)).toBe("Die Rückkehr nach Akt 1 ist fehlgeschlagen.");
+    expect(presentProblem({ code: "stash_approach_failed" }, i18n.t)).toBe("Der Weg zum Stash war blockiert.");
+    expect(presentHistoryReason("stash_approach_failed", i18n.t)).toBe("Der Weg zum Stash war blockiert.");
   });
 
   it("übersetzt Difficulty, Run, Klasse und eingebautes Profil", async () => {

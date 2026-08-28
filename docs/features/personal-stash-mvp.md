@@ -34,7 +34,9 @@ Ein normales Inventarfenster gibt Stash-Aktionen deshalb nicht frei. Fixed-coord
 
 ### Town-Navigation
 
-`PersonalStashActions` sucht `ObjectKindPersonalStash` im World Model. Aus dem Town-Portalbereich läuft die Figur per Force Move zum Stash; Teleport wird in Town nicht verwendet. Zwei relativ zum Memory-Stash definierte Detour-Anker `(+10,+18)` und `(+4,+14)` umgehen die live beobachtete Town-Geometrie. Relative Punkte vermeiden eine Abhängigkeit vom absoluten Koordinatenursprung der Town-Instanz.
+`PersonalStashActions` sucht `ObjectKindPersonalStash` im World Model. Aus dem Town-Portal- oder Waypoint-Bereich läuft die Figur per Force Move zum Stash; Teleport wird in Town nicht verwendet. Zwei relativ zum Memory-Stash definierte Detour-Anker `(+10,+18)` und `(+4,+14)` umgehen die live beobachtete Town-Geometrie. Relative Punkte vermeiden eine Abhängigkeit vom absoluten Koordinatenursprung der Town-Instanz.
+
+Beim ersten Tick des Anlaufs merkt sich der Bot den Graph-Anker, von dem die Figur gekommen ist: ein nahes Town Portal, sonst ein naher Waypoint, sonst die Startposition. Bleibt der Force-Move `pathing.town_walk.stuck_timeout_ms` ohne Tile-Fortschritt stehen, läuft die Figur einmal zu diesem Anker zurück und wiederholt die Detours. Ein zweiter Stuck oder ein Stuck auf dem Rückweg endet mit `stash_approach_failed`; die Session macht dann Save & Exit und startet denselben Queue-Eintrag neu, ohne in der Stadt ein Recovery-Portal zu casten.
 
 Der Stash wird nur innerhalb der Klickdistanz angeklickt. Nach dem letzten Force-Move muss die Memory-Position zunächst für `pathing.town_walk.settle_timeout_ms` stabil bleiben; jede Bewegung um mindestens ein Tile setzt diese Wartephase zurück und verwirft einen bereits begonnenen Hover-Versuch. Erst danach darf die passende Object-`UnitID` im Hover-Buffer den Klick freigeben. Erfolg ist ausschließlich `StashOpen=true` aus Memory.
 
@@ -88,7 +90,7 @@ precheck -> open_personal_stash -> stash_items -> close_personal_stash -> comple
 | Reason | Bedeutung |
 |---|---|
 | `stash_not_found` | Kein lokal klassifiziertes Personal-Stash-Objekt im World Model |
-| `stash_approach_failed` | Town-Walking ohne ausreichenden Fortschritt oder Projektionsfehler |
+| `stash_approach_failed` | Zweiter Town-Walking-Stuck oder Projektionsfehler nach einem lokalen Rückweg zum Portal-/Waypoint-Anker; Session-Retry |
 | `stash_open_failed` | Hover/Klick/UI-Bestätigung fehlgeschlagen oder falsches UI offen |
 | `stash_failed` | Kandidat/Inventory unsicher, Input fehlgeschlagen oder Transfer nicht bestätigt |
 | `stash_close_failed` | `Esc` oder geschlossene UI nicht bestätigt |
@@ -118,4 +120,4 @@ Am 10.07.2026 wurden zwei E2E-Schnitte validiert:
 - [Countess-Run](countess-run.md)
 
 ---
-*Zuletzt aktualisiert: 2026-07-14*
+*Zuletzt aktualisiert: 2026-08-28*

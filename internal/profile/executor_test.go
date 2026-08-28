@@ -301,6 +301,23 @@ func TestRouteResourcePriorityUsesCriticalHPThenEmergencyManaThenRejuvenation(t 
 		}
 	})
 
+	t.Run("critical hp uses healing without rejuvenation", func(t *testing.T) {
+		actions := &actionMock{}
+		e, _ := NewExecutor(config.NewLogger("error"), testDefinition(), actions)
+		state, now := profileState(), time.Now()
+		state.Player.HP = 20
+		state.Items = []world.Item{
+			{UnitID: 10, Type: "hpot", Location: world.ItemLocationBelt, PlayerOwned: true, GridX: 0},
+		}
+		got := e.TickResources(state, ResourceContext{}, now)
+		if got.Status != StatusAction || got.Resource != ResourceHealing || got.BeltSlot != 1 {
+			t.Fatalf("healing fallback = %+v", got)
+		}
+		if len(actions.belts) != 1 || actions.belts[0] != 1 {
+			t.Fatalf("belts=%v", actions.belts)
+		}
+	})
+
 	t.Run("emergency mana", func(t *testing.T) {
 		actions := &actionMock{}
 		e, _ := NewExecutor(config.NewLogger("error"), testDefinition(), actions)

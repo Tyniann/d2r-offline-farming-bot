@@ -702,8 +702,12 @@ func (u *runtimeQueueUnit) RunToTown(ctx context.Context, request SupervisorRunR
 		// configurable retry classes and delegate one Save & Exit to the supervisor.
 		result = SupervisorRunResult{Disposition: QueueRunStop, Reason: taskResult.Reason, ExitAuthorization: ExitAuthorizationMemoryGatedCurrentArea}
 	} else if isMandatoryControlledExit(taskResult.Reason) || isRestartableSessionFailure(taskResult.Reason, u.runtime.Config.Session.RetryClasses) {
+		state := world.State{}
+		if u.runtime.World != nil {
+			state = u.runtime.World.Current()
+		}
 		var recoveryErr error
-		result, recoveryErr = controlledRetryResult(ctx, taskResult.Reason, u.runtime.runRetryReturnToTown)
+		result, recoveryErr = restartableFailureResult(ctx, taskResult.Reason, state, u.runtime.runRetryReturnToTown)
 		if recoveryErr != nil {
 			u.runtime.Log.Error("controlled retry return failed", "run", request.DefinitionID, "reason", taskResult.Reason, "error", recoveryErr)
 		}
@@ -718,6 +722,20 @@ func (u *runtimeQueueUnit) RunToTown(ctx context.Context, request SupervisorRunR
 
 func isMandatoryControlledExit(reason string) bool {
 	return reason == reasonMercenaryDiedDuringRun || reason == "combat_resource_exhausted" || reason == string(tasks.RouteThreatReasonManaRecoveryFailed)
+}
+
+func verifiedRogueTown(state world.State) bool {
+	return state.Valid && state.Phase == world.GamePhaseInGame && state.Area.ID == world.RogueEncampment
+}
+
+func restartableFailureResult(ctx context.Context, reason string, state world.State, recoverToTown func(context.Context) error) (SupervisorRunResult, error) {
+	// Stash-approach failures already stand in Rogue Encampment. Casting a
+	// recovery Town Portal from town would be the wrong recovery and can fail
+	// closed. Skip straight to the verified-town Save & Exit retry.
+	if verifiedRogueTown(state) {
+		return SupervisorRunResult{Disposition: QueueRunRetryCurrent, Reason: reason, ExitAuthorization: ExitAuthorizationVerifiedRogueTown}, nil
+	}
+	return controlledRetryResult(ctx, reason, recoverToTown)
 }
 
 func controlledRetryResult(ctx context.Context, reason string, recoverToTown func(context.Context) error) (SupervisorRunResult, error) {

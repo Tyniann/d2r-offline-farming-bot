@@ -127,7 +127,7 @@ func BenchmarkThreatAssessment512(b *testing.B) {
 	cfg := phase17ThreatConfig()
 	b.ReportAllocs()
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		benchmarkThreatAssessment = assessThreats(state, progress, allowed, cfg)
 	}
 }
