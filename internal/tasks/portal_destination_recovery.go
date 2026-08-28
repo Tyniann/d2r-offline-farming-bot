@@ -20,7 +20,7 @@ type portalDestinationPhase string
 // Destination recovery remains inside stepReturnWaitOriginTown, so all phases
 // share the original return timeout: observe -> clear -> teleport -> settle ->
 // retry click -> passive wait. Town arrival succeeds from every phase;
-// invalid/loading snapshots are input-free, and any other valid area aborts.
+// invalid/loading snapshots are input-free, and any other known area aborts.
 const (
 	portalDestinationObserve    portalDestinationPhase = ""
 	portalDestinationClear      portalDestinationPhase = "clear"
@@ -40,7 +40,13 @@ func (c *runPipeline) tickWaitOriginTown(ctx context.Context, deps pipelineRetur
 	if state.Area.ID == c.originTownArea() {
 		return c.completePortalDestinationRecovery(deps, state)
 	}
-	if state.Area.ID != c.effectiveDefinition().RouteTerminalArea {
+	// A portal transition can briefly expose either Area 0 or the last source
+	// snapshot after the click. Retry-return already stabilized that source area
+	// before allowing input, so keep it authoritative until town arrives.
+	if state.Area.ID == world.None {
+		return stepResult{}
+	}
+	if !c.isPortalSourceArea(state.Area.ID) {
 		if reason := c.stopPortalDestinationCombat(deps); reason != "" {
 			return stepResult{failed: true, reason: reason}
 		}
@@ -63,6 +69,13 @@ func (c *runPipeline) tickWaitOriginTown(ctx context.Context, deps pipelineRetur
 	default:
 		return stepResult{failed: true, reason: "portal_destination_state_invalid"}
 	}
+}
+
+func (c *runPipeline) isPortalSourceArea(areaID world.AreaID) bool {
+	if c.phase == RunPhaseRetryReturn && c.ret.recoveryAreaID != world.None {
+		return areaID == c.ret.recoveryAreaID
+	}
+	return areaID == c.effectiveDefinition().RouteTerminalArea
 }
 
 func (c *runPipeline) tickPortalDestinationObservation(deps pipelineReturnDeps, state world.State, now time.Time) stepResult {

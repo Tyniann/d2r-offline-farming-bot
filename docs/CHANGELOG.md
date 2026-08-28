@@ -7,6 +7,9 @@ Versionierung nach [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+- Keep the stabilized retry-return source area valid while a Town Portal transition still exposes the pre-load snapshot
+
 ## [0.25.0] - 2026-08-27
 
 ### Added
