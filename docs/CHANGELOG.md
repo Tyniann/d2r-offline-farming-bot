@@ -7,8 +7,6 @@ Versionierung nach [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-## [0.26.0] - 2026-08-28
-
 ### Added
 - Show a session-end dialog with wall-clock duration and expandable kept/sold item aggregates
 - Let character settings set Akara healing and mana restock thresholds per combat profile
