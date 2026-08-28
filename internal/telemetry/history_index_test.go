@@ -233,7 +233,7 @@ func TestHistoryIndexKeepsSessionWithRecoveryRunIDsAndSessionKeepReturn(t *testi
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := index.Refresh(); err != nil {
+	if err = index.Refresh(); err != nil {
 		t.Fatal(err)
 	}
 	snapshot := index.Snapshot("")
@@ -265,7 +265,7 @@ func TestHistoryIndexRejectsGameLifecycleThatLeaksRunID(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := index.Refresh(); err != nil {
+	if err = index.Refresh(); err != nil {
 		t.Fatal(err)
 	}
 	snapshot := index.Snapshot("")
