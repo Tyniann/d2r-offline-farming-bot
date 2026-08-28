@@ -6,10 +6,36 @@ Persönliches Fallbeispiel: Architektur und Abnahme kommen von mir, der Code ist
 
 English: a Windows desktop app (Go core, Electron UI) for repeatable **offline** D2R farming. Personal AI-assisted engineering case study, not an online cheat and not affiliated with Blizzard.
 
+## Klassen und Builds
+
+Necromancer und Hammerdin sind spielbar. Blizzard-Sorc kommt als Nächstes.
+
+![Necromancer Bone Spear und Paladin Sacred Hammer sind spielbar, Sorceress Blizzard ist in Arbeit](docs/assets/classes/roster.jpg)
+
+<table>
+  <tr>
+    <td align="center" valign="top" width="33%">
+      <img src="docs/assets/classes/necromancer-badge.jpg" width="96" alt="Bone Spear" /><br />
+      <strong>Necromancer</strong><br />
+      Bone Spear · unterstützt
+    </td>
+    <td align="center" valign="top" width="33%">
+      <img src="docs/assets/classes/paladin-badge.jpg" width="96" alt="Sacred Hammer" /><br />
+      <strong>Paladin</strong><br />
+      Sacred Hammer · unterstützt
+    </td>
+    <td align="center" valign="top" width="33%">
+      <img src="docs/assets/classes/sorceress-badge.jpg" width="96" alt="Blizzard" /><br />
+      <strong>Sorceress</strong><br />
+      Blizzard · in Arbeit
+    </td>
+  </tr>
+</table>
+
 ## Was es kann
 
 - Farming-Ziele: Countess, Mephisto, Summoner, Nihlathak, Cow Level, Lower-Kurast-Supertruhen
-- Kampfprofile: Necromancer und Hammerdin, inklusive Mercenary
+- Kampfprofile: Necromancer Bone Spear und Hammerdin, jeweils mit Mercenary. Blizzard-Sorc folgt
 - Selbst aufgezeichnete Routen mit Playback gegen das Memory-World-Model
 - Pickit-Profile, Town (Identifizieren, Verkaufen, Stash), Session-Queue und begrenzte Run-Recovery
 - Desktop-UI auf Deutsch und Englisch, plus Windows-Installer

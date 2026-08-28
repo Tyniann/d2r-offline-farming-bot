@@ -7,6 +7,9 @@ Versionierung nach [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- Add class portraits and build badges to the README so GitHub visitors can see supported classes at a glance
+
 ## [0.25.1] - 2026-08-28
 
 ### Added
