@@ -13,6 +13,7 @@ Versionierung nach [Semantic Versioning](https://semver.org/).
 ### Fixed
 - Keep the stabilized retry-return source area valid while a Town Portal transition still exposes the pre-load snapshot
 - Show Resume on the dashboard when a session is paused between routes, instead of the Pause hotkey chip
+- Load the session-end summary without a page limit on the history summary endpoint
 
 ## [0.25.0] - 2026-08-27
 

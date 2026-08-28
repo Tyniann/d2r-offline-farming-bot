@@ -44,10 +44,10 @@ export function SessionSummaryDialog({ sessionID, durationMs, refreshKey, onClos
     const controller = new AbortController();
     setLoading(true);
     setError(false);
-    const query = { session: [sessionID], limit: 200 };
+    const session = { session: [sessionID] };
     void Promise.all([
-      getHistorySummary(query, controller.signal),
-      getHistoryItems(query, controller.signal),
+      getHistorySummary(session, controller.signal),
+      getHistoryItems({ ...session, limit: 200 }, controller.signal),
     ]).then(([summary, page]) => {
       if (controller.signal.aborted) return;
       setKeptCount(summary.summary.funnel.keep_return);

@@ -155,6 +155,7 @@ func TestHistoryAPIRejectsInvalidFiltersLimitsSortsAndMethods(t *testing.T) {
 	for _, path := range []string{
 		"/api/v1/history/summary?from=2026-07-20T10:00:00%2B02:00",
 		"/api/v1/history/summary?unknown=true",
+		"/api/v1/history/summary?session=session-keep&limit=200",
 		"/api/v1/history/summary?timezone=Europe%2FDoes-Not-Exist",
 		"/api/v1/history/runs?limit=201",
 		"/api/v1/history/runs?sort=keep_per_hour",

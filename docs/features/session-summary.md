@@ -30,7 +30,7 @@ Ein Klick auf den Header klappt die nach stabilem Itemkey aggregierte Liste auf.
 
 ### Datenquelle
 
-`last_result.session_id` und `last_result.duration_ms` kommen aus dem Status nach Sessionende. Summary und Itemlisten laden über `GET /api/v1/history/summary` und `GET /api/v1/history/items` mit Filter `session`. React berechnet keine eigenen Funnel-Zahlen.
+`last_result.session_id` und `last_result.duration_ms` kommen aus dem Status nach Sessionende. Summary lädt über `GET /api/v1/history/summary?session=…` ohne `limit`; Itemlisten über `GET /api/v1/history/items` mit demselben Sessionfilter und einer Seite bis 200 Zeilen. `limit` ist nur auf den paginierten Listenendpunkten erlaubt. React berechnet keine eigenen Funnel-Zahlen.
 
 ## Datenmodell
 

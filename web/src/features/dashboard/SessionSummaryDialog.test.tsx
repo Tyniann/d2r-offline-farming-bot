@@ -64,7 +64,17 @@ describe("SessionSummaryDialog", () => {
   it("lädt Core-Daten nur für die beendete Session", async () => {
     render(<SessionSummaryDialog sessionID="session-a" durationMs={1000} refreshKey={4} onClose={() => undefined} />);
     await screen.findByText("Sitzungsdauer: 00:00:01");
-    expect(mocks.summary).toHaveBeenCalledWith({ session: ["session-a"], limit: 200 }, expect.any(AbortSignal));
+    expect(mocks.summary).toHaveBeenCalledWith({ session: ["session-a"] }, expect.any(AbortSignal));
     expect(mocks.items).toHaveBeenCalledWith({ session: ["session-a"], limit: 200 }, expect.any(AbortSignal));
+  });
+
+  it("zeigt die Itemzahlen, wenn Summary Limit als ungültigen Filter ablehnt", async () => {
+    mocks.summary.mockImplementation((query: { limit?: number }) => {
+      if (query.limit !== undefined) return Promise.reject(new Error("filter_invalid"));
+      return Promise.resolve(summary);
+    });
+    render(<SessionSummaryDialog sessionID="session-a" durationMs={1000} refreshKey={0} onClose={() => undefined} />);
+    expect(await screen.findByRole("button", { name: "Aufgehobene Items anzeigen" })).toHaveTextContent("4 aufgehobene Items");
+    expect(screen.queryByText("Die Zusammenfassung konnte nicht geladen werden.")).not.toBeInTheDocument();
   });
 });

@@ -36,7 +36,7 @@ Abschnitt 15.9 ergänzt `POST /api/v1/history/delete-all/preview` und `POST /api
 
 Das identische Filtermodell unterstützt `from`, `to`, `timezone`, `run`, `character`, `difficulty`, `outcome`, `reason`, `pickit_profile` und `session`. Listenwerte dürfen als wiederholte Parameter oder kommasepariert ankommen und werden kanonisch sortiert und dedupliziert. Zeitgrenzen müssen explizites UTC-RFC3339 bilden; das Intervall ist halboffen `[from,to)`. `timezone` ist eine validierte IANA-Zeitzone und normalisiert leer auf `UTC`; unbekannte Werte liefern `history_timezone_invalid`. Vergleiche akzeptieren `keep_per_hour`, `success_rate` und `average_duration` als Core-seitig deterministisch gebrochene Sortierungen.
 
-Run- und Itemseiten verwenden standardmäßig 50 und höchstens 200 Zeilen. Ein opaker Cursor bindet Offset, Dataset, Filter, Serversortierung und Indexgeneration. Eine geänderte Population oder Query wird mit `history_cursor_invalid` abgelehnt, statt Zeilen zu überspringen oder doppelt zu liefern.
+Run- und Itemseiten verwenden standardmäßig 50 und höchstens 200 Zeilen. `limit` und `cursor` sind nur dort erlaubt; Summary, Vergleiche und Export lehnen sie als unbekannten Filter ab. Ein opaker Cursor bindet Offset, Dataset, Filter, Serversortierung und Indexgeneration. Eine geänderte Population oder Query wird mit `history_cursor_invalid` abgelehnt, statt Zeilen zu überspringen oder doppelt zu liefern.
 
 ### Export
 
