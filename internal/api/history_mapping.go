@@ -37,7 +37,7 @@ func historyFilterDTO(filter telemetry.HistoryFilter) HistoryFilterDTO {
 		Runs: append([]string(nil), filter.Runs...), Characters: append([]string(nil), filter.Characters...),
 		Difficulties: append([]string(nil), filter.Difficulties...), Outcomes: append([]telemetry.HistoryOutcome(nil), filter.Outcomes...),
 		Reasons: append([]string(nil), filter.Reasons...), PickitProfiles: append([]string(nil), filter.PickitProfiles...),
-		Sort: filter.Sort,
+		SessionIDs: append([]string(nil), filter.SessionIDs...), Sort: filter.Sort,
 	}
 }
 

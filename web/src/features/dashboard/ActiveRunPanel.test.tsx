@@ -1,5 +1,5 @@
-import { cleanup, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { StatusDTO } from "../../api/generated";
 import { ActiveRunPanel } from "./ActiveRunPanel";
 
@@ -40,5 +40,24 @@ describe("ActiveRunPanel", () => {
     render(<ActiveRunPanel status={{ ...status, pending_intent: "none", recovery_step: "local_recovery_clear" }} hotkeys={{ pause: "Pause", stopAfterRun: "F10", emergencyStop: "F11" }} />);
     expect(screen.getByRole("status")).toHaveTextContent("Rückkehr blockiert. Die unmittelbare Umgebung wird geräumt.");
     expect(screen.queryByText("local_recovery_clear")).not.toBeInTheDocument();
+  });
+
+  it("ersetzt den Pause-Hinweis durch Fortsetzen, sobald die Session zwischen Routen steht", () => {
+    const onResume = vi.fn();
+    render(<ActiveRunPanel
+      status={{ ...status, state: "paused_between_runs", pending_intent: "none", run_progress: undefined }}
+      runName="Mephisto"
+      hotkeys={{ pause: "Pause", stopAfterRun: "F10", emergencyStop: "F11" }}
+      onResume={onResume}
+    />);
+    expect(screen.getByRole("heading", { name: "Session pausiert" })).toBeInTheDocument();
+    expect(screen.getByText("Nächste Route: Mephisto")).toBeInTheDocument();
+    expect(screen.queryByText("Pause", { selector: "kbd" })).not.toBeInTheDocument();
+    expect(screen.queryByText("Session wird vorbereitet")).not.toBeInTheDocument();
+    expect(screen.queryByText(/Route wird ausgeführt/)).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Fortsetzen" }));
+    expect(onResume).toHaveBeenCalledOnce();
+    expect(screen.getByText("F10", { selector: "kbd" })).toBeInTheDocument();
+    expect(screen.getByText("F11", { selector: "kbd" })).toBeInTheDocument();
   });
 });

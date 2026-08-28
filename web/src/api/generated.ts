@@ -45,6 +45,8 @@ export interface SessionResultDTO {
   reason?: string;
   original_reason?: string;
   recovery_reason?: string;
+  session_id?: string;
+  duration_ms?: number;
 }
 
 export interface SelectionStatusDTO {
@@ -703,6 +705,7 @@ export interface HistoryFilterDTO {
   outcomes: Array<string>;
   reasons: Array<string>;
   pickit_profiles: Array<string>;
+  sessions: Array<string>;
   sort?: "keep_per_hour" | "success_rate" | "average_duration";
 }
 
@@ -1079,6 +1082,7 @@ export interface HistoryQuery {
   outcome?: string[];
   reason?: string[];
   pickit_profile?: string[];
+  session?: string[];
   sort?: "keep_per_hour" | "success_rate" | "average_duration";
   limit?: number;
   cursor?: string;

@@ -311,6 +311,7 @@ func (b *LiveBackend) UpdateSupervisor(supervisor app.SupervisorSnapshot) {
 		b.status.LastResult = &SessionResultDTO{
 			Disposition: string(supervisor.LastResult.Disposition), Reason: supervisor.LastResult.Reason,
 			OriginalReason: supervisor.LastResult.OriginalReason, RecoveryReason: supervisor.LastResult.RecoveryReason,
+			SessionID: supervisor.LastSessionID, DurationMs: supervisor.LastSessionDurationMs,
 		}
 	}
 	if supervisor.LastResult.Reason != "" && supervisor.State == app.SupervisorStateStoppedError {
@@ -434,7 +435,7 @@ func (b *LiveBackend) publishStatusDeltas(previous, status StatusDTO) {
 		b.publisher.Publish(telemetry.LiveEvent{Event: "runtime_error_cleared"})
 	}
 	if status.LastResult != nil && (previous.LastResult == nil || *previous.LastResult != *status.LastResult) {
-		b.publisher.Publish(telemetry.LiveEvent{Event: "session_result", Reason: status.LastResult.Reason, Details: map[string]any{"disposition": status.LastResult.Disposition}})
+		b.publisher.Publish(telemetry.LiveEvent{Event: "session_result", Reason: status.LastResult.Reason, Details: map[string]any{"disposition": status.LastResult.Disposition, "session_id": status.LastResult.SessionID, "duration_ms": status.LastResult.DurationMs}})
 	}
 }
 

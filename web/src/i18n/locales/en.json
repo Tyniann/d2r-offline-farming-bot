@@ -123,6 +123,9 @@
       "activeSession": "Active session",
       "runActive": "{{run}} is running",
       "preparing": "Preparing session",
+      "paused": "Session paused",
+      "pausedDetail": "Waiting in the open game",
+      "pausedNext": "Next route: {{run}}",
       "stageAria": "Stage {{current}} of {{total}}",
       "stageDetail": "{{label}} · Stage {{current}} of {{total}} · {{elapsed}} elapsed",
       "runningDetail": "Route in progress · {{elapsed}} elapsed",
@@ -131,6 +134,8 @@
       "emergencyActive": "Emergency stop active",
       "controls": "In-game controls",
       "pauseAfterRun": "Pause after this route",
+      "resume": "Resume",
+      "resumePending": "Resuming…",
       "stopAfterRun": "Stop after this route",
       "stopImmediately": "Stop immediately",
       "recovery": {
@@ -231,6 +236,23 @@
       "recentEmpty": "No route executions yet",
       "securedCount": "{{count}} secured",
       "noItems": "No items"
+    },
+    "sessionSummary": {
+      "title": "Session finished",
+      "duration": "Session duration: {{duration}}",
+      "keptHeader": "{{count}} kept items",
+      "soldHeader": "{{count}} sold items",
+      "itemLine": "{{count}} × {{name}}",
+      "expandKept": "Show kept items",
+      "collapseKept": "Hide kept items",
+      "expandSold": "Show sold items",
+      "collapseSold": "Hide sold items",
+      "loading": "Loading summary",
+      "error": "The summary could not be loaded.",
+      "retry": "Try again",
+      "emptyKept": "No kept items",
+      "emptySold": "No sold items",
+      "close": "Close"
     }
   },
   "characters": {

@@ -15,7 +15,7 @@ Die Historienanalyse ist die einzige Rechenautorität für Farming-Kennzahlen. S
 
 ### Kanonische Population und Filter
 
-Nur `productive_farming` wird analysiert. Zeitraumgrenzen sind ein halboffenes UTC-Intervall. Run, Charakter, Difficulty, Ergebnis, Reason-Code und Pickit-Profil werden innerhalb ihrer Kategorie als Auswahlmenge und zwischen Kategorien gemeinsam angewendet. Aktive und unvollständige Runs bleiben in der Runliste sichtbar, fließen aber nicht in terminale Quoten, Dauern oder Ertragsraten ein.
+Nur `productive_farming` wird analysiert. Zeitraumgrenzen sind ein halboffenes UTC-Intervall. Run, Charakter, Difficulty, Ergebnis, Reason-Code, Pickit-Profil und Session-ID werden innerhalb ihrer Kategorie als Auswahlmenge und zwischen Kategorien gemeinsam angewendet. Aktive und unvollständige Runs bleiben in der Runliste sichtbar, fließen aber nicht in terminale Quoten, Dauern oder Ertragsraten ein.
 
 ### Lokale Tages-Buckets
 
@@ -58,6 +58,7 @@ Vergleiche trennen mindestens `(character, difficulty, definition_id, route_id)`
 - [History-Reader und In-Memory-Index](history-reader-index.md)
 - [Phase-14-Core-Vertrag](phase-14-core-contract.md)
 - [Run-Telemetrie](run-telemetry.md)
+- [Session-Zusammenfassung](session-summary.md)
 
 ---
-*Zuletzt aktualisiert: 2026-07-28*
+*Zuletzt aktualisiert: 2026-08-28*

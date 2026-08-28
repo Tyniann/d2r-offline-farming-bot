@@ -209,7 +209,7 @@ func (s *Server) historyData(w http.ResponseWriter, r *http.Request, options his
 }
 
 func parseHistoryFilter(query url.Values, options historyQueryOptions) (telemetry.HistoryFilter, error) {
-	allowed := map[string]bool{"from": true, "to": true, "timezone": true, "run": true, "character": true, "difficulty": true, "outcome": true, "reason": true, "pickit_profile": true}
+	allowed := map[string]bool{"from": true, "to": true, "timezone": true, "run": true, "character": true, "difficulty": true, "outcome": true, "reason": true, "pickit_profile": true, "session": true}
 	if options.sort != "" {
 		allowed["sort"] = true
 	}
@@ -236,7 +236,7 @@ func parseHistoryFilter(query url.Values, options historyQueryOptions) (telemetr
 	filter := telemetry.HistoryFilter{
 		Timezone: query.Get("timezone"),
 		Runs:     queryList(query, "run"), Characters: queryList(query, "character"), Difficulties: queryList(query, "difficulty"),
-		Reasons: queryList(query, "reason"), PickitProfiles: queryList(query, "pickit_profile"),
+		Reasons: queryList(query, "reason"), PickitProfiles: queryList(query, "pickit_profile"), SessionIDs: queryList(query, "session"),
 	}
 	timezone, timezoneErr := telemetry.NormalizeHistoryTimezone(filter.Timezone)
 	if timezoneErr != nil {

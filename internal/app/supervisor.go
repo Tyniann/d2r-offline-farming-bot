@@ -117,6 +117,10 @@ type SupervisorSnapshot struct {
 	Budgets             FarmQueueBudgets
 	LastResult          SupervisorRunResult
 	GameID              string
+	// LastSessionID is the productive session identity of the last finished worker.
+	LastSessionID string
+	// LastSessionDurationMs is the wall-clock duration of that last session.
+	LastSessionDurationMs int64
 }
 
 type supervisorCommandRecord struct {
@@ -128,32 +132,34 @@ type supervisorCommandRecord struct {
 // SessionSupervisor serializes commands and owns exactly one cancellable
 // worker generation. Snapshot never exposes mutable internal state.
 type SessionSupervisor struct {
-	mu                  sync.Mutex
-	runner              SupervisorRunner
-	queueGuard          FarmQueueGuard
-	state               SupervisorState
-	intent              SupervisorIntent
-	request             SupervisorRunRequest
-	plan                FarmQueuePlan
-	queueIndex          int
-	cycle               int
-	retry               int
-	startedRuns         int
-	consecutiveFailures int
-	totalRestarts       int
-	gameOpen            bool
-	gameSequence        int
-	gameID              string
-	pendingWrap         bool
-	revalidateNext      bool
-	startedAt           time.Time
-	now                 func() time.Time
-	result              SupervisorRunResult
-	generation          uint64
-	cancel              context.CancelFunc
-	done                chan struct{}
-	commands            map[string]supervisorCommandRecord
-	shutdown            bool
+	mu                    sync.Mutex
+	runner                SupervisorRunner
+	queueGuard            FarmQueueGuard
+	state                 SupervisorState
+	intent                SupervisorIntent
+	request               SupervisorRunRequest
+	plan                  FarmQueuePlan
+	queueIndex            int
+	cycle                 int
+	retry                 int
+	startedRuns           int
+	consecutiveFailures   int
+	totalRestarts         int
+	gameOpen              bool
+	gameSequence          int
+	gameID                string
+	pendingWrap           bool
+	revalidateNext        bool
+	startedAt             time.Time
+	now                   func() time.Time
+	result                SupervisorRunResult
+	lastSessionID         string
+	lastSessionDurationMs int64
+	generation            uint64
+	cancel                context.CancelFunc
+	done                  chan struct{}
+	commands              map[string]supervisorCommandRecord
+	shutdown              bool
 }
 
 // SetQueueGuard installs the between-runs availability guard while no queue is active.
@@ -240,6 +246,8 @@ func (s *SessionSupervisor) startQueue(meta SupervisorCommandMeta, plan FarmQueu
 	s.done = make(chan struct{})
 	s.intent = SupervisorIntentNone
 	s.result = SupervisorRunResult{}
+	s.lastSessionID = ""
+	s.lastSessionDurationMs = 0
 	s.startWorkerLocked()
 	snapshot := s.snapshotLocked()
 	s.rememberLocked(meta, SupervisorCommandStartQueue, payload, snapshot)
@@ -809,6 +817,7 @@ func (s *SessionSupervisor) snapshotLocked() SupervisorSnapshot {
 		QueueKnown: true, Queue: append([]string(nil), s.plan.RunIDs...), QueueIndex: s.queueIndex, Cycle: s.cycle, Retry: s.retry,
 		StartedRuns: s.startedRuns, ConsecutiveFailures: s.consecutiveFailures, TotalRestarts: s.totalRestarts,
 		Budgets: s.plan.Budgets, LastResult: s.result, GameID: s.gameID,
+		LastSessionID: s.lastSessionID, LastSessionDurationMs: s.lastSessionDurationMs,
 	}
 }
 
@@ -823,6 +832,17 @@ func (s *SessionSupervisor) exhaustedBudgetLocked() string {
 }
 
 func (s *SessionSupervisor) finishQueueLocked(state SupervisorState, result SupervisorRunResult, clear bool) {
+	if !s.startedAt.IsZero() {
+		elapsed := s.now().Sub(s.startedAt).Milliseconds()
+		if elapsed < 0 {
+			elapsed = 0
+		}
+		s.lastSessionDurationMs = elapsed
+	}
+	s.lastSessionID = ""
+	if identity, ok := s.runner.(farmQueueSessionIdentity); ok {
+		s.lastSessionID = identity.SessionID()
+	}
 	if lifecycle, ok := s.runner.(FarmQueueLifecycleRunner); ok {
 		if finisher, ok := s.runner.(farmQueueLifecycleFinisher); ok {
 			if err := finisher.FinishQueue(result, state); err != nil {

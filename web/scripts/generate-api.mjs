@@ -124,6 +124,7 @@ export interface HistoryQuery {
   outcome?: string[];
   reason?: string[];
   pickit_profile?: string[];
+  session?: string[];
   sort?: "keep_per_hour" | "success_rate" | "average_duration";
   limit?: number;
   cursor?: string;

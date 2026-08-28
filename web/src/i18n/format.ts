@@ -44,3 +44,12 @@ export function formatDuration(milliseconds: number): string {
   if (seconds > 0 || parts.length === 0) parts.push(new Intl.NumberFormat(locale, { style: "unit", unit: "second", unitDisplay: "short" }).format(seconds));
   return parts.join(" ");
 }
+
+/** formatClockDuration renders wall-clock session length as `HH:MM:SS`. */
+export function formatClockDuration(milliseconds: number): string {
+  const totalSeconds = Math.max(0, Math.round(milliseconds / 1000));
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  return [hours, minutes, seconds].map((part) => String(part).padStart(2, "0")).join(":");
+}

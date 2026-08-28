@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { formatBytes, formatDate, formatDuration, formatNumber, formatPercent } from "./format";
+import { formatBytes, formatClockDuration, formatDate, formatDuration, formatNumber, formatPercent } from "./format";
 import { changeAppLanguage, initializeI18n } from "./index";
 import { localeForLanguage, resolveSupportedLanguage } from "./types";
 
@@ -30,6 +30,8 @@ describe("lokale Formatierung", () => {
     expect(formatPercent(0.125)).toBe("12,5 %");
     expect(formatBytes(1536)).toBe("1,5 KB");
     expect(formatDuration(65_000)).toBe("1 Min. 5 Sek.");
+    expect(formatClockDuration(3_661_000)).toBe("01:01:01");
+    expect(formatClockDuration(0)).toBe("00:00:00");
   });
 
   it("formatiert Datum, Zahl, Prozent, Byte und Dauer auf Englisch", async () => {

@@ -92,6 +92,16 @@ func TestHistoryAPIPaginatesStablyAndRejectsStaleOrChangedCursor(t *testing.T) {
 	assertHistoryAPIError(t, server.URL()+"/api/v1/history/runs?limit=4&cursor="+url.QueryEscape(first.NextCursor), http.StatusBadRequest, string(telemetry.HistoryReasonCursorInvalid))
 }
 
+func TestHistoryAPIAcceptsSessionFilter(t *testing.T) {
+	server, backend := startAPITestServer(t)
+	backend.history = historyAPIFixture()
+	var summary HistorySummaryResponse
+	getHistoryJSON(t, server.URL()+"/api/v1/history/summary?session=session-keep", &summary)
+	if len(backend.historyFilter.SessionIDs) != 1 || backend.historyFilter.SessionIDs[0] != "session-keep" || len(summary.Meta.Filter.SessionIDs) != 1 || summary.Meta.Filter.SessionIDs[0] != "session-keep" {
+		t.Fatalf("session filter backend=%+v echo=%+v", backend.historyFilter, summary.Meta.Filter)
+	}
+}
+
 func TestHistoryAPIForwardsSupportedComparisonSort(t *testing.T) {
 	server, backend := startAPITestServer(t)
 	backend.history = historyAPIFixture()

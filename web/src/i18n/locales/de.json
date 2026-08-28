@@ -123,6 +123,9 @@
       "activeSession": "Aktive Session",
       "runActive": "{{run}} läuft",
       "preparing": "Session wird vorbereitet",
+      "paused": "Session pausiert",
+      "pausedDetail": "Wartet im offenen Spiel",
+      "pausedNext": "Nächste Route: {{run}}",
       "stageAria": "Etappe {{current}} von {{total}}",
       "stageDetail": "{{label}} · Etappe {{current}} von {{total}} · {{elapsed}} vergangen",
       "runningDetail": "Route wird ausgeführt · {{elapsed}} vergangen",
@@ -131,6 +134,8 @@
       "emergencyActive": "Notstopp aktiv",
       "controls": "Steuerung im Spiel",
       "pauseAfterRun": "Nach dieser Route pausieren",
+      "resume": "Fortsetzen",
+      "resumePending": "Wird fortgesetzt …",
       "stopAfterRun": "Nach dieser Route stoppen",
       "stopImmediately": "Sofort stoppen",
       "recovery": {
@@ -231,6 +236,23 @@
       "recentEmpty": "Noch keine Routenausführungen vorhanden",
       "securedCount": "{{count}} gesichert",
       "noItems": "Keine Items"
+    },
+    "sessionSummary": {
+      "title": "Session beendet",
+      "duration": "Sitzungsdauer: {{duration}}",
+      "keptHeader": "{{count}} aufgehobene Items",
+      "soldHeader": "{{count}} verkaufte Items",
+      "itemLine": "{{count}} × {{name}}",
+      "expandKept": "Aufgehobene Items anzeigen",
+      "collapseKept": "Aufgehobene Items ausblenden",
+      "expandSold": "Verkaufte Items anzeigen",
+      "collapseSold": "Verkaufte Items ausblenden",
+      "loading": "Zusammenfassung wird geladen",
+      "error": "Die Zusammenfassung konnte nicht geladen werden.",
+      "retry": "Erneut versuchen",
+      "emptyKept": "Keine aufgehobenen Items",
+      "emptySold": "Keine verkauften Items",
+      "close": "Schließen"
     }
   },
   "characters": {

@@ -8,7 +8,7 @@ const mocks = vi.hoisted(() => ({
   applySelection: vi.fn(), emergencyStop: vi.fn(), connect: vi.fn(), getCatalog: vi.fn(), getStatus: vi.fn(), getRunAvailabilities: vi.fn(), getOperatorSettings: vi.fn(),
   pauseAfterRun: vi.fn(), previewSelection: vi.fn(), resumeQueue: vi.fn(), startQueue: vi.fn(), stopAfterRun: vi.fn(), validateQueue: vi.fn(),
   confirmRouteMutation: vi.fn(), previewRouteMutation: vi.fn(), startRouteWorkflow: vi.fn(), finishRouteRecording: vi.fn(), getRouteLibrary: vi.fn(), getRouteCandidates: vi.fn(), getRecordingOptions: vi.fn(), getSystemRouteStatus: vi.fn(), getHotkeyHelp: vi.fn(), getRouteWorkflow: vi.fn(),
-  getHistorySummary: vi.fn(), getHistoryComparisons: vi.fn(), getHistoryRuns: vi.fn(),
+  getHistorySummary: vi.fn(), getHistoryComparisons: vi.fn(), getHistoryRuns: vi.fn(), getHistoryItems: vi.fn(),
 }));
 
 vi.mock("../api/client", () => ({
@@ -17,7 +17,7 @@ vi.mock("../api/client", () => ({
   startQueue: mocks.startQueue, stopAfterRun: mocks.stopAfterRun, validateQueue: mocks.validateQueue,
   confirmRouteMutation: mocks.confirmRouteMutation, previewRouteMutation: mocks.previewRouteMutation, startRouteWorkflow: mocks.startRouteWorkflow, finishRouteRecording: mocks.finishRouteRecording,
 }));
-vi.mock("../api/generated", () => ({ getCatalog: mocks.getCatalog, getStatus: mocks.getStatus, getRunAvailabilities: mocks.getRunAvailabilities, getOperatorSettings: mocks.getOperatorSettings, getRouteLibrary: mocks.getRouteLibrary, getRouteCandidates: mocks.getRouteCandidates, getRecordingOptions: mocks.getRecordingOptions, getSystemRouteStatus: mocks.getSystemRouteStatus, getHotkeyHelp: mocks.getHotkeyHelp, getRouteWorkflow: mocks.getRouteWorkflow, getHistorySummary: mocks.getHistorySummary, getHistoryComparisons: mocks.getHistoryComparisons, getHistoryRuns: mocks.getHistoryRuns }));
+vi.mock("../api/generated", () => ({ getCatalog: mocks.getCatalog, getStatus: mocks.getStatus, getRunAvailabilities: mocks.getRunAvailabilities, getOperatorSettings: mocks.getOperatorSettings, getRouteLibrary: mocks.getRouteLibrary, getRouteCandidates: mocks.getRouteCandidates, getRecordingOptions: mocks.getRecordingOptions, getSystemRouteStatus: mocks.getSystemRouteStatus, getHotkeyHelp: mocks.getHotkeyHelp, getRouteWorkflow: mocks.getRouteWorkflow, getHistorySummary: mocks.getHistorySummary, getHistoryComparisons: mocks.getHistoryComparisons, getHistoryRuns: mocks.getHistoryRuns, getHistoryItems: mocks.getHistoryItems }));
 vi.mock("../features/routes/RouteFeature", () => ({ RouteFeature: ({ selectedCharacter, onReturnToOnboarding }: { selectedCharacter: string; onReturnToOnboarding?: () => void }) => <section><h1>Routen</h1><p>Routen-Kontext {selectedCharacter}</p>{onReturnToOnboarding && <button onClick={onReturnToOnboarding}>Zurück zur Einrichtung</button>}</section> }));
 vi.mock("../features/onboarding/OnboardingFeature", () => ({ OnboardingFeature: () => <section><h1>First-Run-Assistent</h1></section> }));
 vi.mock("../features/pickit/PickitFeature", () => ({ PickitFeature: ({ selectedCharacter }: { selectedCharacter: string }) => <section><h1>Pickit</h1><p>Pickit-Kontext {selectedCharacter}</p></section> }));
@@ -64,6 +64,7 @@ describe("App", () => {
     mocks.getHistorySummary.mockResolvedValue({ summary: { runs: 0, terminal_runs: 0, successful: 0, failed: 0, aborted: 0, incomplete: 0, running: 0, boss_kills: 0, durations: { count: 0, total_ms: 0, average_ms: 0, median_ms: 0, minimum_ms: 0, maximum_ms: 0 }, stages: { travel_ms: 0, combat_ms: 0, loot_ms: 0, return_town_ms: 0, other_ms: 0 }, funnel: { seen: 0, matched: 0, picked_up: 0, stashed: 0, sold: 0, keep_return: 0, pickup_lost: 0, post_pickup_lost: 0 } } });
     mocks.getHistoryComparisons.mockResolvedValue({ comparisons: [] });
     mocks.getHistoryRuns.mockResolvedValue({ runs: [] });
+    mocks.getHistoryItems.mockResolvedValue({ items: [] });
   });
 
   it("rendert die repräsentative Shell auf Englisch", async () => {
@@ -632,6 +633,31 @@ describe("App", () => {
 
     render(<App />);
     expect(await screen.findByLabelText("Etappe 6 von 13")).toBeInTheDocument();
+  });
+
+  it("bietet Fortsetzen statt Pause, wenn die Session zwischen Routen pausiert", async () => {
+    const paused = {
+      ...detached,
+      state: "paused_between_runs",
+      lifecycle_phase: "paused_between_runs",
+      generation: 12,
+      pending_intent: "none",
+      game_id: "game-001",
+      selection: { character: "MrBones", difficulty: "nightmare" },
+      queue: { ...queue, index: 1, started_runs: 1 },
+    };
+    mocks.getCatalog.mockResolvedValue({
+      schema_version: 1, revision: 2, default_difficulty: "nightmare", profiles: [], characters: [], difficulties: [],
+      runs: [{ run_id: "countess", display_name: "Countess", status: "runtime_validation_required" }, { run_id: "mephisto", display_name: "Mephisto", status: "runtime_validation_required" }],
+    });
+    mocks.getStatus.mockReset().mockResolvedValue(paused);
+    mocks.resumeQueue.mockResolvedValue({ state: "running_run", generation: 13 });
+    render(<App />);
+    expect(await screen.findByRole("heading", { name: "Session pausiert" })).toBeInTheDocument();
+    expect(screen.getByText("Nächste Route: Mephisto")).toBeInTheDocument();
+    expect(screen.queryByText("Pause", { selector: "kbd" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Fortsetzen" }));
+    await waitFor(() => expect(mocks.resumeQueue).toHaveBeenCalledWith(12));
   });
 });
 

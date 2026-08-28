@@ -102,6 +102,7 @@ Spätere Ideen (noch nicht umgesetzt): [`docs/backlog.md`](../backlog.md).
 | [Internationalisierung Deutsch und Englisch](internationalization.md) | Dynamischer DE-/EN-Wechsel für React, Electron, Recovery und Installer mit sprachneutralem Core-Vertrag und CASC-generierten D2R-Namen |
 | [Lokale Core-API und eingebettete Web-Anwendung](local-core-api.md) | Abschnitt 11.2: Loopback-only HTTP/JSON, Security Envelope, OpenAPI-generierter TypeScript-Client und eingebetteter React-Build |
 | [Live-Dashboard](live-dashboard.md) | App-weite Auswahl, read-only Farm-Queue, Historienkennzahlen und Core-projizierter Run-Fortschritt mit globalen Safety-Hotkeys |
+| [Session-Zusammenfassung](session-summary.md) | Dialog nach Sessionende mit Wanduhr-Dauer und aufklappbaren Keep-/Sell-Aggregaten |
 | [Installierter Datenroot und Desktop-Einstellungen](installed-data-root.md) | Abschnitt 15.1: expliziter Core-Root, hashgebundene Defaults, stagingbasierter Import und getrennter atomarer Desktop-Settings-Store |
 | [Persistente Operator-Einstellungen](operator-settings.md) | Schema 2 mit geschütztem Charakterprofil-Paar, Queues, Budgets, Input, Hotkeys, Retention, Preview/Reset und zehn Backups |
 | [Sichere Electron-Shell und Core-Kindprozess](desktop-shell.md) | Abschnitt 15.3: gehärtetes Einzelfenster, private Handshake-Pipe, Datenroot-Lock, minimale IPC-Bridge und fail-closed Crash-Recovery |

@@ -105,6 +105,29 @@ func TestHistoryAnalyzerFiltersPartitionAndDoNotMutateInput(t *testing.T) {
 	}
 }
 
+func TestHistoryAnalyzerFiltersBySessionID(t *testing.T) {
+	start := time.Date(2026, 7, 20, 10, 0, 0, 0, time.UTC)
+	keep := analyzerRun("keep-a", start, 60, HistoryOutcomeSuccess, "countess", "route-a", true, [4]int64{}, "", "", []analyzerItemFixture{
+		{unitID: 101, key: "base:r15:normal", name: "Ko Rune", action: "keep", seen: true, matched: true, picked: true, stash: true},
+		{unitID: 102, key: "base:r15:normal", name: "Ko Rune", action: "keep", seen: true, matched: true, picked: true, stash: true},
+	})
+	keep.SessionID = "session-keep"
+	sold := analyzerRun("sold-b", start.Add(time.Hour), 30, HistoryOutcomeSuccess, "countess", "route-a", true, [4]int64{}, "", "", []analyzerItemFixture{
+		{unitID: 201, key: "base:gld:normal", name: "Gold", action: "sell", seen: true, matched: true, picked: true, sold: true},
+	})
+	sold.SessionID = "session-other"
+	analysis, err := AnalyzeHistory(HistorySnapshot{Runs: []HistoryRun{keep, sold}}, HistoryFilter{SessionIDs: []string{"session-keep"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if analysis.Summary.TerminalRuns != 1 || analysis.Runs[0].RunID != "keep-a" || analysis.Summary.Funnel.KeepReturn != 2 || analysis.Summary.Funnel.Sold != 0 {
+		t.Fatalf("session filter summary=%+v runs=%+v", analysis.Summary, analysis.Runs)
+	}
+	if len(analysis.Items) != 1 || analysis.Items[0].ItemKey != "base:r15:normal" || analysis.Items[0].Stashed != 2 {
+		t.Fatalf("session items=%+v", analysis.Items)
+	}
+}
+
 func TestHistoryAnalyzerAppliesServerComparisonSortWithStableTieBreak(t *testing.T) {
 	start := time.Date(2026, 7, 20, 10, 0, 0, 0, time.UTC)
 	runs := []HistoryRun{

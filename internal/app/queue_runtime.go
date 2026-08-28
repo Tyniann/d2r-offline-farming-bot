@@ -61,6 +61,10 @@ type farmQueueLifecycleFinisher interface {
 	FinishQueue(SupervisorRunResult, SupervisorState) error
 }
 
+type farmQueueSessionIdentity interface {
+	SessionID() string
+}
+
 // RuntimeQueueRunner owns the production game boundary while creating fresh
 // run-specific state for every queue entry. Closing one Go runtime never ends
 // the D2R game; only [RuntimeQueueRunner.ExitGame] may send Save & Exit.
@@ -388,6 +392,19 @@ func (r *RuntimeQueueRunner) FinishQueue(result SupervisorRunResult, state Super
 		return fmt.Errorf("emit queue session terminal: %w", err)
 	}
 	return nil
+}
+
+// SessionID returns the productive session identity while the recorder is open.
+func (r *RuntimeQueueRunner) SessionID() string {
+	if r == nil {
+		return ""
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.sessionTrace == nil {
+		return ""
+	}
+	return r.sessionTrace.SessionID()
 }
 
 func queueTelemetryEvent(name telemetry.EventName, request SupervisorRunRequest) telemetry.Event {

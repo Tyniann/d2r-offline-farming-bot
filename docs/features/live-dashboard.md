@@ -37,7 +37,9 @@ Während einer Session ersetzt die aktive Run-Karte die Startaktion. Sie zeigt d
 
 Der Fortschritt wird im Status-Snapshot als `run_progress` ausgeliefert. `run_progress_changed` löst über SSE eine serialisierte Status-Neuabfrage nur dann aus, wenn sich die sichtbare Etappe tatsächlich ändert. Ein Renderer-Reload rekonstruiert denselben Stand aus dem Core-Snapshot.
 
-Pause, Stopp nach dem Run und Notstopp sind auf dem Dashboard bewusst keine klickbaren Aktionen. Die Karte zeigt die in den Operator-Einstellungen konfigurierten Hotkeys sowie eine bereits vorgemerkte Absicht. Damit bleiben die globalen Safety-Wege auch ohne Rendererfokus maßgeblich.
+Nach einem terminalen Sessionende öffnet die Shell einen Dialog mit Sitzungsdauer sowie aufklappbaren Listen der aufgehobenen und verkauften Items. Details: [Session-Zusammenfassung](session-summary.md).
+
+Pause, Stopp nach dem Run und Notstopp bleiben auf dem Dashboard keine klickbaren Aktionen. Die Karte zeigt die in den Operator-Einstellungen konfigurierten Hotkeys sowie eine bereits vorgemerkte Absicht. Damit bleiben die globalen Safety-Wege auch ohne Rendererfokus maßgeblich. Sobald der Core `paused_between_runs` erreicht, blendet die Karte den Pause-Hinweis aus und zeigt an derselben Stelle Fortsetzen. Resume hat keinen Hotkey; der Button ruft denselben `resume`-Command wie die Loopback-API.
 
 ### Live-Verbindung und Darstellung
 
@@ -49,7 +51,7 @@ Die Ansicht wechselt bei 1180 Pixeln von drei auf zwei Spalten und unter 1000 Pi
 
 - Im Leerlauf Charakter und Schwierigkeit wählen, bei Bedarf in D2R anwenden und anschließend die gespeicherte Queue starten.
 - Die Queue unter „Einstellungen“ ändern; das Dashboard selbst bleibt read-only.
-- Während eines Runs ausschließlich die angezeigten globalen Hotkeys für Pause, Stopp nach dem Run und Notstopp verwenden.
+- Während eines Runs ausschließlich die angezeigten globalen Hotkeys für Pause, Stopp nach dem Run und Notstopp verwenden. Nach einer Pause die Session über Fortsetzen auf der Run-Karte wieder aufnehmen.
 - Bei unterbrochener Verbindung auf „Verbindung getrennt“ achten; nach dem Reconnect wird der Core-Snapshot erneut geladen.
 
 ## Abhängigkeiten und Grenzen
@@ -67,6 +69,7 @@ Die Ansicht wechselt bei 1180 Pixeln von drei auf zwei Spalten und unter 1000 Pi
 - [Run-Historie im Dashboard](run-history.md)
 - [Persistente Operator-Einstellungen](operator-settings.md)
 - [Desktop-App-Shell und Designsystem](desktop-app-shell.md)
+- [Session-Zusammenfassung](session-summary.md)
 
 ---
-*Zuletzt aktualisiert: 23. August 2026*
+*Zuletzt aktualisiert: 28. August 2026*

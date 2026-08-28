@@ -335,6 +335,9 @@
           },
           {
             "$ref": "#/components/parameters/HistoryPickitProfile"
+          },
+          {
+            "$ref": "#/components/parameters/HistorySession"
           }
         ],
         "responses": {
@@ -381,6 +384,9 @@
           },
           {
             "$ref": "#/components/parameters/HistoryPickitProfile"
+          },
+          {
+            "$ref": "#/components/parameters/HistorySession"
           },
           {
             "$ref": "#/components/parameters/HistoryComparisonSort"
@@ -430,6 +436,9 @@
           },
           {
             "$ref": "#/components/parameters/HistoryPickitProfile"
+          },
+          {
+            "$ref": "#/components/parameters/HistorySession"
           },
           {
             "$ref": "#/components/parameters/HistoryLimit"
@@ -482,6 +491,9 @@
           },
           {
             "$ref": "#/components/parameters/HistoryPickitProfile"
+          },
+          {
+            "$ref": "#/components/parameters/HistorySession"
           },
           {
             "$ref": "#/components/parameters/HistoryLimit"
@@ -569,6 +581,9 @@
           },
           {
             "$ref": "#/components/parameters/HistoryPickitProfile"
+          },
+          {
+            "$ref": "#/components/parameters/HistorySession"
           },
           {
             "name": "format",
@@ -1631,6 +1646,18 @@
         "style": "form",
         "explode": true
       },
+      "HistorySession": {
+        "name": "session",
+        "in": "query",
+        "schema": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "style": "form",
+        "explode": true
+      },
       "HistoryComparisonSort": {
         "name": "sort",
         "in": "query",
@@ -1845,6 +1872,12 @@
           },
           "recovery_reason": {
             "type": "string"
+          },
+          "session_id": {
+            "type": "string"
+          },
+          "duration_ms": {
+            "type": "integer"
           }
         }
       },
@@ -3951,7 +3984,8 @@
           "difficulties",
           "outcomes",
           "reasons",
-          "pickit_profiles"
+          "pickit_profiles",
+          "sessions"
         ],
         "properties": {
           "from_utc": {
@@ -3994,6 +4028,12 @@
             }
           },
           "pickit_profiles": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "sessions": {
             "type": "array",
             "items": {
               "type": "string"

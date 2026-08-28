@@ -82,6 +82,20 @@ func TestLiveBackendProjectsControlledRetryFailureContext(t *testing.T) {
 	}
 }
 
+func TestLiveBackendProjectsLastSessionIdentity(t *testing.T) {
+	backend := &LiveBackend{status: StatusDTO{State: "idle", LifecyclePhase: "idle"}}
+	backend.UpdateSupervisor(app.SupervisorSnapshot{
+		Generation: 2, State: app.SupervisorStateIdle,
+		LastResult:            app.SupervisorRunResult{Disposition: app.QueueRunStop, Reason: string(app.QueueReasonRunBudgetExhausted)},
+		LastSessionID:         "session-20260828t100000000000000z-abcd1234",
+		LastSessionDurationMs: 3_661_000,
+	})
+	status := backend.Status()
+	if status.LastResult == nil || status.LastResult.SessionID != "session-20260828t100000000000000z-abcd1234" || status.LastResult.DurationMs != 3_661_000 {
+		t.Fatalf("last result = %+v", status.LastResult)
+	}
+}
+
 func TestLiveBackendProjectsCurrentRecoveryStep(t *testing.T) {
 	backend := &LiveBackend{status: StatusDTO{State: "running_run", LifecyclePhase: "running_run"}}
 	backend.UpdateRuntime(app.UIStatusSnapshot{RecoveryStep: "local_recovery_clear"})

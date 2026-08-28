@@ -45,6 +45,7 @@ interface Props {
   onRefresh(): Promise<void>;
   onApplySelection(): void;
   onStartQueue(): void;
+  onResumeQueue(): void;
 }
 
 /** DashboardFeature coordinates the idle dashboard while App keeps Core commands and navigation. */
@@ -55,13 +56,15 @@ export function DashboardFeature(props: Props) {
     appDifficultyLabel, selectionNeedsApply, needsFirstRoute, liveLocked, compatibilityState, selectionRuns,
     configuredQueue, queueStartLocked, selectionApplyLocked, applying, commandPending, startFailureText,
     queueWarning, inputNotReady, routeWorkflowBusy, hotkeys, onOpenRoutes, onRefresh,
-    onApplySelection, onStartQueue,
+    onApplySelection, onStartQueue, onResumeQueue,
   } = props;
   const [setupCharacter, setSetupCharacter] = useState("");
   const viewedCatalogEntry = catalog?.characters.find((entry) => entry.name === character);
   const viewedFarmReadyBlocked = !!viewedCatalogEntry && viewedCatalogEntry.selectable && !viewedCatalogEntry.farm_ready;
   const activeRun = (selectionRuns ?? catalog?.runs ?? []).find((entry) => entry.run_id === status?.active_run_id);
+  const nextRunID = status?.state === "paused_between_runs" ? status.queue.entries[status.queue.index] : undefined;
   const activeRunName = activeRun ? dashboardRunName(activeRun.run_id, t) : undefined;
+  const nextRunName = nextRunID ? dashboardRunName(nextRunID, t) : undefined;
 
   return <div className="dashboard-feature">
     <DashboardHeader
@@ -78,7 +81,7 @@ export function DashboardFeature(props: Props) {
       activeRunName={activeRunName}
     />
 
-    {status && !["idle", "idle_in_game", "stopped_error"].includes(status.state) && <ActiveRunPanel status={status} runName={activeRunName} hotkeys={hotkeys} />}
+    {status && !["idle", "idle_in_game", "stopped_error"].includes(status.state) && <ActiveRunPanel status={status} runName={activeRunName ?? nextRunName} hotkeys={hotkeys} commandPending={commandPending} resumeLocked={commandPending || liveLocked} onResume={onResumeQueue} />}
 
     {needsFirstRoute && <section className="first-route-cta"><div><p className="eyebrow">{t("dashboard.setup.continue")}</p><h2>{t("dashboard.setup.firstRouteTitle")}</h2><p>{t("dashboard.setup.firstRouteDetail")}</p></div><Button onClick={() => onOpenRoutes("countess")}>{t("dashboard.setup.firstRouteTitle")}</Button></section>}
     {error && <StateMessage kind="error" title={t("dashboard.setup.statusFailed")}>{error}</StateMessage>}

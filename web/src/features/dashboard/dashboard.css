@@ -67,6 +67,7 @@
 .dashboard-active-run-steps i.is-current { background: #e7ba62; animation: dashboard-stage-pulse 1.8s ease-in-out infinite; }
 .dashboard-active-hotkeys { display: flex; gap: 7px; }
 .dashboard-active-hotkey { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 7px 9px; border: 1px solid #5a454b; border-radius: 9px; background: #1a1519; color: #d8c9cf; }
+.dashboard-active-resume { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 7px 11px; font-size: .8rem; }
 .dashboard-active-hotkey kbd { border: 0; background: transparent; color: inherit; font: inherit; font-size: .73rem; font-weight: 800; }
 .dashboard-active-hotkey.is-active { border-color: #9a6a35; background: #3c2c19; color: #ffd18f; }
 .dashboard-active-hotkey.is-danger { border-color: #7a3a43; background: #351b21; color: #ff949d; }

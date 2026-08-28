@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { CircleArrowUp, History, LayoutDashboard, Map, Settings, SlidersHorizontal, Wifi, WifiOff } from "lucide-react";
 import {
   applySelection, connectLiveEvents, consumeBootstrapToken,
-  previewSelection, startQueue, validateQueue, type LiveConnectionState,
+  previewSelection, resumeQueue, startQueue, validateQueue, type LiveConnectionState,
 } from "../api/client";
 import { getCatalog, getOperatorSettings, getRunAvailabilities, getRouteWorkflow, getStatus, type CatalogDTO, type LiveEvent, type OperatorSettingsDTO, type RouteWorkflowDTO, type RunCatalogEntry, type SelectionPreviewDTO, type StatusDTO } from "../api/generated";
 import "./app.css";
@@ -18,6 +18,7 @@ import { Button, Dialog, PageHeader, StateMessage, StatusBadge } from "./ui";
 import { isRunStartable, queueStartErrorText, selectionErrorText } from "./runReasons";
 import { terminalWorkflowStates } from "../features/routes/routePresentation";
 import { DashboardFeature } from "../features/dashboard/DashboardFeature";
+import { SessionSummaryDialog, sessionSummaryFromTransition } from "../features/dashboard/SessionSummaryDialog";
 import { AppSelectionProvider, useAppSelectionState } from "./AppSelectionContext";
 import { LanguageSwitcher } from "./LanguageSwitcher";
 import { useTranslation } from "react-i18next";
@@ -76,6 +77,8 @@ function CoreApp() {
   const [routeRefreshKey, setRouteRefreshKey] = useState(0);
   const [pickitRefreshKey, setPickitRefreshKey] = useState(0);
   const [historyRefreshKey, setHistoryRefreshKey] = useState(0);
+  const [sessionSummary, setSessionSummary] = useState<{ sessionID: string; durationMs: number } | null>(null);
+  const previousCoreState = useRef<string | undefined>(undefined);
   const [onboardingOpen, setOnboardingOpen] = useState(false);
   const [routeOpenedFromOnboarding, setRouteOpenedFromOnboarding] = useState(false);
   const [preferredRecordingRun, setPreferredRecordingRun] = useState("countess");
@@ -245,6 +248,17 @@ function CoreApp() {
     return () => controller.abort();
   }, [character, difficulty, catalog?.revision, routeRefreshKey]);
 
+  useEffect(() => {
+    const before = previousCoreState.current;
+    previousCoreState.current = status?.state;
+    if (status && !editableStates.has(status.state)) {
+      setSessionSummary(null);
+      return;
+    }
+    const next = sessionSummaryFromTransition(before, status);
+    if (next) setSessionSummary(next);
+  }, [status]);
+
   const refreshAfterCommand = async () => {
     const [nextStatus, nextCatalog, nextWorkflow, nextSettings] = await Promise.all([
       getStatus(),
@@ -320,6 +334,13 @@ function CoreApp() {
         setQueueWarning(t("app.inventoryWarning"));
       }
       await startQueue(entries, status.selection.character!, status.selection.difficulty!, catalog.revision, status.generation);
+    });
+  };
+
+  const submitResume = async () => {
+    if (!status || status.state !== "paused_between_runs") return;
+    await runCommand(async () => {
+      await resumeQueue(status.generation);
     });
   };
 
@@ -435,6 +456,7 @@ function CoreApp() {
           onRefresh={refreshAfterCommand}
           onApplySelection={() => void submitSelection()}
           onStartQueue={() => void submitQueue()}
+          onResumeQueue={() => void submitResume()}
         />}
 
         {target === "routes" && <>{liveLocked && <StateMessage kind="error" title={t("app.routesLockedTitle")}>{t("app.routesLockedDetail")}</StateMessage>}<RouteFeature characters={catalog?.characters.map((entry) => entry.name) ?? []} selectedCharacter={character} onSelectedCharacterChange={(next) => selectCharacter(next, storedCharacterSettings(operatorSettings, catalog, next)?.last_difficulty)} refreshKey={routeRefreshKey} liveLocked={liveLocked} preferredRecordingRun={routeOpenedFromOnboarding ? preferredRecordingRun : ""} onReturnToOnboarding={routeOpenedFromOnboarding ? returnToOnboarding : undefined} /></>}
@@ -446,6 +468,7 @@ function CoreApp() {
 
       {preview && <Dialog title={t("app.routeInvalidationTitle")} onClose={() => !applying && setPreview(null)}><p>{t("app.routeInvalidationIntro", { oldDifficulty: preview.old_difficulty || t("app.unconfirmed"), newDifficulty: preview.new_difficulty })}</p><ul>{preview.affected_routes.map((route) => <li key={route}>{route}</li>)}</ul><p>{t("app.routeInvalidationDetail")}</p><div className="modal-actions"><Button variant="secondary" onClick={() => setPreview(null)} disabled={applying}>{t("common.cancel")}</Button><Button onClick={() => void applyPreview(preview)} disabled={applying}>{t(applying ? "app.applying" : "app.confirmApply")}</Button></div></Dialog>}
       {pendingNav && <Dialog title={t("app.unsavedTitle")} onClose={() => setPendingNav(null)}><p>{t("app.unsavedDetail")}</p><div className="modal-actions"><Button variant="secondary" onClick={() => setPendingNav(null)}>{t("app.returnToSettings")}</Button><Button variant="danger" onClick={discardSettingsAndNavigate}>{t("app.discardChanges")}</Button></div></Dialog>}
+      {sessionSummary && <SessionSummaryDialog sessionID={sessionSummary.sessionID} durationMs={sessionSummary.durationMs} refreshKey={historyRefreshKey} onClose={() => setSessionSummary(null)} />}
     </div>
     </AppSelectionProvider>
   );

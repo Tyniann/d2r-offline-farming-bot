@@ -17,6 +17,7 @@ type HistoryFilterDTO struct {
 	Outcomes       []telemetry.HistoryOutcome `json:"outcomes"`
 	Reasons        []string                   `json:"reasons"`
 	PickitProfiles []string                   `json:"pickit_profiles"`
+	SessionIDs     []string                   `json:"sessions"`
 	Sort           telemetry.HistorySort      `json:"sort,omitempty"`
 }
 

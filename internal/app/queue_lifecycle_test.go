@@ -70,6 +70,10 @@ func (r *fakeLifecycleRunner) CloseQueue() {
 	r.record("close_queue", SupervisorRunRequest{}, "")
 }
 
+func (r *fakeLifecycleRunner) SessionID() string {
+	return "session-lifecycle-test"
+}
+
 func (r *fakeLifecycleRunner) Events() []lifecycleRunnerEvent {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -108,6 +112,10 @@ func TestSameGameQueueStartsOnceRunsAllEntriesAndExitsAtWrap(t *testing.T) {
 	}
 	if events[3].Reason != "queue_wrap" || events[6].Reason != string(QueueReasonRunBudgetExhausted) {
 		t.Fatalf("exit reasons = %q, %q", events[3].Reason, events[6].Reason)
+	}
+	snapshot := supervisor.Snapshot()
+	if snapshot.LastSessionID != "session-lifecycle-test" || snapshot.LastSessionDurationMs < 0 {
+		t.Fatalf("last session = id %q duration=%d", snapshot.LastSessionID, snapshot.LastSessionDurationMs)
 	}
 }
 

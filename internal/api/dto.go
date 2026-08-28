@@ -55,6 +55,8 @@ type SessionResultDTO struct {
 	Reason         string `json:"reason,omitempty"`
 	OriginalReason string `json:"original_reason,omitempty"`
 	RecoveryReason string `json:"recovery_reason,omitempty"`
+	SessionID      string `json:"session_id,omitempty"`
+	DurationMs     int64  `json:"duration_ms,omitempty"`
 }
 
 // QueueStatusDTO projects the immutable active runtime queue and hard budgets.

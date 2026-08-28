@@ -19,6 +19,7 @@ type HistoryFilter struct {
 	Outcomes       []HistoryOutcome
 	Reasons        []string
 	PickitProfiles []string
+	SessionIDs     []string
 	Sort           HistorySort
 }
 
@@ -264,7 +265,7 @@ func validateHistoryFilter(filter HistoryFilter) error {
 			}
 		}
 	}
-	for _, value := range append(append(append(append([]string(nil), filter.Runs...), filter.Characters...), filter.Difficulties...), filter.Reasons...) {
+	for _, value := range append(append(append(append(append([]string(nil), filter.Runs...), filter.Characters...), filter.Difficulties...), filter.Reasons...), filter.SessionIDs...) {
 		if strings.TrimSpace(value) == "" {
 			return historyReadError(HistoryReasonFilterInvalid, "history filter contains an empty value")
 		}
@@ -291,7 +292,7 @@ func historyRunMatches(run HistoryRun, filter HistoryFilter) bool {
 	if filter.FromUTC != nil && run.StartedAt.Before(*filter.FromUTC) || filter.ToUTC != nil && !run.StartedAt.Before(*filter.ToUTC) {
 		return false
 	}
-	if !matchesStringFilter(run.Run, filter.Runs) || !matchesStringFilter(run.Character, filter.Characters) || !matchesStringFilter(run.Difficulty, filter.Difficulties) || !matchesStringFilter(run.Reason, filter.Reasons) || !matchesOutcomeFilter(run.Outcome, filter.Outcomes) {
+	if !matchesStringFilter(run.Run, filter.Runs) || !matchesStringFilter(run.Character, filter.Characters) || !matchesStringFilter(run.Difficulty, filter.Difficulties) || !matchesStringFilter(run.Reason, filter.Reasons) || !matchesStringFilter(run.SessionID, filter.SessionIDs) || !matchesOutcomeFilter(run.Outcome, filter.Outcomes) {
 		return false
 	}
 	if len(filter.PickitProfiles) > 0 {
@@ -827,6 +828,7 @@ func cloneHistoryFilter(filter HistoryFilter) HistoryFilter {
 	filter.Outcomes = append([]HistoryOutcome(nil), filter.Outcomes...)
 	filter.Reasons = append([]string(nil), filter.Reasons...)
 	filter.PickitProfiles = append([]string(nil), filter.PickitProfiles...)
+	filter.SessionIDs = append([]string(nil), filter.SessionIDs...)
 	if filter.FromUTC != nil {
 		value := *filter.FromUTC
 		filter.FromUTC = &value

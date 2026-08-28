@@ -10,7 +10,7 @@ vi.mock("../../api/generated", () => ({
   getHistoryRuns: mocks.runs, getHistoryRun: mocks.detail, downloadHistoryExport: mocks.download,
 }));
 
-const meta = { schema_version: 4, generated_at: "2026-07-22T12:00:00Z", timezone: "UTC", index_generation: 4, filter: { timezone: "UTC", runs: [], characters: [], difficulties: [], outcomes: [], reasons: [], pickit_profiles: [] }, diagnostics: [{ file: "broken.jsonl", code: "history_file_invalid" }], ignored_files: 2 };
+const meta = { schema_version: 4, generated_at: "2026-07-22T12:00:00Z", timezone: "UTC", index_generation: 4, filter: { timezone: "UTC", runs: [], characters: [], difficulties: [], outcomes: [], reasons: [], pickit_profiles: [], sessions: [] }, diagnostics: [{ file: "broken.jsonl", code: "history_file_invalid" }], ignored_files: 2 };
 const durations = { count: 5, total_ms: 360000, average_ms: 72000, median_ms: 60000, minimum_ms: 30000, maximum_ms: 120000 };
 const stages = { travel_ms: 150000, combat_ms: 55000, loot_ms: 55000, return_town_ms: 40000, other_ms: 60000 };
 const funnel = { seen: 6, matched: 6, picked_up: 5, stashed: 3, sold: 1, keep_return: 3, pickup_lost: 1, post_pickup_lost: 1 };
