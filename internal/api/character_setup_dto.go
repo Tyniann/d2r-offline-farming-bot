@@ -15,19 +15,21 @@ type CharacterSetupPreviewRequest struct {
 
 // CharacterSetupProfileDTO beschreibt ein freigegebenes Profil.
 type CharacterSetupProfileDTO struct {
-	ID                 string                               `json:"id"`
-	DisplayName        string                               `json:"display_name"`
-	IsDefault          bool                                 `json:"is_default"`
-	IsSelected         bool                                 `json:"is_selected"`
-	StandardAttack     string                               `json:"standard_attack,omitempty"`
-	RequiredSkills     []CharacterSetupRequiredSkillDTO     `json:"required_skills,omitempty"`
-	OptionalSkillPairs []CharacterSetupOptionalSkillPairDTO `json:"optional_skill_pairs,omitempty"`
-	RequiresMercenary  bool                                 `json:"requires_mercenary"`
-	BindingsReady      bool                                 `json:"bindings_ready"`
-	BindingReasons     []string                             `json:"binding_reasons,omitempty"`
-	SupportedRuns      []string                             `json:"supported_runs,omitempty"`
-	DefaultBeltLayout  OperatorBeltLayoutDTO                `json:"default_belt_layout"`
-	BeltLayout         OperatorBeltLayoutDTO                `json:"belt_layout"`
+	ID                    string                               `json:"id"`
+	DisplayName           string                               `json:"display_name"`
+	IsDefault             bool                                 `json:"is_default"`
+	IsSelected            bool                                 `json:"is_selected"`
+	StandardAttack        string                               `json:"standard_attack,omitempty"`
+	RequiredSkills        []CharacterSetupRequiredSkillDTO     `json:"required_skills,omitempty"`
+	OptionalSkillPairs    []CharacterSetupOptionalSkillPairDTO `json:"optional_skill_pairs,omitempty"`
+	RequiresMercenary     bool                                 `json:"requires_mercenary"`
+	BindingsReady         bool                                 `json:"bindings_ready"`
+	BindingReasons        []string                             `json:"binding_reasons,omitempty"`
+	SupportedRuns         []string                             `json:"supported_runs,omitempty"`
+	DefaultBeltLayout     OperatorBeltLayoutDTO                `json:"default_belt_layout"`
+	BeltLayout            OperatorBeltLayoutDTO                `json:"belt_layout"`
+	DefaultHealingRestock int                                  `json:"default_healing_restock"`
+	DefaultManaRestock    int                                  `json:"default_mana_restock"`
 }
 
 // CharacterSetupRequiredSkillDTO is one ordered required skill for read-only Setup UI.
@@ -112,8 +114,10 @@ func characterSetupPreviewDTO(value app.CharacterSetupPreview) CharacterSetupPre
 			StandardAttack: profile.StandardAttack, RequiredSkills: skills, OptionalSkillPairs: optionalPairs,
 			RequiresMercenary: profile.RequiresMercenary, BindingsReady: profile.BindingsReady,
 			BindingReasons: append([]string(nil), profile.BindingReasons...), SupportedRuns: append([]string(nil), profile.SupportedRuns...),
-			DefaultBeltLayout: OperatorBeltLayoutDTO(profile.DefaultBeltLayout),
-			BeltLayout:        OperatorBeltLayoutDTO(profile.BeltLayout),
+			DefaultBeltLayout:     OperatorBeltLayoutDTO(profile.DefaultBeltLayout),
+			BeltLayout:            OperatorBeltLayoutDTO(profile.BeltLayout),
+			DefaultHealingRestock: profile.DefaultHealingRestock,
+			DefaultManaRestock:    profile.DefaultManaRestock,
 		}
 	}
 	defaults := make([]CharacterSetupPickitDefaultDTO, len(value.PickitDefaults))

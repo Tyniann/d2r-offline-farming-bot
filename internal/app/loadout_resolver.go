@@ -14,8 +14,9 @@ type CharacterLoadoutSnapshot struct {
 	Character           string
 	ProfileID           string
 	Revision            uint64
-	Bindings            configBindingSource // cast buttons follow the frozen profile slot contract
-	BeltLayout          OperatorBeltLayout  // empty means combat-profile YAML defaults
+	Bindings            configBindingSource   // cast buttons follow the frozen profile slot contract
+	BeltLayout          OperatorBeltLayout    // empty means combat-profile YAML defaults
+	PotionRestock       OperatorPotionRestock // nil fields keep `town.thresholds`
 	BindingsComplete    bool
 	InventoryConfigured bool
 	InventoryGrid       [][]int // defensive copy; nil when unconfigured
@@ -74,6 +75,7 @@ func (r *CharacterLoadoutResolver) Resolve(character string) (CharacterLoadoutSn
 		Revision:            settings.Revision,
 		Bindings:            source,
 		BeltLayout:          bindings.BeltLayout,
+		PotionRestock:       clonePotionRestock(bindings.PotionRestock),
 		BindingsComplete:    ProfileBindingsComplete(bindings, profile),
 		InventoryConfigured: value.InventoryLock != nil,
 		Players:             EffectivePlayers(value.Players),
@@ -88,6 +90,7 @@ func (r *CharacterLoadoutResolver) Resolve(character string) (CharacterLoadoutSn
 func CloneCharacterLoadoutSnapshot(snapshot CharacterLoadoutSnapshot) CharacterLoadoutSnapshot {
 	clone := snapshot
 	clone.Bindings = cloneConfigBindingSource(snapshot.Bindings)
+	clone.PotionRestock = clonePotionRestock(snapshot.PotionRestock)
 	clone.InventoryGrid = cloneInventoryGrid(snapshot.InventoryGrid)
 	return clone
 }

@@ -54,7 +54,7 @@ Phase 21 macht das am Charakter ausgewählte Kampfprofil zur einzigen Combat-Aut
 
 ### OperatorSettings Schema 3 und Loadout-Freeze (Gate 21.3)
 
-- Persistente `profile_bindings` (F1–F8, Gürtel) und presence-sensitives `inventory_lock` (4×10) pro Charakter.
+- Persistente `profile_bindings` (F1–F8, Gürtel, optionales `belt_layout` und optionales `potion_restock`) und presence-sensitives `inventory_lock` (4×10) pro Charakter.
 - Partielle Bindings speicherbar (Onboarding „Später“); Queue-Start verlangt vollständige Pflichtskills + vier Gürtelslots.
 - Gemeinsam optionale Profilpaare bleiben leer/leer oder vollständig; Hammerdin-CTA lehnt BC-only und BO-only im Core ab. Ein separates `cta.enabled` existiert nicht.
 - `CharacterLoadoutResolver` friert Bindings für Queue-Sessions; `app.New` nimmt keinen globalen BindingSource mehr aus `config.Input.Bindings`.
@@ -128,4 +128,4 @@ Lokaler CASC-Extrakt unter `.tmp/d2r-excel`, Go-Generator nach dem Muster der It
 - [Phase-21-Core-Vertrag](phase-21-core-contract.md)
 
 ---
-*Zuletzt aktualisiert: 2026-08-21*
+*Zuletzt aktualisiert: 2026-08-28*

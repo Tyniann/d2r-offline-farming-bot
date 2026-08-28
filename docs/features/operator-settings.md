@@ -26,7 +26,7 @@ Der Store enthält eine positive Revision und:
 - `last_character` als zuletzt erfolgreich vom Core bestätigten Bedienkontext;
 - pro kanonischem Charakternamen eine nicht leere, geordnete und duplikatfreie Queue, `normal`, `nightmare` oder `hell` als letzte Difficulty sowie `players` 1–8 (fehlend wird als 1 gelesen);
 - `character_class` und `combat_profile` als gemeinsam leeres oder gemeinsam gesetztes Setup-Paar; ein gesetztes Profil muss bekannt, für Setup freigegeben und mit der Klasse kompatibel sein;
-- Schema 3: `profile_bindings` (F1–F8, Gürteltasten und optional `belt_layout` für Trankspalten) sowie presence-sensitives `inventory_lock` (4×10) pro Charakter;
+- Schema 3: `profile_bindings` (F1–F8, Gürteltasten, optional `belt_layout` für Trankspalten und optional `potion_restock` für Akara-Heil-/Mana-Schwellen) sowie presence-sensitives `inventory_lock` (4×10) pro Charakter;
 - globale Grenzen für maximale Runs, Dauer, aufeinanderfolgende Fehler und Restarts;
 - explizite Input-Freigabe sowie paarweise verschiedene, vom Input-Core unterstützte Pause-, Stop-after-run-, Recording-Finish- und Emergency-Hotkeys;
 - History-Retention mit sicheren Defaults `retention_enabled: true` und `retention_days: 60`.
@@ -57,7 +57,7 @@ Eine veraltete Revision liefert `config_revision_conflict`; eine veraltete Gener
 
 Die allgemeine Settings-Preview-/Update-API projiziert Klasse und Profil nur lesbar und verlangt beide Werte einschließlich der Charakterschlüssel unverändert zum aktuellen Stand. React führt sie beim Draft-Klonen und DTO-Round-trip mit, bietet dafür aber kein Settings-Feld an. PreviewReset und Reset übernehmen die Setup-Paare bytegleich aus dem aktuellen Stand und setzen nur die bisherigen allgemeinen Werte zurück.
 
-Die Charakter-Setup-Projektion transportiert Required-Skill-Slots, optionale Paare, Mercenary-Pflicht, die vom Core berechnete Binding-Readiness sowie die effektive Gürtel-Trankbelegung (`belt_layout` bzw. Profil-Default). API und generierte Webtypen berechnen diese Werte nicht neu. Eine CTA-Teilbelegung liefert `config_invalid` mit der Meldung „Für Call to Arms müssen Battle Command und Battle Orders beide belegt sein.“
+Die Charakter-Setup-Projektion transportiert Required-Skill-Slots, optionale Paare, Mercenary-Pflicht, die vom Core berechnete Binding-Readiness, die effektive Gürtel-Trankbelegung (`belt_layout` bzw. Profil-Default) sowie die Config-Defaults `default_healing_restock` und `default_mana_restock`. API und generierte Webtypen berechnen diese Werte nicht neu. Eine CTA-Teilbelegung liefert `config_invalid` mit der Meldung „Für Call to Arms müssen Battle Command und Battle Orders beide belegt sein.“ Eine Nachkaufschwelle ohne passende Gürtelspalte oder außerhalb von 1 bis Spalten×4 liefert `config_invalid` mit einer verständlichen Meldung.
 
 Nur der dedizierte Charakter-Setup-Command darf `character_class` und `combat_profile` gemeinsam setzen. Der `CharacterCatalogStore` projiziert dieses Paar gegen einen frisch gelesenen Saveheader und die aktuelle Profilfreigabe; ein leeres, klassenfremdes oder nicht mehr freigegebenes Paar macht den Charakter nicht auswählbar. Ein bereits bestätigter Auswahlkontext wird beim Core-Start verworfen, falls diese Prüfung nicht mehr besteht.
 
@@ -94,4 +94,4 @@ Seit Abschnitt 15.6 bildet die Settings-Seite Read, Preview, Update, Resetvorsch
 - [Internationalisierung Deutsch und Englisch](internationalization.md)
 
 ---
-*Zuletzt aktualisiert: 22. August 2026*
+*Zuletzt aktualisiert: 28. August 2026*

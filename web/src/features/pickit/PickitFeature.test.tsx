@@ -141,6 +141,7 @@ describe("PickitFeature", () => {
     openQuickRule("Alle Runen");
     fireEvent.click(screen.getByRole("button", { name: "Profil speichern" }));
     await waitFor(() => expect(mocks.create).toHaveBeenCalledWith({ profile: expect.objectContaining({ id: "mein-profil", name: "Mein Profil" }) }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Duplizieren" })).toBeEnabled());
     fireEvent.click(screen.getByRole("button", { name: "Duplizieren" }));
     const duplicateDialog = screen.getByRole("dialog", { name: "Profil duplizieren" });
     fireEvent.change(within(duplicateDialog).getByLabelText("Profilname"), { target: { value: "Mein Profil Kopie" } });

@@ -155,7 +155,8 @@ func TestCharacterSetupDTOTransportsHammerdinBindingContractAndReadiness(t *test
 			{Skill: "battle_orders", SkillID: 149, Slot: "right"},
 		}}},
 		RequiresMercenary: true, BindingsReady: false, BindingReasons: []string{"profile_bindings_incomplete"},
-		SupportedRuns: []string{"countess", "cows", "mephisto", "nihlathak", "summoner"},
+		SupportedRuns:         []string{"countess", "cows", "mephisto", "nihlathak", "summoner"},
+		DefaultHealingRestock: 2, DefaultManaRestock: 4,
 	}}}
 	dto := characterSetupPreviewDTO(value)
 	if len(dto.Profiles) != 1 {
@@ -167,7 +168,8 @@ func TestCharacterSetupDTOTransportsHammerdinBindingContractAndReadiness(t *test
 		!profile.RequiresMercenary || profile.BindingsReady || len(profile.BindingReasons) != 1 ||
 		len(profile.SupportedRuns) != 5 || profile.SupportedRuns[0] != "countess" ||
 		profile.SupportedRuns[1] != "cows" || profile.SupportedRuns[2] != "mephisto" ||
-		profile.SupportedRuns[3] != "nihlathak" || profile.SupportedRuns[4] != "summoner" {
+		profile.SupportedRuns[3] != "nihlathak" || profile.SupportedRuns[4] != "summoner" ||
+		profile.DefaultHealingRestock != 2 || profile.DefaultManaRestock != 4 {
 		t.Fatalf("Hammerdin DTO=%+v", profile)
 	}
 }
@@ -225,8 +227,9 @@ func sampleCharacterSetupPreviewDTO() CharacterSetupPreviewDTO {
 		Character: CharacterSetupCharacterDTO{Name: "MrBones", Slug: "mrbones", CharacterClass: "necromancer"},
 		Supported: true, Profiles: []CharacterSetupProfileDTO{{
 			ID: "necro_bone_spear", DisplayName: "Knochen-Speer", IsDefault: true,
-			DefaultBeltLayout: OperatorBeltLayoutDTO{Slot1: "healing", Slot2: "mana", Slot3: "mana", Slot4: "rejuvenation"},
-			BeltLayout:        OperatorBeltLayoutDTO{Slot1: "healing", Slot2: "mana", Slot3: "mana", Slot4: "rejuvenation"},
+			DefaultBeltLayout:     OperatorBeltLayoutDTO{Slot1: "healing", Slot2: "mana", Slot3: "mana", Slot4: "rejuvenation"},
+			BeltLayout:            OperatorBeltLayoutDTO{Slot1: "healing", Slot2: "mana", Slot3: "mana", Slot4: "rejuvenation"},
+			DefaultHealingRestock: 2, DefaultManaRestock: 4,
 		}},
 		PickitDefaults: []CharacterSetupPickitDefaultDTO{}, AnchorState: "missing", SetupState: "needs_setup", Reasons: []string{"character_profile_missing"},
 	}

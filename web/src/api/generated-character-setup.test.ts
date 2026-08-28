@@ -26,6 +26,8 @@ it("transportiert den Core-Vertrag für Slots, CTA und Readiness", () => {
     supported_runs: ["countess", "cows", "lower-kurast", "mephisto", "nihlathak", "summoner"],
     default_belt_layout: { slot_1: "healing", slot_2: "mana", slot_3: "mana", slot_4: "rejuvenation" },
     belt_layout: { slot_1: "healing", slot_2: "mana", slot_3: "mana", slot_4: "rejuvenation" },
+    default_healing_restock: 2,
+    default_mana_restock: 4,
   };
 
   expect(profile).toMatchObject({ requires_mercenary: true, bindings_ready: false, supported_runs: ["countess", "cows", "lower-kurast", "mephisto", "nihlathak", "summoner"] });

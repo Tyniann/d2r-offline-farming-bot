@@ -97,6 +97,55 @@ func TestOperatorSettingsPartialBindingsAndRejects(t *testing.T) {
 	}
 }
 
+func TestOperatorSettingsPotionRestockRoundTripAndRejects(t *testing.T) {
+	store, _ := newOperatorSettingsTestStore(t)
+	initial, _ := store.Snapshot()
+	assigned, err := store.AssignCharacterProfile("MrBones", "necromancer", "necro_bone_spear", initial.Revision)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	healing, mana := 3, 8
+	ok := cloneOperatorSettings(assigned.Settings)
+	value := ok.Characters["mrbones"]
+	bindings := necroBoneSpearBindingsFixture()
+	bindings.PotionRestock = OperatorPotionRestock{Healing: &healing, Mana: &mana}
+	value.ProfileBindings = map[string]OperatorProfileBindings{"necro_bone_spear": bindings}
+	ok.Characters["mrbones"] = value
+	change, err := store.Update(assigned.Settings.Revision, ok)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := change.Settings.Characters["mrbones"].ProfileBindings["necro_bone_spear"].PotionRestock
+	if got.Healing == nil || *got.Healing != 3 || got.Mana == nil || *got.Mana != 8 {
+		t.Fatalf("potion_restock=%+v", got)
+	}
+
+	current, _ := store.Snapshot()
+	tooHigh := cloneOperatorSettings(current)
+	high := 5
+	tooHighValue := tooHigh.Characters["mrbones"]
+	highBindings := necroBoneSpearBindingsFixture()
+	highBindings.PotionRestock = OperatorPotionRestock{Healing: &high}
+	tooHighValue.ProfileBindings = map[string]OperatorProfileBindings{"necro_bone_spear": highBindings}
+	tooHigh.Characters["mrbones"] = tooHighValue
+	if _, err := store.Update(current.Revision, tooHigh); err == nil {
+		t.Fatal("healing restock above column capacity accepted")
+	}
+
+	noMana := cloneOperatorSettings(current)
+	manaOnly := 2
+	noManaValue := noMana.Characters["mrbones"]
+	noManaBindings := necroBoneSpearBindingsFixture()
+	noManaBindings.BeltLayout = OperatorBeltLayout{Slot1: beltPotionHealing, Slot2: beltPotionHealing, Slot3: beltPotionRejuvenation, Slot4: beltPotionRejuvenation}
+	noManaBindings.PotionRestock = OperatorPotionRestock{Mana: &manaOnly}
+	noManaValue.ProfileBindings = map[string]OperatorProfileBindings{"necro_bone_spear": noManaBindings}
+	noMana.Characters["mrbones"] = noManaValue
+	if _, err := store.Update(current.Revision, noMana); err == nil {
+		t.Fatal("mana restock without mana column accepted")
+	}
+}
+
 func TestOperatorSettingsInventoryLockVariants(t *testing.T) {
 	store, _ := newOperatorSettingsTestStore(t)
 	initial, _ := store.Snapshot()

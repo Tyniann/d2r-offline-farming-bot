@@ -39,7 +39,7 @@ func (a *townPreparationAdapter) start(state world.State) string {
 	if a.requireFullBuyableBelt && !hasPotionColumnSeeds(state, a.profile) {
 		return "cow_belt_layout_unseeded"
 	}
-	healingTarget, manaTarget := len(a.profile.Healing.BeltSlots)*4, len(a.profile.Mana.BeltSlots)*4
+	healingTarget, manaTarget := len(a.profile.Healing.BeltSlots)*beltColumnRows, len(a.profile.Mana.BeltSlots)*beltColumnRows
 	healingThreshold, manaThreshold := a.thresholds.Healing, a.thresholds.Mana
 	if a.requireFullBuyableBelt {
 		healingThreshold, manaThreshold = healingTarget, manaTarget

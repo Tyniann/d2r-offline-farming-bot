@@ -206,6 +206,7 @@ func New(cfg *config.Config, opts Options) (rt *Runtime, err error) {
 	if err = applyLoadoutBeltLayout(runtimeCFG.Profiles, opts.Loadout); err != nil {
 		return nil, fmt.Errorf("belt layout: %w", err)
 	}
+	applyLoadoutPotionRestock(&runtimeCFG.Town.Thresholds, opts.Loadout)
 	cfg = &runtimeCFG
 	if runtimeRunID == string(tasks.RunIDCows) {
 		runCfg.Cow = mapCowConfig(cfg, bindings, inventoryCells, combatProfileID)

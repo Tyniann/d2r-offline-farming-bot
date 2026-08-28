@@ -5,12 +5,15 @@ import (
 	"strings"
 
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/config"
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/town"
 )
 
 const (
 	beltPotionHealing      = "healing"
 	beltPotionMana         = "mana"
 	beltPotionRejuvenation = "rejuvenation"
+	// beltColumnRows is the four-row D2R belt capacity used as the Town restock fill target.
+	beltColumnRows = 4
 )
 
 // OperatorBeltLayout assigns one potion type to each belt column 1..4.
@@ -187,6 +190,28 @@ func cloneProfilesConfig(profiles config.ProfilesConfig) config.ProfilesConfig {
 		clone[id] = profile
 	}
 	return clone
+}
+
+func potionRestockCapacity(layout OperatorBeltLayout, kind string) int {
+	count := 0
+	for _, slot := range []string{layout.Slot1, layout.Slot2, layout.Slot3, layout.Slot4} {
+		if strings.EqualFold(strings.TrimSpace(slot), kind) {
+			count++
+		}
+	}
+	return count * beltColumnRows
+}
+
+func applyLoadoutPotionRestock(thresholds *town.Thresholds, loadout *CharacterLoadoutSnapshot) {
+	if thresholds == nil || loadout == nil {
+		return
+	}
+	if loadout.PotionRestock.Healing != nil {
+		thresholds.Healing = *loadout.PotionRestock.Healing
+	}
+	if loadout.PotionRestock.Mana != nil {
+		thresholds.Mana = *loadout.PotionRestock.Mana
+	}
 }
 
 func applyLoadoutBeltLayout(profiles config.ProfilesConfig, loadout *CharacterLoadoutSnapshot) error {

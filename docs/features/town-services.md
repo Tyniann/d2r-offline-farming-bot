@@ -26,7 +26,7 @@ Die Item-Enumeration belegt Belt-Items samt Typ und Position sowie den `Identifi
 
 Abschnitt 9.2 ergänzt `town` in der YAML-Datei. Rogue Encampment muss alle Anker sowie die festen Anbieter Akara (Potions/Scrolls/Sell/Merc-Heal), Cain (Identify), Charsi (Repair) und Kashya (Merc-Revive) enthalten. Fehlende Kashya-/Merc-Service-Einträge werden beim Laden presence-sensitiv ergänzt. Ein Egress darf nur `portal_arrival → waypoint` und sein Routenverzeichnis beschreiben; Dienste darin werden verworfen. `EgressFor` liefert bei fehlender Definition `town_egress_missing`.
 
-Abschnitt 9.3 führt `SupplySnapshot`, `Thresholds` und `DemandSnapshot` ein. Die Mindestmengen sind ausschließlich Auslöseschwellen: Gleichstand löst keinen Service aus. Der Planner erzeugt bei Bedarf genau `egress → hub_transfer → stash → services → act1_waypoint → next_run_handoff`; fehlende Bedarfe verschwinden aus dem Plan. Ein unvollständiges Belt-Layout bleibt planbar, entscheidet aber noch keinen Kaufmodus.
+Abschnitt 9.3 führt `SupplySnapshot`, `Thresholds` und `DemandSnapshot` ein. Die Mindestmengen sind ausschließlich Auslöseschwellen: Gleichstand löst keinen Service aus. `town.thresholds` in der Basisconfig bleibt der Fallback. OperatorSettings Schema 3 darf unter `profile_bindings.<profil>.potion_restock` optionale Heil-/Mana-Schwellen speichern; gesetzte Werte ersetzen genau diese Town-Schwellen für den eingefrorenen Loadout und müssen zwischen 1 und Spalten×4 liegen. Der Planner erzeugt bei Bedarf genau `egress → hub_transfer → stash → services → act1_waypoint → next_run_handoff`; fehlende Bedarfe verschwinden aus dem Plan. Ein unvollständiges Belt-Layout bleibt planbar, entscheidet aber noch keinen Kaufmodus.
 
 Abschnitt 9.4 definiert den zentralen, kantenbasierten `ServiceGraph` unter `configs/routes/town/act1/graph/`. Jeder Edge besitzt eine stabile ID, `from`, `to`, eine eigene Aufnahme, positive Kosten und eine explizite `reversible`-Freigabe. Der Router erhält Start, eine ungeordnete Menge benötigter Serviceanker und das Endziel; er wählt den günstigsten Weg, der alle Bedarfe genau abdeckt. `spawn` wird für die Navigation zu `stash` normalisiert, weil der Charakter direkt am Stash erscheint; zwischen beiden entstehen weder Route noch Input. Damit kann beispielsweise `portal_arrival → cain → akara → waypoint` geplant werden, ohne Stash oder Charsi einzubeziehen. Rückwärtswiedergabe ist nur für explizit reversible Kanten erlaubt.
 
@@ -131,7 +131,7 @@ Der zentrale `Executor` konsumiert ausschließlich einen validierten `Plan`. Glo
 
 ## Zentraler Post-Run-Flow (9.10)
 
-Der gemeinsame Full-Run wechselt nach `close_personal_stash` in `prepare_town_handoff`. Der App-Adapter bewertet den belastbaren Belt-Bestand und den Merc-State des gebundenen Combat-Profils. Ohne Bedarf bleibt der direkte layoutgebundene Stash→Waypoint-Pfad erhalten. Bei Bedarf erstellt der produktive Planner die geordneten Services `identify → mercenary_revive → mercenary_heal → potions/scrolls/sell → repair`, prüft Potion-Gold nur für Restock und führt den Plan über den zentralen Executor aus. NPC, Dialog, Shop, konkreter Vendor-Code, genau begrenzter Kauf, 500-ms-Settle und erneut gelesener Belt-Zielbestand bleiben getrennte Gates. Tome-Zähler bleiben als `unavailable_skip` sichtbar und erzeugen keinen erfundenen Scrollbedarf.
+Der gemeinsame Full-Run wechselt nach `close_personal_stash` in `prepare_town_handoff`. Der App-Adapter bewertet den belastbaren Belt-Bestand und den Merc-State des gebundenen Combat-Profils. Die Auslöseschwellen kommen aus `town.thresholds`, sofern der Loadout keine `potion_restock`-Werte setzt. Ohne Bedarf bleibt der direkte layoutgebundene Stash→Waypoint-Pfad erhalten. Bei Bedarf erstellt der produktive Planner die geordneten Services `identify → mercenary_revive → mercenary_heal → potions/scrolls/sell → repair`, prüft Potion-Gold nur für Restock und führt den Plan über den zentralen Executor aus. NPC, Dialog, Shop, konkreter Vendor-Code, genau begrenzter Kauf, 500-ms-Settle und erneut gelesener Belt-Zielbestand bleiben getrennte Gates. Tome-Zähler bleiben als `unavailable_skip` sichtbar und erzeugen keinen erfundenen Scrollbedarf.
 
 ### Mercenary Town-Heal und Revive (Phase 18.3)
 
@@ -164,4 +164,4 @@ Die Live-Abnahme am 13. Juli 2026 erfüllte das Gate vollständig. Der autonome 
 - [Lower-Kurast-Run](lower-kurast-run.md)
 
 ---
-*Zuletzt aktualisiert: 2026-08-21*
+*Zuletzt aktualisiert: 2026-08-28*

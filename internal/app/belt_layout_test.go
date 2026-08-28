@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/config"
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/town"
 )
 
 func TestApplyBeltLayoutToResourcesRemapsColumnsAndMerc(t *testing.T) {
@@ -57,5 +58,30 @@ func TestBeltLayoutFromResources(t *testing.T) {
 	})
 	if !ok || layout != (OperatorBeltLayout{Slot1: "healing", Slot2: "mana", Slot3: "mana", Slot4: "rejuvenation"}) {
 		t.Fatalf("layout=%+v ok=%t", layout, ok)
+	}
+}
+
+func TestApplyLoadoutPotionRestockOverridesTownThresholds(t *testing.T) {
+	healing, mana := 6, 3
+	thresholds := town.Thresholds{Healing: 2, Mana: 4}
+	applyLoadoutPotionRestock(&thresholds, &CharacterLoadoutSnapshot{
+		PotionRestock: OperatorPotionRestock{Healing: &healing, Mana: &mana},
+	})
+	if thresholds.Healing != 6 || thresholds.Mana != 3 {
+		t.Fatalf("thresholds=%+v", thresholds)
+	}
+	applyLoadoutPotionRestock(&thresholds, nil)
+	if thresholds.Healing != 6 || thresholds.Mana != 3 {
+		t.Fatalf("nil loadout mutated thresholds=%+v", thresholds)
+	}
+}
+
+func TestPotionRestockCapacityFollowsAssignedColumns(t *testing.T) {
+	layout := OperatorBeltLayout{Slot1: beltPotionHealing, Slot2: beltPotionHealing, Slot3: beltPotionMana, Slot4: beltPotionRejuvenation}
+	if got := potionRestockCapacity(layout, beltPotionHealing); got != 8 {
+		t.Fatalf("healing capacity=%d", got)
+	}
+	if got := potionRestockCapacity(layout, beltPotionMana); got != 4 {
+		t.Fatalf("mana capacity=%d", got)
 	}
 }

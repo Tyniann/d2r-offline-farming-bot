@@ -86,6 +86,8 @@ describe("CharactersTab", () => {
         supported_runs: ["countess"],
         default_belt_layout: { slot_1: "healing", slot_2: "mana", slot_3: "mana", slot_4: "rejuvenation" },
         belt_layout: { slot_1: "healing", slot_2: "mana", slot_3: "mana", slot_4: "rejuvenation" },
+        default_healing_restock: 2,
+        default_mana_restock: 4,
       }],
       selected_profile_id: "necro_bone_spear",
       default_profile_id: "necro_bone_spear",

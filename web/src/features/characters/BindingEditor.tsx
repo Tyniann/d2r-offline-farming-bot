@@ -3,6 +3,7 @@ import type {
   CharacterSetupRequiredSkillDTO,
   OperatorBeltBindingsDTO,
   OperatorBeltLayoutDTO,
+  OperatorPotionRestockDTO,
   OperatorProfileBindingsDTO,
 } from "../../api/generated";
 import { StatusBadge } from "../../app/ui";
@@ -18,11 +19,24 @@ const potionKinds = [
   "rejuvenation",
 ] as const;
 
+export type PotionRestockValue = {
+  healing: number;
+  mana: number;
+};
+
 export type BindingEditorValue = {
   skills: Record<string, string>;
   belt: OperatorBeltBindingsDTO;
   belt_layout: OperatorBeltLayoutDTO;
+  potion_restock: PotionRestockValue;
 };
+
+export type PotionRestockDefaults = {
+  healing: number;
+  mana: number;
+};
+
+const beltColumnRows = 4;
 
 const defaultBeltLayout = (): OperatorBeltLayoutDTO => ({
   slot_1: "healing",
@@ -31,17 +45,27 @@ const defaultBeltLayout = (): OperatorBeltLayoutDTO => ({
   slot_4: "rejuvenation",
 });
 
+const defaultPotionRestock = (): PotionRestockValue => ({ healing: 2, mana: 4 });
+
 /** emptyBindings liefert einen leeren Binding-Draft mit Standard-Trankspalten. */
 export function emptyBindings(): BindingEditorValue {
-  return { skills: {}, belt: {}, belt_layout: defaultBeltLayout() };
+  return { skills: {}, belt: {}, belt_layout: defaultBeltLayout(), potion_restock: defaultPotionRestock() };
 }
 
 /** bindingsFromDTO normalisiert optionale Core-Bindings für den Editor. */
 export function bindingsFromDTO(
   value?: OperatorProfileBindingsDTO | null,
   layoutFallback?: OperatorBeltLayoutDTO | null,
+  restockFallback?: PotionRestockDefaults | null,
 ): BindingEditorValue {
   const fallback = layoutFallback && layoutComplete(layoutFallback) ? layoutFallback : defaultBeltLayout();
+  const belt_layout: OperatorBeltLayoutDTO = {
+    slot_1: value?.belt_layout?.slot_1 || fallback.slot_1 || "healing",
+    slot_2: value?.belt_layout?.slot_2 || fallback.slot_2 || "mana",
+    slot_3: value?.belt_layout?.slot_3 || fallback.slot_3 || "mana",
+    slot_4: value?.belt_layout?.slot_4 || fallback.slot_4 || "rejuvenation",
+  };
+  const restock = restockFallback ?? defaultPotionRestock();
   return {
     skills: { ...(value?.skills ?? {}) },
     belt: {
@@ -50,12 +74,11 @@ export function bindingsFromDTO(
       slot_3: value?.belt?.slot_3 ?? "",
       slot_4: value?.belt?.slot_4 ?? "",
     },
-    belt_layout: {
-      slot_1: value?.belt_layout?.slot_1 || fallback.slot_1 || "healing",
-      slot_2: value?.belt_layout?.slot_2 || fallback.slot_2 || "mana",
-      slot_3: value?.belt_layout?.slot_3 || fallback.slot_3 || "mana",
-      slot_4: value?.belt_layout?.slot_4 || fallback.slot_4 || "rejuvenation",
-    },
+    belt_layout,
+    potion_restock: restockForLayout({
+      healing: value?.potion_restock?.healing ?? restock.healing,
+      mana: value?.potion_restock?.mana ?? restock.mana,
+    }, belt_layout),
   };
 }
 
@@ -77,7 +100,10 @@ export function bindingsToDTO(value: BindingEditorValue): OperatorProfileBinding
     slot_3: value.belt_layout.slot_3,
     slot_4: value.belt_layout.slot_4,
   };
-  return { skills, belt, belt_layout };
+  const dto: OperatorProfileBindingsDTO = { skills, belt, belt_layout };
+  const potion_restock = restockDTOForLayout(value.potion_restock, belt_layout);
+  if (potion_restock) dto.potion_restock = potion_restock;
+  return dto;
 }
 
 /** BindingEditor belegt profilautorisierte Pflicht- und optionale Skills sowie den Gürtel. */
@@ -97,6 +123,10 @@ export function BindingEditor({
 }) {
   const { t, i18n } = useTranslation();
   const collisions = collectCollisions(value, t);
+  const healingColumns = layoutKindCount(value.belt_layout, "healing");
+  const manaColumns = layoutKindCount(value.belt_layout, "mana");
+  const healingMax = restockMax(healingColumns);
+  const manaMax = restockMax(manaColumns);
 
   return <div className="binding-editor">
     {bindingsReady !== undefined && <div className="binding-readiness" role="status" aria-label={t("characters.bindingsCoreAria")}>
@@ -206,10 +236,14 @@ export function BindingEditor({
               value={potion}
               disabled={!mutable}
               aria-label={t("characters.beltPotionAria", { slot })}
-              onChange={(event) => onChange({
-                ...value,
-                belt_layout: { ...value.belt_layout, [field]: event.target.value as OperatorBeltLayoutDTO[typeof field] },
-              })}
+              onChange={(event) => {
+                const belt_layout = { ...value.belt_layout, [field]: event.target.value as OperatorBeltLayoutDTO[typeof field] };
+                onChange({
+                  ...value,
+                  belt_layout,
+                  potion_restock: restockForLayout(value.potion_restock, belt_layout),
+                });
+              }}
             >
               {potionKinds.map((kind) => <option key={kind} value={kind}>{t(`characters.${kind === "healing" ? "healingPotion" : kind === "mana" ? "manaPotion" : "rejuvenationPotion"}`)}</option>)}
             </select>
@@ -218,11 +252,87 @@ export function BindingEditor({
         </div>;
       })}
     </div>
+
+    {(healingColumns > 0 || manaColumns > 0) ? <div className="binding-restock" role="group" aria-label={t("characters.restockAria")}>
+      <h4>{t("characters.restock")}</h4>
+      <p className="hint">{t("characters.restockHint")}</p>
+      {healingColumns > 0 ? <label>
+        <span>{t("characters.healingRestock")}</span>
+        <span className="binding-restock-row">
+          <input
+            type="number"
+            min={1}
+            max={healingMax}
+            value={value.potion_restock.healing}
+            disabled={!mutable}
+            aria-label={t("characters.healingRestockAria")}
+            onChange={(event) => onChange({
+              ...value,
+              potion_restock: { ...value.potion_restock, healing: clampRestock(Number(event.target.value), healingMax) },
+            })}
+          />
+          <span>{t("characters.restockUnit")}</span>
+        </span>
+        <small>{t("characters.restockCapacity", { max: healingMax })}</small>
+      </label> : null}
+      {manaColumns > 0 ? <label>
+        <span>{t("characters.manaRestock")}</span>
+        <span className="binding-restock-row">
+          <input
+            type="number"
+            min={1}
+            max={manaMax}
+            value={value.potion_restock.mana}
+            disabled={!mutable}
+            aria-label={t("characters.manaRestockAria")}
+            onChange={(event) => onChange({
+              ...value,
+              potion_restock: { ...value.potion_restock, mana: clampRestock(Number(event.target.value), manaMax) },
+            })}
+          />
+          <span>{t("characters.restockUnit")}</span>
+        </span>
+        <small>{t("characters.restockCapacity", { max: manaMax })}</small>
+      </label> : null}
+    </div> : null}
   </div>;
 }
 
 function layoutComplete(layout: OperatorBeltLayoutDTO): boolean {
   return Boolean(layout.slot_1 && layout.slot_2 && layout.slot_3 && layout.slot_4);
+}
+
+function layoutKindCount(layout: OperatorBeltLayoutDTO, kind: "healing" | "mana" | "rejuvenation"): number {
+  return ([layout.slot_1, layout.slot_2, layout.slot_3, layout.slot_4] as const).filter((slot) => slot === kind).length;
+}
+
+function restockMax(columns: number): number {
+  return columns * beltColumnRows;
+}
+
+function clampRestock(value: number, max: number): number {
+  if (max < 1) return 1;
+  if (!Number.isFinite(value)) return 1;
+  return Math.min(max, Math.max(1, Math.trunc(value)));
+}
+
+function restockForLayout(value: PotionRestockValue, layout: OperatorBeltLayoutDTO): PotionRestockValue {
+  const healingMax = restockMax(layoutKindCount(layout, "healing"));
+  const manaMax = restockMax(layoutKindCount(layout, "mana"));
+  return {
+    healing: clampRestock(value.healing, healingMax > 0 ? healingMax : beltColumnRows),
+    mana: clampRestock(value.mana, manaMax > 0 ? manaMax : beltColumnRows),
+  };
+}
+
+function restockDTOForLayout(value: PotionRestockValue, layout: OperatorBeltLayoutDTO): OperatorPotionRestockDTO | undefined {
+  const dto: OperatorPotionRestockDTO = {};
+  const healingMax = restockMax(layoutKindCount(layout, "healing"));
+  const manaMax = restockMax(layoutKindCount(layout, "mana"));
+  if (healingMax > 0) dto.healing = clampRestock(value.healing, healingMax);
+  if (manaMax > 0) dto.mana = clampRestock(value.mana, manaMax);
+  if (dto.healing === undefined && dto.mana === undefined) return undefined;
+  return dto;
 }
 
 function skillSlotLabel(slot: CharacterSetupRequiredSkillDTO["slot"], t: AppTranslator): string {

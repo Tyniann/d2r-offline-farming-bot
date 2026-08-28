@@ -9,6 +9,7 @@ Versionierung nach [Semantic Versioning](https://semver.org/).
 
 ### Added
 - Show a session-end dialog with wall-clock duration and expandable kept/sold item aggregates
+- Let character settings set Akara healing and mana restock thresholds per combat profile
 
 ### Fixed
 - Keep the stabilized retry-return source area valid while a Town Portal transition still exposes the pre-load snapshot

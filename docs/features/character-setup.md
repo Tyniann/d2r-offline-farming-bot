@@ -72,6 +72,7 @@ Stabile technische Gründe bleiben Teil des API-Vertrags, werden aber in der Obe
 - „Auswahlbild jetzt speichern“ erfasst nach der Benutzerbestätigung den markierten Eintrag.
 - Der Assistent bleibt bei Fehlern im Charakterschritt und zeigt eine konkrete nächste Handlung.
 - Die normalen Einstellungen bieten keine Profil- oder Defaultauswahl.
+- Der Tab „Charaktere“ zeigt Heil- bzw. Mana-Nachkauf nur, wenn mindestens eine passende Gürtelspalte zugewiesen ist. Die Schwellen kommen aus `potion_restock` bzw. den Core-Defaults `default_healing_restock` / `default_mana_restock`.
 
 Vor einer produktiven Auswahl sowie vor Queue-Validierung, Queue-Start und jedem Supervisor-Run wird der Save erneut gelesen. Headerklasse, gespeichertes Profil, Profilfreigabe, Run-Profil und Pickit-Zuordnung müssen weiterhin zusammenpassen. Ein Mismatch stoppt vor Input. CLI-Diagnose- und Testpfade ohne OperatorSettings behalten ihren ausdrücklich configgebundenen Profilpfad.
 
@@ -112,4 +113,4 @@ Die installierte Phase-16-Abnahme vom 28. Juli 2026 bestätigte den vollständig
 - [Lokale Core-API](local-core-api.md)
 
 ---
-*Zuletzt aktualisiert: 20. August 2026*
+*Zuletzt aktualisiert: 28. August 2026*

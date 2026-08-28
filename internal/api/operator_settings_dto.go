@@ -24,11 +24,12 @@ type OperatorCharacterSettingsDTO struct {
 	InventoryLock   *OperatorInventoryLockDTO             `json:"inventory_lock"`
 }
 
-// OperatorProfileBindingsDTO speichert Skill-F-Tasten, Gürteltasten und Trankspalten eines Kampfprofils.
+// OperatorProfileBindingsDTO speichert Skill-F-Tasten, Gürteltasten, Trankspalten und Nachkaufschwellen eines Kampfprofils.
 type OperatorProfileBindingsDTO struct {
-	Skills     map[string]string       `json:"skills,omitempty"`
-	Belt       OperatorBeltBindingsDTO `json:"belt,omitempty"`
-	BeltLayout OperatorBeltLayoutDTO   `json:"belt_layout,omitempty"`
+	Skills        map[string]string        `json:"skills,omitempty"`
+	Belt          OperatorBeltBindingsDTO  `json:"belt,omitempty"`
+	BeltLayout    OperatorBeltLayoutDTO    `json:"belt_layout,omitempty"`
+	PotionRestock OperatorPotionRestockDTO `json:"potion_restock,omitempty"`
 }
 
 // OperatorBeltBindingsDTO speichert optionale Gürteltasten.
@@ -37,6 +38,12 @@ type OperatorBeltBindingsDTO struct {
 	Slot2 string `json:"slot_2,omitempty"`
 	Slot3 string `json:"slot_3,omitempty"`
 	Slot4 string `json:"slot_4,omitempty"`
+}
+
+// OperatorPotionRestockDTO speichert optionale Akara-Nachkaufschwellen für Heil- und Manatränke.
+type OperatorPotionRestockDTO struct {
+	Healing *int `json:"healing,omitempty"`
+	Mana    *int `json:"mana,omitempty"`
 }
 
 // OperatorBeltLayoutDTO speichert die Tranktypen der Gürtelspalten 1–4.
@@ -119,8 +126,9 @@ func operatorCharacterSettingsDTO(value app.OperatorCharacterSettings) OperatorC
 		dto.ProfileBindings = make(map[string]OperatorProfileBindingsDTO, len(value.ProfileBindings))
 		for profileID, bindings := range value.ProfileBindings {
 			cloned := OperatorProfileBindingsDTO{
-				Belt:       OperatorBeltBindingsDTO(bindings.Belt),
-				BeltLayout: OperatorBeltLayoutDTO(bindings.BeltLayout),
+				Belt:          OperatorBeltBindingsDTO(bindings.Belt),
+				BeltLayout:    OperatorBeltLayoutDTO(bindings.BeltLayout),
+				PotionRestock: operatorPotionRestockDTO(bindings.PotionRestock),
 			}
 			if bindings.Skills != nil {
 				cloned.Skills = make(map[string]string, len(bindings.Skills))
@@ -158,8 +166,9 @@ func operatorCharacterSettingsFromDTO(value OperatorCharacterSettingsDTO) app.Op
 		settings.ProfileBindings = make(map[string]app.OperatorProfileBindings, len(value.ProfileBindings))
 		for profileID, bindings := range value.ProfileBindings {
 			cloned := app.OperatorProfileBindings{
-				Belt:       app.OperatorBeltBindings(bindings.Belt),
-				BeltLayout: app.OperatorBeltLayout(bindings.BeltLayout),
+				Belt:          app.OperatorBeltBindings(bindings.Belt),
+				BeltLayout:    app.OperatorBeltLayout(bindings.BeltLayout),
+				PotionRestock: operatorPotionRestockFromDTO(bindings.PotionRestock),
 			}
 			if bindings.Skills != nil {
 				cloned.Skills = make(map[string]string, len(bindings.Skills))
@@ -174,6 +183,22 @@ func operatorCharacterSettingsFromDTO(value OperatorCharacterSettingsDTO) app.Op
 		settings.InventoryLock = &app.OperatorInventoryLock{Grid: cloneIntGrid(value.InventoryLock.Grid)}
 	}
 	return settings
+}
+
+func operatorPotionRestockDTO(value app.OperatorPotionRestock) OperatorPotionRestockDTO {
+	return OperatorPotionRestockDTO{Healing: cloneIntPointer(value.Healing), Mana: cloneIntPointer(value.Mana)}
+}
+
+func operatorPotionRestockFromDTO(value OperatorPotionRestockDTO) app.OperatorPotionRestock {
+	return app.OperatorPotionRestock{Healing: cloneIntPointer(value.Healing), Mana: cloneIntPointer(value.Mana)}
+}
+
+func cloneIntPointer(value *int) *int {
+	if value == nil {
+		return nil
+	}
+	cloned := *value
+	return &cloned
 }
 
 func cloneIntGrid(grid [][]int) [][]int {

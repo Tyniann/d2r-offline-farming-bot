@@ -251,6 +251,10 @@ section.settings-field-changed { border-color: #6b4a35; box-shadow: inset 3px 0 
 .binding-belt-slot { display: grid; gap: 8px; align-content: start; }
 .binding-belt-slot-title { font-weight: 600; }
 .binding-belt-slot label { display: grid; gap: 4px; }
+.binding-restock { display: grid; gap: 12px; margin-top: 16px; }
+.binding-restock label { display: grid; gap: 4px; max-width: 32rem; }
+.binding-restock-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.binding-restock input[type="number"] { width: 6rem; }
 .binding-skill-label { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 6px; }
 .binding-readiness { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; color: var(--muted); }
 .binding-optional-pair { min-width: 0; padding: var(--space-4); border: 1px solid #765d25; border-radius: 12px; background: linear-gradient(135deg, #231d13, #0f1825); }

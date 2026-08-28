@@ -49,6 +49,10 @@ type CharacterSetupProfile struct {
 	DefaultBeltLayout OperatorBeltLayout
 	// BeltLayout is the effective operator override or DefaultBeltLayout.
 	BeltLayout OperatorBeltLayout
+	// DefaultHealingRestock is `town.thresholds.healing` from the base config.
+	DefaultHealingRestock int
+	// DefaultManaRestock is `town.thresholds.mana` from the base config.
+	DefaultManaRestock int
 }
 
 // CharacterSetupRequiredSkill is one ordered, labeled profile skill for read-only Setup/API.
@@ -311,6 +315,8 @@ func (s *CharacterSetupService) buildPreview(catalog CharacterCatalog, settings 
 			}
 			setupProfile.DefaultBeltLayout = EffectiveBeltLayout(OperatorBeltLayout{}, profile.Resources)
 			setupProfile.BeltLayout = EffectiveBeltLayout(bindings.BeltLayout, profile.Resources)
+			setupProfile.DefaultHealingRestock = s.cfg.Town.Thresholds.Healing
+			setupProfile.DefaultManaRestock = s.cfg.Town.Thresholds.Mana
 			if !setupProfile.BindingsReady {
 				setupProfile.BindingReasons = []string{string(QueueReasonProfileBindingsIncomplete)}
 			}

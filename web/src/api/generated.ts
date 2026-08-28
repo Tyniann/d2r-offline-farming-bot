@@ -112,6 +112,8 @@ export interface CharacterSetupProfileDTO {
   supported_runs?: Array<string>;
   default_belt_layout: OperatorBeltLayoutDTO;
   belt_layout: OperatorBeltLayoutDTO;
+  default_healing_restock: number;
+  default_mana_restock: number;
 }
 
 export interface CharacterSetupPickitDefaultDTO {
@@ -167,6 +169,7 @@ export interface OperatorProfileBindingsDTO {
   skills?: Record<string, string>;
   belt?: OperatorBeltBindingsDTO;
   belt_layout?: OperatorBeltLayoutDTO;
+  potion_restock?: OperatorPotionRestockDTO;
 }
 
 export interface OperatorBeltBindingsDTO {
@@ -174,6 +177,11 @@ export interface OperatorBeltBindingsDTO {
   slot_2?: string;
   slot_3?: string;
   slot_4?: string;
+}
+
+export interface OperatorPotionRestockDTO {
+  healing?: number;
+  mana?: number;
 }
 
 export interface OperatorBeltLayoutDTO {

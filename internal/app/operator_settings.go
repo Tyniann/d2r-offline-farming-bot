@@ -52,11 +52,18 @@ type OperatorCharacterSettings struct {
 	InventoryLock   *OperatorInventoryLock             `yaml:"inventory_lock,omitempty" json:"inventory_lock,omitempty"`
 }
 
-// OperatorProfileBindings stores skill F-keys, belt keys and potion columns for one combat profile.
+// OperatorProfileBindings stores skill F-keys, belt keys, potion columns and Akara restock triggers for one combat profile.
 type OperatorProfileBindings struct {
-	Skills     map[string]string    `yaml:"skills,omitempty" json:"skills,omitempty"` // canonical skill key -> f1..f8
-	Belt       OperatorBeltBindings `yaml:"belt,omitempty" json:"belt,omitempty"`
-	BeltLayout OperatorBeltLayout   `yaml:"belt_layout,omitempty" json:"belt_layout,omitempty"`
+	Skills        map[string]string     `yaml:"skills,omitempty" json:"skills,omitempty"` // canonical skill key -> f1..f8
+	Belt          OperatorBeltBindings  `yaml:"belt,omitempty" json:"belt,omitempty"`
+	BeltLayout    OperatorBeltLayout    `yaml:"belt_layout,omitempty" json:"belt_layout,omitempty"`
+	PotionRestock OperatorPotionRestock `yaml:"potion_restock,omitempty" json:"potion_restock,omitempty"`
+}
+
+// OperatorPotionRestock is the per-profile Akara restock trigger. Nil fields keep `town.thresholds`.
+type OperatorPotionRestock struct {
+	Healing *int `yaml:"healing,omitempty" json:"healing,omitempty"`
+	Mana    *int `yaml:"mana,omitempty" json:"mana,omitempty"`
 }
 
 // OperatorBeltBindings stores optional belt slot keys for one combat profile.
@@ -705,7 +712,7 @@ func cloneOperatorProfileBindings(bindings map[string]OperatorProfileBindings) m
 	}
 	clone := make(map[string]OperatorProfileBindings, len(bindings))
 	for profileID, value := range bindings {
-		cloned := OperatorProfileBindings{Belt: value.Belt, BeltLayout: value.BeltLayout}
+		cloned := OperatorProfileBindings{Belt: value.Belt, BeltLayout: value.BeltLayout, PotionRestock: clonePotionRestock(value.PotionRestock)}
 		if value.Skills != nil {
 			cloned.Skills = make(map[string]string, len(value.Skills))
 			for skill, key := range value.Skills {
@@ -715,6 +722,43 @@ func cloneOperatorProfileBindings(bindings map[string]OperatorProfileBindings) m
 		clone[profileID] = cloned
 	}
 	return clone
+}
+
+func clonePotionRestock(value OperatorPotionRestock) OperatorPotionRestock {
+	out := OperatorPotionRestock{}
+	if value.Healing != nil {
+		healing := *value.Healing
+		out.Healing = &healing
+	}
+	if value.Mana != nil {
+		mana := *value.Mana
+		out.Mana = &mana
+	}
+	return out
+}
+
+func validateOperatorPotionRestock(character, profileID string, bindings OperatorProfileBindings, profileCfg config.ProfileConfig) error {
+	layout := EffectiveBeltLayout(bindings.BeltLayout, profileCfg.Resources)
+	if err := validatePotionRestockKind(bindings.PotionRestock.Healing, potionRestockCapacity(layout, beltPotionHealing), "Heiltränke"); err != nil {
+		return fmt.Errorf("operator settings character %q profile %q: %w", character, profileID, err)
+	}
+	if err := validatePotionRestockKind(bindings.PotionRestock.Mana, potionRestockCapacity(layout, beltPotionMana), "Manatränke"); err != nil {
+		return fmt.Errorf("operator settings character %q profile %q: %w", character, profileID, err)
+	}
+	return nil
+}
+
+func validatePotionRestockKind(value *int, capacity int, label string) error {
+	if value == nil {
+		return nil
+	}
+	if capacity < beltColumnRows {
+		return &OperatorSettingsValidationError{Message: label + " nachkaufen braucht mindestens eine zugewiesene Gürtelspalte."}
+	}
+	if *value < 1 || *value > capacity {
+		return &OperatorSettingsValidationError{Message: fmt.Sprintf("%s nachkaufen muss zwischen 1 und %d liegen.", label, capacity)}
+	}
+	return nil
 }
 
 func cloneOperatorInventoryLock(lock *OperatorInventoryLock) *OperatorInventoryLock {
@@ -753,6 +797,9 @@ func validateOperatorProfileBindings(character string, bindings map[string]Opera
 			if (profileCfg.RequiresMercenary || mercEnabled) && !beltLayoutHasKind(value.BeltLayout, beltPotionHealing) {
 				return fmt.Errorf("operator settings character %q profile %q belt_layout needs at least one healing column for mercenary potions", character, profileID)
 			}
+		}
+		if err := validateOperatorPotionRestock(character, profileID, value, profileCfg); err != nil {
+			return err
 		}
 		usedKeys := make(map[string]string, len(value.Skills)+4)
 		for skillKey, rawKey := range value.Skills {

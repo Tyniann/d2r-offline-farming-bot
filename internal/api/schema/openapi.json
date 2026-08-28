@@ -2011,7 +2011,7 @@
       },
       "CharacterSetupProfileDTO": {
         "type": "object",
-        "required": ["id", "display_name", "is_default", "is_selected", "requires_mercenary", "bindings_ready", "default_belt_layout", "belt_layout"],
+        "required": ["id", "display_name", "is_default", "is_selected", "requires_mercenary", "bindings_ready", "default_belt_layout", "belt_layout", "default_healing_restock", "default_mana_restock"],
         "additionalProperties": false,
         "properties": {
           "id": {"type": "string"},
@@ -2026,7 +2026,9 @@
           "binding_reasons": {"type": "array", "items": {"type": "string"}},
           "supported_runs": {"type": "array", "items": {"type": "string"}},
           "default_belt_layout": {"$ref": "#/components/schemas/OperatorBeltLayoutDTO"},
-          "belt_layout": {"$ref": "#/components/schemas/OperatorBeltLayoutDTO"}
+          "belt_layout": {"$ref": "#/components/schemas/OperatorBeltLayoutDTO"},
+          "default_healing_restock": {"type": "integer", "minimum": 0},
+          "default_mana_restock": {"type": "integer", "minimum": 0}
         }
       },
       "CharacterSetupPickitDefaultDTO": {
@@ -2150,6 +2152,9 @@
           },
           "belt_layout": {
             "$ref": "#/components/schemas/OperatorBeltLayoutDTO"
+          },
+          "potion_restock": {
+            "$ref": "#/components/schemas/OperatorPotionRestockDTO"
           }
         }
       },
@@ -2168,6 +2173,20 @@
           },
           "slot_4": {
             "type": "string"
+          }
+        }
+      },
+      "OperatorPotionRestockDTO": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "healing": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "mana": {
+            "type": "integer",
+            "minimum": 1
           }
         }
       },

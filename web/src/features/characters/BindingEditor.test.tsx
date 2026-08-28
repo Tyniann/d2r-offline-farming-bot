@@ -29,6 +29,7 @@ describe("BindingEditor", () => {
       skills: { teleport: "f7", town_portal: "f7", bone_spear: "f8" },
       belt: { slot_1: "1", slot_2: "2", slot_3: "3", slot_4: "4" },
       belt_layout: { slot_1: "healing", slot_2: "mana", slot_3: "mana", slot_4: "rejuvenation" },
+      potion_restock: { healing: 2, mana: 4 },
     });
   });
 
@@ -37,15 +38,18 @@ describe("BindingEditor", () => {
       skills: { teleport: "f7", bone_spear: "" },
       belt: { slot_1: "1", slot_2: "", slot_3: "3", slot_4: "4" },
       belt_layout: { slot_1: "healing", slot_2: "healing", slot_3: "rejuvenation", slot_4: "rejuvenation" },
+      potion_restock: { healing: 6, mana: 4 },
     })).toEqual({
       skills: { teleport: "f7" },
       belt: { slot_1: "1", slot_3: "3", slot_4: "4" },
       belt_layout: { slot_1: "healing", slot_2: "healing", slot_3: "rejuvenation", slot_4: "rejuvenation" },
+      potion_restock: { healing: 6 },
     });
     expect(emptyBindings()).toEqual({
       skills: {},
       belt: {},
       belt_layout: { slot_1: "healing", slot_2: "mana", slot_3: "mana", slot_4: "rejuvenation" },
+      potion_restock: { healing: 2, mana: 4 },
     });
   });
 
@@ -60,6 +64,7 @@ describe("BindingEditor", () => {
     fireEvent.change(screen.getByLabelText("Gürtel Slot 2 Trank"), { target: { value: "healing" } });
     expect(onChange).toHaveBeenCalledWith(expect.objectContaining({
       belt_layout: { slot_1: "healing", slot_2: "healing", slot_3: "mana", slot_4: "rejuvenation" },
+      potion_restock: { healing: 2, mana: 4 },
     }));
   });
 
@@ -101,6 +106,28 @@ describe("BindingEditor", () => {
       skills: { battle_command: "f4" },
       belt: { slot_1: "", slot_2: "", slot_3: "", slot_4: "" },
       belt_layout: { slot_1: "healing", slot_2: "mana", slot_3: "mana", slot_4: "rejuvenation" },
+      potion_restock: { healing: 2, mana: 4 },
     });
+  });
+
+  it("zeigt Nachkaufschwellen nur für zugewiesene Heil- und Manaspalten", () => {
+    const onChange = vi.fn();
+    render(<BindingEditor
+      requiredSkills={[{ skill: "teleport", skill_id: 54, slot: "right" }]}
+      value={bindingsFromDTO({
+        skills: { teleport: "f7" },
+        belt: { slot_1: "1", slot_2: "2", slot_3: "3", slot_4: "4" },
+        belt_layout: { slot_1: "healing", slot_2: "healing", slot_3: "rejuvenation", slot_4: "rejuvenation" },
+        potion_restock: { healing: 6 },
+      })}
+      mutable
+      onChange={onChange}
+    />);
+    expect(screen.getByLabelText("Heiltränke nachkaufen unter")).toHaveValue(6);
+    expect(screen.queryByLabelText("Manatränke nachkaufen unter")).not.toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Heiltränke nachkaufen unter"), { target: { value: "8" } });
+    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({
+      potion_restock: { healing: 8, mana: 4 },
+    }));
   });
 });

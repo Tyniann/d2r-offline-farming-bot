@@ -71,8 +71,9 @@ export function CharactersTab({
     return bindingsFromDTO(
       characterSettings.profile_bindings?.[profileID],
       selectedProfile?.belt_layout ?? selectedProfile?.default_belt_layout,
+      selectedProfile ? { healing: selectedProfile.default_healing_restock, mana: selectedProfile.default_mana_restock } : undefined,
     );
-  }, [characterSettings, profileID, selectedProfile?.belt_layout, selectedProfile?.default_belt_layout]);
+  }, [characterSettings, profileID, selectedProfile]);
 
   const updateBindings = (next: BindingEditorValue) => {
     if (!profileID) return;

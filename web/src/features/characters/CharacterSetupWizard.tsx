@@ -102,6 +102,7 @@ export function CharacterSetupWizard({
     setBindingDraft(bindingsFromDTO(
       settings.characters[key]?.profile_bindings?.[profileID],
       selected?.belt_layout ?? selected?.default_belt_layout,
+      selected ? { healing: selected.default_healing_restock, mana: selected.default_mana_restock } : undefined,
     ));
   }, [settings, character, profileID, setupPreview]);
 

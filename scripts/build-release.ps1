@@ -66,6 +66,7 @@ if (-not $Commit -or $Commit -eq "dev") {
     throw "release build requires a readable non-dev Git commit"
 }
 $GoExe = Resolve-GoExe
+$OriginalLocalAppData = $env:LOCALAPPDATA
 
 foreach ($path in @($ReleaseRoot, $BuilderRoot, $ResourcesRoot, $SmokeRoot)) {
     if (Test-Path -LiteralPath $path) {
@@ -107,7 +108,7 @@ try {
 
     Invoke-Checked "pnpm" @("build:icon") $WebRoot
     Invoke-Checked "pnpm" @(
-        "exec", "electron-builder", "--win", "nsis", "--x64",
+        "exec", "electron-builder", "--win", "nsis", "--x64", "--publish", "never",
         "--config.extraMetadata.version=$Version",
         "--config.directories.output=$BuilderRoot"
     ) $WebRoot
@@ -203,6 +204,7 @@ try {
     $result = if ($SkipProductSmoke) { "built and statically verified" } else { "built and smoke-tested" }
     Write-Host "Release ${result}: $FinalInstaller"
 } finally {
+    $env:LOCALAPPDATA = $OriginalLocalAppData
     foreach ($path in @($BuilderRoot, $ResourcesRoot, $SmokeRoot)) {
         if (Test-Path -LiteralPath $path) {
             Assert-WorkspaceChild $path $Root
