@@ -92,11 +92,17 @@ export interface CombinedRuleResult {
 export function buildCombinedRuleExpression(input: CombinedRuleInput): CombinedRuleResult {
   const errors: CombinedRuleResult["errors"] = {};
   if (input.types.length === 0) errors.types = i18n.t("pickit.typeRequired");
-  if (!input.socketsOperator) errors.socketsOperator = i18n.t("pickit.socketOperatorRequired");
 
-  const sockets = Number(input.sockets);
-  if (!Number.isInteger(sockets) || sockets < 1 || sockets > 6 || input.sockets.trim() === "") {
-    errors.sockets = i18n.t("pickit.socketCountInvalid");
+  // Empty operator and count omit the socket clause ("any"). Count 0 is
+  // unsocketed (`[sockets] == 0`); 1–6 are exact totals.
+  const omitSockets = !input.socketsOperator && input.sockets.trim() === "";
+  let sockets = 0;
+  if (!omitSockets) {
+    if (!input.socketsOperator) errors.socketsOperator = i18n.t("pickit.socketOperatorRequired");
+    sockets = Number(input.sockets);
+    if (!Number.isInteger(sockets) || sockets < 0 || sockets > 6 || input.sockets.trim() === "") {
+      errors.sockets = i18n.t("pickit.socketCountInvalid");
+    }
   }
   if (Object.keys(errors).length > 0) return { expression: "", errors };
 
@@ -106,7 +112,7 @@ export function buildCombinedRuleExpression(input: CombinedRuleInput): CombinedR
     typeConditions.length === 1 ? typeConditions[0] : `(${typeConditions.join(" || ")})`,
   ];
   if (input.tier) conditions.push(`[tier] == ${JSON.stringify(input.tier)}`);
-  conditions.push(`[sockets] ${input.socketsOperator} ${sockets}`);
+  if (!omitSockets) conditions.push(`[sockets] ${input.socketsOperator} ${sockets}`);
   if (input.ethereal) conditions.push("[flag] == ethereal");
 
   return { expression: conditions.join(" && "), errors };

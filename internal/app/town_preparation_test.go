@@ -8,6 +8,7 @@ import (
 
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/config"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/input"
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/loot"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/pathing"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/town"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/world"
@@ -65,6 +66,30 @@ func TestLayoutTownWaypointWalkerReusesConfirmedWaypointHandoff(t *testing.T) {
 	}
 	if adapter.started || in.moves != 0 || in.keys != 0 || in.clicks != 0 {
 		t.Fatalf("waypoint handoff started route or input: started=%t input=%d/%d/%d", adapter.started, in.moves, in.keys, in.clicks)
+	}
+}
+
+func TestLayoutTownWaypointWalkerDoesNotReuseHandoffWhenCowTrashSellNeeded(t *testing.T) {
+	in := &preparationInputMock{}
+	pickup, err := loot.CompilePickitRules("test", []loot.PickitRuleSpec{
+		{ProfileID: "gems", RuleID: "gem", Action: loot.ActionKeep, Expression: `[name] == gpv`},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	lock, err := loot.NewInventoryLock([][]int{make([]int, 10), make([]int, 10), make([]int, 10), make([]int, 10)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	adapter := &townPreparationAdapter{
+		log: config.NewLogger("error"), driver: in, pathCfg: pathing.DefaultConfig(),
+		nextRunID: "cows", lootFilter: loot.NewFilter(config.NewLogger("error"), lock, pickup),
+	}
+	state := preparationState(world.Position{X: 80, Y: 70}, time.Now(), true)
+	state.Items = append(state.Items, crowdedCowInventory(false)...)
+	result := (&layoutTownWaypointWalker{adapter: adapter}).TickAct1Waypoint(context.Background(), state)
+	if result.Status == pathing.TownWalkWaypointVisible {
+		t.Fatalf("waypoint handoff reused despite Cow trash dump: %+v", result)
 	}
 }
 
@@ -160,6 +185,39 @@ func TestTownPreparationNoServiceFromWaypointCompletesWithoutStashEdge(t *testin
 	if a.resolvedStart != town.AnchorWaypoint {
 		t.Fatalf("resolved=%q", a.resolvedStart)
 	}
+}
+
+func TestTownPreparationCowTrashDetourFromWaypointPlansAkaraSell(t *testing.T) {
+	cfg, err := config.Load(filepath.Join("..", "..", "configs", "config.example.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	in := &preparationInputMock{}
+	a, err := newTownPreparationAdapter(config.NewLogger("error"), in, pathing.DefaultConfig(), cfg, "cows", &townLayoutPin{}, &preparationTelemetryMock{}, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	a.layout = "911703945495707c9e6578c2db467e76ed70cf0548f119ac1b397368a8af5a53"
+	a.layoutOrigin = world.Position{X: 5466, Y: 4709}
+	a.setItemPolicies(cowTrashTestFilter(t), cfg.Loot.Stash)
+	state := preparationState(world.Position{X: 80, Y: 70}, time.Now(), true)
+	state.Items = append(state.Items, crowdedCowInventory(false)...)
+	if reason := a.start(state); reason != "" {
+		t.Fatal(reason)
+	}
+	if a.executor == nil || a.handler == nil || !hasTrashSell(a.handler.itemOrders) {
+		t.Fatalf("expected Cow trash NPC plan, executor=%v handler=%v orders=%+v", a.executor != nil, a.handler != nil, itemOrdersOrNil(a.handler))
+	}
+	if a.resolvedStart != town.AnchorWaypoint || len(a.handler.traversals) != 2 {
+		t.Fatalf("resolved=%q traversals=%+v", a.resolvedStart, a.handler.traversals)
+	}
+}
+
+func itemOrdersOrNil(handler *townPreparationStepHandler) []town.ItemServiceOrder {
+	if handler == nil {
+		return nil
+	}
+	return handler.itemOrders
 }
 
 func TestTownPreparationPotionPlanFromWaypointUsesAkaraRoundtrip(t *testing.T) {
@@ -356,7 +414,7 @@ func TestTownPreparationBuildsProductivePotionPlanWithLiveGold(t *testing.T) {
 	}
 }
 
-func TestCowReadinessRequiresRejuvenationAndFillsAssignedColumns(t *testing.T) {
+func TestCowReadinessRestocksEmptyHealingColumns(t *testing.T) {
 	cfg, err := config.Load(filepath.Join("..", "..", "configs", "config.example.yaml"))
 	if err != nil {
 		t.Fatal(err)
@@ -366,28 +424,23 @@ func TestCowReadinessRequiresRejuvenationAndFillsAssignedColumns(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	a.requireFullBuyableBelt, a.minimumRejuvenation = true, 1
 	a.layout = "911703945495707c9e6578c2db467e76ed70cf0548f119ac1b397368a8af5a53"
 	a.layoutOrigin = world.Position{X: 5466, Y: 4709}
 	state := preparationState(a.layoutOrigin, time.Now(), false)
 	state.Player.Gold, state.Player.GoldKnown = 50938, true
-	for i := 0; i < 3; i++ {
-		state.Items = append(state.Items, world.Item{UnitID: uint32(10 + i), Type: "hpot", Location: world.ItemLocationBelt, PlayerOwned: true, GridX: 0, GridY: i})
-	}
-	for i := 0; i < 7; i++ {
-		state.Items = append(state.Items, world.Item{UnitID: uint32(20 + i), Type: "mpot", Location: world.ItemLocationBelt, PlayerOwned: true, GridX: 1 + i%2, GridY: i / 2})
-	}
-	if reason := a.start(state); reason != "cow_rejuvenation_reserve_missing" {
-		t.Fatalf("missing rejuvenation reason=%q", reason)
-	}
-	state.Items = append(state.Items, world.Item{UnitID: 40, Type: "rpot", Location: world.ItemLocationBelt, PlayerOwned: true, GridX: 3})
 	if reason := a.start(state); reason != "" {
 		t.Fatal(reason)
 	}
-	if a.handler == nil || len(a.handler.orders) != 2 {
-		t.Fatalf("orders=%+v", a.handler)
+	if a.handler == nil {
+		t.Fatal("handler")
 	}
-	if a.handler.orders[0].Target != 4 || a.handler.orders[1].Target != 8 {
+	foundHealing := false
+	for _, order := range a.handler.orders {
+		if order.Resource == town.RestockHealing && order.Before == 0 {
+			foundHealing = true
+		}
+	}
+	if !foundHealing {
 		t.Fatalf("orders=%+v", a.handler.orders)
 	}
 }

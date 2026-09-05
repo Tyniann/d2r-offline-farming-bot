@@ -127,14 +127,15 @@ export function presentRouteReason(code: string, t: AppTranslator): string {
 
 export function presentHistoryReason(code: string, t: AppTranslator): string {
   if (!code) return "";
-  let translated = "";
+  return lookupHistoryReason(code, t) || t("history.reasonFallback", { code });
+}
+
+function lookupHistoryReason(code: string, t: AppTranslator): string {
   try {
-    translated = t(`historyReasons.${code}` as never, { defaultValue: "" } as never) as unknown as string;
+    return (t(`historyReasons.${code}` as never, { defaultValue: "" } as never) as unknown as string) || "";
   } catch {
-    // Tests reject missing keys globally; history still needs the production
-    // fallback for forward-compatible reason codes.
+    return "";
   }
-  return translated || t("history.reasonFallback", { code });
 }
 
 const errorKeys = {
@@ -220,6 +221,7 @@ const errorKeys = {
   diagnostic_content_rejected: "errors.diagnosticRejected",
   retry_return_failed: "errors.retryReturnFailed",
   stash_approach_failed: "errors.stashApproachFailed",
+  boss_combat_no_progress: "errors.bossCombatNoProgress",
 } as const;
 
 export function presentProblem(problem: ProblemDTO, t: AppTranslator): string {
@@ -230,7 +232,14 @@ export function presentProblem(problem: ProblemDTO, t: AppTranslator): string {
     });
   }
   const key = errorKeys[problem.code as keyof typeof errorKeys];
-  return key ? t(key, problem.params ?? {}) : presentUnknownCode(problem.code, t);
+  if (key) {
+    return t(key, problem.params ?? {});
+  }
+  const history = lookupHistoryReason(problem.code, t);
+  if (history) {
+    return history;
+  }
+  return presentUnknownCode(problem.code, t);
 }
 
 export function presentApiError(reason: unknown, t: AppTranslator, fallback: string): string {

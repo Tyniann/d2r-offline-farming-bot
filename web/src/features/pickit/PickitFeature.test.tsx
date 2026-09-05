@@ -111,9 +111,34 @@ describe("PickitFeature", () => {
     fireEvent.click(screen.getByLabelText("Schilde – Paladin"));
     fireEvent.click(screen.getByRole("button", { name: "Auswahl schließen" }));
     fireEvent.click(screen.getByRole("button", { name: "Regel hinzufügen" }));
-    expect(screen.getByText("Sockelfilter: 4")).toBeInTheDocument();
+    expect(screen.getByText("Schilde, Schilde – Paladin")).toBeInTheDocument();
+    expect(screen.getByText("Elite · Genau 4 · Gefundene Items behalten")).toBeInTheDocument();
     openExpressionEditor();
     expect(screen.getByText(`([type] == "shie" || [type] == "ashd") && [tier] == "elite" && [sockets] == 4`)).toBeInTheDocument();
+  });
+
+  it("erlaubt kombinierte Regeln ohne Sockelzahl und ohne Sockel", async () => {
+    await renderLoaded();
+    openBuilder();
+    const picker = screen.getByRole("button", { name: "Itemtypen 1 ausgewählt" });
+    fireEvent.click(picker);
+    const search = screen.getByRole("textbox", { name: "Typen durchsuchen" });
+    fireEvent.change(search, { target: { value: "Stangen" } });
+    fireEvent.click(screen.getByLabelText("Stangenwaffen"));
+    fireEvent.click(screen.getByRole("button", { name: "Auswahl schließen" }));
+    fireEvent.click(screen.getByRole("button", { name: "Schilde aus der Auswahl entfernen" }));
+    fireEvent.click(screen.getByLabelText("Ätherisch"));
+    fireEvent.change(screen.getByLabelText("Sockel"), { target: { value: "" } });
+    fireEvent.click(screen.getByRole("button", { name: "Regel hinzufügen" }));
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.getByText("Stangenwaffen", { selector: "strong" })).toBeInTheDocument();
+    expect(screen.getByText("Elite · Ätherisch · Gefundene Items behalten")).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Sockel"), { target: { value: "==:0" } });
+    fireEvent.click(screen.getByRole("button", { name: "Regel hinzufügen" }));
+    expect(screen.getByText("Elite · Keine Sockel · Ätherisch · Gefundene Items behalten")).toBeInTheDocument();
+    openExpressionEditor();
+    expect(screen.getByText(`[type] == "pole" && [tier] == "elite" && [flag] == ethereal`)).toBeInTheDocument();
+    expect(screen.getByText(`[type] == "pole" && [tier] == "elite" && [sockets] == 0 && [flag] == ethereal`)).toBeInTheDocument();
   });
 
   it("macht das letzte Entfernen rückgängig und schützt einen Dirty-Profilwechsel", async () => {

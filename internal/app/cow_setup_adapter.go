@@ -19,6 +19,13 @@ const (
 	cowWirtLegSpawnDistance   = 8
 	cowWirtClickDistance      = 8
 	cowTomeVerifySnapshots    = 3
+	// cowAkaraClickDistance is the live-NPC close-up used before hover. The
+	// recorded Akara graph endpoint can leave her near the 15-tile click gate.
+	cowAkaraClickDistance = 8
+	// cowAkaraInteractDistance is hover-click slack after the close-up so one
+	// wander step during probing does not abort as `npc_too_far`.
+	cowAkaraInteractDistance = 15
+	cowAkaraCloseTimeout     = 8 * time.Second
 )
 
 type cowWirtApproach interface {
@@ -56,6 +63,11 @@ type cowSetupAdapter struct {
 	tomeVerifyUnitID uint32
 	tomeVerifyTicks  int
 	tomeCloseSent    bool
+
+	tomeCloseStarted  time.Time
+	tomeCloseLastMove time.Time
+	tomeCloseLastPos  world.Position
+	tomeCloseProgress time.Time
 }
 
 func newCowSetupAdapterWithProfile(log *slog.Logger, controller townPreparationController, navigator *pathing.Navigator, pathCfg pathing.Config, cfg *config.Config, runID string, profileID string, layoutPin *townLayoutPin, trace town.ExecutorTelemetry) (*cowSetupAdapter, error) {
@@ -211,12 +223,10 @@ func (a *cowSetupAdapter) TickTome(ctx context.Context, state world.State) tasks
 		if len(a.tomeExisting) == 0 {
 			return tasks.CowSetupActionResult{Done: true, Reason: tasks.CowReasonReturnPortalUnavailable}
 		}
-		clickCfg := a.pathCfg.Click
-		clickCfg.AnchorOffsetTiles = 0
-		clicker := pathing.NewEntityClicker(a.log, a.controller, a.pathCfg.Projector(), clickCfg)
-		a.tomeNPC = town.NewNPCInteractor(townNPCClickerAdapter{clicker: clicker}, world.Akara, 15, 8*time.Second)
-		a.tomeStage = "npc"
-		return tasks.CowSetupActionResult{}
+		a.tomeStage = "approach_npc"
+		return a.tickAkaraClose(state)
+	case "approach_npc":
+		return a.tickAkaraClose(state)
 	case "npc":
 		result := a.tomeNPC.Tick(state)
 		if result.Status == town.InteractionComplete {
@@ -225,6 +235,7 @@ func (a *cowSetupAdapter) TickTome(ctx context.Context, state world.State) tasks
 			return tasks.CowSetupActionResult{}
 		}
 		if result.Done && result.Status == town.InteractionFailed {
+			a.log.Warn("Akara-Interaktion fehlgeschlagen", "reason", result.Reason, "unit_id", result.UnitID)
 			return tasks.CowSetupActionResult{Done: true, Reason: "cow_akara_interaction_failed"}
 		}
 		return tasks.CowSetupActionResult{}
@@ -334,6 +345,67 @@ func (a *cowSetupAdapter) Reset() {
 	a.tomeNPC, a.tomeShop, a.tomeBuyer = nil, nil, nil
 	a.tomeUnitID, a.tomeVerifyUnitID, a.tomeVerifyTicks = 0, 0, 0
 	a.tomeCloseSent = false
+	a.tomeCloseStarted, a.tomeCloseLastMove, a.tomeCloseProgress = time.Time{}, time.Time{}, time.Time{}
+	a.tomeCloseLastPos = world.Position{}
+}
+
+func (a *cowSetupAdapter) tickAkaraClose(state world.State) tasks.CowSetupActionResult {
+	npc, ok := state.FindNPC(world.Akara)
+	if !ok || npc.UnitID == 0 {
+		return tasks.CowSetupActionResult{Done: true, Reason: "cow_akara_approach_failed"}
+	}
+	distance := world.Distance(state.Player.Position, npc.Position)
+	if distance <= cowAkaraClickDistance {
+		a.beginTomeNPC()
+		a.tomeStage = "npc"
+		return tasks.CowSetupActionResult{}
+	}
+	now := state.At
+	if now.IsZero() {
+		now = time.Now()
+	}
+	if a.tomeCloseStarted.IsZero() {
+		a.tomeCloseStarted = now
+		a.tomeCloseLastPos = state.Player.Position
+		a.tomeCloseProgress = now
+		a.log.Info("Akara wird vor dem Öffnen angenähert", "unit_id", npc.UnitID, "distance", distance)
+	}
+	if now.Sub(a.tomeCloseStarted) >= cowAkaraCloseTimeout {
+		return tasks.CowSetupActionResult{Done: true, Reason: "cow_akara_approach_failed"}
+	}
+	if world.Distance(a.tomeCloseLastPos, state.Player.Position) >= 1 {
+		a.tomeCloseProgress = now
+		a.tomeCloseLastPos = state.Player.Position
+	}
+	if now.Sub(a.tomeCloseProgress) >= a.pathCfg.TownWalk.StuckTimeout {
+		return tasks.CowSetupActionResult{Done: true, Reason: "cow_akara_approach_failed"}
+	}
+	if !a.tomeCloseLastMove.IsZero() && now.Sub(a.tomeCloseLastMove) < a.pathCfg.TownWalk.MoveInterval {
+		return tasks.CowSetupActionResult{}
+	}
+	win, ok := a.controller.Window()
+	if !ok {
+		return tasks.CowSetupActionResult{Done: true, Reason: "cow_akara_approach_failed"}
+	}
+	clientX, clientY, ok := a.pathCfg.Projector().Project(state.Player.Position, npc.Position, win)
+	if !ok {
+		return tasks.CowSetupActionResult{Done: true, Reason: "cow_akara_approach_failed"}
+	}
+	if err := a.controller.MoveTo(clientX, clientY); err != nil {
+		return tasks.CowSetupActionResult{Done: true, Reason: "cow_akara_approach_failed"}
+	}
+	if err := a.controller.PressKey(a.pathCfg.TownWalk.ForceMoveKey); err != nil {
+		return tasks.CowSetupActionResult{Done: true, Reason: "cow_akara_approach_failed"}
+	}
+	a.tomeCloseLastMove = now
+	return tasks.CowSetupActionResult{}
+}
+
+func (a *cowSetupAdapter) beginTomeNPC() {
+	clickCfg := a.pathCfg.Click
+	clickCfg.AnchorOffsetTiles = 0
+	clicker := pathing.NewEntityClicker(a.log, a.controller, a.pathCfg.Projector(), clickCfg)
+	a.tomeNPC = town.NewNPCInteractor(townNPCClickerAdapter{clicker: clicker}, world.Akara, cowAkaraInteractDistance, 8*time.Second)
 }
 
 var _ tasks.CowSetupActions = (*cowSetupAdapter)(nil)

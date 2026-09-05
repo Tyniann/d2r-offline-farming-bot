@@ -53,7 +53,8 @@ Bei produktiven Queue-Runs schreibt der Runtime-Owner vor dem Schließen des Run
 | `run_step_started` / `run_step_completed` / `run_step_failed` | gemeinsame Pipeline betritt oder beendet einen Step | jede Transition |
 | `run_encounter_action_started` / `run_encounter_action_completed` | eine geordnete Pre-Combat-Aktion beginnt oder endet | je Definition und Aktionsindex |
 | `boss_kill_confirmed` | die bestehende Kill-Bedingung bestätigt das Verschwinden der gepinnten Boss-Unit | genau einmal je Run |
-| `sell_success` | die gepinnte Unit hat das persönliche Inventory nach dem Sell-Input verlassen | terminal je verkauftem Item |
+| `sell_success` | die gepinnte Unit hat das persönliche Inventory nach dem Sell-Input verlassen | terminal je Pickit-Verkauf |
+| `trash_sell_success` | die gepinnte Unit hat das persönliche Inventory nach dem Cow-Town-Dump verlassen | terminal je Müll-Verkauf |
 | `town_portal_entry_unconfirmed` / `town_portal_recovery_started` / `town_portal_retry_clicked` / `town_portal_recovery_completed` | erster Klick bleibt im Route-Terminal, Recovery beginnt, Retry-Klick erfolgt und Ziel-Area wird bestätigt | höchstens einmal je Event und Run |
 
 `stash_full` wird im aktuellen Personal-Stash-MVP mit unbegrenzten Sammel-Tabs nicht heuristisch erzeugt.
@@ -90,7 +91,7 @@ Felder des im Speicher vollständig ergänzten Ereignismodells:
 - Ein Fehler, der beim Protokollieren einer gerade ausgeführten Aktion entsteht, kann diese bereits ausgeführte Aktion naturgemäß nicht rückgängig machen; er verhindert aber jede folgende Aktion.
 - Ein Boss-Kill wird nicht aus Combat-Start oder Step-Abschluss abgeleitet. Schlägt sein synchroner Emit fehl, darf der Kill-Step nicht erfolgreich abschließen.
 - Lower-Kurast-Objekte erzeugen `chest_opened`, `chest_skipped`, `rack_operated` oder `rack_skipped`. Sie erhöhen `boss_kills` nicht.
-- Ein `item_sell`-Shopinput ist nur `town_action`. Erst ein späterer kohärenter World-Snapshot, in dem die gepinnte Unit das persönliche Inventory verlassen hat, erzeugt `sell_success`.
+- Ein `item_sell`-Shopinput ist nur `town_action`. Erst ein späterer kohärenter World-Snapshot, in dem die gepinnte Unit das persönliche Inventory verlassen hat, erzeugt `sell_success` oder für den Cow-Town-Dump `trash_sell_success` ohne Pickit-Aktion.
 
 ## Live-Validierung
 
@@ -114,4 +115,4 @@ Phase-16-Gate D bestätigte einen vollständigen produktiven Countess-Stream mit
 - [Personal-Stash MVP](personal-stash-mvp.md)
 
 ---
-*Zuletzt aktualisiert: 22. August 2026*
+*Zuletzt aktualisiert: 2026-09-02*

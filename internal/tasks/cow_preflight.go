@@ -143,6 +143,12 @@ func validInventoryFootprint(item world.Item) bool {
 		item.GridX+item.Width <= 10 && item.GridY+item.Height <= 4
 }
 
+// CowInventoryCanFitRecipeItems reports whether unlocked personal inventory can
+// hold both a 1×3 Wirt's Leg and a 1×2 Town-Portal tome at the same time.
+func CowInventoryCanFitRecipeItems(locked [4][10]bool, items []world.Item) bool {
+	return cowInventoryCanFitBoth(locked, items)
+}
+
 func cowInventoryCanFitBoth(locked [4][10]bool, items []world.Item) bool {
 	occupied := [4][10]bool{}
 	for _, item := range items {

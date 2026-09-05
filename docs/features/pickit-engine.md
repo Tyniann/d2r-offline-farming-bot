@@ -39,7 +39,7 @@ Unterstützte Felder:
 - `[sockets]` mit `==`, `!=`, `>`, `>=`, `<`, `<=` gegen `world.Item.Sockets` (ab Phase 19)
 - `[stat:<id>]` gegen `world.Item.Stats`, ab Phase 5.9 ausschließlich bei `Identified=true`
 
-Quality-Regeln dürfen unidentifizierte Items weiterhin für einen späteren Pickup auswählen. Stat-Regeln matchen bis zur Identifikation nie; Keep/Stash wird zusätzlich über die [Identification-Strategie](identification-strategy.md) gegatet. `[sockets]` und `[flag] socketed` haben **kein** Identify-Gate; bei `SocketsAvailable=false` liefern alle Socket-Prädikate fail-closed `false`, ausdrücklich auch `!=`.
+Quality-Regeln dürfen unidentifizierte Items weiterhin für einen späteren Pickup auswählen. Stat-Regeln matchen bis zur Identifikation nie; Keep/Stash wird zusätzlich über die [Identification-Strategie](identification-strategy.md) gegatet. `[sockets]` und `[flag] socketed` haben **kein** Identify-Gate. Lesbare Listen ohne Socketed-Flag und ohne Stat 194 sind bekannt ungesockelt (`Sockets=0`). Bei `SocketsAvailable=false` (unlesbar oder widersprüchlich) liefern alle Socket-Prädikate fail-closed `false`, ausdrücklich auch `!=`.
 
 Unterstützte Literale:
 
@@ -112,4 +112,4 @@ Es gibt in 13.4 noch keine neue CLI-Oberfläche. Profile und Zuordnung werden be
 - [Countess-Run](countess-run.md)
 
 ---
-*Zuletzt aktualisiert: 2026-07-31*
+*Zuletzt aktualisiert: 2026-09-03*

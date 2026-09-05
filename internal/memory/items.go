@@ -190,12 +190,17 @@ func layerZeroStatEvidence(stats []RawStat, err error, id uint16) SocketStatEvid
 
 // decodeItemSockets applies the Gate-19.0 consistency table.
 // Stat 194 is taken from Active if present, otherwise Base; a successful Active
-// parse without Stat 194 must not hide a Base-only value. Missing, unreadable,
-// out-of-range, or Flag/Stat contradictions stay unavailable (fail-closed).
+// parse without Stat 194 must not hide a Base-only value. Unreadable lists,
+// out-of-range values, or Flag/Stat contradictions stay unavailable (fail-closed).
+// Readable lists with the socketed flag off and Stat 194 absent are the live
+// unsocketed case and project as known zero sockets.
 func decodeItemSockets(flags uint32, active, base SocketStatEvidence) (sockets int, available bool, socketed bool) {
 	flagOn := flags&itemFlagSocketed != 0
 	value, present := resolveSocketStatValue(active, base)
 	if !present {
+		if !flagOn && active.ListReadable && base.ListReadable {
+			return 0, true, false
+		}
 		return 0, false, false
 	}
 	if value < 0 || value > 6 {

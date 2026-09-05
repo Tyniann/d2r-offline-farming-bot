@@ -92,7 +92,7 @@ Damit ist Bit `0x10` (Identified) live gegen Magic bestätigt. Ein unidentifizie
 | Stat-ID | `StatNumSockets = 194` (`item_numsockets`) |
 | Socketed-Flag | `itemFlagSocketed = 0x800` (Live 31.07.2026, D2R `3.2.92777`) |
 | Stat-Quelle | In allen Socket-Fällen lag Stat 194 in **Base**; Active war `absent`. Produktiver Decoder muss Base prüfen; Active zusätzlich, falls später vorhanden. Ein erfolgreicher Active-Parse ohne Stat 194 darf Base nicht verdecken |
-| Nullfall `value:0` | Live **nicht** beobachtet. Ungesockelt = Flag aus + Stat `absent` → produktiv `SocketsAvailable=false` (nicht „bekannt 0“) |
+| Nullfall `value:0` | Live **nicht** beobachtet. Ungesockelt = Flag aus + Stat `absent`. Der Decoder projiziert diesen Fall als bekannt 0, wenn beide Stat-Listen lesbar sind |
 | Identify | Socket-Evidenz ist nicht an Identify gebunden; Normal-Bases tragen typischerweise `identified=true` |
 
 ## Datenmodell
@@ -101,14 +101,15 @@ Damit ist Bit `0x10` (Identified) live gegen Magic bestätigt. Ein unidentifizie
 
 | Stat 194 | Flag `0x800` | `SocketsAvailable` | `Sockets` | `Socketed` |
 |----------|--------------|--------------------|-----------|------------|
-| fehlt / unlesbar | beliebig | false | 0 | false |
-| 0 | aus | true nur falls live belegt (bisher nicht) | 0 | false |
+| fehlt, beide Listen lesbar | aus | true | 0 | false |
+| fehlt / unlesbar | an oder Listen unlesbar | false | 0 | false |
+| 0 | aus | true | 0 | false |
 | 1..6 | an | true | Statwert | true |
 | 0 | an | false | 0 | false |
 | 1..6 | aus | false | 0 | false |
 | außerhalb 0..6 | beliebig | false | 0 | false |
 
-`memory.ItemUnit` und `world.Item` tragen `Sockets`, `SocketsAvailable`, `Socketed`. Der Decoder in `internal/memory` ist die einzige Autorität; World mappt nur. Ein optionaler Decode-Fehler verwirft das Item nicht — es bleibt mit `SocketsAvailable=false` sichtbar.
+`memory.ItemUnit` und `world.Item` tragen `Sockets`, `SocketsAvailable`, `Socketed`. Der Decoder in `internal/memory` ist die einzige Autorität; World mappt nur. Ein optionaler Decode-Fehler verwirft das Item nicht — es bleibt mit `SocketsAvailable=false` sichtbar. Lesbare Listen ohne Socketed-Flag und ohne Stat 194 sind seit 2026-09-03 bekannt ungesockelt, damit kombinierte Filter ohne Sockel am Boden treffen. Unlesbare Listen und Flag/Stat-Widersprüche bleiben unavailable.
 
 Active und Base werden jeweils höchstens einmal gelesen. Stat 194 kommt aus Active falls vorhanden, sonst Base. Widersprüchliche Werte → unavailable.
 
@@ -155,7 +156,7 @@ Der kombinierte Builder in `pickitRuleBuilder.ts` / `PickitFeature.tsx` erzeugt 
 
 1. durchsuchbarer Mehrfachauswahl expliziter Ausrüstungstypen (geklammerte OR-Gruppe),
 2. optionalem Tier,
-3. verpflichtendem Sockeloperator/-anzahl,
+3. optionalem Sockelfilter (beliebig, keine Sockel als `[sockets] == 0`, oder genau 1–6),
 4. optionalem Ätherisch (`[flag] == ethereal`, kanonisch auch im Basis-Schnellpfad).
 
 **Typliste (Auszug):**
@@ -207,4 +208,4 @@ Verbose Hints zeigen Socket-Diagnose und produktive Felder read-only; normale Lo
 - [Phase-13-Core-Vertrag](phase-13-core-contract.md) — historische Non-Goals; Phase 19 hebt Socket-Parser-Nachzug auf
 
 ---
-*Zuletzt aktualisiert: 2026-07-31*
+*Zuletzt aktualisiert: 2026-09-03*

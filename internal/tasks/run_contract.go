@@ -398,6 +398,7 @@ const (
 	RunReasonBossKillUnconfirmed RunReason = "boss_kill_unconfirmed"
 	// RunReasonBossCombatNoProgress reports that Hammerdin boss combat sent
 	// neither a confirmed close-range hammer nor a bounded teleport in time.
+	// Productive queues treat the exact code as retryable via session.retry_classes.
 	RunReasonBossCombatNoProgress RunReason = "boss_combat_no_progress"
 	// RunReasonLootPolicyInvalid reports an invalid pickup or sell policy.
 	RunReasonLootPolicyInvalid RunReason = "loot_policy_invalid"

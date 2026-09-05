@@ -326,6 +326,32 @@ func TestRestartableFailureSkipsPortalReturnWhenAlreadyInAct1Town(t *testing.T) 
 	}
 }
 
+func TestBossCombatNoProgressRetriesWhenConfigured(t *testing.T) {
+	t.Parallel()
+
+	stopped, err := classifyFailedQueueRun(context.Background(), "countess", "boss_combat_no_progress", []string{"hard_stuck"}, world.State{}, func(context.Context) error {
+		t.Fatal("unconfigured boss combat no progress must not recover")
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stopped.Disposition != QueueRunStop || stopped.Reason != "boss_combat_no_progress" || stopped.ExitAuthorization != ExitAuthorizationNone {
+		t.Fatalf("unconfigured no progress = %+v", stopped)
+	}
+
+	field := world.State{Valid: true, Phase: world.GamePhaseInGame, Area: world.LookupArea(world.TowerCellarLevel5)}
+	got, err := classifyFailedQueueRun(context.Background(), "countess", "boss_combat_no_progress", []string{"boss_combat_no_progress"}, field, func(context.Context) error {
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Disposition != QueueRunRetryCurrent || got.Reason != "boss_combat_no_progress" || got.ExitAuthorization != ExitAuthorizationVerifiedRogueTown {
+		t.Fatalf("configured no progress = %+v", got)
+	}
+}
+
 func TestRuntimeQueueRunnerStopsBeforeRunWhenSkillsMissing(t *testing.T) {
 	var events []string
 	runner := &RuntimeQueueRunner{newUnit: func(runID string) (queueRunUnit, error) {

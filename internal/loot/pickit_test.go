@@ -175,7 +175,7 @@ func TestPickitSocketsAndSocketedFailClosed(t *testing.T) {
 
 	unavailable := world.Item{Sockets: 4, SocketsAvailable: false, Socketed: true}
 	for _, expr := range []string{
-		"[sockets] == 4", "[sockets] != 0", "[sockets] > 0",
+		"[sockets] == 4", "[sockets] == 0", "[sockets] != 0", "[sockets] > 0",
 		"[flag] == socketed", "[flag] != socketed",
 	} {
 		if loadPickitFromTestFile(t, expr).Evaluate(unavailable).Matched {
@@ -186,6 +186,9 @@ func TestPickitSocketsAndSocketedFailClosed(t *testing.T) {
 	unsocketedKnown := world.Item{Sockets: 0, SocketsAvailable: true, Socketed: false}
 	if !loadPickitFromTestFile(t, `[flag] != socketed`).Evaluate(unsocketedKnown).Matched {
 		t.Fatal("known unsocketed should match != socketed")
+	}
+	if !loadPickitFromTestFile(t, `[sockets] == 0`).Evaluate(unsocketedKnown).Matched {
+		t.Fatal("known unsocketed should match [sockets] == 0")
 	}
 	if loadPickitFromTestFile(t, `[flag] == socketed`).Evaluate(unsocketedKnown).Matched {
 		t.Fatal("known unsocketed matched == socketed")
@@ -270,6 +273,7 @@ func TestPickitRejectsUnsupportedSyntax(t *testing.T) {
 func TestSummarizePickitExpressionProjectsTypedLanguageNeutralParams(t *testing.T) {
 	trueValue := true
 	four := 4
+	zero := 0
 	tests := []struct {
 		name       string
 		expression string
@@ -285,6 +289,8 @@ func TestSummarizePickitExpressionProjectsTypedLanguageNeutralParams(t *testing.
 		{name: "set item", expression: `[setitem] == "Tal Rasha's Adjudication"`, want: PickitRuleSummary{Kind: "set_item", Params: PickitRuleSummaryParams{SetKey: "Tal Rasha's Adjudication"}}},
 		{name: "unique item", expression: `[uniqueitem] == "Harlequin Crest"`, want: PickitRuleSummary{Kind: "unique_item", Params: PickitRuleSummaryParams{UniqueKey: "Harlequin Crest"}}},
 		{name: "socket filter", expression: `[type] == pole && [tier] == elite && [sockets] == 4 && [flag] == ethereal`, want: PickitRuleSummary{Kind: "socket_filter", Params: PickitRuleSummaryParams{Types: []string{"pole"}, Tiers: []string{"elite"}, SocketOperator: "==", SocketCount: &four, Ethereal: &trueValue}}},
+		{name: "combined filter without sockets", expression: `[type] == pole && [tier] == elite && [flag] == ethereal`, want: PickitRuleSummary{Kind: "socket_filter", Params: PickitRuleSummaryParams{Types: []string{"pole"}, Tiers: []string{"elite"}, Ethereal: &trueValue}}},
+		{name: "unsocketed filter", expression: `[type] == pole && [tier] == elite && [sockets] == 0 && [flag] == ethereal`, want: PickitRuleSummary{Kind: "socket_filter", Params: PickitRuleSummaryParams{Types: []string{"pole"}, Tiers: []string{"elite"}, SocketOperator: "==", SocketCount: &zero, Ethereal: &trueValue}}},
 		{name: "manual stat", expression: `[stat:39] >= 30`, want: PickitRuleSummary{Kind: "custom"}},
 		{name: "unrepresentable negation", expression: `[type] != rune`, want: PickitRuleSummary{Kind: "custom"}},
 	}

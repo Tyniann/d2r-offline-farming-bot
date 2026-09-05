@@ -92,6 +92,12 @@ func (c *EntityClicker) Tick(state world.State, target ClickTarget, maxDistance 
 
 	if maxDistance > 0 {
 		if d := world.Distance(state.Player.Position, target.Position); d > maxDistance {
+			c.log.Warn("entity click too far",
+				"target", target.Name,
+				"unit_id", target.UnitID,
+				"distance", d,
+				"max_distance", maxDistance,
+			)
 			c.Reset()
 			return ClickTickResult{Status: ClickTooFar, Done: true, TargetUnitID: target.UnitID}, nil
 		}

@@ -10,6 +10,7 @@ import (
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/input"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/loot"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/pathing"
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/tasks"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/telemetry"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/town"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/world"
@@ -32,18 +33,9 @@ func (a *townPreparationAdapter) mercenaryPolicy() town.MercenaryPolicy {
 func (a *townPreparationAdapter) start(state world.State) string {
 	// Planning consumes one coherent snapshot. It must not mix belt or carried-
 	// gold values from later ticks before the immutable plan is constructed.
-	healing, mana, rejuvenation := countProfilePotionSupplies(state, a.profile)
-	if a.minimumRejuvenation > 0 && rejuvenation < a.minimumRejuvenation {
-		return "cow_rejuvenation_reserve_missing"
-	}
-	if a.requireFullBuyableBelt && !hasPotionColumnSeeds(state, a.profile) {
-		return "cow_belt_layout_unseeded"
-	}
+	healing, mana, _ := countProfilePotionSupplies(state, a.profile)
 	healingTarget, manaTarget := len(a.profile.Healing.BeltSlots)*beltColumnRows, len(a.profile.Mana.BeltSlots)*beltColumnRows
 	healingThreshold, manaThreshold := a.thresholds.Healing, a.thresholds.Mana
-	if a.requireFullBuyableBelt {
-		healingThreshold, manaThreshold = healingTarget, manaTarget
-	}
 	levels := []town.RestockLevel{
 		{Resource: town.RestockHealing, Current: healing, Threshold: healingThreshold, Target: healingTarget},
 		{Resource: town.RestockMana, Current: mana, Threshold: manaThreshold, Target: manaTarget},
@@ -66,7 +58,14 @@ func (a *townPreparationAdapter) start(state world.State) string {
 	}
 	startAnchor := a.planningStartAnchor(state)
 	a.resolvedStart = startAnchor
-	if !a.services || (!needsPotions && !needsKeys && len(itemOrders) == 0 && !mercHeal && !mercRevive) {
+	cowTrashDetour := hasTrashSell(itemOrders)
+	if !a.services {
+		// Initial setup never restocks potions, keys, or the mercenary. Cow may
+		// still take a one-shot Akara dump when recipe space is already missing.
+		needsPotions, needsKeys, mercHeal, mercRevive = false, false, false, false
+	}
+	npcPlan := (a.services || cowTrashDetour) && (needsPotions || needsKeys || len(itemOrders) > 0 || mercHeal || mercRevive)
+	if !npcPlan {
 		// No demand means no NPC detour. Initial run setup also enters here even
 		// with a low belt because its only responsibility is reaching Waypoint.
 		targetAnchor := a.handoffAnchor()
@@ -86,6 +85,9 @@ func (a *townPreparationAdapter) start(state world.State) string {
 		a.started = true
 		a.log.Info("central town preparation started", "origin", startAnchor, "target", targetAnchor, "services", []string{}, "handoff", a.nextRunID, "edge_count", len(traversals), "scroll_demand", "unavailable_skip", "town_layout", a.layout)
 		return ""
+	}
+	if cowTrashDetour {
+		a.log.Info("Kuh-Inventar hat keinen Platz für Bein und Stadtportalbuch, verkaufe ungeschützten Müll", "handoff", a.nextRunID, "item_orders", len(itemOrders))
 	}
 
 	maximumCost := 0
@@ -160,20 +162,42 @@ func (a *townPreparationAdapter) planItemServiceOrders(state world.State) ([]tow
 		return nil, ""
 	}
 	candidates := make([]town.ItemServiceCandidate, 0)
+	claimed := map[uint32]bool{}
 	for _, item := range state.InventoryItems() {
 		result := a.lootFilter.Evaluate(item)
 		if !result.Matched || result.Action != loot.ActionSell {
 			continue
 		}
-		locked := a.lootFilter == nil || a.lootFilter.InventoryLocked(item)
+		locked := a.lootFilter.InventoryLocked(item)
 		candidates = append(candidates, town.ItemServiceCandidate{
 			UnitID: item.UnitID, Code: item.Code, Name: item.Name, Quality: item.Quality,
 			IdentityKind: item.IdentityKind, IdentityKey: item.IdentityKey, IdentityValid: item.IdentityValid,
 			IdentifyRequired: !item.Identified,
 			VendorCandidate:  true, InventoryLocked: locked,
 		})
+		claimed[item.UnitID] = true
+	}
+	if a.nextRunID == string(tasks.RunIDCows) && !tasks.CowInventoryCanFitRecipeItems(a.lootFilter.InventoryLock().LockedCells(), state.InventoryItems()) {
+		for _, item := range state.InventoryItems() {
+			if claimed[item.UnitID] || !a.lootFilter.TrashSellEligible(item) {
+				continue
+			}
+			candidates = append(candidates, town.ItemServiceCandidate{
+				UnitID: item.UnitID, Code: item.Code, Name: item.Name, Quality: item.Quality,
+				IdentityKind: item.IdentityKind, IdentityKey: item.IdentityKey, IdentityValid: item.IdentityValid,
+				VendorCandidate: true, TrashSell: true,
+			})
+		}
 	}
 	return town.PlanItemServices(candidates)
+}
+
+func (a *townPreparationAdapter) cowTrashSellNeeded(state world.State) bool {
+	if a == nil || a.nextRunID != string(tasks.RunIDCows) || a.lootFilter == nil {
+		return false
+	}
+	orders, reason := a.planItemServiceOrders(state)
+	return reason == "" && hasTrashSell(orders)
 }
 
 func itemServiceDemand(orders []town.ItemServiceOrder) (identify, sell bool) {
@@ -182,6 +206,15 @@ func itemServiceDemand(orders []town.ItemServiceOrder) (identify, sell bool) {
 		sell = sell || order.Kind == town.ItemServiceSell
 	}
 	return identify, sell
+}
+
+func hasTrashSell(orders []town.ItemServiceOrder) bool {
+	for _, order := range orders {
+		if order.TrashSell && order.Kind == town.ItemServiceSell {
+			return true
+		}
+	}
+	return false
 }
 
 func countProfilePotionSupplies(state world.State, profile config.ProfileResourcesConfig) (healing, mana, rejuvenation int) {
@@ -220,29 +253,6 @@ func slotSet(slots []int) map[int]bool {
 		set[slot] = true
 	}
 	return set
-}
-
-func hasPotionColumnSeeds(state world.State, profile config.ProfileResourcesConfig) bool {
-	seeds := map[string]map[int]bool{
-		"hpot": {}, "mpot": {},
-	}
-	expected := map[string]map[int]bool{
-		"hpot": slotSet(profile.Healing.BeltSlots), "mpot": slotSet(profile.Mana.BeltSlots),
-	}
-	for _, item := range state.ItemsByLocation(world.ItemLocationBelt) {
-		column, ok := beltColumn(item)
-		if ok && expected[item.Type][column] {
-			seeds[item.Type][column] = true
-		}
-	}
-	for kind, columns := range expected {
-		for column := range columns {
-			if !seeds[kind][column] {
-				return false
-			}
-		}
-	}
-	return true
 }
 
 func completeBeltProfile(profile config.ProfileResourcesConfig) (bool, string) {
@@ -485,7 +495,12 @@ func (h *townPreparationStepHandler) tickItemOrders(state world.State, kind town
 		if found && h.adapter.lootFilter != nil {
 			policy = h.adapter.lootFilter.Evaluate(item)
 		}
-		if !found || !policy.Matched || policy.Action != loot.ActionSell {
+		if order.TrashSell {
+			if !found || h.adapter.lootFilter == nil || !h.adapter.lootFilter.TrashSellEligible(item) {
+				h.itemOrder++
+				return town.InteractionResult{Status: town.InteractionPending, UnitID: order.UnitID, Reason: "trash_sell_recheck_denied", Vendor: anchor}
+			}
+		} else if !found || !policy.Matched || policy.Action != loot.ActionSell {
 			// Identify may change identity-dependent predicates. A missing or drifted
 			// match revokes the queued operation without authorizing Stash or Sell.
 			h.itemOrder++
@@ -508,10 +523,16 @@ func (h *townPreparationStepHandler) tickItemOrders(state world.State, kind town
 	result := h.itemExecutor.Tick(state)
 	result.Code, result.Name, result.Quality = order.Code, order.Name, order.Quality
 	result.IdentityKind, result.IdentityKey, result.IdentityValid = order.IdentityKind, order.IdentityKey, order.IdentityValid
-	result.ProfileID, result.RuleID, result.PickitAction = h.itemPolicy.ProfileID, h.itemPolicy.RuleID, string(h.itemPolicy.Action)
-	result.ProfileRevision, result.AssignmentRevision = h.itemPolicy.ProfileRevision, h.itemPolicy.AssignmentRevision
+	if !order.TrashSell {
+		result.ProfileID, result.RuleID, result.PickitAction = h.itemPolicy.ProfileID, h.itemPolicy.RuleID, string(h.itemPolicy.Action)
+		result.ProfileRevision, result.AssignmentRevision = h.itemPolicy.ProfileRevision, h.itemPolicy.AssignmentRevision
+	}
 	if result.Status == town.InteractionAction && h.adapter.log != nil {
-		h.adapter.log.Info("pickit town action", "unit_id", order.UnitID, "input_action", result.Action, "profile_id", result.ProfileID, "rule_id", result.RuleID, "action", result.PickitAction, "profile_revision", result.ProfileRevision, "assignment_revision", result.AssignmentRevision)
+		if order.TrashSell {
+			h.adapter.log.Info("ungeschützten Inventarmüll verkaufen", "unit_id", order.UnitID, "code", order.Code, "name", order.Name)
+		} else {
+			h.adapter.log.Info("pickit town action", "unit_id", order.UnitID, "input_action", result.Action, "profile_id", result.ProfileID, "rule_id", result.RuleID, "action", result.PickitAction, "profile_revision", result.ProfileRevision, "assignment_revision", result.AssignmentRevision)
+		}
 	}
 	result.Vendor = anchor
 	if result.Status == town.InteractionComplete {
@@ -522,13 +543,19 @@ func (h *townPreparationStepHandler) tickItemOrders(state world.State, kind town
 			if h.adapter == nil || h.adapter.telemetry == nil {
 				return town.InteractionResult{Status: town.InteractionFailed, Reason: string(town.ReasonTelemetryFailed), UnitID: order.UnitID, Done: true}
 			}
-			if err := h.adapter.telemetry.EmitTown(town.ExecutorEvent{
+			event := town.ExecutorEvent{
 				Event: string(telemetry.SellSuccess), VendorUnitID: order.UnitID, Vendor: anchor,
 				Code: order.Code, Name: order.Name, Quality: order.Quality,
 				IdentityKind: order.IdentityKind, IdentityKey: order.IdentityKey, IdentityValid: order.IdentityValid,
 				ProfileID: h.itemPolicy.ProfileID, RuleID: h.itemPolicy.RuleID, PickitAction: string(h.itemPolicy.Action),
 				ProfileRevision: h.itemPolicy.ProfileRevision, AssignmentRevision: h.itemPolicy.AssignmentRevision,
-			}); err != nil {
+			}
+			if order.TrashSell {
+				event.Event = string(telemetry.TrashSellSuccess)
+				event.ProfileID, event.RuleID, event.PickitAction = "", "", ""
+				event.ProfileRevision, event.AssignmentRevision = 0, 0
+			}
+			if err := h.adapter.telemetry.EmitTown(event); err != nil {
 				return town.InteractionResult{Status: town.InteractionFailed, Reason: string(town.ReasonTelemetryFailed), UnitID: order.UnitID, Done: true}
 			}
 		}

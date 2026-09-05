@@ -83,6 +83,20 @@ func TestPlanItemServicesMissingAndIdentifiedCandidate(t *testing.T) {
 	}
 }
 
+func TestPlanItemServicesTrashSellSkipsIdentify(t *testing.T) {
+	orders, reason := PlanItemServices([]ItemServiceCandidate{{
+		UnitID: 20, Code: "8ws", VendorCandidate: true, TrashSell: true, IdentifyRequired: false,
+	}})
+	if reason != "" || len(orders) != 1 || orders[0].Kind != ItemServiceSell || !orders[0].TrashSell {
+		t.Fatalf("trash orders=%+v reason=%s", orders, reason)
+	}
+	if _, reason := PlanItemServices([]ItemServiceCandidate{{
+		UnitID: 21, Code: "8ws", VendorCandidate: true, TrashSell: true, IdentifyRequired: true,
+	}}); reason != ReasonItemClassificationInvalid {
+		t.Fatalf("trash identify reason=%s", reason)
+	}
+}
+
 func TestItemServiceExecutorAcceptsCainAlreadyIdentifiedWithoutInput(t *testing.T) {
 	in := &itemServiceInputMock{}
 	exec, _ := NewItemServiceExecutor(in, ItemServiceOrder{Kind: ItemServiceIdentify, UnitID: 11, Code: "rin"}, 2)

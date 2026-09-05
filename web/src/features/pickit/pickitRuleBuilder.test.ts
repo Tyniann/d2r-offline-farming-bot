@@ -55,14 +55,37 @@ describe("buildCombinedRuleExpression", () => {
     }).errors).toEqual({});
   });
 
-  it.each(["", "0", "7", "1.5", "keine"])("lehnt die Sockelzahl %j ab", (sockets) => {
+  it("lässt Sockel weg, wenn Anzahl egal ist", () => {
+    expect(buildCombinedRuleExpression({
+      types: [option("polearms")],
+      tier: "elite",
+      socketsOperator: "",
+      sockets: "",
+      ethereal: true,
+    })).toEqual({
+      expression: `[type] == "pole" && [tier] == "elite" && [flag] == ethereal`,
+      errors: {},
+    });
+  });
+
+  it("erzeugt eine Regel ohne Sockel", () => {
+    expect(buildCombinedRuleExpression({
+      types: [option("polearms")],
+      tier: "elite",
+      socketsOperator: "==",
+      sockets: "0",
+      ethereal: true,
+    }).expression).toBe(`[type] == "pole" && [tier] == "elite" && [sockets] == 0 && [flag] == ethereal`);
+  });
+
+  it.each(["", "7", "1.5", "keine"])("lehnt die Sockelzahl %j ab", (sockets) => {
     expect(buildCombinedRuleExpression({
       types: [option("helms")],
       tier: "",
       socketsOperator: "==",
       sockets,
       ethereal: false,
-    }).errors.sockets).toBe("Sockelzahl muss eine ganze Zahl von 1 bis 6 sein.");
+    }).errors.sockets).toBe("Sockelzahl muss eine ganze Zahl von 0 bis 6 sein.");
   });
 
   it("liefert deutsche Pflichtfeldfehler", () => {
@@ -76,8 +99,6 @@ describe("buildCombinedRuleExpression", () => {
       expression: "",
       errors: {
         types: "Mindestens einen Itemtyp auswählen.",
-        socketsOperator: "Sockeloperator auswählen.",
-        sockets: "Sockelzahl muss eine ganze Zahl von 1 bis 6 sein.",
       },
     });
   });

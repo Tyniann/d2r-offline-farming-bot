@@ -23,6 +23,7 @@ func TestSessionDefaultsAreFiniteAndDisabled(t *testing.T) {
 		"hard_stuck", "route_drift_exceeded", "route_segment_timeout", "route_transition_failed",
 		"route_clear_no_progress", "route_threat_out_of_range", "route_mana_recovery_failed", "route_recovery_unsafe",
 		"boss_combat_unprojectable", "cow_combat_no_progress", "stash_approach_failed",
+		"boss_combat_no_progress",
 	}
 	if !reflect.DeepEqual(cfg.RetryClasses, wantRetry) {
 		t.Fatalf("retry defaults = %v, want %v", cfg.RetryClasses, wantRetry)
@@ -80,6 +81,15 @@ func TestSessionPhase19DefaultRetryClassesGainCowCombatReason(t *testing.T) {
 func TestSessionPhase25DefaultRetryClassesGainStashApproachReason(t *testing.T) {
 	var cfg SessionConfig
 	cfg.RetryClasses = append([]string(nil), phase25SessionRetryClasses...)
+	cfg.applyDefaults()
+	if !reflect.DeepEqual(cfg.RetryClasses, defaultSessionRetryClasses) {
+		t.Fatalf("migrated retry classes = %v, want %v", cfg.RetryClasses, defaultSessionRetryClasses)
+	}
+}
+
+func TestSessionPhase26DefaultRetryClassesGainBossCombatNoProgress(t *testing.T) {
+	var cfg SessionConfig
+	cfg.RetryClasses = append([]string(nil), phase26SessionRetryClasses...)
 	cfg.applyDefaults()
 	if !reflect.DeepEqual(cfg.RetryClasses, defaultSessionRetryClasses) {
 		t.Fatalf("migrated retry classes = %v, want %v", cfg.RetryClasses, defaultSessionRetryClasses)

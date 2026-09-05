@@ -146,6 +146,31 @@ func TestCowTomePurchaseBuysExactlyOneAndPreservesOperationalTome(t *testing.T) 
 	}
 }
 
+func TestCowTomeApproachesWanderingAkaraBeforeClick(t *testing.T) {
+	in := &preparationInputMock{}
+	pathCfg := pathing.DefaultConfig()
+	adapter := &cowSetupAdapter{
+		log: config.NewLogger("error"), controller: in, pathCfg: pathCfg,
+		approach: &townPreparationAdapter{log: config.NewLogger("error"), driver: in, controller: in, pathCfg: pathCfg, done: true},
+	}
+	now := time.Now()
+	state := world.State{
+		At: now, Valid: true, Phase: world.GamePhaseInGame, Area: world.LookupArea(world.RogueEncampment),
+		Player:   world.Player{Position: world.Position{X: 100, Y: 100}},
+		Monsters: []world.Monster{{NPCID: world.Akara, UnitID: 14, Position: world.Position{X: 114, Y: 100}}},
+		Items:    []world.Item{{UnitID: 10, Code: "tbk", Location: world.ItemLocationInventory, PlayerOwned: true, Page: 0, Width: 1, Height: 2}},
+	}
+	if result := adapter.TickTome(context.Background(), state); result.Done || adapter.tomeStage != "approach_npc" || in.keys != 1 || in.clicks != 0 {
+		t.Fatalf("close start=%+v stage=%s keys=%d clicks=%d", result, adapter.tomeStage, in.keys, in.clicks)
+	}
+
+	state.At = now.Add(time.Second)
+	state.Player.Position = world.Position{X: 107, Y: 100}
+	if result := adapter.TickTome(context.Background(), state); result.Done || adapter.tomeStage != "npc" || adapter.tomeNPC == nil || in.clicks != 0 {
+		t.Fatalf("after close-up=%+v stage=%s npc=%t clicks=%d", result, adapter.tomeStage, adapter.tomeNPC != nil, in.clicks)
+	}
+}
+
 func TestCowTomeVerificationRejectsMultipleNewUnitIDs(t *testing.T) {
 	adapter := &cowSetupAdapter{controller: &preparationInputMock{}, tomeStage: "verify", tomeExisting: map[uint32]bool{10: true}}
 	state := world.State{

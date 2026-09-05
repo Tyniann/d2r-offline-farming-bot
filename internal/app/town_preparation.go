@@ -25,38 +25,37 @@ type townPreparationController interface {
 }
 
 // townPreparationAdapter has two deliberately narrow modes. Initial run setup
-// uses only the layout-bound Stash-to-Waypoint path; post-run preparation may
-// additionally create and execute a demand-driven service plan.
+// uses the layout-bound Stash-to-Waypoint path and, for Cow only, a one-shot
+// Akara trash dump when recipe space is already missing. Post-run preparation
+// may additionally create and execute a demand-driven service plan.
 type townPreparationAdapter struct {
-	log                    *slog.Logger
-	driver                 pathing.InputDriver
-	controller             townPreparationController
-	pathCfg                pathing.Config
-	graph                  town.ServiceGraph
-	directory              string
-	thresholds             town.Thresholds
-	traversals             []town.Traversal
-	index                  int
-	walker                 *pathing.TownWalker
-	started                bool
-	done                   bool
-	layout                 string
-	layoutOrigin           world.Position
-	layoutPin              *townLayoutPin
-	townCfg                town.Config
-	profile                config.ProfileResourcesConfig
-	telemetry              town.ExecutorTelemetry
-	services               bool
-	executor               *town.Executor
-	handler                *townPreparationStepHandler
-	lootFilter             *loot.Filter
-	stashConfig            config.LootStashConfig
-	nextRunID              string
-	startAnchor            town.Anchor
-	resolvedStart          town.Anchor
-	targetAnchor           town.Anchor
-	requireFullBuyableBelt bool
-	minimumRejuvenation    int
+	log           *slog.Logger
+	driver        pathing.InputDriver
+	controller    townPreparationController
+	pathCfg       pathing.Config
+	graph         town.ServiceGraph
+	directory     string
+	thresholds    town.Thresholds
+	traversals    []town.Traversal
+	index         int
+	walker        *pathing.TownWalker
+	started       bool
+	done          bool
+	layout        string
+	layoutOrigin  world.Position
+	layoutPin     *townLayoutPin
+	townCfg       town.Config
+	profile       config.ProfileResourcesConfig
+	telemetry     town.ExecutorTelemetry
+	services      bool
+	executor      *town.Executor
+	handler       *townPreparationStepHandler
+	lootFilter    *loot.Filter
+	stashConfig   config.LootStashConfig
+	nextRunID     string
+	startAnchor   town.Anchor
+	resolvedStart town.Anchor
+	targetAnchor  town.Anchor
 }
 
 func (a *townPreparationAdapter) setItemPolicies(filter *loot.Filter, stash config.LootStashConfig) {
@@ -78,7 +77,8 @@ func (w *layoutTownWaypointWalker) TickAct1Waypoint(ctx context.Context, state w
 	// while the character is still sliding past it.
 	if !w.adapter.started {
 		if waypoint, ok := state.NearestObject(world.ObjectKindWaypoint); ok &&
-			world.Distance(state.Player.Position, waypoint.Position) <= w.adapter.pathCfg.Waypoint.MaxClickDistance {
+			world.Distance(state.Player.Position, waypoint.Position) <= w.adapter.pathCfg.Waypoint.MaxClickDistance &&
+			!w.adapter.cowTrashSellNeeded(state) {
 			w.adapter.log.Info("town waypoint handoff reused", "distance", world.Distance(state.Player.Position, waypoint.Position))
 			return pathing.TownWalkResult{Status: pathing.TownWalkWaypointVisible, Done: true}
 		}

@@ -419,6 +419,8 @@ func (c *runPipeline) tickHammerdinEngageTarget(deps pipelineBossDeps, w world.S
 		if stop := c.stopCombatAttack(deps); stop.failed {
 			return stop
 		}
+		// Soft exit keeps reason `boss_combat_no_progress` so the queue consumes
+		// its normal retry-return / restart budget instead of stopping cold.
 		return stepResult{failed: true, reason: string(RunReasonBossCombatNoProgress)}
 	}
 	if c.boss.hammerdinRepositionPending {

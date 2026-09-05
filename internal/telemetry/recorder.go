@@ -30,6 +30,8 @@ const (
 	StashFull     EventName = "stash_full"
 	// SellSuccess bestätigt die Inventory-Transition einer gepinnten Sell-Unit.
 	SellSuccess EventName = "sell_success"
+	// TrashSellSuccess bestätigt den Cow-Town-Dump eines gepinnten Nicht-Keep-Items.
+	TrashSellSuccess EventName = "trash_sell_success"
 	// BossKillConfirmed bestätigt den Memory-basierten Tod der gepinnten Boss-Unit.
 	BossKillConfirmed EventName = "boss_kill_confirmed"
 	// RoutePlaybackStarted begins one full route playback session.

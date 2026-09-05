@@ -30,6 +30,21 @@ func TestTownTelemetryAdapterMapsVerifiedSellIdentity(t *testing.T) {
 	}
 }
 
+func TestTownTelemetryAdapterMapsTrashSellWithoutPickitAction(t *testing.T) {
+	m := &townTelemetryMock{}
+	err := (townTelemetryAdapter{emitter: m}).EmitTown(town.ExecutorEvent{
+		Event: string(telemetry.TrashSellSuccess), VendorUnitID: 81, Vendor: town.AnchorAkara,
+		Code: "8ws", Name: "War Sword", Quality: world.ItemQualityNormal,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := m.events[0]
+	if got.Event != telemetry.TrashSellSuccess || got.Stage != telemetry.HistoryStageReturnTown || got.PickitAction != "" || got.UnitID != 81 {
+		t.Fatalf("trash sell event=%+v", got)
+	}
+}
+
 func (m *townTelemetryMock) Emit(e telemetry.Event) error {
 	m.events = append(m.events, e)
 	return m.err

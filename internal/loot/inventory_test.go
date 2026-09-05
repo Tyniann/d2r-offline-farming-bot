@@ -26,6 +26,10 @@ func TestInventoryLockCountsLockedSlots(t *testing.T) {
 	if !lock.Locked(0, 0) || lock.Locked(0, 2) {
 		t.Fatalf("Locked() did not respect grid")
 	}
+	cells := lock.LockedCells()
+	if !cells[0][0] || cells[0][2] {
+		t.Fatalf("LockedCells() did not respect grid")
+	}
 	if !lock.Locked(-1, 0) || !lock.Locked(0, 10) {
 		t.Fatalf("out-of-bounds slots should be treated as locked")
 	}

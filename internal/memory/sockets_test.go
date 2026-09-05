@@ -23,8 +23,13 @@ func TestDecodeItemSocketsTruthTable(t *testing.T) {
 			flags: itemFlagSocketed, active: unreadable, base: unreadable,
 		},
 		{
+			name:  "unreadable lists flag off",
+			flags: 0, active: unreadable, base: unreadable,
+		},
+		{
 			name:  "absent base no flag",
 			flags: 0, active: baseAbsent, base: baseAbsent,
+			available: true,
 		},
 		{
 			name:  "absent base with flag",
@@ -96,6 +101,7 @@ func TestDecodeItemSocketsTruthTable(t *testing.T) {
 			name:   "skullders unsocketed",
 			flags:  itemFlagIdentified | 0x800000,
 			active: baseAbsent, base: baseAbsent,
+			available: true,
 		},
 	}
 

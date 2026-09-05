@@ -55,6 +55,16 @@ describe("semantische Presenter", () => {
     expect(presentProblem({ code: "start_town_normalization_failed" }, i18n.t)).toBe("Die Rückkehr nach Akt 1 ist fehlgeschlagen.");
     expect(presentProblem({ code: "stash_approach_failed" }, i18n.t)).toBe("Der Weg zum Stash war blockiert.");
     expect(presentHistoryReason("stash_approach_failed", i18n.t)).toBe("Der Weg zum Stash war blockiert.");
+    expect(presentProblem({ code: "boss_combat_no_progress" }, i18n.t)).toBe("Der Hammerdin-Kampf erzielte innerhalb des Sicherheitsfensters keinen bestätigten Fortschritt; die Ausführung kehrt kontrolliert nach Akt 1 zurück und startet neu.");
+    expect(presentHistoryReason("boss_combat_no_progress", i18n.t)).toBe("Der Hammerdin-Kampf erzielte innerhalb des Sicherheitsfensters keinen bestätigten Fortschritt; die Ausführung kehrt kontrolliert nach Akt 1 zurück und startet neu.");
+  });
+
+  it("übersetzt den Cow-Akara-Abbruch in Session-Dialog und Historie", async () => {
+    expect(presentProblem({ code: "cow_akara_interaction_failed" }, i18n.t)).toBe("Akara war zu weit entfernt, um das Rezeptbuch zu kaufen.");
+    expect(presentHistoryReason("cow_akara_interaction_failed", i18n.t)).toBe("Akara war zu weit entfernt, um das Rezeptbuch zu kaufen.");
+    await changeAppLanguage("en");
+    expect(presentProblem({ code: "cow_akara_interaction_failed" }, i18n.t)).toBe("Akara was too far away to buy the recipe tome.");
+    expect(presentHistoryReason("cow_akara_interaction_failed", i18n.t)).toBe("Akara was too far away to buy the recipe tome.");
   });
 
   it("übersetzt Difficulty, Run, Klasse und eingebautes Profil", async () => {

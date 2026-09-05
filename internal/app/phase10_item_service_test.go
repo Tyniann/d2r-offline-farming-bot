@@ -165,3 +165,113 @@ func TestItemServicesAcceptancePreflightRejectsMissingOrPartialCandidate(t *test
 		}
 	}
 }
+
+func cowTrashTestFilter(t *testing.T) *loot.Filter {
+	t.Helper()
+	pickup, err := loot.CompilePickitRules("test", []loot.PickitRuleSpec{
+		{ProfileID: "gems", RuleID: "gem", Action: loot.ActionKeep, Expression: `[name] == gpv`},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	lock, err := loot.NewInventoryLock([][]int{make([]int, 10), make([]int, 10), make([]int, 10), make([]int, 10)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return loot.NewFilter(config.NewLogger("error"), lock, pickup)
+}
+
+func crowdedCowInventory(keepGem bool) []world.Item {
+	items := make([]world.Item, 0, 10)
+	for col := 0; col < 10; col++ {
+		item := world.Item{
+			UnitID: uint32(200 + col), Code: "8ws", Name: "War Sword", Quality: world.ItemQualityNormal,
+			Location: world.ItemLocationInventory, PlayerOwned: true, Identified: true,
+			GridX: col, GridY: 0, Width: 1, Height: 4,
+		}
+		if keepGem && col == 9 {
+			item.UnitID, item.Code, item.Name, item.Width, item.Height = 209, "gpv", "Perfect Amethyst", 1, 1
+		}
+		items = append(items, item)
+	}
+	return items
+}
+
+func TestTownPreparationPlansCowTrashSellWithoutPickitMatch(t *testing.T) {
+	adapter := &townPreparationAdapter{nextRunID: "cows", lootFilter: cowTrashTestFilter(t)}
+	orders, reason := adapter.planItemServiceOrders(world.State{Items: crowdedCowInventory(true)})
+	if reason != "" || len(orders) != 9 {
+		t.Fatalf("orders=%+v reason=%s", orders, reason)
+	}
+	for _, order := range orders {
+		if order.Kind != town.ItemServiceSell || !order.TrashSell || order.Code == "gpv" {
+			t.Fatalf("unexpected order %+v", order)
+		}
+	}
+}
+
+func TestTownPreparationSkipsCowTrashWhenRecipeSpaceFits(t *testing.T) {
+	adapter := &townPreparationAdapter{nextRunID: "cows", lootFilter: cowTrashTestFilter(t)}
+	item := world.Item{
+		UnitID: 1, Code: "8ws", Location: world.ItemLocationInventory, PlayerOwned: true, Identified: true,
+		GridX: 0, GridY: 0, Width: 1, Height: 1,
+	}
+	orders, reason := adapter.planItemServiceOrders(world.State{Items: []world.Item{item}})
+	if reason != "" || len(orders) != 0 {
+		t.Fatalf("orders=%+v reason=%s", orders, reason)
+	}
+}
+
+func TestTownPreparationDoesNotPlanCowTrashForOtherRuns(t *testing.T) {
+	adapter := &townPreparationAdapter{nextRunID: "mephisto", lootFilter: cowTrashTestFilter(t)}
+	orders, reason := adapter.planItemServiceOrders(world.State{Items: crowdedCowInventory(false)})
+	if reason != "" || len(orders) != 0 {
+		t.Fatalf("orders=%+v reason=%s", orders, reason)
+	}
+}
+
+func TestTownSellTrashWithoutPickitMatch(t *testing.T) {
+	in := &preparationInputMock{}
+	trace := &preparationTelemetryMock{}
+	item := world.Item{
+		UnitID: 81, Code: "8ws", Name: "War Sword", Location: world.ItemLocationInventory,
+		PlayerOwned: true, Identified: true, Page: 0, GridX: 4, GridY: 0, Width: 1, Height: 3,
+	}
+	handler := &townPreparationStepHandler{
+		adapter: &townPreparationAdapter{controller: in, lootFilter: cowTrashTestFilter(t), telemetry: trace},
+		itemOrders: orderedItemServiceOrders([]town.ItemServiceOrder{
+			{Kind: town.ItemServiceSell, UnitID: 81, Code: "8ws", TrashSell: true},
+		}),
+		itemInput: &townItemServiceInput{controller: in, cfg: config.LootStashConfig{InventoryLeft: 847, InventoryTop: 369, InventoryCellW: 33, InventoryCellH: 33}},
+		stage:     "items",
+	}
+	state := world.State{Valid: true, UI: world.UIState{NPCShopOpen: true}, Items: []world.Item{item}}
+	if got := handler.tickItemOrders(state, town.ItemServiceSell, town.AnchorAkara); got.Action != "item_sell" || got.PickitAction != "" || in.modified != 1 {
+		t.Fatalf("trash sell action=%+v modified=%d", got, in.modified)
+	}
+	state.Items = nil
+	if got := handler.tickItemOrders(state, town.ItemServiceSell, town.AnchorAkara); got.Status != town.InteractionPending || handler.itemOrder != 1 {
+		t.Fatalf("trash sell verify=%+v cursor=%d", got, handler.itemOrder)
+	}
+	if len(trace.events) != 1 || trace.events[0].Event != string(telemetry.TrashSellSuccess) || trace.events[0].PickitAction != "" || trace.events[0].VendorUnitID != 81 {
+		t.Fatalf("verified trash events=%+v", trace.events)
+	}
+}
+
+func TestTownSellTrashRevokesKeepOnRecheck(t *testing.T) {
+	in := &preparationInputMock{}
+	item := world.Item{
+		UnitID: 82, Code: "gpv", Location: world.ItemLocationInventory, PlayerOwned: true,
+		Identified: true, Page: 0, GridX: 4, GridY: 0, Width: 1, Height: 1,
+	}
+	handler := &townPreparationStepHandler{
+		adapter:    &townPreparationAdapter{controller: in, lootFilter: cowTrashTestFilter(t)},
+		itemOrders: orderedItemServiceOrders([]town.ItemServiceOrder{{Kind: town.ItemServiceSell, UnitID: 82, Code: "gpv", TrashSell: true}}),
+		itemInput:  &townItemServiceInput{controller: in, cfg: config.LootStashConfig{InventoryLeft: 847, InventoryTop: 369, InventoryCellW: 33, InventoryCellH: 33}},
+		stage:      "items",
+	}
+	state := world.State{Valid: true, UI: world.UIState{NPCShopOpen: true}, Items: []world.Item{item}}
+	if got := handler.tickItemOrders(state, town.ItemServiceSell, town.AnchorAkara); got.Reason != "trash_sell_recheck_denied" || in.modified != 0 {
+		t.Fatalf("keep recheck = %+v modified=%d", got, in.modified)
+	}
+}

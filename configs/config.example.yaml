@@ -301,6 +301,7 @@ session:
     - boss_combat_unprojectable
     - cow_combat_no_progress
     - stash_approach_failed
+    - boss_combat_no_progress
 
 pathing:
   # Abbruch, wenn weder Position (>= stuck_progress_tiles) noch Area sich ändern

@@ -9,6 +9,15 @@ Versionierung nach [Semantic Versioning](https://semver.org/).
 
 ### Added
 - Add class portraits and build badges to the README so GitHub visitors can see supported classes at a glance
+- Sell unlocked non-keep inventory junk in Rogue Encampment before Cow preflight when a Wirt's Leg and Town Portal tome would not fit
+
+### Changed
+- Restock Cow Level healing and mana from character belt layout and refill targets instead of requiring leftover seed potions in each column
+- Retry Hammerdin boss combat that makes no confirmed progress within 25 seconds instead of stopping the session
+
+### Fixed
+- Approach a wandering Akara within eight tiles before the Cow recipe-tome click instead of aborting at the fifteen-tile hover gate
+- Allow combined Pickit filters with any socket count or no sockets, and treat readable unsocketed items as known zero sockets
 
 ## [0.25.1] - 2026-08-28
 

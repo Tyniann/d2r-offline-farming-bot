@@ -49,7 +49,7 @@ Summoner registriert denselben Route-Clear wie der Necromancer: Threat-Hold, Hos
 
 Nach Beginn des Holds bleibt die bestätigte UnitID bis zu ihrem Tod gepinnt, auch wenn sie den ursprünglichen Threat-Korridor verlässt. Wie im Mephisto-Pfad wird die Distanz nur alle drei frischen Snapshots erneut bewertet; erst über 5 Tiles geht LMB hoch und die begrenzte Teleport-Annäherung beginnt erneut. Bleibt das Ziel zwei Sekunden am Leben, wählt Route-Clear das nächste andere lebende Allowlist-Monster innerhalb von 18 Tiles zum gepinnten Ziel als Teleportziel, behält aber die alte UnitID für Hover und Hammer-Hold. Gibt es kein nahes Ausweichmonster, teleportiert der Bot höchstens 8 Tiles in Richtung des bereits validierten nächsten Routenpunkts; ein weit entferntes Monster wird dafür nicht gewählt. Ein bestätigter Teleport wird ohne feste 500-ms-Wartezeit übernommen; nur eine ausbleibende Positionsänderung wartet bis zur Terrain-Frist. Vor einer normalen Rückannäherung muss der Bot von der neuen Position mindestens einen Angriff auf das alte Ziel versuchen. Ein bereits verwendetes Ausweichmonster wird beim nächsten Versuch übersprungen. Erst nach bestätigtem Tod wird das reguläre Angriffsziel freigegeben. Der Summoner-Boss am Routenende nutzt denselben Standardangriff; es gibt kein gesondertes Encounter-Verhalten.
 
-Ohne weiteres Ausweichmonster bleibt der Hold bestehen, damit ein langsamer Boss weiter Schaden nehmen kann. Spätestens nach 25 Sekunden ohne bestätigten Fortschritt oder nach 12 wirkungslosen Teleports endet der Bosskampf mit `boss_combat_no_progress`. Das bloße Starten oder Fortsetzen eines LMB-Holds zählt nicht als Fortschritt. Distanz, Cursorpunkt und Hold sind live bestätigt: 1/3/5 Tiles, Sprite-Aim, LMB ohne Shift.
+Ohne weiteres Ausweichmonster bleibt der Hold bestehen, damit ein langsamer Boss weiter Schaden nehmen kann. Spätestens nach 25 Sekunden ohne bestätigten Fortschritt oder nach 12 wirkungslosen Teleports endet der Bosskampf mit `boss_combat_no_progress`. Frische und unveränderte Default-Retry-Listen behandeln diesen Grund wie andere kontrollierte Recoveries: Town Portal, Save & Exit, derselbe Queue-Index. Das bloße Starten oder Fortsetzen eines LMB-Holds zählt nicht als Fortschritt. Distanz, Cursorpunkt und Hold sind live bestätigt: 1/3/5 Tiles, Sprite-Aim, LMB ohne Shift.
 
 ### Lower-Kurast-Objektblocker
 
@@ -115,4 +115,4 @@ Live-Beleg 16.08.2026, Charakter `MrHammer`: `d2rbot-20260816-184632.log` und `d
 - [Route-Threat-Combat](route-threat-combat.md)
 
 ---
-*Zuletzt aktualisiert: 2026-08-20*
+*Zuletzt aktualisiert: 2026-08-29*

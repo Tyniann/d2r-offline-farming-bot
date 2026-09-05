@@ -41,7 +41,7 @@ func (a townTelemetryAdapter) EmitTown(event town.ExecutorEvent) error {
 	// another telemetry category by a malformed handler result.
 	name := telemetry.EventName(event.Event)
 	switch name {
-	case telemetry.TownAction, telemetry.TownStepCompleted, telemetry.SellSuccess,
+	case telemetry.TownAction, telemetry.TownStepCompleted, telemetry.SellSuccess, telemetry.TrashSellSuccess,
 		telemetry.TownMercenaryHealRequested, telemetry.TownMercenaryHealConfirmed,
 		telemetry.TownMercenaryReviveRequested, telemetry.TownMercenaryReviveConfirmed:
 	default:

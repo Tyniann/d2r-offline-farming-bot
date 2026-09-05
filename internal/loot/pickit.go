@@ -162,8 +162,9 @@ type PickitRuleSummaryParams struct {
 	SetKey         string
 	UniqueKey      string
 	SocketOperator string
-	SocketCount    *int
-	Ethereal       *bool
+	// SocketCount is the compared socket total. Nil omits the socket filter; 0 means unsocketed.
+	SocketCount *int
+	Ethereal    *bool
 }
 
 // SummarizePickitExpression parst einen Ausdruck mit dem Runtime-Parser und liefert eine sichere UI-Summary.
@@ -190,6 +191,9 @@ func SummarizePickitExpression(expression string) (PickitRuleSummary, error) {
 		}
 		params.SocketOperator = sockets.operator
 		params.SocketCount = &count
+		return PickitRuleSummary{Kind: "socket_filter", Params: params}, nil
+	}
+	if len(params.Types) > 0 && (len(params.Tiers) > 0 || params.Ethereal != nil) {
 		return PickitRuleSummary{Kind: "socket_filter", Params: params}, nil
 	}
 	if len(groups) == 2 {

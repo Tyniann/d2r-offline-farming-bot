@@ -155,7 +155,8 @@ type Item struct {
 	// SocketStatActive and SocketStatBase remain verbose diagnosis from memory.
 	SocketStatActive SocketStatEvidence
 	SocketStatBase   SocketStatEvidence
-	// Sockets, SocketsAvailable and Socketed are the fail-closed Gate-19.0 projection.
+	// Sockets, SocketsAvailable and Socketed are the Gate-19.0 projection.
+	// Readable unsocketed items are known zero; unreadable or contradictory evidence stays unavailable.
 	Sockets          int
 	SocketsAvailable bool
 	Socketed         bool

@@ -62,6 +62,11 @@ func (l InventoryLock) Locked(row, col int) bool {
 	return l.locked[row][col]
 }
 
+// LockedCells returns the protected 4×10 grid used by Cow recipe space checks.
+func (l InventoryLock) LockedCells() [inventoryRows][inventoryCols]bool {
+	return l.locked
+}
+
 // LockedSlots returns the number of protected slots in the 4x10 grid.
 func (l InventoryLock) LockedSlots() int {
 	count := 0

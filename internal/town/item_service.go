@@ -28,6 +28,8 @@ type ItemServiceCandidate struct {
 	Keep             bool
 	Stash            bool
 	InventoryLocked  bool
+	// TrashSell marks a Cow town-dump candidate that must not reuse Pickit sell.
+	TrashSell bool
 }
 
 // ItemServiceOrder pins one item and its only authorized operation.
@@ -40,6 +42,7 @@ type ItemServiceOrder struct {
 	IdentityKind  world.ItemIdentityKind
 	IdentityKey   string
 	IdentityValid bool
+	TrashSell     bool
 }
 
 // PlanItemServices rejects protected service candidates and emits identify then
@@ -54,6 +57,9 @@ func PlanItemServices(candidates []ItemServiceCandidate) ([]ItemServiceOrder, Re
 		seen[candidate.UnitID] = true
 		serviceIntent := candidate.IdentifyRequired || candidate.VendorCandidate
 		if serviceIntent && (candidate.Keep || candidate.Stash || candidate.InventoryLocked) {
+			return nil, ReasonItemClassificationInvalid
+		}
+		if candidate.TrashSell && candidate.IdentifyRequired {
 			return nil, ReasonItemClassificationInvalid
 		}
 		if !serviceIntent {
@@ -74,6 +80,7 @@ func itemServiceOrder(kind ItemServiceKind, candidate ItemServiceCandidate) Item
 		Kind: kind, UnitID: candidate.UnitID, Code: candidate.Code, Name: candidate.Name,
 		Quality: candidate.Quality, IdentityKind: candidate.IdentityKind,
 		IdentityKey: candidate.IdentityKey, IdentityValid: candidate.IdentityValid,
+		TrashSell: candidate.TrashSell,
 	}
 }
 

@@ -231,10 +231,6 @@ func New(cfg *config.Config, opts Options) (rt *Runtime, err error) {
 	if err != nil {
 		return nil, err
 	}
-	if runtimeRunID == string(tasks.RunIDCows) {
-		townPreparation.requireFullBuyableBelt = true
-		townPreparation.minimumRejuvenation = 1
-	}
 	townStartAdapter, err := newTownPreparationAdapterWithProfile(log, inputCtrl, pathingCfg, cfg, runtimeRunID, combatProfileID, townLayout, townTrace, false)
 	if err != nil {
 		return nil, err
@@ -283,6 +279,7 @@ func New(cfg *config.Config, opts Options) (rt *Runtime, err error) {
 	}
 	lootFilter := loot.NewFilter(log, inventoryLock, pickit)
 	townPreparation.setItemPolicies(lootFilter, cfg.Loot.Stash)
+	townStartAdapter.setItemPolicies(lootFilter, cfg.Loot.Stash)
 	stashExecutor, err := loot.NewStashExecutor(log, lootFilter, inputCtrl, mapLootStashConfig(cfg.Loot.Stash))
 	if err != nil {
 		return nil, fmt.Errorf("loot stash config: %w", err)
