@@ -1868,6 +1868,47 @@ func TestRouteLootRecoversThreatFreeTooFarCandidateWithinScanRadius(t *testing.T
 	}
 }
 
+func TestRouteLootKeepsActivePickupAcrossReconciledPointAdvance(t *testing.T) {
+	definition, _ := DefaultRunRegistry().Definition(RunIDCows)
+	target := LootTarget{
+		UnitID: 12, TxtFileNo: 575, Code: "gzv", Name: "Flawless Amethyst",
+		Position: world.Position{X: 105, Y: 100}, AreaID: world.MooMooFarm,
+	}
+	lootActions := &mockLootActions{
+		scans: []LootScanResult{
+			{GroundItemCount: 1, CandidateCount: 1, HasTarget: true, NextTarget: target},
+			{GroundItemCount: 1, CandidateCount: 1, HasTarget: true, NextTarget: target},
+		},
+		ticks: []LootPickupResult{
+			{Status: LootPickupPending, Target: target},
+			{Status: LootPickupPickedUp, Done: true, Target: target},
+		},
+	}
+	route := &mockRoutePlayback{}
+	pipeline := &runPipeline{definition: definition, core: pipelineCoreState{lootPickupDistanceTiles: 8}}
+	now := time.Now()
+	state := healthy(areaState(world.MooMooFarm))
+	state.At = now
+	state.Player.Position = world.Position{X: 100, Y: 100}
+	state.Items = []world.Item{{
+		UnitID: target.UnitID, TxtFileNo: target.TxtFileNo, Code: target.Code, Name: target.Name,
+		Location: world.ItemLocationGround, Position: target.Position,
+	}}
+	deps := Deps{Route: route, Loot: lootActions}
+
+	handled, res := pipeline.tickRouteLoot(narrowTravelDeps(deps), state, RouteProgress{Mode: RouteProgressMovement, PointIndex: 15}, now)
+	if !handled || res.failed || len(lootActions.startCalls) != 1 || !pipeline.loot.lootPickupActive {
+		t.Fatalf("pickup start result=%+v handled=%v starts=%d active=%v", res, handled, len(lootActions.startCalls), pipeline.loot.lootPickupActive)
+	}
+
+	state.At = now.Add(time.Millisecond)
+	handled, res = pipeline.tickRouteLoot(narrowTravelDeps(deps), state, RouteProgress{Mode: RouteProgressMovement, PointIndex: 17}, state.At)
+	if !handled || res.failed || len(lootActions.startCalls) != 1 || lootActions.tickCalls != 2 || pipeline.loot.lootPickupActive {
+		t.Fatalf("point advance result=%+v handled=%v starts=%d ticks=%d active=%v",
+			res, handled, len(lootActions.startCalls), lootActions.tickCalls, pipeline.loot.lootPickupActive)
+	}
+}
+
 func TestLootPickupRecoveryIsBoundedToOneTeleportPerUnit(t *testing.T) {
 	combat := &mockCombatActions{}
 	definition, _ := DefaultRunRegistry().Definition(RunIDCountess)

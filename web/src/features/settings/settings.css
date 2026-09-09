@@ -1,0 +1,159 @@
+/* Einstellungsseite „Übersicht & Fokus“. Nutzt ausschließlich die Farbvariablen aus app.css. */
+
+.settings-page { padding-bottom: 24px; }
+.settings-overview { display: grid; gap: 14px; margin-top: 14px; }
+/* Der Inhalt reserviert Höhe für die angedockte Speichern-Leiste; den Rest liefern .app-content und .settings-page. */
+.settings-overview-with-bar { padding-bottom: 8px; }
+.settings-notices { display: grid; gap: 10px; }
+.settings-notices:empty { display: none; }
+.settings-notices .settings-success, .settings-notices .restart-required { margin-top: 0; }
+
+/* ---------- Primitive ---------- */
+.profile-badge { position: relative; display: inline-block; flex: 0 0 auto; overflow: hidden; border-radius: 50%; border: 1px solid #6b4a35; background: #0a0709; box-shadow: 0 0 0 2px #d8ad5a22, 0 6px 18px #0009; }
+.profile-badge img { position: absolute; width: 200%; height: 200%; left: -50%; top: -40%; max-width: none; object-fit: cover; }
+.profile-badge-sm { width: 36px; height: 36px; }
+.profile-badge-md { width: 56px; height: 56px; }
+/* Nicht unterstützte Klassen bleiben lesbar: nur entsättigt, nicht abgedunkelt. */
+.profile-badge-muted { filter: grayscale(.8) brightness(.95); box-shadow: none; border-color: var(--border); }
+.profile-badge-fallback { position: absolute; inset: 0; display: grid; place-items: center; color: var(--gold); font-weight: 800; }
+.settings-change-dot { display: inline-block; width: 8px; height: 8px; margin-left: 8px; border-radius: 50%; background: var(--gold); box-shadow: 0 0 0 3px #d8ad5a33; vertical-align: middle; }
+.settings-changed > input, .settings-changed > select, .settings-changed input, .settings-changed select { border-color: var(--gold) !important; box-shadow: inset 0 0 0 1px #d8ad5a55; }
+.settings-switch { display: inline-flex; align-items: center; gap: 10px; cursor: pointer; color: var(--text); min-height: 32px; }
+.settings-switch input { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+.settings-switch-track { position: relative; width: 40px; height: 22px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface-3); transition: background .15s; }
+.settings-switch-knob { position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: var(--muted); transition: transform .15s, background .15s; }
+.settings-switch input:checked + .settings-switch-track { background: linear-gradient(180deg, #b84c26, #84341f); border-color: #9a532f; }
+.settings-switch input:checked + .settings-switch-track .settings-switch-knob { transform: translateX(18px); background: var(--gold-soft); }
+.settings-switch input:disabled ~ * { opacity: .5; cursor: not-allowed; }
+.settings-switch input:focus-visible + .settings-switch-track { outline: 3px solid var(--focus); outline-offset: 2px; }
+.settings-key { display: inline-block; min-width: 26px; padding: 2px 7px; border: 1px solid #55444f; border-bottom-width: 2px; border-radius: 6px; background: var(--surface-3); color: var(--gold-soft); font: 650 .78rem/1.4 ui-monospace, Consolas, monospace; text-align: center; }
+.settings-number { display: inline-flex; align-items: center; gap: 8px; }
+.settings-number input { width: 110px; }
+.settings-suffix { color: var(--muted); }
+.settings-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 8px 12px; align-items: start; }
+.settings-fields label { display: grid; gap: 4px; align-content: start; color: var(--muted); font-weight: 650; font-size: .78rem; }
+.settings-fields input, .settings-fields select { width: 100%; min-height: 38px; padding: 6px 10px; }
+.settings-inline { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.settings-stack { display: grid; gap: 10px; }
+.settings-stack .effective-settings { margin-top: 0; }
+.settings-details { margin: 8px 0 14px; padding: 10px 14px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-1); }
+.settings-details summary { cursor: pointer; font-weight: 700; color: var(--muted); }
+.settings-details[open] summary { margin-bottom: 10px; color: var(--text); }
+.settings-tag { padding: 2px 8px; border: 1px solid var(--border); border-radius: 999px; color: var(--muted); font-size: .7rem; font-weight: 750; letter-spacing: .06em; text-transform: uppercase; }
+.settings-quiet-danger { color: var(--danger); border-color: #743b42 !important; }
+.settings-event-feed { margin-top: 0; }
+.settings-event-feed li { padding: 6px 0; grid-template-columns: 80px minmax(120px, .7fr) minmax(0, 1.5fr); font-size: .9rem; }
+.settings-inventory-mini { display: grid; gap: 2px; width: fit-content; padding: 4px; border: 1px solid #765d25; border-radius: 6px; background: linear-gradient(180deg, #1a1208, #0c1016); }
+.settings-inventory-mini > div { display: grid; grid-template-columns: repeat(10, 9px); gap: 2px; }
+.settings-inventory-mini span { width: 9px; height: 9px; border-radius: 1px; background: #0f1418; box-shadow: inset 0 0 0 1px #294360; }
+.settings-inventory-mini span.locked { background: repeating-linear-gradient(-45deg, #5a3d12, #5a3d12 2px, #3a2810 2px, #3a2810 4px); box-shadow: none; }
+
+/* ---------- Eingebettete Editoren im Fokus-Panel ---------- */
+.settings-embedded-editor > .settings-queue-editor > .section-heading, .settings-embedded-editor .character-setup > .section-heading { display: none; }
+.settings-plain-setup .character-setup { margin: 0; padding: 0; border: 0; background: none; }
+.settings-plain-setup .character-setup h4 { display: none; }
+.settings-plain-setup .character-setup p { margin: 0; }
+.settings-plain-setup .character-setup label { max-width: 340px; }
+.settings-page .settings-queue-editor { gap: 12px; }
+.settings-page .binding-optional-pair { padding: 16px; margin-top: 12px; box-shadow: none; border-radius: 12px; }
+.settings-page .binding-editor, .settings-page .inventory-lock-editor, .settings-page .required-skills-list { margin-bottom: 0; }
+.settings-danger-block { margin-top: 8px; padding: 6px 16px; border: 1px solid #743b42; border-radius: var(--radius); background: #2b1116; }
+.settings-danger-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; padding: 10px 0; }
+.settings-danger-row + .settings-danger-row { border-top: 1px solid #743b42; }
+.settings-danger-row > div { display: grid; gap: 2px; max-width: 420px; }
+.settings-danger-row .hint { margin: 0; font-size: .8rem; }
+
+/* ---------- Flächen und Zeilen ---------- */
+/* Eine Fläche pro Speicherziel; innen trennen nur Linien. */
+.settings-surface { display: grid; min-width: 0; margin-top: 0; padding: 0 22px; border: 1px solid var(--border); border-radius: 16px; background: linear-gradient(150deg, #0f0b10f4, #080609f7); }
+.settings-surface-head { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; min-height: 52px; padding: 10px 0; border-bottom: 1px solid var(--border); }
+.settings-surface-head h2 { margin: 0; font-size: 1rem; letter-spacing: .01em; }
+.settings-surface-head .hint { margin: 0; }
+.settings-surface-head-characters { justify-content: space-between; padding: 8px 0; }
+.settings-character-tabs { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-width: 0; }
+.settings-character-tab { display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 4px 12px 4px 4px; border: 1px solid transparent; border-radius: 999px; background: transparent; color: var(--muted); text-align: left; font-weight: 600; }
+.settings-character-tab:hover:not(:disabled) { filter: none; background: var(--surface-2); color: var(--text); }
+.settings-character-tab:disabled { opacity: .75; }
+.settings-character-tab.active { min-height: 64px; padding-right: 14px; border-color: #6b4a35; background: linear-gradient(90deg, #42180f66, #130d10); color: var(--gold-soft); cursor: default; }
+.settings-character-tab-text { display: grid; line-height: 1.15; min-width: 0; }
+.settings-character-tab-text strong { display: flex; align-items: center; color: inherit; white-space: nowrap; }
+.settings-character-tab-text small { color: var(--muted); font-weight: 500; font-size: .74rem; white-space: nowrap; }
+.settings-character-tab.active .settings-character-tab-text strong { font-size: 1.05rem; }
+.settings-character-tab .status-badge { margin-left: 4px; }
+.settings-head-fields { display: grid; grid-template-columns: auto auto; gap: 2px 10px; align-items: end; }
+.settings-head-fields label { display: grid; gap: 4px; color: var(--muted); font-size: .78rem; font-weight: 650; }
+.settings-head-fields select { min-width: 130px; min-height: 38px; padding: 6px 30px 6px 10px; }
+.settings-live-note { grid-column: 1 / -1; margin: 0; font-size: .76rem; font-weight: 650; text-align: right; }
+.settings-live-note.live { color: var(--success); }
+.settings-live-note.pending { color: var(--warning); }
+/* Zeile: Beschriftung | Inhalt | (Chevron). Als Button öffnet die ganze Zeile das Fokus-Panel. */
+.settings-line { display: grid; grid-template-columns: minmax(170px, 210px) minmax(0, 1fr); gap: 6px 22px; align-items: center; width: 100%; padding: 14px 0; border-bottom: 1px solid var(--border); }
+.settings-line:last-child { border-bottom: 0; }
+.settings-line-open { grid-template-columns: minmax(170px, 210px) minmax(0, 1fr) 28px; margin: 0 -22px; width: calc(100% + 44px); padding: 14px 22px; border-radius: 0; border-top: 0; border-left: 0; border-right: 0; background: transparent; color: inherit; font: inherit; text-align: left; min-height: 0; cursor: pointer; }
+.settings-line-open:hover:not(:disabled) { filter: none; background: var(--surface-1); }
+.settings-line-open:hover .settings-line-label strong { color: var(--gold-soft); }
+.settings-line-open:hover .settings-line-chevron, .settings-line-open:focus-visible .settings-line-chevron { color: var(--gold-soft); border-color: var(--gold); background: #3a2a11; transform: translateX(2px); }
+.settings-line-open:focus-visible { outline: 3px solid var(--focus); outline-offset: -3px; }
+.settings-line.changed { box-shadow: inset 3px 0 0 var(--gold); }
+.settings-line-note { display: block; }
+.settings-line-label { display: grid; gap: 3px; min-width: 0; }
+.settings-line-label strong { display: flex; align-items: center; color: var(--text); font-size: .95rem; }
+.settings-line-label small { color: var(--muted); font-size: .78rem; line-height: 1.35; }
+.settings-line-body { display: grid; gap: 10px; min-width: 0; align-items: center; }
+/* Der Chevron sitzt in einem kleinen Knopf, damit die Zeile auch ohne Hover als klickbar erkennbar ist. */
+.settings-line-chevron { box-sizing: content-box; padding: 4px; border: 1px solid #55444f; border-radius: 50%; background: var(--surface-2); color: var(--gold-soft); transition: transform .12s, color .12s, border-color .12s, background .12s; }
+.settings-chips { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.settings-chip-run { display: inline-flex; align-items: center; gap: 8px; padding: 4px 12px 4px 4px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface-1); color: var(--text); font-weight: 650; font-size: .9rem; }
+.settings-chip-run b { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: #3a2a11; color: var(--gold); font-size: .74rem; font-weight: 800; }
+.settings-chip-text { color: var(--text); font-weight: 650; font-size: .9rem; }
+.settings-keys { display: inline-flex; align-items: center; gap: 4px; }
+.settings-keys .hint { margin: 0 4px 0 0; font-size: .8rem; }
+.settings-foot { margin: 4px 0 0; text-align: center; font-size: .8rem; }
+
+/* ---------- Speichern-Leiste ---------- */
+/* Am unteren Rand der Inhaltsspalte angedockt, bündig mit der Inhaltsbreite (.app-content: min(1220px, 100% - 48px)).
+   Liegt unter Sidebar (z 8), Fokus-Panel (z 9) und Dialogen (z 10). */
+.settings-savebar { position: fixed; left: 248px; right: 0; bottom: 0; z-index: 7; display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 10px max(24px, calc((100% - 1220px) / 2)); border: 1px solid var(--border); border-width: 1px 0 0; background: linear-gradient(180deg, #100c11f5, #080609f5); backdrop-filter: blur(10px); box-shadow: 0 -14px 40px #000b; }
+.settings-savebar.dirty { border-color: var(--gold); box-shadow: 0 -14px 40px #0009, inset 0 1px 0 #d8ad5a33; }
+.settings-savebar.locked { border-color: #765d25; background: #302713f2; color: var(--warning); }
+.settings-savebar-text { display: grid; gap: 2px; min-width: 0; }
+.settings-savebar-text small { color: var(--muted); }
+
+/* ---------- Fokus-Panel ---------- */
+/* Der Backdrop dimmt nur die Seite; das Panel liegt darüber mit deckendem App-Hintergrund und eigenem
+   Stacking-Kontext. Es wird nur eingeschoben, nie eingeblendet, damit kein Zwischenzustand halbtransparent ist. */
+.settings-focus-backdrop { position: fixed; inset: 0; z-index: 9; background: #02060d99; }
+.settings-focus { position: absolute; top: 0; right: 0; bottom: 0; z-index: 1; isolation: isolate; width: min(680px, 100%); display: grid; grid-template-rows: auto minmax(0, 1fr) auto; border-left: 1px solid #6b4a35; background: #0f0b10; color: var(--text); box-shadow: -24px 0 80px #000c; outline: none; animation: settings-focus-slide .16s ease-out; }
+@keyframes settings-focus-slide { from { transform: translateX(28px); } to { transform: none; } }
+.settings-focus-head { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 14px; padding: 16px 22px; border-bottom: 1px solid #6b4a35; background: linear-gradient(180deg, #130d10, #0f0b10); }
+.settings-focus-head h2 { margin: 0; font-size: 1.35rem; color: var(--text); }
+.settings-focus-head .eyebrow { margin: 0 0 2px; }
+.settings-focus-head > div { grid-column: 2; min-width: 0; }
+.settings-focus-close { grid-column: 3; min-width: 40px; min-height: 40px; padding: 0; display: grid; place-items: center; }
+.settings-focus-body { overflow: auto; padding: 18px 22px; }
+/* Im schmalen Panel stapeln sich aktive und verfügbare Routen. */
+.settings-focus .settings-queue-panes { grid-template-columns: minmax(0, 1fr); }
+.settings-focus-body h3 { margin: 18px 0 8px; font-size: 1rem; }
+.settings-focus-body h3:first-child { margin-top: 0; }
+.settings-focus-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 22px; border-top: 1px solid var(--border); background: #0f0b10; }
+.settings-focus-foot .hint { margin: 0; }
+
+/* Unterhalb von 1000px liegt die Sidebar oben (siehe app.css); die Leiste spannt dann die volle Breite. */
+@media (max-width: 1000px) {
+  .settings-savebar { left: 0; padding: 10px max(16px, calc((100% - 900px) / 2)); }
+}
+@media (max-width: 900px) {
+  /* Beschriftung über dem Inhalt, Chevron bleibt rechts oben. */
+  .settings-surface { padding: 0 16px; }
+  .settings-line { grid-template-columns: minmax(0, 1fr); gap: 8px; }
+  .settings-line-open { grid-template-columns: minmax(0, 1fr) 28px; margin: 0 -16px; width: calc(100% + 32px); padding: 12px 16px; }
+  .settings-line-open .settings-line-label { grid-column: 1; grid-row: 1; }
+  .settings-line-open .settings-line-chevron { grid-column: 2; grid-row: 1; }
+  .settings-line-open .settings-line-body { grid-column: 1 / -1; grid-row: 2; }
+  .settings-surface-head-characters { display: grid; }
+  .settings-head-fields select { min-width: 0; width: 100%; }
+  .settings-character-tab:not(.active) .settings-character-tab-text small { display: none; }
+}
+@media (max-width: 700px) {
+  .settings-savebar { align-items: flex-start; flex-direction: column; }
+}

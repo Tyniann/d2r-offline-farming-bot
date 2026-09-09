@@ -23,7 +23,6 @@ import { AppSelectionProvider, useAppSelectionState } from "./AppSelectionContex
 import { LanguageSwitcher } from "./LanguageSwitcher";
 import { useTranslation } from "react-i18next";
 import { presentApiError, presentDifficultyName, presentProblem, presentRunName } from "../i18n/presenters";
-
 const editableStates = new Set(["idle", "idle_in_game", "stopped_error"]);
 const navigation = [
   { target: "dashboard", icon: LayoutDashboard },
@@ -401,7 +400,8 @@ function CoreApp() {
         <nav className="main-navigation" aria-label={t("sidebar.mainNavigation")}>
           {navigation.map(({ target: itemTarget, icon: Icon }) => <a key={itemTarget} href={`#${itemTarget}`} aria-current={target === itemTarget ? "page" : undefined}><Icon aria-hidden="true" size={19} /><span>{t(`navigation.${itemTarget}`)}</span></a>)}
         </nav>
-        <div className="sidebar-context">
+        {/* Auf der Einstellungsseite übernimmt die Charakterleiste Auswahl und Schwierigkeit; der Shell-Kontext entfällt dort. */}
+        {target !== "settings" && <div className="sidebar-context">
           <strong>{t("sidebar.selectedCharacter")}</strong>
           <label>{t("sidebar.character")}<select value={character} onChange={(event) => {
             const next = event.target.value;
@@ -411,7 +411,7 @@ function CoreApp() {
           {sessionSelectionLocked && <small>{t("sidebar.lockedDuringSession")}</small>}
           {!sessionSelectionLocked && confirmedSelection && !draftDiffers && <small className="sidebar-context-confirmed">{t("sidebar.activeInD2R")}</small>}
           {draftDiffers && <small className="sidebar-context-pending">{t("sidebar.notActiveInD2R")}</small>}
-        </div>
+        </div>}
         <div className="sidebar-meta">
           <LanguageSwitcher />
           <StatusBadge tone={connection === "connected" ? "success" : "danger"} icon={connection === "connected" ? Wifi : WifiOff}>{t(connection === "connected" ? "sidebar.connected" : connection === "connecting" ? "sidebar.connecting" : "sidebar.disconnected")}</StatusBadge>
@@ -462,7 +462,7 @@ function CoreApp() {
         {target === "routes" && <>{liveLocked && <StateMessage kind="error" title={t("app.routesLockedTitle")}>{t("app.routesLockedDetail")}</StateMessage>}<RouteFeature characters={catalog?.characters.map((entry) => entry.name) ?? []} selectedCharacter={character} onSelectedCharacterChange={(next) => selectCharacter(next, storedCharacterSettings(operatorSettings, catalog, next)?.last_difficulty)} refreshKey={routeRefreshKey} liveLocked={liveLocked} preferredRecordingRun={routeOpenedFromOnboarding ? preferredRecordingRun : ""} onReturnToOnboarding={routeOpenedFromOnboarding ? returnToOnboarding : undefined} /></>}
         {target === "pickit" && <PickitFeature characters={catalog?.characters.map((entry) => entry.name) ?? []} selectedCharacter={character} onSelectedCharacterChange={(next) => selectCharacter(next, storedCharacterSettings(operatorSettings, catalog, next)?.last_difficulty)} runs={catalog?.runs.map((entry) => entry.run_id) ?? []} locked={!!status && !editableStates.has(status.state)} refreshKey={pickitRefreshKey} />}
         {target === "history" && <><PageHeader eyebrow={t("app.historyEyebrow")} title={t("navigation.history")} description={t("app.historyDescription")} /><HistoryFeature characters={catalog?.characters.map((entry) => entry.name) ?? []} selectedCharacter={character} selectedDifficulty={difficulty} onSelectedCharacterChange={(next) => selectCharacter(next, storedCharacterSettings(operatorSettings, catalog, next)?.last_difficulty)} onSelectedDifficultyChange={selectDifficulty} runs={catalog?.runs.map((entry) => entry.run_id) ?? []} refreshKey={historyRefreshKey} /></>}
-        {target === "settings" && <><PageHeader eyebrow={t("app.settingsEyebrow")} title={t("navigation.settings")} description={t("app.settingsDescription")} /><SettingsFeature generation={status?.generation ?? 0} coreState={status?.state ?? ""} status={status} characters={catalog?.characters.map((entry) => entry.slug) ?? []} selectedCharacter={catalog?.characters.find((entry) => entry.name === character)?.slug ?? ""} onSelectedCharacterChange={(slug) => { const next = catalog?.characters.find((entry) => entry.slug === slug)?.name; if (next) selectCharacter(next, storedCharacterSettings(operatorSettings, catalog, next)?.last_difficulty); }} catalog={catalog} runs={catalog?.runs.map((entry) => ({ id: entry.run_id, label: presentRunName(entry.run_id, t), status: entry.status, reasons: entry.reasons, routeCombat: entry.route_combat })) ?? []} events={events} onOpenOnboarding={() => { setOnboardingStep(0); setOnboardingOpen(true); }} onSettingsApplied={() => { void refreshAfterCommand(); }} onHistoryDeleted={() => setHistoryRefreshKey((value) => value + 1)} onDirtyChange={setSettingsDirty} /></>}
+        {target === "settings" && <><PageHeader compact title={t("navigation.settings")} /><SettingsFeature generation={status?.generation ?? 0} coreState={status?.state ?? ""} status={status} characters={catalog?.characters.map((entry) => entry.slug) ?? []} selectedCharacter={catalog?.characters.find((entry) => entry.name === character)?.slug ?? ""} onSelectedCharacterChange={(slug) => { const next = catalog?.characters.find((entry) => entry.slug === slug)?.name; if (next) selectCharacter(next, storedCharacterSettings(operatorSettings, catalog, next)?.last_difficulty); }} catalog={catalog} runs={catalog?.runs.map((entry) => ({ id: entry.run_id, label: presentRunName(entry.run_id, t), status: entry.status, reasons: entry.reasons, routeCombat: entry.route_combat })) ?? []} events={events} onOpenOnboarding={() => { setOnboardingStep(0); setOnboardingOpen(true); }} onSettingsApplied={() => { void refreshAfterCommand(); }} onHistoryDeleted={() => setHistoryRefreshKey((value) => value + 1)} onDirtyChange={setSettingsDirty} /></>}
         </>}
       </main>
 

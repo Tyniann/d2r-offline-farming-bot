@@ -13,9 +13,9 @@ Abschnitt 15.2 macht den Go-Core zur einzigen Autorität für alle über die GUI
 - **Generierter Client:** `web/src/api/generated.ts`
 - **Persistenz:** `<Datenroot>/configs/operator-settings.local.yaml`
 - **Backups:** `<Datenroot>/backups/operator-settings-*.yaml`
-- **UI:** `web/src/features/settings/` (`SettingsFeature.tsx`, Tabs, `QueueEditor`, `SettingsActionBar`, `settingsDiff.ts`)
-- **Shell-Guard:** `web/src/app/App.tsx` (`onDirtyChange`, Navigationsdialog)
-- **Styles:** `web/src/app/app.css` (`.settings-tabs`, `.settings-actionbar`, `.settings-queue-editor`)
+- **UI:** `web/src/features/settings/` (`SettingsFeature.tsx` als Einstieg, `settingsModel.ts` für Zustand und Aktionen, `SettingsOverview.tsx` für das Layout, `SettingsControls.tsx` für Felder und Dialoge, `SettingsFocusPanel.tsx` für die modalen Fokus-Panels, `QueueEditor`, `settingsDiff.ts`)
+- **Shell-Guard:** `web/src/app/App.tsx` (`onDirtyChange`, Navigationsdialog, kompakter Seitenkopf ohne Shell-Charakterkontext)
+- **Styles:** `web/src/features/settings/settings.css` (`.settings-surface`, `.settings-line`, `.settings-focus`, `.settings-savebar`); `web/src/app/app.css` nur für `.settings-queue-editor` und Charakter-Editoren
 
 ## Funktionalität
 
@@ -74,7 +74,15 @@ Nach einer erfolgreichen allgemeinen Mutation übernimmt der Core Queue und Budg
 
 Die Datei ist Core-eigene Persistenz und nicht für paralleles manuelles Editieren während des Betriebs gedacht. Konflikte werden nicht gemergt. Der Repositorybetrieb ohne expliziten Datenroot bleibt weiterhin allein durch `config.yaml` bestimmt.
 
-Seit Abschnitt 15.6 bildet die Settings-Seite Read, Preview, Update, Resetvorschau und Reset direkt ab. Die Bedienoberfläche trennt die Speicherziele in die Tabs **Farming** für das revisionierte Core-Dokument, **App** für den Desktop-Store und **Wartung** für Sofortaktionen. Farming speichert über eine sticky Action-Bar. `Speichern` führt intern Preview und Bestätigungsdialog aus; `Verwerfen` setzt nur den lokalen Draft zurück. Ungespeicherte Farming-Änderungen blockieren die Hash-Navigation und `beforeunload`. Autostart im App-Tab speichert sofort beim Umschalten. Der app-weite Sprachschalter speichert `de` oder `en` ebenfalls im Desktop-Store und verändert keine Operator-Settings-Revision. Die Run-Reihenfolge ist ein Zwei-Spalten-Editor. Availability kommt aus `GET /api/v1/runs` für den im Tab gewählten Charakter, nicht aus dem globalen Live-Katalog. Schlägt dieser Fetch fehl, bleiben Run-Namen sichtbar, gelten aber als nicht startfähig. Nur startfähige Runs sind aufnehmbar, auch per Drop. Der Tab zeigt Katalognamen und warnt, wenn eine andere gespeicherte Reihenfolge bearbeitet wird als die in D2R bestätigte Auswahl. Die Seite hält Revisionkonflikte bis zum expliziten Neuladen sichtbar, sperrt Mutationen während aktiver Sessions und bietet bei `restart_required` ausschließlich den kontrollierten Electron-Core-Neustart an. Effektive Werte und Speicherort werden unter Wartung nur lesbar projiziert.
+Seit Abschnitt 15.6 bildet die Settings-Seite Read, Preview, Update, Resetvorschau und Reset direkt ab. Die Bedienoberfläche ist eine einzelne Übersichtsseite („Übersicht & Fokus“) aus drei flachen Flächen statt Tabs und Karten:
+
+- **Charakter:** Eine Badge-Leiste mit den grafischen Kampfprofil-Badges wählt den Charakter; nicht unterstützte Klassen bleiben sichtbar, sind aber nicht auswählbar. Direkt darunter stehen Schwierigkeit und Spieleranzahl als Direktfelder sowie ein Hinweis, ob die Auswahl der in D2R bestätigten entspricht. Routenreihenfolge, Tastenbelegung und Inventarschutz erscheinen als kompakte Zusammenfassungszeilen (Chips, Tastenkappen, Sperrzähler); die ganze Zeile öffnet den zugehörigen Editor in einem Fokus-Panel. Auf der Settings-Seite rendert die App-Shell deshalb keinen eigenen Charakter-/Schwierigkeitskontext in der Sidebar.
+- **Bot:** Budgets, Input-Freigabe mit Hotkeys und History-Retention als Direktfelder. Sie werden zusammen mit den Charakterwerten als eine Revision des Core-Dokuments gespeichert.
+- **System:** Autostart, Versionsprüfung, Ersteinrichtung und die Wartungszeile (Diagnosepaket, Live-Ereignisse, effektive Werte, Historie löschen, Zurücksetzen) im Fokus-Panel. Diese Werte wirken sofort und berühren keine Revision.
+
+Fokus-Panels sind modale Dialoge (`role=dialog`, `aria-modal`): Escape, Backdrop-Klick, Schließen- und Fertig-Button schließen sie, Tab bleibt im Panel, der Seitenhintergrund scrollt nicht, und der Fokus kehrt zum auslösenden Element zurück. Bestätigungsdialoge aus dem Panel heraus überlagern es.
+
+Geänderte Core-Werte markiert ein Punkt am Feld und an der Zusammenfassungszeile; sobald der Draft abweicht, erscheint unten eine fixierte Speicherleiste. `Speichern` (auch `Strg+S`) führt intern Preview und Bestätigungsdialog aus; `Verwerfen` setzt nur den lokalen Draft zurück. Ungespeicherte Änderungen blockieren die Hash-Navigation und `beforeunload`. Autostart speichert sofort beim Umschalten. Der app-weite Sprachschalter speichert `de` oder `en` ebenfalls im Desktop-Store und verändert keine Operator-Settings-Revision. Die Run-Reihenfolge ist ein Zwei-Spalten-Editor. Availability kommt aus `GET /api/v1/runs` für den gewählten Charakter, nicht aus dem globalen Live-Katalog. Schlägt dieser Fetch fehl, bleiben Run-Namen sichtbar, gelten aber als nicht startfähig. Nur startfähige Runs sind aufnehmbar, auch per Drop. Die Seite hält Revisionkonflikte bis zum expliziten Neuladen sichtbar, sperrt Mutationen während aktiver Sessions und bietet bei `restart_required` ausschließlich den kontrollierten Electron-Core-Neustart an. Effektive Werte und Speicherort werden im Wartungs-Panel nur lesbar projiziert.
 
 ## Abhängigkeiten
 
@@ -94,4 +102,4 @@ Seit Abschnitt 15.6 bildet die Settings-Seite Read, Preview, Update, Resetvorsch
 - [Internationalisierung Deutsch und Englisch](internationalization.md)
 
 ---
-*Zuletzt aktualisiert: 28. August 2026*
+*Zuletzt aktualisiert: 9. September 2026*

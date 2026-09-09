@@ -8,7 +8,7 @@ Jeder Charakter speichert eine Offline-Spieleranzahl von 1 bis 8. Nach einem bes
 
 - **Paket:** `internal/app/`, `internal/input/`
 - **Einstieg:** `(*runtimeQueueUnit).finishVerifiedQueueGame` nach `verifyActiveQueueGame`
-- **Wichtige Dateien:** `internal/app/offline_players.go`, `internal/app/operator_settings.go`, `internal/input/chat.go`, `web/src/features/characters/CharactersTab.tsx`
+- **Wichtige Dateien:** `internal/app/offline_players.go`, `internal/app/operator_settings.go`, `internal/input/chat.go`, `web/src/features/settings/SettingsOverview.tsx`
 - **Config:** `characters.<name>.players` in `operator-settings.local.yaml` (Schema 3)
 
 ## Funktionalität

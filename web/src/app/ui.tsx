@@ -6,9 +6,13 @@ export function Button({ variant = "primary", className, ...props }: ComponentPr
   return <button type="button" className={classes || undefined} {...props} />;
 }
 
-export function PageHeader({ eyebrow, title, description, actions }: { eyebrow: string; title: string; description: string; actions?: ReactNode }) {
-  return <header className="page-header">
-    <div><p className="eyebrow">{eyebrow}</p><h1>{title}</h1><p>{description}</p></div>
+/**
+ * PageHeader ist der Seitenkopf. `compact` reduziert ihn auf den Titel für Seiten, deren Inhalt früh sichtbar
+ * sein soll (Einstellungen); Eyebrow und Beschreibung entfallen dort.
+ */
+export function PageHeader({ eyebrow, title, description, actions, compact = false }: { eyebrow?: string; title: string; description?: string; actions?: ReactNode; compact?: boolean }) {
+  return <header className={compact ? "page-header page-header-compact" : "page-header"}>
+    <div>{!compact && eyebrow && <p className="eyebrow">{eyebrow}</p>}<h1>{title}</h1>{!compact && description && <p>{description}</p>}</div>
     {actions && <div className="page-header-actions">{actions}</div>}
   </header>;
 }

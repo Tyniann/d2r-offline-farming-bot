@@ -8,6 +8,3 @@ export type SettingsRun = {
   reasons?: string[];
   routeCombat?: RouteCombatConfigDTO;
 };
-
-/** SettingsTab benennt die Scope-Bereiche der Einstellungen. */
-export type SettingsTab = "farming" | "characters" | "app" | "maintenance";

@@ -137,7 +137,13 @@ export function BindingEditor({
         ? <span>{bindingReasons.map((reason) => bindingReasonText(reason, optionalSkillPairs.length > 0, t)).join(" ")}</span>
         : null}
     </div>}
-    <p className="hint">{t("characters.mouseSlotHint")}</p>
+    <div className="binding-slot-guidance">
+      <p className="hint">{t("characters.mouseSlotHint")}</p>
+      {standardAttack ? <div className="binding-standard-attack">
+        <StatusBadge tone="success">{t("characters.standardAttack")}</StatusBadge>
+        <strong>{gameSkillName(standardAttack, standardAttack, i18n.resolvedLanguage)}</strong>
+      </div> : null}
+    </div>
     <div className="binding-skill-grid" role="group" aria-label={t("characters.skillKeysAria")}>
       {requiredSkills.map((skill) => {
         const selected = value.skills[skill.skill] ?? "";
@@ -146,7 +152,6 @@ export function BindingEditor({
           <span className="binding-skill-label">
             <strong>{gameSkillName(skill.skill, skill.skill, i18n.resolvedLanguage)}</strong>
             <StatusBadge tone="neutral">{skillSlotLabel(skill.slot, t)}</StatusBadge>
-            {standardAttack === skill.skill ? <StatusBadge tone="success">{t("characters.standardAttack")}</StatusBadge> : null}
           </span>
           <select
             value={selected}

@@ -566,9 +566,9 @@ func (c *runPipeline) tickRouteLoot(deps pipelineTravelDeps, w world.State, prog
 		c.travel.routeLootSegmentIndex = progress.SegmentIndex
 		c.travel.routeLootPointIndex = progress.PointIndex
 		c.travel.routeLootScanned = false
-		c.loot.lootPickupActive = false
-		c.resetLootApproach()
-		c.clearLootRecoveryPending()
+		// `Route.Hold` may reconcile points after loot movement in the same tick.
+		// Point ownership must not clear a pickup or recovery still owned by the
+		// Loot adapter, otherwise the next tick starts a second executor.
 	}
 
 	if c.loot.lootPickupActive {
