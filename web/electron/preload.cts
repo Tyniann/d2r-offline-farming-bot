@@ -69,3 +69,11 @@ const bridge = Object.freeze({
 });
 
 contextBridge.exposeInMainWorld("d2rDesktop", bridge);
+
+// Electron liefert Strg+Mausrad nicht wie ein Browser. Der Preload bleibt
+// isoliert und reicht nur die Richtung, keinen frei wählbaren Zoomfaktor.
+window.addEventListener("wheel", (event) => {
+  if (!event.ctrlKey || event.deltaY === 0) return;
+  event.preventDefault();
+  ipcRenderer.send("desktop:adjust-zoom", event.deltaY < 0 ? "in" : "out");
+}, { passive: false });

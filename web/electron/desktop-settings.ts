@@ -17,6 +17,7 @@ export interface DesktopSettings {
   schema_version: typeof DESKTOP_SETTINGS_SCHEMA_VERSION;
   language: DesktopLanguage;
   window_bounds?: WindowBounds;
+  zoom_factor?: number;
   autostart: boolean;
   onboarding_completed: boolean;
   selected_character?: string;
@@ -123,7 +124,7 @@ export function parseDesktopSettings(value: unknown): DesktopSettings {
   }
   requireExactKeys(
     value,
-    ["schema_version", "language", "window_bounds", "autostart", "onboarding_completed", "selected_character", "selected_difficulty"],
+    ["schema_version", "language", "window_bounds", "zoom_factor", "autostart", "onboarding_completed", "selected_character", "selected_difficulty"],
     ["schema_version", "language", "autostart", "onboarding_completed"],
   );
   if (value.schema_version !== DESKTOP_SETTINGS_SCHEMA_VERSION) {
@@ -160,6 +161,9 @@ function parseKnownDesktopSettings(value: Record<string, unknown>, language: Des
   if (value.window_bounds !== undefined) {
     settings.window_bounds = parseWindowBounds(value.window_bounds);
   }
+  if (value.zoom_factor !== undefined) {
+    settings.zoom_factor = parseZoomFactor(value.zoom_factor);
+  }
   if (value.selected_character !== undefined) settings.selected_character = parsePreference(value.selected_character, "Charakter", 128);
   if (value.selected_difficulty !== undefined) settings.selected_difficulty = parsePreference(value.selected_difficulty, "Schwierigkeit", 32);
   return settings;
@@ -179,6 +183,18 @@ function parsePreference(value: unknown, label: string, maxLength: number): stri
     throw new Error(`Gespeicherte ${label}-Auswahl ist ungültig.`);
   }
   return value;
+}
+
+function parseZoomFactor(value: unknown): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    throw new Error("Zoomfaktor muss eine endliche Zahl sein.");
+  }
+  // Dieselben Grenzen wie [clampZoomFactor] in desktop-window.ts: 50 bis 200 Prozent.
+  const factor = Math.round(value * 100) / 100;
+  if (factor < 0.5 || factor > 2) {
+    throw new Error("Zoomfaktor liegt außerhalb der sicheren Grenzen.");
+  }
+  return factor;
 }
 
 function parseWindowBounds(value: unknown): WindowBounds {

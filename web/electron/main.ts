@@ -13,7 +13,7 @@ import { isAllowedIPCSender, isAllowedNavigation, secureWebPreferences, type Cor
 import { DesktopSettingsStore, desktopSettingsDefaults, parseDesktopSettingsUpdate, resolveDesktopLanguage, type DesktopSettings } from "./desktop-settings.js";
 import { desktopLifecyclePolicy, desktopNotificationTarget, notificationForTransition, shouldShowDesktopNotification, type DesktopNotificationKind, type StableAppTarget } from "./desktop-lifecycle.js";
 import { desktopDialogText, desktopNotificationText, desktopRecoveryText, desktopTrayText, loadDesktopTranslators, type DesktopTranslator } from "./i18n.js";
-import { clampWindowBounds } from "./desktop-window.js";
+import { clampWindowBounds, clampZoomFactor, DEFAULT_ZOOM_FACTOR, nextZoomFactor, parseZoomDirection, zoomDirectionFromInput, type ZoomDirection } from "./desktop-window.js";
 import { portalMarkPath } from "./portal-icon.js";
 import { checkLatestRelease, githubReleasesURL, type DesktopUpdateStatus } from "./update-check.js";
 import { carryOnboardingStep } from "./onboarding-resume.js";
@@ -40,6 +40,7 @@ let quitting = false;
 let exitPromptOpen = false;
 let restartCorePending = false;
 let boundsTimer: ReturnType<typeof setTimeout> | undefined;
+let zoomTimer: ReturnType<typeof setTimeout> | undefined;
 let desktopSettings = desktopSettingsDefaults();
 let desktopSettingsStore: DesktopSettingsStore;
 let desktopSettingsSave = Promise.resolve(desktopSettings);
@@ -159,6 +160,18 @@ function ensureWindow(): BrowserWindow {
     icon: portalMarkPath(),
     webPreferences: secureWebPreferences(preload),
   });
+  // Electron hat keine Browser-Chrome. Zoom kommt deshalb aus unseren
+  // Tastatur- und Mausrad-Handlern, nicht aus Chromiums Standardverhalten.
+  applyWindowZoom(desktopSettings.zoom_factor ?? DEFAULT_ZOOM_FACTOR);
+  mainWindow.webContents.on("did-finish-load", () => {
+    applyWindowZoom(desktopSettings.zoom_factor ?? DEFAULT_ZOOM_FACTOR);
+  });
+  mainWindow.webContents.on("before-input-event", (event, input) => {
+    const direction = zoomDirectionFromInput(input);
+    if (!direction) return;
+    event.preventDefault();
+    changeWindowZoom(direction);
+  });
   mainWindow.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
   mainWindow.webContents.on("will-attach-webview", (event) => event.preventDefault());
   mainWindow.webContents.on("will-navigate", (event, target) => {
@@ -191,7 +204,35 @@ function showMainWindow(target?: StableAppTarget): void {
   if (target) mainWindow.webContents.send("desktop:navigate", target);
 }
 
+function applyWindowZoom(factor: number): void {
+  const window = mainWindow;
+  if (!window || window.isDestroyed()) return;
+  window.webContents.setZoomFactor(clampZoomFactor(factor));
+}
+
+function changeWindowZoom(direction: ZoomDirection): void {
+  const window = mainWindow;
+  if (!window || window.isDestroyed()) return;
+  const next = nextZoomFactor(window.webContents.getZoomFactor(), direction);
+  desktopSettings = { ...desktopSettings, zoom_factor: next };
+  window.webContents.setZoomFactor(next);
+  scheduleZoomSave(next);
+}
+
+function scheduleZoomSave(factor: number): void {
+  if (provisioningActive) return;
+  if (zoomTimer !== undefined) clearTimeout(zoomTimer);
+  zoomTimer = setTimeout(() => {
+    zoomTimer = undefined;
+    void persistDesktopSettings({ zoom_factor: factor }).then((saved) => { desktopSettings = saved; }).catch(() => undefined);
+  }, 250);
+}
+
 function registerDesktopIPC(): void {
+  ipcMain.on("desktop:adjust-zoom", (event, request: unknown) => {
+    validateSender(event.senderFrame?.url ?? "");
+    changeWindowZoom(parseZoomDirection(request));
+  });
   ipcMain.handle("desktop:get-provisioning-state", (event) => {
     validateSender(event.senderFrame?.url ?? "");
     return { required: provisioningActive, import_selected: selectedImportRoot !== undefined, import_label: selectedImportRoot ? currentDesktopTranslator().t("desktop.provisioning.selectedImportRoot") : "" };

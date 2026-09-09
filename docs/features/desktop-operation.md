@@ -8,7 +8,7 @@ Abschnitt 15.6 verbindet die Core-autoritären Operator-Einstellungen mit der in
 
 - **Settings-Seite:** `web/src/features/settings/SettingsFeature.tsx`
 - **Desktop-Lifecycle:** `web/electron/desktop-lifecycle.ts`
-- **Fensterbounds:** `web/electron/desktop-window.ts`
+- **Fensterbounds und Zoom:** `web/electron/desktop-window.ts`
 - **Electron Main/Preload:** `web/electron/main.ts`, `web/electron/preload.cts`
 - **Core-Steuerung:** `web/electron/core-controller.ts`
 - **Persistenz:** `<Datenroot>/desktop-settings.json` und `<Datenroot>/configs/operator-settings.local.yaml`
@@ -40,6 +40,8 @@ Das Tray enthält ausschließlich Öffnen, den nicht interaktiven Status, Pause 
 ### Fenster und Autostart
 
 Normale Fensterbounds werden verzögert atomar gespeichert. Beim nächsten Start werden sie auf eine tatsächlich sichtbare Monitor-Arbeitsfläche begrenzt; die Zielgröße beträgt standardmäßig 1440×900 bei einer Mindestgröße von 1100×700. Maximierte, minimierte und Vollbildzustände überschreiben die normalen Bounds nicht.
+
+Die Ansicht lässt sich wie in einem Browser zoomen: Strg+Mausrad, Strg++ / Strg+- und Strg+0. Der Faktor bleibt zwischen 50 und 200 Prozent und wird wie die Fensterbounds verzögert in `desktop-settings.json` gespeichert. Im Pre-Core-Modus wird der Zoom noch nicht persistiert.
 
 Autostart ist standardmäßig aus und wird nur in der paketierten App über Windows Login Items gesetzt. Eine beschädigte Desktop-Settings-Datei wird vollständig verworfen; insbesondere bleibt Autostart nach der Recovery deaktiviert.
 
@@ -77,4 +79,4 @@ Aktive, vorgemerkte, pausierte, abbrechende und unbekannte Corezustände dürfen
 - [Internationalisierung Deutsch und Englisch](internationalization.md)
 
 ---
-*Zuletzt aktualisiert: 22. August 2026*
+*Zuletzt aktualisiert: 9. September 2026*

@@ -24,12 +24,14 @@ describe("DesktopSettingsStore", () => {
       schema_version: 3,
       language: "en",
       window_bounds: { x: -1200, y: 40, width: 1280, height: 800 },
+      zoom_factor: 1.2,
       autostart: true,
       onboarding_completed: true,
       selected_character: "MrHammer",
       selected_difficulty: "hell",
     });
     expect(saved.window_bounds).toEqual({ x: -1200, y: 40, width: 1280, height: 800 });
+    expect(saved.zoom_factor).toBe(1.2);
     expect(saved).toMatchObject({ language: "en", selected_character: "MrHammer", selected_difficulty: "hell" });
     await expect(store.load()).resolves.toEqual({ settings: saved, recovered: false });
     expect((await readFile(path, "utf8")).endsWith("\n")).toBe(true);
@@ -39,6 +41,7 @@ describe("DesktopSettingsStore", () => {
     ["unbekanntes Feld", { schema_version: 1, autostart: true, onboarding_completed: true, input_enabled: true }],
     ["unbekanntes Schema", { schema_version: 4, language: "de", autostart: true, onboarding_completed: true }],
     ["zu kleine Bounds", { schema_version: 1, autostart: true, onboarding_completed: true, window_bounds: { x: 0, y: 0, width: 200, height: 100 } }],
+    ["ungültiger Zoomfaktor", { schema_version: 3, language: "de", autostart: true, onboarding_completed: true, zoom_factor: 4 }],
     ["zusätzliches Bounds-Feld", { schema_version: 1, autostart: true, onboarding_completed: true, window_bounds: { x: 0, y: 0, width: 1280, height: 800, display: 1 } }],
   ])("setzt %s vollständig fail-closed zurück", async (_name, value) => {
     const { store, path } = await newStoreWithPath();
