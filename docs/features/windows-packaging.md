@@ -40,6 +40,8 @@ Renderer, Preload und Electron Main liegen im ASAR. Die Paketprüfung verlangt z
 
 NSIS installiert ohne Maschinenkontext für den aktuellen Benutzer, legt einen Startmenüeintrag an und erzwingt weder Desktopshortcut noch Administratorrechte. Das Produkt besitzt eine feste App-ID und ein Windows-Icon mit 16-, 32-, 48- und 256-Pixel-Kacheln desselben Town-Portal-Zeichens. `installerLanguages` enthält `de_DE` und `en_US`; die früher erzwungene deutsche LCID entfällt. Beim interaktiven Start fragt dieselbe Setup-Datei nach Deutsch oder Englisch. Silent-Installationen überspringen diese Auswahl.
 
+Bei einer Erstinstallation hängt der Installer den festen Anwendungsordner an ein frei gewähltes Stammverzeichnis an. Bei einem Upgrade übernimmt er stattdessen den registrierten Installationsordner unverändert, sofern dort die vorhandene App liegt. Eine benutzerdefinierte Installation wie `D:\d2rbot` wird dadurch direkt aktualisiert und nicht unter `D:\d2rbot\D2ROfflineFarmingBot` dupliziert.
+
 Die Deinstallation erhält `%LOCALAPPDATA%\D2ROfflineFarmingBot\` standardmäßig. Nur im interaktiven Uninstaller kann der Operator nach zwei standardmäßig auf "Nein" stehenden Bestätigungen exakt diesen festen Root zusätzlich löschen. Beide eigenen Warnungen existieren als deutsche und englische `LangString`-Werte. Silent-Uninstall fragt nicht und erhält die Daten.
 
 ### Reproduzierbare Prüfkette

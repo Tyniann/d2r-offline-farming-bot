@@ -8,6 +8,31 @@ LangString uninstallDeleteDataConfirm 1031 \
 LangString uninstallDeleteDataConfirm 1033 \
   "Permanently delete the data root? This action cannot be undone."
 
+!ifndef BUILD_UNINSTALLER
+Var existingInstallDirectory
+
+!macro customInit
+  StrCpy $existingInstallDirectory ""
+  ${If} $hasPerUserInstallation == "1"
+  ${AndIf} $perUserInstallationFolder != ""
+  ${AndIf} ${FileExists} "$perUserInstallationFolder\${APP_EXECUTABLE_FILENAME}"
+    StrCpy $existingInstallDirectory "$perUserInstallationFolder"
+  ${EndIf}
+!macroend
+
+!macro customPageAfterChangeDir
+  !define MUI_PAGE_CUSTOMFUNCTION_SHOW restoreExistingInstallDirectory
+!macroend
+
+Function restoreExistingInstallDirectory
+  # electron-builder appends ${APP_FILENAME} before this page. Keep that
+  # first-install safeguard, but restore a verified existing upgrade target.
+  StrCmp $existingInstallDirectory "" restore_existing_install_directory_done
+  StrCpy $INSTDIR "$existingInstallDirectory"
+restore_existing_install_directory_done:
+FunctionEnd
+!endif
+
 !macro customUnInstall
   IfSilent preserve_phase15_data
   MessageBox MB_YESNO|MB_DEFBUTTON2|MB_ICONQUESTION \

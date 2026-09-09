@@ -12,6 +12,7 @@ Versionierung nach [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 - Build the history index after the Core handshake path so a cold start with accumulated telemetry does not enter desktop recovery
+- Keep a registered custom installation directory unchanged during interactive installer upgrades
 
 ## [0.26.0] - 2026-09-09
 
