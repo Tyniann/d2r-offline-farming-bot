@@ -13,13 +13,14 @@
     "typecheck:renderer": "tsc --noEmit",
     "typecheck:electron": "tsc -p tsconfig.electron.json --noEmit",
     "typecheck": "pnpm typecheck:renderer && pnpm typecheck:electron",
+    "build:renderer": "vite build",
     "build:electron": "tsc -p tsconfig.electron.build.json && node electron/copy-assets.mjs",
     "build:icon": "node electron/create-build-icon.mjs",
     "package:win": "pnpm build && pnpm build:icon && electron-builder --win nsis --x64",
     "pretest:electron": "pnpm build",
     "test:electron": "playwright test -c playwright.electron.config.ts",
     "prebuild": "node scripts/generate-api.mjs --check",
-    "build": "pnpm typecheck && vite build && pnpm build:electron"
+    "build": "pnpm typecheck && pnpm build:renderer && pnpm build:electron"
   },
   "dependencies": {
     "i18next": "26.4.0",

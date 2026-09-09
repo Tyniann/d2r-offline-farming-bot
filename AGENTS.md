@@ -80,9 +80,10 @@ Der Auftrag `Release [X.Y.Z|patch|minor|major]` autorisiert den vollständigen R
 
 1. Diff, Branch, `origin` und GitHub-Account prüfen; keine unerwarteten oder lokalen Dateien veröffentlichen.
 2. Version und Release-Datum in Code, Changelog, README, `docs/plans/handoff.html` und betroffenen Paketmetadaten konsistent aktualisieren; aus dem Changelog eine verständliche GitHub-Beschreibung erstellen.
-3. Alle vorgesehenen Release-Änderungen einschließlich Metadaten committen und `scripts/build-release.ps1 -Version X.Y.Z` genau einmal ohne Skip-Schalter auf diesem Commit ausführen.
-4. Nur bei grüner Pipeline Installer und SHA-256-Datei gemeinsam als `D2R-Offline-Farming-Bot-X.Y.Z-Windows-x64.zip` packen, Commit pushen, annotierten Tag `vX.Y.Z` pushen, mit `gh release create` samt ZIP veröffentlichen und als latest markieren.
-5. Tag, Releasebeschreibung, Assetname und Prüfsummen abschließend verifizieren. Bei Fehler vor Tag/Publish stoppen; nach teilweisem Publish Zustand prüfen und idempotent fortsetzen statt doppelt anzulegen.
+3. Bei UI-Änderungen `scripts/sync-embedded-ui.ps1` ausführen und `internal/api/ui/dist` mit Quellen und Metadaten committen.
+4. `scripts/build-release.ps1 -Version X.Y.Z` genau einmal auf dem sauberen Commit ausführen; Skip-Schalter nur auf ausdrücklichen Auftrag. Ein Dist-Diff stoppt den Flow und wird synchronisiert, nicht zurückgesetzt.
+5. Nur bei grüner Pipeline Installer und SHA-256-Datei gemeinsam als `D2R-Offline-Farming-Bot-X.Y.Z-Windows-x64.zip` packen, Commit pushen, annotierten Tag `vX.Y.Z` pushen, mit `gh release create` samt ZIP veröffentlichen und als latest markieren.
+6. Tag, Releasebeschreibung, Assetname und Prüfsummen abschließend verifizieren. Bei Fehler vor Tag/Publish stoppen; nach teilweisem Publish Zustand prüfen und idempotent fortsetzen statt doppelt anzulegen.
 
 # Documentation rules
 

@@ -5,7 +5,7 @@ VERSION  := $(shell grep 'Version = ' internal/version/version.go | sed 's/.*"\(
 COMMIT   := $(shell git rev-parse --short HEAD 2>/dev/null || echo dev)
 LDFLAGS  := -s -w -X github.com/Tyniann/d2r-offline-farming-bot/internal/version.Version=$(VERSION) -X github.com/Tyniann/d2r-offline-farming-bot/internal/version.Commit=$(COMMIT)
 
-.PHONY: all build release run test lint fmt tidy clean tools
+.PHONY: all build release sync-ui run test lint fmt tidy clean tools
 
 all: build
 
@@ -14,6 +14,9 @@ build:
 
 release:
 	powershell -ExecutionPolicy Bypass -File scripts/build-release.ps1 -Version $(VERSION)
+
+sync-ui:
+	powershell -ExecutionPolicy Bypass -File scripts/sync-embedded-ui.ps1
 
 run:
 	go run $(CMD_PATH)

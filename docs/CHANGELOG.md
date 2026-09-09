@@ -7,6 +7,9 @@ Versionierung nach [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+- Verify the committed embedded UI bundle and a clean working tree before building release artifacts
+
 ## [0.26.0] - 2026-09-09
 
 ### Added

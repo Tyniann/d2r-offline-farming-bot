@@ -44,7 +44,17 @@ Die Deinstallation erhält `%LOCALAPPDATA%\D2ROfflineFarmingBot\` standardmäßi
 
 ### Reproduzierbare Prüfkette
 
-Die Pipeline führt mit frozen Lockfile nacheinander Clientgeneration, alle Vitest-Fälle, Renderer-/Electron-Typecheck, Produktionsbuild, native Electron-Tests, alle Go-Tests und Lint aus. Danach folgen Core-/Defaults-Build, Installer, Inhaltsscan und ein temporärer Installations-Smoke:
+`internal/api/ui/dist/` ist versionierter Release-Input für `go:embed`. Nach Änderungen unter `web/src/` synchronisiert
+
+```powershell
+.\scripts\sync-embedded-ui.ps1
+```
+
+den generierten Client, prüft den Renderer und baut das eingebettete Bundle neu. Quellen und `dist/` werden gemeinsam committet. `-Check` baut in `.tmp/`, vergleicht relative Dateinamen und SHA-256-Hashes und verändert das eingecheckte Bundle nicht.
+
+Die Releasepipeline verlangt zu Beginn einen sauberen Arbeitsbaum und identische Versionen in `internal/version/version.go`, `web/package.json` und `-Version`. Vor dem Produktbuild führt sie den read-only Bundle-Abgleich aus. Nach jedem Renderer-Build und vor dem Erfolg muss der Arbeitsbaum weiterhin sauber sein; eine Abweichung stoppt vor Core- und Installerbau.
+
+Danach führt die Pipeline alle Vitest-Fälle, Renderer-/Electron-Typecheck, Produktionsbuild, native Electron-Tests, alle Go-Tests und Lint aus. Es folgen Core-/Defaults-Build, Installer, Inhaltsscan und ein temporärer Installations-Smoke:
 
 1. per-user Silent-Install in einen eindeutigen Workspace-Tempordner;
 2. Start der installierten App gegen einen nachweislich noch nicht existierenden Datenroot und Auswahl „Neu“ in derselben React-Shell;
@@ -57,7 +67,7 @@ Der manuelle Sprach-Smoke startet dieselbe Setup-Datei zweimal und wählt im vor
 
 Temporäre Builder-, Ressourcen-, Installations- und Profilverzeichnisse werden anschließend entfernt. Unter `dist/release/` verbleiben exakt `D2R-Offline-Farming-Bot-<Version>-Setup.exe` und die zugehörige `.sha256`.
 
-Für eine ausdrücklich angeordnete manuelle Gate-Iteration darf derselbe Builder nach separat dokumentierten grünen Prüfungen mit `-SkipAutomatedChecks -SkipProductSmoke` ausschließlich Build und statische Inhaltsaudits ausführen. Ohne diese Schalter bleibt die vollständige Prüfkette unverändert verpflichtend. Der Renderer-Zielordner wird vor jedem Build geleert, damit das ASAR keine nicht mehr referenzierten gehashten Altbundles enthält.
+Für eine ausdrücklich angeordnete manuelle Gate-Iteration darf derselbe Builder nach separat dokumentierten grünen Prüfungen mit `-SkipAutomatedChecks -SkipProductSmoke` ausschließlich Build und statische Inhaltsaudits ausführen. `-SkipProductSmoke` überspringt nur Install, Upgrade und Uninstall; Bundle-Abgleich und statische Paketprüfung bleiben aktiv. Ohne diese Schalter bleibt die vollständige Prüfkette verpflichtend.
 
 ## Operator / Release
 
@@ -75,4 +85,4 @@ Für eine ausdrücklich angeordnete manuelle Gate-Iteration darf derselbe Builde
 - [Internationalisierung Deutsch und Englisch](internationalization.md)
 
 ---
-*Zuletzt aktualisiert: 22. August 2026*
+*Zuletzt aktualisiert: 9. September 2026*

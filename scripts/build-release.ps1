@@ -57,9 +57,31 @@ function Resolve-GoExe {
     throw "go not found; install Go or set GOEXE"
 }
 
+function Assert-CleanRepository([string]$Message) {
+    $status = @(git -C $Root status --porcelain --untracked-files=all)
+    if ($LASTEXITCODE -ne 0) {
+        throw "git status failed with exit code $LASTEXITCODE"
+    }
+    if ($status.Count -ne 0) {
+        throw "$Message`n$($status -join "`n")"
+    }
+}
+
+function Assert-ReleaseVersion {
+    $versionSource = Get-Content -LiteralPath (Join-Path $Root "internal\version\version.go") -Raw
+    $versionMatch = [regex]::Match($versionSource, 'var Version = "([^"]+)"')
+    $webVersion = (Get-Content -LiteralPath (Join-Path $WebRoot "package.json") -Raw | ConvertFrom-Json).version
+    if (-not $versionMatch.Success -or $versionMatch.Groups[1].Value -ne $Version -or $webVersion -ne $Version) {
+        throw "release version $Version must match internal/version/version.go and web/package.json"
+    }
+}
+
 foreach ($path in @($ReleaseRoot, $BuilderRoot, $ResourcesRoot, $SmokeRoot)) {
     Assert-WorkspaceChild $path $Root
 }
+
+Assert-CleanRepository "release build requires a clean repository"
+Assert-ReleaseVersion
 
 $Commit = (git -C $Root rev-parse --short HEAD 2>$null).Trim()
 if (-not $Commit -or $Commit -eq "dev") {
@@ -76,9 +98,9 @@ foreach ($path in @($ReleaseRoot, $BuilderRoot, $ResourcesRoot, $SmokeRoot)) {
 New-Item -ItemType Directory -Path $ReleaseRoot, (Join-Path $ResourcesRoot "core"), $SmokeRoot -Force | Out-Null
 
 try {
-    Invoke-Checked "pnpm" @("install", "--frozen-lockfile") $WebRoot
-    Invoke-Checked "pnpm" @("generate") $WebRoot
+    Invoke-Checked "powershell" @("-ExecutionPolicy", "Bypass", "-File", (Join-Path $Root "scripts\sync-embedded-ui.ps1"), "-Check")
     Invoke-Checked "pnpm" @("build") $WebRoot
+    Assert-CleanRepository "renderer build changed committed files; synchronize and commit the embedded UI before releasing"
 
     if (-not $SkipAutomatedChecks) {
         Invoke-Checked "pnpm" @("test") $WebRoot
@@ -201,6 +223,7 @@ try {
     if ($finalFiles.Count -ne 2 -or @($finalFiles | Where-Object Name -like "*-Setup.exe").Count -ne 1 -or @($finalFiles | Where-Object Name -like "*.sha256").Count -ne 1) {
         throw "release output must contain exactly one installer and one checksum"
     }
+    Assert-CleanRepository "release pipeline changed committed files"
     $result = if ($SkipProductSmoke) { "built and statically verified" } else { "built and smoke-tested" }
     Write-Host "Release ${result}: $FinalInstaller"
 } finally {
