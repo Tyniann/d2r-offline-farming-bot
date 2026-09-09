@@ -28,6 +28,8 @@ Electron erzeugt pro Core-Start eine zufällige Named Pipe und startet den Core 
 
 Der Control-Token erscheint ausschließlich im URL-Fragment der einmaligen Bootstrap-URL. Die tokenfreie `base_url` wird für Statusabfragen verwendet. Standardausgabe und Standardfehler sind keine Bootstrap-Kanäle und transportieren keinen Token.
 
+Der Core baut den History-Index nach dem Start der lokalen API im Hintergrund auf. Eine gewachsene Telemetrie-Historie verbraucht dadurch nicht das begrenzte Electron-Handshake-Zeitfenster. Historienabfragen warten bei Bedarf auf denselben serialisierten Indexaufbau.
+
 ### Crash und Shutdown
 
 Ein erwarteter Desktop-Shutdown beendet zuerst den Core. Ein unerwarteter Core-Exit wird nur dann genau einmal automatisch neu gestartet, wenn der letzte autoritative Supervisorzustand sicher inaktiv und der Routenworkflow `idle` war. Bei aktiver, unbekannter oder bereits einmal neu gestarteter Instanz zeigt Electron eine lokale Recovery-Seite und bleibt fail-closed. Der Main-Prozess löst Sprache, Titel und Body aus der stabilen `DesktopCoreReason`-ID auf. Rohe Prozessfehler und `stderr` bleiben im Log.
@@ -90,4 +92,4 @@ Installer und produktives Packaging sind im Phase-15-Releasepfad gebunden. Die S
 - [Internationalisierung Deutsch und Englisch](internationalization.md)
 
 ---
-*Zuletzt aktualisiert: 22. August 2026*
+*Zuletzt aktualisiert: 9. September 2026*

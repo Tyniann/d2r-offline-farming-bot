@@ -1,11 +1,43 @@
 package api
 
 import (
+	"context"
+	"path/filepath"
 	"testing"
 	"time"
 
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/config"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/telemetry"
 )
+
+func TestLiveBackendDefersHistoryIndexUntilBackgroundStartup(t *testing.T) {
+	directory := t.TempDir()
+	writeTerminalHistoryRun(t, directory)
+	cfg, err := config.Load("../../configs/config.example.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.Telemetry.Directory = directory
+	cfg.Routes.LifecycleFile = filepath.Join(t.TempDir(), "route-lifecycle.local.yaml")
+	backend, err := NewLiveBackend(cfg, telemetry.NewLivePublisher(8, 8))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if runs := len(backend.history.Snapshot("").Runs); runs != 0 {
+		t.Fatalf("backend construction indexed %d history runs before Core startup", runs)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	backend.StartHistoryMaintenance(ctx)
+	deadline := time.Now().Add(2 * time.Second)
+	for len(backend.history.Snapshot("").Runs) == 0 {
+		if time.Now().After(deadline) {
+			t.Fatal("background history indexing did not complete")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+}
 
 func TestHistoryRefreshPublishesOnlyBoundedChangeSignal(t *testing.T) {
 	directory := t.TempDir()

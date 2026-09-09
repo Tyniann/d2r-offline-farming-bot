@@ -10,6 +10,9 @@ Versionierung nach [Semantic Versioning](https://semver.org/).
 ### Changed
 - Verify the committed embedded UI bundle and a clean working tree before building release artifacts
 
+### Fixed
+- Build the history index after the Core handshake path so a cold start with accumulated telemetry does not enter desktop recovery
+
 ## [0.26.0] - 2026-09-09
 
 ### Added

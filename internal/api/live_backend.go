@@ -212,9 +212,6 @@ func NewLiveBackend(cfg *config.Config, publisher *telemetry.LivePublisher) (*Li
 	if err != nil {
 		return nil, fmt.Errorf("history index: %w", err)
 	}
-	if refreshErr := history.Refresh(); refreshErr != nil {
-		return nil, fmt.Errorf("initialize history index: %w", refreshErr)
-	}
 	maintenance, err := telemetry.NewHistoryMaintenanceService(historyRoot, history)
 	if err != nil {
 		return nil, fmt.Errorf("history maintenance: %w", err)
@@ -240,8 +237,7 @@ func NewLiveBackend(cfg *config.Config, publisher *telemetry.LivePublisher) (*Li
 	if character := manifest.Characters[strings.ToLower(cfg.Session.Character)]; character.LastConfirmedDifficulty != "" {
 		status.Selection = SelectionStatusDTO{Character: cfg.Session.Character, Difficulty: character.LastConfirmedDifficulty}
 	}
-	historySnapshot := history.Snapshot("")
-	return &LiveBackend{bootstrap: bootstrap, cfg: cfg, lifecycle: lifecycle, publisher: publisher, status: status, catalog: bootstrap.Catalog(), commands: make(map[string]apiCommandRecord), characterCommands: make(map[string]characterSetupCommandRecord), previews: make(map[string]selectionPreviewRecord), routeCandidates: candidates, routeAssignments: assignments, routeManagement: management, routeWorkflow: RouteWorkflowDTO{Generation: 1, State: string(app.RouteWorkflowIdle)}, pickitProfiles: pickitProfiles, pickitAssignments: pickitAssignments, characterCatalog: characterCatalog, characterCatalogReload: characterCatalog.Reload, history: history, historyMaintenance: maintenance, diagnostics: diagnostics, historyTerminalHash: terminalHistoryHash(historySnapshot.Runs)}, nil
+	return &LiveBackend{bootstrap: bootstrap, cfg: cfg, lifecycle: lifecycle, publisher: publisher, status: status, catalog: bootstrap.Catalog(), commands: make(map[string]apiCommandRecord), characterCommands: make(map[string]characterSetupCommandRecord), previews: make(map[string]selectionPreviewRecord), routeCandidates: candidates, routeAssignments: assignments, routeManagement: management, routeWorkflow: RouteWorkflowDTO{Generation: 1, State: string(app.RouteWorkflowIdle)}, pickitProfiles: pickitProfiles, pickitAssignments: pickitAssignments, characterCatalog: characterCatalog, characterCatalogReload: characterCatalog.Reload, history: history, historyMaintenance: maintenance, diagnostics: diagnostics, historyTerminalHash: terminalHistoryHash(nil)}, nil
 }
 
 // SetRouteWorkflowHandler binds UI workflow starts to the existing Runtime recorder/test adapters.

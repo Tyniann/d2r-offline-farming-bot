@@ -8,12 +8,16 @@ import (
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/telemetry"
 )
 
-// StartHistoryMaintenance starts the single hourly wake-up; the service itself enforces at most one daily run.
+// StartHistoryMaintenance baut den initialen History-Index außerhalb des
+// Core-Startpfads auf und startet danach den stündlichen Wartungstakt.
 func (b *LiveBackend) StartHistoryMaintenance(ctx context.Context) {
 	if b == nil || b.historyMaintenance == nil {
 		return
 	}
 	go func() {
+		if _, err := b.refreshHistory(""); err != nil {
+			b.publisher.Publish(telemetry.LiveEvent{Event: "history_refresh", Reason: string(telemetry.HistoryErrorCode(err))})
+		}
 		b.runAutomaticHistoryMaintenance()
 		ticker := time.NewTicker(time.Hour)
 		defer ticker.Stop()
