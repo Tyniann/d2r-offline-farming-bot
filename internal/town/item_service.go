@@ -47,6 +47,8 @@ type ItemServiceOrder struct {
 
 // PlanItemServices rejects protected service candidates and emits identify then
 // sell for one unidentified vendor candidate while preserving its UnitID pin.
+// Cow trash dump uses the same order when the item is still unidentified so
+// Cain can reveal a keep-match before Akara sells.
 func PlanItemServices(candidates []ItemServiceCandidate) ([]ItemServiceOrder, Reason) {
 	orders := make([]ItemServiceOrder, 0, len(candidates))
 	seen := map[uint32]bool{}
@@ -57,9 +59,6 @@ func PlanItemServices(candidates []ItemServiceCandidate) ([]ItemServiceOrder, Re
 		seen[candidate.UnitID] = true
 		serviceIntent := candidate.IdentifyRequired || candidate.VendorCandidate
 		if serviceIntent && (candidate.Keep || candidate.Stash || candidate.InventoryLocked) {
-			return nil, ReasonItemClassificationInvalid
-		}
-		if candidate.TrashSell && candidate.IdentifyRequired {
 			return nil, ReasonItemClassificationInvalid
 		}
 		if !serviceIntent {

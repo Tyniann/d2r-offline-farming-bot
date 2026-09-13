@@ -16,15 +16,30 @@ func CowRecipeReservedCode(code string) bool {
 	}
 }
 
-// TrashSellEligible reports whether item may be sold as Cow town-dump trash.
-// Authorization is independent of Pickit sell matches: identified personal
-// inventory, unlocked footprint, not a keep-match, and not a recipe reserved code.
+// TrashSellEligible reports whether item may be queued as Cow town-dump trash.
+// Unidentified items are eligible: Cain identifies them before Akara sells.
+// Keep-matches, locked cells, recipe reserved codes, and Pickit sell-matches
+// stay off this path; sell-matches remain on the existing vendor path.
 func (f *Filter) TrashSellEligible(item world.Item) bool {
-	if f == nil || !item.Identified || CowRecipeReservedCode(item.Code) || !stashEligible(f.inventoryLock, item) {
+	return f.trashDumpAllowed(item, true)
+}
+
+// TrashSellStillAuthorized reports whether a queued dump order may still run.
+// After identification a former unmatched item may become a keep-match and
+// must not be sold. A newly revealed Pickit sell-match is still sold.
+func (f *Filter) TrashSellStillAuthorized(item world.Item) bool {
+	return f.trashDumpAllowed(item, false)
+}
+
+func (f *Filter) trashDumpAllowed(item world.Item, refuseSellMatch bool) bool {
+	if f == nil || CowRecipeReservedCode(item.Code) || !stashEligible(f.inventoryLock, item) {
 		return false
 	}
 	result := f.evaluate(item)
-	if result.Matched && (result.Action == ActionKeep || result.Action == ActionSell) {
+	if result.Matched && result.Action == ActionKeep {
+		return false
+	}
+	if refuseSellMatch && result.Matched && result.Action == ActionSell {
 		return false
 	}
 	return true

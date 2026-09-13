@@ -111,7 +111,7 @@ Der App-Adapter klassifiziert nur persönliche, ungelockte Inventory-Items. Ein 
 
 ### Cow-Town-Dump vor Preflight
 
-Wenn der nächste Run `cows` ist und dasselbe Platzkriterium wie `cow_preflight` (gleichzeitig 1×3 und 1×2 ungelockt frei) bereits in Rogue Encampment fehlschlagen würde, hängt die Town-Vorbereitung einmalig Sell-Aufträge für ungeschützten Inventarmüll an. Das ist kein Pickit-`sell` und kein `session.retry_classes`-Recovery: identifizierte, ungelockte, nicht gematchte Keep-Items ohne die Codes `box`, `tbk`, `ibk` und `leg`. Cain wird für diesen Dump nicht angesteuert. Die Live-Prüfung unmittelbar vor dem Klick verlangt nur noch „Item noch da, noch ungelockt, noch kein Keep“. Initiales Stash→Waypoint darf denselben Akara-Umweg nehmen, ohne Tränke oder Merc nachzukaufen. Schlägt der Dump fehl oder bleibt der Platz danach zu eng, endet Preflight unverändert mit `cow_inventory_space_missing`.
+Wenn der nächste Run `cows` ist und dasselbe Platzkriterium wie `cow_preflight` (gleichzeitig 1×3 und 1×2 ungelockt frei) bereits in Rogue Encampment fehlschlagen würde, hängt die Town-Vorbereitung einmalig Dump-Aufträge für ungeschützten Inventarmüll an. Das ist kein Pickit-`sell` und kein `session.retry_classes`-Recovery: ungelockte Nicht-Keep-Items ohne die Codes `box`, `tbk`, `ibk` und `leg`. Unidentifizierte Dump-Kandidaten erzeugen für dieselbe UnitID zuerst `identify` bei Cain, danach `sell` bei Akara. Nach der Identifikation bleibt ein Keep-Treffer unangetastet. Die Live-Prüfung unmittelbar vor dem Klick verlangt nur noch „Item noch da, noch ungelockt, noch kein Keep“. Initiales Stash→Waypoint darf denselben Cain-/Akara-Umweg nehmen, ohne Tränke oder Merc nachzukaufen. Schlägt der Dump fehl oder bleibt der Platz danach zu eng, endet Preflight unverändert mit `cow_inventory_space_missing`.
 
 Der Planner hält für Item-Services die Reihenfolge Cain → Akara fest. Potion-Restock und Sell dürfen denselben bereits bestätigten Akara-Shop geordnet nutzen. Vor jeder anschließenden Navigation müssen Dialog und Shop per Memory als geschlossen bestätigt sein. Der isolierte Operatorpfad lautet `--town-test item-services:mephisto`; er nutzt dieselbe produktive Planung und dieselben Input-Gates.
 
@@ -168,4 +168,4 @@ Die Live-Abnahme am 13. Juli 2026 erfüllte das Gate vollständig. Der autonome 
 - [Lower-Kurast-Run](lower-kurast-run.md)
 
 ---
-*Zuletzt aktualisiert: 2026-09-05*
+*Zuletzt aktualisiert: 2026-09-13*

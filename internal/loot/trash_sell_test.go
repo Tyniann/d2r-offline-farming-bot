@@ -6,7 +6,7 @@ import (
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/world"
 )
 
-func TestTrashSellEligibleRejectsKeepLockReservedAndUnidentified(t *testing.T) {
+func TestTrashSellEligibleRejectsKeepLockReserved(t *testing.T) {
 	filter := testDecisionFilter(t, [][]int{
 		{1, 0, 0, 0, 0, 0, 0, 0, 0, 0},
 		{1, 0, 0, 0, 0, 0, 0, 0, 0, 0},
@@ -35,8 +35,8 @@ func TestTrashSellEligibleRejectsKeepLockReservedAndUnidentified(t *testing.T) {
 	unidentified := trash
 	unidentified.UnitID = 4
 	unidentified.Identified = false
-	if filter.TrashSellEligible(unidentified) {
-		t.Fatal("unidentified items must not be trash")
+	if !filter.TrashSellEligible(unidentified) {
+		t.Fatal("unidentified unmatched items must be trash")
 	}
 
 	for _, code := range []string{"box", "tbk", "ibk", "leg"} {
@@ -61,5 +61,22 @@ func TestTrashSellEligibleRejectsPickitSellMatches(t *testing.T) {
 	item.Quality = world.ItemQualityUnique
 	if filter.TrashSellEligible(item) {
 		t.Fatal("Pickit sell matches must stay on the vendor path")
+	}
+	if !filter.TrashSellStillAuthorized(item) {
+		t.Fatal("dump recheck must still sell a revealed sell-match")
+	}
+}
+
+func TestTrashSellStillAuthorizedRevokesKeepAfterIdentify(t *testing.T) {
+	filter := testDecisionFilter(t, allFreeLock(), `[stat:39] >= 30`)
+	item := inventoryItem(6, "xap", "helm", 4, 0, 2, 2)
+	item.Quality = world.ItemQualityUnique
+	item.Stats = []world.ItemStat{{ID: 39, Value: 40}}
+	if !filter.TrashSellEligible(item) || !filter.TrashSellStillAuthorized(item) {
+		t.Fatal("unidentified stat-keep must dump until identify")
+	}
+	item.Identified = true
+	if filter.TrashSellEligible(item) || filter.TrashSellStillAuthorized(item) {
+		t.Fatal("identified stat-keep must not dump")
 	}
 }

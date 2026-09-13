@@ -62,7 +62,7 @@ Ein `keep`-gematchtes Inventory-Item erzeugt `keep/pickit_match`, sofern keine I
 
 Ein teilweise gelocktes mehrzelliges Item wird nie als `stash` markiert. Bei unsafe Capacity wird ein gematchtes Inventory-Item weiter als `keep` markiert, aber nicht als `stash`.
 
-Stash und Town-Services werten das gepinnte Item unmittelbar vor jedem Transfer-, Identify- oder Sell-Input erneut gegen denselben aktiven Policy-Snapshot aus. No-Match, geänderte Aktion, Regelwechsel oder Identitätsdrift widerrufen die Freigabe fail-closed. Der Cow-Town-Dump vor Preflight ist davon getrennt: Er verkauft nur bereits identifizierte, ungelockte Nicht-Keep-Items und verlangt vor dem Klick weiterhin „noch da, noch ungelockt, noch kein Keep“, aber kein Pickit-`sell`-Match.
+Stash und Town-Services werten das gepinnte Item unmittelbar vor jedem Transfer-, Identify- oder Sell-Input erneut gegen denselben aktiven Policy-Snapshot aus. No-Match, geänderte Aktion, Regelwechsel oder Identitätsdrift widerrufen die Freigabe fail-closed. Der Cow-Town-Dump vor Preflight ist davon getrennt: Er räumt ungelockte Nicht-Keep-Items, identifiziert unidentifizierte Kandidaten zuerst bei Cain und verkauft sie danach bei Akara, sofern sie weiterhin kein Keep sind. Ein Pickit-`sell`-Match ist dafür nicht erforderlich.
 
 ## Datenmodell
 
@@ -91,4 +91,4 @@ Die read-only Pipeline besitzt keine eigene CLI-Oberfläche. Ihre Pickup-Auswert
 - [Countess-Run](countess-run.md)
 
 ---
-*Zuletzt aktualisiert: 2026-09-02*
+*Zuletzt aktualisiert: 2026-09-13*

@@ -185,7 +185,8 @@ func (a *townPreparationAdapter) planItemServiceOrders(state world.State) ([]tow
 			candidates = append(candidates, town.ItemServiceCandidate{
 				UnitID: item.UnitID, Code: item.Code, Name: item.Name, Quality: item.Quality,
 				IdentityKind: item.IdentityKind, IdentityKey: item.IdentityKey, IdentityValid: item.IdentityValid,
-				VendorCandidate: true, TrashSell: true,
+				IdentifyRequired: !item.Identified,
+				VendorCandidate:  true, TrashSell: true,
 			})
 		}
 	}
@@ -496,7 +497,7 @@ func (h *townPreparationStepHandler) tickItemOrders(state world.State, kind town
 			policy = h.adapter.lootFilter.Evaluate(item)
 		}
 		if order.TrashSell {
-			if !found || h.adapter.lootFilter == nil || !h.adapter.lootFilter.TrashSellEligible(item) {
+			if !found || h.adapter.lootFilter == nil || !h.adapter.lootFilter.TrashSellStillAuthorized(item) {
 				h.itemOrder++
 				return town.InteractionResult{Status: town.InteractionPending, UnitID: order.UnitID, Reason: "trash_sell_recheck_denied", Vendor: anchor}
 			}

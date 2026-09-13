@@ -83,17 +83,21 @@ func TestPlanItemServicesMissingAndIdentifiedCandidate(t *testing.T) {
 	}
 }
 
-func TestPlanItemServicesTrashSellSkipsIdentify(t *testing.T) {
+func TestPlanItemServicesTrashSellIdentifiesThenSells(t *testing.T) {
 	orders, reason := PlanItemServices([]ItemServiceCandidate{{
 		UnitID: 20, Code: "8ws", VendorCandidate: true, TrashSell: true, IdentifyRequired: false,
 	}})
 	if reason != "" || len(orders) != 1 || orders[0].Kind != ItemServiceSell || !orders[0].TrashSell {
-		t.Fatalf("trash orders=%+v reason=%s", orders, reason)
+		t.Fatalf("identified trash orders=%+v reason=%s", orders, reason)
 	}
-	if _, reason := PlanItemServices([]ItemServiceCandidate{{
+	orders, reason = PlanItemServices([]ItemServiceCandidate{{
 		UnitID: 21, Code: "8ws", VendorCandidate: true, TrashSell: true, IdentifyRequired: true,
-	}}); reason != ReasonItemClassificationInvalid {
-		t.Fatalf("trash identify reason=%s", reason)
+	}})
+	if reason != "" || len(orders) != 2 || orders[0].Kind != ItemServiceIdentify || orders[1].Kind != ItemServiceSell {
+		t.Fatalf("unidentified trash orders=%+v reason=%s", orders, reason)
+	}
+	if !orders[0].TrashSell || !orders[1].TrashSell || orders[0].UnitID != orders[1].UnitID {
+		t.Fatalf("trash identify/sell pin=%+v", orders)
 	}
 }
 

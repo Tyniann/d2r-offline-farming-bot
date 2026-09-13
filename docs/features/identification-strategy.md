@@ -2,7 +2,7 @@
 
 ## Überblick
 
-Phase 5.9 verankert die Sicherheitsgrenze: NIP-Statregeln dürfen nur identifizierte Items bewerten, während Quality-Regeln unidentifizierte Magic/Rare/Set/Unique/Crafted-Items zum Pickup auswählen können. Phase 10.6 ergänzt eine enge produktive Cain-Routine ausschließlich für explizite Mephisto-Sell-Kandidaten.
+Phase 5.9 verankert die Sicherheitsgrenze: NIP-Statregeln dürfen nur identifizierte Items bewerten, während Quality-Regeln unidentifizierte Magic/Rare/Set/Unique/Crafted-Items zum Pickup auswählen können. Phase 10.6 ergänzt eine enge produktive Cain-Routine für explizite Mephisto-Sell-Kandidaten; der Cow-Town-Dump vor Preflight nutzt dieselbe Identifikation für ungeschützten Inventarmüll.
 
 Das Countess-MVP bleibt auf Runen, Keys, Gems und Skulls fokussiert. Diese Typen benötigen keine Identifikation und können weiterhin automatisch in den Personal Stash transferiert werden.
 
@@ -39,6 +39,8 @@ Normal-, Low-Quality- und Superior-Items werden nicht pauschal gegatet; für das
 
 Ein unidentifiziertes Exceptional-/Elite-Set/Unique mit `sell`-Match aus dem zugeordneten `mephisto-standard`-Profil wird anhand seiner Runtime-UnitID zu Cain geplant. Erst `Identified=true` für dieselbe UnitID gibt den anschließenden Akara-Verkauf frei. Identifizierte Kandidaten überspringen Cain. Nach einer gesendeten Aktion gibt es keinen zweiten Inputversuch; ein ausbleibender Memory-Übergang endet fail-closed. Gems, normale Set-/Unique-Basen und gelockte Items gelangen nie in diesen Pfad.
 
+Der Cow-Town-Dump vor Preflight nutzt dieselbe Cain-dann-Akara-Reihenfolge für unidentifizierten Inventarmüll ohne Pickit-`sell`-Match. Nach der Identifikation bleibt ein Keep-Treffer unangetastet; nur weiterhin ungeschützte Items werden verkauft.
+
 ## Nicht umgesetzt
 
 - Quantity-Management für Identify Scrolls/Tomes.
@@ -51,6 +53,8 @@ Diese Funktionen sind nicht Teil von Phase 6. Sie bleiben einer späteren Town-S
 - [Pickit Engine](pickit-engine.md)
 - [Loot Decision Pipeline](loot-decision-pipeline.md)
 - [Personal-Stash MVP](personal-stash-mvp.md)
+- [Town Services](town-services.md)
+- [Cow Level / Moo Moo Farm](cow-level-run.md)
 
 ---
-*Zuletzt aktualisiert: 2026-07-21*
+*Zuletzt aktualisiert: 2026-09-13*

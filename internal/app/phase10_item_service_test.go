@@ -210,6 +210,37 @@ func TestTownPreparationPlansCowTrashSellWithoutPickitMatch(t *testing.T) {
 	}
 }
 
+func TestTownPreparationPlansCowTrashIdentifyThenSell(t *testing.T) {
+	adapter := &townPreparationAdapter{nextRunID: "cows", lootFilter: cowTrashTestFilter(t)}
+	items := crowdedCowInventory(true)
+	for i := range items {
+		if items[i].Code != "gpv" {
+			items[i].Identified = false
+		}
+	}
+	orders, reason := adapter.planItemServiceOrders(world.State{Items: items})
+	if reason != "" || len(orders) != 18 {
+		t.Fatalf("orders=%d reason=%s", len(orders), reason)
+	}
+	identifies, sells := 0, 0
+	for _, order := range orders {
+		if !order.TrashSell || order.Code == "gpv" {
+			t.Fatalf("unexpected order %+v", order)
+		}
+		switch order.Kind {
+		case town.ItemServiceIdentify:
+			identifies++
+		case town.ItemServiceSell:
+			sells++
+		default:
+			t.Fatalf("unexpected kind %+v", order)
+		}
+	}
+	if identifies != 9 || sells != 9 {
+		t.Fatalf("identify=%d sell=%d", identifies, sells)
+	}
+}
+
 func TestTownPreparationSkipsCowTrashWhenRecipeSpaceFits(t *testing.T) {
 	adapter := &townPreparationAdapter{nextRunID: "cows", lootFilter: cowTrashTestFilter(t)}
 	item := world.Item{
@@ -254,6 +285,46 @@ func TestTownSellTrashWithoutPickitMatch(t *testing.T) {
 		t.Fatalf("trash sell verify=%+v cursor=%d", got, handler.itemOrder)
 	}
 	if len(trace.events) != 1 || trace.events[0].Event != string(telemetry.TrashSellSuccess) || trace.events[0].PickitAction != "" || trace.events[0].VendorUnitID != 81 {
+		t.Fatalf("verified trash events=%+v", trace.events)
+	}
+}
+
+func TestTownIdentifyThenSellTrashWithoutPickitMatch(t *testing.T) {
+	in := &preparationInputMock{}
+	trace := &preparationTelemetryMock{}
+	item := world.Item{
+		UnitID: 83, Code: "8ws", Name: "War Sword", Location: world.ItemLocationInventory,
+		PlayerOwned: true, Identified: false, Page: 0, GridX: 4, GridY: 0, Width: 1, Height: 3,
+	}
+	handler := &townPreparationStepHandler{
+		adapter: &townPreparationAdapter{controller: in, lootFilter: cowTrashTestFilter(t), telemetry: trace},
+		itemOrders: orderedItemServiceOrders([]town.ItemServiceOrder{
+			{Kind: town.ItemServiceIdentify, UnitID: 83, Code: "8ws", TrashSell: true},
+			{Kind: town.ItemServiceSell, UnitID: 83, Code: "8ws", TrashSell: true},
+		}),
+		itemInput: &townItemServiceInput{controller: in, cfg: config.LootStashConfig{InventoryLeft: 847, InventoryTop: 369, InventoryCellW: 33, InventoryCellH: 33}},
+		stage:     "items",
+	}
+	cain := world.State{Valid: true, UI: world.UIState{NPCInteractOpen: true}, Items: []world.Item{item}}
+	if got := handler.tickItemOrders(cain, town.ItemServiceIdentify, town.AnchorCain); got.Action != "item_identify" || got.PickitAction != "" {
+		t.Fatalf("trash identify action=%+v", got)
+	}
+	item.Identified = true
+	cain.Items = []world.Item{item}
+	if got := handler.tickItemOrders(cain, town.ItemServiceIdentify, town.AnchorCain); got.Status != town.InteractionPending || handler.itemOrder != 1 {
+		t.Fatalf("trash identify verify=%+v cursor=%d", got, handler.itemOrder)
+	}
+	handler.ResetStep()
+	handler.stage = "items"
+	akara := world.State{Valid: true, UI: world.UIState{NPCShopOpen: true}, Items: []world.Item{item}}
+	if got := handler.tickItemOrders(akara, town.ItemServiceSell, town.AnchorAkara); got.Action != "item_sell" || got.PickitAction != "" || in.modified != 1 {
+		t.Fatalf("trash sell action=%+v modified=%d", got, in.modified)
+	}
+	akara.Items = nil
+	if got := handler.tickItemOrders(akara, town.ItemServiceSell, town.AnchorAkara); got.Status != town.InteractionPending || handler.itemOrder != 2 {
+		t.Fatalf("trash sell verify=%+v cursor=%d", got, handler.itemOrder)
+	}
+	if len(trace.events) != 1 || trace.events[0].Event != string(telemetry.TrashSellSuccess) || trace.events[0].PickitAction != "" {
 		t.Fatalf("verified trash events=%+v", trace.events)
 	}
 }

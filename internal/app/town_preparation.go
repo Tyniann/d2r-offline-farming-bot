@@ -26,8 +26,8 @@ type townPreparationController interface {
 
 // townPreparationAdapter has two deliberately narrow modes. Initial run setup
 // uses the layout-bound Stash-to-Waypoint path and, for Cow only, a one-shot
-// Akara trash dump when recipe space is already missing. Post-run preparation
-// may additionally create and execute a demand-driven service plan.
+// Cain/Akara trash dump when recipe space is already missing. Post-run
+// preparation may additionally create and execute a demand-driven service plan.
 type townPreparationAdapter struct {
 	log           *slog.Logger
 	driver        pathing.InputDriver
