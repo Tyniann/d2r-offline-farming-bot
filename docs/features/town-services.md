@@ -123,7 +123,9 @@ Die Live-Abnahme am 14. Juli 2026 bestätigte die korrigierte Cain-Auswahl `Home
 
 ## Repair und Waypoint-Transfers (9.8)
 
-`PlanRepair` verlangt bei Reparaturbedarf gemeinsam belastbare Haltbarkeit, Kosten und Repair-UI. Fehlt eine Quelle, entsteht ausschließlich `repair_state_unavailable`; es gibt keinen Klickfallback.
+`PlanRepair` verlangt bei Reparaturbedarf gemeinsam belastbare Haltbarkeit, Kosten und Repair-UI. Fehlt eine Quelle, entsteht ausschließlich `repair_state_unavailable`; es gibt keinen Klickfallback. Die produktive Post-Run-Reparatur nutzt `PlanRepair` nicht.
+
+Stattdessen setzt der Town-Handoff bei `services=true` und freigegebenem Intervall-Latch (`started_runs >= last_repair + town.repair_interval_runs`, Default 10) `RepairRequired`. Readiness hält `AllowIntervalRepair(false)`, damit dieselbe Adapter-Instanz nicht vor dem Run und danach doppelt repariert. Es gibt kein Gold-Gate: Inventargold darf 0 sein, D2R zieht Kosten bei Bedarf aus dem Stash. Charsi öffnet Trade/Repair mit dem bestehenden `ShopOpener` (`Home → Down → Enter`; Imbue liegt unter Trade). Repair All ist ein fester Klick auf Client `(390, 510)` bei 1280×720 (rechter Amboss). Die Wirkung wird nicht verifiziert; nach Shop-Close schreibt der Adapter den Latch. Weg-, NPC-, Dialog- und Auflösungsfehler bleiben fail-closed.
 
 `WaypointTransferExecutor` kennt nur registrierte Übergänge. Aktuell sind Act 2–5 → Rogue Encampment zur Hub-Normalisierung und Rogue Encampment → Black Marsh für Countess zugelassen. Die Quelle muss eine Town im erwarteten Act sein. Nach genau einer Zielauswahl wird bis zur bestätigten Ziel-Area gewartet; Timeout wiederholt die Auswahl nicht. Andere Run-Ziele enden mit `next_target_unsupported`.
 

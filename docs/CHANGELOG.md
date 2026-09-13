@@ -9,6 +9,7 @@ Versionierung nach [Semantic Versioning](https://semver.org/).
 
 ### Added
 - Zoom the desktop window with Ctrl+mouse wheel, Ctrl++ / Ctrl+- and Ctrl+0, and keep the last factor between 50% and 200%
+- Add interval equipment repair at Charsi during post-run town handoff
 
 ### Changed
 - Verify the committed embedded UI bundle and a clean working tree before building release artifacts

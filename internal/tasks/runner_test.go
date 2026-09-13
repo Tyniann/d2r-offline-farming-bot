@@ -320,6 +320,7 @@ func (m *mockTownPreparationActions) Tick(context.Context, world.State) TownPrep
 	return TownPreparationResult{Status: "complete", Done: true}
 }
 func (m *mockTownPreparationActions) Reset() { m.resets++ }
+func (m *mockTownPreparationActions) AllowIntervalRepair(bool) {}
 
 func (m *mockWaypointActions) TickTownWaypoint(_ context.Context, st world.State) pathing.WaypointActionResult {
 	m.tickCalls++

@@ -65,6 +65,9 @@ func (rt *Runtime) prepareSessionRun(request SupervisorRunRequest) (string, erro
 	if rt.profileTelemetry != nil {
 		rt.profileTelemetry.setTelemetry(trace)
 	}
+	if rt.townPreparation != nil {
+		rt.townPreparation.setStartedRuns(request.StartedRuns)
+	}
 	rt.Tasks = tasks.NewRunner(rt.Log, rt.sessionSelection, rt.runConfig, rt.taskDeps)
 	return trace.RunID(), nil
 }

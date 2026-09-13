@@ -1392,7 +1392,10 @@
   "stash_approach_failed": "Der Weg zum Stash war blockiert.",
   "town_item_state_invalid": "Der Zustand eines Items war für den Stadtdienst ungültig.",
   "town_layout_unavailable": "Die benötigte Stadtroute konnte nicht sicher geladen werden.",
-  "town_ui_close_failed": "Das Händlerfenster konnte nicht sicher geschlossen werden."
+  "town_ui_close_failed": "Das Händlerfenster konnte nicht sicher geschlossen werden.",
+  "charsi_repair_resolution_invalid": "Die Bildschirmauflösung passt nicht für die Ausrüstungsreparatur.",
+  "charsi_repair_click_failed": "Die Ausrüstungsreparatur bei Charsi ist fehlgeschlagen.",
+  "charsi_repair_shop_closed": "Das Händlerfenster von Charsi hat sich unerwartet geschlossen."
   },
   "errors": {
     "unknownCode": "Unbekannter Fehler ({{code}}).",

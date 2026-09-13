@@ -21,12 +21,20 @@ type EgressConfig struct {
 	Services        map[Service]Anchor `yaml:"services"`
 }
 
+// DefaultRepairIntervalRuns is the post-run Charsi repair cadence when
+// `town.repair_interval_runs` is omitted.
+const DefaultRepairIntervalRuns = 10
+
 // Config contains the central hub and the minimal foreign-act egress registry.
 type Config struct {
-	Thresholds Thresholds                 `yaml:"thresholds"`
-	Hub        HubConfig                  `yaml:"hub"`
-	Egress     map[OriginAct]EgressConfig `yaml:"egress"`
-	present    bool
+	// RepairIntervalRuns is the number of session started_runs between Charsi
+	// equipment repairs during post-run town handoff. Zero defaults to
+	// [DefaultRepairIntervalRuns] during Validate.
+	RepairIntervalRuns int                       `yaml:"repair_interval_runs"`
+	Thresholds         Thresholds                 `yaml:"thresholds"`
+	Hub                HubConfig                  `yaml:"hub"`
+	Egress             map[OriginAct]EgressConfig `yaml:"egress"`
+	present            bool
 }
 
 // UnmarshalYAML records whether the optional Town section was supplied.
@@ -47,6 +55,12 @@ func (c *Config) Validate() error {
 		return nil
 	}
 	c.normalizeMercenaryProviders()
+	if c.RepairIntervalRuns == 0 {
+		c.RepairIntervalRuns = DefaultRepairIntervalRuns
+	}
+	if c.RepairIntervalRuns < 1 {
+		return fmt.Errorf("town.repair_interval_runs must be >= 1")
+	}
 	for name, value := range map[string]int{"healing": c.Thresholds.Healing, "mana": c.Thresholds.Mana, "town_portal_scrolls": c.Thresholds.TownPortalScrolls, "identify_scrolls": c.Thresholds.IdentifyScrolls} {
 		if value < 0 {
 			return fmt.Errorf("town.thresholds.%s must be >= 0", name)

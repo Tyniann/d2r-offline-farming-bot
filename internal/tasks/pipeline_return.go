@@ -27,6 +27,7 @@ func (c *runPipeline) tickReturn(ctx context.Context, deps pipelineReturnDeps, s
 		if deps.Town == nil {
 			return stepResult{failed: true, reason: "town_preparation_not_wired"}
 		}
+		deps.Town.AllowIntervalRepair(true)
 		result := deps.Town.Tick(ctx, w)
 		if !result.Done {
 			return stepResult{}
@@ -67,6 +68,7 @@ func (c *runPipeline) tickStashPersonal(ctx context.Context, deps pipelineReturn
 		if deps.Town == nil {
 			return stepResult{failed: true, reason: "town_preparation_not_wired"}
 		}
+		deps.Town.AllowIntervalRepair(true)
 		res := deps.Town.Tick(ctx, w)
 		if !res.Done {
 			return stepResult{}

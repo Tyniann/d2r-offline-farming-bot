@@ -62,6 +62,8 @@ type SupervisorRunRequest struct {
 	Cycle        int
 	Retry        int
 	GameID       string
+	// StartedRuns is the session start counter after this generation's increment.
+	StartedRuns int
 }
 
 // SupervisorRunResult is the terminal result of one complete worker unit.
@@ -426,7 +428,7 @@ func (s *SessionSupervisor) startWorkerLocked() {
 	s.startedRuns++
 	generation := s.generation
 	runID := s.plan.RunIDs[s.queueIndex]
-	s.request = SupervisorRunRequest{DefinitionID: runID, ExecutionID: telemetry.NewRunID(runID), QueueIndex: s.queueIndex, Cycle: s.cycle, Retry: s.retry, GameID: s.gameID}
+	s.request = SupervisorRunRequest{DefinitionID: runID, ExecutionID: telemetry.NewRunID(runID), QueueIndex: s.queueIndex, Cycle: s.cycle, Retry: s.retry, GameID: s.gameID, StartedRuns: s.startedRuns}
 	request := s.request
 	go s.runWorker(ctx, generation, request)
 }

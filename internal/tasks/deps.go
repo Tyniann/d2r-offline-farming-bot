@@ -102,6 +102,8 @@ type RunTelemetry interface {
 type TownPreparationActions interface {
 	Tick(context.Context, world.State) TownPreparationResult
 	Reset()
+	// AllowIntervalRepair enables Charsi interval repair for post-run handoff only.
+	AllowIntervalRepair(bool)
 }
 
 // TownPreparationResult reports the verified central Town endpoint.

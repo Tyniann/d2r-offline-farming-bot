@@ -23,6 +23,11 @@ const (
 	townExecutorVerifyBudget   = 6000
 	townRestockVerifyTicks     = 200
 	townMercenaryVerifyTimeout = 8 * time.Second
+	// charsiRepairAllX/Y are the 1280×720 client click for Charsi's Repair All
+	// control (right anvil). Measured 2026-09-13 from operator screenshot
+	// repair.png; do not click the left anvil near (152, 504).
+	charsiRepairAllX = 390
+	charsiRepairAllY = 510
 )
 
 func (a *townPreparationAdapter) mercenaryPolicy() town.MercenaryPolicy {
@@ -64,7 +69,9 @@ func (a *townPreparationAdapter) start(state world.State) string {
 		// still take a one-shot Akara dump when recipe space is already missing.
 		needsPotions, needsKeys, mercHeal, mercRevive = false, false, false, false
 	}
-	npcPlan := (a.services || cowTrashDetour) && (needsPotions || needsKeys || len(itemOrders) > 0 || mercHeal || mercRevive)
+	needsRepair := a.services && a.allowIntervalRepair &&
+		town.IntervalRepairDue(a.startedRuns, a.lastRepairStartedRuns, a.townCfg.RepairIntervalRuns)
+	npcPlan := (a.services || cowTrashDetour) && (needsPotions || needsKeys || len(itemOrders) > 0 || mercHeal || mercRevive || needsRepair)
 	if !npcPlan {
 		// No demand means no NPC detour. Initial run setup also enters here even
 		// with a low belt because its only responsibility is reaching Waypoint.
@@ -129,7 +136,7 @@ func (a *townPreparationAdapter) start(state world.State) string {
 	snapshot := town.InspectDemand(town.SupplySnapshot{
 		Healing: healing, Mana: mana, BeltLayoutComplete: beltComplete, Keys: keys,
 		TownPortalScrolls: a.thresholds.TownPortalScrolls, IdentifyScrolls: a.thresholds.IdentifyScrolls,
-		IdentifyRequired: needsIdentify, VendorCandidates: needsSell,
+		IdentifyRequired: needsIdentify, VendorCandidates: needsSell, RepairRequired: needsRepair,
 		MercenaryHeal: mercHeal, MercenaryRevive: mercRevive,
 	}, effectiveThresholds, a.nextRunID)
 	plan, reason := planner.Plan(town.Origin{Act: town.OriginAct1, Anchor: startAnchor}, snapshot, town.NextRunTarget{ID: a.nextRunID, Act: town.OriginAct1})
@@ -153,7 +160,7 @@ func (a *townPreparationAdapter) start(state world.State) string {
 	a.handler = handler
 	a.executor = executor
 	a.started = true
-	a.log.Info("central town preparation started", "origin", startAnchor, "potions", needsPotions, "keys", needsKeys, "key_count", keys, "identify", needsIdentify, "sell", needsSell, "mercenary_heal", mercHeal, "mercenary_revive", mercRevive, "item_orders", len(itemOrders), "handoff", a.nextRunID, "edge_count", len(traversals), "healing", healing, "mana", mana, "gold", state.Player.Gold, "required_maximum_gold", maximumCost, "town_layout", a.layout)
+	a.log.Info("central town preparation started", "origin", startAnchor, "potions", needsPotions, "keys", needsKeys, "key_count", keys, "identify", needsIdentify, "sell", needsSell, "repair", needsRepair, "started_runs", a.startedRuns, "last_repair", a.lastRepairStartedRuns, "repair_interval", a.townCfg.RepairIntervalRuns, "mercenary_heal", mercHeal, "mercenary_revive", mercRevive, "item_orders", len(itemOrders), "handoff", a.nextRunID, "edge_count", len(traversals), "healing", healing, "mana", mana, "gold", state.Player.Gold, "required_maximum_gold", maximumCost, "town_layout", a.layout)
 	return ""
 }
 
@@ -296,16 +303,20 @@ type townPreparationStepHandler struct {
 	buyerCost             int
 	settleUntil           time.Time
 	shopCloseSent         bool
-	authorizedAkaraDialog bool
-	authorizedAkaraUnitID uint32
-	mercHPBefore          uint32
-	mercUnitBefore        uint32
-	mercClickAt           time.Time
-	mercVerifyStarted     time.Time
-	mercHealRequested     bool
-	mercReviveRequested   bool
-	mercReviveEntered     bool
-	mercVerifyTicks       int
+	authorizedAkaraDialog  bool
+	authorizedAkaraUnitID  uint32
+	authorizedCharsiDialog bool
+	authorizedCharsiUnitID uint32
+	repairMoved            bool
+	repairClicked          bool
+	mercHPBefore           uint32
+	mercUnitBefore         uint32
+	mercClickAt            time.Time
+	mercVerifyStarted      time.Time
+	mercHealRequested      bool
+	mercReviveRequested    bool
+	mercReviveEntered      bool
+	mercVerifyTicks        int
 }
 
 func newTownPreparationStepHandler(adapter *townPreparationAdapter, traversals []town.Traversal, orders []town.RestockOrder, itemOrders []town.ItemServiceOrder) *townPreparationStepHandler {
@@ -336,6 +347,8 @@ func (h *townPreparationStepHandler) Tick(ctx context.Context, step town.PlanSte
 			return h.tickMercenaryHeal(ctx, state)
 		case town.ServiceMercenaryRevive:
 			return h.tickMercenaryRevive(ctx, state)
+		case town.ServiceRepair:
+			return h.tickRepair(ctx, state)
 		default:
 			return town.InteractionResult{Status: town.InteractionFailed, Reason: "town_service_unsupported", Done: true}
 		}
@@ -419,6 +432,104 @@ func (h *townPreparationStepHandler) tickPotions(ctx context.Context, state worl
 		return town.InteractionResult{Status: town.InteractionComplete, Current: healing + mana, VerifiedFinal: healing + mana, Done: true}
 	case "done":
 		return town.InteractionResult{Status: town.InteractionComplete, Done: true}
+	default:
+		return town.InteractionResult{Status: town.InteractionFailed, Reason: "town_service_state_invalid", Done: true}
+	}
+}
+
+// tickRepair walks to Charsi, opens Trade/Repair with the shared ShopOpener
+// (Home/Down/Enter; Imbue sits below Trade), clicks Repair All once at the
+// fixed 1280×720 coordinate, and closes the shop. Gold and durability are not
+// verified; a completed visit advances the interval latch.
+func (h *townPreparationStepHandler) tickRepair(ctx context.Context, state world.State) town.InteractionResult {
+	switch h.stage {
+	case "walk":
+		result := h.tickWalk(ctx, state, town.AnchorCharsi)
+		if result.Status != town.InteractionComplete {
+			return result
+		}
+		h.stage = "npc"
+		return town.InteractionResult{Status: town.InteractionPending}
+	case "npc":
+		if h.authorizedCharsiDialog && (state.UI.NPCInteractOpen || state.UI.NPCShopOpen) {
+			if state.UI.NPCShopOpen {
+				h.stage = "repair"
+			} else {
+				h.stage = "shop"
+			}
+			return town.InteractionResult{Status: town.InteractionPending}
+		}
+		if state.UI.NPCInteractOpen || state.UI.NPCShopOpen {
+			return town.InteractionResult{Status: town.InteractionFailed, Reason: "npc_ui_preopened", Done: true}
+		}
+		h.ensureNPC(world.Charsi)
+		result := h.npc.Tick(state)
+		if result.Status == town.InteractionAction && result.Action == "npc_click" {
+			h.authorizedCharsiDialog = true
+			h.authorizedCharsiUnitID = result.UnitID
+			h.adapter.log.Info("charsi npc click", "unit_id", result.UnitID, "why", "open_repair_dialog")
+			return result
+		}
+		if result.Status == town.InteractionComplete {
+			h.authorizedCharsiDialog = true
+			h.authorizedCharsiUnitID = result.UnitID
+			h.stage = "shop"
+			return town.InteractionResult{Status: town.InteractionPending}
+		}
+		return result
+	case "shop":
+		if state.UI.NPCShopOpen {
+			h.stage = "repair"
+			return town.InteractionResult{Status: town.InteractionPending}
+		}
+		h.ensureShop()
+		result := h.shop.Tick(state)
+		if result.Status == town.InteractionComplete {
+			h.adapter.log.Info("charsi shop opened", "why", "repair_all")
+			h.stage = "repair"
+			return town.InteractionResult{Status: town.InteractionPending}
+		}
+		return result
+	case "repair":
+		if !state.UI.NPCShopOpen {
+			return town.InteractionResult{Status: town.InteractionFailed, Reason: "charsi_repair_shop_closed", Done: true}
+		}
+		window, ok := h.adapter.controller.Window()
+		if !ok || window.ClientWidth != 1280 || window.ClientHeight != 720 {
+			return town.InteractionResult{Status: town.InteractionFailed, Reason: "charsi_repair_resolution_invalid", Done: true}
+		}
+		if !h.repairMoved {
+			if err := h.adapter.controller.MoveTo(charsiRepairAllX, charsiRepairAllY); err != nil {
+				h.adapter.log.Error("charsi repair move failed", "error", err, "x", charsiRepairAllX, "y", charsiRepairAllY)
+				return town.InteractionResult{Status: town.InteractionFailed, Reason: "charsi_repair_click_failed", Done: true}
+			}
+			h.repairMoved = true
+			h.adapter.log.Info("charsi repair all move", "x", charsiRepairAllX, "y", charsiRepairAllY, "why", "repair_all")
+			return town.InteractionResult{Status: town.InteractionAction, Action: "repair_move", Vendor: town.AnchorCharsi}
+		}
+		if !h.repairClicked {
+			if err := h.adapter.controller.Click(input.MouseLeft); err != nil {
+				h.adapter.log.Error("charsi repair click failed", "error", err)
+				return town.InteractionResult{Status: town.InteractionFailed, Reason: "charsi_repair_click_failed", Done: true}
+			}
+			h.repairClicked = true
+			h.adapter.log.Info("charsi repair all click", "why", "repair_all", "result", "sent")
+			h.stage = "close"
+			return town.InteractionResult{Status: town.InteractionAction, Action: "repair_click", Vendor: town.AnchorCharsi}
+		}
+		h.stage = "close"
+		return town.InteractionResult{Status: town.InteractionPending, Vendor: town.AnchorCharsi}
+	case "close":
+		if result := h.tickCloseUI(state, town.AnchorCharsi); result.Status != town.InteractionComplete {
+			return result
+		}
+		h.authorizedCharsiDialog, h.authorizedCharsiUnitID = false, 0
+		h.adapter.lastRepairStartedRuns = h.adapter.startedRuns
+		h.adapter.log.Info("charsi repair visit completed", "started_runs", h.adapter.startedRuns, "last_repair", h.adapter.lastRepairStartedRuns)
+		h.stage = "done"
+		return town.InteractionResult{Status: town.InteractionComplete, Vendor: town.AnchorCharsi, Done: true}
+	case "done":
+		return town.InteractionResult{Status: town.InteractionComplete, Vendor: town.AnchorCharsi, Done: true}
 	default:
 		return town.InteractionResult{Status: town.InteractionFailed, Reason: "town_service_state_invalid", Done: true}
 	}
@@ -1027,6 +1138,7 @@ func (h *townPreparationStepHandler) ResetStep() {
 	h.mercClickAt, h.mercVerifyStarted = time.Time{}, time.Time{}
 	h.mercHealRequested, h.mercReviveRequested, h.mercReviveEntered = false, false, false
 	h.mercVerifyTicks = 0
+	h.repairMoved, h.repairClicked = false, false
 	h.stage = "walk"
 }
 
@@ -1038,6 +1150,7 @@ func (h *townPreparationStepHandler) Reset() {
 		h.walker.Reset()
 	}
 	h.authorizedAkaraDialog, h.authorizedAkaraUnitID = false, 0
+	h.authorizedCharsiDialog, h.authorizedCharsiUnitID = false, 0
 	h.ResetStep()
 	// A session/run reset invalidates graph continuity and all completed orders.
 	start := town.AnchorStash

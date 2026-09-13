@@ -236,6 +236,7 @@ character_setup:
     nihlathak: [gems, keys]
 
 town:
+  repair_interval_runs: 10
   thresholds:
     healing: 2
     mana: 4

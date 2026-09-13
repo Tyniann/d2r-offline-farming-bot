@@ -68,6 +68,7 @@ func (rt *Runtime) consumeRunReadiness(ctx context.Context, state world.State) (
 		if rt.taskDeps.Town == nil {
 			return false, fmt.Errorf("run readiness: town preparation is not wired")
 		}
+		rt.taskDeps.Town.AllowIntervalRepair(false)
 		result := rt.taskDeps.Town.Tick(ctx, state)
 		if !result.Done {
 			return false, nil

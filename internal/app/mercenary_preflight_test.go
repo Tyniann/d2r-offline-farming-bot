@@ -22,6 +22,8 @@ func (m *readinessTownMock) Tick(context.Context, world.State) tasks.TownPrepara
 
 func (m *readinessTownMock) Reset() { m.resets++ }
 
+func (m *readinessTownMock) AllowIntervalRepair(bool) {}
+
 func TestConsumeMercenaryPreflightSkipsOfflineGameStart(t *testing.T) {
 	rt := &Runtime{
 		Config: &config.Config{

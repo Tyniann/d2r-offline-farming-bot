@@ -52,14 +52,38 @@ type townPreparationAdapter struct {
 	handler       *townPreparationStepHandler
 	lootFilter    *loot.Filter
 	stashConfig   config.LootStashConfig
-	nextRunID     string
-	startAnchor   town.Anchor
-	resolvedStart town.Anchor
-	targetAnchor  town.Anchor
+	nextRunID              string
+	startAnchor            town.Anchor
+	resolvedStart          town.Anchor
+	targetAnchor           town.Anchor
+	startedRuns            int
+	lastRepairStartedRuns  int
+	allowIntervalRepair    bool
 }
 
 func (a *townPreparationAdapter) setItemPolicies(filter *loot.Filter, stash config.LootStashConfig) {
 	a.lootFilter, a.stashConfig = filter, stash
+}
+
+// setStartedRuns updates the session start counter used for interval repair.
+// A drop below the latch (new session) clears lastRepairStartedRuns.
+func (a *townPreparationAdapter) setStartedRuns(n int) {
+	if a == nil {
+		return
+	}
+	if n < a.lastRepairStartedRuns {
+		a.lastRepairStartedRuns = 0
+	}
+	a.startedRuns = n
+}
+
+// AllowIntervalRepair enables Charsi interval repair only for post-run handoff.
+// Run readiness must keep this false so the shared adapter cannot double-fire.
+func (a *townPreparationAdapter) AllowIntervalRepair(allow bool) {
+	if a == nil {
+		return
+	}
+	a.allowIntervalRepair = allow
 }
 
 // layoutTownWaypointWalker adapts the initial no-service mode to the legacy

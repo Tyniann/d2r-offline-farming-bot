@@ -31,6 +31,16 @@ type DemandSnapshot struct {
 	Demand     Demand
 }
 
+// IntervalRepairDue reports whether startedRuns has reached the next repair
+// latch boundary. It uses a sticky lastRepair watermark rather than modulo so a
+// missed handoff still fires on the next successful town cleanup.
+func IntervalRepairDue(startedRuns, lastRepair, interval int) bool {
+	if interval < 1 {
+		return false
+	}
+	return startedRuns >= lastRepair+interval
+}
+
 // InspectDemand derives immutable Boolean service needs from a coherent source snapshot.
 // nextRun is the upcoming handoff ID; city-key restock is authorized only for KeyRestockNextRun.
 func InspectDemand(supply SupplySnapshot, thresholds Thresholds, nextRun string) DemandSnapshot {

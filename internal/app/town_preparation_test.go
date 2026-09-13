@@ -615,3 +615,121 @@ func TestPotionNPCClickDoesNotRejectOwnAkaraDialog(t *testing.T) {
 		t.Fatalf("stage=%q after dialog open, want shop", h.stage)
 	}
 }
+
+func TestTownPreparationIntervalRepairDemandGates(t *testing.T) {
+	cfg, err := config.Load(filepath.Join("..", "..", "configs", "config.example.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	layout := "911703945495707c9e6578c2db467e76ed70cf0548f119ac1b397368a8af5a53"
+	origin := world.Position{X: 5466, Y: 4709}
+	newAdapter := func(services bool) *townPreparationAdapter {
+		in := &preparationInputMock{}
+		a, err := newTownPreparationAdapter(config.NewLogger("error"), in, pathing.DefaultConfig(), cfg, "countess", &townLayoutPin{}, &preparationTelemetryMock{}, services)
+		if err != nil {
+			t.Fatal(err)
+		}
+		a.layout = layout
+		a.layoutOrigin = origin
+		a.startedRuns = 10
+		a.lastRepairStartedRuns = 0
+		// Isolate interval repair from potion restock demand.
+		a.thresholds = town.Thresholds{}
+		a.profile = config.ProfileResourcesConfig{}
+		return a
+	}
+	state := preparationState(world.Position{X: 100, Y: 100}, time.Now(), true)
+	state.Player.Gold, state.Player.GoldKnown = 0, false
+
+	blocked := newAdapter(true)
+	blocked.AllowIntervalRepair(false)
+	if reason := blocked.start(state); reason != "" {
+		t.Fatal(reason)
+	}
+	if blocked.executor != nil {
+		t.Fatal("readiness must not plan interval repair")
+	}
+
+	noServices := newAdapter(false)
+	noServices.AllowIntervalRepair(true)
+	if reason := noServices.start(state); reason != "" {
+		t.Fatal(reason)
+	}
+	if noServices.executor != nil {
+		t.Fatal("services=false must not plan interval repair")
+	}
+
+	allowed := newAdapter(true)
+	allowed.AllowIntervalRepair(true)
+	if reason := allowed.start(state); reason != "" {
+		t.Fatal(reason)
+	}
+	if allowed.executor == nil || allowed.handler == nil {
+		t.Fatal("due interval repair must create an NPC plan without gold")
+	}
+	hasCharsi := false
+	for _, tr := range allowed.handler.traversals {
+		if tr.Edge.From == town.AnchorCharsi || tr.Edge.To == town.AnchorCharsi {
+			hasCharsi = true
+			break
+		}
+	}
+	if !hasCharsi {
+		t.Fatalf("repair plan missing Charsi edge: %+v", allowed.handler.traversals)
+	}
+}
+
+func TestSetStartedRunsClearsLatchOnSessionRestart(t *testing.T) {
+	a := &townPreparationAdapter{lastRepairStartedRuns: 20, startedRuns: 20}
+	a.setStartedRuns(1)
+	if a.startedRuns != 1 || a.lastRepairStartedRuns != 0 {
+		t.Fatalf("started=%d last=%d", a.startedRuns, a.lastRepairStartedRuns)
+	}
+}
+
+func TestTickRepairClicksRepairAllAndLatches(t *testing.T) {
+	in := &preparationInputMock{}
+	a := &townPreparationAdapter{
+		log: config.NewLogger("error"), driver: in, controller: in, startedRuns: 10, lastRepairStartedRuns: 0,
+	}
+	h := &townPreparationStepHandler{adapter: a, stage: "repair", authorizedCharsiDialog: true}
+	step := town.PlanStep{Kind: town.StepService, Service: town.ServiceRepair}
+	state := world.State{Valid: true, UI: world.UIState{NPCShopOpen: true}}
+
+	if got := h.Tick(context.Background(), step, state); got.Action != "repair_move" || in.moves != 1 {
+		t.Fatalf("move=%+v moves=%d", got, in.moves)
+	}
+	if got := h.Tick(context.Background(), step, state); got.Action != "repair_click" || in.clicks != 1 || h.stage != "close" {
+		t.Fatalf("click=%+v clicks=%d stage=%s", got, in.clicks, h.stage)
+	}
+	if got := h.Tick(context.Background(), step, state); got.Action != "shop_close" {
+		t.Fatalf("close=%+v", got)
+	}
+	state.UI.NPCShopOpen = false
+	if got := h.Tick(context.Background(), step, state); got.Status != town.InteractionComplete || !got.Done {
+		t.Fatalf("complete=%+v", got)
+	}
+	if a.lastRepairStartedRuns != 10 {
+		t.Fatalf("latch=%d want 10", a.lastRepairStartedRuns)
+	}
+}
+
+type preparationWindowMock struct {
+	preparationInputMock
+	width, height int
+}
+
+func (m *preparationWindowMock) Window() (input.WindowInfo, bool) {
+	return input.WindowInfo{ClientWidth: m.width, ClientHeight: m.height}, true
+}
+
+func TestTickRepairRejectsWrongResolution(t *testing.T) {
+	in := &preparationWindowMock{width: 1920, height: 1080}
+	a := &townPreparationAdapter{log: config.NewLogger("error"), driver: in, controller: in}
+	h := &townPreparationStepHandler{adapter: a, stage: "repair"}
+	state := world.State{Valid: true, UI: world.UIState{NPCShopOpen: true}}
+	got := h.Tick(context.Background(), town.PlanStep{Kind: town.StepService, Service: town.ServiceRepair}, state)
+	if got.Reason != "charsi_repair_resolution_invalid" || !got.Done {
+		t.Fatalf("got=%+v", got)
+	}
+}

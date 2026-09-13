@@ -1392,7 +1392,10 @@
   "stash_approach_failed": "The path to the stash was blocked.",
   "town_item_state_invalid": "An item's state was invalid for the town service.",
   "town_layout_unavailable": "The required town route could not be loaded safely.",
-  "town_ui_close_failed": "The shop window could not be closed safely."
+  "town_ui_close_failed": "The shop window could not be closed safely.",
+  "charsi_repair_resolution_invalid": "The screen resolution is not valid for equipment repair.",
+  "charsi_repair_click_failed": "Equipment repair at Charsi failed.",
+  "charsi_repair_shop_closed": "Charsi's shop window closed unexpectedly."
   },
   "errors": {
     "unknownCode": "Unknown error ({{code}}).",

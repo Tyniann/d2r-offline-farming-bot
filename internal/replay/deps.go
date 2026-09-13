@@ -457,6 +457,7 @@ func (t *traceTown) Tick(ctx context.Context, state world.State) tasks.TownPrepa
 	return result
 }
 func (t *traceTown) Reset() { t.next.Reset() }
+func (t *traceTown) AllowIntervalRepair(allow bool) { t.next.AllowIntervalRepair(allow) }
 
 type traceCow struct {
 	next     tasks.CowSetupActions
