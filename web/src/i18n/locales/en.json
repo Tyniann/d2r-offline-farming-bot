@@ -1376,6 +1376,7 @@
   "cow_tome_shop_close_failed": "The shop window could not be closed safely after buying the tome.",
   "cow_akara_interaction_failed": "Akara was too far away to buy the recipe tome.",
   "cow_akara_approach_failed": "The walk to Akara for the tome purchase failed.",
+  "cow_portal_hover_not_found": "The Cow Level portal could not be clicked safely. The session saves, exits the game, and retries the same route.",
   "queue_runtime_failed": "The route could not continue because of an internal runtime error.",
   "route_file_invalid": "The route file is invalid and cannot be used.",
   "route_file_unreadable": "The route file could not be read safely.",

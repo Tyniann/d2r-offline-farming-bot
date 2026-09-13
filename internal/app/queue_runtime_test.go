@@ -352,6 +352,34 @@ func TestBossCombatNoProgressRetriesWhenConfigured(t *testing.T) {
 	}
 }
 
+func TestCowPortalHoverNotFoundRetriesFromAct1Town(t *testing.T) {
+	t.Parallel()
+
+	stopped, err := classifyFailedQueueRun(context.Background(), "cows", "cow_portal_hover_not_found", []string{"hard_stuck"}, world.State{}, func(context.Context) error {
+		t.Fatal("unconfigured cow portal hover miss must not recover")
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stopped.Disposition != QueueRunStop || stopped.Reason != "cow_portal_hover_not_found" || stopped.ExitAuthorization != ExitAuthorizationNone {
+		t.Fatalf("unconfigured cow portal hover = %+v", stopped)
+	}
+
+	called := false
+	town := world.State{Valid: true, Phase: world.GamePhaseInGame, Area: world.LookupArea(world.RogueEncampment)}
+	got, err := classifyFailedQueueRun(context.Background(), "cows", "cow_portal_hover_not_found", []string{"cow_portal_hover_not_found"}, town, func(context.Context) error {
+		called = true
+		return errors.New("must not recast a town portal from Act 1")
+	})
+	if err != nil || called {
+		t.Fatalf("cow portal hover recovered through portal return: result=%+v err=%v called=%t", got, err, called)
+	}
+	if got.Disposition != QueueRunRetryCurrent || got.Reason != "cow_portal_hover_not_found" || got.ExitAuthorization != ExitAuthorizationVerifiedRogueTown {
+		t.Fatalf("configured cow portal hover = %+v", got)
+	}
+}
+
 func TestRuntimeQueueRunnerStopsBeforeRunWhenSkillsMissing(t *testing.T) {
 	var events []string
 	runner := &RuntimeQueueRunner{newUnit: func(runID string) (queueRunUnit, error) {

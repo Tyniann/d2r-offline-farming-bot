@@ -1376,6 +1376,7 @@
   "cow_tome_shop_close_failed": "Das Händlerfenster konnte nach dem Buchkauf nicht sicher geschlossen werden.",
   "cow_akara_interaction_failed": "Akara war zu weit entfernt, um das Rezeptbuch zu kaufen.",
   "cow_akara_approach_failed": "Der Weg zu Akara für den Buchkauf ist fehlgeschlagen.",
+  "cow_portal_hover_not_found": "Das Kuh-Portal konnte nicht sicher angeklickt werden. Die Session speichert, verlässt das Spiel und startet denselben Versuch neu.",
   "queue_runtime_failed": "Die Routenausführung konnte wegen eines internen Laufzeitfehlers nicht fortgesetzt werden.",
   "route_file_invalid": "Die Routendatei ist ungültig und kann nicht verwendet werden.",
   "route_file_unreadable": "Die Routendatei konnte nicht sicher gelesen werden.",

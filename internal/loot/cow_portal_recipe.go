@@ -486,6 +486,8 @@ func (e *CowPortalRecipe) tickEnterPortal(state world.State, now time.Time) CowP
 		return CowPortalRecipeResult{}
 	}
 	if result.Done {
+		// hover_not_found ends this recipe generation because Transmute already
+		// ran. session.retry_classes then Save & Exits and retries the queue index.
 		return e.fail("cow_portal_" + result.Reason)
 	}
 	if e.expired(now, e.cfg.EntryTimeout) {

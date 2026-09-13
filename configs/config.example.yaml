@@ -302,6 +302,7 @@ session:
     - cow_combat_no_progress
     - stash_approach_failed
     - boss_combat_no_progress
+    - cow_portal_hover_not_found
 
 pathing:
   # Abbruch, wenn weder Position (>= stuck_progress_tiles) noch Area sich ändern

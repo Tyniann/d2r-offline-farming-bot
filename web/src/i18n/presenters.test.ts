@@ -67,6 +67,14 @@ describe("semantische Presenter", () => {
     expect(presentHistoryReason("cow_akara_interaction_failed", i18n.t)).toBe("Akara was too far away to buy the recipe tome.");
   });
 
+  it("übersetzt den Cow-Portal-Hover-Abbruch in Session-Dialog und Historie", async () => {
+    expect(presentProblem({ code: "cow_portal_hover_not_found" }, i18n.t)).toBe("Das Kuh-Portal konnte nicht sicher angeklickt werden. Die Session speichert, verlässt das Spiel und startet denselben Versuch neu.");
+    expect(presentHistoryReason("cow_portal_hover_not_found", i18n.t)).toBe("Das Kuh-Portal konnte nicht sicher angeklickt werden. Die Session speichert, verlässt das Spiel und startet denselben Versuch neu.");
+    await changeAppLanguage("en");
+    expect(presentProblem({ code: "cow_portal_hover_not_found" }, i18n.t)).toBe("The Cow Level portal could not be clicked safely. The session saves, exits the game, and retries the same route.");
+    expect(presentHistoryReason("cow_portal_hover_not_found", i18n.t)).toBe("The Cow Level portal could not be clicked safely. The session saves, exits the game, and retries the same route.");
+  });
+
   it("übersetzt Difficulty, Run, Klasse und eingebautes Profil", async () => {
     expect([presentDifficultyName("nightmare", i18n.t), presentRunName("countess", i18n.t), presentClassName("necromancer", i18n.t), presentProfileName("necro_bone_spear", "Fallback", i18n.t)]).toEqual(["Alptraum", "Gräfin", "Totenbeschwörer", "Knochen-Totenbeschwörer"]);
     await changeAppLanguage("en");
