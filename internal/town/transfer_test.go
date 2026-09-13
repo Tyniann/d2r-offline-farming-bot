@@ -13,15 +13,6 @@ func (m *transferInputMock) SelectDestination(id world.AreaID) error {
 	return nil
 }
 
-func TestRepairRemainsUnavailableWithoutReliableEvidence(t *testing.T) {
-	if ok, reason := PlanRepair(RepairAssessment{Required: true}); ok || reason != ReasonRepairStateUnavailable {
-		t.Fatalf("repair=%v reason=%s", ok, reason)
-	}
-	if ok, reason := PlanRepair(RepairAssessment{Required: true, DurabilityKnown: true, CostKnown: true, UIKnown: true}); !ok || reason != "" {
-		t.Fatalf("validated repair=%v reason=%s", ok, reason)
-	}
-}
-
 func TestWaypointTransfersVerifyHubAndCountessHandoff(t *testing.T) {
 	in := &transferInputMock{}
 	hub, reason := NewWaypointTransferExecutor(in, WaypointTransfer{FromAct: OriginAct3, ToArea: world.RogueEncampment}, 2)

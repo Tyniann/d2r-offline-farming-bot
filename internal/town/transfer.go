@@ -6,27 +6,6 @@ import (
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/world"
 )
 
-// RepairAssessment contains only validated repair evidence.
-type RepairAssessment struct {
-	DurabilityKnown bool
-	CostKnown       bool
-	UIKnown         bool
-	Required        bool
-}
-
-// PlanRepair authorizes repair only when every required evidence source is reliable.
-// Missing durability, price, or UI evidence is a stable skip/failure reason,
-// never permission to use a fixed-coordinate repair fallback.
-func PlanRepair(assessment RepairAssessment) (bool, Reason) {
-	if !assessment.Required {
-		return false, ""
-	}
-	if !assessment.DurabilityKnown || !assessment.CostKnown || !assessment.UIKnown {
-		return false, ReasonRepairStateUnavailable
-	}
-	return true, ""
-}
-
 // WaypointTransferInput selects one validated destination from an open waypoint UI.
 type WaypointTransferInput interface {
 	SelectDestination(world.AreaID) error

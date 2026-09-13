@@ -65,7 +65,6 @@ const (
 	ReasonItemStateInvalid                Reason = "town_item_state_invalid"
 	ReasonItemPinInvalid                  Reason = "town_item_pin_invalid"
 	ReasonItemVerifyTimeout               Reason = "town_item_verify_timeout"
-	ReasonRepairStateUnavailable          Reason = "repair_state_unavailable"
 	ReasonTransferStateInvalid            Reason = "town_transfer_state_invalid"
 	ReasonTransferVerifyTimeout           Reason = "town_transfer_verify_timeout"
 	ReasonTelemetryFailed                 Reason = "town_telemetry_failed"

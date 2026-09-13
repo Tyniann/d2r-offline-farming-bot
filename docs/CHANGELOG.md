@@ -14,6 +14,9 @@ Versionierung nach [Semantic Versioning](https://semver.org/).
 ### Changed
 - Verify the committed embedded UI bundle and a clean working tree before building release artifacts
 
+### Removed
+- Remove unused durability-gated `PlanRepair` so interval Charsi repair stays the only repair path
+
 ### Fixed
 - Retry a Cow portal hover miss after transmute with Save & Exit instead of failing the session
 - Identify unmatched Cow town-dump items at Cain before selling them so unidentified junk is cleared without selling a later keep-match
