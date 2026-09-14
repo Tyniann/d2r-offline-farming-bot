@@ -12,6 +12,8 @@ Versionierung nach [Semantic Versioning](https://semver.org/).
 - Add interval equipment repair at Charsi during post-run town handoff
 
 ### Changed
+- Retry a Hammerdin CTA confirmation flake once in place, then Save & Exit and consume the session retry budget instead of stopping the session
+- Show only stashed or sold identities in the session summary item lists so cow trash no longer pushes kept gems off the first page
 - Verify the committed embedded UI bundle and a clean working tree before building release artifacts
 
 ### Removed

@@ -178,6 +178,9 @@ func TestHammerdinPrebuffFailsClosedWithoutToggleLoop(t *testing.T) {
 	if _, err := prebuff.tick(state, state.At); err != nil {
 		t.Fatal(err)
 	}
+	if len(in.keys) != 1 {
+		t.Fatalf("first swap sent %d times, want exactly one", len(in.keys))
+	}
 	for i := 0; i < 3; i++ {
 		state.Generation++
 		state.At = state.At.Add(400 * time.Millisecond)
@@ -187,20 +190,40 @@ func TestHammerdinPrebuffFailsClosedWithoutToggleLoop(t *testing.T) {
 	}
 	state.Generation++
 	state.At = state.At.Add(400 * time.Millisecond)
-	if _, err := prebuff.tick(state, state.At); err == nil || !strings.Contains(err.Error(), reasonWeaponSetUnconfirmed) {
-		t.Fatalf("unconfirmed swap error=%v", err)
+	result, tickErr := prebuff.tick(state, state.At)
+	if tickErr != nil || result.Action != "cta_sequence_retry" {
+		t.Fatalf("first unconfirmed swap retry=%+v err=%v", result, tickErr)
 	}
 	if len(in.keys) != 1 {
-		t.Fatalf("swap sent %d times, want exactly one", len(in.keys))
+		t.Fatalf("retry must not press W again during the failed swap, got %d", len(in.keys))
 	}
 
-	prebuff.reset()
-	state.Player.ActiveWeaponSet = world.WeaponSetState{}
-	if _, err := prebuff.tick(state, state.At); err == nil || !strings.Contains(err.Error(), reasonWeaponSetUnavailable) {
-		t.Fatalf("unavailable error=%v", err)
+	state.Generation++
+	state.At = state.At.Add(prebuffFlakeRecoverSettle * 2)
+	result, tickErr = prebuff.tick(state, state.At)
+	if tickErr != nil || result.Action != "cta_sequence_restart" {
+		t.Fatalf("recover on primary=%+v err=%v", result, tickErr)
 	}
-	if len(in.keys) != 1 {
-		t.Fatalf("unavailable read sent input: %v", in.keys)
+	state.Generation++
+	state.At = state.At.Add(prebuffCastSettle * 2)
+	if _, tickErr = prebuff.tick(state, state.At); tickErr != nil {
+		t.Fatal(tickErr)
+	}
+	state.Generation++
+	state.At = state.At.Add(100 * time.Millisecond)
+	if _, tickErr = prebuff.tick(state, state.At); tickErr != nil {
+		t.Fatal(tickErr)
+	}
+	if len(in.keys) != 2 {
+		t.Fatalf("retry swap sent %d times, want 2", len(in.keys))
+	}
+	state.Generation++
+	state.At = state.At.Add(2 * weaponSetTimeout)
+	if _, tickErr = prebuff.tick(state, state.At); tickErr == nil || !strings.Contains(tickErr.Error(), reasonCTASkillUnconfirmed) {
+		t.Fatalf("exhausted swap error=%v", tickErr)
+	}
+	if len(in.keys) != 2 {
+		t.Fatalf("exhausted retry sent extra W: %v", in.keys)
 	}
 }
 
@@ -225,11 +248,48 @@ func TestHammerdinPrebuffMapsWrongCTASelectionToStableReason(t *testing.T) {
 	_, _ = prebuff.tick(state, state.At) // Select BC.
 	state.Generation++
 	state.At = state.At.Add(2 * time.Second)
-	if _, err := prebuff.tick(state, state.At); err == nil || !strings.Contains(err.Error(), reasonCTASkillUnconfirmed) {
-		t.Fatalf("wrong CTA selection error=%v", err)
+	result, tickErr := prebuff.tick(state, state.At)
+	if tickErr != nil || result.Action != "cta_sequence_retry" {
+		t.Fatalf("first CTA selection flake=%+v err=%v", result, tickErr)
 	}
 	if len(in.clicks) != 0 {
 		t.Fatalf("wrong CTA selection cast clicks=%v", in.clicks)
+	}
+
+	state.Player.ActiveWeaponSet.Set = world.WeaponSetPrimary
+	state.Generation++
+	state.At = state.At.Add(prebuffFlakeRecoverSettle * 2)
+	if result, tickErr = prebuff.tick(state, state.At); tickErr != nil || result.Action != "cta_sequence_restart" {
+		t.Fatalf("recover after skill flake=%+v err=%v", result, tickErr)
+	}
+	state.Generation++
+	state.At = state.At.Add(prebuffCastSettle * 2)
+	if _, tickErr = prebuff.tick(state, state.At); tickErr != nil {
+		t.Fatal(tickErr)
+	}
+	state.Generation++
+	state.At = state.At.Add(100 * time.Millisecond)
+	if _, tickErr = prebuff.tick(state, state.At); tickErr != nil {
+		t.Fatal(tickErr)
+	}
+	state.Player.ActiveWeaponSet.Set = world.WeaponSetSecondary
+	state.Generation++
+	state.At = state.At.Add(100 * time.Millisecond)
+	if _, tickErr = prebuff.tick(state, state.At); tickErr != nil {
+		t.Fatal(tickErr)
+	}
+	state.Generation++
+	state.At = state.At.Add(100 * time.Millisecond)
+	if _, tickErr = prebuff.tick(state, state.At); tickErr != nil {
+		t.Fatal(tickErr)
+	}
+	state.Generation++
+	state.At = state.At.Add(2 * skillSelectionTimeout)
+	if _, tickErr = prebuff.tick(state, state.At); tickErr == nil || !strings.Contains(tickErr.Error(), reasonCTASkillUnconfirmed) {
+		t.Fatalf("exhausted CTA selection error=%v", tickErr)
+	}
+	if len(in.clicks) != 0 {
+		t.Fatalf("exhausted CTA selection cast clicks=%v", in.clicks)
 	}
 }
 
@@ -437,6 +497,56 @@ func TestHammerdinTownReadyHookCompletesWithoutInputWhenCTANotDue(t *testing.T) 
 	}
 }
 
+func TestHammerdinPrebuffRecoversOneCTASkillFlakeAndCompletes(t *testing.T) {
+	in := &hammerdinPrebuffInputMock{window: input.WindowInfo{ClientWidth: 1280, ClientHeight: 720}}
+	prebuff, err := newHammerdinPrebuff(hammerdinPrebuffBindings(true), in, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	state := hammerdinTownState(time.Unix(800, 0), 1, world.WeaponSetPrimary, 0, 0)
+	if _, err := prebuff.tick(state, state.At); err != nil {
+		t.Fatal(err)
+	}
+	state.Generation++
+	state.At = state.At.Add(100 * time.Millisecond)
+	if _, err := prebuff.tick(state, state.At); err != nil {
+		t.Fatal(err)
+	}
+	state.Player.ActiveWeaponSet.Set = world.WeaponSetSecondary
+	state.Generation++
+	state.At = state.At.Add(100 * time.Millisecond)
+	if _, err := prebuff.tick(state, state.At); err != nil {
+		t.Fatal(err)
+	}
+	state.Generation++
+	state.At = state.At.Add(100 * time.Millisecond)
+	if _, err := prebuff.tick(state, state.At); err != nil {
+		t.Fatal(err)
+	}
+	state.Generation++
+	state.At = state.At.Add(2 * time.Second)
+	result, tickErr := prebuff.tick(state, state.At)
+	if tickErr != nil || result.Action != "cta_sequence_retry" {
+		t.Fatalf("skill flake retry=%+v err=%v", result, tickErr)
+	}
+
+	state.Player.ActiveWeaponSet.Set = world.WeaponSetPrimary
+	state.Player.RightSkillID = 0
+	state.Generation++
+	state.At = state.At.Add(prebuffFlakeRecoverSettle * 2)
+	if result, tickErr = prebuff.tick(state, state.At); tickErr != nil || result.Action != "cta_sequence_restart" {
+		t.Fatalf("restart after flake=%+v err=%v", result, tickErr)
+	}
+	state.At = state.At.Add(prebuffCastSettle * 2)
+	driveHammerdinCTAToComplete(t, prebuff, &state)
+	if got, want := strings.Join(in.keys, ","), "w,w,w"; got != want {
+		t.Fatalf("recovered keys=%q want=%q", got, want)
+	}
+	if !prebuff.ctaAnchor.due(state.At.Add(ctaRecastAfter)) {
+		t.Fatal("recovered sequence left the CTA anchor unarmed")
+	}
+}
+
 func driveHammerdinCTAToComplete(t *testing.T, prebuff *hammerdinPrebuff, state *world.State) {
 	t.Helper()
 	tick := func() hammerdinPrebuffResult {
@@ -463,7 +573,7 @@ func driveHammerdinCTAToComplete(t *testing.T, prebuff *hammerdinPrebuff, state 
 		state.Player.RightSkillID = skillID
 		tick()
 	}
-	state.At = state.At.Add(prebuffWeaponSwapSettle)
+	state.At = state.At.Add(prebuff.scaled(prebuffWeaponSwapSettle))
 	if result := tick(); result.Action != "weapon_set_primary" {
 		t.Fatalf("primary action=%q", result.Action)
 	}

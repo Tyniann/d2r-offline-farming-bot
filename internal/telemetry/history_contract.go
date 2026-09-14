@@ -79,6 +79,14 @@ const (
 	HistorySortAverageDuration HistorySort = "average_duration"
 )
 
+// HistoryItemDisposition filtert die paginierte Itemliste, nicht den Funnel.
+type HistoryItemDisposition string
+
+const (
+	// HistoryItemDispositionKeptSold begrenzt Itemseiten auf Identitäten mit Stash- oder Verkaufszählern.
+	HistoryItemDispositionKeptSold HistoryItemDisposition = "kept_sold"
+)
+
 // HistoryReasonCode ist ein stabiler maschinenlesbarer Historienfehler.
 type HistoryReasonCode string
 

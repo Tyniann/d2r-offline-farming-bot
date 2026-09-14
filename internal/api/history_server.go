@@ -67,13 +67,14 @@ func (s *Server) handleHistoryItems(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	limit, cursor, ok := s.historyPage(w, r, data, options, len(data.analysis.Items))
+	items := telemetry.SelectHistoryItems(data.analysis.Items, data.analysis.Filter.ItemDisposition)
+	limit, cursor, ok := s.historyPage(w, r, data, options, len(items))
 	if !ok {
 		return
 	}
-	end := min(cursor.Offset+limit, len(data.analysis.Items))
-	response := HistoryItemsResponse{Meta: historyMeta(data, generatedAt), Items: historyItemsDTO(data.analysis.Items[cursor.Offset:end])}
-	if end < len(data.analysis.Items) {
+	end := min(cursor.Offset+limit, len(items))
+	response := HistoryItemsResponse{Meta: historyMeta(data, generatedAt), Items: historyItemsDTO(items[cursor.Offset:end])}
+	if end < len(items) {
 		response.NextCursor = encodeHistoryCursor(historyCursor{Generation: data.snapshot.Generation, Dataset: options.dataset, QueryHash: historyQueryHash(r.URL.Query(), options), Offset: end})
 	}
 	s.writeJSON(w, http.StatusOK, response)
@@ -216,13 +217,16 @@ func parseHistoryFilter(query url.Values, options historyQueryOptions) (telemetr
 	if options.paginate {
 		allowed["limit"], allowed["cursor"] = true, true
 	}
+	if options.dataset == "items" {
+		allowed["item_disposition"] = true
+	}
 	if options.export {
 		allowed["format"], allowed["dataset"] = true, true
 	}
 	if unknown := unknownHistoryQuery(query, allowed); unknown != "" {
 		return telemetry.HistoryFilter{}, fmt.Errorf("%s: unknown query %q", telemetry.HistoryReasonFilterInvalid, unknown)
 	}
-	for _, key := range []string{"from", "to", "timezone", "sort", "limit", "cursor", "format", "dataset"} {
+	for _, key := range []string{"from", "to", "timezone", "sort", "limit", "cursor", "format", "dataset", "item_disposition"} {
 		if len(query[key]) > 1 {
 			return telemetry.HistoryFilter{}, fmt.Errorf("%s: repeated query %q", telemetry.HistoryReasonFilterInvalid, key)
 		}
@@ -237,6 +241,7 @@ func parseHistoryFilter(query url.Values, options historyQueryOptions) (telemetr
 		Timezone: query.Get("timezone"),
 		Runs:     queryList(query, "run"), Characters: queryList(query, "character"), Difficulties: queryList(query, "difficulty"),
 		Reasons: queryList(query, "reason"), PickitProfiles: queryList(query, "pickit_profile"), SessionIDs: queryList(query, "session"),
+		ItemDisposition: telemetry.HistoryItemDisposition(query.Get("item_disposition")),
 	}
 	timezone, timezoneErr := telemetry.NormalizeHistoryTimezone(filter.Timezone)
 	if timezoneErr != nil {

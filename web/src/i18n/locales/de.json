@@ -1365,7 +1365,7 @@
   "hammerdin_cta_bindings_incomplete": "Für Call to Arms müssen Battle Command und Battle Orders beide belegt sein.",
   "weapon_set_read_unavailable": "Das aktive Waffenset konnte nicht sicher gelesen werden.",
   "weapon_set_switch_unconfirmed": "Der Waffenwechsel wurde nicht bestätigt. Prüfe die Waffenset-Taste und den Spielfokus.",
-  "hammerdin_cta_skill_unconfirmed": "Battle Command konnte im zweiten Waffenset nicht bestätigt werden. Prüfe CTA und die F-Taste.",
+  "hammerdin_cta_skill_unconfirmed": "Call to Arms konnte nach einem Wiederholungsversuch nicht bestätigt werden. Die Session speichert, verlässt das Spiel und startet denselben Versuch neu.",
   "hammerdin_holy_shield_unconfirmed": "Heiliger Schild konnte nicht bestätigt werden.",
   "hammerdin_primary_set_restore_failed": "Das primäre Waffenset konnte nach den Buffs nicht bestätigt werden. Die Queue wurde beendet.",
   "hammerdin_blessed_hammer_unconfirmed": "Blessed Hammer konnte nicht auf der linken Maustaste bestätigt werden.",

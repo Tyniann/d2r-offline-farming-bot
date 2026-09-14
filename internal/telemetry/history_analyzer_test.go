@@ -392,6 +392,25 @@ func lastNonZeroStage(stages [4]int64) int {
 	return -1
 }
 
+func TestSelectHistoryItemsKeepsStashedOrSoldRows(t *testing.T) {
+	items := []HistoryItemAggregate{
+		{ItemKey: "base:7pa:superior", ItemName: "Cryptic Axe", Stashed: 1},
+		{ItemKey: "base:glr:normal", ItemName: "Flawless Ruby", Stashed: 8},
+		{ItemKey: "base:gld:normal", ItemName: "Gold", Sold: 3},
+		{ItemKey: "base:cap:normal", ItemName: "Cap", Seen: 40},
+	}
+	got := SelectHistoryItems(items, HistoryItemDispositionKeptSold)
+	if len(got) != 3 || got[0].ItemKey != "base:7pa:superior" || got[1].ItemKey != "base:glr:normal" || got[2].ItemKey != "base:gld:normal" {
+		t.Fatalf("kept/sold rows=%+v", got)
+	}
+	if all := SelectHistoryItems(items, ""); len(all) != 4 {
+		t.Fatalf("unfiltered rows=%d", len(all))
+	}
+	if _, err := AnalyzeHistory(HistorySnapshot{}, HistoryFilter{ItemDisposition: "seen_only"}); historyErrorCode(err) != HistoryReasonFilterInvalid {
+		t.Fatalf("invalid disposition err=%v", err)
+	}
+}
+
 func comparisonByRoute(comparisons []HistoryComparison) map[string]HistoryComparison {
 	out := make(map[string]HistoryComparison, len(comparisons))
 	for _, comparison := range comparisons {

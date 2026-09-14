@@ -65,7 +65,7 @@ describe("SessionSummaryDialog", () => {
     render(<SessionSummaryDialog sessionID="session-a" durationMs={1000} refreshKey={4} onClose={() => undefined} />);
     await screen.findByText("Sitzungsdauer: 00:00:01");
     expect(mocks.summary).toHaveBeenCalledWith({ session: ["session-a"] }, expect.any(AbortSignal));
-    expect(mocks.items).toHaveBeenCalledWith({ session: ["session-a"], limit: 200 }, expect.any(AbortSignal));
+    expect(mocks.items).toHaveBeenCalledWith({ session: ["session-a"], limit: 200, item_disposition: "kept_sold" }, expect.any(AbortSignal));
   });
 
   it("zeigt die Itemzahlen, wenn Summary Limit als ungültigen Filter ablehnt", async () => {

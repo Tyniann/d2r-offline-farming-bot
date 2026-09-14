@@ -8,17 +8,18 @@ import (
 
 // HistoryFilterDTO echoes the canonical server-side filter.
 type HistoryFilterDTO struct {
-	FromUTC        *time.Time                 `json:"from_utc,omitempty"`
-	ToUTC          *time.Time                 `json:"to_utc,omitempty"`
-	Timezone       string                     `json:"timezone"`
-	Runs           []string                   `json:"runs"`
-	Characters     []string                   `json:"characters"`
-	Difficulties   []string                   `json:"difficulties"`
-	Outcomes       []telemetry.HistoryOutcome `json:"outcomes"`
-	Reasons        []string                   `json:"reasons"`
-	PickitProfiles []string                   `json:"pickit_profiles"`
-	SessionIDs     []string                   `json:"sessions"`
-	Sort           telemetry.HistorySort      `json:"sort,omitempty"`
+	FromUTC         *time.Time                       `json:"from_utc,omitempty"`
+	ToUTC           *time.Time                       `json:"to_utc,omitempty"`
+	Timezone        string                           `json:"timezone"`
+	Runs            []string                         `json:"runs"`
+	Characters      []string                         `json:"characters"`
+	Difficulties    []string                         `json:"difficulties"`
+	Outcomes        []telemetry.HistoryOutcome       `json:"outcomes"`
+	Reasons         []string                         `json:"reasons"`
+	PickitProfiles  []string                         `json:"pickit_profiles"`
+	SessionIDs      []string                         `json:"sessions"`
+	Sort            telemetry.HistorySort            `json:"sort,omitempty"`
+	ItemDisposition telemetry.HistoryItemDisposition `json:"item_disposition,omitempty"`
 }
 
 // HistoryDailyBucketDTO is a display-ready local calendar-day projection.

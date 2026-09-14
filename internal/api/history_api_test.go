@@ -92,6 +92,28 @@ func TestHistoryAPIPaginatesStablyAndRejectsStaleOrChangedCursor(t *testing.T) {
 	assertHistoryAPIError(t, server.URL()+"/api/v1/history/runs?limit=4&cursor="+url.QueryEscape(first.NextCursor), http.StatusBadRequest, string(telemetry.HistoryReasonCursorInvalid))
 }
 
+func TestHistoryAPIItemsKeptSoldFilterDropsSeenOnlyRows(t *testing.T) {
+	server, backend := startAPITestServer(t)
+	backend.history = historyAPIFixture()
+	backend.history.analysis.Items = []telemetry.HistoryItemAggregate{
+		{ItemKey: "base:cap:normal", ItemName: "Cap", Seen: 40},
+		{ItemKey: "base:7pa:superior", ItemName: "Cryptic Axe", Stashed: 1},
+		{ItemKey: "base:glr:normal", ItemName: "Flawless Ruby", Stashed: 8},
+		{ItemKey: "base:gld:normal", ItemName: "Gold", Sold: 3},
+	}
+	var kept HistoryItemsResponse
+	getHistoryJSON(t, server.URL()+"/api/v1/history/items?item_disposition=kept_sold&limit=200", &kept)
+	if len(kept.Items) != 3 || kept.Items[0].ItemKey != "base:7pa:superior" || kept.Meta.Filter.ItemDisposition != telemetry.HistoryItemDispositionKeptSold {
+		t.Fatalf("kept/sold page=%+v filter=%+v", kept.Items, kept.Meta.Filter)
+	}
+	var all HistoryItemsResponse
+	getHistoryJSON(t, server.URL()+"/api/v1/history/items?limit=200", &all)
+	if len(all.Items) != 4 {
+		t.Fatalf("unfiltered page=%d", len(all.Items))
+	}
+	assertHistoryAPIError(t, server.URL()+"/api/v1/history/summary?item_disposition=kept_sold", http.StatusBadRequest, string(telemetry.HistoryReasonFilterInvalid))
+}
+
 func TestHistoryAPIAcceptsSessionFilter(t *testing.T) {
 	server, backend := startAPITestServer(t)
 	backend.history = historyAPIFixture()

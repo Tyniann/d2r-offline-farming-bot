@@ -22,7 +22,11 @@ const (
 	// Blessed Hammer was not enough, but a full 1000 ms leaves a Hell pack
 	// unattended.
 	prebuffRecastSwapSettle = 250 * time.Millisecond
-	ctaRecastAfter          = 150 * time.Second
+	// prebuffFlakeRecoverSettle waits after a confirmation flake before the
+	// one-shot restore to primary. Memory and the skill bar often lag the
+	// last RMB cast by a few hundred milliseconds.
+	prebuffFlakeRecoverSettle = 500 * time.Millisecond
+	ctaRecastAfter            = 150 * time.Second
 )
 
 const (
@@ -135,6 +139,7 @@ const (
 	prebuffRestoreHammer
 	prebuffRestoreConcentration
 	prebuffComplete
+	prebuffRecoverPrimary
 )
 
 type hammerdinPrebuffResult struct {
@@ -146,14 +151,16 @@ type hammerdinPrebuffResult struct {
 // Each Tick consumes one fresh World snapshot and sends at most one semantic
 // input action. Productive consumers may call reset at every game boundary.
 type hammerdinPrebuff struct {
-	input       hammerdinPrebuffInput
-	bindings    configBindingSource
-	selector    *SkillSelector
-	weapon      *weaponSetSelector
-	cta         bool
-	state       hammerdinPrebuffState
-	settleUntil time.Time
-	ctaAnchor   timedCastAnchor
+	input        hammerdinPrebuffInput
+	bindings     configBindingSource
+	selector     *SkillSelector
+	weapon       *weaponSetSelector
+	cta          bool
+	state        hammerdinPrebuffState
+	settleUntil  time.Time
+	ctaAnchor    timedCastAnchor
+	flakeRetried bool
+	slowSettle   bool
 }
 
 func newHammerdinPrebuff(bindings configBindingSource, in hammerdinPrebuffInput, expectCTA bool) (*hammerdinPrebuff, error) {
@@ -197,6 +204,41 @@ func (p *hammerdinPrebuff) reset() {
 	}
 	p.restartSequence()
 	p.ctaAnchor.reset()
+	p.clearFlakeRetry()
+}
+
+func (p *hammerdinPrebuff) clearFlakeRetry() {
+	if p == nil {
+		return
+	}
+	p.flakeRetried = false
+	p.slowSettle = false
+	p.applySettleMode()
+}
+
+func (p *hammerdinPrebuff) applySettleMode() {
+	if p == nil {
+		return
+	}
+	skillTimeout := skillSelectionTimeout
+	swapTimeout := weaponSetTimeout
+	if p.slowSettle {
+		skillTimeout *= 2
+		swapTimeout *= 2
+	}
+	if p.selector != nil {
+		p.selector.timeout = skillTimeout
+	}
+	if p.weapon != nil {
+		p.weapon.timeout = swapTimeout
+	}
+}
+
+func (p *hammerdinPrebuff) scaled(d time.Duration) time.Duration {
+	if p != nil && p.slowSettle {
+		return 2 * d
+	}
+	return d
 }
 
 func (p *hammerdinPrebuff) restartSequence() {
@@ -237,11 +279,23 @@ func (p *hammerdinPrebuff) tick(state world.State, now time.Time) (hammerdinPreb
 		if !p.cta || !p.ctaAnchor.due(now) {
 			return hammerdinPrebuffResult{Done: true}, nil
 		}
+		p.clearFlakeRetry()
 		p.restartSequence()
 		p.settleUntil = now.Add(prebuffRecastSwapSettle)
 		return hammerdinPrebuffResult{}, nil
 	}
 
+	result, err := p.step(state, now)
+	if err != nil {
+		return p.handleStepError(now, err)
+	}
+	if result.Done {
+		p.clearFlakeRetry()
+	}
+	return result, nil
+}
+
+func (p *hammerdinPrebuff) step(state world.State, now time.Time) (hammerdinPrebuffResult, error) {
 	switch p.state {
 	case prebuffConfirmPrimary:
 		if !state.Player.ActiveWeaponSet.Available {
@@ -314,8 +368,54 @@ func (p *hammerdinPrebuff) tick(state world.State, now time.Time) (hammerdinPreb
 		return hammerdinPrebuffResult{Action: selectionAction(p.selector, SkillSlotRight)}, nil
 	case prebuffComplete:
 		return hammerdinPrebuffResult{Done: true}, nil
+	case prebuffRecoverPrimary:
+		confirmed, action, err := p.weapon.ensure(world.WeaponSetPrimary, state.Player.ActiveWeaponSet, state.Generation, now)
+		if err != nil {
+			return hammerdinPrebuffResult{}, fmt.Errorf("%s: %v", reasonPrimaryRestoreFailed, err)
+		}
+		if confirmed {
+			p.restartSequence()
+			p.settleUntil = now.Add(p.scaled(prebuffCastSettle))
+			return hammerdinPrebuffResult{Action: "cta_sequence_restart"}, nil
+		}
+		return hammerdinPrebuffResult{Action: actionName(action, "weapon_set_primary")}, nil
 	default:
 		return hammerdinPrebuffResult{}, fmt.Errorf("hammerdin prebuff invalid state")
+	}
+}
+
+func (p *hammerdinPrebuff) handleStepError(now time.Time, err error) (hammerdinPrebuffResult, error) {
+	if !recoverableCTAFlake(err) {
+		return hammerdinPrebuffResult{}, err
+	}
+	if p.flakeRetried {
+		return hammerdinPrebuffResult{}, fmt.Errorf("%s: retry exhausted: %w", reasonCTASkillUnconfirmed, err)
+	}
+	p.beginFlakeRetry(now)
+	return hammerdinPrebuffResult{Action: "cta_sequence_retry"}, nil
+}
+
+func (p *hammerdinPrebuff) beginFlakeRetry(now time.Time) {
+	p.flakeRetried = true
+	p.slowSettle = true
+	p.applySettleMode()
+	p.selector.Reset()
+	p.weapon.reset()
+	p.state = prebuffRecoverPrimary
+	p.settleUntil = now.Add(p.scaled(prebuffFlakeRecoverSettle))
+}
+
+func recoverableCTAFlake(err error) bool {
+	if err == nil {
+		return false
+	}
+	switch hammerdinPrebuffReason(err) {
+	case reasonCTASkillUnconfirmed, reasonWeaponSetUnconfirmed, reasonWeaponSetUnavailable,
+		reasonHolyShieldUnconfirmed, reasonPrimaryRestoreFailed,
+		reasonBlessedHammerUnconfirmed, reasonConcentrationUnconfirmed:
+		return true
+	default:
+		return false
 	}
 }
 
@@ -334,7 +434,7 @@ func (p *hammerdinPrebuff) castRight(state world.State, now time.Time, skillID u
 	}
 	if sent {
 		p.state = next
-		p.settleUntil = now.Add(castSettleFor(next))
+		p.settleUntil = now.Add(p.scaled(castSettleFor(next)))
 		if anchor {
 			p.ctaAnchor.mark(now)
 		}

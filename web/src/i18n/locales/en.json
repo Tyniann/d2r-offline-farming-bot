@@ -1365,7 +1365,7 @@
   "hammerdin_cta_bindings_incomplete": "Hammerdin CTA bindings incomplete.",
   "weapon_set_read_unavailable": "Weapon set read unavailable.",
   "weapon_set_switch_unconfirmed": "Weapon set switch unconfirmed.",
-  "hammerdin_cta_skill_unconfirmed": "Hammerdin CTA skill unconfirmed.",
+  "hammerdin_cta_skill_unconfirmed": "Call to Arms could not be confirmed after one retry. The session saves, exits the game, and retries the same route.",
   "hammerdin_holy_shield_unconfirmed": "Hammerdin holy shield unconfirmed.",
   "hammerdin_primary_set_restore_failed": "Hammerdin primary set restore failed.",
   "hammerdin_blessed_hammer_unconfirmed": "Hammerdin blessed hammer unconfirmed.",

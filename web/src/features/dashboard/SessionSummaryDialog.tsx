@@ -47,7 +47,7 @@ export function SessionSummaryDialog({ sessionID, durationMs, refreshKey, onClos
     const session = { session: [sessionID] };
     void Promise.all([
       getHistorySummary(session, controller.signal),
-      getHistoryItems({ ...session, limit: 200 }, controller.signal),
+      getHistoryItems({ ...session, limit: 200, item_disposition: "kept_sold" }, controller.signal),
     ]).then(([summary, page]) => {
       if (controller.signal.aborted) return;
       setKeptCount(summary.summary.funnel.keep_return);

@@ -441,6 +441,9 @@
             "$ref": "#/components/parameters/HistorySession"
           },
           {
+            "$ref": "#/components/parameters/HistoryItemDisposition"
+          },
+          {
             "$ref": "#/components/parameters/HistoryLimit"
           },
           {
@@ -1657,6 +1660,16 @@
         },
         "style": "form",
         "explode": true
+      },
+      "HistoryItemDisposition": {
+        "name": "item_disposition",
+        "in": "query",
+        "schema": {
+          "type": "string",
+          "enum": [
+            "kept_sold"
+          ]
+        }
       },
       "HistoryComparisonSort": {
         "name": "sort",
@@ -4064,6 +4077,12 @@
               "keep_per_hour",
               "success_rate",
               "average_duration"
+            ]
+          },
+          "item_disposition": {
+            "type": "string",
+            "enum": [
+              "kept_sold"
             ]
           }
         }

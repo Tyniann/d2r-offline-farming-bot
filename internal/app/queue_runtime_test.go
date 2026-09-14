@@ -352,6 +352,32 @@ func TestBossCombatNoProgressRetriesWhenConfigured(t *testing.T) {
 	}
 }
 
+func TestHammerdinCTASkillUnconfirmedRetriesWhenConfigured(t *testing.T) {
+	t.Parallel()
+
+	stopped, err := classifyFailedQueueRun(context.Background(), "cows", "hammerdin_cta_skill_unconfirmed", []string{"hard_stuck"}, world.State{}, func(context.Context) error {
+		t.Fatal("unconfigured CTA flake must not recover")
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stopped.Disposition != QueueRunStop || stopped.Reason != "hammerdin_cta_skill_unconfirmed" || stopped.ExitAuthorization != ExitAuthorizationNone {
+		t.Fatalf("unconfigured CTA flake = %+v", stopped)
+	}
+
+	field := world.State{Valid: true, Phase: world.GamePhaseInGame, Area: world.LookupArea(world.MooMooFarm)}
+	got, err := classifyFailedQueueRun(context.Background(), "cows", "hammerdin_cta_skill_unconfirmed", []string{"hammerdin_cta_skill_unconfirmed"}, field, func(context.Context) error {
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Disposition != QueueRunRetryCurrent || got.Reason != "hammerdin_cta_skill_unconfirmed" || got.ExitAuthorization != ExitAuthorizationVerifiedRogueTown {
+		t.Fatalf("configured CTA flake = %+v", got)
+	}
+}
+
 func TestCowPortalHoverNotFoundRetriesFromAct1Town(t *testing.T) {
 	t.Parallel()
 

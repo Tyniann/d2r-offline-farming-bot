@@ -30,13 +30,14 @@ Ein Klick auf den Header klappt die nach stabilem Itemkey aggregierte Liste auf.
 
 ### Datenquelle
 
-`last_result.session_id` und `last_result.duration_ms` kommen aus dem Status nach Sessionende. Summary lädt über `GET /api/v1/history/summary?session=…` ohne `limit`; Itemlisten über `GET /api/v1/history/items` mit demselben Sessionfilter und einer Seite bis 200 Zeilen. `limit` ist nur auf den paginierten Listenendpunkten erlaubt. React berechnet keine eigenen Funnel-Zahlen.
+`last_result.session_id` und `last_result.duration_ms` kommen aus dem Status nach Sessionende. Summary lädt über `GET /api/v1/history/summary?session=…` ohne `limit`; Itemlisten über `GET /api/v1/history/items` mit demselben Sessionfilter, `item_disposition=kept_sold` und einer Seite bis 200 Zeilen. Der Dispositionfilter entfernt Identitäten, die nur gesehen und weder verstaut noch verkauft wurden, bevor die Seitengrenze greift. Dadurch verdrängt Kuh-Trash keine aufgehobenen Edelsteine. `limit` ist nur auf den paginierten Listenendpunkten erlaubt. React berechnet keine eigenen Funnel-Zahlen.
 
 ## Datenmodell
 
 - `SupervisorSnapshot.LastSessionID` und `LastSessionDurationMs` überleben das Löschen des aktiven Run-Requests
 - `SessionResultDTO.session_id`, `duration_ms`
 - `HistoryFilter.SessionIDs` als Query `session`
+- `HistoryFilter.ItemDisposition` als Query `item_disposition=kept_sold` nur auf dem Itemendpunkt
 
 ## Operator / CLI
 
@@ -56,4 +57,4 @@ Historienindex, Loopback-API, React-Dialog und i18n DE/EN.
 - [Live-Dashboard](live-dashboard.md)
 
 ---
-*Zuletzt aktualisiert: 2026-08-28*
+*Zuletzt aktualisiert: 2026-09-15*

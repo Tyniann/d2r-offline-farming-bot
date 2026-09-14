@@ -33,6 +33,8 @@ Der gültige leer/leer-Zweig sendet weder `W` noch Battle-Command-/Battle-Orders
 
 Die produktive Queue ruft dieselbe Maschine nach der Wegpunkt-Ankunft auf, unmittelbar bevor die aufgezeichnete Route startet, und danach weiter in jedem `play_route`-Tick. In der Stadt wird nicht gecastet: Battle Command und Battle Orders haben `InTown=false`. CTA vollständig und der 150-Sekunden-Anker noch nicht fällig bedeutet: der Hook endet ohne Input. CTA vollständig und Anker leer oder fällig bedeutet: volle Sequenz inklusive Holy Shield im zweiten Set; ein gehaltener Hammer-Angriff wird vorher gelöst, danach wartet der Bot 250 ms bevor `W` das Sekundärset anwählt. Ohne CTA wird Holy Shield einmal pro Spielgeneration im Primärset gewirkt. Der 150-Sekunden-Anker wird erst nach dem tatsächlich autorisierten zweiten Battle-Command-Cast gesetzt. Ein Game- oder Generations-Reset sowie Menu-/Loading-Phasen löschen Timer, Pending Selection und Weapon-Swap-Zustand.
 
+Ein nicht bestätigtes Waffenset oder eine nicht bestätigte CTA-/Holy-Shield-/Kampfslot-Auswahl beendet die Sequenz nicht mehr beim ersten Fehlschlag. Der Bot stellt zuerst das Primärset wieder her, wartet mit verdoppelten Settle- und Bestätigungsfristen und startet denselben Ablauf genau einmal neu. Scheitert auch dieser Versuch, endet der Run mit `hammerdin_cta_skill_unconfirmed`. Frische und unveränderte Default-Retry-Listen machen daraus Save & Exit und denselben Queue-Index, nicht das Sessionende.
+
 ### Standardangriff
 
 Nach dem Wegpunkt wartet die Pipeline auf eine gesetzte Ankunft im Kampfgebiet (InGame, drei frische Snapshots, drei Sekunden Settle), bevor CTA/Holy Shield startet. Sticky `WaypointOpen` blockiert diese Ankunft nicht. Eine nur gemeldete Ziel-Area während des Ladebildschirms reicht nicht.
@@ -115,4 +117,4 @@ Live-Beleg 16.08.2026, Charakter `MrHammer`: `d2rbot-20260816-184632.log` und `d
 - [Route-Threat-Combat](route-threat-combat.md)
 
 ---
-*Zuletzt aktualisiert: 2026-08-29*
+*Zuletzt aktualisiert: 2026-09-15*

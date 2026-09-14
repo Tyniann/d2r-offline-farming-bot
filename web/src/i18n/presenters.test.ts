@@ -67,6 +67,14 @@ describe("semantische Presenter", () => {
     expect(presentHistoryReason("cow_akara_interaction_failed", i18n.t)).toBe("Akara was too far away to buy the recipe tome.");
   });
 
+  it("übersetzt den Hammerdin-CTA-Abbruch in Session-Dialog und Historie", async () => {
+    expect(presentProblem({ code: "hammerdin_cta_skill_unconfirmed" }, i18n.t)).toBe("Call to Arms konnte nach einem Wiederholungsversuch nicht bestätigt werden. Die Session speichert, verlässt das Spiel und startet denselben Versuch neu.");
+    expect(presentHistoryReason("hammerdin_cta_skill_unconfirmed", i18n.t)).toBe("Call to Arms konnte nach einem Wiederholungsversuch nicht bestätigt werden. Die Session speichert, verlässt das Spiel und startet denselben Versuch neu.");
+    await changeAppLanguage("en");
+    expect(presentProblem({ code: "hammerdin_cta_skill_unconfirmed" }, i18n.t)).toBe("Call to Arms could not be confirmed after one retry. The session saves, exits the game, and retries the same route.");
+    expect(presentHistoryReason("hammerdin_cta_skill_unconfirmed", i18n.t)).toBe("Call to Arms could not be confirmed after one retry. The session saves, exits the game, and retries the same route.");
+  });
+
   it("übersetzt den Cow-Portal-Hover-Abbruch in Session-Dialog und Historie", async () => {
     expect(presentProblem({ code: "cow_portal_hover_not_found" }, i18n.t)).toBe("Das Kuh-Portal konnte nicht sicher angeklickt werden. Die Session speichert, verlässt das Spiel und startet denselben Versuch neu.");
     expect(presentHistoryReason("cow_portal_hover_not_found", i18n.t)).toBe("Das Kuh-Portal konnte nicht sicher angeklickt werden. Die Session speichert, verlässt das Spiel und startet denselben Versuch neu.");

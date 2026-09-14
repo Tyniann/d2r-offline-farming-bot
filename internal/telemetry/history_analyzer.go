@@ -10,17 +10,18 @@ import (
 
 // HistoryFilter ist der kanonische Core-Filter für alle Historienprojektionen.
 type HistoryFilter struct {
-	FromUTC        *time.Time
-	ToUTC          *time.Time
-	Timezone       string
-	Runs           []string
-	Characters     []string
-	Difficulties   []string
-	Outcomes       []HistoryOutcome
-	Reasons        []string
-	PickitProfiles []string
-	SessionIDs     []string
-	Sort           HistorySort
+	FromUTC         *time.Time
+	ToUTC           *time.Time
+	Timezone        string
+	Runs            []string
+	Characters      []string
+	Difficulties    []string
+	Outcomes        []HistoryOutcome
+	Reasons         []string
+	PickitProfiles  []string
+	SessionIDs      []string
+	Sort            HistorySort
+	ItemDisposition HistoryItemDisposition
 }
 
 // HistoryDailyBucket enthält ausschließlich Core-berechnete Werte eines lokalen Kalendertags.
@@ -285,7 +286,26 @@ func validateHistoryFilter(filter HistoryFilter) error {
 	if filter.Sort != "" && filter.Sort != HistorySortKeepPerHour && filter.Sort != HistorySortSuccessRate && filter.Sort != HistorySortAverageDuration {
 		return historyReadError(HistoryReasonFilterInvalid, "unknown history sort %q", filter.Sort)
 	}
+	switch filter.ItemDisposition {
+	case "", HistoryItemDispositionKeptSold:
+	default:
+		return historyReadError(HistoryReasonFilterInvalid, "unknown item disposition %q", filter.ItemDisposition)
+	}
 	return nil
+}
+
+// SelectHistoryItems liefert die Analyzer-Itemliste, optional nur Identitäten mit Stash- oder Verkaufszählern.
+func SelectHistoryItems(items []HistoryItemAggregate, disposition HistoryItemDisposition) []HistoryItemAggregate {
+	if disposition != HistoryItemDispositionKeptSold {
+		return items
+	}
+	out := make([]HistoryItemAggregate, 0, len(items))
+	for _, item := range items {
+		if item.Stashed > 0 || item.Sold > 0 {
+			out = append(out, item)
+		}
+	}
+	return out
 }
 
 func historyRunMatches(run HistoryRun, filter HistoryFilter) bool {
