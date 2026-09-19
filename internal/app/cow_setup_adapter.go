@@ -172,6 +172,8 @@ func (a *cowSetupAdapter) TickWirt(ctx context.Context, state world.State) tasks
 		return tasks.CowSetupActionResult{}
 	}
 	if result.Done {
+		// The pipeline returns to town first. session.retry_classes then Save & Exits
+		// and retries the same queue index instead of fighting in Tristram.
 		return tasks.CowSetupActionResult{Done: true, Reason: "cow_wirt_hover_failed"}
 	}
 	return tasks.CowSetupActionResult{}

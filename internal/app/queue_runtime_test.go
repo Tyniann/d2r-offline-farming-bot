@@ -406,6 +406,34 @@ func TestCowPortalHoverNotFoundRetriesFromAct1Town(t *testing.T) {
 	}
 }
 
+func TestCowWirtHoverFailedRetriesFromAct1Town(t *testing.T) {
+	t.Parallel()
+
+	stopped, err := classifyFailedQueueRun(context.Background(), "cows", "cow_wirt_hover_failed", []string{"hard_stuck"}, world.State{}, func(context.Context) error {
+		t.Fatal("unconfigured cow wirt hover miss must not recover")
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stopped.Disposition != QueueRunStop || stopped.Reason != "cow_wirt_hover_failed" || stopped.ExitAuthorization != ExitAuthorizationNone {
+		t.Fatalf("unconfigured cow wirt hover = %+v", stopped)
+	}
+
+	called := false
+	town := world.State{Valid: true, Phase: world.GamePhaseInGame, Area: world.LookupArea(world.RogueEncampment)}
+	got, err := classifyFailedQueueRun(context.Background(), "cows", "cow_wirt_hover_failed", []string{"cow_wirt_hover_failed"}, town, func(context.Context) error {
+		called = true
+		return errors.New("must not recast a town portal from Act 1")
+	})
+	if err != nil || called {
+		t.Fatalf("cow wirt hover recovered through portal return: result=%+v err=%v called=%t", got, err, called)
+	}
+	if got.Disposition != QueueRunRetryCurrent || got.Reason != "cow_wirt_hover_failed" || got.ExitAuthorization != ExitAuthorizationVerifiedRogueTown {
+		t.Fatalf("configured cow wirt hover = %+v", got)
+	}
+}
+
 func TestRuntimeQueueRunnerStopsBeforeRunWhenSkillsMissing(t *testing.T) {
 	var events []string
 	runner := &RuntimeQueueRunner{newUnit: func(runID string) (queueRunUnit, error) {

@@ -83,6 +83,14 @@ describe("semantische Presenter", () => {
     expect(presentHistoryReason("cow_portal_hover_not_found", i18n.t)).toBe("The Cow Level portal could not be clicked safely. The session saves, exits the game, and retries the same route.");
   });
 
+  it("übersetzt den Wirt-Hover-Abbruch in Session-Dialog und Historie", async () => {
+    expect(presentProblem({ code: "cow_wirt_hover_failed" }, i18n.t)).toBe("Wirts Körper konnte nicht sicher angeklickt werden. Die Session speichert, verlässt das Spiel und startet denselben Versuch neu.");
+    expect(presentHistoryReason("cow_wirt_hover_failed", i18n.t)).toBe("Wirts Körper konnte nicht sicher angeklickt werden. Die Session speichert, verlässt das Spiel und startet denselben Versuch neu.");
+    await changeAppLanguage("en");
+    expect(presentProblem({ code: "cow_wirt_hover_failed" }, i18n.t)).toBe("Wirt's body could not be clicked safely. The session saves, exits the game, and retries the same route.");
+    expect(presentHistoryReason("cow_wirt_hover_failed", i18n.t)).toBe("Wirt's body could not be clicked safely. The session saves, exits the game, and retries the same route.");
+  });
+
   it("übersetzt Difficulty, Run, Klasse und eingebautes Profil", async () => {
     expect([presentDifficultyName("nightmare", i18n.t), presentRunName("countess", i18n.t), presentClassName("necromancer", i18n.t), presentProfileName("necro_bone_spear", "Fallback", i18n.t)]).toEqual(["Alptraum", "Gräfin", "Totenbeschwörer", "Knochen-Totenbeschwörer"]);
     await changeAppLanguage("en");

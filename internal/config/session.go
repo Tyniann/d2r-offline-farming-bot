@@ -21,6 +21,7 @@ var supportedSessionRetryClasses = map[string]struct{}{
 	"boss_combat_no_progress":         {},
 	"cow_portal_hover_not_found":      {},
 	"hammerdin_cta_skill_unconfirmed": {},
+	"cow_wirt_hover_failed":           {},
 }
 
 var legacySessionRetryClasses = []string{
@@ -76,11 +77,21 @@ var phase28SessionRetryClasses = []string{
 	"boss_combat_no_progress", "cow_portal_hover_not_found",
 }
 
+// phase29SessionRetryClasses is the exact default list shipped before a Cow
+// Wirt body hover miss became retryable after the setup return to town.
+var phase29SessionRetryClasses = []string{
+	"hard_stuck", "route_drift_exceeded", "route_segment_timeout", "route_transition_failed",
+	"route_clear_no_progress", "route_threat_out_of_range", "route_mana_recovery_failed", "route_recovery_unsafe",
+	"boss_combat_unprojectable", "cow_combat_no_progress", "stash_approach_failed",
+	"boss_combat_no_progress", "cow_portal_hover_not_found", "hammerdin_cta_skill_unconfirmed",
+}
+
 var defaultSessionRetryClasses = []string{
 	"hard_stuck", "route_drift_exceeded", "route_segment_timeout", "route_transition_failed",
 	"route_clear_no_progress", "route_threat_out_of_range", "route_mana_recovery_failed", "route_recovery_unsafe",
 	"boss_combat_unprojectable", "cow_combat_no_progress", "stash_approach_failed",
 	"boss_combat_no_progress", "cow_portal_hover_not_found", "hammerdin_cta_skill_unconfirmed",
+	"cow_wirt_hover_failed",
 }
 
 // SessionConfig defines finite budgets and static selection for an autonomous
@@ -159,7 +170,7 @@ func (c *SessionConfig) applyDefaults() {
 	} else if equalStrings(c.RetryClasses, legacySessionRetryClasses) || equalStrings(c.RetryClasses, phase17SessionRetryClasses) ||
 		equalStrings(c.RetryClasses, phase19SessionRetryClasses) || equalStrings(c.RetryClasses, phase25SessionRetryClasses) ||
 		equalStrings(c.RetryClasses, phase26SessionRetryClasses) || equalStrings(c.RetryClasses, phase27SessionRetryClasses) ||
-		equalStrings(c.RetryClasses, phase28SessionRetryClasses) {
+		equalStrings(c.RetryClasses, phase28SessionRetryClasses) || equalStrings(c.RetryClasses, phase29SessionRetryClasses) {
 		// Exact prior defaults are safe to migrate. Any reordered, reduced, or
 		// extended list is an operator decision and stays untouched.
 		c.RetryClasses = append([]string(nil), defaultSessionRetryClasses...)

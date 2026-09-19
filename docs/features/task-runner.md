@@ -82,7 +82,7 @@ Loot-Ziel, Fremdakt-Rückweg und Travel-Resume bleiben dynamische Abzweigungen u
 
 `cow_preflight -> cow_town_ready_profile -> cow_acquire_town_waypoint -> cow_open_waypoint -> cow_select_stony_field -> cow_wait_stony_field -> cow_play_leg_acquisition -> cow_open_wirt -> cow_pickup_leg -> cow_cast_return_portal -> cow_enter_return_portal -> cow_wait_rogue_encampment -> cow_buy_recipe_tome -> cow_setup_gate_complete -> cow_portal_recipe -> cow_recipe_gate_complete -> cow_play_cow_sweep -> cow_sweep_gate_complete -> cast_town_portal -> enter_town_portal -> wait_origin_town -> open_personal_stash -> stash_items -> close_personal_stash -> prepare_town_handoff -> complete`
 
-Die Cow-Pipeline sperrt die automatische Runner-Profil- und Safety-Eingabe, weil jeder Setup-Schritt genau einen eigenen Input-Eigentümer besitzt. `cow_play_leg_acquisition` delegiert die reine Wiedergabe an den vorhandenen RoutePlayer, lässt Route-Combat wegen des fehlenden autoritativen LOS-Modells für Stony-/Tristram-Hausgeometrie aber deaktiviert. Route-, Drift-, Stuck-, Timeout- und Portal-Gates bleiben aktiv; Setup-Route-Loot ist ebenfalls ausgeschaltet. Wirt-/Leg-Fehler kehren vor dem terminalen Ergebnis nach Town zurück; ein endgültiger Portalrückkehrfehler fordert genau einen supervisor-eigenen Save-&-Exit-Fallback an.
+Die Cow-Pipeline sperrt die automatische Runner-Profil- und Safety-Eingabe, weil jeder Setup-Schritt genau einen eigenen Input-Eigentümer besitzt. `cow_play_leg_acquisition` delegiert die reine Wiedergabe an den vorhandenen RoutePlayer, lässt Route-Combat wegen des fehlenden autoritativen LOS-Modells für Stony-/Tristram-Hausgeometrie aber deaktiviert. Route-, Drift-, Stuck-, Timeout- und Portal-Gates bleiben aktiv; Setup-Route-Loot ist ebenfalls ausgeschaltet. Wirt-/Leg-Fehler kehren vor dem terminalen Ergebnis nach Town zurück. `cow_wirt_hover_failed` wird dort über `session.retry_classes` zu Save & Exit und demselben Queue-Index; ein endgültiger Portalrückkehrfehler fordert genau einen supervisor-eigenen Save-&-Exit-Fallback an.
 
 `cow_portal_recipe` besitzt eine interne lineare Unter-State-Machine, bleibt für den Runner aber genau ein Step und ein Input-Eigentümer. Die im Preflight gebundene Cube-UnitID sowie die später gebundenen Leg-/Tome-UnitIDs werden unverändert übergeben. Erfolg ist erst nach exakt einem Memory-gegateten Transmute, bestätigtem Verbrauch beider Zutaten, drei stabilen Snapshots der neuen Permanent-Portal-UnitID, hover-bestätigtem Eintritt und Area 39 möglich. Ein terminaler Zustand nach Transmute kann keinen zweiten Klick auslösen.
 
@@ -182,4 +182,4 @@ JSONL-Transitionen `run_step_started`, `run_step_completed` und `run_step_failed
 - [Notfall-Recovery für Run und Spielstart](emergency-run-recovery.md)
 
 ---
-*Zuletzt aktualisiert: 2026-08-28*
+*Zuletzt aktualisiert: 2026-09-19*
