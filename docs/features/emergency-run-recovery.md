@@ -25,7 +25,7 @@ Nach `cleared` oder einem ausgeschöpften, aber technisch sauberen Clear telepor
 
 Scheitert auch der einzige Portal-Retry, bleibt der produktive Fehler in `original_reason` erhalten; die Rückkehrursache steht getrennt in `recovery_reason`. Der Queue-Runner autorisiert den direkten Exit nur aus einem weiterhin gültigen, gebundenen Offline-In-Game-Kontext. Derselbe zentrale Save-&-Exit-Automat öffnet das bestätigte Quit-Menü und klickt einmal auf „Speichern & Beenden“. Ein bestätigter Exit erzeugt einen abgebrochenen Run und erlaubt innerhalb der Session-Budgets einen Neustart am selben Queue-Index. Ein nicht bestätigter Exit beendet die Session als Fehler und startet kein neues Spiel.
 
-Ein produktives `enter_town_portal` mit `town_portal_enter_failed` nimmt denselben Direkt-Exit, ohne `retry-return` und ohne erneutes Portal. Der einmalige Teleport-Workaround im Step bleibt; danach folgt Save & Exit aus dem bestätigten Routengebiet und derselbe Queue-Index. Bodenitems auf dem Portal bleiben liegen.
+Ein produktives `enter_town_portal` mit `town_portal_enter_failed` nimmt denselben Direkt-Exit, ohne `retry-return` und ohne erneutes Portal. Der einmalige Teleport-Workaround im Step bleibt; danach folgt Save & Exit aus dem bestätigten Routengebiet und derselbe Queue-Index. Bodenitems auf dem Portal bleiben liegen. `cow_return_portal_failed` nach dem zweiten Tristram-Rückkehrklick folgt demselben Direkt-Exit aus dem aktuellen Gebiet.
 
 ### Normalisierung eines neuen Spiels
 
@@ -60,4 +60,4 @@ Die Recovery verwendet ausschließlich das konsistente World Model, das aktive K
 - [Session-Recovery und Lifecycle-Telemetrie](session-recovery-telemetry.md)
 
 ---
-*Zuletzt aktualisiert: 28. August 2026*
+*Zuletzt aktualisiert: 2026-09-20*

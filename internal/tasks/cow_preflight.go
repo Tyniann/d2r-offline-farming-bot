@@ -18,6 +18,7 @@ const (
 	CowReasonCubeUnprotected         = "cow_cube_unprotected"
 	CowReasonCubeNotEmpty            = "cow_cube_not_empty"
 	CowReasonExistingLeg             = "cow_existing_leg"
+	CowReasonLegDropFailed           = "cow_leg_drop_failed"
 	CowReasonInventorySpaceMissing   = "cow_inventory_space_missing"
 	CowReasonReturnPortalUnavailable = "cow_return_portal_unavailable"
 	CowReasonCombatSkillMissing      = "cow_combat_skill_missing"
@@ -126,6 +127,33 @@ func evaluateCowPreflight(cfg CowConfig, state world.State, setupRouteID, sweepR
 		return CowReasonCombatSkillMissing, cowPreflightSignature(state)
 	}
 	return "", cowPreflightSignature(state)
+}
+
+func cowPersonalInventoryLegs(state world.State) []world.Item {
+	legs := make([]world.Item, 0, 1)
+	for _, item := range state.Items {
+		if item.Code == "leg" && item.Location == world.ItemLocationInventory && item.PlayerOwned && item.Page == 0 && validInventoryFootprint(item) {
+			legs = append(legs, item)
+		}
+	}
+	return legs
+}
+
+func cowVisibleNonDroppableLeg(state world.State) bool {
+	for _, item := range state.Items {
+		if item.Code != "leg" || !visibleCowItemLocation(item.Location) {
+			continue
+		}
+		if item.Location == world.ItemLocationInventory && item.PlayerOwned && item.Page == 0 && validInventoryFootprint(item) {
+			continue
+		}
+		return true
+	}
+	return false
+}
+
+func cowInventoryLeftoverDroppable(state world.State) bool {
+	return len(cowPersonalInventoryLegs(state)) > 0 && !cowVisibleNonDroppableLeg(state)
 }
 
 func visibleCowItemLocation(location world.ItemLocation) bool {

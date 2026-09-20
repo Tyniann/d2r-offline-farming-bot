@@ -456,7 +456,7 @@ func (t *traceTown) Tick(ctx context.Context, state world.State) tasks.TownPrepa
 	recordResult(t.recorder, "town.tick", nil, map[string]any{"status": result.Status, "reason": result.Reason, "done": result.Done}, nil)
 	return result
 }
-func (t *traceTown) Reset() { t.next.Reset() }
+func (t *traceTown) Reset()                         { t.next.Reset() }
 func (t *traceTown) AllowIntervalRepair(allow bool) { t.next.AllowIntervalRepair(allow) }
 
 type traceCow struct {
@@ -468,6 +468,11 @@ func (t *traceCow) TickWirt(ctx context.Context, state world.State) tasks.CowSet
 	result := t.next.TickWirt(ctx, state)
 	recordResult(t.recorder, "cow.tick_wirt", nil, cowResult(result), nil)
 	recordIntent(t.recorder, "cow_wirt", map[string]any{"unit_id": result.UnitID}, result.ProgressKind != "", nil)
+	return result
+}
+func (t *traceCow) TickDropLeftoverLeg(ctx context.Context, state world.State) tasks.CowSetupActionResult {
+	result := t.next.TickDropLeftoverLeg(ctx, state)
+	recordResult(t.recorder, "cow.tick_drop_leftover_leg", nil, cowResult(result), nil)
 	return result
 }
 func (t *traceCow) TickTome(ctx context.Context, state world.State) tasks.CowSetupActionResult {

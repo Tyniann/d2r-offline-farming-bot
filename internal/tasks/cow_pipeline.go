@@ -12,6 +12,7 @@ import (
 
 const (
 	cowStepPreflight       = "cow_preflight"
+	cowStepDiscardLeg      = "cow_discard_existing_leg"
 	cowStepTownReady       = "cow_town_ready_profile"
 	cowStepAcquireWaypoint = "cow_acquire_town_waypoint"
 	cowStepOpenWaypoint    = "cow_open_waypoint"
@@ -48,6 +49,8 @@ type cowPipeline struct {
 	pickupFinished  bool
 	legMissingTicks int
 	pendingFailure  string
+	pendingLegDrop  bool
+	returnRetry     cowReturnRetry
 }
 
 func newCowPipeline(definition RunDefinition, cfg RunConfig) *cowPipeline {
@@ -69,6 +72,11 @@ func (c *cowPipeline) firstStep() string { return cowStepPreflight }
 func (c *cowPipeline) nextStep(step string) string {
 	switch step {
 	case cowStepPreflight:
+		if c.pendingLegDrop {
+			return cowStepDiscardLeg
+		}
+		return cowStepTownReady
+	case cowStepDiscardLeg:
 		return cowStepTownReady
 	case cowStepTownReady:
 		return cowStepAcquireWaypoint
@@ -129,6 +137,8 @@ func (c *cowPipeline) timeoutReason(step string) string {
 	switch step {
 	case cowStepPreflight:
 		return CowReasonCapabilityMissing
+	case cowStepDiscardLeg:
+		return CowReasonLegDropFailed
 	case cowStepOpenWirt:
 		return "cow_wirt_unavailable"
 	case cowStepPickupLeg:
@@ -189,6 +199,8 @@ func (c *cowPipeline) resetGeneration() {
 	c.pickupFinished = false
 	c.legMissingTicks = 0
 	c.pendingFailure = ""
+	c.pendingLegDrop = false
+	c.returnRetry = cowReturnRetry{}
 }
 
 func (c *cowPipeline) onTick(ctx context.Context, deps Deps, step string, state world.State, now, stepStartedAt time.Time, _ int) stepResult {
@@ -204,7 +216,9 @@ func (c *cowPipeline) onTick(ctx context.Context, deps Deps, step string, state 
 		if !done {
 			return stepResult{}
 		}
-		if reason != "" {
+		if reason == CowReasonExistingLeg && cowInventoryLeftoverDroppable(state) {
+			c.pendingLegDrop = true
+		} else if reason != "" {
 			return stepResult{failed: true, reason: reason}
 		}
 		for _, item := range state.InventoryItems() {
@@ -216,6 +230,25 @@ func (c *cowPipeline) onTick(ctx context.Context, deps Deps, step string, state 
 		if c.cubeUnitID == 0 {
 			return stepResult{failed: true, reason: CowReasonCubeMissing}
 		}
+		return stepResult{complete: true}
+	case cowStepDiscardLeg:
+		if deps.Cow == nil {
+			return stepResult{failed: true, reason: CowReasonCapabilityMissing}
+		}
+		if !c.pendingLegDrop {
+			return stepResult{complete: true}
+		}
+		result := deps.Cow.TickDropLeftoverLeg(ctx, state)
+		if !result.Done {
+			return stepResult{}
+		}
+		if result.Reason != "" {
+			return stepResult{failed: true, reason: result.Reason}
+		}
+		if !cowInventoryCanFitBoth(c.config.Cow.InventoryLocked, state.InventoryItems()) {
+			return stepResult{failed: true, reason: CowReasonInventorySpaceMissing}
+		}
+		c.pendingLegDrop = false
 		return stepResult{complete: true}
 	case cowStepTownReady:
 		if deps.Profile == nil {
@@ -315,12 +348,10 @@ func (c *cowPipeline) onTick(ctx context.Context, deps Deps, step string, state 
 		if result.Status != pathing.TownPortalActionClicked {
 			return stepResult{failed: true, reason: "cow_return_portal_failed"}
 		}
+		c.pinReturnPortal(state)
 		return stepResult{complete: true}
 	case cowStepWaitRogue:
-		if state.Valid && state.Area.ID == world.RogueEncampment {
-			return stepResult{complete: true}
-		}
-		return stepResult{}
+		return c.tickWaitRogue(ctx, deps, state, now)
 	case cowStepBuyTome:
 		if deps.Cow == nil {
 			return stepResult{failed: true, reason: CowReasonCapabilityMissing}

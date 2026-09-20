@@ -146,7 +146,7 @@ func TestCowPipelineReturnsThroughSharedTownHandoffAfterSweep(t *testing.T) {
 func TestCowPipelineStepsHaveStableHistoryStages(t *testing.T) {
 	tests := map[telemetry.HistoryStage][]string{
 		telemetry.HistoryStageTravel: {
-			cowStepPreflight, cowStepTownReady, cowStepAcquireWaypoint, cowStepOpenWaypoint, cowStepSelectStony,
+			cowStepPreflight, cowStepDiscardLeg, cowStepTownReady, cowStepAcquireWaypoint, cowStepOpenWaypoint, cowStepSelectStony,
 			cowStepWaitStony, cowStepPlayLegRoute, cowStepOpenWirt, cowStepPortalRecipe, cowStepRecipeComplete,
 		},
 		telemetry.HistoryStageLoot: {cowStepPickupLeg},
@@ -172,8 +172,8 @@ func TestCowPipelineStepsHaveStableHistoryStages(t *testing.T) {
 			seen[step] = stage
 		}
 	}
-	if len(seen) != 27 {
-		t.Fatalf("mapped Cow lifecycle steps=%d, want 27", len(seen))
+	if len(seen) != 28 {
+		t.Fatalf("mapped Cow lifecycle steps=%d, want 28", len(seen))
 	}
 }
 
@@ -300,5 +300,113 @@ func TestCowSweepSettlesMooMooArrivalBeforePlayback(t *testing.T) {
 	}
 	if result := pipeline.onTick(context.Background(), Deps{}, cowStepSweep, state, now, now, 0); result.complete || result.failed {
 		t.Fatalf("first Moo Moo snapshot result=%+v, want pending settle", result)
+	}
+}
+
+func TestCowWaitRogueRetriesPinnedPortalWithoutRecast(t *testing.T) {
+	pipeline := &cowPipeline{returnRetry: cowReturnRetry{portalUnitID: 131, portalPos: world.Position{X: 25050, Y: 5180}}}
+	portal := &mockTownPortalActions{}
+	combat := &mockCombatActions{}
+	now := time.Date(2026, 9, 20, 11, 17, 30, 0, time.UTC)
+	player := world.Position{X: 25050, Y: 5180}
+	portalPos := world.Position{X: 25050, Y: 5180}
+
+	for i := 0; i < 3; i++ {
+		at := now.Add(time.Duration(i) * 200 * time.Millisecond)
+		result := pipeline.onTick(context.Background(), Deps{Portal: portal, Combat: combat}, cowStepWaitRogue, cowTristramPortalState(at, uint64(i+1), player, portalPos), at, now, 0)
+		if result.complete || result.failed {
+			t.Fatalf("observe tick %d=%+v", i, result)
+		}
+	}
+	ready := now.Add(portalDestinationGrace)
+	result := pipeline.onTick(context.Background(), Deps{Portal: portal, Combat: combat}, cowStepWaitRogue, cowTristramPortalState(ready, 4, player, portalPos), ready, now, 0)
+	if result.complete || result.failed || combat.teleportCalls != 0 {
+		t.Fatalf("nearby portal started teleport: result=%+v teleports=%d", result, combat.teleportCalls)
+	}
+
+	settled := ready.Add(lootRepositionRetryDelay + time.Millisecond)
+	result = pipeline.onTick(context.Background(), Deps{Portal: portal, Combat: combat}, cowStepWaitRogue, cowTristramPortalState(settled, 5, player, portalPos), settled, now, 0)
+	if result.complete || result.failed || portal.resets != 1 {
+		t.Fatalf("settle result=%+v resets=%d", result, portal.resets)
+	}
+
+	clicked := settled.Add(time.Millisecond)
+	result = pipeline.onTick(context.Background(), Deps{Portal: portal, Combat: combat}, cowStepWaitRogue, cowTristramPortalState(clicked, 6, player, portalPos), clicked, now, 0)
+	if result.complete || result.failed || portal.calls != 1 || pipeline.returnRetry.phase != cowReturnRetryWait {
+		t.Fatalf("retry click=%+v calls=%d phase=%q", result, portal.calls, pipeline.returnRetry.phase)
+	}
+
+	town := cowTristramPortalState(clicked.Add(time.Second), 7, player, portalPos)
+	town.Area = world.LookupArea(world.RogueEncampment)
+	if result = pipeline.onTick(context.Background(), Deps{Portal: portal, Combat: combat}, cowStepWaitRogue, town, clicked.Add(time.Second), now, 0); !result.complete || result.failed {
+		t.Fatalf("town arrival=%+v", result)
+	}
+}
+
+func TestCowWaitRogueTeleportsWhenStillAwayFromPinnedPortal(t *testing.T) {
+	pipeline := &cowPipeline{returnRetry: cowReturnRetry{portalUnitID: 131, portalPos: world.Position{X: 25100, Y: 5200}}}
+	combat := &mockCombatActions{}
+	now := time.Date(2026, 9, 20, 11, 18, 0, 0, time.UTC)
+	player := world.Position{X: 25000, Y: 5100}
+	portalPos := world.Position{X: 25100, Y: 5200}
+	for i := 0; i < 3; i++ {
+		at := now.Add(time.Duration(i) * 200 * time.Millisecond)
+		_ = pipeline.onTick(context.Background(), Deps{Combat: combat, Portal: &mockTownPortalActions{}}, cowStepWaitRogue, cowTristramPortalState(at, uint64(i+1), player, portalPos), at, now, 0)
+	}
+	ready := now.Add(portalDestinationGrace)
+	result := pipeline.onTick(context.Background(), Deps{Combat: combat, Portal: &mockTownPortalActions{}}, cowStepWaitRogue, cowTristramPortalState(ready, 4, player, portalPos), ready, now, 0)
+	if result.complete || result.failed || pipeline.returnRetry.phase != cowReturnTeleport {
+		t.Fatalf("far portal phase=%q result=%+v", pipeline.returnRetry.phase, result)
+	}
+	result = pipeline.onTick(context.Background(), Deps{Combat: combat, Portal: &mockTownPortalActions{}}, cowStepWaitRogue, cowTristramPortalState(ready.Add(time.Millisecond), 5, player, portalPos), ready.Add(time.Millisecond), now, 0)
+	if result.failed || combat.teleportCalls != 1 || combat.lastTeleportTarget != portalPos {
+		t.Fatalf("teleport result=%+v calls=%d target=%v", result, combat.teleportCalls, combat.lastTeleportTarget)
+	}
+}
+
+func TestCowPreflightInventoryLegStartsDiscardInsteadOfStop(t *testing.T) {
+	cfg, state := validCowPreflightFixture()
+	addVisibleLeg(world.ItemLocationInventory)(&cfg, &state)
+	pipeline := newCowPipeline(RunDefinition{}, RunConfig{SetupRouteID: "setup", RouteID: "sweep", Cow: cfg})
+	now := time.Date(2026, 9, 20, 12, 0, 0, 0, time.UTC)
+	inputs := &cowInputCounter{}
+	cow := &cowActionCounter{}
+	for generation := uint64(1); generation <= 3; generation++ {
+		state.Generation = generation
+		result := pipeline.onTick(context.Background(), Deps{Input: inputs, Cow: cow}, cowStepPreflight, state, now.Add(time.Duration(generation)*time.Millisecond), now, 0)
+		if generation < 3 && (result.complete || result.failed) {
+			t.Fatalf("preflight generation %d=%+v", generation, result)
+		}
+		if generation == 3 && (!result.complete || result.failed || !pipeline.pendingLegDrop) {
+			t.Fatalf("inventory leftover preflight=%+v pending=%t", result, pipeline.pendingLegDrop)
+		}
+	}
+	if got := pipeline.nextStep(cowStepPreflight); got != cowStepDiscardLeg {
+		t.Fatalf("next after leftover preflight=%q", got)
+	}
+	if result := pipeline.onTick(context.Background(), Deps{Input: inputs, Cow: cow}, cowStepDiscardLeg, state, now.Add(time.Second), now, 0); !result.complete || result.failed || cow.calls != 1 || pipeline.pendingLegDrop {
+		t.Fatalf("discard result=%+v calls=%d pending=%t", result, cow.calls, pipeline.pendingLegDrop)
+	}
+}
+
+func TestCowPreflightStashLegStillStops(t *testing.T) {
+	cfg, state := validCowPreflightFixture()
+	addVisibleLeg(world.ItemLocationStash)(&cfg, &state)
+	pipeline := newCowPipeline(RunDefinition{}, RunConfig{SetupRouteID: "setup", RouteID: "sweep", Cow: cfg})
+	now := time.Now()
+	for generation := uint64(1); generation <= 3; generation++ {
+		state.Generation = generation
+		result := pipeline.onTick(context.Background(), Deps{Input: &cowInputCounter{}}, cowStepPreflight, state, now, now, 0)
+		if generation == 3 && (!result.failed || result.reason != CowReasonExistingLeg || pipeline.pendingLegDrop) {
+			t.Fatalf("stash leftover=%+v pending=%t", result, pipeline.pendingLegDrop)
+		}
+	}
+}
+
+func cowTristramPortalState(at time.Time, generation uint64, player, portal world.Position) world.State {
+	return world.State{
+		At: at, Generation: generation, Valid: true, Phase: world.GamePhaseInGame,
+		Area: world.LookupArea(world.Tristram), Player: world.Player{Position: player},
+		Objects: []world.Object{{Kind: world.ObjectKindTownPortal, UnitID: 131, Position: portal, Name: "Town Portal"}},
 	}
 }

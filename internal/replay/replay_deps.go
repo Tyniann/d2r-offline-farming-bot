@@ -319,11 +319,14 @@ type replayTown struct{ deps *replayDependencies }
 func (t replayTown) Tick(ctx context.Context, state world.State) tasks.TownPreparationResult {
 	return t.deps.TickTown(ctx, state)
 }
-func (t replayTown) Reset()                    {}
+func (t replayTown) Reset()                   {}
 func (t replayTown) AllowIntervalRepair(bool) {}
 
 func (d *replayDependencies) TickWirt(context.Context, world.State) tasks.CowSetupActionResult {
 	return decodeCowResult(d.consume("cow.tick_wirt"))
+}
+func (d *replayDependencies) TickDropLeftoverLeg(context.Context, world.State) tasks.CowSetupActionResult {
+	return decodeCowResult(d.consume("cow.tick_drop_leftover_leg"))
 }
 func (d *replayDependencies) TickTome(context.Context, world.State) tasks.CowSetupActionResult {
 	return decodeCowResult(d.consume("cow.tick_tome"))

@@ -20,6 +20,8 @@ Versionierung nach [Semantic Versioning](https://semver.org/).
 - Remove unused durability-gated `PlanRepair` so interval Charsi repair stays the only repair path
 
 ### Fixed
+- Retry a dead Tristram return-portal click once on the same UnitID, then Save & Exit and retry the same Cow queue index
+- Drop a leftover personal-inventory Wirt's Leg before Cow setup instead of stopping the session
 - Retry a Wirt body hover miss with Save & Exit instead of failing the session
 - Retry a Cow portal hover miss after transmute with Save & Exit instead of failing the session
 - Identify unmatched Cow town-dump items at Cain before selling them so unidentified junk is cleared without selling a later keep-match

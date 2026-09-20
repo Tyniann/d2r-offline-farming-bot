@@ -83,6 +83,14 @@ describe("semantische Presenter", () => {
     expect(presentHistoryReason("cow_portal_hover_not_found", i18n.t)).toBe("The Cow Level portal could not be clicked safely. The session saves, exits the game, and retries the same route.");
   });
 
+  it("übersetzt den Tristram-Rückkehrabbruch in Session-Dialog und Historie", async () => {
+    expect(presentProblem({ code: "cow_return_portal_failed" }, i18n.t)).toBe("Das Rückkehrportal in Tristram hat nicht ins Lager geführt. Die Session speichert, verlässt das Spiel und startet denselben Versuch neu.");
+    expect(presentHistoryReason("cow_return_portal_failed", i18n.t)).toBe("Das Rückkehrportal in Tristram hat nicht ins Lager geführt. Die Session speichert, verlässt das Spiel und startet denselben Versuch neu.");
+    await changeAppLanguage("en");
+    expect(presentProblem({ code: "cow_return_portal_failed" }, i18n.t)).toBe("The Tristram return portal did not lead to town. The session saves, exits the game, and retries the same route.");
+    expect(presentHistoryReason("cow_return_portal_failed", i18n.t)).toBe("The Tristram return portal did not lead to town. The session saves, exits the game, and retries the same route.");
+  });
+
   it("übersetzt den Wirt-Hover-Abbruch in Session-Dialog und Historie", async () => {
     expect(presentProblem({ code: "cow_wirt_hover_failed" }, i18n.t)).toBe("Wirts Körper konnte nicht sicher angeklickt werden. Die Session speichert, verlässt das Spiel und startet denselben Versuch neu.");
     expect(presentHistoryReason("cow_wirt_hover_failed", i18n.t)).toBe("Wirts Körper konnte nicht sicher angeklickt werden. Die Session speichert, verlässt das Spiel und startet denselben Versuch neu.");

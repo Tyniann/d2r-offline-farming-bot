@@ -69,11 +69,12 @@ type ChestOperateResult struct {
 	BlockerUnitID uint32
 }
 
-// CowSetupActions owns only the Wirt interaction and the Akara single-tome
-// transaction. Route travel, pickup, and Town Portal actions keep using the
-// established shared dependencies.
+// CowSetupActions owns the Wirt interaction, leftover-inventory-leg drop, and
+// the Akara single-tome transaction. Route travel, pickup, and Town Portal
+// actions keep using the established shared dependencies.
 type CowSetupActions interface {
 	TickWirt(context.Context, world.State) CowSetupActionResult
+	TickDropLeftoverLeg(context.Context, world.State) CowSetupActionResult
 	TickTome(context.Context, world.State) CowSetupActionResult
 	Reset()
 }

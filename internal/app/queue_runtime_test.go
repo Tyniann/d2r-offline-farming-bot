@@ -287,6 +287,18 @@ func TestTownPortalEnterFailureRetriesFromCurrentAreaWithoutPortalReturn(t *test
 		t.Fatalf("portal enter retry = %+v", got)
 	}
 
+	called = false
+	cowReturn, err := classifyFailedQueueRun(context.Background(), "cows", "cow_return_portal_failed", []string{"hard_stuck"}, world.State{}, func(context.Context) error {
+		called = true
+		return errors.New("must not recast a town portal")
+	})
+	if err != nil || called {
+		t.Fatalf("cow return recovered through retry-return: result=%+v err=%v called=%t", cowReturn, err, called)
+	}
+	if cowReturn.Disposition != QueueRunRetryCurrent || cowReturn.Reason != "cow_return_portal_failed" || cowReturn.ExitAuthorization != ExitAuthorizationMemoryGatedCurrentArea {
+		t.Fatalf("cow return retry = %+v", cowReturn)
+	}
+
 	stuck, err := classifyFailedQueueRun(context.Background(), "countess", "hard_stuck", []string{"hard_stuck"}, world.State{}, func(context.Context) error {
 		return nil
 	})

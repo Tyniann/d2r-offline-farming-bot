@@ -17,13 +17,13 @@ Der Phase-11-Supervisor klassifiziert terminale Run-Ergebnisse über exakte Reas
 
 Nur die validierten Codes `hard_stuck`, `route_drift_exceeded`, `route_segment_timeout`, `route_transition_failed`, `route_clear_no_progress`, `route_threat_out_of_range`, `route_mana_recovery_failed`, `route_recovery_unsafe`, `boss_combat_unprojectable`, `cow_combat_no_progress`, `stash_approach_failed`, `boss_combat_no_progress`, `cow_portal_hover_not_found`, `hammerdin_cta_skill_unconfirmed` und `cow_wirt_hover_failed` können einen Retry über `session.retry_classes` auslösen. Zusätzlich muss der konkrete Code in `session.retry_classes` erlaubt sein. Texte wie `hard_stuck_extra` oder ein Fehlerstring, der zufällig „hard_stuck“ enthält, bleiben terminal. `stash_approach_failed` entsteht erst nach einem lokalen Rückweg zum Portal- oder Waypoint-Anker; steht die Figur bereits im Rogue Encampment, entfällt der Recovery-Town-Portal und der Supervisor geht direkt in Save & Exit. `cow_portal_hover_not_found` entsteht nach bestätigtem Transmute, wenn der Hover-Clicker das neue permanente Portal nicht bindet, typischerweise weil Akara darübersteht; die Figur steht bereits im Rogue Encampment, deshalb folgt direkt Save & Exit. `cow_wirt_hover_failed` entsteht, wenn der Hover-Clicker Wirts Körper in Tristram nicht bindet, typischerweise weil ein Monster die Projektion überdeckt; die Setup-Pipeline kehrt zuerst ins Rogue Encampment zurück, danach folgt direkt Save & Exit. `boss_combat_no_progress` entsteht nach 25 Sekunden Hammerdin-Bosskampf ohne Kill oder nach 12 wirkungslosen Teleports; die Recovery folgt dem normalen Portalrückweg, Save & Exit und demselben Queue-Index. `hammerdin_cta_skill_unconfirmed` entsteht erst, nachdem ein lokaler CTA-Wiederholungsversuch mit verdoppelten Settle-Fristen ebenfalls scheitert; die Recovery folgt dem normalen Portalrückweg.
 
-`town_portal_enter_failed` ist kein Retry-Klassen-Eintrag. Der Queue-Runner startet dafür keinen kontrollierten Portalrückweg, sondern autorisiert denselben Memory-gated Save-&-Exit und denselben Queue-Index.
+`town_portal_enter_failed` und `cow_return_portal_failed` sind keine Retry-Klassen-Einträge. Der Queue-Runner startet dafür keinen kontrollierten Portalrückweg, sondern autorisiert denselben Memory-gated Save-&-Exit und denselben Queue-Index.
 
 ## Budget- und Lifecycle-Semantik
 
 - Erfolg setzt `consecutive_failures` auf null und schaltet zum nächsten Queue-Index.
 - Ein retrybarer Fehler bleibt am aktuellen Index und erhöht Fehler-/Restart-Zähler innerhalb der YAML-Budgets.
-- Eine Recovery über `retry_classes` versucht zunächst den kontrollierten Portalrückweg. `town_portal_enter_failed` überspringt diesen Rückweg und geht direkt in den Memory-gated Exit. Nach einem begrenzten lokalen Clear und genau einem Portal-Retry darf nur der zentrale `ExitGame`-Owner einen weiterhin sicher bestätigten Offline-Game-Kontext direkt verlassen; andernfalls stoppt die Queue fail-closed.
+- Eine Recovery über `retry_classes` versucht zunächst den kontrollierten Portalrückweg. `town_portal_enter_failed` und `cow_return_portal_failed` überspringen diesen Rückweg und gehen direkt in den Memory-gated Exit. Nach einem begrenzten lokalen Clear und genau einem Portal-Retry darf nur der zentrale `ExitGame`-Owner einen weiterhin sicher bestätigten Offline-Game-Kontext direkt verlassen; andernfalls stoppt die Queue fail-closed.
 - Normaler Queue-Wrap und Recovery-Restart sind getrennte Spielgrenzen. Nur Recovery verbraucht ein Restart-Budget.
 - Ein unbekannter Reason-Code, ein erschöpftes Budget oder ein Telemetriefehler beendet die Queue terminal.
 
@@ -54,4 +54,4 @@ Supervisor-, Queue-Lifecycle- und Telemetrietests decken exakte Retry-Freigabe, 
 - [Notfall-Recovery für Run und Spielstart](emergency-run-recovery.md)
 
 ---
-*Zuletzt aktualisiert: 2026-09-19*
+*Zuletzt aktualisiert: 2026-09-20*

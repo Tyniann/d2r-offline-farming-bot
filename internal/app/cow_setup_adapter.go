@@ -6,6 +6,8 @@ import (
 	"time"
 
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/config"
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/input"
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/loot"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/pathing"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/tasks"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/town"
@@ -38,10 +40,11 @@ type cowWirtApproach interface {
 // cowSetupAdapter composes existing click, Town graph, and vendor primitives
 // without exposing them as a general quest or crafting framework.
 type cowSetupAdapter struct {
-	log        *slog.Logger
-	controller townPreparationController
-	pathCfg    pathing.Config
-	approach   *townPreparationAdapter
+	log         *slog.Logger
+	controller  townPreparationController
+	pathCfg     pathing.Config
+	approach    *townPreparationAdapter
+	leftoverLeg *loot.CowLeftoverLegDrop
 
 	wirtClicker     *pathing.EntityClicker
 	wirtApproach    cowWirtApproach
@@ -80,11 +83,46 @@ func newCowSetupAdapterWithProfile(log *slog.Logger, controller townPreparationC
 	approach.targetAnchor = town.AnchorAkara
 	clickCfg := pathCfg.Click
 	clickCfg.AnchorOffsetTiles = 0
-	return &cowSetupAdapter{
+	adapter := &cowSetupAdapter{
 		log: log.With("component", "cow_setup"), controller: controller, pathCfg: pathCfg, approach: approach,
 		wirtClicker: pathing.NewEntityClicker(log, controller, pathCfg.Projector(), clickCfg), wirtApproach: navigator,
-	}, nil
+	}
+	if cfg != nil {
+		leftover, err := loot.NewCowLeftoverLegDrop(log, leftoverLegController{controller: controller}, loot.CowLeftoverLegConfig{
+			InventoryLeft: cfg.Loot.Stash.InventoryLeft, InventoryTop: cfg.Loot.Stash.InventoryTop,
+			InventoryCellW: cfg.Loot.Stash.InventoryCellW, InventoryCellH: cfg.Loot.Stash.InventoryCellH,
+		})
+		if err != nil {
+			return nil, err
+		}
+		adapter.leftoverLeg = leftover
+	}
+	return adapter, nil
 }
+
+func (a *cowSetupAdapter) TickDropLeftoverLeg(_ context.Context, state world.State) tasks.CowSetupActionResult {
+	if a == nil || a.leftoverLeg == nil {
+		return tasks.CowSetupActionResult{Done: true, Reason: tasks.CowReasonCapabilityMissing}
+	}
+	result := a.leftoverLeg.Tick(state, state.At)
+	return tasks.CowSetupActionResult{Done: result.Done, Reason: result.Reason}
+}
+
+type leftoverLegController struct {
+	controller townPreparationController
+}
+
+func (c leftoverLegController) Window() (input.WindowInfo, bool) {
+	if c.controller == nil {
+		return input.WindowInfo{}, false
+	}
+	return c.controller.Window()
+}
+func (c leftoverLegController) MoveTo(x, y int) error { return c.controller.MoveTo(x, y) }
+func (c leftoverLegController) ClickWithModifier(modifier string, button input.MouseButton) error {
+	return c.controller.ClickWithModifier(modifier, button)
+}
+func (c leftoverLegController) PressKey(key string) error { return c.controller.PressKey(key) }
 
 func (a *cowSetupAdapter) TickWirt(ctx context.Context, state world.State) tasks.CowSetupActionResult {
 	if a == nil || a.controller == nil || !state.Valid || state.Phase != world.GamePhaseInGame || state.Area.ID != world.Tristram {
@@ -325,6 +363,9 @@ func inventoryItemIDsByCode(state world.State, code string) map[uint32]bool {
 func (a *cowSetupAdapter) Reset() {
 	if a == nil {
 		return
+	}
+	if a.leftoverLeg != nil {
+		a.leftoverLeg.Reset()
 	}
 	if a.approach != nil {
 		a.approach.Reset()

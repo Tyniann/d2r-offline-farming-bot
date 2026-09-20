@@ -33,4 +33,7 @@ func TestMandatoryControlledExitReasonsIgnoreConfigurableRetryList(t *testing.T)
 	if !isDirectCurrentAreaRetry("town_portal_enter_failed") {
 		t.Fatal("town portal enter failure must retry from the current area")
 	}
+	if !isDirectCurrentAreaRetry("cow_return_portal_failed") {
+		t.Fatal("cow return portal failure must retry from the current area")
+	}
 }

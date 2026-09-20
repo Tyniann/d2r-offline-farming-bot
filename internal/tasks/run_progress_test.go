@@ -83,7 +83,7 @@ func TestEveryProductivePipelineStepHasAValidProjection(t *testing.T) {
 	}
 	assertValidProgressForSteps(t, string(RunIDLowerKurast), lowerKurastSteps)
 	assertValidProgressForSteps(t, string(RunIDCows), []string{
-		cowStepPreflight, cowStepTownReady, cowStepAcquireWaypoint, cowStepOpenWaypoint, cowStepSelectStony, cowStepWaitStony,
+		cowStepPreflight, cowStepDiscardLeg, cowStepTownReady, cowStepAcquireWaypoint, cowStepOpenWaypoint, cowStepSelectStony, cowStepWaitStony,
 		cowStepPlayLegRoute, cowStepOpenWirt, cowStepPickupLeg, cowStepCastReturnTP, cowStepEnterReturnTP, cowStepWaitRogue,
 		cowStepBuyTome, cowStepSafeFailure, cowStepSetupComplete, cowStepPortalRecipe, cowStepRecipeComplete, cowStepSweep,
 		cowStepSweepComplete, pipelineStepCastTownPortal, pipelineStepEnterTownPortal, pipelineStepWaitOriginTown,

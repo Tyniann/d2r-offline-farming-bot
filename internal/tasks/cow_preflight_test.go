@@ -149,6 +149,19 @@ func validCowPreflightFixture() (CowConfig, world.State) {
 	return cfg, state
 }
 
+func TestCowInventoryLeftoverIsDroppableOnlyForPersonalInventory(t *testing.T) {
+	_, state := validCowPreflightFixture()
+	addVisibleLeg(world.ItemLocationInventory)(nil, &state)
+	if !cowInventoryLeftoverDroppable(state) {
+		t.Fatal("personal inventory leftover was rejected")
+	}
+	stash := cloneCowState(state)
+	addVisibleLeg(world.ItemLocationStash)(nil, &stash)
+	if cowInventoryLeftoverDroppable(stash) {
+		t.Fatal("stash leftover became droppable")
+	}
+}
+
 func addVisibleLeg(location world.ItemLocation) func(*CowConfig, *world.State) {
 	return func(_ *CowConfig, state *world.State) {
 		state.Items = append(state.Items, world.Item{UnitID: 9, Code: "leg", Location: location, PlayerOwned: true, Page: 0, GridX: 5, GridY: 0, Width: 1, Height: 3})
@@ -193,6 +206,10 @@ type cowActionCounter struct{ calls int }
 func (c *cowActionCounter) TickWirt(context.Context, world.State) CowSetupActionResult {
 	c.calls++
 	return CowSetupActionResult{}
+}
+func (c *cowActionCounter) TickDropLeftoverLeg(context.Context, world.State) CowSetupActionResult {
+	c.calls++
+	return CowSetupActionResult{Done: true}
 }
 func (c *cowActionCounter) TickTome(context.Context, world.State) CowSetupActionResult {
 	c.calls++

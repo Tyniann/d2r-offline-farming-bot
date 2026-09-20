@@ -145,7 +145,7 @@ func lowerKurastRunProgress(step string) (RunProgress, bool) {
 func cowRunProgress(step string) (RunProgress, bool) {
 	const total = 12
 	switch step {
-	case cowStepPreflight, cowStepTownReady:
+	case cowStepPreflight, cowStepDiscardLeg, cowStepTownReady:
 		return validRunProgress("town_preparation", nil, 1, total)
 	case cowStepAcquireWaypoint, cowStepOpenWaypoint, cowStepSelectStony, cowStepWaitStony:
 		return validRunProgress("waypoint_stony_field", nil, 2, total)

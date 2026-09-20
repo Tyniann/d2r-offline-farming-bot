@@ -212,19 +212,23 @@ func TestSameGameQueueDirectExitStillRunsWhenRestartBudgetIsExhausted(t *testing
 }
 
 func TestSameGameQueueExecutesRequiredTerminalExitWithoutTownHandoff(t *testing.T) {
-	runner := newFakeLifecycleRunner(1)
+	runner := newFakeLifecycleRunner(3)
 	supervisor, _ := NewSessionSupervisor(runner)
-	if _, err := supervisor.StartQueue(SupervisorCommandMeta{CommandID: "required-exit", ExpectedGeneration: 0}, queueSchedulerTestPlan([]string{"cows"}, 1)); err != nil {
+	if _, err := supervisor.StartQueue(SupervisorCommandMeta{CommandID: "required-exit", ExpectedGeneration: 0}, queueSchedulerTestPlan([]string{"cows"}, 3)); err != nil {
 		t.Fatal(err)
 	}
-	<-runner.started
-	runner.release <- SupervisorRunResult{Disposition: QueueRunStop, Reason: "cow_return_portal_failed", ExitAuthorization: ExitAuthorizationMemoryGatedCurrentArea}
-	waitSupervisorState(t, supervisor, SupervisorStateStoppedError)
-
-	events := runner.Events()
-	if len(events) < 4 || events[2].Name != "exit_game" || events[2].Reason != "cow_return_portal_failed" {
-		t.Fatalf("required exit events=%+v", events)
+	first := <-runner.started
+	runner.release <- SupervisorRunResult{Disposition: QueueRunRetryCurrent, Reason: "cow_return_portal_failed", ExitAuthorization: ExitAuthorizationMemoryGatedCurrentArea}
+	second := <-runner.started
+	if second.QueueIndex != first.QueueIndex || second.Retry != 1 || second.GameID == first.GameID {
+		t.Fatalf("cow return retry first=%+v second=%+v", first, second)
 	}
+	events := runner.Events()
+	if len(events) < 4 || events[2].Name != "exit_game" || events[2].Authorization != ExitAuthorizationMemoryGatedCurrentArea || events[3].Name != "start_game" {
+		t.Fatalf("cow return retry events=%+v", events)
+	}
+	runner.release <- SupervisorRunResult{Disposition: QueueRunStop, Reason: "terminal", ExitAuthorization: ExitAuthorizationNone}
+	waitSupervisorState(t, supervisor, SupervisorStateStoppedError)
 }
 
 func TestSameGameQueueRejectsInvalidExitAuthorizationBeforeLifecycleInput(t *testing.T) {
