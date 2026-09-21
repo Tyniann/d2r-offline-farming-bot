@@ -859,7 +859,7 @@ type completedRouteHold struct {
 	holds int
 }
 
-func (r *completedRouteHold) Start(string, world.State) error { return nil }
+func (r *completedRouteHold) Start(string, world.State, time.Time) error { return nil }
 func (r *completedRouteHold) Progress(world.State) (RouteProgress, bool) {
 	return RouteProgress{}, false
 }

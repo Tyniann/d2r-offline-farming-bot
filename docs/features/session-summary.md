@@ -26,7 +26,7 @@ Der Dialog zeigt die Wanduhr-Dauer vom Sessionstart bis zum terminalen Superviso
 - aufgehobene Items als `keep_return` der Historienanalyse
 - verkaufte Items als bestätigte Sell-Kette
 
-Ein Klick auf den Header klappt die nach stabilem Itemkey aggregierte Liste auf. Die sichtbare Menge pro Zeile ist `stashed` beziehungsweise `sold`. Anzeigenamen kommen aus dem CASC-Katalog. Der Dialog hat eine begrenzte Höhe; längere Listen scrollen.
+Ein Klick auf den Header klappt die nach stabilem Itemkey aggregierte Liste auf. Die sichtbare Menge pro Zeile ist die abgeschlossene Keep-Kette beziehungsweise `sold`. Eine Stash-Ablage ohne Pickup im selben Run erscheint nicht. Anzeigenamen kommen aus dem CASC-Katalog. Der Dialog hat eine begrenzte Höhe; längere Listen scrollen.
 
 ### Datenquelle
 
@@ -57,4 +57,4 @@ Historienindex, Loopback-API, React-Dialog und i18n DE/EN.
 - [Live-Dashboard](live-dashboard.md)
 
 ---
-*Zuletzt aktualisiert: 2026-09-15*
+*Zuletzt aktualisiert: 2026-09-21*

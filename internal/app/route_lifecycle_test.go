@@ -266,7 +266,7 @@ func TestRoutePlaybackLayoutMismatchInvalidatesBeforePlayerCreation(t *testing.T
 	}
 	state, _ := egressTestState(t)
 	adapter := newRoutePlaybackAdapter(slog.Default(), root, "3.2.92777", nil, nil, store)
-	err := adapter.Start("layout-preinput", state)
+	err := adapter.Start("layout-preinput", state, time.Now())
 	if !errors.Is(err, pathing.ErrRouteLayoutMismatch) {
 		t.Fatalf("Start() error = %v, want layout mismatch", err)
 	}

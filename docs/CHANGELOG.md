@@ -20,6 +20,9 @@ Versionierung nach [Semantic Versioning](https://semver.org/).
 - Remove unused durability-gated `PlanRepair` so interval Charsi repair stays the only repair path
 
 ### Fixed
+- Stamp route playback start with the tick clock so a route-clear event in the same tick cannot drop the run from history
+- Count item keep lines from completed keep chains so a stash without a pickup in the same run is not shown as picked up
+- Keep a transient unreadable map seed from aborting an active route clear as `route_threat_state_invalid`, and log the concrete route-hold error
 - Retry a dead Tristram return-portal click once on the same UnitID, then Save & Exit and retry the same Cow queue index
 - Drop a leftover personal-inventory Wirt's Leg before Cow setup instead of stopping the session
 - Retry a Wirt body hover miss with Save & Exit instead of failing the session

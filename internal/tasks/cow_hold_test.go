@@ -529,7 +529,7 @@ type terminalCowRoute struct {
 	tickCalls int
 }
 
-func (r *terminalCowRoute) Start(string, world.State) error { return nil }
+func (r *terminalCowRoute) Start(string, world.State, time.Time) error { return nil }
 func (r *terminalCowRoute) Progress(world.State) (RouteProgress, bool) {
 	return r.progress, true
 }

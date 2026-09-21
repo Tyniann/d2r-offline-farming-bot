@@ -137,7 +137,9 @@ type CowRouteClearExecutor interface {
 
 // RoutePlayback is the generic full-route surface used by run adapters.
 type RoutePlayback interface {
-	Start(routeID string, state world.State) error
+	// Start beginnt die Wiedergabe. now ist die Tick-Uhr und steht auf
+	// `route_playback_started`, damit ein späteres Ereignis desselben Ticks nicht davor sortiert.
+	Start(routeID string, state world.State, now time.Time) error
 	Progress(state world.State) (RouteProgress, bool)
 	Hold(state world.State) error
 	Tick(context.Context, world.State) (bool, error)

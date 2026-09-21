@@ -19,9 +19,9 @@ func TestFarmQueueCyclesCountessMephistoUntilRunBudget(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := []SupervisorRunRequest{
-		{DefinitionID: "countess", QueueIndex: 0, Cycle: 0, Retry: 0},
-		{DefinitionID: "mephisto", QueueIndex: 1, Cycle: 0, Retry: 0},
-		{DefinitionID: "countess", QueueIndex: 0, Cycle: 1, Retry: 0},
+		{DefinitionID: "countess", QueueIndex: 0, Cycle: 0, Retry: 0, StartedRuns: 1},
+		{DefinitionID: "mephisto", QueueIndex: 1, Cycle: 0, Retry: 0, StartedRuns: 2},
+		{DefinitionID: "countess", QueueIndex: 0, Cycle: 1, Retry: 0, StartedRuns: 3},
 	}
 	got := make([]SupervisorRunRequest, 0, len(want))
 	for range want {

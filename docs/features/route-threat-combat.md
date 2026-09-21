@@ -35,6 +35,8 @@ Drei frische, lokal vollständige und threat-freie Snapshots schließen eine Blo
 
 Ein einzelner gültiger In-Game-Snapshot kann seine Task-seitige RouteProgress-Projektion vorübergehend verlieren, etwa durch einen kurzfristig unvollständigen Identity-Read. Dieser read-only Aussetzer autorisiert keinen Input und ist noch keine interne Vertragsverletzung. Die Pipeline wartet bis zu zwei Sekunden auf neuere Snapshots; eine wieder verfügbare Projektion setzt die Grace sofort zurück. Nur über die Grace hinaus auf frischen Snapshots anhaltende Unverfügbarkeit endet fail-closed mit `route_threat_state_invalid`. Wiederholtes Verarbeiten desselben Snapshot-Zeitstempels verbraucht die Grace nicht.
 
+Die Hold-Identität vergleicht bestätigten Charaktername und Klasse mit dem beim Route-Start gelesenen Wert. `MapSeed` bleibt Diagnose: fällt er in einem Snapshot auf 0, läuft der Clear weiter. Schlägt Hold aus einem anderen Grund fehl, schreibt der Route-Adapter den konkreten Fehler, bevor der Controller den Lauf als `route_threat_state_invalid` beendet.
+
 ### Cow-Hold
 
 `cow_sweep` verwendet denselben Hold-, Ressourcen-, Coverage-, Recovery- und Telemetrie-Controller. Anders als Summoner hält Cow auch bei einer beliebigen lebenden allowlist-konformen Kuh innerhalb der Angriffsdistanz, damit der aktuelle lokale Bereich vor dem nächsten Routepunkt vollständig geräumt wird. Ohne deklarierte Corpse-Explosion-Fähigkeit bleibt die profildefinierte Route-Clear-Strategie direkt am Controller; insbesondere werden weder Necromancer-Opener noch die Fernkampf-Annäherung übernommen. Hammerdin verwendet auch im Cow-Run seine profildefinierte Nahkampfdistanz.
@@ -120,4 +122,4 @@ Candidate-/Raw-Playback, Recording und Guided Validation bleiben reine Navigatio
 - [World Model](world-model.md)
 
 ---
-*Zuletzt aktualisiert: 2026-08-22*
+*Zuletzt aktualisiert: 2026-09-21*

@@ -168,13 +168,15 @@ type HistoryComparison struct {
 
 // HistoryItemAggregate fasst eine stabile Itemidentität der gefilterten Population zusammen.
 type HistoryItemAggregate struct {
-	ItemKey        string
-	ItemName       string
-	BaseCode       string
-	Quality        string
-	Seen           int
-	Matched        int
-	PickedUp       int
+	ItemKey  string
+	ItemName string
+	BaseCode string
+	Quality  string
+	Seen     int
+	Matched  int
+	PickedUp int
+	// Stashed zählt abgeschlossene Keep-Ketten: Match, Pickup und Stash auf derselben Unit.
+	// Eine Stash-Ablage ohne Pickup im selben Run erhöht den Zähler nicht.
 	Stashed        int
 	Sold           int
 	PickupLost     int
@@ -684,7 +686,6 @@ func compareOptionalHistoryMetric(left, right *float64, leftID, rightID string, 
 
 func aggregateHistoryItems(runs []HistoryRunAnalysis, summary HistorySummary) []HistoryItemAggregate {
 	items := make(map[string]*HistoryItemAggregate)
-	yields := make(map[string]int)
 	for _, run := range runs {
 		if !terminalHistoryOutcome(run.Outcome) {
 			continue
@@ -710,7 +711,7 @@ func aggregateHistoryItems(runs []HistoryRunAnalysis, summary HistorySummary) []
 			if runItem.PickedUp {
 				item.PickedUp++
 			}
-			if runItem.Stashed {
+			if runItem.PickitAction == "keep" && runItem.Matched && runItem.PickedUp && runItem.Stashed {
 				item.Stashed++
 			}
 			if runItem.PickitAction == "sell" && runItem.Matched && runItem.PickedUp && runItem.Sold {
@@ -722,17 +723,16 @@ func aggregateHistoryItems(runs []HistoryRunAnalysis, summary HistorySummary) []
 			if runItem.PostPickupLost {
 				item.PostPickupLost++
 			}
-			if runItem.PickitAction == "keep" && runItem.Matched && runItem.PickedUp && runItem.Stashed {
-				yields[runItem.ItemKey]++
-			}
 		}
 	}
 	out := make([]HistoryItemAggregate, 0, len(items))
 	for _, item := range items {
-		yield := yields[item.ItemKey]
-		item.YieldPerRun = ratio(yield, summary.TerminalRuns)
-		item.YieldPerKill = ratio(yield, summary.BossKills)
-		item.YieldPerHour = perHour(yield, summary.Durations.TotalMs)
+		if item.Seen == 0 && item.Matched == 0 && item.PickedUp == 0 && item.Stashed == 0 && item.Sold == 0 && item.PickupLost == 0 && item.PostPickupLost == 0 {
+			continue
+		}
+		item.YieldPerRun = ratio(item.Stashed, summary.TerminalRuns)
+		item.YieldPerKill = ratio(item.Stashed, summary.BossKills)
+		item.YieldPerHour = perHour(item.Stashed, summary.Durations.TotalMs)
 		out = append(out, *item)
 	}
 	sort.Slice(out, func(a, b int) bool {

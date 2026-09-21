@@ -104,7 +104,7 @@ func (n replayNavigator) Tick(ctx context.Context, state world.State) pathing.Na
 func (n replayNavigator) Active() bool { return n.deps.Active() }
 func (n replayNavigator) Reset()       {}
 
-func (r replayRoute) Start(routeID string, state world.State) error {
+func (r replayRoute) Start(routeID string, state world.State, _ time.Time) error {
 	return replayCallError(r.deps.consume("route.start"))
 }
 func (r replayRoute) Progress(state world.State) (tasks.RouteProgress, bool) {

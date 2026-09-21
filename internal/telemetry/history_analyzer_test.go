@@ -128,6 +128,24 @@ func TestHistoryAnalyzerFiltersBySessionID(t *testing.T) {
 	}
 }
 
+func TestHistoryItemStashedIgnoresStashWithoutPickup(t *testing.T) {
+	start := time.Date(2026, 7, 20, 10, 0, 0, 0, time.UTC)
+	run := analyzerRun("cows-a", start, 60, HistoryOutcomeSuccess, "cows", "cows-route", false, [4]int64{}, "", "", []analyzerItemFixture{
+		{unitID: 459, key: "base:glb:normal", name: "Flawless Sapphire", action: "keep", seen: true, matched: true, picked: true, stash: true},
+		{unitID: 258, key: "base:glb:normal", name: "Flawless Sapphire", action: "keep", stash: true},
+	})
+	analysis, err := AnalyzeHistory(HistorySnapshot{Runs: []HistoryRun{run}}, HistoryFilter{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if analysis.Summary.Funnel.Stashed != 2 || analysis.Summary.Funnel.KeepReturn != 1 {
+		t.Fatalf("funnel=%+v", analysis.Summary.Funnel)
+	}
+	if len(analysis.Items) != 1 || analysis.Items[0].Stashed != 1 {
+		t.Fatalf("items=%+v", analysis.Items)
+	}
+}
+
 func TestHistoryAnalyzerAppliesServerComparisonSortWithStableTieBreak(t *testing.T) {
 	start := time.Date(2026, 7, 20, 10, 0, 0, 0, time.UTC)
 	runs := []HistoryRun{

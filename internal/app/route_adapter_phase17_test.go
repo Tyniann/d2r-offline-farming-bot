@@ -1,6 +1,7 @@
 package app
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"log/slog"
@@ -272,4 +273,65 @@ func TestRoutePlaybackAdapterMapsConfirmedRecoveryInput(t *testing.T) {
 		progress.RecoveryProgressTiles != 3 {
 		t.Fatalf("mapped recovery progress = %+v, %t", progress, ok)
 	}
+}
+
+func TestRouteHoldIgnoresDiagnosticMapSeed(t *testing.T) {
+	cases := []struct {
+		name    string
+		mutate  func(*world.GameIdentity)
+		wantErr bool
+	}{
+		{name: "seed drop", mutate: func(id *world.GameIdentity) { id.MapSeed = 0 }},
+		{name: "other name", mutate: func(id *world.GameIdentity) { id.CharacterName = "Other" }, wantErr: true},
+		{name: "other class", mutate: func(id *world.GameIdentity) { id.Class = world.CharacterClassPaladin }, wantErr: true},
+		{name: "unconfirmed", mutate: func(id *world.GameIdentity) { id.Valid = false }, wantErr: true},
+	}
+	for _, test := range cases {
+		t.Run(test.name, func(t *testing.T) {
+			adapter, state, base := newPhase17HoldAdapter(t)
+			var log bytes.Buffer
+			adapter.log = slog.New(slog.NewTextHandler(&log, nil))
+			adapter.clock = func() time.Time { return base.Add(100 * time.Millisecond) }
+			state.At = base.Add(100 * time.Millisecond)
+			test.mutate(&state.Identity)
+			_, progressOK := adapter.Progress(state)
+			if progressOK == test.wantErr {
+				t.Fatalf("progress ok=%t", progressOK)
+			}
+			err := adapter.Hold(state)
+			if test.wantErr {
+				if err == nil || !strings.Contains(err.Error(), "identity changed") {
+					t.Fatalf("Hold err = %v", err)
+				}
+				if !strings.Contains(log.String(), "identity changed") {
+					t.Fatalf("hold log = %q", log.String())
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if log.Len() != 0 {
+				t.Fatalf("unexpected hold log %q", log.String())
+			}
+		})
+	}
+}
+
+func newPhase17HoldAdapter(t *testing.T) (*routePlaybackAdapter, world.State, time.Time) {
+	t.Helper()
+	route := phase17AdapterRoute()
+	nav := &holdNavigator{}
+	player, err := pathing.NewRoutePlayer(nav, route)
+	if err != nil {
+		t.Fatal(err)
+	}
+	base := time.Date(2026, 9, 21, 16, 10, 39, 0, time.UTC)
+	state := phase17AdapterState(base)
+	adapter := &routePlaybackAdapter{
+		log: slog.New(slog.DiscardHandler), route: route, player: player, navigator: nav,
+		deadline: base.Add(30 * time.Second), lastTickAt: state.At, lastCallAt: base,
+		identity: state.Identity, clock: func() time.Time { return base },
+	}
+	return adapter, state, base
 }

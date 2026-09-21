@@ -149,7 +149,7 @@ type mockRoutePlayback struct {
 	progressOK bool
 }
 
-func (m *mockRoutePlayback) Start(routeID string, _ world.State) error {
+func (m *mockRoutePlayback) Start(routeID string, _ world.State, _ time.Time) error {
 	m.startedID = routeID
 	return m.startErr
 }
@@ -319,7 +319,7 @@ func (m *mockTownPreparationActions) Tick(context.Context, world.State) TownPrep
 	m.calls++
 	return TownPreparationResult{Status: "complete", Done: true}
 }
-func (m *mockTownPreparationActions) Reset() { m.resets++ }
+func (m *mockTownPreparationActions) Reset()                   { m.resets++ }
 func (m *mockTownPreparationActions) AllowIntervalRepair(bool) {}
 
 func (m *mockWaypointActions) TickTownWaypoint(_ context.Context, st world.State) pathing.WaypointActionResult {

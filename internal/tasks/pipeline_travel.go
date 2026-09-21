@@ -121,7 +121,7 @@ func (c *runPipeline) tickTravel(ctx context.Context, deps pipelineTravelDeps, s
 			return stepResult{failed: true, reason: "route_id_missing"}
 		}
 		if !c.travel.routeStarted {
-			if err := deps.Route.Start(c.core.routeID, w); err != nil {
+			if err := deps.Route.Start(c.core.routeID, w, now); err != nil {
 				if errors.Is(err, pathing.ErrGameIdentityUnavailable) {
 					return stepResult{}
 				}

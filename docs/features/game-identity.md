@@ -164,7 +164,7 @@ Alle Fehler führen vor Recording oder Playback zu einem fail-closed Abbruch. Ei
 
 - Keine Charakterauswahl im D2R-Menü; Phase 6.1 erkennt nur den bereits aktiven Charakter.
 - Keine Savegame-Inspektion.
-- Der gelesene Map-Seed ist nur Diagnose und keine Playback-Freigabe.
+- Der gelesene Map-Seed ist nur Diagnose und keine Playback-Freigabe. Ein einmalig unlesbarer Seed beendet einen laufenden Route-Hold nicht. Ein anderer Charaktername, eine andere Klasse oder eine unbestätigte Identität tun das weiterhin.
 - Keine GUI; die Identity-Daten werden jedoch GUI-neutral modelliert.
 
 ## Verwandte Features
@@ -174,4 +174,4 @@ Alle Fehler führen vor Recording oder Playback zu einem fail-closed Abbruch. Ei
 - [World Model](world-model.md)
 
 ---
-*Zuletzt aktualisiert: 2026-07-10*
+*Zuletzt aktualisiert: 2026-09-21*

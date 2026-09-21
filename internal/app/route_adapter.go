@@ -41,7 +41,7 @@ func newRoutePlaybackAdapter(log *slog.Logger, directory, gameVersion string, na
 
 func (a *routePlaybackAdapter) setTelemetry(trace *telemetry.Recorder) { a.telemetry = trace }
 
-func (a *routePlaybackAdapter) Start(routeID string, state world.State) (startErr error) {
+func (a *routePlaybackAdapter) Start(routeID string, state world.State, tickNow time.Time) (startErr error) {
 	a.Reset()
 	defer func() {
 		if startErr != nil && a.log != nil {
@@ -105,7 +105,9 @@ func (a *routePlaybackAdapter) Start(routeID string, state world.State) (startEr
 	a.lastTickAt = state.At
 	a.lastCallAt = now
 	a.identity = state.Identity
-	if err := a.emit(telemetry.Event{Event: telemetry.RoutePlaybackStarted, RouteID: route.ID, SegmentID: player.Segment().ID, AreaID: uint32(state.Area.ID)}); err != nil {
+	// tickNow ist die Uhr des laufenden Ticks. a.now() liegt danach und würde
+	// ein route_clear_started im selben Tick vor dieses Ereignis sortieren.
+	if err := a.emit(telemetry.Event{Timestamp: tickNow, Event: telemetry.RoutePlaybackStarted, RouteID: route.ID, SegmentID: player.Segment().ID, AreaID: uint32(state.Area.ID)}); err != nil {
 		a.Reset()
 		return err
 	}
@@ -149,7 +151,14 @@ func (a *routePlaybackAdapter) Progress(state world.State) (tasks.RouteProgress,
 // already reached in Memory and rebases authorized external movement onto a
 // later route edge only when the skipped path length is plausible for that
 // move. It sends no route input and ticks no navigator or transition.
-func (a *routePlaybackAdapter) Hold(state world.State) error {
+func (a *routePlaybackAdapter) Hold(state world.State) (err error) {
+	// Der konkrete Fehler muss im Log stehen, bevor Aufrufer ihn als
+	// route_threat_state_invalid verwerfen.
+	defer func() {
+		if err != nil && a.log != nil {
+			a.log.Warn("run route hold failed", "error", err, "route_id", a.route.ID)
+		}
+	}()
 	if a.player == nil {
 		return fmt.Errorf("run route playback not started")
 	}
@@ -318,11 +327,19 @@ func (a *routePlaybackAdapter) Reset() {
 	a.transition = false
 }
 
+// routeHoldIdentityMatches prüft die beim Route-Start bestätigte Identität.
+// MapSeed bleibt Diagnose und beendet einen laufenden Hold nicht.
+func routeHoldIdentityMatches(stored, current world.GameIdentity) bool {
+	return stored.Valid && current.Valid &&
+		stored.CharacterName == current.CharacterName &&
+		stored.Class == current.Class
+}
+
 func (a *routePlaybackAdapter) validateHoldState(state world.State) error {
 	if !state.Valid || state.Phase != world.GamePhaseInGame {
 		return fmt.Errorf("run route hold requires valid in-game state")
 	}
-	if !state.Identity.Valid || state.Identity != a.identity {
+	if !routeHoldIdentityMatches(a.identity, state.Identity) {
 		return fmt.Errorf("run route hold identity changed")
 	}
 	if state.At.IsZero() || (!a.lastTickAt.IsZero() && state.At.Before(a.lastTickAt)) {

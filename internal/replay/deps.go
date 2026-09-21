@@ -352,8 +352,8 @@ type traceRoute struct {
 	recorder *Recorder
 }
 
-func (t *traceRoute) Start(routeID string, state world.State) error {
-	err := t.next.Start(routeID, state)
+func (t *traceRoute) Start(routeID string, state world.State, now time.Time) error {
+	err := t.next.Start(routeID, state, now)
 	recordResult(t.recorder, "route.start", map[string]any{"route_id": routeID}, nil, err)
 	return err
 }

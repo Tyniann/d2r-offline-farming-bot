@@ -31,7 +31,7 @@ Fehler werden nach letztem Step plus terminalem Reason-Code gezählt. Die zugeh�
 
 Jede Itemzahl dedupliziert nach `(run_id, unit_id)`. `KeepReturn` verlangt in derselben Unit-Kette `pickit_match(action=keep)`, `pickup_success` und `stash_success`. Ein bestätigter Verkauf verlangt entsprechend `action=sell`, Match, Pickup und `sell_success`; er bleibt vom Keep-Return getrennt. Match ohne Pickup und Keep-Pickup ohne Stash werden als getrennte Verlustpfade ausgewiesen.
 
-Itemtabellen gruppieren ausschließlich nach dem vom Writer/Reader validierten stabilen Itemkey. Anzeigenamen sind kein Schlüssel. Gesicherter Ertrag pro Run, Bosskill und Stunde verwendet nur vollständige Keep-Ketten; Sell erhält keinen Geldwert. Die paginierte Itemliste kann nach der Analyse auf Identitäten mit Stash- oder Verkaufszählern begrenzt werden. Summary und Funnel zählen weiter den gesamten Funnel.
+Itemtabellen gruppieren ausschließlich nach dem vom Writer/Reader validierten stabilen Itemkey. Anzeigenamen sind kein Schlüssel. Der Itemzähler `stashed` und der gesicherte Ertrag pro Run, Bosskill und Stunde verwenden nur vollständige Keep-Ketten. Eine Stash-Ablage ohne Pickup im selben Run fällt aus der Itemzeile. Sell erhält keinen Geldwert. Die paginierte Itemliste kann nach der Analyse auf Identitäten mit Keep- oder Verkaufszählern begrenzt werden. Summary und Funnel zählen weiter den gesamten Funnel, einschließlich roher Stash-Ereignisse.
 
 ### Boss-/Routenvergleich
 
@@ -61,4 +61,4 @@ Vergleiche trennen mindestens `(character, difficulty, definition_id, route_id)`
 - [Session-Zusammenfassung](session-summary.md)
 
 ---
-*Zuletzt aktualisiert: 2026-09-15*
+*Zuletzt aktualisiert: 2026-09-21*
