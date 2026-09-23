@@ -1376,6 +1376,8 @@
   "cow_tome_shop_close_failed": "Das Händlerfenster konnte nach dem Buchkauf nicht sicher geschlossen werden.",
   "cow_akara_interaction_failed": "Akara war zu weit entfernt, um das Rezeptbuch zu kaufen.",
   "cow_akara_approach_failed": "Der Weg zu Akara für den Buchkauf ist fehlgeschlagen.",
+  "akara_not_in_snapshot": "Akara war im Lager nicht sichtbar, deshalb wurde sie nicht angeklickt.",
+  "akara_approach_failed": "Der Weg zur sichtbaren Akara ist fehlgeschlagen.",
   "cow_portal_hover_not_found": "Das Kuh-Portal konnte nicht sicher angeklickt werden. Die Session speichert, verlässt das Spiel und startet denselben Versuch neu.",
   "cow_return_portal_failed": "Das Rückkehrportal in Tristram hat nicht ins Lager geführt. Die Session speichert, verlässt das Spiel und startet denselben Versuch neu.",
   "cow_existing_leg": "Ein altes Wirt-Bein liegt im Stash. Nimm es heraus, bevor die Kuh-Route startet.",

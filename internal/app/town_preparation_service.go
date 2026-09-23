@@ -280,29 +280,29 @@ func completeBeltProfile(profile config.ProfileResourcesConfig) (bool, string) {
 // service sub-state. ResetStep clears only the latter; Reset clears both.
 // Potion stages are `walk → npc → shop → orders → close → done`.
 type townPreparationStepHandler struct {
-	adapter               *townPreparationAdapter
-	traversals            []town.Traversal
-	traversal             int
-	anchor                town.Anchor
-	walker                *pathing.TownWalker
-	orders                []town.RestockOrder
-	order                 int
-	itemOrders            []town.ItemServiceOrder
-	itemOrder             int
-	itemExecutor          *town.ItemServiceExecutor
-	itemPolicy            loot.PickitResult
-	itemInput             *townItemServiceInput
-	stage                 string
-	npc                   *town.NPCInteractor
-	shop                  *town.ShopOpener
-	menu                  *town.MenuSelector
-	verifier              *town.RestockVerifier
-	buyer                 *town.VendorBuyer
-	buyerActed            bool
-	buyerCode             string
-	buyerCost             int
-	settleUntil           time.Time
-	shopCloseSent         bool
+	adapter                *townPreparationAdapter
+	traversals             []town.Traversal
+	traversal              int
+	anchor                 town.Anchor
+	walker                 *pathing.TownWalker
+	orders                 []town.RestockOrder
+	order                  int
+	itemOrders             []town.ItemServiceOrder
+	itemOrder              int
+	itemExecutor           *town.ItemServiceExecutor
+	itemPolicy             loot.PickitResult
+	itemInput              *townItemServiceInput
+	stage                  string
+	npc                    *town.NPCInteractor
+	shop                   *town.ShopOpener
+	menu                   *town.MenuSelector
+	verifier               *town.RestockVerifier
+	buyer                  *town.VendorBuyer
+	buyerActed             bool
+	buyerCode              string
+	buyerCost              int
+	settleUntil            time.Time
+	shopCloseSent          bool
 	authorizedAkaraDialog  bool
 	authorizedAkaraUnitID  uint32
 	authorizedCharsiDialog bool
@@ -1074,7 +1074,7 @@ func (h *townPreparationStepHandler) tickOrders(state world.State) town.Interact
 
 func (h *townPreparationStepHandler) tickWalk(ctx context.Context, state world.State, target town.Anchor) town.InteractionResult {
 	if h.anchor == target {
-		return town.InteractionResult{Status: town.InteractionComplete, Done: true}
+		return h.finishAnchorWalk(state, target)
 	}
 	if h.traversal >= len(h.traversals) {
 		return town.InteractionResult{Status: town.InteractionFailed, Reason: string(town.ReasonTownLayoutRouteMissing), Done: true}
@@ -1115,9 +1115,25 @@ func (h *townPreparationStepHandler) tickWalk(ctx context.Context, state world.S
 	h.traversal++
 	h.anchor = destination
 	if h.anchor == target {
-		return town.InteractionResult{Status: town.InteractionComplete, Done: true}
+		return h.finishAnchorWalk(state, target)
 	}
 	return town.InteractionResult{Status: town.InteractionPending}
+}
+
+// finishAnchorWalk confirms a graph arrival. Akara may be standing past the
+// click gate after the recorded edge ends, so a visible Akara is force-moved
+// in before the NPC click. Every other anchor completes at the route end.
+func (h *townPreparationStepHandler) finishAnchorWalk(state world.State, target town.Anchor) town.InteractionResult {
+	if target == town.AnchorAkara {
+		ready, reason := h.adapter.tickAkaraApproach(state, h.adapter.handoffTolerance(town.AnchorAkara))
+		if reason != "" {
+			return town.InteractionResult{Status: town.InteractionFailed, Reason: reason, Done: true}
+		}
+		if !ready {
+			return town.InteractionResult{Status: town.InteractionPending}
+		}
+	}
+	return town.InteractionResult{Status: town.InteractionComplete, Done: true}
 }
 
 func (h *townPreparationStepHandler) ResetStep() {

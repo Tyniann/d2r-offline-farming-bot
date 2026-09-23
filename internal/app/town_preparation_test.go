@@ -165,6 +165,98 @@ func TestTownPreparationAkaraHandoffRequiresNearbyLiveNPC(t *testing.T) {
 	}
 }
 
+func TestTownPreparationWalksVisibleAkaraBeyondHandoff(t *testing.T) {
+	in := &preparationInputMock{}
+	now := time.Now()
+	state := preparationState(world.Position{X: 100, Y: 100}, now, false)
+	for i := range state.Monsters {
+		if state.Monsters[i].NPCID == world.Akara {
+			state.Monsters[i].Position = world.Position{X: 130, Y: 100}
+		}
+	}
+	adapter := &townPreparationAdapter{
+		log: config.NewLogger("error"), driver: in, controller: in, pathCfg: pathing.DefaultConfig(),
+		layoutPin: &townLayoutPin{}, started: true, targetAnchor: town.AnchorAkara,
+	}
+	result := adapter.Tick(context.Background(), state)
+	if result.Done || result.Status != "pending" || in.moves != 1 || in.keys != 1 {
+		t.Fatalf("far Akara tick=%+v moves=%d keys=%d", result, in.moves, in.keys)
+	}
+	state.At = now.Add(time.Second)
+	state.Player.Position = world.Position{X: 120, Y: 100}
+	result = adapter.Tick(context.Background(), state)
+	if !result.Done || result.Status != "complete" || result.Reason != "" {
+		t.Fatalf("closed Akara tick=%+v", result)
+	}
+}
+
+func TestTownPreparationMissingAkaraFailsWithoutMoving(t *testing.T) {
+	in := &preparationInputMock{}
+	state := preparationState(world.Position{X: 100, Y: 100}, time.Now(), false)
+	state.Monsters = withoutNPC(state.Monsters, world.Akara)
+	adapter := &townPreparationAdapter{
+		log: config.NewLogger("error"), driver: in, controller: in, pathCfg: pathing.DefaultConfig(),
+		layoutPin: &townLayoutPin{}, started: true, targetAnchor: town.AnchorAkara,
+	}
+	result := adapter.Tick(context.Background(), state)
+	if !result.Done || result.Status != "failed" || result.Reason != akaraNotInSnapshotReason || in.keys != 0 {
+		t.Fatalf("missing Akara tick=%+v keys=%d", result, in.keys)
+	}
+}
+
+func TestTownPreparationWaypointHandoffStaysStrict(t *testing.T) {
+	in := &preparationInputMock{}
+	state := preparationState(world.Position{X: 100, Y: 100}, time.Now(), false)
+	adapter := &townPreparationAdapter{
+		log: config.NewLogger("error"), driver: in, controller: in, pathCfg: pathing.DefaultConfig(),
+		layoutPin: &townLayoutPin{}, started: true, targetAnchor: town.AnchorWaypoint,
+	}
+	result := adapter.Tick(context.Background(), state)
+	if !result.Done || result.Reason != "waypoint_handoff_unconfirmed" || in.keys != 0 {
+		t.Fatalf("waypoint tick=%+v keys=%d", result, in.keys)
+	}
+}
+
+func TestTownServiceWalkApproachesDistantAkaraOnly(t *testing.T) {
+	in := &preparationInputMock{}
+	now := time.Now()
+	state := preparationState(world.Position{X: 100, Y: 100}, now, false)
+	for i := range state.Monsters {
+		if state.Monsters[i].NPCID == world.Akara {
+			state.Monsters[i].Position = world.Position{X: 130, Y: 100}
+		}
+	}
+	adapter := &townPreparationAdapter{
+		log: config.NewLogger("error"), driver: in, controller: in, pathCfg: pathing.DefaultConfig(),
+	}
+	handler := &townPreparationStepHandler{adapter: adapter, anchor: town.AnchorAkara, stage: "walk"}
+	result := handler.tickWalk(context.Background(), state, town.AnchorAkara)
+	if result.Done || result.Status != town.InteractionPending || in.keys != 1 {
+		t.Fatalf("service approach=%+v keys=%d", result, in.keys)
+	}
+	state.At = now.Add(time.Second)
+	state.Player.Position = world.Position{X: 120, Y: 100}
+	result = handler.tickWalk(context.Background(), state, town.AnchorAkara)
+	if !result.Done || result.Status != town.InteractionComplete {
+		t.Fatalf("service arrival=%+v", result)
+	}
+	cain := &townPreparationStepHandler{adapter: adapter, anchor: town.AnchorCain, stage: "walk"}
+	result = cain.tickWalk(context.Background(), state, town.AnchorCain)
+	if !result.Done || result.Status != town.InteractionComplete || in.keys != 1 {
+		t.Fatalf("Cain walk=%+v keys=%d", result, in.keys)
+	}
+}
+
+func withoutNPC(monsters []world.Monster, npcID uint32) []world.Monster {
+	kept := make([]world.Monster, 0, len(monsters))
+	for _, monster := range monsters {
+		if monster.NPCID != npcID {
+			kept = append(kept, monster)
+		}
+	}
+	return kept
+}
+
 func TestTownPreparationNoServiceFromWaypointCompletesWithoutStashEdge(t *testing.T) {
 	directory := filepath.Join("..", "..", "configs", "routes", "town", "act1", "graph")
 	graph, err := town.LoadServiceGraph(filepath.Join(directory, "graph.yaml"))

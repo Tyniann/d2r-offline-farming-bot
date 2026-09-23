@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/config"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/input"
@@ -14,6 +15,18 @@ import (
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/tasks"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/town"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/world"
+)
+
+const (
+	// akaraApproachTimeout bounds the force-move that closes a visible Akara
+	// who has wandered past the click gate after the recorded edge arrived.
+	akaraApproachTimeout = 8 * time.Second
+	// akaraNotInSnapshotReason means the handoff snapshot has no live Akara,
+	// so there is no position to walk toward.
+	akaraNotInSnapshotReason = "akara_not_in_snapshot"
+	// akaraApproachFailedReason means the follow-up walk toward a visible
+	// Akara timed out, stuck, or could not send input.
+	akaraApproachFailedReason = "akara_approach_failed"
 )
 
 // townPreparationController is the shared input surface required by graph
@@ -29,36 +42,41 @@ type townPreparationController interface {
 // Cain/Akara trash dump when recipe space is already missing. Post-run
 // preparation may additionally create and execute a demand-driven service plan.
 type townPreparationAdapter struct {
-	log           *slog.Logger
-	driver        pathing.InputDriver
-	controller    townPreparationController
-	pathCfg       pathing.Config
-	graph         town.ServiceGraph
-	directory     string
-	thresholds    town.Thresholds
-	traversals    []town.Traversal
-	index         int
-	walker        *pathing.TownWalker
-	started       bool
-	done          bool
-	layout        string
-	layoutOrigin  world.Position
-	layoutPin     *townLayoutPin
-	townCfg       town.Config
-	profile       config.ProfileResourcesConfig
-	telemetry     town.ExecutorTelemetry
-	services      bool
-	executor      *town.Executor
-	handler       *townPreparationStepHandler
-	lootFilter    *loot.Filter
-	stashConfig   config.LootStashConfig
-	nextRunID              string
-	startAnchor            town.Anchor
-	resolvedStart          town.Anchor
-	targetAnchor           town.Anchor
-	startedRuns            int
-	lastRepairStartedRuns  int
-	allowIntervalRepair    bool
+	log                   *slog.Logger
+	driver                pathing.InputDriver
+	controller            townPreparationController
+	pathCfg               pathing.Config
+	graph                 town.ServiceGraph
+	directory             string
+	thresholds            town.Thresholds
+	traversals            []town.Traversal
+	index                 int
+	walker                *pathing.TownWalker
+	started               bool
+	done                  bool
+	layout                string
+	layoutOrigin          world.Position
+	layoutPin             *townLayoutPin
+	townCfg               town.Config
+	profile               config.ProfileResourcesConfig
+	telemetry             town.ExecutorTelemetry
+	services              bool
+	executor              *town.Executor
+	handler               *townPreparationStepHandler
+	lootFilter            *loot.Filter
+	stashConfig           config.LootStashConfig
+	nextRunID             string
+	startAnchor           town.Anchor
+	resolvedStart         town.Anchor
+	targetAnchor          town.Anchor
+	startedRuns           int
+	lastRepairStartedRuns int
+	allowIntervalRepair   bool
+
+	akaraApproachStarted  time.Time
+	akaraApproachLastMove time.Time
+	akaraApproachLastPos  world.Position
+	akaraApproachProgress time.Time
 }
 
 func (a *townPreparationAdapter) setItemPolicies(filter *loot.Filter, stash config.LootStashConfig) {
@@ -189,7 +207,19 @@ func (a *townPreparationAdapter) Tick(ctx context.Context, state world.State) ta
 	if a.index >= len(a.traversals) {
 		// Finishing route samples is insufficient: the handoff requires the live
 		// target anchor to remain visible and within interaction distance.
+		// Akara wanders off the recorded tent tile. A visible Akara beyond that
+		// distance is walked in here; Cain, Charsi, Kashya, and objects still
+		// fail the handoff immediately.
 		target := a.handoffAnchor()
+		if target == town.AnchorAkara {
+			ready, reason := a.tickAkaraApproach(state, a.handoffTolerance(target))
+			if reason != "" {
+				return tasks.TownPreparationResult{Status: "failed", Reason: reason, Done: true}
+			}
+			if !ready {
+				return tasks.TownPreparationResult{Status: "pending"}
+			}
+		}
 		if !townPreparationHandoffReady(state, target, a.handoffTolerance(target)) {
 			reason := "town_anchor_handoff_unconfirmed"
 			if target == town.AnchorWaypoint {
@@ -336,4 +366,87 @@ func (a *townPreparationAdapter) Reset() {
 		a.executor.Reset()
 	}
 	a.executor, a.handler = nil, nil
+	a.resetAkaraApproach()
+}
+
+// tickAkaraApproach force-moves toward the live Akara until she is within
+// arrival tiles. The recorded edge can end at her tent while she stands
+// farther away. A snapshot without Akara fails closed because there is no
+// position to follow. Other anchors do not call this.
+func (a *townPreparationAdapter) tickAkaraApproach(state world.State, arrival float64) (bool, string) {
+	if a == nil || arrival <= 0 {
+		return false, akaraApproachFailedReason
+	}
+	npc, ok := state.FindNPC(world.Akara)
+	if !ok || npc.UnitID == 0 {
+		a.log.Warn("Akara fehlt im Snapshot", "reason", akaraNotInSnapshotReason)
+		return false, akaraNotInSnapshotReason
+	}
+	distance := world.Distance(state.Player.Position, npc.Position)
+	if distance <= arrival {
+		a.resetAkaraApproach()
+		return true, ""
+	}
+	now := state.At
+	if now.IsZero() {
+		now = time.Now()
+	}
+	if a.akaraApproachStarted.IsZero() {
+		a.akaraApproachStarted = now
+		a.akaraApproachLastPos = state.Player.Position
+		a.akaraApproachProgress = now
+		a.log.Info("Akara wird vor dem Öffnen angenähert", "unit_id", npc.UnitID, "distance", distance)
+	}
+	if now.Sub(a.akaraApproachStarted) >= akaraApproachTimeout {
+		a.log.Warn("Akara-Annäherung zeitüberschritten", "unit_id", npc.UnitID, "distance", distance)
+		return false, akaraApproachFailedReason
+	}
+	if world.Distance(a.akaraApproachLastPos, state.Player.Position) >= 1 {
+		a.akaraApproachProgress = now
+		a.akaraApproachLastPos = state.Player.Position
+	}
+	if a.pathCfg.TownWalk.StuckTimeout > 0 && now.Sub(a.akaraApproachProgress) >= a.pathCfg.TownWalk.StuckTimeout {
+		a.log.Warn("Akara-Annäherung ohne Fortschritt", "unit_id", npc.UnitID, "distance", distance)
+		return false, akaraApproachFailedReason
+	}
+	if !a.akaraApproachLastMove.IsZero() && now.Sub(a.akaraApproachLastMove) < a.pathCfg.TownWalk.MoveInterval {
+		return false, ""
+	}
+	driver := a.driver
+	if driver == nil {
+		driver = a.controller
+	}
+	if driver == nil {
+		return false, akaraApproachFailedReason
+	}
+	win, ok := driver.Window()
+	if !ok {
+		a.log.Warn("Akara-Annäherung ohne Spielfenster", "unit_id", npc.UnitID, "distance", distance)
+		return false, akaraApproachFailedReason
+	}
+	clientX, clientY, ok := a.pathCfg.Projector().Project(state.Player.Position, npc.Position, win)
+	if !ok {
+		a.log.Warn("Akara-Annäherung nicht projizierbar", "unit_id", npc.UnitID, "distance", distance)
+		return false, akaraApproachFailedReason
+	}
+	if err := driver.MoveTo(clientX, clientY); err != nil {
+		a.log.Warn("Akara-Annäherung konnte nicht bewegen", "error", err, "distance", distance)
+		return false, akaraApproachFailedReason
+	}
+	if err := driver.PressKey(a.pathCfg.TownWalk.ForceMoveKey); err != nil {
+		a.log.Warn("Akara-Annäherung konnte Force Move nicht senden", "error", err, "distance", distance)
+		return false, akaraApproachFailedReason
+	}
+	a.akaraApproachLastMove = now
+	return false, ""
+}
+
+func (a *townPreparationAdapter) resetAkaraApproach() {
+	if a == nil {
+		return
+	}
+	a.akaraApproachStarted = time.Time{}
+	a.akaraApproachLastMove = time.Time{}
+	a.akaraApproachLastPos = world.Position{}
+	a.akaraApproachProgress = time.Time{}
 }

@@ -187,4 +187,51 @@ func TestCowTomeVerificationRejectsMultipleNewUnitIDs(t *testing.T) {
 	}
 }
 
+func TestCowTomeWalksAkaraPastTheTownHandoff(t *testing.T) {
+	in := &preparationInputMock{}
+	pathCfg := pathing.DefaultConfig()
+	now := time.Now()
+	state := preparationState(world.Position{X: 100, Y: 100}, now, false)
+	for i := range state.Monsters {
+		if state.Monsters[i].NPCID == world.Akara {
+			state.Monsters[i].Position = world.Position{X: 130, Y: 100}
+		}
+	}
+	state.Items = append(state.Items, world.Item{UnitID: 10, Code: "tbk", Location: world.ItemLocationInventory, PlayerOwned: true, Page: 0, Width: 1, Height: 2})
+	adapter := &cowSetupAdapter{
+		log: config.NewLogger("error"), controller: in, pathCfg: pathCfg,
+		approach: &townPreparationAdapter{
+			log: config.NewLogger("error"), driver: in, controller: in, pathCfg: pathCfg,
+			layoutPin: &townLayoutPin{}, started: true, targetAnchor: town.AnchorAkara,
+		},
+	}
+	result := adapter.TickTome(context.Background(), state)
+	if result.Done || result.Reason != "" || adapter.tomeStage != "approach" || in.keys != 1 {
+		t.Fatalf("far tome tick=%+v stage=%s keys=%d", result, adapter.tomeStage, in.keys)
+	}
+	state.At = now.Add(time.Second)
+	state.Player.Position = world.Position{X: 126, Y: 100}
+	result = adapter.TickTome(context.Background(), state)
+	if result.Done || result.Reason != "" || adapter.tomeStage != "npc" {
+		t.Fatalf("closed tome tick=%+v stage=%s", result, adapter.tomeStage)
+	}
+}
+
+func TestCowTomeReportsMissingAkara(t *testing.T) {
+	in := &preparationInputMock{}
+	state := preparationState(world.Position{X: 100, Y: 100}, time.Now(), false)
+	state.Monsters = withoutNPC(state.Monsters, world.Akara)
+	adapter := &cowSetupAdapter{
+		log: config.NewLogger("error"), controller: in, pathCfg: pathing.DefaultConfig(),
+		approach: &townPreparationAdapter{
+			log: config.NewLogger("error"), driver: in, controller: in, pathCfg: pathing.DefaultConfig(),
+			layoutPin: &townLayoutPin{}, started: true, targetAnchor: town.AnchorAkara,
+		},
+	}
+	result := adapter.TickTome(context.Background(), state)
+	if !result.Done || result.Reason != akaraNotInSnapshotReason || in.keys != 0 {
+		t.Fatalf("missing tome tick=%+v keys=%d", result, in.keys)
+	}
+}
+
 var _ town.ShopInput = (*preparationInputMock)(nil)

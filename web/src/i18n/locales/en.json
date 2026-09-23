@@ -1376,6 +1376,8 @@
   "cow_tome_shop_close_failed": "The shop window could not be closed safely after buying the tome.",
   "cow_akara_interaction_failed": "Akara was too far away to buy the recipe tome.",
   "cow_akara_approach_failed": "The walk to Akara for the tome purchase failed.",
+  "akara_not_in_snapshot": "Akara was not visible in camp, so she was not clicked.",
+  "akara_approach_failed": "The walk to the visible Akara failed.",
   "cow_portal_hover_not_found": "The Cow Level portal could not be clicked safely. The session saves, exits the game, and retries the same route.",
   "cow_return_portal_failed": "The Tristram return portal did not lead to town. The session saves, exits the game, and retries the same route.",
   "cow_existing_leg": "An old Wirt's Leg is still in the stash. Remove it before starting the Cow route.",

@@ -72,7 +72,7 @@ Die West-Abnahme am 13. Juli 2026 bestätigte für `4ad7f3…33f30` zunächst de
 
 ## NPC-, Dialog- und Shop-Gates (9.5)
 
-Die Monster-Enumeration führt Akara (`148`), Kashya (`150`), Charsi (`154`) und Deckard Cain (`265`, `cain5`) explizit. Cain wurde über den read-only Hover-Buffer live im Rogue Encampment bestätigt; die übrigen Cain-Zeilen der lokal extrahierten `monstats.txt` werden nicht produktiv enumeriert. Eine Interaktion pinnt NPC-ID und Runtime-UnitID, verlangt höchstens 15 Tiles Distanz und bestätigt den Monster-Hover. Öffnet der erste bestätigte Klick innerhalb von 750 ms keinen Dialog, darf genau ein zweiter Versuch dieselbe Runtime-UnitID an ihrer aktuellen Position erneut per Hover bestätigen. Ein verlorener Pin, ungeeignete Distanz, fehlender Hover oder ein bereits offenes fremdes UI stoppt ohne Blindklick.
+Die Monster-Enumeration führt Akara (`148`), Kashya (`150`), Charsi (`154`) und Deckard Cain (`265`, `cain5`) explizit. Cain wurde über den read-only Hover-Buffer live im Rogue Encampment bestätigt; die übrigen Cain-Zeilen der lokal extrahierten `monstats.txt` werden nicht produktiv enumeriert. Eine Interaktion pinnt NPC-ID und Runtime-UnitID, verlangt höchstens 15 Tiles Distanz und bestätigt den Monster-Hover. Ist Akara nach dem Ankommen der Stadtkante sichtbar, aber weiter als fünfzehn Tiles entfernt, folgt vor dem NPC-Klick derselbe Force-Move auf ihre aktuelle Position. Cain, Charsi und Kashya behalten die harte Fünfzehn-Tile-Grenze. Fehlt Akara im Snapshot, endet der Dienst mit `akara_not_in_snapshot`. Ein Zeitüberschreiten oder Steckenbleiben der Annäherung endet mit `akara_approach_failed`. Öffnet der erste bestätigte Klick innerhalb von 750 ms keinen Dialog, darf genau ein zweiter Versuch dieselbe Runtime-UnitID an ihrer aktuellen Position erneut per Hover bestätigen. Ein verlorener Pin, ungeeignete Distanz, fehlender Hover oder ein bereits offenes fremdes UI stoppt ohne Blindklick.
 
 Der UI-Buffer liefert getrennte Flags für `NPCInteractOpen` und `NPCShopOpen`. Erst der bestätigte Dialog erlaubt die begrenzte Akara-Sequenz Home, Down, Enter; pro Tick wird höchstens eine Taste gesendet. Erst der bestätigte Shop erlaubt Vendor-Aktionen. Vendor-Items werden nur bei `ItemLocationVendor`, passendem Typ beziehungsweise Code und gepinnter UnitID verwendet. Nach der Mausbewegung müssen dieselbe UnitID und dieselbe Shop-Rasterposition erneut im Memory-Snapshot vorhanden sein. Der globale Entity-Hover wird nicht als Vendor-Gate verwendet, weil D2R Shop-UI-Items dort nicht zuverlässig meldet. Die feste Vendor-Geometrie `109,147` mit 33-Pixel-Zellen gilt ausschließlich nach bestätigtem Shop und exakt 1280×720.
 
@@ -168,4 +168,4 @@ Die Live-Abnahme am 13. Juli 2026 erfüllte das Gate vollständig. Der autonome 
 - [Lower-Kurast-Run](lower-kurast-run.md)
 
 ---
-*Zuletzt aktualisiert: 2026-09-13*
+*Zuletzt aktualisiert: 2026-09-23*

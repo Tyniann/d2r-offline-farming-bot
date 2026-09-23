@@ -20,6 +20,7 @@ Versionierung nach [Semantic Versioning](https://semver.org/).
 - Remove unused durability-gated `PlanRepair` so interval Charsi repair stays the only repair path
 
 ### Fixed
+- Walk a visible Akara in from beyond the fifteen-tile town gate before the Cow tome buy and every other Akara service, instead of aborting at the tent
 - Stamp route playback start with the tick clock so a route-clear event in the same tick cannot drop the run from history
 - Count item keep lines from completed keep chains so a stash without a pickup in the same run is not shown as picked up
 - Keep a transient unreadable map seed from aborting an active route clear as `route_threat_state_invalid`, and log the concrete route-hold error

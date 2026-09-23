@@ -257,7 +257,12 @@ func (a *cowSetupAdapter) TickTome(ctx context.Context, state world.State) tasks
 			return tasks.CowSetupActionResult{}
 		}
 		if result.Status != "complete" {
-			return tasks.CowSetupActionResult{Done: true, Reason: "cow_akara_approach_failed"}
+			reason := "cow_akara_approach_failed"
+			if result.Reason == akaraNotInSnapshotReason {
+				reason = result.Reason
+			}
+			a.log.Warn("Akara-Ankunft abgelehnt", "town_reason", result.Reason, "reason", reason)
+			return tasks.CowSetupActionResult{Done: true, Reason: reason}
 		}
 		a.tomeExisting = inventoryItemIDsByCode(state, "tbk")
 		if len(a.tomeExisting) == 0 {
