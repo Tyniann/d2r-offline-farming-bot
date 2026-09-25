@@ -99,6 +99,14 @@ describe("semantische Presenter", () => {
     expect(presentHistoryReason("cow_wirt_hover_failed", i18n.t)).toBe("Wirt's body could not be clicked safely. The session saves, exits the game, and retries the same route.");
   });
 
+  it("übersetzt den Wirt-Bein-Pickup-Abbruch in Session-Dialog und Historie", async () => {
+    expect(presentProblem({ code: "cow_leg_pickup_failed" }, i18n.t)).toBe("Wirts Bein konnte nicht sicher aufgenommen werden. Die Session speichert, verlässt das Spiel und startet denselben Versuch neu.");
+    expect(presentHistoryReason("cow_leg_pickup_failed", i18n.t)).toBe("Wirts Bein konnte nicht sicher aufgenommen werden. Die Session speichert, verlässt das Spiel und startet denselben Versuch neu.");
+    await changeAppLanguage("en");
+    expect(presentProblem({ code: "cow_leg_pickup_failed" }, i18n.t)).toBe("Wirt's Leg could not be picked up safely. The session saves, exits the game, and retries the same route.");
+    expect(presentHistoryReason("cow_leg_pickup_failed", i18n.t)).toBe("Wirt's Leg could not be picked up safely. The session saves, exits the game, and retries the same route.");
+  });
+
   it("übersetzt Difficulty, Run, Klasse und eingebautes Profil", async () => {
     expect([presentDifficultyName("nightmare", i18n.t), presentRunName("countess", i18n.t), presentClassName("necromancer", i18n.t), presentProfileName("necro_bone_spear", "Fallback", i18n.t)]).toEqual(["Alptraum", "Gräfin", "Totenbeschwörer", "Knochen-Totenbeschwörer"]);
     await changeAppLanguage("en");

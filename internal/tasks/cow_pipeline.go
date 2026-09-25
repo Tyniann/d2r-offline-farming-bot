@@ -466,6 +466,8 @@ func (c *cowPipeline) tickLegPickup(deps Deps, state world.State, now time.Time)
 			return stepResult{}
 		}
 		if result.Status != LootPickupPickedUp {
+			// The pipeline returns to town first. session.retry_classes then Save & Exits
+			// and retries the same queue index instead of fighting in Tristram.
 			c.pendingFailure = "cow_leg_pickup_failed"
 			return stepResult{complete: true}
 		}

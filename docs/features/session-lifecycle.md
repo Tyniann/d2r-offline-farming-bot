@@ -93,7 +93,7 @@ Der Lifecycle klassifiziert stabile Reason-Codes, nicht Logtexte. Unbekannte Cod
 | Klasse | Beispiele | Entscheidung |
 |--------|-----------|--------------|
 | `transient` | kurzzeitig ungültiger Snapshot oder Loading innerhalb des aktuellen Zustandsbudgets | Warten, ohne Input und ohne Game-Restart. |
-| `run_restartable` | live validierter `hard_stuck`, `route_drift_exceeded`, `route_segment_timeout`, `route_transition_failed`, `stash_approach_failed`, `cow_portal_hover_not_found`, `cow_wirt_hover_failed` oder `hammerdin_cta_skill_unconfirmed` | Run abbrechen, Fehlerbudget abbuchen; Game-Restart nur über einen validierten sicheren Exit-Flow. |
+| `run_restartable` | live validierter `hard_stuck`, `route_drift_exceeded`, `route_segment_timeout`, `route_transition_failed`, `stash_approach_failed`, `cow_portal_hover_not_found`, `cow_wirt_hover_failed`, `cow_leg_pickup_failed` oder `hammerdin_cta_skill_unconfirmed` | Run abbrechen, Fehlerbudget abbuchen; Game-Restart nur über einen validierten sicheren Exit-Flow. |
 | `terminal_context` | falscher Charakter, Game-Version oder Layout-Fingerprint; `unexpected_area`; unbekannter Menüscreen | Session stoppen, keine weiteren Inputs. |
 | `terminal_config` | unbekannter Run, fehlende Route/Bindings, ungültige Budgets oder nicht verdrahtete Actions | Vor Input stoppen. |
 | `terminal_infrastructure` | Prozessverlust, Telemetriefehler, nicht retrybarer Input-/Fensterfehler | Session stoppen und Telemetrie soweit möglich flushen. |
@@ -280,4 +280,4 @@ Phase 7.0 ist abgeschlossen, wenn Zustände und Übergänge, unterstützte Start
 - [Notfall-Recovery für Run und Spielstart](emergency-run-recovery.md)
 
 ---
-*Zuletzt aktualisiert: 2026-09-19*
+*Zuletzt aktualisiert: 2026-09-25*

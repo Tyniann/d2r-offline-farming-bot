@@ -1383,6 +1383,7 @@
   "cow_existing_leg": "Ein altes Wirt-Bein liegt im Stash. Nimm es heraus, bevor die Kuh-Route startet.",
   "cow_leg_drop_failed": "Ein altes Wirt-Bein konnte nicht aus dem Inventar gelegt werden.",
   "cow_wirt_hover_failed": "Wirts Körper konnte nicht sicher angeklickt werden. Die Session speichert, verlässt das Spiel und startet denselben Versuch neu.",
+  "cow_leg_pickup_failed": "Wirts Bein konnte nicht sicher aufgenommen werden. Die Session speichert, verlässt das Spiel und startet denselben Versuch neu.",
   "queue_runtime_failed": "Die Routenausführung konnte wegen eines internen Laufzeitfehlers nicht fortgesetzt werden.",
   "route_file_invalid": "Die Routendatei ist ungültig und kann nicht verwendet werden.",
   "route_file_unreadable": "Die Routendatei konnte nicht sicher gelesen werden.",
