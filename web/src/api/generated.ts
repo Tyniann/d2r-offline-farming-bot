@@ -507,6 +507,7 @@ export interface RouteRecordingStartRequest {
   run_id: string;
   route_role?: string;
   character?: string;
+  difficulty?: "normal" | "nightmare" | "hell";
 }
 
 export interface RouteWorkflowFinishRequest {

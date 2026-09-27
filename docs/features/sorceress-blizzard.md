@@ -1,0 +1,99 @@
+# Zauberin mit Blizzard
+
+## Überblick
+
+`sorceress_blizzard` ist das freigegebene Standardprofil der Zauberin. Es verwendet die vorhandene Task-Pipeline, Skill-Bestätigung, Ressourcenpolicy und Routenwiedergabe. Unterstützt sind Gräfin, Mephisto, Beschwörer, Nihlathak, Lower Kurast und Kuh-Level. Die manuelle Spielabnahme, insbesondere der Kuh-Level, steht noch aus.
+
+## Ort im Code
+
+- Paket: `internal/profile/sorceressblizzard/`
+- Einstieg: `NewFactory` und `NewEncounterExecutor`
+- Verdrahtung: `internal/app/combat_strategy_registry.go`, `internal/app/app.go`
+- Angriffe: `internal/app/combat.go`, `internal/profile/executor.go`
+- Config: `combat_profiles.sorceress_blizzard` in `configs/config.example.yaml`, Defaults in `internal/config/profile.go`
+
+## Funktionalität
+
+### Pflichtskills und Standardangriff
+
+| Skill | Aufgabe | Maustaste |
+|---|---|---|
+| Blizzard | Standardangriff auf die aktuelle Monsterposition | Rechts |
+| Eisstoß | Einzelzielangriff während Blizzards Cooldown | Rechts |
+| Teleport | Routenwiedergabe und Kampfannäherung | Rechts |
+| Statikfeld | Drei Casts gegen Mephisto vor Blizzard | Rechts |
+| Stadtportal | Gemeinsame Rückkehr- und Recovery-Abläufe | Rechts |
+| Eisrüstung | Prebuff beim Town-Ready-Schritt | Rechts |
+
+Alle sechs Skills benötigen eine eigene gültige Tastenbelegung. Die vorhandene Skill-Auswahl wartet auf die Bestätigung im Memory, bevor sie klickt. Blizzard verwendet einzelne Rechtsklicks standardmäßig im Abstand von 1800 ms. Die Config akzeptiert keine kürzeren Intervalle, entsprechend `Blizzard.localdelay=45` Frames aus dem lokalen CASC-Extrakt. Während des Cooldowns greift Eisstoß das vom Task im aktuellen Snapshot gewählte lebende Ziel an. Jeder Tick bewertet dieses Ziel neu; eine Burst-Sequenz speichert kein möglicherweise inzwischen totes Monster. Auswahl und erster Zielversuch können im selben Tick erfolgen. Nach bestätigter Skillauswahl folgen einzelne Eisstoß-Klicks ohne zusätzliche künstliche Wartefrist, höchstens einer pro Tick. Die tatsächliche Zauberrate hängt weiterhin von Spielanimation, Ausrüstung und Polling ab. Sobald Blizzard bereit ist, erhält er Vorrang, auch vor einer noch unbestätigten Eisstoß-Auswahl.
+
+Nur ein gesendeter Blizzard-Cast startet dessen Cooldown. Teleport und Skillauswahl starten ihn nicht erneut; sonst könnte das lokale Drei-Sekunden-Budget schon vor dem ersten Angriff verstreichen. Ein Route-Clear-Reset hebt das Angriffsintervall nicht auf.
+
+Die gemeinsame Boss-Pipeline nähert sich bei mehr als 22 Tiles auf 15 Tiles an. Nihlathak verwendet die bestehende Annäherung bis zur spielbaren Zielprojektion. Route-Clear greift das vom Task autorisierte lebende Ziel über die vorhandene Hover- oder Projektionsprüfung an. Blizzard trifft dort eine Fläche; das Profil führt keine eigene Gruppen- oder Routenplanung ein.
+
+### Statikfeld gegen Aktbosse
+
+Mephisto ist der einzige Aktboss unter den aktuellen Routen. Der Profil-Executor prüft seine gepinnte UnitID gegen die lebenden Monster im aktuellen World State. Gräfin, Beschwörer, Nihlathak und Kühe erhalten keinen Statikfeld-Opener.
+
+Außerhalb von vier Tiles teleportiert der bestehende Kampfadapter auf drei Tiles an Mephisto heran. Vor dem Cast müssen ein neuerer Snapshot und 500 ms Settle vorliegen. Der World State enthält keine effektiven Skill-Level; die konservative Reichweite stützt sich deshalb auf `Static Field.aurarangecalc=ln12`, `Param1=5`, `Param2=1` aus `skills.txt`.
+
+Anschließend führt der gemeinsame Hook-Executor drei selbstzentrierte Statikfeld-Casts mit jeweils 500 ms Settle aus. Zwei Casts sind ebenfalls konfigurierbar. Mephistos zweiter Encounter-Hook führt die Sequenz nicht erneut aus. Ein unlesbarer State wartet ohne Input; Zielverlust, Inputfehler oder 20 Sekunden ohne Abschluss beenden den Opener. Der bestehende Task-Abbruch bleibt wirksam. Reset löscht Annäherung, Fristen und Cast-Zustand.
+
+### Eisrüstung in der Stadt
+
+Eisrüstung verwendet denselben `town_ready`-Hook wie Knochenrüstung beim Totenbeschwörer. Der Default wartet 5000 ms, bestätigt den rechten Skill, wirkt auf die neutrale Clientmitte und wartet 1500 ms. `once_per_game: false` erlaubt den erneuten Prebuff beim nächsten Town-Ready-Ablauf. Die bestehende Queue-Fortsetzung kann die anfängliche Wartezeit überspringen. Während einer Route gibt es keine automatische Eisrüstungs-Erneuerung.
+
+### Routen und lokale Kämpfe
+
+| Route | Verhalten |
+|---|---|
+| Gräfin | Kein Kampf unterwegs. Boss-Akquise mit bestehendem Superunique-Gate, Blizzard, drei Bestätigungsticks für den Kill, anschließend Loot ohne weiteren Gebiets-Clear. |
+| Mephisto | Kein Kampf unterwegs. Einmal drei Statikfeld-Casts, danach Blizzard auf den gepinnten Boss; drei Bestätigungsticks für den Kill, anschließend Loot. |
+| Beschwörer | Blizzard gegen relevante Routenblocker und den Boss. Danach höchstens 20 Angriffe auf erlaubte Restgegner innerhalb von 18 Tiles; drei freie Snapshots beenden den Clear früher. |
+| Nihlathak | Kampf vom aufgezeichneten Anker, höchstens eine Annäherung bei unspielbarer Zielprojektion. Nach dem Bosskill Cleanup innerhalb von 30 Tiles mit höchstens 40 Aktionen. |
+| Lower Kurast | Gemeinsamer Truhen-Sweep. Nur ein bestätigter Objektblocker löst den lokalen Clear aus; danach genau ein erneuter Interaktionsversuch. |
+| Kuh-Level | Gemeinsame Bein-/Buch-/Würfel-Vorbereitung. Der Cow-Sweep hält auch für nahe Gegner außerhalb des unmittelbaren Laufkorridors und prüft die sichere Endposition. |
+
+Nur Beschwörer und Cow-Sweep erlauben regulären Kampf während der Routenwiedergabe. Kuh-Level nutzt keinen Fluch und keine Kadaverexplosion. Mana-Reserve, Threat-Holds, Beuteaufnahme, Town-Dienste und endliche Recovery-Budgets bleiben beim jeweiligen bestehenden Task.
+
+Ein Clear bedeutet keine vollständige Kartenräumung. Der Beschwörer räumt die Gegner, die den nächsten Routenschritt bedrohen. Nach vollständig abgespielter Route darf die bestehende Sonderregel einen bereits verschwundenen Beschwörer als erledigt behandeln; die isolierte Bossphase bleibt strikt. Der Cow-Sweep berücksichtigt zusätzlich die erlaubten Gegner im lokalen Angriffsradius von 30 Tiles. Unvollständige Monsterabdeckung gibt die Bewegung nicht frei. Die Wiederaufnahme verlangt drei vollständige freie Snapshots und einen weiteren frischen Tick. Fehlender Fortschritt bleibt durch die gemeinsamen Recovery-Budgets begrenzt.
+
+Nihlathak bleibt über seine UnitID gepinnt. Ist er vom aufgezeichneten Anker erreichbar, bleibt die Zauberin dort, auch jenseits der allgemeinen Distanzschwelle. Sonst folgt genau ein Teleport entlang der bestehenden Linie, danach 700 ms Settle und ein neuer Snapshot. Bleibt er unzielbar, greift `boss_combat_unprojectable` mit dem vorhandenen kontrollierten Rückweg. Ein überlagerndes Monster darf erst nach einem nachgewiesenen Zielversuch auf den Boss und einem neueren Snapshot als Klickfläche dienen. Der Cleanup nach dem Kill überspringt unprojizierbare Ziele und endet auch nach drei freien beziehungsweise nur noch übersprungenen Snapshots oder drei Sekunden ohne gesendete Aktion. Er bewegt die Zauberin nicht.
+
+Lower Kurast und die lokale Portal-Recovery verwenden denselben Clear mit zwölf Tiles Radius um das blockierte Objekt, höchstens zwölf Aktionen, sechs Sekunden Gesamtdauer und drei Sekunden ohne gesendete Aktion. Nach Ende des Budgets folgt der begrenzte Wiederholungsversuch auch bei überlebenden Gegnern. Es entsteht keine dauerhafte Clear-Schleife.
+
+### Automatisierte Prüfung und Spielabnahme
+
+`internal/tasks/sorceress_blizzard_test.go` prüft die tatsächlichen Task-Übergänge mit dem gemeinsamen Profil-Executor und simulierten Kampfaktionen: Boss-Akquise, Statikfeld nur bei Mephisto, Kill-Bestätigung, Cleanup-Auswahl und -Budgets, Nihlathaks einzelne Annäherung, Lower-Kurast-Blocker sowie Beschwörer-/Cow-Holds bei Gegnern und unvollständiger Abdeckung. Die App-Tests prüfen zusätzlich den echten Kampfadapter, einschließlich Blizzard nach Teleport innerhalb des lokalen Clear-Budgets, Eisstoß-Bursts mit wechselnden Zielen und Blizzards Vorrang nach 1800 ms. Profil-, Config- und UI-Tests prüfen Hooks, CASC-Annahmen, Bindings und Setup.
+
+Diese Tests ersetzen keine Spielabnahme. Trefferwirkung, Ausrüstung, Söldnerschaden und Verhalten auf den persönlichen Routenaufzeichnungen müssen im Spiel geprüft werden; die Kuh-Abnahme steht noch aus.
+
+## Datenmodell
+
+Der Profilvertrag verlangt Klasse `sorceress`, Standardangriff `blizzard`, die sechs rechten Pflichtskills und einen lebenden Söldner. Setup und Bindings werden über die bestehenden Charakter- und OperatorSettings-Daten gespeichert. Es gibt kein neues Config-Schema und keine zweite Binding-Datei.
+
+Die Skill-IDs stammen aus dem generierten CASC-Katalog. `testdata/skills.tsv` im Profilpaket hält die verwendeten Spalten aus `.tmp/d2r-excel/skills.txt` anhand der stabilen `skill`-Zeilenschlüssel fest. Tests prüfen IDs, Slot-Fähigkeiten, Town-Cast und die Annahmen zu Verzögerung und Reichweite.
+
+## Operator / CLI
+
+Im Charaktersetup die Zauberin bestätigen, alle sechs Skills belegen und die benötigten Routenaufzeichnungen für diesen Charakter veröffentlichen. Für den Kuh-Level werden beide Rollen `leg_acquisition` und `cow_sweep` benötigt. Danach startet die bestehende Queue oder `--run cows` mit dem eingefrorenen Charakter-Loadout.
+
+Die Electron-Oberfläche verwendet denselben Setup-Wizard, Binding-Editor und Charakterbereich wie die anderen Klassen. Profilname und Klassenname sind auf Deutsch und Englisch verfügbar. Das vorhandene Blizzard-Medaillon erscheint in den Einstellungen auch bei allein bekannter Profil-ID. Skillnamen stammen über den bestehenden Generator aus den lokalen `skills.txt`, `skilldesc.txt` und `skills.json`.
+
+Ein lebender Söldner ist Voraussetzung. Kälteimmune Gegner bleiben Aufgabe der ausgerüsteten Sunder Charm und des Söldners. Der Bot prüft weder Charm noch Ausrüstung oder aufgebrochene Immunität. Beide Angriffe verursachen Kälteschaden. Ohne ausreichenden Schaden können die bestehenden Kampf- und Recovery-Fristen auslaufen.
+
+Stop/Pause und Input-Logging verwenden die vorhandenen zentralen Mechanismen. Zur manuellen Kuh-Abnahme Prebuff, Blizzard-/Eisstoß-Wechsel, Mana-Holds, Loot und Rückkehr prüfen; bei einer falschen Entscheidungsreihenfolge mit `--runtime-trace-capture` aufzeichnen.
+
+## Abhängigkeiten
+
+Lokale CASC-Extrakte und generierter Skill-/Monsterkatalog, World Model, gemeinsame Profile- und Task-Executor sowie bestätigter Windows-Input. Es gibt keinen Schreibzugriff auf Spiel- oder Savegame-Dateien.
+
+## Verwandte Features
+
+- [Charakter- und Encounter-Profile](character-encounter-profiles.md)
+- [Charakter-Setup](character-setup.md)
+- [Kuh-Level](cow-level-run.md)
+- [Söldnerunterstützung](mercenary-support.md)
+
+---
+*Zuletzt aktualisiert: 2026-09-27*

@@ -12,6 +12,7 @@ describe("BindingEditor", () => {
       belt: { slot_1: "1", slot_2: "2", slot_3: "3", slot_4: "4" },
     });
     render(<BindingEditor
+      profileName="Hammerdin"
       requiredSkills={[
         { skill: "teleport", skill_id: 54, slot: "right" },
         { skill: "town_portal", skill_id: 359, slot: "right" },
@@ -56,6 +57,7 @@ describe("BindingEditor", () => {
   it("ändert den Tranktyp eines Gürtelslots", () => {
     const onChange = vi.fn();
     render(<BindingEditor
+      profileName="Hammerdin"
       requiredSkills={[{ skill: "teleport", skill_id: 54, slot: "right" }]}
       value={bindingsFromDTO({ skills: { teleport: "f7" }, belt: { slot_1: "1", slot_2: "2", slot_3: "3", slot_4: "4" } })}
       mutable
@@ -71,6 +73,7 @@ describe("BindingEditor", () => {
   it("zeigt den Hammerdin-Slotvertrag und bedient das optionale CTA-Paar per Tastatur", async () => {
     const onChange = vi.fn();
     render(<BindingEditor
+      profileName="Hammerdin"
       requiredSkills={[
         { skill: "blessed_hammer", skill_id: 112, slot: "left" },
         { skill: "concentration", skill_id: 113, slot: "right" },
@@ -113,6 +116,7 @@ describe("BindingEditor", () => {
   it("zeigt Nachkaufschwellen nur für zugewiesene Heil- und Manaspalten", () => {
     const onChange = vi.fn();
     render(<BindingEditor
+      profileName="Hammerdin"
       requiredSkills={[{ skill: "teleport", skill_id: 54, slot: "right" }]}
       value={bindingsFromDTO({
         skills: { teleport: "f7" },

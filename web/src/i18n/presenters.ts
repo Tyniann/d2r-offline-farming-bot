@@ -22,7 +22,7 @@ export function presentClassName(id: string, t: AppTranslator): string {
 }
 
 export function presentProfileName(id: string, fallback: string, t: AppTranslator): string {
-  const keys = { necro_bone_spear: "systemCatalog.profiles.necro_bone_spear", paladin_hammerdin: "systemCatalog.profiles.paladin_hammerdin" } as const;
+  const keys = { necro_bone_spear: "systemCatalog.profiles.necro_bone_spear", paladin_hammerdin: "systemCatalog.profiles.paladin_hammerdin", sorceress_blizzard: "systemCatalog.profiles.sorceress_blizzard" } as const;
   const key = keys[id as keyof typeof keys];
   return key ? t(key) : fallback || id;
 }
@@ -185,6 +185,7 @@ const errorKeys = {
   route_candidates_unavailable: "errors.routeUnavailable",
   route_preview_stale: "errors.routeConflict",
   route_workflow_conflict: "errors.routeConflict",
+  route_recording_context_mismatch: "errors.routeRecordingContext",
   route_manifest_corrupt: "errors.routeManifestCorrupt",
   route_manifest_write_failed: "errors.routeManifestWriteFailed",
   pickit_invalid: "errors.pickitInvalid",
@@ -225,6 +226,13 @@ const errorKeys = {
 } as const;
 
 export function presentProblem(problem: ProblemDTO, t: AppTranslator): string {
+  if (problem.code === "route_candidate_context_mismatch") {
+    return t("errors.routeCandidateContext", {
+      ...problem.params,
+      candidate_difficulty: presentDifficultyName(String(problem.params?.candidate_difficulty ?? ""), t),
+      selected_difficulty: presentDifficultyName(String(problem.params?.selected_difficulty ?? ""), t),
+    });
+  }
   if (problem.code === "retry_return_failed" && typeof problem.params?.original_reason === "string" && typeof problem.params?.recovery_reason === "string") {
     return t("errors.retryReturnFailedDetailed", {
       original: presentHistoryReason(problem.params.original_reason, t),

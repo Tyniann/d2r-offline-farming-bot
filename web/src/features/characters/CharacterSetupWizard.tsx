@@ -12,11 +12,11 @@ import { RequiredSkillsList } from "./RequiredSkillsList";
 import { useTranslation } from "react-i18next";
 import { presentApiError, presentClassName, presentProfileName, presentRunName } from "../../i18n/presenters";
 
-export type CharacterSetupWizardMode = "onboarding" | "dashboard" | "settings";
+export type CharacterSetupWizardMode = "onboarding" | "dashboard" | "settings" | "unlock";
 
 /** CharacterSetupWizard ist der gemeinsame Setup-/Profilwechsel-Flow ohne Core-Fachlogik in React. */
 export function CharacterSetupWizard({
-  character, catalog, status, mode = "onboarding", allowDeferBindings = true, showReload = true, onChanged,
+  character, catalog, status, mode = "onboarding", allowDeferBindings = true, showReload = true, onChanged, onBusyChange,
 }: {
   character: string;
   catalog: CatalogDTO;
@@ -25,6 +25,7 @@ export function CharacterSetupWizard({
   allowDeferBindings?: boolean;
   showReload?: boolean;
   onChanged?: () => Promise<void> | void;
+  onBusyChange?: (busy: boolean) => void;
 }) {
   const { t } = useTranslation();
   const [setupPreview, setSetupPreview] = useState<CharacterSetupPreviewDTO | null>(null);
@@ -109,6 +110,7 @@ export function CharacterSetupWizard({
   async function run(action: () => Promise<void>) {
     if (busy) return;
     setBusy(true);
+    onBusyChange?.(true);
     setError("");
     try {
       await action();
@@ -117,6 +119,7 @@ export function CharacterSetupWizard({
       setError(presentApiError(reason, t, t("characters.wizardStepFailed")));
     } finally {
       setBusy(false);
+      onBusyChange?.(false);
     }
   }
 
@@ -224,13 +227,14 @@ export function CharacterSetupWizard({
     </>}
 
     {setupPreview?.setup_state === "ready" && <>
-      {mode !== "settings" && <StateMessage kind="empty" title={t("characters.wizardReadyTitle")}>{t("characters.wizardReadyDetail")}</StateMessage>}
+      {mode !== "settings" && <StateMessage kind="empty" title={t("characters.wizardReadyTitle")}>{t(mode === "unlock" ? "characters.unlockReady" : "characters.wizardReadyDetail")}</StateMessage>}
       {selectedProfile && mode !== "settings" && <>
         <p className="character-profile-summary">{t("characters.wizardProfileSummary")}<strong>{presentProfileName(selectedProfile.id, selectedProfile.display_name, t)}</strong></p>
         <h4>{t("characters.requiredSkills")}</h4>
         <RequiredSkillsList skills={selectedProfile.required_skills ?? []} standardAttack={selectedProfile.standard_attack} />
         <h4>{t("characters.bindings")}</h4>
         <BindingEditor
+          profileName={presentProfileName(selectedProfile.id, selectedProfile.display_name, t)}
           requiredSkills={selectedProfile.required_skills ?? []}
           optionalSkillPairs={selectedProfile.optional_skill_pairs ?? []}
           standardAttack={selectedProfile.standard_attack}

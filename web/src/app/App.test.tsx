@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { changeAppLanguage } from "../i18n";
 import { apiError } from "../test/apiError";
@@ -65,6 +65,25 @@ describe("App", () => {
     mocks.getHistoryComparisons.mockResolvedValue({ comparisons: [] });
     mocks.getHistoryRuns.mockResolvedValue({ runs: [] });
     mocks.getHistoryItems.mockResolvedValue({ items: [] });
+  });
+
+  it("aktualisiert die Dashboard-Statistik beim Schließen der Session-Zusammenfassung", async () => {
+    mocks.getStatus.mockReset().mockResolvedValue({ ...attached, state: "running_run" });
+    render(<App />);
+    await waitFor(() => expect(mocks.connect).toHaveBeenCalledOnce());
+    fireEvent.click(screen.getByRole("button", { name: "7 Tage" }));
+    await waitFor(() => expect(mocks.getHistoryComparisons).toHaveBeenCalledTimes(2));
+    const previousTo = mocks.getHistoryComparisons.mock.calls.at(-1)![0].to;
+    const onStatus = mocks.connect.mock.calls[0][0] as (status: unknown) => void;
+    await act(async () => onStatus({ ...attached, state: "idle_in_game", last_result: { session_id: "just-finished", duration_ms: 5000 } }));
+    const dialog = await screen.findByRole("dialog");
+    const before = mocks.getHistoryComparisons.mock.calls.length;
+    fireEvent.click(within(dialog).getByRole("button", { name: "Schließen" }));
+    await waitFor(() => expect(mocks.getHistoryComparisons).toHaveBeenCalledTimes(before + 1));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "7 Tage" })).toHaveAttribute("aria-pressed", "true");
+    expect(mocks.getHistoryComparisons.mock.calls.at(-1)![0].to > previousTo).toBe(true);
+    expect(mocks.getHistoryRuns).toHaveBeenCalledTimes(before + 1);
   });
 
   it("rendert die repräsentative Shell auf Englisch", async () => {
@@ -219,14 +238,34 @@ describe("App", () => {
     mocks.previewSelection.mockResolvedValue({ schema_version: 1, character: "MrBones", new_difficulty: "nightmare", affected_routes: [], requires_confirmation: false, confirmation_token: "safe-preview", catalog_revision: 3, lifecycle_revision: 1 });
     mocks.getStatus.mockResolvedValue(detached);
     render(<App />);
-    expect(await screen.findByRole("option", { name: "MrHammer – nicht verfügbar" })).toBeDisabled();
+    expect(await screen.findByRole("option", { name: "MrHammer" })).toBeInTheDocument();
+    expect(within(screen.getByLabelText("Charakter")).queryByRole("option", { name: "MrHammer" })).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Neuer Charakter")).toHaveValue("MrHammer");
+    expect(screen.getByRole("button", { name: "Einrichtung fortsetzen" })).toBeDisabled();
     expect(screen.getByLabelText("Charakter")).toHaveValue("MrBones");
     expect(screen.queryByText("Nicht nutzbare Charaktere")).not.toBeInTheDocument();
-    expect(screen.queryByText(/Für diese Klasse gibt es noch kein freigegebenes Kampfprofil/)).not.toBeInTheDocument();
+    expect(screen.getByText(/Für diese Klasse gibt es noch kein freigegebenes Kampfprofil/)).toBeInTheDocument();
     const apply = await screen.findByRole("button", { name: "In D2R verwenden" });
     await waitFor(() => expect(apply).toBeEnabled());
     fireEvent.click(apply);
     await waitFor(() => expect(mocks.applySelection).toHaveBeenCalledWith("MrBones", "nightmare", 3, 0, "safe-preview"));
+  });
+
+  it("öffnet die separate Freischaltung ohne die aktive Auswahl zu wechseln", async () => {
+    mocks.getCatalog.mockResolvedValue({ schema_version: 1, revision: 3, default_difficulty: "hell", profiles: [], runs: [], difficulties: [{ id: "hell" }], characters: [
+      { name: "Hammer", slug: "hammer", selectable: true, farm_ready: false },
+      { name: "Frost", slug: "frost", selectable: false, farm_ready: false, reasons: ["character_profile_missing", "character_anchor_missing"] },
+    ] });
+    mocks.getStatus.mockResolvedValue(detached);
+    render(<App />);
+    const start = await screen.findByRole("button", { name: "Einrichtung starten" });
+    expect(screen.getByLabelText("Charakter")).toHaveValue("Hammer");
+    fireEvent.click(start);
+    expect(screen.getByRole("dialog", { name: "Charakter freischalten" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Charakter-Setup" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "First-Run-Assistent" })).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Charakter")).toHaveValue("Hammer");
+    expect(mocks.applySelection).not.toHaveBeenCalled();
   });
 
   it("übernimmt die bestätigte D2R-Auswahl statt des ersten Katalog-Charakters", async () => {

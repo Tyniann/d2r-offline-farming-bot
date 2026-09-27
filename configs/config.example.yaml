@@ -227,6 +227,41 @@ combat_profiles:
       throttle_ms: 1500
       verify_timeout_ms: 1500
 
+  sorceress_blizzard:
+    character_class: sorceress
+    display_name: Blizzard
+    setup: {enabled: true, default: true}
+    requires_mercenary: true
+    combat:
+      standard_attack: blizzard
+      # skills.txt: Blizzard / localdelay=45 Frames, mit 200 ms Reserve.
+      attack_interval_ms: 1800
+      engage_distance_tiles: 15
+      reposition_distance_tiles: 22
+      kill_confirm_ticks: 3
+    required_skills:
+      - {skill: teleport, display_name: Teleport, slot: right}
+      - {skill: town_portal, display_name: Stadtportal, slot: right}
+      - {skill: blizzard, display_name: Blizzard, slot: right}
+      - {skill: ice_blast, display_name: Eisstoß, slot: right}
+      - {skill: static_field, display_name: Statikfeld, slot: right}
+      - {skill: frozen_armor, display_name: Eisrüstung, slot: right}
+    hooks:
+      town_ready:
+        - {skill: frozen_armor, target: self, once_per_game: false, delay_ms: 5000, settle_ms: 1500}
+      # Nur gegen Mephisto, nach bestätigter Annäherung. Zwei oder drei Casts.
+      boss_engage:
+        - {skill: static_field, target: self, once_per_encounter: true, settle_ms: 500}
+        - {skill: static_field, target: self, once_per_encounter: true, settle_ms: 500}
+        - {skill: static_field, target: self, once_per_encounter: true, settle_ms: 500}
+    resources:
+      healing: {use_below_percent: 65, belt_slots: [1], cooldown_ms: 4000}
+      mana: {use_below_percent: 35, belt_slots: [2, 3], cooldown_ms: 4000}
+      rejuvenation: {use_below_percent: 35, belt_slots: [4], cooldown_ms: 1500}
+      mercenary: {enabled: true, use_below_percent: 50, belt_slots: [1], cooldown_ms: 4000}
+      throttle_ms: 1500
+      verify_timeout_ms: 1500
+
 character_setup:
   pickit_defaults:
     countess: [gems, keys, countess-standard]

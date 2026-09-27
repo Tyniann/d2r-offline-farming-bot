@@ -155,7 +155,7 @@ func (m MercenaryResourceConfig) Resolve() (enabled bool, rule ResourceRuleConfi
 	return enabled, rule
 }
 
-// ApplyDefaults materialisiert produktive Necro-Defaults für Tests und Loader.
+// ApplyDefaults materialisiert produktive Profil-Defaults für Tests und Loader.
 func (c *ProfilesConfig) ApplyDefaults() {
 	c.applyDefaults()
 }
@@ -166,6 +166,44 @@ func (c *ProfilesConfig) applyDefaults() {
 	}
 	c.applyNecroBoneSpearDefaults()
 	c.applyPaladinHammerdinDefaults()
+	c.applySorceressBlizzardDefaults()
+}
+
+func (c *ProfilesConfig) applySorceressBlizzardDefaults() {
+	if _, ok := (*c)["sorceress_blizzard"]; ok {
+		return
+	}
+	(*c)["sorceress_blizzard"] = ProfileConfig{
+		CharacterClass: "sorceress", DisplayName: "Blizzard", Setup: ProfileSetupConfig{Enabled: true, Default: true},
+		RequiresMercenary: true,
+		Combat: ProfileCombatConfig{
+			StandardAttack: "blizzard", AttackIntervalMs: 1800,
+			EngageDistanceTiles: 15, RepositionDistanceTiles: 22, KillConfirmTicks: 3,
+		},
+		RequiredSkills: []RequiredSkillConfig{
+			{Skill: "teleport", DisplayName: "Teleport", Slot: "right"},
+			{Skill: "town_portal", DisplayName: "Stadtportal", Slot: "right"},
+			{Skill: "blizzard", DisplayName: "Blizzard", Slot: "right"},
+			{Skill: "ice_blast", DisplayName: "Eisstoß", Slot: "right"},
+			{Skill: "static_field", DisplayName: "Statikfeld", Slot: "right"},
+			{Skill: "frozen_armor", DisplayName: "Eisrüstung", Slot: "right"},
+		},
+		Hooks: ProfileHooksConfig{
+			TownReady: []ProfileActionConfig{{Skill: "frozen_armor", Target: "self", DelayMs: 5000, SettleMs: 1500}},
+			BossEngage: []ProfileActionConfig{
+				{Skill: "static_field", Target: "self", OncePerEncounter: true, SettleMs: 500},
+				{Skill: "static_field", Target: "self", OncePerEncounter: true, SettleMs: 500},
+				{Skill: "static_field", Target: "self", OncePerEncounter: true, SettleMs: 500},
+			},
+		},
+		Resources: ProfileResourcesConfig{
+			Healing:      ResourceRuleConfig{UseBelowPercent: 65, BeltSlots: []int{1}, CooldownMs: 4000},
+			Mana:         ResourceRuleConfig{UseBelowPercent: 35, BeltSlots: []int{2, 3}, CooldownMs: 4000},
+			Rejuvenation: ResourceRuleConfig{UseBelowPercent: 35, BeltSlots: []int{4}, CooldownMs: 1500},
+			Mercenary:    MercenaryResourceConfig{UseBelowPercent: 50, BeltSlots: []int{1}, CooldownMs: 4000},
+			ThrottleMs:   1500, VerifyMs: 1500,
+		},
+	}
 }
 
 func (c *ProfilesConfig) applyNecroBoneSpearDefaults() {
@@ -558,6 +596,40 @@ func validateProfileCombatAndRequiredSkills(profileID string, profileCfg Profile
 	}
 	if profileID == "paladin_hammerdin" {
 		return validatePaladinHammerdinContract(profileCfg, requiredSlots)
+	}
+	if profileID == "sorceress_blizzard" {
+		return validateSorceressBlizzardContract(profileCfg, requiredSlots)
+	}
+	return nil
+}
+
+func validateSorceressBlizzardContract(cfg ProfileConfig, slots map[string]string) error {
+	if cfg.CharacterClass != "sorceress" || cfg.Combat.StandardAttack != "blizzard" || !cfg.RequiresMercenary {
+		return fmt.Errorf("combat_profiles.sorceress_blizzard requires sorceress, Blizzard and a mercenary")
+	}
+	// skills.txt / Blizzard / localdelay=45 entspricht 1800 ms. Der Default
+	// verwendet diese Frist; Eisstoß überbrückt sie ohne eigene Zauberverzögerung.
+	if cfg.Combat.AttackIntervalMs < 1800 {
+		return fmt.Errorf("combat_profiles.sorceress_blizzard.combat.attack_interval_ms must be >= 1800")
+	}
+	if len(slots) != 6 {
+		return fmt.Errorf("combat_profiles.sorceress_blizzard requires exactly six duty skills")
+	}
+	for _, skill := range []string{"teleport", "town_portal", "blizzard", "ice_blast", "static_field", "frozen_armor"} {
+		if slots[skill] != "right" {
+			return fmt.Errorf("combat_profiles.sorceress_blizzard required skill %q must use slot right", skill)
+		}
+	}
+	if len(cfg.Hooks.TownReady) != 1 || cfg.Hooks.TownReady[0].Skill != "frozen_armor" || cfg.Hooks.TownReady[0].Target != "self" {
+		return fmt.Errorf("combat_profiles.sorceress_blizzard requires Frozen Armor as town self buff")
+	}
+	if len(cfg.Hooks.BossEngage) < 2 || len(cfg.Hooks.BossEngage) > 3 {
+		return fmt.Errorf("combat_profiles.sorceress_blizzard requires two or three Static Field casts")
+	}
+	for _, action := range cfg.Hooks.BossEngage {
+		if action.Skill != "static_field" || action.Target != "self" || !action.OncePerEncounter || action.SettleMs < 500 {
+			return fmt.Errorf("combat_profiles.sorceress_blizzard requires encounter-scoped Static Field self casts with settle_ms >= 500")
+		}
 	}
 	return nil
 }

@@ -235,8 +235,12 @@ func resolveSocketStatValue(active, base SocketStatEvidence) (value int32, prese
 // decodeItemQuantity reads stack size from Stat 70. Live keys keep the value on
 // Base while Active is empty, so Base wins when both lists are readable.
 // A successful empty Active parse must not hide a Base-only value. Negative
-// values and Active/Base conflicts stay unknown.
+// values and Active/Base conflicts stay unknown. D2R omits quantity on empty
+// stacks; absence means zero only when both lists were read successfully.
 func decodeItemQuantity(active, base SocketStatEvidence) (quantity int, known bool) {
+	if active.ListReadable && base.ListReadable && !active.Present && !base.Present {
+		return 0, true
+	}
 	value, present := resolveQuantityStatValue(active, base)
 	if !present || value < 0 {
 		return 0, false

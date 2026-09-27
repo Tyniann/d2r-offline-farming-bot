@@ -16,6 +16,7 @@ import "./dashboard.css";
 import type { AppTranslator } from "../../i18n/presenters";
 
 interface Props {
+  historyRefreshKey?: number;
   status: StatusDTO | null;
   catalog: CatalogDTO | null;
   connection: LiveConnectionState;
@@ -96,7 +97,7 @@ export function DashboardFeature(props: Props) {
     {inputNotReady && !startFailureText && <StateMessage kind="error" title={t("dashboard.setup.inputNotReady")}>{t("dashboard.setup.inputNotReadyDetail")}</StateMessage>}
     {routeWorkflowBusy && <StateMessage kind="error" title={t("dashboard.setup.routeWorkflowActive")}>{t("dashboard.setup.routeWorkflowActiveDetail")}</StateMessage>}
 
-    <DashboardStats character={character} difficulty={props.difficulty} runNames={Object.fromEntries((catalog?.runs ?? selectionRuns ?? []).map((run) => [run.run_id, dashboardRunName(run.run_id, t)]))} farming={<FarmingPanel
+    <DashboardStats refreshKey={props.historyRefreshKey} character={character} difficulty={props.difficulty} runNames={Object.fromEntries((catalog?.runs ?? selectionRuns ?? []).map((run) => [run.run_id, dashboardRunName(run.run_id, t)]))} farming={<FarmingPanel
         status={status}
         character={character}
         difficulty={props.difficulty}

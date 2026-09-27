@@ -20,6 +20,7 @@ import { terminalWorkflowStates } from "../features/routes/routePresentation";
 import { DashboardFeature } from "../features/dashboard/DashboardFeature";
 import { SessionSummaryDialog, sessionSummaryFromTransition } from "../features/dashboard/SessionSummaryDialog";
 import { AppSelectionProvider, useAppSelectionState } from "./AppSelectionContext";
+import { CharacterUnlock } from "../features/characters/CharacterUnlock";
 import { LanguageSwitcher } from "./LanguageSwitcher";
 import { useTranslation } from "react-i18next";
 import { presentApiError, presentDifficultyName, presentProblem, presentRunName } from "../i18n/presenters";
@@ -83,6 +84,7 @@ function CoreApp() {
   const [preferredRecordingRun, setPreferredRecordingRun] = useState("countess");
   const [updateAvailable, setUpdateAvailable] = useState(false);
   const [settingsDirty, setSettingsDirty] = useState(false);
+  const [unlockRevision, setUnlockRevision] = useState(0);
   const [pendingNav, setPendingNav] = useState<AppTarget | null>(null);
   const contentRef = useRef<HTMLElement>(null);
   const settingsDirtyRef = useRef(false);
@@ -406,12 +408,16 @@ function CoreApp() {
           <label>{t("sidebar.character")}<select value={character} onChange={(event) => {
             const next = event.target.value;
             selectCharacter(next, storedCharacterSettings(operatorSettings, catalog, next)?.last_difficulty);
-          }} disabled={effectiveSelectionLocked}>{catalog?.characters.map((entry) => <option key={entry.slug} value={entry.name} disabled={!entry.selectable}>{entry.name}{entry.selectable ? "" : ` – ${t("sidebar.unavailable")}`}</option>)}</select></label>
+          }} disabled={effectiveSelectionLocked}>{catalog?.characters.filter((entry) => entry.selectable).map((entry) => <option key={entry.slug} value={entry.name}>{entry.name}{entry.selectable ? "" : ` – ${t("sidebar.unavailable")}`}</option>)}</select></label>
           <label>{t("sidebar.difficulty")}<select value={difficulty} onChange={(event) => selectDifficulty(event.target.value)} disabled={effectiveSelectionLocked}>{catalog?.difficulties.map((entry) => <option key={entry.id} value={entry.id}>{presentDifficultyName(entry.id, t)}</option>)}</select></label>
           {sessionSelectionLocked && <small>{t("sidebar.lockedDuringSession")}</small>}
           {!sessionSelectionLocked && confirmedSelection && !draftDiffers && <small className="sidebar-context-confirmed">{t("sidebar.activeInD2R")}</small>}
           {draftDiffers && <small className="sidebar-context-pending">{t("sidebar.notActiveInD2R")}</small>}
         </div>}
+        {!onboardingOpen && catalog && status && <CharacterUnlock catalog={catalog} status={status}
+          lockedReason={settingsDirty ? t("characters.unlockUnsaved") : selectionLocked || routeWorkflowBusy ? t("characters.unlockSession") : liveLocked || inputNotReady ? t("characters.unlockInput") : ""}
+          onChanged={async () => { await refreshAfterCommand(); setUnlockRevision((revision) => revision + 1); }}
+          onConfigure={(name) => { selectCharacter(name, storedCharacterSettings(operatorSettings, catalog, name)?.last_difficulty); window.location.hash = "settings"; }} />}
         <div className="sidebar-meta">
           <LanguageSwitcher />
           <StatusBadge tone={connection === "connected" ? "success" : "danger"} icon={connection === "connected" ? Wifi : WifiOff}>{t(connection === "connected" ? "sidebar.connected" : connection === "connecting" ? "sidebar.connecting" : "sidebar.disconnected")}</StatusBadge>
@@ -423,6 +429,7 @@ function CoreApp() {
       <main ref={contentRef} id="app-content" className="app-content" tabIndex={-1}>
         {onboardingOpen && status && catalog && <OnboardingFeature status={status} catalog={catalog} initialStep={onboardingStep} onRefresh={refreshAfterCommand} onClose={() => { setRouteOpenedFromOnboarding(false); setOnboardingOpen(false); }} onOpenRoutes={openRoutes} />}
         {!onboardingOpen && <>{target === "dashboard" && <DashboardFeature
+          historyRefreshKey={historyRefreshKey}
           status={status}
           catalog={catalog}
           connection={connection}
@@ -459,16 +466,16 @@ function CoreApp() {
           onResumeQueue={() => void submitResume()}
         />}
 
-        {target === "routes" && <>{liveLocked && <StateMessage kind="error" title={t("app.routesLockedTitle")}>{t("app.routesLockedDetail")}</StateMessage>}<RouteFeature characters={catalog?.characters.map((entry) => entry.name) ?? []} selectedCharacter={character} onSelectedCharacterChange={(next) => selectCharacter(next, storedCharacterSettings(operatorSettings, catalog, next)?.last_difficulty)} refreshKey={routeRefreshKey} liveLocked={liveLocked} preferredRecordingRun={routeOpenedFromOnboarding ? preferredRecordingRun : ""} onReturnToOnboarding={routeOpenedFromOnboarding ? returnToOnboarding : undefined} /></>}
+        {target === "routes" && <>{liveLocked && <StateMessage kind="error" title={t("app.routesLockedTitle")}>{t("app.routesLockedDetail")}</StateMessage>}<RouteFeature selectedDifficulty={difficulty} characters={catalog?.characters.map((entry) => entry.name) ?? []} selectedCharacter={character} onSelectedCharacterChange={(next) => selectCharacter(next, storedCharacterSettings(operatorSettings, catalog, next)?.last_difficulty)} refreshKey={routeRefreshKey} liveLocked={liveLocked} preferredRecordingRun={routeOpenedFromOnboarding ? preferredRecordingRun : ""} onReturnToOnboarding={routeOpenedFromOnboarding ? returnToOnboarding : undefined} /></>}
         {target === "pickit" && <PickitFeature characters={catalog?.characters.map((entry) => entry.name) ?? []} selectedCharacter={character} onSelectedCharacterChange={(next) => selectCharacter(next, storedCharacterSettings(operatorSettings, catalog, next)?.last_difficulty)} runs={catalog?.runs.map((entry) => entry.run_id) ?? []} locked={!!status && !editableStates.has(status.state)} refreshKey={pickitRefreshKey} />}
         {target === "history" && <><PageHeader eyebrow={t("app.historyEyebrow")} title={t("navigation.history")} description={t("app.historyDescription")} /><HistoryFeature characters={catalog?.characters.map((entry) => entry.name) ?? []} selectedCharacter={character} selectedDifficulty={difficulty} onSelectedCharacterChange={(next) => selectCharacter(next, storedCharacterSettings(operatorSettings, catalog, next)?.last_difficulty)} onSelectedDifficultyChange={selectDifficulty} runs={catalog?.runs.map((entry) => entry.run_id) ?? []} refreshKey={historyRefreshKey} /></>}
-        {target === "settings" && <><PageHeader compact title={t("navigation.settings")} /><SettingsFeature generation={status?.generation ?? 0} coreState={status?.state ?? ""} status={status} characters={catalog?.characters.map((entry) => entry.slug) ?? []} selectedCharacter={catalog?.characters.find((entry) => entry.name === character)?.slug ?? ""} onSelectedCharacterChange={(slug) => { const next = catalog?.characters.find((entry) => entry.slug === slug)?.name; if (next) selectCharacter(next, storedCharacterSettings(operatorSettings, catalog, next)?.last_difficulty); }} catalog={catalog} runs={catalog?.runs.map((entry) => ({ id: entry.run_id, label: presentRunName(entry.run_id, t), status: entry.status, reasons: entry.reasons, routeCombat: entry.route_combat })) ?? []} events={events} onOpenOnboarding={() => { setOnboardingStep(0); setOnboardingOpen(true); }} onSettingsApplied={() => { void refreshAfterCommand(); }} onHistoryDeleted={() => setHistoryRefreshKey((value) => value + 1)} onDirtyChange={setSettingsDirty} /></>}
+        {target === "settings" && <><PageHeader compact title={t("navigation.settings")} /><SettingsFeature key={unlockRevision} generation={status?.generation ?? 0} coreState={status?.state ?? ""} status={status} characters={catalog?.characters.map((entry) => entry.slug) ?? []} selectedCharacter={catalog?.characters.find((entry) => entry.name === character)?.slug ?? ""} onSelectedCharacterChange={(slug) => { const next = catalog?.characters.find((entry) => entry.slug === slug)?.name; if (next) selectCharacter(next, storedCharacterSettings(operatorSettings, catalog, next)?.last_difficulty); }} catalog={catalog} runs={catalog?.runs.map((entry) => ({ id: entry.run_id, label: presentRunName(entry.run_id, t), status: entry.status, reasons: entry.reasons, routeCombat: entry.route_combat })) ?? []} events={events} onOpenOnboarding={() => { setOnboardingStep(0); setOnboardingOpen(true); }} onSettingsApplied={() => { void refreshAfterCommand(); }} onHistoryDeleted={() => setHistoryRefreshKey((value) => value + 1)} onDirtyChange={setSettingsDirty} /></>}
         </>}
       </main>
 
       {preview && <Dialog title={t("app.routeInvalidationTitle")} onClose={() => !applying && setPreview(null)}><p>{t("app.routeInvalidationIntro", { oldDifficulty: preview.old_difficulty || t("app.unconfirmed"), newDifficulty: preview.new_difficulty })}</p><ul>{preview.affected_routes.map((route) => <li key={route}>{route}</li>)}</ul><p>{t("app.routeInvalidationDetail")}</p><div className="modal-actions"><Button variant="secondary" onClick={() => setPreview(null)} disabled={applying}>{t("common.cancel")}</Button><Button onClick={() => void applyPreview(preview)} disabled={applying}>{t(applying ? "app.applying" : "app.confirmApply")}</Button></div></Dialog>}
       {pendingNav && <Dialog title={t("app.unsavedTitle")} onClose={() => setPendingNav(null)}><p>{t("app.unsavedDetail")}</p><div className="modal-actions"><Button variant="secondary" onClick={() => setPendingNav(null)}>{t("app.returnToSettings")}</Button><Button variant="danger" onClick={discardSettingsAndNavigate}>{t("app.discardChanges")}</Button></div></Dialog>}
-      {sessionSummary && <SessionSummaryDialog sessionID={sessionSummary.sessionID} durationMs={sessionSummary.durationMs} refreshKey={historyRefreshKey} onClose={() => setSessionSummary(null)} />}
+      {sessionSummary && <SessionSummaryDialog sessionID={sessionSummary.sessionID} durationMs={sessionSummary.durationMs} refreshKey={historyRefreshKey} onClose={() => { setSessionSummary(null); setHistoryRefreshKey((value) => value + 1); }} />}
     </div>
     </AppSelectionProvider>
   );

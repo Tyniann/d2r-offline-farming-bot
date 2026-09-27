@@ -12,6 +12,12 @@ Der `RecordingCoordinator` kapselt den bestehenden World-Koordinaten-Recorder in
 - **Semantik:** `internal/tasks.RunDefinition.Recording`
 - **Config:** `routes.candidate_root`, `input.recording_finish_hotkey`
 
+## Auswahl in der Oberfläche
+
+Der Aufnahmestart überträgt den ausgewählten Charakter und die Schwierigkeit aus dem Seitenpanel gemeinsam. Eine ausdrücklich übertragene Schwierigkeit darf nicht durch den gespeicherten Charakterstandard ersetzt werden. Nur Aufrufer ohne Schwierigkeit verwenden den bisherigen bestätigten oder gespeicherten Kontext.
+
+Eine vorhandene, abweichende D2R-Bestätigung sperrt den Aufnahmestart. Die Oberfläche fordert dazu auf, Charakter und tatsächliche Schwierigkeit im Dashboard mit „In D2R verwenden“ zu bestätigen. Kandidatentests behalten denselben Schutz. Bei einem Konflikt nennt die Fehlermeldung den Charakter und die Schwierigkeit des Entwurfs sowie die bestätigte Auswahl. Die Oberfläche erhält den konkreten API-Fehler statt ihn durch eine allgemeine Startfehlermeldung zu ersetzen.
+
 ## Preflight und Aufnahme
 
 Der Start verlangt einen registrierten Run, vollständige Character-/Class-/Difficulty-/Versions- und Revisionsbindung, bestätigten Zielwegpunktkontext, geschlossene tatsächlich blockierende UIs, D2R-Fokus sowie einen freien exklusiven Input-Owner. Der aktuelle World-State muss den zuvor im Core bestätigten Charakternamen und die konfigurierte Klasse aus Memory, das Startgebiet, einen stabilen Layout-Fingerprint und einen sichtbaren Startwegpunkt innerhalb der konfigurierten `pathing.waypoint.max_click_distance` liefern. Das D2R-UI-Bit `WaypointOpen` bleibt nach einer abgeschlossenen Wegpunktreise auf diesem Build nachweislich gesetzt, obwohl das Panel sichtbar geschlossen ist. Es ist deshalb für diesen read-only Aufnahmestart kein Blocker; Inventory, NPC-Dialog, Shop, Stash und Quit-Menü bleiben fail-closed. Solange die übrige Memory-Evidenz fehlt, bleibt der Workflow sichtbar in `preflight`, protokolliert im Zwei-Sekunden-Takt Gebiet, Sichtbarkeit sowie gemessene und erlaubte Wegpunktdistanz und akzeptiert F9 nicht als Aufnahmeende. Eine Aufnahme endet nach 30 Minuten fail-closed mit `recording_timeout`.

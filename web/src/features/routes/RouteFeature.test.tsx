@@ -1,6 +1,7 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { changeAppLanguage } from "../../i18n";
+import { apiError } from "../../test/apiError";
 import { RouteFeature } from "./RouteFeature";
 
 const mocks = vi.hoisted(() => ({
@@ -180,6 +181,27 @@ describe("RouteFeature Redesign", () => {
     expect(document.body).not.toHaveTextContent("candidate-secret"); expect(document.body).not.toHaveTextContent("aaaaaaaaaaaa");
     fireEvent.click(screen.getByRole("button", { name: "Testen" }));
     await waitFor(() => expect(mocks.start).toHaveBeenCalledWith("test", 1, { candidateId: "candidate-secret" }));
+  });
+
+  it("sendet die im Sidepanel gewählte Schwierigkeit beim Aufnehmen", async () => {
+    render(<RouteFeature characters={["MsIcicle"]} selectedCharacter="MsIcicle" selectedDifficulty="hell" refreshKey={0} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Route aufnehmen" }));
+    fireEvent.click(screen.getByRole("button", { name: "Gräfin aufnehmen" }));
+    await waitFor(() => expect(mocks.start).toHaveBeenCalledWith("record", 1, expect.objectContaining({ character: "MsIcicle", difficulty: "hell" })));
+  });
+
+  it("erklärt einen abgelehnten Teststart mit dem konkreten Charakterkonflikt", async () => {
+    mocks.candidates.mockResolvedValue([{ candidate_id: "draft", run_id: "countess", character: "MsIcicle", difficulty: "normal", state: "validated", created_at: "2026-09-28T00:37:46Z" }]);
+    mocks.start.mockRejectedValue(apiError("route_candidate_context_mismatch", { candidate_character: "MsIcicle", candidate_difficulty: "normal", selected_character: "MrHammer", selected_difficulty: "hell" }));
+    render(<RouteFeature characters={["MsIcicle"]} selectedCharacter="MsIcicle" refreshKey={0} />);
+    fireEvent.click(await screen.findByRole("button", { name: /Entwürfe 1/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Testen" }));
+    const error = await screen.findByRole("alert");
+    expect(error).toHaveTextContent("MsIcicle");
+    expect(error).toHaveTextContent("Normal");
+    expect(error).toHaveTextContent("MrHammer");
+    expect(error).toHaveTextContent("Hölle");
+    expect(error).toHaveTextContent("In D2R verwenden");
   });
 
   it("löscht einen Entwurf über eine lesbare Preview-Bestätigung und aktualisiert den Badge", async () => {

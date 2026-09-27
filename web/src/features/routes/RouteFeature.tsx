@@ -12,11 +12,13 @@ import { RoutePageHeader, type RouteArea } from "./components/RoutePageHeader";
 import { RouteRecordingPanel } from "./components/RouteRecordingPanel";
 import { candidateTitle, roleLabel, runLabel, terminalWorkflowStates } from "./routePresentation";
 import "./RouteFeature.css";
+import { presentApiError } from "../../i18n/presenters";
 import { useTranslation } from "react-i18next";
 
 interface Props {
   characters: string[];
   selectedCharacter: string;
+  selectedDifficulty?: string;
   onSelectedCharacterChange?(character: string): void;
   refreshKey: number;
   liveLocked?: boolean;
@@ -26,7 +28,7 @@ interface Props {
 
 const testWorkflowStates = new Set(["preparing_playback", "playing_candidate", "validating_terminal", "returning_after_test", "awaiting_publish_confirmation", "publishing"]);
 
-export function RouteFeature({ characters, selectedCharacter: character, onSelectedCharacterChange, refreshKey, liveLocked = false, preferredRecordingRun = "", onReturnToOnboarding }: Props) {
+export function RouteFeature({ characters, selectedCharacter: character, selectedDifficulty, onSelectedCharacterChange, refreshKey, liveLocked = false, preferredRecordingRun = "", onReturnToOnboarding }: Props) {
   const { t } = useTranslation();
   const [area, setArea] = useState<RouteArea>(preferredRecordingRun ? "recording" : "library");
   const [archive, setArchive] = useState(false);
@@ -100,11 +102,11 @@ export function RouteFeature({ characters, selectedCharacter: character, onSelec
     finally { setPending(false); }
   };
 
-  const start = async (operation: string, data: { runId?: string; routeRole?: string; candidateId?: string; character?: string }) => {
+  const start = async (operation: string, data: { runId?: string; routeRole?: string; candidateId?: string; character?: string; difficulty?: string }) => {
     if (!workflow) return;
     setPending(true); setError("");
     try { setWorkflow(await startRouteWorkflow(operation, workflow.generation, data)); }
-    catch { setError(t("routes.startFailed")); }
+    catch (reason) { setError(presentApiError(reason, t, t("routes.startFailed"))); }
     finally { setPending(false); }
   };
 
@@ -129,7 +131,7 @@ export function RouteFeature({ characters, selectedCharacter: character, onSelec
     {error && <p className="route-error" role="alert">{error}</p>}
     {!character ? <p className="route-empty">{t("routes.selectCharacterFirst")}</p> : <>
       {area === "library" && <RouteLibraryPanel routes={routes} options={options} archive={archive} locked={actionsLocked} onArchiveChange={setArchive} onRecord={openRecording} onMutate={(operation, routeID) => void prepare(operation, routeID)} />}
-      {area === "recording" && <RouteRecordingPanel options={options} selectedRun={selectedRun} selectedRole={selectedRole} hotkeys={hotkeys} workflow={workflow} locked={liveLocked || workflowBusy} lockedReason={workflowBusy ? t("routes.finishWorkflowFirst") : liveLocked ? t("routes.confirmCompatibilityFirst") : undefined} pending={pending} onSelectRun={selectRun} onSelectRole={setSelectedRole} onStart={(option) => void start("record", { runId: option.run_id, routeRole: option.route_role, character })} onFinish={() => void finish()} onOpenDrafts={() => setArea("drafts")} />}
+      {area === "recording" && <RouteRecordingPanel options={options} selectedRun={selectedRun} selectedRole={selectedRole} hotkeys={hotkeys} workflow={workflow} locked={liveLocked || workflowBusy} lockedReason={workflowBusy ? t("routes.finishWorkflowFirst") : liveLocked ? t("routes.confirmCompatibilityFirst") : undefined} pending={pending} onSelectRun={selectRun} onSelectRole={setSelectedRole} onStart={(option) => void start("record", { runId: option.run_id, routeRole: option.route_role, character, ...(selectedDifficulty ? { difficulty: selectedDifficulty } : {}) })} onFinish={() => void finish()} onOpenDrafts={() => setArea("drafts")} />}
       {area === "drafts" && <RouteDraftsPanel candidates={visibleCandidates} workflow={workflow} locked={actionsLocked} runFilter={draftFilter} onRunFilterChange={setDraftFilter} onTest={(candidate) => void start("test", { candidateId: candidate.candidate_id })} onPublish={(candidate) => void prepare("publish", "", candidate.candidate_id)} onDelete={deleteDraft} />}
     </>}
 

@@ -24,6 +24,8 @@ type combatAdapter struct {
 	forceMoveKey        string
 	interval            time.Duration
 	lastAction          time.Time
+	lastBlizzardCast    time.Time
+	lastSorceressCast   time.Time
 	skills              *SkillSelector
 	selector            *RightSkillSelector
 	pendingTargetUnitID uint32
@@ -93,10 +95,10 @@ func (c *combatAdapter) castRightAttackAtWorld(now time.Time, skillID uint16, pl
 		return false, fmt.Errorf("combat verified input not wired")
 	}
 	if player.RightSkillID == skillID {
-		if !c.ready(now) {
+		if !c.attackReady(now, skillID) {
 			return false, nil
 		}
-	} else if !c.ready(now) && c.selector.pending != skillID {
+	} else if !c.attackReady(now, skillID) && c.selector.pending != skillID {
 		return false, nil
 	}
 	sent, err := c.selector.EnsureAndCast(skillID, player.RightSkillID, now, func() error {
@@ -110,7 +112,7 @@ func (c *combatAdapter) castRightAttackAtWorld(now time.Time, skillID uint16, pl
 		if clickErr := combatInput.Click(input.MouseRight); clickErr != nil {
 			return fmt.Errorf("combat right-click %s(%d): %w", memory.SkillName(skillID), skillID, clickErr)
 		}
-		c.lastAction = now
+		c.recordAttack(now, skillID)
 		c.log.Debug("combat skill cast",
 			"skill", memory.SkillName(skillID),
 			"skill_id", skillID,
@@ -308,6 +310,29 @@ func (c *combatAdapter) monsterHoldCursor(player world.Player, target world.Mons
 }
 
 func (c *combatAdapter) CastAttackAtMonster(now time.Time, skillID uint16, player world.Player, target world.Monster) (profile.MonsterCastResult, error) {
+	// Der Task liefert bei jedem Tick ein aktuell lebendes Ziel. Keine UnitID
+	// über eine Blizzard-/Eisstoß-Sequenz festhalten: Blizzard tötet nebenher.
+	rotation := skillID == memory.MustSkillID("blizzard")
+	if rotation {
+		if target.UnitID == 0 {
+			return profile.MonsterCastResult{}, nil
+		}
+		if now.IsZero() {
+			now = time.Now()
+		}
+		if !c.lastSorceressCast.IsZero() && !now.After(c.lastSorceressCast) {
+			return profile.MonsterCastResult{}, nil
+		}
+		if !c.attackReady(now, skillID) {
+			skillID = memory.MustSkillID("ice_blast")
+		}
+		// Ein fälliger Blizzard verdrängt eine noch unbestätigte Eisstoß-Auswahl.
+		// Die neue Auswahl benötigt weiterhin die reguläre Memory-Bestätigung.
+		if c.selector != nil && c.selector.pending != skillID &&
+			(c.selector.pending == memory.MustSkillID("ice_blast") || c.selector.pending == memory.MustSkillID("blizzard")) {
+			c.selector.Reset()
+		}
+	}
 	cast, err := c.bindings.Resolve(skillID)
 	if err != nil {
 		return profile.MonsterCastResult{}, fmt.Errorf("combat resolve %s(%d): %w", memory.SkillName(skillID), skillID, err)
@@ -320,8 +345,10 @@ func (c *combatAdapter) CastAttackAtMonster(now time.Time, skillID uint16, playe
 		return profile.MonsterCastResult{}, fmt.Errorf("combat verified input not wired")
 	}
 	if player.RightSkillID != skillID {
-		c.pendingTargetUnitID = 0
-		if !c.ready(now) && c.selector.pending != skillID {
+		if !rotation {
+			c.pendingTargetUnitID = 0
+		}
+		if !c.attackReady(now, skillID) && c.selector.pending != skillID {
 			return profile.MonsterCastResult{}, nil
 		}
 		sent, selectErr := c.selector.EnsureAndCast(skillID, player.RightSkillID, now, func() error {
@@ -334,9 +361,22 @@ func (c *combatAdapter) CastAttackAtMonster(now time.Time, skillID uint16, playe
 			c.lastAction = now
 			c.log.Info("combat right-mouse skill selection requested", "skill", memory.SkillName(skillID), "skill_id", skillID, "current_right_skill_id", player.RightSkillID)
 		}
+		// Auswahl und erster Zielversuch dürfen denselben Tick nutzen. Der
+		// nächste Snapshot bestätigt Skill und Hover ohne zusätzliche Wartefrist.
+		if rotation && !target.IsHovered && (c.pendingTargetUnitID != target.UnitID || c.hoverProbeAttempt == 0) {
+			_, _, _, aimed, aimErr := c.monsterHoldCursor(player, target)
+			return profile.MonsterCastResult{AimRequested: aimed}, aimErr
+		}
 		return profile.MonsterCastResult{}, nil
 	}
-	c.selector.Reset()
+	if rotation {
+		confirmed, err := c.selector.EnsureAndCast(skillID, player.RightSkillID, now, func() error { return nil })
+		if err != nil || !confirmed {
+			return profile.MonsterCastResult{}, err
+		}
+	} else {
+		c.selector.Reset()
+	}
 	if !target.IsHovered {
 		if c.pendingTargetUnitID != target.UnitID {
 			c.hoverProbeAttempt = 0
@@ -353,7 +393,7 @@ func (c *combatAdapter) CastAttackAtMonster(now time.Time, skillID uint16, playe
 				c.hoverProbeAttempt = 0
 				return profile.MonsterCastResult{}, fmt.Errorf("%w: unit %d", profile.ErrRouteClearTargetUnprojectable, target.UnitID)
 			}
-			if !c.ready(now) {
+			if !c.attackReady(now, skillID) {
 				return profile.MonsterCastResult{}, nil
 			}
 			if moveErr := c.input.MoveTo(clientX, clientY); moveErr != nil {
@@ -362,7 +402,7 @@ func (c *combatAdapter) CastAttackAtMonster(now time.Time, skillID uint16, playe
 			if clickErr := combatInput.Click(input.MouseRight); clickErr != nil {
 				return profile.MonsterCastResult{}, fmt.Errorf("combat projected right-click %s(%d) at monster %d: %w", memory.SkillName(skillID), skillID, target.UnitID, clickErr)
 			}
-			c.lastAction = now
+			c.recordAttack(now, skillID)
 			c.pendingTargetUnitID = 0
 			c.hoverProbeAttempt = 0
 			c.log.Info("combat skill cast at projected living monster",
@@ -376,7 +416,7 @@ func (c *combatAdapter) CastAttackAtMonster(now time.Time, skillID uint16, playe
 				"client_x", clientX,
 				"client_y", clientY,
 			)
-			return profile.MonsterCastResult{Sent: true, TargetingMode: profile.MonsterTargetingWorldProjected}, nil
+			return profile.MonsterCastResult{Sent: true, SkillID: skillID, TargetingMode: profile.MonsterTargetingWorldProjected}, nil
 		}
 		win, windowOK := c.input.Window()
 		if !windowOK {
@@ -415,13 +455,13 @@ func (c *combatAdapter) CastAttackAtMonster(now time.Time, skillID uint16, playe
 		c.pendingTargetUnitID = target.UnitID
 		c.hoverProbeAttempt = 0
 	}
-	if !c.ready(now) {
+	if !c.attackReady(now, skillID) {
 		return profile.MonsterCastResult{}, nil
 	}
 	if err := combatInput.Click(input.MouseRight); err != nil {
 		return profile.MonsterCastResult{}, fmt.Errorf("combat right-click %s(%d) at monster %d: %w", memory.SkillName(skillID), skillID, target.UnitID, err)
 	}
-	c.lastAction = now
+	c.recordAttack(now, skillID)
 	c.hoverProbeAttempt = 0
 	c.log.Debug("combat skill cast at confirmed living monster",
 		"skill", memory.SkillName(skillID),
@@ -431,7 +471,7 @@ func (c *combatAdapter) CastAttackAtMonster(now time.Time, skillID uint16, playe
 		"target_x", target.Position.X,
 		"target_y", target.Position.Y,
 	)
-	return profile.MonsterCastResult{Sent: true, TargetingMode: profile.MonsterTargetingHoverConfirmed}, nil
+	return profile.MonsterCastResult{Sent: true, SkillID: skillID, TargetingMode: profile.MonsterTargetingHoverConfirmed}, nil
 }
 
 func (c *combatAdapter) StopAttack() error {
@@ -581,6 +621,8 @@ func (c *combatAdapter) Reset() {
 		c.log.Warn("combat reset could not release attack input", "error", err)
 	}
 	c.lastAction = time.Time{}
+	c.lastBlizzardCast = time.Time{}
+	c.lastSorceressCast = time.Time{}
 	c.pendingTargetUnitID = 0
 }
 
@@ -603,6 +645,32 @@ func (c *combatAdapter) syncRightSelector() {
 	}
 	c.selector.pending = c.skills.pending[SkillSlotRight]
 	c.selector.requestedAt = c.skills.requestedAt[SkillSlotRight]
+}
+
+// Blizzard hat eine echte Zauberverzögerung. Teleport und Skillauswahl dürfen
+// diese Frist nicht neu starten, sonst verstreicht der lokale Drei-Sekunden-Clear
+// schon vor dem ersten Angriff. StopAttack und Route-Clear-Reset erhalten sie.
+func (c *combatAdapter) attackReady(now time.Time, skillID uint16) bool {
+	if skillID == memory.MustSkillID("ice_blast") {
+		return true
+	}
+	if skillID != memory.MustSkillID("blizzard") {
+		return c.ready(now)
+	}
+	if now.IsZero() {
+		now = time.Now()
+	}
+	return c.lastBlizzardCast.IsZero() || now.Sub(c.lastBlizzardCast) >= c.interval
+}
+
+func (c *combatAdapter) recordAttack(now time.Time, skillID uint16) {
+	c.lastAction = now
+	if skillID == memory.MustSkillID("blizzard") {
+		c.lastBlizzardCast = now
+	}
+	if skillID == memory.MustSkillID("blizzard") || skillID == memory.MustSkillID("ice_blast") {
+		c.lastSorceressCast = now
+	}
 }
 
 func (c *combatAdapter) ready(now time.Time) bool {

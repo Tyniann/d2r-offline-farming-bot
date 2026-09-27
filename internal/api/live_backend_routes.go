@@ -302,7 +302,8 @@ func (b *LiveBackend) PreviewRouteMutation(request RouteMutationPreviewRequest) 
 		if loadErr != nil {
 			return RouteMutationPreviewDTO{}, loadErr
 		}
-		if confirmedSelectionConflictsCandidate(selection, candidate) {
+		// Deleting a local draft does not use the active D2R character.
+		if request.Operation != string(app.RouteMutationDeleteCandidate) && confirmedSelectionConflictsCandidate(selection, candidate) {
 			return RouteMutationPreviewDTO{}, fmt.Errorf("live candidate context changed")
 		}
 		if request.Operation == string(app.RouteMutationDeleteCandidate) {
@@ -342,7 +343,7 @@ func (b *LiveBackend) ConfirmRouteMutation(request RouteMutationConfirmRequest) 
 		if err != nil {
 			return err
 		}
-		if confirmedSelectionConflictsCandidate(selection, candidate) {
+		if preview.Operation != app.RouteMutationDeleteCandidate && confirmedSelectionConflictsCandidate(selection, candidate) {
 			return fmt.Errorf("live candidate context changed")
 		}
 		if strings.TrimSpace(refreshCharacter) == "" {
@@ -428,6 +429,14 @@ func (b *LiveBackend) StartRouteWorkflow(request RouteWorkflowRequest) (RouteWor
 	recordingCharacter, recordingDifficulty := "", ""
 	if request.Operation == "record" {
 		recordingCharacter, recordingDifficulty = b.recordingCharacterContext(request.Character)
+		if request.Difficulty != "" {
+			switch request.Difficulty {
+			case "normal", "nightmare", "hell":
+				recordingDifficulty = request.Difficulty
+			default:
+				return RouteWorkflowDTO{}, &commandError{code: "request_invalid", params: map[string]any{"field": "difficulty"}}
+			}
+		}
 	}
 	b.mu.Lock()
 	selection := b.status.Selection
@@ -451,9 +460,22 @@ func (b *LiveBackend) StartRouteWorkflow(request RouteWorkflowRequest) (RouteWor
 		b.mu.Unlock()
 		return RouteWorkflowDTO{}, fmt.Errorf("route recording requires confirmed character and difficulty")
 	}
+	// Bei einer vorhandenen Bestätigung müssen Aufnahme und spätere Tests
+	// denselben Kontext verwenden. Sonst würde ein anderer Charakter mit
+	// seinem gespeicherten Standard statt der bestätigten Schwierigkeit landen.
+	if request.Operation == "record" && selection.Character != "" &&
+		(!strings.EqualFold(selection.Character, recordingCharacter) || !strings.EqualFold(selection.Difficulty, recordingDifficulty)) {
+		b.mu.Unlock()
+		return RouteWorkflowDTO{}, &commandError{code: "route_recording_context_mismatch", params: map[string]any{
+			"character": recordingCharacter, "selected_character": selection.Character,
+		}, cause: fmt.Errorf("recording context differs from confirmed selection")}
+	}
 	if testCandidate != nil && confirmedSelectionConflictsCandidate(selection, *testCandidate) {
 		b.mu.Unlock()
-		return RouteWorkflowDTO{}, fmt.Errorf("live candidate context changed")
+		return RouteWorkflowDTO{}, &commandError{code: "route_candidate_context_mismatch", params: map[string]any{
+			"candidate_character": testCandidate.Character, "candidate_difficulty": testCandidate.Difficulty,
+			"selected_character": selection.Character, "selected_difficulty": selection.Difficulty,
+		}, cause: fmt.Errorf("live candidate context changed")}
 	}
 	if routeWorkflowBusy(b.routeWorkflow.State) {
 		b.mu.Unlock()

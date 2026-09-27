@@ -95,10 +95,10 @@ func (e *Executor) SetTelemetry(sink Telemetry) {
 	}
 }
 
-// ConfigureRouteClear binds one validated code-backed strategy, its optional
-// one-time opener, and its regular attack to the movement-free combat surface.
-// Necromancer Summoner/Cow require Amplify Damage as opener; Hammerdin
-// Summoner passes openerSkillID 0 and attacks only with Blessed Hammer.
+// ConfigureRouteClear bindet Strategie, optionalen einmaligen Opener und
+// Standardangriff an die gemeinsame Kampfoberfläche ohne eigene Bewegung.
+// Necromancer verwendet Amplify Damage als Opener. Hammerdin und Blizzard
+// verwenden openerSkillID 0 und ausschließlich ihren Standardangriff.
 func (e *Executor) ConfigureRouteClear(strategy RouteClearStrategy, openerSkillID, attackSkillID uint16, actions RouteCombatActions) error {
 	if e == nil || strategy != RouteClearSingleTarget || attackSkillID == 0 || actions == nil {
 		return fmt.Errorf("profile route clear requires single_target, attack skill, and combat actions")
@@ -108,9 +108,9 @@ func (e *Executor) ConfigureRouteClear(strategy RouteClearStrategy, openerSkillI
 		if openerSkillID == 0 {
 			return fmt.Errorf("profile route clear requires single_target, opener skill, attack skill, and combat actions")
 		}
-	case "paladin_hammerdin":
+	case "paladin_hammerdin", "sorceress_blizzard":
 		if openerSkillID != 0 {
-			return fmt.Errorf("hammerdin route clear does not use a curse opener")
+			return fmt.Errorf("profile %s route clear does not use a curse opener", e.definition.ID)
 		}
 	default:
 		return fmt.Errorf("profile route clear requires single_target, opener skill, attack skill, and combat actions")
@@ -515,6 +515,9 @@ func (e *Executor) TickRouteClear(ctx context.Context, request RouteClearRequest
 		actionKind = RouteClearActionCurse
 	}
 	cast, err := e.routeClear.actions.CastAttackAtMonster(now, skillID, request.Player, request.Target)
+	if cast.SkillID != 0 {
+		skillID = cast.SkillID
+	}
 	if err != nil {
 		if errors.Is(err, ErrRouteClearTargetUnprojectable) {
 			return Result{Status: StatusPending, SkillID: skillID, ActionKind: actionKind, Reason: RouteClearReasonTargetUnprojectable, TargetUnitID: request.Target.UnitID, TargetNPCID: request.Target.NPCID}

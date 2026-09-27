@@ -3323,6 +3323,10 @@
           },
           "character": {
             "type": "string"
+          },
+          "difficulty": {
+            "type": "string",
+            "enum": ["normal", "nightmare", "hell"]
           }
         }
       },

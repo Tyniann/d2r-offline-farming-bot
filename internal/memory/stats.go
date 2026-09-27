@@ -131,16 +131,17 @@ func parseRawStats(r *Reader, listHeader uintptr, off StatOffsets) ([]RawStat, e
 	if err != nil {
 		return nil, fmt.Errorf("read stat array pointer: %w", err)
 	}
-	if listPtr == 0 {
-		return nil, fmt.Errorf("stat array pointer is null")
-	}
-
 	count, err := r.ReadUint64(listHeader + off.Count)
 	if err != nil {
 		return nil, fmt.Errorf("read stat count: %w", err)
 	}
+	// D2R represents an empty Base list with pointer=0/count=0, including
+	// exhausted tomes. A null array is invalid only when entries are claimed.
 	if count == 0 {
 		return []RawStat{}, nil
+	}
+	if listPtr == 0 {
+		return nil, fmt.Errorf("stat array pointer is null")
 	}
 
 	stride := off.EntryStride

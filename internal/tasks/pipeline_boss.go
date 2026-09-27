@@ -380,6 +380,10 @@ func (c *runPipeline) tickEngageTarget(deps pipelineBossDeps, w world.State, tar
 	var err error
 	if distance > c.core.combat.RepositionDistanceTiles {
 		_, err = deps.Combat.TeleportToward(now, w.Player, target.Position, c.core.combat.EngageDistanceTiles)
+	} else if c.core.combat.Profile == "sorceress_blizzard" {
+		// Auch Bosskämpfe liefern für Eisstoß ein aktuell lebendes Ziel an
+		// dieselbe Angriffsfolge wie lokale Clears und Routenblocker.
+		_, err = deps.Combat.CastAttackAtMonster(now, c.core.combat.AttackSkillID, w.Player, target)
 	} else {
 		_, err = deps.Combat.CastAttackAtWorld(now, c.core.combat.AttackSkillID, w.Player, target.Position)
 	}

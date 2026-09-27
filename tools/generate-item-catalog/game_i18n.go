@@ -47,6 +47,7 @@ var productSkillKeys = map[string]struct{}{
 	"amplify_damage": {}, "battle_command": {}, "battle_orders": {}, "blessed_hammer": {},
 	"bone_armor": {}, "bone_prison": {}, "bone_spear": {}, "concentration": {},
 	"corpse_explosion": {}, "holy_shield": {}, "teleport": {}, "town_portal": {},
+	"blizzard": {}, "ice_blast": {}, "frozen_armor": {}, "static_field": {},
 }
 
 var gameNameSources = []string{

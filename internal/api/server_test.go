@@ -19,6 +19,7 @@ import (
 )
 
 type apiTestBackend struct {
+	routeWorkflowRequest atomic.Value
 	commands             atomic.Int32
 	previews             atomic.Int32
 	routeConfirms        atomic.Int32
@@ -76,7 +77,8 @@ func (b *apiTestBackend) ConfirmRouteMutation(RouteMutationConfirmRequest) error
 	b.routeConfirms.Add(1)
 	return nil
 }
-func (b *apiTestBackend) StartRouteWorkflow(RouteWorkflowRequest) (RouteWorkflowDTO, error) {
+func (b *apiTestBackend) StartRouteWorkflow(request RouteWorkflowRequest) (RouteWorkflowDTO, error) {
+	b.routeWorkflowRequest.Store(request)
 	return RouteWorkflowDTO{WorkflowID: "workflow", Generation: 2, State: "preflight"}, nil
 }
 
@@ -344,7 +346,7 @@ func TestPhase12ExactRouteEndpointsAndMutationSecurity(t *testing.T) {
 		t.Fatalf("unguarded named confirm status=%d calls=%d", response.StatusCode, backend.routeConfirms.Load())
 	}
 	for _, request := range []*http.Request{
-		newCommandRequest(t, server, "/api/v1/route-recordings", `{"expected_generation":1,"run_id":"countess"}`),
+		newCommandRequest(t, server, "/api/v1/route-recordings", `{"expected_generation":1,"run_id":"countess","character":"MsIcicle","difficulty":"hell"}`),
 		newCommandRequest(t, server, "/api/v1/route-recordings/workflow/finish", `{"expected_generation":2}`),
 		newCommandRequest(t, server, "/api/v1/route-candidates/candidate-1/test", `{"expected_generation":1}`),
 	} {
@@ -355,6 +357,12 @@ func TestPhase12ExactRouteEndpointsAndMutationSecurity(t *testing.T) {
 		_ = response.Body.Close()
 		if response.StatusCode != http.StatusAccepted {
 			t.Fatalf("POST %s status=%d", request.URL.Path, response.StatusCode)
+		}
+		if request.URL.Path == "/api/v1/route-recordings" {
+			got := backend.routeWorkflowRequest.Load().(RouteWorkflowRequest)
+			if got.Character != "MsIcicle" || got.Difficulty != "hell" {
+				t.Fatalf("recording context lost in HTTP adapter: %+v", got)
+			}
 		}
 	}
 	strict := newCommandRequest(t, server, "/api/v1/route-recordings", `{"expected_generation":1,"run_id":"countess","operation":"test"}`)

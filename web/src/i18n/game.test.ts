@@ -11,6 +11,9 @@ describe("generierte D2R-Namen", () => {
   });
 
   it("löst Produkt-Skills und stabile Historien-Basiscodes auf", () => {
+    expect(gameSkillName("blizzard", "technical skill", "de")).toBe("Blizzard");
+    expect(gameSkillName("frozen_armor", "technical skill", "de")).toBe("Eisrüstung");
+    expect(gameSkillName("static_field", "technical skill", "en")).toBe("Static Field");
     expect(gameSkillName("bone_spear", "technical skill", "de")).toBe("Knochenspeer");
     expect(gameSkillName("bone_spear", "technical skill", "en")).toBe("Bone Spear");
     expect(gameHistoryItemName({ item_key: "base:r16:normal", item_name: "old name" }, "de")).toBe("Io-Rune");

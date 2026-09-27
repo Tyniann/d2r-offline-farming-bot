@@ -136,7 +136,7 @@ func TestCowAvailabilityRequiresBothCompatiblePublishedRoles(t *testing.T) {
 func TestResolveRunAvailabilitiesUsesStableMismatchReasons(t *testing.T) {
 	cfg := availabilityConfig(t)
 	report, err := ResolveRunAvailabilities(cfg, RunAvailabilityContext{
-		Character: "MrBones", CharacterClass: "sorceress", Difficulty: "hell", GameVersion: "3.2.92777",
+		Character: "MrBones", CharacterClass: "sorceress", CombatProfile: "necro_bone_spear", Difficulty: "hell", GameVersion: "3.2.92777",
 	})
 	if err != nil {
 		t.Fatal(err)

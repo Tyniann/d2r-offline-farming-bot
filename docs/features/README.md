@@ -31,6 +31,7 @@ Spätere Ideen (noch nicht umgesetzt): [`docs/backlog.md`](../backlog.md).
 | [Character- und Encounter-Profile](character-encounter-profiles.md) | Klassenbegrenzte Lifecycle-Hooks, Resource Policy und entwicklerverwaltete Phase-16-Setup-Freigabe samt Default |
 | [Character Loadouts](character-loadouts.md) | Phase 21: Skillkatalog, Strategy Registry, SkillsKnown, Schema-3-Bindings, Inventarschutz, Setup-Wizard |
 | [Paladin „Hammerdin“](hammerdin.md) | CTA-/Holy-Shield-Prebuff vor der Route, gemeinsamer Blessed-Hammer-LMB-Hold für Countess, Mephisto, Nihlathak, Summoner-Route und Cow-Sweep, verpflichtender Mercenary-Preflight |
+| [Zauberin mit Blizzard](sorceress-blizzard.md) | Alle sechs Routen, Blizzard als Standardangriff, drei Statikfeld-Casts gegen Mephisto und Eisrüstung in der Stadt |
 | [Mercenary Support](mercenary-support.md) | Phase 18: fail-closed Merc-State, Combat-Heal, Akara-Heal, Kashya-Revive und `waypoint-kashya` |
 | [Route-Threat-Combat](route-threat-combat.md) | Gemeinsames Summoner-/Cow-Route-Hold mit stationärem Profil-Clear, Coverage, Ressourcen, Recovery-Guard und Cow-CE-Strategie |
 | [Cow Level / Moo Moo Farm](cow-level-run.md) | Phase 20.0–20.6: CASC-/Leichen-Grundlagen, zwei Routenrollen, Setup, Cow-Portal-Rezept, Cow-Hold-Sweep und gemeinsamer Town-Handoff |

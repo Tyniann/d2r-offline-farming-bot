@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"fmt"
 	"path/filepath"
 	"testing"
 	"time"
@@ -823,5 +824,115 @@ func TestTickRepairRejectsWrongResolution(t *testing.T) {
 	got := h.Tick(context.Background(), town.PlanStep{Kind: town.StepService, Service: town.ServiceRepair}, state)
 	if got.Reason != "charsi_repair_resolution_invalid" || !got.Done {
 		t.Fatalf("got=%+v", got)
+	}
+}
+
+func TestTownPreparationRestocksEmptyTownPortalTome(t *testing.T) {
+	for _, services := range []bool{false, true} {
+		t.Run(fmt.Sprint(services), func(t *testing.T) {
+			cfg, err := config.Load("../../configs/config.example.yaml")
+			if err != nil {
+				t.Fatal(err)
+			}
+			a, err := newTownPreparationAdapter(config.NewLogger("error"), &preparationInputMock{}, pathing.DefaultConfig(), cfg, "countess", &townLayoutPin{}, &preparationTelemetryMock{}, services)
+			if err != nil {
+				t.Fatal(err)
+			}
+			a.layout = "911703945495707c9e6578c2db467e76ed70cf0548f119ac1b397368a8af5a53"
+			a.layoutOrigin = world.Position{X: 5466, Y: 4709}
+			state := preparationState(a.layoutOrigin, time.Now(), true)
+			for i := range state.Items {
+				if state.Items[i].Type == "mpot" {
+					state.Items[i].GridX = 1 + i%2
+				}
+			}
+			state.Player.Gold, state.Player.GoldKnown = 5000, true
+			state.Items = append(state.Items, world.Item{UnitID: 99, Code: "tbk", Location: world.ItemLocationInventory, PlayerOwned: true, QuantityKnown: true, Quantity: 0})
+			if reason := a.start(state); reason != "" {
+				t.Fatal(reason)
+			}
+			if a.handler == nil || len(a.handler.orders) != 1 {
+				t.Fatalf("empty tome did not produce one restock order: %+v", a.handler)
+			}
+			order := a.handler.orders[0]
+			if order.Resource != town.RestockTownPortalScroll || order.Target != 20 || order.Mode != town.BuyModeBulk {
+				t.Fatalf("order=%+v", order)
+			}
+		})
+	}
+}
+
+func TestTownPortalRestockBuysOnceAndRequiresKnownTarget(t *testing.T) {
+	for _, loseQuantity := range []bool{false, true} {
+		t.Run(fmt.Sprint(loseQuantity), func(t *testing.T) {
+			in := &preparationInputMock{}
+			a := &townPreparationAdapter{log: config.NewLogger("error"), driver: in, controller: in, thresholds: town.Thresholds{TownPortalScrolls: 5}}
+			h := &townPreparationStepHandler{adapter: a, stage: "orders", orders: []town.RestockOrder{{Resource: town.RestockTownPortalScroll, Mode: town.BuyModeBulk, Target: 20, Clicks: 1}}}
+			state := world.State{Valid: true, UI: world.UIState{NPCShopOpen: true}, Player: world.Player{Gold: 2000, GoldKnown: true}, Items: []world.Item{
+				{UnitID: 1, Code: "tbk", Location: world.ItemLocationInventory, PlayerOwned: true, QuantityKnown: true},
+				{UnitID: 2, Code: "tsc", Location: world.ItemLocationVendor, GridX: 1, GridY: 2},
+			}}
+			for _, action := range []string{"", "vendor_move", "vendor_buy_bulk"} {
+				got := h.Tick(context.Background(), town.PlanStep{Kind: town.StepService, Service: town.ServiceScrolls}, state)
+				if got.Action != action || got.Status == town.InteractionFailed {
+					t.Fatalf("action %q: %+v", action, got)
+				}
+			}
+			if in.modified != 1 {
+				t.Fatalf("bulk clicks=%d", in.modified)
+			}
+			h.settleUntil = time.Time{}
+			_ = h.Tick(context.Background(), town.PlanStep{Kind: town.StepService, Service: town.ServiceScrolls}, state)
+			for i := 0; i < 3; i++ {
+				_ = h.Tick(context.Background(), town.PlanStep{Kind: town.StepService, Service: town.ServiceScrolls}, state)
+			}
+			if h.order != 0 || in.modified != 1 {
+				t.Fatal("delayed quantity repeated purchase or completed early")
+			}
+			state.Items[0].Quantity = 20
+			state.Items[0].QuantityKnown = !loseQuantity
+			got := h.Tick(context.Background(), town.PlanStep{Kind: town.StepService, Service: town.ServiceScrolls}, state)
+			if loseQuantity {
+				if got.Status != town.InteractionFailed || h.order != 0 {
+					t.Fatalf("unknown quantity accepted: %+v", got)
+				}
+			} else if h.order != 1 || got.VerifiedFinal != 20 {
+				t.Fatalf("target not verified: %+v", got)
+			}
+		})
+	}
+}
+
+func TestTownPortalRestockDemandUsesOneKnownLowTome(t *testing.T) {
+	a := &townPreparationAdapter{thresholds: town.Thresholds{TownPortalScrolls: 5}}
+	for _, tc := range []struct {
+		name     string
+		quantity int
+		known    bool
+		copies   int
+		want     bool
+	}{
+		{"empty", 0, true, 1, true}, {"low", 4, true, 1, true}, {"threshold", 5, true, 1, false},
+		{"full", 20, true, 1, false}, {"unknown", 0, false, 1, false}, {"missing", 0, true, 0, false}, {"recipe tome", 0, true, 2, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			state := world.State{}
+			for i := 0; i < tc.copies; i++ {
+				state.Items = append(state.Items, world.Item{UnitID: uint32(i + 1), Code: "tbk", Location: world.ItemLocationInventory, PlayerOwned: true, Quantity: tc.quantity, QuantityKnown: tc.known})
+			}
+			if got := a.townPortalRestockNeeded(state); got != tc.want {
+				t.Fatalf("demand=%v want=%v", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestLayoutTownWaypointWalkerDoesNotSkipEmptyTome(t *testing.T) {
+	a := &townPreparationAdapter{log: config.NewLogger("error"), driver: &preparationInputMock{}, pathCfg: pathing.DefaultConfig(), thresholds: town.Thresholds{TownPortalScrolls: 5}}
+	state := preparationState(world.Position{X: 80, Y: 70}, time.Now(), true)
+	state.Items = append(state.Items, world.Item{UnitID: 99, Code: "tbk", Location: world.ItemLocationInventory, PlayerOwned: true, QuantityKnown: true})
+	got := (&layoutTownWaypointWalker{adapter: a}).TickAct1Waypoint(context.Background(), state)
+	if got.Status == pathing.TownWalkWaypointVisible {
+		t.Fatal("waypoint proximity bypassed empty tome restock")
 	}
 }

@@ -186,6 +186,8 @@ const (
 // evidence authorized it, and whether this tick moved the cursor to begin a
 // hover probe for the supplied target. Throttle ticks return the zero value.
 type MonsterCastResult struct {
+	// SkillID nennt den tatsächlich gewirkten Skill, falls er vom Standardangriff abweicht.
+	SkillID       uint16
 	Sent          bool
 	TargetingMode MonsterTargetingMode
 	AimRequested  bool

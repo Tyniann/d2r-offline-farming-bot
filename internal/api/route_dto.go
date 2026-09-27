@@ -147,6 +147,8 @@ type RouteRecordingStartRequest struct {
 	RunID              string `json:"run_id"`
 	RouteRole          string `json:"route_role,omitempty"`
 	Character          string `json:"character,omitempty"`
+	// Difficulty trägt die ausdrückliche UI-Auswahl; leer nutzt den bestehenden Kontext.
+	Difficulty string `json:"difficulty,omitempty"`
 }
 
 // RouteWorkflowFinishRequest submits an idempotent finish intent for one recording.

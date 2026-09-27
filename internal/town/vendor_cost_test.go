@@ -1,8 +1,10 @@
 package town
 
 import (
+	"encoding/csv"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -102,5 +104,46 @@ func TestAkaraCityKeyCostMatchesLocalMiscAndNpcTables(t *testing.T) {
 	}
 	if !akaraFound {
 		t.Fatal("npc.txt akara row missing")
+	}
+}
+
+func TestTownPortalRestockMatchesLocalMisc(t *testing.T) {
+	data, err := os.ReadFile("../../.tmp/d2r-excel/misc.txt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := csv.NewReader(strings.NewReader(string(data)))
+	r.Comma = '\t'
+	r.FieldsPerRecord = -1
+	r.LazyQuotes = true
+	rows, err := r.ReadAll()
+	if err != nil {
+		t.Fatal(err)
+	}
+	columns := map[string]int{}
+	for i, name := range rows[0] {
+		columns[name] = i
+	}
+	found := map[string]bool{}
+	for _, row := range rows[1:] {
+		if len(row) <= columns["maxstack"] {
+			continue
+		}
+		code := row[columns["code"]]
+		if code == TownPortalTomeCode {
+			if row[columns["name"]] != "Tome of Town Portal" || row[columns["maxstack"]] != strconv.Itoa(TownPortalTomeCapacity) {
+				t.Fatal("town portal tome differs from local CASC")
+			}
+			found[code] = true
+		}
+		if code == TownPortalScrollCode {
+			if row[columns["name"]] != "Scroll of Town Portal" {
+				t.Fatal("town portal scroll differs from local CASC")
+			}
+			found[code] = true
+		}
+	}
+	if len(found) != 2 {
+		t.Fatal("missing town portal rows in local misc.txt")
 	}
 }

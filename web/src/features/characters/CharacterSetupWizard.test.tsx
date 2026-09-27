@@ -110,6 +110,39 @@ describe("CharacterSetupWizard", () => {
     expect(mocks.save).not.toHaveBeenCalled();
   });
 
+  it("zeigt die Blizzard-Zauberin mit sechs rechten Pflichtskills und Söldnerpflicht", async () => {
+    const preview = setupPreview("Frost", {
+      character: { name: "Frost", slug: "frost", character_class: "sorceress", class_display_name: "Zauberin" },
+      profiles: [{
+        ...setupPreview("Frost").profiles[0],
+        id: "sorceress_blizzard", display_name: "Blizzard", is_selected: true,
+        standard_attack: "blizzard", requires_mercenary: true, bindings_ready: false,
+        required_skills: [
+          { skill: "teleport", skill_id: 54, slot: "right" },
+          { skill: "town_portal", skill_id: 359, slot: "right" },
+          { skill: "blizzard", skill_id: 59, slot: "right" },
+          { skill: "ice_blast", skill_id: 45, slot: "right" },
+          { skill: "static_field", skill_id: 42, slot: "right" },
+          { skill: "frozen_armor", skill_id: 40, slot: "right" },
+        ],
+        supported_runs: ["countess", "cows", "lower-kurast", "mephisto", "nihlathak", "summoner"],
+      }],
+      selected_profile_id: "sorceress_blizzard", default_profile_id: "sorceress_blizzard", setup_state: "ready",
+    });
+    mocks.preview.mockResolvedValue(preview);
+    render(<CharacterSetupWizard character="Frost" catalog={catalog} status={status} mode="onboarding" />);
+
+    expect(await screen.findByRole("heading", { name: /Frost · Zauberin/ })).toBeInTheDocument();
+    expect(screen.getByText(/Kampfprofil:/).parentElement).toHaveTextContent("Blizzard-Zauberin");
+    for (const skill of ["Teleport", "Schriftrolle des Stadtportals", "Blizzard", "Eisstoß", "Statikfeld", "Eisrüstung"]) {
+      expect(screen.getByLabelText(`${skill} Taste`)).toBeInTheDocument();
+    }
+    expect(screen.getAllByText("RMB")).toHaveLength(6);
+    expect(screen.queryByText("LMB")).not.toBeInTheDocument();
+    expect(screen.queryByText("Waffenset II · beide oder keine")).not.toBeInTheDocument();
+    expect(screen.getByText(/Seine Ausrüstung wird nicht geprüft/)).toHaveTextContent("Für Blizzard-Zauberin muss ein lebender Söldner verfügbar sein.");
+  });
+
   it("zeigt Hammerdin mit Core-Readiness, LMB und optionalem CTA-Vertrag", async () => {
     mocks.preview.mockResolvedValue(setupPreview("HammerGuy", {
       character: { name: "HammerGuy", slug: "hammerguy", character_class: "paladin", class_display_name: "Paladin" },
@@ -161,7 +194,7 @@ describe("CharacterSetupWizard", () => {
     expect(screen.getByText("Core: Tasten fehlen")).toBeInTheDocument();
     expect(screen.getByText("Waffenset II · beide oder keine")).toBeInTheDocument();
     expect(screen.getByText("LMB")).toBeInTheDocument();
-    expect(screen.getByText(/Seine Ausrüstung wird nicht geprüft/)).toBeInTheDocument();
+    expect(screen.getByText(/Seine Ausrüstung wird nicht geprüft/)).toHaveTextContent("Für Hammerdin muss ein lebender Söldner verfügbar sein.");
 
     mocks.save.mockRejectedValueOnce(apiError("character_setup_write_failed"));
     fireEvent.change(screen.getByLabelText("Kampfaufruf Taste"), { target: { value: "f4" } });

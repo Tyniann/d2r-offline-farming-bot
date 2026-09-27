@@ -120,7 +120,7 @@ func (w *layoutTownWaypointWalker) TickAct1Waypoint(ctx context.Context, state w
 	if !w.adapter.started {
 		if waypoint, ok := state.NearestObject(world.ObjectKindWaypoint); ok &&
 			world.Distance(state.Player.Position, waypoint.Position) <= w.adapter.pathCfg.Waypoint.MaxClickDistance &&
-			!w.adapter.cowTrashSellNeeded(state) {
+			!w.adapter.cowTrashSellNeeded(state) && !w.adapter.townPortalRestockNeeded(state) {
 			w.adapter.log.Info("town waypoint handoff reused", "distance", world.Distance(state.Player.Position, waypoint.Position))
 			return pathing.TownWalkResult{Status: pathing.TownWalkWaypointVisible, Done: true}
 		}

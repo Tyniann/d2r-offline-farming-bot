@@ -108,12 +108,13 @@ export function bindingsToDTO(value: BindingEditorValue): OperatorProfileBinding
 
 /** BindingEditor belegt profilautorisierte Pflicht- und optionale Skills sowie den Gürtel. */
 export function BindingEditor({
-  requiredSkills, optionalSkillPairs = [], standardAttack, requiresMercenary = false,
+  profileName, requiredSkills, optionalSkillPairs = [], standardAttack, requiresMercenary = false,
   bindingsReady, bindingReasons = [], value, mutable, onChange,
 }: {
   requiredSkills: CharacterSetupRequiredSkillDTO[];
   optionalSkillPairs?: CharacterSetupOptionalSkillPairDTO[];
   standardAttack?: string;
+  profileName: string;
   requiresMercenary?: boolean;
   bindingsReady?: boolean;
   bindingReasons?: string[];
@@ -207,7 +208,7 @@ export function BindingEditor({
       </div>
     </section>)}
 
-    {requiresMercenary && <p className="binding-mercenary-note">{t("characters.mercenaryHint")}</p>}
+    {requiresMercenary && <p className="binding-mercenary-note">{t("characters.mercenaryHint", { profile: profileName })}</p>}
 
     <h4>{t("characters.belt")}</h4>
     <p className="hint">{t("characters.beltHint")}</p>

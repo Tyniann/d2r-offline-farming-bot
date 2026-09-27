@@ -108,8 +108,10 @@ describe("semantische Presenter", () => {
   });
 
   it("übersetzt Difficulty, Run, Klasse und eingebautes Profil", async () => {
+    expect([presentClassName("sorceress", i18n.t), presentProfileName("sorceress_blizzard", "Blizzard", i18n.t)]).toEqual(["Zauberin", "Blizzard-Zauberin"]);
     expect([presentDifficultyName("nightmare", i18n.t), presentRunName("countess", i18n.t), presentClassName("necromancer", i18n.t), presentProfileName("necro_bone_spear", "Fallback", i18n.t)]).toEqual(["Alptraum", "Gräfin", "Totenbeschwörer", "Knochen-Totenbeschwörer"]);
     await changeAppLanguage("en");
+    expect([presentClassName("sorceress", i18n.t), presentProfileName("sorceress_blizzard", "Blizzard", i18n.t)]).toEqual(["Sorceress", "Blizzard Sorceress"]);
     expect([presentDifficultyName("nightmare", i18n.t), presentRunName("countess", i18n.t), presentClassName("necromancer", i18n.t), presentProfileName("necro_bone_spear", "Fallback", i18n.t)]).toEqual(["Nightmare", "Countess", "Necromancer", "Bone Necromancer"]);
   });
 });

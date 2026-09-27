@@ -28,6 +28,8 @@ Nach Memory-bestätigtem Bosskill ist diese CE-Gefahr beendet. Nihlathak verwend
 
 Hammerdin folgt dem gemeinsamen Mephisto-Standardangriff statt dieses Necro-Projektionspfads: Distanzprüfung, Teleport auf 1 Tile, Sprite-Hover mit Distanzvorrang und LMB-Hold auf Gesegnetem Hammer. Nach dem Kill geht Hammerdin direkt zu `reposition_for_loot`; `clear_nearby_hostiles` entfällt, weil Blessed Hammer als Flächenangriff die meisten Gegner bereits wegräumt. Die Necro-Strategy und ihr AD-/Bone-Spear-Cleanup bleiben unverändert.
 
+Das Profil `sorceress_blizzard` verwendet für den Boss denselben Anker-, Projektions- und einzelnen Annäherungspfad wie Bone Spear, greift aber mit Blizzard an. Statikfeld wird gegen Nihlathak nicht verwendet. Nach dem Kill bleibt der begrenzte 30-Tile-Cleanup aktiv, mit Blizzard ohne Fluch und ohne Kadaverexplosion. Seine Grenzen bleiben 40 gesendete Aktionen, drei freie beziehungsweise nur noch übersprungene Snapshots oder drei Sekunden ohne Aktion. Während der Routenwiedergabe gibt es keinen regulären Kampf. Profilvertrag und Tests sind unter [Zauberin mit Blizzard](sorceress-blizzard.md) beschrieben. Während Blizzards Cooldown verwendet die Zauberin Eisstoß gegen das aktuell gewählte lebende Ziel; Blizzard erhält nach Ablauf seiner Frist wieder Vorrang.
+
 ### Loot und Rückkehr
 
 `[gems, keys]`; Rückkehr TP → Harrogath → Act-5-Egress → Act 1 → Stash.

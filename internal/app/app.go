@@ -21,6 +21,7 @@ import (
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/pathing"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/process"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/profile"
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/profile/sorceressblizzard"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/replay"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/tasks"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/telemetry"
@@ -248,6 +249,9 @@ func New(cfg *config.Config, opts Options) (rt *Runtime, err error) {
 	profileActions, err := attachHammerdinTownReady(combatProfileID, profileExecutor, bindings, inputCtrl)
 	if err != nil {
 		return nil, fmt.Errorf("profile config: %w", err)
+	}
+	if combatProfileID == sorceressblizzard.ID {
+		profileActions = sorceressblizzard.NewEncounterExecutor(profileExecutor, combat)
 	}
 	inventoryLock, err := loot.NewInventoryLock(inventoryCells)
 	if err != nil {

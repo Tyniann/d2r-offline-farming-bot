@@ -7,7 +7,11 @@ Versionierung nach [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.27.0] - 2026-09-28
+
 ### Added
+- Add a separate sidebar character-unlock flow with resumable setup, selection capture, and skill bindings without repeating onboarding
+- Add Blizzard Sorceress for all six routes, with Ice Blast bursts between Blizzard casts, Frozen Armor town prebuff, three Static Field casts against Mephisto, and mercenary support
 - Zoom the desktop window with Ctrl+mouse wheel, Ctrl++ / Ctrl+- and Ctrl+0, and keep the last factor between 50% and 200%
 - Add interval equipment repair at Charsi during post-run town handoff
 
@@ -20,6 +24,12 @@ Versionierung nach [Semantic Versioning](https://semver.org/).
 - Remove unused durability-gated `PlanRepair` so interval Charsi repair stays the only repair path
 
 ### Fixed
+- Refresh dashboard statistics and their date range when closing the session summary, preserving the selected period
+- Recognize an empty Town Portal tome when D2R omits the quantity stat and uses an unallocated empty stat array, so Akara restock is not skipped
+- Allow deleting route drafts from another character or difficulty without changing the active selection
+- Refill a known low Town Portal tome at Akara before the first run and during town handoff, and verify the full tome after one bulk purchase
+- Fix route recording to carry the selected difficulty, reject conflicting confirmed character contexts before recording, and explain candidate test conflicts
+- Fix the mercenary requirement hint to name the selected combat profile in character setup and settings
 - Retry a Wirt's Leg pickup miss with Save & Exit instead of failing the session
 - Walk a visible Akara in from beyond the fifteen-tile town gate before the Cow tome buy and every other Akara service, instead of aborting at the tent
 - Stamp route playback start with the tick clock so a route-clear event in the same tick cannot drop the run from history

@@ -1281,15 +1281,41 @@ func TestRecordingPrerequisitesUseSelectedCharacterWithoutConfirmedSelection(t *
 		t.Fatal("Hammerdin Mephisto recording must be available from operator last difficulty")
 	}
 
-	backend.SetRouteWorkflowHandler(func(RouteWorkflowRequest, <-chan struct{}, app.RouteWorkflowReporter) error { return nil })
+	recorded := make(chan RouteWorkflowRequest, 1)
+	backend.SetRouteWorkflowHandler(func(request RouteWorkflowRequest, _ <-chan struct{}, _ app.RouteWorkflowReporter) error {
+		recorded <- request
+		return nil
+	})
 	markBackendCompatible(backend)
-	snapshot, err := backend.StartRouteWorkflow(RouteWorkflowRequest{ExpectedGeneration: 1, Operation: "record", RunID: "mephisto", Character: "MrHammer"})
+	// Ein alter bestätigter Charakter darf nicht mit dem gespeicherten
+	// Standard eines neuen Charakters zu einer Aufnahme vermischt werden.
+	backend.mu.Lock()
+	backend.status.Selection = SelectionStatusDTO{Character: "MrBones", Difficulty: "nightmare"}
+	backend.mu.Unlock()
+	_, conflictErr := backend.StartRouteWorkflow(RouteWorkflowRequest{ExpectedGeneration: 1, Operation: "record", RunID: "mephisto", Character: "MrHammer"})
+	var contextErr *commandError
+	if !errors.As(conflictErr, &contextErr) || contextErr.code != "route_recording_context_mismatch" {
+		t.Fatalf("recording started with mismatched character context: %v", conflictErr)
+	}
+	backend.mu.Lock()
+	backend.status.Selection = SelectionStatusDTO{}
+	backend.mu.Unlock()
+	snapshot, err := backend.StartRouteWorkflow(RouteWorkflowRequest{ExpectedGeneration: 1, Operation: "record", RunID: "mephisto", Character: "MrHammer", Difficulty: "normal"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if snapshot.Character != "MrHammer" {
 		t.Fatalf("workflow character = %q, want MrHammer", snapshot.Character)
 	}
+	select {
+	case request := <-recorded:
+		if request.Difficulty != "normal" {
+			t.Fatalf("UI difficulty overwritten by saved default: %q", request.Difficulty)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("recording handler not called")
+	}
+
 }
 
 func freezeHammerdinMephistoCandidate(t *testing.T, backend *LiveBackend, cfg *config.Config) app.RouteCandidate {
@@ -1410,8 +1436,12 @@ func TestCandidateTestRejectsConflictingConfirmedSelection(t *testing.T) {
 	backend.mu.Unlock()
 
 	_, err = backend.StartRouteWorkflow(RouteWorkflowRequest{ExpectedGeneration: 1, Operation: "test", CandidateID: candidate.CandidateID})
-	if err == nil || !strings.Contains(err.Error(), "live candidate context changed") {
+	if err == nil {
 		t.Fatalf("err = %v, want live candidate context changed", err)
+	}
+	var conflict *commandError
+	if !errors.As(err, &conflict) || conflict.code != "route_candidate_context_mismatch" || conflict.params["candidate_character"] != "MrHammer" || conflict.params["selected_character"] != "MrBones" {
+		t.Fatalf("missing actionable candidate conflict: %v", err)
 	}
 }
 
@@ -1680,5 +1710,38 @@ func TestCompatibilityBlocksInputCommandsAndPublishesStableReason(t *testing.T) 
 	}
 	if !found {
 		t.Fatalf("compatibility SSE event missing: %+v", replay)
+	}
+}
+
+func TestCandidateDeleteIgnoresConfirmedDifficulty(t *testing.T) {
+	cfg, err := config.Load("../../configs/config.example.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.Input.Enabled = true
+	root := t.TempDir()
+	cfg.Routes.FarmingRoot = filepath.Join(root, "farming")
+	cfg.Routes.CandidateRoot = filepath.Join(root, "candidates")
+	cfg.Routes.LifecycleFile = filepath.Join(root, "lifecycle.yaml")
+	cfg.Routes.AssignmentsFile = filepath.Join(root, "assignments.yaml")
+	cfg.Routes.RecoveryFile = filepath.Join(root, "recovery.yaml")
+	backend, err := NewLiveBackend(cfg, telemetry.NewLivePublisher(16, 4))
+	if err != nil {
+		t.Fatal(err)
+	}
+	configureHammerdinRecordingContext(t, backend, cfg)
+	candidate := freezeHammerdinMephistoCandidate(t, backend, cfg)
+	markBackendCompatible(backend)
+	backend.status.State = string(app.SupervisorStateIdle)
+	backend.status.Selection = SelectionStatusDTO{Character: "MrHammer", Difficulty: "normal"}
+	preview, err := backend.PreviewRouteMutation(RouteMutationPreviewRequest{CandidateID: candidate.CandidateID, Operation: string(app.RouteMutationDeleteCandidate)})
+	if err != nil {
+		t.Fatalf("delete another difficulty: %v", err)
+	}
+	if err := backend.ConfirmRouteMutation(RouteMutationConfirmRequest{ConfirmationToken: preview.ConfirmationToken, ConfirmRouteID: candidate.CandidateID}); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := backend.routeCandidates.Load(candidate.CandidateID); err == nil {
+		t.Fatal("candidate still exists after deletion")
 	}
 }

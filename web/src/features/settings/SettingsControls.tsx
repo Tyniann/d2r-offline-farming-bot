@@ -21,7 +21,7 @@ import sorceressBadge from "../../assets/classes/blizzard-build-badges.png";
 export function profileBadgeSource(profileID: string, characterClass: string): string | null {
   if (profileID.startsWith("necro") || characterClass === "necromancer") return necromancerBadge;
   if (profileID.startsWith("paladin") || characterClass === "paladin") return paladinBadge;
-  if (characterClass === "sorceress") return sorceressBadge;
+  if (profileID.startsWith("sorceress") || characterClass === "sorceress") return sorceressBadge;
   return null;
 }
 
@@ -150,6 +150,7 @@ export function BindingsBlock({ ctx, model }: { ctx: CharacterContext; model: Se
   if (!ctx.profile) return <StateMessage kind="loading" title={t("characters.loading")} />;
   if (!ctx.profileID) return <StateMessage kind="empty" title={t("characters.noProfileTitle")}>{t("characters.noProfileDetail")}</StateMessage>;
   return <BindingEditor
+    profileName={ctx.profileName}
     requiredSkills={ctx.profile.required_skills ?? []}
     optionalSkillPairs={ctx.profile.optional_skill_pairs ?? []}
     standardAttack={ctx.profile.standard_attack}

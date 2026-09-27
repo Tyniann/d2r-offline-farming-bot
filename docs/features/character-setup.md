@@ -2,9 +2,9 @@
 
 ## Überblick
 
-Die Charaktereinrichtung verbindet einen read-only erkannten D2R-Offlinespielstand mit genau einem vom Entwickler freigegebenen Kampfprofil und den fehlenden Standard-Lootprofilen. Sie läuft vollständig im bestehenden Charakterschritt des First-Run-Assistenten. Der Go-Core bleibt die einzige Autorität für Saves, Profilkompatibilität, Defaults, Persistenz und Bildbeleg; React zeigt nur die gelieferten Zustände verständlich an.
+Die Charaktereinrichtung verbindet einen read-only erkannten D2R-Offlinespielstand mit genau einem vom Entwickler freigegebenen Kampfprofil und den fehlenden Standard-Lootprofilen. Sie ist über „Charakter freischalten“ in der Seitenleiste und beim ersten Start über den Charakterschritt des Onboardings erreichbar. Beide Einstiege verwenden denselben Setup-Dialog. Der Go-Core bleibt die einzige Autorität für Saves, Profilkompatibilität, Defaults, Persistenz und Bildbeleg; React zeigt nur die gelieferten Zustände verständlich an.
 
-Ein Kampfprofil ist nur dann auswählbar, wenn es direkt `setup.enabled: true` trägt. Für jede Klasse mit mindestens einem freigegebenen Profil muss die Basisconfig genau ein Profil mit `setup.default: true` festlegen. Bei nur einem kompatiblen Profil gibt es keine Auswahl. Bei mehreren Profilen wählt die Oberfläche den Entwickler-Default vor. Die allgemeinen Einstellungen enthalten bewusst keine Kampfprofilsteuerung.
+Ein Kampfprofil ist nur dann auswählbar, wenn es direkt `setup.enabled: true` trägt. Für jede Klasse mit mindestens einem freigegebenen Profil muss die Basisconfig genau ein Profil mit `setup.default: true` festlegen. Bei nur einem kompatiblen Profil gibt es keine Auswahl. Bei mehreren Profilen wählt die Oberfläche den Entwickler-Default vor. Bereits eingerichtete Charaktere verwalten ihr Kampfprofil im Charakterbereich der Einstellungen.
 
 ## Ort im Code
 
@@ -14,11 +14,17 @@ Ein Kampfprofil ist nur dann auswählbar, wenn es direkt `setup.enabled: true` t
 - **Persistenz:** `internal/app/operator_settings.go`, `internal/app/pickit_store.go`
 - **API:** `internal/api/character_setup_backend.go`, `internal/api/character_setup_dto.go`, `internal/api/server.go`
 - **Maschinenvertrag:** `internal/api/schema/openapi.json`
-- **Oberfläche:** `web/src/features/onboarding/OnboardingFeature.tsx`, `web/src/features/characters/CharacterSetupWizard.tsx`, Settings-Tab „Charaktere“
+- **Oberfläche:** `web/src/features/onboarding/OnboardingFeature.tsx`, `web/src/features/characters/CharacterSetupWizard.tsx`, `web/src/features/characters/CharacterUnlock.tsx` und Charakterbereich der Einstellungen
 - **Benutzertexte:** `web/src/app/characterReasons.ts`
 - **Config:** `configs/config.example.yaml` (Profilfreigabe); Bindings/Inventar in OperatorSettings Schema 3
 
 ## Funktionalität
+
+### Freischaltung aus der Seitenleiste
+
+„Ausgewählter Charakter“ enthält ausschließlich freigeschaltete Charaktere. Fehlende Tasten oder fehlender Inventarschutz ändern nur `farm_ready`; der Charakter bleibt oben auswählbar. Die zweite Sektion „Charakter freischalten“ zeigt die übrigen lokalen Charaktere. Erst „Einrichtung starten“ beziehungsweise „Einrichtung fortsetzen“ öffnet den vorhandenen Wizard. Nicht unterstützte Klassen bleiben mit Erklärung sichtbar und können nicht gestartet werden. Ohne offene Einrichtungen bleibt die erneute Charaktersuche erreichbar.
+
+Die Dialogauswahl ist unabhängig von der aktiven App-/D2R-Auswahl. Nach Profilbestätigung und Auswahlbild bleibt der Dialog für die Tastenbelegung geöffnet. „Charaktereinstellungen öffnen“ wechselt erst auf ausdrücklichen Klick zum eingerichteten Charakter, damit dort der Inventarschutz geprüft werden kann; es bestätigt keine D2R-Auswahl und startet keinen Run. Laufende Sessions, Routenaufnahmen und offene Einstellungsänderungen sperren den Einstieg. Der Dialog lässt sich während einer Speicheraktion nicht schließen. Nach Änderungen werden Katalog und Einstellungen neu geladen. Der Onboarding-Abschluss bleibt unverändert.
 
 ### Read-only Vorschau
 
@@ -31,7 +37,7 @@ Ein Kampfprofil ist nur dann auswählbar, wenn es direkt `setup.enabled: true` t
 - Vorhandensein des namensgebundenen Auswahlbildes;
 - Katalog-, OperatorSettings-, Pickit- und Runtimegeneration für einen konfliktfreien Confirm.
 
-Unterstützung wird ausschließlich aus den Profilmetadaten abgeleitet. Ein bekanntes Saveformat allein macht eine Klasse nicht lauffähig. In der Basisinstallation ist zunächst nur der Totenbeschwörer mit `necro_bone_spear` („Knochen-Speer“) freigegeben. Warlock mit Klassen-ID `7` wird korrekt als „Hexenmeister“ erkannt, bleibt ohne freigegebenes Profil aber wie Paladin sichtbar und gesperrt.
+Unterstützung wird ausschließlich aus den Profilmetadaten abgeleitet. Ein bekanntes Saveformat allein macht eine Klasse nicht lauffähig. Freigegeben sind Totenbeschwörer mit `necro_bone_spear`, Paladin mit `paladin_hammerdin` und Zauberin mit [`sorceress_blizzard`](sorceress-blizzard.md). Jedes Profil unterstützt alle sechs aktuellen Routen. Warlock mit Klassen-ID `7` wird als „Hexenmeister“ erkannt, bleibt ohne freigegebenes Profil aber sichtbar und gesperrt.
 
 ### Einrichtung bestätigen
 
@@ -71,7 +77,7 @@ Stabile technische Gründe bleiben Teil des API-Vertrags, werden aber in der Obe
 - „Profil und Lootprofile bestätigen“ speichert die vom Core validierte Einrichtung.
 - „Auswahlbild jetzt speichern“ erfasst nach der Benutzerbestätigung den markierten Eintrag.
 - Der Assistent bleibt bei Fehlern im Charakterschritt und zeigt eine konkrete nächste Handlung.
-- Die normalen Einstellungen bieten keine Profil- oder Defaultauswahl.
+- Neue Charaktere werden direkt über die Seitenleiste freigeschaltet; der vollständige Onboarding-Assistent muss nicht erneut durchlaufen werden.
 - Der Tab „Charaktere“ zeigt Heil- bzw. Mana-Nachkauf nur, wenn mindestens eine passende Gürtelspalte zugewiesen ist. Die Schwellen kommen aus `potion_restock` bzw. den Core-Defaults `default_healing_restock` / `default_mana_restock`.
 
 Vor einer produktiven Auswahl sowie vor Queue-Validierung, Queue-Start und jedem Supervisor-Run wird der Save erneut gelesen. Headerklasse, gespeichertes Profil, Profilfreigabe, Run-Profil und Pickit-Zuordnung müssen weiterhin zusammenpassen. Ein Mismatch stoppt vor Input. CLI-Diagnose- und Testpfade ohne OperatorSettings behalten ihren ausdrücklich configgebundenen Profilpfad.
@@ -113,4 +119,4 @@ Die installierte Phase-16-Abnahme vom 28. Juli 2026 bestätigte den vollständig
 - [Lokale Core-API](local-core-api.md)
 
 ---
-*Zuletzt aktualisiert: 28. August 2026*
+*Zuletzt aktualisiert: 2026-09-28*

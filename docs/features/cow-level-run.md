@@ -4,6 +4,8 @@
 
 Phase 20 ergänzt den Queue-Run `cows` und ist vollständig abgenommen. Die Abschnitte 20.0 bis 20.4 bestätigen CASC-Identitäten, Live-Verträge, Memory-/World-/Input-Grundlagen, die zwei festen Routenrollen `leg_acquisition` und `cow_sweep`, das produktive Setup sowie das einmalige Memory-gegatete Cube-Rezept. Abschnitt 20.5 bindet den Cow-Sweep mit einer engen AD-/Bone-Spear-/CE-Hold-Strategie an den bestehenden Route-Controller. 20.6 führt denselben Run bis zum zentralen Town-Handoff, 20.7 schließt den Stabilitätsblock und 20.8 bestätigt den vollständigen produktiven End-to-End-Lauf. Damit ist v0.18.0 freigabefähig.
 
+Neben dem Necromancer und Hammerdin registriert die [Blizzard-Zauberin](sorceress-blizzard.md) dieselbe Cow-Pipeline. Sie verwendet Eisrüstung in der Stadt und Blizzard im Sweep, ohne Fluch oder Kadaverexplosion. Der vorhandene Preflight prüft ihre fünf Pflichtskills und einen lebenden Söldner. Beide Routenrollen müssen für die Zauberin veröffentlicht sein. Ihre manuelle Cow-Abnahme steht noch aus.
+
 ## Ort im Code
 
 - **Pakete:** `internal/memory/`, `internal/world/`, `internal/profile/`, `internal/input/`, `internal/pathing/`, `internal/tasks/`, `internal/loot/`, `internal/app/`, `internal/api/`

@@ -1,0 +1,7 @@
+"skill"	"*Id"	"charclass"	"leftskill"	"rightskill"	"InTown"	"localdelay"	"aurarangecalc"	"Param1"	"Param2"
+"Frozen Armor"	"40"	"sor"	"0"	"1"	"1"	""	""	"30"	"5"
+"Static Field"	"42"	"sor"	"0"	"1"	""	""	"ln12"	"5"	"1"
+"Teleport"	"54"	"sor"	"0"	"1"	""	""	""	""	""
+"Blizzard"	"59"	"sor"	"0"	"1"	""	"45"	""	"7"	""
+"TownPortal"	"359"	""	"0"	"0"	""	""	""	""	""
+"Ice Blast"	"45"	"sor"	"1"	"1"	""	""	""	"75"	"5"

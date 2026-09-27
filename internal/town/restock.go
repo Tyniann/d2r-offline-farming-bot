@@ -15,6 +15,12 @@ const (
 )
 
 const (
+	// TownPortalTomeCode is the town-portal book in local `misc.txt`, row `tbk`.
+	TownPortalTomeCode = "tbk"
+	// TownPortalScrollCode is the refill sold by Akara, local `misc.txt`, row `tsc`.
+	TownPortalScrollCode = "tsc"
+	// TownPortalTomeCapacity is `misc.txt`, row `tbk`, column `maxstack`.
+	TownPortalTomeCapacity = 20
 	// KeyItemCode is the `misc.txt` city-key code, not Uber keys pk1–pk3.
 	KeyItemCode = "key"
 	// KeyRestockThreshold is the inclusive inventory count that still skips a purchase.

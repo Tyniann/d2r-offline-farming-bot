@@ -29,6 +29,7 @@ interface DashboardHistoryData {
 }
 
 interface Props {
+  refreshKey?: number;
   farming: ReactNode;
   character: string;
   difficulty: string;
@@ -36,7 +37,7 @@ interface Props {
 }
 
 /** DashboardStats loads the shared-period statistics and period-independent recent runs. */
-export function DashboardStats({ farming, character, difficulty, runNames }: Props) {
+export function DashboardStats({ farming, character, difficulty, runNames, refreshKey = 0 }: Props) {
   const { t } = useTranslation();
   const [period, setPeriod] = useState<DashboardPeriod>("30");
   const [data, setData] = useState<DashboardHistoryData | null>(null);
@@ -44,7 +45,8 @@ export function DashboardStats({ farming, character, difficulty, runNames }: Pro
   const [error, setError] = useState("");
   const [retry, setRetry] = useState(0);
   const reducedMotion = useReducedMotion();
-  const queries = useMemo(() => dashboardHistoryQueries(period, character, difficulty), [period, character, difficulty]);
+  // Refresh the time boundary too, otherwise newly completed runs remain outside the query.
+  const queries = useMemo(() => dashboardHistoryQueries(period, character, difficulty), [period, character, difficulty, refreshKey]);
 
   useEffect(() => {
     const controller = new AbortController();

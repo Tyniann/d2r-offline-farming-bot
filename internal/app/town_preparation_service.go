@@ -41,9 +41,12 @@ func (a *townPreparationAdapter) start(state world.State) string {
 	healing, mana, _ := countProfilePotionSupplies(state, a.profile)
 	healingTarget, manaTarget := len(a.profile.Healing.BeltSlots)*beltColumnRows, len(a.profile.Mana.BeltSlots)*beltColumnRows
 	healingThreshold, manaThreshold := a.thresholds.Healing, a.thresholds.Mana
-	levels := []town.RestockLevel{
-		{Resource: town.RestockHealing, Current: healing, Threshold: healingThreshold, Target: healingTarget},
-		{Resource: town.RestockMana, Current: mana, Threshold: manaThreshold, Target: manaTarget},
+	levels := []town.RestockLevel(nil)
+	tpCount, tpKnown := townPortalTomeSupply(state)
+	needsTP := tpKnown && tpCount < a.thresholds.TownPortalScrolls
+	tpDemand := "unavailable_skip"
+	if tpKnown {
+		tpDemand = "known"
 	}
 	needsPotions := healing < healingThreshold || mana < manaThreshold
 	keys := state.InventoryQuantityByCode(town.KeyItemCode)
@@ -67,11 +70,12 @@ func (a *townPreparationAdapter) start(state world.State) string {
 	if !a.services {
 		// Initial setup never restocks potions, keys, or the mercenary. Cow may
 		// still take a one-shot Akara dump when recipe space is already missing.
+		// A known low TP tome is replenished even before the first run.
 		needsPotions, needsKeys, mercHeal, mercRevive = false, false, false, false
 	}
 	needsRepair := a.services && a.allowIntervalRepair &&
 		town.IntervalRepairDue(a.startedRuns, a.lastRepairStartedRuns, a.townCfg.RepairIntervalRuns)
-	npcPlan := (a.services || cowTrashDetour) && (needsPotions || needsKeys || len(itemOrders) > 0 || mercHeal || mercRevive || needsRepair)
+	npcPlan := (a.services || cowTrashDetour || needsTP) && (needsTP || needsPotions || needsKeys || len(itemOrders) > 0 || mercHeal || mercRevive || needsRepair)
 	if !npcPlan {
 		// No demand means no NPC detour. Initial run setup also enters here even
 		// with a low belt because its only responsibility is reaching Waypoint.
@@ -81,7 +85,7 @@ func (a *townPreparationAdapter) start(state world.State) string {
 			// after a prior run). Skip graph playback entirely.
 			a.traversals = nil
 			a.started = true
-			a.log.Info("central town preparation started", "origin", startAnchor, "target", targetAnchor, "services", []string{}, "handoff", a.nextRunID, "edge_count", 0, "scroll_demand", "unavailable_skip", "town_layout", a.layout)
+			a.log.Info("central town preparation started", "origin", startAnchor, "target", targetAnchor, "services", []string{}, "handoff", a.nextRunID, "edge_count", 0, "scroll_demand", tpDemand, "town_portal_scrolls", tpCount, "town_layout", a.layout)
 			return ""
 		}
 		traversals, err := a.graph.RouteForLayout(a.layout, startAnchor, nil, targetAnchor)
@@ -90,7 +94,7 @@ func (a *townPreparationAdapter) start(state world.State) string {
 		}
 		a.traversals = traversals
 		a.started = true
-		a.log.Info("central town preparation started", "origin", startAnchor, "target", targetAnchor, "services", []string{}, "handoff", a.nextRunID, "edge_count", len(traversals), "scroll_demand", "unavailable_skip", "town_layout", a.layout)
+		a.log.Info("central town preparation started", "origin", startAnchor, "target", targetAnchor, "services", []string{}, "handoff", a.nextRunID, "edge_count", len(traversals), "scroll_demand", tpDemand, "town_portal_scrolls", tpCount, "town_layout", a.layout)
 		return ""
 	}
 	if cowTrashDetour {
@@ -100,7 +104,13 @@ func (a *townPreparationAdapter) start(state world.State) string {
 	maximumCost := 0
 	beltComplete := true
 	restockOrders := []town.RestockOrder(nil)
-	if needsPotions || needsKeys {
+	if needsPotions || needsKeys || needsTP {
+		if needsPotions {
+			levels = append(levels, town.RestockLevel{Resource: town.RestockHealing, Current: healing, Threshold: healingThreshold, Target: healingTarget}, town.RestockLevel{Resource: town.RestockMana, Current: mana, Threshold: manaThreshold, Target: manaTarget})
+		}
+		if needsTP {
+			levels = append(levels, town.RestockLevel{Resource: town.RestockTownPortalScroll, Current: tpCount, Threshold: a.thresholds.TownPortalScrolls, Target: town.TownPortalTomeCapacity})
+		}
 		if needsKeys {
 			levels = append(levels, town.RestockLevel{Resource: town.RestockKey, Current: keys, Threshold: town.KeyRestockThreshold, Target: town.KeyRestockTarget})
 		}
@@ -133,9 +143,19 @@ func (a *townPreparationAdapter) start(state world.State) string {
 	}
 	effectiveThresholds := a.thresholds
 	effectiveThresholds.Healing, effectiveThresholds.Mana = healingThreshold, manaThreshold
+	// Disabled initial services must not reappear through the demand snapshot.
+	if !a.services {
+		effectiveThresholds.Healing, effectiveThresholds.Mana = 0, 0
+	}
+	if !tpKnown {
+		tpCount = a.thresholds.TownPortalScrolls
+	}
+	if !needsKeys {
+		keys = max(keys, town.KeyRestockThreshold)
+	}
 	snapshot := town.InspectDemand(town.SupplySnapshot{
 		Healing: healing, Mana: mana, BeltLayoutComplete: beltComplete, Keys: keys,
-		TownPortalScrolls: a.thresholds.TownPortalScrolls, IdentifyScrolls: a.thresholds.IdentifyScrolls,
+		TownPortalScrolls: tpCount, IdentifyScrolls: a.thresholds.IdentifyScrolls,
 		IdentifyRequired: needsIdentify, VendorCandidates: needsSell, RepairRequired: needsRepair,
 		MercenaryHeal: mercHeal, MercenaryRevive: mercRevive,
 	}, effectiveThresholds, a.nextRunID)
@@ -160,7 +180,7 @@ func (a *townPreparationAdapter) start(state world.State) string {
 	a.handler = handler
 	a.executor = executor
 	a.started = true
-	a.log.Info("central town preparation started", "origin", startAnchor, "potions", needsPotions, "keys", needsKeys, "key_count", keys, "identify", needsIdentify, "sell", needsSell, "repair", needsRepair, "started_runs", a.startedRuns, "last_repair", a.lastRepairStartedRuns, "repair_interval", a.townCfg.RepairIntervalRuns, "mercenary_heal", mercHeal, "mercenary_revive", mercRevive, "item_orders", len(itemOrders), "handoff", a.nextRunID, "edge_count", len(traversals), "healing", healing, "mana", mana, "gold", state.Player.Gold, "required_maximum_gold", maximumCost, "town_layout", a.layout)
+	a.log.Info("central town preparation started", "origin", startAnchor, "potions", needsPotions, "town_portal_restock", needsTP, "scroll_demand", tpDemand, "town_portal_scrolls", tpCount, "keys", needsKeys, "key_count", keys, "identify", needsIdentify, "sell", needsSell, "repair", needsRepair, "started_runs", a.startedRuns, "last_repair", a.lastRepairStartedRuns, "repair_interval", a.townCfg.RepairIntervalRuns, "mercenary_heal", mercHeal, "mercenary_revive", mercRevive, "item_orders", len(itemOrders), "handoff", a.nextRunID, "edge_count", len(traversals), "healing", healing, "mana", mana, "gold", state.Player.Gold, "required_maximum_gold", maximumCost, "town_layout", a.layout)
 	return ""
 }
 
@@ -337,7 +357,12 @@ func (h *townPreparationStepHandler) Tick(ctx context.Context, step town.PlanSte
 	switch step.Kind {
 	case town.StepService:
 		switch step.Service {
-		case town.ServicePotions:
+		case town.ServicePotions, town.ServiceScrolls:
+			// Both services share one Akara order list. If potions already bought
+			// and verified the scroll order, do not reopen the shop for scrolls.
+			if h.stage == "walk" && h.order >= len(h.orders) {
+				return town.InteractionResult{Status: town.InteractionComplete, Done: true}
+			}
 			return h.tickPotions(ctx, state)
 		case town.ServiceIdentify:
 			return h.tickItems(ctx, state, town.ServiceIdentify)
@@ -1004,6 +1029,9 @@ func (h *townPreparationStepHandler) tickOrders(state world.State) town.Interact
 	}
 	order := h.orders[h.order]
 	current := countRestockResource(state, h.adapter.profile, order.Resource)
+	if current < 0 {
+		return town.InteractionResult{Status: town.InteractionFailed, Reason: string(town.ReasonRestockStateInvalid), Done: true}
+	}
 	metadata := town.InteractionResult{Current: current, Threshold: thresholdFor(h.adapter.thresholds, order.Resource), BeltSlots: slotsFor(h.adapter.profile, order.Resource), Mode: order.Mode, Vendor: town.AnchorAkara}
 	if time.Now().Before(h.settleUntil) {
 		metadata.Status = town.InteractionPending
@@ -1177,7 +1205,35 @@ func (h *townPreparationStepHandler) Reset() {
 	h.walker = nil
 }
 
+// townPortalTomeSupply requires one unambiguous inventory tome with a measured
+// quantity. Multiple tomes can include Cow recipe stock; a bulk purchase cannot
+// pin its destination, so no purchase is authorized for that ambiguous state.
+func townPortalTomeSupply(state world.State) (int, bool) {
+	count, found := 0, false
+	for _, item := range state.InventoryItems() {
+		if item.Code != town.TownPortalTomeCode {
+			continue
+		}
+		if found || !item.QuantityKnown || item.Quantity < 0 || item.Quantity > town.TownPortalTomeCapacity {
+			return 0, false
+		}
+		count, found = item.Quantity, true
+	}
+	return count, found
+}
+
+func (a *townPreparationAdapter) townPortalRestockNeeded(state world.State) bool {
+	count, known := townPortalTomeSupply(state)
+	return known && count < a.thresholds.TownPortalScrolls
+}
+
 func countRestockResource(state world.State, profile config.ProfileResourcesConfig, resource town.RestockResource) int {
+	if resource == town.RestockTownPortalScroll {
+		if count, known := townPortalTomeSupply(state); known {
+			return count
+		}
+		return -1 // Loss of quantity evidence aborts the existing bounded verifier.
+	}
 	if resource == town.RestockKey {
 		return state.InventoryQuantityByCode(town.KeyItemCode)
 	}
@@ -1192,6 +1248,9 @@ func countRestockResource(state world.State, profile config.ProfileResourcesConf
 }
 
 func vendorRequest(order town.RestockOrder) town.VendorRequest {
+	if order.Resource == town.RestockTownPortalScroll {
+		return town.VendorRequest{Code: town.TownPortalScrollCode, Mode: order.Mode}
+	}
 	if order.Resource == town.RestockKey {
 		return town.VendorRequest{Code: town.KeyItemCode, Mode: order.Mode}
 	}
@@ -1232,6 +1291,9 @@ func purchaseCostForState(state world.State, profile config.ProfileResourcesConf
 }
 
 func thresholdFor(thresholds town.Thresholds, resource town.RestockResource) int {
+	if resource == town.RestockTownPortalScroll {
+		return thresholds.TownPortalScrolls
+	}
 	if resource == town.RestockHealing {
 		return thresholds.Healing
 	}

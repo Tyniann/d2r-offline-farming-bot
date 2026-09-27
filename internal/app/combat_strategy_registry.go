@@ -9,6 +9,7 @@ import (
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/profile"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/profile/hammerdin"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/profile/necrobonespear"
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/profile/sorceressblizzard"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/tasks"
 )
 
@@ -39,6 +40,9 @@ func NewCombatStrategyRegistry() *CombatStrategyRegistry {
 	registry.mustRegister(hammerdin.NewLowerKurastFactory())
 	registry.mustRegister(hammerdin.NewSummonerFactory())
 	registry.mustRegister(hammerdin.NewCowsFactory())
+	for _, runID := range []tasks.RunID{tasks.RunIDCountess, tasks.RunIDMephisto, tasks.RunIDNihlathak, tasks.RunIDLowerKurast, tasks.RunIDSummoner, tasks.RunIDCows} {
+		registry.mustRegister(sorceressblizzard.NewFactory(string(runID)))
+	}
 	return registry
 }
 

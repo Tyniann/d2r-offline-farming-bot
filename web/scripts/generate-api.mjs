@@ -126,6 +126,7 @@ export interface HistoryQuery {
   pickit_profile?: string[];
   session?: string[];
   sort?: "keep_per_hour" | "success_rate" | "average_duration";
+  item_disposition?: "kept_sold";
   limit?: number;
   cursor?: string;
 }

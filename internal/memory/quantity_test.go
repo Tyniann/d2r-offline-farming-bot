@@ -17,7 +17,9 @@ func TestDecodeItemQuantityPrefersBase(t *testing.T) {
 		known    bool
 	}{
 		{name: "missing both lists", active: unreadable, base: unreadable},
-		{name: "empty lists", active: absent, base: absent},
+		{name: "empty lists", active: absent, base: absent, known: true},
+		{name: "unreadable base", active: absent, base: unreadable},
+		{name: "unreadable active", active: unreadable, base: absent},
 		{name: "live key base only", active: absent, base: present(5), quantity: 5, known: true},
 		{name: "base preferred over active", active: present(1), base: present(1), quantity: 1, known: true},
 		{name: "active only", active: present(12), base: absent, quantity: 12, known: true},
@@ -69,5 +71,35 @@ func TestProbeSnapshotDecodesBaseOnlyQuantityStat(t *testing.T) {
 	}
 	if len(got.Stats) != 0 {
 		t.Fatalf("productive stats = %+v, want empty Active list", got.Stats)
+	}
+}
+
+// The live empty TP tome on 2026-09-28 had an allocated empty Active list
+// and a Base header with pointer=0/count=0, with no explicit StatQuantity.
+func TestProbeSnapshotDecodesEmptyStackWithoutQuantityEntry(t *testing.T) {
+	access, probe, moduleBase := setupProbeMock(t)
+	off := testOffsetSet()
+	const itemUnit = uintptr(0x69000)
+	const itemData = uintptr(0x6A000)
+	const itemPath = uintptr(0x6B000)
+	const statsListEx = uintptr(0x6C000)
+	const activeArray = uintptr(0x6D000)
+	writeSegmentHead(access, moduleBase, off.UnitTable, unitSegmentItem, itemUnit)
+	setupItemUnit(access, itemUnit, itemData, itemPath, statsListEx, 0, 558, 44, 2, itemFlagIdentified, itemRawLocationInventory, 1, 0, 9, 3)
+	activeHeader := statsListEx + off.Unit.StatsListActive
+	baseHeader := statsListEx + off.Unit.StatsListBase
+	writeU64(access, activeHeader+off.Stats.ListPtr, uint64(activeArray))
+	writeU64(access, activeHeader+off.Stats.Count, 0)
+	writeU64(access, baseHeader+off.Stats.ListPtr, 0)
+	writeU64(access, baseHeader+off.Stats.Count, 0)
+	snap := probe.Snapshot()
+	if len(snap.Items) != 1 || !snap.Items[0].QuantityKnown || snap.Items[0].Quantity != 0 {
+		t.Fatalf("empty stack not recognized: %+v", snap.Items)
+	}
+	// A null pointer with nonzero length is still corrupt, not an empty stack.
+	writeU64(access, baseHeader+off.Stats.Count, 1)
+	snap = probe.Snapshot()
+	if len(snap.Items) != 1 || snap.Items[0].QuantityKnown {
+		t.Fatalf("invalid array accepted: %+v", snap.Items)
 	}
 }

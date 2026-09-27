@@ -4,6 +4,8 @@
 
 Phase 8 führt generische, klassenbegrenzte Lifecycle-Hooks und eine profilabhängige Resource Policy ein. Run-State-Machines melden semantische Ereignisse; konkrete Skills, Ziele und Potion-Grenzen bleiben im ausgewählten Profil. Der erste produktive Verbraucher ist `necro_bone_spear`.
 
+[`sorceress_blizzard`](sorceress-blizzard.md) ergänzt die Zauberin für alle sechs Routen. Eisrüstung nutzt `town_ready`; der Profil-Wrapper begrenzt die Statikfeld-Sequenz auf Mephistos ersten Encounter-Hook und bestätigt vorher die Annäherung. Blizzard verwendet den gemeinsamen RMB-Angriff und `single_target`-Route-Clear ohne Fluch oder Kadaverexplosion. Die bestehenden Ressourcen- und Town-Abläufe gelten unverändert. Während Blizzards Cooldown verwendet die Zauberin Eisstoß gegen das aktuell gewählte lebende Ziel; Blizzard erhält nach Ablauf seiner Frist wieder Vorrang.
+
 ## Ort im Code
 
 - **Paket:** `internal/profile/`
