@@ -140,15 +140,15 @@ func TestSorceressBlizzardSetupRuntimeAndCowPreflight(t *testing.T) {
 	log := config.NewLogger("error")
 	combat := newCombatAdapter(log, &recordingCombatInput{}, bindings, pathing.DefaultConfig(), 2*time.Second)
 	for _, run := range []string{"countess", "cows", "lower-kurast", "mephisto", "nihlathak", "summoner"} {
-		runCfg, err := mapRunConfigWithProfile(service.cfg, run, sorceressblizzard.ID, false)
-		if err != nil {
-			t.Fatal(err)
+		runCfg, mappingErr := mapRunConfigWithProfile(service.cfg, run, sorceressblizzard.ID, false)
+		if mappingErr != nil {
+			t.Fatal(mappingErr)
 		}
 		if runCfg.Combat.UseCorpseExplosion || runCfg.Combat.AttackSkillID != memory.MustSkillID("blizzard") || runCfg.Combat.AttackInterval != 1800*time.Millisecond {
 			t.Fatalf("%s combat=%+v", run, runCfg.Combat)
 		}
-		if _, err := newProfileExecutor(log, service.cfg.Profiles, sorceressblizzard.ID, run, registry, &recordingCombatInput{}, bindings, pathing.DefaultConfig(), combat, nil, true); err != nil {
-			t.Fatal(err)
+		if _, profileErr := newProfileExecutor(log, service.cfg.Profiles, sorceressblizzard.ID, run, registry, &recordingCombatInput{}, bindings, pathing.DefaultConfig(), combat, nil, true); profileErr != nil {
+			t.Fatal(profileErr)
 		}
 	}
 	cow := mapCowConfig(service.cfg, bindings, nil, sorceressblizzard.ID)

@@ -188,10 +188,10 @@ func TestBlizzardPostBossCleanupRespectsRadiusBudgetAndUnprojectableTargets(t *t
 }
 
 func TestBlizzardLowerKurastBlockerClearRetriesChestOnce(t *testing.T) {
-	p, exec, _, combat, w := blizzardTaskFixture(t, RunIDLowerKurast)
+	p, exec, _, combat, _ := blizzardTaskFixture(t, RunIDLowerKurast)
 	rack := closedObject(world.ArmorStand1ID, world.ObjectKindRack, 127, 5012, 2983)
 	rack.Mode = world.ObjectModeOpened
-	w = lowerKurastSweepState([]world.Object{closedObject(world.JungleChest2ID, world.ObjectKindSuperChest, 126, 5027, 3012), rack}, 5)
+	w := lowerKurastSweepState([]world.Object{closedObject(world.JungleChest2ID, world.ObjectKindSuperChest, 126, 5027, 3012), rack}, 5)
 	w.Player.Position = world.Position{X: 5027, Y: 3012}
 	w.Monsters = []world.Monster{{UnitID: 77, NPCID: world.Zakarumite, Position: world.Position{X: 5028, Y: 3012}, IsHovered: true}}
 	chest := &blockerChestOperate{world: &w}

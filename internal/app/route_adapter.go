@@ -162,11 +162,11 @@ func (a *routePlaybackAdapter) Hold(state world.State) (err error) {
 	if a.player == nil {
 		return fmt.Errorf("run route playback not started")
 	}
-	if err := a.validateHoldState(state); err != nil {
+	if err = a.validateHoldState(state); err != nil {
 		return err
 	}
 	pointBefore := a.player.PointIndex()
-	if err := a.player.SyncReached(state); err != nil {
+	if err = a.player.SyncReached(state); err != nil {
 		return fmt.Errorf("run route hold sync reached points: %w", err)
 	}
 	reconciled, err := a.player.ReconcileForward(state)
