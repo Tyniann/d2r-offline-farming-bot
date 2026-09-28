@@ -58,6 +58,32 @@ func TestSorceressBlizzardLocalClearStartsAfterTeleport(t *testing.T) {
 	}
 }
 
+func TestSorceressTeleportRecoveryDoesNotWaitForBlizzardCooldown(t *testing.T) {
+	in := &recordingCombatInput{}
+	blizzard := memory.MustSkillID("blizzard")
+	bindings := configBindingSource{skills: map[uint16]input.SkillCast{
+		blizzard:             {SkillID: blizzard, SelectKey: "f1", CastButton: input.MouseRight},
+		memory.SkillTeleport: {SkillID: memory.SkillTeleport, SelectKey: "f3", CastButton: input.MouseRight},
+	}}
+	adapter := newCombatAdapter(config.NewLogger("error"), in, bindings, pathing.DefaultConfig(), 1800*time.Millisecond)
+	now := time.Now()
+	player := world.Player{Position: world.Position{X: 100, Y: 100}, RightSkillID: blizzard}
+	target := world.Monster{UnitID: 7, Position: world.Position{X: 110, Y: 100}, IsHovered: true}
+	if result, err := adapter.CastAttackAtMonster(now, blizzard, player, target); err != nil || !result.Sent {
+		t.Fatalf("initial Blizzard: %+v, %v", result, err)
+	}
+	if sent, err := adapter.TeleportToward(now.Add(100*time.Millisecond), player, target.Position, 5); err != nil || sent || in.lastSkill != memory.SkillTeleport {
+		t.Fatalf("recovery must select Teleport immediately: sent=%v skill=%d err=%v", sent, in.lastSkill, err)
+	}
+	player.RightSkillID = memory.SkillTeleport
+	if sent, err := adapter.TeleportToward(now.Add(200*time.Millisecond), player, target.Position, 5); err != nil || !sent {
+		t.Fatalf("confirmed Teleport must cast before Blizzard is ready: sent=%v err=%v", sent, err)
+	}
+	if adapter.attackReady(now.Add(300*time.Millisecond), blizzard) {
+		t.Fatal("Teleport reset Blizzard cooldown")
+	}
+}
+
 func TestSorceressBlizzardFillsCooldownWithFreshTargetsAndPrioritizesBlizzard(t *testing.T) {
 	for _, run := range []string{"countess", "mephisto", "summoner", "nihlathak", "lower-kurast", "cows"} {
 		t.Run(run, func(t *testing.T) {

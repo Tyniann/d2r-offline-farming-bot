@@ -53,7 +53,9 @@ type pipelineTravelState struct {
 	routeApproachSentAt              time.Time
 	routeApproachSnapshotAt          time.Time
 	routeApproachPending             bool
-	routeApproachFailures            int
+	// Selection owns recovery before a click exists; attacks cannot replace it.
+	routeApproachSelectingAt time.Time
+	routeApproachFailures    int
 	// routeApproachHammerdinReposition marks a fallback teleport toward another
 	// monster while the route controller keeps the previous attack target pinned.
 	routeApproachHammerdinReposition bool

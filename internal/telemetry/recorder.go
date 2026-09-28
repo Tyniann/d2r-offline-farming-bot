@@ -106,7 +106,8 @@ const (
 	RouteMonsterSnapshotSaturated EventName = "route_monster_snapshot_saturated"
 	// RouteClearAction records one actually sent route-clear combat or approach input.
 	RouteClearAction EventName = "route_clear_action"
-	// RouteClearProgress records one accepted objective watchdog reset.
+	// RouteClearProgress records objective progress, measured approaches and
+	// idle recovery decisions. Recovery decisions do not reset objective progress.
 	RouteClearProgress EventName = "route_clear_progress"
 	// RouteClearCompleted records one aggregate stable-clear completion.
 	RouteClearCompleted EventName = "route_clear_completed"

@@ -3,6 +3,7 @@ package tasks
 import (
 	"math"
 
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/profile"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/world"
 )
 
@@ -113,4 +114,45 @@ func positionDistanceSquared(a, b world.Position) float64 {
 	dx := float64(a.X) - float64(b.X)
 	dy := float64(a.Y) - float64(b.Y)
 	return dx*dx + dy*dy
+}
+
+// selectAimableRouteTarget only changes attack preference. Off-screen monsters
+// remain in the authoritative threat assessment and cannot be marked cleared.
+// Zone priority precedes temporary exclusion, hover confirmation and distance.
+func selectAimableRouteTarget(state world.State, progress RouteProgress, assessment ThreatAssessment, allowed []uint32, cfg RouteCombatConfig, combat CombatActions, avoid uint32) (world.Monster, profile.RouteClearMode, bool) {
+	var selected world.Monster
+	selectedZone := ThreatZoneNone
+	selectedDistance := 0.0
+	for _, candidate := range state.Monsters {
+		if candidate.UnitID == 0 || !routeHostileAllowed(candidate.NPCID, allowed) || !routeTargetWithinAttack(state, candidate, cfg) {
+			continue
+		}
+		zone := threatZoneForMonster(state.Player.Position, progress, candidate.Position, cfg)
+		if zone == ThreatZoneNone && !assessment.DensityTargetFound {
+			continue
+		}
+		if !candidate.IsHovered && !combat.MonsterAimProjectable(state.Player.Position, candidate.Position) {
+			continue
+		}
+		distance := positionDistanceSquared(state.Player.Position, candidate.Position)
+		prefer := selected.UnitID == 0 || routeZonePriority(zone) < routeZonePriority(selectedZone)
+		if selected.UnitID != 0 && zone == selectedZone {
+			switch {
+			case (candidate.UnitID == avoid) != (selected.UnitID == avoid):
+				prefer = selected.UnitID == avoid
+			case candidate.IsHovered != selected.IsHovered:
+				prefer = candidate.IsHovered
+			default:
+				prefer = preferLivingTarget(candidate, distance, selected, selectedDistance, true)
+			}
+		}
+		if prefer {
+			selected, selectedZone, selectedDistance = candidate, zone, distance
+		}
+	}
+	mode := profile.RouteClearThreat
+	if selectedZone == ThreatZoneNone {
+		mode = profile.RouteClearDensityRelief
+	}
+	return selected, mode, selected.UnitID != 0
 }

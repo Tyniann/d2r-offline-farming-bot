@@ -171,10 +171,8 @@ func (rt *Runtime) runTickWithMode(ctx context.Context, state *runState, mode ru
 	st := rt.Process.Poll()
 	if st.State == process.StateLost {
 		if rt.RuntimeTrace != nil && rt.RuntimeTrace.Enabled() {
-			result := rt.Tasks.Result()
-			if err := rt.finalizeRuntimeTrace(replay.Terminal{Step: result.Step, Outcome: "failed", Reason: "process_lost"}); err != nil {
-				rt.Log.Error("runtime trace finalization failed", "error", err)
-			}
+			rt.Input.Unbind()
+			return errors.Join(fmt.Errorf("diagnostic process lost"), rt.runtimeControl("process_lost", false))
 		}
 		rt.Input.Unbind()
 		if mode == runTickModeFull {

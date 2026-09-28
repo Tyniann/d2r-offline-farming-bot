@@ -103,6 +103,7 @@ func (c *runPipeline) tickTravel(ctx context.Context, deps pipelineTravelDeps, s
 			case profile.StatusComplete:
 				c.travel.fieldReadyComplete = true
 			default:
+				c.travel.routeThreat.combatIdleSince = now
 				// Keep ticking field-ready after the first complete so Hammerdin
 				// CTA/Holy Shield can recast during a long route. Release any
 				// held attack before the weapon-swap sequence starts.
@@ -152,6 +153,9 @@ func (c *runPipeline) tickTravel(ctx context.Context, deps pipelineTravelDeps, s
 			}
 			c.resetRouteProgressUnavailable()
 			assessment := assessThreats(w, progress, c.definition.RouteHostileNPCIDs, c.core.routeCombat)
+			if c.core.combat.Profile == "sorceress_blizzard" && deps.Combat != nil {
+				assessment.AimTarget, assessment.AimMode, assessment.AimTargetFound = selectAimableRouteTarget(w, progress, assessment, c.definition.RouteHostileNPCIDs, c.core.routeCombat, deps.Combat, c.travel.routeThreat.combatIdleAvoidUnitID)
+			}
 			if observer, ok := deps.RouteClear.(routeClearObjectiveObserver); ok && observer.ObserveObjectiveProgress(w) {
 				c.travel.routeThreat.observeExternalProgress(now)
 				c.travel.cowNoProgressRecoveryStage = cowNoProgressStageNone
@@ -191,16 +195,44 @@ func (c *runPipeline) tickTravel(ctx context.Context, deps pipelineTravelDeps, s
 				case profile.StatusFailed:
 					return stepResult{failed: true, reason: maintenance.Reason}
 				case profile.StatusAction, profile.StatusPending:
+					c.travel.routeThreat.combatIdleSince = now
 					return stepResult{}
 				}
 			}
 
-			if c.travel.routeApproachPending && w.At.After(c.travel.routeApproachSnapshotAt) {
+			if c.travel.routeApproachPending || !c.travel.routeApproachSelectingAt.IsZero() {
+				if err := deps.Route.Hold(w); err != nil {
+					return stepResult{failed: true, reason: string(RouteThreatReasonStateInvalid)}
+				}
+				if !w.At.After(c.travel.routeApproachSnapshotAt) {
+					return stepResult{}
+				}
+				// Resource recovery owns this wait. Neither a teleport retry nor
+				// selection expiry may race it; its own deadline remains binding.
+				if resourceContext.MobilityCritical {
+					if now.Sub(c.travel.routeThreat.manaRecoveryStartedAt) >= c.core.routeCombat.ManaRecoveryTimeout {
+						return stepResult{failed: true, reason: string(RouteThreatReasonManaRecoveryFailed)}
+					}
+					if !c.travel.routeApproachSelectingAt.IsZero() {
+						c.travel.routeApproachSelectingAt = now
+					}
+					return stepResult{}
+				}
 				target, found := w.FindMonsterByUnitID(c.travel.routeApproachTargetUnitID)
+				if !found && !c.travel.routeApproachSelectingAt.IsZero() {
+					c.resetRouteThreatApproach()
+					if err := deps.Combat.StopAttack(); err != nil {
+						return stepResult{failed: true, reason: string(RouteThreatReasonStateInvalid)}
+					}
+					return stepResult{}
+				}
 				if !found {
 					target = world.Monster{UnitID: c.travel.routeApproachTargetUnitID, Position: c.travel.routeApproachGoal}
 				}
-				result := c.tickRouteThreatApproach(deps, w, progress, target, now)
+				if c.travel.routeApproachHammerdinRouteForward {
+					target.Position = c.travel.routeApproachGoal
+				}
+				result := c.tickRouteThreatApproachMode(deps, w, progress, target, c.travel.routeApproachHammerdinReposition, c.travel.routeApproachHammerdinRouteForward, now)
 				if result.failed || c.travel.routeApproachPending {
 					return result
 				}
@@ -247,7 +279,7 @@ func (c *runPipeline) tickTravel(ctx context.Context, deps pipelineTravelDeps, s
 				}
 				return stepResult{failed: true, reason: string(threat.Reason)}
 			}
-			if !c.travel.routeApproachPending {
+			if threat.AllowMovement {
 				c.resetRouteThreatApproach()
 			}
 			if c.travel.routeThreat.State() == RouteThreatMoving {
@@ -325,6 +357,7 @@ func (c *runPipeline) resetRouteThreatApproach() {
 	c.travel.routeApproachSentAt = time.Time{}
 	c.travel.routeApproachSnapshotAt = time.Time{}
 	c.travel.routeApproachPending = false
+	c.travel.routeApproachSelectingAt = time.Time{}
 	c.travel.routeApproachFailures = 0
 	c.travel.routeApproachHammerdinReposition = false
 	c.travel.routeApproachHammerdinRouteForward = false
@@ -422,6 +455,9 @@ func (c *runPipeline) tickRouteThreatApproachMode(
 		c.resetRouteThreatApproach()
 		c.travel.routeApproachTargetUnitID = target.UnitID
 	}
+	if !c.travel.routeApproachSelectingAt.IsZero() && now.Sub(c.travel.routeApproachSelectingAt) >= routeThreatApproachSelectionTimeout {
+		return stepResult{failed: true, reason: string(RouteThreatReasonClearNoProgress)}
+	}
 	if c.travel.routeApproachPending {
 		reposition := c.travel.routeApproachHammerdinReposition
 		if !w.At.After(c.travel.routeApproachSnapshotAt) {
@@ -465,6 +501,7 @@ func (c *runPipeline) tickRouteThreatApproachMode(
 		}
 		if c.travel.routeApproachFailures >= routeThreatApproachMaxFailures {
 			c.travel.routeApproachExhaustedUnitID = target.UnitID
+			c.travel.routeApproachSelectingAt = time.Time{}
 			return stepResult{}
 		}
 	}
@@ -492,11 +529,13 @@ func (c *runPipeline) tickRouteThreatApproachMode(
 		landing, desiredDistance, projectable := deps.Combat.FarthestProjectableMonsterApproach(w.Player.Position, target.Position)
 		if !projectable {
 			c.travel.routeApproachExhaustedUnitID = target.UnitID
+			c.travel.routeApproachSelectingAt = time.Time{}
 			return stepResult{}
 		}
 		if !cowApproachLandingSafe(w, landing, c.definition.RouteHostileNPCIDs, c.core.routeCombat.LandingRadiusTiles) {
 
 			c.travel.routeApproachExhaustedUnitID = target.UnitID
+			c.travel.routeApproachSelectingAt = time.Time{}
 			return stepResult{}
 		}
 		goal = target.Position
@@ -508,7 +547,19 @@ func (c *runPipeline) tickRouteThreatApproachMode(
 	if err != nil {
 		return stepResult{failed: true, reason: string(RouteThreatReasonStateInvalid)}
 	}
+	// Keep the selected recovery across ticks even while the input adapter is
+	// waiting for skill confirmation. Only a sent click starts movement settling.
+	if !sent {
+		if c.travel.routeApproachSelectingAt.IsZero() {
+			c.travel.routeApproachSelectingAt = now
+		}
+		c.travel.routeApproachSnapshotAt = w.At
+		c.travel.routeApproachGoal = goal
+		c.travel.routeApproachHammerdinReposition = hammerdinReposition
+		c.travel.routeApproachHammerdinRouteForward = hammerdinRouteForward
+	}
 	if sent {
+		c.travel.routeApproachSelectingAt = time.Time{}
 		c.travel.routeApproachOrigin = w.Player.Position
 		c.travel.routeApproachGoal = goal
 		c.travel.routeApproachSentAt = now

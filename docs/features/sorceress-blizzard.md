@@ -2,7 +2,7 @@
 
 ## Überblick
 
-`sorceress_blizzard` ist das freigegebene Standardprofil der Zauberin. Es verwendet die vorhandene Task-Pipeline, Skill-Bestätigung, Ressourcenpolicy und Routenwiedergabe. Unterstützt sind Gräfin, Mephisto, Beschwörer, Nihlathak, Lower Kurast und Kuh-Level. Die manuelle Spielabnahme, insbesondere der Kuh-Level, steht noch aus.
+`sorceress_blizzard` ist das freigegebene Standardprofil der Zauberin. Es verwendet die vorhandene Task-Pipeline, Skill-Bestätigung, Ressourcenpolicy und Routenwiedergabe. Unterstützt sind Gräfin, Mephisto, Beschwörer, Nihlathak, Lower Kurast und Kuh-Level. Der erste Kuh-Test hat Probleme bei Zielwahl und Kampfannäherung gezeigt; die unten beschriebene Korrektur benötigt noch die erneute Spielabnahme.
 
 ## Ort im Code
 
@@ -30,6 +30,24 @@ Alle sechs Skills benötigen eine eigene gültige Tastenbelegung. Die vorhandene
 Nur ein gesendeter Blizzard-Cast startet dessen Cooldown. Teleport und Skillauswahl starten ihn nicht erneut; sonst könnte das lokale Drei-Sekunden-Budget schon vor dem ersten Angriff verstreichen. Ein Route-Clear-Reset hebt das Angriffsintervall nicht auf.
 
 Die gemeinsame Boss-Pipeline nähert sich bei mehr als 22 Tiles auf 15 Tiles an. Nihlathak verwendet die bestehende Annäherung bis zur spielbaren Zielprojektion. Route-Clear greift das vom Task autorisierte lebende Ziel über die vorhandene Hover- oder Projektionsprüfung an. Blizzard trifft dort eine Fläche; das Profil führt keine eigene Gruppen- oder Routenplanung ein.
+
+### Zielwahl und Recovery bei Untätigkeit
+
+Im regulären Route-Clear von Beschwörer und Cow-Sweep bevorzugt die gemeinsame Pipeline lebende, anvisierbare Gegner. Die Priorität der Bedrohungszonen bleibt erhalten; innerhalb einer Zone zählen der vorübergehende Zielausschluss nach Untätigkeit, bestätigter Hover und Entfernung. Die Auswahl verwendet jeden frischen World-Snapshot. Nicht anvisierbare Gegner bleiben in der Bedrohungs- und Coverage-Bewertung und gelten nicht als erledigt. Eine gültige Bildschirmprojektion beweist keine freie Schussbahn.
+
+Nach **zwei Sekunden ohne gesendeten Angriff** bei vorhandenen Gegnern beginnt eine begrenzte Recovery:
+
+1. Zielwahl und ausstehende Angriffsauswahl zurücksetzen. Ein anderes anvisierbares Ziel derselben Priorität erhält Vorrang.
+2. Nach weiteren zwei Sekunden ohne Angriff die vorhandene sichere Annäherung versuchen. Im Cow-Sweep bleiben Projektions- und Landeplatzprüfung verbindlich; beim Beschwörer bleibt die Bewegung an die freigegebene Routenkante gebunden.
+3. Bleiben Angriffe weiterhin aus, endet die Recovery kontrolliert mit `route_clear_no_progress`.
+
+Söldner-Kills, Zielwechsel, Hover-Versuche und Skill-Anforderungen setzen diesen eigenen Aktivitätstimer nicht zurück. Ein gesendeter Angriff beendet die Recovery; eine bestätigte Annäherung startet die Wartefrist neu, erhält aber die bereits verbrauchten Recovery-Stufen. Mana-Erholung und Profilwartung pausieren die Prüfung. Die vorhandenen Mana- und Gesamtfristen bleiben bestehen. Fehlender Schaden allein gilt nicht als Untätigkeit; Kälteimmune können weiterhin vom Söldner bekämpft werden.
+
+Die gemeinsame Annäherung besitzt den Ablauf bereits während der Skillauswahl. Erst danach folgen Teleport-Klick und Bestätigung der Positionsänderung in einem neueren Snapshot. Eine Auswahl darf höchstens zwei Sekunden warten. Stirbt das Ziel vor dem Klick, wird die Annäherung verworfen und neu bewertet. Während einer laufenden Annäherung kann die Angriffsrotation den rechten Skill nicht überschreiben. Zauberin-Teleports verwenden das bestehende `pathing.move_interval_ms` statt Blizzards 1800-ms-Angriffsintervall. Skillauswahl-Wartezyklen gelten nicht als neue Bewegung oder neuer Angriff.
+
+Die Telemetrie unterscheidet `idle_retarget`, `idle_reposition` und `idle_exhausted` als `progress_kind` von `route_clear_progress`. Diese Diagnoseereignisse setzen den objektiven Fortschrittswächter nicht zurück. `route_clear_action` meldet weiterhin ausschließlich gesendete Eingaben; eine bestätigte Bewegung wird separat als `approach` erfasst. Ein Angriffsklick ist kein Nachweis eines Treffers oder einer tatsächlich gestarteten Spielanimation.
+
+Boss-Zielbindung, Nihlathaks Anker und die begrenzten lokalen Clears in Lower Kurast und bei Objektinteraktionen behalten ihre eigenen Verträge. Der neue Zwei-Sekunden-Wächter gehört zum regulären Route-Clear.
 
 ### Statikfeld gegen Aktbosse
 
@@ -64,9 +82,9 @@ Lower Kurast und die lokale Portal-Recovery verwenden denselben Clear mit zwölf
 
 ### Automatisierte Prüfung und Spielabnahme
 
-`internal/tasks/sorceress_blizzard_test.go` prüft die tatsächlichen Task-Übergänge mit dem gemeinsamen Profil-Executor und simulierten Kampfaktionen: Boss-Akquise, Statikfeld nur bei Mephisto, Kill-Bestätigung, Cleanup-Auswahl und -Budgets, Nihlathaks einzelne Annäherung, Lower-Kurast-Blocker sowie Beschwörer-/Cow-Holds bei Gegnern und unvollständiger Abdeckung. Die App-Tests prüfen zusätzlich den echten Kampfadapter, einschließlich Blizzard nach Teleport innerhalb des lokalen Clear-Budgets, Eisstoß-Bursts mit wechselnden Zielen und Blizzards Vorrang nach 1800 ms. Profil-, Config- und UI-Tests prüfen Hooks, CASC-Annahmen, Bindings und Setup.
+`internal/tasks/sorceress_recovery_test.go` prüft den Zwei-Sekunden-Trigger trotz Söldner-Fortschritt, anvisierbare und sterbende Ziele, die exklusive Annäherung, Mana-Holds und endliche Recovery. `internal/tasks/sorceress_blizzard_test.go` prüft die tatsächlichen Task-Übergänge mit dem gemeinsamen Profil-Executor und simulierten Kampfaktionen: Boss-Akquise, Statikfeld nur bei Mephisto, Kill-Bestätigung, Cleanup-Auswahl und -Budgets, Nihlathaks einzelne Annäherung, Lower-Kurast-Blocker sowie Beschwörer-/Cow-Holds bei Gegnern und unvollständiger Abdeckung. Die App-Tests prüfen zusätzlich den echten Kampfadapter, einschließlich Blizzard nach Teleport innerhalb des lokalen Clear-Budgets, Eisstoß-Bursts mit wechselnden Zielen und Blizzards Vorrang nach 1800 ms. Profil-, Config- und UI-Tests prüfen Hooks, CASC-Annahmen, Bindings und Setup.
 
-Diese Tests ersetzen keine Spielabnahme. Trefferwirkung, Ausrüstung, Söldnerschaden und Verhalten auf den persönlichen Routenaufzeichnungen müssen im Spiel geprüft werden; die Kuh-Abnahme steht noch aus.
+Diese Tests ersetzen keine Spielabnahme. Trefferwirkung, Ausrüstung, Söldnerschaden und Verhalten auf den persönlichen Routenaufzeichnungen müssen im Spiel geprüft werden; die erneute Kuh-Abnahme nach der Recovery-Korrektur steht noch aus.
 
 ## Datenmodell
 
@@ -96,4 +114,4 @@ Lokale CASC-Extrakte und generierter Skill-/Monsterkatalog, World Model, gemeins
 - [Söldnerunterstützung](mercenary-support.md)
 
 ---
-*Zuletzt aktualisiert: 2026-09-27*
+*Zuletzt aktualisiert: 2026-09-28*

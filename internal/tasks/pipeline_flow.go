@@ -63,11 +63,12 @@ const (
 	// lootApproachMaxDistanceTiles caps post-kill / route loot chase teleports.
 	// Beyond this, the candidate is handed to pickup as too_far without yanking
 	// the character multiple screens away before town portal.
-	lootApproachMaxDistanceTiles float64 = 20
-	lootRepositionRetryDelay             = 500 * time.Millisecond
-	lootRepositionMaxAttempts            = 3
-	routeLootRadiusTiles         float64 = 30
-	routeThreatApproachSettle            = 500 * time.Millisecond
+	lootApproachMaxDistanceTiles        float64 = 20
+	lootRepositionRetryDelay                    = 500 * time.Millisecond
+	lootRepositionMaxAttempts                   = 3
+	routeLootRadiusTiles                float64 = 30
+	routeThreatApproachSettle                   = 500 * time.Millisecond
+	routeThreatApproachSelectionTimeout         = 2 * time.Second
 	// A single incomplete identity/route projection is a read-side flake, not
 	// an internal route contract violation. No input is allowed during this
 	// grace; sustained unavailability still fails closed.

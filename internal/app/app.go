@@ -517,6 +517,9 @@ func (rt *Runtime) verifyComponents() {
 }
 
 func (rt *Runtime) Run() error {
+	if rt.Options.RuntimeTraceCapture != "" && rt.Tasks.ConfiguredRun() != "" {
+		return rt.runDiagnostic(context.Background())
+	}
 	rt.Log.Info("d2rbot started",
 		"version", version.Version,
 		"commit", version.Commit,

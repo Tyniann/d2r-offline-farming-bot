@@ -188,7 +188,7 @@ func (rt *Runtime) runTaskToTerminal(parent context.Context) (tasks.TickResult, 
 	for {
 		select {
 		case <-ctx.Done():
-			if abortErr := rt.Tasks.AbortOpenStep(string(SupervisorReasonEmergencyStopRequested)); abortErr != nil {
+			if abortErr := rt.runtimeControl(string(SupervisorReasonEmergencyStopRequested), false); abortErr != nil {
 				rt.Log.Warn("abort open run step failed", "error", abortErr)
 			}
 			return tasks.TickResult{}, ctx.Err()
@@ -196,7 +196,7 @@ func (rt *Runtime) runTaskToTerminal(parent context.Context) (tasks.TickResult, 
 			rt.handleHotkeyEvent(event, cancel)
 		case <-ticker.C:
 			if err := rt.runTick(ctx, state); err != nil && !errors.Is(err, context.Canceled) {
-				return tasks.TickResult{}, err
+				return tasks.TickResult{}, errors.Join(err, rt.runtimeControl("runtime_error", false))
 			}
 			if rt.Tasks.Terminal() {
 				return rt.Tasks.Result(), nil
@@ -207,7 +207,7 @@ func (rt *Runtime) runTaskToTerminal(parent context.Context) (tasks.TickResult, 
 
 func (rt *Runtime) runRetryReturnToTown(parent context.Context) error {
 	rt.Tasks = tasks.NewRunner(rt.Log, tasks.RunSelection{
-		Run:   rt.Config.Session.Run,
+		Run:   rt.Tasks.ConfiguredRun(),
 		Phase: tasks.RunPhaseRetryReturn,
 	}, rt.runConfig, rt.taskDeps)
 	result, err := rt.runTaskToTerminal(parent)

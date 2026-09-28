@@ -7,6 +7,12 @@ Versionierung nach [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+- Preserve the complete run configuration and external stop decisions in diagnostic traces so Cow preflight and mercenary aborts can be replayed correctly
+- Apply session mercenary-death protection and controlled failure return to standalone diagnostic runs, saving traces after recovery instead of blocking in combat
+- Prevent Blizzard Sorceress attacks from interrupting recovery teleport selection or delaying it with Blizzard's cooldown
+- Prefer aimable living route-clear targets and recover after two seconds without Sorceress attacks, independently of mercenary kills, with bounded retargeting and safe repositioning
+
 ## [0.27.0] - 2026-09-28
 
 ### Added

@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/pathing"
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/profile"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/world"
 )
 
@@ -97,6 +98,13 @@ const (
 // ThreatAssessment ist die immutable, höchstens einmal pro [world.State.At]
 // gebildete Route-Threat-Entscheidung. Sie liest keinen Prozessspeicher und sendet keinen Input.
 type ThreatAssessment struct {
+	// AimTarget is an optional live, projectable target selected without
+	// changing threat counts or the evidence required to release route hold.
+	AimTarget world.Monster
+	// AimMode preserves threat-versus-density handling for AimTarget.
+	AimMode profile.RouteClearMode
+	// AimTargetFound reports a usable target from the current snapshot.
+	AimTargetFound bool
 	// SnapshotAt bindet das Assessment an genau einen World-Snapshot.
 	SnapshotAt time.Time
 	// RouteTarget ist das priorisierte bekannte Movement-Hindernis.
@@ -144,7 +152,8 @@ const (
 type RouteThreatReason string
 
 const (
-	// RouteThreatReasonClearNoProgress bezeichnet zwölf Sekunden ohne objektiven Clear-Fortschritt.
+	// RouteThreatReasonClearNoProgress bezeichnet fehlenden Clear-Fortschritt
+	// oder eine ausgeschöpfte Recovery nach eigener Untätigkeit.
 	RouteThreatReasonClearNoProgress RouteThreatReason = "route_clear_no_progress"
 	// RouteThreatReasonCowNoProgress bezeichnet einen Cow-Hold ohne objektiven
 	// Fortschritt durch weniger Lebende, neue/verbrauchte Leichen oder Coverage.

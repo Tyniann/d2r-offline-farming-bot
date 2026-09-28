@@ -84,7 +84,28 @@ func Replay(bundle Bundle) (ReplayReport, error) {
 		now := clockBase.Add(time.Duration(frame.ElapsedNS))
 		state := worldStateFromFrame(frame, now)
 		observer.BeginTick(now, frame.World, frame.Generation, frame.Gates, before)
-		result := runner.Tick(context.Background(), state, now)
+		var result tasks.TickResult
+		// Runtime controls happen outside Task.Tick. Replaying them as ordinary
+		// ticks would invent decisions during a mercenary hold or operator stop.
+		if len(frame.Dependencies) > 0 && frame.Dependencies[0].Name == "runtime.control" {
+			control := transcript.consume("runtime.control")
+			observer.RecordDependency(control.Name, control.Args, nil, nil)
+			var stopErr error
+			if boolValue(control.Args, "stop_attack") {
+				if deps.Combat == nil {
+					return ReplayReport{}, fmt.Errorf("runtime control requires combat dependency")
+				}
+				stopErr = deps.Combat.StopAttack()
+			}
+			if reason := stringValue(control.Args, "reason"); reason != "" && stopErr == nil {
+				if err := runner.AbortOpenStep(reason); err != nil {
+					return ReplayReport{}, fmt.Errorf("replay runtime abort: %w", err)
+				}
+			}
+			result = runner.Result()
+		} else {
+			result = runner.Tick(context.Background(), state, now)
+		}
 		after := traceStateFromResult(result)
 		observer.EndTick(after)
 		if err := transcript.endFrame(); err != nil {
@@ -135,6 +156,22 @@ func canonicalEqual(left, right any) bool {
 func replayRunConfig(contract ContractSnapshot) (tasks.RunConfig, error) {
 	if contract.RunID == "" {
 		return tasks.RunConfig{}, fmt.Errorf("runtime replay run_id is required")
+	}
+	// Freeze the whole value contract, including Cow preflight and profile
+	// switches. A hand-maintained subset silently substitutes zero values.
+	if frozen, ok := contract.Policy["run_config"]; ok {
+		encoded, err := json.Marshal(frozen)
+		if err != nil {
+			return tasks.RunConfig{}, fmt.Errorf("encode frozen run config: %w", err)
+		}
+		var config tasks.RunConfig
+		if err := json.Unmarshal(encoded, &config); err != nil {
+			return config, fmt.Errorf("decode frozen run config: %w", err)
+		}
+		return config, nil
+	}
+	if contract.RunID == string(tasks.RunIDCows) {
+		return tasks.RunConfig{}, fmt.Errorf("cow runtime trace lacks frozen run_config; capture a new diagnostic run")
 	}
 	config := tasks.RunConfig{
 		RouteID:                 stringValue(contract.Route, "route_id"),

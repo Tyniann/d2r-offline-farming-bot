@@ -64,6 +64,30 @@ Ein Trace mit abgeschnittenem detailliertem Ringpuffer wird fail-closed nicht re
 
 Das Bundle liegt bei einem installierten Datenroot unter `diagnostics/runtime-traces/`, sonst relativ zum Arbeitsverzeichnis. Der normale Stop-/Pause-Hotkey und alle bestehenden Fail-closed-Input-Gates bleiben autoritativ.
 
+### Einen Kuh-Level aufzeichnen
+
+1. In der Desktop-App den freigeschalteten Charakter und die Schwierigkeit auswählen. Beide veröffentlichten Routenrollen `leg_acquisition` und `cow_sweep` müssen zu dieser Auswahl passen. Danach die Desktop-App vollständig beenden, damit kein zweiter Core gleichzeitig Input senden kann.
+2. Mit diesem Charakter ein privates Offline-Spiel auf der gewählten Schwierigkeit betreten und in Akt 1 starten. Die normalen Kuh-Voraussetzungen, insbesondere ein lebender Söldner und der Horadrimwürfel, gelten weiterhin.
+3. Den gewünschten Core-Build in PowerShell starten. `--data-root` übernimmt Charakter, Schwierigkeit, Bindings und Routen aus den vorhandenen Operator-Einstellungen:
+
+```powershell
+& "<Installationsordner>\resources\core\d2rbot.exe" `
+  --data-root "$env:LOCALAPPDATA\D2ROfflineFarmingBot" `
+  --run cows --runtime-trace-capture cow-targeting
+```
+
+Bei einem lokalen Entwicklungsbuild den EXE-Pfad entsprechend ersetzen. Der Befehl startet einen vollständigen Kuh-Versuch samt Vorbereitung, keine Queue-Session. D2R muss für die produktiven Eingaben im Vordergrund bleiben.
+
+Der einzelne Diagnoseversuch verwendet den vorhandenen Söldnertod-Schutz. Während der Todesbestätigung hält er Angriffe an; bestätigter Tod beendet den produktiven Task. Bei Söldnertod, erschöpften Kampfressourcen und den bereits konfigurierten rückkehrfähigen Fehlern greifen dieselbe Rückkehrsteuerung und dieselben Save-&-Exit-Prüfungen wie in der Queue. Es startet kein weiterer Versuch. Ein Not-Stopp unterbindet auch diese Rückkehr. Die aufwendige Komprimierung und Speicherung beginnt nach dem Rückkehrversuch.
+
+Neue Traces frieren die vollständige `tasks.RunConfig` unter `contract.policy.run_config` ein, einschließlich Cow-Charakter, Klasse, Fenstergröße, geschützter Inventarfelder und Fähigkeiten. Externe Eingriffe erscheinen als `runtime.control` innerhalb eines Frames. Der Replayer führt den aufgezeichneten Angriffsstopp beziehungsweise Task-Abbruch aus, ohne einen zusätzlichen Kampftick zu erfinden. Ein Prozessverlust beendet die Aufnahme, statt den Runner für denselben Trace neu zu starten. Rückkehr und Save & Exit stehen im normalen Log; sie gehören nicht zum produktiven Task-Replay.
+
+Älteren Cow-Traces fehlt die eingefrorene Preflight-Konfiguration. Sie sind weiterhin lesbar, lassen sich aber nicht zuverlässig aus dem ursprünglichen Zustand abspielen. Der Replayer fordert für diese Dateien ausdrücklich eine neue Aufnahme an. Fehlende Werte werden nicht aus der heutigen Konfiguration ergänzt.
+
+Bei einem beobachteten Problem den konfigurierten Not-Stopp verwenden, standardmäßig **F11**. Fehler und Operator-Stopp speichern das Bundle; eine Pause allein beendet die Aufnahme nicht. Den Core nicht über den Task-Manager beenden, da dann die Finalisierung fehlt. Ein vollständig erfolgreicher Versuch speichert derzeit standardmäßig kein Bundle.
+
+Die Datei liegt unter `%LOCALAPPDATA%\D2ROfflineFarmingBot\diagnostics\runtime-traces\*.trace.gz`. Das normale Log meldet `runtime trace saved`. Zusätzlich das zugehörige `logs\d2rbot-*.log` aufbewahren: Der Trace zeichnet die Task-Entscheidungen und Antworten des Kampfadapters auf; interne Skill-Auswahl und einzelne OS-Eingaben werden im normalen Log ergänzt. Die Aufnahme ist kein Bildschirmvideo und kein Nachweis von Treffern.
+
 Der Replay-Modus ist mutual-exklusiv und zweigt vor dem Laden der Runtime-Konfiguration ab. Ein erfolgreicher Replay gibt einen kleinen JSON-Bericht aus; eine Divergence liefert einen Fehler und damit einen Exit-Code ungleich null.
 
 ## Simulationsgrenze
@@ -121,4 +145,4 @@ Der Recorder liest weder Prozessspeicher noch D2R-Installations- oder Savegame-D
 - [Run-Telemetrie](run-telemetry.md)
 
 ---
-*Zuletzt aktualisiert: 16. August 2026*
+*Zuletzt aktualisiert: 28. September 2026*

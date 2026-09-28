@@ -26,6 +26,8 @@ type combatAdapter struct {
 	lastAction          time.Time
 	lastBlizzardCast    time.Time
 	lastSorceressCast   time.Time
+	lastTeleportCast    time.Time
+	movementInterval    time.Duration
 	skills              *SkillSelector
 	selector            *RightSkillSelector
 	pendingTargetUnitID uint32
@@ -53,13 +55,14 @@ func newCombatAdapter(log *slog.Logger, in inputController, bindings configBindi
 		hoverProbe.MaxHoverAttempts = combatMonsterMaxHoverAttempts
 	}
 	adapter := &combatAdapter{
-		log:          log.With("component", "combat"),
-		input:        in,
-		bindings:     bindings,
-		projector:    cfg.Projector(),
-		hoverProbe:   hoverProbe,
-		forceMoveKey: cfg.TownWalk.ForceMoveKey,
-		interval:     interval,
+		log:              log.With("component", "combat"),
+		input:            in,
+		bindings:         bindings,
+		projector:        cfg.Projector(),
+		hoverProbe:       hoverProbe,
+		forceMoveKey:     cfg.TownWalk.ForceMoveKey,
+		interval:         interval,
+		movementInterval: cfg.MoveInterval,
 	}
 	adapter.log.Info("combat attack interval", "attack_interval_ms", interval.Milliseconds())
 	if combatInput, ok := in.(verifiedCombatInput); ok {
@@ -351,14 +354,17 @@ func (c *combatAdapter) CastAttackAtMonster(now time.Time, skillID uint16, playe
 		if !c.attackReady(now, skillID) && c.selector.pending != skillID {
 			return profile.MonsterCastResult{}, nil
 		}
+		requestedAt := c.selector.requestedAt
 		sent, selectErr := c.selector.EnsureAndCast(skillID, player.RightSkillID, now, func() error {
 			return nil
 		})
 		if selectErr != nil {
 			return profile.MonsterCastResult{}, fmt.Errorf("combat select %s(%d): %w", memory.SkillName(skillID), skillID, selectErr)
 		}
-		if !sent {
-			c.lastAction = now
+		if !sent && c.selector.requestedAt != requestedAt {
+			if !rotation {
+				c.lastAction = now
+			}
 			c.log.Info("combat right-mouse skill selection requested", "skill", memory.SkillName(skillID), "skill_id", skillID, "current_right_skill_id", player.RightSkillID)
 		}
 		// Auswahl und erster Zielversuch dürfen denselben Tick nutzen. Der
@@ -541,10 +547,10 @@ func (c *combatAdapter) TeleportToward(now time.Time, player world.Player, targe
 		c.selector.Reset()
 	}
 	if player.RightSkillID == memory.SkillTeleport {
-		if !c.ready(now) {
+		if !c.teleportReady(now) {
 			return false, nil
 		}
-	} else if !c.ready(now) && c.selector.pending != memory.SkillTeleport {
+	} else if !c.teleportReady(now) && c.selector.pending != memory.SkillTeleport {
 		return false, nil
 	}
 	teleportTarget := combatStepTowardTarget(player.Position, targetPos, desiredDistanceTiles)
@@ -557,6 +563,7 @@ func (c *combatAdapter) TeleportToward(now time.Time, player world.Player, targe
 		// must use the same playable Y so RMB cannot open the belt.
 		clientX, clientY = pathing.ClampTeleportClientPoint(clientX, clientY, win)
 	}
+	requestedAt := c.selector.requestedAt
 	sent, err := c.selector.EnsureAndCast(memory.SkillTeleport, player.RightSkillID, now, func() error {
 		if moveErr := c.input.MoveTo(clientX, clientY); moveErr != nil {
 			return fmt.Errorf("combat teleport aim: %w", moveErr)
@@ -565,6 +572,7 @@ func (c *combatAdapter) TeleportToward(now time.Time, player world.Player, targe
 			return fmt.Errorf("combat teleport click: %w", clickErr)
 		}
 		c.lastAction = now
+		c.lastTeleportCast = now
 		c.log.Debug("combat teleport toward",
 			"target_x", targetPos.X,
 			"target_y", targetPos.Y,
@@ -579,8 +587,7 @@ func (c *combatAdapter) TeleportToward(now time.Time, player world.Player, targe
 	if err != nil {
 		return false, err
 	}
-	if !sent {
-		c.lastAction = now
+	if !sent && c.selector.requestedAt != requestedAt {
 		c.log.Info("combat teleport skill selection requested", "current_right_skill_id", player.RightSkillID)
 	}
 	return sent, nil
@@ -623,6 +630,7 @@ func (c *combatAdapter) Reset() {
 	c.lastAction = time.Time{}
 	c.lastBlizzardCast = time.Time{}
 	c.lastSorceressCast = time.Time{}
+	c.lastTeleportCast = time.Time{}
 	c.pendingTargetUnitID = 0
 }
 
@@ -671,6 +679,15 @@ func (c *combatAdapter) recordAttack(now time.Time, skillID uint16) {
 	if skillID == memory.MustSkillID("blizzard") || skillID == memory.MustSkillID("ice_blast") {
 		c.lastSorceressCast = now
 	}
+}
+
+// Blizzard's spell delay belongs only to Blizzard. Recovery teleports use the
+// existing pathing cadence and count actual clicks, never selection polling.
+func (c *combatAdapter) teleportReady(now time.Time) bool {
+	if _, err := c.bindings.Resolve(memory.MustSkillID("blizzard")); err == nil {
+		return c.lastTeleportCast.IsZero() || now.Sub(c.lastTeleportCast) >= c.movementInterval
+	}
+	return c.ready(now)
 }
 
 func (c *combatAdapter) ready(now time.Time) bool {

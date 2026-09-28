@@ -9,6 +9,8 @@ import (
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/world"
 )
 
+const sorceressCombatIdleTimeout = 2 * time.Second
+
 // RouteThreatTickResult reports the exclusive route action selected for one tick.
 type RouteThreatTickResult struct {
 	State         RouteThreatState
@@ -38,6 +40,11 @@ type RouteThreatController struct {
 	movementAfter    time.Time
 	stableClear      int
 	lastProgressAt   time.Time
+	// Own activity is independent of pack kills. Recovery stages survive
+	// target changes and movement; only an attack or a completed clear resets them.
+	combatIdleSince       time.Time
+	combatIdleStage       int
+	combatIdleAvoidUnitID uint32
 
 	lastTargetUnitID uint32
 	lastTargetMode   profile.RouteClearMode
@@ -125,6 +132,9 @@ func (c *RouteThreatController) ObserveResources(state world.State, assessment T
 	} else if manaPercent < cfg.TeleportManaReservePercent {
 		c.manaRecovery = true
 		c.manaRecoveryStartedAt = now
+	}
+	if c.manaRecovery {
+		c.combatIdleSince = now
 	}
 	immediateThreat := assessment.RouteTargetFound && assessment.RouteZone == ThreatZoneImmediate
 	return profile.ResourceContext{
@@ -258,6 +268,17 @@ func (c *RouteThreatController) Tick(
 		mode = profile.RouteClearThreat
 		targetFound = true
 	}
+	if combat.Profile == "sorceress_blizzard" {
+		idleTarget := target
+		if !targetFound {
+			idleTarget = assessment.RouteTarget
+		}
+		if c.manaRecovery || idleTarget.UnitID == 0 {
+			c.combatIdleSince = now
+		} else if !c.combatIdleSince.IsZero() && now.Sub(c.combatIdleSince) >= sorceressCombatIdleTimeout {
+			return c.recoverCombatIdle(clear, state, progress, idleTarget, now)
+		}
+	}
 	if assessment.RouteTargetFound && !routeTargetWithinAttack(state, assessment.RouteTarget, cfg) && !assessment.DensityTargetFound {
 		if c.observeOutOfRange(assessment.RouteTarget.UnitID) {
 			return c.fail(RouteThreatReasonOutOfRange)
@@ -372,6 +393,11 @@ func (c *RouteThreatController) Tick(
 		trackingTarget.UnitID = result.TargetUnitID
 	}
 	if result.Status == profile.StatusAction {
+		if result.ActionKind == profile.RouteClearActionAttack {
+			c.combatIdleSince = now
+			c.combatIdleStage = 0
+			c.combatIdleAvoidUnitID = 0
+		}
 		hoverConfirmed := result.TargetingMode != profile.MonsterTargetingWorldProjected
 		actionTarget := target
 		if result.TargetUnitID != 0 {
@@ -403,6 +429,37 @@ func (c *RouteThreatController) Tick(
 	c.lastTargetMode = mode
 	c.recordBlockBaseline(state, assessment)
 	return RouteThreatTickResult{State: c.state}
+}
+
+// recoverCombatIdle reuses the route's bounded approach. Selection and aiming
+// are not attacks; mercenary kills must not conceal an inactive Sorceress.
+func (c *RouteThreatController) recoverCombatIdle(clear RouteClearExecutor, state world.State, progress RouteProgress, target world.Monster, now time.Time) RouteThreatTickResult {
+	kind := "idle_retarget"
+	if c.combatIdleStage == 1 {
+		kind = "idle_reposition"
+	}
+	if c.combatIdleStage >= 2 {
+		kind = "idle_exhausted"
+	}
+	if err := c.emitApproachProgress(state, progress, target, 0, kind, now); err != nil {
+		return c.fail(RouteThreatReasonStateInvalid)
+	}
+	c.combatIdleSince = now
+	c.combatIdleStage++
+	switch c.combatIdleStage {
+	case 1:
+		c.combatIdleAvoidUnitID = target.UnitID
+		clear.ResetRouteClear()
+		c.resetOutOfRange()
+		return RouteThreatTickResult{State: c.State(), StopAttack: true}
+	case 2:
+		result := c.fail(RouteThreatReasonOutOfRange)
+		result.StopAttack = true
+		result.ApproachTarget = target
+		return result
+	default:
+		return c.fail(RouteThreatReasonClearNoProgress)
+	}
 }
 
 func (c *RouteThreatController) observeExternalProgress(now time.Time) {
@@ -453,6 +510,7 @@ func (c *RouteThreatController) ObserveApproachProgress(
 		return err
 	}
 	c.lastProgressAt = now
+	c.combatIdleSince = now
 	c.resetOutOfRange()
 	return nil
 }
@@ -505,6 +563,9 @@ func (c *RouteThreatController) beginBlock(state world.State, assessment ThreatA
 	c.blocked = true
 	c.state = RouteThreatClearing
 	c.lastProgressAt = now
+	c.combatIdleSince = now
+	c.combatIdleStage = 0
+	c.combatIdleAvoidUnitID = 0
 	c.lastAssessmentAt = time.Time{}
 	c.lastTargetUnitID = 0
 	c.lastTargetMode = ""
@@ -563,6 +624,9 @@ func (c *RouteThreatController) recordBlockBaseline(state world.State, assessmen
 func (c *RouteThreatController) clearBlockTracking() {
 	c.stableClear = 0
 	c.lastProgressAt = time.Time{}
+	c.combatIdleSince = time.Time{}
+	c.combatIdleStage = 0
+	c.combatIdleAvoidUnitID = 0
 	c.lastTargetUnitID = 0
 	c.lastTargetMode = ""
 	c.stickyTargetUnitID = 0
@@ -674,6 +738,9 @@ func (c *RouteThreatController) fail(reason RouteThreatReason) RouteThreatTickRe
 }
 
 func selectRouteClearTarget(state world.State, assessment ThreatAssessment, cfg RouteCombatConfig) (world.Monster, profile.RouteClearMode, bool) {
+	if assessment.AimTargetFound {
+		return assessment.AimTarget, assessment.AimMode, true
+	}
 	if assessment.HoveredRouteTargetFound {
 		return assessment.HoveredRouteTarget, profile.RouteClearThreat, true
 	}

@@ -167,14 +167,9 @@ func (rt *Runtime) holdRunForMercenaryDeath(observation mercenaryDeathObservatio
 	if rt.taskDeps.Combat == nil {
 		return fmt.Errorf("mercenary death: combat stop is not wired")
 	}
-	if err := rt.taskDeps.Combat.StopAttack(); err != nil {
-		return fmt.Errorf("mercenary death stop attack: %w", err)
+	reason := ""
+	if observation.Decision == mercenaryDeathConfirmed {
+		reason = reasonMercenaryDiedDuringRun
 	}
-	if observation.Decision != mercenaryDeathConfirmed {
-		return nil
-	}
-	if err := rt.Tasks.AbortOpenStep(reasonMercenaryDiedDuringRun); err != nil {
-		return fmt.Errorf("mercenary death abort run: %w", err)
-	}
-	return nil
+	return rt.runtimeControl(reason, true)
 }
