@@ -33,7 +33,8 @@ func TestRuntimeTraceReplaysMercenaryHoldAndAbort(t *testing.T) {
 	recorder.EndTick(traceTickState(result))
 	rt.productiveRunActive = true
 	for _, decision := range []mercenaryDeathDecision{mercenaryDeathPending, mercenaryDeathConfirmed} {
-		if err := rt.holdRunForMercenaryDeath(mercenaryDeathObservation{Decision: decision}); err != nil {
+		err = rt.holdRunForMercenaryDeath(mercenaryDeathObservation{Decision: decision})
+		if err != nil {
 			t.Fatal(err)
 		}
 	}
