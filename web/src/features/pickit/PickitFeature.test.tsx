@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { PickitFeature } from "./PickitFeature";
 import { apiError } from "../../test/apiError";
 import { i18n } from "../../i18n";
@@ -76,6 +76,7 @@ describe("PickitFeature", () => {
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     cleanup();
     vi.restoreAllMocks();
   });
@@ -167,6 +168,54 @@ describe("PickitFeature", () => {
     cleanup();
     await renderLoaded();
     expect(screen.getByText(detail)).toBeInTheDocument();
+  });
+
+  it("wählt die Aktion für neue und vorhandene Regeln und speichert beide Änderungen", async () => {
+    await renderLoaded();
+    openBuilder();
+    const actionChoice = within(screen.getByRole("group", { name: "Aktion" }));
+    fireEvent.click(actionChoice.getByRole("button", { name: "Verkaufen" }));
+    expect(actionChoice.getByRole("button", { name: "Verkaufen" })).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(screen.getByRole("button", { name: "Alle Runen" }));
+    fireEvent.click(screen.getByRole("button", { name: "Regel hinzufügen" }));
+    expect(screen.getAllByRole("combobox", { name: "Aktion für Alle Runen" })[1]).toHaveValue("sell");
+    expect(screen.getByRole("combobox", { name: "Aktion für Schilde" })).toHaveValue("sell");
+
+    fireEvent.change(screen.getByRole("combobox", { name: "Aktion für Qualität: Selten" }), { target: { value: "keep" } });
+    fireEvent.click(screen.getByRole("button", { name: "Profil speichern" }));
+    await waitFor(() => expect(mocks.update).toHaveBeenCalledWith("base", expect.objectContaining({
+      profile: expect.objectContaining({ rules: expect.arrayContaining([
+        expect.objectContaining({ id: "zweite", action: "keep" }),
+        expect.objectContaining({ expression: `[type] == "rune"`, action: "sell" }),
+        expect.objectContaining({ expression: `[type] == "shie" && [tier] == "elite" && [sockets] == 4`, action: "sell" }),
+      ]) }),
+    })));
+    const savedProfile = await mocks.update.mock.results[0].value;
+    mocks.profiles.mockResolvedValue({ profiles: [savedProfile], assignment_revision: 1 });
+    cleanup();
+    await renderLoaded();
+    expect(screen.getByRole("combobox", { name: "Aktion für Qualität: Selten" })).toHaveValue("keep");
+    expect(screen.getByRole("combobox", { name: "Aktion für Schilde" })).toHaveValue("sell");
+  });
+
+  it("entfernt Erfolgsmeldungen fünf Sekunden nach der letzten Aktion", async () => {
+    await renderLoaded();
+    openBuilder();
+    vi.useFakeTimers();
+    fireEvent.click(screen.getByRole("button", { name: "Alle Runen" }));
+    expect(screen.getByRole("status")).toHaveTextContent("Regel");
+    act(() => vi.advanceTimersByTime(3000));
+    fireEvent.click(screen.getByRole("button", { name: "Alle Schlüssel" }));
+    act(() => vi.advanceTimersByTime(3000));
+    expect(screen.getByRole("status")).toBeInTheDocument();
+    act(() => vi.advanceTimersByTime(2000));
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Erweitert" }));
+    fireEvent.click(screen.getByRole("button", { name: "Regeln importieren" }));
+    fireEvent.click(screen.getByRole("button", { name: "Als Entwurf importieren" }));
+    expect(screen.getByRole("alert")).toBeInTheDocument();
+    act(() => vi.advanceTimersByTime(5000));
+    expect(screen.getByRole("alert")).toBeInTheDocument();
   });
 
   it("macht das letzte Entfernen rückgängig und schützt einen Dirty-Profilwechsel", async () => {

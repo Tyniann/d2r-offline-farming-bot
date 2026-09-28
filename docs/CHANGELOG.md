@@ -11,6 +11,8 @@ Versionierung nach [Semantic Versioning](https://semver.org/).
 - Add an item-quality filter to the Pickit rule builder, including normal unsocketed bases, and show the selected quality in saved rules
 
 ### Fixed
+- Let operators choose keep or sell when creating Pickit rules and change the action of existing rules in the editor
+- Dismiss Pickit success messages after five seconds so they no longer cover editor controls
 - Preserve the complete run configuration and external stop decisions in diagnostic traces so Cow preflight and mercenary aborts can be replayed correctly
 - Apply session mercenary-death protection and controlled failure return to standalone diagnostic runs, saving traces after recovery instead of blocking in combat
 - Prevent Blizzard Sorceress attacks from interrupting recovery teleport selection or delaying it with Blizzard's cooldown

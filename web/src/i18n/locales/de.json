@@ -818,6 +818,8 @@
       "addFirstRule": "Erste Regel hinzufügen",
       "builderEyebrow": "Neue Regel",
       "builderTitle": "Was suchst du?",
+      "sellShort": "Verkaufen",
+      "ruleAction": "Aktion für {{name}}",
       "directSearch": "Direktsuche",
       "quickAdd": "Häufig verwendet",
       "allKeys": "Alle Schlüssel",

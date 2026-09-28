@@ -55,8 +55,9 @@
 .pickit-rule-copy { display: grid; gap: 3px; min-width: 0; }
 .pickit-rule-copy strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pickit-rule-copy span { color: var(--muted); font-size: .82rem; }
-.pickit-action-badge { width: fit-content; padding: 5px 8px; border: 1px solid #32664f; border-radius: 999px; background: #173127; color: var(--success); font-size: .72rem; font-weight: 800; }
+.pickit-action-badge { width: 125px; min-height: 34px; padding: 5px 8px; border: 1px solid #32664f; border-radius: 999px; background: #173127; color: var(--success); font-size: .72rem; font-weight: 800; cursor: pointer; }
 .pickit-action-badge.action-sell { border-color: #6d582e; background: #2c2415; color: var(--warning); }
+.pickit-action-badge:disabled { cursor: default; }
 .pickit-rule-actions { display: flex; gap: 4px; opacity: .45; transition: opacity 140ms ease; }
 .pickit-rule-list li:hover .pickit-rule-actions, .pickit-rule-list li:focus-within .pickit-rule-actions { opacity: 1; }
 .pickit-rule-actions button { width: 31px; min-height: 31px; padding: 4px; }
@@ -67,6 +68,11 @@
 .pickit-builder { padding: 18px; }
 .pickit-builder-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
 .pickit-builder-heading h2 { margin: 0; font-size: 1.25rem; }
+.pickit-builder-action { display: grid; flex: 0 0 auto; gap: 5px; }
+.pickit-builder-action > span { color: var(--muted); font-size: .72rem; line-height: 16px; }
+.pickit-builder-action > div { display: flex; gap: 3px; padding: 3px; border: 1px solid var(--border); border-radius: 9px; background: #09070a; }
+.pickit-builder-action button { min-height: 31px; padding: 5px 10px; border-color: transparent; background: transparent; color: var(--muted); font-size: .76rem; }
+.pickit-builder-action button[aria-pressed="true"] { border-color: #815339; background: #3a2019; color: var(--gold-soft); }
 .pickit-builder-close { display: none !important; width: 32px; min-height: 32px; padding: 4px; }
 .pickit-builder-discovery { display: grid; gap: 14px; margin-top: 16px; }
 .pickit-builder-search { display: grid; align-content: start; gap: 6px; min-width: 0; }
@@ -216,6 +222,9 @@
 }
 
 @media (max-width: 520px) {
+  .pickit-builder-heading { flex-wrap: wrap; }
+  .pickit-builder-action { width: 100%; }
+  .pickit-builder-action button { flex: 1; }
   .pickit-focus-builder .pickit-filter-grid { grid-template-columns: 1fr; }
   .pickit-focus-builder .pickit-filter-grid > * { grid-column: 1 / -1; }
   .pickit-selected-types { grid-template-columns: 1fr auto; height: auto; min-height: 46px; }
