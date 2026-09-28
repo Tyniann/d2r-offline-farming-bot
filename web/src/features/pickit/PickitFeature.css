@@ -77,7 +77,9 @@
 .pickit-builder details { margin-top: 15px; border-top: 1px solid var(--border); padding-top: 13px; }
 .pickit-builder summary { display: flex; align-items: center; gap: 7px; cursor: pointer; color: var(--gold-soft); font-weight: 750; }
 .pickit-filter-composer { display: grid; gap: 9px; margin-top: 13px; }
-.pickit-filter-grid { display: grid; grid-template-columns: minmax(180px, 1.2fr) minmax(130px, .8fr) minmax(150px, .9fr) minmax(130px, .72fr); align-items: end; gap: 9px; }
+.pickit-filter-grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); align-items: end; gap: 9px; }
+.pickit-filter-grid > * { grid-column: span 2; }
+.pickit-filter-grid > .pickit-type-picker, .pickit-filter-grid > .pickit-quality-field { grid-column: span 3; }
 .pickit-filter-field { display: grid; align-content: end; gap: 5px; min-width: 0; font-size: .76rem; }
 .pickit-filter-field > span:first-child { min-height: 16px; color: var(--muted); line-height: 16px; }
 .pickit-filter-field select, .pickit-type-picker-button { width: 100%; min-width: 0; height: 44px; min-height: 44px; padding: 7px 10px; border: 1px solid #4f4148; border-radius: 9px; background: #151116; color: var(--text); }
@@ -141,7 +143,7 @@
 .pickit-focus-builder .pickit-builder-discovery { grid-template-columns: minmax(0, 1.1fr) minmax(0, .9fr); align-items: start; }
 .pickit-focus-builder .pickit-quick-add { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .pickit-focus-builder .pickit-quick-add > span { grid-column: 1 / -1; }
-.pickit-focus-builder .pickit-filter-grid { grid-template-columns: minmax(180px, 1.2fr) minmax(130px, .8fr) minmax(150px, .9fr) minmax(130px, .72fr); }
+.pickit-focus-builder .pickit-filter-grid { grid-template-columns: repeat(6, minmax(0, 1fr)); }
 .pickit-focus-document .pickit-rule-list > li { grid-template-columns: 20px 38px minmax(0, 1fr) 130px auto; min-height: 72px; }
 
 .pickit-assignment-workspace { display: block; overflow: hidden; margin-top: 18px; padding: 0; border-color: var(--border); background: var(--pickit-panel); }
@@ -180,7 +182,6 @@
 @media (max-width: 1240px) {
   .pickit-focus-workbench { grid-template-columns: 190px minmax(0, 1fr); }
   .pickit-feature .pickit-focus-builder .pickit-builder-discovery { grid-template-columns: 1fr; }
-  .pickit-feature .pickit-focus-builder .pickit-filter-grid { grid-template-columns: 1fr 1fr; }
   .pickit-selected-types { grid-template-columns: minmax(0, 1fr) auto; }
   .pickit-selected-types > span { display: none; }
 }
@@ -210,13 +211,13 @@
   .pickit-save-bar { position: static; align-items: stretch; flex-direction: column; }
   .pickit-save-bar > div:last-child button { flex: 1; }
   .pickit-focus-add { align-items: stretch; flex-direction: column; }
-  .pickit-focus-builder .pickit-filter-grid { grid-template-columns: 1fr 1fr; }
   .pickit-assignment-workspace > header, .pickit-assignment-workspace > footer { align-items: stretch; flex-direction: column; }
   .pickit-feature-toast { right: 12px; left: 12px; bottom: 76px; }
 }
 
 @media (max-width: 520px) {
   .pickit-focus-builder .pickit-filter-grid { grid-template-columns: 1fr; }
+  .pickit-focus-builder .pickit-filter-grid > * { grid-column: 1 / -1; }
   .pickit-selected-types { grid-template-columns: 1fr auto; height: auto; min-height: 46px; }
 }
 

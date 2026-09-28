@@ -74,6 +74,7 @@ export function equipmentTypeLabel(id: EquipmentTypeID, t: AppTranslator): strin
 
 interface CombinedRuleInput {
   types: readonly EquipmentTypeOption[];
+  quality: string;
   tier: "" | "normal" | "exceptional" | "elite";
   socketsOperator: SocketOperator | "";
   sockets: string;
@@ -111,6 +112,7 @@ export function buildCombinedRuleExpression(input: CombinedRuleInput): CombinedR
   const conditions = [
     typeConditions.length === 1 ? typeConditions[0] : `(${typeConditions.join(" || ")})`,
   ];
+  if (input.quality) conditions.push(`[quality] == ${JSON.stringify(input.quality)}`);
   if (input.tier) conditions.push(`[tier] == ${JSON.stringify(input.tier)}`);
   if (!omitSockets) conditions.push(`[sockets] ${input.socketsOperator} ${sockets}`);
   if (input.ethereal) conditions.push("[flag] == ethereal");

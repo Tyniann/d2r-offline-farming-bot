@@ -61,7 +61,7 @@ describe("PickitFeature", () => {
       bases: [{ txt_file_no: 255, code: "7s8", name: "Thresher", type: "pole", base_tier: "elite" }],
       identities: talItems,
       actions: ["keep", "sell", "ignore"],
-      qualities: [],
+      qualities: ["low_quality", "normal", "superior", "magic", "set", "rare", "unique", "crafted"],
       speed_categories: [],
     });
     mocks.profiles.mockResolvedValue({ profiles: [baseProfile], assignment_revision: 1 });
@@ -139,6 +139,34 @@ describe("PickitFeature", () => {
     openExpressionEditor();
     expect(screen.getByText(`[type] == "pole" && [tier] == "elite" && [flag] == ethereal`)).toBeInTheDocument();
     expect(screen.getByText(`[type] == "pole" && [tier] == "elite" && [sockets] == 0 && [flag] == ethereal`)).toBeInTheDocument();
+  });
+
+  it("speichert normale ungesockelte Stangenwaffen und zeigt die Qualität nach erneutem Laden", async () => {
+    await renderLoaded();
+    openBuilder();
+    expect(screen.getByRole("combobox", { name: "Qualität" })).toHaveValue("");
+    fireEvent.click(screen.getByRole("button", { name: "Auswahl leeren" }));
+    fireEvent.click(screen.getByRole("button", { name: "Itemtypen Typen auswählen" }));
+    fireEvent.click(screen.getByLabelText("Stangenwaffen"));
+    fireEvent.click(screen.getByRole("button", { name: "Auswahl schließen" }));
+    fireEvent.change(screen.getByLabelText("Qualität"), { target: { value: "normal" } });
+    fireEvent.change(screen.getByLabelText("Tier"), { target: { value: "" } });
+    fireEvent.change(screen.getByLabelText("Sockel"), { target: { value: "==:0" } });
+    fireEvent.click(screen.getByRole("button", { name: "Regel hinzufügen" }));
+    const detail = "Qualität: Normal · Keine Sockel · Gefundene Items behalten";
+    expect(screen.getByText(detail)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Profil speichern" }));
+    await waitFor(() => expect(mocks.update).toHaveBeenCalledWith("base", expect.objectContaining({
+      profile: expect.objectContaining({ rules: expect.arrayContaining([expect.objectContaining({
+        expression: `[type] == "pole" && [quality] == "normal" && [sockets] == 0`,
+        summary: expect.objectContaining({ params: expect.objectContaining({ qualities: ["normal"], socket_count: 0 }) }),
+      })]) }),
+    })));
+    const savedProfile = await mocks.update.mock.results[0].value;
+    mocks.profiles.mockResolvedValue({ profiles: [savedProfile], assignment_revision: 1 });
+    cleanup();
+    await renderLoaded();
+    expect(screen.getByText(detail)).toBeInTheDocument();
   });
 
   it("macht das letzte Entfernen rückgängig und schützt einen Dirty-Profilwechsel", async () => {

@@ -270,6 +270,22 @@ func TestPickitRejectsUnsupportedSyntax(t *testing.T) {
 	}
 }
 
+func TestPickitNormalUnsocketedPolearms(t *testing.T) {
+	p := loadPickitFromTestFile(t, `[type] == "pole" && [quality] == "normal" && [sockets] == 0`)
+	for _, quality := range []world.ItemQuality{world.ItemQualityLowQuality, world.ItemQualityNormal, world.ItemQualitySuperior, world.ItemQualityMagic, world.ItemQualityRare, world.ItemQualitySet, world.ItemQualityUnique, world.ItemQualityCrafted} {
+		for _, ethereal := range []bool{false, true} {
+			item := world.Item{Type: "pole", Quality: quality, Ethereal: ethereal, SocketsAvailable: true}
+			if got := p.Evaluate(item).Matched; got != (quality == world.ItemQualityNormal) {
+				t.Errorf("quality=%s ethereal=%v: matched=%v", quality, ethereal, got)
+			}
+			item.Sockets = 4
+			if p.Evaluate(item).Matched {
+				t.Errorf("socketed item matched: quality=%s ethereal=%v", quality, ethereal)
+			}
+		}
+	}
+}
+
 func TestSummarizePickitExpressionProjectsTypedLanguageNeutralParams(t *testing.T) {
 	trueValue := true
 	four := 4
@@ -283,6 +299,8 @@ func TestSummarizePickitExpressionProjectsTypedLanguageNeutralParams(t *testing.
 		{name: "rejuvenation", expression: `[type] == rpot`, want: PickitRuleSummary{Kind: "rejuvenation"}},
 		{name: "item codes", expression: `[name] == pk1 || [name] == pk2`, want: PickitRuleSummary{Kind: "item_codes", Params: PickitRuleSummaryParams{Codes: []string{"pk1", "pk2"}}}},
 		{name: "item types", expression: `[type] == pole || [type] == spea`, want: PickitRuleSummary{Kind: "item_types", Params: PickitRuleSummaryParams{Types: []string{"pole", "spea"}}}},
+		{name: "type and quality", expression: `[type] == pole && [quality] == normal`, want: PickitRuleSummary{Kind: "socket_filter", Params: PickitRuleSummaryParams{Types: []string{"pole"}, Qualities: []string{"normal"}}}},
+		{name: "normal unsocketed type", expression: `[type] == pole && [quality] == normal && [sockets] == 0`, want: PickitRuleSummary{Kind: "socket_filter", Params: PickitRuleSummaryParams{Types: []string{"pole"}, Qualities: []string{"normal"}, SocketOperator: "==", SocketCount: &zero}}},
 		{name: "quality", expression: `[quality] == unique || [quality] == set`, want: PickitRuleSummary{Kind: "quality", Params: PickitRuleSummaryParams{Qualities: []string{"unique", "set"}}}},
 		{name: "tier", expression: `[tier] == elite`, want: PickitRuleSummary{Kind: "tier", Params: PickitRuleSummaryParams{Tiers: []string{"elite"}}}},
 		{name: "quality and tier", expression: `([quality] == unique || [quality] == set) && [tier] == elite`, want: PickitRuleSummary{Kind: "quality_tier", Params: PickitRuleSummaryParams{Qualities: []string{"unique", "set"}, Tiers: []string{"elite"}}}},

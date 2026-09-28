@@ -193,7 +193,7 @@ func SummarizePickitExpression(expression string) (PickitRuleSummary, error) {
 		params.SocketCount = &count
 		return PickitRuleSummary{Kind: "socket_filter", Params: params}, nil
 	}
-	if len(params.Types) > 0 && (len(params.Tiers) > 0 || params.Ethereal != nil) {
+	if len(params.Types) > 0 && (len(params.Qualities) > 0 || len(params.Tiers) > 0 || params.Ethereal != nil) {
 		return PickitRuleSummary{Kind: "socket_filter", Params: params}, nil
 	}
 	if len(groups) == 2 {

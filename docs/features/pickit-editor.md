@@ -19,7 +19,9 @@ Die Profilbibliothek zeigt ID und Revision, unterstützt Neu, Duplizieren und da
 
 Die Katalogsuche findet vollständige Sets, einzelne Set-/Unique-Items und Basisitems. Ein vollständiges Set wird sichtbar in einzelne Identitätsregeln expandiert. Basisitems zeigen ihren englischen Namen, speichern aber den stabilen Excel-Code; „Ätherischer Thresher“ wird als `[name] == "7s8" && [flag] == ethereal` erzeugt. Die Aktionen `Behalten` und `Identifizieren / verkaufen`, First-Match-Reihenfolge, Entfernen und Umordnen sind direkt bedienbar.
 
-Der kombinierte Socket-Builder (Phase 19.3) ergänzt eine durchsuchbare Mehrfachauswahl expliziter Ausrüstungstypen, optionales Tier, optionalen Sockelfilter (beliebig, keine Sockel oder genau 1–6) und optionales Ätherisch zu genau einer Core-validierten Regel. Mehrere Typen werden als geklammerte OR-Gruppe serialisiert; Assassinenklauen expandieren sichtbar zu `h2h || h2h2`. In der Typliste bedeutet `grim` „Schilde – Hexenmeister (Grimoires)“ und `head` „Schilde – Nekromant (Köpfe)“; der Hexenmeister hat keinen separaten Waffentyp im Katalog. Details: [Sockel-Support für Pickit](socket-pickit.md).
+Der kombinierte Socket-Builder (Phase 19.3) ergänzt eine durchsuchbare Mehrfachauswahl expliziter Ausrüstungstypen, optionale Qualität aus dem Core-Katalog, optionales Tier, optionalen Sockelfilter (beliebig, keine Sockel oder genau 1–6) und optionales Ätherisch zu genau einer Core-validierten Regel. Mehrere Typen werden als geklammerte OR-Gruppe serialisiert; Assassinenklauen expandieren sichtbar zu `h2h || h2h2`. In der Typliste bedeutet `grim` „Schilde – Hexenmeister (Grimoires)“ und `head` „Schilde – Nekromant (Köpfe)“; der Hexenmeister hat keinen separaten Waffentyp im Katalog. Details: [Sockel-Support für Pickit](socket-pickit.md).
+
+Itemtypen und Qualität stehen in einer gemeinsamen Zeile, Tier, Sockel und Ätherisch darunter. Auf schmalen Ansichten werden die Felder untereinander angeordnet. Die Qualität ist standardmäßig beliebig und unabhängig vom Basis-Tier. `Normal` bedeutet exakt normale Qualität, ohne minderwertige oder überlegene Items. Beispielsweise erzeugt Stangenwaffen + Qualität Normal + keine Sockel bei beliebigem Tier die Regel `[type] == "pole" && [quality] == "normal" && [sockets] == 0`. Ohne aktivierten Ätherisch-Filter passen sowohl ätherische als auch nicht ätherische Items. Die Regelliste zeigt die gewählte Qualität auch nach dem Speichern und erneuten Laden.
 
 Das erweiterte Ausdrucksfeld und NIP-Paste/-Dateiimport senden Entwürfe zur Core-Validierung; React enthält keinen zweiten Parser. Profil- und Assignment-Saves sind revisionsgebunden. Stale Writes bieten das Laden des aktuellen Stands an, zugeordnete Profile bleiben durch den Core vor Löschung geschützt und eine leere Zuordnung wird bereits im UI verworfen.
 
@@ -48,4 +50,4 @@ Gate B wurde am 21. Juli 2026 bestanden: UnitID `225` wurde als `Arrows`/`aqv` v
 - [Sockel-Support für Pickit](socket-pickit.md)
 
 ---
-*Zuletzt aktualisiert: 2026-09-03*
+*Zuletzt aktualisiert: 2026-09-28*

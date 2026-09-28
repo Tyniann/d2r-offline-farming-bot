@@ -15,9 +15,21 @@ const option = (id: string) => {
 };
 
 describe("buildCombinedRuleExpression", () => {
+  it.each(["normal", "magic", "rare", "unique"])("kombiniert Qualität %s mit ungesockelten Rohlingen", (quality) => {
+    expect(buildCombinedRuleExpression({
+      types: [option("polearms")],
+      quality,
+      tier: "",
+      socketsOperator: "==",
+      sockets: "0",
+      ethereal: false,
+    }).expression).toBe(`[type] == "pole" && [quality] == "${quality}" && [sockets] == 0`);
+  });
+
   it("baut einen einzelnen Typ ohne Klammer", () => {
     expect(buildCombinedRuleExpression({
       types: [option("polearms")],
+      quality: "",
       tier: "",
       socketsOperator: ">=",
       sockets: "1",
@@ -28,6 +40,7 @@ describe("buildCombinedRuleExpression", () => {
   it("baut mehrere Typen in fester Reihenfolge", () => {
     expect(buildCombinedRuleExpression({
       types: [option("shields"), option("paladinShields")],
+      quality: "",
       tier: "elite",
       socketsOperator: "==",
       sockets: "4",
@@ -38,6 +51,7 @@ describe("buildCombinedRuleExpression", () => {
   it("expandiert Assassinenklauen sichtbar", () => {
     expect(buildCombinedRuleExpression({
       types: [option("assassinClaws")],
+      quality: "",
       tier: "exceptional",
       socketsOperator: "<=",
       sockets: "6",
@@ -48,6 +62,7 @@ describe("buildCombinedRuleExpression", () => {
   it.each(socketOperators)("unterstützt den Operator %s", (socketsOperator) => {
     expect(buildCombinedRuleExpression({
       types: [option("helms")],
+      quality: "",
       tier: "normal",
       socketsOperator,
       sockets: "2",
@@ -58,6 +73,7 @@ describe("buildCombinedRuleExpression", () => {
   it("lässt Sockel weg, wenn Anzahl egal ist", () => {
     expect(buildCombinedRuleExpression({
       types: [option("polearms")],
+      quality: "",
       tier: "elite",
       socketsOperator: "",
       sockets: "",
@@ -71,6 +87,7 @@ describe("buildCombinedRuleExpression", () => {
   it("erzeugt eine Regel ohne Sockel", () => {
     expect(buildCombinedRuleExpression({
       types: [option("polearms")],
+      quality: "",
       tier: "elite",
       socketsOperator: "==",
       sockets: "0",
@@ -81,6 +98,7 @@ describe("buildCombinedRuleExpression", () => {
   it.each(["", "7", "1.5", "keine"])("lehnt die Sockelzahl %j ab", (sockets) => {
     expect(buildCombinedRuleExpression({
       types: [option("helms")],
+      quality: "",
       tier: "",
       socketsOperator: "==",
       sockets,
@@ -91,6 +109,7 @@ describe("buildCombinedRuleExpression", () => {
   it("liefert deutsche Pflichtfeldfehler", () => {
     expect(buildCombinedRuleExpression({
       types: [],
+      quality: "",
       tier: "",
       socketsOperator: "",
       sockets: "",

@@ -41,6 +41,7 @@ export function PickitFeature({ selectedCharacter: assignmentCharacter, runs, lo
   const [typePickerOpen, setTypePickerOpen] = useState(false);
   const [typeQuery, setTypeQuery] = useState("");
   const [selectedTypes, setSelectedTypes] = useState<string[]>(["shields"]);
+  const [quality, setQuality] = useState("");
   const [socketTier, setSocketTier] = useState<"" | "normal" | "exceptional" | "elite">("elite");
   const [socketOperator, setSocketOperator] = useState<SocketOperator | "">("==");
   const [socketCount, setSocketCount] = useState("4");
@@ -177,6 +178,7 @@ export function PickitFeature({ selectedCharacter: assignmentCharacter, runs, lo
   function addCombinedRule() {
     const result = buildCombinedRuleExpression({
       types: selectedTypeOptions,
+      quality,
       tier: socketTier,
       socketsOperator: socketOperator,
       sockets: socketCount,
@@ -185,8 +187,8 @@ export function PickitFeature({ selectedCharacter: assignmentCharacter, runs, lo
     setBuilderErrors(result.errors);
     if (!result.expression) return;
     const hasSocketConstraint = Boolean(socketOperator);
-    const kind = hasSocketConstraint || socketTier || socketEthereal ? "socket_filter" : "item_types";
-    addRules([{ action: newAction, expression: result.expression, summary: { kind, params: { types: [...new Set(selectedTypeOptions.flatMap((option) => option.codes))], tiers: socketTier ? [socketTier] : undefined, socket_operator: socketOperator || undefined, socket_count: hasSocketConstraint ? Number(socketCount) : undefined, ethereal: socketEthereal || undefined } } }]);
+    const kind = hasSocketConstraint || quality || socketTier || socketEthereal ? "socket_filter" : "item_types";
+    addRules([{ action: newAction, expression: result.expression, summary: { kind, params: { types: [...new Set(selectedTypeOptions.flatMap((option) => option.codes))], qualities: quality ? [quality] : undefined, tiers: socketTier ? [socketTier] : undefined, socket_operator: socketOperator || undefined, socket_count: hasSocketConstraint ? Number(socketCount) : undefined, ethereal: socketEthereal || undefined } } }]);
     setNotice(t("pickit.combinedAdded"));
   }
   function updateRule(index: number, replacement: PickitRuleDTO) { if (!draft) return; const rules = [...draft.rules]; rules[index] = replacement; setDraft({ ...draft, rules }); }
@@ -289,6 +291,7 @@ export function PickitFeature({ selectedCharacter: assignmentCharacter, runs, lo
           {normalizedQuery && <div className="search-results" aria-label={t("pickit.catalogMatches")}>{matchingSets.map(([setKey, entries]) => { const name = gameSetName(setKey, entries[0]?.set_name ?? "", gameLanguage); return <button type="button" key={setKey} onClick={() => addSet(name, entries)}>{t("pickit.addSet", { name, count: entries.length })}</button>; })}{matchingIdentities.map((entry) => <button type="button" className="secondary" key={`${entry.kind}-${entry.raw_id}`} onClick={() => addIdentity(entry)}>{gameIdentityName(entry.key, entry.display_name, gameLanguage)}</button>)}{matchingBases.map((entry) => <button type="button" className="secondary" key={entry.txt_file_no} onClick={() => addBase(entry.code)}>{gameBaseItemName(entry.code, entry.name, gameLanguage)}</button>)}</div>}
           <details open><summary><SlidersHorizontal size={16} />{t("pickit.workspace.combineFilters")}</summary><div className="pickit-filter-composer"><div className="pickit-filter-grid">
             <div className="pickit-type-picker pickit-filter-field"><span id="equipment-types-label">{t("pickit.itemTypes")}</span><button ref={typePickerButtonRef} type="button" className="secondary pickit-type-picker-button" aria-labelledby="equipment-types-label equipment-types-selection" aria-expanded={typePickerOpen} aria-controls="equipment-type-options" onClick={() => setTypePickerOpen((value) => !value)}><span id="equipment-types-selection">{selectedTypes.length === 0 ? t("pickit.chooseTypes") : t("pickit.selectedTypes", { count: selectedTypes.length })}</span><ChevronDown size={15} /></button>{builderErrors.types && <small role="alert">{builderErrors.types}</small>}{typePickerOpen && <div id="equipment-type-options" className="pickit-type-picker-panel" onKeyDown={(event) => { if (event.key === "Escape") closeTypePicker(); }}><label><span>{t("pickit.searchTypes")}</span><span className="pickit-type-search"><Search size={15} /><input value={typeQuery} onChange={(event) => setTypeQuery(event.target.value)} autoFocus /></span></label><p role="status">{t("pickit.typeMatches", { matches: matchingTypeOptions.length, selected: selectedTypes.length })}</p><div className="pickit-type-options">{matchingTypeOptions.map((option) => <label className="check" key={option.id}><input type="checkbox" checked={selectedTypes.includes(option.id)} onChange={() => toggleEquipmentType(option.id)} />{equipmentTypeLabel(option.id, t)}</label>)}</div><button type="button" className="secondary" onClick={closeTypePicker}>{t("pickit.closeSelection")}</button></div>}</div>
+            <label className="pickit-filter-field pickit-quality-field"><span>{t("pickit.quality")}</span><select value={quality} onChange={(event) => setQuality(event.target.value)}><option value="">{t("pickit.any")}</option>{catalog.qualities.map((value) => <option key={value} value={value}>{pickitQualityLabel(value, t)}</option>)}</select></label>
             <label className="pickit-filter-field"><span>{t("pickit.tier")}</span><select value={socketTier} onChange={(event) => setSocketTier(event.target.value as typeof socketTier)}><option value="">{t("pickit.any")}</option><option value="normal">{t("pickit.normal")}</option><option value="exceptional">{t("pickit.exceptional")}</option><option value="elite">{t("pickit.elite")}</option></select></label>
             <label className="pickit-filter-field"><span>{t("pickit.workspace.sockets")}</span><select value={socketOperator && socketCount !== "" ? `${socketOperator}:${socketCount}` : ""} aria-invalid={Boolean(builderErrors.socketsOperator || builderErrors.sockets)} onChange={(event) => { const [operator = "", count = ""] = event.target.value.split(":"); setSocketOperator(operator as SocketOperator | ""); setSocketCount(count); setBuilderErrors((current) => ({ ...current, socketsOperator: undefined, sockets: undefined })); }}><option value="">{t("pickit.workspace.anySockets")}</option><option value="==:0">{t("pickit.workspace.noSockets")}</option>{Array.from({ length: 6 }, (_, index) => index + 1).map((count) => <option key={count} value={`==:${count}`}>{t("pickit.workspace.exactSockets", { count })}</option>)}</select>{(builderErrors.socketsOperator || builderErrors.sockets) && <small role="alert">{builderErrors.socketsOperator ?? builderErrors.sockets}</small>}</label>
             <label className="pickit-filter-toggle"><input type="checkbox" checked={socketEthereal} onChange={(event) => setSocketEthereal(event.target.checked)} /><span className="pickit-toggle-track" aria-hidden="true"><i /></span><span>{t("pickit.ethereal")}</span></label>
@@ -378,6 +381,7 @@ function presentRuleSummary(rule: PickitRuleDTO, catalog: PickitCatalogDTO, lang
       .filter((option) => option.codes.some((code) => types.has(code)))
       .map((option) => equipmentTypeLabel(option.id, t));
     const parts = [
+      ...(params.qualities?.length ? [t("pickit.workspace.ruleSummary.quality", { quality: params.qualities.map((value) => pickitQualityLabel(value, t)).join(" / ") })] : []),
       ...(params.tiers ?? []).map((value) => pickitTierLabel(value, t)),
       params.socket_operator === "==" && params.socket_count === 0 ? t("pickit.workspace.noSockets") : params.socket_count != null ? t("pickit.workspace.exactSockets", { count: params.socket_count }) : "",
       params.ethereal ? t("pickit.ethereal") : "",
