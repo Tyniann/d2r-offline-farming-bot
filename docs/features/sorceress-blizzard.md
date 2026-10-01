@@ -43,9 +43,15 @@ Nach **zwei Sekunden ohne gesendeten Angriff** bei vorhandenen Gegnern beginnt e
 
 Söldner-Kills, Zielwechsel, Hover-Versuche und Skill-Anforderungen setzen diesen eigenen Aktivitätstimer nicht zurück. Ein gesendeter Angriff beendet die Recovery; eine bestätigte Annäherung startet die Wartefrist neu, erhält aber die bereits verbrauchten Recovery-Stufen. Mana-Erholung und Profilwartung pausieren die Prüfung. Die vorhandenen Mana- und Gesamtfristen bleiben bestehen. Fehlender Schaden allein gilt nicht als Untätigkeit; Kälteimmune können weiterhin vom Söldner bekämpft werden.
 
+Zusätzlich prüft ein eigener Zwei-Sekunden-Wächter die Clear-Wirkung nach gesendeten Angriffen. Klicks, Zielwechsel, wechselnde Bedrohungszonen und größere Snapshot-Abdeckung gelten dabei nicht als beseitigter Gegner. Das Verschwinden des vorherigen lebenden Ziels oder eine verringerte erfasste Gegnerzahl startet diese Frist neu. Das World Model liefert keine Monster-Lebenspunkte und keine freie Schussbahn; der Wächter erkennt daher ausbleibenden Clear-Fortschritt, ohne einen Treffer oder eine konkrete Mauer zu behaupten.
+
+Bei ausbleibender Wirkung werden Angriffsauswahl und Zielsuche zurückgesetzt. Die bestehende Teleportsteuerung versucht sofort eine Verschiebung von höchstens vier Tiles in Richtung des nächsten aufgezeichneten Routenpunkts. Die Route bleibt angehalten. Im Cow-Level gelten weiterhin Coverage- und Gegnerabstandsprüfung für den Landeplatz. Auswahl, Cast und Positionsbestätigung behalten ihre bestehenden Fristen. Anschließend erhält ein anderes anvisierbares lebendes Ziel Vorrang. Nach höchstens zwei Repositionierungsstufen und einer weiteren Zwei-Sekunden-Frist ohne Clear-Fortschritt endet der Task mit `route_clear_no_progress`; abgelehnte Landeplätze verbrauchen ebenfalls eine Stufe. Bestätigte Bewegung beginnt die Wartefrist neu, setzt aber das Stufenbudget nicht zurück. Mana-Erholung und Profilwartung pausieren auch diesen Wächter.
+
 Die gemeinsame Annäherung besitzt den Ablauf bereits während der Skillauswahl. Erst danach folgen Teleport-Klick und Bestätigung der Positionsänderung in einem neueren Snapshot. Eine Auswahl darf höchstens zwei Sekunden warten. Stirbt das Ziel vor dem Klick, wird die Annäherung verworfen und neu bewertet. Während einer laufenden Annäherung kann die Angriffsrotation den rechten Skill nicht überschreiben. Zauberin-Teleports verwenden das bestehende `pathing.move_interval_ms` statt Blizzards 1800-ms-Angriffsintervall. Skillauswahl-Wartezyklen gelten nicht als neue Bewegung oder neuer Angriff.
 
 Die Telemetrie unterscheidet `idle_retarget`, `idle_reposition` und `idle_exhausted` als `progress_kind` von `route_clear_progress`. Diese Diagnoseereignisse setzen den objektiven Fortschrittswächter nicht zurück. `route_clear_action` meldet weiterhin ausschließlich gesendete Eingaben; eine bestätigte Bewegung wird separat als `approach` erfasst. Ein Angriffsklick ist kein Nachweis eines Treffers oder einer tatsächlich gestarteten Spielanimation.
+
+`cast_no_progress_reposition` und `cast_no_progress_exhausted` kennzeichnen den neuen Wirkungswächter. Ein gesendeter Teleport erscheint als `cast_no_progress_teleport`. Bei der Zauberin wird die Zielprojektion bereits vor der Blizzard-/Eisstoß-Auswahl geprüft. Ein Ziel außerhalb des sichtbaren Bereichs löst zunächst die bestehende Annäherung aus und verbraucht keinen Blizzard-Cooldown.
 
 Boss-Zielbindung, Nihlathaks Anker und die begrenzten lokalen Clears in Lower Kurast und bei Objektinteraktionen behalten ihre eigenen Verträge. Der neue Zwei-Sekunden-Wächter gehört zum regulären Route-Clear.
 
@@ -114,4 +120,4 @@ Lokale CASC-Extrakte und generierter Skill-/Monsterkatalog, World Model, gemeins
 - [Söldnerunterstützung](mercenary-support.md)
 
 ---
-*Zuletzt aktualisiert: 2026-09-28*
+*Zuletzt aktualisiert: 2026-10-01*

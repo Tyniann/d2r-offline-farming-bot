@@ -196,6 +196,7 @@ func (c *runPipeline) tickTravel(ctx context.Context, deps pipelineTravelDeps, s
 					return stepResult{failed: true, reason: maintenance.Reason}
 				case profile.StatusAction, profile.StatusPending:
 					c.travel.routeThreat.combatIdleSince = now
+					c.travel.routeThreat.combatEffectSince = now
 					return stepResult{}
 				}
 			}
@@ -229,10 +230,10 @@ func (c *runPipeline) tickTravel(ctx context.Context, deps pipelineTravelDeps, s
 				if !found {
 					target = world.Monster{UnitID: c.travel.routeApproachTargetUnitID, Position: c.travel.routeApproachGoal}
 				}
-				if c.travel.routeApproachHammerdinRouteForward {
+				if c.travel.routeApproachHammerdinRouteForward || c.travel.routeApproachSorceressReposition {
 					target.Position = c.travel.routeApproachGoal
 				}
-				result := c.tickRouteThreatApproachMode(deps, w, progress, target, c.travel.routeApproachHammerdinReposition, c.travel.routeApproachHammerdinRouteForward, now)
+				result := c.tickRouteThreatApproachMode(deps, w, progress, target, c.travel.routeApproachHammerdinReposition, c.travel.routeApproachHammerdinRouteForward, c.travel.routeApproachSorceressReposition, now)
 				if result.failed || c.travel.routeApproachPending {
 					return result
 				}
@@ -261,6 +262,9 @@ func (c *runPipeline) tickTravel(ctx context.Context, deps pipelineTravelDeps, s
 					progress.Mode == RouteProgressMovement && progress.TargetAvailable
 				if cowApproach || hammerdinApproach || standardApproach {
 					if threat.ApproachTarget.UnitID != 0 {
+						if threat.SorceressReposition {
+							return c.tickRouteThreatApproachMode(deps, w, progress, threat.ApproachTarget, false, false, true, now)
+						}
 						if threat.HammerdinReposition {
 							return c.tickRouteThreatHammerdinReposition(deps, w, progress, threat.ApproachTarget, threat.HammerdinRouteForward, now)
 						}
@@ -361,6 +365,7 @@ func (c *runPipeline) resetRouteThreatApproach() {
 	c.travel.routeApproachFailures = 0
 	c.travel.routeApproachHammerdinReposition = false
 	c.travel.routeApproachHammerdinRouteForward = false
+	c.travel.routeApproachSorceressReposition = false
 	c.travel.routeApproachExhaustedUnitID = 0
 }
 
@@ -432,11 +437,11 @@ func (c *runPipeline) tickCowNoProgressRecovery(
 // projection-driven combat teleport toward the executor-pinned group member,
 // so recovery cannot walk past the blocked pack. Neither path calls Route.Tick.
 func (c *runPipeline) tickRouteThreatApproach(deps pipelineTravelDeps, w world.State, progress RouteProgress, target world.Monster, now time.Time) stepResult {
-	return c.tickRouteThreatApproachMode(deps, w, progress, target, false, false, now)
+	return c.tickRouteThreatApproachMode(deps, w, progress, target, false, false, false, now)
 }
 
 func (c *runPipeline) tickRouteThreatHammerdinReposition(deps pipelineTravelDeps, w world.State, progress RouteProgress, target world.Monster, routeForward bool, now time.Time) stepResult {
-	return c.tickRouteThreatApproachMode(deps, w, progress, target, true, routeForward, now)
+	return c.tickRouteThreatApproachMode(deps, w, progress, target, true, routeForward, false, now)
 }
 
 func (c *runPipeline) tickRouteThreatApproachMode(
@@ -446,6 +451,7 @@ func (c *runPipeline) tickRouteThreatApproachMode(
 	target world.Monster,
 	hammerdinReposition bool,
 	hammerdinRouteForward bool,
+	sorceressReposition bool,
 	now time.Time,
 ) stepResult {
 	if deps.Combat == nil {
@@ -476,6 +482,7 @@ func (c *runPipeline) tickRouteThreatApproachMode(
 			c.travel.routeApproachPending = false
 			c.travel.routeApproachHammerdinReposition = false
 			c.travel.routeApproachHammerdinRouteForward = false
+			c.travel.routeApproachSorceressReposition = false
 			if reposition {
 				c.travel.routeThreat.completeHammerdinReposition(true)
 			}
@@ -493,6 +500,7 @@ func (c *runPipeline) tickRouteThreatApproachMode(
 		c.travel.routeApproachPending = false
 		c.travel.routeApproachHammerdinReposition = false
 		c.travel.routeApproachHammerdinRouteForward = false
+		c.travel.routeApproachSorceressReposition = false
 		if reposition {
 			c.travel.routeApproachFailures = 0
 			c.travel.routeApproachExhaustedUnitID = 0
@@ -512,7 +520,24 @@ func (c *runPipeline) tickRouteThreatApproachMode(
 	sent := false
 	actionKind := "force_move"
 	var err error
-	if hammerdinReposition {
+	if sorceressReposition {
+		// Repeating a projection-driven one-tile approach along the firing
+		// line can keep the Sorceress on the same wall. Use the next validated
+		// route direction for a small move, retaining Cow landing clearance.
+		landing, available := boundedRouteForwardPosition(w.Player.Position, progress, sorceressCombatRepositionDistanceTiles)
+		if !c.travel.routeApproachSelectingAt.IsZero() {
+			landing, available = c.travel.routeApproachGoal, true
+		}
+		if !available || !deps.Combat.MonsterAimProjectable(w.Player.Position, landing) ||
+			c.definition.ID == RunIDCows && !cowApproachLandingSafe(w, landing, c.definition.RouteHostileNPCIDs, c.core.routeCombat.LandingRadiusTiles) {
+			c.travel.routeApproachExhaustedUnitID = target.UnitID
+			c.travel.routeApproachSelectingAt = time.Time{}
+			return stepResult{}
+		}
+		goal = landing
+		actionKind = "cast_no_progress_teleport"
+		sent, err = deps.Combat.TeleportToward(now, w.Player, landing, 0)
+	} else if hammerdinReposition {
 		goal = target.Position
 		desiredDistance := c.core.combat.EngageDistanceTiles
 		actionKind = "hammerdin_reposition"
@@ -557,6 +582,7 @@ func (c *runPipeline) tickRouteThreatApproachMode(
 		c.travel.routeApproachGoal = goal
 		c.travel.routeApproachHammerdinReposition = hammerdinReposition
 		c.travel.routeApproachHammerdinRouteForward = hammerdinRouteForward
+		c.travel.routeApproachSorceressReposition = sorceressReposition
 	}
 	if sent {
 		c.travel.routeApproachSelectingAt = time.Time{}
@@ -567,6 +593,7 @@ func (c *runPipeline) tickRouteThreatApproachMode(
 		c.travel.routeApproachPending = true
 		c.travel.routeApproachHammerdinReposition = hammerdinReposition
 		c.travel.routeApproachHammerdinRouteForward = hammerdinRouteForward
+		c.travel.routeApproachSorceressReposition = sorceressReposition
 		if err := c.travel.routeThreat.ObserveApproachInput(w, progress, target, c.travel.routeApproachFailures+1, actionKind, now); err != nil {
 			return stepResult{failed: true, reason: "telemetry_failed"}
 		}

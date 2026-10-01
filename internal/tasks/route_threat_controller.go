@@ -9,7 +9,10 @@ import (
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/world"
 )
 
-const sorceressCombatIdleTimeout = 2 * time.Second
+const (
+	sorceressCombatIdleTimeout             = 2 * time.Second
+	sorceressCombatRepositionDistanceTiles = 4
+)
 
 // RouteThreatTickResult reports the exclusive route action selected for one tick.
 type RouteThreatTickResult struct {
@@ -20,8 +23,11 @@ type RouteThreatTickResult struct {
 	StopAttack bool
 	Failed     bool
 	Reason     RouteThreatReason
-	// ApproachTarget identifies the executor-selected living target that could not be projected.
+	// ApproachTarget identifies the living target requiring bounded movement recovery.
 	ApproachTarget world.Monster
+	// SorceressReposition requests a short route-directed teleport after casts
+	// without clear effect, even when the target remains projectable.
+	SorceressReposition bool
 	// HammerdinReposition requests a teleport toward another living monster
 	// while the controller keeps the previous attack target pinned.
 	HammerdinReposition bool
@@ -45,6 +51,11 @@ type RouteThreatController struct {
 	combatIdleSince       time.Time
 	combatIdleStage       int
 	combatIdleAvoidUnitID uint32
+	// Input activity does not prove clear effect. A separate window survives
+	// sent casts, target switches and threat-zone count fluctuations.
+	combatEffectSince time.Time
+	combatEffectStage int
+	combatAttackSeen  bool
 
 	lastTargetUnitID uint32
 	lastTargetMode   profile.RouteClearMode
@@ -135,6 +146,7 @@ func (c *RouteThreatController) ObserveResources(state world.State, assessment T
 	}
 	if c.manaRecovery {
 		c.combatIdleSince = now
+		c.combatEffectSince = now
 	}
 	immediateThreat := assessment.RouteTargetFound && assessment.RouteZone == ThreatZoneImmediate
 	return profile.ResourceContext{
@@ -278,6 +290,10 @@ func (c *RouteThreatController) Tick(
 		} else if !c.combatIdleSince.IsZero() && now.Sub(c.combatIdleSince) >= sorceressCombatIdleTimeout {
 			return c.recoverCombatIdle(clear, state, progress, idleTarget, now)
 		}
+		if !c.manaRecovery && idleTarget.UnitID != 0 && c.combatAttackSeen &&
+			!c.combatEffectSince.IsZero() && now.Sub(c.combatEffectSince) >= sorceressCombatIdleTimeout {
+			return c.recoverCombatEffect(clear, state, progress, idleTarget, now)
+		}
 	}
 	if assessment.RouteTargetFound && !routeTargetWithinAttack(state, assessment.RouteTarget, cfg) && !assessment.DensityTargetFound {
 		if c.observeOutOfRange(assessment.RouteTarget.UnitID) {
@@ -396,7 +412,10 @@ func (c *RouteThreatController) Tick(
 		if result.ActionKind == profile.RouteClearActionAttack {
 			c.combatIdleSince = now
 			c.combatIdleStage = 0
-			c.combatIdleAvoidUnitID = 0
+			c.combatAttackSeen = true
+			if c.combatEffectStage == 0 {
+				c.combatIdleAvoidUnitID = 0
+			}
 		}
 		hoverConfirmed := result.TargetingMode != profile.MonsterTargetingWorldProjected
 		actionTarget := target
@@ -431,6 +450,33 @@ func (c *RouteThreatController) Tick(
 	return RouteThreatTickResult{State: c.state}
 }
 
+// recoverCombatEffect requests the existing bounded approach after two seconds
+// of casts without observed target removal. Projection and hover do not prove
+// line of sight. Safety checks may reject movement, but further clicks cannot
+// reset this budget and repeat forever.
+func (c *RouteThreatController) recoverCombatEffect(clear RouteClearExecutor, state world.State, progress RouteProgress, target world.Monster, now time.Time) RouteThreatTickResult {
+	kind := "cast_no_progress_reposition"
+	if c.combatEffectStage >= 2 {
+		kind = "cast_no_progress_exhausted"
+	}
+	if err := c.emitApproachProgress(state, progress, target, 0, kind, now); err != nil {
+		return c.fail(RouteThreatReasonStateInvalid)
+	}
+	c.combatEffectSince = now
+	c.combatEffectStage++
+	clear.ResetRouteClear()
+	c.resetOutOfRange()
+	c.combatIdleAvoidUnitID = target.UnitID
+	if c.combatEffectStage > 2 {
+		return c.fail(RouteThreatReasonClearNoProgress)
+	}
+	result := c.fail(RouteThreatReasonOutOfRange)
+	result.StopAttack = true
+	result.ApproachTarget = target
+	result.SorceressReposition = true
+	return result
+}
+
 // recoverCombatIdle reuses the route's bounded approach. Selection and aiming
 // are not attacks; mercenary kills must not conceal an inactive Sorceress.
 func (c *RouteThreatController) recoverCombatIdle(clear RouteClearExecutor, state world.State, progress RouteProgress, target world.Monster, now time.Time) RouteThreatTickResult {
@@ -445,6 +491,7 @@ func (c *RouteThreatController) recoverCombatIdle(clear RouteClearExecutor, stat
 		return c.fail(RouteThreatReasonStateInvalid)
 	}
 	c.combatIdleSince = now
+	c.combatEffectSince = now
 	c.combatIdleStage++
 	switch c.combatIdleStage {
 	case 1:
@@ -511,6 +558,7 @@ func (c *RouteThreatController) ObserveApproachProgress(
 	}
 	c.lastProgressAt = now
 	c.combatIdleSince = now
+	c.combatEffectSince = now
 	c.resetOutOfRange()
 	return nil
 }
@@ -566,6 +614,9 @@ func (c *RouteThreatController) beginBlock(state world.State, assessment ThreatA
 	c.combatIdleSince = now
 	c.combatIdleStage = 0
 	c.combatIdleAvoidUnitID = 0
+	c.combatEffectSince = now
+	c.combatEffectStage = 0
+	c.combatAttackSeen = false
 	c.lastAssessmentAt = time.Time{}
 	c.lastTargetUnitID = 0
 	c.lastTargetMode = ""
@@ -585,6 +636,16 @@ func (c *RouteThreatController) observeObjectiveProgress(state world.State, prog
 	targetProgressed := c.lastTargetUnitID != 0 &&
 		!routeClearTargetStillRelevant(state, progress, c.lastTargetUnitID, c.lastTargetMode, allowed, cfg, assessment.CoverageComplete, cowHold)
 	progressed := targetProgressed
+	if profileID == "sorceress_blizzard" {
+		_, targetAlive := state.FindMonsterByUnitID(c.lastTargetUnitID)
+		// Zone changes and expanded coverage can help navigation, but they do
+		// not establish that repeated casts cleared a living monster.
+		if targetProgressed && !targetAlive || state.MonsterCoverage.EligibleMonsterCount < c.lastEligible {
+			c.combatEffectSince = now
+			c.combatEffectStage = 0
+			c.combatIdleAvoidUnitID = 0
+		}
+	}
 	if profileID == hammerdinCombatProfileID && c.stickyTargetUnitID != 0 {
 		_, found := state.FindMonsterByUnitID(c.stickyTargetUnitID)
 		targetProgressed = !found
@@ -627,6 +688,9 @@ func (c *RouteThreatController) clearBlockTracking() {
 	c.combatIdleSince = time.Time{}
 	c.combatIdleStage = 0
 	c.combatIdleAvoidUnitID = 0
+	c.combatEffectSince = time.Time{}
+	c.combatEffectStage = 0
+	c.combatAttackSeen = false
 	c.lastTargetUnitID = 0
 	c.lastTargetMode = ""
 	c.stickyTargetUnitID = 0
@@ -718,6 +782,12 @@ func selectHammerdinRepositionTarget(state world.State, pinned world.Monster, ex
 }
 
 func hammerdinRouteForwardPosition(player world.Position, progress RouteProgress) (world.Position, bool) {
+	return boundedRouteForwardPosition(player, progress, hammerdinRouteForwardDistanceTiles)
+}
+
+// boundedRouteForwardPosition uses only the already authorized next route
+// point. Callers still own projection, landing safety and movement confirmation.
+func boundedRouteForwardPosition(player world.Position, progress RouteProgress, maximumDistance float64) (world.Position, bool) {
 	if !progress.TargetAvailable {
 		return world.Position{}, false
 	}
@@ -725,7 +795,7 @@ func hammerdinRouteForwardPosition(player world.Position, progress RouteProgress
 	if distance <= routeThreatApproachProgressEpsilonTiles {
 		return world.Position{}, false
 	}
-	step := math.Min(distance, hammerdinRouteForwardDistanceTiles)
+	step := math.Min(distance, maximumDistance)
 	scale := step / distance
 	return world.Position{
 		X: uint32(math.Round(float64(player.X) + (float64(progress.MovementTarget.X)-float64(player.X))*scale)),

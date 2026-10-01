@@ -312,6 +312,8 @@ func (c *combatAdapter) monsterHoldCursor(player world.Player, target world.Mons
 	return clientX, clientY, "", true, nil
 }
 
+// CastAttackAtMonster casts at a current living target after skill confirmation
+// and aim validation, filling Blizzard's cooldown with Ice Blast.
 func (c *combatAdapter) CastAttackAtMonster(now time.Time, skillID uint16, player world.Player, target world.Monster) (profile.MonsterCastResult, error) {
 	// Der Task liefert bei jedem Tick ein aktuell lebendes Ziel. Keine UnitID
 	// über eine Blizzard-/Eisstoß-Sequenz festhalten: Blizzard tötet nebenher.
@@ -319,6 +321,12 @@ func (c *combatAdapter) CastAttackAtMonster(now time.Time, skillID uint16, playe
 	if rotation {
 		if target.UnitID == 0 {
 			return profile.MonsterCastResult{}, nil
+		}
+		// A skill selection is not a cast. Require the same aim geometry before
+		// selecting Blizzard, so the next range recovery need not replace a
+		// newly requested attack with Teleport before any cast could happen.
+		if !target.IsHovered && !c.MonsterAimProjectable(player.Position, target.Position) {
+			return profile.MonsterCastResult{}, fmt.Errorf("%w: unit %d", profile.ErrRouteClearTargetUnprojectable, target.UnitID)
 		}
 		if now.IsZero() {
 			now = time.Now()

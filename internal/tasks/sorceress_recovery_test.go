@@ -58,6 +58,36 @@ func TestSorceressRouteIdleTriggersAtTwoSecondsDespiteMercenaryKills(t *testing.
 	}
 }
 
+func TestSorceressRepeatedCastsWithoutClearingRepositionAtTwoSeconds(t *testing.T) {
+	p, _, _, _, w := blizzardTaskFixture(t, RunIDCows)
+	cfg, progress := phase17ThreatConfig(), phase17ThreatProgress()
+	cfg.NoProgressTimeout = 12 * time.Second
+	route := controllerRoute(progress)
+	clear := &routeClearMock{result: profile.Result{Status: profile.StatusAction, ActionKind: profile.RouteClearActionAttack}}
+	w.Monsters = cowLivingPack(3)
+	var controller RouteThreatController
+	base := w.At
+	for _, ms := range []int{0, 100, 1900, 1999, 2000} {
+		w.At = base.Add(time.Duration(ms) * time.Millisecond)
+		// A different live target is hovered, and another cow crosses a zone
+		// boundary. Neither change establishes a kill or clears the held pack.
+		w.Monsters[0].IsHovered = ms%200 == 0
+		w.Monsters[1].IsHovered = !w.Monsters[0].IsHovered
+		w.Monsters[2].Position.Y = 100
+		if ms == 100 || ms == 1900 || ms == 2000 {
+			w.Monsters[2].Position.Y = 140
+		}
+		assessment := assessThreats(w, progress, p.definition.RouteHostileNPCIDs, cfg)
+		got := controller.Tick(context.Background(), route, clear, w, progress, assessment, p.definition, cfg, p.core.combat, w.At)
+		if ms < 2000 && (got.Failed || got.StopAttack) {
+			t.Fatalf("premature recovery at %dms: %+v", ms, got)
+		}
+		if ms == 2000 && (!got.StopAttack || got.ApproachTarget.UnitID == 0) {
+			t.Fatalf("casts against an unchanged pack suppressed two-second reposition: %+v", got)
+		}
+	}
+}
+
 func TestSorceressIdleRetargetsThenBoundsUnsafeRecovery(t *testing.T) {
 	p, _, _, combat, w := blizzardTaskFixture(t, RunIDCows)
 	p.core.routeID, p.core.routeCombat = "cow", phase17ThreatConfig()
@@ -101,6 +131,10 @@ func TestSorceressIdleAllowsAttacksAndManaRecovery(t *testing.T) {
 				w.At = base.Add(time.Duration(i) * time.Second)
 				if recovery {
 					w.Player.Mana = 10
+				} else {
+					// The previous target died while a new cow entered the pack.
+					// Count stays constant, but the fresh identity proves effect.
+					w.Monsters[0].UnitID = uint32(7 + i)
 				}
 				assessment := assessThreats(w, progress, p.definition.RouteHostileNPCIDs, cfg)
 				controller.ObserveResources(w, assessment, cfg, w.At)
@@ -110,6 +144,65 @@ func TestSorceressIdleAllowsAttacksAndManaRecovery(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestSorceressIneffectiveCastRecoveryMovesAlongHeldRouteAndRetargets(t *testing.T) {
+	p, _, _, combat, w := blizzardTaskFixture(t, RunIDCows)
+	p.core.routeID, p.core.routeCombat = "cow", phase17ThreatConfig()
+	p.core.routeCombat.NoProgressTimeout = 12 * time.Second
+	w.Monsters = []world.Monster{
+		{NPCID: world.HellBovine, UnitID: 7, Position: world.Position{X: 100, Y: 125}},
+		{NPCID: world.HellBovine, UnitID: 8, Position: world.Position{X: 100, Y: 126}},
+	}
+	progress := phase17ThreatProgress()
+	progress.MovementTarget = world.Position{X: 130, Y: 100}
+	route := controllerRoute(progress)
+	clear := &routeClearMock{result: profile.Result{Status: profile.StatusAction, ActionKind: profile.RouteClearActionAttack}}
+	deps := Deps{Route: route, RouteClear: clear, Combat: combat}
+	base := w.At
+	combat.teleportSent = []bool{false, false, true}
+	for _, ms := range []int{0, 100, 1900, 2000, 2100, 2200, 2300, 2400} {
+		w.At = base.Add(time.Duration(ms) * time.Millisecond)
+		if ms >= 2300 {
+			w.Player.Position = world.Position{X: 104, Y: 100}
+		}
+		if got := p.onTravelTick(context.Background(), deps, pipelineStepPlayRoute, w, w.At, base); got.failed || got.complete {
+			t.Fatalf("%dms: %+v", ms, got)
+		}
+		if ms == 2000 && (combat.teleportCalls != 1 || combat.lastTeleportTarget != (world.Position{X: 104, Y: 100}) || combat.lastDesired != 0) {
+			t.Fatalf("reposition must change firing direction by four tiles: %+v", combat)
+		}
+		if ms == 2100 && len(clear.requests) != 3 {
+			t.Fatal("cast interrupted unconfirmed reposition")
+		}
+	}
+	if route.tickCalls != 0 || combat.teleportCalls != 3 || clear.requests[len(clear.requests)-1].Target.UnitID != 8 {
+		t.Fatalf("held route or fresh retarget lost: route=%d teleports=%d requests=%+v", route.tickCalls, combat.teleportCalls, clear.requests)
+	}
+}
+
+func TestSorceressIneffectiveCastRecoveryRejectsUnsafeLandingAndExhausts(t *testing.T) {
+	p, _, _, combat, w := blizzardTaskFixture(t, RunIDCows)
+	p.core.routeID, p.core.routeCombat = "cow", phase17ThreatConfig()
+	p.core.routeCombat.NoProgressTimeout = 12 * time.Second
+	w.Monsters = cowLivingPack(3)
+	route := controllerRoute(phase17ThreatProgress())
+	clear := &routeClearMock{result: profile.Result{Status: profile.StatusAction, ActionKind: profile.RouteClearActionAttack}}
+	deps := Deps{Route: route, RouteClear: clear, Combat: combat}
+	base := w.At
+	for _, ms := range []int{0, 100, 1900, 2000, 2100, 3900, 4000, 4100, 5900, 6000} {
+		w.At = base.Add(time.Duration(ms) * time.Millisecond)
+		got := p.onTravelTick(context.Background(), deps, pipelineStepPlayRoute, w, w.At, base)
+		if got.failed != (ms == 6000) || got.complete {
+			t.Fatalf("%dms: %+v", ms, got)
+		}
+		if ms == 6000 && got.reason != string(RouteThreatReasonClearNoProgress) {
+			t.Fatal(got)
+		}
+	}
+	if combat.teleportCalls != 0 || route.tickCalls != 0 {
+		t.Fatalf("unsafe movement accepted: teleport=%d route=%d", combat.teleportCalls, route.tickCalls)
 	}
 }
 

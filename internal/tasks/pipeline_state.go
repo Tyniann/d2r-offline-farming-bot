@@ -62,6 +62,9 @@ type pipelineTravelState struct {
 	// routeApproachHammerdinRouteForward distinguishes the bounded next-route
 	// fallback from a teleport toward another monster.
 	routeApproachHammerdinRouteForward bool
+	// routeApproachSorceressReposition preserves the route-directed landing
+	// through skill selection, without replacing the live target identity.
+	routeApproachSorceressReposition bool
 	// routeApproachExhaustedUnitID suppresses further local movement for one
 	// blocker after the bounded attempts. The shared no-progress watchdog, not
 	// this low-level targeting inconvenience, owns any later run termination.

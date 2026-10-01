@@ -11,6 +11,8 @@ Versionierung nach [Semantic Versioning](https://semver.org/).
 - Add an item-quality filter to the Pickit rule builder, including normal unsocketed bases, and show the selected quality in saved rules
 
 ### Fixed
+- Reposition Blizzard Sorceress after two seconds of casts without observed clear progress, retaining safe Cow landings and bounded recovery instead of treating every click as effective combat
+- Check Sorceress target projection before skill selection so an unreachable target does not trigger a Blizzard selection immediately replaced by Teleport
 - Let operators choose keep or sell when creating Pickit rules and change the action of existing rules in the editor
 - Dismiss Pickit success messages after five seconds so they no longer cover editor controls
 - Preserve the complete run configuration and external stop decisions in diagnostic traces so Cow preflight and mercenary aborts can be replayed correctly

@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -14,6 +15,21 @@ import (
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/tasks"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/world"
 )
+
+func TestSorceressDoesNotSelectBlizzardBeforeUnprojectableTargetApproach(t *testing.T) {
+	blizzard := memory.MustSkillID("blizzard")
+	in := &recordingCombatInput{}
+	bindings := configBindingSource{skills: map[uint16]input.SkillCast{
+		blizzard: {SkillID: blizzard, SelectKey: "f1", CastButton: input.MouseRight},
+	}}
+	adapter := newCombatAdapter(config.NewLogger("error"), in, bindings, pathing.DefaultConfig(), 1800*time.Millisecond)
+	player := world.Player{Position: world.Position{X: 100, Y: 100}, RightSkillID: memory.SkillTeleport}
+	target := world.Monster{UnitID: 7, Position: world.Position{X: 100, Y: 250}}
+	got, err := adapter.CastAttackAtMonster(time.Now(), blizzard, player, target)
+	if !errors.Is(err, profile.ErrRouteClearTargetUnprojectable) || got.Sent || in.selectCalls != 0 || len(in.clickCalls) != 0 || !adapter.lastBlizzardCast.IsZero() {
+		t.Fatalf("unprojectable target selected attack before approach: result=%+v err=%v selections=%d clicks=%v", got, err, in.selectCalls, in.clickCalls)
+	}
+}
 
 func TestSorceressBlizzardLocalClearStartsAfterTeleport(t *testing.T) {
 	in := &recordingCombatInput{}
