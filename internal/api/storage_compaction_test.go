@@ -25,14 +25,14 @@ func TestStorageCompactionHistoryAndSessionContract(t *testing.T) {
 			}
 			defer run.Close()
 			zero := 0
-			if err := session.Emit(telemetry.Event{Timestamp: start, Event: telemetry.RunStarted, RunID: run.RunID(), GameID: "game-1", Run: "cows", QueueIndex: &zero, QueueCycle: &zero}); err != nil {
-				t.Fatal(err)
+			if emitErr := session.Emit(telemetry.Event{Timestamp: start, Event: telemetry.RunStarted, RunID: run.RunID(), GameID: "game-1", Run: "cows", QueueIndex: &zero, QueueCycle: &zero}); emitErr != nil {
+				t.Fatal(emitErr)
 			}
 			emit := func(event telemetry.Event) {
 				t.Helper()
 				event.Timestamp = start.Add(time.Second)
-				if err := run.Emit(event); err != nil {
-					t.Fatal(err)
+				if emitErr := run.Emit(event); emitErr != nil {
+					t.Fatal(emitErr)
 				}
 			}
 			for _, name := range []telemetry.EventName{telemetry.DropSeen, telemetry.PickitMatch, telemetry.PickupSuccess} {
@@ -56,8 +56,8 @@ func TestStorageCompactionHistoryAndSessionContract(t *testing.T) {
 				if mode == "resumed" {
 					emit(telemetry.Event{Event: telemetry.StashSuccess, Stage: telemetry.HistoryStageReturnTown, UnitID: 101, ItemKey: "base:glr:normal", BaseCode: "glr", Quality: "normal", PickitAction: "keep"})
 				}
-				if err := session.Emit(telemetry.Event{Timestamp: start.Add(2 * time.Second), Event: terminal, RunID: run.RunID(), GameID: "game-1", Run: "cows", Reason: reason, ReasonParams: params}); err != nil {
-					t.Fatal(err)
+				if emitErr := session.Emit(telemetry.Event{Timestamp: start.Add(2 * time.Second), Event: terminal, RunID: run.RunID(), GameID: "game-1", Run: "cows", Reason: reason, ReasonParams: params}); emitErr != nil {
+					t.Fatal(emitErr)
 				}
 			}
 			index, err := telemetry.NewHistoryIndex(dir)

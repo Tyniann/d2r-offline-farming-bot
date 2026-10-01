@@ -74,7 +74,7 @@ func parseInputTestSpec(spec string) ([]inputTestAction, error) {
 		}
 		actions = append(actions, action)
 		if (action.kind == inputTestStorageTransfer || action.kind == inputTestStorageRecipe) && len(parts) != 1 {
-			return nil, fmt.Errorf("Materialtests müssen alleine ausgeführt werden")
+			return nil, fmt.Errorf("bitte Materialtests alleine ausführen")
 		}
 	}
 	return actions, nil

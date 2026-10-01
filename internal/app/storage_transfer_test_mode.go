@@ -27,7 +27,7 @@ func (rt *Runtime) runStorageTransferTest(ctx context.Context, run *runState, ho
 	before := rt.World.Current()
 	stock, known := before.CollectionCount(code)
 	if !known || stock < 1 || !before.Collection.TabKnown || !storageTransferUnchanged(before, before) {
-		return fmt.Errorf("Materialbestand, leerer Cursor oder leerer Truhenwürfel nicht bestätigt")
+		return fmt.Errorf("unbestätigter Materialbestand, Cursor oder Truhenwürfel")
 	}
 	if before.Collection.Tab == tab {
 		return fmt.Errorf("für die Tabkalibrierung bitte zuerst den anderen Materialtab öffnen")
@@ -49,7 +49,7 @@ func (rt *Runtime) runStorageTransferTest(ctx context.Context, run *runState, ho
 			return false, nil
 		}
 		if count != stock || !storageTransferUnchanged(s, before) {
-			return false, fmt.Errorf("Bestand oder Inventar während der Tabwahl verändert")
+			return false, fmt.Errorf("veränderter Bestand oder verändertes Inventar während der Tabwahl")
 		}
 		if !s.Collection.TabKnown || s.Collection.Tab != tab {
 			firstReady = 0
@@ -66,7 +66,7 @@ func (rt *Runtime) runStorageTransferTest(ctx context.Context, run *runState, ho
 	}
 	layout.Settle = ready.At.Sub(before.At)
 	if layout.Settle <= 0 {
-		return fmt.Errorf("Tabwartezeit nicht messbar")
+		return fmt.Errorf("keine messbare Tabwartezeit")
 	}
 	rt.Log.Info("storage transfer tab calibrated", "item_code", code, "tab", tab, "settle_ms", layout.Settle.Milliseconds(), "scope", ready.Collection.ScopeID, "generation", ready.Generation)
 	// Rebind only software state on the now-confirmed tab. SelectTab sends no
@@ -82,7 +82,7 @@ func (rt *Runtime) runStorageTransferTest(ctx context.Context, run *runState, ho
 			return false, nil
 		}
 		if count != stock || s.Collection.Tab != tab || !storageTransferUnchanged(s, before) {
-			return false, fmt.Errorf("Materialzustand vor der Entnahme verändert")
+			return false, fmt.Errorf("veränderter Materialzustand vor der Entnahme")
 		}
 		return s.At.Sub(selected.At) >= layout.Settle, nil
 	})
@@ -110,7 +110,7 @@ func (rt *Runtime) runStorageTransferTest(ctx context.Context, run *runState, ho
 		}
 		for _, item := range s.ItemsByLocation(world.ItemLocationCube) {
 			if item.UnitID != unit.UnitID {
-				return false, fmt.Errorf("Würfelinhalt während der Rückgabe verändert")
+				return false, fmt.Errorf("veränderter Würfelinhalt während der Rückgabe")
 			}
 		}
 		return confirmed, nil
@@ -142,7 +142,7 @@ func (rt *Runtime) waitStorageTransfer(ctx context.Context, run *runState, hotke
 			}
 			last = now
 			if remaining <= 0 {
-				return world.State{}, fmt.Errorf("Materialaktion nicht bestätigt; keine Wiederholung, bitte Truhe und Würfel prüfen")
+				return world.State{}, fmt.Errorf("unbestätigte Materialaktion; keine Wiederholung, bitte Truhe und Würfel prüfen")
 			}
 			if err := rt.runTick(ctx, run); err != nil {
 				return world.State{}, fmt.Errorf("storage transfer observation: %w", err)
@@ -161,7 +161,7 @@ func (rt *Runtime) waitStorageTransfer(ctx context.Context, run *runState, hotke
 				return world.State{}, fmt.Errorf("storage scope changed during transfer")
 			}
 			if !s.UI.StashOpen || !s.UI.InventoryOpen || s.UI.NPCShopOpen || s.UI.NPCInteractOpen || s.UI.QuitMenuOpen {
-				return world.State{}, fmt.Errorf("Truhenansicht während des Tests verändert")
+				return world.State{}, fmt.Errorf("veränderte Truhenansicht während des Tests")
 			}
 			complete, err := observe(s)
 			if err != nil {
@@ -203,13 +203,13 @@ func storageTransferInventoryUnchanged(s, before world.State) bool {
 
 func storageTransferConfirmed(s, before world.State, tab world.StorageTab, code string, wantCount int, loaded bool) (bool, error) {
 	if !storageTransferInventoryUnchanged(s, before) {
-		return false, fmt.Errorf("Cursor oder persönliches Inventar während des Transfers verändert")
+		return false, fmt.Errorf("veränderter Cursor oder verändertes persönliches Inventar während des Transfers")
 	}
 	if !s.Collection.TabKnown {
 		return false, nil
 	}
 	if s.Collection.Tab != tab {
-		return false, fmt.Errorf("Materialtab während des Transfers verändert")
+		return false, fmt.Errorf("veränderter Materialtab während des Transfers")
 	}
 	count, known := s.CollectionCount(code)
 	if !known {

@@ -19,11 +19,12 @@ func TestCraftingCatalogMatchesAuthenticFixtures(t *testing.T) {
 	}
 	gems, runes := 0, 0
 	for _, row := range rows {
-		if row.version == 0 {
+		switch row.version {
+		case 0:
 			gems++
-		} else if row.version == 100 {
+		case 100:
 			runes++
-		} else {
+		default:
 			t.Fatalf("unexpected version: %+v", row)
 		}
 	}

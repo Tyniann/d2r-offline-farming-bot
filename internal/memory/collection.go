@@ -121,14 +121,14 @@ func (p *ProbeReader) findCollectionInventory(moduleBase uintptr, off OffsetSet)
 				return 0, fmt.Errorf("collection owner inventory: %w", e)
 			}
 			if inventory != 0 {
-				first, e := p.reader.ReadUint64(uintptr(inventory) + collectionFirstAt)
-				if e != nil {
-					return 0, fmt.Errorf("collection first item: %w", e)
+				first, firstErr := p.reader.ReadUint64(uintptr(inventory) + collectionFirstAt)
+				if firstErr != nil {
+					return 0, fmt.Errorf("collection first item: %w", firstErr)
 				}
 				if first != 0 {
-					proxy, e := p.isCollectionProxy(uintptr(first), off)
-					if e != nil {
-						return 0, e
+					proxy, proxyErr := p.isCollectionProxy(uintptr(first), off)
+					if proxyErr != nil {
+						return 0, proxyErr
 					}
 					if proxy {
 						if root != 0 {
