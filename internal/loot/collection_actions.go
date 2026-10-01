@@ -322,13 +322,13 @@ func (a *CollectionActions) Transmute(state world.State, units []uint32) error {
 	bound := make(map[uint32]bool, len(units))
 	for _, id := range units {
 		if id == 0 || bound[id] {
-			return fmt.Errorf("Cube binding invalid")
+			return fmt.Errorf("cube binding invalid")
 		}
 		bound[id] = true
 	}
 	for _, item := range items {
 		if !item.PlayerOwned || !bound[item.UnitID] {
-			return fmt.Errorf("Cube binding changed")
+			return fmt.Errorf("cube binding changed")
 		}
 		delete(bound, item.UnitID)
 	}
