@@ -2,7 +2,7 @@
 
 ## Überblick
 
-`sorceress_blizzard` ist das freigegebene Standardprofil der Zauberin. Es verwendet die vorhandene Task-Pipeline, Skill-Bestätigung, Ressourcenpolicy und Routenwiedergabe. Unterstützt sind Gräfin, Mephisto, Beschwörer, Nihlathak, Lower Kurast und Kuh-Level. Der erste Kuh-Test hat Probleme bei Zielwahl und Kampfannäherung gezeigt; die unten beschriebene Korrektur benötigt noch die erneute Spielabnahme.
+`sorceress_blizzard` ist das vollständig implementierte und freigegebene Standardprofil der Zauberin. Es verwendet die vorhandene Task-Pipeline, Skill-Bestätigung, Ressourcenpolicy und Routenwiedergabe. Unterstützt sind Gräfin, Mephisto, Beschwörer, Nihlathak, Lower Kurast und Kuh-Level.
 
 ## Ort im Code
 
@@ -90,7 +90,7 @@ Lower Kurast und die lokale Portal-Recovery verwenden denselben Clear mit zwölf
 
 `internal/tasks/sorceress_recovery_test.go` prüft den Zwei-Sekunden-Trigger trotz Söldner-Fortschritt, anvisierbare und sterbende Ziele, die exklusive Annäherung, Mana-Holds und endliche Recovery. `internal/tasks/sorceress_blizzard_test.go` prüft die tatsächlichen Task-Übergänge mit dem gemeinsamen Profil-Executor und simulierten Kampfaktionen: Boss-Akquise, Statikfeld nur bei Mephisto, Kill-Bestätigung, Cleanup-Auswahl und -Budgets, Nihlathaks einzelne Annäherung, Lower-Kurast-Blocker sowie Beschwörer-/Cow-Holds bei Gegnern und unvollständiger Abdeckung. Die App-Tests prüfen zusätzlich den echten Kampfadapter, einschließlich Blizzard nach Teleport innerhalb des lokalen Clear-Budgets, Eisstoß-Bursts mit wechselnden Zielen und Blizzards Vorrang nach 1800 ms. Profil-, Config- und UI-Tests prüfen Hooks, CASC-Annahmen, Bindings und Setup.
 
-Diese Tests ersetzen keine Spielabnahme. Trefferwirkung, Ausrüstung, Söldnerschaden und Verhalten auf den persönlichen Routenaufzeichnungen müssen im Spiel geprüft werden; die erneute Kuh-Abnahme nach der Recovery-Korrektur steht noch aus.
+Der Operator hat die Zauberin am 1. Oktober 2026 als fertig implementiert bestätigt. Das Profil ist für alle sechs Routen freigegeben. Ausrüstung, Söldner und persönliche Routenaufzeichnungen bleiben Voraussetzungen des jeweiligen Charakters.
 
 ## Datenmodell
 
@@ -106,7 +106,7 @@ Die Electron-Oberfläche verwendet denselben Setup-Wizard, Binding-Editor und Ch
 
 Ein lebender Söldner ist Voraussetzung. Kälteimmune Gegner bleiben Aufgabe der ausgerüsteten Sunder Charm und des Söldners. Der Bot prüft weder Charm noch Ausrüstung oder aufgebrochene Immunität. Beide Angriffe verursachen Kälteschaden. Ohne ausreichenden Schaden können die bestehenden Kampf- und Recovery-Fristen auslaufen.
 
-Stop/Pause und Input-Logging verwenden die vorhandenen zentralen Mechanismen. Zur manuellen Kuh-Abnahme Prebuff, Blizzard-/Eisstoß-Wechsel, Mana-Holds, Loot und Rückkehr prüfen; bei einer falschen Entscheidungsreihenfolge mit `--runtime-trace-capture` aufzeichnen.
+Stop/Pause und Input-Logging verwenden die vorhandenen zentralen Mechanismen. Bei einer falschen Entscheidungsreihenfolge den Ablauf mit `--runtime-trace-capture` aufzeichnen.
 
 ## Abhängigkeiten
 

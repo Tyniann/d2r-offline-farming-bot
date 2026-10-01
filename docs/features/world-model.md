@@ -94,6 +94,8 @@ Allowlists in `internal/memory/countess_filter.go` (sync mit `world/*_ids.go` vi
 
 ### Model (`Update` / `Current` / `Reset`)
 
+Phase 25.2 ergänzt `State.Collection` für die belegte gemeinsame Materialtruhe. `CollectionCount(code)` liefert nur Counts derselben gültigen Snapshot-Zeit und Generation bei offenem Stash. Gem-/Skull- und Runen-Referenzen stammen aus dem lokalen CASC-Katalog; gewöhnliche Item-Mengen liefern keine Collection-Zahlen. Fehlende Einträge bleiben unknown. Benannte Stash-Steuerelemente belegen den aktiven Bereich: `basic` (Persönlich/Gemeinsam), `materials`, `gems` oder `runes`. Genau ein stabiler bekannter Bereich setzt `TabKnown`; wechselnde oder unlesbare Tabdaten erfinden keinen Tab. Basic und Materials erlauben den Start einer Tabnavigation; Materialaktionen verlangen den frisch bestätigten Gems-/Runentab. Das eingebettete Würfelraster gehört zur offenen Truhe, wenn `InventoryItems()` einen eigenen Cube enthält. Dafür gibt es keinen zusätzlichen Cube-Open-Zustand. Counts werden defensiv kopiert und durch Reset widerrufen. Quelldaten und Read-Grenzen: [Storage Compaction](storage-compaction.md).
+
 ```go
 state := model.Update(snap) // speichert geklonten State und gibt unabhängige Kopie zurück
 copy := model.Current()     // slices.Clone auch auf CowCorpses
@@ -248,4 +250,4 @@ Low-Level Memory/Offset-Validierung: [State Probe](state-probe.md) (Phase 1, D2R
 - [Phase-18-Core-Vertrag](phase-18-core-contract.md) — Merc-Evidenz und Unknown-Grenzen
 
 ---
-*Zuletzt aktualisiert: 2026-08-20*
+*Zuletzt aktualisiert: 2026-10-01*

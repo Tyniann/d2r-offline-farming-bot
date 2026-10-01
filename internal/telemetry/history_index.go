@@ -2,6 +2,7 @@ package telemetry
 
 import (
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"sort"
@@ -30,6 +31,7 @@ type HistoryRun struct {
 	EndedAt                *time.Time
 	Outcome                HistoryOutcome
 	Reason                 string
+	ReasonParams           map[string]string
 	Events                 []Event
 	RunFile                string
 	SessionFile            string
@@ -239,6 +241,7 @@ func correlateHistoryFiles(files map[string]HistoryFile) ([]HistoryRun, []Histor
 			continue
 		}
 		outcome, reason := HistoryOutcomeIncomplete, ""
+		var reasonParams map[string]string
 		var endedAt *time.Time
 		if boundary.terminal != nil {
 			terminal := boundary.terminal
@@ -255,6 +258,7 @@ func correlateHistoryFiles(files map[string]HistoryFile) ([]HistoryRun, []Histor
 				outcome = HistoryOutcomeAborted
 			}
 			reason = terminal.Reason
+			reasonParams = maps.Clone(terminal.ReasonParams)
 			ended := terminal.Timestamp.UTC()
 			endedAt = &ended
 		}
@@ -290,7 +294,7 @@ func correlateHistoryFiles(files map[string]HistoryFile) ([]HistoryRun, []Histor
 			Character: first.Character, Difficulty: first.Difficulty, GameVersion: first.GameVersion,
 			Run: first.Run, DefinitionID: first.DefinitionID, RouteID: first.RouteID, RouteLayoutFingerprint: first.RouteLayoutFingerprint,
 			QueueIndex: *first.QueueIndex, QueueCycle: *first.QueueCycle, StartedAt: started.Timestamp.UTC(), ObservedAt: observed,
-			EndedAt: endedAt, Outcome: outcome, Reason: reason, Events: events, RunFile: runFile.Name, SessionFile: boundary.file,
+			EndedAt: endedAt, Outcome: outcome, Reason: reason, ReasonParams: reasonParams, Events: events, RunFile: runFile.Name, SessionFile: boundary.file,
 		})
 	}
 	sort.Slice(runs, func(a, b int) bool {
@@ -328,6 +332,7 @@ func cloneHistoryFile(file HistoryFile) HistoryFile {
 }
 
 func cloneHistoryRun(run HistoryRun) HistoryRun {
+	run.ReasonParams = maps.Clone(run.ReasonParams)
 	source := run.Events
 	run.Events = make([]Event, len(source))
 	for index, event := range source {

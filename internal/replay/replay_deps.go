@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/crafting"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/input"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/pathing"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/profile"
@@ -153,6 +154,8 @@ func (d *replayDependencies) taskDeps(names []string) (tasks.Deps, error) {
 			deps.Actions = d
 		case "loot":
 			deps.Loot = d
+		case "compaction":
+			deps.Compaction = replayCompaction{d}
 		case "route":
 			deps.Route = replayRoute{d}
 		case "route_clear":
@@ -285,8 +288,23 @@ func (d *replayDependencies) TickCloseStash(world.State, time.Time) tasks.LootSt
 	return decodeLootStash(d.consume("loot.tick_close_stash"))
 }
 func decodeLootStash(call DependencyCall) tasks.LootStashResult {
-	return tasks.LootStashResult{Status: tasks.LootStashStatus(stringValue(call.Result, "status")), Done: boolValue(call.Result, "done"), Attempted: boolValue(call.Result, "attempted"), Transferred: boolValue(call.Result, "transferred"), UnitID: uint32(uint64Value(call.Result, "unit_id")), Code: stringValue(call.Result, "code"), Name: stringValue(call.Result, "name"), Attempt: int(int64Value(call.Result, "attempt"))}
+	return tasks.LootStashResult{Status: tasks.LootStashStatus(stringValue(call.Result, "status")), Reason: stringValue(call.Result, "reason"), CompactionCandidate: boolValue(call.Result, "compaction_candidate"), GridX: int(int64Value(call.Result, "grid_x")), GridY: int(int64Value(call.Result, "grid_y")), Done: boolValue(call.Result, "done"), Attempted: boolValue(call.Result, "attempted"), Transferred: boolValue(call.Result, "transferred"), UnitID: uint32(uint64Value(call.Result, "unit_id")), Code: stringValue(call.Result, "code"), Name: stringValue(call.Result, "name"), Attempt: int(int64Value(call.Result, "attempt"))}
 }
+
+type replayCompaction struct{ deps *replayDependencies }
+
+func (r replayCompaction) Tick(world.State, time.Time, crafting.Request) crafting.Result {
+	call := r.deps.consume("compaction.tick")
+	result := crafting.Result{Done: boolValue(call.Result, "done"), Success: boolValue(call.Result, "success")}
+	if f := mapValue(call.Result, "failure"); len(f) != 0 {
+		result.Failure = &crafting.Failure{Reason: stringValue(f, "reason"), TriggerCode: stringValue(f, "trigger_code"), MaterialCode: stringValue(f, "material_code")}
+	}
+	if p := mapValue(call.Result, "progress"); len(p) != 0 {
+		result.Progress = &crafting.Progress{RecipeIndex: int(int64Value(p, "recipe_index")), InputCode: stringValue(p, "input_code"), OutputCode: stringValue(p, "output_code"), InputBefore: int(int64Value(p, "input_before")), InputAfter: int(int64Value(p, "input_after")), OutputBefore: int(int64Value(p, "output_before")), OutputAfter: int(int64Value(p, "output_after"))}
+	}
+	return result
+}
+func (r replayCompaction) Reset() {}
 
 func (d *replayDependencies) TickRouteClear(context.Context, profile.RouteClearRequest, time.Time) profile.Result {
 	return decodeProfileResult(d.consume("route_clear.tick"))

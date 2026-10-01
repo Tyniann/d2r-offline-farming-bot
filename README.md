@@ -6,9 +6,11 @@ Persönliches Fallbeispiel: Architektur und Abnahme kommen von mir, der Code ist
 
 English: a Windows desktop app (Go core, Electron UI) for repeatable **offline** D2R farming. Personal AI-assisted engineering case study, not an online cheat and not affiliated with Blizzard.
 
+Aktuelle Version: [v0.28.0](https://github.com/Tyniann/d2r-offline-farming-bot/releases/tag/v0.28.0), veröffentlicht am 1. Oktober 2026.
+
 ## Klassen und Builds
 
-Necromancer und Hammerdin sind spielbar. Die [Blizzard-Zauberin](docs/features/sorceress-blizzard.md) ist für alle sechs Routen implementiert; die manuelle Spielabnahme steht noch aus.
+Necromancer, Hammerdin und die [Blizzard-Zauberin](docs/features/sorceress-blizzard.md) sind vollständig implementiert und unterstützen alle sechs Farming-Routen.
 
 ![Necromancer Bone Spear, Paladin Sacred Hammer und Sorceress Blizzard](docs/assets/classes/roster.jpg)
 
@@ -27,7 +29,7 @@ Necromancer und Hammerdin sind spielbar. Die [Blizzard-Zauberin](docs/features/s
     <td align="center" valign="top" width="33%">
       <img src="docs/assets/classes/sorceress-badge.jpg" width="96" alt="Blizzard" /><br />
       <strong>Sorceress</strong><br />
-      Blizzard · in Arbeit
+      Blizzard · unterstützt
     </td>
   </tr>
 </table>
@@ -38,21 +40,24 @@ Necromancer und Hammerdin sind spielbar. Die [Blizzard-Zauberin](docs/features/s
 - Kampfprofile: Necromancer Bone Spear, Hammerdin und Blizzard-Zauberin, jeweils mit Söldner
 - Selbst aufgezeichnete Routen mit Playback gegen das Memory-World-Model
 - Pickit-Profile, Town (Identifizieren, Verkaufen, Stash), Session-Queue und begrenzte Run-Recovery
+- Automatische Verdichtung voller Edelstein-/Schädel-Slots ab normaler Stufe und niedriger Runen von El bis Ort, mit eigener Anzeige in der Session-Übersicht
 - Desktop-UI auf Deutsch und Englisch, plus Windows-Installer
 
 Auflösung 1280×720. D2R startet der Operator selbst.
 
 ## Oberfläche
 
-**Dashboard.** Laufende Session auf Hell: Queue Unter-Kurast → Countess → Mephisto, Countess aktiv im Turmkeller, Fortschritt der Aufnahme und der Session, Kennzahlen und letzte Ausführungen.
+Die Screenshots zeigen Version 0.28.0 mit Beispieldaten.
+
+**Dashboard.** Laufende Session auf Alptraum mit Gräfin → Mephisto, aktiver Gräfin im Turmkeller, Sessionfortschritt, Kennzahlen und letzten Ausführungen.
 
 ![Dashboard mit aktiver Countess-Route, Queue und Sessionstatistik](docs/screenshots/dashboard.png)
 
-**Routen aufzeichnen.** Aufnahme für Unter-Kurast: Ziel (hohe Runen, Edelsteine), erfüllte Voraussetzungen, Start- und Zielgebiet, kurze Anleitung plus Referenzbilder, Hotkeys zum Beenden.
+**Routen aufzeichnen.** Aufnahme für Unter-Kurast mit Ziel, Start- und Zielgebiet, Anleitung, Referenzbildern und Hotkeys zum Beenden.
 
-![Routenaufnahme für Unter-Kurast mit Voraussetzungen, Pfad und Referenzbildern](docs/screenshots/route-recording.png)
+![Routenaufnahme für Unter-Kurast mit Anleitung und Referenzbildern](docs/screenshots/route-recording.png)
 
-**Pickit.** Profilworkspace: Bibliothek links, Regelbau rechts. Hier „Countess Standard“ mit Schnellfiltern, Sockelregel und geordneter Behalten-Liste.
+**Pickit.** Profilbibliothek und Regelbau mit Qualitätsfilter, Sockeln sowie Behalten-/Verkaufen-Auswahl. Gespeicherte Regeln lassen sich direkt umstellen.
 
 ![Pickit-Editor mit Profilbibliothek, Regelbau und Countess-Standardregeln](docs/screenshots/pickit.png)
 
@@ -61,12 +66,12 @@ Auflösung 1280×720. D2R startet der Operator selbst.
 ```
 D2R.exe  →  process  →  memory snapshot  →  world model
                                               ↓
-Electron UI  ←  loopback API  ←  app  ←  tasks / profile / town / loot
+Electron UI  ←  loopback API  ←  app  ←  tasks / profile / town / loot / crafting
                                               ↓
                                            input (SendInput)
 ```
 
-Pathing, Loot und Town hängen am World Model, nicht an Rohbytes. Die UI redet nur mit `internal/api` auf localhost. Input geht erst nach explizitem Opt-in und bleibt über Hotkeys abbrechbar.
+Pathing, Loot, Town und Crafting hängen am World Model, nicht an Rohbytes. Die UI redet nur mit `internal/api` auf localhost. Input geht erst nach explizitem Opt-in und bleibt über Hotkeys abbrechbar.
 
 ## Wie es gebaut wurde
 
@@ -85,16 +90,16 @@ Diablo II: Resurrected ist eine Marke von Blizzard Entertainment, Inc. Dieses Pr
 Windows 10/11 x64, unsignierter NSIS-Installer. SmartScreen kann warnen. Daten: `%LOCALAPPDATA%\D2ROfflineFarmingBot\`.
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts/build-release.ps1 -Version 0.27.0
+powershell -ExecutionPolicy Bypass -File scripts/build-release.ps1 -Version 0.28.0
 ```
 
-Ergebnis: `dist/release/D2R-Offline-Farming-Bot-0.27.0-Setup.exe` plus SHA-256. Installer-Hinweise: [`docs/INSTALLATION.md`](docs/INSTALLATION.md).
+Ergebnis: `dist/release/D2R-Offline-Farming-Bot-0.28.0-Setup.exe` plus SHA-256. Der veröffentlichte Download enthält beide Dateien als `D2R-Offline-Farming-Bot-0.28.0-Windows-x64.zip`. Installer-Hinweise: [`docs/INSTALLATION.md`](docs/INSTALLATION.md).
 
 Lokal: Windows, Go 1.26+, Node/pnpm. `Copy-Item configs\config.example.yaml configs\config.yaml`, dann `go test ./...`. UI unter `web/`. Feature-Docs: [`docs/features/README.md`](docs/features/README.md). Changelog: [`docs/CHANGELOG.md`](docs/CHANGELOG.md).
 
 ```
 cmd/d2rbot/     Einstieg
-internal/       process, memory, world, pathing, input, tasks, profile, town, loot, api
+internal/       process, memory, world, pathing, input, tasks, profile, town, loot, crafting, api
 web/            Electron und React
 configs/        YAML, Pickit, Routen
 docs/           Features, Pläne, Changelog

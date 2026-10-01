@@ -297,7 +297,7 @@ const (
 	RunResetRoutePlayback RunResetScope = "route_playback"
 	// RunResetProfileExecutor clears hooks, resources, pins, and cooldowns.
 	RunResetProfileExecutor RunResetScope = "profile_executor"
-	// RunResetLootExecutor clears pickup, stash, and skipped-item state.
+	// RunResetLootExecutor clears pickup, stash, compaction and skipped-item state.
 	RunResetLootExecutor RunResetScope = "loot_executor"
 	// RunResetTownExecutor clears planning, graph, NPC, and UI state.
 	RunResetTownExecutor RunResetScope = "town_executor"

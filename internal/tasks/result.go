@@ -13,8 +13,9 @@ const (
 
 // TickResult summarizes one [Runner.Tick] invocation.
 type TickResult struct {
-	Active  bool       // False when terminal, reset, or no configured run.
-	Outcome RunOutcome // idle | running | success | failed.
-	Step    string     // Current step name when active or just finished.
-	Reason  string     // Failure or reset reason when set.
+	Active       bool              // False when terminal, reset, or no configured run.
+	Outcome      RunOutcome        // idle | running | success | failed.
+	Step         string            // Current step name when active or just finished.
+	Reason       string            // Failure or reset reason when set.
+	ReasonParams map[string]string // Item/material context for localized failure text.
 }

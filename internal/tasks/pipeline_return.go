@@ -5,6 +5,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/crafting"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/pathing"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/profile"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/town"
@@ -21,8 +22,8 @@ func (c *runPipeline) tickReturn(ctx context.Context, deps pipelineReturnDeps, s
 		return c.tickWaitOriginTown(ctx, deps, w, now)
 	case pipelineStepPlayTownEgress, pipelineStepOpenOriginWaypoint, pipelineStepSelectHubWaypoint, pipelineStepWaitHubArea:
 		return c.tickTownNormalization(ctx, deps, step, w, now, stepStartedAt)
-	case pipelineStepOpenStash, pipelineStepStashItems, pipelineStepCloseStash:
-		return tickPersonalStashWorkflow(ctx, deps, step, w)
+	case pipelineStepOpenStash, pipelineStepStashItems, pipelineStepCompactStorage, pipelineStepCloseStash:
+		return c.tickPersonalStashWorkflow(ctx, deps, step, w, now)
 	case pipelineStepPrepareTown:
 		if deps.Town == nil {
 			return stepResult{failed: true, reason: "town_preparation_not_wired"}
@@ -43,7 +44,7 @@ func (c *runPipeline) tickReturn(ctx context.Context, deps pipelineReturnDeps, s
 	}
 }
 
-func (c *runPipeline) tickStashPersonal(ctx context.Context, deps pipelineReturnDeps, step string, w world.State) stepResult {
+func (c *runPipeline) tickStashPersonal(ctx context.Context, deps pipelineReturnDeps, step string, w world.State, now time.Time) stepResult {
 	switch step {
 	case pipelineStepPrecheck:
 		if !w.Valid {
@@ -62,8 +63,8 @@ func (c *runPipeline) tickStashPersonal(ctx context.Context, deps pipelineReturn
 			return stepResult{failed: true, reason: "loot_actions_not_wired"}
 		}
 		return stepResult{complete: true}
-	case pipelineStepOpenStash, pipelineStepStashItems, pipelineStepCloseStash:
-		return tickPersonalStashWorkflow(ctx, deps, step, w)
+	case pipelineStepOpenStash, pipelineStepStashItems, pipelineStepCompactStorage, pipelineStepCloseStash:
+		return c.tickPersonalStashWorkflow(ctx, deps, step, w, now)
 	case pipelineStepPrepareTown:
 		if deps.Town == nil {
 			return stepResult{failed: true, reason: "town_preparation_not_wired"}
@@ -84,7 +85,7 @@ func (c *runPipeline) tickStashPersonal(ctx context.Context, deps pipelineReturn
 	}
 }
 
-func tickPersonalStashWorkflow(ctx context.Context, deps pipelineReturnDeps, step string, w world.State) stepResult {
+func (c *runPipeline) tickPersonalStashWorkflow(ctx context.Context, deps pipelineReturnDeps, step string, w world.State, now time.Time) stepResult {
 	switch step {
 	case pipelineStepOpenStash:
 		if deps.Stash == nil {
@@ -103,13 +104,69 @@ func tickPersonalStashWorkflow(ctx context.Context, deps pipelineReturnDeps, ste
 			return stepResult{failed: true, reason: "loot_actions_not_wired"}
 		}
 		res := deps.Loot.TickStash(w, w.At)
+		if res.Transferred && c.ret.retryCompaction != nil && res.UnitID == c.ret.retryCompaction.UnitID {
+			c.ret.retryCompaction = nil
+		}
 		if !res.Done {
 			return stepResult{}
 		}
 		if res.Status == LootStashSuccess {
+			if c.ret.retryCompaction != nil {
+				return storageReturnFailure("stash_failed", c.ret.retryCompaction.Code, c.ret.retryCompaction.Code)
+			}
 			return stepResult{complete: true}
 		}
-		return stepResult{failed: true, reason: string(res.Status)}
+		if !res.CompactionCandidate || res.Status != LootStashFailed || res.Reason != "verify_timeout" || c.ret.compactedUnits[res.UnitID] {
+			return storageReturnFailure(string(res.Status), res.Code, res.Code)
+		}
+		count, known := w.CollectionCount(res.Code)
+		if !known {
+			return storageReturnFailure(crafting.ReasonUnavailable, res.Code, res.Code)
+		}
+		if count != 99 {
+			return storageReturnFailure(string(res.Status), res.Code, res.Code)
+		}
+		if _, supported := crafting.LookupRecipe(res.Code); !supported {
+			if reason, material := crafting.StorageFullReason(res.Code); material {
+				return storageReturnFailure(reason, res.Code, res.Code)
+			}
+			return storageReturnFailure(string(res.Status), res.Code, res.Code)
+		}
+		if deps.Compaction == nil {
+			return storageReturnFailure(crafting.ReasonUnavailable, res.Code, res.Code)
+		}
+		if c.ret.stashGeneration == 0 {
+			c.ret.stashGeneration = w.Generation
+		}
+		request := crafting.Request{UnitID: res.UnitID, Code: res.Code, GridX: res.GridX, GridY: res.GridY, RunGeneration: c.ret.stashGeneration}
+		c.ret.pendingCompaction = &request
+		if c.ret.compactedUnits == nil {
+			c.ret.compactedUnits = make(map[uint32]bool)
+		}
+		c.ret.compactedUnits[res.UnitID] = true
+		deps.Compaction.Reset()
+		return stepResult{complete: true}
+	case pipelineStepCompactStorage:
+		request := c.ret.pendingCompaction
+		if request == nil || deps.Compaction == nil {
+			return stepResult{failed: true, reason: crafting.ReasonUnavailable}
+		}
+		if ctx.Err() != nil {
+			return storageReturnFailure(crafting.ReasonUnconfirmed, request.Code, request.Code)
+		}
+		result := deps.Compaction.Tick(w, now, *request)
+		if result.Failure != nil {
+			return storageReturnFailure(result.Failure.Reason, result.Failure.TriggerCode, result.Failure.MaterialCode)
+		}
+		if !result.Done {
+			return stepResult{}
+		}
+		if !result.Success {
+			return storageReturnFailure(crafting.ReasonUnconfirmed, request.Code, request.Code)
+		}
+		c.ret.retryCompaction = request
+		c.ret.pendingCompaction = nil
+		return stepResult{complete: true}
 	case pipelineStepCloseStash:
 		if deps.Loot == nil {
 			return stepResult{failed: true, reason: "loot_actions_not_wired"}
@@ -125,6 +182,10 @@ func tickPersonalStashWorkflow(ctx context.Context, deps pipelineReturnDeps, ste
 	default:
 		return stepResult{failed: true, reason: "unknown_step"}
 	}
+}
+
+func storageReturnFailure(reason, trigger, material string) stepResult {
+	return stepResult{failed: true, reason: reason, reasonParams: map[string]string{"item_code": trigger, "material_code": material}}
 }
 
 func (c *runPipeline) allowsRetryReturnArea(area world.AreaID) bool {

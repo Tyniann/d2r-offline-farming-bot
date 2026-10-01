@@ -18,6 +18,23 @@ func TestRunMissingConfig(t *testing.T) {
 	}
 }
 
+func TestStorageInspectCLIRejectsConflictsBeforeConfigAndSuppressesSession(t *testing.T) {
+	cfg := &config.Config{Session: config.SessionConfig{Enabled: true}}
+	if shouldRunSession(cfg, app.Options{StorageInspect: "gems"}) {
+		t.Fatal("storage inspect started autonomous session")
+	}
+	if err := validateDesktopMode(app.Options{Desktop: true, StorageInspect: "gems"}); err == nil {
+		t.Fatal("desktop conflict accepted")
+	}
+	if err := validateReplayMode(app.Options{ReplayRuntimeTrace: "trace.gz", StorageInspect: "gems"}, ""); err == nil {
+		t.Fatal("replay conflict accepted")
+	}
+	err := run(filepath.Join(t.TempDir(), "missing.yaml"), app.Options{StorageInspect: "gems", SessionInspect: true})
+	if err == nil || !strings.Contains(err.Error(), "--storage-inspect") {
+		t.Fatalf("conflict bypassed early validation: %v", err)
+	}
+}
+
 func TestShouldRunSessionDoesNotOverrideExplicitRunOrProbe(t *testing.T) {
 	cfg := &config.Config{Session: config.SessionConfig{Enabled: true}}
 	if shouldRunSession(cfg, app.Options{Run: "countess", RunPhase: "town-ready"}) {

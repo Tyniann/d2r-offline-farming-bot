@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"strings"
 	"sync"
 	"time"
@@ -70,6 +71,8 @@ type SupervisorRunRequest struct {
 type SupervisorRunResult struct {
 	Disposition QueueRunDisposition
 	Reason      string
+	// ReasonParams erhält den strukturierten Itemkontext des terminalen Tasks.
+	ReasonParams map[string]string
 	// OriginalReason preserves the productive run failure when a later
 	// controlled-return failure becomes the terminal Reason.
 	OriginalReason string
@@ -814,11 +817,13 @@ func (s *SessionSupervisor) rememberLocked(meta SupervisorCommandMeta, command S
 }
 
 func (s *SessionSupervisor) snapshotLocked() SupervisorSnapshot {
+	result := s.result
+	result.ReasonParams = maps.Clone(result.ReasonParams)
 	return SupervisorSnapshot{
 		Generation: s.generation, State: s.state, PendingIntent: s.intent, ActiveRunID: s.request.DefinitionID, RunInstanceID: s.request.ExecutionID,
 		QueueKnown: true, Queue: append([]string(nil), s.plan.RunIDs...), QueueIndex: s.queueIndex, Cycle: s.cycle, Retry: s.retry,
 		StartedRuns: s.startedRuns, ConsecutiveFailures: s.consecutiveFailures, TotalRestarts: s.totalRestarts,
-		Budgets: s.plan.Budgets, LastResult: s.result, GameID: s.gameID,
+		Budgets: s.plan.Budgets, LastResult: result, GameID: s.gameID,
 		LastSessionID: s.lastSessionID, LastSessionDurationMs: s.lastSessionDurationMs,
 	}
 }

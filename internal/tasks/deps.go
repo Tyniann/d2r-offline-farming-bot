@@ -5,6 +5,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/crafting"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/input"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/pathing"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/profile"
@@ -24,6 +25,7 @@ type Deps struct {
 	Combat     CombatActions
 	Actions    RunActions
 	Loot       LootActions
+	Compaction StorageCompactionActions
 	Route      RoutePlayback
 	RouteClear RouteClearExecutor
 	TownEgress TownEgressPlayback
@@ -284,14 +286,24 @@ const (
 
 // LootStashResult reports verified transfer progress or a terminal stash outcome.
 type LootStashResult struct {
-	Status      LootStashStatus
-	Done        bool
-	Attempted   bool
-	Transferred bool
-	UnitID      uint32
-	Code        string
-	Name        string
-	Attempt     int
+	Status              LootStashStatus
+	Reason              string
+	GridX, GridY        int
+	CompactionCandidate bool
+	Done                bool
+	Attempted           bool
+	Transferred         bool
+	UnitID              uint32
+	Code                string
+	Name                string
+	Attempt             int
+}
+
+// StorageCompactionActions advances one authorized storage recovery job.
+// Recipe policy and input geometry belong outside Tasks; Reset sends no input.
+type StorageCompactionActions interface {
+	Tick(world.State, time.Time, crafting.Request) crafting.Result
+	Reset()
 }
 
 // LootScanResult summarizes a task-visible loot scan without exposing pickit internals.

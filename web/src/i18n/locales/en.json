@@ -238,6 +238,10 @@
     "sessionSummary": {
       "title": "Session finished",
       "duration": "Session duration: {{duration}}",
+      "compactedHeader": "Compacted: {{count}} items",
+      "expandCompacted": "Show compacted items",
+      "collapseCompacted": "Hide compacted items",
+      "emptyCompacted": "No items compacted",
       "keptHeader": "{{count}} kept items",
       "soldHeader": "{{count}} sold items",
       "itemLine": "{{count}} × {{name}}",
@@ -1419,6 +1423,14 @@
   "charsi_repair_shop_closed": "Charsi's shop window closed unexpectedly."
   },
   "errors": {
+    "stashFailed": "The item could not be stored in the stash.",
+    "stashFailedItem": "The item “{{item}}” could not be stored in the stash.",
+    "storageMaterialFull": "Material storage is full.",
+    "storageMaterialFullItem": "Storage for “{{item}}” is full.",
+    "storageCompactionUnavailable": "Shared material counts could not be read.",
+    "storageCubeNotEmpty": "Please empty the Horadric Cube and put down the item on the cursor.",
+    "storageCompactionUnconfirmed": "Compaction could not be confirmed. Please check the stash and Horadric Cube.",
+    "storageCompactionTimeout": "Compaction took too long. Please check the stash and Horadric Cube.",
     "unknownCode": "Unknown error ({{code}}).",
     "requestFailed": "The request failed.",
     "requestInvalid": "The request is invalid.",

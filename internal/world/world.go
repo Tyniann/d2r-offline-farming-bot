@@ -60,6 +60,7 @@ func cloneState(s State) State {
 	s.Monsters = slices.Clone(s.Monsters)
 	s.CowCorpses = slices.Clone(s.CowCorpses)
 	s.Items = slices.Clone(s.Items)
+	s.Collection.Counts = slices.Clone(s.Collection.Counts)
 	s.Player.SkillsKnown = cloneSkillKnown(s.Player.SkillsKnown)
 	return s
 }

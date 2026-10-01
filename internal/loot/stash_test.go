@@ -1,12 +1,106 @@
 package loot
 
 import (
+	"bytes"
+	"encoding/json"
+	"log/slog"
 	"testing"
 	"time"
 
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/input"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/world"
 )
+
+// The real Cow log on 2026-09-30 pins glr UnitID 809 in cell 9,2 through
+// three attempts. It proves a verify_timeout, not a Collection count of 99.
+func TestStashFlawlessRubyLogBaselineThreeUnchangedAttempts(t *testing.T) {
+	var output bytes.Buffer
+	log := slog.New(slog.NewJSONHandler(&output, nil))
+	lock, err := NewInventoryLock(unlockedInventory())
+	if err != nil {
+		t.Fatal(err)
+	}
+	pickit, err := parsePickit("ruby.nip", "[name] == glr")
+	if err != nil {
+		t.Fatal(err)
+	}
+	in := &stashInputMock{window: input.WindowInfo{ClientWidth: 1280, ClientHeight: 720}}
+	e, err := NewStashExecutor(log, NewFilter(log, lock, pickit), in, StashConfig{
+		MaxRetries: 3, VerifyTimeout: 1500 * time.Millisecond, CloseTimeout: time.Second,
+		InventoryLeft: 847, InventoryTop: 369, InventoryCellW: 33, InventoryCellH: 33,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	item := world.Item{UnitID: 809, Code: "glr", Name: "Flawless Ruby", Type: "gemr", Quality: world.ItemQualityNormal,
+		Location: world.ItemLocationInventory, PlayerOwned: true, GridX: 9, GridY: 2, Width: 1, Height: 1}
+	st := stashState(item)
+	start := time.Date(2026, 9, 30, 9, 14, 38, 66000000, time.UTC)
+	for attempt := 0; attempt < 3; attempt++ {
+		now := start.Add(time.Duration(attempt) * 1500 * time.Millisecond)
+		if res := e.Tick(st, now); res.Status != StashPending || !res.Attempted || res.Attempt != attempt+1 {
+			t.Fatalf("attempt %d: %+v", attempt+1, res)
+		}
+		if res := e.Tick(st, now.Add(1499*time.Millisecond)); res.Done || res.Attempted || res.Transferred {
+			t.Fatalf("premature result: %+v", res)
+		}
+	}
+	result := e.Tick(st, start.Add(4500*time.Millisecond))
+	if !result.Done || result.Status != StashFailed || result.Reason != "verify_timeout" || result.GridX != 9 || result.GridY != 2 || result.Transferred || result.UnitID != 809 || result.Code != "glr" || result.Attempt != 3 || in.clicks != 3 {
+		t.Fatalf("terminal=%+v clicks=%d", result, in.clicks)
+	}
+	for _, move := range in.moves {
+		if move != [2]int{1160, 451} {
+			t.Fatalf("unexpected target %v", move)
+		}
+	}
+	failures := 0
+	for _, line := range bytes.Split(output.Bytes(), []byte("\n")) {
+		if len(line) == 0 {
+			continue
+		}
+		var event map[string]any
+		if err := json.Unmarshal(line, &event); err != nil {
+			t.Fatal(err)
+		}
+		if event["msg"] == "stash_failed" {
+			failures++
+			if event["reason"] != "verify_timeout" || event["code"] != "glr" || event["unit_id"] != float64(809) {
+				t.Fatalf("failure=%v", event)
+			}
+		}
+	}
+	if failures != 1 || len(in.keys) != 0 {
+		t.Fatalf("failures=%d keys=%v", failures, in.keys)
+	}
+}
+
+func TestStashCompactionAuthorizationPreservesFailure(t *testing.T) {
+	e, in := stashTestExecutor(t, unlockedInventory())
+	s := stashState(stashRune(7, 6, 2))
+	now := time.Unix(100, 0)
+	e.Tick(s, now)
+	e.Tick(s, now.Add(time.Second))
+	result := e.Tick(s, now.Add(2*time.Second))
+	if !e.AuthorizeCompaction(s, result) || result.Reason != "verify_timeout" || result.GridX != 6 || result.GridY != 2 {
+		t.Fatalf("exhausted failure lost binding: %+v", result)
+	}
+	before := in.clicks
+	for _, reason := range []string{"move_failed", "ctrl_click_failed", "target_changed", "policy_changed"} {
+		copy := result
+		copy.Reason = reason
+		if e.AuthorizeCompaction(s, copy) {
+			t.Fatalf("%s authorized compaction", reason)
+		}
+	}
+	s.Items[0].GridX = 5
+	if e.AuthorizeCompaction(s, result) {
+		t.Fatal("changed target authorized")
+	}
+	if in.clicks != before {
+		t.Fatal("authorization sent input")
+	}
+}
 
 type stashInputMock struct {
 	window input.WindowInfo

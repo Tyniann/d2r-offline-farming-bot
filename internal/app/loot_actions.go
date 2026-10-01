@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/config"
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/crafting"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/loot"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/pathing"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/tasks"
@@ -15,17 +16,19 @@ import (
 )
 
 type lootActionsAdapter struct {
-	log          *slog.Logger
-	filter       *loot.Filter
-	profile      config.ProfileResourcesConfig
-	cfg          loot.PickupConfig
-	clicker      loot.PickupClicker
-	active       *loot.PickupExecutor
-	skipped      map[uint32]bool
-	lastStart    tasks.LootTarget
-	stash        *loot.StashExecutor
-	telemetry    telemetryEmitter
-	telemetryErr error
+	log               *slog.Logger
+	filter            *loot.Filter
+	profile           config.ProfileResourcesConfig
+	cfg               loot.PickupConfig
+	clicker           loot.PickupClicker
+	active            *loot.PickupExecutor
+	skipped           map[uint32]bool
+	lastStart         tasks.LootTarget
+	stash             *loot.StashExecutor
+	telemetry         telemetryEmitter
+	telemetryErr      error
+	compactionTrigger *loot.StashResult
+	compactionScope   string
 }
 
 func (a *lootActionsAdapter) setTelemetry(trace *telemetry.Recorder) { a.telemetry = trace }
@@ -80,7 +83,16 @@ func (a *lootActionsAdapter) TickStash(state world.State, now time.Time) tasks.L
 			return tasks.LootStashResult{Status: tasks.LootStashTelemetryFailed, Done: true}
 		}
 	}
-	return mapTaskLootStashResult(res)
+	result := mapTaskLootStashResult(res)
+	if _, material := crafting.StorageFullReason(res.Code); material && a.stash.AuthorizeCompaction(state, res) {
+		// Eligibility preserves the verified stash policy; Task separately requires
+		// a fresh full source slot before creating a compaction request.
+		result.CompactionCandidate = true
+		copy := res
+		a.compactionTrigger = &copy
+		a.compactionScope = state.Collection.ScopeID
+	}
+	return result
 }
 
 func (a *lootActionsAdapter) TickCloseStash(state world.State, now time.Time) tasks.LootStashResult {
@@ -346,6 +358,8 @@ func (a *lootActionsAdapter) Reset() {
 	a.active = nil
 	a.lastStart = tasks.LootTarget{}
 	a.skipped = make(map[uint32]bool)
+	a.compactionTrigger = nil
+	a.compactionScope = ""
 	if a.clicker != nil {
 		a.clicker.Reset()
 	}
@@ -403,7 +417,7 @@ func mapLootStashConfig(cfg config.LootStashConfig) loot.StashConfig {
 }
 
 func mapTaskLootStashResult(res loot.StashResult) tasks.LootStashResult {
-	return tasks.LootStashResult{Status: tasks.LootStashStatus(res.Status), Done: res.Done, Attempted: res.Attempted, Transferred: res.Transferred, UnitID: res.UnitID, Code: res.Code, Name: res.Name, Attempt: res.Attempt}
+	return tasks.LootStashResult{Status: tasks.LootStashStatus(res.Status), Reason: res.Reason, Done: res.Done, Attempted: res.Attempted, Transferred: res.Transferred, UnitID: res.UnitID, Code: res.Code, Name: res.Name, Attempt: res.Attempt, GridX: res.GridX, GridY: res.GridY}
 }
 
 func countPickupCandidatesForMode(state world.State, report loot.DecisionReport, skipped map[uint32]bool, keepOnly bool, maxDistanceTiles float64) int {

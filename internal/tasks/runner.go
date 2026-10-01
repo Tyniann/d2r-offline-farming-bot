@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"maps"
 	"time"
 
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/profile"
@@ -65,13 +66,14 @@ type Runner struct {
 	run       runMachine
 	tracker   stepTracker
 
-	started         bool
-	terminal        bool
-	reset           bool
-	outcome         RunOutcome
-	terminalReason  string
-	initReason      string
-	generationReset bool
+	started              bool
+	terminal             bool
+	reset                bool
+	outcome              RunOutcome
+	terminalReason       string
+	terminalReasonParams map[string]string
+	initReason           string
+	generationReset      bool
 
 	lastSafetyPotionAt time.Time
 	progress           RunProgress
@@ -119,7 +121,7 @@ func (r *Runner) Terminal() bool {
 
 // Result returns the current or terminal run result without advancing the state machine.
 func (r *Runner) Result() TickResult {
-	return TickResult{Active: r.started && !r.terminal && !r.reset, Outcome: r.outcome, Step: r.tracker.name, Reason: r.terminalReason}
+	return TickResult{Active: r.started && !r.terminal && !r.reset, Outcome: r.outcome, Step: r.tracker.name, Reason: r.terminalReason, ReasonParams: maps.Clone(r.terminalReasonParams)}
 }
 
 // RecoveryStep projects the active retry-return substep without exposing the
@@ -206,6 +208,9 @@ func (r *Runner) resetGeneration() {
 	if r.deps.Loot != nil {
 		r.deps.Loot.Reset()
 	}
+	if r.deps.Compaction != nil {
+		r.deps.Compaction.Reset()
+	}
 	if r.deps.Town != nil {
 		r.deps.Town.Reset()
 	}
@@ -257,9 +262,10 @@ func (r *Runner) Tick(ctx context.Context, w world.State, now time.Time) TickRes
 	}
 
 	r.tracker.incrementTick()
-	blocksAutomaticInput := false
+	// The recipe owns all UI input while the embedded stash Cube is in use.
+	blocksAutomaticInput := r.tracker.name == pipelineStepCompactStorage
 	if blocker, ok := r.run.(interface{ blocksAutomaticInput(string) bool }); ok {
-		blocksAutomaticInput = blocker.blocksAutomaticInput(r.tracker.name)
+		blocksAutomaticInput = blocksAutomaticInput || blocker.blocksAutomaticInput(r.tracker.name)
 	}
 	routeOwnsResources := false
 	if owner, ok := r.run.(interface{ handlesResources(string) bool }); ok {
@@ -283,6 +289,7 @@ func (r *Runner) Tick(ctx context.Context, w world.State, now time.Time) TickRes
 	result := r.run.onTick(ctx, r.deps, r.tracker.name, w, now, r.tracker.startedAt, r.tracker.ticksInStep)
 
 	if result.failed {
+		r.terminalReasonParams = maps.Clone(result.reasonParams)
 		return r.finishStepFailed(now, result.reason)
 	}
 	if result.complete {
@@ -511,10 +518,11 @@ func (r *Runner) finishStepFailed(now time.Time, reason string) TickResult {
 		"reason", reason,
 	)
 	return TickResult{
-		Active:  true,
-		Outcome: RunOutcomeFailed,
-		Step:    step,
-		Reason:  reason,
+		Active:       true,
+		Outcome:      RunOutcomeFailed,
+		Step:         step,
+		Reason:       reason,
+		ReasonParams: maps.Clone(r.terminalReasonParams),
 	}
 }
 
@@ -535,6 +543,9 @@ func (r *Runner) emitStep(event telemetry.EventName, step string, outcome RunOut
 	}
 	record := telemetry.Event{
 		Event: event, DefinitionID: r.selection.Run, Step: step, Outcome: string(outcome), Reason: reason,
+	}
+	if reason != "" {
+		record.ReasonParams = maps.Clone(r.terminalReasonParams)
 	}
 	stage, ok := RunStageForStep(step)
 	if !ok {

@@ -158,7 +158,7 @@ function RecentRuns({ rows, runNames }: { rows?: HistoryRunDTO[]; runNames: Reco
     const statusText = run.funnel.keep_return
       ? t("dashboard.stats.securedCount", { count: run.funnel.keep_return })
       : outcomeLabel(run.outcome, t);
-    const reasonText = !run.funnel.keep_return && run.reason ? presentHistoryReason(run.reason, t) : undefined;
+    const reasonText = !run.funnel.keep_return && run.reason ? presentHistoryReason(run.reason, t, run.reason_params) : undefined;
     return <li key={run.run_id}>
       <i className={success ? "success" : "failed"}>{success ? <Check aria-hidden="true" size={13} /> : <CircleAlert aria-hidden="true" size={13} />}</i>
       <div>

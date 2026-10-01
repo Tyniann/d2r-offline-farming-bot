@@ -16,6 +16,7 @@ const summary = {
     durations: { count: 2, total_ms: 120000, average_ms: 60000, median_ms: 60000, minimum_ms: 30000, maximum_ms: 90000 },
     stages: { travel_ms: 1, combat_ms: 1, loot_ms: 1, return_town_ms: 1, other_ms: 1 },
     funnel,
+    compacted: [{ code: "gpr", count: 2 }, { code: "r02", count: 1 }],
   },
 };
 const items = {
@@ -52,6 +53,7 @@ describe("SessionSummaryDialog", () => {
     expect(await screen.findByText("Sitzungsdauer: 01:01:01")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Aufgehobene Items anzeigen" })).toHaveTextContent("4 aufgehobene Items");
     expect(screen.getByRole("button", { name: "Verkaufte Items anzeigen" })).toHaveTextContent("3 verkaufte Items");
+    expect(screen.getByRole("button", { name: "Verdichtete Items anzeigen" })).toHaveTextContent("Verdichtet: 3 Items");
     expect(screen.queryByText(/Ko-Rune|Ko Rune/)).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Aufgehobene Items anzeigen" }));
@@ -59,6 +61,9 @@ describe("SessionSummaryDialog", () => {
     expect(screen.getByText("1 × perfekter Diamant")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Verkaufte Items anzeigen" }));
     expect(await screen.findByText("3 × Gold")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Verdichtete Items anzeigen" }));
+    expect(screen.getByText("2 × perfekter Rubin")).toBeInTheDocument();
+    expect(screen.getByText("1 × Eld-Rune")).toBeInTheDocument();
   });
 
   it("lädt Core-Daten nur für die beendete Session", async () => {

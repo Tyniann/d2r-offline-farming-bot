@@ -11,19 +11,23 @@ import (
 type inputTestActionKind string
 
 const (
-	inputTestBelt        inputTestActionKind = "belt"
-	inputTestPortal      inputTestActionKind = "portal"
-	inputTestSkill       inputTestActionKind = "skill"
-	inputTestCenterClick inputTestActionKind = "center_click"
-	inputTestClick       inputTestActionKind = "click"
+	inputTestBelt            inputTestActionKind = "belt"
+	inputTestPortal          inputTestActionKind = "portal"
+	inputTestSkill           inputTestActionKind = "skill"
+	inputTestCenterClick     inputTestActionKind = "center_click"
+	inputTestClick           inputTestActionKind = "click"
+	inputTestStorageTransfer inputTestActionKind = "storage_transfer"
+	inputTestStorageRecipe   inputTestActionKind = "storage_recipe"
 )
 
 type inputTestAction struct {
-	kind    inputTestActionKind
-	slot    int
-	skillID uint16
-	x       int
-	y       int
+	kind                 inputTestActionKind
+	slot                 int
+	skillID              uint16
+	x                    int
+	y                    int
+	code                 string
+	pauseBeforeTransmute bool
 }
 
 func (a inputTestAction) String() string {
@@ -38,6 +42,14 @@ func (a inputTestAction) String() string {
 		return "center-click"
 	case inputTestClick:
 		return fmt.Sprintf("click:%d,%d", a.x, a.y)
+	case inputTestStorageTransfer:
+		return "storage-transfer:" + a.code
+	case inputTestStorageRecipe:
+		spec := "storage-recipe:" + a.code
+		if a.pauseBeforeTransmute {
+			spec += ":pause"
+		}
+		return spec
 	default:
 		return string(a.kind)
 	}
@@ -61,6 +73,9 @@ func parseInputTestSpec(spec string) ([]inputTestAction, error) {
 			return nil, err
 		}
 		actions = append(actions, action)
+		if (action.kind == inputTestStorageTransfer || action.kind == inputTestStorageRecipe) && len(parts) != 1 {
+			return nil, fmt.Errorf("Materialtests müssen alleine ausgeführt werden")
+		}
 	}
 	return actions, nil
 }
@@ -85,6 +100,18 @@ func parseInputTestAction(token string) (inputTestAction, error) {
 	name, arg, hasArg := strings.Cut(token, ":")
 	name = strings.TrimSpace(name)
 	switch name {
+	case "storage-recipe":
+		code, suffix, hasSuffix := strings.Cut(strings.TrimSpace(arg), ":")
+		if !hasArg || (code != "gsr" && code != "glr" && code != "r01") || (hasSuffix && suffix != "pause") {
+			return inputTestAction{}, fmt.Errorf("storage-recipe benötigt gsr, glr oder r01; optional :pause vor Transmute")
+		}
+		return inputTestAction{kind: inputTestStorageRecipe, code: code, pauseBeforeTransmute: hasSuffix}, nil
+	case "storage-transfer":
+		code := strings.TrimSpace(arg)
+		if !hasArg || (code != "gsr" && code != "r01") {
+			return inputTestAction{}, fmt.Errorf("storage-transfer benötigt gsr (normaler Rubin) oder r01 (El-Rune)")
+		}
+		return inputTestAction{kind: inputTestStorageTransfer, code: code}, nil
 	case "belt", "potion":
 		if !hasArg {
 			return inputTestAction{}, fmt.Errorf("input test action %q requires slot (e.g. belt:1)", token)
@@ -135,7 +162,7 @@ func parseInputTestAction(token string) (inputTestAction, error) {
 		return inputTestAction{kind: inputTestClick, x: x, y: y}, nil
 	default:
 		return inputTestAction{}, fmt.Errorf(
-			"unknown input test action %q; allowed examples: belt:1, potion:1, portal, skill:teleport, center-click, click:640,360",
+			"unknown input test action %q; allowed examples: belt:1, potion:1, portal, skill:teleport, center-click, click:640,360, storage-transfer:gsr, storage-recipe:gsr:pause",
 			token,
 		)
 	}

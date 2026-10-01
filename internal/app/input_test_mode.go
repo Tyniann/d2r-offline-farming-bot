@@ -94,6 +94,24 @@ func (rt *Runtime) RunInputTest(spec string) error {
 	}
 
 	rt.logInputTestReady(ctrl)
+	if len(actions) == 1 && actions[0].kind == inputTestStorageRecipe {
+		if err := rt.runStorageRecipeTest(ctx, state, hotkeyEvents, ticker, cancel, actions[0]); err != nil {
+			if errors.Is(err, context.Canceled) {
+				return nil
+			}
+			return err
+		}
+		return nil
+	}
+	if len(actions) == 1 && actions[0].kind == inputTestStorageTransfer {
+		if err := rt.runStorageTransferTest(ctx, state, hotkeyEvents, ticker, cancel, actions[0].code); err != nil {
+			if errors.Is(err, context.Canceled) {
+				return nil
+			}
+			return err
+		}
+		return nil
+	}
 
 	var src inputTestBindingSource = rt.bindingSource()
 

@@ -1,5 +1,7 @@
 import type { TFunction } from "i18next";
 import type { ApiError, ProblemDTO } from "../api/generated";
+import { i18n } from ".";
+import { gameBaseItemName } from "./game";
 
 export type AppTranslator = TFunction<"translation">;
 
@@ -125,9 +127,28 @@ export function presentRouteReason(code: string, t: AppTranslator): string {
   return t(key ?? "routes.reasons.unavailable");
 }
 
-export function presentHistoryReason(code: string, t: AppTranslator): string {
+export function presentHistoryReason(code: string, t: AppTranslator, params?: Record<string, unknown>): string {
   if (!code) return "";
+  const storage = presentStorageReason(code, params, t);
+  if (storage) return storage;
   return lookupHistoryReason(code, t) || t("history.reasonFallback", { code });
+}
+
+function presentStorageReason(code: string, params: Record<string, unknown> | undefined, t: AppTranslator): string {
+  if (code === "stash_failed" || code === "storage_gem_full" || code === "storage_rune_full") {
+    const itemCode = code === "stash_failed" ? params?.item_code : params?.material_code;
+    const item = typeof itemCode === "string" && itemCode ? gameBaseItemName(itemCode, itemCode, i18n.resolvedLanguage) : "";
+    if (code === "stash_failed") return item ? t("errors.stashFailedItem", { item }) : t("errors.stashFailed");
+    return item ? t("errors.storageMaterialFullItem", { item }) : t("errors.storageMaterialFull");
+  }
+  const keys = {
+    storage_state_unavailable: "errors.storageCompactionUnavailable",
+    storage_cube_not_empty: "errors.storageCubeNotEmpty",
+    storage_compaction_unconfirmed: "errors.storageCompactionUnconfirmed",
+    storage_compaction_timeout: "errors.storageCompactionTimeout",
+  } as const;
+  const key = keys[code as keyof typeof keys];
+  return key ? t(key) : "";
 }
 
 function lookupHistoryReason(code: string, t: AppTranslator): string {
@@ -226,6 +247,8 @@ const errorKeys = {
 } as const;
 
 export function presentProblem(problem: ProblemDTO, t: AppTranslator): string {
+  const storage = presentStorageReason(problem.code, problem.params, t);
+  if (storage) return storage;
   if (problem.code === "route_candidate_context_mismatch") {
     return t("errors.routeCandidateContext", {
       ...problem.params,

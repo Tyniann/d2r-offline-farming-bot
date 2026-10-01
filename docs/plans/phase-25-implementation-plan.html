@@ -1,0 +1,590 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark light">
+  <title>Phase 25 · Storage Compaction</title>
+  <style>
+    :root { --bg:#090b0d; --panel:#151a1f; --soft:#1b2229; --text:#f2f4f5; --muted:#b2bcc5; --line:#35414b; --gold:#d9a34f; --blue:#8ec7e6; --green:#72d7a2; --warn:#f1cf72; --red:#f07d86; --code:#090c0f; }
+    @media (prefers-color-scheme:light) { :root { --bg:#f4f1ea; --panel:#fffefa; --soft:#f2ede3; --text:#1c2329; --muted:#56636d; --line:#d5cdbf; --gold:#8b5d14; --blue:#236989; --green:#15774a; --warn:#8b6600; --red:#ae3540; --code:#f2eee6; } }
+    * { box-sizing:border-box; }
+    html { scroll-behavior:smooth; }
+    body { margin:0; color:var(--text); background:radial-gradient(circle at 90% 0,rgba(217,163,79,.15),transparent 32rem),var(--bg); font:16px/1.65 system-ui,-apple-system,"Segoe UI",sans-serif; }
+    main { width:min(1200px,calc(100% - 32px)); margin:auto; padding:32px 0 64px; }
+    a { color:var(--blue); text-underline-offset:3px; }
+    h1,h2,h3 { line-height:1.25; }
+    h1 { margin:0; font-size:clamp(2.1rem,5vw,3.8rem); letter-spacing:-.035em; }
+    h2 { margin:44px 0 16px; padding-bottom:12px; border-bottom:1px solid var(--line); font-size:1.65rem; }
+    h3 { margin:22px 0 8px; font-size:1.12rem; }
+    p { margin:10px 0; }
+    ul,ol { padding-left:1.4rem; margin:12px 0; }
+    li + li { margin-top:7px; }
+    code,pre { font-family:"Cascadia Code",Consolas,monospace; font-size:.91em; }
+    code { color:var(--blue); background:var(--code); padding:.08rem .3rem; border:1px solid var(--line); border-radius:4px; overflow-wrap:anywhere; }
+    pre { padding:16px; overflow:auto; background:var(--code); border:1px solid var(--line); border-radius:10px; line-height:1.55; }
+    .hero { padding:clamp(24px,4vw,42px); background:linear-gradient(130deg,var(--soft),var(--panel)); border:1px solid var(--line); border-radius:20px; }
+    .eyebrow { color:var(--gold); font-size:.82rem; font-weight:800; letter-spacing:.08em; text-transform:uppercase; }
+    .lead { color:var(--muted); max-width:950px; font-size:1.1rem; }
+    .meta,.grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:14px; margin-top:20px; }
+    .card { padding:16px; background:var(--panel); border:1px solid var(--line); border-radius:12px; min-width:0; }
+    .card strong { color:var(--gold); display:block; }
+    .card span { display:block; margin-top:5px; color:var(--muted); }
+    .toc { display:flex; flex-wrap:wrap; gap:8px 16px; margin-top:20px; padding:14px; border:1px solid var(--line); border-radius:12px; background:var(--panel); }
+    .toc a { font-size:.9rem; }
+    section { scroll-margin-top:20px; min-width:0; }
+    .callout { margin:18px 0; padding:16px 20px; background:var(--panel); border:1px solid var(--line); border-left:4px solid var(--blue); border-radius:10px; }
+    .callout.warn { border-left-color:var(--warn); }
+    .callout.success { border-left-color:var(--green); }
+    .callout h3 { margin-top:0; }
+    .callout summary { cursor:pointer; font-weight:700; color:var(--gold); }
+    .callout[open] > summary { margin-bottom:12px; }
+    figure { margin:16px 0; }
+    figure img { display:block; max-width:100%; height:auto; border:1px solid var(--line); border-radius:6px; }
+    figcaption { margin-top:8px; color:var(--muted); font-size:.9rem; }
+    .table-wrap { overflow-x:auto; margin-top:16px; border:1px solid var(--line); border-radius:10px; }
+    table { width:100%; border-collapse:collapse; font-size:.94rem; }
+    th,td { padding:12px 14px; vertical-align:top; text-align:left; border-bottom:1px solid var(--line); }
+    th { background:var(--soft); color:var(--gold); }
+    tr:last-child td { border-bottom:0; }
+    .flow { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; margin-top:18px; }
+    .node { padding:16px; background:var(--panel); border:1px solid var(--line); border-top:3px solid var(--gold); border-radius:10px; min-width:0; }
+    .node b { display:block; }
+    .node small { display:block; color:var(--muted); margin-top:6px; }
+    .gate { display:grid; grid-template-columns:94px minmax(0,1fr); gap:18px; margin-top:16px; padding:22px; border:1px solid var(--line); border-left:4px solid var(--green); border-radius:12px; background:var(--panel); }
+    .gate.live { border-left-color:var(--warn); }
+    .gate > div { min-width:0; }
+    .gate-id { color:var(--gold); font-size:1.28rem; font-weight:800; }
+    .badge { display:block; margin-top:8px; font-size:.7rem; color:var(--green); font-weight:700; }
+    .live .badge { color:var(--warn); }
+    .gate h3 { margin:0 0 10px; }
+    .proof { padding-top:12px; border-top:1px solid var(--line); margin-top:14px; }
+    .proof strong { color:var(--green); }
+    .live .proof strong { color:var(--warn); }
+    .status { color:var(--muted); }
+    footer { margin-top:40px; padding-top:18px; color:var(--muted); border-top:1px solid var(--line); font-size:.9rem; }
+    @media (max-width:800px) { .flow { grid-template-columns:repeat(2,minmax(0,1fr)); } .meta,.grid { grid-template-columns:1fr; } }
+    @media (max-width:560px) { main { width:calc(100% - 20px); padding-top:10px; } .gate { grid-template-columns:1fr; gap:10px; padding:16px; } .badge { display:inline; margin-left:10px; } .flow { grid-template-columns:1fr; } th,td { padding:10px; } }
+    @media print { body { background:white; color:#111; } main { width:100%; padding:0; } .toc { display:none; } .gate,.card,.node { break-inside:avoid; } }
+  </style>
+</head>
+<body>
+<main>
+  <header class="hero" id="top">
+    <p class="eyebrow">Sequenzieller Implementierungsplan · Phase 25</p>
+    <h1>Storage Compaction</h1>
+    <p class="lead">Ein voller Materialslot soll eine Farming-Session erst beenden, wenn der Bot keinen verifizierten Platz schaffen kann. Edelsteine und Schädel werden ab normaler Stufe bis perfekt verdichtet. El bis Ort werden über ihre einfachen Drei-zu-eins-Rezepte aufgewertet. Danach lagert der Bot das zuvor blockierte Item ein und setzt die bestehende Session fort.</p>
+    <div class="meta">
+      <div class="card"><strong>Stand · 1. Oktober 2026</strong><span>25.0–25.9 bestanden. Phase 25 vollständig implementiert und dokumentiert. Alle drei Rezepte, Pause/Fortsetzen sowie die automatische Navigation aus Persönlich/Gemeinsam und Gems → Runen sind live bestätigt. Die Session-Übersicht zeigt bestätigte Ergebnisse unter „Verdichtet“; der eingebettete Renderer ist synchronisiert.</span></div>
+      <div class="card"><strong>Gemeinsame Standardregel</strong><span>Automatisch bei bestätigtem Überlauf. Keine Charaktereinstellung, keine neue Einstellungsoberfläche.</span></div>
+      <div class="card"><strong>23 erlaubte Rezepte</strong><span>14 Gem-/Skull-Rezepte und 9 Runenrezepte aus dem nachgereichten lokalen CASC-Extrakt.</span></div>
+    </div>
+  </header>
+  <nav class="toc" aria-label="Inhaltsübersicht">
+    <a href="#entscheidungen">Entscheidungen</a><a href="#befund">Ist-Zustand</a><a href="#module">Module</a><a href="#daten">Daten und Evidenz</a><a href="#planer">Batch-Planung</a><a href="#ablauf">Ausführung</a><a href="#integration">Integration</a><a href="#fehler">Fehler und Anzeige</a><a href="#gates">Gates</a><a href="#abschluss">Abschluss</a>
+  </nav>
+
+  <section id="entscheidungen">
+    <h2>1. Verbindliche Produktentscheidungen</h2>
+    <div class="callout success"><h3>Ein kleines Fachpaket <code>internal/crafting</code></h3><p>Das Paket besitzt Rezeptkatalog, Batch-Planung und die verifizierte Compaction-State-Machine. Stash-Auswahl und Zellnavigation bleiben in <code>internal/loot</code>. Weitere Würfelabläufe können später im selben Fachpaket ergänzt werden. Phase 25 baut ausschließlich Materialverdichtung.</p></div>
+    <ul>
+      <li><strong>Gems/Skulls:</strong> Alle sieben Materialfamilien, jeweils normal → makellos → perfekt. „Normal“ bezeichnet die Gem-Stufe, nicht <code>ItemQualityNormal</code>. Lädiert und fehlerhaft bleiben erhalten. Perfekt ist die Endstufe.</li>
+      <li><strong>Runen:</strong> Nur El, Eld, Tir, Nef, Eth, Ith, Tal, Ral und Ort als Zutaten. Ort darf Thul erzeugen. Thul als Zutat und alle Rezepte mit Zusatzgem bleiben außerhalb des Katalogs.</li>
+      <li><strong>Auslöser:</strong> Ein zulässiges Keep-Item konnte nach den bisherigen Stash-Versuchen nicht transferiert werden; der frische gemeinsame Materialbestand bestätigt seinen vollen Slot. Ein bloßer <code>stash_failed</code>-Reason autorisiert keine Verdichtung.</li>
+      <li><strong>Gem-Kette:</strong> Bei normalem Material darf derselbe Auftrag normal und makellos derselben Familie verarbeiten. Bei makellosem Material verarbeitet er ausschließlich makellos. Andere Farben, Schädel oder niedrigere Stufen bleiben unangetastet.</li>
+      <li><strong>Runen-Batch:</strong> Genau eine Aufwertungsstufe des blockierten Runentyps. Ein voller Zielslot endet mit Speicher-voll; keine rekursive Verdichtung weiterer Runentypen.</li>
+      <li><strong>Truhen-Würfel:</strong> Ein Cube im persönlichen Inventar stellt unter den Truhenitems das eingebettete 3×4-Raster samt Transmute-Button bereit. Genau ein Strg+Shift+Rechtsklick auf den Quellslot lädt die drei Rezeptzutaten in dieses Raster. Ein Strg+Shift+Linksklick auf die gebundene Output-Unit lagert das Ergebnis zurück. Der gesamte Auftrag bleibt in der offenen Truhe; danach genügt ein leerer Cube für den normalen Stash-Retry.</li>
+      <li><strong>Default:</strong> Für alle unterstützten Offline-Charaktere aktiv. Keine YAML-Option, Profileinstellung, Reservekonfiguration oder API zum Einschalten. Verdichtung beginnt ausschließlich bei Überlauf, nicht präventiv.</li>
+      <li><strong>Bestände:</strong> Die Materialtabs sind gemeinsam genutzt. Jeder Auftrag liest ihren aktuellen, gültigen Speicherbereich neu. Charakter-, Session- und History-Zähler sind keine Bestandsquelle.</li>
+      <li><strong>Ende:</strong> Ein erfolgreicher Auftrag hinterlässt einen leeren Würfel, bestätigt das Einlagern des blockierten Items und setzt den gleichen Queue-Eintrag fort. Ein nicht lösbarer Speicherüberlauf beendet die Session mit verständlichem Itembezug.</li>
+    </ul>
+    <p>Inventarreserven, generisches Crafting, Charm-Rerolls, Runen ab Thul, Trankrezepte, Shared-Stash-Raster als Ausweichlager, Droppen oder Verkaufen zur Platzbeschaffung und Änderungen an Spielständen gehören nicht zu Phase 25. Der vorhandene Cow-Portal-Executor bleibt als eigener Ablauf bestehen.</p>
+  </section>
+
+  <section id="befund">
+    <h2>2. Belegter Ist-Zustand</h2>
+    <p>Der Cow-Versuch am 30. September 2026 endete um 11:14:42 CEST. Unit <code>809</code>, Code <code>glr</code>, blieb nach drei Ctrl-Klicks in Inventarzelle <code>9,2</code>. <code>loot.stash</code> meldete <code>verify_timeout</code>; <code>stash_items</code> und anschließend die Session endeten mit <code>stash_failed</code>. Das Log enthält keinen Materialzähler und beweist die 99er-Grenze dieses Falls nicht selbst.</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Bestehender Einstieg</th><th>Wiederverwendung und konkrete Lücke</th></tr></thead><tbody>
+        <tr><td><a href="../../internal/loot/stash.go"><code>loot.StashExecutor</code></a></td><td>Keep-Auswahl, Inventarschutz, Retry und Memory-Verifikation bleiben. <code>failActive</code> loggt die Ursache, gibt sie aber nicht strukturiert zurück und verwirft den aktiven Zustand.</td></tr>
+        <tr><td><a href="../../internal/tasks/pipeline_return.go"><code>tickPersonalStashWorkflow</code></a></td><td>Gemeinsamer Stash-Ablauf für Farming und isolierte Phasen. Heute wird jedes terminale Nicht-Success sofort zum Task-Fehler.</td></tr>
+        <tr><td><a href="../../internal/loot/cow_portal_recipe.go"><code>loot.CowPortalRecipe</code></a></td><td>Vorbild für gebundene Zutaten, frische Generationen, exakten Inhalt und einmaliges Transmute. Seine Portalbindung und alleinstehende Würfelgeometrie werden nicht auf den eingebetteten Stash-Würfel übertragen.</td></tr>
+        <tr><td><a href="../../internal/pathing/waypoint.go"><code>pathing.WaypointActions</code></a></td><td>Vorbild für Tabwahl, Settle und Auflösungsgate. Sein bekannter sticky UI-Flag zeigt, warum <code>StashOpen</code> allein keinen Materialklick freigibt.</td></tr>
+        <tr><td><a href="../../internal/town/item_service.go"><code>town.ItemServiceExecutor</code></a></td><td>Vorbild für Itembindung und Verifikation nach einem gesendeten Input. Keine Wiederholung eines möglicherweise bereits ausgeführten Transfers.</td></tr>
+        <tr><td><code>memory.UIState</code> / <code>world.UIState</code></td><td>Stash und Cube sind modelliert; aktiver Materialtab, Speicherbereich und Materialzähler fehlen. Normale <code>Quantity</code>-Stats sind dafür nicht live validiert.</td></tr>
+        <tr><td><a href="../../internal/input/mouse.go"><code>input.Controller</code></a></td><td><code>ClickAtWithModifier</code> bietet einen atomaren Klick mit einem Modifier. Ctrl+Shift benötigt einen gleichwertigen Vertrag für beide Modifier.</td></tr>
+        <tr><td>Task-Timeout und History</td><td>Der normale Step-Timeout beträgt im Beispiel 45 Sekunden. Ein größerer Batch braucht ein eigenes endliches Zeitfenster. Fehlermeldungen kennen <code>stash_failed</code> derzeit nicht spezifisch.</td></tr>
+      </tbody>
+    </table></div>
+    <p>Die vorhandene <a href="../features/personal-stash-mvp.md">Stash-Dokumentation</a> nennt Sammeltabs noch unbegrenzt und charaktergebunden. Beide Aussagen werden bei der Feature-Umsetzung durch den belegten gemeinsamen Speichervertrag ersetzt.</p>
+  </section>
+
+  <section id="module">
+    <h2>3. Zuständigkeiten und Interface</h2>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Modul</th><th>Besitzt</th><th>Abhängigkeit</th></tr></thead><tbody>
+        <tr><td><code>tools/generate-crafting-catalog</code></td><td>Striktes CASC-Subset, Herkunft und generierte Rezeptdaten.</td><td><code>cubemain.txt</code> und <code>misc.txt</code>; keine Spieldateischreibzugriffe.</td></tr>
+        <tr><td><code>internal/memory</code> → <code>internal/world</code></td><td>Belegte Rohreads → semantischer Collection-Speicher, Tab und bekannte Materialzahlen. Vorhandene Items belegen Cube und Würfelinhalt.</td><td>Read-only Prozesszugriff. Fachentscheidungen verwenden nur World-Evidenz.</td></tr>
+        <tr><td><code>internal/loot</code></td><td>Stash-Kandidat, belegtes Collection-Layout und primitive Tab-/Zell-/Button-Aktionen.</td><td>World State und <code>internal/input</code>; kennt keine Batch- oder Aufwertungsstrategie.</td></tr>
+        <tr><td><code>internal/crafting</code></td><td>Rezeptlookup, deterministischer Plan, Zutaten-/Outputbindung, Fortschritt und endliche State-Machine.</td><td>World State und schmales injiziertes Input-Interface; importiert weder Raw Memory noch Loot, App oder Tasks.</td></tr>
+        <tr><td><code>internal/app</code></td><td>Adapter zwischen Crafting-Input und Loot-Collection-Aktionen, Telemetrie und Lifecycle-Wiring.</td><td>Verdrahtet Fachpakete, entscheidet keine Rezepte.</td></tr>
+        <tr><td><code>internal/tasks</code></td><td>Gemeinsamer Übergang <code>stash_items → compact_storage → stash_items</code>, gebundener Auslöser und Wiederholungsgrenze.</td><td>Neue kleine Compaction-Dependency; keine Zellkoordinaten oder Rezeptlisten.</td></tr>
+      </tbody>
+    </table></div>
+    <p>Im Crafting-Paket genügen <code>catalog.go</code>, <code>planner.go</code>, <code>executor.go</code> und gezielte Tests. Das öffentliche Interface startet beziehungsweise tickt einen Auftrag mit unveränderter Triggerbindung und liefert Pending, verifizierten Fortschritt, Success oder einen strukturierten Fehler. <code>Reset</code> löscht Bindungen ohne Input.</p>
+    <p>Das injizierte Input-Interface umfasst Tabwahl, das Laden eines vollständigen Zutatensatzes mit einem Rechtsklick, einmaliges Transmute und den Rücktransfer eines gebundenen Outputs mit einem Linksklick. Jeder Aufruf ist eine einzelne bereits durch World-Evidenz freigegebene Aktion. Der Executor entscheidet über Reihenfolge und Erfolg; der Adapter übersetzt in das belegte Layout. Die vorhandene Einzeleinheit-Aktion <code>WithdrawOne</code> bleibt dem isolierten Transfer-Test vorbehalten und wird nicht dreimal pro Rezept aufgerufen. Tests ersetzen das Interface und treiben denselben produktiven Executor.</p>
+    <div class="callout"><p>Die Typnamen für neue Evidenz dürfen nach der Live-Kalibrierung festgelegt werden. Zuständigkeiten und Verhalten sind verbindlich. Es entsteht kein Registry-System für beliebige Rezepte, keine generische UI-Automation und keine Verlagerung des Cow-Rezepts in dieser Phase.</p></div>
+  </section>
+
+  <section id="daten">
+    <h2>4. Autoritative Daten und neue Evidenz</h2>
+    <h3>Rezeptkatalog</h3>
+    <p><code>.tmp/d2r-excel/cubemain.txt</code> liegt jetzt vor. Der geprüfte SHA-256 lautet <code>C2AF6EF0C6EBF9EF5923CCF94CBD0CD1449AA46BDF469C07C8F170FC10E19785</code>. Der Hash bezeichnet den Planungsstand, ersetzt aber nicht die stabile Zeilenreferenz. Der Generator hält Herkunftsdatei, <code>description</code> und das normalisierte Zutaten-/Outputpaar fest.</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Familie aus <code>misc.txt</code></th><th>Normale Stufe</th><th>Makellose Stufe</th><th>Perfekte Stufe</th></tr></thead><tbody>
+        <tr><td>Amethyst</td><td><code>gsv</code></td><td><code>gzv</code></td><td><code>gpv</code></td></tr>
+        <tr><td>Rubin</td><td><code>gsr</code></td><td><code>glr</code></td><td><code>gpr</code></td></tr>
+        <tr><td>Saphir</td><td><code>gsb</code></td><td><code>glb</code></td><td><code>gpb</code></td></tr>
+        <tr><td>Topas</td><td><code>gsy</code></td><td><code>gly</code></td><td><code>gpy</code></td></tr>
+        <tr><td>Smaragd</td><td><code>gsg</code></td><td><code>glg</code></td><td><code>gpg</code></td></tr>
+        <tr><td>Diamant</td><td><code>gsw</code></td><td><code>glw</code></td><td><code>gpw</code></td></tr>
+        <tr><td>Schädel</td><td><code>sku</code></td><td><code>skl</code></td><td><code>skz</code></td></tr>
+      </tbody>
+    </table></div>
+    <p>Die 14 Zeilen heißen jeweils <code>3 Standard … -&gt; Flawless …</code> oder <code>3 Flawless … -&gt; Perfect …</code>. Bei Schädeln sind es <code>3 Standard Skulls -&gt; Flawless Skull</code> und <code>3 Flawless Skulls -&gt; Perfect Skull</code>. Die neun Runenzeilen reichen von <code>3 El Runes -&gt; Eld Rune</code> bis <code>3 Ort Runes -&gt; Thul Rune</code>; Zutaten <code>r01</code> bis <code>r09</code>, Outputs <code>r02</code> bis <code>r10</code>.</p>
+    <p>Der Generator akzeptiert für diese Allowlist ausschließlich <code>enabled=1</code>, <code>numinputs=3</code>, genau <code>input 1=&lt;code&gt;,qty=3</code>, leere weitere Zutaten und genau einen bekannten Outputcode ohne Modifikatoren. Zusätzliche Outputs, Bedingungen, Klassen-/Ladder-Bindungen oder abweichende Mengen brechen die Generierung mit Zeilenkontext ab. <code>version</code> ist hier 0 bei Gems/Skulls und 100 bei Runen; das ist ein CASC-Rezeptfeld, kein D2R-Prozessversionsgate. Alle beteiligten Itemcodes und Maße werden gegen den lokalen <code>misc.txt</code>-Katalog geprüft.</p>
+    <h3>Collection-Snapshot</h3>
+    <ul>
+      <li>Ein konsistenter World-Snapshot trägt den aktuellen gemeinsamen Speicherbereich mit Known-Flag, aktiven Truhenbereich mit Known-Flag und die benötigten Materialzahlen samt Verfügbarkeit. Basic (Persönlich/Gemeinsam) und Materials sind gültige Startbereiche für die Navigation; Materialaktionen benötigen den bestätigten Gems-/Runen-Zieltab. Die vorhandenen persönlichen Inventar-/Cube-Items belegen den getragenen Cube und seinen Inhalt. Ein eigenes Open-/Close-Feld für das Truhenraster ist nicht erforderlich.</li>
+      <li>Ein bestätigter leerer Slot ist bekannte 0. Ein nicht sichtbarer oder ungelesener Slot ist unknown. Fehlende Items oder leere normale Stat-Listen dürfen keine Collection-0 erfinden.</li>
+      <li>Scope unterscheidet die tatsächlich getrennten Offline-Speicherbereiche des unterstützten Clients. Der konkrete Read und dessen Semantik gehören in Gate 25.1. Kein aus Charaktername, Difficulty oder Save-Dateiname zusammengesetzter Ersatz.</li>
+      <li>Die vorgegebene Materialkapazität beträgt 99; Reads außerhalb <code>0…99</code> bleiben ungültig. Ein vorhandener sichtbarer Bestand dient zum Live-Abgleich der Quelle. Quelle, Ziel und Tab müssen aus demselben gültigen Snapshot stammen. Stale Daten, Prozesswechsel oder ein Scope-Wechsel widerrufen jeden Auftrag.</li>
+      <li>Die nach einem Transfer im Würfel erzeugten Units werden dort nach Code, Location und neuer UnitID gebunden. Ein Collection-Zähler ist keine einzelne Item-Unit.</li>
+    </ul>
+    <div class="callout success"><h3>Aktionsnachweise vollständig</h3><p>25.4 belegt Memory-Reads, Tab-/Zellkoordinaten, Cube-Raster, Linksklick-Transfers und Settle. In 25.8 sind Rechtsklick-Zutatenladen, Transmute und Rücklagerung für beide Gem-Stufen und El → Eld sowie die Navigation aus Persönlich/Gemeinsam live bestätigt. Das produktive Settle beträgt 300 ms; frische passende Memory-Evidenz bleibt vor jedem Materialklick erforderlich. Ein Screenshot oder Zeitdelay ersetzt keinen Spielzustand.</p></div>
+  </section>
+
+  <section id="planer">
+    <h2>5. Deterministische Batch-Planung</h2>
+    <p>Der Planer erzeugt vor dem ersten Transfer eine endliche Liste einzelner Drei-zu-eins-Rezepte. Er simuliert Bestände einschließlich aller Zwischenprodukte und hält für jeden Rezeptschritt die erwarteten Vorher-/Nachherzahlen fest. Kapazität 99 ist die vereinbarte Produktregel. Ihr Randverhalten wird automatisch geprüft; dafür muss kein Materialslot live gefüllt werden. Die vorhandenen Gems haben in <code>misc.txt</code> <code>maxstack=0</code>.</p>
+    <h3>Makelloses Material und niedrige Runen</h3>
+    <pre>Rezeptanzahl = min(floor(Quellbestand / 3), 99 - Zielbestand)
+Makellos: nur die gleiche perfekte Gem-/Skull-Familie als Ziel.
+Runen: nur die unmittelbar nächste Rune als Ziel.</pre>
+    <p>Es wird der maximal mögliche Batch des auslösenden Materials geplant. Danach bleibt im Würfel nichts liegen. Bei null Rezepten lautet das Ergebnis Speicher-voll. Vollständige perfekte Slots und volle Runenzielslots lösen keine weiteren Rezepte aus.</p>
+    <h3>Normales Gem-/Skull-Material</h3>
+    <ol>
+      <li>Wenn die perfekte Endstufe bereits 99 enthält, Auftrag ohne Materialinput mit Speicher-voll ablehnen.</li>
+      <li>Solange mindestens drei normale Einheiten vorhanden sind: Ist der makellose Slot voll, zuerst genau ein makellos → perfekt planen, sofern perfekt Platz hat. Dann normal → makellos planen. Ist der volle Zwischenplatz nicht freizumachen, diese Schleife beenden.</li>
+      <li>Danach makellos → perfekt planen, solange mindestens drei makellose Einheiten vorhanden sind und perfekt Platz hat. Vorhandene makellose Bestände derselben Familie dürfen dabei mitverarbeitet werden.</li>
+      <li>Den gesamten Plan nur freigeben, wenn er im ursprünglich blockierten Slot mindestens einen freien Platz schafft. Andernfalls Speicher-voll ohne Materialinput. Ein reines Verschieben des Problems ist kein Auftragserfolg.</li>
+    </ol>
+    <p>Bei Erreichen der perfekten Obergrenze während eines geplanten Batches dürfen normale oder makellose Reste liegen bleiben. Erfolg verlangt freien Platz für das blockierte Item, keine vollständige Leerung aller Stufen. Die andere Gem-Stufe darf dabei nie über 99 wachsen. Bei normalen Mengen bis 99 und makellosen Mengen bis 99 hat dieser Plan höchstens <code>33 + 44 = 77</code> Rezepte. Runen und direkt makellose Batches haben höchstens 33.</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Auslöser und Bestände vorab</th><th>Verbindliches Ergebnis vor Stash-Retry</th></tr></thead><tbody>
+        <tr><td>Makelloser Rubin 99, perfekt 0</td><td>33 Rezepte; makellos 0, perfekt 33.</td></tr>
+        <tr><td>Makelloser Rubin 99, perfekt 90</td><td>9 Rezepte; makellos 72, perfekt 99. Danach passt das blockierte Item.</td></tr>
+        <tr><td>Normaler Smaragd 99, makellos 0, perfekt 0</td><td>33 normale und 11 makellose Rezepte; normal 0, makellos 0, perfekt 11.</td></tr>
+        <tr><td>Normaler Smaragd 99, makellos 99, perfekt 0</td><td>Zwischenplatz zuerst freimachen; insgesamt 77 Rezepte; normal 0, makellos 0, perfekt 44.</td></tr>
+        <tr><td>Normaler Smaragd 99, makellos 99, perfekt 98</td><td>Ein makelloses Rezept und drei normale Rezepte; normal 90, makellos 99, perfekt 99. Originalslot hat Platz.</td></tr>
+        <tr><td>Normal oder makellos voll, perfekt bereits 99</td><td>Speicher-voll; keine Entnahme, kein Transmute.</td></tr>
+        <tr><td>El 99, Eld 90</td><td>9 Rezepte; El 72, Eld 99. Keine Eld-Verdichtung.</td></tr>
+        <tr><td>Ort 99, Thul 0 / Thul 99</td><td>33 Ort-Rezepte / Speicher-voll. Thul bleibt immer als Zutat ausgeschlossen.</td></tr>
+      </tbody>
+    </table></div>
+    <p>Der Plan berücksichtigt nur Collection-Zutaten. Das blockierte Inventaritem wird nicht selbst als Rezeptzutat verbraucht. Ein zweites gehaltenes Item derselben Familie wird anschließend über den normalen Stash-Scan verarbeitet. Nach erfolgreicher Platzbeschaffung darf dieser Scan niemals denselben bereits erfolglos wiederholten Trigger erneut in Crafting schicken.</p>
+  </section>
+
+  <section id="ablauf">
+    <h2>6. Ausführung pro Tick</h2>
+    <div class="flow" aria-label="Verdichtungsablauf">
+      <div class="node"><b>Überlauf bestätigen</b><small>Item, Scope, Rezept und Batch binden.</small></div>
+      <div class="node"><b>Materialtab auswählen</b><small>Gems oder Runen; aktiven Tab verifizieren.</small></div>
+      <div class="node"><b>Zutaten mit einem Rechtsklick laden</b><small>Quellzahl −3 und drei neue Cube-Units bestätigen.</small></div>
+      <div class="node"><b>Rezept genau einmal auslösen</b><small>Exakter Würfelinhalt; frisches Ergebnis.</small></div>
+      <div class="node"><b>Output zurücklagern</b><small>Zielzahl +1 und leerer Würfel.</small></div>
+      <div class="node"><b>Geplanten Batch fortsetzen</b><small>Neuer Rezeptindex, neue Unitbindungen.</small></div>
+      <div class="node"><b>Abschluss bestätigen</b><small>Cube leer und Truhe weiterhin offen.</small></div>
+      <div class="node"><b>Originalitem einlagern</b><small>Normalen Keep-Transfer verifizieren.</small></div>
+    </div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Zustand</th><th>Aktion und erlaubter Übergang</th><th>Gespeicherter Zustand</th></tr></thead><tbody>
+        <tr><td><code>preflight</code></td><td>Gültiges In-Game in Rogue Encampment, unterstützte Version und 1280×720, Stash offen, Inventar konsistent, Cube vorhanden und leer, kein Cursoritem. Trigger liegt unverändert als ungelocktes Keep-Item im Inventar. Erst dann Plan → Tabwahl.</td><td>Trigger-UnitID/-Code, Run-Generation, Scope, Materialfamilie, Rezeptplan, Ausgangsbestände.</td></tr>
+        <tr><td><code>select_tab / wait_tab</code></td><td>Ein absoluter Tabklick, sofern nötig; fresh aktive-Tab-Evidenz und belegtes Settle abwarten. → Zutaten laden.</td><td>Gesendeter Klick, Startzeit und Snapshot-Generation.</td></tr>
+        <tr><td><code>withdraw_ingredients / verify_withdrawal</code></td><td>Bei leerem Cube und mindestens drei bekannten Zutaten genau ein Strg+Shift+Rechtsklick auf die belegte Materialzelle. Erst ein frischer Snapshot mit Quellzahl −3 und exakt drei neuen passenden eigenen Cube-Units bestätigt den vollständigen Zutatensatz. → Inhalt prüfen. Unvollständige Bestätigung wartet höchstens das Aktionsbudget; kein weiterer Entnahmeklick und kein Auffüllen per Linksklick.</td><td><code>withdrawSent</code> vor dem Input setzen; Ausgangsbestand und Generation binden. Nach Bestätigung genau drei verschiedene Zutaten-UnitIDs und ihre gelesenen Cube-Zellen binden. Keine Annahme über Ablagereihenfolge oder erste Zelle.</td></tr>
+        <tr><td><code>verify_contents / transmute</code></td><td>Fresh Snapshot mit exakt den drei gebundenen Zutaten, gültigem Tab, getragenem Cube und gleichem Scope. Ein Klick auf den Transmute-Button in der Truhe → Ergebnis prüfen.</td><td><code>transmuteSent</code>, Rezeptindex und Generation vor dem Input.</td></tr>
+        <tr><td><code>verify_result</code></td><td>Alle drei Zutaten-Units sind verbraucht; exakt eine neue Unit mit geplantem Outputcode liegt im Cube. Partieller Verbrauch, fremde Unit oder unbekannte Evidenz führt zum Fehler. → Rücktransfer.</td><td>Neue Output-UnitID und Cube-Zelle. Verschwinden der Zutaten allein ist kein Erfolg.</td></tr>
+        <tr><td><code>store_output / verify_store</code></td><td>Genau ein Strg+Shift+Linksklick auf die gelesene Zelle der gebundenen Output-Unit im Cube. Fresh Snapshot bestätigt Zielzahl +1 und leeren Cube. → nächstes Rezept oder Abschluss.</td><td>Einmal-Markierung für den Rücktransfer, letzter verifizierter Bestand.</td></tr>
+        <tr><td><code>finish</code></td><td>Leeren Cube, freien Triggerplatz und weiterhin offene Truhe bestätigen. Ohne weiteren UI-Klick → Task-Stash-Retry.</td><td>Verifizierte Batch-Summe. Triggerbindung bleibt bis zum Retry erhalten.</td></tr>
+      </tbody>
+    </table></div>
+    <ul>
+      <li>Pro Tick höchstens eine Input-Transaktion. Ein atomarer Ctrl+Shift-Klick hält beide Tasten unter derselben Gameplay-Lease und gibt Maus sowie Modifier auch bei Fehlern wieder frei. Keine Kombination aus getrennten <code>PressKey</code>-Aufrufen.</li>
+      <li>Das Spiel bestimmt die Transfermenge des Rechtsklicks; Crafting bestätigt sie gegen den CASC-Rezeptkatalog. Alle 23 erlaubten Rezepte benötigen genau drei Zutaten. Der Hinweis auf automatisch zwei Zutaten bei höheren Runen erweitert weder Katalog noch Scope. Keine eigene Auswahl zwischen zwei und drei, keine Entnahmeschleife und kein Linksklick-Fallback.</li>
+      <li>Jede Verifikation verlangt eine neuere gültige Snapshot-Generation als der auslösende Input. Wiederholte oder ungültige Frames erzeugen weder Erfolg noch weitere Eingaben.</li>
+      <li>Entnahmen, Transmute und Rücktransfer werden bei unklarem Ergebnis nicht erneut gesendet. Jede Rezeptinstanz hat eigene Einmal-Markierungen; der nächste Rezeptindex ist erst nach verifiziertem Rücktransfer zulässig.</li>
+      <li>Unverändert volle Fenster, Bestandsdrift, Fokusverlust, Scope-/Prozesswechsel oder fremder Cube-Inhalt widerrufen die Freigabe. Zeitbudgets laufen weiter, während Evidenz fehlt.</li>
+      <li>Jede Aktionsbestätigung hat maximal 3 Sekunden aktive Wartezeit; ein vollständiger Auftrag maximal 240 Sekunden aktive Zeit. Diese zentralen Codekonstanten sind keine Charaktersettings. Das belegte Layout-Settle wird separat in Gate 25.4 festgelegt.</li>
+      <li>Pause nutzt den bestehenden aktiven Task-Zeitvertrag und sendet keinen Input. Resume liest alle offenen Bestätigungen erneut; <code>withdrawSent</code>, <code>transmuteSent</code> und die Rücktransfer-Markierung bleiben erhalten. Not-Stopp beendet Input sofort, ohne Cleanup-Klicks.</li>
+      <li>Bei Fehlern bleiben Zutaten oder Output gegebenenfalls im Würfel. Kein automatisches Zurückrollen, Droppen, Wiederholen oder neuer Cow-Start. Die Session meldet gegebenenfalls „Bitte prüfe den Horadrimwürfel.“. Reset löscht Softwarezustand, keine Spielitems.</li>
+    </ul>
+  </section>
+
+  <section id="integration">
+    <h2>7. Einbindung in Stash, Session und Telemetrie</h2>
+    <ol>
+      <li><code>StashResult</code> erhält eine strukturierte Fehlerursache. Nur <code>verify_timeout</code> bei unverändertem Item und bestätigtem vollen Materialslot darf einen Compaction-Request ergeben. <code>target_changed</code>, <code>policy_changed</code>, Inputfehler und unsichere Grids bleiben Fehler.</li>
+      <li>Die bestehende App-Adapterstelle <code>TickStash</code> übergibt einen gebundenen Request an den gemeinsamen Task-Return-Zustand. Ein Request bestätigt keinen Stash-Erfolg. Andere Itemtypen folgen dem bisherigen Verhalten.</li>
+      <li>Der gemeinsame Ablauf wählt bei diesem Request den neuen Step <code>compact_storage</code> und nach dessen Erfolg erneut <code>stash_items</code>. Countess, Mephisto, Summoner, Nihlathak, Cows, Lower Kurast und isolierte Stash-/Loot-and-return-Phasen verwenden dieselbe Implementierung; keine Cow-Sonderlösung.</li>
+      <li>Der neue Step verwendet maximal 240 Sekunden aktive Zeit statt des allgemeinen 45-Sekunden-Defaults. Ein nachfolgender normaler Stash-Step erhält seinen gewöhnlichen Timeout. Ein bestehender Stash-Wartezustand darf während der Verdichtung keine zweite Transaktion senden.</li>
+      <li>Pro Stash-Besuch ist jede Trigger-UnitID höchstens einmal für Compaction zulässig. Nach einem Batch wird der ursprüngliche Keep-Kandidat erneut geprüft und über den normalen Executor eingelagert. Ein erneuter Fehlschlag derselben Unit beendet den Ablauf; andere Kandidaten dürfen einen eigenen Auftrag starten.</li>
+      <li>Der zentrale Run-Reset räumt Crafting-Dependency, Pending-Request und Trigger-Historie auf. Ein gewöhnlicher Step-Wechsel löscht keine noch benötigte Bindung. Not-Stopp, Game-/Prozesswechsel und neue Run-Generation können einen halbfertigen Auftrag niemals übernehmen.</li>
+    </ol>
+    <h3>Beobachtbarkeit ohne neue Einstellungsfläche</h3>
+    <p><code>compact_storage</code> gehört zur bestehenden History-Stage <code>return_town</code>. Das Dashboard kann weiterhin „Truhe“ anzeigen. Die bestehende Session-Übersicht erhält auf Operatorwunsch eine eigene aufklappbare Kategorie „Verdichtet“. Konfigurierbare Policies und ein Crafting-Dashboard bleiben aus. Lokalisierte Fehlertexte mit Itembezug sind erforderlich.</p>
+    <p>Log und JSONL erfassen <code>storage_compaction_started</code>, bestätigte Rezeptzyklen und <code>storage_compaction_completed</code> beziehungsweise <code>storage_compaction_failed</code>. Felder enthalten Triggercode/-UnitID, Rezeptschlüssel, Quell-/Zielcode, verifizierte Mengen, Rezeptindex und Reason. Pro Input nennt das strukturierte Log Aktion, Zweck und Ergebnis. Ein fehlgeschlagener verpflichtender Telemetrie-Emit blockiert den nächsten Input.</p>
+    <p>Compaction-Outputs sind keine Drops oder Pickups. Ihre Rücktransfers erzeugen kein <code>stash_success</code> für neu gefarmten Loot und erhöhen weder Keep-Ausbeute noch Farming-Durchsatz. Nur das nach dem Batch normal eingelagerte Triggeritem erhält seine bestehende Pickup-/Stash-Kette.</p>
+    <h3>Replay-Grenze</h3>
+    <p>Neue World-Felder und die neue Task-Dependency werden in <code>internal/replay</code> normalisiert, aufgezeichnet und decodiert. Fehlt Collection-Evidenz im Trace, bleibt sie unknown. Der vorhandene Task-Replay prüft Übergänge, Requests und Dependency-Antworten; er führt nicht automatisch die intern aufgezeichneten Crafting-Entscheidungen erneut aus. Deren Reihenfolge wird zusätzlich mit demselben produktiven Crafting-Executor gegen kleine World-Frame-Folgen und einen protokollierenden Fake-Input geprüft. Keine angebliche Transmute-Abdeckung durch bloßes Replay eines fertigen Success-Results.</p>
+    <p>Für einen zeitlichen Live-Fehler <code>--runtime-trace-capture</code> verwenden, den relevanten Frame-Verlauf in ein bereinigtes Executor-Fixture überführen und nach einer Korrektur gezielt live prüfen. Die bestehende opt-in Aufnahme- und Speicherpolicy bleibt erhalten; insbesondere wird ein erfolgreicher Lauf nicht allein durch das Capture-Flag automatisch persistiert.</p>
+  </section>
+
+  <section id="fehler">
+    <h2>8. Fehlervertrag und minimale UI-Änderung</h2>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Reason</th><th>Auslöser und Verhalten</th><th>Deutscher Operator-Text</th></tr></thead><tbody>
+        <tr><td><code>storage_gem_full</code></td><td>Perfekte Endstufe bereits voll, blockiertes perfektes Gem/Skull oder kein kapazitätssicherer Gem-Plan. Kein Materialinput.</td><td>„Edelsteinlager für {item} ist voll. Bitte schaffe Platz in der Truhe.“</td></tr>
+        <tr><td><code>storage_rune_full</code></td><td>Nächste Runenstufe voll oder voller Runenslot ohne freigegebenes Rezept. Keine rekursive Rune-Compaction.</td><td>„Runenlager für {item} ist voll. Bitte schaffe Platz in der Truhe.“</td></tr>
+        <tr><td><code>storage_state_unavailable</code></td><td>Benötigter Bestand, Tab, persönlicher Cube oder Scope nicht konsistent lesbar. Keine geratenen Eingaben.</td><td>„Der Inhalt der Materialtruhe konnte nicht sicher gelesen werden.“</td></tr>
+        <tr><td><code>storage_cube_not_empty</code></td><td>Würfel bei Preflight belegt oder Cursor trägt ein Item. Vor Entnahme stoppen.</td><td>„Bitte leere den Horadrimwürfel und lege das Item am Mauszeiger ab.“</td></tr>
+        <tr><td><code>storage_compaction_unconfirmed</code></td><td>Gesendete Aktion unbestätigt, unerwarteter Bestand, falscher Inhalt, Scope-Wechsel oder partieller Rezeptverbrauch. Keine Wiederholung.</td><td>„Die Verdichtung konnte nicht sicher abgeschlossen werden. Bitte prüfe Truhe und Horadrimwürfel.“</td></tr>
+        <tr><td><code>storage_compaction_timeout</code></td><td>240-Sekunden-Auftragsbudget erschöpft. Kein neues Rezept und kein Folgeversuch.</td><td>„Die Verdichtung hat zu lange gedauert. Bitte prüfe Truhe und Horadrimwürfel.“</td></tr>
+        <tr><td><code>stash_failed</code></td><td>Sonstiger Stash-Fehler oder erfolgloser Transfer nach bereits bestätigter Compaction.</td><td>„{item} konnte nicht in die Truhe gelegt werden.“; ohne Itemkontext allgemeiner Truhentext.</td></tr>
+      </tbody>
+    </table></div>
+    <p>Strukturierter Fehlerkontext enthält den ursprünglichen Triggercode und, bei vollem Ziel, den tatsächlich vollen Materialcode. Task-Ergebnis, Session-Status, JSONL, API und bestehende History-/Dashboard-Presenter müssen diesen Kontext erhalten. Die UI lokalisiert Itemcodes über den vorhandenen Game-Katalog; sie baut keinen Text durch Zerlegen englischer Itemnamen. Derselbe Reason bekommt eine englische Übersetzung. Bei Schädeln wird ein passender Materialname eingesetzt.</p>
+    <p>Speicher-voll und unbestätigte Compaction sind terminale Sessionfehler. Sie werden nicht in Phase-24-Retry-Listen aufgenommen. Kein Save-&amp;-Exit-Neustart behebt einen gemeinsam vollen Slot. Der Operator räumt seinen Speicher selbst auf.</p>
+  </section>
+
+  <section id="gates">
+    <h2>9. Sequenzielle Gates</h2>
+    <p>Jedes Gate beginnt erst nach dem belegten Erfolg des vorherigen. Auto bedeutet gezielte Tests oder Generator ohne D2R. Live bedeutet einen kontrollierten Offline-Versuch auf dem unterstützten Client mit vorbereitetem Spielzustand. Der jeweilige Umsetzungsauftrag bestimmt die autorisierten Live-Schnitte; eine bestehende Autorisierung wird nicht erneut abgefragt. Fehlt ein benötigter Zustand oder Capture, wird er konkret benannt und das Gate bleibt offen. Vorbereitende Diagnosearbeit ist innerhalb des aktuellen Gates erlaubt.</p>
+    <p>Manuelle Tests verwenden den vorhandenen Spielbestand. Für den Bestandsread reicht ein Capture mit einem konkreten sichtbaren Vergleichswert. Mengen 0/1/98/99, volle Zwischen-/Zielslots und seltene Fehler werden mit automatisierten Fixtures geprüft. Layoutaufnahmen benötigen keine befüllten Zellen; die Kalibrierung und Auswertung übernimmt der Agent. Ein zusätzlicher Capture wird nur für einen benannten fehlenden Read oder UI-Anker angefordert. Bereits vorhandene Belege werden wiederverwendet.</p>
+    <p>Ein Gate-Nachweis nennt Datum, geprüften Commit oder lokalen Diffstand, exakten Befehl, Pass/Fail und relevante Artefaktpfade. Ausgeführte Nachweise stehen in standardmäßig geschlossenen <code>details</code>-Bereichen; Status und Abschlusskriterium bleiben sichtbar. Reads und Koordinaten werden erst nach ihrem Beleg festgeschrieben. KISS gilt auch für die Validierung: eine gezielte Prüfung pro abgeschlossenem Änderungsschnitt. Bestehende Tests anpassen, denselben Vertrag nicht nochmals als Smoke-, Integrations- und Regressionstest nachbauen. Wiederholung nur nach Fehler oder relevanter neuer Änderung. Kein Gesamtlauf oder Release-Build.</p>
+    <p>Neue und geänderte exportierte Go-Symbole erhalten im jeweiligen Gate sofort Godoc. Invarianten und State-Übergänge werden direkt am relevanten Code dokumentiert. 25.9 prüft die Vollständigkeit; es verschiebt diese Pflicht nicht ans Phasenende.</p>
+
+    <article class="gate" id="gate-25-0"><div class="gate-id">25.0<span class="badge">AUTO · BESTANDEN</span></div><div>
+      <h3>CASC-Rezepte und reproduzierbarer Diagnoseeinstieg</h3>
+      <ol><li>Generator und minimales <code>internal/crafting</code>-Katalogmodell anlegen. Genau die 23 Rezepte aus Abschnitt 4 generieren und gegen <code>misc.txt</code> prüfen. Kleine quellgetreue Fixtures mit stabilen Zeilenschlüsseln einchecken.</li><li>Einen read-only <code>--storage-inspect</code>-Diagnoseeinstieg über bestehende Probe-/UI-Capture-Muster hinzufügen. Er sendet keinen Input und erfasst vorhandene Item-, UI- und benötigte begrenzte Forschungsdaten mit Capture-Label und Prozessversion. Noch keine vermeintlich bekannten Collection-Felder erzeugen.</li><li>Aus dem realen Logfall einen kleinen bestehenden-Stash-Test ableiten: unverändertes Gem nach drei Versuchen, Ursache <code>verify_timeout</code>. Dieser Test dokumentiert den heutigen Ausgangspunkt, noch keine erfolgreiche Recovery.</li></ol>
+      <p class="proof"><strong>Bestanden:</strong> Genau 14 Gem-/Skull- und 9 Runenrezepte, keine unzulässigen Zeilen; negative Generatorfälle lehnen zusätzliche Zutaten und Outputs ab. Diagnose läuft ohne Input. Der Stash-Ausgangspunkt ist deterministisch reproduzierbar. Nur betroffene Generator-/Loot-/App-Checks ausführen.</p>
+      <details class="callout success">
+        <summary>Nachweis vom 30. September 2026 · bestanden</summary>
+        <p>Geprüft wurde der lokale, nicht committete Gate-25.0-Code auf Basis von <code>40c840ded21951cd3a7bce3bf54155b53b97b453</code>. Manifest und Build liegen unter <code>.tmp/phase25/verification.json</code> und <code>.tmp/phase25/d2rbot.exe</code>. Der SHA-256 des Code-Manifests lautet <code>d1d6a507c73312d9e58e78f63e7bc648422b0f5387e9eb3bb1647eeea7751c92</code>, der EXE-SHA-256 <code>03032e39c4231ed9fec75e8ec78e640f21bc81198211d20642259b8d8a8a9790</code>. Das Manifest bindet die sortierten Code-/Fixture-Pfade und ihre Datei-Hashes; Dokumentationsänderungen gehören nicht in diesen Code-Hash.</p>
+        <pre>go generate ./internal/crafting
+go test -count=1 ./tools/generate-crafting-catalog ./internal/crafting
+go test -count=1 ./internal/loot -run 'TestStash'
+go test -count=1 ./internal/app -run 'Test(StorageInspect|ValidateRunMode|ResolveActiveRun|SessionExecutionRequested|CharacterLoadoutRequired|ResolveRunsInspect|WaypointTargetsInspect)'
+go test -count=1 ./cmd/d2rbot -run 'Test(StorageInspect|ShouldRunSession|ValidateDesktopMode|RuntimeReplayMode)'
+go build -o .tmp/phase25/d2rbot.exe ./cmd/d2rbot</pre>
+        <p>Alle Befehle bestanden, jeder gezielte Testlauf genau einmal. Der CLI-Help-Smoke bestätigt beide neuen Flags. Keine Gesamtsuite, kein Release-/Installer-Build und kein Live-Capture ausgeführt.</p>
+        <ul>
+          <li>Die vollständigen lokalen CASC-Dateien erzeugen denselben Katalog wie die 23 unveränderten Rezept- und 31 Item-Fixturezeilen. Zusätzliche Zutaten, beide zusätzlichen Outputs, Mengenabweichungen, Modifikatoren, Bedingungen, Klasse, Ladder-Bindung, deaktivierte Rezepte, Versionen sowie ungültige Itemmaße werden abgelehnt.</li>
+          <li><code>TestStashFlawlessRubyLogBaselineThreeUnchangedAttempts</code> bestätigt Unit <code>809</code>, <code>glr</code>, Zelle <code>9,2</code>, drei Ctrl-Klicks auf <code>1160,451</code> und genau einen terminalen <code>verify_timeout</code>. Er ergänzt keine Recovery und behauptet keinen 99er-Zähler.</li>
+          <li>Die Diagnose läuft in einem Test mit nicht vorhandenem Input-Controller und Task-Runner. Sie unterdrückt auch konfigurierte Runs/Queues und übernimmt die tatsächliche Prozessversion statt der konfigurierten Version. Forschungslesefehler und Abbruch ohne Samples bleiben sichtbar; publizierte Daten besitzen eigene Kopien.</li>
+          <li>Zwölf gültige Samples enthalten bestehende Item-/UI-Evidenz, getrennte Item-Statlisten und das vorhandene 64-KiB-Forschungsfenster. Die Zusatzreads sind sequenziell. <code>ui_unchanged</code> belegt nur gleiche UI-Bytes; Collection-Counts, Tab und Scope bleiben unvalidiert.</li>
+        </ul>
+        <p>Die <a href="../features/storage-compaction.md">Feature-Dokumentation</a>, ihr Index und ein eng gefasster Unreleased-Eintrag beschreiben bereits dieses neue Paket und den Diagnosemodus. Die vollständigen Verhaltens-/Architektur-Nachträge aus 25.9 bleiben dort; spätere Gates wurden nicht implementiert.</p>
+      </details>
+    </div></article>
+
+    <article class="gate live" id="gate-25-1"><div class="gate-id">25.1<span class="badge">LIVE · BESTANDEN</span></div><div>
+      <h3>Einen vorhandenen Bestand read-only abgleichen</h3>
+      <ol><li>Gems-Tab mit dem vorhandenen Bestand öffnen und genau einen <code>--storage-inspect</code>-Capture aufnehmen. Der mitgelieferte Screenshot ist die Referenz.</li><li>Der Agent identifiziert die tatsächliche Collection-Memory-Quelle und liest den Vergleichswert aus: <strong>normaler Rubin, Code <code>gsr</code>, Bestand 22</strong>. Ändert sich der Bestand bis zur Aufnahme, gilt die dann sichtbare Menge mit passendem Screenshot.</li><li>Der Agent dokumentiert Quellstruktur, Verfügbarkeit, Gems-Tab und Speicherkontext. Fehlende Runen-/Tab-Evidenz bleibt ausdrücklich unbekannt und wird bei ihrem ersten Einsatz in 25.4 gezielt ergänzt. Raster und Familienzuordnung stammen aus dem Bild, keine Zelle muss dafür gefüllt werden.</li></ol>
+      <p class="proof"><strong>Bestanden:</strong> Der konkrete sichtbare Rubinbestand wird aus der belegten Collection-Quelle korrekt ausgelesen. Gewöhnliche Item-Quantity oder ein zufälliger gleicher Rohwert zählen nicht als Beleg. Ein Capture genügt; zweite Charaktere, Transfers, weitere Materialarten und künstliche Grenzbestände gehören nicht zu diesem Gate.</p>
+      <details class="callout warn">
+        <summary>Testanleitung und vorhandener Screenshot · eine Aufnahme</summary>
+        <p>Die Desktop-App und andere Bot-Cores vollständig beenden. D2R manuell in ein Offline-Spiel betreten, in der Stadt stehen und den Client auf 1280×720 stellen. Die EXE stammt aus 25.0; sie sammelt zwölf Samples und beendet sich selbst. Bei Bedarf bricht <code>Ctrl+C</code> ab. Keine Game-Dateien oder Spielstände zur Vorbereitung verändern.</p>
+        <pre>Set-Location D:\CSharpProjekte\D2R-Offline-Farming-Bot
+&amp; .\.tmp\phase25\d2rbot.exe `
+  --data-root "$env:LOCALAPPDATA\D2ROfflineFarmingBot" `
+  --storage-inspect gems-current-stock</pre>
+        <p>Während der kurzen Aufnahme den vorhandenen Gems-Tab unverändert lassen. Die zwölf internen Samples stammen aus demselben Zustand und erfordern keine zwölf manuellen Tests.</p>
+        <figure><img src="assets/phase-25-gems-current-stock.png" width="342" height="227" alt="Vorhandener Gems-Tab mit 22 normalen Rubinen in der dritten Spalte und dritten Zeile"><figcaption>Operator-Screenshot vom 1. Oktober 2026. Normaler Rubin: dritte Spalte, dritte Zeile, sichtbarer Bestand 22. Das Bild belegt die sichtbare Menge und relative Slotordnung; der Ausschnitt liefert keine absoluten Clientkoordinaten und noch keinen Memory-Nachweis.</figcaption></figure>
+        <p>Das JSON liegt unter <code>%LOCALAPPDATA%\D2ROfflineFarmingBot\configs\diagnostics\storage\*.json</code>. Der Diagnosepfad wird relativ zur geladenen Konfigurationsdatei aufgelöst; das Log nennt den vollständigen Pfad. Bei unverändertem Bestand reicht der vorhandene Screenshot dazu. <code>completion=complete</code> bezeichnet die vollständige Aufnahme, nicht den erfolgreichen Bestandsread.</p>
+        <p><strong>Stop-Regel:</strong> Ist die Collection-Quelle mit diesem Capture nicht eindeutig zuordenbar, wird die konkret fehlende read-only Evidenz benannt. Keine Mengenmatrix als pauschaler Folgeauftrag und kein geratener Count. 25.2 beginnt erst nach dem erfolgreichen konkreten Bestandsabgleich.</p>
+      </details>
+      <details class="callout success">
+        <summary>Nachweis vom 1. Oktober 2026 · 22 normale Rubine korrekt gelesen</summary>
+        <p>Der Operator führte den oben angegebenen Befehl mit der unveränderten Gate-25.0-EXE aus. <code>d2rbot-20261001-003547.log</code> bestätigt zwölf vollständige Samples, D2R <code>3.2.92777</code> und deaktivierten Input. Artefakt: <code>%LOCALAPPDATA%\D2ROfflineFarmingBot\configs\diagnostics\storage\20260930T223547.750120100Z-gems-current-stock.json</code>. Lokaler Code weiterhin auf Basis von <code>40c840ded21951cd3a7bce3bf54155b53b97b453</code>.</p>
+        <p>Die normalen Item-Statlisten waren leer und <code>Quantity=0</code>. Der Agent ergänzte deshalb im selben laufenden Prozess eine begrenzte read-only Aufnahme der vorhandenen Collection-Units und ihrer direkten Daten-/Inventarstrukturen, ohne weitere Vorbereitung durch den Operator.</p>
+        <pre>go run ./.tmp/phase25/storage-research</pre>
+        <p>Die Rohaufnahme <code>.tmp/phase25/storage-raw-research.json</code> und die Auswertung <code>.tmp/phase25/gate25-1-analysis.json</code> bleiben lokal. SHA-256 der Rohaufnahme: <code>2cb44a5622feed9bee2d436b01810db1d06ef531b7d03b3b3b521ae310acfe75</code>. Der Probe-Helfer öffnet ausschließlich den bestehenden Read-Handle, prüft PID <code>9012</code>, Prozessversion und offenen Stash und importiert keinen Input.</p>
+        <ul>
+          <li><code>ItemData+0x9C</code>, ein Little-Endian-<code>uint32</code>, liefert für <code>gsr</code> / Unit <code>142</code> genau <code>22</code>. Die separat gebundenen <code>glr</code>- und <code>gpr</code>-Einträge liefern <code>97</code> und <code>5</code>, passend zum vorhandenen Bild. Auch die 35 bestehenden Gem-/Skull-Einträge besitzen diese Struktur. Es wurde kein beliebiger Rohwert 22 ausgewählt.</li>
+          <li>Die Collection-Proxies haben <code>RawLocation=0</code>, <code>Page=4</code> und <code>OwnerID=0xFFFFFFFF</code>. <code>ItemData+0xA0</code> verweist auf denselben Inventarbereich; <code>+0xA8/+0xB0</code> verknüpfen Vorgänger und Nachfolger.</li>
+          <li>Der Inventarheader enthält Signatur <code>0x01020304</code>, Owner-Unit-Pointer bei <code>+0x08</code>, erstes/letztes Item bei <code>+0x10/+0x18</code> und Anzahl bei <code>+0x4C</code>. Die 75 Nodes, beide Listenenden und sämtliche Rückverweise stimmen überein. Owner-Unit <code>7</code> verweist über ihr normales Inventory-Feld zurück auf denselben Bereich.</li>
+          <li>Der belegte Scope ist die aktuelle Collection-Inventarinstanz im gebundenen Spielprozess. Adresse und Owner-ID dieses Captures sind keine Konstanten und kein dauerhaftes Charakter-/Hardcore-/Savegame-Kennzeichen. Kein Cache über Spiel- oder Prozesswechsel.</li>
+          <li>Der Screenshot belegt den geöffneten Gems-Tab und seine relative Slotordnung. Ein Memory-Read für den aktiven Tab ist weiterhin unbekannt. Die gezielte UI-Kalibrierung erfolgt vor den ersten Materialaktionen in 25.4. Runen-Counts werden bis zu ihrem dortigen Abgleich nicht freigegeben.</li>
+        </ul>
+        <p><strong>Pass:</strong> Der verlangte konkrete Bestandsabgleich ist erfüllt. Für 25.2 werden ausschließlich der belegte Gem-/Skull-Zähler und die aktuelle Inventarinstanz übernommen; unkalibrierte UI- und Runenfelder bleiben unknown.</p>
+      </details>
+    </div></article>
+
+    <article class="gate" id="gate-25-2"><div class="gate-id">25.2<span class="badge">AUTO · BESTANDEN</span></div><div>
+      <h3>Semantische Collection-Evidenz verdrahten</h3>
+      <ol><li>Nur die belegten Reads aus 25.1 in Memory aufnehmen und mit Known-Flags in World projizieren. Noch unbelegte Runen-/Tab-Felder bleiben unknown; konkret benötigte Erweiterungen folgen mit ihrer Kalibrierung in 25.4.</li><li>Eine kleine automatisierte Fixture-Matrix deckt den belegten Bestandswert, 0/1/98/99, fehlende Daten, widersprüchliche Counts, Scope-/Tabwechsel und stale Snapshot ab. Diese Grenzfälle benötigen keinen entsprechenden Live-Spielbestand. Gewöhnliche Item-Quantity bleibt unabhängig.</li><li>Neue Felder in Replay-Normalisierung und Decoder aufnehmen. Unbekannte Evidenz bleibt beim Roundtrip unbekannt; fehlende Felder alter Traces werden nicht ergänzt.</li></ol>
+      <p class="proof"><strong>Bestanden:</strong> Memory → World → Trace → World erhält alle erforderlichen Werte und Known-Flags. Kein fehlender Read wird zu 0 oder zur Inputfreigabe. Kleinste Memory-, World- und Replay-Tests grün.</p>
+      <details class="callout success">
+        <summary>Nachweis vom 1. Oktober 2026 · Mapper, Replay und aktueller Bestand bestanden</summary>
+        <p>Lokaler Gate-25.2-Diff auf Basis <code>40c840ded21951cd3a7bce3bf54155b53b97b453</code>. Der geprüfte Windows-Build ist als <code>.tmp/phase25/d2rbot-gate25-2.exe</code> erhalten, SHA-256 <code>F13386CA4E8CC3A9A602890BE1C95AFC4E2DB72AFDEC2E7FEF0D6FDED676D944</code>. Manifest <code>.tmp/phase25/gate25-2-verification.json</code>, Code-Manifest-SHA-256 <code>c34b3fd70af19ad6e82b18f8d740754a2db0431b2b3b57179abeb09bc62d23d6</code>.</p>
+        <pre>go test -count=1 ./internal/memory ./internal/world ./internal/replay ./internal/app -run 'Test(CollectionStorage|StorageInspect)'
+go test -count=1 ./internal/memory ./internal/world -run 'TestCollectionStorage'
+go test -count=1 ./internal/memory ./internal/app -run 'Test(CollectionStorage|StorageInspect)'
+go build -o .tmp/phase25/d2rbot.exe ./cmd/d2rbot
+&amp; .\.tmp\phase25\d2rbot.exe --data-root "$env:LOCALAPPDATA\D2ROfflineFarmingBot" --storage-inspect gems-mapped-stock</pre>
+        <p>Der erste Testlauf fand einen falschen Test-Logger und überlappende Einzelwrites im Fixture-Mock. Nach deren Korrektur bestanden Memory und World. Der letzte gezielte Lauf prüfte zusätzlich die tatsächliche Prozessversion und defensive Kopien der Diagnose. Replay bestand im ersten Lauf unverändert. Kein Gesamtlauf und keine Spieleingaben.</p>
+        <ul>
+          <li>Die eigene Collection-Enumeration verwendet nicht die fail-open Itemliste. Sie bestätigt Owner, Signatur, Listengrenzen und jeden Rückverweis, liest die vollständige Liste zweimal und widerruft Counts bei Drift, Lesefehlern oder geändertem UI-Kontext.</li>
+          <li>Der Scope ist ein undurchsichtiger Vergleichsschlüssel der aktuellen Inventarinstanz. World und Replay enthalten keine Memory-Adressen. Fehlende Einträge bleiben unknown; bekannte 0 stammt ausschließlich von einem gelesenen Proxy.</li>
+          <li>Die minimierte echte Aufnahme unter <code>internal/memory/testdata/collection-gems-stock.json</code> belegt das Zählerfeld. Die automatische Matrix prüft 22 und 0/1/98/99, ungültige Werte, beschädigte Links, Scope-Wechsel, veränderte Counts, stale Generation und Reset. Die Herkunft und Pointer-Bereinigung stehen beim Fixture.</li>
+          <li>Nur die sieben Gem-/Skull-Typen aus dem bestehenden CASC-Katalog werden als bekannte Materialbestände gemappt. Rune-Counts und aktiver Tab bleiben unknown.</li>
+          <li>Runtime-Trace-Schema 2 erhält Counts und Verfügbarkeit. Schema 1 bleibt gemäß Plan ohne Collection-Evidenz lesbar; eine Datei der alten Version darf keine neuen bekannten Collection-Felder einschleusen.</li>
+          <li>Der Agent prüfte den neuen Mapper read-only im bereits offenen Gems-Tab. <code>20260930T230430.584217000Z-gems-mapped-stock.json</code> unter dem installierten <code>configs/diagnostics/storage/</code> enthält zwölf Samples mit <code>gsr=22</code>, jeweils gleichem Scope und unbekannten Runen-/Tab-Feldern. Die damals zusätzlich vorgesehenen Cube-Open-Felder wurden nach der UI-Klarstellung entfernt. Log <code>d2rbot-20261001-010430.log</code>.</li>
+        </ul>
+      </details>
+    </div></article>
+
+    <article class="gate" id="gate-25-3"><div class="gate-id">25.3<span class="badge">AUTO · BESTANDEN</span></div><div>
+      <h3>Atomarer Modifier-Klick und Collection-Aktionen</h3>
+      <ol><li>Controller um einen atomaren positionierten Ctrl+Shift-Klick erweitern, mit derselben Lease-, Fokus-, Logging- und Cleanup-Semantik wie <code>ClickAtWithModifier</code>. Fehler beim Freigeben müssen Input stoppen.</li><li>In Loot eine kleine Collection-Aktionsimplementierung für Tabwahl, Sourcezelle, eingebettete Cube-Zelle und Transmute anlegen. Nur belegte Koordinaten hinterlegen; noch fehlende Kalibrierung sperrt den betreffenden Input und wird in 25.4 ergänzt. Tests verwenden injizierte Layout-Fixtures.</li><li>Auflösung, Scope, aktiver Tab und getragenen Cube vor jeder Aktion prüfen. Vor dem ersten Zellklick mindestens einen frischen Snapshot nach Tabwahl und das tatsächlich belegte Settle abwarten. Die Live-Kalibrierung gehört in 25.4.</li></ol>
+      <p class="proof"><strong>Bestanden:</strong> Tests beweisen Eingabereihenfolge und Release beider Modifier bei Teilfehlern, Fokusverlust ohne Klick und UI-Revoke ohne Materialinput. Loot enthält keine Recipe-/Batch-Entscheidung. Betroffene Input-/Loot-Tests und kleinster Windows-Build grün.</p>
+      <details class="callout success">
+        <summary>Nachweis vom 1. Oktober 2026 · Eingabeaktionen und Sperren bestanden</summary>
+        <p>Ursprünglicher Gate-25.3-Diff auf Basis <code>40c840ded21951cd3a7bce3bf54155b53b97b453</code>. Beide gezielten Pakete und der Windows-Build bestanden im ersten Lauf. Manifest <code>.tmp/phase25/gate25-3-verification.json</code>, Code-Manifest-SHA-256 <code>bca31f34f29f369e55da2984e259379a737123578df0dc3d7a0cb432025c0980</code>. Damalige EXE als <code>.tmp/phase25/d2rbot-gate25-3.exe</code> erhalten, SHA-256 <code>3903816B4208F9F7D3C06850A0BEB593B3AA18475B38F1D68FA9BBFD4E2B9C67</code>. Die anschließende Korrektur des Truhen-Würfels steht im nächsten Nachweis.</p>
+        <pre>go test -count=1 ./internal/input ./internal/loot -run 'Test(PositionedClick|CollectionActions)'
+go build -o .tmp/phase25/d2rbot.exe ./cmd/d2rbot</pre>
+        <ul>
+          <li><code>ClickAtWithCtrlShift</code> hält Bewegung, beide Modifier und einen Klick unter derselben Gameplay-Lease. Tests bestätigen die Reihenfolge und das Freigeben beider versuchten Tasten auch nach Teilfehlern. Ein Releasefehler stoppt weiteren Input.</li>
+          <li>Fokus und Safety werden vor Bewegung und erneut vor dem Mausklick geprüft. Pause, Stop, deaktivierter Input oder veränderte Fenstergröße verhindern den Klick. <code>ClickAt</code> verwendet denselben Vertrag für Tab-/Button-Aktionen.</li>
+          <li><code>loot.CollectionActions</code> prüft Scope, aktuelle Generation, bekannten Tab, getragenen Cube, Cursor, Town-/UI-Kontext und 1280×720. Nach Tabwahl müssen ein neuerer Snapshot und das kalibrierte Settle vorliegen. Ein Senderfehler gibt dieselbe Generation nicht für einen zweiten Klick frei.</li>
+          <li>Rückgabe und Transmute verlangen konkrete Cube-Unitbindungen. Reset sendet keinen Input. Rezeptwahl, Batch-Planung und Erfolgsverifikation gehören weiterhin zum späteren Crafting-Executor.</li>
+          <li>Alle Layout-Fixtures sind synthetisch. <code>DefaultCollectionLayout()</code> enthält keine Koordinaten und kein Settle. Die produktiven Aktionen bleiben gesperrt und sind noch nicht in Farming verdrahtet. Es wurde kein Live-Input ausgeführt.</li>
+        </ul>
+      </details>
+      <details class="callout success">
+        <summary>Korrektur vom 1. Oktober 2026 · eingebetteter Truhen-Würfel</summary>
+        <p>Nach der Operator-Klarstellung wurden <code>EmbeddedCubeOpen/Known</code> aus World/Replay, die Tab-Modusvariante und <code>CloseCube</code> samt Schließen-Koordinate entfernt. Die vorhandenen Inventaritems belegen jetzt den eigenen Cube über CASC-Code <code>box</code>. Collection-Aktionen greifen ausschließlich auf das eingebettete Raster und den Transmute-Button zu. Kein Öffnen oder Schließen des Inventar-Cubes.</p>
+        <pre>go test -count=1 ./internal/loot ./internal/world ./internal/replay -run 'Test(CollectionActions|CollectionStorage)'
+go build -o .tmp/phase25/d2rbot.exe ./cmd/d2rbot</pre>
+        <p><strong>Pass:</strong> Die bestehenden betroffenen Tests wurden angepasst und genau einmal ausgeführt. Der Rücktransfer-/Transmute-Test arbeitet durchgehend bei geschlossenem eigenständigem Cube; ein fehlender Inventar-Cube sperrt Materialinput. Windows-Build ebenfalls einmal erfolgreich. Keine erneuten Input-Controller-Tests, keine Smoke-/Gesamtläufe und kein Live-Input.</p>
+        <p>Lokaler Korrektur-Diff auf derselben Basis <code>40c840ded21951cd3a7bce3bf54155b53b97b453</code>, insbesondere <code>internal/loot/collection_actions.go</code>, <code>internal/world/collection.go</code>, <code>internal/replay/collection.go</code> und ihre bestehenden Tests. Aktuelle EXE <code>.tmp/phase25/d2rbot.exe</code>, SHA-256 <code>01FD4762439EEBE7019840A40ACCD8D73E3A6EBDE0E901E5B82454265EBAB781</code>.</p>
+      </details>
+    </div></article>
+
+    <article class="gate live" id="gate-25-4"><div class="gate-id">25.4<span class="badge">LIVE · BESTANDEN</span></div><div>
+      <h3>Transfergesten und eingebetteten Würfel isoliert prüfen</h3>
+      <ol><li>Vorhandene Gems-/Runenaufnahmen und vollständige 1280×720-Screenshots weiterverwenden. <strong>Bestände, aktive Tabs und Koordinaten sind belegt.</strong> Ein Cube im persönlichen Inventar stellt das eingebettete Raster bereit; ein eigener Open-/Close-Zustand entfällt.</li><li>Je ein vorhandenes Gem und eine niedrige Rune per Strg+Shift+Linksklick in das leere Truhen-Würfelraster und direkt zurück transferieren. Der isolierte Testbefehl misst zuerst die Tabwartezeit anhand zweier frischer übereinstimmender Memory-Frames. Quellzahl −1/+1 und neue/entfernte Cube-Unit bestätigen. Truhe bleibt offen, Cube und Cursor sind am Ende leer, persönliches Inventar unverändert.</li><li>Erst nach beiden erfolgreichen Live-Logs den belegten produktiven Settle-Wert festschreiben und 25.4 abschließen. Bis dahin bleibt das produktive Settle null und sperrt Material- und Transmute-Aktionen. Ein belegter Tabbutton darf zur Kalibrierung ausgewählt werden.</li></ol>
+      <p class="proof"><strong>Bestanden:</strong> Rubin 22 → 21 → 22 und El 7 → 6 → 7, jeweils gebundene Cube-Unit, danach Cube und Cursor leer, Inventar unverändert und Truhe offen. Gemessenes Settle 299/298 ms, produktiv auf 300 ms aufgerundet. Die bestehenden Transfer-Tests verwenden Linksklicks; der neue Rechtsklick-Zutatensatz folgt in 25.5 und seiner realen Rezeptabnahme in 25.8.</p>
+      <details class="callout">
+        <summary>UI-Klarstellung vom 1. Oktober 2026 · Cube ist Teil der Truhe</summary>
+        <p>Der Operator erklärt die Truhenfunktion und liefert die vollständige Gems-Truhenansicht. Unter den Materialslots liegen das leere 3×4-Würfelraster und darunter der Transmute-Button. Ein Cube im persönlichen Inventar stellt diesen Bereich bereit. Der bisher eingeplante separate Öffnen-/Schließen-Ablauf war falsch und wurde aus Plan, World/Replay und Collection-Aktionen entfernt.</p>
+        <figure><img src="assets/phase-25-embedded-stash-cube.png" width="403" height="512" alt="Gems-Truhenansicht mit eingebettetem leerem 3×4-Würfelraster und Transmute-Button darunter"><figcaption>Operator-Beleg. Das Bild enthält die gesamte Truhenansicht, aber nicht den gesamten 1280×720-Spielbereich. Raster und Button sind belegt; absolute Clientkoordinaten bleiben zu kalibrieren.</figcaption></figure>
+        <p>Datei <code>docs/plans/assets/phase-25-embedded-stash-cube.png</code>, unverändertes Original, SHA-256 <code>0B63927FA1963FFA77EF6CDF5A3DDA85C8608FCAC4CB66229A4DE336D5CEEF36</code>.</p>
+      </details>
+      <details class="callout success">
+        <summary>Nachweis · Bestände, Tabs, Koordinaten und gezielte Vorbereitung bestanden</summary>
+        <p>1. Oktober 2026, lokaler Diff auf Basis <code>40c840ded21951cd3a7bce3bf54155b53b97b453</code>. Die vom Operator ausgeführten Aufnahmen enthalten jeweils zwölf vollständige Samples desselben Bestands. Ein Screenshot nach dem CLI-Aufruf ist verwertbar, wenn Bestand und UI dazwischen unverändert geblieben sind; die gelieferten Bilder stimmen mit den konkreten Counts überein. Die historischen Labels <code>gems-cube-open</code> und <code>runes-cube-open</code> ändern die Semantik nicht: der separate Cube-Open-Flag ist false, der getragene Cube stellt das Truhenraster bereit.</p>
+        <ul>
+          <li><code>%LOCALAPPDATA%\D2ROfflineFarmingBot\configs\diagnostics\storage\20261001T000530.194104900Z-gems-cube-open.json</code>, SHA-256 <code>e0ee79bdad48c96930d1465e2ac815d54a0353000bfc045dc88b910050153813</code>.</li>
+          <li><code>20261001T000547.732161500Z-runes-cube-open.json</code> im selben Verzeichnis, SHA-256 <code>11a31569c590c428f28c7dd5077be0cb1225d7be9eb4bbbd990550d6ec81dbc1</code>. Beide lesen 75 Collection-Nodes im gleichen Scope <code>d6169564e22fbf84bd8fa9f8a5e9e349</code>. Normaler Rubin = 22, El = 7, Eld = 6. CASC-Quelle <code>misc.txt</code>, stabile Schlüssel <code>Ruby</code>, <code>El Rune</code>, <code>Eld Rune</code>; repräsentative Counts aller sieben Gem-/Skull-Familien und Runen stehen in <code>internal/world/testdata/phase25/collection-stock.json</code>. Der Smaragdtyp <code>geme</code> wurde im neuen Mapper korrigiert.</li>
+        </ul>
+        <figure><img src="assets/phase-25-gems-1280x720.png" width="1280" height="720" style="max-width:100%;height:auto" alt="Vollständiger 1280×720-Gems-Stash mit getragenem Cube und leerem eingebettetem Würfelraster"><figcaption>Unverändertes Screenshot001.png. SHA-256 <code>1718F932DB75F53242D6C5FE3F157609BC4765AB852F4A260ADA6194E029E9AD</code>.</figcaption></figure>
+        <figure><img src="assets/phase-25-runes-1280x720.png" width="1280" height="720" style="max-width:100%;height:auto" alt="Vollständiger 1280×720-Runen-Stash mit sichtbaren Mengen und leerem eingebettetem Würfelraster"><figcaption>Unverändertes Screenshot002.png. SHA-256 <code>390836F93B8C35B048DFDAE53D236A750DA5A9AA691B1492AD6109B39449091D</code>.</figcaption></figure>
+        <p>Die normalen UI-Flags unterscheiden die beiden Tabs nicht. Der belegte Read in <code>memory/collection_tab.go</code> folgt dem aktuellen <code>PanelManager</code> zur eindeutigen <code>BankExpansionLayout</code>-Instanz. Namen, VTable, Parent-Verweise sowie Sichtbarkeit und Aktivierung der benannten Bereiche werden geprüft. Tab-Reads vor und nach beiden Count-Reads müssen übereinstimmen; unbekannter oder wechselnder Tab bleibt unknown. Kein Heapscan und keine Klickannahme im produktiven Read.</p>
+        <p>Die benötigten Originalbytes bleiben in <code>internal/memory/testdata/collection-tabs.json</code> und <code>collection-tabs-runes.json</code> erhalten. Gems-Rohbeleg <code>.tmp/phase25/stash-widget-gems.json</code>, SHA-256 <code>937e08a07cf86b0d8aa3109e72c8b65601d24edc89c66e41ebc11d2662851d22</code>. Runen-Gegenbeleg <code>.tmp/phase25/stash-widget-runes.json</code>, SHA-256 <code>9045d41ca146c968c93ea241bd2d4972a808fece09e2ccbf06e3cb5713de175b</code>. Nach dem Operator-Neustart wurde die neue Instanz auf PID 12728 read-only gefunden: Tab <code>runes</code> vor/nach dem Read, Known = true, El = 7, Eld = 6; neuer Scope <code>07c29da7618b35217b4f7ae2085a2dae</code>. Alte Heapadressen wurden nicht wiederverwendet.</p>
+        <p>1280×720-Ziele: Gems-Tab <code>269,128</code>, Runen-Tab <code>397,128</code>; unterstützte 21 Gem-/Skull-Zellen sowie El–Ort und der Thul-Zielslot. Eingebetteter Cube in beiden Tabs: links/oben <code>223,331</code>, Zellen <code>32×32</code>, Raster <code>3×4</code>; Transmute <code>272,500</code>. In diesem Vorbereitungsstand waren nur diese belegten Ziele im Defaultlayout hinterlegt; Settle war noch null.</p>
+        <pre>go test ./internal/memory ./internal/world ./internal/loot ./internal/app -run 'Test(CollectionStorage|CollectionTab|CollectionActions|ParseInputTestSpec|StorageTransfer)' -count=1
+go build -o .tmp/phase25/d2rbot.exe ./cmd/d2rbot</pre>
+        <p>Beide Befehle im ersten Lauf bestanden. Geprüft sind die echten Widget-Fixtures, changing/unknown Tabs, aktuelle Materialcounts, die gesperrte Materialaktion bei unbekanntem Settle, alleinstehende CLI-Specs und die kombinierte Count-/Cube-Bestätigung. Nach der abschließenden Read-Präzisierung (auch inaktive Geschwister dürfen nicht halb umgeschaltet sein; alle Bereichspointer müssen übereinstimmen) wurde ausschließlich das geänderte Memory-Paket nochmals geprüft und die EXE neu gebaut:</p>
+        <pre>go test ./internal/memory -run 'Test(CollectionStorage|CollectionTab)' -count=1
+go build -o .tmp/phase25/d2rbot.exe ./cmd/d2rbot</pre>
+        <p>Auch dieser Änderungsschnitt bestand. Kein Gesamtlauf, Race-Test oder Release-Build. Manifest <code>.tmp/phase25/gate25-4-preparation-verification.json</code>; Code-Manifest-SHA-256 dieses Vorbereitungsstands <code>0a294c6f0c307e52ae42956d0bc805641e92e79ed0f21cedd7181bac2d057c61</code>. EXE-SHA-256 <code>0B32A7EE8194BB5FE8BDF44C1CD231A41D5B97CDEF8CA17E9B065032DFB205CC</code>. Die Fixture-Herkunftsmetadaten wurden präzisiert; ihre gelesenen Originalbytes blieben unverändert.</p>
+        <p>Der Agent hat ausschließlich gelesen und keinen OS-Input ausgeführt. Die damalige offene Transfer-/Settle-Abnahme ist durch die folgenden beiden Operator-Logs abgeschlossen. 25.5 wurde nicht begonnen.</p>
+      </details>
+      <details class="callout success">
+        <summary>Live-Nachweis · Rubintransfer und Rückgabe bestanden, 03:17 Uhr</summary>
+        <p>1. Oktober 2026, 03:17 Uhr Europe/Vienna. Der Operator führte <code>&amp; .\.tmp\phase25\d2rbot.exe --data-root "$env:LOCALAPPDATA\D2ROfflineFarmingBot" --input-test storage-transfer:gsr</code> aus. Die EXE entspricht unverändert dem geprüften Vorbereitungsbuild, SHA-256 <code>0B32A7EE8194BB5FE8BDF44C1CD231A41D5B97CDEF8CA17E9B065032DFB205CC</code>, lokaler Diff auf Basis <code>40c840ded21951cd3a7bce3bf54155b53b97b453</code>.</p>
+        <p>Log <code>%LOCALAPPDATA%\D2ROfflineFarmingBot\logs\d2rbot-20261001-031742.log</code>, SHA-256 <code>3107f4a3bfe315f939bb8f4acac49f31ea3f3a581f3cecf2b65563eee204569c</code>. Manifest <code>.tmp/phase25/gate25-4-gem-transfer-verification.json</code>. Kein zusätzlicher Testlauf oder neuer Build.</p>
+        <ul>
+          <li>PID 12728, 1280×720, Rogue Encampment, Scope <code>07c29da7618b35217b4f7ae2085a2dae</code>. Ein Tabklick bestätigt Gems in zwei frischen Frames; gemessenes Settle <strong>299 ms</strong>.</li>
+          <li>Entnahme bei Generation 7: <code>gsr</code> von <strong>22 auf 21</strong>. Generation 8 bestätigt genau die neue Cube-Unit <strong>279</strong> an Rasterposition <code>2,3</code>.</li>
+          <li>Rückgabe derselben Unit per Strg+Shift-Klick an <code>303,443</code>. Generation 9 bestätigt Bestand <strong>22</strong>, leeren Cube und Cursor, unverändertes persönliches Inventar und offene Truhe. Das Log enthält <code>storage transfer test completed</code>. Kein Transmute.</li>
+        </ul>
+        <p><strong>Erkenntnis für 25.5:</strong> Die automatische Cube-Ablage begann rechts unten, nicht bei <code>0,0</code>. Transfers müssen weiterhin die gelesene Rasterposition der gebundenen Unit verwenden. Zwischen Entnahme- und Rückgabeklick lagen etwa 102 ms; dass der Operator nur die Geräusche bemerkte, widerspricht dem bestätigten Ablauf nicht. Eine langsamere Wiederholung oder zusätzliche Sichtprüfung ist nicht erforderlich.</p>
+        <p>Dies war der Zwischenstand vor dem Runentest. Der folgende Nachweis schließt Runentransfer und Settle-Abnahme ab.</p>
+      </details>
+      <details class="callout success">
+        <summary>Live-Nachweis · Runentransfer und Rückgabe bestanden, 03:22 Uhr</summary>
+        <p>1. Oktober 2026, 03:22 Uhr Europe/Vienna. Der Operator führte <code>&amp; .\.tmp\phase25\d2rbot.exe --data-root "$env:LOCALAPPDATA\D2ROfflineFarmingBot" --input-test storage-transfer:r01</code> mit derselben geprüften EXE wie beim Rubin aus. Beide Live-Versuche nutzten SHA-256 <code>0B32A7EE8194BB5FE8BDF44C1CD231A41D5B97CDEF8CA17E9B065032DFB205CC</code>; dieser Build bleibt unter <code>.tmp/phase25/d2rbot-gate25-4-live.exe</code> erhalten.</p>
+        <p>Log <code>%LOCALAPPDATA%\D2ROfflineFarmingBot\logs\d2rbot-20261001-032213.log</code>, SHA-256 <code>904ed54b51b49a57c25c9a7e456c63ba74976433395476f4d8b3e387e5d20e96</code>. Manifest <code>.tmp/phase25/gate25-4-rune-transfer-verification.json</code>.</p>
+        <ul>
+          <li>PID 12728, 1280×720, Rogue Encampment, gleicher Scope wie beim Rubin. Runen-Tab per Klick an <code>397,128</code>, zwei frische bestätigte Frames; gemessenes Settle <strong>298 ms</strong>.</li>
+          <li>Entnahme bei Generation 6 an <code>133,175</code>: El <code>r01</code> von <strong>7 auf 6</strong>. Generation 7 bestätigt Cube-Unit <strong>280</strong>, Rasterposition <code>2,3</code>.</li>
+          <li>Rückgabe derselben Unit an <code>303,443</code>. Generation 8 bestätigt Bestand <strong>7</strong>, leeren Cube und Cursor, unverändertes Inventar und offene Truhe; <code>storage transfer test completed</code>. Kein Transmute. Die gehörten Runengeräusche passen zu den bestätigten Transfers.</li>
+        </ul>
+      </details>
+      <details class="callout success">
+        <summary>Abschlussnachweis · Settle 300 ms, gezielter Test und Build bestanden</summary>
+        <p>1. Oktober 2026, lokaler Diff auf Basis <code>40c840ded21951cd3a7bce3bf54155b53b97b453</code>. <code>DefaultCollectionLayout().Settle</code> ist aus dem größeren der beiden Messwerte auf <strong>300 ms</strong> aufgerundet. Ein neuerer Snapshot mit bestätigtem aktivem Tab bleibt erforderlich; ein Zeitablauf allein erlaubt keinen Klick.</p>
+        <pre>go test ./internal/loot -run TestCollectionActions -count=1
+go build -o .tmp/phase25/d2rbot.exe ./cmd/d2rbot</pre>
+        <p><strong>Pass:</strong> Beide Befehle genau einmal für diesen Änderungsschnitt. Die bestehenden Collection-Tests prüfen das kalibrierte Default vor und nach seinem Settle sowie die unveränderte Sperre bei unbekanntem Settle. Keine weiteren Pakettests oder manuellen Wiederholungen. Manifest <code>.tmp/phase25/gate25-4-verification.json</code>; Code-Manifest-SHA-256 <code>9e744ceb238cb2db3ff914ea37db81a97bdf8eeb480a28c2b1079c624b740a4e</code>, neuer EXE-SHA-256 <code>013a92d07e5fb279185ea05d42d9d8944d200383a3d85bb33c915cb48b77759b</code>. Nur Layout und zugehöriger Testcode wurden gegenüber dem Live-Build verändert.</p>
+        <p>Beim Abschluss von 25.4 waren automatische Verdichtung und die neue Rechtsklick-Zutatenaktion noch nicht implementiert; der nächste Abschnitt war 25.5.</p>
+      </details>
+      <details class="callout">
+        <summary>Abgeschlossene Testanleitung · keine Wiederholung erforderlich</summary>
+        <p>Beide folgenden Aufrufe sind bestanden. Die Anleitung bleibt als Referenz erhalten. Kein Transmute und kein zusätzlicher Materialaufbau. Die bestehenden Einstellungen dieses Hosts haben Input bereits aktiviert; Pause ist die Pause-Taste, Not-Stopp F11.</p>
+        <ol>
+          <li>Desktop-App und andere Bot-Prozesse beenden. D2R offline mit MrHammer in Rogue Encampment auf 1280×720 geöffnet lassen. Cube im persönlichen Inventar, Truhen-Würfelraster und Cursor leer. <strong>Runen-Tab geöffnet lassen.</strong></li>
+          <li>Aus dem Repository-Verzeichnis den Rubin-Befehl ausführen. Währenddessen keine manuellen Materialaktionen. Der Befehl wählt Gems, misst den Tabwechsel und transferiert genau einen normalen Rubin hinein und zurück. Erwartet: <code>22 → 21 → 22</code>, neue Cube-Unit und danach leerer Cube; das Log endet mit <code>storage transfer test completed</code>.</li>
+        </ol>
+        <pre>&amp; .\.tmp\phase25\d2rbot.exe --data-root "$env:LOCALAPPDATA\D2ROfflineFarmingBot" --input-test storage-transfer:gsr</pre>
+        <p><strong>Nur nach erfolgreicher Rückgabe:</strong> Gems geöffnet lassen und den El-Befehl ausführen. Dieser wechselt auf Runen. Erwartet: <code>7 → 6 → 7</code> und dieselben Cube-/Inventarbestätigungen.</p>
+        <pre>&amp; .\.tmp\phase25\d2rbot.exe --data-root "$env:LOCALAPPDATA\D2ROfflineFarmingBot" --input-test storage-transfer:r01</pre>
+        <p>Beide Aufrufe beenden sich selbst. Das Log nennt den Dateipfad unter <code>%LOCALAPPDATA%\D2ROfflineFarmingBot\logs\</code> und enthält die gemessenen <code>settle_ms</code>. Eine kurze Rückmeldung zu beiden Befehlen genügt; der Agent liest die Logs. Zusätzliche Screenshots sind nur bei einer sichtbaren Abweichung nötig. Bei Fehler oder Teiltransfer keinen zweiten Aufruf starten: aktuelle Ansicht belassen und Fehler melden. Kein blindes Wiederholen und keine automatische Materialbereinigung.</p>
+      </details>
+    </div></article>
+
+    <article class="gate" id="gate-25-5"><div class="gate-id">25.5<span class="badge">AUTO · BESTANDEN</span></div><div>
+      <h3>Planer und Crafting-Executor</h3>
+      <ol><li>Genau die Planungsregeln aus Abschnitt 5 implementieren. Tabellenfälle als eine kleine parametrisierte Planer-Matrix abdecken, zusätzlich ausgeschlossene Grade/Runen und fremde Materialfamilien.</li><li>State-Machine aus Abschnitt 6 über dem injizierten Input-Interface implementieren. Loot um <code>WithdrawIngredients</code> für genau einen Strg+Shift+Rechtsklick ergänzen; den vorhandenen buttonfähigen <code>ClickAtWithCtrlShift</code>-Vertrag mit <code>input.MouseRight</code> verwenden. Keine neue Modifier-Implementierung. <code>WithdrawOne</code> bleibt für die Einzeleinheit-Diagnose. Neue Zutaten- und Output-Units binden; jede irreversible Aktion nur einmal je Rezeptinstanz senden.</li><li>Die bestehenden Loot-Aktionstests um den Rechtsklick-Vertrag ergänzen und den echten Executor mit Frame-Folgen prüfen: Erfolgszyklus mit Quellzahl −3 und drei gebundenen Zutaten nach einem Klick, Gem-Kette mit vollem Zwischenslot, stale Frame, Doppel-Tick nach Entnahme oder Transmute, unvollständig bestätigter Zutatensatz, verspäteter Output, partieller Verbrauch, fremdes Cube-Item, Bestandsdrift, Scope-Wechsel, Pause/Resume und Reset. Kein zusätzliches Controller-Testgerüst.</li></ol>
+      <p class="proof"><strong>Bestanden:</strong> Alle Bestände bleiben 0…99; maximal 77 beziehungsweise 33 Rezepte; genau ein Rechtsklick lädt einen Zutatensatz, kein zweiter Input während ausstehender Bestätigung. Voller Endslot und unrealisierbarer Plan senden null Materialinput. Jeder Erfolg hinterlässt leeren Cube und freien Triggerplatz. Nur betroffene Crafting-/Loot-Tests grün.</p>
+      <details class="callout success">
+        <summary>Nachweis vom 1. Oktober 2026 · Planer, Rechtsklick-Vertrag und Executor bestanden</summary>
+        <p>Lokaler Diff auf Basis <code>40c840ded21951cd3a7bce3bf54155b53b97b453</code>. <code>internal/crafting/planner.go</code> simuliert ausschließlich die Triggerfamilie und jeden Vorher-/Nachherbestand; ein voller makelloser Zwischenslot wird zuerst freigemacht. <code>executor.go</code> bindet den Inventartrigger, Scope, Run-Generation und die jeweils neuen Zutaten-/Output-Units. Sein injiziertes Interface besitzt keine Koordinaten und liest kein Raw Memory.</p>
+        <p>Der Operator-Hinweis ist umgesetzt: <code>loot.CollectionActions.WithdrawIngredients</code> verwendet den bestehenden atomaren Ctrl+Shift-Vertrag mit <code>input.MouseRight</code>, genau einmal in den leeren Cube. Der Executor bestätigt Quellzahl −3 und drei verschiedene passende eigene Cube-Units vor Transmute. Teilzustände erhalten keinen Auffüll- oder Wiederholungsklick. Die Einzeleinheit-Diagnose und die Output-Rückgabe bleiben beim Linksklick. Die reale Batch-Geste und Transmute werden weiterhin erst gemeinsam in 25.8 abgenommen.</p>
+        <pre>go test ./internal/crafting ./internal/loot -run 'Test(BuildPlanMaterialMatrix|Executor(VerifiedBatchAndTerminalLatch|ConfirmationAndRevokeMatrix|PreflightRequiresEmptyCubeAndFullKnownSlot)|CollectionActions)' -count=1</pre>
+        <p><strong>Pass:</strong> Beide betroffenen Pakete einmal grün. Die kleine Planer-Matrix belegt die Tabelle aus Abschnitt 5, Skull, Ort → Thul, fehlende Counts und ausgeschlossene Zutaten. Derselbe produktive Executor wird mit Frames für 77-Rezept-Gem-Kette, begrenzten makellosen Batch, Rune und Skull getrieben; jeder Schritt bestätigt −3/+1 und am Ende freien Quellslot und leeren Cube. Die gemeinsame Verifikationsmatrix prüft stale Frames, verspäteten Output, unvollständigen Zutatensatz, partiellen Rezeptverbrauch, fremden Inhalt, Drift, Scope-/Tab-/Inventar-/Runwechsel, Pause/Resume, Reset, Stop, Zeitbudget und Senderfehler ohne erneuten Input. Terminale Ergebnisse wiederholen keinen Fortschritt.</p>
+        <p>Manifest <code>.tmp/phase25/gate25-5-verification.json</code>, SHA-256 <code>282d4192af5e84db39870dae9f9d5852920ea2daaa7c4c2603b0cd67c00322e6</code>, enthält die Hashes aller sieben betroffenen Go-Dateien. Feature-Dokumentation, Index und Changelog sind aktualisiert. Kein Live-Input, Gesamtlauf, Controller-Testgerüst oder zusätzlicher Build. 25.6 beginnt erst nach diesem abgeschlossenen Abschnitt.</p>
+      </details>
+    </div></article>
+
+    <article class="gate" id="gate-25-6"><div class="gate-id">25.6<span class="badge">AUTO · BESTANDEN</span></div><div>
+      <h3>Gemeinsamen Stash-Return integrieren</h3>
+      <ol><li>Stash-Ursache und Triggerkontext strukturiert erhalten, <code>compact_storage</code> plus kleine Dependency einfügen. Shared Return-State besitzt Pending-Request und die pro Besuch bereits bearbeiteten UnitIDs.</li><li>Task-Transitions, Cow-Delegation, Step-Timeout, History-Stage und zentrale Resetbarriere gemeinsam verdrahten. Normale Stash-Erfolge behalten ihre bisherige Schrittfolge.</li><li>Eine parametrisierte Task-/Adapter-Matrix beweist für alle vorhandenen Return-Flows: Full-Gem/Rune → Compaction → Originalitem gestasht → bisheriger nächster Step. Ein erneut blockiertes identisches Item beendet den Ablauf; Input-/Policyfehler rufen Crafting nie auf.</li></ol>
+      <p class="proof"><strong>Bestanden:</strong> Die echte gemeinsame Pipeline setzt die Session ohne Queue-Retry fort, nur nachdem der Triggertransfer bestätigt ist. Eigener endlicher Compaction-Timeout und alle Resetfälle sind geprüft. Keine automatische Save-&amp;-Exit-Recovery für Compaction-Fehler. Kleinste Loot-, App- und Tasks-Checks grün.</p>
+      <details class="callout success">
+        <summary>Nachweis vom 1. Oktober 2026 · gemeinsamer Return und Wiederaufnahme bestanden</summary>
+        <p>Lokaler Diff auf Basis <code>40c840ded21951cd3a7bce3bf54155b53b97b453</code>. <code>StashResult</code> und der Task-Adapter erhalten Ursache, Unit, Code und Position. Nur ausgeschöpftes <code>verify_timeout</code> eines unverändert autorisierten Keep-Items mit frischem Quellbestand 99 legt einen Pending-Request an. <code>stash_items → compact_storage → stash_items</code> verwendet den normalen Transfer des Originalitems als Wiederaufnahmebeleg. Bereits behandelte UnitIDs bleiben bis zum neuen Truhenbesuch erhalten; ein zweiter Fehler derselben Unit endet terminal.</p>
+        <p>Der App-Adapter friert den Scope schon beim Stash-Fehler ein und überprüft die ursprüngliche Pickit-/Lock-Freigabe erneut. Das schließt einen Scope-Wechsel vor dem ersten Executor-Tick aus. Rejected Context/Policy bleibt bis Reset terminal. Der Runtime-Poll beobachtet Pause auch bei gesperrten Task-Inputs; automatische Profil-/Potion-Aktionen bleiben während der Rezeptaktion blockiert. Der neue Step verwendet das endliche aktive Executor-Budget und ist in Return-Town-History und Stash-Fortschritt eingeordnet.</p>
+        <pre>go test ./internal/loot ./internal/app ./internal/tasks -run 'Test(StashFlawlessRubyLogBaselineThreeUnchangedAttempts|StashCompactionAuthorizationPreservesFailure|StorageCompaction|PipelineDependencyViewsStayNarrow)' -count=1</pre>
+        <p><strong>Pass:</strong> Die gemeinsame Runner-Matrix prüft Countess, Summoner, Mephisto, Nihlathak, Lower Kurast und Cow sowie <code>stash-personal</code> und <code>loot-and-return</code>. Full-Kandidat → Compaction → bestätigter Originaltransfer → bisheriger Abschluss; keine Wiederholung desselben Triggers. Die App-Matrix prüft tatsächliche Stash-Eligibility, einen Rechtsklick, Pause-Budget, Scope-/Policy-Revoke und Reset. Input-, Policy-, Telemetriefehler, unbekannte/nicht volle Counts und volle Ziele bleiben ohne unberechtigte Crafting-Aktion.</p>
+        <p>Nach den abschließenden Scope-/Visit-/Latch-Änderungen wurden nur App/Tasks mit <code>go test ./internal/app ./internal/tasks -run TestStorageCompaction -count=1</code> geprüft. Danach wurde der terminale Retry-Vertrag ergänzt: alle fünf Compaction-Reasons stoppen auch dann ohne Recovery-Portal oder Save &amp; Exit, wenn sie in einer eigenen Retry-Liste stehen. Nur das hierfür geänderte App-Paket wurde mit <code>go test ./internal/app -run TestStorageCompaction -count=1</code> geprüft. Alle Änderungsschnitte bestanden; keine Gesamtsuite oder weiteren unveränderten Pakete.</p>
+        <p>Manifest <code>.tmp/phase25/gate25-6-verification.json</code>, SHA-256 <code>fdc0498d81a789a2da3a8a4b02cfa87fdc9f7e1ff4e543ee3b484c6d2abbef23</code>, enthält die Hashes der 23 betroffenen Go-Dateien. Run- und Session-Resetbarrieren löschen Request, Executor, Collection-Aktionsbindung und Visit-Set ohne Cleanup-Input. Feature-, Stash-, Inventory-Recovery- und Input-Dokumentation sind aktuell. Telemetrie-/API-/Presenter-/Trace-Erweiterungen beginnen erst in 25.7; kein Live-Input und kein Rezeptnachweis vor 25.8.</p>
+      </details>
+    </div></article>
+
+    <article class="gate" id="gate-25-7"><div class="gate-id">25.7<span class="badge">AUTO · BESTANDEN</span></div><div>
+      <h3>Telemetrie, Fehlerkontext und bestehende Anzeige</h3>
+      <ol><li>Bestätigte Compaction-Ereignisse, Task-Trace-Dependency und strukturierte Reason-Parameter bis API und Session-History erhalten. Verschiedene Itemcodes im Originalfehler und vollen Ziel bleiben unterscheidbar.</li><li>Bestehende Presenter und DE-/EN-Strings ergänzen; die vorhandene Session-Übersicht erhält die eigene Kategorie „Verdichtet“. Keine Settings, Charaktermigration, Aktivierungsoption oder neue Seite. Anzeige aus Abschnitt 8 mit vorhandener Itemlokalisierung verbinden. Gezählt werden pro Zielcode die bestätigten, rückgelagerten Rezeptresultate, auch wenn eine Zwischenstufe später weiterverdichtet wird. Dies ist geleistete Verdichtungsarbeit und kein abschließender Bestandsread. Keine Erhöhung von Loot-Funnel oder Ausbeute.</li><li>Ein kleiner Analyzer-/API-/UI-Vertrag prüft Speicher-voll mit Itemkontext, Pending-Compaction, erfolgreiche Wiederaufnahme und den unveränderten Loot-Funnel. Ein Trace-Fall prüft den neuen Task-Übergang; Executor-Reihenfolge bleibt durch 25.5 abgesichert.</li></ol>
+      <p class="proof"><strong>Bestanden:</strong> Kein unbekannter Fehlertext für die neuen Reasons oder <code>stash_failed</code>. Keine neu erzeugten Gems als Farming-Drops; genau ein normaler Stash-Erfolg für den Trigger. Telemetriefehler sperrt weiteren Input. Nur betroffene Go-/UI-Tests und erforderlicher UI-Build grün.</p>
+      <details class="callout success">
+        <summary>Nachweis vom 1. Oktober 2026 · Telemetrie, Fehlerkontext und Replay bestanden</summary>
+        <p>Bestätigte Rezeptzyklen haben eigene <code>storage_compaction_*</code>-Ereignisse mit Trigger-Unit, CASC-Rezeptschlüssel und Mengen. Sie erzeugen keine Drop-, Pickup- oder Stash-Erfolge. Ein verpflichtender Emit-Fehler speichert <code>telemetry_failed</code> und sperrt weiteren Input. Die normalen Item- und Pickit-Ketten bleiben unverändert.</p>
+        <p>Der Fehlervertrag verwendet exakt die geplanten Codes <code>storage_gem_full</code>, <code>storage_rune_full</code> und <code>storage_state_unavailable</code> sowie die Cube-/Bestätigungs-/Timeout-Reasons. Beim Anschluss wurden die vorläufigen allgemeinen Planner-Codes daran angeglichen. Volle perfekte Gems/Skulls und Runen ohne freigegebenes Rezept erhalten einen passenden terminalen Fehler, ohne Crafting-Auftrag. <code>item_code</code> und <code>material_code</code> bleiben getrennt durch Task, Supervisor, Session-/Run-JSONL, History-Index, Analyzer und API erhalten.</p>
+        <p>Der kleine API-Vertrag liest echte Recorder-Dateien für Pending, erfolgreiche Wiederaufnahme und volles Ziel. Er bestätigt genau einen bestehenden Lootpfad und einen Stash-Erfolg nur nach Wiederaufnahme sowie unveränderte Itemcodes in Session und History. Der App-Test bestätigt den Telemetrie-Stopp ohne zweiten Klick. Der Task-Trace zeichnet den Pending-Compaction-Übergang und den bestätigten Originaltransfer auf und wird headless erfolgreich replayt. Interne Rezeptentscheidungen bleiben durch 25.5 abgesichert.</p>
+        <pre>go test ./internal/crafting ./internal/tasks ./internal/app ./internal/api -run 'Test(StorageCompaction|BuildPlanMaterialMatrix)' -count=1
+go test ./internal/replay -run TestStorageCompaction -count=1
+pnpm exec vitest run src/i18n/presenters.test.ts
+pnpm typecheck:renderer
+pnpm build:renderer</pre>
+        <p><strong>Pass:</strong> Betroffene Go-Verträge, ein Replay-Fall, 13 Presenter-Tests, Renderer-Typprüfung und Renderer-Build grün. Der erste Anschluss fand einen versehentlich ergänzten Retry-Struct-Eintrag und fehlende generierte Detail-DTO-Typen; beide wurden korrigiert. Neue Tests wurden nur nach tatsächlichen Korrekturen erneut ausgeführt. Der vorhandene Vite-Hinweis zur Bundlegröße ist kein Fehler. Keine Gesamtsuite, Race-, Electron- oder Installer-Smokes. Keine neuen Settings oder Seiten; die bisherigen Anzeigen lokalisieren die Materialcodes über den CASC-Game-Katalog.</p>
+        <p><strong>Operator-Ergänzung:</strong> Die bestehende Session-Übersicht hat die eigene aufklappbare Kategorie „Verdichtet“ mit Gesamtzahl und lokalisierten Ergebnisitems. Der Analyzer summiert ausschließlich bestätigte rückgelagerte Rezeptresultate pro Zielcode innerhalb des Sessionfilters; spätere Abbrüche entfernen bereits geleistete Arbeit nicht. Zwischenstufen zählen als bestätigte Ergebnisse auch bei weiterer Verdichtung. Der API-Vertrag und die vier bestehenden Session-Dialog-Tests wurden für diese Änderung gezielt erweitert und einmal grün ausgeführt; Renderer-Typprüfung und Build ebenfalls grün. Kein neuer Endpunkt, keine zusätzliche Seite oder Änderung am Loot-Funnel.</p>
+        <p>Manifest <code>.tmp/phase25/gate25-7-verification.json</code>, SHA-256 <code>a9df96aef79f86e0a8219c340d225d586447668d612a9e50942fa329f0a2f5ac</code>, enthält 36 Quell-/Vertragsdateien und die Prüfschritte auf Basis <code>40c840ded21951cd3a7bce3bf54155b53b97b453</code>. Renderer-Artefakte sind gebaut; die abschließende Metadaten-Synchronisation bleibt gemäß Sequenz in 25.9. Rechtsklick und Transmute sind noch nicht live abgenommen; nächstes manuelles Gate ist 25.8.</p>
+      </details>
+    </div></article>
+
+    <article class="gate" id="gate-25-8"><div class="gate-id">25.8<span class="badge">LIVE · BESTANDEN</span></div><div>
+      <h3>Wenige vorhandene Materialien verdichten</h3>
+      <ol><li>Mit den vorhandenen Rubinen je ein normal → makellos und makellos → perfekt ausführen. Ein niedriges Runenrezept einmal mit einer bereits vorhandenen Rune aus El bis Ort prüfen. Je Rezept werden drei vorhandene Zutaten benötigt; kein Schädel-, Ort- oder Vollbestands-Sonderaufbau.</li><li>Dafür einen eng begrenzten isolierten Abnahmeaufruf über denselben produktiven Executor verdrahten, maximal ein Rezept pro Aufruf mit echten aktuellen Counts. Der explizite Testauftrag ersetzt ausschließlich den Überlaufauslöser; Scope-, UI-, Zutaten- und Ergebnisverifikation bleiben aktiv. Produktive Sessions behalten unverändert ihren bestätigten Full-Slot-Auslöser. Keine erfundenen Counts, Reserven oder neue Charaktersettings.</li><li>Im selben Rezeptversuch zuerst genau einen Strg+Shift+Rechtsklick, Quellzahl −3 und exakt drei neue passende Cube-Units bestätigen; anschließend Transmute, genau einen passenden Output, Rücklagerung per Strg+Shift+Linksklick und leeren Cube anhand des Logs bestätigen. Kein separater zusätzlicher Rechtsklick-Test. Abweichende Transfermenge stoppt ohne Nachklicken oder Fallback. Pause/Resume einmal vor Transmute in einen dieser Abläufe einbauen. Not-Stopp und unbestätigte Teilzustände sind durch die Executor-Fixtures aus 25.5 abgedeckt.</li><li>Überlauf, voller Zwischenslot, volles Ziel, Schädel, Ort → Thul, zweite Charaktere und die Wiederaufnahme aller Return-Flows werden mit den automatisierten Nachweisen aus 25.2/25.5–25.7 abgenommen. Tritt im normalen Farming ein echter Überlauf auf, dessen Log ergänzend auswerten; dafür keine Materialien auf Vorrat sammeln oder vollen Slot künstlich herstellen.</li></ol>
+      <p class="proof"><strong>Bestanden:</strong> Die kurzen Gem- und Runenabläufe bestätigen die realen Transfer-/Transmute-Aktionen. Automatisierte Fixtures belegen Grenzfälle und Session-Wiederaufnahme. Ein noch nicht natürlich aufgetretener Überlauf bleibt als Folgebeobachtung benannt und blockiert dieses Gate nicht; er wird nicht als live bestanden ausgegeben.</p>
+      <details class="callout success">
+        <summary>Archiv · Vorbereitung der inzwischen bestandenen Rezeptabnahme</summary>
+        <p><code>storage-recipe:gsr</code>, <code>storage-recipe:glr</code> und <code>storage-recipe:r01</code> verwenden den bestehenden isolierten Input-Testmodus und denselben produktiven Crafting-Executor. Der ausdrücklich konstruierte Testexecutor verarbeitet genau ein Rezept mit den tatsächlich gelesenen Quell-/Zielcounts. Ein fehlendes persönliches Triggeritem wird mit UnitID 0 kenntlich gemacht, ohne eine Unit oder einen vollen Bestand zu erfinden. Der gewöhnliche Executor akzeptiert diese Testfreigabe nicht. Scope, getragenen Cube, leeren Cursor/Würfel, unverändertes Inventar, Tab und jede Aktion bestätigt derselbe Code.</p>
+        <p>Das optionale Suffix <code>:pause</code> pausiert genau einmal, nachdem Quellzahl −3 und drei passende Cube-Units bestätigt sind, vor dem ersten Transmute. Die Pause-Taste setzt denselben Auftrag fort. Ein Snapshot oder Klick wird nicht wiederholt. Die kleine Drei-Rezept-Fixture bestätigt genau einen Zyklus, Pause-Grenze, unveränderte produktive Full-Slot-Sperre und Codebindung nach Reset; die bestehende CLI-Parsing-Matrix wurde ergänzt.</p>
+        <pre>go test ./internal/crafting ./internal/app -run 'Test(RecipeTestExecutorOneRealRecipeAndProductGate|Executor(VerifiedBatchAndTerminalLatch|PreflightRequiresEmptyCubeAndFullKnownSlot)|ParseInputTestSpec)' -count=1
+go build -o .tmp/phase25/d2rbot.exe ./cmd/d2rbot</pre>
+        <p><strong>Vorbereitung grün:</strong> gezielte Tests und Windows-Build jeweils einmal erfolgreich. EXE-SHA-256 <code>1fe98d9c7df9017cb9fc45105bfdeb5196a60370a31f6206ecbab70fce8a0386</code>. Manifest <code>.tmp/phase25/gate25-8-preparation.json</code>, SHA-256 <code>a9b5b9cdfc70fe5f5ee764c13a386ad0e692db3ca0b8b7d7a72c9dfe7d5db422</code>. Keine Live-Eingabe durch den Agenten. 25.8 bleibt bis zu den drei Operator-Logs offen; 25.9 wurde nicht begonnen.</p>
+      </details>
+      <details class="callout success">
+        <summary>Archiv · ausgeführte Testanleitung für die drei Rezepte</summary>
+        <p>Desktop-Bot und andere Bot-Cores beenden. Im bestehenden Offline-Spiel in Rogue Encampment stehen, 1280×720, Truhe und Inventar geöffnet. Gems- oder Runen-Tab genügt; die Befehle wählen den passenden Tab selbst. Cube im persönlichen Inventar lassen; das eingebettete Truhen-Würfelraster und der Cursor müssen leer sein. Es werden insgesamt drei normale Rubine, drei makellose Rubine und drei El-Runen verarbeitet. Vorhandener Bestand genügt. Kein neuer Charakter, keine Schädel-/Ort-Vorbereitung oder voller Slot.</p>
+        <p><strong>1. Normaler Rubin → makelloser Rubin, mit Pause:</strong> Der Befehl lädt mit einem Strg+Shift+Rechtsklick drei Zutaten und pausiert automatisch. Im Cube müssen drei normale Rubine liegen. Nur ansehen, nichts verschieben. Anschließend die <strong>Pause-Taste</strong> drücken und den einen Transmute samt Rückgabe abwarten.</p>
+        <pre>Set-Location D:\CSharpProjekte\D2R-Offline-Farming-Bot
+&amp; .\.tmp\phase25\d2rbot.exe --data-root "$env:LOCALAPPDATA\D2ROfflineFarmingBot" --input-test storage-recipe:gsr:pause</pre>
+        <p><strong>2. Makelloser Rubin → perfekter Rubin:</strong> Erst wenn der erste Aufruf erfolgreich beendet ist und das Würfelraster wieder leer ist. Truhe geöffnet lassen.</p>
+        <pre>&amp; .\.tmp\phase25\d2rbot.exe --data-root "$env:LOCALAPPDATA\D2ROfflineFarmingBot" --input-test storage-recipe:glr</pre>
+        <p><strong>3. El → Eld:</strong> Erst nach erfolgreichem zweiten Aufruf. Der Befehl wechselt selbst zum Runen-Tab.</p>
+        <pre>&amp; .\.tmp\phase25\d2rbot.exe --data-root "$env:LOCALAPPDATA\D2ROfflineFarmingBot" --input-test storage-recipe:r01</pre>
+        <p>Jeder Aufruf liest seine eigenen aktuellen Anfangszahlen und bestätigt Quellzahl −3, Zielzahl +1, offene Truhe, leeren Cube/Cursor und unverändertes persönliches Inventar. Die zweite und dritte Aktion können wieder sehr schnell sein; die Sounds allein sind kein Nachweis. Es genügen die Logs unter <code>%LOCALAPPDATA%\D2ROfflineFarmingBot\logs\</code>, insbesondere <code>storage recipe verified</code> und <code>storage recipe test completed</code>. Kein zusätzlicher Screenshot erforderlich. Bitte anschließend die Ausführung bestätigen; der Agent wertet die Logs aus.</p>
+        <p><strong>Bei Fehler:</strong> Den nächsten Aufruf nicht starten und nichts automatisch wiederholen. <strong>F11</strong> bricht ab; danach eventuell verbliebene Zutaten im Cube unverändert lassen, bis das Log ausgewertet ist. Ein voller Zwischenslot oder zu wenig Zutaten führt vor dem ersten Materialklick zum Abbruch.</p>
+        <p>Die isolierten Rezeptaufrufe erzeugen keine produktive Farming-Session und deshalb keinen Session-Dialog. Die neue Kategorie „Verdichtet“ wurde mit dem API-/Dialog-Vertrag aus 25.7 geprüft und zählt bestätigte Ergebnisse produktiver Sessions. Ein natürlicher Überlauf bleibt eine spätere Logbeobachtung, kein zusätzlicher Materialbeschaffungsauftrag.</p>
+      </details>
+      <details class="callout success">
+        <summary>Rezeptnachweise bestanden · Starttab-Korrektur automatisch grün</summary>
+        <p>Operator-Abnahme vom 1. Oktober 2026, PID 12728, Client 3.2.92777, Scope <code>07c29da7618b35217b4f7ae2085a2dae</code>. Alle drei Logs bestätigen genau einen Rechtsklick-Zutatensatz, Transmute, Rücklagerung, leeren Cube/Cursor und unverändertes Inventar.</p>
+        <div class="table-wrap"><table><thead><tr><th>Log</th><th>Bestätigte Bestandsänderung</th><th>Zusätzlicher Nachweis</th></tr></thead><tbody>
+          <tr><td><code>d2rbot-20261001-045320.log</code></td><td>Rubin 22 → 19; makellos 97 → 98</td><td>Pause vor Transmute, rund 22 Sekunden später derselbe Auftrag fortgesetzt.</td></tr>
+          <tr><td><code>d2rbot-20261001-045413.log</code></td><td>Makellos 98 → 95; perfekt 5 → 6</td><td>Ein Rezept vollständig bestätigt.</td></tr>
+          <tr><td><code>d2rbot-20261001-045431.log</code></td><td>El 7 → 4; Eld 6 → 7</td><td>Automatischer Gems → Runen-Tabwechsel vor Zutatenladen.</td></tr>
+        </tbody></table></div>
+        <p>Getestete Rezept-EXE: SHA-256 <code>1fe98d9c7df9017cb9fc45105bfdeb5196a60370a31f6206ecbab70fce8a0386</code>, lokal erhalten unter <code>.tmp/phase25/d2rbot-gate25-8-recipes.exe</code>. Ein echter Farming-Überlauf bleibt Folgebeobachtung und ist kein zusätzlicher Testauftrag.</p>
+        <p><strong>Korrektur:</strong> Der erste Aufruf (<code>045237.log</code>) stoppte mit <code>storage_state_unavailable</code> ohne Input. Die vorhandenen UI-Reads erkannten Basic/Materials, verwarfen sie aber vor der Navigation. Jetzt bleiben alle vier eindeutig aktiven Truhenbereiche in Memory, World und Replay erhalten. Basic/Materials erlauben ausschließlich die Wahl von Gems/Runen; Zutaten und Cube bleiben bis zum frischen bestätigten Zieltab gesperrt. Keine neuen Offsets, Screenshots oder Crafting-Zustände.</p>
+        <pre>go test ./internal/memory ./internal/app -run 'Test(CollectionTabCapturedWidgetsAndUnavailableStates|StorageRecipeNavigatesFromNonMaterialTab)' -count=1
+# Vor dem Fix rot: Basic/Materials abgelehnt; storage_state_unavailable, kein Klick.
+go test ./internal/memory ./internal/app ./internal/loot ./internal/replay -run 'Test(CollectionTabCapturedWidgetsAndUnavailableStates|StorageRecipeNavigatesFromNonMaterialTab|CollectionActionsRejectRevokeAndUncalibratedLayout|CollectionStorageRoundTripAndUnknownEvidence)' -count=1
+go build -o .tmp/phase25/d2rbot.exe ./cmd/d2rbot</pre>
+        <p><strong>Nach dem Fix grün:</strong> Vier gezielte Tests und Windows-Build jeweils einmal. Die App-Regression verwendet World-Mapping, echten Executor und echte Collection-Aktionen; ein unbestätigter Tabwechsel erhält keinen Zutatenklick. Neue EXE-SHA-256 <code>46eef9baff0ff5dceb6f99c05dc33d49fc565735ca7f885bf00cf23def9bd96b</code>. Das abschließende Manifest enthält die acht Quell-/Testdateien und fünf Loghashes: <code>.tmp/phase25/gate25-8-verification.json</code>, SHA-256 <code>0dd166632759a5f2552a8d11c335412a63eac21f448cfa5649ec423de43a1aa3</code>.</p>
+      </details>
+      <details class="callout success">
+        <summary>Archiv · bestandener Navigationstest Persönlich/Gemeinsam → Gems</summary>
+        <p>Andere Bot-Prozesse beenden. Im bestehenden Offline-Spiel in Rogue Encampment bei 1280×720 Truhe und Inventar geöffnet lassen; Cube im persönlichen Inventar, Truhen-Cube und Cursor leer. <strong>Vor dem Befehl bewusst den Tab Persönlich oder Gemeinsam öffnen.</strong> Ein normaler Rubin im Lager genügt. Die drei Rezeptbefehle nicht wiederholen.</p>
+        <pre>Set-Location D:\CSharpProjekte\D2R-Offline-Farming-Bot
+&amp; .\.tmp\phase25\d2rbot.exe --data-root "$env:LOCALAPPDATA\D2ROfflineFarmingBot" --input-test storage-transfer:gsr</pre>
+        <p>Der Befehl wählt Gems selbst, transferiert genau einen normalen Rubin in den eingebetteten Cube und gibt denselben zurück. Kein Transmute, kein Materialverbrauch. Erwartet beim unveränderten aktuellen Bestand: <code>19 → 18 → 19</code>, zum Abschluss leerer Cube/Cursor und unverändertes Inventar. Erfolg endet mit <code>storage transfer test completed</code>. Bei Abbruch keine Wiederholung; Log auswerten lassen. Kein Screenshot oder weiterer Rune-/Materials-Test erforderlich.</p>
+        <p><strong>Bestanden:</strong> Operator bestätigt den erfolgreichen Aufruf aus Persönlich/Gemeinsam. <code>d2rbot-20261001-051126.log</code> belegt den Gems-Tabklick, zwei bestätigende Frames mit 299 ms, Rubin <code>19 → 18 → 19</code>, dieselbe Cube-Unit 301 und danach leeren Cube/Cursor, unverändertes Inventar sowie offene Truhe. Kein Transmute oder Bestandsverbrauch. 25.8 ist damit vollständig abgeschlossen; keine weitere manuelle Abnahme erforderlich. 25.9 darf beginnen.</p>
+      </details>
+    </div></article>
+
+    <article class="gate" id="gate-25-9"><div class="gate-id">25.9<span class="badge">AUTO · BESTANDEN</span></div><div>
+      <h3>Dokumentation und abschließender Diff</h3>
+      <ol><li><code>docs/features/storage-compaction.md</code> nach Feature-Template anlegen und im Index verlinken. Stash-, Inventory-Recovery-, Cow- und Replay-Docs nur an betroffenen Verträgen aktualisieren.</li><li><code>internal/crafting</code> in die Architekturübersicht von <code>AGENTS.md</code> aufnehmen. Godoc und relevante Design-/State-Kommentare vervollständigen. Handoff um den tatsächlich belegten Phase-25-Stand ergänzen.</li><li>Unter Unreleased eine englische Added-Zeile für automatische Storage Compaction und eine Fixed-Zeile für verständliche Stash-Fehler ergänzen. Dieses HTML mit den Gate-Nachweisen aktualisieren.</li><li>Wegen der Presenter-/Locale-Änderung den eingebetteten UI-Build über <code>scripts/sync-embedded-ui.ps1</code> synchronisieren und dessen Metadaten prüfen. Bereits bestandene Tests ohne neue Änderung nicht wiederholen.</li></ol>
+      <p class="proof"><strong>Bestanden:</strong> Nur beauftragte Dateien und generierte Artefakte im Diff. Kein Runtime-Config- oder Diagnosebundle versehentlich versioniert. Alle vorherigen Nachweise vollständig, Docs entsprechen dem Produktverhalten. Commit, Push, Release-Build und Installer-Smoke erfolgen nur auf eigenen ausdrücklichen Auftrag.</p>
+      <details class="callout success">
+        <summary>Abschlussnachweis · Dokumentation, UI-Synchronisation und Diff</summary>
+        <p>Feature-Doc und Index beschreiben den produktiven Überlaufauslöser, erlaubte Materialien, Truhen-Cube, aktuelle Counts/Scope-/Tabbindungen, Zeitbudgets, Pause/Stop, einmalige Aktionen, terminale Fehler und Session-Kategorie. Die betroffenen Stash-, Inventory-Recovery-, Cow-, Input-, World- und Replay-Verträge sind aktualisiert. <code>internal/crafting</code> steht in AGENTS.md und der Handoff-Architektur; der Handoff enthält den abgeschlossenen Unreleased-Stand mit getrennten Live- und Fixture-Nachweisen. Changelog erhält die automatische Verdichtung und verständliche Stash-Fehler.</p>
+        <p>Godoc an den neuen Crafting-/Collection-/Input-/Telemetrie-Verträgen sowie die Kommentare zu persistenten Bindungen, Reihenfolge, einmaligem Input, Scope, Pause und Fail-closed-Verhalten geprüft. In 25.9 entsteht keine neue Go-Funktionalität. Vorherige Tests und Live-Rezepte werden nicht erneut ausgeführt.</p>
+        <pre>scripts/sync-embedded-ui.ps1
+git diff --check</pre>
+        <p><strong>Grün:</strong> Das vorgeschriebene Sync-Skript einmal vollständig ausgeführt. Frozen-Lockfile-Install unverändert, API-Client generiert, integrierter Renderer-Typecheck und Vite-Build erfolgreich. Keine zusätzliche Go-/UI-Gesamtsuite, Electron-Abnahme oder Release-Pipeline. Metadaten geprüft: Core und Web weiterhin <code>0.27.0</code>; <code>dist/index.html</code> verweist auf vorhandene <code>index-3GD6bUIE.js</code> und <code>index-DmWcFx-g.css</code>. Das Skript erzeugt keine separate Metadatendatei; Quellen und die neun eingebetteten Dateien sind im lokalen Abschlussmanifest gehasht.</p>
+        <p>Abschließender Diff und Dateiliste geprüft. Lokale Konfiguration, Logs, Diagnosebundles, Hilfsskripte und EXEs bleiben außerhalb der versionierten Änderungen; die vier Operatorbilder und kleinen Herkunftsfixtures sind die vorgesehenen Plan-/Testbelege. Frühere Gate-Hashes sind unverändert oder nur im Zeilenende verschieden; das in 25.7 ergänzte <code>stepResult.reasonParams</code> ist durch die dort bereits bestandenen Task-Verträge abgedeckt und im finalen Manifest erfasst. <code>git diff --check</code> ist grün.</p>
+        <p>Manifest <code>.tmp/phase25/gate25-9-verification.json</code>, SHA-256 <code>91652f99e0fe5627d03f21a9c56e8bcd3e2b7accd3e1449f139e08a9147d2382</code>, enthält 119 aktuelle Quell-/Dokument-/Artefakthashes, UI-Metadaten und den Verweis auf die abgeschlossene 25.8-Abnahme. Dieses HTML wird für den Manifesthash ausgespart, damit kein Selbstbezug entsteht. Basis bleibt <code>40c840ded21951cd3a7bce3bf54155b53b97b453</code>.</p>
+        <p><strong>Abgeschlossen:</strong> Alle Gates 25.0–25.9 bestanden am 1. Oktober 2026. Ein natürlicher Farming-Überlauf bleibt ergänzende Logbeobachtung und wird nicht als live bewiesen ausgegeben. Kein weiterer manueller Gate-Auftrag; die Auslieferung bleibt ein eigener Release-Auftrag.</p>
+      </details>
+    </div></article>
+  </section>
+
+  <section id="abschluss">
+    <h2>10. Abschlusskriterien und Stop-Regeln</h2>
+    <div class="grid">
+      <div class="card"><strong>Nachvollziehbare Daten</strong><span>23 CASC-Rezepte; belegte Tab-/Count-/Scope-Evidenz; keine geratenen Offsets oder Rasterzellen.</span></div>
+      <div class="card"><strong>Verifizierter Fortschritt</strong><span>Jede Entnahme und Rückgabe bestätigt; ein Transmute je Rezept; freier Triggerplatz und leerer Cube vor Wiederaufnahme.</span></div>
+      <div class="card"><strong>Gemeinsames Verhalten</strong><span>Alle Return-Flows; kein Charaktersetting; aktuelle Shared-Bestände; passende terminale Fehler ohne Retry-Schleife.</span></div>
+    </div>
+    <p>Ein Daten-/Layoutnachweis darf die spätere Umsetzung blockieren, ohne den Scope zu erweitern. Ein nicht gefundener Memory-Zähler rechtfertigt keinen Pixelbot. Ein voller Endslot rechtfertigt keine neuen Crafting-Rezepte. Ein anderer Cow-/Combat-Fehler rechtfertigt keinen Drive-by-Fix in Phase 25.</p>
+    <p>Die Phase ist abgeschlossen, wenn die Gates mit ihren jeweils vorgesehenen Nachweisen bestanden sind: ein konkreter Live-Bestandsabgleich, wenige reale Materialaktionen und automatisierte Überlauf-/Wiederaufnahme-Tests. Natürlich auftretende Überläufe werden später beobachtet; ihr Ausbleiben fordert keinen künstlichen Lageraufbau. Die Auslieferung bleibt ein eigener Release-Auftrag. Fehlende erforderliche Memory- oder Aktionsbelege bleiben offene Gates.</p>
+  </section>
+  <footer>Phase 25 · Storage Compaction · alle Gates 25.0–25.9 bestanden am 1. Oktober 2026 · Implementierung abgeschlossen · Release v0.28.0</footer>
+</main>
+</body>
+</html>

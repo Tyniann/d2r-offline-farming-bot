@@ -238,6 +238,10 @@
     "sessionSummary": {
       "title": "Session beendet",
       "duration": "Sitzungsdauer: {{duration}}",
+      "compactedHeader": "Verdichtet: {{count}} Items",
+      "expandCompacted": "Verdichtete Items anzeigen",
+      "collapseCompacted": "Verdichtete Items ausblenden",
+      "emptyCompacted": "Keine Items verdichtet",
       "keptHeader": "{{count}} aufgehobene Items",
       "soldHeader": "{{count}} verkaufte Items",
       "itemLine": "{{count}} × {{name}}",
@@ -1419,6 +1423,14 @@
   "charsi_repair_shop_closed": "Das Händlerfenster von Charsi hat sich unerwartet geschlossen."
   },
   "errors": {
+    "stashFailed": "Das Item konnte nicht in die Truhe gelegt werden.",
+    "stashFailedItem": "Das Item „{{item}}“ konnte nicht in die Truhe gelegt werden.",
+    "storageMaterialFull": "Der Materialspeicher ist voll.",
+    "storageMaterialFullItem": "Der Speicher für „{{item}}“ ist voll.",
+    "storageCompactionUnavailable": "Der gemeinsame Materialbestand konnte nicht gelesen werden.",
+    "storageCubeNotEmpty": "Bitte leere den Horadrimwürfel und lege das Item am Mauszeiger ab.",
+    "storageCompactionUnconfirmed": "Die Verdichtung konnte nicht sicher abgeschlossen werden. Bitte prüfe Truhe und Horadrimwürfel.",
+    "storageCompactionTimeout": "Die Verdichtung hat zu lange gedauert. Bitte prüfe Truhe und Horadrimwürfel.",
     "unknownCode": "Unbekannter Fehler ({{code}}).",
     "requestFailed": "Die Anfrage ist fehlgeschlagen.",
     "requestInvalid": "Die Anfrage ist ungültig.",

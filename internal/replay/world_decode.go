@@ -17,6 +17,7 @@ func worldStateFromFrame(frame Frame, at time.Time) world.State {
 		Hover:              world.HoverInfo{IsHovered: frame.World.Hover.Hovered, UnitType: parseHoverUnitType(frame.World.Hover.UnitType), UnitID: frame.World.Hover.UnitID},
 		CowCorpsesComplete: frame.World.Evidence["cow_corpses_complete"],
 		MonsterCoverage:    world.MonsterCoverage{EligibleMonsterCount: frame.World.MonsterCoverage.EligibleCount, MonstersTruncated: frame.World.MonsterCoverage.Truncated, MonsterCoverageRadiusTiles: frame.World.MonsterCoverage.RadiusTiles},
+		Collection:         decodeCollection(frame, at),
 	}
 	for _, skillID := range frame.World.Player.SkillsKnown {
 		state.Player.SkillsKnown[skillID] = true

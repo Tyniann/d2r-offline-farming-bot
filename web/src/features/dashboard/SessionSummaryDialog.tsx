@@ -1,10 +1,10 @@
 import { useEffect, useId, useMemo, useState } from "react";
 import { ChevronRight } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { getHistoryItems, getHistorySummary, type HistoryItemDTO, type StatusDTO } from "../../api/generated";
+import { getHistoryItems, getHistorySummary, type CompactedMaterial, type HistoryItemDTO, type StatusDTO } from "../../api/generated";
 import { Button, Dialog, StateMessage } from "../../app/ui";
 import { formatClockDuration, formatNumber } from "../../i18n/format";
-import { gameHistoryItemName } from "../../i18n/game";
+import { gameBaseItemName, gameHistoryItemName } from "../../i18n/game";
 import "./session-summary.css";
 
 const terminalSessionStates = new Set(["idle", "idle_in_game", "stopped_error"]);
@@ -26,19 +26,22 @@ interface Props {
   onClose(): void;
 }
 
-/** SessionSummaryDialog shows wall-clock duration and expandable keep/sell aggregates after a session ends. */
+/** SessionSummaryDialog shows duration, loot and separately confirmed compaction results after a session ends. */
 export function SessionSummaryDialog({ sessionID, durationMs, refreshKey, onClose }: Props) {
   const { t, i18n } = useTranslation();
   const [keptOpen, setKeptOpen] = useState(false);
   const [soldOpen, setSoldOpen] = useState(false);
+  const [compactedOpen, setCompactedOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
   const [keptCount, setKeptCount] = useState(0);
   const [soldCount, setSoldCount] = useState(0);
   const [items, setItems] = useState<HistoryItemDTO[]>([]);
+  const [compacted, setCompacted] = useState<CompactedMaterial[]>([]);
   const keptListID = useId();
   const soldListID = useId();
+  const compactedListID = useId();
 
   useEffect(() => {
     const controller = new AbortController();
@@ -53,6 +56,7 @@ export function SessionSummaryDialog({ sessionID, durationMs, refreshKey, onClos
       setKeptCount(summary.summary.funnel.keep_return);
       setSoldCount(summary.summary.funnel.sold);
       setItems(page.items ?? []);
+      setCompacted(summary.summary.compacted ?? []);
       setLoading(false);
     }).catch(() => {
       if (controller.signal.aborted) return;
@@ -64,6 +68,7 @@ export function SessionSummaryDialog({ sessionID, durationMs, refreshKey, onClos
 
   const keptItems = useMemo(() => sessionItemRows(items, "stashed", i18n.resolvedLanguage), [items, i18n.resolvedLanguage]);
   const soldItems = useMemo(() => sessionItemRows(items, "sold", i18n.resolvedLanguage), [items, i18n.resolvedLanguage]);
+  const compactedItems = useMemo(() => compacted.map((item) => ({ key: item.code, count: item.count, name: gameBaseItemName(item.code, item.code, i18n.resolvedLanguage) })).sort((left, right) => right.count - left.count || left.name.localeCompare(right.name, i18n.resolvedLanguage)), [compacted, i18n.resolvedLanguage]);
 
   return <Dialog title={t("dashboard.sessionSummary.title")} className="session-summary-dialog" onClose={onClose}>
     <p className="session-summary-duration">{t("dashboard.sessionSummary.duration", { duration: formatClockDuration(durationMs) })}</p>
@@ -79,7 +84,6 @@ export function SessionSummaryDialog({ sessionID, durationMs, refreshKey, onClos
         collapseKey="collapseKept"
         emptyKey="emptyKept"
         items={keptItems}
-        field="stashed"
         onToggle={() => setKeptOpen((value) => !value)}
       />
       <SessionSummarySection
@@ -91,8 +95,18 @@ export function SessionSummaryDialog({ sessionID, durationMs, refreshKey, onClos
         collapseKey="collapseSold"
         emptyKey="emptySold"
         items={soldItems}
-        field="sold"
         onToggle={() => setSoldOpen((value) => !value)}
+      />
+      <SessionSummarySection
+        listID={compactedListID}
+        open={compactedOpen}
+        count={compacted.reduce((sum, item) => sum + item.count, 0)}
+        headerKey="compactedHeader"
+        expandKey="expandCompacted"
+        collapseKey="collapseCompacted"
+        emptyKey="emptyCompacted"
+        items={compactedItems}
+        onToggle={() => setCompactedOpen((value) => !value)}
       />
     </>}
     <div className="modal-actions"><Button onClick={onClose}>{t("dashboard.sessionSummary.close")}</Button></div>
@@ -100,20 +114,19 @@ export function SessionSummaryDialog({ sessionID, durationMs, refreshKey, onClos
 }
 
 function SessionSummarySection({
-  listID, open, count, headerKey, expandKey, collapseKey, emptyKey, items, field, onToggle,
+  listID, open, count, headerKey, expandKey, collapseKey, emptyKey, items, onToggle,
 }: {
   listID: string;
   open: boolean;
   count: number;
-  headerKey: "keptHeader" | "soldHeader";
-  expandKey: "expandKept" | "expandSold";
-  collapseKey: "collapseKept" | "collapseSold";
-  emptyKey: "emptyKept" | "emptySold";
-  items: HistoryItemDTO[];
-  field: "stashed" | "sold";
+  headerKey: "keptHeader" | "soldHeader" | "compactedHeader";
+  expandKey: "expandKept" | "expandSold" | "expandCompacted";
+  collapseKey: "collapseKept" | "collapseSold" | "collapseCompacted";
+  emptyKey: "emptyKept" | "emptySold" | "emptyCompacted";
+  items: Array<{ key: string; name: string; count: number }>;
   onToggle(): void;
 }) {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   return <section className="session-summary-section">
     <button type="button" aria-expanded={open} aria-controls={listID} aria-label={t(`dashboard.sessionSummary.${open ? collapseKey : expandKey}`)} onClick={onToggle}>
       <span>{t(`dashboard.sessionSummary.${headerKey}`, { count: formatNumber(count) })}</span>
@@ -121,14 +134,14 @@ function SessionSummarySection({
     </button>
     {open && <ul id={listID} className="session-summary-list">
       {items.length === 0 && <li>{t(`dashboard.sessionSummary.${emptyKey}`)}</li>}
-      {items.map((item) => <li key={item.item_key}>{t("dashboard.sessionSummary.itemLine", { count: formatNumber(item[field]), name: gameHistoryItemName(item, i18n.resolvedLanguage) })}</li>)}
+      {items.map((item) => <li key={item.key}>{t("dashboard.sessionSummary.itemLine", { count: formatNumber(item.count), name: item.name })}</li>)}
     </ul>}
   </section>;
 }
 
-function sessionItemRows(items: HistoryItemDTO[], field: "stashed" | "sold", language: string | undefined): HistoryItemDTO[] {
+function sessionItemRows(items: HistoryItemDTO[], field: "stashed" | "sold", language: string | undefined): Array<{ key: string; name: string; count: number }> {
   return items.filter((item) => item[field] > 0).sort((left, right) => {
     if (right[field] !== left[field]) return right[field] - left[field];
     return gameHistoryItemName(left, language).localeCompare(gameHistoryItemName(right, language), language || "de");
-  });
+  }).map((item) => ({ key: item.item_key, count: item[field], name: gameHistoryItemName(item, language) }));
 }

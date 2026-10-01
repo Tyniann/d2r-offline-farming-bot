@@ -87,6 +87,8 @@ Alle bot-eigenen Tastatur-, Maus- und Fokusaktionen teilen eine Gameplay-Lease. 
 
 ### Manual Input Test (Phase 3.5)
 
+Phase 25.3 ergänzt `ClickAtWithCtrlShift` für genau einen positionierten Collection-Transfer mit beiden Modifiern unter einer Gameplay-Lease. `ClickAt` verwendet denselben Vertrag für einfache UI-Klicks. Beide aktualisieren die Clientgeometrie und widerrufen die Aktion bei einer inzwischen geänderten Größe. Fokus und Safety werden nochmals vor dem Maus-Down geprüft. Die Transaktion gibt alle versuchten Tasten in umgekehrter Reihenfolge und bei Teilfehlern auch die Maustaste frei. Jeder Releasefehler setzt den Controller auf Stop. 25.4 ergänzt belegte Collection-Koordinaten und den isolierten Input-Test `storage-transfer:gsr` beziehungsweise `storage-transfer:r01`. Beide Live-Einzeltransfers samt Rückgabe sind bestanden; das kalibrierte Settle beträgt 300 ms und verlangt weiterhin frische Tab-Evidenz. 25.5/25.6 verdrahten einen Rechtsklick pro Zutatensatz und die verifizierte Rezept-State-Machine im gemeinsamen Stash-Return. 25.8 bestätigt beide Rubinrezepte und El → Eld einschließlich Pause/Fortsetzen und automatischer Tabnavigation. Zutaten bewegen sich erst nach frisch bestätigtem Gems-/Runentab. Siehe [Storage Compaction](storage-compaction.md).
+
 Expliziter CLI-Testmodus (`--input-test`) zur Validierung der Phase-3-Primitives im Offline-Spiel. Der normale passive `Run()`-Loop bleibt unverändert.
 
 **Voraussetzungen:**
@@ -265,4 +267,4 @@ Erwartung: Fenster gebunden, Aktionen in `input action`-Logs sichtbar, `input te
 - [State Probe](state-probe.md) — läuft parallel weiter, auch ohne erfolgreiches Bind
 
 ---
-*Zuletzt aktualisiert: 18. August 2026*
+*Zuletzt aktualisiert: 1. Oktober 2026*

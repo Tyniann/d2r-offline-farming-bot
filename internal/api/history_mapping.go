@@ -1,6 +1,7 @@
 package api
 
 import (
+	"maps"
 	"sort"
 	"time"
 
@@ -60,7 +61,7 @@ func historySummaryDTO(value telemetry.HistorySummary) HistorySummaryDTO {
 		Runs: value.Runs, TerminalRuns: value.TerminalRuns, Successful: value.Successful, Failed: value.Failed,
 		Aborted: value.Aborted, Incomplete: value.Incomplete, Running: value.Running, SuccessRate: cloneFloat(value.SuccessRate),
 		BossKills: value.BossKills, Durations: historyDurationDTO(value.Durations), Stages: historyStagesDTO(value.Stages),
-		Funnel: historyFunnelDTO(value.Funnel), KeepPerRun: cloneFloat(value.KeepPerRun), KeepPerKill: cloneFloat(value.KeepPerKill),
+		Funnel: historyFunnelDTO(value.Funnel), Compacted: append([]telemetry.CompactedMaterial(nil), value.Compacted...), KeepPerRun: cloneFloat(value.KeepPerRun), KeepPerKill: cloneFloat(value.KeepPerKill),
 		KeepPerHour: cloneFloat(value.KeepPerHour), TopFailure: historyFailureDTO(value.TopFailure),
 	}
 }
@@ -124,7 +125,7 @@ func historyRunDTO(value telemetry.HistoryRunAnalysis) HistoryRunDTO {
 	return HistoryRunDTO{
 		RunID: value.RunID, StartedAt: value.StartedAt, ObservedAt: value.ObservedAt,
 		Character: value.Character, Difficulty: value.Difficulty, Run: value.Run, DefinitionID: value.DefinitionID,
-		RouteID: value.RouteID, Outcome: value.Outcome, Reason: value.Reason,
+		RouteID: value.RouteID, Outcome: value.Outcome, Reason: value.Reason, ReasonParams: maps.Clone(value.ReasonParams),
 		LastStep: value.LastStep, DurationMs: value.DurationMs, BossKills: value.BossKills, Funnel: historyFunnelDTO(value.Funnel),
 	}
 }

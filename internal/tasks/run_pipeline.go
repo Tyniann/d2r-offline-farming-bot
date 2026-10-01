@@ -13,7 +13,7 @@ func (c *runPipeline) onTick(ctx context.Context, deps Deps, step string, w worl
 		return c.onTownReadyTick(ctx, deps, step, w, now)
 	}
 	if c.phase == RunPhaseStashPersonal {
-		return c.tickStashPersonal(ctx, narrowReturnDeps(deps), step, w)
+		return c.tickStashPersonal(ctx, narrowReturnDeps(deps), step, w, now)
 	}
 	if c.phase == RunPhaseBoss {
 		if c.definition.HasCapability(RunCapabilityChestSweep) {
@@ -169,7 +169,7 @@ func (c *runPipeline) onRunTick(ctx context.Context, deps Deps, step string, w w
 		return c.tickLoot(narrowLootDeps(deps), step, w, now)
 	case pipelineStepCastTownPortal, pipelineStepEnterTownPortal, pipelineStepWaitOriginTown,
 		pipelineStepPlayTownEgress, pipelineStepOpenOriginWaypoint, pipelineStepSelectHubWaypoint, pipelineStepWaitHubArea,
-		pipelineStepOpenStash, pipelineStepStashItems, pipelineStepCloseStash, pipelineStepPrepareTown:
+		pipelineStepOpenStash, pipelineStepStashItems, pipelineStepCompactStorage, pipelineStepCloseStash, pipelineStepPrepareTown:
 		return c.tickReturn(ctx, narrowReturnDeps(deps), step, w, now, stepStartedAt)
 	case pipelineStepComplete:
 		return stepResult{complete: true}

@@ -3,6 +3,7 @@ package telemetry
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"maps"
 	"sort"
 	"strings"
 	"time"
@@ -91,12 +92,14 @@ type HistoryRunAnalysis struct {
 	RouteLayoutFingerprint string
 	Outcome                HistoryOutcome
 	Reason                 string
+	ReasonParams           map[string]string
 	LastStep               string
 	DurationMs             int64
 	BossKills              int
 	Stages                 HistoryStageDurations
 	Funnel                 HistoryFunnel
 	Items                  []HistoryRunItem
+	Compacted              []CompactedMaterial
 }
 
 // HistoryRunItem beschreibt eine Unit-Kette innerhalb genau eines Runs.
@@ -136,6 +139,7 @@ type HistorySummary struct {
 	Durations    HistoryDurationStats
 	Stages       HistoryStageDurations
 	Funnel       HistoryFunnel
+	Compacted    []CompactedMaterial
 	KeepPerRun   *float64
 	KeepPerKill  *float64
 	KeepPerHour  *float64
@@ -431,7 +435,7 @@ func analyzeHistoryRun(run HistoryRun) (HistoryRunAnalysis, error) {
 	row := HistoryRunAnalysis{
 		RunID: run.RunID, StartedAt: run.StartedAt, ObservedAt: run.ObservedAt, Character: run.Character,
 		Difficulty: run.Difficulty, Run: run.Run, DefinitionID: run.DefinitionID, RouteID: run.RouteID,
-		RouteLayoutFingerprint: run.RouteLayoutFingerprint, Outcome: run.Outcome, Reason: run.Reason,
+		RouteLayoutFingerprint: run.RouteLayoutFingerprint, Outcome: run.Outcome, Reason: run.Reason, ReasonParams: maps.Clone(run.ReasonParams),
 	}
 	if run.EndedAt != nil {
 		ended := *run.EndedAt
@@ -444,6 +448,7 @@ func analyzeHistoryRun(run HistoryRun) (HistoryRunAnalysis, error) {
 		return HistoryRunAnalysis{}, historyReadError(HistoryReasonTimeInvalid, "negative run duration")
 	}
 	items := make(map[uint32]*historyItemState)
+	compacted := make(map[string]int)
 	var activeStep *Event
 	bossSeen := false
 	for _, event := range run.Events {
@@ -451,6 +456,10 @@ func analyzeHistoryRun(run HistoryRun) (HistoryRunAnalysis, error) {
 			return HistoryRunAnalysis{}, historyReadError(HistoryReasonTimeInvalid, "event lies outside run lifetime")
 		}
 		switch event.Event {
+		case StorageCompactionRecipe:
+			if p := event.Compaction; p != nil && p.OutputCode != "" && p.SourceBefore-p.SourceAfter == 3 && p.OutputAfter-p.OutputBefore == 1 {
+				compacted[p.OutputCode]++
+			}
 		case BossKillConfirmed:
 			if bossSeen {
 				return HistoryRunAnalysis{}, historyReadError(HistoryReasonBossDuplicate, "duplicate boss kill")
@@ -495,6 +504,7 @@ func analyzeHistoryRun(run HistoryRun) (HistoryRunAnalysis, error) {
 		row.Stages.OtherMs = row.DurationMs - stageTotal
 	}
 	unitIDs := make([]uint32, 0, len(items))
+	row.Compacted = sortedCompactedMaterials(compacted)
 	for unitID := range items {
 		unitIDs = append(unitIDs, unitID)
 	}
@@ -592,9 +602,15 @@ func addHistoryStageDuration(stages *HistoryStageDurations, stage HistoryStage, 
 
 func summarizeHistoryRuns(runs []HistoryRunAnalysis) HistorySummary {
 	summary := HistorySummary{Runs: len(runs)}
+	compacted := make(map[string]int)
 	durations := make([]int64, 0, len(runs))
 	failures := make(map[string]*HistoryFailure)
 	for _, run := range runs {
+		// Confirmed recipes remain visible even if a later run is interrupted.
+		// They never enter the terminal-run farming funnel or yield rates.
+		for _, material := range run.Compacted {
+			compacted[material.Code] += material.Count
+		}
 		switch run.Outcome {
 		case HistoryOutcomeRunning:
 			summary.Running++
@@ -619,12 +635,22 @@ func summarizeHistoryRuns(runs []HistoryRunAnalysis) HistorySummary {
 		}
 	}
 	summary.Durations = calculateDurationStats(durations)
+	summary.Compacted = sortedCompactedMaterials(compacted)
 	summary.SuccessRate = ratio(summary.Successful, summary.TerminalRuns)
 	summary.KeepPerRun = ratio(summary.Funnel.KeepReturn, summary.TerminalRuns)
 	summary.KeepPerKill = ratio(summary.Funnel.KeepReturn, summary.BossKills)
 	summary.KeepPerHour = perHour(summary.Funnel.KeepReturn, summary.Durations.TotalMs)
 	summary.TopFailure = topHistoryFailure(failures)
 	return summary
+}
+
+func sortedCompactedMaterials(counts map[string]int) []CompactedMaterial {
+	materials := make([]CompactedMaterial, 0, len(counts))
+	for code, count := range counts {
+		materials = append(materials, CompactedMaterial{Code: code, Count: count})
+	}
+	sort.Slice(materials, func(i, j int) bool { return materials[i].Code < materials[j].Code })
+	return materials
 }
 
 func compareHistoryRuns(runs []HistoryRunAnalysis, sortBy HistorySort) []HistoryComparison {

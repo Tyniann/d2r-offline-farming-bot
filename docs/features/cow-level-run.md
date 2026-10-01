@@ -4,7 +4,7 @@
 
 Phase 20 ergänzt den Queue-Run `cows` und ist vollständig abgenommen. Die Abschnitte 20.0 bis 20.4 bestätigen CASC-Identitäten, Live-Verträge, Memory-/World-/Input-Grundlagen, die zwei festen Routenrollen `leg_acquisition` und `cow_sweep`, das produktive Setup sowie das einmalige Memory-gegatete Cube-Rezept. Abschnitt 20.5 bindet den Cow-Sweep mit einer engen AD-/Bone-Spear-/CE-Hold-Strategie an den bestehenden Route-Controller. 20.6 führt denselben Run bis zum zentralen Town-Handoff, 20.7 schließt den Stabilitätsblock und 20.8 bestätigt den vollständigen produktiven End-to-End-Lauf. Damit ist v0.18.0 freigabefähig.
 
-Neben dem Necromancer und Hammerdin registriert die [Blizzard-Zauberin](sorceress-blizzard.md) dieselbe Cow-Pipeline. Sie verwendet Eisrüstung in der Stadt und Blizzard im Sweep, ohne Fluch oder Kadaverexplosion. Der vorhandene Preflight prüft ihre fünf Pflichtskills und einen lebenden Söldner. Beide Routenrollen müssen für die Zauberin veröffentlicht sein. Ihre manuelle Cow-Abnahme steht noch aus.
+Neben dem Necromancer und Hammerdin unterstützt die [Blizzard-Zauberin](sorceress-blizzard.md) dieselbe Cow-Pipeline. Sie verwendet Eisrüstung in der Stadt und Blizzard im Sweep, ohne Fluch oder Kadaverexplosion. Der vorhandene Preflight prüft ihre sechs Pflichtskills und einen lebenden Söldner. Beide Routenrollen müssen für die Zauberin veröffentlicht sein.
 
 ## Ort im Code
 
@@ -168,6 +168,8 @@ Gate 20.5 wurde am 8. August 2026 nach vier weiteren Live-Runs geschlossen. `cow
 
 ## Gesamtpipeline und Town-Handoff 20.6
 
+Phase 25 ergänzt im gemeinsamen Stash-Return `stash_items → compact_storage → stash_items`, wenn ein unterstützter Materialslot nach den normalen Transferversuchen nachweislich voll ist. Crafting verwendet dafür den eingebetteten Truhen-Cube und Collection-Zutaten. Wirt’s Leg, Portalbuch und das separate Cow-Portalrezept bleiben beim bestehenden Cow-Setup. Erst Verdichtung und bestätigter Stash-Transfer des Originalitems erlauben den Town-Handoff; volle Ziele oder unbestätigte Aktionen beenden die Session ohne Queue-Retry. Die Session-Übersicht zeigt bestätigte Resultate unter „Verdichtet“. Siehe [Storage Compaction](storage-compaction.md).
+
 Nach `cow_sweep_gate_complete` bleibt derselbe Runner aktiv. Er castet über den gemeinsamen Run-Adapter ein Stadtportal, betritt es mit dem vorhandenen UnitID-/Hover-gesteuerten Portal-Executor, bestätigt das Rogue Encampment und verwendet anschließend den gemeinsamen persönlichen Stash sowie die zentrale Town-Vorbereitung. Erst `prepare_town_handoff -> complete` beendet den Cow-Versuch erfolgreich. Cow erzeugt dafür weder einen zweiten Unter-Run noch einen neuen Recorder oder Budgetverbrauch.
 
 Der Recorder behält `cow_sweep` als unveränderliche primäre `route_id`; `leg_acquisition` bleibt die additive `setup_route_id`. Route-Rollen markieren nur die jeweiligen Playback-/Threat-Events. Die Runner-Resetbarriere löscht nach Erfolg oder Fehler beide privaten RoutePlayer, Cow-Hold, Rezeptbindungen, Town-/Portal-/Stash-Adapter und Profilzustand gemeinsam. Standard-Runs verwenden weiterhin ihre unveränderte Einzelrouten-Pipeline; Cow nutzt wegen `ReturnOrigin=act1` keinen Foreign-Town-Egress.
@@ -269,4 +271,4 @@ Der verworfene Capture-Index 288/Bit 3 gehört zu einem laufenden Zähler und da
 - [Paladin „Hammerdin“](hammerdin.md)
 
 ---
-*Zuletzt aktualisiert: 2026-09-25*
+*Zuletzt aktualisiert: 2026-10-01*

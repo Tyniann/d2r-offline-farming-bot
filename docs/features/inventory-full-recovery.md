@@ -40,6 +40,8 @@ scan_loot -> pick_loot? -> cast_town_portal -> enter_town_portal
 -> close_personal_stash -> complete
 ```
 
+Phase 25 ergänzt im gemeinsamen Stash-Return bei bestätigtem Überlauf eines unterstützten Materialslots den begrenzten Umweg `stash_items → compact_storage → stash_items`. Erst die verifizierte Verdichtung und das normale Einlagern des Originalitems erlauben die weitere Schrittfolge. Compaction-Fehler bleiben terminal und autorisieren keinen Queue-Neustart. Siehe [Storage Compaction](storage-compaction.md); Rezeptaktionen und Tabnavigation sind live abgenommen, der gemeinsame Return-Vertrag ist automatisch geprüft.
+
 `enter_town_portal` verwendet `pathing.TownPortalActions`. Der Baustein wartet begrenzt auf ein `ObjectKindTownPortal`, verlangt vor dem Hover-Loop 500 ms lang dieselbe `UnitID` und Position und friert den bestätigten Kandidaten anschließend im eigenen Entity-Clicker ein. Ein Klick erfolgt nur, wenn der Memory-Hover `UnitType=object` und dieselbe `UnitID` bestätigt. Feste Portal-Bildschirmkoordinaten und blinde Klicks sind verboten.
 
 `wait_origin_town` darf während Loading und inkonsistenten Snapshots ohne Input weiterlaufen. Erfolg ist ausschließlich ein gültiger `in_game`-Snapshot im erwarteten Herkunftsort. Bleibt der Charakter nach dem ersten Klick mindestens eine Sekunde und drei frische gültige Snapshots im Route-Terminal, folgt genau ein begrenzter Recovery-Versuch: lokaler Gegner-Clear im 12-Kachel-Kreis, Teleport zur gepinnten Portal-UnitID und ein neuer hover-bestätigter Klick. Der ursprüngliche Step-Timeout läuft dabei weiter. Jedes andere gültige Gebiet endet mit `unexpected_area`.
@@ -127,4 +129,4 @@ Der eigentliche `inventory_full`-Branch ist zusätzlich durch Task-Integrationst
 - [Loot- und Recovery-Loop](loot-recovery-loop.md)
 
 ---
-*Zuletzt aktualisiert: 2026-08-28*
+*Zuletzt aktualisiert: 2026-10-01*

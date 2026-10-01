@@ -15,6 +15,11 @@ func TestParseInputTestSpecSingleActions(t *testing.T) {
 		{"belt:1", []inputTestAction{{kind: inputTestBelt, slot: 1}}},
 		{"potion:4", []inputTestAction{{kind: inputTestBelt, slot: 4}}},
 		{"portal", []inputTestAction{{kind: inputTestPortal}}},
+		{"storage-transfer:gsr", []inputTestAction{{kind: inputTestStorageTransfer, code: "gsr"}}},
+		{"storage-transfer:r01", []inputTestAction{{kind: inputTestStorageTransfer, code: "r01"}}},
+		{"storage-recipe:gsr:pause", []inputTestAction{{kind: inputTestStorageRecipe, code: "gsr", pauseBeforeTransmute: true}}},
+		{"storage-recipe:glr", []inputTestAction{{kind: inputTestStorageRecipe, code: "glr"}}},
+		{"storage-recipe:r01", []inputTestAction{{kind: inputTestStorageRecipe, code: "r01"}}},
 		{"skill:teleport", []inputTestAction{{kind: inputTestSkill, skillID: memory.SkillTeleport}}},
 		{"skill:town_portal", []inputTestAction{{kind: inputTestSkill, skillID: memory.SkillTownPortal}}},
 		{"center-click", []inputTestAction{{kind: inputTestCenterClick}}},
@@ -74,6 +79,14 @@ func TestParseInputTestSpecErrors(t *testing.T) {
 		"belt:1,,portal",
 		"portal:extra",
 		"center-click:1",
+		"storage-transfer",
+		"storage-transfer:r10",
+		"storage-recipe",
+		"storage-recipe:r10",
+		"storage-recipe:gsr:unknown",
+		"storage-recipe:glr,portal",
+		"storage-transfer:gsr,portal",
+		"portal,storage-transfer:r01",
 	}
 
 	for _, spec := range cases {

@@ -33,7 +33,7 @@ func main() {
 	importRoot := flag.String("import-root", "", "absolute existing data root imported with --provision-data-root")
 	probe := flag.Bool("probe", false, "enable world-state logging (memory snapshots are always read when attached)")
 	verbose := flag.Bool("verbose", false, "enable debug logging (shows position changes with --probe)")
-	inputTest := flag.String("input-test", "", "manual input test spec (e.g. belt:1, portal, skill:1, center-click, click:640,360)")
+	inputTest := flag.String("input-test", "", "manual input test spec (e.g. belt:1, portal, skill:1, center-click, click:640,360, storage-transfer:gsr, storage-recipe:gsr:pause)")
 	inputTestObserveMs := flag.Int("input-test-observe-ms", 3000, "observation window in ms after input-test actions")
 	runFlag := flag.String("run", "", "active farming run (e.g. countess); overrides runs.active in config")
 	phaseFlag := flag.String("phase", "", "optional run phase (e.g. travel-entry or play-route with --run countess)")
@@ -54,6 +54,8 @@ func main() {
 	weaponSetProbeTimeoutMs := flag.Int("weapon-set-probe-timeout-ms", 120000, "timeout in ms for the read-only weapon-set probe")
 	objectInspect := flag.String("object-inspect", "", "read-only Gate-23.0 object evidence label (e.g. closed, opened, locked-with-key)")
 	objectInspectTimeoutMs := flag.Int("object-inspect-timeout-ms", 30000, "timeout in ms for a read-only object inspect capture")
+	storageInspect := flag.String("storage-inspect", "", "Read-only Materialtruhe-Diagnose mit vorbereitetem Zustand und Label")
+	storageInspectTimeoutMs := flag.Int("storage-inspect-timeout-ms", 30000, "Maximale Dauer der Materialtruhe-Diagnose in Millisekunden")
 	screenAnchorCapture := flag.String("screen-anchor-capture", "", "capture a named 1280x720 frontend screenshot for Phase 7.3 calibration")
 	sessionInspect := flag.Bool("session-inspect", false, "validate and print the resolved autonomous-session plan without attaching or sending input")
 	runsInspect := flag.Bool("runs-inspect", false, "print read-only run metadata and availability as stable JSON")
@@ -115,6 +117,8 @@ func main() {
 		WeaponSetProbeTimeoutMs: *weaponSetProbeTimeoutMs,
 		ObjectInspect:           *objectInspect,
 		ObjectInspectTimeoutMs:  *objectInspectTimeoutMs,
+		StorageInspect:          *storageInspect,
+		StorageInspectTimeoutMs: *storageInspectTimeoutMs,
 		ScreenAnchorCapture:     *screenAnchorCapture,
 		SessionInspect:          *sessionInspect,
 		RunsInspect:             *runsInspect,
@@ -163,6 +167,9 @@ func run(configPath string, opts app.Options) error {
 }
 
 func runWithDataRoot(configPath, dataRoot string, opts app.Options) error {
+	if err := app.ValidateStorageInspectOptions(opts); err != nil {
+		return err
+	}
 	if opts.ReplayRuntimeTrace != "" {
 		if err := validateReplayMode(opts, dataRoot); err != nil {
 			return err
@@ -276,6 +283,9 @@ func runWithDataRoot(configPath, dataRoot string, opts app.Options) error {
 		return runDesktopAPI(cfg, rt, operatorSettings, loadoutResolver, opts.DesktopHandshakePipe)
 	}
 
+	if opts.StorageInspect != "" {
+		return rt.RunStorageInspect(opts.StorageInspect)
+	}
 	if opts.InputTest != "" {
 		return rt.RunInputTest(opts.InputTest)
 	}
@@ -332,7 +342,7 @@ func validateDesktopMode(opts app.Options) error {
 	if !opts.Desktop {
 		return nil
 	}
-	if opts.Probe || opts.InputTest != "" || opts.Run != "" || opts.RunPhase != "" || opts.RuntimeTraceCapture != "" || opts.ReplayRuntimeTrace != "" || opts.PathingTest != "" || opts.OfflineDifficulty != "" || opts.OfflineCharacter != "" || opts.OfflineExitTest || opts.UIStateProbe != "" || opts.ScreenAnchorCapture != "" || opts.MercenaryProbe != "" || opts.CowProbe != "" || opts.WeaponSetProbe != "" || opts.ObjectInspect != "" || opts.SessionInspect || opts.RunsInspect || opts.WaypointTargetsInspect || opts.SessionMaxRuns != 0 || opts.Route != "" || opts.RouteName != "" || opts.RouteDifficulty != "" || opts.TownInspect || opts.TownTest != "" {
+	if opts.Probe || opts.InputTest != "" || opts.Run != "" || opts.RunPhase != "" || opts.RuntimeTraceCapture != "" || opts.ReplayRuntimeTrace != "" || opts.PathingTest != "" || opts.OfflineDifficulty != "" || opts.OfflineCharacter != "" || opts.OfflineExitTest || opts.UIStateProbe != "" || opts.ScreenAnchorCapture != "" || opts.MercenaryProbe != "" || opts.CowProbe != "" || opts.WeaponSetProbe != "" || opts.ObjectInspect != "" || opts.StorageInspect != "" || opts.SessionInspect || opts.RunsInspect || opts.WaypointTargetsInspect || opts.SessionMaxRuns != 0 || opts.Route != "" || opts.RouteName != "" || opts.RouteDifficulty != "" || opts.TownInspect || opts.TownTest != "" {
 		return fmt.Errorf("desktop mode is mutually exclusive with session, run, inspect, probe, route, town, and test modes")
 	}
 	return nil
@@ -342,7 +352,7 @@ func validateReplayMode(opts app.Options, dataRoot string) error {
 	if opts.ReplayRuntimeTrace == "" {
 		return nil
 	}
-	if dataRoot != "" || opts.Desktop || opts.Probe || opts.InputTest != "" || opts.Run != "" || opts.RunPhase != "" || opts.RuntimeTraceCapture != "" || opts.PathingTest != "" || opts.OfflineDifficulty != "" || opts.OfflineCharacter != "" || opts.OfflineExitTest || opts.UIStateProbe != "" || opts.ScreenAnchorCapture != "" || opts.MercenaryProbe != "" || opts.CowProbe != "" || opts.WeaponSetProbe != "" || opts.ObjectInspect != "" || opts.SessionInspect || opts.RunsInspect || opts.WaypointTargetsInspect || opts.SessionMaxRuns != 0 || opts.Route != "" || opts.RouteName != "" || opts.RouteDifficulty != "" || opts.TownInspect || opts.TownTest != "" {
+	if dataRoot != "" || opts.Desktop || opts.Probe || opts.InputTest != "" || opts.Run != "" || opts.RunPhase != "" || opts.RuntimeTraceCapture != "" || opts.PathingTest != "" || opts.OfflineDifficulty != "" || opts.OfflineCharacter != "" || opts.OfflineExitTest || opts.UIStateProbe != "" || opts.ScreenAnchorCapture != "" || opts.MercenaryProbe != "" || opts.CowProbe != "" || opts.WeaponSetProbe != "" || opts.ObjectInspect != "" || opts.StorageInspect != "" || opts.SessionInspect || opts.RunsInspect || opts.WaypointTargetsInspect || opts.SessionMaxRuns != 0 || opts.Route != "" || opts.RouteName != "" || opts.RouteDifficulty != "" || opts.TownInspect || opts.TownTest != "" {
 		return fmt.Errorf("--replay-runtime-trace is mutually exclusive with data-root, desktop, session, run, inspect, probe, route, town, and test modes")
 	}
 	return nil

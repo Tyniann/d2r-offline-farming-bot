@@ -47,6 +47,10 @@ Der Trace enthält nur semantische World-Felder. Insbesondere fehlen Memory-Poin
 
 Schemaänderungen erfordern eine neue `replay.SchemaVersion`. Unbekannte Felder und nicht unterstützte Versionen werden beim Lesen abgelehnt.
 
+Phase 25 erhöht das Schema auf 2 und ergänzt die semantische Collection-Projektion mit aktuellen Gem-/Skull-/Runen-Counts und Known-Flags. Der aktive Truhenbereich bleibt als `basic`, `materials`, `gems` oder `runes` samt Known-Flag erhalten; Basic/Materials sind Navigationsstarts, keine Materialaktionsfreigabe. Ihr Scope ist ein undurchsichtiger Vergleichsschlüssel, keine Prozessadresse. Fehlende, stale oder widersprüchliche Evidenz bleibt unbekannt. Schema 1 bleibt ausdrücklich ohne Collection-Daten lesbar; bekannte neue Collection-Felder sind in dieser alten Version unzulässig. Der Bestandsread und seine Grenzen stehen unter [Storage Compaction](storage-compaction.md).
+
+Phase 25.7 ergänzt die Stash-Ursache, Triggerposition und `compaction.tick` in den vorhandenen Dependency-Maps. Requests und Pending-/Ergebnisantworten bleiben im Task-Replay erhalten. Der interne Crafting-Executor wird dabei nicht erneut ausgeführt; seine Reihenfolge wird separat mit kleinen World-Frame-Fixtures geprüft.
+
 ### Headless Replay
 
 Der Replayer baut ausschließlich den produktiven `tasks.Runner` auf. Eine Fake Clock verwendet die aufgezeichneten monotonen Tickabstände; Transcript-Adapter liefern die protokollierten Dependency-Antworten. Ein reiner Intent-Recorder beobachtet die dadurch erneut erzeugten semantischen Aktionen. Prozesssuche, Memory Reader, D2R-Fensterbindung, Hotkeys und OS-Input-Controller sind in diesem Pfad nicht erreichbar.
@@ -145,4 +149,4 @@ Der Recorder liest weder Prozessspeicher noch D2R-Installations- oder Savegame-D
 - [Run-Telemetrie](run-telemetry.md)
 
 ---
-*Zuletzt aktualisiert: 28. September 2026*
+*Zuletzt aktualisiert: 1. Oktober 2026*

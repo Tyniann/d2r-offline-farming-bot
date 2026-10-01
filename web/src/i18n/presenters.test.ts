@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { changeAppLanguage, i18n } from ".";
+import { gameBaseItemName } from "./game";
 import {
   presentHistoryReason,
   presentProblem,
@@ -14,6 +15,21 @@ import {
 } from "./presenters";
 
 describe("semantische Presenter", () => {
+  it("zeigt Speicherfehler mit dem Zielitem in beiden Sprachen", async () => {
+    for (const language of ["de", "en"] as const) {
+      await changeAppLanguage(language);
+      const params = { item_code: "glr", material_code: "gpr" };
+      const target = gameBaseItemName("gpr", "gpr", language);
+      const trigger = gameBaseItemName("glr", "glr", language);
+      expect(presentProblem({ code: "storage_gem_full", params }, i18n.t)).toContain(target);
+      expect(presentHistoryReason("storage_gem_full", i18n.t, params)).toContain(target);
+      expect(presentProblem({ code: "stash_failed", params }, i18n.t)).toContain(trigger);
+      for (const code of ["stash_failed", "storage_gem_full", "storage_rune_full", "storage_state_unavailable", "storage_cube_not_empty", "storage_compaction_unconfirmed", "storage_compaction_timeout"]) {
+        expect(presentProblem({ code }, i18n.t)).not.toMatch(/Unbekannt|Unknown|{{/);
+        expect(presentHistoryReason(code, i18n.t)).not.toContain(code);
+      }
+    }
+  });
   beforeEach(() => changeAppLanguage("de"));
 
   it("übersetzt Fortschrittscode und Parameter in beiden Sprachen", async () => {

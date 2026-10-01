@@ -49,6 +49,7 @@ type State struct {
 	CowCorpsesComplete bool
 	MonsterCoverage    MonsterCoverage
 	Items              []Item
-	Hover              HoverInfo // Unit currently under the mouse cursor; zero value when none.
-	UI                 UIState   // Read-only menu flags used for fail-closed UI actions.
+	Hover              HoverInfo       // Unit currently under the mouse cursor; zero value when none.
+	UI                 UIState         // Read-only menu flags used for fail-closed UI actions.
+	Collection         CollectionState // Current shared material storage, independent of item stacks.
 }

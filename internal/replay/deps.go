@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/crafting"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/input"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/pathing"
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/profile"
@@ -46,6 +47,9 @@ func InstrumentDeps(deps tasks.Deps, recorder *Recorder) tasks.Deps {
 	}
 	if deps.Loot != nil {
 		deps.Loot = &traceLoot{next: deps.Loot, recorder: recorder}
+	}
+	if deps.Compaction != nil {
+		deps.Compaction = &traceCompaction{next: deps.Compaction, recorder: recorder}
 	}
 	if deps.Route != nil {
 		deps.Route = &traceRoute{next: deps.Route, recorder: recorder}
@@ -343,9 +347,28 @@ func (t *traceLoot) TickCloseStash(state world.State, now time.Time) tasks.LootS
 	return result
 }
 func lootStashResult(result tasks.LootStashResult) map[string]any {
-	return map[string]any{"status": string(result.Status), "done": result.Done, "attempted": result.Attempted, "transferred": result.Transferred, "unit_id": result.UnitID, "code": result.Code, "name": result.Name, "attempt": result.Attempt}
+	return map[string]any{"status": string(result.Status), "reason": result.Reason, "compaction_candidate": result.CompactionCandidate, "grid_x": result.GridX, "grid_y": result.GridY, "done": result.Done, "attempted": result.Attempted, "transferred": result.Transferred, "unit_id": result.UnitID, "code": result.Code, "name": result.Name, "attempt": result.Attempt}
 }
 func (t *traceLoot) Reset() { t.next.Reset() }
+
+type traceCompaction struct {
+	next     tasks.StorageCompactionActions
+	recorder *Recorder
+}
+
+func (t *traceCompaction) Tick(state world.State, now time.Time, request crafting.Request) crafting.Result {
+	result := t.next.Tick(state, now, request)
+	fields := map[string]any{"done": result.Done, "success": result.Success}
+	if f := result.Failure; f != nil {
+		fields["failure"] = map[string]any{"reason": f.Reason, "trigger_code": f.TriggerCode, "material_code": f.MaterialCode}
+	}
+	if p := result.Progress; p != nil {
+		fields["progress"] = map[string]any{"recipe_index": p.RecipeIndex, "input_code": p.InputCode, "output_code": p.OutputCode, "input_before": p.InputBefore, "input_after": p.InputAfter, "output_before": p.OutputBefore, "output_after": p.OutputAfter}
+	}
+	recordResult(t.recorder, "compaction.tick", map[string]any{"unit_id": request.UnitID, "code": request.Code, "grid_x": request.GridX, "grid_y": request.GridY, "run_generation": request.RunGeneration}, fields, nil)
+	return result
+}
+func (t *traceCompaction) Reset() { t.next.Reset() }
 
 type traceRoute struct {
 	next     tasks.RoutePlayback

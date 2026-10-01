@@ -46,6 +46,7 @@ const (
 	pipelineStepWaitHubArea         = "wait_hub_area"
 	pipelineStepOpenStash           = "open_personal_stash"
 	pipelineStepStashItems          = "stash_items"
+	pipelineStepCompactStorage      = "compact_storage"
 	pipelineStepCloseStash          = "close_personal_stash"
 	pipelineStepPrepareTown         = "prepare_town_handoff"
 	pipelineStepComplete            = "complete"
@@ -169,6 +170,14 @@ func (c *runPipeline) shouldClearNearbyAfterBoss() bool {
 }
 
 func (c *runPipeline) nextStep(current string) string {
+	// Only a confirmed full Keep-target adds this bounded detour. Successful
+	// compaction returns to the ordinary stash scan, whose transfer is verified.
+	if current == pipelineStepStashItems && c.ret.pendingCompaction != nil {
+		return pipelineStepCompactStorage
+	}
+	if current == pipelineStepCompactStorage {
+		return pipelineStepStashItems
+	}
 	if c.phase == RunPhaseTownReady {
 		switch current {
 		case pipelineStepPrecheck:
@@ -360,7 +369,9 @@ func (c *runPipeline) nextStep(current string) string {
 }
 
 func (c *runPipeline) usesTickTimeout(step string) bool {
-	return step == pipelineStepPlayRoute
+	// Compaction owns its finite active-time budget; the ordinary wall-clock
+	// step timeout must not expire during a paused 77-recipe batch.
+	return step == pipelineStepPlayRoute || step == pipelineStepCompactStorage
 }
 
 func (c *runPipeline) timeoutReason(step string) string {
@@ -377,6 +388,9 @@ func (c *runPipeline) timeoutReason(step string) string {
 }
 
 func (c *runPipeline) allowsNonInputTick(step string) bool {
+	if step == pipelineStepCompactStorage {
+		return true
+	}
 	if c.phase == RunPhaseRetryReturn && step == pipelineStepWaitRecoveryArea {
 		return true
 	}

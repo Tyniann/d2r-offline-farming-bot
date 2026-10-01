@@ -117,7 +117,7 @@ func runtimeTraceContract(cfg *config.Config, opts Options, selection tasks.RunS
 		ProfileID:    runConfig.Combat.Profile,
 		Difficulty:   cfg.Session.Difficulty,
 		GameVersion:  cfg.Memory.GameVersion,
-		Dependencies: []string{"input", "pathing", "waypoint", "portal", "town_walk", "stash", "combat", "actions", "loot", "route", "route_clear", "town_egress", "profile", "town", "telemetry"},
+		Dependencies: []string{"input", "pathing", "waypoint", "portal", "town_walk", "stash", "combat", "actions", "loot", "compaction", "route", "route_clear", "town_egress", "profile", "town", "telemetry"},
 		Definition: map[string]any{
 			"display_name":                definition.DisplayName,
 			"entry_area_id":               uint32(definition.EntryArea),

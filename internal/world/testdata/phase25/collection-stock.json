@@ -1,0 +1,71 @@
+{
+  "source_capture": "20261001T000547.732161500Z-runes-cube-open.json",
+  "source_sha256": "11a31569c590c428f28c7dd5077be0cb1225d7be9eb4bbbd990550d6ec81dbc1",
+  "samples_agree": true,
+  "source_items": "misc.txt; name is the stable row key",
+  "counts": [
+    {
+      "TxtFileNo": 634,
+      "UnitID": 126,
+      "Count": 46,
+      "code": "r10",
+      "misc_name": "Thul Rune"
+    },
+    {
+      "TxtFileNo": 589,
+      "UnitID": 137,
+      "Count": 28,
+      "code": "gsg",
+      "misc_name": "Emerald"
+    },
+    {
+      "TxtFileNo": 594,
+      "UnitID": 142,
+      "Count": 22,
+      "code": "gsr",
+      "misc_name": "Ruby"
+    },
+    {
+      "TxtFileNo": 599,
+      "UnitID": 145,
+      "Count": 22,
+      "code": "gsw",
+      "misc_name": "Diamond"
+    },
+    {
+      "TxtFileNo": 584,
+      "UnitID": 146,
+      "Count": 24,
+      "code": "gsb",
+      "misc_name": "Sapphire"
+    },
+    {
+      "TxtFileNo": 625,
+      "UnitID": 155,
+      "Count": 7,
+      "code": "r01",
+      "misc_name": "El Rune"
+    },
+    {
+      "TxtFileNo": 574,
+      "UnitID": 171,
+      "Count": 19,
+      "code": "gsv",
+      "misc_name": "Amethyst"
+    },
+    {
+      "TxtFileNo": 614,
+      "UnitID": 172,
+      "Count": 12,
+      "code": "sku",
+      "misc_name": "Skull"
+    },
+    {
+      "TxtFileNo": 579,
+      "UnitID": 176,
+      "Count": 19,
+      "code": "gsy",
+      "misc_name": "Topaz"
+    }
+  ]
+}

@@ -15,7 +15,7 @@ func (c *runPipeline) tickLootAndReturn(ctx context.Context, deps Deps, step str
 	switch step {
 	case pipelineStepCastTownPortal, pipelineStepEnterTownPortal, pipelineStepWaitOriginTown,
 		pipelineStepPlayTownEgress, pipelineStepOpenOriginWaypoint, pipelineStepSelectHubWaypoint, pipelineStepWaitHubArea,
-		pipelineStepOpenStash, pipelineStepStashItems, pipelineStepCloseStash:
+		pipelineStepOpenStash, pipelineStepStashItems, pipelineStepCompactStorage, pipelineStepCloseStash:
 		return c.tickReturn(ctx, narrowReturnDeps(deps), step, w, now, stepStartedAt)
 	default:
 		return c.tickLoot(narrowLootDeps(deps), step, w, now)

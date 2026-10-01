@@ -119,7 +119,7 @@ func (c *cowPipeline) nextStep(step string) string {
 	case cowStepSweepComplete:
 		return pipelineStepCastTownPortal
 	case pipelineStepCastTownPortal, pipelineStepEnterTownPortal, pipelineStepWaitOriginTown,
-		pipelineStepOpenStash, pipelineStepStashItems, pipelineStepCloseStash,
+		pipelineStepOpenStash, pipelineStepStashItems, pipelineStepCompactStorage, pipelineStepCloseStash,
 		pipelineStepPrepareTown, pipelineStepComplete:
 		return c.cowSweep.nextStep(step)
 	case cowStepSafeFailure:
@@ -130,7 +130,7 @@ func (c *cowPipeline) nextStep(step string) string {
 }
 
 func (c *cowPipeline) usesTickTimeout(step string) bool {
-	return step == cowStepPlayLegRoute || step == cowStepSweep
+	return step == cowStepPlayLegRoute || step == cowStepSweep || step == pipelineStepCompactStorage
 }
 
 func (c *cowPipeline) timeoutReason(step string) string {
@@ -181,7 +181,7 @@ func (c *cowPipeline) onStepEnter(step string) {
 		c.legMissingTicks = 0
 	}
 	if step == pipelineStepCastTownPortal || step == pipelineStepEnterTownPortal || step == pipelineStepWaitOriginTown ||
-		step == pipelineStepOpenStash || step == pipelineStepStashItems || step == pipelineStepCloseStash ||
+		step == pipelineStepOpenStash || step == pipelineStepStashItems || step == pipelineStepCompactStorage || step == pipelineStepCloseStash ||
 		step == pipelineStepPrepareTown || step == pipelineStepComplete {
 		c.cowSweep.onStepEnter(step)
 	}
@@ -416,7 +416,7 @@ func (c *cowPipeline) onTick(ctx context.Context, deps Deps, step string, state 
 	case cowStepSweepComplete:
 		return stepResult{complete: true}
 	case pipelineStepCastTownPortal, pipelineStepEnterTownPortal, pipelineStepWaitOriginTown,
-		pipelineStepOpenStash, pipelineStepStashItems, pipelineStepCloseStash,
+		pipelineStepOpenStash, pipelineStepStashItems, pipelineStepCompactStorage, pipelineStepCloseStash,
 		pipelineStepPrepareTown, pipelineStepComplete:
 		// The Cow-specific setup and sweep end here. Reuse the proven Act-1
 		// return, personal-stash and Town-handoff implementation so the two

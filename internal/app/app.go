@@ -67,6 +67,7 @@ type Runtime struct {
 	routePlayback             *routePlaybackAdapter
 	townEgress                *townEgressAdapter
 	lootActions               *lootActionsAdapter
+	storageCompaction         *storageCompactionAdapter
 	townLayout                *townLayoutPin
 	townTelemetry             *townTelemetryRelay
 	townPreparation           *townPreparationAdapter
@@ -290,6 +291,10 @@ func New(cfg *config.Config, opts Options) (rt *Runtime, err error) {
 	}
 	profileCfg := cfg.Profiles[combatProfileID]
 	lootActions := newLootActionsAdapter(log, lootFilter, profileCfg.Resources, cfg.Loot.Pickup, inputCtrl, pathingCfg, stashExecutor, runTelemetry)
+	storageCompaction, err := newStorageCompactionAdapter(log, inputCtrl, lootActions)
+	if err != nil {
+		return nil, err
+	}
 	routeLifecycle, err := NewRouteLifecycleStore(cfg)
 	if err != nil {
 		return nil, fmt.Errorf("route lifecycle: %w", err)
@@ -312,7 +317,7 @@ func New(cfg *config.Config, opts Options) (rt *Runtime, err error) {
 	chestOperate := newChestOperateAdapter(log, inputCtrl, pathingCfg)
 	taskDeps := tasks.Deps{
 		Input: inputCtrl, Pathing: nav, Waypoint: runWaypoints, Portal: townPortals, TownWalk: layoutTownWalker,
-		Stash: personalStash, Combat: combat, Actions: runActions, Loot: lootActions, Route: routePlayback, RouteClear: profileExecutor, TownEgress: townEgress, Profile: profileActions, Town: townPreparation, Cow: cowSetup, CowRecipe: cowRecipe, Chest: chestOperate,
+		Stash: personalStash, Combat: combat, Actions: runActions, Loot: lootActions, Compaction: storageCompaction, Route: routePlayback, RouteClear: profileExecutor, TownEgress: townEgress, Profile: profileActions, Town: townPreparation, Cow: cowSetup, CowRecipe: cowRecipe, Chest: chestOperate,
 	}
 	// Do not assign a nil *telemetry.Recorder to the interface: that would make
 	// the interface non-nil and turn the first fail-closed pipeline event into a
@@ -374,14 +379,15 @@ func New(cfg *config.Config, opts Options) (rt *Runtime, err error) {
 			expectedVersion:  expectedVersion,
 			offsetVersion:    offsetSet.D2RVersion,
 		},
-		sessionSelection: tasks.RunSelection{Run: cfg.Session.Run},
-		routePlayback:    routePlayback,
-		townEgress:       townEgress,
-		lootActions:      lootActions,
-		townLayout:       townLayout,
-		townTelemetry:    townTrace,
-		townPreparation:  townPreparation,
-		stashExecutor:    stashExecutor,
+		sessionSelection:  tasks.RunSelection{Run: cfg.Session.Run},
+		routePlayback:     routePlayback,
+		townEgress:        townEgress,
+		lootActions:       lootActions,
+		storageCompaction: storageCompaction,
+		townLayout:        townLayout,
+		townTelemetry:     townTrace,
+		townPreparation:   townPreparation,
+		stashExecutor:     stashExecutor,
 	}
 	rt.sessionReset = sessionResetBarrier{
 		components: []sessionNamedResetter{
@@ -394,6 +400,7 @@ func New(cfg *config.Config, opts Options) (rt *Runtime, err error) {
 			{name: "personal_stash", resetter: personalStash},
 			{name: "combat", resetter: combat},
 			{name: "loot", resetter: lootActions},
+			{name: "storage_compaction", resetter: storageCompaction},
 			{name: "route", resetter: routePlayback},
 			{name: "town_egress", resetter: townEgress},
 			{name: "profile", resetter: profileActions},
@@ -415,12 +422,12 @@ func New(cfg *config.Config, opts Options) (rt *Runtime, err error) {
 // the process. Specialized CLI modes such as --pathing-test and --route must
 // return false even when session.enabled is true.
 func SessionExecutionRequested(opts Options) bool {
-	return !opts.Desktop && !opts.SessionInspect && !opts.RunsInspect && !opts.WaypointTargetsInspect && !opts.Probe && opts.InputTest == "" && opts.Run == "" && opts.RunPhase == "" && opts.RuntimeTraceCapture == "" && opts.ReplayRuntimeTrace == "" && opts.PathingTest == "" && opts.OfflineDifficulty == "" && opts.OfflineCharacter == "" && !opts.OfflineExitTest && opts.UIStateProbe == "" && opts.ScreenAnchorCapture == "" && opts.MercenaryProbe == "" && opts.CowProbe == "" && opts.WeaponSetProbe == "" && opts.ObjectInspect == "" && opts.Route == "" && !opts.TownInspect && opts.TownTest == ""
+	return !opts.Desktop && !opts.SessionInspect && !opts.RunsInspect && !opts.WaypointTargetsInspect && !opts.Probe && opts.InputTest == "" && opts.Run == "" && opts.RunPhase == "" && opts.RuntimeTraceCapture == "" && opts.ReplayRuntimeTrace == "" && opts.PathingTest == "" && opts.OfflineDifficulty == "" && opts.OfflineCharacter == "" && !opts.OfflineExitTest && opts.UIStateProbe == "" && opts.ScreenAnchorCapture == "" && opts.MercenaryProbe == "" && opts.CowProbe == "" && opts.WeaponSetProbe == "" && opts.ObjectInspect == "" && opts.StorageInspect == "" && opts.Route == "" && !opts.TownInspect && opts.TownTest == ""
 }
 
 // CharacterLoadoutRequired reports whether Runtime construction needs a frozen character loadout.
 func CharacterLoadoutRequired(opts Options) bool {
-	if opts.Desktop || opts.SessionInspect || opts.RunsInspect || opts.WaypointTargetsInspect || opts.Probe || opts.UIStateProbe != "" || opts.ScreenAnchorCapture != "" || opts.MercenaryProbe != "" || opts.CowProbe != "" || opts.WeaponSetProbe != "" || opts.ObjectInspect != "" || opts.TownInspect || opts.Route != "" {
+	if opts.Desktop || opts.SessionInspect || opts.RunsInspect || opts.WaypointTargetsInspect || opts.Probe || opts.UIStateProbe != "" || opts.ScreenAnchorCapture != "" || opts.MercenaryProbe != "" || opts.CowProbe != "" || opts.WeaponSetProbe != "" || opts.ObjectInspect != "" || opts.StorageInspect != "" || opts.TownInspect || opts.Route != "" {
 		return false
 	}
 	if SessionExecutionRequested(opts) {

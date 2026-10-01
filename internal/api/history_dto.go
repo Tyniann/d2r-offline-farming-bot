@@ -94,22 +94,23 @@ type HistoryFailureDTO struct {
 
 // HistorySummaryDTO contains the filtered high-level farming answer.
 type HistorySummaryDTO struct {
-	Runs         int                `json:"runs"`
-	TerminalRuns int                `json:"terminal_runs"`
-	Successful   int                `json:"successful"`
-	Failed       int                `json:"failed"`
-	Aborted      int                `json:"aborted"`
-	Incomplete   int                `json:"incomplete"`
-	Running      int                `json:"running"`
-	SuccessRate  *float64           `json:"success_rate,omitempty"`
-	BossKills    int                `json:"boss_kills"`
-	Durations    HistoryDurationDTO `json:"durations"`
-	Stages       HistoryStagesDTO   `json:"stages"`
-	Funnel       HistoryFunnelDTO   `json:"funnel"`
-	KeepPerRun   *float64           `json:"keep_per_run,omitempty"`
-	KeepPerKill  *float64           `json:"keep_per_kill,omitempty"`
-	KeepPerHour  *float64           `json:"keep_per_hour,omitempty"`
-	TopFailure   *HistoryFailureDTO `json:"top_failure,omitempty"`
+	Runs         int                           `json:"runs"`
+	TerminalRuns int                           `json:"terminal_runs"`
+	Successful   int                           `json:"successful"`
+	Failed       int                           `json:"failed"`
+	Aborted      int                           `json:"aborted"`
+	Incomplete   int                           `json:"incomplete"`
+	Running      int                           `json:"running"`
+	SuccessRate  *float64                      `json:"success_rate,omitempty"`
+	BossKills    int                           `json:"boss_kills"`
+	Durations    HistoryDurationDTO            `json:"durations"`
+	Stages       HistoryStagesDTO              `json:"stages"`
+	Funnel       HistoryFunnelDTO              `json:"funnel"`
+	Compacted    []telemetry.CompactedMaterial `json:"compacted,omitempty"`
+	KeepPerRun   *float64                      `json:"keep_per_run,omitempty"`
+	KeepPerKill  *float64                      `json:"keep_per_kill,omitempty"`
+	KeepPerHour  *float64                      `json:"keep_per_hour,omitempty"`
+	TopFailure   *HistoryFailureDTO            `json:"top_failure,omitempty"`
 }
 
 // HistoryComparisonDTO is one server-sorted character/difficulty/definition/route row.
@@ -166,6 +167,7 @@ type HistoryRunDTO struct {
 	RouteID      string                   `json:"route_id"`
 	Outcome      telemetry.HistoryOutcome `json:"outcome"`
 	Reason       string                   `json:"reason,omitempty"`
+	ReasonParams map[string]string        `json:"reason_params,omitempty"`
 	LastStep     string                   `json:"last_step,omitempty"`
 	DurationMs   int64                    `json:"duration_ms"`
 	BossKills    int                      `json:"boss_kills"`

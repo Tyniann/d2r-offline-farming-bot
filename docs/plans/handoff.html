@@ -247,7 +247,7 @@
           <span class="pill">Memory Bot Core</span>
           <span class="pill">Go 1.26</span>
           <span class="pill">Countess MVP</span>
-          <span class="pill good">Stand: v0.27.0 · Blizzard-Zauberin für alle sechs Routen implementiert, manuelle Abnahme ausstehend · Necromancer, Hammerdin, Pickit-Workspace und Deutsch/Englisch-Umschaltung</span>
+          <span class="pill good">Stand: v0.28.0 · 1. Oktober 2026 · Storage Compaction abgenommen · Blizzard-Zauberin für alle sechs Routen unterstützt · Necromancer, Hammerdin, Pickit-Workspace und Deutsch/Englisch-Umschaltung</span>
           <span class="pill good">Phase 20 Cow Level abgenommen</span>
           <span class="pill good">Mercenary-Support abgenommen</span>
           <span class="pill good">Phase 24 Run-Recovery abgenommen</span>
@@ -883,6 +883,16 @@
       </div>
     </div>
 
+    <div class="phase">
+      <strong>Phase 25</strong>
+      <div>
+        <h3>Storage Compaction <span class="ok">Gates 25.0–25.9 bestanden · Implementierung abgeschlossen · v0.28.0</span></h3>
+        <p>Ein bestätigter voller Materialslot startet automatisch die Verdichtung normaler und makelloser Edelsteine/Schädel oder niedriger Runen von El bis Ort. Der gemeinsame Return-Flow wählt Gems beziehungsweise Runen und verwendet das eingebettete Truhen-Würfelraster: ein Strg+Shift+Rechtsklick lädt den Zutatensatz, der Executor bestätigt −3, transmutiert einmal und lagert den bestätigten Output per Strg+Shift+Linksklick zurück. Danach wird das ursprüngliche Keep-Item normal eingelagert und die Session fortgesetzt. Volle Ziele und unbestätigte Aktionen bleiben terminal. Keine Charaktersettings oder zusätzlichen Rezepte.</p>
+        <p>Live bestätigt auf D2R 3.2.92777 bei 1280×720: beide Rubin-Stufen, El → Eld, Pause/Fortsetzen vor Transmute und Tabnavigation aus Persönlich/Gemeinsam sowie Gems → Runen. Das produktive Tab-Settle beträgt 300 ms. Überlaufplanung, Skull-/Ort-/Kapazitätsgrenzen und Wiederaufnahme aller sechs Return-Flows sind automatisch geprüft; ein natürlich auftretender Farming-Überlauf bleibt ergänzende Logbeobachtung. Telemetrie und Replay erhalten den Compaction-Fortschritt und Materialkontext. Die Session-Übersicht zeigt rückgelagerte Ergebnisse separat unter „Verdichtet“, ohne den Loot-Funnel zu erhöhen.</p>
+        <p>Feature-Doc: <a href="../features/storage-compaction.md">Storage Compaction</a>. Abschnittsweise Nachweise: <a href="phase-25-implementation-plan.html">Phase-25-Umsetzungsplan</a>. Der eingebettete Renderer ist synchronisiert. Release v0.28.0 vom 1. Oktober 2026 liefert die abgeschlossene Phase aus.</p>
+      </div>
+    </div>
+
     <h2>5b. Koordinaten und Klick-Präzision — die Koolo-Methode</h2>
     <p>
       Für Bewegung und Entity-Klicks braucht der Bot eine Abbildung von Weltkoordinaten (Tiles) auf
@@ -1016,6 +1026,10 @@
         <tr>
           <td><code>/internal/loot</code></td>
           <td>Pickit-Regeln, Item-Filter, Inventory/Stash.</td>
+        </tr>
+        <tr>
+          <td><code>/internal/crafting</code> <span class="ok">(Phase 25)</span></td>
+          <td>CASC-Rezeptkatalog, endliche Materialplanung und verifizierter Executor über World und injizierte Truhenaktionen. App und Tasks autorisieren den gemeinsamen Stash-Return.</td>
         </tr>
         <tr>
           <td><code>/internal/telemetry</code></td>

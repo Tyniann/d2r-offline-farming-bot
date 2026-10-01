@@ -204,6 +204,9 @@ func (rt *Runtime) runTickWithMode(ctx context.Context, state *runState, mode ru
 	snap := rt.Probe.Snapshot()
 	rt.lastSnapshot = snap
 	cur := rt.World.Update(snap)
+	if mode == runTickModeFull && rt.storageCompaction != nil {
+		rt.storageCompaction.observePause(cur, time.Now())
+	}
 	mercenaryDeath := mercenaryDeathObservation{Decision: mercenaryDeathStable}
 	if mode == runTickModeFull {
 		mercenaryDeath = rt.mercenaryDeath.observe(cur)

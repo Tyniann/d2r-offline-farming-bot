@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"strings"
 	"sync"
 	"time"
@@ -297,6 +298,7 @@ func (r *RuntimeQueueRunner) Run(ctx context.Context, request SupervisorRunReque
 func queueRunTelemetryEvent(result SupervisorRunResult, request SupervisorRunRequest) telemetry.Event {
 	event := queueTelemetryEvent(queueRunTerminalEvent(result), request)
 	event.Reason = result.Reason
+	event.ReasonParams = maps.Clone(result.ReasonParams)
 	event.OriginalReason = result.OriginalReason
 	event.RecoveryReason = result.RecoveryReason
 	event.ExitAuthorization = string(result.ExitAuthorization)
@@ -388,7 +390,7 @@ func (r *RuntimeQueueRunner) FinishQueue(result SupervisorRunResult, state Super
 	} else if result.Reason == string(SupervisorReasonEmergencyStopRequested) || result.Reason == "stop_after_run" {
 		event = telemetry.SessionStopped
 	}
-	if err := r.sessionTrace.Emit(telemetry.Event{Event: event, Reason: result.Reason}); err != nil {
+	if err := r.sessionTrace.Emit(telemetry.Event{Event: event, Reason: result.Reason, ReasonParams: maps.Clone(result.ReasonParams)}); err != nil {
 		return fmt.Errorf("emit queue session terminal: %w", err)
 	}
 	return nil
@@ -702,6 +704,7 @@ func (u *runtimeQueueUnit) RunToTown(ctx context.Context, request SupervisorRunR
 		}
 		var recoveryErr error
 		result, recoveryErr = classifyFailedQueueRun(ctx, request.DefinitionID, taskResult.Reason, u.runtime.Config.Session.RetryClasses, state, u.runtime.runRetryReturnToTown)
+		result.ReasonParams = maps.Clone(taskResult.ReasonParams)
 		if recoveryErr != nil {
 			u.runtime.Log.Error("controlled retry return failed", "run", request.DefinitionID, "reason", taskResult.Reason, "error", recoveryErr)
 		}

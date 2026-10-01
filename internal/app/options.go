@@ -53,6 +53,10 @@ type Options struct {
 	ObjectInspect string
 	// ObjectInspectTimeoutMs bounds the read-only object inspect capture.
 	ObjectInspectTimeoutMs int
+	// StorageInspect labels one read-only Gate-25.0 collection research capture.
+	StorageInspect string
+	// StorageInspectTimeoutMs bounds waiting and capture, defaulting to 30000.
+	StorageInspectTimeoutMs int
 	// ScreenAnchorCapture labels one Phase-7.3 frontend screenshot capture.
 	ScreenAnchorCapture string
 	// SessionInspect resolves and prints the Phase-7.5 session plan without runtime initialization.

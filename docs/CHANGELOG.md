@@ -7,12 +7,24 @@ Versionierung nach [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.28.0] - 2026-10-01
+
 ### Added
+- Add automatic compaction of normal and flawless gems, skulls and El–Ort runes after confirmed stash overflow, then resume the original item transfer
+- Add isolated one-recipe acceptance commands with an optional pause before transmute
+- Show confirmed storage compaction results as a separate expandable category in the session summary
+- Add a CASC-backed catalog of 23 storage recipes and a read-only `--storage-inspect` diagnostic for manual collection research
+- Add verified shared gem, skull and rune inventory counts and active material tabs to the World model and runtime traces
+- Add atomic Ctrl+Shift clicks and guarded embedded stash Cube actions with live-verified gem and rune transfers and tab timing
+- Add isolated `storage-transfer:gsr` and `storage-transfer:r01` input tests for tab timing and one verified stash-to-Cube round trip
+- Add a bounded storage recipe planner and executor with one-click ingredient loading and verified Cube results
 - Add an item-quality filter to the Pickit rule builder, including normal unsocketed bases, and show the selected quality in saved rules
 
 ### Fixed
 - Reposition Blizzard Sorceress after two seconds of casts without observed clear progress, retaining safe Cow landings and bounded recovery instead of treating every click as effective combat
 - Check Sorceress target projection before skill selection so an unreachable target does not trigger a Blizzard selection immediately replaced by Teleport
+- Allow storage compaction to select its material tab from Personal, Shared or Materials instead of requiring a material tab to be open already
+- Preserve storage-compaction item context in session errors and history, and show clear localized stash failure messages
 - Let operators choose keep or sell when creating Pickit rules and change the action of existing rules in the editor
 - Dismiss Pickit success messages after five seconds so they no longer cover editor controls
 - Preserve the complete run configuration and external stop decisions in diagnostic traces so Cow preflight and mercenary aborts can be replayed correctly

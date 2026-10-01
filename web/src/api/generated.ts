@@ -43,6 +43,7 @@ export interface CompatibilityDTO {
 export interface SessionResultDTO {
   disposition: string;
   reason?: string;
+  reason_params?: Record<string, string>;
   original_reason?: string;
   recovery_reason?: string;
   session_id?: string;
@@ -769,7 +770,13 @@ export interface HistoryFailureDTO {
   lost_duration_ms: number;
 }
 
+export interface CompactedMaterial {
+  code: string;
+  count: number;
+}
+
 export interface HistorySummaryDTO {
+  compacted?: Array<CompactedMaterial>;
   runs: number;
   terminal_runs: number;
   successful: number;
@@ -839,6 +846,7 @@ export interface HistoryRunDTO {
   route_id: string;
   outcome: string;
   reason?: string;
+  reason_params?: Record<string, string>;
   last_step?: string;
   duration_ms: number;
   boss_kills: number;
@@ -878,6 +886,7 @@ export interface HistoryRunDetailDTO {
   route_id: string;
   outcome: string;
   reason?: string;
+  reason_params?: Record<string, string>;
   last_step?: string;
   duration_ms: number;
   boss_kills: number;

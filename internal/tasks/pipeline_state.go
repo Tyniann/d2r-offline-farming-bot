@@ -3,6 +3,8 @@ package tasks
 import (
 	"time"
 
+	"github.com/Tyniann/d2r-offline-farming-bot/internal/crafting"
+
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/world"
 )
 
@@ -207,7 +209,13 @@ type pipelineLootState struct {
 
 // pipelineReturnState owns foreign-town egress and bounded portal recovery.
 type pipelineReturnState struct {
-	egressStarted bool
+	// A visit epoch and handled UnitIDs survive stash -> compact -> stash, then
+	// the run reset barrier revokes them. No failed trigger may compact twice.
+	stashGeneration   uint64
+	pendingCompaction *crafting.Request
+	retryCompaction   *crafting.Request
+	compactedUnits    map[uint32]bool
+	egressStarted     bool
 	// recoveryArea* prevents retry-return input during a waypoint/load transition.
 	// The destination must remain the same across fresh snapshots for the full
 	// load-fade settle before a Town Portal request is allowed.
@@ -261,6 +269,10 @@ const (
 )
 
 func (c *runPipeline) resetGeneration() {
+	c.ret.pendingCompaction = nil
+	c.ret.retryCompaction = nil
+	c.ret.compactedUnits = nil
+	c.ret.stashGeneration = 0
 	c.travel.navStarted = false
 	c.travel.resumeAfterPrecheckSet = false
 	c.travel.resumeAfterPrecheck = ""
@@ -301,6 +313,12 @@ func (c *runPipeline) resetGeneration() {
 }
 
 func (c *runPipeline) onStepEnter(step string) {
+	if step == pipelineStepOpenStash {
+		c.ret.pendingCompaction = nil
+		c.ret.retryCompaction = nil
+		c.ret.compactedUnits = nil
+		c.ret.stashGeneration = 0
+	}
 	c.travel.navStarted = false
 	c.travel.routeStarted = false
 	c.resetRouteProgressUnavailable()
@@ -351,7 +369,8 @@ func (c *runPipeline) onStepEnter(step string) {
 }
 
 type stepResult struct {
-	complete bool
-	failed   bool
-	reason   string
+	complete     bool
+	failed       bool
+	reason       string
+	reasonParams map[string]string
 }

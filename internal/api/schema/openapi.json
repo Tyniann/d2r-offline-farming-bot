@@ -1880,6 +1880,7 @@
           "reason": {
             "type": "string"
           },
+          "reason_params": {"type": "object", "additionalProperties": {"type": "string"}},
           "original_reason": {
             "type": "string"
           },
@@ -4264,6 +4265,14 @@
           }
         }
       },
+      "CompactedMaterial": {
+        "type": "object",
+        "required": ["code", "count"],
+        "properties": {
+          "code": {"type": "string"},
+          "count": {"type": "integer"}
+        }
+      },
       "HistorySummaryDTO": {
         "type": "object",
         "required": [
@@ -4280,6 +4289,7 @@
           "funnel"
         ],
         "properties": {
+          "compacted": {"type": "array", "items": {"$ref": "#/components/schemas/CompactedMaterial"}},
           "runs": {
             "type": "integer"
           },
@@ -4517,6 +4527,7 @@
           "reason": {
             "type": "string"
           },
+          "reason_params": {"type": "object", "additionalProperties": {"type": "string"}},
           "last_step": {
             "type": "string"
           },
@@ -4652,6 +4663,7 @@
           "reason": {
             "type": "string"
           },
+          "reason_params": {"type": "object", "additionalProperties": {"type": "string"}},
           "last_step": {
             "type": "string"
           },

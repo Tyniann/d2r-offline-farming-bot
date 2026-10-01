@@ -83,7 +83,7 @@ func countessRunProgress(step string, areaID world.AreaID) (RunProgress, bool) {
 	case pipelineStepCastTownPortal, pipelineStepEnterTownPortal, pipelineStepWaitOriginTown,
 		pipelineStepPlayTownEgress, pipelineStepOpenOriginWaypoint, pipelineStepSelectHubWaypoint, pipelineStepWaitHubArea:
 		return validRunProgress("return_town", nil, 11, total)
-	case pipelineStepOpenStash, pipelineStepStashItems, pipelineStepCloseStash:
+	case pipelineStepOpenStash, pipelineStepStashItems, pipelineStepCompactStorage, pipelineStepCloseStash:
 		return validRunProgress("stash", nil, 12, total)
 	case pipelineStepPrepareTown, pipelineStepComplete:
 		return validRunProgress("complete", nil, 13, total)
@@ -108,7 +108,7 @@ func standardBossRunProgress(step, waypointCode, travelCode string) (RunProgress
 	case pipelineStepCastTownPortal, pipelineStepEnterTownPortal, pipelineStepWaitOriginTown,
 		pipelineStepPlayTownEgress, pipelineStepOpenOriginWaypoint, pipelineStepSelectHubWaypoint, pipelineStepWaitHubArea:
 		return validRunProgress("return_town", nil, 6, total)
-	case pipelineStepOpenStash, pipelineStepStashItems, pipelineStepCloseStash:
+	case pipelineStepOpenStash, pipelineStepStashItems, pipelineStepCompactStorage, pipelineStepCloseStash:
 		return validRunProgress("stash", nil, 7, total)
 	case pipelineStepPrepareTown, pipelineStepComplete:
 		return validRunProgress("complete", nil, 8, total)
@@ -133,7 +133,7 @@ func lowerKurastRunProgress(step string) (RunProgress, bool) {
 	case pipelineStepCastTownPortal, pipelineStepEnterTownPortal, pipelineStepWaitOriginTown,
 		pipelineStepPlayTownEgress, pipelineStepOpenOriginWaypoint, pipelineStepSelectHubWaypoint, pipelineStepWaitHubArea:
 		return validRunProgress("return_town", nil, 6, total)
-	case pipelineStepOpenStash, pipelineStepStashItems, pipelineStepCloseStash:
+	case pipelineStepOpenStash, pipelineStepStashItems, pipelineStepCompactStorage, pipelineStepCloseStash:
 		return validRunProgress("stash", nil, 7, total)
 	case pipelineStepPrepareTown, pipelineStepComplete:
 		return validRunProgress("complete", nil, 8, total)
@@ -165,7 +165,7 @@ func cowRunProgress(step string) (RunProgress, bool) {
 		return validRunProgress("cow_sweep", nil, 9, total)
 	case pipelineStepCastTownPortal, pipelineStepEnterTownPortal, pipelineStepWaitOriginTown:
 		return validRunProgress("return_town", nil, 10, total)
-	case pipelineStepOpenStash, pipelineStepStashItems, pipelineStepCloseStash:
+	case pipelineStepOpenStash, pipelineStepStashItems, pipelineStepCompactStorage, pipelineStepCloseStash:
 		return validRunProgress("stash", nil, 11, total)
 	case pipelineStepPrepareTown, pipelineStepComplete:
 		return validRunProgress("complete", nil, 12, total)

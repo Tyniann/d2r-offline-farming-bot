@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -515,7 +516,7 @@ var historyEventNames = func() map[EventName]struct{} {
 		RouteThreatDetected, RouteClearStarted, RouteMonsterSnapshotSaturated, RouteClearAction,
 		RouteClearProgress, RouteClearCompleted, RouteManaHold, RouteRecoverySuppressed,
 		TownMercenaryHealRequested, TownMercenaryHealConfirmed, TownMercenaryReviveRequested, TownMercenaryReviveConfirmed,
-		MercenaryDied, CowRecipeProgress, ChestOpened, ChestSkipped, RackOperated, RackSkipped,
+		MercenaryDied, CowRecipeProgress, StorageCompactionStarted, StorageCompactionRecipe, StorageCompactionCompleted, StorageCompactionFailed, ChestOpened, ChestSkipped, RackOperated, RackSkipped,
 		TownPortalEntryUnconfirmed, LocalRecoveryClearStarted, LocalRecoveryClearFinished, ReturnPortalRetry,
 		DirectExitStarted, DirectExitCompleted, DirectExitFailed,
 		StartTownNormalizationStarted, StartTownNormalizationCompleted, StartTownNormalizationFailed,
@@ -528,6 +529,11 @@ var historyEventNames = func() map[EventName]struct{} {
 }()
 
 func cloneHistoryEvent(event Event) Event {
+	event.ReasonParams = maps.Clone(event.ReasonParams)
+	if event.Compaction != nil {
+		copy := *event.Compaction
+		event.Compaction = &copy
+	}
 	event.BeltSlots = append([]int(nil), event.BeltSlots...)
 	event.PickitProfiles = append([]PickitProfileContext(nil), event.PickitProfiles...)
 	return event

@@ -14,7 +14,7 @@ import (
 
 const (
 	// SchemaVersion is the current runtime-trace bundle schema.
-	SchemaVersion = 1
+	SchemaVersion = 2
 	// BundleExtension is the only filename suffix managed by trace retention.
 	BundleExtension = ".trace.gz"
 )
@@ -140,6 +140,18 @@ type WorldFrame struct {
 	Items           []ItemFrame      `json:"items,omitempty"`
 	MonsterCoverage MonsterCoverage  `json:"monster_coverage"`
 	Evidence        map[string]bool  `json:"evidence,omitempty"`
+	Collection      CollectionFrame  `json:"collection"`
+}
+
+// CollectionFrame preserves semantic storage counts and availability without
+// memory pointers. Generation binds the source to its enclosing Frame.
+type CollectionFrame struct {
+	ScopeID    string                `json:"scope_id,omitempty"`
+	ScopeKnown bool                  `json:"scope_known"`
+	Generation uint64                `json:"generation,omitempty"`
+	Counts     []world.MaterialCount `json:"counts,omitempty"`
+	Tab        world.StorageTab      `json:"tab,omitempty"`
+	TabKnown   bool                  `json:"tab_known"`
 }
 
 // PlayerFrame is the normalized player decision state.
@@ -294,6 +306,7 @@ func NormalizeWorld(state world.State) WorldFrame {
 		Hover:           HoverFrame{Hovered: state.Hover.IsHovered, UnitType: state.Hover.UnitType.String(), UnitID: state.Hover.UnitID},
 		MonsterCoverage: MonsterCoverage{EligibleCount: state.MonsterCoverage.EligibleMonsterCount, Truncated: state.MonsterCoverage.MonstersTruncated, RadiusTiles: state.MonsterCoverage.MonsterCoverageRadiusTiles},
 		Evidence:        map[string]bool{"cow_corpses_complete": state.CowCorpsesComplete},
+		Collection:      normalizeCollection(state),
 	}
 	for _, object := range state.Objects {
 		frame.Objects = append(frame.Objects, EntityFrame{Kind: object.Kind.String(), ID: object.ID, UnitID: object.UnitID, X: object.Position.X, Y: object.Position.Y, Hovered: object.IsHovered, Mode: object.Mode, ModeKnown: object.ModeKnown})
@@ -315,7 +328,9 @@ func NormalizeWorld(state world.State) WorldFrame {
 
 // Validate checks structural and ordering invariants without executing a replay.
 func (b Bundle) Validate() error {
-	if b.SchemaVersion != SchemaVersion {
+	// Phase 25 explicitly retains pre-collection traces. Schema 1 is accepted
+	// only without collection evidence; its missing fields remain unknown.
+	if b.SchemaVersion != SchemaVersion && b.SchemaVersion != 1 {
 		return fmt.Errorf("runtime trace schema version %d is unsupported", b.SchemaVersion)
 	}
 	if strings.TrimSpace(b.Contract.RunID) == "" {
@@ -327,6 +342,9 @@ func (b Bundle) Validate() error {
 	var previousTick uint64
 	var previousElapsed int64 = -1
 	for index, frame := range b.Frames {
+		if b.SchemaVersion == 1 && (frame.World.Collection.ScopeKnown || frame.World.Collection.ScopeID != "" || frame.World.Collection.Generation != 0 || len(frame.World.Collection.Counts) != 0 || frame.World.Collection.TabKnown) {
+			return fmt.Errorf("runtime trace schema 1 cannot contain collection evidence")
+		}
 		if index > 0 && frame.Tick <= previousTick {
 			return fmt.Errorf("runtime trace frame tick %d is not strictly increasing", frame.Tick)
 		}

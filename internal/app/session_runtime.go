@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"time"
 
 	"github.com/Tyniann/d2r-offline-farming-bot/internal/tasks"
@@ -152,7 +153,7 @@ func (rt *Runtime) finishSessionRunTelemetry(result SupervisorRunResult) error {
 		return fmt.Errorf("session run telemetry is not active")
 	}
 	terminal := telemetry.Event{
-		Event: queueRunTerminalEvent(result), Reason: result.Reason,
+		Event: queueRunTerminalEvent(result), Reason: result.Reason, ReasonParams: maps.Clone(result.ReasonParams),
 		OriginalReason: result.OriginalReason, RecoveryReason: result.RecoveryReason,
 		ExitAuthorization: string(result.ExitAuthorization),
 	}

@@ -28,6 +28,14 @@ const (
 	StashAttempt  EventName = "stash_attempt"
 	StashSuccess  EventName = "stash_success"
 	StashFull     EventName = "stash_full"
+	// StorageCompactionStarted bindet einen Verdichtungsauftrag an das blockierte Inventaritem.
+	StorageCompactionStarted EventName = "storage_compaction_started"
+	// StorageCompactionRecipe bestätigt genau einen vollständig rückgelagerten Rezeptzyklus.
+	StorageCompactionRecipe EventName = "storage_compaction_recipe"
+	// StorageCompactionCompleted bestätigt den freien Quellslot und leeren Würfel.
+	StorageCompactionCompleted EventName = "storage_compaction_completed"
+	// StorageCompactionFailed meldet den terminalen Verdichtungsfehler ohne Folgeinput.
+	StorageCompactionFailed EventName = "storage_compaction_failed"
 	// SellSuccess bestätigt die Inventory-Transition einer gepinnten Sell-Unit.
 	SellSuccess EventName = "sell_success"
 	// TrashSellSuccess bestätigt den Cow-Town-Dump eines gepinnten Nicht-Keep-Items.
@@ -191,6 +199,10 @@ type Event struct {
 	ItemIdentityKind string        `json:"item_identity_kind,omitempty"`
 	ItemIdentityKey  string        `json:"item_identity_key,omitempty"`
 	Reason           string        `json:"reason,omitempty"`
+	// ReasonParams erhält Itemcodes getrennt von übersetzten Bedienhinweisen.
+	ReasonParams map[string]string `json:"reason_params,omitempty"`
+	// Compaction enthält ausschließlich bestätigte Rezeptmengen, keine Farming-Drops.
+	Compaction *CompactionProgress `json:"compaction,omitempty"`
 	// OriginalReason preserves the productive task failure before recovery.
 	OriginalReason string `json:"original_reason,omitempty"`
 	// RecoveryReason records the local recovery outcome or why it was skipped.

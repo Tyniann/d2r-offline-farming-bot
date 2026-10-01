@@ -47,6 +47,7 @@ type Snapshot struct {
 	MonsterCoverage       MonsterCoverage
 	Mercenary             MercenarySnapshot
 	Items                 []ItemUnit
+	Collection            CollectionSnapshot
 	PlayerSkills          PlayerSkills
 	ActiveWeaponSet       WeaponSetSnapshot
 	Hover                 HoverState
@@ -334,6 +335,7 @@ func (p *ProbeReader) Snapshot() Snapshot {
 		if snap.Items == nil {
 			snap.Items = make([]ItemUnit, 0)
 		}
+		snap.Collection = p.readCollectionStorage(moduleBase, off, snap)
 		return snap
 	}
 	p.resetIdentityStability()

@@ -62,6 +62,7 @@ const (
 // StashResult reports one verified transfer or terminal stash outcome.
 type StashResult struct {
 	Status        StashStatus
+	Reason        string
 	Done          bool
 	Attempted     bool
 	Transferred   bool
@@ -249,17 +250,39 @@ func (e *StashExecutor) transfer(item world.Item, now time.Time) StashResult {
 }
 
 func (e *StashExecutor) failActive(reason string) StashResult {
-	result := StashResult{Status: StashFailed, Done: true}
+	result := StashResult{Status: StashFailed, Done: true, Reason: reason}
 	if e.active != nil {
 		result.UnitID = e.active.item.UnitID
 		result.Code = e.active.item.Code
 		result.Name = e.active.item.Name
+		result.GridX, result.GridY = e.active.item.GridX, e.active.item.GridY
 		result.Attempt = e.attempt
 		result.Pickit = e.active.pickit
 	}
 	e.log.Warn("stash_failed", "reason", reason, "unit_id", result.UnitID, "code", result.Code, "attempt", result.Attempt)
 	e.Reset()
 	return result
+}
+
+// AuthorizeCompaction rechecks the unchanged unlocked Keep-target of an exhausted
+// transfer. It does not authorize recipe selection, collection counts or input.
+// Input/policy failures and unsafe inventory can never use this recovery.
+func (e *StashExecutor) AuthorizeCompaction(state world.State, target StashResult) bool {
+	if e == nil || e.filter == nil || target.Status != StashFailed || !target.Done || target.Reason != "verify_timeout" || target.UnitID == 0 || target.Attempt < e.cfg.MaxRetries || !state.Valid || !state.UI.StashOpen || !state.UI.InventoryOpen || !e.supportedResolution() {
+		return false
+	}
+	items, safe := e.candidates(state)
+	if !safe {
+		return false
+	}
+	for _, item := range items {
+		if item.UnitID != target.UnitID || item.Code != target.Code || item.GridX != target.GridX || item.GridY != target.GridY {
+			continue
+		}
+		policy := e.filter.evaluate(item)
+		return policy.Matched && policy.Action == ActionKeep && policy.ProfileID == target.Pickit.ProfileID && policy.RuleID == target.Pickit.RuleID && policy.ProfileRevision == target.Pickit.ProfileRevision && policy.AssignmentRevision == target.Pickit.AssignmentRevision
+	}
+	return false
 }
 
 func (e *StashExecutor) supportedResolution() bool {

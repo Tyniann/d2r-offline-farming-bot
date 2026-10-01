@@ -115,6 +115,7 @@ func FromSnapshot(snap memory.Snapshot) State {
 		Items:              items,
 		Hover:              hover,
 		UI:                 mapUIState(snap.UI),
+		Collection:         mapCollection(snap),
 	}
 }
 

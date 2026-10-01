@@ -2,9 +2,9 @@
 
 ## Überblick
 
-Phase 5.8 leert nach der verifizierten Rückkehr ins Rogue Encampment ausgewählte Inventar-Items in den persönlichen Stash. Unterstützt werden die aktuellen Pickit-Matches Runen, Countess-Key, Rejuvenation Potions sowie Flawless/Perfect Gems und Skulls. D2R sortiert sie per `Ctrl+LMB` in die charaktergebundenen Sammelbereiche; Rejuvenation-Nachschub wird gesammelt, aber in Phase 9 noch nicht automatisch aus dem 99er-Stash-Slot in den Belt zurückgeführt.
+Phase 5.8 leert nach der verifizierten Rückkehr ins Rogue Encampment ausgewählte Inventar-Items in die Truhe. Unterstützt werden die aktuellen Pickit-Keep-Matches für Runen, Countess-Key, Rejuvenation Potions sowie Gems und Skulls. D2R sortiert sie per `Ctrl+LMB` in die Sammelbereiche. Die Gem-/Skull- und Runenbestände sind gemeinsam genutzt und besitzen eine Kapazität von 99 pro Materialslot. Rejuvenation-Nachschub wird gesammelt, aber noch nicht automatisch aus dem Stash-Slot in den Belt zurückgeführt.
 
-Shared-Stash-Tabs, Tab-Wechsel, endliche Raster-Platzstrategien und das Droppen vorhandener Items sind ausdrücklich nicht Bestandteil dieses MVP. Phase 10.6 schließt run-spezifische Sell-Kandidaten vor dem Stash-Input aus; Identify/Sell selbst bleiben ein separater Town-Service.
+Phase 25 ergänzt bei bestätigtem Überlauf die gezielte Materialverdichtung mit Gem-/Runentabwahl und eingebettetem Truhen-Cube. Endliche Raster-Platzstrategien für andere Shared-Stash-Tabs und das Droppen vorhandener Items bleiben ausgeschlossen. Phase 10.6 schließt run-spezifische Sell-Kandidaten vor dem Stash-Input aus; Identify/Sell selbst bleiben ein separater Town-Service.
 
 ## Ort im Code
 
@@ -65,7 +65,7 @@ Das Inventory-Raster für `1280×720` verwendet `left=847`, `top=369` und Zellen
 3. Auf einen neuen konsistenten Memory-Snapshot warten.
 4. Erfolg, wenn die Unit aus dem Inventory verschwindet oder ihre Location nicht mehr `inventory` ist.
 
-Ohne Bestätigung wird bis `loot.stash.max_retries` wiederholt. Danach endet der Run mit `stash_failed`; das Item wird weder gedroppt noch anderweitig bewegt. `stash_full` ist als Status reserviert, wird für die derzeit unterstützten unbegrenzten Sammel-Tabs aber nicht heuristisch erzeugt.
+Ohne Bestätigung wird bis `loot.stash.max_retries` wiederholt. Danach bleiben Ursache, Itembindung und Pickit-Kontext im Ergebnis erhalten. Phase 25 autorisiert ausschließlich bei `verify_timeout`, unverändertem ungelocktem Keep-Item, unterstütztem Rezept und frisch gelesenem vollen Materialslot die Verdichtung. Nach verifiziertem Abschluss wird das Originalitem über denselben normalen Stash-Scan übertragen. Andere Fehler und ein erneut erfolgloses identisches Item bleiben terminal. `stash_full` bleibt für allgemeine endliche Stash-Flächen reserviert; Materialüberläufe verwenden den separaten Compaction-Fehlerkontext.
 
 Nach dem letzten Kandidaten sendet der Bot einmal `Esc`. Erfolg ist nur bestätigt, wenn `StashOpen=false` und `InventoryOpen=false` werden; andernfalls folgt `stash_close_failed`.
 
@@ -82,6 +82,8 @@ State-Machine:
 ```text
 precheck -> open_personal_stash -> stash_items -> close_personal_stash -> complete
 ```
+
+Bei bestätigtem unterstütztem Materialüberlauf ergänzt der gemeinsame Return-State den begrenzten Umweg `stash_items → compact_storage → stash_items`. Cube und Cursor sind vor der Verdichtung leer; das Originalitem bleibt als Inventartrigger erhalten. Die Tabwahl funktioniert auch aus Persönlich/Gemeinsam; Zutaten werden erst nach bestätigtem Materialtabwechsel bewegt. Einzelheiten und abgeschlossene Aktionsnachweise beschreibt [Storage Compaction](storage-compaction.md).
 
 `loot-and-return` und der vollständige Countess-Run hängen denselben Workflow nach `wait_origin_town` an. Es gibt keine Rückkehr in den Dungeon.
 
@@ -107,7 +109,7 @@ Am 10.07.2026 wurden zwei E2E-Schnitte validiert:
 ## Grenzen
 
 - Nur Personal Stash und die aktuellen Pickit-MVP-Typen.
-- Keine Shared-Stash-Automatik oder Tab-Klicks.
+- Keine allgemeine Shared-Stash-Rasterautomatik; Tab-Klicks nur für die unterstützte Materialverdichtung.
 - Keine allgemeine Identify-/Keep-Strategie; produktiv unterstützt ist ausschließlich der enge Mephisto-Sell-Pfad aus Phase 10.6.
 - Kein Droppen vorhandener Items.
 - Town-Detour ist für Rogue Encampment / Act 1 validiert.
@@ -120,4 +122,4 @@ Am 10.07.2026 wurden zwei E2E-Schnitte validiert:
 - [Countess-Run](countess-run.md)
 
 ---
-*Zuletzt aktualisiert: 2026-08-28*
+*Zuletzt aktualisiert: 2026-10-01*

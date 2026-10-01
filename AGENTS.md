@@ -34,6 +34,7 @@ Feature-first unter `internal/` und `web/src/features/`. Paket-Grenzen strikt ei
 | `internal/profile` | Klassen-/Combat-Profile, Encounter-Hooks, Route-Clear |
 | `internal/town` | Town-Graph, Vendor/Stash-Dienste, System-Egress |
 | `internal/loot` | Pickit, Inventar, Stash |
+| `internal/crafting` | CASC-Rezepte, endliche Materialverdichtung über World und injizierte Truhenaktionen |
 | `internal/telemetry` | JSONL Run-/Session-Telemetrie und History |
 | `internal/replay` | Opt-in Runtime-Traces und headless Replay ohne Memory oder OS-Input |
 | `internal/api` | Loopback-HTTP/SSE Core-API für die Desktop-UI |
@@ -68,6 +69,7 @@ Dokumentation und UI-facing Strings müssen ordentliches Deutsch und Umlaute ver
 1. **Minimale Diffs** — nur angeforderte Änderungen; keine Drive-by-Refactors.
 2. **Fehler:** mit Kontext wrappen (`fmt.Errorf("…: %w", err)`), auf oberster Ebene loggen; nicht still schlucken.
 3. **Tests:** für Config-Parsing, World-Mapping und Task-Übergänge; Windows-API-Code über Interfaces mockbar halten. Minimale Testanzahl.
+   **Manuelle Abnahmen:** vorhandene Spielbestände verwenden und den kleinsten konkreten Ablauf prüfen. Für Bestandsreads genügt ein Abgleich mit der tatsächlich angezeigten Menge. Grenzwerte und volle Lager über automatisierte Fixtures testen; den Operator keine vollständigen Materialsammlungen oder künstlichen Mengenmatrizen vorbereiten lassen. Zusätzliche Live-Aufnahmen nur für eine konkret fehlende technische Evidenz anfordern.
 4. **Commits:** nur auf ausdrückliche Anfrage; nie `git config` ändern; kein Force-Push auf `master`.
 5. **Validierung:** Nach einer abgeschlossenen Änderung nur die kleinsten betroffenen Tests und Builds einmal ausführen. Keine automatische Gesamtsuite. Vollständige Go-/UI-Tests, Lint, Produktbuild und Installer-Smokes nur bei ausdrücklichem Gesamtvalidierungs- oder Release-Auftrag über `scripts/build-release.ps1`.
 6. **UI facing strings:** Nur für Bot Benutzer relevante und nützliche Informationen anzeigen. Simple, klare Formulierungen - KEIN Technobabble.

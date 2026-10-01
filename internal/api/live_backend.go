@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -305,13 +306,16 @@ func (b *LiveBackend) UpdateSupervisor(supervisor app.SupervisorSnapshot) {
 		b.status.LastResult = nil
 	} else {
 		b.status.LastResult = &SessionResultDTO{
-			Disposition: string(supervisor.LastResult.Disposition), Reason: supervisor.LastResult.Reason,
+			Disposition: string(supervisor.LastResult.Disposition), Reason: supervisor.LastResult.Reason, ReasonParams: maps.Clone(supervisor.LastResult.ReasonParams),
 			OriginalReason: supervisor.LastResult.OriginalReason, RecoveryReason: supervisor.LastResult.RecoveryReason,
 			SessionID: supervisor.LastSessionID, DurationMs: supervisor.LastSessionDurationMs,
 		}
 	}
 	if supervisor.LastResult.Reason != "" && supervisor.State == app.SupervisorStateStoppedError {
 		params := map[string]any{}
+		for key, value := range supervisor.LastResult.ReasonParams {
+			params[key] = value
+		}
 		if supervisor.LastResult.OriginalReason != "" {
 			params["original_reason"] = supervisor.LastResult.OriginalReason
 		}
@@ -430,7 +434,7 @@ func (b *LiveBackend) publishStatusDeltas(previous, status StatusDTO) {
 	if previous.LastError != nil && status.LastError == nil {
 		b.publisher.Publish(telemetry.LiveEvent{Event: "runtime_error_cleared"})
 	}
-	if status.LastResult != nil && (previous.LastResult == nil || *previous.LastResult != *status.LastResult) {
+	if status.LastResult != nil && (previous.LastResult == nil || !reflect.DeepEqual(previous.LastResult, status.LastResult)) {
 		b.publisher.Publish(telemetry.LiveEvent{Event: "session_result", Reason: status.LastResult.Reason, Details: map[string]any{"disposition": status.LastResult.Disposition, "session_id": status.LastResult.SessionID, "duration_ms": status.LastResult.DurationMs}})
 	}
 }
@@ -554,10 +558,12 @@ func (b *LiveBackend) Status() StatusDTO {
 	status.Queue.DefaultEntries = append(make([]string, 0, len(b.status.Queue.DefaultEntries)), b.status.Queue.DefaultEntries...)
 	if b.status.LastError != nil {
 		copyOfError := *b.status.LastError
+		copyOfError.Params = maps.Clone(copyOfError.Params)
 		status.LastError = &copyOfError
 	}
 	if b.status.LastResult != nil {
 		copyOfResult := *b.status.LastResult
+		copyOfResult.ReasonParams = maps.Clone(copyOfResult.ReasonParams)
 		status.LastResult = &copyOfResult
 	}
 	return status
